@@ -1,0 +1,19 @@
+{
+  "escritasEm": "2026-11-20, antes de codar o protótipo",
+  "fonte": "pedido do dono (modo 'Contra a corrente') e regra ~/.claude/rules/teste-de-jogos.md",
+  "roboHumano": {
+    "reacao": "atraso de ~250 ms (desvio ~60 ms, mínimo 130 ms) mais erro aleatório no ritmo, semente fixa",
+    "rodadasPorCaso": 400
+  },
+  "vitoria": {
+    "facil_1": { "min": 0.90 },
+    "normal_1": { "min": 0.65, "max": 0.80 },
+    "dificil_1": { "min": 0.25, "max": 0.45 },
+    "normal_3": { "min": 0.90 }
+  },
+  "metronomo4hzPerdeNoNormal": true,
+  "quadro": { "p95MaxMs": 20, "tarefaLongaMaxMs": 200 },
+  "som": { "picoVerdadeiroMaxDbtp": -1, "cortes": 0, "cliques": 0, "lufsAlvo": "-19,3 do tiro, tolerância 3 LU" },
+  "folhaDeContato": { "min": 12, "max": 16 },
+  "prints": { "max": 3, "larguras": [1440, 1024] }
+}

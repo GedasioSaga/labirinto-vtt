@@ -1,0 +1,515 @@
+{
+  "metas": {
+    "escritasEm": "2026-11-20, antes de codar o protótipo",
+    "fonte": "pedido do dono (modo 'Contra a corrente') e regra ~/.claude/rules/teste-de-jogos.md",
+    "roboHumano": {
+      "reacao": "atraso de ~250 ms (desvio ~60 ms, mínimo 130 ms) mais erro aleatório no ritmo, semente fixa",
+      "rodadasPorCaso": 400
+    },
+    "vitoria": {
+      "facil_1": {
+        "min": 0.9
+      },
+      "normal_1": {
+        "min": 0.65,
+        "max": 0.8
+      },
+      "dificil_1": {
+        "min": 0.25,
+        "max": 0.45
+      },
+      "normal_3": {
+        "min": 0.9
+      }
+    },
+    "metronomo4hzPerdeNoNormal": true,
+    "quadro": {
+      "p95MaxMs": 20,
+      "tarefaLongaMaxMs": 200
+    },
+    "som": {
+      "picoVerdadeiroMaxDbtp": -1,
+      "cortes": 0,
+      "cliques": 0,
+      "lufsAlvo": "-19,3 do tiro, tolerância 3 LU"
+    },
+    "folhaDeContato": {
+      "min": 12,
+      "max": 16
+    },
+    "prints": {
+      "max": 3,
+      "larguras": [
+        1440,
+        1024
+      ]
+    }
+  },
+  "testes": [
+    {
+      "nome": "mesma semente = mesma partida; outra semente = outra partida",
+      "passou": true
+    },
+    {
+      "nome": "robô humano, Fácil, 1 jogador: vitória >= 90% (400 partidas)",
+      "passou": true,
+      "detalhe": {
+        "vitoria": 0.9425,
+        "tempo": 20,
+        "tempoDaVitoriaP50": 10.1,
+        "girosPorSegundoPorJogador": 5.71
+      }
+    },
+    {
+      "nome": "robô humano, Normal, 1 jogador: vitória entre 65% e 80%",
+      "passou": true,
+      "detalhe": {
+        "vitoria": 0.725,
+        "tempo": 16,
+        "tempoDaVitoriaP50": 10.5,
+        "girosPorSegundoPorJogador": 5.64
+      }
+    },
+    {
+      "nome": "robô humano, Difícil, 1 jogador: vitória entre 25% e 45%",
+      "passou": true,
+      "detalhe": {
+        "vitoria": 0.355,
+        "tempo": 15,
+        "tempoDaVitoriaP50": 11.7,
+        "girosPorSegundoPorJogador": 5.55
+      }
+    },
+    {
+      "nome": "robô humano, Normal, 3 jogadores: vitória >= 90%",
+      "passou": true,
+      "detalhe": {
+        "vitoria": 1,
+        "tempo": 16,
+        "tempoDaVitoriaP50": 5.1,
+        "girosPorSegundoPorJogador": 5.73
+      }
+    },
+    {
+      "nome": "robô que aperta 4 X por segundo perde no Normal (a ponte empaca antes do chão)",
+      "passou": true,
+      "detalhe": {
+        "venceu": false,
+        "pMax": 0.746,
+        "fase": "subiu",
+        "ritmoMinimoParaVencer": {
+          "facil": 4.33,
+          "normal": 4.94,
+          "dificil": 5.64
+        }
+      }
+    },
+    {
+      "nome": "robô nunca reage em zero: reação mínima >= 130 ms, média 250 ± 20 ms, desvio 60 ± 15 ms",
+      "passou": true,
+      "detalhe": {
+        "n": 2921,
+        "min": 0.13,
+        "media": 0.248,
+        "dp": 0.058
+      }
+    },
+    {
+      "nome": "Difícil pede mais que o Normal, que pede mais que o Fácil (ritmo mínimo para vencer sobe)",
+      "passou": true,
+      "detalhe": {
+        "facil": 4.33,
+        "normal": 4.94,
+        "dificil": 5.64
+      }
+    },
+    {
+      "nome": "gráfico do movimento: amostras a cada 0,1 s; ponte entre 0 e 1 e só desce com giro nos últimos 0,35 s; força = base + fundo·ponte + catraca solta; catraca só solta depois da folga sem giro; sem salto (<= 0,12 por 0,1 s); fim no tempo certo",
+      "passou": true,
+      "detalhe": [
+        {
+          "caso": "Normal, 1 jogador, robô humano (semente \"grafico|1\")",
+          "venceu": true,
+          "tFim": 11.74,
+          "amostras": 119,
+          "maxSaltoPor01s": 0.037,
+          "falhas": [],
+          "fimCerto": true,
+          "soltou": 2,
+          "pMax": 1
+        },
+        {
+          "caso": "Difícil, 1 jogador, robô humano (semente \"grafico|perde\")",
+          "venceu": false,
+          "tFim": 15,
+          "amostras": 151,
+          "maxSaltoPor01s": 0.035,
+          "falhas": [],
+          "fimCerto": true,
+          "soltou": 3,
+          "pMax": 0.7918
+        },
+        {
+          "caso": "Normal, robô metrônomo de 4 X por segundo",
+          "venceu": false,
+          "tFim": 16,
+          "amostras": 161,
+          "maxSaltoPor01s": 0.022,
+          "falhas": [],
+          "fimCerto": true,
+          "soltou": 0,
+          "pMax": 0.7441
+        }
+      ]
+    },
+    {
+      "nome": "o gráfico tem os dois desfechos: o Normal vence, o Difícil perde e o metrônomo de 4/s empaca abaixo de 95%",
+      "passou": true,
+      "detalhe": [
+        {
+          "caso": "Normal, 1 jogador, robô humano (semente \"grafico|1\")",
+          "venceu": true,
+          "pMax": 1
+        },
+        {
+          "caso": "Difícil, 1 jogador, robô humano (semente \"grafico|perde\")",
+          "venceu": false,
+          "pMax": 0.7918
+        },
+        {
+          "caso": "Normal, robô metrônomo de 4 X por segundo",
+          "venceu": false,
+          "pMax": 0.7441
+        }
+      ]
+    },
+    {
+      "nome": "teclado: X no convite e na contagem não gira; cada X gira uma vez; segurar o X (repetição) não gira; M sem jogador 2 não gira",
+      "passou": true,
+      "detalhe": {
+        "xNoConviteNaoComeca": true,
+        "xNaContagemIgnorado": true,
+        "umX": 1,
+        "segurarNaoConta": 1,
+        "mSemJogador2": 1,
+        "botaoToque": 2,
+        "controleX": 3,
+        "touchAction": "manipulation",
+        "escPausa": true,
+        "xPausadoIgnorado": true,
+        "escVolta": true,
+        "doisJogadores": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "nome": "toque e controle: o botão Girar gira no toque (touch-action manipulation) e o X do controle gira",
+      "passou": true,
+      "detalhe": {
+        "botaoToque": 2,
+        "controleX": 3,
+        "touchAction": "manipulation"
+      }
+    },
+    {
+      "nome": "Esc pausa (o tempo para e X não conta) e Esc continua; com 2 jogadores, X e M giram cada um o seu",
+      "passou": true,
+      "detalhe": {
+        "escPausa": true,
+        "xPausadoIgnorado": true,
+        "escVolta": true,
+        "doisJogadores": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "nome": "prefers-reduced-motion: a ponte desce sem tremor de tela, sem a corrente vibrar e com água e tocha paradas",
+      "passou": true,
+      "detalhe": {
+        "tela": "fim",
+        "tremor": 0,
+        "vibMax": 0,
+        "trauma": 0,
+        "ambienteParado": true
+      }
+    },
+    {
+      "nome": "mestre: Difícil muda o convite (15 s); o tempo vai para 24 s e \"Padrão\" volta; a chance estimada é a da simulação",
+      "passou": true,
+      "detalhe": {
+        "dificil": {
+          "conviteDif": "Difícil",
+          "conviteTempo": "15 s",
+          "slider": "15"
+        },
+        "tempo": {
+          "config": 24,
+          "convite": "24 s",
+          "padraoLigado": true,
+          "voltou": "15 s"
+        },
+        "chance": "72%",
+        "esperada": "72%"
+      }
+    },
+    {
+      "nome": "mestre: 3 jogadores abrem 2 vagas (bot ou tecla M/Q); na rodada os 2 bots giram de verdade",
+      "passou": true,
+      "detalhe": {
+        "vagas": 2,
+        "equipeConvite": "Você, Bia (bot), Tomé (bot)",
+        "teclaNoConvite": true,
+        "equipeRodada": 3,
+        "girosBots": [
+          14,
+          11
+        ]
+      }
+    },
+    {
+      "nome": "mestre: pausar para todos para o tempo e trava o \"Continuar\" do jogador; continuar volta; encerrar leva ao resultado",
+      "passou": true,
+      "detalhe": {
+        "pausa": {
+          "parado": true,
+          "overlay": true,
+          "continuarDesligado": true,
+          "botao": "Continuar para todos",
+          "voltou": true
+        },
+        "encerrou": {
+          "tela": "resultado",
+          "titulo": "Encerrada pelo mestre",
+          "desfecho": "No mapa, nada muda: a ponte continua erguida."
+        }
+      }
+    },
+    {
+      "nome": "mestre: desfecho \"abrir uma porta\" com nome aparece no convite e no resultado da vitória",
+      "passou": true,
+      "detalhe": {
+        "desfechoConvite": "A porta “Porta da Capela” se abre.",
+        "vitoria": {
+          "tela": "resultado",
+          "titulo": "A ponte desceu!",
+          "desfecho": "No mapa: a porta “Porta da Capela” se abre."
+        }
+      }
+    },
+    {
+      "nome": "rodada inteira no Normal em tempo real, jogada por eventos de teclado (X), chega ao resultado em 1440 e 1024",
+      "passou": true,
+      "detalhe": [
+        {
+          "tipo": "baixou",
+          "tFim": 8.18,
+          "giros": 56,
+          "s": 10.6
+        },
+        {
+          "tipo": "baixou",
+          "tFim": 8.18,
+          "giros": 56,
+          "s": 10.6
+        }
+      ]
+    },
+    {
+      "nome": "quadro durante a rodada: p95 do intervalo <= 20 ms e nenhuma tarefa longa >= 200 ms (1440 e 1024)",
+      "passou": true,
+      "detalhe": [
+        {
+          "largura": 1440,
+          "quadros": 634,
+          "intervaloP50": 16.7,
+          "intervaloP95": 16.8,
+          "trabalhoP95": 0.9,
+          "trabalhoMax": 3,
+          "tarefasLongas": []
+        },
+        {
+          "largura": 1024,
+          "quadros": 630,
+          "intervaloP50": 16.7,
+          "intervaloP95": 16.8,
+          "trabalhoP95": 0.8,
+          "trabalhoMax": 7.9,
+          "tarefasLongas": []
+        }
+      ]
+    },
+    {
+      "nome": "sem rolagem horizontal em 1440 e 1024 (convite, rodada, resultado, mestre)",
+      "passou": true,
+      "detalhe": []
+    },
+    {
+      "nome": "folha de contato com 12 a 16 quadros, com a catraca solta, o pouso e a derrota",
+      "passou": true,
+      "detalhe": {
+        "quadros": 15,
+        "rotulos": [
+          "Convite: a ponte erguida | antes da rodada | ponte 0%",
+          "Contagem: \"Prontos…\" | contagem 0,30 s | ponte 0% · corrente 9%",
+          "Já! Os primeiros giros | t = 0,49 s | ponte 5% · corrente 10%",
+          "Giro: manivela, clique da catraca | t = 0,65 s | ponte 9% · corrente 11%",
+          "A ponte desce; a corrente paga | t = 2,18 s | ponte 35% · corrente 17%",
+          "Mão parada: a catraca soltou | t = 2,74 s | ponte 32% · corrente 44% · solta",
+          "A corrente puxa a ponte de volta | t = 3,08 s | ponte 22% · corrente 84% · solta",
+          "Voltou a girar: a lingueta pega | t = 3,54 s | ponte 11% · corrente 12%",
+          "Reta final: a corrente pesa mais | t = 12,97 s | ponte 86% · corrente 27%",
+          "Pouso: a ponte toca a margem | fim + 0,00 s | ponte 100% · corrente 30%",
+          "Poeira e tremor do pouso | fim + 0,17 s | ponte 100% · corrente 30%",
+          "Ponte assentada: o portão aberto | t = 15,19 s | ponte 100% · corrente 30%",
+          "Difícil, 4,5/s: últimos segundos, a ponte empaca | t = 14,10 s | ponte 69% · corrente 20%",
+          "Tempo esgotado: a ponte sobe | fim + 0,40 s | ponte 45% · corrente 21%",
+          "A ponte bate no portão | fim + 0,71 s | ponte 0% · corrente 21%"
+        ]
+      }
+    },
+    {
+      "nome": "som: pico verdadeiro <= -1 dBTP, nenhum corte, nenhum clique fora de ataque, DC < 0,5%",
+      "passou": true,
+      "detalhe": [
+        {
+          "arquivo": "som/rodada-normal-vence.wav",
+          "lufsIntegrado": -19.86,
+          "picoVerdadeiroDbtp": -2.72,
+          "cortes": 0,
+          "cliques": 0,
+          "ataques": 0,
+          "dcPct": -0.0169,
+          "silenciosNoMeio": 0
+        },
+        {
+          "arquivo": "som/rodada-dificil-perde.wav",
+          "lufsIntegrado": -20.57,
+          "picoVerdadeiroDbtp": -2.7,
+          "cortes": 0,
+          "cliques": 0,
+          "ataques": 0,
+          "dcPct": -0.0184,
+          "silenciosNoMeio": 0
+        }
+      ]
+    },
+    {
+      "nome": "som: volume dentro de 3 LU do tiro (-19.29 LUFS)",
+      "passou": true,
+      "detalhe": [
+        {
+          "arquivo": "som/rodada-normal-vence.wav",
+          "lufs": -19.86
+        },
+        {
+          "arquivo": "som/rodada-dificil-perde.wav",
+          "lufs": -20.57
+        }
+      ]
+    },
+    {
+      "nome": "nenhum erro no console da página",
+      "passou": true,
+      "detalhe": []
+    }
+  ],
+  "robo": {
+    "facil_1": {
+      "vitoria": 0.9425,
+      "tempo": 20,
+      "tempoDaVitoriaP50": 10.1,
+      "girosPorSegundoPorJogador": 5.71
+    },
+    "normal_1": {
+      "vitoria": 0.725,
+      "tempo": 16,
+      "tempoDaVitoriaP50": 10.5,
+      "girosPorSegundoPorJogador": 5.64
+    },
+    "dificil_1": {
+      "vitoria": 0.355,
+      "tempo": 15,
+      "tempoDaVitoriaP50": 11.7,
+      "girosPorSegundoPorJogador": 5.55
+    },
+    "normal_3": {
+      "vitoria": 1,
+      "tempo": 16,
+      "tempoDaVitoriaP50": 5.1,
+      "girosPorSegundoPorJogador": 5.73
+    }
+  },
+  "ritmoMinimoParaVencer": {
+    "facil": 4.33,
+    "normal": 4.94,
+    "dificil": 5.64
+  },
+  "desempenho": [
+    {
+      "largura": 1440,
+      "quadros": 634,
+      "intervaloP50": 16.7,
+      "intervaloP95": 16.8,
+      "trabalhoP95": 0.9,
+      "trabalhoMax": 3,
+      "tarefasLongas": []
+    },
+    {
+      "largura": 1024,
+      "quadros": 630,
+      "intervaloP50": 16.7,
+      "intervaloP95": 16.8,
+      "trabalhoP95": 0.8,
+      "trabalhoMax": 7.9,
+      "tarefasLongas": []
+    }
+  ],
+  "folha": {
+    "quadros": 15,
+    "rotulos": [
+      "Convite: a ponte erguida | antes da rodada | ponte 0%",
+      "Contagem: \"Prontos…\" | contagem 0,30 s | ponte 0% · corrente 9%",
+      "Já! Os primeiros giros | t = 0,49 s | ponte 5% · corrente 10%",
+      "Giro: manivela, clique da catraca | t = 0,65 s | ponte 9% · corrente 11%",
+      "A ponte desce; a corrente paga | t = 2,18 s | ponte 35% · corrente 17%",
+      "Mão parada: a catraca soltou | t = 2,74 s | ponte 32% · corrente 44% · solta",
+      "A corrente puxa a ponte de volta | t = 3,08 s | ponte 22% · corrente 84% · solta",
+      "Voltou a girar: a lingueta pega | t = 3,54 s | ponte 11% · corrente 12%",
+      "Reta final: a corrente pesa mais | t = 12,97 s | ponte 86% · corrente 27%",
+      "Pouso: a ponte toca a margem | fim + 0,00 s | ponte 100% · corrente 30%",
+      "Poeira e tremor do pouso | fim + 0,17 s | ponte 100% · corrente 30%",
+      "Ponte assentada: o portão aberto | t = 15,19 s | ponte 100% · corrente 30%",
+      "Difícil, 4,5/s: últimos segundos, a ponte empaca | t = 14,10 s | ponte 69% · corrente 20%",
+      "Tempo esgotado: a ponte sobe | fim + 0,40 s | ponte 45% · corrente 21%",
+      "A ponte bate no portão | fim + 0,71 s | ponte 0% · corrente 21%"
+    ]
+  },
+  "som": [
+    {
+      "arquivo": "som/rodada-normal-vence.wav",
+      "lufsIntegrado": -19.86,
+      "picoVerdadeiroDbtp": -2.72,
+      "cortes": 0,
+      "cliques": 0,
+      "ataques": 0,
+      "dcPct": -0.0169,
+      "silenciosNoMeio": 0
+    },
+    {
+      "arquivo": "som/rodada-dificil-perde.wav",
+      "lufsIntegrado": -20.57,
+      "picoVerdadeiroDbtp": -2.7,
+      "cortes": 0,
+      "cliques": 0,
+      "ataques": 0,
+      "dcPct": -0.0184,
+      "silenciosNoMeio": 0
+    }
+  ],
+  "errosNoConsole": [],
+  "resumo": "25 de 25"
+}

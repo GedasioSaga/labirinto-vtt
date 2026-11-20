@@ -1,0 +1,1374 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alavanca da ponte · protótipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
+<style>
+/* Tokens do app (os mesmos do protótipo da Barraca de Tiro). */
+:root {
+  color-scheme: dark;
+  --lb-color-ink: #121214;
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-tide: #79a9cc;
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, 'Source Serif 4', Georgia, serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --lb-font-utility: Bahnschrift, 'DIN Alternate', Barlow, 'Segoe UI Variable Small', 'Segoe UI', sans-serif;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-shadow-focus: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+  --lb-shadow-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lb-motion-fast: 110ms;
+  --lb-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --al-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --al-palco: #0d0c0f;
+  --al-topo: 48px;
+  --al-coluna: clamp(300px, 27vw, 380px);
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--lb-color-ink); color: var(--lb-color-parchment); font: 13px/1.45 var(--lb-font-sans); -webkit-font-smoothing: antialiased; overflow: hidden; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+h2[tabindex="-1"]:focus-visible { box-shadow: none; }
+p, h1, h2, h3, ul, dl, dd, fieldset { margin: 0; }
+ul { padding: 0; list-style: none; }
+fieldset { border: 0; padding: 0; min-width: 0; }
+legend { padding: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--lb-color-line-strong); border-radius: 4px; font: 500 10.5px/16px var(--lb-font-utility); color: var(--lb-color-parchment-dim); text-align: center; }
+
+/* botões e controles do app */
+.lb-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 0 12px; border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); font-size: 13px; font-weight: 500; white-space: nowrap; transition: background-color var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease), transform var(--lb-motion-fast) var(--lb-motion-ease); }
+.lb-btn:active:not(:disabled) { background: var(--lb-color-stone-sunken); transform: scale(0.97); }
+.lb-btn:disabled { color: var(--lb-color-parchment-faint); background: transparent; }
+.lb-btn--primary { background: var(--lb-color-brass); border-color: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-weight: 600; }
+.lb-btn--primary:active:not(:disabled) { background: var(--lb-color-brass); }
+.lb-btn--block { width: 100%; min-height: 44px; font-size: 14px; }
+.lb-btn--sm { min-height: 28px; padding: 0 9px; font-size: 12px; }
+.lb-btn--primary kbd { border-color: rgba(28, 22, 8, 0.35); color: var(--lb-color-brass-contrast); }
+@media (hover: hover) and (pointer: fine) {
+  .lb-btn:hover:not(:disabled) { background: var(--lb-color-stone-hover); border-color: var(--lb-color-line-strong); }
+  .lb-btn--primary:hover:not(:disabled) { background: var(--lb-color-brass-bright); border-color: var(--lb-color-brass-bright); }
+}
+.seg { display: inline-flex; flex-wrap: wrap; padding: 2px; gap: 2px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.seg button { min-height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--lb-color-parchment-dim); font-size: 12px; font-weight: 500; transition: background-color var(--lb-motion-fast) var(--lb-motion-ease), color var(--lb-motion-fast) var(--lb-motion-ease); }
+.seg button[aria-pressed="true"] { background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); box-shadow: var(--lb-shadow-bevel); }
+.rotulo { font: 500 11.5px/1.3 var(--lb-font-utility); color: var(--lb-color-parchment-dim); letter-spacing: 0.02em; }
+.nota { font-size: 12px; color: var(--lb-color-parchment-faint); }
+
+/* topo */
+.app { height: 100%; display: grid; grid-template-rows: var(--al-topo) 1fr; overflow: hidden; }
+.topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--lb-color-line); background: var(--lb-color-stone-solid); min-width: 0; }
+.topo__marca { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+.wordmark { font: 600 19px/1 var(--lb-font-display); }
+.migalhas { display: flex; gap: 6px; align-items: baseline; color: var(--lb-color-parchment-faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.migalhas b { color: var(--lb-color-parchment-dim); font-weight: 500; }
+.visao { display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* jogador */
+.jogador { display: grid; grid-template-columns: minmax(0, 1fr) var(--al-coluna); min-height: 0; }
+.palco { position: relative; overflow: hidden; background: var(--al-palco); min-height: 0; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.palco canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.contagem { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; font: 600 clamp(30px, 5vw, 60px)/1 var(--lb-font-display); color: #f6efdc; text-shadow: 0 2px 0 rgba(40, 28, 18, 0.9), 0 0 22px rgba(0, 0, 0, 0.55); opacity: 0; transition: opacity 160ms var(--al-ease-out); }
+.contagem[data-on="1"] { opacity: 1; }
+.pausa { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(13, 12, 15, 0.62); }
+.pausa__caixa { display: grid; gap: 10px; justify-items: center; padding: 18px 22px; border-radius: var(--lb-radius-lg); background: var(--lb-color-stone-solid); border: 1px solid var(--lb-color-line-strong); text-align: center; }
+.pausa__caixa h2 { font: 600 20px/1.2 var(--lb-font-display); }
+.coluna { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-left: 1px solid var(--lb-color-line); background: var(--lb-color-stone-solid); }
+.tela { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 20px; overflow-y: auto; overflow-x: hidden; }
+
+/* convite */
+.cabeca { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: center; }
+.cabeca canvas { width: 48px; height: 48px; border-radius: var(--lb-radius-md); background: #2a221d; border: 1px solid var(--lb-color-line-strong); }
+.cabeca h1 { font: 600 17px/1.25 var(--lb-font-display); overflow-wrap: anywhere; }
+.cabeca p { font-size: 12px; color: var(--lb-color-parchment-faint); overflow-wrap: anywhere; }
+.fala { padding: 12px 14px; border-radius: var(--lb-radius-lg); background: #1f1a14; border: 1px solid rgba(224, 164, 74, 0.2); color: #ebe0c9; font: 15px/1.5 var(--lb-font-display); overflow-wrap: anywhere; }
+.ficha { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ficha div { display: grid; gap: 2px; padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); min-width: 0; }
+.ficha .larga { grid-column: 1 / -1; }
+.ficha dd { font-size: 13px; overflow-wrap: anywhere; }
+.teclas { display: grid; gap: 6px; font-size: 12px; color: var(--lb-color-parchment-dim); }
+.teclas li { display: flex; align-items: center; gap: 8px; }
+
+/* rodada */
+.tela--jogo { padding: 16px; gap: 12px; }
+.relogio { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.relogio b { font: 600 30px/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.relogio[data-pouco="1"] b { color: #f0b3ad; }
+.relogio span { font-size: 12px; color: var(--lb-color-parchment-faint); }
+.medidor { display: grid; gap: 5px; padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); }
+.medidor__topo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.medidor__topo b { font: 600 18px/1.1 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.medidor__trilho { height: 6px; border-radius: 3px; background: var(--lb-color-stone-sunken); overflow: hidden; }
+.medidor__trilho i { display: block; height: 100%; width: 100%; border-radius: 3px; background: var(--lb-color-brass); transform-origin: left; transform: scaleX(0); }
+.medidor--corrente .medidor__trilho i { background: var(--lb-color-tide); transition: background-color 120ms ease; }
+.medidor--corrente[data-solta="1"] .medidor__trilho i { background: var(--lb-color-ember); }
+.medidor--corrente[data-solta="1"] .medidor__topo b { color: #f0b3ad; }
+.tempo-trilho { height: 4px; border-radius: 2px; background: var(--lb-color-line); overflow: hidden; }
+.tempo-trilho i { display: block; height: 100%; width: 100%; background: var(--lb-color-parchment-dim); transform-origin: left; }
+.equipe { display: grid; gap: 6px; }
+.equipe li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.equipe .marca { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; font: 600 12px/1 var(--lb-font-utility); color: var(--lb-color-brass-contrast); background: var(--cor); }
+.equipe .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.equipe .ritmo { font: 500 12px/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); font-variant-numeric: tabular-nums; }
+.girar { min-height: 64px; font-size: 16px; touch-action: manipulation; }
+.girar kbd { font-size: 12px; }
+.dica { font-size: 12.5px; color: var(--lb-color-parchment-dim); min-height: 3em; overflow-wrap: anywhere; }
+.dica[data-tom="alerta"] { color: #f0b3ad; }
+
+/* resultado */
+.veredito { display: grid; gap: 4px; }
+.veredito h2 { font: 600 26px/1.15 var(--lb-font-display); }
+.veredito p { color: var(--lb-color-parchment-dim); }
+.veredito[data-tipo="baixou"] h2 { color: var(--lb-color-brass-bright); }
+.numeros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.numeros div { padding: 8px 10px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); min-width: 0; }
+.numeros dd { font: 600 19px/1.2 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.desfecho { padding: 10px 12px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line); background: var(--lb-color-stone-sunken); overflow-wrap: anywhere; }
+.desfecho[data-ok="1"] { border-color: rgba(224, 164, 74, 0.35); background: #1f1a14; }
+.botoes { display: grid; gap: 8px; }
+
+/* mestre */
+.mestre { overflow-y: auto; overflow-x: hidden; padding: 24px; min-height: 0; }
+.mestre__grade { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.painel { display: grid; gap: 16px; padding: 18px; border-radius: var(--lb-radius-lg); background: var(--lb-color-stone-solid); border: 1px solid var(--lb-color-line); min-width: 0; }
+.painel h2 { font: 600 17px/1.2 var(--lb-font-display); }
+.campo { display: grid; gap: 7px; min-width: 0; }
+.campo__linha { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.campo input[type="range"] { flex: 1; min-width: 140px; accent-color: var(--lb-color-brass); }
+.campo output { font: 600 16px/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; min-width: 44px; }
+.campo input[type="text"] { min-height: 34px; padding: 0 10px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line-strong); background: var(--lb-color-stone-sunken); width: 100%; }
+.campo input[type="text"]:disabled { opacity: 0.45; }
+.vagas { display: grid; gap: 6px; }
+.vagas li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 10px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.opcoes { display: grid; gap: 6px; }
+.opcao { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line); background: var(--lb-color-stone-raised); cursor: pointer; }
+.opcao:has(input:checked) { border-color: var(--lb-color-brass); background: #29231a; }
+.opcao input { margin: 2px 0 0; accent-color: var(--lb-color-brass); }
+.opcao b { display: block; font-weight: 600; }
+.opcao span { font-size: 12px; color: var(--lb-color-parchment-dim); }
+.chance { display: grid; gap: 4px; padding: 12px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.chance b { font: 600 24px/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.aovivo { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; }
+.aovivo dt { color: var(--lb-color-parchment-faint); }
+.aovivo dd { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.linha { display: flex; flex-wrap: wrap; gap: 8px; }
+
+@media (max-width: 900px) { .mestre__grade { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 720px) {
+  .jogador { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(220px, 1fr) auto; }
+  .coluna { border-left: 0; border-top: 1px solid var(--lb-color-line); max-height: 60vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .contagem { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topo">
+    <div class="topo__marca">
+      <span class="wordmark">Labirinto</span>
+      <nav class="migalhas" aria-label="Onde você está">Castelo de Valverde <span aria-hidden="true">›</span> <b>Alavanca da ponte</b></nav>
+    </div>
+    <div class="visao">
+      <div class="seg" role="group" aria-label="Ver como">
+        <button type="button" data-visao="jogador" aria-pressed="true">Jogador</button>
+        <button type="button" data-visao="mestre" aria-pressed="false">Mestre</button>
+      </div>
+      <button type="button" class="lb-btn lb-btn--sm" id="bSom" aria-pressed="true">Som ligado</button>
+    </div>
+  </header>
+
+  <main class="jogador" id="vJogador">
+    <div class="palco" id="palco">
+      <canvas id="cena" role="img" aria-label="A ponte levadiça está erguida diante do portão."></canvas>
+      <div class="contagem" id="contagem" aria-hidden="true"></div>
+      <div class="pausa" id="pausa" hidden>
+        <div class="pausa__caixa" role="dialog" aria-modal="false" aria-labelledby="pausaTitulo">
+          <h2 id="pausaTitulo">Pausado</h2>
+          <p class="nota" id="pausaMotivo">A corrente espera. Esc ou o botão continua.</p>
+          <button type="button" class="lb-btn lb-btn--primary" id="bContinuar">Continuar</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="coluna" aria-label="Minigame">
+      <section class="tela" id="tConvite" aria-labelledby="cTitulo">
+        <div class="cabeca">
+          <canvas id="icone" width="96" height="96" aria-hidden="true"></canvas>
+          <div><h1 id="cTitulo">Alavanca da ponte</h1><p>Portão de Valverde, fosso norte</p></div>
+        </div>
+        <p class="fala">A ponte levadiça está erguida e a corrente é pesada. Girem a alavanca sem parar: quem descansa a mão deixa a catraca soltar, e a corrente puxa a ponte de volta.</p>
+        <dl class="ficha">
+          <div><dt class="rotulo">Dificuldade</dt><dd id="cDif">Normal</dd></div>
+          <div><dt class="rotulo">Tempo</dt><dd id="cTempo">16 s</dd></div>
+          <div class="larga"><dt class="rotulo">Quem gira</dt><dd id="cEquipe">Você</dd></div>
+          <div class="larga"><dt class="rotulo">Se a ponte descer</dt><dd id="cDesfecho">A ponte do mapa desce.</dd></div>
+        </dl>
+        <ul class="teclas" id="cTeclas" aria-label="Teclas"></ul>
+        <button type="button" class="lb-btn lb-btn--primary lb-btn--block" id="bComecar">Começar</button>
+        <p class="nota">O mestre escolhe a dificuldade, o tempo e quem ajuda na aba Mestre.</p>
+      </section>
+
+      <section class="tela tela--jogo" id="tRodada" hidden aria-label="Rodada">
+        <div class="relogio" id="relogio"><b id="rTempo">16,0</b><span>segundos</span></div>
+        <div class="tempo-trilho" aria-hidden="true"><i id="rTempoBarra"></i></div>
+        <div class="medidor" role="meter" aria-label="Ponte baixada" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="mPonte">
+          <div class="medidor__topo"><span class="rotulo">Ponte</span><b id="rPonte">0%</b></div>
+          <div class="medidor__trilho"><i id="rPonteBarra"></i></div>
+        </div>
+        <div class="medidor medidor--corrente" id="mCorrente">
+          <div class="medidor__topo"><span class="rotulo">Força da corrente</span><b id="rCorrente">puxando</b></div>
+          <div class="medidor__trilho" aria-hidden="true"><i id="rCorrenteBarra"></i></div>
+        </div>
+        <ul class="equipe" id="rEquipe" aria-label="Quem gira"></ul>
+        <button type="button" class="lb-btn lb-btn--primary lb-btn--block girar" id="bGirar">Girar a alavanca <kbd>X</kbd></button>
+        <p class="dica" id="rDica" aria-hidden="true">Aperte X sem parar. A corrente puxa a ponte de volta o tempo todo.</p>
+        <div class="linha"><button type="button" class="lb-btn lb-btn--sm" id="bPausar">Pausar <kbd>Esc</kbd></button></div>
+      </section>
+
+      <section class="tela" id="tResultado" hidden aria-labelledby="resTitulo">
+        <div class="veredito" id="resVeredito"><h2 id="resTitulo" tabindex="-1">A ponte desceu!</h2><p id="resSub"></p></div>
+        <dl class="numeros" id="resNumeros"></dl>
+        <ul class="equipe" id="resEquipe" aria-label="Quem girou"></ul>
+        <p class="desfecho" id="resDesfecho"></p>
+        <div class="botoes">
+          <button type="button" class="lb-btn lb-btn--primary lb-btn--block" id="bDeNovo">Tentar de novo</button>
+          <button type="button" class="lb-btn lb-btn--block" id="bVoltar">Voltar ao convite</button>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <main class="mestre" id="vMestre" hidden>
+    <div class="mestre__grade">
+      <form class="painel" id="fMestre" aria-labelledby="mTitulo" onsubmit="return false">
+        <h2 id="mTitulo">Desafio da alavanca</h2>
+        <fieldset class="campo">
+          <legend class="rotulo">Dificuldade</legend>
+          <div class="seg" id="mDif" role="group" aria-label="Dificuldade">
+            <button type="button" data-dif="facil" aria-pressed="false">Fácil</button>
+            <button type="button" data-dif="normal" aria-pressed="true">Normal</button>
+            <button type="button" data-dif="dificil" aria-pressed="false">Difícil</button>
+          </div>
+        </fieldset>
+        <div class="campo">
+          <label class="rotulo" for="mTempo">Tempo limite</label>
+          <div class="campo__linha">
+            <input type="range" id="mTempo" min="8" max="40" step="1" value="16">
+            <output id="mTempoVal" for="mTempo">16 s</output>
+            <button type="button" class="lb-btn lb-btn--sm" id="mTempoPadrao" disabled>Padrão</button>
+          </div>
+        </div>
+        <fieldset class="campo">
+          <legend class="rotulo">Quantos giram juntos</legend>
+          <div class="seg" id="mJog" role="group" aria-label="Jogadores">
+            <button type="button" data-n="1" aria-pressed="true">1</button>
+            <button type="button" data-n="2" aria-pressed="false">2</button>
+            <button type="button" data-n="3" aria-pressed="false">3</button>
+            <button type="button" data-n="4" aria-pressed="false">4</button>
+          </div>
+          <ul class="vagas" id="mVagas"></ul>
+          <p class="nota">No protótipo, os outros jogadores são bots ou alguém no mesmo teclado. No app, cada um aperta X no próprio computador.</p>
+        </fieldset>
+        <fieldset class="campo">
+          <legend class="rotulo">Quando a ponte descer</legend>
+          <div class="opcoes">
+            <label class="opcao"><input type="radio" name="desfecho" value="ponte" checked><span><b>Abaixar a ponte do mapa</b><span>A ponte levadiça do mapa desce e o fosso pode ser atravessado.</span></span></label>
+            <label class="opcao"><input type="radio" name="desfecho" value="porta"><span><b>Abrir uma porta</b><span>Uma porta do mapa se abre.</span></span></label>
+          </div>
+          <label class="rotulo" for="mPorta">Porta que abre</label>
+          <input type="text" id="mPorta" maxlength="40" value="Portão de Valverde" disabled>
+        </fieldset>
+        <div class="chance" aria-live="polite">
+          <span class="rotulo">Chance de vitória estimada</span>
+          <b id="mChance">…</b>
+          <span class="nota" id="mChanceNota">robô que joga como gente, 200 partidas</span>
+        </div>
+      </form>
+
+      <section class="painel" aria-labelledby="mAoVivoTitulo">
+        <h2 id="mAoVivoTitulo">Rodada ao vivo</h2>
+        <dl class="aovivo">
+          <dt>Situação</dt><dd id="mSit">No convite</dd>
+          <dt>Tempo</dt><dd id="mT">–</dd>
+          <dt>Ponte</dt><dd id="mP">–</dd>
+          <dt>Corrente</dt><dd id="mC">–</dd>
+          <dt>Giros</dt><dd id="mG">–</dd>
+        </dl>
+        <div class="linha">
+          <button type="button" class="lb-btn" id="bPausaTodos" disabled>Pausar para todos</button>
+          <button type="button" class="lb-btn" id="bEncerrar" disabled>Encerrar</button>
+        </div>
+        <p class="nota" id="mNotaRodada">Mudanças no desafio valem a partir da próxima rodada.</p>
+      </section>
+    </div>
+  </main>
+</div>
+<p class="sr-only" id="anuncio" aria-live="polite"></p>
+
+<script>
+'use strict'
+// ==== SIM:INICIO ====
+// Simulação pura: sem DOM, sem áudio, passo fixo. O gerar-provas.cjs roda este
+// mesmo bloco no Node para calibrar e testar.
+const SIM = (() => {
+  const DT = 1 / 120
+  const AMOSTRA = 0.1 // s entre amostras do gráfico
+  const AMORT = 16 // 1/s: cada giro empurra a ponte por ~60 ms, não de uma vez
+  const VOLTAS = 6 // voltas da manivela da ponte erguida até baixada
+  const DENTES = 12 // dentes da catraca por volta
+  const RAMPA_SOLTA = 0.35 // s da lingueta começar a soltar até soltar de todo
+  const EXPOENTE_EQUIPE = 0.6 // n jogadores giram n^0,4 vezes mais rápido que um
+  const PAUSAS_POR_S = 0.12 // gente para de vez em quando (ajeitar a mão, olhar)
+  // passo: quanto da ponte desce por giro (1 jogador); puxaBase e puxaFundo: a
+  // corrente puxa de volta (por segundo), mais forte perto do chão; folga: s
+  // sem giro até a catraca soltar; solta: puxada a mais com a catraca solta.
+  const DIF = {
+    // Calibrado com o robô humano (400 partidas, 20/11/2026): Fácil 94%, Normal 72%, Difícil 35%.
+    facil: { nome: 'Fácil', tempo: 20, passo: 0.03, puxaBase: 0.04, puxaFundo: 0.078, folga: 0.6, solta: 0.2 },
+    normal: { nome: 'Normal', tempo: 16, passo: 0.03, puxaBase: 0.04, puxaFundo: 0.09, folga: 0.45, solta: 0.3 },
+    dificil: { nome: 'Difícil', tempo: 15, passo: 0.028, puxaBase: 0.05, puxaFundo: 0.085, folga: 0.38, solta: 0.4 },
+  }
+
+  function xmur3(s) {
+    let h = 1779033703 ^ s.length
+    for (let i = 0; i < s.length; i++) { h = Math.imul(h ^ s.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19) }
+    return () => { h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return (h ^= h >>> 16) >>> 0 }
+  }
+  function mulberry32(a) {
+    return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
+  }
+  const criarRng = (semente) => mulberry32(xmur3(String(semente))())
+  const gauss = (rng) => { let u = 0; while (u === 0) u = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng()) }
+  const limitar = (v, a, b) => Math.min(b, Math.max(a, v))
+
+  function regras(cfg) {
+    const D = DIF[cfg.dif] || DIF.normal
+    const n = limitar(Math.round(cfg.jogadores || 1), 1, 4)
+    return Object.assign({}, D, { dif: DIF[cfg.dif] ? cfg.dif : 'normal', n, tempo: cfg.tempo || D.tempo, passoJ: D.passo / Math.pow(n, EXPOENTE_EQUIPE) })
+  }
+  const puxada = (R, p, solta) => R.puxaBase + R.puxaFundo * p + R.solta * solta
+  const forcaMax = (R) => R.puxaBase + R.puxaFundo + R.solta
+
+  function criarPartida(cfg) {
+    const R = regras(cfg)
+    return { R, t: 0, k: 0, p: 0, v: 0, vel: 0, semGiro: 0, solta: 0, forca: puxada(R, 0, 0), fase: 'rodada', giros: Array(R.n).fill(0), dente: 0, ev: [], tFim: null, soltou: 0, maiorPausa: 0, pMax: 0 }
+  }
+
+  /** Um passo de DT. `quem`: índices dos jogadores que giraram neste passo. */
+  function passo(P, quem) {
+    if (P.fase !== 'rodada') return
+    const R = P.R
+    if (quem && quem.length) {
+      for (const j of quem) { P.v += R.passoJ * AMORT; P.giros[j]++; P.ev.push({ t: P.t, nome: 'giro', j }) }
+      if (P.solta > 0) P.ev.push({ t: P.t, nome: 'pegou' })
+      P.maiorPausa = Math.max(P.maiorPausa, P.semGiro)
+      P.semGiro = 0
+      P.solta = 0
+    } else {
+      P.semGiro += DT
+      if (P.semGiro > R.folga) {
+        if (P.solta === 0) { P.soltou++; P.ev.push({ t: P.t, nome: 'soltou' }) }
+        P.solta = Math.min(1, (P.semGiro - R.folga) / RAMPA_SOLTA)
+      }
+    }
+    P.forca = puxada(R, P.p, P.solta)
+    const antes = P.p
+    P.p += (P.v - P.forca) * DT
+    P.v *= Math.exp(-AMORT * DT)
+    if (P.p < 0) P.p = 0
+    P.vel = (P.p - antes) / DT
+    P.t = (P.k + 1) * DT
+    P.k++
+    const d = Math.floor(Math.min(1, P.p) * VOLTAS * DENTES + 1e-9)
+    if (d > P.dente) for (let i = P.dente; i < d; i++) P.ev.push({ t: P.t, nome: 'dente' })
+    else if (d < P.dente && P.solta > 0.25) for (let i = d; i < P.dente; i++) P.ev.push({ t: P.t, nome: 'volta' })
+    P.dente = d
+    if (P.p >= 1) { P.p = 1; P.vel = 0; P.fase = 'baixou'; P.tFim = P.t; P.ev.push({ t: P.t, nome: 'baixou' }) }
+    else if (P.k >= Math.round(R.tempo / DT)) { P.fase = 'subiu'; P.tFim = P.t; P.ev.push({ t: P.t, nome: 'subiu' }) }
+    P.pMax = Math.max(P.pMax, P.p)
+  }
+
+  /** Robô que joga como gente: reação ~250 ms, ritmo próprio, cansaço, pausas. */
+  function criarHumano(semente) {
+    const rng = criarRng(semente)
+    const reacao = () => Math.max(0.13, 0.25 + 0.06 * gauss(rng))
+    const ritmo = limitar(6.4 + 0.8 * gauss(rng), 4.6, 8.6)
+    const fadiga = 0.06 + 0.14 * rng()
+    const r0 = reacao()
+    const H = { tipo: 'humano', ritmo, fadiga, reacoes: [r0], prox: r0, pausas: 0 }
+    H.decidir = (t) => {
+      if (t + 1e-9 < H.prox) return false
+      const agora = ritmo * (1 - fadiga * Math.min(1, t / 15))
+      let intervalo = Math.exp(0.16 * gauss(rng) - 0.0128) / agora
+      if (rng() < PAUSAS_POR_S / agora) {
+        const re = reacao()
+        H.reacoes.push(re); H.pausas++
+        intervalo += 0.15 + 0.3 * rng() + re
+      }
+      H.prox += intervalo
+      return true
+    }
+    return H
+  }
+
+  /** Robô metrônomo: gira exatamente `hz` vezes por segundo depois de `atraso`. */
+  function criarMetronomo(hz, atraso = 0.25) {
+    const M = { tipo: 'metronomo', ritmo: hz, reacoes: [], prox: atraso }
+    M.decidir = (t) => { if (t + 1e-9 < M.prox) return false; M.prox += 1 / hz; return true }
+    return M
+  }
+
+  function simular(cfg, semente, opc = {}) {
+    const P = criarPartida(cfg)
+    const robos = opc.robos || Array.from({ length: P.R.n }, (_, j) => criarHumano(`${semente}|j${j}`))
+    const amostras = [], trilha = [], cada = Math.round(AMOSTRA / DT)
+    const grava = () => amostras.push([+P.t.toFixed(3), +P.p.toFixed(4), +P.forca.toFixed(4), +P.solta.toFixed(3), P.giros.reduce((a, b) => a + b, 0)])
+    if (!opc.leve) grava()
+    while (P.fase === 'rodada') {
+      const quem = []
+      for (let j = 0; j < robos.length; j++) if (robos[j].decidir(P.t)) quem.push(j)
+      passo(P, quem)
+      if (!opc.leve && P.k % cada === 0) grava()
+      if (opc.som && P.k % 2 === 0) trilha.push([P.t, P.vel, P.forca / forcaMax(P.R), P.solta])
+    }
+    if (!opc.leve && P.k % cada !== 0) grava()
+    return { venceu: P.fase === 'baixou', fase: P.fase, tFim: P.tFim, pMax: P.pMax, pFim: P.p, giros: P.giros.slice(), soltou: P.soltou, maiorPausa: P.maiorPausa, amostras, eventos: opc.leve ? [] : P.ev, trilha, R: P.R, reacoes: robos.flatMap((r) => r.reacoes), ritmos: robos.map((r) => r.ritmo) }
+  }
+
+  function estimar(cfg, n = 200, prefixo = 'estimativa') {
+    let v = 0
+    for (let i = 0; i < n; i++) if (simular(cfg, `${prefixo}|${cfg.dif}|${cfg.jogadores}|${cfg.tempo || ''}|${i}`, { leve: true }).venceu) v++
+    return v / n
+  }
+
+  return { DT, AMOSTRA, AMORT, VOLTAS, DENTES, RAMPA_SOLTA, EXPOENTE_EQUIPE, PAUSAS_POR_S, DIF, criarRng, gauss, regras, puxada, forcaMax, criarPartida, passo, criarHumano, criarMetronomo, simular, estimar }
+})()
+// ==== SIM:FIM ====
+
+// ==== SOM:INICIO ====
+// Som sintetizado (Web Audio). As mesmas funções tocam ao vivo e renderizam
+// offline (OfflineAudioContext) para a prova de LUFS, pico e cliques.
+const SOM = (() => {
+  const QUEDA = 0.65 // s da ponte voltando a subir quando o tempo acaba
+  const CONTAGEM = 0.8 // s de "Prontos…" antes do "Já!"
+  const VOLUME = 0.85 // ganho geral: a rodada fica perto dos -19 LUFS do tiro
+  function ruido(ctx) {
+    if (ctx.__ruido) return ctx.__ruido
+    const n = ctx.sampleRate * 2, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0)
+    let s = 20261120
+    for (let i = 0; i < n; i++) { s = (Math.imul(s, 1664525) + 1013904223) | 0; d[i] = ((s >>> 8) / 16777216) * 2 - 1 }
+    ctx.__ruido = b
+    return b
+  }
+  function env(g, quando, pico, ataque, queda) {
+    g.gain.setValueAtTime(0, quando)
+    g.gain.linearRampToValueAtTime(pico, quando + ataque)
+    g.gain.setTargetAtTime(0, quando + ataque, queda / 4)
+  }
+  function tom(C, destino, quando, o) {
+    const ctx = C.ctx, osc = ctx.createOscillator(), g = ctx.createGain()
+    osc.type = o.tipo || 'sine'
+    osc.frequency.setValueAtTime(o.f, quando)
+    if (o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2, quando + (o.varre || o.dur))
+    env(g, quando, o.ganho, o.ataque || 0.004, o.dur)
+    osc.connect(g); g.connect(destino)
+    osc.start(quando); osc.stop(quando + o.dur * 1.6 + 0.05)
+  }
+  function chiado(C, destino, quando, o) {
+    const ctx = C.ctx, src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain()
+    src.buffer = ruido(ctx)
+    f.type = o.filtro || 'bandpass'; f.frequency.value = o.f; f.Q.value = o.q || 1
+    env(g, quando, o.ganho, o.ataque || 0.002, o.dur)
+    src.connect(f); f.connect(g); g.connect(destino)
+    const off = ((quando * 7.919) % 1.7)
+    src.start(quando, off); src.stop(quando + o.dur * 1.6 + 0.05)
+  }
+  function cadeia(ctx, destino, inicio = 0) {
+    const mestre = ctx.createGain(); mestre.gain.value = VOLUME
+    const comp = ctx.createDynamicsCompressor()
+    comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15
+    mestre.connect(comp); comp.connect(destino)
+    const pan = (v) => { const p = ctx.createStereoPanner(); p.pan.value = v; p.connect(mestre); return p }
+    const C = { ctx, mestre, mec: pan(-0.3), ponte: pan(0.12), centro: pan(0) }
+    // rangido: madeira e eixo; sobe de tom com a tensão da corrente
+    const r1 = ctx.createOscillator(), r2 = ctx.createOscillator(), lfo = ctx.createOscillator(), lfoG = ctx.createGain()
+    r1.type = 'sawtooth'; r2.type = 'sawtooth'; r1.frequency.value = 92; r2.frequency.value = 139
+    lfo.frequency.value = 6.3; lfoG.gain.value = 11; lfo.connect(lfoG); lfoG.connect(r1.frequency); lfoG.connect(r2.frequency)
+    const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 760; rf.Q.value = 4
+    const rg = ctx.createGain(); rg.gain.value = 0
+    r1.connect(rf); r2.connect(rf); rf.connect(rg); rg.connect(C.mec)
+    r1.start(inicio); r2.start(inicio); lfo.start(inicio)
+    // corrente correndo: chiado metálico com tremor, quando a catraca solta
+    const cs = ctx.createBufferSource(); cs.buffer = ruido(ctx); cs.loop = true
+    const cf = ctx.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 1650; cf.Q.value = 1.3
+    const trem = ctx.createGain(); trem.gain.value = 0.55
+    const tl = ctx.createOscillator(), tlG = ctx.createGain(); tl.frequency.value = 23; tlG.gain.value = 0.45; tl.connect(tlG); tlG.connect(trem.gain)
+    const cg = ctx.createGain(); cg.gain.value = 0
+    cs.connect(cf); cf.connect(trem); trem.connect(cg); cg.connect(C.ponte)
+    cs.start(inicio); tl.start(inicio)
+    // fundo: água do fosso e vento, bem baixo, para o silêncio não ser buraco
+    const as = ctx.createBufferSource(); as.buffer = ruido(ctx); as.loop = true; as.playbackRate.value = 0.5
+    const af = ctx.createBiquadFilter(); af.type = 'lowpass'; af.frequency.value = 380; af.Q.value = 0.5
+    const ag = ctx.createGain(); ag.gain.value = 0.07
+    as.connect(af); af.connect(ag); ag.connect(C.centro); as.start(inicio)
+    C.rangido = { g: rg, f1: r1.frequency, f2: r2.frequency, filtro: rf.frequency }
+    C.corrente = { g: cg }
+    return C
+  }
+  /** Parâmetros contínuos: velocidade da ponte (fração/s), tensão 0..1, catraca solta 0..1. */
+  function continuo(C, quando, vel, tensao, solta) {
+    const mov = Math.min(1, Math.abs(vel) / 0.3)
+    C.rangido.g.gain.setTargetAtTime(0.22 * mov, quando, 0.03)
+    C.rangido.f1.setTargetAtTime(88 + 64 * tensao, quando, 0.08)
+    C.rangido.f2.setTargetAtTime(133 + 96 * tensao, quando, 0.08)
+    C.rangido.filtro.setTargetAtTime(700 + 560 * tensao, quando, 0.08)
+    C.corrente.g.gain.setTargetAtTime(0.5 * solta * Math.min(1, Math.max(0, -vel) / 0.12), quando, 0.03)
+  }
+  function evento(C, nome, quando, dados) {
+    switch (nome) {
+      case 'dente': // a lingueta cai no próximo dente: o clique da catraca
+        chiado(C, C.mec, quando, { f: 2900, q: 4, ganho: 0.85, ataque: 0.0015, dur: 0.035 })
+        tom(C, C.mec, quando, { f: 1870, ganho: 0.12, ataque: 0.0015, dur: 0.03 })
+        break
+      case 'volta': // a catraca solta: os dentes passam por baixo da lingueta
+        chiado(C, C.ponte, quando, { f: 1300, q: 5, ganho: 0.42, ataque: 0.002, dur: 0.03 })
+        break
+      case 'giro': // a mão empurra a manivela: um baque surdo de madeira
+        tom(C, C.mec, quando, { f: 190, f2: 120, varre: 0.06, ganho: 0.3, ataque: 0.004, dur: 0.08 })
+        break
+      case 'soltou': // a lingueta escapa: estalo metálico de aviso
+        tom(C, C.mec, quando, { f: 880, f2: 610, varre: 0.12, ganho: 0.3, ataque: 0.002, dur: 0.14, tipo: 'triangle' })
+        chiado(C, C.mec, quando, { f: 2200, q: 2, ganho: 0.3, ataque: 0.002, dur: 0.08 })
+        break
+      case 'pegou':
+        tom(C, C.mec, quando, { f: 1400, ganho: 0.18, ataque: 0.002, dur: 0.05, tipo: 'triangle' })
+        break
+      case 'prontos':
+        tom(C, C.centro, quando, { f: 660, ganho: 0.22, ataque: 0.004, dur: 0.12 })
+        break
+      case 'ja':
+        tom(C, C.centro, quando, { f: 990, ganho: 0.26, ataque: 0.004, dur: 0.2 })
+        tom(C, C.centro, quando, { f: 1485, ganho: 0.1, ataque: 0.004, dur: 0.16 })
+        break
+      case 'relogio': // os últimos 3 segundos
+        tom(C, C.centro, quando, { f: 1180, ganho: 0.16, ataque: 0.003, dur: 0.05, tipo: 'triangle' })
+        break
+    }
+  }
+  /** O fim: a ponte assenta (baixou) ou volta a subir e bate no portão (subiu). */
+  function final(C, quando, tipo) {
+    const at = tipo === 'subiu' ? quando + QUEDA : quando
+    if (tipo === 'subiu') {
+      C.corrente.g.gain.setTargetAtTime(0.55, quando, 0.03)
+      C.corrente.g.gain.setTargetAtTime(0, at, 0.05)
+      C.rangido.g.gain.setTargetAtTime(0.18, quando, 0.05)
+      C.rangido.g.gain.setTargetAtTime(0, at, 0.05)
+    } else {
+      C.rangido.g.gain.setTargetAtTime(0, quando, 0.04)
+      C.corrente.g.gain.setTargetAtTime(0, quando, 0.04)
+    }
+    tom(C, C.ponte, at, { f: 96, f2: 40, varre: 0.35, ganho: 0.8, ataque: 0.004, dur: 0.6 })
+    chiado(C, C.ponte, at, { f: 320, q: 0.7, filtro: 'lowpass', ganho: 0.6, ataque: 0.003, dur: 0.3 })
+    tom(C, C.ponte, at, { f: 232, f2: 180, varre: 0.08, ganho: 0.3, ataque: 0.003, dur: 0.12 })
+    if (tipo === 'subiu') { // ferro batendo no portão
+      for (const [f, gn, d] of [[420, 0.24, 0.9], [1013, 0.14, 0.7], [1567, 0.09, 0.5], [2210, 0.05, 0.4]]) tom(C, C.ponte, at, { f, ganho: gn, ataque: 0.002, dur: d, tipo: 'sine' })
+    } else { // poeira assentando
+      chiado(C, C.ponte, at + 0.02, { f: 3200, q: 0.6, filtro: 'highpass', ganho: 0.08, ataque: 0.04, dur: 0.7 })
+      tom(C, C.mec, at + 0.12, { f: 1400, ganho: 0.16, ataque: 0.002, dur: 0.06, tipo: 'triangle' }) // a trava da catraca
+    }
+  }
+  /** Rodada inteira já simulada, renderizada offline: contagem, eventos, contínuos e fim. */
+  async function renderizar(res, Offline, taxa = 48000) {
+    const t0 = CONTAGEM + 0.2
+    const cauda = res.fase === 'subiu' ? QUEDA + 2.0 : 2.0
+    const dur = t0 + res.tFim + cauda
+    const ctx = new Offline(2, Math.ceil(taxa * dur), taxa)
+    const C = cadeia(ctx, ctx.destination, 0)
+    evento(C, 'prontos', 0.2); evento(C, 'ja', t0)
+    for (const e of res.eventos) if (e.nome !== 'baixou' && e.nome !== 'subiu') evento(C, e.nome, t0 + e.t, e)
+    for (const s of res.trilha) continuo(C, t0 + s[0], s[1], s[2], s[3])
+    const tempo = res.R.tempo
+    for (let k = 3; k >= 1; k--) if (tempo - k < res.tFim && tempo - k > 0) evento(C, 'relogio', t0 + tempo - k)
+    final(C, t0 + res.tFim, res.fase)
+    const buf = await ctx.startRendering()
+    return { canais: [buf.getChannelData(0), buf.getChannelData(1)], taxa, inicio: t0, duracao: dur }
+  }
+  return { QUEDA, CONTAGEM, VOLUME, cadeia, continuo, evento, final, renderizar }
+})()
+// ==== SOM:FIM ====
+
+// ==== CENA ====
+// Estilo Meio-Termo: contorno no tom escuro da própria cor (60% da luz), cores
+// contidas, grão leve na pedra e na madeira, tudo por código e determinístico.
+const COR = { grama: '#8cbf80', gramaR: '#a2cc92', gramaS: '#76ac6d', terra: '#dda56c', barranco: '#aa745c', pedra: '#c3c0b2', praca: '#dcd0b6', carvalho: '#a07b51', nogueira: '#775739', pinho: '#b9995f', ferro: '#5d6164', latao: '#b89552', telhaAzul: '#43639a', palha: '#d6b56a', rosa: '#e8a2c4', amarelo: '#f0d266', branco: '#f3efe2', laranja: '#e6793f', agua: '#86aebb', interior: '#3a302a' }
+const CORES_J = ['#e0a44a', '#79a9cc', '#8cbf80', '#e8a2c4']
+const rgbDe = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255] }
+const tomDe = (h, f, a = 1) => { const [r, g, b] = rgbDe(h); const c = (v) => Math.max(0, Math.min(255, Math.round(v * f))); return a < 1 ? `rgba(${c(r)},${c(g)},${c(b)},${a})` : `rgb(${c(r)},${c(g)},${c(b)})` }
+const mistura = (a, b, k) => { const x = rgbDe(a), y = rgbDe(b); return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * k)).join(',')})` }
+const contorno = (h) => tomDe(h, 0.6)
+const MUNDO = { w: 620, h: 340, cx: 310, cy: 190 }
+const PONTE = { cx: 330, hy: 244, L: 136, meia: 66 }
+const SARILHO = { x: 12, y: 178, w: 196, h: 168, cx: 98, cy: 96, R: 44 }
+const FUROS = [[262, 104], [398, 104]]
+
+function caminhoArredondado(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath() }
+function grao(g, x, y, w, h, cor, n, semente) {
+  const rng = SIM.criarRng(semente)
+  g.fillStyle = cor
+  for (let i = 0; i < n; i++) g.fillRect(x + rng() * w, y + rng() * h, 0.9 + rng() * 1.2, 0.7)
+}
+function blocos(g, x, y, w, h, alt, larg, cor, semente) {
+  const rng = SIM.criarRng(semente)
+  g.strokeStyle = cor; g.lineWidth = 0.8
+  g.beginPath()
+  for (let yy = y + alt, lin = 0; yy < y + h; yy += alt, lin++) { g.moveTo(x, yy); g.lineTo(x + w, yy) }
+  for (let yy = y, lin = 0; yy < y + h; yy += alt, lin++) {
+    for (let xx = x + (lin % 2 ? larg / 2 : 0) + rng() * 4; xx < x + w; xx += larg * (0.8 + rng() * 0.4)) { g.moveTo(xx, yy); g.lineTo(xx, Math.min(y + h, yy + alt)) }
+  }
+  g.stroke()
+}
+function ameias(g, x0, x1, y, alt, larg, vao, cor) {
+  g.fillStyle = cor; g.strokeStyle = contorno(COR.pedra); g.lineWidth = 1
+  for (let x = x0; x + larg <= x1 + 0.1; x += larg + vao) { g.fillRect(x, y - alt, larg, alt); g.strokeRect(x + 0.5, y - alt + 0.5, larg - 1, alt) }
+}
+function torre(g, x, y, w, base) {
+  const corpo = g.createLinearGradient(x, 0, x + w, 0)
+  corpo.addColorStop(0, tomDe(COR.pedra, 0.82)); corpo.addColorStop(0.65, COR.pedra); corpo.addColorStop(1, tomDe(COR.pedra, 1.06))
+  g.fillStyle = corpo; g.fillRect(x, y, w, base - y)
+  blocos(g, x, y, w, base - y, 11, 18, tomDe(COR.pedra, 0.86, 0.7), `torre${x}`)
+  grao(g, x, y, w, base - y, tomDe(COR.pedra, 0.78, 0.5), 60, `gt${x}`)
+  g.strokeStyle = contorno(COR.pedra); g.lineWidth = 1.2; g.strokeRect(x, y, w, base - y)
+  // telhado cônico
+  const meio = x + w / 2
+  g.beginPath(); g.moveTo(x - 7, y + 2); g.lineTo(meio, y - 52); g.lineTo(x + w + 7, y + 2); g.closePath()
+  const tel = g.createLinearGradient(x, 0, x + w, 0); tel.addColorStop(0, tomDe(COR.telhaAzul, 0.82)); tel.addColorStop(0.6, COR.telhaAzul); tel.addColorStop(1, tomDe(COR.telhaAzul, 1.12))
+  g.fillStyle = tel; g.fill(); g.strokeStyle = contorno(COR.telhaAzul); g.lineWidth = 1.2; g.stroke()
+  g.strokeStyle = tomDe(COR.telhaAzul, 0.75, 0.6); g.lineWidth = 0.8
+  for (let i = 1; i < 5; i++) { const k = i / 5; g.beginPath(); g.moveTo(meio - (w / 2 + 7) * k, y - 52 + 54 * k); g.lineTo(meio + (w / 2 + 7) * k, y - 52 + 54 * k); g.stroke() }
+  // seteira
+  g.fillStyle = '#2b2420'; caminhoArredondado(g, meio - 2.5, y + 30, 5, 18, 2.5); g.fill()
+}
+function nuvem(g, x, y, k) {
+  g.fillStyle = 'rgba(248, 240, 226, 0.78)'
+  g.beginPath()
+  g.ellipse(x, y, 34 * k, 9 * k, 0, 0, Math.PI * 2); g.ellipse(x - 16 * k, y - 5 * k, 15 * k, 9 * k, 0, 0, Math.PI * 2); g.ellipse(x + 12 * k, y - 7 * k, 18 * k, 11 * k, 0, 0, Math.PI * 2)
+  g.fill()
+}
+
+/** Tudo o que não se mexe, em coordenadas do mundo (620 x 340, estende para os lados). */
+function desenharFixo(g) {
+  const ceu = g.createLinearGradient(0, -140, 0, 244)
+  ceu.addColorStop(0, '#a3bfcc'); ceu.addColorStop(0.58, '#dcd8c8'); ceu.addColorStop(1, '#efd5ac')
+  g.fillStyle = ceu; g.fillRect(-700, -500, 2000, 760)
+  const sol = g.createRadialGradient(560, 64, 4, 560, 64, 110)
+  sol.addColorStop(0, 'rgba(255, 242, 210, 0.95)'); sol.addColorStop(0.16, 'rgba(255, 234, 196, 0.5)'); sol.addColorStop(1, 'rgba(255, 234, 196, 0)')
+  g.fillStyle = sol; g.fillRect(420, -60, 300, 260)
+  nuvem(g, 70, 40, 1); nuvem(g, 440, 22, 0.75); nuvem(g, 640, 52, 1.1); nuvem(g, -120, 30, 0.9)
+  // morros distantes
+  g.fillStyle = mistura(COR.gramaS, '#dcd8c8', 0.5)
+  g.beginPath(); g.moveTo(-700, 244)
+  for (let x = -700; x <= 1300; x += 40) g.lineTo(x, 150 + 18 * Math.sin(x * 0.013) + 10 * Math.sin(x * 0.031 + 1))
+  g.lineTo(1300, 244); g.closePath(); g.fill()
+  // muralha
+  const mur = g.createLinearGradient(0, 92, 0, 244); mur.addColorStop(0, tomDe(COR.pedra, 1.05)); mur.addColorStop(1, tomDe(COR.pedra, 0.9))
+  g.fillStyle = mur; g.fillRect(-700, 104, 2000, 140)
+  blocos(g, -700, 104, 2000, 140, 12, 26, tomDe(COR.pedra, 0.84, 0.75), 'muralha')
+  grao(g, -700, 104, 2000, 140, tomDe(COR.pedra, 0.76, 0.45), 900, 'gmur')
+  ameias(g, -700, 1300, 104, 12, 14, 10, tomDe(COR.pedra, 1.02))
+  g.strokeStyle = contorno(COR.pedra); g.lineWidth = 1.2; g.beginPath(); g.moveTo(-700, 104.5); g.lineTo(1300, 104.5); g.stroke()
+  torre(g, 120, 72, 64, 244); torre(g, 470, 72, 64, 244)
+  // casa do portão
+  const cp = g.createLinearGradient(238, 0, 422, 0); cp.addColorStop(0, tomDe(COR.pedra, 0.94)); cp.addColorStop(1, tomDe(COR.pedra, 1.06))
+  g.fillStyle = cp; g.fillRect(238, 50, 184, 194)
+  blocos(g, 238, 50, 184, 194, 12, 24, tomDe(COR.pedra, 0.84, 0.75), 'portao')
+  grao(g, 238, 50, 184, 194, tomDe(COR.pedra, 0.76, 0.45), 260, 'gport')
+  ameias(g, 238, 422, 50, 12, 15, 9.5, tomDe(COR.pedra, 1.06))
+  g.strokeStyle = contorno(COR.pedra); g.lineWidth = 1.2; g.strokeRect(238, 50, 184, 194)
+  // o vão do portão: passagem escura com luz no fim
+  g.save()
+  g.beginPath(); g.moveTo(270, 244); g.lineTo(270, 182); g.arc(330, 182, 60, Math.PI, 0); g.lineTo(390, 244); g.closePath()
+  const vao = g.createLinearGradient(0, 122, 0, 244); vao.addColorStop(0, '#231c18'); vao.addColorStop(1, COR.interior)
+  g.fillStyle = vao; g.fill(); g.clip()
+  g.fillStyle = 'rgba(238, 206, 150, 0.6)'; caminhoArredondado(g, 314, 190, 32, 40, 3); g.fill()
+  g.fillStyle = mistura(COR.gramaR, '#efd5ac', 0.4); g.fillRect(314, 222, 32, 8)
+  g.fillStyle = '#4e4036'; g.beginPath(); g.moveTo(270, 244); g.lineTo(312, 230); g.lineTo(348, 230); g.lineTo(390, 244); g.closePath(); g.fill()
+  g.strokeStyle = tomDe(COR.ferro, 0.7); g.lineWidth = 2
+  for (let x = 278; x < 390; x += 11) { g.beginPath(); g.moveTo(x, 122); g.lineTo(x, 146); g.stroke() }
+  for (let y = 128; y < 148; y += 9) { g.beginPath(); g.moveTo(270, y); g.lineTo(390, y); g.stroke() }
+  g.restore()
+  g.strokeStyle = tomDe(COR.pedra, 0.8); g.lineWidth = 8
+  g.beginPath(); g.moveTo(266, 244); g.lineTo(266, 182); g.arc(330, 182, 64, Math.PI, 0); g.lineTo(394, 244); g.stroke()
+  g.strokeStyle = contorno(COR.pedra); g.lineWidth = 1
+  g.beginPath(); g.moveTo(262, 244); g.lineTo(262, 182); g.arc(330, 182, 68, Math.PI, 0); g.lineTo(398, 244); g.stroke()
+  g.beginPath(); g.moveTo(270, 244); g.lineTo(270, 182); g.arc(330, 182, 60, Math.PI, 0); g.lineTo(390, 244); g.stroke()
+  for (let i = 0; i <= 8; i++) { const a = Math.PI + (i / 8) * Math.PI; g.beginPath(); g.moveTo(330 + 60 * Math.cos(a), 182 + 60 * Math.sin(a)); g.lineTo(330 + 68 * Math.cos(a), 182 + 68 * Math.sin(a)); g.stroke() }
+  // furos das correntes
+  for (const [x, y] of FUROS) { g.fillStyle = tomDe(COR.pedra, 0.7); g.beginPath(); g.arc(x, y, 6.5, 0, Math.PI * 2); g.fill(); g.fillStyle = '#1e1916'; g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fill() }
+  // base de pedra e água do fosso
+  g.fillStyle = tomDe(COR.pedra, 0.78); g.fillRect(-700, 236, 2000, 8)
+  const ag = g.createLinearGradient(0, 244, 0, 300); ag.addColorStop(0, tomDe(COR.agua, 0.78)); ag.addColorStop(0.3, COR.agua); ag.addColorStop(1, tomDe(COR.agua, 1.08))
+  g.fillStyle = ag; g.fillRect(-700, 244, 2000, 58)
+  g.fillStyle = 'rgba(40, 52, 60, 0.18)'; g.fillRect(-700, 244, 2000, 10)
+  // margem de cá: grama, trilha de terra com lajes, tufos e flores
+  g.fillStyle = COR.barranco; g.fillRect(-700, 297, 2000, 7)
+  const gr = g.createLinearGradient(0, 300, 0, 420); gr.addColorStop(0, COR.gramaR); gr.addColorStop(0.35, COR.grama); gr.addColorStop(1, COR.gramaS)
+  g.fillStyle = gr; g.beginPath(); g.moveTo(-700, 302)
+  for (let x = -700; x <= 1300; x += 16) g.lineTo(x, 301 + 1.6 * Math.sin(x * 0.21))
+  g.lineTo(1300, 800); g.lineTo(-700, 800); g.closePath(); g.fill()
+  g.strokeStyle = contorno(COR.grama); g.lineWidth = 1; g.beginPath(); g.moveTo(-700, 302)
+  for (let x = -700; x <= 1300; x += 16) g.lineTo(x, 301 + 1.6 * Math.sin(x * 0.21))
+  g.stroke()
+  g.fillStyle = COR.terra; g.beginPath(); g.moveTo(256, 310); g.lineTo(404, 310); g.lineTo(470, 560); g.lineTo(190, 560); g.closePath(); g.fill()
+  g.strokeStyle = contorno(COR.terra); g.lineWidth = 1; g.stroke()
+  grao(g, 200, 312, 260, 250, tomDe(COR.terra, 0.82, 0.55), 220, 'gterra')
+  const rng = SIM.criarRng('margem')
+  for (let i = 0; i < 9; i++) { const y = 330 + i * 20, x = 300 + (rng() - 0.5) * 40 + (y - 330) * 0.08; g.fillStyle = COR.praca; caminhoArredondado(g, x, y, 34 + rng() * 14, 11, 4); g.fill(); g.strokeStyle = contorno(COR.praca); g.lineWidth = 0.9; g.stroke() }
+  for (let i = 0; i < 170; i++) {
+    const x = -300 + rng() * 1220, y = 308 + rng() * 200
+    if (x > 185 && x < 475 && y > 306) continue
+    if (rng() < 0.16) { g.fillStyle = [COR.amarelo, COR.branco, COR.rosa][Math.floor(rng() * 3)]; g.beginPath(); g.arc(x, y, 1.6, 0, Math.PI * 2); g.fill() } else { g.strokeStyle = tomDe(COR.gramaS, 0.8); g.lineWidth = 1; g.beginPath(); g.moveTo(x - 2.5, y - 3); g.lineTo(x, y + 1); g.lineTo(x + 2.5, y - 3); g.stroke() }
+  }
+  // o quadro do sarilho: o mecanismo dentro da torre, de perto
+  const S = SARILHO
+  g.save(); g.translate(S.x, S.y)
+  caminhoArredondado(g, 0, 0, S.w, S.h, 10); g.save(); g.clip()
+  const fundo = g.createRadialGradient(30, 40, 4, 60, 70, 210); fundo.addColorStop(0, '#5a4a3c'); fundo.addColorStop(1, '#2c2521')
+  g.fillStyle = fundo; g.fillRect(0, 0, S.w, S.h)
+  blocos(g, 0, 0, S.w, S.h, 14, 30, 'rgba(0, 0, 0, 0.22)', 'sarilho')
+  g.fillStyle = tomDe(COR.nogueira, 0.85); g.fillRect(0, S.h - 16, S.w, 16)
+  g.strokeStyle = contorno(COR.nogueira); g.lineWidth = 1; g.beginPath(); g.moveTo(0, S.h - 16); g.lineTo(S.w, S.h - 16); g.stroke()
+  // cavalete de madeira
+  for (const [x0, x1] of [[60, 88], [136, 108]]) {
+    g.fillStyle = COR.carvalho; g.beginPath(); g.moveTo(x0 - 6, S.h - 16); g.lineTo(x1 - 4, S.cy); g.lineTo(x1 + 4, S.cy); g.lineTo(x0 + 6, S.h - 16); g.closePath(); g.fill()
+    g.strokeStyle = contorno(COR.carvalho); g.lineWidth = 1; g.stroke()
+  }
+  // suporte da tocha
+  g.fillStyle = COR.ferro; g.fillRect(20, 46, 6, 14); g.strokeStyle = contorno(COR.ferro); g.strokeRect(20, 46, 6, 14)
+  g.restore()
+  g.lineWidth = 4; g.strokeStyle = tomDe(COR.pedra, 0.62); caminhoArredondado(g, 0, 0, S.w, S.h, 10); g.stroke()
+  g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.12)'; caminhoArredondado(g, 3, 3, S.w - 6, S.h - 6, 8); g.stroke()
+  g.fillStyle = 'rgba(18, 14, 12, 0.72)'; caminhoArredondado(g, S.w - 112, S.h - 22, 104, 16, 8); g.fill()
+  g.fillStyle = '#eceae4'; g.font = '600 9px Bahnschrift, Barlow, "Segoe UI", sans-serif'; g.textBaseline = 'middle'; g.fillText('Sarilho, dentro da torre', S.w - 105, S.h - 13.5)
+  g.restore()
+}
+
+const cacheFixo = new Map()
+function camadaFixa(W, H, s, ox, oy) {
+  const chave = `${W}x${H}`
+  let c = cacheFixo.get(chave)
+  if (c) return c
+  c = document.createElement('canvas'); c.width = W; c.height = H
+  const g = c.getContext('2d'); g.setTransform(s, 0, 0, s, ox, oy); desenharFixo(g)
+  if (cacheFixo.size > 6) cacheFixo.clear()
+  cacheFixo.set(chave, c)
+  return c
+}
+
+function pontoDaPonte(p, u, lado) {
+  const a = (Math.PI / 2) * p, h = PONTE.L * u * Math.cos(a), d = PONTE.L * u * Math.sin(a)
+  return [PONTE.cx + lado * PONTE.meia * (1 + d * 0.0016), PONTE.hy - h + d * 0.55]
+}
+function desenharPonte(g, p) {
+  const a = (Math.PI / 2) * p, luz = 0.9 + 0.14 * Math.sin(a)
+  const [ax, ay] = pontoDaPonte(p, 0, -1), [bx, by] = pontoDaPonte(p, 0, 1), [cx, cy] = pontoDaPonte(p, 1, 1), [dx, dy] = pontoDaPonte(p, 1, -1)
+  // sombra na água
+  if (p > 0.05) {
+    g.save(); g.beginPath(); g.rect(-700, 244, 2000, 56); g.clip()
+    g.fillStyle = `rgba(30, 44, 52, ${0.22 * Math.sin(a)})`
+    g.beginPath(); g.moveTo(ax + 6, 246); g.lineTo(bx + 6, 246); g.lineTo(cx + 10, Math.min(300, cy + 4)); g.lineTo(dx + 10, Math.min(300, dy + 4)); g.closePath(); g.fill()
+    g.restore()
+  }
+  // espessura da ponta (aparece quando ela vem para a frente)
+  const esp = 7 * Math.sin(a)
+  if (esp > 0.5) { g.fillStyle = tomDe(COR.nogueira, 0.9); g.beginPath(); g.moveTo(dx, dy); g.lineTo(cx, cy); g.lineTo(cx, cy + esp); g.lineTo(dx, dy + esp); g.closePath(); g.fill(); g.strokeStyle = contorno(COR.nogueira); g.lineWidth = 1; g.stroke() }
+  g.fillStyle = tomDe(COR.carvalho, luz)
+  g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.lineTo(cx, cy); g.lineTo(dx, dy); g.closePath(); g.fill()
+  // tábuas
+  g.strokeStyle = tomDe(COR.nogueira, luz * 0.95, 0.75); g.lineWidth = 1
+  for (let i = 1; i < 8; i++) { const l = -1 + (2 * i) / 8, [x0, y0] = pontoDaPonte(p, 0, l), [x1, y1] = pontoDaPonte(p, 1, l); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke() }
+  // veio da madeira
+  g.strokeStyle = tomDe(COR.carvalho, luz * 1.12, 0.5); g.lineWidth = 0.7
+  for (let i = 0; i < 8; i++) { const l = -1 + (2 * i + 1) / 8 + 0.04, [x0, y0] = pontoDaPonte(p, 0.32 + (i % 3) * 0.08, l), [x1, y1] = pontoDaPonte(p, 0.5 + (i % 3) * 0.08, l); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke() }
+  // cintas de ferro com rebites de latão
+  for (const u of [0.14, 0.86]) {
+    const [x0, y0] = pontoDaPonte(p, u, -1), [x1, y1] = pontoDaPonte(p, u, 1)
+    g.strokeStyle = COR.ferro; g.lineWidth = 4.5; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke()
+    g.fillStyle = COR.latao
+    for (const l of [-0.75, -0.25, 0.25, 0.75]) { const [x, y] = pontoDaPonte(p, u, l); g.beginPath(); g.arc(x, y, 1.5, 0, Math.PI * 2); g.fill() }
+  }
+  g.strokeStyle = contorno(COR.carvalho); g.lineWidth = 1.3
+  g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.lineTo(cx, cy); g.lineTo(dx, dy); g.closePath(); g.stroke()
+}
+function desenharCorrente(g, x0, y0, x1, y1, fase, vib, t, semente) {
+  const len = Math.hypot(x1 - x0, y1 - y0)
+  if (len < 1) return
+  const ux = (x1 - x0) / len, uy = (y1 - y0) / len, passo = 6.4
+  const ang = Math.atan2(uy, ux)
+  g.lineWidth = 0.8
+  for (let s = (fase % passo); s < len; s += passo) {
+    const k = Math.round((s - (fase % passo)) / passo) + Math.floor(fase / passo)
+    const off = vib * Math.sin((Math.PI * s) / len) * Math.sin(t * 47 + semente)
+    const x = x0 + ux * s - uy * off, y = y0 + uy * s + ux * off
+    g.fillStyle = k % 2 ? tomDe(COR.ferro, 1.18) : COR.ferro; g.strokeStyle = contorno(COR.ferro)
+    g.beginPath()
+    if (k % 2) g.ellipse(x, y, 3.6, 2, ang, 0, Math.PI * 2); else g.ellipse(x, y, 3.4, 0.9, ang, 0, Math.PI * 2)
+    g.fill(); g.stroke()
+  }
+}
+function chama(g, x, y, t, k = 1) {
+  const f = 1 + 0.12 * Math.sin(t * 13.1) + 0.08 * Math.sin(t * 29.7 + 1.3)
+  const luz = g.createRadialGradient(x, y, 1, x, y, 30 * k * f); luz.addColorStop(0, 'rgba(255, 196, 120, 0.42)'); luz.addColorStop(1, 'rgba(255, 196, 120, 0)')
+  g.fillStyle = luz; g.beginPath(); g.arc(x, y, 30 * k * f, 0, Math.PI * 2); g.fill()
+  g.fillStyle = COR.laranja; g.beginPath(); g.ellipse(x, y - 3 * k, 3.4 * k, 6 * k * f, 0, 0, Math.PI * 2); g.fill()
+  g.fillStyle = COR.amarelo; g.beginPath(); g.ellipse(x, y - 2 * k, 1.8 * k, 3.6 * k * f, 0, 0, Math.PI * 2); g.fill()
+}
+function desenharSarilho(g, est) {
+  const S = SARILHO, phi = est.p * SIM.VOLTAS * Math.PI * 2
+  g.save(); g.translate(S.x, S.y)
+  caminhoArredondado(g, 2, 2, S.w - 4, S.h - 4, 8); g.clip()
+  chama(g, 23, 40, est.t, 0.9)
+  // corrente subindo do tambor para a ponte
+  const fase = phi * 20
+  desenharCorrente(g, S.cx - 20, S.cy, S.cx - 20, -6, fase, est.vib * 0.6, est.t, 3)
+  // roda da catraca
+  const R = S.R, dente = (Math.PI * 2) / SIM.DENTES
+  g.beginPath()
+  for (let i = 0; i < SIM.DENTES; i++) {
+    const a = phi + i * dente
+    g.lineTo(S.cx + R * Math.cos(a), S.cy + R * Math.sin(a))
+    g.lineTo(S.cx + (R + 8) * Math.cos(a + dente * 0.82), S.cy + (R + 8) * Math.sin(a + dente * 0.82))
+    g.lineTo(S.cx + R * Math.cos(a + dente * 0.86), S.cy + R * Math.sin(a + dente * 0.86))
+  }
+  g.closePath(); g.fillStyle = COR.ferro; g.fill(); g.strokeStyle = contorno(COR.ferro); g.lineWidth = 1.2; g.stroke()
+  g.fillStyle = tomDe(COR.ferro, 1.2); g.beginPath(); g.arc(S.cx, S.cy, R - 6, 0, Math.PI * 2); g.fill()
+  g.strokeStyle = tomDe(COR.ferro, 0.8); g.lineWidth = 1
+  for (let i = 0; i < 6; i++) { const a = phi + (i * Math.PI) / 3; g.beginPath(); g.moveTo(S.cx + 22 * Math.cos(a), S.cy + 22 * Math.sin(a)); g.lineTo(S.cx + (R - 8) * Math.cos(a), S.cy + (R - 8) * Math.sin(a)); g.stroke() }
+  // tambor com a corrente enrolada
+  g.fillStyle = COR.latao; g.beginPath(); g.arc(S.cx, S.cy, 20, 0, Math.PI * 2); g.fill(); g.strokeStyle = contorno(COR.latao); g.stroke()
+  g.strokeStyle = tomDe(COR.ferro, 0.9); g.lineWidth = 2.2
+  for (let i = 0; i < 8; i++) { const a = phi + (i * Math.PI) / 4; g.beginPath(); g.arc(S.cx, S.cy, 16, a, a + 0.42); g.stroke() }
+  // lingueta: sobe dente a dente e, solta, se afasta da roda
+  const frac = ((phi / dente) % 1 + 1) % 1
+  const giro = est.solta > 0 ? 0.55 * est.solta : 0.13 * frac
+  const piv = [S.cx + 64, S.cy - 56], base = [-28, 25.8]
+  const c = Math.cos(giro), s = Math.sin(giro), ponta = [piv[0] + base[0] * c - base[1] * s, piv[1] + base[0] * s + base[1] * c]
+  const corL = est.solta > 0 ? '#c96b5f' : COR.ferro
+  g.strokeStyle = contorno(corL); g.lineWidth = 7; g.lineCap = 'round'; g.beginPath(); g.moveTo(piv[0], piv[1]); g.lineTo(ponta[0], ponta[1]); g.stroke()
+  g.strokeStyle = corL; g.lineWidth = 5; g.beginPath(); g.moveTo(piv[0], piv[1]); g.lineTo(ponta[0], ponta[1]); g.stroke()
+  g.fillStyle = COR.latao; g.beginPath(); g.arc(piv[0], piv[1], 3.4, 0, Math.PI * 2); g.fill(); g.strokeStyle = contorno(COR.latao); g.lineWidth = 1; g.stroke()
+  // manivela
+  const am = phi - Math.PI / 2, mx = S.cx + 52 * Math.cos(am), my = S.cy + 52 * Math.sin(am)
+  g.strokeStyle = contorno(COR.ferro); g.lineWidth = 7; g.beginPath(); g.moveTo(S.cx, S.cy); g.lineTo(mx, my); g.stroke()
+  g.strokeStyle = tomDe(COR.ferro, 1.15); g.lineWidth = 5; g.beginPath(); g.moveTo(S.cx, S.cy); g.lineTo(mx, my); g.stroke()
+  g.lineCap = 'butt'
+  for (let j = 0; j < est.flash.length; j++) {
+    const f = est.flash[j]
+    if (f <= 0) continue
+    g.strokeStyle = tomDe(CORES_J[j], 1, 0.85 * f); g.lineWidth = 2.5
+    g.beginPath(); g.arc(mx, my, 9 + 7 * (1 - f) + j * 2.5, 0, Math.PI * 2); g.stroke()
+  }
+  g.fillStyle = COR.carvalho; g.beginPath(); g.arc(mx, my, 7.5, 0, Math.PI * 2); g.fill(); g.strokeStyle = contorno(COR.carvalho); g.lineWidth = 1.2; g.stroke()
+  g.fillStyle = tomDe(COR.carvalho, 1.25); g.beginPath(); g.arc(mx - 2, my - 2, 2.4, 0, Math.PI * 2); g.fill()
+  g.fillStyle = COR.latao; g.beginPath(); g.arc(S.cx, S.cy, 4.5, 0, Math.PI * 2); g.fill(); g.strokeStyle = contorno(COR.latao); g.stroke()
+  g.restore()
+}
+function desenharPoeira(g, poeira) {
+  for (const q of poeira) {
+    const a = Math.max(0, q.vida / q.max)
+    g.fillStyle = tomDe(q.cor || COR.praca, 1, 0.55 * a)
+    g.beginPath(); g.arc(q.x, q.y, q.r * (1.6 - 0.6 * a), 0, Math.PI * 2); g.fill()
+  }
+}
+function desenharAgua(g, t) {
+  g.strokeStyle = 'rgba(236, 246, 246, 0.38)'; g.lineWidth = 1
+  for (let i = 0; i < 14; i++) {
+    const x = ((i * 97 + t * 7 * (i % 2 ? 1 : -0.6)) % 900 + 900) % 900 - 140, y = 254 + ((i * 13) % 42), w = 10 + (i % 4) * 5
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + w, y); g.stroke()
+  }
+}
+
+/** A cena inteira num canvas de W x H pixels. `est` é o estado visual (ver estadoVisual). */
+function desenharCena(ctx, W, H, est) {
+  const s = Math.min(W / MUNDO.w, H / MUNDO.h), ox = W / 2 - MUNDO.cx * s, oy = H / 2 - MUNDO.cy * s
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  const tr = est.tremor
+  const dx = tr ? 6 * tr * Math.sin(est.tReal * 51) * s : 0, dy = tr ? 4 * tr * Math.sin(est.tReal * 69 + 1) * s : 0
+  ctx.fillStyle = '#9ec0a0'; ctx.fillRect(0, 0, W, H)
+  ctx.drawImage(camadaFixa(W, H, s, ox, oy), dx, dy)
+  ctx.setTransform(s, 0, 0, s, ox + dx, oy + dy)
+  desenharAgua(ctx, est.t)
+  // tocha dentro do portão (fica atrás da ponte erguida)
+  ctx.save(); ctx.beginPath(); ctx.moveTo(270, 244); ctx.lineTo(270, 182); ctx.arc(330, 182, 60, Math.PI, 0); ctx.lineTo(390, 244); ctx.closePath(); ctx.clip()
+  chama(ctx, 380, 196, est.t, 0.8)
+  ctx.restore()
+  desenharPonte(ctx, est.p)
+  const vib = est.vib, fase = est.p * 160
+  for (let i = 0; i < 2; i++) {
+    const [fx, fy] = FUROS[i], [px, py] = pontoDaPonte(est.p, 0.93, i ? 0.86 : -0.86)
+    desenharCorrente(ctx, fx, fy, px, py, fase, vib, est.t, i * 2.1)
+    ctx.fillStyle = COR.ferro; ctx.beginPath(); ctx.arc(px, py, 2.6, 0, Math.PI * 2); ctx.fill()
+  }
+  desenharPoeira(ctx, est.poeira)
+  desenharSarilho(ctx, est)
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+}
+
+function desenharIcone(c) {
+  const g = c.getContext('2d'); g.setTransform(2, 0, 0, 2, 0, 0)
+  g.fillStyle = '#2a221d'; g.fillRect(0, 0, 48, 48)
+  const R = 15, cx = 24, cy = 25, dente = (Math.PI * 2) / 10
+  g.beginPath()
+  for (let i = 0; i < 10; i++) { const a = i * dente; g.lineTo(cx + R * Math.cos(a), cy + R * Math.sin(a)); g.lineTo(cx + (R + 4) * Math.cos(a + dente * 0.8), cy + (R + 4) * Math.sin(a + dente * 0.8)); g.lineTo(cx + R * Math.cos(a + dente * 0.86), cy + R * Math.sin(a + dente * 0.86)) }
+  g.closePath(); g.fillStyle = COR.ferro; g.fill(); g.strokeStyle = contorno(COR.ferro); g.lineWidth = 1; g.stroke()
+  g.fillStyle = COR.latao; g.beginPath(); g.arc(cx, cy, 6, 0, Math.PI * 2); g.fill()
+  g.strokeStyle = tomDe(COR.ferro, 1.2); g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 13, cy - 12); g.stroke()
+  g.fillStyle = COR.carvalho; g.beginPath(); g.arc(cx + 13, cy - 12, 3.6, 0, Math.PI * 2); g.fill(); g.strokeStyle = contorno(COR.carvalho); g.lineWidth = 1; g.stroke()
+}
+// ==== CENA:FIM ====
+
+// ==== JOGO ====
+const $ = (s) => document.querySelector(s)
+const TECLAS = ['KeyX', 'KeyM', 'KeyQ', 'KeyP'], LETRAS = ['X', 'M', 'Q', 'P']
+const NOMES_BOT = ['', 'Bia', 'Tomé', 'Odete']
+const FIM_BAIXOU = 1.5, FIM_SUBIU = SOM.QUEDA + 1.3, CONGELA = 0.07
+const config = { dif: 'normal', tempo: null, jogadores: 1, modos: ['voce', 'bot', 'bot', 'bot'], desfecho: 'ponte', porta: 'Portão de Valverde' }
+const prefs = { som: true }
+const movimentoReduzido = matchMedia('(prefers-reduced-motion: reduce)')
+const J = { tela: 'convite', visao: 'jogador', P: null, robos: [], fila: [], pausado: false, pausaMestre: false, manual: false, acum: 0, tFase: 0, fimTipo: null, pVis: 0, trauma: 0, congela: 0, flash: [0, 0, 0, 0], poeira: [], resultado: null, tReal: 0, tCena: 0, tGiros: [[], [], [], []], dicaAtual: '', relogioDado: 0, roboVoce: null, semente: 'ao-vivo' }
+const amostras = { intervalos: [], trabalho: [] }
+const audio = { C: null }
+
+function nomeDoJogador(j) { return j === 0 ? 'Você' : config.modos[j] === 'bot' ? `${NOMES_BOT[j]} (bot)` : `Jogador ${j + 1}` }
+const virg = (v, c = 1) => v.toFixed(c).replace('.', ',')
+function regrasAtuais() { return SIM.regras({ dif: config.dif, jogadores: config.jogadores, tempo: config.tempo }) }
+function textoDesfecho(ok) {
+  if (!ok) return 'No mapa, nada muda: a ponte continua erguida.'
+  return config.desfecho === 'porta' ? `No mapa: a porta “${config.porta || 'sem nome'}” se abre.` : 'No mapa: a ponte levadiça desce e o fosso pode ser atravessado.'
+}
+
+// ---- áudio
+function garantirAudio() {
+  if (audio.C) { if (audio.C.ctx.state === 'suspended') audio.C.ctx.resume(); return audio.C }
+  const Ctx = window.AudioContext || window.webkitAudioContext
+  if (!Ctx) return null
+  const ctx = new Ctx()
+  audio.C = SOM.cadeia(ctx, ctx.destination, ctx.currentTime)
+  audio.C.mestre.gain.value = prefs.som ? SOM.VOLUME : 0
+  return audio.C
+}
+function tocar(nome, dados) { const C = audio.C; if (!C || J.manual || !prefs.som) return; SOM.evento(C, nome, C.ctx.currentTime + 0.004, dados) }
+
+// ---- telas
+function anunciar(txt) { const el = $('#anuncio'); el.textContent = ''; requestAnimationFrame(() => { el.textContent = txt }) }
+function irPara(tela) {
+  J.tela = tela
+  $('#tConvite').hidden = tela !== 'convite'
+  $('#tRodada').hidden = !(tela === 'contagem' || tela === 'rodada' || tela === 'fim')
+  $('#tResultado').hidden = tela !== 'resultado'
+  if (tela === 'convite') { J.P = null; J.pVis = 0; pintarConvite() }
+  pintarMestre()
+}
+function pintarConvite() {
+  const R = regrasAtuais()
+  $('#cDif').textContent = R.nome
+  $('#cTempo').textContent = `${R.tempo} s`
+  const outros = []
+  for (let j = 1; j < R.n; j++) outros.push(nomeDoJogador(j))
+  $('#cEquipe').textContent = ['Você', ...outros].join(', ')
+  $('#cDesfecho').textContent = textoDesfecho(true).replace(/^No mapa: /, '').replace(/^./, (c) => c.toUpperCase())
+  const ul = $('#cTeclas'); ul.innerHTML = ''
+  const li = (html) => { const e = document.createElement('li'); e.innerHTML = html; ul.appendChild(e) }
+  li('<kbd>X</kbd> girar a alavanca (cada aperto, um pouco)')
+  for (let j = 1; j < R.n; j++) if (config.modos[j] === 'tecla') li(`<kbd>${LETRAS[j]}</kbd> ${nomeDoJogador(j)} gira`)
+  li('<kbd>Esc</kbd> pausa · no toque, o botão Girar')
+}
+function montarEquipe(ul, R, comRitmo) {
+  ul.innerHTML = ''
+  for (let j = 0; j < R.n; j++) {
+    const li = document.createElement('li'); li.style.setProperty('--cor', CORES_J[j])
+    const marca = config.modos[j] === 'bot' && j > 0 ? 'B' : LETRAS[j]
+    li.innerHTML = `<span class="marca" aria-hidden="true">${marca}</span><span class="nome"></span><span class="ritmo"></span>`
+    li.querySelector('.nome').textContent = nomeDoJogador(j)
+    if (comRitmo) li.querySelector('.ritmo').textContent = comRitmo(j)
+    ul.appendChild(li)
+  }
+}
+
+// ---- rodada
+function comecar() {
+  if (J.tela === 'contagem' || J.tela === 'rodada') return
+  garantirAudio()
+  const R = regrasAtuais()
+  J.P = SIM.criarPartida({ dif: config.dif, jogadores: config.jogadores, tempo: config.tempo })
+  J.robos = Array.from({ length: R.n }, (_, j) => (j === 0 ? J.roboVoce : config.modos[j] === 'bot' ? SIM.criarHumano(`${J.semente}|${Date.now()}|${j}`) : null))
+  J.fila = []; J.acum = 0; J.tFase = 0; J.pVis = 0; J.fimTipo = null; J.resultado = null; J.relogioDado = 0
+  J.tGiros = [[], [], [], []]; J.flash = [0, 0, 0, 0]; J.poeira = []; J.trauma = 0
+  montarEquipe($('#rEquipe'), R, () => '0,0/s')
+  irPara('contagem')
+  mostrarContagem('Prontos…')
+  tocar('prontos')
+  pintarHud(true)
+}
+function mostrarContagem(txt) { const el = $('#contagem'); el.textContent = txt; el.dataset.on = txt ? '1' : '0' }
+function iniciarRodada() {
+  J.tela = 'rodada'; J.acum = 0; J.tFase = 0
+  mostrarContagem('Já!')
+  tocar('ja'); anunciar('Já! Gire a alavanca.')
+  pintarMestre()
+}
+function apertar(j) {
+  if (J.tela !== 'rodada' || J.pausado || J.pausaMestre) return false
+  if (!J.P || j >= J.P.R.n) return false
+  J.fila.push(j)
+  return true
+}
+function passoDoJogo() {
+  const P = J.P, quem = J.fila.splice(0)
+  for (let j = 0; j < J.robos.length; j++) { const r = J.robos[j]; if (r && r.decidir(P.t)) quem.push(j) }
+  const i0 = P.ev.length
+  SIM.passo(P, quem)
+  for (let i = i0; i < P.ev.length; i++) reagir(P.ev[i])
+  if (P.fase !== 'rodada') acabar(P.fase)
+}
+function reagir(e) {
+  switch (e.nome) {
+    case 'giro':
+      J.flash[e.j] = 1; J.tGiros[e.j].push(J.P.t)
+      if (J.tGiros[e.j].length > 40) J.tGiros[e.j].shift()
+      pulsar(e.j)
+      tocar('giro'); break
+    case 'dente': tocar('dente'); break
+    case 'volta': tocar('volta'); break
+    case 'soltou':
+      tocar('soltou'); anunciar('A catraca soltou! Gire de novo.')
+      if (!movimentoReduzido.matches) soltarPoeira(SARILHO.x + SARILHO.cx + 40, SARILHO.y + SARILHO.cy - 34, 4, 0.5, '#c9c2b4')
+      break
+    case 'pegou': tocar('pegou'); break
+  }
+}
+function pulsar(j) {
+  if (J.manual) return
+  const li = $('#rEquipe').children[j]
+  if (!li) return
+  // Só brilho, sem escala: o X chega a 7 por segundo e uma escala reiniciando
+  // tremeria. O retorno forte do aperto mora na cena (manivela, anel, catraca).
+  li.firstElementChild.animate([{ filter: 'brightness(1.35)' }, { filter: 'brightness(1)' }], { duration: 120, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' })
+}
+function soltarPoeira(x, y, n, forca, cor) {
+  const rng = SIM.criarRng(`${x}|${y}|${J.poeira.length}|${J.tReal.toFixed(3)}`)
+  for (let i = 0; i < n && J.poeira.length < 90; i++) {
+    const vida = 0.5 + rng() * 0.6
+    J.poeira.push({ x: x + (rng() - 0.5) * 6, y, vx: (rng() - 0.5) * 60 * forca, vy: -(10 + rng() * 26) * forca, r: 1.6 + rng() * 2.6, vida, max: vida, cor })
+  }
+}
+function acabar(fase) {
+  J.tela = 'fim'; J.tFase = 0; J.fimTipo = fase; J.pVis = J.P.p
+  const C = audio.C
+  if (C && prefs.som && !J.manual) SOM.final(C, C.ctx.currentTime + 0.004, fase)
+  if (fase === 'baixou') {
+    J.congela = CONGELA
+    if (!movimentoReduzido.matches) J.trauma = Math.min(1, J.trauma + 0.62)
+    const rng = SIM.criarRng('pouso')
+    for (let i = 0; i < 26; i++) { const l = -1 + 2 * rng(), [x, y] = pontoDaPonte(1, 1, l * 1.05); soltarPoeira(x, y + 6, 1, movimentoReduzido.matches ? 0.2 : 1.1, COR.praca) }
+    anunciar('A ponte desceu!')
+  } else anunciar('O tempo acabou. A corrente puxou a ponte de volta.')
+  pintarMestre()
+}
+function encerrarPeloMestre() {
+  if (!(J.tela === 'contagem' || J.tela === 'rodada' || J.tela === 'fim')) return
+  const P = J.P
+  if (P && P.fase === 'rodada') { P.fase = 'encerrado'; P.tFim = P.t }
+  J.pausaMestre = false; J.pausado = false; $('#pausa').hidden = true
+  if (audio.C) SOM.continuo(audio.C, audio.C.ctx.currentTime, 0, 0, 0)
+  mostrarResultado('encerrado')
+}
+function mostrarResultado(tipoForcado) {
+  const P = J.P, R = P.R, tipo = tipoForcado || J.fimTipo
+  const total = P.giros.reduce((a, b) => a + b, 0), dur = Math.max(0.1, P.tFim || P.t)
+  J.resultado = { tipo, tFim: dur, giros: P.giros.slice(), total, ritmo: total / dur, soltou: P.soltou, maiorPausa: P.maiorPausa, pMax: P.pMax }
+  const ver = $('#resVeredito'); ver.dataset.tipo = tipo
+  $('#resTitulo').textContent = tipo === 'baixou' ? 'A ponte desceu!' : tipo === 'subiu' ? 'A corrente venceu' : 'Encerrada pelo mestre'
+  $('#resSub').textContent = tipo === 'baixou' ? `Em ${virg(dur)} s de ${R.tempo} s (${R.nome}).` : tipo === 'subiu' ? `A ponte chegou a ${Math.round(P.pMax * 100)}% e voltou a subir (${R.nome}, ${R.tempo} s).` : `A rodada parou em ${virg(dur)} s, com a ponte a ${Math.round(P.p * 100)}%.`
+  const nums = [['Giros', String(total)], ['Ritmo', `${virg(total / dur)}/s`], ['Maior pausa', `${virg(P.maiorPausa)} s`], ['Catraca soltou', `${P.soltou}×`]]
+  $('#resNumeros').innerHTML = nums.map(([k, v]) => `<div><dt class="rotulo">${k}</dt><dd>${v}</dd></div>`).join('')
+  montarEquipe($('#resEquipe'), R, (j) => `${P.giros[j]} giros · ${virg(P.giros[j] / dur)}/s`)
+  const des = $('#resDesfecho'); des.dataset.ok = tipo === 'baixou' ? '1' : '0'; des.textContent = textoDesfecho(tipo === 'baixou')
+  mostrarContagem('')
+  irPara('resultado')
+  if (!J.manual) $('#resTitulo').focus({ preventScroll: true })
+}
+
+// ---- passo do tempo (o rAF chama; os testes chamam rodar() com passo fixo)
+function avancar(dt) {
+  if (J.pausado || J.pausaMestre) return
+  J.tReal += dt
+  if (!movimentoReduzido.matches) J.tCena += dt // água e tocha param no movimento reduzido
+  for (let j = 0; j < 4; j++) J.flash[j] = Math.max(0, J.flash[j] - dt / 0.16)
+  J.trauma = Math.max(0, J.trauma - dt * 1.3)
+  for (const q of J.poeira) { q.vida -= dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= Math.exp(-3 * dt); q.vy = q.vy * Math.exp(-3 * dt) + 14 * dt }
+  if (J.poeira.length && J.poeira[0].vida <= 0) J.poeira = J.poeira.filter((q) => q.vida > 0)
+  if (J.tela === 'contagem') {
+    J.tFase += dt
+    if (J.tFase >= SOM.CONTAGEM - 1e-9) iniciarRodada()
+    return
+  }
+  if (J.tela === 'rodada') {
+    J.tFase += dt
+    if (J.tFase > 0.5 && $('#contagem').dataset.on === '1') mostrarContagem('')
+    J.acum += dt
+    while (J.acum >= SIM.DT - 1e-9 && J.tela === 'rodada') { J.acum -= SIM.DT; passoDoJogo() }
+    const resta = J.P ? J.P.R.tempo - J.P.t : 0
+    if (J.tela === 'rodada' && resta <= 3 && resta > 0 && Math.ceil(resta) !== J.relogioDado) { J.relogioDado = Math.ceil(resta); tocar('relogio') }
+    return
+  }
+  if (J.tela === 'fim') {
+    if (J.congela > 0) { J.congela -= dt; return }
+    J.tFase += dt
+    if (J.fimTipo === 'subiu') {
+      const k = Math.min(1, J.tFase / SOM.QUEDA)
+      const p0 = J.P.p
+      J.pVis = p0 * (1 - k * k)
+      if (k >= 1 && !J.bateu) {
+        J.bateu = true
+        if (!movimentoReduzido.matches) J.trauma = Math.min(1, J.trauma + 0.45)
+        for (let i = 0; i < 10; i++) { const [x, y] = pontoDaPonte(0, 1, -1 + i / 4.5); soltarPoeira(x, y, 1, movimentoReduzido.matches ? 0.2 : 0.7, '#cfc9bb') }
+      }
+      if (J.tFase >= FIM_SUBIU) { J.bateu = false; mostrarResultado() }
+    } else if (J.tFase >= FIM_BAIXOU) mostrarResultado()
+  }
+}
+function rodar(segundos) { const n = Math.round(segundos / SIM.DT); for (let i = 0; i < n; i++) avancar(SIM.DT) }
+
+// ---- desenho e HUD
+function estadoVisual() {
+  const P = J.P
+  let p = 0, solta = 0, tensao = 0
+  if (P) {
+    p = J.tela === 'fim' && J.fimTipo === 'subiu' ? J.pVis : P.p
+    solta = J.tela === 'rodada' ? P.solta : 0
+    tensao = J.tela === 'rodada' ? P.forca / SIM.forcaMax(P.R) : 0
+  }
+  if (J.tela === 'resultado' && J.resultado) p = J.resultado.tipo === 'baixou' ? 1 : J.resultado.tipo === 'subiu' ? 0 : P.p
+  const reduz = movimentoReduzido.matches
+  return { p, solta, tensao, vib: reduz ? 0 : (J.tela === 'rodada' ? 0.5 + 1.6 * tensao + 1.4 * solta : 0), flash: J.flash, poeira: J.poeira, tremor: reduz ? 0 : J.trauma * J.trauma, t: J.tCena, tReal: J.tReal }
+}
+const canvas = $('#cena'), ctx2d = canvas.getContext('2d')
+function ajustarCanvas() {
+  const r = canvas.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1)
+  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr))
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
+}
+let hudCache = {}
+function definir(sel, chave, valor, prop = 'textContent') { if (hudCache[chave] === valor) return; hudCache[chave] = valor; $(sel)[prop] = valor }
+function pintarHud(forcar) {
+  if (forcar) hudCache = {}
+  const P = J.P
+  if (!P) return
+  const R = P.R, resta = Math.max(0, R.tempo - P.t)
+  definir('#rTempo', 'tempo', virg(resta))
+  const pouco = resta <= 3 && J.tela === 'rodada' ? '1' : '0'
+  if (hudCache.pouco !== pouco) { hudCache.pouco = pouco; $('#relogio').dataset.pouco = pouco }
+  $('#rTempoBarra').style.transform = `scaleX(${(resta / R.tempo).toFixed(4)})`
+  const pct = Math.round(P.p * 100)
+  definir('#rPonte', 'ponte', `${pct}%`)
+  if (hudCache.ponteAria !== pct) { hudCache.ponteAria = pct; $('#mPonte').setAttribute('aria-valuenow', String(pct)) }
+  $('#rPonteBarra').style.transform = `scaleX(${P.p.toFixed(4)})`
+  const solta = J.tela === 'rodada' && P.solta > 0
+  const tensao = P.forca / SIM.forcaMax(R)
+  $('#rCorrenteBarra').style.transform = `scaleX(${(J.tela === 'rodada' ? tensao : 0).toFixed(4)})`
+  const sTxt = solta ? 'soltou!' : J.tela === 'rodada' ? (tensao > 0.62 ? 'pesada' : 'puxando') : 'parada'
+  definir('#rCorrente', 'corrente', sTxt)
+  if (hudCache.soltaAttr !== solta) { hudCache.soltaAttr = solta; $('#mCorrente').dataset.solta = solta ? '1' : '0' }
+  let dica = 'Aperte X sem parar. A corrente puxa a ponte de volta o tempo todo.', tomDica = ''
+  if (J.tela === 'contagem') dica = 'Prepare o dedo no X.'
+  else if (J.tela === 'fim') dica = J.fimTipo === 'baixou' ? 'A ponte desceu! A catraca trava.' : 'O tempo acabou: a corrente puxa a ponte de volta.'
+  else if (solta) { dica = 'A catraca soltou! Gire de novo para a lingueta pegar.'; tomDica = 'alerta' }
+  else if (resta <= 3) { dica = 'Últimos segundos!'; tomDica = 'alerta' }
+  else if (P.p > 0.78) dica = 'Falta pouco: perto do chão a corrente pesa mais.'
+  definir('#rDica', 'dica', dica)
+  if (hudCache.tomDica !== tomDica) { hudCache.tomDica = tomDica; $('#rDica').dataset.tom = tomDica }
+  const ul = $('#rEquipe')
+  for (let j = 0; j < R.n; j++) {
+    const ts = J.tGiros[j], janela = Math.min(1.5, Math.max(0.5, P.t))
+    let n = 0
+    for (let i = ts.length - 1; i >= 0 && ts[i] > P.t - janela; i--) n++
+    const li = ul.children[j]
+    if (li) definir(`#rEquipe li:nth-child(${j + 1}) .ritmo`, `ritmo${j}`, `${virg(n / janela)}/s`)
+  }
+  const rotulo = P.p >= 1 ? 'A ponte levadiça desceu e está assentada na margem.' : P.p <= 0.01 ? 'A ponte levadiça está erguida diante do portão.' : `A ponte levadiça está ${Math.round(P.p * 10) * 10}% baixada.`
+  if (hudCache.rotulo !== rotulo) { hudCache.rotulo = rotulo; canvas.setAttribute('aria-label', rotulo) }
+}
+function pintarMestre() {
+  const P = J.P, nomes = { convite: 'No convite', contagem: 'Contagem', rodada: 'Girando', fim: J.fimTipo === 'baixou' ? 'A ponte desceu' : 'A ponte está subindo', resultado: J.resultado ? (J.resultado.tipo === 'baixou' ? 'Venceram' : J.resultado.tipo === 'subiu' ? 'Perderam' : 'Encerrada') : 'Resultado' }
+  const emJogo = J.tela === 'contagem' || J.tela === 'rodada'
+  $('#mSit').textContent = (J.pausaMestre ? 'Pausada pelo mestre · ' : '') + nomes[J.tela]
+  $('#mT').textContent = P ? `${virg(Math.min(P.t, P.R.tempo))} s de ${P.R.tempo} s` : '–'
+  $('#mP').textContent = P ? `${Math.round(P.p * 100)}% baixada` : '–'
+  $('#mC').textContent = !P ? '–' : J.tela !== 'rodada' ? 'parada' : P.solta > 0 ? 'catraca solta' : `${Math.round((P.forca / SIM.forcaMax(P.R)) * 100)}% da força`
+  $('#mG').textContent = P ? P.giros.map((g, j) => `${nomeDoJogador(j)} ${g}`).join(' · ') : '–'
+  $('#bPausaTodos').disabled = !emJogo
+  $('#bPausaTodos').textContent = J.pausaMestre ? 'Continuar para todos' : 'Pausar para todos'
+  $('#bEncerrar').disabled = !(emJogo || J.tela === 'fim')
+}
+
+let ultimo = 0, padAntes = { x: false, start: false }
+function lerControle() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : []
+  const pad = pads && Array.from(pads).find((p) => p)
+  if (!pad) return
+  const x = !!(pad.buttons[2] && pad.buttons[2].pressed) || !!(pad.buttons[0] && pad.buttons[0].pressed), st = !!(pad.buttons[9] && pad.buttons[9].pressed)
+  if (x && !padAntes.x) { if (J.tela === 'rodada') { garantirAudio(); apertar(0) } }
+  if (st && !padAntes.start) alternarPausa()
+  padAntes = { x, start: st }
+}
+function quadro(agora) {
+  const ini = performance.now()
+  const dt = ultimo ? Math.min(0.1, (agora - ultimo) / 1000) : 1 / 60
+  if (ultimo) amostras.intervalos.push(agora - ultimo)
+  if (amostras.intervalos.length > 20000) amostras.intervalos.splice(0, 10000)
+  ultimo = agora
+  lerControle()
+  if (!J.manual) avancar(dt)
+  if (J.visao === 'jogador') {
+    ajustarCanvas()
+    desenharCena(ctx2d, canvas.width, canvas.height, estadoVisual())
+    if (J.P && J.tela !== 'resultado') pintarHud()
+  }
+  if (J.visao === 'mestre' && (J.tela === 'rodada' || J.tela === 'fim')) pintarMestre()
+  const C = audio.C
+  if (C && prefs.som && !J.manual) {
+    const P = J.P
+    if (J.tela === 'rodada' && P && !J.pausado && !J.pausaMestre) SOM.continuo(C, C.ctx.currentTime, P.vel, P.forca / SIM.forcaMax(P.R), P.solta)
+    else if (J.tela !== 'fim') SOM.continuo(C, C.ctx.currentTime, 0, 0, 0)
+  }
+  amostras.trabalho.push(performance.now() - ini)
+  if (amostras.trabalho.length > 20000) amostras.trabalho.splice(0, 10000)
+  requestAnimationFrame(quadro)
+}
+
+// ---- pausa
+function alternarPausa(forcar) {
+  if (!(J.tela === 'contagem' || J.tela === 'rodada')) return
+  J.pausado = forcar !== undefined ? forcar : !J.pausado
+  $('#pausa').hidden = !(J.pausado || J.pausaMestre)
+  $('#pausaMotivo').textContent = J.pausaMestre ? 'O mestre pausou para todos. Só ele continua.' : 'A corrente espera. Esc ou o botão continua.'
+  $('#bContinuar').disabled = J.pausaMestre
+  if (audio.C && (J.pausado || J.pausaMestre)) SOM.continuo(audio.C, audio.C.ctx.currentTime, 0, 0, 0)
+  if (J.pausado && !J.manual) $('#bContinuar').focus({ preventScroll: true })
+  J.fila = []
+}
+
+// ---- entradas
+addEventListener('keydown', (e) => {
+  if (e.code === 'Escape') { if (J.tela === 'contagem' || J.tela === 'rodada') { e.preventDefault(); alternarPausa() } return }
+  const j = TECLAS.indexOf(e.code)
+  if (j < 0) return
+  const alvo = e.target
+  if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'SELECT' || alvo.tagName === 'TEXTAREA')) return
+  if (J.tela !== 'rodada' && J.tela !== 'contagem') return
+  e.preventDefault()
+  if (e.repeat) return // segurar o X não gira: cada aperto conta uma vez
+  if (j > 0 && config.modos[j] !== 'tecla') return
+  garantirAudio()
+  apertar(j)
+})
+const bGirar = $('#bGirar')
+bGirar.addEventListener('pointerdown', (e) => { if (e.button !== 0 && e.pointerType === 'mouse') return; e.preventDefault(); garantirAudio(); apertar(0) })
+bGirar.addEventListener('click', (e) => { if (e.detail === 0) apertar(0) })
+bGirar.addEventListener('contextmenu', (e) => e.preventDefault())
+$('#bComecar').addEventListener('click', comecar)
+$('#bDeNovo').addEventListener('click', comecar)
+$('#bVoltar').addEventListener('click', () => irPara('convite'))
+$('#bPausar').addEventListener('click', () => alternarPausa(true))
+$('#bContinuar').addEventListener('click', () => alternarPausa(false))
+document.addEventListener('visibilitychange', () => { if (document.hidden && J.tela === 'rodada' && !J.pausado) alternarPausa(true) })
+$('#bSom').addEventListener('click', () => {
+  prefs.som = !prefs.som
+  const b = $('#bSom'); b.setAttribute('aria-pressed', String(prefs.som)); b.textContent = prefs.som ? 'Som ligado' : 'Som desligado'
+  if (audio.C) audio.C.mestre.gain.setTargetAtTime(prefs.som ? SOM.VOLUME : 0, audio.C.ctx.currentTime, 0.02)
+})
+
+// ---- visão (jogador / mestre)
+function trocarVisao(v) {
+  J.visao = v
+  for (const b of document.querySelectorAll('[data-visao]')) b.setAttribute('aria-pressed', String(b.dataset.visao === v))
+  $('#vJogador').hidden = v !== 'jogador'
+  $('#vMestre').hidden = v !== 'mestre'
+  if (v === 'mestre') { pintarMestre(); atualizarChance() } else pintarConvite()
+}
+for (const b of document.querySelectorAll('[data-visao]')) b.addEventListener('click', () => trocarVisao(b.dataset.visao))
+
+// ---- painel do mestre
+function marcarSeg(cont, attr, valor) { for (const b of cont.querySelectorAll(`[data-${attr}]`)) b.setAttribute('aria-pressed', String(b.dataset[attr] === String(valor))) }
+function pintarVagas() {
+  const ul = $('#mVagas'); ul.innerHTML = ''
+  for (let j = 1; j < config.jogadores; j++) {
+    const li = document.createElement('li')
+    li.innerHTML = `<span>Jogador ${j + 1}</span><div class="seg" role="group" aria-label="Jogador ${j + 1}"><button type="button" data-modo="bot">Bot (${NOMES_BOT[j]})</button><button type="button" data-modo="tecla">Tecla ${LETRAS[j]}</button></div>`
+    marcarSeg(li, 'modo', config.modos[j])
+    li.querySelectorAll('[data-modo]').forEach((b) => b.addEventListener('click', () => { config.modos[j] = b.dataset.modo; marcarSeg(li, 'modo', b.dataset.modo); aoMudarConfig(false) }))
+    ul.appendChild(li)
+  }
+}
+let chanceTimer = 0
+function atualizarChance() {
+  clearTimeout(chanceTimer)
+  $('#mChance').textContent = '…'
+  chanceTimer = setTimeout(() => {
+    const cfg = { dif: config.dif, jogadores: config.jogadores, tempo: config.tempo }, R = SIM.regras(cfg)
+    const v = SIM.estimar(cfg, 200, 'mestre')
+    $('#mChance').textContent = `${Math.round(v * 100)}%`
+    $('#mChanceNota').textContent = `${R.nome}, ${R.n} ${R.n > 1 ? 'jogadores' : 'jogador'}, ${R.tempo} s · robô que joga como gente, 200 partidas`
+  }, 60)
+}
+function aoMudarConfig(chance = true) {
+  const R = regrasAtuais()
+  $('#mTempo').value = String(R.tempo); $('#mTempoVal').textContent = `${R.tempo} s`
+  $('#mTempoPadrao').disabled = config.tempo === null
+  $('#mPorta').disabled = config.desfecho !== 'porta'
+  pintarConvite()
+  if (chance) atualizarChance()
+}
+$('#mDif').querySelectorAll('[data-dif]').forEach((b) => b.addEventListener('click', () => { config.dif = b.dataset.dif; config.tempo = null; marcarSeg($('#mDif'), 'dif', config.dif); aoMudarConfig() }))
+$('#mJog').querySelectorAll('[data-n]').forEach((b) => b.addEventListener('click', () => { config.jogadores = Number(b.dataset.n); marcarSeg($('#mJog'), 'n', config.jogadores); pintarVagas(); aoMudarConfig() }))
+$('#mTempo').addEventListener('input', (e) => { const v = Number(e.target.value); config.tempo = v === SIM.DIF[config.dif].tempo ? null : v; aoMudarConfig() })
+$('#mTempoPadrao').addEventListener('click', () => { config.tempo = null; aoMudarConfig() })
+document.querySelectorAll('input[name="desfecho"]').forEach((r) => r.addEventListener('change', () => { config.desfecho = r.value; aoMudarConfig(false) }))
+$('#mPorta').addEventListener('input', (e) => { config.porta = e.target.value.trim(); pintarConvite() })
+$('#bPausaTodos').addEventListener('click', () => { J.pausaMestre = !J.pausaMestre; if (J.pausaMestre) J.pausado = false; alternarPausa(J.pausado); pintarMestre() })
+$('#bEncerrar').addEventListener('click', encerrarPeloMestre)
+
+desenharIcone($('#icone'))
+pintarVagas(); aoMudarConfig(false); irPara('convite')
+requestAnimationFrame(quadro)
+window.AlavancaDaPonte = { SIM, SOM, J, config, prefs, amostras, irPara, comecar, apertar, rodar, avancar, trocarVisao, alternarPausa, encerrarPeloMestre, desenharCena, estadoVisual, pintarHud, pontoDaPonte, aoMudarConfig, pintarVagas, marcarSeg, atualizarChance }
+</script>
+</body>
+</html>
