@@ -1,3 +1,4 @@
+import type { DocumentoNaFicha } from '../../documentos/tipos'
 import type { CarriedItem } from '../../types/map'
 import type { FichaDBT } from '../dbt/modelo'
 import { quantidadeDe } from '../items'
@@ -113,6 +114,8 @@ function diferencasDaFicha(antes: Personagem | null, depois: Personagem | null):
     ...CAMPOS_DO_MESTRE.filter((campo) => !jsonIgual(antes[campo], depois[campo])).map((campo) => definir(f, [campo], depois[campo])),
     // Fatia C7: a contagem "???" da projeção (o emissor a calcula; a ficha do mestre não a guarda).
     ...(jsonIgual(antes.ocultas, depois.ocultas) ? [] : [definir(f, ['ocultas'], depois.ocultas)]),
+    // Lista de documentos ausente = vazia (`Personagem.documentos`).
+    ...documentos(f, antes.documentos ?? [], depois.documentos ?? []),
   ]
 }
 
@@ -198,6 +201,35 @@ function umItem(f: string, antes: CarriedItem, depois: CarriedItem): Mudanca[] {
   const delta = quantidadeDe(depois) - quantidadeDe(antes)
   const soma: Mudanca[] = delta === 0 ? [] : [{ fichaId: f, caminho: [...base, 'quantidade'], acao: 'somar', delta }]
   return [...CAMPOS_DO_ITEM.filter((campo) => !jsonIgual(antes[campo], depois[campo])).map((campo) => definir(f, [...base, campo], depois[campo])), ...soma]
+}
+
+/**
+ * Lista de documentos (plano dos puzzles, D4): uma op por linha, em
+ * `['documentos', docId]`. O `aplicar` troca no lugar a linha que já existe e
+ * põe a nova no fim, então o começo do rascunho que segue a ordem de antes fica
+ * no lugar, e o resto entra no fim. A linha que mudou de lugar (o app só
+ * acrescenta no fim; é a defesa da ida e volta) sai e entra de novo. Primeiro
+ * saem as linhas, depois mudam as que ficam e por fim entram as novas: assim a
+ * troca da mais velha por uma nova, com a lista no teto, cabe.
+ */
+function documentos(f: string, antes: readonly DocumentoNaFicha[], depois: readonly DocumentoNaFicha[]): Mudanca[] {
+  const porIdAntes = new Map(antes.map((linha, indice): [string, { linha: DocumentoNaFicha; indice: number }] => [linha.docId, { linha, indice }]))
+  const ficam: { velha: DocumentoNaFicha; nova: DocumentoNaFicha }[] = []
+  let ultimoIndice = -1
+  for (const nova of depois) {
+    const velha = porIdAntes.get(nova.docId)
+    if (velha === undefined || velha.indice <= ultimoIndice) break
+    ultimoIndice = velha.indice
+    ficam.push({ velha: velha.linha, nova })
+  }
+  const entram = depois.slice(ficam.length)
+  const idsQueFicam = new Set(ficam.map(({ nova }) => nova.docId))
+  const caminho = (docId: string): string[] => ['documentos', docId]
+  return [
+    ...antes.filter((linha) => !idsQueFicam.has(linha.docId)).map((linha) => definir(f, caminho(linha.docId), undefined)),
+    ...ficam.filter(({ velha, nova }) => !jsonIgual(velha, nova)).map(({ nova }) => definir(f, caminho(nova.docId), nova)),
+    ...entram.map((linha) => definir(f, caminho(linha.docId), linha)),
+  ]
 }
 
 function moedas(f: string, antes: number, depois: number): Mudanca[] {

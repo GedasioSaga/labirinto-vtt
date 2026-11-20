@@ -1,3 +1,4 @@
+import { DOCUMENTOS_NA_FICHA_MAX } from '../../documentos/tipos'
 import type { CarriedItem } from '../../types/map'
 import { lerFichaDBT } from '../dbt/modelo'
 import { ITEM_QUANTIDADE_MAX, quantidadeDe } from '../items'
@@ -163,7 +164,7 @@ function comChave<T>(registro: Readonly<Record<string, T>>, chave: string, valor
   return Object.fromEntries(Object.entries(registro).filter(([outra]) => outra !== chave))
 }
 
-type CampoOpcional = 'mochila' | 'moedas' | 'ocultas' | CampoDoMestre
+type CampoOpcional = 'mochila' | 'moedas' | 'ocultas' | 'documentos' | CampoDoMestre
 
 /** Ficha com o campo opcional trocado; ausente tira a chave (nada de `campo: undefined` gravado no disco). */
 function comOpcional<K extends CampoOpcional>(doc: Personagem, campo: K, valor: Personagem[K] | undefined): Personagem {
@@ -218,7 +219,33 @@ function naFicha(doc: Personagem, lida: Exclude<MudancaLida, { regra: 'ficha' }>
       return { ok: true, novo: comOpcional(doc, lida.mudar.campo, lida.mudar.valor), antes: doc[lida.mudar.campo], depois: lida.mudar.valor }
     case 'ocultas':
       return { ok: true, novo: comOpcional(doc, 'ocultas', lida.valor), antes: doc.ocultas, depois: lida.valor }
+    case 'documento':
+      return nosDocumentos(doc, lida)
   }
+}
+
+/**
+ * Uma linha da lista de documentos (plano dos puzzles, D4): a que já está é
+ * trocada no lugar, a nova entra no fim (a lista é da mais velha para a mais
+ * nova, e o teto do leitor guarda o fim) e, sem valor, a linha sai. Ausente =
+ * lista vazia; vazia de novo, a chave sai (como o leitor do disco faz).
+ */
+function nosDocumentos(doc: Personagem, lida: Extract<MudancaLida, { regra: 'documento' }>): Passo<Personagem> {
+  const lista = doc.documentos ?? []
+  const indice = lista.findIndex((linha) => linha.docId === lida.docId)
+  const atual = indice < 0 ? undefined : lista[indice]
+  const nova = lida.valor
+  if (nova === undefined) {
+    if (atual === undefined) return semEfeito(doc, undefined)
+    const resto = lista.filter((linha) => linha.docId !== lida.docId)
+    return { ok: true, novo: comOpcional(doc, 'documentos', resto.length === 0 ? undefined : resto), antes: atual }
+  }
+  if (atual === undefined) {
+    // O leitor do disco cortaria a mais velha em silêncio; aqui isso viraria uma linha sumida sem op. `diferencas` tira antes de pôr.
+    if (lista.length >= DOCUMENTOS_NA_FICHA_MAX) return recusar('acima-do-teto', `Documentos demais: máximo ${DOCUMENTOS_NA_FICHA_MAX}`)
+    return { ok: true, novo: comOpcional(doc, 'documentos', [...lista, nova]), depois: nova }
+  }
+  return { ok: true, novo: comOpcional(doc, 'documentos', lista.map((linha, i) => (i === indice ? nova : linha))), antes: atual, depois: nova }
 }
 
 function naEtiqueta(doc: Personagem, lida: Extract<MudancaLida, { regra: 'etiqueta' }>): Passo<Personagem> {

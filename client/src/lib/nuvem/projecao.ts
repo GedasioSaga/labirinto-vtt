@@ -15,8 +15,8 @@ import type { FichaGuardada, FichaNoEstado, Membro, MembroProjetado, OpGravada, 
  * Ball. Mochila e moedas ficam (≠ `paraOFio`, que é só da sala LAN).
  *
  * O INIMIGO LIBERADO para o treino (§8.2, T8) tem projeção própria, mais
- * estreita: além dos campos do mestre, também sem mochila e moedas (o que o
- * NPC carrega é segredo do mestre; o treino luta com a ficha).
+ * estreita: além dos campos do mestre, também sem mochila, moedas e documentos
+ * (o que o NPC carrega é segredo do mestre; o treino luta com a ficha).
  *
  * A remoção é pelo VALOR, não só pelo caminho: a op que cria ou apaga a
  * ficha inteira leva o doc no `valor` ou no `antes`, e os dois saem
@@ -24,11 +24,15 @@ import type { FichaGuardada, FichaNoEstado, Membro, MembroProjetado, OpGravada, 
  * `personagem.ts`, que roda também no Worker.
  */
 
-/** O que o inimigo liberado deixa para trás, além dos campos do mestre. */
-const CAMPOS_FORA_DO_TREINO = ['mochila', 'moedas'] as const
+/**
+ * O que o inimigo liberado deixa para trás, além dos campos do mestre. Os
+ * documentos (plano dos puzzles, D4) vão junto da mochila: o que o NPC leva é
+ * segredo do mestre, e o treino não os usa.
+ */
+const CAMPOS_FORA_DO_TREINO = ['mochila', 'moedas', 'documentos'] as const
 
-/** As regras da tabela 4.7 que mexem na mochila e na bolsa: nunca saem de uma ficha do treino. */
-const REGRAS_FORA_DO_TREINO: ReadonlySet<NomeDaRegra> = new Set<NomeDaRegra>(['vaga', 'quantidade', 'campoDoItem', 'moedas'])
+/** As regras da tabela 4.7 que mexem na mochila, na bolsa e na lista de documentos: nunca saem de uma ficha do treino. */
+const REGRAS_FORA_DO_TREINO: ReadonlySet<NomeDaRegra> = new Set<NomeDaRegra>(['vaga', 'quantidade', 'campoDoItem', 'moedas', 'documento'])
 
 /**
  * A cópia de treino tem id próprio (`treino_<id do NPC>`): nunca encontra a

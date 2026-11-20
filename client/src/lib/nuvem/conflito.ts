@@ -132,6 +132,8 @@ export function valorNoCaminho(doc: Personagem | null, caminho: readonly string[
       return comoJson(doc[alvo.campo])
     case 'ocultas':
       return comoJson(doc.ocultas)
+    case 'documento':
+      return comoJson((doc.documentos ?? []).find((linha) => linha.docId === alvo.docId))
   }
 }
 

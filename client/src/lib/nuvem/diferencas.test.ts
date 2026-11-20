@@ -58,12 +58,17 @@ function luffyAntes(): Personagem {
       { id: 'vaga_mapa', nome: 'Mapa da Grand Line' },
     ],
     moedas: 1500,
+    documentos: [
+      { docId: 'doc_cartaz', titulo: 'Cartaz de procurado', papel: 'alfinete', em: 1_700_000_000_000, origem: 'mapa', de: 'Loguetown' },
+      { docId: 'doc_diario', titulo: 'Diário de bordo', papel: 'diario', em: 1_700_000_010_000, origem: 'mestre', de: 'o mestre', novo: true },
+      { docId: 'doc_bilhete', titulo: 'Bilhete do Zoro', papel: 'bilhete', em: 1_700_000_020_000, origem: 'puzzle' },
+    ],
     dono: 'conta_luffy',
     notaDoMestre: 'Vai virar Rei dos Piratas.',
   }
 }
 
-/** Uma sessão inteira de mudanças nos dois lados: textos, números, conjuntos, cartões, subcartões, ordem, mochila, moedas, mestre. */
+/** Uma sessão inteira de mudanças nos dois lados: textos, números, conjuntos, cartões, subcartões, ordem, mochila, moedas, documentos, mestre. */
 function luffyDepois(): Personagem {
   const antes = luffyAntes()
   const [pistol, , bazooka] = antes.abas.tecnicas
@@ -71,6 +76,8 @@ function luffyDepois(): Personagem {
   const [gear2] = antes.abas.transformacoes
   const [jet] = gear2.subcartoes
   const [carne, chapeu] = antes.mochila ?? []
+  const [cartaz, diario] = antes.documentos ?? []
+  const { novo: _lido, ...diarioLido } = diario
   return {
     ...antes,
     descricao: 'Capitão dos Chapéus de Palha. Quer ser o Rei dos Piratas.',
@@ -99,6 +106,8 @@ function luffyDepois(): Personagem {
       { id: 'vaga_bolinho', nome: 'Bolinho de arroz', itemId: 'item_bolinho', empilhavel: true, quantidade: 2 },
     ],
     moedas: 1200,
+    // O diário foi lido (o "novo" sai), o bilhete saiu e o mapa do cofre entrou no fim.
+    documentos: [cartaz, diarioLido, { docId: 'doc_mapa', titulo: 'Mapa do tesouro', papel: 'pergaminho', em: 1_700_000_100_000, origem: 'objeto', de: 'Cofre do Capitão', novo: true }],
     notaDoMestre: 'Vai virar Rei dos Piratas. Cuidado com o Gear 5.',
   }
 }

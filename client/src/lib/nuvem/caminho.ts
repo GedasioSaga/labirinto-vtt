@@ -1,3 +1,5 @@
+import { ehIdDeDocumento, lerDocumentoNaFicha } from '../../documentos/leitor'
+import type { DocumentoNaFicha } from '../../documentos/tipos'
 import type { CarriedItem } from '../../types/map'
 import { ITEM_QUANTIDADE_MAX, readCarriedItems } from '../items'
 import { ehRefDeMidia } from '../midia'
@@ -184,6 +186,7 @@ export type NomeDaRegra =
   | 'npcDoDbt'
   | 'doMestre'
   | 'ocultas'
+  | 'documento'
 
 /** `donoOuMestre`: o dono da ficha (qualquer conta dele) e o mestre. Ficha sem dono: só o mestre (§6.4, permissão na N2). */
 export type QuemEscreve = 'mestre' | 'donoOuMestre'
@@ -234,6 +237,9 @@ export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> =
   doMestre: { caminho: "['dono'] | ['combate'] | ['soCenario'] | ['nomeDoJogador'] | ['notaDoMestre']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: false },
   // Fatia C7: quantos "???" cada aba mostra ao jogador. Quem escreve é o emissor do app do mestre (a projeção).
   ocultas: { caminho: "['ocultas']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: true },
+  // Plano dos puzzles, D4: uma linha da lista de documentos (só metadados, o texto mora no app do mestre).
+  // Só o mestre escreve: o documento chega pelo jogo (mapa, puzzle, baú, "Dar a…") e o "novo" sai pela leitura na mesa.
+  documento: { caminho: "['documentos', docId]", acoes: ['definir'], quem: 'mestre', visivelAoJogador: true },
 }
 
 /**
@@ -264,6 +270,7 @@ export type Alvo =
   | { regra: 'npcDoDbt' }
   | { regra: 'doMestre'; campo: CampoDoMestre }
   | { regra: 'ocultas' }
+  | { regra: 'documento'; docId: string }
 
 function alvoNaLista(aba: string, dono: readonly string[], resto: readonly string[]): Alvo | null {
   if (resto.length === 0) return null
@@ -325,6 +332,9 @@ export function alvoDoCaminho(caminho: unknown): Alvo | null {
       return alvoNaMochila(resto)
     case 'dbt':
       return alvoNoDbt(resto)
+    case 'documentos':
+      // O id na forma dos do app (`ehIdDeDocumento`), mais estreita que a do segmento: sem `:`, `.` nem `#`.
+      return umaChave !== undefined && ehIdDeDocumento(umaChave) ? { regra: 'documento', docId: umaChave } : null
     default:
       if (ehMapaNumerico(topo)) return umaChave === undefined ? null : { regra: 'numero', mapa: topo, chave: umaChave }
       if (ehCampoDoMestre(topo)) return resto.length === 0 ? { regra: 'doMestre', campo: topo } : null
@@ -455,6 +465,8 @@ export type MudancaLida =
   | { regra: 'dbt'; campo: CampoDaFichaDBT; valor: Json | undefined }
   | { regra: 'doMestre'; mudar: MudancaDoMestre }
   | { regra: 'ocultas'; valor: Record<string, number> | undefined }
+  /** Sem valor, a linha sai da lista. */
+  | { regra: 'documento'; docId: string; valor: DocumentoNaFicha | undefined }
 
 export interface RecusaDoEsquema {
   ok: false
@@ -627,7 +639,23 @@ function lerNoAlvo(m: Mudanca, alvo: Alvo): Leitura {
       return lerDoMestre(m.fichaId, alvo.campo, valor)
     case 'ocultas':
       return lerOcultas(valor)
+    case 'documento':
+      return lerLinhaDeDocumento(alvo.docId, valor)
   }
+}
+
+/**
+ * Uma linha da lista de documentos pelo leitor da ficha (`lerDocumentoNaFicha`):
+ * o que ele não guardaria igual (título com espaço na ponta ou acima de 60
+ * letras, `de` vazio, papel que não existe, chave a mais) é recusado. Os tetos
+ * do leitor deixam a linha bem abaixo do teto da op. Sem valor, a linha sai.
+ */
+function lerLinhaDeDocumento(docId: string, valor: Json | undefined): Leitura {
+  if (valor === undefined) return aceita({ regra: 'documento', docId, valor: undefined })
+  const linha = lerDocumentoNaFicha(valor)
+  if (linha === null || !jsonIgual(linha, valor)) return recusa('fora-do-esquema', 'Documento fora do formato da ficha')
+  if (linha.docId !== docId) return recusa('fora-do-esquema', 'O documento não bate com o caminho')
+  return aceita({ regra: 'documento', docId, valor: linha })
 }
 
 /** A contagem "???" por aba (fatia C7) pelo leitor do disco: o que ele não guardaria igual é recusado. */
