@@ -1,4 +1,4 @@
-import { useId, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react'
 import type { ResolverDeImagem } from '../lib/midia'
 import { ARTES, contornoDaCera, furosDoCarimbo, recorteDoPapel, tamanhoDoTextoDoCarimbo, tom, fundoDasManchas } from './desenhoDoPapel'
 import { sementeDoTexto } from './resolver'
@@ -346,6 +346,124 @@ export function Papel({ documento, pagina, resolver, tamanho = 'cheio', idDoTitu
           </span>
         )}
       </article>
+    </div>
+  )
+}
+
+// ------------------------------------------------------------------ o aquecimento
+
+/**
+ * O 1º papel aberto travava um quadro de 267 a 384 ms (relato da D5), mesmo
+ * sem decifração: não é tarefa do JavaScript, é a placa de vídeo compilando,
+ * na 1ª vez, o desenho de cada camada do papel (o grão em `feTurbulence`, a
+ * mistura `multiply`, a sombra do recorte, a máscara do carimbo). Medido em
+ * 20/11/2026: a 2ª abertura, com o mesmo navegador, fica em 17 ms.
+ *
+ * O aquecimento pinta, com o app parado, um papel de cada vez por baixo de
+ * tudo e quase transparente, com as mesmas camadas da leitura: cada etapa
+ * custa um pedaço daquele quadro, nenhuma o quadro inteiro. Uma vez por página.
+ */
+const ETAPAS_DO_AQUECIMENTO: readonly (DocumentoNoFio | 'grao')[] = [
+  // O grão sozinho primeiro: é a camada mais cara da 1ª vez.
+  'grao',
+  papelDeAquecer('alfinete', { letra: 'impressa', tinta: 'preta' }),
+  papelDeAquecer('diario', { letra: 'mao', tinta: 'sangue', assinatura: 'Aa', brasao: { arte: 'rosa', imagem: null } }),
+  papelDeAquecer('carta', { letra: 'maquina', tinta: 'sepia', desgaste: { cor: null, manchas: 3, bordaQueimada: false, dobras: true, rasgos: false } }),
+  papelDeAquecer('carta', { letra: 'maquina', tinta: 'sepia', desgaste: { cor: null, manchas: 0, bordaQueimada: true, dobras: false, rasgos: true } }),
+  papelDeAquecer('pergaminho', { letra: 'impressa', tinta: 'vermelha', selo: { tipo: 'cera', cor: '#8e2a22', arte: 'rosa' } }),
+  papelDeAquecer('bilhete', { letra: 'mao', tinta: 'preta', selo: { tipo: 'carimbo', cor: '#33508f', arte: 'torre', texto: 'Aa' } }),
+]
+/** Espera o app assentar (mapa, fichas) antes de ocupar a placa de vídeo. */
+const ESPERA_PARA_AQUECER_MS = 1500
+const OCIOSO_PARA_AQUECER_MS = 2000
+/** Quadros de cada etapa na tela: o 1º pinta, os outros deixam a placa terminar antes da próxima. */
+const QUADROS_POR_ETAPA = 3
+const SEM_IMAGEM: ResolverDeImagem = () => null
+let papelAquecido = false
+
+function papelDeAquecer(papel: PapelDoDocumento, extras: Partial<ExtrasDoDocumento> & Pick<ExtrasDoDocumento, 'letra' | 'tinta'>): DocumentoNoFio {
+  const base: ExtrasDoDocumento = {
+    letra: extras.letra,
+    tinta: extras.tinta,
+    desgaste: extras.desgaste ?? { cor: null, manchas: 0, bordaQueimada: false, dobras: false, rasgos: false },
+    selo: extras.selo ?? null,
+    assinatura: extras.assinatura ?? null,
+    brasao: extras.brasao ?? null,
+  }
+  return {
+    docId: `aquecer_${papel}`,
+    titulo: 'Aa',
+    papel,
+    imagemDoPapel: null,
+    extras: base,
+    paginas: [
+      {
+        imagem: null,
+        blocos: [
+          { t: 'texto', texto: 'Aa **Bb** *Cc* ' },
+          { t: 'protegido', id: 'a1', tipo: 'borrado', texto: 'Aaaa', lido: false },
+          { t: 'protegido', id: 'a2', tipo: 'cifra', mostra: 'codigo', texto: 'Aaaa', lido: false },
+          { t: 'protegido', id: 'a3', tipo: 'cifra', mostra: 'lingua', texto: 'Aa', lido: true, com: 'aquecer', antes: 'Aa' },
+        ],
+      },
+    ],
+  }
+}
+
+/** Chama `fazer` com o app parado: depois da espera e no 1º momento ocioso (sem `requestIdleCallback`, o Safari, logo depois da espera). */
+function quandoOcioso(fazer: () => void): () => void {
+  let idOcioso: number | null = null
+  const espera = window.setTimeout(() => {
+    if (typeof window.requestIdleCallback === 'function') idOcioso = window.requestIdleCallback(fazer, { timeout: OCIOSO_PARA_AQUECER_MS })
+    else fazer()
+  }, ESPERA_PARA_AQUECER_MS)
+  return () => {
+    window.clearTimeout(espera)
+    if (idOcioso !== null) window.cancelIdleCallback(idOcioso)
+  }
+}
+
+/** Monte onde a leitura pode abrir (a tela do jogador com papel no chão ou documento na lista). Não desenha nada que se veja. */
+export function AquecimentoDoPapel() {
+  const [etapa, setEtapa] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (papelAquecido) return
+    return quandoOcioso(() => setEtapa(0))
+  }, [])
+
+  useEffect(() => {
+    if (etapa === null) return
+    let falta = QUADROS_POR_ETAPA
+    let quadro = 0
+    const passo = () => {
+      falta -= 1
+      if (falta > 0) {
+        quadro = requestAnimationFrame(passo)
+        return
+      }
+      if (etapa + 1 < ETAPAS_DO_AQUECIMENTO.length) {
+        setEtapa(etapa + 1)
+        return
+      }
+      papelAquecido = true
+      setEtapa(null)
+    }
+    quadro = requestAnimationFrame(passo)
+    return () => cancelAnimationFrame(quadro)
+  }, [etapa])
+
+  const desenho = etapa === null ? undefined : ETAPAS_DO_AQUECIMENTO[etapa]
+  if (desenho === undefined) return null
+  return (
+    <div className="papel-aquecimento" aria-hidden="true" inert>
+      {desenho === 'grao' ? (
+        <span className="papel-aquecimento__grao">
+          <span className="papel__grao" />
+        </span>
+      ) : (
+        <Papel documento={desenho} pagina={0} resolver={SEM_IMAGEM} tamanho="previa" />
+      )}
     </div>
   )
 }

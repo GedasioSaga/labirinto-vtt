@@ -37,6 +37,7 @@ import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard, type TokenCardGive } from './PlayerTokenCard'
 import { PlayerInventory } from './PlayerInventory'
 import { BotaoLerPapel, botaoDosDocumentos, GavetaDeDocumentos, LeituraDoDocumento } from './PlayerDocumentos'
+import { AquecimentoDoPapel } from '../documentos/Papel'
 import { documentosDoJogador, nomeDoItemQueCarrega, quantosNovos, type RetanguloNaTela } from './documentosDoJogador'
 import { voarParaDocumentos } from './movimentoDosDocumentos'
 import { textoDaRecusaDoDocumento } from '../net/protocoloDoDocumento'
@@ -3121,6 +3122,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           />
         )}
         {state.tiro && <TiroOverlay tiro={state.tiro} playerId={state.playerId} acoes={connection} {...ajustesDoTiro} />}
+        {/* DOCUMENTOS: com papel no chão ou documento na lista, a 1ª leitura não pode travar; o aquecimento pinta as camadas do papel antes, com a tela parada. */}
+        {servePersonagens && ((map?.papeisNoChao?.length ?? 0) > 0 || linhasDosDocumentos.length > 0) && <AquecimentoDoPapel />}
         {/* DOCUMENTOS: o papel aberto, como o host o montou para ELE. Remonta a cada leitura (a página volta para a primeira). */}
         {/* Com a tela do puzzle aberta (o "Ler" da dica), o papel sobe para cima dela. */}
         {documentoAberto && (
