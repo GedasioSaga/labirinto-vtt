@@ -63,3 +63,68 @@
 .doc-quem__estado--tem { color: var(--lb-color-parchment-dim); }
 .doc-quem__estado small { color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
 .doc-quem__tirar { grid-column: 3; grid-row: 1 / span 2; }
+
+/* ---------------------------------------------------------------- D5: os extras e os trechos (protótipo dos extras) */
+/* começar de um exemplo */
+.doc-exemplos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.doc-exemplo {
+  display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 8px; align-items: center; width: 100%; min-height: 58px; padding: 7px 8px;
+  border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete-forte); background: var(--lb-gr-campo); color: var(--lb-color-parchment);
+  text-align: left; cursor: pointer; transition: border-color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out);
+}
+.doc-exemplo svg { grid-row: span 2; width: 30px; height: 30px; }
+.doc-exemplo__nome { font: 400 var(--lb-font-size-md)/1.2 var(--lb-font-display); overflow-wrap: anywhere; }
+.doc-exemplo__como { font-size: var(--lb-font-size-xs); line-height: 1.3; color: var(--lb-color-parchment-faint); overflow-wrap: anywhere; }
+.doc-exemplo:active { transform: scale(0.97); }
+.doc-exemplo:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) { .doc-exemplo:hover { border-color: var(--lb-color-brass-bright); } }
+
+/* a letra ("Aa" em cada uma) e a tinta (um ponto da cor) */
+.doc-letra-aa { height: 34px; font-size: 21px; line-height: 34px; color: var(--lb-color-parchment); }
+.doc-letra-aa--mao { font-family: var(--doc-mao); font-size: 17px; }
+.doc-letra-aa--maquina { font-family: var(--doc-maquina); font-weight: 700; }
+.doc-letra-aa--impressa { font-family: var(--doc-impressa); }
+.doc-ponto { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
+
+/* os desenhos de selo, carimbo e brasão */
+.doc-artes { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.doc-arte-op {
+  position: relative; display: grid; place-items: center; aspect-ratio: 1; border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete-forte);
+  background: var(--lb-gr-campo); color: var(--lb-color-parchment-dim); cursor: pointer; transition: transform 160ms var(--lb-gr-ease-out);
+}
+.doc-arte-op input { position: absolute; opacity: 0; pointer-events: none; }
+.doc-arte-op svg { width: 72%; height: 72%; }
+.doc-arte-op:has(input:checked) { border-color: var(--lb-color-brass-bright); color: var(--lb-color-brass-bright); box-shadow: 0 0 0 1px var(--lb-color-brass-bright); }
+.doc-arte-op:has(input:focus-visible) { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 1px; }
+.doc-arte-op:active { transform: scale(0.97); }
+.doc-imagem-mini { display: flex; align-items: center; gap: 8px; }
+.doc-imagem-mini img { width: 44px; height: 44px; object-fit: contain; border-radius: 4px; background: #e9dfc4; }
+
+/* os trechos protegidos */
+.doc-trechos { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.doc-trecho { display: flex; flex-direction: column; gap: 8px; padding: 8px; border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete); background: rgba(0, 0, 0, 0.14); }
+.doc-trecho.is-orfao { border-style: dashed; border-color: rgba(226, 100, 90, 0.35); }
+.doc-trecho__cab { display: flex; align-items: center; gap: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.doc-trecho__cab > :last-child { margin-left: auto; }
+.doc-trecho__perigo { margin: 0; font-size: var(--lb-font-size-sm); color: #f0a198; }
+.doc-chaves { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.doc-chave { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 2px 2px 2px 8px; border-radius: 999px; background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); font-size: var(--lb-font-size-sm); }
+.doc-chave > span { min-width: 0; overflow-wrap: anywhere; }
+.doc-chave__tirar { display: grid; place-items: center; flex: none; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer; transition: background-color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out); }
+.doc-chave__tirar svg { width: 14px; height: 14px; }
+.doc-chave__tirar:active { transform: scale(0.97); }
+.doc-chave__tirar:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) { .doc-chave__tirar:hover { background: rgba(224, 164, 74, 0.2); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-exemplo,
+  .doc-arte-op,
+  .doc-chave__tirar { transition-property: border-color, background-color, color; }
+  .doc-exemplo:active,
+  .doc-arte-op:active,
+  .doc-chave__tirar:active { transform: none; }
+}
+
+/* rádios de nomes longos (tinta, manchas, o que vê quem não tem o item): duas opções por linha na coluna estreita */
+.doc-seg-em-duas .gr-seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.doc-seg-em-duas .gr-seg__op { min-height: 30px; }

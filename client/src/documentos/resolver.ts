@@ -21,18 +21,27 @@ function marcasDoTrecho(): RegExp {
 /** As letras do embaralhado: as mesmas do protótipo dos extras. */
 const LETRAS_DO_EMBARALHADO = 'abcdefghijlmnopqrstuvxz'
 
-/** FNV-1a de 32 bits: a semente de cada trecho sai do id do documento e do trecho, então o embaralhado é o mesmo a cada leitura. */
-export function sementeDoTrecho(docId: string, trechoId: string): number {
+/** FNV-1a de 32 bits (o `hash` do protótipo dos extras): o mesmo texto dá sempre a mesma semente. */
+export function sementeDoTexto(texto: string): number {
   let h = 0x811c9dc5
-  for (const letra of `${docId}:${trechoId}`) {
+  for (const letra of texto) {
     h ^= letra.codePointAt(0) ?? 0
     h = Math.imul(h, 0x01000193) >>> 0
   }
   return h >>> 0
 }
 
-/** mulberry32: a sequência de números da semente (a mesma do protótipo). */
-function sorteio(semente: number): () => number {
+/** A semente de cada trecho sai do id do documento e do trecho, então o embaralhado é o mesmo a cada leitura. */
+export function sementeDoTrecho(docId: string, trechoId: string): number {
+  return sementeDoTexto(`${docId}:${trechoId}`)
+}
+
+/**
+ * mulberry32: a sequência de números da semente (a mesma do protótipo). Serve
+ * também ao desenho do papel (`documentos/desenhoDoPapel.ts`): bordas comidas,
+ * manchas e cera saem iguais a cada abertura.
+ */
+export function sorteio(semente: number): () => number {
   let s = semente >>> 0
   return () => {
     s = (s + 0x6d2b79f5) >>> 0

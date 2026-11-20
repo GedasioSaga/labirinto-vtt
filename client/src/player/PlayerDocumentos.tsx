@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
 import { IconeDoPapel } from '../components/documentos/IconeDoPapel'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
-import { Papel } from '../documentos/Papel'
-import type { DocumentoNaFicha } from '../documentos/tipos'
-import { documentoNoPapel, metaDaLinha, type RetanguloNaTela } from './documentosDoJogador'
+import { IconeDaLente, Papel } from '../documentos/Papel'
+import { embaralhar, sementeDoTexto, sorteio } from '../documentos/resolver'
+import type { BlocoNoFio, DocumentoNaFicha } from '../documentos/tipos'
+import { metaDaLinha, type RetanguloNaTela } from './documentosDoJogador'
 import { abrirGaveta, abrirLeitura, fecharLeitura } from './movimentoDosDocumentos'
 import type { DocumentoAberto } from './playerConnection'
+import { movimentoReduzido } from './puzzle/movimento'
 import './PlayerDocumentos.css'
 
 /**
@@ -172,6 +174,212 @@ export function GavetaDeDocumentos({ linhas, instant, onLer, onClose }: GavetaDe
   )
 }
 
+// ------------------------------------------------------------------ a decifração (fase D5)
+
+/*
+ * O trecho que ele lê com o item vira o claro da esquerda para a direita, só
+ * na PRIMEIRA leitura dele neste aparelho (o protótipo dos extras aprovado,
+ * `decifrarTrecho`): atrás da beirada o claro, na frente o cifrado, e na
+ * beirada 3 letras trocando. Anda por quadro escrevendo o `textContent` do
+ * trecho, sem passar pelo React (nada da leitura renderiza de novo). Com
+ * movimento reduzido o claro já aparece, sem a troca de letras.
+ */
+const DECIFRAR_MS_POR_LETRA = 13
+const DECIFRAR_MIN_MS = 520
+const DECIFRAR_MAX_MS = 980
+/** Depois que o papel abriu (o mesmo tempo do protótipo); cada trecho seguinte da página começa 140 ms depois. */
+const DECIFRAR_ESPERA_MS = 260
+const DECIFRAR_ESCALONADO_MS = 140
+const LETRAS_NA_BEIRADA = 3
+const LETRAS_DA_BEIRADA = 'abcdefghijlmnopqrstuvxzçãéó'
+/** Os trechos que ele já viu decifrar (`docId:trechoId`), só neste aparelho; os mais velhos saem depois do teto. */
+const CHAVE_DOS_DECIFRADOS = 'labirinto.documentos.decifrados'
+const DECIFRADOS_MAX = 2000
+
+/** Uma curva `cubic-bezier` avaliada por quadro (o `curva` do protótipo). */
+function curvaBezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
+  const ponto = (t: number, p1: number, p2: number): number => 3 * p1 * t * (1 - t) * (1 - t) + 3 * p2 * t * t * (1 - t) + t * t * t
+  return (x) => {
+    let baixo = 0
+    let alto = 1
+    let t = x
+    for (let i = 0; i < 24; i++) {
+      const v = ponto(t, x1, x2)
+      if (Math.abs(v - x) < 1e-4) break
+      if (v < x) baixo = t
+      else alto = t
+      t = (baixo + alto) / 2
+    }
+    return ponto(t, y1, y2)
+  }
+}
+/** O ease-in-out forte: o que anda NA tela (o mesmo do voo até "Documentos"). */
+const NA_TELA = curvaBezier(0.77, 0, 0.175, 1)
+
+function lerDecifrados(): string[] {
+  try {
+    const cru = window.localStorage.getItem(CHAVE_DOS_DECIFRADOS)
+    const lista: unknown = cru === null ? [] : JSON.parse(cru)
+    return Array.isArray(lista) ? lista.filter((chave): chave is string => typeof chave === 'string') : []
+  } catch {
+    // Guardado estragado ou armazenamento bloqueado: decifra de novo, que é o mal menor.
+    return []
+  }
+}
+
+function marcarDecifrados(chaves: readonly string[]): void {
+  const antes = lerDecifrados()
+  const novas = chaves.filter((chave) => !antes.includes(chave))
+  if (novas.length === 0) return
+  try {
+    window.localStorage.setItem(CHAVE_DOS_DECIFRADOS, JSON.stringify([...antes, ...novas].slice(-DECIFRADOS_MAX)))
+  } catch {
+    // Sem espaço ou bloqueado: ele vê a decifração de novo na próxima leitura.
+  }
+}
+
+/** Anda a decifração de UM trecho; devolve o "parar" (o trecho fica como estiver). */
+function decifrarTrecho(span: HTMLElement, antes: string, claro: string, aoTerminar: () => void): () => void {
+  const letras = [...claro]
+  const deAntes = [...antes]
+  const total = letras.length
+  const duracao = Math.min(DECIFRAR_MAX_MS, Math.max(DECIFRAR_MIN_MS, total * DECIFRAR_MS_POR_LETRA))
+  const beirada = sorteio(sementeDoTexto(claro) ^ 0x9e37)
+  // Quando o claro é mais comprido que o cifrado, o que falta à direita sai destas letras (nunca do claro).
+  const reserva = [...embaralhar(claro, sementeDoTexto(antes))]
+  const inicio = performance.now()
+  let quadro = 0
+  const passo = (agora: number) => {
+    if (!span.isConnected) return
+    const p = Math.min(1, Math.max(0, (agora - inicio) / duracao))
+    if (p >= 1) {
+      span.textContent = claro
+      aoTerminar()
+      return
+    }
+    const e = NA_TELA(p)
+    const frente = Math.round(e * (total + LETRAS_NA_BEIRADA))
+    const lidas = Math.max(0, frente - LETRAS_NA_BEIRADA)
+    const alvo = Math.round(deAntes.length + (total - deAntes.length) * e)
+    const partes = letras.slice(0, lidas)
+    for (let i = lidas; i < Math.min(total, frente); i++) {
+      const letra = letras[i]
+      partes.push(/\s/.test(letra) ? letra : LETRAS_DA_BEIRADA[Math.floor(beirada() * LETRAS_DA_BEIRADA.length)])
+    }
+    for (let i = partes.length; i < alvo; i++) partes.push(deAntes[i] ?? reserva[i] ?? '')
+    span.textContent = partes.join('')
+    quadro = requestAnimationFrame(passo)
+  }
+  quadro = requestAnimationFrame(passo)
+  return () => cancelAnimationFrame(quadro)
+}
+
+type BlocoLido = Extract<BlocoNoFio, { lido: true }>
+
+function ehLido(bloco: BlocoNoFio): bloco is BlocoLido {
+  return bloco.t === 'protegido' && bloco.lido
+}
+
+/**
+ * Decifra os trechos que ele lê com o item na página que está à vista e que
+ * ele ainda não viu decifrar. Chamado antes do desenho (o trecho começa como
+ * ele o via sem o item); devolve o "desfazer", que deixa tudo no claro.
+ */
+function decifrarAPagina(rolo: HTMLElement, estado: HTMLElement | null, docId: string, blocos: readonly BlocoNoFio[]): () => void {
+  const vistos = new Set(lerDecifrados())
+  const porId = new Map<string, BlocoLido>()
+  for (const bloco of blocos) if (ehLido(bloco) && !vistos.has(`${docId}:${bloco.id}`)) porId.set(bloco.id, bloco)
+  if (porId.size === 0) return () => undefined
+  if (movimentoReduzido()) {
+    marcarDecifrados([...porId.keys()].map((id) => `${docId}:${id}`))
+    return () => undefined
+  }
+  const relogios: ReturnType<typeof setTimeout>[] = []
+  const paradas: (() => void)[] = []
+  const tocados: { span: HTMLElement; claro: string }[] = []
+  const etiquetas: Element[] = []
+  let andando = 0
+  const terminou = () => {
+    andando -= 1
+    if (andando === 0) estado?.classList.remove('is-oculto')
+  }
+  ;[...porId.values()].forEach((bloco, ordem) => {
+    // O id do trecho tem a forma `[a-z0-9]{1,16}` (o resolver só manda esse): cabe no seletor sem escapar.
+    const spans = [...rolo.querySelectorAll<HTMLElement>(`.trecho--lido[data-trecho="${bloco.id}"]`)]
+    const tags = [...rolo.querySelectorAll(`.trecho__com[data-com="${bloco.id}"]`)]
+    if (spans.length === 0) return
+    for (const span of spans) {
+      span.textContent = bloco.antes
+      span.classList.add('is-decifrando')
+      span.setAttribute('aria-hidden', 'true')
+      tocados.push({ span, claro: bloco.texto })
+      andando += 1
+    }
+    for (const tag of tags) tag.classList.add('is-oculto')
+    etiquetas.push(...tags)
+    relogios.push(
+      setTimeout(() => {
+        let faltam = spans.length
+        for (const span of spans) {
+          paradas.push(
+            decifrarTrecho(span, bloco.antes, bloco.texto, () => {
+              span.classList.remove('is-decifrando')
+              span.removeAttribute('aria-hidden')
+              faltam -= 1
+              if (faltam === 0) {
+                for (const tag of tags) tag.classList.remove('is-oculto')
+                marcarDecifrados([`${docId}:${bloco.id}`])
+              }
+              terminou()
+            }),
+          )
+        }
+      }, DECIFRAR_ESPERA_MS + ordem * DECIFRAR_ESCALONADO_MS),
+    )
+  })
+  if (andando > 0) estado?.classList.add('is-oculto')
+  return () => {
+    for (const relogio of relogios) clearTimeout(relogio)
+    for (const parar of paradas) parar()
+    for (const { span, claro } of tocados) {
+      span.textContent = claro
+      span.classList.remove('is-decifrando')
+      span.removeAttribute('aria-hidden')
+    }
+    for (const tag of etiquetas) tag.classList.remove('is-oculto')
+    estado?.classList.remove('is-oculto')
+  }
+}
+
+/** A linha do pé sobre os trechos da página: lidos com o item, ou quantos ele não consegue ler. */
+function EstadoDaLeitura({ blocos, estadoRef }: { blocos: readonly BlocoNoFio[]; estadoRef: RefObject<HTMLSpanElement | null> }) {
+  let lidos = 0
+  let fechados = 0
+  for (const bloco of blocos) {
+    if (bloco.t !== 'protegido' || bloco.tipo !== 'cifra') continue
+    if (bloco.lido) lidos += 1
+    else fechados += 1
+  }
+  if (lidos > 0) {
+    return (
+      <span ref={estadoRef} className="pp-leitura__estado pp-leitura__estado--lido">
+        <IconeDaLente />
+        {lidos === 1 ? 'Lido com um item que você carrega' : 'Lidos com o que você carrega'}
+      </span>
+    )
+  }
+  if (fechados === 0) return null
+  return (
+    <span ref={estadoRef} className="pp-leitura__estado">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect x="5" y="10.5" width="14" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+      {fechados === 1 ? 'Um trecho que você não consegue ler' : `${fechados} trechos que você não consegue ler`}
+    </span>
+  )
+}
+
 // ------------------------------------------------------------------ a leitura
 
 export interface LeituraDoDocumentoProps {
@@ -202,8 +410,10 @@ export function LeituraDoDocumento({ aberto, de, instant, onClose }: LeituraDoDo
   const fecharRef = useRef<HTMLButtonElement>(null)
   const fechando = useRef(false)
   const focoPendente = useRef<'anterior' | 'proxima' | null>(null)
-  const papel = documentoNoPapel(aberto.documento)
-  const total = papel.paginas.length
+  const estadoRef = useRef<HTMLSpanElement>(null)
+  const documento = aberto.documento
+  const total = documento.paginas.length
+  const blocosDaPagina = documento.paginas[pagina]?.blocos ?? []
   const doMapa = aberto.noMapaId !== undefined
 
   // Quem estava com o foco antes de abrir: ele volta para lá ao fechar (a pílula, a linha da lista).
@@ -246,6 +456,15 @@ export function LeituraDoDocumento({ aberto, de, instant, onClose }: LeituraDoDo
     [pagina, total],
   )
 
+  // A decifração da página à vista, antes do desenho: o trecho aparece como ele o via sem o item e anda até o claro.
+  // Também aberta pelo teclado: é o conteúdo, não a entrada da tela. Trocar de página ou fechar desfaz o que faltava.
+  useLayoutEffect(() => {
+    const rolo = roloRef.current
+    if (rolo === null) return
+    return decifrarAPagina(rolo, estadoRef.current, documento.docId, documento.paginas[pagina]?.blocos ?? [])
+    // A leitura remonta a cada documento novo (`key`): só a página muda aqui dentro.
+  }, [pagina])
+
   useEffect(() => {
     const alvo = focoPendente.current
     if (alvo === null) return
@@ -287,7 +506,7 @@ export function LeituraDoDocumento({ aberto, de, instant, onClose }: LeituraDoDo
       <div ref={caixaRef} className="pp-leitura__caixa">
         {/* Rola pelo teclado também (as setas para cima e para baixo): o papel comprido não esconde o fim. */}
         <div ref={roloRef} className="pp-leitura__rolo" tabIndex={0} aria-label="Texto do documento">
-          <Papel documento={papel} pagina={pagina} resolver={resolver} idDoTitulo={idDoTitulo} />
+          <Papel documento={documento} pagina={pagina} resolver={resolver} idDoTitulo={idDoTitulo} />
         </div>
         <div className="pp-leitura__pe">
           {total > 1 && (
@@ -303,6 +522,7 @@ export function LeituraDoDocumento({ aberto, de, instant, onClose }: LeituraDoDo
               </button>
             </>
           )}
+          <EstadoDaLeitura blocos={blocosDaPagina} estadoRef={estadoRef} />
           {doMapa && aberto.guardado === 'agora' && <span className="pp-leitura__guardado">Guardado em Documentos</span>}
           {doMapa && aberto.guardado === 'antes' && <span className="pp-leitura__guardado pp-leitura__guardado--antes">Já está nos seus Documentos</span>}
           <button ref={fecharRef} type="button" className="pp-button pp-leitura__fechar" onClick={(event) => fechar(event.detail === 0)}>

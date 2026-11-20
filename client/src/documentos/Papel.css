@@ -1,18 +1,34 @@
 /*
- * O PAPEL de um documento (protótipo aprovado docs/design/puzzles/prototipo-v2.html,
- * "os papéis: desenhados em CSS, todos com a mesma tinta"). Nada anima aqui:
- * a página troca na hora (quem lê troca muitas vezes seguidas), e quem abre
- * e fecha é a leitura, não o papel.
+ * O PAPEL de um documento (protótipos aprovados docs/design/puzzles/prototipo-v2.html,
+ * "os papéis: desenhados em CSS", e prototipo-documento-extras.html, "o papel,
+ * agora com os extras"). Nada anima aqui: a página troca na hora (quem lê troca
+ * muitas vezes seguidas), e quem abre e fecha é a leitura, não o papel. A
+ * decifração de um trecho é do leitor do jogador (PlayerDocumentos.tsx); daqui
+ * sai só o fundo que acende enquanto ela anda e apaga em 700 ms.
  */
+
+/* As letras do documento: só fontes do sistema (Windows 11), sem fonte de fora. */
+:root {
+  --doc-mao: 'Segoe Print', 'Ink Free', 'Bradley Hand', cursive;
+  --doc-maquina: 'Courier New', Courier, 'Nimbus Mono PS', monospace;
+  --doc-impressa: 'Sitka Text', 'Sitka Small', var(--lb-font-display);
+  --doc-assinatura: 'Segoe Script', Gabriola, 'Brush Script MT', cursive;
+}
+
+/* A folha: o papel recortado (borda queimada, rasgos, bilhete) perde a sombra do box-shadow; ela volta aqui. */
+.folha { display: grid; justify-items: center; }
+.folha--previa { width: 100%; }
+.folha--recortada { filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.5)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)); }
+
 .papel {
-  --tinta: #3b2f22;
+  --tinta: #26201a;
   position: relative;
   box-sizing: border-box;
   width: min(540px, 86vw);
   min-height: 380px;
   padding: 46px 50px 40px;
   color: var(--tinta);
-  font: 400 16.5px/1.62 var(--lb-font-display);
+  font: 400 16.5px/1.62 var(--doc-impressa);
   background-color: #efe6cf;
   box-shadow: inset 0 0 0 1px rgba(120, 95, 60, 0.18), inset 0 0 40px rgba(150, 120, 70, 0.18), 0 18px 40px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
   isolation: isolate;
@@ -26,35 +42,54 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.27 0 0 0 0 0.16 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
   background-size: 160px;
 }
-.papel__titulo { margin: 0 0 14px; font: 400 25px/1.2 var(--lb-font-display); color: #2c2218; overflow-wrap: anywhere; }
+.papel__titulo { margin: 0 0 14px; font: 400 25px/1.2 var(--lb-font-display); color: var(--tinta); overflow-wrap: anywhere; }
 .papel__so-leitor { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.papel__texto { overflow-wrap: anywhere; }
+.papel__texto { position: relative; overflow-wrap: anywhere; }
 .papel__texto p { margin: 0 0 0.75em; }
-.papel__texto strong { font-weight: 700; color: #241b12; }
+.papel__texto strong { font-weight: 700; }
 .papel__texto em { font-style: italic; }
-.papel__img { display: block; max-width: 100%; max-height: 190px; margin: 4px auto 16px; border: 1px solid rgba(60, 45, 30, 0.4); filter: sepia(0.28) contrast(0.95); }
-.papel__vazio { color: rgba(59, 47, 34, 0.55); font-style: italic; }
-.papel__folha { position: absolute; right: 22px; bottom: 14px; font: 500 12px/1 var(--lb-font-utility); color: rgba(59, 47, 34, 0.55); font-variant-numeric: tabular-nums; }
+.papel__img { position: relative; display: block; max-width: 100%; max-height: 190px; margin: 4px auto 16px; border: 1px solid rgba(60, 45, 30, 0.4); filter: sepia(0.28) contrast(0.95); }
+.papel__vazio { opacity: 0.55; font-style: italic; }
+.papel__folha { position: absolute; right: 22px; bottom: 14px; z-index: 4; font: 500 12px/1 var(--lb-font-utility); color: rgba(59, 47, 34, 0.55); font-variant-numeric: tabular-nums; }
+
+/* a letra */
+.letra--mao { font: 400 15.5px/1.78 var(--doc-mao); }
+.letra--mao .papel__titulo { font: 700 21px/1.3 var(--doc-mao); }
+.letra--maquina { font: 400 15px/1.62 var(--doc-maquina); }
+.letra--maquina .papel__titulo { font: 700 19px/1.35 var(--doc-maquina); letter-spacing: 0.02em; }
+.letra--maquina .papel__texto { text-shadow: 0 0 0.6px color-mix(in srgb, var(--tinta) 75%, transparent); }
+.letra--impressa { font: 400 16.5px/1.62 var(--doc-impressa); }
+.letra--impressa .papel__titulo { font: 400 25px/1.2 var(--lb-font-display); }
+/* a tinta */
+.tinta--sepia { --tinta: #5e3f22; }
+.tinta--vermelha { --tinta: #9b2b22; }
+.tinta--sangue { --tinta: #6c120d; }
+.tinta--sangue .papel__texto,
+.tinta--sangue .papel__titulo { text-shadow: 0 0 1px rgba(108, 18, 13, 0.6), 0.4px 0.7px 0 rgba(70, 6, 4, 0.35); }
+.tinta--sangue.letra--mao .papel__texto { font-weight: 700; }
 
 /* Com alfinete: creme, levemente torto, alfinete vermelho no alto. */
 .papel--alfinete { background-color: #f1e8d2; transform: rotate(-0.8deg); }
-.papel--alfinete::before { content: ''; position: absolute; left: 50%; top: 10px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: radial-gradient(circle at 38% 34%, #f39a8c 0 18%, #d2483b 42%, #8e2a22 100%); box-shadow: 0 3px 4px rgba(0, 0, 0, 0.45), 2px 6px 6px rgba(0, 0, 0, 0.18); z-index: 2; }
+.papel--alfinete::before { content: ''; position: absolute; left: 50%; top: 10px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: radial-gradient(circle at 38% 34%, #f39a8c 0 18%, #d2483b 42%, #8e2a22 100%); box-shadow: 0 3px 4px rgba(0, 0, 0, 0.45), 2px 6px 6px rgba(0, 0, 0, 0.18); z-index: 5; }
 .papel--alfinete::after { content: ''; position: absolute; left: 50%; top: 26px; width: 26px; height: 10px; margin-left: -3px; border-radius: 50%; background: radial-gradient(ellipse, rgba(70, 50, 30, 0.22), transparent 70%); }
-/* Carta: claro, as duas dobras e o lacre. */
+/* Carta: claro, as duas dobras e o lacre (o lacre sai quando há selo ou carimbo). */
 .papel--carta { background-color: #f4eee1; background-image: linear-gradient(to bottom, transparent 32.9%, rgba(110, 85, 50, 0.16) 33.2%, rgba(255, 255, 255, 0.5) 33.5%, transparent 34%, transparent 65.9%, rgba(110, 85, 50, 0.16) 66.2%, rgba(255, 255, 255, 0.5) 66.5%, transparent 67%); }
 .papel--carta::after { content: ''; position: absolute; right: 34px; bottom: 34px; width: 44px; height: 44px; border-radius: 46% 54% 50% 50%; background: radial-gradient(circle at 40% 36%, #c4574a, #9c3329 60%, #7a241d); box-shadow: inset 0 0 0 5px rgba(0, 0, 0, 0.12), 0 2px 3px rgba(0, 0, 0, 0.3); }
+.papel--carta.papel--com-selo::after { display: none; }
 /* Página de diário: pautas, margem e os furos da costura. */
-.papel--diario { padding-left: 86px; line-height: 28px; background-color: #f2ecdc; background-image: linear-gradient(to right, transparent 66px, rgba(190, 80, 70, 0.45) 66px 67.5px, transparent 67.5px), repeating-linear-gradient(to bottom, transparent 0 27px, rgba(70, 100, 140, 0.24) 27px 28px); background-position: 0 0, 0 46px; }
+.papel--diario { padding-left: 86px; background-color: #f2ecdc; background-image: linear-gradient(to right, transparent 66px, rgba(190, 80, 70, 0.45) 66px 67.5px, transparent 67.5px), repeating-linear-gradient(to bottom, transparent 0 27px, rgba(70, 100, 140, 0.24) 27px 28px); background-position: 0 0, 0 46px; }
+.papel--diario,
+.papel--diario .papel__texto { line-height: 28px; }
 .papel--diario::before { content: ''; position: absolute; left: 20px; top: 36px; bottom: 36px; width: 16px; background: radial-gradient(circle, #1a1510 0 5px, transparent 5.5px) 0 0 / 16px 64px repeat-y; opacity: 0.8; }
 .papel--diario .papel__titulo { line-height: 28px; margin-bottom: 28px; }
 .papel--diario .papel__texto p { margin: 0 0 28px; }
 /* Bilhete rasgado: menor, amarelado, a borda de baixo rasgada. */
 .papel--bilhete { width: min(440px, 86vw); min-height: 300px; background-color: #ece0bd; transform: rotate(1.2deg); padding-bottom: 54px; clip-path: polygon(0 0, 100% 0, 100% 91%, 96% 94%, 92% 90%, 87% 95%, 82% 91%, 76% 96%, 71% 92%, 65% 97%, 59% 92%, 53% 96%, 47% 91%, 41% 96%, 35% 92%, 29% 97%, 23% 92%, 17% 96%, 11% 91%, 6% 95%, 0 92%); }
-.papel--bilhete .papel__texto { font-style: italic; }
-/* Pergaminho: os dois rolos e a borda queimada. */
-.papel--pergaminho { margin: 18px 0; background: radial-gradient(ellipse at 50% 45%, #ecdcb2 55%, #d8bd85 88%, #c4a064 100%); padding: 40px 54px 36px; }
+.papel--bilhete.letra--impressa .papel__texto { font-style: italic; }
+/* Pergaminho: os dois rolos; a borda escura é uma camada por cima da cor, para a cor do desgaste valer aqui também. */
+.papel--pergaminho { margin: 18px 0; padding: 40px 54px 36px; background-color: #ecdcb2; background-image: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(150, 105, 40, 0.28) 88%, rgba(130, 90, 35, 0.42) 100%); }
 .papel--pergaminho::before,
-.papel--pergaminho::after { content: ''; position: absolute; left: -16px; right: -16px; height: 24px; border-radius: 12px; background: linear-gradient(to bottom, #9a7646, #e3c78e 42%, #c7a46a 62%, #8a673a); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4); }
+.papel--pergaminho::after { content: ''; position: absolute; left: -16px; right: -16px; height: 24px; border-radius: 12px; background: linear-gradient(to bottom, #9a7646, #e3c78e 42%, #c7a46a 62%, #8a673a); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4); z-index: 4; }
 .papel--pergaminho::before { top: -14px; }
 .papel--pergaminho::after { bottom: -14px; }
 /* Imagem própria: o papel é a imagem (posta pelo `style`), o texto num véu claro. */
@@ -62,12 +97,76 @@
 .papel--imagem .papel__texto,
 .papel--imagem .papel__titulo { background: rgba(245, 238, 220, 0.84); padding: 8px 12px; border-radius: 4px; }
 
+/* o desgaste: camadas por cima da tinta, sem pegar o ponteiro */
+.papel__manchas,
+.papel__dobras,
+.papel__queima { position: absolute; inset: 0; pointer-events: none; }
+.papel__manchas { z-index: 1; mix-blend-mode: multiply; }
+.papel__dobras {
+  z-index: 1;
+  background:
+    linear-gradient(to right, transparent calc(50% - 1.5px), rgba(95, 70, 40, 0.2) calc(50% - 1.5px), rgba(95, 70, 40, 0.2) 50%, rgba(255, 250, 235, 0.55) 50%, rgba(255, 250, 235, 0.55) calc(50% + 1.5px), transparent calc(50% + 1.5px)),
+    linear-gradient(to bottom, transparent calc(50% - 1.5px), rgba(95, 70, 40, 0.18) calc(50% - 1.5px), rgba(95, 70, 40, 0.18) 50%, rgba(255, 250, 235, 0.5) 50%, rgba(255, 250, 235, 0.5) calc(50% + 1.5px), transparent calc(50% + 1.5px)),
+    linear-gradient(to right, rgba(60, 40, 20, 0.05) 50%, transparent 50%),
+    linear-gradient(to bottom, transparent 50%, rgba(60, 40, 20, 0.04) 50%);
+}
+.papel__queima { z-index: 2; box-shadow: inset 0 0 0 3px rgba(38, 18, 6, 0.92), inset 0 0 14px 8px rgba(66, 32, 10, 0.72), inset 0 0 44px 18px rgba(130, 78, 28, 0.3); }
+.papel--pergaminho .papel__queima { inset: 10px 0; }
+
+/* o selo de cera, o carimbo, a assinatura e o brasão */
+.papel--selo-fim { padding-bottom: 136px; }
+.papel__selo { position: absolute; z-index: 3; display: block; pointer-events: none; }
+.papel__selo--cera { right: 34px; bottom: 26px; width: 86px; height: 86px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35)); }
+.papel--pergaminho .papel__selo--cera { right: auto; left: 50%; bottom: 2px; z-index: 5; margin-left: -43px; }
+.papel__selo--carimbo { left: 34px; bottom: 16px; width: 118px; height: 118px; transform: rotate(-11deg); mix-blend-mode: multiply; opacity: 0.86; }
+.papel__assinatura { position: relative; z-index: 1; width: max-content; max-width: 100%; margin: 18px 0 0 auto; text-align: right; font: 400 27px/1.15 var(--doc-assinatura); color: var(--tinta); overflow-wrap: anywhere; }
+.papel__assinatura svg { display: block; width: 100%; height: 12px; margin-top: 1px; }
+.papel__cabeca { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; margin: -8px 0 18px; padding-bottom: 12px; border-bottom: 1px solid color-mix(in srgb, var(--tinta) 32%, transparent); color: var(--tinta); text-align: center; }
+.papel__cabeca svg { width: 48px; height: 52px; }
+.papel__cabeca img { max-width: 76px; max-height: 76px; object-fit: contain; mix-blend-mode: multiply; filter: sepia(0.35) contrast(1.05); }
+.papel__cabeca .papel__titulo { margin: 0; }
+
+/* os trechos protegidos, do jeito que quem lê os recebeu */
+.trecho--cifra { text-decoration: underline dotted color-mix(in srgb, var(--tinta) 50%, transparent); text-decoration-thickness: 1.5px; text-underline-offset: 4px; }
+.trecho--codigo { letter-spacing: 0.12em; }
+.trecho--lingua { font-style: italic; }
+.trecho--borrado {
+  padding: 0 3px;
+  color: transparent;
+  text-shadow: 0 0 4px color-mix(in srgb, var(--tinta) 88%, transparent), 2px 1px 7px color-mix(in srgb, var(--tinta) 45%, transparent);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--tinta) 16%, transparent), transparent);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* O fundo acende de uma vez quando a decifração começa e apaga devagar quando ela termina. */
+.trecho--lido { border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background-color 700ms ease; }
+.trecho--lido.is-decifrando { background-color: rgba(224, 164, 74, 0.28); transition-duration: 0ms; }
+.trecho__com { display: inline-block; width: 15px; height: 15px; margin-left: 3px; vertical-align: -2px; color: color-mix(in srgb, var(--tinta) 55%, #8a5a1c); transition: opacity 220ms ease; }
+.trecho__com svg { display: block; width: 100%; height: 100%; }
+.trecho__com.is-oculto { opacity: 0; transition-duration: 0ms; }
+
 /* A PRÉVIA na página do livro: o mesmo papel, menor (a página tem ~330 px de largura). */
 .papel--previa { width: 100%; min-height: 240px; padding: 30px 24px 30px; font-size: 13.5px; line-height: 1.55; }
 .papel--previa .papel__titulo { font-size: 19px; margin-bottom: 10px; }
+.papel--previa.letra--mao { font-size: 12.8px; line-height: 1.72; }
+.papel--previa.letra--mao .papel__titulo { font-size: 17px; }
+.papel--previa.letra--maquina { font-size: 12.4px; }
+.papel--previa.letra--maquina .papel__titulo { font-size: 15.5px; }
 .papel--previa .papel__img { max-height: 120px; margin-bottom: 10px; }
 .papel--previa .papel__folha { right: 14px; bottom: 10px; font-size: 11px; }
-.papel--previa.papel--diario { padding-left: 58px; line-height: 24px; background-image: linear-gradient(to right, transparent 44px, rgba(190, 80, 70, 0.45) 44px 45.5px, transparent 45.5px), repeating-linear-gradient(to bottom, transparent 0 23px, rgba(70, 100, 140, 0.24) 23px 24px); background-position: 0 0, 0 30px; }
+.papel--previa .papel__cabeca { gap: 6px; margin: -4px 0 12px; padding-bottom: 8px; }
+.papel--previa .papel__cabeca svg { width: 36px; height: 39px; }
+.papel--previa .papel__cabeca img { max-width: 56px; max-height: 56px; }
+.papel--previa .papel__assinatura { margin-top: 12px; font-size: 21px; }
+.papel--previa.papel--selo-fim { padding-bottom: 100px; }
+.papel--previa .papel__selo--cera { right: 20px; bottom: 18px; width: 64px; height: 64px; }
+.papel--previa.papel--pergaminho .papel__selo--cera { right: auto; bottom: 2px; margin-left: -32px; }
+.papel--previa .papel__selo--carimbo { left: 18px; bottom: 12px; width: 86px; height: 86px; }
+.papel--previa.papel--diario { padding-left: 58px; background-image: linear-gradient(to right, transparent 44px, rgba(190, 80, 70, 0.45) 44px 45.5px, transparent 45.5px), repeating-linear-gradient(to bottom, transparent 0 23px, rgba(70, 100, 140, 0.24) 23px 24px); background-position: 0 0, 0 30px; }
+.papel--previa.papel--diario,
+.papel--previa.papel--diario .papel__texto { line-height: 24px; }
 .papel--previa.papel--diario::before { left: 12px; width: 12px; background-size: 12px 48px; background-image: radial-gradient(circle, #1a1510 0 4px, transparent 4.5px); }
 .papel--previa.papel--diario .papel__titulo { line-height: 24px; margin-bottom: 24px; }
 .papel--previa.papel--diario .papel__texto p { margin-bottom: 24px; }
@@ -78,3 +177,7 @@
 .papel--previa.papel--pergaminho::before { top: -10px; }
 .papel--previa.papel--pergaminho::after { bottom: -10px; }
 .papel--previa.papel--carta::after { right: 18px; bottom: 18px; width: 32px; height: 32px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .trecho--lido { transition: none; }
+}
