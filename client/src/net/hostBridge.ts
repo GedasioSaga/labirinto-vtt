@@ -152,11 +152,24 @@ import { areaTriggerEntryLine } from '../lib/areaTriggers'
 import { giveNewItemChange } from '../lib/items'
 import { aplicarDesfecho, type AplicadoresDeDesfecho } from '../minigames/desfecho'
 import type { AppliedObjetoAberto } from './objetoNoHost'
+import type { AppliedPuzzle, PuzzleAoVivo } from './puzzleNoHost'
+import { itemParaDar } from '../lib/acervoDeItens'
+import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
+import type { PecaDoAcervo } from '../puzzles/tipos'
 import { useDesafiosStore } from '../stores/desafiosStore'
 import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
 
 /** O aviso da abertura de baú, caixa ou barril fica mais que o comum: tem o que levou e a armadilha. */
 const OBJETO_ABERTO_TOAST_MS = 8000
+/** O aviso do puzzle (resolveu, errou, trocou) fica o mesmo tempo: tem o que levou e o castigo. */
+const PUZZLE_TOAST_MS = 8000
+
+/** PUZZLES: o item do acervo do app, como vai para a mochila (a peça guardada da Troca de peso). `null` = não está lá. */
+function pecaDoAcervoDoApp(itemId: string): PecaDoAcervo | null {
+  const { itens } = useAcervoDeItensStore.getState()
+  const item = itens.find((candidato) => candidato.id === itemId)
+  return item === undefined ? null : itemParaDar(item, itens)
+}
 import type { DancaAoVivo, DancaConviteResultado, DancaDesfechoSinal } from './dancaNoHost'
 import type { PescaAoVivo, PescaConviteResultado } from './pescaNoHost'
 import type { TiroAoVivo, TiroConviteResultado } from './tiroNoHost'
@@ -272,6 +285,13 @@ export interface HostBridgeDeps {
    */
   applyObjetoAberto?: (aplicado: AppliedObjetoAberto) => void
   /**
+   * PUZZLES: a ação de um jogador valeu (a sessão já conferiu). O integrador
+   * grava numa vez só o progresso, a porta ligada, a mochila dos bonecos sem
+   * ficha e as fichas de personagem, fora do Ctrl+Z do mestre. Opcional como
+   * `applyObjetoAberto`: sem ele, nada muda e ninguém é avisado.
+   */
+  applyPuzzle?: (aplicado: AppliedPuzzle) => void
+  /**
    * FECHADURA COM SEGREDO: o jogador acertou a combinação (a sessão já
    * conferiu). O integrador abre a fechadura e destranca a porta ligada.
    * Opcional como `applyTokenEdit`.
@@ -367,6 +387,8 @@ export interface HostBridgeDeps {
    * mudança. Sala fechada = `[]`.
    */
   onPescaChange?: (pescas: PescaAoVivo[]) => void
+  /** PUZZLES: quem está dentro de cada puzzle agora, a cada mudança (a página Jogos do mestre). Sala fechada = `[]`. */
+  onPuzzlesChange?: (puzzles: PuzzleAoVivo[]) => void
   /**
    * MINIGAME DE TIRO: cada pino com barraca como o painel do mestre lê (quem
    * entrou, tentativas, pontos ao vivo, rodadas e a melhor), a cada mudança.
@@ -1282,6 +1304,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /** FOGO: o repasse das entradas a cada `FOGO_REPASSE_MS`, com a sala aberta. */
   let repasseDoFogo: ReturnType<typeof setInterval> | null = null
   let lastPescaKey = '[]'
+  let lastPuzzlesKey = '[]'
   let lastTiroKey = '[]'
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
@@ -1750,6 +1773,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /** PESCA: o painel do mestre só ouve quando algo mudou (o medidor muda a cada `pesca.vivo`). */
+  /** PUZZLES: quem está dentro de cada puzzle, só quando mudou (entrou, saiu, caiu, a tela fechou). */
+  const notifyPuzzlesIfChanged = () => {
+    const puzzles = session === null ? [] : session.puzzlesAoVivo()
+    const key = JSON.stringify(puzzles)
+    if (key === lastPuzzlesKey) return
+    lastPuzzlesKey = key
+    deps.onPuzzlesChange?.(puzzles)
+  }
+
   const notifyPescaIfChanged = () => {
     const pescas = session === null ? [] : session.pesca()
     const key = JSON.stringify(pescas)
@@ -1905,6 +1937,33 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
           run: () => {
             useDesafiosStore.getState().destacar(registro.propId)
             useDesafiosStore.getState().abrir(null)
+            useLivroDoMestreStore.getState().abrirPagina('jogos')
+          },
+        },
+      ],
+    })
+  }
+
+  /**
+   * PUZZLES: a ação no mapa do mestre, numa gravação só (progresso, porta,
+   * mochilas, fichas). O broadcast logo atrás leva a todos a mochila nova e,
+   * a quem está dentro, a vista nova (`syncPuzzles` da sessão). O mestre vê o
+   * progresso ao vivo no painel do desafio; o aviso sai só no que pede
+   * atenção (resolveu, errou, trocou, ou a peça que não voltou), com "Ver".
+   */
+  const aplicarPuzzle = (aplicado: AppliedPuzzle) => {
+    if (deps.applyPuzzle === undefined) return
+    deps.applyPuzzle(aplicado)
+    broadcastNow()
+    const aviso = aplicado.aviso
+    if (aviso === undefined) return
+    const tom = aviso.tipo === 'errou' || aviso.tipo === 'perdeu' ? 'error' : 'info'
+    toastSink.push(tom, `${aviso.titulo}. ${aviso.linhas.join(' ')}`, PUZZLE_TOAST_MS, {
+      actions: [
+        {
+          label: 'Ver',
+          run: () => {
+            useDesafiosStore.getState().abrir(aviso.desafioId)
             useLivroDoMestreStore.getState().abrirPagina('jogos')
           },
         },
@@ -2656,6 +2715,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // ENCONTRO MARCADO: uma espera acabou no meio deste broadcast (o colega
     // chegou): quem recebeu antes ainda vê a marca, então vai mais um.
     if (result.waitsChanged === true) onWaitsChanged()
+    // PUZZLES: o mestre mudou ou apagou um puzzle com alguém dentro (a tela dele fechou).
+    notifyPuzzlesIfChanged()
   }
 
   /**
@@ -4365,6 +4426,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
     if (result.applyObjetoAberto !== undefined) aplicarObjetoAberto(result.applyObjetoAberto)
+    if (result.applyPuzzle !== undefined) aplicarPuzzle(result.applyPuzzle)
     if (result.waitsChanged === true) onWaitsChanged()
     if (result.applyPiso !== undefined && deps.applyPiso !== undefined) {
       // O jogador que subiu recebe o piso novo, e quem ficou deixa de vê-lo, no snapshot imediato.
@@ -4382,6 +4444,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyBolhaIfChanged()
     notifyPescaIfChanged()
     notifyTiroIfChanged()
+    notifyPuzzlesIfChanged()
     if (wasJoined) return
     if (session.isTable(clientId)) announceTable()
     else if (result.reclaimed !== undefined) announceReclaim(result.reclaimed)
@@ -4424,6 +4487,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyBolhaIfChanged()
     notifyPescaIfChanged()
     notifyTiroIfChanged()
+    notifyPuzzlesIfChanged()
     forgetScreen(clientId)
     if (dropped !== undefined) scheduleDropAnnounce(dropped.playerId, dropped.name)
     pruneTravelToasts()
@@ -4537,6 +4601,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         code: room.code,
         visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS,
         now: deps.now,
+        pecaDoAcervo: pecaDoAcervoDoApp,
         getBatalha: deps.getBatalha,
         onBatalhaAndou: deps.onBatalhaAndou,
         getCaminhosDaBatalha: deps.getCaminhosDaBatalha,
@@ -4656,6 +4721,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyBolhaIfChanged()
       notifyPescaIfChanged()
       notifyTiroIfChanged()
+      notifyPuzzlesIfChanged()
       try {
         await deps.invoke('net_stop_room')
       } catch (error) {
@@ -5195,6 +5261,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyBolhaIfChanged()
       notifyPescaIfChanged()
       notifyTiroIfChanged()
+      notifyPuzzlesIfChanged()
       // O expulso devolve o ajudante: o prazo dele não acorda mais ninguém.
       armLoanTimer()
       pruneTravelToasts()

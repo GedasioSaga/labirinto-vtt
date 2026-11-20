@@ -45,6 +45,7 @@ export type EscritoresDeTeste = Required<
     | 'setPinPassage'
     | 'applyPersonagem'
     | 'applyObjetoAberto'
+    | 'applyPuzzle'
   >
 >
 

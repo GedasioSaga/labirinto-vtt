@@ -46,6 +46,7 @@ import { parseLivroPedir, type LivroHostMessage, type LivroPlayerMessage } from 
 import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage } from './protocoloDaDanca'
 import { parsePescaPlayerMessage, type PescaHostMessage, type PescaPlayerMessage } from './protocoloDaPesca'
 import { parseObjetoPlayerMessage, type ObjetoHostMessage, type ObjetoPlayerMessage } from './protocoloDoObjeto'
+import { parsePuzzlePlayerMessage, type PuzzleHostMessage, type PuzzlePlayerMessage } from './protocoloDoPuzzle'
 import { parseFogoPlayerMessage, type FogoHostMessage, type FogoPlayerMessage } from './protocoloDoFogo'
 import { parseBolhaPlayerMessage, type BolhaHostMessage, type BolhaPlayerMessage } from './protocoloDaBolha'
 import { parseTiroPlayerMessage, type TiroHostMessage, type TiroPlayerMessage } from './protocoloDoTiro'
@@ -1501,6 +1502,8 @@ export type PlayerMessage =
   | PescaPlayerMessage
   // BAÚ, CAIXA E BARRIL: abrir e venceu (`protocoloDoObjeto.ts`).
   | ObjetoPlayerMessage
+  // PUZZLES: entrar, agir e sair (`protocoloDoPuzzle.ts`).
+  | PuzzlePlayerMessage
   // MINIGAME FOGO NA FLORESTA: pronto, entradas por tique, hash e placar (`protocoloDoFogo.ts`).
   | FogoPlayerMessage
   // MINIGAME BOLHA D'ÁGUA: pedir, pronto, placar e desistir (`protocoloDaBolha.ts`).
@@ -2426,6 +2429,8 @@ export type HostMessage =
   | PescaHostMessage
   // BAÚ, CAIXA E BARRIL: o jogo, o desfecho e a recusa (`protocoloDoObjeto.ts`).
   | ObjetoHostMessage
+  // PUZZLES: a vista, a recusa, o castigo, o desfecho e o fechado (`protocoloDoPuzzle.ts`).
+  | PuzzleHostMessage
   // MINIGAME FOGO NA FLORESTA: convite, começar, entradas dos colegas, sair, pausa e desfecho (`protocoloDoFogo.ts`).
   | FogoHostMessage
   // MINIGAME BOLHA D'ÁGUA: convite, estado, começar, pausa, desfecho e recusa (`protocoloDaBolha.ts`).
@@ -3937,6 +3942,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'objeto.abrir':
     case 'objeto.venceu':
       return parseObjetoPlayerMessage(value)
+    case 'puzzle.entrar':
+    case 'puzzle.acao':
+    case 'puzzle.sair':
+      return parsePuzzlePlayerMessage(value)
     case 'tiro.pedir':
     case 'tiro.pronto':
     case 'tiro.vivo':

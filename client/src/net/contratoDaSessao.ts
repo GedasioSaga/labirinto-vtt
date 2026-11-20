@@ -20,6 +20,8 @@ import type { LaserMessage } from './protocol'
 import type { MapData } from '../types/map'
 import type { PeriodoLido } from '../lib/periodo'
 import type { PescaAoVivo, PescaConviteResultado } from './pescaNoHost'
+import type { PuzzleAoVivo } from './puzzleNoHost'
+import type { PecaDoAcervo } from '../puzzles/tipos'
 import type { PointActionAnswer } from '../lib/pointActions'
 import type { PonteDaBatalha } from '../lib/batalha/ponte'
 import type { PonteDaBatalhaDBT } from '../lib/dbt/batalha/ponte'
@@ -33,6 +35,12 @@ export interface HostSessionOptions {
   visionRadius: number
   now?: () => number
   randomId?: () => string
+  /**
+   * PUZZLES: o item do acervo do mestre pelo id, como vai para a mochila (a
+   * peça guardada da Troca de peso). Ausente = nenhum: a troca é recusada com
+   * `mudou`, e as pedras ficam e voltam.
+   */
+  pecaDoAcervo?: (itemId: string) => PecaDoAcervo | null
   /**
    * MODO BATALHA (fatia B4): a cena `sceneKey` (`tableSceneKey`) está em
    * batalha? Lido a cada snapshot e a cada pedido de movimento; mora só na
@@ -413,6 +421,8 @@ export interface HostSession {
   encerrarPesca(pinId: string): HostResult & { ok: boolean }
   /** Cada pino com pesca (aberta, pausada ou a última encerrada), como o painel do MESTRE lê. */
   pesca(): PescaAoVivo[]
+  /** PUZZLES: quem está dentro de cada puzzle agora (só quem está na sala), como a página Jogos do MESTRE lê. */
+  puzzlesAoVivo(): PuzzleAoVivo[]
   /**
    * MINIGAME DE TIRO ("Mestre chama"): `tiro.convite` (o desafio do pino
    * `pinId`) aos escolhidos que estão na sala e jogando, até

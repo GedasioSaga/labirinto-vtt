@@ -14,6 +14,7 @@ import type { Personagem } from '../lib/personagem'
 import type { AppliedLock, AppliedMark, AppliedPersonagem, AppliedPiso, AppliedTokenEdit, AppliedVehicle } from './hostSession'
 import { comAutor } from './nuvem/emissor'
 import { mapaComObjetoAberto, type AppliedObjetoAberto } from './objetoNoHost'
+import { mapaComPuzzle, type AppliedPuzzle } from './puzzleNoHost'
 
 /**
  * O que o JOGADOR muda no mapa do mestre (movimento, porta, nome/foto da
@@ -196,6 +197,12 @@ export function createPlayerChanges(destino: DestinoDasMudancas) {
     applyObjetoAberto: (aberto: AppliedObjetoAberto): void => {
       if (aberto.personagem !== null) destino.salvarPersonagem(aberto.personagem)
       destino.aplicar(aberto.sceneId, (map) => mapaComObjetoAberto(map, aberto))
+    },
+    // PUZZLES: as fichas que mudaram (a peça que saiu ou voltou, o desfecho, o PV do castigo) antes;
+    // o progresso, a porta ligada e a mochila dos bonecos sem ficha no mapa, numa transformação só.
+    applyPuzzle: (aplicado: AppliedPuzzle): void => {
+      for (const personagem of aplicado.personagens) destino.salvarPersonagem(personagem)
+      destino.aplicar(aplicado.sceneId, (map) => mapaComPuzzle(map, aplicado))
     },
   }
 }

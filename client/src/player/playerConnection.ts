@@ -214,6 +214,18 @@ import { BOLHA_RECUSA_AVISO_MS, bolhaAceitaDesistir, bolhaAceitaPronto, bolhaEmJ
 import type { DificuldadePesca } from '../minigames/pesca/tipos'
 import { parseObjetoHostMessage, parseObjetoPlayerMessage, type DesfechoDoObjetoNoFio, type DificuldadeDoObjeto, type JogoDoObjetoNoFio, type ObjetoMotivoDaRecusa, type ObjetoPlayerMessage } from '../net/protocoloDoObjeto'
 import {
+  parsePuzzleHostMessage,
+  parsePuzzlePlayerMessage,
+  type CastigoDoPuzzleNoFio,
+  type DesfechoDoPuzzleNoFio,
+  type ErroDoPuzzleNoFio,
+  type PuzzleFechadoMotivo,
+  type PuzzleHostMessage,
+  type PuzzleMotivoDaRecusa,
+  type PuzzlePlayerMessage,
+} from '../net/protocoloDoPuzzle'
+import type { AcaoNoPuzzle, VistaDoPuzzle } from '../puzzles/tipos'
+import {
   parsePescaHostMessage,
   parsePescaPlayerMessage,
   PESCA_VIVO_INTERVALO_MS,
@@ -396,6 +408,27 @@ export interface CutsceneVideoNoJogador {
 
 /** O aviso "Chegue mais perto para abrir" (e as outras recusas do objeto) some sozinho. */
 export const OBJETO_RECUSA_AVISO_MS = 4000
+
+/** O aviso "Você está longe demais" (e as outras recusas de entrar no puzzle) some sozinho. */
+export const PUZZLE_RECUSA_AVISO_MS = 4000
+
+/**
+ * PUZZLES: o puzzle aberto nesta tela, da primeira `puzzle.vista` ao "Sair".
+ * Tudo vem do host: a tela só desenha a vista e pede (`acaoNoPuzzle`).
+ */
+export interface PuzzleDoJogador {
+  desafioId: string
+  /** O puzzle como ele vê agora (o recorte do host, por lista branca), com a mochila dele. */
+  vista: VistaDoPuzzle
+  /** A última recusa de uma ação; o `id` muda a cada uma (a tela anima de novo). `null` = nenhuma. */
+  recusa: { id: number; motivo: PuzzleMotivoDaRecusa } | null
+  /** O último erro dele e o castigo, que só chega agora; o `id` muda a cada um. `null` = nenhum. */
+  castigo: { id: number; erro: ErroDoPuzzleNoFio; castigo: CastigoDoPuzzleNoFio } | null
+  /** O desfecho, com o que ELE ganhou; `null` até alguém resolver com ele dentro. */
+  resolvido: DesfechoDoPuzzleNoFio | null
+  /** O mestre mudou ou tirou o puzzle: a tela avisa e sai (`sairDoPuzzle`). `null` = aberto. */
+  fechado: PuzzleFechadoMotivo | null
+}
 
 /** BAÚ, CAIXA E BARRIL: o minigame do objeto nesta tela, do `objeto.jogo` ao desfecho. */
 export interface ObjetoDoJogador {
@@ -862,6 +895,14 @@ export interface PlayerState {
   objeto?: ObjetoDoJogador
   /** O host não abriu o objeto (`objeto.recusado`); some sozinho em `OBJETO_RECUSA_AVISO_MS`. */
   objetoRecusado?: { id: number; propId: string; motivo: ObjetoMotivoDaRecusa }
+  /**
+   * PUZZLES (plano dos puzzles, §2.2): o puzzle em que ele está dentro, do
+   * `puzzle.vista` ao "Sair" (`sairDoPuzzle`), ou com a sala. Recarregar a
+   * página dentro dele volta para dentro: o host manda a vista de novo.
+   */
+  puzzle?: PuzzleDoJogador
+  /** O host não deixou entrar (`puzzle.recusado` sem puzzle aberto); some sozinho em `PUZZLE_RECUSA_AVISO_MS`. */
+  puzzleRecusado?: { id: number; desafioId: string; motivo: PuzzleMotivoDaRecusa }
   /**
    * MINIGAME DE TIRO: o convite (do mestre, ou a volta do "Atirar" deste
    * jogador), as tentativas que o host contou, a rodada liberada e o que
@@ -1956,6 +1997,23 @@ export interface PlayerConnection {
   /** Fecha o minigame do objeto (antes de vencer = desiste, sem consequência e sem mensagem). */
   fecharObjeto(): void
   /**
+   * PUZZLES: "Examinar" — pede ao mestre para entrar no puzzle `desafioId` (o
+   * selo do recorte). `tokenId` = a ficha que entra; ausente, o host usa a
+   * primeira dele encostada. A vista volta em `puzzle`; a recusa, em
+   * `puzzleRecusado`. `false` (nada sai) fora do jogo, com um puzzle já aberto
+   * na tela ou com o socket fechado.
+   */
+  entrarNoPuzzle(desafioId: string, tokenId?: string): boolean
+  /**
+   * PUZZLES: pede uma ação no puzzle aberto, sobre a vista que a tela mostra
+   * (o `rev` dela). O host confere e responde com a vista nova (a todos que
+   * estão dentro), a recusa, o castigo ou o desfecho. `false` sem puzzle
+   * aberto, com ele fechado pelo mestre ou com o socket fechado.
+   */
+  acaoNoPuzzle(acao: AcaoNoPuzzle): boolean
+  /** PUZZLES: sai do puzzle. O progresso fica no mapa, de todos. */
+  sairDoPuzzle(): void
+  /**
    * TIRO ("Jogador toca no pino"): pede para entrar na barraca do pino. O
    * convite volta do mestre se a ficha estiver encostada. `false` (nada sai)
    * fora do jogo, com pino que não é de tiro "Jogador toca no pino", com uma
@@ -2682,6 +2740,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   // mesmo relógio: um novo toma o lugar do outro, nunca aparecem sobrepostos.
   let doorNoticeTimer: ReturnType<typeof setTimeout> | null = null
   let nextNoticeId = 1
+  /** PUZZLES: o puzzle de onde ele acabou de sair; a vista dele que ainda estava a caminho não reabre a tela. */
+  let puzzleQueSaiu: string | null = null
   /** PESCA: `performance.now()` do último `pesca.vivo` que saiu (no máximo 4 por segundo). */
   let ultimoVivoDaPesca = Number.NEGATIVE_INFINITY
   /** TIRO: `performance.now()` do último `tiro.vivo` que saiu (no máximo 4 por segundo). */
@@ -3913,6 +3973,61 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function enviarObjeto(message: ObjetoPlayerMessage): boolean {
     const conferida = parseObjetoPlayerMessage(message)
     return conferida !== null && send(conferida)
+  }
+
+  /** PUZZLES: a mesma conferência do host antes de sair. */
+  function enviarPuzzle(message: PuzzlePlayerMessage): boolean {
+    const conferida = parsePuzzlePlayerMessage(message)
+    return conferida !== null && send(conferida)
+  }
+
+  /**
+   * PUZZLES: o que o host mandou. A vista abre a tela (a primeira, ou a que o
+   * host reenviou depois do F5) ou a atualiza; recusa, castigo, desfecho e
+   * fechado só valem para o puzzle aberto. A recusa sem puzzle aberto (o
+   * "Examinar" de longe) vira aviso que some sozinho.
+   */
+  function receberPuzzle(msg: PuzzleHostMessage): void {
+    const aberto = state.puzzle
+    if (msg.type === 'puzzle.vista') {
+      const vista = msg.vista
+      if (vista.desafioId === puzzleQueSaiu) return
+      if (aberto !== undefined && aberto.desafioId === vista.desafioId && aberto.fechado === null) {
+        setState({ puzzle: { ...aberto, vista } })
+        return
+      }
+      setState({ puzzle: { desafioId: vista.desafioId, vista, recusa: null, castigo: null, resolvido: null, fechado: null }, puzzleRecusado: undefined })
+      return
+    }
+    const desteAberto = aberto !== undefined && aberto.desafioId === msg.desafioId ? aberto : undefined
+    switch (msg.type) {
+      case 'puzzle.recusado': {
+        const id = nextNoticeId++
+        if (desteAberto !== undefined && desteAberto.fechado === null) {
+          setState({ puzzle: { ...desteAberto, recusa: { id, motivo: msg.motivo } } })
+          return
+        }
+        if (aberto !== undefined) return
+        setState({ puzzleRecusado: { id, desafioId: msg.desafioId, motivo: msg.motivo } })
+        setTimeout(() => {
+          // Só apaga o próprio aviso: uma recusa nova no meio tem o seu tempo.
+          if (state.puzzleRecusado?.id === id) setState({ puzzleRecusado: undefined })
+        }, PUZZLE_RECUSA_AVISO_MS)
+        return
+      }
+      case 'puzzle.castigo':
+        if (desteAberto !== undefined) setState({ puzzle: { ...desteAberto, castigo: { id: nextNoticeId++, erro: msg.erro, castigo: msg.castigo } } })
+        return
+      case 'puzzle.resolvido': {
+        if (desteAberto === undefined) return
+        const { por, modo, texto, premio, abriuPorta } = msg
+        setState({ puzzle: { ...desteAberto, resolvido: { por, modo, texto, premio, abriuPorta } } })
+        return
+      }
+      case 'puzzle.fechado':
+        if (desteAberto !== undefined) setState({ puzzle: { ...desteAberto, fechado: msg.motivo } })
+        return
+    }
   }
 
   function enviarPesca(message: PescaPlayerMessage): boolean {
@@ -5355,6 +5470,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ objeto: { ...emJogo, desfecho: msg.desfecho } })
         return
       }
+      case 'puzzle.vista':
+      case 'puzzle.recusado':
+      case 'puzzle.castigo':
+      case 'puzzle.resolvido':
+      case 'puzzle.fechado': {
+        // A tela da mesa só olha: o puzzle é de quem encostou.
+        if (isTable) return
+        const msg = parsePuzzleHostMessage(data)
+        if (msg === null || state.status !== 'playing') return
+        receberPuzzle(msg)
+        return
+      }
       case 'tiro.convite':
       case 'tiro.estado':
       case 'tiro.inicio':
@@ -5821,7 +5948,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         loopsVivos.clear()
         chaveDaMidia = null
         clearReconnectTimers()
-        setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
+        setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -5856,7 +5983,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', danca: undefined, pesca: undefined, objeto: undefined, tiro: undefined, fogo: undefined, bolha: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -5875,7 +6002,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         stopPing()
         clearPeekTimer()
-        setState({ status: 'replaced', danca: undefined, pesca: undefined, objeto: undefined, tiro: undefined, fogo: undefined, bolha: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
+        setState({ status: 'replaced', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
       case 'account.device':
       case 'account.refused':
@@ -5888,7 +6015,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           writeResume(storage, null)
           clearReconnectTimers()
           chaveDaMidia = null
-          setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
+          setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
           return
         }
         // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
@@ -6864,6 +6991,29 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
     fecharObjeto() {
       if (state.objeto !== undefined) setState({ objeto: undefined })
+    },
+
+    entrarNoPuzzle(desafioId, tokenId) {
+      // Um puzzle por vez: o aberto sai antes (`sairDoPuzzle`).
+      if (state.status !== 'playing' || state.puzzle !== undefined) return false
+      if (puzzleQueSaiu === desafioId) puzzleQueSaiu = null
+      return enviarPuzzle(tokenId === undefined ? { type: 'puzzle.entrar', desafioId } : { type: 'puzzle.entrar', desafioId, tokenId })
+    },
+
+    acaoNoPuzzle(acao) {
+      const aberto = state.puzzle
+      if (state.status !== 'playing' || aberto === undefined || aberto.fechado !== null) return false
+      return enviarPuzzle({ type: 'puzzle.acao', desafioId: aberto.desafioId, rev: aberto.vista.rev, acao })
+    },
+
+    sairDoPuzzle() {
+      const aberto = state.puzzle
+      if (aberto === undefined) return
+      // Uma vista que já estava a caminho não reabre a tela que ele fechou.
+      puzzleQueSaiu = aberto.desafioId
+      // Fechado pelo mestre: o host já o tirou de dentro.
+      if (aberto.fechado === null) enviarPuzzle({ type: 'puzzle.sair', desafioId: aberto.desafioId })
+      setState({ puzzle: undefined })
     },
 
     fecharPesca() {

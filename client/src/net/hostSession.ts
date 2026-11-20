@@ -166,6 +166,18 @@ import { abrivelParaJogador, jogoDoObjetoFechado } from '../lib/conteudoDoObjeto
 import { jogoDeObjetoDoMovel } from '../minigames/registro'
 import { abrirObjeto, fichaAlcancaObjeto, nomeDoJogoDoObjeto, sementeDoObjeto, type AppliedObjetoAberto, type ObjetoEmJogo } from './objetoNoHost'
 import type { ObjetoMotivoDaRecusa, ObjetoPlayerMessage } from './protocoloDoObjeto'
+import {
+  agirNoHost,
+  assinaturaDoPuzzle,
+  desafioDePuzzleDoMapa,
+  progressoDoDesafio,
+  vistaParaABoneco,
+  type AppliedPuzzle,
+  type PuzzleAberto,
+  type PuzzleAoVivo,
+} from './puzzleNoHost'
+import type { PuzzleFechadoMotivo, PuzzleMotivoDaRecusa, PuzzlePlayerMessage } from './protocoloDoPuzzle'
+import type { VistaDoPuzzle } from '../puzzles/tipos'
 import { companionArrivals, type CarriedArrival } from '../lib/carryArrival'
 import { VISION_FACTOR_DEFAULT, clampVisionFactor, playerVisionRadius, readSceneVisionCells } from '../lib/sceneVision'
 import { isLockClosed, lockAccepts } from '../lib/pinLock'
@@ -1339,6 +1351,14 @@ export interface HostResult {
    */
   applyObjetoAberto?: AppliedObjetoAberto
   /**
+   * PUZZLES: a ação de um jogador valeu. O integrador grava numa vez só o
+   * progresso, a porta ligada, a mochila dos bonecos sem ficha e as fichas de
+   * personagem que mudaram (`playerChanges.applyPuzzle`), fora do Ctrl+Z do
+   * mestre, e avisa o mestre quando há o que avisar. A vista nova de quem está
+   * dentro sai no broadcast seguinte, já com o mapa gravado.
+   */
+  applyPuzzle?: AppliedPuzzle
+  /**
    * CABINE DE TRANSPORTE: quem passou levou a cabine para a chegada. Vem só
    * junto de `applyTransfer`, e o integrador grava DEPOIS de a ficha mudar de
    * cena (sem viagem, a cabine não anda). Nunca vai ao jogador.
@@ -2303,6 +2323,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const pendingItems = porJogador.registrar('conexao', new Map<string, PendingItem>())
   /** BAÚ, CAIXA E BARRIL: a abertura em jogo na tela de cada jogador (uma por vez; pedir outra troca). */
   const objetosEmJogo = new Map<string, ObjetoEmJogo>()
+  /**
+   * PUZZLES — por playerId: o puzzle em que ele está dentro agora (um por vez;
+   * entrar em outro troca). Sobrevive à queda: quem recarrega a página volta
+   * para dentro (`entryOutbound`). Sai com o "Sair", o kick e o esquecer.
+   */
+  const puzzlesAbertos = porJogador.registrar('jogador', new Map<string, PuzzleAberto>())
+  /** PUZZLES — por clientId: a última vista mandada (o texto), para só mandar a que mudou. */
+  const vistasDoPuzzleEnviadas = porConexao.registrar('conexao', new Map<string, string>())
+  const pecaDoAcervo = options.pecaDoAcervo ?? (() => null)
   // Por playerId: o mesmo limite do toque na porta, para "Pegar" e para "Dar a…".
   const lastItemTakeAt = porJogador.registrar('jogador', new Map<string, number>())
   const lastItemGiveAt = porJogador.registrar('jogador', new Map<string, number>())
@@ -4734,6 +4763,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     outbound.push(...pescaNoHost.entrou(playerId))
     // TIRO: o convite de novo, com as tentativas que já gastou; no meio da rodada, a aba nova perdeu a rodada.
     outbound.push(...tiroNoHost.entrou(playerId))
+    // PUZZLES: recarregou a página dentro de um puzzle: volta para dentro, com a vista de agora.
+    outbound.push(...puzzleNaVolta(clientId, playerId, world))
     return outbound
   }
 
@@ -9240,6 +9271,158 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return reply(clientId, { type: 'objeto.jogo', sessao, propId: prop.id, jogo, nome: nomeDoJogoDoObjeto(prop, jogo), semente: sementeDoObjeto(), dificuldade: 'normal' })
   }
 
+  /** PUZZLES: as fichas de personagem da aventura; mapa solto não tem (a mochila é a do boneco). */
+  const personagensDoMundo = (world: HostWorld): readonly Personagem[] => world.rpg?.personagens ?? []
+
+  /**
+   * PUZZLES: a ficha DELE que alcança o selo do puzzle agora, no mapa do mestre:
+   * o selo no recorte dele (névoa, "Quem vê", segredo), a ficha dele encostada
+   * (`tokenReachesPin`, a mesma do pino e da pesca) e solta. `tokenId` presente:
+   * só essa ficha vale. Senão, por que não.
+   */
+  function fichaNoPuzzle(playerId: string, scene: HostScene, world: HostWorld, desafioId: string, tokenId: string | undefined): Token | PuzzleMotivoDaRecusa {
+    const map = scene.map
+    const pin = pinoDeMinigameDoMapa(map, desafioId)
+    if (pin === undefined) return 'indisponivel'
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return 'indisponivel'
+    const owned = new Set(ownership[playerId] ?? [])
+    const pelosObjetos = alcancePeloObjeto(view.map)
+    const encostadas = view.map.tokens.filter((t) => owned.has(t.id) && (tokenId === undefined || t.id === tokenId) && tokenReachesPin(t, pin, map.grid, pelosObjetos))
+    if (encostadas.length === 0) return 'longe'
+    // A ficha que mexe é a do MAPA DO MESTRE, a primeira encostada que não está parada.
+    const soltas = encostadas.filter((t) => congeladaPresaA(map, [t.id]) === null)
+    const token = soltas.map((t) => map.tokens.find((m) => m.id === t.id)).find((t): t is Token => t !== undefined)
+    return token ?? 'congelado'
+  }
+
+  /** PUZZLES: a vista para a conexão. `sempre` = manda mesmo igual à última (entrar, `velho`); senão, só a que mudou. */
+  function vistaDoPuzzlePara(clientId: string, vista: VistaDoPuzzle, sempre: boolean): Outbound[] {
+    const texto = JSON.stringify(vista)
+    if (!sempre && vistasDoPuzzleEnviadas.get(clientId) === texto) return []
+    vistasDoPuzzleEnviadas.set(clientId, texto)
+    return [{ clientId, msg: { type: 'puzzle.vista', vista } }]
+  }
+
+  /** PUZZLES: ele sai do puzzle pelo lado do host; com a tela no ar, ela lê `puzzle.fechado`. */
+  function fecharPuzzleDe(playerId: string, clientId: string | null, motivo: PuzzleFechadoMotivo): Outbound[] {
+    const aberto = puzzlesAbertos.get(playerId)
+    puzzlesAbertos.delete(playerId)
+    if (clientId === null || aberto === undefined) return []
+    vistasDoPuzzleEnviadas.delete(clientId)
+    return [{ clientId, msg: { type: 'puzzle.fechado', desafioId: aberto.desafioId, motivo } }]
+  }
+
+  /**
+   * PUZZLES: a tela de quem está dentro acompanha o mapa de agora. O mestre
+   * mudou a cópia (`assinaturaDoPuzzle`) = `puzzle.fechado` com `mudou`; o
+   * puzzle saiu do lugar (apagado, virou outro jogo, ele mudou de cena, perdeu
+   * a ficha) = `sumiu`. Senão, a vista nova, só se mudou: o progresso de todos
+   * (o colega pôs, o mestre zerou) e a mochila dele.
+   */
+  function syncDoPuzzle(playerId: string, clientId: string, world: HostWorld): Outbound[] {
+    const aberto = puzzlesAbertos.get(playerId)
+    if (aberto === undefined) return []
+    const scene = statusOf(playerId) === 'playing' ? sceneFor(playerId, world) : null
+    if (scene === null || sceneKey(scene) !== aberto.cena) return fecharPuzzleDe(playerId, clientId, 'sumiu')
+    const desafio = desafioDePuzzleDoMapa(scene.map, aberto.desafioId)
+    if (desafio === null) return fecharPuzzleDe(playerId, clientId, 'sumiu')
+    if (assinaturaDoPuzzle(desafio.minigame) !== aberto.assinatura) return fecharPuzzleDe(playerId, clientId, 'mudou')
+    const token = scene.map.tokens.find((t) => t.id === aberto.tokenId)
+    if (token === undefined || !(ownership[playerId] ?? []).includes(token.id)) return fecharPuzzleDe(playerId, clientId, 'sumiu')
+    return vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, token, personagensDoMundo(world)), false)
+  }
+
+  /** PUZZLES: `syncDoPuzzle` de todos que estão dentro e na sala (no broadcast, depois das fichas). */
+  const syncPuzzles = (world: HostWorld): Outbound[] => {
+    const outbound: Outbound[] = []
+    for (const playerId of [...puzzlesAbertos.keys()]) {
+      const clientId = players.get(playerId)?.clientId ?? null
+      if (clientId !== null) outbound.push(...syncDoPuzzle(playerId, clientId, world))
+    }
+    return outbound
+  }
+
+  /**
+   * PUZZLES (plano dos puzzles, §2.2 a §2.4): o jogador só PEDE; o host confere
+   * tudo de novo a cada mensagem contra o mapa de agora (a cópia pode ter
+   * mudado com ele dentro): jogando, cena sem pausa, o selo no recorte dele, a
+   * ficha dele encostada e solta, ele dentro deste puzzle, o `rev` de agora. A
+   * ação em si (peça certa, encaixe ocupado, a vaga é da mochila dele) é do
+   * motor, por `puzzleNoHost.agirNoHost`. A resposta certa nunca sai daqui: a
+   * vista é o recorte por lista branca, e o desfecho e o castigo só saem quando
+   * acontecem, só a quem cabem.
+   */
+  function handlePuzzle(clientId: string, msg: PuzzlePlayerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    // Fora do jogo (mesa, removido) morre calado: não há tela para o aviso.
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    if (msg.type === 'puzzle.sair') {
+      if (puzzlesAbertos.get(playerId)?.desafioId === msg.desafioId) puzzlesAbertos.delete(playerId)
+      vistasDoPuzzleEnviadas.delete(clientId)
+      return { outbound: [] }
+    }
+    const recusa = (motivo: PuzzleMotivoDaRecusa): HostResult => reply(clientId, { type: 'puzzle.recusado', desafioId: msg.desafioId, motivo })
+    const scene = sceneFor(playerId, world)
+    if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
+    const desafio = desafioDePuzzleDoMapa(scene.map, msg.desafioId)
+    const personagens = personagensDoMundo(world)
+    if (msg.type === 'puzzle.entrar') {
+      if (desafio === null) return recusa('indisponivel')
+      const ficha = fichaNoPuzzle(playerId, scene, world, desafio.id, msg.tokenId)
+      if (typeof ficha === 'string') return recusa(ficha)
+      // Um puzzle por vez: entrar noutro troca.
+      puzzlesAbertos.set(playerId, { desafioId: desafio.id, cena: sceneKey(scene), tokenId: ficha.id, assinatura: assinaturaDoPuzzle(desafio.minigame) })
+      return { outbound: vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens), true) }
+    }
+    const aberto = puzzlesAbertos.get(playerId)
+    if (aberto === undefined || aberto.desafioId !== msg.desafioId || aberto.cena !== sceneKey(scene)) return recusa('indisponivel')
+    if (desafio === null) return { outbound: fecharPuzzleDe(playerId, clientId, 'sumiu') }
+    if (assinaturaDoPuzzle(desafio.minigame) !== aberto.assinatura) return { outbound: fecharPuzzleDe(playerId, clientId, 'mudou') }
+    const ficha = fichaNoPuzzle(playerId, scene, world, desafio.id, aberto.tokenId)
+    if (typeof ficha === 'string') return recusa(ficha)
+    // A tela velha: a recusa e a vista de agora, para ele tentar de novo sobre o que existe.
+    if (msg.rev !== progressoDoDesafio(desafio).rev) {
+      return { outbound: [...recusa('velho').outbound, ...vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens), true)] }
+    }
+    const resultado = agirNoHost({
+      desafio,
+      map: scene.map,
+      token: ficha,
+      personagens,
+      sistema: world.rpg?.sistema ?? null,
+      acao: msg.acao,
+      nomeDoJogador: record.name,
+      agora: now(),
+      novoId: randomId,
+      pecaDoAcervo,
+    })
+    if (!resultado.ok) return recusa(resultado.motivo)
+    const outbound: Outbound[] = []
+    if (resultado.castigo !== null) outbound.push({ clientId, msg: { type: 'puzzle.castigo', desafioId: desafio.id, ...resultado.castigo } })
+    const resolvido = resultado.resolvido
+    if (resolvido !== null) {
+      // Todos os que estão dentro leem o desfecho; o que se ganha é só de quem resolveu.
+      for (const [outroId, outro] of puzzlesAbertos) {
+        const outroCliente = players.get(outroId)?.clientId ?? null
+        if (outro.desafioId !== desafio.id || outro.cena !== aberto.cena || outroCliente === null) continue
+        const premio = outroId === playerId ? resolvido.premio : { itens: [], moedas: 0, documentos: [] }
+        const { por, modo, texto, abriuPorta } = resolvido
+        outbound.push({ clientId: outroCliente, msg: { type: 'puzzle.resolvido', desafioId: desafio.id, por, modo, texto, premio, abriuPorta } })
+      }
+    }
+    return { outbound, applyPuzzle: { ...backgroundSceneId(scene, world), ...resultado.aplicado } }
+  }
+
+  /** PUZZLES: quem volta (resume, F5) e estava dentro de um puzzle recebe a vista de novo, se ele ainda vale. */
+  function puzzleNaVolta(clientId: string, playerId: string, world: HostWorld): Outbound[] {
+    vistasDoPuzzleEnviadas.delete(clientId)
+    return syncDoPuzzle(playerId, clientId, world)
+  }
+
   /**
    * PESCA: o pedido do pino ("Jogador toca no pino"), o Pronto, o vivo, cada
    * lance e o cesto. O pedido passa aqui pelas regras do pino: jogando, cena
@@ -9514,6 +9697,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'objeto.abrir':
       case 'objeto.venceu':
         return handleObjeto(clientId, msg, world)
+      case 'puzzle.entrar':
+      case 'puzzle.acao':
+      case 'puzzle.sair':
+        return handlePuzzle(clientId, msg, world)
       case 'tiro.pedir':
       case 'tiro.pronto':
       case 'tiro.vivo':
@@ -11037,6 +11224,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // FICHA DE PERSONAGEM: o mestre editou a ficha de alguém, ou alguém ganhou
       // ou perdeu ficha (token): só essa conexão recebe, e só o que mudou.
       outbound.push(...syncPersonagens(world))
+      // PUZZLES: depois das fichas — a vista nova de quem está dentro (o colega pôs, o mestre mudou ou zerou).
+      outbound.push(...syncPuzzles(world))
       // BATALHA F1: depois dos mapas e das fichas — o recorte da ordem só mostra fichas que a
       // tela de cada um já tem; a vez que andou, a ordem que o mestre arrastou e o fim da batalha.
       outbound.push(...batalhaNoHost.sync(conexoesNaBatalha(world), world.rpg))
@@ -11434,6 +11623,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     pesca() {
       return pescaNoHost.aoVivo()
+    },
+
+    puzzlesAoVivo() {
+      const porPuzzle = new Map<string, PuzzleAoVivo>()
+      for (const [playerId, aberto] of puzzlesAbertos) {
+        const record = players.get(playerId)
+        if (record === undefined || record.clientId === null) continue
+        const chave = `${aberto.cena}|${aberto.desafioId}`
+        const linha = porPuzzle.get(chave) ?? { mapaId: aberto.cena, desafioId: aberto.desafioId, dentro: [] }
+        linha.dentro.push({ playerId, nome: record.name })
+        porPuzzle.set(chave, linha)
+      }
+      return [...porPuzzle.values()]
     },
 
     convidarParaTiro(pinId, playerIds, source) {
