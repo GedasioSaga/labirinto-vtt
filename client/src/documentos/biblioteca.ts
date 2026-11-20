@@ -139,8 +139,16 @@ function motivo(causa: unknown): string {
  * Lê o índice. Nunca lança: o erro vira `aviso`, e `lido: false` barra quem
  * grava. Índice de uma versão mais nova do app também barra: gravá-lo com a
  * versão de agora apagaria o que esta versão não sabe ler.
+ *
+ * Entra na MESMA FILA das gravações (bug de 20/11/2026): a página relê ao
+ * montar, e a ficha que acabou de fechar ainda está gravando. Lida antes da
+ * vez, a leitura trazia o texto de antes da edição de volta para a tela.
  */
-export async function lerBiblioteca(): Promise<BibliotecaLida> {
+export function lerBiblioteca(): Promise<BibliotecaLida> {
+  return naFila(lerIndice)
+}
+
+async function lerIndice(): Promise<BibliotecaLida> {
   let texto: string
   try {
     const caminho = await join(await pastaDosDocumentos(), ARQUIVO_DO_INDICE)
@@ -170,7 +178,7 @@ export async function lerBiblioteca(): Promise<BibliotecaLida> {
 
 let filaDoIndice: Promise<void> = Promise.resolve()
 
-/** Uma gravação depois da outra: duas seguidas nunca leem a mesma lista e passam uma por cima da outra. */
+/** Uma gravação depois da outra, e a leitura depois das gravações já pedidas: ninguém lê nem grava por cima do que ainda não foi gravado. */
 function naFila<T>(operacao: () => Promise<T>): Promise<T> {
   const resultado = filaDoIndice.then(operacao)
   filaDoIndice = resultado.then(

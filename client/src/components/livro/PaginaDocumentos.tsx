@@ -116,7 +116,7 @@ export function PaginaDocumentos() {
   const aviso = useDocumentosStore((estado) => estado.aviso)
   const abertoId = useDocumentosDoMestreStore((estado) => estado.aberto)
   const personagens = useAdventureStore((estado) => personagensAtivos(estado))
-  // A biblioteca é do app, não do mapa: lê uma vez quando o livro monta.
+  // A biblioteca é do app, não do mapa: relê quando a página monta. A leitura espera a gravação da ficha que acabou de fechar (`lerBiblioteca`).
   useEffect(() => {
     useDocumentosStore
       .getState()

@@ -33,9 +33,17 @@ export const DOCUMENTO_APAGADO = 'Este documento foi apagado da biblioteca.'
 const DOCUMENTO_COM_ID_TORTO = 'Este documento não tem um id que dê para guardar.'
 
 export const useDocumentosStore = create<DocumentosState>()((set, get) => {
+  /**
+   * Quantas vezes a tela mudou à frente do disco. A leitura que começou antes
+   * de uma dessas mudanças volta com a lista de antes dela: a tela, que já tem
+   * a mais nova, fica como está (o disco a recebe quando a fila andar).
+   */
+  let mudancasNaTela = 0
+
   /** Troca a tela, grava; falhou, relê o disco e devolve o erro a quem chamou. */
   const gravar = async (proximos: Documento[]): Promise<void> => {
     if (!get().podeGravar) throw new Error(get().aviso === BIBLIOTECA_DE_VERSAO_NOVA ? BIBLIOTECA_DE_VERSAO_NOVA : BIBLIOTECA_NAO_LIDA)
+    mudancasNaTela += 1
     set({ documentos: proximos })
     try {
       await gravarBiblioteca(proximos)
@@ -56,7 +64,10 @@ export const useDocumentosStore = create<DocumentosState>()((set, get) => {
         set({ documentos: [], aviso: null, podeGravar: false })
         return
       }
+      // A leitura espera as gravações já pedidas (`lerBiblioteca` entra na fila delas); a que vier depois de começar é a conta abaixo.
+      const antes = mudancasNaTela
       const lida = await lerBiblioteca()
+      if (mudancasNaTela !== antes) return
       set({ documentos: lida.documentos, aviso: lida.aviso, podeGravar: lida.lido })
     },
 
