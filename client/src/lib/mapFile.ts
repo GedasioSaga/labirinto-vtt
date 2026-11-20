@@ -91,6 +91,7 @@ import {
 import {
   ALAVANCA_FALA_MAX_LENGTH,
   ALAVANCA_LUGAR_MAX_LENGTH,
+  cenaDaAlavanca,
   DIFICULDADES_ALAVANCA,
   ENTRADAS_ALAVANCA,
   MINIGAME_ALAVANCA_PADRAO,
@@ -493,11 +494,13 @@ function lerBolhaDoArquivo(valor: object): MinigameBolha {
  * A ALAVANCA DA PONTE do disco: textos aparados e cortados nos tetos de
  * `alavanca/tipos.ts`; `entrada` e `dificuldade` fora da lista voltam o
  * padrão; o tempo fica entre 8 e 40 s, ou o padrão da dificuldade (`null`).
+ * A cena que falta (mapa de antes das cenas) ou que não se conhece é a ponte.
  */
 function lerAlavancaDoArquivo(valor: object): MinigameAlavanca {
   const padrao = MINIGAME_ALAVANCA_PADRAO
   return {
     jogo: 'alavanca',
+    cena: cenaDaAlavanca(campoDoArquivo(valor, 'cena')),
     npc: textoDoArquivo(campoDoArquivo(valor, 'npc'), NPC_MAX_LENGTH, padrao.npc),
     lugar: textoDoArquivo(campoDoArquivo(valor, 'lugar'), ALAVANCA_LUGAR_MAX_LENGTH, padrao.lugar),
     fala: textoDoArquivo(campoDoArquivo(valor, 'fala'), ALAVANCA_FALA_MAX_LENGTH, padrao.fala),
