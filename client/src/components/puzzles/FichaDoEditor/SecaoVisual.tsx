@@ -3,7 +3,8 @@ import { Botao } from '../../grimorio/Botao'
 import { CampoSeg } from '../../grimorio/CampoSeg'
 import { CampoTexto } from '../../grimorio/CampoTexto'
 import { classes } from '../../grimorio/comum'
-import { svgDoModelo } from '../../../puzzles/arte/modelos'
+import { ArteSvg } from '../../../puzzles/arte/ArteSvg'
+import { desenhoDoModelo, type NoDaArte } from '../../../puzzles/arte/modelos'
 import { aceitaMolduraPorta, NOME_DO_MODELO, PADROES_DOS_MODELOS } from '../../../puzzles/padroes'
 import { INSCRICAO_MAX, MODELOS_DO_PUZZLE, NOME_DO_PUZZLE_MAX, type CoresDoModelo, type ModeloDoPuzzle, type MolduraDoPuzzle } from '../../../puzzles/tipos'
 import { comCoresDoModelo, comVisual } from '../edicao'
@@ -50,9 +51,9 @@ export function SecaoBasico({ puzzle, mudar }: PropsDaSecao) {
 }
 
 /** As miniaturas dos 4 modelos, desenhadas uma vez por abertura do editor. */
-function useMiniaturas(): Readonly<Record<ModeloDoPuzzle, string>> {
+function useMiniaturas(): Readonly<Record<ModeloDoPuzzle, NoDaArte>> {
   return useMemo(() => {
-    const desenho = (modelo: ModeloDoPuzzle) => svgDoModelo({ modelo, moldura: 'original', cores: PADROES_DOS_MODELOS[modelo].cores, inscricao: '' }, `pze-mini-${modelo}`)
+    const desenho = (modelo: ModeloDoPuzzle) => desenhoDoModelo({ modelo, moldura: 'original', cores: PADROES_DOS_MODELOS[modelo].cores, inscricao: '' }, `pze-mini-${modelo}`)
     return { fonte: desenho('fonte'), porta: desenho('porta'), cofre: desenho('cofre'), altar: desenho('altar') }
   }, [])
 }
@@ -84,8 +85,9 @@ export function SecaoVisual({ puzzle, mudar, onModelo, onImagem }: PropsDoVisual
               aria-label={`Começar do modelo ${NOME_DO_MODELO[modelo]}`}
               onClick={() => onModelo(modelo)}
             >
-              {/* HTML de confiança: `svgDoModelo` é o sanitizador (cores e ids fixos, sem texto do mestre). */}
-              <span className="pze-modelo__arte" dangerouslySetInnerHTML={{ __html: miniaturas[modelo] }} />
+              <span className="pze-modelo__arte">
+                <ArteSvg arte={miniaturas[modelo]} />
+              </span>
               <span className="pze-modelo__nome">{NOME_DO_MODELO[modelo]}</span>
             </button>
           ))}

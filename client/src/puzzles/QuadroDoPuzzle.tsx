@@ -18,7 +18,8 @@
 import { memo, useEffect, useId, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react'
 import { classes, movimentoReduzido } from '../lib/primitivosDaTela'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
-import { svgDoModelo, temMolduraPorta } from './arte/modelos'
+import { ArteSvg } from './arte/ArteSvg'
+import { desenhoDoModelo, temMolduraPorta } from './arte/modelos'
 import { CorpoDoControle, estiloDoControle, nomeDoControle, type AcoesDaCombinacao, type TecladoDoControle } from './ControlesDaCombinacao'
 import { PESO_MAX } from './tipos'
 import type { CombinacaoNaVista, EncaixeNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
@@ -160,10 +161,12 @@ const ArteDoQuadro = memo(
   function ArteDoQuadro({ visual, prefixo }: { visual: VisualDoPuzzle; prefixo: string }) {
     const resolver = useImagemDaMesa()
     // Só roda quando a chave da arte muda (o `memo` abaixo compara por ela), e não a cada vista nova da rede.
-    const svg = visual.tipo === 'modelo' ? svgDoModelo(visual, prefixo) : null
-    if (svg !== null) {
-      // HTML de confiança: `svgDoModelo` é o sanitizador (cor por `corSegura`, texto por `escaparXml`, ids por `prefixoSeguro`).
-      return <div className="qpz__arte" dangerouslySetInnerHTML={{ __html: svg }} />
+    if (visual.tipo === 'modelo') {
+      return (
+        <div className="qpz__arte">
+          <ArteSvg arte={desenhoDoModelo(visual, prefixo)} />
+        </div>
+      )
     }
     const src = visual.tipo === 'imagem' ? resolver(visual.imagem) : null
     if (src === null) return <div className="qpz__vazio">Sem imagem ainda.</div>

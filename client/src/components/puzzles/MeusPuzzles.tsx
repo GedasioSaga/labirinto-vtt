@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Botao } from '../grimorio/Botao'
 import { useImagemDaMesa } from '../ImagemDaMesa'
 import { desafiosDo } from '../../lib/desafios'
-import { svgDoModelo } from '../../puzzles/arte/modelos'
+import { ArteSvg } from '../../puzzles/arte/ArteSvg'
+import { desenhoDoModelo } from '../../puzzles/arte/modelos'
 import { situacaoDaCopia, type SituacaoDaCopia } from '../../puzzles/meusPuzzles'
 import { puzzleDoModelo } from '../../puzzles/padroes'
 import type { IdDaPecaDesenhada, MinigamePuzzle, ModeloDePuzzle, Puzzle } from '../../puzzles/tipos'
@@ -146,12 +147,17 @@ export function MeusPuzzles() {
 export function MiniaturaDoPuzzle({ puzzle, prefixo }: { puzzle: Puzzle; prefixo: string }) {
   const resolver = useImagemDaMesa()
   const { visual } = puzzle
-  const svg = useMemo(() => (visual.tipo === 'modelo' ? svgDoModelo(visual, prefixo) : null), [visual, prefixo])
+  const arte = useMemo(() => (visual.tipo === 'modelo' ? desenhoDoModelo(visual, prefixo) : null), [visual, prefixo])
   const src = visual.tipo === 'imagem' ? resolver(visual.imagem) : null
   return (
     <span className="pzm-mini" aria-hidden="true">
-      {/* HTML de confiança: `svgDoModelo` é o sanitizador (cor por `corSegura`, texto por `escaparXml`, ids por `prefixoSeguro`). */}
-      {svg !== null ? <span className="pzm-mini__arte" dangerouslySetInnerHTML={{ __html: svg }} /> : src !== null ? <img className="pzm-mini__arte" src={src} alt="" draggable={false} /> : null}
+      {arte !== null ? (
+        <span className="pzm-mini__arte">
+          <ArteSvg arte={arte} />
+        </span>
+      ) : src !== null ? (
+        <img className="pzm-mini__arte" src={src} alt="" draggable={false} />
+      ) : null}
       {puzzle.encaixes.map((encaixe) => (
         <span key={encaixe.id} className="pzm-mini__ponto" style={{ left: `${encaixe.x}%`, top: `${encaixe.y}%`, width: `${Math.max(4, encaixe.t * 0.6)}%` }} />
       ))}
