@@ -1,0 +1,626 @@
+/*
+ * O QUADRO DE PERTO do puzzle (QuadroDoPuzzle.tsx): a arte, o grão, os
+ * encaixes, a troca de peso e a porta que abre. Portado do protótipo aprovado
+ * (docs/design/puzzles/prototipo-v2.html, .quadro, .encaixe e os estados
+ * animados; a troca de peso vem do v1, prototipo.html). Tudo mora sob `.qpz`,
+ * e as partes da arte que se mexem levam `qpz-*` (puzzles/arte/modelos.ts).
+ *
+ * O quadro ocupa a largura que o pai der, sempre em 16:10. Os encaixes e a
+ * troca são medidos em `cqw` (o quadro é o contêiner), como no protótipo.
+ */
+
+.qpz {
+  /* ease-in-out forte do Emil: o que se move NA tela (a folha que gira, o pedestal). */
+  --qpz-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--lb-radius-lg);
+  overflow: hidden;
+  background: #221d18;
+  box-shadow: var(--lb-shadow-lg), 0 0 0 1px rgba(0, 0, 0, 0.5);
+  container-type: inline-size;
+  isolation: isolate;
+  color: var(--lb-color-parchment);
+}
+
+.qpz__arte,
+.qpz__arte > svg,
+.qpz__arte > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.qpz__arte > img {
+  object-fit: cover;
+}
+
+.qpz__grao {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-size: 192px;
+  mix-blend-mode: soft-light;
+  opacity: 0.55;
+}
+
+.qpz__camada {
+  position: absolute;
+  inset: 0;
+}
+
+.qpz__flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(226, 100, 90, 0) 30%, rgba(226, 100, 90, 0.62) 100%);
+}
+
+.qpz__flash[data-tom='armadilha'] {
+  background: radial-gradient(ellipse at center, rgba(150, 160, 170, 0) 30%, rgba(150, 160, 170, 0.55) 100%);
+}
+
+.qpz__flash[data-tom='barulho'] {
+  background: radial-gradient(ellipse at center, rgba(243, 186, 102, 0) 40%, rgba(243, 186, 102, 0.35) 100%);
+}
+
+.qpz__vazio {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 12%;
+  text-align: center;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  background: repeating-linear-gradient(135deg, #1d1914 0 14px, #211c16 14px 28px);
+}
+
+/* ---------------------------------------------------------------- o encaixe: um botão de verdade por cima da arte, em % do quadro */
+
+.qpz-encaixe {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 9.4cqw;
+  min-width: 44px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 40%, #2f2b25 0 52%, #46413a 72%, #6d685c 100%);
+  box-shadow:
+    inset 0 0.5cqw 1.1cqw rgba(0, 0, 0, 0.6),
+    0 0 0 0.28cqw #75736b,
+    0 0.25cqw 0 0.32cqw rgba(255, 248, 230, 0.09);
+  transition: transform 150ms var(--lb-gr-ease-out);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* O encaixe só para ver (o editor e a miniatura põem a camada deles): sem clique. */
+span.qpz-encaixe {
+  cursor: default;
+  pointer-events: none;
+}
+
+.qpz-encaixe::after {
+  content: '';
+  position: absolute;
+  inset: -0.7cqw;
+  border-radius: inherit;
+  border: max(2px, 0.26cqw) solid var(--lb-color-brass-bright);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.qpz-encaixe--brasao {
+  aspect-ratio: 0.86;
+  border-radius: 12% 12% 50% 50% / 10% 10% 58% 58%;
+}
+
+.qpz-encaixe--joia {
+  border-radius: 1.4cqw;
+}
+
+.qpz-encaixe--quadrado {
+  border-radius: 1.2cqw;
+}
+
+.qpz-encaixe.is-pode::after {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.qpz-encaixe.is-pairando-ok {
+  transform: translate(-50%, -50%) scale(1.07);
+}
+
+.qpz-encaixe.is-pairando-ok::after {
+  opacity: 1;
+  border-style: solid;
+}
+
+.qpz-encaixe.is-pairando-nao::after {
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--lb-color-ember);
+}
+
+.qpz-encaixe[aria-disabled='true'] {
+  cursor: default;
+}
+
+.qpz-encaixe__peca {
+  position: absolute;
+  inset: 8%;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.qpz-encaixe__peca img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0.35cqw 0.35cqw rgba(0, 0, 0, 0.5));
+}
+
+/* Peça sem imagem (o item do acervo não tem): a inicial do nome, gravada no latão. */
+.qpz-encaixe__inicial {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 40% 35%, #d9b26a, #a07b3f 70%, #6e5328);
+  color: #2b1f0c;
+  font: 400 max(14px, 3.2cqw) / 1 var(--lb-font-display);
+  box-shadow: 0 0.35cqw 0.35cqw rgba(0, 0, 0, 0.5);
+}
+
+.qpz-encaixe__brilho {
+  position: absolute;
+  inset: -0.4cqw;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    0 0 2.4cqw 0.6cqw rgba(243, 186, 102, 0.75),
+    inset 0 0 1.2cqw rgba(255, 230, 180, 0.6);
+}
+
+.qpz-encaixe__quem {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translate(-50%, 0.5cqw);
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(14, 12, 10, 0.78);
+  font: 500 var(--lb-font-size-xs) / 1.2 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.qpz-encaixe:not([aria-disabled='true']):hover::after {
+    opacity: 0.45;
+    border-style: solid;
+  }
+}
+
+/* ---------------------------------------------------------------- a troca de peso (v1): pedestal, mostrador e bandeja */
+
+.qpz-troca {
+  position: absolute;
+  width: 19.4%;
+  height: 84%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1cqw;
+}
+
+.qpz-troca__pedestal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1cqw;
+  transition: transform 300ms var(--qpz-ease-in-out);
+}
+
+.qpz-troca__joia {
+  width: 7cqw;
+  aspect-ratio: 1;
+  border: 0;
+  padding: 0;
+  border-radius: 1.2cqw;
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.qpz-troca__joia svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0.4cqw 0.4cqw rgba(0, 0, 0, 0.5));
+}
+
+.qpz-troca__joia:disabled,
+.qpz-troca__joia--vazia {
+  cursor: default;
+}
+
+.qpz-mostrador {
+  width: 12cqw;
+}
+
+.qpz-mostrador svg {
+  width: 100%;
+  display: block;
+}
+
+.qpz-mostrador__agulha {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  transition: transform 320ms var(--qpz-ease-in-out);
+}
+
+.qpz-bandeja {
+  position: relative;
+  width: 15cqw;
+  min-height: 6.4cqw;
+  border: 0;
+  margin: 0;
+  padding: 0.6cqw;
+  border-radius: 1cqw;
+  background: linear-gradient(180deg, #7c6a49, #5d4e35);
+  box-shadow:
+    inset 0 0.3cqw 0.6cqw rgba(0, 0, 0, 0.5),
+    0 0 0 0.22cqw #473a26;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4cqw;
+  flex-wrap: wrap;
+  font: inherit;
+  color: inherit;
+}
+
+span.qpz-bandeja,
+.qpz-bandeja[aria-disabled='true'] {
+  cursor: default;
+}
+
+.qpz-bandeja svg {
+  width: 4cqw;
+  height: 4cqw;
+  pointer-events: none;
+}
+
+.qpz-bandeja__vazia {
+  font: 500 max(10px, 0.95cqw) / 1.2 var(--lb-font-utility);
+  color: #e9dcc0;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.qpz-bandeja::after {
+  content: '';
+  position: absolute;
+  inset: -0.6cqw;
+  border-radius: 1.4cqw;
+  border: max(2px, 0.26cqw) solid var(--lb-color-brass-bright);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.qpz-bandeja.is-pode::after {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.qpz-bandeja.is-pairando-ok::after {
+  opacity: 1;
+}
+
+.qpz-bandeja.is-pairando-nao::after {
+  opacity: 1;
+  border-color: var(--lb-color-ember);
+}
+
+.qpz-troca__soma {
+  font: 500 max(10px, 1cqw) / 1.2 var(--lb-font-utility);
+  color: var(--lb-color-parchment);
+  background: rgba(14, 12, 10, 0.72);
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* O botão primário do protótipo (o gr-bt--primario do app), aqui dentro para valer também na página do jogador. */
+.qpz-troca__trocar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: var(--lb-radius-sm);
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 60%, #cf9440);
+  color: var(--lb-color-brass-contrast);
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  font: 600 var(--lb-font-size-sm) / 1 var(--lb-font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+
+.qpz-troca__trocar:active {
+  transform: scale(0.97);
+}
+
+/* ---------------------------------------------------------------- a arte ao resolver (estados raros: só uma vez por puzzle) */
+
+.qpz-folha-e,
+.qpz-folha-d,
+.qpz-porta-cofre {
+  transform-box: fill-box;
+}
+
+.qpz-folha-e,
+.qpz-porta-cofre {
+  transform-origin: left center;
+}
+
+.qpz-folha-d {
+  transform-origin: right center;
+}
+
+.qpz.is-resolvido .qpz-folha-e,
+.qpz.is-resolvido .qpz-folha-d,
+.qpz.is-resolvido .qpz-porta-cofre {
+  transform: scaleX(0.12);
+}
+
+.qpz.is-abrindo .qpz-folha-e,
+.qpz.is-abrindo .qpz-folha-d,
+.qpz.is-abrindo .qpz-porta-cofre {
+  animation: qpz-abre 900ms var(--qpz-ease-in-out) both;
+}
+
+@keyframes qpz-abre {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0.12);
+  }
+}
+
+.qpz-agua {
+  opacity: 0;
+}
+
+.qpz.is-resolvido .qpz-agua {
+  opacity: 0.9;
+}
+
+.qpz.is-abrindo .qpz-agua--fio {
+  animation: qpz-fio 700ms var(--lb-gr-ease-out) both;
+  stroke-dasharray: 700;
+}
+
+.qpz.is-abrindo .qpz-agua--bacia {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: qpz-enche 900ms 250ms var(--lb-gr-ease-out) both;
+}
+
+@keyframes qpz-fio {
+  from {
+    stroke-dashoffset: 700;
+    opacity: 0.9;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 0.9;
+  }
+}
+
+@keyframes qpz-enche {
+  from {
+    opacity: 0;
+    transform: scaleY(0.3);
+  }
+  to {
+    opacity: 0.9;
+    transform: scaleY(1);
+  }
+}
+
+.qpz-gaveta {
+  transform-box: fill-box;
+}
+
+.qpz.is-resolvido .qpz-gaveta {
+  transform: translateY(46px);
+}
+
+.qpz.is-abrindo .qpz-gaveta {
+  animation: qpz-gaveta 700ms var(--lb-gr-ease-out) both;
+}
+
+@keyframes qpz-gaveta {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(46px);
+  }
+}
+
+/* A placa da Porta de brasões e os encaixes dela somem quando a porta se abre. */
+.qpz.is-resolvido .qpz-some {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+
+/* A moldura Porta: as folhas giram (duas) ou correm para dentro da parede (uma), e aparece o escuro do outro lado. */
+.qpz-pf-e,
+.qpz-pf-d,
+.qpz-pf-correr {
+  transform-box: fill-box;
+}
+
+.qpz-pf-e {
+  transform-origin: left center;
+}
+
+.qpz-pf-d {
+  transform-origin: right center;
+}
+
+.qpz.is-resolvido .qpz-pf-e,
+.qpz.is-resolvido .qpz-pf-d {
+  transform: scaleX(0.1);
+}
+
+.qpz.is-resolvido .qpz-pf-correr {
+  transform: translateX(96%);
+}
+
+.qpz.is-abrindo .qpz-pf-e,
+.qpz.is-abrindo .qpz-pf-d {
+  animation: qpz-gira 640ms var(--qpz-ease-in-out) 80ms both;
+}
+
+.qpz.is-abrindo .qpz-pf-correr {
+  animation: qpz-corre 640ms var(--qpz-ease-in-out) 80ms both;
+}
+
+@keyframes qpz-gira {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0.1);
+  }
+}
+
+@keyframes qpz-corre {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(96%);
+  }
+}
+
+.qpz-pf-luz {
+  opacity: 0;
+}
+
+.qpz.is-resolvido .qpz-pf-luz {
+  opacity: 1;
+}
+
+.qpz.is-abrindo .qpz-pf-luz {
+  animation: qpz-aparece 480ms var(--lb-gr-ease-out) 300ms both;
+}
+
+@keyframes qpz-aparece {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes qpz-some {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* As peças ficam presas nas folhas da moldura Porta: somem com elas. */
+.qpz.is-porta.is-resolvido .qpz__camada {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.qpz.is-porta.is-abrindo .qpz__camada {
+  animation: qpz-some 220ms var(--lb-gr-ease-out) both;
+}
+
+/* ---------------------------------------------------------------- movimento reduzido: a porta abre só pela opacidade */
+
+@media (prefers-reduced-motion: reduce) {
+  .qpz.is-resolvido .qpz-pf-e,
+  .qpz.is-resolvido .qpz-pf-d,
+  .qpz.is-resolvido .qpz-pf-correr,
+  .qpz.is-resolvido .qpz-folha-e,
+  .qpz.is-resolvido .qpz-folha-d,
+  .qpz.is-resolvido .qpz-porta-cofre {
+    transform: none;
+    opacity: 0;
+  }
+
+  .qpz.is-abrindo .qpz-pf-e,
+  .qpz.is-abrindo .qpz-pf-d,
+  .qpz.is-abrindo .qpz-pf-correr,
+  .qpz.is-abrindo .qpz-folha-e,
+  .qpz.is-abrindo .qpz-folha-d,
+  .qpz.is-abrindo .qpz-porta-cofre {
+    animation: qpz-some 240ms ease both;
+  }
+
+  .qpz.is-abrindo .qpz-pf-luz,
+  .qpz.is-abrindo .qpz-agua--fio,
+  .qpz.is-abrindo .qpz-agua--bacia {
+    transform: none;
+    animation: qpz-aparece 240ms ease both;
+  }
+
+  /* A gaveta não se move: já aparece aberta. */
+  .qpz.is-abrindo .qpz-gaveta {
+    animation: none;
+  }
+
+  .qpz-encaixe,
+  .qpz-encaixe.is-pairando-ok,
+  .qpz-troca__pedestal,
+  .qpz-mostrador__agulha,
+  .qpz-troca__trocar,
+  .qpz-troca__trocar:active {
+    transition-property: opacity;
+  }
+
+  .qpz-encaixe.is-pairando-ok {
+    transform: translate(-50%, -50%);
+  }
+
+  .qpz-troca__trocar:active {
+    transform: none;
+  }
+}
