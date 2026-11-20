@@ -391,9 +391,10 @@ export function Papel({ documento, pagina, resolver, tamanho = 'cheio', idDoTitu
  * tudo e quase transparente, com as mesmas camadas da leitura: cada etapa
  * custa um pedaço daquele quadro, nenhuma o quadro inteiro. Uma vez por página.
  */
-const ETAPAS_DO_AQUECIMENTO: readonly (DocumentoNoFio | 'grao')[] = [
-  // O grão sozinho primeiro: é a camada mais cara da 1ª vez.
+const ETAPAS_DO_AQUECIMENTO: readonly (DocumentoNoFio | 'grao' | 'caixa')[] = [
+  // O grão sozinho e a folha vazia primeiro: são as camadas mais caras da 1ª vez.
   'grao',
+  'caixa',
   papelDeAquecer('alfinete', { letra: 'impressa', tinta: 'preta' }),
   papelDeAquecer('diario', { letra: 'mao', tinta: 'sangue', assinatura: 'Aa', brasao: { arte: 'rosa', imagem: null } }),
   papelDeAquecer('carta', { letra: 'maquina', tinta: 'sepia', desgaste: { cor: null, manchas: 3, bordaQueimada: false, dobras: true, rasgos: false } }),
@@ -489,6 +490,11 @@ export function AquecimentoDoPapel() {
         <span className="papel-aquecimento__grao">
           <span className="papel__grao" />
         </span>
+      ) : desenho === 'caixa' ? (
+        // A folha sem texto nem grão: as sombras largas, o giro e o alfinete.
+        <div className="folha folha--previa">
+          <div className="papel papel--alfinete papel--previa" />
+        </div>
       ) : (
         <Papel documento={desenho} pagina={0} resolver={SEM_IMAGEM} tamanho="previa" />
       )}
