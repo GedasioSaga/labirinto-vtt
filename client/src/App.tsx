@@ -280,6 +280,9 @@ import { tiroNoPainel } from './components/tiroNoPainel'
 import { fogoNoPainel } from './components/fogoNoPainel'
 import { bolhaNoPainel } from './components/bolhaNoPainel'
 import type { BolhaAoVivo } from './net/bolhaNoHost'
+import { devolverPecasNoHost, mapaComMochilasDosBonecos, type PuzzleAoVivo } from './net/puzzleNoHost'
+import { ligarDevolucaoDasPecas } from './components/puzzles/editorDoPuzzleStore'
+import type { PecaPosta } from './puzzles/tipos'
 import type { FogoAoVivo } from './net/fogoNoHost'
 import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
@@ -394,6 +397,31 @@ function hideTokenFromRequest(tokenId: string, sceneId?: string): void {
     return
   }
   useMapStore.getState().setItemSecret('token', tokenId, true)
+}
+
+/** O aviso das peças que não voltaram fica o tempo do aviso do puzzle (`hostBridge`): tem nomes para ler. */
+const DEVOLUCAO_DO_PUZZLE_TOAST_MS = 8_000
+
+/**
+ * PUZZLES (P7 ligada à P6): as peças postas de um puzzle DESTA cena voltam a quem
+ * as pôs, antes de o progresso recomeçar: a ficha de personagem pelo caminho de
+ * sempre (`salvarPersonagem`), o boneco sem ficha pelo mapa, fora do Ctrl+Z do
+ * mestre (como o progresso). A peça de quem não está mais na cena se perde, como
+ * no jogo, e o mestre é avisado; recusar travaria o puzzle para sempre.
+ */
+async function devolverPecasAQuemPos(_desafioId: string, pecas: readonly PecaPosta[]): Promise<void> {
+  const devolvidas = devolverPecasNoHost({
+    map: useMapStore.getState().map,
+    personagens: personagensAtivos(useAdventureStore.getState()),
+    pecas,
+    novoId: () => crypto.randomUUID(),
+  })
+  const avisos = [...devolvidas.avisos]
+  for (const personagem of devolvidas.personagens) {
+    if (!useAdventureStore.getState().salvarPersonagem(personagem)) avisos.push(`As peças de ${personagem.nome} não voltaram: a ficha não aceitou a gravação.`)
+  }
+  if (devolvidas.mochilasDosBonecos.length > 0) useMapStore.getState().applyPlayerChange((map) => mapaComMochilasDosBonecos(map, devolvidas.mochilasDosBonecos))
+  if (avisos.length > 0) useToastStore.getState().push('error', avisos.join(' '), DEVOLUCAO_DO_PUZZLE_TOAST_MS)
 }
 
 function pararDeOuvir(unlisten: (() => void) | undefined): void {
@@ -913,6 +941,14 @@ function App() {
   const [tiros, setTiros] = useState<TiroAoVivo[]>([])
   const [fogo, setFogo] = useState<FogoAoVivo | null>(null)
   const [bolha, setBolha] = useState<BolhaAoVivo | null>(null)
+  // PUZZLES: quem está dentro de cada puzzle (a seção Ao vivo da página Jogos). O dono é a sessão do host.
+  const [puzzles, setPuzzles] = useState<PuzzleAoVivo[]>([])
+  // PUZZLES: salvar a cópia de um lugar ou "Zerar progresso" devolve cada peça posta a quem a pôs (P7),
+  // em vez de recusar com SEM_DEVOLUCAO. Vale com ou sem sala aberta: as fichas e o mapa são do mestre.
+  useEffect(() => {
+    ligarDevolucaoDasPecas(devolverPecasAQuemPos)
+    return () => ligarDevolucaoDasPecas(null)
+  }, [])
   // CHAT DOS JOGADORES: o que o mestre lê (Global e cenas), relido a cada linha nova.
   const [masterChat, setMasterChat] = useState<MasterChatState>(NO_MASTER_CHAT)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
@@ -1052,6 +1088,7 @@ function App() {
         onTiroChange: setTiros,
         onFogoChange: setFogo,
         onBolhaChange: setBolha,
+        onPuzzlesChange: setPuzzles,
         // ENTRAR PELO LOBBY: o link público pronto (ou caído) muda os endereços que o site oferece.
         onTunnelChange: (estado) => {
           setTunnel(estado)
@@ -4917,7 +4954,7 @@ function App() {
           />
           <PaginaJogos
             painelDoDesafio={(desafio) => minigamePanel(desafio, (patch) => useMapStore.getState().updateDesafio(desafio.id, patch))}
-            aoVivo={sessoesAoVivo({ danca, pescas, tiros, fogo, bolha })}
+            aoVivo={sessoesAoVivo({ danca, pescas, tiros, fogo, bolha, puzzles, mapaId: map.id })}
           />
           {paginasDoPreludio !== undefined && <RoteiroNoLivro aoAbrirNaMesa={abrirNaMesaPeloRoteiro} />}
       </LivroDoMestre>

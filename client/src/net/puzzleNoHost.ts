@@ -20,6 +20,7 @@ import type {
   MinigamePuzzle,
   MotivoDaRecusa,
   PecaDoAcervo,
+  PecaPosta,
   ProgressoDoPuzzle,
   QuemMexe,
   VistaDoPuzzle,
@@ -157,9 +158,15 @@ function mapaComPortaAberta(map: MapData, wallId: string): MapData {
  * em que o desafio, o boneco ou a porta não existem, o resto vale.
  */
 export function mapaComPuzzle(map: MapData, aplicado: Pick<AppliedPuzzle, 'desafioId' | 'progresso' | 'mochilasDosBonecos' | 'abrirPorta'>): MapData {
-  let novo = mapaComProgressoDoPuzzle(map, aplicado.desafioId, aplicado.progresso)
-  for (const { tokenId, mochila } of aplicado.mochilasDosBonecos) novo = mudarFichaNoMapa(novo, tokenId, (token) => comMochila(token, mochila))
+  const novo = mapaComMochilasDosBonecos(mapaComProgressoDoPuzzle(map, aplicado.desafioId, aplicado.progresso), aplicado.mochilasDosBonecos)
   return aplicado.abrirPorta === undefined ? novo : mapaComPortaAberta(novo, aplicado.abrirPorta)
+}
+
+/** A mochila nova de cada boneco sem ficha (pura e reaplicável: o boneco que não existe no passo fica como está). */
+export function mapaComMochilasDosBonecos(map: MapData, mochilas: AppliedPuzzle['mochilasDosBonecos']): MapData {
+  let novo = map
+  for (const { tokenId, mochila } of mochilas) novo = mudarFichaNoMapa(novo, tokenId, (token) => comMochila(token, mochila))
+  return novo
 }
 
 // ------------------------------------------------------------------ a ação
@@ -265,6 +272,28 @@ function devolver(livro: Livro, para: QuemMexe, vaga: CarriedItem): void {
   const mochila = mochilaDoDestino(destino)
   const { id, ...item } = vaga
   gravarMochila(livro, destino, mochilaQueRecebeu(mochila, item, 1, idLivre(mochila, id, livro.novoId)))
+}
+
+/** As peças que o mestre devolve ao recomeçar um puzzle, prontas para gravar. */
+export interface PecasDevolvidas {
+  /** As fichas de personagem que receberam peças, inteiras. */
+  personagens: Personagem[]
+  /** Bonecos SEM ficha de personagem que receberam peças, neste mapa. */
+  mochilasDosBonecos: { tokenId: string; mochila: CarriedItem[] }[]
+  /** As peças que não voltaram: a ficha e o boneco de quem pôs não estão mais nesta cena. */
+  avisos: string[]
+}
+
+/**
+ * "Zerar progresso" e "Salvar a cópia deste lugar", do mestre: cada peça posta
+ * (nos encaixes e na bandeja) volta a quem a pôs, pelo mesmo caminho da peça que
+ * um jogador tira de outro (`devolver`): a ficha de personagem dele, ou o boneco
+ * sem ficha; o id da vaga de antes, se ainda estiver livre. Pura.
+ */
+export function devolverPecasNoHost(entrada: { map: MapData; personagens: readonly Personagem[]; pecas: readonly PecaPosta[]; novoId: () => string }): PecasDevolvidas {
+  const livro: Livro = { map: entrada.map, personagens: entrada.personagens, sistema: null, novoId: entrada.novoId, fichas: new Map(), bonecos: new Map(), avisos: [] }
+  for (const peca of entrada.pecas) devolver(livro, peca.por, peca.vaga)
+  return { personagens: [...livro.fichas.values()], mochilasDosBonecos: [...livro.bonecos].map(([tokenId, mochila]) => ({ tokenId, mochila })), avisos: livro.avisos }
 }
 
 /** O desfecho de quem resolveu: os itens (como o baú), as moedas (só com ficha) e a porta ligada. */

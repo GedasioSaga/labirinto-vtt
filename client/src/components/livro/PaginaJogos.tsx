@@ -16,6 +16,7 @@ import type { PescaAoVivo } from '../../net/pescaNoHost'
 import type { TiroAoVivo } from '../../net/tiroNoHost'
 import type { FogoAoVivo } from '../../net/fogoNoHost'
 import type { BolhaAoVivo } from '../../net/bolhaNoHost'
+import type { PuzzleAoVivo } from '../../net/puzzleNoHost'
 import type { Desafio, Prop, TipoDoLugarDoDesafio } from '../../types/map'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { useDesafiosStore } from '../../stores/desafiosStore'
@@ -45,6 +46,8 @@ export interface SessaoAoVivo {
   jogo: JogoDoMinigame
   fase: string
   jogadores: number
+  /** Só no puzzle: quem está dentro agora, pelo nome (a sessão do host, `puzzlesAoVivo`). */
+  dentro?: readonly string[]
 }
 
 interface SessaoDoHost {
@@ -57,15 +60,25 @@ function sessao(jogo: JogoDoMinigame, s: SessaoDoHost): SessaoAoVivo {
   return { pinId: s.pinId, jogo, fase: s.fase, jogadores: s.participantes.length }
 }
 
-/** As sessões da sala que ainda não acabaram, de todos os jogos. */
+/** O puzzle com alguém dentro, desta cena (o puzzle de outra cena não está na lista desta página). */
+function sessoesDosPuzzles(puzzles: readonly PuzzleAoVivo[], mapaId: string): SessaoAoVivo[] {
+  return puzzles
+    .filter((p) => p.mapaId === mapaId && p.dentro.length > 0)
+    .map((p): SessaoAoVivo => ({ pinId: p.desafioId, jogo: 'puzzle', fase: 'dentro', jogadores: p.dentro.length, dentro: p.dentro.map((quem) => quem.nome) }))
+}
+
+/** As sessões da sala que ainda não acabaram, de todos os jogos. `mapaId`: a cena aberta, a dos puzzles mostrados. */
 export function sessoesAoVivo(fontes: {
   danca: DancaAoVivo | null
   pescas: readonly PescaAoVivo[]
   tiros: readonly TiroAoVivo[]
   fogo: FogoAoVivo | null
   bolha: BolhaAoVivo | null
+  puzzles: readonly PuzzleAoVivo[]
+  mapaId: string
 }): SessaoAoVivo[] {
   return [
+    ...sessoesDosPuzzles(fontes.puzzles, fontes.mapaId),
     ...(fontes.danca === null ? [] : [sessao('danca', fontes.danca)]),
     ...fontes.pescas.map((s) => sessao('pesca', s)),
     ...fontes.tiros.map((s) => sessao('tiro', s)),
@@ -198,6 +211,17 @@ function AbasDosJogos({ aba, onAba, contas }: { aba: AbaDosJogos; onAba: (aba: A
   )
 }
 
+/** "Lara e Bento dentro · 2 de 3": quem está no puzzle e quantos encaixes já estão cheios (plano §3.2). */
+function textoDeQuemEstaDentro(dentro: readonly string[], desafio: Desafio | undefined): string {
+  const nomes = dentro.length <= 1 ? dentro.join('') : `${dentro.slice(0, -1).join(', ')} e ${dentro[dentro.length - 1]}`
+  const quem = `${nomes} dentro`
+  if (desafio === undefined || desafio.minigame.jogo !== 'puzzle') return quem
+  const progresso = desafio.progressoDoPuzzle
+  if (progresso?.resolvido != null) return `${quem} · resolvido`
+  const conta = contagemDoPuzzle(desafio.minigame.puzzle, progresso ?? { encaixes: {} })
+  return conta.total === 0 ? quem : `${quem} · ${conta.postos} de ${conta.total}`
+}
+
 /** O resumo do puzzle na linha da lista: de onde a cópia veio e quantos encaixes estão cheios. */
 function ResumoDoPuzzle({ desafio }: { desafio: Desafio }) {
   const modelos = useMeusPuzzlesStore((estado) => estado.modelos)
@@ -286,7 +310,7 @@ function ListaDosJogos({ desafios: todos, props, aoVivo, mapaId, avisoDispensado
                       <Seta />
                     </span>
                     <span className="mg-linha__onde">
-                      {TEXTO_DA_FASE[s.fase] ?? s.fase} · {s.jogadores === 1 ? '1 jogador' : `${s.jogadores} jogadores`}
+                      {s.dentro !== undefined ? textoDeQuemEstaDentro(s.dentro, todos.find((desafio) => desafio.id === s.pinId)) : `${TEXTO_DA_FASE[s.fase] ?? s.fase} · ${s.jogadores === 1 ? '1 jogador' : `${s.jogadores} jogadores`}`}
                     </span>
                   </button>
                 </li>

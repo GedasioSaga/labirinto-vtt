@@ -23,8 +23,20 @@ import { useArrastoDaPeca, type AlvoNoQuadro } from './arrastoDaPeca'
 import { CartaoDoDesfecho } from './CartaoDoDesfecho'
 import { inicialDoNome, MochilaDoPuzzle, vagasEmOrdem } from './MochilaDoPuzzle'
 import { assentar, brilhar, movimentoReduzido, pedestalDeEstalo, piscar, sacudir, tremer, voarAte } from './movimento'
-import { avisoDoErro, BANDEJA_VAZIA, ENCAIXE_VAZIO, estadoDoPuzzle, textoDaDevolucao, textoDoErro, TITULO_SEM_NOME, type AvisoDoPuzzle } from './textos'
-import type { AcontecimentoNoPuzzle, DesfechoNaTela, PvNaTela } from './tipos'
+import {
+  avisoDoErro,
+  BANDEJA_VAZIA,
+  ENCAIXE_VAZIO,
+  estadoDoPuzzle,
+  FAIXA_DO_TESTE,
+  NOTA_DAS_PECAS_DO_TESTE,
+  textoDaDevolucao,
+  textoDoErro,
+  TITULO_DAS_PECAS_DO_TESTE,
+  TITULO_SEM_NOME,
+  type AvisoDoPuzzle,
+} from './textos'
+import type { AcontecimentoNoPuzzle, DesfechoNaTela, PvNaTela, TesteNaTela } from './tipos'
 import './telaDoPuzzle.css'
 
 export interface PropsDaTelaDoPuzzle {
@@ -41,6 +53,8 @@ export interface PropsDaTelaDoPuzzle {
   onLerDica?: () => void
   /** Onde a tela entra (o portal). Ausente = o `body`. */
   raiz?: Element
+  /** O "Testar como jogador" do editor (P9): a faixa TESTE, as peças do teste e o cartão sem entrega. `onSair` volta ao editor. */
+  teste?: TesteNaTela
 }
 
 /** O tempo da saída (o fade da tela inteira). */
@@ -86,12 +100,15 @@ function motivoNaTela(vista: VistaDoPuzzle, alvo: AlvoNoQuadro, eu: string): Mot
   return encaixe.posta !== null && encaixe.posta.por !== eu ? 'ocupado' : null
 }
 
-function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica }: Omit<PropsDaTelaDoPuzzle, 'raiz'>) {
+function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica, teste }: Omit<PropsDaTelaDoPuzzle, 'raiz'>) {
+  const ehTeste = teste !== undefined
   const idDoTitulo = useId()
   const raiz = useRef<HTMLDivElement>(null)
   const quadro = useRef<HTMLDivElement>(null)
   const mochila = useRef<HTMLDivElement>(null)
   const botaoSair = useRef<HTMLButtonElement>(null)
+  // No teste não há "Sair": a faixa tem "Recomeçar o teste" e "Voltar ao editor" (v2).
+  const botaoRecomecar = useRef<HTMLButtonElement>(null)
 
   const [escolhida, setEscolhida] = useState<string | null>(null)
   const [levantada, setLevantada] = useState<string | null>(null)
@@ -300,7 +317,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
       pedidoDeTirar.current = null
       const posta = pedido.encaixe.posta
       if (posta !== null) {
-        const texto = pedido.encaixe.jeito === 'metades' && pedido.encaixe.metadesPostas === 2 ? 'As metades voltaram para quem as pôs.' : textoDaDevolucao(posta.nome, posta.por, eu)
+        const texto = pedido.encaixe.jeito === 'metades' && pedido.encaixe.metadesPostas === 2 ? 'As metades voltaram para quem as pôs.' : textoDaDevolucao(posta.nome, posta.por, eu, ehTeste)
         avisar({ texto, tom: 'neutro' })
       }
     }
@@ -322,7 +339,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
     const daqui = chegaram.filter((vaga) => !vagasConhecidas.current.has(vaga.vagaId)).map((vaga) => vaga.vagaId)
     for (const vaga of vista.mochila) vagasConhecidas.current.add(vaga.vagaId)
     if (daqui.length > 0) setNovas((atuais) => new Set([...atuais, ...daqui]))
-  }, [vista, eu, avisar, elDoQuadro])
+  }, [vista, eu, ehTeste, avisar, elDoQuadro])
 
   // ---------------------------------------------------------------- os acontecimentos, cada um uma vez
 
@@ -354,7 +371,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
           ultimaEnviada.current = null
           origemDoVoo.current = null
           depois(restoDoSuspense(), () => {
-            avisar(avisoDoErro(textoDoErro(em, soma, pedido), castigo))
+            avisar(avisoDoErro(textoDoErro(em, soma, pedido), castigo, ehTeste))
             if (em === 'peso') {
               pedestalDeEstalo(elDoQuadro('[data-pedestal]'), soma < pedido)
               voltarAgulha()
@@ -372,7 +389,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
         case 'trocou': {
           const { nome } = acontecimento
           depois(restoDoSuspense(), () => {
-            avisar({ texto: `O pedestal nem se mexe. ${nome} está na sua mochila.`, tom: 'latao' })
+            avisar({ texto: `O pedestal nem se mexe. ${nome} está ${ehTeste ? 'nas peças do teste' : 'na sua mochila'}.`, tom: 'latao' })
             voltarAgulha()
           })
           break
@@ -383,7 +400,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
           break
       }
     }
-  }, [acontecimentos, vista, avisar, recusarNaTela, elDoQuadro, depois, restoDoSuspense, voltarAgulha])
+  }, [acontecimentos, vista, ehTeste, avisar, recusarNaTela, elDoQuadro, depois, restoDoSuspense, voltarAgulha])
 
   // ---------------------------------------------------------------- o cartão do desfecho: Texto logo, Cena depois da arte
 
@@ -415,7 +432,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
 
   const fecharCartao = useCallback(() => {
     setCartao(null)
-    botaoSair.current?.focus({ preventScroll: true })
+    ;(botaoSair.current ?? botaoRecomecar.current)?.focus({ preventScroll: true })
   }, [])
 
   // ---------------------------------------------------------------- sair e o teclado
@@ -453,31 +470,53 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
 
   // Ao entrar, o foco vai à primeira peça (ou ao Sair, com a mochila vazia), como no v2.
   useEffect(() => {
-    const primeira = mochila.current?.querySelector<HTMLElement>('.tpz-item') ?? botaoSair.current
+    const primeira = mochila.current?.querySelector<HTMLElement>('.tpz-item') ?? botaoSair.current ?? botaoRecomecar.current
     primeira?.focus({ preventScroll: true })
   }, [])
+
+  // No teste, o aviso de entrada (encaixe sem peça certa: assim ninguém resolve), como o `aviso` do v2 ao testar.
+  const avisoDoTeste = teste?.aviso ?? null
+  useEffect(() => {
+    if (avisoDoTeste !== null) avisar({ texto: avisoDoTeste, tom: 'perigo' })
+  }, [avisoDoTeste, avisar])
 
   // ---------------------------------------------------------------- a tela
 
   const titulo = vista.titulo.trim() !== '' ? vista.titulo : TITULO_SEM_NOME
-  const estado = estadoDoPuzzle(vista)
+  const estado = estadoDoPuzzle(vista, ehTeste)
   return (
-    <div ref={raiz} className="tpz" data-saindo={saindo || undefined} role="dialog" aria-modal="true" aria-labelledby={idDoTitulo}>
+    <div ref={raiz} className={ehTeste ? 'tpz tpz--teste' : 'tpz'} data-saindo={saindo || undefined} role="dialog" aria-modal="true" aria-labelledby={idDoTitulo}>
+      {teste !== undefined && (
+        <div className="tpz-faixa" role="note">
+          <b>Teste</b>
+          <span>{FAIXA_DO_TESTE}</span>
+          <button ref={botaoRecomecar} type="button" className="tpz-bt tpz-bt--p" onClick={teste.onRecomecar}>
+            Recomeçar o teste
+          </button>
+          <button type="button" className="tpz-bt tpz-bt--p" onClick={(evento) => sair(evento.detail === 0)}>
+            Voltar ao editor <kbd>Esc</kbd>
+          </button>
+        </div>
+      )}
       <section className="tpz__cena">
         <header className="tpz__cab">
-          <button ref={botaoSair} type="button" className="tpz-bt tpz-bt--fantasma" onClick={(evento) => sair(evento.detail === 0)}>
-            <IconeDoJogador nome="sair" />
-            Sair <kbd>Esc</kbd>
-          </button>
+          {!ehTeste && (
+            <button ref={botaoSair} type="button" className="tpz-bt tpz-bt--fantasma" onClick={(evento) => sair(evento.detail === 0)}>
+              <IconeDoJogador nome="sair" />
+              Sair <kbd>Esc</kbd>
+            </button>
+          )}
           <h1 id={idDoTitulo} className="tpz__titulo">
             {titulo}
           </h1>
-          <span className="tpz-chip">
-            <span className="tpz-chip__av" aria-hidden="true">
-              {inicialDoNome(eu)}
+          {!ehTeste && (
+            <span className="tpz-chip">
+              <span className="tpz-chip__av" aria-hidden="true">
+                {inicialDoNome(eu)}
+              </span>
+              {eu} (você)
             </span>
-            {eu} (você)
-          </span>
+          )}
         </header>
         <div className="tpz__palco">
           <div className="tpz__moldura">
@@ -497,7 +536,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
               onAbriu={() => setPortaAbriu(true)}
               rotulo={titulo}
             >
-              {cartao !== null && <CartaoDoDesfecho titulo={titulo} desfecho={cartao} eu={eu} onContinuar={fecharCartao} />}
+              {cartao !== null && <CartaoDoDesfecho titulo={titulo} desfecho={cartao} eu={eu} onContinuar={fecharCartao} teste={teste} onVoltar={() => sair(false)} />}
             </QuadroDoPuzzle>
           </div>
         </div>
@@ -510,7 +549,16 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
         </footer>
       </section>
       <div ref={mochila} className="tpz__gaveta">
-        <MochilaDoPuzzle vagas={vagas} escolhida={naMao} novas={novas} pv={pv} onEscolher={escolher} onApertar={arrasto.aoApertar} />
+        <MochilaDoPuzzle
+          vagas={vagas}
+          escolhida={naMao}
+          novas={novas}
+          pv={ehTeste ? null : pv}
+          titulo={ehTeste ? TITULO_DAS_PECAS_DO_TESTE : undefined}
+          nota={ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
+          onEscolher={escolher}
+          onApertar={arrasto.aoApertar}
+        />
       </div>
       <p className="tpz-aviso" role="status" aria-live="polite" data-tom={aviso?.tom} data-visivel={aviso?.visivel || undefined}>
         {aviso?.texto}

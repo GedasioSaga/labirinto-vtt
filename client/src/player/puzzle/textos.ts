@@ -20,13 +20,20 @@ export interface AvisoDoPuzzle {
 export const TITULO_SEM_NOME = 'Mecanismo'
 
 export const NOTA_DA_MOCHILA = 'Arraste a peça até um encaixe, ou toque nela e depois no encaixe. Tocar numa peça posta a devolve.'
+
+/** No teste (P9), a mochila é de mentira: as peças certas e duas que não servem (v2). */
+export const TITULO_DAS_PECAS_DO_TESTE = 'Peças do teste'
+export const NOTA_DAS_PECAS_DO_TESTE = 'As peças certas e duas que não servem. Arraste até um encaixe, ou toque na peça e depois no encaixe.'
+export const FAIXA_DO_TESTE = 'Você vê o puzzle como o jogador. Nenhuma peça é gasta e o desfecho não é entregue a ninguém.'
+/** O fim do aviso do castigo no teste: a tela pisca e treme, e nada desce de verdade. */
+const FIM_DO_CASTIGO_NO_TESTE = ' (No teste, nada acontece de verdade.)'
 export const ENCAIXE_VAZIO = 'Encaixe vazio. Escolha uma peça primeiro.'
 export const BANDEJA_VAZIA = 'Bandeja vazia. Ponha pedras de peso marcado.'
 
 /** "2 de 3 no lugar"; o destaque vai em negrito, como no v2. */
-export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca'>): { destaque: string; resto: string } {
+export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca'>, teste = false): { destaque: string; resto: string } {
   if (vista.versaoNova === true) return { destaque: '', resto: TEXTO_DA_RECUSA.versao_nova }
-  if (vista.resolvido) return { destaque: 'Resolvido.', resto: vista.contagem.total > 0 ? ' As peças ficaram presas.' : '' }
+  if (vista.resolvido) return { destaque: teste ? 'Resolvido no teste.' : 'Resolvido.', resto: vista.contagem.total > 0 ? ' As peças ficaram presas.' : '' }
   if (vista.contagem.total === 0) return { destaque: '', resto: vista.troca !== null ? 'Ponha na bandeja o peso que o pedestal pede.' : 'Nada para encaixar aqui.' }
   return { destaque: `${vista.contagem.postos} de ${vista.contagem.total}`, resto: ' no lugar' }
 }
@@ -44,12 +51,13 @@ export function textoDoErro(em: 'ordem' | 'peso', soma: number, pedido: number):
 }
 
 /** O que o castigo fez, depois do motivo do erro. */
-export function avisoDoErro(motivo: string, castigo: CastigoNaTela | null): AvisoDoPuzzle {
+export function avisoDoErro(motivo: string, castigo: CastigoNaTela | null, teste = false): AvisoDoPuzzle {
   if (castigo === null) return { texto: `${motivo} Nada acontece.`, tom: 'neutro' }
   const texto = castigo.texto.trim() !== '' ? castigo.texto.trim() : TEXTO_DO_CASTIGO_PADRAO[castigo.tipo]
-  if (castigo.tipo === 'barulho') return { texto: `${motivo} ${texto}`, tom: 'latao' }
+  const fim = teste ? FIM_DO_CASTIGO_NO_TESTE : ''
+  if (castigo.tipo === 'barulho') return { texto: `${motivo} ${texto}${fim}`, tom: 'latao' }
   const pv = castigo.pv > 0 ? `${semPontoFinal(texto)}: −${castigo.pv} PV.` : texto
-  return { texto: `${motivo} ${pv}`, tom: 'perigo' }
+  return { texto: `${motivo} ${pv}${fim}`, tom: 'perigo' }
 }
 
 function semPontoFinal(texto: string): string {
@@ -57,6 +65,7 @@ function semPontoFinal(texto: string): string {
 }
 
 /** "Medalhão do Sapo voltou para a sua mochila", ou para a de quem a pôs. */
-export function textoDaDevolucao(nome: string, por: string, eu: string): string {
+export function textoDaDevolucao(nome: string, por: string, eu: string, teste = false): string {
+  if (teste) return `${nome} voltou para as peças do teste.`
   return por === '' || por === eu ? `${nome} voltou para a sua mochila.` : `${nome} voltou para a mochila de ${por}.`
 }

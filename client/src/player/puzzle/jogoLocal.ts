@@ -14,7 +14,7 @@ import { mochilaComItemDoAcervo } from '../../lib/items'
 import { agirNoPuzzle, progressoInicial } from '../../puzzles/motor'
 import { vistaDoPuzzle } from '../../puzzles/recorte'
 import { TEXTO_DA_RECUSA } from '../../puzzles/tipos'
-import type { AcaoNoPuzzle, DesfechoDoPuzzle, EfeitoDoPuzzle, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe, VistaDoPuzzle } from '../../puzzles/tipos'
+import type { AcaoNoPuzzle, CastigoDoPuzzle, CastigoQueAge, ContextoDoMotor, DesfechoDoPuzzle, EfeitoDoPuzzle, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe, VistaDoPuzzle } from '../../puzzles/tipos'
 import type { CarriedItem } from '../../types/map'
 import type { AcontecimentoNoPuzzle, CastigoNaTela, CorpoDoAcontecimento, DesfechoNaTela, PvNaTela } from './tipos'
 
@@ -29,6 +29,13 @@ export interface OpcoesDoJogoLocal {
   pecaDoAcervo: (itemId: string) => PecaDoAcervo | null
   /** O progresso de partida (as peças que outra pessoa já pôs); ausente = ninguém tocou. */
   progresso?: ProgressoDoPuzzle
+  /**
+   * `teste`: o "Testar como jogador" do editor (P9). A conta é a mesma do motor;
+   * só nada é entregue nem castigado: a mochila de mentira não ganha o desfecho e
+   * os PV não descem. O castigo ainda aparece na tela, para o mestre ver o que
+   * o jogador veria. Ausente = `jogo`.
+   */
+  modo?: ContextoDoMotor['modo']
 }
 
 export interface JogoLocalDoPuzzle {
@@ -53,6 +60,7 @@ const ACONTECIMENTOS_GUARDADOS = 12
 
 export function useJogoLocalDoPuzzle(opcoes: OpcoesDoJogoLocal): JogoLocalDoPuzzle {
   const { desafioId, puzzle, quem, pecaDoAcervo } = opcoes
+  const modo = opcoes.modo ?? 'jogo'
   const [estado, setEstado] = useState<EstadoLocal>(() => ({
     progresso: opcoes.progresso ?? progressoInicial(opcoes.puzzle),
     mochila: opcoes.mochila,
@@ -62,8 +70,8 @@ export function useJogoLocalDoPuzzle(opcoes: OpcoesDoJogoLocal): JogoLocalDoPuzz
   }))
 
   const agir = useCallback(
-    (acao: AcaoNoPuzzle, rev: number) => setEstado((antes) => passo(antes, { puzzle, quem, pecaDoAcervo }, acao, rev)),
-    [puzzle, quem, pecaDoAcervo],
+    (acao: AcaoNoPuzzle, rev: number) => setEstado((antes) => passo(antes, { puzzle, quem, pecaDoAcervo, modo }, acao, rev)),
+    [puzzle, quem, pecaDoAcervo, modo],
   )
 
   const vista = useMemo(
@@ -77,6 +85,7 @@ interface Mesa {
   puzzle: Puzzle
   quem: QuemMexe
   pecaDoAcervo: (itemId: string) => PecaDoAcervo | null
+  modo: ContextoDoMotor['modo']
 }
 
 /** Uma ação, como o host a trataria. Puro a não ser pelo relógio do `resolvido.em`. */
@@ -89,7 +98,7 @@ function passo(antes: EstadoLocal, mesa: Mesa, acao: AcaoNoPuzzle, rev: number):
   const resultado = agirNoPuzzle(mesa.puzzle, antes.progresso, antes.mochila, acao, {
     quem: mesa.quem,
     agora: Date.now(),
-    modo: 'jogo',
+    modo: mesa.modo,
     pecaDoAcervo: mesa.pecaDoAcervo,
     novoId,
   })
@@ -118,7 +127,7 @@ function acontecimentosDosEfeitos(efeitos: readonly EfeitoDoPuzzle[], mesa: Mesa
       case 'recusado':
         return [{ tipo: 'recusado', texto: TEXTO_DA_RECUSA[efeito.motivo] }]
       case 'errou':
-        return [{ tipo: 'errou', em: efeito.em, castigo: castigar === undefined ? null : castigoNaTela(castigar.castigo) }]
+        return [{ tipo: 'errou', em: efeito.em, castigo: castigar !== undefined ? castigoNaTela(castigar.castigo) : mesa.modo === 'teste' ? castigoDoTeste(mesa.puzzle.castigo) : null }]
       case 'juntou':
         return [{ tipo: 'juntou', encaixeId: efeito.encaixeId }]
       case 'trocou':
@@ -133,9 +142,14 @@ function acontecimentosDosEfeitos(efeitos: readonly EfeitoDoPuzzle[], mesa: Mesa
   })
 }
 
-function castigoNaTela(castigo: Extract<EfeitoDoPuzzle, { tipo: 'castigar' }>['castigo']): CastigoNaTela {
+function castigoNaTela(castigo: CastigoQueAge): CastigoNaTela {
   if (castigo.tipo === 'barulho') return { tipo: 'barulho', texto: castigo.texto, pv: 0 }
   return { tipo: castigo.tipo, texto: castigo.texto, pv: castigo.pv }
+}
+
+/** No teste o motor não castiga: a tela mostra o castigo que o jogo daria, e nada desce de verdade. */
+function castigoDoTeste(castigo: CastigoDoPuzzle): CastigoNaTela | null {
+  return castigo.tipo === 'nada' ? null : castigoNaTela(castigo)
 }
 
 /** O desfecho como o host o manda a quem resolveu; `ganhou: false` = o teste, sem nada entregue. */

@@ -21,6 +21,9 @@ interface PropsDaMochila {
   /** Vagas que chegaram durante o puzzle e ainda não foram tocadas (o ponto de latão do v2). */
   novas: ReadonlySet<string>
   pv: PvNaTela | null
+  /** O título da gaveta e o texto de ajuda; ausentes = os da mochila do jogador (no teste, os das peças do teste). */
+  titulo?: string
+  nota?: string
   onEscolher: (vagaId: string, peloTeclado: boolean) => void
   onApertar: (evento: PointerDoReact<HTMLButtonElement>, vagaId: string, desenho: DesenhoDaPeca) => void
 }
@@ -34,18 +37,18 @@ export function inicialDoNome(nome: string): string {
   return Array.from(nome.trim())[0]?.toUpperCase() ?? '?'
 }
 
-export function MochilaDoPuzzle({ vagas, escolhida, novas, pv, onEscolher, onApertar }: PropsDaMochila) {
+export function MochilaDoPuzzle({ vagas, escolhida, novas, pv, titulo = 'Mochila', nota = NOTA_DA_MOCHILA, onEscolher, onApertar }: PropsDaMochila) {
   const resolver = useImagemDaMesa()
   const naMao = escolhida === null ? null : (vagas.find((vaga) => vaga.vagaId === escolhida) ?? null)
   const vazias = Math.max(VAGAS_MIN, Math.ceil(vagas.length / COLUNAS) * COLUNAS) - vagas.length
 
   return (
-    <aside className="tpz-mochila" aria-label="Mochila">
+    <aside className="tpz-mochila" aria-label={titulo}>
       <div className="tpz-mochila__cab">
-        <h2>Mochila</h2>
+        <h2>{titulo}</h2>
         <span>Peças de puzzle</span>
       </div>
-      <p className="tpz-mochila__nota">{NOTA_DA_MOCHILA}</p>
+      <p className="tpz-mochila__nota">{nota}</p>
       <div className="tpz-mochila__grade" role="group" aria-label="Itens da mochila">
         {vagas.map((vaga) => {
           const src = resolver(vaga.imagem)

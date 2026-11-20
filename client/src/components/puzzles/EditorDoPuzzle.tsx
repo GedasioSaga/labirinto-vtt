@@ -19,6 +19,7 @@ import { SecaoBasico, SecaoVisual } from './FichaDoEditor/SecaoVisual'
 import { escolherFundoDoPuzzle, fundoDoPuzzleDoArquivo } from './imagemDoPuzzle'
 import { garantirNoAcervo, usePecasDoEditor, type PecaDoEditor } from './pecasDoEditor'
 import { QuadroDoEditor } from './QuadroDoEditor'
+import { TestarComoJogador } from './TestarComoJogador'
 import './editorDoPuzzle.css'
 
 /**
@@ -105,6 +106,10 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   const [aviso, setAviso] = useState<Aviso>(null)
   const [confirmarSair, setConfirmarSair] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  // "Testar como jogador" (P9): a tela do jogador por cima do editor, com o que está aqui agora.
+  const [testando, setTestando] = useState(false)
+  const testandoAgora = useRef(false)
+  testandoAgora.current = testando
   const pecas = usePecasDoEditor()
   // Só paredes e salas: o resto do mapa (fichas andando na sessão) não redesenha o editor.
   const walls = useMapStore((estado) => estado.map.walls)
@@ -128,6 +133,8 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   const teclaDeFora = useRef<((evento: globalThis.KeyboardEvent) => void) | null>(null)
   useEffect(() => {
     const ouvir = (evento: globalThis.KeyboardEvent) => {
+      // No teste, as teclas são da tela do jogador (o Esc volta ao editor por ela).
+      if (testandoAgora.current) return
       const alvo = evento.target
       if (raiz.current === null || (alvo instanceof Node && raiz.current.contains(alvo))) return
       evento.stopPropagation()
@@ -323,92 +330,101 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   }
 
   const numeroEscolhido = puzzle.encaixes.findIndex((encaixe) => encaixe.id === escolhido) + 1
+  const nomeDaPorta = alvo.tipo === 'copia' && edicao.porta !== null ? (opcoesDePorta.find((opcao) => opcao.id === edicao.porta)?.label ?? null) : null
   const porta: PortaDoEditor | null =
     alvo.tipo === 'copia'
       ? { valor: edicao.porta, opcoes: opcoesDePorta, onChange: (wallId) => setEdicao((antes) => (antes === null ? antes : { ...antes, porta: wallId })) }
       : null
 
-  return createPortal(
-    <div ref={raiz} className={classes('pze', saindo && 'is-saindo')} role="dialog" aria-modal="true" aria-labelledby={tituloId} tabIndex={-1} onKeyDown={teclar}>
-      <div className="pze__janela">
-        <header className="pze-cab">
-          <div className="pze-cab__titulo">
-            <h2 ref={titulo} id={tituloId} tabIndex={-1}>
-              {puzzle.nome.trim() === '' ? 'Puzzle sem nome' : puzzle.nome}
-            </h2>
-            <p>
-              <span className={classes('pze-alvo', alvo.tipo === 'copia' && 'pze-alvo--copia')}>{textoDoAlvo(alvo)}</span>
-              <span className={classes('pze-sujo', sujo && 'is-sujo')}>{sujo ? 'Mudanças só no editor, ainda não salvas' : 'Tudo salvo'}</span>
+  return (
+    <>
+      {createPortal(
+        <div ref={raiz} className={classes('pze', saindo && 'is-saindo')} role="dialog" aria-modal="true" aria-labelledby={tituloId} tabIndex={-1} onKeyDown={teclar}>
+          <div className="pze__janela">
+            <header className="pze-cab">
+              <div className="pze-cab__titulo">
+                <h2 ref={titulo} id={tituloId} tabIndex={-1}>
+                  {puzzle.nome.trim() === '' ? 'Puzzle sem nome' : puzzle.nome}
+                </h2>
+                <p>
+                  <span className={classes('pze-alvo', alvo.tipo === 'copia' && 'pze-alvo--copia')}>{textoDoAlvo(alvo)}</span>
+                  <span className={classes('pze-sujo', sujo && 'is-sujo')}>{sujo ? 'Mudanças só no editor, ainda não salvas' : 'Tudo salvo'}</span>
+                </p>
+              </div>
+              <div className="pze-cab__acoes">
+                <Botao tamanho="p" disabled={edicao.desfazer.length === 0} title="Desfazer (Ctrl+Z)" onClick={desfazer}>
+                  Desfazer
+                </Botao>
+                <Botao variante="latao" tamanho="p" title="Jogar o que está no editor, sem entregar nada a ninguém" onClick={() => setTestando(true)}>
+                  Testar como jogador
+                </Botao>
+                {alvo.tipo === 'copia' && (
+                  <Botao variante="primario" tamanho="p" disabled={!sujo || salvando} onClick={() => void salvar('copia')}>
+                    Salvar a cópia deste lugar
+                  </Botao>
+                )}
+                {alvo.tipo === 'modelo' && (
+                  <Botao variante="primario" tamanho="p" disabled={!sujo || salvando} onClick={() => void salvar('modelo')}>
+                    Salvar no modelo
+                  </Botao>
+                )}
+                <Botao variante={alvo.tipo === 'rascunho' ? 'primario' : 'latao'} tamanho="p" disabled={salvando} onClick={() => void salvar('novo')}>
+                  {alvo.tipo === 'rascunho' ? 'Salvar nos meus puzzles' : 'Salvar como novo em Meus puzzles'}
+                </Botao>
+                <Botao variante={confirmarSair ? 'perigo' : 'fantasma'} tamanho="p" onClick={pedirFechar} onBlur={() => setConfirmarSair(false)}>
+                  {confirmarSair ? 'Sair sem salvar?' : 'Fechar'}
+                </Botao>
+              </div>
+            </header>
+            <p className={classes('pze-aviso', aviso?.tipo === 'error' && 'pze-aviso--perigo')} role="status" aria-live="polite">
+              {aviso?.texto ?? 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.'}
             </p>
-          </div>
-          <div className="pze-cab__acoes">
-            <Botao tamanho="p" disabled={edicao.desfazer.length === 0} title="Desfazer (Ctrl+Z)" onClick={desfazer}>
-              Desfazer
-            </Botao>
-            {alvo.tipo === 'copia' && (
-              <Botao variante="primario" tamanho="p" disabled={!sujo || salvando} onClick={() => void salvar('copia')}>
-                Salvar a cópia deste lugar
-              </Botao>
-            )}
-            {alvo.tipo === 'modelo' && (
-              <Botao variante="primario" tamanho="p" disabled={!sujo || salvando} onClick={() => void salvar('modelo')}>
-                Salvar no modelo
-              </Botao>
-            )}
-            <Botao variante={alvo.tipo === 'rascunho' ? 'primario' : 'latao'} tamanho="p" disabled={salvando} onClick={() => void salvar('novo')}>
-              {alvo.tipo === 'rascunho' ? 'Salvar nos meus puzzles' : 'Salvar como novo em Meus puzzles'}
-            </Botao>
-            <Botao variante={confirmarSair ? 'perigo' : 'fantasma'} tamanho="p" onClick={pedirFechar} onBlur={() => setConfirmarSair(false)}>
-              {confirmarSair ? 'Sair sem salvar?' : 'Fechar'}
-            </Botao>
-          </div>
-        </header>
-        <p className={classes('pze-aviso', aviso?.tipo === 'error' && 'pze-aviso--perigo')} role="status" aria-live="polite">
-          {aviso?.texto ?? 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.'}
-        </p>
-        <div className="pze-corpo">
-          <div className="pze-ficha-col">
-            <SecaoBasico puzzle={puzzle} mudar={mudar} />
-            <SecaoVisual puzzle={puzzle} mudar={mudar} onModelo={usarModelo} onImagem={() => void usarImagem(escolherFundoDoPuzzle)} />
-            <SecaoMecanica puzzle={puzzle} mudar={mudar} />
-            <SecaoEncaixes puzzle={puzzle} mudar={mudar} pecas={pecas} escolhido={escolhido} onEscolher={setEscolhido} onTirar={tirarEncaixe} usarPeca={usarPeca} />
-            <SecaoTroca puzzle={puzzle} mudar={mudar} pecas={pecas} usarPeca={usarPeca} />
-            <SecaoDica puzzle={puzzle} mudar={mudar} />
-            <SecaoDesfecho puzzle={puzzle} mudar={mudar} porta={porta} />
-            <SecaoCastigo puzzle={puzzle} mudar={mudar} />
-          </div>
-          <div className="pze-palco">
-            <QuadroDoEditor
-              puzzle={puzzle}
-              escolhido={escolhido}
-              pecas={pecas}
-              onEscolher={setEscolhido}
-              onMudar={mudar}
-              onTirar={tirarEncaixe}
-              onImagemSolta={(arquivo) => void usarImagem(() => fundoDoPuzzleDoArquivo(arquivo))}
-            />
-            <div className="pze-barra">
-              <Botao variante="latao" tamanho="p" onClick={novoEncaixe}>
-                + Adicionar encaixe
-              </Botao>
-              <Botao tamanho="p" disabled={numeroEscolhido === 0} title={numeroEscolhido === 0 ? 'Escolha um encaixe no quadro' : undefined} onClick={() => escolhido !== null && tirarEncaixe(escolhido)}>
-                {numeroEscolhido === 0 ? 'Tirar o encaixe' : `Tirar o encaixe ${numeroEscolhido}`}
-              </Botao>
-              <span className="pze-nota">Arraste para mover; a alça do canto muda o tamanho.</span>
+            <div className="pze-corpo">
+              <div className="pze-ficha-col">
+                <SecaoBasico puzzle={puzzle} mudar={mudar} />
+                <SecaoVisual puzzle={puzzle} mudar={mudar} onModelo={usarModelo} onImagem={() => void usarImagem(escolherFundoDoPuzzle)} />
+                <SecaoMecanica puzzle={puzzle} mudar={mudar} />
+                <SecaoEncaixes puzzle={puzzle} mudar={mudar} pecas={pecas} escolhido={escolhido} onEscolher={setEscolhido} onTirar={tirarEncaixe} usarPeca={usarPeca} />
+                <SecaoTroca puzzle={puzzle} mudar={mudar} pecas={pecas} usarPeca={usarPeca} />
+                <SecaoDica puzzle={puzzle} mudar={mudar} />
+                <SecaoDesfecho puzzle={puzzle} mudar={mudar} porta={porta} />
+                <SecaoCastigo puzzle={puzzle} mudar={mudar} />
+              </div>
+              <div className="pze-palco">
+                <QuadroDoEditor
+                  puzzle={puzzle}
+                  escolhido={escolhido}
+                  pecas={pecas}
+                  onEscolher={setEscolhido}
+                  onMudar={mudar}
+                  onTirar={tirarEncaixe}
+                  onImagemSolta={(arquivo) => void usarImagem(() => fundoDoPuzzleDoArquivo(arquivo))}
+                />
+                <div className="pze-barra">
+                  <Botao variante="latao" tamanho="p" onClick={novoEncaixe}>
+                    + Adicionar encaixe
+                  </Botao>
+                  <Botao tamanho="p" disabled={numeroEscolhido === 0} title={numeroEscolhido === 0 ? 'Escolha um encaixe no quadro' : undefined} onClick={() => escolhido !== null && tirarEncaixe(escolhido)}>
+                    {numeroEscolhido === 0 ? 'Tirar o encaixe' : `Tirar o encaixe ${numeroEscolhido}`}
+                  </Botao>
+                  <span className="pze-nota">Arraste para mover; a alça do canto muda o tamanho.</span>
+                </div>
+                <BibliotecaDePecas
+                  pecas={pecas}
+                  selecionada={pecaEscolhida}
+                  onSelecionar={setPecaEscolhida}
+                  encaixe={escolhido !== null && numeroEscolhido > 0 ? { id: escolhido, numero: numeroEscolhido } : null}
+                  onPecaNoEncaixe={pecaNoEncaixe}
+                  onAviso={avisar}
+                />
+              </div>
             </div>
-            <BibliotecaDePecas
-              pecas={pecas}
-              selecionada={pecaEscolhida}
-              onSelecionar={setPecaEscolhida}
-              encaixe={escolhido !== null && numeroEscolhido > 0 ? { id: escolhido, numero: numeroEscolhido } : null}
-              onPecaNoEncaixe={pecaNoEncaixe}
-              onAviso={avisar}
-            />
           </div>
-        </div>
-      </div>
-    </div>,
-    document.body,
+        </div>,
+        document.body,
+      )}
+      {testando && <TestarComoJogador puzzle={puzzle} porta={nomeDaPorta} onVoltar={() => setTestando(false)} />}
+    </>
   )
 }
 

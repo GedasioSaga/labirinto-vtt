@@ -8,22 +8,28 @@ import { useEffect, useId, useRef } from 'react'
 import { useImagemDaMesa } from '../../components/ImagemDaMesa'
 import { moedasLabel } from '../../lib/troca'
 import { IconeDoJogador } from '../IconeDoJogador'
-import type { DesfechoNaTela, GanhoNaTela } from './tipos'
+import type { DesfechoNaTela, GanhoNaTela, TesteNaTela } from './tipos'
 
 interface PropsDoCartao {
   titulo: string
   desfecho: DesfechoNaTela
   eu: string
   onContinuar: () => void
+  /** O "Testar como jogador": o cartão "Resolvido no teste", com o que o jogo daria e nada entregue. */
+  teste?: TesteNaTela
+  /** No teste, o "Voltar ao editor". */
+  onVoltar?: () => void
 }
 
-export function CartaoDoDesfecho({ titulo, desfecho, eu, onContinuar }: PropsDoCartao) {
+export function CartaoDoDesfecho({ titulo, desfecho, eu, onContinuar, teste, onVoltar }: PropsDoCartao) {
   const idDoTitulo = useId()
   const continuar = useRef<HTMLButtonElement>(null)
   // O foco vai ao "Continuar": Enter fecha, e o leitor de tela lê o cartão.
   useEffect(() => {
     continuar.current?.focus({ preventScroll: true })
   }, [])
+
+  if (teste !== undefined) return <CartaoDoTeste titulo={titulo} texto={desfecho.texto} teste={teste} onVoltar={onVoltar ?? onContinuar} />
 
   const outro = desfecho.por !== '' && desfecho.por !== eu
   const ganhouAlgo = desfecho.itens.length > 0 || desfecho.moedas > 0
@@ -60,6 +66,67 @@ export function CartaoDoDesfecho({ titulo, desfecho, eu, onContinuar }: PropsDoC
           Continuar
         </button>
       </div>
+    </>
+  )
+}
+
+/**
+ * O cartão do teste (o `htmlResultadoPz` do v2 no modo teste): o texto do
+ * mestre e o que o jogo entregaria, com "Aqui nada foi entregue". O foco vai ao
+ * "Recomeçar o teste", a ação mais provável de quem está testando.
+ */
+function CartaoDoTeste({ titulo, texto, teste, onVoltar }: { titulo: string; texto: string; teste: TesteNaTela; onVoltar: () => void }) {
+  const idDoTitulo = useId()
+  const recomecar = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    recomecar.current?.focus({ preventScroll: true })
+  }, [])
+  return (
+    <>
+      <div className="tpz-veu" aria-hidden="true" />
+      <div className="tpz-cartao" role="dialog" aria-labelledby={idDoTitulo}>
+        <p className="tpz-cartao__selo">Resolvido no teste</p>
+        <h2 id={idDoTitulo}>{titulo}</h2>
+        {texto.trim() !== '' && <p className="tpz-cartao__texto">{texto}</p>}
+        <p className="tpz-cartao__teste">
+          No jogo, quem resolver recebe <GanhosDoTeste ganhos={teste.ganhos} />
+          {teste.porta !== null && (
+            <>
+              , e abre a <b>{teste.porta}</b>
+            </>
+          )}
+          . <b>Aqui nada foi entregue.</b>
+        </p>
+        <div className="tpz-cartao__acoes">
+          <button ref={recomecar} type="button" className="tpz-bt tpz-bt--primario" onClick={teste.onRecomecar}>
+            Recomeçar o teste
+          </button>
+          <button type="button" className="tpz-bt" onClick={onVoltar}>
+            Voltar ao editor
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/** "<b>Chave</b>, <b>30 moedas</b>"; nada = "nada (o mestre não pôs itens nem documento)", como no v2. */
+function GanhosDoTeste({ ganhos }: { ganhos: readonly string[] }) {
+  if (ganhos.length === 0) {
+    return (
+      <>
+        <b>nada</b> (o mestre não pôs itens nem documento)
+      </>
+    )
+  }
+  return (
+    <>
+      {ganhos.map((ganho, i) => (
+        <span key={`${ganho}-${i}`}>
+          {i > 0 && ', '}
+          <b>{ganho}</b>
+        </span>
+      ))}
     </>
   )
 }

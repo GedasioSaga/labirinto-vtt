@@ -66,3 +66,19 @@ export type CorpoDoAcontecimento =
  * só sobe: a tela trata cada um uma vez, mesmo que cheguem dois no mesmo quadro.
  */
 export type AcontecimentoNoPuzzle = { id: number } & CorpoDoAcontecimento
+
+/**
+ * O "Testar como jogador" do editor (plano §4, P9; aba Testar do protótipo
+ * v2): a mesma tela do jogador, com a faixa TESTE no alto, as peças do teste
+ * no lugar da mochila e o cartão "Resolvido no teste". Nada do teste sai da
+ * tela: nenhuma mochila, ficha, porta ou registro muda.
+ */
+export interface TesteNaTela {
+  /** O que o jogo entregaria a quem resolver, já em frases curtas ("Chave de latão", "30 moedas"). Vazio = nada. */
+  ganhos: readonly string[]
+  /** O nome da porta ligada que abriria no mapa; `null` = nenhuma. */
+  porta: string | null
+  /** O aviso ao entrar (encaixe sem peça certa: ninguém resolve); `null` = nenhum. */
+  aviso: string | null
+  onRecomecar: () => void
+}
