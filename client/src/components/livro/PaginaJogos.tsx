@@ -9,7 +9,7 @@ import { FolhaDoLivro, TituloDaPagina } from './FolhaDoLivro'
 import type { PaginaExtraDoMestre } from './LivroDoMestre'
 import { IconeDoJogo, IconeDosJogos } from './IconeDoJogo'
 import { DESAFIO_NOME_MAX_LENGTH, desafiosDo, desafiosMigrados, faltaNoLugar, novoDesafio, pontoDoDesafio, textoDoLugar } from '../../lib/desafios'
-import { ORDEM_DOS_JOGOS, REGISTRO_DE_MINIGAMES, nomeDoJogo, type CategoriaDoJogo } from '../../minigames/registro'
+import { ORDEM_DOS_JOGOS, REGISTRO_DE_MINIGAMES, nomeDoJogo, nomeDoJogoDoDesafio, type CategoriaDoJogo } from '../../minigames/registro'
 import type { JogoDoMinigame } from '../../minigames/tipos'
 import type { DancaAoVivo } from '../../net/dancaNoHost'
 import type { PescaAoVivo } from '../../net/pescaNoHost'
@@ -358,7 +358,7 @@ function ListaDosJogos({ desafios: todos, props, aoVivo, mapaId, avisoDispensado
                           <Seta />
                         </span>
                         <span className="mg-linha__onde">
-                          {nomeDoJogo(desafio.minigame.jogo)} · {textoDoLugar(desafio, props)}
+                          {nomeDoJogoDoDesafio(desafio.minigame)} · {textoDoLugar(desafio, props)}
                         </span>
                         {temTags && (
                           <span className="mg-linha__tags">
@@ -434,7 +434,7 @@ function FichaDoDesafio({ desafio, props, painel }: PropsDaFicha) {
   }
 
   return (
-    <SubFicha voltarPara="Jogos" onVoltar={() => abrir(null)} icone={<IconeDoJogo jogo={desafio.minigame.jogo} />} titulo={desafio.nome} tipo={`Desafio de ${nomeDoJogo(desafio.minigame.jogo).toLowerCase()}`}>
+    <SubFicha voltarPara="Jogos" onVoltar={() => abrir(null)} icone={<IconeDoJogo jogo={desafio.minigame.jogo} />} titulo={desafio.nome} tipo={`Desafio de ${nomeDoJogoDoDesafio(desafio.minigame).toLowerCase()}`}>
       <CampoTexto rotulo="Nome" valor={desafio.nome} maxLength={DESAFIO_NOME_MAX_LENGTH} onChange={(nome) => gravar(desafio.id, { nome })} />
       <div className="mg-onde">
         <CampoSeg rotulo="Onde fica" opcoes={opcoesDoLugar} valor={marcandoEste ?? desafio.lugar.tipo} onChange={escolherLugar} />

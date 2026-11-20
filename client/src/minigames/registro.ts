@@ -19,7 +19,7 @@ import type { TipoDeDesfecho } from './desfecho'
 import { MINIGAME_FOGO_PADRAO, type MinigameFogo } from './fogo/tipos'
 import { MINIGAME_PESCA_PADRAO, type MinigamePesca } from './pesca/tipos'
 import { MINIGAME_TIRO_PADRAO, type MinigameTiro } from './tiro/tipos'
-import { MINIGAME_ALAVANCA_PADRAO, type MinigameAlavanca } from './alavanca/tipos'
+import { MINIGAME_ALAVANCA_PADRAO, NOME_DO_DESAFIO_DA_CENA_ALAVANCA, type MinigameAlavanca } from './alavanca/tipos'
 import type { JogoDoMinigame, MinigameDoPino, MinigameVisivel } from './tipos'
 import { JOGOS_PORTADOS, type JogoDoObjeto } from './abrir/objeto'
 import { puzzleDoModelo } from '../puzzles/padroes'
@@ -189,6 +189,12 @@ export function ehJogoDoRegistro(valor: unknown): valor is JogoDoMinigame {
 
 export function nomeDoJogo(jogo: JogoDoMinigame): string {
   return REGISTRO_DE_MINIGAMES[jogo].nome
+}
+
+/** O nome do jogo como o desafio gravado o mostra: a alavanca na cena do canhão é a "Alavanca do canhão". */
+export function nomeDoJogoDoDesafio(minigame: MinigameDoPino): string {
+  if (minigame.jogo === 'alavanca') return NOME_DO_DESAFIO_DA_CENA_ALAVANCA[minigame.cena]
+  return nomeDoJogo(minigame.jogo)
 }
 
 /** Cópia nova do desafio padrão do jogo. */

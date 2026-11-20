@@ -1,6 +1,7 @@
 import { CONTAGEM } from '../minigames/alavanca/som'
 import { criarPartida, DT, forcaMax, passo, regras, type Partida } from '../minigames/alavanca/sim'
-import { ALAVANCA_JOGADORES_MAX, type DificuldadeAlavanca, type MinigameAlavanca } from '../minigames/alavanca/tipos'
+import { TEXTOS_DA_CENA } from '../minigames/alavanca/cenas'
+import { ALAVANCA_JOGADORES_MAX, type CenaAlavanca, type DificuldadeAlavanca, type MinigameAlavanca } from '../minigames/alavanca/tipos'
 import type {
   AlavancaComecarMessage,
   AlavancaConviteMessage,
@@ -75,6 +76,8 @@ export interface AlavancaAoVivo {
   pinId: string
   fase: AlavancaFase
   sozinho: boolean
+  /** A cena congelada no convite (os textos do painel ao vivo). */
+  cena: CenaAlavanca
   dificuldade: DificuldadeAlavanca
   tempo: number
   abrePorta: boolean
@@ -179,10 +182,11 @@ const ativaNaFase = (fase: AlavancaFase): boolean => fase === 'convite' || fase 
 const r = (v: number, casas: number): number => Number(v.toFixed(casas))
 
 /** O aviso do fim na tela do mestre. */
-export function textoDoDesfechoDaAlavanca(tipo: AlavancaTipoDoFim, portaAberta: boolean): string {
-  if (tipo === 'baixou') return portaAberta ? 'Alavanca da ponte: a ponte desceu e a porta ligada abriu.' : 'Alavanca da ponte: a ponte desceu.'
-  if (tipo === 'subiu') return 'Alavanca da ponte: o tempo acabou e a corrente puxou a ponte de volta.'
-  return 'Alavanca da ponte: rodada encerrada.'
+export function textoDoDesfechoDaAlavanca(tipo: AlavancaTipoDoFim, portaAberta: boolean, cena: CenaAlavanca): string {
+  const T = TEXTOS_DA_CENA[cena]
+  if (tipo === 'baixou') return portaAberta ? T.desfechoComPorta : T.desfechoSemPorta
+  if (tipo === 'subiu') return T.desfechoPerdeu
+  return T.desfechoEncerrado
 }
 
 export function criarAlavancaNoHost(ctx: ContextoDaAlavanca): AlavancaNoHost {
@@ -222,6 +226,7 @@ export function criarAlavancaNoHost(ctx: ContextoDaAlavanca): AlavancaNoHost {
       type: 'alavanca.convite',
       sessao: a.sessao,
       pinId: a.conf.pinId,
+      cena: m.cena,
       lugar: m.lugar,
       fala: m.fala,
       dificuldade: m.dificuldade,
@@ -315,7 +320,7 @@ export function criarAlavancaNoHost(ctx: ContextoDaAlavanca): AlavancaNoHost {
       portaAberta: porta !== undefined,
     }
     const outbound = a.participantes.filter((p) => p.status === 'girando' || p.status === 'saiu').flatMap((p) => para(p.playerId, fim))
-    const desfecho: AlavancaDesfechoSinal = { sessao: a.sessao, tipo, ...(porta === undefined ? {} : { porta: { ...porta } }), texto: textoDoDesfechoDaAlavanca(tipo, porta !== undefined) }
+    const desfecho: AlavancaDesfechoSinal = { sessao: a.sessao, tipo, ...(porta === undefined ? {} : { porta: { ...porta } }), texto: textoDoDesfechoDaAlavanca(tipo, porta !== undefined, a.conf.minigame.cena) }
     return { outbound, desfecho }
   }
 
@@ -509,6 +514,7 @@ export function criarAlavancaNoHost(ctx: ContextoDaAlavanca): AlavancaNoHost {
         pinId: a.conf.pinId,
         fase: a.fase,
         sozinho: a.sozinho,
+        cena: a.conf.minigame.cena,
         dificuldade: a.conf.minigame.dificuldade,
         tempo: a.tempo,
         abrePorta: a.conf.porta !== undefined,

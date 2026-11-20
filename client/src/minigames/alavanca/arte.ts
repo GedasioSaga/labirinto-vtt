@@ -8,7 +8,7 @@ import { criarRng, DENTES, VOLTAS } from './sim'
 
 type G = CanvasRenderingContext2D
 
-const COR = {
+export const COR = {
   grama: '#8cbf80',
   gramaR: '#a2cc92',
   gramaS: '#76ac6d',
@@ -45,14 +45,14 @@ export const tomDe = (h: string, f: number, a = 1): string => {
   const c = (v: number) => Math.max(0, Math.min(255, Math.round(v * f)))
   return a < 1 ? `rgba(${c(r)},${c(g)},${c(b)},${a})` : `rgb(${c(r)},${c(g)},${c(b)})`
 }
-const mistura = (a: string, b: string, k: number): string => {
+export const mistura = (a: string, b: string, k: number): string => {
   const x = rgbDe(a)
   const y = rgbDe(b)
   return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * k)).join(',')})`
 }
-const contorno = (h: string): string => tomDe(h, 0.6)
+export const contorno = (h: string): string => tomDe(h, 0.6)
 
-const MUNDO = { w: 620, h: 340, cx: 310, cy: 190 }
+export const MUNDO = { w: 620, h: 340, cx: 310, cy: 190 }
 const PONTE = { cx: 330, hy: 244, L: 136, meia: 66 }
 /** O quadro do sarilho (o mecanismo dentro da torre), em coordenadas do mundo. */
 export const SARILHO = { x: 12, y: 178, w: 196, h: 168, cx: 98, cy: 96, R: 44 }
@@ -75,8 +75,12 @@ export interface Poeira {
 
 /** O estado visual de um quadro: tudo o que a cena precisa, já pronto. */
 export interface EstadoVisual {
-  /** A ponte, de 0 (erguida) a 1 (assentada). */
+  /** A ponte, de 0 (erguida) a 1 (assentada); no canhão, a plataforma, de 0 (no fundo do poço) a 1 (rente às lajes). */
   p: number
+  /** Só no canhão: o cano, de 1 (erguido, saindo do poço) a 0 (baixado até a ameia, depois da trava). */
+  cano: number
+  /** Só no canhão: os ferrolhos, de 0 (abertos) a 1 (dentro da plataforma, na vitória). */
+  trava: number
   solta: number
   tensao: number
   /** Tremor das correntes. */
@@ -91,7 +95,7 @@ export interface EstadoVisual {
   tReal: number
 }
 
-function caminhoArredondado(g: G, x: number, y: number, w: number, h: number, r: number): void {
+export function caminhoArredondado(g: G, x: number, y: number, w: number, h: number, r: number): void {
   g.beginPath()
   g.moveTo(x + r, y)
   g.arcTo(x + w, y, x + w, y + h, r)
@@ -101,13 +105,13 @@ function caminhoArredondado(g: G, x: number, y: number, w: number, h: number, r:
   g.closePath()
 }
 
-function grao(g: G, x: number, y: number, w: number, h: number, cor: string, n: number, semente: string): void {
+export function grao(g: G, x: number, y: number, w: number, h: number, cor: string, n: number, semente: string): void {
   const rng = criarRng(semente)
   g.fillStyle = cor
   for (let i = 0; i < n; i++) g.fillRect(x + rng() * w, y + rng() * h, 0.9 + rng() * 1.2, 0.7)
 }
 
-function blocos(g: G, x: number, y: number, w: number, h: number, alt: number, larg: number, cor: string, semente: string): void {
+export function blocos(g: G, x: number, y: number, w: number, h: number, alt: number, larg: number, cor: string, semente: string): void {
   const rng = criarRng(semente)
   g.strokeStyle = cor
   g.lineWidth = 0.8
@@ -135,7 +139,7 @@ function ameias(g: G, x0: number, x1: number, y: number, alt: number, larg: numb
   }
 }
 
-function torre(g: G, x: number, y: number, w: number, base: number): void {
+export function torre(g: G, x: number, y: number, w: number, base: number): void {
   const corpo = g.createLinearGradient(x, 0, x + w, 0)
   corpo.addColorStop(0, tomDe(COR.pedra, 0.82))
   corpo.addColorStop(0.65, COR.pedra)
@@ -178,7 +182,7 @@ function torre(g: G, x: number, y: number, w: number, base: number): void {
   g.fill()
 }
 
-function nuvem(g: G, x: number, y: number, k: number): void {
+export function nuvem(g: G, x: number, y: number, k: number): void {
   g.fillStyle = 'rgba(248, 240, 226, 0.78)'
   g.beginPath()
   g.ellipse(x, y, 34 * k, 9 * k, 0, 0, Math.PI * 2)
@@ -400,7 +404,11 @@ function desenharFixo(g: G): void {
       g.stroke()
     }
   }
-  // o quadro do sarilho: o mecanismo dentro da torre, de perto
+  quadroFixo(g, 'Sarilho, dentro da torre')
+}
+
+/** O quadro do sarilho: o mecanismo de perto, no canto, igual nas duas cenas. */
+export function quadroFixo(g: G, rotulo: string): void {
   const S = SARILHO
   g.save()
   g.translate(S.x, S.y)
@@ -453,21 +461,23 @@ function desenharFixo(g: G): void {
   g.strokeStyle = 'rgba(255, 255, 255, 0.12)'
   caminhoArredondado(g, 3, 3, S.w - 6, S.h - 6, 8)
   g.stroke()
-  g.fillStyle = 'rgba(18, 14, 12, 0.72)'
-  caminhoArredondado(g, S.w - 112, S.h - 22, 104, 16, 8)
-  g.fill()
-  g.fillStyle = '#eceae4'
   g.font = '600 9px Bahnschrift, Barlow, "Segoe UI", sans-serif'
   g.textBaseline = 'middle'
-  g.fillText('Sarilho, dentro da torre', S.w - 105, S.h - 13.5)
+  const largura = Math.ceil(g.measureText(rotulo).width) + 14
+  g.fillStyle = 'rgba(18, 14, 12, 0.72)'
+  caminhoArredondado(g, S.w - 8 - largura, S.h - 22, largura, 16, 8)
+  g.fill()
+  g.fillStyle = '#eceae4'
+  g.fillText(rotulo, S.w - 1 - largura, S.h - 13.5)
   g.restore()
 }
 
 const cacheFixo = new Map<string, HTMLCanvasElement>()
 const CACHE_FIXO_MAX = 6
 
-function camadaFixa(W: number, H: number, s: number, ox: number, oy: number): HTMLCanvasElement | null {
-  const chave = `${W}x${H}`
+/** O que não se mexe, pintado uma vez por cena e tamanho do palco. */
+function camadaFixa(W: number, H: number, s: number, ox: number, oy: number, cena: string, desenhar: (g: G) => void): HTMLCanvasElement | null {
+  const chave = `${cena}|${W}x${H}`
   const pronta = cacheFixo.get(chave)
   if (pronta !== undefined) return pronta
   const c = document.createElement('canvas')
@@ -476,10 +486,29 @@ function camadaFixa(W: number, H: number, s: number, ox: number, oy: number): HT
   const g = c.getContext('2d')
   if (g === null) return null
   g.setTransform(s, 0, 0, s, ox, oy)
-  desenharFixo(g)
+  desenhar(g)
   if (cacheFixo.size > CACHE_FIXO_MAX) cacheFixo.clear()
   cacheFixo.set(chave, c)
   return c
+}
+
+/**
+ * O começo de um quadro, igual nas duas cenas: o fundo, a camada fixa da
+ * cena com o tranco da tela, e a transformação do mundo (620 x 340) já posta.
+ */
+export function comecarQuadro(ctx: G, W: number, H: number, est: EstadoVisual, cena: string, desenharFixoDaCena: (g: G) => void): void {
+  const s = Math.min(W / MUNDO.w, H / MUNDO.h)
+  const ox = W / 2 - MUNDO.cx * s
+  const oy = H / 2 - MUNDO.cy * s
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  const tr = est.tremor
+  const dx = tr ? 6 * tr * Math.sin(est.tReal * 51) * s : 0
+  const dy = tr ? 4 * tr * Math.sin(est.tReal * 69 + 1) * s : 0
+  ctx.fillStyle = '#9ec0a0'
+  ctx.fillRect(0, 0, W, H)
+  const fixa = camadaFixa(W, H, s, ox, oy, cena, desenharFixoDaCena)
+  if (fixa !== null) ctx.drawImage(fixa, dx, dy)
+  ctx.setTransform(s, 0, 0, s, ox + dx, oy + dy)
 }
 
 /** Um ponto da ponte: `u` ao longo (0 na dobradiça, 1 na ponta), `lado` de -1 a 1 na largura. */
@@ -589,7 +618,7 @@ function desenharPonte(g: G, p: number): void {
   g.stroke()
 }
 
-function desenharCorrente(g: G, x0: number, y0: number, x1: number, y1: number, fase: number, vib: number, t: number, semente: number): void {
+export function desenharCorrente(g: G, x0: number, y0: number, x1: number, y1: number, fase: number, vib: number, t: number, semente: number): void {
   const len = Math.hypot(x1 - x0, y1 - y0)
   if (len < 1) return
   const ux = (x1 - x0) / len
@@ -612,7 +641,7 @@ function desenharCorrente(g: G, x0: number, y0: number, x1: number, y1: number, 
   }
 }
 
-function chama(g: G, x: number, y: number, t: number, k = 1): void {
+export function chama(g: G, x: number, y: number, t: number, k = 1): void {
   const f = 1 + 0.12 * Math.sin(t * 13.1) + 0.08 * Math.sin(t * 29.7 + 1.3)
   const luz = g.createRadialGradient(x, y, 1, x, y, 30 * k * f)
   luz.addColorStop(0, 'rgba(255, 196, 120, 0.42)')
@@ -631,7 +660,7 @@ function chama(g: G, x: number, y: number, t: number, k = 1): void {
   g.fill()
 }
 
-function desenharSarilho(g: G, est: EstadoVisual): void {
+export function desenharSarilho(g: G, est: EstadoVisual): void {
   const S = SARILHO
   const phi = est.p * VOLTAS * Math.PI * 2
   g.save()
@@ -761,7 +790,7 @@ function desenharSarilho(g: G, est: EstadoVisual): void {
   g.restore()
 }
 
-function desenharPoeira(g: G, poeira: readonly Poeira[]): void {
+export function desenharPoeira(g: G, poeira: readonly Poeira[]): void {
   for (const q of poeira) {
     const a = Math.max(0, q.vida / q.max)
     g.fillStyle = tomDe(q.cor, 1, 0.55 * a)
@@ -785,20 +814,9 @@ function desenharAgua(g: G, t: number): void {
   }
 }
 
-/** A cena inteira num canvas de W x H pixels. */
+/** A cena da ponte inteira num canvas de W x H pixels (a do canhão é `arteDoCanhao.ts`). */
 export function desenharCena(ctx: G, W: number, H: number, est: EstadoVisual): void {
-  const s = Math.min(W / MUNDO.w, H / MUNDO.h)
-  const ox = W / 2 - MUNDO.cx * s
-  const oy = H / 2 - MUNDO.cy * s
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  const tr = est.tremor
-  const dx = tr ? 6 * tr * Math.sin(est.tReal * 51) * s : 0
-  const dy = tr ? 4 * tr * Math.sin(est.tReal * 69 + 1) * s : 0
-  ctx.fillStyle = '#9ec0a0'
-  ctx.fillRect(0, 0, W, H)
-  const fixa = camadaFixa(W, H, s, ox, oy)
-  if (fixa !== null) ctx.drawImage(fixa, dx, dy)
-  ctx.setTransform(s, 0, 0, s, ox + dx, oy + dy)
+  comecarQuadro(ctx, W, H, est, 'ponte', desenharFixo)
   desenharAgua(ctx, est.t)
   // tocha dentro do portão (fica atrás da ponte erguida)
   ctx.save()

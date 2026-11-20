@@ -1,4 +1,4 @@
-import { ALAVANCA_JOGADORES_MAX, ALAVANCA_TEMPO_MAX_S, ALAVANCA_TEMPO_MIN_S, DIFICULDADES_ALAVANCA, type DificuldadeAlavanca } from '../minigames/alavanca/tipos'
+import { ALAVANCA_JOGADORES_MAX, ALAVANCA_TEMPO_MAX_S, ALAVANCA_TEMPO_MIN_S, cenaDaAlavanca, DIFICULDADES_ALAVANCA, type CenaAlavanca, type DificuldadeAlavanca } from '../minigames/alavanca/tipos'
 
 /**
  * MINIGAME ALAVANCA DA PONTE AO VIVO — as mensagens entre o mestre e quem
@@ -57,6 +57,8 @@ export interface AlavancaConviteMessage {
   type: 'alavanca.convite'
   sessao: string
   pinId: string
+  /** O que se vê e se ouve. Campo novo: mestre antigo não manda, e a tela desenha a ponte. */
+  cena: CenaAlavanca
   lugar: string
   fala: string
   dificuldade: DificuldadeAlavanca
@@ -252,7 +254,8 @@ export function parseAlavancaHostMessage(value: unknown): AlavancaHostMessage | 
       const participantes = listaDe(value.participantes, ALAVANCA_PARTICIPANTES_MAX, lerParticipante, 1)
       if (!idValido(pinId) || !textoEntre(lugar, 0, TEXTO_MAX) || !textoEntre(fala, 0, TEXTO_MAX) || !tempoValido(tempo)) return null
       if (dificuldade === undefined || participantes === null || typeof sozinho !== 'boolean' || typeof abrePorta !== 'boolean') return null
-      return { type: 'alavanca.convite', sessao, pinId, lugar, fala, dificuldade, tempo, participantes, sozinho, abrePorta }
+      // A cena é cosmética: a que falta (mestre antigo) ou não se conhece (mestre mais novo) vira a ponte, sem derrubar o convite.
+      return { type: 'alavanca.convite', sessao, pinId, cena: cenaDaAlavanca(value.cena), lugar, fala, dificuldade, tempo, participantes, sozinho, abrePorta }
     }
     case 'alavanca.estado': {
       const fase = umDaLista(FASES_NO_FIO, value.fase)

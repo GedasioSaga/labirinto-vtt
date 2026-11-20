@@ -11,7 +11,7 @@
  */
 import type { Desafio, LugarDoDesafio, MapData, Pin, Prop } from '../types/map'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
-import { entradaDoMinigame, nomeDoJogo, padraoDoJogo, type EntradaDoDesafio } from '../minigames/registro'
+import { entradaDoMinigame, nomeDoJogoDoDesafio, padraoDoJogo, type EntradaDoDesafio } from '../minigames/registro'
 import type { ProgressoDoPuzzle } from '../puzzles/tipos'
 
 /** Teto do nome do desafio (o mesmo do nome do pino). */
@@ -26,8 +26,18 @@ export function nomePadraoDoDesafio(minigame: MinigameDoPino, nomeDoPino?: strin
   const nome = typeof nomeDoPino === 'string' ? nomeDoPino.trim() : ''
   if (nome !== '') return nome.slice(0, DESAFIO_NOME_MAX_LENGTH)
   const npc = minigame.npc.trim()
-  const jogo = nomeDoJogo(minigame.jogo)
+  const jogo = nomeDoJogoDoDesafio(minigame)
   return (npc === '' ? jogo : `${jogo} com ${npc}`).slice(0, DESAFIO_NOME_MAX_LENGTH)
+}
+
+/**
+ * A alavanca que troca de cena troca o nome que ainda é o padrão da cena de
+ * antes ("Alavanca da ponte" vira "Alavanca do canhão"); o nome que o mestre
+ * escreveu fica. Fora isso, o nome de sempre.
+ */
+function nomeNaCenaNova(atual: Desafio, minigame: MinigameDoPino): string {
+  if (atual.minigame.jogo !== 'alavanca' || minigame.jogo !== 'alavanca' || atual.minigame.cena === minigame.cena) return atual.nome
+  return atual.nome === nomePadraoDoDesafio(atual.minigame) ? nomePadraoDoDesafio(minigame) : atual.nome
 }
 
 /**
@@ -190,6 +200,7 @@ export function atualizarDesafio(map: MapData, id: string, patch: PatchDoDesafio
   const chaves = CHAVES_DO_PATCH.filter((chave) => chave in patch)
   if (chaves.every((chave) => JSON.stringify(atual[chave]) === JSON.stringify(patch[chave]))) return map
   const novo: Desafio = { ...atual, ...patch }
+  if (patch.minigame !== undefined && patch.nome === undefined) novo.nome = nomeNaCenaNova(atual, patch.minigame)
   if (patch.portaLigada === undefined && 'portaLigada' in patch) delete novo.portaLigada
   return { ...map, desafios: lista.map((desafio, j) => (j === i ? novo : desafio)) }
 }

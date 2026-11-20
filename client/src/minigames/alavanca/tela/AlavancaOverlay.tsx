@@ -3,8 +3,10 @@ import { createPortal } from 'react-dom'
 import type { AlavancaFimMessage, AlavancaVivoMessage } from '../../../net/protocoloDaAlavanca'
 import type { AlavancaDoJogador } from '../../../player/estadoDaAlavanca'
 import { COR_DA_PRACA, CORES_J, desenharCena, desenharIcone, pontoDaPonte, SARILHO, type Poeira } from '../arte'
+import { BAL, bordasDoPoco, desenharCenaDoCanhao, pbz } from '../arteDoCanhao'
+import { TEXTOS_DA_CENA, type TextosDaCena } from '../cenas'
 import { criarRng, DENTES, regras, VOLTAS, type Regras } from '../sim'
-import { cadeia, CONTAGEM, continuo, evento, final, QUEDA, VOLUME, type CadeiaDeSom, type EventoDeSom } from '../som'
+import { cadeia, CONTAGEM, continuo, criarDetector, DENTES_DO_CANO, evento, final, QUEDA, VOLUME, type CadeiaDeSom, type EventoDaCena, type EventoDeSom } from '../som'
 import { NOME_DA_DIFICULDADE_ALAVANCA } from '../tipos'
 import './alavanca.css'
 
@@ -99,6 +101,8 @@ interface Jogo {
   relogioDado: number
   dente: number
   contagemOn: boolean
+  /** Os eventos da cena (as folhas do alçapão do canhão), tirados da posição a cada quadro da rodada. */
+  detector: ((p: number) => EventoDaCena[]) | null
 }
 
 function jogoNovo(): Jogo {
@@ -128,12 +132,29 @@ function jogoNovo(): Jogo {
     relogioDado: 0,
     dente: 0,
     contagemOn: false,
+    detector: null,
   }
 }
 
-function textoDesfecho(ok: boolean, abrePorta: boolean): string {
-  if (!ok) return 'No mapa, nada muda: a ponte continua erguida.'
-  return abrePorta ? 'No mapa: uma porta se abre.' : 'No mapa: a ponte levadiça desce e o fosso pode ser atravessado.'
+function textoDesfecho(T: TextosDaCena, ok: boolean, abrePorta: boolean): string {
+  if (!ok) return T.mapaNada
+  return abrePorta ? 'No mapa: uma porta se abre.' : T.mapaOk
+}
+
+/**
+ * Canhão: na vitória, os ferrolhos entram com o clangor e o cano baixa até a
+ * ameia, um dente por clique do som (`DENTES_DO_CANO`). `t` = s desde a trava.
+ */
+function canoETrava(t: number, reduz: boolean): { cano: number; trava: number } {
+  const kt = Math.min(1, t / 0.06)
+  const trava = 1 - (1 - kt) ** 3 // o ferrolho dispara: sai rápido e assenta
+  if (reduz) return { cano: t >= DENTES_DO_CANO[0] ? 0 : 1, trava }
+  let cano = 1
+  for (const tc of DENTES_DO_CANO) {
+    const k = Math.min(1, Math.max(0, (t - tc + 0.05) / 0.05))
+    cano -= (k * k * (3 - 2 * k)) / DENTES_DO_CANO.length
+  }
+  return { cano, trava }
 }
 
 /** A cor de cada um na marca: a variável da lista, sem passar pelo estilo do React. */
@@ -149,6 +170,11 @@ export function AlavancaOverlay(props: AlavancaOverlayProps) {
 
 function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
   const { convite, comecar, fim, encerrada, estado } = alavanca
+  // A cena vem no convite e não muda na sessão (o host congela o desafio no convite).
+  const cena = convite.cena
+  const T = TEXTOS_DA_CENA[cena]
+  const cenaRef = useRef(cena)
+  cenaRef.current = cena
   const [tela, setTela] = useState<Tela>('convite')
   const [som, setSom] = useState(lerSom)
   const J = useRef<Jogo>(jogoNovo())
@@ -195,7 +221,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
     }
     if (typeof AudioContext !== 'function') return null
     const ctx = new AudioContext()
-    const nova = cadeia(ctx, ctx.destination, ctx.currentTime)
+    const nova = cadeia(ctx, ctx.destination, ctx.currentTime, cenaRef.current)
     nova.mestre.gain.value = somRef.current ? VOLUME : 0
     audio.current = nova
     return nova
@@ -251,6 +277,27 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
     }
   }
 
+  /** Eventos que só a cena do canhão tem: as folhas do alçapão batendo abertas ou fechadas. */
+  const reagirCena = (nome: EventoDaCena) => {
+    tocar(nome)
+    if (movimentoReduzido()?.matches ?? false) return
+    const { xc, meia, z0 } = BAL
+    if (nome === 'folhasBatem') {
+      for (const lado of [-1, 1]) {
+        for (let i = 0; i < 4; i++) {
+          const [x, y] = pbz(xc + lado * (meia + 54), z0 + 14 + i * 28)
+          soltarPoeira(x, y, 1, 0.5, COR_DA_PRACA)
+        }
+      }
+      J.current.trauma = Math.min(1, J.current.trauma + 0.2)
+    } else {
+      for (let i = 0; i < 6; i++) {
+        const [x, y] = pbz(xc - meia + 10 + i * 20, z0 + 4)
+        soltarPoeira(x, y, 1, 0.45, COR_DA_PRACA)
+      }
+    }
+  }
+
   /** Só brilho, sem escala: o X chega a 7 por segundo e uma escala reiniciando tremeria. */
   const pulsar = (j: number) => {
     const li = hudRefs.current.equipe.current?.children[j]
@@ -270,6 +317,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
     novo.giros = comecar.ordem.map(() => 0)
     novo.tReal = jogo.tReal
     novo.tCena = jogo.tCena
+    novo.detector = criarDetector(cenaRef.current)
     J.current = novo
     irPara('contagem')
     mostrarContagem('Prontos…')
@@ -337,18 +385,31 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
     jogo.pFim = jogo.pVis
     const C = audio.current
     if (C !== null && somRef.current) final(C, C.ctx.currentTime + 0.004, fim.tipo)
+    const forca = reduz ? 0.2 : 1.1
     if (fim.tipo === 'baixou') {
       jogo.pVis = 1
       jogo.congela = CONGELA
       if (!reduz) jogo.trauma = Math.min(1, jogo.trauma + 0.62)
       const rng = criarRng('pouso')
-      for (let i = 0; i < 26; i++) {
-        const l = -1 + 2 * rng()
-        const [x, y] = pontoDaPonte(1, 1, l * 1.05)
-        soltarPoeira(x, y + 6, 1, reduz ? 0.2 : 1.1, COR_DA_PRACA)
+      if (cenaRef.current === 'canhao') {
+        // a plataforma assenta: poeira saindo pelas frestas em volta
+        const b = bordasDoPoco()
+        for (let i = 0; i < 26; i++) {
+          const lado = i % 4
+          const a = b[lado]
+          const d = b[(lado + 1) % 4]
+          const u = rng()
+          soltarPoeira(a[0] + (d[0] - a[0]) * u, a[1] + (d[1] - a[1]) * u, 1, forca * 0.9, COR_DA_PRACA)
+        }
+      } else {
+        for (let i = 0; i < 26; i++) {
+          const l = -1 + 2 * rng()
+          const [x, y] = pontoDaPonte(1, 1, l * 1.05)
+          soltarPoeira(x, y + 6, 1, forca, COR_DA_PRACA)
+        }
       }
-      anunciar('A ponte desceu!')
-    } else anunciar('O tempo acabou. A corrente puxou a ponte de volta.')
+      anunciar(TEXTOS_DA_CENA[cenaRef.current].anuncioVenceu)
+    } else anunciar(TEXTOS_DA_CENA[cenaRef.current].anuncioPerdeu)
     irPara('fim')
     // Só a mensagem de fim muda a tela.
   }, [fim])
@@ -484,6 +545,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
         if (d > jogo.dente) tocar('dente')
         else if (d < jogo.dente && jogo.solta > 0.25) tocar('volta')
         jogo.dente = d
+        if (jogo.detector !== null) for (const nome of jogo.detector(jogo.pVis)) reagirCena(nome)
         const resta = jogo.R === null ? 0 : jogo.R.tempo - jogo.tLocal
         if (resta <= 3 && resta > 0 && Math.ceil(resta) !== jogo.relogioDado) {
           jogo.relogioDado = Math.ceil(resta)
@@ -503,9 +565,18 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
           if (k >= 1 && !jogo.bateu) {
             jogo.bateu = true
             if (!reduz) jogo.trauma = Math.min(1, jogo.trauma + 0.45)
-            for (let i = 0; i < 10; i++) {
-              const [x, y] = pontoDaPonte(0, 1, -1 + i / 4.5)
-              soltarPoeira(x, y, 1, reduz ? 0.2 : 0.7, '#cfc9bb')
+            if (cenaRef.current === 'canhao') {
+              // a plataforma bate no fundo: a poeira sobe pela boca do poço
+              const rng = criarRng('fundo')
+              for (let i = 0; i < 14; i++) {
+                const [x, y] = pbz(BAL.xc - BAL.meia + 8 + rng() * 100, BAL.z0 + 10 + rng() * 90)
+                soltarPoeira(x, y, 1, reduz ? 0.2 : 1.3, '#cfc9bb')
+              }
+            } else {
+              for (let i = 0; i < 10; i++) {
+                const [x, y] = pontoDaPonte(0, 1, -1 + i / 4.5)
+                soltarPoeira(x, y, 1, reduz ? 0.2 : 0.7, '#cfc9bb')
+              }
             }
           }
           if (jogo.tFase >= FIM_SUBIU) {
@@ -524,6 +595,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
       const R = jogo.R
       const h = hudRefs.current
       if (R === null || (jogo.tela !== 'contagem' && jogo.tela !== 'rodada' && jogo.tela !== 'fim')) return
+      const T = TEXTOS_DA_CENA[cenaRef.current]
       const resta = Math.max(0, R.tempo - jogo.tLocal)
       definir(h.tempo.current, 'tempo', virg(resta))
       atributo(h.relogio.current, 'pouco', 'data-pouco', resta <= 3 && jogo.tela === 'rodada' ? '1' : '0')
@@ -535,19 +607,19 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
       const emRodada = jogo.tela === 'rodada'
       const solta = emRodada && jogo.solta > 0
       if (h.correnteBarra.current !== null) h.correnteBarra.current.style.transform = `scaleX(${(emRodada ? jogo.tensao : 0).toFixed(4)})`
-      definir(h.corrente.current, 'corrente', solta ? 'soltou!' : emRodada ? (jogo.tensao > 0.62 ? 'pesada' : 'puxando') : 'parada')
+      definir(h.corrente.current, 'corrente', solta ? 'soltou!' : emRodada ? (jogo.tensao > 0.62 ? T.pesada : 'puxando') : T.parada)
       atributo(h.medidorCorrente.current, 'soltaAttr', 'data-solta', solta ? '1' : '0')
-      let dica = 'Aperte X sem parar. A corrente puxa a ponte de volta o tempo todo.'
+      let dica = T.dica
       let tomDica = ''
       if (jogo.tela === 'contagem') dica = 'Prepare o dedo no X.'
-      else if (jogo.tela === 'fim') dica = jogo.fimTipo === 'baixou' ? 'A ponte desceu! A catraca trava.' : 'O tempo acabou: a corrente puxa a ponte de volta.'
+      else if (jogo.tela === 'fim') dica = jogo.fimTipo === 'baixou' ? T.dicaVenceu : T.dicaPerdeu
       else if (solta) {
         dica = 'A catraca soltou! Gire de novo para a lingueta pegar.'
         tomDica = 'alerta'
       } else if (resta <= 3) {
         dica = 'Últimos segundos!'
         tomDica = 'alerta'
-      } else if (jogo.pVis > 0.78) dica = 'Falta pouco: perto do chão a corrente pesa mais.'
+      } else if (jogo.pVis > 0.78) dica = T.dicaPerto
       definir(h.dica.current, 'dica', dica)
       atributo(h.dica.current, 'tomDica', 'data-tom', tomDica)
       const ul = h.equipe.current
@@ -561,9 +633,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
           if (ritmo instanceof HTMLElement) definir(ritmo, `ritmo${j}`, `${virg(quantos / janela)}/s`)
         }
       }
-      const p = jogo.pVis
-      const rotulo = p >= 1 ? 'A ponte levadiça desceu e está assentada na margem.' : p <= 0.01 ? 'A ponte levadiça está erguida diante do portão.' : `A ponte levadiça está ${Math.round(p * 10) * 10}% baixada.`
-      atributo(canvas.current, 'rotulo', 'aria-label', rotulo)
+      atributo(canvas.current, 'rotulo', 'aria-label', T.aria(jogo.pVis))
     }
 
     const quadro = (agora: number) => {
@@ -588,8 +658,15 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
         const p = jogo.tela === 'resultado' && fimRef.current !== undefined ? (fimRef.current.tipo === 'baixou' ? 1 : fimRef.current.tipo === 'subiu' ? 0 : jogo.pVis) : jogo.pVis
         const tensao = emRodada ? jogo.tensao : 0
         const solta = emRodada ? jogo.solta : 0
-        desenharCena(g, w, h, {
+        const doCanhao = cenaRef.current === 'canhao'
+        const venceu = (jogo.tela === 'fim' && jogo.fimTipo === 'baixou') || (jogo.tela === 'resultado' && fimRef.current?.tipo === 'baixou')
+        // Na tela do resultado o cano já baixou de vez; no fim, conta desde a trava (o congelamento do pouso entra).
+        const { cano, trava } = doCanhao && venceu ? canoETrava(jogo.tela === 'resultado' ? 9 : CONGELA - Math.max(0, jogo.congela) + jogo.tFase, reduz) : { cano: 1, trava: 0 }
+        const desenhar = doCanhao ? desenharCenaDoCanhao : desenharCena
+        desenhar(g, w, h, {
           p,
+          cano,
+          trava,
           solta,
           tensao,
           vib: reduz ? 0 : emRodada ? 0.5 + 1.6 * tensao + 1.4 * solta : 0,
@@ -618,14 +695,14 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
   const prontos = estado?.participantes.filter((p) => p.status === 'pronto').length ?? (alavanca.pronto ? 1 : 0)
   const seguem = estado?.participantes.filter((p) => p.status !== 'fora').length ?? convite.participantes.length
   const quemGira = convite.participantes.map((p) => (p.playerId === playerId ? 'Você' : p.nome))
-  const desfechoDoConvite = textoDesfecho(true, convite.abrePorta).replace(/^No mapa: /, '').replace(/^./, (c) => c.toUpperCase())
+  const desfechoDoConvite = textoDesfecho(T, true, convite.abrePorta).replace(/^No mapa: /, '').replace(/^./, (c) => c.toUpperCase())
   const emJogo = tela === 'contagem' || tela === 'rodada' || tela === 'fim'
   const fecharTudo = () => acoes.fecharAlavanca()
 
-  const resultado = fim === undefined ? null : textoDoResultado(fim, convite.tempo, NOME_DA_DIFICULDADE_ALAVANCA[convite.dificuldade])
+  const resultado = fim === undefined ? null : textoDoResultado(T, fim, convite.tempo, NOME_DA_DIFICULDADE_ALAVANCA[convite.dificuldade])
 
   return (
-    <div className="lb-alavanca" role="dialog" aria-modal="true" aria-label="Alavanca da ponte">
+    <div className="lb-alavanca" role="dialog" aria-modal="true" aria-label={T.nome}>
       <header className="al-topo">
         <div className="al-topo__marca">
           <span className="al-wordmark">Labirinto</span>
@@ -635,7 +712,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
                 {convite.lugar} <span aria-hidden="true">›</span>{' '}
               </>
             )}
-            <b>Alavanca da ponte</b>
+            <b>{T.nome}</b>
           </nav>
         </div>
         <button type="button" className="al-btn al-btn--sm" aria-pressed={som} onClick={alternarSom}>
@@ -645,13 +722,13 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
 
       <main className="al-jogador">
         <div className="al-palco">
-          <canvas ref={canvas} role="img" aria-label="A ponte levadiça está erguida diante do portão." />
+          <canvas ref={canvas} role="img" aria-label={T.aria(0)} />
           <div className="al-contagem" ref={contagem} aria-hidden="true" />
           {pausaPor !== null && (tela === 'contagem' || tela === 'rodada') && (
             <div className="al-pausa">
               <div className="al-pausa__caixa" role="dialog" aria-modal="false" aria-label="Pausado">
                 <h2>Pausado</h2>
-                <p className="al-nota">{pausaPor === 'mestre' ? 'O mestre pausou para todos. Só ele continua.' : pausaPor === playerId ? 'A corrente espera. Esc ou o botão continua.' : `${convite.participantes.find((p) => p.playerId === pausaPor)?.nome ?? 'Alguém'} pausou. Esc ou o botão continua.`}</p>
+                <p className="al-nota">{pausaPor === 'mestre' ? 'O mestre pausou para todos. Só ele continua.' : pausaPor === playerId ? T.pausa : `${convite.participantes.find((p) => p.playerId === pausaPor)?.nome ?? 'Alguém'} pausou. Esc ou o botão continua.`}</p>
                 <button type="button" className="al-btn al-btn--primary" disabled={pausaPor === 'mestre'} onClick={() => acoes.continuarAlavanca()}>
                   Continuar
                 </button>
@@ -666,7 +743,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
               <div className="al-cabeca">
                 <canvas ref={icone} width={96} height={96} aria-hidden="true" />
                 <div>
-                  <h1 id="al-titulo">Alavanca da ponte</h1>
+                  <h1 id="al-titulo">{T.nome}</h1>
                   {convite.lugar !== '' && <p>{convite.lugar}</p>}
                 </div>
               </div>
@@ -685,7 +762,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
                   <dd>{quemGira.join(', ')}</dd>
                 </div>
                 <div className="al-larga">
-                  <dt className="al-rotulo">Se a ponte descer</dt>
+                  <dt className="al-rotulo">{T.seVencer}</dt>
                   <dd>{desfechoDoConvite}</dd>
                 </div>
               </dl>
@@ -727,9 +804,9 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
               <div className="al-tempo-trilho" aria-hidden="true">
                 <i ref={hud.tempoBarra} />
               </div>
-              <div className="al-medidor" role="meter" aria-label="Ponte baixada" aria-valuemin={0} aria-valuemax={100} aria-valuenow={0} ref={hud.medidorPonte}>
+              <div className="al-medidor" role="meter" aria-label={T.objetoAria} aria-valuemin={0} aria-valuemax={100} aria-valuenow={0} ref={hud.medidorPonte}>
                 <div className="al-medidor__topo">
-                  <span className="al-rotulo">Ponte</span>
+                  <span className="al-rotulo">{T.objeto}</span>
                   <b ref={hud.ponte}>0%</b>
                 </div>
                 <div className="al-medidor__trilho">
@@ -738,7 +815,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
               </div>
               <div className="al-medidor al-medidor--corrente" ref={hud.medidorCorrente}>
                 <div className="al-medidor__topo">
-                  <span className="al-rotulo">Força da corrente</span>
+                  <span className="al-rotulo">{T.forca}</span>
                   <b ref={hud.corrente}>puxando</b>
                 </div>
                 <div className="al-medidor__trilho" aria-hidden="true">
@@ -773,7 +850,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
                 Girar a alavanca <kbd>X</kbd>
               </button>
               <p className="al-dica" ref={hud.dica} aria-hidden="true">
-                Aperte X sem parar. A corrente puxa a ponte de volta o tempo todo.
+                {T.dica}
               </p>
               <div className="al-linha">
                 <button type="button" className="al-btn al-btn--sm" onClick={() => acoes.pausarAlavanca()}>
@@ -813,7 +890,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
                 ))}
               </ul>
               <p className="al-desfecho" data-ok={fim.tipo === 'baixou' ? '1' : '0'}>
-                {fim.tipo === 'baixou' && convite.abrePorta && !fim.portaAberta ? textoDesfecho(true, false) : textoDesfecho(fim.tipo === 'baixou', fim.portaAberta)}
+                {fim.tipo === 'baixou' && convite.abrePorta && !fim.portaAberta ? textoDesfecho(T, true, false) : textoDesfecho(T, fim.tipo === 'baixou', fim.portaAberta)}
               </p>
               <div className="al-botoes">
                 {sozinho && (
@@ -832,7 +909,7 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
             <section className="al-tela" aria-labelledby="al-enc-titulo">
               <div className="al-veredito">
                 <h2 id="al-enc-titulo">{encerrada === 'mestre' ? 'Encerrada pelo mestre' : 'A rodada começou sem você'}</h2>
-                <p>{encerrada === 'mestre' ? 'A ponte continua erguida.' : 'Quem estava pronto já está girando.'}</p>
+                <p>{encerrada === 'mestre' ? T.continua : 'Quem estava pronto já está girando.'}</p>
               </div>
               <div className="al-botoes">
                 <button type="button" className="al-btn al-btn--primary al-btn--block" onClick={fecharTudo}>
@@ -849,16 +926,16 @@ function TelaDaAlavanca({ alavanca, playerId, acoes }: AlavancaOverlayProps) {
 }
 
 /** O veredito, a linha de baixo e os quatro números do resultado (os textos do protótipo). */
-function textoDoResultado(fim: AlavancaFimMessage, tempo: number, dificuldade: string): { titulo: string; sub: string; numeros: [string, string][] } {
+function textoDoResultado(T: TextosDaCena, fim: AlavancaFimMessage, tempo: number, dificuldade: string): { titulo: string; sub: string; numeros: [string, string][] } {
   const total = fim.giros.reduce((a, b) => a + b, 0)
   const dur = Math.max(0.1, fim.tFim)
-  const titulo = fim.tipo === 'baixou' ? 'A ponte desceu!' : fim.tipo === 'subiu' ? 'A corrente venceu' : 'Encerrada pelo mestre'
+  const titulo = fim.tipo === 'baixou' ? T.venceu : fim.tipo === 'subiu' ? T.perdeu : 'Encerrada pelo mestre'
   const sub =
     fim.tipo === 'baixou'
       ? `Em ${virg(dur)} s de ${tempo} s (${dificuldade}).`
       : fim.tipo === 'subiu'
-        ? `A ponte chegou a ${Math.round(fim.pMax * 100)}% e voltou a subir (${dificuldade}, ${tempo} s).`
-        : `A rodada parou em ${virg(dur)} s, com a ponte a ${Math.round(fim.p * 100)}%.`
+        ? T.subPerdeu(Math.round(fim.pMax * 100), dificuldade, tempo)
+        : T.subEncerrado(virg(dur), Math.round(fim.p * 100))
   return {
     titulo,
     sub,

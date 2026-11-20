@@ -3,7 +3,11 @@
  * protótipo aprovado (`docs/design/minigames/alavanca-da-ponte.html`), com os
  * mesmos timbres, ganhos e tempos. As provas mediram este som renderizado
  * offline (`provas-alavanca/som/medidas.json`): pico, cortes, cliques e LUFS.
+ * O canhão do chão tem a voz dele sobre o mesmo mecanismo (protótipo de
+ * 20/11/2026, `provas-canhao/som/medidas.json`): rangido mais grave, a pedra
+ * raspando no poço, as folhas do alçapão e o clangor da trava no topo.
  */
+import type { CenaAlavanca } from './tipos'
 
 /** s da ponte voltando a subir quando o tempo acaba. */
 export const QUEDA = 0.65
@@ -11,6 +15,22 @@ export const QUEDA = 0.65
 export const CONTAGEM = 0.8
 /** Ganho geral: a rodada fica perto dos -19 LUFS do tiro. */
 export const VOLUME = 0.85
+/** Canhão: as folhas do alçapão terminam de abrir aqui (fração da subida). */
+export const FOLHAS = 0.2
+
+/** A voz de cada cena: a ponte range madeira; o canhão range mais grave e a plataforma de pedra raspa nas paredes do poço. */
+interface PerfilDeSom {
+  f1: number
+  f2: number
+  filtro: number
+  rangido: number
+  raspa: number
+}
+
+const PERFIS: Readonly<Record<CenaAlavanca, PerfilDeSom>> = {
+  ponte: { f1: 88, f2: 133, filtro: 700, rangido: 0.22, raspa: 0 },
+  canhao: { f1: 62, f2: 95, filtro: 470, rangido: 0.15, raspa: 0.34 },
+}
 
 export interface CadeiaDeSom {
   ctx: BaseAudioContext
@@ -20,9 +40,36 @@ export interface CadeiaDeSom {
   centro: StereoPannerNode
   rangido: { g: GainNode; f1: AudioParam; f2: AudioParam; filtro: AudioParam }
   corrente: { g: GainNode }
+  /** A pedra raspando nas paredes do poço (muda na ponte). */
+  raspa: GainNode
+  cena: CenaAlavanca
+  perfil: PerfilDeSom
 }
 
-export type EventoDeSom = 'dente' | 'volta' | 'giro' | 'soltou' | 'pegou' | 'prontos' | 'ja' | 'relogio'
+/** Eventos que só a cena do canhão tem, tirados da posição: as folhas batem abertas, e o alçapão fecha. */
+export type EventoDaCena = 'folhasBatem' | 'alcapaoFecha'
+
+export type EventoDeSom = 'dente' | 'volta' | 'giro' | 'soltou' | 'pegou' | 'prontos' | 'ja' | 'relogio' | EventoDaCena
+
+/** O detector dos eventos da cena: recebe a posição a cada quadro e devolve o que aconteceu nele. Na ponte, nunca nada. */
+export function criarDetector(cena: CenaAlavanca): (p: number) => EventoDaCena[] {
+  let aberto = false
+  let longe = false
+  return (p) => {
+    const ev: EventoDaCena[] = []
+    if (cena !== 'canhao') return ev
+    if (!aberto && p >= FOLHAS) {
+      aberto = true
+      ev.push('folhasBatem')
+    } else if (aberto && p < FOLHAS - 0.03) aberto = false
+    if (p >= 0.05) longe = true
+    else if (longe && p < 0.015) {
+      longe = false
+      ev.push('alcapaoFecha')
+    }
+    return ev
+  }
+}
 
 interface Tom {
   f: number
@@ -96,8 +143,8 @@ function chiado(C: CadeiaDeSom, destino: AudioNode, quando: number, o: Chiado): 
   src.stop(quando + o.dur * 1.6 + 0.05)
 }
 
-/** A cadeia inteira: mestre, compressor, os três lados do palco e os sons contínuos (rangido, corrente, fundo). */
-export function cadeia(ctx: BaseAudioContext, destino: AudioNode, inicio = 0): CadeiaDeSom {
+/** A cadeia inteira: mestre, compressor, os três lados do palco e os sons contínuos (rangido, corrente, fundo, pedra). */
+export function cadeia(ctx: BaseAudioContext, destino: AudioNode, inicio = 0, cena: CenaAlavanca = 'ponte'): CadeiaDeSom {
   const mestre = ctx.createGain()
   mestre.gain.value = VOLUME
   const comp = ctx.createDynamicsCompressor()
@@ -183,6 +230,21 @@ export function cadeia(ctx: BaseAudioContext, destino: AudioNode, inicio = 0): C
   af.connect(ag)
   ag.connect(centro)
   as.start(inicio)
+  // pedra raspando nas paredes do poço: ruído grave, só quando a plataforma anda (mudo na ponte)
+  const rs = ctx.createBufferSource()
+  rs.buffer = ruido(ctx)
+  rs.loop = true
+  rs.playbackRate.value = 0.7
+  const rsf = ctx.createBiquadFilter()
+  rsf.type = 'bandpass'
+  rsf.frequency.value = 240
+  rsf.Q.value = 0.9
+  const rsg = ctx.createGain()
+  rsg.gain.value = 0
+  rs.connect(rsf)
+  rsf.connect(rsg)
+  rsg.connect(ponte)
+  rs.start(inicio)
   return {
     ctx,
     mestre,
@@ -191,17 +253,22 @@ export function cadeia(ctx: BaseAudioContext, destino: AudioNode, inicio = 0): C
     centro,
     rangido: { g: rg, f1: r1.frequency, f2: r2.frequency, filtro: rf.frequency },
     corrente: { g: cg },
+    raspa: rsg,
+    cena,
+    perfil: PERFIS[cena],
   }
 }
 
 /** Parâmetros contínuos: velocidade da ponte (fração/s), tensão 0..1, catraca solta 0..1. */
 export function continuo(C: CadeiaDeSom, quando: number, vel: number, tensao: number, solta: number): void {
   const mov = Math.min(1, Math.abs(vel) / 0.3)
-  C.rangido.g.gain.setTargetAtTime(0.22 * mov, quando, 0.03)
-  C.rangido.f1.setTargetAtTime(88 + 64 * tensao, quando, 0.08)
-  C.rangido.f2.setTargetAtTime(133 + 96 * tensao, quando, 0.08)
-  C.rangido.filtro.setTargetAtTime(700 + 560 * tensao, quando, 0.08)
+  const P = C.perfil
+  C.rangido.g.gain.setTargetAtTime(P.rangido * mov, quando, 0.03)
+  C.rangido.f1.setTargetAtTime(P.f1 + 64 * tensao, quando, 0.08)
+  C.rangido.f2.setTargetAtTime(P.f2 + 96 * tensao, quando, 0.08)
+  C.rangido.filtro.setTargetAtTime(P.filtro + 560 * tensao, quando, 0.08)
   C.corrente.g.gain.setTargetAtTime(0.5 * solta * Math.min(1, Math.max(0, -vel) / 0.12), quando, 0.03)
+  C.raspa.gain.setTargetAtTime(P.raspa * mov, quando, 0.04)
 }
 
 export function evento(C: CadeiaDeSom, nome: EventoDeSom, quando: number): void {
@@ -233,11 +300,66 @@ export function evento(C: CadeiaDeSom, nome: EventoDeSom, quando: number): void 
     case 'relogio': // os últimos 3 segundos
       tom(C, C.centro, quando, { f: 1180, ganho: 0.16, ataque: 0.003, dur: 0.05, tipo: 'triangle' })
       break
+    case 'folhasBatem': // canhão: as duas folhas do alçapão caem abertas nas lajes, uma logo depois da outra
+      tom(C, C.ponte, quando, { f: 150, f2: 92, varre: 0.1, ganho: 0.42, ataque: 0.003, dur: 0.16 })
+      chiado(C, C.ponte, quando, { f: 650, q: 0.7, filtro: 'lowpass', ganho: 0.32, ataque: 0.003, dur: 0.14 })
+      tom(C, C.ponte, quando + 0.06, { f: 138, f2: 88, varre: 0.1, ganho: 0.34, ataque: 0.003, dur: 0.14 })
+      break
+    case 'alcapaoFecha': // canhão: as folhas voltam e batem fechadas
+      tom(C, C.ponte, quando, { f: 128, f2: 80, varre: 0.12, ganho: 0.45, ataque: 0.003, dur: 0.2 })
+      chiado(C, C.ponte, quando, { f: 520, q: 0.7, filtro: 'lowpass', ganho: 0.34, ataque: 0.003, dur: 0.18 })
+      break
   }
 }
 
-/** O fim: a ponte assenta (baixou) ou volta a subir e bate no portão (subiu). */
+/** Os parciais do clangor do ferrolho e do bronze do cano (frequência, ganho, duração). */
+const CLANGOR: readonly (readonly [number, number, number])[] = [
+  [523, 0.2, 1.1],
+  [1290, 0.12, 0.8],
+  [2140, 0.07, 0.55],
+  [3010, 0.04, 0.4],
+]
+const BRONZE_RESSOA: readonly (readonly [number, number])[] = [
+  [196, 0.1],
+  [466, 0.05],
+  [755, 0.03],
+]
+/** Os cliques do cano baixando até a ameia, em s depois da trava (os mesmos dentes do desenho). */
+export const DENTES_DO_CANO: readonly number[] = [0.14, 0.24, 0.34, 0.44]
+
+/** O fim do canhão: trava no topo com um clangor e baixa o cano até a ameia (baixou), ou despenca no poço (subiu). */
+function finalCanhao(C: CadeiaDeSom, quando: number, tipo: 'baixou' | 'subiu'): void {
+  const at = tipo === 'subiu' ? quando + QUEDA : quando
+  if (tipo === 'subiu') {
+    C.corrente.g.gain.setTargetAtTime(0.55, quando, 0.03)
+    C.corrente.g.gain.setTargetAtTime(0, at, 0.05)
+    C.raspa.gain.setTargetAtTime(0.34, quando, 0.04)
+    C.raspa.gain.setTargetAtTime(0, at, 0.05)
+    C.rangido.g.gain.setTargetAtTime(0.14, quando, 0.05)
+    C.rangido.g.gain.setTargetAtTime(0, at, 0.05)
+    tom(C, C.ponte, at, { f: 72, f2: 36, varre: 0.4, ganho: 0.8, ataque: 0.004, dur: 0.75 }) // a plataforma bate no fundo
+    chiado(C, C.ponte, at, { f: 220, q: 0.7, filtro: 'lowpass', ganho: 0.55, ataque: 0.004, dur: 0.4 })
+    evento(C, 'alcapaoFecha', at + 0.09)
+    return
+  }
+  C.rangido.g.gain.setTargetAtTime(0, quando, 0.04)
+  C.corrente.g.gain.setTargetAtTime(0, quando, 0.04)
+  C.raspa.gain.setTargetAtTime(0, quando, 0.04)
+  tom(C, C.ponte, at, { f: 88, f2: 48, varre: 0.25, ganho: 0.6, ataque: 0.004, dur: 0.45 }) // a pedra assenta
+  chiado(C, C.ponte, at, { f: 300, q: 0.7, filtro: 'lowpass', ganho: 0.4, ataque: 0.003, dur: 0.22 })
+  chiado(C, C.mec, at, { f: 3400, q: 3, ganho: 0.35, ataque: 0.0015, dur: 0.05 }) // o ferrolho entra
+  for (const [f, gn, d] of CLANGOR) tom(C, C.ponte, at, { f, ganho: gn, ataque: 0.002, dur: d }) // o clangor
+  for (const [f, gn] of BRONZE_RESSOA) tom(C, C.ponte, at + 0.02, { f, ganho: gn, ataque: 0.004, dur: 1.4 }) // o bronze do cano ressoa
+  for (const dente of DENTES_DO_CANO) chiado(C, C.mec, at + dente, { f: 2500, q: 4, ganho: 0.4, ataque: 0.0015, dur: 0.03 }) // o cano baixa dente a dente
+  tom(C, C.mec, at + 0.56, { f: 1400, ganho: 0.16, ataque: 0.002, dur: 0.06, tipo: 'triangle' })
+}
+
+/** O fim: a ponte assenta (baixou) ou volta a subir e bate no portão (subiu). O canhão tem o dele. */
 export function final(C: CadeiaDeSom, quando: number, tipo: 'baixou' | 'subiu'): void {
+  if (C.cena === 'canhao') {
+    finalCanhao(C, quando, tipo)
+    return
+  }
   const at = tipo === 'subiu' ? quando + QUEDA : quando
   if (tipo === 'subiu') {
     C.corrente.g.gain.setTargetAtTime(0.55, quando, 0.03)

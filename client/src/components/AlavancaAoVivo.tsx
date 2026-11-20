@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { TEXTOS_DA_CENA } from '../minigames/alavanca/cenas'
 import { DIF, estimar } from '../minigames/alavanca/sim'
-import { ALAVANCA_JOGADORES_MAX, NOME_DA_DIFICULDADE_ALAVANCA, type DificuldadeAlavanca } from '../minigames/alavanca/tipos'
+import { ALAVANCA_JOGADORES_MAX, NOME_DA_DIFICULDADE_ALAVANCA, type CenaAlavanca, type DificuldadeAlavanca } from '../minigames/alavanca/tipos'
 import type { AlavancaAoVivo, AlavancaConviteResultado, AlavancaParticipanteNoMestre, AlavancaVivoNoMestre } from '../net/alavancaNoHost'
 import type { AlavancaStatus } from '../net/protocoloDaAlavanca'
 // As classes são as do fogo: o painel da alavanca tem a mesma cara.
@@ -98,7 +99,7 @@ export function ChanceDaAlavanca({ dificuldade, jogadores, tempo }: { dificuldad
 }
 
 /** Antes do convite: quem gira (até 4). */
-function Chamar({ players, onConvidar }: Pick<AlavancaAoVivoProps, 'players' | 'onConvidar'>) {
+function Chamar({ players, onConvidar, cena }: Pick<AlavancaAoVivoProps, 'players' | 'onConvidar'> & { cena: CenaAlavanca }) {
   const [escolhidos, setEscolhidos] = useState<ReadonlySet<string>>(new Set())
   const [aviso, setAviso] = useState<string | null>(null)
   const cheio = escolhidos.size >= ALAVANCA_JOGADORES_MAX
@@ -132,7 +133,7 @@ function Chamar({ players, onConvidar }: Pick<AlavancaAoVivoProps, 'players' | '
           )
         })}
       </ul>
-      <span className="lb-label">Cada um aperta X (ou o botão Girar) no próprio computador. Em equipe, cada aperto vale menos, mas a ponte desce mais rápido.</span>
+      <span className="lb-label">{TEXTOS_DA_CENA[cena].emEquipe}</span>
       {cheio && <span className="lb-label">Na mesma alavanca giram até {ALAVANCA_JOGADORES_MAX}.</span>}
       <button type="button" className="lb-btn lb-btn--primary lb-btn--block" disabled={escolhidos.size === 0} onClick={chamar}>
         {CHAMAR_PARA_A_ALAVANCA}
@@ -168,6 +169,7 @@ function RodadaAoVivo({ alavanca, lerVivo }: { alavanca: AlavancaAoVivo; lerVivo
     const timer = setInterval(() => setVivo(lerVivo()), VIVO_A_CADA_MS)
     return () => clearInterval(timer)
   }, [correndo, lerVivo])
+  const T = TEXTOS_DA_CENA[alavanca.cena]
   const nomes = alavanca.ordem.map((id) => alavanca.participantes.find((p) => p.playerId === id)?.nome ?? id)
   const situacao =
     alavanca.fase === 'pausa'
@@ -177,9 +179,9 @@ function RodadaAoVivo({ alavanca, lerVivo }: { alavanca: AlavancaAoVivo; lerVivo
         : alavanca.fase === 'rodada'
           ? 'Girando'
           : alavanca.resultado?.tipo === 'baixou'
-            ? 'Venceram: a ponte desceu'
+            ? T.situacaoVenceu
             : alavanca.resultado?.tipo === 'subiu'
-              ? 'Perderam: a corrente venceu'
+              ? T.situacaoPerdeu
               : 'Encerrada'
   return (
     <dl className="lb-fogo-vivo__placar lb-alavanca-vivo">
@@ -187,24 +189,25 @@ function RodadaAoVivo({ alavanca, lerVivo }: { alavanca: AlavancaAoVivo; lerVivo
       <dd>{situacao}</dd>
       <dt className="lb-label">Tempo</dt>
       <dd>{vivo === null ? '–' : `${virg(vivo.t)} s de ${vivo.tempo} s`}</dd>
-      <dt className="lb-label">Ponte</dt>
-      <dd>{vivo === null ? '–' : `${Math.round(vivo.p * 100)}% baixada`}</dd>
-      <dt className="lb-label">Corrente</dt>
-      <dd>{vivo === null || alavanca.fase !== 'rodada' ? 'parada' : vivo.solta > 0 ? 'catraca solta' : `${Math.round(vivo.tensao * 100)}% da força`}</dd>
+      <dt className="lb-label">{T.objeto}</dt>
+      <dd>{vivo === null ? '–' : T.progresso(Math.round(vivo.p * 100))}</dd>
+      <dt className="lb-label">{T.forcaCurta}</dt>
+      <dd>{vivo === null || alavanca.fase !== 'rodada' ? T.parada : vivo.solta > 0 ? 'catraca solta' : `${Math.round(vivo.tensao * 100)}% da força`}</dd>
       <dt className="lb-label">Giros</dt>
       <dd>{vivo === null ? '–' : vivo.giros.map((g, j) => `${nomes[j] ?? ''} ${g}`).join(' · ')}</dd>
     </dl>
   )
 }
 
-export function AlavancaAoVivoPainel({ pinId, players, alavanca, lerVivo, onConvidar, onComecar, onPausar, onRetomar, onEncerrar }: AlavancaAoVivoProps) {
+/** `cena`: a do desafio no painel, para o que se diz antes do convite; a rodada usa a congelada no convite. */
+export function AlavancaAoVivoPainel({ pinId, cena, players, alavanca, lerVivo, onConvidar, onComecar, onPausar, onRetomar, onEncerrar }: AlavancaAoVivoProps & { cena: CenaAlavanca }) {
   const desta = alavanca !== null && alavanca.pinId === pinId ? alavanca : null
   const ativaNaFase = (fase: AlavancaAoVivo['fase']) => fase === 'convite' || fase === 'contagem' || fase === 'rodada' || fase === 'pausa'
   // Outro desafio com alavanca aberta: este não chama até aquela acabar.
   const outraAtiva = alavanca !== null && alavanca.pinId !== pinId && ativaNaFase(alavanca.fase)
   const ativa = desta !== null && ativaNaFase(desta.fase)
   return (
-    <section className="lb-fogo-vivo" aria-label="Alavanca da ponte ao vivo">
+    <section className="lb-fogo-vivo" aria-label={`${TEXTOS_DA_CENA[desta?.cena ?? cena].nome} ao vivo`}>
       {ativa ? (
         <>
           <span className="lb-fogo-vivo__fase">
@@ -252,7 +255,7 @@ export function AlavancaAoVivoPainel({ pinId, players, alavanca, lerVivo, onConv
               {desta.resultado.portaAberta && <span className="lb-fogo-vivo__fase">A porta ligada abriu.</span>}
             </div>
           )}
-          {outraAtiva ? <span className="lb-label">Há uma alavanca aberta em outro desafio: encerre aquela antes.</span> : <Chamar players={players} onConvidar={onConvidar} />}
+          {outraAtiva ? <span className="lb-label">Há uma alavanca aberta em outro desafio: encerre aquela antes.</span> : <Chamar players={players} onConvidar={onConvidar} cena={cena} />}
         </>
       )}
     </section>

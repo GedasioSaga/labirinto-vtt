@@ -60,6 +60,7 @@ import { FogoAoVivoPainel } from './FogoAoVivo'
 import type { FogoNoPainel } from './fogoNoPainel'
 import { AlavancaAoVivoPainel, ChanceDaAlavanca } from './AlavancaAoVivo'
 import type { AlavancaNoPainel } from './alavancaNoPainel'
+import { TEXTOS_DA_CENA } from '../minigames/alavanca/cenas'
 import { DIF } from '../minigames/alavanca/sim'
 import {
   ALAVANCA_FALA_MAX_LENGTH,
@@ -67,9 +68,13 @@ import {
   ALAVANCA_LUGAR_MAX_LENGTH,
   ALAVANCA_TEMPO_MAX_S,
   ALAVANCA_TEMPO_MIN_S,
+  alavancaNaCena,
+  CENAS_ALAVANCA,
   DIFICULDADES_ALAVANCA,
+  NOME_DA_CENA_ALAVANCA,
   NOME_DA_DIFICULDADE_ALAVANCA,
   tempoDaAlavanca,
+  type CenaAlavanca,
   type DificuldadeAlavanca,
   type EntradaAlavanca,
   type MinigameAlavanca,
@@ -1241,6 +1246,8 @@ function PainelDaBolha({ pinId, minigame, onChange, aoVivoDaBolha }: PainelDaBol
 
 type PainelDaAlavancaProps = Omit<MinigameControlsProps, 'minigame'> & { minigame: MinigameAlavanca }
 
+const CENAS_DA_ALAVANCA: readonly { valor: CenaAlavanca; rotulo: string }[] = CENAS_ALAVANCA.map((c) => ({ valor: c, rotulo: NOME_DA_CENA_ALAVANCA[c] }))
+
 const DIFICULDADES_DA_ALAVANCA: readonly { valor: DificuldadeAlavanca; rotulo: string }[] = DIFICULDADES_ALAVANCA.map((d) => ({ valor: d, rotulo: NOME_DA_DIFICULDADE_ALAVANCA[d] }))
 
 const ENTRADAS_DA_ALAVANCA: readonly { valor: EntradaAlavanca; rotulo: string }[] = [
@@ -1255,6 +1262,9 @@ const QUANTOS_GIRAM: readonly { valor: string; rotulo: string }[] = Array.from({
  * 20/11/2026: dificuldade, tempo limite (8 a 40 s, ou o padrão), quantos giram
  * juntos, o que acontece quando a ponte desce e a chance de vitória estimada.
  * Mais o lugar e a fala do convite, e como começa (o molde dos outros jogos).
+ * No topo, a CENA (Ponte levadiça | Canhão do chão, protótipo do canhão
+ * aprovado em 20/11/2026): o mesmo jogo e os mesmos números, só muda o que
+ * se vê e se ouve.
  */
 function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }: PainelDaAlavancaProps) {
   const baseId = useId()
@@ -1274,8 +1284,14 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }
   const [quantos, setQuantos] = useState(1)
   const portaAtual = porta.value !== null && porta.options.some((o) => o.id === porta.value) ? porta.value : ''
   const semPorta = porta.options.length === 0
+  const T = TEXTOS_DA_CENA[minigame.cena]
   return (
     <>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Cena</legend>
+        <Pastilhas rotulo="Cena" opcoes={CENAS_DA_ALAVANCA} valor={minigame.cena} onChange={(cena) => cena !== minigame.cena && onChange(alavancaNaCena(minigame, cena))} />
+        <span className="lb-label">O mesmo jogo e os mesmos números nas duas cenas: só muda o que se vê e se ouve.</span>
+      </fieldset>
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('lugar')}>
           Lugar
@@ -1334,7 +1350,7 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }
         <span className="lb-label">Para a chance abaixo. Quem gira de verdade é quem você chamar: cada um aperta X no próprio computador.</span>
       </fieldset>
       <fieldset className="lb-minigame__grupo">
-        <legend className="lb-label">Quando a ponte descer</legend>
+        <legend className="lb-label">{T.quandoVencer}</legend>
         <label className="lb-label" htmlFor={id('porta')}>
           Abre a porta
         </label>
@@ -1346,7 +1362,7 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }
           aria-describedby={id('porta-efeito')}
           onChange={(event) => porta.onChange(event.target.value === '' ? null : event.target.value)}
         >
-          <option value="">Nenhuma: só a ponte desce</option>
+          <option value="">{T.semPorta}</option>
           {porta.options.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}
@@ -1354,14 +1370,14 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }
           ))}
         </select>
         <span id={id('porta-efeito')} className="lb-label">
-          {semPorta ? 'Ponha uma porta no mapa para a ponte abrir.' : portaAtual === '' ? 'A ponte levadiça desce e o fosso pode ser atravessado.' : 'A porta do mapa se abre, mesmo trancada, quando a ponte desce.'}
+          {semPorta ? T.ponhaPorta : portaAtual === '' ? T.efeitoSemPorta : T.efeitoComPorta}
         </span>
       </fieldset>
       <ChanceDaAlavanca dificuldade={minigame.dificuldade} jogadores={quantos} tempo={minigame.tempo} />
       {aoVivoDaAlavanca === null || aoVivoDaAlavanca === undefined ? (
         <span className="lb-label lb-minigame__sem-sala">Abra a mesa online para chamar para a alavanca.</span>
       ) : (
-        <AlavancaAoVivoPainel pinId={pinId} {...aoVivoDaAlavanca} />
+        <AlavancaAoVivoPainel pinId={pinId} cena={minigame.cena} {...aoVivoDaAlavanca} />
       )}
     </>
   )
