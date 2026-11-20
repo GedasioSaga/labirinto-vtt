@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { ImagemDaMesa } from '../../../components/ImagemDaMesa'
 import { idDoItemDaPeca } from '../../../lib/acervoDeItens'
 import { resolverComBase, URL_DA_MIDIA_NA_SALA, type ResolverDeImagem } from '../../../lib/midia'
-import { urlDaPeca } from '../../../puzzles/arte/pecas'
+import { IDS_DAS_PECAS_DESENHADAS, urlDaPeca } from '../../../puzzles/arte/pecas'
 import { progressoInicial } from '../../../puzzles/motor'
 import { PECAS_DESENHADAS, puzzleDoModelo } from '../../../puzzles/padroes'
 import { CATEGORIA_DA_PECA_DE_PUZZLE } from '../../../puzzles/tipos'
@@ -59,7 +59,7 @@ const CORDA: PecaDoAcervo = { nome: 'Corda de cânhamo', categoria: 'Ferramenta'
 const POCAO: PecaDoAcervo = { nome: 'Poção vermelha', categoria: 'Consumível', itemId: 'item_pocao', quantidade: 2 }
 
 const ACERVO = new Map<string, PecaDoAcervo>(
-  [...(Object.keys(PECAS_DESENHADAS) as IdDaPecaDesenhada[]).map(pecaDesenhada), ...Object.values(PEDRAS), ...Object.values(METADES), CORDA, POCAO].flatMap((peca) =>
+  [...IDS_DAS_PECAS_DESENHADAS.map(pecaDesenhada), ...Object.values(PEDRAS), ...Object.values(METADES), CORDA, POCAO].flatMap((peca) =>
     peca.itemId === undefined ? [] : [[peca.itemId, peca] as const],
   ),
 )
