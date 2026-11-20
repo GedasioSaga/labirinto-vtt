@@ -2,7 +2,7 @@ import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { ensureDir, writeTextFileSafely } from '../lib/mapFileIO'
 import { lerDocumento } from './leitor'
-import { extrasPadrao, PAPEL_PADRAO, VERSAO_DO_DOCUMENTO } from './tipos'
+import { extrasPadrao, PAPEL_PADRAO, TITULO_DO_DOCUMENTO_NOVO, VERSAO_DO_DOCUMENTO } from './tipos'
 import type { Documento, IndiceDaBiblioteca } from './tipos'
 
 /**
@@ -66,7 +66,7 @@ export function documentoNovo(agora: number, id: string = novoIdDeDocumento()): 
   return {
     id,
     versao: VERSAO_DO_DOCUMENTO,
-    titulo: 'Documento novo',
+    titulo: TITULO_DO_DOCUMENTO_NOVO,
     papel: PAPEL_PADRAO,
     imagemDoPapel: null,
     paginas: [{ texto: '', imagem: null }],

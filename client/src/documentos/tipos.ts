@@ -26,6 +26,8 @@ export const PAPEIS_DO_DOCUMENTO = ['alfinete', 'carta', 'diario', 'bilhete', 'p
 export type PapelDoDocumento = (typeof PAPEIS_DO_DOCUMENTO)[number]
 /** O papel de um documento novo, e o de um papel torto lido do disco (o "Documento novo" do v2). */
 export const PAPEL_PADRAO: PapelDoDocumento = 'alfinete'
+/** O título que o "Novo documento" põe. Enquanto ele está lá, o mestre ainda não deu título: a ficha oferece os exemplos, e o exemplo põe o dele. */
+export const TITULO_DO_DOCUMENTO_NOVO = 'Documento novo'
 
 export const LETRAS_DO_DOCUMENTO = ['mao', 'maquina', 'impressa'] as const
 export type LetraDoDocumento = (typeof LETRAS_DO_DOCUMENTO)[number]

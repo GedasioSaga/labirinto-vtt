@@ -1,5 +1,5 @@
 import type { ItemDoCatalogo } from '../../lib/acervoDeItens'
-import { extrasPadrao, type Documento, type ExtrasDoDocumento, type PapelDoDocumento, type TrechoProtegido } from '../../documentos/tipos'
+import { extrasPadrao, TITULO_DO_DOCUMENTO_NOVO, type Documento, type ExtrasDoDocumento, type PapelDoDocumento, type TrechoProtegido } from '../../documentos/tipos'
 
 /**
  * "COMEÇAR DE UM EXEMPLO" (fase D5): as 4 combinações do protótipo dos extras
@@ -103,9 +103,19 @@ function itemDoAcervo(qual: ItemDoExemplo, itens: readonly Pick<ItemDoCatalogo, 
   return itens.find((item) => nome.test(semAcento(item.nome)))?.id ?? null
 }
 
-/** Nada escrito ainda: sem título, sem texto, sem imagem nas páginas e sem trecho. */
+/**
+ * O mestre ainda não deu título: vazio, ou ainda o que o "Novo documento" pôs
+ * (bug de 20/11/2026: só o vazio contava, e o documento recém-criado nunca
+ * oferecia os exemplos).
+ */
+function semTituloDoMestre(titulo: string): boolean {
+  const aparado = titulo.trim()
+  return aparado === '' || aparado === TITULO_DO_DOCUMENTO_NOVO
+}
+
+/** Nada escrito ainda: sem título do mestre, sem texto, sem imagem nas páginas e sem trecho. */
 export function estaEmBranco(documento: Pick<Documento, 'titulo' | 'paginas' | 'trechos'>): boolean {
-  return documento.titulo.trim() === '' && Object.keys(documento.trechos).length === 0 && documento.paginas.every((pagina) => pagina.texto.trim() === '' && pagina.imagem === null)
+  return semTituloDoMestre(documento.titulo) && semTextoParaPerder(documento)
 }
 
 /** Sem texto nas páginas nem trecho (o título pode já estar escrito): trocar pelo exemplo não perde nada. */
@@ -144,7 +154,7 @@ export function comExemplo(documento: Documento, exemplo: ExemploDeDocumento, it
   return {
     documento: {
       ...documento,
-      titulo: documento.titulo.trim() === '' ? exemplo.titulo : documento.titulo,
+      titulo: semTituloDoMestre(documento.titulo) ? exemplo.titulo : documento.titulo,
       papel: exemplo.papel,
       paginas: exemplo.paginas.map((texto) => ({ texto, imagem: null })),
       extras,
