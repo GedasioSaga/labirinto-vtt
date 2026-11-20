@@ -1,0 +1,259 @@
+{
+  "quando": "2026-11-20T02:02:50.995Z",
+  "navegador": "msedge headless 1440x900 e 1024x768",
+  "medidas": {
+    "decifrar": {
+      "quadros": 102,
+      "p50": 16.7,
+      "p95": 16.8,
+      "max": 16.9
+    },
+    "tarefaLongaMaior": 136,
+    "tarefasLongas": 2
+  },
+  "resultados": [
+    {
+      "nome": "Ficha: cada opção (rádio e caixa) muda a prévia",
+      "ok": true,
+      "detalhe": {
+        "mudaram": "81 de 81",
+        "semEfeito": [],
+        "naoTestados": []
+      }
+    },
+    {
+      "nome": "Ficha: o teste passou por todos os grupos de opção",
+      "ok": true,
+      "detalhe": "doc-papel, t-chave, t-mostra, x-brasao, x-brasao-arte, x-cor, x-desgaste, x-letra, x-manchas, x-selo, x-selo-arte, x-selo-cor, x-tinta"
+    },
+    {
+      "nome": "Texto: o título muda a prévia",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Texto: a assinatura aparece no fim da prévia",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Texto: assinatura vazia some da prévia",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Texto: o texto do carimbo muda a prévia",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Texto: o código digitado é o que vê quem não tem o item",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Texto: o texto claro novo só aparece para quem tem a chave",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Texto: digitar na página muda a prévia",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Cifrar: o trecho selecionado vira um trecho cifrado",
+      "ok": true,
+      "detalhe": "c1"
+    },
+    {
+      "nome": "Cifrar: sem o item, a prévia não mostra o trecho",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Borrar: o trecho selecionado vira tinta borrada",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Borrar: Ctrl+Z no texto devolve as palavras",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Desfazer: o trecho cifrado volta a ser texto comum",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Guardar: depois de recarregar, o documento é o mesmo",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Guardar: depois de recarregar, a prévia é a mesma",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Guardar: depois de recarregar, a ficha marca as mesmas opções",
+      "ok": true,
+      "detalhe": "13 opções marcadas"
+    },
+    {
+      "nome": "Sem item: nenhum texto claro no DOM do leitor (HTML e texto visível)",
+      "ok": true,
+      "detalhe": {
+        "paginasLidas": 5,
+        "trechosFechados": 3,
+        "vazamentos": []
+      }
+    },
+    {
+      "nome": "Sem item: a lista Documentos e a mochila vazia",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Interruptor: a lente entra na mochila",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Interruptor: troca no lugar e a bolinha desliza",
+      "ok": true,
+      "detalhe": {
+        "mesmo": true,
+        "anima": true
+      }
+    },
+    {
+      "nome": "Só a lente: lê o trecho que pede a lente (c2) e não lê c1 nem c3",
+      "ok": true,
+      "detalhe": {
+        "lidos": [
+          "c2"
+        ],
+        "fechados": [
+          "c1",
+          "c3"
+        ]
+      }
+    },
+    {
+      "nome": "Decifrar: a animação roda só na primeira leitura",
+      "ok": true,
+      "detalhe": {
+        "d-diario": [
+          "c2"
+        ]
+      }
+    },
+    {
+      "nome": "Com os três itens: todo trecho cifrado aparece em texto claro",
+      "ok": true,
+      "detalhe": {
+        "trechos": [
+          "c1",
+          "c2",
+          "c3"
+        ],
+        "faltando": []
+      }
+    },
+    {
+      "nome": "Borrado: o texto claro não está no DOM, nem com todos os itens",
+      "ok": true,
+      "detalhe": "t hlopngun mm gcltz"
+    },
+    {
+      "nome": "Borrado: a tinta é transparente com desfoque de 4px ou mais",
+      "ok": true,
+      "detalhe": {
+        "cor": "rgba(0, 0, 0, 0)",
+        "desfoqueMaior": 7
+      }
+    },
+    {
+      "nome": "Borrado: escondido do leitor de tela, com aviso no lugar, sem seleção",
+      "ok": true,
+      "detalhe": {
+        "sr": "(um trecho borrado, impossível de ler)"
+      }
+    },
+    {
+      "nome": "Borrado: a prévia do mestre também não mostra o claro, em nenhum \"Quem lê tem\"",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Decifrar: no meio, o trecho está trocando letras; no fim, é o texto claro",
+      "ok": true,
+      "detalhe": {
+        "meio": "Quem çrn tiru dossa nemar duvai; ke ruvai oste lumen ortas vael.s"
+      }
+    },
+    {
+      "nome": "Decifrar: p95 do quadro até 20 ms",
+      "ok": true,
+      "detalhe": {
+        "quadros": 102,
+        "p50": 16.7,
+        "p95": 16.8,
+        "max": 16.9
+      }
+    },
+    {
+      "nome": "Teclado: Esc fecha o leitor e o foco volta ao documento",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Teclado: Enter abre e Esc fecha o papel sem animar (ação de teclado)",
+      "ok": true,
+      "detalhe": {
+        "aberto": true,
+        "animacoes": 0
+      }
+    },
+    {
+      "nome": "Movimento reduzido: o texto claro aparece direto, sem a troca de letras",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "1024: aba mestre sem transbordar",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "1024: aba exemplos sem transbordar",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "1024: aba jogador sem transbordar",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "1024: leitor aberto sem transbordar",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Nenhuma tarefa longa de 200 ms ou mais desde o carregamento",
+      "ok": true,
+      "detalhe": {
+        "quantas": 2,
+        "maior": 136
+      }
+    },
+    {
+      "nome": "Nenhum erro no console",
+      "ok": true,
+      "detalhe": []
+    }
+  ]
+}
