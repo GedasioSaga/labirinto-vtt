@@ -15,6 +15,7 @@ import type { AppliedLock, AppliedMark, AppliedPersonagem, AppliedPiso, AppliedT
 import { comAutor } from './nuvem/emissor'
 import { mapaComObjetoAberto, type AppliedObjetoAberto } from './objetoNoHost'
 import { mapaComPuzzle, type AppliedPuzzle } from './puzzleNoHost'
+import { mapaComDocumento, type AppliedDocumento } from './documentoNoHost'
 
 /**
  * O que o JOGADOR muda no mapa do mestre (movimento, porta, nome/foto da
@@ -203,6 +204,12 @@ export function createPlayerChanges(destino: DestinoDasMudancas) {
     applyPuzzle: (aplicado: AppliedPuzzle): void => {
       for (const personagem of aplicado.personagens) destino.salvarPersonagem(personagem)
       destino.aplicar(aplicado.sceneId, (map) => mapaComPuzzle(map, aplicado))
+    },
+    // DOCUMENTOS: as fichas cuja lista mudou (a linha nova, o "novo" que saiu) antes; o papel pego no mapa,
+    // só quando há (a releitura e o "lido" não tocam no mapa nem no desfazer da cena).
+    applyDocumento: (aplicado: AppliedDocumento): void => {
+      for (const personagem of aplicado.personagens) destino.salvarPersonagem(personagem)
+      if (aplicado.pego !== undefined) destino.aplicar(aplicado.sceneId, (map) => mapaComDocumento(map, aplicado))
     },
   }
 }

@@ -36,6 +36,10 @@ import { PlayerFerrolho } from './PlayerFerrolho'
 import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard, type TokenCardGive } from './PlayerTokenCard'
 import { PlayerInventory } from './PlayerInventory'
+import { BotaoLerPapel, botaoDosDocumentos, GavetaDeDocumentos, LeituraDoDocumento } from './PlayerDocumentos'
+import { documentosDoJogador, quantosNovos, type RetanguloNaTela } from './documentosDoJogador'
+import { voarParaDocumentos } from './movimentoDosDocumentos'
+import { textoDaRecusaDoDocumento } from '../net/protocoloDoDocumento'
 import { PlayerFicha, type InventarioDoJogador } from './PlayerFicha'
 import { escolherImagemNoAparelho } from './imagemDoAparelho'
 import { inventoryCharacters, rememberItemTexts, stableSlotOrder, type ItemTexts } from './inventario'
@@ -1721,6 +1725,95 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const id = window.setTimeout(() => setPuzzleFechado((atual) => (atual?.id === idDoPuzzleFechado ? null : atual)), PUZZLE_RECUSA_AVISO_MS)
     return () => window.clearTimeout(id)
   }, [idDoPuzzleFechado])
+
+  // DOCUMENTOS (plano dos puzzles, §2.4): a lista mora nas fichas de personagem DELE e chega com elas
+  // (`personagens`): vale em qualquer mapa e sessão, e o F5 mostra o mesmo número de novos.
+  const linhasDosDocumentos = useMemo(() => documentosDoJogador(personagensDoJogador), [personagensDoJogador])
+  const novosDocumentos = quantosNovos(linhasDosDocumentos)
+  const [gavetaDeDocumentos, setGavetaDeDocumentos] = useState<{ instant: boolean } | null>(null)
+  const fecharGavetaDeDocumentos = useCallback((devolverFoco: boolean) => {
+    setGavetaDeDocumentos(null)
+    if (devolverFoco) botaoDosDocumentos()?.focus({ preventScroll: true })
+  }, [])
+  const alternarGavetaDeDocumentos = useCallback((byKeyboard: boolean) => setGavetaDeDocumentos((aberta) => (aberta !== null ? null : { instant: byKeyboard })), [])
+  // Sem ficha servida (mapa solto, viajou para fora da aventura), a gaveta fecha com o botão.
+  useEffect(() => {
+    if (!servePersonagens) setGavetaDeDocumentos(null)
+  }, [servePersonagens])
+  // O último pedido de leitura: de onde o papel abre e se veio do teclado. A resposta do host (`state.documento`) abre com ele.
+  const [pedidoDeLeitura, setPedidoDeLeitura] = useState<{ de: RetanguloNaTela | null; instant: boolean } | null>(null)
+  // O papel do recorte que uma ficha dele alcança agora (o mais perto): a mesma régua do host, no mesmo piso, pelo objeto também.
+  const papelAoAlcance = useMemo(() => {
+    const papeis = map?.papeisNoChao
+    if (map === undefined || papeis === undefined || papeis.length === 0) return null
+    const minhas = map.tokens.filter((t) => ownTokens.includes(t.id))
+    let melhor: { papel: (typeof papeis)[number]; tokenId: string; distancia: number } | null = null
+    for (const papel of papeis) {
+      for (const ficha of minhas) {
+        if ((ficha.piso ?? 0) !== (papel.piso ?? 0) || !tokenReachesPin(ficha, papel, map.grid, pelosObjetos)) continue
+        const distancia = Math.hypot(ficha.x - papel.x, ficha.y - papel.y)
+        if (melhor === null || distancia < melhor.distancia) melhor = { papel, tokenId: ficha.id, distancia }
+      }
+    }
+    return melhor
+  }, [map, ownTokens, pelosObjetos])
+  const lerPapel = useCallback(
+    (papelId: string, tokenId: string | undefined, de: RetanguloNaTela | null, instant: boolean) => {
+      // Sem ficha encostada o host recusa com "longe" (o aviso diz para encostar); com ela, é essa que lê.
+      const enviado = tokenId === undefined ? connection.lerDocumentoNoMapa(papelId) : connection.lerDocumentoNoMapa(papelId, tokenId)
+      if (enviado) setPedidoDeLeitura({ de, instant })
+    },
+    [connection],
+  )
+  // Toque no papel do mapa: a ficha que lê é a que o alcança (se for ESTE papel); senão o host escolhe ou recusa.
+  const tocarPapel = useCallback(
+    (papelId: string, naTela: RetanguloNaTela) => lerPapel(papelId, papelAoAlcance?.papel.id === papelId ? papelAoAlcance.tokenId : undefined, naTela, false),
+    [lerPapel, papelAoAlcance],
+  )
+  const lerDaLista = useCallback(
+    (docId: string, byKeyboard: boolean) => {
+      if (connection.lerDocumentoDaLista(docId)) setPedidoDeLeitura({ de: null, instant: byKeyboard })
+    },
+    [connection],
+  )
+  const documentoAberto = state.documento
+  const fecharLeituraDoDocumento = useCallback(
+    (rolo: RetanguloNaTela | null, byKeyboard: boolean) => {
+      connection.fecharDocumento()
+      setPedidoDeLeitura(null)
+      if (documentoAberto === undefined) return
+      const docId = documentoAberto.documento.docId
+      // Leu: o "novo" sai (o host grava na ficha dele, e a lista volta sem ele).
+      if (linhasDosDocumentos.some((linha) => linha.docId === docId && linha.novo === true)) connection.documentoLido(docId)
+      // A primeira leitura de um papel no mapa: ele voa até "Documentos" (fechada pelo teclado, sem animação).
+      if (!byKeyboard && documentoAberto.guardado === 'agora' && documentoAberto.noMapaId !== undefined && rolo !== null) voarParaDocumentos(rolo, botaoDosDocumentos())
+    },
+    [connection, documentoAberto, linhasDosDocumentos],
+  )
+  // D abre e fecha a lista, como o "Documentos" da barra; E lê o papel ao alcance, como a pílula. Nunca dentro de campo
+  // de texto, com Ctrl/Alt/Cmd (atalho do navegador), por cima de um cartão modal nem com o Medir ligado (lá o E gira o cone).
+  useEffect(() => {
+    if (!servePersonagens && papelAoAlcance === null) return
+    const onKey = (event: KeyboardEvent) => {
+      const tecla = event.key.toLowerCase()
+      if (tecla !== 'd' && tecla !== 'e') return
+      if (event.ctrlKey || event.altKey || event.metaKey || event.repeat) return
+      const alvo = event.target
+      if (alvo instanceof HTMLElement && isEditableTarget(alvo.tagName, alvo instanceof HTMLInputElement ? alvo.type : undefined, alvo.isContentEditable)) return
+      if (document.querySelector('[aria-modal="true"]') !== null) return
+      if (tecla === 'd') {
+        if (!servePersonagens) return
+        event.preventDefault()
+        alternarGavetaDeDocumentos(true)
+        return
+      }
+      if (papelAoAlcance === null || measureArmed) return
+      event.preventDefault()
+      lerPapel(papelAoAlcance.papel.id, papelAoAlcance.tokenId, null, true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [servePersonagens, papelAoAlcance, measureArmed, alternarGavetaDeDocumentos, lerPapel])
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   // Fechar o cartão esquece a resposta da fechadura: reabrir começa limpo.
@@ -2107,6 +2200,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onPinsChoose={openPinChoice}
             onRoomOpen={(regionId) => connection.openRoomText(regionId)}
             onMarkOpen={setOpenMarkId}
+            onPapelTocar={tocarPapel}
             focusObstacles={mapObstacles}
             personalNotes={sceneNotes}
             onNoteLongPress={removeNote}
@@ -2307,6 +2401,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           onDownloadNotebook={downloadNotebook}
           onOpenInventory={canOpenInventory ? (byKeyboard) => setInventory({ instant: byKeyboard }) : undefined}
           onOpenFicha={servePersonagens ? (byKeyboard) => setFicha({ instant: byKeyboard }) : undefined}
+          documentos={servePersonagens ? { novos: novosDocumentos, aberto: gavetaDeDocumentos !== null, onAbrir: alternarGavetaDeDocumentos } : undefined}
           barraDaBatalha={state.batalhaEstado !== undefined || vistaDBT !== undefined}
         />
         {/*
@@ -2416,6 +2511,13 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onSubir={(tokenId, vehicleId) => connection.boardVehicle(tokenId, vehicleId)}
             onDescer={(tokenId) => connection.leaveVehicle(tokenId)}
           />
+          {/* DOCUMENTOS: "Ler “Título”" com a ficha dele encostada num papel do recorte; com cartão aberto por cima, sai (como o ferrolho). */}
+          {noCardOnTop && papelAoAlcance !== null && (
+            <BotaoLerPapel
+              titulo={papelAoAlcance.papel.titulo}
+              onLer={(byKeyboard, de) => lerPapel(papelAoAlcance.papel.id, papelAoAlcance.tokenId, de, byKeyboard)}
+            />
+          )}
         </div>
         {noteDraft && (
           <PersonalNoteDraft
@@ -2559,6 +2661,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               if (connection.requestTokenAction(openToken.id, action, text)) setOpenTokenId(null)
             }}
           />
+        )}
+        {/* DOCUMENTOS (tecla D): a lista para reler, debaixo do botão da barra. Fica aberta embaixo da leitura. */}
+        {gavetaDeDocumentos !== null && servePersonagens && (
+          <GavetaDeDocumentos linhas={linhasDosDocumentos} instant={gavetaDeDocumentos.instant} onLer={lerDaLista} onClose={fecharGavetaDeDocumentos} />
         )}
         {/* INVENTÁRIO (tecla I): acima dos cartões e dos avisos, abaixo do alarme e da
             reconexão. "Dar a…" e "Pagar a…" são as mesmas mensagens do "Comigo"; a
@@ -2823,6 +2929,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             {textoDaRecusaDoPuzzle(state.puzzleRecusado.motivo)}
           </p>
         )}
+        {/* DOCUMENTOS: o host não deixou ler (longe, já pegaram, o mestre apagou). Some sozinho. */}
+        {state.documentoRecusado && (
+          <p key={`documento-${state.documentoRecusado.id}`} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
+            {textoDaRecusaDoDocumento(state.documentoRecusado.motivo)}
+          </p>
+        )}
         {puzzleFechado && !state.puzzleRecusado && (
           <p key={`fechado-${puzzleFechado.id}`} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {puzzleFechado.texto}
@@ -3007,6 +3119,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           />
         )}
         {state.tiro && <TiroOverlay tiro={state.tiro} playerId={state.playerId} acoes={connection} {...ajustesDoTiro} />}
+        {/* DOCUMENTOS: o papel aberto, como o host o montou para ELE. Remonta a cada leitura (a página volta para a primeira). */}
+        {documentoAberto && (
+          <LeituraDoDocumento
+            key={documentoAberto.id}
+            aberto={documentoAberto}
+            de={pedidoDeLeitura?.de ?? null}
+            instant={pedidoDeLeitura?.instant ?? false}
+            onClose={fecharLeituraDoDocumento}
+          />
+        )}
         {/* PUZZLE: a vista do host abre a tela do puzzle por cima do mapa, até o "Sair" ou o mestre fechar. */}
         {state.puzzle && (
           <PuzzleNaRede

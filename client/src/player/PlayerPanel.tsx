@@ -385,6 +385,12 @@ interface PlayerPanelProps {
    */
   onOpenFicha?: (byKeyboard: boolean) => void
   /**
+   * DOCUMENTOS (tecla D): o botão "Documentos" logo depois do Inventário, com o
+   * selo dos documentos novos. `byKeyboard` como no Inventário. Ausente (mapa
+   * solto, mestre antigo: o host não serve ficha) = sem o botão.
+   */
+  documentos?: BotaoDosDocumentos
+  /**
    * PAINEL DO JOGADOR (protótipo aprovado em 19/11/2026): com a faixa da ordem dos
    * turnos na tela (a batalha da cena dele, One Piece ou Dragon Ball), a barra fica
    * com "Painel" e três ícones, cada um com o nome no balão: "Centralizar em mim"
@@ -394,6 +400,17 @@ interface PlayerPanelProps {
    */
   barraDaBatalha?: boolean
 }
+
+/** DOCUMENTOS: o botão da barra. `aberto` = a gaveta da lista está aberta. */
+export interface BotaoDosDocumentos {
+  /** Quantos estão com o aviso de novo (dados pelo mestre ou por um puzzle, ainda não lidos). */
+  novos: number
+  aberto: boolean
+  onAbrir: (byKeyboard: boolean) => void
+}
+
+/** Mais que isto, o selo mostra "9+": o número inteiro vai no nome do botão. */
+const NOVOS_NO_SELO_MAX = 9
 
 /** O balão do botão só-ícone espera isto no ponteiro (o `tipDelay` do tema); depois do primeiro, os vizinhos abrem na hora. */
 const ESPERA_DO_BALAO_MS = 320
@@ -457,6 +474,7 @@ export function PlayerPanel({
   onDownloadNotebook,
   onOpenInventory,
   onOpenFicha,
+  documentos,
   barraDaBatalha = false,
 }: PlayerPanelProps) {
   const baseTabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
@@ -837,6 +855,30 @@ export function PlayerPanel({
             <kbd className="pp-bag__key" aria-hidden="true">
               I
             </kbd>
+          </button>
+        )}
+        {documentos !== undefined && (
+          <button
+            type="button"
+            className="pp-docs-btn"
+            aria-haspopup="dialog"
+            aria-expanded={documentos.aberto}
+            aria-keyshortcuts="D"
+            // O número de novos vai junto do nome: o selo é só de olhar.
+            aria-label={documentos.novos === 0 ? 'Documentos' : `Documentos, ${documentos.novos} ${documentos.novos === 1 ? 'documento novo' : 'documentos novos'}`}
+            data-dica={barraDaBatalha ? 'Documentos (D)' : undefined}
+            onClick={(event) => documentos.onAbrir(event.detail === 0)}
+          >
+            <IconeDoJogador nome="documento" className="pp-docs-btn__icon" />
+            <span className="pp-docs-btn__rotulo">Documentos</span>
+            <kbd className="pp-bag__key" aria-hidden="true">
+              D
+            </kbd>
+            {documentos.novos > 0 && (
+              <span className="pp-docs-btn__novo" aria-hidden="true">
+                {documentos.novos > NOVOS_NO_SELO_MAX ? `${NOVOS_NO_SELO_MAX}+` : documentos.novos}
+              </span>
+            )}
           </button>
         )}
         {onOpenFicha !== undefined && (

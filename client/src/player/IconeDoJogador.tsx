@@ -17,6 +17,8 @@ const TRACOS = {
   ),
   mochila: <path d="M6 9a6 6 0 0 1 12 0v11H6z M9.5 9V5.5h5V9 M9 14h6" />,
   ficha: <path d="M6 3.5h12v17H6z M9 8h6 M9 11.5h6 M9 15h3.5" />,
+  // DOCUMENTOS: o papel com a ponta dobrada (o "Documentos" da barra, ao lado do Inventário).
+  documento: <path d="M6.5 3.5h7.5l3.5 3.5v13.5h-11z M14 3.5V7h3.5 M9 11h6 M9 14h6 M9 17h4" />,
   bandeira: <path d="M6 20.5V4 M6 4.5h11l-2 4 2 4H6" />,
   regua: <path d="M3.5 16.5l13-13 4 4-13 13z M7.5 12.5l2 2 M10.5 9.5l2 2 M13.5 6.5l2 2" />,
   /** MODO BATALHA (B6): o círculo é quadrado (decisão 4) e o cone abre em leque, como no protótipo; a Visão usa o `olho`. */

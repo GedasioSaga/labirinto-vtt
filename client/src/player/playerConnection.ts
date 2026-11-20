@@ -226,6 +226,14 @@ import {
 } from '../net/protocoloDoPuzzle'
 import type { AcaoNoPuzzle, VistaDoPuzzle } from '../puzzles/tipos'
 import {
+  parseDocumentoHostMessage,
+  parseDocumentoPlayerMessage,
+  type DocumentoMotivoDaRecusa,
+  type DocumentoPlayerMessage,
+  type GuardadoDoDocumento,
+} from '../net/protocoloDoDocumento'
+import type { DocumentoNoFio } from '../documentos/tipos'
+import {
   parsePescaHostMessage,
   parsePescaPlayerMessage,
   PESCA_VIVO_INTERVALO_MS,
@@ -411,6 +419,23 @@ export const OBJETO_RECUSA_AVISO_MS = 4000
 
 /** O aviso "Você está longe demais" (e as outras recusas de entrar no puzzle) some sozinho. */
 export const PUZZLE_RECUSA_AVISO_MS = 4000
+
+/** O aviso "Encoste a ficha no papel" (e as outras recusas de ler) some sozinho. */
+export const DOCUMENTO_RECUSA_AVISO_MS = 4000
+
+/**
+ * DOCUMENTOS: o documento aberto na leitura, do `documento.conteudo` ao
+ * "Fechar". O texto veio montado pelo host para ELE (os trechos protegidos
+ * já resolvidos pelos itens da ficha dele); a tela só desenha.
+ */
+export interface DocumentoAberto {
+  /** Sobe a cada leitura: a mesma leitura de novo (reler) abre a tela de novo. */
+  id: number
+  documento: DocumentoNoFio
+  guardado: GuardadoDoDocumento
+  /** Veio do papel no chão (o toque que ele fez); ausente = da lista "Documentos". */
+  noMapaId?: string
+}
 
 /**
  * PUZZLES: o puzzle aberto nesta tela, da primeira `puzzle.vista` ao "Sair".
@@ -903,6 +928,10 @@ export interface PlayerState {
   puzzle?: PuzzleDoJogador
   /** O host não deixou entrar (`puzzle.recusado` sem puzzle aberto); some sozinho em `PUZZLE_RECUSA_AVISO_MS`. */
   puzzleRecusado?: { id: number; desafioId: string; motivo: PuzzleMotivoDaRecusa }
+  /** DOCUMENTOS (plano dos puzzles, §2.2): o documento que ele está lendo; ausente = nenhum. */
+  documento?: DocumentoAberto
+  /** O host não deixou ler (`documento.recusado`); some sozinho em `DOCUMENTO_RECUSA_AVISO_MS`. */
+  documentoRecusado?: { id: number; motivo: DocumentoMotivoDaRecusa }
   /**
    * MINIGAME DE TIRO: o convite (do mestre, ou a volta do "Atirar" deste
    * jogador), as tentativas que o host contou, a rodada liberada e o que
@@ -2013,6 +2042,19 @@ export interface PlayerConnection {
   acaoNoPuzzle(acao: AcaoNoPuzzle): boolean
   /** PUZZLES: sai do puzzle. O progresso fica no mapa, de todos. */
   sairDoPuzzle(): void
+  /**
+   * DOCUMENTOS: encostou no papel `noMapaId` (`PapelNoChao.id`) e tocou. `tokenId`
+   * = a ficha que lê; ausente, o host usa a primeira dele encostada. O texto
+   * volta em `documento`; a recusa, em `documentoRecusado`. `false` (nada sai)
+   * fora do jogo ou com o socket fechado.
+   */
+  lerDocumentoNoMapa(noMapaId: string, tokenId?: string): boolean
+  /** DOCUMENTOS: reabre pela lista "Documentos" (o host confere que está na lista DELE). */
+  lerDocumentoDaLista(docId: string): boolean
+  /** DOCUMENTOS: ele leu: o "novo" sai da linha dele (o host grava na ficha). */
+  documentoLido(docId: string): boolean
+  /** DOCUMENTOS: fecha a leitura (nada sai: ler não prende nada no host). */
+  fecharDocumento(): void
   /**
    * TIRO ("Jogador toca no pino"): pede para entrar na barraca do pino. O
    * convite volta do mestre se a ficha estiver encostada. `false` (nada sai)
@@ -3975,6 +4017,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return conferida !== null && send(conferida)
   }
 
+  /** DOCUMENTOS: a mesma conferência do host antes de sair. */
+  function enviarDocumento(message: DocumentoPlayerMessage): boolean {
+    const conferida = parseDocumentoPlayerMessage(message)
+    return conferida !== null && send(conferida)
+  }
+
   /** PUZZLES: a mesma conferência do host antes de sair. */
   function enviarPuzzle(message: PuzzlePlayerMessage): boolean {
     const conferida = parsePuzzlePlayerMessage(message)
@@ -5470,6 +5518,25 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ objeto: { ...emJogo, desfecho: msg.desfecho } })
         return
       }
+      case 'documento.conteudo':
+      case 'documento.recusado': {
+        // A tela da mesa só olha: quem lê é quem encostou.
+        if (isTable) return
+        const msg = parseDocumentoHostMessage(data)
+        if (msg === null || state.status !== 'playing') return
+        const id = nextNoticeId++
+        if (msg.type === 'documento.conteudo') {
+          const { documento, guardado, noMapaId } = msg
+          setState({ documento: noMapaId === undefined ? { id, documento, guardado } : { id, documento, guardado, noMapaId }, documentoRecusado: undefined })
+          return
+        }
+        setState({ documentoRecusado: { id, motivo: msg.motivo } })
+        setTimeout(() => {
+          // Só apaga o próprio aviso: uma recusa nova no meio tem o seu tempo.
+          if (state.documentoRecusado?.id === id) setState({ documentoRecusado: undefined })
+        }, DOCUMENTO_RECUSA_AVISO_MS)
+        return
+      }
       case 'puzzle.vista':
       case 'puzzle.recusado':
       case 'puzzle.castigo':
@@ -5948,7 +6015,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         loopsVivos.clear()
         chaveDaMidia = null
         clearReconnectTimers()
-        setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
+        setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -5983,7 +6050,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -6002,7 +6069,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         stopPing()
         clearPeekTimer()
-        setState({ status: 'replaced', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
+        setState({ status: 'replaced', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
       case 'account.device':
       case 'account.refused':
@@ -6015,7 +6082,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           writeResume(storage, null)
           clearReconnectTimers()
           chaveDaMidia = null
-          setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
+          setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
           return
         }
         // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
@@ -7014,6 +7081,25 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // Fechado pelo mestre: o host já o tirou de dentro.
       if (aberto.fechado === null) enviarPuzzle({ type: 'puzzle.sair', desafioId: aberto.desafioId })
       setState({ puzzle: undefined })
+    },
+
+    lerDocumentoNoMapa(noMapaId, tokenId) {
+      if (state.status !== 'playing') return false
+      return enviarDocumento(tokenId === undefined ? { type: 'documento.ler', noMapaId } : { type: 'documento.ler', noMapaId, tokenId })
+    },
+
+    lerDocumentoDaLista(docId) {
+      if (state.status !== 'playing') return false
+      return enviarDocumento({ type: 'documento.ler', docId, daLista: true })
+    },
+
+    documentoLido(docId) {
+      if (state.status !== 'playing') return false
+      return enviarDocumento({ type: 'documento.lido', docId })
+    },
+
+    fecharDocumento() {
+      if (state.documento !== undefined) setState({ documento: undefined })
     },
 
     fecharPesca() {

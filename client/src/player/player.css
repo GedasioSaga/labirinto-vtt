@@ -1917,7 +1917,8 @@
 .pp-toggle,
 .pp-mine,
 .pp-bag,
-.pp-ficha-btn {
+.pp-ficha-btn,
+.pp-docs-btn {
   position: relative;
   box-sizing: border-box;
   display: inline-flex;
@@ -1968,7 +1969,8 @@
   .pp-toggle:hover,
   .pp-mine:hover,
   .pp-bag:hover,
-  .pp-ficha-btn:hover {
+  .pp-ficha-btn:hover,
+  .pp-docs-btn:hover {
     color: var(--lb-gr-gravado-forte, #ead6ae);
     background-image: linear-gradient(var(--lb-gr-hover-forte, rgba(255, 236, 200, 0.1)), var(--lb-gr-hover-forte, rgba(255, 236, 200, 0.1))), var(--pp-couro);
   }
@@ -1978,7 +1980,8 @@
 .pp-toggle:active,
 .pp-mine:active,
 .pp-bag:active,
-.pp-ficha-btn:active {
+.pp-ficha-btn:active,
+.pp-docs-btn:active {
   transform: scale(0.97);
   transition-duration: 0ms;
 }
@@ -2001,7 +2004,8 @@
  */
 .pp-bar--batalha .pp-mine__rotulo,
 .pp-bar--batalha .pp-bag__rotulo,
-.pp-bar--batalha .pp-ficha-btn__rotulo {
+.pp-bar--batalha .pp-ficha-btn__rotulo,
+.pp-bar--batalha .pp-docs-btn__rotulo {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -2019,7 +2023,8 @@
 @media (min-width: 700px), (max-height: 480px) {
   .pp-bar--batalha > .pp-mine,
   .pp-bar--batalha > .pp-bag,
-  .pp-bar--batalha > .pp-ficha-btn {
+  .pp-bar--batalha > .pp-ficha-btn,
+  .pp-bar--batalha > .pp-docs-btn {
     justify-content: center;
     width: var(--pp-bar-h);
     padding: 0;
@@ -3051,6 +3056,7 @@
   .pp-mine,
   .pp-bag,
   .pp-ficha-btn,
+  .pp-docs-btn,
   .pp-toggle__chevron,
   .pp-button {
     transition: none;
@@ -3060,6 +3066,7 @@
   .pp-mine:active,
   .pp-bag:active,
   .pp-ficha-btn:active,
+  .pp-docs-btn:active,
   .pp-button:active:not(:disabled, [aria-disabled='true']) {
     transform: none;
   }
@@ -7630,7 +7637,8 @@ button.pp-colecao__casa:focus-visible {
      como a bolsa. Medido com o Chrome a 320 x 568. */
   .pp-mine,
   .pp-bag,
-  .pp-ficha-btn {
+  .pp-ficha-btn,
+  .pp-docs-btn {
     justify-content: center;
     width: var(--pp-bar-h);
     padding: 0;
@@ -7638,7 +7646,8 @@ button.pp-colecao__casa:focus-visible {
 
   .pp-mine__rotulo,
   .pp-bag__rotulo,
-  .pp-ficha-btn__rotulo {
+  .pp-ficha-btn__rotulo,
+  .pp-docs-btn__rotulo {
     position: absolute;
     width: 1px;
     height: 1px;

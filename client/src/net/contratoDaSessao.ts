@@ -22,6 +22,7 @@ import type { PeriodoLido } from '../lib/periodo'
 import type { PescaAoVivo, PescaConviteResultado } from './pescaNoHost'
 import type { PuzzleAoVivo } from './puzzleNoHost'
 import type { PecaDoAcervo } from '../puzzles/tipos'
+import type { Documento } from '../documentos/tipos'
 import type { PointActionAnswer } from '../lib/pointActions'
 import type { PonteDaBatalha } from '../lib/batalha/ponte'
 import type { PonteDaBatalhaDBT } from '../lib/dbt/batalha/ponte'
@@ -41,6 +42,12 @@ export interface HostSessionOptions {
    * `mudou`, e as pedras ficam e voltam.
    */
   pecaDoAcervo?: (itemId: string) => PecaDoAcervo | null
+  /**
+   * DOCUMENTOS: a biblioteca "Documentos" do app, lida a cada recorte e a cada
+   * leitura (a mesma referência enquanto nada muda: a sessão guarda o que tira
+   * dela). Ausente = nenhuma: nenhum papel sai e toda leitura é recusada.
+   */
+  documentosDaBiblioteca?: () => readonly Documento[]
   /**
    * MODO BATALHA (fatia B4): a cena `sceneKey` (`tableSceneKey`) está em
    * batalha? Lido a cada snapshot e a cada pedido de movimento; mora só na

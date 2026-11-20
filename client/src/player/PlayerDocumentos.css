@@ -1,0 +1,344 @@
+/*
+ * DOCUMENTOS NA TELA DO JOGADOR (fase D3; protótipo aprovado
+ * docs/design/puzzles/prototipo-v2.html, aba "Documento no mapa (jogador)"):
+ * a pílula "Ler", a gaveta da lista, a leitura e o papel que voa até
+ * "Documentos". O movimento é WAAPI (movimentoDosDocumentos.ts); aqui só o
+ * repouso e o toque.
+ */
+
+/* ------------------------------------------------ a pílula do lugar ("Ler “Título” E") */
+.pp-ler-papel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--lb-control-touch, 44px);
+  padding: 0 12px 0 14px;
+  font: 500 14px / 1.2 var(--lb-font-utility, system-ui, sans-serif);
+  color: var(--lb-color-brass-bright, #f3ba66);
+  background: rgba(19, 17, 14, 0.94);
+  border: 1px solid var(--lb-gr-filete-latao, rgba(224, 164, 74, 0.26));
+  border-radius: 999px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 110ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.pp-ler-papel__texto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-ler-papel__tecla {
+  box-sizing: border-box;
+  min-width: 1.7em;
+  padding: 0 5px;
+  font: 500 11.5px / 1.6 var(--lb-font-utility, system-ui, sans-serif);
+  text-align: center;
+  color: inherit;
+  border: 1px solid var(--lb-gr-filete-latao, rgba(224, 164, 74, 0.26));
+  border-radius: 4px;
+}
+
+.pp-ler-papel:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+@media (hover: none) {
+  .pp-ler-papel__tecla {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------ o selo de novos no botão "Documentos" */
+.pp-docs-btn[aria-expanded='true'] {
+  color: var(--lb-gr-gravado-forte, #ead6ae);
+  background-image: linear-gradient(rgba(255, 236, 200, 0.07), rgba(255, 236, 200, 0.07)), var(--pp-couro);
+}
+
+.pp-docs-btn__novo {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font: 600 11px / 1 var(--lb-font-utility, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass-contrast, #1c1608);
+  background: var(--lb-color-brass, #e0a44a);
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px var(--lb-gr-couro-1, #17100a);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------ a gaveta (a lista para reler) */
+.pp-docs-gaveta {
+  position: fixed;
+  z-index: 30;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 16px));
+  max-height: min(70vh, calc(100vh - 96px));
+  padding: 12px 14px 14px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  border-radius: 8px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  /* Desce do botão "Documentos", que fica em cima e à esquerda dela. */
+  transform-origin: 24px 0;
+}
+
+.pp-docs-gaveta:focus {
+  outline: none;
+}
+
+.pp-docs-gaveta__cab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pp-docs-gaveta__cab h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-docs-gaveta__cab span {
+  font-size: var(--lb-font-size-sm, 11.5px);
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.pp-docs-gaveta__corpo {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.pp-docs-gaveta__vazio {
+  margin: 0;
+  font-size: var(--lb-font-size-md, 13px);
+  line-height: 1.45;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-docs-lista {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-docs-lista__item {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 1px 10px;
+  width: 100%;
+  min-height: var(--lb-control-touch, 44px);
+  padding: 8px 10px;
+  font: inherit;
+  text-align: left;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 120ms ease-out;
+}
+
+.pp-docs-lista__item:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright, #f3ba66);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pp-docs-lista__item:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+
+.pp-docs-lista__item:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pp-docs-lista__papel {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+}
+
+.pp-docs-lista__papel svg {
+  width: 30px;
+  height: 30px;
+}
+
+.pp-docs-lista__titulo {
+  overflow-wrap: anywhere;
+  font-family: var(--lb-font-display, Georgia, serif);
+  font-size: var(--lb-font-size-lg, 15px);
+  line-height: 1.2;
+}
+
+.pp-docs-lista__meta {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+/* O "novo" ao lado do título: some quando ele relê. */
+.pp-docs-lista__item.is-novo .pp-docs-lista__titulo::after {
+  content: 'novo';
+  margin-left: 8px;
+  padding: 1px 6px;
+  font: 600 10px / 1.4 var(--lb-font-utility, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  vertical-align: 2px;
+  color: var(--lb-color-brass-contrast, #1c1608);
+  background: var(--lb-color-brass, #e0a44a);
+  border-radius: 999px;
+}
+
+/* ------------------------------------------------ a leitura (o papel aberto) */
+.pp-leitura {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+}
+
+.pp-leitura__veu {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 8, 6, 0.72);
+}
+
+.pp-leitura__caixa {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-height: 100%;
+}
+
+.pp-leitura__rolo {
+  max-height: calc(100vh - 140px);
+  padding: 18px 22px 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: 4px;
+}
+
+.pp-leitura__rolo:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright, #f3ba66);
+  outline-offset: -2px;
+}
+
+.pp-leitura__pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  border-radius: var(--lb-radius-md, 9px);
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+}
+
+.pp-leitura__pag {
+  min-width: 110px;
+  font: 500 var(--lb-font-size-sm, 11.5px) / 1 var(--lb-font-utility, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-leitura__guardado {
+  padding: 0 6px;
+  font-size: var(--lb-font-size-sm, 11.5px);
+  color: #b9dcc0;
+}
+
+.pp-leitura__guardado--antes {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-leitura__tecla {
+  margin-left: 4px;
+  padding: 0 5px;
+  font: 500 11px / 1.6 var(--lb-font-utility, system-ui, sans-serif);
+  color: inherit;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  opacity: 0.8;
+}
+
+@media (hover: none) {
+  .pp-leitura__tecla {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------ o papel que voa até "Documentos" */
+.pp-docs-voo {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 80;
+  width: 36px;
+  height: 46px;
+  background: #efe6cf;
+  border-radius: 2px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.pp-docs-voo::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 7px;
+  right: 7px;
+  height: 24px;
+  background: repeating-linear-gradient(to bottom, rgba(59, 47, 34, 0.45) 0 1.5px, transparent 1.5px 5px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-ler-papel,
+  .pp-docs-lista__item {
+    transition: none;
+  }
+
+  .pp-ler-papel:active {
+    transform: none;
+  }
+}

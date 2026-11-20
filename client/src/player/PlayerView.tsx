@@ -42,6 +42,7 @@ import { mapFloorClip } from '../lib/floorContour'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { criarSelosDosObjetos, selosDosObjetos, type SelosDosObjetos } from '../pixi/selosDosObjetos'
 import { drawMarcas } from '../pixi/drawMarcas'
+import { drawDocumentos } from '../pixi/drawDocumentos'
 import { acharBilheteEm } from '../lib/marcas'
 import { panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
@@ -77,6 +78,8 @@ import { criarTerrenoDoChao, type TerrenoDoChao } from '../pixi/terrenoDoChao'
 import { criarAguaDoMapa, type AguaDoMapa } from '../pixi/aguaDoMapa'
 import { entornoDaAgua } from '../lib/agua/entorno'
 import type { FloorPiece } from '../types/map'
+import type { PapelNoChao } from '../documentos/tipos'
+import type { RetanguloNaTela } from './documentosDoJogador'
 import { pecasLisas } from '../lib/terrenoDoChao'
 import { createCarimbosRenderer, LADO_DA_ARTE, TEXELS_DO_PEDACO, type CarimbosRenderer } from '../pixi/drawCarimbos'
 import { regioesDaTerra, relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
@@ -465,6 +468,12 @@ interface PlayerViewProps {
   destinoDaCaminhada?: { x: number; y: number } | null
   /** BILHETE NO LUGAR: toque curto num bilhete deixado no chão abre o cartão dele. */
   onMarkOpen?: (markId: string) => void
+  /**
+   * DOCUMENTOS: toque curto num papel no chão (`MapData.papeisNoChao`, o recorte
+   * do host). `naTela` = o retângulo do papel em px da janela (a leitura abre
+   * dele). Ausente = o papel não é tocável.
+   */
+  onPapelTocar?: (papelId: string, naTela: RetanguloNaTela) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
   laser?: LaserTrail
   /**
@@ -653,6 +662,10 @@ function floorKey(map: MapData): string {
  * (`contentChanged`). `refs`: os campos crus do mapa na última olhada; `key`:
  * o conteúdo do último desenho (`null` = nenhum ainda).
  */
+/** DOCUMENTOS: o papel no chão ocupa ~0,6 casa (`pixi/drawDocumentos.ts`); o toque vale até a borda dele. */
+const RAIO_DO_PAPEL_EM_CASAS = 0.32
+const SEM_PAPEIS: readonly PapelNoChao[] = []
+
 interface ContentKey {
   refs: readonly unknown[] | null
   key: string | null
@@ -1633,6 +1646,9 @@ interface Scene {
   /** BILHETE NO LUGAR: bilhetes e setas de giz, logo abaixo dos pinos. */
   marks: Graphics
   marksKey: ContentKey
+  /** DOCUMENTOS: o papel no chão (o recorte do host), no fundo da camada dos pinos. */
+  papeis: Graphics
+  papeisKey: ContentKey
   /** Fator de tamanho mínimo com que os pinos foram pintados por último (`pinSizeScale`). */
   pinsSizeScale: number
   /** Piso do pino reduzido com que os pinos foram pintados por último (`pinSizeFloor`). */
@@ -2605,6 +2621,7 @@ function PlayerViewDoCanvas({
   onFloorClick,
   destinoDaCaminhada = null,
   onMarkOpen,
+  onPapelTocar,
   laser,
   laserArmed = false,
   ownLaserColor = OWN_TOKEN_CSS,
@@ -2690,6 +2707,7 @@ function PlayerViewDoCanvas({
     onFloorClick,
     destinoDaCaminhada,
     onMarkOpen,
+    onPapelTocar,
     laser,
     laserArmed,
     ownLaserColor,
@@ -3382,6 +3400,31 @@ function PlayerViewDoCanvas({
     return marca === null ? null : marca.id
   }
 
+  /** DOCUMENTOS: o papel no chão sob o ponto da TELA (o de cima vence), com a folga de dedo do pino. Só quando alguém ouve o toque. */
+  function papelAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
+    const { map, onPapelTocar: tocar } = latestRef.current
+    if (tocar === undefined) return null
+    const papeis = map.papeisNoChao ?? SEM_PAPEIS
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const alcance = map.grid * RAIO_DO_PAPEL_EM_CASAS + DOOR_TAP_TOLERANCE_PX / scene.camera.scale
+    for (let i = papeis.length - 1; i >= 0; i--) {
+      const papel = papeis[i]
+      if (Math.hypot(papel.x - point.x, papel.y - point.y) <= alcance) return papel.id
+    }
+    return null
+  }
+
+  /** DOCUMENTOS: o retângulo do papel `papelId` na janela (a leitura abre dele); `null` = não está no recorte de agora. */
+  function papelNaTela(scene: Scene, papelId: string): RetanguloNaTela | null {
+    const { map } = latestRef.current
+    const papel = (map.papeisNoChao ?? SEM_PAPEIS).find((candidato) => candidato.id === papelId)
+    if (papel === undefined) return null
+    const centro = scene.world.toGlobal({ x: papel.x, y: papel.y })
+    const caixa = scene.app.canvas.getBoundingClientRect()
+    const lado = map.grid * RAIO_DO_PAPEL_EM_CASAS * 2 * scene.camera.scale
+    return { left: caixa.left + centro.x - lado / 2, top: caixa.top + centro.y - lado / 2, width: lado, height: lado }
+  }
+
   /**
    * Ficha ALHEIA sob o ponto da TELA, com a mesma folga de dedo do pino. Só
    * quando alguém ouve o toque: sem quem abra o cartão, a ficha não pode
@@ -3550,6 +3593,7 @@ function PlayerViewDoCanvas({
     return (
       pinsAtScreen(scene, screenX, screenY).length > 0 ||
       markAtScreen(scene, screenX, screenY) !== null ||
+      papelAtScreen(scene, screenX, screenY) !== null ||
       otherTokenAtScreen(scene, screenX, screenY) !== null ||
       itemNoChaoAtScreen(scene, screenX, screenY) !== null ||
       objetoAbrivelAtScreen(scene, screenX, screenY) !== null ||
@@ -3894,6 +3938,10 @@ function PlayerViewDoCanvas({
     // ver (lib/fogFilter.ts): o que chegou é o que ele pode tocar.
     const marcas = currentMap.marcas ?? []
     if (contentChanged(scene.marksKey, [currentMap.marcas], () => JSON.stringify(marcas))) drawMarcas(scene.marks, marcas)
+    const papeisNoChao = currentMap.papeisNoChao ?? SEM_PAPEIS
+    if (contentChanged(scene.papeisKey, [currentMap.papeisNoChao, currentMap.grid], () => JSON.stringify([currentMap.grid, papeisNoChao]))) {
+      drawDocumentos(scene.papeis, papeisNoChao, currentMap.grid)
+    }
 
     const pins = visiblePins(currentMap.pins ?? [], hidden)
     // Antes do `||`: o portão dos pinos guarda o que viu mesmo quando o zoom já pede a repintura.
@@ -4540,6 +4588,10 @@ function PlayerViewDoCanvas({
       // pinos só limpa o próprio desenho); a visão de agora decide quais aparecem (`redrawSelosDosObjetos`).
       const pintorDosSelos = criarSelosDosObjetos()
       pins.addChild(pintorDosSelos.camada)
+      // DOCUMENTOS: o papel no chão, por baixo dos selos e dos pinos (como no editor do mestre); só o que o recorte mandou.
+      const papeis = new Graphics()
+      papeis.eventMode = 'none'
+      pins.addChildAt(papeis, 0)
       const marks = new Graphics()
       const lastSeen = new Container()
       lastSeen.label = LAST_SEEN_LAYER_LABEL
@@ -4953,6 +5005,8 @@ function PlayerViewDoCanvas({
         triggersCount: 0,
         marks,
         marksKey: emptyContentKey(),
+        papeis,
+        papeisKey: emptyContentKey(),
         pinsSizeScale: 1,
         pinsSizeFloor: 0,
         concealed,
@@ -5583,6 +5637,7 @@ function PlayerViewDoCanvas({
             !latestRef.current.signalArmed &&
             (tapTargetAtScreen(scene, event.global.x, event.global.y).kind !== 'map' ||
               markAtScreen(scene, event.global.x, event.global.y) !== null ||
+              papelAtScreen(scene, event.global.x, event.global.y) !== null ||
               otherTokenAtScreen(scene, event.global.x, event.global.y) !== null ||
               itemNoChaoAtScreen(scene, event.global.x, event.global.y) !== null ||
               roomTextAtScreen(scene, event.global.x, event.global.y) !== null)
@@ -5684,6 +5739,13 @@ function PlayerViewDoCanvas({
           const markId = latestRef.current.onMarkOpen === undefined ? null : markAtScreen(scene, drag.startX, drag.startY)
           if (markId !== null) {
             latestRef.current.onMarkOpen?.(markId)
+            return
+          }
+          // O papel no chão fica por baixo do pino e do bilhete (a mesma camada): vem depois deles, e antes da ficha.
+          const papelId = papelAtScreen(scene, drag.startX, drag.startY)
+          if (papelId !== null) {
+            const naTela = papelNaTela(scene, papelId)
+            if (naTela !== null) latestRef.current.onPapelTocar?.(papelId, naTela)
             return
           }
           // A ficha é desenhada por cima da porta e do nome da Sala: vem antes

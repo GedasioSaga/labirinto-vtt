@@ -153,6 +153,9 @@ import { giveNewItemChange } from '../lib/items'
 import { aplicarDesfecho, type AplicadoresDeDesfecho } from '../minigames/desfecho'
 import type { AppliedObjetoAberto } from './objetoNoHost'
 import type { AppliedPuzzle, PuzzleAoVivo } from './puzzleNoHost'
+import type { AppliedDocumento } from './documentoNoHost'
+import { useDocumentosStore } from '../stores/documentosStore'
+import { useDocumentosDoMestreStore } from '../components/documentos/documentosDoMestreStore'
 import { itemParaDar } from '../lib/acervoDeItens'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import type { PecaDoAcervo } from '../puzzles/tipos'
@@ -163,6 +166,8 @@ import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
 const OBJETO_ABERTO_TOAST_MS = 8000
 /** O aviso do puzzle (resolveu, errou, trocou) fica o mesmo tempo: tem o que levou e o castigo. */
 const PUZZLE_TOAST_MS = 8000
+/** O aviso do documento (leu, o papel saiu do mapa, a lista não guardou): o mesmo tempo, tem o nome e o título. */
+const DOCUMENTO_TOAST_MS = 8000
 
 /** PUZZLES: o item do acervo do app, como vai para a mochila (a peça guardada da Troca de peso). `null` = não está lá. */
 function pecaDoAcervoDoApp(itemId: string): PecaDoAcervo | null {
@@ -291,6 +296,12 @@ export interface HostBridgeDeps {
    * `applyObjetoAberto`: sem ele, nada muda e ninguém é avisado.
    */
   applyPuzzle?: (aplicado: AppliedPuzzle) => void
+  /**
+   * DOCUMENTOS: a leitura de um jogador valeu (a sessão já conferiu). O
+   * integrador grava numa vez só as fichas cuja lista mudou e o papel pego no
+   * mapa, fora do Ctrl+Z do mestre. Opcional como `applyPuzzle`.
+   */
+  applyDocumento?: (aplicado: AppliedDocumento) => void
   /**
    * FECHADURA COM SEGREDO: o jogador acertou a combinação (a sessão já
    * conferiu). O integrador abre a fechadura e destranca a porta ligada.
@@ -1965,6 +1976,31 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
           run: () => {
             useDesafiosStore.getState().abrir(aviso.desafioId)
             useLivroDoMestreStore.getState().abrirPagina('jogos')
+          },
+        },
+      ],
+    })
+  }
+
+  /**
+   * DOCUMENTOS: a leitura no mapa e nas fichas do mestre, numa gravação só. O
+   * broadcast logo atrás leva a lista nova a quem leu e tira o papel pego do
+   * mapa de todos. O mestre é avisado da primeira leitura de cada um, do papel
+   * que saiu do mapa e da lista que não guardou, com "Ver" (página Documentos).
+   */
+  const aplicarDocumento = (aplicado: AppliedDocumento) => {
+    if (deps.applyDocumento === undefined) return
+    deps.applyDocumento(aplicado)
+    broadcastNow()
+    const aviso = aplicado.aviso
+    if (aviso === undefined) return
+    toastSink.push(aviso.tom, aviso.texto, DOCUMENTO_TOAST_MS, {
+      actions: [
+        {
+          label: 'Ver',
+          run: () => {
+            useDocumentosDoMestreStore.getState().abrir(aviso.docId)
+            useLivroDoMestreStore.getState().abrirPagina('documentos')
           },
         },
       ],
@@ -4427,6 +4463,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
     if (result.applyObjetoAberto !== undefined) aplicarObjetoAberto(result.applyObjetoAberto)
     if (result.applyPuzzle !== undefined) aplicarPuzzle(result.applyPuzzle)
+    if (result.applyDocumento !== undefined) aplicarDocumento(result.applyDocumento)
     if (result.waitsChanged === true) onWaitsChanged()
     if (result.applyPiso !== undefined && deps.applyPiso !== undefined) {
       // O jogador que subiu recebe o piso novo, e quem ficou deixa de vê-lo, no snapshot imediato.
@@ -4602,6 +4639,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS,
         now: deps.now,
         pecaDoAcervo: pecaDoAcervoDoApp,
+        documentosDaBiblioteca: () => useDocumentosStore.getState().documentos,
         getBatalha: deps.getBatalha,
         onBatalhaAndou: deps.onBatalhaAndou,
         getCaminhosDaBatalha: deps.getCaminhosDaBatalha,
@@ -4623,7 +4661,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         await deps.listen('net:tunnel', onTunnel),
         // AQUECER PELA INTENÇÃO: o mestre marcou outra abertura, e a sala inteira a aquece.
         assinarAberturaPretendida(reconciliarAquecimento),
+        // DOCUMENTOS: o título e o papel no chão moram na biblioteca; mudou lá, o recorte de todos sai de novo.
+        // A lista vazia trocada por outra vazia (o `recarregar` fora do app) não muda recorte nenhum.
+        useDocumentosStore.subscribe((agora, antes) => {
+          if (agora.documentos !== antes.documentos && (agora.documentos.length > 0 || antes.documentos.length > 0)) scheduleBroadcast()
+        }),
       ]
+      // DOCUMENTOS: a biblioteca só era lida ao abrir a página Documentos; a sala precisa dela desde o começo (o papel no chão, a leitura).
+      const biblioteca = useDocumentosStore.getState()
+      if (!biblioteca.podeGravar && biblioteca.documentos.length === 0) void biblioteca.recarregar()
       stopLivenessSweep()
       livenessTimer = setInterval(sweepSilent, LIVENESS_SWEEP_MS)
       repasseDoFogo = setInterval(repassarFogo, FOGO_REPASSE_MS)

@@ -116,7 +116,7 @@ import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } f
 import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor, type DestinationMark } from '../lib/signals'
 import { cleanPinName, copiarMinigame, passageOf, pinSummary } from '../lib/pins'
-import { pinoDeMinigameDoMapa, pinoDoConvite, pinoDoConviteEmQualquerCena } from '../lib/desafios'
+import { pinoDeMinigameDoMapa, pinoDoConvite, pinoDoConviteEmQualquerCena, pontoDoDesafio } from '../lib/desafios'
 import { MINIGAME_PADRAO } from '../minigames/danca/tipos'
 import type { MinigameTiro } from '../minigames/tiro/tipos'
 import { criarDancaNoHost, type DancaDesfechoSinal, type EfeitosDaDanca } from './dancaNoHost'
@@ -178,6 +178,12 @@ import {
 } from './puzzleNoHost'
 import type { PuzzleFechadoMotivo, PuzzleMotivoDaRecusa, PuzzlePlayerMessage } from './protocoloDoPuzzle'
 import type { VistaDoPuzzle } from '../puzzles/tipos'
+import { fichaComODocumento, lerDaLista, lerNoMapa, semNovo, type AppliedDocumento } from './documentoNoHost'
+import type { DocumentoMotivoDaRecusa, DocumentoPlayerMessage } from './protocoloDoDocumento'
+import { paraOAliado } from './fichaDoAliado'
+import { documentosDoMapa } from '../documentos/noMapa'
+import { papeisDaBiblioteca, sumiuDoMapa, type PapeisDosDocumentos } from '../documentos/recorte'
+import type { Documento } from '../documentos/tipos'
 import { companionArrivals, type CarriedArrival } from '../lib/carryArrival'
 import { VISION_FACTOR_DEFAULT, clampVisionFactor, playerVisionRadius, readSceneVisionCells } from '../lib/sceneVision'
 import { isLockClosed, lockAccepts } from '../lib/pinLock'
@@ -454,6 +460,9 @@ export function tableSceneKey(scene: HostScene): string {
  * e talvez um projetor: o teto segura quem abre a página em loop na LAN.
  */
 export const MAX_TABLE_SCREENS = 4
+
+/** DOCUMENTOS: entre duas leituras no mapa do mesmo jogador. Cada uma refaz o recorte dele; o toque repetido nesse meio cai calado. */
+const LEITURA_NO_MAPA_MIN_MS = 250
 export type { LoanTerms }
 
 export type PlayerStatus = 'waiting' | 'playing'
@@ -1358,6 +1367,13 @@ export interface HostResult {
    * dentro sai no broadcast seguinte, já com o mapa gravado.
    */
   applyPuzzle?: AppliedPuzzle
+  /**
+   * DOCUMENTOS: a leitura de um jogador mudou a lista de uma ficha (a linha
+   * nova, o "novo" que saiu) ou tirou do mapa o papel "some depois de pego".
+   * O integrador grava numa vez só (`playerChanges.applyDocumento`), fora do
+   * Ctrl+Z do mestre, e avisa o mestre quando há o que avisar.
+   */
+  applyDocumento?: AppliedDocumento
   /**
    * CABINE DE TRANSPORTE: quem passou levou a cabine para a chegada. Vem só
    * junto de `applyTransfer`, e o integrador grava DEPOIS de a ficha mudar de
@@ -2332,6 +2348,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /** PUZZLES — por clientId: a última vista mandada (o texto), para só mandar a que mudou. */
   const vistasDoPuzzleEnviadas = porConexao.registrar('conexao', new Map<string, string>())
   const pecaDoAcervo = options.pecaDoAcervo ?? (() => null)
+  /**
+   * DOCUMENTOS: a biblioteca do app (o texto mora nela, nunca no mapa). Ausente =
+   * nenhuma: nenhum papel sai no recorte e toda leitura é recusada com `apagado`.
+   */
+  const bibliotecaDeDocumentos = options.documentosDaBiblioteca ?? ((): readonly Documento[] => [])
+  // O título e o papel de cada documento, refeitos só quando a biblioteca troca (a store troca o array a cada gravação).
+  let papeisGuardados: { de: readonly Documento[]; papeis: PapeisDosDocumentos } | null = null
+  const papeisDaSessao = (): PapeisDosDocumentos => {
+    const documentos = bibliotecaDeDocumentos()
+    if (papeisGuardados === null || papeisGuardados.de !== documentos) papeisGuardados = { de: documentos, papeis: papeisDaBiblioteca(documentos) }
+    return papeisGuardados.papeis
+  }
+  const documentoDaBiblioteca = (docId: string): Documento | null => bibliotecaDeDocumentos().find((documento) => documento.id === docId) ?? null
+  // DOCUMENTOS — por playerId: a última leitura pedida no mapa. Cada uma refaz o recorte dele; o dedo nervoso não vira laço.
+  const ultimaLeituraEm = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: o mesmo limite do toque na porta, para "Pegar" e para "Dar a…".
   const lastItemTakeAt = porJogador.registrar('jogador', new Map<string, number>())
   const lastItemGiveAt = porJogador.registrar('jogador', new Map<string, number>())
@@ -2563,8 +2594,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // MINIGAME DE TIRO: uma barraca por pino (a de agora ou a última), com as tentativas de cada um.
   const tiroNoHost = criarTiroNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId(), agora: () => now() })
   // BATALHA F1: o recorte da ordem dos turnos por conexão e os pedidos do jogador.
-  // `paraOFio` (lib/personagem.ts): o mesmo funil da lista do jogador, sem conta nem nada do mundo do livro.
-  const batalhaNoHost = criarBatalhaNoHost({ ponte: options.ponteDaBatalha, agora: () => now(), paraOFio })
+  // `paraOAliado` (net/fichaDoAliado.ts): o funil da lista do jogador (`paraOFio`), sem a lista de documentos do dono.
+  const batalhaNoHost = criarBatalhaNoHost({ ponte: options.ponteDaBatalha, agora: () => now(), paraOFio: paraOAliado })
   // BATALHA DBT: o mesmo papel, com teto de pedidos, reqId e marca de efeito próprios.
   const batalhaDBTNoHost = criarBatalhaDBTNoHost({ ponte: options.ponteDaBatalhaDBT, agora: () => now() })
   // Sobe a cada `broadcast`: o pedido de batalha sabe se a store já mandou o recorte DE DENTRO da ação (`handleBatalha`).
@@ -3657,6 +3688,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         barras,
         formas,
         cenarios.doJogador(playerId),
+        papeisDaSessao(),
       )
     let cut = recortar()
     // SALA SECRETA QUE ABRE (N3, passo 4): o lugar dela nasce PRETO, não lembrado.
@@ -9423,6 +9455,112 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return syncDoPuzzle(playerId, clientId, world)
   }
 
+  /** DOCUMENTOS: os personagens das fichas que são DELE de verdade (`fichasDoPersonagem`: sem as emprestadas), na ordem da aventura. */
+  function personagensDele(playerId: string, world: HostWorld): Personagem[] {
+    const ids = new Set(fichasDoPersonagem(playerId, world).flatMap(({ token }) => (token.characterId === null ? [] : [token.characterId])))
+    return personagensDoMundo(world).filter((personagem) => ids.has(personagem.id))
+  }
+
+  /**
+   * DOCUMENTOS: a ficha DELE que alcança o papel `papelId` agora, no mapa do
+   * mestre: o papel no recorte dele (névoa, piso, objeto que ele vê, "some"
+   * ainda não pego), a ficha dele no mesmo piso, encostada (`tokenReachesPin`,
+   * a régua do item no chão, pelo objeto também) e solta. `tokenId` presente:
+   * só essa ficha vale. Senão, por que não.
+   */
+  function fichaNoPapel(playerId: string, scene: HostScene, world: HostWorld, papelId: string, tokenId: string | undefined): Token | DocumentoMotivoDaRecusa {
+    const map = scene.map
+    const papel = documentosDoMapa(map).find((documento) => documento.id === papelId)
+    if (papel === undefined) return 'indisponivel'
+    if (sumiuDoMapa(papel)) return 'pego'
+    const ponto = pontoDoDesafio(papel, map.props)
+    if (ponto === null) return 'indisponivel'
+    const memory = memoryFor(playerId, map, world)
+    // O recorte de agora, com a biblioteca: o papel que ele não recebe (longe da vista, outro piso, objeto que não chega) não se lê.
+    const view = filterMapForPlayer(
+      map,
+      playerId,
+      ownership,
+      tokenRadiusIn(playerId, map),
+      memory.exp,
+      memory.doors,
+      pinAudiences,
+      undefined,
+      loansFor(playerId),
+      memory.seenRooms,
+      secretReveals,
+      memory.secretRooms,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      papeisDaSessao(),
+    )
+    if (!(view.map.papeisNoChao ?? []).some((noChao) => noChao.id === papel.id)) return 'indisponivel'
+    const owned = new Set(ownership[playerId] ?? [])
+    const pelosObjetos = alcancePeloObjeto(view.map)
+    const pisoDoPapel = ponto.piso ?? 0
+    const encostadas = view.map.tokens.filter(
+      (t) => owned.has(t.id) && (tokenId === undefined || t.id === tokenId) && (t.piso ?? 0) === pisoDoPapel && tokenReachesPin(t, ponto, map.grid, pelosObjetos),
+    )
+    if (encostadas.length === 0) return 'longe'
+    // A ficha que lê é a do MAPA DO MESTRE, a primeira encostada que não está parada.
+    const soltas = encostadas.filter((t) => congeladaPresaA(map, [t.id]) === null)
+    const token = soltas.map((t) => map.tokens.find((m) => m.id === t.id)).find((t): t is Token => t !== undefined)
+    return token ?? 'congelado'
+  }
+
+  /**
+   * DOCUMENTOS (plano dos puzzles, §2.2 a §2.4): o jogador só PEDE; o host
+   * confere tudo de novo contra o mapa e as fichas de agora. O texto sai só
+   * pelo resolver (`documentoNoHost`, `documentos/resolver.ts`), montado na
+   * hora com os itens da ficha de quem lê: o claro de um trecho protegido
+   * nunca vai a quem não tem o item, e o documento de outra ficha nunca vai
+   * a ninguém (a lista confere a ficha DELE).
+   */
+  function handleDocumento(clientId: string, msg: DocumentoPlayerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    // Fora do jogo (mesa, removido) morre calado: não há tela para o aviso.
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    if (msg.type === 'documento.lido') {
+      const lidas = personagensDele(playerId, world).flatMap((personagem) => {
+        const lida = semNovo(personagem, msg.docId)
+        return lida === personagem ? [] : [lida]
+      })
+      return lidas.length === 0 ? { outbound: [] } : { outbound: [], applyDocumento: { personagens: lidas } }
+    }
+    if ('daLista' in msg) {
+      const recusaDaLista = (motivo: DocumentoMotivoDaRecusa): HostResult => reply(clientId, { type: 'documento.recusado', motivo, docId: msg.docId })
+      const ficha = fichaComODocumento(personagensDele(playerId, world), msg.docId)
+      if (ficha === null) return recusaDaLista('nao_tem')
+      const documento = documentoDaBiblioteca(msg.docId)
+      if (documento === null) return recusaDaLista('apagado')
+      return reply(clientId, { type: 'documento.conteudo', documento: lerDaLista(documento, ficha), guardado: 'antes' })
+    }
+    const recusa = (motivo: DocumentoMotivoDaRecusa): HostResult => reply(clientId, { type: 'documento.recusado', motivo, noMapaId: msg.noMapaId })
+    const agora = now()
+    const ultima = ultimaLeituraEm.get(playerId)
+    if (ultima !== undefined && agora - ultima < LEITURA_NO_MAPA_MIN_MS) return { outbound: [] }
+    ultimaLeituraEm.set(playerId, agora)
+    const scene = sceneFor(playerId, world)
+    if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
+    const ficha = fichaNoPapel(playerId, scene, world, msg.noMapaId, msg.tokenId)
+    if (typeof ficha === 'string') return recusa(ficha)
+    const papel = documentosDoMapa(scene.map).find((documento) => documento.id === msg.noMapaId)
+    const documento = papel === undefined ? null : documentoDaBiblioteca(papel.docId)
+    if (papel === undefined || documento === null) return recusa('apagado')
+    // A lista só entra numa ficha de personagem DELE (a emprestada e o NPC do mestre ficam de fora: lê, mas não guarda).
+    const leitura = lerNoMapa({ papel, documento, token: ficha, personagens: personagensDele(playerId, world), temAventura: world.rpg !== undefined, nomeDoJogador: record.name, agora })
+    const { outbound } = reply(clientId, { type: 'documento.conteudo', documento: leitura.noFio, guardado: leitura.guardado, noMapaId: papel.id })
+    return leitura.aplicado === null ? { outbound } : { outbound, applyDocumento: { ...backgroundSceneId(scene, world), ...leitura.aplicado } }
+  }
+
   /**
    * PESCA: o pedido do pino ("Jogador toca no pino"), o Pronto, o vivo, cada
    * lance e o cesto. O pedido passa aqui pelas regras do pino: jogando, cena
@@ -9701,6 +9839,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'puzzle.acao':
       case 'puzzle.sair':
         return handlePuzzle(clientId, msg, world)
+      case 'documento.ler':
+      case 'documento.lido':
+        return handleDocumento(clientId, msg, world)
       case 'tiro.pedir':
       case 'tiro.pronto':
       case 'tiro.vivo':

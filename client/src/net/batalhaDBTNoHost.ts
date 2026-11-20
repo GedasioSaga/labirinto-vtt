@@ -11,7 +11,8 @@ import {
   type CenaParaVistaDBT,
   type ContextoDoJogadorDBT,
 } from '../lib/dbt/batalha/vista'
-import { paraOFio, type Personagem } from '../lib/personagem'
+import type { Personagem } from '../lib/personagem'
+import { paraOAliado } from './fichaDoAliado'
 import {
   ALIADOS_DBT_MAX,
   JANELA_DOS_PEDIDOS_DBT_MS,
@@ -214,7 +215,7 @@ export function criarBatalhaDBTNoHost(deps: DepsDaBatalhaDBTNoHost): BatalhaDBTN
     const antes = perdida === 'vazia' ? undefined : aliadosEnviados.get(clientId)
     // Primeira vez sem aliado nenhum não manda a lista vazia: ausente, para o jogador, já é "nenhum".
     const mudaram = perdida === 'incerta' ? aliados.length > 0 || antes !== undefined : antes === undefined ? aliados.length > 0 : !mesmasReferencias(antes, aliados)
-    if (mudaram) saidas.push({ clientId, msg: { type: 'batalhaDBT.aliados', personagens: aliados.map(paraOFio) } })
+    if (mudaram) saidas.push({ clientId, msg: { type: 'batalhaDBT.aliados', personagens: aliados.map(paraOAliado) } })
     aliadosEnviados.set(clientId, aliados)
     const estado = vistaParaJogadorDBT(cena, fichasDa(lugar.sceneKey), ctx)
     const texto = JSON.stringify(estado)
