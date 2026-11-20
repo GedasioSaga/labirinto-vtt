@@ -3,6 +3,7 @@ import type { CenarioDoPino } from '../cenario/catalogo'
 import type { FalaDoPino, FalaParaJogador, QuandoDoCenario } from './cenarioEFalas'
 import type { MinigameDoPino, MinigameVisivel } from '../minigames/tipos'
 import type { ProgressoDoPuzzle } from '../puzzles/tipos'
+import type { DocumentoNoMapa, PapelNoChao } from '../documentos/tipos'
 import type { AuraDaFicha } from '../lib/auras'
 import type { SelectionKind } from './tools'
 /**
@@ -1982,6 +1983,13 @@ export interface ConteudoDoObjeto {
    * desligado (`minigameLigado` em `lib/conteudoDoObjeto.ts`), sem migração.
    */
   minigame?: boolean
+  /**
+   * DOCUMENTOS (plano dos puzzles, §1.7): os `Documento.id` da biblioteca que
+   * o objeto entrega ao ser aberto. Ausente = nenhum, sem linha de migração.
+   * Quem lê e grava é a ligação L1 (`lib/conteudoDoObjeto.ts`); antes dela,
+   * nenhum caminho do app escreve o campo. Só do mestre, como o resto do conteúdo.
+   */
+  documentos?: string[]
 }
 
 export interface Prop extends PlayerSecret, NoPiso, NaCamada {
@@ -2787,6 +2795,20 @@ export interface MapData {
    * (`lib/mapFile.ts`). NUNCA sai no recorte do jogador (`lib/fogFilter.ts`).
    */
   desafios?: Desafio[]
+  /**
+   * DOCUMENTOS NO CHÃO (plano dos puzzles, §1.5): os papéis postos neste mapa,
+   * cada um apontando para um documento da biblioteca do app pelo `docId`.
+   * `undefined` === `[]`: mapa de antes abre igual, sem linha de migração
+   * (`lib/mapFile.ts`). NUNCA sai no recorte do jogador como está: ele recebe
+   * `papeisNoChao` (`lib/fogFilter.ts`, `documentos/recorte.ts`).
+   */
+  documentos?: DocumentoNoMapa[]
+  /**
+   * Campo de FIO, só no recorte do jogador: os papéis no chão que ele vê agora,
+   * com o título e o papel e mais nada (`documentos/recorte.ts`). Nunca no mapa
+   * do mestre; `deserializeMap` o descarta se um arquivo trouxer.
+   */
+  papeisNoChao?: PapelNoChao[]
   /**
    * ARMADILHAS > Jumpscare (Configurações do mapa, 15/11/2026): `true` = o
    * mestre desligou o susto da cobra neste mapa (o jogador vê a imagem parada,

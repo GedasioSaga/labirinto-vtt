@@ -1,4 +1,6 @@
 import type { CarriedItem } from '../types/map'
+import { lerDocumentosDaFicha } from '../documentos/leitor'
+import type { DocumentoNaFicha } from '../documentos/tipos'
 import { cleanPlayerName } from './chat'
 import { ATRIBUTO_INICIAL, fichaDBTVazia, lerFichaDBT, LIMITES_DBT, type FichaDBT } from './dbt/modelo'
 import { OCULTAS_POR_ABA_MAX, semOcultas } from './habilidadeOculta'
@@ -213,6 +215,15 @@ export interface Personagem {
   /** A bolsa, como `Token.moedas`: inteiro positivo até `MOEDAS_MAX` (`lib/troca.ts`). Ausente = zero. Mesmo caminho da mochila. */
   moedas?: number
   /**
+   * DOCUMENTOS (plano dos puzzles, §1.5): os que o personagem leu ou ganhou,
+   * SÓ os metadados (título, papel, quando, de onde, o "novo"). O texto mora
+   * na biblioteca do app e o host o monta na hora da leitura. Ausente = nenhum:
+   * a ficha de antes abre igual. Vai ao jogador (`paraOFio` deixa passar); a
+   * edição da ficha pelo jogador nunca o escreve (`net/edicaoDoPersonagem.ts`
+   * parte da ficha de agora). Lido por `lerDocumentosDaFicha`, até `DOCUMENTOS_NA_FICHA_MAX`.
+   */
+  documentos?: DocumentoNaFicha[]
+  /**
    * CONTAS DOS JOGADORES: o id da conta a quem o mestre deu este personagem
    * (`lib/contasDosJogadores.ts`). Quem entra com a conta recebe as fichas
    * (tokens) ligadas a ele. Ausente = de ninguém. Só o mestre muda: a edição
@@ -349,7 +360,8 @@ export function comNotaDoMestre(personagem: Personagem, texto: string): Personag
  * anotação). A ficha Dragon Ball (`dbt`) vai junto, como as abas: é a ficha
  * que o jogador lê e edita, menos o bloco de NPC (ND, categoria, rank), que é
  * do mestre. A mochila e a bolsa também ficam: na sala o jogador as vê pelo
- * boneco (`lib/fogFilter.ts`); o Lobby usa outra projeção, que as mantém. É o
+ * boneco (`lib/fogFilter.ts`); o Lobby usa outra projeção, que as mantém. A
+ * lista de documentos vai junto: são só os metadados, e o texto nunca está na ficha. É o
  * funil único de `Personagem` para o fio (`net/hostSession.ts`: lista do
  * jogador e batalha). Sem nenhum desses campos devolve a MESMA referência: o
  * host compara por referência para não reenviar.
@@ -638,6 +650,8 @@ export function personagemDoArquivo(value: unknown): Personagem | null {
     abas: abasDoArquivo(value.abas),
     ...dbtDoArquivo(value.dbt),
     ...mochilaDoArquivo(value),
+    // DOCUMENTOS: sem esta linha a lista sumia no primeiro salvar (o personagem é montado campo a campo).
+    ...documentosDoArquivo(value.documentos),
     ...(typeof value.dono === 'string' && DONO_PADRAO.test(value.dono) ? { dono: value.dono } : {}),
     ...camposDoMundoDoArquivo(value),
     ...ocultasDoArquivo(value.ocultas),
@@ -673,6 +687,12 @@ function mochilaDoArquivo(value: Record<string, unknown>): Pick<Personagem, 'moc
   const moedas = readMoedas(value.moedas)
   if (moedas !== undefined) campos.moedas = moedas
   return campos
+}
+
+/** A lista de documentos do disco ou da rede; vazia, torta ou ausente, a chave nem aparece (nada de `documentos: undefined`). */
+function documentosDoArquivo(value: unknown): Pick<Personagem, 'documentos'> {
+  const documentos = lerDocumentosDaFicha(value)
+  return documentos === undefined ? {} : { documentos }
 }
 
 /** A ficha Dragon Ball do disco ou da rede; torta ou de versão futura, a chave nem aparece (nada de `dbt: undefined`). */

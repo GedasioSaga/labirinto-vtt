@@ -51,6 +51,7 @@ import { blockReasonOf, isPinEscala, isPinIcon, isPinReadDistance, isPlayerSafeP
 import type { MinigameVisivel } from '../minigames/tipos'
 import { recorteDoMinigame } from '../minigames/registro'
 import { desafiosDo, pinosDosDesafios } from './desafios'
+import { papeisNoChao, type PapeisDosDocumentos } from '../documentos/recorte'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, exitPassageOf, isArrivalOnly, isExitPassage, travelExitsOf, unreadExitLabels, type OneWayExits } from './pinTravel'
@@ -2520,6 +2521,8 @@ const CHAVES_DO_RECORTE: Readonly<Record<keyof MapData, 'vai' | 'fica'>> = {
   height: 'vai',
   grid: 'vai',
   desafios: 'fica',
+  documentos: 'fica',
+  papeisNoChao: 'vai',
   semJumpscare: 'fica',
   gridOffset: 'vai',
   encaixeNaGrade: 'fica',
@@ -2637,6 +2640,7 @@ export function filterMapForPlayer(
   barras?: BarrasParaJogador,
   formas?: FormasVisiveis,
   leituras?: LeiturasDoJogador,
+  papeis?: PapeisDosDocumentos,
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
   // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
@@ -2661,6 +2665,7 @@ export function filterMapForPlayer(
     barras,
     formas,
     leituras,
+    papeis,
   })
 }
 
@@ -2721,6 +2726,12 @@ export interface PlayerOnlyView {
    * mandar" sai sem texto e o "?" só com as entradas livres (falha fechada).
    */
   leituras?: LeiturasDoJogador
+  /**
+   * DOCUMENTOS NO CHÃO (plano dos puzzles, §2.3): o título e o papel de cada
+   * documento da biblioteca do app (`papeisDaBiblioteca`, montado pelo host,
+   * que tem a biblioteca). Ausente = nenhum papel sai (falha fechada).
+   */
+  papeis?: PapeisDosDocumentos
 }
 
 /** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
@@ -2821,7 +2832,7 @@ function recorteDoGrupo(
   explored: Exploration | undefined,
   seenDoors: ReadonlyMap<string, DoorState> | undefined,
   watchTargets: ReadonlySet<string> | undefined,
-  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas, leituras }: PlayerOnlyView,
+  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas, leituras, papeis }: PlayerOnlyView,
   ceuDoMundi: boolean,
   /**
    * TERRENO ALTO (`vistaDeCimaDoPiso`): as fichas do recorte são OLHOS DE
@@ -2847,7 +2858,7 @@ function recorteDoGrupo(
   // Luz L3: a luz apagada no período da cena sai antes de tudo (`soLuzesAcesas`).
   const map = comCamadaApagadaOcultaDoJogador(mapaDoPiso(soLuzesAcesas(mapaInteiro, viewers), pisoDoGrupo(mapaInteiro, viewers, loans)))
   if (isWorldMap(map))
-    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas })
+    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas, papeis })
   // CAMADAS: tudo o que sai pergunta ao olho "Jogadores veem" da camada do item
   // (`lib/camadas/consulta.ts`), INCLUSIVE chão, linha e marcador — que antes
   // saíam pela rede e só a tela do jogador escondia. Nada oculto dos jogadores:
@@ -4969,6 +4980,21 @@ function recorteDoGrupo(
   const objetoChega = (propId: string): boolean => propsDoRecorte.some((p) => p.id === propId)
   const pinosDaMesa = [...(map.pins ?? []), ...pinosDosDesafios(map, 'mesa', objetoChega)]
   const selosSemOObjeto = new Set(desafiosDo(map).flatMap((d) => (d.lugar.tipo === 'objeto' && !objetoChega(d.lugar.propId) ? [d.id] : [])))
+  /**
+   * DOCUMENTOS NO CHÃO (plano dos puzzles, §2.3): de cada papel sai só
+   * `{ id, x, y, piso, papel, titulo }`, pela lista branca de
+   * `documentos/recorte.ts`, e só o do piso do grupo, à vista AGORA e fora de
+   * sala secreta, teto fechado, zona oculta e cômodo não visto. Sem memória
+   * por jogador, o explorado não basta: o papel que o mestre pôs depois, longe
+   * dele, apareceria. O posto num objeto só sai com o objeto (como o selo), e
+   * o já pego com "some depois de pego" não sai para ninguém.
+   */
+  const papeisDoRecorte = papeisNoChao(map.documentos, papeis, {
+    props: map.props,
+    piso: pisoDoGrupo(mapaInteiro, viewers, loans),
+    objetoChega,
+    aVista: (ponto) => !inHiddenPlace(ponto) && (isVisible(ponto) || comodoSeenPoint(ponto)),
+  })
   // CHEGADA OCULTA (mão única) sai ANTES de qualquer outra regra: não é
   // questão de névoa nem de explorado — o jogador nunca recebe o pino, nem o
   // id dele, estando ou não em cima dele. Ver `isArrivalOnly`.
@@ -5014,6 +5040,10 @@ function recorteDoGrupo(
     // DESAFIOS: a lista é do mestre (prêmio, porta, o pino de antes). O selo que o
     // jogador vê sai pela lista dos pinos, com a regra deles (`pinosDosDesafios`).
     desafios: undefined,
+    // DOCUMENTOS: a lista é do mestre (o `docId`, o objeto, quem pegou). O papel que o jogador vê sai em
+    // `papeisNoChao`, que este recorte sempre escreve por cima (nada que venha no mapa atravessa); vazio, a chave sai logo abaixo.
+    documentos: undefined,
+    papeisNoChao: papeisDoRecorte,
     // ARMADILHAS > Jumpscare: regra do mestre; o jogador só sabe no desfecho de uma armadilha.
     semJumpscare: undefined,
     // GRADE LEMBRA A ESCOLHA: os interruptores do editor do mestre; o jogador não desenha nada.
@@ -5342,6 +5372,8 @@ function recorteDoGrupo(
   // SEMPRE o valor do host gravado: mandado só quando a conta dele desse outro,
   // a presença do campo contaria que há Chão numa camada ou zona escondida.
   filtered.offFloor = foraDoChaoLivre(map) ? 'free' : 'blocked'
+  // Sem papel à vista, a chave nem vai: o recorte de quem não vê papel nenhum sai como saía antes dos documentos.
+  if (papeisDoRecorte.length === 0) delete filtered.papeisNoChao
 
   /**
    * PERIGO QUE SE ALASTRA — só a Sala que saiu no recorte E que o jogador vê

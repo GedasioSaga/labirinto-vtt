@@ -4,6 +4,8 @@ import { ehJogoDoRegistro, padraoDoJogo, type MinigamesPorJogo } from '../miniga
 import type { JogoDoMinigame } from '../minigames/tipos'
 import { lerProgressoDoPuzzle, lerPuzzleDoArquivo } from '../puzzles/leitor'
 import type { MinigamePuzzle } from '../puzzles/tipos'
+import { ehIdDeDocumento } from '../documentos/leitor'
+import { DOCUMENTOS_NO_MAPA_MAX, NOME_DE_QUEM_PEGOU_MAX, type DocumentoNoMapa } from '../documentos/tipos'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
@@ -131,7 +133,7 @@ import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { lerTamanhoAoEntrar } from './tamanhoAoEntrar'
-import { alturasDosPisosDoArquivo, pisosDoArquivo } from './pisos'
+import { alturasDosPisosDoArquivo, pisoLido, pisosDoArquivo } from './pisos'
 import { gruposDoArquivo } from './gruposSalvos'
 import { temaDoMapaDoArquivo, temasDosPisosDoArquivo } from './temasDoAmbiente'
 import { idDeCamadaDoArquivo, idsDoArquivo, lerVersaoDasCamadas, ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
@@ -393,6 +395,55 @@ function lerLugarDoDesafio(valor: unknown): LugarDoDesafio {
     return typeof propId === 'string' && propId !== '' ? { tipo: 'objeto', propId } : { tipo: 'nenhum' }
   }
   return { tipo: 'nenhum' }
+}
+
+/**
+ * DOCUMENTOS NO CHÃO do disco (plano dos puzzles, §1.5 e §1.7): campo NOVO e
+ * OPCIONAL, lido papel a papel. Ausente continua ausente; lista sem nenhum
+ * papel bom abre sem o campo. O torto cai e os bons ficam: sem id, sem
+ * `docId` ou sem lugar no mapa o papel não entra (ele só existe para estar
+ * num ponto ou num objeto); id repetido entra uma vez só; no máximo
+ * `DOCUMENTOS_NO_MAPA_MAX`. Mora aqui, e não em `documentos/leitor.ts`,
+ * porque usa o lugar do desafio e o piso, que puxam o mapa inteiro.
+ */
+function documentosDoArquivo(lista: unknown): Pick<MapData, 'documentos'> {
+  if (!Array.isArray(lista)) return {}
+  const documentos: DocumentoNoMapa[] = []
+  const ids = new Set<string>()
+  for (const cru of lista) {
+    if (documentos.length >= DOCUMENTOS_NO_MAPA_MAX) break
+    const documento = lerDocumentoNoMapa(cru)
+    if (documento === null || ids.has(documento.id)) continue
+    ids.add(documento.id)
+    documentos.push(documento)
+  }
+  return documentos.length === 0 ? {} : { documentos }
+}
+
+function lerDocumentoNoMapa(cru: unknown): DocumentoNoMapa | null {
+  if (!ehObjetoDoArquivo(cru)) return null
+  const id = campoDoArquivo(cru, 'id')
+  const docId = campoDoArquivo(cru, 'docId')
+  const lugar = lerLugarDoDesafio(campoDoArquivo(cru, 'lugar'))
+  if (!ehIdDeDocumento(id) || !ehIdDeDocumento(docId) || lugar.tipo === 'nenhum') return null
+  const pego = lerPegoDoDocumento(campoDoArquivo(cru, 'pego'))
+  return {
+    id,
+    docId,
+    lugar,
+    depois: campoDoArquivo(cru, 'depois') === 'some' ? 'some' : 'fica',
+    ...(pego === undefined ? {} : { pego }),
+    // PISOS: só inteiro na faixa e fora do térreo (`pisoLido`), como o passo de textura.
+    ...pisoLido(cru),
+  }
+}
+
+/** Quem pegou primeiro: nome aparado no teto (vazio vira "Alguém") e instante válido; o resto, ninguém pegou. */
+function lerPegoDoDocumento(valor: unknown): DocumentoNoMapa['pego'] {
+  if (!ehObjetoDoArquivo(valor)) return undefined
+  const em = campoDoArquivo(valor, 'em')
+  if (typeof em !== 'number' || !Number.isSafeInteger(em) || em < 0) return undefined
+  return { por: textoDoArquivo(campoDoArquivo(valor, 'por'), NOME_DE_QUEM_PEGOU_MAX, '') || 'Alguém', em }
 }
 
 /**
@@ -1186,6 +1237,9 @@ function deserializeMapFields(json: string): MapData {
     // DESAFIOS: campo NOVO e OPCIONAL (ausente continua ausente). O pino ▷ de
     // mapa antigo vira desafio logo depois, em `deserializeMap`.
     ...desafiosDoArquivo(parsed.desafios),
+    // DOCUMENTOS NO CHÃO: campo NOVO e OPCIONAL (ausente continua ausente). O `papeisNoChao`
+    // é campo de FIO, só do recorte do jogador: o arquivo que o traga o perde (não há linha para ele).
+    ...documentosDoArquivo(parsed.documentos),
     // ARMADILHAS > Jumpscare: só o `true` (o mestre desligou) é gravado; o resto é o padrão, ligado.
     ...(parsed.semJumpscare === true ? { semJumpscare: true as const } : {}),
     // GRADE LEMBRA A ESCOLHA: os interruptores de "Grudar … na grade" deste mapa (ausente continua ausente).
