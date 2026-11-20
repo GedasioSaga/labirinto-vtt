@@ -2,7 +2,8 @@
 // - tempo entre quadros (rAF) enquanto cada versão toca, com p50/p95/máx;
 // - tarefas longas (PerformanceObserver 'longtask') desde a abertura da página, montagem incluída;
 // - os controles: trocar de versão, Pular, Esc, movimento reduzido, nome do lugar;
-// - 2 prints da página (tema claro e escuro) em provas-ponte/.
+// - 3 prints da página em provas-ponte/: a vista de dentro da passagem (claro), o vale com o nome
+//   (escuro) e a fachada com o arco de perto (escuro).
 // three@0.186.1 da CDN é servido do node_modules local (mesma versão), para medir sem rede.
 // Rodar da raiz do repo: node docs/design/transicoes/provas-ponte/fonte/medir.cjs
 'use strict'
@@ -177,6 +178,13 @@ async function main() {
     await pagina.screenshot({ path: print2, fullPage: true })
     resultado.prints.push(path.basename(print2))
     await espera(1400)
+    // Print 3 (escuro): entrando aos ~1,5 s, a fachada e o arco de perto.
+    await largarCom(pagina, () => pagina.click('[data-versao="entrando"]'))
+    await espera(1500)
+    const print3 = path.join(PROVAS, 'pagina-entrando-fachada-escuro.png')
+    await pagina.screenshot({ path: print3, fullPage: true })
+    resultado.prints.push(path.basename(print3))
+    await espera(DURACAO_MS - 1500 + 400)
     const longas = await pagina.evaluate(() => window.__longas)
     resultado.tarefasLongas.escuro = { total: longas.length, maiorMs: arred(Math.max(0, ...longas.map((l) => l.duracao))), acimaDe200ms: longas.filter((l) => l.duracao >= LIMITE_TAREFA_LONGA_MS).length, lista: longas.map((l) => ({ inicioMs: arred(l.inicio), duracaoMs: arred(l.duracao) })) }
     resultado.errosNoConsole.push(...erros)

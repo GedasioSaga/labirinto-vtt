@@ -1,22 +1,22 @@
 {
   "pagina": "docs/design/transicoes/ponte-levadica.html",
-  "geradoEm": "2026-11-20T18:08:00.413Z",
+  "geradoEm": "2026-11-20T18:47:42.097Z",
   "navegador": "Edge headless (Playwright, channel msedge) com GPU (ANGLE d3d11)",
   "viewport": "1280x1000, DPR 1",
   "versoes": [
     {
       "versao": "entrando",
-      "cliqueAteLargadaMs": 53,
+      "cliqueAteLargadaMs": 67,
       "quadros": 287,
       "p50": 16.7,
       "p95": 16.8,
-      "max": 16.9,
+      "max": 17.3,
       "tempoNoFim": "4,8 s / 4,8 s",
       "cortinaNoFim": 1
     },
     {
       "versao": "saindo",
-      "cliqueAteLargadaMs": 196,
+      "cliqueAteLargadaMs": 195,
       "quadros": 287,
       "p50": 16.7,
       "p95": 16.8,
@@ -54,277 +54,294 @@
   "tarefasLongas": {
     "claro": {
       "total": 9,
-      "maiorMs": 101,
+      "maiorMs": 119,
       "acimaDe200ms": 0,
       "lista": [
         {
-          "inicioMs": 114.3,
-          "duracaoMs": 101
+          "inicioMs": 154.2,
+          "duracaoMs": 108
         },
         {
-          "inicioMs": 290.9,
-          "duracaoMs": 72
+          "inicioMs": 265.8,
+          "duracaoMs": 119
         },
         {
-          "inicioMs": 10893.1,
-          "duracaoMs": 73
+          "inicioMs": 385,
+          "duracaoMs": 62
         },
         {
-          "inicioMs": 16424.3,
-          "duracaoMs": 59
+          "inicioMs": 455.1,
+          "duracaoMs": 116
         },
         {
-          "inicioMs": 22130.7,
-          "duracaoMs": 55
+          "inicioMs": 11106.4,
+          "duracaoMs": 67
         },
         {
-          "inicioMs": 26281.1,
-          "duracaoMs": 60
+          "inicioMs": 11207.6,
+          "duracaoMs": 61
         },
         {
-          "inicioMs": 26388.5,
-          "duracaoMs": 56
+          "inicioMs": 16611.3,
+          "duracaoMs": 51
         },
         {
-          "inicioMs": 28633.7,
-          "duracaoMs": 53
+          "inicioMs": 26506.9,
+          "duracaoMs": 52
         },
         {
-          "inicioMs": 30080.5,
-          "duracaoMs": 65
+          "inicioMs": 30203.2,
+          "duracaoMs": 51
         }
       ]
     },
     "escuro": {
-      "total": 4,
-      "maiorMs": 100,
+      "total": 8,
+      "maiorMs": 129,
       "acimaDe200ms": 0,
       "lista": [
         {
-          "inicioMs": 303.6,
-          "duracaoMs": 100
+          "inicioMs": 123.2,
+          "duracaoMs": 129
         },
         {
-          "inicioMs": 471.9,
-          "duracaoMs": 80
+          "inicioMs": 255.6,
+          "duracaoMs": 102
         },
         {
-          "inicioMs": 5819,
+          "inicioMs": 358.2,
+          "duracaoMs": 51
+        },
+        {
+          "inicioMs": 429,
+          "duracaoMs": 99
+        },
+        {
+          "inicioMs": 5792.9,
+          "duracaoMs": 50
+        },
+        {
+          "inicioMs": 5877.4,
           "duracaoMs": 58
         },
         {
-          "inicioMs": 5915.3,
-          "duracaoMs": 57
+          "inicioMs": 11528.5,
+          "duracaoMs": 63
+        },
+        {
+          "inicioMs": 11650.1,
+          "duracaoMs": 64
         }
       ]
     }
   },
   "prints": [
     "pagina-entrando-claro.png",
-    "pagina-saindo-escuro.png"
+    "pagina-saindo-escuro.png",
+    "pagina-entrando-fachada-escuro.png"
   ],
-  "abrirAtePrimeirosQuadrosMs": 762,
+  "abrirAtePrimeirosQuadrosMs": 962,
   "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 6GB Laptop GPU (0x000025EC) Direct3D11 vs_5_0 ps_5_0, D3D11)",
   "preparo": [
     {
       "etapa": "montar",
-      "inicioMs": 114,
-      "duracaoMs": 64.1
+      "inicioMs": 266,
+      "duracaoMs": 79.9
     },
     {
       "etapa": "compilar",
-      "inicioMs": 184,
-      "duracaoMs": 106.7
+      "inicioMs": 351,
+      "duracaoMs": 103.9
     },
     {
       "etapa": "texturas",
-      "inicioMs": 291,
-      "duracaoMs": 17.2
+      "inicioMs": 455,
+      "duracaoMs": 26.6
     },
     {
       "etapa": "placa",
-      "inicioMs": 291,
-      "duracaoMs": 72.2
+      "inicioMs": 455,
+      "duracaoMs": 116.4
     },
     {
       "etapa": "primeiro-quadro",
-      "inicioMs": 308,
-      "duracaoMs": 55
+      "inicioMs": 482,
+      "duracaoMs": 89.8
     },
     {
       "etapa": "montar",
-      "inicioMs": 10896,
+      "inicioMs": 11109,
+      "duracaoMs": 47.3
+    },
+    {
+      "etapa": "compilar",
+      "inicioMs": 11157,
+      "duracaoMs": 50.4
+    },
+    {
+      "etapa": "texturas",
+      "inicioMs": 11208,
+      "duracaoMs": 24.1
+    },
+    {
+      "etapa": "placa",
+      "inicioMs": 11208,
+      "duracaoMs": 61.2
+    },
+    {
+      "etapa": "primeiro-quadro",
+      "inicioMs": 11232,
+      "duracaoMs": 37.1
+    },
+    {
+      "etapa": "montar",
+      "inicioMs": 16542,
+      "duracaoMs": 31.8
+    },
+    {
+      "etapa": "compilar",
+      "inicioMs": 16575,
+      "duracaoMs": 36.7
+    },
+    {
+      "etapa": "texturas",
+      "inicioMs": 16611,
+      "duracaoMs": 10.5
+    },
+    {
+      "etapa": "placa",
+      "inicioMs": 16611,
+      "duracaoMs": 51.1
+    },
+    {
+      "etapa": "primeiro-quadro",
+      "inicioMs": 16622,
+      "duracaoMs": 40.6
+    },
+    {
+      "etapa": "montar",
+      "inicioMs": 22228,
+      "duracaoMs": 22.1
+    },
+    {
+      "etapa": "compilar",
+      "inicioMs": 22250,
+      "duracaoMs": 37.5
+    },
+    {
+      "etapa": "texturas",
+      "inicioMs": 22288,
+      "duracaoMs": 15.3
+    },
+    {
+      "etapa": "placa",
+      "inicioMs": 22288,
+      "duracaoMs": 43.7
+    },
+    {
+      "etapa": "primeiro-quadro",
+      "inicioMs": 22303,
+      "duracaoMs": 28.3
+    },
+    {
+      "etapa": "montar",
+      "inicioMs": 26430,
+      "duracaoMs": 28.8
+    },
+    {
+      "etapa": "compilar",
+      "inicioMs": 26459,
+      "duracaoMs": 47.8
+    },
+    {
+      "etapa": "texturas",
+      "inicioMs": 26507,
+      "duracaoMs": 21.2
+    },
+    {
+      "etapa": "placa",
+      "inicioMs": 26507,
+      "duracaoMs": 52.3
+    },
+    {
+      "etapa": "primeiro-quadro",
+      "inicioMs": 26528,
+      "duracaoMs": 31
+    },
+    {
+      "etapa": "montar",
+      "inicioMs": 27947,
+      "duracaoMs": 19.2
+    },
+    {
+      "etapa": "compilar",
+      "inicioMs": 27966,
+      "duracaoMs": 60.2
+    },
+    {
+      "etapa": "texturas",
+      "inicioMs": 28026,
+      "duracaoMs": 10.1
+    },
+    {
+      "etapa": "placa",
+      "inicioMs": 28026,
+      "duracaoMs": 44.7
+    },
+    {
+      "etapa": "primeiro-quadro",
+      "inicioMs": 28036,
+      "duracaoMs": 34.6
+    },
+    {
+      "etapa": "montar",
+      "inicioMs": 28747,
+      "duracaoMs": 26.1
+    },
+    {
+      "etapa": "compilar",
+      "inicioMs": 28774,
+      "duracaoMs": 51.4
+    },
+    {
+      "etapa": "texturas",
+      "inicioMs": 28825,
+      "duracaoMs": 12.4
+    },
+    {
+      "etapa": "placa",
+      "inicioMs": 28825,
+      "duracaoMs": 47
+    },
+    {
+      "etapa": "primeiro-quadro",
+      "inicioMs": 28837,
+      "duracaoMs": 34.6
+    },
+    {
+      "etapa": "montar",
+      "inicioMs": 30131,
+      "duracaoMs": 26.2
+    },
+    {
+      "etapa": "compilar",
+      "inicioMs": 30157,
+      "duracaoMs": 46.1
+    },
+    {
+      "etapa": "texturas",
+      "inicioMs": 30203,
+      "duracaoMs": 12.9
+    },
+    {
+      "etapa": "placa",
+      "inicioMs": 30203,
       "duracaoMs": 51.3
     },
     {
-      "etapa": "compilar",
-      "inicioMs": 10948,
-      "duracaoMs": 59.6
-    },
-    {
-      "etapa": "texturas",
-      "inicioMs": 11007,
-      "duracaoMs": 16.2
-    },
-    {
-      "etapa": "placa",
-      "inicioMs": 11007,
-      "duracaoMs": 45.3
-    },
-    {
       "etapa": "primeiro-quadro",
-      "inicioMs": 11024,
-      "duracaoMs": 29
-    },
-    {
-      "etapa": "montar",
-      "inicioMs": 16312,
-      "duracaoMs": 25.8
-    },
-    {
-      "etapa": "compilar",
-      "inicioMs": 16338,
-      "duracaoMs": 86.1
-    },
-    {
-      "etapa": "texturas",
-      "inicioMs": 16424,
-      "duracaoMs": 22.7
-    },
-    {
-      "etapa": "placa",
-      "inicioMs": 16424,
-      "duracaoMs": 59.6
-    },
-    {
-      "etapa": "primeiro-quadro",
-      "inicioMs": 16447,
-      "duracaoMs": 36.6
-    },
-    {
-      "etapa": "montar",
-      "inicioMs": 22031,
-      "duracaoMs": 27.5
-    },
-    {
-      "etapa": "compilar",
-      "inicioMs": 22059,
-      "duracaoMs": 71.9
-    },
-    {
-      "etapa": "texturas",
-      "inicioMs": 22131,
-      "duracaoMs": 13.7
-    },
-    {
-      "etapa": "placa",
-      "inicioMs": 22131,
-      "duracaoMs": 55.7
-    },
-    {
-      "etapa": "primeiro-quadro",
-      "inicioMs": 22144,
-      "duracaoMs": 42
-    },
-    {
-      "etapa": "montar",
-      "inicioMs": 26282,
-      "duracaoMs": 39.2
-    },
-    {
-      "etapa": "compilar",
-      "inicioMs": 26321,
-      "duracaoMs": 67.3
-    },
-    {
-      "etapa": "texturas",
-      "inicioMs": 26389,
-      "duracaoMs": 24.4
-    },
-    {
-      "etapa": "placa",
-      "inicioMs": 26389,
-      "duracaoMs": 55.9
-    },
-    {
-      "etapa": "primeiro-quadro",
-      "inicioMs": 26413,
-      "duracaoMs": 31.5
-    },
-    {
-      "etapa": "montar",
-      "inicioMs": 27816,
-      "duracaoMs": 22.7
-    },
-    {
-      "etapa": "compilar",
-      "inicioMs": 27839,
-      "duracaoMs": 55.9
-    },
-    {
-      "etapa": "texturas",
-      "inicioMs": 27895,
-      "duracaoMs": 9.9
-    },
-    {
-      "etapa": "placa",
-      "inicioMs": 27895,
-      "duracaoMs": 39.2
-    },
-    {
-      "etapa": "primeiro-quadro",
-      "inicioMs": 27905,
-      "duracaoMs": 29.3
-    },
-    {
-      "etapa": "montar",
-      "inicioMs": 28600,
-      "duracaoMs": 22.6
-    },
-    {
-      "etapa": "compilar",
-      "inicioMs": 28623,
-      "duracaoMs": 65.2
-    },
-    {
-      "etapa": "texturas",
-      "inicioMs": 28688,
-      "duracaoMs": 16
-    },
-    {
-      "etapa": "placa",
-      "inicioMs": 28688,
-      "duracaoMs": 42.4
-    },
-    {
-      "etapa": "primeiro-quadro",
-      "inicioMs": 28704,
-      "duracaoMs": 26.4
-    },
-    {
-      "etapa": "montar",
-      "inicioMs": 30001,
-      "duracaoMs": 23.8
-    },
-    {
-      "etapa": "compilar",
-      "inicioMs": 30025,
-      "duracaoMs": 55.6
-    },
-    {
-      "etapa": "texturas",
-      "inicioMs": 30081,
-      "duracaoMs": 22.6
-    },
-    {
-      "etapa": "placa",
-      "inicioMs": 30081,
-      "duracaoMs": 65.8
-    },
-    {
-      "etapa": "primeiro-quadro",
-      "inicioMs": 30103,
-      "duracaoMs": 43.2
+      "inicioMs": 30216,
+      "duracaoMs": 38.4
     }
   ],
   "errosNoConsole": []

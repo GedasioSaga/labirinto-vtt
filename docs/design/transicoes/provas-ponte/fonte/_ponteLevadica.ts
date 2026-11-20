@@ -87,14 +87,38 @@ const GUARITA = { meiaLargura: 4.2, topo: 9.4, fundo: 6 }
 const TORRE = { x: 5.5, z: -1.2, raio: 2.3, topo: 12 }
 const CORTINA = { frente: -1.2, topo: 6.7, fim: 41 }
 const CORRENTE = { elo: 0.14, flecha: 0.22 }
+/** Pátio de dentro: laje até a muralha de dentro (frente em z = -21), com o segundo portão no meio. */
+const PATIO = { fundo: -44, muralha: -21, espessura: 2, topo: 7.4, vao: 1.3, vaoReto: 2.6 }
+const MENAGEM = { x: -6.5, z: -33 }
 
-/** Sol baixo de fim de tarde: azimute a partir de +z rumo a -x, elevação (rad). */
+/**
+ * Sol baixo de fim de tarde, apagado pela névoa: azimute a partir de +z rumo a -x, elevação (rad).
+ * Força baixa e cor pálida: a sombra fica mansa e o céu quase não doura.
+ */
 const SOL: Record<Sentido, { azimute: number; elevacao: number; cor: number; forca: number }> = {
-  // Entrando: o sol vem de trás da câmera, à esquerda, e doura a pedra.
-  entrando: { azimute: 0.8, elevacao: 0.22, cor: 0xffc48c, forca: 3.6 },
-  // Saindo: o sol fica à frente, um pouco à direita, dentro do arco.
-  saindo: { azimute: 0.2, elevacao: 0.2, cor: 0xffcf9c, forca: 3.2 },
+  // Entrando: o sol vem de trás da câmera, à esquerda.
+  entrando: { azimute: 0.8, elevacao: 0.22, cor: 0xdcd4c8, forca: 1.05 },
+  // Saindo: o sol fica à frente, um pouco à direita: um brilho difuso dentro da névoa, no arco.
+  saindo: { azimute: 0.2, elevacao: 0.2, cor: 0xead6c0, forca: 1.1 },
 }
+
+/**
+ * Recorte da sombra do sol (câmera ortográfica, metros). No Entrando ele cobre também o pátio de dentro:
+ * com o sol baixo atrás de quem chega, a guarita e as muralhas deixam o pátio na sombra, e o pátio fica
+ * em contraluz contra a névoa clara. No Saindo o pátio fica às costas.
+ */
+const SOMBRA: Record<Sentido, { alvo: [x: number, z: number]; meiaLargura: number }> = {
+  entrando: { alvo: [-11, -9], meiaLargura: 25 },
+  saindo: { alvo: [0, 2.5], meiaLargura: 15 },
+}
+
+/**
+ * Névoa do vale (exponencial ao quadrado): a ponte e as correntes ficam nítidas, o campo vai
+ * apagando, e árvore a 60 m é só vulto. A cor é a mesma do horizonte do céu, para nada recortar.
+ */
+const NEVOA = { cor: 0x8f918d, densidade: 0.038 } as const
+/** Névoa rasteira: camadas deitadas sobre o campo e o pátio, longe da ponte. */
+const NEVOEIRO_BAIXO = { cor: 0xa3a5a1, deriva: 0.35 } as const
 
 /** Campo de visão de olho (vertical, graus): ~84° na horizontal em 16:9. */
 const FOV = 54
@@ -223,57 +247,127 @@ function corLinear(THREE: ThreeModule, hex: number): Three.Color {
   return new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace).convertSRGBToLinear()
 }
 
-const PEDRA: Rgb = [200, 188, 168]
+/** Pedra antiga, cinza morno e pouco saturado, para casar com o vale de névoa. */
+const PEDRA: Rgb = [160, 158, 150]
 /** O ladrilho de pedra cobre 5 m: fiadas de 62 cm, blocos de 0,8 a 1,5 m. */
 const UV_DA_PEDRA = 1 / 5
+/** Força do relevo da cantaria (bumpMap tirado da própria cor). */
+const RELEVO_DA_PEDRA = 2
 
-/** Cantaria de pedra clara e quente, junta no tom escuro da própria pedra (nunca preta). 512 px = 5 m. */
+/**
+ * Cantaria antiga: blocos de tom desigual e contorno irregular (quinas gastas, arestas comidas), junta
+ * funda e escura (nunca preta), uma ou outra trinca, manchas grandes de sujeira, umidade escorrendo das
+ * juntas e musgo nas arestas de baixo. Cinza morno, pouco saturado. 512 px = 5 m.
+ */
 function pintarPedra(rnd: () => number): HTMLCanvasElement {
   const [canvas, g] = tela(512, 512)
-  g.fillStyle = rgb(PEDRA, 0.8)
+  g.fillStyle = rgb(PEDRA, 0.44)
   g.fillRect(0, 0, 512, 512)
   const fiada = 64
-  const bloco = (x: number, y: number, largura: number, cor: Rgb) => {
-    g.fillStyle = rgb(cor)
-    g.fillRect(x + 1.5, y + 1.5, largura - 3, fiada - 3)
-    // Volume sem contorno: borda de cima um tico mais clara, a de baixo um tico mais escura.
-    g.fillStyle = rgb(cor, 1.04, 0.5)
-    g.fillRect(x + 1.5, y + 1.5, largura - 3, 3)
-    g.fillStyle = rgb(cor, 0.9, 0.45)
-    g.fillRect(x + 1.5, y + fiada - 5, largura - 3, 3.5)
+  const junta = 2.2
+  const bloco = (x: number, y: number, largura: number, cor: Rgb, sementeDoBloco: number) => {
+    const r = semente(sementeDoBloco)
+    const x0 = x + junta
+    const y0 = y + junta
+    const x1 = x + largura - junta
+    const y1 = y + fiada - junta
+    // Contorno: cada quina vira dois pontos (gasta) e cada aresta ganha um ponto torto no meio.
+    const gasto = () => 2 + r() * 6
+    const torto = () => (r() - 0.3) * 2.6
+    const pontos: [number, number][] = [
+      [x0 + gasto(), y0 + torto()],
+      [(x0 + x1) / 2, y0 + torto()],
+      [x1 - gasto(), y0 + torto()],
+      [x1 + torto() * -1, y0 + gasto()],
+      [x1 - torto(), (y0 + y1) / 2],
+      [x1 - torto(), y1 - gasto()],
+      [x1 - gasto(), y1 - torto()],
+      [(x0 + x1) / 2, y1 - torto()],
+      [x0 + gasto(), y1 - torto()],
+      [x0 + torto(), y1 - gasto()],
+      [x0 + torto(), (y0 + y1) / 2],
+      [x0 + torto(), y0 + gasto()],
+    ]
+    g.beginPath()
+    pontos.forEach(([px, py], i) => (i === 0 ? g.moveTo(px, py) : g.lineTo(px, py)))
+    g.closePath()
+    // Face levemente abaulada: clara em cima, mais escura embaixo (o relevo sai da cor).
+    const face = g.createLinearGradient(0, y0, 0, y1)
+    face.addColorStop(0, rgb(cor, 1.08))
+    face.addColorStop(0.5, rgb(cor))
+    face.addColorStop(1, rgb(cor, 0.8))
+    g.fillStyle = face
+    g.fill()
+    // Manchas miúdas do próprio bloco.
+    for (let k = 0; k < 26; k++) {
+      g.fillStyle = rgb(cor, 0.8 + r() * 0.32, 0.28)
+      g.fillRect(x0 + 3 + r() * (x1 - x0 - 9), y0 + 3 + r() * (y1 - y0 - 7), 2 + r() * 7, 1 + r() * 3)
+    }
+    // Trinca fina num bloco ou outro.
+    if (r() < 0.22) {
+      g.strokeStyle = rgb(PEDRA, 0.42, 0.8)
+      g.lineWidth = 1.1
+      g.beginPath()
+      let cx = x0 + 8 + r() * (x1 - x0 - 16)
+      let cy = y0
+      g.moveTo(cx, cy)
+      while (cy < y1 - 4) {
+        cx += (r() - 0.5) * 9
+        cy += 4 + r() * 7
+        g.lineTo(cx, cy)
+      }
+      g.stroke()
+    }
+    // Musgo seco na aresta de baixo de alguns blocos.
+    if (r() < 0.3) {
+      g.fillStyle = 'rgba(92,100,78,' + (0.22 + r() * 0.22).toFixed(2) + ')'
+      for (let k = 0; k < 7; k++) g.fillRect(x0 + r() * (x1 - x0 - 14), y1 - 3 - r() * 5, 6 + r() * 14, 2 + r() * 4)
+    }
   }
   for (let y = 0; y < 512; y += fiada) {
     let x = -rnd() * 120
     while (x < 512) {
       const largura = 82 + rnd() * 70
-      const tom = 0.92 + rnd() * 0.12
-      const quente = (rnd() - 0.3) * 8
-      const cor: Rgb = [PEDRA[0] * tom + quente, PEDRA[1] * tom + quente * 0.5, PEDRA[2] * tom - quente * 0.2]
-      bloco(x, y, largura, cor)
-      // Copia o bloco que passa da borda no outro lado: o ladrilho repete sem emenda.
-      if (x + largura > 512) bloco(x - 512, y, largura, cor)
-      if (x < 0) bloco(x + 512, y, largura, cor)
-      for (let k = 0; k < 18; k++) {
-        g.fillStyle = rgb(cor, 0.88 + rnd() * 0.18, 0.28)
-        g.fillRect(x + 4 + rnd() * (largura - 10), y + 5 + rnd() * (fiada - 12), 2 + rnd() * 6, 1 + rnd() * 3)
-      }
+      const tom = 0.64 + rnd() * 0.42
+      const frio = (rnd() - 0.5) * 12
+      const cor: Rgb = [PEDRA[0] * tom + frio * 0.2, PEDRA[1] * tom + frio * 0.3, PEDRA[2] * tom + frio * 0.7]
+      const sementeDoBloco = Math.floor(rnd() * 1e9)
+      bloco(x, y, largura, cor, sementeDoBloco)
+      // Copia o bloco que passa da borda no outro lado, com a mesma semente: o ladrilho repete sem emenda.
+      if (x + largura > 512) bloco(x - 512, y, largura, cor, sementeDoBloco)
+      if (x < 0) bloco(x + 512, y, largura, cor, sementeDoBloco)
       x += largura
     }
   }
-  // Escorridos de chuva e líquen baixinho: quebram a regularidade sem virar sujeira.
-  for (let i = 0; i < 26; i++) {
+  // Sujeira em manchas largas (com cópia do outro lado quando passa da borda).
+  for (let i = 0; i < 14; i++) {
     const x = rnd() * 512
-    const grad = g.createLinearGradient(0, 0, 0, 512)
-    grad.addColorStop(0, 'rgba(110,98,84,0.10)')
-    grad.addColorStop(1, 'rgba(110,98,84,0)')
-    g.fillStyle = grad
-    g.fillRect(x, rnd() * 200, 3 + rnd() * 10, 200 + rnd() * 300)
+    const y = rnd() * 512
+    const raio = 34 + rnd() * 60
+    const forca = (0.12 + rnd() * 0.14).toFixed(2)
+    for (const dx of [-512, 0, 512]) {
+      for (const dy of [-512, 0, 512]) {
+        if (x + dx + raio < 0 || x + dx - raio > 512 || y + dy + raio < 0 || y + dy - raio > 512) continue
+        const grad = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, raio)
+        grad.addColorStop(0, 'rgba(52,52,46,' + forca + ')')
+        grad.addColorStop(1, 'rgba(52,52,46,0)')
+        g.fillStyle = grad
+        g.fillRect(x + dx - raio, y + dy - raio, raio * 2, raio * 2)
+      }
+    }
   }
+  // Umidade escorrendo: faixas estreitas e escuras que descem das juntas e somem.
   for (let i = 0; i < 40; i++) {
-    g.fillStyle = `rgba(132,142,104,${0.06 + rnd() * 0.08})`
-    g.beginPath()
-    g.arc(rnd() * 512, rnd() * 512, 4 + rnd() * 14, 0, Math.PI * 2)
-    g.fill()
+    const x = rnd() * 512
+    const y = Math.floor(rnd() * 8) * fiada + fiada - junta
+    const comprimento = 90 + rnd() * 300
+    const grad = g.createLinearGradient(0, y, 0, y + comprimento)
+    grad.addColorStop(0, 'rgba(56,56,50,' + (0.14 + rnd() * 0.12).toFixed(2) + ')')
+    grad.addColorStop(1, 'rgba(56,56,50,0)')
+    g.fillStyle = grad
+    const largura = 2 + rnd() * 6
+    g.fillRect(x, y, largura, comprimento)
+    if (y + comprimento > 512) g.fillRect(x, y - 512, largura, comprimento)
   }
   return canvas
 }
@@ -287,10 +381,13 @@ function sujarDeUmidade(THREE: ThreeModule, geo: Three.BufferGeometry, yDaMalha:
   const pos = geo.getAttribute('position')
   const cores = new Float32Array(pos.count * 3)
   for (let i = 0; i < pos.count; i++) {
-    const k = umidade(pos.getY(i) + yDaMalha)
-    cores[i * 3] = k
-    cores[i * 3 + 1] = k * 0.98
-    cores[i * 3 + 2] = k * 0.96
+    const y = pos.getY(i) + yDaMalha
+    const k = umidade(y)
+    // Musgo e sujeira na faixa perto do chão e da água: esverdeia e escurece.
+    const musgo = clamp01(1 - Math.abs(y - 0.1) / 1.6)
+    cores[i * 3] = k * (1 - 0.2 * musgo)
+    cores[i * 3 + 1] = k * (1 - 0.06 * musgo) * 0.98
+    cores[i * 3 + 2] = k * (1 - 0.26 * musgo) * 0.97
   }
   geo.setAttribute('color', new THREE.BufferAttribute(cores, 3))
   return geo
@@ -306,7 +403,7 @@ function pintarTabuleiro(rnd: () => number): HTMLCanvasElement {
   for (let i = 0; i < tabuas; i++) {
     const y = i * altura
     const tom = 0.88 + rnd() * 0.18
-    const base: Rgb = [156 * tom, 116 * tom, 80 * tom]
+    const base: Rgb = [136 * tom, 110 * tom, 86 * tom]
     g.fillStyle = rgb(base)
     g.fillRect(0, y + 2, 512, altura - 3)
     for (let k = 0; k < 9; k++) {
@@ -337,21 +434,22 @@ function pintarTabuleiro(rnd: () => number): HTMLCanvasElement {
   return canvas
 }
 
-/** Grama de verde fresco e calmo, sem repetir: manchas grandes, flores miúdas. 60 × 50 m. */
+/** Grama seca e cinza de vale com névoa, sem repetir: manchas grandes, poucas flores murchas. 60 × 50 m. */
 function pintarGramado(rnd: () => number): HTMLCanvasElement {
   const [canvas, g] = tela(1024, 1024)
-  g.fillStyle = 'rgb(122,156,86)'
+  g.fillStyle = 'rgb(106,108,96)'
   g.fillRect(0, 0, 1024, 1024)
   const tons: Rgb[] = [
-    [112, 148, 80],
-    [138, 166, 92],
-    [150, 160, 88],
-    [104, 138, 78],
+    [92, 96, 84],
+    [128, 126, 108],
+    [116, 110, 92],
+    [80, 86, 78],
   ]
-  for (let i = 0; i < 260; i++) {
+  // Manchas médias: com a névoa, mancha enorme não aparece e custa caro pintar (canvas em CPU).
+  for (let i = 0; i < 200; i++) {
     const x = rnd() * 1024
     const y = rnd() * 1024
-    const r = 30 + rnd() * 110
+    const r = 24 + rnd() * 66
     const grad = g.createRadialGradient(x, y, 0, x, y, r)
     const cor = tons[Math.floor(rnd() * tons.length)]
     grad.addColorStop(0, rgb(cor, 1, 0.5))
@@ -364,11 +462,11 @@ function pintarGramado(rnd: () => number): HTMLCanvasElement {
     g.fillRect(rnd() * 1024, rnd() * 1024, 1, 2 + rnd() * 3)
   }
   const flores: Rgb[] = [
-    [246, 240, 226],
-    [240, 216, 120],
-    [196, 170, 214],
+    [196, 192, 180],
+    [170, 160, 128],
+    [150, 140, 150],
   ]
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 28; i++) {
     const cx = rnd() * 1024
     const cy = rnd() * 1024
     const cor = flores[Math.floor(rnd() * flores.length)]
@@ -385,7 +483,7 @@ function pintarGramado(rnd: () => number): HTMLCanvasElement {
 /** Terra de caminho alaranjada e calma, trilhas de roda, pedrinhas; borda some na grama. 3 × 6 m. */
 function pintarEstrada(rnd: () => number): HTMLCanvasElement {
   const [canvas, g] = tela(256, 512)
-  g.fillStyle = 'rgb(198,154,108)'
+  g.fillStyle = 'rgb(132,124,110)'
   g.fillRect(0, 0, 256, 512)
   for (let i = 0; i < 160; i++) {
     const x = rnd() * 256
@@ -393,16 +491,16 @@ function pintarEstrada(rnd: () => number): HTMLCanvasElement {
     const r = 8 + rnd() * 30
     const grad = g.createRadialGradient(x, y, 0, x, y, r)
     const f = 0.88 + rnd() * 0.2
-    grad.addColorStop(0, rgb([198, 154, 108], f, 0.5))
-    grad.addColorStop(1, rgb([198, 154, 108], f, 0))
+    grad.addColorStop(0, rgb([132, 124, 110], f, 0.5))
+    grad.addColorStop(1, rgb([132, 124, 110], f, 0))
     g.fillStyle = grad
     g.fillRect(x - r, y - r, r * 2, r * 2)
   }
   for (const u of [0.3, 0.7]) {
     const grad = g.createLinearGradient(u * 256 - 16, 0, u * 256 + 16, 0)
-    grad.addColorStop(0, 'rgba(160,118,80,0)')
-    grad.addColorStop(0.5, 'rgba(160,118,80,0.55)')
-    grad.addColorStop(1, 'rgba(160,118,80,0)')
+    grad.addColorStop(0, 'rgba(100,94,84,0)')
+    grad.addColorStop(0.5, 'rgba(100,94,84,0.55)')
+    grad.addColorStop(1, 'rgba(100,94,84,0)')
     g.fillStyle = grad
     g.fillRect(u * 256 - 16, 0, 32, 512)
   }
@@ -428,13 +526,13 @@ function pintarEstrada(rnd: () => number): HTMLCanvasElement {
 /** Telhado de ardósia azul-acinzentada em escamas. 256 px = 2 m. */
 function pintarArdosia(rnd: () => number): HTMLCanvasElement {
   const [canvas, g] = tela(256, 256)
-  g.fillStyle = 'rgb(66,72,98)'
+  g.fillStyle = 'rgb(62,64,70)'
   g.fillRect(0, 0, 256, 256)
   const fileira = 22
   for (let y = 0, linha = 0; y < 256 + fileira; y += fileira, linha++) {
     for (let x = linha % 2 ? -16 : 0; x < 256 + 32; x += 32) {
       const f = 0.9 + rnd() * 0.18
-      g.fillStyle = rgb([98, 108, 140], f)
+      g.fillStyle = rgb([92, 96, 106], f)
       g.beginPath()
       g.moveTo(x + 1, y)
       g.lineTo(x + 31, y)
@@ -459,12 +557,12 @@ function pintarEstandarte(): HTMLCanvasElement {
   g.lineTo(64, 440)
   g.lineTo(0, 512)
   g.closePath()
-  g.fillStyle = 'rgb(150,60,54)'
+  g.fillStyle = 'rgb(108,52,48)'
   g.fill()
   g.lineWidth = 10
-  g.strokeStyle = 'rgb(214,178,98)'
+  g.strokeStyle = 'rgb(160,140,96)'
   g.stroke()
-  g.fillStyle = 'rgb(214,178,98)'
+  g.fillStyle = 'rgb(160,140,96)'
   g.beginPath()
   g.arc(64, 190, 26, Math.PI, 0)
   g.fill()
@@ -482,7 +580,7 @@ function pintarTufo(rnd: () => number): HTMLCanvasElement {
     const x = 20 + rnd() * 88
     const altura = 50 + rnd() * 70
     const curva = (rnd() - 0.5) * 40
-    g.strokeStyle = rgb([118, 152, 82], 0.8 + rnd() * 0.45)
+    g.strokeStyle = rgb([128, 128, 110], 0.75 + rnd() * 0.45)
     g.lineWidth = 2.5 + rnd() * 2.5
     g.lineCap = 'round'
     g.beginPath()
@@ -518,65 +616,50 @@ function pintarChama(): HTMLCanvasElement {
   return canvas
 }
 
-function pintarNuvem(rnd: () => number): HTMLCanvasElement {
-  const [canvas, g] = tela(512, 160)
-  for (let i = 0; i < 26; i++) {
-    const x = 60 + rnd() * 392
-    const y = 70 + (rnd() - 0.5) * 40 - Math.sin(((x - 60) / 392) * Math.PI) * 26
-    const r = 22 + rnd() * 42
-    const grad = g.createRadialGradient(x, y, 0, x, y, r)
-    // Cima mais clara, base mais quente (a cor vem do material): luz rasante de fim de tarde.
-    grad.addColorStop(0, 'rgba(255,255,255,0.55)')
-    grad.addColorStop(1, 'rgba(255,255,255,0)')
-    g.fillStyle = grad
-    g.fillRect(x - r, y - r, r * 2, r * 2)
-  }
-  return canvas
-}
-
-/** Morros em volta (anel de 180 m): mais frios e escuros contra o sol, mais quentes do lado oposto. */
-function pintarMorros(rnd: () => number, azimuteDoSol: number): HTMLCanvasElement {
-  const L = 2048
-  const A = 256
-  const [canvas, g] = tela(L, A)
-  const camadas: { base: number; amp: number; perto: Rgb; contra: Rgb; arvores: boolean }[] = [
-    { base: 0.42, amp: 0.2, perto: [206, 170, 168], contra: [168, 150, 170], arvores: false },
-    { base: 0.25, amp: 0.13, perto: [158, 146, 132], contra: [116, 114, 132], arvores: true },
-  ]
-  for (const camada of camadas) {
-    const fases = [rnd() * 6, rnd() * 6, rnd() * 6]
-    for (let x = 0; x < L; x++) {
-      const a = (x / L) * Math.PI * 2
-      const altura =
-        camada.base +
-        camada.amp * (0.55 * Math.sin(a * 3 + fases[0]) + 0.3 * Math.sin(a * 7 + fases[1]) + 0.15 * Math.sin(a * 17 + fases[2])) +
-        (camada.arvores ? 0.018 * Math.abs(Math.sin(a * 220)) : 0)
-      let d = Math.abs(a - azimuteDoSol)
-      if (d > Math.PI) d = Math.PI * 2 - d
-      const lado = clamp01(1 - d / 1.6)
-      const cor: Rgb = [0, 1, 2].map((i) => camada.perto[i] + (camada.contra[i] - camada.perto[i]) * lado) as unknown as Rgb
-      const topo = A - altura * A
-      g.fillStyle = rgb(cor)
-      g.fillRect(x, topo, 1, A - topo)
+/** Véu de névoa rasteira: manchas brancas largas e macias, que repetem sem emenda. 256 px. */
+function pintarNevoeiro(rnd: () => number): HTMLCanvasElement {
+  const [canvas, g] = tela(256, 256)
+  g.fillStyle = 'rgba(255,255,255,0.28)'
+  g.fillRect(0, 0, 256, 256)
+  for (let i = 0; i < 42; i++) {
+    const x = rnd() * 256
+    const y = rnd() * 256
+    const r = 26 + rnd() * 38
+    const a = (0.1 + rnd() * 0.16).toFixed(2)
+    // Só desenha a cópia do outro lado quando a mancha passa da borda.
+    for (const dx of [-256, 0, 256]) {
+      for (const dy of [-256, 0, 256]) {
+        if (x + dx + r < 0 || x + dx - r > 256 || y + dy + r < 0 || y + dy - r > 256) continue
+        const grad = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r)
+        grad.addColorStop(0, 'rgba(255,255,255,' + a + ')')
+        grad.addColorStop(1, 'rgba(255,255,255,0)')
+        g.fillStyle = grad
+        g.fillRect(x + dx - r, y + dy - r, r * 2, r * 2)
+      }
     }
   }
   return canvas
 }
 
-/** Pátio iluminado visto pela passagem: chão claro, muro com janela, céu. */
-function pintarPatio(): HTMLCanvasElement {
-  const [canvas, g] = tela(128, 192)
-  const grad = g.createLinearGradient(0, 0, 0, 192)
-  grad.addColorStop(0, 'rgb(236,214,196)')
-  grad.addColorStop(0.35, 'rgb(244,214,164)')
-  grad.addColorStop(0.62, 'rgb(232,190,136)')
-  grad.addColorStop(1, 'rgb(214,170,120)')
-  g.fillStyle = grad
-  g.fillRect(0, 0, 128, 192)
-  g.fillStyle = 'rgba(176,132,96,0.55)'
-  g.fillRect(0, 70, 128, 4)
-  g.fillStyle = 'rgba(120,86,66,0.6)'
-  g.fillRect(78, 34, 16, 24)
+/**
+ * Borda do véu (vai no alphaMap, que lê o canal verde): some na boca de perto, a do topo da imagem
+ * (onde fica a ponte ou a passagem), e nos dois lados.
+ */
+function pintarBordaDoNevoeiro(): HTMLCanvasElement {
+  const [canvas, g] = tela(64, 64)
+  const perto = g.createLinearGradient(0, 0, 0, 64)
+  perto.addColorStop(0, 'rgb(0,0,0)')
+  perto.addColorStop(0.1, 'rgb(255,255,255)')
+  perto.addColorStop(1, 'rgb(255,255,255)')
+  g.fillStyle = perto
+  g.fillRect(0, 0, 64, 64)
+  const lados = g.createLinearGradient(0, 0, 64, 0)
+  lados.addColorStop(0, 'rgba(0,0,0,1)')
+  lados.addColorStop(0.14, 'rgba(0,0,0,0)')
+  lados.addColorStop(0.86, 'rgba(0,0,0,0)')
+  lados.addColorStop(1, 'rgba(0,0,0,1)')
+  g.fillStyle = lados
+  g.fillRect(0, 0, 64, 64)
   return canvas
 }
 
@@ -635,22 +718,21 @@ void main() {
 }
 `
 
-/** Céu de fim de tarde: do lado do sol dourado; do lado oposto, a faixa rosa sobre o azul (cinturão de Vênus). */
+/**
+ * Céu encoberto de fim de tarde: no horizonte é a própria névoa (cor de NEVOA, em sRGB), em cima um
+ * cinza um tico mais frio. O sol é só um brilho largo e pálido, sem disco, que some perto do chão
+ * para não recortar o campo apagado pela névoa.
+ */
 const CEU_GLSL = /* glsl */ `
+uniform vec3 uNevoa;
 vec3 ceuEm(vec3 d, vec3 sol) {
   float h = d.y;
-  vec2 a = normalize(d.xz + 1e-5);
-  vec2 b = normalize(sol.xz + 1e-5);
-  float lado = dot(a, b) * 0.5 + 0.5;
   float s = max(dot(d, sol), 0.0);
-  vec3 alto = mix(vec3(0.44, 0.52, 0.74), vec3(0.50, 0.58, 0.78), lado);
-  vec3 faixa = mix(vec3(0.90, 0.70, 0.70), vec3(0.98, 0.79, 0.58), lado);
-  vec3 baixo = mix(vec3(0.74, 0.70, 0.79), vec3(1.0, 0.85, 0.62), lado);
-  vec3 c = mix(baixo, faixa, smoothstep(0.0, 0.09, h));
-  c = mix(c, alto, smoothstep(0.09, 0.6, h));
-  c = mix(c, vec3(1.0, 0.74, 0.46), pow(s, 4.0) * 0.38);
-  c += vec3(1.0, 0.86, 0.62) * pow(s, 60.0) * 0.32;
-  if (h < 0.0) c = mix(baixo, vec3(0.52, 0.46, 0.48), 1.0 - smoothstep(-0.25, 0.0, h));
+  vec3 alto = uNevoa * vec3(0.84, 0.88, 0.95);
+  vec3 c = mix(uNevoa, alto, smoothstep(0.04, 0.6, h));
+  float acima = smoothstep(0.03, 0.2, h);
+  c = mix(c, vec3(0.80, 0.76, 0.69), pow(s, 5.0) * 0.5 * acima);
+  c += vec3(0.13, 0.11, 0.08) * pow(s, 36.0) * acima;
   return c;
 }
 `
@@ -663,8 +745,6 @@ float acaso(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.54
 void main() {
   vec3 d = normalize(vDir);
   vec3 c = ceuEm(d, uSol);
-  float s = max(dot(d, uSol), 0.0);
-  c = mix(c, vec3(1.0, 0.97, 0.88), smoothstep(0.99955, 0.99978, s));
   c += (acaso(gl_FragCoord.xy) - 0.5) / 255.0;
   gl_FragColor = vec4(c, 1.0);
 }
@@ -688,6 +768,7 @@ const AGUA_FRAGMENTO = /* glsl */ `
 uniform float uT;
 uniform float uMexe;
 uniform vec3 uSol;
+uniform float uDensidade;
 varying vec3 vPos;
 ${CEU_GLSL}
 void main() {
@@ -706,27 +787,29 @@ void main() {
     float ax = abs(hit.x);
     float topo = ax < 4.2 ? 9.4 : (ax < 7.8 ? 12.0 : 6.7);
     if (k > 0.0 && hit.y < topo) {
-      refl = vec3(0.62, 0.50, 0.37) * (0.85 + 0.15 * sin(hit.y * 6.0));
-      if (ax < 1.4 && hit.y < 4.6) refl = vec3(0.16, 0.12, 0.10);
+      refl = vec3(0.44, 0.43, 0.40) * (0.85 + 0.15 * sin(hit.y * 6.0));
+      if (ax < 1.4 && hit.y < 4.6) refl = vec3(0.10, 0.10, 0.10);
     }
   } else if (r.z > 0.02) {
     float k = (5.0 - vPos.z) / r.z;
     float y = vPos.y + r.y * k;
-    if (k > 0.0 && y < 0.0) refl = vec3(0.30, 0.25, 0.23);
-    else if (k > 0.0 && y < 0.6) refl = mix(vec3(0.36, 0.40, 0.26), refl, 0.4);
+    if (k > 0.0 && y < 0.0) refl = vec3(0.26, 0.25, 0.24);
+    else if (k > 0.0 && y < 0.6) refl = mix(vec3(0.33, 0.34, 0.30), refl, 0.4);
   }
   float cosv = max(dot(-v, n), 0.0);
-  float fresnel = 0.3 + 0.6 * pow(1.0 - cosv, 3.0);
+  float fresnel = 0.16 + 0.5 * pow(1.0 - cosv, 3.0);
   // Faixas deitadas que andam devagar: o reflexo se quebra como em água parada de fosso.
   float faixas = sin(p.y * 13.0 + sin(p.x * 0.7 + t * 0.6) * 2.2 + t * 1.4) * sin(p.y * 5.3 - p.x * 0.4 - t * 0.9);
   refl *= 0.84 + 0.22 * faixas;
-  vec3 fundo = vec3(0.11, 0.17, 0.18);
-  vec3 c = mix(fundo, refl * vec3(0.9, 0.94, 0.96), fresnel);
+  vec3 fundo = vec3(0.07, 0.08, 0.08);
+  vec3 c = mix(fundo, refl * vec3(0.72, 0.75, 0.77), fresnel);
   // Escurece junto das pedras do castelo e da margem: a água "encosta" nelas.
   c *= 0.72 + 0.28 * smoothstep(-0.6, 1.6, p.y) * (1.0 - smoothstep(4.4, 5.0, p.y));
   float brilho = pow(max(dot(r, uSol), 0.0), 600.0);
   float cintila = 0.5 + 0.5 * sin(p.x * 23.0 + t * 7.0) * sin(p.y * 19.0 - t * 5.0);
-  c += vec3(1.0, 0.88, 0.66) * brilho * cintila * 2.6;
+  c += vec3(0.9, 0.86, 0.78) * brilho * cintila * 0.9;
+  float longe = length(vPos - cameraPosition) * uDensidade;
+  c = mix(c, uNevoa, 1.0 - exp(-longe * longe));
   gl_FragColor = vec4(min(c, vec3(1.0)), 1.0);
 }
 `
@@ -782,8 +865,11 @@ export function criarPonteLevadica(sentido: Sentido): CriarCena {
 
 function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCena, sentido: Sentido): CenaTransicao {
   const scene = new THREE.Scene()
-  const nevoa = corLinear(THREE, 0xdcb8aa)
-  scene.fog = new THREE.Fog(nevoa, 40, 290)
+  // A névoa do three mistura a cor DEPOIS de converter para sRGB, e com o ColorManagement desligado
+  // (como no motor do app) a cor dela não é convertida: vai crua, em sRGB, para casar com o céu.
+  scene.fog = new THREE.FogExp2(new THREE.Color().setHex(NEVOA.cor, THREE.LinearSRGBColorSpace), NEVOA.densidade)
+  /** A mesma cor da névoa, em sRGB, para os shaders próprios (céu e água), que o motor não converte. */
+  const nevoaSrgb = new THREE.Vector3(((NEVOA.cor >> 16) & 255) / 255, ((NEVOA.cor >> 8) & 255) / 255, (NEVOA.cor & 255) / 255)
   const camera = new THREE.PerspectiveCamera(FOV, 16 / 9, 0.1, 1200)
   scene.add(camera)
   const rnd = semente(20261120)
@@ -813,12 +899,13 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
   const { azimute, elevacao, cor: corDoSol, forca } = SOL[sentido]
   const solDir = new THREE.Vector3(-Math.sin(azimute) * Math.cos(elevacao), Math.sin(elevacao), Math.cos(azimute) * Math.cos(elevacao))
   const sol = new THREE.DirectionalLight(corLinear(THREE, corDoSol), forca)
-  sol.target.position.set(0, 0, 2.5)
+  const recorte = SOMBRA[sentido]
+  sol.target.position.set(recorte.alvo[0], 0, recorte.alvo[1])
   sol.position.copy(solDir).multiplyScalar(60).add(sol.target.position)
   sol.castShadow = true
   sol.shadow.mapSize.set(2048, 2048)
-  sol.shadow.camera.left = -15
-  sol.shadow.camera.right = 15
+  sol.shadow.camera.left = -recorte.meiaLargura
+  sol.shadow.camera.right = recorte.meiaLargura
   sol.shadow.camera.top = 15
   sol.shadow.camera.bottom = -15
   sol.shadow.camera.near = 1
@@ -826,60 +913,31 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
   sol.shadow.bias = -0.0004
   sol.shadow.normalBias = 0.03
   scene.add(sol, sol.target)
-  scene.add(new THREE.HemisphereLight(corLinear(THREE, 0x9fb0e0), corLinear(THREE, 0x7e604a), 0.8))
+  // Luz de céu encoberto: fria por cima, terra apagada por baixo. Quem aquece são as tochas.
+  scene.add(new THREE.HemisphereLight(corLinear(THREE, 0xaab4c2), corLinear(THREE, 0x54534e), 1.45))
 
-  // --- Céu, morros, nuvens, halo do sol ----------------------------------------
+  // --- Céu de névoa e o brilho difuso do sol -------------------------------------
   const ceu = new THREE.Mesh(
     new THREE.SphereGeometry(400, 32, 16),
-    new THREE.ShaderMaterial({ uniforms: { uSol: { value: solDir.clone() } }, vertexShader: DIRECAO_VERTICE, fragmentShader: CEU_FRAGMENTO, side: THREE.BackSide, depthWrite: false }),
+    new THREE.ShaderMaterial({ uniforms: { uSol: { value: solDir.clone() }, uNevoa: { value: nevoaSrgb } }, vertexShader: DIRECAO_VERTICE, fragmentShader: CEU_FRAGMENTO, side: THREE.BackSide, depthWrite: false }),
   )
   ceu.renderOrder = -10
   ceu.frustumCulled = false
   scene.add(ceu)
 
-  const morros = new THREE.Mesh(
-    new THREE.CylinderGeometry(180, 180, 34, 96, 1, true),
-    new THREE.MeshBasicMaterial({ map: textura(pintarMorros(rnd, Math.atan2(solDir.x, solDir.z))), transparent: true, side: THREE.BackSide, depthWrite: false, fog: false }),
-  )
-  morros.position.y = 15
-  morros.renderOrder = -8
-  scene.add(morros)
-
-  const texNuvem = textura(pintarNuvem(rnd))
-  const posicoesDasNuvens: [number, number, number][] = [
-    [-0.35, 0.16, 1.1],
-    [0.15, 0.11, 0.8],
-    [0.5, 0.2, 1.3],
-    [-0.75, 0.09, 0.9],
-    [Math.PI - 0.4, 0.13, 1.2],
-    [Math.PI + 0.2, 0.18, 1.0],
-    [Math.PI + 0.65, 0.1, 0.8],
-    [Math.PI - 0.9, 0.08, 1.1],
-  ]
-  for (const [az, el, escala] of posicoesDasNuvens) {
-    const d = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el))
-    const perto = clamp01((d.dot(solDir) + 0.2) / 1.2)
-    const cor = new THREE.Color(corLinear(THREE, 0xe8bcc4)).lerp(corLinear(THREE, 0xffd6a0), perto)
-    const nuvem = new THREE.Sprite(new THREE.SpriteMaterial({ map: texNuvem, color: cor, transparent: true, depthWrite: false, fog: false, opacity: 0.85 }))
-    nuvem.position.copy(d).multiplyScalar(330)
-    nuvem.scale.set(130 * escala, 40 * escala, 1)
-    nuvem.renderOrder = -7
-    scene.add(nuvem)
-  }
-
   const halo = new THREE.Sprite(
     new THREE.SpriteMaterial({
-      map: textura(pintarBrilho(256, [[0, 'rgba(255,240,210,1)'], [0.12, 'rgba(255,214,150,0.6)'], [0.45, 'rgba(255,170,100,0.16)'], [1, 'rgba(255,150,90,0)']])),
-      color: corLinear(THREE, 0xffd8a8),
+      map: textura(pintarBrilho(256, [[0, 'rgba(255,246,228,0.8)'], [0.25, 'rgba(255,232,200,0.35)'], [0.6, 'rgba(240,220,190,0.08)'], [1, 'rgba(230,210,180,0)']])),
+      color: corLinear(THREE, 0xe8dccb),
       blending: THREE.AdditiveBlending,
       transparent: true,
       depthWrite: false,
       fog: false,
-      opacity: 0.42,
+      opacity: 0.2,
     }),
   )
   halo.position.copy(solDir).multiplyScalar(340)
-  halo.scale.set(105, 105, 1)
+  halo.scale.set(170, 170, 1)
   scene.add(halo)
 
   // --- Chão, fosso, estrada ---------------------------------------------------
@@ -891,12 +949,13 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
     geo.computeVertexNormals()
     malha(geo, lambert(0xffffff, { map: texGrama }), 0, 0, MARGEM_Z + 25, 'recebe')
   }
-  const gramaLonge = lambert(0x7d9a5a)
-  malha(new THREE.PlaneGeometry(700, 320).rotateX(-Math.PI / 2), gramaLonge, 0, -0.03, MARGEM_Z + 160, 'nenhuma')
-  malha(new THREE.PlaneGeometry(700, 320).rotateX(-Math.PI / 2), gramaLonge, 0, 0, -2.5 - 160, 'nenhuma')
+  const gramaLonge = lambert(0x7c7d72)
+  // Começa depois do talude: antes ele tampava a descida da margem com um lençol liso, sem textura.
+  malha(new THREE.PlaneGeometry(700, 320).rotateX(-Math.PI / 2), gramaLonge, 0, -0.03, TALUDE.inicio + 160, 'nenhuma')
 
   const texPedra = textura(pintarPedra(rnd), true)
-  const pedra = lambert(0xffffff, { map: texPedra, vertexColors: true })
+  // A própria textura vira relevo: a junta escura afunda e a quina pega luz (sem outra textura para subir).
+  const pedra = lambert(0xffffff, { map: texPedra, vertexColors: true, bumpMap: texPedra, bumpScale: RELEVO_DA_PEDRA })
   /** Toda peça de pedra passa por aqui: UV em metros já feita por quem chama, umidade pela altura do mundo. */
   const pedraEm = (geo: Three.BufferGeometry, x: number, y: number, z: number, sombra: 'ambas' | 'recebe' = 'ambas') => malha(sujarDeUmidade(THREE, geo, y), pedra, x, y, z, sombra)
   const metros = (geo: Three.BufferGeometry, largura: number, altura: number) => escalarUv(geo, largura * UV_DA_PEDRA, altura * UV_DA_PEDRA)
@@ -917,7 +976,7 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
   }
 
   const materialDaAgua = new THREE.ShaderMaterial({
-    uniforms: { uT: { value: 0 }, uMexe: { value: reduzirMovimento ? 0.35 : 1 }, uSol: { value: solDir.clone() } },
+    uniforms: { uT: { value: 0 }, uMexe: { value: reduzirMovimento ? 0.35 : 1 }, uSol: { value: solDir.clone() }, uNevoa: { value: nevoaSrgb }, uDensidade: { value: NEVOA.densidade } },
     vertexShader: AGUA_VERTICE,
     fragmentShader: AGUA_FRAGMENTO,
   })
@@ -1006,11 +1065,20 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
       [5, 72, 1.4],
       [-16, 14, 1.3],
       [17, 18, 1.4],
+      // Mais longe, só para a névoa ir engolindo: vulto, depois nada.
+      [-23, 40, 1.5],
+      [25, 47, 1.6],
+      [-31, 70, 1.7],
+      [29, 82, 1.6],
+      [-9, 96, 1.8],
+      [17, 112, 1.8],
+      [-42, 92, 1.8],
+      [38, 62, 1.6],
     ]
     const copaGeo = new THREE.IcosahedronGeometry(1, 2)
-    const troncos = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.2, 1.8, 7), lambert(0x6b4e38), lugares.length)
-    const copas = new THREE.InstancedMesh(copaGeo, lambert(0x6e9a52), lugares.length * 3)
-    const contornos = new THREE.InstancedMesh(casco(copaGeo, 0.06), basico(0x3e5a34, { side: THREE.BackSide }), lugares.length * 3)
+    const troncos = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.2, 1.8, 7), lambert(0x4c443c), lugares.length)
+    const copas = new THREE.InstancedMesh(copaGeo, lambert(0x5d6356), lugares.length * 3)
+    const contornos = new THREE.InstancedMesh(casco(copaGeo, 0.06), basico(0x363a33, { side: THREE.BackSide }), lugares.length * 3)
     const m = new THREE.Matrix4()
     const q = new THREE.Quaternion()
     const cor = new THREE.Color()
@@ -1057,7 +1125,8 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
   escalarUv(guaritaGeo, UV_DA_PEDRA, UV_DA_PEDRA)
   sujarDeUmidade(THREE, guaritaGeo, 0)
   // Lados do furo (a passagem): fiadas deitadas ao longo da passagem (a UV de lado da extrusão as põe em pé)
-  // e a pedra escurece com a profundidade, porque o céu não entra lá dentro.
+  // e a pedra escurece com a distância da boca mais perto: o meio da abóbada some na penumbra (só as tochas
+  // o acendem). A boca do pátio clareia menos que a de fora, porque o pátio é fechado por muralhas.
   {
     const pos = guaritaGeo.getAttribute('position')
     const nor = guaritaGeo.getAttribute('normal')
@@ -1068,8 +1137,9 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
       for (let i = lados.start; i < lados.start + lados.count; i++) {
         const deitada = Math.abs(nor.getY(i)) > 0.7
         uv.setXY(i, pos.getZ(i) * UV_DA_PEDRA, (deitada ? pos.getX(i) : pos.getY(i)) * UV_DA_PEDRA)
-        const fundo = GUARITA.fundo - pos.getZ(i)
-        const k = 1 - 0.88 * Math.pow(clamp01(fundo / 2.4), 0.7)
+        const daFrente = GUARITA.fundo - pos.getZ(i)
+        const doPatio = pos.getZ(i) * 1.35
+        const k = 1 - 0.9 * Math.pow(clamp01(Math.min(daFrente, doPatio) / 2.3), 0.7)
         cor.setXYZ(i, cor.getX(i) * k, cor.getY(i) * k * 0.97, cor.getZ(i) * k * 0.94)
       }
     }
@@ -1083,7 +1153,7 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
   const bandeirolas: Three.Mesh[] = []
   const bandeirolaGeo = geometriaDeBandeirola(THREE, 1.5, 0.55)
   // Sombra pelo lado de trás, como os sólidos: reaproveita o mesmo programa de sombra (menos compilação no 1º quadro).
-  const carmim = lambert(0x96403a, { side: THREE.DoubleSide, shadowSide: THREE.BackSide })
+  const carmim = lambert(0x6c3834, { side: THREE.DoubleSide, shadowSide: THREE.BackSide })
   const ferro = lambert(0x3d3633)
   const mastro = (x: number, y: number, z: number) => {
     malha(new THREE.CylinderGeometry(0.035, 0.035, 1.3, 5), ferro, x, y + 0.65, z, 'nenhuma')
@@ -1128,26 +1198,81 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
     malha(escalarUv(new THREE.ConeGeometry(3.2, 4.6, 28), 6, 2.3), ardosia, lado * (CORTINA.fim + 1), BASE_Y + 12 + 2.3, CORTINA.frente - 1.2)
     for (const xs of [12, 20, 29]) malha(new THREE.PlaneGeometry(0.16, 0.8), escuro, lado * xs, 3.6, CORTINA.frente + 0.01, 'nenhuma')
   }
-  // Torre de menagem e torre de dentro, por trás da guarita.
-  pedraEm(metros(new THREE.BoxGeometry(8, 20, 8, 1, 4, 1), 8, 20), -2.5, 8.3, -15)
-  const telhadoDaMenagem = malha(escalarUv(new THREE.ConeGeometry(6.3, 5.5, 4, 1), 9, 2.8), ardosia, -2.5, 18.3 + 2.75, -15)
+  // Torre de menagem, no fundo, depois da muralha de dentro e à esquerda do segundo portão.
+  pedraEm(metros(new THREE.BoxGeometry(8, 20, 8, 1, 4, 1), 8, 20), MENAGEM.x, 8.3, MENAGEM.z)
+  const telhadoDaMenagem = malha(escalarUv(new THREE.ConeGeometry(6.3, 5.5, 4, 1), 9, 2.8), ardosia, MENAGEM.x, 18.3 + 2.75, MENAGEM.z)
   telhadoDaMenagem.rotation.y = Math.PI / 4
-  mastro(-2.5, 18.3 + 5.5, -15)
+  mastro(MENAGEM.x, 18.3 + 5.5, MENAGEM.z)
   for (const [x, y] of [
-    [-4.4, 13.2],
-    [-1.6, 13.2],
-    [-3.0, 9.6],
+    [-1.9, 13.2],
+    [0.9, 13.2],
+    [-0.5, 9.6],
   ] as const) {
-    malha(new THREE.PlaneGeometry(0.55, 0.9), acesa, x, y, -10.98, 'nenhuma')
+    malha(new THREE.PlaneGeometry(0.55, 0.9), acesa, MENAGEM.x + x, y, MENAGEM.z + 4.02, 'nenhuma')
   }
   pedraEm(metros(new THREE.CylinderGeometry(2.1, 2.2, 17, 28, 4), 2 * Math.PI * 2.1, 17), 9.5, BASE_Y + 8.5, -12)
   malha(escalarUv(new THREE.ConeGeometry(2.6, 4.4, 28), 6, 2.2), ardosia, 9.5, BASE_Y + 17 + 2.2, -12)
+
+  // Pátio de dentro: o que se vê pela passagem. Laje úmida, um poço e caixotes a meia distância (dão a
+  // profundidade quando quem olha anda), a muralha de dentro com o segundo portão e, atrás dele, a névoa clara.
+  const madeiraVelha = lambert(0x5c5044)
+  {
+    const comprimento = -PATIO.fundo + CORTINA.frente - 1.3
+    const laje = metros(new THREE.PlaneGeometry(80, comprimento).rotateX(-Math.PI / 2), 80 * 0.6, comprimento * 0.6)
+    // Um tico abaixo do chão da passagem, que é da guarita: as duas não brigam pela mesma profundidade.
+    pedraEm(laje, 0, -0.01, CORTINA.frente - 1.3 - comprimento / 2, 'recebe')
+
+    const muro = new THREE.Shape()
+    muro.moveTo(-30, BASE_Y)
+    muro.lineTo(30, BASE_Y)
+    muro.lineTo(30, PATIO.topo)
+    muro.lineTo(-30, PATIO.topo)
+    muro.closePath()
+    const vao = new THREE.Path()
+    vao.moveTo(-PATIO.vao, 0)
+    vao.lineTo(-PATIO.vao, PATIO.vaoReto)
+    vao.absarc(0, PATIO.vaoReto, PATIO.vao, Math.PI, 0, true)
+    vao.lineTo(PATIO.vao, 0)
+    vao.closePath()
+    muro.holes.push(vao)
+    const muralhaDeDentro = new THREE.ExtrudeGeometry(muro, { depth: PATIO.espessura, bevelEnabled: false, curveSegments: 14 })
+    escalarUv(muralhaDeDentro, UV_DA_PEDRA, UV_DA_PEDRA)
+    sujarDeUmidade(THREE, muralhaDeDentro, 0)
+    // Fica na sombra das torres e da menagem: escura contra a névoa clara de trás, em contraluz.
+    const corDaMuralha = muralhaDeDentro.getAttribute('color')
+    for (let i = 0; i < corDaMuralha.count; i++) corDaMuralha.setXYZ(i, corDaMuralha.getX(i) * 0.55, corDaMuralha.getY(i) * 0.56, corDaMuralha.getZ(i) * 0.6)
+    malha(muralhaDeDentro, pedra, 0, 0, PATIO.muralha - PATIO.espessura)
+
+    // Poço de pedra com a boca escura, dois esteios e a trave.
+    const poco = { x: 2.7, z: -12.5 }
+    pedraEm(metros(new THREE.CylinderGeometry(0.95, 1.02, 0.85, 22, 1), 6, 0.85), poco.x, 0.425, poco.z)
+    malha(new THREE.CircleGeometry(0.8, 22).rotateX(-Math.PI / 2), escuro, poco.x, 0.856, poco.z, 'nenhuma')
+    for (const lado of [-1, 1]) malha(new THREE.BoxGeometry(0.13, 1.9, 0.13), madeiraVelha, poco.x + lado * 0.86, 0.85 + 0.95, poco.z)
+    malha(new THREE.BoxGeometry(1.95, 0.13, 0.13), madeiraVelha, poco.x, 2.72, poco.z)
+    // Casa do fundo, depois do segundo portão: vulto na névoa com uma janela acesa.
+    const casa = { x: 1.6, z: -36 }
+    pedraEm(metros(new THREE.BoxGeometry(5, 4.4, 4, 1, 2, 1), 5, 4.4), casa.x, 2.2, casa.z)
+    const telhadoDaCasa = malha(escalarUv(new THREE.ConeGeometry(4.0, 2.6, 4, 1), 6, 2), ardosia, casa.x, 4.4 + 1.3, casa.z)
+    telhadoDaCasa.rotation.y = Math.PI / 4
+    malha(new THREE.PlaneGeometry(0.6, 0.8), acesa, casa.x - 0.9, 2.3, casa.z + 2.01, 'nenhuma')
+    malha(new THREE.PlaneGeometry(1.0, 1.9), escuro, casa.x + 1.1, 0.95, casa.z + 2.01, 'nenhuma')
+    // Caixotes encostados do outro lado.
+    for (const [x, y, z, lado, giro] of [
+      [-2.3, 0.45, -9.6, 0.9, 0.12],
+      [-1.55, 0.35, -10.5, 0.7, -0.3],
+      [-2.2, 1.25, -9.7, 0.7, 0.4],
+    ] as const) {
+      const caixote = malha(new THREE.BoxGeometry(lado, lado, lado), madeiraVelha, x, y, z)
+      caixote.rotation.y = giro
+    }
+  }
 
   // Ameias da guarita e das cortinas.
   {
     const lugares: [number, number, number][] = []
     for (let x = -3.75; x <= 3.76; x += 1.5) lugares.push([x, GUARITA.topo + 0.5, -0.35])
     for (const lado of [-1, 1]) for (let x = TORRE.x + 2.6; x < CORTINA.fim - 1.5; x += 1.6) lugares.push([lado * x, CORTINA.topo + 0.5, CORTINA.frente - 0.35])
+    for (let x = -28.8; x <= 28.9; x += 1.6) lugares.push([x, PATIO.topo + 0.5, PATIO.muralha - 0.35])
     const ameias = new THREE.InstancedMesh(sujarDeUmidade(THREE, metros(new THREE.BoxGeometry(0.9, 1, 0.7), 0.9, 1), CORTINA.topo), pedra, lugares.length)
     const m = new THREE.Matrix4()
     lugares.forEach(([x, y, z], i) => ameias.setMatrixAt(i, m.makeTranslation(x, y, z)))
@@ -1166,21 +1291,24 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
     estandartes.push(e)
   }
 
-  // Grade levadiça erguida: só os dentes aparecem sob o arco.
+  // Grades levadiças erguidas, uma em cada boca da passagem: só os dentes aparecem sob o arco.
   {
-    const barras = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, 3.6, 0.07), ferro, 9 + 3)
-    const dentes = new THREE.InstancedMesh(new THREE.ConeGeometry(0.05, 0.2, 5).rotateX(Math.PI), ferro, 9)
+    const bocas = [-0.55, -GUARITA.fundo + 0.55]
+    const barras = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, 3.6, 0.07), ferro, (9 + 3) * bocas.length)
+    const dentes = new THREE.InstancedMesh(new THREE.ConeGeometry(0.05, 0.2, 5).rotateX(Math.PI), ferro, 9 * bocas.length)
     const m = new THREE.Matrix4()
-    for (let i = 0; i < 9; i++) {
-      const x = -1.2 + i * 0.3
-      barras.setMatrixAt(i, m.makeTranslation(x, 4.05 + 1.8, -0.55))
-      dentes.setMatrixAt(i, m.makeTranslation(x, 3.95, -0.55))
-    }
-    for (let j = 0; j < 3; j++) {
-      m.makeRotationZ(Math.PI / 2).setPosition(0, 4.3 + j * 0.62, -0.55)
-      m.scale(new THREE.Vector3(1, 2.7 / 3.6, 1))
-      barras.setMatrixAt(9 + j, m)
-    }
+    bocas.forEach((z, b) => {
+      for (let i = 0; i < 9; i++) {
+        const x = -1.2 + i * 0.3
+        barras.setMatrixAt(b * 12 + i, m.makeTranslation(x, 4.05 + 1.8, z))
+        dentes.setMatrixAt(b * 9 + i, m.makeTranslation(x, 3.95, z))
+      }
+      for (let j = 0; j < 3; j++) {
+        m.makeRotationZ(Math.PI / 2).setPosition(0, 4.3 + j * 0.62, z)
+        m.scale(new THREE.Vector3(1, 2.7 / 3.6, 1))
+        barras.setMatrixAt(b * 12 + 9 + j, m)
+      }
+    })
     barras.castShadow = dentes.castShadow = true
     scene.add(barras, dentes)
     instanciadas.push(barras, dentes)
@@ -1228,16 +1356,44 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
     for (const lado of [-1, 1]) malha(new THREE.CircleGeometry(0.17, 12), escuro, lado * 1.72, 5.38, 0.012, 'nenhuma')
   }
 
-  // Pátio claro do outro lado da passagem (recorta a silhueta de quem entra).
-  malha(new THREE.PlaneGeometry(3.6, 5.0), new THREE.MeshBasicMaterial({ map: textura(pintarPatio()), fog: false }), 0, 2.2, -GUARITA.fundo - 0.6, 'nenhuma')
+  // --- Névoa rasteira e o clarão atrás do segundo portão ---------------------------------
+  // Véus deitados rente ao chão: vistos de pé, de lado, engrossam com a distância como névoa de vale.
+  // Começam depois da ponte e depois da passagem, para a ponte e as correntes ficarem nítidas.
+  const texNevoeiro = textura(pintarNevoeiro(rnd), true)
+  const texBorda = textura(pintarBordaDoNevoeiro())
+  texBorda.colorSpace = THREE.NoColorSpace
+  const veus: { tex: Three.Texture; porMetro: number; rumo: number }[] = []
+  const veuDeNevoa = (largura: number, comprimento: number, y: number, z: number, deFrente: boolean, opacidade: number, repete: [number, number], rumo: number) => {
+    const tex = texNevoeiro.clone()
+    tex.repeat.set(repete[0], repete[1])
+    tex.needsUpdate = true
+    texturas.push(tex)
+    const geo = new THREE.PlaneGeometry(largura, comprimento).rotateX(-Math.PI / 2)
+    // A borda que some fica do lado de quem vem do castelo.
+    if (!deFrente) geo.rotateY(Math.PI)
+    const material = new THREE.MeshBasicMaterial({ color: corLinear(THREE, NEVOEIRO_BAIXO.cor), map: tex, alphaMap: texBorda, transparent: true, depthWrite: false, opacity: opacidade })
+    const m = malha(geo, material, 0, y, z, 'nenhuma')
+    m.renderOrder = 2
+    veus.push({ tex, porMetro: repete[0] / largura, rumo })
+  }
+  veuDeNevoa(150, 120, 0.35, PONTE.fim + 3 + 60, true, 0.62, [4, 3.4], 1)
+  veuDeNevoa(150, 120, 0.95, PONTE.fim + 6 + 60, true, 0.42, [3, 2.5], -0.7)
+  veuDeNevoa(60, 36, 0.4, -GUARITA.fundo - 2 - 18, false, 0.5, [2, 1.3], 0.8)
+  // Clarão da névoa do outro lado do segundo portão: o pátio de dentro fica em contraluz.
+  const clarao = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: (halo.material as Three.SpriteMaterial).map, color: corLinear(THREE, 0xb8b4ac), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, opacity: 0.16 }),
+  )
+  clarao.position.set(0, 2.6, PATIO.muralha - PATIO.espessura - 9)
+  clarao.scale.set(26, 15, 1)
+  scene.add(clarao)
 
   // --- Tochas -------------------------------------------------------------------
   const texChama = textura(pintarChama())
-  const tochas: { chama: Three.Sprite; luz: Three.PointLight; fase: number; base?: number }[] = []
+  const tochas: { chama: Three.Sprite; luz: Three.PointLight | null; fase: number; base?: number }[] = []
   const madeiraDaTocha = lambert(0x6a4a32)
   const texHaloDaTocha = textura(pintarBrilho(64, [[0, 'rgba(255,190,110,0.55)'], [0.4, 'rgba(255,150,80,0.18)'], [1, 'rgba(255,130,70,0)']]))
   /** Tocha de parede: argola de ferro, cabo de madeira inclinado para fora, chama e um halo baixinho. */
-  const tocha = (x: number, y: number, z: number, nx: number, nz: number, fase: number, forca = 0.5) => {
+  const tocha = (x: number, y: number, z: number, nx: number, nz: number, fase: number, forca = 0.5, alcance = 8) => {
     const suporte = new THREE.Group()
     suporte.position.set(x, y, z)
     suporte.rotation.y = Math.atan2(nx, nz)
@@ -1260,15 +1416,24 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
     chama.position.copy(ponta)
     chama.scale.set(0.2, 0.36, 1)
     scene.add(haloDaTocha, chama)
-    const luz = new THREE.PointLight(corLinear(THREE, 0xffa860), forca, 8, 2)
-    luz.position.copy(ponta).add(new THREE.Vector3(nx * 0.25, 0, nz * 0.25))
-    scene.add(luz)
+    // Força 0: só chama e halo, sem luz pontual (cada luz a mais pesa em todo shader iluminado).
+    const luz = forca > 0 ? new THREE.PointLight(corLinear(THREE, 0xffa860), forca, alcance, 2) : null
+    if (luz) {
+      luz.position.copy(ponta).add(new THREE.Vector3(nx * 0.25, 0, nz * 0.25))
+      scene.add(luz)
+    }
     tochas.push({ chama, luz, fase })
   }
-  tocha(-2.3, 2.7, 0.02, 0, 1, 0)
-  tocha(2.3, 2.7, 0.02, 0, 1, 2.1)
+  // As de fora aquecem só uma poça em volta: o resto da fachada fica no frio da névoa.
+  tocha(-2.3, 2.7, 0.02, 0, 1, 0, 0.3, 4.5)
+  tocha(2.3, 2.7, 0.02, 0, 1, 2.1, 0.3, 4.5)
   // A de dentro é mais fraca: acende um pouco a parede sem desmanchar a moldura escura do arco.
   tocha(VAO.meiaLargura - 0.02, 2.3, -2.3, -1, 0, 4.2, 0.22)
+  tocha(-VAO.meiaLargura + 0.02, 2.3, -4.4, 1, 0, 1.3, 0.2)
+  // As do segundo portão: dois pontos quentes no pátio frio, a meia névoa. Longe assim, chama e halo
+  // bastam; sem luz pontual, o primeiro quadro compila mais leve.
+  tocha(-2.1, 2.5, PATIO.muralha + 0.02, 0, 1, 0.7, 0)
+  tocha(2.1, 2.5, PATIO.muralha + 0.02, 0, 1, 2.9, 0)
 
   // --- Pássaros e poeira na luz ------------------------------------------------------
   const passaros: { malha: Three.Mesh; fase: number; de: Three.Vector3; ate: Three.Vector3 }[] = []
@@ -1288,7 +1453,7 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
     voo.forEach(([x0, y0, z0, x1, y1, z1], i) => {
       const geo = new THREE.BufferGeometry()
       geo.setAttribute('position', new THREE.Float32BufferAttribute(new Array(18).fill(0), 3))
-      const m = new THREE.Mesh(geo, basico(0x3a2e30, { side: THREE.DoubleSide }))
+      const m = new THREE.Mesh(geo, basico(0x262628, { side: THREE.DoubleSide }))
       m.frustumCulled = false
       scene.add(m)
       passaros.push({ malha: m, fase: i * 1.9, de: new THREE.Vector3(x0, y0, z0), ate: new THREE.Vector3(x1, y1, z1) })
@@ -1296,6 +1461,8 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
   }
 
   const N_POEIRA = 70
+  /** Distância (m) abaixo da qual um grão de umidade some, em vez de cobrir a tela. */
+  const POEIRA_PERTO_DEMAIS = 1.2
   const poeiraPos = new Float32Array(N_POEIRA * 3)
   const poeiraBase: number[] = []
   for (let i = 0; i < N_POEIRA; i++) poeiraBase.push((rnd() - 0.5) * 3.4, 0.3 + rnd() * 3.8, -3 + rnd() * 8, rnd() * 6)
@@ -1305,10 +1472,10 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
     poeiraGeo,
     new THREE.PointsMaterial({
       size: 0.045,
-      map: textura(pintarBrilho(32, [[0, 'rgba(255,240,210,1)'], [1, 'rgba(255,220,170,0)']])),
-      color: corLinear(THREE, 0xffe2b0),
+      map: textura(pintarBrilho(32, [[0, 'rgba(240,240,232,1)'], [1, 'rgba(230,230,220,0)']])),
+      color: corLinear(THREE, 0xc8c8c0),
       transparent: true,
-      opacity: sentido === 'saindo' ? 0.85 : 0.3,
+      opacity: sentido === 'saindo' ? 0.4 : 0.25,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     }),
@@ -1377,10 +1544,12 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
     for (const tocha of tochas) {
       const { chama, luz, fase } = tocha
       // O motor multiplica a luz pontual depois de montar (FATOR_LUZ_PONTUAL): o tremor parte do valor já convertido.
-      tocha.base ??= luz.intensity
       const tremor = 1 + 0.12 * Math.sin(t * 13 + fase) + 0.07 * Math.sin(t * 23.7 + fase * 2.3)
       chama.scale.set(0.2 * (1.1 - 0.4 * (tremor - 1)), 0.36 * tremor, 1)
-      luz.intensity = tocha.base * tremor
+      if (luz) {
+        tocha.base ??= luz.intensity
+        luz.intensity = tocha.base * tremor
+      }
     }
     for (const p of passaros) {
       const u = t / T.escuroFim
@@ -1406,8 +1575,15 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
       poeiraPos[i * 3] = bx + 0.15 * Math.sin(t * 0.7 * deriva + f)
       poeiraPos[i * 3 + 1] = by + 0.1 * Math.sin(t * 0.9 * deriva + f * 1.7) + 0.05 * t * deriva
       poeiraPos[i * 3 + 2] = bz + 0.12 * Math.cos(t * 0.6 * deriva + f)
+      // Grão colado no olho vira uma bola borrada na tela: some enquanto a câmera passa por ele.
+      const dx = poeiraPos[i * 3] - camera.position.x
+      const dy = poeiraPos[i * 3 + 1] - camera.position.y
+      const dz = poeiraPos[i * 3 + 2] - camera.position.z
+      if (dx * dx + dy * dy + dz * dz < POEIRA_PERTO_DEMAIS ** 2) poeiraPos[i * 3 + 1] = -50
     }
     poeiraGeo.getAttribute('position').needsUpdate = true
+    const deriva = NEVOEIRO_BAIXO.deriva * (reduzirMovimento ? 0.3 : 1)
+    for (const v of veus) v.tex.offset.x = v.rumo * deriva * t * v.porMetro
   }
 
   function atualizar(t: number) {
