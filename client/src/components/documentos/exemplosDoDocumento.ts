@@ -44,7 +44,7 @@ export const EXEMPLOS_DE_DOCUMENTO: readonly ExemploDeDocumento[] = [
       letra: 'maquina',
       tinta: 'preta',
       desgaste: { cor: null, manchas: 0, bordaQueimada: false, dobras: true, rasgos: false },
-      selo: { tipo: 'carimbo', cor: '#33508f', arte: 'torre', texto: 'Guarda da Vila do Brejo' },
+      selo: { tipo: 'carimbo', cor: '#33508f', arte: 'torre', imagem: null, texto: 'Guarda da Vila do Brejo' },
       assinatura: 'Cap. Aurélio Mendes',
       brasao: { arte: 'torre', imagem: null },
     },
@@ -80,7 +80,7 @@ export const EXEMPLOS_DE_DOCUMENTO: readonly ExemploDeDocumento[] = [
     titulo: 'Juramento dos Antigos',
     papel: 'pergaminho',
     paginas: ['Nós, os Antigos do Brejo, juramos diante da água e da pedra:\n\n{{cifra:c3}}\n\nQue estas palavras durem mais do que nós.'],
-    extras: { letra: 'impressa', tinta: 'sepia', selo: { tipo: 'cera', cor: '#8e2a22', arte: 'rosa' } },
+    extras: { letra: 'impressa', tinta: 'sepia', selo: { tipo: 'cera', cor: '#8e2a22', arte: 'rosa', imagem: null } },
     trechos: {
       c3: {
         tipo: 'cifra',

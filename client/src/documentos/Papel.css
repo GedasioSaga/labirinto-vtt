@@ -185,3 +185,7 @@
 /* O aquecimento (`AquecimentoDoPapel`): pinta de verdade (a placa de vídeo compila as camadas), mas não se vê nem pega o ponteiro. */
 .papel-aquecimento { position: fixed; left: 0; top: 0; z-index: 2147483000; width: 330px; opacity: 0.01; pointer-events: none; transform: scale(0.25); transform-origin: 0 0; contain: layout paint; }
 .papel-aquecimento__grao { position: relative; display: block; width: 160px; height: 160px; isolation: isolate; background-color: #efe6cf; }
+
+/* A imagem própria no meio do selo (sem a mistura do brasão: na cera escura ela sumiria) e do carimbo (que já mistura inteiro). */
+.papel__selo--cera .papel__selo-imagem { opacity: 0.94; }
+.papel__selo--carimbo .papel__selo-imagem { opacity: 0.9; }

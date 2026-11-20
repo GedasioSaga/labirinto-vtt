@@ -113,10 +113,16 @@ export interface DesgasteDoPapel {
   rasgos: boolean
 }
 
-/** No fim da última página: o selo de cera ou o carimbo oficial, que tem o texto em volta. */
+/**
+ * No fim da última página: o selo de cera ou o carimbo oficial, que tem o
+ * texto em volta. O meio é um desenho (`arte`) ou uma imagem própria
+ * (`imagem`, `midia:<id>`), pelo mesmo caminho do brasão: `{ arte: null,
+ * imagem: null }` = o mestre escolheu "Imagem própria" e ainda não a mandou
+ * (o selo fica sem nada no meio até lá).
+ */
 export type SeloDoDocumento =
-  | { tipo: 'cera'; /** `#rrggbb` */ cor: string; arte: ArteDoDocumento }
-  | { tipo: 'carimbo'; /** `#rrggbb` */ cor: string; arte: ArteDoDocumento; /** até `TEXTO_DO_CARIMBO_MAX` */ texto: string }
+  | { tipo: 'cera'; /** `#rrggbb` */ cor: string; arte: ArteDoDocumento | null; imagem: string | null }
+  | { tipo: 'carimbo'; /** `#rrggbb` */ cor: string; arte: ArteDoDocumento | null; imagem: string | null; /** até `TEXTO_DO_CARIMBO_MAX` */ texto: string }
 
 /**
  * No cabeçalho da 1ª página: um desenho (`arte`) ou uma imagem (`midia:<id>`).

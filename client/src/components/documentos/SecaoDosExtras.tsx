@@ -144,18 +144,52 @@ const ARTE_DO_CARIMBO: ArteDoDocumento = 'torre'
 const COR_DA_CERA_NOVA = '#8e2a22'
 const COR_DO_CARIMBO_NOVO = '#33508f'
 
-/** O selo do tipo pedido, guardando o desenho do de antes (trocar de cera para carimbo não perde a escolha). */
+type MeioDoSelo = 'desenho' | 'imagem'
+const OPCOES_DO_MEIO_DO_SELO: OpcaoDoSeg<MeioDoSelo>[] = [
+  { valor: 'desenho', rotulo: 'Desenho' },
+  { valor: 'imagem', rotulo: 'Imagem própria' },
+]
+
+/** O selo do tipo pedido, guardando o desenho ou a imagem do de antes (trocar de cera para carimbo não perde a escolha). */
 function seloDoTipo(tipo: TipoDoSelo, antes: SeloDoDocumento | null): SeloDoDocumento | null {
   if (tipo === 'nada') return null
   if (antes?.tipo === tipo) return antes
-  if (tipo === 'cera') return { tipo: 'cera', cor: COR_DA_CERA_NOVA, arte: antes?.arte ?? ARTE_DA_CERA }
-  return { tipo: 'carimbo', cor: COR_DO_CARIMBO_NOVO, arte: antes?.arte ?? ARTE_DO_CARIMBO, texto: '' }
+  const imagem = antes === null ? null : antes.imagem
+  if (tipo === 'cera') return { tipo: 'cera', cor: COR_DA_CERA_NOVA, arte: antes === null ? ARTE_DA_CERA : antes.arte, imagem }
+  return { tipo: 'carimbo', cor: COR_DO_CARIMBO_NOVO, arte: antes === null ? ARTE_DO_CARIMBO : antes.arte, imagem, texto: '' }
 }
 
-/** "Imagem" escolhida sem imagem ainda é `{ arte: null, imagem: null }` (como o leitor do disco aceita). */
+/** O desenho ou a imagem própria, no selo e no brasão: "Imagem" escolhida sem imagem ainda é `{ arte: null, imagem: null }` (como o leitor do disco aceita). */
+function desenhoOuImagem(alvo: { arte: ArteDoDocumento | null; imagem: string | null }): MeioDoSelo {
+  return alvo.imagem !== null || alvo.arte === null ? 'imagem' : 'desenho'
+}
+
+/** O selo com o meio pedido: o desenho volta ao padrão do tipo; a imagem guarda a que já havia (ou fica à espera dela). */
+function seloComMeio(meio: MeioDoSelo, selo: SeloDoDocumento): SeloDoDocumento {
+  if (meio === 'imagem') return { ...selo, arte: null }
+  return { ...selo, arte: selo.arte ?? (selo.tipo === 'cera' ? ARTE_DA_CERA : ARTE_DO_CARIMBO), imagem: null }
+}
+
 function tipoDoBrasao(brasao: BrasaoDoDocumento | null): TipoDoBrasao {
   if (brasao === null) return 'nenhum'
-  return brasao.imagem !== null || brasao.arte === null ? 'imagem' : 'desenho'
+  return desenhoOuImagem(brasao)
+}
+
+/** A imagem própria (brasão, selo, carimbo): a miniatura, o botão que a escolhe e, sem ela ainda, o aviso. */
+function EscolhaDaImagem({ imagem, alt, aviso, onEscolher }: { imagem: string | null; alt: string; aviso: string; onEscolher: () => void }) {
+  return (
+    <>
+      <div className="doc-imagem-mini">
+        {imagem !== null && <img src={imagem} alt={alt} />}
+        <Acoes>
+          <Botao variante="latao" tamanho="p" onClick={onEscolher}>
+            {imagem === null ? 'Escolher a imagem' : 'Trocar a imagem'}
+          </Botao>
+        </Acoes>
+      </div>
+      {imagem === null && <Nota>{aviso}</Nota>}
+    </>
+  )
 }
 
 function brasaoDoTipo(tipo: TipoDoBrasao, antes: BrasaoDoDocumento | null): BrasaoDoDocumento | null {
@@ -169,6 +203,7 @@ export function SecaoSeloAssinaturaBrasao({ extras, mudar, onErro }: PropsDosExt
   const { selo, brasao } = extras
   const tipoB = tipoDoBrasao(brasao)
   const imagemDoBrasao = brasao === null ? null : resolver(brasao.imagem)
+  const imagemDoSelo = selo === null ? null : resolver(selo.imagem)
   const mudarSelo = (mudanca: (selo: SeloDoDocumento) => SeloDoDocumento) => mudar((atual) => (atual.selo === null ? atual : { ...atual, selo: mudanca(atual.selo) }))
   const escolherBrasao = () => {
     escolherImagemDoDocumento()
@@ -177,6 +212,15 @@ export function SecaoSeloAssinaturaBrasao({ extras, mudar, onErro }: PropsDosExt
       })
       .catch(onErro)
   }
+  // O mesmo caminho do brasão: a imagem vai para a mídia da mesa e o selo guarda a `midia:<id>`.
+  const escolherImagemDoSelo = () => {
+    escolherImagemDoDocumento()
+      .then((imagem) => {
+        if (imagem !== null) mudarSelo((atual) => ({ ...atual, arte: null, imagem }))
+      })
+      .catch(onErro)
+  }
+  const nomeDoSelo = selo?.tipo === 'carimbo' ? 'carimbo' : 'selo'
   return (
     <section className="doc-secao" aria-label="Selo, assinatura e brasão">
       <h3 className="mg-secao">Selo, assinatura e brasão</h3>
@@ -189,7 +233,12 @@ export function SecaoSeloAssinaturaBrasao({ extras, mudar, onErro }: PropsDosExt
             valor={selo.cor}
             onChange={(cor) => mudarSelo((atual) => ({ ...atual, cor }))}
           />
-          <EscolhaDaArte arte={selo.arte} rotulo={selo.tipo === 'cera' ? 'Desenho do selo' : 'Desenho do carimbo'} onChange={(arte) => mudarSelo((atual) => ({ ...atual, arte }))} />
+          <CampoSeg rotulo={`No meio do ${nomeDoSelo}`} opcoes={OPCOES_DO_MEIO_DO_SELO} valor={desenhoOuImagem(selo)} onChange={(meio) => mudarSelo((atual) => seloComMeio(meio, atual))} />
+          {selo.arte !== null && selo.imagem === null ? (
+            <EscolhaDaArte arte={selo.arte} rotulo={`Desenho do ${nomeDoSelo}`} onChange={(arte) => mudarSelo((atual) => ({ ...atual, arte, imagem: null }))} />
+          ) : (
+            <EscolhaDaImagem imagem={imagemDoSelo} alt={`A imagem do ${nomeDoSelo}`} aviso={`Até escolher a imagem, o meio do ${nomeDoSelo} fica vazio.`} onEscolher={escolherImagemDoSelo} />
+          )}
           {selo.tipo === 'carimbo' && (
             <CampoTexto
               rotulo={`Texto em volta (até ${TEXTO_DO_CARIMBO_MAX} letras)`}
@@ -212,19 +261,7 @@ export function SecaoSeloAssinaturaBrasao({ extras, mudar, onErro }: PropsDosExt
       {brasao !== null && tipoB === 'desenho' && brasao.arte !== null && (
         <EscolhaDaArte arte={brasao.arte} rotulo="Desenho do brasão" onChange={(arte) => mudar((atual) => ({ ...atual, brasao: { arte, imagem: null } }))} />
       )}
-      {tipoB === 'imagem' && (
-        <>
-          <div className="doc-imagem-mini">
-            {imagemDoBrasao !== null && <img src={imagemDoBrasao} alt="O brasão escolhido" />}
-            <Acoes>
-              <Botao variante="latao" tamanho="p" onClick={escolherBrasao}>
-                {imagemDoBrasao === null ? 'Escolher a imagem' : 'Trocar a imagem'}
-              </Botao>
-            </Acoes>
-          </div>
-          {imagemDoBrasao === null && <Nota>Até escolher a imagem, o cabeçalho fica sem brasão.</Nota>}
-        </>
-      )}
+      {tipoB === 'imagem' && <EscolhaDaImagem imagem={imagemDoBrasao} alt="O brasão escolhido" aviso="Até escolher a imagem, o cabeçalho fica sem brasão." onEscolher={escolherBrasao} />}
     </section>
   )
 }

@@ -134,5 +134,7 @@ function extrasNoFio(extras: ExtrasDoDocumento): ExtrasDoDocumento {
 
 function seloNoFio(selo: SeloDoDocumento | null): SeloDoDocumento | null {
   if (selo === null) return null
-  return selo.tipo === 'cera' ? { tipo: 'cera', cor: selo.cor, arte: selo.arte } : { tipo: 'carimbo', cor: selo.cor, arte: selo.arte, texto: selo.texto }
+  return selo.tipo === 'cera'
+    ? { tipo: 'cera', cor: selo.cor, arte: selo.arte, imagem: selo.imagem }
+    : { tipo: 'carimbo', cor: selo.cor, arte: selo.arte, imagem: selo.imagem, texto: selo.texto }
 }

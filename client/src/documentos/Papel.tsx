@@ -173,27 +173,48 @@ function Trecho({ bloco, nomeDoItem }: { bloco: BlocoProtegidoNoFio; nomeDoItem:
   )
 }
 
-function SeloDeCera({ cor, arte, semente }: { cor: string; arte: ArteDoDocumento; semente: number }) {
+/** O meio do selo e do carimbo: a imagem própria (já resolvida em endereço) vence o desenho; os dois ausentes = o meio vazio. */
+interface MeioDoSelo {
+  arte: ArteDoDocumento | null
+  imagem: string | null
+}
+
+/** A imagem própria no meio, recortada no círculo de raio `r` (a do brasão vai inteira; a do selo é redonda como ele). */
+function ImagemNoMeio({ imagem, r, recorte }: { imagem: string; r: number; recorte: string }) {
+  return (
+    <>
+      <clipPath id={recorte}>
+        <circle r={r} />
+      </clipPath>
+      <image className="papel__selo-imagem" href={imagem} x={-r} y={-r} width={r * 2} height={r * 2} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${recorte})`} />
+    </>
+  )
+}
+
+function SeloDeCera({ cor, meio, semente, idBase }: { cor: string; meio: MeioDoSelo; semente: number; idBase: string }) {
   const escuro = tom(cor, 0.6)
   const claro = tom(cor, 1.5)
-  const d = ARTES[arte].d
+  const d = meio.imagem === null && meio.arte !== null ? ARTES[meio.arte].d : null
   return (
     <svg className="papel__selo papel__selo--cera" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false">
       <path d={contornoDaCera(semente)} fill={cor} stroke={escuro} strokeWidth="1.2" />
       <circle r="31" fill={tom(cor, 0.84)} />
+      {meio.imagem !== null && <ImagemNoMeio imagem={meio.imagem} r={29.8} recorte={`${idBase}-cr`} />}
       <circle r="31" fill="none" stroke={escuro} strokeWidth="2.4" />
       <circle r="27.4" fill="none" stroke={claro} strokeWidth="1" opacity=".45" />
-      <g transform="translate(-21.6 -21.6) scale(.9)" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.2">
-        <path d={d} stroke={claro} opacity=".5" transform="translate(-.9 -.9)" />
-        <path d={d} stroke={escuro} transform="translate(.8 .8)" />
-        <path d={d} stroke={tom(cor, 0.92)} />
-      </g>
+      {d !== null && (
+        <g transform="translate(-21.6 -21.6) scale(.9)" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.2">
+          <path d={d} stroke={claro} opacity=".5" transform="translate(-.9 -.9)" />
+          <path d={d} stroke={escuro} transform="translate(.8 .8)" />
+          <path d={d} stroke={tom(cor, 0.92)} />
+        </g>
+      )}
       <path d="M-31-17a36 36 0 0 1 21-19" stroke={claro} strokeWidth="3" fill="none" strokeLinecap="round" opacity=".45" />
     </svg>
   )
 }
 
-function Carimbo({ cor, arte, texto, semente, idBase }: { cor: string; arte: ArteDoDocumento; texto: string; semente: number; idBase: string }) {
+function Carimbo({ cor, meio, texto, semente, idBase }: { cor: string; meio: MeioDoSelo; texto: string; semente: number; idBase: string }) {
   const emVolta = texto.trim().toLocaleUpperCase('pt-BR')
   const mascara = `${idBase}-m`
   const volta = `${idBase}-c`
@@ -219,9 +240,15 @@ function Carimbo({ cor, arte, texto, semente, idBase }: { cor: string; arte: Art
             </textPath>
           </text>
         )}
-        <g transform="translate(-19.2 -19.2) scale(.8)" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d={ARTES[arte].d} />
-        </g>
+        {meio.imagem !== null ? (
+          <ImagemNoMeio imagem={meio.imagem} r={28.4} recorte={`${idBase}-r`} />
+        ) : (
+          meio.arte !== null && (
+            <g transform="translate(-19.2 -19.2) scale(.8)" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d={ARTES[meio.arte].d} />
+            </g>
+          )
+        )}
       </g>
     </svg>
   )
@@ -296,6 +323,7 @@ export function Papel({ documento, pagina, resolver, tamanho = 'cheio', idDoTitu
   const paragrafos = paragrafosDoTexto(texto, desenharTrecho)
   const assinatura = extras.assinatura === null ? '' : extras.assinatura.trim()
   const seloAqui = ultima ? selo : null
+  const meioDoSelo: MeioDoSelo = { arte: seloAqui === null ? null : seloAqui.arte, imagem: seloAqui === null ? null : resolver(seloAqui.imagem) }
 
   const estilo: CSSProperties = {}
   if (desgaste.cor !== null) estilo.backgroundColor = desgaste.cor
@@ -336,9 +364,9 @@ export function Papel({ documento, pagina, resolver, tamanho = 'cheio', idDoTitu
         {ultima && assinatura !== '' && <Assinatura texto={assinatura} />}
         {seloAqui !== null &&
           (seloAqui.tipo === 'cera' ? (
-            <SeloDeCera cor={seloAqui.cor} arte={seloAqui.arte} semente={semente} />
+            <SeloDeCera cor={seloAqui.cor} meio={meioDoSelo} semente={semente} idBase={idBase} />
           ) : (
-            <Carimbo cor={seloAqui.cor} arte={seloAqui.arte} texto={seloAqui.texto} semente={semente} idBase={idBase} />
+            <Carimbo cor={seloAqui.cor} meio={meioDoSelo} texto={seloAqui.texto} semente={semente} idBase={idBase} />
           ))}
         {total > 1 && (
           <span className="papel__folha">
@@ -370,8 +398,8 @@ const ETAPAS_DO_AQUECIMENTO: readonly (DocumentoNoFio | 'grao')[] = [
   papelDeAquecer('diario', { letra: 'mao', tinta: 'sangue', assinatura: 'Aa', brasao: { arte: 'rosa', imagem: null } }),
   papelDeAquecer('carta', { letra: 'maquina', tinta: 'sepia', desgaste: { cor: null, manchas: 3, bordaQueimada: false, dobras: true, rasgos: false } }),
   papelDeAquecer('carta', { letra: 'maquina', tinta: 'sepia', desgaste: { cor: null, manchas: 0, bordaQueimada: true, dobras: false, rasgos: true } }),
-  papelDeAquecer('pergaminho', { letra: 'impressa', tinta: 'vermelha', selo: { tipo: 'cera', cor: '#8e2a22', arte: 'rosa' } }),
-  papelDeAquecer('bilhete', { letra: 'mao', tinta: 'preta', selo: { tipo: 'carimbo', cor: '#33508f', arte: 'torre', texto: 'Aa' } }),
+  papelDeAquecer('pergaminho', { letra: 'impressa', tinta: 'vermelha', selo: { tipo: 'cera', cor: '#8e2a22', arte: 'rosa', imagem: null } }),
+  papelDeAquecer('bilhete', { letra: 'mao', tinta: 'preta', selo: { tipo: 'carimbo', cor: '#33508f', arte: 'torre', imagem: null, texto: 'Aa' } }),
 ]
 /** Espera o app assentar (mapa, fichas) antes de ocupar a placa de vídeo. */
 const ESPERA_PARA_AQUECER_MS = 1500

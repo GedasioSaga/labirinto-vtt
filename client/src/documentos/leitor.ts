@@ -182,21 +182,32 @@ function lerDesgaste(valor: unknown, padrao: DesgasteDoPapel): DesgasteDoPapel {
   }
 }
 
-/** Selo de tipo desconhecido sai (sem selo); cor e desenho tortos viram os do selo novo do protótipo. */
+/**
+ * Selo de tipo desconhecido sai (sem selo); cor e desenho tortos viram os do
+ * selo novo do protótipo. A imagem própria é a do brasão: `arte: null` e a
+ * `midia:<id>`. O selo gravado antes dela não tem `imagem` e lê como desenho.
+ */
 function lerSelo(valor: unknown): SeloDoDocumento | null {
   if (!isRecord(valor)) return null
+  const imagem = imagemLida(valor.imagem)
   if (valor.tipo === 'cera') {
-    return { tipo: 'cera', cor: corLida(valor.cor) ?? COR_DA_CERA_PADRAO, arte: umDaLista(ARTES_DO_DOCUMENTO, valor.arte, ARTE_DA_CERA_PADRAO) }
+    return { tipo: 'cera', cor: corLida(valor.cor) ?? COR_DA_CERA_PADRAO, arte: arteDoSelo(valor.arte, ARTE_DA_CERA_PADRAO), imagem }
   }
   if (valor.tipo === 'carimbo') {
     return {
       tipo: 'carimbo',
       cor: corLida(valor.cor) ?? COR_DO_CARIMBO_PADRAO,
-      arte: umDaLista(ARTES_DO_DOCUMENTO, valor.arte, ARTE_DO_CARIMBO_PADRAO),
+      arte: arteDoSelo(valor.arte, ARTE_DO_CARIMBO_PADRAO),
+      imagem,
       texto: textoAparado(valor.texto, TEXTO_DO_CARIMBO_MAX),
     }
   }
   return null
+}
+
+/** `null` gravado = a imagem própria (com ou sem a imagem ainda); desenho torto ou ausente = o padrão do tipo. */
+function arteDoSelo(valor: unknown, padrao: ArteDoDocumento): ArteDoDocumento | null {
+  return valor === null ? null : umDaLista(ARTES_DO_DOCUMENTO, valor, padrao)
 }
 
 /** Brasão: o desenho conhecido ou a imagem de mídia; os dois ausentes é o "Imagem" ainda sem a imagem (vale). */
