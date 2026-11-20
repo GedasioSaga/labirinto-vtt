@@ -11,6 +11,7 @@ import type { EnderecoDaMesa, SalaDaMesa } from './fonte'
  *   /c/:campanhaId/fichas              as fichas da mesa (minhas primeiro, colegas só ver)
  *   /c/:campanhaId/f/:fichaId          a ficha
  *   /c/:campanhaId/f/:fichaId/mochila  a mochila dela
+ *   /c/:campanhaId/f/:fichaId/documentos  os documentos que o personagem leu (só título e papel)
  *   /c/:campanhaId/f/:fichaId/historico
  *   /c/:campanhaId/chat                a sala do chat (C2)
  *   /c/:campanhaId/chat/:contaId       o privado com essa conta
@@ -23,7 +24,7 @@ import type { EnderecoDaMesa, SalaDaMesa } from './fonte'
  * `?demo=1` liga a demo e viaja junto em toda navegação.
  */
 
-export type AbaDaFicha = 'ficha' | 'mochila' | 'historico'
+export type AbaDaFicha = 'ficha' | 'mochila' | 'documentos' | 'historico'
 
 export type AbaDoMural = 'noticias' | 'modificacoes'
 
@@ -46,7 +47,7 @@ const NAO_ACHADA: Rota = { tela: 'nao-achada' }
 
 function abaDe(parte: string | undefined): AbaDaFicha | null {
   if (parte === undefined) return 'ficha'
-  return parte === 'mochila' || parte === 'historico' ? parte : null
+  return parte === 'mochila' || parte === 'documentos' || parte === 'historico' ? parte : null
 }
 
 function partesDo(caminho: string): string[] | null {

@@ -106,6 +106,12 @@ const SORA = ficha('sora', 'Sora Maretta', BIA, {
     ['Leitura do Vento', 'Bônus', '3 de Energia', '', 'Prevê a próxima rajada: o barco ganha 2 de deslocamento.'],
     ['Corte de Maré', 'Padrão', '5 de Energia', '2d8 + AGI', 'Um golpe em arco que acompanha a onda.'],
   ],
+}, {
+  // A lista de documentos lidos (plano dos puzzles, D4): só metadados, o texto mora no app do mestre.
+  documentos: [
+    { docId: 'doc_diario_do_faroleiro', titulo: 'Diário do faroleiro', papel: 'diario', em: Date.UTC(2026, 10, 14, 22, 10), origem: 'mapa' },
+    { docId: 'doc_bilhete_do_cofre', titulo: 'Bilhete achado no cofre', papel: 'bilhete', em: Date.UTC(2026, 10, 18, 21, 40), origem: 'puzzle', de: 'Cofre do Capitão', novo: true },
+  ],
 })
 
 const TANUKI = ficha('tanuki', 'Tanuki Bento', BIA, {

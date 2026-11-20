@@ -1454,6 +1454,34 @@ textarea.lo-texto { min-height: 84px; resize: vertical; }
 .lo-por__acoes { display: flex; gap: var(--lb-control-gap); }
 .lo-mochila__pe { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-3); margin-top: var(--lb-space-3); }
 
+/* ============================================ DOCUMENTOS (a lista da ficha, plano dos puzzles) */
+
+/* A mesma linha da mochila: a vaga leva o desenho do papel no lugar das iniciais.
+   Duas classes, para valer também no celular (lá o `.lo-item` cai para duas colunas). */
+.lo-item.lo-doc { grid-template-columns: auto minmax(0, 1fr) auto; }
+.lo-doc__papel .lo-ic { width: 26px; height: 26px; }
+
+/* O "novo" do protótipo v2: o ponto de latão, sempre com a palavra ao lado (como o `.lo-ponto`). */
+.lo-doc__novo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lb-color-brass-bright);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.lo-doc__ponto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lb-color-brass-bright);
+  box-shadow: 0 0 0 3px var(--lb-color-brass-soft);
+}
+
 /* ============================================ 6. HISTÓRICO */
 
 .lo-hist__dia {

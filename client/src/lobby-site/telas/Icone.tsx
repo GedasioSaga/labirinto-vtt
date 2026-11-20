@@ -93,6 +93,50 @@ const TRACOS = {
   duelo: <path d="M4.5 4.5l10 10M4.5 4.5v3.5M4.5 4.5H8M19.5 4.5l-10 10M19.5 4.5v3.5M19.5 4.5H16M7 14l3 3M5 19l3-3M17 14l-3 3M19 19l-3-3" />,
   /** A Galeria de cutscenes (14/11/2026): a tela com o play. */
   filme: <path d="M3.5 5.5h17v13h-17zM10 9v6l5-3z" />,
+  /**
+   * Os papéis do documento (plano dos puzzles, decisão 4), no traço dos
+   * outros ícones: o desenho de cada um vem do `svgPapelMapa` do protótipo v2.
+   */
+  'papel-alfinete': (
+    <>
+      <path d="M6.2 5.4l11.5-.8 1.1 15-11.5.8z" />
+      <path d="M9.3 10.2l6-.4M9.5 13.2l6-.4M9.7 16.2l3.5-.2" />
+      <circle cx="12" cy="5" r="1.7" />
+    </>
+  ),
+  'papel-carta': (
+    <>
+      <rect x="3" y="6" width="18" height="12" rx="1.5" />
+      <path d="M3.5 6.5L12 13l8.5-6.5" />
+      <circle cx="12" cy="13.6" r="1.9" />
+    </>
+  ),
+  'papel-diario': (
+    <>
+      <rect x="5.5" y="3.5" width="13" height="17" rx="1.5" />
+      <path d="M9 3.5v17M11.8 8.5h4M11.8 12h4M11.8 15.5h2.6" />
+    </>
+  ),
+  'papel-bilhete': (
+    <>
+      <path d="M5 5h14v11l-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5z" />
+      <path d="M8 9h8M8 12h5" />
+    </>
+  ),
+  'papel-pergaminho': (
+    <>
+      <rect x="4.5" y="3.5" width="15" height="3.2" rx="1.6" />
+      <rect x="4.5" y="17.3" width="15" height="3.2" rx="1.6" />
+      <path d="M6.8 6.7v10.6M17.2 6.7v10.6M10 10.5h4M10 13.5h4" />
+    </>
+  ),
+  'papel-imagem': (
+    <>
+      <rect x="4" y="4.5" width="16" height="15" rx="1.5" />
+      <path d="M4.5 17l5-5.5 3.5 3.5 2.5-2.5 4 4.5" />
+      <circle cx="15.5" cy="9" r="1.6" />
+    </>
+  ),
 } as const
 
 export type NomeDoIcone = keyof typeof TRACOS

@@ -15,13 +15,14 @@ import { Decisoes, DecisoesSemFicha } from './Decisoes'
 import { enviarMudancas, revDeAgora, textoDaFalha } from './enviar'
 import { AvisoDaPagina, Carregando } from './Estados'
 import { Icone } from './Icone'
+import { PainelDocumentos } from './PainelDocumentos'
 import { PainelHistorico } from './PainelHistorico'
 import { PainelMochila } from './PainelMochila'
 import { AvisoDeSoLeitura, motivoDaSoLeitura, useSoLeitura } from './VerComo'
 
 /**
  * A FICHA (protótipo, tela 4, com 5, 6 e 7 dentro): a cabeça da ficha, os
- * avisos que pedem decisão, as abas (Ficha, Mochila, Histórico) e o painel.
+ * avisos que pedem decisão, as abas (Ficha, Mochila, Documentos, Histórico) e o painel.
  * A aba Ficha é a MESMA ficha do jogador no app (`PlayerFicha`): o "Salvar"
  * vira as mudanças da S2, só leitura na ficha de um colega.
  */
@@ -32,6 +33,7 @@ const SEM_TOKENS: readonly TokenDoPersonagem[] = []
 const ABAS: readonly { id: AbaDaFicha; nome: string }[] = [
   { id: 'ficha', nome: 'Ficha' },
   { id: 'mochila', nome: 'Mochila' },
+  { id: 'documentos', nome: 'Documentos' },
   { id: 'historico', nome: 'Histórico' },
 ]
 const SEM_IMAGEM_PELO_LOBBY = 'Trocar a imagem pelo Lobby ainda não dá: peça ao mestre para trocar no app.'
@@ -140,6 +142,7 @@ function FichaAberta({ rota, campanha, ficha }: { rota: RotaDaFicha; campanha: E
   }
 
   const quantidadeNaMochila = ficha.doc.mochila?.length ?? 0
+  const quantidadeDeDocumentos = ficha.doc.documentos?.length ?? 0
   const dono = ficha.nomeDoDono
 
   return (
@@ -207,6 +210,7 @@ function FichaAberta({ rota, campanha, ficha }: { rota: RotaDaFicha; campanha: E
             >
               {aba.nome}
               {aba.id === 'mochila' && <span className="lo-aba__conta">{quantidadeNaMochila}</span>}
+              {aba.id === 'documentos' && <span className="lo-aba__conta">{quantidadeDeDocumentos}</span>}
             </a>
           ))}
         </div>
@@ -218,6 +222,7 @@ function FichaAberta({ rota, campanha, ficha }: { rota: RotaDaFicha; campanha: E
           </div>
         )}
         {rota.aba === 'mochila' && <PainelMochila campanha={campanha} ficha={ficha} />}
+        {rota.aba === 'documentos' && <PainelDocumentos ficha={ficha} />}
         {rota.aba === 'historico' && <PainelHistorico campanha={campanha} ficha={ficha} />}
       </div>
     </div>
