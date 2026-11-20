@@ -1,0 +1,80 @@
+/*
+ * O PAPEL de um documento (protótipo aprovado docs/design/puzzles/prototipo-v2.html,
+ * "os papéis: desenhados em CSS, todos com a mesma tinta"). Nada anima aqui:
+ * a página troca na hora (quem lê troca muitas vezes seguidas), e quem abre
+ * e fecha é a leitura, não o papel.
+ */
+.papel {
+  --tinta: #3b2f22;
+  position: relative;
+  box-sizing: border-box;
+  width: min(540px, 86vw);
+  min-height: 380px;
+  padding: 46px 50px 40px;
+  color: var(--tinta);
+  font: 400 16.5px/1.62 var(--lb-font-display);
+  background-color: #efe6cf;
+  box-shadow: inset 0 0 0 1px rgba(120, 95, 60, 0.18), inset 0 0 40px rgba(150, 120, 70, 0.18), 0 18px 40px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+  isolation: isolate;
+  text-align: left;
+}
+.papel::selection,
+.papel *::selection { background: rgba(224, 164, 74, 0.35); }
+/* O grão do papel: ruído estático em SVG (o protótipo gerava num canvas). */
+.papel__grao {
+  position: absolute; inset: 0; pointer-events: none; z-index: -1; opacity: 0.16; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.27 0 0 0 0 0.16 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 160px;
+}
+.papel__titulo { margin: 0 0 14px; font: 400 25px/1.2 var(--lb-font-display); color: #2c2218; overflow-wrap: anywhere; }
+.papel__so-leitor { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.papel__texto { overflow-wrap: anywhere; }
+.papel__texto p { margin: 0 0 0.75em; }
+.papel__texto strong { font-weight: 700; color: #241b12; }
+.papel__texto em { font-style: italic; }
+.papel__img { display: block; max-width: 100%; max-height: 190px; margin: 4px auto 16px; border: 1px solid rgba(60, 45, 30, 0.4); filter: sepia(0.28) contrast(0.95); }
+.papel__vazio { color: rgba(59, 47, 34, 0.55); font-style: italic; }
+.papel__folha { position: absolute; right: 22px; bottom: 14px; font: 500 12px/1 var(--lb-font-utility); color: rgba(59, 47, 34, 0.55); font-variant-numeric: tabular-nums; }
+
+/* Com alfinete: creme, levemente torto, alfinete vermelho no alto. */
+.papel--alfinete { background-color: #f1e8d2; transform: rotate(-0.8deg); }
+.papel--alfinete::before { content: ''; position: absolute; left: 50%; top: 10px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: radial-gradient(circle at 38% 34%, #f39a8c 0 18%, #d2483b 42%, #8e2a22 100%); box-shadow: 0 3px 4px rgba(0, 0, 0, 0.45), 2px 6px 6px rgba(0, 0, 0, 0.18); z-index: 2; }
+.papel--alfinete::after { content: ''; position: absolute; left: 50%; top: 26px; width: 26px; height: 10px; margin-left: -3px; border-radius: 50%; background: radial-gradient(ellipse, rgba(70, 50, 30, 0.22), transparent 70%); }
+/* Carta: claro, as duas dobras e o lacre. */
+.papel--carta { background-color: #f4eee1; background-image: linear-gradient(to bottom, transparent 32.9%, rgba(110, 85, 50, 0.16) 33.2%, rgba(255, 255, 255, 0.5) 33.5%, transparent 34%, transparent 65.9%, rgba(110, 85, 50, 0.16) 66.2%, rgba(255, 255, 255, 0.5) 66.5%, transparent 67%); }
+.papel--carta::after { content: ''; position: absolute; right: 34px; bottom: 34px; width: 44px; height: 44px; border-radius: 46% 54% 50% 50%; background: radial-gradient(circle at 40% 36%, #c4574a, #9c3329 60%, #7a241d); box-shadow: inset 0 0 0 5px rgba(0, 0, 0, 0.12), 0 2px 3px rgba(0, 0, 0, 0.3); }
+/* Página de diário: pautas, margem e os furos da costura. */
+.papel--diario { padding-left: 86px; line-height: 28px; background-color: #f2ecdc; background-image: linear-gradient(to right, transparent 66px, rgba(190, 80, 70, 0.45) 66px 67.5px, transparent 67.5px), repeating-linear-gradient(to bottom, transparent 0 27px, rgba(70, 100, 140, 0.24) 27px 28px); background-position: 0 0, 0 46px; }
+.papel--diario::before { content: ''; position: absolute; left: 20px; top: 36px; bottom: 36px; width: 16px; background: radial-gradient(circle, #1a1510 0 5px, transparent 5.5px) 0 0 / 16px 64px repeat-y; opacity: 0.8; }
+.papel--diario .papel__titulo { line-height: 28px; margin-bottom: 28px; }
+.papel--diario .papel__texto p { margin: 0 0 28px; }
+/* Bilhete rasgado: menor, amarelado, a borda de baixo rasgada. */
+.papel--bilhete { width: min(440px, 86vw); min-height: 300px; background-color: #ece0bd; transform: rotate(1.2deg); padding-bottom: 54px; clip-path: polygon(0 0, 100% 0, 100% 91%, 96% 94%, 92% 90%, 87% 95%, 82% 91%, 76% 96%, 71% 92%, 65% 97%, 59% 92%, 53% 96%, 47% 91%, 41% 96%, 35% 92%, 29% 97%, 23% 92%, 17% 96%, 11% 91%, 6% 95%, 0 92%); }
+.papel--bilhete .papel__texto { font-style: italic; }
+/* Pergaminho: os dois rolos e a borda queimada. */
+.papel--pergaminho { margin: 18px 0; background: radial-gradient(ellipse at 50% 45%, #ecdcb2 55%, #d8bd85 88%, #c4a064 100%); padding: 40px 54px 36px; }
+.papel--pergaminho::before,
+.papel--pergaminho::after { content: ''; position: absolute; left: -16px; right: -16px; height: 24px; border-radius: 12px; background: linear-gradient(to bottom, #9a7646, #e3c78e 42%, #c7a46a 62%, #8a673a); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4); }
+.papel--pergaminho::before { top: -14px; }
+.papel--pergaminho::after { bottom: -14px; }
+/* Imagem própria: o papel é a imagem (posta pelo `style`), o texto num véu claro. */
+.papel--imagem { background-color: #d8ccb0; background-position: center; background-size: cover; background-repeat: no-repeat; }
+.papel--imagem .papel__texto,
+.papel--imagem .papel__titulo { background: rgba(245, 238, 220, 0.84); padding: 8px 12px; border-radius: 4px; }
+
+/* A PRÉVIA na página do livro: o mesmo papel, menor (a página tem ~330 px de largura). */
+.papel--previa { width: 100%; min-height: 240px; padding: 30px 24px 30px; font-size: 13.5px; line-height: 1.55; }
+.papel--previa .papel__titulo { font-size: 19px; margin-bottom: 10px; }
+.papel--previa .papel__img { max-height: 120px; margin-bottom: 10px; }
+.papel--previa .papel__folha { right: 14px; bottom: 10px; font-size: 11px; }
+.papel--previa.papel--diario { padding-left: 58px; line-height: 24px; background-image: linear-gradient(to right, transparent 44px, rgba(190, 80, 70, 0.45) 44px 45.5px, transparent 45.5px), repeating-linear-gradient(to bottom, transparent 0 23px, rgba(70, 100, 140, 0.24) 23px 24px); background-position: 0 0, 0 30px; }
+.papel--previa.papel--diario::before { left: 12px; width: 12px; background-size: 12px 48px; background-image: radial-gradient(circle, #1a1510 0 4px, transparent 4.5px); }
+.papel--previa.papel--diario .papel__titulo { line-height: 24px; margin-bottom: 24px; }
+.papel--previa.papel--diario .papel__texto p { margin-bottom: 24px; }
+.papel--previa.papel--bilhete { width: 92%; min-height: 200px; padding-bottom: 40px; }
+.papel--previa.papel--pergaminho { width: calc(100% - 24px); margin: 14px 12px; padding: 30px 26px 28px; }
+.papel--previa.papel--pergaminho::before,
+.papel--previa.papel--pergaminho::after { left: -10px; right: -10px; height: 18px; }
+.papel--previa.papel--pergaminho::before { top: -10px; }
+.papel--previa.papel--pergaminho::after { bottom: -10px; }
+.papel--previa.papel--carta::after { right: 18px; bottom: 18px; width: 32px; height: 32px; }

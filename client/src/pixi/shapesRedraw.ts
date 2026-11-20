@@ -270,11 +270,16 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // repinta), maior que 1 de longe (o pino cresce para não sumir). O piso do
       // pino reduzido (fatia 14) só entra quando há pino reduzido no mapa.
       // DESAFIOS: o selo também é desenhado aqui; o posto num objeto anda com ele (`map.props`).
+      // DOCUMENTOS: o papel no chão também (o posto num objeto anda com ele, e o tamanho segue a grade).
       return [
         map.pins,
         map.marcas,
         map.desafios,
-        map.desafios?.some((desafio) => desafio.lugar.tipo === 'objeto') === true ? map.props : null,
+        map.desafios?.some((desafio) => desafio.lugar.tipo === 'objeto') === true || map.documentos?.some((documento) => documento.lugar.tipo === 'objeto') === true
+          ? map.props
+          : null,
+        map.documentos,
+        map.documentos === undefined ? null : map.grid,
         hidden,
         snapshot.selectedPinId,
         pinSizeScale(cameraScale),

@@ -263,6 +263,12 @@ import { drawPerigos } from './drawPerigos'
 import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
 import { drawMarcas } from './drawMarcas'
+import { drawDocumentos } from './drawDocumentos'
+import { novoIdDoPapel, novoPapelNoMapa, papeisDoMestre, papelNoLugar } from '../documentos/noMapa'
+import { papeisDaBiblioteca } from '../documentos/recorte'
+import type { LugarDoDocumento } from '../documentos/tipos'
+import { useDocumentosStore } from '../stores/documentosStore'
+import { useDocumentosDoMestreStore } from '../components/documentos/documentosDoMestreStore'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { findPinAt, pinKindAfterShortcut, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { pinosDosDesafios } from '../lib/desafios'
@@ -2611,6 +2617,14 @@ function PixiCanvasDoContexto({
         // por baixo dos pinos (índice 0 do mesmo container).
         if (marksGraphics.parent !== pinsContainer) pinsContainer.addChildAt(marksGraphics, 0)
         drawMarcas(marksGraphics, map.marcas ?? [])
+        // DOCUMENTOS: o papel no chão, por baixo dos pinos e das marcas. O pego sai apagado; o aberto na página acende.
+        if (documentosGraphics.parent !== pinsContainer) pinsContainer.addChildAt(documentosGraphics, 0)
+        const docAceso = useLivroDoMestreStore.getState().pagina === 'documentos' ? useDocumentosDoMestreStore.getState().aberto : null
+        drawDocumentos(
+          documentosGraphics,
+          papeisDoMestre(map, papeisDaBiblioteca(useDocumentosStore.getState().documentos), useMapStore.getState().pisoAtivo, docAceso),
+          map.grid,
+        )
       }
 
       // Chão por peças fica na camada 'salas', junto das Regiões.
@@ -3076,6 +3090,8 @@ function PixiCanvasDoContexto({
       const pinosPorNo = criarPorNo<Container, ReturnType<typeof createPinsRenderer>>(pinsContainer, pinsRenderer, () => createPinsRenderer({ showNames: true }), () => {})
       aoDescartarNo.push((no) => pinosPorNo.soltar(no))
       const marksGraphics = new Graphics()
+      const documentosGraphics = new Graphics()
+      documentosGraphics.eventMode = 'none'
       const floorRenderer = createFloorRenderer()
       // Gradientes de luz nascem POR RENDERER e morrem no teardown.
       const lightsRenderer = createLightsRenderer()
@@ -3641,6 +3657,13 @@ function PixiCanvasDoContexto({
       })
       const unsubscribePaginaDoSelo = useLivroDoMestreStore.subscribe((state, previous) => {
         if (state.pagina !== previous.pagina) redrawPins()
+      })
+      // DOCUMENTOS: o papel no chão segue o tipo do documento na biblioteca (fora do mapa), e o aberto na página acende.
+      const unsubscribeBibliotecaDosDocumentos = useDocumentosStore.subscribe((state, previous) => {
+        if (state.documentos !== previous.documentos) redrawPins()
+      })
+      const unsubscribeDocumentoAberto = useDocumentosDoMestreStore.subscribe((state, previous) => {
+        if (state.aberto !== previous.aberto) redrawPins()
       })
       // FILTRO "QUEM MANDA AQUI": ligar ou desligar pinta a camada de facções
       // pelo mesmo portão do redesenho parcial (só ela repinta).
@@ -5227,6 +5250,31 @@ function PixiCanvasDoContexto({
         return true
       }
 
+      /**
+       * DOCUMENTOS: o "Marcar no mapa" da página Documentos (o papel novo, ou o
+       * "Mudar de lugar" de um que já está no chão). Mesmas regras do desafio:
+       * sem marcação, `false`; no modo objeto, clicar fora de um objeto não marca
+       * e o modo continua (o Esc da página cancela).
+       */
+      const marcarPapelNoClique = (map: MapData, ponto: Point): boolean => {
+        const marcando = useDocumentosDoMestreStore.getState().marcando
+        if (marcando === null) return false
+        const { pisoAtivo, addPapelNoMapa, mudarPapelNoMapa } = useMapStore.getState()
+        let lugar: LugarDoDocumento
+        if (marcando.modo === 'ponto') {
+          lugar = { tipo: 'ponto', x: Math.round(ponto.x), y: Math.round(ponto.y) }
+        } else {
+          const prop = findPropAt(doPisoEmEdicao(map).props, ponto, map)
+          if (prop === null) return true
+          lugar = { tipo: 'objeto', propId: prop.id }
+        }
+        const { papelId } = marcando
+        if (papelId === null) addPapelNoMapa(novoPapelNoMapa(novoIdDoPapel(), marcando.docId, lugar, pisoAtivo))
+        else mudarPapelNoMapa(papelId, (papel) => papelNoLugar(papel, lugar, pisoAtivo))
+        useDocumentosDoMestreStore.getState().pararDeMarcar()
+        return true
+      }
+
       const pinAt = (map: MapData, point: Point) => {
         // Com o mapa (não só `hiddenLayers`): o olho do mestre na camada do PINO, a escolhida ou Anotações.
         const clickable = visiblePins(doPisoEmEdicao(map).pins, map).filter((pin) => !pin.hidden)
@@ -6498,6 +6546,11 @@ function PixiCanvasDoContexto({
         // DESAFIOS: "Marcar no mapa" da página Jogos. Com qualquer ferramenta,
         // o clique marca o lugar do desafio e o gesto para aqui.
         if (marcarDesafioNoClique(map, worldPoint)) {
+          mode = 'idle'
+          return
+        }
+        // DOCUMENTOS: o "Marcar no mapa" da página Documentos, do mesmo jeito.
+        if (marcarPapelNoClique(map, worldPoint)) {
           mode = 'idle'
           return
         }
@@ -9820,6 +9873,8 @@ function PixiCanvasDoContexto({
         unsubscribeTravelLinks()
         unsubscribeSeloAberto()
         unsubscribePaginaDoSelo()
+        unsubscribeBibliotecaDosDocumentos()
+        unsubscribeDocumentoAberto()
         unsubscribeTerritorio()
         unsubscribeTelhados()
         unsubscribeParedesTortas()

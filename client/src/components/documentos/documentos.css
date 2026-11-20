@@ -1,0 +1,65 @@
+/*
+ * PÁGINA DOCUMENTOS do livro do mestre (plano dos puzzles, fase D2; protótipo
+ * v2, "documentos (mestre)"), com os tokens do app. A lista e a ficha usam as
+ * linhas da página Jogos (`.mg-*`). Só o aperto anima (160 ms) e a linha de
+ * quem acabou de receber assenta (220 ms, no componente); trocar de papel, de
+ * página da prévia ou de documento é na hora: tudo isso se faz muitas vezes.
+ */
+.doc-secao { display: flex; flex-direction: column; gap: 8px; }
+.doc-secao .mg-secao { margin: 10px 0 0; }
+
+/* a escolha do papel: as 6 miniaturas */
+.doc-papeis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.doc-papel-op {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 4px 6px;
+  border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete-forte); background: var(--lb-gr-campo);
+  color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-xs); line-height: 1.15; text-align: center; cursor: pointer;
+  transition: border-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out);
+}
+.doc-papel-op input { position: absolute; opacity: 0; pointer-events: none; }
+.doc-papel-op svg { width: 34px; height: 34px; }
+.doc-papel-op:has(input:checked) { border-color: var(--lb-color-brass-bright); color: var(--lb-color-brass-bright); box-shadow: 0 0 0 1px var(--lb-color-brass-bright); }
+.doc-papel-op:has(input:focus-visible) { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 1px; }
+.doc-papel-op:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) { .doc-papel-op:hover:not(:has(input:checked)) { color: var(--lb-color-parchment); } }
+
+/* as páginas do texto */
+.doc-paginas { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.doc-pagina { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete); background: rgba(0, 0, 0, 0.12); }
+.doc-pagina__cab { display: flex; align-items: center; gap: 4px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.doc-pagina__cab > span { margin-right: auto; }
+.doc-pagina__texto { resize: vertical; min-height: 96px; font: 400 var(--lb-font-size-sm)/1.5 var(--lb-font-sans); }
+.doc-fmt {
+  min-width: 28px; min-height: 26px; padding: 0 7px; border-radius: 5px; border: 1px solid var(--lb-gr-filete-forte);
+  background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); cursor: pointer; font: 600 13px/1 var(--lb-font-display);
+  transition: transform 160ms var(--lb-gr-ease-out), border-color var(--lb-motion-fast) ease;
+}
+.doc-fmt--italico { font-style: italic; font-weight: 400; }
+.doc-fmt:active { transform: scale(0.97); }
+.doc-fmt:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) { .doc-fmt:hover { border-color: var(--lb-color-brass-bright); } }
+
+/* a prévia "como o jogador vê": o papel numa mesa escura */
+.doc-previa { display: grid; place-items: start center; padding: 16px 8px 10px; border-radius: var(--lb-radius-md); background: radial-gradient(ellipse at 50% 30%, #3a3329, #241f19 70%); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); overflow: hidden; }
+.doc-previa__pe { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.doc-previa__pag { min-width: 96px; text-align: center; font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); font-variant-numeric: tabular-nums; }
+
+/* o papel no mapa */
+.doc-papeis-no-mapa { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.doc-papel-no-mapa { display: flex; flex-direction: column; gap: 6px; padding: 8px 9px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-gr-filete); background: var(--lb-gr-cartao); }
+.doc-papel-no-mapa__onde { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); overflow-wrap: anywhere; }
+.doc-papel-no-mapa__onde strong { color: var(--lb-color-parchment); font-weight: 600; }
+.doc-papel-no-mapa__tags { margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.doc-marcando { display: flex; flex-direction: column; gap: 6px; padding: 8px 9px; border-radius: var(--lb-radius-md); border: 1px dashed var(--lb-gr-filete-latao); background: rgba(224, 164, 74, 0.06); }
+
+/* entregar e quem tem */
+.doc-dar { display: flex; gap: 6px; }
+.doc-dar .gr-entrada { flex: 1; min-width: 0; }
+.doc-quem-tem { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.doc-quem { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 0 8px; align-items: center; font-size: var(--lb-font-size-sm); }
+.doc-quem__av { grid-row: span 2; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 600 12px/1 var(--lb-font-utility); background: #2a1d12; color: var(--lb-color-brass-bright); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.doc-quem__nome { color: var(--lb-color-parchment); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.doc-quem__estado { grid-column: 2; display: flex; flex-direction: column; color: var(--lb-color-parchment-faint); overflow-wrap: anywhere; }
+.doc-quem__estado--tem { color: var(--lb-color-parchment-dim); }
+.doc-quem__estado small { color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+.doc-quem__tirar { grid-column: 3; grid-row: 1 / span 2; }

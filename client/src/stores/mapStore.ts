@@ -103,6 +103,8 @@ import {
 import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
 import { endireitarSalaMudariaAlgo, planoDeEndireitarSala, regioesDaSelecao } from '../lib/alinhamento'
 import { useToastStore } from './toastStore'
+import { mapaComPapel, mapaComPapelMudado, mapaSemPapel } from '../documentos/noMapa'
+import type { DocumentoNoMapa } from '../documentos/tipos'
 import { caminhosComMaterial } from '../lib/terrenoDoChao'
 import { avisarCamadaOculta, avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { camadaTravada, camadaTravadaDoItem, camadasTravadasDosItens, gestoNoPino } from '../lib/camadas/trava'
@@ -1563,6 +1565,10 @@ interface MapStoreState {
   addDesafio: (desafio: Desafio) => void
   updateDesafio: (id: string, patch: PatchDoDesafio) => void
   removeDesafio: (id: string) => void
+  /** DOCUMENTOS (o papel no chão, página Documentos): pôr, mudar e tirar, com Ctrl+Z (`documentos/noMapa.ts`). */
+  addPapelNoMapa: (papel: DocumentoNoMapa) => void
+  mudarPapelNoMapa: (id: string, mudar: (papel: DocumentoNoMapa) => DocumentoNoMapa) => void
+  removePapelNoMapa: (id: string) => void
   setSelectedConcealZone: (id: string | null) => void
   addConcealZone: (zone: MapData['concealZones'][number]) => void
   updateConcealZone: (id: string, patch: Partial<Pick<MapData['concealZones'][number], 'name' | 'revealed'>>) => void
@@ -3921,6 +3927,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (removerDesafio(get().map, id) === get().map) return
       withHistory((map) => removerDesafio(map, id))
     },
+    addPapelNoMapa: (papel) => passoSeMudou((map) => mapaComPapel(map, papel)),
+    mudarPapelNoMapa: (id, mudar) => passoSeMudou((map) => mapaComPapelMudado(map, id, mudar)),
+    removePapelNoMapa: (id) => passoSeMudou((map) => mapaSemPapel(map, id)),
     setSelectedConcealZone: (id) => set(id === null ? { selectedConcealZoneId: null } : escolhaNoPainel({ kind: 'zona', id })),
     addConcealZone: (zone) => withHistory((map) => mapFactory.addConcealZone(map, zone)),
     updateConcealZone: (id, patch) => {

@@ -90,7 +90,7 @@ describe('LivroDoMestre — lombada, recolher e topo', () => {
     render()
     const marcadores = container.querySelector('[role="tablist"]')
     expect(marcadores?.getAttribute('aria-label')).toBe('Páginas do livro do mestre')
-    expect(Array.from(marcadores?.querySelectorAll('[role="tab"]') ?? []).map((b) => b.textContent)).toEqual(['Ficha', 'Cena', 'Aventura', 'Acervo'])
+    expect(Array.from(marcadores?.querySelectorAll('[role="tab"]') ?? []).map((b) => b.textContent)).toEqual(['Ficha', 'Cena', 'Aventura', 'Acervo', 'Documentos'])
     expect(folhaAberta()).toEqual(['ficha'])
     act(() => aba('Aventura')?.click())
     expect(useLivroDoMestreStore.getState().pagina).toBe('aventura')

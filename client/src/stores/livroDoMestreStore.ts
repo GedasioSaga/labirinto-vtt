@@ -10,8 +10,9 @@ import { create } from 'zustand'
 /**
  * `roteiro` só existe com a chave do Prelúdio ligada (`preludio/roteiro/RoteiroNoLivro.tsx`).
  * `jogos` é a página dos desafios (minigames fora do pino, `components/livro/PaginaJogos.tsx`).
+ * `documentos` é a biblioteca "Documentos" (`components/livro/PaginaDocumentos.tsx`).
  */
-export type PaginaDoMestre = 'ficha' | 'cena' | 'aventura' | 'acervo' | 'jogos' | 'roteiro'
+export type PaginaDoMestre = 'ficha' | 'cena' | 'aventura' | 'acervo' | 'jogos' | 'documentos' | 'roteiro'
 
 /**
  * A preferência "Categorias do painel" (esconder Aventura e Esta cena com uma

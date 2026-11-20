@@ -8,6 +8,7 @@ import { classes, movimentoReduzido } from '../grimorio/comum'
 import { ADICIONAR_TOKEN, ADICIONAR_TOKEN_DICA, BOTAO_NOVO_TOKEN_ID, NOVO_TOKEN_CAMPO_ID } from '../NovoTokenForm'
 import { useLivroDoMestreStore, type PaginaDoMestre } from '../../stores/livroDoMestreStore'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
+import { PAGINA_DOS_DOCUMENTOS, PaginaDocumentos } from './PaginaDocumentos'
 import '../grimorio/grimorio.css'
 import './livro.css'
 
@@ -62,6 +63,20 @@ const PAGINAS: readonly { id: PaginaDoMestre; rotulo: string; icone: NomeDoIcone
   { id: 'aventura', rotulo: 'Aventura', icone: 'aventura' },
   { id: 'acervo', rotulo: 'Acervo', icone: 'acervo' },
 ]
+
+/**
+ * DOCUMENTOS (plano dos puzzles, fase D2): a página é do próprio livro, como
+ * as quatro de sempre (a biblioteca é do app, não do mapa nem da sala), e o
+ * marcador entra logo depois de Jogos, a ordem da lombada do protótipo. Sem
+ * Jogos na lista, vai antes do Roteiro do Prelúdio, ou no fim.
+ */
+function comDocumentos(extras: readonly PaginaExtraDoMestre[]): readonly PaginaExtraDoMestre[] {
+  if (extras.some((p) => p.id === PAGINA_DOS_DOCUMENTOS.id)) return extras
+  const depoisDeJogos = extras.findIndex((p) => p.id === 'jogos') + 1
+  const antesDoRoteiro = extras.findIndex((p) => p.id === 'roteiro')
+  const lugar = depoisDeJogos > 0 ? depoisDeJogos : antesDoRoteiro >= 0 ? antesDoRoteiro : extras.length
+  return [...extras.slice(0, lugar), PAGINA_DOS_DOCUMENTOS, ...extras.slice(lugar)]
+}
 
 /** A folha nova assenta de 4 px em 150 ms (o `.pagina__corpo.entra` do protótipo); com movimento reduzido, só aparece. Vale para os dois livros. */
 export function entrarFolha(folha: HTMLElement | null): void {
@@ -167,7 +182,7 @@ export function LivroDoMestre(props: LivroDoMestreProps) {
         icone: <IconeDoLivro nome={p.icone} />,
         ...(p.id === 'ficha' ? { ponto: temSelecao && pagina !== 'ficha' } : {}),
       })),
-      ...(paginasExtras ?? []).map((p) => ({ id: p.id, rotulo: p.rotulo, icone: p.icone })),
+      ...comDocumentos(paginasExtras ?? []).map((p) => ({ id: p.id, rotulo: p.rotulo, icone: p.icone })),
     ],
     [temSelecao, pagina, paginasExtras],
   )
@@ -275,6 +290,7 @@ export function LivroDoMestre(props: LivroDoMestreProps) {
           </div>
           <div ref={corpo} className="gr-pagina__corpo" id={corpoId} role="tabpanel" aria-label="Página aberta">
             {children}
+            <PaginaDocumentos />
           </div>
         </div>
       </div>
