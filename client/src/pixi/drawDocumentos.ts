@@ -138,3 +138,11 @@ export function drawDocumentos(g: Graphics, papeis: readonly PapelDesenhado[], g
     desenharPapel(pincel, papel.papel)
   }
 }
+
+/** O alvo do toque no papel: o círculo que cobre o maior dos papéis (meia altura de 19 no desenho), com folga. */
+const RAIO_DO_TOQUE = 21
+
+/** O raio do toque no papel, em px de mundo, para a grade do mapa (o papel escala com ela). */
+export function raioDoToqueNoPapel(grid: number): number {
+  return (RAIO_DO_TOQUE * Math.max(grid, 1)) / CASA_DO_DESENHO
+}

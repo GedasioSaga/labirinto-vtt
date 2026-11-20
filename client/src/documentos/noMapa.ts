@@ -117,3 +117,15 @@ export function papeisDoMestre(map: Pick<MapData, 'documentos' | 'props'>, papei
   }
   return desenhados
 }
+
+/**
+ * O papel desenhado sob o ponto, para o toque do mestre abrir a ficha dele.
+ * O de cima (o último desenhado) vence; `raio` em px de mundo. `null` = nenhum.
+ */
+export function papelNoPonto(papeis: readonly PapelDesenhado[], ponto: { x: number; y: number }, raio: number): PapelDesenhado | null {
+  for (let i = papeis.length - 1; i >= 0; i -= 1) {
+    const papel = papeis[i]
+    if (Math.hypot(papel.x - ponto.x, papel.y - ponto.y) <= raio) return papel
+  }
+  return null
+}

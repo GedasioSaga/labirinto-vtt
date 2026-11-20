@@ -263,8 +263,8 @@ import { drawPerigos } from './drawPerigos'
 import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
 import { drawMarcas } from './drawMarcas'
-import { drawDocumentos } from './drawDocumentos'
-import { novoIdDoPapel, novoPapelNoMapa, papeisDoMestre, papelNoLugar } from '../documentos/noMapa'
+import { drawDocumentos, raioDoToqueNoPapel } from './drawDocumentos'
+import { documentosDoMapa, novoIdDoPapel, novoPapelNoMapa, papeisDoMestre, papelNoLugar, papelNoPonto } from '../documentos/noMapa'
 import { papeisDaBiblioteca } from '../documentos/recorte'
 import type { LugarDoDocumento } from '../documentos/tipos'
 import { useDocumentosStore } from '../stores/documentosStore'
@@ -5229,6 +5229,13 @@ function PixiCanvasDoContexto({
         return findPinAt(selos, point, pinTapTolerance(PIN_TAP_TOLERANCE_PX, camera.scale), pinSizeScale(camera.scale), pinSizeFloor(camera.scale))
       }
 
+      /** DOCUMENTOS: o papel no chão sob o clique, entre os que o canvas desenha agora (o piso em edição, o pego também). */
+      const papelAt = (map: MapData, point: Point) => {
+        const desenhados = papeisDoMestre(map, papeisDaBiblioteca(useDocumentosStore.getState().documentos), useMapStore.getState().pisoAtivo, null)
+        const tocado = papelNoPonto(desenhados, point, raioDoToqueNoPapel(map.grid))
+        return tocado === null ? undefined : documentosDoMapa(map).find((papel) => papel.id === tocado.id)
+      }
+
       /**
        * DESAFIOS: o clique do "Marcar no mapa" (um ponto) ou do "Escolher no
        * mapa" (um objeto) da página Jogos. Sem marcação em curso, `false`: o
@@ -7477,6 +7484,17 @@ function PixiCanvasDoContexto({
             // Pino de viagem: soltar sem arrastar atravessa a passagem (no
             // pointerup); arrastar continua movendo o pino, como qualquer pino.
             travelPress = abriu && pin.kind === 'viagem' && event.button === 0 ? { pinId: pin.id, x: event.global.x, y: event.global.y, moved: false } : null
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
+          // DOCUMENTOS: o papel no chão abre a ficha do documento na página Documentos, como o
+          // selo abre a do desafio em Jogos. Depois do pino: o papel é desenhado por baixo dele.
+          // Também não se arrasta: o lugar muda pelo "Mudar de lugar" da ficha.
+          const papel = papelAt(map, worldPoint)
+          if (papel !== undefined) {
+            useDocumentosDoMestreStore.getState().abrir(papel.docId)
+            useLivroDoMestreStore.getState().abrirPagina('documentos')
             lastPoint = { x: event.global.x, y: event.global.y }
             updateCursor()
             return
