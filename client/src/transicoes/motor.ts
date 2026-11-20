@@ -179,6 +179,14 @@ interface OpcoesDoPalco {
 
 export interface OpcoesDeTocar extends OpcoesDoPalco {
   escolha: TransicaoEscolhida
+  /**
+   * O nome do destino que a cena mostra no fim (`OpcoesDaCena.nome`). Promessa
+   * porque na travessia ele só é conhecido quando o mapa novo chega: o motor
+   * espera por ela logo antes de montar a cena (o `three` e a fábrica já
+   * descendo em paralelo). Quem passa cuida do teto. Ausente, rejeitada,
+   * `undefined` ou vazio = sem nome.
+   */
+  nome?: Promise<string | undefined>
 }
 
 export interface OpcoesDeTocarAbertura extends OpcoesDoPalco {
@@ -216,10 +224,24 @@ async function resolverAbertura(id: string): Promise<CenaResolvida | null> {
   return { criar, duracaoNaturalS: info.duracaoNaturalS, duracaoS: info.duracaoNaturalS }
 }
 
+/** As opções da cena com o nome, se houver um; vazio vale como sem nome, como na abertura. */
+function opcoesComNome(reduzirMovimento: boolean, nome: string | undefined): OpcoesDaCena {
+  return nome === undefined || nome === '' ? { reduzirMovimento } : { reduzirMovimento, nome }
+}
+
 /** Toca uma transição. Resolve com o controle; qualquer falha vira `onFim` imediato. */
 export function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeTransicao> {
+  const { reduzirMovimento, nome } = opcoes
+  // Nome que não veio não segura nem derruba a cena: ela toca sem a placa.
+  const opcoesDaCena =
+    nome === undefined
+      ? opcoesComNome(reduzirMovimento, undefined)
+      : nome.then(
+          (lido) => opcoesComNome(reduzirMovimento, lido),
+          () => opcoesComNome(reduzirMovimento, undefined),
+        )
   // A transição não tem largada combinada: a duração prevista só entra na vigia da cena perdida, que ela não arma.
-  return tocarCena(opcoes, { reduzirMovimento: opcoes.reduzirMovimento }, () => resolverTransicao(opcoes.escolha), TRANSICAO_DURACAO_MAX_S)
+  return tocarCena(opcoes, opcoesDaCena, () => resolverTransicao(opcoes.escolha), TRANSICAO_DURACAO_MAX_S)
 }
 
 /**
@@ -238,7 +260,7 @@ export function tocarAberturaDeBatalha(opcoes: OpcoesDeTocarAbertura): Promise<C
 /** O canvas escondido do pré-aquecimento: o tamanho não muda os programas nem as texturas, só o custo do quadro. */
 const PRE_LARGURA = 64
 const PRE_ALTURA = 36
-/** O nome que a abertura pré-aquecida mostra: com nome a cena monta tudo o que a sem nome monta, e mais a placa dele. */
+/** O nome que a cena pré-aquecida (abertura ou transição) mostra: com nome ela monta tudo o que a sem nome monta, e mais a placa dele. */
 const NOME_DO_PRE_AQUECIMENTO = 'Mesa'
 
 /**
@@ -292,9 +314,9 @@ export function preCompilarAbertura(id: string, reduzirMovimento = false): Promi
   return preCompilar(() => resolverAbertura(id), { reduzirMovimento, nome: NOME_DO_PRE_AQUECIMENTO })
 }
 
-/** Pré-aquece a transição de local `id` (ver `preCompilar`). */
+/** Pré-aquece a transição de local `id` (ver `preCompilar`); com nome, como a abertura: a placa do destino também aquece. */
 export function preCompilarTransicao(id: TransicaoId, reduzirMovimento = false): Promise<boolean> {
-  return preCompilar(() => resolverTransicao({ id }), { reduzirMovimento })
+  return preCompilar(() => resolverTransicao({ id }), { reduzirMovimento, nome: NOME_DO_PRE_AQUECIMENTO })
 }
 
 /** Teto da espera pelos shaders: com o contexto perdido no meio, o `compileAsync` não acabaria. */
@@ -403,6 +425,11 @@ function aquecerNaPlaca(THREE: ThreeModule, renderer: Three.WebGLRenderer, cena:
   }
 }
 
+/** Solta a vez: o que vem depois roda numa tarefa nova, e não na que está rodando agora. */
+function proximaTarefa(): Promise<void> {
+  return new Promise((feito) => setTimeout(feito, 0))
+}
+
 /**
  * Espera a página sossegar: o mapa novo, o recorte da batalha e os painéis
  * chegam junto com a ordem de tocar e montam por baixo da cortina. Com o
@@ -472,7 +499,8 @@ export function entradaNaCena({ largouEm, agora, escala, naturalS }: { largouEm:
 
 async function tocarCena(
   opcoes: OpcoesDoPalco,
-  opcoesDaCena: OpcoesDaCena,
+  /** Promessa quando o nome ainda vai chegar (a transição de local); esperada logo antes de montar a cena. */
+  opcoesDaCena: OpcoesDaCena | Promise<OpcoesDaCena>,
   resolver: () => Promise<CenaResolvida | null>,
   /** A duração da cena enquanto ela não está resolvida (o pacote ainda chegando): só para a vigia da cena perdida. */
   duracaoPrevistaS: number,
@@ -552,13 +580,26 @@ async function tocarCena(
     armarVigia()
     THREE = await carregarThree()
     marcar('codigo')
-    // Quem pediu já saiu (pulou durante o download): nem monta a cena.
+    // O nome do destino vem com o mapa novo: espera aqui, depois do que desce
+    // em paralelo, porque a cena pinta a placa ao montar. Valor pronto não
+    // espera nem um tique (a abertura de batalha segue como antes).
+    let opcoesProntas: OpcoesDaCena
+    if (opcoesDaCena instanceof Promise) {
+      opcoesProntas = await opcoesDaCena
+      // O nome resolve dentro da tarefa que aplicou o mapa novo: montar nela
+      // somava as duas numa tarefa longa só (185 a 201 ms na Ponte levadiça
+      // aquecida, 20/11/2026; à parte, 146 a 185 ms). A montagem vai para a próxima.
+      await proximaTarefa()
+    } else {
+      opcoesProntas = opcoesDaCena
+    }
+    // Quem pediu já saiu (pulou durante o download ou a espera do nome): nem monta a cena.
     if (desistiu()) {
       sairDoAr()
       return controleVazio
     }
     renderer = rendererCriado = criarRenderer(THREE, canvas, false)
-    cena = resolvida.criar(THREE, opcoesDaCena)
+    cena = resolvida.criar(THREE, opcoesProntas)
     // Vale também para as do pacote: elas são escritas no mesmo molde das
     // embutidas (luzes afinadas em unidades legadas), e assim tocam igual.
     converterLuzesLegadas(cena.scene)

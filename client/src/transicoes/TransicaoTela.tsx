@@ -15,6 +15,11 @@ interface TransicaoTelaProps {
    * Lida uma vez, quando a cena começa a preparar; quem passa cuida do teto.
    */
   antes?: Promise<unknown>
+  /**
+   * O nome do destino que a cena mostra no fim (o do selo "Onde estou"), que
+   * chega com o mapa novo. Lido uma vez, como `antes`; quem passa cuida do teto.
+   */
+  nome?: Promise<string | undefined>
   onFim?: () => void
 }
 
@@ -50,7 +55,7 @@ function useGranulado(ref: React.RefObject<HTMLCanvasElement | null>) {
  * Ocupa o contêiner inteiro; quem decide o tamanho é quem a usa (janela de
  * prévia do mestre ou tela cheia do jogador).
  */
-export function TransicaoTela({ escolha, volume, repetir = false, rodada = 0, antes, onFim }: TransicaoTelaProps) {
+export function TransicaoTela({ escolha, volume, repetir = false, rodada = 0, antes, nome, onFim }: TransicaoTelaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const granuladoRef = useRef<HTMLCanvasElement>(null)
   const cortinaRef = useRef<HTMLDivElement>(null)
@@ -60,6 +65,8 @@ export function TransicaoTela({ escolha, volume, repetir = false, rodada = 0, an
   // Por ref: a promessa do mapa novo é desta travessia (a `key` de quem monta troca com ela), e não recomeça a cena.
   const antesRef = useRef(antes)
   antesRef.current = antes
+  const nomeRef = useRef(nome)
+  nomeRef.current = nome
   const volumeRef = useRef(volume)
   volumeRef.current = volume
   useGranulado(granuladoRef)
@@ -79,6 +86,7 @@ export function TransicaoTela({ escolha, volume, repetir = false, rodada = 0, an
       repetir,
       sinal: desistencia.signal,
       ...(antesRef.current === undefined ? {} : { antes: antesRef.current }),
+      ...(nomeRef.current === undefined ? {} : { nome: nomeRef.current }),
       onFade: (opacidade) => {
         if (cortinaRef.current) cortinaRef.current.style.opacity = String(opacidade)
       },

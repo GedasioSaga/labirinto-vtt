@@ -660,10 +660,12 @@ export interface PlayerState {
    * TRANSIÇÃO ESPECIAL a tocar agora: o jogador atravessou um pino (ou subiu
    * uma escada) que tem uma. `nonce` muda a cada travessia — a tela toca uma
    * vez por valor. Levado, reunido ou a bordo: nunca (não foi ele que passou).
-   * `mapaNovo` resolve quando o snapshot da travessia foi aplicado (ou no teto
-   * `ESPERA_DO_MAPA_DA_TRANSICAO_MAX_MS`): a cena espera por ele antes de tocar.
+   * `mapaNovo` resolve quando o snapshot da travessia foi aplicado (`true`) ou
+   * no teto `ESPERA_DO_MAPA_DA_TRANSICAO_MAX_MS` (`false`): a cena espera por
+   * ele antes de tocar. `nome` resolve junto, com o nome do destino que a cena
+   * mostra no fim (o `sceneName` do mapa novo); `undefined` = sem nome.
    */
-  transicao?: { nonce: number; escolha: TransicaoEscolhida; mapaNovo?: Promise<void> }
+  transicao?: { nonce: number; escolha: TransicaoEscolhida; mapaNovo?: Promise<boolean>; nome?: Promise<string | undefined> }
   /**
    * AQUECER PELA INTENÇÃO: a abertura de batalha que o mestre marcou e ainda
    * não confirmou (`cutscene.aquecer`). A tela baixa e pré-compila a cena; não
@@ -3140,25 +3142,41 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let travelTimer: ReturnType<typeof setTimeout> | null = null
   /** TRANSIÇÃO ESPECIAL do pino do último pedido de passagem; toca se a chegada for dele. */
   let transicaoDoPedido: TransicaoEscolhida | undefined
-  /** TRANSIÇÃO ESPECIAL: solta quem espera o mapa da travessia em curso (`esperarMapaDaTransicao`). */
-  let soltarMapaDaTransicao: (() => void) | null = null
+  /**
+   * TRANSIÇÃO ESPECIAL: solta quem espera o mapa da travessia em curso
+   * (`esperarMapaDaTransicao`); `true` = o mapa chegou e já está no estado.
+   */
+  let soltarMapaDaTransicao: ((mapaChegou: boolean) => void) | null = null
   /**
    * A promessa que a cena da travessia espera antes de tocar: o snapshot do
    * mapa novo (ou do piso novo) aplicado, para ele montar por baixo da cortina
    * preta e não em cima da cena. O teto solta a cena se o snapshot não vier.
+   * Resolve `true` quando o mapa chegou; `false` no teto ou quando outra
+   * travessia passou por cima.
    */
-  function esperarMapaDaTransicao(): Promise<void> {
+  function esperarMapaDaTransicao(): Promise<boolean> {
     // Outra travessia por cima: a cena de antes já saiu da tela, e a espera dela acaba aqui.
-    soltarMapaDaTransicao?.()
-    return new Promise<void>((chegou) => {
-      const soltar = (): void => {
+    soltarMapaDaTransicao?.(false)
+    return new Promise<boolean>((chegou) => {
+      const soltar = (mapaChegou: boolean): void => {
         clearTimeout(teto)
         if (soltarMapaDaTransicao === soltar) soltarMapaDaTransicao = null
-        chegou()
+        chegou(mapaChegou)
       }
-      const teto = setTimeout(soltar, ESPERA_DO_MAPA_DA_TRANSICAO_MAX_MS)
+      const teto = setTimeout(() => soltar(false), ESPERA_DO_MAPA_DA_TRANSICAO_MAX_MS)
       soltarMapaDaTransicao = soltar
     })
+  }
+  /**
+   * A TRANSIÇÃO ESPECIAL a tocar, com o nome do destino que a cena mostra no
+   * fim: o do selo "Onde estou" (`sceneName`, só o nome público da cena), lido
+   * quando o mapa da travessia chega. Sem mapa no teto, sem nome: o `sceneName`
+   * ainda seria o do lugar de onde ele saiu.
+   */
+  function transicaoATocar(escolha: TransicaoEscolhida): NonNullable<PlayerState['transicao']> {
+    const mapaNovo = esperarMapaDaTransicao()
+    const nome = mapaNovo.then((chegou) => (chegou ? state.sceneName : undefined))
+    return { nonce: nextNoticeId++, escolha, mapaNovo, nome }
   }
   /** Quando saiu o último pedido de passagem (qualquer pino) e o de cada pino: o espelho dos limites do host. */
   let lastTravelSentAt: number | null = null
@@ -5139,7 +5157,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           const fase = travelPhaseOfSceneChange(data.by)
           showTravelAnswer({ id: nextNoticeId++, phase: fase })
           // TRANSIÇÃO ESPECIAL: só na chegada pedida pelo próprio jogador. O mapa novo vem no snapshot logo atrás.
-          if (fase === 'arrived' && transicaoDoPedido !== undefined) setState({ transicao: { nonce: nextNoticeId++, escolha: transicaoDoPedido, mapaNovo: esperarMapaDaTransicao() } })
+          if (fase === 'arrived' && transicaoDoPedido !== undefined) setState({ transicao: transicaoATocar(transicaoDoPedido) })
           transicaoDoPedido = undefined
         }
         return
@@ -5916,8 +5934,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const alto = data.alto === undefined ? undefined : lerTerrenoAlto(data.alto)
         if (alto === null) return recusarTela('alto')
         applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.batalha === true, caminhos, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, olhares, alto, explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
-        // TRANSIÇÃO ESPECIAL: o mapa da travessia chegou; a cena que esperava por ele pode tocar.
-        soltarMapaDaTransicao?.()
+        // TRANSIÇÃO ESPECIAL: o mapa da travessia chegou (e o `sceneName` dele); a cena que esperava por ele pode tocar.
+        soltarMapaDaTransicao?.(true)
         return
       }
       case 'wait.state':
@@ -5935,7 +5953,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'patch':
         applyPatch(data)
         // TRANSIÇÃO ESPECIAL: a troca de piso da mesma cena pode vir só como remendo.
-        soltarMapaDaTransicao?.()
+        soltarMapaDaTransicao?.(true)
         return
       case 'token.move.accepted': {
         if (typeof data.reqId !== 'string' || !isFiniteNumber(data.x) || !isFiniteNumber(data.y)) return
@@ -6479,7 +6497,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // TRANSIÇÃO ESPECIAL da escada: toca no toque — a troca de piso é na
       // mesma cena e o host responde na hora, a animação cobre a virada.
       const escolha = parseTransicao(state.map?.stairs.find((s) => s.id === stairId)?.transicao)
-      if (escolha !== undefined) setState({ transicao: { nonce: nextNoticeId++, escolha, mapaNovo: esperarMapaDaTransicao() } })
+      if (escolha !== undefined) setState({ transicao: transicaoATocar(escolha) })
       return true
     },
     boardVehicle(tokenId, vehicleId) {

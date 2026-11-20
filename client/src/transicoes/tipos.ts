@@ -48,9 +48,12 @@ export interface CenaTransicao {
 export interface OpcoesDaCena {
   reduzirMovimento: boolean
   /**
-   * Só a abertura de batalha (`aberturasDeBatalha.ts`) passa: o nome que a
-   * cena mostra (grupo, inimigo). Ausente ou vazio = sem nome (até 28/10/2026
-   * era o padrão da cena, "Royals"). A transição de local não recebe e ignora.
+   * O nome que a cena mostra. Na abertura de batalha (`aberturasDeBatalha.ts`),
+   * o grupo ou o inimigo. Na transição de local (desde 20/11/2026), o nome do
+   * destino para os jogadores, o mesmo do selo "Onde estou"
+   * (`PlayerState.sceneName`), que só chega com o mapa novo. Ausente ou vazio =
+   * sem nome (até 28/10/2026 era o padrão da abertura, "Royals"). Cena que não
+   * mostra nome ignora.
    */
   nome?: string
 }

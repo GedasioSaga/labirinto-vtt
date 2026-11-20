@@ -3167,7 +3167,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           />
         )}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
-        {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} antes={state.transicao.mapaNovo} />}
+        {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} antes={state.transicao.mapaNovo} nome={state.transicao.nome} />}
         {/* MODO BATALHA (B5): a abertura que o mestre escolheu ao ligar a batalha, no volume e no movimento deste aparelho. */}
         <AberturaDeBatalhaOverlay
           abertura={state.batalhaIniciada}
