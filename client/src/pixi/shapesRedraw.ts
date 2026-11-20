@@ -86,6 +86,8 @@ export interface ShapesSnapshot {
   activeTool: DrawingTool
   selectedConcealZoneId: string | null
   selectedPinId: string | null
+  /** O papel no chão escolhido no editor (`documentosDoMestreStore`). Ausente === nenhum. */
+  papelSelecionado?: string | null
   /**
    * Referências da aventura que decidem se um pino de viagem está ligado (o
    * par mora em OUTRA cena): `[cache, adventure, activeSceneId]`.
@@ -293,8 +295,14 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // (`alcasAparecem`: Selecionar, ou Objeto com objeto); o item pode estar
       // em qualquer lista do mapa, então elas seguem o mapa. A ferramenta entra
       // na chave: trocar Selecionar por Objeto com o mesmo objeto repinta.
-      return single !== null && alcasAparecem(snapshot.activeTool, single.kind)
-        ? ['alças', snapshot.activeTool, single.kind, single.id, map, cameraScale, rendererResolution, snapshot.rotatingRoom, snapshot.posseDasFichas]
+      if (single !== null && alcasAparecem(snapshot.activeTool, single.kind)) {
+        return ['alças', snapshot.activeTool, single.kind, single.id, map, cameraScale, rendererResolution, snapshot.rotatingRoom, snapshot.posseDasFichas]
+      }
+      // PAPEL NO CHÃO escolhido (20/11/2026): o contorno e os chips de canto
+      // dele, fora de `selection`. Seguem o papel (o lugar, o objeto onde ele
+      // está e a grade) e o zoom, como toda alça.
+      return snapshot.papelSelecionado !== undefined && snapshot.papelSelecionado !== null
+        ? ['papel', snapshot.papelSelecionado, snapshot.activeTool, map.documentos, map.props, map.grid, cameraScale]
         : ['sem alças']
     case 'areaOutline':
       // O item sozinho só com contorno (o abismo, o carimbo, a água...) também: escolher, arrastar e soltar repintam.

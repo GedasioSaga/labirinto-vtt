@@ -263,7 +263,8 @@ import { drawPerigos } from './drawPerigos'
 import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
 import { drawMarcas } from './drawMarcas'
-import { drawDocumentos, raioDoToqueNoPapel } from './drawDocumentos'
+import { caixaDoPapel, drawDocumentos, drawPapelSelecionado, raioDoToqueNoPapel } from './drawDocumentos'
+import { createPapelNoMapaGesture } from './papelNoMapaGesture'
 import { documentosDoMapa, novoIdDoPapel, novoPapelNoMapa, papeisDoMestre, papelNoLugar, papelNoPonto } from '../documentos/noMapa'
 import { papeisDaBiblioteca } from '../documentos/recorte'
 import type { LugarDoDocumento } from '../documentos/tipos'
@@ -2567,6 +2568,8 @@ function PixiCanvasDoContexto({
       const doorEndGesture = createDoorEndGesture()
       // Chips de canto do carimbo selecionado: mudam o tamanho (o giro é do `roomRotateGesture`).
       const carimboAlcaGesture = createCarimboAlcaGesture()
+      // PAPEL NO CHÃO (20/11/2026): segurar o corpo (toque abre a ficha, arrasto move) e o chip de canto (tamanho).
+      const papelGesture = createPapelNoMapaGesture(TRAVEL_CLICK_SLOP_PX)
 
       /**
        * Alças de edição (os quadradinhos amarelos) da seleção de UM item.
@@ -2586,6 +2589,16 @@ function PixiCanvasDoContexto({
           rotating: roomRotateGesture.isActive(),
           pinos: pinosDaCena(map),
         })
+        // O papel no chão escolhido: contorno e chips de canto por cima (só com o Selecionar, como as alças).
+        const papel = activeTool === 'select' && exportScene === null ? papelEscolhidoNoPiso(map) : undefined
+        if (papel !== undefined) drawPapelSelecionado(handlesGraphics, papel, map.grid, camera.scale)
+      }
+
+      /** O papel escolhido como o canvas o desenha agora (o piso em edição; o objeto onde ele está pode ter andado). */
+      const papelEscolhidoNoPiso = (map: MapData) => {
+        const id = useDocumentosDoMestreStore.getState().papelSelecionado
+        if (id === null) return undefined
+        return papeisDoMestre(map, papeisDaBiblioteca(useDocumentosStore.getState().documentos), useMapStore.getState().pisoAtivo, null).find((papel) => papel.id === id)
       }
 
       /**
@@ -2693,6 +2706,7 @@ function PixiCanvasDoContexto({
           selectedConcealZoneId,
           // O desafio aberto na página Jogos acende o selo como o pino selecionado.
           selectedPinId: selectedPinId ?? seloAberto(),
+          papelSelecionado: exportScene === null ? useDocumentosDoMestreStore.getState().papelSelecionado : null,
           travel: [adventure.cache, adventure.adventure, adventure.activeSceneId],
           cameraScale: camera.scale,
           rendererResolution: app.renderer.resolution,
@@ -3664,6 +3678,20 @@ function PixiCanvasDoContexto({
       })
       const unsubscribeDocumentoAberto = useDocumentosDoMestreStore.subscribe((state, previous) => {
         if (state.aberto !== previous.aberto) redrawPins()
+        if (state.papelSelecionado !== previous.papelSelecionado) redrawEditHandles()
+      })
+      // O papel escolhido sai da escolha quando outra coisa entra nela (o conjunto,
+      // o pino, a zona), quando a ferramenta ou o piso trocam: senão o Delete de
+      // depois tiraria do mapa um papel que o mestre já não via escolhido.
+      const unsubscribePapelEscolhido = useMapStore.subscribe((state, previous) => {
+        if (useDocumentosDoMestreStore.getState().papelSelecionado === null) return
+        const outraEscolha =
+          (state.selection !== previous.selection && state.selection.length > 0) ||
+          (state.selectedPinId !== previous.selectedPinId && state.selectedPinId !== null) ||
+          (state.selectedConcealZoneId !== previous.selectedConcealZoneId && state.selectedConcealZoneId !== null)
+        if (outraEscolha || state.activeTool !== previous.activeTool || state.pisoAtivo !== previous.pisoAtivo) {
+          useDocumentosDoMestreStore.getState().selecionarPapel(null)
+        }
       })
       // FILTRO "QUEM MANDA AQUI": ligar ou desligar pinta a camada de facções
       // pelo mesmo portão do redesenho parcial (só ela repinta).
@@ -6366,6 +6394,18 @@ function PixiCanvasDoContexto({
       // usado por `drawHover` pra desenhar o anel). Este wrapper só junta o
       // estado da store com o `worldPoint` do gesto.
       const resolveHoverAtIdle = (worldPoint: Point): HoverHit => {
+        const { map, activeTool: tool } = useMapStore.getState()
+        // PAPEL NO CHÃO: o chip de canto do escolhido e o corpo de qualquer papel
+        // prometem no cursor o gesto que o clique faz (redimensionar, mover).
+        const papelEscolhido = tool === 'select' ? papelEscolhidoNoPiso(map) : undefined
+        const cantoDoPapel = papelEscolhido === undefined ? null : findBoxCornerHandleAt(caixaDoPapel(papelEscolhido, map.grid), worldPoint, camera.scale)
+        if (cantoDoPapel !== null) return { kind: 'resize-corner', corner: cantoDoPapel, target: null }
+        const noPiso = resolveHoverNoPiso(worldPoint)
+        if (noPiso.kind === 'none' && tool === 'select' && papelAt(map, worldPoint) !== undefined) return { kind: 'selectable', corner: null, target: null }
+        return noPiso
+      }
+
+      const resolveHoverNoPiso = (worldPoint: Point): HoverHit => {
         const { map, pisoAtivo, selection, activeTool: tool } = useMapStore.getState()
         // Onda 4, item 24 — `resolveHoverHit` (fora da minha lista) só
         // entende "um item" (alça de resize/vértice) e "grupo por campo
@@ -7455,6 +7495,18 @@ function PixiCanvasDoContexto({
         // (igual à zona oculta), então abre o painel — e, destravado, o gesto
         // segue como arrasto do próprio pino em vez de encerrar aqui.
         if (activeTool === 'select') {
+          // PAPEL NO CHÃO (20/11/2026): o chip de canto do papel escolhido muda o
+          // tamanho. Antes do selo e do pino: o chip é desenhado por cima de tudo,
+          // na camada das alças, e só existe no papel que o mestre escolheu.
+          const papelEscolhido = useDocumentosDoMestreStore.getState().papelSelecionado
+          const cantoDoPapel = papelEscolhido !== null && event.button === 0 ? papelGesture.comecarAlca(papelEscolhido, worldPoint, map.grid, camera.scale) : null
+          if (cantoDoPapel !== null) {
+            mode = 'resizing-papel'
+            hoverCorner = cantoDoPapel
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
           // DESAFIOS: o selo também é desenhado por cima de tudo; o clique abre a
           // ficha dele na página Jogos. O selo não se arrasta: o lugar muda pelo
           // "Marcar de novo" da ficha, como no protótipo aprovado.
@@ -7488,10 +7540,26 @@ function PixiCanvasDoContexto({
             updateCursor()
             return
           }
-          // DOCUMENTOS: o papel no chão abre a ficha do documento na página Documentos, como o
-          // selo abre a do desafio em Jogos. Depois do pino: o papel é desenhado por baixo dele.
-          // Também não se arrasta: o lugar muda pelo "Mudar de lugar" da ficha.
+          // DOCUMENTOS: o papel no chão. Depois do pino: o papel é desenhado por baixo dele.
+          // Pedido de 20/11/2026 ("não consigo mover o documento"): o botão esquerdo
+          // ESCOLHE o papel (contorno e chips de canto; o Delete o tira do mapa) e o
+          // segura. Soltar sem andar é o toque, que abre a ficha do documento na
+          // página Documentos, como o selo abre a do desafio em Jogos; andar além
+          // da folga é arrasto, que leva o papel e não abre nada (`papelNoMapaGesture.ts`).
           const papel = papelAt(map, worldPoint)
+          if (papel !== undefined && event.button === 0 && papelGesture.apertar(papel.id, worldPoint, { x: event.global.x, y: event.global.y })) {
+            // O papel escolhido é exclusivo, como o pino aberto: o conjunto e o pino soltam.
+            const escolha = useMapStore.getState()
+            if (escolha.selection.length > 0) escolha.setSelection(EMPTY_SELECTION)
+            if (escolha.selectedPinId !== null) escolha.setSelectedPin(null)
+            useDocumentosDoMestreStore.getState().selecionarPapel(papel.id)
+            mode = 'dragging-papel'
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
+          // Clique fora do papel escolhido o solta (o conjunto solta pelo caminho de sempre, abaixo).
+          useDocumentosDoMestreStore.getState().selecionarPapel(null)
           if (papel !== undefined) {
             useDocumentosDoMestreStore.getState().abrir(papel.docId)
             useLivroDoMestreStore.getState().abrirPagina('documentos')
@@ -8175,6 +8243,20 @@ function PixiCanvasDoContexto({
           carimboAlcaGesture.finish()
           mode = 'idle'
         }
+        // PAPEL NO CHÃO: o chip de canto vira um Ctrl+Z só; o corpo solto sem andar
+        // é o toque, que abre a ficha do documento; arrastado, um Ctrl+Z só e nada abre.
+        if (mode === 'resizing-papel') {
+          papelGesture.soltarAlca()
+          mode = 'idle'
+        }
+        if (mode === 'dragging-papel') {
+          const solto = papelGesture.soltar()
+          if (solto?.tipo === 'toque') {
+            useDocumentosDoMestreStore.getState().abrir(solto.docId)
+            useLivroDoMestreStore.getState().abrirPagina('documentos')
+          }
+          mode = 'idle'
+        }
         // B3 (bug3 "mover e redimensionar") — mesmo padrão de Sala acima,
         // pros 3 resizes novos desta fase (Drawing rect/ellipse/polygon,
         // Token, Prop). Onda 3, item 18 — 'resizing-drawing-radius' (alça de
@@ -8402,6 +8484,15 @@ function PixiCanvasDoContexto({
         // Chip de canto do carimbo solto fora do canvas: fecha igual ao pointerup.
         if (mode === 'resizing-carimbo') {
           carimboAlcaGesture.finish()
+          mode = 'idle'
+        }
+        // Papel no chão solto fora do canvas: o arrasto fecha igual; o toque fora não abre nada.
+        if (mode === 'resizing-papel') {
+          papelGesture.soltarAlca()
+          mode = 'idle'
+        }
+        if (mode === 'dragging-papel') {
+          papelGesture.soltar()
           mode = 'idle'
         }
         // B3/N3 — mesmo padrão de commit acima, ver comentário no pointerup.
@@ -8714,6 +8805,14 @@ function PixiCanvasDoContexto({
           return
         }
 
+        // PAPEL NO CHÃO: dentro da folga ainda é o toque que abre a ficha; depois
+        // dela o papel segue o ponteiro, sem encaixe na grade (como o pino e o
+        // "Marcar no mapa": o papel fica onde o mestre solta).
+        if (mode === 'dragging-papel') {
+          papelGesture.mover(toWorldPoint(event.global.x, event.global.y), { x: event.global.x, y: event.global.y }, useMapStore.getState().pisoAtivo)
+          return
+        }
+
         // Pedido 3: TODO arrasto de corpo — objeto, parede, sala, escada,
         // chão, desenho, curva e a seleção de vários — anda pelo deslocamento
         // TOTAL do gesto e encaixa pela caixa do que anda (`moveBodyWithGuides`;
@@ -8954,6 +9053,14 @@ function PixiCanvasDoContexto({
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const feedback = carimboAlcaGesture.move(worldPoint)
           if (feedback) dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, feedback.label, computeViewport())
+          return
+        }
+
+        // Chip de canto do papel no chão ao vivo, com o "%" do "Tamanho" da ficha junto ao ponteiro.
+        if (mode === 'resizing-papel') {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const etiqueta = papelGesture.moverAlca(worldPoint, useMapStore.getState().map.grid)
+          if (etiqueta !== null) dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, etiqueta, computeViewport())
           return
         }
 
@@ -9514,6 +9621,15 @@ function PixiCanvasDoContexto({
           updateCursor()
           return
         }
+        // Papel no chão seguro ou no chip: Esc o devolve como estava — e só isso, como no carimbo.
+        if ((mode === 'dragging-papel' || mode === 'resizing-papel') && event.key === 'Escape') {
+          event.preventDefault()
+          papelGesture.cancelar()
+          dimensionLabelRenderer.hide()
+          mode = 'idle'
+          updateCursor()
+          return
+        }
         // Chip de canto do carimbo: Esc devolve o tamanho do começo — e só isso, como na escada.
         if (mode === 'resizing-carimbo' && event.key === 'Escape') {
           event.preventDefault()
@@ -9893,6 +10009,7 @@ function PixiCanvasDoContexto({
         unsubscribePaginaDoSelo()
         unsubscribeBibliotecaDosDocumentos()
         unsubscribeDocumentoAberto()
+        unsubscribePapelEscolhido()
         unsubscribeTerritorio()
         unsubscribeTelhados()
         unsubscribeParedesTortas()

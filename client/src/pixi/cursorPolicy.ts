@@ -78,6 +78,9 @@ export type GestureMode =
   | 'resizing-prop-corner'
   // Chip de canto do carimbo selecionado (pixi/carimboAlcaGesture.ts).
   | 'resizing-carimbo'
+  // Papel no chão (pixi/papelNoMapaGesture.ts): segurar/arrastar o corpo e o chip de canto.
+  | 'dragging-papel'
+  | 'resizing-papel'
   | 'area-marquee-drag'
   | 'dragging-area-selection'
   // Chão por peças: arrasto de criação (retângulo/elipse/polígono) e mover
@@ -379,6 +382,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     // O pino vai inteiro atrás do ponteiro, como Token e Objeto: `move`, não
     // `grabbing` (que é para quem segura um PONTO de um objeto maior).
     case 'dragging-pin':
+    case 'dragging-papel':
     case 'dragging-wall-body':
     case 'dragging-region-body':
     case 'dragging-stair-body':
@@ -411,6 +415,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'resizing-token':
     case 'resizing-prop-corner':
     case 'resizing-carimbo':
+    case 'resizing-papel':
       return resizeCursorForCorner(corner)
 
     // O mesmo cursor do pairar sobre a alça, do começo ao fim do giro — como

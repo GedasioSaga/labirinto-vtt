@@ -1,6 +1,6 @@
 /**
  * O PAPEL NO CHÃO PARA O JOGADOR (plano §2.3). De cada `DocumentoNoMapa` sai
- * só `{ id, x, y, piso, papel, titulo }`, montado por LISTA BRANCA: nada do
+ * só `{ id, x, y, piso, papel, titulo, tamanho }`, montado por LISTA BRANCA: nada do
  * texto, do `docId`, do objeto onde ele está nem de quem pegou. O papel já
  * pego com "some depois de pego" não sai para ninguém.
  *
@@ -61,6 +61,8 @@ export function papeisNoChao(documentos: readonly DocumentoNoMapa[] | undefined,
       ...(ponto.piso === undefined || ponto.piso === 0 ? {} : { piso: ponto.piso }),
       papel: daBiblioteca.papel,
       titulo: daBiblioteca.titulo,
+      // O tamanho que o mestre deu (a alça de canto, o "Tamanho" da ficha): o jogador vê o papel do mesmo tamanho.
+      ...(documento.tamanho === undefined || documento.tamanho === 1 ? {} : { tamanho: documento.tamanho }),
     })
   }
   return noChao

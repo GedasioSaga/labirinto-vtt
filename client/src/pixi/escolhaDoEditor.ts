@@ -10,6 +10,8 @@ import { useFerramentaDoAbismo } from '../stores/ferramentaDoAbismo'
 import { apagarPinoPeloGesto } from '../stores/pinoPeloGesto'
 import { pinTravelOf, useAdventureStore } from '../stores/adventureStore'
 import { useToastStore } from '../stores/toastStore'
+import { documentosDoMapa } from '../documentos/noMapa'
+import { useDocumentosDoMestreStore } from '../components/documentos/documentosDoMestreStore'
 import type { GestoDoBarranco } from './barrancoNoEditor'
 import type { GestoDoAbismo } from './abismoNoEditor'
 import type { GestoDaAgua } from './aguaNoEditor'
@@ -153,8 +155,9 @@ export interface EscolhaNoCanvas {
   soltarPainelNoEsc: () => void
   /**
    * Delete: apaga a escolha que manda, nesta ordem — o risco, o abismo e a
-   * água (cada um só com a ferramenta dele na mão), o pino aberto, a zona
-   * aberta e, por fim, o conjunto, com o aviso do que sumiu.
+   * água (cada um só com a ferramenta dele na mão), o papel no chão
+   * escolhido, o pino aberto, a zona aberta e, por fim, o conjunto, com o
+   * aviso do que sumiu.
    */
   apagar: () => void
 }
@@ -189,6 +192,8 @@ export function criarEscolhaNoCanvas(dep: {
       if (useMapStore.getState().selectedPinId !== null) {
         useMapStore.getState().setSelectedPin(null)
       }
+      // O papel no chão escolhido (20/11/2026) também mora fora de `selection`: o Esc o solta igual.
+      useDocumentosDoMestreStore.getState().selecionarPapel(null)
     },
     apagar() {
       // No meio de um arrasto, nada some (nem o pino, a zona ou o risco abertos) e o aviso do que sumiu não sai: a store diz por quê.
@@ -200,7 +205,18 @@ export function criarEscolhaNoCanvas(dep: {
       if (activeTool === 'agua' && dep.agua.apagarEscolhida()) return
       // Daqui em diante nada mudou: o retrato vale para o pino, a zona e o conjunto.
       const escolha = lerEscolhaDoEditor()
-      const { map, pisoAtivo, removeConcealZone } = useMapStore.getState()
+      const { map, pisoAtivo, removeConcealZone, removePapelNoMapa } = useMapStore.getState()
+      // O PAPEL NO CHÃO escolhido (20/11/2026) mora fora de `selection`, como o
+      // pino: Delete o tira do MAPA, e o documento continua na biblioteca (o
+      // mesmo "Tirar do mapa" da ficha). Conferido no mapa: depois de um
+      // desfazer o id pode estar velho, e o Delete não pode prometer o que não fez.
+      const papelId = useDocumentosDoMestreStore.getState().papelSelecionado
+      if (papelId !== null && documentosDoMapa(map).some((papel) => papel.id === papelId)) {
+        removePapelNoMapa(papelId)
+        useDocumentosDoMestreStore.getState().selecionarPapel(null)
+        useToastStore.getState().push('info', 'Papel tirado do mapa; o documento continua na biblioteca — Ctrl+Z desfaz')
+        return
+      }
       // O pino de ponto de interesse vive FORA de `selection` (estado
       // próprio, `selectedPinId`), então Delete nunca o alcançava: dava
       // para colocar e não dava para tirar sem achar "Excluir ponto de

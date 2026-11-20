@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
 import { Acoes, Botao } from '../grimorio/Botao'
+import { CampoFaixa } from '../grimorio/CampoFaixa'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
 import { Nota } from '../grimorio/Nota'
 import { faltaNoLugar, pontoDoDesafio, textoDoLugar } from '../../lib/desafios'
-import { papeisDoDocumento, papelDepois, papelDeVolta } from '../../documentos/noMapa'
+import { papeisDoDocumento, papelComTamanho, papelDepois, papelDeVolta, tamanhoDoPapel } from '../../documentos/noMapa'
 import { sumiuDoMapa } from '../../documentos/recorte'
-import type { DocumentoNoMapa } from '../../documentos/tipos'
+import { TAMANHO_DO_PAPEL_MAX, TAMANHO_DO_PAPEL_MIN, type DocumentoNoMapa } from '../../documentos/tipos'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { useMapStore } from '../../stores/mapStore'
 import { useDocumentosDoMestreStore, type ModoDeMarcarPapel } from './documentosDoMestreStore'
@@ -16,6 +17,9 @@ import { useDocumentosDoMestreStore, type ModoDeMarcarPapel } from './documentos
  * um, e o "Marcar no mapa" (um ponto, ou um objeto). O clique no mapa é do
  * canvas (`marcarPapelNoClique`, `pixi/PixiCanvas.tsx`).
  */
+
+/** O "Tamanho" da ficha anda de 10 em 10%, a régua da etiqueta da alça de canto no mapa. */
+const PASSO_DO_TAMANHO_PCT = 10
 
 const OPCOES_DO_DEPOIS: readonly OpcaoDoSeg<DocumentoNoMapa['depois']>[] = [
   { valor: 'fica', rotulo: 'Fica no mapa' },
@@ -58,6 +62,16 @@ function LinhaDoPapel({ papel, indice, total }: { papel: DocumentoNoMapa; indice
         </p>
       )}
       <CampoSeg rotulo="Depois de lido" opcoes={OPCOES_DO_DEPOIS} valor={papel.depois} onChange={(depois) => mudarPapelNoMapa(papel.id, (atual) => papelDepois(atual, depois))} />
+      <CampoFaixa
+        rotulo="Tamanho"
+        valor={Math.round(tamanhoDoPapel(papel) * 100)}
+        min={TAMANHO_DO_PAPEL_MIN * 100}
+        max={TAMANHO_DO_PAPEL_MAX * 100}
+        passo={PASSO_DO_TAMANHO_PCT}
+        formatar={(pct) => `${pct}%`}
+        // O deslizante inteiro é UM passo do Ctrl+Z (a chave junta as mudanças seguidas deste papel).
+        onChange={(pct) => mudarPapelNoMapa(papel.id, (atual) => papelComTamanho(atual, pct / 100), `papel-tamanho:${papel.id}`)}
+      />
       <Nota>{papel.depois === 'some' ? 'O primeiro que ler leva o papel: ele sai do mapa para todos e fica só na lista de quem leu.' : 'Cada jogador que encostar e ler guarda uma cópia; o papel continua lá.'}</Nota>
       <Acoes>
         <Botao variante="fantasma" tamanho="p" onClick={() => irAoPapel(papel)} disabled={falta !== null}>

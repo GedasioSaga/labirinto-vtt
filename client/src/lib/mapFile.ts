@@ -5,7 +5,7 @@ import type { JogoDoMinigame } from '../minigames/tipos'
 import { lerProgressoDoPuzzle, lerPuzzleDoArquivo } from '../puzzles/leitor'
 import type { MinigamePuzzle } from '../puzzles/tipos'
 import { ehIdDeDocumento } from '../documentos/leitor'
-import { DOCUMENTOS_NO_MAPA_MAX, NOME_DE_QUEM_PEGOU_MAX, type DocumentoNoMapa } from '../documentos/tipos'
+import { DOCUMENTOS_NO_MAPA_MAX, NOME_DE_QUEM_PEGOU_MAX, tamanhoDoPapelNaFaixa, type DocumentoNoMapa } from '../documentos/tipos'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
@@ -446,7 +446,19 @@ function lerDocumentoNoMapa(cru: unknown): DocumentoNoMapa | null {
     ...(pego === undefined ? {} : { pego }),
     // PISOS: só inteiro na faixa e fora do térreo (`pisoLido`), como o passo de textura.
     ...pisoLido(cru),
+    ...lerTamanhoDoPapel(campoDoArquivo(cru, 'tamanho')),
   }
+}
+
+/**
+ * O TAMANHO do papel (20/11/2026): campo NOVO e OPCIONAL. Ausente (o mapa de
+ * antes), torto ou 1 = o padrão, e a chave não entra; número fora da faixa
+ * fica na borda dela (`tamanhoDoPapelNaFaixa`).
+ */
+function lerTamanhoDoPapel(valor: unknown): Pick<DocumentoNoMapa, 'tamanho'> {
+  if (typeof valor !== 'number' || !Number.isFinite(valor) || valor <= 0) return {}
+  const tamanho = tamanhoDoPapelNaFaixa(valor)
+  return tamanho === 1 ? {} : { tamanho }
 }
 
 /** Quem pegou primeiro: nome aparado no teto (vazio vira "Alguém") e instante válido; o resto, ninguém pegou. */

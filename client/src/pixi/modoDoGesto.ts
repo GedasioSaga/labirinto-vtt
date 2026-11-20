@@ -83,6 +83,9 @@ export type ModoDoGesto =
   | 'painting-carimbo'
   // Mover um pino de ponto de interesse já cravado.
   | 'dragging-pin'
+  // Papel no chão (`papelNoMapaGesture.ts`): o corpo segura (toque abre a ficha, arrasto move) e o chip de canto muda o tamanho.
+  | 'dragging-papel'
+  | 'resizing-papel'
   // Girar sala pela alça (pixi/roomRotateGesture.ts).
   | 'rotating-room'
 

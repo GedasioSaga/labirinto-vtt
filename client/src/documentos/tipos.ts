@@ -65,6 +65,19 @@ export const CHAVES_DO_TRECHO_MAX = 8
 export const DOCUMENTOS_NA_FICHA_MAX = 200
 /** Papéis no chão de um mapa. */
 export const DOCUMENTOS_NO_MAPA_MAX = 500
+/**
+ * O TAMANHO DO PAPEL NO CHÃO (pedido de 20/11/2026: "não consigo mudar o
+ * tamanho dele"), em vezes o padrão: 1 = o desenho de sempre (~0,6 casa).
+ * A alça de canto e o "Tamanho" da ficha andam dentro desta faixa.
+ */
+export const TAMANHO_DO_PAPEL_MIN = 0.5
+export const TAMANHO_DO_PAPEL_MAX = 4
+
+/** O tamanho do papel dentro da faixa, de centésimo em centésimo (a alça não grava 1,2345678). Não-número: 1. */
+export function tamanhoDoPapelNaFaixa(tamanho: number): number {
+  if (!Number.isFinite(tamanho)) return 1
+  return Math.round(Math.min(TAMANHO_DO_PAPEL_MAX, Math.max(TAMANHO_DO_PAPEL_MIN, tamanho)) * 100) / 100
+}
 /** "Cofre do Capitão", "o mestre": de onde veio o documento da lista. */
 export const DE_ONDE_MAX = 60
 /** O nome de quem pegou o papel ("Lara"), como o nome do jogador no chat. */
@@ -200,6 +213,8 @@ export interface DocumentoNoMapa extends NoPiso {
   depois: 'fica' | 'some'
   /** Quem leu primeiro, e quando. Com `depois: 'some'`, o papel sai do recorte de todos. */
   pego?: { por: string; em: number }
+  /** O tamanho no mapa, em vezes o padrão (`TAMANHO_DO_PAPEL_MIN`..`MAX`). Ausente = 1: o mapa de antes abre igual. */
+  tamanho?: number
 }
 
 /** Na ficha do personagem (`Personagem.documentos`): só metadados. O texto se monta na hora da leitura. */
@@ -231,6 +246,8 @@ export interface PapelNoChao extends NoPiso {
   y: number
   papel: PapelDoDocumento
   titulo: string
+  /** O tamanho que o mestre deu ao papel (`DocumentoNoMapa.tamanho`). Ausente = 1. */
+  tamanho?: number
 }
 
 /** Um pedaço de página como o leitor do jogador o recebe. */

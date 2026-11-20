@@ -1,6 +1,11 @@
 import type { Graphics } from 'pixi.js'
 import type { PapelDesenhado } from '../documentos/noMapa'
-import type { PapelDoDocumento } from '../documentos/tipos'
+import { tamanhoDoPapelNaFaixa, type PapelDoDocumento } from '../documentos/tipos'
+import type { Box } from '../lib/objectTransform'
+import type { Point } from './world'
+import { SELECTION_COLOR } from './constants'
+import { selectionOutlineWidth } from './drawWalls'
+import { drawBoxResizeHandles } from './drawResizeHandles'
 
 /**
  * O PAPEL NO CHÃO no canvas (plano dos puzzles, fase D2; desenho do protótipo
@@ -125,11 +130,16 @@ function desenharPapel(p: Pincel, papel: PapelDoDocumento): void {
   }
 }
 
+/** Px de mundo por unidade do desenho: a grade do mapa e o tamanho que o mestre deu ao papel (ausente = 1). */
+function escalaDoPapel(grid: number, tamanho: number | undefined): number {
+  return (Math.max(grid, 1) / CASA_DO_DESENHO) * (tamanho ?? 1)
+}
+
 /** Repinta todos os papéis do piso. `grid` = a casa do mapa, em px de mundo. */
 export function drawDocumentos(g: Graphics, papeis: readonly PapelDesenhado[], grid: number): void {
   g.clear()
-  const k = Math.max(grid, 1) / CASA_DO_DESENHO
   for (const papel of papeis) {
+    const k = escalaDoPapel(grid, papel.tamanho)
     const pincel: Pincel = { g, cx: papel.x, cy: papel.y, k, alfa: papel.apagado === true ? ALFA_DO_PEGO : 1 }
     if (papel.aceso === true) {
       g.circle(papel.x, papel.y, RAIO_DO_ANEL * k).stroke({ width: TRACO_DO_ANEL * k, color: COR_DO_ANEL, alpha: 0.95 })
@@ -142,7 +152,41 @@ export function drawDocumentos(g: Graphics, papeis: readonly PapelDesenhado[], g
 /** O alvo do toque no papel: o círculo que cobre o maior dos papéis (meia altura de 19 no desenho), com folga. */
 const RAIO_DO_TOQUE = 21
 
-/** O raio do toque no papel, em px de mundo, para a grade do mapa (o papel escala com ela). */
+/** O raio do toque no papel de tamanho 1, em px de mundo, para a grade do mapa (o papel escala com ela). */
 export function raioDoToqueNoPapel(grid: number): number {
   return (RAIO_DO_TOQUE * Math.max(grid, 1)) / CASA_DO_DESENHO
+}
+
+/**
+ * A CAIXA DO PAPEL SELECIONADO (pedido de 20/11/2026: mover e mudar o
+ * tamanho): o quadrado em volta do maior dos papéis (meia altura de 19 no
+ * desenho, mais a sombra), centrado no ponto dele. Os chips de canto moram
+ * nas quinas, e o contorno amarelo da seleção também.
+ */
+const MEIA_CAIXA = 21
+
+export function caixaDoPapel(papel: Pick<PapelDesenhado, 'x' | 'y' | 'tamanho'>, grid: number): Box {
+  const meia = MEIA_CAIXA * escalaDoPapel(grid, papel.tamanho)
+  return { minX: papel.x - meia, minY: papel.y - meia, maxX: papel.x + meia, maxY: papel.y + meia }
+}
+
+/**
+ * O canto puxado até `ponto`: o papel cresce ou encolhe a partir do MEIO
+ * (ele é um ponto no mapa, como o pino), e o canto segue o ponteiro pelo eixo
+ * mais longe. Fica na faixa `TAMANHO_DO_PAPEL_MIN`..`MAX`.
+ */
+export function tamanhoPeloCantoDoPapel(papel: Pick<PapelDesenhado, 'x' | 'y'>, ponto: Point, grid: number): number {
+  const meia = Math.max(Math.abs(ponto.x - papel.x), Math.abs(ponto.y - papel.y))
+  return tamanhoDoPapelNaFaixa(meia / (MEIA_CAIXA * escalaDoPapel(grid, 1)))
+}
+
+/**
+ * O papel escolhido: o contorno amarelo e os quatro chips de canto, do mesmo
+ * tamanho na TELA em qualquer zoom. Desenha POR CIMA do que `g` já tem (as
+ * alças do editor, `drawEditHandles`, que limpam a camada antes).
+ */
+export function drawPapelSelecionado(g: Graphics, papel: Pick<PapelDesenhado, 'x' | 'y' | 'tamanho'>, grid: number, cameraScale: number): void {
+  const caixa = caixaDoPapel(papel, grid)
+  g.rect(caixa.minX, caixa.minY, caixa.maxX - caixa.minX, caixa.maxY - caixa.minY).stroke({ width: selectionOutlineWidth(cameraScale), color: SELECTION_COLOR })
+  drawBoxResizeHandles(g, caixa, cameraScale)
 }

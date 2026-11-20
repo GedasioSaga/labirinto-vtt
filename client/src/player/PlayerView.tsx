@@ -3406,9 +3406,11 @@ function PlayerViewDoCanvas({
     if (tocar === undefined) return null
     const papeis = map.papeisNoChao ?? SEM_PAPEIS
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    const alcance = map.grid * RAIO_DO_PAPEL_EM_CASAS + DOOR_TAP_TOLERANCE_PX / scene.camera.scale
+    const folga = DOOR_TAP_TOLERANCE_PX / scene.camera.scale
     for (let i = papeis.length - 1; i >= 0; i--) {
       const papel = papeis[i]
+      // O tamanho que o mestre deu ao papel (ausente = 1) cresce o alvo junto com o desenho.
+      const alcance = map.grid * RAIO_DO_PAPEL_EM_CASAS * (papel.tamanho ?? 1) + folga
       if (Math.hypot(papel.x - point.x, papel.y - point.y) <= alcance) return papel.id
     }
     return null
@@ -3421,7 +3423,7 @@ function PlayerViewDoCanvas({
     if (papel === undefined) return null
     const centro = scene.world.toGlobal({ x: papel.x, y: papel.y })
     const caixa = scene.app.canvas.getBoundingClientRect()
-    const lado = map.grid * RAIO_DO_PAPEL_EM_CASAS * 2 * scene.camera.scale
+    const lado = map.grid * RAIO_DO_PAPEL_EM_CASAS * (papel.tamanho ?? 1) * 2 * scene.camera.scale
     return { left: caixa.left + centro.x - lado / 2, top: caixa.top + centro.y - lado / 2, width: lado, height: lado }
   }
 

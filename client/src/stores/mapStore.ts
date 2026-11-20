@@ -1567,7 +1567,10 @@ interface MapStoreState {
   removeDesafio: (id: string) => void
   /** DOCUMENTOS (o papel no chão, página Documentos): pôr, mudar e tirar, com Ctrl+Z (`documentos/noMapa.ts`). */
   addPapelNoMapa: (papel: DocumentoNoMapa) => void
-  mudarPapelNoMapa: (id: string, mudar: (papel: DocumentoNoMapa) => DocumentoNoMapa) => void
+  /** `chave`: mudanças seguidas com a mesma chave (o deslizante do "Tamanho") viram UM passo do Ctrl+Z. */
+  mudarPapelNoMapa: (id: string, mudar: (papel: DocumentoNoMapa) => DocumentoNoMapa, chave?: string) => void
+  /** Arrasto do papel no mapa (mover e o canto do tamanho) — SEM histórico, par de `commitDragHistory(antes)` no pointerup. */
+  mudarPapelNoMapaLive: (id: string, mudar: (papel: DocumentoNoMapa) => DocumentoNoMapa) => void
   removePapelNoMapa: (id: string) => void
   setSelectedConcealZone: (id: string | null) => void
   addConcealZone: (zone: MapData['concealZones'][number]) => void
@@ -3928,7 +3931,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       withHistory((map) => removerDesafio(map, id))
     },
     addPapelNoMapa: (papel) => passoSeMudou((map) => mapaComPapel(map, papel)),
-    mudarPapelNoMapa: (id, mudar) => passoSeMudou((map) => mapaComPapelMudado(map, id, mudar)),
+    mudarPapelNoMapa: (id, mudar, chave) => passoSeMudou((map) => mapaComPapelMudado(map, id, mudar), chave),
+    mudarPapelNoMapaLive: (id, mudar) => {
+      const proximo = mapaComPapelMudado(get().map, id, mudar)
+      if (proximo !== get().map) set({ map: proximo })
+    },
     removePapelNoMapa: (id) => passoSeMudou((map) => mapaSemPapel(map, id)),
     setSelectedConcealZone: (id) => set(id === null ? { selectedConcealZoneId: null } : escolhaNoPainel({ kind: 'zona', id })),
     addConcealZone: (zone) => withHistory((map) => mapFactory.addConcealZone(map, zone)),
