@@ -125,6 +125,9 @@ import { criarFogoNoHost } from './fogoNoHost'
 import { FOGO_PARTICIPANTES_MAX, type FogoMotivoDaRecusa, type FogoPlayerMessage } from './protocoloDoFogo'
 import { criarBolhaNoHost } from './bolhaNoHost'
 import { BOLHA_PARTICIPANTES_MAX, type BolhaMotivoDaRecusa, type BolhaPlayerMessage } from './protocoloDaBolha'
+import { criarAlavancaNoHost } from './alavancaNoHost'
+import type { AlavancaMotivoDaRecusa, AlavancaPlayerMessage } from './protocoloDaAlavanca'
+import { ALAVANCA_JOGADORES_MAX } from '../minigames/alavanca/tipos'
 import { criarPescaNoHost } from './pescaNoHost'
 import { PESCA_PARTICIPANTES_MAX, type PescaMotivoDaRecusa, type PescaPlayerMessage } from './protocoloDaPesca'
 import { criarTiroNoHost } from './tiroNoHost'
@@ -2590,6 +2593,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const fogoNoHost = criarFogoNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // MINIGAME BOLHA D'ÁGUA: a partida ativa (uma por vez) e a última, para o painel.
   const bolhaNoHost = criarBolhaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
+  // MINIGAME ALAVANCA DA PONTE: a rodada ativa (uma por vez) e a última, para o painel. O relógio é o da sessão.
+  const alavancaNoHost = criarAlavancaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId(), agora: () => now() })
   // MINIGAME DE PESCA: uma sessão por pino (a de agora ou a última), para o painel.
   const pescaNoHost = criarPescaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // MINIGAME DE TIRO: uma barraca por pino (a de agora ou a última), com as tentativas de cada um.
@@ -4792,6 +4797,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     outbound.push(...fogoNoHost.entrou(playerId))
     // BOLHA: igual ao fogo.
     outbound.push(...bolhaNoHost.entrou(playerId))
+    // ALAVANCA: no convite, o convite de novo; no meio da rodada, a aba nova assiste à ponte.
+    outbound.push(...alavancaNoHost.entrou(playerId))
     // PESCA: no convite, o convite de novo; no meio da pesca, a aba nova perdeu o jogo e sai.
     outbound.push(...pescaNoHost.entrou(playerId))
     // TIRO: o convite de novo, com as tentativas que já gastou; no meio da rodada, a aba nova perdeu a rodada.
@@ -9243,6 +9250,55 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * ALAVANCA DA PONTE: pedir, pronto, giro, pausa e desistência. Quem confere
+   * sessão, fase e participante é `alavancaNoHost`; o que não vale morre calado.
+   */
+  function handleAlavanca(clientId: string, msg: AlavancaPlayerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    switch (msg.type) {
+      case 'alavanca.pedir':
+        return pedirAlavanca(clientId, playerId, msg.pinId, world)
+      case 'alavanca.pronto':
+        return { outbound: alavancaNoHost.pronto(playerId, msg.sessao) }
+      case 'alavanca.giro':
+        return { outbound: alavancaNoHost.giro(playerId, msg.sessao) }
+      case 'alavanca.pausa':
+        return { outbound: alavancaNoHost.pausarPeloJogador(playerId, msg.sessao) }
+      case 'alavanca.continuar':
+        return { outbound: alavancaNoHost.continuarPeloJogador(playerId, msg.sessao) }
+      case 'alavanca.desistir':
+        return { outbound: alavancaNoHost.desistir(playerId, msg.sessao) }
+    }
+  }
+
+  /**
+   * ALAVANCA "Girar a alavanca" sozinho no cartão do pino, pelas regras do
+   * pedido da bolha (jogando, cena sem pausa, desafio de alavanca no recorte
+   * DELE e uma ficha dele encostada) e só quando o mestre deixou (`entrada:
+   * 'pino'`). A porta ligada é congelada agora. Uma alavanca por vez na sala.
+   */
+  function pedirAlavanca(clientId: string, playerId: string, pinId: string, world: HostWorld): HostResult {
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const recusa = (motivo: AlavancaMotivoDaRecusa): HostResult => reply(clientId, { type: 'alavanca.recusado', pinId, motivo })
+    const scene = sceneFor(playerId, world)
+    if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
+    const map = scene.map
+    const pin = pinoDeMinigameDoMapa(map, pinId)
+    if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'alavanca' || pin.minigame.entrada !== 'pino') return recusa('indisponivel')
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return recusa('indisponivel')
+    const owned = new Set(ownership[playerId] ?? [])
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid, alcancePeloObjeto(view.map)))) return recusa('longe')
+    const door = linkedDoorOf(map, pin)
+    const porta = door === null ? undefined : { wallId: door.id, ...backgroundSceneId(scene, world) }
+    const { outbound, resultado } = alavancaNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame), ...(porta === undefined ? {} : { porta }) }, { playerId, nome: record.name })
+    return resultado.ok ? { outbound } : recusa('ocupado')
+  }
+
+  /**
    * BAÚ, CAIXA E BARRIL (15/11/2026): `objeto.abrir` passa pelas regras do
    * "Pegar" do item no chão (jogando, cena sem pausa, objeto no recorte DELE,
    * uma ficha dele encostada e solta) e abre o minigame do tipo só na tela
@@ -9830,6 +9886,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'bolha.fim':
       case 'bolha.desistir':
         return handleBolha(clientId, msg, world)
+      case 'alavanca.pedir':
+      case 'alavanca.pronto':
+      case 'alavanca.giro':
+      case 'alavanca.pausa':
+      case 'alavanca.continuar':
+      case 'alavanca.desistir':
+        return handleAlavanca(clientId, msg, world)
       case 'pesca.pedir':
       case 'pesca.pronto':
       case 'pesca.vivo':
@@ -10826,7 +10889,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // PESCA: o expulso sai da pesca (do convite, ou da água).
       // TIRO: o expulso sai da barraca (do convite, ou da rodada, que conta como perdida).
       return comDesfechoDaDanca({
-        outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId), ...tiroNoHost.esquecer(playerId), ...fogoNoHost.esquecer(playerId), ...bolhaNoHost.esquecer(playerId)],
+        outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId), ...tiroNoHost.esquecer(playerId), ...fogoNoHost.esquecer(playerId), ...bolhaNoHost.esquecer(playerId), ...alavancaNoHost.esquecer(playerId)],
         ...apagarMedidaNoMestre(playerId),
       })
     },
@@ -11734,6 +11797,58 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     bolha() {
       return bolhaNoHost.aoVivo()
+    },
+
+    convidarParaAlavanca(pinId, playerIds, source) {
+      const world = toWorld(source)
+      // O desafio de mesmo id, em qualquer cena; a porta ligada é congelada agora, como na dança.
+      const scene = allScenes(world).find((candidate) => pinoDoConvite(candidate.map, pinId) !== undefined)
+      const pin = scene === undefined ? undefined : pinoDoConvite(scene.map, pinId)
+      const desafio = pin?.kind === 'minigame' ? pin.minigame : undefined
+      if (scene === undefined || pin === undefined || desafio === undefined || desafio.jogo !== 'alavanca') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
+      const door = linkedDoorOf(scene.map, pin)
+      const porta = door === null ? undefined : { wallId: door.id, ...backgroundSceneId(scene, world) }
+      const convidados = inRoomOrder(new Set(playerIds))
+        .flatMap((playerId) => {
+          const record = players.get(playerId)
+          return record !== undefined && record.clientId !== null && statusOf(playerId) === 'playing' ? [{ playerId, nome: record.name }] : []
+        })
+        .slice(0, ALAVANCA_JOGADORES_MAX)
+      const { outbound, resultado } = alavancaNoHost.convidar({ pinId, minigame: copiarMinigame(desafio), ...(porta === undefined ? {} : { porta }) }, convidados)
+      return { outbound, convite: resultado }
+    },
+
+    comecarAlavanca() {
+      const outbound = alavancaNoHost.comecar()
+      return { outbound: outbound ?? [], comecou: outbound !== null }
+    },
+
+    pausarAlavanca() {
+      const outbound = alavancaNoHost.pausar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    retomarAlavanca() {
+      const outbound = alavancaNoHost.retomar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    encerrarAlavanca() {
+      const outbound = alavancaNoHost.encerrar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    repassarAlavanca() {
+      const { outbound, desfecho } = alavancaNoHost.repassar()
+      return desfecho === undefined ? { outbound } : { outbound, alavancaDesfecho: desfecho }
+    },
+
+    alavanca() {
+      return alavancaNoHost.aoVivo()
+    },
+
+    vivoDaAlavanca() {
+      return alavancaNoHost.vivo()
     },
 
     convidarParaPesca(pinId, playerIds, source) {

@@ -103,6 +103,29 @@ const BOLHA: PinSymbolShape = {
 }
 
 /**
+ * Alavanca da ponte (20/11/2026): o sarilho de lado, com os raios e o cubo,
+ * e a manivela saindo para cima e à direita. Pela silhueta: a roda com o braço
+ * não se confunde com a mira do tiro nem com as bolhas.
+ */
+const ALAVANCA: PinSymbolShape = {
+  strokes: [
+    { points: [{ x: -0.72, y: 0.25 }, { x: 0.22, y: 0.25 }] },
+    { points: [{ x: -0.25, y: -0.22 }, { x: -0.25, y: 0.72 }] },
+    {
+      points: [
+        { x: -0.25, y: 0.25 },
+        { x: 0.55, y: -0.55 },
+        { x: 0.88, y: -0.55 },
+      ],
+    },
+  ],
+  rings: [
+    { x: -0.25, y: 0.25, r: 0.55 },
+    { x: -0.25, y: 0.25, r: 0.13 },
+  ],
+}
+
+/**
  * Peça de quebra-cabeça: o corpo quadrado com o pino em cima e o do lado
  * (puzzles, 19/11/2026). Pela silhueta, não pelo detalhe: não se confunde
  * com a chave nem com o baú dos símbolos do pino, mesmo numa cabeça pequena.
@@ -153,5 +176,6 @@ export const SIMBOLO_DO_JOGO: { readonly [J in JogoDoMinigame]: PinSymbolShape }
   tiro: TIRO,
   fogo: FOGO,
   bolha: BOLHA,
+  alavanca: ALAVANCA,
   puzzle: PUZZLE,
 }

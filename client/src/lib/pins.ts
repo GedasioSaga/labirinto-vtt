@@ -4,6 +4,7 @@ import type { MinigamePesca } from '../minigames/pesca/tipos'
 import type { MinigameTiro } from '../minigames/tiro/tipos'
 import type { MinigameFogo } from '../minigames/fogo/tipos'
 import type { MinigameBolha } from '../minigames/bolha/tipos'
+import type { MinigameAlavanca } from '../minigames/alavanca/tipos'
 import type { MinigamePuzzle } from '../puzzles/tipos'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
 import { ehJogoDoRegistro, nomeDoJogo, padraoDoJogo } from '../minigames/registro'
@@ -226,6 +227,7 @@ export function copiarMinigame(minigame: MinigamePesca): MinigamePesca
 export function copiarMinigame(minigame: MinigameTiro): MinigameTiro
 export function copiarMinigame(minigame: MinigameFogo): MinigameFogo
 export function copiarMinigame(minigame: MinigameBolha): MinigameBolha
+export function copiarMinigame(minigame: MinigameAlavanca): MinigameAlavanca
 export function copiarMinigame(minigame: MinigamePuzzle): MinigamePuzzle
 export function copiarMinigame(minigame: MinigameDoPino): MinigameDoPino
 export function copiarMinigame(minigame: MinigameDoPino): MinigameDoPino {
@@ -245,6 +247,9 @@ export function copiarMinigame(minigame: MinigameDoPino): MinigameDoPino {
     case 'fogo':
     case 'bolha':
       return { ...minigame, premio: { ...minigame.premio }, consequencia: { ...minigame.consequencia } }
+    // A alavanca só tem campos de valor: a cópia rasa já é inteira.
+    case 'alavanca':
+      return { ...minigame }
   }
 }
 

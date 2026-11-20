@@ -8,13 +8,14 @@ import type { MinigameDanca } from './danca/tipos'
 import type { MinigameFogo } from './fogo/tipos'
 import type { EntradaPesca, MinigamePesca } from './pesca/tipos'
 import type { EntradaTiro, MinigameTiro } from './tiro/tipos'
+import type { EntradaAlavanca, MinigameAlavanca } from './alavanca/tipos'
 import type { MinigamePuzzle } from '../puzzles/tipos'
 
 /** O que fica gravado no pino (`Pin.minigame`): o desafio inteiro do jogo escolhido. */
-export type MinigameDoPino = MinigameDanca | MinigamePesca | MinigameTiro | MinigameFogo | MinigameBolha | MinigamePuzzle
+export type MinigameDoPino = MinigameDanca | MinigamePesca | MinigameTiro | MinigameFogo | MinigameBolha | MinigameAlavanca | MinigamePuzzle
 
 export type JogoDoMinigame = MinigameDoPino['jogo']
-export const JOGOS_DO_MINIGAME: readonly JogoDoMinigame[] = ['danca', 'pesca', 'tiro', 'fogo', 'bolha', 'puzzle']
+export const JOGOS_DO_MINIGAME: readonly JogoDoMinigame[] = ['danca', 'pesca', 'tiro', 'fogo', 'bolha', 'alavanca', 'puzzle']
 
 /**
  * O pouco do desafio que vai no recorte do JOGADOR (`Pin.minigameVisivel`):
@@ -33,7 +34,7 @@ export const JOGOS_DO_MINIGAME: readonly JogoDoMinigame[] = ['danca', 'pesca', '
  */
 export interface MinigameVisivel {
   jogo: JogoDoMinigame
-  entrada: EntradaPesca | EntradaTiro | EntradaBolha
+  entrada: EntradaPesca | EntradaTiro | EntradaBolha | EntradaAlavanca
   /** Só do fogo e da bolha, e só com o pino legível: quem pede ajuda. */
   npc?: string
   /** Só do fogo e da bolha, e só com o pino legível: o pedido de ajuda, como fala no cartão. */

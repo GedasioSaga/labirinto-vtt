@@ -7,6 +7,7 @@ import { textoDaRecusaDaPesca } from './estadoDaPesca'
 import { textoDaRecusaDoTiro } from './estadoDoTiro'
 import { textoDaRecusaDoFogo } from './estadoDoFogo'
 import { textoDaRecusaDaBolha } from './estadoDaBolha'
+import { textoDaRecusaDaAlavanca } from './estadoDaAlavanca'
 import { chamadoDaBatalha } from './chamadoDaBatalha'
 import { themeCss } from '../theme'
 import { chatOf, contaLembrada, createPlayerConnection, esquecerContaLembrada, PUZZLE_RECUSA_AVISO_MS, RESUME_STORAGE_KEY } from './playerConnection'
@@ -107,6 +108,7 @@ import { aquecerJogoDoFogo } from '../minigames/fogo/aquecer'
 import { FogoOverlay } from '../minigames/fogo/tela/FogoOverlay'
 import { aquecerJogoDaBolha } from '../minigames/bolha/aquecer'
 import { BolhaOverlay } from '../minigames/bolha/tela/BolhaOverlay'
+import { AlavancaOverlay } from '../minigames/alavanca/tela/AlavancaOverlay'
 import { TiroOverlay, type AjustesDaTelaDoTiro } from '../minigames/tiro/tela/TiroOverlay'
 import { JogoDeAbrirOverlay } from '../minigames/abrir/tela/JogoDeAbrirOverlay'
 import { textoDaRecusaDoObjeto } from '../net/protocoloDoObjeto'
@@ -2626,6 +2628,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onApagarComBolhas={() => {
               if (connection.pedirBolha(openPin.id)) setOpenPinId(null)
             }}
+            // ALAVANCA "Girar a alavanca": o mesmo caminho; o convite volta (sozinho) e abre a tela da alavanca.
+            onGirarAlavanca={() => {
+              if (connection.pedirAlavanca(openPin.id)) setOpenPinId(null)
+            }}
             // PUZZLE "Examinar": pedido enviado, o cartão sai; a vista volta e abre a tela do puzzle.
             onExaminar={() => examinarPuzzle(openPin.id)}
           />
@@ -2966,6 +2972,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             {textoDaRecusaDaBolha(state.bolhaRecusado.motivo)}
           </p>
         )}
+        {/* ALAVANCA no pino: o host não deixou (o cartão já fechou ao pedir). Some sozinho. */}
+        {state.alavancaRecusado && (
+          <p key={state.alavancaRecusado.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
+            {textoDaRecusaDaAlavanca(state.alavancaRecusado.motivo)}
+          </p>
+        )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
@@ -3106,6 +3118,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.fogo && <FogoOverlay fogo={state.fogo} playerId={state.playerId} acoes={connection} />}
         {/* BOLHA D'ÁGUA: o convite (do mestre ou do pino) abre por cima do mapa, até o resultado ou o encerramento. */}
         {state.bolha && <BolhaOverlay bolha={state.bolha} playerId={state.playerId} acoes={connection} />}
+        {/* ALAVANCA DA PONTE: o convite (do mestre ou do pino) abre por cima do mapa, até o resultado ou o encerramento. */}
+        {state.alavanca && <AlavancaOverlay alavanca={state.alavanca} playerId={state.playerId} acoes={connection} />}
         {/* TIRO: o convite da barraca abre por cima do mapa, até o jogador sair. */}
         {/* BAÚ, CAIXA E BARRIL: o minigame do objeto que o mestre abriu nesta tela, até o Fechar. */}
         {state.objeto && (

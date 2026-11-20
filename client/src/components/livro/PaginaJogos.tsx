@@ -16,6 +16,7 @@ import type { PescaAoVivo } from '../../net/pescaNoHost'
 import type { TiroAoVivo } from '../../net/tiroNoHost'
 import type { FogoAoVivo } from '../../net/fogoNoHost'
 import type { BolhaAoVivo } from '../../net/bolhaNoHost'
+import type { AlavancaAoVivo } from '../../net/alavancaNoHost'
 import type { PuzzleAoVivo } from '../../net/puzzleNoHost'
 import type { Desafio, Prop, TipoDoLugarDoDesafio } from '../../types/map'
 import { useAdventureStore } from '../../stores/adventureStore'
@@ -74,6 +75,8 @@ export function sessoesAoVivo(fontes: {
   tiros: readonly TiroAoVivo[]
   fogo: FogoAoVivo | null
   bolha: BolhaAoVivo | null
+  /** A alavanca da ponte (a ativa ou a última); ausente = nenhuma. */
+  alavanca?: AlavancaAoVivo | null
   puzzles: readonly PuzzleAoVivo[]
   mapaId: string
 }): SessaoAoVivo[] {
@@ -84,6 +87,7 @@ export function sessoesAoVivo(fontes: {
     ...fontes.tiros.map((s) => sessao('tiro', s)),
     ...(fontes.fogo === null ? [] : [sessao('fogo', fontes.fogo)]),
     ...(fontes.bolha === null ? [] : [sessao('bolha', fontes.bolha)]),
+    ...(fontes.alavanca === null || fontes.alavanca === undefined ? [] : [sessao('alavanca', fontes.alavanca)]),
   ].filter((s) => s.fase !== 'encerrada')
 }
 
@@ -93,6 +97,9 @@ const TEXTO_DA_FASE: Readonly<Record<string, string>> = {
   jogo: 'em jogo',
   aberta: 'aberta',
   pausa: 'em pausa',
+  // A alavanca da ponte: a contagem e a rodada são o mesmo "girando" para quem lê a lista.
+  contagem: 'girando',
+  rodada: 'girando',
   fim: 'acabando',
 }
 
@@ -272,7 +279,7 @@ function ListaDosJogos({ desafios: todos, props, aoVivo, mapaId, avisoDispensado
   // encostavam na borda do livro (auditoria de 16/11/2026).
   return (
     <>
-      <TituloDaPagina titulo="Jogos" sub="Os desafios desta cena: dança, pesca, tiro, fogo, bolha e puzzle." />
+      <TituloDaPagina titulo="Jogos" sub="Os desafios desta cena: dança, pesca, tiro, fogo, bolha, alavanca e puzzle." />
       <div className="lb-zona gr-paginas">
         {migrados.length > 0 && !avisoDispensado && (
           <div className="mg-aviso" role="status">

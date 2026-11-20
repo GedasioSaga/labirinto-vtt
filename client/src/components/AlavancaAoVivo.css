@@ -1,0 +1,29 @@
+/* A alavanca ao vivo no painel do desafio: o resto vem do FogoAoVivo.css. Medidas do protótipo (aba Mestre). */
+.lb-alavanca-chance {
+  font: 600 24px/1 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+}
+.lb-fogo-vivo__placar.lb-alavanca-vivo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+}
+.lb-alavanca-vivo dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.lb-alavanca-tempo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lb-alavanca-tempo .lb-range {
+  flex: 1;
+  min-width: 0;
+}
+.lb-alavanca-tempo output {
+  min-width: 3.2em;
+  text-align: right;
+}

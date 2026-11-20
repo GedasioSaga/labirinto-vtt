@@ -1,0 +1,540 @@
+/*
+ * TELA DA ALAVANCA DA PONTE (jogador): fiel ao protótipo aprovado em
+ * 20/11/2026 (docs/design/minigames/alavanca-da-ponte.html). As cores e
+ * medidas do app vêm dos tokens --lb-* (theme.ts); as --al-* são só desta
+ * tela. Tudo sob .lb-alavanca, com classes al-*, porque a página do jogador
+ * não carrega main.css e o player.css já tem nomes genéricos (o caminho do tiro).
+ */
+
+.lb-alavanca {
+  --al-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --al-palco: #0d0c0f;
+  --al-topo: 48px;
+  --al-coluna: clamp(300px, 27vw, 380px);
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  grid-template-rows: var(--al-topo) 1fr;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font: 13px/1.45 var(--lb-font-sans);
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+}
+.lb-alavanca *,
+.lb-alavanca *::before,
+.lb-alavanca *::after {
+  box-sizing: border-box;
+}
+.lb-alavanca [hidden] {
+  display: none !important;
+}
+/* Sem peso (:where): a cor do .al-btn--primary tem de vencer este "inherit". */
+:where(.lb-alavanca) button,
+:where(.lb-alavanca) input {
+  font: inherit;
+  color: inherit;
+}
+.lb-alavanca button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lb-alavanca button:disabled {
+  cursor: not-allowed;
+}
+.lb-alavanca :focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+.lb-alavanca h2[tabindex='-1']:focus-visible {
+  box-shadow: none;
+}
+.lb-alavanca p,
+.lb-alavanca h1,
+.lb-alavanca h2,
+.lb-alavanca ul,
+.lb-alavanca dl,
+.lb-alavanca dd {
+  margin: 0;
+}
+.lb-alavanca ul {
+  padding: 0;
+  list-style: none;
+}
+.al-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.lb-alavanca kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: 4px;
+  font: 500 10.5px/16px var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  text-align: center;
+}
+
+/* botões do app */
+.al-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background-color var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+.al-btn:active:not(:disabled) {
+  background: var(--lb-color-stone-sunken);
+  transform: scale(0.97);
+}
+.al-btn:disabled {
+  color: var(--lb-color-parchment-faint);
+  background: transparent;
+}
+.al-btn--primary {
+  background: var(--lb-color-brass);
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-weight: 600;
+}
+.al-btn--primary:active:not(:disabled) {
+  background: var(--lb-color-brass);
+}
+.al-btn--block {
+  width: 100%;
+  min-height: 44px;
+  font-size: 14px;
+}
+.al-btn--sm {
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+.al-btn--primary kbd {
+  border-color: rgba(28, 22, 8, 0.35);
+  color: var(--lb-color-brass-contrast);
+}
+@media (hover: hover) and (pointer: fine) {
+  .al-btn:hover:not(:disabled) {
+    background: var(--lb-color-stone-hover);
+    border-color: var(--lb-color-line-strong);
+  }
+  .al-btn--primary:hover:not(:disabled) {
+    background: var(--lb-color-brass-bright);
+    border-color: var(--lb-color-brass-bright);
+  }
+}
+.al-rotulo {
+  font: 500 11.5px/1.3 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  letter-spacing: 0.02em;
+}
+.al-nota {
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* topo */
+.al-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--lb-color-line);
+  background: var(--lb-color-stone-solid);
+  min-width: 0;
+}
+.al-topo__marca {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  min-width: 0;
+}
+.al-wordmark {
+  font: 600 19px/1 var(--lb-font-display);
+}
+.al-migalhas {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  color: var(--lb-color-parchment-faint);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.al-migalhas b {
+  color: var(--lb-color-parchment-dim);
+  font-weight: 500;
+}
+
+/* jogador */
+.al-jogador {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--al-coluna);
+  min-height: 0;
+}
+.al-palco {
+  position: relative;
+  overflow: hidden;
+  background: var(--al-palco);
+  min-height: 0;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.al-palco canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.al-contagem {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font: 600 clamp(30px, 5vw, 60px) / 1 var(--lb-font-display);
+  color: #f6efdc;
+  text-shadow:
+    0 2px 0 rgba(40, 28, 18, 0.9),
+    0 0 22px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 160ms var(--al-ease-out);
+}
+.al-contagem[data-on='1'] {
+  opacity: 1;
+}
+.al-pausa {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(13, 12, 15, 0.62);
+}
+.al-pausa__caixa {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 18px 22px;
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  border: 1px solid var(--lb-color-line-strong);
+  text-align: center;
+}
+.al-pausa__caixa h2 {
+  font: 600 20px/1.2 var(--lb-font-display);
+}
+.al-coluna {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-left: 1px solid var(--lb-color-line);
+  background: var(--lb-color-stone-solid);
+}
+.al-tela {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* convite */
+.al-cabeca {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+.al-cabeca canvas {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--lb-radius-md);
+  background: #2a221d;
+  border: 1px solid var(--lb-color-line-strong);
+}
+.al-cabeca h1 {
+  font: 600 17px/1.25 var(--lb-font-display);
+  overflow-wrap: anywhere;
+}
+.al-cabeca p {
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+  overflow-wrap: anywhere;
+}
+.al-fala {
+  padding: 12px 14px;
+  border-radius: var(--lb-radius-lg);
+  background: #1f1a14;
+  border: 1px solid rgba(224, 164, 74, 0.2);
+  color: #ebe0c9;
+  font: 15px/1.5 var(--lb-font-display);
+  overflow-wrap: anywhere;
+}
+.al-ficha {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.al-ficha div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line);
+  min-width: 0;
+}
+.al-ficha .al-larga {
+  grid-column: 1 / -1;
+}
+.al-ficha dd {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.al-teclas {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim);
+}
+.al-teclas li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* rodada */
+.al-tela--jogo {
+  padding: 16px;
+  gap: 12px;
+}
+.al-relogio {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.al-relogio b {
+  font: 600 30px/1 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+}
+.al-relogio[data-pouco='1'] b {
+  color: #f0b3ad;
+}
+.al-relogio span {
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+}
+.al-medidor {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+}
+.al-medidor__topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.al-medidor__topo b {
+  font: 600 18px/1.1 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+}
+.al-medidor__trilho {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--lb-color-stone-sunken);
+  overflow: hidden;
+}
+.al-medidor__trilho i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 3px;
+  background: var(--lb-color-brass);
+  transform-origin: left;
+  transform: scaleX(0);
+}
+.al-medidor--corrente .al-medidor__trilho i {
+  background: var(--lb-color-tide);
+  transition: background-color 120ms ease;
+}
+.al-medidor--corrente[data-solta='1'] .al-medidor__trilho i {
+  background: var(--lb-color-ember);
+}
+.al-medidor--corrente[data-solta='1'] .al-medidor__topo b {
+  color: #f0b3ad;
+}
+.al-tempo-trilho {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--lb-color-line);
+  overflow: hidden;
+}
+.al-tempo-trilho i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--lb-color-parchment-dim);
+  transform-origin: left;
+}
+.al-equipe {
+  display: grid;
+  gap: 6px;
+}
+.al-equipe li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line);
+}
+.al-equipe .al-marca {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  font: 600 12px/1 var(--lb-font-utility);
+  color: var(--lb-color-brass-contrast);
+  background: var(--cor);
+}
+.al-equipe .al-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.al-equipe .al-ritmo {
+  font: 500 12px/1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+.al-girar {
+  min-height: 64px;
+  font-size: 16px;
+  touch-action: manipulation;
+}
+.al-girar kbd {
+  font-size: 12px;
+}
+.al-dica {
+  font-size: 12.5px;
+  color: var(--lb-color-parchment-dim);
+  min-height: 3em;
+  overflow-wrap: anywhere;
+}
+.al-dica[data-tom='alerta'] {
+  color: #f0b3ad;
+}
+
+/* resultado */
+.al-veredito {
+  display: grid;
+  gap: 4px;
+}
+.al-veredito h2 {
+  font: 600 26px/1.15 var(--lb-font-display);
+}
+.al-veredito p {
+  color: var(--lb-color-parchment-dim);
+}
+.al-veredito[data-tipo='baixou'] h2 {
+  color: var(--lb-color-brass-bright);
+}
+.al-numeros {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.al-numeros div {
+  padding: 8px 10px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  min-width: 0;
+}
+.al-numeros dd {
+  font: 600 19px/1.2 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+}
+.al-desfecho {
+  padding: 10px 12px;
+  border-radius: var(--lb-radius-md);
+  border: 1px solid var(--lb-color-line);
+  background: var(--lb-color-stone-sunken);
+  overflow-wrap: anywhere;
+}
+.al-desfecho[data-ok='1'] {
+  border-color: rgba(224, 164, 74, 0.35);
+  background: #1f1a14;
+}
+.al-botoes {
+  display: grid;
+  gap: 8px;
+}
+.al-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .al-jogador {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(220px, 1fr) auto;
+  }
+  .al-coluna {
+    border-left: 0;
+    border-top: 1px solid var(--lb-color-line);
+    max-height: 60vh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .al-contagem {
+    transition: none;
+  }
+  /* Tudo parado: o botão não encolhe; o retorno do aperto fica só no brilho da marca. */
+  .al-btn,
+  .al-btn:active:not(:disabled) {
+    transform: none;
+    transition: background-color var(--lb-motion-fast) var(--lb-motion-ease);
+  }
+}

@@ -50,6 +50,7 @@ import { parsePuzzlePlayerMessage, type PuzzleHostMessage, type PuzzlePlayerMess
 import { parseDocumentoPlayerMessage, type DocumentoHostMessage, type DocumentoPlayerMessage } from './protocoloDoDocumento'
 import { parseFogoPlayerMessage, type FogoHostMessage, type FogoPlayerMessage } from './protocoloDoFogo'
 import { parseBolhaPlayerMessage, type BolhaHostMessage, type BolhaPlayerMessage } from './protocoloDaBolha'
+import { parseAlavancaPlayerMessage, type AlavancaHostMessage, type AlavancaPlayerMessage } from './protocoloDaAlavanca'
 import { parseTiroPlayerMessage, type TiroHostMessage, type TiroPlayerMessage } from './protocoloDoTiro'
 import { parseMedidaCompartilhar, type MedidaCompartilharMessage } from './protocoloDaMedida'
 import {
@@ -1511,6 +1512,8 @@ export type PlayerMessage =
   | FogoPlayerMessage
   // MINIGAME BOLHA D'ÁGUA: pedir, pronto, placar e desistir (`protocoloDaBolha.ts`).
   | BolhaPlayerMessage
+  // MINIGAME ALAVANCA DA PONTE: pedir, pronto, giro, pausa e desistir (`protocoloDaAlavanca.ts`).
+  | AlavancaPlayerMessage
   // MINIGAME DE TIRO: pedir, pronto, vivo e resultado (`protocoloDoTiro.ts`).
   | TiroPlayerMessage
   | MyNotesSetMessage
@@ -2440,6 +2443,8 @@ export type HostMessage =
   | FogoHostMessage
   // MINIGAME BOLHA D'ÁGUA: convite, estado, começar, pausa, desfecho e recusa (`protocoloDaBolha.ts`).
   | BolhaHostMessage
+  // MINIGAME ALAVANCA DA PONTE: convite, estado, começar, a ponte ao vivo, fim e recusa (`protocoloDaAlavanca.ts`).
+  | AlavancaHostMessage
   // MINIGAME DE TIRO: convite, estado, início, pausa, encerramento e recusa (`protocoloDoTiro.ts`).
   | TiroHostMessage
   // BATALHA F1: o recorte da ordem dos turnos, os aliados e a resposta aos pedidos (`protocoloDaBatalha.ts`).
@@ -3938,6 +3943,13 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'bolha.fim':
     case 'bolha.desistir':
       return parseBolhaPlayerMessage(value)
+    case 'alavanca.pedir':
+    case 'alavanca.pronto':
+    case 'alavanca.giro':
+    case 'alavanca.pausa':
+    case 'alavanca.continuar':
+    case 'alavanca.desistir':
+      return parseAlavancaPlayerMessage(value)
     case 'pesca.pedir':
     case 'pesca.pronto':
     case 'pesca.vivo':

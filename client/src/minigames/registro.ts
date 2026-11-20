@@ -19,6 +19,7 @@ import type { TipoDeDesfecho } from './desfecho'
 import { MINIGAME_FOGO_PADRAO, type MinigameFogo } from './fogo/tipos'
 import { MINIGAME_PESCA_PADRAO, type MinigamePesca } from './pesca/tipos'
 import { MINIGAME_TIRO_PADRAO, type MinigameTiro } from './tiro/tipos'
+import { MINIGAME_ALAVANCA_PADRAO, type MinigameAlavanca } from './alavanca/tipos'
 import type { JogoDoMinigame, MinigameDoPino, MinigameVisivel } from './tipos'
 import { JOGOS_PORTADOS, type JogoDoObjeto } from './abrir/objeto'
 import { puzzleDoModelo } from '../puzzles/padroes'
@@ -31,6 +32,7 @@ export interface MinigamesPorJogo {
   tiro: MinigameTiro
   fogo: MinigameFogo
   bolha: MinigameBolha
+  alavanca: MinigameAlavanca
   puzzle: MinigamePuzzle
 }
 
@@ -142,6 +144,20 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
       comPedidoDeAjuda({ jogo: 'bolha', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }, minigame, legivel),
     desfechos: [],
   },
+  alavanca: {
+    id: 'alavanca',
+    nome: 'Alavanca da ponte',
+    categoria: 'acao',
+    icone: 'alavanca',
+    lugares: TODOS_OS_LUGARES,
+    // De 1 a 4 giram juntos: o mestre chama a equipe; com 'pino', quem encosta no selo gira sozinho.
+    entradas: ['pino', 'mestre'],
+    padrao: () => structuredClone(MINIGAME_ALAVANCA_PADRAO),
+    entradaDe: (minigame) => (minigame.entrada === 'pino' ? 'pino' : 'mestre'),
+    recorteDoJogador: (minigame) => ({ jogo: 'alavanca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }),
+    // A vitória abre a porta ligada do desafio (a ponte do mestre aplica, `net/hostBridge.ts`).
+    desfechos: ['abrir porta'],
+  },
   puzzle: {
     id: 'puzzle',
     nome: 'Puzzle',
@@ -164,7 +180,7 @@ function puzzlePadrao(): MinigamePuzzle {
 }
 
 /** A ordem dos jogos na escolha do mestre (a mesma de `JOGOS_DO_MINIGAME`). */
-export const ORDEM_DOS_JOGOS: readonly JogoDoMinigame[] = ['danca', 'pesca', 'tiro', 'fogo', 'bolha', 'puzzle']
+export const ORDEM_DOS_JOGOS: readonly JogoDoMinigame[] = ['danca', 'pesca', 'tiro', 'fogo', 'bolha', 'alavanca', 'puzzle']
 
 /** O jogo é um que este app conhece? (arquivo de versão futura pode trazer outro). */
 export function ehJogoDoRegistro(valor: unknown): valor is JogoDoMinigame {

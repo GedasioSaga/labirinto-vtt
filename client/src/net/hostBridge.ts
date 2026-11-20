@@ -180,6 +180,8 @@ import type { PescaAoVivo, PescaConviteResultado } from './pescaNoHost'
 import type { TiroAoVivo, TiroConviteResultado } from './tiroNoHost'
 import type { FogoAoVivo, FogoConviteResultado } from './fogoNoHost'
 import { FOGO_REPASSE_MS } from './protocoloDoFogo'
+import { ALAVANCA_REPASSE_MS } from './protocoloDaAlavanca'
+import type { AlavancaAoVivo, AlavancaConviteResultado, AlavancaDesfechoSinal, AlavancaVivoNoMestre } from './alavancaNoHost'
 import { textoDoDesfechoDaBolha, type BolhaAoVivo, type BolhaConviteResultado } from './bolhaNoHost'
 import type { DificuldadeBolha, ModoBolha } from '../minigames/bolha/tipos'
 import type { DificuldadeFogo, FerramentaFogo, ModoFogo } from '../minigames/fogo/tipos'
@@ -392,6 +394,8 @@ export interface HostBridgeDeps {
   onFogoChange?: (fogo: FogoAoVivo | null) => void
   /** MINIGAME BOLHA D'ÁGUA: a partida como o painel do mestre a lê (convite, quem joga, desfecho). Sala fechada = `null`. */
   onBolhaChange?: (bolha: BolhaAoVivo | null) => void
+  /** MINIGAME ALAVANCA DA PONTE: a rodada como o painel do mestre a lê (convite, quem gira, fase, resultado). Sala fechada = `null`. */
+  onAlavancaChange?: (alavanca: AlavancaAoVivo | null) => void
   /**
    * MINIGAME DE PESCA: cada pino com pesca como o painel do mestre lê (quem
    * entrou, fase, lance k de N, medidor, cesto e maior peixe), a cada
@@ -836,6 +840,22 @@ export interface HostBridge extends RedeDosSons {
   encerrarBolha(): boolean
   /** A bolha de agora (ou a última), para o painel; `null` = nenhuma, ou sala fechada. */
   bolha(): BolhaAoVivo | null
+  /**
+   * MINIGAME ALAVANCA DA PONTE: chama até 4 jogadores para girar juntos a
+   * alavanca do desafio `pinId`. `null` com a sala fechada. O resto chega por
+   * `onAlavancaChange`; a rodada ao vivo, por `vivoDaAlavanca`.
+   */
+  convidarParaAlavanca(pinId: string, playerIds: readonly string[]): AlavancaConviteResultado | null
+  /** Começa com os prontos. `false` = ninguém pronto, fora de fase ou sala fechada. */
+  comecarAlavanca(): boolean
+  pausarAlavanca(): boolean
+  retomarAlavanca(): boolean
+  /** "Encerrar": sem desfecho, a ponte continua erguida. */
+  encerrarAlavanca(): boolean
+  /** A alavanca de agora (ou a última), para o painel; `null` = nenhuma, ou sala fechada. */
+  alavanca(): AlavancaAoVivo | null
+  /** Tempo, ponte, corrente e giros da rodada que corre; `null` = sem rodada, ou sala fechada. */
+  vivoDaAlavanca(): AlavancaVivoNoMestre | null
   /**
    * MINIGAME DE PESCA ("Mestre chama"): chama estes jogadores para a pesca do
    * pino `pinId`. O resultado diz quantos entraram, ou por que não saiu;
@@ -1314,6 +1334,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let lastBolhaKey = 'null'
   /** FOGO: o repasse das entradas a cada `FOGO_REPASSE_MS`, com a sala aberta. */
   let repasseDoFogo: ReturnType<typeof setInterval> | null = null
+  let lastAlavancaKey = 'null'
+  /**
+   * ALAVANCA: o relógio da rodada a cada `ALAVANCA_REPASSE_MS`, SÓ enquanto
+   * uma rodada corre (contagem ou girando): parado, não custa nada à sala (um
+   * relógio de 50 ms sempre ligado triplicava o custo de um dia de relógio falso
+   * nos testes da ponte, medido em 20/11/2026).
+   */
+  let repasseDaAlavanca: ReturnType<typeof setInterval> | null = null
   let lastPescaKey = '[]'
   let lastPuzzlesKey = '[]'
   let lastTiroKey = '[]'
@@ -1857,6 +1885,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const result = run(session)
     void dispatch(result)
     notifyBolhaIfChanged()
+    notifyAlavancaIfChanged()
     return result
   }
 
@@ -2031,6 +2060,53 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const linha of linhasDoDesfechoDaDanca(sinal, semFicha)) toastSink.push('info', linha)
   }
 
+  /**
+   * ALAVANCA DA PONTE: o desfecho no mapa do mestre. Com a ponte baixada, a
+   * porta ligada (congelada no convite) é destrancada e aberta, como na dança.
+   * Os jogadores já receberam o `alavanca.fim`; o snapshot com a porta vem atrás.
+   */
+  const aplicarDesfechoDaAlavanca = (sinal: AlavancaDesfechoSinal) => {
+    const porta = sinal.tipo === 'baixou' ? sinal.porta : undefined
+    if (porta !== undefined) {
+      aplicarDesfecho(aplicadoresDeDesfecho, { tipo: 'abrir porta', wallId: porta.wallId, sceneId: porta.sceneId })
+      broadcastNow()
+    }
+    toastSink.push('info', sinal.texto)
+  }
+
+  /** ALAVANCA: o painel do mestre só ouve quando algo estrutural mudou (fase, quem gira); os números vêm de `vivoDaAlavanca`. */
+  const notifyAlavancaIfChanged = () => {
+    const alavanca = session === null ? null : session.alavanca()
+    const correndo = alavanca?.fase === 'contagem' || alavanca?.fase === 'rodada'
+    if (correndo && repasseDaAlavanca === null) repasseDaAlavanca = setInterval(repassarAlavanca, ALAVANCA_REPASSE_MS)
+    else if (!correndo && repasseDaAlavanca !== null) {
+      clearInterval(repasseDaAlavanca)
+      repasseDaAlavanca = null
+    }
+    const key = JSON.stringify(alavanca)
+    if (key === lastAlavancaKey) return
+    lastAlavancaKey = key
+    deps.onAlavancaChange?.(alavanca)
+  }
+
+  /** ALAVANCA: um comando do painel do mestre — despacha, e o painel relê. `null` = sala fechada. */
+  const comandoDaAlavanca = <T extends HostResult>(run: (room: HostSession) => T): T | null => {
+    if (session === null) return null
+    const result = run(session)
+    void dispatch(result)
+    notifyAlavancaIfChanged()
+    return result
+  }
+
+  /** ALAVANCA: o relógio da rodada (a cada `ALAVANCA_REPASSE_MS`); sem rodada não sai mensagem nenhuma. */
+  const repassarAlavanca = () => {
+    if (session === null) return
+    const result = session.repassarAlavanca()
+    if (result.outbound.length > 0) void dispatch(result)
+    if (result.alavancaDesfecho !== undefined) aplicarDesfechoDaAlavanca(result.alavancaDesfecho)
+    notifyAlavancaIfChanged()
+  }
+
   /** DANÇA: um comando do painel do mestre — despacha, e o painel relê. `null` = sala fechada. */
   const comandoDaDanca = <T extends HostResult>(run: (room: HostSession) => T): T | null => {
     if (session === null) return null
@@ -2039,6 +2115,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyDancaIfChanged()
     notifyFogoIfChanged()
     notifyBolhaIfChanged()
+    notifyAlavancaIfChanged()
     return result
   }
 
@@ -4479,6 +4556,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyDancaIfChanged()
     notifyFogoIfChanged()
     notifyBolhaIfChanged()
+    notifyAlavancaIfChanged()
     notifyPescaIfChanged()
     notifyTiroIfChanged()
     notifyPuzzlesIfChanged()
@@ -4522,6 +4600,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyDancaIfChanged()
     notifyFogoIfChanged()
     notifyBolhaIfChanged()
+    notifyAlavancaIfChanged()
     notifyPescaIfChanged()
     notifyTiroIfChanged()
     notifyPuzzlesIfChanged()
@@ -4584,6 +4663,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     livenessTimer = null
     if (repasseDoFogo !== null) clearInterval(repasseDoFogo)
     repasseDoFogo = null
+    if (repasseDaAlavanca !== null) clearInterval(repasseDaAlavanca)
+    repasseDaAlavanca = null
     lastHeard.clear()
     awayClients.clear()
     lastSweepAt = null
@@ -4765,6 +4846,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyDancaIfChanged()
       notifyFogoIfChanged()
       notifyBolhaIfChanged()
+      notifyAlavancaIfChanged()
       notifyPescaIfChanged()
       notifyTiroIfChanged()
       notifyPuzzlesIfChanged()
@@ -5197,6 +5279,35 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return session === null ? null : session.bolha()
     },
 
+    convidarParaAlavanca(pinId, playerIds) {
+      const result = comandoDaAlavanca((room) => room.convidarParaAlavanca(pinId, playerIds, world()))
+      return result === null ? null : result.convite
+    },
+
+    comecarAlavanca() {
+      return comandoDaAlavanca((room) => room.comecarAlavanca())?.comecou === true
+    },
+
+    pausarAlavanca() {
+      return comandoDaAlavanca((room) => room.pausarAlavanca())?.ok === true
+    },
+
+    retomarAlavanca() {
+      return comandoDaAlavanca((room) => room.retomarAlavanca())?.ok === true
+    },
+
+    encerrarAlavanca() {
+      return comandoDaAlavanca((room) => room.encerrarAlavanca())?.ok === true
+    },
+
+    alavanca() {
+      return session === null ? null : session.alavanca()
+    },
+
+    vivoDaAlavanca() {
+      return session === null ? null : session.vivoDaAlavanca()
+    },
+
     comecarFogo(dificuldade) {
       return comandoDoFogo((room) => room.comecarFogo(dificuldade))?.comecou === true
     },
@@ -5305,6 +5416,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyDancaIfChanged()
       notifyFogoIfChanged()
       notifyBolhaIfChanged()
+      notifyAlavancaIfChanged()
       notifyPescaIfChanged()
       notifyTiroIfChanged()
       notifyPuzzlesIfChanged()

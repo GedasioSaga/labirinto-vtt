@@ -162,6 +162,12 @@ interface PlayerPinCardProps {
    */
   onApagarComBolhas?: () => void
   /**
+   * ALAVANCA "Girar a alavanca": pede uma rodada só deste jogador, como o
+   * "Apagar com bolhas". Apagado com a ficha longe. Ausente = o cartão só diz
+   * como se joga ali. A equipe continua vindo do mestre, pelo painel.
+   */
+  onGirarAlavanca?: () => void
+  /**
    * PUZZLE: "Examinar" pede ao host para entrar no puzzle do selo, e a tela do
    * puzzle abre quando a vista chegar. Apagado com a ficha longe. Ausente = o
    * cartão só diz que há um mecanismo ali.
@@ -182,6 +188,7 @@ const TEXTOS_DO_JOGO: Record<JogoDoMinigame, { vazio: string; doMestre: string }
   tiro: { vazio: 'Uma barraca de tiro ao alvo.', doMestre: 'Barraca de tiro. O mestre chama quando for a hora.' },
   fogo: { vazio: 'Fogo na floresta! Alguém precisa de ajuda aqui.', doMestre: 'Fogo na floresta. O mestre chama quando for a hora.' },
   bolha: { vazio: 'Fogo! Alguém precisa de ajuda para apagar com bolhas.', doMestre: "Bolha d'Água. O mestre chama quando for a hora." },
+  alavanca: { vazio: 'Uma alavanca diante da ponte levadiça erguida.', doMestre: 'Alavanca da ponte. O mestre chama quando for a hora.' },
   // O puzzle começa pelo jogador ("Examinar", na tela do puzzle); o mestre nunca chama.
   puzzle: { vazio: 'Há algo aqui para examinar de perto.', doMestre: 'Um mecanismo para examinar de perto.' },
 }
@@ -195,6 +202,11 @@ const TEXTO_DA_BOLHA_NO_PINO = `Bolha d'Água. Encoste no pino e toque em "Apaga
 const TEXTO_LONGE_DA_BOLHA = 'Chegue mais perto para apagar com bolhas.'
 /** Debaixo do "Apagar com bolhas": sozinho é aqui; a equipe, o mestre chama. */
 const TEXTO_BOLHA_EM_EQUIPE = 'Sozinho, aqui mesmo. Em equipe, o mestre chama.'
+/** Alavanca "pino" sem como pedir daqui (o cartão que o mestre mostrou). */
+const TEXTO_DA_ALAVANCA_NO_PINO = 'Alavanca da ponte. Encoste no pino e toque em "Girar a alavanca".'
+const TEXTO_LONGE_DA_ALAVANCA = 'Chegue mais perto para girar a alavanca.'
+/** Debaixo do "Girar a alavanca": sozinho é aqui; a equipe, o mestre chama. */
+const TEXTO_ALAVANCA_EM_EQUIPE = 'Sozinho, aqui mesmo. Em equipe, o mestre chama.'
 /** Pesca "Jogador toca no pino" sem como pedir daqui (o cartão que o mestre mostrou). */
 const TEXTO_DA_PESCA_NO_PINO = 'Pesca. Encoste no pino e toque em "Pescar".'
 const TEXTO_LONGE_DA_PESCA = 'Chegue mais perto para pescar.'
@@ -392,6 +404,7 @@ export function PlayerPinCard({
   onAtirar,
   onApagarFogo,
   onApagarComBolhas,
+  onGirarAlavanca,
   onExaminar,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
@@ -519,6 +532,8 @@ export function PlayerPinCard({
   const fogo = minigame && pin.minigameVisivel?.jogo === 'fogo' ? pin.minigameVisivel : null
   // A bolha, do mesmo jeito que o fogo: a entrada e o pedido de ajuda.
   const bolha = minigame && pin.minigameVisivel?.jogo === 'bolha' ? pin.minigameVisivel : null
+  // A ALAVANCA DA PONTE do minigame (a `alavanca` daqui é o pino de alavanca que abre porta).
+  const alavancaDaPonte = minigame && pin.minigameVisivel?.jogo === 'alavanca' ? pin.minigameVisivel.entrada : null
   // O pedido de ajuda (quem pede e a fala) vem do fogo ou da bolha.
   const pedidoDeAjuda = fogo ?? bolha
   // O PUZZLE sempre começa pelo jogador: o "Examinar" no lugar da frase do mestre.
@@ -776,7 +791,7 @@ export function PlayerPinCard({
             {longe && <p className="pp-itemcard__longe">{TEXTO_LONGE_DO_PUZZLE}</p>}
           </>
         )}
-        {minigame && pesca === null && tiro === null && fogo === null && bolha === null && !examinar && (
+        {minigame && pesca === null && tiro === null && fogo === null && bolha === null && alavancaDaPonte === null && !examinar && (
           // Frase, não botão: o convite chega quando o mestre chamar, e um
           // botão aqui prometeria um gesto que o jogador não tem.
           <p className="pp-pincard__locked">{textosDoJogo?.doMestre ?? TEXTOS_DO_JOGO.danca.doMestre}</p>
@@ -808,6 +823,17 @@ export function PlayerPinCard({
               Apagar com bolhas
             </button>
             {longe ? <p className="pp-itemcard__longe">{TEXTO_LONGE_DA_BOLHA}</p> : <p className="pp-pincard__watch-hint">{TEXTO_BOLHA_EM_EQUIPE}</p>}
+          </>
+        )}
+        {alavancaDaPonte === 'mestre' && <p className="pp-pincard__locked">{TEXTOS_DO_JOGO.alavanca.doMestre}</p>}
+        {alavancaDaPonte === 'pino' && onGirarAlavanca === undefined && <p className="pp-pincard__locked">{TEXTO_DA_ALAVANCA_NO_PINO}</p>}
+        {alavancaDaPonte === 'pino' && onGirarAlavanca !== undefined && (
+          // Sem confirmação, como o "Apagar com bolhas": o convite que volta mostra a dificuldade e o tempo.
+          <>
+            <button type="button" className="pp-pincard__travel" disabled={longe} onClick={onGirarAlavanca}>
+              Girar a alavanca
+            </button>
+            {longe ? <p className="pp-itemcard__longe">{TEXTO_LONGE_DA_ALAVANCA}</p> : <p className="pp-pincard__watch-hint">{TEXTO_ALAVANCA_EM_EQUIPE}</p>}
           </>
         )}
         {pesca === 'mestre' && <p className="pp-pincard__locked">{TEXTOS_DO_JOGO.pesca.doMestre}</p>}

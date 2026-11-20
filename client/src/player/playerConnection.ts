@@ -210,6 +210,8 @@ import { parseFogoHostMessage, parseFogoPlayerMessage, type FogoEntrada, type Fo
 import { FOGO_RECUSA_AVISO_MS, fogoAceitaDesistir, fogoAceitaPronto, fogoEmJogo, receberFogo, type FogoDoJogador, type FogoParaOJogo } from './estadoDoFogo'
 import type { DificuldadeBolha } from '../minigames/bolha/tipos'
 import { parseBolhaHostMessage, parseBolhaPlayerMessage, type BolhaMotivoDaRecusa, type BolhaPlacar, type BolhaPlayerMessage } from '../net/protocoloDaBolha'
+import { parseAlavancaHostMessage, parseAlavancaPlayerMessage, type AlavancaMotivoDaRecusa, type AlavancaPlayerMessage, type AlavancaVivoMessage } from '../net/protocoloDaAlavanca'
+import { ALAVANCA_RECUSA_AVISO_MS, alavancaAceitaDesistir, alavancaAceitaPronto, alavancaEmRodada, receberAlavanca, type AlavancaDoJogador } from './estadoDaAlavanca'
 import { BOLHA_RECUSA_AVISO_MS, bolhaAceitaDesistir, bolhaAceitaPronto, bolhaEmJogo, receberBolha, type BolhaDoJogador } from './estadoDaBolha'
 import type { DificuldadePesca } from '../minigames/pesca/tipos'
 import { parseObjetoHostMessage, parseObjetoPlayerMessage, type DesfechoDoObjetoNoFio, type DificuldadeDoObjeto, type JogoDoObjetoNoFio, type ObjetoMotivoDaRecusa, type ObjetoPlayerMessage } from '../net/protocoloDoObjeto'
@@ -903,6 +905,15 @@ export interface PlayerState {
   bolha?: BolhaDoJogador
   /** BOLHA "Apagar com bolhas" no pino: o host não deixou (`bolha.recusado`); some sozinho em `BOLHA_RECUSA_AVISO_MS`. */
   bolhaRecusado?: { id: number; pinId: string; motivo: BolhaMotivoDaRecusa }
+  /**
+   * ALAVANCA DA PONTE: o convite (do mestre, ou a volta do "Girar a alavanca"
+   * do pino), quem está pronto, a rodada e o fim, como estado puro
+   * (`player/estadoDaAlavanca.ts`). A ponte de cada instante (`alavanca.vivo`,
+   * 20 por segundo) não passa por aqui: vai a quem ouve (`ouvirAlavanca`).
+   */
+  alavanca?: AlavancaDoJogador
+  /** ALAVANCA "Girar a alavanca" no pino: o host não deixou (`alavanca.recusado`); some sozinho em `ALAVANCA_RECUSA_AVISO_MS`. */
+  alavancaRecusado?: { id: number; pinId: string; motivo: AlavancaMotivoDaRecusa }
   /**
    * MINIGAME DE PESCA: o convite (do mestre, ou a volta do "Pescar" deste
    * jogador), o que chegou depois (estado, pausa, encerramento) e os lances
@@ -1979,6 +1990,23 @@ export interface PlayerConnection {
    * o Pronto daqui; a tela continua aberta para mostrar o aviso. `false` = nada a avisar.
    */
   falhouBolha(): boolean
+  /** ALAVANCA: "Começar" no convite. `false` sem convite aberto, já pronto ou com o socket fechado. */
+  prontoAlavanca(): boolean
+  /**
+   * ALAVANCA "Girar a alavanca" no pino: pede uma rodada só deste jogador.
+   * `false` (nada sai) fora do jogo, com pino que não é alavanca "pino", com
+   * uma alavanca aberta na tela ou com o socket fechado.
+   */
+  pedirAlavanca(pinId: string): boolean
+  /** ALAVANCA: um aperto do X (ou do botão Girar). Só na rodada; a hora que vale é a da chegada no host. */
+  giroAlavanca(): boolean
+  /** ALAVANCA: pausa a rodada (para todos) ou continua a que este jogador pausou. */
+  pausarAlavanca(): boolean
+  continuarAlavanca(): boolean
+  /** ALAVANCA: a tela fechou. Antes do fim, o mestre fica sabendo (`alavanca.desistir`). */
+  fecharAlavanca(): void
+  /** ALAVANCA: a ponte de cada instante (`alavanca.vivo`) da sessão na tela. Devolve como parar de ouvir. */
+  ouvirAlavanca(ouvinte: (msg: AlavancaVivoMessage) => void): () => void
   /**
    * Um minigame Godot (iframe) está ligando o motor nesta página: a thread
    * trava por segundos (5,9 s medidos na Bolha d'Água sem cache de shader,
@@ -2790,6 +2818,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let ultimoVivoDoTiro = Number.NEGATIVE_INFINITY
   /** FOGO: quem ouve as entradas dos colegas (a tela do jogo aberta). */
   const ouvintesDoFogo = new Set<(msg: FogoParaOJogo) => void>()
+  /** ALAVANCA: quem ouve a ponte de cada instante (a tela da alavanca aberta). */
+  const ouvintesDaAlavanca = new Set<(msg: AlavancaVivoMessage) => void>()
   let mapSharedTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearMapSharedTimer(): void {
@@ -4092,6 +4122,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   /** BOLHA: a mesma conferência do host antes de sair, como o fogo. */
   function enviarBolha(message: BolhaPlayerMessage): boolean {
     const conferida = parseBolhaPlayerMessage(message)
+    return conferida !== null && send(conferida)
+  }
+
+  /** ALAVANCA: a mesma conferência do host antes de sair, como a bolha. */
+  function enviarAlavanca(message: AlavancaPlayerMessage): boolean {
+    const conferida = parseAlavancaPlayerMessage(message)
     return conferida !== null && send(conferida)
   }
 
@@ -5463,6 +5499,36 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (bolha !== state.bolha) setState({ bolha })
         return
       }
+      case 'alavanca.convite':
+      case 'alavanca.estado':
+      case 'alavanca.comecar':
+      case 'alavanca.vivo':
+      case 'alavanca.fim':
+      case 'alavanca.encerra':
+      case 'alavanca.recusado': {
+        // A tela da mesa só olha: a alavanca é de quem o mestre chamou.
+        if (isTable) return
+        const msg = parseAlavancaHostMessage(data)
+        if (msg === null) return
+        if (msg.type === 'alavanca.recusado') {
+          if (state.status !== 'playing') return
+          const id = nextNoticeId++
+          setState({ alavancaRecusado: { id, pinId: msg.pinId, motivo: msg.motivo } })
+          setTimeout(() => {
+            if (state.alavancaRecusado?.id === id) setState({ alavancaRecusado: undefined })
+          }, ALAVANCA_RECUSA_AVISO_MS)
+          return
+        }
+        if (msg.type === 'alavanca.vivo') {
+          // Só a sessão que está na tela: a de antes é atrasada e cai.
+          if (state.alavanca?.sessao !== msg.sessao) return
+          for (const ouvinte of ouvintesDaAlavanca) ouvinte(msg)
+          return
+        }
+        const alavanca = receberAlavanca(state.alavanca, msg)
+        if (alavanca !== state.alavanca) setState({ alavanca })
+        return
+      }
       case 'pesca.convite':
       case 'pesca.estado':
       case 'pesca.pausa':
@@ -6015,7 +6081,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         loopsVivos.clear()
         chaveDaMidia = null
         clearReconnectTimers()
-        setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
+        setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, alavanca: undefined, reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -6050,7 +6116,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, alavanca: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -6069,7 +6135,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         stopPing()
         clearPeekTimer()
-        setState({ status: 'replaced', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
+        setState({ status: 'replaced', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, alavanca: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
       case 'account.device':
       case 'account.refused':
@@ -6082,7 +6148,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           writeResume(storage, null)
           clearReconnectTimers()
           chaveDaMidia = null
-          setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
+          setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, puzzle: undefined, puzzleRecusado: undefined, documento: undefined, documentoRecusado: undefined, tiro: undefined, fogo: undefined, bolha: undefined, alavanca: undefined, reconnecting: undefined })
           return
         }
         // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
@@ -6976,6 +7042,52 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (bolha === undefined) return
       if (bolhaAceitaDesistir(bolha)) enviarBolha({ type: 'bolha.desistir', sessao: bolha.sessao, motivo: 'recusou' })
       setState({ bolha: undefined })
+    },
+
+    prontoAlavanca() {
+      const alavanca = state.alavanca
+      if (!alavancaAceitaPronto(alavanca) || !enviarAlavanca({ type: 'alavanca.pronto', sessao: alavanca.sessao })) return false
+      setState({ alavanca: { ...alavanca, pronto: true } })
+      return true
+    },
+
+    pedirAlavanca(pinId) {
+      if (state.status !== 'playing') return false
+      // Uma alavanca por vez na tela: a de antes só sai se já acabou (o "Tentar de novo" pede sobre o resultado).
+      const aberta = state.alavanca
+      if (aberta !== undefined && aberta.encerrada === undefined && aberta.fim === undefined) return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      if (pin?.kind !== 'minigame' || pin.minigameVisivel?.jogo !== 'alavanca' || pin.minigameVisivel.entrada !== 'pino') return false
+      return enviarAlavanca({ type: 'alavanca.pedir', pinId })
+    },
+
+    giroAlavanca() {
+      const alavanca = state.alavanca
+      return alavancaEmRodada(alavanca) && enviarAlavanca({ type: 'alavanca.giro', sessao: alavanca.sessao })
+    },
+
+    pausarAlavanca() {
+      const alavanca = state.alavanca
+      return alavancaEmRodada(alavanca) && enviarAlavanca({ type: 'alavanca.pausa', sessao: alavanca.sessao })
+    },
+
+    continuarAlavanca() {
+      const alavanca = state.alavanca
+      return alavancaEmRodada(alavanca) && enviarAlavanca({ type: 'alavanca.continuar', sessao: alavanca.sessao })
+    },
+
+    fecharAlavanca() {
+      const alavanca = state.alavanca
+      if (alavanca === undefined) return
+      if (alavancaAceitaDesistir(alavanca)) enviarAlavanca({ type: 'alavanca.desistir', sessao: alavanca.sessao })
+      setState({ alavanca: undefined })
+    },
+
+    ouvirAlavanca(ouvinte) {
+      ouvintesDaAlavanca.add(ouvinte)
+      return () => {
+        ouvintesDaAlavanca.delete(ouvinte)
+      }
     },
 
     motorCarregando(sim) {

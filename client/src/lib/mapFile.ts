@@ -88,6 +88,15 @@ import {
   type EntradaBolha,
   type MinigameBolha,
 } from '../minigames/bolha/tipos'
+import {
+  ALAVANCA_FALA_MAX_LENGTH,
+  ALAVANCA_LUGAR_MAX_LENGTH,
+  DIFICULDADES_ALAVANCA,
+  ENTRADAS_ALAVANCA,
+  MINIGAME_ALAVANCA_PADRAO,
+  tempoDaAlavanca,
+  type MinigameAlavanca,
+} from '../minigames/alavanca/tipos'
 import type { MinigameDoPino } from '../minigames/tipos'
 import { readPinLock } from './pinLock'
 import { sanitizeRoomLabelStyle } from './roomLabelStyle'
@@ -330,6 +339,7 @@ const LEITORES_DO_ARQUIVO: { readonly [J in JogoDoMinigame]: (valor: object) => 
   tiro: lerTiroDoArquivo,
   fogo: lerFogoDoArquivo,
   bolha: lerBolhaDoArquivo,
+  alavanca: lerAlavancaDoArquivo,
   puzzle: lerPuzzleDoDisco,
 }
 
@@ -476,6 +486,24 @@ function lerBolhaDoArquivo(valor: object): MinigameBolha {
     permitida: umDaLista(PERMITIDAS_BOLHA, campoDoArquivo(valor, 'permitida')) ?? padrao.permitida,
     premio: { texto: textoDeObjetoDoArquivo(campoDoArquivo(valor, 'premio'), padrao.premio.texto, BOLHA_TEXTO_MAX_LENGTH) },
     consequencia: { texto: textoDeObjetoDoArquivo(campoDoArquivo(valor, 'consequencia'), padrao.consequencia.texto, BOLHA_TEXTO_MAX_LENGTH) },
+  }
+}
+
+/**
+ * A ALAVANCA DA PONTE do disco: textos aparados e cortados nos tetos de
+ * `alavanca/tipos.ts`; `entrada` e `dificuldade` fora da lista voltam o
+ * padrão; o tempo fica entre 8 e 40 s, ou o padrão da dificuldade (`null`).
+ */
+function lerAlavancaDoArquivo(valor: object): MinigameAlavanca {
+  const padrao = MINIGAME_ALAVANCA_PADRAO
+  return {
+    jogo: 'alavanca',
+    npc: textoDoArquivo(campoDoArquivo(valor, 'npc'), NPC_MAX_LENGTH, padrao.npc),
+    lugar: textoDoArquivo(campoDoArquivo(valor, 'lugar'), ALAVANCA_LUGAR_MAX_LENGTH, padrao.lugar),
+    fala: textoDoArquivo(campoDoArquivo(valor, 'fala'), ALAVANCA_FALA_MAX_LENGTH, padrao.fala),
+    entrada: umDaLista(ENTRADAS_ALAVANCA, campoDoArquivo(valor, 'entrada')) ?? padrao.entrada,
+    dificuldade: umDaLista(DIFICULDADES_ALAVANCA, campoDoArquivo(valor, 'dificuldade')) ?? padrao.dificuldade,
+    tempo: tempoDaAlavanca(campoDoArquivo(valor, 'tempo')),
   }
 }
 

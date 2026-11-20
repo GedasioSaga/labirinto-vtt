@@ -58,6 +58,22 @@ import { TiroAoVivoPainel } from './TiroAoVivo'
 import type { TiroNoPainel } from './tiroNoPainel'
 import { FogoAoVivoPainel } from './FogoAoVivo'
 import type { FogoNoPainel } from './fogoNoPainel'
+import { AlavancaAoVivoPainel, ChanceDaAlavanca } from './AlavancaAoVivo'
+import type { AlavancaNoPainel } from './alavancaNoPainel'
+import { DIF } from '../minigames/alavanca/sim'
+import {
+  ALAVANCA_FALA_MAX_LENGTH,
+  ALAVANCA_JOGADORES_MAX,
+  ALAVANCA_LUGAR_MAX_LENGTH,
+  ALAVANCA_TEMPO_MAX_S,
+  ALAVANCA_TEMPO_MIN_S,
+  DIFICULDADES_ALAVANCA,
+  NOME_DA_DIFICULDADE_ALAVANCA,
+  tempoDaAlavanca,
+  type DificuldadeAlavanca,
+  type EntradaAlavanca,
+  type MinigameAlavanca,
+} from '../minigames/alavanca/tipos'
 import {
   BOLHA_TEXTO_MAX_LENGTH,
   CENARIOS_BOLHA,
@@ -197,6 +213,7 @@ const JOGOS: readonly { valor: JogoDoMinigame; rotulo: string }[] = [
   { valor: 'tiro', rotulo: 'Tiro' },
   { valor: 'fogo', rotulo: 'Fogo na Floresta' },
   { valor: 'bolha', rotulo: "Bolha d'Água" },
+  { valor: 'alavanca', rotulo: 'Alavanca' },
   { valor: 'puzzle', rotulo: 'Puzzle' },
 ]
 
@@ -743,6 +760,8 @@ export interface MinigameControlsProps {
   aoVivoDoFogo?: FogoNoPainel | null
   /** Sala aberta: a Bolha d'Água ao vivo (`bolhaNoPainel`). `null` ou ausente = sem sala. */
   aoVivoDaBolha?: BolhaNoPainel | null
+  /** Sala aberta: a Alavanca da ponte ao vivo (`alavancaNoPainel`). `null` ou ausente = sem sala. */
+  aoVivoDaAlavanca?: AlavancaNoPainel | null
   /** O teste troca; o app usa o disco e o Web Audio de verdade. */
   caminho?: CaminhoDaMusica
 }
@@ -758,7 +777,7 @@ export function MinigameControls(props: MinigameControlsProps) {
     <div className="lb-minigame">
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Jogo</legend>
-        {/* Em GRADE de 3 (Dança, Pesca, Tiro / Fogo, Bolha, Puzzle): numa fila só, os jogos
+        {/* Em GRADE de 3 (Dança, Pesca, Tiro / Fogo, Bolha, Alavanca / Puzzle): numa fila só, os jogos
             passavam da largura do rail e a Bolha vazava da caixa (medido em 1366x768, 10/11/2026). */}
         <Pastilhas
           rotulo="Jogo"
@@ -784,6 +803,7 @@ const PAINEL_DO_JOGO: { readonly [J in JogoDoMinigame]: (props: MinigameControls
   tiro: (props, minigame) => <PainelDoTiro {...props} minigame={minigame} />,
   fogo: (props, minigame) => <PainelDoFogo {...props} minigame={minigame} />,
   bolha: (props, minigame) => <PainelDaBolha {...props} minigame={minigame} />,
+  alavanca: (props, minigame) => <PainelDaAlavanca {...props} minigame={minigame} />,
   puzzle: (props, minigame) => <PainelDoPuzzle pinId={props.pinId} porta={props.porta} minigame={minigame} />,
 }
 
@@ -1215,6 +1235,134 @@ function PainelDaBolha({ pinId, minigame, onChange, aoVivoDaBolha }: PainelDaBol
           <BolhaAoVivoPainel pinId={pinId} permitida={minigame.permitida} {...aoVivoDaBolha} />
         )}
       </PacoteDoMinigame>
+    </>
+  )
+}
+
+type PainelDaAlavancaProps = Omit<MinigameControlsProps, 'minigame'> & { minigame: MinigameAlavanca }
+
+const DIFICULDADES_DA_ALAVANCA: readonly { valor: DificuldadeAlavanca; rotulo: string }[] = DIFICULDADES_ALAVANCA.map((d) => ({ valor: d, rotulo: NOME_DA_DIFICULDADE_ALAVANCA[d] }))
+
+const ENTRADAS_DA_ALAVANCA: readonly { valor: EntradaAlavanca; rotulo: string }[] = [
+  { valor: 'mestre', rotulo: 'Mestre chama' },
+  { valor: 'pino', rotulo: 'Jogador toca no pino' },
+]
+
+const QUANTOS_GIRAM: readonly { valor: string; rotulo: string }[] = Array.from({ length: ALAVANCA_JOGADORES_MAX }, (_, i) => ({ valor: String(i + 1), rotulo: String(i + 1) }))
+
+/**
+ * O DESAFIO DA ALAVANCA DA PONTE, como a aba Mestre do protótipo aprovado em
+ * 20/11/2026: dificuldade, tempo limite (8 a 40 s, ou o padrão), quantos giram
+ * juntos, o que acontece quando a ponte desce e a chance de vitória estimada.
+ * Mais o lugar e a fala do convite, e como começa (o molde dos outros jogos).
+ */
+function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }: PainelDaAlavancaProps) {
+  const baseId = useId()
+  const id = (nome: string) => `${baseId}-${nome}`
+  const mudar = (patch: Partial<MinigameAlavanca>) => onChange({ ...minigame, ...patch })
+  const tempoPadrao = DIF[minigame.dificuldade].tempo
+  // O controle desliza sem gravar: cada passo gravado seria um Ctrl+Z a mais. Grava ao soltar.
+  const [arrastando, setArrastando] = useState<number | null>(null)
+  const tempoVisto = arrastando ?? minigame.tempo ?? tempoPadrao
+  const gravarTempo = () => {
+    if (arrastando === null) return
+    setArrastando(null)
+    const tempo = tempoDaAlavanca(arrastando)
+    if (tempo !== minigame.tempo) mudar({ tempo })
+  }
+  // Quantos giram, só para a chance: quem gira de verdade é quem você chama.
+  const [quantos, setQuantos] = useState(1)
+  const portaAtual = porta.value !== null && porta.options.some((o) => o.id === porta.value) ? porta.value : ''
+  const semPorta = porta.options.length === 0
+  return (
+    <>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('lugar')}>
+          Lugar
+        </label>
+        <CampoDeTexto id={id('lugar')} valor={minigame.lugar} max={ALAVANCA_LUGAR_MAX_LENGTH} onCommit={(lugar) => mudar({ lugar })} />
+      </div>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('fala')}>
+          Fala
+        </label>
+        <CampoDeTexto id={id('fala')} valor={minigame.fala} max={ALAVANCA_FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
+      </div>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Como começa</legend>
+        <Pastilhas rotulo="Como começa" opcoes={ENTRADAS_DA_ALAVANCA} valor={minigame.entrada} onChange={(entrada) => mudar({ entrada })} />
+        <span className="lb-label">
+          {minigame.entrada === 'pino' ? 'O jogador gira sozinho pelo cartão do pino; você também pode chamar a equipe daqui.' : 'Só você chama, daqui do painel.'}
+        </span>
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Dificuldade</legend>
+        <Pastilhas rotulo="Dificuldade" opcoes={DIFICULDADES_DA_ALAVANCA} valor={minigame.dificuldade} onChange={(dificuldade) => mudar({ dificuldade })} />
+      </fieldset>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('tempo')}>
+          Tempo limite
+        </label>
+        <div className="lb-alavanca-tempo">
+          <input
+            id={id('tempo')}
+            className="lb-range"
+            type="range"
+            min={ALAVANCA_TEMPO_MIN_S}
+            max={ALAVANCA_TEMPO_MAX_S}
+            step={1}
+            value={tempoVisto}
+            onChange={(event) => setArrastando(Number(event.target.value))}
+            onPointerUp={gravarTempo}
+            onKeyUp={gravarTempo}
+            onBlur={gravarTempo}
+          />
+          <output className="lb-num" htmlFor={id('tempo')}>
+            {tempoVisto} s
+          </output>
+          <button type="button" className="lb-btn lb-btn--compact" disabled={minigame.tempo === null && arrastando === null} onClick={() => {
+            setArrastando(null)
+            mudar({ tempo: null })
+          }}>
+            Padrão
+          </button>
+        </div>
+      </div>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Quantos giram juntos</legend>
+        <Pastilhas rotulo="Quantos giram juntos" opcoes={QUANTOS_GIRAM} valor={String(quantos)} onChange={(n) => setQuantos(Number(n))} />
+        <span className="lb-label">Para a chance abaixo. Quem gira de verdade é quem você chamar: cada um aperta X no próprio computador.</span>
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Quando a ponte descer</legend>
+        <label className="lb-label" htmlFor={id('porta')}>
+          Abre a porta
+        </label>
+        <select
+          id={id('porta')}
+          className="lb-input"
+          value={portaAtual}
+          disabled={semPorta}
+          aria-describedby={id('porta-efeito')}
+          onChange={(event) => porta.onChange(event.target.value === '' ? null : event.target.value)}
+        >
+          <option value="">Nenhuma: só a ponte desce</option>
+          {porta.options.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <span id={id('porta-efeito')} className="lb-label">
+          {semPorta ? 'Ponha uma porta no mapa para a ponte abrir.' : portaAtual === '' ? 'A ponte levadiça desce e o fosso pode ser atravessado.' : 'A porta do mapa se abre, mesmo trancada, quando a ponte desce.'}
+        </span>
+      </fieldset>
+      <ChanceDaAlavanca dificuldade={minigame.dificuldade} jogadores={quantos} tempo={minigame.tempo} />
+      {aoVivoDaAlavanca === null || aoVivoDaAlavanca === undefined ? (
+        <span className="lb-label lb-minigame__sem-sala">Abra a mesa online para chamar para a alavanca.</span>
+      ) : (
+        <AlavancaAoVivoPainel pinId={pinId} {...aoVivoDaAlavanca} />
+      )}
     </>
   )
 }

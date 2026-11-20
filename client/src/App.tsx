@@ -280,6 +280,8 @@ import { tiroNoPainel } from './components/tiroNoPainel'
 import { fogoNoPainel } from './components/fogoNoPainel'
 import { bolhaNoPainel } from './components/bolhaNoPainel'
 import type { BolhaAoVivo } from './net/bolhaNoHost'
+import { alavancaNoPainel } from './components/alavancaNoPainel'
+import type { AlavancaAoVivo } from './net/alavancaNoHost'
 import { devolverPecasNoHost, mapaComMochilasDosBonecos, type PuzzleAoVivo } from './net/puzzleNoHost'
 import { ligarDevolucaoDasPecas } from './components/puzzles/editorDoPuzzleStore'
 import type { PecaPosta } from './puzzles/tipos'
@@ -941,6 +943,7 @@ function App() {
   const [tiros, setTiros] = useState<TiroAoVivo[]>([])
   const [fogo, setFogo] = useState<FogoAoVivo | null>(null)
   const [bolha, setBolha] = useState<BolhaAoVivo | null>(null)
+  const [alavanca, setAlavanca] = useState<AlavancaAoVivo | null>(null)
   // PUZZLES: quem está dentro de cada puzzle (a seção Ao vivo da página Jogos). O dono é a sessão do host.
   const [puzzles, setPuzzles] = useState<PuzzleAoVivo[]>([])
   // PUZZLES: salvar a cópia de um lugar ou "Zerar progresso" devolve cada peça posta a quem a pôs (P7),
@@ -1088,6 +1091,7 @@ function App() {
         onTiroChange: setTiros,
         onFogoChange: setFogo,
         onBolhaChange: setBolha,
+        onAlavancaChange: setAlavanca,
         onPuzzlesChange: setPuzzles,
         // ENTRAR PELO LOBBY: o link público pronto (ou caído) muda os endereços que o site oferece.
         onTunnelChange: (estado) => {
@@ -3083,6 +3087,12 @@ function App() {
       bolha,
       ponte: () => hostBridgeRef.current,
     }),
+    aoVivoDaAlavanca: alavancaNoPainel(alvo.id, {
+      aberta: room !== null,
+      players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
+      alavanca,
+      ponte: () => hostBridgeRef.current,
+    }),
   })
 
   /**
@@ -4954,7 +4964,7 @@ function App() {
           />
           <PaginaJogos
             painelDoDesafio={(desafio) => minigamePanel(desafio, (patch) => useMapStore.getState().updateDesafio(desafio.id, patch))}
-            aoVivo={sessoesAoVivo({ danca, pescas, tiros, fogo, bolha, puzzles, mapaId: map.id })}
+            aoVivo={sessoesAoVivo({ danca, pescas, tiros, fogo, bolha, alavanca, puzzles, mapaId: map.id })}
           />
           {paginasDoPreludio !== undefined && <RoteiroNoLivro aoAbrirNaMesa={abrirNaMesaPeloRoteiro} />}
       </LivroDoMestre>

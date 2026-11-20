@@ -6,6 +6,7 @@
  */
 import type { AbaloOrigem, AbaloTextos } from '../lib/abalo'
 import type { BolhaAoVivo, BolhaConviteResultado } from './bolhaNoHost'
+import type { AlavancaAoVivo, AlavancaConviteResultado, AlavancaDesfechoSinal, AlavancaVivoNoMestre } from './alavancaNoHost'
 import type { CaminhosNoMestre } from '../lib/batalha/caminhoAndado'
 import type { Casa } from '../lib/batalha/blocos'
 import type { ChatHistory } from '../lib/chatStore'
@@ -413,6 +414,30 @@ export interface HostSession {
   encerrarBolha(): HostResult & { ok: boolean }
   /** A bolha como o painel do MESTRE a lê (a última, mesmo terminada); `null` = nenhuma nesta sala. */
   bolha(): BolhaAoVivo | null
+  /**
+   * MINIGAME ALAVANCA DA PONTE: `alavanca.convite` (o desafio do pino `pinId`
+   * e a porta ligada, congelados agora) aos escolhidos que estão na sala e
+   * jogando, na ordem da sala, até 4 girando juntos. Recusa pino que não é de
+   * alavanca, alavanca ativa (uma por vez) e lista sem ninguém válido.
+   */
+  convidarParaAlavanca(pinId: string, playerIds: readonly string[], source: HostMapSource): HostResult & { convite: AlavancaConviteResultado }
+  /** Começa com os prontos (e na sala); os outros recebem `alavanca.encerra` `fora`. `comecou: false` = ninguém pronto. */
+  comecarAlavanca(): HostResult & { comecou: boolean }
+  /** Pausa para todos; só o mestre continua a pausa dele. */
+  pausarAlavanca(): HostResult & { ok: boolean }
+  retomarAlavanca(): HostResult & { ok: boolean }
+  /** Encerra a alavanca ativa sem desfecho (a ponte continua erguida). */
+  encerrarAlavanca(): HostResult & { ok: boolean }
+  /**
+   * O RELÓGIO da rodada: aplica os apertos que chegaram, avança a ponte e manda
+   * `alavanca.vivo` a quem gira (a ponte chama a cada `ALAVANCA_REPASSE_MS`).
+   * Com a ponte baixada ou a corrente vencendo, sai o `alavanca.fim` e o sinal do desfecho.
+   */
+  repassarAlavanca(): HostResult & { alavancaDesfecho?: AlavancaDesfechoSinal }
+  /** A alavanca como o painel do MESTRE a lê (a última, mesmo terminada); `null` = nenhuma nesta sala. */
+  alavanca(): AlavancaAoVivo | null
+  /** A rodada ao vivo (tempo, ponte, corrente, giros), lida pelo painel a cada 100 ms; `null` = sem rodada. */
+  vivoDaAlavanca(): AlavancaVivoNoMestre | null
   /**
    * MINIGAME DE PESCA ("Mestre chama"): `pesca.convite` (o desafio do pino
    * `pinId`) aos escolhidos que estão na sala e jogando, na ordem da sala, até
