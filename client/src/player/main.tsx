@@ -37,7 +37,7 @@ import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard, type TokenCardGive } from './PlayerTokenCard'
 import { PlayerInventory } from './PlayerInventory'
 import { BotaoLerPapel, botaoDosDocumentos, GavetaDeDocumentos, LeituraDoDocumento } from './PlayerDocumentos'
-import { documentosDoJogador, quantosNovos, type RetanguloNaTela } from './documentosDoJogador'
+import { documentosDoJogador, nomeDoItemQueCarrega, quantosNovos, type RetanguloNaTela } from './documentosDoJogador'
 import { voarParaDocumentos } from './movimentoDosDocumentos'
 import { textoDaRecusaDoDocumento } from '../net/protocoloDoDocumento'
 import { PlayerFicha, type InventarioDoJogador } from './PlayerFicha'
@@ -1790,6 +1790,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     },
     [connection, documentoAberto, linhasDosDocumentos],
   )
+  // O trecho lido diz com que item ("Lido com Lente de Âmbar"): o nome vem da mochila das fichas dele no recorte.
+  const nomeDoItemQueLeu = useCallback((itemId: string) => nomeDoItemQueCarrega(map?.tokens, ownTokens, itemId), [map, ownTokens])
   // D abre e fecha a lista, como o "Documentos" da barra; E lê o papel ao alcance, como a pílula. Nunca dentro de campo
   // de texto, com Ctrl/Alt/Cmd (atalho do navegador), por cima de um cartão modal nem com o Medir ligado (lá o E gira o cone).
   useEffect(() => {
@@ -3128,6 +3130,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               aberto={documentoAberto}
               de={pedidoDeLeitura?.de ?? null}
               instant={pedidoDeLeitura?.instant ?? false}
+              nomeDoItem={nomeDoItemQueLeu}
               onClose={fecharLeituraDoDocumento}
             />
           </PorCimaDoPuzzle>

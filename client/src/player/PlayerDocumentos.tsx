@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
 import { IconeDoPapel } from '../components/documentos/IconeDoPapel'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
-import { IconeDaLente, Papel } from '../documentos/Papel'
+import { IconeDaLente, Papel, type PapelProps } from '../documentos/Papel'
 import { embaralhar, sementeDoTexto, sorteio } from '../documentos/resolver'
 import type { BlocoNoFio, DocumentoNaFicha } from '../documentos/tipos'
 import { metaDaLinha, type RetanguloNaTela } from './documentosDoJogador'
@@ -352,19 +352,31 @@ function decifrarAPagina(rolo: HTMLElement, estado: HTMLElement | null, docId: s
 }
 
 /** A linha do pé sobre os trechos da página: lidos com o item, ou quantos ele não consegue ler. */
-function EstadoDaLeitura({ blocos, estadoRef }: { blocos: readonly BlocoNoFio[]; estadoRef: RefObject<HTMLSpanElement | null> }) {
+function EstadoDaLeitura({
+  blocos,
+  estadoRef,
+  nomeDoItem,
+}: {
+  blocos: readonly BlocoNoFio[]
+  estadoRef: RefObject<HTMLSpanElement | null>
+  nomeDoItem: PapelProps['nomeDoItem']
+}) {
   let lidos = 0
   let fechados = 0
+  let lidoCom: string | null = null
   for (const bloco of blocos) {
     if (bloco.t !== 'protegido' || bloco.tipo !== 'cifra') continue
-    if (bloco.lido) lidos += 1
-    else fechados += 1
+    if (bloco.lido) {
+      lidos += 1
+      lidoCom = bloco.com
+    } else fechados += 1
   }
   if (lidos > 0) {
+    const nome = lidos === 1 && lidoCom !== null ? (nomeDoItem?.(lidoCom) ?? null) : null
     return (
       <span ref={estadoRef} className="pp-leitura__estado pp-leitura__estado--lido">
         <IconeDaLente />
-        {lidos === 1 ? 'Lido com um item que você carrega' : 'Lidos com o que você carrega'}
+        {lidos === 1 ? `Lido com ${nome ?? 'um item que você carrega'}` : 'Lidos com o que você carrega'}
       </span>
     )
   }
@@ -388,6 +400,8 @@ export interface LeituraDoDocumentoProps {
   de: RetanguloNaTela | null
   /** Aberta pelo teclado: sem animação na entrada. */
   instant: boolean
+  /** O nome do item que leu um trecho (da mochila das fichas dele). Ausente, ou `null`: "um item que você carrega". */
+  nomeDoItem?: PapelProps['nomeDoItem']
   /** Fechou. `rolo` = onde o papel estava (o voo até "Documentos" sai dele); `byKeyboard` = Esc ou Enter (sem voo). */
   onClose: (rolo: RetanguloNaTela | null, byKeyboard: boolean) => void
 }
@@ -397,7 +411,7 @@ export interface LeituraDoDocumentoProps {
  * véu fecham, o Tab fica aqui dentro e o foco volta a quem abriu. Remonta a
  * cada leitura (`key` = `aberto.id`): a página volta para a primeira.
  */
-export function LeituraDoDocumento({ aberto, de, instant, onClose }: LeituraDoDocumentoProps) {
+export function LeituraDoDocumento({ aberto, de, instant, nomeDoItem, onClose }: LeituraDoDocumentoProps) {
   const resolver = useImagemDaMesa()
   const idDoTitulo = useId()
   const [pagina, setPagina] = useState(0)
@@ -506,7 +520,7 @@ export function LeituraDoDocumento({ aberto, de, instant, onClose }: LeituraDoDo
       <div ref={caixaRef} className="pp-leitura__caixa">
         {/* Rola pelo teclado também (as setas para cima e para baixo): o papel comprido não esconde o fim. */}
         <div ref={roloRef} className="pp-leitura__rolo" tabIndex={0} aria-label="Texto do documento">
-          <Papel documento={documento} pagina={pagina} resolver={resolver} idDoTitulo={idDoTitulo} />
+          <Papel documento={documento} pagina={pagina} resolver={resolver} idDoTitulo={idDoTitulo} nomeDoItem={nomeDoItem} />
         </div>
         <div className="pp-leitura__pe">
           {total > 1 && (
@@ -522,7 +536,7 @@ export function LeituraDoDocumento({ aberto, de, instant, onClose }: LeituraDoDo
               </button>
             </>
           )}
-          <EstadoDaLeitura blocos={blocosDaPagina} estadoRef={estadoRef} />
+          <EstadoDaLeitura blocos={blocosDaPagina} estadoRef={estadoRef} nomeDoItem={nomeDoItem} />
           {doMapa && aberto.guardado === 'agora' && <span className="pp-leitura__guardado">Guardado em Documentos</span>}
           {doMapa && aberto.guardado === 'antes' && <span className="pp-leitura__guardado pp-leitura__guardado--antes">Já está nos seus Documentos</span>}
           <button ref={fecharRef} type="button" className="pp-button pp-leitura__fechar" onClick={(event) => fechar(event.detail === 0)}>

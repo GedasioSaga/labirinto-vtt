@@ -1,6 +1,7 @@
 import type { DocumentoNoPapel } from '../documentos/Papel'
 import type { BlocoNoFio, DocumentoNaFicha, DocumentoNoFio } from '../documentos/tipos'
 import type { Personagem } from '../lib/personagem'
+import type { Token } from '../types/map'
 
 /**
  * DOCUMENTOS NA TELA DO JOGADOR (plano dos puzzles, §2.4; fase D3): as contas
@@ -37,6 +38,20 @@ export function documentosDoJogador(personagens: readonly Pick<Personagem, 'docu
     }
   }
   return [...porId.values()].sort((a, b) => b.em - a.em)
+}
+
+/**
+ * O nome do item que leu um trecho protegido (`com`, um `ItemDoCatalogo.id`),
+ * como ele está na mochila de uma das fichas DELE no recorte. `null` = nenhuma
+ * ficha dele o carrega agora: o papel diz "um item que você carrega".
+ */
+export function nomeDoItemQueCarrega(tokens: readonly Pick<Token, 'id' | 'mochila'>[] | undefined, fichasDele: readonly string[], itemId: string): string | null {
+  for (const token of tokens ?? []) {
+    if (!fichasDele.includes(token.id)) continue
+    const vaga = token.mochila?.find((item) => item.itemId === itemId)
+    if (vaga !== undefined) return vaga.nome
+  }
+  return null
 }
 
 /** Quantos estão com o aviso de novo (dados pelo mestre ou por um puzzle, ainda não lidos). */
