@@ -4776,13 +4776,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
    * seguinte é a autoridade e sobrescreve — se o mestre recusar, a tela volta
    * sozinha no próximo `rev`.
    */
-  function editOwnToken(tokenId: string, message: PlayerMessage, patch: Partial<Token>): boolean {
+  function editOwnToken(tokenId: string, message: PlayerMessage, patch: Partial<Token>, fichaDePersonagem = false): boolean {
     const map = state.map
     if (state.status !== 'playing' || !map) return false
     if (!(state.ownTokens ?? []).includes(tokenId)) return false
     // Ficha emprestada (ajudante contratado, com `contrato`, ou NPC emprestado,
     // com `emprestada`) é do mestre: o host recusa, e a tela nem tenta.
-    if (!map.tokens.some((t) => t.id === tokenId && t.contrato === undefined && t.emprestada !== true)) return false
+    // `fichaDePersonagem`: a peça do acervo (NPC) ligada a personagem do tipo
+    // Jogador chega `emprestada`, mas é dele para quem o host já a aceita.
+    if (!map.tokens.some((t) => t.id === tokenId && t.contrato === undefined && (fichaDePersonagem || t.emprestada !== true))) return false
     if (!send(message)) return false
     setState({ map: withTokenPatch(map, tokenId, patch) })
     return true
@@ -7415,7 +7417,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const token = state.map?.tokens.find((t) => t.id === tokenId)
       const mochila = token === undefined ? null : mochilaComAVagaAcesa(carriedItemsOf(token), itemId, acesa)
       if (mochila === null) return false
-      return editOwnToken(tokenId, { type: 'item.acender', tokenId, itemId, acesa }, { mochila })
+      // As fichas de personagem DELE (`fichasDoPersonagem` do host) incluem a peça do acervo marcada NPC
+      // que o recorte manda `emprestada`; o `item.acender` do host aceita as mesmas.
+      const fichaDePersonagem = state.personagens?.tokens.some((ficha) => ficha.tokenId === tokenId) === true
+      return editOwnToken(tokenId, { type: 'item.acender', tokenId, itemId, acesa }, { mochila }, fichaDePersonagem)
     },
 
     criarPersonagem(tokenId) {

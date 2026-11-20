@@ -1,4 +1,5 @@
 import { shallow } from 'zustand/shallow'
+import { luzesDosItensLembradas } from '../lib/luzDoItem'
 import { useMapStore } from './mapStore'
 
 /**
@@ -70,6 +71,9 @@ export function subscribeToShapesRedraw(onChange: () => void): () => void {
       // CARIMBOS (`lib/carimbos.ts`): o objeto novo muda a camada deles, sem mexer em forma nenhuma.
       state.map.carimbos,
       state.map.carimbosImportados,
+      // ITEM QUE ILUMINA (`lib/luzDoItem.ts`): acender o item da mochila muda só a
+      // ficha, que não está nesta lista; a lista lembrada só muda quando o claro muda.
+      luzesDosItensLembradas(state.map),
     ] as const,
     onChange,
     { equalityFn: shallow },

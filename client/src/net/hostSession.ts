@@ -6995,11 +6995,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastViews.delete(playerId)
       return resendView(clientId, playerId, world)
     }
-    if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return refuse()
-    if (helperLoans.has(msg.tokenId) || loans.get(msg.tokenId)?.borrowerId === playerId) return refuse()
-    const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === msg.tokenId))
-    const token = scene?.map.tokens.find((t) => t.id === msg.tokenId)
-    if (scene === undefined || token === undefined || token.npc === true) return refuse()
+    // A ficha DELE de verdade (`fichasDoPersonagem`): dono, sem empréstimo, e NPC só a
+    // peça do acervo ligada a personagem do tipo Jogador — toda peça do acervo nasce NPC.
+    const ficha = fichasDoPersonagem(playerId, world).find(({ token: t }) => t.id === msg.tokenId)
+    if (ficha === undefined) return refuse()
+    const { scene, token } = ficha
     const vaga = carriedItemsOf(token).find((item) => item.id === msg.itemId)
     if (vaga === undefined || vaga.luz === undefined) return refuse()
     const mochila = mochilaComAVagaAcesa(carriedItemsOf(token), msg.itemId, msg.acesa)

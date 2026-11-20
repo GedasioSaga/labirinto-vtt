@@ -154,7 +154,7 @@
       <rect x="680" y="524" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
       <text x="704" y="533" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">TELA</text>
     </svg>
-    <p class="nota">A luz do item aceso anda com a ficha (attachedTokenId) e some do recorte com ela; a estrela que ilumina brilha e clareia; o jogador só acende o item da própria ficha (o host confere dono, empréstimo, NPC e se a vaga ilumina).</p>
+    <p class="nota">A luz do item aceso anda com a ficha (attachedTokenId) e some do recorte com ela; a estrela que ilumina brilha e clareia; o jogador só acende o item da própria ficha (o host confere pela lista das fichas de personagem dele, fichasDoPersonagem: dono, sem empréstimo, NPC só a peça do acervo ligada a personagem Jogador; e se a vaga ilumina). Acender a vaga muda só a ficha: o editor do mestre repinta pela lista lembrada das luzes dos itens (stores/shapesSubscription.ts).</p>
     <p class="nota">Desde 18/11/2026 a luz e as munições do item passam por uma leitura só (lib/leituraDoItem.ts, dadosDoItemLidos): chão, estrela, baú, mercadoria da loja e mochila. A tocha comprada na loja ilumina depois de reabrir o mapa, e a arma que passa pelo chão, pelo baú ou pela loja chega à mochila com as munições que aceita.</p>
   </div>
 </body>
