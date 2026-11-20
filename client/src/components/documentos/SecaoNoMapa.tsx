@@ -8,7 +8,9 @@ import { papeisDoDocumento, papelComTamanho, papelDepois, papelDeVolta, tamanhoD
 import { sumiuDoMapa } from '../../documentos/recorte'
 import { TAMANHO_DO_PAPEL_MAX, TAMANHO_DO_PAPEL_MIN, type DocumentoNoMapa } from '../../documentos/tipos'
 import { useAdventureStore } from '../../stores/adventureStore'
+import { useDocumentosStore } from '../../stores/documentosStore'
 import { useMapStore } from '../../stores/mapStore'
+import { useToastStore } from '../../stores/toastStore'
 import { useDocumentosDoMestreStore, type ModoDeMarcarPapel } from './documentosDoMestreStore'
 
 /**
@@ -42,7 +44,7 @@ function TextoDoPego({ papel }: { papel: DocumentoNoMapa }) {
   return <span className="mg-tag mg-tag--latao">{sumiuDoMapa(papel) ? `${quem} pegou: saiu do mapa` : `${quem} leu primeiro`}</span>
 }
 
-function LinhaDoPapel({ papel, indice, total }: { papel: DocumentoNoMapa; indice: number; total: number }) {
+function LinhaDoPapel({ papel, indice, total, onSeparar }: { papel: DocumentoNoMapa; indice: number; total: number; onSeparar: () => void }) {
   const props = useMapStore((estado) => estado.map.props)
   const marcando = useDocumentosDoMestreStore((estado) => estado.marcando)
   const { marcar } = useDocumentosDoMestreStore.getState()
@@ -85,6 +87,11 @@ function LinhaDoPapel({ papel, indice, total }: { papel: DocumentoNoMapa; indice
             Pôr de volta no mapa
           </Botao>
         )}
+        {total > 1 && (
+          <Botao variante="fantasma" tamanho="p" title="Este papel passa a ter um documento só dele, começando com este mesmo texto" onClick={onSeparar}>
+            Separar num documento novo
+          </Botao>
+        )}
         <Botao variante="perigo" tamanho="p" onClick={() => removePapelNoMapa(papel.id)}>
           Tirar do mapa
         </Botao>
@@ -93,7 +100,24 @@ function LinhaDoPapel({ papel, indice, total }: { papel: DocumentoNoMapa; indice
   )
 }
 
-export function SecaoNoMapa({ docId }: { docId: string }) {
+/**
+ * "Separar num documento novo": a biblioteca ganha uma cópia deste documento,
+ * o papel passa a apontar para ela, e a ficha abre a cópia. `antes` grava o
+ * rascunho, para a cópia sair com o que acabou de ser escrito.
+ */
+function separarPapel(papel: DocumentoNoMapa, antes: () => void): void {
+  antes()
+  useDocumentosStore
+    .getState()
+    .copiar(papel.docId)
+    .then((copia) => {
+      useMapStore.getState().mudarPapelNoMapa(papel.id, (atual) => ({ ...atual, docId: copia.id }))
+      useDocumentosDoMestreStore.getState().abrir(copia.id)
+    })
+    .catch((erro: unknown) => useToastStore.getState().push('error', erro instanceof Error ? erro.message : String(erro)))
+}
+
+export function SecaoNoMapa({ docId, antesDeSeparar }: { docId: string; antesDeSeparar: () => void }) {
   const documentos = useMapStore((estado) => estado.map.documentos)
   const marcando = useDocumentosDoMestreStore((estado) => estado.marcando)
   const { marcar, pararDeMarcar } = useDocumentosDoMestreStore.getState()
@@ -117,10 +141,11 @@ export function SecaoNoMapa({ docId }: { docId: string }) {
       <h3 className="mg-secao" id={`doc-mapa-${docId}`}>
         No mapa <small>{papeis.length === 0 ? 'fora desta cena' : papeis.length === 1 ? '1 papel nesta cena' : `${papeis.length} papéis nesta cena`}</small>
       </h3>
+      {papeis.length > 1 && <Nota>Estes papéis são o MESMO documento: mudar o texto ou o papel aqui muda todos eles. Para um deles ter texto próprio, use "Separar num documento novo".</Nota>}
       {papeis.length > 0 && (
         <ul className="doc-papeis-no-mapa">
           {papeis.map((papel, indice) => (
-            <LinhaDoPapel key={papel.id} papel={papel} indice={indice} total={papeis.length} />
+            <LinhaDoPapel key={papel.id} papel={papel} indice={indice} total={papeis.length} onSeparar={() => separarPapel(papel, antesDeSeparar)} />
           ))}
         </ul>
       )}
@@ -137,7 +162,7 @@ export function SecaoNoMapa({ docId }: { docId: string }) {
         </div>
       ) : (
         <>
-          <Nota>{papeis.length === 0 ? 'Ponha o papel no chão: quem encostar nele lê e guarda nos Documentos.' : 'Pode pôr o mesmo documento em mais de um lugar.'}</Nota>
+          <Nota>{papeis.length === 0 ? 'Ponha o papel no chão: quem encostar nele lê e guarda nos Documentos.' : 'Marcar de novo põe OUTRO papel com este mesmo texto (mudar um muda todos). Para um texto diferente, volte e crie um Novo documento.'}</Nota>
           <Acoes>
             <Botao variante="latao" tamanho="p" onClick={() => comecar('ponto')}>
               Marcar no mapa

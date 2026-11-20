@@ -89,6 +89,12 @@ export interface ShapesSnapshot {
   /** O papel no chão escolhido no editor (`documentosDoMestreStore`). Ausente === nenhum. */
   papelSelecionado?: string | null
   /**
+   * DOCUMENTOS: o que o papel no chão lê FORA do mapa — a lista da biblioteca
+   * (o tipo de papel de cada documento) e o documento aberto na página (o anel).
+   * Sem isto, mudar o papel na ficha não repintava o mapa. Ausente === nada.
+   */
+  documentosDoPapel?: readonly unknown[]
+  /**
    * Referências da aventura que decidem se um pino de viagem está ligado (o
    * par mora em OUTRA cena): `[cache, adventure, activeSceneId]`.
    */
@@ -282,6 +288,7 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
           : null,
         map.documentos,
         map.documentos === undefined ? null : map.grid,
+        ...(map.documentos === undefined ? [] : (snapshot.documentosDoPapel ?? [])),
         hidden,
         snapshot.selectedPinId,
         pinSizeScale(cameraScale),

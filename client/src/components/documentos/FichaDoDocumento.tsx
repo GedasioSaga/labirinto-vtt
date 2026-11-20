@@ -415,7 +415,7 @@ export function FichaDoDocumento({ documento: original, podeGravar }: { document
       <SecaoDesgaste extras={rascunho.extras} mudar={mudarExtras} onErro={avisarErro} />
       <SecaoSeloAssinaturaBrasao extras={rascunho.extras} mudar={mudarExtras} onErro={avisarErro} />
       <Previa documento={rascunho} itens={itens} pagina={paginaDaPrevia} onPagina={setPagina} />
-      <SecaoNoMapa docId={rascunho.id} />
+      <SecaoNoMapa docId={rascunho.id} antesDeSeparar={gravarJa} />
       <SecaoEntregar documento={rascunho} antesDeEntregar={gravarJa} />
       <BotaoDeApagar documento={rascunho} />
     </SubFicha>

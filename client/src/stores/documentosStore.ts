@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { isTauri } from '@tauri-apps/api/core'
-import { BIBLIOTECA_DE_VERSAO_NOVA, BIBLIOTECA_NAO_LIDA, documentoGuardado, documentoMudado, documentoNovo, gravarBiblioteca, lerBiblioteca } from '../documentos/biblioteca'
+import { BIBLIOTECA_DE_VERSAO_NOVA, BIBLIOTECA_NAO_LIDA, documentoCopiado, documentoGuardado, documentoMudado, documentoNovo, gravarBiblioteca, lerBiblioteca } from '../documentos/biblioteca'
 import type { Documento } from '../documentos/tipos'
 
 /**
@@ -21,6 +21,8 @@ interface DocumentosState {
   recarregar: () => Promise<void>
   /** "Novo documento": grava e devolve o documento como ficou guardado. */
   criar: () => Promise<Documento>
+  /** "Separar num documento novo": grava a cópia do documento no topo da lista e a devolve. */
+  copiar: (id: string) => Promise<Documento>
   /** Troca o documento de mesmo id pelo do editor. Devolve o documento como ficou guardado. */
   salvar: (documento: Documento) => Promise<Documento>
   /** Apaga da biblioteca. Os papéis no mapa e as linhas das fichas ficam, e a tela diz que o mestre o apagou. */
@@ -62,6 +64,16 @@ export const useDocumentosStore = create<DocumentosState>()((set, get) => {
       const documento = documentoNovo(Date.now())
       await gravar([documento, ...get().documentos])
       return documento
+    },
+
+    copiar: async (id) => {
+      const { documentos } = get()
+      const base = documentos.find((candidato) => candidato.id === id)
+      if (base === undefined) throw new Error(DOCUMENTO_APAGADO)
+      const copia = documentoCopiado(base, Date.now())
+      if (copia === null) throw new Error(DOCUMENTO_COM_ID_TORTO)
+      await gravar([copia, ...documentos])
+      return copia
     },
 
     salvar: async (documento) => {

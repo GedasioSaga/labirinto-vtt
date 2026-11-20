@@ -2707,6 +2707,11 @@ function PixiCanvasDoContexto({
           // O desafio aberto na página Jogos acende o selo como o pino selecionado.
           selectedPinId: selectedPinId ?? seloAberto(),
           papelSelecionado: exportScene === null ? useDocumentosDoMestreStore.getState().papelSelecionado : null,
+          // O tipo do papel mora na biblioteca e o anel no documento aberto: os dois repintam o papel no chão (`paintPins`).
+          documentosDoPapel: [
+            useDocumentosStore.getState().documentos,
+            useLivroDoMestreStore.getState().pagina === 'documentos' ? useDocumentosDoMestreStore.getState().aberto : null,
+          ],
           travel: [adventure.cache, adventure.adventure, adventure.activeSceneId],
           cameraScale: camera.scale,
           rendererResolution: app.renderer.resolution,

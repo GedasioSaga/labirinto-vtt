@@ -78,6 +78,18 @@ export function documentoNovo(agora: number, id: string = novoIdDeDocumento()): 
   }
 }
 
+/**
+ * "SEPARAR NUM DOCUMENTO NOVO" (bug de 20/11/2026: dois papéis no mapa eram o
+ * MESMO documento, e mudar um mudava o outro): o mesmo texto, papel e extras
+ * com id e datas novos, o título marcado como cópia. A dica de puzzle fica com
+ * o original. `null` = o id não serve.
+ */
+export function documentoCopiado(base: Documento, agora: number, id: string = novoIdDeDocumento()): Documento | null {
+  const criadoEm = instanteValido(agora, 0)
+  const titulo = base.titulo.trim() === '' ? 'Cópia' : `${base.titulo.trim()} (cópia)`
+  return documentoGuardado({ ...base, id, titulo, dicaDe: null, criadoEm, mudadoEm: criadoEm })
+}
+
 /** O documento que o editor mudou, com a hora da mudança. A criação e o id não mudam. */
 export function documentoMudado(antes: Documento, depois: Documento, agora: number): Documento {
   return { ...depois, id: antes.id, criadoEm: antes.criadoEm, mudadoEm: Math.max(instanteValido(agora, antes.mudadoEm), antes.criadoEm) }
