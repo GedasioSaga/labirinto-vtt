@@ -65,19 +65,31 @@
 .doc-quem__tirar { grid-column: 3; grid-row: 1 / span 2; }
 
 /* ---------------------------------------------------------------- D5: os extras e os trechos (protótipo dos extras) */
-/* começar de um exemplo */
-.doc-exemplos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+/*
+ * Começar de um exemplo: com a cara dos cartões do livro (`.gr-cartao`). Dois por linha só quando cada um ganha 200 px
+ * (a página alargada); na página de sempre (262 px), um por linha. Em dois de ~110 px sobravam ~55 px de texto e o
+ * `overflow-wrap: anywhere` partia a palavra no meio ("Juramen|to", "assinatur|a"): agora a quebra é só entre palavras.
+ */
+.doc-exemplos {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(200px, calc((100% - 6px) / 2))), 1fr));
+  gap: 6px; margin: 0; padding: 0; list-style: none;
+}
+.doc-exemplos > li { display: grid; min-width: 0; }
 .doc-exemplo {
-  display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 8px; align-items: center; width: 100%; min-height: 58px; padding: 7px 8px;
-  border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete-forte); background: var(--lb-gr-campo); color: var(--lb-color-parchment);
-  text-align: left; cursor: pointer; transition: border-color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out);
+  display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 3px 10px; align-items: center; align-content: center;
+  width: 100%; min-height: 58px; padding: 8px 10px 8px 9px; border-radius: 9px; border: 1px solid var(--lb-gr-filete); background: var(--lb-gr-cartao);
+  font: inherit; color: var(--lb-color-parchment); text-align: left; cursor: pointer; overflow-wrap: normal; word-break: normal; hyphens: manual;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out);
 }
 .doc-exemplo svg { grid-row: span 2; width: 30px; height: 30px; }
-.doc-exemplo__nome { font: 400 var(--lb-font-size-md)/1.2 var(--lb-font-display); overflow-wrap: anywhere; }
-.doc-exemplo__como { font-size: var(--lb-font-size-xs); line-height: 1.3; color: var(--lb-color-parchment-faint); overflow-wrap: anywhere; }
+/* título em até 2 linhas e a descrição curta em até 2: o cartão não estica a lista */
+.doc-exemplo__nome,
+.doc-exemplo__como { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.doc-exemplo__nome { font-size: var(--lb-font-size-md); font-weight: 500; line-height: 1.2; color: var(--lb-color-parchment); }
+.doc-exemplo__como { font-size: var(--lb-font-size-xs); line-height: 1.3; color: var(--lb-color-parchment-faint); }
 .doc-exemplo:active { transform: scale(0.97); }
 .doc-exemplo:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 1px; }
-@media (hover: hover) and (pointer: fine) { .doc-exemplo:hover { border-color: var(--lb-color-brass-bright); } }
+@media (hover: hover) and (pointer: fine) { .doc-exemplo:hover { background: var(--lb-gr-cartao-alto); border-color: var(--lb-gr-filete-forte); } }
 
 /* a letra ("Aa" em cada uma) e a tinta (um ponto da cor) */
 .doc-letra-aa { height: 34px; font-size: 21px; line-height: 34px; color: var(--lb-color-parchment); }
