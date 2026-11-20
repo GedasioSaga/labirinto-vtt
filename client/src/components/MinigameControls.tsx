@@ -69,6 +69,10 @@ import {
   type MinigameBolha,
 } from '../minigames/bolha/tipos'
 import { NOME_DO_MODELO, visualEhPorta } from '../puzzles/padroes'
+import { contagemDoPuzzle, pecasPostas, progressoInicial } from '../puzzles/motor'
+import { desafiosDo, mapaComProgressoDoPuzzle } from '../lib/desafios'
+import { useMapStore } from '../stores/mapStore'
+import { devolverAsPecas, useEditorDoPuzzleStore } from './puzzles/editorDoPuzzleStore'
 import {
   TEXTO_DA_RECUSA,
   VERSAO_DO_PUZZLE,
@@ -76,6 +80,7 @@ import {
   type DesfechoDoPuzzle,
   type EncaixeDoPuzzle,
   type MinigamePuzzle,
+  type ProgressoDoPuzzle,
   type RegraDoPuzzle,
   type TipoDeCastigo,
   type VisualDoPuzzle,
@@ -778,7 +783,7 @@ const PAINEL_DO_JOGO: { readonly [J in JogoDoMinigame]: (props: MinigameControls
   tiro: (props, minigame) => <PainelDoTiro {...props} minigame={minigame} />,
   fogo: (props, minigame) => <PainelDoFogo {...props} minigame={minigame} />,
   bolha: (props, minigame) => <PainelDaBolha {...props} minigame={minigame} />,
-  puzzle: (_props, minigame) => <PainelDoPuzzle minigame={minigame} />,
+  puzzle: (props, minigame) => <PainelDoPuzzle pinId={props.pinId} porta={props.porta} minigame={minigame} />,
 }
 
 const TEXTO_DA_REGRA: Readonly<Record<RegraDoPuzzle, string>> = {
@@ -821,13 +826,44 @@ function textoDoCastigo(castigo: CastigoDoPuzzle): string {
   return castigo.tipo === 'dano' || castigo.tipo === 'armadilha' ? `${nome}: ${castigo.pv} PV` : nome
 }
 
+/** O progresso do puzzle na ficha: "2 de 3 encaixes", "resolvido por Lia", os erros. */
+function textoDoProgresso(puzzle: MinigamePuzzle['puzzle'], progresso: ProgressoDoPuzzle | undefined): string {
+  if (progresso === undefined) return 'Ninguém mexeu ainda'
+  if (progresso.resolvido !== null) return `Resolvido por ${progresso.resolvido.por}`
+  const { postos, total } = contagemDoPuzzle(puzzle, progresso)
+  const erros = progresso.erros === 0 ? '' : progresso.erros === 1 ? ' · 1 erro' : ` · ${progresso.erros} erros`
+  return `${postos} de ${total} encaixes${erros}`
+}
+
 /**
- * O PUZZLE do desafio, por enquanto só o RESUMO (fase P2 do plano dos
- * puzzles): o editor em tela cheia, a porta ligada e o "Zerar progresso"
- * chegam com o editor do mestre. Nada aqui grava.
+ * O PUZZLE do desafio na ficha (plano dos puzzles, P6): o resumo, o progresso
+ * do mapa, a porta ligada, "Abrir editor" (a tela cheia) e "Zerar progresso".
  */
-function PainelDoPuzzle({ minigame }: { minigame: MinigamePuzzle }) {
+function PainelDoPuzzle({ pinId, porta, minigame }: Pick<MinigameControlsProps, 'pinId' | 'porta'> & { minigame: MinigamePuzzle }) {
   const { puzzle } = minigame
+  const desafio = useMapStore((estado) => desafiosDo(estado.map).find((candidato) => candidato.id === pinId))
+  const progresso = desafio?.progressoDoPuzzle
+  const [confirmarZerar, setConfirmarZerar] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const portaId = useId()
+  const ehPorta = visualEhPorta(puzzle.visual)
+  const zerado = progresso === undefined || (progresso.resolvido === null && progresso.erros === 0 && !progresso.trocaFeita && pecasPostas(progresso).length === 0)
+  const zerar = () => {
+    if (!confirmarZerar) {
+      setConfirmarZerar(true)
+      return
+    }
+    setConfirmarZerar(false)
+    if (progresso === undefined) return
+    // As peças postas voltam a quem pôs ANTES de o progresso recomeçar (a P7 liga a devolução).
+    devolverAsPecas(pinId, pecasPostas(progresso))
+      .then(() => {
+        const novo = { ...progressoInicial(puzzle), rev: progresso.rev + 1 }
+        useMapStore.getState().applyPlayerChange((map) => mapaComProgressoDoPuzzle(map, pinId, novo))
+        setErro(null)
+      })
+      .catch((causa: unknown) => setErro(causa instanceof Error ? causa.message : String(causa)))
+  }
   const versaoNova = minigame.versao > VERSAO_DO_PUZZLE || puzzle.futuro !== undefined
   const linhas: readonly { rotulo: string; valor: string }[] = [
     { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
@@ -837,7 +873,9 @@ function PainelDoPuzzle({ minigame }: { minigame: MinigamePuzzle }) {
     { rotulo: 'Troca de peso', valor: puzzle.troca === null ? 'Sem troca' : `A bandeja pede ${puzzle.troca.peso}` },
     { rotulo: 'Ao resolver', valor: textoDoDesfecho(puzzle.desfecho, visualEhPorta(puzzle.visual)) },
     { rotulo: 'Castigo', valor: textoDoCastigo(puzzle.castigo) },
+    { rotulo: 'Progresso', valor: textoDoProgresso(puzzle, progresso) },
   ]
+  const portaAtual = porta.value !== null && porta.options.some((opcao) => opcao.id === porta.value) ? porta.value : ''
   return (
     <fieldset className="lb-minigame__grupo">
       <legend className="lb-label">{puzzle.nome}</legend>
@@ -856,7 +894,38 @@ function PainelDoPuzzle({ minigame }: { minigame: MinigamePuzzle }) {
           ))}
         </dl>
       </div>
-      <span className="lb-label">O jogador encosta no selo e examina. O editor do puzzle ainda não está nesta versão.</span>
+      {desafio !== undefined && !versaoNova && (
+        <button type="button" className="lb-btn" onClick={() => useEditorDoPuzzleStore.getState().abrir({ tipo: 'copia', desafioId: pinId })}>
+          Abrir editor
+        </button>
+      )}
+      {ehPorta && puzzle.desfecho.abrePorta && (
+        <>
+          <label className="lb-label" htmlFor={portaId}>
+            Abre a porta
+          </label>
+          <select id={portaId} className="lb-input" value={portaAtual} disabled={porta.options.length === 0} onChange={(event) => porta.onChange(event.target.value === '' ? null : event.target.value)}>
+            <option value="">Nenhuma</option>
+            {porta.options.map((opcao) => (
+              <option key={opcao.id} value={opcao.id}>
+                {opcao.label}
+              </option>
+            ))}
+          </select>
+          <span className="lb-label">{porta.options.length === 0 ? 'Ponha uma porta no mapa para o puzzle abrir.' : 'Abre para todos quando o puzzle cede.'}</span>
+        </>
+      )}
+      {desafio !== undefined && !zerado && (
+        <button type="button" className="lb-btn" onClick={zerar} onBlur={() => setConfirmarZerar(false)}>
+          {confirmarZerar ? 'Zerar mesmo? As peças voltam a quem pôs' : 'Zerar progresso'}
+        </button>
+      )}
+      {erro !== null && (
+        <p className="lb-minigame__aviso" role="alert">
+          {erro}
+        </p>
+      )}
+      <span className="lb-label">O jogador encosta no selo e examina.</span>
     </fieldset>
   )
 }

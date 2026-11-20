@@ -13,6 +13,15 @@
 .mg-secao:first-of-type { margin-top: 4px; }
 .mg-secao small { font: 400 var(--lb-font-size-sm)/1 var(--lb-font-sans); color: var(--lb-color-parchment-faint); }
 
+/* AS ABAS da lista (puzzles, P6): Ação, Objetos, Puzzles. Troca de aba é instantânea (muitas vezes por sessão). */
+.mg-abas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; margin: 4px 0 6px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-gr-filete); }
+.mg-aba { min-height: 32px; padding: 5px 6px; border: 0; border-radius: calc(var(--lb-radius-md) - 2px); background: transparent; color: var(--lb-color-parchment-dim); font: 500 var(--lb-font-size-sm)/1.1 var(--lb-font-sans); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; transition: color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease; }
+.mg-aba small { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.mg-aba[aria-selected='true'] { background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); box-shadow: 0 0 0 1px var(--lb-gr-filete-latao); }
+.mg-aba[aria-selected='true'] small { color: var(--lb-color-brass-bright); }
+.mg-aba:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) { .mg-aba:hover:not([aria-selected='true']) { color: var(--lb-color-parchment); } }
+
 .mg-lista,
 .mg-vivo { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
 

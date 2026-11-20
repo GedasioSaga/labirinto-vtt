@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Acoes, Botao } from '../grimorio/Botao'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
 import { CampoTexto } from '../grimorio/CampoTexto'
@@ -9,7 +9,7 @@ import { FolhaDoLivro, TituloDaPagina } from './FolhaDoLivro'
 import type { PaginaExtraDoMestre } from './LivroDoMestre'
 import { IconeDoJogo, IconeDosJogos } from './IconeDoJogo'
 import { DESAFIO_NOME_MAX_LENGTH, desafiosDo, desafiosMigrados, faltaNoLugar, novoDesafio, pontoDoDesafio, textoDoLugar } from '../../lib/desafios'
-import { ORDEM_DOS_JOGOS, REGISTRO_DE_MINIGAMES, nomeDoJogo } from '../../minigames/registro'
+import { ORDEM_DOS_JOGOS, REGISTRO_DE_MINIGAMES, nomeDoJogo, type CategoriaDoJogo } from '../../minigames/registro'
 import type { JogoDoMinigame } from '../../minigames/tipos'
 import type { DancaAoVivo } from '../../net/dancaNoHost'
 import type { PescaAoVivo } from '../../net/pescaNoHost'
@@ -21,6 +21,11 @@ import { useAdventureStore } from '../../stores/adventureStore'
 import { useDesafiosStore } from '../../stores/desafiosStore'
 import { useMapStore } from '../../stores/mapStore'
 import { ObjetosQueAbrem } from './ObjetosQueAbrem'
+import { mobiliaDoConteudo } from '../../lib/conteudoDoObjeto'
+import { EditorDoPuzzleNaTela } from '../puzzles/EditorDoPuzzle'
+import { MeusPuzzles, textoDaCopia } from '../puzzles/MeusPuzzles'
+import { contagemDoPuzzle } from '../../puzzles/motor'
+import { useMeusPuzzlesStore } from '../../stores/meusPuzzlesStore'
 import './paginas.css'
 import './paginaJogos.css'
 
@@ -109,19 +114,40 @@ interface PropsDaPaginaJogos {
   aoVivo: readonly SessaoAoVivo[]
 }
 
+/**
+ * As 3 abas da lista (plano dos puzzles, §3.2): os jogos de ação, os objetos
+ * que abrem (baú, caixa, barril) e os puzzles com "Meus puzzles".
+ */
+type AbaDosJogos = CategoriaDoJogo | 'objetos'
+
+const ABAS: readonly { valor: AbaDosJogos; rotulo: string }[] = [
+  { valor: 'acao', rotulo: 'Ação' },
+  { valor: 'objetos', rotulo: 'Objetos' },
+  { valor: 'puzzle', rotulo: 'Puzzles' },
+]
+
 export function PaginaJogos({ painelDoDesafio, aoVivo }: PropsDaPaginaJogos) {
   const map = useMapStore((estado) => estado.map)
   const abertoId = useDesafiosStore((estado) => estado.aberto)
+  const destacado = useDesafiosStore((estado) => estado.destacado)
   const avisoDispensado = useDesafiosStore((estado) => estado.avisosDispensados.has(map.id))
+  const [aba, setAba] = useState<AbaDosJogos>('acao')
+  // O "Ver" do aviso de baú aberto destaca o objeto: a lista vai para a aba dele.
+  const [destacadoVisto, setDestacadoVisto] = useState(destacado)
+  if (destacado !== destacadoVisto) {
+    setDestacadoVisto(destacado)
+    if (destacado !== null) setAba('objetos')
+  }
   const desafios = desafiosDo(map)
   const aberto = desafios.find((desafio) => desafio.id === abertoId)
   return (
     <FolhaDoLivro pagina="jogos">
       {aberto === undefined ? (
-        <ListaDosJogos desafios={desafios} props={map.props} aoVivo={aoVivo} mapaId={map.id} avisoDispensado={avisoDispensado} />
+        <ListaDosJogos desafios={desafios} props={map.props} aoVivo={aoVivo} mapaId={map.id} avisoDispensado={avisoDispensado} aba={aba} onAba={setAba} />
       ) : (
         <FichaDoDesafio key={aberto.id} desafio={aberto} props={map.props} painel={painelDoDesafio(aberto)} />
       )}
+      <EditorDoPuzzleNaTela />
     </FolhaDoLivro>
   )
 }
@@ -132,16 +158,82 @@ interface PropsDaLista {
   aoVivo: readonly SessaoAoVivo[]
   mapaId: string
   avisoDispensado: boolean
+  aba: AbaDosJogos
+  onAba: (aba: AbaDosJogos) => void
 }
 
-function ListaDosJogos({ desafios, props, aoVivo, mapaId, avisoDispensado }: PropsDaLista) {
-  const migrados = desafiosMigrados({ desafios: [...desafios] })
+/** As abas da lista, com as setas andando entre elas (o padrão de abas do WAI-ARIA). */
+function AbasDosJogos({ aba, onAba, contas }: { aba: AbaDosJogos; onAba: (aba: AbaDosJogos) => void; contas: Readonly<Record<AbaDosJogos, number>> }) {
+  return (
+    <div
+      className="mg-abas"
+      role="tablist"
+      aria-label="Tipos de jogo"
+      onKeyDown={(evento) => {
+        const i = ABAS.findIndex((opcao) => opcao.valor === aba)
+        const passo = evento.key === 'ArrowRight' ? 1 : evento.key === 'ArrowLeft' ? -1 : 0
+        if (passo === 0) return
+        evento.preventDefault()
+        const proxima = ABAS[(i + passo + ABAS.length) % ABAS.length]
+        onAba(proxima.valor)
+        const botao = evento.currentTarget.querySelector(`[data-aba="${proxima.valor}"]`)
+        if (botao instanceof HTMLElement) botao.focus()
+      }}
+    >
+      {ABAS.map((opcao) => (
+        <button
+          key={opcao.valor}
+          type="button"
+          role="tab"
+          className="mg-aba"
+          data-aba={opcao.valor}
+          aria-selected={aba === opcao.valor}
+          tabIndex={aba === opcao.valor ? 0 : -1}
+          onClick={() => onAba(opcao.valor)}
+        >
+          {opcao.rotulo} <small>{contas[opcao.valor]}</small>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** O resumo do puzzle na linha da lista: de onde a cópia veio e quantos encaixes estão cheios. */
+function ResumoDoPuzzle({ desafio }: { desafio: Desafio }) {
+  const modelos = useMeusPuzzlesStore((estado) => estado.modelos)
+  if (desafio.minigame.jogo !== 'puzzle') return null
+  const { puzzle } = desafio.minigame
+  const progresso = desafio.progressoDoPuzzle
+  const conta = progresso === undefined ? null : contagemDoPuzzle(puzzle, progresso)
+  return (
+    <>
+      <span className="mg-tag">{textoDaCopia(desafio.minigame, modelos)}</span>
+      {progresso?.resolvido != null ? (
+        <span className="mg-tag mg-tag--feito">Resolvido</span>
+      ) : (
+        conta !== null && conta.postos > 0 && <span className="mg-tag mg-tag--latao">{`${conta.postos} de ${conta.total}`}</span>
+      )}
+    </>
+  )
+}
+
+function ListaDosJogos({ desafios: todos, props, aoVivo, mapaId, avisoDispensado, aba, onAba }: PropsDaLista) {
+  const migrados = desafiosMigrados({ desafios: [...todos] })
   const { abrir, dispensarAviso } = useDesafiosStore.getState()
   const emJogo = new Set(aoVivo.map((s) => s.pinId))
-  const nomeDe = (id: string) => desafios.find((desafio) => desafio.id === id)?.nome
+  const nomeDe = (id: string) => todos.find((desafio) => desafio.id === id)?.nome
+  const categoriaDe = (desafio: Desafio) => REGISTRO_DE_MINIGAMES[desafio.minigame.jogo].categoria
+  const desafios = aba === 'objetos' ? [] : todos.filter((desafio) => categoriaDe(desafio) === aba)
+  const contas: Record<AbaDosJogos, number> = {
+    acao: todos.filter((desafio) => categoriaDe(desafio) === 'acao').length,
+    puzzle: todos.filter((desafio) => categoriaDe(desafio) === 'puzzle').length,
+    objetos: props.filter((prop) => mobiliaDoConteudo(prop) !== null).length,
+  }
 
   const criar = () => {
-    const desafio = novoDesafio(crypto.randomUUID(), ORDEM_DOS_JOGOS[0])
+    // A aba diz o jogo: na de ação, o primeiro da ordem (a dança); na de puzzles, o puzzle (a Fonte).
+    const jogo = ORDEM_DOS_JOGOS.find((candidato) => REGISTRO_DE_MINIGAMES[candidato].categoria === (aba === 'puzzle' ? 'puzzle' : 'acao')) ?? ORDEM_DOS_JOGOS[0]
+    const desafio = novoDesafio(crypto.randomUUID(), jogo)
     useMapStore.getState().addDesafio(desafio)
     abrir(desafio.id)
   }
@@ -203,49 +295,62 @@ function ListaDosJogos({ desafios, props, aoVivo, mapaId, avisoDispensado }: Pro
           </>
         )}
 
-        <h3 className="mg-secao">
-          Desafios <small>{desafios.length}</small>
-        </h3>
-        {desafios.length === 0 ? (
-          <p className="mg-vazio">Nenhum desafio nesta cena. Crie um e marque onde ele acontece: um ponto do mapa ou um objeto.</p>
-        ) : (
-          <ul className="mg-lista">
-            {desafios.map((desafio) => {
-              const falta = faltaNoLugar(desafio, props)
-              const temTags = desafio.eraPino !== undefined || emJogo.has(desafio.id) || falta !== null
-              return (
-                <li key={desafio.id}>
-                  <button type="button" className="mg-linha" onClick={() => abrir(desafio.id)}>
-                    <span className="mg-linha__med">
-                      <IconeDoJogo jogo={desafio.minigame.jogo} />
-                    </span>
-                    <span className="mg-linha__nome">{desafio.nome}</span>
-                    <span className="mg-linha__seta">
-                      <Seta />
-                    </span>
-                    <span className="mg-linha__onde">
-                      {nomeDoJogo(desafio.minigame.jogo)} · {textoDoLugar(desafio, props)}
-                    </span>
-                    {temTags && (
-                      <span className="mg-linha__tags">
-                        {desafio.eraPino !== undefined && <span className="mg-tag mg-tag--latao">Era pino ▷</span>}
-                        {emJogo.has(desafio.id) && <span className="mg-tag mg-tag--feito">Em jogo</span>}
-                        {falta !== null && <span className="mg-tag mg-tag--perigo">{falta}</span>}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-        <div className="mg-nota-pe">
-          <Botao variante="latao" largo onClick={criar}>
-            Novo desafio
-          </Botao>
-        </div>
+        <AbasDosJogos aba={aba} onAba={onAba} contas={contas} />
 
-        <ObjetosQueAbrem props={props} />
+        {aba === 'objetos' ? (
+          <ObjetosQueAbrem props={props} />
+        ) : (
+          <>
+            <h3 className="mg-secao">
+              {aba === 'puzzle' ? 'Puzzles neste mapa' : 'Desafios'} <small>{desafios.length}</small>
+            </h3>
+            {desafios.length === 0 ? (
+              <p className="mg-vazio">
+                {aba === 'puzzle'
+                  ? 'Nenhum puzzle nesta cena. Crie um aqui ou ponha um dos seus puzzles, e marque onde ele fica: um ponto do mapa ou um objeto.'
+                  : 'Nenhum desafio nesta cena. Crie um e marque onde ele acontece: um ponto do mapa ou um objeto.'}
+              </p>
+            ) : (
+              <ul className="mg-lista">
+                {desafios.map((desafio) => {
+                  const falta = faltaNoLugar(desafio, props)
+                  const ehPuzzle = desafio.minigame.jogo === 'puzzle'
+                  const temTags = ehPuzzle || desafio.eraPino !== undefined || emJogo.has(desafio.id) || falta !== null
+                  return (
+                    <li key={desafio.id}>
+                      <button type="button" className="mg-linha" onClick={() => abrir(desafio.id)}>
+                        <span className="mg-linha__med">
+                          <IconeDoJogo jogo={desafio.minigame.jogo} />
+                        </span>
+                        <span className="mg-linha__nome">{desafio.nome}</span>
+                        <span className="mg-linha__seta">
+                          <Seta />
+                        </span>
+                        <span className="mg-linha__onde">
+                          {nomeDoJogo(desafio.minigame.jogo)} · {textoDoLugar(desafio, props)}
+                        </span>
+                        {temTags && (
+                          <span className="mg-linha__tags">
+                            {desafio.eraPino !== undefined && <span className="mg-tag mg-tag--latao">Era pino ▷</span>}
+                            {emJogo.has(desafio.id) && <span className="mg-tag mg-tag--feito">Em jogo</span>}
+                            {ehPuzzle && <ResumoDoPuzzle desafio={desafio} />}
+                            {falta !== null && <span className="mg-tag mg-tag--perigo">{falta}</span>}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+            <div className="mg-nota-pe">
+              <Botao variante="latao" largo onClick={criar}>
+                {aba === 'puzzle' ? 'Novo puzzle neste mapa' : 'Novo desafio'}
+              </Botao>
+            </div>
+            {aba === 'puzzle' && <MeusPuzzles />}
+          </>
+        )}
       </div>
     </>
   )
