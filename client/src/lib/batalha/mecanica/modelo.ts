@@ -129,7 +129,7 @@ export interface QuemRolaNoTeste {
 export type Teste =
   | { tipo: 'reacao' }
   | { tipo: 'naoErra' }
-  | { tipo: 'resistencia'; alvo: QuemRolaNoTeste; cd: CdDoTeste; sePassar: 'nada' | 'devolveCusto' }
+  | { tipo: 'resistencia'; alvo: QuemRolaNoTeste; cd: CdDoTeste; sePassar: 'nada' | 'devolveCusto' | 'metade' }
   | { tipo: 'disputa'; usuario: QuemRolaNoTeste; alvo: QuemRolaNoTeste }
 
 /** A fórmula do dano soma a arma (a padrão, ou a que a mira pergunta). */
@@ -157,7 +157,18 @@ export interface DanoDaMecanica {
    */
   arma?: 'nenhuma' | 'padrao' | 'perguntar'
   perfurante?: boolean
+  /** Fase 5 (B13): de 1 a 99, só esta parte vai direto ao HP ("Perfurante 50%"); com ela, o golpe é perfurante. */
+  perfuracao?: number
+  /** Fase 5 (B17): outro golpe nos mesmos alvos, com a fração do dano, o perfurante dele e outra reação (o Rapid Dash). */
+  segundoGolpe?: SegundoGolpeDaPeca
   multiplicadores: { concentracao: boolean; surpresa: boolean; extra?: readonly MultiplicadorExtra[] }
+}
+
+/** Fase 5: o 2º golpe das peças, como o `SegundoGolpeAMao` da tabela. */
+export interface SegundoGolpeDaPeca {
+  /** A parte do dano base que o 2º golpe leva (0,5 = metade), acima de 0 e até 1. */
+  fracao: number
+  perfurante: boolean
 }
 
 /**
@@ -257,8 +268,11 @@ export function migrarV1ParaV2(mecanica: MecanicaV2): MecanicaV2 {
  * Lobby leem a 2 como "atualize o app" (o cartão fica à mão, nada se perde), e
  * toda outra mecânica continua 1 e abre neles como sempre.
  */
-export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | 'efeitos' | 'alvo' | 'custoEmItem'>): boolean {
+export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | 'efeitos' | 'alvo' | 'custoEmItem' | 'dano' | 'teste'>): boolean {
   if ((mecanica.uso !== undefined && mecanica.uso !== 'ativa') || mecanica.reacao !== undefined) return true
+  // Fase 5: a perfuração parcial, o 2º golpe e a metade para quem passa.
+  if (mecanica.dano?.perfuracao !== undefined || mecanica.dano?.segundoGolpe !== undefined) return true
+  if (mecanica.teste.tipo === 'resistencia' && mecanica.teste.sePassar === 'metade') return true
   // Fase 5: as peças do lote A (o app de antes as recusa; com a 2 ele diz "atualize o app").
   if (mecanica.alvo.exigeSelo !== undefined || mecanica.custoEmItem !== undefined) return true
   if (mecanica.efeitos.some((efeito) => efeito.tipo === 'dreno' || (efeito.tipo === 'cura' && (efeito.recurso !== 'hp' || efeito.em !== undefined)) || (efeito.tipo === 'tirarSelos' && efeito.quais !== 'negativos'))) return true
@@ -322,7 +336,6 @@ export const PECAS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, Readonly<Record<
   limite: { porRodada: 'limite por rodada' },
   alvo: { alcance: 'alcance do alvo', estado: 'alvo caído (reviver)' },
   forma: { centro: 'área em volta de um alvo ou de um ponto' },
-  dano: { perfuracao: 'perfuração parcial', segundoGolpe: 'segundo golpe' },
   selo: { seJaTem: 'renovar o selo' },
 }
 
@@ -531,8 +544,7 @@ function teste(valor: unknown): Teste {
       return { tipo }
     case 'resistencia':
       soChaves(peca, ['tipo', 'alvo', 'cd', 'sePassar'], 'teste')
-      if (peca.sePassar === 'metade') aindaNaoRoda('metade do dano para quem passa no teste')
-      return { tipo, alvo: quemRola(peca.alvo, 'quem testa'), cd: cd(peca.cd), sePassar: umDe(peca.sePassar ?? 'nada', ['nada', 'devolveCusto'] as const, 'se o alvo passar') }
+      return { tipo, alvo: quemRola(peca.alvo, 'quem testa'), cd: cd(peca.cd), sePassar: umDe(peca.sePassar ?? 'nada', ['nada', 'devolveCusto', 'metade'] as const, 'se o alvo passar') }
     case 'disputa':
       soChaves(peca, ['tipo', 'usuario', 'alvo'], 'teste')
       return { tipo, usuario: quemRola(peca.usuario, 'quem usa na disputa'), alvo: quemRola(peca.alvo, 'o alvo na disputa') }
@@ -563,7 +575,7 @@ function multiplicador(valor: unknown, indice: number): MultiplicadorExtra {
 
 function dano(valor: unknown): DanoDaMecanica {
   const peca = registro(valor, 'dano')
-  soChaves(peca, ['base', 'arma', 'perfurante', 'multiplicadores'], 'dano', 'dano')
+  soChaves(peca, ['base', 'arma', 'perfurante', 'perfuracao', 'segundoGolpe', 'multiplicadores'], 'dano', 'dano')
   semPorcento(peca.base)
   const mult = registro(peca.multiplicadores ?? {}, 'multiplicadores')
   soChaves(mult, ['concentracao', 'surpresa', 'extra'], 'multiplicadores')
@@ -577,7 +589,23 @@ function dano(valor: unknown): DanoDaMecanica {
     if (typeof peca.perfurante !== 'boolean') torta('perfurante só aceita sim ou não')
     lido.perfurante = peca.perfurante
   }
+  // Fase 5 (B13): "Perfurante 50%"; a parte que perfura só existe no golpe perfurante.
+  if (peca.perfuracao !== undefined) {
+    if (lido.perfurante === false) torta('perfuração parcial só no golpe perfurante')
+    lido.perfuracao = inteiro(peca.perfuracao, 1, 99, 'a parte que vai direto ao HP (%)')
+  }
+  if (peca.segundoGolpe !== undefined) lido.segundoGolpe = segundoGolpeDaPeca(peca.segundoGolpe)
   return lido
+}
+
+/** Fase 5 (B17): a fração do 2º golpe, acima de 0 e até 1 (o inteiro do dano sai para baixo na hora). */
+function segundoGolpeDaPeca(valor: unknown): SegundoGolpeDaPeca {
+  const peca = registro(valor, '2º golpe')
+  soChaves(peca, ['fracao', 'perfurante'], '2º golpe')
+  const { fracao } = peca
+  if (typeof fracao !== 'number' || !Number.isFinite(fracao) || fracao <= 0 || fracao > 1) torta('2º golpe: a parte do dano vai de 0,01 a 1')
+  if (peca.perfurante !== undefined && typeof peca.perfurante !== 'boolean') torta('2º golpe: perfurante só aceita sim ou não')
+  return { fracao, perfurante: peca.perfurante === true }
 }
 
 /**

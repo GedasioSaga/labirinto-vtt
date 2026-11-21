@@ -31,6 +31,8 @@ export interface EfeitoDaDisputa {
   devolveOCusto?: true
   /** F2 (fatia D, Explosão): os turnos que faltam de cada selo negativo do alvo dobram (Atordoado 2 vira 4). */
   dobraOsDebuffs?: true
+  /** Fase 5 (B16, técnica montada): quem passa no teste toma metade do dano, sem o selo. */
+  metade?: true
 }
 
 /**
@@ -339,6 +341,8 @@ export interface MecanicaAMao {
   selosAMais?: readonly SeloDoGolpe[]
   /** Fase 5 (técnica montada): a cura em quem usa, depois do golpe. */
   curaEmQuemUsa?: CuraEmQuemUsaAMao
+  /** Fase 5 (B13, técnica montada): de 1 a 99, a parte do golpe perfurante que vai direto ao HP. */
+  perfuracao?: number
   /** Fase 5 (técnica montada, roubo de vida): a porcentagem do dano causado que volta em HP para quem usa. */
   curaDoDano?: number
   /** Fase 5 (técnica montada): quantos do `gastaItem` cada uso gasta; ausente = 1. */

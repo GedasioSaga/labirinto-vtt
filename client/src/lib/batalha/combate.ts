@@ -529,6 +529,8 @@ export interface AlvoDoGolpe {
   marcado?: true
   /** R3 (lote de 01/11): passou sem tomar dano (saída "esquiva", `danoFinal` 0). */
   semDano?: true
+  /** Fase 5 (B16): passou no teste com "metade se passar": o dano já veio pela metade e o selo do golpe não pega. */
+  passouNoTeste?: true
   /** R6 (lote de 01/11): a forma ligada do alvo tirou este tanto por cento do dano (Resiliente: 20). S4: com a Determinação, o total das duas. */
   reducao?: number
   /** S4: quem tirou ("Resiliente", "Determinação", "Resiliente e Determinação"); ausente = a forma, como antes. */

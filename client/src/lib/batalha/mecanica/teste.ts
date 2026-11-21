@@ -49,6 +49,8 @@ export function disputaDoTeste(teste: Teste): DisputaAMao | null {
     case 'resistencia': {
       const disputa: DisputaAMao = { quando: 'uso', testa: 'alvo', rola: quemRola(teste.alvo), contra: { tipo: 'cd', cd: cdDoTeste(teste.cd) }, avisaSemFicha: true }
       if (teste.sePassar === 'devolveCusto') disputa.seQuemUsaPerde = { devolveOCusto: true }
+      // Fase 5 (B16): quem passa toma metade do dano (a Explosão), e o selo não pega nele.
+      if (teste.sePassar === 'metade') disputa.seQuemUsaPerde = { metade: true }
       return disputa
     }
     case 'disputa':

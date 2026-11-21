@@ -35,7 +35,8 @@ export function efeitosDosSelos(acabaram: readonly SeloDaBatalha[]): EfeitoNovo[
 
 /** Q6: o selo do golpe no alvo que ele ACERTOU (resolvido com saída que pega). Sem selo, sem acerto ou no teto: `null`. */
 function seloDoGolpe(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selos: SeloDaBatalha[]; parte: Reversao } | null {
-  if (golpe.selo === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida)) return null
+  // Fase 5 (B16): quem passou no teste da Explosão toma metade, mas o selo não pega.
+  if (golpe.selo === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida) || alvo.passouNoTeste === true) return null
   const pedido = golpe.selo
   // F2 (fatia A): o selo que renova (Queimando) volta aos turnos cheios em vez de pôr outro.
   const renovado = seloRenovado(turnos, alvo.tokenId, pedido)

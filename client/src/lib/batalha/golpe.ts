@@ -850,8 +850,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     alvos,
   }
   // A porcentagem só vai quando é parcial: 100 é o Perfurante de sempre (golpe sem o campo).
-  // Construtor C1: a técnica montada não tem perfuração parcial (a do texto da ficha não vale nela).
-  const perfuracao = montada ? null : perfuracaoValida(pedido.perfuracao)
+  // Construtor C1: na técnica montada a perfuração do texto da ficha não vale; fase 5 (B13): vale a das peças.
+  const perfuracao = montada ? (mecanica?.perfuracao ?? null) : perfuracaoValida(pedido.perfuracao)
   if (perfuracao !== null && perfuracao < PERFURACAO_MAX) golpe.perfuracao = perfuracao
   if (pedido.contraDe !== undefined) golpe.contraDe = pedido.contraDe
   // R1: a técnica que marca ao acertar (Desenhar o Alvo) e a arma que atira (o acerto lembra a passiva de marca).
@@ -961,8 +961,10 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const parte = mecanica?.segundoGolpe
   if (parte === undefined || ids.segundo === undefined) return lancado
   // F2 (fatia B, Rapid Dash): a 2ª parte é outro golpe nos mesmos alvos, com a fração do dano base, o perfurante dela e outra reação.
-  const alvosDaParte = pedido.alvos.map((alvo): PedidoDeAlvo => ({ ...alvo, dano: alvo.dano === null ? null : Math.floor(alvo.dano * parte.fracao) }))
-  const segundos = alvosDoGolpe(ctx, alvosDaParte, carga, surpresaEm, overload, reacaoDoTipo(tecnica?.tipo ?? null))
+  // Fase 5 (B17): na técnica montada a fração sai do dano das peças (a mira manda o do texto) e a reação é a das peças.
+  const baseDaParte = montada ? pedidosDoDano : pedido.alvos
+  const alvosDaParte = baseDaParte.map((alvo): PedidoDeAlvo => ({ ...alvo, dano: alvo.dano === null ? null : Math.floor(alvo.dano * parte.fracao) }))
+  const segundos = alvosDoGolpe(ctx, alvosDaParte, carga, surpresaEm, overload, pecas !== null ? reacao : reacaoDoTipo(tecnica?.tipo ?? null))
   const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, seloDaBala: _seloDaBala, selosAMais: _selosAMais, ...semExtras } = golpe
   const segundo: GolpeDaBatalha = { ...semExtras, id: ids.segundo.golpe, linhaId: ids.segundo.linha, nome: `${golpe.nome} (2º golpe)`.slice(0, NOME_DO_GOLPE_MAX), perfurante: parte.perfurante, alvos: segundos }
   return { ...lancado, segundo, resolvidosDoSegundo: segundos.filter((alvo) => alvo.danoFinal !== undefined) }

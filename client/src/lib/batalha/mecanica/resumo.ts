@@ -153,7 +153,9 @@ export function fraseDoTeste(mecanica: MecanicaV1, ficha?: FichaDaPrevia): strin
       return 'Não erra: o alvo não reage.'
     case 'resistencia': {
       const devolve = teste.sePassar === 'devolveCusto' ? ' Se todos passarem, a técnica não gasta: o custo e o uso voltam.' : ''
-      return `O alvo não reage: testa ${quemRolaNaFrase(teste.alvo, ficha)} (d20 + mod) contra ${textoDaCd(teste.cd, ficha)}. Se passar, nada acontece.${devolve}`
+      // Fase 5 (B16): "metade se passar".
+      const sePassar = teste.sePassar === 'metade' ? 'Se passar, toma metade do dano (sem o selo).' : 'Se passar, nada acontece.'
+      return `O alvo não reage: testa ${quemRolaNaFrase(teste.alvo, ficha)} (d20 + mod) contra ${textoDaCd(teste.cd, ficha)}. ${sePassar}${devolve}`
     }
     case 'disputa':
       return `O alvo não reage: disputa de d20 + ${quemRolaNaFrase(teste.usuario, ficha)} de quem usa contra d20 + ${quemRolaNaFrase(teste.alvo, ficha)} do alvo. Empate fica com o alvo; se o alvo vencer, nada acontece.`
@@ -197,7 +199,9 @@ export function frasesDoDano(mecanica: MecanicaV1, ficha?: FichaDaPrevia): strin
   if (dano === undefined) return quem === 'aliados' || quem === 'si' ? [] : ['Não dá dano.']
   const formula = numeroSimples(dano.base)
   const previa = previaDoDano(formula, ficha)
-  const frases = [`Dano: ${formula || '(vazio)'}${previa === null ? '' : ` (${previa})`}${dano.perfurante === true ? ', perfurante' : ''}.`]
+  const frases = [`Dano: ${formula || '(vazio)'}${previa === null ? '' : ` (${previa})`}${dano.perfuracao !== undefined ? `, perfurante ${dano.perfuracao}% (o resto passa pelo Escudo)` : dano.perfurante === true ? ', perfurante' : ''}.`]
+  // Fase 5 (B17): o 2º golpe.
+  if (dano.segundoGolpe !== undefined) frases.push(`Depois, um 2º golpe nos mesmos alvos com ${Math.round(dano.segundoGolpe.fracao * 100)}% do dano${dano.segundoGolpe.perfurante ? ', perfurante' : ''}, com outra reação.`)
   const { concentracao, surpresa, extra = [] } = dano.multiplicadores
   const sem = [concentracao ? null : 'a Concentração', surpresa ? null : 'a Surpresa'].filter((item): item is string => item !== null)
   if (sem.length > 0) frases.push(`Não multiplica com ${sem.join(' nem com ')}.`)

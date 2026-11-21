@@ -62,6 +62,13 @@ export function comADisputaNoUso(lancado: GolpeLancado, disputa: DisputaAMao, ct
       venceuEm.push(alvo.tokenId)
       return { ...alvo, disputa: `${textoDaDisputa(resultado)}, pegou` }
     }
+    // Fase 5 (B16): passou no teste da Explosão = metade do dano (para baixo), sem o selo.
+    if (disputa.seQuemUsaPerde?.metade === true && alvo.dano !== null) {
+      const metade = (valor: number): number => Math.floor(valor / 2)
+      const comMetade: AlvoDoGolpe = { ...alvo, disputa: `${textoDaDisputa(resultado)}, passou: toma metade do dano`, dano: metade(alvo.dano), passouNoTeste: true }
+      if (alvo.danoFinal !== undefined) comMetade.danoFinal = metade(alvo.danoFinal)
+      return comMetade
+    }
     return { ...alvo, disputa: `${textoDaDisputa(resultado)}, não pegou: nada acontece`, podeReagir: false, saida: 'esquiva', danoFinal: 0, semDano: true }
   })
   const naoGastou = venceuEm.length === 0 && disputa.seQuemUsaPerde?.devolveOCusto === true

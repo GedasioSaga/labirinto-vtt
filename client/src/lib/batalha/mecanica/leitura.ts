@@ -319,7 +319,11 @@ export function linhaDasPecas(nome: string, mecanica: MecanicaV1): MecanicaAMao 
   const { dano } = mecanica
   if (dano !== undefined) {
     linha.dano = formulaDoNumero(dano.base)
-    linha.perfurante = dano.perfurante === true
+    // Fase 5 (B13): a perfuração parcial deixa o golpe perfurante, com só aquela parte direto no HP.
+    linha.perfurante = dano.perfurante === true || dano.perfuracao !== undefined
+    if (dano.perfuracao !== undefined) linha.perfuracao = dano.perfuracao
+    // Fase 5 (B17): o 2º golpe das peças pela mesma porta do da tabela (o Rapid Dash).
+    if (dano.segundoGolpe !== undefined) linha.segundoGolpe = { fracao: dano.segundoGolpe.fracao, perfurante: dano.segundoGolpe.perfurante }
     if (!dano.multiplicadores.concentracao) linha.semConcentracao = true
   } else {
     linha.perfurante = false

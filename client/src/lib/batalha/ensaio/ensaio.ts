@@ -42,6 +42,8 @@ const BONECOS_NA_AREA = 3
 const BONECO_PADRAO: AjustesDoBoneco = { infinito: false, hp: 500, escudo: 0, modificador: 0, reage: 'd20' }
 /** O boneco ferido da cura: metade da vida, para a cura aparecer inteira. */
 const PARTE_DO_FERIDO = 0.5
+/** Fase 5 (B13): o Escudo do boneco quando a técnica perfura em parte (o aceite: 100 de dano contra 80 de Escudo). */
+const ESCUDO_PARA_A_PERFURACAO = 80
 /** Teto de vezes passadas até chegar a vez de quem usa (a ordem tem no máximo 1 + `BONECOS_NA_AREA` cartas). */
 const VEZES_ATE_QUEM_USA = 8
 /** Teto de reações do boneco por golpe (uma por boneco, mais o segundo golpe). */
@@ -123,6 +125,8 @@ interface Arrumacao {
   selosParaTirar: readonly SeloPedido[]
   /** Fase 5: a cura de SP (o Tônico) pede o SP pela metade, senão não mostra nada. */
   spPelaMetade: boolean
+  /** Fase 5 (B13): o Escudo com que o boneco começa (a perfuração parcial só aparece com Escudo); 0 = sem. */
+  escudo: number
   frase: string
 }
 
@@ -157,17 +161,19 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
   const seloPedido = linha?.soContraOSelo?.nome ?? null
   const selosParaTirar = selosParaALimpeza(linha?.limpa?.tira)
   const spPelaMetade = linha?.limpa?.recurso === 'sp'
+  const escudo = linha?.perfuracao !== undefined && !ajuda ? ESCUDO_PARA_A_PERFURACAO : 0
   const partes = [
     ajuda ? 'do lado de quem usa' : null,
     cura && !spPelaMetade ? 'ferido, com metade da vida, para a cura aparecer' : null,
     spPelaMetade ? 'com metade do SP, para a recuperação aparecer' : null,
+    escudo > 0 ? `com ${escudo} de Escudo, para a perfuração aparecer` : null,
     area ? `${quantos} bonecos, todos dentro da área` : null,
     quem === 'si' ? 'a técnica é em quem usa' : null,
     seloPedido === null ? null : `já com ${seloPedido}, que a técnica pede`,
     selosParaTirar.length === 0 ? null : `já com ${selosParaTirar.map((selo) => selo.nome).join(', ')}, para ver o que sai e o que fica`,
   ].filter((parte): parte is string => parte !== null)
   const frase = partes.length === 0 ? 'Boneco de treino de 500 de vida, sem Escudo, reagindo com o d20.' : `Boneco arrumado: ${partes.join('; ')}.`
-  return { lado: ajuda ? 'a' : 'b', quantos, ferido: cura && !spPelaMetade, emSi: quem === 'si', seloPedido, selosParaTirar, spPelaMetade, frase }
+  return { lado: ajuda ? 'a' : 'b', quantos, ferido: cura && !spPelaMetade, emSi: quem === 'si', seloPedido, selosParaTirar, spPelaMetade, escudo, frase }
 }
 
 /** A ficha de quem usa com o cartão do rascunho: troca o de mesmo id, ou entra na aba Habilidades. */
@@ -255,7 +261,7 @@ function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao, vezDe: 'quemUs
   const sorteio = criarSorteio(pedido.semente)
   const vida = recursoDeVida(sistema)
   const bonecos: Personagem[] = Array.from({ length: arrumacao.quantos }, (_, i) => {
-    const ficha = fichaDoBoneco(sistema, BONECO_PADRAO, `ensaio-boneco-${i + 1}`)
+    const ficha = fichaDoBoneco(sistema, arrumacao.escudo > 0 ? { ...BONECO_PADRAO, escudo: arrumacao.escudo } : BONECO_PADRAO, `ensaio-boneco-${i + 1}`)
     const nome = arrumacao.quantos === 1 ? `${NOME_DO_BONECO} (boneco de treino)` : `${NOME_DO_BONECO} ${i + 1}`
     if (arrumacao.spPelaMetade) return comMetadeDoSp({ ...ficha, nome }, sistema)
     if (!arrumacao.ferido || vida === null) return { ...ficha, nome }
@@ -422,7 +428,7 @@ function ensaiarAReacao(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   const { cartao, sistema } = pedido
   const arrumou: PassoDoEnsaio = { tipo: 'arrumou', titulo: 'Boneco', texto: `O boneco de treino bate em quem usa com ${DANO_DO_BONECO} de dano; a técnica entra no lugar da reação, antes do d20.` }
   const naoSaiu = (texto: string): ResultadoDoEnsaio => ({ passos: [arrumou, recusa(texto)], barras: [], passarUmaVez: null })
-  const montada = montarMesa(pedido, { lado: 'b', quantos: 1, ferido: false, emSi: false, seloPedido: null, selosParaTirar: [], spPelaMetade: false, frase: arrumou.texto }, 'boneco')
+  const montada = montarMesa(pedido, { lado: 'b', quantos: 1, ferido: false, emSi: false, seloPedido: null, selosParaTirar: [], spPelaMetade: false, escudo: 0, frase: arrumou.texto }, 'boneco')
   if (typeof montada === 'string') return naoSaiu(montada)
   const { mesa, loja, vagaDeQuemUsa, vagasDosBonecos } = montada
   const boneco = vagasDosBonecos[0]
