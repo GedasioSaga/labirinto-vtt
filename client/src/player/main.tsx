@@ -132,6 +132,7 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { tokenReachesPin } from '../lib/doorReach'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
+import { fichasComAMochilaDasLigacoes } from '../lib/batalha/municaoDaFicha'
 import { moedasDe, ownTradeToken, purseToward } from '../lib/troca'
 import { PlayerTradeCard } from './PlayerTradeCard'
 import { itemNoticeText } from './itemNotice'
@@ -1492,11 +1493,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // Token noutra cena (o recorte só traz a desta): sem inventário na ficha.
   const ligacoesDaFicha = state.personagens?.tokens
   const inventarioDoPersonagem = (personagemId: string): InventarioDoJogador | undefined => {
-    const ligado = ligacoesDaFicha?.find((token) => token.personagemId === personagemId)
+    // O boneco DESTE recorte: a ficha com dois bonecos (um noutro andar) mostrava a mochila de nenhum.
+    const ligado = ligacoesDaFicha?.find((token) => token.personagemId === personagemId && map?.tokens.some((candidato) => candidato.id === token.tokenId) === true)
     const token = ligado === undefined ? undefined : map?.tokens.find((candidato) => candidato.id === ligado.tokenId)
     if (token === undefined || !map) return undefined
     return { itens: carriedItemsOf(token), colegas: giveTargets(map, [token.id], partyTokens), tokenId: token.id }
   }
+  // MUNIÇÃO NA BATALHA: a ficha chega sem a mochila (`paraOFio`); a mira conta a bala da mochila do boneco, a do inventário.
+  const mapTokens = map?.tokens
+  const meusNaBatalha = useMemo(() => fichasComAMochilaDasLigacoes(state.personagens?.personagens, ligacoesDaFicha, mapTokens), [state.personagens?.personagens, ligacoesDaFicha, mapTokens])
+  const aliadosNaBatalha = useMemo(() => fichasComAMochilaDasLigacoes(state.aliados, ligacoesDaFicha, mapTokens), [state.aliados, ligacoesDaFicha, mapTokens])
 
   // MOEDAS E TROCA: a contraproposta sai da ficha da OFERTA — o host não junta
   // mochilas nem bolsas de fichas diferentes, então o formulário só oferece dela.
@@ -2241,8 +2247,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <BatalhaDoJogador
             estado={state.batalhaEstado}
             efeitos={state.batalhaEfeitos}
-            meus={state.personagens?.personagens}
-            aliados={state.aliados}
+            meus={meusNaBatalha}
+            aliados={aliadosNaBatalha}
             fichas={state.map.tokens}
             sistema={state.sistemaDeRpg ?? null}
             conexao={{

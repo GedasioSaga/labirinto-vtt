@@ -92,6 +92,32 @@ export function fichasComAsMochilasDosBonecos(personagens: readonly Personagem[]
   })
 }
 
+/**
+ * NA TELA DO JOGADOR (pedido de 21/11/2026, Vincent com 40 Balas de prata no
+ * inventário e "Sem Bala de Prata" na batalha): a sala LAN manda a ficha sem
+ * a mochila (`paraOFio`), e a mochila dele chega no BONECO do recorte — é ela
+ * que o inventário mostra. A mira contava a bala da ficha sem mochila (0).
+ * Cada ficha com boneco ligado no recorte (`ligacoes`, `personagens.tokens`)
+ * passa a contar da mochila dele; sem boneco à vista, a ficha como veio.
+ * Nada mudando, a MESMA lista.
+ */
+export function fichasComAMochilaDasLigacoes(
+  personagens: readonly Personagem[] | undefined,
+  ligacoes: readonly { tokenId: string; personagemId: string | null }[] | undefined,
+  bonecos: readonly Token[] | undefined,
+): readonly Personagem[] | undefined {
+  if (personagens === undefined || ligacoes === undefined || bonecos === undefined || ligacoes.length === 0) return personagens
+  let mudou = false
+  const lidas = personagens.map((personagem) => {
+    const ligado = ligacoes.find((ligacao) => ligacao.personagemId === personagem.id && bonecos.some((boneco) => boneco.id === ligacao.tokenId))
+    const boneco = ligado === undefined ? undefined : bonecos.find((candidato) => candidato.id === ligado.tokenId)
+    if (boneco === undefined) return personagem
+    mudou = true
+    return fichaComAMochilaDoBoneco(personagem, boneco.mochila ?? [])
+  })
+  return mudou ? lidas : personagens
+}
+
 /** A vaga com outra quantidade; 1 tira o campo (ausente === 1, como no disco). */
 function vagaCom(vaga: CarriedItem, quantidade: number): CarriedItem {
   const { quantidade: _antes, ...semQuantidade } = vaga
