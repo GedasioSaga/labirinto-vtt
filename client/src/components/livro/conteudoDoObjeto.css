@@ -1,126 +1,840 @@
 /*
- * CONTEÚDO do baú, da caixa e do barril (ficha do objeto, 15/11/2026): a
- * nota do minigame, a lista de itens com a quantidade, as moedas e a
- * armadilha. Cores pela tinta do livro (currentColor e transparências), sem
- * paleta nova.
+ * CONTEÚDO do baú, da caixa e do barril (ficha do objeto). Redesign aprovado
+ * pelo mestre em 21/11/2026 (docs/design/bau/conteudo-do-bau.html): o CSS do
+ * protótipo, com `cb-` virando `lb-conteudo__`. Só tokens `--lb-*` de
+ * theme.ts; as cores soltas são as dos desenhos e o vermelho do tirar.
  */
 .lb-conteudo {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
-.lb-conteudo__minigame,
-.lb-conteudo__aberto {
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-  border-radius: 8px;
-  font-size: 0.86rem;
-  line-height: 1.45;
-}
-
-.lb-conteudo__aberto {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: color-mix(in srgb, currentColor 6%, transparent);
-}
-
-/* O interruptor "Minigame para o jogador" (16/11/2026) e a explicação logo embaixo, no mesmo cartão. */
-.lb-conteudo__minigame {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.lb-conteudo__minigame .lb-field__hint {
-  margin: 0;
-}
-
-.lb-conteudo__aberto p {
-  margin: 0;
-}
-
-.lb-conteudo__campo {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.lb-conteudo__rotulo {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.8rem;
-  opacity: 0.8;
-}
-
-.lb-conteudo__rotulo small,
-.lb-conteudo__nome small,
-.lb-conteudo__par small {
-  opacity: 0.7;
-  font-size: 0.75rem;
-}
-
-.lb-conteudo__vazio {
-  margin: 0;
-  padding: 10px;
-  border: 1px dashed color-mix(in srgb, currentColor 25%, transparent);
-  border-radius: 8px;
-  font-size: 0.85rem;
-  opacity: 0.8;
-}
-
-.lb-conteudo__itens {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.lb-conteudo__secao {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-/*
- * Como no protótipo aprovado (tela 2, `.mg-item`): o nome e a categoria em
- * cima, com o tirar; a quantidade embaixo. Os três lado a lado deixavam ~60 px
- * para o nome na ficha, e ele quebrava no meio da palavra ("Consumív el",
- * auditoria de 16/11/2026).
- */
-.lb-conteudo__item {
+.lb-conteudo__secao-cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-conteudo__secao-cab output {
+  font: 500 var(--lb-font-size-sm) / 1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-conteudo__nota {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-conteudo__nota b {
+  color: var(--lb-color-parchment-dim);
+  font-weight: 600;
+}
+
+/* A VAGA: a moldura afundada de toda miniatura, a mesma da grade do acervo e da mochila. */
+.lb-conteudo__vaga {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex: none;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background: radial-gradient(circle at 50% 38%, #1f1a13, var(--lb-gr-campo) 72%);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(236, 234, 228, 0.07), 0 1px 0 rgba(255, 236, 200, 0.05);
+}
+
+.lb-conteudo__vaga > svg {
+  width: 78%;
+  height: 78%;
+}
+
+.lb-conteudo__vaga > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 3px;
+}
+
+.lb-conteudo__vaga .lb-ficha__iniciais {
+  font-size: 17px;
+}
+
+.lb-conteudo__vaga--vazia {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed var(--lb-gr-filete-forte);
+}
+
+.lb-conteudo__vaga--vazia > svg {
+  opacity: 0.45;
+}
+
+.lb-conteudo__vaga.e-desligada > svg {
+  opacity: 0.4;
+  filter: saturate(0.3);
+}
+
+.lb-conteudo__vaga--apagado {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed rgba(226, 100, 90, 0.4);
+}
+
+/* A LINHA: vaga à esquerda; nome em cima; o resto e o controle embaixo. Estreita, o nome ganha a largura toda. */
+.lb-conteudo__lista {
+  list-style: none;
+  margin: 0 -6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lb-conteudo__linha {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   grid-template-areas:
-    'nome tirar'
-    'qtd .';
+    'vaga nome nome'
+    'vaga sub ctl';
+  column-gap: 10px;
+  row-gap: 3px;
   align-items: center;
-  column-gap: 8px;
-  row-gap: 5px;
+  padding: 6px;
+  border-radius: 9px;
+  transition: background-color var(--lb-motion-fast) ease;
 }
 
-.lb-conteudo__item > .lb-conteudo__nome {
-  grid-area: nome;
-}
-
-.lb-conteudo__item > .lb-conteudo__passo {
-  grid-area: qtd;
-  justify-self: start;
-}
-
-.lb-conteudo__item > .lb-conteudo__tirar {
-  grid-area: tirar;
+.lb-conteudo__linha > .lb-conteudo__vaga {
+  grid-area: vaga;
   align-self: start;
 }
 
-.lb-conteudo__item + .lb-conteudo__item {
-  padding-top: 7px;
-  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+.lb-conteudo__linha-nome {
+  grid-area: nome;
+  min-width: 0;
+  font-weight: 500;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
-.lb-conteudo__nome {
+.lb-conteudo__linha-sub {
+  grid-area: sub;
+  min-width: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-conteudo__linha > .lb-conteudo__passo,
+.lb-conteudo__linha > .lb-conteudo__tirar {
+  grid-area: ctl;
+  justify-self: end;
+}
+
+.lb-conteudo__linha:focus-within {
+  background: var(--lb-gr-hover);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-conteudo__linha:hover {
+    background: var(--lb-gr-hover);
+  }
+}
+
+@container (min-width: 250px) {
+  .lb-conteudo__linha {
+    grid-template-areas:
+      'vaga nome ctl'
+      'vaga sub ctl';
+  }
+
+  .lb-conteudo__linha > .lb-conteudo__vaga {
+    align-self: center;
+  }
+}
+
+.lb-conteudo__linha--moedas.e-zero .lb-conteudo__linha-nome {
+  color: var(--lb-color-parchment-dim);
+  font-weight: 400;
+}
+
+/* "Ao abrir": as linhas só mostram, sem o fundo de linha da lista. */
+.lb-conteudo__linha--ao {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.lb-conteudo__linha--ao:hover,
+.lb-conteudo__linha--ao:focus-within {
+  background: transparent;
+}
+
+/* O interruptor (`Toggle`) ocupa o nome e o controle: o rótulo à esquerda, o trilho na ponta. */
+.lb-conteudo__linha--chave > .lb-switch {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  justify-content: space-between;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.lb-conteudo__linha--chave > .lb-conteudo__linha-sub {
+  grid-column: 2 / -1;
+  grid-row: 2;
+}
+
+/* O realce do pôr: a linha acende em latão e apaga. Só a opacidade de uma camada por cima. */
+.lb-conteudo__realce {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--lb-color-brass-soft);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao);
+  opacity: 0;
+  animation: lb-conteudo-realce 700ms ease-out;
+}
+
+@keyframes lb-conteudo-realce {
+  0%,
+  20% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* O vazio: um convite, não um aviso. */
+.lb-conteudo__vazio {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  column-gap: 10px;
+  align-items: center;
+  padding: 6px;
+}
+
+.lb-conteudo__vazio b {
+  display: block;
+  font-weight: 500;
+}
+
+.lb-conteudo__vazio span span {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* O PASSO: − número +, numa pílula só. No mínimo, o − vira a lixeira. */
+.lb-conteudo__passo {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--lb-gr-campo);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte);
+}
+
+.lb-conteudo__passo-bt,
+.lb-conteudo__tirar {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    color var(--lb-motion-fast) ease,
+    background-color var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+
+.lb-conteudo__passo-bt {
+  width: 26px;
+}
+
+.lb-conteudo__tirar {
+  width: 28px;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-conteudo__passo-bt svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lb-conteudo__tirar svg {
+  width: 15px;
+  height: 15px;
+}
+
+.lb-conteudo__passo-bt:active:not(:disabled),
+.lb-conteudo__tirar:active {
+  transform: scale(0.95);
+}
+
+.lb-conteudo__passo-bt:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-conteudo__passo-bt:hover:not(:disabled) {
+    color: var(--lb-color-parchment);
+    background: var(--lb-gr-hover-forte);
+  }
+
+  .lb-conteudo__passo-bt--tirar:hover:not(:disabled),
+  .lb-conteudo__tirar:hover {
+    color: #f0897f;
+    background: var(--lb-color-ember-soft);
+  }
+}
+
+.lb-conteudo__passo-num {
+  width: 3.2em;
+  min-width: 2.2ch;
+  max-width: 8ch;
+  height: 28px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: center;
+  font: 500 var(--lb-font-size-md) / 1 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+}
+
+@supports (field-sizing: content) {
+  .lb-conteudo__passo-num {
+    field-sizing: content;
+    width: auto;
+  }
+}
+
+.lb-conteudo__passo-bt:focus-visible,
+.lb-conteudo__passo-num:focus-visible,
+.lb-conteudo__tirar:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: -1px;
+}
+
+/* Os botões do livro (grimorio.css, `.gr-bt`). */
+.lb-conteudo__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lb-conteudo__bt {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-cartao-alto);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    border-color var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+
+.lb-conteudo__bt:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.lb-conteudo__bt:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lb-conteudo__bt:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lb-conteudo__bt--latao {
+  background: transparent;
+  border-color: var(--lb-gr-filete-latao);
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-conteudo__bt[aria-expanded='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: var(--lb-gr-filete-latao);
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-conteudo__bt-mais {
+  margin-top: -1px;
+  font: 500 16px / 1 var(--lb-font-utility);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-conteudo__bt:hover:not(:disabled) {
+    border-color: var(--lb-color-brass);
+  }
+}
+
+/* A ESCOLHA (acervo e biblioteca). */
+.lb-conteudo__escolha {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--lb-gr-papel-baixo);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte), inset 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.lb-conteudo__busca-casa {
+  position: relative;
+}
+
+.lb-conteudo__busca-casa > svg {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--lb-color-parchment-faint);
+  pointer-events: none;
+}
+
+.lb-conteudo__procura {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px 0 28px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--lb-gr-campo);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte);
+  color: inherit;
+  font: inherit;
+  outline: none;
+  transition: box-shadow var(--lb-motion-fast) ease;
+}
+
+.lb-conteudo__procura::placeholder {
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-conteudo__procura:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass), 0 0 0 1px var(--lb-color-brass);
+}
+
+.lb-conteudo__procura::-webkit-search-cancel-button {
+  filter: grayscale(1) brightness(1.6);
+  cursor: pointer;
+}
+
+/* As categorias: uma faixa que rola de lado, com a ponta que some. */
+.lb-conteudo__chips {
+  display: flex;
+  gap: 4px;
+  margin: 0 -8px;
+  padding: 1px 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.lb-conteudo__chips::-webkit-scrollbar {
+  display: none;
+}
+
+.lb-conteudo__chips[data-ponta='dir'] {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+}
+
+.lb-conteudo__chips[data-ponta='esq'] {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px);
+  mask-image: linear-gradient(90deg, transparent, #000 28px);
+}
+
+.lb-conteudo__chips[data-ponta='esq dir'] {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}
+
+.lb-conteudo__chip {
+  flex: none;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--lb-radius-full);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte);
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease,
+    box-shadow var(--lb-motion-fast) ease;
+}
+
+.lb-conteudo__chip[aria-checked='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao);
+}
+
+.lb-conteudo__chip:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-conteudo__chip:hover:not([aria-checked='true']) {
+    color: var(--lb-color-parchment);
+  }
+}
+
+/* A grade: as mesmas peças da grade do acervo, com a vaga quadrada. 3 colunas até ~262 px, 4 em 320. */
+.lb-conteudo__grade {
+  list-style: none;
+  margin: 0 -4px;
+  padding: 2px 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 4px;
+  max-height: min(320px, 46vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lb-color-line-strong) transparent;
+}
+
+.lb-conteudo__peca {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 3px 5px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+
+.lb-conteudo__peca > .lb-conteudo__vaga {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.lb-conteudo__peca > .lb-conteudo__vaga > svg {
+  width: 72%;
+  height: 72%;
+}
+
+.lb-conteudo__peca .lb-ficha__iniciais {
+  font-size: 20px;
+}
+
+.lb-conteudo__peca-nome {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  font-size: var(--lb-font-size-xs);
+  line-height: 1.25;
+  text-align: center;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-conteudo__peca:active {
+  transform: scale(0.96);
+}
+
+.lb-conteudo__peca[aria-selected='true'] {
+  background: var(--lb-gr-hover-forte);
+}
+
+.lb-conteudo__peca[aria-selected='true'] > .lb-conteudo__vaga {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.65), inset 0 0 0 1px var(--lb-color-brass), 0 0 0 1px var(--lb-color-brass);
+}
+
+.lb-conteudo__peca[aria-selected='true'] .lb-conteudo__peca-nome {
+  color: var(--lb-color-parchment);
+}
+
+.lb-conteudo__peca[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.lb-conteudo__peca[aria-disabled='true'] > .lb-conteudo__vaga,
+.lb-conteudo__peca[aria-disabled='true'] .lb-conteudo__peca-nome {
+  opacity: 0.4;
+}
+
+.lb-conteudo__selo {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 20px;
+  padding: 3px 5px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  box-shadow: 0 0 0 2px var(--lb-gr-papel-baixo);
+  font: 600 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.lb-conteudo__selo.e-conta {
+  animation: lb-conteudo-conta 140ms var(--lb-gr-ease-out);
+}
+
+@keyframes lb-conteudo-conta {
+  from {
+    transform: scale(0.9);
+  }
+}
+
+/* A lista de documentos: linha com o papel em miniatura. */
+.lb-conteudo__docs {
+  list-style: none;
+  margin: 0 -4px;
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.lb-conteudo__doc {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.lb-conteudo__doc > .lb-conteudo__vaga {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+}
+
+.lb-conteudo__doc-titulo {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  line-height: 1.25;
+}
+
+.lb-conteudo__doc-ja {
+  display: grid;
+  color: var(--lb-color-online);
+}
+
+.lb-conteudo__doc-ja svg {
+  width: 15px;
+  height: 15px;
+}
+
+.lb-conteudo__doc[aria-selected='true'] {
+  background: var(--lb-gr-hover-forte);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao);
+}
+
+.lb-conteudo__doc[aria-disabled='true'] {
+  cursor: default;
+}
+
+.lb-conteudo__doc[aria-disabled='true'] .lb-conteudo__doc-titulo {
+  color: var(--lb-color-parchment-faint);
+}
+
+/* A prévia do que está marcado: o nome inteiro que a peça corta. */
+.lb-conteudo__previa {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: baseline;
+  min-height: 34px;
+  padding: 4px 2px 0;
+  border-top: 1px solid var(--lb-gr-filete);
+}
+
+.lb-conteudo__previa-nome,
+.lb-conteudo__previa-cat {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-conteudo__previa-nome {
+  font-weight: 500;
+}
+
+.lb-conteudo__previa-cat {
+  grid-column: 1;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-conteudo__previa-conta {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font: 500 var(--lb-font-size-sm) / 1 var(--lb-font-utility);
+  color: var(--lb-color-brass-bright);
+  white-space: nowrap;
+}
+
+.lb-conteudo__previa-aviso {
+  grid-column: 1 / -1;
+  font-size: var(--lb-font-size-sm);
+  color: #f0897f;
+}
+
+.lb-conteudo__escolha-pe {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-conteudo__escolha-pe kbd {
+  padding: 2px 5px;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-conteudo__bt--pe {
+  flex: none;
+  min-height: 26px;
+  margin-left: auto;
+  padding: 0 9px;
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-conteudo__escolha-vazia {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 14px 6px;
+  text-align: center;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-conteudo__escolha-vazia b {
+  color: var(--lb-color-parchment-dim);
+  font-weight: 500;
+  font-size: var(--lb-font-size-md);
+}
+
+.lb-conteudo__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-brass-bright);
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.lb-conteudo__link:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Ao abrir: a armadilha. */
+.lb-conteudo__seg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--lb-gr-campo);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete);
+}
+
+.lb-conteudo__seg-bt {
+  min-height: 28px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease;
+}
+
+.lb-conteudo__seg-bt[aria-checked='true'] {
+  background: var(--lb-gr-cartao-alto);
+  color: var(--lb-color-parchment);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.lb-conteudo__seg-bt:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: -2px;
 }
 
 .lb-conteudo__par {
@@ -128,64 +842,48 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-height: 30px;
 }
 
 .lb-conteudo__par > span:first-child {
+  min-width: 0;
+}
+
+.lb-conteudo__par small {
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+
+.lb-conteudo__armadilha {
   display: flex;
   flex-direction: column;
+  gap: 6px;
 }
 
-.lb-conteudo__passo {
-  display: inline-flex;
+.lb-conteudo__aberto {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 4px 10px;
   align-items: center;
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  border-radius: 8px;
-  overflow: hidden;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--lb-color-brass-soft);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao);
 }
 
-.lb-conteudo__passo-bt,
-.lb-conteudo__tirar {
-  min-width: 30px;
-  min-height: 30px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.lb-conteudo__passo-bt:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.lb-conteudo__passo-num {
-  width: 3.4em;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  -moz-appearance: textfield;
-}
-
-.lb-conteudo__passo-num::-webkit-inner-spin-button,
-.lb-conteudo__passo-num::-webkit-outer-spin-button {
-  -webkit-appearance: none;
+.lb-conteudo__aberto p {
   margin: 0;
 }
 
-.lb-conteudo__passo-bt:focus-visible,
-.lb-conteudo__passo-num:focus-visible,
-.lb-conteudo__tirar:focus-visible,
-.lb-conteudo__seg-bt:focus-visible,
-.lb-conteudo__achado:focus-visible,
-.lb-conteudo__link:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 1px;
+.lb-conteudo__aberto .lb-conteudo__bt {
+  grid-column: 1 / -1;
 }
 
+/*
+ * A busca do acervo dos PUZZLES (`components/puzzles/FichaDoEditor/comum.tsx`)
+ * ainda usa a lista de antes do redesign: estas regras são só dela, presas à
+ * lista `.lb-conteudo__achados` para não tocar nas peças da grade do baú.
+ */
 .lb-conteudo__acervo {
   display: flex;
   flex-direction: column;
@@ -212,7 +910,7 @@
   overflow-y: auto;
 }
 
-.lb-conteudo__achado {
+.lb-conteudo__achados .lb-conteudo__achado {
   display: flex;
   width: 100%;
   justify-content: space-between;
@@ -227,44 +925,24 @@
   cursor: pointer;
 }
 
-.lb-conteudo__achado:hover {
+.lb-conteudo__achados .lb-conteudo__achado:hover {
   background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
-.lb-conteudo__seg {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+.lb-conteudo__achados .lb-conteudo__achado:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
 }
 
-.lb-conteudo__seg-bt {
-  padding: 8px 4px;
-  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
+@media (prefers-reduced-motion: reduce) {
+  .lb-conteudo__selo.e-conta {
+    animation: none;
+  }
 
-.lb-conteudo__seg-bt[aria-checked='true'] {
-  border-color: currentColor;
-  background: color-mix(in srgb, currentColor 12%, transparent);
-  font-weight: 600;
-}
-
-.lb-conteudo__armadilha {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.lb-conteudo__link {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
+  .lb-conteudo__bt:active:not(:disabled),
+  .lb-conteudo__peca:active,
+  .lb-conteudo__passo-bt:active:not(:disabled),
+  .lb-conteudo__tirar:active {
+    transform: none;
+  }
 }
