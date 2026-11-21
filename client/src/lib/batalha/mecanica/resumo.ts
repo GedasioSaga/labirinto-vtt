@@ -277,10 +277,21 @@ export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1, ficha?: Fich
       const duracao = emQuemUsa ? (typeof efeito.duracao === 'number' ? `por ${efeito.duracao} ${efeito.duracao === 1 ? 'vez' : 'vezes'} dele` : duracaoDoSelo(efeito.duracao, true)) : duracaoDoSelo(efeito.duracao, ajuda && !noAtacante)
       return `${comeco} ${duracao}${regra.length === 0 ? '' : ` (${regra.join('; ')})`}.`
     }
-    case 'cura':
-      return `Cura ${numeroDaPeca(efeito.quanto)} de HP.`
-    case 'tirarSelos':
-      return 'Tira os selos negativos.'
+    case 'cura': {
+      // Fase 5: o SP (o Tônico), o Escudo (a Barreira) e a cura em quem usa.
+      const quanto = numeroDaPeca(efeito.quanto)
+      const frase = efeito.recurso === 'escudo' ? `Dá ${quanto} de Escudo` : efeito.recurso === 'sp' ? `Recupera ${quanto} de SP` : `Cura ${quanto} de HP`
+      return `${frase}${efeito.em === 'quemUsa' ? ' em quem usa' : ''}.`
+    }
+    case 'tirarSelos': {
+      const { quais } = efeito
+      if (quais === 'negativos') return 'Tira os selos negativos.'
+      if (quais === 'positivos') return 'Tira os selos positivos.'
+      if (quais === 'todos') return 'Tira todos os selos (negativos e positivos).'
+      return `Tira ${quais.nomes.join(', ')} (só ${quais.nomes.length === 1 ? 'essa condição' : 'essas condições'}).`
+    }
+    case 'dreno':
+      return `Quem usa recupera ${efeito.porcentoDoDano}% do dano que causar, em HP.`
     case 'aMao':
       return `À mão (o app lembra o mestre): ${efeito.texto.trim()}`
   }
@@ -312,13 +323,16 @@ export function etiquetaDaMecanica(mecanica: MecanicaV1): string {
 export function resumoDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string[] {
   const limite = fraseDoLimite(mecanica)
   const daVez = mecanica.uso !== 'reacao'
-  // Fase 5: "Só vale em quem tem Redoma" (`alvo.exigeSelo`).
+  // Fase 5: "Só vale em quem tem Redoma" (`alvo.exigeSelo`) e o item da mochila.
   const exige = mecanica.alvo.exigeSelo === undefined ? '' : ` Só vale em quem tem ${mecanica.alvo.exigeSelo}.`
+  const item = mecanica.custoEmItem
+  const doItem = item === undefined ? [] : [`Cada uso gasta ${item.quantos} ${item.nome} da mochila.`]
   const alvoETeste = `${fraseDoAlvo(mecanica)}${exige} ${fraseDoTeste(mecanica, ficha)}`
   // Fase 4: só no lugar da reação, a ação, o alvo e o dano da vez não valem; o custo vale nos dois usos.
   return [
     daVez ? fraseDoCustoEDaAcao(mecanica) : fraseDoCusto(mecanica),
     ...frasesDosOutrosCustos(mecanica),
+    ...doItem,
     ...(daVez ? [alvoETeste, ...frasesDoDano(mecanica, ficha)] : []),
     ...frasesDaReacao(mecanica, ficha),
     ...mecanica.efeitos.filter((efeito) => daVez || (efeito.tipo === 'selo' && efeito.em === 'atacante')).map((efeito) => fraseDoEfeito(efeito, mecanica, ficha)),

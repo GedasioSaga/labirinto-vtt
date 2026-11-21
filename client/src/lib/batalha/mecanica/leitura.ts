@@ -202,10 +202,22 @@ function areaDaForma(forma: FormaDoAlvo): FormaDaArea | null {
   }
 }
 
+/**
+ * B21 (fase 5): a técnica montada muda com a Concentração guardada? Só o
+ * dano que multiplica com ela, a cura por carga e a CD por carga. A que não
+ * muda não gasta a carga (`gastaACarga`).
+ */
+export function pecasUsamACarga(mecanica: MecanicaV1): boolean {
+  if (mecanica.dano?.multiplicadores.concentracao === true) return true
+  if (mecanica.efeitos.some((efeito) => efeito.tipo === 'cura' && 'porCarga' in efeito.quanto)) return true
+  return mecanica.teste.tipo === 'resistencia' && 'porCarga' in mecanica.teste.cd
+}
+
 /** A cura e a limpeza das peças como a da Revigorar (`LimpezaAMao`); `null` = nenhuma das duas. */
 function limpezaDasPecas(mecanica: MecanicaV1): LimpezaAMao | null {
-  const cura = mecanica.efeitos.find((efeito) => efeito.tipo === 'cura')
-  const tira = mecanica.efeitos.some((efeito) => efeito.tipo === 'tirarSelos')
+  const cura = mecanica.efeitos.find((efeito): efeito is Extract<MecanicaV1['efeitos'][number], { tipo: 'cura' }> => efeito.tipo === 'cura' && efeito.em === undefined)
+  const tirar = mecanica.efeitos.find((efeito): efeito is Extract<MecanicaV1['efeitos'][number], { tipo: 'tirarSelos' }> => efeito.tipo === 'tirarSelos')
+  const tira = tirar !== undefined
   if (cura === undefined && !tira) return null
   // Só tirar selos: a limpeza da F2 sempre cura; "0" não mexe na ficha.
   const limpeza: LimpezaAMao = { cura: cura === undefined ? '0' : formulaDoNumero(semCarga(cura.quanto)) }
@@ -214,6 +226,9 @@ function limpezaDasPecas(mecanica: MecanicaV1): LimpezaAMao | null {
     limpeza.porCarga = { 1: formulaDoNumero(um), 2: formulaDoNumero(dois), 3: formulaDoNumero(tres) }
   }
   if (!tira) limpeza.soCura = true
+  // Fase 5: recuperar SP ou dar Escudo; tirar pelo nome, as positivas ou todas.
+  if (cura !== undefined && cura.recurso !== 'hp') limpeza.recurso = cura.recurso
+  if (tirar !== undefined && tirar.quais !== 'negativos') limpeza.tira = tirar.quais
   return limpeza
 }
 
@@ -323,6 +338,17 @@ export function linhaDasPecas(nome: string, mecanica: MecanicaV1): MecanicaAMao 
   if (selosAMais.length > 0) linha.selosAMais = selosAMais
   if (emQuemUsa !== null) linha.seloEmQuemUsa = emQuemUsa
   if (mecanica.alvo.exigeSelo !== undefined) linha.soContraOSelo = { nome: mecanica.alvo.exigeSelo, motivo: motivoDoSeloExigido(mecanica.alvo.exigeSelo) }
+  // Fase 5: a cura em quem usa, o roubo de vida e o item da mochila (a Medicina das peças).
+  const curaEmQuemUsa = mecanica.efeitos.find((efeito) => efeito.tipo === 'cura' && efeito.em === 'quemUsa')
+  if (curaEmQuemUsa !== undefined && curaEmQuemUsa.tipo === 'cura') linha.curaEmQuemUsa = { recurso: curaEmQuemUsa.recurso, formula: formulaDoNumero(semCarga(curaEmQuemUsa.quanto)) }
+  const dreno = mecanica.efeitos.find((efeito) => efeito.tipo === 'dreno')
+  if (dreno !== undefined && dreno.tipo === 'dreno') linha.curaDoDano = dreno.porcentoDoDano
+  const item = mecanica.custoEmItem
+  if (item !== undefined) {
+    linha.gastaItem = item.nome
+    if (item.quantos !== 1) linha.gastaItemQuantos = item.quantos
+    if (item.itemId !== undefined) linha.gastaItemId = item.itemId
+  }
   const limpa = limpezaDasPecas(mecanica)
   if (limpa !== null) linha.limpa = limpa
   const lembrete = lembretesDasPecas(mecanica)

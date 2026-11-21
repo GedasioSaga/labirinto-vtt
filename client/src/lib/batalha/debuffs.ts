@@ -1,5 +1,6 @@
 import type { SeloDaBatalha } from './combate'
 import { ehSeloDoCansaco } from './recursosDaBatalha'
+import { normalizar } from './formula'
 
 /**
  * OS SELOS NEGATIVOS DE UM TOKEN (conserto das fichas F2, fatia D; respostas
@@ -19,6 +20,28 @@ export function seloNegativo(selo: Pick<SeloDaBatalha, 'nome' | 'origem' | 'natu
   if (ehSeloDoCansaco(selo)) return true
   if (selo.contador !== undefined || selo.marca === true || selo.ajuste === true) return false
   return selo.natureza === undefined || selo.natureza === 'debuff' || selo.natureza === 'condicao'
+}
+
+/** Fase 5: quais selos a limpeza tira (ausente = os negativos, como a Revigorar). */
+export type QuaisSelosTira = 'positivos' | 'todos' | { nomes: readonly string[] }
+
+/** O que nunca sai por limpeza: o contador, a marca, o "Ajustar..." do mestre e o selo de passiva (tem dono). */
+function seloDeRegra(selo: Pick<SeloDaBatalha, 'contador' | 'marca' | 'ajuste' | 'donoId'>): boolean {
+  return selo.contador !== undefined || selo.marca === true || selo.ajuste === true || selo.donoId !== undefined
+}
+
+/**
+ * Fase 5 (SISTEMA.md, `tirarSelos`): os selos do token que a limpeza tira. O
+ * antídoto tira só os de nome igual (sem acento nem caixa: "Tira Envenenado"
+ * deixa o Sangrando); "positivos" = os Buffs; "todos" = negativos e Buffs.
+ */
+export function selosQueALimpezaTira(selos: readonly SeloDaBatalha[] | undefined, tokenId: string, quais: QuaisSelosTira | undefined): SeloDaBatalha[] {
+  if (quais === undefined) return debuffsDoToken(selos, tokenId)
+  const doToken = (selos ?? []).filter((selo) => selo.tokenId === tokenId)
+  if (quais === 'positivos') return doToken.filter((selo) => !seloDeRegra(selo) && selo.natureza === 'buff')
+  if (quais === 'todos') return doToken.filter((selo) => seloNegativo(selo) || (!seloDeRegra(selo) && selo.natureza === 'buff'))
+  const nomes = new Set(quais.nomes.map((nome) => normalizar(nome).trim()))
+  return doToken.filter((selo) => !seloDeRegra(selo) && nomes.has(normalizar(selo.nome).trim()))
 }
 
 /** Os selos negativos do token, na ordem da cena. */

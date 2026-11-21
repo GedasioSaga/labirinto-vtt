@@ -1,5 +1,6 @@
 import type { CartaoDaFicha, Personagem } from '../personagem'
-import { linhaDoCartaoMontado } from './mecanica/leitura'
+import { linhaDoCartaoMontado, pecasDoCartao, pecasUsamACarga } from './mecanica/leitura'
+import type { QuaisSelosTira } from './debuffs'
 import type { AcaoDaTecnica, NaturezaDoSelo, SaidaDaReacao, SaidaDaTecnica, SeloDaBatalha, SeloDoGolpe } from './combate'
 import { normalizar } from './formula'
 import type { CdDaDisputa, ContraDaDisputa, QuemRola } from './disputa'
@@ -121,6 +122,16 @@ export interface LimpezaAMao {
   porCarga?: Readonly<Partial<Record<1 | 2 | 3, string>>>
   /** F2 (fatia F, Medicina do Harvey): só cura; os debuffs do alvo ficam. */
   soCura?: true
+  /** Fase 5 (técnica montada): o que a cura recupera; ausente = HP. */
+  recurso?: 'sp' | 'escudo'
+  /** Fase 5 (técnica montada): quais selos tira; ausente = os negativos (a Revigorar). */
+  tira?: QuaisSelosTira
+}
+
+/** Fase 5 (técnica montada): a cura em quem usa, depois do golpe (o golpe que cura quem bate). */
+export interface CuraEmQuemUsaAMao {
+  recurso: 'hp' | 'sp' | 'escudo'
+  formula: string
 }
 
 /**
@@ -326,6 +337,14 @@ export interface MecanicaAMao {
   seloEmQuemUsa?: SeloDoGolpe
   /** Fase 5 (técnica montada): os selos a mais que o golpe põe no acerto, depois do `selo` (até 3 ao todo). */
   selosAMais?: readonly SeloDoGolpe[]
+  /** Fase 5 (técnica montada): a cura em quem usa, depois do golpe. */
+  curaEmQuemUsa?: CuraEmQuemUsaAMao
+  /** Fase 5 (técnica montada, roubo de vida): a porcentagem do dano causado que volta em HP para quem usa. */
+  curaDoDano?: number
+  /** Fase 5 (técnica montada): quantos do `gastaItem` cada uso gasta; ausente = 1. */
+  gastaItemQuantos?: number
+  /** Fase 5 (técnica montada): o id do item no Acervo (as vagas dele contam junto com o nome). */
+  gastaItemId?: string
   /** F2 (fatia F, Golpe Baixo): o que a mira lembra (o mestre confere; o app não trava). */
   lembreteNaMira?: string
   /** F2 (fatia F, Medicina): as outras opções da técnica são só fora da batalha (a Cirurgia sai do menu). */
@@ -1135,7 +1154,10 @@ export function mantidaDe(cartao: ChaveDaMecanica): MantidaAMao | null {
  */
 export function gastaACarga(cartao: ChaveDaMecanica | null): boolean {
   if (cartao === null) return true
-  return mantidaDe(cartao)?.cargaPorVez !== true && mecanicaDoCartao(cartao)?.semConcentracao !== true
+  if (mantidaDe(cartao)?.cargaPorVez === true || mecanicaDoCartao(cartao)?.semConcentracao === true) return false
+  // Fase 5 (B21): a técnica montada que nada muda com a Concentração (sem dano que multiplica, cura e CD sem carga) não gasta a guardada.
+  const pecas = typeof cartao === 'string' ? null : pecasDoCartao(cartao)
+  return pecas === null || pecasUsamACarga(pecas)
 }
 
 /**
@@ -1275,11 +1297,15 @@ export function itensQueSobram(
   mochila: readonly { nome: string; quantidade?: number; itemId?: string }[] | undefined,
   usadas: number,
   idsDoItem: ReadonlySet<string> = SEM_IDS_DO_ITEM,
-): { nome: string; sobram: number } | null {
-  const nome = mecanicaDoCartao(cartao)?.gastaItem
+): { nome: string; sobram: number; porUso?: number } | null {
+  const linha = mecanicaDoCartao(cartao)
+  const nome = linha?.gastaItem
   if (nome === undefined) return null
-  const tem = quantosDoConsumivel(mochila ?? [], nome, idsDoItem)
-  return { nome, sobram: Math.max(0, tem - usadas) }
+  // Fase 5: a peça pode gastar mais de 1 por uso e dizer o id do item no Acervo.
+  const porUso = linha?.gastaItemQuantos ?? 1
+  const ids = linha?.gastaItemId === undefined ? idsDoItem : new Set([...idsDoItem, linha.gastaItemId])
+  const tem = quantosDoConsumivel(mochila ?? [], nome, ids)
+  return porUso === 1 ? { nome, sobram: Math.max(0, tem - usadas) } : { nome, sobram: Math.max(0, tem - usadas * porUso), porUso }
 }
 
 const SEM_IDS_DO_ITEM: ReadonlySet<string> = new Set()

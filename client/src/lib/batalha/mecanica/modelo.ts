@@ -62,6 +62,12 @@ export const ATRIBUTO_MAX = 64
 export type NumeroSimples = { fixo: number } | { formula: string }
 /** Um número que muda com a Concentração guardada (carga 0, 1, 2 e 3). */
 export type Numero = NumeroSimples | { porCarga: readonly [NumeroSimples, NumeroSimples, NumeroSimples, NumeroSimples] }
+/** Fase 5: o que a cura recupera. */
+export type Recurso = 'hp' | 'sp' | 'escudo'
+/** Fase 5: teto de nomes no "tira estas condições". */
+export const NOMES_QUE_TIRA_MAX = 4
+/** Fase 5: teto do "gasta N da mochila". */
+export const ITENS_POR_USO_MAX = 10
 
 /** Quanto custa: `aoUsar` bloqueia sem o recurso; `porTurno` = técnica mantida (lembrete "Aplicar / pular"), só fixo; `depois` cobra sem bloquear, só HP fixo. */
 export interface Custo {
@@ -203,8 +209,12 @@ export type Efeito =
   /** `em: 'atacante'` (fase 4): só na técnica de reação, o selo vai em quem bateu. Ausente = no alvo do golpe. */
   /** Fase 5: `em: 'quemUsa'` (a postura), `mods` (Força +20) e `regra` (dano e cura recebidos). */
   | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: Exclude<EmQuem, 'alvo'>; mods?: readonly ModDaPeca[]; regra?: RegraDoSelo }
-  | { tipo: 'cura'; recurso: 'hp'; quanto: Numero; emQuem: 'alvo' }
-  | { tipo: 'tirarSelos'; quais: 'negativos' }
+  /** Fase 5: recuperar SP, dar Escudo (a Barreira) e curar quem usa (`em: 'quemUsa'`, o golpe que cura quem bate). */
+  | { tipo: 'cura'; recurso: Recurso; quanto: Numero; emQuem: 'alvo'; em?: 'quemUsa' }
+  /** Fase 5: tirar pelo nome (o antídoto), as positivas ou todas. */
+  | { tipo: 'tirarSelos'; quais: 'negativos' | 'positivos' | 'todos' | { nomes: readonly string[] } }
+  /** Fase 5: roubo de vida: parte do dano que o golpe causou volta em HP para quem usa. */
+  | { tipo: 'dreno'; recurso: 'hp'; porcentoDoDano: number }
   /** Porta de escape: o app não executa nada, só lembra o mestre. */
   | { tipo: 'aMao'; texto: string }
 
@@ -226,6 +236,8 @@ export interface MecanicaV2 {
   uso?: UsoDaMecanica
   /** Fase 4 (decisão M2): o que a técnica faz NO LUGAR da reação; só com `uso` de reação. */
   reacao?: ReacaoDaMecanica
+  /** Fase 5: cada uso gasta isto da mochila (a Medicina gasta 1 Kit Médico); sem sobrar, a técnica fica apagada. */
+  custoEmItem?: CustoEmItem
 }
 
 /** O nome da fatia C1, mantido para quem já o usa: são as mesmas peças lidas (`MecanicaV2`). */
@@ -245,10 +257,11 @@ export function migrarV1ParaV2(mecanica: MecanicaV2): MecanicaV2 {
  * Lobby leem a 2 como "atualize o app" (o cartão fica à mão, nada se perde), e
  * toda outra mecânica continua 1 e abre neles como sempre.
  */
-export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | 'efeitos' | 'alvo'>): boolean {
+export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | 'efeitos' | 'alvo' | 'custoEmItem'>): boolean {
   if ((mecanica.uso !== undefined && mecanica.uso !== 'ativa') || mecanica.reacao !== undefined) return true
   // Fase 5: as peças do lote A (o app de antes as recusa; com a 2 ele diz "atualize o app").
-  if (mecanica.alvo.exigeSelo !== undefined) return true
+  if (mecanica.alvo.exigeSelo !== undefined || mecanica.custoEmItem !== undefined) return true
+  if (mecanica.efeitos.some((efeito) => efeito.tipo === 'dreno' || (efeito.tipo === 'cura' && (efeito.recurso !== 'hp' || efeito.em !== undefined)) || (efeito.tipo === 'tirarSelos' && efeito.quais !== 'negativos'))) return true
   if (mecanica.efeitos.filter((efeito) => efeito.tipo === 'selo').length > 1) return true
   return mecanica.efeitos.some((efeito) => efeito.tipo === 'selo' && seloDaVersao2(efeito))
 }
@@ -306,17 +319,15 @@ export interface ReacaoDaMecanica {
  * fora desta tabela segue "que este app não conhece", como na versão 1.
  */
 export const PECAS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  'mecânica': { custoEmItem: 'custo em item da mochila' },
   limite: { porRodada: 'limite por rodada' },
   alvo: { alcance: 'alcance do alvo', estado: 'alvo caído (reviver)' },
   forma: { centro: 'área em volta de um alvo ou de um ponto' },
   dano: { perfuracao: 'perfuração parcial', segundoGolpe: 'segundo golpe' },
   selo: { seJaTem: 'renovar o selo' },
-  cura: { em: 'cura em quem usa' },
 }
 
 /** Os efeitos da versão 2 que ainda não rodam, pelo tipo. */
-const EFEITOS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, string>> = { reviver: 'reviver', dreno: 'dreno de vida', mover: 'empurrar e puxar' }
+const EFEITOS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, string>> = { reviver: 'reviver', mover: 'empurrar e puxar' }
 
 /** O que a leitura do campo `mecanica` dá. */
 export type MecanicaLida =
@@ -632,7 +643,7 @@ function efeito(valor: unknown, indice: number): Efeito {
   const peca = registro(valor, onde)
   const novo = typeof peca.tipo === 'string' && Object.hasOwn(EFEITOS_QUE_AINDA_NAO_RODAM, peca.tipo) ? EFEITOS_QUE_AINDA_NAO_RODAM[peca.tipo] : undefined
   if (novo !== undefined) aindaNaoRoda(novo)
-  const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'aMao'] as const, onde)
+  const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'dreno', 'aMao'] as const, onde)
   switch (tipo) {
     case 'selo': {
       soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em', 'mods', 'regra'], onde, 'selo')
@@ -647,15 +658,29 @@ function efeito(valor: unknown, indice: number): Efeito {
       if (peca.regra !== undefined) lido.regra = regraDoSelo(peca.regra, onde)
       return lido
     }
-    case 'cura':
-      soChaves(peca, ['tipo', 'recurso', 'quanto', 'emQuem'], onde, 'cura')
-      if (peca.recurso === 'sp' || peca.recurso === 'escudo') aindaNaoRoda(peca.recurso === 'sp' ? 'recuperar SP' : 'dar Escudo')
+    case 'cura': {
+      soChaves(peca, ['tipo', 'recurso', 'quanto', 'emQuem', 'em'], onde, 'cura')
       semPorcento(peca.quanto)
-      return { tipo, recurso: umDe(peca.recurso, ['hp'] as const, `${onde} (recurso)`), quanto: numero(peca.quanto, DANO_MAX, `${onde} (quanto)`), emQuem: umDe(peca.emQuem, ['alvo'] as const, `${onde} (em quem)`) }
-    case 'tirarSelos':
+      const lida: Efeito = { tipo, recurso: umDe(peca.recurso, ['hp', 'sp', 'escudo'] as const, `${onde} (recurso)`), quanto: numero(peca.quanto, DANO_MAX, `${onde} (quanto)`), emQuem: umDe(peca.emQuem ?? 'alvo', ['alvo'] as const, `${onde} (em quem)`) }
+      // Fase 5: a cura em quem usa (o golpe que cura quem bate); 'alvo' é a de sempre.
+      if (peca.em !== undefined && umDe(peca.em, ['alvo', 'quemUsa'] as const, `${onde} (em quem)`) === 'quemUsa') lida.em = 'quemUsa'
+      return lida
+    }
+    case 'tirarSelos': {
       soChaves(peca, ['tipo', 'quais'], onde)
-      if (peca.quais !== undefined && peca.quais !== 'negativos') aindaNaoRoda('tirar condição pelo nome, ou as positivas')
-      return { tipo, quais: umDe(peca.quais, ['negativos'] as const, `${onde} (quais)`) }
+      if (typeof peca.quais === 'object' && peca.quais !== null) {
+        const quais = registro(peca.quais, `${onde} (quais)`)
+        soChaves(quais, ['nomes'], `${onde} (quais)`)
+        const nomes = lista(quais.nomes, NOMES_QUE_TIRA_MAX, `${onde} (nomes)`).map((nome, indice) => texto(nome, NOME_DO_SELO_MAX, `${onde} (nome ${indice + 1})`))
+        if (nomes.length === 0) torta(`${onde}: diga o nome da condição que tira`)
+        return { tipo, quais: { nomes } }
+      }
+      return { tipo, quais: umDe(peca.quais, ['negativos', 'positivos', 'todos'] as const, `${onde} (quais)`) }
+    }
+    case 'dreno':
+      soChaves(peca, ['tipo', 'recurso', 'porcentoDoDano'], onde)
+      if (peca.recurso === 'sp') aindaNaoRoda('roubo de SP pelo dano')
+      return { tipo, recurso: umDe(peca.recurso, ['hp'] as const, `${onde} (recurso)`), porcentoDoDano: inteiro(peca.porcentoDoDano, 1, 100, `${onde} (parte do dano que volta, %)`) }
     case 'aMao':
       soChaves(peca, ['tipo', 'texto'], onde)
       return { tipo, texto: texto(peca.texto, TEXTO_A_MAO_MAX, `${onde} (texto)`) }
@@ -663,17 +688,31 @@ function efeito(valor: unknown, indice: number): Efeito {
 }
 
 /** Um de cada: selo, cura e tirar selos (a fatia C5 abre mais de um selo). */
-function conferirEfeitos(efeitos: readonly Efeito[], quem: QuemOAlvoPega): void {
-  for (const tipo of ['cura', 'tirarSelos'] as const) {
+function conferirEfeitos(efeitos: readonly Efeito[], quem: QuemOAlvoPega, temDano: boolean): void {
+  for (const tipo of ['tirarSelos', 'dreno'] as const) {
     if (efeitos.filter((item) => item.tipo === tipo).length > 1) torta(`mais de um efeito "${tipo}"`)
   }
   // Fase 5: vários selos no mesmo golpe (até 3, decisão C4); em quem usa, um só.
   const selos = efeitos.filter((item) => item.tipo === 'selo')
   if (selos.length > SELOS_NO_GOLPE_MAX) torta(`mais de ${SELOS_NO_GOLPE_MAX} selos no mesmo golpe`)
   if (selos.filter((item) => item.em === 'quemUsa').length > 1) torta('mais de um selo em quem usa')
+  // Fase 5: uma cura no alvo e uma em quem usa (o golpe que cura quem bate).
+  const curas = efeitos.filter((item) => item.tipo === 'cura')
+  if (curas.filter((item) => item.em === undefined).length > 1 || curas.filter((item) => item.em === 'quemUsa').length > 1) torta('mais de um efeito "cura"')
   // A cura e a limpeza de hoje (`LimpezaAMao`) valem em quem usa ou num aliado.
-  const limpa = efeitos.some((item) => item.tipo === 'cura' || item.tipo === 'tirarSelos')
+  const limpa = efeitos.some((item) => (item.tipo === 'cura' && item.em === undefined) || item.tipo === 'tirarSelos')
   if (limpa && quem !== 'aliados' && quem !== 'si') torta('cura e tirar selos só pegam em quem usa ou num aliado')
+  // O roubo de vida sai do dano que o golpe causou.
+  if (efeitos.some((item) => item.tipo === 'dreno') && !temDano) torta('roubo de vida precisa de dano')
+}
+
+/** Fase 5: o item da mochila que cada uso gasta (pelo nome; o `itemId` do Acervo conta junto). */
+function custoEmItemDaPeca(valor: unknown): CustoEmItem {
+  const peca = registro(valor, 'custo em item')
+  soChaves(peca, ['nome', 'itemId', 'quantos'], 'custo em item')
+  const lido: CustoEmItem = { nome: texto(peca.nome, NOME_DO_SELO_MAX, 'o item que gasta'), quantos: inteiro(peca.quantos ?? 1, 1, ITENS_POR_USO_MAX, 'quantos itens por uso') }
+  if (peca.itemId !== undefined) lido.itemId = texto(peca.itemId, NOME_DO_SELO_MAX * 2, 'o id do item')
+  return lido
 }
 
 /** Teto de atributos da reação que rola (o maior modificador entre eles). */
@@ -739,14 +778,14 @@ function conferirReacao(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | 'efeitos'>
 }
 
 function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): MecanicaV2 {
-  soChaves(peca, ['versao', 'acao', 'custos', 'limite', 'alvo', 'teste', 'dano', 'efeitos', 'uso', 'reacao'], 'mecânica', 'mecânica')
+  soChaves(peca, ['versao', 'acao', 'custos', 'limite', 'alvo', 'teste', 'dano', 'efeitos', 'uso', 'reacao', 'custoEmItem'], 'mecânica', 'mecânica')
   const custos = lista(peca.custos ?? [], CUSTOS_MAX, 'custos').map(custo)
   for (const quando of ['aoUsar', 'porTurno', 'depois'] as const) {
     if (custos.filter((item) => item.quando === quando).length > 1) torta('dois custos no mesmo momento')
   }
   const lidoAlvo = alvo(peca.alvo)
   const efeitos = lista(peca.efeitos ?? [], EFEITOS_MAX, 'efeitos').map(efeito)
-  conferirEfeitos(efeitos, lidoAlvo.quem)
+  conferirEfeitos(efeitos, lidoAlvo.quem, peca.dano !== undefined)
   const mecanica: MecanicaV2 = {
     versao,
     acao: umDe(peca.acao, ['simples', 'bonus', 'completa', 'livre', 'perguntar'] as const, 'ação'),
@@ -761,6 +800,7 @@ function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): 
   if (versao === 1 && (peca.uso !== undefined || peca.reacao !== undefined)) torta('"Quando usa" e a reação só existem na versão 2 da mecânica')
   if (peca.uso !== undefined) mecanica.uso = umDe(peca.uso, ['ativa', 'reacao', 'ativaOuReacao'] as const, 'quando usa')
   if (peca.reacao !== undefined) mecanica.reacao = reacaoDaPeca(peca.reacao)
+  if (peca.custoEmItem !== undefined) mecanica.custoEmItem = custoEmItemDaPeca(peca.custoEmItem)
   conferirTeste(mecanica)
   conferirReacao(mecanica)
   // Fase 5: a versão 1 é o que o app de antes lê; peça só da 2 nela é arquivo torto (quem grava usa a 2, `precisaDaVersao2`).

@@ -505,7 +505,8 @@ export function depoisDaTecnica(combate: CombateDoPersonagem, tecnica: Pick<Tecn
   if (mantidaDe(tecnica.cartao) !== null) novo = comAMantida(novo, id)
   // P1: Tempo N bloqueia N vezes do dono; a recarga desce no começo da vez, então guarda N + 1.
   else if (tecnica.tempo.tipo === 'recarga') novo = { ...novo, recargas: { ...novo.recargas, [id]: tecnica.tempo.turnos + RECARGA_A_MAIS } }
-  if (tecnica.tempo.tipo === 'usos') novo = { ...novo, usos: { ...novo.usos, [id]: (novo.usos[id] ?? 0) + 1 } }
+  // Fase 5: a técnica que gasta item conta os usos (a mochila sobra pelos usos, `itensQueSobram`), com ou sem limite de usos.
+  if (tecnica.tempo.tipo === 'usos' || mecanicaDoCartao(tecnica.cartao)?.gastaItem !== undefined) novo = { ...novo, usos: { ...novo.usos, [id]: (novo.usos[id] ?? 0) + 1 } }
   if (tecnica.overload) novo = { ...novo, overload: true }
   return novo
 }
@@ -692,7 +693,8 @@ function motivoDeForaDaAjuda(ctx: ContextoDoGolpe, nome: string, tokenId: string
 function motivoDaCuraSemFerido(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvos: readonly PedidoDeAlvo[], comSelo: boolean): string | null {
   const limpeza = limpezaDe(cartao)
   const recurso = recursoDeVida(ctx.sistema)
-  if (limpeza === null || recurso === null || comSelo) return null
+  // Fase 5: a cura de SP e o Escudo (a Barreira) não olham a vida: vale em quem está de vida cheia.
+  if (limpeza === null || recurso === null || comSelo || limpeza.recurso !== undefined) return null
   if (alvos.length === 0) return MOTIVO_SEM_ALVO_NA_CURA
   let comEscudoGasto: { tokenId: string; personagem: Personagem } | null = null
   for (const alvo of alvos) {
@@ -875,7 +877,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     }
   }
   // F2 (fatia C): quem bate com a Bênção de uma Raposa recupera parte do dano (o selo de agora); a carga vai junto para a CD da disputa.
-  const cura = curaDoDanoDosSelos(ctx.turnos.selos, ctx.carta.tokenId)
+  // Fase 5: o roubo de vida da peça (`dreno`) soma na mesma conta; vale o maior, como os selos.
+  const cura = Math.max(curaDoDanoDosSelos(ctx.turnos.selos, ctx.carta.tokenId), mecanica?.curaDoDano ?? 0)
   if (cura > 0) golpe.curaDoDano = cura
   if (carga > 0) golpe.carga = carga
   if (melhorado !== null) {

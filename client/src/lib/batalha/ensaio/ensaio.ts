@@ -10,8 +10,10 @@ import { danoNoTeto, seloDaMira } from '../../treino/robo'
 import { criarSorteio } from '../../treino/sorteio'
 import { recursoDeVida, vidaDoPersonagem } from '../../vidaDaFicha'
 import { tecnicasNoMenu } from '../acoes'
-import type { PedidoDeAcao, PedidoDeAlvo, PedidoDeReacao, SaidaDaReacao, SaidaDaTecnica } from '../combate'
-import { ABA_DAS_TECNICAS, armasDe, type LeituraDoTempo } from '../leituraDaFicha'
+import type { PedidoDeAcao, PedidoDeAlvo, PedidoDeReacao, SaidaDaReacao, SaidaDaTecnica, SeloPedido } from '../combate'
+import type { QuaisSelosTira } from '../debuffs'
+import { normalizar } from '../formula'
+import { ABA_DAS_TECNICAS, armasDe, recursoDoCusto, type LeituraDoTempo } from '../leituraDaFicha'
 import { armaPadraoEntre } from '../mecanica/arma'
 import { danoDaTecnicaComAVida } from '../leituraDaTecnica'
 import { pecasDoCartao } from '../mecanica/leitura'
@@ -117,7 +119,25 @@ interface Arrumacao {
   emSi: boolean
   /** O selo que a técnica pede no alvo (a redoma da Florescer): o boneco já começa com ele; `null` = nenhum. */
   seloPedido: string | null
+  /** Fase 5: os selos com que o boneco começa para a limpeza mostrar o que tira e o que deixa ("Tira Envenenado" deixa o Sangrando). */
+  selosParaTirar: readonly SeloPedido[]
+  /** Fase 5: a cura de SP (o Tônico) pede o SP pela metade, senão não mostra nada. */
+  spPelaMetade: boolean
   frase: string
+}
+
+/** Fase 5: o Buff que o boneco leva para a limpeza das positivas mostrar o que tira. */
+const BUFF_DO_BONECO: SeloPedido = { nome: 'Fortalecido', turnos: 3, mods: [{ alvo: 'forca', delta: 10 }] }
+/** Fase 5: a condição que o antídoto deixa (ela não está na lista dele). */
+const CONDICAO_QUE_FICA: SeloPedido = { nome: 'Sangrando', turnos: 3 }
+
+/** Fase 5: os selos que o boneco leva para a limpeza da montada (pelo nome, as positivas ou todas); a de sempre (os negativos) não muda. */
+function selosParaALimpeza(tira: QuaisSelosTira | undefined): SeloPedido[] {
+  if (tira === undefined) return []
+  if (tira === 'positivos' || tira === 'todos') return [BUFF_DO_BONECO, CONDICAO_QUE_FICA]
+  const nomes = tira.nomes.map((nome): SeloPedido => ({ nome, turnos: 3 }))
+  const ficaDeFora = tira.nomes.some((nome) => normalizar(nome).trim() === normalizar(CONDICAO_QUE_FICA.nome).trim()) ? { nome: 'Atordoado', turnos: 1 } : CONDICAO_QUE_FICA
+  return [...nomes, ficaDeFora]
 }
 
 function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
@@ -135,15 +155,19 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
   // "Vários" tem teto de alvos (a Bolha do Tree: 2): nenhum boneco a mais que o teto.
   const quantos = forma === undefined || !area ? 1 : forma.tipo === 'varios' ? Math.min(BONECOS_NA_AREA, forma.max) : BONECOS_NA_AREA
   const seloPedido = linha?.soContraOSelo?.nome ?? null
+  const selosParaTirar = selosParaALimpeza(linha?.limpa?.tira)
+  const spPelaMetade = linha?.limpa?.recurso === 'sp'
   const partes = [
     ajuda ? 'do lado de quem usa' : null,
-    cura ? 'ferido, com metade da vida, para a cura aparecer' : null,
+    cura && !spPelaMetade ? 'ferido, com metade da vida, para a cura aparecer' : null,
+    spPelaMetade ? 'com metade do SP, para a recuperação aparecer' : null,
     area ? `${quantos} bonecos, todos dentro da área` : null,
     quem === 'si' ? 'a técnica é em quem usa' : null,
     seloPedido === null ? null : `já com ${seloPedido}, que a técnica pede`,
+    selosParaTirar.length === 0 ? null : `já com ${selosParaTirar.map((selo) => selo.nome).join(', ')}, para ver o que sai e o que fica`,
   ].filter((parte): parte is string => parte !== null)
   const frase = partes.length === 0 ? 'Boneco de treino de 500 de vida, sem Escudo, reagindo com o d20.' : `Boneco arrumado: ${partes.join('; ')}.`
-  return { lado: ajuda ? 'a' : 'b', quantos, ferido: cura, emSi: quem === 'si', seloPedido, frase }
+  return { lado: ajuda ? 'a' : 'b', quantos, ferido: cura && !spPelaMetade, emSi: quem === 'si', seloPedido, selosParaTirar, spPelaMetade, frase }
 }
 
 /** A ficha de quem usa com o cartão do rascunho: troca o de mesmo id, ou entra na aba Habilidades. */
@@ -152,6 +176,14 @@ function comOCartao(personagem: Personagem, cartao: CartaoDaFicha): Personagem {
     if (cartoes.some((atual) => atual.id === cartao.id)) return { ...personagem, abas: { ...personagem.abas, [abaId]: cartoes.map((atual) => (atual.id === cartao.id ? cartao : atual)) } }
   }
   return { ...personagem, abas: { ...personagem.abas, [ABA_DAS_TECNICAS]: [...cartoesDaAba(personagem, ABA_DAS_TECNICAS), cartao] } }
+}
+
+/** Fase 5: o SP pela metade do máximo (a ficha sem máximo de SP fica como está). */
+function comMetadeDoSp(personagem: Personagem, sistema: SistemaDeRpg): Personagem {
+  const sp = recursoDoCusto(sistema, 'sp')
+  const lido = sp === null ? null : vidaDoPersonagem(personagem, sp)
+  if (sp === null || lido === null) return personagem
+  return { ...personagem, recursos: { ...personagem.recursos, [sp.id]: Math.floor(lido.maximo * PARTE_DO_FERIDO) } }
 }
 
 /** Cada recurso do sistema que tem máximo na ficha vai ao máximo (o que não tem fica como está). */
@@ -225,11 +257,13 @@ function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao, vezDe: 'quemUs
   const bonecos: Personagem[] = Array.from({ length: arrumacao.quantos }, (_, i) => {
     const ficha = fichaDoBoneco(sistema, BONECO_PADRAO, `ensaio-boneco-${i + 1}`)
     const nome = arrumacao.quantos === 1 ? `${NOME_DO_BONECO} (boneco de treino)` : `${NOME_DO_BONECO} ${i + 1}`
+    if (arrumacao.spPelaMetade) return comMetadeDoSp({ ...ficha, nome }, sistema)
     if (!arrumacao.ferido || vida === null) return { ...ficha, nome }
     return { ...ficha, nome, recursos: { ...ficha.recursos, [vida.id]: Math.round(BONECO_PADRAO.hp * PARTE_DO_FERIDO) } }
   })
   const copia: Personagem = { ...comOCartao(pedido.quemUsa, cartao), id: ORIGEM_DE_QUEM_USA }
-  const quemUsa = pedido.recursosCheios === true ? comRecursosCheios(copia, sistema) : copia
+  const cheia = pedido.recursosCheios === true ? comRecursosCheios(copia, sistema) : copia
+  const quemUsa = arrumacao.spPelaMetade && arrumacao.emSi ? comMetadeDoSp(cheia, sistema) : cheia
   // A mesa pede os dois lados: na ajuda os bonecos ficam com quem usa, e um boneco adversário (fora do alvo) fecha o outro lado.
   const adversario: Personagem[] = arrumacao.lado === 'a' ? [{ ...fichaDoBoneco(sistema, BONECO_PADRAO, ORIGEM_DO_ADVERSARIO), nome: `${NOME_DO_BONECO} (adversário)` }] : []
   const escolhas: EscolhaDaVaga[] = [
@@ -258,6 +292,7 @@ function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao, vezDe: 'quemUs
   const vagasDosBonecos = mesa.vagas().filter((vaga) => vaga !== vagaDeQuemUsa && vaga.origem !== ORIGEM_DO_ADVERSARIO)
   // A Florescer só vale em quem está na redoma: o boneco começa com o selo que a técnica pede.
   if (arrumacao.seloPedido !== null) for (const vaga of vagasDosBonecos) loja.getState().porSelo(CENA_DO_ENSAIO, vaga.tokenId, { nome: arrumacao.seloPedido, turnos: null })
+  for (const selo of arrumacao.selosParaTirar) for (const vaga of vagasDosBonecos) loja.getState().porSelo(CENA_DO_ENSAIO, vaga.tokenId, selo)
 
   // Os outros passam até a vez de quem age (o teste é o golpe, não a ordem): quem usa, ou o boneco que bate no teste da reação.
   const quemAge = vezDe === 'quemUsa' ? vagaDeQuemUsa.tokenId : vagasDosBonecos[0]?.tokenId
@@ -387,7 +422,7 @@ function ensaiarAReacao(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   const { cartao, sistema } = pedido
   const arrumou: PassoDoEnsaio = { tipo: 'arrumou', titulo: 'Boneco', texto: `O boneco de treino bate em quem usa com ${DANO_DO_BONECO} de dano; a técnica entra no lugar da reação, antes do d20.` }
   const naoSaiu = (texto: string): ResultadoDoEnsaio => ({ passos: [arrumou, recusa(texto)], barras: [], passarUmaVez: null })
-  const montada = montarMesa(pedido, { lado: 'b', quantos: 1, ferido: false, emSi: false, seloPedido: null, frase: arrumou.texto }, 'boneco')
+  const montada = montarMesa(pedido, { lado: 'b', quantos: 1, ferido: false, emSi: false, seloPedido: null, selosParaTirar: [], spPelaMetade: false, frase: arrumou.texto }, 'boneco')
   if (typeof montada === 'string') return naoSaiu(montada)
   const { mesa, loja, vagaDeQuemUsa, vagasDosBonecos } = montada
   const boneco = vagasDosBonecos[0]
