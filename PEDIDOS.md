@@ -2890,3 +2890,8 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - 21/11 01h01 (date). Resposta: "Só objeto do mapa". Fila: estátua de cavalo no catálogo de objetos (vista de cima, Meio-Termo, arte por código), com e sem pedestal; entra quando abrir vaga (5 agentes em voo).
 - 21/11 01h13 (date). Respostas, todas no recomendado: mochila "Uma por ficha" (a ficha em vários bonecos divide uma mochila; cae9034c fica); reação "Antes do dado, 1 por golpe" (= C5 do SISTEMA.md); usar item "Gasta a Ação Simples" (= C7); área "Pega todos" (= C21). Estátua: "Só objeto do mapa" (na fila).
 - 21/11 01h16 (date). Painel dos jogos: literal "gostei" = protótipo a040e9ae APROVADO (construir depois do agente do selo). Mais, com print do selo "Puzzle: A Fonte": "agora se lembre quando eu clicar coloque para poder excluir, aumentar e diminuir tamanho e até o angulo." Repassado ao agente do selo: clicar no selo = alças de tamanho, alça de giro (ângulo salvo, jogador vê igual), excluir com desfazer (decisão do Claude: tira só do mapa, o desafio fica "Fora do mapa").
+
+## PEDIDO NOVO (21/11 01h17): muitas peças de puzzle
+
+- Literal: "No puzzle coloque mais itens, coloque uma vastos itens, tanto para colocar em um lugar, quanto para combinar quanto chaves."
+- Fila: ampliar o catálogo de peças de puzzle (acervo "Peça de puzzle", puzzles/arte/pecas.ts + padroes.ts): muitas peças de encaixar num lugar (medalhões, joias, emblemas, engrenagens, olhos, estatuetas), pares e trios para juntar/combinar, e muitas chaves (de cada naipe/forma, de metal, de pedra). Arte por código, originais. Entra quando abrir vaga (5 agentes em voo).
