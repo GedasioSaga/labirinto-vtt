@@ -1,3 +1,26 @@
+# LEVA DE 21/11 00h48: 10 consertos e redesigns (atualizado 21/11 00h59)
+
+## Objetivo
+Os 10 itens do dono de 21/11 (literal no fim do PEDIDOS.md): 1 DOCS, 2 mover e redimensionar o selo do minigame e do puzzle, 3 painel dos jogos refeito pelo Fable 5.2 com caça aos bugs, 4 losango do baú com minigame, 5 ficha e inventário numa lista só (e as balas de prata do Vicent na batalha), 6 fichas de NPC no Acervo de tokens, 7 conteúdo do baú com miniatura, 8 separar Itens e Habilidades com Testar, 9 habilidades melhores (reação, Testar no boneco com miniaba de preview), 10 efeitos nos itens (FF e RE). Depois, pedido novo: estátua de cavalo (print estilo RE).
+
+## Estado atual
+- 1 FEITO 218a7b5d (rótulo DOCS no livro do mestre e na barra do jogador; App.colunaDireita.test ajustado; tsc ainda não rodado nesta leva).
+- EM VOO (5 agentes, o teto): programador-frontend itens 2 + 4; debugador item 5 + balas do Vicent; designer-fable item 3 (docs/design/jogos/editor-de-desafio.html + NOTAS.md, sem código do app); arquiteto-solucoes em Fable itens 8, 9, 10 (docs/design/habilidades/ANALISE.md + SISTEMA.md, sem código; respostas do dono já repassadas); designer-opus item 7 (docs/design/bau/conteudo-do-bau.html + NOTAS.md).
+- Respostas do dono (adda82fe): NPCs no Acervo; Testar = boneco de treino + miniaba de preview; reação = usada no lugar da reação normal; item usado por jogador, mestre e NPC com ficha, depois "usar item" na batalha. Se o Fable acabar, usar Opus 5.5.
+- NA FILA: item 6 (quando abrir vaga), estátua de cavalo (pedido de 21/11 00h59).
+
+## Próximos passos
+1. Receber cada agente, conferir o relato, commit já feito por ele, anotar aqui e no PEDIDOS.
+2. Protótipos (3, 7, sistema 8-10) vão ao dono aprovar; depois construir no app (Opus 5.5 xhigh), 1 dono por sistema interligado.
+3. Item 6: protótipo e construção quando abrir vaga. Estátua de cavalo: objeto do catálogo (arte por código, Meio-Termo).
+4. Publicar a 0.5.90 só com o ok do dono.
+
+## Critério de pronto
+Cada item do literal conferido pelo verificador-realidade contra o PEDIDOS; tsc 0 (rtk proxy npx tsc --noEmit em client); testes existentes perto do que mudou passam; navegador mestre + jogador com p95 e sem longtask >= 200 ms; release 0.5.90 com latest.json 0.5.90.
+
+## Evidência
+- 218a7b5d: rg mostra rotulo 'DOCS' em client/src/components/livro/PaginaDocumentos.tsx:31 e PlayerPanel.tsx; nada mais verificado ainda.
+
 ﻿# MINIGAMES DE PUZZLE + DOCUMENTOS 19/11 20h36 (protótipo v2 em voo)
 
 ## Objetivo

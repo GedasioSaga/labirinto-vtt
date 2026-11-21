@@ -2882,3 +2882,8 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - 00h5x (mesmo turno). Literal: "pode usar paralelismo se necessário" e "caso o fable 5.2 acabe use o Opus 5.5 no lugar."
 - Fila: 1, 2, 4, 5 = consertos já; 3 = Fable 5.2 redesenha o painel dos jogos (protótipo HTML) e caça os bugs; 9 + 10 (+ 8) = um sistema só de efeitos para habilidades e itens, Fable 5.2 analisa e desenha, Opus 5.5 xhigh constrói; 6 e 7 = protótipo antes; perguntas de decisão ao dono.
 - 21/11 00h53 (date). Respostas: item 6 "NPCs no Acervo (Recomendado)" (a ficha de NPC e inimigo mora no Acervo de tokens, pasta NPCs com subpastas; a coluna da direita fica só com os jogadores). Testar, literal: "Boneco de Treino e uma miniaba para ver o que ta acontecendo tipo um preview". Reação, literal: "Podem ser usada no lugar da reação para fazer algo." Uso do item, literal: "Jogador, Mestre, Npc com ficha, quando tudo tiver pronto bota na batalha usar item. A é verdade, analise o personagem vicent ele tem no invetario balas de prata mas quando ele luta ta dizendo que ela ta sem bala de prata é mais um bug." Fila: o bug das balas do Vicent foi para o mesmo agente da ficha e do inventário (provável mesma causa); as respostas foram para a análise do Fable; o item 6 entra quando abrir vaga (máx 5 agentes).
+
+## PEDIDO NOVO (21/11 00h59): estátua de cavalo
+
+- Literal: "[Image #37] Tem como criar uma esatua de cavalo ?"
+- Print: cabeça de cavalo de pedra esverdeada sobre pedestal de pedra num salão escuro de castelo, à luz de velas (cara de puzzle de Resident Evil).
