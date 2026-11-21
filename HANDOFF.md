@@ -16,6 +16,7 @@ FEITOS na main (não publicados; tsc 0 e vitest perto em cada um; navegador do m
 - Item 6: protótipo 91347c10 APROVADO pelo dono, com "Vira cópia" (2º boneco de um NPC = cópia com vida própria).
 
 ## Próximos passos
+0. AUDITORIA 21/11 = NECESSITA TRABALHO: FEITO 1, 3 (resíduos B24 B26 B28), 4, estátua, peças, Fase 0; PARCIAL 2 (giro e selo de puzzle sem gesto testado; prévia "O jogador vê" cobre o selo); FEITO SEM PROVA 5 (marcador 1 para 2), balas do Vicent, 7 e miniaturas ao pegar. EM VOO programador-frontend fecha: conserta prévia + B24 B26 B28, prova 5 e Vicent em cópia dos dados, navegador do giro, selo de puzzle e miniaturas (prints em docs/design/provas-21-11/).
 1. EM VOO: construir o item 6 (docs/design/acervo/NOTAS.md); protótipo das telas de habilidades e itens (Testar com boneco + miniaba, Itens e Habilidades separados, editor de efeitos, reação, usar item) para o dono aprovar; verificador-realidade audita os feitos contra o literal.
 2. Depois do protótipo aprovado: fases 1-8 do docs/design/habilidades/SISTEMA.md, 1 dono em sequência (Opus 5.5 xhigh).
 3. Publicar 0.5.90 só com o ok do dono (perguntar).
