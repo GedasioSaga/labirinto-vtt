@@ -21,7 +21,8 @@ import { ajustesDoCusto, depoisDaTecnica, resolverAlvo, rolarReacao } from './go
 import { tecnicaPorId, tecnicasComForma, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { leituraDaTecnica } from './leituraDaTecnica'
 import { modificadorDoTeste } from './marca'
-import { reacaoAMaoDe, reageContraOverload, reageContraSurpresa, rebatePertoDe, soOMestreReage } from './mecanicasAMao'
+import { cartaoMontado } from './mecanica/leitura'
+import { reacaoAMaoDe, reageContraOverload, reageContraSurpresa, rebatePertoDe, soOMestreReage, type ChaveDaMecanica } from './mecanicasAMao'
 import type { AutorDaAcao } from './turnos'
 import { nomeDoSeloNaBatalha, seloPedidoValido } from './selos'
 import { lerTipo, modoDaReacao, saidaSugerida, seloDaReacao, type LeituraDoTipo, type ModoDaReacao } from './tiposDaHabilidade'
@@ -112,8 +113,9 @@ function maiorModificador(personagem: Personagem, sistema: SistemaDeRpg, atribut
 }
 
 /** F2 (fatia D): as saídas que a técnica dá e a marcada: as da tabela (Armadura: Defender ou Atacar; Giro: só rolar) ou as de sempre. */
-export function saidasDaTecnica(cartaoId: string, modo: ModoDaReacao): { saidas: readonly SaidaDaTecnica[]; sugerida: SaidaDaTecnica | null } {
-  const daTabela = reacaoAMaoDe(cartaoId)
+export function saidasDaTecnica(cartao: ChaveDaMecanica, modo: ModoDaReacao): { saidas: readonly SaidaDaTecnica[]; sugerida: SaidaDaTecnica | null } {
+  // Fase 4: pelo cartão, a reação montada (as peças) entra pelo mesmo caminho da tabela.
+  const daTabela = reacaoAMaoDe(cartao)
   if (daTabela?.rolagem !== undefined) return { saidas: SAIDAS_DA_ROLAGEM, sugerida: 'rolar' }
   if (daTabela?.saidas !== undefined && daTabela.saidas.length > 0) return { saidas: daTabela.saidas.map((saida) => saida.saida), sugerida: daTabela.saidas[0]?.saida ?? null }
   return { saidas: SAIDAS_DA_TECNICA, sugerida: saidaSugerida(modo) }
@@ -123,7 +125,7 @@ const SAIDAS_DA_ROLAGEM: readonly SaidaDaTecnica[] = ['rolar']
 
 function comoBotao(tecnica: TecnicaConfirmada, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined): ReacaoComTecnica {
   const modo = modoDaReacao(tecnica.cartao)
-  const { saidas, sugerida } = saidasDaTecnica(tecnica.cartao.id, modo)
+  const { saidas, sugerida } = saidasDaTecnica(tecnica.cartao, modo)
   const reacao: ReacaoComTecnica = {
     cartao: tecnica.cartao,
     nome: tecnica.cartao.nome.trim() || TECNICA_SEM_NOME,
@@ -268,7 +270,7 @@ export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueRea
   const tecnica = confirmar(achada.cartao, achada.forma, personagem, sistema, pedido.custo, ctx.combate?.evoluidas)
   if (!tecnica.tipo.tambemReacao) return 'Esta técnica não é de reação'
   // F2 (fatia D): a técnica da tabela só dá as saídas dela (Armadura: Defender ou Atacar; Giro: rolar).
-  if (!saidasDaTecnica(tecnica.cartao.id, modoDaReacao(tecnica.cartao)).saidas.includes(pedido.saida)) return 'Saída que a técnica não dá'
+  if (!saidasDaTecnica(tecnica.cartao, modoDaReacao(tecnica.cartao)).saidas.includes(pedido.saida)) return 'Saída que a técnica não dá'
   if (contraOverload && !valeContraOverload(tecnica)) return MOTIVO_SO_OVERLOAD
   if (contraSurpresa && !reageContraSurpresa(tecnica.cartao)) return MOTIVO_SO_CONTRA_SURPRESA
   // F2 (revisão da fatia E, Recuperação de forças): "o MESTRE CONFIRMA": o jogador não aplica sozinho.
@@ -321,7 +323,7 @@ export function reagirComTecnica(
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
   if (achada === null) return null
   const tecnica = confirmar(achada.cartao, achada.forma, personagem, sistema, pedido.custo, combate.evoluidas)
-  const { sugerida } = saidasDaTecnica(tecnica.cartao.id, modoDaReacao(tecnica.cartao))
+  const { sugerida } = saidasDaTecnica(tecnica.cartao, modoDaReacao(tecnica.cartao))
   const daTabela = reacaoAMaoDe(tecnica.cartao)
   const saidaDaTabela = daTabela?.saidas?.find((candidata) => candidata.saida === pedido.saida)
   // Fatia C7 (revisão): a técnica oculta vai ao golpe (linha do registro, origem do selo, marca) como "???", sem o rótulo da saída.
@@ -348,7 +350,9 @@ export function reagirComTecnica(
   novo = comTecnicaNoAlvo(novo, tokenId, marca)
   const alvo = novo.alvos.find((candidato) => candidato.tokenId === tokenId)
   if (alvo === undefined) return null
-  const lido = pedido.seloNoAtacante === undefined ? null : seloPedidoValido(pedido.seloNoAtacante, sistema)
+  // Fase 4: na reação montada o selo em quem atacou é o das peças, decidido no host (o do pedido não vale).
+  const pedidoDoSelo = cartaoMontado(tecnica.cartao) ? seloDaReacao(tecnica.cartao) : (pedido.seloNoAtacante ?? null)
+  const lido = pedidoDoSelo === null ? null : seloPedidoValido(pedidoDoSelo, sistema)
   const selo = lido === null || !oculta ? lido : { ...lido, nome: nomeDoSeloNaBatalha(personagem, tecnica.cartao, lido.nome) }
   const feita: ReacaoFeita = { golpe: novo, alvo, combate: depoisDaTecnica(combate, tecnica), custo: ajustesDoCusto(personagem, sistema, tecnica.custo), seloNoAtacante: selo }
   if (saidaDaTabela?.devolveDividido !== undefined) feita.devolveDividido = saidaDaTabela.devolveDividido

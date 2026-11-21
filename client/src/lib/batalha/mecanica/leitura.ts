@@ -1,11 +1,11 @@
 import type { CartaoDaFicha, Personagem } from '../../personagem'
 import { numeroDaFicha } from '../../personagem'
-import type { SeloDoGolpe } from '../combate'
+import type { SeloDoGolpe, SeloPedido } from '../combate'
 import type { FormaDaArea } from '../area'
 import type { LeituraDaAcao, LeituraDoCusto, LeituraDoTempo } from '../leituraDaFicha'
-import type { LimpezaAMao, MecanicaAMao } from '../mecanicasAMao'
+import type { LimpezaAMao, MecanicaAMao, ReacaoAMao, SaidaDaReacaoAMao } from '../mecanicasAMao'
 import type { ReacaoDoTipo } from '../tiposDaHabilidade'
-import { avisoDaMecanica, lerMecanica, testeRolado, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples } from './modelo'
+import { avisoDaMecanica, lerMecanica, testeRolado, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type ReacaoDaMecanica } from './modelo'
 import { disputaDoTeste } from './teste'
 
 /**
@@ -96,7 +96,57 @@ export function custoDasPecas(mecanica: MecanicaV1, personagem: Personagem, lerF
 /** A ação como `lerAcao` daria; `perguntar` = `null` (a mira pergunta, como na transformação). */
 export function acaoDasPecas(mecanica: MecanicaV1): LeituraDaAcao {
   const acao = mecanica.acao === 'perguntar' ? null : mecanica.acao
-  return { acao, overload: mecanica.limite.overload === true, transformacao: false, tambemReacao: false }
+  // Fase 4: "no lugar da reação" (ou os dois) aparece também na caixa REAÇÃO.
+  return { acao, overload: mecanica.limite.overload === true, transformacao: false, tambemReacao: usoDeReacao(mecanica) }
+}
+
+/** Fase 4: a técnica entra na caixa REAÇÃO (só nela, ou também na vez). */
+export function usoDeReacao(mecanica: Pick<MecanicaV1, 'uso'>): boolean {
+  return mecanica.uso === 'reacao' || mecanica.uso === 'ativaOuReacao'
+}
+
+/** O nome do botão de cada defesa montada, como a caixa REAÇÃO o mostra. */
+function rotuloDaDefesa(defesa: Exclude<ReacaoDaMecanica['defesa'], { tipo: 'rola' }>): string {
+  if (defesa.tipo === 'anula') return 'Anula o golpe'
+  return defesa.tipo === 'fica' ? `Fica com ${defesa.porcento}%` : 'Toma o golpe'
+}
+
+/**
+ * Fase 4: a reação montada vira a MESMA linha da tabela à mão que a Armadura
+ * Humana e o Giro da Lança usam (`ReacaoAMao`): uma saída com a parte do dano
+ * que fica, o que volta em quem atacou e a cura, ou a rolagem própria. Assim a
+ * caixa REAÇÃO, o host e o Desfazer não mudam.
+ */
+export function reacaoNaTabela(reacao: ReacaoDaMecanica): ReacaoAMao {
+  const { defesa } = reacao
+  const lida: ReacaoAMao = {}
+  if (defesa.tipo === 'rola') {
+    lida.rolagem = { atributos: defesa.atributos, anulaCom: defesa.anulaCom }
+  } else {
+    const saida: SaidaDaReacaoAMao =
+      defesa.tipo === 'anula'
+        ? { saida: 'esquiva', rotulo: rotuloDaDefesa(defesa), noAlvo: 'esquiva', fator: 0 }
+        : defesa.tipo === 'fica'
+          ? { saida: 'metade', rotulo: rotuloDaDefesa(defesa), noAlvo: 'metade', fator: defesa.porcento / 100 }
+          : { saida: 'cheio', rotulo: rotuloDaDefesa(defesa), noAlvo: 'cheio', fator: 1 }
+    if (reacao.devolve !== undefined) saida.devolveDividido = reacao.devolve.divididoPor
+    if (reacao.curaDoQueChegava !== undefined) saida.curaDoQueChega = reacao.curaDoQueChegava
+    lida.saidas = [saida]
+  }
+  if (reacao.valeContra?.includes('overload') === true) lida.contraOverload = true
+  if (reacao.valeContra?.includes('surpresa') === true) lida.contraSurpresa = true
+  if (reacao.soOMestre === true) lida.soOMestre = MOTIVO_SO_O_MESTRE_NA_REACAO
+  return lida
+}
+
+/** O motivo da reação montada marcada "só o mestre" (o jogador vê o botão apagado e pede a ele). */
+export const MOTIVO_SO_O_MESTRE_NA_REACAO = 'Só o mestre usa esta reação: peça a ele'
+
+/** Fase 4: o selo que a reação montada põe em quem atacou; `null` = nenhum. */
+export function seloNoAtacanteDasPecas(mecanica: MecanicaV1): SeloPedido | null {
+  const selo = mecanica.efeitos.find((efeito) => efeito.tipo === 'selo' && efeito.em === 'atacante')
+  if (selo === undefined || selo.tipo !== 'selo') return null
+  return { nome: selo.nome, turnos: typeof selo.duracao === 'number' ? selo.duracao : null }
 }
 
 /** O Tempo como `lerTempo` daria. */
@@ -174,8 +224,9 @@ function limpezaDasPecas(mecanica: MecanicaV1): LimpezaAMao | null {
  * golpe" (sem turnos: sai quando outro golpe chega nele).
  */
 export function seloDasPecas(mecanica: MecanicaV1): SeloDoGolpe | null {
-  const selo = mecanica.efeitos.find((efeito) => efeito.tipo === 'selo')
-  if (selo === undefined) return null
+  // O selo em quem atacou é da reação (`seloNoAtacanteDasPecas`), nunca do golpe da vez.
+  const selo = mecanica.efeitos.find((efeito) => efeito.tipo === 'selo' && efeito.em === undefined)
+  if (selo === undefined || selo.tipo !== 'selo') return null
   const lido: SeloDoGolpe = { nome: selo.nome, turnos: typeof selo.duracao === 'number' ? selo.duracao : null }
   if (selo.natureza !== undefined) lido.natureza = selo.natureza
   if (selo.porTurno !== undefined) lido.porVez = selo.porTurno.quanto.fixo
@@ -232,6 +283,7 @@ export function linhaDasPecas(nome: string, mecanica: MecanicaV1): MecanicaAMao 
   if (limpa !== null) linha.limpa = limpa
   const lembrete = lembretesDasPecas(mecanica)
   if (lembrete !== null) linha.lembreteNaMira = lembrete
+  if (mecanica.reacao !== undefined) linha.reacao = reacaoNaTabela(mecanica.reacao)
   return linha
 }
 

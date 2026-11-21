@@ -252,9 +252,11 @@ export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1, ficha?: Fich
   const ajuda = mecanica.alvo.quem === 'aliados' || mecanica.alvo.quem === 'si'
   switch (efeito.tipo) {
     case 'selo': {
-      const comeco = ajuda ? `Dá ${efeito.nome}` : `${quandoOSeloPega(mecanica)}: ${efeito.nome}`
+      // Fase 4: o selo da reação vai em quem atacou, nunca no alvo da técnica.
+      const noAtacante = efeito.em === 'atacante'
+      const comeco = noAtacante ? `Ao reagir, marca quem atacou: ${efeito.nome}` : ajuda ? `Dá ${efeito.nome}` : `${quandoOSeloPega(mecanica)}: ${efeito.nome}`
       const regra = frasesDoSelo(efeito, ficha)
-      return `${comeco} ${duracaoDoSelo(efeito.duracao, ajuda)}${regra.length === 0 ? '' : ` (${regra.join('; ')})`}.`
+      return `${comeco} ${duracaoDoSelo(efeito.duracao, ajuda && !noAtacante)}${regra.length === 0 ? '' : ` (${regra.join('; ')})`}.`
     }
     case 'cura':
       return `Cura ${numeroDaPeca(efeito.quanto)} de HP.`
@@ -289,14 +291,39 @@ export function etiquetaDaMecanica(mecanica: MecanicaV1): string {
 
 /** O resumo inteiro, na ordem dos blocos do editor. */
 export function resumoDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string[] {
-  const alvoETeste = `${fraseDoAlvo(mecanica)} ${fraseDoTeste(mecanica, ficha)}`
   const limite = fraseDoLimite(mecanica)
+  const daVez = mecanica.uso !== 'reacao'
+  const alvoETeste = `${fraseDoAlvo(mecanica)} ${fraseDoTeste(mecanica, ficha)}`
+  // Fase 4: só no lugar da reação, a ação, o alvo e o dano da vez não valem; o custo vale nos dois usos.
   return [
-    fraseDoCustoEDaAcao(mecanica),
+    daVez ? fraseDoCustoEDaAcao(mecanica) : fraseDoCusto(mecanica),
     ...frasesDosOutrosCustos(mecanica),
-    alvoETeste,
-    ...frasesDoDano(mecanica, ficha),
-    ...mecanica.efeitos.map((efeito) => fraseDoEfeito(efeito, mecanica, ficha)),
+    ...(daVez ? [alvoETeste, ...frasesDoDano(mecanica, ficha)] : []),
+    ...frasesDaReacao(mecanica, ficha),
+    ...mecanica.efeitos.filter((efeito) => daVez || (efeito.tipo === 'selo' && efeito.em === 'atacante')).map((efeito) => fraseDoEfeito(efeito, mecanica, ficha)),
     ...(limite === null ? [] : [limite]),
   ]
+}
+
+/** Fase 4: o que a técnica faz no lugar da reação, em frases (o golpe que chega, o que volta, a cura). */
+export function frasesDaReacao(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string[] {
+  const { reacao } = mecanica
+  if (reacao === undefined) return []
+  const { defesa } = reacao
+  const quando = mecanica.uso === 'ativaOuReacao' ? 'Também no lugar da reação, antes do d20' : 'No lugar da reação, antes do d20 (não gasta a ação da vez)'
+  const faz =
+    defesa.tipo === 'anula'
+      ? 'anula o golpe'
+      : defesa.tipo === 'fica'
+        ? `toma só ${defesa.porcento}% do dano`
+        : defesa.tipo === 'rola'
+          ? `rola d20 + o maior modificador entre ${defesa.atributos.map((id) => ficha?.sistema.atributos.find((atributo) => atributo.id === id)?.nome ?? id).join(', ')}; ${defesa.anulaCom} ou mais anula, abaixo toma inteiro`
+          : 'toma o golpe inteiro'
+  const frases = [`${quando}: ${faz}.`]
+  if (reacao.devolve !== undefined) frases.push(reacao.devolve.divididoPor === 1 ? 'Devolve o dano que ficou em quem atacou, sem reação dele.' : `Devolve o dano que ficou, dividido por ${reacao.devolve.divididoPor}, em quem atacou, sem reação dele.`)
+  if (reacao.curaDoQueChegava !== undefined) frases.push(`${reacao.curaDoQueChegava}% do dano que chegava vira vida.`)
+  const contra = reacao.valeContra ?? []
+  frases.push(contra.length === 0 ? 'Vale contra golpe comum (não contra Overload nem Surpresa).' : `Vale também contra ${contra.map((tipo) => (tipo === 'overload' ? 'Overload' : 'Surpresa')).join(' e ')}.`)
+  if (reacao.soOMestre === true) frases.push('Só o mestre usa (o jogador pede a ele).')
+  return frases
 }

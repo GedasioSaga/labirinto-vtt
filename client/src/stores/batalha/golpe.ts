@@ -232,7 +232,9 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     const selosDeQuemReage = selosDoToken(turnos.selos, reageTokenId)
     const rolado = pedido.saida === 'rolar' ? rolarComVantagem(deps.rolarD20, vantagemDaReacao(pedido.vantagem, selosDeQuemReage, golpe)) : null
     // F2 (revisão da fatia E): o Marcado esquiva com desvantagem também depois da técnica que rola (o Giro da Lança tem a rolagem dele).
-    const esquiva = rolado !== null && reacaoAMaoDe(pedido.cartaoId)?.rolagem === undefined && esquivaComDesvantagem(selosDeQuemReage, rolado.vantagem?.modo) ? rolarODadoDaEsquiva(deps.rolarD20, rolado.d20) : undefined
+    // Fase 4: pelo cartão (não pelo id), para a reação montada que rola o dado (o Aparar) contar como rolagem própria.
+    const cartaoDaReacao = tecnicaPorId(personagem, sistema, pedido.cartaoId)?.cartao ?? pedido.cartaoId
+    const esquiva = rolado !== null && reacaoAMaoDe(cartaoDaReacao)?.rolagem === undefined && esquivaComDesvantagem(selosDeQuemReage, rolado.vantagem?.modo) ? rolarODadoDaEsquiva(deps.rolarD20, rolado.d20) : undefined
     const combateBase = combateAntes ?? combateVazio()
     const lida = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, rolado?.d20 ?? null, rolado?.vantagem, esquiva)
     if (lida === null) return false

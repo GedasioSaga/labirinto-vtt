@@ -3,6 +3,7 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { NaturezaDoSelo, SeloDoGolpe, SeloPedido } from './combate'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, lerAcao } from './leituraDaFicha'
+import { pecasDoCartao, seloNoAtacanteDasPecas, usoDeReacao } from './mecanica/leitura'
 import { lerDuracao, seloComMods, seloDaTecnica, type SELOS_PRONTOS } from './selos'
 
 /**
@@ -76,8 +77,12 @@ export function lerTipo(cartao: Pick<CartaoDaFicha, 'campos' | 'mecanica'>): Lei
   const acao = lerAcao(cartao.mecanica === undefined ? (cartao.campos[CAMPO_DA_ACAO] ?? '') : '')
   const texto = (cartao.campos[CAMPO_DO_TIPO] ?? '').trim()
   const escrito = tipoDoTexto(texto)
-  const tipo: TipoDaHabilidade = escrito ?? (acao.acao === 'passiva' ? 'passiva' : acao.soReacao === true ? 'reacao' : 'ativa')
-  const leitura: LeituraDoTipo = { tipo, inferido: escrito === null, tambemReacao: tipo === 'reacao' || acao.tambemReacao }
+  // Fase 4: no cartão montado, "Quando usa" diz: só no lugar da reação = Reação; os dois = ativa que também reage.
+  const pecas = cartao.mecanica === undefined ? null : pecasDoCartao(cartao)
+  const soReacao = pecas === null ? acao.soReacao === true : pecas.uso === 'reacao'
+  const tipo: TipoDaHabilidade = escrito ?? (acao.acao === 'passiva' ? 'passiva' : soReacao ? 'reacao' : 'ativa')
+  const tambem = pecas === null ? acao.tambemReacao : usoDeReacao(pecas)
+  const leitura: LeituraDoTipo = { tipo, inferido: escrito === null, tambemReacao: tipo === 'reacao' || tambem }
   if (escrito === null && texto.length > 0) leitura.foraDaLista = texto
   return leitura
 }
@@ -189,6 +194,11 @@ export const SELO_DA_MARCA: (typeof SELOS_PRONTOS)[number] = 'Marcado'
  * reage desmarca.
  */
 export function seloDaReacao(cartao: CartaoDaFicha): SeloPedido | null {
+  // Fase 4: no cartão montado o selo em quem atacou vem das peças (o texto é só descrição).
+  if (cartao.mecanica !== undefined) {
+    const pecas = pecasDoCartao(cartao)
+    return pecas === null ? null : seloNoAtacanteDasPecas(pecas)
+  }
   for (const texto of textosDaReacao(cartao)) {
     if (!SINAL_DA_MARCA.test(normalizar(texto))) continue
     return { nome: SELO_DA_MARCA, turnos: lerDuracao(texto, cartao.nome)?.turnos ?? null }

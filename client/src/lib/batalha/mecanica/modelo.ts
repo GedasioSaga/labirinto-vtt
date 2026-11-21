@@ -181,7 +181,8 @@ export type Efeito =
    * zera a Percepção, Queimando renova. Assim a regra chega também ao jogador,
    * que só recebe o nome. Nome fora da tabela = selo sem regra própria.
    */
-  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo }
+  /** `em: 'atacante'` (fase 4): só na técnica de reação, o selo vai em quem bateu. Ausente = no alvo do golpe. */
+  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: 'atacante' }
   | { tipo: 'cura'; recurso: 'hp'; quanto: Numero; emQuem: 'alvo' }
   | { tipo: 'tirarSelos'; quais: 'negativos' }
   /** Porta de escape: o app não executa nada, só lembra o mestre. */
@@ -201,6 +202,10 @@ export interface MecanicaV2 {
   teste: Teste
   dano?: DanoDaMecanica
   efeitos: readonly Efeito[]
+  /** Fase 4: como entra em jogo; ausente = 'ativa' (toda mecânica da versão 1). */
+  uso?: UsoDaMecanica
+  /** Fase 4 (decisão M2): o que a técnica faz NO LUGAR da reação; só com `uso` de reação. */
+  reacao?: ReacaoDaMecanica
 }
 
 /** O nome da fatia C1, mantido para quem já o usa: são as mesmas peças lidas (`MecanicaV2`). */
@@ -212,6 +217,16 @@ export type MecanicaV1 = MecanicaV2
  */
 export function migrarV1ParaV2(mecanica: MecanicaV2): MecanicaV2 {
   return mecanica.versao === 2 ? mecanica : { ...mecanica, versao: 2 }
+}
+
+/**
+ * A mecânica tem peça que só a versão 2 diz (fase 4: a reação montada, o selo
+ * em quem atacou). Quem grava usa a 2 só nesse caso: o app de antes e o site do
+ * Lobby leem a 2 como "atualize o app" (o cartão fica à mão, nada se perde), e
+ * toda outra mecânica continua 1 e abre neles como sempre.
+ */
+export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | 'efeitos'>): boolean {
+  return (mecanica.uso !== undefined && mecanica.uso !== 'ativa') || mecanica.reacao !== undefined || mecanica.efeitos.some((efeito) => efeito.tipo === 'selo' && efeito.em !== undefined)
 }
 
 // ─── Versão 2: as peças novas, ainda sem motor ──────────────────────────────
@@ -247,7 +262,8 @@ export interface RegraDoSelo {
 /** A técnica usada NO LUGAR da reação (decisão M2, fase 4). */
 export interface ReacaoDaMecanica {
   defesa: { tipo: 'anula' } | { tipo: 'fica'; porcento: number } | { tipo: 'rola'; atributos: readonly string[]; anulaCom: number } | { tipo: 'nenhuma' }
-  devolve?: { divididoPor: number } | { formula: string; somaOQueChegou?: true }
+  /** O dano que ficou, dividido por este número, volta em quem atacou. Devolver por fórmula (seção 2 do SISTEMA) ainda é recusado. */
+  devolve?: { divididoPor: number }
   curaDoQueChegava?: number
   valeContra?: readonly ('overload' | 'surpresa')[]
   soOMestre?: true
@@ -259,12 +275,12 @@ export interface ReacaoDaMecanica {
  * fora desta tabela segue "que este app não conhece", como na versão 1.
  */
 export const PECAS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  'mecânica': { uso: 'técnica no lugar da reação', reacao: 'técnica no lugar da reação', custoEmItem: 'custo em item da mochila' },
+  'mecânica': { custoEmItem: 'custo em item da mochila' },
   limite: { porRodada: 'limite por rodada' },
   alvo: { alcance: 'alcance do alvo', estado: 'alvo caído (reviver)', exigeSelo: 'só contra quem tem um selo' },
   forma: { centro: 'área em volta de um alvo ou de um ponto' },
   dano: { perfuracao: 'perfuração parcial', segundoGolpe: 'segundo golpe' },
-  selo: { em: 'selo em quem usa ou em quem atacou', mods: 'selo com número (Força +20)', regra: 'regra própria do selo', seJaTem: 'renovar o selo' },
+  selo: { mods:'selo com número (Força +20)', regra: 'regra própria do selo', seJaTem: 'renovar o selo' },
   cura: { em: 'cura em quem usa' },
 }
 
@@ -539,11 +555,14 @@ function efeito(valor: unknown, indice: number): Efeito {
   const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'aMao'] as const, onde)
   switch (tipo) {
     case 'selo': {
-      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno'], onde, 'selo')
+      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em'], onde, 'selo')
       const duracao = peca.duracao === 'ateTirar' || peca.duracao === 'proximoGolpe' ? peca.duracao : inteiro(peca.duracao, 1, TURNOS_DO_SELO_MAX, `${onde} (duração)`)
       const lido: Efeito = { tipo, nome: texto(peca.nome, NOME_DO_SELO_MAX, `${onde} (nome do selo)`), duracao }
       if (peca.natureza !== undefined) lido.natureza = umDe(peca.natureza, ['buff', 'debuff'] as const, `${onde} (natureza)`)
       if (peca.porTurno !== undefined) lido.porTurno = porTurnoDoSelo(peca.porTurno, onde)
+      // Fase 4: o selo em quem atacou (a reação confere que é dela); em quem usa é da fase 5.
+      if (peca.em === 'quemUsa') aindaNaoRoda('selo em quem usa')
+      if (peca.em !== undefined) lido.em = umDe(peca.em, ['atacante'] as const, `${onde} (em quem)`)
       return lido
     }
     case 'cura':
@@ -571,8 +590,70 @@ function conferirEfeitos(efeitos: readonly Efeito[], quem: QuemOAlvoPega): void 
   if (limpa && quem !== 'aliados' && quem !== 'si') torta('cura e tirar selos só pegam em quem usa ou num aliado')
 }
 
+/** Teto de atributos da reação que rola (o maior modificador entre eles). */
+export const ATRIBUTOS_DA_REACAO_MAX = 4
+/** Teto do "devolve dividido por" (2 = metade). */
+export const DEVOLVE_DIVIDIDO_MAX = 3
+
+function defesaDaReacao(valor: unknown): ReacaoDaMecanica['defesa'] {
+  const onde = 'defesa da reação'
+  const peca = registro(valor, onde)
+  const tipo = umDe(peca.tipo, ['anula', 'fica', 'rola', 'nenhuma'] as const, onde)
+  switch (tipo) {
+    case 'anula':
+    case 'nenhuma':
+      soChaves(peca, ['tipo'], onde)
+      return { tipo }
+    case 'fica':
+      soChaves(peca, ['tipo', 'porcento'], onde)
+      return { tipo, porcento: inteiro(peca.porcento, 1, 99, 'a parte do dano que fica (%)') }
+    case 'rola': {
+      soChaves(peca, ['tipo', 'atributos', 'anulaCom'], onde)
+      const atributos = lista(peca.atributos, ATRIBUTOS_DA_REACAO_MAX, 'atributos da reação').map((atributo, indice) => texto(atributo, ATRIBUTO_MAX, `atributo ${indice + 1} da reação`))
+      if (atributos.length === 0) torta('a reação que rola o dado precisa de um atributo')
+      return { tipo, atributos, anulaCom: inteiro(peca.anulaCom, 1, CD_MAX, 'o total que anula') }
+    }
+  }
+}
+
+/** Fase 4: a técnica no lugar da reação. Devolver por fórmula fica para depois (o motor só divide o que ficou). */
+function reacaoDaPeca(valor: unknown): ReacaoDaMecanica {
+  const peca = registro(valor, 'reação')
+  soChaves(peca, ['defesa', 'devolve', 'curaDoQueChegava', 'valeContra', 'soOMestre'], 'reação')
+  const lida: ReacaoDaMecanica = { defesa: defesaDaReacao(peca.defesa) }
+  if (peca.devolve !== undefined) {
+    const devolve = registro(peca.devolve, 'devolve')
+    if ('formula' in devolve) aindaNaoRoda('devolver dano por fórmula')
+    soChaves(devolve, ['divididoPor'], 'devolve')
+    lida.devolve = { divididoPor: inteiro(devolve.divididoPor, 1, DEVOLVE_DIVIDIDO_MAX, 'devolve dividido por') }
+  }
+  if (peca.curaDoQueChegava !== undefined) lida.curaDoQueChegava = inteiro(peca.curaDoQueChegava, 1, 100, 'a cura do dano que chegava (%)')
+  if (peca.valeContra !== undefined) {
+    const contra = lista(peca.valeContra, 2, 'vale contra').map((item) => umDe(item, ['overload', 'surpresa'] as const, 'vale contra'))
+    if (new Set(contra).size !== contra.length) torta('vale contra repetido')
+    lida.valeContra = contra
+  }
+  if (peca.soOMestre !== undefined) {
+    if (peca.soOMestre !== true) torta('só o mestre só aceita "sim"')
+    lida.soOMestre = true
+  }
+  // A reação que rola resolve pelo dado (anula ou toma inteiro): o motor ainda não devolve nem cura nela.
+  if (lida.defesa.tipo === 'rola' && (lida.devolve !== undefined || lida.curaDoQueChegava !== undefined)) aindaNaoRoda('devolver ou curar na reação que rola o dado')
+  return lida
+}
+
+/** As regras da reação com o resto (seção 2 do SISTEMA): uma pede a outra; o selo em quem atacou só existe nela. */
+function conferirReacao(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | 'efeitos'>): void {
+  const deReacao = mecanica.uso === 'reacao' || mecanica.uso === 'ativaOuReacao'
+  if (mecanica.reacao !== undefined && !deReacao) torta('a reação montada precisa de "Quando usa": no lugar da reação')
+  if (deReacao && mecanica.reacao === undefined) torta('"no lugar da reação" precisa dizer o que a técnica faz com o golpe')
+  if (!deReacao && mecanica.efeitos.some((efeito) => efeito.tipo === 'selo' && efeito.em === 'atacante')) torta('selo em quem atacou só vale na técnica de reação')
+  // Só no lugar da reação, a técnica nunca roda na vez: efeito da vez nela não faria nada (só o selo em quem atacou e o lembrete à mão).
+  if (mecanica.uso === 'reacao' && mecanica.efeitos.some((efeito) => !(efeito.tipo === 'aMao' || (efeito.tipo === 'selo' && efeito.em === 'atacante')))) aindaNaoRoda('efeito da vez numa técnica só de reação')
+}
+
 function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): MecanicaV2 {
-  soChaves(peca, ['versao', 'acao', 'custos', 'limite', 'alvo', 'teste', 'dano', 'efeitos'], 'mecânica', 'mecânica')
+  soChaves(peca, ['versao', 'acao', 'custos', 'limite', 'alvo', 'teste', 'dano', 'efeitos', 'uso', 'reacao'], 'mecânica', 'mecânica')
   const custos = lista(peca.custos ?? [], CUSTOS_MAX, 'custos').map(custo)
   for (const quando of ['aoUsar', 'porTurno', 'depois'] as const) {
     if (custos.filter((item) => item.quando === quando).length > 1) torta('dois custos no mesmo momento')
@@ -590,7 +671,12 @@ function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): 
     efeitos,
   }
   if (peca.dano !== undefined) mecanica.dano = dano(peca.dano)
+  // A versão 1 é o que o app de antes lê: peça que só a 2 diz, nela, é arquivo torto (quem grava usa a 2, `precisaDaVersao2`).
+  if (versao === 1 && (peca.uso !== undefined || peca.reacao !== undefined)) torta('"Quando usa" e a reação só existem na versão 2 da mecânica')
+  if (peca.uso !== undefined) mecanica.uso = umDe(peca.uso, ['ativa', 'reacao', 'ativaOuReacao'] as const, 'quando usa')
+  if (peca.reacao !== undefined) mecanica.reacao = reacaoDaPeca(peca.reacao)
   conferirTeste(mecanica)
+  conferirReacao(mecanica)
   return mecanica
 }
 

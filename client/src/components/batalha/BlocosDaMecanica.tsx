@@ -3,6 +3,7 @@ import { CUSTO_MAX, DANO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type Vantage
 import { comportamentoDoSelo, SELOS_COM_REGRA } from '../../lib/batalha/condicoes'
 import { CAMPO_DO_DANO } from '../../lib/batalha/formula'
 import {
+  ATRIBUTOS_DA_REACAO_MAX,
   CASAS_MAX,
   CD_MAX,
   danoUsaArma,
@@ -23,10 +24,12 @@ import {
   type NumeroSimples,
   type QuemOAlvoPega,
   type QuemRolaNoTeste,
+  type ReacaoDaMecanica,
   type Teste,
+  type UsoDaMecanica,
 } from '../../lib/batalha/mecanica/modelo'
-import { ehAjuda, formaNova, ladoValido, motivoDoQuem, testeNovo, trocarQuem } from '../../lib/batalha/mecanica/modelos'
-import { fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, fraseDoTeste, frasesDoDano, frasesDoSelo, frasesDosOutrosCustos, numeroComVirgula, previaDaCd, type FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
+import { ehAjuda, formaNova, ladoValido, motivoDoQuem, testeNovo, trocarQuem, trocarUso } from '../../lib/batalha/mecanica/modelos'
+import { fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, frasesDaReacao, fraseDoTeste, frasesDoDano, frasesDoSelo, frasesDosOutrosCustos, numeroComVirgula, previaDaCd, type FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
 import { SELOS_PRONTOS } from '../../lib/batalha/selos'
 import type { CartaoDaFicha } from '../../lib/personagem'
 import { CampoDeDano } from '../CampoDeDano'
@@ -241,7 +244,7 @@ function BlocoDoCusto({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'on
     trocar('aoUsar', { ...aoUsar, quanto })
   }
   return (
-    <Bloco numero={1} titulo="Quanto custa" frase={[fraseDoCusto(mecanica), ...frasesDosOutrosCustos(mecanica)].join(' ')} abertoAoMontar>
+    <Bloco numero={2} titulo="Quanto custa" frase={[fraseDoCusto(mecanica), ...frasesDosOutrosCustos(mecanica)].join(' ')} abertoAoMontar>
       <Escolha
         legenda="Ao usar, gasta"
         opcoes={[{ valor: 'nada' as const, rotulo: 'Nada' }, ...RECURSOS]}
@@ -296,7 +299,7 @@ const ACOES: readonly Opcao<AcaoDaMecanica>[] = [
 function BlocoDaAcao({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
   const frase = mecanica.acao === 'perguntar' ? 'Quem usa escolhe na hora.' : `Gasta ${ACOES.find((acao) => acao.valor === mecanica.acao)?.rotulo ?? ''}.`
   return (
-    <Bloco numero={2} titulo="Que ação gasta" frase={frase} abertoAoMontar>
+    <Bloco numero={3} titulo="Que ação gasta" frase={frase} abertoAoMontar>
       <Escolha legenda="A ação" opcoes={ACOES} valor={mecanica.acao} onChange={(acao) => onChange({ ...mecanica, acao })} />
     </Bloco>
   )
@@ -358,7 +361,7 @@ function ParametrosDaForma({ forma, onChange }: { forma: FormaDoAlvo; onChange: 
 function BlocoDoAlvo({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
   const { alvo } = mecanica
   return (
-    <Bloco numero={3} titulo="Em quem pega" frase={fraseDoAlvo(mecanica)} abertoAoMontar>
+    <Bloco numero={4} titulo="Em quem pega" frase={fraseDoAlvo(mecanica)} abertoAoMontar>
       <Escolha
         legenda="Pega"
         opcoes={QUEM.map((quem) => ({ ...quem, bloqueio: quem.valor === alvo.quem ? null : motivoDoQuem(mecanica, quem.valor) }))}
@@ -443,7 +446,7 @@ const TESTES: readonly { valor: Teste['tipo']; rotulo: string }[] = [
 function TesteDeResistencia({ teste, mecanica, ficha, onChange }: { teste: Extract<Teste, { tipo: 'resistencia' }>; mecanica: MecanicaV1; ficha: FichaDaPrevia; onChange: (teste: Teste) => void }) {
   const porCarga = 'porCarga' in teste.cd
   // A CD pela Concentração pede a carga, que o dano sem Concentração não gasta (a leitura recusa).
-  const semConcentracao = mecanica.dano !== undefined && !mecanica.dano.multiplicadores.concentracao ? 'O dano não multiplica com a Concentração (bloco 5): a CD não pode depender dela.' : null
+  const semConcentracao = mecanica.dano !== undefined && !mecanica.dano.multiplicadores.concentracao ? 'O dano não multiplica com a Concentração (bloco 6): a CD não pode depender dela.' : null
   const valor: NumeroSimples = 'porCarga' in teste.cd ? teste.cd.porCarga[0] : teste.cd
   return (
     <>
@@ -480,7 +483,7 @@ function BlocoDoTeste({ mecanica, ficha, onChange }: Pick<BlocosProps, 'mecanica
   const semAtributos = ficha.sistema.atributos.length === 0 ? 'O sistema da ficha não tem atributos para testar.' : null
   const trocarTeste = (novo: Teste) => onChange({ ...mecanica, teste: novo })
   return (
-    <Bloco numero={4} titulo="Como acerta" frase={fraseDoTeste(mecanica, ficha)} abertoAoMontar={!ajuda}>
+    <Bloco numero={5} titulo="Como acerta" frase={fraseDoTeste(mecanica, ficha)} abertoAoMontar={!ajuda}>
       {ajuda ? (
         <p className="lb-field__hint">Em aliado ou em quem usa, não há teste: a ajuda sempre pega.</p>
       ) : (
@@ -526,7 +529,7 @@ function BlocoDoDano({ mecanica, cartao, ficha, onChange, naArma }: BlocosProps)
     onChange({ ...mecanica, dano: { ...dano, multiplicadores: novos.length === 0 ? mult : { ...mult, extra: novos } } })
   }
   return (
-    <Bloco numero={5} titulo="Quanto dano" frase={frasesDoDano(mecanica, ficha).join(' ') || 'Sem dano.'} abertoAoMontar={dano !== undefined}>
+    <Bloco numero={6} titulo="Quanto dano" frase={frasesDoDano(mecanica, ficha).join(' ') || 'Sem dano.'} abertoAoMontar={dano !== undefined}>
       <Marcar
         rotulo="Dá dano"
         marcado={dano !== undefined}
@@ -683,7 +686,10 @@ function BlocoDosEfeitos({ mecanica, ficha, onChange }: Pick<BlocosProps, 'mecan
   const ordem: Efeito['tipo'][] = ['selo', 'cura', 'tirarSelos', 'aMao']
   const trocarEfeitos = (novos: Efeito[]) => onChange({ ...mecanica, efeitos: [...novos].sort((a, b) => ordem.indexOf(a.tipo) - ordem.indexOf(b.tipo)) })
   const trocarUm = (tipo: 'selo' | 'cura' | 'tirarSelos', novo: Efeito | null) => trocarEfeitos([...efeitos.filter((efeito) => efeito.tipo !== tipo), ...(novo === null ? [] : [novo])])
-  const semAjuda = ajuda ? null : 'Só em aliado ou em quem usa (bloco 3).'
+  // Fase 4: só no lugar da reação, o selo vai em quem atacou e a cura e o "tira selos" (efeitos da vez) não existem.
+  const soReacao = mecanica.uso === 'reacao'
+  const tambemReacao = mecanica.uso === 'ativaOuReacao'
+  const semAjuda = soReacao ? 'Só no lugar da reação a técnica não roda na vez: o efeito não teria em quem pegar.' : ajuda ? null : 'Só em aliado ou em quem usa (bloco 4).'
   const trocarCura = (carga: 0 | 1 | 2 | 3, texto: string) => {
     if (cura === undefined) return
     const numero = numeroDoTexto(texto, DANO_MAX)
@@ -697,14 +703,24 @@ function BlocoDosEfeitos({ mecanica, ficha, onChange }: Pick<BlocosProps, 'mecan
   }
   const frases = efeitos.map((efeito) => fraseDoEfeito(efeito, mecanica, ficha))
   return (
-    <Bloco numero={6} titulo="O que deixa" frase={frases.length === 0 ? 'Nada além do dano.' : frases.join(' ')} abertoAoMontar={efeitos.length > 0}>
+    <Bloco numero={7} titulo="O que deixa" frase={frases.length === 0 ? 'Nada além do dano.' : frases.join(' ')} abertoAoMontar={efeitos.length > 0}>
       <Marcar
-        rotulo={ajuda ? 'Dá um selo' : 'Se acertar, deixa um selo'}
+        rotulo={soReacao ? 'Deixa um selo em quem atacou' : ajuda ? 'Dá um selo' : 'Se acertar, deixa um selo'}
         marcado={selo !== undefined}
         bloqueio={selo === undefined && cheio ? `Já tem ${EFEITOS_MAX} efeitos.` : null}
-        onChange={(sim) => trocarUm('selo', sim ? { tipo: 'selo', nome: ajuda ? 'Fortalecido' : 'Atordoado', duracao: 1, natureza: ajuda ? 'buff' : 'debuff' } : null)}
+        onChange={(sim) => trocarUm('selo', sim ? (soReacao ? { tipo: 'selo', nome: 'Marcado', duracao: 1, natureza: 'debuff', em: 'atacante' } : { tipo: 'selo', nome: ajuda ? 'Fortalecido' : 'Atordoado', duracao: 1, natureza: ajuda ? 'buff' : 'debuff' }) : null)}
       />
-      {selo !== undefined && <PecasDoSelo selo={selo} ajuda={ajuda} listaId={listaId} ficha={ficha} onChange={(novo) => trocarUm('selo', novo)} />}
+      {selo !== undefined && <PecasDoSelo selo={selo} ajuda={ajuda && selo.em === undefined} listaId={listaId} ficha={ficha} onChange={(novo) => trocarUm('selo', novo)} />}
+      {selo !== undefined && selo.tipo === 'selo' && tambemReacao && (
+        <Marcar
+          rotulo="Vai em quem atacou (só quando reage)"
+          marcado={selo.em === 'atacante'}
+          onChange={(sim) => {
+            const { em: _em, ...noAlvo } = selo
+            trocarUm('selo', sim ? { ...noAlvo, em: 'atacante' } : noAlvo)
+          }}
+        />
+      )}
       <Marcar rotulo="Cura HP" marcado={cura !== undefined} bloqueio={cura === undefined ? (semAjuda ?? (cheio ? `Já tem ${EFEITOS_MAX} efeitos.` : null)) : null} onChange={(sim) => trocarUm('cura', sim ? { tipo: 'cura', recurso: 'hp', quanto: { fixo: 100 }, emQuem: 'alvo' } : null)} />
       {cura !== undefined && (
         <div className="lb-mec__linha lb-mec__linha--recuo">
@@ -746,6 +762,159 @@ function BlocoDosEfeitos({ mecanica, ficha, onChange }: Pick<BlocosProps, 'mecan
   )
 }
 
+// ─── Fase 4: a técnica no lugar da reação ───────────────────────────────────
+
+const USOS: readonly Opcao<UsoDaMecanica>[] = [
+  { valor: 'ativa', rotulo: 'Na vez' },
+  { valor: 'reacao', rotulo: 'No lugar da reação' },
+  { valor: 'ativaOuReacao', rotulo: 'Os dois' },
+]
+
+const FRASE_DO_USO: Record<UsoDaMecanica, string> = {
+  ativa: 'Na vez, como qualquer técnica.',
+  reacao: 'No lugar da reação, antes do d20.',
+  ativaOuReacao: 'Na vez ou no lugar da reação.',
+}
+
+function BlocoDoUso({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
+  const uso = mecanica.uso ?? 'ativa'
+  return (
+    <Bloco numero={1} titulo="Quando usa" frase={FRASE_DO_USO[uso]} abertoAoMontar={uso !== 'ativa'}>
+      <Escolha legenda="Quando usa" opcoes={USOS} valor={uso} onChange={(novo) => onChange(trocarUso(mecanica, novo))} />
+      <p className="lb-field__hint">No lugar da reação: aparece na caixa REAÇÃO de quem leva o golpe, antes de rolar o d20. Uma por golpe; não gasta a ação da vez.</p>
+    </Bloco>
+  )
+}
+
+type TipoDaDefesa = ReacaoDaMecanica['defesa']['tipo']
+
+const DEFESAS: readonly Opcao<TipoDaDefesa>[] = [
+  { valor: 'anula', rotulo: 'Anula' },
+  { valor: 'fica', rotulo: 'Fica com %' },
+  { valor: 'rola', rotulo: 'Rola o d20' },
+  { valor: 'nenhuma', rotulo: 'Toma inteiro' },
+]
+
+/** Quanto volta em quem atacou: o divisor do dano que ficou ('0' = nada). */
+type Devolve = '0' | '1' | '2' | '3'
+
+const DEVOLVES: readonly Opcao<Devolve>[] = [
+  { valor: '0', rotulo: 'Nada' },
+  { valor: '2', rotulo: 'Metade' },
+  { valor: '3', rotulo: 'Um terço' },
+  { valor: '1', rotulo: 'Tudo' },
+]
+
+/** O total do d20 que anula, de partida (o do Aparar, H20). */
+const ANULA_DE_PARTIDA = 15
+/** A parte do dano que fica, de partida (o Bloqueio, H19). */
+const PORCENTO_DE_PARTIDA = 50
+
+function defesaNova(tipo: TipoDaDefesa, ficha: FichaDaPrevia): ReacaoDaMecanica['defesa'] {
+  if (tipo === 'fica') return { tipo, porcento: PORCENTO_DE_PARTIDA }
+  if (tipo !== 'rola') return { tipo }
+  const primeiro = ficha.sistema.atributos.at(0)
+  return { tipo, atributos: primeiro === undefined ? [] : [primeiro.id], anulaCom: ANULA_DE_PARTIDA }
+}
+
+function BlocoDaReacao({ mecanica, ficha, onChange }: Pick<BlocosProps, 'mecanica' | 'ficha' | 'onChange'>) {
+  const { reacao } = mecanica
+  if (reacao === undefined) return null
+  const { defesa } = reacao
+  const trocar = (nova: ReacaoDaMecanica) => onChange({ ...mecanica, reacao: nova })
+  const rola = defesa.tipo === 'rola'
+  const soNoDado = rola ? 'Na reação que rola o dado, o d20 decide: anula ou toma inteiro.' : null
+  const contra = reacao.valeContra ?? []
+  const trocarContra = (tipo: 'overload' | 'surpresa', sim: boolean) => {
+    const { valeContra: _antes, ...resto } = reacao
+    const novos = sim ? [...contra.filter((item) => item !== tipo), tipo] : contra.filter((item) => item !== tipo)
+    trocar(novos.length === 0 ? resto : { ...resto, valeContra: novos })
+  }
+  const trocarAtributo = (id: string, sim: boolean) => {
+    if (defesa.tipo !== 'rola') return
+    const atributos = sim ? [...defesa.atributos.filter((atual) => atual !== id), id] : defesa.atributos.filter((atual) => atual !== id)
+    trocar({ ...reacao, defesa: { ...defesa, atributos } })
+  }
+  return (
+    <Bloco numero={8} titulo="Reação" frase={frasesDaReacao(mecanica, ficha).join(' ')} abertoAoMontar>
+      <Escolha
+        legenda="Defesa"
+        opcoes={DEFESAS}
+        valor={defesa.tipo}
+        onChange={(tipo) => {
+          const { devolve: _devolve, curaDoQueChegava: _cura, ...semExtras } = reacao
+          // A que rola não devolve nem cura (o motor ainda não faz): os dois saem junto.
+          trocar({ ...(tipo === 'rola' ? semExtras : reacao), defesa: defesaNova(tipo, ficha) })
+        }}
+      />
+      {defesa.tipo === 'fica' && (
+        <div className="lb-mec__linha">
+          <CampoInteiro rotulo="Toma só" valor={defesa.porcento} minimo={1} maximo={99} depois="% do dano" onChange={(porcento) => trocar({ ...reacao, defesa: { ...defesa, porcento } })} />
+        </div>
+      )}
+      {defesa.tipo === 'rola' && (
+        <>
+          <fieldset className="lb-mec__escolha">
+            <legend className="lb-mec__legenda">d20 + o maior modificador entre</legend>
+            {ficha.sistema.atributos.map((atributo) => (
+              <Marcar
+                key={atributo.id}
+                rotulo={atributo.nome}
+                marcado={defesa.atributos.includes(atributo.id)}
+                bloqueio={!defesa.atributos.includes(atributo.id) && defesa.atributos.length >= ATRIBUTOS_DA_REACAO_MAX ? `Até ${ATRIBUTOS_DA_REACAO_MAX} atributos.` : null}
+                onChange={(sim) => trocarAtributo(atributo.id, sim)}
+              />
+            ))}
+          </fieldset>
+          <div className="lb-mec__linha">
+            <CampoInteiro rotulo="Anula com" valor={defesa.anulaCom} minimo={1} maximo={CD_MAX} depois="ou mais" onChange={(anulaCom) => trocar({ ...reacao, defesa: { ...defesa, anulaCom } })} />
+          </div>
+        </>
+      )}
+      <Escolha
+        legenda="Devolve em quem atacou, sem reação dele"
+        opcoes={DEVOLVES.map((opcao) => ({ ...opcao, bloqueio: opcao.valor === '0' ? null : soNoDado }))}
+        valor={reacao.devolve === undefined ? '0' : devolveDoDivisor(reacao.devolve.divididoPor)}
+        onChange={(valor) => {
+          const { devolve: _antes, ...resto } = reacao
+          trocar(valor === '0' ? resto : { ...resto, devolve: { divididoPor: Number(valor) } })
+        }}
+      />
+      <Marcar
+        rotulo="Parte do dano que chegava vira vida"
+        marcado={reacao.curaDoQueChegava !== undefined}
+        bloqueio={reacao.curaDoQueChegava === undefined ? soNoDado : null}
+        onChange={(sim) => {
+          const { curaDoQueChegava: _antes, ...resto } = reacao
+          trocar(sim ? { ...resto, curaDoQueChegava: PORCENTO_DE_PARTIDA } : resto)
+        }}
+      />
+      {reacao.curaDoQueChegava !== undefined && (
+        <div className="lb-mec__linha lb-mec__linha--recuo">
+          <CampoInteiro rotulo="Cura" valor={reacao.curaDoQueChegava} minimo={1} maximo={100} depois="% do que chegava" onChange={(curaDoQueChegava) => trocar({ ...reacao, curaDoQueChegava })} />
+        </div>
+      )}
+      <Marcar rotulo="Vale também contra Overload" marcado={contra.includes('overload')} onChange={(sim) => trocarContra('overload', sim)} />
+      <Marcar rotulo="Vale também contra Surpresa" marcado={contra.includes('surpresa')} onChange={(sim) => trocarContra('surpresa', sim)} />
+      <Marcar
+        rotulo="Só o mestre usa"
+        marcado={reacao.soOMestre === true}
+        onChange={(sim) => {
+          const { soOMestre: _antes, ...resto } = reacao
+          trocar(sim ? { ...resto, soOMestre: true } : resto)
+        }}
+      />
+      <p className="lb-field__hint">Escolhida antes do d20; depois do dado não troca. Atordoado e Paralisado não reagem, nem com técnica.</p>
+    </Bloco>
+  )
+}
+
+/** O divisor gravado (1 a 3, `DEVOLVE_DIVIDIDO_MAX`) como a opção da tela. */
+function devolveDoDivisor(divisor: number): Devolve {
+  if (divisor === 1) return '1'
+  return divisor === 3 ? '3' : '2'
+}
+
 type TipoDeLimite = 'livre' | 'recarga' | 'usos'
 
 function BlocoDosLimites({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
@@ -753,7 +922,7 @@ function BlocoDosLimites({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 
   const tipo: TipoDeLimite = limite.recarga !== undefined ? 'recarga' : limite.usosPorBatalha !== undefined ? 'usos' : 'livre'
   const comOverload = limite.overload === true ? { overload: true as const } : {}
   return (
-    <Bloco numero={7} titulo="Limites" frase={fraseDoLimite(mecanica) ?? 'Sem limite: usa sempre que tiver o custo.'} abertoAoMontar={tipo !== 'livre' || limite.overload === true}>
+    <Bloco numero={9} titulo="Limites" frase={fraseDoLimite(mecanica) ?? 'Sem limite: usa sempre que tiver o custo.'} abertoAoMontar={tipo !== 'livre' || limite.overload === true}>
       <Escolha
         legenda="Quantas vezes"
         opcoes={[
@@ -790,12 +959,19 @@ function BlocoDosLimites({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 
 export function BlocosDaMecanica(props: BlocosProps) {
   return (
     <div className="lb-mec__blocos">
+      {props.naArma !== true && <BlocoDoUso mecanica={props.mecanica} onChange={props.onChange} />}
       <BlocoDoCusto mecanica={props.mecanica} onChange={props.onChange} />
-      <BlocoDaAcao mecanica={props.mecanica} onChange={props.onChange} />
-      <BlocoDoAlvo mecanica={props.mecanica} onChange={props.onChange} />
-      <BlocoDoTeste mecanica={props.mecanica} ficha={props.ficha} onChange={props.onChange} />
-      <BlocoDoDano {...props} />
+      {/* Fase 4: só no lugar da reação, a ação, o alvo, o teste e o dano da vez não existem. */}
+      {props.mecanica.uso !== 'reacao' && (
+        <>
+          <BlocoDaAcao mecanica={props.mecanica} onChange={props.onChange} />
+          <BlocoDoAlvo mecanica={props.mecanica} onChange={props.onChange} />
+          <BlocoDoTeste mecanica={props.mecanica} ficha={props.ficha} onChange={props.onChange} />
+          <BlocoDoDano {...props} />
+        </>
+      )}
       <BlocoDosEfeitos mecanica={props.mecanica} ficha={props.ficha} onChange={props.onChange} />
+      <BlocoDaReacao mecanica={props.mecanica} ficha={props.ficha} onChange={props.onChange} />
       <BlocoDosLimites mecanica={props.mecanica} onChange={props.onChange} />
     </div>
   )

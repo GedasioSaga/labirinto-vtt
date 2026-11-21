@@ -10,12 +10,15 @@ import { danoNoTeto, seloDaMira } from '../../treino/robo'
 import { criarSorteio } from '../../treino/sorteio'
 import { recursoDeVida, vidaDoPersonagem } from '../../vidaDaFicha'
 import { tecnicasNoMenu } from '../acoes'
-import type { PedidoDeAcao, PedidoDeAlvo, SaidaDaReacao } from '../combate'
+import type { PedidoDeAcao, PedidoDeAlvo, PedidoDeReacao, SaidaDaReacao, SaidaDaTecnica } from '../combate'
 import { ABA_DAS_TECNICAS, armasDe, type LeituraDoTempo } from '../leituraDaFicha'
 import { armaPadraoEntre } from '../mecanica/arma'
 import { danoDaTecnicaComAVida } from '../leituraDaTecnica'
 import { pecasDoCartao } from '../mecanica/leitura'
 import { mecanicaDoCartao } from '../mecanicasAMao'
+import { reacoesParaOAlvo, type ReacaoComTecnica } from '../reacaoComTecnica'
+import { selosDoToken } from '../selos'
+import { lerTipo } from '../tiposDaHabilidade'
 import { combatentesIniciais, type AutorDaAcao } from '../turnos'
 
 /**
@@ -54,6 +57,8 @@ export interface PedidoDeEnsaio {
   d20Fixo?: number
   /** "Testar com tudo cheio": a cópia de quem usa com SP, HP e cada recurso no máximo (o conserto do "SP insuficiente"). */
   recursosCheios?: boolean
+  /** Fase 4: a técnica que também reage é testada NA REAÇÃO (o boneco bate, ela defende); a só de reação vai sempre por ela. */
+  naReacao?: boolean
 }
 
 export type TipoDoPasso = 'arrumou' | 'recusa' | 'formula' | 'reacao' | 'registro' | 'recurso' | 'depois'
@@ -202,6 +207,8 @@ interface MesaDoEnsaio {
   vagasDosBonecos: VagaDoEnsaio[]
   /** Liga o d20 fixo do mestre: vale só enquanto o boneco reage. */
   naReacao: (sim: boolean) => void
+  /** O último d20 rolado enquanto `naReacao` (o da técnica que rola, no teste da reação); `null` = nenhum. */
+  dadoDaReacao: () => number | null
 }
 
 /** Pela origem: a mesa em memória troca os ids das cópias (`treino_a1`), a origem guarda o da ficha. */
@@ -209,7 +216,7 @@ const ORIGEM_DE_QUEM_USA = 'ensaio-quem-usa'
 const ORIGEM_DO_ADVERSARIO = 'ensaio-boneco-adversario'
 
 /** Monta as cópias, liga a batalha e passa as vezes até a de quem usa; uma frase = não montou. */
-function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao): MesaDoEnsaio | string {
+function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao, vezDe: 'quemUsa' | 'boneco' = 'quemUsa'): MesaDoEnsaio | string {
   const { cartao, sistema } = pedido
   const sorteio = criarSorteio(pedido.semente)
   const vida = recursoDeVida(sistema)
@@ -233,7 +240,12 @@ function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao): MesaDoEnsaio 
 
   const mesa = criarMesaEmMemoria(sistema, montagem.lutadores)
   let reagindo = false
-  const rolarD20 = (): number => (reagindo && pedido.d20Fixo !== undefined ? pedido.d20Fixo : sorteio.d20())
+  let dadoDaReacao: number | null = null
+  const rolarD20 = (): number => {
+    const dado = reagindo && pedido.d20Fixo !== undefined ? pedido.d20Fixo : sorteio.d20()
+    if (reagindo) dadoDaReacao = dado
+    return dado
+  }
   const loja = criarBatalhaStore(mesa, { rolarD20, outraBatalhaLigada: () => false })
   const tokens = mesa.tokens()
   const combatentes = combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id)))
@@ -245,14 +257,15 @@ function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao): MesaDoEnsaio 
   // A Florescer só vale em quem está na redoma: o boneco começa com o selo que a técnica pede.
   if (arrumacao.seloPedido !== null) for (const vaga of vagasDosBonecos) loja.getState().porSelo(CENA_DO_ENSAIO, vaga.tokenId, { nome: arrumacao.seloPedido, turnos: null })
 
-  // Os outros passam até a vez de quem usa (o teste é o golpe, não a ordem).
+  // Os outros passam até a vez de quem age (o teste é o golpe, não a ordem): quem usa, ou o boneco que bate no teste da reação.
+  const quemAge = vezDe === 'quemUsa' ? vagaDeQuemUsa.tokenId : vagasDosBonecos[0]?.tokenId
   for (let i = 0; i < VEZES_ATE_QUEM_USA; i += 1) {
     const turnos = cenaDe(loja).turnos
     const carta = turnos.cartas.find((atual) => atual.id === turnos.vez)
-    if (carta === undefined || carta.tokenId === vagaDeQuemUsa.tokenId) break
+    if (carta === undefined || carta.tokenId === quemAge) break
     loja.getState().passarVez(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, { cartaId: carta.id, rodada: turnos.rodada })
   }
-  return { mesa, loja, vagaDeQuemUsa, vagasDosBonecos, naReacao: (sim) => (reagindo = sim) }
+  return { mesa, loja, vagaDeQuemUsa, vagasDosBonecos, naReacao: (sim) => (reagindo = sim), dadoDaReacao: () => dadoDaReacao }
 }
 
 /** O nome da ficha sentada na vaga. */
@@ -329,12 +342,89 @@ function passoDoTempo(tempo: LeituraDoTempo): PassoDoEnsaio | null {
   return null
 }
 
+/** O dano do golpe do boneco no teste da reação: número redondo, para a parte que fica aparecer (50% = 50). */
+const DANO_DO_BONECO = 100
+
+/** Fase 4: o teste vai pela reação. Só no lugar da reação = sempre; os dois = quando o painel pede "Na reação". */
+export function ensaioNaReacao(pedido: Pick<PedidoDeEnsaio, 'cartao' | 'naReacao'>): boolean {
+  const tipo = lerTipo(pedido.cartao)
+  return tipo.tipo === 'reacao' || (tipo.tambemReacao && pedido.naReacao === true)
+}
+
+/** O nome da saída como o passo a diz: o rótulo da tabela (Fica com 50%) ou o de sempre. */
+function saidaNoPasso(reacao: ReacaoComTecnica, saida: SaidaDaTecnica): string {
+  const daTabela = reacao.daTabela?.[saida]
+  if (daTabela !== undefined) return daTabela.rotulo
+  return saida === 'rolar' ? 'rola o d20' : SAIDA_NO_PASSO[saida]
+}
+
+/**
+ * Fase 4 (o teste da reação, decisão M1): o boneco bate em quem usa com
+ * `DANO_DO_BONECO` e quem usa reage com a técnica ANTES do d20, pelo mesmo
+ * `reagir` do host. O motivo de não poder (SP, recarga, Atordoado, só o
+ * mestre) é o mesmo que a caixa REAÇÃO mostra apagado.
+ */
+function ensaiarAReacao(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
+  const { cartao, sistema } = pedido
+  const arrumou: PassoDoEnsaio = { tipo: 'arrumou', titulo: 'Boneco', texto: `O boneco de treino bate em quem usa com ${DANO_DO_BONECO} de dano; a técnica entra no lugar da reação, antes do d20.` }
+  const naoSaiu = (texto: string): ResultadoDoEnsaio => ({ passos: [arrumou, recusa(texto)], barras: [], passarUmaVez: null })
+  const montada = montarMesa(pedido, { lado: 'b', quantos: 1, ferido: false, emSi: false, seloPedido: null, frase: arrumou.texto }, 'boneco')
+  if (typeof montada === 'string') return naoSaiu(montada)
+  const { mesa, loja, vagaDeQuemUsa, vagasDosBonecos } = montada
+  const boneco = vagasDosBonecos[0]
+  if (boneco === undefined) return naoSaiu('O boneco não entrou na mesa do teste.')
+  const vida = recursoDeVida(sistema)
+  const vidaAntes = new Map(mesa.personagens().map((personagem) => [personagem.id, vida === null ? null : vidaDoPersonagem(personagem, vida)]))
+  const antes = fotoDosRecursos(mesa)
+  const turnos = cenaDe(loja).turnos
+  if (turnos.vez === null) return naoSaiu('A mesa do teste não chegou à vez do boneco.')
+  const ataque: PedidoDeAcao = { tipo: 'atacar', armaId: null, alvos: [{ tokenId: vagaDeQuemUsa.tokenId, dano: DANO_DO_BONECO }], surpresa: false, perfurante: false }
+  const esperado = { cartaId: turnos.vez, rodada: turnos.rodada }
+  const motivoDoAtaque = loja.getState().motivoDoAgir(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, esperado, ataque)
+  if (motivoDoAtaque !== null) return naoSaiu(motivoDoAtaque)
+  const desde = cenaDe(loja).registro.length
+  if (!loja.getState().agir(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, esperado, ataque)) return naoSaiu('A batalha recusou o golpe do boneco.')
+
+  const agora = cenaDe(loja).turnos
+  const golpe = (agora.golpes ?? []).at(-1)
+  const alvo = golpe?.alvos.find((candidato) => candidato.tokenId === vagaDeQuemUsa.tokenId)
+  const naMesa = mesa.personagens().find((personagem) => personagem.id === vagaDeQuemUsa.personagemId)
+  if (golpe === undefined || alvo === undefined || naMesa === undefined) return naoSaiu('O golpe do boneco não chegou em quem usa.')
+  // A caixa REAÇÃO de quem leva o golpe: a mesma lista, com o motivo de cada técnica apagada.
+  const reacao = reacoesParaOAlvo(alvo, naMesa, sistema, agora.combate?.[naMesa.id], golpe.overload, golpe.surpresa).find((candidata) => candidata.cartao.id === cartao.id)
+  if (reacao === undefined) return naoSaiu('A técnica não aparece na caixa REAÇÃO (o tipo dela não é de reação).')
+  if (reacao.motivo !== null) return naoSaiu(reacao.motivo)
+  const saida = reacao.sugerida ?? reacao.saidas[0]
+  if (saida === undefined) return naoSaiu('A técnica não tem saída na reação.')
+  const selosAntes = selosDoToken(cenaDe(loja).turnos.selos, boneco.tokenId)
+  const pedidoDaReacao: PedidoDeReacao = { tipo: 'tecnica', golpeId: golpe.id, tokenId: alvo.tokenId, cartaoId: cartao.id, saida, custo: null, ...(reacao.seloNoAtacante === null ? {} : { seloNoAtacante: reacao.seloNoAtacante }) }
+  montada.naReacao(true)
+  const aceita = loja.getState().reagir(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, pedidoDaReacao)
+  montada.naReacao(false)
+  if (!aceita) return naoSaiu('A batalha recusou a reação.')
+  const nome = nomeNaVaga(mesa, vagaDeQuemUsa)
+  // O golpe resolvido sai da lista: o dado vem do que a mesa rolou durante a reação.
+  const dado = montada.dadoDaReacao()
+  const tabela = reacao.rolagemDaTabela
+  const passoDaReacao: PassoDoEnsaio =
+    saida === 'rolar' && dado !== null
+      ? { tipo: 'reacao', titulo: 'Reação', texto: `${nome} reage com ${reacao.nome}: rola o d20 (${dado})${tabela === undefined ? '' : ` + ${tabela.modificador} = ${dado + tabela.modificador}, anula com ${tabela.anulaCom} ou mais`}.`, dado }
+      : { tipo: 'reacao', titulo: 'Reação', texto: `${nome} reage com ${reacao.nome}: ${saidaNoPasso(reacao, saida)}, antes do d20.` }
+  const selosNovos = selosDoToken(cenaDe(loja).turnos.selos, boneco.tokenId).filter((selo) => !selosAntes.some((antes) => antes.id === selo.id))
+  const passoDoSelo: PassoDoEnsaio[] = selosNovos.map((selo) => ({ tipo: 'registro', titulo: 'Em quem atacou', texto: `${nomeNaVaga(mesa, boneco)} fica ${selo.nome}${selo.turnos === null ? ' até tirar' : ` por ${selo.turnos} ${selo.turnos === 1 ? 'vez' : 'vezes'}`}.` }))
+  const passos: PassoDoEnsaio[] = [arrumou, passoDaReacao, ...passosDoRegistro(loja, desde, 'Na batalha'), ...passoDoSelo, ...passosDosRecursos(mesa, sistema, antes)]
+  const depois = passoDoTempo(reacao.tempo)
+  if (depois !== null) passos.push(depois)
+  return { passos, barras: barrasDosAlvos(mesa, sistema, [vagaDeQuemUsa.tokenId, boneco.tokenId], vidaAntes), passarUmaVez: null }
+}
+
 /**
  * Roda o cartão uma vez no boneco. Nunca lança por causa da ficha: o que o
  * motor recusa vira o passo "Não saiu" com o motivo dele.
  */
 export function ensaiar(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   const { cartao, sistema } = pedido
+  if (ensaioNaReacao(pedido)) return ensaiarAReacao(pedido)
   const arrumacao = arrumacaoDoBoneco(cartao)
   const arrumou: PassoDoEnsaio = { tipo: 'arrumou', titulo: 'Boneco', texto: arrumacao.frase }
   const naoSaiu = (texto: string): ResultadoDoEnsaio => ({ passos: [arrumou, recusa(texto)], barras: [], passarUmaVez: null })

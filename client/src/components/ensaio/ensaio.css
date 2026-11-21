@@ -87,3 +87,7 @@
   max-height: none;
   margin-top: 8px;
 }
+
+/* Fase 4: "Na vez | Na reação" da técnica que vale nos dois; o botão marcado fica aceso. */
+.ens-onde { display: flex; gap: 6px; }
+.ens-onde > [aria-pressed='true'] { border-color: var(--lb-color-brass); color: var(--lb-color-brass-bright); }

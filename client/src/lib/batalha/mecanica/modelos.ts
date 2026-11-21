@@ -6,7 +6,7 @@ import { CAMPO_DO_DANO, lerFormula } from '../formula'
 import { CAMPO_DO_CUSTO, type LeituraDaAcao, type LeituraDoCusto } from '../leituraDaFicha'
 import { leituraDaTecnica } from '../leituraDaTecnica'
 import { formulaDaMecanica } from '../mecanicasAMao'
-import { CD_MAX, FORMULA_MAX, lerMecanica, testeRolado, VERSAO_GRAVADA, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type Teste } from './modelo'
+import { CD_MAX, FORMULA_MAX, lerMecanica, migrarV1ParaV2, precisaDaVersao2, testeRolado, VERSAO_GRAVADA, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
 import type { FichaDaPrevia } from './resumo'
 
 /**
@@ -18,7 +18,7 @@ import type { FichaDaPrevia } from './resumo'
  * Puro: sem store, sem rede.
  */
 
-export type IdDoModelo = 'golpe' | 'area' | 'cura' | 'debuff' | 'buff'
+export type IdDoModelo = 'golpe' | 'area' | 'cura' | 'debuff' | 'buff' | 'esquivaPerfeita' | 'bloqueio' | 'aparar' | 'contraGolpe'
 
 export interface ModeloPronto {
   id: IdDoModelo
@@ -33,6 +33,11 @@ export const MODELOS_PRONTOS: readonly ModeloPronto[] = [
   { id: 'cura', nome: 'Cura', dica: 'Cura HP de 1 aliado, sem teste' },
   { id: 'debuff', nome: 'Debuff com teste', dica: '1 inimigo testa contra CD 12; se falhar, fica Atordoado' },
   { id: 'buff', nome: 'Buff em aliado', dica: 'Um selo bom em 1 aliado; o bônus você confere à mão' },
+  // Fase 4 (H18 a H21 do SISTEMA): técnicas no lugar da reação.
+  { id: 'esquivaPerfeita', nome: 'Esquiva perfeita', dica: 'Reação: anula o golpe e marca quem atacou (Marcado)' },
+  { id: 'bloqueio', nome: 'Bloqueio', dica: 'Reação: fica com metade do dano' },
+  { id: 'aparar', nome: 'Aparar', dica: 'Reação: d20 + Força ou Agilidade; 15 ou mais anula' },
+  { id: 'contraGolpe', nome: 'Contra-golpe', dica: 'Reação: fica com 90% e devolve metade em quem atacou' },
 ]
 
 /** "Força + 20" com o 1º atributo do sistema; sem atributos, um número. */
@@ -110,6 +115,40 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
           { tipo: 'aMao', texto: 'Quanto o Fortalecido soma: aplique à mão' },
         ],
       }
+    case 'esquivaPerfeita':
+      // O Marcado é a MARCA do motor (o próximo golpe que acertar dá o dobro; dura até ser usada): o "3" do H18 não teria efeito.
+      return { ...daReacao(25, 3, { defesa: { tipo: 'anula' } }), efeitos: [{ tipo: 'selo', nome: 'Marcado', duracao: 'ateTirar', natureza: 'debuff', em: 'atacante' }] }
+    case 'bloqueio':
+      return daReacao(20, 2, { defesa: { tipo: 'fica', porcento: 50 } })
+    case 'aparar':
+      return daReacao(30, 3, { defesa: defesaDeAparar(sistema) })
+    case 'contraGolpe':
+      return daReacao(25, 4, { defesa: { tipo: 'fica', porcento: 90 }, devolve: { divididoPor: 2 } })
+  }
+}
+
+/** O total que o Aparar (H20) pede no d20 para anular. */
+const ANULA_DO_APARAR = 15
+
+/** H20: d20 + o maior entre Força e Agilidade; sistema sem os dois usa o primeiro atributo; sem atributo nenhum, fica com metade. */
+function defesaDeAparar(sistema: SistemaDeRpg): ReacaoDaMecanica['defesa'] {
+  const doSistema = ['forca', 'agilidade'].filter((id) => sistema.atributos.some((atributo) => atributo.id === id))
+  const atributos = doSistema.length > 0 ? doSistema : sistema.atributos.slice(0, 1).map((atributo) => atributo.id)
+  return atributos.length === 0 ? { tipo: 'fica', porcento: 50 } : { tipo: 'rola', atributos, anulaCom: ANULA_DO_APARAR }
+}
+
+/** Fase 4: a base dos modelos de reação (só no lugar da reação, em si, sem teste, gasta a ação livre que não conta). */
+function daReacao(sp: number, recarga: number, reacao: ReacaoDaMecanica): MecanicaV1 {
+  return {
+    versao: 2,
+    uso: 'reacao',
+    acao: 'livre',
+    custos: [{ recurso: 'sp', quanto: { fixo: sp }, quando: 'aoUsar' }],
+    limite: { recarga },
+    alvo: { quem: 'si', forma: { tipo: 'um' } },
+    teste: { tipo: 'naoErra' },
+    efeitos: [],
+    reacao,
   }
 }
 
@@ -175,9 +214,35 @@ export function mecanicaDoModeloNoCartao(id: IdDoModelo, ficha: FichaDaPrevia, c
   return { ...modelo, ...acaoDoCartao(modelo, lido.acaoDaFicha), custos: custosDoCartao(modelo, lido.custo, texto, ficha), ...danoDoCartao(modelo, texto, ficha) }
 }
 
+/**
+ * Fase 4: troca o "Quando usa". Na reação entra uma defesa (a que já havia,
+ * ou "anula"); só no lugar da reação saem o dano e os efeitos da vez (lá eles
+ * não rodariam), ficando o selo em quem atacou e os lembretes. De volta à vez,
+ * a reação e o "em quem atacou" saem.
+ */
+export function trocarUso(mecanica: MecanicaV1, uso: UsoDaMecanica): MecanicaV1 {
+  const { uso: _uso, reacao: _reacao, dano: _dano, ...base } = mecanica
+  if (uso === 'ativa') return { ...base, ...(mecanica.dano === undefined ? {} : { dano: mecanica.dano }), efeitos: mecanica.efeitos.map(semAtacante) }
+  const reacao: ReacaoDaMecanica = mecanica.reacao ?? { defesa: { tipo: 'anula' } }
+  if (uso === 'ativaOuReacao') return { ...base, ...(mecanica.dano === undefined ? {} : { dano: mecanica.dano }), uso, reacao }
+  const efeitos = mecanica.efeitos.filter((efeito) => efeito.tipo === 'aMao' || (efeito.tipo === 'selo' && efeito.em === 'atacante'))
+  return { ...base, uso, reacao, efeitos }
+}
+
+/** O selo volta a pegar no alvo do golpe. */
+function semAtacante(efeito: Efeito): Efeito {
+  if (efeito.tipo !== 'selo' || efeito.em === undefined) return efeito
+  const { em: _em, ...noAlvo } = efeito
+  return noAlvo
+}
+
 /** A mecânica como o cartão a guarda (cópia funda, só JSON). */
 export function guardarMecanica(mecanica: MecanicaV1): MecanicaGuardada {
-  const copia: unknown = JSON.parse(JSON.stringify(mecanica))
+  // Fase 4: só a mecânica com peça da versão 2 (a reação) grava 2; o resto continua 1 e abre no app de antes e no Lobby.
+  // "Na vez" é o padrão: sem a chave, a mecânica volta a caber na versão 1.
+  const { uso: _uso, ...semUso } = mecanica
+  const versionada = precisaDaVersao2(mecanica) ? migrarV1ParaV2(mecanica) : { ...semUso, versao: VERSAO_GRAVADA }
+  const copia: unknown = JSON.parse(JSON.stringify(versionada))
   return typeof copia === 'object' && copia !== null && !Array.isArray(copia) ? { ...copia } : {}
 }
 

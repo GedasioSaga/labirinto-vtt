@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react'
-import { ensaiar, type PassoDoEnsaio } from '../../lib/batalha/ensaio/ensaio'
+import { ensaiar, ensaioNaReacao, type PassoDoEnsaio } from '../../lib/batalha/ensaio/ensaio'
+import { lerTipo } from '../../lib/batalha/tiposDaHabilidade'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { SEMENTE_MAX } from '../../lib/treino/sorteio'
@@ -37,10 +38,15 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
   const [d20Fixo, setD20Fixo] = useState<number | null>(null)
   const [depois, setDepois] = useState<PassoDoEnsaio[]>([])
   const [recursosCheios, setRecursosCheios] = useState(false)
+  // Fase 4: a técnica que vale na vez e na reação escolhe por onde testar; a só de reação vai sempre pela reação.
+  const [naReacao, setNaReacao] = useState(false)
+  const tipo = lerTipo(cartao)
+  const escolheOnde = tipo.tambemReacao && tipo.tipo !== 'reacao'
+  const reagindo = ensaioNaReacao({ cartao, naReacao })
 
   const resultado = useMemo(
-    () => ensaiar({ cartao, quemUsa, sistema, semente, recursosCheios, ...(d20Fixo === null ? {} : { d20Fixo }) }),
-    [cartao, quemUsa, sistema, semente, d20Fixo, recursosCheios],
+    () => ensaiar({ cartao, quemUsa, sistema, semente, recursosCheios, naReacao, ...(d20Fixo === null ? {} : { d20Fixo }) }),
+    [cartao, quemUsa, sistema, semente, d20Fixo, recursosCheios, naReacao],
   )
   // O conserto de um clique só aparece na recusa que ele conserta (SP ou HP que faltam na cópia).
   const consertaRecursos = resultado.passos.some((passo) => passo.conserto === 'encherRecursos')
@@ -73,8 +79,18 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
         </button>
       </header>
       <p className="ens-quem">
-        {quemUsa.nome} usa num boneco de treino. A ficha e o mapa não mudam.
+        {reagindo ? `O boneco de treino bate em ${quemUsa.nome}, que reage com a técnica.` : `${quemUsa.nome} usa num boneco de treino.`} A ficha e o mapa não mudam.
       </p>
+      {escolheOnde && (
+        <div className="ens-onde" role="group" aria-label="Testar por onde">
+          <button type="button" className="mu-bt mu-bt--p" aria-pressed={!naReacao} onClick={() => setNaReacao(false)}>
+            Na vez
+          </button>
+          <button type="button" className="mu-bt mu-bt--p" aria-pressed={naReacao} onClick={() => setNaReacao(true)}>
+            Na reação
+          </button>
+        </div>
+      )}
 
       {resultado.barras.map((barra) => (
         <div key={barra.nome} className="ens-barra" role="img" aria-label={`${barra.nome}: vida ${barra.antes} para ${barra.depois} de ${barra.maximo}`}>
@@ -121,7 +137,7 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
       <details className="ens-ajustes">
         <summary>Ajustar o boneco e a cópia</summary>
         <label htmlFor={d20Id} className="ens-ajuste">
-          d20 do boneco
+          {reagindo ? `d20 de ${quemUsa.nome}` : 'd20 do boneco'}
           <select id={d20Id} value={d20Fixo === null ? '' : String(d20Fixo)} onChange={(event) => setD20Fixo(event.target.value === '' ? null : Number(event.target.value))}>
             <option value="">Sorteado</option>
             {FACES_DO_D20.map((face) => (
