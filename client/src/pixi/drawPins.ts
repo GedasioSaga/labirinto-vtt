@@ -19,6 +19,12 @@ import { contraste } from '../lib/nomesDosLugares'
 import { ehJogoDoRegistro } from '../minigames/registro'
 import { SIMBOLO_DO_JOGO } from '../minigames/simbolosDosJogos'
 import { SELECTION_COLOR } from './constants'
+import type { Box, Corner } from '../lib/objectTransform'
+import type { PropParaGirar } from '../lib/roomRotation'
+import { rotationToRadians } from '../lib/itemTransform'
+import type { Point } from './world'
+import { selectionOutlineWidth } from './drawWalls'
+import { drawBoxResizeHandles } from './drawResizeHandles'
 
 export interface PinsRenderer {
   /**
@@ -178,13 +184,80 @@ function losango(graphics: Graphics, cx: number, cy: number, r: number): Graphic
   return graphics.poly([cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy], true)
 }
 
+/**
+ * O GIRO DO SELO (`Pin.anguloDoSelo`, 21/11/2026): o que se desenha depois disto
+ * gira em volta da cabeça `(cx, cy)`. Par de `graphics.restore()`. Sem giro, nada muda.
+ */
+function girarSelo(graphics: Graphics, pin: Pick<Pin, 'anguloDoSelo'>, cx: number, cy: number): boolean {
+  const graus = pin.anguloDoSelo
+  if (graus === undefined || !Number.isFinite(graus) || graus === 0) return false
+  const rad = rotationToRadians(graus)
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  // Giro em volta de (cx, cy): x' = cos·(x−cx) − sin·(y−cy) + cx; y' = sin·(x−cx) + cos·(y−cy) + cy.
+  graphics.save().setTransform(cos, sin, -sin, cos, cx - cos * cx + sin * cy, cy - sin * cx - cos * cy)
+  return true
+}
+
 function drawSeloHead(graphics: Graphics, pin: Pin, headY: number, k: number): void {
+  const girou = girarSelo(graphics, pin, pin.x, headY)
   losango(graphics, pin.x, headY, SELO_MEIA_DIAGONAL * k)
     .fill({ color: SELO_COURO })
     .stroke({ width: SELO_ARO * k, color: SELO_LATAO, join: 'round' })
   // O mestre tem o desafio inteiro; o jogador, só o recorte (`minigameVisivel`).
   const jogo = pin.minigame?.jogo ?? pin.minigameVisivel?.jogo
   drawShape(graphics, ehJogoDoRegistro(jogo) ? SIMBOLO_DO_JOGO[jogo] : PIN_CONTROLE_SYMBOL, pin.x, headY, SELO_LATAO_CLARO, k)
+  if (girou) graphics.restore()
+}
+
+/** Meia caixa do selo escolhido, em px de mundo antes do fator do pino: o losango mais o anel de seleção inteiro. */
+const SELO_MEIA_CAIXA = SELO_MEIA_DIAGONAL + SELECTED_RING_GAP + 1 + SELECTED_RING_WIDTH / 2
+
+/**
+ * A CAIXA DO SELO ESCOLHIDO (pedido de 21/11/2026: "aumentar e diminuir de
+ * tamanho"): o quadrado em volta do losango e do anel de seleção, centrado na
+ * cabeça. `sizeScale` e `sizeFloor` são os do desenho (`fatorDoPino`): a caixa
+ * é o selo como ele aparece. Os chips de canto moram nas quinas.
+ */
+export function caixaDoSelo(pin: Pick<Pin, 'x' | 'y' | 'escala'>, sizeScale: number, sizeFloor = 0): Box {
+  const kp = fatorDoPino(pin, sizeScale, sizeFloor)
+  const centroY = pin.y - PIN_HEAD_OFFSET * kp
+  const meia = SELO_MEIA_CAIXA * kp
+  return { minX: pin.x - meia, minY: centroY - meia, maxX: pin.x + meia, maxY: centroY + meia }
+}
+
+/**
+ * O selo como a alça de girar o lê (`propRotateHandle`, a mesma alça do objeto):
+ * a caixa do selo escolhido, girada pelo `anguloDoSelo` em volta da cabeça.
+ */
+export function seloParaGirar(pin: Pick<Pin, 'x' | 'y' | 'escala' | 'anguloDoSelo'>, sizeScale: number, sizeFloor = 0): PropParaGirar {
+  const caixa = caixaDoSelo(pin, sizeScale, sizeFloor)
+  return { x: pin.x, y: (caixa.minY + caixa.maxY) / 2, width: caixa.maxX - caixa.minX, height: caixa.maxY - caixa.minY, rotation: pin.anguloDoSelo ?? 0 }
+}
+
+/**
+ * O canto puxado até `ponto`: o selo cresce a partir do ponto marcado, como o
+ * pino da Aparência (a cabeça sobe junto e a base fica onde está). A largura
+ * segue o ponteiro dos dois lados; nos cantos de cima, a altura também; vale o
+ * eixo mais longe. Sem a faixa: quem grava a põe (`tamanhoDoSeloNaFaixa`).
+ */
+export function tamanhoPeloCantoDoSelo(ancora: Point, canto: Corner, ponto: Point, sizeScale: number): number {
+  const k = Number.isFinite(sizeScale) && sizeScale > 0 ? sizeScale : 1
+  const pelaLargura = Math.abs(ponto.x - ancora.x) / (SELO_MEIA_CAIXA * k)
+  const deCima = canto === 0 || canto === 1
+  const pelaAltura = deCima ? (ancora.y - ponto.y) / ((PIN_HEAD_OFFSET + SELO_MEIA_CAIXA) * k) : 0
+  return Math.max(pelaLargura, pelaAltura)
+}
+
+/**
+ * O selo escolhido: o contorno amarelo da caixa e os quatro chips de canto, do
+ * mesmo tamanho na TELA em qualquer zoom, como o papel no chão escolhido
+ * (`drawPapelSelecionado`). Desenha POR CIMA do que `g` já tem (as alças do editor).
+ */
+export function drawSeloSelecionado(g: Graphics, pin: Pick<Pin, 'x' | 'y' | 'escala'>, sizeScale: number, sizeFloor: number, cameraScale: number): void {
+  const caixa = caixaDoSelo(pin, sizeScale, sizeFloor)
+  g.rect(caixa.minX, caixa.minY, caixa.maxX - caixa.minX, caixa.maxY - caixa.minY).stroke({ width: selectionOutlineWidth(cameraScale), color: SELECTION_COLOR })
+  drawBoxResizeHandles(g, caixa, cameraScale)
 }
 
 /** O selo do objeto é o do desafio menor: marca o objeto sem cobrir o desenho dele. */
@@ -326,7 +399,9 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
       const headY = pin.y - PIN_HEAD_OFFSET * kp
       const selo = pin.kind === 'minigame'
       if (pin.id === selectedId && selo) {
+        const girou = girarSelo(graphics, pin, pin.x, headY)
         losango(graphics, pin.x, headY, (SELO_MEIA_DIAGONAL + SELECTED_RING_GAP + 1) * kp).stroke({ width: SELECTED_RING_WIDTH * kp, color: SELECTION_COLOR, join: 'round' })
+        if (girou) graphics.restore()
       } else if (pin.id === selectedId) {
         graphics
           .circle(pin.x, headY, (PIN_HEAD_RADIUS + SELECTED_RING_GAP) * kp)

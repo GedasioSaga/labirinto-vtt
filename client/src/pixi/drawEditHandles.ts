@@ -212,7 +212,7 @@ function drawRoomRotateHandle(graphics: Graphics, region: Region, view: EditHand
 }
 
 /** A alça de girar (traço + bolinha) — a mesma na Sala, no Objeto (`propRotateHandle`) e na Escada (`stairRotateHandle`). */
-function drawRotateHandle(graphics: Graphics, handle: RoomRotateHandle | null, view: EditHandlesView): void {
+export function drawRotateHandle(graphics: Graphics, handle: RoomRotateHandle | null, view: EditHandlesView): void {
   if (!handle) return
   const scale = view.cameraScale ?? 1
   let { base, knob } = handle

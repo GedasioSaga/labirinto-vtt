@@ -12,6 +12,9 @@ import { pinTravelOf, useAdventureStore } from '../stores/adventureStore'
 import { useToastStore } from '../stores/toastStore'
 import { documentosDoMapa } from '../documentos/noMapa'
 import { useDocumentosDoMestreStore } from '../components/documentos/documentosDoMestreStore'
+import { pinosDosDesafios } from '../lib/desafios'
+import { useDesafiosStore } from '../stores/desafiosStore'
+import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
 import type { GestoDoBarranco } from './barrancoNoEditor'
 import type { GestoDoAbismo } from './abismoNoEditor'
 import type { GestoDaAgua } from './aguaNoEditor'
@@ -215,6 +218,17 @@ export function criarEscolhaNoCanvas(dep: {
         removePapelNoMapa(papelId)
         useDocumentosDoMestreStore.getState().selecionarPapel(null)
         useToastStore.getState().push('info', 'Papel tirado do mapa; o documento continua na biblioteca — Ctrl+Z desfaz')
+        return
+      }
+      // O SELO DO DESAFIO escolhido (21/11/2026, "coloque para poder excluir"): o
+      // aberto na página Jogos, com o selo no piso em edição. Como o papel, o Delete
+      // o tira do MAPA: o desafio continua na página Jogos, "sem lugar no mapa", e
+      // volta pelo "Onde fica" ou pelo Ctrl+Z. Apagar de vez segue sendo o
+      // "Apagar desafio" da ficha.
+      const seloId = useLivroDoMestreStore.getState().pagina === 'jogos' ? useDesafiosStore.getState().aberto : null
+      if (seloId !== null && pinosDosDesafios(map, 'mestre').some((pin) => pin.id === seloId && (pin.piso ?? 0) === pisoAtivo)) {
+        useMapStore.getState().updateDesafio(seloId, { lugar: { tipo: 'nenhum' } })
+        useToastStore.getState().push('info', 'Selo tirado do mapa; o desafio continua na página Jogos — Ctrl+Z desfaz')
         return
       }
       // O pino de ponto de interesse vive FORA de `selection` (estado

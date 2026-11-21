@@ -81,6 +81,10 @@ export type GestureMode =
   // Papel no chão (pixi/papelNoMapaGesture.ts): segurar/arrastar o corpo e o chip de canto.
   | 'dragging-papel'
   | 'resizing-papel'
+  // Selo do desafio (pixi/seloNoMapaGesture.ts): segurar/arrastar o corpo e o chip de canto.
+  | 'dragging-selo'
+  | 'resizing-selo'
+  | 'rotating-selo'
   | 'area-marquee-drag'
   | 'dragging-area-selection'
   // Chão por peças: arrasto de criação (retângulo/elipse/polígono) e mover
@@ -383,6 +387,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     // `grabbing` (que é para quem segura um PONTO de um objeto maior).
     case 'dragging-pin':
     case 'dragging-papel':
+    case 'dragging-selo':
     case 'dragging-wall-body':
     case 'dragging-region-body':
     case 'dragging-stair-body':
@@ -416,11 +421,13 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'resizing-prop-corner':
     case 'resizing-carimbo':
     case 'resizing-papel':
+    case 'resizing-selo':
       return resizeCursorForCorner(corner)
 
     // O mesmo cursor do pairar sobre a alça, do começo ao fim do giro — como
     // o de redimensionar, que não muda entre pairar e arrastar.
     case 'rotating-room':
+    case 'rotating-selo':
       return CURSOR_ROTATE
 
     default:

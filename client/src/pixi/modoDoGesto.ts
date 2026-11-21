@@ -86,6 +86,11 @@ export type ModoDoGesto =
   // Papel no chão (`papelNoMapaGesture.ts`): o corpo segura (toque abre a ficha, arrasto move) e o chip de canto muda o tamanho.
   | 'dragging-papel'
   | 'resizing-papel'
+  // Selo do desafio (`seloNoMapaGesture.ts`): o corpo segura (toque abre a ficha, arrasto move o posto num ponto) e o chip de canto muda o tamanho.
+  | 'dragging-selo'
+  | 'resizing-selo'
+  // A alça de girar do selo do desafio (`seloNoMapaGesture.ts`).
+  | 'rotating-selo'
   // Girar sala pela alça (pixi/roomRotateGesture.ts).
   | 'rotating-room'
 

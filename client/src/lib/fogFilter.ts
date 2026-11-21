@@ -6229,6 +6229,8 @@ function pinForPlayer(
   const cor = normalizarCorDoPino(pin.cor)
   if (cor !== undefined) forPlayer.cor = cor
   if (isPinEscala(pin.escala) && pin.escala !== 1) forPlayer.escala = pin.escala
+  // O giro do selo do desafio (21/11/2026): forma, como a escala. Só número finito e só no selo.
+  if (pin.kind === 'minigame' && typeof pin.anguloDoSelo === 'number' && Number.isFinite(pin.anguloDoSelo) && pin.anguloDoSelo !== 0) forPlayer.anguloDoSelo = pin.anguloDoSelo
   if (pin.locked !== undefined) forPlayer.locked = pin.locked
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret

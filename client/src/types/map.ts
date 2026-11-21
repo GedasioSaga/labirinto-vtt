@@ -944,6 +944,11 @@ export interface Pin extends PlayerSecret, NoPiso, NaCamada {
   id: string
   x: number
   y: number
+  /**
+   * Só no pino de minigame DERIVADO do desafio (`lib/desafios.ts`): o giro do
+   * selo em graus (`Desafio.angulo`). Ausente = 0. Vai ao jogador (é forma, como `escala`).
+   */
+  anguloDoSelo?: number
   kind: PinKind
   /**
    * Símbolo dentro da cabeça. `undefined` === sem símbolo: o pino desenha o
@@ -2765,6 +2770,19 @@ export interface Desafio extends NoPiso {
    * passam (dança) ou quando o puzzle é resolvido. Nunca vai ao jogador.
    */
   portaLigada?: string
+  /**
+   * O TAMANHO DO SELO no mapa (pedido de 21/11/2026: "aumentar e diminuir de
+   * tamanho"), em vezes o padrão, na faixa do tamanho do pino (`Pin.escala`):
+   * o selo é o pino derivado. Ausente = o de antes, e o mapa velho abre igual
+   * (`tamanhoDoSelo` em `lib/desafios.ts`).
+   */
+  tamanho?: number
+  /**
+   * O GIRO DO SELO no mapa, em graus (pedido de 21/11/2026: "e até o ângulo"),
+   * na faixa (−180°, 180°]. Ausente = 0: o mapa velho abre igual. O pino
+   * derivado o leva em `Pin.anguloDoSelo`.
+   */
+  angulo?: number
   /**
    * Só com `minigame.jogo === 'puzzle'`: o que os jogadores já puseram, de
    * todos (plano dos puzzles, §1.2). Fica FORA da configuração para que editar

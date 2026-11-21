@@ -1,7 +1,8 @@
 import type { MapData } from '../types/map'
 import type { DrawingTool, SelectionKind } from '../types/tools'
 import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
-import { pinSizeFloorFor, pinSizeScale } from '../lib/pins'
+import { pinSizeFloor, pinSizeFloorFor, pinSizeScale } from '../lib/pins'
+import { desafiosDo, tamanhoDoSelo } from '../lib/desafios'
 import { resolveHighlightedRegionId } from './drawRegions'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { hazardsOf } from '../lib/hazards'
@@ -88,6 +89,8 @@ export interface ShapesSnapshot {
   selectedPinId: string | null
   /** O papel no chão escolhido no editor (`documentosDoMestreStore`). Ausente === nenhum. */
   papelSelecionado?: string | null
+  /** O selo do desafio aberto na página Jogos, o que ganha os chips de canto (`seloNoMapaGesture.ts`). Ausente === nenhum. */
+  seloEscolhido?: string | null
   /**
    * DOCUMENTOS: o que o papel no chão lê FORA do mapa — a lista da biblioteca
    * (o tipo de papel de cada documento) e o documento aberto na página (o anel).
@@ -292,7 +295,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
         hidden,
         snapshot.selectedPinId,
         pinSizeScale(cameraScale),
-        pinSizeFloorFor(map.pins, cameraScale),
+        // O selo reduzido (`Desafio.tamanho` < 1) também tem piso, como o pino reduzido.
+        pinSizeFloorFor(map.pins, cameraScale) > 0 || desafiosDo(map).some((desafio) => tamanhoDoSelo(desafio) < 1) ? pinSizeFloor(cameraScale) : 0,
         ...snapshot.travel,
       ]
     case 'textLabels':
@@ -308,8 +312,13 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // PAPEL NO CHÃO escolhido (20/11/2026): o contorno e os chips de canto
       // dele, fora de `selection`. Seguem o papel (o lugar, o objeto onde ele
       // está e a grade) e o zoom, como toda alça.
-      return snapshot.papelSelecionado !== undefined && snapshot.papelSelecionado !== null
-        ? ['papel', snapshot.papelSelecionado, snapshot.activeTool, map.documentos, map.props, map.grid, cameraScale]
+      if (snapshot.papelSelecionado !== undefined && snapshot.papelSelecionado !== null) {
+        return ['papel', snapshot.papelSelecionado, snapshot.activeTool, map.documentos, map.props, map.grid, cameraScale]
+      }
+      // SELO DO DESAFIO aberto na página Jogos (21/11/2026): o contorno e os chips
+      // de canto dele. Seguem o desafio (lugar, tamanho, o objeto onde ele está) e o zoom.
+      return snapshot.seloEscolhido !== undefined && snapshot.seloEscolhido !== null
+        ? ['selo', snapshot.seloEscolhido, snapshot.activeTool, map.desafios, map.props, cameraScale]
         : ['sem alças']
     case 'areaOutline':
       // O item sozinho só com contorno (o abismo, o carimbo, a água...) também: escolher, arrastar e soltar repintam.

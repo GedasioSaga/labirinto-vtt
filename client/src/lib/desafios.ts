@@ -13,6 +13,8 @@ import type { Desafio, LugarDoDesafio, MapData, Pin, Prop } from '../types/map'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
 import { entradaDoMinigame, nomeDoJogoDoDesafio, padraoDoJogo, type EntradaDoDesafio } from '../minigames/registro'
 import type { ProgressoDoPuzzle } from '../puzzles/tipos'
+import { escalaDoPino, isPinEscala, PIN_ESCALA_MAX, PIN_ESCALA_MIN } from './pins'
+import { normalizeRotation } from './roomRotation'
 
 /** Teto do nome do desafio (o mesmo do nome do pino). */
 export const DESAFIO_NOME_MAX_LENGTH = 60
@@ -114,6 +116,8 @@ export function pinoDoDesafio(desafio: Desafio, props: readonly Prop[], paraQuem
   const ponto = pontoDoDesafio(desafio, props)
   if (ponto === null) return null
   const base: Pin = desafio.eraPino ?? { id: desafio.id, x: ponto.x, y: ponto.y, kind: 'minigame', description: '', image: null }
+  const tamanho = tamanhoDoSelo(desafio)
+  const angulo = anguloDoSelo(desafio)
   const pino: Pin = {
     ...base,
     id: desafio.id,
@@ -124,11 +128,58 @@ export function pinoDoDesafio(desafio: Desafio, props: readonly Prop[], paraQuem
     minigame: desafio.minigame,
     portaLigada: desafio.portaLigada,
     minigameVisivel: undefined,
-    // O selo não muda de lugar pelo arrasto nem segue ficha: o lugar é o do desafio.
+    // O selo não segue ficha: o lugar é o do desafio (o arrasto do selo muda o desafio, `patchDoSeloMovido`).
     presoA: undefined,
+    // O tamanho do selo é o do pino derivado: o desenho, o toque e o recorte do jogador já o leem (`Pin.escala`).
+    escala: tamanho === 1 ? undefined : tamanho,
+    anguloDoSelo: angulo === 0 ? undefined : angulo,
   }
   if (paraQuem === 'mestre') pino.nome = desafio.nome
   return pino
+}
+
+/**
+ * O TAMANHO DO SELO (pedido de 21/11/2026: "aumentar e diminuir de tamanho"),
+ * em vezes o padrão. Ausente (o mapa de antes) ou torto: o do pino ▷ de que o
+ * desafio veio, ou 1 — o selo abre do tamanho de sempre.
+ */
+export function tamanhoDoSelo(desafio: Pick<Desafio, 'tamanho' | 'eraPino'>): number {
+  return isPinEscala(desafio.tamanho) ? desafio.tamanho : escalaDoPino(desafio.eraPino ?? {})
+}
+
+/**
+ * O tamanho na faixa do tamanho do pino (50% a 300%, `PIN_ESCALA_MIN`..`MAX`),
+ * de centésimo em centésimo (a alça não grava 1,2345678). Não-número: 1.
+ */
+export function tamanhoDoSeloNaFaixa(tamanho: number): number {
+  if (!Number.isFinite(tamanho)) return 1
+  return Math.round(Math.min(PIN_ESCALA_MAX, Math.max(PIN_ESCALA_MIN, tamanho)) * 100) / 100
+}
+
+/** Mudar o tamanho do selo: o tamanho de antes (o do pino ▷, ou 1) sai do arquivo, o campo é opcional. */
+export function patchDoTamanhoDoSelo(desafio: Pick<Desafio, 'eraPino'>, tamanho: number): PatchDoDesafio {
+  const novo = tamanhoDoSeloNaFaixa(tamanho)
+  return { tamanho: novo === escalaDoPino(desafio.eraPino ?? {}) ? undefined : novo }
+}
+
+/** O GIRO DO SELO em graus, na faixa (−180°, 180°]. Ausente ou torto: 0. */
+export function anguloDoSelo(desafio: Pick<Desafio, 'angulo'>): number {
+  return normalizeRotation(desafio.angulo ?? 0)
+}
+
+/** Girar o selo (a alça de girar no mapa): grau inteiro na faixa; o 0 sai do arquivo, o campo é opcional. */
+export function patchDoAnguloDoSelo(graus: number): PatchDoDesafio {
+  const angulo = normalizeRotation(Math.round(graus))
+  return { angulo: angulo === 0 ? undefined : angulo }
+}
+
+/**
+ * ARRASTAR O SELO (pedido de 21/11/2026: "não consigo mudar de lugar"): ele
+ * vai para o ponto `(x, y)` do piso `piso`, em px inteiros, como o "Marcar no
+ * mapa" (`marcarDesafioNoClique`). Só o selo posto num ponto se arrasta.
+ */
+export function patchDoSeloMovido(x: number, y: number, piso: number): PatchDoDesafio {
+  return { lugar: { tipo: 'ponto', x: Math.round(x), y: Math.round(y) }, piso: piso === 0 ? undefined : piso }
 }
 
 /**
@@ -183,9 +234,9 @@ export function novoDesafio(id: string, jogo: JogoDoMinigame, lugar: LugarDoDesa
   return { id, nome: nomePadraoDoDesafio(minigame), lugar, minigame }
 }
 
-export type PatchDoDesafio = Partial<Pick<Desafio, 'nome' | 'lugar' | 'minigame' | 'portaLigada' | 'piso'>>
+export type PatchDoDesafio = Partial<Pick<Desafio, 'nome' | 'lugar' | 'minigame' | 'portaLigada' | 'piso' | 'tamanho' | 'angulo'>>
 
-const CHAVES_DO_PATCH: readonly (keyof PatchDoDesafio)[] = ['nome', 'lugar', 'minigame', 'portaLigada', 'piso']
+const CHAVES_DO_PATCH: readonly (keyof PatchDoDesafio)[] = ['nome', 'lugar', 'minigame', 'portaLigada', 'piso', 'tamanho', 'angulo']
 
 export function adicionarDesafio(map: MapData, desafio: Desafio): MapData {
   return { ...map, desafios: [...desafiosDo(map), desafio] }
@@ -202,6 +253,8 @@ export function atualizarDesafio(map: MapData, id: string, patch: PatchDoDesafio
   const novo: Desafio = { ...atual, ...patch }
   if (patch.minigame !== undefined && patch.nome === undefined) novo.nome = nomeNaCenaNova(atual, patch.minigame)
   if (patch.portaLigada === undefined && 'portaLigada' in patch) delete novo.portaLigada
+  if (patch.tamanho === undefined && 'tamanho' in patch) delete novo.tamanho
+  if (patch.angulo === undefined && 'angulo' in patch) delete novo.angulo
   return { ...map, desafios: lista.map((desafio, j) => (j === i ? novo : desafio)) }
 }
 

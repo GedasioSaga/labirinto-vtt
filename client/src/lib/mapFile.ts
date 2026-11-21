@@ -1,5 +1,5 @@
 import type { CamadaId, ConcealZone, Desafio, DoorState, FloorStyle, Light, LugarDoDesafio, MapData, Pin, Prop, Region, Token, Wall } from '../types/map'
-import { comPinosDeMinigameComoDesafios, DESAFIO_NOME_MAX_LENGTH, nomePadraoDoDesafio } from './desafios'
+import { comPinosDeMinigameComoDesafios, DESAFIO_NOME_MAX_LENGTH, anguloDoSelo, nomePadraoDoDesafio, tamanhoDoSeloNaFaixa } from './desafios'
 import { ehJogoDoRegistro, padraoDoJogo, type MinigamesPorJogo } from '../minigames/registro'
 import type { JogoDoMinigame } from '../minigames/tipos'
 import { lerProgressoDoPuzzle, lerPuzzleDoArquivo } from '../puzzles/leitor'
@@ -388,9 +388,28 @@ function lerDesafioDoArquivo(cru: Desafio): Desafio | null {
     minigame,
     ...(portaLigada === undefined ? {} : { portaLigada }),
     ...(Number.isInteger(cru.piso) ? { piso: cru.piso } : {}),
+    ...lerTamanhoDoSelo(cru.tamanho),
+    ...lerAnguloDoSelo(cru.angulo),
     ...(eraPino === undefined ? {} : { eraPino }),
     ...(progressoDoPuzzle === undefined ? {} : { progressoDoPuzzle }),
   }
+}
+
+/**
+ * O TAMANHO do selo (21/11/2026): campo NOVO e OPCIONAL. Ausente (o mapa de
+ * antes) ou torto = o padrão, e a chave não entra; número fora da faixa fica
+ * na borda dela (`tamanhoDoSeloNaFaixa`), como o tamanho do papel.
+ */
+/** O GIRO do selo (21/11/2026): campo NOVO e OPCIONAL, em graus; ausente, torto ou 0 = sem giro, e a chave não entra. */
+function lerAnguloDoSelo(valor: unknown): Pick<Desafio, 'angulo'> {
+  if (typeof valor !== 'number' || !Number.isFinite(valor)) return {}
+  const angulo = anguloDoSelo({ angulo: valor })
+  return angulo === 0 ? {} : { angulo }
+}
+
+function lerTamanhoDoSelo(valor: unknown): Pick<Desafio, 'tamanho'> {
+  if (typeof valor !== 'number' || !Number.isFinite(valor) || valor <= 0) return {}
+  return { tamanho: tamanhoDoSeloNaFaixa(valor) }
 }
 
 function lerLugarDoDesafio(valor: unknown): LugarDoDesafio {

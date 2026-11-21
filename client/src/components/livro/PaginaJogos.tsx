@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Acoes, Botao } from '../grimorio/Botao'
+import { CampoFaixa } from '../grimorio/CampoFaixa'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
 import { CampoTexto } from '../grimorio/CampoTexto'
 import { Nota } from '../grimorio/Nota'
@@ -8,7 +9,8 @@ import { MinigameControls, type MinigameControlsProps } from '../MinigameControl
 import { FolhaDoLivro, TituloDaPagina } from './FolhaDoLivro'
 import type { PaginaExtraDoMestre } from './LivroDoMestre'
 import { IconeDoJogo, IconeDosJogos } from './IconeDoJogo'
-import { DESAFIO_NOME_MAX_LENGTH, desafiosDo, desafiosMigrados, faltaNoLugar, novoDesafio, pontoDoDesafio, textoDoLugar } from '../../lib/desafios'
+import { DESAFIO_NOME_MAX_LENGTH, desafiosDo, desafiosMigrados, faltaNoLugar, novoDesafio, patchDoTamanhoDoSelo, pontoDoDesafio, tamanhoDoSelo, textoDoLugar } from '../../lib/desafios'
+import { PIN_ESCALA_MAX, PIN_ESCALA_MIN } from '../../lib/pins'
 import { ORDEM_DOS_JOGOS, REGISTRO_DE_MINIGAMES, nomeDoJogo, nomeDoJogoDoDesafio, type CategoriaDoJogo } from '../../minigames/registro'
 import type { JogoDoMinigame } from '../../minigames/tipos'
 import type { DancaAoVivo } from '../../net/dancaNoHost'
@@ -387,6 +389,9 @@ function ListaDosJogos({ desafios: todos, props, aoVivo, mapaId, avisoDispensado
   )
 }
 
+/** O "Tamanho" do selo anda de 10 em 10%, a régua da etiqueta da alça de canto no mapa (a mesma do papel). */
+const PASSO_DO_TAMANHO_PCT = 10
+
 interface PropsDaFicha {
   desafio: Desafio
   props: readonly Prop[]
@@ -451,7 +456,21 @@ function FichaDoDesafio({ desafio, props, painel }: PropsDaFicha) {
           <>
             <Nota>
               Fica {textoDoLugar(desafio, props)}.{falta !== null && ` ${falta}: escolha outro lugar.`}
+              {desafio.lugar.tipo === 'ponto' && ' No mapa: arraste o selo para mudar de lugar; os cantos mudam o tamanho, a bolinha gira e Delete tira do mapa.'}
+              {desafio.lugar.tipo === 'objeto' && ' No mapa: os cantos do selo mudam o tamanho, a bolinha gira e Delete tira do mapa.'}
             </Nota>
+            {desafio.lugar.tipo !== 'nenhum' && (
+              <CampoFaixa
+                rotulo="Tamanho"
+                valor={Math.round(tamanhoDoSelo(desafio) * 100)}
+                min={PIN_ESCALA_MIN * 100}
+                max={PIN_ESCALA_MAX * 100}
+                passo={PASSO_DO_TAMANHO_PCT}
+                formatar={(pct) => `${pct}%`}
+                // O deslizante inteiro é UM passo do Ctrl+Z (a chave junta as mudanças seguidas deste selo), como o do papel.
+                onChange={(pct) => gravar(desafio.id, patchDoTamanhoDoSelo(desafio, pct / 100), `desafio-tamanho:${desafio.id}`)}
+              />
+            )}
             {desafio.lugar.tipo !== 'nenhum' && (
               <Acoes>
                 <Botao variante="fantasma" tamanho="p" onClick={() => marcar(desafio.id, desafio.lugar.tipo === 'objeto' ? 'objeto' : 'ponto')}>

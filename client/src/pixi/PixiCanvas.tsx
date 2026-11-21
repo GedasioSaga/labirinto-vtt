@@ -261,10 +261,11 @@ import { conveyorMarks, NO_CONVEYOR_MARKS } from '../lib/conveyorMarks'
 import { alertasNoEditor, drawWatchCones, haGuardaNoMapa } from './drawNpcWatch'
 import { drawPerigos } from './drawPerigos'
 import { drawPatrolRoutes } from './drawNpcPatrol'
-import { createPinsRenderer } from './drawPins'
+import { caixaDoSelo, createPinsRenderer, drawSeloSelecionado, seloParaGirar } from './drawPins'
 import { drawMarcas } from './drawMarcas'
 import { caixaDoPapel, drawDocumentos, drawPapelSelecionado, raioDoToqueNoPapel } from './drawDocumentos'
 import { createPapelNoMapaGesture } from './papelNoMapaGesture'
+import { createSeloNoMapaGesture } from './seloNoMapaGesture'
 import { documentosDoMapa, novoIdDoPapel, novoPapelNoMapa, papeisDoMestre, papelNoLugar, papelNoPonto } from '../documentos/noMapa'
 import { papeisDaBiblioteca } from '../documentos/recorte'
 import type { LugarDoDocumento } from '../documentos/tipos'
@@ -291,7 +292,8 @@ import {
 import type { SelectionKind } from '../types/tools'
 import { drawDrawings } from './drawDrawings'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
-import { drawEditHandles, circleDrawingRadiusHandle } from './drawEditHandles'
+import { drawEditHandles, circleDrawingRadiusHandle, drawRotateHandle } from './drawEditHandles'
+import { isOnPropRotateHandle, propRotateHandle } from '../lib/roomRotation'
 // Área de clique das alças no mesmo tamanho de TELA do desenho, em qualquer zoom.
 import { findBoxCornerHandleAt, findNearestVertexHandleAt, findPropCornerHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from '../lib/handleHitArea'
 import { alcasDoDesenho, editavelPorPontos, type DesenhoPorPontos } from '../lib/pontosChave'
@@ -2570,6 +2572,8 @@ function PixiCanvasDoContexto({
       const carimboAlcaGesture = createCarimboAlcaGesture()
       // PAPEL NO CHÃO (20/11/2026): segurar o corpo (toque abre a ficha, arrasto move) e o chip de canto (tamanho).
       const papelGesture = createPapelNoMapaGesture(TRAVEL_CLICK_SLOP_PX)
+      // SELO DO DESAFIO (21/11/2026): o mesmo molde do papel — segurar o corpo (toque abre a ficha, arrasto move) e o chip de canto (tamanho).
+      const seloGesture = createSeloNoMapaGesture(TRAVEL_CLICK_SLOP_PX)
 
       /**
        * Alças de edição (os quadradinhos amarelos) da seleção de UM item.
@@ -2592,6 +2596,14 @@ function PixiCanvasDoContexto({
         // O papel no chão escolhido: contorno e chips de canto por cima (só com o Selecionar, como as alças).
         const papel = activeTool === 'select' && exportScene === null ? papelEscolhidoNoPiso(map) : undefined
         if (papel !== undefined) drawPapelSelecionado(handlesGraphics, papel, map.grid, camera.scale)
+        // O selo do desafio aberto na página Jogos: contorno e chips de canto, do mesmo jeito.
+        const selo = activeTool === 'select' && exportScene === null ? seloEscolhidoNoPiso(map) : undefined
+        if (selo !== undefined) {
+          drawSeloSelecionado(handlesGraphics, selo, pinSizeScale(camera.scale), pinSizeFloor(camera.scale), camera.scale)
+          // A alça de girar (pedido de 21/11/2026: "e até o ângulo"), a mesma do objeto, em cima da caixa girada do selo.
+          const caixaGirada = seloParaGirar(selo, pinSizeScale(camera.scale), pinSizeFloor(camera.scale))
+          drawRotateHandle(handlesGraphics, propRotateHandle(caixaGirada, camera.scale), { cameraScale: camera.scale, rendererResolution: app.renderer.resolution, rotating: seloGesture.girando() })
+        }
       }
 
       /** O papel escolhido como o canvas o desenha agora (o piso em edição; o objeto onde ele está pode ter andado). */
@@ -2614,6 +2626,12 @@ function PixiCanvasDoContexto({
         const piso = useMapStore.getState().pisoAtivo
         return pinosDosDesafios(map, 'mestre').filter((pin) => (pin.piso ?? 0) === piso)
       }
+      /** O selo do desafio aberto na página Jogos, como o canvas o desenha agora (o piso em edição): é o que ganha os chips de canto. */
+      const seloEscolhidoNoPiso = (map: MapData): Pin | undefined => {
+        const id = seloAberto()
+        if (id === null) return undefined
+        return visiblePins(selosDoPiso(map), map).find((pin) => pin.id === id && !pin.hidden)
+      }
 
       const paintPins = () => {
         const { map, selectedPinId } = sceneState()
@@ -2624,7 +2642,7 @@ function PixiCanvasDoContexto({
         const pinos = visiblePins([...map.pins, ...selosDoPiso(map)], map).filter((pin) => !pin.hidden)
         for (const { no, itens } of distribuir(pinos, pilha.nosDaFaixa('pinsContainer'), (p: Pin) => camadas.camadaDe('pino', p))) {
           // O piso do pino reduzido segue o da assinatura (`shapesRedraw`): só com pino reduzido no mapa.
-          pinosPorNo.de(no).draw(no, itens, selectedPinId ?? seloAberto(), semPar, pinSizeScale(camera.scale), pinSizeFloorFor(map.pins, camera.scale))
+          pinosPorNo.de(no).draw(no, itens, selectedPinId ?? seloAberto(), semPar, pinSizeScale(camera.scale), pinSizeFloorFor(pinos, camera.scale))
         }
         // BILHETE NO LUGAR: o mestre vê toda marca que os jogadores deixaram,
         // por baixo dos pinos (índice 0 do mesmo container).
@@ -2707,6 +2725,7 @@ function PixiCanvasDoContexto({
           // O desafio aberto na página Jogos acende o selo como o pino selecionado.
           selectedPinId: selectedPinId ?? seloAberto(),
           papelSelecionado: exportScene === null ? useDocumentosDoMestreStore.getState().papelSelecionado : null,
+          seloEscolhido: exportScene === null ? seloAberto() : null,
           // O tipo do papel mora na biblioteca e o anel no documento aberto: os dois repintam o papel no chão (`paintPins`).
           documentosDoPapel: [
             useDocumentosStore.getState().documentos,
@@ -3671,11 +3690,18 @@ function PixiCanvasDoContexto({
         }
       })
       // DESAFIOS: abrir ou fechar a ficha de um desafio (ou a página Jogos) acende ou apaga o selo dele.
+      // O selo aberto também ganha (ou perde) os chips de canto do tamanho.
       const unsubscribeSeloAberto = useDesafiosStore.subscribe((state, previous) => {
-        if (state.aberto !== previous.aberto) redrawPins()
+        if (state.aberto !== previous.aberto) {
+          redrawPins()
+          redrawEditHandles()
+        }
       })
       const unsubscribePaginaDoSelo = useLivroDoMestreStore.subscribe((state, previous) => {
-        if (state.pagina !== previous.pagina) redrawPins()
+        if (state.pagina !== previous.pagina) {
+          redrawPins()
+          redrawEditHandles()
+        }
       })
       // DOCUMENTOS: o papel no chão segue o tipo do documento na biblioteca (fora do mapa), e o aberto na página acende.
       const unsubscribeBibliotecaDosDocumentos = useDocumentosStore.subscribe((state, previous) => {
@@ -6405,8 +6431,15 @@ function PixiCanvasDoContexto({
         const papelEscolhido = tool === 'select' ? papelEscolhidoNoPiso(map) : undefined
         const cantoDoPapel = papelEscolhido === undefined ? null : findBoxCornerHandleAt(caixaDoPapel(papelEscolhido, map.grid), worldPoint, camera.scale)
         if (cantoDoPapel !== null) return { kind: 'resize-corner', corner: cantoDoPapel, target: null }
+        // SELO DO DESAFIO: o chip de canto do selo aberto na página Jogos promete o redimensionar, como o do papel.
+        const seloEscolhido = tool === 'select' ? seloEscolhidoNoPiso(map) : undefined
+        if (seloEscolhido !== undefined && isOnPropRotateHandle(seloParaGirar(seloEscolhido, pinSizeScale(camera.scale), pinSizeFloor(camera.scale)), worldPoint, camera.scale)) {
+          return { kind: 'rotate', corner: null, target: null }
+        }
+        const cantoDoSelo = seloEscolhido === undefined ? null : findBoxCornerHandleAt(caixaDoSelo(seloEscolhido, pinSizeScale(camera.scale), pinSizeFloor(camera.scale)), worldPoint, camera.scale)
+        if (cantoDoSelo !== null) return { kind: 'resize-corner', corner: cantoDoSelo, target: null }
         const noPiso = resolveHoverNoPiso(worldPoint)
-        if (noPiso.kind === 'none' && tool === 'select' && papelAt(map, worldPoint) !== undefined) return { kind: 'selectable', corner: null, target: null }
+        if (noPiso.kind === 'none' && tool === 'select' && (papelAt(map, worldPoint) !== undefined || seloAt(map, worldPoint) !== null)) return { kind: 'selectable', corner: null, target: null }
         return noPiso
       }
 
@@ -7512,14 +7545,47 @@ function PixiCanvasDoContexto({
             updateCursor()
             return
           }
-          // DESAFIOS: o selo também é desenhado por cima de tudo; o clique abre a
-          // ficha dele na página Jogos. O selo não se arrasta: o lugar muda pelo
-          // "Marcar de novo" da ficha, como no protótipo aprovado.
+          // SELO DO DESAFIO (21/11/2026, "não consigo mudar de lugar... aumentar e
+          // diminuir de tamanho"): o chip de canto do selo aberto na página Jogos
+          // muda o tamanho. Antes do corpo: o chip é desenhado na camada das alças.
+          const seloEscolhido = event.button === 0 ? seloEscolhidoNoPiso(map) : undefined
+          // A alça de girar do selo escolhido, antes do chip (fica acima da caixa, sem disputa).
+          if (seloEscolhido !== undefined && seloGesture.comecarGiro(seloEscolhido.id, worldPoint, pinSizeScale(camera.scale), pinSizeFloor(camera.scale), camera.scale)) {
+            mode = 'rotating-selo'
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            redrawEditHandles()
+            return
+          }
+          const cantoDoSelo =
+            seloEscolhido === undefined ? null : seloGesture.comecarAlca(seloEscolhido.id, worldPoint, pinSizeScale(camera.scale), pinSizeFloor(camera.scale), camera.scale)
+          if (cantoDoSelo !== null) {
+            mode = 'resizing-selo'
+            hoverCorner = cantoDoSelo
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
+          // DESAFIOS: o selo também é desenhado por cima de tudo. Como o papel no
+          // chão: o botão esquerdo SEGURA o selo posto num ponto; soltar sem andar
+          // é o toque, que abre a ficha na página Jogos, e andar além da folga é
+          // arrasto, que leva o selo e não abre nada (`seloNoMapaGesture.ts`). O
+          // selo num objeto anda com o objeto: o clique abre a ficha na hora.
           const selo = seloAt(map, worldPoint)
           if (selo !== null) {
+            // O selo é exclusivo, como o papel escolhido: o conjunto, o pino e o papel soltam.
+            const escolha = useMapStore.getState()
+            if (escolha.selection.length > 0) escolha.setSelection(EMPTY_SELECTION)
+            if (escolha.selectedPinId !== null) escolha.setSelectedPin(null)
+            useDocumentosDoMestreStore.getState().selecionarPapel(null)
+            lastPoint = { x: event.global.x, y: event.global.y }
+            if (event.button === 0 && seloGesture.apertar(selo.id, worldPoint, { x: event.global.x, y: event.global.y })) {
+              mode = 'dragging-selo'
+              updateCursor()
+              return
+            }
             useDesafiosStore.getState().abrir(selo.id)
             useLivroDoMestreStore.getState().abrirPagina('jogos')
-            lastPoint = { x: event.global.x, y: event.global.y }
             updateCursor()
             return
           }
@@ -8262,6 +8328,25 @@ function PixiCanvasDoContexto({
           }
           mode = 'idle'
         }
+        // SELO DO DESAFIO: o mesmo do papel — o chip e o arrasto viram um Ctrl+Z só;
+        // o corpo solto sem andar é o toque, que abre a ficha na página Jogos.
+        if (mode === 'resizing-selo') {
+          seloGesture.soltarAlca()
+          mode = 'idle'
+        }
+        if (mode === 'rotating-selo') {
+          seloGesture.soltarGiro()
+          mode = 'idle'
+          redrawEditHandles()
+        }
+        if (mode === 'dragging-selo') {
+          const solto = seloGesture.soltar()
+          if (solto?.tipo === 'toque') {
+            useDesafiosStore.getState().abrir(solto.id)
+            useLivroDoMestreStore.getState().abrirPagina('jogos')
+          }
+          mode = 'idle'
+        }
         // B3 (bug3 "mover e redimensionar") — mesmo padrão de Sala acima,
         // pros 3 resizes novos desta fase (Drawing rect/ellipse/polygon,
         // Token, Prop). Onda 3, item 18 — 'resizing-drawing-radius' (alça de
@@ -8498,6 +8583,20 @@ function PixiCanvasDoContexto({
         }
         if (mode === 'dragging-papel') {
           papelGesture.soltar()
+          mode = 'idle'
+        }
+        // Selo do desafio solto fora do canvas: o arrasto fecha igual; o toque fora não abre nada.
+        if (mode === 'resizing-selo') {
+          seloGesture.soltarAlca()
+          mode = 'idle'
+        }
+        if (mode === 'rotating-selo') {
+          seloGesture.soltarGiro()
+          mode = 'idle'
+          redrawEditHandles()
+        }
+        if (mode === 'dragging-selo') {
+          seloGesture.soltar()
           mode = 'idle'
         }
         // B3/N3 — mesmo padrão de commit acima, ver comentário no pointerup.
@@ -8817,6 +8916,11 @@ function PixiCanvasDoContexto({
           papelGesture.mover(toWorldPoint(event.global.x, event.global.y), { x: event.global.x, y: event.global.y }, useMapStore.getState().pisoAtivo)
           return
         }
+        // SELO DO DESAFIO: o mesmo do papel — sem encaixe na grade, o selo fica onde o mestre solta, no piso em edição.
+        if (mode === 'dragging-selo') {
+          seloGesture.mover(toWorldPoint(event.global.x, event.global.y), { x: event.global.x, y: event.global.y }, useMapStore.getState().pisoAtivo)
+          return
+        }
 
         // Pedido 3: TODO arrasto de corpo — objeto, parede, sala, escada,
         // chão, desenho, curva e a seleção de vários — anda pelo deslocamento
@@ -9065,6 +9169,20 @@ function PixiCanvasDoContexto({
         if (mode === 'resizing-papel') {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const etiqueta = papelGesture.moverAlca(worldPoint, useMapStore.getState().map.grid)
+          if (etiqueta !== null) dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, etiqueta, computeViewport())
+          return
+        }
+        // Chip de canto do selo do desafio ao vivo, com o "%" do "Tamanho" da ficha junto ao ponteiro.
+        // A alça de girar do selo ao vivo, com o ângulo junto ao ponteiro (Shift encaixa de 15 em 15°).
+        if (mode === 'rotating-selo') {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const etiqueta = seloGesture.moverGiro(worldPoint, event.shiftKey)
+          if (etiqueta !== null) dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, etiqueta, computeViewport())
+          return
+        }
+        if (mode === 'resizing-selo') {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const etiqueta = seloGesture.moverAlca(worldPoint)
           if (etiqueta !== null) dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, etiqueta, computeViewport())
           return
         }
@@ -9630,6 +9748,15 @@ function PixiCanvasDoContexto({
         if ((mode === 'dragging-papel' || mode === 'resizing-papel') && event.key === 'Escape') {
           event.preventDefault()
           papelGesture.cancelar()
+          dimensionLabelRenderer.hide()
+          mode = 'idle'
+          updateCursor()
+          return
+        }
+        // Selo do desafio seguro ou no chip: Esc o devolve como estava, igual ao papel.
+        if ((mode === 'dragging-selo' || mode === 'resizing-selo' || mode === 'rotating-selo') && event.key === 'Escape') {
+          event.preventDefault()
+          seloGesture.cancelar()
           dimensionLabelRenderer.hide()
           mode = 'idle'
           updateCursor()

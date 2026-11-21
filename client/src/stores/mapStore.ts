@@ -1563,7 +1563,10 @@ interface MapStoreState {
   removePin: (id: string) => void
   /** DESAFIOS (minigames fora do pino, página Jogos): criar, mudar e apagar, com Ctrl+Z. */
   addDesafio: (desafio: Desafio) => void
-  updateDesafio: (id: string, patch: PatchDoDesafio) => void
+  /** `chave`: mudanças seguidas com a mesma chave (o deslizante do "Tamanho" do selo) viram UM passo do Ctrl+Z. */
+  updateDesafio: (id: string, patch: PatchDoDesafio, chave?: string) => void
+  /** Arrasto do selo no mapa (mover e o canto do tamanho) — SEM histórico, par de `commitDragHistory(antes)` no pointerup. */
+  mudarDesafioLive: (id: string, patch: PatchDoDesafio) => void
   removeDesafio: (id: string) => void
   /** DOCUMENTOS (o papel no chão, página Documentos): pôr, mudar e tirar, com Ctrl+Z (`documentos/noMapa.ts`). */
   addPapelNoMapa: (papel: DocumentoNoMapa) => void
@@ -3920,11 +3923,15 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (get().selectedPinId === id) set({ selectedPinId: null })
     },
     addDesafio: (desafio) => withHistory((map) => adicionarDesafio(map, desafio)),
-    updateDesafio: (id, patch) => {
+    updateDesafio: (id, patch, chave) => {
       if (atualizarDesafio(get().map, id, patch) === get().map) return
       // Digitar o nome é UM passo do desfazer, como o nome do pino.
       const soONome = Object.keys(patch).length === 1 && 'nome' in patch
-      withHistory((map) => atualizarDesafio(map, id, patch), soONome ? `desafio-nome:${id}` : undefined)
+      withHistory((map) => atualizarDesafio(map, id, patch), chave ?? (soONome ? `desafio-nome:${id}` : undefined))
+    },
+    mudarDesafioLive: (id, patch) => {
+      const proximo = atualizarDesafio(get().map, id, patch)
+      if (proximo !== get().map) set({ map: proximo })
     },
     removeDesafio: (id) => {
       if (removerDesafio(get().map, id) === get().map) return
