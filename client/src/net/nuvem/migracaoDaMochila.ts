@@ -515,6 +515,29 @@ function motivo(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
 }
 
+function fichasDeVariosBonecos(n: number): string {
+  return n === 1 ? '1 ficha ligada a mais de um boneco na mesma cena recebeu' : `${n} fichas ligadas a mais de um boneco na mesma cena receberam`
+}
+
+/**
+ * O aviso da migração ao abrir, no singular ou no plural. `null` = nada mudou
+ * de lugar (nenhuma ficha recebeu mochila nem bolsa): sem aviso, em vez de
+ * "a mochila de 0 personagem(ns)".
+ */
+export function avisoDaMigracao(feita: Extract<MigracaoDaMochila, { feita: true }>): string | null {
+  if (feita.umaMochila === true) {
+    return feita.fichas === 0 ? null : `Uma mochila só: ${fichasDeVariosBonecos(feita.fichas)} o que os bonecos carregavam. Confira em ${feita.relatorio}.`
+  }
+  const partes: string[] = []
+  if (feita.fichas > 0) {
+    partes.push(feita.fichas === 1 ? 'A mochila e a bolsa de 1 personagem passaram a morar na ficha.' : `A mochila e a bolsa de ${feita.fichas} personagens passaram a morar nas fichas.`)
+    if (feita.diferencas === 0) partes.push('Nenhuma diferença entre os mapas.')
+    else partes.push(`${feita.diferencas === 1 ? '1 diferença' : `${feita.diferencas} diferenças`} entre os mapas: confira em ${feita.relatorio}.`)
+  }
+  if (feita.variosBonecos > 0) partes.push(`${fichasDeVariosBonecos(feita.variosBonecos)} o que os bonecos carregavam (uma mochila só): confira em ${feita.relatorio}.`)
+  return partes.length === 0 ? null : partes.join(' ')
+}
+
 /**
  * A migração na abertura do app (`App.tsx`: abrir pelo Carregar Mapa ou pelo
  * seletor, e Recuperar). Nunca lança e nunca impede o mapa de abrir: falhou,
@@ -526,13 +549,8 @@ export async function migrarMochilaAoAbrir(caminhoDoMapa: string, recuperado: Re
   try {
     const feita = await migrarMochilaDoMapa(caminhoDoMapa, discoDoApp, { recuperado })
     if (!feita.feita) return
-    if (feita.umaMochila === true) {
-      if (feita.fichas > 0) useToastStore.getState().push('info', `Uma mochila só: ${feita.fichas} ficha(s) ligada(s) a mais de um boneco na mesma cena receberam o que os bonecos carregavam. Confira em ${feita.relatorio}.`)
-      return
-    }
-    const diferencas = feita.diferencas === 0 ? 'Nenhuma diferença entre os mapas.' : `${feita.diferencas} diferença(s) entre os mapas: confira em ${feita.relatorio}.`
-    const variosBonecos = feita.variosBonecos === 0 ? '' : ` ${feita.variosBonecos} ficha(s) ligada(s) a mais de um boneco na mesma cena receberam o que os bonecos carregavam (uma mochila só): confira em ${feita.relatorio}.`
-    useToastStore.getState().push('info', `A mochila e a bolsa de ${feita.fichas} personagem(ns) passaram a morar na ficha. ${diferencas}${variosBonecos}`)
+    const aviso = avisoDaMigracao(feita)
+    if (aviso !== null) useToastStore.getState().push('info', aviso)
   } catch (erro) {
     useToastStore.getState().push('error', `Não deu para passar a mochila para as fichas (${motivo(erro)}): o mapa abre como antes.`)
   }
