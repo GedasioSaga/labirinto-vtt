@@ -1,8 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { avisoDaMecanica, lerMecanica, type MecanicaLida as LeituraDaMecanica, type MecanicaV1 } from '../../lib/batalha/mecanica/modelo'
 import { MODELOS_DA_ARMA, mecanicaDoModeloDaArma, motivoDaArmaNasPecas } from '../../lib/batalha/mecanica/arma'
-import { guardarMecanica, MODELOS_PRONTOS, mecanicaDoModelo, mesmaMecanica, problemaDaMecanica, tecnicasParaCopiar } from '../../lib/batalha/mecanica/modelos'
-import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { guardarMecanica, MODELOS_PRONTOS, mecanicaDoModeloNoCartao, mesmaMecanica, problemaDaMecanica, tecnicasParaCopiar } from '../../lib/batalha/mecanica/modelos'
 import { etiquetaDaMecanica, pecasAMao, resumoDaMecanica, type FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
 import type { CartaoDaFicha, MecanicaGuardada } from '../../lib/personagem'
 import { BlocosDaMecanica } from './BlocosDaMecanica'
@@ -53,14 +52,21 @@ interface ModeloNaTela {
   id: string
   nome: string
   dica: string
-  /** `cartao`: onde o modelo vai; o da arma soma o que ela soma no Atacar. */
-  montar: (sistema: SistemaDeRpg, cartao: CartaoDaFicha) => MecanicaV1
+  /** `cartao`: onde o modelo vai; o da técnica aproveita o Dano, o Custo e a Ação do cartão (B02), o da arma soma o que ela soma no Atacar. */
+  montar: (ficha: FichaDaPrevia, cartao: CartaoDaFicha) => MecanicaV1
 }
 
-const MODELOS_DA_TECNICA_NA_TELA: readonly ModeloNaTela[] = MODELOS_PRONTOS.map((modelo) => ({ ...modelo, montar: (sistema) => mecanicaDoModelo(modelo.id, sistema) }))
-const MODELOS_DA_ARMA_NA_TELA: readonly ModeloNaTela[] = MODELOS_DA_ARMA.map((modelo) => ({ ...modelo, montar: (sistema, cartao) => mecanicaDoModeloDaArma(modelo.id, sistema, cartao) }))
+const MODELOS_DA_TECNICA_NA_TELA: readonly ModeloNaTela[] = MODELOS_PRONTOS.map((modelo) => ({ ...modelo, montar: (ficha, cartao) => mecanicaDoModeloNoCartao(modelo.id, ficha, cartao) }))
+const MODELOS_DA_ARMA_NA_TELA: readonly ModeloNaTela[] = MODELOS_DA_ARMA.map((modelo) => ({ ...modelo, montar: (ficha, cartao) => mecanicaDoModeloDaArma(modelo.id, ficha.sistema, cartao) }))
 
 type Fase = 'fechado' | 'escolhendo' | 'editando'
+
+/** B15: o que um clique acabou de apagar ("Tirar a mecânica", "Recomeçar de um modelo") e o Desfazer devolve. */
+interface Desfeito {
+  texto: string
+  /** A mecânica (ou a proposta) que o cartão guardava antes; `undefined` = não guardava nenhuma. */
+  antes: MecanicaGuardada | undefined
+}
 
 /** O cartão sem um dos dois campos da mecânica. */
 function semCampo(cartao: CartaoDaFicha, campo: 'mecanica' | 'mecanicaProposta'): CartaoDaFicha {
@@ -140,6 +146,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
   const proposta = lerMecanica(cartao.mecanicaProposta)
   const [fase, setFase] = useState<Fase>('fechado')
   const [rascunho, setRascunho] = useState<MecanicaV1 | null>(null)
+  const [desfeito, setDesfeito] = useState<Desfeito | null>(null)
   const montarRef = useRef<HTMLButtonElement>(null)
   const copiaveis = tecnicasParaCopiar(tecnicas, cartao.id)
   const futura = valendo.tipo === 'futura' || (quemEdita === 'dono' && proposta.tipo === 'futura')
@@ -165,7 +172,28 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
     onChange(campo === 'mecanica' ? { ...cartao, mecanica: guardada } : { ...cartao, mecanicaProposta: guardada })
   }
 
+  /** O cartão com a mecânica (ou a proposta) de antes no lugar; `undefined` = sem ela. */
+  const comAMecanica = (antes: MecanicaGuardada | undefined): CartaoDaFicha => {
+    if (antes === undefined) return semCampo(cartao, campo)
+    return campo === 'mecanica' ? { ...cartao, mecanica: antes } : { ...cartao, mecanicaProposta: antes }
+  }
+  /** B15: o Desfazer devolve a mecânica que o clique tirou ou trocou; o editor volta a mostrar ela. */
+  const desfazer = () => {
+    if (desfeito === null) return
+    onChange(comAMecanica(desfeito.antes))
+    const lida = lerMecanica(desfeito.antes)
+    setRascunho(lida.tipo === 'pecas' ? lida.mecanica : null)
+    if (lida.tipo !== 'pecas' && fase === 'editando') setFase('fechado')
+    setDesfeito(null)
+  }
+  /** Mexer numa peça depois do "Recomeçar" vale como decisão: o Desfazer sai. */
+  const editar = (mecanica: MecanicaV1) => {
+    setDesfeito(null)
+    gravar(mecanica)
+  }
+
   const abrir = () => {
+    setDesfeito(null)
     // O rascunho com peça faltando (não entrou no cartão) volta como estava, em vez de se perder.
     const atual = rascunho !== null && problemaDe(rascunho, ficha, naArma) !== null ? rascunho : inicial()
     if (atual === null) {
@@ -181,12 +209,17 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
     requestAnimationFrame(() => montarRef.current?.focus())
   }
   const comecarDe = (mecanica: MecanicaV1) => {
+    // B15: o modelo (ou a técnica copiada) sobrescreve no clique; a mecânica de antes fica no Desfazer.
+    const antes = cartao[campo]
+    setDesfeito(antes === undefined ? null : { texto: 'A mecânica de antes foi trocada.', antes })
     gravar(mecanica)
     setFase('editando')
   }
   const tirar = () => {
+    const antes = cartao[campo]
     onChange(semCampo(cartao, campo))
     setRascunho(null)
+    setDesfeito(antes === undefined ? null : { texto: quemEdita === 'dono' ? 'A proposta saiu.' : 'A mecânica saiu: a técnica volta ao texto.', antes })
     fechar()
   }
 
@@ -206,6 +239,15 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           <span className="lb-mec__cab-dica">{naArma ? 'Sem mecânica, o Atacar usa só o dano da arma.' : 'O app lê o Custo, a Ação e o Dano do texto.'}</span>
         )}
       </div>
+
+      {desfeito !== null && fase !== 'escolhendo' && (
+        <p className="lb-mec__aviso" role="status">
+          {desfeito.texto}{' '}
+          <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={desfazer}>
+            Desfazer
+          </button>
+        </p>
+      )}
 
       {/* O mestre decide a proposta do dono antes de mexer na mecânica. */}
       {quemEdita === 'mestre' && cartao.mecanicaProposta !== undefined && (
@@ -274,7 +316,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           </p>
           <div className="lb-mec__modelos">
             {modelos.map((modelo) => (
-              <button key={modelo.id} type="button" className="lb-mec__modelo" onClick={() => comecarDe(modelo.montar(ficha.sistema, cartao))}>
+              <button key={modelo.id} type="button" className="lb-mec__modelo" onClick={() => comecarDe(modelo.montar(ficha, cartao))}>
                 <span className="lb-mec__modelo-nome">{modelo.nome}</span>
                 <span className="lb-mec__modelo-dica">{modelo.dica}</span>
               </button>
@@ -320,7 +362,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
                 ? 'Com a mecânica, o Atacar com esta arma segue as peças: o dano (ou nenhum), o efeito e os usos por batalha.'
                 : 'Com a mecânica, os campos Custo, Ação, Tempo, Dano e Efeito em texto viram só descrição.'}
           </p>
-          <BlocosDaMecanica mecanica={rascunho} cartao={cartao} ficha={ficha} onChange={gravar} naArma={naArma} />
+          <BlocosDaMecanica mecanica={rascunho} cartao={cartao} ficha={ficha} onChange={editar} naArma={naArma} />
           <ResumoDaMecanica mecanica={rascunho} ficha={ficha} titulo={quemEdita === 'dono' ? 'Como fica a proposta' : 'Como fica'} />
           {problema !== null && (
             <p className="lb-field__error" role="status">

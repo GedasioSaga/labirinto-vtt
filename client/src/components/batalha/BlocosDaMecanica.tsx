@@ -125,6 +125,42 @@ function Texto({ rotulo, valor, maximo, onChange, placeholder, lista }: { rotulo
 }
 
 /**
+ * B18: as vezes de um multiplicador ("1,5"). O texto torto ("abc", "0") não
+ * fica na tela como se valesse: o campo diz o que aceita e, ao sair dele,
+ * volta ao número que a ficha guarda.
+ */
+function CampoDasVezes({ rotulo, vezes, onChange }: { rotulo: string; vezes: number; onChange: (vezes: number) => void }) {
+  const erroId = useId()
+  const [texto, setTexto] = useState(() => numeroComVirgula(vezes))
+  const torto = vezesDoTexto(texto) === null
+  return (
+    <>
+      <input
+        className="lb-input lb-mec__vezes"
+        aria-label={rotulo}
+        aria-invalid={torto || undefined}
+        aria-describedby={torto ? erroId : undefined}
+        inputMode="decimal"
+        value={texto}
+        onChange={(event) => {
+          setTexto(event.target.value)
+          const novo = vezesDoTexto(event.target.value)
+          if (novo !== null) onChange(novo)
+        }}
+        onBlur={() => {
+          if (torto) setTexto(numeroComVirgula(vezes))
+        }}
+      />
+      {torto && (
+        <span className="lb-field__error" id={erroId} role="status">
+          Um número maior que 0 e até {VEZES_MAX}; fica ×{numeroComVirgula(vezes)}.
+        </span>
+      )}
+    </>
+  )
+}
+
+/**
  * Um bloco numerado que abre e fecha; fechado, a frase do que está escolhido.
  * `abertoAoMontar` vale só quando o editor abre: depois, quem abre e fecha é
  * a pessoa. O bloco não fecha sozinho quando o conteúdo muda (desmarcar "Dá
@@ -531,16 +567,7 @@ function BlocoDoDano({ mecanica, cartao, ficha, onChange, naArma }: BlocosProps)
                 <span className="lb-mec__numero-rotulo" aria-hidden="true">
                   ×
                 </span>
-                <input
-                  className="lb-input lb-mec__vezes"
-                  aria-label={`Vezes do multiplicador ${indice + 1}`}
-                  inputMode="decimal"
-                  defaultValue={numeroComVirgula(extra.vezes)}
-                  onChange={(event) => {
-                    const vezes = vezesDoTexto(event.target.value)
-                    if (vezes !== null) trocarExtras(extras.map((atual, j) => (j === indice ? { ...atual, vezes } : atual)))
-                  }}
-                />
+                <CampoDasVezes rotulo={`Vezes do multiplicador ${indice + 1}`} vezes={extra.vezes} onChange={(vezes) => trocarExtras(extras.map((atual, j) => (j === indice ? { ...atual, vezes } : atual)))} />
               </span>
               <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" aria-label={`Tirar o multiplicador ${indice + 1}`} onClick={() => trocarExtras(extras.filter((_, j) => j !== indice))}>
                 ×

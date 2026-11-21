@@ -1,7 +1,12 @@
-import type { CartaoDaFicha, MecanicaGuardada } from '../../personagem'
+import { numeroDaFicha, type CartaoDaFicha, type MecanicaGuardada, type Personagem } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
+import { CUSTO_MAX, DANO_MAX } from '../combate'
 import { cdDaExpressao } from '../disputa'
-import { lerMecanica, testeRolado, VERSAO_DA_MECANICA, type CdDoTeste, type FormaDoAlvo, type MecanicaV1, type NumeroSimples, type QuemOAlvoPega, type Teste } from './modelo'
+import { CAMPO_DO_DANO, lerFormula } from '../formula'
+import { CAMPO_DO_CUSTO, type LeituraDaAcao, type LeituraDoCusto } from '../leituraDaFicha'
+import { leituraDaTecnica } from '../leituraDaTecnica'
+import { formulaDaMecanica } from '../mecanicasAMao'
+import { CD_MAX, FORMULA_MAX, lerMecanica, testeRolado, VERSAO_DA_MECANICA, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type Teste } from './modelo'
 import type { FichaDaPrevia } from './resumo'
 
 /**
@@ -108,6 +113,68 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
   }
 }
 
+/** O cartão como o texto o lê: sem as peças (a leitura do cartão montado não olha o texto). */
+function soOTexto(cartao: CartaoDaFicha): CartaoDaFicha {
+  const { mecanica: _pecas, mecanicaProposta: _proposta, ...texto } = cartao
+  return texto
+}
+
+/** A ficha não tem SP nenhum (sem máximo e sem SP agora, ou máximo 0): um custo em SP travaria a técnica. */
+function fichaSemSp(personagem: Personagem): boolean {
+  return (personagem.maximos.sp ?? numeroDaFicha(personagem.recursos, 'sp')) <= 0
+}
+
+/** A ação que o campo Ação diz, quando é uma das peças (a Reação sozinha não é: a peça ainda não tem reação). */
+function acaoDoCartao(modelo: MecanicaV1, lida: LeituraDaAcao): Pick<MecanicaV1, 'acao' | 'limite'> {
+  const acao = lida.soReacao === true ? null : lida.acao
+  const daPeca = acao === 'simples' || acao === 'bonus' || acao === 'completa' || acao === 'livre' ? acao : modelo.acao
+  return { acao: daPeca, limite: lida.overload ? { ...modelo.limite, overload: true } : modelo.limite }
+}
+
+/**
+ * O custo que o cartão diz: o número (0 = sem custo), "-" = sem custo, a
+ * fórmula que fecha na ficha; vazio ou conta que não fecha = o do modelo,
+ * menos na ficha sem SP, que entra sem custo.
+ */
+function custosDoCartao(modelo: MecanicaV1, lido: LeituraDoCusto, cartao: CartaoDaFicha, ficha: FichaDaPrevia): readonly Custo[] {
+  const texto = (cartao.campos[CAMPO_DO_CUSTO] ?? '').trim()
+  if (texto === '-') return []
+  if (lido.tipo === 'valor') {
+    if (lido.valor === 0) return []
+    if (lido.valor <= CUSTO_MAX) return [{ recurso: lido.recurso, quanto: { fixo: lido.valor }, quando: lido.porTurno ? 'porTurno' : 'aoUsar' }]
+  }
+  if (lido.tipo === 'pergunta' && texto.length <= FORMULA_MAX && lerFormula(texto, { personagem: ficha.personagem, sistema: ficha.sistema, arma: null, vidaDoAlvo: null }).tipo === 'valor') {
+    return [{ recurso: lido.recurso, quanto: { formula: texto }, quando: 'aoUsar' }]
+  }
+  return fichaSemSp(ficha.personagem) ? [] : modelo.custos
+}
+
+/** O dano que o cartão diz (o da tabela à mão vence o campo Dano, como na batalha), quando a fórmula fecha; senão, o do modelo. */
+function danoDoCartao(modelo: MecanicaV1, cartao: CartaoDaFicha, ficha: FichaDaPrevia): Pick<MecanicaV1, 'dano'> {
+  if (modelo.dano === undefined) return {}
+  const formula = (formulaDaMecanica(cartao.id) ?? cartao.campos[CAMPO_DO_DANO] ?? '').trim()
+  if (formula === '' || formula.length > FORMULA_MAX) return { dano: modelo.dano }
+  const lido = lerFormula(formula, { personagem: ficha.personagem, sistema: ficha.sistema, arma: null, vidaDoAlvo: null })
+  // Célula com "Dano 1: … Dano 2: …" (o `aviso`) fica com o modelo: a peça leria só a primeira parte.
+  if (lido.tipo === 'valor' && lido.aviso === undefined) return { dano: { ...modelo.dano, base: { formula } } }
+  if (lido.tipo === 'precisaArma') return { dano: { ...modelo.dano, base: { formula }, arma: 'padrao' } }
+  if (lido.tipo === 'precisaAlvo') return { dano: { ...modelo.dano, base: { formula } } }
+  return { dano: modelo.dano }
+}
+
+/**
+ * B02 (docs/design/habilidades/ANALISE.md): o modelo pronto NO CARTÃO. Os
+ * números de fábrica (Força + 20, 30 SP) só ficam onde o cartão não diz nada:
+ * a Ação, o Custo e o Dano vêm do que a batalha lê hoje do texto e da tabela à
+ * mão (`leituraDaTecnica`). O NPC com Dano "80" e 0 de SP sai com 80 e sem custo.
+ */
+export function mecanicaDoModeloNoCartao(id: IdDoModelo, ficha: FichaDaPrevia, cartao: CartaoDaFicha): MecanicaV1 {
+  const modelo = mecanicaDoModelo(id, ficha.sistema)
+  const texto = soOTexto(cartao)
+  const lido = leituraDaTecnica(texto, { personagem: ficha.personagem, sistema: ficha.sistema })
+  return { ...modelo, ...acaoDoCartao(modelo, lido.acaoDaFicha), custos: custosDoCartao(modelo, lido.custo, texto, ficha), ...danoDoCartao(modelo, texto, ficha) }
+}
+
 /** A mecânica como o cartão a guarda (cópia funda, só JSON). */
 export function guardarMecanica(mecanica: MecanicaV1): MecanicaGuardada {
   const copia: unknown = JSON.parse(JSON.stringify(mecanica))
@@ -154,12 +221,35 @@ function faltaPreencher(mecanica: MecanicaV1): string | null {
   return null
 }
 
+/** Os números de um `Numero` (o de sempre ou os 4 da Concentração). */
+function numerosDe(numero: Numero): readonly NumeroSimples[] {
+  return 'porCarga' in numero ? numero.porCarga : [numero]
+}
+
+/** Só dígitos acima do teto: o editor guarda como "fórmula" (`numeroDoTexto`), e a leitura das peças não confere fórmula contra o teto. */
+function numeroAcimaDoTeto(numero: NumeroSimples, teto: number): boolean {
+  if (!('formula' in numero)) return false
+  const limpo = numero.formula.trim()
+  return /^\d+$/.test(limpo) && Number(limpo) > teto
+}
+
+const tetoEscrito = (teto: number): string => teto.toLocaleString('pt-BR')
+
+/** B19: o número digitado acima do teto (CD 150, cura 9999999) é recusado com a frase, em vez de passar como fórmula. */
+function acimaDoTeto(mecanica: MecanicaV1): string | null {
+  if (mecanica.custos.some((custo) => !('porcento' in custo.quanto) && numeroAcimaDoTeto(custo.quanto, CUSTO_MAX))) return `o custo passa do teto de ${tetoEscrito(CUSTO_MAX)}`
+  if (mecanica.teste.tipo === 'resistencia' && numerosDaCd(mecanica.teste.cd).some((numero) => numeroAcimaDoTeto(numero, CD_MAX))) return `a CD passa do teto de ${CD_MAX}`
+  if (mecanica.dano !== undefined && numeroAcimaDoTeto(mecanica.dano.base, DANO_MAX)) return `o dano passa do teto de ${tetoEscrito(DANO_MAX)}`
+  const curaDemais = mecanica.efeitos.some((efeito) => efeito.tipo === 'cura' && numerosDe(efeito.quanto).some((numero) => numeroAcimaDoTeto(numero, DANO_MAX)))
+  return curaDemais ? `a cura passa do teto de ${tetoEscrito(DANO_MAX)}` : null
+}
+
 /**
  * O motivo de a mecânica do editor não valer ainda; `null` = o motor aceita.
  * Com a `ficha` (construtor C4), também o que o teste pede dela.
  */
 export function problemaDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string | null {
-  const falta = faltaPreencher(mecanica)
+  const falta = faltaPreencher(mecanica) ?? acimaDoTeto(mecanica)
   if (falta !== null) return falta
   const lida = lerMecanica(guardarMecanica(mecanica))
   if (lida.tipo === 'invalida') return lida.motivo
