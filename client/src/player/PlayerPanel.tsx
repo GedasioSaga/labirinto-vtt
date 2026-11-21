@@ -870,7 +870,8 @@ export function PlayerPanel({
             onClick={(event) => documentos.onAbrir(event.detail === 0)}
           >
             <IconeDoJogador nome="documento" className="pp-docs-btn__icon" />
-            <span className="pp-docs-btn__rotulo">Documentos</span>
+            {/* "DOCS": "Documentos" passava da borda do botão quadrado (pedido do dono, 21/11). */}
+            <span className="pp-docs-btn__rotulo">DOCS</span>
             <kbd className="pp-bag__key" aria-hidden="true">
               D
             </kbd>

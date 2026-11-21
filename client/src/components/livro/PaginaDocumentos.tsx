@@ -28,7 +28,7 @@ import '../documentos/documentos.css'
  */
 
 /** O marcador da página no livro, logo depois de Jogos (a ordem da lombada do protótipo). */
-export const PAGINA_DOS_DOCUMENTOS: PaginaExtraDoMestre = { id: 'documentos', rotulo: 'Documentos', icone: <IconeDosDocumentos /> }
+export const PAGINA_DOS_DOCUMENTOS: PaginaExtraDoMestre = { id: 'documentos', rotulo: 'DOCS', icone: <IconeDosDocumentos /> }
 
 function Seta() {
   return (
