@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de desafio · protótipo</title>
+<style>
+/*
+ * EDITOR DE DESAFIO (página Jogos do livro do mestre), protótipo de 21/11/2026.
+ * Arquivo único, sem nada de fora. Os tokens são cópia dos `--lb-*` que o app
+ * injeta pelo `themeCss()` (client/src/theme.ts): mesmo nome, mesmo valor. A
+ * página do livro tem os 262 px de `gr.larguraPagina` e a lombada os 52 px de
+ * `gr.larguraLombada`: o que cabe aqui cabe no app. O app só tem tema escuro.
+ */
+:root {
+  --lb-color-ink: #121214;
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-online-soft: rgba(127, 180, 138, 0.14);
+  --lb-color-tide: #79a9cc;
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-font-size-xl: 20px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-motion-fast: 110ms;
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-papel-alto: #1b1711;
+  --lb-gr-papel-baixo: #13100c;
+  --lb-gr-cartao: #211c15;
+  --lb-gr-cartao-alto: #29231a;
+  --lb-gr-campo: #15120e;
+  --lb-gr-filete: rgba(236, 234, 228, 0.09);
+  --lb-gr-filete-forte: rgba(236, 234, 228, 0.16);
+  --lb-gr-filete-latao: rgba(224, 164, 74, 0.26);
+  --lb-gr-latao-1: #f6cb84;
+  --lb-gr-latao-2: #e0a44a;
+  --lb-gr-couro-1: #17100a;
+  --lb-gr-couro-2: #251a11;
+  --lb-gr-couro-3: #2f2216;
+  --barra: 46px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: var(--lb-font-sans); font-size: var(--lb-font-size-md); line-height: 1.45;
+  color: var(--lb-color-parchment); background: var(--lb-color-ink); overflow: hidden;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+button:disabled { cursor: not-allowed; }
+h1, h2, h3, p, ul, dl, dd, figure, blockquote, fieldset { margin: 0; padding: 0; border: 0; }
+ul { list-style: none; }
+:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* ------------------------------------------------------------ barra do protótipo (não é do app) */
+.proto {
+  height: var(--barra); display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  background: #0c0c0e; border-bottom: 1px dashed var(--lb-gr-filete-forte);
+  font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); white-space: nowrap; overflow-x: auto;
+}
+.proto strong { color: var(--lb-color-parchment); font-weight: 600; }
+.proto__jogos { display: flex; gap: 4px; }
+.proto__sobra { margin-left: auto; }
+
+/* ------------------------------------------------------------ o app: lombada, página do livro, mesa */
+.app { height: calc(100% - var(--barra)); min-height: 560px; display: grid; grid-template-columns: 52px 262px minmax(0, 1fr); }
+.lombada {
+  background: linear-gradient(90deg, var(--lb-gr-couro-1), var(--lb-gr-couro-2) 55%, var(--lb-gr-couro-3));
+  border-right: 1px solid rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; align-items: center; padding-top: 14px; gap: 6px;
+}
+.lombada__marca {
+  width: 40px; height: 46px; border-radius: 8px; display: grid; place-items: center; color: var(--lb-color-brass-bright);
+  background: var(--lb-gr-cartao-alto); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao);
+}
+.lombada__marca svg { width: 22px; height: 22px; }
+.lombada__nome { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); }
+
+.pagina {
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  border-right: 1px solid var(--lb-gr-filete-forte); overflow-y: auto; scrollbar-gutter: stable; padding: 12px 10px 28px 12px;
+  scrollbar-width: thin; scrollbar-color: #3a3125 transparent;
+}
+.pagina > * + * { margin-top: 12px; }
+
+.ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ic .cheio { fill: currentColor; stroke: none; }
+
+.titulo-pag { font: 400 var(--lb-font-size-xl)/1.2 var(--lb-font-display); }
+.sub { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); margin-top: 3px; }
+.secao { font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); display: flex; align-items: baseline; gap: 8px; }
+.secao small { font: 400 var(--lb-font-size-sm)/1 var(--lb-font-sans); color: var(--lb-color-parchment-faint); }
+.nota { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); line-height: 1.45; }
+.nota--erro { color: #f0a198; }
+
+/* botões (`.gr-bt` do app) */
+.bt {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 12px;
+  border-radius: var(--lb-radius-sm); background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment);
+  border: 1px solid var(--lb-gr-filete-forte); font-weight: 500; font-size: var(--lb-font-size-md); white-space: nowrap;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.bt:active:not(:disabled) { transform: scale(0.97); }
+.bt:disabled { opacity: 0.45; }
+.bt--primario {
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 60%, #cf9440); color: var(--lb-color-brass-contrast);
+  border-color: rgba(0, 0, 0, 0.35); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); font-weight: 600;
+}
+.bt--latao { background: transparent; border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.bt--fantasma { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+.bt--perigo { background: transparent; border-color: rgba(226, 100, 90, 0.4); color: #f0897f; }
+.bt--largo { width: 100%; white-space: normal; padding-block: 5px; line-height: 1.25; }
+.bt--p { min-height: 28px; padding: 0 9px; font-size: var(--lb-font-size-sm); }
+.acoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.link {
+  color: var(--lb-color-brass-bright); text-decoration: underline; text-decoration-color: rgba(243, 186, 102, 0.4);
+  text-underline-offset: 2px; font-size: var(--lb-font-size-sm); min-height: 24px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt:hover:not(:disabled) { filter: brightness(1.14); }
+  .link:hover { text-decoration-color: currentColor; }
+}
+
+/* etiquetas (`.mg-tag`) */
+.tag { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); padding: 3px 6px; border-radius: 5px; background: rgba(236, 234, 228, 0.07); color: var(--lb-color-parchment-dim); white-space: nowrap; }
+.tag--latao { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.tag--perigo { background: var(--lb-color-ember-soft); color: #f0a198; }
+.tag--feito { background: var(--lb-color-online-soft); color: #a8d4b0; }
+
+/* linhas da lista e da escolha do jogo (`.mg-linha`) */
+.lista { display: flex; flex-direction: column; gap: 6px; }
+.linha {
+  width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 9px; align-items: center; text-align: left;
+  padding: 8px 8px 8px 9px; border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete);
+  transition: border-color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out);
+}
+.linha:active { transform: scale(0.985); }
+.linha[aria-current='true'] { border-color: var(--lb-gr-filete-latao); background: var(--lb-gr-cartao-alto); }
+@media (hover: hover) and (pointer: fine) { .linha:hover { border-color: var(--lb-gr-filete-forte); } }
+.medalha {
+  grid-row: span 2; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none;
+  background: #2a1d12; color: var(--lb-color-brass-bright); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao);
+}
+.linha__nome { font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.linha__onde { grid-column: 2; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.3; overflow-wrap: anywhere; }
+.linha__tags { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.vazio { padding: 14px 12px; border: 1px dashed var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+
+/* ------------------------------------------------------------ a ficha do desafio */
+.voltar { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); border-radius: 6px; padding-right: 6px; }
+.voltar .ic { width: 15px; height: 15px; }
+.cabeca { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 2px 9px; align-items: start; }
+.cabeca .medalha { width: 34px; height: 34px; }
+.cabeca__nome { font: 400 var(--lb-font-size-lg)/1.25 var(--lb-font-display); overflow-wrap: anywhere; }
+.cabeca__tipo { grid-column: 2 / span 2; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.cabeca__lapis { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; color: var(--lb-color-parchment-dim); }
+.cabeca__lapis .ic { width: 15px; height: 15px; }
+.cabeca__entrada { grid-column: 2 / span 2; }
+
+.aviso { border: 1px solid var(--lb-gr-filete-latao); background: rgba(224, 164, 74, 0.06); border-radius: var(--lb-radius-md); padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; font-size: var(--lb-font-size-sm); }
+
+.jogo-atual { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete); }
+.jogo-atual b { font-weight: 600; display: block; line-height: 1.25; }
+.jogo-atual small { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); display: block; line-height: 1.3; }
+
+.bloco { border-top: 1px dashed var(--lb-gr-filete-forte); padding-top: 11px; display: flex; flex-direction: column; gap: 9px; }
+.bloco__cab { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.campo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.rot { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rot output, .rot small { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.entrada {
+  width: 100%; min-height: 32px; padding: 6px 9px; border-radius: var(--lb-radius-sm); background: var(--lb-gr-campo);
+  border: 1px solid var(--lb-gr-filete-forte); transition: border-color var(--lb-motion-fast) ease;
+}
+.entrada::placeholder { color: var(--lb-color-parchment-faint); }
+.entrada:disabled { opacity: 0.45; }
+textarea.entrada { resize: vertical; min-height: 84px; line-height: 1.45; display: block; }
+select.entrada {
+  appearance: none; padding-right: 26px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--lb-color-parchment-dim) 50%), linear-gradient(135deg, var(--lb-color-parchment-dim) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+select.entrada option { background: #1d1913; }
+
+.seg { display: flex; padding: 2px; gap: 2px; border-radius: 8px; background: var(--lb-gr-campo); border: 1px solid var(--lb-gr-filete); }
+.seg--pilha { flex-direction: column; }
+.seg__op {
+  flex: 1 1 auto; min-width: 0; min-height: 28px; padding: 3px 6px; border-radius: 6px; color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm); font-weight: 500; line-height: 1.2; text-align: center;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.seg__op:active { transform: scale(0.96); }
+.seg__op[aria-checked='true'] { background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao), 0 1px 2px rgba(0, 0, 0, 0.4); }
+.faixa { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
+.faixa input { width: 100%; accent-color: var(--lb-color-brass); height: 20px; margin: 0; }
+.faixa output { font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); min-width: 34px; text-align: right; }
+
+/* O CONVITE: o único bloco com moldura de latão. É a carta que o jogador recebe, escrita aqui. */
+.convite { border: 1px solid var(--lb-gr-filete-latao); border-radius: var(--lb-radius-md); background: linear-gradient(180deg, rgba(224, 164, 74, 0.05), transparent 70px), var(--lb-gr-cartao); padding: 10px; display: flex; flex-direction: column; gap: 9px; }
+.quem { width: 100%; display: grid; grid-template-columns: 42px minmax(0, 1fr) 16px; align-items: center; gap: 9px; text-align: left; padding: 4px; border-radius: 8px; transition: background-color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out); }
+.quem:active { transform: scale(0.985); }
+@media (hover: hover) and (pointer: fine) { .quem:hover { background: rgba(236, 234, 228, 0.04); } }
+.quem b { display: block; font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); overflow-wrap: anywhere; }
+.quem small { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.3; }
+.quem .ic { width: 14px; height: 14px; color: var(--lb-color-parchment-faint); }
+.quem[aria-expanded='true'] .ic { transform: rotate(180deg); }
+.retrato {
+  width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--cor, #3a3125); color: #fff7ea; font: 600 14px/1 var(--lb-font-utility);
+  box-shadow: 0 0 0 2px var(--lb-gr-couro-2), 0 0 0 3px var(--lb-gr-latao-2);
+}
+.retrato--vazio { background: transparent; color: var(--lb-color-parchment-faint); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte); border-radius: 10px; }
+.retrato--p { width: 26px; height: 26px; font-size: 10px; box-shadow: 0 0 0 1px var(--lb-gr-couro-2), 0 0 0 2px var(--lb-gr-latao-2); }
+.fala { font: italic 400 14px/1.45 var(--lb-font-display); border-left: 2px solid var(--lb-gr-latao-2); border-radius: 0 var(--lb-radius-sm) var(--lb-radius-sm) 0; }
+.fala--narra { font-style: normal; border-left-color: var(--lb-gr-filete-forte); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.chips > span { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); margin-right: 2px; }
+.chip { min-height: 24px; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--lb-gr-filete-forte); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out), border-color var(--lb-motion-fast) ease; }
+.chip:active { transform: scale(0.96); }
+.chip[aria-pressed='true'] { border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); background: var(--lb-color-brass-soft); }
+
+/* a escolha de quem chama abre no lugar, embaixo do botão: nasce dele */
+.escolha { border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); background: var(--lb-gr-papel-baixo); padding: 8px; display: flex; flex-direction: column; gap: 7px; transform-origin: 24px 0; transition: opacity 140ms var(--lb-gr-ease-out), transform 140ms var(--lb-gr-ease-out); }
+@starting-style { .escolha { opacity: 0; transform: scale(0.97); } }
+.escolha__t { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.escolha__op { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 2px 6px 2px 4px; border-radius: 6px; text-align: left; }
+.escolha__op[aria-pressed='true'] { background: var(--lb-gr-cartao-alto); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+@media (hover: hover) and (pointer: fine) { .escolha__op:hover { background: var(--lb-gr-cartao); } }
+.dupla { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+
+/* a troca de jogo: só o que é do jogo entra de novo (180 ms, 4 px), para o olho ver o que mudou; o resto fica parado */
+.troca { transition: opacity 180ms var(--lb-gr-ease-out), transform 180ms var(--lb-gr-ease-out); }
+@starting-style { .troca { opacity: 0; transform: translateY(4px); } }
+
+/* ------------------------------------------------------------ a mesa: o mapa do mestre e a prévia do jogador */
+.mesa { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 348px; min-width: 0; background: #0e0e10; }
+.mapa-caixa { position: relative; min-width: 0; overflow: hidden; }
+#mapa { width: 100%; height: 100%; display: block; }
+.mapa-rot { position: absolute; left: 14px; bottom: 12px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.dica { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); padding: 7px 12px; border-radius: 16px; background: var(--lb-color-stone-solid); border: 1px solid var(--lb-gr-filete-latao); box-shadow: var(--lb-shadow-float); font-size: var(--lb-font-size-md); white-space: nowrap; }
+.mapa-caixa.marcando-ponto #mapa { cursor: crosshair; }
+.mapa-caixa.marcando-ponto, .mapa-caixa.marcando-objeto { box-shadow: inset 0 0 0 2px var(--lb-gr-latao-2); }
+.obj { color: #8f8a7e; }
+.obj text { fill: var(--lb-color-parchment-faint); font: 12px var(--lb-font-sans); }
+.marcando-objeto .obj { color: var(--lb-color-brass-bright); cursor: pointer; }
+.marcando-objeto .obj text { fill: var(--lb-color-brass-bright); }
+.obj:focus-visible { outline: none; }
+.obj:focus-visible .obj__forma { stroke-width: 3.5; }
+.selo-nome { fill: var(--lb-color-parchment); font: 600 13px var(--lb-font-sans); paint-order: stroke; stroke: #0e0e10; stroke-width: 4px; stroke-linejoin: round; }
+.selo { color: var(--lb-gr-latao-1); }
+
+.previa { border-left: 1px solid var(--lb-gr-filete-forte); background: var(--lb-color-stone-solid); overflow-y: auto; padding: 14px 14px 24px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: thin; scrollbar-color: #33333a transparent; }
+.previa__t { font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); }
+.previa__passo { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); margin-bottom: 6px; }
+.previa__vazio { padding: 14px 12px; border: 1px dashed var(--lb-color-line-panel); border-radius: 10px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+
+/* o cartão do selo, na forma do `.pp-pincard` do jogador */
+.pc { background: #131317; border-radius: 12px; box-shadow: var(--lb-shadow-float); padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+.pc__cab { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; }
+.pc__selo { width: 26px; height: 26px; transform: rotate(45deg); background: var(--lb-gr-couro-2); border: 1.5px solid var(--lb-gr-latao-2); border-radius: 3px; display: grid; place-items: center; color: var(--lb-gr-latao-1); flex: none; margin: 0 3px; }
+.pc__selo .ic { transform: rotate(-45deg); width: 15px; height: 15px; }
+.pc__txt { font-size: 15px; line-height: 1.45; color: var(--lb-color-parchment-dim); }
+.pc__fala { padding: 2px 0 2px 12px; border-left: 2px solid rgba(255, 255, 255, 0.28); }
+.pc__fala blockquote { font-size: 15px; line-height: 1.45; font-style: italic; overflow-wrap: anywhere; }
+.pc__fala figcaption { margin-top: 4px; font-size: 13px; font-weight: 600; color: var(--lb-color-parchment-dim); }
+.pc__bt { min-height: 44px; border-radius: 10px; display: grid; place-items: center; font-weight: 600; font-size: 15px; background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 60%, #cf9440); color: var(--lb-color-brass-contrast); }
+.pc__locked { padding: 10px 12px; font-size: 15px; line-height: 1.4; color: var(--lb-color-parchment-dim); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 10px; }
+.pc__nota { font-size: 13px; color: var(--lb-color-parchment-faint); }
+
+/* o convite do jogador */
+.cj { background: radial-gradient(120% 80% at 50% 0%, #2a2118, #17130f 70%); border: 1px solid var(--lb-gr-filete-latao); border-radius: 12px; box-shadow: var(--lb-shadow-float); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.cj__onde { font: 500 var(--lb-font-size-sm)/1.3 var(--lb-font-utility); color: var(--lb-color-brass-bright); overflow-wrap: anywhere; }
+.cj__quem { display: flex; align-items: center; gap: 12px; }
+.cj__quem .retrato { width: 52px; height: 52px; font-size: 17px; }
+.cj__quem b { display: block; font: 400 21px/1.15 var(--lb-font-display); overflow-wrap: anywhere; }
+.cj__quem span { font-size: 13px; color: var(--lb-color-parchment-dim); }
+.cj__fala { font: italic 400 16px/1.5 var(--lb-font-display); overflow-wrap: anywhere; }
+.cj__fala--narra { font-style: normal; }
+.cj__vale { display: grid; gap: 7px; border-top: 1px solid var(--lb-gr-filete); padding-top: 10px; }
+.cj__vale dt { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.cj__vale dd { font-size: 14px; overflow-wrap: anywhere; }
+
+@media (max-width: 1100px) {
+  body { overflow: auto; }
+  .app { height: auto; grid-template-columns: 52px minmax(0, 1fr); }
+  .mesa { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr); }
+  .mapa-caixa { height: 380px; }
+  .previa { border-left: 0; border-top: 1px solid var(--lb-gr-filete-forte); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bt, .seg__op, .chip, .linha, .quem { transition: none; }
+  .bt:active:not(:disabled), .seg__op:active, .chip:active, .linha:active, .quem:active { transform: none; }
+  .escolha { transition: opacity 120ms ease; transform: none; }
+  .troca { transition: opacity 120ms ease; transform: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="proto">
+  <strong>Protótipo: editor de desafio</strong>
+  <span>Esta barra é só do protótipo. Abrir um desafio novo de:</span>
+  <div class="proto__jogos" id="proto-jogos"></div>
+  <button type="button" class="bt bt--p bt--fantasma proto__sobra" id="recomecar">Recomeçar</button>
+</header>
+
+<main class="app">
+  <div class="lombada" aria-hidden="true">
+    <div class="lombada__marca">
+      <svg viewBox="0 0 24 24" class="ic"><path d="M7.5 8h9a4 4 0 0 1 3.9 4.9l-.8 3.6a2.2 2.2 0 0 1-3.9.9L13.8 15h-3.6l-1.9 2.4a2.2 2.2 0 0 1-3.9-.9l-.8-3.6A4 4 0 0 1 7.5 8z M8.5 10.3v3.4 M6.8 12h3.4"/><circle class="cheio" cx="15.4" cy="11" r=".95"/><circle class="cheio" cx="17.2" cy="12.9" r=".95"/></svg>
+    </div>
+    <span class="lombada__nome">Jogos</span>
+  </div>
+
+  <section class="pagina" id="pagina" aria-label="Livro do mestre, página Jogos"></section>
+
+  <section class="mesa">
+    <div class="mapa-caixa" id="mapa-caixa">
+      <svg id="mapa" viewBox="0 0 900 640" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa da cena, visão do mestre">
+        <defs>
+          <pattern id="grade" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M50 0H0V50" fill="none" stroke="rgba(236,234,228,0.045)" stroke-width="1"/></pattern>
+        </defs>
+        <rect width="900" height="640" fill="#101013"/>
+        <rect width="900" height="640" fill="url(#grade)"/>
+        <ellipse cx="690" cy="170" rx="150" ry="92" fill="rgba(121,169,204,0.10)" stroke="rgba(121,169,204,0.38)" stroke-width="1.5"/>
+        <rect x="70" y="70" width="360" height="250" fill="rgba(236,234,228,0.03)"/>
+        <path d="M230 320H70V70H430V320H290" fill="none" stroke="rgba(236,234,228,0.42)" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M260 322C260 420 380 470 520 520S760 560 880 600" fill="none" stroke="rgba(236,234,228,0.14)" stroke-width="14" stroke-linecap="round"/>
+        <g fill="rgba(127,180,138,0.13)" stroke="rgba(127,180,138,0.34)" stroke-width="1.2">
+          <circle cx="90" cy="470" r="34"/><circle cx="150" cy="540" r="42"/><circle cx="60" cy="580" r="30"/><circle cx="230" cy="590" r="28"/><circle cx="800" cy="420" r="30"/><circle cx="850" cy="490" r="24"/>
+        </g>
+        <g class="obj" data-obj="mesa" data-foco="obj:mesa" role="button" aria-label="Mesa do salão">
+          <rect class="obj__forma" x="150" y="150" width="120" height="56" rx="5" fill="rgba(236,234,228,0.05)" stroke="currentColor" stroke-width="2"/>
+          <text x="210" y="228" text-anchor="middle">Mesa do salão</text>
+        </g>
+        <g class="obj" data-obj="poco" data-foco="obj:poco" role="button" aria-label="Poço velho">
+          <circle class="obj__forma" cx="390" cy="440" r="28" fill="rgba(236,234,228,0.05)" stroke="currentColor" stroke-width="2"/>
+          <circle cx="390" cy="440" r="15" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="390" y="492" text-anchor="middle">Poço velho</text>
+        </g>
+        <g class="obj" data-obj="carroca" data-foco="obj:carroca" role="button" aria-label="Carroça">
+          <rect class="obj__forma" x="560" y="330" width="96" height="52" rx="4" fill="rgba(236,234,228,0.05)" stroke="currentColor" stroke-width="2"/>
+          <circle cx="578" cy="390" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="638" cy="390" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="608" y="420" text-anchor="middle">Carroça</text>
+        </g>
+        <g id="selo-camada"></g>
+      </svg>
+      <p class="dica" id="dica" role="status" hidden></p>
+      <p class="mapa-rot">O mapa da cena, como você o vê. O selo aparece aqui quando o desafio tem lugar.</p>
+    </div>
+    <aside class="previa" id="previa" aria-label="O que o jogador vê"></aside>
+  </section>
+</main>
+
+<input type="file" id="arquivo" accept="audio/*" hidden>
+
+<script>
+'use strict'
+
+// ------------------------------------------------------------------ os símbolos dos jogos
+// Cópia de `client/src/minigames/simbolosDosJogos.ts`: quadrado normalizado (-1..1, y para baixo).
+const FORMAS = {
+  danca: { tracos: [{ p: [[-0.25, 0.625], [-0.25, -0.725], [0.8125, -0.975], [0.8125, 0.375]] }], aneis: [[-0.525, 0.625, 0.275], [0.5375, 0.375, 0.275]] },
+  pesca: { tracos: [{ p: [[0.375, -0.725], [0.375, 0.25], [0.3, 0.53], [0.094, 0.7375], [-0.1875, 0.8125], [-0.469, 0.7375], [-0.675, 0.53], [-0.75, 0.25], [-0.75, -0.0375], [-0.45, 0.2375]] }], aneis: [[0.375, -0.9625, 0.2125]] },
+  tiro: { tracos: [], aneis: [[0, 0, 0.9375], [0, 0, 0.5]], pontos: [[0, 0, 0.16]] },
+  fogo: { tracos: [{ fechado: true, p: [[0, -1.0625], [0.1875, -0.75], [0.475, -0.425], [0.6, 0.1], [0.525, 0.4], [0.3, 0.6125], [0, 0.7], [-0.3, 0.6125], [-0.525, 0.4], [-0.6, 0.1], [-0.525, -0.175], [-0.3125, -0.5], [-0.2, -0.3], [-0.075, -0.1125], [-0.1, -0.4625], [-0.05, -0.8]] }] },
+  bolha: { tracos: [{ p: [[-0.525, 0], [-0.45, -0.175], [-0.275, -0.2625]] }], aneis: [[-0.1875, 0.1875, 0.6875], [0.6875, -0.65, 0.3]] },
+  alavanca: { tracos: [{ p: [[-0.72, 0.25], [0.22, 0.25]] }, { p: [[-0.25, -0.22], [-0.25, 0.72]] }, { p: [[-0.25, 0.25], [0.55, -0.55], [0.88, -0.55]] }], aneis: [[-0.25, 0.25, 0.55], [-0.25, 0.25, 0.13]] },
+  puzzle: { tracos: [{ fechado: true, p: [[-0.8, -0.4], [-0.32, -0.4], [-0.32, -0.472], [-0.408, -0.56], [-0.44, -0.68], [-0.408, -0.8], [-0.32, -0.888], [-0.2, -0.92], [-0.08, -0.888], [0.008, -0.8], [0.04, -0.68], [0.008, -0.56], [-0.08, -0.472], [-0.08, -0.4], [0.4, -0.4], [0.4, 0.08], [0.472, 0.08], [0.56, -0.008], [0.68, -0.04], [0.8, -0.008], [0.888, 0.08], [0.92, 0.2], [0.888, 0.32], [0.8, 0.408], [0.68, 0.44], [0.56, 0.408], [0.472, 0.32], [0.4, 0.32], [0.4, 0.8], [-0.8, 0.8]] }] },
+}
+
+function formaSvg(jogo, cx, cy, raio) {
+  const f = FORMAS[jogo]
+  const n = (v, c) => (c + v * raio).toFixed(2)
+  let s = ''
+  for (const t of f.tracos) s += '<path d="M' + t.p.map((q) => n(q[0], cx) + ' ' + n(q[1], cy)).join('L') + (t.fechado ? 'Z' : '') + '"/>'
+  for (const a of f.aneis || []) s += '<circle cx="' + n(a[0], cx) + '" cy="' + n(a[1], cy) + '" r="' + (a[2] * raio).toFixed(2) + '"/>'
+  for (const a of f.pontos || []) s += '<circle class="cheio" cx="' + n(a[0], cx) + '" cy="' + n(a[1], cy) + '" r="' + (a[2] * raio).toFixed(2) + '"/>'
+  return s
+}
+const icone = (jogo) => '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' + formaSvg(jogo, 12, 12, 8) + '</svg>'
+const SETA = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>'
+const VOLTA = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>'
+const LAPIS = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16.5 4.5l3 3L8 19z M14 7l3 3"/></svg>'
+
+// ------------------------------------------------------------------ os 7 jogos do registro
+// Fatos de cada jogo como estão em `minigames/registro.ts` e nos `tipos.ts` de cada um.
+const ORDEM = ['danca', 'pesca', 'tiro', 'fogo', 'bolha', 'alavanca', 'puzzle']
+const ESCOLHA = { v: 'escolha', r: 'O jogador escolhe' }
+const NA_HORA = { v: 'escolha', r: 'Você escolhe ao chamar' }
+const N15 = [1, 2, 3, 4, 5].map((n) => ({ v: String(n), r: String(n) }))
+const TEMPO_PADRAO = { facil: 20, normal: 16, dificil: 15 }
+
+const JOGOS = {
+  danca: {
+    nome: 'Dança', de: 'da Dança', doJogador: 'Dança', pitch: 'Setas no ritmo da música.',
+    verbo: 'desafia para uma dança', verboJogador: 'desafia você para uma dança', semQuem: 'Desafio de dança',
+    cartaoVazio: 'Um desafio de dança espera por aqui.', entradas: ['mestre'],
+    entradaFixa: 'A dança começa quando você chama: todos entram juntos na música.',
+    foraDoMapa: true, chamar: 'Chamar para dançar', pronto: 'Pronto', exemplo: { nome: 'Dona Ziza', cor: '#a8557c' },
+    falas: () => [
+      ['Clássica', 'Esta porta é surda para chave e cega para força. Só abre para quem tem ginga. Acompanha o meu tempo?'],
+      ['Curta', 'Quer passar? Então dança comigo.'],
+      ['Provocadora', 'Já vi estátua com mais molejo que vocês. Provem que estou errada.'],
+    ],
+    padrao: () => ({ entrada: 'mestre', musica: 'demo', arquivo: '', permitida: 'escolha', notaMin: 'B', porta: '', premioTipo: 'item', premio: 'Chave de latão', consTipo: 'teste', consequencia: '−2 no próximo teste de Agilidade' }),
+  },
+  pesca: {
+    nome: 'Pesca', de: 'da Pesca', doJogador: 'Pesca', pitch: 'Lançar a linha e segurar o peixe.',
+    verbo: 'convida para pescar', verboJogador: 'convida você para pescar', semQuem: 'Pesca',
+    cartaoVazio: 'Um lugar para pescar.', entradas: ['pino', 'mestre'], gesto: 'Pescar',
+    foraDoMapa: true, chamar: 'Chamar para pescar', pronto: 'Começar a pescar', exemplo: { nome: 'Bento, o barqueiro', cor: '#4f7fa3' },
+    lugar: () => ({ ex: 'Poço Afogado' }),
+    falas: () => [
+      ['Clássica', 'Faz vinte anos que ninguém tira nada que preste deste poço. Joga a linha. Se o que morder for grande, segura firme.'],
+      ['Curta', 'Tem linha, tem isca, tem peixe. Só falta a sua mão.'],
+      ['Misteriosa', 'Tem coisa lá no fundo que não é peixe. Joga a linha e me diz o que puxou.'],
+    ],
+    padrao: () => ({ entrada: 'mestre', lances: '3', permitida: 'escolha', premio: 'Quem trouxer o maior peixe leva a chave da comporta.', consequencia: 'Linha vazia: a vez passa e a história corre a mesa inteira.' }),
+  },
+  tiro: {
+    nome: 'Tiro', de: 'do Tiro', doJogador: 'Barraca de tiro', pitch: 'Tiro ao alvo numa fileira que não para.',
+    verbo: 'chama para a barraca', verboJogador: 'chama você para a barraca', semQuem: 'Barraca de tiro',
+    cartaoVazio: 'Uma barraca de tiro ao alvo.', entradas: ['pino', 'mestre'], gesto: 'Atirar',
+    foraDoMapa: true, chamar: 'Chamar para a barraca', pronto: 'Começar', exemplo: { nome: 'Tia Ferrolha', cor: '#b0763a' },
+    lugar: () => ({ ex: 'Barraca do Ferrolho' }),
+    falas: () => [
+      ['Clássica', 'Doze balas no tambor e a fileira não para. Derruba bastante coisa e o prêmio é seu. No Extremo, o aldeão e o gato de lata são da casa: esses não.'],
+      ['Curta', 'Doze balas, uma fileira que não para. Quem derruba mais leva o prêmio.'],
+      ['Provocadora', 'Todo mundo jura que tem mira até a fileira começar a andar. Vai tentar ou vai só olhar?'],
+    ],
+    padrao: () => ({ entrada: 'pino', tentativas: '3', permitida: 'escolha', meta: 'bronze', premio: 'Quem passar leva a lanterna de latão da barraca.', consequencia: 'Não passou: paga a rodada de cerveja de cogumelo da mesa.' }),
+  },
+  fogo: {
+    nome: 'Fogo na Floresta', de: 'do Fogo na Floresta', doJogador: 'Fogo na Floresta', pitch: 'Apagar o incêndio, sozinho ou em equipe.',
+    verbo: 'pede ajuda', verboJogador: 'pede a sua ajuda', semQuem: 'Pedido de ajuda',
+    cartaoVazio: 'Fogo na floresta! Alguém precisa de ajuda aqui.', entradas: ['pino'], gesto: 'Apagar o fogo',
+    entradaFixa: 'No selo, qualquer jogador apaga sozinho. A equipe, você chama.', notaDoGesto: 'Sozinho, com a sua ferramenta. Em equipe, o mestre chama.',
+    foraDoMapa: true, chamar: 'Chamar a equipe', pronto: 'Entrar na equipe', exemplo: { nome: 'Guarda Florêncio', cor: '#5b8a5a' },
+    lugar: () => ({ ex: 'Mata do Pinheiral' }),
+    falas: () => [
+      ['Urgente', 'O vento virou e o fogo está descendo o morro! Preciso de gente com bolha de água, mangueira e areia. Vocês ajudam a salvar a vila?'],
+      ['Curta', 'Fogo descendo o morro! Quem tiver água, areia ou coragem, vem comigo.'],
+      ['Calma', 'O fogo ainda está longe da vila, mas o vento não ajuda. Se formos agora, dá tempo.'],
+    ],
+    padrao: () => ({ entrada: 'pino', permitida: 'escolha', premio: 'A vila agradece: cada um ganha uma refeição quente e um lugar para dormir.', consequencia: 'A fumaça cobre a estrada: a viagem atrasa meio dia.' }),
+  },
+  bolha: {
+    nome: "Bolha d'Água", de: "da Bolha d'Água", doJogador: "Bolha d'Água", pitch: 'Apagar focos de fogo com bolhas.',
+    verbo: 'pede ajuda', verboJogador: 'pede a sua ajuda', semQuem: 'Pedido de ajuda',
+    cartaoVazio: 'Fogo! Alguém precisa de ajuda para apagar com bolhas.', entradas: ['pino', 'mestre'], gesto: 'Apagar com bolhas',
+    notaDoGesto: 'Sozinho, aqui mesmo. Em equipe, o mestre chama.',
+    foraDoMapa: true, chamar: 'Chamar a mesa', pronto: 'Começar', exemplo: { nome: 'Dona Aurélia', cor: '#6f78b8' },
+    falas: (c) => c.cenario === 'casa' ? [
+      ['Urgente', 'A faísca pulou do fogão para a cortina! Minha bolha não dá conta sozinha. Me ajuda antes que pegue no telhado?'],
+      ['Curta', 'Fogo na cozinha! Faz bolha comigo, rápido.'],
+      ['Calma', 'A panela esqueceu de mim e eu dela. Uma bolha aqui, outra ali, e a casa fica de pé.'],
+    ] : [
+      ['Urgente', 'Uma faísca pegou no capim da clareira! Minha bolha não dá conta sozinha. Me ajuda a apagar antes que chegue nas árvores?'],
+      ['Curta', 'Fogo no capim! Faz bolha comigo, rápido.'],
+      ['Calma', 'É só um foguinho, mas sozinha eu não alcanço tudo. Uma bolha aqui, outra ali, e pronto.'],
+    ],
+    padrao: () => ({ entrada: 'pino', cenario: 'clareira', permitida: 'escolha', premio: 'Um frasco de água benta, em agradecimento.', consequencia: 'A fumaça arde nos olhos: -1 em Percepção até o próximo descanso.' }),
+  },
+  alavanca: {
+    nome: 'Alavanca', de: 'da Alavanca', doJogador: 'Alavanca', pitch: 'Girar juntos sem parar: ponte ou canhão.',
+    verbo: 'chama para a alavanca', verboJogador: 'chama você para a alavanca', semQuem: 'Alavanca',
+    cartaoVazio: '', entradas: ['pino', 'mestre'], gesto: 'Girar a alavanca', notaDoGesto: 'Sozinho, aqui mesmo. Em equipe, o mestre chama.',
+    foraDoMapa: true, chamar: 'Chamar para a alavanca', pronto: 'Pronto', exemplo: null,
+    lugar: (c) => ({ ex: c.cena === 'canhao' ? 'Baluarte de Valverde, muralha norte' : 'Portão de Valverde, fosso norte' }),
+    falas: (c) => c.cena === 'canhao' ? [
+      ['Clássica', 'Debaixo das lajes do baluarte espera um canhão de bronze. Girem a alavanca sem parar: o alçapão abre e a plataforma sobe. Quem descansa a mão deixa a catraca soltar, e o peso do canhão leva tudo de volta ao fundo.'],
+      ['Curta', 'O canhão dorme debaixo das lajes. Girem a alavanca juntos e não parem.'],
+      ['Tensa', 'Os tambores do inimigo já se ouvem. O canhão só sobe se ninguém largar a alavanca.'],
+    ] : [
+      ['Clássica', 'A ponte levadiça está erguida e a corrente é pesada. Girem a alavanca sem parar: quem descansa a mão deixa a catraca soltar, e a corrente puxa a ponte de volta.'],
+      ['Curta', 'A ponte está erguida. Girem a alavanca juntos e não parem.'],
+      ['Tensa', 'Do outro lado do fosso, algo se mexe. A ponte só desce se ninguém largar a alavanca.'],
+    ],
+    padrao: () => ({ entrada: 'mestre', cena: 'ponte', dificuldade: 'normal', tempo: null, porta: '' }),
+  },
+  puzzle: {
+    nome: 'Puzzle', de: 'do Puzzle', doJogador: 'A Fonte', pitch: 'Peças, encaixes e combinações para examinar.',
+    cartaoVazio: 'Há algo aqui para examinar de perto.', entradas: ['pino'], gesto: 'Examinar',
+    entradaFixa: 'O jogador encosta no selo e examina. O puzzle não tem convite do mestre.',
+    foraDoMapa: false, exemplo: null, falas: () => [],
+    padrao: () => ({ entrada: 'pino', porta: '' }),
+  },
+}
+
+const FICHAS = {
+  cena: [{ nome: 'Guarda Florêncio', cor: '#5b8a5a' }, { nome: 'Dona Ziza', cor: '#a8557c' }, { nome: 'Bento, o barqueiro', cor: '#4f7fa3' }],
+  acervo: [{ nome: 'Tia Ferrolha', cor: '#b0763a' }, { nome: 'Dona Aurélia', cor: '#6f78b8' }, { nome: 'Capitã Íris', cor: '#3f8f8c' }, { nome: 'Mercador Olmo', cor: '#8a6d4b' }],
+}
+const OBJETOS = { mesa: { nome: 'Mesa do salão', x: 210, y: 178 }, poco: { nome: 'Poço velho', x: 390, y: 440 }, carroca: { nome: 'Carroça', x: 608, y: 356 } }
+const PORTAS = [['p1', 'Porta do salão (sul)'], ['p2', 'Portão do fosso'], ['p3', 'Porta da adega']]
+const NOME_MAX = 60
+const FALA_MAX = 220
+
+// ------------------------------------------------------------------ estado
+const estado = { tela: 'lista', desafios: [], aberto: null, trocando: false, marcando: null, renomeando: false, escolhendoQuem: false, apagando: false, aviso: null, trocou: false }
+let seq = 0
+
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+const atual = () => estado.desafios.find((d) => d.id === estado.aberto) || null
+const conf = (d) => d.conf[d.jogo]
+const iniciais = (nome) => nome.split(/[ ,]+/).filter((p) => p.length > 2 || /^[A-ZÀ-Ý]/.test(p)).slice(0, 2).map((p) => p[0].toUpperCase()).join('')
+
+function exemploDe(jogo) {
+  const e = JOGOS[jogo].exemplo
+  return e === null ? { tipo: 'ninguem', nome: '', cor: '', doMestre: false } : { tipo: 'exemplo', nome: e.nome, cor: e.cor, doMestre: false }
+}
+/** O desafio padrão do jogo: a fala e o lugar nascem como EXEMPLO (seguem o jogo até o mestre escrever). */
+function padraoDe(jogo) {
+  const J = JOGOS[jogo]
+  const c = J.padrao()
+  const falas = J.falas(c)
+  c.fala = falas.length > 0 ? falas[0][1] : ''
+  c.falaExemplo = true
+  c.lugarNome = J.lugar ? J.lugar(c).ex : ''
+  c.lugarExemplo = true
+  return c
+}
+function novoDesafio(jogo) {
+  return { id: 'd' + (++seq), jogo, nome: null, quem: exemploDe(jogo), lugar: { tipo: 'nenhum' }, conf: { [jogo]: padraoDe(jogo) } }
+}
+
+/** O NOME AUTOMÁTICO: segue o jogo, a cena da alavanca e quem chama, até o mestre escrever o dele. */
+function nomeAuto(d) {
+  const J = JOGOS[d.jogo]
+  const c = conf(d)
+  let nome = J.nome
+  if (d.jogo === 'alavanca') nome = c.cena === 'canhao' ? 'Alavanca do canhão' : 'Alavanca da ponte'
+  if (d.jogo === 'puzzle') return 'Puzzle: ' + J.doJogador
+  const quem = d.quem.nome.trim()
+  if (quem !== '') nome += ' com ' + quem
+  else if (d.jogo !== 'alavanca' && c.lugarNome.trim() !== '') nome += ': ' + c.lugarNome.trim()
+  return nome.slice(0, NOME_MAX)
+}
+const nomeDe = (d) => d.nome === null ? nomeAuto(d) : d.nome
+const tituloDoJogador = (d) => d.jogo === 'alavanca' ? (conf(d).cena === 'canhao' ? 'Alavanca do canhão' : 'Alavanca da ponte') : JOGOS[d.jogo].doJogador
+function textoDoLugar(d) {
+  if (d.lugar.tipo === 'ponto') return 'num ponto do mapa'
+  if (d.lugar.tipo === 'objeto') return 'em ' + OBJETOS[d.lugar.obj].nome
+  return 'fora do mapa'
+}
+/** Como começa DE VERDADE: fora do mapa não há selo para encostar. */
+function entradaEfetiva(d) {
+  const J = JOGOS[d.jogo]
+  if (d.lugar.tipo === 'nenhum') return 'mestre'
+  return J.entradas.length === 1 ? J.entradas[0] : conf(d).entrada
+}
+const faltaLugar = (d) => d.lugar.tipo === 'nenhum' && !JOGOS[d.jogo].foraDoMapa
+
+/**
+ * TROCAR DE JOGO. O que é do jogo (fala, lugar do convite, regras, prêmio, porta) fica guardado
+ * com o jogo de antes e volta se o mestre voltar. Segue para o jogo novo só o que é do desafio:
+ * o lugar no mapa, quem chama (quando o mestre escolheu) e o nome (quando o mestre escreveu).
+ */
+function trocarJogo(d, jogo) {
+  if (jogo === d.jogo) return
+  const antes = structuredClone(d)
+  const deAntes = JOGOS[d.jogo].de
+  const jaTinha = d.conf[jogo] !== undefined
+  if (!jaTinha) d.conf[jogo] = padraoDe(jogo)
+  d.jogo = jogo
+  if (!d.quem.doMestre) d.quem = exemploDe(jogo)
+  estado.aviso = {
+    texto: 'Agora é ' + JOGOS[jogo].nome + '. ' + (jaTinha ? 'Voltou como você tinha deixado. ' : '') + 'O que era ' + deAntes + ' ficou guardado: se você voltar, volta igual.',
+    antes,
+  }
+  if (faltaLugar(d)) estado.marcando = 'ponto'
+}
+
+// ------------------------------------------------------------------ pedaços de tela
+function seg(chave, rotulo, opcoes, valor, classe) {
+  const temMarcada = opcoes.some((o) => o.v === valor)
+  return '<fieldset class="campo"><legend class="rot">' + rotulo + '</legend><div class="seg ' + (classe || '') + '" role="radiogroup" aria-label="' + esc(rotulo) + '">' +
+    opcoes.map((o, i) => '<button type="button" role="radio" class="seg__op" aria-checked="' + (o.v === valor) + '" tabindex="' + (o.v === valor || (!temMarcada && i === 0) ? 0 : -1) +
+      '" data-acao="conf" data-chave="' + chave + '" data-valor="' + o.v + '" data-foco="' + chave + ':' + o.v + '">' + esc(o.r) + '</button>').join('') + '</div></fieldset>'
+}
+function texto(chave, rotulo, valor, max, extra) {
+  return '<div class="campo"><label class="rot" for="c-' + chave + '">' + rotulo + '</label><input id="c-' + chave + '" class="entrada" type="text" autocomplete="off" maxlength="' + max +
+    '" value="' + esc(valor) + '" data-campo="' + chave + '" data-foco="c:' + chave + '" ' + (extra || '') + '></div>'
+}
+function retrato(quem, classe) {
+  if (quem.tipo === 'ninguem') return '<span class="retrato retrato--vazio ' + (classe || '') + '" aria-hidden="true">—</span>'
+  return '<span class="retrato ' + (classe || '') + '" style="--cor:' + quem.cor + '" aria-hidden="true">' + esc(iniciais(quem.nome)) + '</span>'
+}
+function seletorDaPorta(c, rotulo, nota) {
+  return '<div class="campo"><label class="rot" for="c-porta">' + rotulo + '</label><select id="c-porta" class="entrada" data-campo="porta" data-foco="c:porta"><option value="">Nenhuma</option>' +
+    PORTAS.map((p) => '<option value="' + p[0] + '"' + (c.porta === p[0] ? ' selected' : '') + '>' + esc(p[1]) + '</option>').join('') + '</select><p class="nota">' + nota + '</p></div>'
+}
+
+function paginaLista() {
+  const ds = estado.desafios
+  return '<div><h2 class="titulo-pag">Jogos</h2><p class="sub">Os desafios desta cena.</p></div>' +
+    '<h3 class="secao">Desafios <small>' + ds.length + '</small></h3>' +
+    (ds.length === 0
+      ? '<p class="vazio">Nenhum desafio nesta cena. Crie um: você escolhe o jogo primeiro, e a ficha já vem montada para ele.</p>'
+      : '<ul class="lista">' + ds.map((d) => '<li><button type="button" class="linha" data-acao="abrir" data-id="' + d.id + '" data-foco="linha:' + d.id + '"><span class="medalha">' + icone(d.jogo) + '</span>' +
+          '<span class="linha__nome">' + esc(nomeDe(d)) + '</span><span class="linha__onde">' + esc(JOGOS[d.jogo].nome) + ' · ' + esc(textoDoLugar(d)) + '</span>' +
+          (faltaLugar(d) ? '<span class="linha__tags"><span class="tag tag--perigo">Falta o lugar no mapa</span></span>' : '') + '</button></li>').join('') + '</ul>') +
+    '<button type="button" class="bt bt--latao bt--largo" data-acao="novo" data-foco="novo">Novo desafio</button>' +
+    '<p class="nota">As abas Ação, Objetos e Puzzles da página ficam como estão hoje: este protótipo é só da criação e da ficha do desafio.</p>'
+}
+
+function paginaEscolher() {
+  const d = estado.trocando ? atual() : null
+  return '<button type="button" class="voltar" data-acao="cancelar-escolha" data-foco="voltar">' + VOLTA + (d ? 'Voltar para a ficha' : 'Jogos') + '</button>' +
+    '<div><h2 class="titulo-pag">' + (d ? 'Trocar o jogo' : 'Qual é o jogo?') + '</h2><p class="sub">' +
+    (d ? 'O lugar no mapa fica. O que é do jogo de agora fica guardado e volta se você voltar.' : 'Escolha primeiro. A ficha, o nome e o convite já vêm montados para o jogo.') + '</p></div>' +
+    '<ul class="lista">' + ORDEM.map((j) => {
+      const J = JOGOS[j]
+      const tags = (d && d.jogo === j ? '<span class="tag tag--latao">É o de agora</span>' : '') + (d && d.jogo !== j && d.conf[j] ? '<span class="tag tag--feito">Guardado: volta como estava</span>' : '')
+      return '<li><button type="button" class="linha" data-acao="escolher" data-jogo="' + j + '" data-foco="jogo:' + j + '"' + (d && d.jogo === j ? ' aria-current="true"' : '') + '><span class="medalha">' + icone(j) + '</span>' +
+        '<span class="linha__nome">' + esc(J.nome) + '</span><span class="linha__onde">' + esc(J.pitch) + '</span>' + (tags ? '<span class="linha__tags">' + tags + '</span>' : '') + '</button></li>'
+    }).join('') + '</ul>'
+}
+
+function blocoConvite(d) {
+  const J = JOGOS[d.jogo]
+  const c = conf(d)
+  if (d.jogo === 'puzzle') {
+    return '<section class="bloco"><h3 class="secao">Quem chama</h3><p class="nota">O puzzle não tem quem chama: o jogador encosta no selo e examina. O nome que ele vê (“' + esc(J.doJogador) + '”) e as peças ficam no editor do puzzle.</p></section>'
+  }
+  const narra = d.quem.tipo === 'ninguem'
+  const exemplo = d.quem.tipo === 'exemplo' || c.falaExemplo || (J.lugar && c.lugarExemplo)
+  const falas = J.falas(c)
+  let h = '<section class="bloco"><div class="bloco__cab"><h3 class="secao">O convite</h3><span class="tag" id="tag-exemplo"' + (exemplo ? '' : ' hidden') + '>exemplo do jogo</span></div>'
+  h += '<div class="convite' + (estado.trocou ? ' troca' : '') + '">'
+  h += '<button type="button" class="quem" data-acao="quem-abrir" data-foco="quem" aria-expanded="' + estado.escolhendoQuem + '" aria-controls="escolha-quem">' + retrato(d.quem) +
+    '<span><b>' + (narra ? 'Ninguém chama' : esc(d.quem.nome)) + '</b><small>' + (narra ? 'O convite vira narração. Toque para escolher alguém.' : esc(J.verbo)) + '</small></span>' + SETA + '</button>'
+  if (estado.escolhendoQuem) h += escolhaDeQuem(d)
+  h += '<div class="campo"><label class="rot" for="c-fala">' + (narra ? 'Narração' : 'O que diz') + ' <output id="conta-fala">' + c.fala.length + '/' + FALA_MAX + '</output></label>' +
+    '<textarea id="c-fala" class="entrada fala' + (narra ? ' fala--narra' : '') + '" maxlength="' + FALA_MAX + '" data-campo="fala" data-foco="c:fala" placeholder="Vazio: o convite sai sem fala.">' + esc(c.fala) + '</textarea></div>'
+  h += '<div class="chips" role="group" aria-label="Sugestões de fala"><span>Sugestões</span>' + falas.map((f, i) =>
+    '<button type="button" class="chip" data-acao="sugestao" data-i="' + i + '" data-foco="sug:' + i + '" aria-pressed="' + (c.fala === f[1]) + '">' + esc(f[0]) + '</button>').join('') + '</div>'
+  if (J.lugar) {
+    h += '<div class="campo"><label class="rot" for="c-lugarNome">Lugar no convite <small>opcional</small></label>' +
+      '<input id="c-lugarNome" class="entrada" type="text" autocomplete="off" maxlength="60" value="' + esc(c.lugarNome) + '" placeholder="Ex.: ' + esc(J.lugar(c).ex) + '" data-campo="lugarNome" data-foco="c:lugarNome"></div>'
+  }
+  h += '<div class="acoes"><button type="button" class="link" data-acao="' + (exemplo ? 'em-branco' : 'usar-exemplo') + '" data-foco="exemplo">' + (exemplo ? 'Começar em branco' : 'Usar o exemplo do jogo') + '</button></div>'
+  return h + '</div></section>'
+}
+
+function escolhaDeQuem(d) {
+  const linha = (f, origem, i) => '<li><button type="button" class="escolha__op" data-acao="quem-ficha" data-origem="' + origem + '" data-i="' + i + '" data-foco="ficha:' + origem + i + '" aria-pressed="' +
+    (d.quem.tipo !== 'ninguem' && d.quem.nome === f.nome) + '">' + retrato({ tipo: 'ficha', nome: f.nome, cor: f.cor }, 'retrato--p') + '<span>' + esc(f.nome) + '</span></button></li>'
+  return '<div class="escolha" id="escolha-quem" role="group" aria-label="Escolher quem chama">' +
+    '<p class="escolha__t">Fichas desta cena</p><ul>' + FICHAS.cena.map((f, i) => linha(f, 'cena', i)).join('') + '</ul>' +
+    '<p class="escolha__t">Do acervo</p><ul>' + FICHAS.acervo.map((f, i) => linha(f, 'acervo', i)).join('') + '</ul>' +
+    '<div class="campo"><label class="rot" for="quem-nome">Só um nome, sem ficha</label><div class="dupla"><input id="quem-nome" class="entrada" type="text" autocomplete="off" maxlength="40" placeholder="Ex.: Olmo" data-foco="quem-nome">' +
+    '<button type="button" class="bt" data-acao="quem-nome" data-foco="quem-usar">Usar</button></div><p class="nota nota--erro" id="quem-erro" role="alert" hidden>Escreva um nome, ou escolha Ninguém.</p></div>' +
+    '<button type="button" class="bt bt--fantasma bt--largo" data-acao="quem-ninguem" data-foco="quem-ninguem" aria-pressed="' + (d.quem.tipo === 'ninguem') + '">Ninguém: o convite vira narração</button></div>'
+}
+
+function blocoOnde(d) {
+  const J = JOGOS[d.jogo]
+  const c = conf(d)
+  const lugares = [{ v: 'ponto', r: 'Ponto' }, { v: 'objeto', r: 'Objeto' }].concat(J.foraDoMapa ? [{ v: 'nenhum', r: 'Fora do mapa' }] : [])
+  const valor = estado.marcando || d.lugar.tipo
+  let h = '<section class="bloco"><h3 class="secao">Onde fica e como começa</h3>'
+  h += '<fieldset class="campo"><legend class="rot">Onde fica</legend><div class="seg" role="radiogroup" aria-label="Onde fica">' + lugares.map((o, i) =>
+    '<button type="button" role="radio" class="seg__op" aria-checked="' + (o.v === valor) + '" tabindex="' + (o.v === valor || (!lugares.some((l) => l.v === valor) && i === 0) ? 0 : -1) + '" data-acao="lugar" data-valor="' + o.v + '" data-foco="lugar:' + o.v + '">' + o.r + '</button>').join('') + '</div>'
+  if (estado.marcando) {
+    h += '<p class="nota" role="status">' + (estado.marcando === 'ponto' ? 'Clique no mapa onde o jogo acontece.' : 'Clique no objeto do mapa: a mesa, o poço ou a carroça.') + ' Esc cancela.</p>' +
+      '<div class="acoes"><button type="button" class="bt bt--p bt--fantasma" data-acao="cancelar-marcar" data-foco="cancelar-marcar">Cancelar</button></div>'
+  } else if (faltaLugar(d)) {
+    h += '<p class="nota nota--erro" role="alert">Falta o lugar: o ' + esc(J.nome.toLowerCase()) + ' só existe com selo no mapa. Escolha um ponto ou um objeto.</p>'
+  } else {
+    h += '<p class="nota">Fica ' + esc(textoDoLugar(d)) + '.' + (d.lugar.tipo === 'nenhum' ? ' Sem selo: o jogador só vê o convite quando você chamar.' : ' O selo aparece no mapa.') + '</p>'
+  }
+  h += '</fieldset>'
+  if (J.entradaFixa) h += '<div class="campo"><p class="rot">Como começa</p><p class="nota">' + esc(J.entradaFixa) + '</p></div>'
+  else if (d.lugar.tipo === 'nenhum') h += '<div class="campo"><p class="rot">Como começa</p><p class="nota">Fora do mapa não há selo para o jogador encostar: só você chama. Ponha o desafio no mapa para escolher.</p></div>'
+  else h += seg('entrada', 'Como começa', [{ v: 'pino', r: 'O jogador começa no selo' }, { v: 'mestre', r: 'Só você chama' }], c.entrada, 'seg--pilha')
+  return h + '</section>'
+}
+
+function blocoRegras(d) {
+  const c = conf(d)
+  let h = '<section class="bloco' + (estado.trocou ? ' troca' : '') + '"><h3 class="secao">Regras do jogo</h3>'
+  if (d.jogo === 'danca') {
+    h += seg('musica', 'Música', [{ v: 'demo', r: 'Faixa demo' }, { v: 'arquivo', r: 'Arquivo seu' }], c.musica)
+    if (c.musica === 'arquivo') h += '<div class="campo"><p class="nota">' + (c.arquivo ? 'Arquivo: ' + esc(c.arquivo) + '.' : 'Nenhum arquivo ainda: enquanto isso, toca a faixa demo.') + '</p><div class="acoes"><button type="button" class="bt bt--p" data-acao="importar" data-foco="importar">' + (c.arquivo ? 'Trocar a música…' : 'Importar música…') + '</button></div></div>'
+    h += seg('permitida', 'Dificuldade', [ESCOLHA, { v: 'diversao', r: 'Só Diversão' }, { v: 'expert', r: 'Só Expert' }], c.permitida, 'seg--pilha')
+    h += seg('notaMin', 'Nota mínima para passar', ['S', 'A', 'B', 'C', 'D'].map((l) => ({ v: l, r: l })), c.notaMin)
+  } else if (d.jogo === 'pesca') {
+    h += seg('lances', 'Lances por pesca', N15, c.lances)
+    h += seg('permitida', 'Dificuldade', [ESCOLHA, { v: 'normal', r: 'Só Normal' }, { v: 'extremo', r: 'Só Extremo' }], c.permitida, 'seg--pilha')
+  } else if (d.jogo === 'tiro') {
+    h += seg('tentativas', 'Tentativas', N15, c.tentativas)
+    h += seg('permitida', 'Dificuldade', [ESCOLHA, { v: 'normal', r: 'Só Normal' }, { v: 'extremo', r: 'Só Extremo' }], c.permitida, 'seg--pilha')
+    h += seg('meta', 'Meta para passar', [{ v: 'bronze', r: 'Bronze' }, { v: 'prata', r: 'Prata' }, { v: 'ouro', r: 'Ouro' }], c.meta)
+  } else if (d.jogo === 'fogo') {
+    h += seg('permitida', 'Dificuldade', [NA_HORA, { v: 'facil', r: 'Só Fácil' }, { v: 'normal', r: 'Só Normal' }, { v: 'extremo', r: 'Só Extremo' }], c.permitida, 'seg--pilha')
+    h += '<p class="nota">A equipe inteira joga na mesma dificuldade.</p>'
+  } else if (d.jogo === 'bolha') {
+    h += seg('cenario', 'Cenário', [{ v: 'clareira', r: 'Clareira' }, { v: 'casa', r: 'Casa' }], c.cenario)
+    h += seg('permitida', 'Dificuldade', [{ v: 'escolha', r: 'Quem começa escolhe' }, { v: 'facil', r: 'Só Fácil' }, { v: 'normal', r: 'Só Normal' }, { v: 'dificil', r: 'Só Difícil' }], c.permitida, 'seg--pilha')
+  } else if (d.jogo === 'alavanca') {
+    const t = c.tempo === null ? TEMPO_PADRAO[c.dificuldade] : c.tempo
+    h += seg('cena', 'Cena', [{ v: 'ponte', r: 'Ponte levadiça' }, { v: 'canhao', r: 'Canhão do chão' }], c.cena)
+    h += seg('dificuldade', 'Dificuldade', [{ v: 'facil', r: 'Fácil' }, { v: 'normal', r: 'Normal' }, { v: 'dificil', r: 'Difícil' }], c.dificuldade)
+    h += '<div class="campo"><label class="rot" for="c-tempo">Tempo limite</label><div class="faixa"><input id="c-tempo" type="range" min="8" max="40" step="1" value="' + t + '" data-campo="tempo" data-foco="c:tempo">' +
+      '<output id="conta-tempo">' + t + ' s</output><button type="button" class="bt bt--p" data-acao="tempo-padrao" data-foco="tempo-padrao"' + (c.tempo === null ? ' disabled' : '') + '>Padrão</button></div>' +
+      '<p class="nota" id="nota-tempo">' + (c.tempo === null ? 'No padrão da dificuldade.' : 'Tempo seu. O padrão desta dificuldade é ' + TEMPO_PADRAO[c.dificuldade] + ' s.') + '</p></div>'
+  } else {
+    h += '<p class="nota">A Fonte: 3 encaixes, cada um aceita só a peça dele. Ao resolver: cena e texto.</p>' +
+      '<button type="button" class="bt bt--largo" disabled aria-describedby="nota-puzzle">Abrir o editor do puzzle</button>' +
+      '<p class="nota" id="nota-puzzle">Desligado aqui: o editor do puzzle é a tela cheia que o app já tem, e fica fora deste protótipo.</p>'
+  }
+  return h + '</section>'
+}
+
+const VALE = {
+  pesca: ['Se pegar algum peixe', 'Se o cesto voltar vazio'],
+  tiro: ['Se passar da meta', 'Se não passar'],
+  fogo: ['Se apagarem o fogo', 'Se o fogo vencer'],
+  bolha: ['Se apagar o fogo', 'Se não apagar'],
+}
+function blocoVale(d) {
+  const c = conf(d)
+  let h = '<section class="bloco' + (estado.trocou ? ' troca' : '') + '"><h3 class="secao">O que vale</h3>'
+  if (d.jogo === 'danca') {
+    h += seletorDaPorta(c, 'Se todos passarem, abre a porta', 'Abre, mesmo trancada, se todos que dançarem passarem.')
+    h += '<div class="campo"><label class="rot" for="c-premioTipo">Prêmio</label><select id="c-premioTipo" class="entrada" data-campo="premioTipo" data-foco="c:premioTipo">' +
+      [['item', 'Item na mochila'], ['pista', 'Pista'], ['bonus', 'Bônus no próximo teste'], ['nada', 'Nenhum prêmio']].map((o) => '<option value="' + o[0] + '"' + (c.premioTipo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
+      '<input class="entrada" type="text" aria-label="Qual prêmio" maxlength="60" value="' + esc(c.premio) + '" data-campo="premio" data-foco="c:premio"' + (c.premioTipo === 'nada' ? ' disabled' : '') + '></div>'
+    h += '<div class="campo"><label class="rot" for="c-consTipo">Se alguém não passar</label><select id="c-consTipo" class="entrada" data-campo="consTipo" data-foco="c:consTipo">' +
+      [['teste', 'Penalidade no próximo teste'], ['barulho', 'Barulho: você narra'], ['espera', 'Só tenta de novo na próxima rodada'], ['nada', 'Nada']].map((o) => '<option value="' + o[0] + '"' + (c.consTipo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
+      '<input class="entrada" type="text" aria-label="Qual penalidade" maxlength="60" value="' + esc(c.consequencia) + '" data-campo="consequencia" data-foco="c:consequencia"' + (c.consTipo !== 'teste' ? ' disabled' : '') + '>' +
+      '<p class="nota">A porta sempre aceita outra tentativa.</p></div>'
+  } else if (d.jogo === 'alavanca') {
+    const canhao = c.cena === 'canhao'
+    h += seletorDaPorta(c, canhao ? 'Quando o canhão subir, abre a porta' : 'Quando a ponte descer, abre a porta', c.porta === '' ? (canhao ? 'Sem porta: só o canhão sobe.' : 'Sem porta: só a ponte desce.') : 'A porta do mapa se abre, mesmo trancada.')
+  } else if (d.jogo === 'puzzle') {
+    h += seletorDaPorta(c, 'Ao resolver, abre a porta', 'Abre para todos quando o puzzle cede. Itens e castigo ficam no editor do puzzle.')
+  } else {
+    h += texto('premio', VALE[d.jogo][0], c.premio, 140) + texto('consequencia', VALE[d.jogo][1], c.consequencia, 140) +
+      '<p class="nota">Só texto: aparece no convite e no resultado. Não entrega item nem abre porta.</p>'
+  }
+  return h + '</section>'
+}
+
+function paginaFicha() {
+  const d = atual()
+  const J = JOGOS[d.jogo]
+  const proprio = d.nome !== null
+  let h = '<button type="button" class="voltar" data-acao="voltar" data-foco="voltar">' + VOLTA + 'Jogos</button>'
+  h += '<div class="cabeca"><span class="medalha">' + icone(d.jogo) + '</span>'
+  if (estado.renomeando) {
+    h += '<input id="c-nome" class="entrada cabeca__entrada" type="text" autocomplete="off" maxlength="' + NOME_MAX + '" value="' + esc(nomeDe(d)) + '" aria-label="Nome do desafio" data-campo="nome" data-foco="c:nome">' +
+      '<p class="cabeca__tipo">Enter grava. Vazio volta ao nome automático.</p>'
+  } else {
+    h += '<h2 class="cabeca__nome" id="titulo">' + esc(nomeDe(d)) + '</h2><button type="button" class="cabeca__lapis" data-acao="renomear" data-foco="renomear" aria-label="Renomear o desafio">' + LAPIS + '</button>' +
+      '<p class="cabeca__tipo"><span class="tag' + (proprio ? ' tag--latao' : '') + '">' + (proprio ? 'nome seu' : 'nome automático') + '</span>' +
+      (proprio ? '<button type="button" class="link" data-acao="nome-auto" data-foco="nome-auto">Voltar ao automático</button>' : '<span>Só você vê este nome.</span>') + '</p>'
+  }
+  h += '</div>'
+  if (estado.aviso) h += '<div class="aviso" role="status"><p>' + esc(estado.aviso.texto) + '</p><div class="acoes"><button type="button" class="bt bt--p bt--latao" data-acao="desfazer-troca" data-foco="desfazer">Desfazer a troca</button></div></div>'
+  h += '<div class="jogo-atual"><span><b>' + esc(J.nome) + '</b><small>' + esc(J.pitch) + '</small></span><button type="button" class="bt bt--p" data-acao="trocar" data-foco="trocar">Trocar</button></div>'
+  h += blocoConvite(d) + blocoOnde(d) + blocoRegras(d) + blocoVale(d)
+  if (J.chamar) h += '<section class="bloco"><h3 class="secao">Na mesa</h3><button type="button" class="bt bt--primario bt--largo" disabled aria-describedby="nota-mesa">' + esc(J.chamar) + '</button>' +
+    '<p class="nota" id="nota-mesa">Desligado aqui: o protótipo não tem mesa online. No app, é este botão que chama os jogadores.</p></section>'
+  h += '<section class="bloco">' + (estado.apagando
+    ? '<p class="nota nota--erro">Apagar “' + esc(nomeDe(d)) + '”? O selo sai do mapa.</p><div class="acoes"><button type="button" class="bt bt--perigo" data-acao="apagar-mesmo" data-foco="apagar">Apagar mesmo</button><button type="button" class="bt bt--fantasma" data-acao="apagar-nao" data-foco="apagar-nao">Manter</button></div>'
+    : '<button type="button" class="bt bt--perigo" data-acao="apagar" data-foco="apagar">Apagar desafio</button>') + '</section>'
+  return h
+}
+
+// ------------------------------------------------------------------ o que o jogador vê
+function cartaoDoSelo(d) {
+  const J = JOGOS[d.jogo]
+  const c = conf(d)
+  if (d.lugar.tipo === 'nenhum') {
+    return '<p class="previa__vazio">' + (J.foraDoMapa ? 'Fora do mapa não há selo nem cartão. O jogador só vê o convite quando você chamar.' : 'Sem lugar no mapa, o jogador não tem onde encostar: este puzzle ainda não existe para ele.') + '</p>'
+  }
+  const entrada = entradaEfetiva(d)
+  const temFala = d.jogo !== 'puzzle' && c.fala.trim() !== ''
+  const vazio = d.jogo === 'alavanca' ? (c.cena === 'canhao' ? 'Uma alavanca ao lado das lajes do baluarte.' : 'Uma alavanca diante da ponte levadiça erguida.') : J.cartaoVazio
+  let h = '<div class="pc"><div class="pc__cab"><span class="pc__selo">' + icone(d.jogo) + '</span>' + esc(tituloDoJogador(d)) + '</div>'
+  if (!temFala) h += '<p class="pc__txt">' + esc(vazio) + '</p>'
+  else if (d.quem.tipo === 'ninguem') h += '<p class="pc__txt">' + esc(c.fala) + '</p>'
+  else h += '<figure class="pc__fala"><blockquote>“' + esc(c.fala) + '”</blockquote><figcaption>' + esc(d.quem.nome) + '</figcaption></figure>'
+  if (entrada === 'pino') h += '<span class="pc__bt">' + esc(J.gesto) + '</span>' + (J.notaDoGesto ? '<p class="pc__nota">' + esc(J.notaDoGesto) + '</p>' : '')
+  else h += '<p class="pc__locked">O mestre chama quando for a hora.</p>'
+  return h + '</div>'
+}
+
+function linhasDoConvite(d) {
+  const c = conf(d)
+  if (d.jogo === 'danca') return [['Ritmo', c.permitida === 'escolha' ? 'Você escolhe: Diversão ou Expert' : c.permitida === 'diversao' ? 'Diversão' : 'Expert'], ['Nota mínima', c.notaMin],
+    ['Prêmio', c.premioTipo === 'nada' ? 'Nenhum' : c.premioTipo === 'pista' ? 'Uma pista do mestre' : c.premio || (c.premioTipo === 'item' ? 'Um item' : 'Um bônus')]]
+  if (d.jogo === 'pesca') return [['Dificuldade', c.permitida === 'escolha' ? 'Você escolhe: Normal ou Extremo' : c.permitida === 'normal' ? 'Normal' : 'Extremo'], ['Lances', c.lances],
+    ['Se pegar algum peixe', c.premio || 'Nada combinado.'], ['Se o cesto voltar vazio', c.consequencia || 'Nada combinado.']]
+  if (d.jogo === 'tiro') return [['Dificuldade', c.permitida === 'escolha' ? 'Você escolhe: Normal ou Extremo' : c.permitida === 'normal' ? 'Normal' : 'Extremo'], ['Meta', { bronze: 'Bronze', prata: 'Prata', ouro: 'Ouro' }[c.meta] + ', em ' + c.tentativas + (c.tentativas === '1' ? ' tentativa' : ' tentativas')],
+    ['Se passar', c.premio || 'Nada combinado.'], ['Se não passar', c.consequencia || 'Nada combinado.']]
+  if (d.jogo === 'fogo') return [['Dificuldade', c.permitida === 'escolha' ? 'O mestre escolhe ao chamar' : { facil: 'Fácil', normal: 'Normal', extremo: 'Extremo' }[c.permitida]]].concat(c.premio ? [['Se apagarem o fogo', c.premio]] : [])
+  if (d.jogo === 'bolha') return [['Dificuldade', c.permitida === 'escolha' ? 'Quem começa escolhe' : { facil: 'Fácil', normal: 'Normal', dificil: 'Difícil' }[c.permitida]]].concat(c.premio ? [['Se apagar o fogo', c.premio]] : [])
+  return [['Dificuldade', { facil: 'Fácil', normal: 'Normal', dificil: 'Difícil' }[c.dificuldade]], ['Tempo', (c.tempo === null ? TEMPO_PADRAO[c.dificuldade] : c.tempo) + ' s']]
+}
+
+function conviteDoJogador(d) {
+  const J = JOGOS[d.jogo]
+  const c = conf(d)
+  if (d.jogo === 'puzzle') return '<p class="previa__vazio">O puzzle não tem convite: o jogador toca em Examinar e a tela do puzzle abre.</p>'
+  const onde = tituloDoJogador(d) + (d.jogo === 'bolha' ? ' · ' + (c.cenario === 'casa' ? 'Casa' : 'Clareira') : '') + (J.lugar && c.lugarNome.trim() !== '' ? ' · ' + c.lugarNome.trim() : '')
+  const narra = d.quem.tipo === 'ninguem'
+  let h = '<div class="cj"><p class="cj__onde">' + esc(onde) + '</p>'
+  if (!narra) h += '<div class="cj__quem">' + retrato(d.quem) + '<div><b>' + esc(d.quem.nome) + '</b><span>' + esc(J.verboJogador) + '</span></div></div>'
+  else h += '<div class="cj__quem"><div><b>' + esc(J.semQuem) + '</b></div></div>'
+  if (c.fala.trim() !== '') h += '<p class="cj__fala' + (narra ? ' cj__fala--narra' : '') + '">' + (narra ? esc(c.fala) : '“' + esc(c.fala) + '”') + '</p>'
+  h += '<dl class="cj__vale">' + linhasDoConvite(d).map((l) => '<div><dt>' + esc(l[0]) + '</dt><dd>' + esc(l[1]) + '</dd></div>').join('') + '</dl>'
+  return h + '<span class="pc__bt">' + esc(J.pronto) + '</span></div>'
+}
+
+function renderPrevia() {
+  const d = estado.tela === 'ficha' ? atual() : null
+  const el = document.getElementById('previa')
+  if (d === null) {
+    el.innerHTML = '<h2 class="previa__t">O jogador vê</h2><p class="previa__vazio">Abra ou crie um desafio. O cartão do selo e o convite aparecem aqui e mudam enquanto você escreve.</p>'
+    return
+  }
+  el.innerHTML = '<div><h2 class="previa__t">O jogador vê</h2><p class="nota">Prévia ao vivo. Os botões daqui são do jogador, não clicam.</p></div>' +
+    '<section><p class="previa__passo">1. Ao encostar no selo</p><div inert>' + cartaoDoSelo(d) + '</div></section>' +
+    '<section><p class="previa__passo">2. O convite, quando o jogo começa</p><div inert>' + conviteDoJogador(d) + '</div></section>'
+}
+
+function renderMapa() {
+  const d = estado.tela === 'ficha' ? atual() : null
+  const caixa = document.getElementById('mapa-caixa')
+  caixa.classList.toggle('marcando-ponto', estado.marcando === 'ponto')
+  caixa.classList.toggle('marcando-objeto', estado.marcando === 'objeto')
+  for (const g of caixa.querySelectorAll('.obj')) g.setAttribute('tabindex', estado.marcando === 'objeto' ? '0' : '-1')
+  const dica = document.getElementById('dica')
+  dica.hidden = estado.marcando === null
+  if (estado.marcando) dica.textContent = estado.marcando === 'ponto' ? 'Clique onde o jogo acontece. Esc cancela.' : 'Clique num objeto: a mesa, o poço ou a carroça. Esc cancela.'
+  let s = ''
+  for (const outro of estado.desafios) {
+    if (outro.lugar.tipo === 'nenhum') continue
+    const p = outro.lugar.tipo === 'ponto' ? outro.lugar : OBJETOS[outro.lugar.obj]
+    const y = outro.lugar.tipo === 'objeto' ? p.y - 44 : p.y
+    const aberto = d !== null && outro.id === d.id
+    s += '<g class="selo" opacity="' + (aberto || d === null ? 1 : 0.45) + '"><path d="M' + p.x + ' ' + (y - 21) + 'L' + (p.x + 21) + ' ' + y + 'L' + p.x + ' ' + (y + 21) + 'L' + (p.x - 21) + ' ' + y + 'Z" fill="#251a11" stroke="#e0a44a" stroke-width="2.5" stroke-linejoin="round"/>' +
+      '<g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + formaSvg(outro.jogo, p.x, y, 9.5) + '</g>' +
+      '<text class="selo-nome" x="' + (p.x + 30) + '" y="' + (y + 5) + '">' + esc(nomeDe(outro)) + '</text></g>'
+  }
+  document.getElementById('selo-camada').innerHTML = s
+}
+
+// ------------------------------------------------------------------ render e foco
+const pagina = document.getElementById('pagina')
+function render(foco) {
+  const antes = foco || (document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.foco : null)
+  pagina.innerHTML = estado.tela === 'lista' ? paginaLista() : estado.tela === 'escolher' ? paginaEscolher() : paginaFicha()
+  estado.trocou = false
+  renderMapa()
+  renderPrevia()
+  if (antes) {
+    const alvo = document.querySelector('[data-foco="' + antes + '"]')
+    if (alvo) {
+      alvo.focus({ preventScroll: true })
+      if (antes === 'c:nome') alvo.select()
+    }
+  }
+}
+/** O que muda sem redesenhar a ficha (o campo em que o mestre está digitando não perde o cursor). */
+function aoDigitar(d) {
+  const titulo = document.getElementById('titulo')
+  if (titulo) titulo.textContent = nomeDe(d)
+  const c = conf(d)
+  const J = JOGOS[d.jogo]
+  const tag = document.getElementById('tag-exemplo')
+  if (tag) tag.hidden = !(d.quem.tipo === 'exemplo' || c.falaExemplo || (J.lugar && c.lugarExemplo))
+  renderMapa()
+  renderPrevia()
+}
+function irPara(tela, foco) {
+  estado.tela = tela
+  estado.renomeando = false
+  estado.escolhendoQuem = false
+  estado.apagando = false
+  if (tela !== 'ficha') estado.marcando = null
+  render(foco)
+  pagina.scrollTop = 0
+}
+function abrirNovo(jogo) {
+  const d = novoDesafio(jogo)
+  estado.desafios.push(d)
+  estado.aberto = d.id
+  estado.aviso = null
+  estado.marcando = faltaLugar(d) ? 'ponto' : null
+  irPara('ficha', 'voltar')
+}
+function gravarNome(valor) {
+  const d = atual()
+  const limpo = valor.trim().slice(0, NOME_MAX)
+  d.nome = limpo === '' || limpo === nomeAuto(d) ? null : limpo
+  estado.renomeando = false
+}
+/** Mudar a cena da alavanca ou o cenário da bolha troca a fala e o lugar que ainda são exemplo; o que o mestre escreveu fica. */
+function seguirExemplo(d) {
+  const J = JOGOS[d.jogo]
+  const c = conf(d)
+  if (c.falaExemplo) c.fala = J.falas(c)[0][1]
+  if (J.lugar && c.lugarExemplo) c.lugarNome = J.lugar(c).ex
+}
+
+// ------------------------------------------------------------------ gestos
+pagina.addEventListener('click', (evento) => {
+  const alvo = evento.target.closest('[data-acao]')
+  if (alvo === null || alvo.disabled) return
+  const acao = alvo.dataset.acao
+  const d = atual()
+  if (acao === 'novo') { estado.trocando = false; return irPara('escolher', 'jogo:danca') }
+  if (acao === 'abrir') { estado.aberto = alvo.dataset.id; estado.aviso = null; return irPara('ficha', 'voltar') }
+  if (acao === 'cancelar-escolha') return estado.trocando ? irPara('ficha', 'trocar') : irPara('lista', 'novo')
+  if (acao === 'escolher') {
+    if (!estado.trocando) return abrirNovo(alvo.dataset.jogo)
+    trocarJogo(d, alvo.dataset.jogo)
+    estado.trocou = true
+    return irPara('ficha', 'trocar')
+  }
+  if (acao === 'voltar') return irPara('lista', 'linha:' + d.id)
+  if (acao === 'trocar') { estado.trocando = true; return irPara('escolher', 'jogo:' + d.jogo) }
+  if (acao === 'desfazer-troca') {
+    estado.desafios[estado.desafios.indexOf(d)] = estado.aviso.antes
+    estado.aviso = null
+    estado.marcando = null
+    estado.trocou = true
+    return render('trocar')
+  }
+  estado.aviso = null
+  const c = conf(d)
+  if (acao === 'renomear') { estado.renomeando = true; return render('c:nome') }
+  if (acao === 'nome-auto') { d.nome = null; return render('renomear') }
+  if (acao === 'quem-abrir') { estado.escolhendoQuem = !estado.escolhendoQuem; return render('quem') }
+  if (acao === 'quem-ficha') {
+    const f = FICHAS[alvo.dataset.origem][Number(alvo.dataset.i)]
+    d.quem = { tipo: 'ficha', nome: f.nome, cor: f.cor, doMestre: true }
+    estado.escolhendoQuem = false
+    return render('quem')
+  }
+  if (acao === 'quem-nome') {
+    const campo = document.getElementById('quem-nome')
+    const nome = campo.value.trim()
+    if (nome === '') { document.getElementById('quem-erro').hidden = false; return campo.focus() }
+    d.quem = { tipo: 'nome', nome, cor: '#6b6256', doMestre: true }
+    estado.escolhendoQuem = false
+    return render('quem')
+  }
+  if (acao === 'quem-ninguem') { d.quem = { tipo: 'ninguem', nome: '', cor: '', doMestre: true }; estado.escolhendoQuem = false; return render('quem') }
+  if (acao === 'sugestao') { c.fala = JOGOS[d.jogo].falas(c)[Number(alvo.dataset.i)][1]; c.falaExemplo = Number(alvo.dataset.i) === 0; return render() }
+  if (acao === 'em-branco') { d.quem = { tipo: 'ninguem', nome: '', cor: '', doMestre: true }; c.fala = ''; c.falaExemplo = false; c.lugarNome = ''; c.lugarExemplo = false; return render('exemplo') }
+  if (acao === 'usar-exemplo') { d.quem = exemploDe(d.jogo); c.falaExemplo = true; c.lugarExemplo = true; seguirExemplo(d); return render('exemplo') }
+  if (acao === 'lugar') {
+    const tipo = alvo.dataset.valor
+    if (tipo === 'nenhum') { estado.marcando = null; d.lugar = { tipo: 'nenhum' } } else estado.marcando = tipo
+    return render('lugar:' + tipo)
+  }
+  if (acao === 'cancelar-marcar') { estado.marcando = null; return render('lugar:' + d.lugar.tipo) }
+  if (acao === 'conf') {
+    c[alvo.dataset.chave] = alvo.dataset.valor
+    if (alvo.dataset.chave === 'cena' || alvo.dataset.chave === 'cenario') seguirExemplo(d)
+    return render()
+  }
+  if (acao === 'tempo-padrao') { c.tempo = null; return render('c:tempo') }
+  if (acao === 'importar') return document.getElementById('arquivo').click()
+  if (acao === 'apagar') { estado.apagando = true; return render('apagar-nao') }
+  if (acao === 'apagar-nao') { estado.apagando = false; return render('apagar') }
+  if (acao === 'apagar-mesmo') { estado.desafios = estado.desafios.filter((x) => x !== d); estado.aberto = null; return irPara('lista', 'novo') }
+})
+
+pagina.addEventListener('input', (evento) => {
+  const campo = evento.target.dataset.campo
+  const d = atual()
+  if (!campo || d === null || campo === 'nome') return
+  estado.aviso = null
+  const c = conf(d)
+  const valor = evento.target.value
+  if (campo === 'fala') { c.fala = valor; c.falaExemplo = false; document.getElementById('conta-fala').textContent = valor.length + '/' + FALA_MAX; for (const b of pagina.querySelectorAll('.chip')) b.setAttribute('aria-pressed', String(JOGOS[d.jogo].falas(c)[Number(b.dataset.i)][1] === valor)) }
+  else if (campo === 'lugarNome') { c.lugarNome = valor; c.lugarExemplo = false }
+  else if (campo === 'tempo') {
+    c.tempo = Number(valor)
+    document.getElementById('conta-tempo').textContent = valor + ' s'
+    document.getElementById('nota-tempo').textContent = 'Tempo seu. O padrão desta dificuldade é ' + TEMPO_PADRAO[c.dificuldade] + ' s.'
+    pagina.querySelector('[data-acao="tempo-padrao"]').disabled = false
+  } else if (evento.target.tagName !== 'SELECT') c[campo] = valor
+  aoDigitar(d)
+})
+pagina.addEventListener('change', (evento) => {
+  const campo = evento.target.dataset.campo
+  const d = atual()
+  if (d === null) return
+  if (campo === 'nome') { if (estado.renomeando) { gravarNome(evento.target.value); render('renomear') } return }
+  if (evento.target.tagName === 'SELECT') { conf(d)[campo] = evento.target.value; render() }
+})
+pagina.addEventListener('keydown', (evento) => {
+  const alvo = evento.target
+  // preventDefault: o foco vai para o lápis, e sem isto o mesmo Enter o apertaria e reabriria o campo.
+  if (alvo.dataset.campo === 'nome' && evento.key === 'Enter') { evento.preventDefault(); gravarNome(alvo.value); return render('renomear') }
+  if (alvo.id === 'quem-nome' && evento.key === 'Enter') { evento.preventDefault(); return pagina.querySelector('[data-acao="quem-nome"]').click() }
+  // Radiogrupo: as setas andam e escolhem, como nos `.gr-seg` do app.
+  if (alvo.getAttribute('role') === 'radio' && ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(evento.key)) {
+    evento.preventDefault()
+    const irmaos = [...alvo.parentElement.querySelectorAll('[role="radio"]')]
+    const passo = evento.key === 'ArrowRight' || evento.key === 'ArrowDown' ? 1 : -1
+    const proximo = irmaos[(irmaos.indexOf(alvo) + passo + irmaos.length) % irmaos.length]
+    proximo.focus()
+    proximo.click()
+  }
+})
+document.addEventListener('keydown', (evento) => {
+  if (evento.key !== 'Escape') return
+  if (estado.marcando) { estado.marcando = null; return render('lugar:' + atual().lugar.tipo) }
+  if (estado.renomeando) { estado.renomeando = false; return render('renomear') }
+  if (estado.escolhendoQuem) { estado.escolhendoQuem = false; return render('quem') }
+  if (estado.apagando) { estado.apagando = false; return render('apagar') }
+})
+
+document.getElementById('arquivo').addEventListener('change', (evento) => {
+  const d = atual()
+  const arquivo = evento.target.files[0]
+  if (!d || d.jogo !== 'danca' || !arquivo) return
+  conf(d).arquivo = arquivo.name
+  evento.target.value = ''
+  render('importar')
+})
+
+// O clique do "Marcar no mapa": um ponto, ou o objeto clicado. Fora de um objeto, a dica diz o que falta.
+const svg = document.getElementById('mapa')
+function marcarNoMapa(evento) {
+  const d = atual()
+  if (!estado.marcando || d === null) return
+  if (estado.marcando === 'objeto') {
+    const objeto = evento.target.closest('[data-obj]')
+    if (objeto === null) { document.getElementById('dica').textContent = 'Aí não tem objeto. Clique na mesa, no poço ou na carroça.'; return }
+    d.lugar = { tipo: 'objeto', obj: objeto.dataset.obj }
+  } else {
+    const p = new DOMPoint(evento.clientX, evento.clientY).matrixTransform(svg.getScreenCTM().inverse())
+    d.lugar = { tipo: 'ponto', x: Math.round(p.x), y: Math.round(p.y) }
+  }
+  estado.marcando = null
+  render('lugar:' + d.lugar.tipo)
+}
+svg.addEventListener('click', marcarNoMapa)
+svg.addEventListener('keydown', (evento) => {
+  if (estado.marcando === 'objeto' && (evento.key === 'Enter' || evento.key === ' ') && evento.target.closest('[data-obj]')) { evento.preventDefault(); marcarNoMapa(evento) }
+})
+
+// ------------------------------------------------------------------ a barra do protótipo
+document.getElementById('proto-jogos').innerHTML = ORDEM.map((j) => '<button type="button" class="bt bt--p" data-jogo="' + j + '">' + esc(JOGOS[j].nome) + '</button>').join('')
+document.getElementById('proto-jogos').addEventListener('click', (evento) => {
+  const botao = evento.target.closest('[data-jogo]')
+  if (botao) abrirNovo(botao.dataset.jogo)
+})
+document.getElementById('recomecar').addEventListener('click', () => {
+  Object.assign(estado, { tela: 'lista', desafios: [], aberto: null, trocando: false, marcando: null, renomeando: false, escolhendoQuem: false, apagando: false, aviso: null })
+  render('novo')
+})
+
+render()
+</script>
+</body>
+</html>
