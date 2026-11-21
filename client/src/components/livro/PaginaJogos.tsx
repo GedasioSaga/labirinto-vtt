@@ -571,7 +571,6 @@ function FichaDoDesafio({ desafio, props, painel, emJogo }: PropsDaFicha) {
   return (
     <SubFicha voltarPara="Jogos" onVoltar={() => abrir(null)} icone={<IconeDoJogo jogo={jogo} />} titulo={desafio.nome} tipo={`Desafio · ${nomeDoJogoDoDesafio(desafio.minigame)}`}>
       <NomeDoDesafio key={desafio.nome} desafio={desafio} />
-      <PreviaDoJogador desafio={desafio} />
       {/* Depois do Ctrl+Z que desfaz a troca, o jogo de agora é o de antes: o aviso some em vez de mentir. */}
       {troca !== null && troca.de !== jogo && (
         <div className="mg-aviso" role="status">
@@ -627,6 +626,8 @@ function FichaDoDesafio({ desafio, props, painel, emJogo }: PropsDaFicha) {
           </Botao>
         )}
       </section>
+      {/* Por último: gruda no pé da coluna do livro enquanto a folha rola, e nunca fica sobre o mapa. */}
+      <PreviaDoJogador desafio={desafio} />
     </SubFicha>
   )
 }

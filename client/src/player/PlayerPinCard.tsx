@@ -735,8 +735,8 @@ export function PlayerPinCard({
             <ul className="pp-pincard__falas">
               {pin.falasVisiveis.map((fala) => (
                 <li key={fala.id}>
-                  <span className="pp-pincard__fala-quem">{fala.quem === undefined ? fala.etiqueta : `${fala.etiqueta} · ${fala.quem}`}</span>
-                  <span className="pp-pincard__fala-texto">{fala.texto}</span>
+                  <span className="pp-pincard__falas-quem">{fala.quem === undefined ? fala.etiqueta : `${fala.etiqueta} · ${fala.quem}`}</span>
+                  <span className="pp-pincard__falas-texto">{fala.texto}</span>
                 </li>
               ))}
             </ul>

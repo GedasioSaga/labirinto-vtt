@@ -324,7 +324,8 @@ function Convite({ fogo, playerId, ferramenta, setFerramenta, estadoDoJogo, erro
   return (
     <div className="lb-fogo__cartao">
       <p className="lb-fogo__eyebrow">
-        {NOME_DO_JOGO_FOGO} · {c.floresta} · {sozinho !== undefined ? 'sozinho' : solo ? 'cada um no seu incêndio' : 'em equipe'}
+        {NOME_DO_JOGO_FOGO}
+        {c.floresta.trim() === '' ? '' : ` · ${c.floresta.trim()}`} · {sozinho !== undefined ? 'sozinho' : solo ? 'cada um no seu incêndio' : 'em equipe'}
       </p>
       <h2 className="lb-fogo__titulo">{c.npc === '' ? 'Pedido de ajuda' : c.npc}</h2>
       {c.fala !== '' && <p className="lb-fogo__fala">“{c.fala}”</p>}
@@ -440,10 +441,12 @@ function Resultado({ fogo, playerId, onFechar }: { fogo: FogoDoJogador; playerId
   const d = fogo.desfecho
   if (d === undefined) return null
   const p = d.placar
+  const lugar = fogo.convite.floresta.trim()
   return (
     <div className="lb-fogo__cartao" role="alert">
-      <p className="lb-fogo__eyebrow">{NOME_DO_JOGO_FOGO}</p>
-      <h2 className="lb-fogo__titulo">{d.seu.passou ? 'A vila está salva!' : 'O fogo venceu desta vez'}</h2>
+      {/* O lugar é o do convite deste desafio, não uma vila fixa (B26): floresta sem vila não "salva a vila". */}
+      <p className="lb-fogo__eyebrow">{lugar === '' ? NOME_DO_JOGO_FOGO : `${NOME_DO_JOGO_FOGO} · ${lugar}`}</p>
+      <h2 className="lb-fogo__titulo">{d.seu.passou ? 'Fogo apagado!' : 'O fogo venceu desta vez'}</h2>
       {p !== undefined && <PlacarDoTime placar={p} />}
       {d.seu.premio !== undefined && <p className="lb-fogo__premio">{d.seu.premio.texto}</p>}
       {d.seu.consequencia !== undefined && <p className="lb-fogo__consequencia">{d.seu.consequencia.texto}</p>}

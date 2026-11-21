@@ -137,7 +137,6 @@
 @media (hover: hover) and (pointer: fine) { .mg-escolha__op:hover { background: var(--lb-gr-cartao); } }
 .mg-dupla { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
 .mg-largo { width: 100%; }
-.lb-minigame__chance > summary { cursor: pointer; }
 
 /* A troca de jogo: só o que é do jogo entra de novo (180 ms, 4 px), para o olho ver o que mudou; o resto fica parado.
    transition + @starting-style: troca seguida retoma de onde estava, em vez de recomeçar do zero. */
@@ -148,10 +147,21 @@
   @starting-style { .mg-escolha { opacity: 0; transform: scale(0.97); } }
 }
 
-/* ------------------------------------------------------------------ a prévia "O jogador vê" (decisão 11): ao lado do livro */
-.mg-previa { position: fixed; z-index: 40; width: 264px; max-height: calc(100vh - 32px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--lb-radius-md); background: var(--lb-gr-papel-baixo, #1d1812); border: 1px solid var(--lb-gr-filete-forte); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); pointer-events: none; }
-.mg-previa > * { pointer-events: auto; }
-.mg-previa__t { margin: 0; font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); }
+/* ------------------------------------------------------------------ a prévia "O jogador vê" (decisão 11)
+ * Dentro da coluna do livro, no fim da folha e grudada no pé dela enquanto rola (auditoria 21/11:
+ * por cima do mapa ela cobria o selo em edição). Recolhe pelo título; o corpo rola sozinho para não
+ * comer a folha. Abrir e fechar é instantâneo (muitas vezes por sessão); só a seta gira. */
+.mg-previa { position: sticky; bottom: 0; z-index: 2; margin: 4px -12px -12px; border-top: 1px solid var(--lb-gr-filete-forte); background: var(--lb-gr-papel-baixo); box-shadow: 0 -10px 18px rgba(0, 0, 0, 0.32); }
+.mg-previa__t { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 8px; min-height: 40px; padding: 10px 12px 8px; font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); color: var(--lb-color-parchment); }
+.mg-previa__t::-webkit-details-marker { display: none; }
+.mg-previa__t small { font: 400 var(--lb-font-size-xs)/1 var(--lb-font-utility); letter-spacing: 0.04em; text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.mg-previa__t svg { width: 16px; height: 16px; margin-left: auto; align-self: center; color: var(--lb-color-parchment-dim); transition: transform 200ms var(--lb-gr-ease-out); }
+.mg-previa[open] > .mg-previa__t svg { transform: rotate(180deg); }
+.mg-previa__t:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: -2px; }
+.mg-previa__corpo { max-height: min(40vh, 340px); overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding: 0 12px 14px; }
+/* Um campo focado pelo Tab não some atrás da prévia aberta: a rolagem deixa o vão dela livre. */
+.lb-inspector__body:has(.mg-previa[open]) { scroll-padding-bottom: calc(min(40vh, 340px) + 56px); }
+@media (prefers-reduced-motion: reduce) { .mg-previa__t svg { transition-duration: 0ms; } }
 .mg-previa__passo { margin: 0 0 4px; font: 600 var(--lb-font-size-xs)/1.2 var(--lb-font-utility); letter-spacing: 0.04em; text-transform: uppercase; color: var(--lb-color-parchment-faint); }
 .mg-previa__vazio { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment-dim); }
 .mg-pc, .mg-cj { border-radius: 10px; padding: 10px; background: #f3ead8; color: #2a2118; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.4; }
@@ -171,4 +181,3 @@
 .mg-cj__fala { margin: 0; font-style: italic; }
 .mg-cj__fala--narra { font-style: normal; }
 .mg-escolha__onde { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
-@media (max-width: 900px) { .mg-previa { display: none; } }

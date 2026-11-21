@@ -3663,17 +3663,20 @@
   border-left: 2px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.28));
 }
 
+/* O pre-wrap vinha da regra das falas do "?", que tinha o mesmo nome (B28): fica aqui, a fala do desafio
+   continua quebrando linha onde o mestre quebrou. */
 .pp-pincard__fala-texto {
   margin: 0;
   font-size: 15px;
   line-height: 1.45;
   font-style: italic;
   color: var(--lb-color-parchment, #eceae4);
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-/* Quem pede ajuda, debaixo da fala do desafio. Nome próprio: o `.pp-pincard__fala-quem` é o das falas do
-   pino "?" (maiúsculas, menor), e as duas regras com o mesmo nome se misturavam (B28 das NOTAS do editor). */
+/* Quem pede ajuda, debaixo da fala do desafio. Nome próprio: o `.pp-pincard__falas-quem` é o das falas do
+   pino "?" (maiúsculas, menor), e as regras com o mesmo nome se misturavam (B28 das NOTAS do editor). */
 .pp-pincard__pedido-quem {
   margin-top: 4px;
   font-size: 13px;
@@ -8021,5 +8024,7 @@ button.pp-colecao__casa:focus-visible {
 /* "?" FALAS E PISTAS (P5): as entradas ditas ao jogador, no cartão do pino. */
 .pp-pincard__falas { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .pp-pincard__falas li { display: grid; gap: 2px; }
-.pp-pincard__fala-quem { font-size: 0.8em; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.75; }
-.pp-pincard__fala-texto { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Nomes próprios (B28): antes dividiam `.pp-pincard__fala-*` com a fala do desafio e as regras se
+   misturavam. O texto fica como já se via (itálico 15 px, herdado da outra regra), agora escrito aqui. */
+.pp-pincard__falas-quem { font-size: 0.8em; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.75; }
+.pp-pincard__falas-texto { font-size: 15px; line-height: 1.45; font-style: italic; color: var(--lb-color-parchment, #eceae4); white-space: pre-wrap; overflow-wrap: anywhere; }

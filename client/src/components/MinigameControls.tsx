@@ -58,13 +58,12 @@ import { TiroAoVivoPainel } from './TiroAoVivo'
 import type { TiroNoPainel } from './tiroNoPainel'
 import { FogoAoVivoPainel } from './FogoAoVivo'
 import type { FogoNoPainel } from './fogoNoPainel'
-import { AlavancaAoVivoPainel, ChanceDaAlavanca } from './AlavancaAoVivo'
+import { AlavancaAoVivoPainel } from './AlavancaAoVivo'
 import type { AlavancaNoPainel } from './alavancaNoPainel'
 import { TEXTOS_DA_CENA } from '../minigames/alavanca/cenas'
 import { DIF } from '../minigames/alavanca/sim'
 import {
   ALAVANCA_FALA_MAX_LENGTH,
-  ALAVANCA_JOGADORES_MAX,
   ALAVANCA_LUGAR_MAX_LENGTH,
   ALAVANCA_TEMPO_MAX_S,
   ALAVANCA_TEMPO_MIN_S,
@@ -1289,12 +1288,12 @@ const DIFICULDADES_DA_ALAVANCA: readonly { valor: DificuldadeAlavanca; rotulo: s
 
 const ENTRADAS_DA_ALAVANCA: readonly { valor: EntradaAlavanca; rotulo: string }[] = ENTRADAS
 
-const QUANTOS_GIRAM: readonly { valor: string; rotulo: string }[] = Array.from({ length: ALAVANCA_JOGADORES_MAX }, (_, i) => ({ valor: String(i + 1), rotulo: String(i + 1) }))
-
 /**
  * O DESAFIO DA ALAVANCA DA PONTE, como a aba Mestre do protótipo aprovado em
- * 20/11/2026: dificuldade, tempo limite (8 a 40 s, ou o padrão), quantos giram
- * juntos, o que acontece quando a ponte desce e a chance de vitória estimada.
+ * 20/11/2026: dificuldade, tempo limite (8 a 40 s, ou o padrão) e o que
+ * acontece quando a ponte desce. "Quantos giram juntos" não é regra (não
+ * grava nada): saiu da ficha (decisão 16 de docs/design/jogos/NOTAS.md, B24)
+ * e a chance de vitória mora no "Chamar", com quem você marcou de verdade.
  * Mais o lugar e a fala do convite, e como começa (o molde dos outros jogos).
  * No topo, a CENA (Ponte levadiça | Canhão do chão, protótipo do canhão
  * aprovado em 20/11/2026): o mesmo jogo e os mesmos números, só muda o que
@@ -1314,18 +1313,9 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca, 
     const tempo = tempoDaAlavanca(arrastando)
     if (tempo !== minigame.tempo) mudar({ tempo })
   }
-  // Quantos giram, só para a chance: quem gira de verdade é quem você chama.
-  const [quantos, setQuantos] = useState(1)
   const portaAtual = porta.value !== null && porta.options.some((o) => o.id === porta.value) ? porta.value : ''
   const semPorta = porta.options.length === 0
   const T = TEXTOS_DA_CENA[minigame.cena]
-  const calculadoraDaChance = (
-    <fieldset className="lb-minigame__grupo">
-      <legend className="lb-label">Quantos giram juntos</legend>
-      <Pastilhas rotulo="Quantos giram juntos" opcoes={QUANTOS_GIRAM} valor={String(quantos)} onChange={(n) => setQuantos(Number(n))} />
-      <span className="lb-label">Só para a chance. Quem gira de verdade é quem você chamar: cada um aperta X no próprio computador.</span>
-    </fieldset>
-  )
   return (
     <>
       <fieldset className="lb-minigame__grupo">
@@ -1391,7 +1381,6 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca, 
           </button>
         </div>
       </div>
-      {!naFicha && calculadoraDaChance}
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">{T.quandoVencer}</legend>
         <label className="lb-label" htmlFor={id('porta')}>
@@ -1416,18 +1405,10 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca, 
           {semPorta ? T.ponhaPorta : portaAtual === '' ? T.efeitoSemPorta : T.efeitoComPorta}
         </span>
       </fieldset>
-      {!naFicha && <ChanceDaAlavanca dificuldade={minigame.dificuldade} jogadores={quantos} tempo={minigame.tempo} />}
       {aoVivoDaAlavanca === null || aoVivoDaAlavanca === undefined ? (
         <span className="lb-label lb-minigame__sem-sala">Abra a mesa online para chamar para a alavanca.</span>
       ) : (
-        <AlavancaAoVivoPainel pinId={pinId} cena={minigame.cena} {...aoVivoDaAlavanca} />
-      )}
-      {naFicha && (
-        <details className="lb-minigame__grupo lb-minigame__chance">
-          <summary className="lb-label">Calcular a chance</summary>
-          {calculadoraDaChance}
-          <ChanceDaAlavanca dificuldade={minigame.dificuldade} jogadores={quantos} tempo={minigame.tempo} />
-        </details>
+        <AlavancaAoVivoPainel pinId={pinId} cena={minigame.cena} dificuldade={minigame.dificuldade} tempo={minigame.tempo} {...aoVivoDaAlavanca} />
       )}
     </>
   )

@@ -69,7 +69,7 @@ const chances = new Map<string, number>()
  * gente, 200 partidas, com a dificuldade, quantos giram e o tempo. A conta
  * é guardada por combinação: voltar a uma escolha não refaz.
  */
-export function ChanceDaAlavanca({ dificuldade, jogadores, tempo }: { dificuldade: DificuldadeAlavanca; jogadores: number; tempo: number | null }) {
+function ChanceDaAlavanca({ dificuldade, jogadores, tempo }: { dificuldade: DificuldadeAlavanca; jogadores: number; tempo: number | null }) {
   const chave = `${dificuldade}|${jogadores}|${tempo ?? ''}`
   const [chance, setChance] = useState<number | null>(chances.get(chave) ?? null)
   useEffect(() => {
@@ -98,8 +98,18 @@ export function ChanceDaAlavanca({ dificuldade, jogadores, tempo }: { dificuldad
   )
 }
 
-/** Antes do convite: quem gira (até 4). */
-function Chamar({ players, onConvidar, cena }: Pick<AlavancaAoVivoProps, 'players' | 'onConvidar'> & { cena: CenaAlavanca }) {
+/** Os números do desafio que a chance usa (dificuldade e tempo do painel). */
+interface RegraDaChance {
+  dificuldade: DificuldadeAlavanca
+  tempo: number | null
+}
+
+/**
+ * Antes do convite: quem gira (até 4). A chance de vitória fica aqui, com
+ * quantos você marcou (decisão 16 das NOTAS do editor, B24): não há mais um
+ * "Quantos giram juntos" de mentira na ficha.
+ */
+function Chamar({ players, onConvidar, cena, dificuldade, tempo }: Pick<AlavancaAoVivoProps, 'players' | 'onConvidar'> & { cena: CenaAlavanca } & RegraDaChance) {
   const [escolhidos, setEscolhidos] = useState<ReadonlySet<string>>(new Set())
   const [aviso, setAviso] = useState<string | null>(null)
   const cheio = escolhidos.size >= ALAVANCA_JOGADORES_MAX
@@ -135,6 +145,7 @@ function Chamar({ players, onConvidar, cena }: Pick<AlavancaAoVivoProps, 'player
       </ul>
       <span className="lb-label">{TEXTOS_DA_CENA[cena].emEquipe}</span>
       {cheio && <span className="lb-label">Na mesma alavanca giram até {ALAVANCA_JOGADORES_MAX}.</span>}
+      {escolhidos.size > 0 && <ChanceDaAlavanca dificuldade={dificuldade} jogadores={escolhidos.size} tempo={tempo} />}
       <button type="button" className="lb-btn lb-btn--primary lb-btn--block" disabled={escolhidos.size === 0} onClick={chamar}>
         {CHAMAR_PARA_A_ALAVANCA}
       </button>
@@ -199,8 +210,8 @@ function RodadaAoVivo({ alavanca, lerVivo }: { alavanca: AlavancaAoVivo; lerVivo
   )
 }
 
-/** `cena`: a do desafio no painel, para o que se diz antes do convite; a rodada usa a congelada no convite. */
-export function AlavancaAoVivoPainel({ pinId, cena, players, alavanca, lerVivo, onConvidar, onComecar, onPausar, onRetomar, onEncerrar }: AlavancaAoVivoProps & { cena: CenaAlavanca }) {
+/** `cena`, `dificuldade` e `tempo`: os do desafio no painel, para o que se diz e a chance antes do convite; a rodada usa os congelados no convite. */
+export function AlavancaAoVivoPainel({ pinId, cena, dificuldade, tempo, players, alavanca, lerVivo, onConvidar, onComecar, onPausar, onRetomar, onEncerrar }: AlavancaAoVivoProps & { cena: CenaAlavanca } & RegraDaChance) {
   const desta = alavanca !== null && alavanca.pinId === pinId ? alavanca : null
   const ativaNaFase = (fase: AlavancaAoVivo['fase']) => fase === 'convite' || fase === 'contagem' || fase === 'rodada' || fase === 'pausa'
   // Outro desafio com alavanca aberta: este não chama até aquela acabar.
@@ -255,7 +266,7 @@ export function AlavancaAoVivoPainel({ pinId, cena, players, alavanca, lerVivo, 
               {desta.resultado.portaAberta && <span className="lb-fogo-vivo__fase">A porta ligada abriu.</span>}
             </div>
           )}
-          {outraAtiva ? <span className="lb-label">Há uma alavanca aberta em outro desafio: encerre aquela antes.</span> : <Chamar players={players} onConvidar={onConvidar} cena={cena} />}
+          {outraAtiva ? <span className="lb-label">Há uma alavanca aberta em outro desafio: encerre aquela antes.</span> : <Chamar players={players} onConvidar={onConvidar} cena={cena} dificuldade={dificuldade} tempo={tempo} />}
         </>
       )}
     </section>

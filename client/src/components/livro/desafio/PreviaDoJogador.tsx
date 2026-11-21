@@ -1,5 +1,4 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import { createPortal } from 'react-dom'
+import { useState } from 'react'
 import { conviteDo, entradaDoDesafio } from '../../../lib/desafios'
 import { recorteDoMinigame, REGISTRO_DE_MINIGAMES } from '../../../minigames/registro'
 import { textosDoJogoDoSelo } from '../../../minigames/textosDoCartao'
@@ -8,9 +7,11 @@ import { IconeDoJogo } from '../IconeDoJogo'
 import { RetratoDeQuemChama } from './BlocoDoConvite'
 
 /**
- * A PRÉVIA "O JOGADOR VÊ" (editor de desafio de 21/11/2026, decisão 11): ao
- * lado do livro enquanto a ficha está aberta, 1) o cartão ao encostar no selo
- * e 2) o convite. Muda a cada tecla. O cartão sai das MESMAS funções do
+ * A PRÉVIA "O JOGADOR VÊ" (editor de desafio de 21/11/2026, decisão 11):
+ * enquanto a ficha está aberta, 1) o cartão ao encostar no selo e 2) o
+ * convite. Muda a cada tecla. Mora DENTRO da coluna do livro, grudada no pé
+ * da folha e recolhível: por cima do mapa ela cobria o selo que a ficha
+ * aberta deixa mover, girar e apagar (auditoria de 21/11). O cartão sai das MESMAS funções do
  * recorte do jogador (`recorteDoMinigame`, com o selo legível) e dos mesmos
  * textos do cartão (`minigames/textosDoCartao.ts`): a prévia não inventa o
  * que o jogador lê. O convite é o resumo do que a tela do jogo mostra (quem
@@ -94,55 +95,62 @@ function ConviteDoJogador({ desafio }: { desafio: Desafio }) {
   )
 }
 
-/** A largura da prévia (a mesma do `.mg-previa` em paginaJogos.css) e o vão até o livro, em px. */
-const LARGURA_DA_PREVIA = 264
-const VAO_DA_PREVIA = 12
+/** Aberta ou recolhida vale para todas as fichas e para a próxima vez que o app abrir. */
+const CHAVE_DA_PREVIA = 'lb-previa-do-jogador'
 
-/** Onde a prévia fica: à direita do livro, na altura da página. Sem livro medido (teste), no canto. */
-function useAoLadoDoLivro(): { ancora: RefObject<HTMLSpanElement | null>; lugar: { left: number; top: number } | null } {
-  const ancora = useRef<HTMLSpanElement>(null)
-  const [lugar, setLugar] = useState<{ left: number; top: number } | null>(null)
-  useLayoutEffect(() => {
-    const medir = () => {
-      const folha = ancora.current?.closest('.gr-folha')
-      if (!(folha instanceof HTMLElement)) return
-      const caixa = folha.getBoundingClientRect()
-      // O livro na direita da tela: a prévia vai para o lado de dentro dele (sobre o mapa), sem sair da janela.
-      const direita = caixa.right + VAO_DA_PREVIA + LARGURA_DA_PREVIA <= window.innerWidth
-      setLugar({ left: Math.round(direita ? caixa.right + VAO_DA_PREVIA : caixa.left - VAO_DA_PREVIA - LARGURA_DA_PREVIA), top: Math.round(caixa.top + 8) })
-    }
-    medir()
-    window.addEventListener('resize', medir)
-    return () => window.removeEventListener('resize', medir)
-  }, [])
-  return { ancora, lugar }
+/** localStorage pode não existir ou lançar (janela privada, dado bloqueado): sem ele, abre. */
+function lerAberta(): boolean {
+  try {
+    return window.localStorage.getItem(CHAVE_DA_PREVIA) !== 'recolhida'
+  } catch {
+    return true
+  }
+}
+
+function guardarAberta(aberta: boolean): void {
+  try {
+    if (aberta) window.localStorage.removeItem(CHAVE_DA_PREVIA)
+    else window.localStorage.setItem(CHAVE_DA_PREVIA, 'recolhida')
+  } catch {
+    // Sem armazenamento, vale até fechar o app.
+  }
 }
 
 export function PreviaDoJogador({ desafio }: { desafio: Desafio }) {
-  const { ancora, lugar } = useAoLadoDoLivro()
+  const [aberta, setAberta] = useState(lerAberta)
   return (
-    <>
-      <span ref={ancora} hidden />
-      {lugar !== null &&
-        createPortal(
-          <aside className="mg-previa" aria-label="O jogador vê" style={{ left: lugar.left, top: lugar.top }}>
-            <h2 className="mg-previa__t">O jogador vê</h2>
-            <p className="mg-nota">Prévia ao vivo. Os botões daqui são do jogador, não clicam.</p>
-            <section>
-              <p className="mg-previa__passo">1. Ao encostar no selo</p>
-              <div inert>
-                <CartaoDoSelo desafio={desafio} />
-              </div>
-            </section>
-            <section>
-              <p className="mg-previa__passo">2. O convite, quando o jogo começa</p>
-              <div inert>
-                <ConviteDoJogador desafio={desafio} />
-              </div>
-            </section>
-          </aside>,
-          document.body,
-        )}
-    </>
+    <details
+      className="mg-previa"
+      open={aberta}
+      onToggle={(evento) => {
+        const agora = evento.currentTarget.open
+        if (agora === aberta) return
+        setAberta(agora)
+        guardarAberta(agora)
+      }}
+    >
+      <summary className="mg-previa__t">
+        <span>O jogador vê</span>
+        <small>prévia ao vivo</small>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+          <path d="M6 15l6-6 6 6" />
+        </svg>
+      </summary>
+      <div className="mg-previa__corpo">
+        <p className="mg-nota">Os botões daqui são do jogador, não clicam.</p>
+        <section>
+          <p className="mg-previa__passo">1. Ao encostar no selo</p>
+          <div inert>
+            <CartaoDoSelo desafio={desafio} />
+          </div>
+        </section>
+        <section>
+          <p className="mg-previa__passo">2. O convite, quando o jogo começa</p>
+          <div inert>
+            <ConviteDoJogador desafio={desafio} />
+          </div>
+        </section>
+      </div>
+    </details>
   )
 }
