@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type R
 import type { ItemDoCatalogo } from '../../../lib/acervoDeItens'
 import type { Puzzle } from '../../../puzzles/tipos'
 import { useAcervoDeItensStore } from '../../../stores/acervoDeItensStore'
-import type { PecaDoEditor, PecasDoEditor } from '../pecasDoEditor'
+import { gruposDaBiblioteca, type PecaDoEditor, type PecasDoEditor } from '../pecasDoEditor'
 
 /** O que toda seção da ficha do editor recebe: o puzzle do editor e o caminho de mudar (um passo do Desfazer). */
 export interface PropsDaSecao {
@@ -71,7 +71,11 @@ export function SeletorDePeca({
     >
       <option value={SEM_PECA}>{vazio}</option>
       {sumiu && <option value={valor}>Item apagado do acervo</option>}
-      {pecas.biblioteca.length > 0 && <optgroup label="Peças de puzzle">{pecas.biblioteca.map(opcao)}</optgroup>}
+      {gruposDaBiblioteca(pecas.biblioteca).map((grupo) => (
+        <optgroup key={grupo.grupo} label={`Peças de puzzle: ${grupo.rotulo.toLocaleLowerCase('pt-BR')}`}>
+          {grupo.pecas.map(opcao)}
+        </optgroup>
+      ))}
       {pecas.outras.length > 0 && <optgroup label="Outros itens do acervo">{pecas.outras.map(opcao)}</optgroup>}
     </select>
   )

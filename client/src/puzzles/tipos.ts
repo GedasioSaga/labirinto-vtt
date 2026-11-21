@@ -302,8 +302,93 @@ export interface IndiceDeMeusPuzzles {
 /** A categoria do acervo das peças de puzzle (e a pasta de mesmo nome). */
 export const CATEGORIA_DA_PECA_DE_PUZZLE = 'Peça de puzzle'
 
-/** As 13 peças desenhadas da biblioteca do v2 (`PECAS_BASE`); a arte mora em `puzzles/arte/pecas.ts`. */
-export type IdDaPecaDesenhada =
+/**
+ * As peças desenhadas da biblioteca: as 13 do v2 (`PECAS_BASE`) e as do
+ * catálogo grande de 21/11 ("vastos itens, tanto para colocar em um lugar,
+ * quanto para combinar quanto chaves"). A arte mora em `puzzles/arte/`. O id
+ * é para sempre: o item do acervo é `item_peca_<id>` e os puzzles gravados
+ * apontam para ele.
+ */
+export type IdDaPecaDesenhada = IdDaPecaDoV2 | IdDaPecaDeEncaixe | IdDaMetade | IdDaChave
+
+/** Para que serve a peça: pôr num encaixe, juntar com a outra metade, ou abrir (as chaves). Agrupa a biblioteca. */
+export type TipoDaPecaDesenhada = 'encaixe' | 'metade' | 'chave'
+
+/** As peças novas para pôr num encaixe (medalhões, joias, engrenagens, olhos, brasões, estatuetas, orbes, máscaras) e as peças inteiras das metades. */
+export type IdDaPecaDeEncaixe =
+  | 'med-cervo'
+  | 'med-coruja'
+  | 'med-peixe'
+  | 'med-serpente'
+  | 'joia-esmeralda'
+  | 'joia-rubi'
+  | 'joia-ametista'
+  | 'joia-onix'
+  | 'engr-latao'
+  | 'engr-cobre'
+  | 'olho-jade'
+  | 'olho-obsidiana'
+  | 'bra-torre'
+  | 'bra-corvo'
+  | 'bra-rosa'
+  | 'fig-cavalo'
+  | 'fig-gato'
+  | 'manivela'
+  | 'orbe-cristal'
+  | 'orbe-sombra'
+  | 'placa-runas'
+  | 'mascara-ouro'
+  | 'mascara-prata'
+  | 'tabua-runas'
+  | 'disco-eclipse'
+  | 'espelho-bronze'
+  | 'selo-real'
+  | 'estrela-prata'
+  | 'coroa-bronze'
+
+/** As metades: duas a duas, num encaixe de "Duas metades", viram a peça inteira (`puzzles/arte/metades.ts`). */
+export type IdDaMetade =
+  | 'metade-tabua-esq'
+  | 'metade-tabua-dir'
+  | 'metade-disco-sol'
+  | 'metade-disco-lua'
+  | 'metade-espelho-esq'
+  | 'metade-espelho-dir'
+  | 'metade-selo-esq'
+  | 'metade-selo-dir'
+  | 'metade-estrela-esq'
+  | 'metade-estrela-dir'
+  | 'metade-coroa-esq'
+  | 'metade-coroa-dir'
+  | 'metade-cervo-esq'
+  | 'metade-cervo-dir'
+  | 'metade-mascara-esq'
+  | 'metade-mascara-dir'
+  | 'metade-torre-esq'
+  | 'metade-torre-dir'
+  | 'metade-chave-argola'
+  | 'metade-chave-haste'
+
+/** As chaves novas: seis matérias (ferro, bronze, prata, ouro, pedra, osso) e uma argola com desenho em cada. */
+export type IdDaChave =
+  | 'chave-espadas'
+  | 'chave-copas'
+  | 'chave-ouros'
+  | 'chave-paus'
+  | 'chave-sol'
+  | 'chave-lua'
+  | 'chave-estrela'
+  | 'chave-aguia'
+  | 'chave-serpente'
+  | 'chave-coroa'
+  | 'chave-pedra'
+  | 'chave-osso'
+  | 'chave-cranio'
+  | 'chave-mestra'
+  | 'chave-roda'
+
+/** As 13 peças desenhadas da biblioteca do v2 (`PECAS_BASE`). */
+export type IdDaPecaDoV2 =
   | 'bra-carvalho'
   | 'bra-lobo'
   | 'bra-lua'

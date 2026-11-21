@@ -1,7 +1,8 @@
 /**
- * AS 13 PEÇAS DESENHADAS (brasões, chaves, engrenagens, joias e medalhões): a
- * arte do protótipo aprovado (`docs/design/puzzles/prototipo-v2.html`, os
- * `<symbol id="i-...">` e o gerador `engrenagem`), portada traço por traço.
+ * AS PEÇAS DESENHADAS: as 13 do protótipo aprovado
+ * (`docs/design/puzzles/prototipo-v2.html`, os `<symbol id="i-...">` e o
+ * gerador `engrenagem`), portadas traço por traço, e o catálogo grande de
+ * 21/11 (`pecasDeEncaixe.ts`, `metades.ts`, `chaves.ts`), no mesmo traço.
  * Mudar um número aqui muda a peça que o mestre já pôs no acervo só na
  * próxima vez que ele a puser de novo: o item guarda o PNG, não o desenho.
  *
@@ -12,89 +13,66 @@
  * Puro: sem React, sem disco. Arte do app, nunca texto de usuário: pode ir
  * para `src` de `<img>` como dado SVG.
  */
-import type { IdDaPecaDesenhada } from '../tipos'
+import type { IdDaChave, IdDaMetade, IdDaPecaDeEncaixe, IdDaPecaDesenhada, TipoDaPecaDesenhada } from '../tipos'
+import { ARTE_DAS_CHAVES } from './chaves'
+import { ARTE_DAS_METADES, PARES_DE_METADES } from './metades'
+import { ARTE_DAS_PECAS_DE_ENCAIXE } from './pecasDeEncaixe'
+import { BASE_DO_MEDALHAO, COR_DO_VAO, engrenagem, escudo, joia } from './tracos'
+
+export { engrenagem, tom } from './tracos'
 
 /** O lado do quadro de toda peça, em unidades do `viewBox`. */
 export const LADO_DA_ARTE_DA_PECA = 48
 
-/** As peças na ordem da biblioteca do v2 (`PECAS_BASE`). */
-export const IDS_DAS_PECAS_DESENHADAS: readonly IdDaPecaDesenhada[] = [
-  'bra-carvalho',
-  'bra-lobo',
-  'bra-lua',
-  'bra-sol',
-  'chave-jardim',
-  'chave-latao',
-  'engr-bronze',
-  'engr-ferro',
-  'joia-ambar',
-  'joia-safira',
-  'med-garca',
-  'med-sapo',
-  'med-junco',
-]
-
-const CANAL_MAX = 255
-
-/** Escurece (`fator` < 1) ou clareia (> 1) uma cor `#rrggbb`, o `tom` do v2: o contorno do Meio-Termo é a própria cor a ~60%. */
-export function tom(hex: string, fator: number): string {
-  const n = Number.parseInt(hex.slice(1), 16) || 0
-  const canais = [(n >> 16) & CANAL_MAX, (n >> 8) & CANAL_MAX, n & CANAL_MAX].map((valor) => Math.max(0, Math.min(CANAL_MAX, Math.round(valor * fator))))
-  return `#${((1 << 24) | (canais[0] << 16) | (canais[1] << 8) | canais[2]).toString(16).slice(1)}`
+/** As chaves de um registro de arte, na ordem em que foram escritas (o registro é completo: o `tsc` cobra cada id). */
+function idsDe<K extends string>(registro: Readonly<Record<K, string>>): K[] {
+  return Object.keys(registro) as K[]
 }
-
-/** O fundo do furo da engrenagem e do olho da chave de latão (o vão escuro do v2). */
-const COR_DO_VAO = '#2a2620'
 
 /**
- * A engrenagem desenhada por código (o `engrenagem` do v2): dentes
- * trapezoidais em volta do centro (24, 24), contorno no tom escuro da cor, um
- * anel por dentro, o furo (redondo ou quadrado) e um risco de luz no alto.
+ * As peças de cada tipo, na ordem da biblioteca: primeiro as do v2 (na ordem
+ * do `PECAS_BASE`), depois as novas. As duas chaves do v2 vão com as chaves.
  */
-export function engrenagem(dentes: number, raioDeFora: number, raioDeDentro: number, cor: string, furoQuadrado: boolean): string {
-  const passo = (Math.PI * 2) / dentes
-  const ponto = (raio: number, angulo: number) => `${(24 + Math.sin(angulo) * raio).toFixed(2)} ${(24 - Math.cos(angulo) * raio).toFixed(2)}`
-  let contorno = ''
-  for (let k = 0; k < dentes; k++) {
-    const base = k * passo
-    contorno += `${k === 0 ? 'M' : 'L'}${ponto(raioDeDentro, base)}L${ponto(raioDeFora, base + passo * 0.14)}L${ponto(raioDeFora, base + passo * 0.4)}L${ponto(raioDeDentro, base + passo * 0.54)}`
-  }
-  const escuro = tom(cor, 0.55)
-  const furo = furoQuadrado
-    ? `<rect x="20.5" y="20.5" width="7" height="7" rx="1" fill="${COR_DO_VAO}" stroke="${escuro}" stroke-width="1.6"/>`
-    : `<circle cx="24" cy="24" r="4" fill="${COR_DO_VAO}" stroke="${escuro}" stroke-width="1.6"/>`
-  const raioDaLuz = raioDeDentro - 2.5
-  return (
-    `<path d="${contorno}Z" fill="${cor}" stroke="${escuro}" stroke-width="2" stroke-linejoin="round"/>` +
-    `<circle cx="24" cy="24" r="${(raioDeDentro * 0.58).toFixed(1)}" fill="none" stroke="${tom(cor, 0.72)}" stroke-width="1.6"/>${furo}` +
-    `<path d="M${ponto(raioDaLuz, -1.1)}A${raioDaLuz} ${raioDaLuz} 0 0 1 ${ponto(raioDaLuz, -0.25)}" stroke="${tom(cor, 1.32)}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".8"/>`
-  )
+export const IDS_DAS_PECAS_DO_TIPO: Readonly<Record<TipoDaPecaDesenhada, readonly IdDaPecaDesenhada[]>> = {
+  encaixe: [
+    'bra-carvalho',
+    'bra-lobo',
+    'bra-lua',
+    'bra-sol',
+    'engr-bronze',
+    'engr-ferro',
+    'joia-ambar',
+    'joia-safira',
+    'med-garca',
+    'med-sapo',
+    'med-junco',
+    ...idsDe<IdDaPecaDeEncaixe>(ARTE_DAS_PECAS_DE_ENCAIXE),
+  ],
+  metade: PARES_DE_METADES.flatMap((par): IdDaMetade[] => [...par.metades]),
+  chave: ['chave-jardim', 'chave-latao', ...idsDe<IdDaChave>(ARTE_DAS_CHAVES)],
 }
 
-/** A base de latão dos três medalhões (`base-med` do v2). */
-const BASE_DO_MEDALHAO =
-  '<circle cx="24" cy="24" r="19.5" fill="#b89552" stroke="#6e5931" stroke-width="2.5"/>' +
-  '<circle cx="24" cy="24" r="14.8" fill="#c7a768" stroke="#8a6f3d" stroke-width="1.5"/>' +
-  '<path d="M12.5 16a13.5 13.5 0 0 1 9.5-6" stroke="#ead29c" stroke-width="2" fill="none" stroke-linecap="round" opacity=".75"/>'
+/** Os tipos na ordem da biblioteca. */
+export const TIPOS_DA_PECA_DESENHADA: readonly TipoDaPecaDesenhada[] = ['encaixe', 'metade', 'chave']
 
-/** O escudo dos quatro brasões: a mesma forma, com a cor, o contorno e o filete de cada um. */
-function escudo(cor: string, contorno: string, filete: string): string {
-  return (
-    `<path d="M9 8.5h30v13.5c0 9.6-6.4 15.7-15 18.7C15.4 37.7 9 31.6 9 22z" fill="${cor}" stroke="${contorno}" stroke-width="2.5" stroke-linejoin="round"/>` +
-    `<path d="M12.5 11.5h23v10.5c0 7.6-5 12.4-11.5 14.9-6.5-2.5-11.5-7.3-11.5-14.9z" fill="none" stroke="${filete}" stroke-width="1.4"/>`
-  )
+/** Todas as peças desenhadas, na ordem da biblioteca (por tipo). */
+export const IDS_DAS_PECAS_DESENHADAS: readonly IdDaPecaDesenhada[] = TIPOS_DA_PECA_DESENHADA.flatMap((tipo) => IDS_DAS_PECAS_DO_TIPO[tipo])
+
+const TIPO_DA_PECA: ReadonlyMap<IdDaPecaDesenhada, TipoDaPecaDesenhada> = new Map(TIPOS_DA_PECA_DESENHADA.flatMap((tipo) => IDS_DAS_PECAS_DO_TIPO[tipo].map((id) => [id, tipo] as const)))
+
+/** Para que serve a peça desenhada (agrupa a biblioteca, o seletor e a vitrine do acervo). */
+export function tipoDaPecaDesenhada(id: IdDaPecaDesenhada): TipoDaPecaDesenhada {
+  return TIPO_DA_PECA.get(id) ?? 'encaixe'
 }
 
-/** A lapidação das duas joias: a mesma forma, com a cor, o contorno e o brilho de cada uma. */
-function joia(cor: string, contorno: string, brilho: string): string {
-  return (
-    `<path d="M24 7.5l12.5 11.5L24 40.5 11.5 19z" fill="${cor}" stroke="${contorno}" stroke-width="2" stroke-linejoin="round"/>` +
-    `<path d="M11.5 19h25M24 7.5 19 19l5 21.5 5-21.5z" stroke="${contorno}" stroke-width="1.3" fill="none" opacity=".8" stroke-linejoin="round"/>` +
-    `<path d="M18.5 18.2l4.6-9" stroke="${brilho}" stroke-width="2" stroke-linecap="round"/>`
-  )
+/** A peça inteira que as duas metades formam, em qualquer ordem; `null` = não são um par. */
+export function inteiraDasMetades(a: IdDaPecaDesenhada | null, b: IdDaPecaDesenhada | null): IdDaPecaDesenhada | null {
+  if (a === null || b === null) return null
+  const par = PARES_DE_METADES.find(({ metades }) => (metades[0] === a && metades[1] === b) || (metades[0] === b && metades[1] === a))
+  return par?.inteira ?? null
 }
 
-/** O miolo do SVG de cada peça (sem a tag `<svg>`), no quadro de 48 x 48. */
+/** O miolo do SVG de cada peça (sem a tag `<svg>`), no quadro de 48 x 48. As 13 do v2 aqui; as novas, dos arquivos de cada tipo. */
 export const ARTE_DAS_PECAS: Readonly<Record<IdDaPecaDesenhada, string>> = {
   'bra-carvalho':
     escudo('#7f9a64', '#4c5c3c', '#a3bb88') +
@@ -137,6 +115,9 @@ export const ARTE_DAS_PECAS: Readonly<Record<IdDaPecaDesenhada, string>> = {
     BASE_DO_MEDALHAO +
     '<path d="M18.5 35c0-7 .6-13 2.2-19M24 35V12.5M29.5 35c0-7-.6-13-2.2-19" stroke="#5e4a26" stroke-width="2" fill="none" stroke-linecap="round"/>' +
     '<ellipse cx="20.9" cy="14.6" rx="1.8" ry="4" fill="#5e4a26" transform="rotate(12 20.9 14.6)"/><ellipse cx="24" cy="11.4" rx="1.8" ry="4" fill="#5e4a26"/><ellipse cx="27.1" cy="14.6" rx="1.8" ry="4" fill="#5e4a26" transform="rotate(-12 27.1 14.6)"/>',
+  ...ARTE_DAS_PECAS_DE_ENCAIXE,
+  ...ARTE_DAS_METADES,
+  ...ARTE_DAS_CHAVES,
 }
 
 /**

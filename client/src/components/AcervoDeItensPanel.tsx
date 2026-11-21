@@ -20,9 +20,9 @@ import {
   recusaParaMoverAPasta,
   semAPasta,
 } from '../lib/pastasDosItens'
-import { IDS_DAS_PECAS_DESENHADAS, urlDaPeca } from '../puzzles/arte/pecas'
+import { IDS_DAS_PECAS_DO_TIPO, TIPOS_DA_PECA_DESENHADA, urlDaPeca } from '../puzzles/arte/pecas'
 import { guardarPecaDesenhada } from '../puzzles/arte/rasterizar'
-import { PECAS_DESENHADAS } from '../puzzles/padroes'
+import { NOME_DO_TIPO_DA_PECA, PECAS_DESENHADAS } from '../puzzles/padroes'
 import { CATEGORIA_DA_PECA_DE_PUZZLE, type IdDaPecaDesenhada } from '../puzzles/tipos'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { useToastStore } from '../stores/toastStore'
@@ -627,6 +627,35 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
     const idDoTitulo = `${idBase}-pecas`
     const pastaDasPecas = pastaDaPecaDePuzzle(pastas)
     const idsNoAcervo = new Set(itens.map((item) => item.id))
+    const celulaDaPeca = (peca: IdDaPecaDesenhada) => {
+      const { nome } = PECAS_DESENHADAS[peca]
+      const noAcervo = idsNoAcervo.has(idDoItemDaPeca(peca))
+      return (
+        <li key={peca} className="lb-itens__celula">
+          <button
+            type="button"
+            className="lb-itens__item lb-itens__peca"
+            aria-label={noAcervo ? `Abrir ${nome}, já no acervo` : `Pôr ${nome} no acervo`}
+            title={noAcervo ? `${nome}: já está no acervo` : nome}
+            aria-busy={pondo === peca}
+            data-no-acervo={noAcervo ? '' : undefined}
+            onClick={() => void porPecaNoAcervo(peca)}
+          >
+            <span className="lb-itens__foto">
+              <img src={urlDaPeca(peca)} alt="" draggable={false} />
+            </span>
+            <span className="lb-itens__nome">{nome}</span>
+            {noAcervo && (
+              <span className="lb-itens__peca-selo" aria-hidden="true">
+                <svg viewBox="0 0 12 12" width="10" height="10" focusable="false">
+                  <path d="M2.5 6.2 5 8.6l4.5-5.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            )}
+          </button>
+        </li>
+      )
+    }
     return (
       <div
         className="lb-itens__pecas"
@@ -649,37 +678,15 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
           </button>
         </div>
         <p className="lb-label lb-itens__dica">Toque numa peça para pô-la no acervo, na pasta {pastaDasPecas?.nome ?? CATEGORIA_DA_PECA_DE_PUZZLE}.</p>
-        <ul className="lb-itens__grade">
-          {IDS_DAS_PECAS_DESENHADAS.map((peca) => {
-            const { nome } = PECAS_DESENHADAS[peca]
-            const noAcervo = idsNoAcervo.has(idDoItemDaPeca(peca))
-            return (
-              <li key={peca} className="lb-itens__celula">
-                <button
-                  type="button"
-                  className="lb-itens__item lb-itens__peca"
-                  aria-label={noAcervo ? `Abrir ${nome}, já no acervo` : `Pôr ${nome} no acervo`}
-                  title={noAcervo ? `${nome}: já está no acervo` : nome}
-                  aria-busy={pondo === peca}
-                  data-no-acervo={noAcervo ? '' : undefined}
-                  onClick={() => void porPecaNoAcervo(peca)}
-                >
-                  <span className="lb-itens__foto">
-                    <img src={urlDaPeca(peca)} alt="" draggable={false} />
-                  </span>
-                  <span className="lb-itens__nome">{nome}</span>
-                  {noAcervo && (
-                    <span className="lb-itens__peca-selo" aria-hidden="true">
-                      <svg viewBox="0 0 12 12" width="10" height="10" focusable="false">
-                        <path d="M2.5 6.2 5 8.6l4.5-5.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                  )}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+        {/* 21/11: são 77 peças; cada tipo (para encaixar, para juntar, chaves) com o seu título. */}
+        {TIPOS_DA_PECA_DESENHADA.map((tipo) => (
+          <section key={tipo} className="lb-itens__pecas-grupo" aria-labelledby={`${idDoTitulo}-${tipo}`}>
+            <p id={`${idDoTitulo}-${tipo}`} className="lb-label lb-itens__pecas-tipo">
+              {NOME_DO_TIPO_DA_PECA[tipo]}
+            </p>
+            <ul className="lb-itens__grade">{IDS_DAS_PECAS_DO_TIPO[tipo].map(celulaDaPeca)}</ul>
+          </section>
+        ))}
       </div>
     )
   }

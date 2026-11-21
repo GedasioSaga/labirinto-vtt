@@ -21,6 +21,7 @@ import type {
   ModeloDoPuzzle,
   Puzzle,
   RegraDoPuzzle,
+  TipoDaPecaDesenhada,
   TipoDeCastigo,
 } from './tipos'
 
@@ -102,7 +103,7 @@ export const PADROES_DOS_MODELOS: Readonly<Record<ModeloDoPuzzle, Readonly<Padra
   },
 }
 
-/** Nome e descrição das 13 peças desenhadas (`PECAS_BASE` do v2): o que o "Pôr no acervo" grava no item. */
+/** Nome e descrição de cada peça desenhada (as 13 do `PECAS_BASE` do v2 e o catálogo de 21/11): o que o "Pôr no acervo" grava no item. */
 export const PECAS_DESENHADAS: Readonly<Record<IdDaPecaDesenhada, { nome: string; descricao: string }>> = {
   'bra-carvalho': { nome: 'Brasão do Carvalho', descricao: 'Escudo verde com uma árvore larga.' },
   'bra-lobo': { nome: 'Brasão do Lobo', descricao: 'Escudo azul com uma cabeça de lobo.' },
@@ -117,6 +118,80 @@ export const PECAS_DESENHADAS: Readonly<Record<IdDaPecaDesenhada, { nome: string
   'med-garca': { nome: 'Medalhão da Garça', descricao: 'Latão gasto. Uma garça de pescoço longo em relevo.' },
   'med-sapo': { nome: 'Medalhão do Sapo', descricao: 'Latão com limo nas bordas. Um sapo sentado.' },
   'med-junco': { nome: 'Medalhão do Junco', descricao: 'Latão. Três juncos dobrados pelo vento.' },
+  // O catálogo grande de 21/11: para pôr num encaixe.
+  'med-cervo': { nome: 'Medalhão do Cervo', descricao: 'Latão. Um cervo de chifres largos, de frente.' },
+  'med-coruja': { nome: 'Medalhão da Coruja', descricao: 'Prata escurecida. Uma coruja de olhos grandes.' },
+  'med-peixe': { nome: 'Medalhão do Peixe', descricao: 'Bronze. Um peixe nadando sobre as ondas.' },
+  'med-serpente': { nome: 'Medalhão da Serpente', descricao: 'Latão. Uma serpente enrolada em espiral.' },
+  'joia-esmeralda': { nome: 'Joia esmeralda', descricao: 'Verde, lapidada em degraus. Fria ao toque.' },
+  'joia-rubi': { nome: 'Joia rubi', descricao: 'Vermelha e redonda. Pesa mais do que parece.' },
+  'joia-ametista': { nome: 'Joia ametista', descricao: 'Roxa, em forma de gota.' },
+  'joia-onix': { nome: 'Joia de ônix', descricao: 'Negra e lisa, com um anel claro por dentro.' },
+  'engr-latao': { nome: 'Engrenagem de latão', descricao: 'Doze dentes finos e um furo quadrado.' },
+  'engr-cobre': { nome: 'Engrenagem de cobre', descricao: 'Dez dentes, avermelhada pelo tempo.' },
+  'olho-jade': { nome: 'Olho de jade', descricao: 'Olho de estátua: mármore com a íris verde.' },
+  'olho-obsidiana': { nome: 'Olho de obsidiana', descricao: 'Olho de estátua: mármore com a íris negra.' },
+  'bra-torre': { nome: 'Brasão da Torre', descricao: 'Escudo vermelho com uma torre de ameias.' },
+  'bra-corvo': { nome: 'Brasão do Corvo', descricao: 'Escudo negro com um corvo pousado.' },
+  'bra-rosa': { nome: 'Brasão da Rosa', descricao: 'Escudo dourado com uma rosa de caule longo.' },
+  'fig-cavalo': { nome: 'Estatueta do cavalo', descricao: 'Madeira escura. Uma cabeça de cavalo sobre a base.' },
+  'fig-gato': { nome: 'Estatueta do gato', descricao: 'Pedra negra polida. Os olhos são de ouro.' },
+  manivela: { nome: 'Manivela de ferro', descricao: 'Ponta quadrada e cabo de madeira.' },
+  'orbe-cristal': { nome: 'Orbe de cristal', descricao: 'Claro, numa base de bronze. Algo se move dentro.' },
+  'orbe-sombra': { nome: 'Orbe de sombra', descricao: 'Escuro e frio, numa base de ferro.' },
+  'placa-runas': { nome: 'Placa de bronze', descricao: 'Rebites nos cantos e três runas gravadas.' },
+  'mascara-ouro': { nome: 'Máscara de ouro', descricao: 'Rosto sereno, de olhos em fenda.' },
+  'mascara-prata': { nome: 'Máscara de prata', descricao: 'Um sorriso largo. Fitas azuis nos lados.' },
+  'tabua-runas': { nome: 'Tábua de runas', descricao: 'Pedra com seis runas em duas linhas.' },
+  'disco-eclipse': { nome: 'Disco do eclipse', descricao: 'Bronze. Metade sol, metade lua.' },
+  'espelho-bronze': { nome: 'Espelho de bronze', descricao: 'De mão. O reflexo parece atrasado.' },
+  'selo-real': { nome: 'Selo real', descricao: 'Cera vermelha com uma coroa em relevo.' },
+  'estrela-prata': { nome: 'Estrela de prata', descricao: 'Oito pontas e uma pedra azul no meio.' },
+  'coroa-bronze': { nome: 'Coroa de bronze', descricao: 'Pequena, de três pontas, com três pedras.' },
+  // Para juntar: duas metades, num encaixe de "Duas metades", viram a peça inteira.
+  'metade-tabua-esq': { nome: 'Tábua de runas, metade esquerda', descricao: 'Pedra partida. Com a outra metade, vira a Tábua de runas.' },
+  'metade-tabua-dir': { nome: 'Tábua de runas, metade direita', descricao: 'Pedra partida. Com a outra metade, vira a Tábua de runas.' },
+  'metade-disco-sol': { nome: 'Disco do eclipse, lado do sol', descricao: 'Bronze partido. Com o lado da lua, vira o Disco do eclipse.' },
+  'metade-disco-lua': { nome: 'Disco do eclipse, lado da lua', descricao: 'Bronze partido. Com o lado do sol, vira o Disco do eclipse.' },
+  'metade-espelho-esq': { nome: 'Espelho de bronze, metade esquerda', descricao: 'Partido ao meio. Com a outra metade, vira o Espelho de bronze.' },
+  'metade-espelho-dir': { nome: 'Espelho de bronze, metade direita', descricao: 'Partido ao meio. Com a outra metade, vira o Espelho de bronze.' },
+  'metade-selo-esq': { nome: 'Selo real, metade esquerda', descricao: 'Cera partida. Com a outra metade, vira o Selo real.' },
+  'metade-selo-dir': { nome: 'Selo real, metade direita', descricao: 'Cera partida. Com a outra metade, vira o Selo real.' },
+  'metade-estrela-esq': { nome: 'Estrela de prata, metade esquerda', descricao: 'Partida ao meio. Com a outra metade, vira a Estrela de prata.' },
+  'metade-estrela-dir': { nome: 'Estrela de prata, metade direita', descricao: 'Partida ao meio. Com a outra metade, vira a Estrela de prata.' },
+  'metade-coroa-esq': { nome: 'Coroa de bronze, metade esquerda', descricao: 'Partida ao meio. Com a outra metade, vira a Coroa de bronze.' },
+  'metade-coroa-dir': { nome: 'Coroa de bronze, metade direita', descricao: 'Partida ao meio. Com a outra metade, vira a Coroa de bronze.' },
+  'metade-cervo-esq': { nome: 'Medalhão do Cervo, metade esquerda', descricao: 'Latão partido. Com a outra metade, vira o Medalhão do Cervo.' },
+  'metade-cervo-dir': { nome: 'Medalhão do Cervo, metade direita', descricao: 'Latão partido. Com a outra metade, vira o Medalhão do Cervo.' },
+  'metade-mascara-esq': { nome: 'Máscara de ouro, metade esquerda', descricao: 'Partida ao meio. Com a outra metade, vira a Máscara de ouro.' },
+  'metade-mascara-dir': { nome: 'Máscara de ouro, metade direita', descricao: 'Partida ao meio. Com a outra metade, vira a Máscara de ouro.' },
+  'metade-torre-esq': { nome: 'Brasão da Torre, metade esquerda', descricao: 'Escudo partido. Com a outra metade, vira o Brasão da Torre.' },
+  'metade-torre-dir': { nome: 'Brasão da Torre, metade direita', descricao: 'Escudo partido. Com a outra metade, vira o Brasão da Torre.' },
+  'metade-chave-argola': { nome: 'Chave do sol, argola', descricao: 'Quebrada na haste. Com a outra parte, vira a Chave do sol.' },
+  'metade-chave-haste': { nome: 'Chave do sol, haste', descricao: 'Os dentes e a haste. Com a argola, vira a Chave do sol.' },
+  // Chaves.
+  'chave-espadas': { nome: 'Chave de espadas', descricao: 'Ferro. A argola é o naipe de espadas.' },
+  'chave-copas': { nome: 'Chave de copas', descricao: 'Bronze. A argola é o naipe de copas.' },
+  'chave-ouros': { nome: 'Chave de ouros', descricao: 'Ouro. A argola é o naipe de ouros.' },
+  'chave-paus': { nome: 'Chave de paus', descricao: 'Ferro escuro. A argola é o naipe de paus.' },
+  'chave-sol': { nome: 'Chave do sol', descricao: 'Ouro. A argola é um sol de doze raios.' },
+  'chave-lua': { nome: 'Chave da lua', descricao: 'Prata. A argola é uma lua crescente.' },
+  'chave-estrela': { nome: 'Chave da estrela', descricao: 'Prata. A argola é uma estrela de cinco pontas.' },
+  'chave-aguia': { nome: 'Chave da águia', descricao: 'Bronze. Uma águia de asas abertas.' },
+  'chave-serpente': { nome: 'Chave da serpente', descricao: 'Bronze verde. Uma serpente enrolada faz a argola.' },
+  'chave-coroa': { nome: 'Chave da coroa', descricao: 'Ouro. A argola é uma coroa de três pontas.' },
+  'chave-pedra': { nome: 'Chave de pedra', descricao: 'Grossa e pesada, com uma rachadura na argola.' },
+  'chave-osso': { nome: 'Chave de osso', descricao: 'Talhada num osso comprido.' },
+  'chave-cranio': { nome: 'Chave do crânio', descricao: 'Osso. A argola é um crânio pequeno.' },
+  'chave-mestra': { nome: 'Chave mestra', descricao: 'Ferro. Quatro folhas na argola e dentes dos dois lados.' },
+  'chave-roda': { nome: 'Chave da roda', descricao: 'Latão. A argola é uma engrenagem.' },
+}
+
+/** O nome de cada tipo de peça na biblioteca do editor, no seletor e na vitrine do acervo. */
+export const NOME_DO_TIPO_DA_PECA: Readonly<Record<TipoDaPecaDesenhada, string>> = {
+  encaixe: 'Para encaixar',
+  metade: 'Para juntar',
+  chave: 'Chaves',
 }
 
 /** O texto do desfecho de todo puzzle novo (v2). */

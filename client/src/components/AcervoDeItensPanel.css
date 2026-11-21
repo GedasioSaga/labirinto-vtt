@@ -312,6 +312,19 @@ body.lb-itens-recusando * {
   }
 }
 
+/* Os tipos de peça da vitrine (21/11: Para encaixar, Para juntar, Chaves): o título um passo acima da grade. */
+.lb-itens__pecas-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin-top: var(--lb-space-1);
+}
+
+.lb-itens__pecas-tipo {
+  margin: 0;
+  font-weight: var(--lb-font-weight-semibold, 600);
+}
+
 .lb-itens__pecas-topo {
   display: flex;
   align-items: center;

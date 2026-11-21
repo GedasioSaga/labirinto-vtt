@@ -537,6 +537,17 @@
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   gap: 6px;
 }
+/* O título de cada grupo na biblioteca (Suas peças, Para encaixar, Para juntar, Chaves): ocupa a linha inteira da grade. */
+.pze-bib__grupo {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  font-weight: 600;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.pze-bib__grupo:first-child {
+  margin-top: 0;
+}
 .pze-peca {
   position: relative;
   min-width: 0;

@@ -155,13 +155,29 @@ export function encaixeComPeca(encaixe: EncaixeDoPuzzle, itemId: string): Encaix
   return { ...encaixe, metades: a === null ? [itemId, b] : [a, itemId] }
 }
 
+/** O nome da peça inteira de um encaixe novo de duas metades (v1). */
+export const NOME_DA_PECA_INTEIRA = 'Peça inteira'
+
+/**
+ * As metades `metades` são um par desenhado que vira `vira`: o encaixe com
+ * essas mesmas metades ganha o nome e a imagem da peça inteira, a não ser que
+ * o mestre tenha dado um nome dele (`nomesAutomaticos` = os que o editor escreve).
+ */
+export function encaixeComViraDoPar(encaixe: EncaixeDoPuzzle, metades: readonly [string | null, string | null], vira: { nome: string; imagem: string | null }, nomesAutomaticos: ReadonlySet<string>): EncaixeDoPuzzle {
+  if (encaixe.jeito !== 'metades' || encaixe.metades[0] !== metades[0] || encaixe.metades[1] !== metades[1]) return encaixe
+  const nome = encaixe.vira.nome.trim()
+  const doMestre = nome !== '' && nome !== NOME_DA_PECA_INTEIRA && !nomesAutomaticos.has(nome)
+  if (doMestre || (encaixe.vira.nome === vira.nome && encaixe.vira.imagem === vira.imagem)) return encaixe
+  return { ...encaixe, vira: { ...vira } }
+}
+
 /** Uma peça só ou duas metades: a peça certa vira a primeira metade, e volta dela. */
 export function encaixeDoJeito(encaixe: EncaixeDoPuzzle, jeito: EncaixeDoPuzzle['jeito']): EncaixeDoPuzzle {
   if (encaixe.jeito === jeito) return encaixe
   const { id, x, y, t, forma } = encaixe
   if (jeito === 'metades') {
     const primeira = encaixe.jeito === 'peca' ? encaixe.itemId : null
-    return { id, x, y, t, forma, jeito: 'metades', metades: [primeira, null], vira: { nome: 'Peça inteira', imagem: null } }
+    return { id, x, y, t, forma, jeito: 'metades', metades: [primeira, null], vira: { nome: NOME_DA_PECA_INTEIRA, imagem: null } }
   }
   return { id, x, y, t, forma, jeito: 'peca', itemId: encaixe.jeito === 'metades' ? encaixe.metades[0] : null }
 }

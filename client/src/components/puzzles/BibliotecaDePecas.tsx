@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import { Fragment, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { Botao } from '../grimorio/Botao'
+import { CampoSeg } from '../grimorio/CampoSeg'
 import { classes } from '../grimorio/comum'
 import { useImagemDaMesa } from '../ImagemDaMesa'
-import { NOME_DA_PECA_MAX } from '../../puzzles/tipos'
+import { TIPOS_DA_PECA_DESENHADA } from '../../puzzles/arte/pecas'
+import { NOME_DO_TIPO_DA_PECA } from '../../puzzles/padroes'
+import { NOME_DA_PECA_MAX, type TipoDaPecaDesenhada } from '../../puzzles/tipos'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
-import { apagarPeca, garantirNoAcervo, renomearPeca, srcDaPeca, subirPecaPropria, type PecaDoEditor, type PecasDoEditor } from './pecasDoEditor'
+import { apagarPeca, garantirNoAcervo, gruposDaBiblioteca, renomearPeca, srcDaPeca, subirPecaPropria, type PecaDoEditor, type PecasDoEditor } from './pecasDoEditor'
 
 /**
  * A BIBLIOTECA DE PEÇAS do editor (protótipo aprovado, `htmlBiblioteca` e
@@ -21,6 +24,11 @@ import { apagarPeca, garantirNoAcervo, renomearPeca, srcDaPeca, subirPecaPropria
 const LIMIAR_DO_ARRASTO_PX = 6
 /** O meio do fantasma (64 px) fica sob o ponteiro. */
 const MEIO_DO_FANTASMA_PX = 32
+
+/** O que a biblioteca mostra: tudo, ou um tipo de peça desenhada (21/11: são 77). */
+type FiltroDaBiblioteca = 'todas' | TipoDaPecaDesenhada
+
+const FILTROS: readonly { valor: FiltroDaBiblioteca; rotulo: string }[] = [{ valor: 'todas', rotulo: 'Todas' }, ...TIPOS_DA_PECA_DESENHADA.map((tipo) => ({ valor: tipo, rotulo: NOME_DO_TIPO_DA_PECA[tipo] }))]
 
 interface ArrastoDaPeca {
   peca: PecaDoEditor
@@ -51,7 +59,10 @@ export function BibliotecaDePecas({ pecas, selecionada, onSelecionar, encaixe, o
   const podeGravar = useAcervoDeItensStore((estado) => estado.podeGravar)
   const arrasto = useRef<ArrastoDaPeca | null>(null)
   const ignorarClique = useRef(false)
+  const [filtro, setFiltro] = useState<FiltroDaBiblioteca>('todas')
   const peca = pecas.porId(selecionada)
+  // As peças do mestre aparecem em todo filtro: o filtro separa as desenhadas, nunca esconde o que ele subiu.
+  const grupos = gruposDaBiblioteca(pecas.biblioteca).filter((grupo) => filtro === 'todas' || grupo.grupo === 'sua' || grupo.grupo === filtro)
 
   useEffect(() => () => limparFantasma(arrasto.current), [])
 
@@ -113,30 +124,42 @@ export function BibliotecaDePecas({ pecas, selecionada, onSelecionar, encaixe, o
         <h3 id="pze-bib-t">Biblioteca de peças</h3>
         <span className="pze-nota">Toque para dar nome e descrição; arraste até um encaixe para ser a peça certa.</span>
       </div>
+      <CampoSeg nomeAcessivel="Peças que a biblioteca mostra" opcoes={FILTROS} valor={filtro} onChange={setFiltro} />
       <div className="pze-bib__grade" role="group" aria-label="Peças">
-        {pecas.biblioteca.map((p) => {
-          const src = srcDaPeca(p, resolver)
-          return (
-            <button
-              key={p.itemId}
-              type="button"
-              className={classes('pze-peca', !p.noAcervo && 'is-fora', p.noAcervo && p.desenhada === null && 'is-propria')}
-              aria-pressed={selecionada === p.itemId}
-              aria-label={p.noAcervo ? p.nome : `${p.nome}, desenhada, ainda fora do acervo`}
-              onPointerDown={(evento) => comecar(evento, p)}
-              onPointerMove={mover}
-              onPointerUp={(evento) => soltar(evento, true)}
-              onPointerCancel={(evento) => soltar(evento, false)}
-              onClick={() => {
-                if (ignorarClique.current) return
-                onSelecionar(selecionada === p.itemId ? null : p.itemId)
-              }}
-            >
-              {src !== null ? <img src={src} alt="" draggable={false} /> : <span className="pze-peca__inicial">{Array.from(p.nome.trim())[0] ?? '?'}</span>}
-              <span>{p.nome}</span>
-            </button>
-          )
-        })}
+        {grupos.map((grupo) => (
+          <Fragment key={grupo.grupo}>
+            {grupos.length > 1 && (
+              <p className="pze-bib__grupo">
+                {grupo.rotulo}
+              </p>
+            )}
+            {grupo.pecas.map((p) => {
+              const src = srcDaPeca(p, resolver)
+              return (
+                <button
+                  key={p.itemId}
+                  type="button"
+                  className={classes('pze-peca', !p.noAcervo && 'is-fora', p.noAcervo && p.desenhada === null && 'is-propria')}
+                  aria-pressed={selecionada === p.itemId}
+                  aria-label={p.noAcervo ? p.nome : `${p.nome}, desenhada, ainda fora do acervo`}
+                  // O cartão corta o nome em duas linhas; as duas metades de um par só se distinguem pelo fim dele.
+                  title={p.nome}
+                  onPointerDown={(evento) => comecar(evento, p)}
+                  onPointerMove={mover}
+                  onPointerUp={(evento) => soltar(evento, true)}
+                  onPointerCancel={(evento) => soltar(evento, false)}
+                  onClick={() => {
+                    if (ignorarClique.current) return
+                    onSelecionar(selecionada === p.itemId ? null : p.itemId)
+                  }}
+                >
+                  {src !== null ? <img src={src} alt="" draggable={false} /> : <span className="pze-peca__inicial">{Array.from(p.nome.trim())[0] ?? '?'}</span>}
+                  <span>{p.nome}</span>
+                </button>
+              )
+            })}
+          </Fragment>
+        ))}
         {podeGravar && (
           <button type="button" className="pze-peca pze-peca--nova" onClick={() => void subir()}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden="true" focusable="false">

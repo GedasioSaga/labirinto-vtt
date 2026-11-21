@@ -3,8 +3,8 @@ import { CampoSeg } from '../../grimorio/CampoSeg'
 import { classes } from '../../grimorio/comum'
 import { FORMAS_DO_ENCAIXE, NOME_DA_PECA_MAX, TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN, type EncaixeDoPuzzle, type FormaDoEncaixe, type Puzzle } from '../../../puzzles/tipos'
 import { NOME_DA_COMBINACAO } from '../../../puzzles/combinacao'
-import { comEncaixe, comMecanica, encaixeComPeca, encaixeDoJeito, encaixeDoTamanho, mecanicaDoEditor, type MecanicaDoEditor } from '../edicao'
-import type { PecaDoEditor, PecasDoEditor } from '../pecasDoEditor'
+import { comEncaixe, comMecanica, encaixeComPeca, encaixeComViraDoPar, encaixeDoJeito, encaixeDoTamanho, mecanicaDoEditor, type MecanicaDoEditor } from '../edicao'
+import { imagemDoItem, NOMES_DAS_PECAS_INTEIRAS, viraDoPar, type PecaDoEditor, type PecasDoEditor } from '../pecasDoEditor'
 import { Secao, SeletorDePeca, type PropsDaSecao, type UsarPeca } from './comum'
 
 const NOME_DA_FORMA: Readonly<Record<FormaDoEncaixe, string>> = {
@@ -71,14 +71,25 @@ interface PropsDosEncaixes extends PropsDaSecao {
 }
 
 export function SecaoEncaixes({ puzzle, mudar, pecas, escolhido, onEscolher, onTirar, usarPeca }: PropsDosEncaixes) {
-  /** A peça escolhida no seletor; a desenhada entra no acervo e só então vira a peça certa (no puzzle de agora). */
-  const escolherPeca = (encaixeId: string, peca: PecaDoEditor | null, aplicar: (encaixe: EncaixeDoPuzzle, itemId: string | null) => EncaixeDoPuzzle) => {
+  /**
+   * A peça escolhida no seletor; a desenhada entra no acervo e só então vira a
+   * peça certa (no puzzle de agora). No encaixe de metades, o par desenhado
+   * completo preenche "Juntas, viram" com a peça inteira.
+   */
+  const escolherPeca = (encaixeId: string, peca: PecaDoEditor | null, aplicar: (encaixe: EncaixeDoPuzzle, itemId: string | null) => EncaixeDoPuzzle, completar = true) => {
+    const aplicarEContar = (itemId: string | null) => {
+      mudar((atual) => comEncaixe(atual, encaixeId, (encaixe) => aplicar(encaixe, itemId)))
+      // As metades que ficam, pelo encaixe desta tela; se o puzzle mudou nesse meio, `encaixeComViraDoPar` não acha as mesmas e não mexe.
+      const encaixe = puzzle.encaixes.find((candidato) => candidato.id === encaixeId)
+      const depois = encaixe === undefined ? null : aplicar(encaixe, itemId)
+      if (completar && depois?.jeito === 'metades') completarViraDoPar(encaixeId, depois.metades, pecas, usarPeca, mudar)
+    }
     if (peca === null) {
-      mudar((atual) => comEncaixe(atual, encaixeId, (encaixe) => aplicar(encaixe, null)))
+      aplicarEContar(null)
       return
     }
     void usarPeca(peca).then((itemId) => {
-      if (itemId !== null) mudar((atual) => comEncaixe(atual, encaixeId, (encaixe) => aplicar(encaixe, itemId)))
+      if (itemId !== null) aplicarEContar(itemId)
     })
   }
   return (
@@ -117,7 +128,7 @@ interface PropsDaLinha {
   mudar: PropsDaSecao['mudar']
   onEscolher: (encaixeId: string | null) => void
   onTirar: (encaixeId: string) => void
-  escolherPeca: (encaixeId: string, peca: PecaDoEditor | null, aplicar: (encaixe: EncaixeDoPuzzle, itemId: string | null) => EncaixeDoPuzzle) => void
+  escolherPeca: (encaixeId: string, peca: PecaDoEditor | null, aplicar: (encaixe: EncaixeDoPuzzle, itemId: string | null) => EncaixeDoPuzzle, completar?: boolean) => void
 }
 
 function LinhaDoEncaixe({ puzzle, encaixe, numero, escolhido, pecas, mudar, onEscolher, onTirar, escolherPeca }: PropsDaLinha) {
@@ -199,7 +210,10 @@ function LinhaDoEncaixe({ puzzle, encaixe, numero, escolhido, pecas, mudar, onEs
             valor={null}
             vazio={encaixe.vira.imagem === null ? 'Imagem da peça inteira: nenhuma' : 'Imagem da peça inteira: escolhida'}
             rotulo={`Imagem da peça inteira do encaixe ${numero}`}
-            onEscolher={(peca) => mudarEste((atual) => (atual.jeito === 'metades' ? { ...atual, vira: { ...atual.vira, imagem: peca?.imagem ?? null } } : atual))}
+            onEscolher={(peca) =>
+              // A desenhada que ainda não está no acervo entra antes: a imagem do jogador vem da mídia da mesa.
+              escolherPeca(encaixe.id, peca, (atual, itemId) => (atual.jeito === 'metades' ? { ...atual, vira: { ...atual.vira, imagem: itemId === null ? null : imagemDoItem(itemId) } } : atual), false)
+            }
           />
         </div>
       )}
@@ -214,4 +228,15 @@ function formaLida(valor: string, atual: FormaDoEncaixe): FormaDoEncaixe {
 /** Para a biblioteca e o quadro: põe a peça no encaixe (a peça certa, ou a metade que falta). */
 export function comPecaNoEncaixe(puzzle: Puzzle, encaixeId: string, itemId: string): Puzzle {
   return comEncaixe(puzzle, encaixeId, (encaixe) => encaixeComPeca(encaixe, itemId))
+}
+
+/**
+ * As metades `metades` do encaixe formam um par desenhado: "Juntas, viram"
+ * ganha o nome e a imagem da peça inteira (posta no acervo antes), se o
+ * encaixe ainda tem essas metades e o mestre não deu um nome dele.
+ */
+export function completarViraDoPar(encaixeId: string, metades: readonly [string | null, string | null], pecas: PecasDoEditor, usarPeca: UsarPeca, mudar: PropsDaSecao['mudar']): void {
+  void viraDoPar(metades, pecas, usarPeca).then((vira) => {
+    if (vira !== null) mudar((atual) => comEncaixe(atual, encaixeId, (encaixe) => encaixeComViraDoPar(encaixe, metades, vira, NOMES_DAS_PECAS_INTEIRAS)))
+  })
 }

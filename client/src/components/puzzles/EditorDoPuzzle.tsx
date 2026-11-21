@@ -12,11 +12,11 @@ import { PUZZLE_SEM_NOME, useMeusPuzzlesStore } from '../../stores/meusPuzzlesSt
 import { BibliotecaDePecas } from './BibliotecaDePecas'
 import { combinacaoDoPuzzle } from '../../puzzles/combinacao'
 import { ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN } from '../../puzzles/tipos'
-import { comControle, comEncaixeNovo, comModelo, comVisual, semEncaixe } from './edicao'
+import { comControle, comEncaixeNovo, comModelo, comVisual, encaixeComPeca, semEncaixe } from './edicao'
 import { SecaoCombinacao } from './FichaDoEditor/SecaoCombinacao'
 import { devolverAsPecas, useEditorDoPuzzleStore, type AlvoDoEditor } from './editorDoPuzzleStore'
 import { SecaoCastigo, SecaoDesfecho, SecaoDica, type PortaDoEditor } from './FichaDoEditor/SecaoDesfecho'
-import { comPecaNoEncaixe, SecaoEncaixes, SecaoMecanica } from './FichaDoEditor/SecaoEncaixes'
+import { completarViraDoPar, comPecaNoEncaixe, SecaoEncaixes, SecaoMecanica } from './FichaDoEditor/SecaoEncaixes'
 import { SecaoTroca } from './FichaDoEditor/SecaoTroca'
 import { SecaoBasico, SecaoVisual } from './FichaDoEditor/SecaoVisual'
 import { escolherFundoDoPuzzle, fundoDoPuzzleDoArquivo } from './imagemDoPuzzle'
@@ -199,6 +199,10 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
     void usarPeca(peca).then((itemId) => {
       if (itemId === null) return
       mudar((atual) => comPecaNoEncaixe(atual, encaixeId, itemId))
+      // A segunda metade de um par desenhado: "Juntas, viram" ganha a peça inteira.
+      const encaixe = puzzle.encaixes.find((candidato) => candidato.id === encaixeId)
+      const depois = encaixe === undefined ? null : encaixeComPeca(encaixe, itemId)
+      if (depois?.jeito === 'metades') completarViraDoPar(encaixeId, depois.metades, pecas, usarPeca, mudar)
       avisar(`${peca.nome} é a peça certa do encaixe ${numero}.`)
     })
   }
