@@ -20,7 +20,22 @@ import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX, type Vantage
  * Puro: sem store, sem rede.
  */
 
-export const VERSAO_DA_MECANICA = 1
+/**
+ * A versão mais nova que este app LÊ (Fase 2 de docs/design/habilidades/SISTEMA.md:
+ * a versão 2 é a 1 com mais peças; a 1 continua lida como sempre).
+ */
+export const VERSAO_DA_MECANICA = 2
+
+/** As versões que este app lê. A peça lida guarda a versão com que veio. */
+export type VersaoDaMecanica = 1 | 2
+
+/**
+ * A versão que este app GRAVA numa mecânica nova (modelos, arma montada).
+ * Continua 1 enquanto nenhuma peça da 2 roda: assim a mecânica que o mestre
+ * monta agora abre no app de antes e no site do Lobby. A fase que abrir uma
+ * peça só da 2 grava 2 nas mecânicas que a usarem (`migrarV1ParaV2`).
+ */
+export const VERSAO_GRAVADA = 1
 
 /** Teto de uma fórmula ("(Força + Espírito) * 1,5 + 100"), na gramática de `lerDano`. */
 export const FORMULA_MAX = 200
@@ -172,8 +187,13 @@ export type Efeito =
   /** Porta de escape: o app não executa nada, só lembra o mestre. */
   | { tipo: 'aMao'; texto: string }
 
-export interface MecanicaV1 {
-  versao: 1
+/**
+ * As peças lidas (versão 1 ou 2). A 2 é um SUPERCONJUNTO da 1 (decisão C2):
+ * toda peça da 1 vale na 2 com o mesmo sentido, e as peças novas entram aqui
+ * uma fase por vez, quando o motor passa a executá-las (`PECAS_QUE_AINDA_NAO_RODAM`).
+ */
+export interface MecanicaV2 {
+  versao: VersaoDaMecanica
   acao: AcaoDaMecanica
   custos: readonly Custo[]
   limite: Limite
@@ -183,11 +203,79 @@ export interface MecanicaV1 {
   efeitos: readonly Efeito[]
 }
 
+/** O nome da fatia C1, mantido para quem já o usa: são as mesmas peças lidas (`MecanicaV2`). */
+export type MecanicaV1 = MecanicaV2
+
+/**
+ * A 1 vira 2: só a versão muda, o resto é igual (a 2 é superconjunto). Pura
+ * e total. Quem grava chama quando a mecânica ganha uma peça só da 2.
+ */
+export function migrarV1ParaV2(mecanica: MecanicaV2): MecanicaV2 {
+  return mecanica.versao === 2 ? mecanica : { ...mecanica, versao: 2 }
+}
+
+// ─── Versão 2: as peças novas, ainda sem motor ──────────────────────────────
+// Os tipos da seção 2 do SISTEMA.md que as fases 4 a 8 abrem. Até a fase de
+// cada uma, a leitura RECUSA a peça com "este app ainda não executa ..." (o
+// cartão vira à mão, nunca roda pela metade). Quem abrir uma peça põe o campo
+// na interface de cima, lê na `lerMecanica` e tira a linha da tabela de baixo.
+
+/** Parte da vida ou do SP de alguém: "25% do HP máximo do alvo" (fase 5). */
+export interface Porcento {
+  porcento: number
+  de: 'hpMaximo' | 'hpAtual' | 'hpQueFalta' | 'spMaximo'
+  deQuem: 'alvo' | 'quemUsa'
+}
+/** COMO entra em jogo (fase 4). Ausente = 'ativa' (toda mecânica da versão 1). */
+export type UsoDaMecanica = 'ativa' | 'reacao' | 'ativaOuReacao'
+/** Gastar coisa da mochila além do SP e do HP (fase 5). */
+export interface CustoEmItem {
+  nome: string
+  itemId?: string
+  quantos: number
+}
+/** Em quem o efeito cai; 'atacante' só na reação (fases 4 e 5). Ausente = 'alvo'. */
+export type EmQuem = 'alvo' | 'quemUsa' | 'atacante'
+/** O que o selo faz além do nome (fase 5). */
+export interface RegraDoSelo {
+  trava?: true
+  tiraSaidas?: readonly ('esquiva' | 'contra')[]
+  reageComDesvantagem?: true
+  danoRecebido?: number
+  curaRecebida?: number
+}
+/** A técnica usada NO LUGAR da reação (decisão M2, fase 4). */
+export interface ReacaoDaMecanica {
+  defesa: { tipo: 'anula' } | { tipo: 'fica'; porcento: number } | { tipo: 'rola'; atributos: readonly string[]; anulaCom: number } | { tipo: 'nenhuma' }
+  devolve?: { divididoPor: number } | { formula: string; somaOQueChegou?: true }
+  curaDoQueChegava?: number
+  valeContra?: readonly ('overload' | 'surpresa')[]
+  soOMestre?: true
+}
+
+/**
+ * As peças da versão 2 que a leitura conhece e ainda recusa, por lugar: a
+ * chave e a frase que completa "este app ainda não executa ...". Chave de
+ * fora desta tabela segue "que este app não conhece", como na versão 1.
+ */
+export const PECAS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  'mecânica': { uso: 'técnica no lugar da reação', reacao: 'técnica no lugar da reação', custoEmItem: 'custo em item da mochila' },
+  limite: { porRodada: 'limite por rodada' },
+  alvo: { alcance: 'alcance do alvo', estado: 'alvo caído (reviver)', exigeSelo: 'só contra quem tem um selo' },
+  forma: { centro: 'área em volta de um alvo ou de um ponto' },
+  dano: { perfuracao: 'perfuração parcial', segundoGolpe: 'segundo golpe' },
+  selo: { em: 'selo em quem usa ou em quem atacou', mods: 'selo com número (Força +20)', regra: 'regra própria do selo', seJaTem: 'renovar o selo' },
+  cura: { em: 'cura em quem usa' },
+}
+
+/** Os efeitos da versão 2 que ainda não rodam, pelo tipo. */
+const EFEITOS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, string>> = { reviver: 'reviver', dreno: 'dreno de vida', mover: 'empurrar e puxar' }
+
 /** O que a leitura do campo `mecanica` dá. */
 export type MecanicaLida =
   /** O cartão não tem o campo: segue pelo texto (as fichas de hoje). */
   | { tipo: 'nenhuma' }
-  | { tipo: 'pecas'; mecanica: MecanicaV1 }
+  | { tipo: 'pecas'; mecanica: MecanicaV2 }
   /** Peça torta: o cartão vira à mão. `motivo` em português simples. */
   | { tipo: 'invalida'; motivo: string }
   /** Feita num app mais novo: o cartão vira à mão até atualizar. */
@@ -212,10 +300,26 @@ function registro(valor: unknown, onde: string): Record<string, unknown> {
   return { ...valor }
 }
 
-/** Só as chaves conhecidas: chave de fatia futura não roda pela metade. */
-function soChaves(peca: Record<string, unknown>, permitidas: readonly string[], onde: string): void {
+/**
+ * Só as chaves conhecidas: chave de fatia futura não roda pela metade. A peça
+ * da versão 2 que ainda não roda (`PECAS_QUE_AINDA_NAO_RODAM`, pelo `lugar`) diz isso.
+ */
+function soChaves(peca: Record<string, unknown>, permitidas: readonly string[], onde: string, lugar?: string): void {
   const sobra = Object.keys(peca).find((chave) => !permitidas.includes(chave))
-  if (sobra !== undefined) torta(`${onde} tem "${sobra}", que este app não conhece`)
+  if (sobra === undefined) return
+  const nova = lugar === undefined ? undefined : PECAS_QUE_AINDA_NAO_RODAM[lugar]?.[sobra]
+  if (nova !== undefined) aindaNaoRoda(nova)
+  torta(`${onde} tem "${sobra}", que este app não conhece`)
+}
+
+/** A peça da versão 2 que a leitura conhece e o motor ainda não executa: o cartão vira à mão com o porquê. */
+function aindaNaoRoda(oQue: string): never {
+  torta(`este app ainda não executa ${oQue}`)
+}
+
+/** "25% do HP" (`Porcento`, fase 5) num lugar que ainda só aceita número ou fórmula. */
+function semPorcento(valor: unknown): void {
+  if (typeof valor === 'object' && valor !== null && 'porcento' in valor) aindaNaoRoda('parte da vida (%) como número')
 }
 
 function umDe<T extends string>(valor: unknown, opcoes: readonly T[], onde: string): T {
@@ -283,7 +387,7 @@ function custo(valor: unknown, indice: number): Custo {
 
 function limite(valor: unknown): Limite {
   const peca = registro(valor ?? {}, 'limite')
-  soChaves(peca, ['recarga', 'usosPorBatalha', 'overload'], 'limite')
+  soChaves(peca, ['recarga', 'usosPorBatalha', 'overload'], 'limite', 'limite')
   const lido: Limite = {}
   if (peca.recarga !== undefined) lido.recarga = inteiro(peca.recarga, 1, LIMITE_MAX, 'recarga')
   if (peca.usosPorBatalha !== undefined) lido.usosPorBatalha = inteiro(peca.usosPorBatalha, 1, LIMITE_MAX, 'usos por batalha')
@@ -312,10 +416,11 @@ function forma(valor: unknown): FormaDoAlvo {
     }
     case 'linha':
     case 'raio':
-      soChaves(peca, ['tipo', 'casas'], 'alvo')
+      soChaves(peca, ['tipo', 'casas'], 'alvo', 'forma')
       return { tipo, casas: inteiro(peca.casas, 1, CASAS_MAX, 'casas') }
     case 'quadrado': {
       soChaves(peca, ['tipo', 'lado', 'centro'], 'alvo')
+      if (peca.centro === 'ponto') aindaNaoRoda('área em volta de um ponto')
       const lado = inteiro(peca.lado, 1, CASAS_MAX, 'lado do quadrado')
       const centro = umDe(peca.centro, ['si', 'frente'] as const, 'centro do quadrado')
       if (centro === 'si' && lado % 2 === 0) torta('o quadrado em volta de quem usa precisa de lado ímpar (3x3, 5x5)')
@@ -326,7 +431,7 @@ function forma(valor: unknown): FormaDoAlvo {
 
 function alvo(valor: unknown): AlvoDaMecanica {
   const peca = registro(valor, 'alvo')
-  soChaves(peca, ['quem', 'forma'], 'alvo')
+  soChaves(peca, ['quem', 'forma'], 'alvo', 'alvo')
   const quem = umDe(peca.quem, ['inimigos', 'aliados', 'todos', 'si', 'escolha'] as const, 'quem o alvo pega')
   const lida = forma(peca.forma)
   // Construtor C3: a área marca os inimigos, os aliados (a cura em área) ou todos; "em si" não tem área.
@@ -366,6 +471,7 @@ function teste(valor: unknown): Teste {
       return { tipo }
     case 'resistencia':
       soChaves(peca, ['tipo', 'alvo', 'cd', 'sePassar'], 'teste')
+      if (peca.sePassar === 'metade') aindaNaoRoda('metade do dano para quem passa no teste')
       return { tipo, alvo: quemRola(peca.alvo, 'quem testa'), cd: cd(peca.cd), sePassar: umDe(peca.sePassar ?? 'nada', ['nada', 'devolveCusto'] as const, 'se o alvo passar') }
     case 'disputa':
       soChaves(peca, ['tipo', 'usuario', 'alvo'], 'teste')
@@ -377,7 +483,7 @@ function teste(valor: unknown): Teste {
  * As regras do teste rolado com o resto da mecânica: ajuda não testa, e a CD
  * pela Concentração pede a carga, que o dano sem Concentração não gasta.
  */
-function conferirTeste(mecanica: Pick<MecanicaV1, 'teste' | 'alvo' | 'dano'>): void {
+function conferirTeste(mecanica: Pick<MecanicaV2, 'teste' | 'alvo' | 'dano'>): void {
   const { teste: lido } = mecanica
   if (!testeRolado(lido)) return
   if (mecanica.alvo.quem === 'aliados' || mecanica.alvo.quem === 'si') torta('teste e disputa não valem em aliado nem em quem usa')
@@ -397,7 +503,8 @@ function multiplicador(valor: unknown, indice: number): MultiplicadorExtra {
 
 function dano(valor: unknown): DanoDaMecanica {
   const peca = registro(valor, 'dano')
-  soChaves(peca, ['base', 'arma', 'perfurante', 'multiplicadores'], 'dano')
+  soChaves(peca, ['base', 'arma', 'perfurante', 'multiplicadores'], 'dano', 'dano')
+  semPorcento(peca.base)
   const mult = registro(peca.multiplicadores ?? {}, 'multiplicadores')
   soChaves(mult, ['concentracao', 'surpresa', 'extra'], 'multiplicadores')
   const lido: DanoDaMecanica = {
@@ -427,10 +534,12 @@ function porTurnoDoSelo(valor: unknown, onde: string): PorTurnoDoSelo {
 function efeito(valor: unknown, indice: number): Efeito {
   const onde = `efeito ${indice + 1}`
   const peca = registro(valor, onde)
+  const novo = typeof peca.tipo === 'string' && Object.hasOwn(EFEITOS_QUE_AINDA_NAO_RODAM, peca.tipo) ? EFEITOS_QUE_AINDA_NAO_RODAM[peca.tipo] : undefined
+  if (novo !== undefined) aindaNaoRoda(novo)
   const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'aMao'] as const, onde)
   switch (tipo) {
     case 'selo': {
-      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno'], onde)
+      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno'], onde, 'selo')
       const duracao = peca.duracao === 'ateTirar' || peca.duracao === 'proximoGolpe' ? peca.duracao : inteiro(peca.duracao, 1, TURNOS_DO_SELO_MAX, `${onde} (duração)`)
       const lido: Efeito = { tipo, nome: texto(peca.nome, NOME_DO_SELO_MAX, `${onde} (nome do selo)`), duracao }
       if (peca.natureza !== undefined) lido.natureza = umDe(peca.natureza, ['buff', 'debuff'] as const, `${onde} (natureza)`)
@@ -438,10 +547,13 @@ function efeito(valor: unknown, indice: number): Efeito {
       return lido
     }
     case 'cura':
-      soChaves(peca, ['tipo', 'recurso', 'quanto', 'emQuem'], onde)
+      soChaves(peca, ['tipo', 'recurso', 'quanto', 'emQuem'], onde, 'cura')
+      if (peca.recurso === 'sp' || peca.recurso === 'escudo') aindaNaoRoda(peca.recurso === 'sp' ? 'recuperar SP' : 'dar Escudo')
+      semPorcento(peca.quanto)
       return { tipo, recurso: umDe(peca.recurso, ['hp'] as const, `${onde} (recurso)`), quanto: numero(peca.quanto, DANO_MAX, `${onde} (quanto)`), emQuem: umDe(peca.emQuem, ['alvo'] as const, `${onde} (em quem)`) }
     case 'tirarSelos':
       soChaves(peca, ['tipo', 'quais'], onde)
+      if (peca.quais !== undefined && peca.quais !== 'negativos') aindaNaoRoda('tirar condição pelo nome, ou as positivas')
       return { tipo, quais: umDe(peca.quais, ['negativos'] as const, `${onde} (quais)`) }
     case 'aMao':
       soChaves(peca, ['tipo', 'texto'], onde)
@@ -459,8 +571,8 @@ function conferirEfeitos(efeitos: readonly Efeito[], quem: QuemOAlvoPega): void 
   if (limpa && quem !== 'aliados' && quem !== 'si') torta('cura e tirar selos só pegam em quem usa ou num aliado')
 }
 
-function mecanicaV1(peca: Record<string, unknown>): MecanicaV1 {
-  soChaves(peca, ['versao', 'acao', 'custos', 'limite', 'alvo', 'teste', 'dano', 'efeitos'], 'mecânica')
+function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): MecanicaV2 {
+  soChaves(peca, ['versao', 'acao', 'custos', 'limite', 'alvo', 'teste', 'dano', 'efeitos'], 'mecânica', 'mecânica')
   const custos = lista(peca.custos ?? [], CUSTOS_MAX, 'custos').map(custo)
   for (const quando of ['aoUsar', 'porTurno', 'depois'] as const) {
     if (custos.filter((item) => item.quando === quando).length > 1) torta('dois custos no mesmo momento')
@@ -468,8 +580,8 @@ function mecanicaV1(peca: Record<string, unknown>): MecanicaV1 {
   const lidoAlvo = alvo(peca.alvo)
   const efeitos = lista(peca.efeitos ?? [], EFEITOS_MAX, 'efeitos').map(efeito)
   conferirEfeitos(efeitos, lidoAlvo.quem)
-  const mecanica: MecanicaV1 = {
-    versao: VERSAO_DA_MECANICA,
+  const mecanica: MecanicaV2 = {
+    versao,
     acao: umDe(peca.acao, ['simples', 'bonus', 'completa', 'livre', 'perguntar'] as const, 'ação'),
     custos,
     limite: limite(peca.limite),
@@ -493,7 +605,8 @@ export function lerMecanica(valor: unknown): MecanicaLida {
     const peca = registro(valor, 'mecânica')
     const versao = inteiro(peca.versao, 1, Number.MAX_SAFE_INTEGER, 'versão')
     if (versao > VERSAO_DA_MECANICA) return { tipo: 'futura', versao }
-    return { tipo: 'pecas', mecanica: mecanicaV1(peca) }
+    // A 1 e a 2 pelo mesmo leitor (a 2 é superconjunto); a peça guarda a versão com que veio.
+    return { tipo: 'pecas', mecanica: mecanicaLida(peca, versao === 1 ? 1 : 2) }
   } catch (erro) {
     if (erro instanceof PecaTorta) return { tipo: 'invalida', motivo: erro.message }
     throw erro

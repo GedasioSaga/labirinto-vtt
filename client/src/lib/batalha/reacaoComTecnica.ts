@@ -139,7 +139,7 @@ function comoBotao(tecnica: TecnicaConfirmada, personagem: Personagem, sistema: 
     motivo: motivoDaTecnica(tecnica, personagem, sistema, combate, null, true),
   }
   if (tecnica.forma !== undefined) reacao.forma = tecnica.forma
-  const daTabela = reacaoAMaoDe(tecnica.cartao.id)
+  const daTabela = reacaoAMaoDe(tecnica.cartao)
   if (daTabela?.saidas !== undefined) reacao.daTabela = Object.fromEntries(daTabela.saidas.map((saida) => [saida.saida, { rotulo: saida.rotulo, fator: saida.fator }]))
   if (daTabela?.rolagem !== undefined) reacao.rolagemDaTabela = { modificador: maiorModificador(personagem, sistema, daTabela.rolagem.atributos), anulaCom: daTabela.rolagem.anulaCom }
   return reacao
@@ -173,7 +173,7 @@ export function temOverloadDeReacao(personagem: Personagem, sistema: SistemaDeRp
 
 /** F2 (fatia E): a técnica defende golpe Overload: é Overload, ou a tabela deixa (Recuperação de forças da Ryoko). */
 function valeContraOverload(tecnica: { overload: boolean; cartao: Pick<CartaoDaFicha, 'id'> }): boolean {
-  return tecnica.overload || reageContraOverload(tecnica.cartao.id)
+  return tecnica.overload || reageContraOverload(tecnica.cartao)
 }
 
 /** O motivo da técnica que não é Overload contra golpe Overload. */
@@ -188,7 +188,7 @@ export const MOTIVO_SO_CONTRA_SURPRESA = 'Contra Surpresa não há reação: só
  * Surpresa disponível agora. Com ela, o golpe Surpresa espera a reação dele.
  */
 export function temReacaoContraSurpresa(personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined): boolean {
-  return reacoesDisponiveis(personagem, sistema, combate).some((reacao) => reageContraSurpresa(reacao.cartao.id) && reacao.motivo === null)
+  return reacoesDisponiveis(personagem, sistema, combate).some((reacao) => reageContraSurpresa(reacao.cartao) && reacao.motivo === null)
 }
 
 /**
@@ -201,7 +201,7 @@ export function temReacaoContraSurpresa(personagem: Personagem, sistema: Sistema
  */
 export function reacoesParaOAlvo(alvo: AlvoQueReage, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, contraOverload = false, contraSurpresa = false): ReacaoComTecnica[] {
   if (!alvo.podeReagir || alvo.danoFinal !== undefined) return []
-  const todas = reacoesDisponiveis(personagem, sistema, combate).filter((reacao) => (!contraOverload || valeContraOverload(reacao)) && (!contraSurpresa || reageContraSurpresa(reacao.cartao.id)))
+  const todas = reacoesDisponiveis(personagem, sistema, combate).filter((reacao) => (!contraOverload || valeContraOverload(reacao)) && (!contraSurpresa || reageContraSurpresa(reacao.cartao)))
   return alvo.rolagem === undefined ? todas : todas.map((reacao) => (reacao.motivo === null ? { ...reacao, motivo: MOTIVO_JA_ROLOU } : reacao))
 }
 
@@ -211,7 +211,7 @@ export function reacoesParaOAlvo(alvo: AlvoQueReage, personagem: Personagem, sis
  */
 export function reacoesDoJogador(reacoes: readonly ReacaoComTecnica[]): ReacaoComTecnica[] {
   return reacoes.map((reacao) => {
-    const soOMestre = reacao.motivo === null ? soOMestreReage(reacao.cartao.id) : null
+    const soOMestre = reacao.motivo === null ? soOMestreReage(reacao.cartao) : null
     return soOMestre === null ? reacao : { ...reacao, motivo: soOMestre }
   })
 }
@@ -227,7 +227,7 @@ const SAIDAS_DO_REBATE: readonly SaidaDaTecnica[] = ['contra']
  */
 export function reacoesPorPerto(alvo: AlvoQueReage, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined): ReacaoComTecnica[] {
   return reacoesParaOAlvo(alvo, personagem, sistema, combate, true)
-    .filter((reacao) => rebatePertoDe(reacao.cartao.id) !== null)
+    .filter((reacao) => rebatePertoDe(reacao.cartao) !== null)
     .map((reacao) => ({ ...reacao, saidas: SAIDAS_DO_REBATE, sugerida: 'contra' }))
 }
 
@@ -270,9 +270,9 @@ export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueRea
   // F2 (fatia D): a técnica da tabela só dá as saídas dela (Armadura: Defender ou Atacar; Giro: rolar).
   if (!saidasDaTecnica(tecnica.cartao.id, modoDaReacao(tecnica.cartao)).saidas.includes(pedido.saida)) return 'Saída que a técnica não dá'
   if (contraOverload && !valeContraOverload(tecnica)) return MOTIVO_SO_OVERLOAD
-  if (contraSurpresa && !reageContraSurpresa(tecnica.cartao.id)) return MOTIVO_SO_CONTRA_SURPRESA
+  if (contraSurpresa && !reageContraSurpresa(tecnica.cartao)) return MOTIVO_SO_CONTRA_SURPRESA
   // F2 (revisão da fatia E, Recuperação de forças): "o MESTRE CONFIRMA": o jogador não aplica sozinho.
-  const soOMestre = ctx.quemPede === 'jogador' ? soOMestreReage(tecnica.cartao.id) : null
+  const soOMestre = ctx.quemPede === 'jogador' ? soOMestreReage(tecnica.cartao) : null
   if (soOMestre !== null) return soOMestre
   if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
   return motivoDaTecnica(tecnica, personagem, sistema, ctx.combate, null, true)
@@ -322,7 +322,7 @@ export function reagirComTecnica(
   if (achada === null) return null
   const tecnica = confirmar(achada.cartao, achada.forma, personagem, sistema, pedido.custo, combate.evoluidas)
   const { sugerida } = saidasDaTecnica(tecnica.cartao.id, modoDaReacao(tecnica.cartao))
-  const daTabela = reacaoAMaoDe(tecnica.cartao.id)
+  const daTabela = reacaoAMaoDe(tecnica.cartao)
   const saidaDaTabela = daTabela?.saidas?.find((candidata) => candidata.saida === pedido.saida)
   // Fatia C7 (revisão): a técnica oculta vai ao golpe (linha do registro, origem do selo, marca) como "???", sem o rótulo da saída.
   const oculta = ocultoNaBatalha(personagem, tecnica.cartao)

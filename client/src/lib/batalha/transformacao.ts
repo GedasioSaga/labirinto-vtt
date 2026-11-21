@@ -58,12 +58,12 @@ export function formaLivre(cartao: Pick<CartaoDaFicha, 'campos'>): boolean {
  * (`adicionaisPorBatalha`), e ela liga quantas vezes quiser.
  */
 export function usosDaForma(cartao: Pick<CartaoDaFicha, 'id' | 'campos'>): number | null {
-  return usosContamOAdicional(cartao.id) ? null : inteiroDoCampo(cartao, CAMPO_DOS_USOS)
+  return usosContamOAdicional(cartao) ? null : inteiroDoCampo(cartao, CAMPO_DOS_USOS)
 }
 
 /** F2 (fatia D, Ignição): os ataques adicionais que a forma dá na batalha INTEIRA (trocar de forma não renova); `null` = sem teto na batalha. */
 export function adicionaisPorBatalha(cartao: Pick<CartaoDaFicha, 'id' | 'campos'>): number | null {
-  return usosContamOAdicional(cartao.id) ? inteiroDoCampo(cartao, CAMPO_DOS_USOS) : null
+  return usosContamOAdicional(cartao) ? inteiroDoCampo(cartao, CAMPO_DOS_USOS) : null
 }
 
 /**

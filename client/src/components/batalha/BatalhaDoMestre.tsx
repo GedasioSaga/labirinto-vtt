@@ -467,7 +467,7 @@ function usePendentesDoMestre(mesa: Mesa): PendenteNaTela[] {
         if (doNpc !== undefined && sistema !== null) item.tecnicas = reacoesParaOAlvo(alvo, doNpc, sistema, turnos.combate?.[doNpc.id], golpe.overload, golpe.surpresa)
         // F2 (revisão da fatia E, Recuperação de forças): na ficha de jogador, a técnica que só o mestre usa (ele confirma na mesa).
         const doJogador = !item.doMestre && alvo.personagemId !== null ? personagens.find((candidato) => candidato.id === alvo.personagemId) : undefined
-        const soDoMestre = doJogador === undefined || sistema === null ? [] : reacoesParaOAlvo(alvo, doJogador, sistema, turnos.combate?.[doJogador.id], golpe.overload, golpe.surpresa).filter((reacao) => soOMestreReage(reacao.cartao.id) !== null)
+        const soDoMestre = doJogador === undefined || sistema === null ? [] : reacoesParaOAlvo(alvo, doJogador, sistema, turnos.combate?.[doJogador.id], golpe.overload, golpe.surpresa).filter((reacao) => soOMestreReage(reacao.cartao) !== null)
         if (soDoMestre.length > 0) item.tecnicas = soDoMestre
         // Conserto das fichas F1 (S4): Resiliente e Determinação de quem reage, no aviso da caixa.
         const doAlvo = alvo.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === alvo.personagemId)

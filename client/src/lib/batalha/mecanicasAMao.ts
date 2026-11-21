@@ -1046,14 +1046,14 @@ export function contaQuemOViuLutar(cartoesDoDono: readonly string[]): boolean {
 }
 
 /** F2 (fatia B): a disputa que o app rola depois do acerto (Corta Cenoura); `null` = nenhuma. */
-export function disputaNoAcerto(cartaoId: string): DisputaAMao | null {
-  const disputa = mecanicaDoCartao(cartaoId)?.disputa
+export function disputaNoAcerto(cartao: ChaveDaMecanica): DisputaAMao | null {
+  const disputa = mecanicaDoCartao(cartao)?.disputa
   return disputa !== undefined && disputa.quando === 'acerto' ? disputa : null
 }
 
 /** F2 (fatia B): a área em volta de quem usa onde a técnica rebate o golpe Overload em outro alvo (Aplauso); `null` = só quando o alvo é quem usa. */
-export function rebatePertoDe(cartaoId: string): FormaDaArea | null {
-  return mecanicaDoCartao(cartaoId)?.rebate?.perto ?? null
+export function rebatePertoDe(cartao: ChaveDaMecanica): FormaDaArea | null {
+  return mecanicaDoCartao(cartao)?.rebate?.perto ?? null
 }
 
 /** F2 (fatia B): o aviso ao cair a 0 de um dos cartões (o primeiro que tem), com o id dele; `null` = nenhum. */
@@ -1087,8 +1087,8 @@ export function disputaNoUso(cartao: ChaveDaMecanica): DisputaAMao | null {
 }
 
 /** F2 (fatia D): a reação da tabela (Armadura Humana, Giro da Lança); `null` = a de sempre, lida do texto. */
-export function reacaoAMaoDe(cartaoId: string): ReacaoAMao | null {
-  return mecanicaDoCartao(cartaoId)?.reacao ?? null
+export function reacaoAMaoDe(cartao: ChaveDaMecanica): ReacaoAMao | null {
+  return mecanicaDoCartao(cartao)?.reacao ?? null
 }
 
 /** F2 (fatia D, Imbuir Fogo com a Ignição): por que a resposta não vale com as formas ligadas (`ativos` = os `cartoesAtivos` da ficha), ou `null`. */
@@ -1106,8 +1106,8 @@ export function perguntasComAsFormas(perguntas: readonly PerguntaNaHora[], carta
 }
 
 /** F2 (fatia D, Ignição): os Usos desta forma contam os ataques adicionais da batalha, não as vezes que ela liga. */
-export function usosContamOAdicional(cartaoId: string): boolean {
-  return mecanicaDoCartao(cartaoId)?.usosContamOAdicional === true
+export function usosContamOAdicional(cartao: ChaveDaMecanica): boolean {
+  return mecanicaDoCartao(cartao)?.usosContamOAdicional === true
 }
 
 /** F2 (fatia D, Revigorar): a limpeza da técnica; `null` = a técnica não limpa. */
@@ -1216,8 +1216,8 @@ export function saidasTiradasDoDono(chaves: readonly string[]): SaidaDaReacao[] 
 }
 
 /** F2 (fatia E): a técnica corpo a corpo da tabela; `null` = não é (ou não está na tabela). */
-export function corpoACorpoDe(cartaoId: string): CorpoACorpoAMao | null {
-  return mecanicaDoCartao(cartaoId)?.corpoACorpo ?? null
+export function corpoACorpoDe(cartao: ChaveDaMecanica): CorpoACorpoAMao | null {
+  return mecanicaDoCartao(cartao)?.corpoACorpo ?? null
 }
 
 /**
@@ -1244,18 +1244,18 @@ export function sobeDeParte(cartaoId: string): boolean {
 }
 
 /** F2 (fatia E, Recuperação de forças): a técnica de reação vale também contra golpe Overload. */
-export function reageContraOverload(cartaoId: string): boolean {
-  return mecanicaDoCartao(cartaoId)?.reacao?.contraOverload === true
+export function reageContraOverload(cartao: ChaveDaMecanica): boolean {
+  return mecanicaDoCartao(cartao)?.reacao?.contraOverload === true
 }
 
 /** F2 (revisão da fatia E, Recuperação de forças): a técnica de reação vale também contra golpe Surpresa. */
-export function reageContraSurpresa(cartaoId: string): boolean {
-  return mecanicaDoCartao(cartaoId)?.reacao?.contraSurpresa === true
+export function reageContraSurpresa(cartao: ChaveDaMecanica): boolean {
+  return mecanicaDoCartao(cartao)?.reacao?.contraSurpresa === true
 }
 
 /** F2 (revisão da fatia E, Recuperação de forças): o motivo de a reação com a técnica ser só do mestre; `null` = o jogador também usa. */
-export function soOMestreReage(cartaoId: string): string | null {
-  return mecanicaDoCartao(cartaoId)?.reacao?.soOMestre ?? null
+export function soOMestreReage(cartao: ChaveDaMecanica): string | null {
+  return mecanicaDoCartao(cartao)?.reacao?.soOMestre ?? null
 }
 
 /** F2 (fatia F): o dono pede a arma nas técnicas com "Dano da Arma" (a linha da ficha do Siegfried). */
@@ -1269,12 +1269,12 @@ export function perguntaAArma(chaves: readonly string[]): boolean {
  * Conta a `quantidade` de cada vaga (ausente = 1): 3 kits empilhados são 3.
  */
 export function itensQueSobram(
-  cartaoId: string,
+  cartao: ChaveDaMecanica,
   mochila: readonly { nome: string; quantidade?: number; itemId?: string }[] | undefined,
   usadas: number,
   idsDoItem: ReadonlySet<string> = SEM_IDS_DO_ITEM,
 ): { nome: string; sobram: number } | null {
-  const nome = mecanicaDoCartao(cartaoId)?.gastaItem
+  const nome = mecanicaDoCartao(cartao)?.gastaItem
   if (nome === undefined) return null
   const tem = quantosDoConsumivel(mochila ?? [], nome, idsDoItem)
   return { nome, sobram: Math.max(0, tem - usadas) }
@@ -1304,8 +1304,8 @@ export function quantosDoConsumivel(mochila: readonly { nome: string; quantidade
  * pede (pelo nome, sem acento nem caixa), ou `null`. `selosDoAlvo` = os nomes
  * dos selos de cada alvo marcado.
  */
-export function motivoDoSeloPedido(cartaoId: string, selosDosAlvos: readonly (readonly string[])[]): string | null {
-  const pedido = mecanicaDoCartao(cartaoId)?.soContraOSelo
+export function motivoDoSeloPedido(cartao: ChaveDaMecanica, selosDosAlvos: readonly (readonly string[])[]): string | null {
+  const pedido = mecanicaDoCartao(cartao)?.soContraOSelo
   if (pedido === undefined) return null
   const nome = normalizar(pedido.nome).trim()
   const falta = selosDosAlvos.length === 0 || selosDosAlvos.some((nomes) => !nomes.some((outro) => normalizar(outro).trim() === nome))

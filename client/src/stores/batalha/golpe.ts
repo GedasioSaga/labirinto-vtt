@@ -415,7 +415,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       const personagem = personagens.find((candidato) => candidato.id === personagemId)
       if (personagem === undefined) continue
       const areas = reacoesDisponiveis(personagem, sistema, turnos.combate?.[personagemId]).flatMap((reacao) => {
-        const perto = reacao.overload && reacao.motivo === null ? rebatePertoDe(reacao.cartao.id) : null
+        const perto = reacao.overload && reacao.motivo === null ? rebatePertoDe(reacao.cartao) : null
         return perto === null ? [] : [perto]
       })
       const dele = areas.length === 0 ? null : (mesa.posicaoDoToken?.(sceneKey, tokenId) ?? null)

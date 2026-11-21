@@ -2,7 +2,7 @@ import type { CartaoDaFicha } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import { FORMULA_DO_ATAQUE, formulaDoAtaque } from '../formula'
 import { avisoDoCartaoMontado, cartaoMontado, mecanicaLidaDoCartao } from './leitura'
-import { testeRolado, VERSAO_DA_MECANICA, type MecanicaV1 } from './modelo'
+import { testeRolado, VERSAO_GRAVADA, type MecanicaV1 } from './modelo'
 
 /**
  * A ARMA MONTADA (construtor de mecânicas, fatia C8; seção 1 do plano: "vale
@@ -74,7 +74,7 @@ const USOS_DO_GOLPE_COM_SELO = 2
 
 /** `arma`: a arma em que o modelo vai (o editor passa o cartão); o "Golpe com efeito" soma o que ela soma no Atacar. */
 export function mecanicaDoModeloDaArma(id: IdDoModeloDaArma, sistema: SistemaDeRpg, arma?: CartaoDaFicha): MecanicaV1 {
-  const base = { versao: VERSAO_DA_MECANICA, acao: 'simples', custos: [], teste: { tipo: 'reacao' }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } } } as const
+  const base = { versao: VERSAO_GRAVADA, acao: 'simples', custos: [], teste: { tipo: 'reacao' }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } } } as const
   switch (id) {
     case 'atordoa':
       return { ...base, limite: { usosPorBatalha: USOS_DO_ATORDOA }, efeitos: [{ tipo: 'selo', nome: 'Atordoado', duracao: 1, natureza: 'debuff' }] }

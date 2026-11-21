@@ -6,7 +6,7 @@ import { CAMPO_DO_DANO, lerFormula } from '../formula'
 import { CAMPO_DO_CUSTO, type LeituraDaAcao, type LeituraDoCusto } from '../leituraDaFicha'
 import { leituraDaTecnica } from '../leituraDaTecnica'
 import { formulaDaMecanica } from '../mecanicasAMao'
-import { CD_MAX, FORMULA_MAX, lerMecanica, testeRolado, VERSAO_DA_MECANICA, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type Teste } from './modelo'
+import { CD_MAX, FORMULA_MAX, lerMecanica, testeRolado, VERSAO_GRAVADA, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type Teste } from './modelo'
 import type { FichaDaPrevia } from './resumo'
 
 /**
@@ -80,7 +80,7 @@ function testeDoModelo(sistema: SistemaDeRpg): Teste {
 
 /** A mecânica do modelo, pronta para o motor (os números são ponto de partida). */
 export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): MecanicaV1 {
-  const base = { versao: VERSAO_DA_MECANICA, limite: {}, teste: { tipo: 'reacao' }, efeitos: [] } as const
+  const base = { versao: VERSAO_GRAVADA, limite: {}, teste: { tipo: 'reacao' }, efeitos: [] } as const
   const custo30 = [{ recurso: 'sp', quanto: { fixo: 30 }, quando: 'aoUsar' }] as const
   switch (id) {
     case 'golpe':

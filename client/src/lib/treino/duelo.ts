@@ -601,7 +601,7 @@ function reacaoRecalculada(pedido: PedidoDeReacao, turnos: TurnosDaCena, persona
       // De propósito: o texto que não diz a saída (modo "escolher") rola o d20; sem mestre, ninguém escolhe a esquiva.
       // F2 (fatia D): a técnica da tabela com saídas próprias (Armadura Humana: Defender ou Atacar) aceita a escolha de quem reage.
       const daTecnica = saidasDaTecnica(achada.cartao.id, modoDaReacao(achada.cartao))
-      const saida = reacaoAMaoDe(achada.cartao.id)?.saidas !== undefined && daTecnica.saidas.includes(pedido.saida) ? pedido.saida : (daTecnica.sugerida ?? 'rolar')
+      const saida = reacaoAMaoDe(achada.cartao)?.saidas !== undefined && daTecnica.saidas.includes(pedido.saida) ? pedido.saida : (daTecnica.sugerida ?? 'rolar')
       const novo: PedidoDeReacao = { tipo: 'tecnica', golpeId: pedido.golpeId, tokenId: pedido.tokenId, cartaoId: pedido.cartaoId, saida, custo: null }
       if (saida === 'rolar') novo.modificador = modificadorDaReacao(turnos, pedido.tokenId)
       const selo = pedido.seloNoAtacante === undefined ? null : seloDaReacao(achada.cartao)

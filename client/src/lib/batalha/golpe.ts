@@ -485,7 +485,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
         motivoDoAlvoDasPecas(ctx, tecnica.cartao, pedido.alvos) ??
         motivoDoTetoDeDano(tecnica.cartao, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>()) ??
         motivoDoDivide(tecnica.cartao, pedido.alvos.length) ??
-        motivoDoSeloPedido(tecnica.cartao.id, selosDosAlvos) ??
+        motivoDoSeloPedido(tecnica.cartao, selosDosAlvos) ??
         motivoDaCuraSemFerido(ctx, tecnica.cartao, pedido.alvos, pedido.selo !== undefined && pedido.selo !== null)
       )
     }
