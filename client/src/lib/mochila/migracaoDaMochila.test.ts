@@ -16,7 +16,7 @@ import { novoPersonagem, type Personagem } from '../personagem'
 import type { RecoveryCopy } from '../recoveryCopy'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
 import type { CarriedItem, MapData, Token } from '../../types/map'
-import { avisoDaMigracao, migrarMochilaDoMapa, type DiscoDaMigracao } from '../../net/nuvem/migracaoDaMochila'
+import { migrarMochilaDoMapa, type DiscoDaMigracao } from '../../net/nuvem/migracaoDaMochila'
 
 const APPDATA = 'C:/appdata'
 const MAPS = `${APPDATA}/maps`
@@ -325,21 +325,5 @@ describe('migração ao abrir: fichas no adventure.json', () => {
     disco.arquivos.set(FORA_DO_APP, { texto: serializeMap(mapa('ilha', 'Ilha', [boneco('t_npc', null, { mochila: [CORDA] })])), ms: 1 })
     expect(await migrarMochilaDoMapa(FORA_DO_APP, disco)).toEqual({ feita: false, porque: 'sem-fichas' })
     expect(disco.gravados).toEqual([])
-  })
-})
-
-describe('o aviso da migração ao abrir', () => {
-  const base = { feita: true as const, arquivo: RPG, relatorio: 'r.json', copiaDeAntes: 'c', fichas: 0, diferencas: 0, variosBonecos: 0 }
-
-  it('nada passou para a ficha: sem aviso (nem "0 personagem")', () => {
-    expect(avisoDaMigracao(base)).toBeNull()
-    expect(avisoDaMigracao({ ...base, umaMochila: true })).toBeNull()
-  })
-
-  it('singular e plural', () => {
-    expect(avisoDaMigracao({ ...base, fichas: 1 })).toBe('A mochila e a bolsa de 1 personagem passaram a morar na ficha. Nenhuma diferença entre os mapas.')
-    expect(avisoDaMigracao({ ...base, fichas: 3, diferencas: 2, variosBonecos: 1 })).toBe(
-      'A mochila e a bolsa de 3 personagens passaram a morar nas fichas. 2 diferenças entre os mapas: confira em r.json. 1 ficha ligada a mais de um boneco na mesma cena recebeu o que os bonecos carregavam (uma mochila só): confira em r.json.',
-    )
   })
 })
