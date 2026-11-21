@@ -3,7 +3,7 @@ import { acaoDasPecas, avisoDoCartaoMontado, cartaoMontado, custoDasPecas, formu
 import { danoUsaArma } from './mecanica/modelo'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { overloadNaBatalha } from './escolhaEEvolucao'
-import { CAMPO_DO_DANO, lerDano, type ContextoDaFormula, type LeituraDoDano } from './formula'
+import { CAMPO_DO_DANO, lerDano, lerFormula, type ContextoDaFormula, type LeituraDoDano } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, lerAcao, lerCusto, lerTempo, tecnicasDe, type LeituraDaAcao, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
 import { custoPeloMaximo, formulaDaMecanica, mecanicaDoCartao } from './mecanicasAMao'
@@ -73,15 +73,16 @@ function leituraDasPecas(cartao: CartaoDaFicha, ctx: ContextoDaLeitura): Leitura
     const aviso = avisoDoCartaoMontado(cartao) ?? ''
     return { cartao, acaoDaFicha: { acao: null, overload: false, transformacao: false, tambemReacao: false }, custo: custoComATela({ tipo: 'pergunta', recurso: 'sp', sugestao: null, texto: aviso }, ctx.custoDaTela), tempo: { tipo: 'livre' }, overload: false, transformacao: false, tipo }
   }
-  const lerFormula = (formula: string): number | null => {
-    const lido = lerDano(formula, { personagem, sistema, arma: null, vidaDoAlvo: null })
+  // O custo é número da ficha, não dano: sem a força do NPC (`lerDano` multiplicava "Espírito + 10" por ela).
+  const lerNumero = (formula: string): number | null => {
+    const lido = lerFormula(formula, { personagem, sistema, arma: null, vidaDoAlvo: null })
     return lido.tipo === 'valor' ? lido.valor : null
   }
   const acaoDaFicha = acaoDasPecas(pecas)
   return {
     cartao,
     acaoDaFicha,
-    custo: custoComATela(custoDasPecas(pecas, personagem, lerFormula), ctx.custoDaTela),
+    custo: custoComATela(custoDasPecas(pecas, personagem, lerNumero), ctx.custoDaTela),
     tempo: tempoDasPecas(pecas),
     overload: acaoDaFicha.overload,
     transformacao: false,

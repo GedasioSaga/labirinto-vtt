@@ -1,5 +1,6 @@
 import { lerMecanica } from './batalha/mecanica/modelo'
 import { guardarMecanica } from './batalha/mecanica/modelos'
+import { origemDaCopia, SEPARADOR_DA_COPIA, temLinhaNaTabela } from './batalha/mecanicasAMao'
 import { normalizarParaBusca } from './buscaNoLivro'
 import { cartoesDaAba, novoIdDeCartao, type CartaoDaFicha, type Personagem } from './personagem'
 import type { AbaDoSistema, SistemaDeRpg } from './sistemaDeRpg'
@@ -9,9 +10,20 @@ import type { AbaDoSistema, SistemaDeRpg } from './sistemaDeRpg'
  * Tree e os dois têm a Bolha; em vez de montar a mesma habilidade duas vezes,
  * a ficha em edição traz a que outra ficha da pasta já tem.
  *
- * O que vem é uma CÓPIA: cartão novo, com id novo, sem ligação com o original.
- * Mudar um depois não muda o outro.
+ * O que vem é uma CÓPIA: cartão novo, com id novo. Mudar um depois não muda o
+ * outro. B05: a cópia da técnica programada à mão (a tabela de
+ * `mecanicasAMao.ts`, presa ao id do original) leva o id do original no dela,
+ * para a regra valer também na cópia; sem isso ela virava texto puro na batalha.
  */
+
+/** Tamanho do sufixo da cópia: 8 letras do uuid bastam para duas cópias na mesma ficha não baterem. */
+const SUFIXO_DA_COPIA = 8
+
+/** O id da cópia: o da tabela leva o vínculo com o PRIMEIRO original (cópia de cópia também); o resto, um id novo comum. */
+function idDaCopia(cartaoId: string): string {
+  if (!temLinhaNaTabela(cartaoId)) return novoIdDeCartao()
+  return `${origemDaCopia(cartaoId) ?? cartaoId}${SEPARADOR_DA_COPIA}${crypto.randomUUID().slice(0, SUFIXO_DA_COPIA)}`
+}
 
 /**
  * A cópia do cartão para outra ficha: tudo o que ele guarda (campos, extras,
@@ -30,7 +42,7 @@ export function copiaDoCartao(cartao: CartaoDaFicha): CartaoDaFicha {
   const lida = lerMecanica(cartao.mecanica)
   return {
     ...resto,
-    id: novoIdDeCartao(),
+    id: idDaCopia(cartao.id),
     subcartoes: cartao.subcartoes.map(copiaDoCartao),
     ...(lida.tipo === 'pecas' ? { mecanica: guardarMecanica(lida.mecanica) } : {}),
   }

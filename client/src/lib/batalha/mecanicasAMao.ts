@@ -786,10 +786,53 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
  */
 export type ChaveDaMecanica = string | (Pick<CartaoDaFicha, 'id' | 'mecanica'> & { nome?: string })
 
+/**
+ * B05 (docs/design/habilidades/ANALISE.md): a CÓPIA que o "Trazer de outra
+ * ficha" faz de um cartão da tabela nasce com o id do original mais este
+ * separador e um sufixo ("cart_<uuid>.copia-1a2b3c4d"), e a tabela vale nela pelo
+ * id do original. O vínculo mora no próprio id, e não num campo à parte:
+ * cerca de 100 leituras da batalha procuram a tabela só pelo id (o
+ * `pedido.cartaoId`, o `selo.cartaoId`, as `chavesDoDono`), e o id já viaja
+ * por todo lado (disco, fio do jogador, Lobby, Arena) sem nenhum leitor novo.
+ */
+export const SEPARADOR_DA_COPIA = '.copia-'
+
+/** B05: o id do cartão de onde a cópia veio (`null` = não é cópia de cartão da tabela). */
+export function origemDaCopia(cartaoId: string): string | null {
+  const onde = cartaoId.indexOf(SEPARADOR_DA_COPIA)
+  return onde > 0 ? cartaoId.slice(0, onde) : null
+}
+
+/** A linha da tabela pelo id do cartão; a cópia (B05) cai na do original. */
+function linhaPeloId(cartaoId: string): MecanicaAMao | null {
+  if (Object.hasOwn(MECANICAS_A_MAO, cartaoId)) return MECANICAS_A_MAO[cartaoId]
+  const origem = origemDaCopia(cartaoId)
+  return origem !== null && Object.hasOwn(MECANICAS_A_MAO, origem) ? MECANICAS_A_MAO[origem] : null
+}
+
+/** B05: o cartão tem linha na tabela (por ele ou pelo original): a cópia dele precisa levar o vínculo. */
+export function temLinhaNaTabela(cartaoId: string): boolean {
+  return linhaPeloId(cartaoId) !== null
+}
+
+/** O nome da linha sem o dono entre parênteses ("Corta Cenoura (Jimboy)" → "corta cenoura"), para comparar com o nome do cartão. */
+const nomeSemDono = (nome: string): string => normalizar(nome.replace(/\s*\([^)]*\)\s*$/u, '')).trim()
+
+/**
+ * B05 (seção 10 do docs/design/habilidades/SISTEMA.md): a técnica de texto com
+ * o nome de uma técnica da tabela e sem a linha dela: a cópia que o "Trazer"
+ * fez antes do conserto, que veio sem o vínculo e vale só pelo texto.
+ */
+export function perdeuARegraAoSerTrazida(cartao: Pick<CartaoDaFicha, 'id' | 'nome' | 'mecanica'>): boolean {
+  if (cartao.mecanica !== undefined || temLinhaNaTabela(cartao.id)) return false
+  const nome = normalizar(cartao.nome).trim()
+  return nome !== '' && Object.values(MECANICAS_A_MAO).some((linha) => nomeSemDono(linha.nome) === nome)
+}
+
 /** A mecânica à mão do cartão; `null` = a técnica segue só pelo texto da ficha. */
 export function mecanicaDoCartao(chave: ChaveDaMecanica): MecanicaAMao | null {
   if (typeof chave !== 'string') return linhaDoCartaoMontado(chave) ?? mecanicaDoCartao(chave.id)
-  return Object.hasOwn(MECANICAS_A_MAO, chave) ? MECANICAS_A_MAO[chave] : null
+  return linhaPeloId(chave)
 }
 
 /** As perguntas na hora da técnica (vazio = nenhuma). */
