@@ -1,5 +1,5 @@
 import { isTauri } from '@tauri-apps/api/core'
-import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { itemParaDar } from '../../lib/acervoDeItens'
 import { ABA_DAS_ARMAS, armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { quantidadeDe } from '../../lib/items'
@@ -9,6 +9,7 @@ import {
   abaDeDestino,
   buscarNoCatalogo,
   camposDoTipo,
+  cartaoDaEntrada,
   chaveDoNomeDaEntrada,
   DADOS_DO_TIPO,
   ehDoLivro,
@@ -23,7 +24,7 @@ import { FILTROS_DA_PAGINA, passaNoFiltro, pecasDaEntrada, TIPOS_DA_PAGINA, TOPO
 import { resumoDaMecanica } from '../../lib/batalha/mecanica/resumo'
 import { desfazerPosto, porCoisaNaFicha, porEntradaNaFicha, type PostoNaFicha, type ResultadoDoPor } from '../../lib/livros/coisaERegra'
 import { darNaFicha, quantosNaFicha, type FichaQueRecebeu } from '../../lib/mochila/darNaFicha'
-import { cartoesDaAba, type CartaoDaFicha, type Personagem } from '../../lib/personagem'
+import { cartoesDaAba, novoPersonagem, type CartaoDaFicha, type Personagem } from '../../lib/personagem'
 import type { AbaDoSistema, CampoDoCartao, SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
 import { useCatalogoStore } from '../../stores/catalogoStore'
@@ -34,6 +35,7 @@ import { itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from '../BuscaDoAcerv
 import { ImagemOuIniciais } from '../FichaPecas'
 import { precoEmBerries } from '../InventarioDaFicha'
 import { escolhasDaFicha, formatarNumero, primeiroNome, Retrato, trocarFicha } from './comum'
+import { PainelDeEnsaio } from '../ensaio/PainelDeEnsaio'
 import { EntradaDoCatalogoDialog, type ModoDaEntrada } from './EntradaDoCatalogoDialog'
 import { IconeDoMundo } from './icones'
 import './itens.css'
@@ -223,6 +225,9 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   /** Cartões e vagas da mochila postos nesta visita (`ficha:cartão`, `ficha:vaga`): a seção da ficha os mostra em latão. */
   const [novos, setNovos] = useState<ReadonlySet<string>>(() => new Set())
   const [destacado, setDestacado] = useState<string | null>(null)
+  /** Fase 3: o Testar aberto (o cartão feito da entrada uma vez, para o id não mudar a cada render). */
+  const [ensaio, setEnsaio] = useState<{ cartao: CartaoDaFicha; quemUsa: Personagem } | null>(null)
+  const fecharEnsaio = useCallback(() => setEnsaio(null), [])
   const arrastandoRef = useRef<EntradaDaPagina | null>(null)
   /** Pôr em andamento (`ficha:entrada`): o clique duplo não grava duas vezes. */
   const pondo = useRef(new Set<string>())
@@ -315,6 +320,16 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
 
   const grupos = useMemo(() => gruposQueRecebem(personagens), [personagens])
   const destino = grupos.flatMap((grupo) => grupo.fichas).find((personagem) => personagem.id === fichaId) ?? grupos[0]?.fichas[0]
+
+  /** Fase 3: quem usa é a ficha escolhida ao lado (numa cópia); sem ficha na pasta, uma ficha em branco do sistema. */
+  const testar = (entrada: EntradaParaFicha) => {
+    const aba = abaDeDestino(sistema, entrada.tipo)
+    if (aba === undefined) {
+      useToastStore.getState().push('info', 'Este sistema não tem aba de habilidades para o teste.')
+      return
+    }
+    setEnsaio({ cartao: cartaoDaEntrada(entrada, aba, sistema), quemUsa: destino ?? novoPersonagem(sistema, 'npc', 'Cópia de teste') })
+  }
   /** Os nomes que a ficha já tem em cada aba de destino (sem acento, sem caixa): o "Já está em" sem passar pela regra a cada cartão. */
   const nomesNaFicha = useMemo(() => {
     const mapa = new Map<string, Set<string>>()
@@ -609,6 +624,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
                 arrastando={arrastando?.id === entrada.id}
                 destacado={destacado === entrada.id}
                 onPor={() => void por(entrada)}
+                onTestar={entrada.tipo === 'habilidade' ? () => testar(entrada) : null}
                 onEditar={(item) => setDialogo({ tipo: 'editar', item })}
                 onApagar={(item) => void apagar(item, indice)}
                 onArrastar={comecarArrasto}
@@ -758,6 +774,9 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
           {corpo}
         </div>
 
+        {ensaio !== null ? (
+          <PainelDeEnsaio cartao={ensaio.cartao} quemUsa={ensaio.quemUsa} sistema={sistema} onFechar={fecharEnsaio} />
+        ) : (
         <PainelDoDestino
           grupos={grupos}
           destino={destino}
@@ -777,6 +796,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
           onSair={sairDoDestino}
           onSoltar={soltarNoDestino}
         />
+        )}
       </div>
 
       {dialogo !== null && <EntradaDoCatalogoDialog modo={dialogo} sistema={sistema} onClose={() => setDialogo(null)} onSalvou={aoSalvar} />}
@@ -804,13 +824,15 @@ interface CartaoDaEntradaProps {
   arrastando: boolean
   destacado: boolean
   onPor: () => void
+  /** Fase 3: roda a habilidade no Boneco de treino; `null` = este tipo não se testa (o item entra na Fase 7). */
+  onTestar: (() => void) | null
   onEditar: (item: ItemDoCatalogo) => void
   onApagar: (item: ItemDoCatalogo) => void
   onArrastar: (event: DragEvent<HTMLElement>, entrada: EntradaParaFicha) => void
   onSoltar: () => void
 }
 
-function CartaoDaEntrada({ entrada, coisa, linhas, resumo, estado, destino, podeGravar, arrastando, destacado, onPor, onEditar, onApagar, onArrastar, onSoltar }: CartaoDaEntradaProps) {
+function CartaoDaEntrada({ entrada, coisa, linhas, resumo, estado, destino, podeGravar, arrastando, destacado, onPor, onTestar, onEditar, onApagar, onArrastar, onSoltar }: CartaoDaEntradaProps) {
   const dados = DADOS_DO_TIPO[entrada.tipo]
   /** A entrada do mestre (editável); `null` = a do livro, só leitura. */
   const doMestre: ItemDoCatalogo | null = ehDoLivro(entrada) ? null : entrada
@@ -900,6 +922,11 @@ function CartaoDaEntrada({ entrada, coisa, linhas, resumo, estado, destino, pode
             </span>
           )}
           <span className="mu-item__acoes">
+            {onTestar !== null && (
+              <button type="button" className="mu-bt mu-bt--ic mu-bt--p" aria-label={`Testar ${entrada.nome} no boneco`} title="Testar no boneco" onClick={onTestar}>
+                <IconeDoMundo nome="testar" />
+              </button>
+            )}
             {doMestre !== null && podeGravar && (
               <>
                 <button type="button" className="mu-bt mu-bt--ic mu-bt--p" aria-label={`Editar ${doMestre.nome}`} title="Editar" onClick={() => onEditar(doMestre)}>

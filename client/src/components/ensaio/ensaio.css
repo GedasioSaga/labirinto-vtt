@@ -1,0 +1,61 @@
+/*
+ * A miniaba do Testar (PainelDeEnsaio). Só os tokens --lb-* e --lb-gr-* do
+ * grimório. Movimento (notas do protótipo, decisão 11): o painel desliza 8px
+ * em 220ms só ao abrir; os passos entram em cascata de 30ms até o 8º; a barra
+ * do boneco anda em 260ms. Movimento reduzido: só o esmaecer.
+ */
+.ens-painel {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 40px);
+  padding: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: ens-entra 220ms var(--lb-gr-ease-out) both;
+}
+.ens-cab { display: flex; align-items: center; gap: 8px; }
+.ens-tit { flex: 1; min-width: 0; margin: 0; font-size: var(--lb-font-size-md); font-weight: 600; overflow-wrap: anywhere; }
+.ens-quem { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+
+.ens-barra { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; }
+.ens-barra__nome { font-size: var(--lb-font-size-sm); overflow-wrap: anywhere; }
+.ens-barra__num { font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); font-variant-numeric: tabular-nums; }
+.ens-barra__trilho { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--lb-gr-filete-forte); overflow: hidden; }
+.ens-barra__cheia {
+  display: block;
+  height: 100%;
+  background: var(--lb-color-brass);
+  transform-origin: left center;
+  transition: transform 260ms var(--lb-gr-ease-out);
+}
+
+.ens-passos { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 22px; font-size: var(--lb-font-size-sm); }
+.ens-passo { animation: ens-passo 200ms var(--lb-gr-ease-out) both; overflow-wrap: anywhere; }
+.ens-passo__tit { font-weight: 600; color: var(--lb-color-parchment-dim); }
+.ens-passo--arrumou { color: var(--lb-color-brass-bright); }
+.ens-passo--recusa,
+.ens-passo--recusa .ens-passo__tit { color: var(--lb-color-ember); }
+
+.ens-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.ens-ajustes { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.ens-ajustes > summary { cursor: pointer; }
+.ens-ajuste { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+
+@keyframes ens-entra {
+  from { opacity: 0; transform: translateX(8px); }
+}
+@keyframes ens-passo {
+  from { opacity: 0; transform: translateY(4px); }
+}
+@keyframes ens-esmaece {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ens-painel,
+  .ens-passo { animation-name: ens-esmaece; }
+  .ens-barra__cheia { transition: none; }
+}

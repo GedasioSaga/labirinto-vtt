@@ -282,7 +282,7 @@ export type ResultadoDePorNaFicha =
     }
   | { ok: false; motivo: 'semAba' | 'jaTem' | 'variacao' }
 
-function cartaoDaEntrada(entrada: EntradaParaFicha, aba: AbaDoSistema, sistema: SistemaDeRpg): CartaoDaFicha {
+export function cartaoDaEntrada(entrada: EntradaParaFicha, aba: AbaDoSistema, sistema: SistemaDeRpg): CartaoDaFicha {
   const campos: Record<string, string> = {}
   for (const campo of aba.campos) {
     const valor: string | undefined = campo.id === CAMPO_DA_DESCRICAO ? entrada.texto : entrada.campos[campo.id]
