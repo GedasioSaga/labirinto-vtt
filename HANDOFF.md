@@ -1,31 +1,30 @@
-# LEVA DE 21/11 00h48: 10 consertos e redesigns (atualizado 21/11 00h59)
+# LEVA DE 21/11 00h48: 10 consertos e redesigns (atualizado 21/11 09h06)
 
 ## Objetivo
-Os 10 itens do dono de 21/11 (literal no fim do PEDIDOS.md): 1 DOCS, 2 mover e redimensionar o selo do minigame e do puzzle, 3 painel dos jogos refeito pelo Fable 5.2 com caça aos bugs, 4 losango do baú com minigame, 5 ficha e inventário numa lista só (e as balas de prata do Vicent na batalha), 6 fichas de NPC no Acervo de tokens, 7 conteúdo do baú com miniatura, 8 separar Itens e Habilidades com Testar, 9 habilidades melhores (reação, Testar no boneco com miniaba de preview), 10 efeitos nos itens (FF e RE). Depois, pedido novo: estátua de cavalo (print estilo RE).
+Os 10 itens do dono de 21/11 (literal no fim do PEDIDOS.md): 1 DOCS, 2 selo do minigame e do puzzle (mover, tamanho, ângulo, excluir), 3 painel dos jogos refeito (Fable), 4 losango do baú, 5 ficha e inventário numa lista só (+ balas do Vicent), 6 fichas de NPC no Acervo de tokens, 7 conteúdo do baú com miniatura (+ miniatura ao pegar item), 8 separar Itens e Habilidades com Testar, 9 habilidades melhores (reação, Testar no boneco com miniaba), 10 efeitos nos itens (FF e RE). Extras: estátua de cavalo (só objeto do mapa), muitas peças de puzzle.
 
 ## Estado atual
-- 1 FEITO 218a7b5d (rótulo DOCS no livro do mestre e na barra do jogador; App.colunaDireita.test ajustado; tsc ainda não rodado nesta leva).
-- 5 + balas do Vicent FEITOS cae9034c (uma mochila por ficha: migração marcador 2 com cópia rpg.json.antes-da-mochila-2; ficha do mestre lê e grava na ficha; Hector ficha+2 bonecos = Tocha) e 8c8a028e (batalha do jogador lê a mochila do boneco ligado: Vincent 0 para 40 balas); tsc 0; vitest da mochila ok; NÃO visto no navegador nem no Tauri. DONO CONFIRMOU uma mochila por ficha. Dono confirmou também C5, C7, C21 do SISTEMA.md (as outras decisões C seguem do Claude).
-- 2 + 4 FEITOS 8b7c760c (selo: mover, tamanho 50-300%, girar com Shift de 15 em 15 graus, Delete tira só o lugar, Ctrl+Z) e 57225385 (losango no baú com minigame também no mestre; no jogador já existia, só aparece com o baú na visão, ligado e fechado); tsc 0; 379 testes; navegador mestre + Visão de jogador ok; p95 16,8-33,4, sem longtask >= 200 nos gestos; não visto: vários pisos, LAN real, build de produção.
-- EM VOO: programador-frontend constrói o painel dos jogos aprovado (docs/design/jogos/NOTAS.md, 3 entregas); item 3 PROTÓTIPO FEITO a040e9ae (Fable: docs/design/jogos/editor-de-desafio.html + NOTAS.md com 30 bugs, 16 decisões, 3 entregas; 35/35, p95 16,8; APROVADO "gostei"; Entrega 1 mexe em desafios.ts/PaginaJogos.tsx, esperar o agente do selo terminar); ; ANÁLISE 8-10 FEITA 23dc26af (Fable: docs/design/habilidades/ANALISE.md 24 erros, SISTEMA.md mecanica v2 para habilidade, arma e item, 22+25 modelos, fases 0-9, decisões C1-C24 na seção 13; nada executado); item 7 PROTÓTIPO FEITO 27a3a983 (docs/design/bau/conteudo-do-bau.html + NOTAS.md, 11 decisões; p95 16,7; APROVADO "gostei"; NA FILA construir + miniatura ao pegar item do baú, do chão e da estrelinha). Vaga livre: começar as peças de puzzle.
-- Respostas do dono (adda82fe): NPCs no Acervo; Testar = boneco de treino + miniaba de preview; reação = usada no lugar da reação normal; item usado por jogador, mestre e NPC com ficha, depois "usar item" na batalha. Se o Fable acabar, usar Opus 5.5.
-- EM VOO também: programador-frontend Fase 0 das habilidades (consertos do ANALISE.md, sem desenho novo); item 6 PROTÓTIPO FEITO 91347c10 (docs/design/acervo/npcs-no-acervo.html + NOTAS.md, 17 decisões; a 8 muda o comportamento: pôr de novo uma ficha de NPC que já está no mapa cria cópia com vida própria; p95 16,8-16,9; ESPERANDO O DONO).
-- EM VOO: programador-frontend constrói o baú aprovado + miniatura ao pegar item.
-- EM VOO: designer-opus estátua de cavalo (catálogo, lib/carimbos.ts).
-- NA FILA: muitas peças de puzzle (encaixar, combinar, chaves), pedido de 21/11 (PEDIDOS, fim).
-- ANTES: estátua de cavalo (pedido de 21/11 00h59; "Só objeto do mapa").
+FEITOS na main (não publicados; tsc 0 e vitest perto em cada um; navegador do mestre ok; NÃO visto no app Tauri real):
+- 1 DOCS 218a7b5d.
+- 2 + 4: 8b7c760c (selo: mover, tamanho 50-300%, girar, Delete tira só o lugar, Ctrl+Z), 57225385 (losango no baú também no mestre).
+- 3 painel dos jogos: cf5624ed, 1d532d92, a036c67b (jogo primeiro, nome automático, troca com desfazer, bloco "O convite", quem chama de ficha, prévia "O jogador vê"; fala vai ao jogador agora). Tela do JOGADOR não aberta no navegador.
+- 5: cae9034c (uma mochila por ficha, dono confirmou) + 8c8a028e (balas do Vicent).
+- 7 + miniatura ao pegar: 16cbf475, ca9180a5. Jornada task-jornada-bau passo 3 falha por câmera velha do e2e (não do diff). Toast do mestre sem miniatura.
+- Fase 0 das habilidades: e02319a5, 759189de, 6437bda2 (B02 B05 B07 B08 B14 B15 B18 B19 B20 B22; 241/241 cartões iguais). B04 e B10 ficam para as fases 1 e 5.
+- Estátua de cavalo 30459e55 (Objeto > Castelo, com e sem pedestal; docs/design/objetos/estatua-de-cavalo.png).
+- Peças de puzzle abae9e5b (13 para 77: 29 encaixar, 10 pares, 15 chaves; terços não, o motor junta só 2; docs/design/puzzles/pecas-novas.png).
+- Item 6: protótipo 91347c10 APROVADO pelo dono, com "Vira cópia" (2º boneco de um NPC = cópia com vida própria).
 
 ## Próximos passos
-1. Receber cada agente, conferir o relato, commit já feito por ele, anotar aqui e no PEDIDOS.
-2. Protótipos (3, 7, sistema 8-10) vão ao dono aprovar; depois construir no app (Opus 5.5 xhigh), 1 dono por sistema interligado.
-3. Item 6: protótipo e construção quando abrir vaga. Estátua de cavalo: objeto do catálogo (arte por código, Meio-Termo).
-4. Publicar a 0.5.90 só com o ok do dono.
+1. EM VOO: construir o item 6 (docs/design/acervo/NOTAS.md); protótipo das telas de habilidades e itens (Testar com boneco + miniaba, Itens e Habilidades separados, editor de efeitos, reação, usar item) para o dono aprovar; verificador-realidade audita os feitos contra o literal.
+2. Depois do protótipo aprovado: fases 1-8 do docs/design/habilidades/SISTEMA.md, 1 dono em sequência (Opus 5.5 xhigh).
+3. Publicar 0.5.90 só com o ok do dono (perguntar).
 
 ## Critério de pronto
 Cada item do literal conferido pelo verificador-realidade contra o PEDIDOS; tsc 0 (rtk proxy npx tsc --noEmit em client); testes existentes perto do que mudou passam; navegador mestre + jogador com p95 e sem longtask >= 200 ms; release 0.5.90 com latest.json 0.5.90.
 
 ## Evidência
-- 218a7b5d: rg mostra rotulo 'DOCS' em client/src/components/livro/PaginaDocumentos.tsx:31 e PlayerPanel.tsx; nada mais verificado ainda.
+- Commits acima (git log --oneline 2c579265..HEAD). Relatos dos agentes: tsc exit 0 em todos; vitest 379/379 (selo), 124/124 (jogos), 192+434 (habilidades), 54+31 (baú), 30 (peças); 241/241 cartões no portão das fichas.
 
 ﻿# MINIGAMES DE PUZZLE + DOCUMENTOS 19/11 20h36 (protótipo v2 em voo)
 
