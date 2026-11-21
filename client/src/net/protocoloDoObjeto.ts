@@ -17,6 +17,8 @@
  * Este módulo não importa `protocol.ts`, que importa daqui.
  */
 
+import { ehRefDeMidia } from '../lib/midia'
+
 export type JogoDoObjetoNoFio = 'bau' | 'caixa' | 'barril'
 const JOGOS: readonly JogoDoObjetoNoFio[] = ['bau', 'caixa', 'barril']
 export type DificuldadeDoObjeto = 'normal' | 'dificil'
@@ -37,12 +39,20 @@ const OBJETO_DOCUMENTOS_MAX = 20
 const QUANTIDADE_MAX = 9999
 const NUMERO_MAX = 999_999
 
+/** Um item do que o jogador levou. */
+export interface ItemDoDesfecho {
+  nome: string
+  quantidade: number
+  imagem?: string
+}
+
 /** O que a tela do jogador mostra ao abrir: o que levou e a armadilha (o mesmo contrato do overlay). */
 export interface DesfechoDoObjetoNoFio {
   armadilha: ArmadilhaNoFio | null
   /** `false` = o mestre desligou o jumpscare neste mapa: a cobra aparece parada, com o som. */
   jumpscare: boolean
-  itens: { nome: string; quantidade: number }[]
+  /** `imagem`: a referência de mídia do item (`midia:<id>`), para a miniatura do cartão; o item vai inteiro à mochila dele, com ela. Ausente = sem imagem. */
+  itens: ItemDoDesfecho[]
   moedas: number
   /** Os títulos dos documentos que entraram agora na lista dele, com o "novo". Ausente = nenhum (e o mestre de antes nunca manda). */
   documentos?: string[]
@@ -88,10 +98,11 @@ function lerDesfecho(value: unknown): DesfechoDoObjetoNoFio | null {
   if (!isRecord(value) || typeof value.jumpscare !== 'boolean' || !Array.isArray(value.itens) || value.itens.length > OBJETO_ITENS_MAX) return null
   const armadilha = value.armadilha === null ? null : value.armadilha === 'cobra' || value.armadilha === 'aranha' ? value.armadilha : undefined
   if (armadilha === undefined) return null
-  const itens: { nome: string; quantidade: number }[] = []
+  const itens: ItemDoDesfecho[] = []
   for (const item of value.itens) {
     if (!isRecord(item) || !textoAte(item.nome, OBJETO_NOME_MAX) || !inteiroAte(item.quantidade, QUANTIDADE_MAX)) return null
-    itens.push({ nome: item.nome, quantidade: item.quantidade })
+    // Imagem torta (caminho de disco, URL de fora) não vira miniatura, e o item continua.
+    itens.push(ehRefDeMidia(item.imagem) ? { nome: item.nome, quantidade: item.quantidade, imagem: item.imagem } : { nome: item.nome, quantidade: item.quantidade })
   }
   if (!inteiroAte(value.moedas, NUMERO_MAX) || !inteiroAte(value.dano, NUMERO_MAX) || !inteiroAte(value.turnos, NUMERO_MAX)) return null
   const efeito = value.efeito === null ? null : textoAte(value.efeito, OBJETO_NOME_MAX) ? value.efeito : undefined

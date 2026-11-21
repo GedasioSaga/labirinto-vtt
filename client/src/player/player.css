@@ -832,6 +832,19 @@
   animation: pp-notice-in 160ms ease-out;
 }
 
+/* "Poção está com você" com a miniatura do item (21/11/2026): a mesma altura do aviso de uma linha. */
+.pp-notice--item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 6px;
+}
+
+.pp-notice__miniatura {
+  --lb-miniatura: 24px;
+  border-radius: 50%;
+}
+
 @keyframes pp-notice-in {
   from {
     opacity: 0;

@@ -349,6 +349,18 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+/* A miniatura do item que ele levou (pedido de 21/11/2026), antes do nome. */
+.ab-itens li:has(> .ab-itens__miniatura) {
+  align-items: center;
+}
+.ab-itens__miniatura {
+  --lb-miniatura: 28px;
+  margin-right: -4px;
+}
+.ab-itens__miniatura + span {
+  flex: 1;
+  min-width: 0;
+}
 .ab-moedas {
   color: var(--ab-ouro);
   font-weight: 600;

@@ -10,6 +10,7 @@ import { JOGOS_NA_TELA } from './jogos'
 import { MotorDeAbrir, type AmbienteDoMotor, type FaseDoMotor } from './motor'
 import { armazemDoNavegador, gravarPreferencias, lerPreferencias, type ArmazemDeAbrir, type PreferenciasDeAbrir } from './preferencias'
 import { FRASE_DO_SUSTO, linhaDaArmadilha, resumoDoAchado, textoDasMoedas } from './textos'
+import { MiniaturaDoItem } from '../../../components/MiniaturaDoItem'
 import './abrir.css'
 
 export type { JogoDoObjeto } from '../objeto'
@@ -19,7 +20,8 @@ export interface DesfechoDoObjetoNoJogador {
   armadilha: 'cobra' | 'aranha' | null
   /** false = o mapa desligou o susto: a versão parada (como no movimento reduzido), com som. */
   jumpscare: boolean
-  itens: { nome: string; quantidade: number }[]
+  /** `imagem`: a referência de mídia do item, para a miniatura (pedido de 21/11/2026); ausente = as iniciais. */
+  itens: { nome: string; quantidade: number; imagem?: string }[]
   moedas: number
   /** Os títulos dos documentos que entraram na lista dele; ausente = nenhum (a tela fora da mesa, sem lista). */
   documentos?: readonly string[]
@@ -470,6 +472,7 @@ function TelaDeAbrir({
               <ul className="ab-itens" aria-label="Itens">
                 {desfecho.itens.map((item, k) => (
                   <li key={`${k}|${item.nome}`}>
+                    <MiniaturaDoItem imagem={item.imagem} nome={item.nome} className="ab-itens__miniatura" />
                     <span>{item.nome}</span>
                     <b>×{item.quantidade}</b>
                   </li>

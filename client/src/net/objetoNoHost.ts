@@ -13,7 +13,8 @@ import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
 import { tokenRadiusOf } from '../lib/doorReach'
 import type { AlcancePeloObjeto } from '../lib/tipoDoAlcancePeloObjeto'
 import { avisosDosDocumentos, darDocumentos } from '../documentos/naFicha'
-import type { DesfechoDoObjetoNoFio } from './protocoloDoObjeto'
+import { ehRefDeMidia } from '../lib/midia'
+import type { DesfechoDoObjetoNoFio, ItemDoDesfecho } from './protocoloDoObjeto'
 import type { DocumentoDaBiblioteca } from './puzzleNoHost'
 
 /**
@@ -48,6 +49,8 @@ export interface RegistroDoObjetoAberto {
   titulo: string
   /** "Levou Poção ×2 e 35 moedas." / "Não tinha nada." */
   levou: string
+  /** Os itens com a miniatura, para o registro "Abertos agora" (ausente no registro de antes deste campo). */
+  itens?: ItemDoDesfecho[]
   /** A linha da armadilha, ou "Sem armadilha.". */
   armadilha: string
   /** O que não deu para entregar (ficha sem vida, token sem ficha). */
@@ -142,6 +145,8 @@ export function abrirObjeto({ prop, jogo, token, personagem, sistema, nomeDoJoga
     }
   }
   const levou = oQueLevou(conteudo, documentos)
+  // A miniatura de cada item: só a referência de mídia, que vai à mochila de quem abriu junto do item.
+  const itensLevados: ItemDoDesfecho[] = conteudo.itens.map(({ item, quantidade }) => (ehRefDeMidia(item.imagem) ? { nome: item.nome, quantidade, imagem: item.imagem } : { nome: item.nome, quantidade }))
   const verbo = jogo === 'bau' ? 'abriu' : 'quebrou'
   const artigo = jogo === 'caixa' ? 'a' : 'o'
   const registro: RegistroDoObjetoAberto = {
@@ -149,6 +154,7 @@ export function abrirObjeto({ prop, jogo, token, personagem, sistema, nomeDoJoga
     jogo,
     titulo: `${nomeDoJogador} ${verbo} ${artigo} ${nomeDoObjeto}`,
     levou: levou === '' ? 'Não tinha nada.' : `Levou ${levou}.`,
+    ...(itensLevados.length > 0 ? { itens: itensLevados } : {}),
     armadilha: armadilha === null ? 'Sem armadilha.' : fraseDaArmadilha(armadilha),
     avisos,
     em,
@@ -156,7 +162,7 @@ export function abrirObjeto({ prop, jogo, token, personagem, sistema, nomeDoJoga
   const desfecho: DesfechoDoObjetoNoFio = {
     armadilha: armadilha?.tipo ?? null,
     jumpscare: !semJumpscare,
-    itens: conteudo.itens.map(({ item, quantidade }) => ({ nome: item.nome, quantidade })),
+    itens: itensLevados,
     moedas: conteudo.moedas,
     // Só com documento: o desfecho de sempre não muda de forma (`documentos` ausente = nenhum).
     ...(documentos.length > 0 ? { documentos } : {}),

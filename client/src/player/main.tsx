@@ -136,6 +136,7 @@ import { fichasComAMochilaDasLigacoes } from '../lib/batalha/municaoDaFicha'
 import { moedasDe, ownTradeToken, purseToward } from '../lib/troca'
 import { PlayerTradeCard } from './PlayerTradeCard'
 import { itemNoticeText } from './itemNotice'
+import { MiniaturaDoItem } from '../components/MiniaturaDoItem'
 import { compraNoticeText } from './compraNotice'
 import { HIDE_NOTICE_TEXT } from './hideNotice'
 import { leverNoticeText } from './leverNotice'
@@ -2756,7 +2757,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           </p>
         )}
         {state.item && (
-          <p key={state.item.id} className="pp-notice" role="status" aria-live="polite">
+          <p key={state.item.id} className={state.item.phase === 'taken' ? 'pp-notice pp-notice--item' : 'pp-notice'} role="status" aria-live="polite">
+            {/* A miniatura do que ele pegou, no chão ou na estrelinha (pedido de 21/11/2026); o texto continua o mesmo. */}
+            {state.item.phase === 'taken' && <MiniaturaDoItem imagem={state.item.imagem} nome={state.item.nome} className="pp-notice__miniatura" />}
             {itemNoticeText(state.item)}
           </p>
         )}

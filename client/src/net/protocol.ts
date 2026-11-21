@@ -2347,7 +2347,9 @@ export type HostMessage =
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
   // ITEM PEGÁVEL. `nome` só no `taken`: o jogador lê o que agora carrega.
   | { type: 'pin.take.rejected'; reason: PinTakeRejection }
-  | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
+  // `imagem` (21/11/2026): a referência de mídia do item pego, para a miniatura
+  // do aviso; só no `taken`, quando o item já é dele (a estrelinha não a manda antes).
+  | { type: 'pin.take.answer'; answer: 'taken'; nome: string; imagem?: string }
   | { type: 'pin.take.answer'; answer: 'denied' }
   // LOJA COM PREÇOS, só a quem pediu. `nome` só no `sold`: o que agora está na mochila dele.
   | { type: 'pin.buy.rejected'; reason: PinBuyRejection }

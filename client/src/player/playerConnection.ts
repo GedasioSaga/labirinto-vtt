@@ -2,7 +2,7 @@ import type { HazardKind, MapData, MarcaRumo, PinCard, RegionPoint, Token } from
 import { moveTokenCarryingLights } from '../lib/lightAttachment'
 import { comCamadasDoJogadorLidas } from '../lib/camadas/doJogador'
 import { parseTransicao, type TransicaoEscolhida } from '../transicoes/catalogo'
-import { URL_DA_MIDIA_NA_SALA } from '../lib/midia'
+import { ehRefDeMidia, URL_DA_MIDIA_NA_SALA } from '../lib/midia'
 import { baixarVideoDaCutscene, type BaixaDoVideo } from './baixarVideoDaCutscene'
 import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
@@ -1264,7 +1264,8 @@ function withClue(book: readonly ClueEntry[], clue: ClueEntry): ClueEntry[] {
  */
 export type ItemNotice =
   | { id: number; phase: 'sent'; direct: boolean }
-  | { id: number; phase: 'taken'; nome: string }
+  /** `imagem`: a referência de mídia do item pego, para a miniatura do aviso (21/11/2026); ausente = as iniciais. */
+  | { id: number; phase: 'taken'; nome: string; imagem?: string }
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTakeRejection }
   | { id: number; phase: 'give_rejected'; reason: ItemGiveRejection }
@@ -5810,7 +5811,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (data.answer !== 'taken' || typeof data.nome !== 'string') return
         const nome = cleanItemName(data.nome)
         if (nome === '') return
-        showItemNotice({ id: nextNoticeId++, phase: 'taken', nome })
+        // A miniatura só pela referência de mídia (a rota da sala serve só a pasta da mídia); o resto é ignorado.
+        showItemNotice(ehRefDeMidia(data.imagem) ? { id: nextNoticeId++, phase: 'taken', nome, imagem: data.imagem } : { id: nextNoticeId++, phase: 'taken', nome })
         return
       }
       case 'pin.take.rejected': {

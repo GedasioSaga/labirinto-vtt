@@ -1,0 +1,69 @@
+/*
+ * A MINIATURA DO ITEM (`MiniaturaDoItem.tsx`): a vaga afundada da mochila e
+ * do conteúdo do baú, em pequeno. O tamanho vem de `--lb-miniatura` (quem usa
+ * escolhe); as iniciais, do `data-iniciais`, com os 5 tons do retrato vazio.
+ */
+.lb-miniatura {
+  --lb-miniatura-tom: var(--lb-color-brass-bright, #f3ba66);
+  --lb-miniatura-fundo: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--lb-miniatura, 28px);
+  height: var(--lb-miniatura, 28px);
+  overflow: hidden;
+  border-radius: 6px;
+  background: radial-gradient(circle at 50% 38%, #1f1a13, #15120e 72%);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(236, 234, 228, 0.07);
+}
+
+.lb-miniatura > img {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 2px;
+  object-fit: contain;
+}
+
+.lb-miniatura[data-iniciais] {
+  background: var(--lb-miniatura-fundo);
+}
+
+.lb-miniatura[data-iniciais]::before {
+  content: attr(data-iniciais);
+  font-family: var(--lb-font-display, Georgia, serif);
+  font-size: calc(var(--lb-miniatura, 28px) * 0.44);
+  line-height: 1;
+  color: var(--lb-miniatura-tom);
+  user-select: none;
+}
+
+.lb-miniatura[data-tom='1'] {
+  --lb-miniatura-tom: var(--lb-color-ember, #e2645a);
+  --lb-miniatura-fundo: var(--lb-color-ember-soft, rgba(226, 100, 90, 0.14));
+}
+
+.lb-miniatura[data-tom='2'] {
+  --lb-miniatura-tom: var(--lb-color-tide, #79a9cc);
+  --lb-miniatura-fundo: var(--lb-color-tide-soft, rgba(121, 169, 204, 0.14));
+}
+
+.lb-miniatura[data-tom='3'] {
+  --lb-miniatura-tom: var(--lb-color-arcane, #ab93d6);
+  --lb-miniatura-fundo: var(--lb-color-arcane-soft, rgba(171, 147, 214, 0.15));
+}
+
+.lb-miniatura[data-tom='4'] {
+  --lb-miniatura-tom: var(--lb-color-online, #7fb48a);
+  --lb-miniatura-fundo: var(--lb-color-online-soft, rgba(127, 180, 138, 0.14));
+}
+
+/* Uma fileira de miniaturas: o registro "Abertos agora" do mestre (`ObjetosQueAbrem.tsx`). */
+.lb-miniaturas {
+  --lb-miniatura: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0;
+}

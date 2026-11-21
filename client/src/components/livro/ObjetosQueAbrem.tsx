@@ -6,6 +6,7 @@ import { useAdventureStore } from '../../stores/adventureStore'
 import { useDesafiosStore } from '../../stores/desafiosStore'
 import { useLivroDoMestreStore } from '../../stores/livroDoMestreStore'
 import { useMapStore } from '../../stores/mapStore'
+import { MiniaturaDoItem } from '../MiniaturaDoItem'
 
 /*
  * BAÚS, CAIXAS E BARRIS na página Jogos (15/11/2026, protótipo do mestre,
@@ -57,6 +58,14 @@ export function ObjetosQueAbrem({ props }: { props: readonly Prop[] }) {
                 <p className="mg-abertura__titulo">
                   <b>{registro.titulo}</b> <small>{hora(registro.em)}</small>
                 </p>
+                {/* A miniatura do que o jogador levou (pedido de 21/11/2026); o texto continua dizendo os nomes. */}
+                {registro.itens !== undefined && registro.itens.length > 0 && (
+                  <div className="lb-miniaturas" aria-hidden="true">
+                    {registro.itens.map((item, k) => (
+                      <MiniaturaDoItem key={`${k}|${item.nome}`} imagem={item.imagem} nome={item.nome} />
+                    ))}
+                  </div>
+                )}
                 <p className="mg-abertura__linha">{registro.levou}</p>
                 <p className={registro.armadilha === 'Sem armadilha.' ? 'mg-abertura__linha' : 'mg-abertura__linha mg-abertura__linha--perigo'}>{registro.armadilha}</p>
                 {registro.avisos.map((aviso) => (

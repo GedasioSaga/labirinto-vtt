@@ -141,6 +141,7 @@ import { MOTOR_DRAGON_BALL, motorDoSistema } from '../lib/motores'
 import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
+import { ehRefDeMidia } from '../lib/midia'
 import { itemAVenda } from '../lib/loja'
 import { bolsaPaga, vendaNaFicha } from '../lib/vendaDaLoja'
 import { selectedTokenColor } from '../lib/tokenColor'
@@ -6431,7 +6432,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const change = pegarItemChange(token, alvo, freshId)
     if (change === null) return clientId === null ? { outbound: [] } : reply(clientId, { type: 'pin.take.rejected', reason: 'unavailable' })
     return {
-      outbound: clientId === null ? [] : [{ clientId, msg: { type: 'pin.take.answer', answer: 'taken', nome: alvo.item.nome } }],
+      // A miniatura só agora, com o item já na mochila dele: a referência de mídia e nada mais.
+      outbound: clientId === null ? [] : [{ clientId, msg: { type: 'pin.take.answer', answer: 'taken', nome: alvo.item.nome, ...(ehRefDeMidia(alvo.item.imagem) ? { imagem: alvo.item.imagem } : {}) } }],
       applyItems: { ...backgroundSceneId(scene, world), ...change },
     }
   }
