@@ -61,5 +61,5 @@ export const MINIGAME_PESCA_PADRAO: MinigamePesca = {
   lances: 3,
   permitida: 'escolha',
   premio: { texto: 'Quem trouxer o maior peixe leva a chave da comporta.' },
-  consequencia: { texto: 'Linha vazia: a vez passa e o barqueiro conta para a mesa inteira.' },
+  consequencia: { texto: 'Linha vazia: a vez passa e a história corre a mesa inteira.' },
 }

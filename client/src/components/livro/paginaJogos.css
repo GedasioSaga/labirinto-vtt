@@ -84,3 +84,66 @@
 
 /* Editor de desafio (21/11/2026): a falta dita na ficha, no lugar do campo (o puzzle sem lugar, o clique fora do objeto, o apagar). */
 .mg-erro { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.45; color: #f0a198; }
+
+/* ------------------------------------------------------------------ a ficha do desafio (protótipo aprovado em 21/11/2026) */
+.mg-nome { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: -4px 0 4px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.mg-nome.gr-campo { display: flex; flex-direction: column; align-items: stretch; }
+.mg-nome__dica { color: var(--lb-color-parchment-faint); }
+.mg-nome .gr-campo__rot small,
+.mg-rot small,
+.mg-rot output { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.mg-rot { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.mg-lapis { margin-left: auto; width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; color: var(--lb-color-parchment-dim); transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease; }
+.mg-lapis svg { width: 15px; height: 15px; }
+.mg-lapis:focus-visible, .mg-quem:focus-visible, .mg-chip:focus-visible, .mg-link:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 1px; }
+.mg-link { padding: 0; background: none; border: 0; color: var(--lb-color-brass-bright); font-size: var(--lb-font-size-sm); text-decoration: underline; text-decoration-color: rgba(224, 164, 74, 0.45); text-underline-offset: 2px; cursor: pointer; }
+.mg-acoes-link { display: flex; gap: 10px; }
+
+.mg-jogo-atual { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; margin: 6px 0 2px; border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete); }
+.mg-jogo-atual b { font-weight: 600; display: block; line-height: 1.25; }
+.mg-jogo-atual small { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); display: block; line-height: 1.3; }
+
+.mg-bloco { border-top: 1px dashed var(--lb-gr-filete-forte); padding-top: 11px; margin-top: 12px; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.mg-bloco__cab { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mg-bloco .mg-secao { margin: 0; }
+.mg-nota { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment-dim); }
+
+/* O CONVITE: o único bloco com moldura de latão. É a carta que o jogador recebe, escrita aqui. */
+.mg-convite { border: 1px solid var(--lb-gr-filete-latao); border-radius: var(--lb-radius-md); background: linear-gradient(180deg, rgba(224, 164, 74, 0.05), transparent 70px), var(--lb-gr-cartao); padding: 10px; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.mg-quem { width: 100%; display: grid; grid-template-columns: 42px minmax(0, 1fr) 16px; align-items: center; gap: 9px; text-align: left; padding: 4px; border: 0; background: none; color: inherit; border-radius: 8px; cursor: pointer; transition: background-color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out); }
+.mg-quem:active { transform: scale(0.985); }
+@media (hover: hover) and (pointer: fine) { .mg-quem:hover { background: rgba(236, 234, 228, 0.04); } }
+.mg-quem b { display: block; font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); overflow-wrap: anywhere; }
+.mg-quem small { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.3; }
+.mg-ic { width: 14px; height: 14px; color: var(--lb-color-parchment-faint); }
+.mg-quem[aria-expanded='true'] .mg-ic { transform: rotate(180deg); }
+.mg-retrato { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex: none; object-fit: cover; background: #3a3125; color: #fff7ea; font: 600 14px/1 var(--lb-font-utility); box-shadow: 0 0 0 2px var(--lb-gr-couro-2, #2a1d12), 0 0 0 3px var(--lb-gr-latao-2, #8a6a3a); }
+.mg-retrato--vazio { background: transparent; color: var(--lb-color-parchment-faint); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte); border-radius: 10px; }
+.mg-retrato--p { width: 26px; height: 26px; font-size: 10px; box-shadow: 0 0 0 1px var(--lb-gr-couro-2, #2a1d12), 0 0 0 2px var(--lb-gr-latao-2, #8a6a3a); }
+.mg-fala { font: italic 400 14px/1.45 var(--lb-font-display); border-left: 2px solid var(--lb-gr-latao-2, #8a6a3a); resize: vertical; }
+.mg-fala--narra { font-style: normal; border-left-color: var(--lb-gr-filete-forte); }
+.mg-chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.mg-chips > span { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); margin-right: 2px; }
+.mg-chip { min-height: 24px; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--lb-gr-filete-forte); background: none; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); cursor: pointer; transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out), border-color var(--lb-motion-fast) ease; }
+.mg-chip:active { transform: scale(0.96); }
+.mg-chip[aria-pressed='true'] { border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); background: var(--lb-color-brass-soft); }
+
+/* a escolha de quem chama abre no lugar, embaixo do botão: nasce dele */
+.mg-escolha { border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); background: var(--lb-gr-papel-baixo); padding: 8px; display: flex; flex-direction: column; gap: 7px; transform-origin: 24px 0; }
+.mg-escolha__t { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.mg-escolha ul { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.mg-escolha__op { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 2px 6px 2px 4px; border: 0; background: none; color: inherit; border-radius: 6px; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.mg-escolha__op[aria-pressed='true'] { background: var(--lb-gr-cartao-alto); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+@media (hover: hover) and (pointer: fine) { .mg-escolha__op:hover { background: var(--lb-gr-cartao); } }
+.mg-dupla { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.mg-largo { width: 100%; }
+.lb-minigame__chance > summary { cursor: pointer; }
+
+/* A troca de jogo: só o que é do jogo entra de novo (180 ms, 4 px), para o olho ver o que mudou; o resto fica parado.
+   transition + @starting-style: troca seguida retoma de onde estava, em vez de recomeçar do zero. */
+@media (prefers-reduced-motion: no-preference) {
+  .mg-troca { transition: opacity 180ms var(--lb-gr-ease-out), transform 180ms var(--lb-gr-ease-out); }
+  @starting-style { .mg-troca { opacity: 0; transform: translateY(4px); } }
+  .mg-escolha { transition: opacity 140ms var(--lb-gr-ease-out), transform 140ms var(--lb-gr-ease-out); }
+  @starting-style { .mg-escolha { opacity: 0; transform: scale(0.97); } }
+}

@@ -13,6 +13,12 @@ import type { Desafio, LugarDoDesafio, MapData, Pin, Prop, TipoDoLugarDoDesafio 
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
 import { ehJogoDoRegistro, entradaDoMinigame, nomeDoJogoDoDesafio, padraoDoJogo, REGISTRO_DE_MINIGAMES, type EntradaDoDesafio } from '../minigames/registro'
 import type { ProgressoDoPuzzle } from '../puzzles/tipos'
+import { ALAVANCA_LUGAR_MAX_LENGTH, CONVITE_DA_CENA_ALAVANCA } from '../minigames/alavanca/tipos'
+import { FALA_DO_CENARIO_BOLHA, MINIGAME_BOLHA_PADRAO } from '../minigames/bolha/tipos'
+import { FALA_MAX_LENGTH, NPC_MAX_LENGTH } from '../minigames/danca/tipos'
+import { FLORESTA_MAX_LENGTH } from '../minigames/fogo/tipos'
+import { LAGO_MAX_LENGTH } from '../minigames/pesca/tipos'
+import { BARRACA_MAX_LENGTH } from '../minigames/tiro/tipos'
 import { escalaDoPino, isPinEscala, PIN_ESCALA_MAX, PIN_ESCALA_MIN } from './pins'
 import { normalizeRotation } from './roomRotation'
 
@@ -48,7 +54,9 @@ export function nomeAutomatico(desafio: Pick<Desafio, 'minigame'>): string {
   const jogo = nomeDoJogoDoDesafio(minigame)
   if (minigame.jogo === 'puzzle') {
     const doPuzzle = typeof minigame.puzzle.nome === 'string' ? minigame.puzzle.nome.trim() : ''
-    return (doPuzzle === '' ? jogo : `${jogo}: ${doPuzzle}`).slice(0, DESAFIO_NOME_MAX_LENGTH)
+    // O nome que já diz "Puzzle" ("Puzzle novo (Fonte)") não repete a palavra.
+    const jaDiz = doPuzzle.toLocaleLowerCase('pt-BR').startsWith(jogo.toLocaleLowerCase('pt-BR'))
+    return (doPuzzle === '' ? jogo : jaDiz ? doPuzzle : `${jogo}: ${doPuzzle}`).slice(0, DESAFIO_NOME_MAX_LENGTH)
   }
   const npc = typeof minigame.npc === 'string' ? minigame.npc.trim() : ''
   if (npc !== '') return `${jogo} com ${npc}`.slice(0, DESAFIO_NOME_MAX_LENGTH)
@@ -89,6 +97,107 @@ export function nomeDoDesafio(desafio: Pick<Desafio, 'minigame'>, texto: unknown
   const limpo = typeof texto === 'string' ? texto.trim().slice(0, DESAFIO_NOME_MAX_LENGTH) : ''
   if (limpo === '' || limpo === automatico || NOMES_DE_FABRICA.has(limpo)) return { nome: automatico }
   return { nome: limpo, nomeProprio: true }
+}
+
+/** Teto de quem chama, da fala e do lugar do convite de cada jogo (os mesmos da leitura do disco). */
+export const QUEM_CHAMA_MAX_LENGTH = NPC_MAX_LENGTH
+export const FALA_DO_CONVITE_MAX_LENGTH = FALA_MAX_LENGTH
+export const LUGAR_DO_CONVITE_MAX_LENGTH: Readonly<Record<'pesca' | 'tiro' | 'fogo' | 'alavanca', number>> = {
+  pesca: LAGO_MAX_LENGTH,
+  tiro: BARRACA_MAX_LENGTH,
+  fogo: FLORESTA_MAX_LENGTH,
+  alavanca: ALAVANCA_LUGAR_MAX_LENGTH,
+}
+
+/** O CONVITE do desafio (decisão 5): quem chama, o que diz e o lugar no convite (`null` = o jogo não tem). */
+export interface ConviteDoDesafio {
+  npc: string
+  fala: string
+  lugar: string | null
+}
+
+/** O convite gravado no desafio. O puzzle não tem convite: tudo vazio. */
+export function conviteDo(minigame: MinigameDoPino): ConviteDoDesafio {
+  if (minigame.jogo === 'puzzle') return { npc: '', fala: '', lugar: null }
+  return { npc: minigame.npc, fala: minigame.fala, lugar: lugarDoConvite(minigame) }
+}
+
+/**
+ * O EXEMPLO DO JOGO (decisão 7): o convite que o desafio novo traz, pela cena
+ * da alavanca e pelo cenário da bolha. É o que "Usar o exemplo do jogo" põe e
+ * o que a etiqueta "exemplo do jogo" reconhece.
+ */
+export function exemploDoJogo(minigame: MinigameDoPino): ConviteDoDesafio {
+  if (minigame.jogo === 'puzzle') return { npc: '', fala: '', lugar: null }
+  if (minigame.jogo === 'alavanca') return { npc: '', fala: CONVITE_DA_CENA_ALAVANCA[minigame.cena].fala, lugar: CONVITE_DA_CENA_ALAVANCA[minigame.cena].lugar }
+  if (minigame.jogo === 'bolha') return { npc: MINIGAME_BOLHA_PADRAO.npc, fala: FALA_DO_CENARIO_BOLHA[minigame.cenario], lugar: null }
+  return conviteDo(padraoDoJogo(minigame.jogo))
+}
+
+/** Alguma parte do convite ainda é o exemplo do jogo (a etiqueta "exemplo do jogo" da ficha). */
+export function conviteTemExemplo(minigame: MinigameDoPino): boolean {
+  if (minigame.jogo === 'puzzle') return false
+  const agora = conviteDo(minigame)
+  const exemplo = exemploDoJogo(minigame)
+  const mesmo = (a: string | null, b: string | null) => a !== null && b !== null && b !== '' && a === b
+  return mesmo(agora.npc, exemplo.npc) || mesmo(agora.fala, exemplo.fala) || mesmo(agora.lugar, exemplo.lugar)
+}
+
+/** O desafio com o convite mudado, campo a campo, no teto de cada um. O puzzle não muda. */
+export function comConvite(minigame: MinigameDoPino, mudanca: Partial<ConviteDoDesafio>): MinigameDoPino {
+  if (minigame.jogo === 'puzzle') return minigame
+  const npc = mudanca.npc === undefined ? minigame.npc : mudanca.npc.slice(0, QUEM_CHAMA_MAX_LENGTH)
+  const fala = mudanca.fala === undefined ? minigame.fala : mudanca.fala.slice(0, FALA_DO_CONVITE_MAX_LENGTH)
+  const lugar = typeof mudanca.lugar === 'string' ? mudanca.lugar : null
+  switch (minigame.jogo) {
+    case 'pesca':
+      return { ...minigame, npc, fala, lago: lugar === null ? minigame.lago : lugar.slice(0, LAGO_MAX_LENGTH) }
+    case 'tiro':
+      return { ...minigame, npc, fala, barraca: lugar === null ? minigame.barraca : lugar.slice(0, BARRACA_MAX_LENGTH) }
+    case 'fogo':
+      return { ...minigame, npc, fala, floresta: lugar === null ? minigame.floresta : lugar.slice(0, FLORESTA_MAX_LENGTH) }
+    case 'alavanca':
+      return { ...minigame, npc, fala, lugar: lugar === null ? minigame.lugar : lugar.slice(0, ALAVANCA_LUGAR_MAX_LENGTH) }
+    case 'danca':
+      return { ...minigame, npc, fala }
+    case 'bolha':
+      return { ...minigame, npc, fala }
+  }
+}
+
+/** O desafio com outro "Como começa". Só a pesca, o tiro, a bolha e a alavanca escolhem; os outros não mudam. */
+export function comEntrada(minigame: MinigameDoPino, entrada: EntradaDoDesafio): MinigameDoPino {
+  switch (minigame.jogo) {
+    case 'pesca':
+    case 'tiro':
+    case 'bolha':
+    case 'alavanca':
+      return { ...minigame, entrada }
+    default:
+      return minigame
+  }
+}
+
+/** O que ficou guardado de um jogo ao trocar (decisão 3): o desafio do jogo e a porta dele. Só na memória. */
+export interface GuardadoDoJogo {
+  minigame: MinigameDoPino
+  portaLigada?: string
+}
+
+/**
+ * TROCAR DE JOGO (decisões 3 e 4 do editor de 21/11/2026): o jogo novo volta
+ * como ficou guardado, ou nasce com o exemplo dele. Do desafio passa só o que
+ * é do desafio: o lugar no mapa (fica, não está no patch), o nome que o
+ * mestre escreveu (`nomeProprio`, idem) e quem chama, se o mestre escolheu
+ * (não é o exemplo do jogo de antes). Fala, lugar do convite, regras, prêmio e
+ * porta são do jogo; `atualizarDesafio` tira o progresso do puzzle.
+ */
+export function patchDaTrocaDeJogo(desafio: Pick<Desafio, 'minigame'>, jogo: JogoDoMinigame, guardado: GuardadoDoJogo | undefined): PatchDoDesafio {
+  const base: MinigameDoPino = guardado !== undefined && guardado.minigame.jogo === jogo ? structuredClone(guardado.minigame) : padraoDoJogo(jogo)
+  const antes = desafio.minigame
+  const escolhido = antes.jogo !== 'puzzle' && antes.npc !== exemploDoJogo(antes).npc
+  const minigame = escolhido ? comConvite(base, { npc: antes.npc }) : base
+  return { minigame, portaLigada: guardado?.portaLigada }
 }
 
 /** O nome que o desafio ganha: o do pino (ou do puzzle de "Meus puzzles"), se veio um, ou o automático. */

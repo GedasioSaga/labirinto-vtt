@@ -13,13 +13,13 @@
  * registro (`MinigamesPorJogo`): jogo novo sem painel ou sem leitor não compila.
  */
 import type { TipoDoLugarDoDesafio } from '../types/map'
-import { MINIGAME_BOLHA_PADRAO, type MinigameBolha } from './bolha/tipos'
+import { FALA_DO_CENARIO_BOLHA, MINIGAME_BOLHA_PADRAO, type MinigameBolha } from './bolha/tipos'
 import { MINIGAME_PADRAO, type MinigameDanca } from './danca/tipos'
 import type { TipoDeDesfecho } from './desfecho'
 import { MINIGAME_FOGO_PADRAO, type MinigameFogo } from './fogo/tipos'
 import { MINIGAME_PESCA_PADRAO, type MinigamePesca } from './pesca/tipos'
 import { MINIGAME_TIRO_PADRAO, type MinigameTiro } from './tiro/tipos'
-import { MINIGAME_ALAVANCA_PADRAO, NOME_DO_DESAFIO_DA_CENA_ALAVANCA, type MinigameAlavanca } from './alavanca/tipos'
+import { CONVITE_DA_CENA_ALAVANCA, MINIGAME_ALAVANCA_PADRAO, NOME_DO_DESAFIO_DA_CENA_ALAVANCA, type MinigameAlavanca } from './alavanca/tipos'
 import type { JogoDoMinigame, MinigameDoPino, MinigameVisivel } from './tipos'
 import { JOGOS_PORTADOS, type JogoDoObjeto } from './abrir/objeto'
 import { puzzleDoModelo } from '../puzzles/padroes'
@@ -71,6 +71,18 @@ export interface DefinicaoDoMinigame<J extends JogoDoMinigame> {
   recorteDoJogador: (minigame: MinigamesPorJogo[J], legivel: boolean) => MinigameVisivel
   /** O que o fim do jogo pode fazer no estado do jogo (`minigames/desfecho.ts`). */
   desfechos: readonly TipoDeDesfecho[]
+  /** O verbo do convite, depois de quem chama ("Dona Ziza desafia para uma dança"); vazio no puzzle, que não tem convite. */
+  verbo: string
+  /** Quando não há o que escolher em "Como começa", a regra em uma frase (a dança, o fogo e o puzzle). */
+  regraDeEntrada?: string
+  /** Três falas prontas para o convite, pela cena ou cenário do desafio (decisão 8 do editor). */
+  falasSugeridas: (minigame: MinigamesPorJogo[J]) => readonly FalaSugerida[]
+}
+
+/** Uma fala pronta da escolha rápida do convite: o rótulo do botão e o texto. */
+export interface FalaSugerida {
+  rotulo: string
+  texto: string
 }
 
 const TODOS_OS_LUGARES: readonly TipoDoLugarDoDesafio[] = ['ponto', 'objeto', 'nenhum']
@@ -95,6 +107,13 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     entradaDe: () => 'mestre',
     recorteDoJogador: () => ({ jogo: 'danca', entrada: 'mestre' }),
     desfechos: ['abrir porta'],
+    verbo: 'desafia para uma dança',
+    regraDeEntrada: 'A dança começa quando você chama: todos entram juntos na música.',
+    falasSugeridas: () => [
+      { rotulo: 'Clássica', texto: MINIGAME_PADRAO.fala },
+      { rotulo: 'Curta', texto: 'Quer passar? Então dança comigo.' },
+      { rotulo: 'Provocadora', texto: 'Já vi estátua com mais molejo que vocês. Provem que estou errada.' },
+    ],
   },
   pesca: {
     id: 'pesca',
@@ -109,6 +128,12 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     // O torto cai no mestre: o cartão nunca oferece começar sozinho por engano.
     recorteDoJogador: (minigame) => ({ jogo: 'pesca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }),
     desfechos: [],
+    verbo: 'convida para pescar',
+    falasSugeridas: () => [
+      { rotulo: 'Clássica', texto: MINIGAME_PESCA_PADRAO.fala },
+      { rotulo: 'Curta', texto: 'Tem linha, tem isca, tem peixe. Só falta a sua mão.' },
+      { rotulo: 'Misteriosa', texto: 'Tem coisa lá no fundo que não é peixe. Joga a linha e me diz o que puxou.' },
+    ],
   },
   tiro: {
     id: 'tiro',
@@ -122,6 +147,12 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     entradaDe: (minigame) => (minigame.entrada === 'pino' ? 'pino' : 'mestre'),
     recorteDoJogador: (minigame) => ({ jogo: 'tiro', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }),
     desfechos: [],
+    verbo: 'chama para a barraca',
+    falasSugeridas: () => [
+      { rotulo: 'Clássica', texto: MINIGAME_TIRO_PADRAO.fala },
+      { rotulo: 'Curta', texto: 'Doze balas, uma fileira que não para. Quem derruba mais leva o prêmio.' },
+      { rotulo: 'Provocadora', texto: 'Todo mundo jura que tem mira até a fileira começar a andar. Vai tentar ou vai só olhar?' },
+    ],
   },
   fogo: {
     id: 'fogo',
@@ -137,6 +168,13 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     entradaDe: () => 'pino',
     recorteDoJogador: (minigame, legivel) => comPedidoDeAjuda({ jogo: 'fogo', entrada: 'pino' }, minigame, legivel),
     desfechos: [],
+    verbo: 'pede ajuda',
+    regraDeEntrada: 'No selo, qualquer jogador apaga sozinho. A equipe, você chama.',
+    falasSugeridas: () => [
+      { rotulo: 'Urgente', texto: MINIGAME_FOGO_PADRAO.fala },
+      { rotulo: 'Curta', texto: 'Fogo descendo o morro! Quem tiver água, areia ou coragem, vem comigo.' },
+      { rotulo: 'Calma', texto: 'O fogo ainda está longe da vila, mas o vento não ajuda. Se formos agora, dá tempo.' },
+    ],
   },
   bolha: {
     id: 'bolha',
@@ -151,6 +189,19 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     recorteDoJogador: (minigame, legivel) =>
       comPedidoDeAjuda({ jogo: 'bolha', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }, minigame, legivel),
     desfechos: [],
+    verbo: 'pede ajuda',
+    falasSugeridas: (minigame) =>
+      minigame.cenario === 'casa'
+        ? [
+            { rotulo: 'Urgente', texto: FALA_DO_CENARIO_BOLHA.casa },
+            { rotulo: 'Curta', texto: 'Fogo na cozinha! Faz bolha comigo, rápido.' },
+            { rotulo: 'Calma', texto: 'A panela esqueceu de mim e eu dela. Uma bolha aqui, outra ali, e a casa fica de pé.' },
+          ]
+        : [
+            { rotulo: 'Urgente', texto: FALA_DO_CENARIO_BOLHA.clareira },
+            { rotulo: 'Curta', texto: 'Fogo no capim! Faz bolha comigo, rápido.' },
+            { rotulo: 'Calma', texto: 'É só um foguinho, mas sozinha eu não alcanço tudo. Uma bolha aqui, outra ali, e pronto.' },
+          ],
   },
   alavanca: {
     id: 'alavanca',
@@ -168,6 +219,19 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     recorteDoJogador: (minigame) => ({ jogo: 'alavanca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre', cena: minigame.cena === 'canhao' ? 'canhao' : 'ponte' }),
     // A vitória abre a porta ligada do desafio (a ponte do mestre aplica, `net/hostBridge.ts`).
     desfechos: ['abrir porta'],
+    verbo: 'chama para a alavanca',
+    falasSugeridas: (minigame) =>
+      minigame.cena === 'canhao'
+        ? [
+            { rotulo: 'Clássica', texto: CONVITE_DA_CENA_ALAVANCA.canhao.fala },
+            { rotulo: 'Curta', texto: 'O canhão dorme debaixo das lajes. Girem a alavanca juntos e não parem.' },
+            { rotulo: 'Tensa', texto: 'Os tambores do inimigo já se ouvem. O canhão só sobe se ninguém largar a alavanca.' },
+          ]
+        : [
+            { rotulo: 'Clássica', texto: CONVITE_DA_CENA_ALAVANCA.ponte.fala },
+            { rotulo: 'Curta', texto: 'A ponte está erguida. Girem a alavanca juntos e não parem.' },
+            { rotulo: 'Tensa', texto: 'Do outro lado do fosso, algo se mexe. A ponte só desce se ninguém largar a alavanca.' },
+          ],
   },
   puzzle: {
     id: 'puzzle',
@@ -183,6 +247,9 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     // Só o jogo: a configuração e o progresso vão pela `VistaDoPuzzle`, a quem entra nele (`puzzles/recorte.ts`).
     recorteDoJogador: () => ({ jogo: 'puzzle', entrada: 'pino' }),
     desfechos: ['abrir porta', 'dar itens', 'dano'],
+    verbo: '',
+    regraDeEntrada: 'O jogador encosta no selo e examina. O puzzle não tem convite do mestre.',
+    falasSugeridas: () => [],
   },
 }
 
@@ -207,6 +274,15 @@ export function nomeDoJogo(jogo: JogoDoMinigame): string {
 export function nomeDoJogoDoDesafio(minigame: MinigameDoPino): string {
   if (minigame.jogo === 'alavanca') return NOME_DO_DESAFIO_DA_CENA_ALAVANCA[minigame.cena]
   return nomeDoJogo(minigame.jogo)
+}
+
+/** As falas prontas do convite deste desafio, pelo registro do jogo dele (e pela cena ou cenário). */
+export function falasSugeridasDo(minigame: MinigameDoPino): readonly FalaSugerida[] {
+  return falasPor(minigame.jogo, minigame)
+}
+
+function falasPor<J extends JogoDoMinigame>(jogo: J, minigame: MinigamesPorJogo[J]): readonly FalaSugerida[] {
+  return REGISTRO_DE_MINIGAMES[jogo].falasSugeridas(minigame)
 }
 
 /** Cópia nova do desafio padrão do jogo. */

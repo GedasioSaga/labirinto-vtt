@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type { RegistroDoObjetoAberto } from '../net/objetoNoHost'
+import type { GuardadoDoJogo } from '../lib/desafios'
+import type { JogoDoMinigame } from '../minigames/tipos'
 
 /**
  * A PÁGINA JOGOS do livro do mestre (desafios, 15/11/2026): qual desafio está
@@ -28,6 +30,13 @@ interface EstadoDosDesafios {
   cliqueForaDoObjeto: boolean
   /** "Novo desafio" ou "Trocar": a lista dos jogos no lugar da página; `null` = fechada. */
   escolhaDoJogo: EscolhaDoJogoAberta | null
+  /**
+   * TROCAR DE JOGO GUARDA (decisão 3 do editor): o que cada desafio tinha em cada jogo de antes, para
+   * voltar igual. Só na memória, de propósito: a música importada é pesada, e o arquivo do mapa não muda.
+   */
+  guardados: Readonly<Record<string, Partial<Record<JogoDoMinigame, GuardadoDoJogo>>>>
+  /** A última troca de jogo da ficha aberta: o aviso e o "Desfazer a troca". `null` = nenhuma. */
+  trocaRecente: { id: string; de: JogoDoMinigame; voltou: boolean } | null
   /** Ids de mapa cujo aviso de migração o mestre dispensou ("Entendi"). */
   avisosDispensados: ReadonlySet<string>
   abrir: (id: string | null) => void
@@ -35,6 +44,8 @@ interface EstadoDosDesafios {
   pararDeMarcar: () => void
   avisarCliqueForaDoObjeto: () => void
   abrirEscolhaDoJogo: (escolha: EscolhaDoJogoAberta | null) => void
+  guardarJogo: (id: string, guardado: GuardadoDoJogo) => void
+  avisarTroca: (troca: { id: string; de: JogoDoMinigame; voltou: boolean } | null) => void
   dispensarAviso: (mapaId: string) => void
   /**
    * AO VIVO (baú, caixa e barril, 15/11/2026): as aberturas desta sessão, a
@@ -85,16 +96,20 @@ export const useDesafiosStore = create<EstadoDosDesafios>((set, get) => ({
   marcando: null,
   cliqueForaDoObjeto: false,
   escolhaDoJogo: null,
+  guardados: {},
+  trocaRecente: null,
   avisosDispensados: lerAvisosDispensados(armazem()),
   aoVivo: [],
   destacado: null,
   registrarAbertura: (registro) => set({ aoVivo: [registro, ...get().aoVivo].slice(0, AO_VIVO_MAX) }),
   destacar: (propId) => set({ destacado: propId }),
-  abrir: (id) => set({ aberto: id, escolhaDoJogo: null }),
+  abrir: (id) => set({ aberto: id, escolhaDoJogo: null, trocaRecente: null }),
   marcar: (id, modo) => set({ marcando: { id, modo }, cliqueForaDoObjeto: false }),
   pararDeMarcar: () => set({ marcando: null, cliqueForaDoObjeto: false }),
   avisarCliqueForaDoObjeto: () => set({ cliqueForaDoObjeto: true }),
   abrirEscolhaDoJogo: (escolha) => set({ escolhaDoJogo: escolha }),
+  guardarJogo: (id, guardado) => set({ guardados: { ...get().guardados, [id]: { ...get().guardados[id], [guardado.minigame.jogo]: guardado } } }),
+  avisarTroca: (troca) => set({ trocaRecente: troca }),
   dispensarAviso: (mapaId) => {
     const avisosDispensados = new Set(get().avisosDispensados)
     avisosDispensados.add(mapaId)

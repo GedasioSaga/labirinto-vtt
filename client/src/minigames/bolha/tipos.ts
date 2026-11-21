@@ -55,6 +55,18 @@ export { FALA_MAX_LENGTH, NPC_MAX_LENGTH } from '../danca/tipos'
 /** Teto do texto do prêmio e da consequência (frase do convite e do resultado). */
 export const BOLHA_TEXTO_MAX_LENGTH = 140
 
+/** A fala de exemplo de cada cenário (a da clareira é a do padrão): mudar o cenário troca a que ainda é o exemplo (B16). */
+export const FALA_DO_CENARIO_BOLHA: Readonly<Record<CenarioBolha, string>> = {
+  clareira: 'Uma faísca pegou no capim da clareira! Minha bolha não dá conta sozinha. Me ajuda a apagar antes que chegue nas árvores?',
+  casa: 'A faísca pulou do fogão para a cortina! Minha bolha não dá conta sozinha. Me ajuda antes que pegue no telhado?',
+}
+
+/** A bolha no outro cenário: a fala que ainda é a do cenário de antes vira a do novo; a que o mestre escreveu fica. */
+export function bolhaNoCenario(minigame: MinigameBolha, cenario: CenarioBolha): MinigameBolha {
+  const fala = minigame.fala === FALA_DO_CENARIO_BOLHA[minigame.cenario] ? FALA_DO_CENARIO_BOLHA[cenario] : minigame.fala
+  return { ...minigame, cenario, fala }
+}
+
 export const NOME_DO_CENARIO_BOLHA: Record<CenarioBolha, string> = {
   clareira: 'Clareira',
   casa: 'Casa',
@@ -74,6 +86,6 @@ export const MINIGAME_BOLHA_PADRAO: MinigameBolha = {
   cenario: 'clareira',
   entrada: 'pino',
   permitida: 'escolha',
-  premio: { texto: 'Dona Aurélia agradece com um frasco de água benta.' },
+  premio: { texto: 'Um frasco de água benta, em agradecimento.' },
   consequencia: { texto: 'A fumaça arde nos olhos: -1 em Percepção até o próximo descanso.' },
 }

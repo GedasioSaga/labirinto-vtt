@@ -81,6 +81,7 @@ import {
 } from '../minigames/alavanca/tipos'
 import {
   BOLHA_TEXTO_MAX_LENGTH,
+  bolhaNoCenario,
   CENARIOS_BOLHA,
   DIFICULDADES_BOLHA,
   NOME_DA_DIFICULDADE_BOLHA,
@@ -766,6 +767,12 @@ export interface MinigameControlsProps {
    * aqui; trocar no meio deixaria a partida nos jogadores sem painel. Ausente ou `null` = troca livre.
    */
   trocaTravada?: string | null
+  /**
+   * NA FICHA DA PÁGINA JOGOS (editor de 21/11/2026): sem a escolha do jogo (o "Trocar" da ficha),
+   * sem quem chama, fala e lugar do convite (o bloco "O convite") e sem "Como começa" (o bloco
+   * "Onde fica e como começa"). Ficam as regras, o que vale e a mesa. Ausente = o painel inteiro.
+   */
+  naFicha?: boolean
 }
 
 /**
@@ -774,9 +781,10 @@ export interface MinigameControlsProps {
  * embaixo os campos do jogo escolhido.
  */
 export function MinigameControls(props: MinigameControlsProps) {
-  const { minigame, onChange, trocaTravada = null } = props
+  const { minigame, onChange, trocaTravada = null, naFicha = false } = props
   return (
     <div className="lb-minigame">
+      {!naFicha && (
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Jogo</legend>
         {/* Em GRADE de 3 (Dança, Pesca, Tiro / Fogo, Bolha, Alavanca / Puzzle): numa fila só, os jogos
@@ -792,6 +800,7 @@ export function MinigameControls(props: MinigameControlsProps) {
         />
         {trocaTravada !== null && <span className="lb-label">{trocaTravada}</span>}
       </fieldset>
+      )}
       {painelDoJogo(minigame.jogo, props, minigame)}
     </div>
   )
@@ -965,37 +974,44 @@ function painelDoJogo<J extends JogoDoMinigame>(jogo: J, props: MinigameControls
   return PAINEL_DO_JOGO[jogo](props, minigame)
 }
 
-type PainelDaPescaProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDaPesca'> & { minigame: MinigamePesca }
+type PainelDaPescaProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDaPesca' | 'naFicha'> & { minigame: MinigamePesca }
 
 /**
  * A pesca do pino, na ordem do protótipo aprovado (visão "Mestre"): quem
  * desafia, a fala, o lago, como começa, os lances, a dificuldade, o prêmio e
  * a consequência. Sem música, nota mínima nem porta: a pesca não abre nada.
  */
-function PainelDaPesca({ pinId, minigame, onChange, aoVivoDaPesca }: PainelDaPescaProps) {
+function PainelDaPesca({ pinId, minigame, onChange, aoVivoDaPesca, naFicha = false }: PainelDaPescaProps) {
   const baseId = useId()
   const mudar = (patch: Partial<MinigamePesca>) => onChange({ ...minigame, ...patch })
   const id = (nome: string) => `${baseId}-${nome}`
   return (
     <>
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('npc')}>
           Quem chama
         </label>
         <CampoDeTexto id={id('npc')} valor={minigame.npc} max={NPC_MAX_LENGTH} onCommit={(npc) => mudar({ npc })} />
       </div>
+      )}
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('fala')}>
           O que diz
         </label>
         <CampoDeTexto id={id('fala')} valor={minigame.fala} max={FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
       </div>
+      )}
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('lago')}>
           Lugar no convite
         </label>
         <CampoDeTexto id={id('lago')} valor={minigame.lago} max={LAGO_MAX_LENGTH} onCommit={(lago) => mudar({ lago })} />
       </div>
+      )}
+      {!naFicha && (
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Como começa</legend>
         <Pastilhas rotulo="Como começa" opcoes={ENTRADAS} valor={minigame.entrada} onChange={(entrada) => mudar({ entrada })} />
@@ -1003,6 +1019,7 @@ function PainelDaPesca({ pinId, minigame, onChange, aoVivoDaPesca }: PainelDaPes
           {minigame.entrada === 'mestre' ? 'Você chama quem pesca, daqui do painel.' : 'O jogador encostado no selo toca em "Pescar" e começa sozinho.'}
         </span>
       </fieldset>
+      )}
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Lances por pesca</legend>
         <Pastilhas
@@ -1038,7 +1055,7 @@ function PainelDaPesca({ pinId, minigame, onChange, aoVivoDaPesca }: PainelDaPes
   )
 }
 
-type PainelDoTiroProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDoTiro'> & { minigame: MinigameTiro }
+type PainelDoTiroProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDoTiro' | 'naFicha'> & { minigame: MinigameTiro }
 
 /**
  * A barraca de tiro do pino, na ordem do protótipo aprovado (visão
@@ -1046,30 +1063,37 @@ type PainelDoTiroProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoV
  * tentativas, a dificuldade permitida, a meta, o prêmio e a consequência.
  * Sem porta nem música: o tiro não abre nada.
  */
-function PainelDoTiro({ pinId, minigame, onChange, aoVivoDoTiro }: PainelDoTiroProps) {
+function PainelDoTiro({ pinId, minigame, onChange, aoVivoDoTiro, naFicha = false }: PainelDoTiroProps) {
   const baseId = useId()
   const mudar = (patch: Partial<MinigameTiro>) => onChange({ ...minigame, ...patch })
   const id = (nome: string) => `${baseId}-${nome}`
   return (
     <>
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('npc')}>
           Quem chama
         </label>
         <CampoDeTexto id={id('npc')} valor={minigame.npc} max={NPC_MAX_LENGTH} onCommit={(npc) => mudar({ npc })} />
       </div>
+      )}
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('fala')}>
           O que diz
         </label>
         <CampoDeTexto id={id('fala')} valor={minigame.fala} max={FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
       </div>
+      )}
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('barraca')}>
           Lugar no convite
         </label>
         <CampoDeTexto id={id('barraca')} valor={minigame.barraca} max={BARRACA_MAX_LENGTH} onCommit={(barraca) => mudar({ barraca })} />
       </div>
+      )}
+      {!naFicha && (
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Como começa</legend>
         <Pastilhas rotulo="Como começa" opcoes={ENTRADAS_DO_TIRO} valor={minigame.entrada} onChange={(entrada) => mudar({ entrada })} />
@@ -1077,6 +1101,7 @@ function PainelDoTiro({ pinId, minigame, onChange, aoVivoDoTiro }: PainelDoTiroP
           {minigame.entrada === 'mestre' ? 'Os jogadores veem o convite quando você chamar, daqui do painel.' : 'Quem encosta no selo vê o convite e começa quando quiser.'}
         </span>
       </fieldset>
+      )}
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Tentativas</legend>
         <Pastilhas rotulo="Tentativas" opcoes={TENTATIVAS} valor={String(minigame.tentativas)} onChange={(n) => mudar({ tentativas: Number(n) })} classe="lb-minigame__seg--letras" />
@@ -1111,7 +1136,7 @@ function PainelDoTiro({ pinId, minigame, onChange, aoVivoDoTiro }: PainelDoTiroP
   )
 }
 
-type PainelDoFogoProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDoFogo'> & { minigame: MinigameFogo }
+type PainelDoFogoProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDoFogo' | 'naFicha'> & { minigame: MinigameFogo }
 
 /**
  * O Fogo na Floresta do pino: quem pede ajuda, a fala, a floresta, a
@@ -1120,7 +1145,7 @@ type PainelDoFogoProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoV
  * daqui do painel, com a sala aberta. Não há "Como começa" para escolher: o
  * `entrada` gravado no fogo é de antes e não vale. Sem porta: o fogo não abre nada.
  */
-function PainelDoFogo({ pinId, minigame, onChange, aoVivoDoFogo }: PainelDoFogoProps) {
+function PainelDoFogo({ pinId, minigame, onChange, aoVivoDoFogo, naFicha = false }: PainelDoFogoProps) {
   const baseId = useId()
   const mudar = (patch: Partial<MinigameFogo>) => onChange({ ...minigame, ...patch })
   const id = (nome: string) => `${baseId}-${nome}`
@@ -1129,24 +1154,30 @@ function PainelDoFogo({ pinId, minigame, onChange, aoVivoDoFogo }: PainelDoFogoP
   const fogoAberto = faseDoFogo === 'convite' || faseDoFogo === 'jogo' || faseDoFogo === 'pausa'
   return (
     <>
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('npc')}>
           Quem chama
         </label>
         <CampoDeTexto id={id('npc')} valor={minigame.npc} max={NPC_MAX_LENGTH} onCommit={(npc) => mudar({ npc })} />
       </div>
+      )}
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('fala')}>
           O que diz
         </label>
         <CampoDeTexto id={id('fala')} valor={minigame.fala} max={FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
       </div>
+      )}
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('floresta')}>
           Lugar no convite
         </label>
         <CampoDeTexto id={id('floresta')} valor={minigame.floresta} max={FLORESTA_MAX_LENGTH} onCommit={(floresta) => mudar({ floresta })} />
       </div>
+      )}
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Dificuldade</legend>
         <Pastilhas rotulo="Dificuldade" opcoes={PERMITIDAS_DO_FOGO} valor={minigame.permitida} onChange={(permitida) => mudar({ permitida })} />
@@ -1175,7 +1206,7 @@ function PainelDoFogo({ pinId, minigame, onChange, aoVivoDoFogo }: PainelDoFogoP
   )
 }
 
-type PainelDaBolhaProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDaBolha'> & { minigame: MinigameBolha }
+type PainelDaBolhaProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDaBolha' | 'naFicha'> & { minigame: MinigameBolha }
 
 /**
  * A Bolha d'Água do pino, no molde do fogo: quem pede ajuda, a fala, o
@@ -1184,7 +1215,7 @@ type PainelDaBolhaProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'ao
  * pino", o jogador também começa sozinho no cartão. Sem porta: a bolha não
  * abre nada.
  */
-function PainelDaBolha({ pinId, minigame, onChange, aoVivoDaBolha }: PainelDaBolhaProps) {
+function PainelDaBolha({ pinId, minigame, onChange, aoVivoDaBolha, naFicha = false }: PainelDaBolhaProps) {
   const baseId = useId()
   const mudar = (patch: Partial<MinigameBolha>) => onChange({ ...minigame, ...patch })
   const id = (nome: string) => `${baseId}-${nome}`
@@ -1193,22 +1224,27 @@ function PainelDaBolha({ pinId, minigame, onChange, aoVivoDaBolha }: PainelDaBol
   const bolhaAberta = faseDaBolha === 'convite' || faseDaBolha === 'jogo' || faseDaBolha === 'pausa'
   return (
     <>
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('npc')}>
           Quem chama
         </label>
         <CampoDeTexto id={id('npc')} valor={minigame.npc} max={NPC_MAX_LENGTH} onCommit={(npc) => mudar({ npc })} />
       </div>
+      )}
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('fala')}>
           O que diz
         </label>
         <CampoDeTexto id={id('fala')} valor={minigame.fala} max={FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
       </div>
+      )}
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Cenário</legend>
-        <Pastilhas rotulo="Cenário" opcoes={CENARIOS_DA_BOLHA} valor={minigame.cenario} onChange={(cenario) => mudar({ cenario })} />
+        <Pastilhas rotulo="Cenário" opcoes={CENARIOS_DA_BOLHA} valor={minigame.cenario} onChange={(cenario) => cenario !== minigame.cenario && onChange(bolhaNoCenario(minigame, cenario))} />
       </fieldset>
+      {!naFicha && (
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Como começa</legend>
         <Pastilhas rotulo="Como começa" opcoes={ENTRADAS} valor={minigame.entrada} onChange={(entrada) => mudar({ entrada })} />
@@ -1216,6 +1252,7 @@ function PainelDaBolha({ pinId, minigame, onChange, aoVivoDaBolha }: PainelDaBol
           {minigame.entrada === 'pino' ? 'O jogador começa sozinho no cartão do selo; você também pode chamar a mesa daqui.' : 'Só você chama, daqui do painel.'}
         </span>
       </fieldset>
+      )}
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Dificuldade</legend>
         <Pastilhas rotulo="Dificuldade" opcoes={PERMITIDAS_DA_BOLHA} valor={minigame.permitida} onChange={(permitida) => mudar({ permitida })} />
@@ -1263,7 +1300,7 @@ const QUANTOS_GIRAM: readonly { valor: string; rotulo: string }[] = Array.from({
  * aprovado em 20/11/2026): o mesmo jogo e os mesmos números, só muda o que
  * se vê e se ouve.
  */
-function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }: PainelDaAlavancaProps) {
+function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca, naFicha = false }: PainelDaAlavancaProps) {
   const baseId = useId()
   const id = (nome: string) => `${baseId}-${nome}`
   const mudar = (patch: Partial<MinigameAlavanca>) => onChange({ ...minigame, ...patch })
@@ -1282,6 +1319,13 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }
   const portaAtual = porta.value !== null && porta.options.some((o) => o.id === porta.value) ? porta.value : ''
   const semPorta = porta.options.length === 0
   const T = TEXTOS_DA_CENA[minigame.cena]
+  const calculadoraDaChance = (
+    <fieldset className="lb-minigame__grupo">
+      <legend className="lb-label">Quantos giram juntos</legend>
+      <Pastilhas rotulo="Quantos giram juntos" opcoes={QUANTOS_GIRAM} valor={String(quantos)} onChange={(n) => setQuantos(Number(n))} />
+      <span className="lb-label">Só para a chance. Quem gira de verdade é quem você chamar: cada um aperta X no próprio computador.</span>
+    </fieldset>
+  )
   return (
     <>
       <fieldset className="lb-minigame__grupo">
@@ -1289,18 +1333,23 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }
         <Pastilhas rotulo="Cena" opcoes={CENAS_DA_ALAVANCA} valor={minigame.cena} onChange={(cena) => cena !== minigame.cena && onChange(alavancaNaCena(minigame, cena))} />
         <span className="lb-label">O mesmo jogo e os mesmos números nas duas cenas: só muda o que se vê e se ouve.</span>
       </fieldset>
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('lugar')}>
           Lugar no convite
         </label>
         <CampoDeTexto id={id('lugar')} valor={minigame.lugar} max={ALAVANCA_LUGAR_MAX_LENGTH} onCommit={(lugar) => mudar({ lugar })} />
       </div>
+      )}
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('fala')}>
           O que diz
         </label>
         <CampoDeTexto id={id('fala')} valor={minigame.fala} max={ALAVANCA_FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
       </div>
+      )}
+      {!naFicha && (
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Como começa</legend>
         <Pastilhas rotulo="Como começa" opcoes={ENTRADAS_DA_ALAVANCA} valor={minigame.entrada} onChange={(entrada) => mudar({ entrada })} />
@@ -1308,6 +1357,7 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }
           {minigame.entrada === 'pino' ? 'O jogador gira sozinho pelo cartão do selo; você também pode chamar a equipe daqui.' : 'Só você chama, daqui do painel.'}
         </span>
       </fieldset>
+      )}
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Dificuldade</legend>
         <Pastilhas rotulo="Dificuldade" opcoes={DIFICULDADES_DA_ALAVANCA} valor={minigame.dificuldade} onChange={(dificuldade) => mudar({ dificuldade })} />
@@ -1341,11 +1391,7 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }
           </button>
         </div>
       </div>
-      <fieldset className="lb-minigame__grupo">
-        <legend className="lb-label">Quantos giram juntos</legend>
-        <Pastilhas rotulo="Quantos giram juntos" opcoes={QUANTOS_GIRAM} valor={String(quantos)} onChange={(n) => setQuantos(Number(n))} />
-        <span className="lb-label">Para a chance abaixo. Quem gira de verdade é quem você chamar: cada um aperta X no próprio computador.</span>
-      </fieldset>
+      {!naFicha && calculadoraDaChance}
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">{T.quandoVencer}</legend>
         <label className="lb-label" htmlFor={id('porta')}>
@@ -1370,11 +1416,18 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }
           {semPorta ? T.ponhaPorta : portaAtual === '' ? T.efeitoSemPorta : T.efeitoComPorta}
         </span>
       </fieldset>
-      <ChanceDaAlavanca dificuldade={minigame.dificuldade} jogadores={quantos} tempo={minigame.tempo} />
+      {!naFicha && <ChanceDaAlavanca dificuldade={minigame.dificuldade} jogadores={quantos} tempo={minigame.tempo} />}
       {aoVivoDaAlavanca === null || aoVivoDaAlavanca === undefined ? (
         <span className="lb-label lb-minigame__sem-sala">Abra a mesa online para chamar para a alavanca.</span>
       ) : (
         <AlavancaAoVivoPainel pinId={pinId} cena={minigame.cena} {...aoVivoDaAlavanca} />
+      )}
+      {naFicha && (
+        <details className="lb-minigame__grupo lb-minigame__chance">
+          <summary className="lb-label">Calcular a chance</summary>
+          {calculadoraDaChance}
+          <ChanceDaAlavanca dificuldade={minigame.dificuldade} jogadores={quantos} tempo={minigame.tempo} />
+        </details>
       )}
     </>
   )
@@ -1382,7 +1435,7 @@ function PainelDaAlavanca({ pinId, minigame, onChange, porta, aoVivoDaAlavanca }
 
 type PainelDaDancaProps = Omit<MinigameControlsProps, 'minigame'> & { minigame: MinigameDanca }
 
-function PainelDaDanca({ pinId, minigame, onChange, porta, aoVivo, caminho = CAMINHO_DO_APP }: PainelDaDancaProps) {
+function PainelDaDanca({ pinId, minigame, onChange, porta, aoVivo, caminho = CAMINHO_DO_APP, naFicha = false }: PainelDaDancaProps) {
   const baseId = useId()
   const mudar = (patch: Partial<MinigameDanca>) => onChange({ ...minigame, ...patch })
   const portaAtual = porta.value !== null && porta.options.some((o) => o.id === porta.value) ? porta.value : ''
@@ -1390,18 +1443,22 @@ function PainelDaDanca({ pinId, minigame, onChange, porta, aoVivo, caminho = CAM
   const id = (nome: string) => `${baseId}-${nome}`
   return (
     <>
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('npc')}>
           Quem chama
         </label>
         <CampoDeTexto id={id('npc')} valor={minigame.npc} max={NPC_MAX_LENGTH} onCommit={(npc) => mudar({ npc })} />
       </div>
+      )}
+      {!naFicha && (
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('fala')}>
           O que diz
         </label>
         <CampoDeTexto id={id('fala')} valor={minigame.fala} max={FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
       </div>
+      )}
       <SecaoDaMusica pinId={pinId} musica={minigame.musica} permitida={minigame.permitida} onMusica={(musica) => mudar({ musica })} caminho={caminho} />
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Dificuldade</legend>
