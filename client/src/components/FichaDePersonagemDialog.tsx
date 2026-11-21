@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { mochilaDoSalvar, vagasNovasDaEdicao, type Ajuste } from '../lib/ajusteDaFicha'
-import { comNotaDoMestre, NOTA_DO_MESTRE_MAX, PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
+import { abasComCartaoSemNome, avisoDeCartaoSemNome, comNotaDoMestre, NOTA_DO_MESTRE_MAX, PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { CarriedItem } from '../types/map'
 import { comBase, marcaDaBase, salvarPelaBase } from '../net/nuvem/emissor'
@@ -110,6 +110,9 @@ export function FichaDePersonagemDialog({
   const notaMudou = nota !== (base.notaDoMestre ?? '')
   const notaId = useId()
   const mudou = editando && (rascunho !== base || notaMudou)
+  /** B14: o Salvar foi recusado por cartão sem nome; o aviso some quando todos têm nome. */
+  const [tentouSemNome, setTentouSemNome] = useState(false)
+  const faltaNome = editando && tentouSemNome ? avisoDeCartaoSemNome(abasComCartaoSemNome(rascunho), sistema) : null
 
   useEffect(() => {
     const opener = document.activeElement
@@ -120,6 +123,13 @@ export function FichaDePersonagemDialog({
   }, [])
 
   const salvar = () => {
+    // B14: cartão sem nome não grava (voltaria "Sem nome" do disco); o aviso fica até ele ganhar um nome.
+    if (abasComCartaoSemNome(rascunho).length > 0) {
+      setTentouSemNome(true)
+      setPerguntaDeSaida(false)
+      return
+    }
+    setTentouSemNome(false)
     // Sobre a ficha de AGORA: o dano que o jogador tomou e o texto que ele mudou durante a edição não voltam atrás.
     const salvo = salvarPelaBase(base, { ...rascunho, nome: rascunho.nome.trim() || PERSONAGEM_SEM_NOME }, personagem)
     // Nota não mexida: vale a de agora (pode ter mudado na página Anotações enquanto esta janela editava).
@@ -129,6 +139,7 @@ export function FichaDePersonagemDialog({
     if (entrou !== false) setEditando(false)
   }
   const descartar = () => {
+    setTentouSemNome(false)
     setRascunho(personagem)
     setNota(personagem.notaDoMestre ?? '')
     setEditando(false)
@@ -251,6 +262,11 @@ export function FichaDePersonagemDialog({
               Salvar
             </button>
           </div>
+        )}
+        {faltaNome !== null && (
+          <p className="lb-field__error lb-ficha-janela__pergunta" role="alert">
+            {faltaNome}
+          </p>
         )}
         {!editando && (ligado !== null || ligadosAqui.length > 0) && (
           <p className="lb-ficha-janela__ligacao" aria-live="polite">

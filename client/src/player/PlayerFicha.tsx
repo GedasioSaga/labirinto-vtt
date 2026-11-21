@@ -6,7 +6,7 @@ import { InventarioDaFicha } from '../components/InventarioDaFicha'
 import { LivroDeRegras } from '../components/LivroDeRegras'
 import type { ResumoDoLivro } from '../lib/livroDeRegras'
 import { cliqueDaTela, comAjustes, valorDaParte, type Ajuste } from '../lib/ajusteDaFicha'
-import type { Personagem } from '../lib/personagem'
+import { abasComCartaoSemNome, avisoDeCartaoSemNome, type Personagem } from '../lib/personagem'
 import type { CapituloDoLivro, SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { TokenDoPersonagem } from '../net/protocoloDoPersonagem'
 import type { CarriedItem } from '../types/map'
@@ -222,6 +222,13 @@ export function PlayerFicha({
 
   const salvar = () => {
     if (edicao === null) return
+    // B14: cartão sem nome não vai à mesa (o disco do mestre o gravaria "Sem nome").
+    const faltaNome = avisoDeCartaoSemNome(abasComCartaoSemNome(edicao.rascunho), sistema ?? undefined)
+    if (faltaNome !== null) {
+      setPerguntaDeSaida(false)
+      setErro(faltaNome)
+      return
+    }
     const antes = envio?.id
     const resultado = onSalvar(edicao.base, edicao.rascunho)
     setPerguntaDeSaida(false)

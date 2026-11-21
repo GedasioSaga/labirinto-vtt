@@ -9,7 +9,8 @@ import type { Ajuste } from '../lib/ajusteDaFicha'
 import { EXTRAS_DA_EVOLUCAO, nomeDaNovaOpcao, sugestaoDeEvolucao, temExtrasDaEvolucao } from '../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_ATRIBUTO_DO_ATAQUE, CAMPO_DO_DANO } from '../lib/batalha/formula'
 import { ABA_DAS_ARMAS, ABA_DAS_BALAS, ABA_DAS_TECNICAS, CAMPO_DA_ACAO, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO } from '../lib/batalha/leituraDaFicha'
-import { pecasDoCartao } from '../lib/batalha/mecanica/leitura'
+import { cartaoMontado, pecasDoCartao } from '../lib/batalha/mecanica/leitura'
+import { perdeuARegraAoSerTrazida } from '../lib/batalha/mecanicasAMao'
 import { CampoDeDano } from './CampoDeDano'
 import { avisoDoAtributoDoAtaque, avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, opcoesDoCampo, rotuloDaCategoria, rotuloDoVazio, valorDaEscolha } from './escolhaDeCampo'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
@@ -451,15 +452,50 @@ interface ListaEditavelProps {
   outrasFichas?: readonly Personagem[]
 }
 
-/** O aviso que fica na aba depois de trazer: o que veio, de quem, e que é cópia. */
+/** B22: quantos dos que vieram estão ocultos (o jogador vê "???" até o mestre revelar), com subcartões. */
+function quantasOcultas(cartoes: readonly CartaoDaFicha[]): number {
+  return cartoes.reduce((soma, cartao) => soma + (cartao.oculta === true ? 1 : 0) + quantasOcultas(cartao.subcartoes), 0)
+}
+
+/** O aviso que fica na aba depois de trazer: o que veio, de quem, que é cópia e (B22) se veio oculta. */
 function avisoDoQueVeio(aba: AbaDoSistema, novos: readonly CartaoDaFicha[], deQuem: string): string {
-  if (novos.length === 1) return `${novos[0].nome} veio de ${deQuem}. É uma cópia: mudar aqui não muda a ficha de ${deQuem}.`
-  return `${novos.length} ${aba.nome.toLocaleLowerCase('pt-BR')} vieram de ${deQuem}. São cópias: mudar aqui não muda a ficha de ${deQuem}.`
+  const ocultas = quantasOcultas(novos)
+  const oculta = ocultas === 0 ? '' : ocultas === 1 && novos.length === 1 ? ' Veio oculta: o jogador vê "???" até você revelar.' : ` ${ocultas} vieram ocultas: o jogador vê "???" até você revelar.`
+  if (novos.length === 1) return `${novos[0].nome} veio de ${deQuem}. É uma cópia: mudar aqui não muda a ficha de ${deQuem}.${oculta}`
+  return `${novos.length} ${aba.nome.toLocaleLowerCase('pt-BR')} vieram de ${deQuem}. São cópias: mudar aqui não muda a ficha de ${deQuem}.${oculta}`
+}
+
+/** B15: o cartão que o Remover acabou de tirar, e onde ele estava, para o Desfazer devolver no mesmo lugar. */
+interface CartaoRemovido {
+  cartao: CartaoDaFicha
+  indice: number
+}
+
+/** O nome do cartão para frase e leitor de tela; o sem nome (B14) não vira "Remover " vazio. */
+function nomeParaFrase(cartao: CartaoDaFicha): string {
+  const nome = cartao.nome.trim()
+  return nome === '' ? 'o cartão sem nome' : nome
 }
 
 function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherImagem, aninhada = false, daArma = false, livro, quemEditaAMecanica, podeOcultar, outrasFichas }: ListaEditavelProps) {
-  // O cartão que acabou de nascer abre aberto; os outros ficam fechados numa linha cada.
-  const [recemCriado, setRecemCriado] = useState<string | null>(null)
+  // O cartão que acabou de nascer abre aberto; os outros ficam fechados numa linha cada. B20: todos os que nasceram
+  // nesta edição seguem abertos (com um id só, criar o segundo fechava o primeiro no meio do preenchimento).
+  const [recemCriados, setRecemCriados] = useState<ReadonlySet<string>>(() => new Set())
+  const [removido, setRemovido] = useState<CartaoRemovido | null>(null)
+  const nasceu = (id: string) => setRecemCriados((antes) => new Set(antes).add(id))
+  const remover = (indice: number) => {
+    const cartao = cartoes[indice]
+    if (cartao === undefined) return
+    setRemovido({ cartao, indice })
+    onChange(cartoes.filter((_, j) => j !== indice))
+  }
+  const desfazerRemocao = () => {
+    if (removido === null) return
+    const novos = [...cartoes]
+    novos.splice(Math.min(removido.indice, novos.length), 0, removido.cartao)
+    onChange(novos)
+    setRemovido(null)
+  }
   const [escolhendo, setEscolhendo] = useState(false)
   const botaoDoLivro = useRef<HTMLButtonElement>(null)
   // "Trazer de outra ficha": os golpes que outra ficha da pasta já tem (pedido do mestre, 09/11/2026).
@@ -491,7 +527,7 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
   }
   const escolher = (item: ItemEscolhivel) => {
     const cartao = cartaoDoCatalogo(aba, sistema, item)
-    setRecemCriado(cartao.id)
+    nasceu(cartao.id)
     onChange([...cartoes, cartao])
     fecharEscolha()
   }
@@ -514,7 +550,7 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
   }
   const adicionar = () => {
     const cartao = novoCartao(aba.item)
-    setRecemCriado(cartao.id)
+    nasceu(cartao.id)
     onChange([...cartoes, cartao])
   }
   return (
@@ -528,10 +564,10 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
           sistema={sistema}
           personagem={personagem}
           daArma={daArma}
-          aberto={cartao.id === recemCriado}
+          aberto={recemCriados.has(cartao.id)}
           onChange={(novo) => trocar(cartao.id, novo)}
           onMarcarPadrao={!daArma && aba.id === ABA_DAS_ARMAS ? (marcar) => marcarPadrao(cartao.id, marcar) : undefined}
-          onRemover={() => onChange(cartoes.filter((atual) => atual.id !== cartao.id))}
+          onRemover={() => remover(indice)}
           onSubir={indice > 0 ? () => mover(indice, -1) : undefined}
           onDescer={indice < cartoes.length - 1 ? () => mover(indice, 1) : undefined}
           escolherImagem={escolherImagem}
@@ -579,6 +615,14 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
           </button>
         )}
       </div>
+      {removido !== null && (
+        <p className="lb-field__hint" role="status">
+          {removido.cartao.nome.trim() === '' ? 'O cartão sem nome saiu da ficha.' : `${removido.cartao.nome} saiu da ficha.`}{' '}
+          <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={desfazerRemocao}>
+            Desfazer
+          </button>
+        </p>
+      )}
       {veio !== null && !trazendo && (
         <p className="lb-trazer__veio" role="status">
           {veio}
@@ -653,6 +697,16 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
   const capacidadeGuardada = (cartao.campos[CAMPO_DA_CAPACIDADE] ?? '').trim().length > 0
   const guardadoSemTiro = semTiro ? avisoDoQueFicaGuardado(capacidadeGuardada, cartao.subcartoes.length) : null
   const trocarCampo = (campoId: string, valor: string) => onChange({ ...cartao, campos: { ...cartao.campos, [campoId]: valor } })
+  const nomeId = useId()
+  const semNome = cartao.nome.trim() === ''
+  // B15: o cartão com mecânica (ou proposta) pede confirmação antes de sair; o Desfazer da lista devolve qualquer um.
+  const [confirmando, setConfirmando] = useState(false)
+  const temMecanica = cartao.mecanica !== undefined || cartao.mecanicaProposta !== undefined
+  const pedirRemover = () => (temMecanica ? setConfirmando(true) : onRemover())
+  // B08: na técnica montada, Ação, Custo, Tempo e Dano em texto não contam na batalha: vão para o dobrado "Texto antigo".
+  const montada = aba.id === ABA_DAS_TECNICAS && cartaoMontado(cartao)
+  const camposDaFrente = montada ? aba.campos.filter((campo) => !CAMPOS_TROCADOS_PELAS_PECAS.has(campo.id)) : aba.campos
+  const camposDoTextoAntigo = montada ? aba.campos.filter((campo) => CAMPOS_TROCADOS_PELAS_PECAS.has(campo.id)) : []
   // Tipos de habilidade F4: "+ Evolução" e "+ Opção" só nas técnicas; criam os extras com o nome que a batalha lê.
   const ehTecnica = aba.id === ABA_DAS_TECNICAS && aba.extras === true
   const jaEvolui = ehTecnica && temExtrasDaEvolucao(cartao)
@@ -694,18 +748,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
     }
   }
 
-  return (
-    <details className="lb-cartao lb-cartao--edit" open={aberto}>
-      <summary className="lb-cartao__resumo">
-        <span className="lb-cartao__nome">{cartao.nome}</span>
-        <SeloDeOculta cartao={cartao} />
-      </summary>
-      <div className="lb-cartao__form">
-        <label className="lb-field">
-          <span className="lb-label">Nome</span>
-          <input className="lb-input" value={cartao.nome} onChange={(event) => onChange({ ...cartao, nome: event.target.value })} />
-        </label>
-        {aba.campos.map((campo) =>
+  const campoNaTela = (campo: CampoDoCartao): ReactNode =>
           semTiro && campo.id === CAMPO_DA_CAPACIDADE ? null : opcoesDoCampo(campo, sistema) !== undefined ? (
             <CampoDeEscolha
               key={campo.id}
@@ -738,7 +781,47 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
                 <textarea className="lb-input lb-textarea" value={cartao.campos[campo.id] ?? ''} onChange={(event) => trocarCampo(campo.id, event.target.value)} />
               )}
             </label>
-          ),
+          )
+
+  return (
+    <details className="lb-cartao lb-cartao--edit" open={aberto}>
+      <summary className="lb-cartao__resumo">
+        <span className="lb-cartao__nome" data-sem-nome={semNome ? '' : undefined}>
+          {semNome ? 'Sem nome ainda' : cartao.nome}
+        </span>
+        <SeloDeOculta cartao={cartao} />
+      </summary>
+      <div className="lb-cartao__form">
+        <div className="lb-field">
+          <label className="lb-label" htmlFor={nomeId}>
+            Nome
+          </label>
+          <input
+            id={nomeId}
+            className="lb-input"
+            value={cartao.nome}
+            aria-invalid={semNome || undefined}
+            aria-describedby={semNome ? `${nomeId}-erro` : undefined}
+            onChange={(event) => onChange({ ...cartao, nome: event.target.value })}
+          />
+          {semNome && (
+            <span className="lb-field__error" id={`${nomeId}-erro`}>
+              Dê um nome: sem ele a ficha não salva.
+            </span>
+          )}
+        </div>
+        {camposDaFrente.map(campoNaTela)}
+        {camposDoTextoAntigo.length > 0 && (
+          <details className="lb-cartao__grupo lb-cartao__texto-antigo">
+            <summary className="lb-label">Texto antigo (só descrição)</summary>
+            <p className="lb-field__hint">Com a mecânica montada, a batalha não lê estes campos: vale o que a Mecânica diz. Nada aqui foi apagado.</p>
+            {camposDoTextoAntigo.map(campoNaTela)}
+          </details>
+        )}
+        {aba.id === ABA_DAS_TECNICAS && quemEditaAMecanica === 'mestre' && perdeuARegraAoSerTrazida(cartao) && (
+          <p className="lb-field__hint" role="note">
+            Esta técnica perdeu a regra programada ao ser trazida de outra ficha: na batalha ela vale só pelo texto. Traga de novo pelo "Trazer de outra ficha" para a regra voltar.
+          </p>
         )}
         {aba.id === ABA_DAS_TECNICAS &&
           (quemEditaAMecanica === 'ninguem' ? (
@@ -916,10 +999,23 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
           <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" disabled={onDescer === undefined} onClick={onDescer}>
             Descer
           </button>
-          <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={onRemover}>
-            Remover {cartao.nome}
-          </button>
+          {!confirmando && (
+            <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" aria-label={`Remover ${nomeParaFrase(cartao)}`} onClick={pedirRemover}>
+              Remover
+            </button>
+          )}
         </div>
+        {confirmando && (
+          <div className="lb-cartao__acoes" role="group" aria-label={`Confirmar remover ${nomeParaFrase(cartao)}`}>
+            <span className="lb-field__hint">Remover {semNome ? 'este cartão' : cartao.nome} e a mecânica montada nele?</span>
+            <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => setConfirmando(false)}>
+              Cancelar
+            </button>
+            <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={onRemover}>
+              Remover
+            </button>
+          </div>
+        )}
       </div>
     </details>
   )

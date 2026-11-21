@@ -2237,3 +2237,15 @@
     min-height: 44px;
   }
 }
+
+/* B14: o cartão sem nome diz que falta o nome, em vez de uma linha vazia na lista. */
+.lb-cartao__nome[data-sem-nome] {
+  color: var(--lb-color-ember);
+  font-style: italic;
+}
+
+/* B08: Ação, Custo, Tempo e Dano em texto da técnica montada ficam dobrados (só descrição). */
+.lb-cartao__texto-antigo > summary {
+  cursor: pointer;
+  color: var(--lb-color-parchment-dim);
+}

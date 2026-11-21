@@ -380,7 +380,25 @@ export function paraOFio(personagemDoMestre: Personagem): Personagem {
 }
 
 export const PERSONAGEM_SEM_NOME = 'Personagem sem nome'
+/** O nome que o leitor do disco dá ao cartão gravado sem nome (ficha de antes, arquivo editado à mão). */
 export const CARTAO_SEM_NOME = 'Sem nome'
+
+/**
+ * B14 (docs/design/habilidades/ANALISE.md): as abas que têm cartão sem nome
+ * (os de dentro também), na ordem da ficha. O Salvar recusa a ficha assim: o
+ * nome vazio ia ao disco e voltava "Sem nome", na ficha e no registro da batalha.
+ */
+export function abasComCartaoSemNome(personagem: Pick<Personagem, 'abas'>): string[] {
+  const semNome = (cartao: CartaoDaFicha): boolean => cartao.nome.trim() === '' || cartao.subcartoes.some(semNome)
+  return Object.entries(personagem.abas).flatMap(([abaId, cartoes]) => (cartoes.some(semNome) ? [abaId] : []))
+}
+
+/** B14: a frase do Salvar recusado, com o nome das abas onde falta nome; `null` = todos têm nome. */
+export function avisoDeCartaoSemNome(abaIds: readonly string[], sistema: SistemaDeRpg | undefined): string | null {
+  if (abaIds.length === 0) return null
+  const nomes = abaIds.map((id) => sistema?.abas.find((aba) => aba.id === id)?.nome ?? id)
+  return `Falta o nome de um cartão em ${nomes.join(', ')}. Dê um nome para salvar.`
+}
 
 export function novoIdDePersonagem(): string {
   return `pers_${crypto.randomUUID()}`
