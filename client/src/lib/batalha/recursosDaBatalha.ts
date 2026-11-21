@@ -93,6 +93,12 @@ export function ajusteDoRecurso(personagem: Personagem, sistema: SistemaDeRpg, q
   return valor === atual ? null : { parte: 'recurso', chave: recurso.id, valor }
 }
 
+/** Fase 5: o número de agora do recurso (o HP ou o SP que a ficha tem); 0 = o sistema não tem o recurso. */
+export function numeroDoRecurso(personagem: Personagem, sistema: SistemaDeRpg, qual: 'sp' | 'hp'): number {
+  const recurso = recursoDoCusto(sistema, qual)
+  return recurso === null ? 0 : numeroDaFicha(personagem.recursos, recurso.id)
+}
+
 /** F2 (fatia F): o máximo do recurso (HP 900 do Siegfried); `null` = o sistema não tem o recurso ou ele não tem máximo. */
 export function maximoDoRecurso(personagem: Personagem, sistema: SistemaDeRpg, qual: 'sp' | 'hp'): number | null {
   const recurso = recursoDoCusto(sistema, qual)

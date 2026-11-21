@@ -89,7 +89,7 @@ import {
   type MecanicaAMao,
 } from './mecanicasAMao'
 import { dividirDano } from './area'
-import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoCartao, reacaoDasPecas, divisaoDasPecas, type MultiplicadoresDasPecas } from './mecanica/leitura'
+import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoCartao, reacaoDasPecas, divisaoDasPecas, selosDasPecas, type MultiplicadoresDasPecas } from './mecanica/leitura'
 import { armaPadraoEntre } from './mecanica/arma'
 import { danoUsaArma } from './mecanica/modelo'
 import type { RespostasDoPedido } from './perguntaNaHora'
@@ -864,6 +864,15 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     // Construtor C1: a natureza escrita na peça vence a do Tipo; sem selo na peça, o golpe sai sem selo (o da mira é leitura de texto).
     if (daMecanica !== null) golpe.selo = montada && daMecanica.natureza !== undefined ? { ...seloDaTecnicaNoGolpe(daMecanica, tecnica), natureza: daMecanica.natureza } : seloDaTecnicaNoGolpe(daMecanica, tecnica)
     else if (montada || semSeloPelaResposta(tecnica.cartao, respostas)) delete golpe.selo
+    // Fase 5: na montada os selos saem das peças com a ficha de quem usa (o número por fórmula: "Força + Espírito * 0,2").
+    if (pecas !== null && personagem !== null && sistema !== null) {
+      const selosDaPeca = selosDasPecas(pecas, valorNaFichaDe(personagem, sistema))
+      const noGolpe = selosDaPeca.noAlvo.map((selo) => seloDaPecaNoGolpe(selo, tecnica))
+      const [primeiro, ...outros] = noGolpe
+      if (primeiro !== undefined) golpe.selo = primeiro
+      if (outros.length > 0) golpe.selosAMais = outros
+      if (selosDaPeca.emQuemUsa !== null) golpe.seloEmQuemUsa = seloDaPecaNoGolpe(selosDaPeca.emQuemUsa, tecnica)
+    }
   }
   // F2 (fatia C): quem bate com a Bênção de uma Raposa recupera parte do dano (o selo de agora); a carga vai junto para a CD da disputa.
   const cura = curaDoDanoDosSelos(ctx.turnos.selos, ctx.carta.tokenId)
@@ -884,10 +893,11 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // F2 (fatia E, vantagem de Ogro): a resposta "sim" faz os alvos reagirem com desvantagem.
   if (deTodoGolpe.desvantagemNoAlvo) golpe.reacaoComDesvantagem = true
   // F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao usar ("+8 em reação" por 2 turnos); a store o põe nele.
-  if (mecanica?.seloEmQuemUsa !== undefined) golpe.seloEmQuemUsa = mecanica.seloEmQuemUsa
+  if (mecanica?.seloEmQuemUsa !== undefined && golpe.seloEmQuemUsa === undefined) golpe.seloEmQuemUsa = mecanica.seloEmQuemUsa
   // Fatia C7 (revisão): o selo fica no token, à vista de todos; o que leva o nome da técnica oculta sai como "???".
   if (tecnica !== null && ocultoNaBatalha(personagem, tecnica.cartao)) {
     if (golpe.selo !== undefined) golpe.selo = { ...golpe.selo, nome: nomeDoSeloNaBatalha(personagem, tecnica.cartao, golpe.selo.nome) }
+    if (golpe.selosAMais !== undefined) golpe.selosAMais = golpe.selosAMais.map((selo) => ({ ...selo, nome: nomeDoSeloNaBatalha(personagem, tecnica.cartao, selo.nome) }))
     if (golpe.seloEmQuemUsa !== undefined) golpe.seloEmQuemUsa = { ...golpe.seloEmQuemUsa, nome: nomeDoSeloNaBatalha(personagem, tecnica.cartao, golpe.seloEmQuemUsa.nome) }
   }
   // R1: a arma que atira (o acerto lembra a passiva de marca).
@@ -950,7 +960,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // F2 (fatia B, Rapid Dash): a 2ª parte é outro golpe nos mesmos alvos, com a fração do dano base, o perfurante dela e outra reação.
   const alvosDaParte = pedido.alvos.map((alvo): PedidoDeAlvo => ({ ...alvo, dano: alvo.dano === null ? null : Math.floor(alvo.dano * parte.fracao) }))
   const segundos = alvosDoGolpe(ctx, alvosDaParte, carga, surpresaEm, overload, reacaoDoTipo(tecnica?.tipo ?? null))
-  const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, seloDaBala: _seloDaBala, ...semExtras } = golpe
+  const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, seloDaBala: _seloDaBala, selosAMais: _selosAMais, ...semExtras } = golpe
   const segundo: GolpeDaBatalha = { ...semExtras, id: ids.segundo.golpe, linhaId: ids.segundo.linha, nome: `${golpe.nome} (2º golpe)`.slice(0, NOME_DO_GOLPE_MAX), perfurante: parte.perfurante, alvos: segundos }
   return { ...lancado, segundo, resolvidosDoSegundo: segundos.filter((alvo) => alvo.danoFinal !== undefined) }
 }
@@ -1086,6 +1096,11 @@ function ajustesDoHpQueCusta(personagem: Personagem, sistema: SistemaDeRpg, meca
 function balaDoGolpe(bala: BalaDaArma): BalaDoGolpe {
   const efeito = bala.efeito.length <= EFEITO_DA_BALA_NO_REGISTRO_MAX ? bala.efeito : `${bala.efeito.slice(0, EFEITO_DA_BALA_NO_REGISTRO_MAX - 1).trimEnd()}…`
   return efeito.length === 0 ? { id: bala.id, nome: bala.nome } : { id: bala.id, nome: bala.nome, efeito }
+}
+
+/** Construtor C1: na peça, a natureza escrita vence a do Tipo. */
+function seloDaPecaNoGolpe(selo: SeloDoGolpe, tecnica: TecnicaPedida): SeloDoGolpe {
+  return selo.natureza === undefined ? seloDaTecnicaNoGolpe(selo, tecnica) : { ...seloDaTecnicaNoGolpe(selo, tecnica), natureza: selo.natureza }
 }
 
 /** Tipos de habilidade F2: o selo da técnica leva a natureza do Tipo (Buff, Debuff) e o cartaoId, tirados aqui e nunca do fio. */
@@ -1278,7 +1293,7 @@ function textoDoAlvo(alvo: AlvoDoGolpe): string {
   const pedacos: string[] = []
   if (alvo.rolagem !== undefined) pedacos.push(`${textoDaRolagemDoAlvo(alvo.rolagem)}${comATecnica(alvo)}`)
   if (alvo.semDano === true) pedacos.push('passou sem dano')
-  else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.reducao === undefined ? '' : ` (${alvo.reducaoDe ?? 'forma'} −${alvo.reducao}%)`}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
+  else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.reducao === undefined ? '' : ` (${alvo.reducaoDe ?? 'forma'} ${alvo.reducao < 0 ? `+${-alvo.reducao}` : `−${alvo.reducao}`}%)`}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
   else if (alvo.rolagem === undefined) pedacos.push('esperando reação')
   if (alvo.disputa !== undefined) pedacos.push(alvo.disputa)
   if (alvo.nota !== undefined) pedacos.push(alvo.nota)

@@ -596,6 +596,8 @@ export interface GolpeDaBatalha {
   seloDaBala?: SeloDoGolpe
   /** F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao lançar (o "+8 em reação" por 2 turnos). Ausente = nenhum. */
   seloEmQuemUsa?: SeloDoGolpe
+  /** Fase 5 (SISTEMA.md): os selos a mais da técnica montada (Sangrando E Enfraquecido); cada um pega como o `selo`. Tirados pelo host. Ausente = nenhum. */
+  selosAMais?: readonly SeloDoGolpe[]
 }
 
 /**
@@ -759,6 +761,30 @@ export interface SeloDaBatalha {
   porVez?: number
   /** Construtor C5: o selo sai quando o próximo golpe chega em quem o tem (`selosQueSaemNoGolpe`; a técnica de ajuda não conta), além do da tabela (a redoma). Só do host. */
   saiNoProximoGolpe?: true
+  /** Fase 5: a regra própria do selo montado (o dano e a cura que quem o tem recebe). Só do host. */
+  regra?: RegraDoSeloNaBatalha
+  /** Fase 5: o que o selo dá no fim de cada vez de quem o tem (regeneração). Só do host. */
+  regenera?: RegeneraDoSelo
+  /** Fase 5: o SP que o selo tira no fim de cada vez de quem o tem, e o que vai ao dono da técnica. Só do host. */
+  drenaSp?: DrenaSpDoSelo
+}
+
+/** Fase 5: a regra do selo montado, em %: -20 = toma 20% a menos; +50 = toma 50% a mais. */
+export interface RegraDoSeloNaBatalha {
+  danoRecebido?: number
+  curaRecebida?: number
+}
+
+/** Fase 5: a regeneração por vez ("recupera 20 HP por vez"), no fim da vez de quem tem o selo. */
+export interface RegeneraDoSelo {
+  recurso: 'hp' | 'sp'
+  quanto: number
+}
+
+/** Fase 5: o dreno de SP por vez (quem tem o selo perde `quanto`, o dono da técnica ganha `paraQuemUsa`), como as Chamas Celestes. */
+export interface DrenaSpDoSelo {
+  quanto: number
+  paraQuemUsa: number
 }
 
 /** O selo como chega no pedido (o sugerido na mira, ou o do mestre). `turnos` null = até tirar. */
@@ -781,6 +807,10 @@ export interface SeloDoGolpe extends SeloPedido {
   porVez?: number
   /** Construtor C5: a duração "até o próximo golpe" da peça, nunca do fio. */
   saiNoProximoGolpe?: true
+  /** Fase 5: a regra, a regeneração e o dreno do selo montado, nunca do fio. */
+  regra?: RegraDoSeloNaBatalha
+  regenera?: RegeneraDoSelo
+  drenaSp?: DrenaSpDoSelo
 }
 
 /**

@@ -149,6 +149,20 @@ export function curaDoDanoDosSelos(selos: readonly Pick<SeloDaBatalha, 'tokenId'
   return (selos ?? []).reduce((maior, selo) => (selo.tokenId === tokenId ? Math.max(maior, comportamentoDoSelo(selo.nome)?.curaDoDano ?? 0) : maior), 0)
 }
 
+/**
+ * Fase 5 (SISTEMA.md, `regra.curaRecebida` do selo montado; antes só
+ * lembrete): a cura que chega em quem tem o selo, para baixo (−50 = metade,
+ * +50 = 1,5 vez). Vários selos: um depois do outro. Sem selo com a regra: a
+ * MESMA cura.
+ */
+export function curaComOsSelos(cura: number, selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'regra'>[] | undefined, tokenId: string): number {
+  const fator = (selos ?? []).reduce((produto, selo) => {
+    const recebida = selo.tokenId === tokenId ? selo.regra?.curaRecebida : undefined
+    return recebida === undefined ? produto : (produto * Math.max(0, 100 + recebida)) / 100
+  }, 1)
+  return fator === 1 ? cura : Math.max(0, Math.floor(cura * fator))
+}
+
 /** F2 (fatia C): quanto volta em vida de um dano causado, para baixo. */
 export function curaDoDano(dano: number, porcento: number): number {
   return dano > 0 && porcento > 0 ? Math.floor((dano * porcento) / 100) : 0

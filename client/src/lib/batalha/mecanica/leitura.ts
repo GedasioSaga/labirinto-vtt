@@ -224,14 +224,53 @@ function limpezaDasPecas(mecanica: MecanicaV1): LimpezaAMao | null {
  * golpe" (sem turnos: sai quando outro golpe chega nele).
  */
 export function seloDasPecas(mecanica: MecanicaV1): SeloDoGolpe | null {
-  // O selo em quem atacou é da reação (`seloNoAtacanteDasPecas`), nunca do golpe da vez.
-  const selo = mecanica.efeitos.find((efeito) => efeito.tipo === 'selo' && efeito.em === undefined)
-  if (selo === undefined || selo.tipo !== 'selo') return null
+  return selosDasPecas(mecanica).noAlvo[0] ?? null
+}
+
+type SeloDaPeca = Extract<MecanicaV1['efeitos'][number], { tipo: 'selo' }>
+
+/**
+ * Um selo da peça como o golpe o guarda. Fase 5: os números ("Força +20"; a
+ * fórmula é lida na ficha de quem usa, e sem `valorNaFicha` o número da
+ * fórmula fica de fora), a regra, a regeneração e o dreno de SP por vez.
+ */
+function seloDaPeca(selo: SeloDaPeca, valorNaFicha?: (formula: string) => number | null): SeloDoGolpe {
   const lido: SeloDoGolpe = { nome: selo.nome, turnos: typeof selo.duracao === 'number' ? selo.duracao : null }
   if (selo.natureza !== undefined) lido.natureza = selo.natureza
-  if (selo.porTurno !== undefined) lido.porVez = selo.porTurno.quanto.fixo
+  const porTurno = selo.porTurno
+  // O HP tirado por vez é o de sempre (o lembrete "Aplicar"); o SP tirado é o dreno do fim da vez; o "dá" é a regeneração.
+  if (porTurno !== undefined && porTurno.sinal !== 'da' && porTurno.recurso === 'hp') lido.porVez = porTurno.quanto.fixo
   if (selo.duracao === 'proximoGolpe') lido.saiNoProximoGolpe = true
+  const mods = (selo.mods ?? []).flatMap((mod) => {
+    const valor = 'fixo' in mod.delta ? mod.delta.fixo : (valorNaFicha?.(mod.delta.formula) ?? null)
+    const delta = valor === null ? 0 : Math.trunc(valor)
+    return delta === 0 ? [] : [{ alvo: mod.alvo, delta }]
+  })
+  if (mods.length > 0) lido.mods = mods
+  if (selo.regra !== undefined) {
+    const regra: { danoRecebido?: number; curaRecebida?: number } = {}
+    if (selo.regra.danoRecebido !== undefined) regra.danoRecebido = selo.regra.danoRecebido
+    if (selo.regra.curaRecebida !== undefined) regra.curaRecebida = selo.regra.curaRecebida
+    lido.regra = regra
+  }
+  if (porTurno?.sinal === 'da') lido.regenera = { recurso: porTurno.recurso, quanto: porTurno.quanto.fixo }
+  else if (porTurno?.recurso === 'sp') lido.drenaSp = { quanto: porTurno.quanto.fixo, paraQuemUsa: porTurno.paraQuemUsa ?? 0 }
   return lido
+}
+
+/**
+ * Fase 5: os selos do golpe da vez (até 3 no alvo e 1 em quem usa). O selo
+ * em quem atacou é da reação (`seloNoAtacanteDasPecas`), nunca do golpe da vez.
+ */
+export function selosDasPecas(mecanica: MecanicaV1, valorNaFicha?: (formula: string) => number | null): { noAlvo: SeloDoGolpe[]; emQuemUsa: SeloDoGolpe | null } {
+  const selos = mecanica.efeitos.filter((efeito): efeito is SeloDaPeca => efeito.tipo === 'selo')
+  const emQuemUsa = selos.find((selo) => selo.em === 'quemUsa')
+  return { noAlvo: selos.filter((selo) => selo.em === undefined).map((selo) => seloDaPeca(selo, valorNaFicha)), emQuemUsa: emQuemUsa === undefined ? null : seloDaPeca(emQuemUsa, valorNaFicha) }
+}
+
+/** Fase 5: a recusa do alvo sem o selo que a técnica pede (`alvo.exigeSelo`). */
+export function motivoDoSeloExigido(nome: string): string {
+  return `Só vale em quem tem ${nome}`
 }
 
 /** Os lembretes à mão, juntos (a mira mostra um texto só). */
@@ -277,8 +316,13 @@ export function linhaDasPecas(nome: string, mecanica: MecanicaV1): MecanicaAMao 
   if (forma.tipo === 'varios' && forma.dividirDano === true) linha.divide = { teto: forma.max }
   else if (forma.tipo === 'varios') linha.tetoDeAlvosComDano = forma.max
   else if (forma.tipo === 'um') linha.tetoDeAlvosComDano = 1
-  const selo = seloDasPecas(mecanica)
-  if (selo !== null) linha.selo = selo
+  const { noAlvo, emQuemUsa } = selosDasPecas(mecanica)
+  const [selo, ...selosAMais] = noAlvo
+  if (selo !== undefined) linha.selo = selo
+  // Fase 5: os outros selos do golpe e o de quem usa (o golpe os relê com a ficha, para a fórmula dos números: `golpe.ts`).
+  if (selosAMais.length > 0) linha.selosAMais = selosAMais
+  if (emQuemUsa !== null) linha.seloEmQuemUsa = emQuemUsa
+  if (mecanica.alvo.exigeSelo !== undefined) linha.soContraOSelo = { nome: mecanica.alvo.exigeSelo, motivo: motivoDoSeloExigido(mecanica.alvo.exigeSelo) }
   const limpa = limpezaDasPecas(mecanica)
   if (limpa !== null) linha.limpa = limpa
   const lembrete = lembretesDasPecas(mecanica)

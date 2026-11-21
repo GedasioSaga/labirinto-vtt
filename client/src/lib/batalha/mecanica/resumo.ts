@@ -214,6 +214,13 @@ function duracaoDoSelo(duracao: DuracaoDoSelo, ajuda: boolean): string {
   return `por ${duracao} ${duracao === 1 ? 'vez' : 'vezes'} ${ajuda ? 'de quem recebe' : 'do alvo'}`
 }
 
+/** Fase 5: o que o número do selo muda: o atributo pelo nome da ficha, o dano ou a reação. */
+function nomeDoAlvoDoMod(alvo: string, ficha?: FichaDaPrevia): string {
+  if (alvo === 'dano') return 'Dano'
+  if (alvo === 'reacao') return 'Reação'
+  return nomeDoAtributo(alvo, ficha)
+}
+
 /** As saídas da reação em verbo, para "não pode esquivar nem contra-atacar". */
 const SAIDA_EM_VERBO: Readonly<Record<SaidaDaReacao, string>> = {
   critico: 'acertar crítico',
@@ -231,16 +238,25 @@ const SAIDA_EM_VERBO: Readonly<Record<SaidaDaReacao, string>> = {
  * (`condicoes.ts`) e pelo "tira X por vez" da peça. Vazio = selo sem regra
  * própria (o app só mostra o selo na carta).
  */
-export function frasesDoSelo(selo: Pick<Extract<Efeito, { tipo: 'selo' }>, 'nome' | 'porTurno'>, ficha?: FichaDaPrevia): string[] {
+export function frasesDoSelo(selo: Pick<Extract<Efeito, { tipo: 'selo' }>, 'nome' | 'porTurno' | 'mods' | 'regra'>, ficha?: FichaDaPrevia): string[] {
   const regra = comportamentoDoSelo(selo.nome)
   const frases: string[] = []
+  // Fase 5: os números do selo ("Força +20") e a regra própria (dano e cura recebidos).
+  for (const mod of selo.mods ?? []) frases.push(`${nomeDoAlvoDoMod(mod.alvo, ficha)} ${'fixo' in mod.delta ? (mod.delta.fixo < 0 ? `${mod.delta.fixo}` : `+${mod.delta.fixo}`) : `+ (${mod.delta.formula})`}`)
+  const recebido = selo.regra?.danoRecebido
+  if (recebido !== undefined && recebido !== 0) frases.push(recebido < 0 ? `toma ${-recebido}% a menos de dano` : `toma ${recebido}% a mais de dano`)
+  const curaRecebida = selo.regra?.curaRecebida
+  if (curaRecebida !== undefined && curaRecebida !== 0) frases.push(curaRecebida < 0 ? `recebe ${-curaRecebida}% a menos de cura` : `recebe ${curaRecebida}% a mais de cura`)
   if (regra?.trava === true) frases.push('na vez dele só passa a vez, e não reage')
   if (regra?.tiraSaidas !== undefined && regra.tiraSaidas.length > 0) frases.push(`não pode ${regra.tiraSaidas.map((saida) => SAIDA_EM_VERBO[saida]).join(' nem ')}`)
   if (regra?.zera !== undefined) frases.push(`${nomeDoAtributo(regra.zera, ficha)} fica em 0`)
   if (regra?.reageComDesvantagem === true) frases.push('reage com desvantagem')
   if (regra?.esquivaComDesvantagem === true) frases.push('esquiva com desvantagem')
   if (regra?.curaDoDano !== undefined) frases.push(`recupera em vida ${regra.curaDoDano}% do dano que causa`)
-  const porVez = selo.porTurno?.quanto.fixo ?? regra?.porVez
+  const { porTurno } = selo
+  if (porTurno?.sinal === 'da') frases.push(`ganha ${porTurno.quanto.fixo} de ${porTurno.recurso === 'hp' ? 'HP' : 'SP'} no fim de cada vez dele`)
+  else if (porTurno?.recurso === 'sp') frases.push(`perde ${porTurno.quanto.fixo} de SP no fim de cada vez dele${(porTurno.paraQuemUsa ?? 0) > 0 ? `, e quem usou ganha ${porTurno.paraQuemUsa ?? 0}` : ''}`)
+  const porVez = porTurno?.recurso === 'sp' || porTurno?.sinal === 'da' ? undefined : (porTurno?.quanto.fixo ?? regra?.porVez)
   if (porVez !== undefined) frases.push(`perde ${porVez} de HP no começo de cada vez dele, direto, quando o mestre clica Aplicar`)
   if (regra?.renova === true) frases.push('acertar de novo renova a duração')
   if (regra?.lembrete !== undefined) frases.push(`o app só lembra: ${regra.lembrete}`)
@@ -254,9 +270,12 @@ export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1, ficha?: Fich
     case 'selo': {
       // Fase 4: o selo da reação vai em quem atacou, nunca no alvo da técnica.
       const noAtacante = efeito.em === 'atacante'
-      const comeco = noAtacante ? `Ao reagir, marca quem atacou: ${efeito.nome}` : ajuda ? `Dá ${efeito.nome}` : `${quandoOSeloPega(mecanica)}: ${efeito.nome}`
+      // Fase 5: o selo em quem usa (a postura) pega ao usar, sem depender do acerto.
+      const emQuemUsa = efeito.em === 'quemUsa'
+      const comeco = noAtacante ? `Ao reagir, marca quem atacou: ${efeito.nome}` : emQuemUsa ? `Quem usa ganha ${efeito.nome}` : ajuda ? `Dá ${efeito.nome}` : `${quandoOSeloPega(mecanica)}: ${efeito.nome}`
       const regra = frasesDoSelo(efeito, ficha)
-      return `${comeco} ${duracaoDoSelo(efeito.duracao, ajuda && !noAtacante)}${regra.length === 0 ? '' : ` (${regra.join('; ')})`}.`
+      const duracao = emQuemUsa ? (typeof efeito.duracao === 'number' ? `por ${efeito.duracao} ${efeito.duracao === 1 ? 'vez' : 'vezes'} dele` : duracaoDoSelo(efeito.duracao, true)) : duracaoDoSelo(efeito.duracao, ajuda && !noAtacante)
+      return `${comeco} ${duracao}${regra.length === 0 ? '' : ` (${regra.join('; ')})`}.`
     }
     case 'cura':
       return `Cura ${numeroDaPeca(efeito.quanto)} de HP.`
@@ -293,7 +312,9 @@ export function etiquetaDaMecanica(mecanica: MecanicaV1): string {
 export function resumoDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string[] {
   const limite = fraseDoLimite(mecanica)
   const daVez = mecanica.uso !== 'reacao'
-  const alvoETeste = `${fraseDoAlvo(mecanica)} ${fraseDoTeste(mecanica, ficha)}`
+  // Fase 5: "Só vale em quem tem Redoma" (`alvo.exigeSelo`).
+  const exige = mecanica.alvo.exigeSelo === undefined ? '' : ` Só vale em quem tem ${mecanica.alvo.exigeSelo}.`
+  const alvoETeste = `${fraseDoAlvo(mecanica)}${exige} ${fraseDoTeste(mecanica, ficha)}`
   // Fase 4: só no lugar da reação, a ação, o alvo e o dano da vez não valem; o custo vale nos dois usos.
   return [
     daVez ? fraseDoCustoEDaAcao(mecanica) : fraseDoCusto(mecanica),

@@ -7,8 +7,9 @@ import { chaveDaVez, type SeloDaBatalha } from '../../lib/batalha/combate'
 import { comBandosEmDia, semBandosVazios } from '../../lib/batalha/invocacao'
 import { textoDosQueAcabaram } from '../../lib/batalha/selos'
 import { formaDaFicha } from '../../lib/batalha/transformacao'
-import { ajusteDoRecurso, ajusteDoSpDaVez, ganhaSpNaVez, maximoDoRecurso } from '../../lib/batalha/recursosDaBatalha'
+import { ajusteDoRecurso, ajusteDoSpDaVez, ganhaSpNaVez, maximoDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import { chavesDoDono, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo } from '../../lib/batalha/mecanicasAMao'
+import { curaComOsSelos } from '../../lib/batalha/condicoes'
 import { comLembretesDaVez, comLembretesDoMomento } from '../../lib/batalha/passivas'
 import { ehOverload } from '../../lib/batalha/leituraDaFicha'
 import { ajustesDoDano } from '../../lib/batalha/reacao'
@@ -171,9 +172,19 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
       const perdeu = mexer(saindo.personagemId, 'hp', -perdaDoMaximo(saindo.personagemId, doenca.hpPorcento))
       if (perdeu !== 0) textos.push(`${nomeDe(saindo.personagemId)} perde ${-perdeu} HP (Doença das Trevas)`)
     }
-    // Chamas Celestes: cada selo dela em quem sai.
+    // Chamas Celestes: cada selo dela em quem sai. Fase 5: o selo montado traz o dreno de SP nele (`drenaSp`), e a regeneração (`regenera`).
     for (const selo of cena.turnos.selos ?? []) {
-      const dreno = selo.tokenId === saindo.tokenId && selo.cartaoId !== undefined ? mecanicaDoCartao(selo.cartaoId)?.drenoNoFimDaVez : undefined
+      if (selo.tokenId === saindo.tokenId && selo.regenera !== undefined) {
+        const { recurso, quanto } = selo.regenera
+        const ficha = fichaDe(saindo.personagemId)
+        const maximo = ficha === undefined ? null : maximoDoRecurso(ficha, sistema, recurso)
+        const atual = ficha === undefined ? 0 : numeroDoRecurso(ficha, sistema, recurso)
+        // A cura cortada pela regra do selo (`curaRecebida`) vale também aqui; o máximo da ficha é o teto.
+        const cabe = maximo === null ? quanto : Math.max(0, Math.min(recurso === 'hp' ? curaComOsSelos(quanto, cena.turnos.selos, saindo.tokenId) : quanto, maximo - atual))
+        const ganhou = cabe === 0 ? 0 : mexer(saindo.personagemId, recurso, cabe)
+        textos.push(`${selo.nome} em ${nomeDe(saindo.personagemId)}: ${ganhou === 0 ? 'já cheio' : `+${ganhou} ${recurso === 'hp' ? 'HP' : 'SP'}`}`)
+      }
+      const dreno = selo.tokenId !== saindo.tokenId ? undefined : selo.drenaSp !== undefined ? { alvoSp: selo.drenaSp.quanto, donoSp: selo.drenaSp.paraQuemUsa, donoHpPorcento: 0 } : selo.cartaoId !== undefined ? mecanicaDoCartao(selo.cartaoId)?.drenoNoFimDaVez : undefined
       const cartaoDoSelo = selo.cartaoId
       if (dreno === undefined || cartaoDoSelo === undefined) continue
       const dono = personagens.find((candidato) => chavesDoDono(candidato).includes(cartaoDoSelo))

@@ -73,10 +73,13 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
   const seloNoAcerto = (turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selado: ReturnType<typeof seloDoGolpe>; alvo: AlvoDoGolpe } => {
     const feito = seloDoGolpeNoAcerto(turnos, golpe, alvo)
     // F2 (revisão da fatia E, Bala de Prata): o selo da bala pega junto, por cima do da mira, do da técnica e da marca.
-    if (golpe.seloDaBala === undefined) return feito
-    const daBala = seloDoGolpe(feito.selado === null ? turnos : { ...turnos, selos: feito.selado.selos }, { ...golpe, selo: golpe.seloDaBala }, feito.alvo)
-    if (daBala === null) return feito
-    return { alvo: feito.alvo, selado: feito.selado === null ? daBala : { selos: daBala.selos, parte: { tipo: 'composta', partes: [feito.selado.parte, daBala.parte] } } }
+    // Fase 5: os selos a mais da técnica montada pegam do mesmo jeito, um depois do outro (cada um com o seu Desfazer).
+    const extras = [...(golpe.seloDaBala === undefined ? [] : [golpe.seloDaBala]), ...(golpe.selosAMais ?? [])]
+    return extras.reduce((ate, extra) => {
+      const mais = seloDoGolpe(ate.selado === null ? turnos : { ...turnos, selos: ate.selado.selos }, { ...golpe, selo: extra }, ate.alvo)
+      if (mais === null) return ate
+      return { alvo: ate.alvo, selado: ate.selado === null ? mais : { selos: mais.selos, parte: { tipo: 'composta', partes: [ate.selado.parte, mais.parte] } } }
+    }, feito)
   }
 
   /**

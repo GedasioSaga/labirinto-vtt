@@ -171,6 +171,10 @@ export function criarSelo(tokenId: string, pedido: SeloDoGolpe, onde: OndeNasceO
   if (pedido.cartaoId !== undefined) selo.cartaoId = pedido.cartaoId
   if (pedido.porVez !== undefined) selo.porVez = pedido.porVez
   if (pedido.saiNoProximoGolpe === true) selo.saiNoProximoGolpe = true
+  // Fase 5: a regra, a regeneração e o dreno da peça vão com o selo (só do host: a carta do jogador leva nome, turnos e mods).
+  if (pedido.regra !== undefined) selo.regra = pedido.regra
+  if (pedido.regenera !== undefined) selo.regenera = pedido.regenera
+  if (pedido.drenaSp !== undefined) selo.drenaSp = pedido.drenaSp
   if (onde.tokenDaVez === tokenId) {
     selo.contadoNaRodada = onde.rodada
     if (onde.cartaIdDaVez !== undefined) selo.contadoNaCarta = onde.cartaIdDaVez

@@ -4,6 +4,7 @@ import { rankDoValor, type SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { reducaoDaRaca } from './mecanicasAMao'
 import { efeitosDasFormasLigadas } from './transformacao'
+import type { SeloDaBatalha } from './combate'
 
 /**
  * O DANO RECEBIDO QUE CAI, conserto das fichas F1 (fatia S4): o que tira
@@ -64,9 +65,25 @@ export function reducoesDoDano(personagem: Personagem, sistema: SistemaDeRpg): R
   return reducoes
 }
 
-/** O que sobra de 1 depois das reduções, uma depois da outra (−20% e −10% = 0,72). */
+/**
+ * Fase 5 (SISTEMA.md, `regra.danoRecebido` do selo montado): o selo de quem
+ * toma o golpe que corta ou aumenta o dano (−20 = toma 20% a menos, +50 = 50%
+ * a mais). Vira uma redução com o nome do selo (o aumento é a redução
+ * negativa), na mesma conta da forma e da raça.
+ */
+export function reducoesDosSelos(selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'regra'>[] | undefined, tokenId: string): ReducaoDoDano[] {
+  return (selos ?? []).flatMap((selo) => {
+    const recebido = selo.tokenId === tokenId ? selo.regra?.danoRecebido : undefined
+    return recebido === undefined || recebido === 0 ? [] : [{ nome: selo.nome, porcento: -recebido }]
+  })
+}
+
+/** O teto do aumento (a redução negativa): toma no máximo o triplo (+200%). */
+const AUMENTO_MAX = 200
+
+/** O que sobra de 1 depois das reduções, uma depois da outra (−20% e −10% = 0,72). O aumento do selo (porcento negativo) multiplica para cima. */
 function fatorQueSobra(reducoes: readonly ReducaoDoDano[]): number {
-  return reducoes.reduce((fator, reducao) => (fator * (100 - Math.min(100, Math.max(0, reducao.porcento)))) / 100, 1)
+  return reducoes.reduce((fator, reducao) => (fator * (100 - Math.min(100, Math.max(-AUMENTO_MAX, reducao.porcento)))) / 100, 1)
 }
 
 /** O dano que chega com as reduções, arredondado (como a forma sempre fez). Sem redução: o MESMO número. */

@@ -1,4 +1,4 @@
-import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX, type VantagemDoDado } from '../combate'
+import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX, MODS_POR_SELO_MAX, type VantagemDoDado } from '../combate'
 
 /**
  * AS PEÇAS DA TÉCNICA MONTADA (construtor de mecânicas, fatia C1; seção 1 de
@@ -93,6 +93,8 @@ export type QuemOAlvoPega = 'inimigos' | 'aliados' | 'todos' | 'si' | 'escolha'
 export interface AlvoDaMecanica {
   quem: QuemOAlvoPega
   forma: FormaDoAlvo
+  /** Fase 5: só vale em quem tem este selo (a redoma da Florescer). Ausente = em qualquer um. */
+  exigeSelo?: string
 }
 
 /** Um número da CD que muda com a Concentração; `automatico` = naquela carga pega sem teste. */
@@ -169,10 +171,27 @@ export type DuracaoDoSelo = number | 'ateTirar' | 'proximoGolpe'
  * (`recurso` SP, fórmula, pelo Escudo) entra sem mudar a peça.
  */
 export interface PorTurnoDoSelo {
-  recurso: 'hp'
+  recurso: 'hp' | 'sp'
   quanto: { fixo: number }
   direto: true
+  /**
+   * Fase 5: 'da' = regeneração (no fim de cada vez de quem tem o selo, ganha
+   * o número); ausente = 'tira' (o HP pelo lembrete, como sempre; o SP no fim
+   * da vez, como as Chamas Celestes).
+   */
+  sinal?: 'tira' | 'da'
+  /** Fase 5: só no SP tirado: o que quem usou a técnica ganha a cada vez (o dreno). */
+  paraQuemUsa?: number
 }
+
+/** Fase 5: o número que o selo soma enquanto existe ("Força +20"). `alvo` = id de atributo, 'dano' ou 'reacao'; o fixo pode ser negativo (tira). */
+export interface ModDaPeca {
+  alvo: string
+  delta: NumeroSimples
+}
+
+/** Fase 5: teto de selos no mesmo golpe (decisão C4). */
+export const SELOS_NO_GOLPE_MAX = 3
 
 export type Efeito =
   /**
@@ -182,7 +201,8 @@ export type Efeito =
    * que só recebe o nome. Nome fora da tabela = selo sem regra própria.
    */
   /** `em: 'atacante'` (fase 4): só na técnica de reação, o selo vai em quem bateu. Ausente = no alvo do golpe. */
-  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: 'atacante' }
+  /** Fase 5: `em: 'quemUsa'` (a postura), `mods` (Força +20) e `regra` (dano e cura recebidos). */
+  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: Exclude<EmQuem, 'alvo'>; mods?: readonly ModDaPeca[]; regra?: RegraDoSelo }
   | { tipo: 'cura'; recurso: 'hp'; quanto: Numero; emQuem: 'alvo' }
   | { tipo: 'tirarSelos'; quais: 'negativos' }
   /** Porta de escape: o app não executa nada, só lembra o mestre. */
@@ -225,8 +245,19 @@ export function migrarV1ParaV2(mecanica: MecanicaV2): MecanicaV2 {
  * Lobby leem a 2 como "atualize o app" (o cartão fica à mão, nada se perde), e
  * toda outra mecânica continua 1 e abre neles como sempre.
  */
-export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | 'efeitos'>): boolean {
-  return (mecanica.uso !== undefined && mecanica.uso !== 'ativa') || mecanica.reacao !== undefined || mecanica.efeitos.some((efeito) => efeito.tipo === 'selo' && efeito.em !== undefined)
+export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | 'efeitos' | 'alvo'>): boolean {
+  if ((mecanica.uso !== undefined && mecanica.uso !== 'ativa') || mecanica.reacao !== undefined) return true
+  // Fase 5: as peças do lote A (o app de antes as recusa; com a 2 ele diz "atualize o app").
+  if (mecanica.alvo.exigeSelo !== undefined) return true
+  if (mecanica.efeitos.filter((efeito) => efeito.tipo === 'selo').length > 1) return true
+  return mecanica.efeitos.some((efeito) => efeito.tipo === 'selo' && seloDaVersao2(efeito))
+}
+
+/** O selo com peça só da 2: em quem usa ou em quem atacou, com número, com regra, ou o "por vez" que não é o HP tirado. */
+function seloDaVersao2(selo: Extract<Efeito, { tipo: 'selo' }>): boolean {
+  const porTurno = selo.porTurno
+  const porTurnoNovo = porTurno !== undefined && (porTurno.recurso !== 'hp' || porTurno.sinal !== undefined || porTurno.paraQuemUsa !== undefined)
+  return selo.em !== undefined || selo.mods !== undefined || selo.regra !== undefined || porTurnoNovo
 }
 
 // ─── Versão 2: as peças novas, ainda sem motor ──────────────────────────────
@@ -277,10 +308,10 @@ export interface ReacaoDaMecanica {
 export const PECAS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'mecânica': { custoEmItem: 'custo em item da mochila' },
   limite: { porRodada: 'limite por rodada' },
-  alvo: { alcance: 'alcance do alvo', estado: 'alvo caído (reviver)', exigeSelo: 'só contra quem tem um selo' },
+  alvo: { alcance: 'alcance do alvo', estado: 'alvo caído (reviver)' },
   forma: { centro: 'área em volta de um alvo ou de um ponto' },
   dano: { perfuracao: 'perfuração parcial', segundoGolpe: 'segundo golpe' },
-  selo: { mods:'selo com número (Força +20)', regra: 'regra própria do selo', seJaTem: 'renovar o selo' },
+  selo: { seJaTem: 'renovar o selo' },
   cura: { em: 'cura em quem usa' },
 }
 
@@ -447,12 +478,14 @@ function forma(valor: unknown): FormaDoAlvo {
 
 function alvo(valor: unknown): AlvoDaMecanica {
   const peca = registro(valor, 'alvo')
-  soChaves(peca, ['quem', 'forma'], 'alvo', 'alvo')
+  soChaves(peca, ['quem', 'forma', 'exigeSelo'], 'alvo', 'alvo')
   const quem = umDe(peca.quem, ['inimigos', 'aliados', 'todos', 'si', 'escolha'] as const, 'quem o alvo pega')
   const lida = forma(peca.forma)
   // Construtor C3: a área marca os inimigos, os aliados (a cura em área) ou todos; "em si" não tem área.
   if (quem === 'si' && lida.tipo !== 'um') torta('"em si" é um alvo só')
-  return { quem, forma: lida }
+  const lido: AlvoDaMecanica = { quem, forma: lida }
+  if (peca.exigeSelo !== undefined) lido.exigeSelo = texto(peca.exigeSelo, NOME_DO_SELO_MAX, 'o selo que o alvo precisa ter')
+  return lido
 }
 
 function quemRola(valor: unknown, onde: string): QuemRolaNoTeste {
@@ -536,15 +569,62 @@ function dano(valor: unknown): DanoDaMecanica {
   return lido
 }
 
-/** Construtor C5: o "tira X por vez" do selo. Só HP fixo e direto: é o que o lembrete "Aplicar" do mestre executa. */
+/**
+ * Construtor C5: o "tira X por vez" do selo, só fixo e direto (o HP pelo
+ * lembrete "Aplicar" do mestre). Fase 5: o SP tirado no fim da vez (com o
+ * `paraQuemUsa`, o dreno das Chamas Celestes) e o `sinal: 'da'` (regeneração
+ * de HP ou SP no fim da vez de quem tem o selo).
+ */
 function porTurnoDoSelo(valor: unknown, onde: string): PorTurnoDoSelo {
   const peca = registro(valor, `${onde} (por vez)`)
-  soChaves(peca, ['recurso', 'quanto', 'direto'], `${onde} (por vez)`)
-  if (peca.recurso !== 'hp' || peca.direto !== true) torta(`${onde}: o selo que tira por vez, por enquanto, só tira HP direto (sem o Escudo)`)
+  soChaves(peca, ['recurso', 'quanto', 'direto', 'sinal', 'paraQuemUsa'], `${onde} (por vez)`)
+  if (peca.recurso === 'hp' && peca.direto !== true) torta(`${onde}: o selo que tira por vez, por enquanto, só tira HP direto (sem o Escudo)`)
+  if (peca.direto !== true) torta(`${onde}: o selo que mexe por vez, por enquanto, só vai direto (sem o Escudo)`)
+  const recurso = umDe(peca.recurso, ['hp', 'sp'] as const, `${onde} (recurso por vez)`)
   const quanto = registro(peca.quanto, `${onde} (quanto tira por vez)`)
   if (!('fixo' in quanto)) torta(`${onde}: o quanto tira por vez precisa ser um número fixo`)
   soChaves(quanto, ['fixo'], `${onde} (quanto tira por vez)`)
-  return { recurso: 'hp', quanto: { fixo: inteiro(quanto.fixo, 1, DANO_MAX, `${onde} (quanto tira por vez)`) }, direto: true }
+  const lido: PorTurnoDoSelo = { recurso, quanto: { fixo: inteiro(quanto.fixo, 1, DANO_MAX, `${onde} (quanto tira por vez)`) }, direto: true }
+  if (peca.sinal !== undefined) lido.sinal = umDe(peca.sinal, ['tira', 'da'] as const, `${onde} (tira ou dá)`)
+  if (peca.paraQuemUsa !== undefined) {
+    // O dreno por vez é o das Chamas Celestes: o SP que sai do alvo, no fim da vez dele.
+    if (recurso !== 'sp' || lido.sinal === 'da') aindaNaoRoda('dreno por vez que não seja de SP tirado')
+    lido.paraQuemUsa = inteiro(peca.paraQuemUsa, 0, DANO_MAX, `${onde} (o que quem usa ganha por vez)`)
+  }
+  return lido
+}
+
+/** Teto da regra do selo em % (+200 = toma o triplo). */
+const REGRA_DO_SELO_MAX = 200
+
+/** Fase 5: a regra própria do selo. Travar e tirar saídas seguem pelo NOME (Atordoado, Aéreo); a peça abre o dano e a cura recebidos. */
+function regraDoSelo(valor: unknown, onde: string): RegraDoSelo {
+  const peca = registro(valor, `${onde} (regra)`)
+  if (peca.trava !== undefined || peca.tiraSaidas !== undefined || peca.reageComDesvantagem !== undefined) aindaNaoRoda('travar ou tirar saídas pela regra do selo (use o nome: Atordoado, Aéreo)')
+  soChaves(peca, ['danoRecebido', 'curaRecebida'], `${onde} (regra)`)
+  const lida: RegraDoSelo = {}
+  if (peca.danoRecebido !== undefined) lida.danoRecebido = inteiro(peca.danoRecebido, -100, REGRA_DO_SELO_MAX, `${onde} (dano recebido %)`)
+  if (peca.curaRecebida !== undefined) lida.curaRecebida = inteiro(peca.curaRecebida, -100, REGRA_DO_SELO_MAX, `${onde} (cura recebida %)`)
+  if ((lida.danoRecebido ?? 0) === 0 && (lida.curaRecebida ?? 0) === 0) torta(`${onde}: a regra do selo precisa de um número diferente de 0`)
+  return lida
+}
+
+/** Fase 5: os números do selo ("Força +20"); o fixo pode tirar (negativo), a fórmula é lida na ficha de quem usa. */
+function modsDoSelo(valor: unknown, onde: string): ModDaPeca[] {
+  const mods = lista(valor, MODS_POR_SELO_MAX, `${onde} (números do selo)`).map((item, indice): ModDaPeca => {
+    const ondeDoMod = `${onde} (número ${indice + 1})`
+    const peca = registro(item, ondeDoMod)
+    soChaves(peca, ['alvo', 'delta'], ondeDoMod)
+    const alvoDoMod = texto(peca.alvo, ATRIBUTO_MAX, `${ondeDoMod} (o que muda)`)
+    const delta = registro(peca.delta, `${ondeDoMod} (quanto)`)
+    if (!('fixo' in delta)) return { alvo: alvoDoMod, delta: numeroSimples(delta, DANO_MAX, `${ondeDoMod} (quanto)`) }
+    soChaves(delta, ['fixo'], `${ondeDoMod} (quanto)`)
+    const fixo = inteiro(delta.fixo, -DANO_MAX, DANO_MAX, `${ondeDoMod} (quanto)`)
+    if (fixo === 0) torta(`${ondeDoMod}: o número do selo não pode ser 0`)
+    return { alvo: alvoDoMod, delta: { fixo } }
+  })
+  if (mods.length === 0) torta(`${onde}: o selo com número precisa de pelo menos um`)
+  return mods
 }
 
 function efeito(valor: unknown, indice: number): Efeito {
@@ -555,14 +635,16 @@ function efeito(valor: unknown, indice: number): Efeito {
   const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'aMao'] as const, onde)
   switch (tipo) {
     case 'selo': {
-      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em'], onde, 'selo')
+      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em', 'mods', 'regra'], onde, 'selo')
       const duracao = peca.duracao === 'ateTirar' || peca.duracao === 'proximoGolpe' ? peca.duracao : inteiro(peca.duracao, 1, TURNOS_DO_SELO_MAX, `${onde} (duração)`)
       const lido: Efeito = { tipo, nome: texto(peca.nome, NOME_DO_SELO_MAX, `${onde} (nome do selo)`), duracao }
       if (peca.natureza !== undefined) lido.natureza = umDe(peca.natureza, ['buff', 'debuff'] as const, `${onde} (natureza)`)
       if (peca.porTurno !== undefined) lido.porTurno = porTurnoDoSelo(peca.porTurno, onde)
-      // Fase 4: o selo em quem atacou (a reação confere que é dela); em quem usa é da fase 5.
-      if (peca.em === 'quemUsa') aindaNaoRoda('selo em quem usa')
-      if (peca.em !== undefined) lido.em = umDe(peca.em, ['atacante'] as const, `${onde} (em quem)`)
+      // Fase 4: o selo em quem atacou (a reação confere que é dela). Fase 5: em quem usa (a postura); 'alvo' é o de sempre.
+      const em = peca.em === undefined ? 'alvo' : umDe(peca.em, ['alvo', 'quemUsa', 'atacante'] as const, `${onde} (em quem)`)
+      if (em !== 'alvo') lido.em = em
+      if (peca.mods !== undefined) lido.mods = modsDoSelo(peca.mods, onde)
+      if (peca.regra !== undefined) lido.regra = regraDoSelo(peca.regra, onde)
       return lido
     }
     case 'cura':
@@ -582,9 +664,13 @@ function efeito(valor: unknown, indice: number): Efeito {
 
 /** Um de cada: selo, cura e tirar selos (a fatia C5 abre mais de um selo). */
 function conferirEfeitos(efeitos: readonly Efeito[], quem: QuemOAlvoPega): void {
-  for (const tipo of ['selo', 'cura', 'tirarSelos'] as const) {
+  for (const tipo of ['cura', 'tirarSelos'] as const) {
     if (efeitos.filter((item) => item.tipo === tipo).length > 1) torta(`mais de um efeito "${tipo}"`)
   }
+  // Fase 5: vários selos no mesmo golpe (até 3, decisão C4); em quem usa, um só.
+  const selos = efeitos.filter((item) => item.tipo === 'selo')
+  if (selos.length > SELOS_NO_GOLPE_MAX) torta(`mais de ${SELOS_NO_GOLPE_MAX} selos no mesmo golpe`)
+  if (selos.filter((item) => item.em === 'quemUsa').length > 1) torta('mais de um selo em quem usa')
   // A cura e a limpeza de hoje (`LimpezaAMao`) valem em quem usa ou num aliado.
   const limpa = efeitos.some((item) => item.tipo === 'cura' || item.tipo === 'tirarSelos')
   if (limpa && quem !== 'aliados' && quem !== 'si') torta('cura e tirar selos só pegam em quem usa ou num aliado')
@@ -677,6 +763,8 @@ function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): 
   if (peca.reacao !== undefined) mecanica.reacao = reacaoDaPeca(peca.reacao)
   conferirTeste(mecanica)
   conferirReacao(mecanica)
+  // Fase 5: a versão 1 é o que o app de antes lê; peça só da 2 nela é arquivo torto (quem grava usa a 2, `precisaDaVersao2`).
+  if (versao === 1 && precisaDaVersao2(mecanica)) torta('peça da versão 2 numa mecânica da versão 1')
   return mecanica
 }
 

@@ -22,8 +22,8 @@ import {
 import { comBandosEmDia, invocadoDoToken } from '../../lib/batalha/invocacao'
 import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, passivaDaMarca, type AcertoNaMarca } from '../../lib/batalha/marca'
 import { bonusDaBatalha, comSeloNovo, criarSelo, ondeNaVez, novoIdDeSelo, selosDoToken } from '../../lib/batalha/selos'
-import { curaDoDano, esquivaComDesvantagem, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao } from '../../lib/batalha/condicoes'
-import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
+import { curaComOsSelos, curaDoDano, esquivaComDesvantagem, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao } from '../../lib/batalha/condicoes'
+import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano, reducoesDosSelos } from '../../lib/batalha/reducaoDoDano'
 import {
   golpePendente,
   lancarGolpe,
@@ -132,11 +132,13 @@ function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeD
   const dele = alvo.personagemId === null || sistema === null ? undefined : mesa.personagens().find((personagem) => personagem.id === alvo.personagemId)
   const { danoFinal } = acerto.alvo
   if (dele === undefined || sistema === null || danoFinal === undefined || danoFinal <= 0) return acerto
-  const reducoes = reducoesDoDano(dele, sistema)
+  // Fase 5: e o selo montado com regra de dano recebido (−20% a menos, +50% a mais), por último.
+  const dosSelos = reducoesDosSelos(acerto.turnos.selos, alvo.tokenId)
+  const reducoes = [...reducoesDoDano(dele, sistema), ...dosSelos]
   if (reducoes.length === 0) return acerto
   const reduzido: AlvoDoGolpe = { ...acerto.alvo, danoFinal: danoComAsReducoes(danoFinal, reducoes), reducao: porcentoDasReducoes(reducoes) }
   // Só a forma: o registro segue "(forma −20%)", como antes.
-  if (reducoes.some((reducao) => reducao.nome === 'Determinação')) reduzido.reducaoDe = nomesDasReducoes(reducoes)
+  if (dosSelos.length > 0 || reducoes.some((reducao) => reducao.nome === 'Determinação')) reduzido.reducaoDe = nomesDasReducoes(reducoes)
   return { ...acerto, alvo: reduzido }
 }
 
@@ -612,7 +614,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           // A cura lê o Espírito de quem usa DEPOIS da limpeza (sem o cansaço, se ele limpou a si mesmo); com 3 cargas, a fórmula do X3 da ficha.
           const lida = lerDano(formulaDaCura(limpeza, lancado.cargaUsada), { personagem: ctx.personagem, sistema: ctx.sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(novos.selos, carta.tokenId) })
           // U6: a fórmula que não fecha a conta já foi recusada antes de cobrar (`podeAgir`); aqui só chega número ou "sem cura" (0).
-          const cura = lida.tipo === 'valor' ? lida.valor : 0
+          // Fase 5: a cura cortada (ou aumentada) pela regra do selo de quem recebe (`curaRecebida`).
+          const cura = lida.tipo === 'valor' ? curaComOsSelos(lida.valor, novos.selos, alvo.tokenId) : 0
           // Pedido de 09/11 (a Bolha): o que cabe na vida do alvo AGORA (lido antes de gravar), para a nota dizer o que entrou.
           const sistemaDaCura = ctx.sistema
           const fichaDoAlvo = alvo.personagemId === null ? undefined : mesa.personagens().find((candidato) => candidato.id === alvo.personagemId)

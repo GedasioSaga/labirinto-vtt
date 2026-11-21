@@ -17,7 +17,7 @@ import { danoDaTecnicaComAVida } from '../leituraDaTecnica'
 import { pecasDoCartao } from '../mecanica/leitura'
 import { mecanicaDoCartao } from '../mecanicasAMao'
 import { reacoesParaOAlvo, type ReacaoComTecnica } from '../reacaoComTecnica'
-import { selosDoToken } from '../selos'
+import { selosDoToken, textoDoSeloComMods } from '../selos'
 import { lerTipo } from '../tiposDaHabilidade'
 import { combatentesIniciais, type AutorDaAcao } from '../turnos'
 
@@ -127,7 +127,9 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
   const quem = pecas?.alvo.quem
   const forma = pecas?.alvo.forma
   const area = forma !== undefined && forma.tipo !== 'um'
-  const cura = linha?.limpa !== undefined && linha.limpa.cura !== '0'
+  // Fase 5: a regeneração por vez também pede o boneco ferido (cheio, ela não mostra nada).
+  const regenera = (pecas?.efeitos ?? []).some((efeito) => efeito.tipo === 'selo' && efeito.porTurno?.sinal === 'da' && efeito.porTurno.recurso === 'hp')
+  const cura = (linha?.limpa !== undefined && linha.limpa.cura !== '0') || regenera
   // Cura e limpeza só valem em quem usa ou num aliado (`motivoDoAlvoDasPecas`): o boneco fica do lado de quem usa.
   const ajuda = quem === 'aliados' || quem === 'si' || (pecas === null && linha?.limpa !== undefined)
   // "Vários" tem teto de alvos (a Bolha do Tree: 2): nenhum boneco a mais que o teto.
@@ -321,6 +323,23 @@ function barrasDosAlvos(mesa: MesaEmMemoria, sistema: SistemaDeRpg, alvosTokens:
     })
 }
 
+/**
+ * Fase 5: os selos que o golpe pôs, com os números ("Fortalecido 2 (FOR +20)":
+ * o +20 entra na conta do próximo golpe de quem o tem). Lido da mesa depois
+ * do golpe, como o motor deixou.
+ */
+function passosDosSelosNovos(montada: MesaDoEnsaio, sistema: SistemaDeRpg, antes: ReadonlySet<string>): PassoDoEnsaio[] {
+  const { mesa, loja } = montada
+  return (cenaDe(loja).turnos.selos ?? [])
+    .filter((selo) => !antes.has(selo.id))
+    .map((selo) => {
+      const vaga = mesa.vagas().find((candidata) => candidata.tokenId === selo.tokenId)
+      const nome = vaga === undefined ? NOME_DO_BONECO : nomeNaVaga(mesa, vaga)
+      const conta = (selo.mods ?? []).length > 0 ? ': os números entram na conta do próximo golpe dele' : ''
+      return { tipo: 'registro', titulo: 'Selo', texto: `${nome} fica ${textoDoSeloComMods(selo, sistema)}${conta}.` }
+    })
+}
+
 /** "Passar 1 vez do alvo": a vez atual acaba e começa a seguinte; o sangramento é aplicado, a condição conta. */
 function passarUmaVezNa(montada: MesaDoEnsaio, sistema: SistemaDeRpg): () => PassoDoEnsaio[] {
   const { mesa, loja } = montada
@@ -465,8 +484,12 @@ export function ensaiar(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
     ...(selo === null ? {} : { selo }),
   }
 
+  // Fase 5: o teste confere o efeito, não a ação da vez: a técnica de Ação Bônus ganha a bônus, como o mestre daria.
+  const deuBonus = tecnica.acao === 'bonus' && loja.getState().darAcoesExtras(CENA_DO_ENSAIO, turnos.vez, { simples: 0, bonus: 1, mov: 0, duracao: 'rodada', rodada: turnos.rodada })
+  const passoDoBonus: PassoDoEnsaio[] = deuBonus ? [{ tipo: 'arrumou', titulo: 'Ação', texto: 'Ação bônus dada para o teste (na batalha, o mestre é quem dá).' }] : []
   const antes = fotoDosRecursos(mesa)
   const vidaAntes = new Map(mesa.personagens().map((personagem) => [personagem.id, vida === null ? null : vidaDoPersonagem(personagem, vida)]))
+  const selosAntes = new Set((turnos.selos ?? []).map((selo) => selo.id))
   const desde = cenaDe(loja).registro.length
   const esperado = { cartaId: turnos.vez, rodada: turnos.rodada }
   // O motivo é o mesmo que o host daria ao golpe (`podeAgir`), palavra por palavra.
@@ -478,7 +501,7 @@ export function ensaiar(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   const primeiro = lidos[0]?.lido
   const formula: PassoDoEnsaio[] = primeiro !== undefined && (primeiro.tipo === 'valor' || primeiro.tipo === 'precisaArma') ? [{ tipo: 'formula', titulo: 'Fórmula', texto: primeiro.tipo === 'valor' ? primeiro.conta : `${primeiro.conta} (falta a arma)` }] : []
   const reacoes = bonecosReagem(montada)
-  const passos: PassoDoEnsaio[] = [arrumou, ...formula, ...reacoes, ...passosDoRegistro(loja, desde, 'Na batalha'), ...passosDosRecursos(mesa, sistema, antes)]
+  const passos: PassoDoEnsaio[] = [arrumou, ...passoDoBonus, ...formula, ...reacoes, ...passosDoRegistro(loja, desde, 'Na batalha').filter((passo) => !/ ganhou ações extras/.test(passo.texto)), ...passosDosSelosNovos(montada, sistema, selosAntes), ...passosDosRecursos(mesa, sistema, antes)]
   const depois = passoDoTempo(tecnica.tempo)
   if (depois !== null) passos.push(depois)
   return { passos, barras: barrasDosAlvos(mesa, sistema, alvosTokens, vidaAntes), passarUmaVez: passarUmaVezNa(montada, sistema) }

@@ -324,6 +324,8 @@ export interface MecanicaAMao {
   gastaItem?: string
   /** F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao usar (o "Para você: +8 em reação" por 2 turnos). */
   seloEmQuemUsa?: SeloDoGolpe
+  /** Fase 5 (técnica montada): os selos a mais que o golpe põe no acerto, depois do `selo` (até 3 ao todo). */
+  selosAMais?: readonly SeloDoGolpe[]
   /** F2 (fatia F, Golpe Baixo): o que a mira lembra (o mestre confere; o app não trava). */
   lembreteNaMira?: string
   /** F2 (fatia F, Medicina): as outras opções da técnica são só fora da batalha (a Cirurgia sai do menu). */
