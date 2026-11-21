@@ -1,0 +1,1742 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo — Conteúdo do baú, com miniaturas</title>
+<style>
+/*
+ * PROTÓTIPO do redesign do CONTEÚDO do baú, da caixa e do barril (pedido de
+ * 21/11/2026: "faz um redesign disso tá horrível coloca uma miniatura").
+ * Os tokens abaixo são cópia de client/src/theme.ts (mesmos nomes --lb-*),
+ * para o CSS poder ir para o app sem tradução. Nenhuma cor fora deles, salvo
+ * os desenhos dos itens, que fazem as vezes das PNGs do acervo.
+ */
+:root {
+  --lb-color-ink: #121214;
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-online-soft: rgba(127, 180, 138, 0.14);
+  --lb-color-tide: #79a9cc;
+  --lb-color-tide-soft: rgba(121, 169, 204, 0.14);
+  --lb-color-arcane: #ab93d6;
+  --lb-color-arcane-soft: rgba(171, 147, 214, 0.15);
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-motion-fast: 110ms;
+  --lb-motion-base: 170ms;
+  --lb-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --lb-gr-papel-alto: #1b1711;
+  --lb-gr-papel-baixo: #13100c;
+  --lb-gr-cartao: #211c15;
+  --lb-gr-cartao-alto: #29231a;
+  --lb-gr-campo: #15120e;
+  --lb-gr-filete: rgba(236, 234, 228, 0.09);
+  --lb-gr-filete-forte: rgba(236, 234, 228, 0.16);
+  --lb-gr-filete-latao: rgba(224, 164, 74, 0.26);
+  --lb-gr-couro-1: #17100a;
+  --lb-gr-couro-2: #251a11;
+  --lb-gr-couro-3: #2f2216;
+  --lb-gr-gravado: #c8b089;
+  --lb-gr-latao-1: #f6cb84;
+  --lb-gr-latao-2: #e0a44a;
+  --lb-gr-latao-3: #b87d2e;
+  --lb-gr-hover: rgba(255, 236, 200, 0.06);
+  --lb-gr-hover-forte: rgba(255, 236, 200, 0.1);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font: 400 var(--lb-font-size-md) / 1.45 var(--lb-font-sans);
+  color: var(--lb-color-parchment);
+  /* o canvas do mapa atrás do livro: o cinza do Pixi com a grade */
+  background-color: #2b2b2b;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  overflow: hidden;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: not-allowed; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ------------------------------------------------------------------ mesa do protótipo */
+.mesa { display: flex; gap: 28px; height: 100vh; padding: 12px; align-items: flex-start; }
+
+.livro { position: relative; display: flex; flex: none; height: calc(100vh - 24px); }
+.lombada {
+  width: 52px; flex: none;
+  background: linear-gradient(90deg, var(--lb-gr-couro-1), var(--lb-gr-couro-3) 45%, var(--lb-gr-couro-2));
+  border: 1px solid var(--lb-gr-filete); border-right: 0;
+  border-radius: var(--lb-radius-lg) 0 0 var(--lb-radius-lg);
+  box-shadow: var(--lb-shadow-float);
+  display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 14px;
+}
+.lombada i {
+  width: 30px; height: 30px; border-radius: 8px; display: block;
+  border: 1px solid rgba(200, 176, 137, 0.18);
+  background: rgba(200, 176, 137, 0.06);
+}
+.lombada i.e-aqui { border-color: var(--lb-gr-filete-latao); background: var(--lb-color-brass-soft); }
+
+.pagina {
+  position: relative; width: var(--pagina, 262px); display: flex; flex-direction: column;
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  border: 1px solid var(--lb-gr-filete); border-left: 0;
+  border-radius: 0 var(--lb-radius-lg) var(--lb-radius-lg) 0;
+  box-shadow: var(--lb-shadow-float);
+}
+.pagina__topo { flex: none; padding: 10px 12px 10px 14px; border-bottom: 1px solid var(--lb-gr-filete); }
+.pagina__corpo {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 12px;
+  /* a compensação da rolagem ao pôr é feita à mão (porItem); a do navegador somaria em dobro */
+  overflow-anchor: none;
+  scrollbar-width: thin; scrollbar-color: var(--lb-color-line-strong) transparent;
+}
+/* a borda da página arrasta a largura, como no app (lib/larguraDaPagina.ts) */
+.pagina__borda {
+  position: absolute; top: 0; right: -5px; bottom: 0; width: 10px; cursor: ew-resize; z-index: 2;
+  border-radius: 4px;
+}
+.pagina__borda:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: -3px; }
+@media (hover: hover) and (pointer: fine) {
+  .pagina__borda:hover { background: linear-gradient(90deg, transparent 4px, var(--lb-gr-filete-latao) 4px, var(--lb-gr-filete-latao) 6px, transparent 6px); }
+}
+
+.cabeca { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.cabeca__med {
+  width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 55%, var(--lb-gr-latao-3));
+  color: var(--lb-color-brass-contrast);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.cabeca__med svg { width: 22px; height: 22px; }
+.cabeca__nome { margin: 0; font: 400 19px/1.15 var(--lb-font-display); overflow-wrap: break-word; }
+.cabeca__tipo { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+
+/* as fichas recolhíveis do livro (grimorio.css, .gr-ficha) */
+.fichas { display: flex; flex-direction: column; gap: 8px; }
+.ficha {
+  background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md); box-shadow: inset 0 1px 0 rgba(255, 236, 200, 0.04);
+}
+.ficha__cab {
+  width: 100%; min-height: 40px; display: flex; align-items: center; gap: 9px; padding: 0 10px;
+  text-align: left; border-radius: var(--lb-radius-md); transition: background-color var(--lb-motion-fast) ease;
+}
+button.ficha__cab:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) { button.ficha__cab:hover { background: var(--lb-gr-hover); } }
+.ficha__med { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--lb-color-brass-soft); color: var(--lb-color-brass); }
+.ficha__med svg { width: 15px; height: 15px; }
+.ficha__tit { font-weight: 600; flex: 1; min-width: 0; }
+.ficha__resumo { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
+.ficha.e-aberta .ficha__resumo { display: none; }
+.ficha__seta { color: var(--lb-color-parchment-faint); transform: rotate(-90deg); transition: transform 200ms var(--lb-gr-ease-out); display: grid; }
+.ficha__seta svg { width: 16px; height: 16px; }
+.ficha.e-aberta .ficha__seta { transform: none; }
+.ficha__dentro { padding: 12px; border-top: 1px solid var(--lb-gr-filete); }
+.ficha--contexto { opacity: 0.55; }
+
+/* ------------------------------------------------------------------ CONTEÚDO (o que vai para o app) */
+.cb { container-type: inline-size; display: flex; flex-direction: column; gap: 14px; }
+.cb-secao { display: flex; flex-direction: column; gap: 6px; }
+.cb-secao__cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.cb-secao__cab output { font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+.cb-nota { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment-faint); }
+.cb-nota b { color: var(--lb-color-parchment-dim); font-weight: 600; }
+
+/* A VAGA: a moldura afundada de toda miniatura (item, documento, moedas,
+   minigame, armadilha), a mesma da grade do acervo e da mochila. */
+.cb-vaga {
+  position: relative; width: 40px; height: 40px; flex: none; display: grid; place-items: center; overflow: hidden;
+  border-radius: 8px;
+  background: radial-gradient(circle at 50% 38%, #1f1a13, var(--lb-gr-campo) 72%);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(236, 234, 228, 0.07), 0 1px 0 rgba(255, 236, 200, 0.05);
+}
+.cb-vaga > svg { width: 78%; height: 78%; }
+.cb-vaga > img { width: 100%; height: 100%; object-fit: contain; padding: 3px; }
+.cb-vaga--vazia { background: transparent; box-shadow: none; border: 1px dashed var(--lb-gr-filete-forte); }
+.cb-vaga--vazia > svg { opacity: 0.45; }
+.cb-vaga.e-desligada > svg { opacity: 0.4; filter: saturate(0.3); }
+.cb-vaga--apagado { background: transparent; box-shadow: none; border: 1px dashed rgba(226, 100, 90, 0.4); color: var(--lb-color-parchment-faint); }
+
+/* as iniciais de quem não tem imagem: o IniciaisDoNome do app, com os 5 tons */
+.cb-iniciais { width: 100%; height: 100%; display: grid; place-items: center; font: 400 17px/1 var(--lb-font-display); color: var(--lb-color-brass-bright); background: var(--lb-color-brass-soft); user-select: none; }
+.cb-iniciais[data-tom='1'] { color: var(--lb-color-ember); background: var(--lb-color-ember-soft); }
+.cb-iniciais[data-tom='2'] { color: var(--lb-color-tide); background: var(--lb-color-tide-soft); }
+.cb-iniciais[data-tom='3'] { color: var(--lb-color-arcane); background: var(--lb-color-arcane-soft); }
+.cb-iniciais[data-tom='4'] { color: var(--lb-color-online); background: var(--lb-color-online-soft); }
+
+/* A LINHA: vaga à esquerda; nome em cima; categoria e controle embaixo.
+   Estreita (até ~250 px de miolo) o nome ganha a largura toda; larga, tudo
+   cabe numa faixa só, com o controle no meio da altura. */
+.cb-lista { list-style: none; margin: 0 -6px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.cb-linha {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-areas: 'vaga nome nome' 'vaga sub ctl';
+  column-gap: 10px; row-gap: 3px; align-items: center;
+  padding: 6px; border-radius: 9px;
+  transition: background-color var(--lb-motion-fast) ease;
+}
+.cb-linha > .cb-vaga { grid-area: vaga; align-self: start; }
+.cb-linha__nome { grid-area: nome; min-width: 0; font-weight: 500; line-height: 1.25; overflow-wrap: break-word; hyphens: auto; }
+.cb-linha__sub { grid-area: sub; min-width: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cb-linha > .cb-passo, .cb-linha > .cb-tirar, .cb-linha > .cb-chave { grid-area: ctl; justify-self: end; }
+.cb-linha:focus-within { background: var(--lb-gr-hover); }
+@media (hover: hover) and (pointer: fine) { .cb-linha:hover { background: var(--lb-gr-hover); } }
+@container (min-width: 250px) {
+  .cb-linha { grid-template-areas: 'vaga nome ctl' 'vaga sub ctl'; }
+  .cb-linha > .cb-vaga { align-self: center; }
+}
+.cb-linha--moedas.e-zero .cb-linha__nome { color: var(--lb-color-parchment-dim); font-weight: 400; }
+.cb-linha--ao { padding-left: 0; padding-right: 0; }
+.cb-linha--ao:hover, .cb-linha--ao:focus-within { background: transparent; }
+
+/* feedback de pôr: a linha que recebeu acende em latão e apaga. Só a opacidade
+   de uma camada por cima (GPU), sem mexer a linha: o pôr vem do Enter, repetido. */
+.cb-linha { position: relative; }
+.cb-linha.e-realce::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: var(--lb-color-brass-soft); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao);
+  opacity: 0; animation: cb-realce 700ms ease-out;
+}
+@keyframes cb-realce { 0%, 20% { opacity: 1; } 100% { opacity: 0; } }
+
+/* o vazio: um convite, não um aviso */
+.cb-vazio { display: grid; grid-template-columns: 40px 1fr; column-gap: 10px; align-items: center; padding: 6px; }
+.cb-vazio b { display: block; font-weight: 500; }
+.cb-vazio span { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+
+/* O PASSO: − número +, numa pílula só. Em 1, o − vira a lixeira. */
+.cb-passo {
+  display: inline-flex; align-items: center; height: 28px; border-radius: 8px;
+  background: var(--lb-gr-campo); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte);
+}
+.cb-passo__bt {
+  width: 26px; height: 28px; display: grid; place-items: center; border-radius: 8px;
+  color: var(--lb-color-parchment-dim);
+  transition: color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.cb-passo__bt svg { width: 14px; height: 14px; }
+.cb-passo__bt:active:not(:disabled) { transform: scale(0.95); }
+.cb-passo__bt:disabled { opacity: 0.35; }
+@media (hover: hover) and (pointer: fine) {
+  .cb-passo__bt:hover:not(:disabled) { color: var(--lb-color-parchment); background: var(--lb-gr-hover-forte); }
+  .cb-passo__bt--tirar:hover:not(:disabled) { color: #f0897f; background: var(--lb-color-ember-soft); }
+}
+.cb-passo__num {
+  field-sizing: content; min-width: 2.2ch; max-width: 8ch; width: 3.2em;
+  height: 28px; padding: 0 2px; border: 0; background: transparent; text-align: center;
+  font: 500 var(--lb-font-size-md)/1 var(--lb-font-utility); font-variant-numeric: tabular-nums;
+}
+@supports (field-sizing: content) { .cb-passo__num { width: auto; } }
+.cb-passo__bt:focus-visible, .cb-passo__num:focus-visible, .cb-tirar:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: -1px; }
+
+.cb-tirar {
+  width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: var(--lb-color-parchment-faint);
+  transition: color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.cb-tirar svg { width: 15px; height: 15px; }
+.cb-tirar:active { transform: scale(0.95); }
+@media (hover: hover) and (pointer: fine) { .cb-tirar:hover { color: #f0897f; background: var(--lb-color-ember-soft); } }
+
+/* os botões do livro (grimorio.css, .gr-bt) */
+.cb-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.cb-bt {
+  flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  min-height: 32px; padding: 0 10px; border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); border: 1px solid var(--lb-gr-filete-forte);
+  font-weight: 500; white-space: nowrap;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.cb-bt:active:not(:disabled) { transform: scale(0.97); }
+.cb-bt:disabled { opacity: 0.45; }
+.cb-bt:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: 2px; }
+.cb-bt--latao { background: transparent; border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.cb-bt[aria-expanded='true'] { background: var(--lb-color-brass-soft); border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.cb-bt__mais { font: 500 16px/1 var(--lb-font-utility); margin-top: -1px; }
+@media (hover: hover) and (pointer: fine) { .cb-bt:hover:not(:disabled) { border-color: var(--lb-color-brass); } }
+
+/* ------------------------------------------------------------------ A ESCOLHA (acervo e biblioteca) */
+.cb-escolha {
+  display: flex; flex-direction: column; gap: 8px; padding: 8px;
+  border-radius: 10px; background: var(--lb-gr-papel-baixo);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte), inset 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.cb-busca { position: relative; }
+.cb-busca svg { position: absolute; left: 8px; top: 50%; width: 14px; height: 14px; transform: translateY(-50%); color: var(--lb-color-parchment-faint); pointer-events: none; }
+.cb-busca input {
+  width: 100%; height: 32px; padding: 0 8px 0 28px; border: 0; border-radius: 7px;
+  background: var(--lb-gr-campo); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte);
+  outline: none; transition: box-shadow var(--lb-motion-fast) ease;
+}
+.cb-busca input::placeholder { color: var(--lb-color-parchment-faint); }
+.cb-busca input:focus-visible { box-shadow: inset 0 0 0 1px var(--lb-color-brass), 0 0 0 1px var(--lb-color-brass); }
+.cb-busca input::-webkit-search-cancel-button { filter: grayscale(1) brightness(1.6); cursor: pointer; }
+
+/* as categorias: uma faixa que rola de lado, com a ponta que some */
+.cb-chips {
+  display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; margin: 0 -8px; padding: 1px 8px;
+}
+.cb-chips::-webkit-scrollbar { display: none; }
+.cb-chips[data-ponta~='dir'] { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+.cb-chips[data-ponta~='esq'] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px); mask-image: linear-gradient(90deg, transparent, #000 28px); }
+.cb-chips[data-ponta='esq dir'] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+.cb-chip {
+  flex: none; height: 26px; padding: 0 10px; border-radius: var(--lb-radius-full);
+  font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); white-space: nowrap;
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte);
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, box-shadow var(--lb-motion-fast) ease;
+}
+.cb-chip[aria-checked='true'] { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.cb-chip:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) { .cb-chip:hover:not([aria-checked='true']) { color: var(--lb-color-parchment); } }
+
+/* a grade: as mesmas peças da grade do acervo, com a vaga quadrada */
+.cb-grade {
+  list-style: none; margin: 0 -4px; padding: 2px 4px; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 4px;
+  max-height: min(320px, 46vh); overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--lb-color-line-strong) transparent;
+}
+.cb-peca {
+  position: relative; display: flex; flex-direction: column; gap: 4px; padding: 4px 3px 5px;
+  border-radius: 8px; cursor: pointer; user-select: none;
+  transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.cb-peca > .cb-vaga { width: 100%; height: auto; aspect-ratio: 1; }
+.cb-peca > .cb-vaga > svg { width: 72%; height: 72%; }
+.cb-peca .cb-iniciais { font-size: 20px; }
+.cb-peca__nome {
+  font-size: var(--lb-font-size-xs); line-height: 1.25; text-align: center; color: var(--lb-color-parchment-dim);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word;
+}
+.cb-peca:active { transform: scale(0.96); }
+.cb-peca[aria-selected='true'] { background: var(--lb-gr-hover-forte); }
+.cb-peca[aria-selected='true'] > .cb-vaga { box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.65), inset 0 0 0 1px var(--lb-color-brass), 0 0 0 1px var(--lb-color-brass); }
+.cb-peca[aria-selected='true'] .cb-peca__nome { color: var(--lb-color-parchment); }
+.cb-peca[aria-disabled='true'] { cursor: not-allowed; }
+.cb-peca[aria-disabled='true'] > .cb-vaga, .cb-peca[aria-disabled='true'] .cb-peca__nome { opacity: 0.4; }
+.cb-peca__conta {
+  position: absolute; top: 1px; right: 0; min-width: 20px; padding: 3px 5px; border-radius: var(--lb-radius-full);
+  font: 600 var(--lb-font-size-xs)/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; text-align: center;
+  background: var(--lb-color-brass); color: var(--lb-color-brass-contrast);
+  box-shadow: 0 0 0 2px var(--lb-gr-papel-baixo);
+}
+.cb-peca__conta.e-conta { animation: cb-conta 140ms var(--lb-gr-ease-out); }
+@keyframes cb-conta { from { transform: scale(0.9); } }
+
+/* a lista de documentos: linha com o papel em miniatura */
+.cb-docs { list-style: none; margin: 0 -4px; padding: 0 4px; display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; scrollbar-width: thin; }
+.cb-doc { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 4px; border-radius: 8px; cursor: pointer; user-select: none; }
+.cb-doc > .cb-vaga { width: 32px; height: 32px; border-radius: 7px; }
+.cb-doc__tit { min-width: 0; line-height: 1.25; overflow: hidden; overflow-wrap: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.cb-doc__ja { color: var(--lb-color-online); display: grid; }
+.cb-doc__ja svg { width: 15px; height: 15px; }
+.cb-doc[aria-selected='true'] { background: var(--lb-gr-hover-forte); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.cb-doc[aria-disabled='true'] { cursor: default; }
+.cb-doc[aria-disabled='true'] .cb-doc__tit { color: var(--lb-color-parchment-faint); }
+
+/* a prévia do que está marcado: o nome inteiro que a peça corta */
+.cb-previa { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline; min-height: 34px; padding: 4px 2px 0; border-top: 1px solid var(--lb-gr-filete); }
+.cb-previa__nome { min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-previa__cat { grid-column: 1; min-width: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-previa__conta { grid-column: 2; grid-row: 1 / span 2; align-self: center; font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); color: var(--lb-color-brass-bright); white-space: nowrap; }
+.cb-previa__aviso { grid-column: 1 / -1; font-size: var(--lb-font-size-sm); color: #f0897f; }
+.cb-escolha__pe { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.cb-escolha__pe .cb-bt { flex: none; min-height: 26px; padding: 0 9px; margin-left: auto; font-size: var(--lb-font-size-sm); }
+kbd {
+  font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim);
+  border: 1px solid var(--lb-gr-filete-forte); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px;
+}
+.cb-escolha__vazio { display: grid; justify-items: center; gap: 6px; padding: 14px 6px; text-align: center; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.cb-escolha__vazio b { color: var(--lb-color-parchment-dim); font-weight: 500; font-size: var(--lb-font-size-md); }
+.cb-link { color: var(--lb-color-brass-bright); text-decoration: underline; text-underline-offset: 2px; font-size: var(--lb-font-size-sm); }
+.cb-link:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: 2px; border-radius: 2px; }
+
+/* ------------------------------------------------------------------ ao abrir: minigame e armadilha */
+.lb-switch__track { position: relative; flex: none; width: 34px; height: 20px; border-radius: var(--lb-radius-full); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line-strong); transition: background var(--lb-motion-base) var(--lb-motion-ease), border-color var(--lb-motion-base) var(--lb-motion-ease); }
+.lb-switch__track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--lb-color-parchment-faint); pointer-events: none; transition: transform var(--lb-motion-base) var(--lb-motion-ease), background var(--lb-motion-base) var(--lb-motion-ease); }
+.lb-switch__input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; appearance: none; cursor: pointer; }
+.lb-switch__track:has(> .lb-switch__input:checked) { background: var(--lb-color-brass); border-color: var(--lb-color-brass); }
+.lb-switch__track:has(> .lb-switch__input:checked)::after { transform: translateX(14px); background: var(--lb-color-brass-contrast); }
+.lb-switch__track:has(> .lb-switch__input:focus-visible) { box-shadow: 0 0 0 2px var(--lb-gr-cartao), 0 0 0 4px var(--lb-color-brass); }
+label.cb-linha__nome { cursor: pointer; }
+
+.cb-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--lb-gr-campo); box-shadow: inset 0 0 0 1px var(--lb-gr-filete); }
+.cb-seg button { min-height: 28px; padding: 0 4px; border-radius: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease; }
+.cb-seg button[aria-checked='true'] { background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); font-weight: 600; box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte), 0 1px 2px rgba(0, 0, 0, 0.4); }
+.cb-seg button:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: -2px; }
+.cb-par { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+.cb-par > span:first-child { min-width: 0; }
+.cb-par small { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-xs); }
+.cb-armadilha { display: flex; flex-direction: column; gap: 6px; }
+
+.cb-aberto { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 4px 10px; align-items: center; padding: 10px; border-radius: 10px; background: var(--lb-color-brass-soft); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.cb-aberto p { margin: 0; }
+.cb-aberto .cb-bt { grid-column: 1 / -1; }
+
+/* ------------------------------------------------------------------ a torrada com Desfazer (toastStore do app) */
+.cb-torradas { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; z-index: 3; }
+.cb-torrada {
+  pointer-events: auto; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 10px;
+  background: var(--lb-color-stone-raised); box-shadow: var(--lb-shadow-float); font-size: var(--lb-font-size-sm);
+  transition: opacity 200ms var(--lb-gr-ease-out), transform 200ms var(--lb-gr-ease-out);
+}
+@starting-style { .cb-torrada { opacity: 0; transform: translateY(8px); } }
+.cb-torrada.e-sai { opacity: 0; transform: translateY(6px); transition-duration: 140ms; }
+.cb-torrada span { flex: 1; min-width: 0; }
+.cb-torrada button { flex: none; min-height: 26px; padding: 0 9px; border-radius: 6px; color: var(--lb-color-brass-bright); font-weight: 600; }
+.cb-torrada button:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: 0; }
+@media (hover: hover) and (pointer: fine) { .cb-torrada button:hover { background: var(--lb-gr-hover-forte); } }
+
+/* ------------------------------------------------------------------ painel do protótipo (fora do app) */
+.proto {
+  width: 300px; flex: none; max-height: calc(100vh - 24px); overflow-y: auto; padding: 14px 16px; border-radius: 12px;
+  background: rgba(19, 19, 23, 0.94); box-shadow: var(--lb-shadow-float); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim);
+  scrollbar-width: thin;
+}
+.proto h1 { margin: 0 0 2px; font: 400 18px/1.2 var(--lb-font-display); color: var(--lb-color-parchment); }
+.proto h2 { margin: 14px 0 6px; font-size: var(--lb-font-size-sm); font-weight: 600; color: var(--lb-color-parchment); }
+.proto p { margin: 0 0 6px; }
+.proto ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.proto-grupo { display: flex; flex-wrap: wrap; gap: 4px; }
+.proto-grupo button { min-height: 26px; padding: 0 9px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--lb-color-line-strong); color: var(--lb-color-parchment-dim); }
+.proto-grupo button[aria-pressed='true'] { background: var(--lb-color-brass-soft); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.proto-grupo button:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: 1px; }
+.proto output { font-family: var(--lb-font-utility); color: var(--lb-color-parchment); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-peca__conta.e-conta { animation: none; }
+  .cb-torrada { transition: opacity 160ms ease; }
+  @starting-style { .cb-torrada { transform: none; } }
+  .cb-bt:active:not(:disabled), .cb-peca:active, .cb-passo__bt:active:not(:disabled), .cb-tirar:active { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Os desenhos: fazem as vezes das PNGs do acervo (no app, <img> da mídia via ImagemOuIniciais). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="a-ouro" viewBox="-24 -24 48 48">
+      <path d="M-20 10 L-14 -2 H14 L20 10 Z" fill="#c98a24" stroke="#6e4610" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M-14 -2 L-9 -10 H9 L14 -2 Z" fill="#f2c560" stroke="#6e4610" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M-6 -7 H5" stroke="#fff1c2" stroke-width="2" stroke-linecap="round"/>
+      <path d="M-15 6 H-5" stroke="#e8ad45" stroke-width="1.6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="a-pocao" viewBox="-24 -24 48 48">
+      <rect x="-5" y="-20" width="10" height="6" rx="1.5" fill="#b08455" stroke="#5e3f1f" stroke-width="2"/>
+      <path d="M-4.5 -14 V-6.5 A13 13 0 1 0 4.5 -6.5 V-14 Z" fill="#3a3f46" stroke="#59636b" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M-12.4 3 A12.6 12.6 0 1 0 12.4 3 Z" fill="#c4473d"/>
+      <path d="M-4.5 -14 V-6.5 A13 13 0 1 0 4.5 -6.5 V-14 Z" fill="none" stroke="#9aa6ad" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M-8 -1 A9 9 0 0 1 -4 -5" stroke="#f3ece0" stroke-width="2" stroke-linecap="round" fill="none" opacity=".8"/>
+    </symbol>
+    <symbol id="a-bala" viewBox="-24 -24 48 48">
+      <g transform="rotate(28)">
+        <rect x="-6" y="-2" width="12" height="19" rx="1.5" fill="#c8963e" stroke="#6e4c17" stroke-width="2"/>
+        <path d="M-6 13 H6" stroke="#6e4c17" stroke-width="1.6"/>
+        <path d="M-6 -2 V-8 C-6 -15 0 -20 0 -20 C0 -20 6 -15 6 -8 V-2 Z" fill="#d9dfe3" stroke="#5f6a72" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M-2.5 -9 C-2.5 -12 -1 -14 0 -16" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+      </g>
+    </symbol>
+    <symbol id="a-bazuca" viewBox="-24 -24 48 48">
+      <g transform="rotate(-38)">
+        <rect x="-13" y="-5.5" width="20" height="11" fill="#6f7a45" stroke="#353c1c" stroke-width="2"/>
+        <path d="M7 -5.5 C14 -5.5 20 0 20 0 C20 0 14 5.5 7 5.5 Z" fill="#8d9659" stroke="#353c1c" stroke-width="2" stroke-linejoin="round"/>
+        <rect x="-3" y="-5.5" width="3" height="11" fill="#d9b44a"/>
+        <path d="M-13 -5.5 L-20 -11 V-3 Z M-13 5.5 L-20 11 V3 Z" fill="#5a6338" stroke="#353c1c" stroke-width="2" stroke-linejoin="round"/>
+      </g>
+    </symbol>
+    <symbol id="a-garrucha" viewBox="-24 -24 48 48">
+      <rect x="-9" y="-11" width="28" height="7" rx="1.5" fill="#8f979d" stroke="#41484d" stroke-width="2"/>
+      <path d="M-14 -12 H-1 L-3 -3 L-7 15 L-18 13 L-13 -2 Z" fill="#8a5a2f" stroke="#43290f" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M-4 -4 C-2 3 4 3 5 -4" fill="none" stroke="#41484d" stroke-width="2"/>
+      <path d="M-11 -12 L-14 -18 L-9 -17" fill="#8f979d" stroke="#41484d" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="-13" cy="9" r="1.6" fill="#d9b44a"/>
+    </symbol>
+    <symbol id="a-pessego" viewBox="-24 -24 48 48">
+      <circle cx="0" cy="4" r="15" fill="#f0a065" stroke="#94502a" stroke-width="2"/>
+      <path d="M0 -10 C-6 -2 -6 10 -1 18" fill="none" stroke="#cf7443" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="7" cy="8" r="6" fill="#e9785a" opacity=".55"/>
+      <path d="M0 -10 C3 -17 11 -19 15 -15 C11 -11 5 -10 0 -10 Z" fill="#6e9a45" stroke="#3a5420" stroke-width="2" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="a-maca" viewBox="-24 -24 48 48">
+      <path d="M0 -7 C-6 -12 -17 -10 -17 2 C-17 12 -9 19 -4 18 C-2 17 2 17 4 18 C9 19 17 12 17 2 C17 -10 6 -12 0 -7 Z" fill="#c8413a" stroke="#6b1c17" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M0 -7 C0 -12 1 -15 3 -18" fill="none" stroke="#5a3a1e" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M2 -12 C6 -18 13 -18 15 -15 C11 -11 6 -11 2 -12 Z" fill="#6e9a45" stroke="#3a5420" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M-10 -2 C-11 2 -10 6 -8 8" stroke="#f3c2b8" stroke-width="2" stroke-linecap="round" fill="none" opacity=".75"/>
+    </symbol>
+    <symbol id="a-espada" viewBox="-24 -24 48 48">
+      <g transform="rotate(45)">
+        <path d="M-2.5 -19 L0 -24 L2.5 -19 V7 H-2.5 Z" fill="#d5dbdf" stroke="#58626a" stroke-width="2" stroke-linejoin="round"/>
+        <rect x="-9" y="7" width="18" height="4" rx="1.5" fill="#c8963e" stroke="#6e4c17" stroke-width="1.8"/>
+        <rect x="-2.5" y="11" width="5" height="8" fill="#6b4424" stroke="#3d2511" stroke-width="1.8"/>
+        <circle cx="0" cy="21" r="2.6" fill="#c8963e" stroke="#6e4c17" stroke-width="1.6"/>
+      </g>
+    </symbol>
+    <symbol id="a-escudo" viewBox="-24 -24 48 48">
+      <path d="M0 -19 L16 -13 V0 C16 10 7 17 0 20 C-7 17 -16 10 -16 0 V-13 Z" fill="#8a5a2f" stroke="#43290f" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M-6 -16 V17 M6 -16 V17" stroke="#6b4424" stroke-width="1.6"/>
+      <path d="M0 -15 L12 -10.5 V0 C12 7.5 5.5 13 0 15.5 C-5.5 13 -12 7.5 -12 0 V-10.5 Z" fill="none" stroke="#9aa3a8" stroke-width="2"/>
+      <circle cx="0" cy="0" r="4" fill="#b9c1c6" stroke="#4c5458" stroke-width="1.8"/>
+    </symbol>
+    <symbol id="a-chave" viewBox="-24 -24 48 48">
+      <g transform="rotate(-32)">
+        <circle cx="-11" cy="0" r="8" fill="#a8b0b5" stroke="#454c50" stroke-width="2"/>
+        <circle cx="-11" cy="0" r="3.4" fill="#15120e" stroke="#454c50" stroke-width="1.6"/>
+        <path d="M-3.5 -2.5 H20 V2.5 H17 V8 H13 V2.5 H10 V6 H7 V2.5 H-3.5 Z" fill="#a8b0b5" stroke="#454c50" stroke-width="2" stroke-linejoin="round"/>
+      </g>
+    </symbol>
+    <symbol id="a-rubi" viewBox="-24 -24 48 48">
+      <path d="M-15 -6 L-8 -15 H8 L15 -6 L0 17 Z" fill="#c3364a" stroke="#5a1220" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M-15 -6 H15 M-8 -15 L-4 -6 L0 17 M8 -15 L4 -6 L0 17" fill="none" stroke="#e46b7b" stroke-width="1.4" stroke-linejoin="round"/>
+      <path d="M-7 -11 L-4 -11" stroke="#ffd3d9" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="a-perolas" viewBox="-24 -24 48 48">
+      <path d="M-15 -14 C-16 4 -8 13 0 13 C8 13 16 4 15 -14" fill="none" stroke="#8b8270" stroke-width="1.4"/>
+      <g fill="#efe9dd" stroke="#8b8270" stroke-width="1.5">
+        <circle cx="-15" cy="-13" r="3"/><circle cx="-14.4" cy="-6" r="3"/><circle cx="-11.8" cy="1" r="3"/><circle cx="-7" cy="7.6" r="3"/><circle cx="0" cy="10" r="3"/>
+        <circle cx="7" cy="7.6" r="3"/><circle cx="11.8" cy="1" r="3"/><circle cx="14.4" cy="-6" r="3"/><circle cx="15" cy="-13" r="3"/>
+      </g>
+      <circle cx="0" cy="17.5" r="4" fill="#79a9cc" stroke="#33536b" stroke-width="1.6"/>
+    </symbol>
+    <symbol id="a-pao" viewBox="-24 -24 48 48">
+      <path d="M-19 6 C-21 -4 -13 -12 0 -12 C13 -12 21 -4 19 6 C18 11 13 12 0 12 C-13 12 -18 11 -19 6 Z" fill="#b97a3a" stroke="#5e3a14" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M-11 -5 L-7 3 M-3 -7 L1 2 M5 -7 L9 2" stroke="#e8c48a" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="a-bandagem" viewBox="-24 -24 48 48">
+      <path d="M-4 6 H18 V14 H-4 Z" fill="#e4dccb" stroke="#8b8270" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="-6" cy="0" r="13" fill="#ece5d5" stroke="#8b8270" stroke-width="2"/>
+      <circle cx="-6" cy="0" r="7.5" fill="none" stroke="#c9bfa8" stroke-width="1.6"/>
+      <circle cx="-6" cy="0" r="3" fill="#15120e" stroke="#8b8270" stroke-width="1.6"/>
+    </symbol>
+    <symbol id="a-corda" viewBox="-24 -24 48 48">
+      <g fill="none" stroke-linecap="round">
+        <g stroke="#6e5430" stroke-width="6"><circle cx="0" cy="0" r="14"/><circle cx="0" cy="0" r="8.5"/><path d="M14 0 C16 8 20 12 22 18"/></g>
+        <g stroke="#cfa868" stroke-width="3.4"><circle cx="0" cy="0" r="14"/><circle cx="0" cy="0" r="8.5"/><path d="M14 0 C16 8 20 12 22 18"/></g>
+      </g>
+      <circle cx="0" cy="0" r="3" fill="#cfa868" stroke="#6e5430" stroke-width="1.6"/>
+    </symbol>
+    <symbol id="a-lanterna" viewBox="-24 -24 48 48">
+      <circle cx="0" cy="2" r="16" fill="#f3ba66" opacity=".16"/>
+      <path d="M-4 -19 A4 4 0 0 1 4 -19" fill="none" stroke="#5c6368" stroke-width="2"/>
+      <path d="M-8 -15 H8 L10 -10 H-10 Z" fill="#5c6368" stroke="#2f3438" stroke-width="2" stroke-linejoin="round"/>
+      <rect x="-8" y="-10" width="16" height="19" rx="2" fill="#f3ba66" stroke="#2f3438" stroke-width="2"/>
+      <path d="M0 -10 V9" stroke="#2f3438" stroke-width="1.6"/>
+      <path d="M-3 4 C-3 0 0 -2 0 -5 C2 -2 3 0 3 4 A3 3 0 0 1 -3 4 Z" fill="#fff1c2"/>
+      <path d="M-10 9 H10 L8 14 H-8 Z" fill="#5c6368" stroke="#2f3438" stroke-width="2" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="a-moedas" viewBox="-24 -24 48 48">
+      <g stroke="#6e4610" stroke-width="2" stroke-linejoin="round">
+        <path d="M-16 12 V16 A11 4 0 0 0 6 16 V12" fill="#c98a24"/><ellipse cx="-5" cy="12" rx="11" ry="4" fill="#f2c560"/>
+        <path d="M-16 6 V10 A11 4 0 0 0 6 10 V6" fill="#c98a24"/><ellipse cx="-5" cy="6" rx="11" ry="4" fill="#f2c560"/>
+        <path d="M-15 0 V4 A11 4 0 0 0 7 4 V0" fill="#c98a24"/><ellipse cx="-4" cy="0" rx="11" ry="4" fill="#f2c560"/>
+        <circle cx="11" cy="-9" r="9" fill="#f2c560"/>
+      </g>
+      <circle cx="11" cy="-9" r="5.5" fill="none" stroke="#c98a24" stroke-width="1.6"/>
+    </symbol>
+    <symbol id="a-cadeado" viewBox="-24 -24 48 48">
+      <path d="M-8 -3 V-9 A8 8 0 0 1 8 -9 V-3" fill="none" stroke="#41484d" stroke-width="6"/>
+      <path d="M-8 -3 V-9 A8 8 0 0 1 8 -9 V-3" fill="none" stroke="#a8b0b5" stroke-width="3"/>
+      <rect x="-13" y="-4" width="26" height="22" rx="3.5" fill="#e0a44a" stroke="#6e4610" stroke-width="2"/>
+      <circle cx="0" cy="5" r="3.4" fill="#2a1f0e"/><path d="M-1.6 7 H1.6 L2.4 12 H-2.4 Z" fill="#2a1f0e"/>
+    </symbol>
+    <symbol id="a-pe-de-cabra" viewBox="-24 -24 48 48">
+      <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M-15 17 L9 -11 C12 -15 18 -15 18 -10" stroke="#3d2420" stroke-width="7"/>
+        <path d="M-15 17 L9 -11 C12 -15 18 -15 18 -10" stroke="#b0473a" stroke-width="4"/>
+        <path d="M-15 17 L-19 15 M-15 17 L-14 21" stroke="#41484d" stroke-width="3"/>
+      </g>
+    </symbol>
+    <symbol id="a-marreta" viewBox="-24 -24 48 48">
+      <path d="M-14 18 L6 -4" stroke="#43290f" stroke-width="7" stroke-linecap="round"/>
+      <path d="M-14 18 L6 -4" stroke="#a87a45" stroke-width="4" stroke-linecap="round"/>
+      <g transform="rotate(-48 6 -4)"><rect x="-5" y="-12" width="22" height="13" rx="2.5" fill="#8f979d" stroke="#41484d" stroke-width="2"/></g>
+    </symbol>
+    <symbol id="a-cobra" viewBox="-24 -24 48 48">
+      <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M-17 16 C-8 18 4 12 -2 6 C-8 0 -12 -8 0 -10 C7 -11 9 -15 7 -18" stroke="#33461a" stroke-width="8"/>
+        <path d="M-17 16 C-8 18 4 12 -2 6 C-8 0 -12 -8 0 -10 C7 -11 9 -15 7 -18" stroke="#7b9a3e" stroke-width="5"/>
+      </g>
+      <ellipse cx="9" cy="-17" rx="6" ry="4.5" fill="#7b9a3e" stroke="#33461a" stroke-width="2" transform="rotate(-20 9 -17)"/>
+      <circle cx="10.5" cy="-18.5" r="1.3" fill="#f3e27a"/>
+      <path d="M14.5 -19.5 L19 -21 M14.5 -19.5 L18.5 -17" stroke="#d2483b" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="a-aranha" viewBox="-24 -24 48 48">
+      <g fill="none" stroke="#2a201d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M-4 -2 L-12 -10 L-17 -6 M-4 1 L-14 -2 L-19 3 M-4 3 L-13 7 L-16 14 M-3 5 L-8 12 L-9 19"/>
+        <path d="M4 -2 L12 -10 L17 -6 M4 1 L14 -2 L19 3 M4 3 L13 7 L16 14 M3 5 L8 12 L9 19"/>
+      </g>
+      <ellipse cx="0" cy="6" rx="7" ry="8.5" fill="#4a3a35" stroke="#2a201d" stroke-width="2"/>
+      <circle cx="0" cy="-5" r="4.6" fill="#4a3a35" stroke="#2a201d" stroke-width="2"/>
+      <path d="M-2 4 L0 9 L2 4" fill="none" stroke="#d2483b" stroke-width="1.6" stroke-linejoin="round"/>
+      <circle cx="-1.6" cy="-6" r="1" fill="#e2645a"/><circle cx="1.6" cy="-6" r="1" fill="#e2645a"/>
+    </symbol>
+    <symbol id="a-nada" viewBox="-24 -24 48 48">
+      <circle cx="0" cy="0" r="11" fill="none" stroke="#858480" stroke-width="2" stroke-dasharray="3 3.4"/>
+    </symbol>
+    <symbol id="a-bau" viewBox="-24 -24 48 48">
+      <path d="M-18 -2 V-7 C-18 -14 -12 -16 0 -16 C12 -16 18 -14 18 -7 V-2 Z" fill="#8a5a2f" stroke="#43290f" stroke-width="2" stroke-linejoin="round"/>
+      <rect x="-18" y="-2" width="36" height="18" rx="2" fill="#74491f" stroke="#43290f" stroke-width="2"/>
+      <path d="M-11 -15.5 V16 M11 -15.5 V16" stroke="#c8963e" stroke-width="2.4"/>
+      <rect x="-3.5" y="-5" width="7" height="8" rx="1.5" fill="#e0a44a" stroke="#6e4610" stroke-width="1.6"/>
+    </symbol>
+    <symbol id="a-bau-aberto" viewBox="-24 -24 48 48">
+      <path d="M-18 -4 L-15 -19 C-6 -22 6 -22 15 -19 L18 -4 Z" fill="#5e3a19" stroke="#43290f" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M-15 -4 L-13 -16 C-5 -18 5 -18 13 -16 L15 -4 Z" fill="#2a1a0c"/>
+      <rect x="-18" y="-4" width="36" height="20" rx="2" fill="#74491f" stroke="#43290f" stroke-width="2"/>
+      <path d="M-11 -4 V16 M11 -4 V16" stroke="#c8963e" stroke-width="2.4"/>
+    </symbol>
+    <symbol id="a-caixa" viewBox="-24 -24 48 48">
+      <rect x="-17" y="-15" width="34" height="31" rx="1.5" fill="#a87a45" stroke="#4e3216" stroke-width="2"/>
+      <path d="M-17 -5 H17 M-17 6 H17" stroke="#7a5428" stroke-width="1.8"/>
+      <path d="M-15 -13 L15 14" stroke="#7a5428" stroke-width="3.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="a-barril" viewBox="-24 -24 48 48">
+      <path d="M-11 -18 H11 C16 -10 16 10 11 18 H-11 C-16 10 -16 -10 -11 -18 Z" fill="#8a5a2f" stroke="#43290f" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M-13.6 -10 H13.6 M-13.6 10 H13.6" stroke="#9aa3a8" stroke-width="3"/>
+      <path d="M-4 -18 C-6 -6 -6 6 -4 18 M4 -18 C6 -6 6 6 4 18" stroke="#6b4424" stroke-width="1.4" fill="none"/>
+    </symbol>
+    <!-- os papéis: cópia do IconeDoPapel do app (components/documentos/IconeDoPapel.tsx) -->
+    <symbol id="p-carta" viewBox="-24 -24 48 48"><rect x="-17" y="-12" width="34" height="24" rx="2" fill="#f4eee1" stroke="#9a8e74" stroke-width="2"/><path d="M-17-12 0 2 17-12" fill="none" stroke="#9a8e74" stroke-width="2"/><circle cx="0" cy="3" r="4.5" fill="#b8473b" stroke="#7a241d" stroke-width="1.5"/></symbol>
+    <symbol id="p-diario" viewBox="-24 -24 48 48"><rect x="-14" y="-17" width="28" height="34" rx="2" fill="#f2ecdc" stroke="#8b8270" stroke-width="2"/><path d="M-6-17v34" stroke="#c4574a" stroke-width="1.5"/><path d="M-2-8h12M-2-2h12M-2 4h9" stroke="#7a8aa3" stroke-width="1.6"/></symbol>
+    <symbol id="p-bilhete" viewBox="-24 -24 48 48"><path d="M-15-14h30v22l-4 3-4-3-4 3-4-3-4 3-4-3-4 3-2-2z" fill="#ece0bd" stroke="#9a8a5e" stroke-width="2" stroke-linejoin="round"/><path d="M-9-7h18M-9-1h14" stroke="#8b7a55" stroke-width="1.6"/></symbol>
+    <symbol id="p-pergaminho" viewBox="-24 -24 48 48"><rect x="-12" y="-14" width="24" height="28" fill="#ecdcb2" stroke="#9a7646" stroke-width="2"/><rect x="-16" y="-18" width="32" height="7" rx="3.5" fill="#c7a46a" stroke="#8a673a" stroke-width="2"/><rect x="-16" y="11" width="32" height="7" rx="3.5" fill="#c7a46a" stroke="#8a673a" stroke-width="2"/></symbol>
+    <symbol id="p-imagem" viewBox="-24 -24 48 48"><rect x="-15" y="-18" width="30" height="36" fill="#d8ccb0" stroke="#8b8270" stroke-width="2"/><path d="M-11 12l7-9 5 6 4-4 6 7z" fill="#8b8270"/><circle cx="6" cy="-8" r="3.5" fill="#8b8270"/></symbol>
+    <symbol id="p-alfinete" viewBox="-24 -24 48 48"><g transform="rotate(-4)"><rect x="-15" y="-17" width="30" height="36" fill="#f1e8d2" stroke="#9a8e74" stroke-width="2"/><path d="M-9-6h18M-9 0h16M-9 6h18M-9 12h11" stroke="#8b7a60" stroke-width="1.6"/></g><circle cx="0" cy="-15" r="4" fill="#d2483b" stroke="#8e2a22" stroke-width="1.5"/></symbol>
+  </defs>
+</svg>
+
+<div class="mesa">
+  <div class="livro">
+    <div class="lombada" aria-hidden="true"><i class="e-aqui"></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="pagina" id="pagina">
+      <div class="pagina__topo">
+        <div class="cabeca">
+          <span class="cabeca__med" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10V8c0-2 1.5-3.5 4-3.5h8C18.5 4.5 20 6 20 8v2"/><rect x="4" y="10" width="16" height="9.5" rx="1.5"/><path d="M11 12.5h2"/></svg></span>
+          <div><h2 class="cabeca__nome" id="obj-nome">Baú do porão</h2><div class="cabeca__tipo" id="obj-tipo">Baú · mobília</div></div>
+        </div>
+      </div>
+      <div class="pagina__corpo" id="corpo">
+        <div class="fichas">
+          <section class="ficha e-aberta" id="ficha-conteudo">
+            <h3 class="sr">Conteúdo</h3>
+            <button type="button" class="ficha__cab" id="ficha-conteudo-cab" aria-expanded="true" aria-controls="ficha-conteudo-dentro">
+              <span class="ficha__med" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18M9 4l3 16M15 4l-3 16"/></svg></span>
+              <span class="ficha__tit">Conteúdo</span>
+              <span class="ficha__resumo" id="ficha-resumo"></span>
+              <span class="ficha__seta" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            </button>
+            <div class="ficha__dentro" id="ficha-conteudo-dentro">
+              <div class="cb" id="cb"></div>
+            </div>
+          </section>
+          <div class="ficha ficha--contexto" aria-hidden="true"><div class="ficha__cab"><span class="ficha__med"></span><span class="ficha__tit">Aparência</span><span class="ficha__resumo">Madeira</span></div></div>
+          <div class="ficha ficha--contexto" aria-hidden="true"><div class="ficha__cab"><span class="ficha__med"></span><span class="ficha__tit">No mapa</span><span class="ficha__resumo">Camada 1</span></div></div>
+          <div class="ficha ficha--contexto" aria-hidden="true"><div class="ficha__cab"><span class="ficha__med"></span><span class="ficha__tit">Para os jogadores</span><span class="ficha__resumo">Visível</span></div></div>
+        </div>
+      </div>
+      <div class="cb-torradas" id="torradas" role="region" aria-label="Avisos"></div>
+      <div class="pagina__borda" id="borda" role="separator" aria-orientation="vertical" aria-label="Largura da página" aria-valuemin="240" aria-valuemax="520" aria-valuenow="262" tabindex="0" title="Arraste para mudar a largura; clique duplo volta a 262 px"></div>
+    </div>
+  </div>
+
+  <aside class="proto" aria-label="Controles do protótipo">
+    <h1>Conteúdo do baú</h1>
+    <p>Protótipo para aprovar. Os controles daqui são só do protótipo; tudo à esquerda funciona como funcionaria no app.</p>
+    <h2>Largura da página <output id="largura-saida">262 px</output></h2>
+    <div class="proto-grupo" id="g-largura">
+      <button type="button" data-largura="240">240</button>
+      <button type="button" data-largura="262">262 (padrão)</button>
+      <button type="button" data-largura="320">320</button>
+      <button type="button" data-largura="400">400</button>
+    </div>
+    <h2>Objeto</h2>
+    <div class="proto-grupo" id="g-objeto">
+      <button type="button" data-objeto="bau">Baú</button>
+      <button type="button" data-objeto="caixa">Caixa</button>
+      <button type="button" data-objeto="barril">Barril</button>
+    </div>
+    <h2>Cenário</h2>
+    <div class="proto-grupo" id="g-cenario">
+      <button type="button" data-cenario="cheio">Com coisas</button>
+      <button type="button" data-cenario="vazio">Vazio</button>
+      <button type="button" data-cenario="acervo-vazio">Acervo vazio</button>
+      <button type="button" data-cenario="aberto">Já aberto</button>
+      <button type="button" data-cenario="pior">Pior caso</button>
+    </div>
+    <h2>Imagens dos itens</h2>
+    <div class="proto-grupo" id="g-imagens">
+      <button type="button" data-imagens="sim">Com imagem</button>
+      <button type="button" data-imagens="nao">Sem imagem (iniciais)</button>
+    </div>
+    <h2>O que mudou</h2>
+    <ol>
+      <li>Toda linha começa pela vaga com a miniatura: item, documento, moedas, minigame e armadilha.</li>
+      <li>A quantidade é uma pílula − número +. Em 1, o − vira a lixeira; tirar mostra Desfazer.</li>
+      <li>A escolha do acervo é a grade de miniaturas, com as categorias e a busca. Setas andam, Enter põe, Esc fecha.</li>
+      <li>A escolha fica aberta depois de pôr: a peça ganha o selo com quantos já estão dentro.</li>
+      <li>Documentos e moedas moram na mesma lista do que está dentro.</li>
+      <li>Minigame e armadilha vão para "Ao abrir", embaixo.</li>
+    </ol>
+    <p style="margin-top:10px">Ctrl+Z desfaz a última mudança, como no app. Detalhes e plano em NOTAS.md.</p>
+  </aside>
+</div>
+
+<p class="sr" id="anuncio" aria-live="polite"></p>
+
+<script>
+'use strict'
+
+/* ------------------------------------------------------------------ dados de exemplo */
+const ACERVO_PADRAO = [
+  { id: 'porcao', nome: 'Porção Grande', categoria: 'Consumível', arte: 'pocao' },
+  { id: 'prata', nome: 'Bala de Prata', categoria: 'Balas', arte: 'bala' },
+  { id: 'garrucha', nome: 'Garrucha', categoria: 'Arma', arte: 'garrucha' },
+  { id: 'pessego', nome: 'Pêssego', categoria: 'Comida e Ingredientes', arte: 'pessego' },
+  { id: 'maca', nome: 'Maçã', categoria: 'Comida e Ingredientes', arte: 'maca' },
+  { id: 'bazuca', nome: 'Bala de Bazuca', categoria: 'Balas', arte: 'bazuca' },
+  { id: 'ouro', nome: 'Barra de Ouro', categoria: 'Tesouro', arte: 'ouro' },
+  { id: 'espada', nome: 'Espada Curta', categoria: 'Arma', arte: 'espada' },
+  { id: 'escudo', nome: 'Escudo de Madeira', categoria: 'Armadura', arte: 'escudo' },
+  { id: 'chave', nome: 'Chave de Ferro', categoria: 'Chave', arte: 'chave' },
+  { id: 'rubi', nome: 'Rubi Lapidado', categoria: 'Tesouro', arte: 'rubi' },
+  { id: 'perolas', nome: 'Colar de Pérolas', categoria: 'Tesouro', arte: 'perolas' },
+  { id: 'pao', nome: 'Pão de Centeio', categoria: 'Comida e Ingredientes', arte: 'pao' },
+  { id: 'bandagem', nome: 'Bandagem', categoria: 'Consumível', arte: 'bandagem' },
+  { id: 'corda', nome: 'Corda', categoria: 'Ferramenta', arte: 'corda' },
+  { id: 'lanterna', nome: 'Lanterna', categoria: 'Ferramenta', arte: 'lanterna' },
+  { id: 'amuleto', nome: 'Amuleto de Iemanjá', categoria: 'Tesouro', arte: null },
+  { id: 'ervas', nome: 'Ervas Secas', categoria: 'Comida e Ingredientes', arte: null },
+]
+const BIBLIOTECA_PADRAO = [
+  { id: 'd1', titulo: 'Carta do capitão Morgan', papel: 'carta' },
+  { id: 'd2', titulo: 'Diário de bordo, página 12', papel: 'diario' },
+  { id: 'd3', titulo: 'Bilhete rasgado', papel: 'bilhete' },
+  { id: 'd4', titulo: 'Pergaminho do farol', papel: 'pergaminho' },
+  { id: 'd5', titulo: 'Retrato da filha do prefeito', papel: 'imagem' },
+  { id: 'd6', titulo: 'Aviso de recompensa', papel: 'alfinete' },
+]
+/* o pior caso: nomes longos, palavra sem quebra, categoria comprida, 150 itens */
+function acervoDoPiorCaso() {
+  const artes = ['ouro', 'pocao', 'bala', 'garrucha', 'pessego', 'maca', 'bazuca', 'espada', 'escudo', 'chave', 'rubi', 'perolas', 'pao', 'bandagem', 'corda', 'lanterna', null]
+  const categorias = ['Tesouro', 'Consumível', 'Balas', 'Arma', 'Comida e Ingredientes Raros do Arquipélago', 'Armadura', 'Chave', 'Ferramenta', 'Sem categoria']
+  const longos = [
+    { id: 'l1', nome: 'Espada Longa Amaldiçoada do Rei Afogado de Água Doce', categoria: 'Arma', arte: 'espada' },
+    { id: 'l2', nome: 'Pergaminho-de-proteção-contra-mortos-vivos', categoria: 'Consumível', arte: null },
+    { id: 'l3', nome: 'Óleo de Baleia Refinado para Lampião de Navio', categoria: 'Comida e Ingredientes Raros do Arquipélago', arte: 'lanterna' },
+    { id: 'l4', nome: 'Xu', categoria: '', arte: null },
+  ]
+  const gerados = []
+  for (let n = 1; n <= 128; n += 1) {
+    const categoria = categorias[n % categorias.length]
+    gerados.push({ id: 'g' + n, nome: 'Item de teste ' + n, categoria: categoria === 'Sem categoria' ? '' : categoria, arte: artes[n % artes.length] })
+  }
+  return [...ACERVO_PADRAO, ...longos, ...gerados]
+}
+function bibliotecaDoPiorCaso() {
+  const papeis = ['carta', 'diario', 'bilhete', 'pergaminho', 'imagem', 'alfinete']
+  const extras = []
+  for (let n = 7; n <= 14; n += 1) extras.push({ id: 'd' + n, titulo: n === 7 ? 'Relatório completo da expedição ao Vale das Sombras Esquecidas, segunda parte' : 'Documento de teste ' + n, papel: papeis[n % papeis.length] })
+  return [...BIBLIOTECA_PADRAO, ...extras]
+}
+
+const OBJETOS = {
+  bau: { nome: 'Baú do porão', tipo: 'Baú · mobília', dentro: 'Dentro do baú', no: 'no baú', do: 'do baú', verbo: 'abrir', passado: 'abriu', minigame: 'Abrir o baú', arteMinigame: 'cadeado', vazio: 'O baú abre vazio', poe: 'põe no baú', arte: 'bau' },
+  caixa: { nome: 'Caixa do cais', tipo: 'Caixa · mobília', dentro: 'Dentro da caixa', no: 'na caixa', do: 'da caixa', verbo: 'quebrar', passado: 'quebrou', minigame: 'Arrombar a caixa', arteMinigame: 'pe-de-cabra', vazio: 'A caixa quebra e não tem nada', poe: 'põe na caixa', arte: 'caixa' },
+  barril: { nome: 'Barril da taverna', tipo: 'Barril · mobília', dentro: 'Dentro do barril', no: 'no barril', do: 'do barril', verbo: 'quebrar', passado: 'quebrou', minigame: 'Quebrar o barril', arteMinigame: 'marreta', vazio: 'O barril quebra e não tem nada', poe: 'põe no barril', arte: 'barril' },
+}
+const ITENS_MAX = 40
+const DOCUMENTOS_MAX = 10
+const QUANTIDADE_MAX = 9999
+const MOEDAS_MAX = 999999
+const PASSO_DAS_MOEDAS = 5
+const DESFAZER_MS = 5000
+/* o clique logo depois de o − virar lixeira é o mesmo gesto de diminuir, não um pedido de tirar */
+const LIXEIRA_ACABOU_DE_APARECER_MS = 450
+const ARMADILHA_PADRAO = {
+  cobra: { tipo: 'cobra', dano: 8, efeito: 'Envenenado', turnos: 3, porVez: 4 },
+  aranha: { tipo: 'aranha', dano: 5, efeito: 'Lento', turnos: 2, porVez: 0 },
+}
+
+/* ------------------------------------------------------------------ estado */
+const estado = {
+  largura: 262,
+  objeto: 'bau',
+  cenario: 'cheio',
+  imagens: true,
+  acervo: ACERVO_PADRAO,
+  biblioteca: BIBLIOTECA_PADRAO,
+  conteudo: null,
+  aberta: true,
+  escolha: null, // 'itens' | 'docs' | null
+  busca: '',
+  categoria: '',
+  ativo: 0,
+  buscaDoc: '',
+  ativoDoc: 0,
+  realce: null,
+}
+const historico = []
+let lixeiraDesde = new Map()
+
+function conteudoDoCenario(cenario) {
+  const cheio = { itens: [{ id: 'ouro', q: 1 }, { id: 'prata', q: 12 }, { id: 'pessego', q: 3 }], moedas: 150, docs: ['d1'], minigame: true, armadilha: null, aberto: null }
+  if (cenario === 'vazio' || cenario === 'acervo-vazio') return { itens: [], moedas: 0, docs: [], minigame: false, armadilha: null, aberto: null }
+  if (cenario === 'aberto') return { ...cheio, armadilha: { ...ARMADILHA_PADRAO.cobra }, aberto: { por: 'Ana', em: '21h14' } }
+  if (cenario === 'pior') {
+    const ids = ['l1', 'l2', 'l3', 'l4', ...ACERVO_PADRAO.map((i) => i.id)]
+    for (let n = 1; ids.length < ITENS_MAX; n += 1) ids.push('g' + n)
+    return {
+      itens: ids.map((id, i) => ({ id, q: i === 0 ? QUANTIDADE_MAX : i % 7 === 0 ? 250 : 1 + (i % 4) })),
+      moedas: 999995,
+      docs: ['d7', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd8', 'd9', 'apagado'],
+      minigame: true,
+      armadilha: { ...ARMADILHA_PADRAO.cobra, dano: 999 },
+      aberto: null,
+    }
+  }
+  return cheio
+}
+
+/* ------------------------------------------------------------------ utilidades */
+const $ = (seletor, raiz = document) => raiz.querySelector(seletor)
+const ESCAPE = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
+const esc = (texto) => String(texto).replace(/[&<>"']/g, (c) => ESCAPE[c])
+const normal = (texto) => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('pt-BR')
+const copia = (valor) => JSON.parse(JSON.stringify(valor))
+const milhar = (n) => n.toLocaleString('pt-BR')
+const o = () => OBJETOS[estado.objeto]
+const reduzirMovimento = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+let porId = new Map()
+function indexarAcervo() {
+  porId = new Map(estado.acervo.map((item) => [item.id, item]))
+  for (const item of estado.acervo) { item._n = normal(item.nome); item._c = normal(item.categoria) }
+}
+const docPorId = (id) => estado.biblioteca.find((d) => d.id === id)
+function iniciais(nome) {
+  return nome.trim().split(/\s+/).filter((p) => p.length > 0 && !/^(de|da|do|das|dos|e)$/i.test(p)).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?'
+}
+function tomDoNome(nome) {
+  let hash = 0
+  for (let i = 0; i < nome.length; i += 1) hash = (hash * 31 + nome.charCodeAt(i)) >>> 0
+  return hash % 5
+}
+const desenho = (id) => `<svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><use href="#${id}" width="48" height="48"/></svg>`
+function miniatura(item) {
+  if (item !== undefined && item.arte !== null && estado.imagens) return desenho('a-' + item.arte)
+  const nome = item === undefined ? '?' : item.nome
+  return `<span class="cb-iniciais" data-tom="${tomDoNome(nome)}">${esc(iniciais(nome))}</span>`
+}
+const ICONE = {
+  mais: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  menos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>',
+  lixo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12.5c.1.8.7 1.5 1.6 1.5h6.8c.9 0 1.5-.7 1.6-1.5L18 7M9 7V4.5c0-.3.2-.5.5-.5h5c.3 0 .5.2.5.5V7"/></svg>',
+  lupa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>',
+  certo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+}
+
+/* ------------------------------------------------------------------ mudança, desfazer e foco */
+function mudar(fazer, { anuncio } = {}) {
+  historico.push(copia(estado.conteudo))
+  if (historico.length > 100) historico.shift()
+  fazer(estado.conteudo)
+  if (anuncio) anunciar(anuncio)
+}
+function desfazer() {
+  const antes = historico.pop()
+  if (antes === undefined) return false
+  estado.conteudo = antes
+  renderConteudo()
+  return true
+}
+function anunciar(texto) {
+  const alvo = $('#anuncio')
+  alvo.textContent = ''
+  requestAnimationFrame(() => { alvo.textContent = texto })
+}
+/* Re-desenhar a lista recria os controles; o foco volta ao mesmo controle pela chave data-foco. */
+function comFoco(desenhar) {
+  const ativo = document.activeElement
+  const chave = ativo && ativo.dataset ? ativo.dataset.foco : undefined
+  const selecao = ativo instanceof HTMLInputElement && (ativo.type === 'text' || ativo.type === 'search') ? [ativo.selectionStart, ativo.selectionEnd] : null
+  desenhar()
+  if (chave === undefined) return
+  const novo = document.querySelector(`[data-foco="${CSS.escape(chave)}"]`)
+  if (novo === null || document.activeElement === novo) return
+  novo.focus({ preventScroll: true })
+  if (selecao !== null && novo instanceof HTMLInputElement) novo.setSelectionRange(selecao[0], selecao[1])
+}
+
+/* ------------------------------------------------------------------ desenho do painel */
+function totalDeItens() { return estado.conteudo.itens.reduce((soma, d) => soma + d.q, 0) }
+function resumo() {
+  const c = estado.conteudo
+  const partes = []
+  const itens = totalDeItens()
+  if (itens > 0) partes.push(itens === 1 ? '1 item' : `${milhar(itens)} itens`)
+  if (c.moedas > 0) partes.push(c.moedas === 1 ? '1 moeda' : `${milhar(c.moedas)} moedas`)
+  if (c.docs.length > 0) partes.push(c.docs.length === 1 ? '1 documento' : `${c.docs.length} documentos`)
+  if (c.armadilha !== null) partes.push(c.armadilha.tipo === 'cobra' ? 'Cobra' : 'Aranha')
+  const texto = partes.length === 0 ? 'Vazio' : partes.join(', ')
+  return c.aberto === null ? texto : `Aberto · ${texto}`
+}
+
+function htmlPasso({ rotulo, chave, valor, min, podeTirar, rotuloTirar, rotuloMenos, rotuloMais, max, acao }) {
+  const tirar = podeTirar && valor <= min
+  return `<span class="cb-passo" role="group" aria-label="${esc(rotulo)}">
+    <button type="button" class="cb-passo__bt${tirar ? ' cb-passo__bt--tirar' : ''}" data-acao="${tirar ? 'tirar' : 'menos'}" data-alvo="${acao}" data-chave="${esc(chave)}" data-foco="menos:${esc(chave)}" aria-label="${esc(tirar ? rotuloTirar : rotuloMenos)}" title="${esc(tirar ? rotuloTirar : rotuloMenos)}"${!tirar && valor <= min ? ' disabled' : ''}>${tirar ? ICONE.lixo : ICONE.menos}</button>
+    <input class="cb-passo__num" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-label="${esc(rotulo)}" data-alvo="${acao}" data-chave="${esc(chave)}" data-foco="num:${esc(chave)}" value="${valor}">
+    <button type="button" class="cb-passo__bt" data-acao="mais" data-alvo="${acao}" data-chave="${esc(chave)}" data-foco="mais:${esc(chave)}" aria-label="${esc(rotuloMais)}" title="${esc(rotuloMais)}"${valor >= max ? ' disabled' : ''}>${ICONE.mais}</button>
+  </span>`
+}
+
+function htmlLinhaDoItem(dentro) {
+  const item = porId.get(dentro.id)
+  const nome = item === undefined ? 'Item que saiu do acervo' : item.nome
+  const categoria = item === undefined || item.categoria === '' ? 'Sem categoria' : item.categoria
+  const classes = ['cb-linha', 'lb-conteudo__item']
+  if (estado.realce === dentro.id) classes.push('e-realce')
+  return `<li class="${classes.join(' ')}" data-id="${esc(dentro.id)}">
+    <span class="cb-vaga" aria-hidden="true">${miniatura(item)}</span>
+    <span class="cb-linha__nome">${esc(nome)}</span>
+    <span class="cb-linha__sub" title="${esc(categoria)}">${esc(categoria)}</span>
+    ${htmlPasso({ rotulo: `Quantidade de ${nome}`, chave: dentro.id, valor: dentro.q, min: 1, max: QUANTIDADE_MAX, podeTirar: true, acao: 'item', rotuloTirar: `Tirar ${nome} ${o().do}`, rotuloMenos: `Menos ${nome}`, rotuloMais: `Mais ${nome}` })}
+  </li>`
+}
+
+function htmlLinhaDoDocumento(docId) {
+  const doc = docPorId(docId)
+  const titulo = doc === undefined ? 'Documento apagado da biblioteca' : doc.titulo
+  const realce = estado.realce === 'doc:' + docId ? ' e-realce' : ''
+  return `<li class="cb-linha lb-conteudo__item${realce}" data-doc="${esc(docId)}">
+    <span class="cb-vaga${doc === undefined ? ' cb-vaga--apagado' : ''}" aria-hidden="true">${doc === undefined ? '' : desenho('p-' + doc.papel)}</span>
+    <span class="cb-linha__nome">${esc(titulo)}</span>
+    <span class="cb-linha__sub">${doc === undefined ? 'Não vai para ninguém' : 'Documento, chega como novo'}</span>
+    <button type="button" class="cb-tirar" data-acao="tirar-doc" data-chave="${esc(docId)}" data-foco="tirar-doc:${esc(docId)}" aria-label="Tirar ${esc(titulo)}" title="Tirar ${esc(o().do)}">${ICONE.lixo}</button>
+  </li>`
+}
+
+function htmlLinhaDasMoedas() {
+  const moedas = estado.conteudo.moedas
+  return `<li class="cb-linha cb-linha--moedas${moedas === 0 ? ' e-zero' : ''}">
+    <span class="cb-vaga" aria-hidden="true">${desenho('a-moedas')}</span>
+    <span class="cb-linha__nome">Moedas</span>
+    <span class="cb-linha__sub">${moedas === 0 ? 'Nenhuma' : `de ${PASSO_DAS_MOEDAS} em ${PASSO_DAS_MOEDAS}`}</span>
+    ${htmlPasso({ rotulo: 'Moedas', chave: 'moedas', valor: moedas, min: 0, max: MOEDAS_MAX, podeTirar: false, acao: 'moedas', rotuloMenos: `Menos ${PASSO_DAS_MOEDAS} moedas`, rotuloMais: `Mais ${PASSO_DAS_MOEDAS} moedas` })}
+  </li>`
+}
+
+/* A seção Dentro em pedaços: pôr e tirar trocam só estes, e a escolha aberta logo abaixo fica onde está (foco, rolagem, marcado). */
+function textoDaConta() {
+  const c = estado.conteudo
+  const total = totalDeItens()
+  if (c.itens.length >= ITENS_MAX - 5) return `${c.itens.length} de ${ITENS_MAX} tipos`
+  return total === 0 ? '' : total === 1 ? '1 item' : `${milhar(total)} itens`
+}
+function htmlDaLista() {
+  const c = estado.conteudo
+  const vazio = c.itens.length === 0 && c.docs.length === 0
+    ? `<li class="cb-vazio"><span class="cb-vaga cb-vaga--vazia" aria-hidden="true">${desenho('a-' + o().arte)}</span><span><b>${c.moedas > 0 ? 'Só moedas' : esc(o().vazio)}</b><span>${c.moedas > 0 ? 'Nenhum item nem documento.' : 'Ponha itens do acervo ou documentos.'}</span></span></li>`
+    : ''
+  return `${c.itens.map(htmlLinhaDoItem).join('')}${c.docs.map(htmlLinhaDoDocumento).join('')}${vazio}${htmlLinhaDasMoedas()}`
+}
+function htmlDasAcoes() {
+  const docsCheios = estado.conteudo.docs.length >= DOCUMENTOS_MAX
+  return `<div class="cb-acoes">
+      <button type="button" class="cb-bt cb-bt--latao" data-acao="abrir-itens" data-foco="bt-itens" id="bt-itens" aria-haspopup="dialog" aria-expanded="${estado.escolha === 'itens'}" aria-controls="cb-escolha-casa"><span class="cb-bt__mais">+</span> Item do acervo</button>
+      <button type="button" class="cb-bt" data-acao="abrir-docs" data-foco="bt-docs" id="bt-docs" aria-haspopup="dialog" aria-expanded="${estado.escolha === 'docs'}" aria-controls="cb-escolha-casa"${docsCheios ? ' disabled aria-describedby="cb-docs-cheio"' : ''}><span class="cb-bt__mais">+</span> Documento</button>
+    </div>
+    ${docsCheios ? `<p class="cb-nota" id="cb-docs-cheio">Já tem ${DOCUMENTOS_MAX} documentos, o máximo. Tire um para pôr outro.</p>` : ''}`
+}
+function htmlDentro() {
+  return `<section class="cb-secao" id="cb-dentro" aria-labelledby="cb-dentro-tit">
+    <div class="cb-secao__cab"><span id="cb-dentro-tit">${esc(o().dentro)}</span><output id="cb-conta">${textoDaConta()}</output></div>
+    <ul class="cb-lista" aria-labelledby="cb-dentro-tit" id="cb-lista">${htmlDaLista()}</ul>
+    <div id="cb-acoes-casa">${htmlDasAcoes()}</div>
+    <div id="cb-escolha-casa"></div>
+  </section>`
+}
+
+function fraseDaArmadilha(a) {
+  if (a === null) return 'Nenhuma: abriu, pegou'
+  return `${a.tipo === 'cobra' ? 'Cobra' : 'Aranha'}: ${a.dano} PV e ${a.efeito} ${a.turnos} turnos`
+}
+function mudouDoPadrao(a) {
+  const p = ARMADILHA_PADRAO[a.tipo]
+  return a.dano !== p.dano || a.turnos !== p.turnos || (a.tipo === 'cobra' && a.porVez !== p.porVez)
+}
+function htmlAoAbrir() {
+  const c = estado.conteudo
+  const a = c.armadilha
+  const opcoes = [['nenhuma', 'Nenhuma'], ['cobra', 'Cobra'], ['aranha', 'Aranha']]
+  const marcada = a === null ? 'nenhuma' : a.tipo
+  const voltar = a !== null && mudouDoPadrao(a) ? ' <button type="button" class="cb-link" data-acao="armadilha-padrao" data-foco="arm-padrao">Voltar ao padrão</button>' : ''
+  let campos = ''
+  if (a !== null) {
+    const par = (rot, unidade, chave, valor, min, max) => `<div class="cb-par"><span>${rot} <small>${unidade}</small></span>${htmlPasso({ rotulo: `${rot}, em ${unidade}`, chave, valor, min, max, podeTirar: false, acao: 'armadilha', rotuloMenos: `Menos ${rot.toLowerCase()}`, rotuloMais: `Mais ${rot.toLowerCase()}` })}</div>`
+    campos = `<div class="cb-armadilha">
+      ${par('Dano na hora', 'PV', 'dano', a.dano, 0, 999)}
+      ${par(a.efeito, 'turnos', 'turnos', a.turnos, 1, 20)}
+      ${a.tipo === 'cobra' ? par('Por turno', 'PV perdidos', 'porVez', a.porVez, 1, 99) : ''}
+      <p class="cb-nota">${a.tipo === 'cobra' ? 'Padrão da cobra: 8 PV na hora e Envenenado por 3 turnos, perdendo 4 PV em cada.' : 'Lento: anda metade do passo enquanto durar. Padrão da aranha: 5 PV e Lento por 2 turnos.'}${voltar}</p>
+      ${a.tipo === 'cobra' ? '<p class="cb-nota">Jumpscare ligado neste mapa (Configurações do mapa, Armadilhas).</p>' : ''}
+    </div>`
+  }
+  return `<section class="cb-secao" id="cb-ao" aria-labelledby="cb-ao-tit">
+    <div class="cb-secao__cab"><span id="cb-ao-tit">Ao ${o().verbo}</span></div>
+    <div class="cb-linha cb-linha--ao">
+      <span class="cb-vaga${c.minigame ? '' : ' e-desligada'}" aria-hidden="true">${desenho('a-' + o().arteMinigame)}</span>
+      <label class="cb-linha__nome" for="cb-minigame">Minigame para o jogador</label>
+      <span class="cb-linha__sub">${c.minigame ? esc(o().minigame) : 'Desligado'}</span>
+      <span class="lb-switch__track cb-chave"><input class="lb-switch__input" type="checkbox" id="cb-minigame" data-acao="minigame" data-foco="minigame" aria-describedby="cb-minigame-exp"${c.minigame ? ' checked' : ''}></span>
+    </div>
+    <p class="cb-nota" id="cb-minigame-exp">${c.minigame ? `<b>${esc(o().minigame)}</b>, pelo tipo do objeto. O jogador vê o selo, encosta e joga na tela dele; se errar, tenta de novo sem custo.` : 'O toque do jogador não abre nada, e o objeto fica sem selo.'}</p>
+    <div class="cb-linha cb-linha--ao">
+      <span class="cb-vaga${a === null ? ' cb-vaga--vazia' : ''}" aria-hidden="true">${desenho(a === null ? 'a-nada' : 'a-' + a.tipo)}</span>
+      <span class="cb-linha__nome" id="cb-arm-tit">Armadilha</span>
+      <span class="cb-linha__sub">${esc(fraseDaArmadilha(a))}</span>
+    </div>
+    <div class="cb-seg" role="radiogroup" aria-label="Armadilha">
+      ${opcoes.map(([valor, rotulo]) => `<button type="button" role="radio" aria-checked="${valor === marcada}" tabindex="${valor === marcada ? 0 : -1}" data-acao="armadilha" data-valor="${valor}" data-foco="arm:${valor}">${rotulo}</button>`).join('')}
+    </div>
+    ${campos}
+  </section>`
+}
+
+function htmlAberto() {
+  const a = estado.conteudo.aberto
+  if (a === null) return ''
+  return `<div class="cb-aberto">
+    <span class="cb-vaga" aria-hidden="true">${desenho(estado.objeto === 'bau' ? 'a-bau-aberto' : 'a-' + o().arte)}</span>
+    <p><b>${esc(a.por)} ${o().passado} às ${esc(a.em)}.</b><br><span class="cb-nota">Repor guarda o mesmo conteúdo de novo, para outro jogador ${o().verbo}.</span></p>
+    <button type="button" class="cb-bt" data-acao="repor" data-foco="repor">Fechar e repor</button>
+  </div>`
+}
+
+function renderConteudo() {
+  comFoco(() => {
+    const raiz = $('#cb')
+    raiz.innerHTML = `${htmlAberto()}${htmlDentro()}${htmlAoAbrir()}<p class="cb-nota" id="cb-pe">O jogador só descobre o que tem ao ${o().verbo}.</p>`
+    $('#ficha-resumo').textContent = resumo()
+    if (estado.escolha !== null) montarEscolha()
+  })
+  estado.realce = null
+}
+
+/* ------------------------------------------------------------------ a escolha do acervo */
+function categoriasDoAcervo() {
+  const vistas = []
+  for (const item of estado.acervo) if (item.categoria !== '' && !vistas.includes(item.categoria)) vistas.push(item.categoria)
+  return vistas
+}
+function itensAchados() {
+  const chave = normal(estado.busca.trim())
+  return estado.acervo.filter((item) => (estado.categoria === '' || item.categoria === estado.categoria) && (chave === '' || item._n.includes(chave) || item._c.includes(chave)))
+}
+let achados = []
+
+function montarEscolha() {
+  const casa = $('#cb-escolha-casa')
+  if (casa === null) return
+  if (estado.escolha === 'itens') {
+    const categorias = categoriasDoAcervo()
+    casa.innerHTML = `<div class="cb-escolha" id="cb-escolha" role="dialog" aria-label="Itens do acervo">
+      ${estado.acervo.length === 0 ? '' : `<div class="cb-busca">${ICONE.lupa}<input type="search" id="cb-busca" data-foco="busca" placeholder="Procurar no acervo" aria-label="Procurar no acervo" aria-controls="cb-grade" autocomplete="off" spellcheck="false" value="${esc(estado.busca)}"></div>
+      <div class="cb-chips" id="cb-chips" role="radiogroup" aria-label="Categoria">
+        ${['', ...categorias].map((cat) => `<button type="button" class="cb-chip" role="radio" aria-checked="${cat === estado.categoria}" tabindex="${cat === estado.categoria ? 0 : -1}" data-categoria="${esc(cat)}" data-foco="chip:${esc(cat)}">${cat === '' ? 'Todos' : esc(cat)}</button>`).join('')}
+      </div>`}
+      <div id="cb-grade-casa"></div>
+      <div class="cb-escolha__pe">${estado.acervo.length === 0 ? '' : `<span><kbd>Enter</kbd> ${esc(o().poe)}</span><span><kbd>Esc</kbd> fecha</span>`}<button type="button" class="cb-bt" data-acao="fechar-escolha" data-foco="pronto">Pronto</button></div>
+    </div>`
+    renderGrade()
+    pontasDosChips()
+    const chips = $('#cb-chips')
+    if (chips !== null) chips.addEventListener('wheel', rodaDeLado, { passive: false })
+  } else if (estado.escolha === 'docs') {
+    casa.innerHTML = `<div class="cb-escolha" id="cb-escolha" role="dialog" aria-label="Documentos da biblioteca">
+      ${estado.biblioteca.length === 0 ? '' : `<div class="cb-busca">${ICONE.lupa}<input type="search" id="cb-busca-doc" data-foco="busca-doc" placeholder="Procurar na biblioteca" aria-label="Procurar na biblioteca" aria-controls="cb-docs" autocomplete="off" spellcheck="false" value="${esc(estado.buscaDoc)}"></div>`}
+      <div id="cb-docs-casa"></div>
+      <div class="cb-escolha__pe">${estado.biblioteca.length === 0 ? '' : `<span><kbd>Enter</kbd> ${esc(o().poe)}</span><span><kbd>Esc</kbd> fecha</span>`}<button type="button" class="cb-bt" data-acao="fechar-escolha" data-foco="pronto">Pronto</button></div>
+    </div>`
+    renderDocs()
+  } else {
+    casa.innerHTML = ''
+  }
+}
+
+function quantosDentro(id) {
+  const d = estado.conteudo.itens.find((x) => x.id === id)
+  return d === undefined ? 0 : d.q
+}
+function cheioDeTipos() { return estado.conteudo.itens.length >= ITENS_MAX }
+
+function htmlPeca(item, i) {
+  const q = quantosDentro(item.id)
+  const travada = q === 0 && cheioDeTipos()
+  const rotulo = `${item.nome}${item.categoria !== '' ? ', ' + item.categoria : ''}${q > 0 ? `, ${q} ${o().no}` : ''}`
+  return `<li role="option" id="op-${esc(item.id)}" class="cb-peca lb-conteudo__achado" data-i="${i}" aria-selected="${i === estado.ativo}" aria-label="${esc(rotulo)}"${travada ? ' aria-disabled="true"' : ''}>
+    <span class="cb-vaga">${miniatura(item)}</span>${q > 0 ? `<span class="cb-peca__conta" aria-hidden="true">×${q > 999 ? '999+' : q}</span>` : ''}
+    <span class="cb-peca__nome">${esc(item.nome)}</span>
+  </li>`
+}
+
+function renderGrade() {
+  const casa = $('#cb-grade-casa')
+  if (casa === null) return
+  if (estado.acervo.length === 0) {
+    casa.innerHTML = `<div class="cb-escolha__vazio"><span class="cb-vaga cb-vaga--vazia" aria-hidden="true">${desenho('a-' + o().arte)}</span><b>O acervo de itens está vazio</b><span>Crie itens na aba Acervo do livro; eles aparecem aqui com a miniatura.</span></div>`
+    return
+  }
+  achados = itensAchados()
+  if (estado.ativo >= achados.length) estado.ativo = Math.max(0, achados.length - 1)
+  const busca = $('#cb-busca')
+  if (achados.length === 0) {
+    const emOutras = estado.categoria !== '' && estado.busca.trim() !== '' && estado.acervo.some((item) => item._n.includes(normal(estado.busca.trim())))
+    casa.innerHTML = `<div class="cb-escolha__vazio" role="status"><b>Nada com “${esc(estado.busca.trim())}”${estado.categoria !== '' ? ` em ${esc(estado.categoria)}` : ''}</b>
+      ${emOutras ? '<button type="button" class="cb-link" data-acao="todas-categorias" data-foco="todas">Procurar em todas as categorias</button>' : '<button type="button" class="cb-link" data-acao="limpar-busca" data-foco="limpar">Limpar a busca</button>'}</div>`
+    if (busca) busca.removeAttribute('aria-activedescendant')
+    return
+  }
+  casa.innerHTML = `<ul class="cb-grade" id="cb-grade" role="listbox" aria-label="Itens achados">${achados.map(htmlPeca).join('')}</ul><div class="cb-previa" id="cb-previa" aria-hidden="true"></div>`
+  marcarAtivo(false)
+}
+
+function marcarAtivo(rolar = true) {
+  const grade = $('#cb-grade')
+  if (grade === null) return
+  const antes = grade.querySelector('[aria-selected="true"]')
+  if (antes !== null) antes.setAttribute('aria-selected', 'false')
+  const peca = grade.children[estado.ativo]
+  if (peca === undefined) return
+  peca.setAttribute('aria-selected', 'true')
+  const busca = $('#cb-busca')
+  if (busca) busca.setAttribute('aria-activedescendant', peca.id)
+  if (rolar) peca.scrollIntoView({ block: 'nearest' })
+  renderPrevia()
+}
+
+function renderPrevia() {
+  const previa = $('#cb-previa')
+  const item = achados[estado.ativo]
+  if (previa === null || item === undefined) return
+  const q = quantosDentro(item.id)
+  const travada = q === 0 && cheioDeTipos()
+  previa.innerHTML = `<span class="cb-previa__nome" title="${esc(item.nome)}">${esc(item.nome)}</span>
+    <span class="cb-previa__conta">${q > 0 ? `${milhar(q)} ${o().no}` : ''}</span>
+    <span class="cb-previa__cat">${esc(item.categoria === '' ? 'Sem categoria' : item.categoria)}</span>
+    ${travada ? `<span class="cb-previa__aviso">Já tem ${ITENS_MAX} tipos de item, o máximo. Dá para somar nos que já estão.</span>` : ''}`
+}
+
+function colunasDaGrade() {
+  const grade = $('#cb-grade')
+  if (grade === null) return 1
+  return getComputedStyle(grade).gridTemplateColumns.split(' ').filter(Boolean).length
+}
+function moverNaGrade(passo, porLinha) {
+  const n = achados.length
+  if (n === 0) return
+  let proximo = estado.ativo + passo
+  if (porLinha) {
+    const cols = colunasDaGrade()
+    const ultimaLinha = Math.floor((n - 1) / cols)
+    if (proximo < 0) proximo = estado.ativo
+    else if (Math.floor(proximo / cols) > ultimaLinha) proximo = estado.ativo
+    else proximo = Math.min(proximo, n - 1)
+  } else {
+    proximo = Math.max(0, Math.min(n - 1, proximo))
+  }
+  if (proximo === estado.ativo) return
+  estado.ativo = proximo
+  marcarAtivo()
+}
+
+function porItem(item, pelaTecla) {
+  const q = quantosDentro(item.id)
+  if (q === 0 && cheioDeTipos()) {
+    renderPrevia()
+    anunciar(`Já tem ${ITENS_MAX} tipos de item ${o().no}, o máximo.`)
+    return
+  }
+  const novo = q === 0
+  const total = Math.min(QUANTIDADE_MAX, q + 1)
+  mudar((c) => {
+    if (novo) c.itens.push({ id: item.id, q: 1 })
+    else c.itens = c.itens.map((d) => (d.id === item.id ? { ...d, q: total } : d))
+  }, { anuncio: `${item.nome}: ${total} ${o().no}.` })
+  estado.realce = item.id
+  // A lista e o selo mudam no lugar; a grade fica onde estava (rolagem, marcado e o lugar na tela).
+  semMexerAEscolha(renderSoAListaECabecalho)
+  const grade = $('#cb-grade')
+  const peca = grade === null ? null : grade.querySelector(`#op-${CSS.escape(item.id)}`)
+  if (peca !== null) {
+    const i = Number(peca.dataset.i)
+    const nova = document.createElement('template')
+    nova.innerHTML = htmlPeca(item, i).trim()
+    const novaPeca = nova.content.firstElementChild
+    peca.replaceWith(novaPeca)
+    const conta = novaPeca.querySelector('.cb-peca__conta')
+    if (conta !== null) conta.classList.add('e-conta')
+  }
+  renderPrevia()
+  // Depois de pôr, a busca fica selecionada: digitar troca, Enter de novo soma mais um.
+  const busca = $('#cb-busca')
+  if (busca !== null && pelaTecla) busca.select()
+}
+
+/* A linha nova entra ACIMA da escolha aberta; sem isto a grade que o olho está usando desce uma linha a cada Enter. */
+function semMexerAEscolha(desenhar) {
+  const casa = $('#cb-escolha-casa')
+  const antes = casa === null ? null : casa.getBoundingClientRect().top
+  desenhar()
+  if (antes === null) return
+  const delta = casa.getBoundingClientRect().top - antes
+  if (Math.abs(delta) >= 1) $('#corpo').scrollTop += delta
+}
+
+/* re-desenha a seção Dentro sem mexer na escolha aberta */
+function renderSoAListaECabecalho() {
+  comFoco(() => {
+    $('#cb-conta').textContent = textoDaConta()
+    $('#cb-lista').innerHTML = htmlDaLista()
+    $('#cb-acoes-casa').innerHTML = htmlDasAcoes()
+    $('#ficha-resumo').textContent = resumo()
+  })
+  estado.realce = null
+}
+function renderAoAbrir() {
+  comFoco(() => { $('#cb-ao').outerHTML = htmlAoAbrir() })
+  $('#ficha-resumo').textContent = resumo()
+}
+
+function abrirEscolha(qual) {
+  if (estado.escolha === qual) {
+    // já aberta: o botão leva de volta à busca, com o texto selecionado (não fecha: a jornada clica de novo para o próximo item)
+    const busca = $(qual === 'itens' ? '#cb-busca' : '#cb-busca-doc')
+    if (busca !== null) { busca.focus(); busca.select() }
+    return
+  }
+  estado.escolha = qual
+  if (qual === 'itens') { estado.ativo = 0 } else { estado.ativoDoc = primeiroDocLivre() }
+  renderSoAListaECabecalho()
+  montarEscolha()
+  const busca = $(qual === 'itens' ? '#cb-busca' : '#cb-busca-doc')
+  if (busca !== null) { busca.focus(); busca.select() } else { const pronto = $('[data-foco="pronto"]'); if (pronto) pronto.focus() }
+  $('#cb-escolha').scrollIntoView({ block: 'nearest' })
+}
+function fecharEscolha() {
+  const qual = estado.escolha
+  estado.escolha = null
+  montarEscolha()
+  renderSoAListaECabecalho()
+  const volta = $(qual === 'docs' ? '#bt-docs' : '#bt-itens')
+  if (volta !== null && !volta.disabled) volta.focus()
+  else $('#bt-itens').focus()
+}
+
+function pontasDosChips() {
+  const chips = $('#cb-chips')
+  if (chips === null) return
+  const esq = chips.scrollLeft > 2
+  const dir = chips.scrollLeft + chips.clientWidth < chips.scrollWidth - 2
+  chips.dataset.ponta = [esq ? 'esq' : '', dir ? 'dir' : ''].filter(Boolean).join(' ')
+}
+function escolherCategoria(cat, focar) {
+  estado.categoria = cat
+  estado.ativo = 0
+  const chips = $('#cb-chips')
+  for (const chip of chips.children) {
+    const sim = chip.dataset.categoria === cat
+    chip.setAttribute('aria-checked', String(sim))
+    chip.tabIndex = sim ? 0 : -1
+    if (sim) { chip.scrollIntoView({ block: 'nearest', inline: 'nearest' }); if (focar) chip.focus() }
+  }
+  renderGrade()
+  pontasDosChips()
+}
+
+/* ------------------------------------------------------------------ a escolha da biblioteca */
+let docsAchados = []
+function primeiroDocLivre() {
+  const lista = docsFiltrados()
+  const i = lista.findIndex((d) => !estado.conteudo.docs.includes(d.id))
+  return i < 0 ? 0 : i
+}
+function docsFiltrados() {
+  const chave = normal(estado.buscaDoc.trim())
+  return estado.biblioteca.filter((d) => chave === '' || normal(d.titulo).includes(chave))
+}
+function renderDocs() {
+  const casa = $('#cb-docs-casa')
+  if (casa === null) return
+  if (estado.biblioteca.length === 0) {
+    casa.innerHTML = `<div class="cb-escolha__vazio"><span class="cb-vaga cb-vaga--vazia" aria-hidden="true">${desenho('p-alfinete')}</span><b>A biblioteca Documentos está vazia</b><span>Crie documentos na página Documentos do livro.</span></div>`
+    return
+  }
+  docsAchados = docsFiltrados()
+  if (estado.ativoDoc >= docsAchados.length) estado.ativoDoc = Math.max(0, docsAchados.length - 1)
+  if (docsAchados.length === 0) {
+    casa.innerHTML = `<div class="cb-escolha__vazio" role="status"><b>Nada com “${esc(estado.buscaDoc.trim())}”</b><button type="button" class="cb-link" data-acao="limpar-busca-doc" data-foco="limpar-doc">Limpar a busca</button></div>`
+    return
+  }
+  casa.innerHTML = `<ul class="cb-docs" id="cb-docs" role="listbox" aria-label="Documentos achados">${docsAchados.map((d, i) => {
+    const ja = estado.conteudo.docs.includes(d.id)
+    return `<li role="option" id="dop-${esc(d.id)}" class="cb-doc" data-i="${i}" aria-selected="${i === estado.ativoDoc}"${ja ? ' aria-disabled="true"' : ''} aria-label="${esc(d.titulo)}${ja ? `, já está ${o().no}` : ''}">
+      <span class="cb-vaga" aria-hidden="true">${desenho('p-' + d.papel)}</span><span class="cb-doc__tit" title="${esc(d.titulo)}">${esc(d.titulo)}</span>${ja ? `<span class="cb-doc__ja" aria-hidden="true">${ICONE.certo}</span>` : ''}
+    </li>`
+  }).join('')}</ul>`
+  const busca = $('#cb-busca-doc')
+  const ativo = $('#cb-docs').children[estado.ativoDoc]
+  if (busca && ativo) busca.setAttribute('aria-activedescendant', ativo.id)
+}
+function moverNosDocs(passo) {
+  const n = docsAchados.length
+  if (n === 0) return
+  estado.ativoDoc = Math.max(0, Math.min(n - 1, estado.ativoDoc + passo))
+  renderDocs()
+  const ativo = $('#cb-docs') && $('#cb-docs').children[estado.ativoDoc]
+  if (ativo) ativo.scrollIntoView({ block: 'nearest' })
+}
+function porDocumento(doc) {
+  if (estado.conteudo.docs.includes(doc.id)) { anunciar(`${doc.titulo} já está ${o().no}.`); return }
+  if (estado.conteudo.docs.length >= DOCUMENTOS_MAX) return
+  mudar((c) => { c.docs.push(doc.id) }, { anuncio: `${doc.titulo} entrou ${o().no}.` })
+  estado.realce = 'doc:' + doc.id
+  semMexerAEscolha(renderSoAListaECabecalho)
+  if (estado.conteudo.docs.length >= DOCUMENTOS_MAX) { fecharEscolha(); return }
+  // o marcado anda para o próximo que ainda não está dentro
+  const lista = docsFiltrados()
+  const depois = lista.findIndex((d, i) => i > estado.ativoDoc && !estado.conteudo.docs.includes(d.id))
+  if (depois >= 0) estado.ativoDoc = depois
+  renderDocs()
+}
+
+/* ------------------------------------------------------------------ tirar, com Desfazer */
+/*
+ * Tirar: a linha sai, a torrada oferece Desfazer por 5 s. O Desfazer devolve
+ * só o que saiu, no mesmo lugar e com a mesma quantidade; o que mudou depois
+ * fica (no app: um updateProp que reinsere, também um passo do Ctrl+Z).
+ */
+/* FLIP: guarda onde cada pedaço estava, re-desenha, e cada um desliza do lugar antigo ao novo só com transform */
+const chaveDoPedaco = (el) => el.id || (el.dataset.id ? 'i:' + el.dataset.id : el.dataset.doc ? 'd:' + el.dataset.doc : el.classList.contains('cb-linha--moedas') ? 'moedas' : 'vazio')
+function pedacosQueAndam() {
+  const lista = $('#cb-lista')
+  return lista === null ? [] : [...lista.children, $('#cb-acoes-casa'), $('#cb-escolha-casa'), $('#cb-ao'), $('#cb-pe')].filter(Boolean)
+}
+function posicoes() {
+  return new Map(pedacosQueAndam().map((el) => [chaveDoPedaco(el), el.getBoundingClientRect().top]))
+}
+function deslizarDe(antes) {
+  if (reduzirMovimento()) return
+  for (const el of pedacosQueAndam()) {
+    const topo = antes.get(chaveDoPedaco(el))
+    if (topo === undefined) continue
+    const delta = topo - el.getBoundingClientRect().top
+    if (Math.abs(delta) < 1) continue
+    el.animate([{ transform: `translateY(${delta}px)` }, { transform: 'none' }], { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' })
+  }
+}
+function tirarComDesfazer({ rotulo, tirar, devolver, chave }, linha) {
+  const reDesenhar = () => {
+    renderSoAListaECabecalho()
+    if (estado.escolha === 'itens') renderGrade()
+    if (estado.escolha === 'docs') renderDocs()
+  }
+  const concluir = () => {
+    const antes = posicoes()
+    mudar(tirar)
+    reDesenhar()
+    deslizarDe(antes)
+    torrada(`${rotulo} saiu ${o().do}.`, () => {
+      const antesDeVoltar = posicoes()
+      mudar(devolver)
+      estado.realce = chave
+      reDesenhar()
+      deslizarDe(antesDeVoltar)
+      anunciar(`${rotulo} voltou.`)
+    })
+    anunciar(`${rotulo} saiu ${o().do}. Desfazer na mensagem embaixo, ou Ctrl+Z.`)
+  }
+  // o foco não pode morrer junto com a linha: vai para a linha de baixo (ou o botão de pôr)
+  const proximaLinha = linha === null ? null : linha.nextElementSibling
+  const alvo = proximaLinha === null ? null : proximaLinha.querySelector('button:not(:disabled), input')
+  if (alvo !== null) alvo.focus({ preventScroll: true })
+  else $('#bt-itens').focus({ preventScroll: true })
+  if (linha === null || reduzirMovimento()) { concluir(); return }
+  // a linha sai pela direita em 120 ms (opacidade e transform); depois as de baixo sobem por FLIP
+  linha.style.pointerEvents = 'none'
+  const anim = linha.animate([
+    { opacity: 1, transform: 'none' },
+    { opacity: 0, transform: 'translateX(10px)' },
+  ], { duration: 120, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' })
+  anim.onfinish = concluir
+}
+function tirarItem(id, linha) {
+  const i = estado.conteudo.itens.findIndex((d) => d.id === id)
+  if (i < 0) return
+  const dentro = copia(estado.conteudo.itens[i])
+  tirarComDesfazer({
+    chave: id,
+    rotulo: porId.get(id)?.nome ?? 'O item',
+    tirar: (c) => { c.itens = c.itens.filter((d) => d.id !== id) },
+    devolver: (c) => { if (!c.itens.some((d) => d.id === id)) c.itens.splice(Math.min(i, c.itens.length), 0, dentro) },
+  }, linha)
+}
+function tirarDocumento(docId, linha) {
+  const i = estado.conteudo.docs.indexOf(docId)
+  if (i < 0) return
+  const doc = docPorId(docId)
+  tirarComDesfazer({
+    chave: 'doc:' + docId,
+    rotulo: doc ? doc.titulo : 'O documento apagado',
+    tirar: (c) => { c.docs = c.docs.filter((x) => x !== docId) },
+    devolver: (c) => { if (!c.docs.includes(docId)) c.docs.splice(Math.min(i, c.docs.length), 0, docId) },
+  }, linha)
+}
+
+let torradaAtual = null
+function torrada(texto, aoDesfazer) {
+  const casa = $('#torradas')
+  if (torradaAtual !== null) torradaAtual.fechar(true)
+  const el = document.createElement('div')
+  el.className = 'cb-torrada'
+  el.setAttribute('role', 'status')
+  el.innerHTML = `<span>${esc(texto)}</span><button type="button">Desfazer</button>`
+  casa.appendChild(el)
+  let restante = DESFAZER_MS
+  let comecou = performance.now()
+  let relogio = setTimeout(() => fechar(), restante)
+  const pausar = () => { clearTimeout(relogio); restante -= performance.now() - comecou }
+  const seguir = () => { comecou = performance.now(); clearTimeout(relogio); relogio = setTimeout(() => fechar(), Math.max(800, restante)) }
+  el.addEventListener('pointerenter', pausar)
+  el.addEventListener('pointerleave', seguir)
+  el.addEventListener('focusin', pausar)
+  el.addEventListener('focusout', seguir)
+  function fechar(ja) {
+    clearTimeout(relogio)
+    if (torradaAtual && torradaAtual.el === el) torradaAtual = null
+    if (ja || reduzirMovimento()) { el.remove(); return }
+    el.classList.add('e-sai')
+    setTimeout(() => el.remove(), 160)
+  }
+  el.querySelector('button').addEventListener('click', () => { fechar(); aoDesfazer() })
+  torradaAtual = { el, fechar }
+}
+
+/* ------------------------------------------------------------------ números */
+function mudarNumero(alvo, chave, valor, { daTecla } = {}) {
+  const c = estado.conteudo
+  if (alvo === 'item') {
+    const dentro = c.itens.find((d) => d.id === chave)
+    if (dentro === undefined) return
+    const nome = porId.get(chave)?.nome ?? 'Item'
+    if (valor <= 0) {
+      tirarItem(chave, document.querySelector(`.cb-linha[data-id="${CSS.escape(chave)}"]`))
+      return
+    }
+    const novo = Math.min(QUANTIDADE_MAX, valor)
+    if (novo === dentro.q) return
+    if (novo === 1 && dentro.q > 1 && !daTecla) lixeiraDesde.set(chave, performance.now())
+    mudar((cc) => { cc.itens = cc.itens.map((d) => (d.id === chave ? { ...d, q: novo } : d)) }, { anuncio: `${nome}: ${novo} ${o().no}.` })
+  } else if (alvo === 'moedas') {
+    const novo = Math.max(0, Math.min(MOEDAS_MAX, valor))
+    if (novo === c.moedas) return
+    mudar((cc) => { cc.moedas = novo })
+  } else if (alvo === 'armadilha') {
+    const limites = { dano: [0, 999], turnos: [1, 20], porVez: [1, 99] }
+    const [min, max] = limites[chave]
+    const novo = Math.max(min, Math.min(max, valor))
+    if (novo !== valorAtual('armadilha', chave)) mudar((cc) => { cc.armadilha = { ...cc.armadilha, [chave]: novo } })
+    renderAoAbrir()
+    return
+  }
+  renderSoAListaECabecalho()
+  if (alvo === 'item' && estado.escolha === 'itens') { renderGrade() }
+}
+function valorAtual(alvo, chave) {
+  const c = estado.conteudo
+  if (alvo === 'item') return c.itens.find((d) => d.id === chave)?.q ?? 0
+  if (alvo === 'moedas') return c.moedas
+  return c.armadilha?.[chave] ?? 0
+}
+const passoDe = (alvo) => (alvo === 'moedas' ? PASSO_DAS_MOEDAS : 1)
+
+/* ------------------------------------------------------------------ eventos */
+const cb = $('#cb')
+cb.addEventListener('click', (evento) => {
+  const peca = evento.target.closest('.cb-peca')
+  if (peca !== null) { estado.ativo = Number(peca.dataset.i); marcarAtivo(false); porItem(achados[estado.ativo], false); return }
+  const doc = evento.target.closest('.cb-doc')
+  if (doc !== null) { estado.ativoDoc = Number(doc.dataset.i); porDocumento(docsAchados[estado.ativoDoc]); return }
+  const chip = evento.target.closest('.cb-chip')
+  if (chip !== null) { escolherCategoria(chip.dataset.categoria, true); return }
+  const bt = evento.target.closest('[data-acao]')
+  if (bt === null || bt.disabled) return
+  const acao = bt.dataset.acao
+  const { alvo, chave } = bt.dataset
+  if (acao === 'abrir-itens') abrirEscolha('itens')
+  else if (acao === 'abrir-docs') abrirEscolha('docs')
+  else if (acao === 'fechar-escolha') fecharEscolha()
+  else if (acao === 'mais') mudarNumero(alvo, chave, valorAtual(alvo, chave) + passoDe(alvo))
+  else if (acao === 'menos') mudarNumero(alvo, chave, valorAtual(alvo, chave) - passoDe(alvo))
+  else if (acao === 'tirar') {
+    const desde = lixeiraDesde.get(chave)
+    if (desde !== undefined && performance.now() - desde < LIXEIRA_ACABOU_DE_APARECER_MS) return
+    lixeiraDesde.delete(chave)
+    mudarNumero('item', chave, 0)
+  } else if (acao === 'tirar-doc') tirarDocumento(chave, bt.closest('.cb-linha'))
+  else if (acao === 'armadilha') trocarArmadilha(bt.dataset.valor)
+  else if (acao === 'armadilha-padrao') {
+    mudar((c) => { c.armadilha = { ...ARMADILHA_PADRAO[c.armadilha.tipo] } })
+    renderConteudo()
+    const radio = $(`[data-foco="arm:${estado.conteudo.armadilha.tipo}"]`); if (radio) radio.focus()
+  } else if (acao === 'repor') {
+    const aberto = estado.conteudo.aberto
+    mudar((c) => { c.aberto = null })
+    renderConteudo()
+    torrada('Fechado e reposto, com o mesmo conteúdo.', () => { mudar((c) => { c.aberto = aberto }); renderConteudo() })
+    $('#bt-itens').focus()
+  } else if (acao === 'limpar-busca') { estado.busca = ''; const b = $('#cb-busca'); b.value = ''; renderGrade(); b.focus() }
+  else if (acao === 'todas-categorias') { escolherCategoria('', false); $('#cb-busca').focus() }
+  else if (acao === 'limpar-busca-doc') { estado.buscaDoc = ''; const b = $('#cb-busca-doc'); b.value = ''; renderDocs(); b.focus() }
+})
+// a peça e a linha do documento não roubam o foco da busca (o teclado continua lá)
+cb.addEventListener('mousedown', (evento) => { if (evento.target.closest('.cb-peca, .cb-doc')) evento.preventDefault() })
+cb.addEventListener('pointermove', (evento) => {
+  if (evento.pointerType !== 'mouse') return
+  const peca = evento.target.closest('.cb-peca')
+  if (peca !== null) { const i = Number(peca.dataset.i); if (i !== estado.ativo) { estado.ativo = i; marcarAtivo(false) } }
+})
+cb.addEventListener('change', (evento) => {
+  const alvo = evento.target
+  if (alvo.id === 'cb-minigame') {
+    mudar((c) => { c.minigame = alvo.checked })
+    renderAoAbrir()
+    return
+  }
+  if (alvo.classList.contains('cb-passo__num')) confirmarNumero(alvo)
+})
+/* o número digitado vale no Enter ou ao sair; vazio volta ao de antes, 0 tira o item (com Desfazer) */
+function confirmarNumero(campo) {
+  const { alvo, chave } = campo.dataset
+  const atual = valorAtual(alvo, chave)
+  const lido = Number(campo.value.replace(/\D/g, ''))
+  if (campo.value.trim() === '' || !Number.isFinite(lido) || lido === atual) { campo.value = String(atual); return }
+  mudarNumero(alvo, chave, lido, { daTecla: true })
+}
+cb.addEventListener('input', (evento) => {
+  const alvo = evento.target
+  if (alvo.id === 'cb-busca') { estado.busca = alvo.value; estado.ativo = 0; renderGrade() }
+  else if (alvo.id === 'cb-busca-doc') { estado.buscaDoc = alvo.value; estado.ativoDoc = 0; renderDocs() }
+  else if (alvo.classList.contains('cb-passo__num')) alvo.value = alvo.value.replace(/\D/g, '').slice(0, 7)
+})
+cb.addEventListener('keydown', (evento) => {
+  const alvo = evento.target
+  if (evento.key === 'Escape' && estado.escolha !== null && alvo.closest('#cb-escolha')) {
+    evento.preventDefault(); evento.stopPropagation(); fecharEscolha(); return
+  }
+  if (alvo.id === 'cb-busca') {
+    const teclas = { ArrowRight: [1, false], ArrowLeft: [-1, false], ArrowDown: [null, true], ArrowUp: [null, true], PageDown: [null, true], PageUp: [null, true] }
+    if (evento.key in teclas) {
+      const cols = colunasDaGrade()
+      const passo = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols, PageDown: cols * 3, PageUp: -cols * 3 }[evento.key]
+      evento.preventDefault()
+      moverNaGrade(passo, teclas[evento.key][1])
+    } else if (evento.key === 'Enter') {
+      evento.preventDefault()
+      if (achados.length > 0) porItem(achados[estado.ativo], true)
+    }
+    return
+  }
+  if (alvo.id === 'cb-busca-doc') {
+    if (evento.key === 'ArrowDown' || evento.key === 'ArrowUp') { evento.preventDefault(); moverNosDocs(evento.key === 'ArrowDown' ? 1 : -1) }
+    else if (evento.key === 'Enter') { evento.preventDefault(); if (docsAchados.length > 0) porDocumento(docsAchados[estado.ativoDoc]) }
+    return
+  }
+  if (alvo.classList.contains('cb-chip')) {
+    const chips = [...$('#cb-chips').children]
+    const i = chips.indexOf(alvo)
+    const destino = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: chips.length - 1 }[evento.key]
+    if (destino !== undefined) { evento.preventDefault(); const chip = chips[Math.max(0, Math.min(chips.length - 1, destino))]; escolherCategoria(chip.dataset.categoria, true) }
+    return
+  }
+  if (alvo.getAttribute('role') === 'radio' && alvo.dataset.acao === 'armadilha') {
+    const ordem = ['nenhuma', 'cobra', 'aranha']
+    const i = ordem.indexOf(alvo.dataset.valor)
+    const destino = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1 }[evento.key]
+    if (destino !== undefined) { evento.preventDefault(); trocarArmadilha(ordem[(destino + 3) % 3]) }
+    return
+  }
+  if (alvo.classList.contains('cb-passo__num')) {
+    const passos = { ArrowUp: 1, ArrowDown: -1, PageUp: 10, PageDown: -10 }
+    if (evento.key in passos) {
+      evento.preventDefault()
+      const { alvo: qual, chave } = alvo.dataset
+      const passo = passos[evento.key] * passoDe(qual) * (evento.shiftKey ? 10 : 1)
+      const atual = valorAtual(qual, chave)
+      const min = qual === 'item' ? 1 : qual === 'moedas' ? 0 : chave === 'dano' ? 0 : 1
+      mudarNumero(qual, chave, Math.max(min, atual + passo), { daTecla: true })
+      const novo = document.querySelector(`[data-foco="num:${CSS.escape(chave)}"]`)
+      if (novo) novo.select()
+    } else if (evento.key === 'Enter') {
+      evento.preventDefault()
+      const chave = alvo.dataset.chave
+      confirmarNumero(alvo)
+      const novo = document.querySelector(`[data-foco="num:${CSS.escape(chave)}"]`)
+      if (novo) { novo.focus(); novo.select() }
+    }
+  }
+})
+cb.addEventListener('focusin', (evento) => { if (evento.target.classList.contains('cb-passo__num')) evento.target.select() })
+cb.addEventListener('scroll', (evento) => { if (evento.target.id === 'cb-chips') pontasDosChips() }, true)
+/* a roda do mouse rola a faixa das categorias de lado; o ouvinte fica só nela, para não travar a rolagem da página */
+function rodaDeLado(evento) {
+  const chips = evento.currentTarget
+  if (Math.abs(evento.deltaX) > Math.abs(evento.deltaY) || chips.scrollWidth <= chips.clientWidth) return
+  evento.preventDefault()
+  chips.scrollLeft += evento.deltaY
+}
+
+function trocarArmadilha(valor) {
+  const atual = estado.conteudo.armadilha === null ? 'nenhuma' : estado.conteudo.armadilha.tipo
+  if (valor === atual) return
+  mudar((c) => { c.armadilha = valor === 'nenhuma' ? null : { ...ARMADILHA_PADRAO[valor] } })
+  renderAoAbrir()
+  const radio = $(`[data-foco="arm:${valor}"]`)
+  if (radio) radio.focus()
+}
+
+// Ctrl+Z desfaz a última mudança do conteúdo (no app é o updateProp, um passo por mudança)
+document.addEventListener('keydown', (evento) => {
+  if ((evento.ctrlKey || evento.metaKey) && !evento.shiftKey && evento.key.toLowerCase() === 'z') {
+    const campo = evento.target
+    if (campo instanceof HTMLInputElement && campo.type !== 'checkbox' && campo.value !== '') return
+    if (desfazer()) { evento.preventDefault(); anunciar('Desfeito.') }
+  }
+})
+
+/* a ficha Conteúdo recolhe como as outras */
+$('#ficha-conteudo-cab').addEventListener('click', () => {
+  estado.aberta = !estado.aberta
+  $('#ficha-conteudo').classList.toggle('e-aberta', estado.aberta)
+  $('#ficha-conteudo-cab').setAttribute('aria-expanded', String(estado.aberta))
+  $('#ficha-conteudo-dentro').hidden = !estado.aberta
+})
+
+/* ------------------------------------------------------------------ painel do protótipo */
+function marcarGrupo(id, atributo, valor) {
+  for (const bt of document.querySelectorAll(`#${id} button`)) bt.setAttribute('aria-pressed', String(bt.dataset[atributo] === String(valor)))
+}
+function aplicarLargura(largura) {
+  estado.largura = Math.round(Math.max(240, Math.min(520, largura)))
+  $('#pagina').style.setProperty('--pagina', estado.largura + 'px')
+  $('#largura-saida').textContent = estado.largura + ' px'
+  $('#borda').setAttribute('aria-valuenow', String(estado.largura))
+  marcarGrupo('g-largura', 'largura', estado.largura)
+  pontasDosChips()
+}
+function aplicarCenario(cenario) {
+  estado.cenario = cenario
+  estado.acervo = cenario === 'pior' ? acervoDoPiorCaso() : cenario === 'acervo-vazio' ? [] : ACERVO_PADRAO
+  estado.biblioteca = cenario === 'pior' ? bibliotecaDoPiorCaso() : cenario === 'acervo-vazio' ? [] : BIBLIOTECA_PADRAO
+  indexarAcervo()
+  estado.conteudo = conteudoDoCenario(cenario)
+  estado.escolha = null
+  estado.busca = ''
+  estado.categoria = ''
+  estado.buscaDoc = ''
+  historico.length = 0
+  marcarGrupo('g-cenario', 'cenario', cenario)
+  renderConteudo()
+}
+function aplicarObjeto(objeto) {
+  estado.objeto = objeto
+  $('#obj-nome').textContent = OBJETOS[objeto].nome
+  $('#obj-tipo').textContent = OBJETOS[objeto].tipo
+  marcarGrupo('g-objeto', 'objeto', objeto)
+  renderConteudo()
+}
+$('#g-largura').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) aplicarLargura(Number(b.dataset.largura)) })
+$('#g-objeto').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) aplicarObjeto(b.dataset.objeto) })
+$('#g-cenario').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) aplicarCenario(b.dataset.cenario) })
+$('#g-imagens').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return
+  estado.imagens = b.dataset.imagens === 'sim'
+  marcarGrupo('g-imagens', 'imagens', b.dataset.imagens)
+  renderConteudo()
+})
+// a borda da página: arrastar, setas de 16 em 16 e clique duplo de volta ao padrão (como lib/larguraDaPagina.ts)
+const borda = $('#borda')
+borda.addEventListener('pointerdown', (e) => {
+  borda.setPointerCapture(e.pointerId)
+  const x0 = e.clientX
+  const l0 = estado.largura
+  const mover = (m) => aplicarLargura(l0 + m.clientX - x0)
+  const soltar = () => { borda.removeEventListener('pointermove', mover); borda.removeEventListener('pointerup', soltar) }
+  borda.addEventListener('pointermove', mover)
+  borda.addEventListener('pointerup', soltar)
+})
+borda.addEventListener('dblclick', () => aplicarLargura(262))
+borda.addEventListener('keydown', (e) => {
+  const passo = { ArrowRight: 16, ArrowLeft: -16 }[e.key]
+  if (passo) { e.preventDefault(); aplicarLargura(estado.largura + passo) }
+})
+
+/* medição de travada (usada pelo teste do protótipo): quadros e tarefas longas */
+window.__medida = {
+  iniciar() {
+    this.quadros = []; this.longas = []; this.rodando = true
+    let antes = performance.now()
+    const passo = (agora) => { if (!this.rodando) return; this.quadros.push(agora - antes); antes = agora; requestAnimationFrame(passo) }
+    requestAnimationFrame(passo)
+    try {
+      this.obs = new PerformanceObserver((lista) => { for (const t of lista.getEntries()) this.longas.push(Math.round(t.duration)) })
+      this.obs.observe({ type: 'longtask', buffered: false })
+    } catch (_) { this.obs = null }
+  },
+  parar() {
+    this.rodando = false
+    if (this.obs) this.obs.disconnect()
+    const q = [...this.quadros].sort((a, b) => a - b)
+    const p95 = q.length ? q[Math.floor(q.length * 0.95)] : 0
+    return { quadros: q.length, p95: Math.round(p95 * 10) / 10, pior: Math.round((q[q.length - 1] || 0) * 10) / 10, longas: this.longas, maiorLonga: this.longas.length ? Math.max(...this.longas) : 0 }
+  },
+}
+
+marcarGrupo('g-imagens', 'imagens', 'sim')
+marcarGrupo('g-objeto', 'objeto', 'bau')
+aplicarLargura(262)
+aplicarCenario('cheio')
+</script>
+</body>
+</html>
