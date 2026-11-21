@@ -81,3 +81,6 @@
 .mg-abertura__linha--perigo { color: #e8a07a; }
 .mg-abertura__linha--aviso { font-style: italic; }
 @media (prefers-reduced-motion: reduce) { .mg-abertura { transition: none; } }
+
+/* Editor de desafio (21/11/2026): a falta dita na ficha, no lugar do campo (o puzzle sem lugar, o clique fora do objeto, o apagar). */
+.mg-erro { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.45; color: #f0a198; }

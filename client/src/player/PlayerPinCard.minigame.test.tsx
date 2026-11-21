@@ -40,11 +40,12 @@ describe('PlayerPinCard: minigame', () => {
   it('mostra o controle, o título e o aviso, sem botão de ação', () => {
     render(pino())
     const dialogo = container.querySelector<HTMLElement>('[role="dialog"]')
-    expect(dialogo?.getAttribute('aria-label')).toBe('Minigame')
+    // O título é o jogo, não "Minigame" (B12 das NOTAS do editor de 21/11/2026).
+    expect(dialogo?.getAttribute('aria-label')).toBe('Dança')
     const selo = container.querySelector<HTMLElement>('.pp-pincard__glyph')
     expect(selo?.querySelector('svg')).not.toBeNull()
-    expect(selo?.getAttribute('aria-label')).toBe('Símbolo do pino: controle de videogame')
-    expect(container.querySelector('.pp-pincard__title')?.textContent).toBe('Minigame')
+    expect(selo?.getAttribute('aria-label')).toBe('Símbolo do pino: selo de Dança')
+    expect(container.querySelector('.pp-pincard__title')?.textContent).toBe('Dança')
     expect(container.textContent).toContain('Uma pista de dança.')
     expect(container.textContent).toContain('Desafio de dança. O mestre chama quando for a hora.')
     const acoes = Array.from(container.querySelectorAll('button')).filter((b) => !b.className.includes('close'))
@@ -53,7 +54,7 @@ describe('PlayerPinCard: minigame', () => {
 
   it('ícone que sobrou de quando era "!" não troca o controle', () => {
     render(pino({ icon: 'bau' }))
-    expect(container.querySelector('.pp-pincard__title')?.textContent).toBe('Minigame')
+    expect(container.querySelector('.pp-pincard__title')?.textContent).toBe('Dança')
   })
 
   it('dança pelo recorte (`minigameVisivel`): igual a hoje, só o aviso', () => {
@@ -90,7 +91,7 @@ describe('PlayerPinCard: minigame', () => {
     expect(container.textContent).not.toContain('O mestre ainda não escreveu nada')
     expect(container.textContent).toContain('Fogo na floresta! Alguém precisa de ajuda aqui.')
     expect(container.querySelector('.pp-pincard__fala-texto')?.textContent).toBe('“O fogo está descendo o morro!”')
-    expect(container.querySelector('.pp-pincard__fala-quem')?.textContent).toBe('Guarda Florêncio')
+    expect(container.querySelector('.pp-pincard__pedido-quem')?.textContent).toBe('Guarda Florêncio')
     const [apagar] = acoes()
     expect(apagar.textContent).toBe('Apagar o fogo')
     act(() => apagar.click())

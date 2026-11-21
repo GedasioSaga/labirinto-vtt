@@ -5321,8 +5321,13 @@ function PixiCanvasDoContexto({
           updateDesafio(marcando.id, { lugar: { tipo: 'ponto', x: Math.round(ponto.x), y: Math.round(ponto.y) }, piso: pisoAtivo === 0 ? undefined : pisoAtivo })
         } else {
           const prop = findPropAt(doPisoEmEdicao(map).props, ponto, map)
-          if (prop === null) return true
-          updateDesafio(marcando.id, { lugar: { tipo: 'objeto', propId: prop.id } })
+          // Fora de um objeto: o modo continua, e a ficha diz por que nada marcou (B25 das NOTAS do editor).
+          if (prop === null) {
+            useDesafiosStore.getState().avisarCliqueForaDoObjeto()
+            return true
+          }
+          // O piso do ponto de antes sai: o selo segue o objeto (e o piso dele, `pontoDoDesafio`). B30.
+          updateDesafio(marcando.id, { lugar: { tipo: 'objeto', propId: prop.id }, piso: undefined })
         }
         useDesafiosStore.getState().pararDeMarcar()
         return true

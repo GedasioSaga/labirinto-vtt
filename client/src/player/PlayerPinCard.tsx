@@ -23,7 +23,7 @@ import { PASS_CHECK_TEXT } from './travelNotice'
 import { TEXTO_LONGE_DO_ITEM } from './PlayerItemCard'
 import { TEXTO_A_BORDO_VIAGEM, type PinTravelChoice } from '../lib/pinTravelers'
 import { TEXTO_CONGELADO } from '../lib/congelar'
-import type { JogoDoMinigame } from '../minigames/tipos'
+import type { JogoDoMinigame, MinigameVisivel } from '../minigames/tipos'
 
 const NO_TRAVELERS: readonly PinTravelChoice[] = []
 
@@ -182,36 +182,51 @@ const TEXTO_LONGE ='Chegue mais perto para passar'
  * `Record` de todos os jogos: jogo novo sem frase não compila — nenhum cai na
  * frase da dança por engano (bug de 09/11/2026: o Fogo dizia "Desafio de dança").
  */
-const TEXTOS_DO_JOGO: Record<JogoDoMinigame, { vazio: string; doMestre: string }> = {
-  danca: { vazio: 'Um desafio de dança espera por aqui.', doMestre: 'Desafio de dança. O mestre chama quando for a hora.' },
-  pesca: { vazio: 'Um lugar para pescar.', doMestre: 'Pesca. O mestre chama quando for a hora.' },
-  tiro: { vazio: 'Uma barraca de tiro ao alvo.', doMestre: 'Barraca de tiro. O mestre chama quando for a hora.' },
-  fogo: { vazio: 'Fogo na floresta! Alguém precisa de ajuda aqui.', doMestre: 'Fogo na floresta. O mestre chama quando for a hora.' },
-  bolha: { vazio: 'Fogo! Alguém precisa de ajuda para apagar com bolhas.', doMestre: "Bolha d'Água. O mestre chama quando for a hora." },
-  alavanca: { vazio: 'Uma alavanca diante da ponte levadiça erguida.', doMestre: 'Alavanca da ponte. O mestre chama quando for a hora.' },
-  // O puzzle começa pelo jogador ("Examinar", na tela do puzzle); o mestre nunca chama.
-  puzzle: { vazio: 'Há algo aqui para examinar de perto.', doMestre: 'Um mecanismo para examinar de perto.' },
+const TEXTOS_DO_JOGO: Record<JogoDoMinigame, { titulo: string; vazio: string; doMestre: string }> = {
+  danca: { titulo: 'Dança', vazio: 'Um desafio de dança espera por aqui.', doMestre: 'Desafio de dança. O mestre chama quando for a hora.' },
+  pesca: { titulo: 'Pesca', vazio: 'Um lugar para pescar.', doMestre: 'Pesca. O mestre chama quando for a hora.' },
+  tiro: { titulo: 'Barraca de tiro', vazio: 'Uma barraca de tiro ao alvo.', doMestre: 'Barraca de tiro. O mestre chama quando for a hora.' },
+  fogo: { titulo: 'Fogo na Floresta', vazio: 'Fogo na floresta! Alguém precisa de ajuda aqui.', doMestre: 'Fogo na floresta. O mestre chama quando for a hora.' },
+  bolha: { titulo: "Bolha d'Água", vazio: 'Fogo! Alguém precisa de ajuda para apagar com bolhas.', doMestre: "Bolha d'Água. O mestre chama quando for a hora." },
+  alavanca: { titulo: 'Alavanca da ponte', vazio: 'Uma alavanca diante da ponte levadiça erguida.', doMestre: 'Alavanca da ponte. O mestre chama quando for a hora.' },
+  // O puzzle começa pelo jogador ("Examinar", na tela do puzzle); o mestre nunca chama. O nome dele não vem no recorte.
+  puzzle: { titulo: 'Puzzle', vazio: 'Há algo aqui para examinar de perto.', doMestre: 'Um mecanismo para examinar de perto.' },
+}
+/**
+ * A ALAVANCA NA CENA DO CANHÃO (B6 das NOTAS do editor, 21/11/2026): o mesmo
+ * jogo, outra coisa no mapa. Sem cena no recorte (host de antes), a ponte.
+ */
+const TEXTOS_DA_ALAVANCA_DO_CANHAO = {
+  titulo: 'Alavanca do canhão',
+  vazio: 'Uma alavanca ao lado das lajes do baluarte.',
+  doMestre: 'Alavanca do canhão. O mestre chama quando for a hora.',
+}
+/** Os textos do jogo deste selo: os do registro do cartão, com a cena da alavanca. */
+function textosDoJogoDoSelo(visivel: MinigameVisivel | undefined): { titulo: string; vazio: string; doMestre: string } {
+  const jogo = visivel?.jogo ?? 'danca'
+  if (jogo === 'alavanca' && visivel?.cena === 'canhao') return TEXTOS_DA_ALAVANCA_DO_CANHAO
+  return TEXTOS_DO_JOGO[jogo] ?? TEXTOS_DO_JOGO.danca
 }
 /** Fogo sem como pedir daqui (o cartão que o mestre mostrou). */
-const TEXTO_DO_FOGO_NO_PINO = 'Fogo na floresta. Encoste no pino e toque em "Apagar o fogo".'
+const TEXTO_DO_FOGO_NO_PINO = 'Fogo na floresta. Encoste no selo e toque em "Apagar o fogo".'
 const TEXTO_LONGE_DO_FOGO = 'Chegue mais perto para apagar o fogo.'
 /** Debaixo do "Apagar o fogo": sozinho é aqui; a equipe, o mestre chama. */
 const TEXTO_FOGO_EM_EQUIPE = 'Sozinho, com a sua ferramenta. Em equipe, o mestre chama.'
 /** Bolha "pino" sem como pedir daqui (o cartão que o mestre mostrou). */
-const TEXTO_DA_BOLHA_NO_PINO = `Bolha d'Água. Encoste no pino e toque em "Apagar com bolhas".`
+const TEXTO_DA_BOLHA_NO_PINO = `Bolha d'Água. Encoste no selo e toque em "Apagar com bolhas".`
 const TEXTO_LONGE_DA_BOLHA = 'Chegue mais perto para apagar com bolhas.'
 /** Debaixo do "Apagar com bolhas": sozinho é aqui; a equipe, o mestre chama. */
 const TEXTO_BOLHA_EM_EQUIPE = 'Sozinho, aqui mesmo. Em equipe, o mestre chama.'
-/** Alavanca "pino" sem como pedir daqui (o cartão que o mestre mostrou). */
-const TEXTO_DA_ALAVANCA_NO_PINO = 'Alavanca da ponte. Encoste no pino e toque em "Girar a alavanca".'
+/** Alavanca "pino" sem como pedir daqui (o cartão que o mestre mostrou): o título da cena vem na frente. */
+const TEXTO_DA_ALAVANCA_NO_PINO = 'Encoste no selo e toque em "Girar a alavanca".'
 const TEXTO_LONGE_DA_ALAVANCA = 'Chegue mais perto para girar a alavanca.'
 /** Debaixo do "Girar a alavanca": sozinho é aqui; a equipe, o mestre chama. */
 const TEXTO_ALAVANCA_EM_EQUIPE = 'Sozinho, aqui mesmo. Em equipe, o mestre chama.'
-/** Pesca "Jogador toca no pino" sem como pedir daqui (o cartão que o mestre mostrou). */
-const TEXTO_DA_PESCA_NO_PINO = 'Pesca. Encoste no pino e toque em "Pescar".'
+/** Pesca "O jogador começa no selo" sem como pedir daqui (o cartão que o mestre mostrou). */
+const TEXTO_DA_PESCA_NO_PINO = 'Pesca. Encoste no selo e toque em "Pescar".'
 const TEXTO_LONGE_DA_PESCA = 'Chegue mais perto para pescar.'
-/** Tiro "Jogador toca no pino" sem como pedir daqui (o cartão que o mestre mostrou). */
-const TEXTO_DO_TIRO_NO_PINO = 'Barraca de tiro. Encoste no pino e toque em "Atirar".'
+/** Tiro "O jogador começa no selo" sem como pedir daqui (o cartão que o mestre mostrou). */
+const TEXTO_DO_TIRO_NO_PINO = 'Barraca de tiro. Encoste no selo e toque em "Atirar".'
 const TEXTO_LONGE_DO_TIRO = 'Chegue mais perto para atirar.'
 const TEXTO_LONGE_DO_PUZZLE = 'Chegue mais perto para examinar.'
 
@@ -219,7 +234,7 @@ const TEXTO_LONGE_DO_PUZZLE = 'Chegue mais perto para examinar.'
 function nomeDaCabeca(pin: PinDoCartao): string {
   if (pin.kind === 'viagem') return 'passagem'
   if (pin.kind === 'alavanca') return 'alavanca'
-  if (pin.kind === 'minigame') return 'controle de videogame'
+  if (pin.kind === 'minigame') return `selo de ${textosDoJogoDoSelo(pin.minigameVisivel).titulo}`
   if (isPinIcon(pin.icon)) return PIN_ICON_LABELS[pin.icon].toLocaleLowerCase('pt-BR')
   return pin.kind === 'interrogacao' ? 'interrogação' : 'exclamação'
 }
@@ -497,8 +512,8 @@ export function PlayerPinCard({
   const foto = isPlayerSafePinImage(pin.image) ? pin.image : null
   // MINIGAME: o jogo do pino (sem o recorte, a dança, como o host faz). O
   // texto vazio é o do JOGO, nunca o de ponto de interesse nem o da dança.
-  const jogoDoPino: JogoDoMinigame | null = pin.kind === 'minigame' ? (pin.minigameVisivel?.jogo ?? 'danca') : null
-  const textosDoJogo = jogoDoPino === null ? null : (TEXTOS_DO_JOGO[jogoDoPino] ?? TEXTOS_DO_JOGO.danca)
+  const textosDoSelo = textosDoJogoDoSelo(pin.minigameVisivel)
+  const textosDoJogo = pin.kind === 'minigame' ? textosDoSelo : null
   const textoDoCartao = longeParaLer
     ? 'Chegue mais perto para ler.'
     : descricao === ''
@@ -546,8 +561,8 @@ export function PlayerPinCard({
     ? 'Passagem'
     : alavanca
       ? 'Alavanca'
-      : minigame
-        ? 'Minigame'
+      : textosDoJogo !== null
+        ? textosDoJogo.titulo
         : icone !== null
         ? `Ponto de interesse — ${PIN_ICON_LABELS[icone]}`
         : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
@@ -616,7 +631,7 @@ export function PlayerPinCard({
   const escada = stairDirection !== undefined ? stairTravelLabel(stairDirection) : null
   // O nome ao lado da cabeça faz dela o título do cartão: sozinha no topo, ela
   // lia como ícone perdido. Diz o que o pino é, nas palavras do mapa.
-  const titulo = escada !== null ? 'Escada' : viagem ? 'Passagem' : alavanca ? 'Alavanca' : minigame ? 'Minigame' : icone !== null ? PIN_ICON_LABELS[icone] : 'Ponto de interesse'
+  const titulo = escada !== null ? 'Escada' : viagem ? 'Passagem' : alavanca ? 'Alavanca' : textosDoJogo !== null ? textosDoJogo.titulo : icone !== null ? PIN_ICON_LABELS[icone] : 'Ponto de interesse'
   // A chave vence o modo: escada trancada com a chave na mochila também vira
   // "Usar <chave>" — o host deixa passar (`hostSession`), então o cartão não
   // pode esconder o gesto. Sem chave, a trancada que aceita tentativas pede ao
@@ -800,7 +815,7 @@ export function PlayerPinCard({
           // O pedido de ajuda do NPC, como fala: quem pede e o que diz.
           <figure className="pp-pincard__fala">
             <blockquote className="pp-pincard__fala-texto">“{pedidoDeAjuda.fala}”</blockquote>
-            {pedidoDeAjuda.npc !== undefined && <figcaption className="pp-pincard__fala-quem">{pedidoDeAjuda.npc}</figcaption>}
+            {pedidoDeAjuda.npc !== undefined && <figcaption className="pp-pincard__pedido-quem">{pedidoDeAjuda.npc}</figcaption>}
           </figure>
         )}
         {fogo !== null && fogo.entrada === 'mestre' && <p className="pp-pincard__locked">{TEXTOS_DO_JOGO.fogo.doMestre}</p>}
@@ -825,8 +840,8 @@ export function PlayerPinCard({
             {longe ? <p className="pp-itemcard__longe">{TEXTO_LONGE_DA_BOLHA}</p> : <p className="pp-pincard__watch-hint">{TEXTO_BOLHA_EM_EQUIPE}</p>}
           </>
         )}
-        {alavancaDaPonte === 'mestre' && <p className="pp-pincard__locked">{TEXTOS_DO_JOGO.alavanca.doMestre}</p>}
-        {alavancaDaPonte === 'pino' && onGirarAlavanca === undefined && <p className="pp-pincard__locked">{TEXTO_DA_ALAVANCA_NO_PINO}</p>}
+        {alavancaDaPonte === 'mestre' && <p className="pp-pincard__locked">{textosDoSelo.doMestre}</p>}
+        {alavancaDaPonte === 'pino' && onGirarAlavanca === undefined && <p className="pp-pincard__locked">{`${textosDoSelo.titulo}. ${TEXTO_DA_ALAVANCA_NO_PINO}`}</p>}
         {alavancaDaPonte === 'pino' && onGirarAlavanca !== undefined && (
           // Sem confirmação, como o "Apagar com bolhas": o convite que volta mostra a dificuldade e o tempo.
           <>

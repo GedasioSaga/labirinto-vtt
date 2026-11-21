@@ -8,7 +8,7 @@ import type { MinigameDanca } from './danca/tipos'
 import type { MinigameFogo } from './fogo/tipos'
 import type { EntradaPesca, MinigamePesca } from './pesca/tipos'
 import type { EntradaTiro, MinigameTiro } from './tiro/tipos'
-import type { EntradaAlavanca, MinigameAlavanca } from './alavanca/tipos'
+import type { CenaAlavanca, EntradaAlavanca, MinigameAlavanca } from './alavanca/tipos'
 import type { MinigamePuzzle } from '../puzzles/tipos'
 
 /** O que fica gravado no pino (`Pin.minigame`): o desafio inteiro do jogo escolhido. */
@@ -39,4 +39,6 @@ export interface MinigameVisivel {
   npc?: string
   /** Só do fogo e da bolha, e só com o pino legível: o pedido de ajuda, como fala no cartão. */
   fala?: string
+  /** Só da alavanca: a cena (ponte ou canhão), para o cartão falar da coisa certa. */
+  cena?: CenaAlavanca
 }

@@ -1,6 +1,6 @@
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
-import { nomePadraoDoDesafio } from '../lib/desafios'
+import { nomeAutomatico } from '../lib/desafios'
 import { ensureDir, writeTextFileSafely } from '../lib/mapFileIO'
 import type { Desafio, LugarDoDesafio } from '../types/map'
 import { lerPuzzle } from './leitor'
@@ -135,7 +135,8 @@ export function copiaDoModelo(modelo: ModeloDePuzzle): MinigamePuzzle {
 /** O desafio novo com a cópia, com o nome do puzzle. Sem lugar, o mestre marca depois ("Marcar no mapa" da página Jogos). */
 export function desafioDoModelo(modelo: ModeloDePuzzle, id: string, lugar: LugarDoDesafio = { tipo: 'nenhum' }): Desafio {
   const minigame = copiaDoModelo(modelo)
-  return { id, nome: nomePadraoDoDesafio(minigame, modelo.puzzle.nome), lugar, minigame }
+  // O nome automático já leva o do puzzle ("Puzzle: A Fonte", `nomeAutomatico`) e segue a cópia.
+  return { id, nome: nomeAutomatico({ minigame }), lugar, minigame }
 }
 
 /** JSON com as chaves em ordem: o mesmo puzzle montado pelo editor e pelo leitor, em ordens diferentes, compara igual. */

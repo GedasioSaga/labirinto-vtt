@@ -2760,8 +2760,17 @@ export type TipoDoLugarDoDesafio = LugarDoDesafio['tipo']
  */
 export interface Desafio extends NoPiso {
   id: string
-  /** O nome do mestre ("Pesca no cais"): lista, ficha e rótulo do selo. Nunca vai ao jogador. */
+  /**
+   * O nome do mestre ("Pesca no cais"): lista, ficha e rótulo do selo. Nunca vai ao jogador.
+   * Sem `nomeProprio`, é o NOME AUTOMÁTICO (`nomeAutomatico` em `lib/desafios.ts`), refeito a
+   * cada mudança do jogo, da cena ou de quem chama; continua gravado por extenso, e o app de antes lê igual.
+   */
   nome: string
+  /**
+   * O mestre escreveu o nome (editor de desafio aprovado em 21/11/2026): ele fica, troque o jogo
+   * ou quem chama. Ausente = o nome segue o jogo. Campo novo e opcional; a versão do arquivo não muda.
+   */
+  nomeProprio?: true
   lugar: LugarDoDesafio
   /** O jogo e os campos dele (quem desafia, fala, música, dificuldade...), como o pino gravava. */
   minigame: MinigameDoPino

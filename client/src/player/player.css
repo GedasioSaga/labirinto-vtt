@@ -3659,7 +3659,9 @@
   overflow-wrap: anywhere;
 }
 
-.pp-pincard__fala-quem {
+/* Quem pede ajuda, debaixo da fala do desafio. Nome próprio: o `.pp-pincard__fala-quem` é o das falas do
+   pino "?" (maiúsculas, menor), e as duas regras com o mesmo nome se misturavam (B28 das NOTAS do editor). */
+.pp-pincard__pedido-quem {
   margin-top: 4px;
   font-size: 13px;
   font-weight: 600;

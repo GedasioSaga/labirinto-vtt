@@ -146,10 +146,10 @@ describe('MinigameControls', () => {
   it('quem desafia e a fala gravam ao sair do campo, não a cada letra', () => {
     const p = props()
     render(p)
-    digitarESair(campo('Quem desafia', HTMLInputElement), 'Seu Bené  ')
+    digitarESair(campo('Quem chama', HTMLInputElement), 'Seu Bené  ')
     expect(p.onChange).toHaveBeenCalledTimes(1)
     expect(ultimo(p.onChange).npc).toBe('Seu Bené')
-    digitarESair(campo('Fala do desafio', HTMLTextAreaElement), 'Dança comigo?')
+    digitarESair(campo('O que diz', HTMLTextAreaElement), 'Dança comigo?')
     expect(ultimo(p.onChange).fala).toBe('Dança comigo?')
     // O resto do desafio fica como estava.
     expect(ultimo(p.onChange).premio).toEqual(MINIGAME_PADRAO.premio)
@@ -381,11 +381,11 @@ describe('MinigameControls', () => {
       quemVe: null,
     }
     act(() => root.render(<FichaDoPino {...base} desafio={props()} />))
-    expect(container.textContent).toContain('Quem desafia')
+    expect(container.textContent).toContain('Quem chama')
     expect(container.textContent).toContain('Nota mínima para passar')
     // Outro tipo, mesmos props: nada do desafio.
     act(() => root.render(<FichaDoPino {...base} kind="exclamacao" desafio={props()} />))
-    expect(container.textContent).not.toContain('Quem desafia')
+    expect(container.textContent).not.toContain('Quem chama')
     // Nenhum pino aberto (a ferramenta Pino armada): só o recado de cravar.
     act(() => root.render(<PinControls {...base} description={null} onDelete={() => {}} desafio={null} />))
     expect(container.textContent).toContain('Crave o pino; no painel dele você escolhe o jogo (dança ou pesca) e monta o desafio.')
@@ -412,22 +412,22 @@ describe('MinigameControls', () => {
       if (gravado?.jogo !== 'pesca') throw new Error('o painel da pesca gravou outro jogo')
       return gravado
     }
-    expect(Array.from(container.querySelectorAll('[role="radio"][aria-checked="true"]')).map((b) => b.textContent)).toEqual(['Pesca', 'Mestre chama', '3', 'Jogador escolhe'])
-    digitarESair(campo('Quem desafia', HTMLInputElement), 'Dona Cida')
+    expect(Array.from(container.querySelectorAll('[role="radio"][aria-checked="true"]')).map((b) => b.textContent)).toEqual(['Pesca', 'Só você chama', '3', 'O jogador escolhe'])
+    digitarESair(campo('Quem chama', HTMLInputElement), 'Dona Cida')
     expect(pesca().npc).toBe('Dona Cida')
-    digitarESair(campo('Nome do lago', HTMLInputElement), 'Lagoa Funda')
+    digitarESair(campo('Lugar no convite', HTMLInputElement), 'Lagoa Funda')
     expect(pesca().lago).toBe('Lagoa Funda')
-    digitarESair(campo('Fala do desafio', HTMLTextAreaElement), 'Joga aí.')
+    digitarESair(campo('O que diz', HTMLTextAreaElement), 'Joga aí.')
     expect(pesca().fala).toBe('Joga aí.')
-    act(() => botao('Jogador toca no pino').click())
+    act(() => botao('O jogador começa no selo').click())
     expect(pesca().entrada).toBe('pino')
     act(() => botao('5').click())
     expect(pesca().lances).toBe(5)
     act(() => botao('Só Extremo').click())
     expect(pesca().permitida).toBe('extremo')
-    digitarESair(campo('Prêmio (pegou ao menos um peixe)', HTMLInputElement), 'Uma moeda')
+    digitarESair(campo('Se pegar algum peixe', HTMLInputElement), 'Uma moeda')
     expect(pesca().premio).toEqual({ texto: 'Uma moeda' })
-    digitarESair(campo('Consequência (cesto vazio)', HTMLInputElement), 'Perde a vez')
+    digitarESair(campo('Se o cesto voltar vazio', HTMLInputElement), 'Perde a vez')
     expect(pesca().consequencia).toEqual({ texto: 'Perde a vez' })
     expect(container.textContent).toContain('Só texto: aparece no convite e no cesto do jogador.')
     expect(container.textContent).not.toContain('Nota mínima')

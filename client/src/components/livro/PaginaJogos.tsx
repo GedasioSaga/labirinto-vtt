@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Acoes, Botao } from '../grimorio/Botao'
 import { CampoFaixa } from '../grimorio/CampoFaixa'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
-import { CampoTexto } from '../grimorio/CampoTexto'
 import { Nota } from '../grimorio/Nota'
 import { SubFicha } from '../grimorio/Cartoes'
 import { MinigameControls, type MinigameControlsProps } from '../MinigameControls'
@@ -108,7 +107,7 @@ const TEXTO_DA_FASE: Readonly<Record<string, string>> = {
 const OPCOES_DO_LUGAR: readonly OpcaoDoSeg<TipoDoLugarDoDesafio>[] = [
   { valor: 'ponto', rotulo: 'Ponto' },
   { valor: 'objeto', rotulo: 'Objeto' },
-  { valor: 'nenhum', rotulo: 'Sem lugar' },
+  { valor: 'nenhum', rotulo: 'Fora do mapa' },
 ]
 
 function Seta() {
@@ -153,6 +152,7 @@ export function PaginaJogos({ painelDoDesafio, aoVivo }: PropsDaPaginaJogos) {
   const abertoId = useDesafiosStore((estado) => estado.aberto)
   const destacado = useDesafiosStore((estado) => estado.destacado)
   const avisoDispensado = useDesafiosStore((estado) => estado.avisosDispensados.has(map.id))
+  const escolhaDoJogo = useDesafiosStore((estado) => estado.escolhaDoJogo)
   const [aba, setAba] = useState<AbaDosJogos>('acao')
   // O "Ver" do aviso de baú aberto destaca o objeto: a lista vai para a aba dele.
   const [destacadoVisto, setDestacadoVisto] = useState(destacado)
@@ -162,12 +162,17 @@ export function PaginaJogos({ painelDoDesafio, aoVivo }: PropsDaPaginaJogos) {
   }
   const desafios = desafiosDo(map)
   const aberto = desafios.find((desafio) => desafio.id === abertoId)
+  // A aba segue o desafio aberto (B18 das NOTAS do editor): o desafio que virou puzzle volta para a lista dos puzzles, não some da Ação.
+  const abaDoAberto = aberto === undefined ? null : REGISTRO_DE_MINIGAMES[aberto.minigame.jogo].categoria
+  if (abaDoAberto !== null && abaDoAberto !== aba) setAba(abaDoAberto)
   return (
     <FolhaDoLivro pagina="jogos">
-      {aberto === undefined ? (
+      {escolhaDoJogo !== null && escolhaDoJogo.para === 'novo' ? (
+        <EscolhaDoJogo />
+      ) : aberto === undefined ? (
         <ListaDosJogos desafios={desafios} props={map.props} aoVivo={aoVivo} mapaId={map.id} avisoDispensado={avisoDispensado} aba={aba} onAba={setAba} />
       ) : (
-        <FichaDoDesafio key={aberto.id} desafio={aberto} props={map.props} painel={painelDoDesafio(aberto)} />
+        <FichaDoDesafio key={aberto.id} desafio={aberto} props={map.props} painel={painelDoDesafio(aberto)} emJogo={aoVivo.some((s) => s.pinId === aberto.id)} />
       )}
       <EditorDoPuzzleNaTela />
     </FolhaDoLivro>
@@ -263,12 +268,11 @@ function ListaDosJogos({ desafios: todos, props, aoVivo, mapaId, avisoDispensado
     objetos: props.filter((prop) => mobiliaDoConteudo(prop) !== null).length,
   }
 
+  // JOGO PRIMEIRO (decisão 1 do editor, B2): "Novo desafio" abre a escolha dos jogos; nada entra no mapa antes.
+  // Na aba dos puzzles só há um jogo: o puzzle novo entra direto, já pedindo o lugar.
   const criar = () => {
-    // A aba diz o jogo: na de ação, o primeiro da ordem (a dança); na de puzzles, o puzzle (a Fonte).
-    const jogo = ORDEM_DOS_JOGOS.find((candidato) => REGISTRO_DE_MINIGAMES[candidato].categoria === (aba === 'puzzle' ? 'puzzle' : 'acao')) ?? ORDEM_DOS_JOGOS[0]
-    const desafio = novoDesafio(crypto.randomUUID(), jogo)
-    useMapStore.getState().addDesafio(desafio)
-    abrir(desafio.id)
+    if (aba === 'puzzle') criarDesafio('puzzle')
+    else useDesafiosStore.getState().abrirEscolhaDoJogo({ para: 'novo' })
   }
   const mostrarMigrados = () => {
     const primeiro = migrados.find((desafio) => pontoDoDesafio(desafio, props) !== null)
@@ -389,6 +393,80 @@ function ListaDosJogos({ desafios: todos, props, aoVivo, mapaId, avisoDispensado
   )
 }
 
+/** O desafio novo do jogo escolhido, aberto na ficha. O jogo que não vive fora do mapa (o puzzle) já entra marcando o ponto. */
+function criarDesafio(jogo: JogoDoMinigame): void {
+  const desafio = novoDesafio(crypto.randomUUID(), jogo)
+  useMapStore.getState().addDesafio(desafio)
+  const { abrir, marcar } = useDesafiosStore.getState()
+  abrir(desafio.id)
+  if (faltaNoLugar(desafio, [])) marcar(desafio.id, 'ponto')
+}
+
+/**
+ * A ESCOLHA DO JOGO (decisão 1 do editor de 21/11/2026): os 7 jogos do
+ * registro, com o que cada um é. Escolher cria o desafio já montado para o
+ * jogo; "Jogos" volta à lista sem criar nada.
+ */
+function EscolhaDoJogo() {
+  const fechar = () => useDesafiosStore.getState().abrirEscolhaDoJogo(null)
+  return (
+    <SubFicha voltarPara="Jogos" onVoltar={fechar} icone={<IconeDosJogos />} titulo="Qual é o jogo?" tipo="Escolha primeiro: a ficha, o nome e o convite já vêm montados para ele.">
+      <ul className="mg-lista">
+        {ORDEM_DOS_JOGOS.map((jogo) => (
+          <li key={jogo}>
+            <button type="button" className="mg-linha" data-jogo={jogo} onClick={() => criarDesafio(jogo)}>
+              <span className="mg-linha__med">
+                <IconeDoJogo jogo={jogo} />
+              </span>
+              <span className="mg-linha__nome">{nomeDoJogo(jogo)}</span>
+              <span className="mg-linha__seta">
+                <Seta />
+              </span>
+              <span className="mg-linha__onde">{REGISTRO_DE_MINIGAMES[jogo].resumo}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </SubFicha>
+  )
+}
+
+/**
+ * O NOME na ficha: o mestre escreve à vontade e o nome grava ao sair do campo
+ * ou no Enter. Vazio volta ao nome automático (B10); gravar por tecla
+ * comeria o espaço do fim enquanto ele digita.
+ */
+function CampoDoNome({ desafio }: { desafio: Desafio }) {
+  const id = useId()
+  const [rascunho, setRascunho] = useState<string | null>(null)
+  const gravar = () => {
+    if (rascunho === null) return
+    setRascunho(null)
+    useMapStore.getState().updateDesafio(desafio.id, { nome: rascunho })
+  }
+  return (
+    <div className="gr-campo">
+      <label className="gr-campo__rot" htmlFor={id}>
+        Nome <small>{desafio.nomeProprio === true ? 'seu' : 'automático: segue o jogo e quem chama'}</small>
+      </label>
+      <input
+        id={id}
+        className="gr-entrada"
+        type="text"
+        autoComplete="off"
+        maxLength={DESAFIO_NOME_MAX_LENGTH}
+        value={rascunho ?? desafio.nome}
+        onChange={(evento) => setRascunho(evento.currentTarget.value)}
+        onBlur={gravar}
+        onKeyDown={(evento) => {
+          if (evento.key === 'Enter') gravar()
+          if (evento.key === 'Escape') setRascunho(null)
+        }}
+      />
+    </div>
+  )
+}
+
 /** O "Tamanho" do selo anda de 10 em 10%, a régua da etiqueta da alça de canto no mapa (a mesma do papel). */
 const PASSO_DO_TAMANHO_PCT = 10
 
@@ -396,10 +474,15 @@ interface PropsDaFicha {
   desafio: Desafio
   props: readonly Prop[]
   painel: MinigameControlsProps
+  /** Há partida aberta deste desafio: a troca de jogo trava (B7). */
+  emJogo: boolean
 }
 
-function FichaDoDesafio({ desafio, props, painel }: PropsDaFicha) {
+function FichaDoDesafio({ desafio, props, painel, emJogo }: PropsDaFicha) {
   const marcando = useDesafiosStore((estado) => estado.marcando)
+  const cliqueForaDoObjeto = useDesafiosStore((estado) => estado.cliqueForaDoObjeto)
+  // APAGAR PERGUNTA NO LUGAR (decisão 13, B15): "Apagar mesmo / Manter", sem janela.
+  const [apagando, setApagando] = useState(false)
   const { abrir, marcar, pararDeMarcar } = useDesafiosStore.getState()
   const marcandoEste = marcando !== null && marcando.id === desafio.id ? marcando.modo : null
   const falta = faltaNoLugar(desafio, props)
@@ -422,13 +505,14 @@ function FichaDoDesafio({ desafio, props, painel }: PropsDaFicha) {
     return () => window.removeEventListener('keydown', aoTeclar)
   }, [marcandoEste])
 
-  // Só os lugares que o jogo aceita (o puzzle não fica "sem lugar"), mais o de agora: o desafio que acabou de trocar de jogo ainda mostra onde está.
+  // Só os lugares que o jogo aceita: o puzzle não fica fora do mapa. Sem lugar, nenhuma opção marcada e a falta dita (B4).
   const lugaresDoJogo = REGISTRO_DE_MINIGAMES[desafio.minigame.jogo].lugares
-  const opcoesDoLugar = OPCOES_DO_LUGAR.filter((opcao) => lugaresDoJogo.includes(opcao.valor) || opcao.valor === desafio.lugar.tipo)
+  const opcoesDoLugar = OPCOES_DO_LUGAR.filter((opcao) => lugaresDoJogo.includes(opcao.valor))
   const escolherLugar = (tipo: TipoDoLugarDoDesafio) => {
     if (tipo === 'nenhum') {
       pararDeMarcar()
-      if (desafio.lugar.tipo !== 'nenhum') gravar(desafio.id, { lugar: { tipo: 'nenhum' } })
+      // O piso do ponto de antes sai com o lugar (B30).
+      if (desafio.lugar.tipo !== 'nenhum') gravar(desafio.id, { lugar: { tipo: 'nenhum' }, piso: undefined })
       return
     }
     marcar(desafio.id, tipo)
@@ -440,12 +524,17 @@ function FichaDoDesafio({ desafio, props, painel }: PropsDaFicha) {
 
   return (
     <SubFicha voltarPara="Jogos" onVoltar={() => abrir(null)} icone={<IconeDoJogo jogo={desafio.minigame.jogo} />} titulo={desafio.nome} tipo={`Desafio de ${nomeDoJogoDoDesafio(desafio.minigame).toLowerCase()}`}>
-      <CampoTexto rotulo="Nome" valor={desafio.nome} maxLength={DESAFIO_NOME_MAX_LENGTH} onChange={(nome) => gravar(desafio.id, { nome })} />
+      <CampoDoNome key={desafio.nome} desafio={desafio} />
       <div className="mg-onde">
         <CampoSeg rotulo="Onde fica" opcoes={opcoesDoLugar} valor={marcandoEste ?? desafio.lugar.tipo} onChange={escolherLugar} />
         {marcandoEste !== null ? (
           <>
             <Nota>{marcandoEste === 'ponto' ? 'Clique no mapa onde o jogo acontece.' : 'Clique no objeto do mapa onde o jogo acontece.'} Esc cancela.</Nota>
+            {marcandoEste === 'objeto' && cliqueForaDoObjeto && (
+              <p className="mg-erro" role="alert">
+                Ali não há objeto. Clique em cima de uma mesa, um baú ou outro móvel do mapa.
+              </p>
+            )}
             <Acoes>
               <Botao variante="fantasma" tamanho="p" onClick={pararDeMarcar}>
                 Cancelar
@@ -454,8 +543,14 @@ function FichaDoDesafio({ desafio, props, painel }: PropsDaFicha) {
           </>
         ) : (
           <>
+            {desafio.lugar.tipo === 'nenhum' && falta !== null && (
+              <p className="mg-erro" role="alert">
+                Falta o lugar: o {nomeDoJogo(desafio.minigame.jogo).toLowerCase()} só existe com selo no mapa. Escolha um ponto ou um objeto.
+              </p>
+            )}
             <Nota>
-              Fica {textoDoLugar(desafio, props)}.{falta !== null && ` ${falta}: escolha outro lugar.`}
+              Fica {textoDoLugar(desafio, props, 'fora do mapa')}.{falta !== null && desafio.lugar.tipo !== 'nenhum' && ` ${falta}: escolha outro lugar.`}
+              {desafio.lugar.tipo === 'nenhum' && falta === null && ' Sem selo: o jogador só vê o convite quando você chamar.'}
               {desafio.lugar.tipo === 'ponto' && ' No mapa: arraste o selo para mudar de lugar; os cantos mudam o tamanho, a bolinha gira e Delete tira do mapa.'}
               {desafio.lugar.tipo === 'objeto' && ' No mapa: os cantos do selo mudam o tamanho, a bolinha gira e Delete tira do mapa.'}
             </Nota>
@@ -486,16 +581,32 @@ function FichaDoDesafio({ desafio, props, painel }: PropsDaFicha) {
           </>
         )}
       </div>
-      <MinigameControls key={desafio.id} {...painel} />
+      <MinigameControls key={desafio.id} {...painel} trocaTravada={emJogo ? 'Há uma partida aberta deste desafio: encerre-a antes de trocar o jogo.' : null} />
       {desafio.eraPino !== undefined && (
         <Nota>
           Veio do pino ▷{desafio.eraPino.nome ? ` “${desafio.eraPino.nome}”` : ''}. O pino saiu do mapa; o selo do desafio ficou no lugar dele.
         </Nota>
       )}
       <div className="mg-nota-pe">
-        <Botao variante="perigo" onClick={apagar}>
-          Apagar desafio
-        </Botao>
+        {apagando ? (
+          <>
+            <p className="mg-erro">
+              Apagar “{desafio.nome}”?{desafio.lugar.tipo === 'nenhum' ? '' : ' O selo sai do mapa.'}{emJogo ? ' A partida aberta perde o desafio.' : ''}
+            </p>
+            <Acoes>
+              <Botao variante="perigo" onClick={apagar}>
+                Apagar mesmo
+              </Botao>
+              <Botao variante="fantasma" onClick={() => setApagando(false)}>
+                Manter
+              </Botao>
+            </Acoes>
+          </>
+        ) : (
+          <Botao variante="perigo" onClick={() => setApagando(true)}>
+            Apagar desafio
+          </Botao>
+        )}
       </div>
     </SubFicha>
   )

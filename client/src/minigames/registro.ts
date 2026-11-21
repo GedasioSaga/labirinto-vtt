@@ -50,6 +50,8 @@ export interface DefinicaoDoMinigame<J extends JogoDoMinigame> {
   id: J
   /** O nome do jogo para o mestre e no cartão ("Pesca", "Fogo na Floresta"). */
   nome: string
+  /** O que o jogo é, em uma linha: a escolha do jogo da página Jogos (editor de 21/11/2026). */
+  resumo: string
   categoria: CategoriaDoJogo
   /** O símbolo do selo e da lista (`minigames/simbolosDosJogos.ts`), um por jogo. */
   icone: J
@@ -83,6 +85,7 @@ function comPedidoDeAjuda(visivel: MinigameVisivel, minigame: { npc: string; fal
 export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoDoMinigame<J> } = {
   danca: {
     id: 'danca',
+    resumo: 'Setas no ritmo da música.',
     nome: 'Dança',
     categoria: 'acao',
     icone: 'danca',
@@ -95,6 +98,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
   },
   pesca: {
     id: 'pesca',
+    resumo: 'Lançar a linha e segurar o peixe.',
     nome: 'Pesca',
     categoria: 'acao',
     icone: 'pesca',
@@ -108,6 +112,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
   },
   tiro: {
     id: 'tiro',
+    resumo: 'Tiro ao alvo numa fileira que não para.',
     nome: 'Tiro',
     categoria: 'acao',
     icone: 'tiro',
@@ -120,12 +125,14 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
   },
   fogo: {
     id: 'fogo',
+    resumo: 'Apagar o incêndio, sozinho ou em equipe.',
     nome: 'Fogo na Floresta',
     categoria: 'acao',
     icone: 'fogo',
     lugares: TODOS_OS_LUGARES,
-    // "Apagar o fogo" começa sozinho no selo; a equipe vem do convite do mestre.
-    entradas: ['pino', 'mestre'],
+    // "Apagar o fogo" começa sozinho no selo; a equipe vem do convite do mestre. Não há o que escolher:
+    // o `entrada` gravado no fogo é de antes e não vale (`entradaDe`).
+    entradas: ['pino'],
     padrao: () => structuredClone(MINIGAME_FOGO_PADRAO),
     entradaDe: () => 'pino',
     recorteDoJogador: (minigame, legivel) => comPedidoDeAjuda({ jogo: 'fogo', entrada: 'pino' }, minigame, legivel),
@@ -133,6 +140,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
   },
   bolha: {
     id: 'bolha',
+    resumo: 'Apagar focos de fogo com bolhas.',
     nome: "Bolha d'Água",
     categoria: 'acao',
     icone: 'bolha',
@@ -146,7 +154,9 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
   },
   alavanca: {
     id: 'alavanca',
-    nome: 'Alavanca da ponte',
+    resumo: 'Girar juntos sem parar: ponte ou canhão.',
+    // O nome do jogo; o do desafio é o da cena ("Alavanca da ponte", "Alavanca do canhão": `nomeDoJogoDoDesafio`).
+    nome: 'Alavanca',
     categoria: 'acao',
     icone: 'alavanca',
     lugares: TODOS_OS_LUGARES,
@@ -154,12 +164,14 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     entradas: ['pino', 'mestre'],
     padrao: () => structuredClone(MINIGAME_ALAVANCA_PADRAO),
     entradaDe: (minigame) => (minigame.entrada === 'pino' ? 'pino' : 'mestre'),
-    recorteDoJogador: (minigame) => ({ jogo: 'alavanca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }),
+    // A cena vai junto: o cartão do jogador fala da ponte ou do canhão (B6 das NOTAS do editor).
+    recorteDoJogador: (minigame) => ({ jogo: 'alavanca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre', cena: minigame.cena === 'canhao' ? 'canhao' : 'ponte' }),
     // A vitória abre a porta ligada do desafio (a ponte do mestre aplica, `net/hostBridge.ts`).
     desfechos: ['abrir porta'],
   },
   puzzle: {
     id: 'puzzle',
+    resumo: 'Peças, encaixes e combinações para examinar.',
     nome: 'Puzzle',
     categoria: 'puzzle',
     icone: 'puzzle',

@@ -9,9 +9,9 @@
  * o alcance e o "Quem vê" do jogador seguem idênticos, e o desenho do pino de
  * minigame virou o selo (`pixi/drawPins.ts`).
  */
-import type { Desafio, LugarDoDesafio, MapData, Pin, Prop } from '../types/map'
+import type { Desafio, LugarDoDesafio, MapData, Pin, Prop, TipoDoLugarDoDesafio } from '../types/map'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
-import { entradaDoMinigame, nomeDoJogoDoDesafio, padraoDoJogo, type EntradaDoDesafio } from '../minigames/registro'
+import { ehJogoDoRegistro, entradaDoMinigame, nomeDoJogoDoDesafio, padraoDoJogo, REGISTRO_DE_MINIGAMES, type EntradaDoDesafio } from '../minigames/registro'
 import type { ProgressoDoPuzzle } from '../puzzles/tipos'
 import { escalaDoPino, isPinEscala, PIN_ESCALA_MAX, PIN_ESCALA_MIN } from './pins'
 import { normalizeRotation } from './roomRotation'
@@ -23,23 +23,77 @@ export function desafiosDo(map: Pick<MapData, 'desafios'>): readonly Desafio[] {
   return map.desafios ?? []
 }
 
-/** O nome que o desafio ganha: o do pino, ou "Pesca com Bento" (o jogo com quem desafia), ou só o jogo. */
-export function nomePadraoDoDesafio(minigame: MinigameDoPino, nomeDoPino?: string): string {
-  const nome = typeof nomeDoPino === 'string' ? nomeDoPino.trim() : ''
-  if (nome !== '') return nome.slice(0, DESAFIO_NOME_MAX_LENGTH)
-  const npc = minigame.npc.trim()
-  const jogo = nomeDoJogoDoDesafio(minigame)
-  return (npc === '' ? jogo : `${jogo} com ${npc}`).slice(0, DESAFIO_NOME_MAX_LENGTH)
+/**
+ * O LUGAR NO CONVITE do jogo ("Poço Afogado", "Barraca do Ferrolho", "Mata do
+ * Pinheiral", "Portão de Valverde"): o lago da pesca, a barraca do tiro, a
+ * floresta do fogo e o lugar da alavanca. A dança, a bolha e o puzzle não têm.
+ */
+export function lugarDoConvite(minigame: MinigameDoPino): string | null {
+  if (minigame.jogo === 'pesca') return minigame.lago
+  if (minigame.jogo === 'tiro') return minigame.barraca
+  if (minigame.jogo === 'fogo') return minigame.floresta
+  if (minigame.jogo === 'alavanca') return minigame.lugar
+  return null
 }
 
 /**
- * A alavanca que troca de cena troca o nome que ainda é o padrão da cena de
- * antes ("Alavanca da ponte" vira "Alavanca do canhão"); o nome que o mestre
- * escreveu fica. Fora isso, o nome de sempre.
+ * O NOME AUTOMÁTICO (editor de desafio aprovado em 21/11/2026, decisão 2):
+ * segue o jogo, a cena da alavanca e quem chama ("Fogo na Floresta com Guarda
+ * Florêncio"); sem ninguém, o lugar do convite ("Pesca: Poço Afogado"); o
+ * puzzle, o nome dele ("Puzzle: A Fonte"). A alavanca não leva o lugar: o
+ * nome da cena já diz onde é.
  */
-function nomeNaCenaNova(atual: Desafio, minigame: MinigameDoPino): string {
-  if (atual.minigame.jogo !== 'alavanca' || minigame.jogo !== 'alavanca' || atual.minigame.cena === minigame.cena) return atual.nome
-  return atual.nome === nomePadraoDoDesafio(atual.minigame) ? nomePadraoDoDesafio(minigame) : atual.nome
+export function nomeAutomatico(desafio: Pick<Desafio, 'minigame'>): string {
+  const minigame = desafio.minigame
+  const jogo = nomeDoJogoDoDesafio(minigame)
+  if (minigame.jogo === 'puzzle') {
+    const doPuzzle = typeof minigame.puzzle.nome === 'string' ? minigame.puzzle.nome.trim() : ''
+    return (doPuzzle === '' ? jogo : `${jogo}: ${doPuzzle}`).slice(0, DESAFIO_NOME_MAX_LENGTH)
+  }
+  const npc = typeof minigame.npc === 'string' ? minigame.npc.trim() : ''
+  if (npc !== '') return `${jogo} com ${npc}`.slice(0, DESAFIO_NOME_MAX_LENGTH)
+  const lugar = minigame.jogo === 'alavanca' ? '' : (lugarDoConvite(minigame) ?? '').trim()
+  return (lugar === '' ? jogo : `${jogo}: ${lugar}`).slice(0, DESAFIO_NOME_MAX_LENGTH)
+}
+
+/**
+ * OS NOMES DE FÁBRICA de antes do nome automático (migração, NOTAS §5.4): o
+ * que "Novo desafio" e a troca de cena davam a cada jogo, com e sem quem
+ * desafia. Lista fixa de propósito: é o que os mapas de antes guardam, mude o
+ * padrão dos jogos ou não. Um desafio de Fogo chamado "Dança com Dona Ziza"
+ * (o bug de 21/11/2026) volta ao automático ao abrir.
+ */
+const NOMES_DE_FABRICA: ReadonlySet<string> = new Set([
+  'Dança com Dona Ziza',
+  'Pesca com Bento, o barqueiro',
+  'Tiro com Tia Ferrolha',
+  'Fogo na Floresta com Guarda Florêncio',
+  "Bolha d'Água com Dona Aurélia",
+  'Alavanca da ponte',
+  'Alavanca do canhão',
+  'Puzzle',
+  'Dança',
+  'Pesca',
+  'Tiro',
+  'Fogo na Floresta',
+  "Bolha d'Água",
+])
+
+/**
+ * O nome que o desafio grava, pelo texto que veio (o campo do mestre, o
+ * arquivo ou o pino ▷): vazio, um nome de fábrica ou o próprio automático =
+ * o automático, sem `nomeProprio`; qualquer outro texto é do mestre e fica.
+ */
+export function nomeDoDesafio(desafio: Pick<Desafio, 'minigame'>, texto: unknown): Pick<Desafio, 'nome' | 'nomeProprio'> {
+  const automatico = nomeAutomatico(desafio)
+  const limpo = typeof texto === 'string' ? texto.trim().slice(0, DESAFIO_NOME_MAX_LENGTH) : ''
+  if (limpo === '' || limpo === automatico || NOMES_DE_FABRICA.has(limpo)) return { nome: automatico }
+  return { nome: limpo, nomeProprio: true }
+}
+
+/** O nome que o desafio ganha: o do pino (ou do puzzle de "Meus puzzles"), se veio um, ou o automático. */
+export function nomePadraoDoDesafio(minigame: MinigameDoPino, nomeDoPino?: string): string {
+  return nomeDoDesafio({ minigame }, nomeDoPino).nome
 }
 
 /**
@@ -52,7 +106,8 @@ export function desafioDoPino(pin: Pin): Desafio {
   const jogo = minigame ?? padraoDoJogo('danca')
   return {
     id: pin.id,
-    nome: nomePadraoDoDesafio(jogo, pin.nome),
+    // O nome do pino é do mestre: fica (`nomeProprio`); pino sem nome ganha o automático.
+    ...nomeDoDesafio({ minigame: jogo }, pin.nome),
     lugar: { tipo: 'ponto', x: pin.x, y: pin.y },
     minigame: jogo,
     ...(pin.portaLigada === undefined ? {} : { portaLigada: pin.portaLigada }),
@@ -228,10 +283,10 @@ export function pinoDoConviteEmQualquerCena(cenas: readonly { map: Pick<MapData,
   return undefined
 }
 
-/** Um desafio novo, com o padrão do jogo e o nome dele. */
+/** Um desafio novo, com o padrão do jogo e o nome automático. */
 export function novoDesafio(id: string, jogo: JogoDoMinigame, lugar: LugarDoDesafio = { tipo: 'nenhum' }): Desafio {
   const minigame = padraoDoJogo(jogo)
-  return { id, nome: nomePadraoDoDesafio(minigame), lugar, minigame }
+  return { id, nome: nomeAutomatico({ minigame }), lugar, minigame }
 }
 
 export type PatchDoDesafio = Partial<Pick<Desafio, 'nome' | 'lugar' | 'minigame' | 'portaLigada' | 'piso' | 'tamanho' | 'angulo'>>
@@ -242,7 +297,16 @@ export function adicionarDesafio(map: MapData, desafio: Desafio): MapData {
   return { ...map, desafios: [...desafiosDo(map), desafio] }
 }
 
-/** Mudança num desafio. Nada muda (id que não existe, mesmos valores) = o mesmo mapa. */
+/**
+ * Mudança num desafio. Nada muda (id que não existe, mesmos valores) = o mesmo mapa.
+ *
+ * O NOME (decisão 2 do editor de 21/11/2026): o `nome` do patch é o que o
+ * mestre escreveu — vazio volta ao automático, texto vira nome dele
+ * (`nomeDoDesafio`). Sem nome no patch, o nome automático é refeito: segue o
+ * jogo, a cena e quem chama. TROCAR DE JOGO tira a porta e o progresso do
+ * puzzle do jogo de antes (decisão 4): a porta ligada só volta se o patch a
+ * trouxer, e o Ctrl+Z da troca devolve os dois.
+ */
 export function atualizarDesafio(map: MapData, id: string, patch: PatchDoDesafio): MapData {
   const lista = desafiosDo(map)
   const i = lista.findIndex((desafio) => desafio.id === id)
@@ -251,10 +315,19 @@ export function atualizarDesafio(map: MapData, id: string, patch: PatchDoDesafio
   const chaves = CHAVES_DO_PATCH.filter((chave) => chave in patch)
   if (chaves.every((chave) => JSON.stringify(atual[chave]) === JSON.stringify(patch[chave]))) return map
   const novo: Desafio = { ...atual, ...patch }
-  if (patch.minigame !== undefined && patch.nome === undefined) novo.nome = nomeNaCenaNova(atual, patch.minigame)
-  if (patch.portaLigada === undefined && 'portaLigada' in patch) delete novo.portaLigada
-  if (patch.tamanho === undefined && 'tamanho' in patch) delete novo.tamanho
-  if (patch.angulo === undefined && 'angulo' in patch) delete novo.angulo
+  const trocouDeJogo = patch.minigame !== undefined && patch.minigame.jogo !== atual.minigame.jogo
+  if (trocouDeJogo) {
+    if (!('portaLigada' in patch)) delete novo.portaLigada
+    delete novo.progressoDoPuzzle
+  }
+  for (const chave of ['portaLigada', 'piso', 'tamanho', 'angulo'] as const) {
+    if (chave in patch && patch[chave] === undefined) delete novo[chave]
+  }
+  const nome = 'nome' in patch ? nomeDoDesafio(novo, patch.nome) : novo.nomeProprio === true ? { nome: novo.nome, nomeProprio: true as const } : { nome: nomeAutomatico(novo) }
+  novo.nome = nome.nome
+  if (nome.nomeProprio === true) novo.nomeProprio = true
+  else delete novo.nomeProprio
+  if (JSON.stringify(novo) === JSON.stringify(atual)) return map
   return { ...map, desafios: lista.map((desafio, j) => (j === i ? novo : desafio)) }
 }
 
@@ -285,23 +358,34 @@ export function removerDesafio(map: MapData, id: string): MapData {
   return semLista
 }
 
+/** Onde o desafio deste jogo pode ficar (o registro); jogo desconhecido (versão futura) = qualquer lugar. */
+function lugaresDoJogo(jogo: string): readonly TipoDoLugarDoDesafio[] {
+  return ehJogoDoRegistro(jogo) ? REGISTRO_DE_MINIGAMES[jogo].lugares : ['ponto', 'objeto', 'nenhum']
+}
+
 /** Como o desafio começa de verdade: sem lugar no mapa, ninguém tem onde encostar. */
 export function entradaDoDesafio(desafio: Pick<Desafio, 'lugar' | 'minigame'>): EntradaDoDesafio {
   return desafio.lugar.tipo === 'nenhum' ? 'mestre' : entradaDoMinigame(desafio.minigame)
 }
 
-/** O que falta para o desafio aparecer no mapa (a etiqueta da lista), ou `null`. */
-export function faltaNoLugar(desafio: Pick<Desafio, 'lugar'>, props: readonly Prop[]): string | null {
+/**
+ * O que falta para o desafio aparecer no mapa (a etiqueta da lista), ou
+ * `null`. O jogo que não vive fora do mapa (o puzzle: ninguém tem onde
+ * encostar) acusa a falta do lugar. Sem `minigame` (o papel da página
+ * Documentos), só o objeto apagado conta.
+ */
+export function faltaNoLugar(desafio: Pick<Desafio, 'lugar'> & { minigame?: Pick<MinigameDoPino, 'jogo'> }, props: readonly Prop[]): string | null {
   const lugar = desafio.lugar
+  if (lugar.tipo === 'nenhum') return desafio.minigame !== undefined && !lugaresDoJogo(desafio.minigame.jogo).includes('nenhum') ? 'Falta o lugar no mapa' : null
   if (lugar.tipo !== 'objeto') return null
   return props.some((p) => p.id === lugar.propId) ? null : 'O objeto foi apagado'
 }
 
-/** "num ponto do mapa", "num objeto", "sem lugar no mapa": a linha da lista. */
-export function textoDoLugar(desafio: Pick<Desafio, 'lugar'>, props: readonly Prop[]): string {
+/** "num ponto do mapa", "num objeto", "sem lugar no mapa" (ou o `semLugar` de quem chama): a linha da lista. */
+export function textoDoLugar(desafio: Pick<Desafio, 'lugar'>, props: readonly Prop[], semLugar = 'sem lugar no mapa'): string {
   const lugar = desafio.lugar
   if (lugar.tipo === 'ponto') return 'num ponto do mapa'
-  if (lugar.tipo === 'nenhum') return 'sem lugar no mapa'
+  if (lugar.tipo === 'nenhum') return semLugar
   const prop = props.find((p) => p.id === lugar.propId)
   if (prop === undefined) return 'num objeto que foi apagado'
   const rotulo = typeof prop.playerLabel === 'string' ? prop.playerLabel.trim() : ''

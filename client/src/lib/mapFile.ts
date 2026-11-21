@@ -1,5 +1,5 @@
 import type { CamadaId, ConcealZone, Desafio, DoorState, FloorStyle, Light, LugarDoDesafio, MapData, Pin, Prop, Region, Token, Wall } from '../types/map'
-import { comPinosDeMinigameComoDesafios, DESAFIO_NOME_MAX_LENGTH, anguloDoSelo, nomePadraoDoDesafio, tamanhoDoSeloNaFaixa } from './desafios'
+import { comPinosDeMinigameComoDesafios, DESAFIO_NOME_MAX_LENGTH, anguloDoSelo, nomeDoDesafio, tamanhoDoSeloNaFaixa } from './desafios'
 import { ehJogoDoRegistro, padraoDoJogo, type MinigamesPorJogo } from '../minigames/registro'
 import type { JogoDoMinigame } from '../minigames/tipos'
 import { lerProgressoDoPuzzle, lerPuzzleDoArquivo } from '../puzzles/leitor'
@@ -381,9 +381,13 @@ function lerDesafioDoArquivo(cru: Desafio): Desafio | null {
   const eraPino = lerPinoDeAntes(cru.eraPino, cru.id)
   // PUZZLE: o progresso é lido só no desafio que é puzzle; o de um desafio que mudou de jogo não volta.
   const progressoDoPuzzle = minigame.jogo === 'puzzle' ? lerProgressoDoPuzzle(cru.progressoDoPuzzle) : undefined
+  // NOME (editor de 21/11/2026, NOTAS §5.4): com `nomeProprio`, o nome é do mestre e fica. Sem ele, o nome de
+  // fábrica de qualquer jogo (a "Dança com Dona Ziza" num Fogo) e o vazio viram o automático; outro texto é do mestre.
+  const nomeGravado = textoDoArquivo(cru.nome, DESAFIO_NOME_MAX_LENGTH, '')
+  const nome = cru.nomeProprio === true && nomeGravado !== '' ? { nome: nomeGravado, nomeProprio: true as const } : nomeDoDesafio({ minigame }, nomeGravado)
   return {
     id: cru.id,
-    nome: textoDoArquivo(cru.nome, DESAFIO_NOME_MAX_LENGTH, '') || nomePadraoDoDesafio(minigame),
+    ...nome,
     lugar: lerLugarDoDesafio(cru.lugar),
     minigame,
     ...(portaLigada === undefined ? {} : { portaLigada }),

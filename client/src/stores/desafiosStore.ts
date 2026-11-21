@@ -11,6 +11,9 @@ import type { RegistroDoObjetoAberto } from '../net/objetoNoHost'
 /** O que o próximo clique no mapa marca: um ponto, ou o objeto clicado. */
 export type ModoDeMarcar = 'ponto' | 'objeto'
 
+/** A ESCOLHA DO JOGO aberta na página (editor de 21/11/2026, decisão 1): para um desafio novo, ou para trocar o jogo de um. */
+export type EscolhaDoJogoAberta = { para: 'novo' } | { para: 'trocar'; id: string }
+
 export const CHAVE_DOS_AVISOS_DISPENSADOS = 'lb-desafios-aviso-dispensado'
 
 interface EstadoDosDesafios {
@@ -18,11 +21,20 @@ interface EstadoDosDesafios {
   aberto: string | null
   /** "Marcar no mapa" / "Escolher no mapa" em curso: o próximo clique decide o lugar. */
   marcando: { id: string; modo: ModoDeMarcar } | null
+  /**
+   * No "Objeto", o último clique caiu fora de um objeto (B25 das NOTAS do editor): a ficha diz,
+   * em vez de nada acontecer. Volta a `false` a cada marcação nova e ao parar.
+   */
+  cliqueForaDoObjeto: boolean
+  /** "Novo desafio" ou "Trocar": a lista dos jogos no lugar da página; `null` = fechada. */
+  escolhaDoJogo: EscolhaDoJogoAberta | null
   /** Ids de mapa cujo aviso de migração o mestre dispensou ("Entendi"). */
   avisosDispensados: ReadonlySet<string>
   abrir: (id: string | null) => void
   marcar: (id: string, modo: ModoDeMarcar) => void
   pararDeMarcar: () => void
+  avisarCliqueForaDoObjeto: () => void
+  abrirEscolhaDoJogo: (escolha: EscolhaDoJogoAberta | null) => void
   dispensarAviso: (mapaId: string) => void
   /**
    * AO VIVO (baú, caixa e barril, 15/11/2026): as aberturas desta sessão, a
@@ -71,14 +83,18 @@ function gravarAvisosDispensados(ids: ReadonlySet<string>): void {
 export const useDesafiosStore = create<EstadoDosDesafios>((set, get) => ({
   aberto: null,
   marcando: null,
+  cliqueForaDoObjeto: false,
+  escolhaDoJogo: null,
   avisosDispensados: lerAvisosDispensados(armazem()),
   aoVivo: [],
   destacado: null,
   registrarAbertura: (registro) => set({ aoVivo: [registro, ...get().aoVivo].slice(0, AO_VIVO_MAX) }),
   destacar: (propId) => set({ destacado: propId }),
-  abrir: (id) => set({ aberto: id }),
-  marcar: (id, modo) => set({ marcando: { id, modo } }),
-  pararDeMarcar: () => set({ marcando: null }),
+  abrir: (id) => set({ aberto: id, escolhaDoJogo: null }),
+  marcar: (id, modo) => set({ marcando: { id, modo }, cliqueForaDoObjeto: false }),
+  pararDeMarcar: () => set({ marcando: null, cliqueForaDoObjeto: false }),
+  avisarCliqueForaDoObjeto: () => set({ cliqueForaDoObjeto: true }),
+  abrirEscolhaDoJogo: (escolha) => set({ escolhaDoJogo: escolha }),
   dispensarAviso: (mapaId) => {
     const avisosDispensados = new Set(get().avisosDispensados)
     avisosDispensados.add(mapaId)
