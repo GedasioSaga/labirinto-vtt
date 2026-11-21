@@ -89,7 +89,8 @@ describe('PlayerPinCard: minigame', () => {
     act(() => root.render(<PlayerPinCard pin={pino({ description: '', minigameVisivel: visivel })} onClose={() => {}} stairs={[]} onApagarFogo={onApagarFogo} />))
     expect(container.textContent).not.toContain('Desafio de dança')
     expect(container.textContent).not.toContain('O mestre ainda não escreveu nada')
-    expect(container.textContent).toContain('Fogo na floresta! Alguém precisa de ajuda aqui.')
+    // Com a fala de quem chama, o texto de fábrica do jogo não repete o convite.
+    expect(container.textContent).not.toContain('Fogo na floresta! Alguém precisa de ajuda aqui.')
     expect(container.querySelector('.pp-pincard__fala-texto')?.textContent).toBe('“O fogo está descendo o morro!”')
     expect(container.querySelector('.pp-pincard__pedido-quem')?.textContent).toBe('Guarda Florêncio')
     const [apagar] = acoes()

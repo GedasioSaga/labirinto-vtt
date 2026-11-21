@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, type CSSProperties, type ReactNode, type Ref 
 import type { TiroDoJogador } from '../../../player/estadoDoTiro'
 import { desenharMedalha, desenharProibidos, desenharRetrato } from '../arte'
 import { BALAS, DIF, MEDALHAS, passou, pontosDaMedalha, type DificuldadeSim } from '../sim'
-import { DIFICULDADES_TIRO, type MedalhaTiro } from '../tipos'
+import { DIFICULDADES_TIRO, MINIGAME_TIRO_PADRAO, type MedalhaTiro } from '../tipos'
 import type { HudDoTiro, ResultadoDaRodada } from './motor'
 import { comArtigo, DESCRICAO_DIF, NOME_DIF, NOMES_MED, pctTxt, textoDaMeta } from './textos'
 
@@ -128,20 +128,22 @@ export function Convite(p: ConviteProps) {
   const { convite, dif } = p
   const baseId = useId()
   const comecarRef = usarFocoAoMontar<HTMLButtonElement>()
-  const barraca = convite.barraca || 'Barraca sem nome'
+  // Lugar vazio sai do convite (decisão 9 do editor de 21/11/2026), em vez de "Barraca sem nome".
+  const barraca = convite.barraca.trim()
   const so = convite.permitida === 'escolha' ? null : convite.permitida
   const restam = Math.max(0, convite.tentativas - p.usadas)
   const aviso = p.bloqueio ?? p.erro
   return (
     <section className="tz-tela" aria-labelledby={`${baseId}-npc`}>
       <div className="tz-npc">
-        <Retrato />
+        {/* O retrato desenhado é da personagem de fábrica: com outro nome ele sai, em vez de mostrar o rosto errado (B23). */}
+        {convite.npc === MINIGAME_TIRO_PADRAO.npc && <Retrato />}
         <div>
-          <h1 id={`${baseId}-npc`}>{convite.npc || 'Alguém da feira'}</h1>
-          <p>desafia você na {barraca}</p>
+          <h1 id={`${baseId}-npc`}>{convite.npc || 'Barraca de tiro'}</h1>
+          <p>{barraca === '' ? 'chama você para a barraca' : `desafia você na ${barraca}`}</p>
         </div>
       </div>
-      <p className="tz-fala">{convite.fala || '…'}</p>
+      {convite.fala.trim() !== '' && <p className="tz-fala">{convite.fala}</p>}
       <fieldset>
         <legend className="tz-rotulo tz-legenda">Dificuldade</legend>
         <div className="tz-cartoes">

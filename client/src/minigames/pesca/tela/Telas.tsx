@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, type PointerEvent as Pointer
 import type { PescaDoJogador } from '../../../player/estadoDaPesca'
 import { desenharNpc, desenharPlaca, IH, IW, spriteDoPeixe, type ResultadoNaCena } from '../arte'
 import { DIF, type Peixe } from '../sim'
-import type { DificuldadePesca } from '../tipos'
+import { MINIGAME_PESCA_PADRAO, type DificuldadePesca } from '../tipos'
 import { FASES_NA_AGUA, type InstantaneoDaPesca, type MotorDaPesca, type ResultadoDoLance } from './motor'
 import { FAIXA, fmtDec, RARIDADE, textoDoEncerramento, textoDosLances, TITULO_DO_LANCE } from './textos'
 
@@ -119,19 +119,21 @@ export interface ConviteProps {
 export function Convite({ convite, dif, aoMudarDif, pausadaPeloMestre, erro, somAtivo, aoAlternarSom, aoPescar }: ConviteProps) {
   const baseId = useId()
   const pescarRef = usarFocoAoMontar<HTMLButtonElement>()
-  const lago = convite.lago || 'Lago sem nome'
+  // Lugar vazio sai do convite (decisão 9 do editor de 21/11/2026), em vez de "Lago sem nome".
+  const lago = convite.lago.trim()
   const so = convite.permitida === 'escolha' ? null : convite.permitida
   const aviso = pausadaPeloMestre ? 'O mestre pausou a pesca. Espere ele continuar.' : erro
   return (
     <div className="pz-tela" aria-labelledby={`${baseId}-npc`}>
       <div className="pz-npc">
-        <RetratoDoNpc />
+        {/* O retrato desenhado é da personagem de fábrica: com outro nome ele sai, em vez de mostrar o rosto errado (B23). */}
+        {convite.npc === MINIGAME_PESCA_PADRAO.npc && <RetratoDoNpc />}
         <div>
-          <h1 id={`${baseId}-npc`}>{convite.npc || 'Alguém sem nome'}</h1>
-          <p>desafia você no {lago}</p>
+          <h1 id={`${baseId}-npc`}>{convite.npc || 'Pesca'}</h1>
+          <p>{lago === '' ? 'convida você para pescar' : `desafia você no ${lago}`}</p>
         </div>
       </div>
-      <p className="pz-fala">{convite.fala || '…'}</p>
+      {convite.fala.trim() !== '' && <p className="pz-fala">{convite.fala}</p>}
       <fieldset>
         <legend className="pz-rotulo pz-legenda">Dificuldade</legend>
         <div className="pz-cartoes">

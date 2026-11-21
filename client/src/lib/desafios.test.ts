@@ -98,7 +98,9 @@ describe('desafios — o recorte do jogador', () => {
     expect(out.map.desafios).toBeUndefined()
     const selo = out.map.pins.find((p) => p.id === 'd-pesca')
     expect(selo?.kind).toBe('minigame')
-    expect(selo?.minigameVisivel).toEqual({ jogo: 'pesca', entrada: padraoDoJogo('pesca').entrada })
+    // Quem chama e a fala vão com o selo legível (decisão 12 do editor de 21/11/2026); o resto do desafio, não.
+    expect(selo?.minigameVisivel).toMatchObject({ jogo: 'pesca', entrada: padraoDoJogo('pesca').entrada })
+    expect(Object.keys(selo?.minigameVisivel ?? {}).sort()).toEqual(['entrada', 'fala', 'jogo', 'npc'])
     expect(selo !== undefined && 'minigame' in selo).toBe(false)
   })
 
@@ -128,7 +130,7 @@ describe('desafios — o recorte com a memória da planta', () => {
   it('o selo à vista chega e entra na planta; longe, chega lembrado', () => {
     const mapa = cena(pesca({ tipo: 'ponto', x: 200, y: 200 }))
     const visto = comMemoria(mapa, emptyPlanMemory())
-    expect(seloDe(visto)?.minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'pino' })
+    expect(seloDe(visto)?.minigameVisivel).toMatchObject({ jogo: 'pesca', entrada: 'pino' })
     expect(visto.plan.pins.has('d-pesca')).toBe(true)
     const lembrado = comMemoria({ ...mapa, tokens: [LONGE] }, visto.plan)
     expect(seloDe(lembrado)?.kind).toBe('minigame')
@@ -138,7 +140,7 @@ describe('desafios — o recorte com a memória da planta', () => {
     const mapa = cena(pesca({ tipo: 'ponto', x: 200, y: 200 }), { tokens: [LONGE] })
     const plano = planOfWholeMap(mapa)
     expect(plano.pins.has('d-pesca')).toBe(true)
-    expect(seloDe(comMemoria(mapa, plano))?.minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'pino' })
+    expect(seloDe(comMemoria(mapa, plano))?.minigameVisivel).toMatchObject({ jogo: 'pesca', entrada: 'pino' })
   })
 
   it('SEGURANÇA: o selo num objeto escondido não chega, nem lembrado, nem pela planta revelada', () => {

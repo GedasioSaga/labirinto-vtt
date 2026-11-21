@@ -151,7 +151,9 @@ describe('pesca na sessão: jogador toca no pino', () => {
     const snapshot = inicio.outbound.find((o) => o.clientId === 'c-ana' && o.msg.type === 'snapshot')?.msg
     if (snapshot?.type !== 'snapshot') throw new Error('esperava o snapshot da Ana')
     const pino = snapshot.map.pins.find((p) => p.id === PINO)
-    expect(pino?.minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'pino' })
-    expect(JSON.stringify(snapshot)).not.toContain('Bento')
+    // Quem chama e a fala vão com o selo legível (decisão 12 do editor de 21/11/2026); prêmio e consequência, nunca.
+    expect(pino?.minigameVisivel).toMatchObject({ jogo: 'pesca', entrada: 'pino' })
+    expect(JSON.stringify(snapshot)).not.toContain('"premio"')
+    expect(JSON.stringify(snapshot)).not.toContain('"consequencia"')
   })
 })

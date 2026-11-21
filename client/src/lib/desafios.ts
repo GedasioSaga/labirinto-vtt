@@ -192,10 +192,11 @@ export interface GuardadoDoJogo {
  * (não é o exemplo do jogo de antes). Fala, lugar do convite, regras, prêmio e
  * porta são do jogo; `atualizarDesafio` tira o progresso do puzzle.
  */
-export function patchDaTrocaDeJogo(desafio: Pick<Desafio, 'minigame'>, jogo: JogoDoMinigame, guardado: GuardadoDoJogo | undefined): PatchDoDesafio {
+export function patchDaTrocaDeJogo(desafio: Pick<Desafio, 'minigame' | 'quem'>, jogo: JogoDoMinigame, guardado: GuardadoDoJogo | undefined): PatchDoDesafio {
   const base: MinigameDoPino = guardado !== undefined && guardado.minigame.jogo === jogo ? structuredClone(guardado.minigame) : padraoDoJogo(jogo)
   const antes = desafio.minigame
-  const escolhido = antes.jogo !== 'puzzle' && antes.npc !== exemploDoJogo(antes).npc
+  // Escolhido = uma ficha (`quem`) ou um nome que não é o exemplo do jogo de antes.
+  const escolhido = antes.jogo !== 'puzzle' && (desafio.quem !== undefined || antes.npc !== exemploDoJogo(antes).npc)
   const minigame = escolhido ? comConvite(base, { npc: antes.npc }) : base
   return { minigame, portaLigada: guardado?.portaLigada }
 }
@@ -398,9 +399,9 @@ export function novoDesafio(id: string, jogo: JogoDoMinigame, lugar: LugarDoDesa
   return { id, nome: nomeAutomatico({ minigame }), lugar, minigame }
 }
 
-export type PatchDoDesafio = Partial<Pick<Desafio, 'nome' | 'lugar' | 'minigame' | 'portaLigada' | 'piso' | 'tamanho' | 'angulo'>>
+export type PatchDoDesafio = Partial<Pick<Desafio, 'nome' | 'lugar' | 'minigame' | 'portaLigada' | 'piso' | 'tamanho' | 'angulo' | 'quem'>>
 
-const CHAVES_DO_PATCH: readonly (keyof PatchDoDesafio)[] = ['nome', 'lugar', 'minigame', 'portaLigada', 'piso', 'tamanho', 'angulo']
+const CHAVES_DO_PATCH: readonly (keyof PatchDoDesafio)[] = ['nome', 'lugar', 'minigame', 'portaLigada', 'piso', 'tamanho', 'angulo', 'quem']
 
 export function adicionarDesafio(map: MapData, desafio: Desafio): MapData {
   return { ...map, desafios: [...desafiosDo(map), desafio] }
@@ -429,7 +430,9 @@ export function atualizarDesafio(map: MapData, id: string, patch: PatchDoDesafio
     if (!('portaLigada' in patch)) delete novo.portaLigada
     delete novo.progressoDoPuzzle
   }
-  for (const chave of ['portaLigada', 'piso', 'tamanho', 'angulo'] as const) {
+  // Quem chama de ficha só vale com o mesmo nome no convite: o jogo novo que não o levou (puzzle) o perde.
+  if (novo.quem !== undefined && (novo.minigame.jogo === 'puzzle' || novo.minigame.npc !== novo.quem.nome)) delete novo.quem
+  for (const chave of ['portaLigada', 'piso', 'tamanho', 'angulo', 'quem'] as const) {
     if (chave in patch && patch[chave] === undefined) delete novo[chave]
   }
   const nome = 'nome' in patch ? nomeDoDesafio(novo, patch.nome) : novo.nomeProprio === true ? { nome: novo.nome, nomeProprio: true as const } : { nome: nomeAutomatico(novo) }

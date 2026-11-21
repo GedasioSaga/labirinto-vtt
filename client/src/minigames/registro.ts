@@ -64,8 +64,8 @@ export interface DefinicaoDoMinigame<J extends JogoDoMinigame> {
   /** Como começa o desafio gravado (o jogador encosta, ou o mestre chama). */
   entradaDe: (minigame: MinigamesPorJogo[J]) => EntradaDoDesafio
   /**
-   * O pouco que vai ao JOGADOR (`MinigameVisivel`): o jogo e como começa; do
-   * fogo e da bolha também quem pede ajuda e a fala, só com o selo legível.
+   * O pouco que vai ao JOGADOR (`MinigameVisivel`): o jogo e como começa; de
+   * todo jogo com convite também quem chama e a fala, só com o selo legível.
    * Prêmio, consequência, música e porta nunca vão.
    */
   recorteDoJogador: (minigame: MinigamesPorJogo[J], legivel: boolean) => MinigameVisivel
@@ -87,7 +87,11 @@ export interface FalaSugerida {
 
 const TODOS_OS_LUGARES: readonly TipoDoLugarDoDesafio[] = ['ponto', 'objeto', 'nenhum']
 
-/** A fala e quem pede ajuda vão ao cartão só com o selo legível, e só com texto. */
+/**
+ * Quem chama e a fala vão ao cartão só com o selo legível, e só com texto
+ * (decisão 12 do editor de 21/11/2026: todo jogo com convite, não só o fogo e
+ * a bolha). Prêmio, consequência, música, porta e a ficha de quem chama nunca vão.
+ */
 function comPedidoDeAjuda(visivel: MinigameVisivel, minigame: { npc: string; fala: string }, legivel: boolean): MinigameVisivel {
   if (legivel && typeof minigame.npc === 'string' && minigame.npc.trim() !== '') visivel.npc = minigame.npc
   if (legivel && typeof minigame.fala === 'string' && minigame.fala.trim() !== '') visivel.fala = minigame.fala
@@ -105,7 +109,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     entradas: ['mestre'],
     padrao: () => structuredClone(MINIGAME_PADRAO),
     entradaDe: () => 'mestre',
-    recorteDoJogador: () => ({ jogo: 'danca', entrada: 'mestre' }),
+    recorteDoJogador: (minigame, legivel) => comPedidoDeAjuda({ jogo: 'danca', entrada: 'mestre' }, minigame, legivel),
     desfechos: ['abrir porta'],
     verbo: 'desafia para uma dança',
     regraDeEntrada: 'A dança começa quando você chama: todos entram juntos na música.',
@@ -126,7 +130,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     padrao: () => structuredClone(MINIGAME_PESCA_PADRAO),
     entradaDe: (minigame) => (minigame.entrada === 'pino' ? 'pino' : 'mestre'),
     // O torto cai no mestre: o cartão nunca oferece começar sozinho por engano.
-    recorteDoJogador: (minigame) => ({ jogo: 'pesca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }),
+    recorteDoJogador: (minigame, legivel) => comPedidoDeAjuda({ jogo: 'pesca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }, minigame, legivel),
     desfechos: [],
     verbo: 'convida para pescar',
     falasSugeridas: () => [
@@ -145,7 +149,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     entradas: ['pino', 'mestre'],
     padrao: () => structuredClone(MINIGAME_TIRO_PADRAO),
     entradaDe: (minigame) => (minigame.entrada === 'pino' ? 'pino' : 'mestre'),
-    recorteDoJogador: (minigame) => ({ jogo: 'tiro', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }),
+    recorteDoJogador: (minigame, legivel) => comPedidoDeAjuda({ jogo: 'tiro', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }, minigame, legivel),
     desfechos: [],
     verbo: 'chama para a barraca',
     falasSugeridas: () => [
@@ -216,7 +220,8 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
     padrao: () => structuredClone(MINIGAME_ALAVANCA_PADRAO),
     entradaDe: (minigame) => (minigame.entrada === 'pino' ? 'pino' : 'mestre'),
     // A cena vai junto: o cartão do jogador fala da ponte ou do canhão (B6 das NOTAS do editor).
-    recorteDoJogador: (minigame) => ({ jogo: 'alavanca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre', cena: minigame.cena === 'canhao' ? 'canhao' : 'ponte' }),
+    recorteDoJogador: (minigame, legivel) =>
+      comPedidoDeAjuda({ jogo: 'alavanca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre', cena: minigame.cena === 'canhao' ? 'canhao' : 'ponte' }, minigame, legivel),
     // A vitória abre a porta ligada do desafio (a ponte do mestre aplica, `net/hostBridge.ts`).
     desfechos: ['abrir porta'],
     verbo: 'chama para a alavanca',

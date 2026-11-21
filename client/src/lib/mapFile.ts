@@ -1,4 +1,4 @@
-import type { CamadaId, ConcealZone, Desafio, DoorState, FloorStyle, Light, LugarDoDesafio, MapData, Pin, Prop, Region, Token, Wall } from '../types/map'
+import type { CamadaId, ConcealZone, Desafio, DoorState, FloorStyle, Light, LugarDoDesafio, MapData, Pin, Prop, QuemChamaODesafio, Region, Token, Wall } from '../types/map'
 import { comPinosDeMinigameComoDesafios, DESAFIO_NOME_MAX_LENGTH, anguloDoSelo, nomeDoDesafio, tamanhoDoSeloNaFaixa } from './desafios'
 import { ehJogoDoRegistro, padraoDoJogo, type MinigamesPorJogo } from '../minigames/registro'
 import type { JogoDoMinigame } from '../minigames/tipos'
@@ -385,9 +385,12 @@ function lerDesafioDoArquivo(cru: Desafio): Desafio | null {
   // fábrica de qualquer jogo (a "Dança com Dona Ziza" num Fogo) e o vazio viram o automático; outro texto é do mestre.
   const nomeGravado = textoDoArquivo(cru.nome, DESAFIO_NOME_MAX_LENGTH, '')
   const nome = cru.nomeProprio === true && nomeGravado !== '' ? { nome: nomeGravado, nomeProprio: true as const } : nomeDoDesafio({ minigame }, nomeGravado)
+  // QUEM CHAMA de ficha (21/11/2026, campo novo e opcional): só com o mesmo nome do convite; torto não entra.
+  const quem = lerQuemChama(cru.quem, minigame.jogo === 'puzzle' ? '' : minigame.npc)
   return {
     id: cru.id,
     ...nome,
+    ...(quem === undefined ? {} : { quem }),
     lugar: lerLugarDoDesafio(cru.lugar),
     minigame,
     ...(portaLigada === undefined ? {} : { portaLigada }),
@@ -404,6 +407,16 @@ function lerDesafioDoArquivo(cru: Desafio): Desafio | null {
  * antes) ou torto = o padrão, e a chave não entra; número fora da faixa fica
  * na borda dela (`tamanhoDoSeloNaFaixa`), como o tamanho do papel.
  */
+/** Quem chama de uma ficha: nome igual ao `npc` do convite, e os ids só se forem texto. Fora disso, `undefined`. */
+function lerQuemChama(valor: unknown, npc: string): QuemChamaODesafio | undefined {
+  if (!ehObjetoDoArquivo(valor)) return undefined
+  const nome = campoDoArquivo(valor, 'nome')
+  if (typeof nome !== 'string' || nome.trim() === '' || nome !== npc) return undefined
+  const tokenId = campoDoArquivo(valor, 'tokenId')
+  const acervoId = campoDoArquivo(valor, 'acervoId')
+  return { nome, ...(typeof tokenId === 'string' && tokenId !== '' ? { tokenId } : {}), ...(typeof acervoId === 'string' && acervoId !== '' ? { acervoId } : {}) }
+}
+
 /** O GIRO do selo (21/11/2026): campo NOVO e OPCIONAL, em graus; ausente, torto ou 0 = sem giro, e a chave não entra. */
 function lerAnguloDoSelo(valor: unknown): Pick<Desafio, 'angulo'> {
   if (typeof valor !== 'number' || !Number.isFinite(valor)) return {}

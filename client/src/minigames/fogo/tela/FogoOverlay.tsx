@@ -328,7 +328,7 @@ function Convite({ fogo, playerId, ferramenta, setFerramenta, estadoDoJogo, erro
       </p>
       <h2 className="lb-fogo__titulo">{c.npc === '' ? 'Pedido de ajuda' : c.npc}</h2>
       {c.fala !== '' && <p className="lb-fogo__fala">“{c.fala}”</p>}
-      {c.premio.texto !== '' && <p className="lb-fogo__premio">Se salvarem a vila: {c.premio.texto}</p>}
+      {c.premio.texto !== '' && <p className="lb-fogo__premio">{sozinho !== undefined ? 'Se apagar o fogo' : 'Se apagarem o fogo'}: {c.premio.texto}</p>}
       <p className="lb-fogo__aviso" role="note">
         {AVISO_MOUSE_E_TECLADO_FOGO}
       </p>

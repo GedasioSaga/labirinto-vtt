@@ -9,6 +9,7 @@ import { IconeDoJogo, IconeDosJogos } from './IconeDoJogo'
 import { DESAFIO_NOME_MAX_LENGTH, desafiosDo, desafiosMigrados, faltaNoLugar, novoDesafio, patchDaTrocaDeJogo, pontoDoDesafio, textoDoLugar } from '../../lib/desafios'
 import { BlocoDoConvite } from './desafio/BlocoDoConvite'
 import { BlocoOndeEComoComeca, irAoDesafio } from './desafio/BlocoOndeEComoComeca'
+import { PreviaDoJogador } from './desafio/PreviaDoJogador'
 import { ORDEM_DOS_JOGOS, REGISTRO_DE_MINIGAMES, nomeDoJogo, nomeDoJogoDoDesafio, type CategoriaDoJogo } from '../../minigames/registro'
 import type { JogoDoMinigame } from '../../minigames/tipos'
 import type { DancaAoVivo } from '../../net/dancaNoHost'
@@ -570,7 +571,9 @@ function FichaDoDesafio({ desafio, props, painel, emJogo }: PropsDaFicha) {
   return (
     <SubFicha voltarPara="Jogos" onVoltar={() => abrir(null)} icone={<IconeDoJogo jogo={jogo} />} titulo={desafio.nome} tipo={`Desafio · ${nomeDoJogoDoDesafio(desafio.minigame)}`}>
       <NomeDoDesafio key={desafio.nome} desafio={desafio} />
-      {troca !== null && (
+      <PreviaDoJogador desafio={desafio} />
+      {/* Depois do Ctrl+Z que desfaz a troca, o jogo de agora é o de antes: o aviso some em vez de mentir. */}
+      {troca !== null && troca.de !== jogo && (
         <div className="mg-aviso" role="status">
           <p>
             Agora é {nomeDoJogo(jogo)}. {troca.voltou ? 'Voltou como você tinha deixado. ' : ''}O que era {nomeDoJogo(troca.de)} ficou guardado: se você voltar, volta igual.

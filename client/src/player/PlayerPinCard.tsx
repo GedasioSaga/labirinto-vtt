@@ -23,7 +23,7 @@ import { PASS_CHECK_TEXT } from './travelNotice'
 import { TEXTO_LONGE_DO_ITEM } from './PlayerItemCard'
 import { TEXTO_A_BORDO_VIAGEM, type PinTravelChoice } from '../lib/pinTravelers'
 import { TEXTO_CONGELADO } from '../lib/congelar'
-import type { JogoDoMinigame, MinigameVisivel } from '../minigames/tipos'
+import { TEXTOS_DO_JOGO, textosDoJogoDoSelo } from '../minigames/textosDoCartao'
 
 const NO_TRAVELERS: readonly PinTravelChoice[] = []
 
@@ -176,37 +176,6 @@ interface PlayerPinCardProps {
 }
 
 const TEXTO_LONGE ='Chegue mais perto para passar'
-/**
- * O REGISTRO DOS JOGOS no cartão: o que cada um diz quando o mestre não
- * escreveu nada no pino (`vazio`) e quando quem chama é o mestre (`doMestre`).
- * `Record` de todos os jogos: jogo novo sem frase não compila — nenhum cai na
- * frase da dança por engano (bug de 09/11/2026: o Fogo dizia "Desafio de dança").
- */
-const TEXTOS_DO_JOGO: Record<JogoDoMinigame, { titulo: string; vazio: string; doMestre: string }> = {
-  danca: { titulo: 'Dança', vazio: 'Um desafio de dança espera por aqui.', doMestre: 'Desafio de dança. O mestre chama quando for a hora.' },
-  pesca: { titulo: 'Pesca', vazio: 'Um lugar para pescar.', doMestre: 'Pesca. O mestre chama quando for a hora.' },
-  tiro: { titulo: 'Barraca de tiro', vazio: 'Uma barraca de tiro ao alvo.', doMestre: 'Barraca de tiro. O mestre chama quando for a hora.' },
-  fogo: { titulo: 'Fogo na Floresta', vazio: 'Fogo na floresta! Alguém precisa de ajuda aqui.', doMestre: 'Fogo na floresta. O mestre chama quando for a hora.' },
-  bolha: { titulo: "Bolha d'Água", vazio: 'Fogo! Alguém precisa de ajuda para apagar com bolhas.', doMestre: "Bolha d'Água. O mestre chama quando for a hora." },
-  alavanca: { titulo: 'Alavanca da ponte', vazio: 'Uma alavanca diante da ponte levadiça erguida.', doMestre: 'Alavanca da ponte. O mestre chama quando for a hora.' },
-  // O puzzle começa pelo jogador ("Examinar", na tela do puzzle); o mestre nunca chama. O nome dele não vem no recorte.
-  puzzle: { titulo: 'Puzzle', vazio: 'Há algo aqui para examinar de perto.', doMestre: 'Um mecanismo para examinar de perto.' },
-}
-/**
- * A ALAVANCA NA CENA DO CANHÃO (B6 das NOTAS do editor, 21/11/2026): o mesmo
- * jogo, outra coisa no mapa. Sem cena no recorte (host de antes), a ponte.
- */
-const TEXTOS_DA_ALAVANCA_DO_CANHAO = {
-  titulo: 'Alavanca do canhão',
-  vazio: 'Uma alavanca ao lado das lajes do baluarte.',
-  doMestre: 'Alavanca do canhão. O mestre chama quando for a hora.',
-}
-/** Os textos do jogo deste selo: os do registro do cartão, com a cena da alavanca. */
-function textosDoJogoDoSelo(visivel: MinigameVisivel | undefined): { titulo: string; vazio: string; doMestre: string } {
-  const jogo = visivel?.jogo ?? 'danca'
-  if (jogo === 'alavanca' && visivel?.cena === 'canhao') return TEXTOS_DA_ALAVANCA_DO_CANHAO
-  return TEXTOS_DO_JOGO[jogo] ?? TEXTOS_DO_JOGO.danca
-}
 /** Fogo sem como pedir daqui (o cartão que o mestre mostrou). */
 const TEXTO_DO_FOGO_NO_PINO = 'Fogo na floresta. Encoste no selo e toque em "Apagar o fogo".'
 const TEXTO_LONGE_DO_FOGO = 'Chegue mais perto para apagar o fogo.'
@@ -517,7 +486,9 @@ export function PlayerPinCard({
   const textoDoCartao = longeParaLer
     ? 'Chegue mais perto para ler.'
     : descricao === ''
-      ? (textosDoJogo?.vazio ?? 'O mestre ainda não escreveu nada sobre este ponto.')
+      ? textosDoJogo !== null && pin.minigameVisivel?.fala !== undefined
+        ? null
+        : (textosDoJogo?.vazio ?? 'O mestre ainda não escreveu nada sobre este ponto.')
       : descricao
   const altDaImagem =
     foto !== null
@@ -549,8 +520,9 @@ export function PlayerPinCard({
   const bolha = minigame && pin.minigameVisivel?.jogo === 'bolha' ? pin.minigameVisivel : null
   // A ALAVANCA DA PONTE do minigame (a `alavanca` daqui é o pino de alavanca que abre porta).
   const alavancaDaPonte = minigame && pin.minigameVisivel?.jogo === 'alavanca' ? pin.minigameVisivel.entrada : null
-  // O pedido de ajuda (quem pede e a fala) vem do fogo ou da bolha.
-  const pedidoDeAjuda = fogo ?? bolha
+  // A FALA DE QUEM CHAMA, de todo jogo com convite (decisão 12 do editor de 21/11/2026; antes só o fogo e a bolha).
+  // Chega só com o selo legível (`recorteDoJogador`); o puzzle não tem convite.
+  const pedidoDeAjuda = minigame && pin.minigameVisivel !== undefined && pin.minigameVisivel.jogo !== 'puzzle' ? pin.minigameVisivel : null
   // O PUZZLE sempre começa pelo jogador: o "Examinar" no lugar da frase do mestre.
   const examinar = minigame && pin.minigameVisivel?.jogo === 'puzzle' && onExaminar !== undefined
   // O símbolo que o mestre escolheu (baú, armadilha…) é o que o jogador vê no
@@ -769,7 +741,7 @@ export function PlayerPinCard({
               ))}
             </ul>
           ) : (
-            (escada !== null || !passagemSemTexto) && <p className="pp-pincard__text">{escada ?? textoDoCartao}</p>
+            (escada !== null || !passagemSemTexto) && (escada !== null || textoDoCartao !== null) && <p className="pp-pincard__text">{escada ?? textoDoCartao}</p>
           )}
         </div>
         {mercadorias !== null && <PlayerLoja mercadorias={mercadorias} onBuy={onBuy} compra={compra} />}

@@ -2,7 +2,7 @@ import { useEffect, useId, useRef } from 'react'
 import type { DancaStatus } from '../../../net/protocoloDaDanca'
 import type { DancaDoJogador } from '../../../player/estadoDaDanca'
 import { DIF } from '../regras'
-import { DIFICULDADES_DANCA, type DificuldadeDanca } from '../tipos'
+import { DIFICULDADES_DANCA, MINIGAME_PADRAO as MINIGAME_DANCA_PADRAO, type DificuldadeDanca } from '../tipos'
 import type { EstadoDaMusica } from './musicaImportada'
 import { Retrato } from './Palco'
 import type { PreferenciasDaDanca } from './preferencias'
@@ -66,13 +66,14 @@ export function Convite({ danca, euId, dif, aoMudarDif, prefs, aoMudarPrefs, mus
   return (
     <div className="dz-tela">
       <div className="dz-npc">
-        <Retrato />
+        {/* O retrato desenhado é da personagem de fábrica: com outro nome ele sai, em vez de mostrar o rosto errado (B23). */}
+        {convite.npc === MINIGAME_DANCA_PADRAO.npc && <Retrato />}
         <div>
-          <h1>{convite.npc || 'Desafiante'}</h1>
+          <h1>{convite.npc || 'Desafio de dança'}</h1>
           <p>desafia você para uma dança</p>
         </div>
       </div>
-      <p className="dz-fala">{convite.fala}</p>
+      {convite.fala.trim() !== '' && <p className="dz-fala">{convite.fala}</p>}
 
       <fieldset className="dz-cartoes">
         <legend className="dz-rotulo">Escolha o ritmo</legend>

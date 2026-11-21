@@ -35,9 +35,9 @@ export const JOGOS_DO_MINIGAME: readonly JogoDoMinigame[] = ['danca', 'pesca', '
 export interface MinigameVisivel {
   jogo: JogoDoMinigame
   entrada: EntradaPesca | EntradaTiro | EntradaBolha | EntradaAlavanca
-  /** Só do fogo e da bolha, e só com o pino legível: quem pede ajuda. */
+  /** De todo jogo com convite (menos o puzzle), e só com o selo legível: quem chama. */
   npc?: string
-  /** Só do fogo e da bolha, e só com o pino legível: o pedido de ajuda, como fala no cartão. */
+  /** De todo jogo com convite (menos o puzzle), e só com o selo legível: a fala de quem chama, no cartão. */
   fala?: string
   /** Só da alavanca: a cena (ponte ou canhão), para o cartão falar da coisa certa. */
   cena?: CenaAlavanca

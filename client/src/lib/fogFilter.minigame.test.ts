@@ -52,7 +52,8 @@ describe('filterMapForPlayer — minigame', () => {
   it('SEGURANÇA: nada do desafio aparece em lugar nenhum do pacote', () => {
     const texto = JSON.stringify(filterMapForPlayer(mapa([desafio()]), 'p1', DONOS, RAIO))
     expect(texto).toContain('"minigame"')
-    for (const segredo of ['Dona Ziza', 'Chave de latão', 'Agilidade', 'ginga', 'notaMin', 'portaLigada', 'porta-cofre-9f3a', '"premio"', '"musica"']) {
+    // Quem chama (Dona Ziza) vai com o selo legível desde a decisão 12 do editor de 21/11/2026; o prêmio, a música e a porta, nunca.
+    for (const segredo of ['Chave de latão', 'Agilidade', 'notaMin', 'portaLigada', 'porta-cofre-9f3a', '"premio"', '"musica"']) {
       expect(texto, segredo).not.toContain(segredo)
     }
   })
@@ -90,18 +91,18 @@ function pinoDoJogador(pino: Pin): Pin {
 describe('filterMapForPlayer — minigame de pesca', () => {
   it('a pesca de "jogador toca no pino" chega como { jogo, entrada } e nada mais do desafio', () => {
     const pino = pinoDoJogador(desafio({ minigame: PESCA_SECRETA }))
-    expect(pino.minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'pino' })
-    expect(Object.keys(pino.minigameVisivel ?? {}).sort()).toEqual(['entrada', 'jogo'])
+    expect(pino.minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'pino', npc: 'Seu Tonho', fala: 'Quem pesca aqui paga pedágio.' })
+    expect(Object.keys(pino.minigameVisivel ?? {}).sort()).toEqual(['entrada', 'fala', 'jogo', 'npc'])
     expect('minigame' in pino).toBe(false)
   })
 
   it('a pesca de "mestre chama" diz mestre', () => {
-    expect(pinoDoJogador(desafio({ minigame: { ...PESCA_SECRETA, entrada: 'mestre' } })).minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'mestre' })
+    expect(pinoDoJogador(desafio({ minigame: { ...PESCA_SECRETA, entrada: 'mestre' } })).minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'mestre', npc: 'Seu Tonho', fala: 'Quem pesca aqui paga pedágio.' })
   })
 
   it('a dança (e o pino sem desafio gravado, que joga a dança) sempre começa pelo mestre', () => {
-    expect(pinoDoJogador(desafio()).minigameVisivel).toEqual({ jogo: 'danca', entrada: 'mestre' })
-    expect(pinoDoJogador(desafio({ minigame: undefined })).minigameVisivel).toEqual({ jogo: 'danca', entrada: 'mestre' })
+    expect(pinoDoJogador(desafio()).minigameVisivel).toMatchObject({ jogo: 'danca', entrada: 'mestre' })
+    expect(pinoDoJogador(desafio({ minigame: undefined })).minigameVisivel).toMatchObject({ jogo: 'danca', entrada: 'mestre' })
   })
 
   it('outro tipo de pino não ganha o campo', () => {
@@ -111,7 +112,8 @@ describe('filterMapForPlayer — minigame de pesca', () => {
 
   it('SEGURANÇA: nada da pesca além do jogo e da entrada aparece no pacote', () => {
     const texto = JSON.stringify(filterMapForPlayer(mapa([desafio({ minigame: PESCA_SECRETA })]), 'p1', DONOS, RAIO))
-    for (const segredo of ['Seu Tonho', 'pedágio', 'Brejo Escondido', 'gruta submersa', 'Sanguessugas', 'extremo', '"lances"', '"lago"', '"fala"', '"premio"', '"consequencia"', '"npc"', '"permitida"']) {
+    // Quem chama e a fala (Seu Tonho, o pedágio) vão desde a decisão 12 do editor de 21/11/2026; o lago, o prêmio e a consequência, nunca.
+    for (const segredo of ['Brejo Escondido', 'gruta submersa', 'Sanguessugas', 'extremo', '"lances"', '"lago"', '"premio"', '"consequencia"', '"permitida"']) {
       expect(texto, segredo).not.toContain(segredo)
     }
   })
@@ -119,7 +121,7 @@ describe('filterMapForPlayer — minigame de pesca', () => {
   it('um `minigameVisivel` gravado no mapa do mestre não é copiado: o recorte monta o dele', () => {
     // Pino de dança com um `minigameVisivel` mentiroso (arquivo editado à mão): sai dança e mestre.
     const pino = pinoDoJogador(desafio({ minigameVisivel: { jogo: 'pesca', entrada: 'pino' } }))
-    expect(pino.minigameVisivel).toEqual({ jogo: 'danca', entrada: 'mestre' })
+    expect(pino.minigameVisivel).toMatchObject({ jogo: 'danca', entrada: 'mestre' })
   })
 })
 

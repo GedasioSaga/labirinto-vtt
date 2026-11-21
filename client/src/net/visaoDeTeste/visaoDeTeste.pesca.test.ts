@@ -116,7 +116,7 @@ describe('Visão de jogador — a pesca testada sozinho', () => {
     montar(lago('pino'))
     const { janela } = await abrirJanela('jogar')
     const conexao = janela.conexao()
-    await vi.waitFor(() => expect(conexao.getState().map?.pins.find((p) => p.id === 'pino-pesca')?.minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'pino' }))
+    await vi.waitFor(() => expect(conexao.getState().map?.pins.find((p) => p.id === 'pino-pesca')?.minigameVisivel).toMatchObject({ jogo: 'pesca', entrada: 'pino' }))
     expect(conexao.pedirPesca('pino-pesca')).toBe(true)
     await vi.waitFor(() => expect(conexao.getState().pesca?.convite.lago).toBe('Poço Afogado'))
     await vi.waitFor(() => expect(controlador.estado().pesca).toMatchObject([{ entrada: 'pino', participantes: [{ status: 'convidado' }] }]))

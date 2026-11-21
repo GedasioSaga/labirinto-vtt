@@ -1,8 +1,11 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useState } from 'react'
 import { comConvite, conviteDo, conviteTemExemplo, exemploDoJogo, FALA_DO_CONVITE_MAX_LENGTH, LUGAR_DO_CONVITE_MAX_LENGTH, QUEM_CHAMA_MAX_LENGTH, type ConviteDoDesafio } from '../../../lib/desafios'
 import { falasSugeridasDo, REGISTRO_DE_MINIGAMES } from '../../../minigames/registro'
 import { useMapStore } from '../../../stores/mapStore'
-import type { Desafio } from '../../../types/map'
+import { isTokenPhotoData } from '../../../lib/tokenPhoto'
+import { personagensAtivos } from '../../../stores/donoDasFichas'
+import { useAdventureStore } from '../../../stores/adventureStore'
+import type { Desafio, QuemChamaODesafio, Token } from '../../../types/map'
 
 /**
  * O CONVITE (editor de desafio aprovado em 21/11/2026, decisão 5): quem
@@ -49,21 +52,56 @@ function SetaParaBaixo() {
 
 interface PropsDoBloco {
   desafio: Desafio
-  /** A escolha de quem chama além do "só um nome" (as fichas da cena e do acervo); ausente = só o nome. */
-  fichasDeQuemChama?: ReactNode
-  /** O retrato de quem chama, quando veio de uma ficha. */
-  fotoDeQuemChama?: string
-  /** Quem chama mudou pelo nome ou por "Ninguém": quem monta tira a ficha ligada. */
-  onQuemPorNome?: (nome: string) => void
 }
 
-export function BlocoDoConvite({ desafio, fichasDeQuemChama, fotoDeQuemChama, onQuemPorNome }: PropsDoBloco) {
+/** Quantas fichas a escolha mostra de cada lista (a da cena e a do acervo): o resto pelo "Só um nome". */
+const FICHAS_NA_ESCOLHA_MAX = 8
+
+/** A foto do boneco, só quando é imagem embutida (a que o editor já mostra sem buscar nada). */
+function fotoDoBoneco(token: Pick<Token, 'imageData'> | undefined): string | undefined {
+  return token !== undefined && isTokenPhotoData(token.imageData) ? token.imageData : undefined
+}
+
+interface FichaParaEscolher {
+  chave: string
+  quem: QuemChamaODesafio
+  foto?: string
+  onde: string
+}
+
+/** As fichas que podem chamar: os bonecos desta cena (com nome) e as fichas do acervo, sem repetir nome. */
+function useFichasParaEscolher(): readonly FichaParaEscolher[] {
+  const tokens = useMapStore((estado) => estado.map.tokens)
+  const personagens = useAdventureStore(personagensAtivos)
+  const vistos = new Set<string>()
+  const fichas: FichaParaEscolher[] = []
+  for (const token of tokens) {
+    const nome = token.name.trim().slice(0, QUEM_CHAMA_MAX_LENGTH)
+    if (nome === '' || vistos.has(nome) || fichas.length >= FICHAS_NA_ESCOLHA_MAX) continue
+    vistos.add(nome)
+    const foto = fotoDoBoneco(token)
+    fichas.push({ chave: `t:${token.id}`, quem: { nome, tokenId: token.id }, ...(foto === undefined ? {} : { foto }), onde: 'nesta cena' })
+  }
+  let doAcervo = 0
+  for (const personagem of personagens) {
+    const nome = personagem.nome.trim().slice(0, QUEM_CHAMA_MAX_LENGTH)
+    if (nome === '' || vistos.has(nome) || doAcervo >= FICHAS_NA_ESCOLHA_MAX) continue
+    vistos.add(nome)
+    doAcervo += 1
+    fichas.push({ chave: `a:${personagem.id}`, quem: { nome, acervoId: personagem.id }, onde: 'do acervo' })
+  }
+  return fichas
+}
+
+export function BlocoDoConvite({ desafio }: PropsDoBloco) {
   const minigame = desafio.minigame
   const baseId = useId()
   const id = (nome: string) => `${baseId}-${nome}`
   const [escolhendo, setEscolhendo] = useState(false)
   const [nomeSolto, setNomeSolto] = useState('')
   const [semNome, setSemNome] = useState(false)
+  const fichas = useFichasParaEscolher()
+  const tokenDeQuem = useMapStore((estado) => (desafio.quem?.tokenId === undefined ? undefined : estado.map.tokens.find((token) => token.id === desafio.quem?.tokenId)))
   if (minigame.jogo === 'puzzle') {
     return (
       <section className="mg-bloco">
@@ -80,11 +118,12 @@ export function BlocoDoConvite({ desafio, fichasDeQuemChama, fotoDeQuemChama, on
   const falas = falasSugeridasDo(minigame)
   const mudar = (mudanca: Partial<ConviteDoDesafio>, campo?: string) =>
     useMapStore.getState().updateDesafio(desafio.id, { minigame: comConvite(minigame, mudanca) }, campo === undefined ? undefined : `desafio-${campo}:${desafio.id}`)
-  const escolherQuem = (nome: string) => {
-    mudar({ npc: nome })
-    onQuemPorNome?.(nome)
+  // Um passo só: o nome no convite e a ficha de onde ele veio (ou nenhuma, com o "só um nome" e o "Ninguém").
+  const escolherQuem = (nome: string, quem?: QuemChamaODesafio) => {
+    useMapStore.getState().updateDesafio(desafio.id, { minigame: comConvite(minigame, { npc: nome }), quem })
     setEscolhendo(false)
   }
+  const fotoDeQuemChama = fotoDoBoneco(tokenDeQuem)
   const usarNomeSolto = () => {
     const nome = nomeSolto.trim()
     if (nome === '') {
@@ -113,7 +152,26 @@ export function BlocoDoConvite({ desafio, fichasDeQuemChama, fotoDeQuemChama, on
         </button>
         {escolhendo && (
           <div className="mg-escolha" id={id('quem')} role="group" aria-label="Escolher quem chama">
-            {fichasDeQuemChama}
+            {fichas.length > 0 && (
+              <>
+                <p className="mg-escolha__t">Uma ficha: o nome segue a ficha.</p>
+                <ul>
+                  {fichas.map((ficha) => {
+                    const escolhida = desafio.quem !== undefined && (desafio.quem.tokenId ?? desafio.quem.acervoId) === (ficha.quem.tokenId ?? ficha.quem.acervoId)
+                    return (
+                      <li key={ficha.chave}>
+                        <button type="button" className="mg-escolha__op" aria-pressed={escolhida} onClick={() => escolherQuem(ficha.quem.nome, ficha.quem)}>
+                          <RetratoDeQuemChama nome={ficha.quem.nome} foto={ficha.foto} pequeno />
+                          <span>
+                            {ficha.quem.nome} <small className="mg-escolha__onde">{ficha.onde}</small>
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            )}
             <div className="gr-campo">
               <label className="gr-campo__rot" htmlFor={id('nome-solto')}>
                 Só um nome, sem ficha

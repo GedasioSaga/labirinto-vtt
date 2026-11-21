@@ -147,3 +147,28 @@
   .mg-escolha { transition: opacity 140ms var(--lb-gr-ease-out), transform 140ms var(--lb-gr-ease-out); }
   @starting-style { .mg-escolha { opacity: 0; transform: scale(0.97); } }
 }
+
+/* ------------------------------------------------------------------ a prévia "O jogador vê" (decisão 11): ao lado do livro */
+.mg-previa { position: fixed; z-index: 40; width: 264px; max-height: calc(100vh - 32px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--lb-radius-md); background: var(--lb-gr-papel-baixo, #1d1812); border: 1px solid var(--lb-gr-filete-forte); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); pointer-events: none; }
+.mg-previa > * { pointer-events: auto; }
+.mg-previa__t { margin: 0; font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); }
+.mg-previa__passo { margin: 0 0 4px; font: 600 var(--lb-font-size-xs)/1.2 var(--lb-font-utility); letter-spacing: 0.04em; text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.mg-previa__vazio { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment-dim); }
+.mg-pc, .mg-cj { border-radius: 10px; padding: 10px; background: #f3ead8; color: #2a2118; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.4; }
+.mg-pc__cab { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+.mg-pc__selo { width: 20px; height: 20px; display: grid; place-items: center; }
+.mg-pc__selo svg { width: 18px; height: 18px; }
+.mg-pc__txt, .mg-pc__locked { margin: 0; }
+.mg-pc__locked { font-size: 12px; color: #6b5a44; }
+.mg-pc__fala { margin: 0; }
+.mg-pc__fala blockquote { margin: 0; font-style: italic; }
+.mg-pc__fala figcaption { font-size: 12px; color: #6b5a44; }
+.mg-pc__bt { align-self: flex-start; padding: 4px 10px; border-radius: 6px; background: #2a2118; color: #f3ead8; font-weight: 600; }
+.mg-cj__onde { margin: 0; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: #6b5a44; }
+.mg-cj__quem { display: flex; align-items: center; gap: 8px; }
+.mg-cj__quem b { display: block; font-size: 15px; }
+.mg-cj__quem > div > span { display: block; font-size: 12px; color: #6b5a44; }
+.mg-cj__fala { margin: 0; font-style: italic; }
+.mg-cj__fala--narra { font-style: normal; }
+.mg-escolha__onde { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+@media (max-width: 900px) { .mg-previa { display: none; } }

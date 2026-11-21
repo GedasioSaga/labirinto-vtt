@@ -2752,6 +2752,13 @@ export type LugarDoDesafio = { tipo: 'ponto'; x: number; y: number } | { tipo: '
 
 export type TipoDoLugarDoDesafio = LugarDoDesafio['tipo']
 
+/** A ficha de quem chama para o desafio (`Desafio.quem`). */
+export interface QuemChamaODesafio {
+  nome: string
+  tokenId?: string
+  acervoId?: string
+}
+
 /**
  * DESAFIO: um minigame com lugar próprio, independente dos pinos (a página
  * Jogos do livro do mestre). No mapa é um selo de latão em losango. Nada
@@ -2771,6 +2778,13 @@ export interface Desafio extends NoPiso {
    * ou quem chama. Ausente = o nome segue o jogo. Campo novo e opcional; a versão do arquivo não muda.
    */
   nomeProprio?: true
+  /**
+   * QUEM CHAMA, escolhido de uma ficha (editor de 21/11/2026, decisão 6): o boneco desta cena
+   * (`tokenId`) ou a ficha do acervo (`acervoId`), com o nome dela. Ausente = vale o `minigame.npc`,
+   * como "só um nome" (o mapa de antes). O `npc` continua gravado igual, e o app de antes abre o mapa.
+   * Nunca vai ao jogador: ele recebe só o nome, pelo `npc` do convite e do cartão.
+   */
+  quem?: QuemChamaODesafio
   lugar: LugarDoDesafio
   /** O jogo e os campos dele (quem desafia, fala, música, dificuldade...), como o pino gravava. */
   minigame: MinigameDoPino
