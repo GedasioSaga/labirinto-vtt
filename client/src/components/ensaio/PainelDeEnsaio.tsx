@@ -26,9 +26,11 @@ interface PainelDeEnsaioProps {
   quemUsa: Personagem
   sistema: SistemaDeRpg
   onFechar: () => void
+  /** Dentro do editor ou do cartão da ficha: sem a coluna fixa da biblioteca. */
+  embutido?: boolean
 }
 
-export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar }: PainelDeEnsaioProps) {
+export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = false }: PainelDeEnsaioProps) {
   const tituloId = useId()
   const d20Id = useId()
   const [semente, setSemente] = useState(novaSemente)
@@ -40,23 +42,28 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar }: PainelDeE
     () => ensaiar({ cartao, quemUsa, sistema, semente, recursosCheios, ...(d20Fixo === null ? {} : { d20Fixo }) }),
     [cartao, quemUsa, sistema, semente, d20Fixo, recursosCheios],
   )
-  const recusou = resultado.passos.some((passo) => passo.tipo === 'recusa')
+  // O conserto de um clique só aparece na recusa que ele conserta (SP ou HP que faltam na cópia).
+  const consertaRecursos = resultado.passos.some((passo) => passo.conserto === 'encherRecursos')
   // O "Passar 1 vez" vale para o golpe que está na tela: outro golpe, outra conta.
   useEffect(() => setDepois([]), [resultado])
 
   useEffect(() => {
+    // Esc fecha a camada de cima (nota 22 do protótipo): o teste antes da janela da ficha, por isso na captura.
     const aoTeclar = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onFechar()
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      event.preventDefault()
+      onFechar()
     }
-    window.addEventListener('keydown', aoTeclar)
-    return () => window.removeEventListener('keydown', aoTeclar)
+    window.addEventListener('keydown', aoTeclar, true)
+    return () => window.removeEventListener('keydown', aoTeclar, true)
   }, [onFechar])
 
   const passos = [...resultado.passos, ...depois]
   const { passarUmaVez } = resultado
 
   return (
-    <aside className="mu-cartao ens-painel" aria-labelledby={tituloId}>
+    <aside className={embutido ? 'mu-cartao ens-painel ens-painel--embutido' : 'mu-cartao ens-painel'} aria-labelledby={tituloId}>
       <header className="ens-cab">
         <h3 id={tituloId} className="ens-tit">
           Testar: {cartao.nome.trim().length > 0 ? cartao.nome : 'sem nome'}
@@ -85,13 +92,18 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar }: PainelDeE
         {passos.map((passo, indice) => (
           // A chave leva a semente: o "Testar de novo" refaz a cascata; a mudança no editor só troca o texto.
           <li key={`${semente}-${indice}`} className={`ens-passo ens-passo--${passo.tipo}`} style={{ animationDelay: `${Math.min(indice, 7) * 30}ms` }}>
+            {passo.dado !== undefined && (
+              <span className="ens-d20" aria-hidden="true">
+                {passo.dado}
+              </span>
+            )}
             <span className="ens-passo__tit">{passo.titulo}</span> {passo.texto}
           </li>
         ))}
       </ol>
 
       <div className="ens-acoes">
-        {recusou && !recursosCheios && (
+        {consertaRecursos && !recursosCheios && (
           <button type="button" className="mu-bt mu-bt--p" onClick={() => setRecursosCheios(true)}>
             Testar com SP e HP cheios
           </button>

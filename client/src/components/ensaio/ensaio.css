@@ -36,6 +36,23 @@
 .ens-passo { animation: ens-passo 200ms var(--lb-gr-ease-out) both; overflow-wrap: anywhere; }
 .ens-passo__tit { font-weight: 600; color: var(--lb-color-parchment-dim); }
 .ens-passo--arrumou { color: var(--lb-color-brass-bright); }
+.ens-passo--formula { font-variant-numeric: tabular-nums; }
+/* O d20 que o motor rolou: gira 240ms só quando o passo nasce (novo dado); mudar um número no editor não remonta o passo. */
+.ens-d20 {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 22px;
+  margin-right: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--lb-color-brass);
+  border-radius: 6px;
+  font: 600 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass-bright);
+  vertical-align: middle;
+  animation: ens-d20 240ms var(--lb-gr-ease-out) both;
+}
 .ens-passo--recusa,
 .ens-passo--recusa .ens-passo__tit { color: var(--lb-color-ember); }
 
@@ -53,9 +70,20 @@
 @keyframes ens-esmaece {
   from { opacity: 0; }
 }
+@keyframes ens-d20 {
+  from { opacity: 0; transform: rotate(-90deg) scale(0.9); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ens-painel,
-  .ens-passo { animation-name: ens-esmaece; }
+  .ens-passo,
+  .ens-d20 { animation-name: ens-esmaece; }
   .ens-barra__cheia { transition: none; }
+}
+
+/* Dentro do editor da mecânica ou do cartão da ficha: segue o fluxo da página, sem a coluna fixa. */
+.ens-painel--embutido {
+  position: static;
+  max-height: none;
+  margin-top: 8px;
 }

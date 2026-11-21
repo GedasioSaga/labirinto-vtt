@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { quantidadeDe } from '../lib/items'
 import { ABA_DOS_ITENS, passarAbaItensParaMochila } from '../lib/livros/coisaERegra'
 import { InventarioDaFicha } from './InventarioDaFicha'
@@ -22,6 +22,9 @@ import type { CarriedItem } from '../types/map'
 import { PecaDoMestreNaForma } from './batalha/FormasDoMestre'
 import { CartoesOcultos, OcultaNoCartao, SeloDeOculta } from './batalha/HabilidadeOculta'
 import { ocultasDaAba } from '../lib/habilidadeOculta'
+
+/** Fase 3: o Testar pesa o motor da batalha inteiro; só carrega quando alguém abre. */
+const PainelDeEnsaio = lazy(() => import('./ensaio/PainelDeEnsaio').then((modulo) => ({ default: modulo.PainelDeEnsaio })))
 
 /**
  * As abas da ficha de personagem (Habilidades, Perícias...): os cartões de
@@ -345,7 +348,18 @@ interface CartaoLidoProps {
   onRevelar?: (cartaoId: string) => void
 }
 
+/** Fase 3: o Testar do cartão lido (o boneco numa cópia da ficha; nada muda nela). */
+function BotaoDeTestar({ testando, nome, onTrocar }: { testando: boolean; nome: string; onTrocar: () => void }) {
+  return (
+    <button type="button" className="lb-cartao__ligar" aria-pressed={testando} aria-label={`Testar ${nome} no boneco`} onClick={onTrocar}>
+      {testando ? 'Fechar teste' : 'Testar'}
+    </button>
+  )
+}
+
 function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevelar }: CartaoLidoProps) {
+  const [testando, setTestando] = useState(false)
+  const fecharTeste = useCallback(() => setTestando(false), [])
   const ehArma = aba.id === ABA_DAS_ARMAS
   const semTiro = armaQueNaoAtira(aba, cartao)
   const sub = aba.subcartoes === undefined || semTiro ? undefined : abaDoSistema(sistema, aba.subcartoes.aba)
@@ -359,6 +373,7 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevela
     : montada
       ? { ...aba, campos: aba.campos.filter((campo) => !CAMPOS_TROCADOS_PELAS_PECAS.has(campo.id)) }
       : aba
+  const tecnica = aba.id === ABA_DAS_TECNICAS
   return (
     <li className="lb-cartao" data-ativo={ativo && aba.modificadores === true ? '' : undefined}>
       <div className="lb-cartao__corpo">
@@ -379,6 +394,7 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevela
               </button>
             )}
             {onLigar === undefined && ativo && aba.modificadores === true && <span className="lb-cartao__ativa">Ativa</span>}
+            {tecnica && <BotaoDeTestar testando={testando} nome={cartao.nome} onTrocar={() => setTestando((antes) => !antes)} />}
           </div>
           {paragrafosDoCartao(abaLida, cartao).map((paragrafo, i) => (
             <p key={i} className="lb-cartao__paragrafo">
@@ -403,6 +419,11 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevela
             </p>
           ))}
           {(aba.id === ABA_DAS_TECNICAS || ehArma) && <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />}
+          {tecnica && testando && (
+            <Suspense fallback={null}>
+              <PainelDeEnsaio cartao={cartao} quemUsa={personagem} sistema={sistema} onFechar={fecharTeste} embutido />
+            </Suspense>
+          )}
         </div>
       </div>
       {sub !== undefined && cartao.subcartoes.length > 0 && (

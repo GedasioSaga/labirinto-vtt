@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useId, useMemo, useRef, useState } from 'react'
 import { avisoDaMecanica, lerMecanica, type MecanicaLida as LeituraDaMecanica, type MecanicaV1 } from '../../lib/batalha/mecanica/modelo'
 import { MODELOS_DA_ARMA, mecanicaDoModeloDaArma, motivoDaArmaNasPecas } from '../../lib/batalha/mecanica/arma'
 import { guardarMecanica, MODELOS_PRONTOS, mecanicaDoModeloNoCartao, mesmaMecanica, problemaDaMecanica, tecnicasParaCopiar } from '../../lib/batalha/mecanica/modelos'
@@ -6,6 +6,9 @@ import { etiquetaDaMecanica, pecasAMao, resumoDaMecanica, type FichaDaPrevia } f
 import type { CartaoDaFicha, MecanicaGuardada } from '../../lib/personagem'
 import { BlocosDaMecanica } from './BlocosDaMecanica'
 import './MecanicaDaTecnica.css'
+
+/** Fase 3: o Testar pesa o motor da batalha inteiro; só carrega quando o mestre abre. */
+const PainelDeEnsaio = lazy(() => import('../ensaio/PainelDeEnsaio').then((modulo) => ({ default: modulo.PainelDeEnsaio })))
 
 /**
  * A MECÂNICA DA TÉCNICA no cartão da ficha (construtor de mecânicas, fatia C2;
@@ -149,6 +152,9 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
   const [desfeito, setDesfeito] = useState<Desfeito | null>(null)
   const montarRef = useRef<HTMLButtonElement>(null)
   const copiaveis = tecnicasParaCopiar(tecnicas, cartao.id)
+  /** Fase 3 (notas 5 e 7 do protótipo): o Testar acompanha o editor ao vivo, com o mesmo d20 até o "Testar de novo". */
+  const [testando, setTestando] = useState(false)
+  const fecharTeste = useCallback(() => setTestando(false), [])
   const futura = valendo.tipo === 'futura' || (quemEdita === 'dono' && proposta.tipo === 'futura')
 
   /** A mecânica que o editor abre: a proposta do dono (se for ele), senão a que vale. */
@@ -228,6 +234,13 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
   /** Fechado com o rascunho pela metade: o que falta (o cartão segue com a versão de antes). */
   const pendente = fase === 'fechado' && rascunho !== null ? problemaDe(rascunho, ficha, naArma) : null
   const temAlgo = cartao.mecanica !== undefined || cartao.mecanicaProposta !== undefined
+  // O teste roda o que está na tela: o rascunho completo (mesmo a proposta do dono, ainda sem o mestre); pela metade, o cartão como está.
+  const cartaoDoTeste = useMemo(() => (rascunho !== null && problemaDe(rascunho, { personagem: ficha.personagem, sistema: ficha.sistema }, naArma) === null ? { ...cartao, mecanica: guardarMecanica(rascunho) } : cartao), [cartao, rascunho, ficha.personagem, ficha.sistema, naArma])
+  const botaoTestar = naArma ? null : (
+    <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" aria-pressed={testando} onClick={() => setTestando((antes) => !antes)}>
+      {testando ? 'Fechar o teste' : 'Testar no boneco'}
+    </button>
+  )
 
   return (
     <section className="lb-mec" aria-labelledby={tituloId}>
@@ -294,6 +307,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
             <button ref={montarRef} type="button" className="lb-btn lb-btn--compact" disabled={futura} title={futura ? 'Feita num app mais novo: atualize o app para editar' : undefined} onClick={abrir}>
               {temAlgo ? (quemEdita === 'dono' ? 'Editar a proposta' : 'Editar a mecânica') : quemEdita === 'dono' ? 'Montar mecânica (vai ao mestre)' : 'Montar mecânica'}
             </button>
+            {botaoTestar}
             {quemEdita === 'mestre' && cartao.mecanica !== undefined && (
               <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={tirar}>
                 Tirar a mecânica (volta ao texto)
@@ -373,6 +387,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
             <button type="button" className="lb-btn lb-btn--compact" onClick={fechar}>
               Fechar o editor
             </button>
+            {botaoTestar}
             <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => setFase('escolhendo')}>
               Recomeçar de um modelo
             </button>
@@ -389,6 +404,12 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
             )}
           </div>
         </div>
+      )}
+
+      {testando && !naArma && fase !== 'escolhendo' && (
+        <Suspense fallback={null}>
+          <PainelDeEnsaio cartao={cartaoDoTeste} quemUsa={ficha.personagem} sistema={ficha.sistema} onFechar={fecharTeste} embutido />
+        </Suspense>
       )}
     </section>
   )
