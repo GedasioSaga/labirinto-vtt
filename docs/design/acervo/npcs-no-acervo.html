@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NPCs no Acervo — protótipo para aprovar</title>
+<style>
+/*
+ * PROTÓTIPO "NPCs no Acervo" (pedido de 21/11/2026: "do lado direito eu não
+ * quero ter os npcs com fichas eu quero eles aqui [Acervo de tokens]").
+ * Tokens copiados de client/src/theme.ts (--lb-*) e dos materiais do livro
+ * (--lb-gr-*). Medidas das colunas do app: livro = lombada 52 + página 262,
+ * texto da página 232 (seção com 16 px de respiro). Linhas da árvore de 32 px,
+ * como TokenLibraryPanel.css. Nenhum hex fora deste bloco, a não ser as cores
+ * de iniciais e de anel de token, que no app saem de tokenColor.ts.
+ */
+:root {
+  color-scheme: dark;
+  --lb-color-ink: #121214;
+  --lb-color-stone: rgba(19, 19, 23, 0.94);
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-font-weight-medium: 500;
+  --lb-font-weight-semibold: 600;
+  --lb-font-tracking-wide: 0.06em;
+
+  --lb-space-1: 4px;
+  --lb-space-2: 8px;
+  --lb-space-3: 12px;
+  --lb-space-4: 16px;
+  --lb-space-6: 24px;
+  --lb-space-8: 32px;
+  --lb-control-gap: 8px;
+  --lb-control-min: 24px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+
+  --lb-shadow-md: 0 6px 16px rgba(0, 0, 0, 0.34), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-focus: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+
+  --lb-motion-fast: 110ms;
+  --lb-motion-base: 170ms;
+  --lb-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --lb-gr-papel-alto: #1b1711;
+  --lb-gr-papel-baixo: #13100c;
+  --lb-gr-cartao: #211c15;
+  --lb-gr-filete: rgba(236, 234, 228, 0.09);
+  --lb-gr-filete-forte: rgba(236, 234, 228, 0.16);
+  --lb-gr-filete-latao: rgba(224, 164, 74, 0.26);
+  --lb-gr-couro-1: #17100a;
+  --lb-gr-couro-2: #251a11;
+  --lb-gr-couro-3: #2f2216;
+  --lb-gr-gravado: #c8b089;
+  --lb-gr-latao-1: #f6cb84;
+  --lb-gr-latao-2: #e0a44a;
+  --lb-gr-latao-3: #b87d2e;
+  --lb-gr-largura-lombada: 52px;
+  --lb-gr-largura-pagina: 262px;
+
+  --casa: 48px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  overflow: hidden;
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+svg { flex: none; }
+
+/* ── O editor: livro da esquerda, mapa, livro da direita ─────────────────── */
+.editor { position: relative; height: 100vh; }
+
+.mapa {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background-color: #2b2b2b; /* PixiCanvas backgroundColor 0x2b2b2b */
+}
+.mapa__grade {
+  position: absolute;
+  top: 24px;
+  bottom: 24px;
+  left: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-gr-largura-pagina) + 24px);
+  right: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-gr-largura-pagina) + 24px);
+  background-color: #34332f;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: var(--casa) var(--casa);
+  border-radius: 4px;
+}
+
+.livro {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  width: calc(var(--lb-gr-largura-lombada) + var(--lb-gr-largura-pagina));
+}
+.livro--esq { left: 12px; }
+.livro--dir { right: 12px; flex-direction: row-reverse; }
+
+.lombada {
+  position: relative;
+  z-index: 2;
+  width: var(--lb-gr-largura-lombada);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0 8px;
+  background: linear-gradient(90deg, var(--lb-gr-couro-1), var(--lb-gr-couro-3) 55%, var(--lb-gr-couro-2));
+  box-shadow: var(--lb-shadow-float), inset 0 1px 0 rgba(255, 236, 200, 0.06);
+  border-radius: var(--lb-radius-lg) 0 0 var(--lb-radius-lg);
+}
+.livro--dir .lombada {
+  border-radius: 0 var(--lb-radius-lg) var(--lb-radius-lg) 0;
+  background: linear-gradient(270deg, var(--lb-gr-couro-1), var(--lb-gr-couro-3) 55%, var(--lb-gr-couro-2));
+}
+.lombada__selo {
+  width: 30px; height: 30px; border-radius: 8px; margin-bottom: 20px;
+  display: grid; place-items: center;
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 55%, var(--lb-gr-latao-3));
+  color: var(--lb-color-brass-contrast);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.marcador {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: grid; place-items: center;
+  color: var(--lb-gr-gravado);
+  opacity: 0.55;
+}
+.marcador--aberto { opacity: 1; background: rgba(255, 236, 200, 0.1); box-shadow: inset 2px 0 0 var(--lb-color-brass); }
+.livro--dir .marcador--aberto { box-shadow: inset -2px 0 0 var(--lb-color-brass); }
+
+.pagina {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  margin-left: -1px;
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  border: 1px solid var(--lb-gr-filete);
+  border-left: 0;
+  border-radius: 0 var(--lb-radius-lg) var(--lb-radius-lg) 0;
+  box-shadow: var(--lb-shadow-float);
+}
+.livro--dir .pagina {
+  margin-left: 0;
+  margin-right: -1px;
+  border-left: 1px solid var(--lb-gr-filete);
+  border-right: 0;
+  border-radius: var(--lb-radius-lg) 0 0 var(--lb-radius-lg);
+}
+.pagina__rolo { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--lb-color-stone-hover) transparent; }
+.titulo-pagina { font: 400 19px/1.2 var(--lb-font-display); margin: 0; padding: 12px 16px 2px; color: var(--lb-color-parchment); }
+.sub-pagina { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); margin: 0; padding: 0 16px 8px; }
+
+/* O seg "Tokens | Itens" da página Acervo. */
+.seg {
+  display: flex; gap: 2px; margin: 4px 16px 0; padding: 2px;
+  border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+.seg__op {
+  flex: 1; min-height: 28px; border: 0; border-radius: 7px; background: none;
+  color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); cursor: pointer;
+}
+.seg__op[aria-checked='true'] { background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); box-shadow: inset 0 0 0 1px var(--lb-color-line); }
+.seg__op:disabled { cursor: not-allowed; opacity: 0.55; }
+
+.secao { display: flex; flex-direction: column; gap: var(--lb-space-3); padding: var(--lb-space-4); }
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* ── Topo do acervo: título, + NPC, + Pasta ──────────────────────────────── */
+.acervo__topo { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; column-gap: 8px; row-gap: 4px; }
+.acervo__acoes-topo { display: flex; align-items: baseline; gap: 2px; margin-left: auto; margin-right: -4px; }
+.mais {
+  display: inline-grid; place-items: center; min-height: var(--lb-control-min);
+  padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); font-weight: var(--lb-font-weight-medium); white-space: nowrap;
+}
+.mais__chip {
+  display: inline-block; min-height: var(--lb-control-min); padding: 0 4px; border-radius: var(--lb-radius-sm); line-height: var(--lb-control-min);
+  transition: background var(--lb-motion-fast) var(--lb-motion-ease), color var(--lb-motion-fast) var(--lb-motion-ease), transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+.mais:hover .mais__chip { background: var(--lb-color-stone-hover); color: var(--lb-color-parchment); }
+.mais:active .mais__chip { transform: scale(0.97); }
+.mais:focus-visible { box-shadow: none; }
+.mais:focus-visible .mais__chip { box-shadow: var(--lb-shadow-focus); color: var(--lb-color-parchment); }
+
+/* ── Busca ───────────────────────────────────────────────────────────────── */
+.busca { display: flex; flex-direction: column; gap: 4px; }
+.campo { position: relative; display: flex; align-items: center; }
+.campo__lupa { position: absolute; left: 12px; display: inline-flex; color: var(--lb-color-parchment-faint); pointer-events: none; }
+.input {
+  width: 100%; min-height: var(--lb-space-8); padding: 0 34px 0 var(--lb-space-8);
+  border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken); color: var(--lb-color-parchment);
+  font: inherit; font-size: var(--lb-font-size-md); text-overflow: ellipsis;
+  transition: border-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+.input::placeholder { color: var(--lb-color-parchment-faint); }
+.input:hover { border-color: var(--lb-color-line-strong); }
+.input:focus-visible { border-color: var(--lb-color-brass); box-shadow: none; }
+.input::-webkit-search-cancel-button { display: none; }
+.campo__limpar {
+  position: absolute; right: 4px; display: inline-grid; place-items: center;
+  width: 24px; height: 24px; border: 0; border-radius: var(--lb-radius-sm); background: none;
+  color: var(--lb-color-parchment-dim); cursor: pointer;
+}
+.campo__limpar:hover { background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); }
+.campo__limpar[hidden] { display: none; }
+.resultado { margin: 0; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); overflow-wrap: anywhere; }
+.resultado:empty { display: none; }
+
+/* O aviso de uma vez só, depois da mudança: a ficha não sumiu, mudou de lugar. */
+.aviso-migracao {
+  display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 10px 12px;
+  border: 1px solid var(--lb-gr-filete-latao); border-radius: var(--lb-radius-md);
+  background: var(--lb-color-brass-soft);
+  font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment);
+}
+.aviso-migracao p { margin: 0; }
+#aviso-migracao:empty, #form-pasta:empty { display: none; }
+.aviso-migracao .btn { align-self: flex-end; }
+
+/* ── Botões ──────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 28px; padding: 0 12px;
+  border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised); color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm); cursor: pointer; white-space: nowrap;
+  transition: background var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease), transform 140ms var(--lb-gr-ease-out);
+}
+.btn:hover:not(:disabled) { background: var(--lb-color-stone-hover); border-color: var(--lb-color-line-strong); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn--fantasma { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+.btn--fantasma:hover:not(:disabled) { background: var(--lb-color-stone-raised); border-color: var(--lb-color-line); color: var(--lb-color-parchment); }
+.btn--perigo { background: var(--lb-color-ember-soft); border-color: rgba(226, 100, 90, 0.4); color: #f2b0a9; }
+.btn--perigo:hover:not(:disabled) { background: rgba(226, 100, 90, 0.24); border-color: var(--lb-color-ember); }
+.btn--latao { background: var(--lb-color-brass); border-color: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-weight: var(--lb-font-weight-medium); }
+.btn--latao:hover:not(:disabled) { background: var(--lb-color-brass-bright); border-color: var(--lb-color-brass-bright); }
+.btn--largo { width: 100%; }
+
+/* ── A árvore ────────────────────────────────────────────────────────────── */
+/* Como TokenLibraryPanel.css: linhas de 32 px encostadas, quem separa é o
+   fundo do pairar; cada nível recua 16 px com o fio de 1 px que desce do
+   centro da seta. */
+.arvore { display: flex; flex-direction: column; margin: 0 -8px; }
+.lista { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.na-pasta { margin-left: var(--lb-space-4); padding-left: 7px; border-left: 1px solid var(--lb-color-line); }
+
+.pasta { display: flex; flex-direction: column; border-radius: var(--lb-radius-md); }
+.pasta[data-alvo='dentro'] { background: var(--lb-color-brass-soft); box-shadow: inset 0 0 0 1px var(--lb-color-brass); }
+.pasta__topo {
+  position: relative; isolation: isolate;
+  display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px; border-radius: var(--lb-radius-sm);
+}
+.pasta__topo:hover { background: var(--lb-color-stone-hover); }
+.pasta__topo:has(> .pasta__botao:active) { background: var(--lb-color-stone-sunken); }
+.pasta__topo:has(> .pasta__botao:focus-visible) { box-shadow: inset 0 0 0 2px var(--lb-color-brass); }
+.pasta__botao {
+  display: flex; flex: 1; align-self: stretch; align-items: center; gap: 8px; min-width: 0;
+  padding: 0; border: 0; background: none; color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md); font-weight: var(--lb-font-weight-medium); text-align: left; cursor: pointer;
+}
+.pasta__botao:focus-visible { box-shadow: none; }
+.pasta__botao::before { content: ''; position: absolute; inset: 0; z-index: -1; }
+.pasta__botao > svg.icone-pasta { color: var(--lb-color-parchment-dim); }
+.pasta--sub > .pasta__topo .pasta__botao { font-weight: 400; }
+.pasta__nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chev { display: inline-flex; justify-content: center; width: 16px; flex: none; color: var(--lb-color-parchment-faint); transition: transform var(--lb-motion-fast) var(--lb-motion-ease); }
+.pasta__botao[aria-expanded='false'] .chev { transform: rotate(-90deg); }
+.contagem { flex: none; margin-left: auto; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); font-variant-numeric: tabular-nums; pointer-events: none; }
+.pasta__acoes { position: absolute; right: 4px; z-index: 1; display: inline-flex; gap: 2px; opacity: 0; background: var(--lb-color-stone-hover); border-radius: var(--lb-radius-sm); }
+.pasta__topo:hover > .pasta__acoes, .pasta__topo:focus-within > .pasta__acoes { opacity: 1; }
+.pasta__topo:hover > .contagem, .pasta__topo:focus-within > .contagem { opacity: 0; }
+.pasta__nome-input { flex: 1; min-width: 0; min-height: 26px; padding: 0 8px; border: 1px solid var(--lb-color-brass); border-radius: var(--lb-radius-sm); background: var(--lb-color-stone-sunken); color: var(--lb-color-parchment); font: inherit; font-size: var(--lb-font-size-md); }
+.pasta__nome-input:focus-visible { box-shadow: none; }
+.titulo-sem-pasta { display: flex; align-items: center; min-height: 32px; margin: 0; padding: 0 8px; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+.vazio-pasta { margin: 0; padding: 6px 8px 8px; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); line-height: 1.4; }
+
+/* Ação de ícone, como .lb-acervo__mover / __apagar. */
+.acao {
+  display: inline-flex; flex: none; align-items: center; justify-content: center;
+  min-width: var(--lb-control-min); min-height: var(--lb-control-min); padding: 0;
+  border: 0; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment-dim); cursor: pointer;
+}
+.acao:hover { background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); }
+.acao:active { background: var(--lb-color-stone-sunken); }
+.acao--apagar:hover { color: var(--lb-color-ember); }
+.acao[aria-expanded='true'] { color: var(--lb-color-brass); }
+.acao:focus-visible { box-shadow: inset 0 0 0 2px var(--lb-color-brass); }
+
+/* ── A linha: peça do app ou ficha desta aventura ────────────────────────── */
+/* A linha é um bloco: em cima a .item__linha (foto, nome, ações, +), que é
+   quem acende sob o ponteiro, como .lb-rpg__linha-topo; embaixo, a pergunta
+   de apagar, o "› 2 cópias" e as cópias, que não acendem junto. */
+.item { display: flex; flex-direction: column; border-radius: var(--lb-radius-sm); }
+.item__linha {
+  position: relative;
+  display: flex; align-items: center; gap: 8px; min-height: 32px;
+  padding: 4px 8px; border-radius: var(--lb-radius-sm);
+}
+.item__linha:hover, .item[data-menu-aberto] > .item__linha { background: var(--lb-color-stone-hover); }
+.item__linha:has(> .item__nome:active) { background: var(--lb-color-stone-sunken); }
+.item__linha:has(> .item__nome:focus-visible) { box-shadow: inset 0 0 0 2px var(--lb-color-brass); }
+.item:has(> .confirma) { background: var(--lb-color-stone-raised); }
+.item[data-acabou-de-chegar] > .item__linha { animation: chegou 1100ms var(--lb-gr-ease-out); }
+@keyframes chegou { from { background-color: rgba(224, 164, 74, 0.28); } to { background-color: transparent; } }
+.item[data-arrastado] > .item__linha { opacity: 0.45; }
+
+/* Retrato: o TOKEN (peça do app) é disco, como a peça no mapa; a FICHA é o
+   quadrado de canto 6 das listas de ficha do app (.lb-rpg__retrato). A forma
+   diz o que a linha é antes de ler. */
+.foto {
+  flex: none; display: grid; place-items: center; width: 24px; height: 24px;
+  border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-full);
+  font-size: 9px; font-weight: var(--lb-font-weight-semibold); letter-spacing: 0.02em; color: rgba(236, 234, 228, 0.86);
+  pointer-events: none;
+}
+.foto--ficha { border-radius: var(--lb-radius-sm); }
+/* Ficha com token no mapa agora: o aro fica de latão. */
+.foto--ficha[data-no-mapa] { border-color: var(--lb-color-brass); box-shadow: 0 0 0 1px rgba(224, 164, 74, 0.25); }
+.foto--copia { width: 20px; height: 20px; font-size: 8px; }
+
+.item__nome {
+  display: flex; flex-direction: column; justify-content: center; flex: 1; min-width: 0; min-height: var(--lb-control-min);
+  padding: 0; border: 0; background: none; color: var(--lb-color-parchment); text-align: left; line-height: 1.15;
+  cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none;
+}
+.item__nome:active { cursor: grabbing; }
+.item__nome:focus-visible { box-shadow: none; }
+/* O alvo do nome cobre a linha de cima inteira, foto incluída. */
+.item__nome::before { content: ''; position: absolute; inset: 0; }
+.item__texto, .item__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item__texto { font-size: var(--lb-font-size-md); }
+/* Nome de FICHA inteiro em até duas linhas, como .lb-rpg__nome: na subpasta
+   sobram ~118 px, e "Cavaleiro com Escudo" não cabe numa. */
+.item--ficha .item__texto { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
+.item--ficha .item__nome { padding: 2px 0; }
+.item__sub { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); font-variant-numeric: tabular-nums; }
+.item__sub b { font-weight: 400; color: var(--lb-color-brass); }
+
+/* As ações da PEÇA ficam como hoje (Mover e Apagar, ocupando o lugar).
+   As da FICHA (o "⋯") aparecem POR CIMA do fim do nome, como as da coluna
+   da direita: o nome tem a largura toda em repouso. */
+.item__acoes { position: relative; z-index: 1; display: inline-flex; flex: none; align-items: center; gap: 4px; opacity: 0; }
+.item__linha:hover > .item__acoes, .item__linha:focus-within > .item__acoes, .item[data-menu-aberto] > .item__linha > .item__acoes { opacity: 1; }
+.item--ficha > .item__linha > .item__acoes {
+  position: absolute; top: 50%; right: 36px; transform: translateY(-50%);
+  padding-left: 18px;
+  background: linear-gradient(90deg, transparent, var(--lb-color-stone-hover) 16px);
+}
+.item--ficha:has(> .confirma) > .item__linha > .item__acoes { display: none; }
+.arrastando .item__acoes, .arrastando .pasta__acoes { opacity: 0 !important; }
+.arrastando .item__linha:hover, .arrastando .pasta__topo:hover { background: transparent; }
+.arrastando .pasta__topo:hover > .contagem { opacity: 1; }
+
+/* O "+" sempre à vista, em latão: pôr no centro da vista. */
+.item__por {
+  position: relative; z-index: 1; display: inline-flex; flex: none; align-items: center; justify-content: center;
+  min-width: var(--lb-control-min); min-height: var(--lb-control-min); padding: 0;
+  border: 0; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-brass); cursor: pointer;
+  transition: transform 140ms var(--lb-gr-ease-out);
+}
+@media (hover: hover) and (pointer: fine) { .item__por:hover { background: var(--lb-color-stone-raised); } }
+.item__por:active { background: var(--lb-color-stone-sunken); transform: scale(0.97); }
+
+/* "› 2 cópias", como na coluna da direita de hoje (o mestre já conhece). */
+.item__copias {
+  display: inline-flex; align-items: center; gap: 4px; width: max-content; max-width: calc(100% - 40px);
+  min-height: 22px; margin: -2px 0 2px 38px; padding: 0 6px 0 2px;
+  border: 0; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm); cursor: pointer; position: relative; z-index: 1;
+}
+.item__copias:hover { background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); }
+.item__copias .chev { width: 12px; }
+.item__copias[aria-expanded='false'] .chev { transform: rotate(-90deg); }
+.copias { margin: 0 0 2px 19px; padding-left: 4px; border-left: 1px solid var(--lb-color-line); }
+.item--copia > .item__linha { min-height: 28px; padding: 2px 8px 2px 4px; }
+
+.confirma { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 2px 8px 8px; }
+.confirma__texto { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.4; color: var(--lb-color-parchment); }
+.confirma__botoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.confirma__botoes .btn { flex: 1 1 auto; }
+.pasta > .confirma { padding: 4px 8px 8px; }
+
+.vazio-busca { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 0; padding: 4px 0; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+
+/* ── Menu "⋯" da ficha ───────────────────────────────────────────────────── */
+.menu {
+  position: fixed; z-index: 40; min-width: 210px; max-width: 250px; padding: 4px;
+  border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid); box-shadow: var(--lb-shadow-float);
+  transform-origin: var(--origem, top right);
+  animation: menu-entra 140ms var(--lb-gr-ease-out);
+}
+@keyframes menu-entra { from { opacity: 0; transform: scale(0.97); } }
+.menu__item {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; padding: 0 8px;
+  border: 0; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md); text-align: left; cursor: pointer;
+}
+.menu__item:focus-visible, .menu__item:hover { background: var(--lb-color-stone-hover); box-shadow: none; }
+.menu__item[aria-disabled='true'] { color: var(--lb-color-parchment-faint); cursor: default; }
+.menu__item[aria-disabled='true']:hover { background: none; }
+.menu__item--perigo { color: #f2b0a9; }
+.menu__atalho { margin-left: auto; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-xs); }
+.menu__marca { display: inline-flex; width: 14px; color: var(--lb-color-brass); }
+.menu__sub { padding-left: 22px; }
+.menu__rotulo { margin: 0; padding: 6px 8px 2px; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-xs); font-family: var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wide); text-transform: uppercase; }
+.menu__sep { height: 1px; margin: 4px 2px; background: var(--lb-color-line); }
+
+/* ── Coluna da direita: só os jogadores ──────────────────────────────────── */
+.sala-titulo { font: 400 19px/1.1 var(--lb-font-display); margin: 0; padding: 14px 16px 10px; color: var(--lb-color-parchment); }
+.cartao { margin: 0 12px 12px; border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao); }
+.cartao__cab { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 12px; border-bottom: 1px solid var(--lb-gr-filete); color: var(--lb-gr-gravado); }
+.cartao__titulo { margin: 0; font-size: var(--lb-font-size-md); font-weight: var(--lb-font-weight-medium); color: var(--lb-color-parchment); }
+.cartao__conta { margin-left: auto; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); font-variant-numeric: tabular-nums; }
+.cartao__corpo { display: flex; flex-direction: column; gap: 10px; padding: 8px 8px 12px; }
+.jog { display: flex; align-items: center; }
+.jog__abrir {
+  display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; min-height: 34px; padding: 2px 4px;
+  border: 0; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment); text-align: left;
+  cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: none;
+}
+.jog__abrir:hover { background: var(--lb-color-stone-hover); }
+.jog__abrir:active { background: var(--lb-color-stone-sunken); }
+.jog__retrato { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--lb-radius-sm); font-size: 9px; font-weight: var(--lb-font-weight-semibold); color: rgba(236, 234, 228, 0.86); }
+.jog__texto { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.jog__nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jog__conta { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.jog__ponto { width: 6px; height: 6px; margin: 0 6px 0 auto; border-radius: 50%; background: var(--lb-color-online); flex: none; }
+.cartao__acoes { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 4px; }
+.dica-npcs { margin: 0 4px; padding: 10px 0 0; border-top: 1px solid var(--lb-gr-filete); color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); line-height: 1.45; }
+.dica-npcs .btn { margin-top: 8px; }
+.pasta[data-pisca] > .pasta__topo { animation: chegou 1100ms var(--lb-gr-ease-out); }
+
+/* ── Mapa: tokens, realce de casa, fantasma ──────────────────────────────── */
+.token {
+  position: absolute; width: var(--casa); height: var(--casa);
+  display: grid; place-items: center; pointer-events: none;
+}
+.token__disco {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  border: 2px solid var(--anel, #8a949c); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  font-size: 11px; font-weight: var(--lb-font-weight-semibold); color: rgba(236, 234, 228, 0.9);
+}
+.token[data-selecionado] .token__disco { box-shadow: 0 0 0 2px #2b2b2b, 0 0 0 4px var(--lb-color-brass), 0 2px 6px rgba(0, 0, 0, 0.5); }
+.token__nome {
+  position: absolute; top: calc(100% - 6px); max-width: 120px; padding: 0 5px; border-radius: 4px;
+  background: rgba(18, 18, 20, 0.78); color: var(--lb-color-parchment); font-size: 10.5px; line-height: 15px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.token[data-entrou] { animation: token-entra 180ms var(--lb-gr-ease-out); }
+@keyframes token-entra { from { opacity: 0; transform: scale(0.9); } }
+
+.realce {
+  position: absolute; z-index: 3; width: var(--casa); height: var(--casa);
+  border: 2px solid var(--lb-color-brass); border-radius: 3px;
+  background: rgba(224, 164, 74, 0.2); pointer-events: none;
+}
+.realce[data-alvo='token'] { border-radius: 50%; width: 58px; height: 58px; margin: -5px 0 0 -5px; background: transparent; }
+.realce[hidden] { display: none; }
+.realce__rotulo { position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%); padding: 1px 8px; border-radius: var(--lb-radius-sm); background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-size: var(--lb-font-size-sm); font-weight: var(--lb-font-weight-medium); white-space: nowrap; }
+
+.fantasma {
+  position: fixed; top: 0; left: 0; z-index: 60; display: flex; flex-direction: column; align-items: center;
+  pointer-events: none; will-change: transform;
+}
+.fantasma[data-volta] { transition: transform 180ms var(--lb-gr-ease-out), opacity 180ms ease; opacity: 0; }
+.fantasma__disco {
+  width: 44px; height: 44px; display: grid; place-items: center; border: 2px solid var(--lb-color-brass); border-radius: 50%;
+  box-shadow: var(--lb-shadow-md); opacity: 0.94; font-size: 12px; font-weight: var(--lb-font-weight-semibold); color: rgba(236, 234, 228, 0.9);
+}
+.fantasma__disco--ficha { border-radius: 10px; }
+.fantasma__nome { position: absolute; top: 100%; margin-top: 3px; padding: 1px 8px; border-radius: var(--lb-radius-sm); background: var(--lb-color-stone-solid); color: var(--lb-color-parchment); font-size: var(--lb-font-size-sm); white-space: nowrap; }
+
+/* ── A ficha aberta (resumo do protótipo) ────────────────────────────────── */
+.ficha {
+  position: fixed; z-index: 30; top: 64px; left: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-gr-largura-pagina) + 16px);
+  width: 300px; display: flex; flex-direction: column; gap: 12px; padding: 16px;
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-lg);
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo)); box-shadow: var(--lb-shadow-float);
+  animation: ficha-entra 200ms var(--lb-gr-ease-out);
+}
+@keyframes ficha-entra { from { opacity: 0; transform: translateY(6px); } }
+.ficha[hidden] { display: none; }
+.ficha__cab { display: flex; align-items: center; gap: 12px; }
+.ficha__retrato { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--lb-color-line-strong); font-size: 14px; font-weight: var(--lb-font-weight-semibold); }
+.ficha__titulo { margin: 0; font: 400 19px/1.15 var(--lb-font-display); overflow-wrap: anywhere; }
+.ficha__nome-input { width: 100%; min-height: 30px; padding: 0 8px; border: 1px solid var(--lb-color-brass); border-radius: var(--lb-radius-sm); background: var(--lb-color-stone-sunken); color: var(--lb-color-parchment); font: 400 17px/1.15 var(--lb-font-display); }
+.ficha__papel { margin: 2px 0 0; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.ficha__fechar { margin-left: auto; align-self: flex-start; }
+.vida { display: flex; flex-direction: column; gap: 4px; }
+.vida__rotulo { display: flex; justify-content: space-between; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); font-variant-numeric: tabular-nums; }
+.vida__barra { height: 6px; border-radius: 3px; background: var(--lb-color-stone-sunken); overflow: hidden; }
+.vida__barra > span { display: block; height: 100%; background: var(--lb-color-ember); border-radius: 3px; }
+.ficha__fatos { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.ficha__acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.ficha__nota { margin: 0; padding-top: 10px; border-top: 1px solid var(--lb-gr-filete); color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-xs); line-height: 1.45; }
+
+/* ── Moldura do protótipo (fora do app) ──────────────────────────────────── */
+.proto {
+  position: absolute; z-index: 4; top: 36px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px;
+  border: 1px dashed rgba(121, 169, 204, 0.5); border-radius: var(--lb-radius-full);
+  background: rgba(18, 18, 20, 0.86); color: #a9c7dd; font-size: var(--lb-font-size-sm); white-space: nowrap;
+}
+.proto .btn { min-height: 24px; }
+.dicas {
+  position: absolute; z-index: 4; bottom: 40px; left: 50%; transform: translateX(-50%);
+  width: min(560px, calc(100% - 2 * (12px + 314px + 40px)));
+  padding: 10px 14px; border: 1px dashed rgba(121, 169, 204, 0.5); border-radius: var(--lb-radius-md);
+  background: rgba(18, 18, 20, 0.86); color: #c3d5e3; font-size: var(--lb-font-size-sm); line-height: 1.5;
+}
+.dicas summary { cursor: pointer; color: #a9c7dd; }
+.dicas ul { margin: 6px 0 0; padding-left: 18px; }
+.dicas kbd { padding: 0 4px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; font: inherit; font-size: 10.5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chev, .item__por, .btn, .mais__chip { transition: none; }
+  .item__por:active, .btn:active, .mais:active .mais__chip { transform: none; }
+  .token[data-entrou] { animation: token-aparece 120ms ease; }
+  @keyframes token-aparece { from { opacity: 0; } }
+  .ficha { animation: token-aparece 120ms ease; }
+  .menu { animation: none; }
+  .fantasma[data-volta] { transition: opacity 120ms ease; }
+}
+@media (hover: none) { .item__acoes, .pasta__acoes { opacity: 1; } }
+</style>
+</head>
+<body>
+<div class="editor">
+  <main class="mapa" aria-label="Mapa">
+    <div class="mapa__grade" id="grade" data-mapa></div>
+    <div class="proto" role="note">
+      <span>Protótipo: NPCs no Acervo (o mapa e a ficha são de mentira)</span>
+      <button type="button" class="btn btn--fantasma" id="recomecar">Recomeçar</button>
+    </div>
+    <details class="dicas" open>
+      <summary>O que dá para fazer aqui</summary>
+      <ul>
+        <li>Clique no nome de uma ficha (quadradinho) para abrir; no de um token (disco), põe no mapa, como hoje.</li>
+        <li>O <b>+</b> põe no centro do mapa. Ficha que já está no mapa ganha uma cópia, cada token com a própria vida.</li>
+        <li>Arraste uma linha até o mapa, até um token (liga a ficha a ele) ou até uma pasta. <kbd>Esc</kbd> desiste.</li>
+        <li>O <b>⋯</b> da ficha: abrir, pôr no mapa, fazer cópia, mover de pasta, apagar. <kbd>Shift</kbd>+<kbd>F10</kbd> abre pelo teclado.</li>
+        <li>Setas andam na árvore; <kbd>→</kbd> e <kbd>←</kbd> abrem e fecham; uma letra pula para o nome. <kbd>/</kbd> vai à busca. <kbd>Ctrl</kbd>+<kbd>Z</kbd> tira o último token posto.</li>
+      </ul>
+    </details>
+  </main>
+
+  <aside class="livro livro--esq" aria-label="Livro do mestre">
+    <div class="lombada" aria-hidden="true">
+      <span class="lombada__selo"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3h10v10H3zM3 8h10M8 3v10"/></svg></span>
+      <span class="marcador"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="2.5" width="10" height="11" rx="1.5"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3"/></svg></span>
+      <span class="marcador"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 4h11v8h-11zM2.5 7h11"/></svg></span>
+      <span class="marcador marcador--aberto"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="6" r="2.6"/><path d="M3.5 13.5c.8-2.4 2.5-3.6 4.5-3.6s3.7 1.2 4.5 3.6"/></svg></span>
+      <span class="marcador"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2l5 3v6l-5 3-5-3V5z"/></svg></span>
+    </div>
+    <div class="pagina">
+      <div class="pagina__rolo" id="rolo-acervo">
+        <h1 class="titulo-pagina">Acervo</h1>
+        <p class="sub-pagina">Tokens do app e as fichas de NPC desta aventura</p>
+        <div class="seg" role="radiogroup" aria-label="O que mostrar">
+          <button type="button" class="seg__op" role="radio" aria-checked="true">Tokens</button>
+          <button type="button" class="seg__op" role="radio" aria-checked="false" disabled title="Fora deste protótipo: o acervo de itens não muda">Itens</button>
+        </div>
+        <section class="secao" id="acervo" aria-labelledby="titulo-acervo">
+          <div class="acervo__topo">
+            <h2 class="eyebrow" id="titulo-acervo">Acervo de tokens</h2>
+            <div class="acervo__acoes-topo">
+              <button type="button" class="mais" id="nova-ficha" title="Ficha nova de NPC nesta aventura, na pasta NPCs"><span class="mais__chip">+ NPC</span></button>
+              <button type="button" class="mais" id="nova-pasta" title="Pasta nova no acervo"><span class="mais__chip">+ Pasta</span></button>
+            </div>
+          </div>
+          <form class="busca" role="search" id="form-busca" onsubmit="return false">
+            <label class="sr" for="busca">Buscar no acervo</label>
+            <div class="campo">
+              <span class="campo__lupa" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg></span>
+              <input class="input" id="busca" type="search" placeholder="Buscar pelo nome" autocomplete="off" spellcheck="false" title="Buscar pelo nome (Ctrl+F ou /, com o foco no acervo)">
+              <button type="button" class="campo__limpar" id="limpar-busca" aria-label="Limpar a busca" hidden><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+            </div>
+            <p class="resultado" id="resultado" role="status"></p>
+          </form>
+          <div id="aviso-migracao"></div>
+          <div id="form-pasta"></div>
+          <div class="arvore" id="arvore" role="group" aria-label="Acervo de tokens e fichas de NPC"></div>
+        </section>
+        <p class="sr" id="anuncio" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </aside>
+
+  <aside class="livro livro--dir" aria-label="Livro da mesa">
+    <div class="lombada" aria-hidden="true">
+      <span class="lombada__selo"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="5"/></svg></span>
+      <span class="marcador marcador--aberto"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="5.5" cy="6" r="2"/><circle cx="10.5" cy="6" r="2"/><path d="M2 13c.6-2 2-3 3.5-3S8.4 11 9 13M7 13c.6-2 2-3 3.5-3s2.9 1 3.5 3"/></svg></span>
+      <span class="marcador"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg></span>
+    </div>
+    <div class="pagina">
+      <div class="pagina__rolo">
+        <h1 class="sala-titulo">Sala</h1>
+        <section class="cartao" aria-labelledby="titulo-personagens">
+          <div class="cartao__cab">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="2.5" width="10" height="11" rx="1.5"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3"/></svg>
+            <h3 class="cartao__titulo" id="titulo-personagens">Jogadores</h3>
+            <span class="cartao__conta" id="conta-jogadores"></span>
+          </div>
+          <div class="cartao__corpo">
+            <ul class="lista" id="jogadores" aria-label="Fichas de jogador"></ul>
+            <div class="cartao__acoes">
+              <button type="button" class="btn" id="novo-jogador">+ Jogador</button>
+              <button type="button" class="btn btn--fantasma" disabled title="No protótipo não há arquivo para importar. No app continua aqui; os NPCs importados vão para o Acervo, pasta NPCs.">Importar personagens…</button>
+            </div>
+            <p class="dica-npcs">Fichas de NPC e de inimigo ficam no Acervo, no livro da esquerda.
+              <button type="button" class="btn btn--fantasma btn--largo" id="mostrar-no-acervo">Mostrar no Acervo</button>
+            </p>
+          </div>
+        </section>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="ficha" id="ficha" role="dialog" aria-modal="false" aria-labelledby="ficha-titulo" hidden></div>
+
+<script>
+'use strict';
+/* ═══ Dados de mentira, no formato do app ════════════════════════════════
+ * pastas  = PastaDoAcervo (global, acervo.json) + `dentroDe` (subpasta, novo)
+ * pecas   = ItemDoAcervo (global): foto, nome, pasta, o que leva
+ * fichas  = Personagem da aventura (rpg.json / adventure.json); `pasta` aqui
+ *           é o mapa novo `fichasNoAcervo` do dono, nunca um campo da ficha
+ * tokens  = Token do mapa aberto (`characterId` = fichaId)
+ */
+const CASA = 48;
+const PAPEL = { inimigo: 'Inimigo', npc: 'NPC', cenario: 'Só no cenário', batalha: 'Criado na batalha' };
+const CORES = ['#3b3024', '#2d3a31', '#2b3341', '#3f2c2b', '#352f48', '#3b3723', '#2a3b3c', '#40312a'];
+const ANEL = { jogador: '#7fb48a', inimigo: '#c26a5f', npc: '#c9a46a', cenario: '#a2a09a', semFicha: '#8a949c', batalha: '#c26a5f' };
+const PT = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
+
+function dadosIniciais() {
+  const pastas = [
+    { id: 'npcs', nome: 'NPCs', dentroDe: null, aberta: true },
+    { id: 'inimigos', nome: 'Inimigos', dentroDe: 'npcs', aberta: true },
+    { id: 'marinha', nome: 'Marinha', dentroDe: 'npcs', aberta: false },
+    { id: 'veiculos', nome: 'Veículos', dentroDe: null, aberta: false },
+    { id: 'jogadores', nome: 'Jogadores', dentroDe: null, aberta: false },
+  ];
+  const peca = (id, nome, pasta, leva, fichaPapel) => ({ id, nome, pasta, leva, fichaPapel });
+  const pecas = [
+    peca('p-bandido', 'Bandido', 'npcs', 'ficha', 'inimigo'),
+    peca('p-cultista', 'Cultista', 'npcs', 'ficha · luz', 'inimigo'),
+    peca('p-esqueleto', 'Esqueleto', 'npcs', ''),
+    peca('p-goblin', 'Goblin', 'npcs', 'ficha · 2 itens', 'inimigo'),
+    peca('p-guarda-marinha', 'Guarda da Marinha', 'npcs', 'ficha', 'npc'),
+    peca('p-mercador', 'Mercador', 'npcs', '3 itens · 12 moedas'),
+    peca('p-rato', 'Rato gigante', 'npcs', ''),
+    peca('p-sentinela', 'Sentinela de pedra', 'npcs', ''),
+    peca('p-carroca', 'Carroça', 'veiculos', ''),
+    peca('p-barco', 'Barco a remo', 'veiculos', ''),
+    peca('p-ana', 'Ayla (token)', 'jogadores', ''),
+    peca('p-bruno', 'Brom (token)', 'jogadores', ''),
+    peca('p-caio', 'Kael (token)', 'jogadores', ''),
+    peca('p-duda', 'Lumi (token)', 'jogadores', ''),
+    peca('p-saga', 'Saga', null, ''),
+    peca('p-nav', 'Nav', null, ''),
+  ];
+  const f = (id, nome, papel, pasta, hp, extra) => Object.assign({ id, nome, tipo: 'npc', papel, pasta, hp, max: hp }, extra || {});
+  const fichas = [
+    f('alce', 'Alce', 'inimigo', 'inimigos', 30),
+    f('borboleta', 'Borboleta Mirage', 'inimigo', 'inimigos', 18),
+    f('cav-clava', 'Cavaleiro com Clava', 'inimigo', 'inimigos', 44),
+    f('cav-clava-2', 'Cavaleiro com Clava 2', 'inimigo', null, 44, { modeloId: 'cav-clava' }),
+    f('cav-clava-3', 'Cavaleiro com Clava 3', 'inimigo', null, 44, { modeloId: 'cav-clava' }),
+    f('cav-escudo', 'Cavaleiro com Escudo', 'inimigo', 'inimigos', 52),
+    f('beau', 'Cavalo Beau', 'inimigo', 'inimigos', 26),
+    f('cisco', 'Cavalo Cisco', 'inimigo', 'inimigos', 26),
+    f('draco', 'Draco', 'inimigo', 'inimigos', 120),
+    f('frog', 'Frog', 'inimigo', 'inimigos', 34),
+    f('hector', 'Hector', 'inimigo', 'inimigos', 60),
+    f('javali', 'Javali', 'inimigo', 'inimigos', 22),
+    f('lobo', 'Lobo', 'inimigo', 'inimigos', 20),
+    f('tree', 'Tree', 'inimigo', 'inimigos', 70),
+    f('urso', 'Urso', 'inimigo', 'inimigos', 48),
+    f('urso-2', 'Urso 2', 'inimigo', null, 48, { modeloId: 'urso' }),
+    f('zumbi', 'Zumbi', 'batalha', 'inimigos', 16),
+    f('morgan', 'Capitão Morgan', 'npc', 'marinha', 40),
+    f('recruta', 'Recruta da Marinha', 'inimigo', 'marinha', 24),
+    f('bento', 'Bento, o lojista', 'npc', 'npcs', 14),
+    f('iracema', 'Dona Iracema', 'npc', 'npcs', 10),
+    f('bebado', 'Bêbado da taverna', 'cenario', 'npcs', 8),
+    f('guarda-portao', 'Guarda do portão', 'npc', 'npcs', 28),
+    f('ayla', 'Ayla', 'jogador', null, 38, { tipo: 'jogador', conta: 'Ana' }),
+    f('brom', 'Brom', 'jogador', null, 52, { tipo: 'jogador', conta: 'Bruno' }),
+    f('kael', 'Kael', 'jogador', null, 34, { tipo: 'jogador', conta: 'Caio' }),
+    f('lumi', 'Lumi', 'jogador', null, 30, { tipo: 'jogador', conta: 'Duda' }),
+  ];
+  fichas.find((x) => x.id === 'lobo').hp = 12;
+  fichas.find((x) => x.id === 'cav-clava-2').hp = 30;
+  const t = (id, col, row, fichaId, nome) => ({ id, col, row, fichaId, nome });
+  const tokens = [
+    t('t1', 2, 2, 'ayla', 'Ayla'), t('t2', 3, 3, 'brom', 'Brom'), t('t3', 2, 4, 'kael', 'Kael'), t('t4', 3, 5, 'lumi', 'Lumi'),
+    t('t5', 8, 3, 'lobo', 'Lobo'), t('t6', 9, 5, 'cav-clava', 'Cavaleiro com Clava'), t('t7', 10, 4, 'cav-clava-2', 'Cavaleiro com Clava 2'),
+    t('t8', 7, 7, 'urso-2', 'Urso 2'), t('t9', 5, 8, 'frog', 'Frog'), t('t10', 9, 8, null, 'Sombra'),
+  ];
+  return { pastas, pecas, fichas, tokens };
+}
+
+let D = dadosIniciais();
+const E = {
+  busca: '',
+  copiasAbertas: new Set(),
+  apagando: null,        // { tipo: 'ficha'|'peca'|'pasta', id }
+  movendoPeca: null,     // id da peça com "Mover" aberto
+  editandoPasta: null,   // { id, nova: bool }
+  novaPasta: false,
+  avisoMigracao: true,
+  chegou: null,          // id da linha que acabou de chegar (pisca)
+  tokenNovo: null,
+  selecionado: null,
+  desfazer: [],          // pilha de { tokenId, fichaCriada }
+  fichaAberta: null,     // { id, quem: elemento que abriu }
+};
+let seq = 100;
+const novoId = (p) => `${p}-${++seq}`;
+
+/* ═══ Leituras puras ═════════════════════════════════════════════════════ */
+const $ = (sel) => document.querySelector(sel);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const semAcento = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const ficha = (id) => D.fichas.find((x) => x.id === id);
+const pasta = (id) => D.pastas.find((x) => x.id === id);
+const ehModeloNpc = (x) => x.tipo === 'npc' && x.modeloId === undefined;
+const copiasDe = (id) => D.fichas.filter((x) => x.modeloId === id).sort((a, b) => PT.compare(a.nome, b.nome));
+const tokensDe = (id) => D.tokens.filter((t) => t.fichaId === id).length;
+const noMapaDaFamilia = (id) => tokensDe(id) + copiasDe(id).reduce((n, c) => n + tokensDe(c.id), 0);
+const subpastas = (maeId) => D.pastas.filter((p) => p.dentroDe === maeId);
+const topo = () => D.pastas.filter((p) => p.dentroDe === null);
+function iniciais(nome) {
+  const partes = nome.replace(/[(),]/g, ' ').split(/\s+/).filter((p) => p.length > 0 && !/^(o|a|da|do|de|com)$/i.test(p));
+  return ((partes[0] || '?')[0] + (partes[1] ? partes[1][0] : (partes[0] || '?')[1] || '')).toUpperCase();
+}
+function cor(nome) { let h = 0; for (const c of nome) h = (h * 31 + c.charCodeAt(0)) >>> 0; return CORES[h % CORES.length]; }
+function anelDe(fichaId) { const x = fichaId === null ? null : ficha(fichaId); if (!x) return ANEL.semFicha; return x.tipo === 'jogador' ? ANEL.jogador : ANEL[x.papel] || ANEL.npc; }
+
+function termo() { return semAcento(E.busca); }
+function bate(nome) { const t = termo(); return t === '' || semAcento(nome).includes(t); }
+/** Linhas DIRETAS da pasta (peças + modelos de ficha), em ordem de nome; com busca, só as que batem. */
+function linhasDe(pastaId) {
+  const pecas = D.pecas.filter((p) => p.pasta === pastaId && bate(p.nome)).map((p) => ({ tipo: 'peca', obj: p }));
+  const fichas = D.fichas.filter((x) => ehModeloNpc(x) && x.pasta === pastaId)
+    .filter((x) => bate(x.nome) || copiasDe(x.id).some((c) => bate(c.nome)))
+    .map((x) => ({ tipo: 'ficha', obj: x }));
+  return [...pecas, ...fichas].sort((a, b) => PT.compare(a.obj.nome, b.obj.nome));
+}
+/** Quantas linhas a pasta tem, com as subpastas (sem busca: o tamanho de verdade). */
+function contagem(pastaId) {
+  const proprias = D.pecas.filter((p) => p.pasta === pastaId).length + D.fichas.filter((x) => ehModeloNpc(x) && x.pasta === pastaId).length;
+  return proprias + subpastas(pastaId).reduce((n, s) => n + contagem(s.id), 0);
+}
+function temAlgoNaBusca(pastaId) { return linhasDe(pastaId).length > 0 || subpastas(pastaId).some((s) => temAlgoNaBusca(s.id)); }
+function caminhoDaPasta(id) { const p = pasta(id); if (!p) return 'Sem pasta'; return p.dentroDe ? `${pasta(p.dentroDe).nome} › ${p.nome}` : p.nome; }
+
+/* ═══ Ícones ═════════════════════════════════════════════════════════════ */
+const I = {
+  chev: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>',
+  chevP: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>',
+  pasta: '<svg class="icone-pasta" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M1.75 4.25h4.5l1.5 1.5h6.5v7.5H1.75z"/></svg>',
+  subpasta: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M1.75 4.25h4.5l1.5 1.5h6.5v7.5H1.75z"/><path d="M8 7.5v4M6 9.5h4"/></svg>',
+  mais: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
+  x: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  pontos: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.5" cy="8" r="1.3"/></svg>',
+  mover: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h8M7 5l3 3-3 3M13.5 3v10"/></svg>',
+  certo: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>',
+};
+
+/* ═══ Desenho da árvore ══════════════════════════════════════════════════ */
+function htmlFoto(nome, ehFicha, noMapa, copia) {
+  const classe = `foto${ehFicha ? ' foto--ficha' : ''}${copia ? ' foto--copia' : ''}`;
+  return `<span class="${classe}" style="background:${cor(nome)}"${noMapa ? ' data-no-mapa' : ''} aria-hidden="true">${esc(iniciais(nome))}</span>`;
+}
+function subDaFicha(x, copia) {
+  const partes = [];
+  if (!copia) partes.push(PAPEL[x.papel] || 'NPC');
+  const n = copia ? tokensDe(x.id) : noMapaDaFamilia(x.id);
+  if (n > 0) partes.push(`<b>${n === 1 && copia ? 'no mapa' : `${n} no mapa`}</b>`);
+  else if (copia) partes.push('fora do mapa');
+  return partes.join(' · ');
+}
+function htmlConfirma(texto, sim, classeSim, chave) {
+  return `<div class="confirma" role="group" aria-label="${esc(texto)}"><p class="confirma__texto">${esc(texto)}</p><div class="confirma__botoes">
+    <button type="button" class="btn btn--fantasma" data-acao="manter" data-foco="manter:${esc(chave)}">Manter</button>
+    <button type="button" class="btn ${classeSim}" data-acao="confirmar">${esc(sim)}</button></div></div>`;
+}
+function htmlFicha(x, copia) {
+  const copias = copia ? [] : copiasDe(x.id);
+  const visiveis = termo() === '' || bate(x.nome) ? copias : copias.filter((c) => bate(c.nome));
+  const abertas = copias.length > 0 && (E.copiasAbertas.has(x.id) || (termo() !== '' && visiveis.length > 0));
+  const noMapa = (copia ? tokensDe(x.id) : noMapaDaFamilia(x.id)) > 0;
+  const apagando = E.apagando && E.apagando.tipo === 'ficha' && E.apagando.id === x.id;
+  const dica = copia
+    ? `Cópia de ${ficha(x.modeloId).nome}, com a própria vida. Clique para abrir; arraste até o mapa.`
+    : `Ficha desta aventura. Clique para abrir; arraste até o mapa, até um token ou até uma pasta.`;
+  let h = `<li class="item item--ficha${copia ? ' item--copia' : ''}" data-tipo="ficha" data-id="${esc(x.id)}"${E.chegou === x.id ? ' data-acabou-de-chegar' : ''}>`;
+  h += '<div class="item__linha">' + htmlFoto(x.nome, true, noMapa, copia);
+  h += `<button type="button" class="item__nome" data-nav data-foco="i:${esc(x.id)}" data-arrasta="ficha" data-id="${esc(x.id)}" title="${esc(x.nome)}. ${esc(dica)}" aria-label="Abrir a ficha de ${esc(x.nome)}">
+          <span class="item__texto">${esc(x.nome)}</span><span class="item__sub">${subDaFicha(x, copia)}</span></button>`;
+  h += `<span class="item__acoes"><button type="button" class="acao" data-acao="menu" data-id="${esc(x.id)}" data-foco="m:${esc(x.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações de ${esc(x.nome)}" title="Mais ações">${I.pontos}</button></span>`;
+  h += `<button type="button" class="item__por" data-acao="por" data-id="${esc(x.id)}" tabindex="-1" aria-label="Pôr ${esc(x.nome)} no centro do mapa" title="Pôr no centro do mapa">${I.mais}</button></div>`;
+  if (apagando) {
+    const n = copiasDe(x.id).length;
+    h += htmlConfirma(`Apagar ${x.nome}?${n > 0 ? ` As ${n} cópias ficam como fichas soltas.` : ''}`, 'Apagar ficha', 'btn--perigo', x.id);
+  }
+  if (copias.length > 0) {
+    h += `<button type="button" class="item__copias" data-acao="copias" data-id="${esc(x.id)}" data-foco="c:${esc(x.id)}" aria-expanded="${abertas}" title="Cada token com a própria vida. Mudar o modelo muda todas as cópias."><span class="chev">${I.chevP}</span>${copias.length === 1 ? '1 cópia' : `${copias.length} cópias`}</button>`;
+    if (abertas) h += `<ul class="lista copias" role="group" aria-label="Cópias de ${esc(x.nome)}">${visiveis.map((c) => htmlFicha(c, true)).join('')}</ul>`;
+  }
+  return h + '</li>';
+}
+function htmlPeca(p) {
+  const apagando = E.apagando && E.apagando.tipo === 'peca' && E.apagando.id === p.id;
+  const movendo = E.movendoPeca === p.id;
+  let h = `<li class="item item--peca" data-tipo="peca" data-id="${esc(p.id)}"${E.chegou === p.id ? ' data-acabou-de-chegar' : ''}>`;
+  h += '<div class="item__linha">' + htmlFoto(p.nome, false, false, false);
+  h += `<button type="button" class="item__nome" data-nav data-foco="i:${esc(p.id)}" data-arrasta="peca" data-id="${esc(p.id)}" aria-label="Colocar ${esc(p.nome)} no mapa${p.leva ? `, com ${esc(p.leva.split(' · ').join(', '))}` : ''}" title="${p.leva ? `Leva ${esc(p.leva)}. ` : ''}Token do app. Clique para pôr no centro da vista, ou arraste até o mapa ou até uma pasta">
+          <span class="item__texto">${esc(p.nome)}</span>${p.leva ? `<span class="item__sub">leva ${esc(p.leva)}</span>` : ''}</button>`;
+  if (!apagando) {
+    h += `<span class="item__acoes"${movendo ? ' style="opacity:1"' : ''}>
+      <button type="button" class="acao" data-acao="mover-peca" data-id="${esc(p.id)}" aria-expanded="${movendo}" aria-label="Mover ${esc(p.nome)} para outra pasta" title="Mover para outra pasta">${I.mover}</button>
+      <button type="button" class="acao acao--apagar" data-acao="apagar-peca" data-id="${esc(p.id)}" aria-label="Apagar ${esc(p.nome)} do acervo" title="Apagar do acervo">${I.x}</button></span>`;
+    h += `<button type="button" class="item__por" data-acao="por" data-id="${esc(p.id)}" tabindex="-1" aria-label="Pôr ${esc(p.nome)} no centro do mapa" title="Pôr no centro da vista">${I.mais}</button></div>`;
+  } else {
+    h += '</div>' + htmlConfirma(`Apagar ${p.nome} do acervo para sempre? Vale para todas as aventuras.`, `Apagar ${p.nome}`, 'btn--perigo', p.id);
+  }
+  if (movendo) {
+    const destinos = [{ id: null, nome: 'Sem pasta' }, ...D.pastas.map((q) => ({ id: q.id, nome: caminhoDaPasta(q.id) }))].filter((d) => d.id !== p.pasta);
+    h += `<div class="confirma" role="group" aria-label="Mover ${esc(p.nome)} para"><div class="confirma__botoes">${destinos.map((d) => `<button type="button" class="btn" data-acao="destino-peca" data-pasta="${d.id === null ? '' : esc(d.id)}">${esc(d.nome)}</button>`).join('')}
+      <button type="button" class="btn btn--fantasma" data-acao="cancelar-mover">Cancelar</button></div></div>`;
+  }
+  return h + '</li>';
+}
+function htmlPasta(p) {
+  const sub = p.dentroDe !== null;
+  const buscando = termo() !== '';
+  if (buscando && !temAlgoNaBusca(p.id)) return '';
+  const aberta = buscando || p.aberta || (E.editandoPasta && pasta(E.editandoPasta.id) && pasta(E.editandoPasta.id).dentroDe === p.id);
+  const filhas = subpastas(p.id);
+  const linhas = linhasDe(p.id);
+  const apagando = E.apagando && E.apagando.tipo === 'pasta' && E.apagando.id === p.id;
+  const editando = E.editandoPasta && E.editandoPasta.id === p.id;
+  let h = `<li class="pasta${sub ? ' pasta--sub' : ''}" data-solta-pasta="${esc(p.id)}" data-pasta-id="${esc(p.id)}">`;
+  h += `<div class="pasta__topo">`;
+  if (editando) {
+    h += `<span class="chev" aria-hidden="true">${I.chev}</span>${I.pasta}<input class="pasta__nome-input" data-acao="nome-pasta" data-id="${esc(p.id)}" aria-label="Nome da pasta" maxlength="40" value="${esc(p.nome)}">`;
+  } else {
+    h += `<button type="button" class="pasta__botao" data-nav data-foco="p:${esc(p.id)}" data-pasta="${esc(p.id)}" aria-expanded="${aberta}" aria-controls="corpo-${esc(p.id)}" title="${esc(p.nome)}">
+      <span class="chev" aria-hidden="true">${I.chev}</span>${I.pasta}<span class="pasta__nome">${esc(p.nome)}</span></button>
+      <span class="contagem" aria-label="${contagem(p.id)} na pasta">${contagem(p.id)}</span>
+      <span class="pasta__acoes">${sub ? '' : `<button type="button" class="acao" data-acao="subpasta" data-id="${esc(p.id)}" aria-label="Nova subpasta em ${esc(p.nome)}" title="Nova subpasta">${I.subpasta}</button>`}
+      <button type="button" class="acao acao--apagar" data-acao="apagar-pasta" data-id="${esc(p.id)}" aria-label="Apagar a pasta ${esc(p.nome)}" title="Apagar a pasta (nada dentro dela é apagado)">${I.x}</button></span>`;
+  }
+  h += `</div>`;
+  if (apagando) {
+    const para = sub ? pasta(p.dentroDe).nome : 'Sem pasta';
+    const extra = filhas.length > 0 ? ` e as ${filhas.length} subpastas` : '';
+    h += htmlConfirma(`Apagar a pasta ${p.nome}${extra}? O que está nela vai para ${para}; nenhuma ficha nem token é apagado.`, 'Apagar pasta', 'btn--perigo', p.id);
+  }
+  if (aberta) {
+    h += `<ul class="lista na-pasta" id="corpo-${esc(p.id)}" role="group">`;
+    h += filhas.map(htmlPasta).join('');
+    h += linhas.map((l) => (l.tipo === 'peca' ? htmlPeca(l.obj) : htmlFicha(l.obj, false))).join('');
+    if (filhas.length === 0 && linhas.length === 0) h += `<li class="vazio-pasta">Vazia. Arraste fichas ou tokens para cá.</li>`;
+    h += `</ul>`;
+  }
+  return h + '</li>';
+}
+function htmlSemPasta(arrastandoDePasta) {
+  const linhas = linhasDe(null);
+  if (linhas.length === 0 && !arrastandoDePasta) return '';
+  return `<li class="pasta pasta--solta" data-solta-pasta="" data-pasta-id=""><p class="titulo-sem-pasta">Sem pasta<span class="contagem">${linhas.length}</span></p>
+    <ul class="lista">${linhas.map((l) => (l.tipo === 'peca' ? htmlPeca(l.obj) : htmlFicha(l.obj, false))).join('')}
+    ${linhas.length === 0 ? '<li class="vazio-pasta">Solte aqui para tirar da pasta.</li>' : ''}</ul></li>`;
+}
+
+function desenharArvore(opcoes) {
+  const foco = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.foco : undefined;
+  const arvore = $('#arvore');
+  arvore.innerHTML = `<ul class="lista">${topo().map(htmlPasta).join('')}${htmlSemPasta(opcoes && opcoes.semPastaVazia)}</ul>`;
+  if (termo() !== '' && arvore.querySelector('.item') === null) {
+    arvore.innerHTML = `<div class="vazio-busca" role="status">Nada com “${esc(E.busca.trim())}”. A busca olha o nome dos tokens, das fichas e das cópias.<button type="button" class="btn" data-acao="limpar-busca">Limpar busca</button></div>`;
+  }
+  // contagem da busca
+  const total = D.pecas.length + D.fichas.filter((x) => x.tipo === 'npc').length;
+  const vistas = arvore.querySelectorAll('.item').length;
+  $('#resultado').textContent = termo() === '' ? '' : vistas === 0 ? '' : `${vistas} de ${total}`;
+  $('#limpar-busca').hidden = E.busca === '';
+  // aviso de migração
+  $('#aviso-migracao').innerHTML = E.avisoMigracao
+    ? `<div class="aviso-migracao" role="status"><p>As fichas de NPC desta aventura agora ficam aqui. Os 14 inimigos estão em NPCs › Inimigos; a pasta Marinha virou subpasta. Nenhuma ficha mudou.</p><button type="button" class="btn" data-acao="entendi">Entendi</button></div>`
+    : '';
+  $('#form-pasta').innerHTML = E.novaPasta
+    ? `<form class="busca" data-acao="form-pasta"><input class="input" style="padding-left:12px" id="nome-nova-pasta" aria-label="Nome da nova pasta" placeholder="Nome da pasta" maxlength="40"><div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" class="btn btn--fantasma" data-acao="cancelar-pasta">Cancelar</button><button type="submit" class="btn">Criar</button></div></form>`
+    : '';
+  if (opcoes && opcoes.focar) { const alvo = arvore.querySelector(`[data-foco="${opcoes.focar}"]`) || document.querySelector(`[data-foco="${opcoes.focar}"]`); if (alvo) alvo.focus(); }
+  else if (foco) { const alvo = document.querySelector(`[data-foco="${CSS.escape(foco)}"]`); if (alvo) alvo.focus({ preventScroll: true }); }
+  const input = arvore.querySelector('.pasta__nome-input');
+  if (input && document.activeElement !== input) { input.focus(); input.select(); }
+  if (E.novaPasta && document.activeElement && document.activeElement.id !== 'nome-nova-pasta') $('#nome-nova-pasta').focus();
+  if (E.chegou) { const id = E.chegou; setTimeout(() => { if (E.chegou === id) E.chegou = null; }, 1200); }
+}
+
+function desenharJogadores() {
+  const jogadores = D.fichas.filter((x) => x.tipo === 'jogador').sort((a, b) => PT.compare(a.nome, b.nome));
+  $('#conta-jogadores').textContent = String(jogadores.length);
+  $('#jogadores').innerHTML = jogadores.map((x) => `<li class="jog">
+    <button type="button" class="jog__abrir" data-arrasta="ficha" data-id="${esc(x.id)}" data-abre="${esc(x.id)}" title="Clique para abrir a ficha. Arraste até o mapa para pôr o token, ou solte em cima de um token para ligar a ficha a ele.">
+      <span class="jog__retrato" style="background:${cor(x.nome)}" aria-hidden="true">${esc(iniciais(x.nome))}</span>
+      <span class="jog__texto"><span class="jog__nome">${esc(x.nome)}</span><span class="jog__conta">${x.conta ? `de ${esc(x.conta)}` : 'sem conta'}${tokensDe(x.id) > 0 ? ' · no mapa' : ''}</span></span>
+      ${x.conta ? '<span class="jog__ponto" title="Na mesa agora" aria-label="na mesa"></span>' : ''}
+    </button></li>`).join('');
+}
+
+function desenharMapa() {
+  const grade = $('#grade');
+  grade.innerHTML = D.tokens.map((t) => `<div class="token" style="left:${t.col * CASA}px;top:${t.row * CASA}px;--anel:${anelDe(t.fichaId)}"${t.id === E.tokenNovo ? ' data-entrou' : ''}${t.id === E.selecionado ? ' data-selecionado' : ''} data-token="${esc(t.id)}">
+    <span class="token__disco" style="background:${cor(t.nome)}">${esc(iniciais(t.nome))}</span><span class="token__nome">${esc(t.nome)}</span></div>`).join('')
+    + '<div class="realce" id="realce" hidden><span class="realce__rotulo" id="realce-rotulo" hidden></span></div>';
+  E.tokenNovo = null;
+}
+
+function tudo(opcoes) { desenharArvore(opcoes); desenharJogadores(); desenharMapa(); }
+function anunciar(texto) { const a = $('#anuncio'); a.textContent = ''; requestAnimationFrame(() => { a.textContent = texto; }); }
+
+/* ═══ Ações de verdade (no app: as mesmas funções citadas no NOTAS) ═════ */
+function proximoNome(base) {
+  const nomes = new Set(D.fichas.map((x) => x.nome));
+  for (let n = 2; ; n++) if (!nomes.has(`${base} ${n}`)) return `${base} ${n}`;
+}
+/** novaVariacao(modelo, nome): cópia com vida cheia, apontando para o modelo-raiz. */
+function fazerCopia(id) {
+  const x = ficha(id);
+  const raiz = x.modeloId ? ficha(x.modeloId) : x;
+  const copia = { id: novoId('copia'), nome: proximoNome(raiz.nome), tipo: 'npc', papel: raiz.papel, pasta: null, hp: raiz.max, max: raiz.max, modeloId: raiz.id };
+  D.fichas.push(copia);
+  E.copiasAbertas.add(raiz.id);
+  E.chegou = copia.id;
+  return copia;
+}
+/** A ficha que um token NOVO usa: NPC livre = ela mesma; NPC já no mapa = cópia (a regra de lib/ligarFicha.ts). */
+function fichaParaTokenNovo(id) {
+  const x = ficha(id);
+  if (x.tipo === 'jogador' || tokensDe(x.id) === 0) return { usa: x, criada: null };
+  const copia = fazerCopia(x.id);
+  return { usa: copia, criada: copia };
+}
+function casaLivre(col, row) {
+  const cols = Math.floor($('#grade').clientWidth / CASA), rows = Math.floor($('#grade').clientHeight / CASA);
+  const ocupada = (c, r) => D.tokens.some((t) => t.col === c && t.row === r);
+  for (let raio = 0; raio < 12; raio++) {
+    for (let dc = -raio; dc <= raio; dc++) for (let dr = -raio; dr <= raio; dr++) {
+      if (Math.max(Math.abs(dc), Math.abs(dr)) !== raio) continue;
+      const c = col + dc, r = row + dr;
+      if (c >= 0 && r >= 0 && c < cols && r < rows && !ocupada(c, r)) return { col: c, row: r };
+    }
+  }
+  return { col, row };
+}
+function centroDaVista() { const g = $('#grade'); return { col: Math.floor(g.clientWidth / CASA / 2), row: Math.floor(g.clientHeight / CASA / 2) }; }
+function porNoMapa(tipo, id, casa) {
+  const lugar = casa ? casaLivre(casa.col, casa.row) : casaLivre(centroDaVista().col, centroDaVista().row);
+  let token, criada = null;
+  if (tipo === 'ficha') {
+    const r = fichaParaTokenNovo(id);
+    criada = r.criada;
+    token = { id: novoId('t'), col: lugar.col, row: lugar.row, fichaId: r.usa.id, nome: r.usa.nome };
+  } else {
+    const p = D.pecas.find((q) => q.id === id);
+    // Peça com ficha: a 1ª vez cria a ficha na pasta da peça; as próximas fazem cópia dela (decisão D7).
+    let fichaId = null, nome = p.nome;
+    if (p.fichaPapel) {
+      const veio = D.fichas.find((x) => x.daPeca === p.id && ehModeloNpc(x));
+      if (veio) { const r = fichaParaTokenNovo(veio.id); criada = r.criada; fichaId = r.usa.id; nome = r.usa.nome; }
+      else { criada = { id: novoId('f'), nome: p.nome, tipo: 'npc', papel: p.fichaPapel, pasta: p.pasta, hp: 20, max: 20, daPeca: p.id }; D.fichas.push(criada); fichaId = criada.id; E.chegou = criada.id; }
+    }
+    token = { id: novoId('t'), col: lugar.col, row: lugar.row, fichaId, nome };
+  }
+  D.tokens.push(token);
+  E.tokenNovo = token.id;
+  E.selecionado = token.id;
+  E.desfazer.push({ tokenId: token.id, fichaCriada: criada ? criada.id : null });
+  anunciar(`${token.nome} no mapa${criada && criada.modeloId ? `, cópia de ${ficha(criada.modeloId).nome}` : criada ? ', com a ficha nova' : ''}. Ctrl+Z desfaz.`);
+  tudo();
+}
+function ligarAoToken(fichaId, tokenId) {
+  const t = D.tokens.find((x) => x.id === tokenId);
+  const r = fichaParaTokenNovo(fichaId);
+  t.fichaId = r.usa.id;
+  t.nome = r.usa.nome;
+  E.selecionado = t.id;
+  anunciar(`Token ligado a ${r.usa.nome}.`);
+  tudo();
+}
+function moverFicha(id, pastaId) {
+  const x = ficha(id);
+  if (!x || x.modeloId || x.pasta === pastaId) return false;
+  x.pasta = pastaId;
+  if (pastaId) { let p = pasta(pastaId); while (p) { p.aberta = true; p = p.dentroDe ? pasta(p.dentroDe) : null; } }
+  E.chegou = id;
+  anunciar(`${x.nome} foi para ${caminhoDaPasta(pastaId)}.`);
+  return true;
+}
+function moverPeca(id, pastaId) {
+  const p = D.pecas.find((q) => q.id === id);
+  if (!p || p.pasta === pastaId) return false;
+  p.pasta = pastaId;
+  if (pastaId) { let q = pasta(pastaId); while (q) { q.aberta = true; q = q.dentroDe ? pasta(q.dentroDe) : null; } }
+  E.chegou = id;
+  anunciar(`${p.nome} foi para ${caminhoDaPasta(pastaId)}.`);
+  return true;
+}
+function apagarFicha(id) {
+  const x = ficha(id);
+  for (const c of copiasDe(id)) { delete c.modeloId; c.pasta = x.pasta; } // soltarDoModelo: viram fichas soltas
+  for (const t of D.tokens) if (t.fichaId === id) t.fichaId = null;
+  D.fichas = D.fichas.filter((y) => y.id !== id);
+  anunciar(`${x.nome} apagada.`);
+}
+function apagarPasta(id) {
+  const p = pasta(id);
+  const destino = p.dentroDe;
+  const ids = [id, ...subpastas(id).map((s) => s.id)];
+  for (const q of D.pecas) if (ids.includes(q.pasta)) q.pasta = destino;
+  for (const x of D.fichas) if (ids.includes(x.pasta)) x.pasta = destino;
+  D.pastas = D.pastas.filter((q) => !ids.includes(q.id));
+  anunciar(`Pasta ${p.nome} apagada. Nada dentro dela foi apagado.`);
+}
+
+/* ═══ Menu "⋯" ═══════════════════════════════════════════════════════════ */
+let menuAberto = null;
+function abrirMenu(botao, peloTeclado) {
+  fecharMenu(false);
+  const x = ficha(botao.dataset.id);
+  const li = botao.closest('.item');
+  li.setAttribute('data-menu-aberto', '');
+  botao.setAttribute('aria-expanded', 'true');
+  const m = document.createElement('div');
+  m.className = 'menu';
+  if (peloTeclado) m.style.animation = 'none'; // gesto de teclado não anima (repetido muitas vezes)
+  m.setAttribute('role', 'menu');
+  m.setAttribute('aria-label', `Ações de ${x.nome}`);
+  const item = (acao, texto, extra) => `<button type="button" class="menu__item${extra && extra.perigo ? ' menu__item--perigo' : ''}${extra && extra.sub ? ' menu__sub' : ''}" role="${extra && extra.radio ? 'menuitemradio' : 'menuitem'}"${extra && extra.radio ? ` aria-checked="${extra.marcado}"` : ''}${extra && extra.desligado ? ' aria-disabled="true"' : ''} tabindex="-1" data-acao="${acao}"${extra && extra.pasta !== undefined ? ` data-pasta="${esc(extra.pasta)}"` : ''}>${extra && extra.radio ? `<span class="menu__marca">${extra.marcado ? I.certo : ''}</span>` : ''}${esc(texto)}${extra && extra.atalho ? `<span class="menu__atalho">${esc(extra.atalho)}</span>` : ''}</button>`;
+  let h = item('abrir', 'Abrir ficha', { atalho: 'Enter' }) + item('por', 'Pôr no centro do mapa') + item('copia', x.modeloId ? `Fazer outra cópia de ${ficha(x.modeloId).nome}` : 'Fazer cópia');
+  h += '<div class="menu__sep" role="separator"></div>';
+  if (x.modeloId) {
+    h += item('nada', 'Mover: a cópia fica com o modelo', { desligado: true });
+  } else {
+    h += '<p class="menu__rotulo" aria-hidden="true">Mover para</p>';
+    for (const p of topo()) {
+      h += item('mover', p.nome, { radio: true, marcado: x.pasta === p.id, pasta: p.id });
+      for (const s of subpastas(p.id)) h += item('mover', s.nome, { radio: true, marcado: x.pasta === s.id, pasta: s.id, sub: true });
+    }
+    h += item('mover', 'Sem pasta', { radio: true, marcado: x.pasta === null, pasta: '' });
+  }
+  h += '<div class="menu__sep" role="separator"></div>' + item('apagar', x.modeloId ? 'Apagar cópia…' : 'Apagar ficha…', { perigo: true });
+  m.innerHTML = h;
+  document.body.appendChild(m);
+  const caixa = botao.getBoundingClientRect();
+  const largura = m.offsetWidth, altura = m.offsetHeight;
+  const left = Math.max(8, Math.min(caixa.right - largura, innerWidth - largura - 8));
+  const abaixo = caixa.bottom + 4;
+  const emCima = abaixo + altura + 8 > innerHeight;
+  m.style.left = `${left}px`;
+  m.style.top = `${emCima ? Math.max(8, caixa.top - altura - 4) : abaixo}px`;
+  m.style.setProperty('--origem', emCima ? 'bottom right' : 'top right');
+  menuAberto = { m, botao, id: x.id };
+  m.querySelector('[role^="menuitem"]:not([aria-disabled])').focus();
+  m.addEventListener('keydown', teclaNoMenu);
+  m.addEventListener('click', cliqueNoMenu);
+  m.addEventListener('pointerover', (ev) => { const b = ev.target.closest('.menu__item'); if (b && !b.hasAttribute('aria-disabled')) b.focus(); });
+}
+function fecharMenu(devolver) {
+  if (!menuAberto) return;
+  const { m, botao } = menuAberto;
+  m.remove();
+  const li = botao.closest('.item');
+  if (li) li.removeAttribute('data-menu-aberto');
+  botao.setAttribute('aria-expanded', 'false');
+  menuAberto = null;
+  if (devolver && document.contains(botao)) botao.focus();
+}
+function teclaNoMenu(ev) {
+  ev.stopPropagation();
+  const itens = [...menuAberto.m.querySelectorAll('.menu__item:not([aria-disabled])')];
+  const aqui = itens.indexOf(document.activeElement);
+  if (ev.key === 'Escape') { ev.preventDefault(); fecharMenu(true); }
+  else if (ev.key === 'Tab') { fecharMenu(false); }
+  else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(ev.key)) {
+    ev.preventDefault();
+    const alvo = ev.key === 'Home' ? 0 : ev.key === 'End' ? itens.length - 1 : aqui + (ev.key === 'ArrowDown' ? 1 : -1);
+    itens[(alvo + itens.length) % itens.length].focus();
+  }
+}
+function cliqueNoMenu(ev) {
+  const b = ev.target.closest('.menu__item');
+  if (!b || b.hasAttribute('aria-disabled')) return;
+  const id = menuAberto.id;
+  const acao = b.dataset.acao;
+  fecharMenu(acao !== 'abrir' && acao !== 'copia' && acao !== 'mover' && acao !== 'apagar');
+  if (acao === 'abrir') abrirFicha(id, document.querySelector(`[data-foco="i:${CSS.escape(id)}"]`));
+  else if (acao === 'por') porNoMapa('ficha', id, null);
+  else if (acao === 'copia') { const c = fazerCopia(id); anunciar(`${c.nome} criada, cópia de ${ficha(c.modeloId).nome}.`); tudo({ focar: `i:${c.id}` }); }
+  else if (acao === 'mover') { const destino = b.dataset.pasta === '' ? null : b.dataset.pasta; moverFicha(id, destino); tudo({ focar: `i:${id}` }); }
+  else if (acao === 'apagar') { E.apagando = { tipo: 'ficha', id }; tudo({ focar: `manter:${id}` }); }
+}
+document.addEventListener('pointerdown', (ev) => { if (menuAberto && !menuAberto.m.contains(ev.target) && !menuAberto.botao.contains(ev.target)) fecharMenu(false); });
+
+/* ═══ A ficha aberta (no app: useRpgStore.abrirFicha) ═══════════════════ */
+function abrirFicha(id, quem, nova) {
+  const x = ficha(id);
+  if (!x) return;
+  E.fichaAberta = { id, quem: quem || document.activeElement };
+  const painel = $('#ficha');
+  const papel = x.tipo === 'jogador' ? `Jogador${x.conta ? `, de ${x.conta}` : ''}` : x.modeloId ? `Cópia de ${ficha(x.modeloId).nome}` : PAPEL[x.papel];
+  const n = tokensDe(x.id);
+  painel.innerHTML = `<div class="ficha__cab"><span class="ficha__retrato" style="background:${cor(x.nome)}" aria-hidden="true">${esc(iniciais(x.nome))}</span>
+      <div style="min-width:0;flex:1">${nova ? `<label class="sr" for="ficha-nome">Nome</label><input class="ficha__nome-input" id="ficha-nome" value="" placeholder="Nome do NPC" maxlength="80">` : `<h2 class="ficha__titulo" id="ficha-titulo">${esc(x.nome)}</h2>`}
+      <p class="ficha__papel">${esc(papel)}</p></div>
+      <button type="button" class="acao ficha__fechar" data-acao="fechar-ficha" aria-label="Fechar a ficha" title="Fechar (Esc)">${I.x}</button></div>
+    <div class="vida"><div class="vida__rotulo"><span>HP</span><span>${x.hp} / ${x.max}</span></div><div class="vida__barra"><span style="width:${Math.round((x.hp / x.max) * 100)}%"></span></div></div>
+    <ul class="ficha__fatos"><li>${n === 0 ? 'Fora do mapa' : n === 1 ? '1 token no mapa' : `${n} tokens no mapa`}</li>${x.tipo === 'npc' && !x.modeloId ? `<li>Pasta no acervo: ${esc(caminhoDaPasta(x.pasta))}</li>` : ''}</ul>
+    <div class="ficha__acoes"><button type="button" class="btn btn--latao" data-acao="ficha-por">Pôr no mapa</button>${x.tipo === 'npc' ? '<button type="button" class="btn" data-acao="ficha-copia">Fazer cópia</button>' : ''}</div>
+    <p class="ficha__nota">Resumo do protótipo. No app, o clique abre a ficha completa de sempre (useRpgStore.abrirFicha), sem mudança.</p>`;
+  if (nova) painel.setAttribute('aria-label', 'Ficha nova de NPC'); else painel.removeAttribute('aria-label');
+  painel.hidden = false;
+  if (nova) { const campo = $('#ficha-nome'); campo.focus(); campo.addEventListener('input', () => { x.nome = campo.value.trim() || 'NPC sem nome'; desenharArvore(); }); }
+  else painel.querySelector('[data-acao="fechar-ficha"]').focus();
+}
+function fecharFicha() {
+  if (!E.fichaAberta) return;
+  const quem = E.fichaAberta.quem;
+  const id = E.fichaAberta.id;
+  E.fichaAberta = null;
+  $('#ficha').hidden = true;
+  const alvo = quem && document.contains(quem) ? quem : document.querySelector(`[data-foco="i:${CSS.escape(id)}"]`);
+  if (alvo) alvo.focus();
+}
+$('#ficha').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-acao]');
+  if (!b || !E.fichaAberta) return;
+  const id = E.fichaAberta.id;
+  if (b.dataset.acao === 'fechar-ficha') fecharFicha();
+  else if (b.dataset.acao === 'ficha-por') { porNoMapa('ficha', id, null); abrirFicha(id, E.fichaAberta.quem); }
+  else if (b.dataset.acao === 'ficha-copia') { const c = fazerCopia(id); anunciar(`${c.nome} criada, cópia de ${ficha(c.modeloId).nome}.`); tudo(); abrirFicha(c.id, E.fichaAberta.quem); }
+});
+$('#ficha').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); fecharFicha(); }
+  if (ev.key === 'Enter' && ev.target.id === 'ficha-nome') { ev.preventDefault(); fecharFicha(); }
+});
+
+/* ═══ Cliques da árvore ══════════════════════════════════════════════════ */
+let engolirClique = false;
+$('#acervo').addEventListener('click', (ev) => {
+  if (engolirClique) { engolirClique = false; ev.preventDefault(); return; }
+  const b = ev.target.closest('[data-acao], .pasta__botao, .item__nome');
+  if (!b) return;
+  if (b.classList.contains('pasta__botao')) { const p = pasta(b.dataset.pasta); if (termo() === '') { p.aberta = !p.aberta; desenharArvore(); } return; }
+  if (b.classList.contains('item__nome')) {
+    if (b.dataset.arrasta === 'ficha') abrirFicha(b.dataset.id, b);
+    else porNoMapa('peca', b.dataset.id, null);
+    return;
+  }
+  const { acao, id } = b.dataset;
+  if (acao === 'menu') { if (menuAberto && menuAberto.botao === b) fecharMenu(true); else abrirMenu(b, ev.detail === 0); }
+  else if (acao === 'por') porNoMapa(b.closest('.item').dataset.tipo, id, null);
+  else if (acao === 'copias') { if (E.copiasAbertas.has(id)) E.copiasAbertas.delete(id); else E.copiasAbertas.add(id); desenharArvore({ focar: `c:${id}` }); }
+  else if (acao === 'mover-peca') { E.movendoPeca = E.movendoPeca === id ? null : id; desenharArvore(); const primeiro = document.querySelector(`.item[data-id="${CSS.escape(id)}"] [data-acao="destino-peca"]`); if (primeiro) primeiro.focus(); }
+  else if (acao === 'destino-peca') { const pid = b.closest('.item').dataset.id; E.movendoPeca = null; moverPeca(pid, b.dataset.pasta === '' ? null : b.dataset.pasta); tudo({ focar: `i:${pid}` }); }
+  else if (acao === 'cancelar-mover') { const pid = b.closest('.item').dataset.id; E.movendoPeca = null; desenharArvore({ focar: `i:${pid}` }); }
+  else if (acao === 'apagar-peca') { E.apagando = { tipo: 'peca', id }; desenharArvore({ focar: `manter:${id}` }); }
+  else if (acao === 'apagar-pasta') { E.apagando = { tipo: 'pasta', id }; desenharArvore({ focar: `manter:${id}` }); }
+  else if (acao === 'subpasta') {
+    const nova = { id: novoId('pasta'), nome: 'Subpasta nova', dentroDe: id, aberta: true };
+    D.pastas.push(nova); pasta(id).aberta = true; E.editandoPasta = { id: nova.id, nova: true }; desenharArvore();
+  }
+  else if (acao === 'manter') { const a = E.apagando; E.apagando = null; desenharArvore({ focar: a.tipo === 'pasta' ? `p:${a.id}` : a.tipo === 'ficha' ? `m:${a.id}` : `i:${a.id}` }); }
+  else if (acao === 'confirmar') {
+    const a = E.apagando; E.apagando = null;
+    if (a.tipo === 'ficha') apagarFicha(a.id);
+    else if (a.tipo === 'peca') { const p = D.pecas.find((q) => q.id === a.id); D.pecas = D.pecas.filter((q) => q.id !== a.id); anunciar(`${p.nome} saiu do acervo.`); }
+    else apagarPasta(a.id);
+    tudo();
+    const primeiro = $('#arvore [data-nav]'); if (primeiro) primeiro.focus();
+  }
+  else if (acao === 'entendi') { E.avisoMigracao = false; desenharArvore(); $('#busca').focus(); }
+  else if (acao === 'limpar-busca') { E.busca = ''; $('#busca').value = ''; desenharArvore(); $('#busca').focus(); }
+  else if (acao === 'cancelar-pasta') { E.novaPasta = false; desenharArvore(); $('#nova-pasta').focus(); }
+});
+$('#acervo').addEventListener('submit', (ev) => {
+  const form = ev.target.closest('[data-acao="form-pasta"]');
+  if (!form) return;
+  ev.preventDefault();
+  const nome = $('#nome-nova-pasta').value.trim() || 'Pasta nova';
+  const nova = { id: novoId('pasta'), nome, dentroDe: null, aberta: true };
+  D.pastas.push(nova);
+  E.novaPasta = false;
+  anunciar(`Pasta ${nome} criada.`);
+  desenharArvore({ focar: `p:${nova.id}` });
+});
+$('#arvore').addEventListener('focusout', (ev) => {
+  if (!ev.target.classList || !ev.target.classList.contains('pasta__nome-input')) return;
+  terminarNomeDaPasta(ev.target.dataset.id, ev.target.value);
+});
+function terminarNomeDaPasta(id, valor) {
+  if (!E.editandoPasta || E.editandoPasta.id !== id) return;
+  const p = pasta(id);
+  if (valor === null) { if (E.editandoPasta.nova) D.pastas = D.pastas.filter((q) => q.id !== id); }
+  else p.nome = valor.trim().slice(0, 40) || 'Subpasta nova';
+  const mae = p.dentroDe;
+  E.editandoPasta = null;
+  desenharArvore({ focar: valor === null ? `p:${mae}` : `p:${id}` });
+}
+$('#nova-pasta').addEventListener('click', () => { E.novaPasta = true; desenharArvore(); });
+$('#nova-ficha').addEventListener('click', (ev) => {
+  const nova = { id: novoId('f'), nome: 'NPC sem nome', tipo: 'npc', papel: 'npc', pasta: pasta('npcs') ? 'npcs' : null, hp: 10, max: 10 };
+  D.fichas.push(nova);
+  if (pasta('npcs')) pasta('npcs').aberta = true;
+  E.chegou = nova.id;
+  desenharArvore();
+  abrirFicha(nova.id, ev.currentTarget, true);
+});
+
+/* ═══ Busca ══════════════════════════════════════════════════════════════ */
+$('#busca').addEventListener('input', (ev) => { E.busca = ev.target.value; desenharArvore(); });
+$('#busca').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && E.busca !== '') { ev.preventDefault(); ev.stopPropagation(); E.busca = ''; ev.target.value = ''; desenharArvore(); }
+  if (ev.key === 'ArrowDown') { const primeiro = $('#arvore [data-nav]'); if (primeiro) { ev.preventDefault(); primeiro.focus(); } }
+});
+$('#limpar-busca').addEventListener('click', () => { E.busca = ''; $('#busca').value = ''; desenharArvore(); $('#busca').focus(); });
+
+/* ═══ Teclado da árvore (convenção "Árvore de itens") ═══════════════════ */
+function navegaveis() { return [...document.querySelectorAll('#arvore [data-nav]')]; }
+$('#acervo').addEventListener('keydown', (ev) => {
+  if (ev.target.classList.contains('pasta__nome-input')) {
+    ev.stopPropagation();
+    if (ev.key === 'Enter') { ev.preventDefault(); terminarNomeDaPasta(ev.target.dataset.id, ev.target.value); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); terminarNomeDaPasta(ev.target.dataset.id, null); }
+    return;
+  }
+  if (ev.target.id === 'nome-nova-pasta' && ev.key === 'Escape') { ev.preventDefault(); E.novaPasta = false; desenharArvore(); $('#nova-pasta').focus(); return; }
+  if ((ev.key === '/' || (ev.key.toLowerCase() === 'f' && ev.ctrlKey)) && ev.target.tagName !== 'INPUT') { ev.preventDefault(); $('#busca').focus(); return; }
+  const alvo = ev.target.closest('[data-nav]');
+  if (!alvo) {
+    if (ev.key === 'Escape' && E.apagando) { const a = E.apagando; E.apagando = null; desenharArvore({ focar: a.tipo === 'pasta' ? `p:${a.id}` : `i:${a.id}` }); }
+    return;
+  }
+  const lista = navegaveis();
+  const aqui = lista.indexOf(alvo);
+  const ir = (i) => { const el = lista[Math.max(0, Math.min(lista.length - 1, i))]; if (el) el.focus(); };
+  const ehPasta = alvo.classList.contains('pasta__botao');
+  const id = ehPasta ? alvo.dataset.pasta : alvo.dataset.id;
+  if (ev.key === 'ArrowDown') { ev.preventDefault(); ir(aqui + 1); }
+  else if (ev.key === 'ArrowUp') { ev.preventDefault(); ir(aqui - 1); }
+  else if (ev.key === 'Home') { ev.preventDefault(); ir(0); }
+  else if (ev.key === 'End') { ev.preventDefault(); ir(lista.length - 1); }
+  else if (ev.key === 'ArrowRight') {
+    ev.preventDefault();
+    if (ehPasta) { const p = pasta(id); if (!p.aberta && termo() === '') { p.aberta = true; desenharArvore({ focar: `p:${id}` }); } else ir(aqui + 1); }
+    else if (copiasDe(id).length > 0 && !E.copiasAbertas.has(id)) { E.copiasAbertas.add(id); desenharArvore({ focar: `i:${id}` }); }
+  }
+  else if (ev.key === 'ArrowLeft') {
+    ev.preventDefault();
+    if (ehPasta && pasta(id).aberta && termo() === '') { pasta(id).aberta = false; desenharArvore({ focar: `p:${id}` }); return; }
+    if (!ehPasta && E.copiasAbertas.has(id)) { E.copiasAbertas.delete(id); desenharArvore({ focar: `i:${id}` }); return; }
+    const x = ehPasta ? null : ficha(id);
+    if (x && x.modeloId) { const m = document.querySelector(`[data-foco="i:${CSS.escape(x.modeloId)}"]`); if (m) m.focus(); return; }
+    const mae = alvo.closest('.pasta' + (ehPasta ? ':not([data-pasta-id="' + CSS.escape(id) + '"])' : ''));
+    const cab = ehPasta ? (pasta(id).dentroDe ? document.querySelector(`[data-foco="p:${CSS.escape(pasta(id).dentroDe)}"]`) : null) : mae && mae.querySelector(':scope > .pasta__topo .pasta__botao');
+    if (cab) cab.focus();
+  }
+  else if ((ev.key === 'F10' && ev.shiftKey) || ev.key === 'ContextMenu') {
+    if (!ehPasta && alvo.dataset.arrasta === 'ficha') { ev.preventDefault(); abrirMenu(alvo.closest('.item').querySelector('[data-acao="menu"]'), true); }
+  }
+  else if (ev.key.length === 1 && /\S/.test(ev.key) && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+    const letra = semAcento(ev.key);
+    const ordem = [...lista.slice(aqui + 1), ...lista.slice(0, aqui + 1)];
+    const achou = ordem.find((el) => semAcento(el.textContent).startsWith(letra));
+    if (achou) { ev.preventDefault(); achou.focus(); }
+  }
+});
+
+/* ═══ Arrasto: até o mapa, até um token, até uma pasta ══════════════════ */
+const LIMIAR = 6;
+let aperto = null;
+function comecarAperto(ev) {
+  const el = ev.target.closest('[data-arrasta]');
+  if (!el || ev.button !== 0 || aperto) return; // multitoque: o segundo dedo não rouba o gesto
+  aperto = { el, tipo: el.dataset.arrasta, id: el.dataset.id, x: ev.clientX, y: ev.clientY, pointerId: ev.pointerId, arrastando: false, fantasma: null, origem: null, alvo: null };
+  window.addEventListener('pointermove', moverAperto);
+  window.addEventListener('pointerup', soltarAperto);
+  window.addEventListener('pointercancel', cancelarAperto);
+  window.addEventListener('keydown', teclaNoArrasto, true);
+}
+function nomeDoArrastado() { return aperto.tipo === 'ficha' ? ficha(aperto.id).nome : D.pecas.find((p) => p.id === aperto.id).nome; }
+function pastaAtualDoArrastado() { if (aperto.tipo === 'ficha') { const x = ficha(aperto.id); return x.tipo === 'jogador' || x.modeloId ? undefined : x.pasta; } return D.pecas.find((p) => p.id === aperto.id).pasta; }
+function iniciarArrasto() {
+  aperto.arrastando = true;
+  const nome = nomeDoArrastado();
+  const foto = aperto.el.parentElement.querySelector('.foto, .jog__retrato') || aperto.el;
+  const caixa = foto.getBoundingClientRect();
+  aperto.origem = { x: caixa.left + caixa.width / 2, y: caixa.top + caixa.height / 2 };
+  const f = document.createElement('div');
+  f.className = 'fantasma';
+  f.innerHTML = `<span class="fantasma__disco${aperto.tipo === 'ficha' ? ' fantasma__disco--ficha' : ''}" style="background:${cor(nome)}">${esc(iniciais(nome))}</span><span class="fantasma__nome">${esc(nome)}</span>`;
+  document.body.appendChild(f);
+  aperto.fantasma = f;
+  const li = aperto.el.closest('.item'); if (li) li.setAttribute('data-arrastado', '');
+  $('#acervo').classList.add('arrastando');
+  // "Sem pasta" aparece vazio durante o arrasto de quem está numa pasta: é o lugar de tirá-lo de lá.
+  const pa = pastaAtualDoArrastado();
+  if (pa !== undefined && pa !== null && linhasDe(null).length === 0) {
+    $('#arvore > .lista').insertAdjacentHTML('beforeend', htmlSemPasta(true));
+  }
+}
+function posicionarFantasma(x, y) { aperto.fantasma.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`; }
+function limparAlvo() {
+  document.querySelectorAll('.pasta[data-alvo]').forEach((p) => p.removeAttribute('data-alvo'));
+  const r = $('#realce'); if (r) { r.hidden = true; r.removeAttribute('data-alvo'); $('#realce-rotulo').hidden = true; }
+}
+function alvoSob(x, y) {
+  const el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  const grade = el.closest('[data-mapa]');
+  if (grade) {
+    const g = grade.getBoundingClientRect();
+    const col = Math.floor((x - g.left) / CASA), row = Math.floor((y - g.top) / CASA);
+    const cols = Math.floor(g.width / CASA), rows = Math.floor(g.height / CASA);
+    if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
+    const token = D.tokens.find((t) => t.col === col && t.row === row);
+    if (token && aperto.tipo === 'ficha') return { tipo: 'token', token, col, row };
+    return { tipo: 'casa', col, row };
+  }
+  const solta = el.closest('[data-solta-pasta]');
+  if (solta && solta.closest('#arvore')) {
+    const pastaId = solta.dataset.soltaPasta === '' ? null : solta.dataset.soltaPasta;
+    const atual = pastaAtualDoArrastado();
+    if (atual === undefined || atual === pastaId) return null; // jogador e cópia não vão para pasta; a mesma pasta não é destino
+    return { tipo: 'pasta', el: solta, pastaId };
+  }
+  return null;
+}
+function mostrarAlvo(alvo) {
+  limparAlvo();
+  if (!alvo) return;
+  if (alvo.tipo === 'pasta') { alvo.el.setAttribute('data-alvo', 'dentro'); return; }
+  const r = $('#realce');
+  r.hidden = false;
+  r.style.left = `${alvo.col * CASA}px`;
+  r.style.top = `${alvo.row * CASA}px`;
+  if (alvo.tipo === 'token') {
+    r.setAttribute('data-alvo', 'token');
+    const rot = $('#realce-rotulo');
+    rot.hidden = false;
+    rot.textContent = alvo.token.fichaId === aperto.id ? `Já é de ${alvo.token.nome}` : `Ligar a ${alvo.token.nome}`;
+  }
+}
+function moverAperto(ev) {
+  if (!aperto || ev.pointerId !== aperto.pointerId) return;
+  if (!aperto.arrastando) {
+    if (Math.hypot(ev.clientX - aperto.x, ev.clientY - aperto.y) < LIMIAR) return;
+    iniciarArrasto();
+  }
+  posicionarFantasma(ev.clientX, ev.clientY);
+  const alvo = alvoSob(ev.clientX, ev.clientY);
+  const chave = alvo ? `${alvo.tipo}:${alvo.pastaId ?? ''}:${alvo.col ?? ''}:${alvo.row ?? ''}` : '';
+  if (chave !== aperto.chave) { aperto.chave = chave; aperto.alvo = alvo; mostrarAlvo(alvo); }
+}
+function encerrar() {
+  window.removeEventListener('pointermove', moverAperto);
+  window.removeEventListener('pointerup', soltarAperto);
+  window.removeEventListener('pointercancel', cancelarAperto);
+  window.removeEventListener('keydown', teclaNoArrasto, true);
+  $('#acervo').classList.remove('arrastando');
+  limparAlvo();
+  aperto = null;
+}
+function devolverFantasma() {
+  const f = aperto.fantasma, o = aperto.origem;
+  const li = aperto.el.closest('.item');
+  f.setAttribute('data-volta', '');
+  requestAnimationFrame(() => { f.style.transform = `translate(${o.x}px, ${o.y}px) translate(-50%, -50%) scale(0.6)`; });
+  setTimeout(() => { f.remove(); if (li) li.removeAttribute('data-arrastado'); }, 200);
+}
+function soltarAperto(ev) {
+  if (!aperto || ev.pointerId !== aperto.pointerId) return;
+  if (!aperto.arrastando) { encerrar(); return; }
+  engolirClique = true;
+  setTimeout(() => { engolirClique = false; }, 0);
+  const { tipo, id, alvo } = aperto;
+  if (!alvo || (alvo.tipo === 'token' && alvo.token.fichaId === id)) { devolverFantasma(); encerrar(); desenharArvore(); return; }
+  aperto.fantasma.remove();
+  encerrar();
+  if (alvo.tipo === 'casa') porNoMapa(tipo, id, { col: alvo.col, row: alvo.row });
+  else if (alvo.tipo === 'token') ligarAoToken(id, alvo.token.id);
+  else { if (tipo === 'ficha') moverFicha(id, alvo.pastaId); else moverPeca(id, alvo.pastaId); tudo(); }
+}
+function cancelarAperto() { if (!aperto) return; if (aperto.arrastando) devolverFantasma(); encerrar(); desenharArvore(); }
+function teclaNoArrasto(ev) { if (ev.key === 'Escape' && aperto && aperto.arrastando) { ev.preventDefault(); ev.stopPropagation(); engolirClique = true; setTimeout(() => { engolirClique = false; }, 0); cancelarAperto(); } }
+document.addEventListener('pointerdown', comecarAperto);
+document.addEventListener('dragstart', (ev) => { if (ev.target.closest && ev.target.closest('[data-arrasta]')) ev.preventDefault(); });
+
+/* ═══ Coluna da direita, atalhos gerais ══════════════════════════════════ */
+$('#jogadores').addEventListener('click', (ev) => {
+  if (engolirClique) { engolirClique = false; return; }
+  const b = ev.target.closest('[data-abre]');
+  if (b) abrirFicha(b.dataset.abre, b);
+});
+$('#novo-jogador').addEventListener('click', (ev) => {
+  const novo = { id: novoId('j'), nome: 'Jogador novo', tipo: 'jogador', papel: 'jogador', pasta: null, hp: 30, max: 30 };
+  D.fichas.push(novo);
+  desenharJogadores();
+  abrirFicha(novo.id, ev.currentTarget, true);
+  $('#ficha-nome').addEventListener('input', () => desenharJogadores());
+});
+$('#mostrar-no-acervo').addEventListener('click', () => {
+  const npcs = pasta('npcs');
+  if (npcs) npcs.aberta = true;
+  desenharArvore({ focar: npcs ? 'p:npcs' : undefined });
+  const li = document.querySelector('[data-pasta-id="npcs"]');
+  if (li) { li.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); li.setAttribute('data-pisca', ''); setTimeout(() => li.removeAttribute('data-pisca'), 1200); }
+});
+$('#recomecar').addEventListener('click', () => {
+  D = dadosIniciais();
+  Object.assign(E, { busca: '', copiasAbertas: new Set(), apagando: null, movendoPeca: null, editandoPasta: null, novaPasta: false, avisoMigracao: true, chegou: null, tokenNovo: null, selecionado: null, desfazer: [] });
+  $('#busca').value = '';
+  fecharFicha();
+  tudo();
+});
+document.addEventListener('keydown', (ev) => {
+  const digitando = ev.target.tagName === 'INPUT';
+  if (ev.key.toLowerCase() === 'z' && (ev.ctrlKey || ev.metaKey) && !digitando) {
+    const ultimo = E.desfazer.pop();
+    if (!ultimo) return;
+    ev.preventDefault();
+    D.tokens = D.tokens.filter((t) => t.id !== ultimo.tokenId);
+    if (ultimo.fichaCriada) D.fichas = D.fichas.filter((x) => x.id !== ultimo.fichaCriada);
+    E.selecionado = null;
+    anunciar('Desfeito.');
+    tudo();
+  }
+  if (ev.key === 'Escape' && E.fichaAberta && !ev.defaultPrevented) fecharFicha();
+});
+
+tudo();
+</script>
+</body>
+</html>
