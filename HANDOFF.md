@@ -10,6 +10,7 @@ Os 10 itens do dono de 21/11 (literal no fim do PEDIDOS.md): 1 DOCS, 2 mover e r
 - Respostas do dono (adda82fe): NPCs no Acervo; Testar = boneco de treino + miniaba de preview; reação = usada no lugar da reação normal; item usado por jogador, mestre e NPC com ficha, depois "usar item" na batalha. Se o Fable acabar, usar Opus 5.5.
 - EM VOO também: programador-frontend Fase 0 das habilidades (consertos do ANALISE.md, sem desenho novo); designer-opus item 6 (docs/design/acervo/npcs-no-acervo.html + NOTAS.md).
 - EM VOO: designer-opus estátua de cavalo (catálogo, lib/carimbos.ts).
+- NA FILA: muitas peças de puzzle (encaixar, combinar, chaves), pedido de 21/11 (PEDIDOS, fim).
 - ANTES: estátua de cavalo (pedido de 21/11 00h59; "Só objeto do mapa").
 
 ## Próximos passos
