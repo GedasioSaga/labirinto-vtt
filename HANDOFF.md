@@ -7,7 +7,7 @@ Os 10 itens do dono de 21/11 (literal no fim do PEDIDOS.md): 1 DOCS, 2 mover e r
 - 1 FEITO 218a7b5d (rótulo DOCS no livro do mestre e na barra do jogador; App.colunaDireita.test ajustado; tsc ainda não rodado nesta leva).
 - EM VOO (5 agentes, o teto): programador-frontend itens 2 + 4; debugador item 5 + balas do Vicent; designer-fable item 3 (docs/design/jogos/editor-de-desafio.html + NOTAS.md, sem código do app); arquiteto-solucoes em Fable itens 8, 9, 10 (docs/design/habilidades/ANALISE.md + SISTEMA.md, sem código; respostas do dono já repassadas); designer-opus item 7 (docs/design/bau/conteudo-do-bau.html + NOTAS.md).
 - Respostas do dono (adda82fe): NPCs no Acervo; Testar = boneco de treino + miniaba de preview; reação = usada no lugar da reação normal; item usado por jogador, mestre e NPC com ficha, depois "usar item" na batalha. Se o Fable acabar, usar Opus 5.5.
-- NA FILA: item 6 (quando abrir vaga), estátua de cavalo (pedido de 21/11 00h59).
+- NA FILA: item 6 (quando abrir vaga), estátua de cavalo (pedido de 21/11 00h59; "Só objeto do mapa").
 
 ## Próximos passos
 1. Receber cada agente, conferir o relato, commit já feito por ele, anotar aqui e no PEDIDOS.

@@ -2887,3 +2887,4 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 
 - Literal: "[Image #37] Tem como criar uma esatua de cavalo ?"
 - Print: cabeça de cavalo de pedra esverdeada sobre pedestal de pedra num salão escuro de castelo, à luz de velas (cara de puzzle de Resident Evil).
+- 21/11 01h01 (date). Resposta: "Só objeto do mapa". Fila: estátua de cavalo no catálogo de objetos (vista de cima, Meio-Termo, arte por código), com e sem pedestal; entra quando abrir vaga (5 agentes em voo).
