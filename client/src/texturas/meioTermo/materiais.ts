@@ -767,6 +767,9 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   montanhaPequena: [lugar('pedra', 'Rocha', PEDRAS, 'granito')],
   montanhaMedia: [lugar('pedra', 'Rocha', PEDRAS, 'granito')],
   montanhaGrande: [lugar('pedra', 'Rocha', PEDRAS, 'granito')],
+  // A estátua de cavalo (21/11/2026): a pedra é a da cabeça e a do pedestal; o verde do tempo por cima é fixo.
+  estatuaDeCavalo: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  estatuaDeCavaloSemPedestal: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

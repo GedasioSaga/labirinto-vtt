@@ -332,6 +332,7 @@ import { montarCentroDeMesa } from './centroDeMesa'
 import { montarLapideTorta } from './lapideTorta'
 import { montarMontanhaGrande, montarMontanhaMedia, montarMontanhaPequena, prepararMontanhaGrande, prepararMontanhaMedia, prepararMontanhaPequena } from './montanha'
 import { montarTorreDoDragao } from './torreDoDragao'
+import { montarEstatuaDeCavalo, montarEstatuaDeCavaloSemPedestal } from './estatuaDeCavalo'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -730,6 +731,8 @@ const MONTADORES = {
   montanhaPequena: montarMontanhaPequena,
   montanhaMedia: montarMontanhaMedia,
   montanhaGrande: montarMontanhaGrande,
+  estatuaDeCavalo: montarEstatuaDeCavalo,
+  estatuaDeCavaloSemPedestal: montarEstatuaDeCavaloSemPedestal,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -813,6 +816,8 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
   // Leva E2 de 16/11/2026: a torre do dragão (Castelo) e a montanha em três tamanhos (Natureza e relevo).
   'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande',
+  // A estátua de cavalo (21/11/2026), com e sem o pedestal.
+  'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

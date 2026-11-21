@@ -2389,6 +2389,25 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M13.5 9.5h7M13.5 15h7" />
         </>
       )
+    case 'estatuaDeCavalo':
+      // De frente: a cabeça de cavalo de perfil virada para a esquerda (a orelha em pé, a cara descendo até o focinho, a
+      // crina atrás do pescoço) em cima do pedestal quadrado, com a cornija e o soco (a equestre tem o cavalo inteiro).
+      return (
+        <>
+          <path d="M10.2 15c0-1.6.5-2.6 1.2-3.4l-2.6.7c-.8.2-1.4-.2-1.5-.9l-.2-1c-.1-.6.2-1.1.7-1.4l4.6-3.4.8-2.7.9 2.9c1.4 1.4 2.1 3.4 2.1 5.8V15" />
+          <path d="M14.8 6.9c1.6 1.1 2.5 3 2.5 5.3" />
+          <path d="M6.5 15h11M7.5 15v6.5M16.5 15v6.5M5.5 21.5h13" />
+        </>
+      )
+    case 'estatuaDeCavaloSemPedestal':
+      // De frente: a mesma cabeça de cavalo de perfil, maior, pousada no chão pela base cortada do pescoço.
+      return (
+        <>
+          <path d="M10.25 20.5c0-2 .62-3.25 1.5-4.25l-3.25.88c-1 .25-1.75-.25-1.88-1.13l-.25-1.25c-.12-.75.25-1.38.88-1.75l5.75-4.25 1-3.37 1.12 3.62c1.75 1.75 2.63 4.25 2.63 7.25v4.25" />
+          <path d="M16 10.4c2 1.4 3.1 3.7 3.1 6.6" />
+          <path d="M6.5 20.5h13" />
+        </>
+      )
     // Lote L03 de 14/11/2026, o cerco e a defesa.
     case 'catapulta':
       // De lado: o chassi com as duas rodas, o braço armado para trás com a concha e a pedra, e o batente em A na frente.

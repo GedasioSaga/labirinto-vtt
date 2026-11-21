@@ -506,6 +506,9 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // e sobe como eles. A armadura de pé é desenhada de frente, como o manequim.
   armaduraDespedacada: { modo: 'derivado', alturaSolta: 0.03 * G },
   armadura: EM_PE,
+  // A estátua de cavalo (21/11/2026) é desenhada de frente, como a armadura: a cabeça de perfil em pé no pedestal.
+  estatuaDeCavalo: EM_PE,
+  estatuaDeCavaloSemPedestal: EM_PE,
   // Lotes 13 e 16 dos 95 objetos novos (11/11/2026), o templo e a masmorra. O braseiro sobe pelas sombras: cada
   // perna é uma coluna da altura da borda e a bacia sobe em dois pinos, o do bojo e o da boca; a chama animada
   // sobe a mesma altura (`deslocamentoDaChama`), como a da fornalha.

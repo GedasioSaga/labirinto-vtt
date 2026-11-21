@@ -517,6 +517,8 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       montanhaPequena: ['pedra:granito'],
       montanhaMedia: ['pedra:granito'],
       montanhaGrande: ['pedra:granito'],
+      estatuaDeCavalo: ['pedra:granito'],
+      estatuaDeCavaloSemPedestal: ['pedra:granito'],
     })
   })
 

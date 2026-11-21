@@ -177,6 +177,10 @@ export const TIPOS_MOBILIA = [
   'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
   // Leva E2 de 16/11/2026: a torre do dragão (Castelo) e a montanha em três tamanhos (Natureza e relevo).
   'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande',
+  // A estátua de cavalo (21/11/2026, "Tem como criar uma esatua de cavalo ?"; resposta "Só objeto do mapa"): a cabeça
+  // de cavalo de pedra esverdeada, com e sem o pedestal quadrado. Enfeite de salão do castelo, no Objeto, como a
+  // armadura de pé: não é construção nem enigma.
+  'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

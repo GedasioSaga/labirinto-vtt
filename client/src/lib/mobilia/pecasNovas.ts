@@ -83,6 +83,8 @@ export const PECAS_NOVAS = [
   'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
   // Leva E2 de 16/11/2026: a torre do dragão (Castelo) e a montanha em três tamanhos (Natureza e relevo).
   'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande',
+  // A estátua de cavalo (21/11/2026), com e sem o pedestal: enfeite do Castelo no Objeto.
+  'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -647,6 +649,9 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   montanhaPequena: { rotulo: 'Montanha pequena', artigo: 'uma montanha pequena', tamanho: { largura: 4, altura: 4 }, redonda: true },
   montanhaMedia: { rotulo: 'Montanha média', artigo: 'uma montanha média', tamanho: { largura: 6, altura: 6 }, redonda: true },
   montanhaGrande: { rotulo: 'Montanha grande', artigo: 'uma montanha grande', tamanho: { largura: 10, altura: 8 }, redonda: true },
+  // A estátua de cavalo (21/11/2026) ocupa uma casa, como a armadura de pé; sem o pedestal, a cabeça fica no chão.
+  estatuaDeCavalo: { rotulo: 'Estátua de cavalo', artigo: 'uma estátua de cavalo', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  estatuaDeCavaloSemPedestal: { rotulo: 'Estátua de cavalo sem pedestal', artigo: 'uma estátua de cavalo sem pedestal', tamanho: { largura: 1, altura: 1 }, redonda: false },
   lapideTorta: { rotulo: 'Lápide torta', artigo: 'uma lápide torta', tamanho: { largura: 0.6, altura: 0.4 }, redonda: false },
 }
 
@@ -971,6 +976,8 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     montanhaPequena: valor(f.montanhaPequena),
     montanhaMedia: valor(f.montanhaMedia),
     montanhaGrande: valor(f.montanhaGrande),
+    estatuaDeCavalo: valor(f.estatuaDeCavalo),
+    estatuaDeCavaloSemPedestal: valor(f.estatuaDeCavaloSemPedestal),
   }
 }
 
@@ -1050,6 +1057,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
   // Leva E2 de 16/11/2026: a torre do dragão (Castelo) e a montanha em três tamanhos (Natureza e relevo).
   'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande',
+  // A estátua de cavalo (21/11/2026), com e sem o pedestal, depois da leva E2.
+  'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
   // As construções de 14/11/2026 (lotes L15 a L19), na ordem da lista do dia: a ferramenta Construção as arruma
   // pelos grupos de `construcoes.ts`.
   'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
@@ -3161,6 +3170,24 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         linha(hw * 0.44, 0, hw * 0.82),
       ]
     }
+    case 'estatuaDeCavalo':
+      // De frente: o tampo e a frente do pedestal, o soco embaixo e, em cima, a cabeça de cavalo de perfil (a nuca, a
+      // cara descendo até o focinho à esquerda e a crina atrás do pescoço).
+      return [
+        ...quadro(-hw * 0.46, hh * 0.08, hw * 0.46, hh * 0.78),
+        linha(-hw * 0.52, hh * 0.78, hw * 0.52),
+        { x1: hw * 0.24, y1: hh * 0.06, x2: hw * 0.12, y2: -hh * 0.82 },
+        { x1: hw * 0.12, y1: -hh * 0.82, x2: -hw * 0.5, y2: -hh * 0.32 },
+        { x1: -hw * 0.5, y1: -hh * 0.32, x2: -hw * 0.2, y2: hh * 0.06 },
+      ]
+    case 'estatuaDeCavaloSemPedestal':
+      // De frente: a cabeça de cavalo de perfil no chão, a base cortada do pescoço embaixo.
+      return [
+        linha(-hw * 0.3, hh * 0.62, hw * 0.4),
+        { x1: hw * 0.36, y1: hh * 0.62, x2: hw * 0.2, y2: -hh * 0.6 },
+        { x1: hw * 0.2, y1: -hh * 0.6, x2: -hw * 0.6, y2: -hh * 0.05 },
+        { x1: -hw * 0.6, y1: -hh * 0.05, x2: -hw * 0.26, y2: hh * 0.62 },
+      ]
     // Lote L03 de 14/11/2026, o cerco e a defesa: os traços que o desenhista entregou com o desenho.
     case 'catapulta':
       // O chassi, o braço com a concha atrás, a meada atravessada no pé do braço e a trave alta do batente na frente.

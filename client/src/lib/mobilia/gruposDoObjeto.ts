@@ -286,6 +286,9 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   mesaDeGuerra: 'castelo',
   poleiroDeFalcao: 'castelo',
   aljavasEFlechas: 'castelo',
+  // A estátua de cavalo (21/11/2026), com e sem o pedestal: enfeite de salão, como a armadura de pé.
+  estatuaDeCavalo: 'castelo',
+  estatuaDeCavaloSemPedestal: 'castelo',
   // Cerco e defesa (14/11/2026): o lote L03, da catapulta à escada de cerco, e a primeira metade do L04, do cavalo
   // de frisa ao tacho de óleo quente. O canhão continua no porto e navio.
   catapulta: 'cercoEDefesa',
@@ -691,6 +694,8 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   montanhaPequena: ['monte', 'morro', 'pico', 'rocha', 'neve', 'relevo'],
   montanhaMedia: ['monte', 'morro', 'pico', 'rocha', 'neve', 'relevo'],
   montanhaGrande: ['monte', 'serra', 'cordilheira', 'pico', 'rocha', 'neve', 'relevo'],
+  estatuaDeCavalo: ['cabeça de cavalo', 'busto', 'escultura', 'monumento', 'pedestal'],
+  estatuaDeCavaloSemPedestal: ['cabeça de cavalo', 'busto', 'escultura'],
 }
 
 const MARCA_DE_ACENTO = /\p{M}/gu

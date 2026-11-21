@@ -234,7 +234,8 @@ describe('TOOL_VARIANTS', () => {
     // no fim, o lote A e o lote B: 253. E as 22 das referências (16/11/2026) depois delas, o lote L1 e o lote L2: 275.
     // A natureza com carimbo (pedras e rochas, toco de árvore e árvore seca) saiu para o Carimbo na Fase 6
     // (16/11/2026, `lib/naturezaNoCarimbo.ts`): 272. E a sebe, quando a "Sebe aparada" do carimbo ficou pronta: 271.
-    // E a caixa quebrada (16/11/2026), logo depois do barril quebrado: 272.
+    // E a caixa quebrada (16/11/2026), logo depois do barril quebrado: 272. E a estátua de cavalo (21/11/2026), com e
+    // sem o pedestal, no fim: 274.
     expect(grupo.options.map((o) => o.value)).toEqual([
       'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'jardineira',
       'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'muroDeFogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
@@ -280,8 +281,9 @@ describe('TOOL_VARIANTS', () => {
       'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
       'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
       'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
+      'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
     ])
-    expect(grupo.options).toHaveLength(272)
+    expect(grupo.options).toHaveLength(274)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Muro de fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
@@ -327,6 +329,7 @@ describe('TOOL_VARIANTS', () => {
       'Bandeja de instrumentos', 'Mesa de laboratório', 'Panelas e bacias', 'Cadeira giratória', 'Máquina de escrever',
       'Elevador antigo', 'Alçapão', 'Deck de madeira', 'Coluna quebrada', 'Altar redondo', 'Laje de sacrifício', 'Túmulo de pedra',
       'Carro antigo', 'Prateleira de toalhas', 'Cadeira de espaldar alto', 'Centro de mesa', 'Lápide torta',
+      'Estátua de cavalo', 'Estátua de cavalo sem pedestal',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'carroca']
@@ -360,7 +363,7 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 24 partes da ficha (Sala e quarto 23, Cozinha 11, Banheiro 17, Armazenagem 11, Rua e jardim 18, Cemitério 10, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 13, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 14, Sala de tortura 7, Magia e alquimia 3, Necrotério e laboratório 10, Tesouro 8, Castelo 11, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 12, Descanso e brincadeira 14, Cidade e vila 12; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 24 partes da ficha (Sala e quarto 23, Cozinha 11, Banheiro 17, Armazenagem 11, Rua e jardim 18, Cemitério 10, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 13, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 14, Sala de tortura 7, Magia e alquimia 3, Necrotério e laboratório 10, Tesouro 8, Castelo 13, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 12, Descanso e brincadeira 14, Cidade e vila 12; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
@@ -392,7 +395,7 @@ describe('TOOL_VARIANTS', () => {
       ['Magia e alquimia', 3],
       ['Necrotério e laboratório', 10],
       ['Tesouro', 8],
-      ['Castelo', 11],
+      ['Castelo', 13],
       ['Cerco e defesa', 7],
       ['Base militar', 15],
       ['Mar e piratas', 14],
@@ -452,6 +455,7 @@ describe('TOOL_VARIANTS', () => {
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Castelo')?.tipos).toEqual([
       'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
       'mesaDeBanquete', 'bancosDeCapela', 'mesaDeGuerra', 'poleiroDeFalcao', 'aljavasEFlechas',
+      'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cerco e defesa')?.tipos).toEqual(['catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco', 'cavaloDeFrisa', 'pilhaDeBalasDeCanhao', 'tachoDeOleoQuente'])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Base militar')?.tipos).toEqual([
