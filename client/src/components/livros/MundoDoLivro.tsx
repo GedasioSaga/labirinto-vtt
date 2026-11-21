@@ -15,6 +15,7 @@ import { IconeDoMundo, type NomeDoIconeDoMundo } from './icones'
 import { PaginaAnotacoes } from './PaginaAnotacoes'
 import { PaginaComparar } from './PaginaComparar'
 import { PaginaItens } from './PaginaItens'
+import { TIPOS_DA_PAGINA } from '../../lib/livros/paginasDaBiblioteca'
 import { PaginaJogadores } from './PaginaJogadores'
 import { PaginaNpcs } from './PaginaNpcs'
 import { PaginaSaude } from './PaginaSaude'
@@ -41,7 +42,9 @@ const MARCADORES: readonly { aba: AbaDoMundo; rotulo: string; icone: NomeDoIcone
   { aba: 'npcs', rotulo: 'NPCs de combate', icone: 'npc' },
   { aba: 'comparar', rotulo: 'Comparar e balancear', icone: 'balanca' },
   { aba: 'saude', rotulo: 'Saúde da ficha', icone: 'saude' },
-  { aba: 'itens', rotulo: 'Itens e habilidades', icone: 'itens' },
+  // Fase 1 (docs/design/habilidades/SISTEMA.md §7): o antigo 'Itens e habilidades' virou duas páginas.
+  { aba: 'itens', rotulo: 'Itens', icone: 'itens' },
+  { aba: 'habilidades', rotulo: 'Habilidades', icone: 'habilidades' },
   { aba: 'anotacoes', rotulo: 'Anotações', icone: 'nota' },
   { aba: 'arena', rotulo: 'Arena de testes', icone: 'boneco' },
 ]
@@ -62,7 +65,7 @@ const PaginaArenaDBT = lazy(() => import('../dbt/arena/PaginaArenaDBT').then((mo
 /** A camada cheia da luta da arena (One Piece ou Dragon Ball): com ela aberta, o Esc não fecha o mundo atrás (ver `TelaDaArena`). */
 const SELETOR_DA_ARENA = '.ar-tela, .dba-tela'
 
-const ABAS_SO_DO_MOTOR_PADRAO: readonly AbaDoMundo[] = ['saude', 'itens']
+const ABAS_SO_DO_MOTOR_PADRAO: readonly AbaDoMundo[] = ['saude', 'itens', 'habilidades']
 
 const idDaAba = (aba: AbaDoMundo): string => `mu-aba-${aba}`
 const ID_DA_PAGINA = 'mu-pagina'
@@ -84,8 +87,12 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
    * testes têm versão própria).
    */
   const marcadores = dragonBall ? MARCADORES.filter((marcador) => !ABAS_SO_DO_MOTOR_PADRAO.includes(marcador.aba)) : MARCADORES
-  /** As entradas do catálogo deste livro (as do mestre e as do livro), para o número do marcador Itens e habilidades. */
-  const noCatalogo = useCatalogoStore((state) => (aberto !== null && state.sistemaId === aberto.sistemaId ? state.itens.length + state.doLivro.length : null))
+  /** As entradas do catálogo deste livro que são da página Itens (armas e itens do mestre), para o número do marcador. */
+  const itensNoCatalogo = useCatalogoStore((state) => (aberto !== null && state.sistemaId === aberto.sistemaId ? state.itens.filter((item) => TIPOS_DA_PAGINA.itens.includes(item.tipo)).length : null))
+  /** As habilidades do mestre e as do livro (perícias, vantagens, desvantagens): o número do marcador Habilidades. */
+  const habilidadesNoCatalogo = useCatalogoStore((state) =>
+    aberto !== null && state.sistemaId === aberto.sistemaId ? state.itens.filter((item) => TIPOS_DA_PAGINA.habilidades.includes(item.tipo)).length + state.doLivro.length : null,
+  )
   /** As coisas do Acervo do app, que a página Itens lista junto (Fase 1). */
   const noAcervo = useAcervoDeItensStore((state) => state.itens.length)
   /** Quantos campos a batalha não lê (o número do marcador Saúde da ficha, em latão quando há). */
@@ -163,7 +170,8 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     // As fichas escolhidas para comparar; nenhuma = sem número.
     comparar: comparando === 0 ? null : comparando,
     saude: naoLidos,
-    itens: noCatalogo === null ? null : noCatalogo + noAcervo,
+    itens: itensNoCatalogo === null ? null : itensNoCatalogo + noAcervo,
+    habilidades: habilidadesNoCatalogo,
     anotacoes: personagens === null ? null : personagens.filter((personagem) => (personagem.notaDoMestre ?? '').trim().length > 0).length,
     // A Arena de testes não tem contagem.
     arena: null,
@@ -243,8 +251,9 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     pagina = <PaginaComparar personagens={personagens} sistema={sistema} onVerSaude={() => trocarAba('saude', false)} />
   } else if (aba === 'saude' && !dragonBall) {
     pagina = <PaginaSaude personagens={personagens} sistema={sistema} />
-  } else if (aba === 'itens' && !dragonBall) {
-    pagina = <PaginaItens personagens={personagens} sistema={sistema} />
+  } else if ((aba === 'itens' || aba === 'habilidades') && !dragonBall) {
+    // A chave pela aba: trocar de página começa a busca e o filtro do zero (as duas são o mesmo componente).
+    pagina = <PaginaItens key={aba} personagens={personagens} sistema={sistema} pagina={aba} />
   } else if (aba === 'anotacoes') {
     pagina = <PaginaAnotacoes personagens={personagens} />
   } else if (aba === 'arena' && dragonBall) {

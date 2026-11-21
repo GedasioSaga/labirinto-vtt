@@ -209,7 +209,10 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
     const ids = new Set(camposDoTipoEscolhido.map((campo) => campo.id))
     const doTipo = Object.fromEntries(Object.entries(campos).filter(([chave]) => ids.has(chave)))
     const balasMontadas = montarBalas()
-    const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined, acervoId: acervoId === '' ? undefined : acervoId })
+    const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined, acervoId: acervoId === '' ? undefined : acervoId,
+      // B04: a janela ainda não edita a mecânica; o Salvar mantém a que a entrada já tinha (no mesmo tipo).
+      mecanica: editando?.tipo === tipo ? editando.mecanica : undefined,
+    })
     if (item === null) return { erro: 'Dê um nome à entrada.' }
     if ('erro' in balasMontadas) return { erro: balasMontadas.erro, bala: balasMontadas.chave }
     const chave = chaveDoNomeDaEntrada(item.nome)

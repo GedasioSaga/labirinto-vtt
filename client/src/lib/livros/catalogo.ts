@@ -1,6 +1,6 @@
 import { normalizarParaBusca } from '../buscaNoLivro'
 import { ABA_DAS_ARMAS, armasDe, limiteDeArmas } from '../batalha/leituraDaFicha'
-import { cartoesDaAba, novoCartao, type CartaoDaFicha, type Personagem } from '../personagem'
+import { cartoesDaAba, mecanicaDoArquivo, novoCartao, type CartaoDaFicha, type MecanicaGuardada, type Personagem } from '../personagem'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../sistemaDeRpg'
 
 /**
@@ -76,6 +76,14 @@ export interface ItemDoCatalogo {
    * entrada solta, como antes.
    */
   acervoId?: string
+  /**
+   * B04 (docs/design/habilidades/ANALISE.md; Fase 1 do SISTEMA.md): as peças
+   * da técnica ou da arma montada, guardadas como vieram (opacas, como no
+   * cartão: quem lê é `lerMecanica`). "Juntar das fichas" a traz e "Pôr em" a
+   * leva ao cartão novo. Só arma e habilidade (o item ganha o efeito na fase 7).
+   * Ausente = a entrada vale pelo texto, como antes.
+   */
+  mecanica?: MecanicaGuardada
 }
 
 /** Um tipo de bala da arma do catálogo: nome e os campos da aba das balas (`dano`, `efeito`, `quantidade`). */
@@ -163,7 +171,7 @@ function camposLimpos(value: unknown): Record<string, string> {
  * campos limpos. `null` = sem nome (não entra). Funil único da leitura do
  * arquivo e do "Salvar" da janela de entrada.
  */
-export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; texto: unknown; campos: unknown; balas?: unknown; acervoId?: unknown }): ItemDoCatalogo | null {
+export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; texto: unknown; campos: unknown; balas?: unknown; acervoId?: unknown; mecanica?: unknown }): ItemDoCatalogo | null {
   if (typeof item.id !== 'string' || !ID_DE_ENTRADA.test(item.id) || !ehTipoDoCatalogo(item.tipo) || typeof item.nome !== 'string') return null
   const nome = cortar(item.nome.trim(), ENTRADA_NOME_MAX).trim()
   if (nome.length === 0) return null
@@ -173,6 +181,8 @@ export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; tex
   if (item.tipo === 'arma' && Array.isArray(item.balas)) limpo.balas = balasLimpas(item.balas)
   // Fase 5: a ligação com a coisa do Acervo; habilidade não tem coisa, id torto sai.
   if (item.tipo !== 'habilidade' && typeof item.acervoId === 'string' && ID_DE_ENTRADA.test(item.acervoId)) limpo.acervoId = item.acervoId
+  // B04: a mecânica pelo mesmo leitor (e teto) do cartão da ficha; o item ainda não tem mecânica.
+  if (item.tipo !== 'item') Object.assign(limpo, mecanicaDoArquivo(item.mecanica))
   return limpo
 }
 
@@ -229,7 +239,7 @@ export function catalogoDoArquivo(value: unknown): ItemDoCatalogo[] {
   for (const bruto of brutos) {
     if (itens.length === CATALOGO_MAX) break
     if (!isRecord(bruto)) continue
-    const item = itemLimpo({ id: bruto.id, tipo: bruto.tipo, nome: bruto.nome, texto: bruto.texto, campos: bruto.campos, balas: bruto.balas, acervoId: bruto.acervoId })
+    const item = itemLimpo({ id: bruto.id, tipo: bruto.tipo, nome: bruto.nome, texto: bruto.texto, campos: bruto.campos, balas: bruto.balas, acervoId: bruto.acervoId, mecanica: bruto.mecanica })
     if (item === null || ids.has(item.id)) continue
     ids.add(item.id)
     itens.push(item)
@@ -282,7 +292,9 @@ function cartaoDaEntrada(entrada: EntradaParaFicha, aba: AbaDoSistema, sistema: 
   const atributos = aba.atributos === true && ehDoLivro(entrada) ? entrada.atributos.filter((id) => idsDosAtributos.has(id)) : []
   // Fase 5: a arma ligada a uma coisa do Acervo leva o id dela; é por ele que a Garrucha da mochila acha esta regra.
   const itemId = !ehDoLivro(entrada) && entrada.tipo === 'arma' ? entrada.acervoId : undefined
-  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema), ...(itemId === undefined ? {} : { itemId }) }
+  // B04: a mecânica da entrada vai junto, em cópia (o cartão novo não divide o objeto com o catálogo).
+  const mecanica = ehDoLivro(entrada) ? {} : mecanicaDoArquivo(entrada.mecanica)
+  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema), ...(itemId === undefined ? {} : { itemId }), ...mecanica }
 }
 
 /** As balas da arma do catálogo como subcartões da aba de destino; o campo que a aba das balas não tem fica de fora. */
@@ -329,7 +341,7 @@ export function tirarDaFicha(personagem: Personagem, abaId: string, cartaoId: st
 /** O cartão da ficha como entrada do catálogo. `null` = sem nome, ou com o nome de fábrica ("Arma"). */
 function itemDoCartao(cartao: CartaoDaFicha, tipo: TipoDoCatalogo): ItemDoCatalogo | null {
   const balas = tipo === 'arma' && cartao.subcartoes.length > 0 ? cartao.subcartoes.map((sub) => ({ nome: sub.nome, campos: sub.campos })) : undefined
-  const item = itemLimpo({ id: novoIdDeEntrada(), tipo, nome: cartao.nome, texto: cartao.campos[CAMPO_DA_DESCRICAO] ?? '', campos: cartao.campos, balas })
+  const item = itemLimpo({ id: novoIdDeEntrada(), tipo, nome: cartao.nome, texto: cartao.campos[CAMPO_DA_DESCRICAO] ?? '', campos: cartao.campos, balas, mecanica: cartao.mecanica })
   if (item === null || chaveDoNomeDaEntrada(item.nome) === chaveDoNomeDaEntrada(DADOS_DO_TIPO[tipo].um)) return null
   return item
 }
@@ -358,6 +370,35 @@ export function juntarDasFichas(personagens: readonly Personagem[], catalogo: re
     }
   }
   return novos
+}
+
+/**
+ * B04, "JUNTAR DAS FICHAS" DE NOVO (SISTEMA.md §10): as entradas do catálogo
+ * SEM mecânica ganham a do cartão montado de mesmo tipo e nome numa ficha da
+ * pasta (o primeiro achado). Entrada que já tem mecânica não muda. Devolve o
+ * catálogo novo e quantas ganharam; nenhuma = a MESMA lista.
+ */
+export function mecanicasDasFichas(personagens: readonly Personagem[], catalogo: readonly ItemDoCatalogo[]): { itens: ItemDoCatalogo[]; ganharam: number } {
+  const chaveDe = (tipo: TipoDoCatalogo, nome: string): string => `${tipo}:${chaveDoNomeDaEntrada(nome)}`
+  const montadas = new Map<string, MecanicaGuardada>()
+  for (const personagem of personagens) {
+    for (const tipo of ['arma', 'habilidade'] as const) {
+      for (const cartao of cartoesDaAba(personagem, DADOS_DO_TIPO[tipo].aba)) {
+        const chave = chaveDe(tipo, cartao.nome)
+        if (cartao.mecanica !== undefined && !montadas.has(chave)) montadas.set(chave, cartao.mecanica)
+      }
+    }
+  }
+  let ganharam = 0
+  const itens = catalogo.map((entrada) => {
+    if (entrada.tipo === 'item' || entrada.mecanica !== undefined) return entrada
+    const achada = montadas.get(chaveDe(entrada.tipo, entrada.nome))
+    const { mecanica } = mecanicaDoArquivo(achada)
+    if (mecanica === undefined) return entrada
+    ganharam += 1
+    return { ...entrada, mecanica }
+  })
+  return ganharam === 0 ? { itens: [...catalogo], ganharam } : { itens, ganharam }
 }
 
 /**

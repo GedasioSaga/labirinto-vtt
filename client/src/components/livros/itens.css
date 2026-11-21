@@ -92,6 +92,12 @@
 .mu-etiqueta--catalogo { background: var(--lb-color-online-soft); color: var(--lb-color-online); }
 /* A coisa do Acervo (Fase 1): latão, a cor do "é seu, do app" — o catálogo é verde e o livro é gravado. */
 .mu-etiqueta--acervo { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+/* B04 (docs/design/habilidades/): a entrada que guarda a mecânica montada, e o resumo dela em frases (protótipo, .item__efeito). */
+.mu-etiqueta--montada { background: var(--lb-gr-hover-forte); color: var(--lb-color-parchment-dim); }
+.mu-item__efeito { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment-dim); }
+.mu-item__efeito li { display: flex; gap: 7px; align-items: baseline; overflow-wrap: anywhere; }
+.mu-item__efeito li::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--lb-color-brass-bright); transform: translateY(-1px); }
+.mu-chip__n { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
 /* A foto da coisa: quadrada e contida (a figura do item não se corta), no mesmo campo escuro das vagas da ficha. */
 .mu-item__foto {
   flex: none;

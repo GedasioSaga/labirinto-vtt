@@ -6,6 +6,7 @@ import {
   itemLimpo,
   juntarDasFichas as juntarDasFichasDoCatalogo,
   ligarPeloNome as ligarPeloNomeDoCatalogo,
+  mecanicasDasFichas,
   type EntradaDoLivro,
   type ItemDoCatalogo,
 } from '../lib/livros/catalogo'
@@ -37,8 +38,11 @@ interface CatalogoState {
   /** Cria ou troca a entrada (pelo id). Lança com a frase pronta (sem nome, catálogo cheio, disco). */
   salvarEntrada: (item: ItemDoCatalogo) => Promise<void>
   apagarEntrada: (id: string) => Promise<void>
-  /** "Juntar das fichas da pasta": devolve quantas entradas novas entraram (0 = nada novo, sem gravar). */
-  juntarDasFichas: (personagens: readonly Personagem[]) => Promise<number>
+  /**
+   * "Juntar das fichas da pasta": as entradas novas e (B04) a mecânica dos cartões montados nas entradas que não a tinham.
+   * Devolve quantas de cada (0 e 0 = nada novo, sem gravar).
+   */
+  juntarDasFichas: (personagens: readonly Personagem[]) => Promise<{ novas: number; comMecanica: number }>
   /** Fase 5, "Ligar pelo nome": liga cada arma e item solto à coisa do Acervo de mesmo nome; devolve quantas (0 = nada, sem gravar). */
   ligarPeloNome: (acervo: readonly { id: string; nome: string }[]) => Promise<number>
 }
@@ -109,11 +113,12 @@ export const useCatalogoStore = create<CatalogoState>()((set, get) => {
     },
 
     juntarDasFichas: async (personagens) => {
-      const { itens } = get()
+      const { itens: comoEsta } = get()
+      const { itens, ganharam } = mecanicasDasFichas(personagens, comoEsta)
       const novos = juntarDasFichasDoCatalogo(personagens, itens)
-      if (novos.length === 0) return 0
+      if (novos.length === 0 && ganharam === 0) return { novas: 0, comMecanica: 0 }
       await gravar([...itens, ...novos])
-      return novos.length
+      return { novas: novos.length, comMecanica: ganharam }
     },
 
     ligarPeloNome: async (acervo) => {

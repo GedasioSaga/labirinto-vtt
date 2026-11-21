@@ -35,6 +35,10 @@ const TRACOS = {
       <path d="M9 8V6a3 3 0 0 1 6 0v2" />
     </>
   ),
+  /** O raio da página Habilidades (protótipo docs/design/habilidades/prototipo.html). */
+  habilidades: <path d="M13 3 6 13.5h5L10 21l8-11h-5.5z" />,
+  /** O "play" do botão Testar (o mesmo protótipo). */
+  testar: <path d="M8 5.5v13l10.5-6.5z" />,
   nota: (
     <>
       <path d="M4 20h4L19 9l-4-4L4 16z" />

@@ -17,9 +17,10 @@ import {
   TIPOS_DE_ENTRADA,
   type EntradaParaFicha,
   type ItemDoCatalogo,
-  type TipoDeEntrada,
   type TipoDoCatalogo,
 } from '../../lib/livros/catalogo'
+import { FILTROS_DA_PAGINA, passaNoFiltro, pecasDaEntrada, TIPOS_DA_PAGINA, TOPO_DA_PAGINA, type FiltroDaPagina, type PaginaDaBiblioteca } from '../../lib/livros/paginasDaBiblioteca'
+import { resumoDaMecanica } from '../../lib/batalha/mecanica/resumo'
 import { desfazerPosto, porCoisaNaFicha, porEntradaNaFicha, type PostoNaFicha, type ResultadoDoPor } from '../../lib/livros/coisaERegra'
 import { darNaFicha, quantosNaFicha, type FichaQueRecebeu } from '../../lib/mochila/darNaFicha'
 import { cartoesDaAba, type CartaoDaFicha, type Personagem } from '../../lib/personagem'
@@ -70,16 +71,16 @@ const ULTIMAS_DA_MOCHILA = 8
 /** O que a página lista: uma entrada do catálogo ou do livro (vira cartão numa aba) ou uma coisa do Acervo (vai para a mochila). */
 type EntradaDaPagina = EntradaParaFicha | EntradaDoAcervo
 
-type Filtro = TipoDeEntrada | 'todos'
 /** O que o "Pôr em" faz com a entrada e a ficha escolhida. */
 type EstadoDoPor = 'pode' | 'jaTem' | 'semAba' | 'semFicha'
 
-const NADA_NO_TIPO: Readonly<Record<TipoDoCatalogo, string>> = {
-  arma: 'Nenhuma arma no catálogo ainda.',
-  habilidade: 'Nenhuma habilidade no catálogo ainda.',
-  item: 'Nenhum item no catálogo ainda.',
+const NADA_NA_PAGINA: Readonly<Record<PaginaDaBiblioteca, string>> = {
+  itens: 'Nenhum item nem arma ainda. Junte o que as fichas da pasta já têm, crie um item, ou ponha coisas no Acervo.',
+  habilidades: 'Nenhuma habilidade no catálogo ainda. Junte as que as fichas da pasta já têm, ou crie uma.',
 }
 const NOVA_DO_TIPO: Readonly<Record<TipoDoCatalogo, string>> = { arma: 'Nova arma', habilidade: 'Nova habilidade', item: 'Novo item' }
+/** Quantas frases do resumo da mecânica o cartão mostra (as outras ficam para o editor e o Testar). */
+const FRASES_DO_RESUMO = 3
 
 /** A ficha escolhida em "Ficha que recebe" sobrevive à troca de marcador (estado da sessão, nada em disco). */
 let fichaEscolhidaAntes: string | null = null
@@ -88,8 +89,10 @@ function mensagemDoErro(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
 }
 
-function ehDoCatalogo(tipo: TipoDeEntrada): tipo is TipoDoCatalogo {
-  return DADOS_DO_TIPO[tipo].origem === 'catalogo'
+/** O resumo das peças da entrada montada (as primeiras frases); `null` = sem mecânica válida (vale o texto). */
+function resumoDaEntrada(entrada: EntradaParaFicha): string[] | null {
+  const pecas = pecasDaEntrada(entrada)
+  return pecas === null ? null : resumoDaMecanica(pecas).slice(0, FRASES_DO_RESUMO)
 }
 
 interface GrupoQueRecebe {
@@ -186,9 +189,15 @@ function linhasDaEntrada(entrada: EntradaParaFicha, campos: readonly CampoDoCart
 export interface PaginaItensProps {
   personagens: readonly Personagem[]
   sistema: SistemaDeRpg
+  /**
+   * Fase 1 (docs/design/habilidades/SISTEMA.md §7): a mesma página serve as
+   * duas, Itens (armas, itens e o Acervo) e Habilidades (as técnicas e o que
+   * vem do livro), cada uma com a frase do topo e os filtros dela.
+   */
+  pagina: PaginaDaBiblioteca
 }
 
-export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
+export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) {
   const catalogoAberto = useCatalogoStore((state) => state.sistemaId)
   const itens = useCatalogoStore((state) => state.itens)
   const doLivro = useCatalogoStore((state) => state.doLivro)
@@ -204,7 +213,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
 
   const buscaId = useId()
   const [busca, setBusca] = useState('')
-  const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [filtro, setFiltro] = useState<FiltroDaPagina>('todos')
   const [mostrar, setMostrar] = useState(PASSO_DA_LISTA)
   const [fichaId, setFichaId] = useState<string | null>(fichaEscolhidaAntes)
   const [dialogo, setDialogo] = useState<ModoDaEntrada | null>(null)
@@ -252,26 +261,44 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     return () => window.clearTimeout(relogio)
   }, [destacado])
 
-  const entradas = useMemo<EntradaParaFicha[]>(() => (doSistema ? [...itens, ...doLivro] : []), [doSistema, itens, doLivro])
-  // Armas, Habilidades e Itens sempre (o mestre cria); os do livro só quando o livro traz alguma.
-  const filtros = useMemo<Filtro[]>(() => ['todos', ...TIPOS_DE_ENTRADA.filter((tipo) => ehDoCatalogo(tipo) || entradas.some((entrada) => entrada.tipo === tipo))], [entradas])
-  const filtroAtivo: Filtro = filtros.includes(filtro) ? filtro : 'todos'
-  // Na ordem das categorias do Acervo, como o painel do mestre as mostra.
-  const entradasDoAcervo = useMemo(() => itensPorCategoria(doAcervo, categoriasDoAcervo).flatMap((grupo) => grupo.itens.map(entradaDoAcervo)), [doAcervo, categoriasDoAcervo])
+  const tiposDaPagina = TIPOS_DA_PAGINA[pagina]
+  const entradas = useMemo<EntradaParaFicha[]>(
+    () => (doSistema ? [...itens, ...doLivro].filter((entrada) => tiposDaPagina.includes(entrada.tipo)) : []),
+    [doSistema, itens, doLivro, tiposDaPagina],
+  )
+  /** A categoria de cada coisa do Acervo, para os filtros de Itens (a entrada ligada cai na categoria da coisa). */
+  const categoriaPorCoisa = useMemo(() => new Map(doAcervo.map((coisa) => [coisa.id, coisa] as const)), [doAcervo])
+  // Na ordem das categorias do Acervo, como o painel do mestre as mostra. Só a página Itens lista o Acervo.
+  const entradasDoAcervo = useMemo(
+    () => (pagina === 'itens' ? itensPorCategoria(doAcervo, categoriasDoAcervo).flatMap((grupo) => grupo.itens.map(entradaDoAcervo)) : []),
+    [pagina, doAcervo, categoriasDoAcervo],
+  )
   // A busca única do Acervo (nome, categoria, descrição e pasta), a mesma do painel, da mochila e da loja.
   const textosDoAcervo = useMemo(() => textosDeBusca(doAcervo, pastasDoAcervo), [doAcervo, pastasDoAcervo])
-  const lista = useMemo<EntradaDaPagina[]>(() => {
-    const achadas = buscarNoCatalogo(entradas, busca, filtroAtivo)
+  /** Tudo o que a busca acha, antes do filtro: o número de cada filtro conta daqui. */
+  const achadasNaBusca = useMemo<EntradaDaPagina[]>(() => {
+    const achadas = buscarNoCatalogo(entradas, busca, 'todos')
     const palavras = palavrasDaBusca(busca)
-    // O nome do filtro ("arma", "item") e "acervo" também acham, como na busca do catálogo.
-    const doAcervoAchadas = entradasDoAcervo.filter(
-      (entrada) => (filtroAtivo === 'todos' || entrada.tipo === filtroAtivo) && itemCasaNaBusca(textosDoAcervo.get(entrada.id), palavras, `${entrada.tipo} acervo`),
-    )
+    // O nome do tipo ("arma", "item") e "acervo" também acham, como na busca do catálogo.
+    const doAcervoAchadas = entradasDoAcervo.filter((entrada) => itemCasaNaBusca(textosDoAcervo.get(entrada.id), palavras, `${entrada.tipo} acervo`))
     // As coisas do Acervo depois das entradas do mestre e antes das do livro (perícias, vantagens, desvantagens).
     return [...achadas.filter((entrada) => !ehDoLivro(entrada)), ...doAcervoAchadas, ...achadas.filter(ehDoLivro)]
-  }, [entradas, entradasDoAcervo, textosDoAcervo, busca, filtroAtivo])
+  }, [entradas, entradasDoAcervo, textosDoAcervo, busca])
+  /** Os filtros da página com o número de cada; o que não tem nenhuma entrada sai (menos o Tudo e o aberto). */
+  const filtros = useMemo(() => {
+    const todas = [...entradas, ...entradasDoAcervo]
+    return FILTROS_DA_PAGINA[pagina]
+      .map((opcao) => ({ ...opcao, n: todas.filter((entrada) => passaNoFiltro(pagina, entrada, opcao.filtro, categoriaPorCoisa)).length }))
+      .filter((opcao) => opcao.filtro === 'todos' || opcao.filtro === filtro || opcao.n > 0)
+  }, [pagina, entradas, entradasDoAcervo, categoriaPorCoisa, filtro])
+  const filtroAtivo: FiltroDaPagina = filtros.some((opcao) => opcao.filtro === filtro) ? filtro : 'todos'
+  const rotuloDoFiltro = FILTROS_DA_PAGINA[pagina].find((opcao) => opcao.filtro === filtroAtivo)?.rotulo ?? ''
+  const lista = useMemo(
+    () => achadasNaBusca.filter((entrada) => passaNoFiltro(pagina, entrada, filtroAtivo, categoriaPorCoisa)),
+    [achadasNaBusca, pagina, filtroAtivo, categoriaPorCoisa],
+  )
 
-  const abaPorTipo = useMemo(() => new Map(TIPOS_DE_ENTRADA.map((tipo) => [tipo, abaDeDestino(sistema, tipo)] as const)), [sistema])
+  const abaPorTipo = useMemo(() => new Map(tiposDaPagina.map((tipo) => [tipo, abaDeDestino(sistema, tipo)] as const)), [sistema, tiposDaPagina])
   const camposPorTipo = useMemo(() => new Map(TIPOS_DE_ENTRADA.map((tipo) => [tipo, camposDoTipo(sistema, tipo)] as const)), [sistema])
   const nomesDosAtributos = useMemo(() => new Map(sistema.atributos.map((atributo) => [atributo.id, atributo.nome])), [sistema])
   /** As abas que a ficha que recebe mostra, na ordem dos filtros, uma vez cada. */
@@ -438,7 +465,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     setBusca(valor)
     setMostrar(PASSO_DA_LISTA)
   }
-  const trocarFiltro = (novo: Filtro) => {
+  const trocarFiltro = (novo: FiltroDaPagina) => {
     setFiltro(novo)
     setMostrar(PASSO_DA_LISTA)
   }
@@ -461,13 +488,17 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
   }
 
   // ---- o catálogo: criar, editar, apagar, juntar ----
-  const tipoSugerido: TipoDoCatalogo = filtroAtivo !== 'todos' && ehDoCatalogo(filtroAtivo) ? filtroAtivo : 'arma'
+  const tipoSugerido: TipoDoCatalogo = pagina === 'habilidades' ? 'habilidade' : filtroAtivo === 'armas' ? 'arma' : 'item'
 
   const aoSalvar = (item: ItemDoCatalogo, nova: boolean) => {
-    useToastStore.getState().push('info', nova ? `${item.nome} entrou no catálogo.` : `${item.nome} foi guardado no catálogo.`)
-    if (buscarNoCatalogo([item], busca, filtroAtivo).length === 0) {
+    const naOutraPagina = !tiposDaPagina.includes(item.tipo)
+    const outra = TOPO_DA_PAGINA[pagina === 'itens' ? 'habilidades' : 'itens'].titulo
+    const onde = naOutraPagina ? ` Está na página ${outra}.` : ''
+    useToastStore.getState().push('info', nova ? `${item.nome} entrou no catálogo.${onde}` : `${item.nome} foi guardado no catálogo.${onde}`)
+    if (naOutraPagina) return
+    if (buscarNoCatalogo([item], busca, 'todos').length === 0 || !passaNoFiltro(pagina, item, filtroAtivo, categoriaPorCoisa)) {
       setBusca('')
-      setFiltro(item.tipo)
+      setFiltro('todos')
     }
     setMostrar((atual) => Math.max(atual, itens.length + 1))
     setDestacado(item.id)
@@ -513,8 +544,12 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     setJuntando(true)
     const toasts = useToastStore.getState()
     try {
-      const n = await useCatalogoStore.getState().juntarDasFichas(personagens)
-      if (n > 0) toasts.push('info', `${formatarNumero(n)} ${n === 1 ? 'entrada nova veio' : 'entradas novas vieram'} das fichas da pasta.`)
+      const { novas: n, comMecanica } = await useCatalogoStore.getState().juntarDasFichas(personagens)
+      const frases = [
+        ...(n > 0 ? [`${formatarNumero(n)} ${n === 1 ? 'entrada nova veio' : 'entradas novas vieram'} das fichas da pasta.`] : []),
+        ...(comMecanica > 0 ? [`${formatarNumero(comMecanica)} ${comMecanica === 1 ? 'entrada ganhou' : 'entradas ganharam'} a mecânica montada na ficha.`] : []),
+      ]
+      if (frases.length > 0) toasts.push('info', frases.join(' '))
       else if (personagens.length === 0) toasts.push('info', 'A pasta ainda não tem fichas: nada para juntar.')
       else toasts.push('info', 'Nada novo: o catálogo já tem as armas, habilidades e itens das fichas desta pasta.')
     } catch (erro) {
@@ -567,6 +602,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
                 entrada={entrada}
                 coisa={ehDoLivro(entrada) || entrada.acervoId === undefined ? undefined : doAcervo.find((item) => item.id === entrada.acervoId)}
                 linhas={linhasDaEntrada(entrada, camposPorTipo.get(entrada.tipo) ?? [], nomesDosAtributos)}
+                resumo={resumoDaEntrada(entrada)}
                 estado={estadoDoPor(entrada)}
                 destino={destino}
                 podeGravar={podeGravar}
@@ -603,7 +639,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     corpo = (
       <div className="mu-vazio">
         <p>
-          Nada com “{busca.trim()}”{filtroAtivo === 'todos' ? '' : ` em ${DADOS_DO_TIPO[filtroAtivo].nome}`}. Tente pelo efeito (cura, escudo) ou pelo tipo (arma).
+          Nada com “{busca.trim()}”{filtroAtivo === 'todos' ? '' : ` em ${rotuloDoFiltro}`}. Tente pelo efeito (cura, escudo) ou pelo tipo ({pagina === 'itens' ? 'arma' : 'reação'}).
         </p>
         <button type="button" className="mu-bt mu-bt--p" onClick={limparTudo}>
           Limpar a busca
@@ -611,22 +647,17 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
       </div>
     )
   } else {
-    const tipo = filtroAtivo !== 'todos' && ehDoCatalogo(filtroAtivo) ? filtroAtivo : null
     corpo = (
       <div className="mu-vazio">
-        <p>
-          {tipo !== null
-            ? NADA_NO_TIPO[tipo]
-            : 'O catálogo deste livro está vazio. Junte as armas, habilidades e itens que as fichas da pasta já têm, ou crie uma entrada.'}
-        </p>
+        <p>{filtroAtivo !== 'todos' ? `Nada em ${rotuloDoFiltro} ainda.` : NADA_NA_PAGINA[pagina]}</p>
         {podeGravar && (
           <div className="mu-pg-acoes">
             <button type="button" className="mu-bt mu-bt--p" disabled={juntando} onClick={() => void juntar()}>
               {juntando ? 'Juntando…' : 'Juntar das fichas da pasta'}
             </button>
-            <button type="button" className="mu-bt mu-bt--p" onClick={() => setDialogo({ tipo: 'nova', tipoDaEntrada: tipo ?? 'arma' })}>
+            <button type="button" className="mu-bt mu-bt--p" onClick={() => setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })}>
               <IconeDoMundo nome="mais" />
-              {tipo !== null ? NOVA_DO_TIPO[tipo] : 'Nova entrada'}
+              {NOVA_DO_TIPO[tipoSugerido]}
             </button>
           </div>
         )}
@@ -638,22 +669,21 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     <div className="mu-pg">
       <header className="mu-pg-cab">
         <div className="mu-pg-cab__txt">
-          <h2 className="mu-pg-titulo">Itens, armas e habilidades</h2>
-          <p className="mu-pg-sub">
-            O catálogo do livro e os itens do acervo. Arraste para a ficha ao lado, ou use “Pôr em”: o que vem do acervo vai para a mochila. Perícias, vantagens e desvantagens vêm do
-            livro; armas, habilidades e itens você cria ou junta das fichas.
-          </p>
+          <h2 className="mu-pg-titulo">{TOPO_DA_PAGINA[pagina].titulo}</h2>
+          <p className="mu-pg-sub">{TOPO_DA_PAGINA[pagina].frase}</p>
         </div>
         <div className="mu-pg-acoes">
           <button type="button" className="mu-bt" disabled={!podeGravar || juntando} onClick={() => void juntar()}>
             {juntando ? 'Juntando…' : 'Juntar das fichas da pasta'}
           </button>
-          <button type="button" className="mu-bt" disabled={!podeGravar || juntando || doAcervo.length === 0} onClick={() => void ligar()} title="Liga cada arma e item do livro à coisa do Acervo de mesmo nome">
-            Ligar ao Acervo pelo nome
-          </button>
+          {pagina === 'itens' && (
+            <button type="button" className="mu-bt" disabled={!podeGravar || juntando || doAcervo.length === 0} onClick={() => void ligar()} title="Liga cada arma e item do livro à coisa do Acervo de mesmo nome">
+              Ligar ao Acervo pelo nome
+            </button>
+          )}
           <button type="button" className="mu-bt mu-bt--primario" disabled={!podeGravar} onClick={() => setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })}>
             <IconeDoMundo nome="mais" />
-            Nova entrada
+            {NOVA_DO_TIPO[tipoSugerido]}
           </button>
         </div>
       </header>
@@ -681,7 +711,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
             <div className="mu-busca">
               <IconeDoMundo nome="busca" />
               <label className="mu-it-sr" htmlFor={buscaId}>
-                Buscar no catálogo
+                Buscar {pagina === 'itens' ? 'itens' : 'habilidades'}
               </label>
               <input
                 ref={buscaRef}
@@ -689,7 +719,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
                 className="mu-entrada"
                 type="search"
                 value={busca}
-                placeholder="Buscar por nome ou efeito (ex.: cura, escudo)"
+                placeholder={pagina === 'itens' ? 'Buscar por nome ou efeito (ex.: cura, veneno)' : 'Buscar por nome ou efeito (ex.: sangra, reação)'}
                 autoComplete="off"
                 spellCheck={false}
                 aria-keyshortcuts="/"
@@ -715,9 +745,9 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
               )}
             </div>
             <div className="mu-chips" role="group" aria-label="Tipo">
-              {filtros.map((chave) => (
-                <button key={chave} type="button" className="mu-chip mu-chip--sem-ret" aria-pressed={filtroAtivo === chave} onClick={() => trocarFiltro(chave)}>
-                  {chave === 'todos' ? 'Tudo' : DADOS_DO_TIPO[chave].nome}
+              {filtros.map((opcao) => (
+                <button key={opcao.filtro} type="button" className="mu-chip mu-chip--sem-ret" aria-pressed={filtroAtivo === opcao.filtro} onClick={() => trocarFiltro(opcao.filtro)}>
+                  {opcao.rotulo} <small className="mu-chip__n">{formatarNumero(opcao.n)}</small>
                 </button>
               ))}
             </div>
@@ -734,6 +764,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
           personagens={personagens}
           sistema={sistema}
           secoes={secoes}
+          comMochila={pagina === 'itens'}
           abaDoArrasto={arrastando === null || ehDoAcervo(arrastando) ? null : (abaPorTipo.get(arrastando.tipo)?.id ?? null)}
           mochilaDoArrasto={arrastando !== null && ehDoAcervo(arrastando)}
           recusa={
@@ -765,6 +796,8 @@ interface CartaoDaEntradaProps {
   /** A coisa do Acervo ligada (`acervoId`); ausente = entrada solta, ou a coisa saiu do Acervo. */
   coisa: { nome: string; imagem: string | null } | undefined
   linhas: readonly LinhaDoCampo[]
+  /** B04: as primeiras frases da mecânica montada que a entrada guarda; `null` = vale o texto. */
+  resumo: readonly string[] | null
   estado: EstadoDoPor
   destino: Personagem | undefined
   podeGravar: boolean
@@ -777,7 +810,7 @@ interface CartaoDaEntradaProps {
   onSoltar: () => void
 }
 
-function CartaoDaEntrada({ entrada, coisa, linhas, estado, destino, podeGravar, arrastando, destacado, onPor, onEditar, onApagar, onArrastar, onSoltar }: CartaoDaEntradaProps) {
+function CartaoDaEntrada({ entrada, coisa, linhas, resumo, estado, destino, podeGravar, arrastando, destacado, onPor, onEditar, onApagar, onArrastar, onSoltar }: CartaoDaEntradaProps) {
   const dados = DADOS_DO_TIPO[entrada.tipo]
   /** A entrada do mestre (editável); `null` = a do livro, só leitura. */
   const doMestre: ItemDoCatalogo | null = ehDoLivro(entrada) ? null : entrada
@@ -835,11 +868,23 @@ function CartaoDaEntrada({ entrada, coisa, linhas, estado, destino, podeGravar, 
               Ligada ao acervo
             </span>
           )}
+          {doMestre?.mecanica !== undefined && (
+            <span className="mu-etiqueta mu-etiqueta--montada" title={resumo === null ? 'A mecânica guardada não abre neste app: vale à mão' : 'O app faz a conta pelas peças montadas'}>
+              {resumo === null ? 'Mecânica à mão' : 'Montada'}
+            </span>
+          )}
         </div>
         <p className="mu-item__txt" title={entrada.texto.length > 0 ? entrada.texto : undefined}>
           {entrada.texto.length === 0 ? dados.um : `${dados.um} · ${entrada.texto}`}
         </p>
-        {linhas.length > 0 && (
+        {resumo !== null && resumo.length > 0 && (
+          <ul className="mu-item__efeito" aria-label="O que faz">
+            {resumo.map((frase) => (
+              <li key={frase}>{frase}</li>
+            ))}
+          </ul>
+        )}
+        {resumo === null && linhas.length > 0 && (
           <p className="mu-item__campos">
             {linhas.map((linha) => (
               <span key={linha.rotulo}>
@@ -953,6 +998,8 @@ interface PainelDoDestinoProps {
   personagens: readonly Personagem[]
   sistema: SistemaDeRpg
   secoes: readonly AbaDoSistema[]
+  /** A página Itens mostra a mochila (é para onde a coisa do Acervo vai); a Habilidades não. */
+  comMochila: boolean
   /** A aba que recebe o cartão arrastado (a seção que acende); `null` sem arrasto. */
   abaDoArrasto: string | null
   /** O arrastado é uma coisa do Acervo: quem acende é a Mochila. */
@@ -968,7 +1015,7 @@ interface PainelDoDestinoProps {
   onSoltar: (event: DragEvent<HTMLElement>) => void
 }
 
-function PainelDoDestino({ grupos, destino, personagens, sistema, secoes, abaDoArrasto, mochilaDoArrasto, recusa, sobre, novos, onEscolher, onPassar, onSair, onSoltar }: PainelDoDestinoProps) {
+function PainelDoDestino({ grupos, destino, personagens, sistema, secoes, comMochila, abaDoArrasto, mochilaDoArrasto, recusa, sobre, novos, onEscolher, onPassar, onSair, onSoltar }: PainelDoDestinoProps) {
   const seletorId = useId()
   const classes = ['mu-cartao', 'mu-destino']
   if ((abaDoArrasto !== null || mochilaDoArrasto) && recusa === null) classes.push('mu-destino--ativo')
@@ -1026,7 +1073,7 @@ function PainelDoDestino({ grupos, destino, personagens, sistema, secoes, abaDoA
         </p>
       )}
       <div className="mu-destino__secoes">
-        <MochilaDaFicha ficha={destino} quem={quem} aceita={mochilaDoArrasto} novos={novos} />
+        {comMochila && <MochilaDaFicha ficha={destino} quem={quem} aceita={mochilaDoArrasto} novos={novos} />}
         {secoes.map((aba) => {
           const cartoes = cartoesDaAba(destino, aba.id)
           const ultimos = cartoes.slice(-ULTIMOS_NA_SECAO)
