@@ -695,3 +695,289 @@
     transform: none;
   }
 }
+
+/* ── Fichas de NPC no acervo (docs/design/acervo/npcs-no-acervo.html) ──── */
+
+/* O retrato QUADRADO de canto arredondado diz "ficha desta aventura" (o
+   disco é o token do app); a borda de latão, "tem token no mapa agora". */
+.lb-acervo__foto--ficha {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment-dim);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lb-acervo__foto--ficha img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lb-acervo__foto--ficha[data-no-mapa] {
+  border-color: var(--lb-color-brass);
+  box-shadow: 0 0 0 1px rgba(224, 164, 74, 0.25);
+}
+
+.lb-acervo__item--copia .lb-acervo__foto--ficha {
+  width: 20px;
+  height: 20px;
+}
+
+/* O nome e o selo "Tem ficha" na mesma linha: o nome corta com reticências,
+   o selo nunca some. */
+.lb-acervo__nome-linha {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-acervo__tem-ficha {
+  display: inline-flex;
+  flex: none;
+  color: var(--lb-color-brass);
+  opacity: 0.85;
+}
+
+.lb-acervo__tem-ficha svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* O "⋯" no mesmo molde do Mover e do Apagar: ícone sem moldura no alvo mínimo. */
+.lb-acervo__mais {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--lb-control-min);
+  min-height: var(--lb-control-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lb-acervo__mais:hover,
+.lb-acervo__mais[aria-expanded='true'] {
+  color: var(--lb-color-parchment);
+}
+
+/* O menu aberto segura as ações da linha à vista. */
+.lb-acervo__item:has(.lb-acervo__mais[aria-expanded='true']) .lb-acervo__acoes,
+.lb-acervo__item:has(.lb-acervo__mais-do-token[aria-expanded='true']) .lb-acervo__acoes {
+  opacity: 1;
+}
+
+/* A ficha que pede para ser apagada, ou a peça sem ficha que pergunta "Criar
+   ficha": a frase em cima, os dois botões embaixo. */
+.lb-acervo__confirma--ficha {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* "› 2 cópias": embaixo do nome do modelo, alinhado com o texto dele. */
+.lb-acervo__copias {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: var(--lb-space-1);
+  margin: -2px 0 2px 30px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-acervo__copias:hover {
+  color: var(--lb-color-parchment);
+}
+
+.lb-acervo__copias:disabled {
+  cursor: default;
+}
+
+.lb-acervo__copias-seta {
+  display: inline-flex;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.lb-acervo__copias-seta svg {
+  width: 12px;
+  height: 12px;
+}
+
+.lb-acervo__copias[aria-expanded='false'] .lb-acervo__copias-seta {
+  transform: rotate(-90deg);
+}
+
+.lb-acervo__copias-lista {
+  flex-basis: 100%;
+  margin: 0 0 2px 19px;
+  padding-left: var(--lb-space-1);
+  border-left: 1px solid var(--lb-color-line);
+}
+
+/* A subpasta: um nível só, um passo para dentro da pasta mãe. */
+.lb-acervo__pasta--sub {
+  margin-left: 0;
+}
+
+.lb-acervo__subpasta-nova {
+  width: 100%;
+  margin: var(--lb-space-1) 0;
+}
+
+/* O aviso da migração, uma vez só: latão macio, a frase e o "Entendi". */
+.lb-acervo__migracao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  margin: 0 0 var(--lb-space-2);
+  padding: 10px 12px;
+  border: 1px solid rgba(224, 164, 74, 0.26);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.4;
+}
+
+.lb-acervo__migracao p {
+  margin: 0;
+}
+
+/* "Mostrar no Acervo": a pasta NPCs acende uma vez e apaga. */
+.lb-acervo__pasta-topo[data-pisca] {
+  animation: lb-acervo-chegou 1100ms ease-out;
+}
+
+@keyframes lb-acervo-chegou {
+  from {
+    background: rgba(224, 164, 74, 0.28);
+  }
+
+  to {
+    background: transparent;
+  }
+}
+
+/* O menu "⋯": no body, posição fixa (o JS põe top e left), da largura do
+   protótipo. Aberto pelo teclado chega parado; pelo ponteiro, cresce rápido
+   a partir do canto do "⋯". */
+.lb-panel.lb-portamenu.lb-acervo-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 210px;
+  max-width: 250px;
+  border-radius: var(--lb-radius-md);
+  transform-origin: top right;
+  animation: none;
+}
+
+.lb-panel.lb-portamenu.lb-acervo-menu--entra {
+  animation: lb-acervo-menu-entra 140ms ease-out;
+}
+
+.lb-acervo-menu[data-para-cima='sim'] {
+  transform-origin: bottom right;
+}
+
+@keyframes lb-acervo-menu-entra {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.lb-acervo-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 28px;
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-acervo-menu__item[aria-disabled='true'] {
+  color: var(--lb-color-parchment-faint);
+  cursor: default;
+}
+
+.lb-acervo-menu__item[aria-disabled='true']:hover {
+  background: transparent;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-acervo-menu__item--perigo,
+.lb-acervo-menu__item--perigo:hover,
+.lb-acervo-menu__item--perigo:focus {
+  color: #f2b0a9;
+}
+
+.lb-acervo-menu__texto {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-acervo-menu__atalho {
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-acervo-menu__sub {
+  padding-left: 22px;
+}
+
+.lb-acervo-menu__sep {
+  height: 1px;
+  margin: 2px 0;
+  background: var(--lb-color-line);
+}
+
+.lb-acervo-menu__rotulo {
+  margin: 2px 0 0;
+  padding: 2px var(--lb-space-2);
+  color: var(--lb-color-parchment-faint);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-panel.lb-portamenu.lb-acervo-menu--entra,
+  .lb-acervo__pasta-topo[data-pisca] {
+    animation: none;
+  }
+
+  .lb-acervo__copias-seta {
+    transition: none;
+  }
+}

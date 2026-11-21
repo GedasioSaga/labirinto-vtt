@@ -273,6 +273,8 @@ import type { DrawingTool } from './types/tools'
 import { MapSettingsButton } from './components/MapSettingsDialog'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { BotaoDoLivroDeRegras, PersonagensDaAventura } from './components/PersonagensSection'
+import { useFichasDoAcervo, useMigracaoDasFichasNoAcervo } from './components/useFichasDoAcervo'
+import { levarFichasDaPastaApagada } from './stores/fichasNoAcervo'
 import { ContasDosJogadoresDoApp } from './components/ContasDosJogadores'
 import { dancaNoPainel } from './components/dancaNoPainel'
 import { pescaNoPainel } from './components/pescaNoPainel'
@@ -1948,6 +1950,9 @@ function App() {
     const host = canvasHostRef.current
     return host === null ? null : { width: host.clientWidth, height: host.clientHeight }
   }
+  // AS FICHAS DE NPC NO ACERVO (item 6 de 21/11/2026): a migração de uma vez só e o que o painel mostra.
+  useMigracaoDasFichasNoAcervo()
+  const fichasDoAcervo = useFichasDoAcervo({ host: () => canvasHostRef.current, vista: vistaDoCanvas })
 
   /**
    * Onda 1, item 4 do plano — sliders de propriedade (intensidade de luz,
@@ -2833,9 +2838,23 @@ function App() {
     }
   }
 
+  // Subpasta (decisão 4): um nível só; `criarPastaNoAcervo` recusa mãe que já é subpasta.
+  const handleCriarSubpasta = async (nome: string, dentroDe: string) => {
+    try {
+      await criarPastaNoAcervo(nome, dentroDe)
+    } catch (err) {
+      reportFileError('criar a subpasta no acervo', err)
+    } finally {
+      await useTokenLibraryStore.getState().recarregar()
+    }
+  }
+
   const handleApagarPasta = async (pasta: PastaDoAcervo) => {
     try {
-      await apagarPastaDoAcervo(pasta.id)
+      // As pastas de antes: as fichas de NPC da pasta apagada vão para onde foram os tokens dela.
+      const antes = useTokenLibraryStore.getState().pastas
+      const destino = await apagarPastaDoAcervo(pasta.id)
+      await levarFichasDaPastaApagada(pasta.id, destino, antes)
     } catch (err) {
       reportFileError(`apagar a pasta ${pasta.nome}`, err)
     } finally {
@@ -4840,6 +4859,8 @@ function App() {
               onMover: (item, pasta) => void handleMoverNoAcervo(item, pasta),
               onRecolherPasta: (pasta, recolhida) => void handleRecolherPasta(pasta, recolhida),
               onApagarPasta: (pasta) => void handleApagarPasta(pasta),
+              onCriarSubpasta: (nome, dentroDe) => void handleCriarSubpasta(nome, dentroDe),
+              fichas: fichasDoAcervo,
             }}
             acervoDeItens={{
               alvos: alvosDoAcervo(roomPanelWorld(), personagensEmUso),

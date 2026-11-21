@@ -56,6 +56,8 @@ export interface ListaDePersonagensProps {
   engolirClique: () => boolean
   onAbrirFicha: (personagemId: string) => void
   onApagar: (personagemId: string) => void
+  /** Uma lista só, sem cabeçalho de grupo (a coluna dos jogadores, desde que os NPCs foram para o Acervo). */
+  plana?: boolean
 }
 
 /** Setas para cima e para baixo passam de um cabeçalho ao outro sem abrir nada (convenção do acordeão). */
@@ -464,6 +466,20 @@ export function ListaDePersonagens(props: ListaDePersonagensProps) {
       ))}
     </ul>
   )
+
+  if (props.plana === true) {
+    const todas = organizadas.grupos.flatMap(({ linhas: doGrupo }) => doGrupo)
+    return (
+      <div className="lb-rpg__grupos" aria-label="Jogadores da aventura" role="group">
+        {todas.length > 0 && linhas(todas, false)}
+        {buscando && organizadas.vistas === 0 && (
+          <p className="lb-rpg__vazio" role="status">
+            Nenhum jogador com “{busca.trim()}”. A busca olha só o nome.
+          </p>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="lb-rpg__grupos" aria-label="Personagens da aventura" role="group">

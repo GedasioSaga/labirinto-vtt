@@ -7,8 +7,9 @@ import { PersonagensSection, resumoDaImportacao, type PersonagensSectionProps } 
 import { SistemasDialog } from './SistemasDialog'
 
 /**
- * "Personagens" na aba Jogo e a grade de sistemas que "Sistema de RPG" (na
- * janela Configurações do mapa) abre.
+ * "Jogadores" na aba Jogo (as fichas de NPC e de inimigo moram no Acervo
+ * desde o item 6 de 21/11/2026) e a grade de sistemas que "Sistema de RPG"
+ * (na janela Configurações do mapa) abre.
  */
 
 beforeAll(() => {
@@ -44,7 +45,7 @@ describe('PersonagensSection', () => {
         <PersonagensSection
           sistema={SISTEMA_ONE_PIECE}
           sistemaId="one-piece"
-          personagens={[novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Aira'), { ...novoPersonagem(SISTEMA_ONE_PIECE, 'npc', 'Smoker'), id: 'p-smoker' }]}
+          personagens={[{ ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Aira'), id: 'p-aira' }, { ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Vagn'), id: 'p-vagn' }, { ...novoPersonagem(SISTEMA_ONE_PIECE, 'npc', 'Smoker'), id: 'p-smoker' }]}
           onImportar={async () => null}
           {...chamadas}
           {...props}
@@ -52,27 +53,26 @@ describe('PersonagensSection', () => {
       ),
     )
     // A seção nasce fechada (como a Agenda): abre para ver a lista.
-    const titulo = Array.from(container.querySelectorAll('button')).find((candidato) => candidato.textContent?.startsWith('Personagens'))
+    const titulo = Array.from(container.querySelectorAll('button')).find((candidato) => candidato.textContent?.startsWith('Jogadores'))
     act(() => titulo?.click())
     return chamadas
   }
 
-  it('a lista em grupos que fecham, com contador; o nome inteiro sem selo no grupo; tocar abre a ficha', () => {
-    const { onAbrirFicha } = montar()
+  it('só os jogadores, numa lista sem grupos; o NPC mora no Acervo; tocar abre a ficha', () => {
+    const onMostrarNoAcervo = vi.fn()
+    const { onAbrirFicha } = montar({ onMostrarNoAcervo })
     expect(container.textContent).not.toContain('Sistema de RPG')
-    const cabecalhos = Array.from(container.querySelectorAll<HTMLButtonElement>('.lb-rpg__grupo-cab'))
-    expect(cabecalhos.map((cab) => cab.textContent)).toEqual(['Jogadores1', 'NPCs1'])
-    expect(Array.from(container.querySelectorAll('.lb-rpg__abrir')).map((linha) => linha.textContent)).toEqual(['AAira', 'SSmoker'])
+    expect(container.querySelectorAll('.lb-rpg__grupo-cab')).toHaveLength(0)
+    expect(Array.from(container.querySelectorAll('.lb-rpg__abrir')).map((linha) => linha.textContent)).toEqual(['AAira', 'VVagn'])
+    expect(container.textContent).not.toContain('Smoker')
+    act(() => botao(container, 'Mostrar no Acervo').click())
+    expect(onMostrarNoAcervo).toHaveBeenCalledTimes(1)
     act(() => container.querySelectorAll<HTMLButtonElement>('.lb-rpg__abrir')[1].click())
-    expect(onAbrirFicha).toHaveBeenCalledWith('p-smoker')
-    // Fechar o grupo guarda o estado e tira as linhas dele da ordem do Tab.
-    act(() => cabecalhos[1].click())
-    expect(cabecalhos[1].getAttribute('aria-expanded')).toBe('false')
-    expect(document.getElementById(cabecalhos[1].getAttribute('aria-controls') ?? '')?.hasAttribute('inert')).toBe(true)
+    expect(onAbrirFicha).toHaveBeenCalledWith('p-vagn')
   })
 
   it('a busca filtra pelo nome sem acento; sem nada, diz que não achou', () => {
-    montar({ personagens: [novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Aira'), { ...novoPersonagem(SISTEMA_ONE_PIECE, 'npc', 'Capitão Smóker'), id: 'p-smoker' }] })
+    montar({ personagens: [novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Aira'), { ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Capitão Smóker'), id: 'p-smoker' }] })
     const campo = container.querySelector<HTMLInputElement>('input[type="search"]')
     if (campo === null) throw new Error('a busca deveria estar no topo')
     const digitar = (texto: string) =>
@@ -83,23 +83,23 @@ describe('PersonagensSection', () => {
     digitar('capitao smo')
     expect(Array.from(container.querySelectorAll('.lb-rpg__nome')).map((nome) => nome.textContent)).toEqual(['Capitão Smóker'])
     digitar('zzz')
-    expect(container.textContent).toContain('Nenhum personagem com “zzz”')
+    expect(container.textContent).toContain('Nenhum jogador com “zzz”')
   })
 
   it('apagar pede confirmação na própria linha', () => {
     const { onApagar } = montar()
-    act(() => botao(container, 'Apagar Smoker').click())
+    act(() => botao(container, 'Apagar Vagn').click())
     expect(onApagar).not.toHaveBeenCalled()
     act(() => botao(container, 'Manter').click())
-    act(() => botao(container, 'Apagar Smoker').click())
+    act(() => botao(container, 'Apagar Vagn').click())
     act(() => botao(container, 'Apagar').click())
-    expect(onApagar).toHaveBeenCalledWith('p-smoker')
+    expect(onApagar).toHaveBeenCalledWith('p-vagn')
   })
 
   it('sem sistema: diz o que falta e não deixa criar nem importar', () => {
     montar({ sistema: undefined, sistemaId: undefined, personagens: [] })
-    expect(container.textContent).toContain('Nenhum personagem ainda.')
-    expect(botao(container, '+ Personagem').disabled).toBe(true)
+    expect(container.textContent).toContain('Nenhum jogador ainda.')
+    expect(botao(container, '+ Jogador').disabled).toBe(true)
     expect(botao(container, 'Importar personagens…').disabled).toBe(true)
     expect(container.textContent).toContain('Escolha o sistema de RPG em Configurações do mapa')
   })
