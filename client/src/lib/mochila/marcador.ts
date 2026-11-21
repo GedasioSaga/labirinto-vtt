@@ -10,8 +10,13 @@
  * arquivo não pode puxar nada que volte para ela.
  */
 
-/** A versão da migração que este app grava. */
-export const VERSAO_DA_MIGRACAO_DA_MOCHILA = 1
+/**
+ * A versão da migração que este app grava. 2 (21/11/2026): UMA MOCHILA SÓ — a
+ * ficha ligada a vários bonecos numa cena também é a dona, e o que cada boneco
+ * dela carregava passou para a ficha (`fichasComOsBonecosDeVarios`). A pasta
+ * com 1 roda só esse passo na abertura seguinte.
+ */
+export const VERSAO_DA_MIGRACAO_DA_MOCHILA = 2
 
 /** O marcador como veio do disco: só versão inteira e positiva; torto conta como ausente (ainda não migrada). */
 export function marcadorDaMochilaDoArquivo(valor: unknown): number | undefined {

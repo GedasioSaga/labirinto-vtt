@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseAdventure, serializeAdventure, type Adventure } from '../adventure'
 import { createEmptyMap } from '../mapFactory'
+import { VERSAO_DA_MIGRACAO_DA_MOCHILA } from './marcador'
 import { serializeMap } from '../mapFile'
 import { rpgDoArquivo, serializarIndice, serializarRpg } from '../pastasDeMapas'
 import { novoPersonagem, type Personagem } from '../personagem'
@@ -167,7 +168,7 @@ describe('migração ao abrir: pasta (o que o usuário pediu: os itens atravessa
 
     expect(resultado).toEqual({ feita: true, arquivo: RPG, relatorio: RELATORIO_DA_PASTA, copiaDeAntes: `${RPG}.antes-da-mochila`, fichas: 2, diferencas: 2, variosBonecos: 0 })
     expect(contaMarcador(disco.texto(RPG))).toBeGreaterThan(0)
-    expect(rpgDoArquivo(JSON.parse(disco.texto(RPG))).mochilaMigrada).toBe(1)
+    expect(rpgDoArquivo(JSON.parse(disco.texto(RPG))).mochilaMigrada).toBe(VERSAO_DA_MIGRACAO_DA_MOCHILA)
     // Vale a cena gravada por último (Reino de Goa): Poção x1 e 50 moedas, não x3 nem 80.
     expect(fichasDoRpg(disco).map((personagem) => [personagem.nome, personagem.mochila, personagem.moedas])).toEqual([
       ['Luffy', [POCAO_X1], 50],
@@ -226,7 +227,7 @@ describe('migração ao abrir: pasta (o que o usuário pediu: os itens atravessa
     ])
   })
 
-  it('ficha NPC ligada a três bonecos no mesmo mapa: o loot fica em cada boneco e o relatório lista os três', async () => {
+  it('ficha NPC ligada a três bonecos no mesmo mapa (uma mochila só): o loot dos três soma na ficha e o relatório lista os três', async () => {
     const disco = appDataDeTeste()
     const rpg = rpgDoArquivo(JSON.parse(disco.texto(RPG)))
     disco.arquivos.set(RPG, { texto: serializarRpg({ ...rpg, personagens: [...rpg.personagens, ficha('p_bandido', 'Bandido')] }), ms: 1 })
@@ -241,8 +242,8 @@ describe('migração ao abrir: pasta (o que o usuário pediu: os itens atravessa
 
     expect(resultado).toMatchObject({ feita: true, fichas: 2, diferencas: 2, variosBonecos: 1 })
     const bandido = fichasDoRpg(disco).find((personagem) => personagem.id === 'p_bandido')
-    expect([bandido?.mochila, bandido?.moedas]).toEqual([undefined, undefined])
-    expect(rpgDoArquivo(JSON.parse(disco.texto(RPG))).mochilaMigrada).toBe(1)
+    expect([bandido?.mochila?.map((item) => item.nome), bandido?.moedas]).toEqual([['Espada Velha', 'Mapa do Tesouro', 'Corda'], 45])
+    expect(rpgDoArquivo(JSON.parse(disco.texto(RPG))).mochilaMigrada).toBe(VERSAO_DA_MIGRACAO_DA_MOCHILA)
     const relatorio = JSON.parse(disco.texto(RELATORIO_DA_PASTA))
     expect(relatorio.fichasComVariosBonecos).toEqual([
       {
@@ -284,7 +285,7 @@ describe('migração ao abrir: fichas no adventure.json', () => {
     expect(resultado).toMatchObject({ feita: true, arquivo: adventurePath, relatorio: `${MAPS}/mapa-de-teste/migracao-da-mochila.json` })
     expect(contaMarcador(disco.texto(adventurePath))).toBeGreaterThan(0)
     const lida = parseAdventure(disco.texto(adventurePath))
-    expect(lida.mochilaMigrada).toBe(1)
+    expect(lida.mochilaMigrada).toBe(VERSAO_DA_MIGRACAO_DA_MOCHILA)
     expect(lida.personagens?.map((personagem) => [personagem.nome, personagem.mochila, personagem.moedas])).toEqual([['Boneco de Treino', [CORDA], 7]])
     expect(disco.texto(`${adventurePath}.antes-da-mochila`)).not.toContain('mochilaMigrada')
     // As fichas da pasta não são deste mapa.
@@ -316,7 +317,7 @@ describe('migração ao abrir: fichas no adventure.json', () => {
     const disco = appDataDeTeste()
     await migrarMochilaDoMapa(TESTE, disco)
     const regravada = serializeAdventure(parseAdventure(disco.texto(`${MAPS}/mapa-de-teste/adventure.json`)))
-    expect(parseAdventure(regravada).mochilaMigrada).toBe(1)
+    expect(parseAdventure(regravada).mochilaMigrada).toBe(VERSAO_DA_MIGRACAO_DA_MOCHILA)
   })
 
   it('mapa solto fora de pasta não tem onde guardar ficha: nada é gravado', async () => {

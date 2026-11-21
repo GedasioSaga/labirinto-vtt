@@ -302,17 +302,29 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
   if (achado === null) return { inventario: mochilaDaFichaSemBoneco(personagem) }
   const { token, sceneId } = achado
   const dono = token.name || 'o token'
-  // O "Editar", o "+ Adicionar" e o Salvar da ficha (pedido de 16/11/2026): pelo caminho dos itens do boneco, que leva à
-  // ficha (a dona, depois da migração) e espelha nas outras cenas, como o "Usar" abaixo. A de agora é a do boneco lido na hora.
-  const gravar = (mochila: CarriedItem[]) => aplicarItens !== undefined && aplicarItens({ mochilas: [{ tokenId: token.id, mochila }], ...(sceneId === null ? {} : { sceneId }) })
+  // UMA MOCHILA SÓ (pedido de 21/11/2026, a Tocha do Hector): depois da migração a FICHA é a dona — a grade lê e grava
+  // nela (o funil da aventura, `ajustarPersonagem`, espelha em todo boneco dela). Antes lia o PRIMEIRO boneco ligado, e a
+  // ficha com dois bonecos mostrava a mochila de um enquanto o jogador via a do outro e a aba Itens contava a da ficha.
+  const daFicha = () => personagensAtivos(useAdventureStore.getState()).find((candidato) => candidato.id === personagemId)
+  const gravarNaFicha = (mochila: CarriedItem[]) => useAdventureStore.getState().ajustarPersonagem(personagemId, (atual) => fichaComMochila(atual, mochila, moedasDe(atual)))
+  // O "Editar", o "+ Adicionar" e o Salvar da ficha (pedido de 16/11/2026): antes da migração, pelo caminho dos itens do
+  // boneco (o dono), como o "Usar" abaixo. A de agora é a do dono, lida na hora.
+  const gravar = (mochila: CarriedItem[]) =>
+    mochilaNaFicha ? gravarNaFicha(mochila) : aplicarItens !== undefined && aplicarItens({ mochilas: [{ tokenId: token.id, mochila }], ...(sceneId === null ? {} : { sceneId }) })
   const mochilaDeAgora = () => {
+    if (mochilaNaFicha) return daFicha()?.mochila ?? []
     const agora = tokenDoPersonagem(hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map), personagemId)
     return agora === null ? [] : carriedItemsOf(agora.token)
   }
+  const itens = mochilaNaFicha ? (personagem.mochila ?? []) : carriedItemsOf(token)
   const doBoneco: Omit<InventarioDoMestre, 'inventario'> = mochilaNaFicha
     ? {}
     : { mochilaDoBoneco: carriedItemsOf(token), salvar: (salvo) => salvarComAsVagasNoBoneco(salvo, dono, mochilaDeAgora, gravar) }
   const agir = (kind: 'tirar' | 'devolver', item: CarriedItem, fechar: () => void) => {
+    if (kind === 'tirar' && mochilaNaFicha) {
+      if (useAdventureStore.getState().ajustarPersonagem(personagemId, (atual) => tirarDaMochilaDaFicha(atual, item.id, quantidadeDe(item)))) fechar()
+      return
+    }
     const change = partyItemChange(world, { kind, item: { ...item, tokenId: token.id, sceneId } }, crypto.randomUUID())
     if (change !== null && aplicarItens?.(change) === true) fechar()
   }
@@ -322,18 +334,18 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
   const usar = (item: CarriedItem, fechar: () => void) => {
     const sceneKey = sceneId ?? chaveDaCenaAberta()
     const seguradas = chavesDaFichaNaBatalha(sceneKey, token.id)
-    const uso = usarItemNaFicha(token, item.id, seguradas)
+    const uso = usarItemNaFicha(mochilaNaFicha ? { ...token, mochila: mochilaDeAgora() } : token, item.id, seguradas)
     if (uso === null || aplicarItens === undefined) return
-    if (!aplicarItens({ mochilas: [{ tokenId: token.id, mochila: uso.mochila }], ...(sceneId === null ? {} : { sceneId }) })) return
+    if (!gravar(uso.mochila)) return
     if (itemQueCura(item)) mesaDaAventura.mudarFichaDaCena?.(sceneKey, token.id, (atual) => curarPeloItem(atual, seguradas))
     const quem = token.name || 'o token'
     useToastStore.getState().push('info', uso.curou.length === 0 ? `${quem} usou ${item.nome}.` : `${quem} usou ${item.nome}: ${uso.curou.join(', ')} saiu.`)
     if (!uso.mochila.some((vaga) => vaga.id === item.id)) fechar()
   }
-  if (aplicarItens === undefined) return { inventario: <InventarioDaFicha itens={carriedItemsOf(token)} vazio={`Nada com ${dono}. Dê um item pelo acervo de itens.`} />, ...doBoneco }
+  if (aplicarItens === undefined) return { inventario: <InventarioDaFicha itens={itens} vazio={`Nada com ${dono}. Dê um item pelo acervo de itens.`} />, ...doBoneco }
   const inventario = (
     <MochilaDoMestre
-      itens={carriedItemsOf(token)}
+      itens={itens}
       dono={dono}
       gravar={gravar}
       mochilaDeAgora={mochilaDeAgora}

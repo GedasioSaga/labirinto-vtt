@@ -7,6 +7,7 @@ import { writeTextFileSafely } from '../../lib/mapFileIO'
 import { horaDoSalvarDoArquivo } from '../../lib/mochila/horaDoSalvar'
 import { juntarMochilas, type BonecoDaJuncao, type CenaDaJuncao, type DiferencaDaMochila, type FichaComVariosBonecos, type JuncaoDaMochila, type OrigemDaMochila } from '../../lib/mochila/juncao'
 import { marcadorDaMochilaDoArquivo, VERSAO_DA_MIGRACAO_DA_MOCHILA } from '../../lib/mochila/marcador'
+import { fichasComOsBonecosDeVarios, type EntradaNaFicha } from '../../lib/mochila/transicao'
 import { chaveDoMapa, idDePastaValido, INDICE_VAZIO, indiceDoArquivo, lugarDoMapa, rpgDoArquivo, type IndiceDasPastas } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
 import type { RecoveryCopy } from '../../lib/recoveryCopy'
@@ -75,8 +76,10 @@ export type MigracaoDaMochila =
       copiaDeAntes: string
       fichas: number
       diferencas: number
-      /** Fichas ligadas a mais de um boneco numa mesma cena: ficaram como estavam, e o relatório lista os bonecos. */
+      /** Fichas ligadas a mais de um boneco numa mesma cena: a mochila dos bonecos passou para a ficha (marcador 2), e o relatório lista os bonecos. */
       variosBonecos: number
+      /** Só o passo 2 (a pasta já tinha o marcador 1): `fichas` = quantas receberam a mochila dos bonecos. */
+      umaMochila?: true
     }
 
 export const ARQUIVO_DO_RELATORIO = 'migracao-da-mochila.json'
@@ -317,7 +320,7 @@ function textoDoRelatorio(onde: string, copiaDeAntes: string, juncao: JuncaoDaMo
       versao: VERSAO_DO_RELATORIO,
       feitaEm: new Date(agoraMs).toISOString(),
       onde,
-      regra: 'Vale a mochila e a bolsa da cena salva por último. O mesmo item diferente noutra cena não muda nada; item que só existia noutra cena também ficou na ficha. Ficha ligada a mais de um boneco numa mesma cena ficou como estava, com a mochila em cada boneco: decida qual vale. Confira as diferenças abaixo.',
+      regra: 'Vale a mochila e a bolsa da cena salva por último. O mesmo item diferente noutra cena não muda nada; item que só existia noutra cena também ficou na ficha. Ficha ligada a mais de um boneco numa mesma cena: o que cada boneco carregava somou na ficha, e todos passam a mostrá-la (uma mochila só). Confira as diferenças abaixo.',
       copiaDeAntes,
       fichas: juncao.bases.map((base) => {
         const ficha = porId.get(base.personagemId)
@@ -347,7 +350,9 @@ interface Alvo {
 }
 
 async function migrar(disco: DiscoDaMigracao, alvo: Alvo, lidas: CenasLidas, agoraMs: number, depoisDeGravar?: (antes: readonly Personagem[], depois: readonly Personagem[]) => void): Promise<MigracaoDaMochila> {
-  const juncao = juntarMochilas(alvo.personagens, lidas.cenas)
+  const juntadas = juntarMochilas(alvo.personagens, lidas.cenas)
+  // UMA MOCHILA SÓ (marcador 2): a junção deixa a ficha de vários bonecos como estava; aqui a mochila deles passa para ela.
+  const juncao: JuncaoDaMochila = { ...juntadas, personagens: [...fichasComOsBonecosDeVarios(juntadas.personagens, lidas.cenas, () => crypto.randomUUID()).personagens] }
   const copiaDeAntes = `${alvo.arquivo}${SUFIXO_DA_COPIA_DE_ANTES}`
   // A cópia é do arquivo ANTES da PRIMEIRA migração: uma segunda tentativa (a primeira caiu antes do marcador) não a regrava.
   if ((await disco.ler(copiaDeAntes)) === null) await disco.gravar(copiaDeAntes, alvo.texto)
@@ -356,6 +361,44 @@ async function migrar(disco: DiscoDaMigracao, alvo: Alvo, lidas: CenasLidas, ago
   await disco.gravar(alvo.arquivo, JSON.stringify(brutoMigrado(alvo.bruto, juncao.personagens), null, 2))
   depoisDeGravar?.(alvo.personagens, juncao.personagens)
   return { feita: true, arquivo: alvo.arquivo, relatorio, copiaDeAntes, fichas: juncao.bases.length, diferencas: juncao.diferencas.length, variosBonecos: juncao.variosBonecos.length }
+}
+
+/** A cópia do arquivo das fichas antes do passo 2 (a do passo 1, `SUFIXO_DA_COPIA_DE_ANTES`, fica como está). */
+export const SUFIXO_DA_COPIA_DE_ANTES_2 = '.antes-da-mochila-2'
+export const ARQUIVO_DO_RELATORIO_2 = 'migracao-da-mochila-2.json'
+
+function relatorioDoPasso2(onde: string, copiaDeAntes: string, entradas: readonly EntradaNaFicha[], naoAbriram: readonly string[], agoraMs: number): string {
+  return JSON.stringify(
+    {
+      versao: VERSAO_DO_RELATORIO,
+      feitaEm: new Date(agoraMs).toISOString(),
+      onde,
+      regra: 'Uma mochila só: a ficha ligada a mais de um boneco numa mesma cena passou a ser a dona da mochila de todos eles. O que cada boneco carregava somou na ficha.',
+      copiaDeAntes,
+      entradas: entradas.map((entrada) => ({ ficha: entrada.personagem, fichaId: entrada.personagemId, boneco: entrada.boneco, itens: entrada.itens, moedas: entrada.moedas })),
+      cenasQueNaoAbriram: naoAbriram,
+    },
+    null,
+    2,
+  )
+}
+
+/**
+ * O PASSO 2 sobre o arquivo que já tem o marcador 1: só a mochila dos bonecos
+ * das fichas de vários bonecos passa para a ficha (`fichasComOsBonecosDeVarios`);
+ * o resto da migração 1 não roda de novo (copiaria do boneco uma mochila já
+ * gasta). Grava o marcador 2 mesmo sem nada a somar: o espelho novo só liga com ele.
+ */
+async function migrarParaUmaMochila(disco: DiscoDaMigracao, alvo: Alvo, lidas: CenasLidas, agoraMs: number, depoisDeGravar?: (antes: readonly Personagem[], depois: readonly Personagem[]) => void): Promise<MigracaoDaMochila> {
+  const { personagens, entradas } = fichasComOsBonecosDeVarios(alvo.personagens, lidas.cenas, () => crypto.randomUUID())
+  const copiaDeAntes = `${alvo.arquivo}${SUFIXO_DA_COPIA_DE_ANTES_2}`
+  if ((await disco.ler(copiaDeAntes)) === null) await disco.gravar(copiaDeAntes, alvo.texto)
+  const relatorio = await disco.juntar(alvo.dir, ARQUIVO_DO_RELATORIO_2)
+  if (entradas.length > 0) await disco.gravar(relatorio, relatorioDoPasso2(alvo.onde, copiaDeAntes, entradas, lidas.naoAbriram, agoraMs))
+  await disco.gravar(alvo.arquivo, JSON.stringify(brutoMigrado(alvo.bruto, personagens), null, 2))
+  if (personagens !== alvo.personagens) depoisDeGravar?.(alvo.personagens, personagens)
+  const fichas = new Set(entradas.map((entrada) => entrada.personagemId)).size
+  return { feita: true, arquivo: alvo.arquivo, relatorio, copiaDeAntes, fichas, diferencas: 0, variosBonecos: fichas, umaMochila: true }
 }
 
 /** O índice das pastas como o app o lê (`lerIndice`): o arquivo, senão a cópia `.anterior`; `null` = nenhum dos dois abre. */
@@ -381,7 +424,7 @@ function levarAoLobby(pastaId: string, antes: readonly Personagem[], depois: rea
 
 async function migrarPasta(disco: DiscoDaMigracao, indice: IndiceDasPastas, pastaDosMapas: string, pastaId: string, nome: string, rpg: Omit<Alvo, 'personagens' | 'onde'>, recuperado: RecoveryCopy | null, agoraMs: number): Promise<MigracaoDaMochila> {
   const lido = rpgDoArquivo(rpg.bruto)
-  if (lido.mochilaMigrada !== undefined) return { feita: false, porque: 'ja-migrada' }
+  if (lido.mochilaMigrada !== undefined && lido.mochilaMigrada >= VERSAO_DA_MIGRACAO_DA_MOCHILA) return { feita: false, porque: 'ja-migrada' }
   if (lido.personagens.length === 0) return { feita: false, porque: 'sem-fichas' }
   const lidas: CenasLidas = { cenas: [], naoAbriram: [] }
   // Todo mapa da pasta que USA a pasta: é uma campanha só. "Configurar só neste mapa" fica de fora (tem as próprias fichas).
@@ -389,20 +432,22 @@ async function migrarPasta(disco: DiscoDaMigracao, indice: IndiceDasPastas, past
     if (lugar.pastaId !== pastaId || lugar.proprio === true) continue
     await lerCenasDoMapa(disco, await disco.juntar(pastaDosMapas, lugar.chave), recuperado, lidas)
   }
-  return migrar(disco, { ...rpg, personagens: lido.personagens, onde: `pasta ${nome}` }, lidas, agoraMs, (antes, depois) => levarAoLobby(pastaId, antes, depois))
+  const passo = lido.mochilaMigrada === undefined ? migrar : migrarParaUmaMochila
+  return passo(disco, { ...rpg, personagens: lido.personagens, onde: `pasta ${nome}` }, lidas, agoraMs, (antes, depois) => levarAoLobby(pastaId, antes, depois))
 }
 
 async function migrarAventura(disco: DiscoDaMigracao, caminhoDoMapa: string, recuperado: RecoveryCopy | null, agoraMs: number): Promise<MigracaoDaMochila> {
   const achada = await aventuraDoMapa(disco, caminhoDoMapa)
   // Mapa solto fora de pasta: as fichas moram em `adventure.json`, e ele não tem.
   if (achada === null) return { feita: false, porque: 'sem-fichas' }
-  if (marcadorDaMochilaDoArquivo(achada.bruto.mochilaMigrada) !== undefined) return { feita: false, porque: 'ja-migrada' }
+  const marcador = marcadorDaMochilaDoArquivo(achada.bruto.mochilaMigrada)
+  if (marcador !== undefined && marcador >= VERSAO_DA_MIGRACAO_DA_MOCHILA) return { feita: false, porque: 'ja-migrada' }
   const personagens = achada.aventura.personagens ?? []
   if (personagens.length === 0) return { feita: false, porque: 'sem-fichas' }
   const lidas: CenasLidas = { cenas: [], naoAbriram: [] }
   await lerCenasDaAventura(disco, achada.dir, achada.aventura, recuperado, lidas)
   const alvo: Alvo = { arquivo: achada.caminho, texto: achada.texto, bruto: achada.bruto, personagens, dir: achada.dir, onde: `aventura ${achada.aventura.name}` }
-  return migrar(disco, alvo, lidas, agoraMs)
+  return marcador === undefined ? migrar(disco, alvo, lidas, agoraMs) : migrarParaUmaMochila(disco, alvo, lidas, agoraMs)
 }
 
 export interface OpcoesDaMigracao {
@@ -481,8 +526,12 @@ export async function migrarMochilaAoAbrir(caminhoDoMapa: string, recuperado: Re
   try {
     const feita = await migrarMochilaDoMapa(caminhoDoMapa, discoDoApp, { recuperado })
     if (!feita.feita) return
+    if (feita.umaMochila === true) {
+      if (feita.fichas > 0) useToastStore.getState().push('info', `Uma mochila só: ${feita.fichas} ficha(s) ligada(s) a mais de um boneco na mesma cena receberam o que os bonecos carregavam. Confira em ${feita.relatorio}.`)
+      return
+    }
     const diferencas = feita.diferencas === 0 ? 'Nenhuma diferença entre os mapas.' : `${feita.diferencas} diferença(s) entre os mapas: confira em ${feita.relatorio}.`
-    const variosBonecos = feita.variosBonecos === 0 ? '' : ` ${feita.variosBonecos} ficha(s) ligada(s) a mais de um boneco na mesma cena ficaram como estavam, com a mochila em cada boneco: decida em ${feita.relatorio}.`
+    const variosBonecos = feita.variosBonecos === 0 ? '' : ` ${feita.variosBonecos} ficha(s) ligada(s) a mais de um boneco na mesma cena receberam o que os bonecos carregavam (uma mochila só): confira em ${feita.relatorio}.`
     useToastStore.getState().push('info', `A mochila e a bolsa de ${feita.fichas} personagem(ns) passaram a morar na ficha. ${diferencas}${variosBonecos}`)
   } catch (erro) {
     useToastStore.getState().push('error', `Não deu para passar a mochila para as fichas (${motivo(erro)}): o mapa abre como antes.`)

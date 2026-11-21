@@ -2,7 +2,7 @@ import type { CarriedItem, Token } from '../../types/map'
 import { quantidadeDe } from '../items'
 import type { Personagem } from '../personagem'
 import { MOEDAS_MAX, moedasDe } from '../troca'
-import { fichasDeVariosBonecos, itensIguais, pilhaDe as pilhaDoAcervo, type CenaDaJuncao, type OrigemDaMochila } from './juncao'
+import { itensIguais, pilhaDe as pilhaDoAcervo, type CenaDaJuncao, type OrigemDaMochila } from './juncao'
 import { fichaSomada, itemNoAviso } from './transicao'
 
 /**
@@ -28,9 +28,10 @@ import { fichaSomada, itemNoAviso } from './transicao'
  * se a bolsa é cópia, e ela conta inteira (melhor o mestre ignorar do que
  * sumir calado).
  *
- * A regra é POR CENA, como o espelho: ficha com vários bonecos na
- * mesma cena (três Marinheiros da mesma ficha) não gera pendente — cada boneco
- * fica com a sua mochila. Boneco sem ficha (NPC) ou de ficha que a pasta não
+ * UMA MOCHILA SÓ (marcador 2, 21/11/2026): a ficha com vários bonecos na
+ * mesma cena (três Marinheiros da mesma ficha) também é a dona, e o espelho
+ * mostra a mochila dela em todos — então o que cada um desses bonecos traz
+ * também vira pendente (antes ficava em cada boneco). Boneco sem ficha (NPC) ou de ficha que a pasta não
  * tem também não: o espelho não toca nele. Pura: nada de disco nem store.
  */
 
@@ -154,9 +155,8 @@ function leiturasDoMapa(personagens: readonly Personagem[], chave: string, cenas
   const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
   const leituras: Leitura[] = []
   for (const { origem, bonecos } of cenas) {
-    const deVarios = fichasDeVariosBonecos(bonecos)
     for (const boneco of bonecos) {
-      if (boneco.characterId === null || deVarios.has(boneco.characterId)) continue
+      if (boneco.characterId === null) continue
       const ficha = porId.get(boneco.characterId)
       if (ficha === undefined) continue
       // O id só nasce para o que entra de fato no relatório.

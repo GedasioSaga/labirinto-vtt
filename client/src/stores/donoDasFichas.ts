@@ -5,6 +5,7 @@ import type { PastaAberta } from '../lib/pastasDeMapas'
 import type { Equipe } from '../lib/batalha/equipes'
 import type { PastaDeFichas } from '../lib/pastasDeFichas'
 import { mapaComAsFichas } from '../lib/mochila/espelho'
+import { VERSAO_DA_MIGRACAO_DA_MOCHILA } from '../lib/mochila/marcador'
 import { prepararEmissao } from '../net/nuvem/emissor'
 import type { AdventureState } from './adventureStore'
 import { useToastStore } from './toastStore'
@@ -122,11 +123,25 @@ export function fichasDonasDaMochila(state: RpgState): readonly Personagem[] | n
   return adventure.personagens ?? SEM_PERSONAGENS
 }
 
+/**
+ * UMA MOCHILA SÓ (marcador 2, `lib/mochila/marcador.ts`): a ficha manda em
+ * TODO boneco dela, também na ficha ligada a vários bonecos num mapa. Com o
+ * marcador 1 (a migração 2 ainda não rodou, ou o disco a recusou), a regra
+ * de antes: cada um daqueles bonecos guarda a própria mochila até ela passar
+ * para a ficha — o espelho novo a apagaria.
+ */
+export function todoBonecoMostraAFicha(state: RpgState): boolean {
+  const pasta = pastaQueManda(state)
+  const marcador = pasta !== null ? pasta.mochilaMigrada : state.adventure?.mochilaMigrada
+  return marcador !== undefined && marcador >= VERSAO_DA_MIGRACAO_DA_MOCHILA
+}
+
 /** O espelho das fichas para o mapa que ENTRA (abrir, cena que chega do disco, troca de cena): a ficha vence o boneco. Sem fichas donas, o mapa como veio. */
 export function espelhoDasFichas(state: RpgState): (map: MapData) => MapData {
   const fichas = fichasDonasDaMochila(state)
   if (fichas === null || fichas.length === 0) return (map) => map
-  return (map) => mapaComAsFichas(map, fichas)
+  const todoBoneco = todoBonecoMostraAFicha(state)
+  return (map) => mapaComAsFichas(map, fichas, todoBoneco)
 }
 
 /** Referência estável para "sem equipes": o host compara por referência. */

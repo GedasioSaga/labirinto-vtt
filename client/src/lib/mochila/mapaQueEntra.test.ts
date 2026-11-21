@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { serializeAdventure, type Adventure } from '../adventure'
 import type { Equipe } from '../batalha/equipes'
 import { createEmptyMap } from '../mapFactory'
+import { VERSAO_DA_MIGRACAO_DA_MOCHILA } from './marcador'
 import { serializeMap } from '../mapFile'
 import {
   indiceDoArquivo,
@@ -125,7 +126,7 @@ function appDataConvertido(): DiscoFalso {
     sistemaDeRpg: SISTEMA_ONE_PIECE.id,
     personagens: [ficha('p_luffy', 'Luffy', { mochila: [POCAO_X1], moedas: 30 }), ficha('p_zoro', 'Zoro', { mochila: [MAPA_DO_TESOURO] })],
     equipes: EQUIPES,
-    mochilaMigrada: 1,
+    mochilaMigrada: VERSAO_DA_MIGRACAO_DA_MOCHILA,
   }
   disco.arquivos.set(RPG, serializarRpg(rpg))
   disco.arquivos.set(RELATORIO, JSON.stringify({ versao: 1, onde: 'pasta One Piece', fichas: [{ ficha: 'Luffy' }] }, null, 2))
@@ -202,11 +203,11 @@ describe('o marcador da pasta na configuração da pasta', () => {
     await mudarRpgNoDisco(disco, (rpg) => rpgComSistema(rpg, null))
     const semSistema = rpgNoDisco(disco)
     expect(semSistema.sistemaDeRpg).toBeUndefined()
-    expect(semSistema.mochilaMigrada).toBe(1)
+    expect(semSistema.mochilaMigrada).toBe(VERSAO_DA_MIGRACAO_DA_MOCHILA)
     expect(semSistema.equipes).toEqual(EQUIPES)
 
     await mudarRpgNoDisco(disco, (rpg) => rpgComSistema(rpg, SISTEMA_ONE_PIECE.id))
-    expect(rpgNoDisco(disco).mochilaMigrada).toBe(1)
+    expect(rpgNoDisco(disco).mochilaMigrada).toBe(VERSAO_DA_MIGRACAO_DA_MOCHILA)
     // A Sky Lagoon ainda tem a Poção ×3 de antes no arquivo: converter de novo a traria de volta à ficha.
     expect(await migrarMochilaDoMapa(SKY, disco)).toEqual({ feita: false, porque: 'ja-migrada' })
     expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([POCAO_X1])
@@ -217,7 +218,7 @@ describe('o marcador da pasta na configuração da pasta', () => {
     const doMapa: RpgDaPasta = { sistemaDeRpg: SISTEMA_ONE_PIECE.id, personagens: [ficha('p_luffy', 'Luffy do mapa'), ficha('p_nami', 'Nami')] }
     await mudarRpgNoDisco(disco, (rpg) => rpgComOsPersonagensDoMapa(rpg, doMapa))
     const depois = rpgNoDisco(disco)
-    expect(depois.mochilaMigrada).toBe(1)
+    expect(depois.mochilaMigrada).toBe(VERSAO_DA_MIGRACAO_DA_MOCHILA)
     expect(depois.equipes).toEqual(EQUIPES)
     expect(depois.personagens.map((personagem) => personagem.nome)).toEqual(['Luffy', 'Zoro', 'Nami'])
     expect(await migrarMochilaDoMapa(SKY, disco)).toEqual({ feita: false, porque: 'ja-migrada' })
@@ -345,7 +346,7 @@ describe('o mapa que entra numa pasta convertida', () => {
     expect(novos.map((pendente) => `${pendente.cena}: ${pendente.tipo === 'item' ? pendente.item.nome : 'moedas'}`)).toEqual(['Praia: Poção', 'Caverna: Corda'])
   })
 
-  it('ficha com vários bonecos no mesmo mapa: cada um fica com a sua mochila, sem pendente', async () => {
+  it('ficha com vários bonecos no mesmo mapa (uma mochila só): o que cada boneco traz vira pendente', async () => {
     const disco = appDataConvertido()
     disco.arquivos.set(
       ARQUIPELAGO,
@@ -356,7 +357,8 @@ describe('o mapa que entra numa pasta convertida', () => {
         ]),
       ),
     )
-    expect(await moverParaAPasta(disco, 'arquipelago')).toEqual([])
+    const novos = await moverParaAPasta(disco, 'arquipelago')
+    expect(novos.map((pendente) => `${pendente.boneco}: ${pendente.tipo === 'item' ? pendente.item.nome : `${pendente.moedas} moedas`}`)).toEqual(['Marinheiro 1: Corda', 'Marinheiro 2: 5 moedas'])
   })
 
   it('pasta ainda não convertida: nada a anotar (a migração da abertura junta o mapa)', async () => {
@@ -1111,7 +1113,7 @@ describe('o mapa fechado com a aventura já migrada: na conferência do disco, a
       startSceneId: 'conves',
       scenes: [{ id: 'conves', name: 'Convés', file: 'map.json' }],
       personagens: fichas,
-      mochilaMigrada: 1,
+      mochilaMigrada: VERSAO_DA_MIGRACAO_DA_MOCHILA,
     }
     disco.arquivos.set(AVENTURA_DO_MERRY, serializeAdventure(aventura))
   }

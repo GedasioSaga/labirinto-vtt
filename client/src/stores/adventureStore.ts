@@ -115,6 +115,7 @@ import {
   personagensAtivos,
   sistemaAtivo,
   temRpgNoMapa,
+  todoBonecoMostraAFicha,
   type RpgState,
 } from './donoDasFichas'
 import { gravarAventura, gravarPastaSuja, receberCenaDaCopia, temTrabalhoPorSalvar } from './persistenciaDaAventura'
@@ -2709,7 +2710,7 @@ export function applyItemsInScene(change: AppliedItems): boolean {
 function levarParaAsFichas(change: AppliedItems, bonecos: MapData['tokens']): FichasGravadas {
   const fichas = fichasDonasDaMochila(useAdventureStore.getState())
   if (fichas === null) return null
-  const novas = mudancaNasFichas(fichas, bonecos, change)
+  const novas = mudancaNasFichas(fichas, bonecos, change, todoBonecoMostraAFicha(useAdventureStore.getState()))
   return novas === fichas ? null : gravarFichasDonas(novas)
 }
 
@@ -2741,7 +2742,8 @@ function gravarFichasDonas(novas: readonly Personagem[]): FichasGravadas {
  */
 function espelharNaAberta(fichas: readonly Personagem[]): void {
   const { map, past, future } = useMapStore.getState()
-  const espelhado = { map: mapaComAsFichas(map, fichas), past: passosComAsFichas(past, fichas), future: passosComAsFichas(future, fichas) }
+  const todo = todoBonecoMostraAFicha(useAdventureStore.getState())
+  const espelhado = { map: mapaComAsFichas(map, fichas, todo), past: passosComAsFichas(past, fichas, todo), future: passosComAsFichas(future, fichas, todo) }
   if (espelhado.map !== map || espelhado.past !== past || espelhado.future !== future) useMapStore.setState(espelhado)
 }
 
@@ -2756,12 +2758,13 @@ function espelharNasDeFundo(fichas: readonly Personagem[], exceto: string | null
   const { cache, dirty } = useAdventureStore.getState()
   const novoCache: Record<string, SceneSlot> = { ...cache }
   const novoDirty: Record<string, true> = { ...dirty }
+  const todo = todoBonecoMostraAFicha(useAdventureStore.getState())
   let mudou = false
   for (const [sceneId, slot] of Object.entries(cache)) {
     if (sceneId === exceto || slot.status !== 'ok') continue
-    const map = mapaComAsFichas(slot.map, fichas)
-    const past = passosComAsFichas(slot.past, fichas)
-    const future = passosComAsFichas(slot.future, fichas)
+    const map = mapaComAsFichas(slot.map, fichas, todo)
+    const past = passosComAsFichas(slot.past, fichas, todo)
+    const future = passosComAsFichas(slot.future, fichas, todo)
     if (map === slot.map && past === slot.past && future === slot.future) continue
     novoCache[sceneId] = { ...slot, map, past, future }
     if (map !== slot.map) novoDirty[sceneId] = true
@@ -2829,7 +2832,7 @@ function espelharSeAsDonasMudaram(antes: readonly Personagem[] | null): void {
 function acertarBonecosNoMapa(antes: MapData, depois: MapData, porOsBonecos: (tokens: Token[]) => void): void {
   const fichas = fichasDonasDaMochila(useAdventureStore.getState())
   if (fichas === null) return
-  const acerto = acertarBonecosDasFichas(fichas, antes.tokens, depois.tokens, () => crypto.randomUUID())
+  const acerto = acertarBonecosDasFichas(fichas, antes.tokens, depois.tokens, () => crypto.randomUUID(), todoBonecoMostraAFicha(useAdventureStore.getState()))
   if (acerto.personagens === fichas && acerto.tokens === depois.tokens) return
   const gravadas = acerto.personagens === fichas ? fichas : gravarFichasDonas(acerto.personagens)
   if (gravadas === null || gravadas === 'recusada') return
@@ -2944,7 +2947,7 @@ function semOEspelhoNoCopiado(clipboard: MapClipboard | null): void {
   if (clipboard === null) return
   const fichas = fichasDonasDaMochila(useAdventureStore.getState())
   if (fichas === null) return
-  const source = mapaSemOEspelho(clipboard.source, fichas)
+  const source = mapaSemOEspelho(clipboard.source, fichas, todoBonecoMostraAFicha(useAdventureStore.getState()))
   if (source !== clipboard.source) useMapStore.setState({ clipboard: { ...clipboard, source } })
 }
 
@@ -2974,7 +2977,7 @@ export function bonecoVaiSerGuardado(tokenId: string, sceneId?: string): void {
   const map = mapaAgoraDa(sceneId)
   if (map === null) return
   const boneco = map.tokens.find((token) => token.id === tokenId)
-  const semCopia = mapaSemOEspelho(map, fichas).tokens.find((token) => token.id === tokenId)
+  const semCopia = mapaSemOEspelho(map, fichas, todoBonecoMostraAFicha(useAdventureStore.getState())).tokens.find((token) => token.id === tokenId)
   if (boneco !== undefined && semCopia !== boneco) guardadosQueMostravamAFicha.add(tokenId)
 }
 
@@ -3010,7 +3013,7 @@ export function bonecoQueVoltaDaGuarda(token: Token): Token {
 export function acertarMochilasRecuperadas(mapas: readonly MapData[], bonecosVencem: boolean): void {
   const fichas = fichasDonasDaMochila(useAdventureStore.getState())
   if (fichas === null) return
-  const novas = bonecosVencem ? fichasComOsBonecos(fichas, mapas) : fichas
+  const novas = bonecosVencem ? fichasComOsBonecos(fichas, mapas, todoBonecoMostraAFicha(useAdventureStore.getState())) : fichas
   const gravadas = novas === fichas ? fichas : gravarFichasDonas(novas)
   // Recusada: os bonecos recuperados continuam mostrando a mochila deles (o espelho das fichas de antes a apagaria).
   if (gravadas !== null && gravadas !== 'recusada') espelharEmTodaCena(gravadas)

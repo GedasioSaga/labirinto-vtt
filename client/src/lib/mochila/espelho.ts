@@ -33,6 +33,9 @@ export function bonecoComAFicha(boneco: Token, ficha: Pick<Personagem, 'mochila'
 /** Mochila vazia e bolsa zerada: o que fica no boneco que mostrava a ficha e não é mais o único dela no mapa. */
 const SEM_NADA: Pick<Personagem, 'mochila' | 'moedas'> = {}
 
+/** Nenhuma ficha de vários bonecos: com `todoBoneco`, toda ficha manda em todos os bonecos dela. */
+const SEM_FICHAS: ReadonlySet<string> = new Set()
+
 /**
  * O ESPELHO — "a ficha vence o boneco": cada boneco do mapa ligado a uma ficha
  * da lista passa a mostrar a mochila e a bolsa DELA. Vale para a cena que
@@ -49,11 +52,16 @@ const SEM_NADA: Pick<Personagem, 'mochila' | 'moedas'> = {}
  * (`lib/travessiaDaFicha.ts`) com a cópia, ao lado do outro, também com a
  * cópia; um Ctrl+Z ali daria a cada um uma mochila da ficha para gastar.
  * Nada mudando, o MESMO mapa.
+ *
+ * UMA MOCHILA SÓ (`todoBoneco`, marcador 2 da migração, pedido de 21/11/2026:
+ * a ficha do Hector dizia Tocha e o inventário dele, vazio): todo boneco da
+ * ficha mostra a mochila dela, também o de ficha com vários bonecos no mapa.
+ * A ficha é a dona; cada boneco é só a vista dela.
  */
-export function mapaComAsFichas(map: MapData, personagens: readonly Personagem[]): MapData {
+export function mapaComAsFichas(map: MapData, personagens: readonly Personagem[], todoBoneco = false): MapData {
   if (personagens.length === 0) return map
   const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
-  const deVariosBonecos = fichasDeVariosBonecos(map.tokens)
+  const deVariosBonecos = todoBoneco ? SEM_FICHAS : fichasDeVariosBonecos(map.tokens)
   let mudou = false
   const tokens = map.tokens.map((boneco) => {
     if (boneco.characterId === null) return boneco
@@ -76,10 +84,10 @@ export function mapaComAsFichas(map: MapData, personagens: readonly Personagem[]
  * já bebida e as moedas já pagas) e o "Guardar ficha" de quem foi embora. Na
  * volta ele mostra a ficha como ela estiver. Nada mudando, o MESMO mapa.
  */
-export function mapaSemOEspelho(map: MapData, personagens: readonly Personagem[]): MapData {
+export function mapaSemOEspelho(map: MapData, personagens: readonly Personagem[], todoBoneco = false): MapData {
   if (personagens.length === 0) return map
   const listadas = new Set(personagens.map((personagem) => personagem.id))
-  const deVariosBonecos = fichasDeVariosBonecos(map.tokens)
+  const deVariosBonecos = todoBoneco ? SEM_FICHAS : fichasDeVariosBonecos(map.tokens)
   let mudou = false
   const tokens = map.tokens.map((boneco) => {
     if (boneco.characterId === null || !listadas.has(boneco.characterId) || deVariosBonecos.has(boneco.characterId)) return boneco
@@ -91,10 +99,10 @@ export function mapaSemOEspelho(map: MapData, personagens: readonly Personagem[]
 }
 
 /** O espelho em cada passo do desfazer (ou do refazer); nada mudando, a MESMA lista. */
-export function passosComAsFichas(passos: MapData[], personagens: readonly Personagem[]): MapData[] {
+export function passosComAsFichas(passos: MapData[], personagens: readonly Personagem[], todoBoneco = false): MapData[] {
   let mudou = false
   const espelhados = passos.map((passo) => {
-    const espelhado = mapaComAsFichas(passo, personagens)
+    const espelhado = mapaComAsFichas(passo, personagens, todoBoneco)
     if (espelhado !== passo) mudou = true
     return espelhado
   })
@@ -112,10 +120,11 @@ export type BonecoLigado = Pick<Token, 'id' | 'characterId'>
  * lista) não muda ficha nenhuma — a mochila dele continua no boneco. Ficha
  * ligada a mais de um boneco entre `bonecos` (os da cena) também não: como na
  * migração (`fichasDeVariosBonecos`), cada boneco fica com a própria mochila.
- * Nada mudando, devolve a MESMA lista.
+ * Nada mudando, devolve a MESMA lista. Com `todoBoneco` (uma mochila só), a
+ * ficha de vários bonecos também recebe: o boneco é a vista dela.
  */
-export function mudancaNasFichas(personagens: readonly Personagem[], bonecos: readonly BonecoLigado[], mudanca: Pick<ItemChange, 'mochilas' | 'bolsas'>): readonly Personagem[] {
-  const deVariosBonecos = fichasDeVariosBonecos(bonecos)
+export function mudancaNasFichas(personagens: readonly Personagem[], bonecos: readonly BonecoLigado[], mudanca: Pick<ItemChange, 'mochilas' | 'bolsas'>, todoBoneco = false): readonly Personagem[] {
+  const deVariosBonecos = todoBoneco ? SEM_FICHAS : fichasDeVariosBonecos(bonecos)
   const fichaDoBoneco = new Map<string, string>()
   for (const boneco of bonecos) {
     if (boneco.characterId !== null && !deVariosBonecos.has(boneco.characterId)) fichaDoBoneco.set(boneco.id, boneco.characterId)
@@ -178,10 +187,10 @@ function fichasComAMochilaDe(personagens: readonly Personagem[], bonecoDaFicha: 
  * frente). Ficha com vários bonecos num mapa: aquele mapa não conta, a mochila
  * está nos bonecos (a regra de `mapaComAsFichas`). Nada mudando, a MESMA lista.
  */
-export function fichasComOsBonecos(personagens: readonly Personagem[], mapas: readonly MapData[]): readonly Personagem[] {
+export function fichasComOsBonecos(personagens: readonly Personagem[], mapas: readonly MapData[], todoBoneco = false): readonly Personagem[] {
   const bonecoDaFicha = new Map<string, Token>()
   for (const mapa of mapas) {
-    const deVariosBonecos = fichasDeVariosBonecos(mapa.tokens)
+    const deVariosBonecos = todoBoneco ? SEM_FICHAS : fichasDeVariosBonecos(mapa.tokens)
     for (const boneco of mapa.tokens) {
       if (boneco.characterId === null || deVariosBonecos.has(boneco.characterId) || bonecoDaFicha.has(boneco.characterId)) continue
       bonecoDaFicha.set(boneco.characterId, boneco)

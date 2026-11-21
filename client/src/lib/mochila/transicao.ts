@@ -3,7 +3,7 @@ import { ITEM_QUANTIDADE_MAX, quantidadeDe } from '../items'
 import type { Personagem } from '../personagem'
 import { MOEDAS_MAX, moedasDe } from '../troca'
 import { bonecoComAFicha, mostraAFicha } from './espelho'
-import { fichaComMochila, pilhaDe } from './juncao'
+import { fichaComMochila, fichasDeVariosBonecos, itensIguais, pilhaDe, type CenaDaJuncao } from './juncao'
 
 /**
  * MOCHILA NA FICHA — os bonecos de uma ficha MUDARAM num mapa (correção C1 de
@@ -156,12 +156,18 @@ export function fichaSomada(ficha: Personagem, chegando: Conteudo, novoId: () =>
  * As transições: ver o comentário do arquivo. `personagens` são as fichas
  * donas da mochila (depois da migração); `novoId` dá a vaga do item que entra
  * na ficha numa vaga nova.
+ *
+ * UMA MOCHILA SÓ (`todoBoneco`, marcador 2; pedido de 21/11/2026): a ficha com
+ * vários bonecos no mapa também é a dona — cada boneco que chega soma na ficha
+ * o que é dele e todos passam a mostrá-la, como o de um boneco só. Todo boneco
+ * que estava ligado a uma ficha da lista já mostrava a dela: é cópia.
  */
 export function acertarBonecosDasFichas(
   personagens: readonly Personagem[],
   antes: readonly Token[],
   depois: readonly Token[],
   novoId: () => string,
+  todoBoneco = false,
 ): AcertoDosBonecos {
   const nada: AcertoDosBonecos = { personagens, tokens: depois, entradas: [], separadas: [], saidas: [] }
   if (antes === depois || personagens.length === 0 || mesmasLigacoes(antes, depois)) return nada
@@ -175,7 +181,8 @@ export function acertarBonecosDasFichas(
 
   const bonecoDeAntes = new Map(antes.map((boneco) => [boneco.id, boneco]))
   /** O boneco mostrava uma ficha em `antes`: ligado a ela, e o único dela no mapa. */
-  const mostravaUmaFicha = (boneco: Token): boolean => boneco.characterId !== null && antesPorFicha.get(boneco.characterId)?.length === 1
+  const mostravaUmaFicha = (boneco: Token): boolean =>
+    boneco.characterId !== null && (todoBoneco ? porId.has(boneco.characterId) : antesPorFicha.get(boneco.characterId)?.length === 1)
   /** O que é do boneco, e não da ficha que ele mostrava. */
   const proprioDe = (boneco: Token, ficha: Personagem): Conteudo => {
     const deAntes = bonecoDeAntes.get(boneco.id)
@@ -193,6 +200,23 @@ export function acertarBonecosDasFichas(
     const bonecos = depoisPorFicha.get(id) ?? []
     const ficha = fichas.get(id)
     if (ficha === undefined || bonecos.length === 0) continue
+    if (todoBoneco) {
+      // Uma mochila só: o que é de cada boneco soma na ficha (na ordem do mapa), e todos a mostram.
+      let atual = ficha
+      for (const boneco of bonecos) {
+        const proprio = proprioDe(boneco, ficha)
+        if (vazio(proprio)) continue
+        const somada = fichaSomada(atual, proprio, novoId)
+        atual = somada.ficha
+        entradas.push({ personagemId: id, personagem: ficha.nome, boneco: boneco.name, itens: [...(proprio.mochila ?? [])], moedas: moedasDe(proprio), moedasDeFora: somada.moedasDeFora })
+      }
+      if (atual !== ficha) fichas.set(id, atual)
+      for (const boneco of bonecos) {
+        const espelhado = bonecoComAFicha(boneco, atual)
+        if (espelhado !== boneco) trocados.set(boneco.id, espelhado)
+      }
+      continue
+    }
     if (bonecos.length === 1) {
       const [boneco] = bonecos
       const proprio = proprioDe(boneco, ficha)
@@ -275,4 +299,44 @@ export function avisosDoAcerto(acerto: Pick<AcertoDosBonecos, 'entradas' | 'sepa
     avisos.push(`O boneco ${saida.boneco} não mostra mais a ficha de ${saida.personagem}: a mochila e a bolsa continuam na ficha.`)
   }
   return avisos
+}
+
+/**
+ * MIGRAÇÃO 2 — UMA MOCHILA SÓ (marcador 2, pedido de 21/11/2026: "a ficha do
+ * Hector diz que ele tem uma tocha, mas o inventário dele não tem"). Até o
+ * marcador 1, a ficha ligada a vários bonecos numa cena deixava a mochila em
+ * cada boneco (a ficha Hector: a Tocha num boneco, o outro vazio; a ficha não
+ * tinha nada). Agora a ficha é a dona de todos: o que cada um desses bonecos
+ * carrega SOMA na ficha (como o boneco que chega, `fichaSomada`), e o espelho
+ * passa a mostrar a ficha em todos. Só contam as cenas onde a ficha tem vários
+ * bonecos: o boneco único das outras já mostrava a ficha (cópia). A vaga igual
+ * à da ficha (mesmo id, mesmos dados) é cópia e não soma. Nada a somar: a
+ * MESMA lista. Pura: o disco é de `net/nuvem/migracaoDaMochila.ts`.
+ */
+export function fichasComOsBonecosDeVarios(
+  personagens: readonly Personagem[],
+  cenas: readonly CenaDaJuncao[],
+  novoId: () => string,
+): { personagens: readonly Personagem[]; entradas: EntradaNaFicha[] } {
+  const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
+  const fichas = new Map(porId)
+  const entradas: EntradaNaFicha[] = []
+  for (const { bonecos } of cenas) {
+    const deVarios = fichasDeVariosBonecos(bonecos)
+    for (const boneco of bonecos) {
+      if (boneco.characterId === null || !deVarios.has(boneco.characterId)) continue
+      const original = porId.get(boneco.characterId)
+      const atual = fichas.get(boneco.characterId)
+      if (original === undefined || atual === undefined) continue
+      const daFicha = original.mochila ?? []
+      const mochila = (boneco.mochila ?? []).filter((item) => !daFicha.some((naFicha) => naFicha.id === item.id && itensIguais(naFicha, item)))
+      const proprio: Conteudo = { mochila, ...(boneco.moedas === undefined ? {} : { moedas: boneco.moedas }) }
+      if (vazio(proprio)) continue
+      const somada = fichaSomada(atual, proprio, novoId)
+      fichas.set(original.id, somada.ficha)
+      entradas.push({ personagemId: original.id, personagem: original.nome, boneco: boneco.name ?? '', itens: mochila, moedas: moedasDe(proprio), moedasDeFora: somada.moedasDeFora })
+    }
+  }
+  if (entradas.length === 0) return { personagens, entradas }
+  return { personagens: personagens.map((personagem) => fichas.get(personagem.id) ?? personagem), entradas }
 }
