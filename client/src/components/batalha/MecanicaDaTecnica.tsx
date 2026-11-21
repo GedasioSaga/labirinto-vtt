@@ -1,10 +1,11 @@
 import { lazy, Suspense, useCallback, useId, useMemo, useRef, useState } from 'react'
 import { avisoDaMecanica, lerMecanica, type MecanicaLida as LeituraDaMecanica, type MecanicaV1 } from '../../lib/batalha/mecanica/modelo'
 import { MODELOS_DA_ARMA, mecanicaDoModeloDaArma, motivoDaArmaNasPecas } from '../../lib/batalha/mecanica/arma'
-import { guardarMecanica, MODELOS_PRONTOS, mecanicaDoModeloNoCartao, mesmaMecanica, problemaDaMecanica, tecnicasParaCopiar } from '../../lib/batalha/mecanica/modelos'
+import { GRUPOS_DOS_MODELOS, guardarMecanica, MODELOS_PRONTOS, mecanicaDoModeloNoCartao, mesmaMecanica, problemaDaMecanica, tecnicasParaCopiar, type GrupoDoModelo } from '../../lib/batalha/mecanica/modelos'
 import { etiquetaDaMecanica, pecasAMao, resumoDaMecanica, type FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
 import type { CartaoDaFicha, MecanicaGuardada } from '../../lib/personagem'
 import { BlocosDaMecanica } from './BlocosDaMecanica'
+import { OsNumeros } from './blocos/OsNumeros'
 import './MecanicaDaTecnica.css'
 
 /** Fase 3: o Testar pesa o motor da batalha inteiro; só carrega quando o mestre abre. */
@@ -55,12 +56,24 @@ interface ModeloNaTela {
   id: string
   nome: string
   dica: string
+  /** Fase 5 (SISTEMA.md §8): o grupo do degrau 1 (Ataque, Cura e apoio...); o da arma não tem, e a lista fica corrida. */
+  grupo?: GrupoDoModelo
   /** `cartao`: onde o modelo vai; o da técnica aproveita o Dano, o Custo e a Ação do cartão (B02), o da arma soma o que ela soma no Atacar. */
   montar: (ficha: FichaDaPrevia, cartao: CartaoDaFicha) => MecanicaV1
 }
 
 const MODELOS_DA_TECNICA_NA_TELA: readonly ModeloNaTela[] = MODELOS_PRONTOS.map((modelo) => ({ ...modelo, montar: (ficha, cartao) => mecanicaDoModeloNoCartao(modelo.id, ficha, cartao) }))
 const MODELOS_DA_ARMA_NA_TELA: readonly ModeloNaTela[] = MODELOS_DA_ARMA.map((modelo) => ({ ...modelo, montar: (ficha, cartao) => mecanicaDoModeloDaArma(modelo.id, ficha.sistema, cartao) }))
+
+/** Um botão grande do degrau 1: o nome e, embaixo, o que o modelo monta. */
+function BotaoDoModelo({ modelo, onEscolher }: { modelo: ModeloNaTela; onEscolher: () => void }) {
+  return (
+    <button type="button" className="lb-mec__modelo" onClick={onEscolher}>
+      <span className="lb-mec__modelo-nome">{modelo.nome}</span>
+      <span className="lb-mec__modelo-dica">{modelo.dica}</span>
+    </button>
+  )
+}
 
 type Fase = 'fechado' | 'escolhendo' | 'editando'
 
@@ -328,14 +341,30 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           <p className="lb-mec__comeco-titulo" id={`${tituloId}-comeco`}>
             Comece por um modelo e ajuste os números.
           </p>
-          <div className="lb-mec__modelos">
-            {modelos.map((modelo) => (
-              <button key={modelo.id} type="button" className="lb-mec__modelo" onClick={() => comecarDe(modelo.montar(ficha, cartao))}>
-                <span className="lb-mec__modelo-nome">{modelo.nome}</span>
-                <span className="lb-mec__modelo-dica">{modelo.dica}</span>
-              </button>
-            ))}
-          </div>
+          {/* Fase 5 (SISTEMA.md §8, degrau 1): os modelos da técnica em grupos; os da arma, corridos. */}
+          {modelos.some((modelo) => modelo.grupo !== undefined) ? (
+            GRUPOS_DOS_MODELOS.map(({ grupo, nome }) => {
+              const doGrupo = modelos.filter((modelo) => modelo.grupo === grupo)
+              return doGrupo.length === 0 ? null : (
+                <div key={grupo} className="lb-mec__grupo" role="group" aria-labelledby={`${tituloId}-grupo-${grupo}`}>
+                  <p className="lb-mec__grupo-titulo" id={`${tituloId}-grupo-${grupo}`}>
+                    {nome}
+                  </p>
+                  <div className="lb-mec__modelos">
+                    {doGrupo.map((modelo) => (
+                      <BotaoDoModelo key={modelo.id} modelo={modelo} onEscolher={() => comecarDe(modelo.montar(ficha, cartao))} />
+                    ))}
+                  </div>
+                </div>
+              )
+            })
+          ) : (
+            <div className="lb-mec__modelos">
+              {modelos.map((modelo) => (
+                <BotaoDoModelo key={modelo.id} modelo={modelo} onEscolher={() => comecarDe(modelo.montar(ficha, cartao))} />
+              ))}
+            </div>
+          )}
           {copiaveis.length > 0 && (
             <div className="lb-mec__copiar">
               <label className="lb-mec__numero-rotulo" htmlFor={copiarId}>
@@ -376,7 +405,8 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
                 ? 'Com a mecânica, o Atacar com esta arma segue as peças: o dano (ou nenhum), o efeito e os usos por batalha.'
                 : 'Com a mecânica, os campos Custo, Ação, Tempo, Dano e Efeito em texto viram só descrição.'}
           </p>
-          <BlocosDaMecanica mecanica={rascunho} cartao={cartao} ficha={ficha} onChange={editar} naArma={naArma} />
+          {/* Fase 5 (SISTEMA.md §8): degrau 2, os números em frase; o resumo e o Testar logo embaixo; degrau 3 dobrado no fim. */}
+          <OsNumeros mecanica={rascunho} ficha={ficha} onChange={editar} />
           <ResumoDaMecanica mecanica={rascunho} ficha={ficha} titulo={quemEdita === 'dono' ? 'Como fica a proposta' : 'Como fica'} />
           {problema !== null && (
             <p className="lb-field__error" role="status">
@@ -403,6 +433,10 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
               )
             )}
           </div>
+          <details className="lb-mec__avancado">
+            <summary className="lb-mec__avancado-cab">Avançado: todos os blocos</summary>
+            <BlocosDaMecanica mecanica={rascunho} cartao={cartao} ficha={ficha} onChange={editar} naArma={naArma} />
+          </details>
         </div>
       )}
 

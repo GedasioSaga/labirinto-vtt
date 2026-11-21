@@ -149,7 +149,8 @@ export interface MultiplicadorExtra {
 }
 
 export interface DanoDaMecanica {
-  base: NumeroSimples
+  /** Fase 5 (B10): ou a parte da vida do alvo ("25% do HP máximo do alvo"), no lugar da fórmula. */
+  base: NumeroSimples | Porcento
   /**
    * `padrao` = a arma padrão da ficha entra no "Dano da arma" (na arma montada, ela mesma);
    * `perguntar` (construtor C8, o Siegfried) = a mira pergunta qual das armas levadas, já
@@ -272,6 +273,7 @@ export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | '
   if ((mecanica.uso !== undefined && mecanica.uso !== 'ativa') || mecanica.reacao !== undefined) return true
   // Fase 5: a perfuração parcial, o 2º golpe e a metade para quem passa.
   if (mecanica.dano?.perfuracao !== undefined || mecanica.dano?.segundoGolpe !== undefined) return true
+  if (mecanica.dano !== undefined && 'porcento' in mecanica.dano.base) return true
   if (mecanica.teste.tipo === 'resistencia' && mecanica.teste.sePassar === 'metade') return true
   // Fase 5: as peças do lote A (o app de antes as recusa; com a 2 ele diz "atualize o app").
   if (mecanica.alvo.exigeSelo !== undefined || mecanica.custoEmItem !== undefined) return true
@@ -386,6 +388,19 @@ function soChaves(peca: Record<string, unknown>, permitidas: readonly string[], 
 /** A peça da versão 2 que a leitura conhece e o motor ainda não executa: o cartão vira à mão com o porquê. */
 function aindaNaoRoda(oQue: string): never {
   torta(`este app ainda não executa ${oQue}`)
+}
+
+/** Fase 5 (B10): o que a parte da vida lê do alvo, no nome que a fórmula de sempre entende ("25% da vida máxima do alvo"). */
+export const VIDA_DO_PORCENTO: Readonly<Partial<Record<Porcento['de'], string>>> = { hpAtual: 'atual', hpMaximo: 'máxima' }
+
+/** Fase 5 (B10): a base "N% da vida do alvo". Só a vida atual ou a máxima do alvo rodam (a fórmula de sempre lê as duas). */
+function porcentoDaBase(peca: Record<string, unknown>): Porcento {
+  soChaves(peca, ['porcento', 'de', 'deQuem'], 'dano pela vida')
+  const de = umDe(peca.de, ['hpMaximo', 'hpAtual', 'hpQueFalta', 'spMaximo'] as const, 'dano pela vida (de quê)')
+  if (VIDA_DO_PORCENTO[de] === undefined) aindaNaoRoda('dano pela vida que falta ou pelo SP')
+  const deQuem = umDe(peca.deQuem ?? 'alvo', ['alvo', 'quemUsa'] as const, 'dano pela vida (de quem)')
+  if (deQuem !== 'alvo') aindaNaoRoda('dano pela vida de quem usa')
+  return { porcento: inteiro(peca.porcento, 1, 100, 'dano pela vida (%)'), de, deQuem }
 }
 
 /** "25% do HP" (`Porcento`, fase 5) num lugar que ainda só aceita número ou fórmula. */
@@ -576,11 +591,11 @@ function multiplicador(valor: unknown, indice: number): MultiplicadorExtra {
 function dano(valor: unknown): DanoDaMecanica {
   const peca = registro(valor, 'dano')
   soChaves(peca, ['base', 'arma', 'perfurante', 'perfuracao', 'segundoGolpe', 'multiplicadores'], 'dano', 'dano')
-  semPorcento(peca.base)
   const mult = registro(peca.multiplicadores ?? {}, 'multiplicadores')
   soChaves(mult, ['concentracao', 'surpresa', 'extra'], 'multiplicadores')
+  const base = registro(peca.base, 'dano base')
   const lido: DanoDaMecanica = {
-    base: numeroSimples(peca.base, DANO_MAX, 'dano base'),
+    base: 'porcento' in base ? porcentoDaBase(base) : numeroSimples(base, DANO_MAX, 'dano base'),
     multiplicadores: { concentracao: mult.concentracao !== false, surpresa: mult.surpresa !== false },
   }
   if (mult.extra !== undefined) lido.multiplicadores.extra = lista(mult.extra, EXTRAS_MAX, 'multiplicadores extras').map(multiplicador)

@@ -30,6 +30,8 @@ export interface CampoDeDanoProps {
   onChange: (cartao: CartaoDaFicha) => void
   /** Sem o "Fórmula | Personalizado": a peça de dano da técnica montada é sempre fórmula (construtor C2). */
   semModo?: boolean
+  /** B10: sem a tecla "% da vida do alvo" (a técnica montada tem a opção "Pela vida do alvo" no lugar dela). */
+  semVidaDoAlvo?: boolean
 }
 
 /** Como o pedaço encosta no texto vizinho. */
@@ -154,7 +156,7 @@ function comAMao(cartao: CartaoDaFicha, sim: boolean): CartaoDaFicha {
   return semMarca
 }
 
-export function CampoDeDano({ rotulo, campoId, cartao, personagem, sistema, semDanoDaArma, ehArma, onChange, semModo = false }: CampoDeDanoProps) {
+export function CampoDeDano({ rotulo, campoId, cartao, personagem, sistema, semDanoDaArma, ehArma, onChange, semModo = false, semVidaDoAlvo = false }: CampoDeDanoProps) {
   const id = useId()
   const campo = useRef<HTMLInputElement>(null)
   const teclado = useRef<HTMLDivElement>(null)
@@ -183,7 +185,7 @@ export function CampoDeDano({ rotulo, campoId, cartao, personagem, sistema, semD
       valor: atributoComposto(personagem, atributo.id).total,
     })),
     ...(semDanoDaArma ? [] : [DANO_DA_ARMA]),
-    VIDA_DO_ALVO,
+    ...(semVidaDoAlvo ? [] : [VIDA_DO_ALVO]),
   ]
   const teclas = [...variaveis, ...OPERADORES]
 

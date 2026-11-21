@@ -18,32 +18,99 @@ import type { FichaDaPrevia } from './resumo'
  * Puro: sem store, sem rede.
  */
 
-export type IdDoModelo = 'golpe' | 'area' | 'cura' | 'debuff' | 'buff' | 'esquivaPerfeita' | 'bloqueio' | 'aparar' | 'contraGolpe'
+export type IdDoModelo =
+  | 'golpe'
+  | 'area'
+  | 'giro'
+  | 'linha'
+  | 'perfurante'
+  | 'duplo'
+  | 'sangra'
+  | 'debuff'
+  | 'enfraquecer'
+  | 'cura'
+  | 'curaEmArea'
+  | 'purificar'
+  | 'buff'
+  | 'barreira'
+  | 'drenoDeVida'
+  | 'overload'
+  | 'esquivaPerfeita'
+  | 'bloqueio'
+  | 'aparar'
+  | 'contraGolpe'
+
+/** Fase 5 (SISTEMA §8, degrau 1): os grupos de botões do "O que esta habilidade faz?". */
+export type GrupoDoModelo = 'ataque' | 'apoio' | 'condicao' | 'reacao'
+
+export const GRUPOS_DOS_MODELOS: readonly { grupo: GrupoDoModelo; nome: string }[] = [
+  { grupo: 'ataque', nome: 'Ataque' },
+  { grupo: 'apoio', nome: 'Cura e apoio' },
+  { grupo: 'condicao', nome: 'Condição' },
+  { grupo: 'reacao', nome: 'Reação' },
+]
 
 export interface ModeloPronto {
   id: IdDoModelo
   nome: string
   /** O que ele monta, numa frase (a dica do botão). */
   dica: string
+  grupo: GrupoDoModelo
 }
 
+/** Os modelos da seção 9.1 do SISTEMA (H01 a H22; H05 e H14 esperam a fase 6), na ordem da tabela dentro de cada grupo. */
 export const MODELOS_PRONTOS: readonly ModeloPronto[] = [
-  { id: 'golpe', nome: 'Golpe simples', dica: '1 inimigo, que reage normal; dano por fórmula' },
-  { id: 'area', nome: 'Golpe em área', dica: 'Todos os inimigos num quadrado 3x3 à frente' },
-  { id: 'cura', nome: 'Cura', dica: 'Cura HP de 1 aliado, sem teste' },
-  { id: 'debuff', nome: 'Debuff com teste', dica: '1 inimigo testa contra CD 12; se falhar, fica Atordoado' },
-  { id: 'buff', nome: 'Buff em aliado', dica: 'Um selo bom em 1 aliado; o bônus você confere à mão' },
+  { id: 'golpe', nome: 'Golpe simples', dica: '1 inimigo, que reage normal; dano por fórmula', grupo: 'ataque' },
+  { id: 'area', nome: 'Golpe em área', dica: 'Todos os inimigos num quadrado 3x3 à frente', grupo: 'ataque' },
+  { id: 'giro', nome: 'Giro', dica: 'Os inimigos a 1 casa em volta de quem usa', grupo: 'ataque' },
+  { id: 'linha', nome: 'Disparo em linha', dica: 'Todos numa linha de 6 casas', grupo: 'ataque' },
+  { id: 'perfurante', nome: 'Golpe perfurante', dica: '1 inimigo; o dano passa direto pelo Escudo', grupo: 'ataque' },
+  { id: 'duplo', nome: 'Golpe duplo', dica: '2 golpes: o 2º com metade do dano, perfurante', grupo: 'ataque' },
+  { id: 'sangra', nome: 'Corte que sangra', dica: 'Dano com a arma e Sangrando por 3 vezes', grupo: 'ataque' },
+  { id: 'drenoDeVida', nome: 'Dreno de vida', dica: 'Dano; quem usa recupera metade em HP', grupo: 'ataque' },
+  { id: 'overload', nome: 'Overload', dica: 'Não erra, perfurante, Atordoado 2; 1 por batalha', grupo: 'ataque' },
+  { id: 'cura', nome: 'Cura', dica: 'Cura HP de 1 aliado, sem teste', grupo: 'apoio' },
+  { id: 'curaEmArea', nome: 'Cura em área', dica: 'Cura os aliados a 2 casas em volta', grupo: 'apoio' },
+  { id: 'purificar', nome: 'Purificar', dica: 'Tira as condições negativas e cura 30', grupo: 'apoio' },
+  { id: 'buff', nome: 'Buff em aliado', dica: 'Fortalecido por 2 vezes: Força +20', grupo: 'apoio' },
+  { id: 'barreira', nome: 'Barreira', dica: '+50 de Escudo em 1 aliado', grupo: 'apoio' },
+  { id: 'debuff', nome: 'Atordoar com teste', dica: '1 inimigo testa contra CD 12; se falhar, fica Atordoado', grupo: 'condicao' },
+  { id: 'enfraquecer', nome: 'Enfraquecer', dica: 'Enfraquecido por 2 vezes: Força -20, Dano -10', grupo: 'condicao' },
   // Fase 4 (H18 a H21 do SISTEMA): técnicas no lugar da reação.
-  { id: 'esquivaPerfeita', nome: 'Esquiva perfeita', dica: 'Reação: anula o golpe e marca quem atacou (Marcado)' },
-  { id: 'bloqueio', nome: 'Bloqueio', dica: 'Reação: fica com metade do dano' },
-  { id: 'aparar', nome: 'Aparar', dica: 'Reação: d20 + Força ou Agilidade; 15 ou mais anula' },
-  { id: 'contraGolpe', nome: 'Contra-golpe', dica: 'Reação: fica com 90% e devolve metade em quem atacou' },
+  { id: 'esquivaPerfeita', nome: 'Esquiva perfeita', dica: 'Reação: anula o golpe e marca quem atacou (Marcado)', grupo: 'reacao' },
+  { id: 'bloqueio', nome: 'Bloqueio', dica: 'Reação: fica com metade do dano', grupo: 'reacao' },
+  { id: 'aparar', nome: 'Aparar', dica: 'Reação: d20 + Força ou Agilidade; 15 ou mais anula', grupo: 'reacao' },
+  { id: 'contraGolpe', nome: 'Contra-golpe', dica: 'Reação: fica com 90% e devolve metade em quem atacou', grupo: 'reacao' },
 ]
 
 /** "Força + 20" com o 1º atributo do sistema; sem atributos, um número. */
 function formulaDeExemplo(sistema: SistemaDeRpg): string {
   const atributo = sistema.atributos[0]?.nome.trim()
   return atributo === undefined || atributo === '' ? '50' : `${atributo} + 20`
+}
+
+/**
+ * Fase 5: a fórmula do modelo com os atributos pedidos pelo id ("Força +
+ * Espírito + 20"), pelo nome que o sistema da ficha usa. O que o sistema não
+ * tem fica de fora; sem nenhum, o número sozinho (a conta fecha sempre).
+ */
+function formulaComAtributos(sistema: SistemaDeRpg, ids: readonly string[], soma: number | null): string {
+  const nomes = ids.flatMap((id) => {
+    const nome = sistema.atributos.find((atributo) => atributo.id === id)?.nome.trim()
+    return nome === undefined || nome === '' ? [] : [nome]
+  })
+  const primeiro = sistema.atributos[0]?.nome.trim() ?? ''
+  const partes = nomes.length > 0 ? nomes : primeiro === '' ? [] : [primeiro]
+  if (partes.length === 0) return String(soma ?? NUMERO_SEM_ATRIBUTO)
+  return soma === null ? partes.join(' + ') : `${partes.join(' + ')} + ${soma}`
+}
+
+/** O número do modelo no sistema sem atributos (a conta fecha sempre). */
+const NUMERO_SEM_ATRIBUTO = 50
+
+/** O id de um atributo do sistema para o número do selo: o pedido, ou o 1º; `null` = sistema sem atributos. */
+function atributoDoSelo(sistema: SistemaDeRpg, preferido: string): string | null {
+  return atributoDePartida(sistema, preferido)
 }
 
 const MULTIPLICADORES_DE_SEMPRE = { concentracao: true, surpresa: true } as const
@@ -104,16 +171,90 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
       return { ...base, acao: 'simples', custos: [...custo30], alvo: { quem: 'aliados', forma: { tipo: 'um' } }, efeitos: [{ tipo: 'cura', recurso: 'hp', quanto: { fixo: 100 }, emQuem: 'alvo' }] }
     case 'debuff':
       return { ...base, acao: 'simples', custos: [...custo30], limite: { recarga: 2 }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, teste: testeDoModelo(sistema), efeitos: [{ tipo: 'selo', nome: 'Atordoado', duracao: 1, natureza: 'debuff' }] }
-    case 'buff':
+    case 'buff': {
+      // H15: Força +20 de verdade (fase 5, `selo.mods`); sem atributo no sistema, +20 no dano.
+      const forca = atributoDoSelo(sistema, 'forca')
       return {
         ...base,
         acao: 'bonus',
         custos: [{ recurso: 'sp', quanto: { fixo: 20 }, quando: 'aoUsar' }],
         alvo: { quem: 'aliados', forma: { tipo: 'um' } },
+        efeitos: [{ tipo: 'selo', nome: 'Fortalecido', duracao: 2, natureza: 'buff', mods: [{ alvo: forca ?? 'dano', delta: { fixo: 20 } }] }],
+      }
+    }
+    case 'giro':
+      return { ...base, acao: 'simples', custos: [...custo30], limite: { recarga: 1 }, alvo: { quem: 'inimigos', forma: { tipo: 'raio', casas: 1 } }, dano: danoDe(formulaComAtributos(sistema, ['forca', 'agilidade'], 30)) }
+    case 'linha':
+      return { ...base, acao: 'simples', custos: [{ recurso: 'sp', quanto: { fixo: 20 }, quando: 'aoUsar' }], limite: { recarga: 1 }, alvo: { quem: 'todos', forma: { tipo: 'linha', casas: 6 } }, dano: danoDe(formulaComAtributos(sistema, ['espirito'], 20)) }
+    case 'perfurante':
+      return { ...base, acao: 'completa', custos: [{ recurso: 'sp', quanto: { fixo: 35 }, quando: 'aoUsar' }], limite: { recarga: 3 }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, dano: { ...danoDe(formulaComAtributos(sistema, ['forca'], 50)), perfurante: true } }
+    case 'duplo':
+      return {
+        ...base,
+        acao: 'completa',
+        custos: [{ recurso: 'sp', quanto: { fixo: 40 }, quando: 'aoUsar' }],
+        limite: { recarga: 3 },
+        alvo: { quem: 'inimigos', forma: { tipo: 'um' } },
+        dano: { ...danoDe(formulaComAtributos(sistema, ['forca', 'espirito'], 20)), segundoGolpe: { fracao: 0.5, perfurante: true } },
+      }
+    case 'sangra':
+      return {
+        ...base,
+        acao: 'simples',
+        custos: [...custo30],
+        alvo: { quem: 'inimigos', forma: { tipo: 'um' } },
+        dano: { ...danoDe(`${formulaComAtributos(sistema, ['forca'], 20)} + Dano da Arma`), arma: 'padrao' },
+        // Sangrando já tira 10 por vez pelo nome (`condicoes.ts`); a peça não repete.
+        efeitos: [{ tipo: 'selo', nome: 'Sangrando', duracao: 3, natureza: 'debuff' }],
+      }
+    case 'enfraquecer': {
+      const forca = atributoDoSelo(sistema, 'forca')
+      const mods = forca === null ? [{ alvo: 'dano', delta: { fixo: -10 } }] : [{ alvo: forca, delta: { fixo: -20 } }, { alvo: 'dano', delta: { fixo: -10 } }]
+      return { ...base, acao: 'simples', custos: [{ recurso: 'sp', quanto: { fixo: 20 }, quando: 'aoUsar' }], alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, efeitos: [{ tipo: 'selo', nome: 'Enfraquecido', duracao: 2, natureza: 'debuff', mods }] }
+    }
+    case 'curaEmArea':
+      return {
+        ...base,
+        acao: 'completa',
+        custos: [{ recurso: 'sp', quanto: { fixo: 50 }, quando: 'aoUsar' }],
+        limite: { recarga: 3 },
+        alvo: { quem: 'aliados', forma: { tipo: 'raio', casas: 2 } },
+        efeitos: [{ tipo: 'cura', recurso: 'hp', quanto: { formula: formulaComAtributos(sistema, ['espirito'], null) }, emQuem: 'alvo' }],
+      }
+    case 'purificar':
+      return {
+        ...base,
+        acao: 'simples',
+        custos: [...custo30],
+        limite: { usosPorBatalha: 2 },
+        alvo: { quem: 'aliados', forma: { tipo: 'um' } },
         efeitos: [
-          { tipo: 'selo', nome: 'Fortalecido', duracao: 2, natureza: 'buff' },
-          { tipo: 'aMao', texto: 'Quanto o Fortalecido soma: aplique à mão' },
+          { tipo: 'cura', recurso: 'hp', quanto: { fixo: 30 }, emQuem: 'alvo' },
+          { tipo: 'tirarSelos', quais: 'negativos' },
         ],
+      }
+    case 'barreira':
+      return { ...base, acao: 'simples', custos: [...custo30], limite: { recarga: 2 }, alvo: { quem: 'aliados', forma: { tipo: 'um' } }, efeitos: [{ tipo: 'cura', recurso: 'escudo', quanto: { fixo: 50 }, emQuem: 'alvo' }] }
+    case 'drenoDeVida':
+      return {
+        ...base,
+        acao: 'simples',
+        custos: [{ recurso: 'sp', quanto: { fixo: 35 }, quando: 'aoUsar' }],
+        limite: { recarga: 2 },
+        alvo: { quem: 'inimigos', forma: { tipo: 'um' } },
+        dano: danoDe(formulaComAtributos(sistema, ['espirito'], 20)),
+        efeitos: [{ tipo: 'dreno', recurso: 'hp', porcentoDoDano: 50 }],
+      }
+    case 'overload':
+      return {
+        ...base,
+        acao: 'completa',
+        custos: [{ recurso: 'sp', quanto: { fixo: 100 }, quando: 'aoUsar' }],
+        limite: { overload: true },
+        alvo: { quem: 'inimigos', forma: { tipo: 'um' } },
+        teste: { tipo: 'naoErra' },
+        dano: { ...danoDe(`(${formulaComAtributos(sistema, ['forca', 'espirito'], null)}) + 100`), perfurante: true },
+        efeitos: [{ tipo: 'selo', nome: 'Atordoado', duracao: 2, natureza: 'debuff' }],
       }
     case 'esquivaPerfeita':
       // O Marcado é a MARCA do motor (o próximo golpe que acertar dá o dobro; dura até ser usada): o "3" do H18 não teria efeito.
@@ -125,6 +266,11 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
     case 'contraGolpe':
       return daReacao(25, 4, { defesa: { tipo: 'fica', porcento: 90 }, devolve: { divididoPor: 2 } })
   }
+}
+
+/** O dano de um modelo: a fórmula com a Concentração e a Surpresa de sempre. */
+function danoDe(formula: string): NonNullable<MecanicaV1['dano']> {
+  return { base: { formula }, multiplicadores: { ...MULTIPLICADORES_DE_SEMPRE } }
 }
 
 /** O total que o Aparar (H20) pede no d20 para anular. */
@@ -304,7 +450,7 @@ const tetoEscrito = (teto: number): string => teto.toLocaleString('pt-BR')
 function acimaDoTeto(mecanica: MecanicaV1): string | null {
   if (mecanica.custos.some((custo) => !('porcento' in custo.quanto) && numeroAcimaDoTeto(custo.quanto, CUSTO_MAX))) return `o custo passa do teto de ${tetoEscrito(CUSTO_MAX)}`
   if (mecanica.teste.tipo === 'resistencia' && numerosDaCd(mecanica.teste.cd).some((numero) => numeroAcimaDoTeto(numero, CD_MAX))) return `a CD passa do teto de ${CD_MAX}`
-  if (mecanica.dano !== undefined && numeroAcimaDoTeto(mecanica.dano.base, DANO_MAX)) return `o dano passa do teto de ${tetoEscrito(DANO_MAX)}`
+  if (mecanica.dano !== undefined && !('porcento' in mecanica.dano.base) && numeroAcimaDoTeto(mecanica.dano.base, DANO_MAX)) return `o dano passa do teto de ${tetoEscrito(DANO_MAX)}`
   const curaDemais = mecanica.efeitos.some((efeito) => efeito.tipo === 'cura' && numerosDe(efeito.quanto).some((numero) => numeroAcimaDoTeto(numero, DANO_MAX)))
   return curaDemais ? `a cura passa do teto de ${tetoEscrito(DANO_MAX)}` : null
 }
@@ -350,7 +496,8 @@ export function ehAjuda(quem: QuemOAlvoPega): boolean {
 
 /** A mecânica tem cura ou tira selos (prende o alvo em aliado ou em si). */
 export function temLimpeza(mecanica: MecanicaV1): boolean {
-  return mecanica.efeitos.some((efeito) => efeito.tipo === 'cura' || efeito.tipo === 'tirarSelos')
+  // Fase 5: a cura em quem usa (o golpe que cura quem bate) não prende o alvo.
+  return mecanica.efeitos.some((efeito) => (efeito.tipo === 'cura' && efeito.em === undefined) || efeito.tipo === 'tirarSelos')
 }
 
 /**

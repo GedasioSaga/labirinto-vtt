@@ -4,6 +4,7 @@ import type { SaidaDaReacao } from '../combate'
 import { comportamentoDoSelo } from '../condicoes'
 import { cdDaExpressao } from '../disputa'
 import { lerDano } from '../formula'
+import { formulaDoNumero } from './leitura'
 import type { CdDoTeste, Custo, DuracaoDoSelo, Efeito, MecanicaV1, Numero, NumeroDaCd, NumeroSimples, QuemOAlvoPega, QuemRolaNoTeste } from './modelo'
 
 /**
@@ -197,7 +198,8 @@ export function frasesDoDano(mecanica: MecanicaV1, ficha?: FichaDaPrevia): strin
   const { dano } = mecanica
   const { quem } = mecanica.alvo
   if (dano === undefined) return quem === 'aliados' || quem === 'si' ? [] : ['Não dá dano.']
-  const formula = numeroSimples(dano.base)
+  // Fase 5 (B10): a base pela vida do alvo é a frase que a fórmula lê ("25% da vida máxima do alvo").
+  const formula = 'porcento' in dano.base ? formulaDoNumero(dano.base) : numeroSimples(dano.base)
   const previa = previaDoDano(formula, ficha)
   const frases = [`Dano: ${formula || '(vazio)'}${previa === null ? '' : ` (${previa})`}${dano.perfuracao !== undefined ? `, perfurante ${dano.perfuracao}% (o resto passa pelo Escudo)` : dano.perfurante === true ? ', perfurante' : ''}.`]
   // Fase 5 (B17): o 2º golpe.

@@ -5,7 +5,7 @@ import type { FormaDaArea } from '../area'
 import type { LeituraDaAcao, LeituraDoCusto, LeituraDoTempo } from '../leituraDaFicha'
 import type { LimpezaAMao, MecanicaAMao, ReacaoAMao, SaidaDaReacaoAMao } from '../mecanicasAMao'
 import type { ReacaoDoTipo } from '../tiposDaHabilidade'
-import { avisoDaMecanica, lerMecanica, testeRolado, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type ReacaoDaMecanica } from './modelo'
+import { avisoDaMecanica, lerMecanica, testeRolado, VIDA_DO_PORCENTO, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type Porcento, type ReacaoDaMecanica } from './modelo'
 import { disputaDoTeste } from './teste'
 
 /**
@@ -48,8 +48,14 @@ export function pecasDoCartao(cartao: Pick<CartaoDaFicha, 'mecanica'>): Mecanica
   return lida.tipo === 'pecas' ? lida.mecanica : null
 }
 
-/** O texto de um número simples na gramática de `lerDano` (o fixo vira "30"). */
-export function formulaDoNumero(numero: NumeroSimples): string {
+/**
+ * O texto de um número simples na gramática de `lerDano` (o fixo vira "30").
+ * Fase 5 (B10): a base pela vida do alvo vira a frase que a fórmula de sempre
+ * lê ("25% da vida máxima do alvo"), e segue pelo caminho da vida do alvo
+ * (`comDanoPelaVida`), alvo a alvo.
+ */
+export function formulaDoNumero(numero: NumeroSimples | Porcento): string {
+  if ('porcento' in numero) return `${numero.porcento}% da vida ${VIDA_DO_PORCENTO[numero.de] ?? 'atual'} do alvo`
   return 'fixo' in numero ? String(numero.fixo) : numero.formula
 }
 

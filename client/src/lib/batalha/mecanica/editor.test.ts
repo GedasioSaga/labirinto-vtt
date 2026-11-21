@@ -42,6 +42,7 @@ describe('modelos prontos e resumo em frases', () => {
       'Depois de usar, espera 3 vezes para usar de novo.',
     ])
     expect(etiquetaDaMecanica(espadada)).toBe('O app faz tudo')
-    expect(etiquetaDaMecanica(mecanicaDoModelo('buff', sistema))).toBe('1 peça à mão')
+    // Fase 5: o Buff em aliado (H15) soma Força +20 pela peça; o lembrete à mão saiu.
+    expect(etiquetaDaMecanica(mecanicaDoModelo('buff', sistema))).toBe('O app faz tudo')
   })
 })

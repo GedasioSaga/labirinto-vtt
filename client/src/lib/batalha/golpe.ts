@@ -584,7 +584,12 @@ function multiplicadoresNoGolpe(pecas: ReturnType<typeof pecasDoCartao>, alvos: 
  * chega aqui: `podeAgir` já recusou o golpe do jogador (`motivoDoDanoDasPecas`).
  */
 function comODanoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formula: Omit<ContextoDaFormula, 'vidaDoAlvo'>, alvos: readonly PedidoDeAlvo[]): readonly PedidoDeAlvo[] {
-  if (ctx.autor.tipo === 'mestre') return alvos
+  if (ctx.autor.tipo === 'mestre') {
+    // Fase 5 (bug da Barreira do mestre com 100 digitado): peças válidas SEM a peça de dano = sem dano, também no pedido do
+    // mestre. A montada torta ou de app mais novo segue à mão (o número dele vale), e a técnica de texto ou de tabela nem chega aqui.
+    const pecas = pecasDoCartao(cartao)
+    return pecas !== null && pecas.dano === undefined ? alvos.map((alvo) => ({ ...alvo, dano: null })) : alvos
+  }
   const lido = danoDaTecnica(cartao, formula)
   if (lido.tipo === 'semDano') return alvos.map((alvo) => ({ ...alvo, dano: null }))
   if (lido.tipo !== 'valor') return alvos

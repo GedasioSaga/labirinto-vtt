@@ -213,6 +213,117 @@
   min-width: 200px;
 }
 
+/* ─── Fase 5: os 3 degraus (SISTEMA.md §8) ───────────────────────────────── */
+
+/* Degrau 1: os modelos em grupos (Ataque, Cura e apoio, Condição, Reação). */
+.lb-mec__grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+.lb-mec__grupo-titulo {
+  margin: 0;
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* Degrau 2: os números no meio da frase. */
+.lb-mec__numeros {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+}
+
+.lb-mec__numeros .lb-mec__comeco-titulo {
+  font-size: var(--lb-font-size-xs);
+  font-weight: inherit;
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-mec__frase {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--lb-font-size-md);
+  line-height: 2;
+  color: var(--lb-color-parchment);
+}
+
+.lb-mec__frase .lb-input {
+  display: inline-block;
+  width: auto;
+  min-height: 28px;
+  margin: 0 2px;
+  padding: 0 var(--lb-space-2);
+  vertical-align: baseline;
+}
+
+.lb-mec__frase .lb-ficha__numero.lb-input {
+  width: 7ch;
+}
+
+/* Degrau 3: os blocos, dobrados; quem não abre, não vê. */
+.lb-mec__avancado {
+  border-top: 1px solid var(--lb-color-line);
+  padding-top: var(--lb-space-2);
+}
+
+.lb-mec__avancado-cab {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  width: fit-content;
+  min-height: 32px;
+  padding: 0 var(--lb-space-2);
+  border-radius: var(--lb-radius-md);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  list-style: none;
+  cursor: pointer;
+}
+
+.lb-mec__avancado-cab::-webkit-details-marker {
+  display: none;
+}
+
+/* A mesma seta dos blocos, à esquerda: fechada aponta para a direita. */
+.lb-mec__avancado-cab::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--lb-color-parchment-faint);
+  border-bottom: 1.5px solid var(--lb-color-parchment-faint);
+  transform: rotate(-45deg);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-mec__avancado[open] > .lb-mec__avancado-cab::before {
+  transform: rotate(45deg);
+}
+
+.lb-mec__avancado[open] > .lb-mec__avancado-cab {
+  margin-bottom: var(--lb-space-2);
+}
+
+.lb-mec__avancado-cab:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-mec__avancado-cab:hover {
+    color: var(--lb-color-parchment);
+    background: var(--lb-color-stone-hover);
+  }
+}
+
 /* ─── O editor e os 7 blocos ─────────────────────────────────────────────── */
 
 .lb-mec__editor {
@@ -534,7 +645,8 @@
     transform: none;
   }
 
-  .lb-mec__bloco-cab::after {
+  .lb-mec__bloco-cab::after,
+  .lb-mec__avancado-cab::before {
     transition: none;
   }
 }

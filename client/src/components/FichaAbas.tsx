@@ -989,6 +989,10 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
                 </>
               )}
             </div>
+            {/* B09 (SISTEMA.md §8): na técnica montada a opção e a evolução não mexem nas peças; o aviso não promete o que não faz. */}
+            {ehTecnica && cartao.mecanica !== undefined && (
+              <p className="lb-field__hint">Na técnica montada, "+ Opção" e "+ Evolução" só mudam o texto do registro: o golpe segue as peças da mecânica.</p>
+            )}
             {avisoDoExtra !== null && (
               <p className="lb-field__hint" role="status">
                 {avisoDoExtra}

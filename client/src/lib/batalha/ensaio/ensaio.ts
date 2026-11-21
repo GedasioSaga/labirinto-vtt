@@ -12,14 +12,14 @@ import { recursoDeVida, vidaDoPersonagem } from '../../vidaDaFicha'
 import { tecnicasNoMenu } from '../acoes'
 import type { PedidoDeAcao, PedidoDeAlvo, PedidoDeReacao, SaidaDaReacao, SaidaDaTecnica, SeloPedido } from '../combate'
 import type { QuaisSelosTira } from '../debuffs'
-import { normalizar } from '../formula'
+import { danoDoAtaque, normalizar } from '../formula'
 import { ABA_DAS_TECNICAS, armasDe, recursoDoCusto, type LeituraDoTempo } from '../leituraDaFicha'
 import { armaPadraoEntre } from '../mecanica/arma'
 import { danoDaTecnicaComAVida } from '../leituraDaTecnica'
 import { pecasDoCartao } from '../mecanica/leitura'
 import { mecanicaDoCartao } from '../mecanicasAMao'
 import { reacoesParaOAlvo, type ReacaoComTecnica } from '../reacaoComTecnica'
-import { selosDoToken, textoDoSeloComMods } from '../selos'
+import { bonusDaBatalha, selosDoToken, textoDoSeloComMods } from '../selos'
 import { lerTipo } from '../tiposDaHabilidade'
 import { combatentesIniciais, type AutorDaAcao } from '../turnos'
 
@@ -127,6 +127,8 @@ interface Arrumacao {
   spPelaMetade: boolean
   /** Fase 5 (B13): o Escudo com que o boneco começa (a perfuração parcial só aparece com Escudo); 0 = sem. */
   escudo: number
+  /** Fase 5: o roubo de vida pede quem usa com metade da vida, senão a cura dele não aparece. */
+  quemUsaFerido: boolean
   frase: string
 }
 
@@ -153,7 +155,8 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
   const area = forma !== undefined && forma.tipo !== 'um'
   // Fase 5: a regeneração por vez também pede o boneco ferido (cheio, ela não mostra nada).
   const regenera = (pecas?.efeitos ?? []).some((efeito) => efeito.tipo === 'selo' && efeito.porTurno?.sinal === 'da' && efeito.porTurno.recurso === 'hp')
-  const cura = (linha?.limpa !== undefined && linha.limpa.cura !== '0') || regenera
+  // A cura de SP e o Escudo (a Barreira) não pedem o boneco ferido: o recurso deles aparece com a vida cheia.
+  const cura = (linha?.limpa !== undefined && linha.limpa.cura !== '0' && linha.limpa.recurso === undefined) || regenera
   // Cura e limpeza só valem em quem usa ou num aliado (`motivoDoAlvoDasPecas`): o boneco fica do lado de quem usa.
   const ajuda = quem === 'aliados' || quem === 'si' || (pecas === null && linha?.limpa !== undefined)
   // "Vários" tem teto de alvos (a Bolha do Tree: 2): nenhum boneco a mais que o teto.
@@ -162,7 +165,9 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
   const selosParaTirar = selosParaALimpeza(linha?.limpa?.tira)
   const spPelaMetade = linha?.limpa?.recurso === 'sp'
   const escudo = linha?.perfuracao !== undefined && !ajuda ? ESCUDO_PARA_A_PERFURACAO : 0
+  const quemUsaFerido = (pecas?.efeitos ?? []).some((efeito) => efeito.tipo === 'dreno')
   const partes = [
+    quemUsaFerido ? 'quem usa com metade da vida, para o roubo de vida aparecer' : null,
     ajuda ? 'do lado de quem usa' : null,
     cura && !spPelaMetade ? 'ferido, com metade da vida, para a cura aparecer' : null,
     spPelaMetade ? 'com metade do SP, para a recuperação aparecer' : null,
@@ -173,7 +178,7 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
     selosParaTirar.length === 0 ? null : `já com ${selosParaTirar.map((selo) => selo.nome).join(', ')}, para ver o que sai e o que fica`,
   ].filter((parte): parte is string => parte !== null)
   const frase = partes.length === 0 ? 'Boneco de treino de 500 de vida, sem Escudo, reagindo com o d20.' : `Boneco arrumado: ${partes.join('; ')}.`
-  return { lado: ajuda ? 'a' : 'b', quantos, ferido: cura && !spPelaMetade, emSi: quem === 'si', seloPedido, selosParaTirar, spPelaMetade, escudo, frase }
+  return { lado: ajuda ? 'a' : 'b', quantos, ferido: cura && !spPelaMetade, emSi: quem === 'si', seloPedido, selosParaTirar, spPelaMetade, escudo, quemUsaFerido, frase }
 }
 
 /** A ficha de quem usa com o cartão do rascunho: troca o de mesmo id, ou entra na aba Habilidades. */
@@ -190,6 +195,14 @@ function comMetadeDoSp(personagem: Personagem, sistema: SistemaDeRpg): Personage
   const lido = sp === null ? null : vidaDoPersonagem(personagem, sp)
   if (sp === null || lido === null) return personagem
   return { ...personagem, recursos: { ...personagem.recursos, [sp.id]: Math.floor(lido.maximo * PARTE_DO_FERIDO) } }
+}
+
+/** Fase 5: a vida pela metade do máximo (o roubo de vida de quem usa aparece); a ficha sem vida no sistema fica como está. */
+function comMetadeDaVida(personagem: Personagem, sistema: SistemaDeRpg): Personagem {
+  const vida = recursoDeVida(sistema)
+  const lida = vida === null ? null : vidaDoPersonagem(personagem, vida)
+  if (vida === null || lida === null) return personagem
+  return { ...personagem, recursos: { ...personagem.recursos, [vida.id]: Math.floor(lida.maximo * PARTE_DO_FERIDO) } }
 }
 
 /** Cada recurso do sistema que tem máximo na ficha vai ao máximo (o que não tem fica como está). */
@@ -245,6 +258,8 @@ interface MesaDoEnsaio {
   vagaDeQuemUsa: VagaDoEnsaio
   /** Os bonecos que o golpe pega (o adversário que só fecha o outro lado fica fora). */
   vagasDosBonecos: VagaDoEnsaio[]
+  /** O boneco que só fecha o outro lado, na ajuda; `null` = não há (os bonecos já são o outro lado). */
+  vagaDoAdversario: VagaDoEnsaio | null
   /** Liga o d20 fixo do mestre: vale só enquanto o boneco reage. */
   naReacao: (sim: boolean) => void
   /** O último d20 rolado enquanto `naReacao` (o da técnica que rola, no teste da reação); `null` = nenhum. */
@@ -269,7 +284,8 @@ function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao, vezDe: 'quemUs
   })
   const copia: Personagem = { ...comOCartao(pedido.quemUsa, cartao), id: ORIGEM_DE_QUEM_USA }
   const cheia = pedido.recursosCheios === true ? comRecursosCheios(copia, sistema) : copia
-  const quemUsa = arrumacao.spPelaMetade && arrumacao.emSi ? comMetadeDoSp(cheia, sistema) : cheia
+  const comSp = arrumacao.spPelaMetade && arrumacao.emSi ? comMetadeDoSp(cheia, sistema) : cheia
+  const quemUsa = arrumacao.quemUsaFerido ? comMetadeDaVida(comSp, sistema) : comSp
   // A mesa pede os dois lados: na ajuda os bonecos ficam com quem usa, e um boneco adversário (fora do alvo) fecha o outro lado.
   const adversario: Personagem[] = arrumacao.lado === 'a' ? [{ ...fichaDoBoneco(sistema, BONECO_PADRAO, ORIGEM_DO_ADVERSARIO), nome: `${NOME_DO_BONECO} (adversário)` }] : []
   const escolhas: EscolhaDaVaga[] = [
@@ -308,7 +324,8 @@ function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao, vezDe: 'quemUs
     if (carta === undefined || carta.tokenId === quemAge) break
     loja.getState().passarVez(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, { cartaId: carta.id, rodada: turnos.rodada })
   }
-  return { mesa, loja, vagaDeQuemUsa, vagasDosBonecos, naReacao: (sim) => (reagindo = sim), dadoDaReacao: () => dadoDaReacao }
+  const vagaDoAdversario = mesa.vagas().find((vaga) => vaga.origem === ORIGEM_DO_ADVERSARIO) ?? null
+  return { mesa, loja, vagaDeQuemUsa, vagasDosBonecos, vagaDoAdversario, naReacao: (sim) => (reagindo = sim), dadoDaReacao: () => dadoDaReacao }
 }
 
 /** O nome da ficha sentada na vaga. */
@@ -321,12 +338,12 @@ function nomeNaVaga(mesa: MesaEmMemoria, vaga: VagaDoEnsaio): string {
  * modificador dele) e cada dado vira o passo "Reação": o que o motor rolou e a
  * saída que o boneco escolheu.
  */
-function bonecosReagem(montada: MesaDoEnsaio): PassoDoEnsaio[] {
-  const { mesa, loja, vagasDosBonecos } = montada
+function bonecosReagem(montada: MesaDoEnsaio, quemReage: readonly VagaDoEnsaio[] = montada.vagasDosBonecos): PassoDoEnsaio[] {
+  const { mesa, loja } = montada
   const passos: PassoDoEnsaio[] = []
   for (let i = 0; i < REACOES_MAX; i += 1) {
     const agora = cenaDe(loja).turnos
-    const achado = vagasDosBonecos
+    const achado = quemReage
       .map((vaga) => ({ vaga, passo: passoDoBoneco(agora, vaga.tokenId, 'd20', BONECO_PADRAO.modificador, new Set()) }))
       .find((candidato) => candidato.passo?.tipo === 'reagir')
     if (achado === undefined || achado.passo === null || achado.passo.tipo !== 'reagir') break
@@ -381,6 +398,33 @@ function passosDosSelosNovos(montada: MesaDoEnsaio, sistema: SistemaDeRpg, antes
     })
 }
 
+/**
+ * Fase 5 (aceite 1 do SISTEMA: "a Força do alvo sobe 20 na conta do próximo
+ * golpe dele"): na vez do boneco que tem selo com número, ele bate com o
+ * Atacar, pela mesma conta do menu (`danoDoAtaque` com os selos dele), e o
+ * passo mostra o número ("0 Força +20 (Fortalecido) = 20"). Bate no adversário
+ * da ajuda ou, sem ele, em quem usa. Quando o selo acaba, ele para de bater.
+ */
+function golpeDoBonecoComNumero(montada: MesaDoEnsaio, sistema: SistemaDeRpg): PassoDoEnsaio[] {
+  const { mesa, loja } = montada
+  const turnos = cenaDe(loja).turnos
+  const carta = turnos.cartas.find((atual) => atual.id === turnos.vez)
+  const boneco = montada.vagasDosBonecos.find((vaga) => vaga.tokenId === carta?.tokenId)
+  const ficha = boneco === undefined ? undefined : mesa.personagens().find((personagem) => personagem.id === boneco.personagemId)
+  if (carta === undefined || boneco === undefined || ficha === undefined) return []
+  if (!selosDoToken(turnos.selos, boneco.tokenId).some((selo) => (selo.mods ?? []).length > 0)) return []
+  const alvo = montada.vagaDoAdversario ?? montada.vagaDeQuemUsa
+  const lido = danoDoAtaque({ personagem: ficha, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(turnos.selos, boneco.tokenId) })
+  if (lido.tipo !== 'valor') return []
+  const nome = nomeNaVaga(mesa, boneco)
+  const ataque: PedidoDeAcao = { tipo: 'atacar', armaId: null, alvos: [{ tokenId: alvo.tokenId, dano: danoNoTeto(lido.valor) }], surpresa: false, perfurante: false }
+  const esperado = { cartaId: carta.id, rodada: turnos.rodada }
+  const motivo = loja.getState().motivoDoAgir(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, esperado, ataque)
+  if (motivo !== null || !loja.getState().agir(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, esperado, ataque)) return [{ tipo: 'registro', titulo: 'Golpe do boneco', texto: `${nome} não bateu: ${motivo ?? 'a batalha recusou'}.` }]
+  const passo: PassoDoEnsaio = { tipo: 'formula', titulo: 'Golpe do boneco', texto: `${nome} bate em ${nomeNaVaga(mesa, alvo)} com o Atacar: ${lido.conta}` }
+  return [passo, ...bonecosReagem(montada, [alvo])]
+}
+
 /** "Passar 1 vez do alvo": a vez atual acaba e começa a seguinte; o sangramento é aplicado, a condição conta. */
 function passarUmaVezNa(montada: MesaDoEnsaio, sistema: SistemaDeRpg): () => PassoDoEnsaio[] {
   const { mesa, loja } = montada
@@ -390,7 +434,10 @@ function passarUmaVezNa(montada: MesaDoEnsaio, sistema: SistemaDeRpg): () => Pas
     const vez = cenaDe(loja).turnos
     if (vez.vez !== null) loja.getState().passarVez(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, { cartaId: vez.vez, rodada: vez.rodada })
     aplicarSangramentos(loja, CENA_DO_ENSAIO)
-    const depois = [...passosDoRegistro(loja, inicio, 'Na vez do alvo'), ...passosDosRecursos(mesa, sistema, fotoAntes)]
+    const daVez = passosDoRegistro(loja, inicio, 'Na vez do alvo')
+    const meio = cenaDe(loja).registro.length
+    const golpe = golpeDoBonecoComNumero(montada, sistema)
+    const depois = [...daVez, ...golpe, ...passosDoRegistro(loja, meio, 'Golpe do boneco'), ...passosDosRecursos(mesa, sistema, fotoAntes)]
     return depois.length > 0 ? depois : [{ tipo: 'registro', titulo: 'Na vez do alvo', texto: 'Nada acontece no começo da vez dele.' }]
   }
 }
@@ -428,7 +475,7 @@ function ensaiarAReacao(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   const { cartao, sistema } = pedido
   const arrumou: PassoDoEnsaio = { tipo: 'arrumou', titulo: 'Boneco', texto: `O boneco de treino bate em quem usa com ${DANO_DO_BONECO} de dano; a técnica entra no lugar da reação, antes do d20.` }
   const naoSaiu = (texto: string): ResultadoDoEnsaio => ({ passos: [arrumou, recusa(texto)], barras: [], passarUmaVez: null })
-  const montada = montarMesa(pedido, { lado: 'b', quantos: 1, ferido: false, emSi: false, seloPedido: null, selosParaTirar: [], spPelaMetade: false, escudo: 0, frase: arrumou.texto }, 'boneco')
+  const montada = montarMesa(pedido, { lado: 'b', quantos: 1, ferido: false, emSi: false, seloPedido: null, selosParaTirar: [], spPelaMetade: false, escudo: 0, quemUsaFerido: false, frase: arrumou.texto }, 'boneco')
   if (typeof montada === 'string') return naoSaiu(montada)
   const { mesa, loja, vagaDeQuemUsa, vagasDosBonecos } = montada
   const boneco = vagasDosBonecos[0]
