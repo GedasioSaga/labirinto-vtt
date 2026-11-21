@@ -173,7 +173,7 @@ function porNome(a: Personagem, b: Personagem): number {
 }
 
 /** O modelo-raiz da cópia que está na lista, ou `null` (não é cópia, ou o modelo sumiu). Ciclo de arquivo torto = `null`. */
-function raizDaCopia(personagem: Personagem, porId: ReadonlyMap<string, Personagem>): Personagem | null {
+export function raizDaCopia(personagem: Personagem, porId: ReadonlyMap<string, Personagem>): Personagem | null {
   const vistos = new Set<string>([personagem.id])
   let modeloId = personagem.combate?.modeloId
   let raiz: Personagem | null = null

@@ -86,6 +86,32 @@ export function planejarLigacao(ficha: Personagem, tokens: readonly TokenDaLigac
   return { ligacoes, copias, jaLigados }
 }
 
+/** O token que ainda vai nascer: não está no mapa, então não conta como "já usa a ficha". */
+const TOKEN_QUE_VAI_NASCER = '__token-novo__'
+
+/**
+ * NPCs NO ACERVO, decisão 8: a ficha do token NOVO que a ficha põe no mapa
+ * ("+" ou arrasto). A mesma regra do "Ligar ficha" (`planejarLigacao`): NPC
+ * que nenhum token do mapa usa entra ele mesmo; NPC que JÁ está no mapa ganha
+ * uma CÓPIA (`nomeDaCopia`, "Goblin 2"), cada token com a própria vida. A
+ * cópia leva a mochila do modelo com vagas novas: uma mochila por ficha, e a
+ * da cópia não divide item com a do modelo. Jogador: sempre a mesma ficha.
+ */
+export function fichaDoTokenNovo(
+  ficha: Personagem,
+  doMapa: readonly Pick<Token, 'id' | 'characterId'>[],
+  personagens: readonly Personagem[],
+  nomeDaCopia: string,
+): { personagemId: string; copia: Personagem | null } {
+  const plano = planejarLigacao(ficha, [{ id: TOKEN_QUE_VAI_NASCER, name: nomeDaCopia, characterId: null }], doMapa, personagens)
+  const copia = plano.copias[0]
+  if (copia === undefined) return { personagemId: ficha.id, copia: null }
+  // Mesmo formato de `mochilaComVagasNovas` (lib/tokenLibrary.ts), sem trazer o disco do acervo para esta conta pura.
+  const mochila = copia.mochila === undefined ? undefined : copia.mochila.map((vaga) => ({ ...vaga, id: `item_${crypto.randomUUID()}` }))
+  const comMochila: Personagem = mochila === undefined ? copia : { ...copia, mochila }
+  return { personagemId: comMochila.id, copia: comMochila }
+}
+
 /** O token mostra o retrato da ficha só se não tem imagem própria (a que o mestre escolheu fica). */
 export function tokenSemImagem(token: Pick<Token, 'image' | 'imageData'>): boolean {
   return token.image === null && (token.imageData ?? null) === null

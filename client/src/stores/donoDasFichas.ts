@@ -4,6 +4,7 @@ import type { Personagem } from '../lib/personagem'
 import type { PastaAberta } from '../lib/pastasDeMapas'
 import type { Equipe } from '../lib/batalha/equipes'
 import type { PastaDeFichas } from '../lib/pastasDeFichas'
+import type { LugarDaFicha, LugaresDasFichas } from '../lib/fichasNoAcervo'
 import { mapaComAsFichas } from '../lib/mochila/espelho'
 import { VERSAO_DA_MIGRACAO_DA_MOCHILA } from '../lib/mochila/marcador'
 import { prepararEmissao } from '../net/nuvem/emissor'
@@ -172,6 +173,27 @@ export function donoDasPastasDeFichas(get: () => AdventureState, set: (patch: Pa
     const { pastasDeFichas: _antigas, ...sem } = adventure
     set({ adventure: pastas.length === 0 ? sem : { ...sem, pastasDeFichas: pastas }, structureDirty: true })
   }
+}
+
+/**
+ * NPCs NO ACERVO: o lugar de cada ficha de NPC no acervo de tokens, do MESMO
+ * dono que `personagensAtivos`. `undefined` = o dono ainda não migrou (a
+ * existência do campo é a marca, `lib/fichasNoAcervo.ts`).
+ */
+export function fichasNoAcervoAtivas(state: RpgState): LugaresDasFichas | undefined {
+  const pasta = pastaQueManda(state)
+  if (pasta !== null) return pasta.fichasNoAcervo
+  return state.adventure?.fichasNoAcervo
+}
+
+/** Como `donoDasPastasDeFichas`, para o lugar das fichas no acervo. Grava até vazio: é a marca da migração. `null` sem onde guardar. */
+export function donoDosLugaresDasFichas(get: () => AdventureState, set: (patch: Partial<AdventureState>) => void): ((lugares: Record<string, LugarDaFicha>) => void) | null {
+  const state = get()
+  const pasta = pastaQueManda(state)
+  if (pasta !== null) return (lugares) => set({ pasta: { ...pasta, fichasNoAcervo: lugares }, pastaSuja: true })
+  const { adventure } = state
+  if (adventure === null) return null
+  return (lugares) => set({ adventure: { ...adventure, fichasNoAcervo: lugares }, structureDirty: true })
 }
 
 /**

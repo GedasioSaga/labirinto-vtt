@@ -7,6 +7,9 @@ import { mapaDoPiso } from '../lib/pisos'
 import { findTokenAt, snapPointForTarget } from '../pixi/tokenInteraction'
 import type { Camera, Point } from '../pixi/world'
 import type { MapData } from '../types/map'
+import { nomeDaProximaCopia } from '../lib/fichasNoAcervo'
+import { fichaDoTokenNovo } from '../lib/ligarFicha'
+import { personagensAtivos, useAdventureStore } from './adventureStore'
 import { criarToken, type TamanhoDaVista } from './criarToken'
 import { useMapStore } from './mapStore'
 
@@ -18,9 +21,9 @@ import { useMapStore } from './mapStore'
  * mesmo caminho do botão Token e do acervo: um `addToken` só, um passo do
  * Ctrl+Z, e a peça nasce selecionada.
  *
- * Personagem que já tem token na cena ganha OUTRO: o app já aceita várias
- * fichas do mesmo personagem (a batalha soma os usos delas, `lib/batalha`), e
- * o "Pôr token" da entrada pela conta também cria em vez de mover.
+ * Personagem que já tem token na cena ganha OUTRO token (o "Pôr token" da
+ * entrada pela conta também cria em vez de mover): o jogador, na mesma ficha;
+ * o NPC, numa cópia dela (decisão 8 dos NPCs no acervo, ver abaixo).
  */
 
 /** A casa sob o ponteiro: o centro dela no mundo e o quadrado dela na tela (px de janela). */
@@ -116,14 +119,28 @@ export async function fotoDoRetrato(retrato: string | null): Promise<string | nu
 }
 
 /**
- * O token do personagem nasce em `at` (centro da casa, px do mundo), no piso
- * em edição. A foto é lida ANTES (peça e foto num passo só do desfazer); se a
- * cena trocou durante a leitura, nada nasce na cena errada.
+ * O token do personagem nasce em `at` (centro da casa, px do mundo; ausente =
+ * centro da vista), no piso em edição. A foto é lida ANTES (peça e foto num
+ * passo só do desfazer); se a cena trocou durante a leitura, nada nasce na
+ * cena errada.
+ *
+ * NPCs NO ACERVO, decisão 8 (21/11/2026): NPC que JÁ tem token no mapa ganha
+ * uma CÓPIA ("Goblin 2"), e o token novo usa a cópia — cada um com a própria
+ * vida, a regra do "Ligar ficha" (`fichaDoTokenNovo`). Jogador continua com
+ * uma ficha só. Sem lugar para o token, a cópia que acabou de nascer sai.
  */
-export async function porPersonagemNoMapa(personagem: Pick<Personagem, 'id' | 'nome' | 'tipo' | 'retrato'>, at: Point, vista: TamanhoDaVista | null): Promise<string | null> {
+export async function porPersonagemNoMapa(personagem: Pick<Personagem, 'id' | 'nome' | 'tipo' | 'retrato'>, at: Point | undefined, vista: TamanhoDaVista | null): Promise<string | null> {
   const mapaId = useMapStore.getState().map.id
   const imageData = await fotoDoRetrato(personagem.retrato)
   const { map, pisoAtivo } = useMapStore.getState()
   if (map.id !== mapaId) return null
-  return criarToken(personagem.nome.trim() || 'Personagem', { at, characterId: personagem.id, imageData, npc: personagem.tipo === 'npc', piso: pisoAtivo }, vista)
+  const aventura = useAdventureStore.getState()
+  const personagens = personagensAtivos(aventura)
+  const ficha = personagens.find((outro) => outro.id === personagem.id)
+  const plano = ficha === undefined ? { personagemId: personagem.id, copia: null } : fichaDoTokenNovo(ficha, map.tokens, personagens, nomeDaProximaCopia(ficha, personagens))
+  if (plano.copia !== null && !aventura.adicionarPersonagens([plano.copia])) return null
+  const nome = plano.copia?.nome ?? (personagem.nome.trim() || 'Personagem')
+  const id = criarToken(nome, { at, characterId: plano.personagemId, imageData, npc: personagem.tipo === 'npc', piso: pisoAtivo }, vista)
+  if (id === null && plano.copia !== null) useAdventureStore.getState().apagarPersonagem(plano.copia.id)
+  return id
 }

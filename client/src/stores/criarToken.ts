@@ -10,10 +10,14 @@ import {
   type ItemDoAcervoNaTela,
 } from '../lib/tokenLibrary'
 import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
+import { fichaQueNasceuDaPeca, nomeDaProximaCopia } from '../lib/fichasNoAcervo'
+import { fichaDoTokenNovo } from '../lib/ligarFicha'
+import type { Personagem } from '../lib/personagem'
 import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from '../lib/tokenPlacement'
 import { viewportCenterWorld, type Point } from '../pixi/world'
 import type { CarriedItem, Token } from '../types/map'
-import { personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
+import { fichasNoAcervoAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
+import { guardarLugarDaFicha } from './fichasNoAcervo'
 import { useMapStore } from './mapStore'
 import { useToastStore } from './toastStore'
 
@@ -138,7 +142,8 @@ export function fichaFicouNaEstante(nome: string, motivo: FichaDeFora): string {
  * (a dona, `lib/mochila/espelho.ts`) e a peça a mostra.
  */
 export function colocarPecaDoAcervo(
-  item: Pick<ItemDoAcervoNaTela, 'nome' | 'tamanho'> & ExtrasDaPeca,
+  // `id` e `pasta` só existem na peça que veio do acervo: sem eles, a regra da 2ª vez (decisão 9) não se aplica.
+  item: Pick<ItemDoAcervoNaTela, 'nome' | 'tamanho'> & Partial<Pick<ItemDoAcervoNaTela, 'id' | 'pasta'>> & ExtrasDaPeca,
   tokenId: string,
   foto: { image: string | null; imageData: string | null },
   at: Point | undefined,
@@ -147,26 +152,31 @@ export function colocarPecaDoAcervo(
   const aventura = useAdventureStore.getState()
   const sistemaId = sistemaAtivo(aventura)
   const mochila = mochilaComVagasNovas(item.mochila ?? [])
-  const ficha = fichaQueEntra(item, sistemaId, { mochila, moedas: item.moedas })
+  const escolha = fichaDaPecaNoMapa(item, sistemaId, { mochila, moedas: item.moedas })
+  const { ficha } = escolha
   // A ficha entra ANTES da peça, para a peça já nascer ligada a ela: sem um
-  // instante em que o `characterId` aponta para ninguém.
-  const fichaEntrou = ficha !== null && aventura.adicionarPersonagens([ficha])
+  // instante em que o `characterId` aponta para ninguém. A que já existe não entra de novo.
+  const fichaEntrou = ficha !== null && (!escolha.nasce || aventura.adicionarPersonagens([ficha]))
+  // Ligada a uma ficha que já existia, a peça mostra a mochila DELA (a dona); nas outras, a da peça.
+  const bolso = ficha !== null && fichaEntrou && !escolha.nasce ? { mochila: ficha.mochila ?? [], moedas: ficha.moedas } : { mochila, moedas: item.moedas }
   const id = criarToken(
-    item.nome,
+    escolha.copia && ficha !== null ? ficha.nome : item.nome,
     {
       at,
       ...pecaDoAcervo(item, tokenId, foto),
       ...(ficha !== null && fichaEntrou ? { characterId: ficha.id } : {}),
-      mochila,
-      moedas: item.moedas,
+      mochila: bolso.mochila,
+      moedas: bolso.moedas,
     },
     vista,
   )
   if (id === null) {
     // Sem lugar para a peça: a ficha que acabou de entrar sai (nada fica pela metade).
-    if (ficha !== null && fichaEntrou) useAdventureStore.getState().apagarPersonagem(ficha.id)
+    if (ficha !== null && fichaEntrou && escolha.nasce) useAdventureStore.getState().apagarPersonagem(ficha.id)
     return null
   }
+  // Decisão 9: a 1ª ficha da peça fica na pasta da peça e lembra de onde veio; as próximas vezes fazem cópia dela.
+  if (ficha !== null && fichaEntrou && escolha.nasce && !escolha.copia && item.id !== undefined) void guardarLugarDaFicha(ficha.id, item.pasta ?? null, item.id)
   colocarTochasDaPeca(id, item)
   if (foto.image === null && foto.imageData === null) useToastStore.getState().push('error', IMAGEM_SUMIU_DO_ACERVO)
   if (item.ficha !== undefined && !fichaEntrou) {
@@ -174,6 +184,35 @@ export function colocarPecaDoAcervo(
     useToastStore.getState().push('info', fichaFicouNaEstante(item.nome, motivo))
   }
   return id
+}
+
+/**
+ * NPCs NO ACERVO, decisão 9 (21/11/2026): a ficha com que a peça entra. Na 1ª
+ * vez nesta aventura, a ficha nova da peça (`fichaQueEntra`, como antes); nas
+ * próximas, a ficha que ela já criou — ela mesma se nenhum token do mapa a usa,
+ * senão uma CÓPIA ("Goblin 2", a regra da decisão 8), com a mochila e a bolsa
+ * da peça. Antes, cada vez nascia uma ficha solta: "Goblin, Goblin, Goblin".
+ * `nasce` = a ficha ainda não está na lista; `copia` = é cópia de outra.
+ */
+function fichaDaPecaNoMapa(
+  item: Partial<Pick<ItemDoAcervoNaTela, 'id'>> & ExtrasDaPeca,
+  sistemaId: string | undefined,
+  bolso: { mochila: CarriedItem[]; moedas: number | undefined },
+): { ficha: Personagem | null; nasce: boolean; copia: boolean } {
+  const aventura = useAdventureStore.getState()
+  const personagens = personagensAtivos(aventura)
+  // A peça sem ficha guardada também pode ter ficha aqui: a do "Criar ficha" do acervo.
+  const daPeca = item.id === undefined ? null : fichaQueNasceuDaPeca(item.id, personagens, fichasNoAcervoAtivas(aventura))
+  if (daPeca === null) return { ficha: fichaQueEntra(item, sistemaId, bolso), nasce: true, copia: false }
+  const plano = fichaDoTokenNovo(daPeca, useMapStore.getState().map.tokens, personagens, nomeDaProximaCopia(daPeca, personagens))
+  if (plano.copia === null) return { ficha: daPeca, nasce: false, copia: false }
+  const { mochila: _doModelo, moedas: _moedasDoModelo, ...semBolso } = plano.copia
+  const copia: Personagem = {
+    ...semBolso,
+    ...(bolso.mochila.length > 0 ? { mochila: [...bolso.mochila] } : {}),
+    ...(bolso.moedas !== undefined ? { moedas: bolso.moedas } : {}),
+  }
+  return { ficha: copia, nasce: true, copia: true }
 }
 
 /**

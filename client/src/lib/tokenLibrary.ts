@@ -57,9 +57,11 @@ const ARQUIVO_ANTERIOR = 'acervo.json.anterior'
  * campos que conhecemos. A 2 (26/09/2026) trouxe as pastas; índice da 1 abre
  * com as pastas padrão e todo item fora de pasta. A 3 (18/11/2026) trouxe a
  * ficha, a mochila, a bolsa e as tochas da peça (`ExtrasDaPeca`); índice da 2
- * abre com as peças sem nada disso, como eram.
+ * abre com as peças sem nada disso, como eram. A 4 (21/11/2026) trouxe a
+ * SUBPASTA (`PastaDoAcervo.dentroDe`, um nível só): o app de antes lê a 4 pelo
+ * que conhece, e a subpasta aparece lá como pasta comum — nada some.
  */
-const VERSAO_DO_INDICE = 3
+const VERSAO_DO_INDICE = 4
 
 /**
  * A TOCHA PRESA na peça (`Light.attachedTokenId`), guardada sem lugar e sem
@@ -148,6 +150,12 @@ export interface PastaDoAcervo {
   nome: string
   /** Recolhida no painel. Fica gravada: o mestre reabre a estante do jeito que deixou. */
   recolhida: boolean
+  /**
+   * SUBPASTA (versão 4): o `id` da pasta mãe, um nível só (NPCs › Inimigos).
+   * Ausente = pasta de cima. Mãe que não existe, ou que já é subpasta, faz a
+   * pasta voltar a ser de cima na leitura.
+   */
+  dentroDe?: string
 }
 
 /** O que `itensDoIndice` extrai do texto: o que ele entende, e o que ele preserva sem entender. */
@@ -202,6 +210,7 @@ interface PastaGravada {
   id: string
   nome: string
   recolhida?: true
+  dentroDe?: string
 }
 
 /** Item como ele fica no disco: `pasta` só aparece quando o token está numa. */
@@ -483,13 +492,23 @@ function pastasValidas(valor: unknown): PastaDoAcervo[] {
   const vistos = new Set<string>()
   for (const bruto of valor as Partial<PastaGravada>[]) {
     if (!bruto || typeof bruto !== 'object') continue
-    const { id, nome, recolhida } = bruto
+    const { id, nome, recolhida, dentroDe } = bruto
     if (typeof id !== 'string' || id.length === 0 || vistos.has(id)) continue
     if (typeof nome !== 'string') continue
     vistos.add(id)
-    pastas.push({ id, nome, recolhida: recolhida === true })
+    pastas.push({ id, nome, recolhida: recolhida === true, ...(typeof dentroDe === 'string' && dentroDe !== id ? { dentroDe } : {}) })
   }
-  return pastas
+  return comUmNivelSo(pastas)
+}
+
+/** Subpasta só dentro de pasta de CIMA que existe: a de mãe sumida, ou de mãe que já é subpasta, volta a ser de cima. */
+function comUmNivelSo(pastas: PastaDoAcervo[]): PastaDoAcervo[] {
+  const deCima = new Set(pastas.filter((pasta) => pasta.dentroDe === undefined).map((pasta) => pasta.id))
+  return pastas.map((pasta) => {
+    if (pasta.dentroDe === undefined || deCima.has(pasta.dentroDe)) return pasta
+    const { dentroDe: _solta, ...deCimaAgora } = pasta
+    return deCimaAgora
+  })
 }
 
 /**
@@ -529,8 +548,9 @@ function itemGravado({ pasta, ...resto }: ItemDoAcervo): ItemGravado {
   return pasta === null ? resto : { ...resto, pasta }
 }
 
-function pastaGravada({ id, nome, recolhida }: PastaDoAcervo): PastaGravada {
-  return recolhida ? { id, nome, recolhida: true } : { id, nome }
+function pastaGravada({ id, nome, recolhida, dentroDe }: PastaDoAcervo): PastaGravada {
+  const gravada: PastaGravada = recolhida ? { id, nome, recolhida: true } : { id, nome }
+  return dentroDe === undefined ? gravada : { ...gravada, dentroDe }
 }
 
 /** O índice inteiro, do jeito que cada operação o regrava. */
@@ -952,15 +972,21 @@ const NOME_DE_PASTA_PADRAO = 'Pasta nova'
  * dos tokens ("NPCs (2)"): duas pastas com o mesmo nome não dão para
  * distinguir na hora de escolher o destino de "Mover para".
  */
-export function criarPastaNoAcervo(nome: string): Promise<PastaDoAcervo> {
+export function criarPastaNoAcervo(nome: string, dentroDe?: string): Promise<PastaDoAcervo> {
   return naFilaDoIndice(async () => {
     const acervo = await listarAcervo()
     exigirLeitura(acervo, 'criar a pasta no acervo')
+    // SUBPASTA: um nível só, dentro de uma pasta de cima que ainda existe.
+    const mae = dentroDe === undefined ? undefined : acervo.pastas.find((pasta) => pasta.id === dentroDe && pasta.dentroDe === undefined)
+    if (dentroDe !== undefined && mae === undefined) throw new Error(PASTA_NAO_ENCONTRADA)
     const base = nome.trim().length > 0 ? nome.trim() : NOME_DE_PASTA_PADRAO
+    // Nome repetido conta entre as IRMÃS: "Inimigos" dentro de NPCs e uma "Inimigos" de cima não se confundem no "Mover para".
+    const irmas = acervo.pastas.filter((outra) => outra.dentroDe === mae?.id)
     const pasta: PastaDoAcervo = {
       id: crypto.randomUUID(),
-      nome: uniqueMapName(base, acervo.pastas.map((outra) => outra.nome)),
+      nome: uniqueMapName(base, irmas.map((outra) => outra.nome)),
       recolhida: false,
+      ...(mae === undefined ? {} : { dentroDe: mae.id }),
     }
     await gravarIndice(
       { ...acervo, itens: acervo.itens.map(semCampoDeTela), pastas: [...acervo.pastas, pasta] },
@@ -1011,23 +1037,58 @@ export function recolherPastaNoAcervo(id: string, recolhida: boolean): Promise<v
 }
 
 /**
- * Apaga a pasta, e SÓ a pasta: os tokens dela voltam para fora de pasta. Apagar
- * os tokens junto transformaria um gesto de arrumação em perda de fichas.
- * Pasta que já não existe é pedido já cumprido — nada a gravar.
+ * Apaga a pasta, e SÓ a pasta: o que está nela SOBE UM NÍVEL (decisão 16) —
+ * da subpasta para a mãe; da pasta de cima para fora de pasta, e as subpastas
+ * dela viram pastas de cima. Apagar os tokens junto transformaria um gesto de
+ * arrumação em perda de fichas. Devolve para onde o conteúdo foi (`null` =
+ * fora de pasta), para quem chama levar as fichas de NPC junto. Pasta que já
+ * não existe é pedido já cumprido — nada a gravar.
  */
-export function apagarPastaDoAcervo(id: string): Promise<void> {
+export function apagarPastaDoAcervo(id: string): Promise<string | null> {
   return naFilaDoIndice(async () => {
     const acervo = await listarAcervo()
     exigirLeitura(acervo, 'apagar a pasta do acervo')
-    if (!acervo.pastas.some((pasta) => pasta.id === id)) return
+    const alvo = acervo.pastas.find((pasta) => pasta.id === id)
+    if (alvo === undefined) return null
+    const destino = alvo.dentroDe ?? null
     await gravarIndice(
       {
         ...acervo,
-        itens: acervo.itens.map((item) => ({ ...semCampoDeTela(item), pasta: item.pasta === id ? null : item.pasta })),
-        pastas: acervo.pastas.filter((pasta) => pasta.id !== id),
+        itens: acervo.itens.map((item) => ({ ...semCampoDeTela(item), pasta: item.pasta === id ? destino : item.pasta })),
+        pastas: acervo.pastas
+          .filter((pasta) => pasta.id !== id)
+          .map((pasta) => {
+            if (pasta.dentroDe !== id) return pasta
+            const { dentroDe: _mae, ...deCima } = pasta
+            return deCima
+          }),
       },
       'apagar a pasta do acervo',
     )
+    return destino
+  })
+}
+
+/**
+ * MIGRAÇÃO DAS FICHAS (`lib/fichasNoAcervo.ts`): grava as subpastas que faltam,
+ * numa gravação só. A que já existe com o mesmo nome dentro da mesma mãe é
+ * reaproveitada (rodar duas vezes dá o mesmo acervo); a de mãe que sumiu entra
+ * como pasta de cima. Devolve as pastas como ficaram no disco.
+ */
+export function garantirSubpastasNoAcervo(novas: readonly PastaDoAcervo[]): Promise<PastaDoAcervo[]> {
+  return naFilaDoIndice(async () => {
+    const acervo = await listarAcervo()
+    exigirLeitura(acervo, 'organizar as fichas no acervo')
+    const pastas = [...acervo.pastas]
+    for (const nova of novas) {
+      const mae = nova.dentroDe === undefined ? undefined : pastas.find((pasta) => pasta.id === nova.dentroDe && pasta.dentroDe === undefined)
+      const jaTem = pastas.some((pasta) => pasta.id === nova.id || (pasta.nome === nova.nome && pasta.dentroDe === mae?.id))
+      if (jaTem) continue
+      pastas.push({ id: nova.id, nome: nova.nome, recolhida: false, ...(mae === undefined ? {} : { dentroDe: mae.id }) })
+    }
+    if (pastas.length === acervo.pastas.length) return pastas
+    await gravarIndice({ ...acervo, itens: acervo.itens.map(semCampoDeTela), pastas }, 'organizar as fichas no acervo')
+    return pastas
   })
 }
 

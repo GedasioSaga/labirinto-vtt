@@ -50,6 +50,7 @@ import type { Personagem } from '../lib/personagem'
 import { rpgDe, type PastaAberta, type RpgDaPasta } from '../lib/pastasDeMapas'
 import type { Equipe } from '../lib/batalha/equipes'
 import type { PastaDeFichas } from '../lib/pastasDeFichas'
+import type { LugarDaFicha } from '../lib/fichasNoAcervo'
 import { personagemComMidia } from '../lib/imagensDaFicha'
 import { comAutor, comoTudoOuNada, marcaDaBase } from '../net/nuvem/emissor'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -107,6 +108,7 @@ import { useToastStore } from './toastStore'
 import {
   donoDasEquipes,
   donoDasPastasDeFichas,
+  donoDosLugaresDasFichas,
   donoDosPersonagens,
   equipesAtivas,
   espelhoDasFichas,
@@ -124,6 +126,7 @@ import { gravarAventura, gravarPastaSuja, receberCenaDaCopia, temTrabalhoPorSalv
 export {
   equipesAtivas,
   fichasDonasDoProprioMapa,
+  fichasNoAcervoAtivas,
   herdaDaPasta,
   mochilaMoraNaFicha,
   pastasDeFichasAtivas,
@@ -466,6 +469,12 @@ export interface AdventureState {
    * as equipes. Fora do desfazer do mapa. `false` sem onde guardar.
    */
   salvarPastasDeFichas: (pastas: readonly PastaDeFichas[]) => boolean
+  /**
+   * NPCs NO ACERVO: grava o mapa inteiro ficha → pasta do acervo no mesmo dono
+   * dos personagens (mover, a migração, a ficha que nasce de uma peça). Fora
+   * do desfazer do mapa. `false` sem onde guardar.
+   */
+  salvarFichasNoAcervo: (lugares: Readonly<Record<string, LugarDaFicha>>) => boolean
   /**
    * Põe o personagem na equipe `equipeId` (sai da que estava), ou em nenhuma
    * (`null`). Mesma equipe de antes = nada muda. `false` sem onde guardar ou
@@ -1953,6 +1962,13 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const dono = donoDasPastasDeFichas(get, set)
     if (dono === null) return false
     dono([...pastas])
+    return true
+  },
+
+  salvarFichasNoAcervo: (lugares) => {
+    const dono = donoDosLugaresDasFichas(get, set)
+    if (dono === null) return false
+    dono({ ...lugares })
     return true
   },
 
