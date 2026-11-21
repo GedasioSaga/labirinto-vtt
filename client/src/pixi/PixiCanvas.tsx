@@ -266,6 +266,8 @@ import { drawMarcas } from './drawMarcas'
 import { caixaDoPapel, drawDocumentos, drawPapelSelecionado, raioDoToqueNoPapel } from './drawDocumentos'
 import { createPapelNoMapaGesture } from './papelNoMapaGesture'
 import { createSeloNoMapaGesture } from './seloNoMapaGesture'
+import { criarSelosDosObjetos, selosAcimaDosObjetos } from './selosDosObjetos'
+import { abrivelParaJogador } from '../lib/conteudoDoObjeto'
 import { documentosDoMapa, novoIdDoPapel, novoPapelNoMapa, papeisDoMestre, papelNoLugar, papelNoPonto } from '../documentos/noMapa'
 import { papeisDaBiblioteca } from '../documentos/recorte'
 import type { LugarDoDocumento } from '../documentos/tipos'
@@ -2656,6 +2658,14 @@ function PixiCanvasDoContexto({
           papeisDoMestre(map, papeisDaBiblioteca(useDocumentosStore.getState().documentos), useMapStore.getState().pisoAtivo, docAceso),
           map.grid,
         )
+        // BAÚ, CAIXA E BARRIL (21/11/2026, "não aparece o ícone do diamante... para mim
+        // e para o jogador"): o mesmo selo que o jogador vê sobre o objeto com o minigame
+        // ligado e ainda fechado (`abrivelParaJogador`, a regra do recorte). Aqui sem a
+        // regra da visão: o mestre vê o piso em edição inteiro.
+        if (selosDosObjetosDoMestre.camada.parent !== pinsContainer) pinsContainer.addChild(selosDosObjetosDoMestre.camada)
+        const kDoSelo = pinSizeScale(camera.scale)
+        const objetosComSelo = visibleProps(map.props, map).filter((prop) => abrivelParaJogador(prop) === 'fechado')
+        selosDosObjetosDoMestre.desenhar(selosAcimaDosObjetos(objetosComSelo, kDoSelo), kDoSelo)
       }
 
       // Chão por peças fica na camada 'salas', junto das Regiões.
@@ -3130,6 +3140,8 @@ function PixiCanvasDoContexto({
       const marksGraphics = new Graphics()
       const documentosGraphics = new Graphics()
       documentosGraphics.eventMode = 'none'
+      // O selo do baú, da caixa e do barril com o minigame ligado (o da tela do jogador); não pega o ponteiro.
+      const selosDosObjetosDoMestre = criarSelosDosObjetos()
       const floorRenderer = createFloorRenderer()
       // Gradientes de luz nascem POR RENDERER e morrem no teardown.
       const lightsRenderer = createLightsRenderer()

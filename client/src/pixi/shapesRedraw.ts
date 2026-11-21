@@ -3,6 +3,7 @@ import type { DrawingTool, SelectionKind } from '../types/tools'
 import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
 import { pinSizeFloor, pinSizeFloorFor, pinSizeScale } from '../lib/pins'
 import { desafiosDo, tamanhoDoSelo } from '../lib/desafios'
+import { abrivelParaJogador } from '../lib/conteudoDoObjeto'
 import { resolveHighlightedRegionId } from './drawRegions'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { hazardsOf } from '../lib/hazards'
@@ -282,11 +283,14 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // pino reduzido (fatia 14) só entra quando há pino reduzido no mapa.
       // DESAFIOS: o selo também é desenhado aqui; o posto num objeto anda com ele (`map.props`).
       // DOCUMENTOS: o papel no chão também (o posto num objeto anda com ele, e o tamanho segue a grade).
+      // BAÚ, CAIXA E BARRIL: o selo do objeto com o minigame ligado e fechado anda com o objeto.
       return [
         map.pins,
         map.marcas,
         map.desafios,
-        map.desafios?.some((desafio) => desafio.lugar.tipo === 'objeto') === true || map.documentos?.some((documento) => documento.lugar.tipo === 'objeto') === true
+        map.desafios?.some((desafio) => desafio.lugar.tipo === 'objeto') === true ||
+        map.documentos?.some((documento) => documento.lugar.tipo === 'objeto') === true ||
+        map.props.some((prop) => abrivelParaJogador(prop) === 'fechado')
           ? map.props
           : null,
         map.documentos,

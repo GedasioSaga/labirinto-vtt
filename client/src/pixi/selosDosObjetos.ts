@@ -41,15 +41,26 @@ function naVisao(ponto: { x: number; y: number }, visao: readonly (readonly Regi
  * de tela dos pinos (`pinSizeScale`): de longe o selo não vira um ponto.
  */
 export function selosDosObjetos(props: readonly Prop[], visao: readonly (readonly RegionPoint[])[], k: number): SeloDoObjeto[] {
-  const selos: SeloDoObjeto[] = []
-  for (const prop of props) {
-    if (prop.abrivel !== 'fechado' || !naVisao(prop, visao)) continue
+  return selosAcimaDosObjetos(
+    props.filter((prop) => prop.abrivel === 'fechado' && naVisao(prop, visao)),
+    k,
+  )
+}
+
+/**
+ * O selo logo acima da borda de cima (girada) de cada objeto dado, sem filtro:
+ * quem chama escolhe. O jogador passa os `'fechado'` que ele vê agora
+ * (`selosDosObjetos`); o editor do mestre (pedido de 21/11/2026: "esse baú tem
+ * minigame mas não aparece o ícone do diamante... para mim e para o jogador"),
+ * os que o recorte daria como `'fechado'`, no mapa inteiro do piso em edição.
+ */
+export function selosAcimaDosObjetos(props: readonly Prop[], k: number): SeloDoObjeto[] {
+  const meiaDiagonal = SELO_DO_OBJETO_MEIA_DIAGONAL * k
+  return props.map((prop) => {
     const angulo = rotationToRadians(prop.rotation)
     const meiaAltura = (Math.abs(prop.width * Math.sin(angulo)) + Math.abs(prop.height * Math.cos(angulo))) / 2
-    const meiaDiagonal = SELO_DO_OBJETO_MEIA_DIAGONAL * k
-    selos.push({ id: prop.id, x: prop.x, y: prop.y - meiaAltura - meiaDiagonal * (1 - FRACAO_SOBRE_O_OBJETO) })
-  }
-  return selos
+    return { id: prop.id, x: prop.x, y: prop.y - meiaAltura - meiaDiagonal * (1 - FRACAO_SOBRE_O_OBJETO) }
+  })
 }
 
 export interface SelosDosObjetos {
