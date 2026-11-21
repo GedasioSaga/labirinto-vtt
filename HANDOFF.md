@@ -5,9 +5,11 @@ Os 10 itens do dono de 21/11 (literal no fim do PEDIDOS.md): 1 DOCS, 2 mover e r
 
 ## Estado atual
 - 1 FEITO 218a7b5d (rótulo DOCS no livro do mestre e na barra do jogador; App.colunaDireita.test ajustado; tsc ainda não rodado nesta leva).
-- EM VOO (5 agentes, o teto): programador-frontend itens 2 + 4; debugador item 5 + balas do Vicent; designer-fable item 3 (docs/design/jogos/editor-de-desafio.html + NOTAS.md, sem código do app); arquiteto-solucoes em Fable itens 8, 9, 10 (docs/design/habilidades/ANALISE.md + SISTEMA.md, sem código; respostas do dono já repassadas); designer-opus item 7 (docs/design/bau/conteudo-do-bau.html + NOTAS.md).
+- 5 + balas do Vicent FEITOS cae9034c (uma mochila por ficha: migração marcador 2 com cópia rpg.json.antes-da-mochila-2; ficha do mestre lê e grava na ficha; Hector ficha+2 bonecos = Tocha) e 8c8a028e (batalha do jogador lê a mochila do boneco ligado: Vincent 0 para 40 balas); tsc 0; vitest da mochila ok; NÃO visto no navegador nem no Tauri. DECISÃO A CONFIRMAR: ficha genérica em vários bonecos (Zumbis, Cavaleiros, Bandido) passa a ter UMA mochila comum.
+- EM VOO: programador-frontend itens 2 + 4; designer-fable item 3 (docs/design/jogos/editor-de-desafio.html + NOTAS.md, sem código do app); ; ANÁLISE 8-10 FEITA 23dc26af (Fable: docs/design/habilidades/ANALISE.md 24 erros, SISTEMA.md mecanica v2 para habilidade, arma e item, 22+25 modelos, fases 0-9, decisões C1-C24 na seção 13; nada executado); designer-opus item 7 (docs/design/bau/conteudo-do-bau.html + NOTAS.md).
 - Respostas do dono (adda82fe): NPCs no Acervo; Testar = boneco de treino + miniaba de preview; reação = usada no lugar da reação normal; item usado por jogador, mestre e NPC com ficha, depois "usar item" na batalha. Se o Fable acabar, usar Opus 5.5.
-- NA FILA: item 6 (quando abrir vaga), estátua de cavalo (pedido de 21/11 00h59; "Só objeto do mapa").
+- EM VOO também: programador-frontend Fase 0 das habilidades (consertos do ANALISE.md, sem desenho novo); designer-opus item 6 (docs/design/acervo/npcs-no-acervo.html + NOTAS.md).
+- NA FILA: estátua de cavalo (pedido de 21/11 00h59; "Só objeto do mapa").
 
 ## Próximos passos
 1. Receber cada agente, conferir o relato, commit já feito por ele, anotar aqui e no PEDIDOS.
