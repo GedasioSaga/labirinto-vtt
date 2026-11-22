@@ -4,7 +4,7 @@
 "cara melhora esse design": cartão Boomerang da página Itens com nome uma letra por linha (selos DO CATÁLOGO, LIGADA AO ACERVO, MONT… na linha do nome). EM VOO: designer-opus no CartaoDaEntrada (PaginaItens.tsx) + itens.css; critério: nome inteiro numa linha ou quebra por palavra, selos inteiros, pior caso ok, longtask < 200 ms, prints antes/depois em tmp/pedidos-2026-11-22/cartao-catalogo/. Depois: publicar 0.5.93.
 
 ## Pedido de 22/11 22/11 11h25: habilidades automáticas na arma (literal no PEDIDOS)
-O motor já tem os modelos atordoa/golpeComSelo (mecanica/arma.ts), mas o editor só aparece na ficha (FichaAbas). Falta: conjunto de modelos de arma como os 25 do item, mais "O que ela faz" no catálogo e no Acervo. ESPERANDO as respostas do grilling; depois vem o plano.
+O motor já tem os modelos atordoa/golpeComSelo (mecanica/arma.ts), mas o editor só aparece na ficha (FichaAbas). Falta: conjunto de modelos de arma como os 25 do item, mais "O que ela faz" no catálogo e no Acervo. RESPOSTAS 22/11 11h26: em todo lugar; ~20 modelos; sem protótipo; FONTE ÚNICA (dono: "não posso ter nada que um lugar diz uma coisa e em outro diz outra"; Boomerang unificado pelo Claude). EM VOO: arquiteto-solucoes escreve o plano em docs/design/habilidades/ARMAS-FONTE-UNICA.md; depois vêm os bullets para o dono aprovar, e só então o código (designer do cartão ainda em voo: não entrar em plan mode).
 
 ## Pedido de 22/11 09h38 (literal no PEDIDOS)
 "não é para eu conseguir editar um item ?" (print: cartões Do acervo da página Itens só com Pôr em Aira).
