@@ -43,6 +43,7 @@ import { resumoDoEfeitoDoItem } from '../../lib/batalha/mecanica/resumoDoItem'
 import { copiasParaAtualizar, fichaComOEfeitoDoItem } from '../../lib/mochila/efeitoNasCopias'
 import type { EfeitoDoItem } from '../../types/map'
 import { EntradaDoCatalogoDialog, type ModoDaEntrada } from './EntradaDoCatalogoDialog'
+import { JuntarAsArmas } from './JuntarAsArmas'
 import { IconeDoMundo } from './icones'
 import './itens.css'
 
@@ -240,6 +241,8 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   const [acervoAberto, setAcervoAberto] = useState<string | null>(null)
   const itemDoAcervoAberto = acervoAberto === null ? undefined : doAcervo.find((item) => item.id === acervoAberto)
   const [juntando, setJuntando] = useState(false)
+  /** ARMAS-FONTE-UNICA §4: o ensaio do "Juntar as armas" aberto embaixo do topo. */
+  const [juntandoArmas, setJuntandoArmas] = useState(false)
   const [arrastando, setArrastando] = useState<EntradaDaPagina | null>(null)
   const [sobre, setSobre] = useState(false)
   /** Cartões e vagas da mochila postos nesta visita (`ficha:cartão`, `ficha:vaga`): a seção da ficha os mostra em latão. */
@@ -728,12 +731,19 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
               Ligar ao Acervo pelo nome
             </button>
           )}
+          {pagina === 'itens' && (
+            <button type="button" className="mu-bt" aria-expanded={juntandoArmas} disabled={!podeGravar || juntando} onClick={() => setJuntandoArmas((antes) => !antes)} title="Faz cada arma dizer o mesmo no livro, no Acervo e nas fichas; mostra a lista antes de gravar">
+              Juntar as armas
+            </button>
+          )}
           <button type="button" className="mu-bt mu-bt--primario" disabled={!podeGravar} onClick={() => setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })}>
             <IconeDoMundo nome="mais" />
             {NOVA_DO_TIPO[tipoSugerido]}
           </button>
         </div>
       </header>
+
+      {juntandoArmas && podeGravar && <JuntarAsArmas sistema={sistema} onFechar={() => setJuntandoArmas(false)} />}
 
       {!podeGravar &&
         (lendo ? (
@@ -954,8 +964,10 @@ function CartaoDaEntrada({ entrada, coisa, linhas, resumo, estado, destino, pode
             {entrada.texto}
           </p>
         )}
+        {/* ARMAS-FONTE-UNICA §6: na arma é o "O que ela faz" (o mesmo do lápis, do Acervo e da ficha). */}
+        {entrada.tipo === 'arma' && resumo !== null && resumo.length > 0 && <p className="mu-item__faz">O que ela faz</p>}
         {resumo !== null && resumo.length > 0 && (
-          <ul className="mu-item__efeito" aria-label="O que faz">
+          <ul className="mu-item__efeito" aria-label={entrada.tipo === 'arma' ? 'O que ela faz' : 'O que faz'}>
             {resumo.map((frase) => (
               <li key={frase}>{frase}</li>
             ))}

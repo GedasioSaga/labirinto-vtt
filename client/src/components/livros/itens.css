@@ -275,3 +275,22 @@
   .mu-item--arrastando { transform: none; }
   .mu-busca .mu-busca__limpar:active:not(:disabled) { transform: translateY(-50%); }
 }
+
+/* ARMAS-FONTE-UNICA §4 e §6: o rótulo "O que ela faz" da arma e o ensaio do "Juntar as armas". */
+.mu-item__faz { margin: 0; font-size: var(--lb-font-size-xs); letter-spacing: var(--lb-font-tracking-wide); text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.mu-armas { display: flex; flex-direction: column; gap: 12px; margin: -6px 0 18px; padding: 14px 16px; border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-sm); }
+.mu-armas__tit { margin: 0; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment); }
+.mu-armas__sub, .mu-armas__nada { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.mu-armas__bloco { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mu-armas__bloco-tit { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-brass-bright); }
+.mu-armas__lista { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); overflow-wrap: anywhere; }
+.mu-armas__conflito { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 10px 12px; border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-sm); min-width: 0; }
+.mu-armas__conflito-tit { padding: 0 4px; font-weight: 600; color: var(--lb-color-parchment); }
+.mu-armas__versoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.mu-armas__versao { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: baseline; padding: 8px 10px; border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-sm); cursor: pointer; min-width: 0; }
+.mu-armas__versao[data-escolhida] { border-color: var(--lb-color-brass); background: var(--lb-color-brass-soft); }
+.mu-armas__versao-rot { font-weight: 600; color: var(--lb-color-parchment); }
+.mu-armas__versao-txt { grid-column: 2; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); overflow-wrap: anywhere; }
+.mu-armas__outras { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.mu-armas__opcao { display: flex; gap: 8px; align-items: baseline; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); cursor: pointer; }
+.mu-armas__pe { display: flex; justify-content: flex-end; gap: 8px; }

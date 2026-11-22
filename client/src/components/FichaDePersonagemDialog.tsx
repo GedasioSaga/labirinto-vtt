@@ -6,7 +6,11 @@ import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { CarriedItem } from '../types/map'
 import { comBase, marcaDaBase, salvarPelaBase } from '../net/nuvem/emissor'
 import { revelarCartao } from '../lib/habilidadeOculta'
+import { gravarArmasDaFicha } from '../stores/armasNaFonte'
+import { useToastStore } from '../stores/toastStore'
 import { FichaDoSistema } from './dbt/registroDeFichas'
+import { useFonteDasArmas } from './EfeitoDaArmaCampos'
+import { FonteDaArmaContexto } from './fonteDaArma'
 import { CloseIcon } from './icons'
 import { InimigoDoTreino } from './nuvem/InimigoDoTreino'
 import './livros/anotacoes.css'
@@ -137,6 +141,15 @@ export function FichaDePersonagemDialog({
     setPerguntaDeSaida(false)
     // Recusada: o rascunho fica na edição — o próximo "Editar" partiria da ficha de agora e apagaria o que o mestre digitou.
     if (entrou !== false) setEditando(false)
+    // ARMAS-FONTE-UNICA §6: a regra mudada num cartão de arma ligado vai ao livro, que reescreve as outras fichas ligadas.
+    if (entrou !== false && sistema !== undefined) {
+      gravarArmasDaFicha(base, salvo, sistema).then(
+        (gravadas) => {
+          if (gravadas.length > 0) useToastStore.getState().push('info', `Mudou no livro e em toda ficha ligada: ${gravadas.join(', ')}.`)
+        },
+        (erro: unknown) => useToastStore.getState().push('error', `A ficha salvou, mas o livro não: ${erro instanceof Error ? erro.message : String(erro)}`),
+      )
+    }
   }
   const descartar = () => {
     setTentouSemNome(false)
@@ -178,6 +191,8 @@ export function FichaDePersonagemDialog({
     pressStartedOnBackdrop.current = false
   }
 
+  // ARMAS-FONTE-UNICA §6: os cartões de arma desta janela (só do mestre) sabem se a regra vem do livro.
+  const fonteDasArmas = useFonteDasArmas(sistema)
   const mostrado = editando ? rascunho : personagem
   const mochilaDaEdicao = editando ? mochilaNaEdicao(base, rascunho, personagem.mochila, mochilaDoBoneco) : undefined
   const ligadosAqui = tokens.filter((token) => token.personagemId === personagem.id)
@@ -285,6 +300,7 @@ export function FichaDePersonagemDialog({
               </p>
             </div>
           ) : (
+            <FonteDaArmaContexto.Provider value={fonteDasArmas}>
             <FichaDoSistema
               personagem={mostrado}
               sistema={sistema}
@@ -299,6 +315,7 @@ export function FichaDePersonagemDialog({
               onRevelar={(cartaoId) => onSalvar(revelarCartao(personagem, cartaoId))}
               outrasFichas={outrasFichas}
             />
+            </FonteDaArmaContexto.Provider>
           )}
           <section className="lb-ficha-nota" aria-labelledby={`${notaId}-titulo`}>
             <div className="lb-ficha-nota__cab">

@@ -1,9 +1,10 @@
 import { guardarAcervoAntesDasArmas, novoIdDeItem, novoItemDoCatalogo } from '../lib/acervoDeItens'
 import type { ItemDoCatalogo } from '../lib/livros/catalogo'
 import { guardarCatalogoAntesDasArmas } from '../lib/livros/catalogoNoDisco'
-import { ensaiarArmas, fichasComARegraDaArma, juntarAsArmas, type EnsaioDasArmas, type EntradaDoJuntar, type EscolhaDaArma } from '../lib/livros/regraDaArma'
+import { ABA_DAS_ARMAS } from '../lib/batalha/leituraDaFicha'
+import { ensaiarArmas, entradaComARegraDoCartao, fichasComARegraDaArma, juntarAsArmas, mesmaRegra, regraDaEntrada, regraDoCartao, type EnsaioDasArmas, type EntradaDoJuntar, type EscolhaDaArma } from '../lib/livros/regraDaArma'
 import { guardarRpgAntesDasArmas } from '../lib/pastasDeMapas'
-import type { Personagem } from '../lib/personagem'
+import { cartoesDaAba, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { useAcervoDeItensStore } from './acervoDeItensStore'
 import { useCatalogoStore } from './catalogoStore'
@@ -95,6 +96,32 @@ export async function gravarRegraDaArma(entrada: ItemDoCatalogo, sistema: Sistem
   await guardarRpgAntesDasArmas(aberto.pastaId)
   await useMundoDoLivroStore.getState().mudar((personagens) => comAsRegras(personagens, [salva], sistema))
   return quantas
+}
+
+/**
+ * SALVAR A FICHA com um cartão de arma ligado (§6, o 3º lugar): o que o mestre
+ * mudou na regra do cartão (mecânica, campos, balas) vai à fonte, que reescreve
+ * as outras cópias. Só o cartão cuja regra mudou nesta edição (`antes` x
+ * `depois`): a cópia que já vinha diferente não sobe ao livro por acaso (o
+ * conserto ao abrir cuida dela). Livro deste sistema fechado = nada (a ficha
+ * não sabe a fonte). Devolve os nomes das armas gravadas. Lança com a frase pronta.
+ */
+export async function gravarArmasDaFicha(antes: Personagem, depois: Personagem, sistema: SistemaDeRpg): Promise<string[]> {
+  const deAntes = new Map(cartoesDaAba(antes, ABA_DAS_ARMAS).map((cartao) => [cartao.id, cartao]))
+  const gravadas: string[] = []
+  for (const cartao of cartoesDaAba(depois, ABA_DAS_ARMAS)) {
+    const velho = deAntes.get(cartao.id)
+    if (cartao.itemId === undefined || velho === undefined) continue
+    const regra = regraDoCartao(cartao, sistema)
+    if (mesmaRegra(regraDoCartao(velho, sistema), regra)) continue
+    const catalogo = useCatalogoStore.getState()
+    if (catalogo.sistemaId !== sistema.id || !catalogo.podeGravar) return gravadas
+    const entrada = catalogo.itens.find((item) => item.tipo === 'arma' && item.acervoId === cartao.itemId)
+    if (entrada === undefined || mesmaRegra(regraDaEntrada(entrada, sistema), regra)) continue
+    await gravarRegraDaArma(entradaComARegraDoCartao(entrada, cartao, sistema), sistema)
+    gravadas.push(entrada.nome)
+  }
+  return gravadas
 }
 
 /** A abertura da pasta já conferida (o `abrir` do mundo cria um objeto novo a cada vez). */

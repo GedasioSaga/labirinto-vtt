@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { quantidadeDe } from '../lib/items'
 import { ABA_DOS_ITENS, passarAbaItensParaMochila } from '../lib/livros/coisaERegra'
 import { InventarioDaFicha } from './InventarioDaFicha'
@@ -18,6 +18,7 @@ import { TrazerDeOutraFicha } from './TrazerDeOutraFicha'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
 import { MecanicaDaTecnica, MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
+import { FonteDaArmaContexto, SeloDaFonteDaArma } from './fonteDaArma'
 import type { CarriedItem } from '../types/map'
 import { PecaDoMestreNaForma } from './batalha/FormasDoMestre'
 import { CartoesOcultos, OcultaNoCartao, SeloDeOculta } from './batalha/HabilidadeOculta'
@@ -374,6 +375,9 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevela
       ? { ...aba, campos: aba.campos.filter((campo) => !CAMPOS_TROCADOS_PELAS_PECAS.has(campo.id)) }
       : aba
   const tecnica = aba.id === ABA_DAS_TECNICAS
+  // ARMAS-FONTE-UNICA §6: a arma ligada ao livro diz de onde vem (só na janela do mestre, que dá o contexto).
+  const fonteDe = useContext(FonteDaArmaContexto)
+  const fonte = ehArma && fonteDe !== null ? fonteDe(cartao.itemId) : null
   return (
     <li className="lb-cartao" data-ativo={ativo && aba.modificadores === true ? '' : undefined}>
       <div className="lb-cartao__corpo">
@@ -387,6 +391,7 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevela
             {categoria !== null && <span className="lb-ficha__chip lb-ficha__chip--categoria">{categoria}</span>}
             {atributos.length > 0 && <span className="lb-ficha__chip lb-ficha__chip--atributos">{atributos.join(' · ')}</span>}
             <SeloDeOculta cartao={cartao} onRevelar={onRevelar} />
+            {fonte?.tipo === 'livro' && <SeloDaFonteDaArma fonte={fonte} />}
             {onLigar !== undefined && (
               // Nome fixo e o estado no aria-pressed: o leitor de tela diz "Ativar Forma Híbrida, pressionado".
               <button type="button" className="lb-cartao__ligar" aria-pressed={ativo} aria-label={`Ativar ${cartao.nome}`} onClick={() => onLigar(!ativo)}>
@@ -713,6 +718,9 @@ interface CartaoEditavelProps {
 function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onChange, onMarcarPadrao, onRemover, onSubir, onDescer, escolherImagem, quemEditaAMecanica, podeOcultar }: CartaoEditavelProps) {
   const ehArma = !daArma && aba.id === ABA_DAS_ARMAS
   const semTiro = ehArma && armaQueNaoAtira(aba, cartao)
+  // ARMAS-FONTE-UNICA §6: ligada ao livro, o Salvar da ficha leva a regra ao livro e às outras fichas; livro fechado, a mecânica só se lê.
+  const fonteDe = useContext(FonteDaArmaContexto)
+  const fonte = ehArma && fonteDe !== null && quemEditaAMecanica === 'mestre' ? fonteDe(cartao.itemId) : null
   const [erroDaImagem, setErroDaImagem] = useState<string | null>(null)
   const sub = aba.subcartoes === undefined ? undefined : abaDoSistema(sistema, aba.subcartoes.aba)
   const capacidadeGuardada = (cartao.campos[CAMPO_DA_CAPACIDADE] ?? '').trim().length > 0
@@ -811,6 +819,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
           {semNome ? 'Sem nome ainda' : cartao.nome}
         </span>
         <SeloDeOculta cartao={cartao} />
+        {fonte !== null && <SeloDaFonteDaArma fonte={fonte} />}
       </summary>
       <div className="lb-cartao__form">
         <div className="lb-field">
@@ -859,9 +868,21 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
             <span className="lb-field__hint">A técnica com Dano da Arma usa esta. Só uma arma da ficha é a padrão.</span>
           </div>
         )}
+        {ehArma && fonte?.tipo === 'livro' && (
+          <p className="lb-field__hint" role="note">
+            Arma do livro: o que ela faz (mecânica, dano, efeito e balas) vale igual no livro, no Acervo e nas fichas ligadas. Salvar a ficha muda todos.
+          </p>
+        )}
         {ehArma &&
-          (quemEditaAMecanica === 'ninguem' ? (
-            <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />
+          (quemEditaAMecanica === 'ninguem' || fonte?.tipo === 'semLivro' ? (
+            <>
+              <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />
+              {fonte?.tipo === 'semLivro' && (
+                <p className="lb-field__hint" role="note">
+                  Arma ligada ao Acervo: o que ela faz vem do livro do sistema. Abra o livro (Biblioteca, página Itens) para mudar; mudar aqui voltaria ao que o livro diz.
+                </p>
+              )}
+            </>
           ) : (
             <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={cartoesDaAba(personagem, ABA_DAS_ARMAS)} onChange={onChange} doQue="arma" />
           ))}

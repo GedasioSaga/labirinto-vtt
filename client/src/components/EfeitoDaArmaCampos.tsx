@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { quemUsaDeTreino } from '../lib/batalha/ensaio/ensaioDoItem'
 import { ABA_DAS_ARMAS } from '../lib/batalha/leituraDaFicha'
 import { lerMecanica } from '../lib/batalha/mecanica/modelo'
@@ -6,7 +6,9 @@ import { resumoDaMecanica } from '../lib/batalha/mecanica/resumo'
 import type { ItemDoCatalogo } from '../lib/livros/catalogo'
 import { cartoesDaAba, novoCartao, type CartaoDaFicha, type MecanicaGuardada, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
+import { useCatalogoStore } from '../stores/catalogoStore'
 import { usePersonagensDoMundo } from '../stores/mundoDoLivroStore'
+import type { FonteDaArma } from './fonteDaArma'
 import { MecanicaDaTecnica } from './batalha/MecanicaDaTecnica'
 import './AcervoDeItensPanel.css'
 
@@ -41,6 +43,22 @@ export function fichasComAArma(personagens: readonly Personagem[] | null, acervo
 export function fraseDeOndeVale(quantas: number, ligada: boolean): string {
   if (!ligada) return 'Vale no livro. Sem coisa no Acervo, nenhuma ficha está ligada a ela ainda.'
   return `Vale em todo lugar: livro, Acervo e ${quantas} ${quantas === 1 ? 'ficha' : 'fichas'}.`
+}
+
+/** A fonte de cada cartão de arma pelo `itemId`, do livro aberto neste sistema (o valor do `FonteDaArmaContexto`). */
+export function useFonteDasArmas(sistema: SistemaDeRpg | undefined): (itemId: string | undefined) => FonteDaArma {
+  const livroAberto = useCatalogoStore((state) => sistema !== undefined && state.podeGravar && state.sistemaId === sistema.id)
+  const itens = useCatalogoStore((state) => state.itens)
+  const fichas = usePersonagensDoMundo()
+  return useCallback(
+    (itemId: string | undefined): FonteDaArma => {
+      if (itemId === undefined) return { tipo: 'soNestaFicha' }
+      if (!livroAberto) return { tipo: 'semLivro' }
+      const entrada = itens.find((item) => item.tipo === 'arma' && item.acervoId === itemId)
+      return entrada === undefined ? { tipo: 'soNestaFicha' } : { tipo: 'livro', entrada, fichas: fichasComAArma(fichas, itemId) }
+    },
+    [livroAberto, itens, fichas],
+  )
 }
 
 export interface EfeitoDaArmaCamposProps {

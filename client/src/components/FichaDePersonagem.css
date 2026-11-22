@@ -135,6 +135,18 @@
   color: var(--lb-color-brass-bright);
 }
 
+/* ARMAS-FONTE-UNICA §6: de onde vem o que a arma faz. "Do livro" no latão da categoria; "Só nesta ficha" apagado. */
+.lb-ficha__chip--do-livro {
+  flex: none;
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-ficha__chip--so-nesta {
+  flex: none;
+  color: var(--lb-color-parchment-dim);
+}
+
 .lb-ficha__chip--botao {
   min-height: var(--lb-control-min);
   font-family: var(--lb-font-utility);
