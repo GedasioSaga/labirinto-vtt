@@ -1035,7 +1035,7 @@ export function golpesDosItensDoJogador(itens: readonly ItemParaJogador[], acoes
       motivo: acoes === null ? 'Só na sua vez' : item.acao === 'livre' ? null : motivoDaAcao(acoes, item.acao),
       leitura: [],
       // A peça de alvo manda na mira como no host: ajuda não reage e começa em quem usa; contra inimigos, no inimigo.
-      reacao: item.quem === 'inimigos' || item.quem === 'todos' ? 'comDano' : 'nunca',
+      reacao: item.reacao,
       alvoEmSi: item.quem === 'si' || (item.quem === 'aliados' && item.area === undefined),
     }
     if (item.quem === 'inimigos') base.contraInimigos = true

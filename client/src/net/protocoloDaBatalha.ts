@@ -63,6 +63,7 @@ import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
 import type { FormaDaArea, QuemEntraNaArea } from '../lib/batalha/area'
 import { ITENS_PARA_JOGADOR_MAX, type ItemParaJogador } from '../lib/batalha/itemNaBatalha'
 import type { QuemOAlvoPega } from '../lib/batalha/mecanica/modelo'
+import type { ReacaoDoTipo } from '../lib/batalha/tiposDaHabilidade'
 import type { AreaAMao } from '../lib/batalha/mecanicasAMao'
 import { ITEM_QUANTIDADE_MAX } from '../lib/leituraDoItem'
 import { lerRespostas } from '../lib/batalha/perguntaNaHora'
@@ -1127,6 +1128,7 @@ function comPassivasLidas(combate: CombateParaJogador, value: Record<string, unk
 
 const QUEM_DO_ITEM: readonly QuemOAlvoPega[] = ['inimigos', 'aliados', 'todos', 'si', 'escolha']
 const QUEM_NA_AREA: readonly QuemEntraNaArea[] = ['inimigos', 'aliados', 'todos']
+const REACOES_DO_ITEM: readonly ReacaoDoTipo[] = ['nunca', 'sempre', 'comDano']
 /** Fase 8: casas no alcance e na área do item (a grade de um mapa não passa disso). */
 const CASAS_DO_ITEM_MAX = 200
 /** Fase 8: o nome da vaga e a frase do efeito no fio (a frase tem até 200 letras, `efeitoResumoLido`). */
@@ -1158,9 +1160,10 @@ function lerItemParaJogador(value: unknown): ItemParaJogador | null {
   const { vagaId, nome, resumo, quantos, gasta } = value
   const acao = lerAcaoDaTecnica(value.acao)
   const quem = QUEM_DO_ITEM.find((candidato) => candidato === value.quem)
+  const reacao = REACOES_DO_ITEM.find((candidata) => candidata === value.reacao)
   if (!textoAte(vagaId, 1, ID_DA_BATALHA_MAX) || !textoAte(nome, 1, NOME_DO_ITEM_MAX) || !textoAte(resumo, 0, RESUMO_DO_ITEM_MAX)) return null
-  if (!inteiroAte(quantos, 0, ITEM_QUANTIDADE_MAX) || typeof gasta !== 'boolean' || acao === null || quem === undefined) return null
-  const item: ItemParaJogador = { vagaId, nome, resumo, quantos, gasta, acao, quem }
+  if (!inteiroAte(quantos, 0, ITEM_QUANTIDADE_MAX) || typeof gasta !== 'boolean' || acao === null || quem === undefined || reacao === undefined) return null
+  const item: ItemParaJogador = { vagaId, nome, resumo, quantos, gasta, acao, quem, reacao }
   if (value.alcance !== undefined) {
     if (!inteiroAte(value.alcance, 0, CASAS_DO_ITEM_MAX)) return null
     item.alcance = value.alcance

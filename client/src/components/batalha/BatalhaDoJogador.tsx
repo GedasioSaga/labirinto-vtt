@@ -16,7 +16,7 @@ import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { BotaoDeReacao } from './BotaoDeReacao'
 import { CaixaDeReacao, type BonusDaReacaoNaTela, type ReacaoNaCaixa } from './CaixaDeReacao'
-import { alvosDoRecorte, alvosNaOrdemDaMira, armaPadraoNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, type VidaNaMira } from './dadosDoMenu'
+import { alvosDoRecorte, alvosNaOrdemDaMira, armaPadraoNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, golpesDosItensDoJogador, type VidaNaMira } from './dadosDoMenu'
 import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { invocacaoDaFicha, motivoNoJogador, pedidoDeInvocacao } from './dadosDaInvocacao'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
@@ -228,6 +228,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       formas: personagem !== null && sistema !== null ? formasComODecidirDoMestre(formasNoMenu(personagem, sistema, acoes, combate), meuCombate?.formasEsperando) : [],
       // Tipos de habilidade F3: a tira Passivas (as ligadas vêm do recorte, `passivasAtivas`).
       passivas: passivasNoRecorte(personagem, sistema, estado.rodada, meuCombate, selosDoDono),
+      // Fase 8: os itens que o host mandou (a frase e a mira, sem as peças); usar um gasta a ação da vez.
+      itens: golpesDosItensDoJogador(meuCombate?.itens ?? [], acoes),
     }
   }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvosPara, selosQueSomam, fichas, tamanhoDaCasa])
 
@@ -471,6 +473,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             motivoDoConcentrar={acoes === null ? 'Fora da vez' : motivoDoConcentrar(combate, acoes, chave ?? '')}
             armas={menu.armas}
             habilidades={menu.habilidades}
+            itens={menu.itens}
             golpesDoContra={menu.contra}
             alvos={menu.alvos}
             contras={contrasNoMenu}

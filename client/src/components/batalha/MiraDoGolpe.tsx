@@ -274,6 +274,7 @@ const NOTA_SEM_FERIDO_DO_LADO = 'Ninguém do lado de quem usa está ferido. Marq
 const ACOES_PERGUNTADAS: readonly AcaoDaTecnica[] = ['simples', 'completa', 'bonus', 'livre']
 const NOTA_DA_REACAO = 'O alvo rola 1d20 para reagir: 10+ defende (metade), 15+ esquiva, 20 contra-ataca; 1 é crítico (×1,5).'
 const NOTA_DO_BUFF = 'Buff: ninguém reage. O selo pega em todos que você marcar.'
+const NOTA_DO_ITEM = 'Ninguém reage com o d20: o item vale em quem você marcar (o teste, quando ele pede, é rolado ao usar).'
 const NOTA_DO_DEBUFF_SEM_DANO = 'O alvo rola 1d20 para reagir: se esquivar ou contra-atacar, o selo não pega.'
 
 /** D8: o lado do alvo em palavra ("você", "aliado", "outro lado"). */
@@ -288,6 +289,8 @@ const MIRA_ALTURA_MIN = 260
 
 /** A nota do pé da mira: se o alvo reage, como `alvosDoGolpe` (golpe.ts) decide. `semDano` = o da opção escolhida. */
 function notaDaReacao(golpe: GolpeNaTela, semReacao: boolean, semDano: boolean): string {
+  // Fase 8: o item não é Buff: ninguém reage, e o efeito vale em quem foi marcado (o teste da granada é rolado ao usar).
+  if (golpe.reacao === 'nunca' && golpe.vagaId !== undefined) return NOTA_DO_ITEM
   if (golpe.reacao === 'nunca') return NOTA_DO_BUFF
   if (semReacao) return golpe.overload ? 'Overload: o alvo não reage.' : 'Surpresa: o alvo não reage.'
   if (semDano) return golpe.reacao === 'sempre' ? NOTA_DO_DEBUFF_SEM_DANO : 'Sem dano: o alvo não reage.'

@@ -6,12 +6,12 @@ import { DANO_MAX, type AcaoDaTecnica, type PedidoDeAcao, type PedidoDeAlvo } fr
 import { ABA_DAS_TECNICAS } from './leituraDaFicha'
 import { danoDaTecnica } from './leituraDaTecnica'
 import { lerMarca } from './marca'
-import { pecasDoCartao } from './mecanica/leitura'
+import { pecasDoCartao, reacaoDasPecas } from './mecanica/leitura'
 import { lerMecanica, type QuemOAlvoPega } from './mecanica/modelo'
 import { resumoDoEfeitoDoItem } from './mecanica/resumoDoItem'
 import { limpezaDe, mecanicaDoCartao, perfuranteDaMecanica, respostasPadrao, type AreaAMao } from './mecanicasAMao'
 import { bonusDaBatalha, seloPedidoValido, type SeloQueSoma } from './selos'
-import { seloSugeridoDaTecnica } from './tiposDaHabilidade'
+import { seloSugeridoDaTecnica, type ReacaoDoTipo } from './tiposDaHabilidade'
 
 /**
  * "USAR ITEM" NA BATALHA (Fase 8 de docs/design/habilidades/SISTEMA.md §5.2):
@@ -139,6 +139,8 @@ export interface ItemParaJogador {
   gasta: boolean
   acao: AcaoDaTecnica
   quem: QuemOAlvoPega
+  /** Se o alvo reage com o d20, como o host decide pelas peças (`reacaoDasPecas`): o teste rolado ao usar não reage. */
+  reacao: ReacaoDoTipo
   alcance?: number
   area?: AreaAMao
   tetoDeAlvos?: number
@@ -168,6 +170,7 @@ export function itensParaJogador(mochila: readonly CarriedItem[] | undefined): I
         // 'perguntar' não serve ao item (o pedido não traz a ação): a mira mostra a Simples, e o host recusa com o motivo.
         acao: pecas.acao === 'perguntar' ? 'simples' : pecas.acao,
         quem: pecas.alvo.quem,
+        reacao: reacaoDasPecas(pecas),
       }
       if (mecanica?.alcance !== undefined) item.alcance = mecanica.alcance
       if (mecanica?.area !== undefined) item.area = mecanica.area
