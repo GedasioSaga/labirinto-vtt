@@ -2916,3 +2916,9 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - Literal: "[Image #42] cara melhora esse design"
 - Print: cartão "Boomerang" da página Itens do livro. O nome quebra uma letra por linha, porque os selos "DO CATÁLOGO", "LIGADA AO ACERVO" e "MONT…" (cortado) ocupam a linha do nome. Abaixo vêm "Arma", três linhas de regra com bolinha, alça, lápis, lixeira e "Pôr em Aira".
 - 22/11 11h23 (date). Fila: designer-opus refaz o topo do cartão (CartaoDaEntrada em PaginaItens.tsx + itens.css). O nome nunca quebra letra a letra, os selos não cortam, e vale o pior caso (nome longo, 3 selos). Publicar depois (memória lançar logo).
+
+## PEDIDO NOVO (22/11 11h25): habilidades automáticas na arma
+
+- Literal: "Você não colocou habilidades automaticas na arma, eu vi aqui o efeito do boomerang Não dá dano: ao acertar, atordoa o alvo. 3 usos por combate (à mão até o app ter efeito de arma com usos)." e "Ou seja da para fazer tambem conjunto de habilidades para arma, mesma coisa dos itens"
+- Achado do Claude: o motor já faz o efeito (lib/batalha/mecanica/arma.ts, modelo 'atordoa' = Atordoado no acerto, 3 por batalha; 'golpeComSelo'). Mas o editor da mecânica da arma só existe na ficha (FichaAbas, aba Armas), com 2 modelos. Não está no cartão do catálogo (EntradaDoCatalogoDialog) nem no item do Acervo. O texto "à mão até o app ter…" do Boomerang ficou velho (veio de scripts/conserto-fichas-f0.cjs).
+- Fila: conjunto de modelos de arma igual ao dos itens + "O que ela faz" onde a arma se edita. Perguntas ao dono em 22/11 11h25.
