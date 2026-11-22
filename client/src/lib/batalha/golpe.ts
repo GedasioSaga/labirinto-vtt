@@ -41,6 +41,7 @@ import {
   type SeloPedido,
   type VantagemNaRolagem,
 } from './combate'
+import { usoDoItem, type PedidoDoItem, type UsoDoItem } from './itemNaBatalha'
 import { comAMantida } from './custoPorTurno'
 import { debuffsDoToken } from './debuffs'
 import { equipeDe, type Equipe } from './equipes'
@@ -497,7 +498,24 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
         motivoDaCuraSemFerido(ctx, tecnica.cartao, pedido.alvos, pedido.selo !== undefined && pedido.selo !== null)
       )
     }
+    // Fase 8: o item da mochila de quem age, virado técnica montada (sem custo); a regra é a da técnica, palavra por palavra.
+    case 'item': {
+      const uso = ctxDoItem(ctx, pedido)
+      return typeof uso === 'string' ? uso : podeAgir(uso.ctx, uso.uso.pedido)
+    }
   }
+}
+
+/**
+ * Fase 8: o contexto com a ficha de quem usa já com o cartão do item (só na
+ * conta) e o pedido da técnica do item; ou o motivo da recusa. O mesmo no
+ * `podeAgir`, no `lancarGolpe` e na store.
+ */
+export function ctxDoItem(ctx: ContextoDoGolpe, pedido: PedidoDoItem): { ctx: ContextoDoGolpe; uso: UsoDoItem } | string {
+  const uso = usoDoItem(ctx.personagem, ctx.sistema, pedido, ctx.turnos.selos, ctx.carta.tokenId)
+  if (typeof uso === 'string') return uso
+  const { quemUsa } = uso
+  return { ctx: { ...ctx, personagem: quemUsa, personagens: ctx.personagens.map((candidato) => (candidato.id === quemUsa.id ? quemUsa : candidato)) }, uso }
 }
 
 /**
@@ -849,6 +867,11 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const vazio: GolpeLancado = { golpe: null, resolvidos: [], gasto: null, combate: null, custo: [], contraUsado: contra, acao: null, cargaUsada: 0 }
   // F3: Ativar e Desfazer a forma não lançam golpe (a regra deles mora em `transformacao.ts`).
   if (pedido.tipo === 'mover' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') return vazio
+  // Fase 8: o item lança a técnica dele, pela ficha com o cartão do item (o gasto da pilha é da store, como a munição).
+  if (pedido.tipo === 'item') {
+    const uso = ctxDoItem(ctx, pedido)
+    return typeof uso === 'string' ? vazio : lancarGolpe(uso.ctx, uso.uso.pedido, ids)
+  }
   if (pedido.tipo === 'concentrar') {
     const acao = acaoDoConcentrar(acoesDaCarta(ctx), combate.carga)
     // Até `CARGA_MAX` (3): o Concentrar com carga 3 já sai apagado em `podeAgir`.

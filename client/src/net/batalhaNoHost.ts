@@ -401,7 +401,8 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   const podePedirAcao = (lugar: LugarNaBatalha, cena: BatalhaEmTurnos, msg: BatalhaAgirMessage): boolean => {
     const { vez, pedido } = msg
     // F3: Ativar e Desfazer a forma só na vez dele, na ficha da vez (que é dele): nunca fora da vez, nem na ficha de outro.
-    if ((pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') && vez === null) return false
+    // Fase 8: usar item também (gasta a ação da vez; a vaga é da mochila da ficha da vez, que a store confere).
+    if ((pedido.tipo === 'transformar' || pedido.tipo === 'destransformar' || pedido.tipo === 'item') && vez === null) return false
     if (vez === null) {
       // O parser só deixa `vez` null com `contraDe`; o `concentrar` nunca chega aqui.
       const contraDe = pedido.tipo === 'concentrar' ? undefined : pedido.contraDe
@@ -439,7 +440,7 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   /** Os alvos só entre as fichas que a tela dele tem: o pedido não acha token que ele não vê. */
   const alvosNaTela = (lugar: LugarNaBatalha, msg: BatalhaAgirMessage): boolean => {
     const { pedido } = msg
-    if (pedido.tipo !== 'atacar' && pedido.tipo !== 'habilidade') return true
+    if (pedido.tipo !== 'atacar' && pedido.tipo !== 'habilidade' && pedido.tipo !== 'item') return true
     const naTela = new Set(lugar.fichasNaTela.map((ficha) => ficha.id))
     return pedido.alvos.every((alvo) => naTela.has(alvo.tokenId))
   }

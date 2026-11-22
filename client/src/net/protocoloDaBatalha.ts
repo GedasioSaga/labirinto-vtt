@@ -60,6 +60,11 @@ import { COMO_MARCA, LEMBRETES_DA_MARCA_MAX } from '../lib/batalha/marca'
 import { NOME_DA_EQUIPE_MAX } from '../lib/batalha/equipes'
 import { lerJudgeNaCena } from '../lib/batalha/judge'
 import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
+import type { FormaDaArea, QuemEntraNaArea } from '../lib/batalha/area'
+import { ITENS_PARA_JOGADOR_MAX, type ItemParaJogador } from '../lib/batalha/itemNaBatalha'
+import type { QuemOAlvoPega } from '../lib/batalha/mecanica/modelo'
+import type { AreaAMao } from '../lib/batalha/mecanicasAMao'
+import { ITEM_QUANTIDADE_MAX } from '../lib/leituraDoItem'
 import { lerRespostas } from '../lib/batalha/perguntaNaHora'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { AUTOR_NO_REGISTRO_MAX, REGISTRO_PARA_JOGADOR_MAX, REGISTRO_TEXTO_MAX, type LinhaParaJogador } from '../lib/batalha/registro'
@@ -564,13 +569,25 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const { cartaoId } = value
       return textoAte(cartaoId, 1, CARTAO_ID_MAX) ? { tipo: 'destransformar', cartaoId } : null
     }
+    // Fase 8: usar item. Só a vaga e os alvos (o dano de cada um é ignorado pelo host); se a vaga é da ficha que age, quem confere é a store.
+    case 'item': {
+      const { vagaId } = value
+      const alvosLidos = lerAlvosDoPedido(value.alvos, 0)
+      const ponto = lerPonto(value.ponto)
+      const centroId = lerCentroId(value.centroId)
+      if (!textoAte(vagaId, 1, ID_DA_BATALHA_MAX) || alvosLidos === null || ponto === false || centroId === false || value.contraDe !== undefined) return null
+      const pedido: PedidoDeAcao = { tipo: 'item', vagaId, alvos: alvosLidos }
+      if (ponto !== undefined) pedido.ponto = ponto
+      if (centroId !== undefined) pedido.centroId = centroId
+      return pedido
+    }
     default:
       return null
   }
 }
 
 function contraDoPedido(pedido: PedidoDeAcao): string | undefined {
-  return pedido.tipo === 'concentrar' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar' ? undefined : pedido.contraDe
+  return pedido.tipo === 'concentrar' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar' || pedido.tipo === 'item' ? undefined : pedido.contraDe
 }
 
 export function parseBatalhaAgir(value: unknown): BatalhaAgirMessage | null {
@@ -1099,7 +1116,70 @@ function comPassivasLidas(combate: CombateParaJogador, value: Record<string, unk
     if (marcas === null || marcas.length === 0) return null
     combate.marcas = marcas
   }
+  // Fase 8: os itens da mochila dele (frase e mira, sem as peças do efeito).
+  if (value.itens !== undefined) {
+    const itens = lerLista(value.itens, ITENS_PARA_JOGADOR_MAX, lerItemParaJogador)
+    if (itens === null || itens.length === 0) return null
+    combate.itens = itens
+  }
   return combate
+}
+
+const QUEM_DO_ITEM: readonly QuemOAlvoPega[] = ['inimigos', 'aliados', 'todos', 'si', 'escolha']
+const QUEM_NA_AREA: readonly QuemEntraNaArea[] = ['inimigos', 'aliados', 'todos']
+/** Fase 8: casas no alcance e na área do item (a grade de um mapa não passa disso). */
+const CASAS_DO_ITEM_MAX = 200
+/** Fase 8: o nome da vaga e a frase do efeito no fio (a frase tem até 200 letras, `efeitoResumoLido`). */
+const NOME_DO_ITEM_MAX = 200
+const RESUMO_DO_ITEM_MAX = 200
+
+/** Fase 8: a forma da área do item (raio, frente ou linha), no teto das casas. */
+function lerFormaDaArea(forma: Record<string, unknown>): FormaDaArea | null {
+  if (forma.tipo === 'raio' && inteiroAte(forma.casas, 0, CASAS_DO_ITEM_MAX)) return { tipo: 'raio', casas: forma.casas }
+  if (forma.tipo === 'frente' && inteiroAte(forma.lado, 1, CASAS_DO_ITEM_MAX)) return { tipo: 'frente', lado: forma.lado }
+  if (forma.tipo === 'linha' && inteiroAte(forma.alcance, 1, CASAS_DO_ITEM_MAX)) return { tipo: 'linha', alcance: forma.alcance }
+  return null
+}
+
+/** Fase 8: a área do item na mira (a forma, quem entra e o centro). */
+function lerAreaDoItem(value: unknown): AreaAMao | null {
+  if (!isRecord(value) || !isRecord(value.forma)) return null
+  const forma = lerFormaDaArea(value.forma)
+  const quem = QUEM_NA_AREA.find((candidato) => candidato === value.quem)
+  if (forma === null || quem === undefined) return null
+  const { centro } = value
+  if (centro === undefined) return { forma, quem }
+  return centro === 'ponto' || centro === 'alvo' ? { forma, quem, centro } : null
+}
+
+/** Fase 8: um item no recorte. Ids, nome e frase no teto; enums fechados; nada de peças. */
+function lerItemParaJogador(value: unknown): ItemParaJogador | null {
+  if (!isRecord(value)) return null
+  const { vagaId, nome, resumo, quantos, gasta } = value
+  const acao = lerAcaoDaTecnica(value.acao)
+  const quem = QUEM_DO_ITEM.find((candidato) => candidato === value.quem)
+  if (!textoAte(vagaId, 1, ID_DA_BATALHA_MAX) || !textoAte(nome, 1, NOME_DO_ITEM_MAX) || !textoAte(resumo, 0, RESUMO_DO_ITEM_MAX)) return null
+  if (!inteiroAte(quantos, 0, ITEM_QUANTIDADE_MAX) || typeof gasta !== 'boolean' || acao === null || quem === undefined) return null
+  const item: ItemParaJogador = { vagaId, nome, resumo, quantos, gasta, acao, quem }
+  if (value.alcance !== undefined) {
+    if (!inteiroAte(value.alcance, 0, CASAS_DO_ITEM_MAX)) return null
+    item.alcance = value.alcance
+  }
+  if (value.tetoDeAlvos !== undefined) {
+    if (!inteiroAte(value.tetoDeAlvos, 1, ITENS_PARA_JOGADOR_MAX)) return null
+    item.tetoDeAlvos = value.tetoDeAlvos
+  }
+  if (value.area !== undefined) {
+    const area = lerAreaDoItem(value.area)
+    if (area === null) return null
+    item.area = area
+  }
+  for (const chave of ['reviver', 'cura', 'semAlvo'] as const) {
+    if (value[chave] === undefined) continue
+    if (value[chave] !== true) return null
+    item[chave] = true
+  }
+  return item
 }
 
 /** R1: um lembrete da marca no recorte do atirador. Só ids, no teto. */

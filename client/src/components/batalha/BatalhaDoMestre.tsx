@@ -30,7 +30,7 @@ import { EfeitosDaBatalha } from './EfeitosDaBatalha'
 import { usePassarVezDoMestre } from './passarVezDoMestre'
 import { recursosDaCarta } from './dadosDaFaixa'
 import { invocacaoDaFicha, pedidoDeInvocacao } from './dadosDaInvocacao'
-import { RECUSA_SEM_MOTIVO, armaPadraoNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade } from './dadosDoMenu'
+import { RECUSA_SEM_MOTIVO, armaPadraoNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, golpesDeItem } from './dadosDoMenu'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { InvocacoesPendentes, PainelDoBando, type PendenciaNaTela } from './InvocacoesDoMestre'
 import { FormasPendentes } from './FormasDoMestre'
@@ -192,10 +192,12 @@ export function golpesDaVezDoNpc(mesa: Mesa, turnos: TurnosDaCena, carta: CartaD
   const trava = travaDoToken(turnos.selos, carta.tokenId)
   const habilidades = comATrava(personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, acoes, arma, bonus) : [], trava)
   const armas = comATrava(golpesDeAtaque(personagem, sistema, combate, acoes, bonus), trava)
+  // Fase 8: os itens com efeito da mochila da ficha do NPC (NPC sem ficha não tem mochila: o mestre usa Dar dano).
+  const itens = comATrava(personagem !== null && sistema !== null ? golpesDeItem(personagem, sistema, combate, acoes, bonus) : [], trava)
   // F3: as formas do NPC (a tira Transformação). C6: a forma em que o mestre decide os números não mostra prévia; a que já espera fica apagada.
   const esperando = (turnos.formasPendentes ?? []).filter((pendente) => pendente.personagemId === personagem?.id)
   const formas = (personagem !== null && sistema !== null ? formasComODecidirDoMestre(formasNoMenu(personagem, sistema, acoes, combate), esperando) : []).map((forma) => (trava === null ? forma : { ...forma, motivo: trava, motivoDosUsos: trava }))
-  return { trava, habilidades, armas, formas }
+  return { trava, habilidades, armas, formas, itens }
 }
 
 /** O "clicar na ficha escolhe o alvo" do menu do centro. Fora do componente: o efeito do `MenuDaVez` depende da identidade dela. */
@@ -335,7 +337,7 @@ function MenuDaVezDoNpc({
   const combate = personagemId === null ? undefined : turnos.combate?.[personagemId]
   const carga = combate?.carga ?? 0
   const vez = { cartaId: carta.id, rodada: turnos.rodada }
-  const { trava, habilidades, armas, formas } = golpesDaVezDoNpc(mesa, turnos, carta, personagem, acoes)
+  const { trava, habilidades, armas, formas, itens } = golpesDaVezDoNpc(mesa, turnos, carta, personagem, acoes)
   const passivas = passivasNaCena(personagem, sistema, turnos, tokenId)
   // Achado 6: a sugestão do app chega ao menu do centro (a marca na tira e o alvo já marcado na mira).
   const sugestao = personagem === null ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos: tokensCaidos(turnos.cartas, personagens, sistema) })
@@ -358,6 +360,7 @@ function MenuDaVezDoNpc({
         motivoDoConcentrar={trava ?? motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id))}
         armas={armas}
         habilidades={habilidades}
+        itens={itens}
         contras={guardados.length === 0 ? undefined : guardados.map((contra) => ({ golpeId: contra.golpeId, rotulo: `contra ${nomeDaFicha(mesa, contra.atacanteTokenId)}` }))}
         golpesDoContra={golpesDoContra}
         alvos={alvosDaOrdem(mesa, turnos.cartas, carta)}
@@ -638,7 +641,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo, comAMesa = false }: { sce
     )
   }
 
-  const { trava, habilidades, armas, formas } = golpesDaVezDoNpc(mesa, turnos, carta, personagem, acoes)
+  const { trava, habilidades, armas, formas, itens } = golpesDaVezDoNpc(mesa, turnos, carta, personagem, acoes)
   const caidos = tokensCaidos(turnos.cartas, personagens, sistema)
   const sugestao = personagem === null ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos })
   const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, equipes)
@@ -672,6 +675,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo, comAMesa = false }: { sce
           motivoDoConcentrar={trava ?? motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id))}
           armas={armas}
           habilidades={habilidades}
+          itens={itens}
           alvos={alvos}
           sugestao={sugestaoNaTela(sugestao)}
           onExecutar={agir}

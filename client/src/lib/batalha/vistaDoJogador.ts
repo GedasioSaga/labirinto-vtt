@@ -48,6 +48,7 @@ import { passivasLigadas } from './passivas'
 import type { BatalhaEmTurnos } from './ponte'
 import { escudoMaisAlto, registroParaJogador, type LinhaDoRegistro, type LinhaParaJogador } from './registro'
 import { BLOCOS_POR_RANK_PADRAO, regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
+import { itensParaJogador, type ItemParaJogador } from './itemNaBatalha'
 import { ehAlvoDeMod, ehNomeDeSelo, selosDoToken, type SeloQueSoma } from './selos'
 import { aparenciaDaForma, formaNaVez, nomeDaFormaLigada } from './transformacao'
 import { cartaDaVez, contrasQueSeguramAVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from './turnos'
@@ -252,6 +253,12 @@ export interface CombateParaJogador {
    * ficha dele (`passivaDaMarca`); responde por `batalha.marcar`. Ausente = nenhum.
    */
   marcas?: MarcaParaJogador[]
+  /**
+   * Fase 8: os itens com efeito da mochila DESTE personagem (as vagas sem
+   * efeito não vêm), com a frase e o que a mira precisa; nunca as peças do
+   * efeito (`itensParaJogador`). Ausente = nenhum.
+   */
+  itens?: ItemParaJogador[]
 }
 
 /** R1: um lembrete da marca como a tela do atirador o mostra. */
@@ -687,6 +694,9 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
       .slice(-LEMBRETES_DA_MARCA_MAX)
       .map((lembrete) => ({ id: lembrete.id, tokenId: lembrete.tokenId, alvoTokenId: lembrete.alvoTokenId, cartaoId: lembrete.cartaoId }))
     if (marcas.length > 0) meu.marcas = marcas
+    // Fase 8: os itens da mochila da cópia do host (a ficha que ele opera na vez): só a frase e a mira.
+    const itens = personagem === undefined ? [] : itensParaJogador(personagem.mochila)
+    if (itens.length > 0) meu.itens = itens
     meus.push(ctx.meusPersonagens.has(personagemId) ? comFormasEsperando(comInvocacoesDoDono(comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)], visivel), turnos, personagemId), turnos, personagemId) : meu)
   }
   return meus

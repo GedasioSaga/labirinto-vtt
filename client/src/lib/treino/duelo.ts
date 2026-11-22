@@ -553,6 +553,13 @@ function acaoRecalculada(pedido: PedidoDeAcao, quem: QuemAge, cena: BatalhaDaCen
       const foraDaArea = motivoDoAlvoForaDaArea(pedido, quem, posicoes, sistema)
       return foraDaArea === null ? refeito : recusa('regra', foraDaArea)
     }
+    // Fase 8: o item só traz a vaga e os alvos; o dano e o efeito saem da cópia do servidor (a regra da batalha confere a posse).
+    case 'item': {
+      const limpo: PedidoDeAcao = { tipo: 'item', vagaId: pedido.vagaId, alvos: pedido.alvos.map((alvo) => ({ tokenId: alvo.tokenId, dano: null })) }
+      if (pedido.ponto !== undefined) limpo.ponto = pedido.ponto
+      if (pedido.centroId !== undefined) limpo.centroId = pedido.centroId
+      return { ok: true, pedido: limpo }
+    }
   }
 }
 

@@ -1,4 +1,6 @@
-import { acaoDoGolpe, armaNaVez, motivoDaArmaNaVez, motivoDoAtacar, motivoDaTecnica, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
+import { acaoDoGolpe, armaNaVez, motivoDaAcao, motivoDaArmaNaVez, motivoDoAtacar, motivoDaTecnica, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
+import { cartaoDoItem, fichaComOItem, vagasDeUsarNaBatalha, type ItemParaJogador } from '../../lib/batalha/itemNaBatalha'
+import { quantidadeDe } from '../../lib/items'
 import { armaPadraoEntre, comAPadraoNaFrente } from '../../lib/batalha/mecanica/arma'
 import { resumoDaMecanica } from '../../lib/batalha/mecanica/resumo'
 import { cartaoEstaOculto, NOME_DO_OCULTO, ocultoNaBatalha } from '../../lib/habilidadeOculta'
@@ -186,6 +188,8 @@ export interface GolpeNaTela {
   respostasMudam?: readonly RespostaNaTela[]
   /** Invocação F3: a técnica de Tipo Invocação. Abre a mira da invocação (não lança golpe); o `motivo` é o do Invocar. */
   invocacao?: boolean
+  /** Fase 8: o item da mochila (a vaga); a mira manda o pedido `item` com ela, não o da técnica. Ausente = golpe da ficha. */
+  vagaId?: string
 }
 
 /**
@@ -961,6 +965,94 @@ export function golpesDeHabilidade(
 ): GolpeNaTela[] {
   const todas = tecnicasDe(personagem, sistema)
   return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas, acoes))
+}
+
+/** Fase 8: o golpe da técnica do item com a cara do item: a chave, o nome, a frase e quantos tem. */
+function comACaraDoItem(golpe: GolpeNaTela, item: { vagaId: string; nome: string; resumo: string; quantos: number; gasta: boolean }): GolpeNaTela {
+  const { evolucao: _evolucao, opcoes: _opcoes, perguntas: _perguntas, respostasMudam: _respostasMudam, armas: _armas, ...semExtras } = golpe
+  return {
+    ...semExtras,
+    chave: `item:${item.vagaId}`,
+    vagaId: item.vagaId,
+    nome: item.nome,
+    descricao: item.resumo,
+    // O custo do item é o próprio item: a tira diz quantos tem (o amuleto não acaba).
+    custoTexto: item.gasta ? `tem ${item.quantos}` : 'não acaba',
+    custo: { tipo: 'nada' },
+    tempoTexto: null,
+    tipoTexto: 'Item',
+    leitura: item.resumo === '' ? [] : [{ rotulo: 'O que faz', texto: item.resumo }],
+  }
+}
+
+/**
+ * Fase 8: os itens com efeito da mochila de quem age (as vagas sem efeito não
+ * aparecem), cada um como a técnica dele na mira: o MESMO golpe que o motor
+ * lança (`ctxDoItem`). Para quem tem as peças: o mestre e o NPC com ficha. O
+ * jogador recebe a lista pronta do host (`golpesDosItensDoJogador`).
+ */
+export function golpesDeItem(personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, acoes: AcoesDaVez | null, bonus?: BonusDaBatalha): GolpeNaTela[] {
+  const vagas = vagasDeUsarNaBatalha(personagem.mochila)
+  if (vagas.length === 0) return []
+  // Todos os cartões dos itens de uma vez na conta: o menu das técnicas é lido uma vez só.
+  const cartoes = new Map(vagas.map((vaga) => [cartaoDoItem(vaga).id, vaga]))
+  const ficha = [...cartoes.keys()].reduce((atual, id) => {
+    const vaga = cartoes.get(id)
+    return vaga === undefined ? atual : fichaComOItem(atual, cartaoDoItem(vaga))
+  }, personagem)
+  const todas = tecnicasDe(ficha, sistema)
+  return tecnicasNoMenu(ficha, sistema, combate, acoes, null, bonus).flatMap((tecnica) => {
+    const vaga = cartoes.get(tecnica.cartao.id)
+    if (vaga === undefined) return []
+    const golpe = golpeDaTecnica(tecnica, ficha, sistema, combate, null, bonus, todas, acoes)
+    return [comACaraDoItem(golpe, { vagaId: vaga.id, nome: vaga.nome.trim() || 'Item', resumo: vaga.efeitoResumo ?? '', quantos: quantidadeDe(vaga), gasta: vaga.efeito.gasta === 'um' })]
+  })
+}
+
+/**
+ * Fase 8: os itens do jogador como a mira os pede, montados do que o host
+ * mandou (a frase e a mira, sem as peças). O motivo da tira é só a ação da
+ * vez; o resto (alvo, alcance, posse) o host confere e devolve com o motivo.
+ */
+export function golpesDosItensDoJogador(itens: readonly ItemParaJogador[], acoes: AcoesDaVez | null): GolpeNaTela[] {
+  return itens.map((item) => {
+    const base: GolpeNaTela = {
+      chave: `item:${item.vagaId}`,
+      tipo: 'habilidade',
+      cartaoId: null,
+      armaId: null,
+      nome: item.nome,
+      descricao: item.resumo,
+      custoTexto: null,
+      custo: { tipo: 'nada' },
+      acao: item.acao,
+      acaoTexto: textoDaAcao(item.acao),
+      tempoTexto: null,
+      dano: danoNaTela({ tipo: 'semDano' }),
+      overload: false,
+      perfurante: false,
+      perfuracao: null,
+      motivo: acoes === null ? 'Só na sua vez' : item.acao === 'livre' ? null : motivoDaAcao(acoes, item.acao),
+      leitura: [],
+      // A peça de alvo manda na mira como no host: ajuda não reage e começa em quem usa; contra inimigos, no inimigo.
+      reacao: item.quem === 'inimigos' || item.quem === 'todos' ? 'comDano' : 'nunca',
+      alvoEmSi: item.quem === 'si' || (item.quem === 'aliados' && item.area === undefined),
+    }
+    if (item.quem === 'inimigos') base.contraInimigos = true
+    if (item.area !== undefined) {
+      base.area = item.area
+      base.areaPelaGrade = true
+    }
+    if (item.alcance !== undefined) base.alcance = item.alcance
+    if (item.tetoDeAlvos !== undefined) base.tetoDeAlvos = item.tetoDeAlvos
+    if (item.reviver === true) base.reviver = true
+    if (item.semAlvo === true) base.semAlvo = true
+    if (item.cura === true && item.area === undefined) {
+      base.alvoEmSi = true
+      base.cura = true
+    }
+    return comACaraDoItem(base, item)
+  })
 }
 
 /**

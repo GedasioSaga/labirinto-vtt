@@ -18,6 +18,7 @@ import {
 import { recursoDoCusto } from '../../lib/batalha/leituraDaFicha'
 import { comABalaLigada, fichaComAMochilaDoBoneco, gastarMunicaoDaFicha, type MunicaoGasta } from '../../lib/batalha/municaoDaFicha'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
+import { tirarDaMochilaDaFicha } from '../../lib/mochila/darNaFicha'
 import { partesDoAjuste, type ParteDaFicha, type Reversao } from '../../lib/batalha/registro'
 import type { TurnosDaCena } from '../../lib/batalha/turnos'
 import { aplicarAjustes, NUMERO_DA_FICHA_MAX, type Ajuste } from '../../lib/ajusteDaFicha'
@@ -132,6 +133,40 @@ export function gastarMunicaoNaMesa(mesa: MesaDaBatalha, sceneKey: string, token
   if (gasta === null) return null
   if (!ok) return 'recusada'
   return { tipo: 'municao', personagemId, vaga: gasta.vaga, indice: gasta.indice }
+}
+
+/**
+ * Fase 8 (usar item): tira 1 da vaga `vagaId` da mochila de quem usa, pela
+ * mesa: a do boneco na aventura que não migrou a mochila, senão a da ficha. A
+ * reversão é a da munição (a unidade volta à vaga, ou a vaga volta com 1).
+ * `null` = a vaga não está lá; `'recusada'` = a mesa não gravou.
+ */
+export function gastarItemNaMesa(mesa: MesaDaBatalha, sceneKey: string, tokenId: string, personagemId: string, vagaId: string): Reversao | null | 'recusada' {
+  const doBoneco = mesa.mochilaDoBoneco?.(sceneKey, tokenId) ?? null
+  if (doBoneco !== null) {
+    const indice = doBoneco.findIndex((candidata) => candidata.id === vagaId)
+    const vaga = doBoneco[indice]
+    const ficha = mesa.personagens().find((candidato) => candidato.id === personagemId)
+    if (vaga === undefined || ficha === undefined) return null
+    const gasta = tirarDaMochilaDaFicha(fichaComAMochilaDoBoneco(ficha, doBoneco), vagaId, 1)
+    if (mesa.gravarMochilaDoBoneco?.(sceneKey, tokenId, gasta.mochila ?? []) !== true) return 'recusada'
+    return { tipo: 'municao', personagemId, vaga, indice, tokenId }
+  }
+  // Num objeto: o que o callback da mesa escreve, lido depois dele (como em `gastarMunicaoNaMesa`).
+  const feito: { vaga: CarriedItem | null; indice: number } = { vaga: null, indice: -1 }
+  const ok = mesa.ajustarPersonagem(personagemId, (atual) => {
+    const lista = atual.mochila ?? []
+    const indice = lista.findIndex((candidata) => candidata.id === vagaId)
+    const vaga = lista[indice]
+    if (vaga === undefined) return atual
+    feito.vaga = vaga
+    feito.indice = indice
+    return tirarDaMochilaDaFicha(atual, vagaId, 1)
+  })
+  const { vaga, indice } = feito
+  if (vaga === null) return null
+  if (!ok) return 'recusada'
+  return { tipo: 'municao', personagemId, vaga, indice }
 }
 
 /**

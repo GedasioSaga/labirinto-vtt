@@ -41,6 +41,8 @@ export interface PainelDaVezDoNpcProps {
   motivoDoConcentrar: string | null
   armas: readonly GolpeNaTela[]
   habilidades: readonly GolpeNaTela[]
+  /** Fase 8: os itens com efeito da mochila da ficha do NPC (`golpesDeItem`). Ausente ou vazio = sem o grupo Itens. */
+  itens?: readonly GolpeNaTela[]
   alvos: readonly AlvoNaMira[]
   /** A sugestão (`sugestaoParaNpc`): a chave do golpe ("tecnica:…", "arma:…") e o alvo. */
   sugestao: { chave: string | null; alvoTokenId: string | null }
@@ -86,7 +88,8 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
   const { formas = SEM_FORMAS, personagemId = null, selos, lembretes, passivas, evoluir, invocacao, acoesNoCentro = false } = props
   const [formaAberta, setFormaAberta] = useState<string | null>(null)
   const habilidadesNaTela = invocacao !== undefined ? habilidades : habilidades.map((golpe) => (golpe.invocacao === true ? { ...golpe, motivo: SEM_INVOCAR } : golpe))
-  const golpes = [...habilidadesNaTela, ...armas]
+  const itens = props.itens ?? []
+  const golpes = [...habilidadesNaTela, ...itens, ...armas]
   // A invocação não começa escolhida: o de sempre é o golpe (e a sugestão nunca é invocação).
   const primeiraValida = golpes.find((golpe) => golpe.motivo === null && golpe.invocacao !== true)?.chave ?? null
   const [escolhida, setEscolhida] = useState<string | null>(() => (sugestao.chave !== null && golpes.some((golpe) => golpe.chave === sugestao.chave && golpe.motivo === null) ? sugestao.chave : primeiraValida))
@@ -228,6 +231,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
       ) : (
         <>
           {grupo('Habilidades', habilidadesNaTela)}
+          {itens.length > 0 && grupo('Itens', itens)}
           {grupo('Atacar', armas)}
           {golpes.length === 0 && <p className="bt-texto">Sem técnica nem arma na ficha: dê dano à mão ou encerre a vez.</p>}
         </>

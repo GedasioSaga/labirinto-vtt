@@ -418,6 +418,14 @@ export type PedidoDeAcao =
   | { tipo: 'transformar'; cartaoId: string; acao: AcaoDaForma; trocarImagem: boolean; contraDe?: undefined }
   /** F3: "Desfazer a forma" (ação livre). Nunca é contra-ataque. */
   | { tipo: 'destransformar'; cartaoId: string; contraDe?: undefined }
+  /**
+   * Fase 8 (SISTEMA.md §5.2): usar o item da vaga `vagaId` da mochila da
+   * ficha que age. Só o id e os alvos: quem resolve lê o efeito da cópia dele
+   * (`lib/batalha/itemNaBatalha.ts`), e o `dano` de cada alvo é ignorado (sai
+   * das peças). `ponto`/`centroId` = o centro da área longe (a granada), como
+   * na habilidade. Nunca é contra-ataque.
+   */
+  | { tipo: 'item'; vagaId: string; alvos: readonly PedidoDeAlvo[]; ponto?: { col: number; row: number }; centroId?: string; contraDe?: undefined }
 
 /** Os tipos de pedido de ação, para o enum fechado do fio. */
 export type TipoDoPedidoDeAcao = PedidoDeAcao['tipo']

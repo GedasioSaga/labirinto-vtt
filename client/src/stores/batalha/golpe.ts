@@ -38,8 +38,10 @@ import {
   textoDaReacaoComTecnica,
   textoDaRolagem,
   textoDoGolpe,
+  ctxDoItem,
   type ContextoDoGolpe,
 } from '../../lib/batalha/golpe'
+import { textoDoGasto } from '../../lib/batalha/itemNaBatalha'
 import { lerDano } from '../../lib/batalha/formula'
 import { chavesDoDono, disputaNoUso, formulaDaCura, limpezaDe, mecanicaDoCartao, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono } from '../../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../../lib/batalha/disputaNoUso'
@@ -73,7 +75,7 @@ import {
   linhaAtualizada,
   partesDosLembretes,
 } from './cena'
-import { mexerNaFicha, type Recusada, type CuraDoItemNoAlvo, gastarMunicaoNaMesa, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from './naMesa'
+import { mexerNaFicha, type Recusada, type CuraDoItemNoAlvo, gastarMunicaoNaMesa, gastarItemNaMesa, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from './naMesa'
 import { devolverFichasDaAcao } from './desfazer'
 import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
@@ -484,11 +486,16 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     }
   }
 
-  const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedido: PedidoDeAcao): boolean => {
+  const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedidoDeQuemAge: PedidoDeAcao): boolean => {
     const { turnos } = cena
     const { personagens } = mesaDoRpg()
-    const ctx = contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx)
-    if (podeAgir(ctx, pedido) !== null) return false
+    const ctxDaCarta = contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx)
+    if (podeAgir(ctxDaCarta, pedidoDeQuemAge) !== null) return false
+    // Fase 8: o item vira a técnica dele (a ficha com o cartão do item só nesta conta, nunca gravada); a pilha desce mais abaixo.
+    const doItem = pedidoDeQuemAge.tipo === 'item' ? ctxDoItem(ctxDaCarta, pedidoDeQuemAge) : null
+    if (typeof doItem === 'string') return false
+    const ctx = doItem === null ? ctxDaCarta : doItem.ctx
+    const pedido = doItem === null ? pedidoDeQuemAge : doItem.uso.pedido
     const linhaId = novoIdDeLinha()
     // F2 (fatias B e C): os ids das partes seguintes vão sempre; só a técnica com `segundoGolpe` e o Atacar melhorado (Aira com a Bênção) os usam.
     const bruto = lancarGolpe(ctx, pedido, {
@@ -546,6 +553,15 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         return false
       }
       if (parte !== null) partes.push(parte)
+    }
+    // Fase 8: o item que gasta tira 1 da vaga de quem usa (a ficha, ou o boneco na aventura não migrada); o Desfazer devolve.
+    if (doItem !== null && doItem.uso.vaga.efeito.gasta === 'um' && carta.personagemId !== null) {
+      const parte = gastarItemNaMesa(mesa, sceneKey, carta.tokenId, carta.personagemId, doItem.uso.vaga.id)
+      if (parte === 'recusada' || parte === null) {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+      partes.push(parte)
     }
     // Conserto das fichas F1 (Overload): quem usou fica com os atributos base pela metade até o fim da batalha.
     // F2b (revisão): só a técnica Overload cansa aqui; o golpe Overload pela forma (A Caçada Começa) cansa no fim dela.
@@ -762,6 +778,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       texto = `${quemAge} usou o contra-ataque para se mover`
       tipo = 'acao'
     }
+    if (doItem !== null) texto += textoDoGasto(doItem.uso.vaga)
     texto += textoDosQueSairam(caidos.nomes)
     const tokenIds = [...new Set([carta.tokenId, ...(golpe?.alvos.map((alvo) => alvo.tokenId) ?? [])])]
     // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
@@ -775,7 +792,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       if (comALinha !== undefined) gravarCena(sceneKey, comMudanca(comALinha, comALinha.turnos, { id: parte.golpe.linhaId, tipo, texto: textoDoGolpe(parte.golpe, nomeDoToken), autor, tokenIds, reversao: { tipo: 'composta', partes: parte.partes } }))
     }
     // Fatia C7: a técnica oculta que revela ao usar sai revelada depois do golpe (o Desfazer da linha não a esconde de novo).
-    if (pedido.tipo === 'habilidade' && carta.personagemId !== null) {
+    if (pedido.tipo === 'habilidade' && doItem === null && carta.personagemId !== null) {
       const { cartaoId } = pedido
       mesa.ajustarPersonagem(carta.personagemId, (atual) => revelacaoAoUsar(atual, cartaoId) ?? atual)
     }

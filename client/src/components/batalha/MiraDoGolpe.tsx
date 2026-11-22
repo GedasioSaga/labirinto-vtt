@@ -141,6 +141,16 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
   // A bala só vai com a arma (o pedido sem `armaId` e com `balaId` é torto). F2 (revisão da fatia E): também na técnica
   // que diz "Dano da Bala" (Desenhar o alvo): o host lê dela o selo da bala ("Ferido por prata").
   const bala = golpe.armaId !== null && escolha.balaId !== undefined ? { balaId: escolha.balaId } : {}
+  // Fase 8: o item manda só a vaga e os alvos (e o centro da área longe); o efeito, o dano e o selo saem da cópia do host.
+  if (golpe.vagaId !== undefined) {
+    return {
+      tipo: 'item',
+      vagaId: golpe.vagaId,
+      alvos: escolha.alvos.map((alvo) => ({ tokenId: alvo.tokenId, dano: null })),
+      ...(escolha.ponto === undefined ? {} : { ponto: escolha.ponto }),
+      ...(escolha.centroId === undefined ? {} : { centroId: escolha.centroId }),
+    }
+  }
   if (golpe.tipo === 'atacar') {
     // F2 (fatia C): as respostas de todo golpe do dono (o Electro da Aira) também no Atacar.
     const respostas = escolha.respostas === undefined ? {} : { respostas: escolha.respostas }

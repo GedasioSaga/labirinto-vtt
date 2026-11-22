@@ -80,6 +80,8 @@ export interface MenuDaVezProps {
   motivoDoConcentrar: string | null
   armas: readonly GolpeNaTela[]
   habilidades: readonly GolpeNaTela[]
+  /** Fase 8: os itens com efeito da mochila de quem age (`golpesDeItem` / `golpesDosItensDoJogador`). Ausente = sem a tira Itens. */
+  itens?: readonly GolpeNaTela[]
   alvos: readonly AlvoNaMira[]
   /** "Escolher armas" (limite da ficha). `pendente` = ainda não escolheu. Ausente = sem limite. */
   escolhaDeArmas?: { pendente: boolean; onAbrir: () => void }
@@ -131,8 +133,8 @@ export interface MenuDaVezProps {
 
 type Tela =
   | { tipo: 'menu' }
-  | { tipo: 'lista'; de: 'atacar' | 'habilidade' }
-  | { tipo: 'mira'; golpe: GolpeNaTela; de: 'atacar' | 'habilidade' }
+  | { tipo: 'lista'; de: 'atacar' | 'habilidade' | 'item' }
+  | { tipo: 'mira'; golpe: GolpeNaTela; de: 'atacar' | 'habilidade' | 'item' }
   | { tipo: 'invocacao'; golpe: GolpeNaTela }
   | { tipo: 'formas' }
   | { tipo: 'passivas' }
@@ -153,6 +155,8 @@ const TECLA_DA_TIRA: Readonly<Record<string, number>> = {
   concentrar: 4,
   encerrar: 5,
   passivas: 6,
+  // Fase 8: a tecla nova no fim (as de antes ficam onde a mão já aprendeu).
+  itens: 7,
   'contra-atacar': 1,
   'contra-habilidade': 2,
   'contra-mover': 3,
@@ -216,7 +220,8 @@ export function MenuDaVez(props: MenuDaVezProps) {
   /** Pede a ação; `true` = saiu, um texto = não saiu, e por quê (o motivo da regra, quando quem monta sabe dizer). */
   const pedir = (pedido: PedidoDeAcao): true | string => {
     // F3: Ativar e Desfazer a forma nunca são contra-ataque.
-    const semContra = pedido.tipo === 'concentrar' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar'
+    // Fase 8: usar item também não (gasta a ação da vez).
+    const semContra = pedido.tipo === 'concentrar' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar' || pedido.tipo === 'item'
     const comContra: PedidoDeAcao = contra !== undefined && !semContra ? { ...pedido, contraDe: contra.golpeId } : pedido
     if (onAgir(comContra)) {
       if (contra !== undefined) setContraId(null)
@@ -296,16 +301,16 @@ export function MenuDaVez(props: MenuDaVezProps) {
   }
 
   if (tela.tipo === 'lista') {
-    const golpes = tela.de === 'atacar' ? armas : habilidades
+    const golpes = tela.de === 'atacar' ? armas : tela.de === 'item' ? (props.itens ?? []) : habilidades
     return (
       <ListaDeTecnicas
-        titulo={tela.de === 'atacar' ? 'Atacar' : 'Habilidades'}
+        titulo={tela.de === 'atacar' ? 'Atacar' : tela.de === 'item' ? 'Itens' : 'Habilidades'}
         pips={pips}
         carga={carga}
         golpes={golpes}
         instantaneo={porTeclado}
         armas={tela.de === 'atacar' ? escolhaDeArmas : undefined}
-        vazio={tela.de === 'atacar' ? 'Nenhuma arma levada para esta batalha.' : 'Nenhuma habilidade na ficha (nem nas transformações ligadas).'}
+        vazio={tela.de === 'atacar' ? 'Nenhuma arma levada para esta batalha.' : tela.de === 'item' ? 'Nenhum item com efeito na mochila.' : 'Nenhuma habilidade na ficha (nem nas transformações ligadas).'}
         evoluir={tela.de === 'habilidade' ? evoluir : undefined}
         sugerida={props.sugestao?.chave ?? null}
         memoria={`${fichaDaMemoria}:${tela.de}`}
@@ -436,6 +441,10 @@ export function MenuDaVez(props: MenuDaVezProps) {
     const quantasArmas = armas.filter((golpe) => golpe.chave !== CHAVE_DA_MAO_NUA).length
     itens.push({ chave: 'atacar', nome: 'Atacar', lado: quantasArmas > 0 ? `${quantasArmas} ${quantasArmas === 1 ? 'arma' : 'armas'}` : null, executar: (t) => abrir({ tipo: 'lista', de: 'atacar' }, t) })
     itens.push({ chave: 'habilidades', nome: 'Habilidades', lado: habilidades.length > 0 ? String(habilidades.length) : null, executar: (t) => abrir({ tipo: 'lista', de: 'habilidade' }, t) })
+    // Fase 8: os itens da mochila (só os com efeito); usar um gasta a ação dele, a Simples de fábrica.
+    const itensDaMochila = props.itens
+    if (itensDaMochila !== undefined)
+      itens.push({ chave: 'itens', nome: 'Itens', lado: itensDaMochila.length > 0 ? String(itensDaMochila.length) : null, motivo: itensDaMochila.length === 0 ? 'Nenhum item com efeito na mochila' : SEM_MOTIVO, executar: (t) => abrir({ tipo: 'lista', de: 'item' }, t) })
     const ligada = formas.find((forma) => forma.ligada)
     itens.push({
       chave: 'transformacao',
