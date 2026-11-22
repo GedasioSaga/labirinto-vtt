@@ -33,7 +33,7 @@ export interface PedidoDeEnsaioDoItem {
 /** Quem usa de treino: a ficha de fábrica do boneco, de pé e com vida, com outro nome e outro id. */
 const QUEM_USA_DE_TREINO: AjustesDoBoneco = { infinito: false, hp: 500, escudo: 0, modificador: 0, reage: 'd20' }
 const ID_DE_QUEM_USA_DE_TREINO = 'ensaio-do-item-quem-usa'
-const NOME_DE_QUEM_USA_DE_TREINO = 'Quem usa'
+const NOME_DE_QUEM_USA_DE_TREINO = 'Ajudante de treino'
 /** O id do cartão que leva o item à ficha (só na cópia do ensaio). */
 const ID_DO_CARTAO_DO_ITEM = 'ensaio-do-item'
 
