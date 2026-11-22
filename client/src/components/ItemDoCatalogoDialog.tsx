@@ -29,8 +29,11 @@ export interface ItemDoCatalogoDialogProps {
   alvos: readonly AlvoDoAcervo[]
   onSalvar: (item: ItemDoCatalogo) => Promise<void>
   onApagar: () => Promise<void>
-  /** `false` = não deu (o token saiu da cena). */
-  onDar: (alvo: AlvoDoAcervo, quantidade: number) => boolean
+  /**
+   * `false` = não deu (o token saiu da cena). Sem ele a janela não mostra o
+   * "Dar a…": a página Itens do livro já põe na mochila pelo "Pôr em".
+   */
+  onDar?: (alvo: AlvoDoAcervo, quantidade: number) => boolean
   onClose: () => void
   /** Colar ou soltar: grava a imagem e devolve a referência. */
   imagemDoBlob: (fonte: Blob) => Promise<string>
@@ -263,7 +266,7 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
 
   const dar = () => {
     const alvo = alvos.find((candidato) => chaveDoAlvo(candidato) === alvoEscolhido)
-    if (alvo === undefined) return
+    if (alvo === undefined || onDar === undefined) return
     const quantos = item.empilhavel ? quantidade : 1
     const deu = onDar(alvo, quantos)
     setResultadoDoDar(deu ? `Dado a ${alvo.nome}${quantos > 1 ? ` (×${quantos})` : ''}.` : `Não deu: ${alvo.nome} não está mais na cena.`)
@@ -413,7 +416,7 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
               {novo ? 'Criar item' : 'Salvar'}
             </button>
           </div>
-          {!novo && (
+          {!novo && onDar !== undefined && (
             <section className="lb-item-janela__dar" aria-labelledby={`${idBase}-dar`}>
               <h3 id={`${idBase}-dar`} className="lb-item-janela__subtitulo">
                 Dar a…

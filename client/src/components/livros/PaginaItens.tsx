@@ -1,6 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { itemParaDar } from '../../lib/acervoDeItens'
+import { escolherImagemDoItem, imagemDoItemDoBlob } from '../../lib/imagemDoItem'
 import { ABA_DAS_ARMAS, armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { quantidadeDe } from '../../lib/items'
 import { ehDoAcervo, entradaDoAcervo, type EntradaDoAcervo } from '../../lib/livros/acervoNoLivro'
@@ -33,6 +34,7 @@ import { useToastStore } from '../../stores/toastStore'
 import { itensPorCategoria } from '../AcervoDeItensPanel'
 import { itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from '../BuscaDoAcervoDeItens'
 import { ImagemOuIniciais } from '../FichaPecas'
+import { ItemDoCatalogoDialog } from '../ItemDoCatalogoDialog'
 import { precoEmBerries } from '../InventarioDaFicha'
 import { escolhasDaFicha, formatarNumero, primeiroNome, Retrato, trocarFicha } from './comum'
 import { PainelDeEnsaio } from '../ensaio/PainelDeEnsaio'
@@ -223,6 +225,9 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   const [mostrar, setMostrar] = useState(PASSO_DA_LISTA)
   const [fichaId, setFichaId] = useState<string | null>(fichaEscolhidaAntes)
   const [dialogo, setDialogo] = useState<ModoDaEntrada | null>(null)
+  /** A coisa do Acervo aberta na janela do Acervo (o id; o item vem do store, para a janela ver o que foi salvo). */
+  const [acervoAberto, setAcervoAberto] = useState<string | null>(null)
+  const itemDoAcervoAberto = acervoAberto === null ? undefined : doAcervo.find((item) => item.id === acervoAberto)
   const [juntando, setJuntando] = useState(false)
   const [arrastando, setArrastando] = useState<EntradaDaPagina | null>(null)
   const [sobre, setSobre] = useState(false)
@@ -617,6 +622,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
                 onSoltar={terminarArrasto}
                 sistema={sistema}
                 personagens={personagens}
+                onEditar={() => setAcervoAberto(entrada.acervo.id)}
                 onTestar={(efeito) =>
                   setEnsaio({
                     cartao: { ...novoCartao(entrada.acervo.nome), id: `ensaio-${entrada.id}`, mecanica: efeito.mecanica },
@@ -814,6 +820,21 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
       </div>
 
       {dialogo !== null && <EntradaDoCatalogoDialog modo={dialogo} sistema={sistema} onClose={() => setDialogo(null)} onSalvou={aoSalvar} />}
+      {/* A mesma janela do Acervo (nome, foto, "O que ele faz"); o Acervo continua o dono do item. */}
+      {itemDoAcervoAberto !== undefined && (
+        <ItemDoCatalogoDialog
+          key={itemDoAcervoAberto.id}
+          item={itemDoAcervoAberto}
+          novo={false}
+          categorias={categoriasDoAcervo}
+          alvos={[]}
+          onSalvar={(item) => useAcervoDeItensStore.getState().salvarItem(item)}
+          onApagar={() => useAcervoDeItensStore.getState().apagarItem(itemDoAcervoAberto.id)}
+          onClose={() => setAcervoAberto(null)}
+          imagemDoBlob={imagemDoItemDoBlob}
+          escolherImagem={escolherImagemDoItem}
+        />
+      )}
     </div>
   )
 }
@@ -974,6 +995,8 @@ interface CartaoDoAcervoProps {
   onTestar: (efeito: EfeitoDoItem) => void
   /** Fase 7: as fichas do mundo, para o "Atualizar as cópias nas mochilas". */
   personagens: readonly Personagem[]
+  /** Abre a janela do Acervo deste item (editar, "O que ele faz", apagar). */
+  onEditar: () => void
 }
 
 /**
@@ -1017,8 +1040,8 @@ function AtualizarCopias({ acervo, personagens }: { acervo: CartaoDoAcervoProps[
   )
 }
 
-/** A coisa do Acervo: foto, nome, categoria, preço e pilha. Edita-se no Acervo; aqui só se põe na mochila. */
-function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrastar, onSoltar, sistema, onTestar, personagens }: CartaoDoAcervoProps) {
+/** A coisa do Acervo: foto, nome, categoria, preço e pilha. O "Editar" abre a janela do Acervo; o "Pôr em" põe na mochila. */
+function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrastar, onSoltar, sistema, onTestar, personagens, onEditar }: CartaoDoAcervoProps) {
   const { acervo } = entrada
   const { efeito } = acervo
   const quem = destino === undefined ? '' : primeiroNome(destino.nome)
@@ -1072,6 +1095,9 @@ function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrast
             </span>
           )}
           <span className="mu-item__acoes">
+            <button type="button" className="mu-bt mu-bt--ic mu-bt--p" aria-label={`Editar ${acervo.nome}`} title="Editar" onClick={onEditar}>
+              <IconeDoMundo nome="nota" />
+            </button>
             {efeito !== undefined && (
               <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" aria-label={`Testar ${acervo.nome} no boneco`} onClick={() => onTestar(efeito)}>
                 Testar
