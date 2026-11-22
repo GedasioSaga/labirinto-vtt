@@ -40,6 +40,7 @@ import { escolhasDaFicha, formatarNumero, primeiroNome, Retrato, trocarFicha } f
 import { PainelDeEnsaio } from '../ensaio/PainelDeEnsaio'
 import { quemUsaDeTreino } from '../../lib/batalha/ensaio/ensaioDoItem'
 import { resumoDoEfeitoDoItem } from '../../lib/batalha/mecanica/resumoDoItem'
+import { descricaoDizOEfeito } from '../../lib/descricaoDoEfeito'
 import { ensaiarCopias, type EscolhaDaCopia } from '../../lib/mochila/efeitoNasCopias'
 import { decidirCopias } from '../../stores/itensNaFonte'
 import type { EfeitoDoItem } from '../../types/map'
@@ -1118,7 +1119,8 @@ function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrast
         <ul className="mu-item__selos" aria-label="Selos">
           <li className="mu-item__selo mu-item__selo--acervo">Do acervo</li>
         </ul>
-        {descricao.length > 0 && (
+        {/* Regra do dono: com efeito, a descrição que dizia outro efeito ("Cura 50 HP") dá lugar à frase do efeito. */}
+        {descricao.length > 0 && !(efeito !== undefined && descricaoDizOEfeito(descricao)) && (
           <p className="mu-item__txt" title={descricao}>
             {descricao}
           </p>

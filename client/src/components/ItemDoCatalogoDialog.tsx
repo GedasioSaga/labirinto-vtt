@@ -7,6 +7,7 @@ import type { MecanicaGuardada } from '../lib/personagem'
 import { gravarRegraDaArma } from '../stores/armasNaFonte'
 import { useCatalogoStore } from '../stores/catalogoStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
+import { CAMPO_DO_EFEITO } from '../lib/batalha/leituraDaFicha'
 import { EfeitoDaArmaCampos } from './EfeitoDaArmaCampos'
 import { cleanItemName, ITEM_DESCRICAO_MAX, ITEM_NAME_MAX_LENGTH, ITEM_PRECO_MAX, ITEM_QUANTIDADE_MAX } from '../lib/items'
 import type { AlvoDoAcervo } from '../lib/party'
@@ -234,7 +235,10 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
   const ehArma = ehCategoriaDeArma(rascunho.categoria)
   const regraDaArma = ehArma && sistemaDoLivro !== undefined ? regraDaArmaNoLivro(entradasDoLivro, rascunho) : undefined
   /** O que o mestre mudou no "O que ela faz"; `null` = nada (o Salvar não toca no livro). */
-  const [mecanicaDaArma, setMecanicaDaArma] = useState<{ mecanica: MecanicaGuardada | undefined } | null>(null)
+  const [mecanicaDaArma, setMecanicaDaArma] = useState<{ mecanica: MecanicaGuardada | undefined; efeito?: string } | null>(null)
+
+  /** Os campos da regra como ficariam ao salvar: o Efeito em texto que seguiu a mecânica entra por cima. */
+  const camposDaArmaNaTela = mecanicaDaArma?.efeito === undefined ? (regraDaArma?.entrada.campos ?? {}) : { ...(regraDaArma?.entrada.campos ?? {}), [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }
 
   const preco = precoDoTexto(precoTexto)
   const mudou = novo || rascunho !== item || preco !== item.preco || mecanicaDaArma !== null
@@ -285,7 +289,8 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
       if (mecanicaDaArma !== null && sistemaDoLivro !== undefined && ehCategoriaDeArma(salvo.categoria)) {
         // Sem regra neste livro, nasce a entrada de arma ligada a esta coisa; a de mesmo nome solta ganha a ligação.
         const { mecanica: _antes, ...base }: EntradaDoCatalogo = regraDaArma?.entrada ?? { id: novoIdDeEntrada(), tipo: 'arma', nome: salvo.nome, texto: '', campos: {} }
-        await gravarRegraDaArma({ ...base, acervoId: salvo.id, ...(mecanicaDaArma.mecanica === undefined ? {} : { mecanica: mecanicaDaArma.mecanica }) }, sistemaDoLivro)
+        const campos = mecanicaDaArma.efeito === undefined ? base.campos : { ...base.campos, [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }
+        await gravarRegraDaArma({ ...base, campos, acervoId: salvo.id, ...(mecanicaDaArma.mecanica === undefined ? {} : { mecanica: mecanicaDaArma.mecanica }) }, sistemaDoLivro)
         setMecanicaDaArma(null)
       }
       // A store guarda este mesmo objeto: com ele no rascunho, "nada mudou" volta a valer e o "Dar" libera.
@@ -439,14 +444,18 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
               <p className="lb-field__hint">O que a arma faz mora no livro do sistema: abra o livro (Biblioteca, página Itens) para ver e mudar.</p>
             ) : (
               <EfeitoDaArmaCampos
-                entrada={{ nome: regraDaArma?.entrada.nome ?? rascunho.nome, campos: regraDaArma?.entrada.campos ?? {}, acervoId: rascunho.id, mecanica: mecanicaDaArma === null ? regraDaArma?.entrada.mecanica : mecanicaDaArma.mecanica }}
+                entrada={{ nome: regraDaArma?.entrada.nome ?? rascunho.nome, campos: camposDaArmaNaTela, acervoId: rascunho.id, mecanica: mecanicaDaArma === null ? regraDaArma?.entrada.mecanica : mecanicaDaArma.mecanica }}
                 sistema={sistemaDoLivro}
-                onMudar={(mecanica) => setMecanicaDaArma({ mecanica })}
+                onMudar={(mecanica, efeito) => setMecanicaDaArma((antes) => ({ mecanica, ...(efeito !== undefined ? { efeito } : antes?.efeito !== undefined ? { efeito: antes.efeito } : {}) }))}
                 {...(regraDaArma === undefined ? { nota: 'Sem regra neste livro: salvar cria a entrada de arma ligada a esta coisa.' } : regraDaArma.ligar ? { nota: 'Salvar liga esta coisa à entrada de mesmo nome do livro.' } : {})}
               />
             )
           ) : (
-            <EfeitoDoItemCampos item={rascunho} onMudar={(efeito) => setRascunho((atual) => comEfeito(atual, efeito))} />
+            <EfeitoDoItemCampos
+              item={rascunho}
+              onMudar={(efeito) => setRascunho((atual) => comEfeito(atual, efeito))}
+              onTrocarDescricao={(descricao) => setRascunho((atual) => ({ ...atual, descricao: descricao.slice(0, ITEM_DESCRICAO_MAX) }))}
+            />
           )}
           {erro !== null && (
             <p className="lb-field__error" role="alert">

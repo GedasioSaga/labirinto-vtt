@@ -1,9 +1,8 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { quemUsaDeTreino } from '../lib/batalha/ensaio/ensaioDoItem'
-import { ABA_DAS_ARMAS } from '../lib/batalha/leituraDaFicha'
-import { lerMecanica } from '../lib/batalha/mecanica/modelo'
-import { resumoDaMecanica } from '../lib/batalha/mecanica/resumo'
+import { ABA_DAS_ARMAS, CAMPO_DO_EFEITO } from '../lib/batalha/leituraDaFicha'
 import type { ItemDoCatalogo } from '../lib/livros/catalogo'
+import { armaTemCampoDeEfeito, efeitoQueSegueAMecanica } from '../lib/livros/fraseDaArma'
 import { cartoesDaAba, novoCartao, type CartaoDaFicha, type MecanicaGuardada, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { useCatalogoStore } from '../stores/catalogoStore'
@@ -22,17 +21,6 @@ import './AcervoDeItensPanel.css'
 
 /** O id do cartão de mentira que leva a mecânica da entrada ao editor (nunca vai a ficha nenhuma). */
 const ID_DO_CARTAO_DA_REGRA = 'regra-da-arma'
-/** O que a arma sem mecânica faz: a mesma frase do editor fechado. */
-export const ARMA_SO_COM_O_DANO = 'Sem mecânica, o Atacar usa só o dano da arma.'
-
-/** "O que ela faz" numa frase: a mesma nos 3 lugares (o boneco de treino dá os números, como no Testar). */
-export function fraseDoQueElaFaz(mecanica: MecanicaGuardada | undefined, sistema: SistemaDeRpg): string {
-  const lida = lerMecanica(mecanica)
-  if (lida.tipo === 'nenhuma') return ARMA_SO_COM_O_DANO
-  if (lida.tipo !== 'pecas') return 'Montada num app mais novo: atualize o app para ver.'
-  return resumoDaMecanica(lida.mecanica, { personagem: quemUsaDeTreino(sistema), sistema }).join(' ')
-}
-
 /** Quantas fichas da pasta têm cartão de arma ligado à coisa `acervoId` (as cópias que o Salvar reescreve). */
 export function fichasComAArma(personagens: readonly Personagem[] | null, acervoId: string | undefined): number {
   if (acervoId === undefined || personagens === null) return 0
@@ -65,8 +53,11 @@ export interface EfeitoDaArmaCamposProps {
   /** A entrada como ela ficaria ao salvar (o rascunho da janela). */
   entrada: Pick<ItemDoCatalogo, 'nome' | 'campos' | 'acervoId' | 'mecanica'>
   sistema: SistemaDeRpg
-  /** A mecânica nova; `undefined` = tirar (a arma volta a só o dano). */
-  onMudar: (mecanica: MecanicaGuardada | undefined) => void
+  /**
+   * A mecânica nova; `undefined` = tirar (a arma volta a só o dano). `efeito`: o texto novo do campo Efeito
+   * quando ele segue a mecânica (modelo escolhido, ou o texto já era a frase); `undefined` = o texto fica.
+   */
+  onMudar: (mecanica: MecanicaGuardada | undefined, efeito?: string) => void
   /** Uma frase a mais embaixo (a coisa sem regra neste livro: salvar cria a entrada). */
   nota?: string
 }
@@ -75,6 +66,14 @@ export function EfeitoDaArmaCampos({ entrada, sistema, onMudar, nota }: EfeitoDa
   const fichas = usePersonagensDoMundo()
   const quantas = fichasComAArma(fichas, entrada.acervoId)
   const treino = useMemo(() => quemUsaDeTreino(sistema), [sistema])
+  /** O modelo recém-escolhido (o texto do Efeito vira a frase dele, regra do dono: um lugar não diz outra coisa). */
+  const escolheuModelo = useRef(false)
+  const aoMudar = (mecanica: MecanicaGuardada | undefined) => {
+    const texto = entrada.campos[CAMPO_DO_EFEITO] ?? ''
+    const novo = efeitoQueSegueAMecanica(texto, entrada.mecanica, mecanica, sistema, escolheuModelo.current)
+    escolheuModelo.current = false
+    onMudar(mecanica, armaTemCampoDeEfeito(sistema) && novo !== texto ? novo : undefined)
+  }
   // O editor trabalha sobre um cartão: a mecânica da entrada entra e sai por ele, com os campos dela (o Dano e a fórmula do Atacar).
   const cartao = useMemo<CartaoDaFicha>(
     () => ({ ...novoCartao(entrada.nome.trim() || 'Arma'), id: ID_DO_CARTAO_DA_REGRA, campos: { ...entrada.campos }, ...(entrada.mecanica === undefined ? {} : { mecanica: entrada.mecanica }) }),
@@ -84,7 +83,10 @@ export function EfeitoDaArmaCampos({ entrada, sistema, onMudar, nota }: EfeitoDa
     <fieldset className="lb-item-janela__efeito">
       <legend className="lb-label">O que ela faz</legend>
       <p className="lb-item-janela__frase">{fraseDeOndeVale(quantas, entrada.acervoId !== undefined)}</p>
-      <MecanicaDaTecnica cartao={cartao} ficha={{ personagem: treino, sistema }} quemEdita="mestre" tecnicas={[]} onChange={(novo) => onMudar(novo.mecanica)} doQue="arma" />
+      <MecanicaDaTecnica cartao={cartao} ficha={{ personagem: treino, sistema }} quemEdita="mestre" tecnicas={[]} onChange={(novo) => aoMudar(novo.mecanica)} doQue="arma" onModelo={() => {
+          escolheuModelo.current = true
+        }}
+      />
       {nota !== undefined && <p className="lb-field__hint">{nota}</p>}
     </fieldset>
   )

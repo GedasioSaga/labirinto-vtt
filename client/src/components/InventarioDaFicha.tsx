@@ -1,4 +1,5 @@
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { descricaoDizOEfeito } from '../lib/descricaoDoEfeito'
 import { quantidadeDe } from '../lib/items'
 import type { CarriedItem } from '../types/map'
 import { ImagemOuIniciais } from './FichaPecas'
@@ -111,7 +112,8 @@ export function InventarioDaFicha({ itens, acoes, vazio = VAZIO_PADRAO }: Invent
             )}
             {/* Fase 7 (SISTEMA.md §5.1): o que o item faz, em uma frase; o jogador recebe só ela, nunca as peças. */}
             {aberto.efeitoResumo !== undefined && <p className="lb-inv__efeito">{aberto.efeitoResumo}</p>}
-            {aberto.descricao !== undefined && <p className="lb-inv__descricao">{aberto.descricao}</p>}
+            {/* Regra do dono: com efeito, a descrição que dizia outro efeito ("Cura 50 HP") dá lugar à frase acima. */}
+            {aberto.descricao !== undefined && !(aberto.efeitoResumo !== undefined && descricaoDizOEfeito(aberto.descricao)) && <p className="lb-inv__descricao">{aberto.descricao}</p>}
             <div className="lb-inv__acoes">
               {acoes?.(aberto, fechar)}
               <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={fechar}>

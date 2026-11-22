@@ -8,7 +8,8 @@ import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg 
 import type { Ajuste } from '../lib/ajusteDaFicha'
 import { EXTRAS_DA_EVOLUCAO, nomeDaNovaOpcao, sugestaoDeEvolucao, temExtrasDaEvolucao } from '../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_ATRIBUTO_DO_ATAQUE, CAMPO_DO_DANO } from '../lib/batalha/formula'
-import { ABA_DAS_ARMAS, ABA_DAS_BALAS, ABA_DAS_TECNICAS, CAMPO_DA_ACAO, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO } from '../lib/batalha/leituraDaFicha'
+import { ABA_DAS_ARMAS, ABA_DAS_BALAS, ABA_DAS_TECNICAS, CAMPO_DA_ACAO, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO } from '../lib/batalha/leituraDaFicha'
+import { cartaoComOEfeitoDaMecanica } from '../lib/livros/fraseDaArma'
 import { cartaoMontado, pecasDoCartao } from '../lib/batalha/mecanica/leitura'
 import { perdeuARegraAoSerTrazida } from '../lib/batalha/mecanicasAMao'
 import { CampoDeDano } from './CampoDeDano'
@@ -369,8 +370,10 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevela
   const categoria = ehArma ? rotuloDaCategoria(cartao.campos) : null
   // Técnica montada (construtor C2): o resumo das peças vale; Ação, Custo, Tempo e Dano em texto sairiam com outro número.
   const montada = aba.id === ABA_DAS_TECNICAS && pecasDoCartao(cartao) !== null
+  // Arma montada: o resumo da mecânica (MecanicaLida) diz o que ela faz; o Efeito em texto ao lado poderia dizer outra coisa.
+  const armaMontada = ehArma && pecasDoCartao(cartao) !== null
   const abaLida = ehArma
-    ? { ...aba, campos: aba.campos.filter((campo) => campo.id !== CAMPO_DA_CATEGORIA && !(semTiro && campo.id === CAMPO_DA_CAPACIDADE)) }
+    ? { ...aba, campos: aba.campos.filter((campo) => campo.id !== CAMPO_DA_CATEGORIA && !(semTiro && campo.id === CAMPO_DA_CAPACIDADE) && !(armaMontada && campo.id === CAMPO_DO_EFEITO)) }
     : montada
       ? { ...aba, campos: aba.campos.filter((campo) => !CAMPOS_TROCADOS_PELAS_PECAS.has(campo.id)) }
       : aba
@@ -742,6 +745,8 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
   const [avisoDoExtra, setAvisoDoExtra] = useState<string | null>(null)
   const valoresDosExtras = useRef<(HTMLInputElement | null)[]>([])
   const focarNoExtra = useRef<number | null>(null)
+  /** O modelo de arma recém-escolhido: o Efeito em texto vira a frase dele (regra do dono: um lugar não diz outra coisa). */
+  const escolheuModeloDaArma = useRef(false)
   useEffect(() => {
     if (focarNoExtra.current === null) return
     valoresDosExtras.current[focarNoExtra.current]?.focus()
@@ -884,7 +889,17 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
               )}
             </>
           ) : (
-            <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={cartoesDaAba(personagem, ABA_DAS_ARMAS)} onChange={onChange} doQue="arma" />
+            <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={cartoesDaAba(personagem, ABA_DAS_ARMAS)}
+              onChange={(novo) => {
+                const comTexto = cartaoComOEfeitoDaMecanica(cartao, novo, sistema, escolheuModeloDaArma.current)
+                escolheuModeloDaArma.current = false
+                onChange(comTexto)
+              }}
+              doQue="arma"
+              onModelo={() => {
+                escolheuModeloDaArma.current = true
+              }}
+            />
           ))}
         {aba.modificadores === true && <PecaDoMestreNaForma cartao={cartao} podeMudar={quemEditaAMecanica === 'mestre'} onChange={onChange} />}
         {podeOcultar && <OcultaNoCartao cartao={cartao} onChange={onChange} />}

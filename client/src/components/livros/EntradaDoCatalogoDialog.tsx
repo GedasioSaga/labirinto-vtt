@@ -17,7 +17,7 @@ import {
   type TipoDoCatalogo,
 } from '../../lib/livros/catalogo'
 import { CAMPO_DO_ATRIBUTO_DO_ATAQUE } from '../../lib/batalha/formula'
-import { CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../../lib/batalha/leituraDaFicha'
+import { CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA, CAMPO_DO_EFEITO } from '../../lib/batalha/leituraDaFicha'
 import type { MecanicaGuardada } from '../../lib/personagem'
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { gravarRegraDaArma } from '../../stores/armasNaFonte'
@@ -524,8 +524,10 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
             <EfeitoDaArmaCampos
               entrada={{ nome, campos, acervoId: acervoId === '' ? undefined : acervoId, mecanica: mecanicaDaArma }}
               sistema={sistema}
-              onMudar={(mecanica) => {
+              onMudar={(mecanica, efeito) => {
                 setMecanicaDaArma(mecanica)
+                // O Efeito em texto segue a mecânica (modelo escolhido): o cartão não diz uma coisa e a mecânica outra.
+                if (efeito !== undefined) setCampos((atuais) => ({ ...atuais, [CAMPO_DO_EFEITO]: efeito }))
                 mexer()
               }}
             />

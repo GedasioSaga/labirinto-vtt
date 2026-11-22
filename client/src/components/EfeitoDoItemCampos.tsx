@@ -4,6 +4,7 @@ import { quemUsaDeTreino } from '../lib/batalha/ensaio/ensaioDoItem'
 import { guardarMecanica } from '../lib/batalha/mecanica/modelos'
 import { MODELOS_DE_ITEM, mecanicaDoModeloDeItem, modeloSugeridoParaOItem, ondeDoModeloDeItem, type IdDoModeloDeItem } from '../lib/batalha/mecanica/modelosDeItem'
 import { resumoDoEfeitoDoItem } from '../lib/batalha/mecanica/resumoDoItem'
+import { descricaoDizOEfeito } from '../lib/descricaoDoEfeito'
 import { pecasDoEfeito } from '../lib/leituraDoItem'
 import { novoCartao, type CartaoDaFicha } from '../lib/personagem'
 import { SISTEMA_ONE_PIECE } from '../lib/sistemaOnePiece'
@@ -47,7 +48,17 @@ function efeitoDoModelo(id: IdDoModeloDeItem, sistema: Parameters<typeof mecanic
   return pecas === null ? undefined : { mecanica: pecas, gasta: 'um', onde: ondeDoModeloDeItem(id) }
 }
 
-export function EfeitoDoItemCampos({ item, onMudar }: { item: ItemDoCatalogo; onMudar: (efeito: EfeitoDoItem | undefined) => void }) {
+interface EfeitoDoItemCamposProps {
+  item: ItemDoCatalogo
+  onMudar: (efeito: EfeitoDoItem | undefined) => void
+  /**
+   * Regra do dono (um lugar não diz uma coisa e outro outra): o modelo escolhido sobre a descrição que dizia um
+   * efeito com número ('Cura 50 HP') troca a descrição pela frase do modelo. Sem a prop, a descrição fica.
+   */
+  onTrocarDescricao?: (descricao: string) => void
+}
+
+export function EfeitoDoItemCampos({ item, onMudar, onTrocarDescricao }: EfeitoDoItemCamposProps) {
   const idBase = useId()
   const idDoSistema = useAdventureStore(sistemaAtivo)
   const sistema = useRpgStore((state) => sistemaPorId(state.biblioteca, idDoSistema)) ?? SISTEMA_ONE_PIECE
@@ -63,6 +74,15 @@ export function EfeitoDoItemCampos({ item, onMudar }: { item: ItemDoCatalogo; on
   const nomeDoSugerido = sugerido === null ? null : (MODELOS_DE_ITEM.find((modelo) => modelo.id === sugerido)?.nome ?? null)
   /** O "onde vale" do modelo recém-escolhido (a granada, só na batalha), para a gravação que vem logo depois. */
   const ondeDoModelo = useRef<EfeitoDoItem['onde'] | null>(null)
+  /** A descrição que dizia um efeito virou a frase do modelo (o aviso embaixo, para o mestre ver o que mudou). */
+  const [trocouDescricao, setTrocouDescricao] = useState(false)
+  /** O efeito vindo de um modelo: a descrição velha que dizia um efeito vira a frase dele. */
+  const doModelo = (novo: EfeitoDoItem) => {
+    onMudar(novo)
+    if (onTrocarDescricao === undefined || !descricaoDizOEfeito(item.descricao)) return
+    onTrocarDescricao(resumoDoEfeitoDoItem(novo, sistema))
+    setTrocouDescricao(true)
+  }
 
   const aoMudarCartao = (novo: CartaoDaFicha) => {
     if (novo.mecanica === undefined) {
@@ -70,10 +90,14 @@ export function EfeitoDoItemCampos({ item, onMudar }: { item: ItemDoCatalogo; on
       return
     }
     const pecas = pecasDoEfeito(novo.mecanica)
+    const veioDoModelo = ondeDoModelo.current !== null
     const onde = ondeDoModelo.current ?? gasto.onde
     ondeDoModelo.current = null
     // Peças acima do teto não entram: o item fica com o efeito de antes.
-    if (pecas !== null) onMudar({ mecanica: pecas, gasta: gasto.gasta, onde })
+    if (pecas === null) return
+    const efeitoNovo: EfeitoDoItem = { mecanica: pecas, gasta: gasto.gasta, onde }
+    if (veioDoModelo) doModelo(efeitoNovo)
+    else onMudar(efeitoNovo)
   }
   const aoEscolherModelo = (id: string) => {
     const modelo = MODELOS_DE_ITEM.find((candidato) => candidato.id === id)
@@ -91,7 +115,7 @@ export function EfeitoDoItemCampos({ item, onMudar }: { item: ItemDoCatalogo; on
             className="lb-btn lb-btn--compact"
             onClick={() => {
               const novo = efeitoDoModelo(sugerido, sistema)
-              if (novo !== undefined) onMudar(novo)
+              if (novo !== undefined) doModelo(novo)
             }}
           >
             Sugerir efeito ({nomeDoSugerido})
@@ -126,6 +150,11 @@ export function EfeitoDoItemCampos({ item, onMudar }: { item: ItemDoCatalogo; on
           <p className="lb-item-janela__frase">
             <span className="lb-label">Na mochila aparece</span> {resumoDoEfeitoDoItem(efeito, sistema)}
           </p>
+          {trocouDescricao && (
+            <p className="lb-field__hint" role="status">
+              A descrição dizia outro efeito: virou esta frase.
+            </p>
+          )}
         </>
       )}
       {fichas.length > 0 && (
