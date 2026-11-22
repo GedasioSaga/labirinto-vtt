@@ -50,7 +50,8 @@ async function seguirOAcervo(itens: readonly ItemDoCatalogo[]): Promise<void> {
 useAcervoDeItensStore.subscribe((state, antes) => {
   if (!state.podeGravar || !antes.podeGravar || state.itens === antes.itens) return
   const mudaram = itensComOEfeitoMudado(antes.itens, state.itens)
-  if (mudaram.length > 0) void seguirOAcervo(mudaram)
+  // Numa tarefa à parte: o Salvar da janela termina de pintar antes de as fichas serem regravadas (nenhum trecho longo junto).
+  if (mudaram.length > 0) setTimeout(() => void seguirOAcervo(mudaram), 0)
 })
 
 /** A abertura da pasta já conferida (o `abrir` do mundo cria um objeto novo a cada vez). */
