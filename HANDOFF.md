@@ -1,4 +1,13 @@
-# LEVA DE 21/11 00h48 + HABILIDADES E ITENS: 0.5.91 PUBLICADA 22/11 02h43
+# 22/11 09h38: EDITAR ITEM DO ACERVO NA PÁGINA ITENS, PUBLICANDO 0.5.92 (antes: 0.5.91 PUBLICADA 22/11 02h43)
+
+## Pedido de 22/11 09h38 (literal no PEDIDOS)
+"não é para eu conseguir editar um item ?" (print: cartões Do acervo da página Itens só com Pôr em Aira).
+- FEITO 62dc9545: botão Editar no cartão Do acervo (PaginaItens.tsx) abre ItemDoCatalogoDialog sem o Dar a (onDar opcional).
+- FEITO d59e8e43 (agente): Esc depois do Salvar fechava o livro inteiro (foco caía no body); useEffect devolve o foco à janela.
+- Evidência: navegador Edge/Playwright 6/6 PASS (cartão com Editar; janela z 100 por cima do livro z 28, sem Dar a; salvar com Poção Pequena grava itens.json e cartão mostra efeito + Testar; Esc/fundo fecham só a janela; painel Acervo ainda tem Dar a; longtask 0); tsc 0; vitest 9/9; prints tmp/pedidos-2026-11-22/editar-acervo/1-4.
+- NÃO visto: Tauri real, Apagar pela página do livro, escolher imagem.
+- Próximo: publicar 0.5.92 (memória lançar logo) com o fluxo da 0.5.91; critério: latest.json público = 0.5.92.
+- Os 3 itens do dono não têm O que ele faz (cura só no texto): explicado a ele.
 
 ## Objetivo
 Os 10 itens do dono de 21/11 (literal no fim do PEDIDOS.md): 1 DOCS, 2 selo do minigame e do puzzle (mover, tamanho, ângulo, excluir), 3 painel dos jogos refeito (Fable), 4 losango do baú, 5 ficha e inventário numa lista só (+ balas do Vicent), 6 fichas de NPC no Acervo de tokens, 7 conteúdo do baú com miniatura (+ miniatura ao pegar item), 8 separar Itens e Habilidades com Testar, 9 habilidades melhores (reação, Testar no boneco com miniaba), 10 efeitos nos itens (FF e RE). Extras: estátua de cavalo (só objeto do mapa), muitas peças de puzzle.
