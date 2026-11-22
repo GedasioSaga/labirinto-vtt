@@ -18,6 +18,8 @@ import {
 } from '../../lib/livros/catalogo'
 import { CAMPO_DO_ATRIBUTO_DO_ATAQUE } from '../../lib/batalha/formula'
 import { CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA, CAMPO_DO_EFEITO } from '../../lib/batalha/leituraDaFicha'
+import { lerMecanica } from '../../lib/batalha/mecanica/modelo'
+import { camposComOEfeitoDaMecanica } from '../../lib/livros/fraseDaArma'
 import type { MecanicaGuardada } from '../../lib/personagem'
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { gravarRegraDaArma } from '../../stores/armasNaFonte'
@@ -128,7 +130,9 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
   const molde = moldeDasBalas(sistema, tipo)
   // Arma com categoria que não atira: Capacidade e balas saem da janela, mas continuam guardadas (como na ficha).
   const semTiro = tipo === 'arma' && categoriaSemTiro(campos)
-  const camposMostrados = semTiro ? camposDoTipoEscolhido.filter((campo) => campo.id !== CAMPO_DA_CAPACIDADE) : camposDoTipoEscolhido
+  // Arma montada: o Efeito em texto é a frase da mecânica (regra do dono: um lugar não diz outra coisa); o "O que ela faz" a mostra e a janela não deixa escrever outra.
+  const armaMontada = tipo === 'arma' && lerMecanica(mecanicaDaArma).tipo === 'pecas'
+  const camposMostrados = camposDoTipoEscolhido.filter((campo) => !(semTiro && campo.id === CAMPO_DA_CAPACIDADE) && !(armaMontada && campo.id === CAMPO_DO_EFEITO))
   const avisoSemTiro = semTiro ? avisoDoQueFicaGuardado((campos[CAMPO_DA_CAPACIDADE] ?? '').trim().length > 0, molde === undefined ? 0 : balas.length) : null
   const balasCheias = balas.length >= BALAS_POR_ENTRADA_MAX
 
@@ -215,7 +219,7 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
     const ids = new Set(camposDoTipoEscolhido.map((campo) => campo.id))
     const doTipo = Object.fromEntries(Object.entries(campos).filter(([chave]) => ids.has(chave)))
     const balasMontadas = montarBalas()
-    const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined, acervoId: acervoId === '' ? undefined : acervoId,
+    const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: tipo === 'arma' ? camposComOEfeitoDaMecanica(doTipo, mecanicaDaArma, sistema) : doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined, acervoId: acervoId === '' ? undefined : acervoId,
       // Na arma, o "O que ela faz" daqui; nos outros tipos a janela não edita a mecânica e o Salvar mantém a que a entrada já tinha (B04).
       mecanica: tipo === 'arma' ? mecanicaDaArma : editando?.tipo === tipo ? editando.mecanica : undefined,
     })

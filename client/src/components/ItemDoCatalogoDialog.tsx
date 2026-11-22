@@ -8,6 +8,7 @@ import { gravarRegraDaArma } from '../stores/armasNaFonte'
 import { useCatalogoStore } from '../stores/catalogoStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { CAMPO_DO_EFEITO } from '../lib/batalha/leituraDaFicha'
+import { camposComOEfeitoDaMecanica } from '../lib/livros/fraseDaArma'
 import { EfeitoDaArmaCampos } from './EfeitoDaArmaCampos'
 import { cleanItemName, ITEM_DESCRICAO_MAX, ITEM_NAME_MAX_LENGTH, ITEM_PRECO_MAX, ITEM_QUANTIDADE_MAX } from '../lib/items'
 import type { AlvoDoAcervo } from '../lib/party'
@@ -289,7 +290,7 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
       if (mecanicaDaArma !== null && sistemaDoLivro !== undefined && ehCategoriaDeArma(salvo.categoria)) {
         // Sem regra neste livro, nasce a entrada de arma ligada a esta coisa; a de mesmo nome solta ganha a ligação.
         const { mecanica: _antes, ...base }: EntradaDoCatalogo = regraDaArma?.entrada ?? { id: novoIdDeEntrada(), tipo: 'arma', nome: salvo.nome, texto: '', campos: {} }
-        const campos = mecanicaDaArma.efeito === undefined ? base.campos : { ...base.campos, [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }
+        const campos = camposComOEfeitoDaMecanica(mecanicaDaArma.efeito === undefined ? base.campos : { ...base.campos, [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }, mecanicaDaArma.mecanica, sistemaDoLivro)
         await gravarRegraDaArma({ ...base, campos, acervoId: salvo.id, ...(mecanicaDaArma.mecanica === undefined ? {} : { mecanica: mecanicaDaArma.mecanica }) }, sistemaDoLivro)
         setMecanicaDaArma(null)
       }

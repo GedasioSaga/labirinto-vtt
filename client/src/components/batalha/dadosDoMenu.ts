@@ -1291,9 +1291,9 @@ export function golpesDeAtaque(
 /**
  * Construtor C8: a tira da arma montada (o Boomerang). O dano, o selo do
  * acerto, quem reage, o custo, a ação e os usos ("Restam 2 de 3") saem das peças,
- * e o motivo é o mesmo do host (`motivoDaArmaNaVez`). Tudo ou nada: o Dano e o
- * Efeito em texto da arma ficam só na leitura, e as balas saem (o dano delas é
- * o do Atacar de texto).
+ * e o motivo é o mesmo do host (`motivoDaArmaNaVez`). Tudo ou nada: o Dano em
+ * texto da arma fica só na leitura, o Efeito em texto sai (a "Mecânica" o diz),
+ * e as balas saem (o dano delas é o do Atacar de texto).
  */
 function golpeDaArmaMontada(
   base: GolpeNaTela,
@@ -1324,7 +1324,8 @@ function golpeDaArmaMontada(
     perfurante: mecanica.dano?.perfurante === true,
     perfuracao: null,
     motivo: motivoDaArmaNaVez(arma, lida, personagem, sistema, combate, acoes),
-    leitura: [...leituraDoCartao(arma, sistema, ABA_DAS_ARMAS, dano), { rotulo: 'Mecânica', texto: resumoDaMecanica(mecanica, { personagem, sistema }).join(' ') }],
+    // O Efeito em texto sai: a linha "Mecânica" diz o que ela faz com os números de quem usa, e o texto (frase do boneco de treino, ou um velho escrito à mão) diria outros.
+    leitura: [...leituraDoCartao(arma, sistema, ABA_DAS_ARMAS, dano).filter((linha) => linha.campo !== CAMPO_DO_EFEITO), { rotulo: 'Mecânica', texto: resumoDaMecanica(mecanica, { personagem, sistema }).join(' ') }],
   }
   const selo = seloDasPecas(mecanica)
   if (selo !== null) golpe.selo = selo

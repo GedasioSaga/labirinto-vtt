@@ -745,8 +745,6 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
   const [avisoDoExtra, setAvisoDoExtra] = useState<string | null>(null)
   const valoresDosExtras = useRef<(HTMLInputElement | null)[]>([])
   const focarNoExtra = useRef<number | null>(null)
-  /** O modelo de arma recém-escolhido: o Efeito em texto vira a frase dele (regra do dono: um lugar não diz outra coisa). */
-  const escolheuModeloDaArma = useRef(false)
   useEffect(() => {
     if (focarNoExtra.current === null) return
     valoresDosExtras.current[focarNoExtra.current]?.focus()
@@ -890,15 +888,8 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
             </>
           ) : (
             <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={cartoesDaAba(personagem, ABA_DAS_ARMAS)}
-              onChange={(novo) => {
-                const comTexto = cartaoComOEfeitoDaMecanica(cartao, novo, sistema, escolheuModeloDaArma.current)
-                escolheuModeloDaArma.current = false
-                onChange(comTexto)
-              }}
+              onChange={(novo) => onChange(cartaoComOEfeitoDaMecanica(cartao, novo, sistema))}
               doQue="arma"
-              onModelo={() => {
-                escolheuModeloDaArma.current = true
-              }}
             />
           ))}
         {aba.modificadores === true && <PecaDoMestreNaForma cartao={cartao} podeMudar={quemEditaAMecanica === 'mestre'} onChange={onChange} />}

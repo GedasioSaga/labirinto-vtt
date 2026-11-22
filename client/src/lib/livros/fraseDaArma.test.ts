@@ -4,21 +4,23 @@ import { mecanicaDoModeloDaArma } from '../batalha/mecanica/arma'
 import { guardarMecanica } from '../batalha/mecanica/modelos'
 import { descricaoDizOEfeito } from '../descricaoDoEfeito'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
-import { efeitoQueSegueAMecanica, fraseDoQueElaFaz } from './fraseDaArma'
+import { camposComOEfeitoDaMecanica, efeitoQueSegueAMecanica, fraseDoQueElaFaz } from './fraseDaArma'
 
 const sistema = SISTEMA_ONE_PIECE
 const atordoa = guardarMecanica(mecanicaDoModeloDaArma('atordoa', sistema))
 const sangra = guardarMecanica(mecanicaDoModeloDaArma('laminaQueSangra', sistema))
 
 describe('o texto segue a mecânica', () => {
-  it('modelo escolhido troca o texto à mão; a frase automática segue cada mudança e sai com a mecânica; o texto à mão fica no ajuste', () => {
+  it('com mecânica o Efeito é sempre a frase (o texto à mão sai, com ou sem modelo); a frase sai com a mecânica; o texto à mão sem mecânica fica', () => {
     const fraseDoAtordoa = fraseDoQueElaFaz(atordoa, sistema)
     expect(fraseDoAtordoa).toMatch(/Atordoad/)
-    expect(efeitoQueSegueAMecanica('Atordoa (à mão)', undefined, atordoa, sistema, true)).toBe(fraseDoAtordoa)
-    expect(efeitoQueSegueAMecanica('', undefined, atordoa, sistema, false)).toBe(fraseDoAtordoa)
-    expect(efeitoQueSegueAMecanica(fraseDoAtordoa, atordoa, sangra, sistema, false)).toBe(fraseDoQueElaFaz(sangra, sistema))
-    expect(efeitoQueSegueAMecanica('Escrito à mão', atordoa, sangra, sistema, false)).toBe('Escrito à mão')
-    expect([efeitoQueSegueAMecanica(fraseDoAtordoa, atordoa, undefined, sistema, false), efeitoQueSegueAMecanica('Escrito à mão', atordoa, undefined, sistema, false)]).toEqual(['', 'Escrito à mão'])
+    expect(efeitoQueSegueAMecanica('Atordoa (à mão)', undefined, atordoa, sistema)).toBe(fraseDoAtordoa)
+    expect(efeitoQueSegueAMecanica('', undefined, atordoa, sistema)).toBe(fraseDoAtordoa)
+    expect(efeitoQueSegueAMecanica(fraseDoAtordoa, atordoa, sangra, sistema)).toBe(fraseDoQueElaFaz(sangra, sistema))
+    expect(efeitoQueSegueAMecanica('3 usos por combate', atordoa, sangra, sistema)).toBe(fraseDoQueElaFaz(sangra, sistema))
+    expect([efeitoQueSegueAMecanica(fraseDoAtordoa, atordoa, undefined, sistema), efeitoQueSegueAMecanica('Escrito à mão', atordoa, undefined, sistema)]).toEqual(['', 'Escrito à mão'])
+    // Gravar: a arma montada leva a frase no Efeito; a sem mecânica fica com o texto à mão.
+    expect([camposComOEfeitoDaMecanica({ dano: '2d6', efeito: '3 usos por combate' }, atordoa, sistema), camposComOEfeitoDaMecanica({ efeito: 'Escrito à mão' }, undefined, sistema)]).toEqual([{ dano: '2d6', efeito: fraseDoAtordoa }, { efeito: 'Escrito à mão' }])
   })
 
   it('a descrição do item que diz um efeito com número é reconhecida; a de cor, não', () => {
