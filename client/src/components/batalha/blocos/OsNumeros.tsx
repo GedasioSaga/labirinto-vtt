@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react'
 import { CUSTO_MAX, DANO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX } from '../../../lib/batalha/combate'
-import { ATRIBUTO_MAX, CD_MAX, FORMULA_MAX, LIMITE_MAX, type Custo, type Efeito, type MecanicaV1, type ModDaPeca } from '../../../lib/batalha/mecanica/modelo'
+import { ATRIBUTO_MAX, CASAS_MAX, CD_MAX, FORMULA_MAX, LIMITE_MAX, type Custo, type Efeito, type MecanicaV1, type ModDaPeca } from '../../../lib/batalha/mecanica/modelo'
 import { fraseDoAlvo, fraseDoCusto, nomeDoAtributo, type FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import { CampoNumero } from '../../FichaPecas'
 import { numeroDoTexto, textoDoNumero, type BlocosProps } from './controles'
@@ -143,6 +143,40 @@ function linhaDaCura(mecanica: MecanicaV1, onChange: Mudar): ReactNode {
   )
 }
 
+/** Fase 6 (H14): com quanto o caído volta (a parte do HP máximo dele). */
+function linhaDoReviver(mecanica: MecanicaV1, onChange: Mudar): ReactNode {
+  const indice = mecanica.efeitos.findIndex((efeito) => efeito.tipo === 'reviver')
+  const reviver = mecanica.efeitos[indice]
+  if (reviver === undefined || reviver.tipo !== 'reviver' || !('porcento' in reviver.volta)) return null
+  const { volta } = reviver
+  return (
+    <Frase>
+      Quem caiu levanta com{' '}
+      <NumeroNaFrase rotulo="Parte do HP máximo com que volta, em %" valor={volta.porcento} minimo={1} maximo={100} onChange={(porcento) => onChange({ ...mecanica, efeitos: mecanica.efeitos.map((efeito, j) => (j === indice ? { ...reviver, volta: { ...volta, porcento } } : efeito)) })} />
+      % do HP máximo dele.
+    </Frase>
+  )
+}
+
+/** Fase 6 (H05): a área longe: o raio em volta do ponto e o alcance do ponto. */
+function linhaDaAreaLonge(mecanica: MecanicaV1, onChange: Mudar): ReactNode {
+  const { forma, alcance } = mecanica.alvo
+  if (forma.tipo !== 'raio' || forma.centro === undefined) return null
+  const ondeCai = forma.centro === 'ponto' ? 'de um ponto' : 'de uma ficha'
+  return (
+    <Frase>
+      Pega quem está a até <NumeroNaFrase rotulo="Casas em volta do centro" valor={forma.casas} minimo={1} maximo={CASAS_MAX} onChange={(casas) => onChange({ ...mecanica, alvo: { ...mecanica.alvo, forma: { ...forma, casas } } })} /> casa {ondeCai}
+      {alcance === undefined ? (
+        '.'
+      ) : (
+        <>
+          {' '}a até <NumeroNaFrase rotulo="Alcance do centro, em casas" valor={alcance} minimo={1} maximo={CASAS_MAX} onChange={(casas) => onChange({ ...mecanica, alvo: { ...mecanica.alvo, alcance: casas } })} /> casas de quem usa.
+        </>
+      )}
+    </Frase>
+  )
+}
+
 function linhaDoDreno(mecanica: MecanicaV1, onChange: Mudar): ReactNode {
   const indice = mecanica.efeitos.findIndex((efeito) => efeito.tipo === 'dreno')
   const dreno = mecanica.efeitos[indice]
@@ -262,7 +296,9 @@ export function OsNumeros({ mecanica, ficha, onChange }: Pick<BlocosProps, 'meca
   const linhas = [
     { chave: 'reacao', no: linhaDaReacao(mecanica, onChange) },
     { chave: 'dano', no: mecanica.uso === 'reacao' ? null : linhaDoDano(mecanica, onChange) },
+    { chave: 'area', no: linhaDaAreaLonge(mecanica, onChange) },
     { chave: 'cura', no: linhaDaCura(mecanica, onChange) },
+    { chave: 'reviver', no: linhaDoReviver(mecanica, onChange) },
     { chave: 'dreno', no: linhaDoDreno(mecanica, onChange) },
     { chave: 'selo', no: linhaDoSelo(mecanica, ficha, onChange) },
     { chave: 'custo', no: linhaDoCusto(mecanica, onChange) },

@@ -30,7 +30,10 @@ const QUAIS_TIRA: readonly Opcao<QuaisTira>[] = [
 ]
 
 /** A ordem fixa dos efeitos (a ficha gravada sai sempre igual; os selos guardam a ordem entre eles). */
-const ORDEM: readonly Efeito['tipo'][] = ['selo', 'cura', 'tirarSelos', 'dreno', 'aMao']
+const ORDEM: readonly Efeito['tipo'][] = ['selo', 'cura', 'tirarSelos', 'dreno', 'reviver', 'aMao']
+
+/** Fase 6 (H14): a parte do HP máximo com que o caído volta, de partida. */
+const REVIVER_DE_PARTIDA = 25
 
 /** A parte do dano que volta em vida, de partida (o H17). */
 const DRENO_DE_PARTIDA = 50
@@ -91,6 +94,7 @@ export function BlocoDosEfeitos({ mecanica, ficha, onChange }: Pick<BlocosProps,
   const curaEmQuemUsa = efeitos.find((efeito): efeito is CuraDaPeca => efeito.tipo === 'cura' && efeito.em === 'quemUsa')
   const tira = efeitos.find((efeito) => efeito.tipo === 'tirarSelos')
   const dreno = efeitos.find((efeito) => efeito.tipo === 'dreno')
+  const revive = efeitos.find((efeito) => efeito.tipo === 'reviver')
   const lembretes = efeitos.flatMap((efeito, indice) => (efeito.tipo === 'aMao' ? [{ indice, texto: efeito.texto }] : []))
   // Fase 4: só no lugar da reação, o selo vai em quem atacou e a cura e o "tira selos" (efeitos da vez) não existem.
   const soReacao = mecanica.uso === 'reacao'
@@ -167,6 +171,24 @@ export function BlocoDosEfeitos({ mecanica, ficha, onChange }: Pick<BlocosProps,
       {dreno !== undefined && dreno.tipo === 'dreno' && (
         <div className="lb-mec__linha lb-mec__linha--recuo">
           <CampoInteiro rotulo="Recupera" valor={dreno.porcentoDoDano} minimo={1} maximo={100} depois="% do dano causado, em HP" onChange={(porcentoDoDano) => trocarUm((efeito) => efeito.tipo === 'dreno', { ...dreno, porcentoDoDano })} />
+        </div>
+      )}
+      {/* Fase 6 (H14): reviver liga o alvo caído (um aliado escolhido); tirar volta ao alvo de pé. */}
+      <Marcar
+        rotulo="Revive: quem caiu (0 de vida) levanta"
+        marcado={revive !== undefined}
+        bloqueio={revive === undefined ? cheioOu(mecanica.alvo.quem !== 'aliados' ? 'Só num aliado (bloco 4).' : mecanica.dano !== undefined || curaNoAlvo !== undefined || tira !== undefined || dreno !== undefined ? 'Reviver não junta com dano, cura nem tirar condições.' : daVez) : null}
+        onChange={(sim) => {
+          const { estado: _antes, ...alvoDePe } = mecanica.alvo
+          const forma = mecanica.alvo.forma.tipo === 'varios' ? mecanica.alvo.forma : { tipo: 'um' as const }
+          const outros = efeitos.filter((efeito) => efeito.tipo !== 'reviver')
+          const reviver: Efeito = { tipo: 'reviver', volta: { porcento: REVIVER_DE_PARTIDA, de: 'hpMaximo', deQuem: 'alvo' } }
+          onChange(sim ? { ...mecanica, alvo: { ...alvoDePe, forma, estado: 'caido' }, efeitos: [...outros, reviver].sort((a, b) => ORDEM.indexOf(a.tipo) - ORDEM.indexOf(b.tipo)) } : { ...mecanica, alvo: alvoDePe, efeitos: outros })
+        }}
+      />
+      {revive !== undefined && revive.tipo === 'reviver' && 'porcento' in revive.volta && (
+        <div className="lb-mec__linha lb-mec__linha--recuo">
+          <CampoInteiro rotulo="Levanta com" valor={revive.volta.porcento} minimo={1} maximo={100} depois="% do HP máximo dele" onChange={(porcento) => trocarUm((efeito) => efeito.tipo === 'reviver', { tipo: 'reviver', volta: { porcento, de: 'hpMaximo', deQuem: 'alvo' } })} />
         </div>
       )}
       <div className="lb-mec__lembretes">

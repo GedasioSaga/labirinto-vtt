@@ -128,7 +128,15 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
           Testar de novo
         </button>
         {passarUmaVez !== null && (
-          <button type="button" className="mu-bt mu-bt--p" onClick={() => setDepois((antes) => [...antes, ...passarUmaVez()])}>
+          <button
+            type="button"
+            className="mu-bt mu-bt--p"
+            onClick={() => {
+              // Passar mexe na mesa do teste: roda UMA vez, fora do atualizador (o StrictMode chama o atualizador duas vezes e passava 2 vezes por clique, mostrando só uma).
+              const novos = passarUmaVez()
+              setDepois((antes) => [...antes, ...novos])
+            }}
+          >
             Passar 1 vez do alvo
           </button>
         )}

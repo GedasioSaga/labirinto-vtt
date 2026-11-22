@@ -17,17 +17,21 @@ import {
 } from '../../lib/batalha/combate'
 import type { PerguntaNaHora, RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
 import { divisaoDoDano } from '../../lib/batalha/reacao'
-import { dividirDano, type Direcao } from '../../lib/batalha/area'
+import { dividirDano, pegadaDaCasa, type Casa, type Direcao } from '../../lib/batalha/area'
 import type { AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
 import { useImagemDaMesa } from '../ImagemDaMesa'
 import { BotaoDaCalculadora, CalculadoraDeDano } from './CalculadoraDeDano'
 import { ContaComBonus } from './ContaComBonus'
+import { EscolhaDoPonto } from './EscolhaDoPonto'
 import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
 import {
   alvoServeAoAbrir,
+  alvosEmVoltaDoCentro,
   alvosNaOrdemDaAjuda,
+  distanciaNaMira,
+  motivoDoAlvoNaTecnica,
   golpeDeAjuda,
   marcadosAoAbrirAMira,
   semFeridoDoLado,
@@ -103,6 +107,9 @@ export interface EscolhaDaMira {
   respostas?: RespostasDoPedido
   /** F2 (fatia F, Siegfried): a arma escolhida na técnica que pergunta qual; ausente = a do golpe. */
   armaId?: string
+  /** Fase 6: o centro da área longe: a casa escolhida (a granada) ou a ficha no centro; ausente = a área sai de quem usa. */
+  ponto?: { col: number; row: number }
+  centroId?: string
 }
 
 /** F2 (fatia B): a resposta de cada pergunta ao abrir: a 1ª opção, ou o mínimo do número. */
@@ -153,6 +160,8 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
     ...(escolha.variante === undefined ? {} : { variante: escolha.variante }),
     ...(escolha.respostas === undefined ? {} : { respostas: escolha.respostas }),
     ...bala,
+    ...(escolha.ponto === undefined ? {} : { ponto: escolha.ponto }),
+    ...(escolha.centroId === undefined ? {} : { centroId: escolha.centroId }),
   }
 }
 
@@ -311,8 +320,13 @@ function alternarNaLista(antes: readonly string[], tokenId: string, tetoDeAlvos:
   return tetoDeAlvos === 1 ? [tokenId] : [...antes, tokenId].slice(-ALVOS_MAX)
 }
 
-export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVoltar, consulta, contra, alvoInicial, rotuloDoLancar, semVoltar, mapa, marcadosDaArea, confirmaOutroLado = false, focoAoAbrir = false }: MiraDoGolpeProps) {
+export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLancar, onVoltar, consulta, contra, alvoInicial, rotuloDoLancar, semVoltar, mapa, marcadosDaArea, confirmaOutroLado = false, focoAoAbrir = false }: MiraDoGolpeProps) {
   const idBase = useId()
+  // Fase 6: o motivo do alvo nesta técnica (o reviver em quem está de pé, o alvo fora do alcance) apaga a linha, como o host recusaria.
+  const alvos = useMemo(() => alvosDaMesa.map((alvo) => (alvo.motivo ? alvo : { ...alvo, motivo: motivoDoAlvoNaTecnica(golpe, alvo) })), [alvosDaMesa, golpe])
+  // Fase 6: o centro da área longe (a casa da granada, ou a ficha no centro);  = ainda não escolhido.
+  const [ponto, setPonto] = useState<Casa | null>(null)
+  const [centroId, setCentroId] = useState<string | null>(null)
   // Conserto de 09/11 (a Bolha): na ajuda, quem é do lado de quem usa vem primeiro (os feridos antes); o outro lado fica no fim.
   const ajuda = golpeDeAjuda(golpe)
   const lista = ajuda ? alvosNaOrdemDaAjuda(alvos) : alvos
@@ -456,8 +470,28 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     setMarcados(alvosNaAreaPelaGrade(area, alvos, lado).slice(0, ALVOS_MAX))
   }
 
+  /** Fase 6: escolher o centro da área longe marca quem está em volta dele (o que quem usa mudou à mão sai junto: é outra mira). */
+  const escolherCentro = (centro: { ponto: Casa } | { tokenId: string }) => {
+    const area = golpe.area
+    if (area === undefined) return
+    setErro(null)
+    const pegada = 'ponto' in centro ? pegadaDaCasa(centro.ponto) : (alvos.find((alvo) => alvo.tokenId === centro.tokenId)?.naGrade?.ficha ?? null)
+    if ('ponto' in centro) setPonto(centro.ponto)
+    else setCentroId(centro.tokenId)
+    setMarcados(pegada === null ? [] : alvosEmVoltaDoCentro(area, alvos, pegada).slice(0, ALVOS_MAX))
+  }
+
   const lancar = (evento?: FormEvent) => {
     evento?.preventDefault()
+    // Fase 6: a área longe pede o centro antes (a mesma frase do host).
+    if (golpe.area?.centro === 'ponto' && ponto === null) {
+      setErro('Escolha a casa do centro da área')
+      return
+    }
+    if (golpe.area?.centro === 'alvo' && centroId === null) {
+      setErro('Escolha a ficha do centro da área')
+      return
+    }
     if (marcados.length === 0 && golpe.semAlvo !== true) {
       setErro('Escolha ao menos um alvo (clique na ficha no mapa ou marque na lista).')
       return
@@ -532,6 +566,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       ...(opcao === null ? {} : { variante: opcao.chave }),
       ...(golpe.perguntas === undefined ? {} : { respostas }),
       ...(armaEscolhida === null ? {} : { armaId: armaEscolhida.id }),
+      ...(golpe.area?.centro === 'ponto' && ponto !== null ? { ponto } : {}),
+      ...(golpe.area?.centro === 'alvo' && centroId !== null ? { centroId } : {}),
     })
     if (saiu !== true) setErro(typeof saiu === 'string' ? saiu : 'O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
     else tocarSomDoCombate('confirmar')
@@ -622,6 +658,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
 
   const marcadosSet = useMemo(() => new Set(marcados), [marcados])
   const areaNaGrade = areaDaGrade(golpe, alvos)
+  // Fase 6: a ficha de quem age na grade (a origem do alcance e da grade do ponto); `null` = sem mapa.
+  const deQuemAge = alvos.find((alvo) => alvo.naGrade !== undefined)?.naGrade?.deQuemAge ?? null
   const verbo = rotuloDoLancar ?? 'Lançar'
   const textoDoLancar = marcados.length > 1 ? `${verbo} em ${marcados.length} alvos` : verbo
   // D8: com a área ou sem alvo, todos à vista (a área marca pela grade). O marcado nunca some da lista.
@@ -675,7 +713,27 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
             </div>
           </fieldset>
         )}
-        {areaNaGrade !== null && <p className="bt-mira__nota">{textoDaAreaNaMira(alvosNaAreaPelaGrade(areaNaGrade, alvos, direcao).length, areaComFrente(areaNaGrade))}</p>}
+        {areaNaGrade !== null && golpe.area?.centro === undefined && <p className="bt-mira__nota">{textoDaAreaNaMira(alvosNaAreaPelaGrade(areaNaGrade, alvos, direcao).length, areaComFrente(areaNaGrade))}</p>}
+        {golpe.area?.centro === 'ponto' && deQuemAge !== null && (
+          <EscolhaDoPonto deQuemAge={deQuemAge} alvos={alvos} alcance={golpe.alcance} raio={golpe.area.forma.tipo === 'raio' ? golpe.area.forma.casas : 0} ponto={ponto} onEscolher={(casa) => escolherCentro({ ponto: casa })} />
+        )}
+        {golpe.area?.centro === 'alvo' && (
+          <label className="bt-mira__centro">
+            <span>Em volta de</span>
+            <select value={centroId ?? ''} onChange={(evento) => evento.target.value !== '' && escolherCentro({ tokenId: evento.target.value })}>
+              <option value="">Escolha a ficha do centro</option>
+              {alvos
+                .filter((alvo) => alvo.naGrade !== undefined && !alvo.caiu && (golpe.alcance === undefined || (distanciaNaMira(alvo) ?? 0) <= golpe.alcance))
+                .map((alvo) => (
+                  <option key={alvo.tokenId} value={alvo.tokenId}>
+                    {alvo.nome}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
+        {golpe.area?.centro !== undefined && deQuemAge === null && <p className="bt-mira__nota">Sem o mapa, a mira não sabe onde cada um está: o centro da área não dá para escolher aqui.</p>}
+        {golpe.reviver === true && !alvos.some((alvo) => alvo.caiu && alvo.lado !== 'outro') && <p className="bt-mira__nota">Ninguém do seu lado caiu: reviver só vale em quem está com 0 de vida.</p>}
         {golpe.divide !== undefined && <p className="bt-mira__nota">{textoDoDanoDividido(base, marcados.length, golpe.divide)}</p>}
         {balas.length > 0 && (
           <fieldset className="bt-mira__balas">
@@ -756,7 +814,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                   ? 'Quem recebe · você e aliados; Espaço marca, ou clique na ficha no mapa'
                   : 'Alvos · Espaço marca, setas trocam, clique na ficha no mapa'}
           </legend>
-          {visiveis.length === 0 && lista.length > 0 && !(golpe.cura === true && semFeridoDoLado(alvos)) && (
+          {/* Fase 6: o reviver já diz "ninguém do seu lado caiu" no alto; o "de pé" aqui o contradiria. */}
+          {visiveis.length === 0 && lista.length > 0 && golpe.reviver !== true && !(golpe.cura === true && semFeridoDoLado(alvos)) && (
             <p className="bt-mira__nota">{ajuda ? (golpe.cura === true ? 'Ninguém do seu lado está ferido: a mira abre sem alvo.' : 'Ninguém do seu lado de pé: a mira abre sem alvo.') : 'Nenhum inimigo de pé: a mira abre sem alvo.'}</p>
           )}
           {visiveis.map((alvo) => {

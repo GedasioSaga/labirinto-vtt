@@ -4433,3 +4433,54 @@
 .ar-tela .ar-pendencias .bt-secao__titulo {
   color: var(--lb-color-brass-bright);
 }
+
+/* Fase 6 (H05): a grade da mira para escolher o ponto da área longe. Sem transição: escolha repetida, resposta na hora. */
+.bt-ponto__grade {
+  display: grid;
+  gap: 1px;
+  width: min(100%, 260px);
+  aspect-ratio: 1;
+  padding: 1px;
+  background: #cfc8b8;
+  border-radius: 4px;
+  outline-offset: 2px;
+  cursor: crosshair;
+}
+.bt-ponto__grade:focus-visible {
+  outline: 2px solid #1d1b18;
+}
+.bt-ponto__linha {
+  display: contents;
+}
+.bt-ponto__casa {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: #f6f2e8;
+}
+.bt-ponto__casa--longe {
+  background: #e4dfd3;
+  cursor: not-allowed;
+}
+.bt-ponto__casa--area {
+  background: #f3c9a8;
+}
+.bt-ponto__casa--centro {
+  background: #d9773f;
+}
+.bt-ponto__casa--cursor {
+  box-shadow: inset 0 0 0 2px #1d1b18;
+}
+.bt-ponto__eu,
+.bt-ponto__ficha {
+  width: 60%;
+  height: 60%;
+  border-radius: 50%;
+  background: #2f6f4f;
+}
+.bt-ponto__eu {
+  background: #1d1b18;
+}
+.bt-ponto__ficha--outro {
+  background: #a3322b;
+}

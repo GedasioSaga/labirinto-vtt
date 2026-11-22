@@ -24,8 +24,9 @@ import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, t
 import { lerMarca } from '../../lib/batalha/marca'
 import { chavesDoDono, golpesSaoOverload, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao, reacaoDasPecas, seloDasPecas } from '../../lib/batalha/mecanica/leitura'
-import { casaNaAreaVirada, direcaoDaRotacao, DIRECOES, fichaNaArea, pegadaDaFicha, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
+import { casaNaAreaVirada, direcaoDaRotacao, DIRECOES, distanciaEntreFichas, fichaNaArea, fichaPertoDoCentro, pegadaDaFicha, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
 import { casaDoToken } from '../../lib/batalha/movimentoEmBatalha'
+import { motivoDoAlvoDePe, motivoForaDoAlcance } from '../../lib/batalha/golpe'
 import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
 import { subidaDeParte } from '../../lib/batalha/transformacao'
 import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
@@ -95,6 +96,10 @@ export interface GolpeNaTela {
   areaPelaGrade?: true
   /** Construtor C3: a técnica montada acerta no máximo tantos alvos (1 alvo, "até N"); a mira avisa antes do host. */
   tetoDeAlvos?: number
+  /** Fase 6: até quantas casas de quem usa (o alvo, ou o centro da área longe); a mira apaga o que passa e o host confere. */
+  alcance?: number
+  /** Fase 6 (H14): só vale em aliado caído; a mira abre nele e recusa quem está de pé, com o motivo. */
+  reviver?: true
   /** F2 (fatia F, Golpe Baixo): o que a mira lembra (o mestre confere). */
   lembrete?: string
   /** Construtor C1: os multiplicadores extras da técnica montada (furtivo ×3), na ordem; a prévia os mostra na conta. */
@@ -540,7 +545,9 @@ export function alvosNaOrdemDaAjuda<T extends AlvoNaMira>(alvos: readonly T[]): 
  *    estar ferido, e só o host sabe;
  *  - outra ajuda (Buff): o lado de quem usa, de pé.
  */
-export function alvoServeAoAbrir(golpe: Pick<GolpeNaTela, 'cura' | 'reacao' | 'contraInimigos'>, alvo: AlvoNaMira): boolean {
+export function alvoServeAoAbrir(golpe: Pick<GolpeNaTela, 'cura' | 'reacao' | 'contraInimigos' | 'reviver'>, alvo: AlvoNaMira): boolean {
+  // Fase 6 (H14): o reviver serve aos caídos do lado de quem usa (o contrário de toda outra ajuda).
+  if (golpe.reviver === true) return !alvo.motivo && alvo.caiu && alvo.lado !== 'outro'
   if (alvo.motivo || alvo.caiu) return false
   if (!golpeDeAjuda(golpe)) return alvo.lado === 'outro'
   if (alvo.lado === 'outro') return false
@@ -571,6 +578,13 @@ export interface AberturaDaMira {
 export function marcadosAoAbrirAMira(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], abertura: AberturaDaMira = {}): string[] {
   const valido = (tokenId: string): boolean => alvos.some((alvo) => alvo.tokenId === tokenId && !alvo.motivo)
   if (golpe.cura === true) return feridosParaACura(alvos, golpe.tetoDeAlvos ?? 1) ?? []
+  // Fase 6 (H14): o reviver abre no primeiro caído do lado de quem usa; ninguém caído = ninguém marcado (a mira diz por quê).
+  if (golpe.reviver === true) {
+    const caido = alvos.find((alvo) => alvoServeAoAbrir(golpe, alvo))
+    return caido === undefined ? [] : [caido.tokenId]
+  }
+  // Fase 6: a área longe só marca depois que quem usa escolhe o centro.
+  if (golpe.area?.centro !== undefined) return []
   if (golpe.alvoEmSi === true) {
     const quemUsa = alvos.find((alvo) => alvo.lado === 'eu' && !alvo.motivo)
     return quemUsa === undefined ? [] : [quemUsa.tokenId]
@@ -873,6 +887,8 @@ function golpeDaTecnica(
   if (cartaoMontado(cartao)) {
     if (mecanica?.area !== undefined) golpe.areaPelaGrade = true
     if (mecanica?.tetoDeAlvosComDano !== undefined) golpe.tetoDeAlvos = mecanica.tetoDeAlvosComDano
+    if (mecanica?.alcance !== undefined) golpe.alcance = mecanica.alcance
+    if (mecanica?.reviver !== undefined) golpe.reviver = true
     // A peça de alvo manda na mira como manda no host (`reacaoDasPecas`), não o Tipo escrito: ajuda não reage e começa em quem usa.
     const alvoDasPecas = pecasDoCartao(cartao)
     if (alvoDasPecas !== null) {
@@ -998,6 +1014,37 @@ export function alvosNaAreaPelaGrade(area: AreaAMao, alvos: readonly AlvoNaMira[
     .filter((alvo) => !alvo.motivo && !alvo.caiu && entraPeloLado(area.quem, alvo.lado))
     .filter((alvo) => alvo.naGrade !== undefined && fichaNaArea(area.forma, alvo.naGrade.deQuemAge, direcao, alvo.naGrade.ficha))
     .map((alvo) => alvo.tokenId)
+}
+
+/**
+ * Fase 6: quem a área longe pega, em volta de `centro` (a casa escolhida, ou a
+ * ficha no centro, que entra): a ficha inteira de cada alvo a até as casas do
+ * raio. Quem age entra só na "todos" (a granada aos pés dele pega ele também).
+ */
+export function alvosEmVoltaDoCentro(area: AreaAMao, alvos: readonly AlvoNaMira[], centro: PegadaNaGrade): string[] {
+  const casas = area.forma.tipo === 'raio' ? area.forma.casas : 0
+  return alvos
+    .filter((alvo) => !alvo.motivo && !alvo.caiu && entraPeloLado(area.quem, alvo.lado) && (alvo.lado !== 'eu' || area.quem === 'todos'))
+    .filter((alvo) => alvo.naGrade !== undefined && fichaPertoDoCentro(centro, casas, alvo.naGrade.ficha))
+    .map((alvo) => alvo.tokenId)
+}
+
+/** Fase 6: a distância do alvo a quem age, da borda da ficha (`null` = sem posição na grade). */
+export function distanciaNaMira(alvo: AlvoNaMira): number | null {
+  return alvo.naGrade === undefined ? null : distanciaEntreFichas(alvo.naGrade.deQuemAge, alvo.naGrade.ficha)
+}
+
+/**
+ * Fase 6: por que a mira não deixa marcar `alvo` nesta técnica: o reviver em
+ * quem está de pé, ou o alvo fora do alcance (as mesmas frases do host).
+ * `null` = pode. Na área longe o alcance mede o centro, não os alvos.
+ */
+export function motivoDoAlvoNaTecnica(golpe: Pick<GolpeNaTela, 'reviver' | 'alcance' | 'area'>, alvo: AlvoNaMira): string | null {
+  if (golpe.reviver === true && !alvo.caiu) return motivoDoAlvoDePe(alvo.nome)
+  const { alcance } = golpe
+  if (alcance === undefined || golpe.area?.centro !== undefined) return null
+  const distancia = distanciaNaMira(alvo)
+  return distancia !== null && distancia > alcance ? motivoForaDoAlcance(alcance, distancia) : null
 }
 
 /** Construtor C3: a área aponta para um lado (linha, quadrado à frente); o raio e o "em volta" não. */
