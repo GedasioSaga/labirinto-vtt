@@ -2910,3 +2910,9 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - Print: página Itens do livro com três cartões "Do acervo" (Porção Grande, Kit Médico, Spray Médico), só com "Pôr em Aira", sem botão de editar.
 - 22/11 09h38 (date). Causa: o cartão "Do acervo" da página Itens só punha na mochila; editar era só pelo Acervo (comentário em PaginaItens.tsx). Decisão do Claude: botão "Editar" no cartão abre a mesma janela do Acervo (nome, foto, "O que ele faz", apagar), sem o "Dar a…" (ali o "Pôr em" já faz isso). Os três itens do print não têm "O que ele faz": a cura está só no texto, então não curam na batalha até escolher o efeito.
 - 22/11 10h12 (date). 0.5.92 PUBLICADA (release em 32e0f20a: Editar nos cartões "Do acervo" e Esc depois de Salvar fecha só a janela; latest.json 0.5.92 conferido, setup.exe/.sig/.msi, Worker 76566017 e site do lobby junto; tsc 0 client e lobby/nuvem, vite build 0, guarda limpa, gitleaks limpo de v0.5.91 a 32e0f20a; logs em tmp/rel-0.5.92/; disco 12,2 GB antes, mínimo 9,1 GB no build, 11,7 GB depois).
+
+## PEDIDO NOVO (22/11 11h23): melhorar o design do cartão do catálogo
+
+- Literal: "[Image #42] cara melhora esse design"
+- Print: cartão "Boomerang" da página Itens do livro. O nome quebra uma letra por linha, porque os selos "DO CATÁLOGO", "LIGADA AO ACERVO" e "MONT…" (cortado) ocupam a linha do nome. Abaixo vêm "Arma", três linhas de regra com bolinha, alça, lápis, lixeira e "Pôr em Aira".
+- 22/11 11h23 (date). Fila: designer-opus refaz o topo do cartão (CartaoDaEntrada em PaginaItens.tsx + itens.css). O nome nunca quebra letra a letra, os selos não cortam, e vale o pior caso (nome longo, 3 selos). Publicar depois (memória lançar logo).

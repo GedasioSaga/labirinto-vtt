@@ -1,4 +1,7 @@
-# 22/11 09h38: EDITAR ITEM DO ACERVO NA PÁGINA ITENS, 0.5.92 PUBLICADA 22/11 10h12 (antes: 0.5.91 PUBLICADA 22/11 02h43)
+# 22/11 22/11 11h23: DESIGN DO CARTÃO DO CATÁLOGO EM VOO (0.5.92 PUBLICADA 10h12)
+
+## Pedido de 22/11 22/11 11h23 (literal no PEDIDOS)
+"cara melhora esse design": cartão Boomerang da página Itens com nome uma letra por linha (selos DO CATÁLOGO, LIGADA AO ACERVO, MONT… na linha do nome). EM VOO: designer-opus no CartaoDaEntrada (PaginaItens.tsx) + itens.css; critério: nome inteiro numa linha ou quebra por palavra, selos inteiros, pior caso ok, longtask < 200 ms, prints antes/depois em tmp/pedidos-2026-11-22/cartao-catalogo/. Depois: publicar 0.5.93.
 
 ## Pedido de 22/11 09h38 (literal no PEDIDOS)
 "não é para eu conseguir editar um item ?" (print: cartões Do acervo da página Itens só com Pôr em Aira).
