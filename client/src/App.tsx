@@ -15,6 +15,7 @@ import { alvoDoPincel, NOVA_CAMADA } from './lib/camadasDoPincel'
 import type { PincelNasCamadas } from './components/FloorLayersList'
 import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
+import { ligarFalaNoChat } from './stores/falaNoChat'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
 import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
 import { subscribeToDirtyFlag, saveOpenMap } from './stores/sessionStore'
@@ -987,6 +988,11 @@ function App() {
   const hostBridgeRef = useRef<HostBridge | null>(null)
   // "Enviar para cena ›" (clique direito no token): a ficha de jogador viaja pela sala aberta.
   useEffect(() => ligarSalaAoEnvio(() => hostBridgeRef.current), [])
+  // Fase 8 (o "Usar" fora da batalha): o aviso do uso vai ao chat Global pela sala aberta; sem sala, nada sai.
+  useEffect(() => {
+    ligarFalaNoChat((texto) => hostBridgeRef.current?.masterChatSend(texto) ?? false)
+    return () => ligarFalaNoChat(null)
+  }, [])
   // ENTRAR PELO LOBBY ("Entrar na mesa agora"): a sala aberta vai ao Lobby
   // quando a pasta aberta está publicada lá, e a chave que volta confere o
   // bilhete do jogador (`net/nuvem/salaNoLobby.ts`). Sem pasta publicada, sem

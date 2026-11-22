@@ -18,7 +18,14 @@ import type { AppliedItems, HostWorld } from '../net/hostSession'
 import type { CarriedItem } from '../types/map'
 import { InventarioDaFicha } from './InventarioDaFicha'
 import { curarPeloItem, itemQueCura, itemQueSeUsa, usarItemNaFicha } from '../lib/curaPeloItem'
+import { motivoDeNaoUsarFora, soEmQuemUsa } from '../lib/mochila/usarItemFora'
+import { falarNoChat } from '../stores/falaNoChat'
 import { mesaDaAventura } from '../stores/mesaDaAventura'
+import { candidatosAoUsoFora, usarItemForaNaMesa } from '../stores/usoDoItemFora'
+import { UsarItemFora } from './UsarItemFora'
+
+/** Quem o histórico da ficha diz que mexeu, no "Usar" do mestre. */
+const QUEM_USA_NO_HISTORICO = 'Mestre'
 import { chavesDaFichaNaBatalha } from '../stores/ponteDasCondicoes'
 import { chaveDaCenaAberta } from '../stores/turnoForaDaBatalha'
 import { useMapStore } from '../stores/mapStore'
@@ -342,6 +349,17 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
     useToastStore.getState().push('info', uso.curou.length === 0 ? `${quem} usou ${item.nome}.` : `${quem} usou ${item.nome}: ${uso.curou.join(', ')} saiu.`)
     if (!uso.mochila.some((vaga) => vaga.id === item.id)) fechar()
   }
+  // Fase 8: o "Usar" do item com efeito, pela mesa do mestre (a mesma do pedido do jogador), com aviso no chat e Desfazer.
+  const cenaDoUso = sceneId ?? chaveDaCenaAberta()
+  const candidatosDoUso = () => candidatosAoUsoFora(cenaDoUso, personagemId)
+  const usarComEfeito = (item: CarriedItem, alvoPersonagemId: string, fechar: () => void): string | null => {
+    const feito = usarItemForaNaMesa({ sceneKey: cenaDoUso, tokenId: token.id, personagemId, vagaId: item.id, alvoPersonagemId, quem: QUEM_USA_NO_HISTORICO })
+    if (!feito.ok) return feito.motivo
+    falarNoChat(feito.texto)
+    useToastStore.getState().push('info', feito.texto, undefined, { actions: [{ label: 'Desfazer', run: () => void feito.desfazer() }] })
+    if (!mochilaDeAgora().some((vaga) => vaga.id === item.id)) fechar()
+    return null
+  }
   if (aplicarItens === undefined) return { inventario: <InventarioDaFicha itens={itens} vazio={`Nada com ${dono}. Dê um item pelo acervo de itens.`} />, ...doBoneco }
   const inventario = (
     <MochilaDoMestre
@@ -366,10 +384,20 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
               {item.acesa === true ? 'Apagar' : 'Acender'}
             </button>
           )}
-          {itemQueSeUsa(item) && (
-            <button type="button" className="lb-btn lb-btn--primary lb-btn--compact" onClick={() => usar(item, fechar)}>
-              Usar
-            </button>
+          {/* Fase 8 (SISTEMA.md §5.2): o item com efeito usa as peças dele (cura, condição, reviver), em si ou num colega; o sem efeito, o "Usar" de antes. */}
+          {item.efeito !== undefined ? (
+            <UsarItemFora
+              item={item}
+              motivo={motivoDeNaoUsarFora(item)}
+              candidatos={(soEmQuemUsa(item) ? candidatosDoUso().slice(0, 1) : candidatosDoUso()).map(({ personagem: candidato }) => ({ personagemId: candidato.id, nome: candidato.nome }))}
+              onUsar={(alvoPersonagemId) => usarComEfeito(item, alvoPersonagemId, fechar)}
+            />
+          ) : (
+            itemQueSeUsa(item) && (
+              <button type="button" className="lb-btn lb-btn--primary lb-btn--compact" onClick={() => usar(item, fechar)}>
+                Usar
+              </button>
+            )
           )}
           <button type="button" className="lb-btn lb-btn--compact" onClick={() => agir('devolver', item, fechar)}>
             Largar no chão

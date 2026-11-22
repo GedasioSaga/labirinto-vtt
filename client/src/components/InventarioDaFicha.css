@@ -290,3 +290,29 @@
     transform: none;
   }
 }
+
+/* Fase 8 (SISTEMA.md §5.2): o "Usar" fora da batalha, com a escolha de em quem e o motivo de não usar. */
+.lb-inv__usar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+.lb-inv__usar-rotulo {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-inv__usar-em {
+  width: auto;
+  max-width: 14rem;
+}
+
+.lb-inv__usar-aviso {
+  flex-basis: 100%;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
