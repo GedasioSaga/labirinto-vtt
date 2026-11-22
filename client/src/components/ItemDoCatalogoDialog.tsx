@@ -6,6 +6,7 @@ import { cleanItemName, ITEM_DESCRICAO_MAX, ITEM_NAME_MAX_LENGTH, ITEM_PRECO_MAX
 import type { AlvoDoAcervo } from '../lib/party'
 import { ALCANCE_DA_LUZ_DO_ITEM_MAX, ALCANCE_DA_LUZ_DO_ITEM_MIN, CORES_SUGERIDAS_DA_LUZ_DO_ITEM, FORCA_DA_LUZ_DO_ITEM_MAX, FORCA_DA_LUZ_DO_ITEM_MIN, LUZ_DO_ITEM_PADRAO } from '../lib/luzDoItem'
 import type { LuzDoItem } from '../types/map'
+import { comEfeito, EfeitoDoItemCampos } from './EfeitoDoItemCampos'
 import { ImagemOuIniciais } from './FichaPecas'
 import { CloseIcon } from './icons'
 import { PinImageDrop } from './PinImageDrop'
@@ -384,6 +385,8 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
           {(ehCategoriaDeArma(rascunho.categoria) || (rascunho.municoes?.length ?? 0) > 0) && (
             <MunicoesDaArma armaId={rascunho.id} escolhidas={rascunho.municoes ?? []} onMudar={(municoes) => setRascunho(comMunicoes(rascunho, municoes))} />
           )}
+          {/* Fase 7 (SISTEMA.md §5.1): o efeito vai com a cópia dada; o jogador recebe só a frase. */}
+          <EfeitoDoItemCampos item={rascunho} onMudar={(efeito) => setRascunho((atual) => comEfeito(atual, efeito))} />
           {erro !== null && (
             <p className="lb-field__error" role="alert">
               {erro}

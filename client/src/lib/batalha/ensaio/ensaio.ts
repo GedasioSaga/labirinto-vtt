@@ -65,7 +65,8 @@ export interface PedidoDeEnsaio {
   naReacao?: boolean
 }
 
-export type TipoDoPasso = 'arrumou' | 'recusa' | 'formula' | 'reacao' | 'registro' | 'recurso' | 'depois'
+/** `gasto` (Fase 7): o último passo do Testar do item, com o que a pilha tinha e com quanto fica. */
+export type TipoDoPasso = 'arrumou' | 'recusa' | 'formula' | 'reacao' | 'registro' | 'recurso' | 'depois' | 'gasto'
 
 /** O conserto de um clique de uma recusa (decisão 8 das notas do protótipo); ausente = a recusa é a regra, sem conserto. */
 export type ConsertoDoEnsaio = 'encherRecursos'
@@ -168,7 +169,9 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
   // "Vários" tem teto de alvos (a Bolha do Tree: 2): nenhum boneco a mais que o teto.
   const quantos = forma === undefined || !area ? 1 : forma.tipo === 'varios' ? Math.min(BONECOS_NA_AREA, forma.max) : BONECOS_NA_AREA
   const seloPedido = linha?.soContraOSelo?.nome ?? null
-  const selosParaTirar = selosParaALimpeza(linha?.limpa?.tira)
+  // Fase 7 (a Panaceia): só "tira os negativos", sem cura, pede o boneco com uma condição (e um buff, que fica).
+  const soTiraNegativos = limpa !== undefined && limpa.tira === undefined && !cura && limpa.recurso === undefined && limpa.tambem === undefined
+  const selosParaTirar = soTiraNegativos ? [CONDICAO_QUE_FICA, BUFF_DO_BONECO] : selosParaALimpeza(linha?.limpa?.tira)
   // Fase 7 (o Elixir): HP e SP juntos pedem o boneco ferido E com metade do SP.
   const curaDupla = limpa?.tambem !== undefined
   const spPelaMetade = limpa?.recurso === 'sp' || limpa?.tambem?.recurso === 'sp'

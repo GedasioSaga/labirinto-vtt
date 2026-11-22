@@ -183,6 +183,15 @@
   color: var(--lb-color-brass-bright);
 }
 
+/* Fase 7: a frase do efeito do item, antes da descrição: o que ele faz em uma linha, legível sem cor forte. */
+.lb-inv__efeito {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
 .lb-inv__descricao {
   margin: 0;
   font-size: var(--lb-font-size-sm);

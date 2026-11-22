@@ -3,7 +3,9 @@ import { avisoDaMecanica, lerMecanica, type MecanicaLida as LeituraDaMecanica, t
 import { MODELOS_DA_ARMA, mecanicaDoModeloDaArma, motivoDaArmaNasPecas } from '../../lib/batalha/mecanica/arma'
 import { GRUPOS_DOS_MODELOS, guardarMecanica, MODELOS_PRONTOS, mecanicaDoModeloNoCartao, mesmaMecanica, problemaDaMecanica, tecnicasParaCopiar, type GrupoDoModelo } from '../../lib/batalha/mecanica/modelos'
 import { etiquetaDaMecanica, pecasAMao, resumoDaMecanica, type FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
+import { GRUPOS_DOS_MODELOS_DE_ITEM, MODELOS_DE_ITEM, mecanicaDoModeloDeItem } from '../../lib/batalha/mecanica/modelosDeItem'
 import type { CartaoDaFicha, MecanicaGuardada } from '../../lib/personagem'
+import type { EfeitoDoItem } from '../../types/map'
 import { BlocosDaMecanica } from './BlocosDaMecanica'
 import { OsNumeros } from './blocos/OsNumeros'
 import './MecanicaDaTecnica.css'
@@ -42,8 +44,14 @@ export interface MecanicaDaTecnicaProps {
    * Construtor C8: `arma` = o efeito da arma (o Boomerang): o Atacar com ela
    * segue as peças. Os modelos são os da arma, e a peça que o Atacar não
    * executa (área, teste rolado, ajuda) fica bloqueada. Ausente = técnica.
+   * Fase 7: `item` = o efeito do item do Acervo ("O que ele faz"): os 25
+   * modelos de item e o Testar que termina no gasto (`gastoDoItem`).
    */
-  doQue?: 'tecnica' | 'arma'
+  doQue?: 'tecnica' | 'arma' | 'item'
+  /** Fase 7: só no item, quanto gasta e onde vale (o Testar mostra o gasto). */
+  gastoDoItem?: Pick<EfeitoDoItem, 'gasta' | 'onde'>
+  /** Fase 7: só no item, o modelo escolhido no degrau 1 (a janela acerta o "onde vale" dele). */
+  onModelo?: (id: string) => void
 }
 
 /** O que falta para a mecânica valer: o da técnica e, na arma, a peça que o Atacar não executa. */
@@ -57,13 +65,36 @@ interface ModeloNaTela {
   nome: string
   dica: string
   /** Fase 5 (SISTEMA.md §8): o grupo do degrau 1 (Ataque, Cura e apoio...); o da arma não tem, e a lista fica corrida. */
-  grupo?: GrupoDoModelo
+  grupo?: string
   /** `cartao`: onde o modelo vai; o da técnica aproveita o Dano, o Custo e a Ação do cartão (B02), o da arma soma o que ela soma no Atacar. */
   montar: (ficha: FichaDaPrevia, cartao: CartaoDaFicha) => MecanicaV1
 }
 
 const MODELOS_DA_TECNICA_NA_TELA: readonly ModeloNaTela[] = MODELOS_PRONTOS.map((modelo) => ({ ...modelo, montar: (ficha, cartao) => mecanicaDoModeloNoCartao(modelo.id, ficha, cartao) }))
 const MODELOS_DA_ARMA_NA_TELA: readonly ModeloNaTela[] = MODELOS_DA_ARMA.map((modelo) => ({ ...modelo, montar: (ficha, cartao) => mecanicaDoModeloDaArma(modelo.id, ficha.sistema, cartao) }))
+const MODELOS_DO_ITEM_NA_TELA: readonly ModeloNaTela[] = MODELOS_DE_ITEM.map((modelo) => ({ ...modelo, montar: (ficha) => mecanicaDoModeloDeItem(modelo.id, ficha.sistema) }))
+const GRUPOS_DA_TECNICA: readonly { grupo: GrupoDoModelo; nome: string }[] = GRUPOS_DOS_MODELOS
+
+/** Fase 7: as palavras que mudam no item ("O que ele faz", "Dar um efeito"); o resto da tela é a mesma. */
+interface TextosDoEditor {
+  titulo: string
+  semNada: string
+  montar: string
+  editar: string
+  tirar: string
+  saiu: string
+  dica: string
+}
+
+const TEXTOS_DO_ITEM: TextosDoEditor = {
+  titulo: 'O que ele faz',
+  semNada: 'Sem efeito, o item é só descrição (o mestre narra).',
+  montar: 'Dar um efeito',
+  editar: 'Editar o efeito',
+  tirar: 'Tirar o efeito',
+  saiu: 'O efeito saiu: o item volta a ser só descrição.',
+  dica: 'As mesmas peças da técnica, sem custo de SP: o custo é o próprio item. O número final é o que o app do mestre calcula na hora de usar.',
+}
 
 /** Um botão grande do degrau 1: o nome e, embaixo, o que o modelo monta. */
 function BotaoDoModelo({ modelo, onEscolher }: { modelo: ModeloNaTela; onEscolher: () => void }) {
@@ -152,9 +183,11 @@ export function MecanicaLida({ cartao, ficha }: { cartao: CartaoDaFicha; ficha: 
   )
 }
 
-export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange, doQue = 'tecnica' }: MecanicaDaTecnicaProps) {
+export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange, doQue = 'tecnica', gastoDoItem, onModelo }: MecanicaDaTecnicaProps) {
   const naArma = doQue === 'arma'
-  const modelos = naArma ? MODELOS_DA_ARMA_NA_TELA : MODELOS_DA_TECNICA_NA_TELA
+  const noItem = doQue === 'item' ? TEXTOS_DO_ITEM : null
+  const modelos = naArma ? MODELOS_DA_ARMA_NA_TELA : noItem !== null ? MODELOS_DO_ITEM_NA_TELA : MODELOS_DA_TECNICA_NA_TELA
+  const grupos = noItem !== null ? GRUPOS_DOS_MODELOS_DE_ITEM : GRUPOS_DA_TECNICA
   const tituloId = useId()
   const copiarId = useId()
   const campo = quemEdita === 'mestre' ? 'mecanica' : 'mecanicaProposta'
@@ -227,10 +260,12 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
     // O foco volta ao botão que abriu, e não some com o editor.
     requestAnimationFrame(() => montarRef.current?.focus())
   }
-  const comecarDe = (mecanica: MecanicaV1) => {
+  const comecarDe = (mecanica: MecanicaV1, modeloId?: string) => {
     // B15: o modelo (ou a técnica copiada) sobrescreve no clique; a mecânica de antes fica no Desfazer.
     const antes = cartao[campo]
-    setDesfeito(antes === undefined ? null : { texto: 'A mecânica de antes foi trocada.', antes })
+    setDesfeito(antes === undefined ? null : { texto: noItem !== null ? 'O efeito de antes foi trocado.' : 'A mecânica de antes foi trocada.', antes })
+    // Antes de gravar: a janela do item guarda o "onde vale" do modelo para a gravação que vem logo abaixo.
+    if (modeloId !== undefined) onModelo?.(modeloId)
     gravar(mecanica)
     setFase('editando')
   }
@@ -238,7 +273,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
     const antes = cartao[campo]
     onChange(semCampo(cartao, campo))
     setRascunho(null)
-    setDesfeito(antes === undefined ? null : { texto: quemEdita === 'dono' ? 'A proposta saiu.' : 'A mecânica saiu: a técnica volta ao texto.', antes })
+    setDesfeito(antes === undefined ? null : { texto: quemEdita === 'dono' ? 'A proposta saiu.' : noItem !== null ? noItem.saiu : 'A mecânica saiu: a técnica volta ao texto.', antes })
     fechar()
   }
 
@@ -259,10 +294,10 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
     <section className="lb-mec" aria-labelledby={tituloId}>
       <div className="lb-mec__cab">
         <h5 className="lb-label lb-mec__titulo" id={tituloId}>
-          Mecânica
+          {noItem !== null ? noItem.titulo : 'Mecânica'}
         </h5>
         {valendo.tipo === 'nenhuma' && fase === 'fechado' && (
-          <span className="lb-mec__cab-dica">{naArma ? 'Sem mecânica, o Atacar usa só o dano da arma.' : 'O app lê o Custo, a Ação e o Dano do texto.'}</span>
+          <span className="lb-mec__cab-dica">{noItem !== null ? noItem.semNada : naArma ? 'Sem mecânica, o Atacar usa só o dano da arma.' : 'O app lê o Custo, a Ação e o Dano do texto.'}</span>
         )}
       </div>
 
@@ -318,12 +353,12 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           )}
           <div className="lb-mec__acoes">
             <button ref={montarRef} type="button" className="lb-btn lb-btn--compact" disabled={futura} title={futura ? 'Feita num app mais novo: atualize o app para editar' : undefined} onClick={abrir}>
-              {temAlgo ? (quemEdita === 'dono' ? 'Editar a proposta' : 'Editar a mecânica') : quemEdita === 'dono' ? 'Montar mecânica (vai ao mestre)' : 'Montar mecânica'}
+              {noItem !== null ? (temAlgo ? noItem.editar : noItem.montar) : temAlgo ? (quemEdita === 'dono' ? 'Editar a proposta' : 'Editar a mecânica') : quemEdita === 'dono' ? 'Montar mecânica (vai ao mestre)' : 'Montar mecânica'}
             </button>
             {botaoTestar}
             {quemEdita === 'mestre' && cartao.mecanica !== undefined && (
               <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={tirar}>
-                Tirar a mecânica (volta ao texto)
+                {noItem !== null ? noItem.tirar : 'Tirar a mecânica (volta ao texto)'}
               </button>
             )}
             {quemEdita === 'dono' && cartao.mecanicaProposta !== undefined && (
@@ -343,7 +378,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           </p>
           {/* Fase 5 (SISTEMA.md §8, degrau 1): os modelos da técnica em grupos; os da arma, corridos. */}
           {modelos.some((modelo) => modelo.grupo !== undefined) ? (
-            GRUPOS_DOS_MODELOS.map(({ grupo, nome }) => {
+            grupos.map(({ grupo, nome }) => {
               const doGrupo = modelos.filter((modelo) => modelo.grupo === grupo)
               return doGrupo.length === 0 ? null : (
                 <div key={grupo} className="lb-mec__grupo" role="group" aria-labelledby={`${tituloId}-grupo-${grupo}`}>
@@ -352,7 +387,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
                   </p>
                   <div className="lb-mec__modelos">
                     {doGrupo.map((modelo) => (
-                      <BotaoDoModelo key={modelo.id} modelo={modelo} onEscolher={() => comecarDe(modelo.montar(ficha, cartao))} />
+                      <BotaoDoModelo key={modelo.id} modelo={modelo} onEscolher={() => comecarDe(modelo.montar(ficha, cartao), modelo.id)} />
                     ))}
                   </div>
                 </div>
@@ -401,9 +436,11 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           <p className="lb-field__hint">
             {quemEdita === 'dono'
               ? 'Vai ao mestre quando você salvar a ficha. O número final na batalha é o que o app do mestre calcula.'
-              : naArma
-                ? 'Com a mecânica, o Atacar com esta arma segue as peças: o dano (ou nenhum), o efeito e os usos por batalha.'
-                : 'Com a mecânica, os campos Custo, Ação, Tempo, Dano e Efeito em texto viram só descrição.'}
+              : noItem !== null
+                ? noItem.dica
+                : naArma
+                  ? 'Com a mecânica, o Atacar com esta arma segue as peças: o dano (ou nenhum), o efeito e os usos por batalha.'
+                  : 'Com a mecânica, os campos Custo, Ação, Tempo, Dano e Efeito em texto viram só descrição.'}
           </p>
           {/* Fase 5 (SISTEMA.md §8): degrau 2, os números em frase; o resumo e o Testar logo embaixo; degrau 3 dobrado no fim. */}
           <OsNumeros mecanica={rascunho} ficha={ficha} onChange={editar} />
@@ -423,7 +460,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
             </button>
             {quemEdita === 'mestre' ? (
               <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={tirar}>
-                Tirar a mecânica (volta ao texto)
+                {noItem !== null ? noItem.tirar : 'Tirar a mecânica (volta ao texto)'}
               </button>
             ) : (
               cartao.mecanicaProposta !== undefined && (
@@ -442,7 +479,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
 
       {testando && !naArma && fase !== 'escolhendo' && (
         <Suspense fallback={null}>
-          <PainelDeEnsaio cartao={cartaoDoTeste} quemUsa={ficha.personagem} sistema={ficha.sistema} onFechar={fecharTeste} embutido />
+          <PainelDeEnsaio cartao={cartaoDoTeste} quemUsa={ficha.personagem} sistema={ficha.sistema} onFechar={fecharTeste} embutido {...(noItem !== null ? { item: { gasta: gastoDoItem?.gasta ?? 'um', onde: gastoDoItem?.onde ?? 'sempre', quantos: 1 } } : {})} />
         </Suspense>
       )}
     </section>

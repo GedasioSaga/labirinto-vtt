@@ -1,8 +1,10 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { ensaiar, ensaioNaReacao, type PassoDoEnsaio } from '../../lib/batalha/ensaio/ensaio'
+import { ensaiarItem } from '../../lib/batalha/ensaio/ensaioDoItem'
 import { lerTipo } from '../../lib/batalha/tiposDaHabilidade'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import type { EfeitoDoItem } from '../../types/map'
 import { SEMENTE_MAX } from '../../lib/treino/sorteio'
 import './ensaio.css'
 
@@ -29,9 +31,14 @@ interface PainelDeEnsaioProps {
   onFechar: () => void
   /** Dentro do editor ou do cartão da ficha: sem a coluna fixa da biblioteca. */
   embutido?: boolean
+  /**
+   * Fase 7: o cartão é o EFEITO DE UM ITEM (as peças em `cartao.mecanica`):
+   * o teste termina no gasto ("Gasta 1: tinha 1, fica 0"). Ausente = técnica.
+   */
+  item?: Pick<EfeitoDoItem, 'gasta' | 'onde'> & { quantos: number }
 }
 
-export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = false }: PainelDeEnsaioProps) {
+export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = false, item }: PainelDeEnsaioProps) {
   const tituloId = useId()
   const d20Id = useId()
   const [semente, setSemente] = useState(novaSemente)
@@ -41,13 +48,20 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
   // Fase 4: a técnica que vale na vez e na reação escolhe por onde testar; a só de reação vai sempre pela reação.
   const [naReacao, setNaReacao] = useState(false)
   const tipo = lerTipo(cartao)
-  const escolheOnde = tipo.tambemReacao && tipo.tipo !== 'reacao'
-  const reagindo = ensaioNaReacao({ cartao, naReacao })
+  const escolheOnde = item === undefined && tipo.tambemReacao && tipo.tipo !== 'reacao'
+  const reagindo = item === undefined && ensaioNaReacao({ cartao, naReacao })
+  const gasta = item?.gasta
+  const onde = item?.onde
+  const quantos = item?.quantos
 
-  const resultado = useMemo(
-    () => ensaiar({ cartao, quemUsa, sistema, semente, recursosCheios, naReacao, ...(d20Fixo === null ? {} : { d20Fixo }) }),
-    [cartao, quemUsa, sistema, semente, d20Fixo, recursosCheios, naReacao],
-  )
+  const resultado = useMemo(() => {
+    const d20 = d20Fixo === null ? {} : { d20Fixo }
+    // O item: o mesmo motor, sem custo, e o passo do gasto no fim (a mochila de verdade não muda).
+    if (gasta !== undefined && onde !== undefined && quantos !== undefined) {
+      return ensaiarItem({ nome: cartao.nome, efeito: { mecanica: cartao.mecanica ?? {}, gasta, onde }, quemUsa, sistema, semente, quantos, ...d20 })
+    }
+    return ensaiar({ cartao, quemUsa, sistema, semente, recursosCheios, naReacao, ...d20 })
+  }, [cartao, quemUsa, sistema, semente, d20Fixo, recursosCheios, naReacao, gasta, onde, quantos])
   // O conserto de um clique só aparece na recusa que ele conserta (SP ou HP que faltam na cópia).
   const consertaRecursos = resultado.passos.some((passo) => passo.conserto === 'encherRecursos')
   // O "Passar 1 vez" vale para o golpe que está na tela: outro golpe, outra conta.
@@ -79,7 +93,7 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
         </button>
       </header>
       <p className="ens-quem">
-        {reagindo ? `O boneco de treino bate em ${quemUsa.nome}, que reage com a técnica.` : `${quemUsa.nome} usa num boneco de treino.`} A ficha e o mapa não mudam.
+        {reagindo ? `O boneco de treino bate em ${quemUsa.nome}, que reage com a técnica.` : `${quemUsa.nome} usa num boneco de treino.`} {item === undefined ? 'A ficha e o mapa não mudam.' : 'A ficha, a mochila e o mapa não mudam.'}
       </p>
       {escolheOnde && (
         <div className="ens-onde" role="group" aria-label="Testar por onde">

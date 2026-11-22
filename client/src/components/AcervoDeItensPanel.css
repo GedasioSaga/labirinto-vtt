@@ -533,6 +533,26 @@ body.lb-itens-recusando .lb-itens__fantasma-alvo {
   border-radius: var(--lb-radius-sm);
 }
 
+/* Fase 7: o bloco "O que ele faz" — o editor do efeito, o gasto, a frase da vaga e quem usa no Testar. */
+.lb-item-janela__efeito {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  min-width: 0;
+}
+
+.lb-item-janela__sugestao,
+.lb-item-janela__frase {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
 /* ITEM QUE ILUMINA: o bloco "Luz" — liga, tom, alcance, força e o crepitar. */
 .lb-item-janela__luz {
   display: flex;

@@ -24,7 +24,7 @@ import { FILTROS_DA_PAGINA, passaNoFiltro, pecasDaEntrada, TIPOS_DA_PAGINA, TOPO
 import { resumoDaMecanica } from '../../lib/batalha/mecanica/resumo'
 import { desfazerPosto, porCoisaNaFicha, porEntradaNaFicha, type PostoNaFicha, type ResultadoDoPor } from '../../lib/livros/coisaERegra'
 import { darNaFicha, quantosNaFicha, type FichaQueRecebeu } from '../../lib/mochila/darNaFicha'
-import { cartoesDaAba, novoPersonagem, type CartaoDaFicha, type Personagem } from '../../lib/personagem'
+import { cartoesDaAba, novoCartao, novoPersonagem, type CartaoDaFicha, type Personagem } from '../../lib/personagem'
 import type { AbaDoSistema, CampoDoCartao, SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
 import { useCatalogoStore } from '../../stores/catalogoStore'
@@ -36,6 +36,10 @@ import { ImagemOuIniciais } from '../FichaPecas'
 import { precoEmBerries } from '../InventarioDaFicha'
 import { escolhasDaFicha, formatarNumero, primeiroNome, Retrato, trocarFicha } from './comum'
 import { PainelDeEnsaio } from '../ensaio/PainelDeEnsaio'
+import { quemUsaDeTreino } from '../../lib/batalha/ensaio/ensaioDoItem'
+import { resumoDoEfeitoDoItem } from '../../lib/batalha/mecanica/resumoDoItem'
+import { copiasParaAtualizar, fichaComOEfeitoDoItem } from '../../lib/mochila/efeitoNasCopias'
+import type { EfeitoDoItem } from '../../types/map'
 import { EntradaDoCatalogoDialog, type ModoDaEntrada } from './EntradaDoCatalogoDialog'
 import { IconeDoMundo } from './icones'
 import './itens.css'
@@ -226,7 +230,8 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   const [novos, setNovos] = useState<ReadonlySet<string>>(() => new Set())
   const [destacado, setDestacado] = useState<string | null>(null)
   /** Fase 3: o Testar aberto (o cartão feito da entrada uma vez, para o id não mudar a cada render). */
-  const [ensaio, setEnsaio] = useState<{ cartao: CartaoDaFicha; quemUsa: Personagem } | null>(null)
+  // Fase 7: o Testar do item do Acervo usa o mesmo painel, com o gasto no fim (`item`).
+  const [ensaio, setEnsaio] = useState<{ cartao: CartaoDaFicha; quemUsa: Personagem; item?: Pick<EfeitoDoItem, 'gasta' | 'onde'> & { quantos: number } } | null>(null)
   const fecharEnsaio = useCallback(() => setEnsaio(null), [])
   const arrastandoRef = useRef<EntradaDaPagina | null>(null)
   /** Pôr em andamento (`ficha:entrada`): o clique duplo não grava duas vezes. */
@@ -610,6 +615,15 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
                 onPor={() => void por(entrada)}
                 onArrastar={comecarArrasto}
                 onSoltar={terminarArrasto}
+                sistema={sistema}
+                personagens={personagens}
+                onTestar={(efeito) =>
+                  setEnsaio({
+                    cartao: { ...novoCartao(entrada.acervo.nome), id: `ensaio-${entrada.id}`, mecanica: efeito.mecanica },
+                    quemUsa: destino ?? quemUsaDeTreino(sistema),
+                    item: { gasta: efeito.gasta, onde: efeito.onde, quantos: Math.max(1, destino === undefined ? 1 : quantosNaFicha(destino, entrada.id)) },
+                  })
+                }
               />
             ) : (
               <CartaoDaEntrada
@@ -775,7 +789,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
         </div>
 
         {ensaio !== null ? (
-          <PainelDeEnsaio cartao={ensaio.cartao} quemUsa={ensaio.quemUsa} sistema={sistema} onFechar={fecharEnsaio} />
+          <PainelDeEnsaio cartao={ensaio.cartao} quemUsa={ensaio.quemUsa} sistema={sistema} onFechar={fecharEnsaio} {...(ensaio.item === undefined ? {} : { item: ensaio.item })} />
         ) : (
         <PainelDoDestino
           grupos={grupos}
@@ -954,11 +968,59 @@ interface CartaoDoAcervoProps {
   onPor: () => void
   onArrastar: (event: DragEvent<HTMLElement>, entrada: EntradaDoAcervo) => void
   onSoltar: () => void
+  /** Fase 7: o sistema da página, para a frase do efeito com o nome do atributo. */
+  sistema: SistemaDeRpg
+  /** Fase 7: o Testar do efeito do item, no painel da página. */
+  onTestar: (efeito: EfeitoDoItem) => void
+  /** Fase 7: as fichas do mundo, para o "Atualizar as cópias nas mochilas". */
+  personagens: readonly Personagem[]
+}
+
+/**
+ * Fase 7 (SISTEMA.md, migração das mochilas): leva o efeito de agora às vagas
+ * já dadas com o mesmo item. A lista de quem muda vem antes do Atualizar.
+ */
+function AtualizarCopias({ acervo, personagens }: { acervo: CartaoDoAcervoProps['entrada']['acervo']; personagens: readonly Personagem[] }) {
+  const [conferindo, setConferindo] = useState(false)
+  const [feito, setFeito] = useState<string | null>(null)
+  const copias = useMemo(() => copiasParaAtualizar(personagens, acervo), [personagens, acervo])
+  if (copias.length === 0) return feito === null ? null : <p className="mu-item__efeito" role="status">{feito}</p>
+  const vagas = copias.reduce((soma, copia) => soma + copia.vagas, 0)
+  const atualizar = async () => {
+    setConferindo(false)
+    try {
+      await useMundoDoLivroStore.getState().mudar((lista) => lista.map((ficha) => fichaComOEfeitoDoItem(ficha, acervo)))
+      setFeito(`${vagas} ${vagas === 1 ? 'cópia atualizada' : 'cópias atualizadas'}.`)
+    } catch (erro) {
+      setFeito(`Não deu para atualizar: ${erro instanceof Error ? erro.message : String(erro)}`)
+    }
+  }
+  if (!conferindo) {
+    return (
+      <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={() => setConferindo(true)}>
+        Atualizar as cópias nas mochilas ({vagas})
+      </button>
+    )
+  }
+  return (
+    <div className="mu-item__copias" role="group" aria-label="Conferir as cópias que mudam">
+      <p className="mu-item__efeito">Ganham o efeito de agora: {copias.map((copia) => (copia.vagas > 1 ? `${copia.nome} (${copia.vagas} vagas)` : copia.nome)).join(', ')}.</p>
+      <span className="mu-item__acoes">
+        <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={() => setConferindo(false)}>
+          Cancelar
+        </button>
+        <button type="button" className="mu-bt mu-bt--p" onClick={() => void atualizar()}>
+          Atualizar
+        </button>
+      </span>
+    </div>
+  )
 }
 
 /** A coisa do Acervo: foto, nome, categoria, preço e pilha. Edita-se no Acervo; aqui só se põe na mochila. */
-function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrastar, onSoltar }: CartaoDoAcervoProps) {
+function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrastar, onSoltar, sistema, onTestar, personagens }: CartaoDoAcervoProps) {
   const { acervo } = entrada
+  const { efeito } = acervo
   const quem = destino === undefined ? '' : primeiroNome(destino.nome)
   const categoria = acervo.categoria === '' ? 'Item' : acervo.categoria
   const descricao = acervo.descricao.trim()
@@ -985,6 +1047,9 @@ function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrast
         <p className="mu-item__txt" title={descricao.length > 0 ? descricao : undefined}>
           {descricao.length === 0 ? categoria : `${categoria} · ${descricao}`}
         </p>
+        {/* Fase 7: o que o item faz, na mesma frase que a vaga da mochila mostra. */}
+        {efeito !== undefined && <p className="mu-item__efeito">{resumoDoEfeitoDoItem(efeito, sistema)}</p>}
+        <AtualizarCopias acervo={acervo} personagens={personagens} />
         {(acervo.preco !== null || acervo.empilhavel || naFicha > 0) && (
           <p className="mu-item__campos">
             {acervo.preco !== null && (
@@ -1007,6 +1072,11 @@ function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrast
             </span>
           )}
           <span className="mu-item__acoes">
+            {efeito !== undefined && (
+              <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" aria-label={`Testar ${acervo.nome} no boneco`} onClick={() => onTestar(efeito)}>
+                Testar
+              </button>
+            )}
             {destino !== undefined && (
               <button type="button" className="mu-bt mu-bt--p" aria-label={`Pôr ${acervo.nome} na mochila de ${destino.nome}`} onClick={onPor}>
                 Pôr em {quem}

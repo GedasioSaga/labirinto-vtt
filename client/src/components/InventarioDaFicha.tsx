@@ -74,7 +74,8 @@ export function InventarioDaFicha({ itens, acoes, vazio = VAZIO_PADRAO }: Invent
                   aria-label={rotuloDaVaga(item)}
                   aria-pressed={item.id === abertoId}
                   data-acesa={item.acesa === true ? '' : undefined}
-                  title={item.nome}
+                  // Fase 7: a frase do efeito no passar do mouse ("Poção Grande: Cura 100 de HP. Gasta 1.").
+                  title={item.efeitoResumo === undefined ? item.nome : `${item.nome}: ${item.efeitoResumo}`}
                   onClick={() => setAbertoId((atual) => (atual === item.id ? null : item.id))}
                 >
                   <span className="lb-inv__imagem">
@@ -108,6 +109,8 @@ export function InventarioDaFicha({ itens, acoes, vazio = VAZIO_PADRAO }: Invent
                 {aberto.preco !== undefined && <span className="lb-inv__preco">{precoEmBerries(aberto.preco)}</span>}
               </p>
             )}
+            {/* Fase 7 (SISTEMA.md §5.1): o que o item faz, em uma frase; o jogador recebe só ela, nunca as peças. */}
+            {aberto.efeitoResumo !== undefined && <p className="lb-inv__efeito">{aberto.efeitoResumo}</p>}
             {aberto.descricao !== undefined && <p className="lb-inv__descricao">{aberto.descricao}</p>}
             <div className="lb-inv__acoes">
               {acoes?.(aberto, fechar)}
