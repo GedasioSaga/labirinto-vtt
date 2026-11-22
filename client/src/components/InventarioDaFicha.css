@@ -204,6 +204,8 @@
 .lb-inv__acoes {
   display: flex;
   flex-wrap: wrap;
+  /* O "Usar" com a escolha de em quem é mais alto que um botão: os outros não esticam até ele. */
+  align-items: center;
   gap: var(--lb-space-1);
   margin-top: var(--lb-space-1);
 }
@@ -304,7 +306,8 @@
   color: var(--lb-color-parchment-dim);
 }
 
-.lb-inv__usar-em {
+/* Duas classes: o `.lb-input` (main.css, carregado depois) põe width 100% e jogava o "em" e o "Usar" em linhas próprias. */
+.lb-inv__usar .lb-inv__usar-em {
   width: auto;
   max-width: 14rem;
 }

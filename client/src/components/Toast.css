@@ -35,6 +35,12 @@
   top: calc(var(--lb-layout-edge-gap) * 2 + var(--lb-topo-altura, 48px));
 }
 
+/* Janela aberta (`.lb-dialog-backdrop`, z-index 100, main.css): a pilha sobe acima dela. Sem isso o aviso de uma ação
+   feita DENTRO da janela ficava atrás do véu, e o "Desfazer" do "Usar" da ficha (Fase 8) não se via nem se clicava. */
+:root:has(.lb-dialog-backdrop) .lb-toaststack {
+  z-index: 101;
+}
+
 .lb-toast {
   display: flex;
   align-items: flex-start;
