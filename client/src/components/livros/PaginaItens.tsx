@@ -40,7 +40,8 @@ import { escolhasDaFicha, formatarNumero, primeiroNome, Retrato, trocarFicha } f
 import { PainelDeEnsaio } from '../ensaio/PainelDeEnsaio'
 import { quemUsaDeTreino } from '../../lib/batalha/ensaio/ensaioDoItem'
 import { resumoDoEfeitoDoItem } from '../../lib/batalha/mecanica/resumoDoItem'
-import { copiasParaAtualizar, fichaComOEfeitoDoItem } from '../../lib/mochila/efeitoNasCopias'
+import { ensaiarCopias, type EscolhaDaCopia } from '../../lib/mochila/efeitoNasCopias'
+import { decidirCopias } from '../../stores/itensNaFonte'
 import type { EfeitoDoItem } from '../../types/map'
 import { EntradaDoCatalogoDialog, type ModoDaEntrada } from './EntradaDoCatalogoDialog'
 import { JuntarAsArmas } from './JuntarAsArmas'
@@ -1027,47 +1028,56 @@ interface CartaoDoAcervoProps {
   sistema: SistemaDeRpg
   /** Fase 7: o Testar do efeito do item, no painel da página. */
   onTestar: (efeito: EfeitoDoItem) => void
-  /** Fase 7: as fichas do mundo, para o "Atualizar as cópias nas mochilas". */
+  /** F6: as fichas do mundo, para o "Conferir as cópias diferentes" (o conflito que o mestre decide). */
   personagens: readonly Personagem[]
   /** Abre a janela do Acervo deste item (editar, "O que ele faz", apagar). */
   onEditar: () => void
 }
 
 /**
- * Fase 7 (SISTEMA.md, migração das mochilas): leva o efeito de agora às vagas
- * já dadas com o mesmo item. A lista de quem muda vem antes do Atualizar.
+ * F6 (itens numa fonte só, ARMAS-FONTE-UNICA §9): a cópia que já segue o Acervo
+ * segue sozinha (ao salvar a coisa e ao abrir a pasta). Aqui só o conflito, que
+ * nunca é decidido sem o mestre: a vaga dada antes de o item ter este efeito, ou
+ * a que tem um efeito que o item não tem mais. A lista vem antes de gravar.
  */
-function AtualizarCopias({ acervo, personagens }: { acervo: CartaoDoAcervoProps['entrada']['acervo']; personagens: readonly Personagem[] }) {
+function ConferirCopias({ acervo, personagens }: { acervo: CartaoDoAcervoProps['entrada']['acervo']; personagens: readonly Personagem[] }) {
   const [conferindo, setConferindo] = useState(false)
   const [feito, setFeito] = useState<string | null>(null)
-  const copias = useMemo(() => copiasParaAtualizar(personagens, acervo), [personagens, acervo])
-  if (copias.length === 0) return feito === null ? null : <p className="mu-item__efeito" role="status">{feito}</p>
-  const vagas = copias.reduce((soma, copia) => soma + copia.vagas, 0)
-  const atualizar = async () => {
+  const conflitos = useMemo(() => ensaiarCopias(personagens, [acervo]).filter((copia) => copia.caso !== 'segue'), [personagens, acervo])
+  if (conflitos.length === 0) return feito === null ? null : <p className="mu-item__efeito" role="status">{feito}</p>
+  const porFicha = new Map<string, number>()
+  for (const copia of conflitos) porFicha.set(copia.personagemNome, (porFicha.get(copia.personagemNome) ?? 0) + 1)
+  const quem = [...porFicha].map(([nome, vagas]) => (vagas > 1 ? `${nome} (${vagas} vagas)` : nome)).join(', ')
+  const frase = acervo.efeito === undefined ? `Têm um efeito que este item não tem mais: ${quem}.` : `Dadas antes de o item ter este efeito: ${quem}.`
+  const decidir = async (escolha: EscolhaDaCopia) => {
     setConferindo(false)
     try {
-      await useMundoDoLivroStore.getState().mudar((lista) => lista.map((ficha) => fichaComOEfeitoDoItem(ficha, acervo)))
-      setFeito(`${vagas} ${vagas === 1 ? 'cópia atualizada' : 'cópias atualizadas'}.`)
+      const vagas = await decidirCopias(acervo, escolha)
+      if (escolha === 'acervo') setFeito(`${vagas} ${vagas === 1 ? 'cópia segue' : 'cópias seguem'} o Acervo.`)
+      else setFeito(`${vagas} ${vagas === 1 ? 'vaga separada: não é mais cópia' : 'vagas separadas: não são mais cópias'} deste item.`)
     } catch (erro) {
-      setFeito(`Não deu para atualizar: ${erro instanceof Error ? erro.message : String(erro)}`)
+      setFeito(`Não deu para gravar: ${erro instanceof Error ? erro.message : String(erro)}`)
     }
   }
   if (!conferindo) {
     return (
       <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={() => setConferindo(true)}>
-        Atualizar as cópias nas mochilas ({vagas})
+        Conferir as cópias diferentes ({conflitos.length})
       </button>
     )
   }
   return (
-    <div className="mu-item__copias" role="group" aria-label="Conferir as cópias que mudam">
-      <p className="mu-item__efeito">Ganham o efeito de agora: {copias.map((copia) => (copia.vagas > 1 ? `${copia.nome} (${copia.vagas} vagas)` : copia.nome)).join(', ')}.</p>
+    <div className="mu-item__copias" role="group" aria-label="Conferir as cópias diferentes do Acervo">
+      <p className="mu-item__efeito">{frase}</p>
       <span className="mu-item__acoes">
         <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={() => setConferindo(false)}>
-          Cancelar
+          Depois
         </button>
-        <button type="button" className="mu-bt mu-bt--p" onClick={() => void atualizar()}>
-          Atualizar
+        <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" title="A vaga fica como está e deixa de ser cópia deste item" onClick={() => void decidir('separar')}>
+          Separar
+        </button>
+        <button type="button" className="mu-bt mu-bt--p" onClick={() => void decidir('acervo')}>
+          Seguir o Acervo
         </button>
       </span>
     </div>
@@ -1115,7 +1125,7 @@ function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrast
         )}
         {/* Fase 7: o que o item faz, na mesma frase que a vaga da mochila mostra. */}
         {efeito !== undefined && <p className="mu-item__efeito">{resumoDoEfeitoDoItem(efeito, sistema)}</p>}
-        <AtualizarCopias acervo={acervo} personagens={personagens} />
+        <ConferirCopias acervo={acervo} personagens={personagens} />
         {(acervo.preco !== null || acervo.empilhavel || naFicha > 0) && (
           <p className="mu-item__campos">
             {acervo.preco !== null && (

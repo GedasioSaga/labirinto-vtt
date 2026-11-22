@@ -557,13 +557,25 @@ const SUFIXO_ANTES_DAS_ARMAS = '.antes-das-armas'
  * não grava.
  */
 export function guardarRpgAntesDasArmas(pastaId: string): Promise<void> {
+  return guardarRpgUmaVez(pastaId, SUFIXO_ANTES_DAS_ARMAS, 'das armas')
+}
+
+/** Itens numa fonte só (F6): o `rpg.json` de antes da 1ª vez que as cópias das mochilas seguem o Acervo, guardado UMA vez. */
+const SUFIXO_ANTES_DOS_ITENS = '.antes-dos-itens'
+
+/** Itens numa fonte só (F6): a mesma cópia de antes, para os efeitos das vagas. Lança: sem a cópia, quem chamou não grava. */
+export function guardarRpgAntesDosItens(pastaId: string): Promise<void> {
+  return guardarRpgUmaVez(pastaId, SUFIXO_ANTES_DOS_ITENS, 'dos itens')
+}
+
+function guardarRpgUmaVez(pastaId: string, sufixo: string, deQue: string): Promise<void> {
   return naFilaDaPasta(pastaId, async () => {
     try {
       const caminho = await join(await pastaDe(pastaId), ARQUIVO_DO_RPG)
-      const copia = `${caminho}${SUFIXO_ANTES_DAS_ARMAS}`
+      const copia = `${caminho}${sufixo}`
       if ((await exists(caminho)) && !(await exists(copia))) await writeTextFile(copia, await readTextFile(caminho))
     } catch (erro) {
-      throw new Error(`Não deu para guardar a cópia dos personagens de antes das armas: ${motivo(erro)}.`)
+      throw new Error(`Não deu para guardar a cópia dos personagens de antes ${deQue}: ${motivo(erro)}.`)
     }
   })
 }
