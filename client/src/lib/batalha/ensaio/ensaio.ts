@@ -160,14 +160,19 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
   // Fase 5: a regeneração por vez também pede o boneco ferido (cheio, ela não mostra nada).
   const regenera = (pecas?.efeitos ?? []).some((efeito) => efeito.tipo === 'selo' && efeito.porTurno?.sinal === 'da' && efeito.porTurno.recurso === 'hp')
   // A cura de SP e o Escudo (a Barreira) não pedem o boneco ferido: o recurso deles aparece com a vida cheia.
-  const cura = (linha?.limpa !== undefined && linha.limpa.cura !== '0' && linha.limpa.recurso === undefined) || regenera
+  // Fase 7 (itens): a cura pela parte do máximo (a Poção Suprema) também pede o boneco ferido.
+  const limpa = linha?.limpa
+  const cura = (limpa !== undefined && (limpa.cura !== '0' || limpa.porcentoDoMaximo !== undefined) && limpa.recurso === undefined) || regenera
   // Cura e limpeza só valem em quem usa ou num aliado (`motivoDoAlvoDasPecas`): o boneco fica do lado de quem usa.
   const ajuda = quem === 'aliados' || quem === 'si' || (pecas === null && linha?.limpa !== undefined)
   // "Vários" tem teto de alvos (a Bolha do Tree: 2): nenhum boneco a mais que o teto.
   const quantos = forma === undefined || !area ? 1 : forma.tipo === 'varios' ? Math.min(BONECOS_NA_AREA, forma.max) : BONECOS_NA_AREA
   const seloPedido = linha?.soContraOSelo?.nome ?? null
   const selosParaTirar = selosParaALimpeza(linha?.limpa?.tira)
-  const spPelaMetade = linha?.limpa?.recurso === 'sp'
+  // Fase 7 (o Elixir): HP e SP juntos pedem o boneco ferido E com metade do SP.
+  const curaDupla = limpa?.tambem !== undefined
+  const spPelaMetade = limpa?.recurso === 'sp' || limpa?.tambem?.recurso === 'sp'
+  const ferido = cura && (!spPelaMetade || curaDupla)
   const escudo = linha?.perfuracao !== undefined && !ajuda ? ESCUDO_PARA_A_PERFURACAO : 0
   const quemUsaFerido = (pecas?.efeitos ?? []).some((efeito) => efeito.tipo === 'dreno')
   // Fase 6: o reviver só vale em quem caiu; a área longe cai num ponto (ou numa ficha) e pega os bonecos em volta.
@@ -178,7 +183,7 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
   const partes = [
     quemUsaFerido ? 'quem usa com metade da vida, para o roubo de vida aparecer' : null,
     ajuda ? 'do lado de quem usa' : null,
-    cura && !spPelaMetade ? 'ferido, com metade da vida, para a cura aparecer' : null,
+    ferido ? 'ferido, com metade da vida, para a cura aparecer' : null,
     spPelaMetade ? 'com metade do SP, para a recuperação aparecer' : null,
     escudo > 0 ? `com ${escudo} de Escudo, para a perfuração aparecer` : null,
     area ? `${quantos} bonecos, ${dentro}` : null,
@@ -189,7 +194,7 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
     selosParaTirar.length === 0 ? null : `já com ${selosParaTirar.map((selo) => selo.nome).join(', ')}, para ver o que sai e o que fica`,
   ].filter((parte): parte is string => parte !== null)
   const frase = partes.length === 0 ? 'Boneco de treino de 500 de vida, sem Escudo, reagindo com o d20.' : `Boneco arrumado: ${partes.join('; ')}.`
-  return { lado: ajuda ? 'a' : 'b', quantos, ferido: cura && !spPelaMetade, emSi: quem === 'si', seloPedido, selosParaTirar, spPelaMetade, escudo, quemUsaFerido, caido, centro, frase }
+  return { lado: ajuda ? 'a' : 'b', quantos, ferido, emSi: quem === 'si', seloPedido, selosParaTirar, spPelaMetade, escudo, quemUsaFerido, caido, centro, frase }
 }
 
 /** A ficha de quem usa com o cartão do rascunho: troca o de mesmo id, ou entra na aba Habilidades. */
@@ -206,6 +211,17 @@ function comMetadeDoSp(personagem: Personagem, sistema: SistemaDeRpg): Personage
   const lido = sp === null ? null : vidaDoPersonagem(personagem, sp)
   if (sp === null || lido === null) return personagem
   return { ...personagem, recursos: { ...personagem.recursos, [sp.id]: Math.floor(lido.maximo * PARTE_DO_FERIDO) } }
+}
+
+/** Fase 7: o SP do boneco quando a recuperação de SP cai nele (a ficha do boneco nasce com 0 de SP máximo e não mostraria nada). */
+const SP_DO_BONECO = 200
+
+/** Fase 7 (o Tônico, o Elixir): o boneco sem SP máximo ganha `SP_DO_BONECO`, pela metade; com máximo, só a metade. */
+function bonecoComMetadeDoSp(personagem: Personagem, sistema: SistemaDeRpg): Personagem {
+  const sp = recursoDoCusto(sistema, 'sp')
+  // Sem máximo (o 0 do boneco), `vidaDoPersonagem` não lê o recurso: o boneco ganha o SP de treino.
+  if (sp === null || vidaDoPersonagem(personagem, sp) !== null) return comMetadeDoSp(personagem, sistema)
+  return { ...personagem, maximos: { ...personagem.maximos, [sp.id]: SP_DO_BONECO }, recursos: { ...personagem.recursos, [sp.id]: Math.floor(SP_DO_BONECO * PARTE_DO_FERIDO) } }
 }
 
 /** Fase 5: a vida pela metade do máximo (o roubo de vida de quem usa aparece); a ficha sem vida no sistema fica como está. */
@@ -289,10 +305,12 @@ function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao, vezDe: 'quemUs
   const bonecos: Personagem[] = Array.from({ length: arrumacao.quantos }, (_, i) => {
     const ficha = fichaDoBoneco(sistema, arrumacao.escudo > 0 ? { ...BONECO_PADRAO, escudo: arrumacao.escudo } : BONECO_PADRAO, `ensaio-boneco-${i + 1}`)
     const nome = arrumacao.quantos === 1 ? `${NOME_DO_BONECO} (boneco de treino)` : `${NOME_DO_BONECO} ${i + 1}`
-    if (arrumacao.spPelaMetade) return comMetadeDoSp({ ...ficha, nome }, sistema)
-    if (arrumacao.caido && vida !== null) return { ...ficha, nome, recursos: { ...ficha.recursos, [vida.id]: 0 } }
-    if (!arrumacao.ferido || vida === null) return { ...ficha, nome }
-    return { ...ficha, nome, recursos: { ...ficha.recursos, [vida.id]: Math.round(BONECO_PADRAO.hp * PARTE_DO_FERIDO) } }
+    if (arrumacao.spPelaMetade && !arrumacao.ferido) return bonecoComMetadeDoSp({ ...ficha, nome }, sistema)
+    // Fase 7 (o Elixir): ferido E com metade do SP; sem a cura dupla, o de sempre.
+    const comSp = arrumacao.spPelaMetade ? bonecoComMetadeDoSp({ ...ficha, nome }, sistema) : { ...ficha, nome }
+    if (arrumacao.caido && vida !== null) return { ...comSp, recursos: { ...comSp.recursos, [vida.id]: 0 } }
+    if (!arrumacao.ferido || vida === null) return comSp
+    return { ...comSp, recursos: { ...comSp.recursos, [vida.id]: Math.round(BONECO_PADRAO.hp * PARTE_DO_FERIDO) } }
   })
   const copia: Personagem = { ...comOCartao(pedido.quemUsa, cartao), id: ORIGEM_DE_QUEM_USA }
   const cheia = pedido.recursosCheios === true ? comRecursosCheios(copia, sistema) : copia

@@ -130,15 +130,30 @@ const RECURSOS_DA_CURA = [
 ] as const
 
 function linhaDaCura(mecanica: MecanicaV1, onChange: Mudar): ReactNode {
-  const indice = mecanica.efeitos.findIndex((efeito) => efeito.tipo === 'cura' && efeito.em === undefined)
+  // Fase 7 (o Elixir): HP e SP no mesmo alvo, uma frase por cura.
+  const indices = mecanica.efeitos.flatMap((efeito, indice) => (efeito.tipo === 'cura' && efeito.em === undefined ? [indice] : []))
+  if (indices.length === 0) return null
+  return <>{indices.map((indice) => <LinhaDeUmaCura key={indice} mecanica={mecanica} indice={indice} onChange={onChange} />)}</>
+}
+
+/** Uma cura no alvo, em frase: o número, a fórmula ou (fase 7) a parte do máximo do alvo. */
+function LinhaDeUmaCura({ mecanica, indice, onChange }: { mecanica: MecanicaV1; indice: number; onChange: Mudar }) {
   const cura = mecanica.efeitos[indice]
   if (cura === undefined || cura.tipo !== 'cura') return null
   const trocar = (nova: CuraDaPeca) => onChange({ ...mecanica, efeitos: mecanica.efeitos.map((efeito, j) => (j === indice ? nova : efeito)) })
+  const { quanto } = cura
+  if ('porcento' in quanto) {
+    return (
+      <Frase>
+        {cura.recurso === 'sp' ? 'Recupera' : 'Cura'} <TextoNaFrase rotulo="Parte do máximo (%)" valor={String(quanto.porcento)} maximo={3} placeholder="50" onChange={(texto) => trocar({ ...cura, quanto: { ...quanto, porcento: Math.min(Math.max(Math.trunc(Number(texto)) || 1, 1), 100) } })} />% do {cura.recurso === 'sp' ? 'SP' : 'HP'} máximo do alvo.
+      </Frase>
+    )
+  }
   const recurso = <EscolhaNaFrase rotulo="O que recupera" valor={cura.recurso} opcoes={RECURSOS_DA_CURA} onChange={(novo) => trocar({ ...cura, recurso: novo })} />
-  if ('porCarga' in cura.quanto) return <Frase>Recupera {recurso} pela Concentração (os números de cada carga estão no Avançado).</Frase>
+  if ('porCarga' in quanto) return <Frase>Recupera {recurso} pela Concentração (os números de cada carga estão no Avançado).</Frase>
   return (
     <Frase>
-      {cura.recurso === 'escudo' ? 'Dá' : 'Recupera'} <TextoNaFrase rotulo="Quanto recupera" valor={textoDoNumero(cura.quanto)} maximo={FORMULA_MAX} placeholder="100" onChange={(texto) => trocar({ ...cura, quanto: numeroDoTexto(texto, DANO_MAX) })} /> de {recurso}.
+      {cura.recurso === 'escudo' ? 'Dá' : 'Recupera'} <TextoNaFrase rotulo="Quanto recupera" valor={textoDoNumero(quanto)} maximo={FORMULA_MAX} placeholder="100" onChange={(texto) => trocar({ ...cura, quanto: numeroDoTexto(texto, DANO_MAX) })} /> de {recurso}.
     </Frase>
   )
 }

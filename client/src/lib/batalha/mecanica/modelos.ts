@@ -486,7 +486,7 @@ function acimaDoTeto(mecanica: MecanicaV1): string | null {
   if (mecanica.custos.some((custo) => !('porcento' in custo.quanto) && numeroAcimaDoTeto(custo.quanto, CUSTO_MAX))) return `o custo passa do teto de ${tetoEscrito(CUSTO_MAX)}`
   if (mecanica.teste.tipo === 'resistencia' && numerosDaCd(mecanica.teste.cd).some((numero) => numeroAcimaDoTeto(numero, CD_MAX))) return `a CD passa do teto de ${CD_MAX}`
   if (mecanica.dano !== undefined && !('porcento' in mecanica.dano.base) && numeroAcimaDoTeto(mecanica.dano.base, DANO_MAX)) return `o dano passa do teto de ${tetoEscrito(DANO_MAX)}`
-  const curaDemais = mecanica.efeitos.some((efeito) => efeito.tipo === 'cura' && numerosDe(efeito.quanto).some((numero) => numeroAcimaDoTeto(numero, DANO_MAX)))
+  const curaDemais = mecanica.efeitos.some((efeito) => efeito.tipo === 'cura' && !('porcento' in efeito.quanto) && numerosDe(efeito.quanto).some((numero) => numeroAcimaDoTeto(numero, DANO_MAX)))
   return curaDemais ? `a cura passa do teto de ${tetoEscrito(DANO_MAX)}` : null
 }
 

@@ -29,6 +29,16 @@ function recursoNaFicha(personagem: Personagem, sistema: SistemaDeRpg, recurso: 
   return sp === null ? null : { id: sp.id, teto: maximoDoRecurso(personagem, sistema, 'sp') }
 }
 
+/**
+ * Fase 7 (itens: a Poção Suprema, o Elixir): a cura pela parte (%) do máximo
+ * do recurso DO ALVO, para baixo. Sem máximo na ficha = 0 (nada a curar pela
+ * parte); 100% enche.
+ */
+export function curaPelaParteDoMaximo(personagem: Personagem, sistema: SistemaDeRpg, recurso: 'hp' | 'sp', porcento: number): number {
+  const maximo = maximoDoRecurso(personagem, sistema, recurso)
+  return maximo === null ? 0 : Math.max(0, Math.floor((maximo * porcento) / 100))
+}
+
 /** Quanto da cura entra de verdade (o que cabe até o teto; o Escudo não tem). */
 export function quantoCabeNoRecurso(personagem: Personagem, sistema: SistemaDeRpg, recurso: RecursoDaCura, cura: number): number {
   const lido = cura > 0 ? recursoNaFicha(personagem, sistema, recurso) : null

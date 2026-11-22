@@ -128,6 +128,10 @@ export interface LimpezaAMao {
   recurso?: 'sp' | 'escudo'
   /** Fase 5 (técnica montada): quais selos tira; ausente = os negativos (a Revigorar). */
   tira?: QuaisSelosTira
+  /** Fase 7 (itens, a Poção Suprema): a cura é esta parte (%) do máximo do recurso DO ALVO; `cura` fica "0". */
+  porcentoDoMaximo?: number
+  /** Fase 7 (o Elixir): a segunda cura no mesmo alvo, de outro recurso (HP e SP juntos). */
+  tambem?: CuraEmQuemUsaAMao & { porcentoDoMaximo?: number }
 }
 
 /** Fase 5 (técnica montada): a cura em quem usa, depois do golpe (o golpe que cura quem bate). */

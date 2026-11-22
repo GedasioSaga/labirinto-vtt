@@ -231,6 +231,8 @@ export interface ModDaPeca {
 
 /** Fase 5: teto de selos no mesmo golpe (decisão C4). */
 export const SELOS_NO_GOLPE_MAX = 3
+/** Fase 7: curas no mesmo alvo, de recursos diferentes (o Elixir: HP e SP). */
+export const CURAS_NO_ALVO_MAX = 2
 
 /** Fase 6: com quanta vida o caído volta: "25% do HP máximo" (dele) ou um número / fórmula na ficha de quem usa. */
 export type VoltaDoReviver = NumeroSimples | { porcento: number; de: 'hpMaximo'; deQuem: 'alvo' }
@@ -246,7 +248,8 @@ export type Efeito =
   /** Fase 5: `em: 'quemUsa'` (a postura), `mods` (Força +20) e `regra` (dano e cura recebidos). */
   | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: Exclude<EmQuem, 'alvo'>; mods?: readonly ModDaPeca[]; regra?: RegraDoSelo }
   /** Fase 5: recuperar SP, dar Escudo (a Barreira) e curar quem usa (`em: 'quemUsa'`, o golpe que cura quem bate). */
-  | { tipo: 'cura'; recurso: Recurso; quanto: Numero; emQuem: 'alvo'; em?: 'quemUsa' }
+  /** Fase 7: `quanto` pela parte do máximo do alvo (a Poção Suprema, 50% do HP máximo); HP e SP juntos no mesmo alvo (o Elixir). */
+  | { tipo: 'cura'; recurso: Recurso; quanto: Numero | PorcentoDaCura; emQuem: 'alvo'; em?: 'quemUsa' }
   /** Fase 5: tirar pelo nome (o antídoto), as positivas ou todas. */
   | { tipo: 'tirarSelos'; quais: 'negativos' | 'positivos' | 'todos' | { nomes: readonly string[] } }
   /** Fase 5: roubo de vida: parte do dano que o golpe causou volta em HP para quem usa. */
@@ -305,6 +308,9 @@ export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | '
   if (mecanica.alvo.exigeSelo !== undefined || mecanica.custoEmItem !== undefined) return true
   if (mecanica.efeitos.some((efeito) => efeito.tipo === 'dreno' || (efeito.tipo === 'cura' && (efeito.recurso !== 'hp' || efeito.em !== undefined)) || (efeito.tipo === 'tirarSelos' && efeito.quais !== 'negativos'))) return true
   if (mecanica.efeitos.filter((efeito) => efeito.tipo === 'selo').length > 1) return true
+  // Fase 7: a cura pela parte do máximo e duas curas no mesmo alvo (o Elixir).
+  if (mecanica.efeitos.some((efeito) => efeito.tipo === 'cura' && 'porcento' in efeito.quanto)) return true
+  if (mecanica.efeitos.filter((efeito) => efeito.tipo === 'cura' && efeito.em === undefined).length > 1) return true
   // Fase 6: a área longe, o alcance, o alvo caído e o reviver.
   if (mecanica.alvo.alcance !== undefined || mecanica.alvo.estado !== undefined || centroDaArea(mecanica.alvo.forma) !== null) return true
   if (mecanica.efeitos.some((efeito) => efeito.tipo === 'reviver')) return true
@@ -330,6 +336,17 @@ export interface Porcento {
   de: 'hpMaximo' | 'hpAtual' | 'hpQueFalta' | 'spMaximo'
   deQuem: 'alvo' | 'quemUsa'
 }
+/**
+ * Fase 7 (itens): a cura pela parte do máximo DO ALVO, do mesmo recurso que ela
+ * recupera ("50% do HP máximo"; 100% enche). Só no alvo, sem Concentração.
+ */
+export interface PorcentoDaCura {
+  porcento: number
+  de: 'hpMaximo' | 'spMaximo'
+  deQuem: 'alvo'
+}
+/** O máximo que a cura pela parte lê, pelo recurso que ela recupera (o Escudo não tem máximo). */
+export const MAXIMO_DA_CURA: Readonly<Record<'hp' | 'sp', PorcentoDaCura['de']>> = { hp: 'hpMaximo', sp: 'spMaximo' }
 /** COMO entra em jogo (fase 4). Ausente = 'ativa' (toda mecânica da versão 1). */
 export type UsoDaMecanica = 'ativa' | 'reacao' | 'ativaOuReacao'
 /** Gastar coisa da mochila além do SP e do HP (fase 5). */
@@ -430,9 +447,20 @@ function porcentoDaBase(peca: Record<string, unknown>): Porcento {
   return { porcento: inteiro(peca.porcento, 1, 100, 'dano pela vida (%)'), de, deQuem }
 }
 
-/** "25% do HP" (`Porcento`, fase 5) num lugar que ainda só aceita número ou fórmula. */
-function semPorcento(valor: unknown): void {
-  if (typeof valor === 'object' && valor !== null && 'porcento' in valor) aindaNaoRoda('parte da vida (%) como número')
+/** Fase 7: a cura escrita como parte do máximo ("50% do HP máximo"). */
+function curaPelaParte(valor: unknown): boolean {
+  return typeof valor === 'object' && valor !== null && 'porcento' in valor
+}
+
+/** Fase 7: a parte do máximo do alvo, do MESMO recurso que a cura recupera (o HP pelo HP máximo, o SP pelo SP máximo). */
+function porcentoDaCura(valor: unknown, recurso: Recurso, onde: string): PorcentoDaCura {
+  const peca = registro(valor, `${onde} (quanto)`)
+  soChaves(peca, ['porcento', 'de', 'deQuem'], `${onde} (parte do máximo)`)
+  if (recurso === 'escudo') aindaNaoRoda('Escudo pela parte do máximo')
+  const de = umDe(peca.de ?? MAXIMO_DA_CURA[recurso], ['hpMaximo', 'spMaximo'] as const, `${onde} (parte de quê)`)
+  if (de !== MAXIMO_DA_CURA[recurso]) torta(`${onde}: a parte do máximo precisa ser do mesmo recurso que a cura recupera`)
+  if ((peca.deQuem ?? 'alvo') !== 'alvo') aindaNaoRoda('cura pela parte do máximo de quem usa')
+  return { porcento: inteiro(peca.porcento, 1, 100, `${onde} (parte do máximo, %)`), de, deQuem: 'alvo' }
 }
 
 function umDe<T extends string>(valor: unknown, opcoes: readonly T[], onde: string): T {
@@ -748,10 +776,12 @@ function efeito(valor: unknown, indice: number): Efeito {
     }
     case 'cura': {
       soChaves(peca, ['tipo', 'recurso', 'quanto', 'emQuem', 'em'], onde, 'cura')
-      semPorcento(peca.quanto)
-      const lida: Efeito = { tipo, recurso: umDe(peca.recurso, ['hp', 'sp', 'escudo'] as const, `${onde} (recurso)`), quanto: numero(peca.quanto, DANO_MAX, `${onde} (quanto)`), emQuem: umDe(peca.emQuem ?? 'alvo', ['alvo'] as const, `${onde} (em quem)`) }
+      const recurso = umDe(peca.recurso, ['hp', 'sp', 'escudo'] as const, `${onde} (recurso)`)
+      const quanto = curaPelaParte(peca.quanto) ? porcentoDaCura(peca.quanto, recurso, onde) : numero(peca.quanto, DANO_MAX, `${onde} (quanto)`)
+      const lida: Efeito = { tipo, recurso, quanto, emQuem: umDe(peca.emQuem ?? 'alvo', ['alvo'] as const, `${onde} (em quem)`) }
       // Fase 5: a cura em quem usa (o golpe que cura quem bate); 'alvo' é a de sempre.
       if (peca.em !== undefined && umDe(peca.em, ['alvo', 'quemUsa'] as const, `${onde} (em quem)`) === 'quemUsa') lida.em = 'quemUsa'
+      if (lida.em !== undefined && 'porcento' in quanto) aindaNaoRoda('cura pela parte do máximo em quem usa')
       return lida
     }
     case 'tirarSelos': {
@@ -805,9 +835,10 @@ function conferirEfeitos(efeitos: readonly Efeito[], quem: QuemOAlvoPega, temDan
   const selos = efeitos.filter((item) => item.tipo === 'selo')
   if (selos.length > SELOS_NO_GOLPE_MAX) torta(`mais de ${SELOS_NO_GOLPE_MAX} selos no mesmo golpe`)
   if (selos.filter((item) => item.em === 'quemUsa').length > 1) torta('mais de um selo em quem usa')
-  // Fase 5: uma cura no alvo e uma em quem usa (o golpe que cura quem bate).
+  // Fase 5: uma cura no alvo e uma em quem usa (o golpe que cura quem bate). Fase 7: no alvo, HP e SP juntos (o Elixir), cada recurso uma vez.
   const curas = efeitos.filter((item) => item.tipo === 'cura')
-  if (curas.filter((item) => item.em === undefined).length > 1 || curas.filter((item) => item.em === 'quemUsa').length > 1) torta('mais de um efeito "cura"')
+  const noAlvo = curas.filter((item) => item.em === undefined)
+  if (noAlvo.length > CURAS_NO_ALVO_MAX || new Set(noAlvo.map((item) => item.recurso)).size !== noAlvo.length || curas.filter((item) => item.em === 'quemUsa').length > 1) torta('mais de um efeito "cura"')
   // A cura e a limpeza de hoje (`LimpezaAMao`) valem em quem usa ou num aliado.
   const limpa = efeitos.some((item) => (item.tipo === 'cura' && item.em === undefined) || item.tipo === 'tirarSelos')
   if (limpa && quem !== 'aliados' && quem !== 'si') torta('cura e tirar selos só pegam em quem usa ou num aliado')

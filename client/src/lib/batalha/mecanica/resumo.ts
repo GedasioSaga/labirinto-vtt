@@ -293,6 +293,11 @@ export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1, ficha?: Fich
       return `${comeco} ${duracao}${regra.length === 0 ? '' : ` (${regra.join('; ')})`}.`
     }
     case 'cura': {
+      // Fase 7 (itens): a parte do máximo do alvo ("Cura 50% do HP máximo"); 100% enche.
+      if ('porcento' in efeito.quanto) {
+        const sigla = efeito.recurso === 'sp' ? 'SP' : 'HP'
+        return efeito.quanto.porcento >= 100 ? `Enche o ${sigla} (100% do máximo).` : `${efeito.recurso === 'sp' ? 'Recupera' : 'Cura'} ${efeito.quanto.porcento}% do ${sigla} máximo.`
+      }
       // Fase 5: o SP (o Tônico), o Escudo (a Barreira) e a cura em quem usa.
       const quanto = numeroDaPeca(efeito.quanto)
       const frase = efeito.recurso === 'escudo' ? `Dá ${quanto} de Escudo` : efeito.recurso === 'sp' ? `Recupera ${quanto} de SP` : `Cura ${quanto} de HP`

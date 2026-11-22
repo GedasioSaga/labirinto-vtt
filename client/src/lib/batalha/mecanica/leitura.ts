@@ -221,12 +221,15 @@ export function pecasUsamACarga(mecanica: MecanicaV1): boolean {
 
 /** A cura e a limpeza das peças como a da Revigorar (`LimpezaAMao`); `null` = nenhuma das duas. */
 function limpezaDasPecas(mecanica: MecanicaV1): LimpezaAMao | null {
-  const cura = mecanica.efeitos.find((efeito): efeito is Extract<MecanicaV1['efeitos'][number], { tipo: 'cura' }> => efeito.tipo === 'cura' && efeito.em === undefined)
+  const [cura, outra] = mecanica.efeitos.filter((efeito): efeito is Extract<MecanicaV1['efeitos'][number], { tipo: 'cura' }> => efeito.tipo === 'cura' && efeito.em === undefined)
   const tirar = mecanica.efeitos.find((efeito): efeito is Extract<MecanicaV1['efeitos'][number], { tipo: 'tirarSelos' }> => efeito.tipo === 'tirarSelos')
   const tira = tirar !== undefined
   if (cura === undefined && !tira) return null
-  // Só tirar selos: a limpeza da F2 sempre cura; "0" não mexe na ficha.
-  const limpeza: LimpezaAMao = { cura: cura === undefined ? '0' : formulaDoNumero(semCarga(cura.quanto)) }
+  // Só tirar selos: a limpeza da F2 sempre cura; "0" não mexe na ficha. Fase 7: a parte do máximo do alvo vai à parte (a store lê o alvo).
+  const limpeza: LimpezaAMao = { cura: cura === undefined || 'porcento' in cura.quanto ? '0' : formulaDoNumero(semCarga(cura.quanto)) }
+  if (cura !== undefined && 'porcento' in cura.quanto) limpeza.porcentoDoMaximo = cura.quanto.porcento
+  // Fase 7 (o Elixir): a segunda cura no mesmo alvo, de outro recurso.
+  if (outra !== undefined) limpeza.tambem = 'porcento' in outra.quanto ? { recurso: outra.recurso, formula: '0', porcentoDoMaximo: outra.quanto.porcento } : { recurso: outra.recurso, formula: formulaDoNumero(semCarga(outra.quanto)) }
   if (cura !== undefined && 'porCarga' in cura.quanto) {
     const [, um, dois, tres] = cura.quanto.porCarga
     limpeza.porCarga = { 1: formulaDoNumero(um), 2: formulaDoNumero(dois), 3: formulaDoNumero(tres) }
@@ -356,7 +359,8 @@ export function linhaDasPecas(nome: string, mecanica: MecanicaV1): MecanicaAMao 
   if (mecanica.alvo.exigeSelo !== undefined) linha.soContraOSelo = { nome: mecanica.alvo.exigeSelo, motivo: motivoDoSeloExigido(mecanica.alvo.exigeSelo) }
   // Fase 5: a cura em quem usa, o roubo de vida e o item da mochila (a Medicina das peças).
   const curaEmQuemUsa = mecanica.efeitos.find((efeito) => efeito.tipo === 'cura' && efeito.em === 'quemUsa')
-  if (curaEmQuemUsa !== undefined && curaEmQuemUsa.tipo === 'cura') linha.curaEmQuemUsa = { recurso: curaEmQuemUsa.recurso, formula: formulaDoNumero(semCarga(curaEmQuemUsa.quanto)) }
+  // A parte do máximo em quem usa é recusada na leitura (`lerMecanica`): aqui só chega número ou fórmula.
+  if (curaEmQuemUsa !== undefined && curaEmQuemUsa.tipo === 'cura' && !('porcento' in curaEmQuemUsa.quanto)) linha.curaEmQuemUsa = { recurso: curaEmQuemUsa.recurso, formula: formulaDoNumero(semCarga(curaEmQuemUsa.quanto)) }
   const dreno = mecanica.efeitos.find((efeito) => efeito.tipo === 'dreno')
   if (dreno !== undefined && dreno.tipo === 'dreno') linha.curaDoDano = dreno.porcentoDoDano
   const item = mecanica.custoEmItem

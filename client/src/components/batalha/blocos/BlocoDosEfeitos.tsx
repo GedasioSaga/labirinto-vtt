@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { DANO_MAX, NOME_DO_SELO_MAX } from '../../../lib/batalha/combate'
-import { EFEITOS_MAX, FORMULA_MAX, NOMES_QUE_TIRA_MAX, SELOS_NO_GOLPE_MAX, TEXTO_A_MAO_MAX, type Efeito, type Numero, type NumeroSimples, type Recurso } from '../../../lib/batalha/mecanica/modelo'
+import { CURAS_NO_ALVO_MAX, EFEITOS_MAX, FORMULA_MAX, MAXIMO_DA_CURA, NOMES_QUE_TIRA_MAX, SELOS_NO_GOLPE_MAX, TEXTO_A_MAO_MAX, type Efeito, type Numero, type NumeroSimples, type Recurso } from '../../../lib/batalha/mecanica/modelo'
 import { ehAjuda } from '../../../lib/batalha/mecanica/modelos'
 import { fraseDoEfeito } from '../../../lib/batalha/mecanica/resumo'
 import { Bloco, CampoInteiro, Escolha, Marcar, numeroDoTexto, semEspaco, Texto, textoDoNumero, type BlocosProps, type Opcao } from './controles'
@@ -52,19 +52,48 @@ function curaComTexto(cura: CuraDaPeca, carga: 0 | 1 | 2 | 3, texto: string): Cu
   return { ...cura, quanto: { porCarga: cargas } }
 }
 
+/** Fase 7: a parte do máximo de partida (a Poção Suprema). */
+const PARTE_DO_MAXIMO_DE_PARTIDA = 50
+
+/** Fase 7 (itens): a cura pela parte do máximo do alvo, do recurso que ela recupera (o Escudo não tem máximo). */
+function PecasDaParte({ cura, onChange }: { cura: CuraDaPeca; onChange: (cura: CuraDaPeca) => void }) {
+  const { quanto } = cura
+  const recurso = cura.recurso === 'escudo' ? null : cura.recurso
+  if (recurso === null) return null
+  return (
+    <>
+      <Marcar
+        rotulo="Pela parte do máximo do alvo (%)"
+        marcado={'porcento' in quanto}
+        bloqueio={cura.em === 'quemUsa' ? 'Em quem usa, só número ou fórmula.' : null}
+        onChange={(sim) => onChange({ ...cura, quanto: sim ? { porcento: PARTE_DO_MAXIMO_DE_PARTIDA, de: MAXIMO_DA_CURA[recurso], deQuem: 'alvo' } : { fixo: 100 } })}
+      />
+      {'porcento' in quanto && <CampoInteiro rotulo="Parte do máximo" valor={quanto.porcento} minimo={1} maximo={100} depois="%" onChange={(porcento) => onChange({ ...cura, quanto: { ...quanto, porcento } })} />}
+    </>
+  )
+}
+
 /** Uma cura (no alvo ou em quem usa): o recurso, quanto (com a Concentração, só no alvo) e a frase. */
 function PecasDaCura({ cura, comConcentracao, onChange }: { cura: CuraDaPeca; comConcentracao: boolean; onChange: (cura: CuraDaPeca) => void }) {
+  const { quanto } = cura
+  // Fase 7: trocar o recurso de uma cura pela parte leva a parte junto (o SP pelo SP máximo); o Escudo volta a número.
+  const trocarRecurso = (recurso: Recurso) => onChange({ ...cura, recurso, quanto: 'porcento' in quanto ? (recurso === 'escudo' ? { fixo: 100 } : { ...quanto, de: MAXIMO_DA_CURA[recurso] }) : quanto })
   return (
     <div className="lb-mec__linha lb-mec__linha--recuo">
-      <Escolha legenda="Recupera" opcoes={RECURSOS_DA_CURA} valor={cura.recurso} onChange={(recurso) => onChange({ ...cura, recurso })} />
-      <Texto rotulo={'porCarga' in cura.quanto ? 'Sem carga' : 'Quanto'} valor={textoDaCura(cura.quanto, 0)} maximo={FORMULA_MAX} placeholder="Ex.: 100 ou Espírito × 2" onChange={(texto) => onChange(curaComTexto(cura, 0, texto))} />
-      {'porCarga' in cura.quanto && ([1, 2, 3] as const).map((carga) => <Texto key={carga} rotulo={`Carga ${carga}`} valor={textoDaCura(cura.quanto, carga)} maximo={FORMULA_MAX} onChange={(texto) => onChange(curaComTexto(cura, carga, texto))} />)}
-      {comConcentracao && (
+      <Escolha legenda="Recupera" opcoes={RECURSOS_DA_CURA} valor={cura.recurso} onChange={trocarRecurso} />
+      <PecasDaParte cura={cura} onChange={onChange} />
+      {'porcento' in quanto ? null : (
+        <>
+          <Texto rotulo={'porCarga' in quanto ? 'Sem carga' : 'Quanto'} valor={textoDaCura(quanto, 0)} maximo={FORMULA_MAX} placeholder="Ex.: 100 ou Espírito × 2" onChange={(texto) => onChange(curaComTexto(cura, 0, texto))} />
+          {'porCarga' in quanto && ([1, 2, 3] as const).map((carga) => <Texto key={carga} rotulo={`Carga ${carga}`} valor={textoDaCura(quanto, carga)} maximo={FORMULA_MAX} onChange={(texto) => onChange(curaComTexto(cura, carga, texto))} />)}
+        </>
+      )}
+      {comConcentracao && !('porcento' in quanto) && (
         <Marcar
           rotulo="Muda com a Concentração"
-          marcado={'porCarga' in cura.quanto}
+          marcado={'porCarga' in quanto}
           onChange={(sim) => {
-            const zero = 'porCarga' in cura.quanto ? cura.quanto.porCarga[0] : cura.quanto
+            const zero = 'porCarga' in quanto ? quanto.porCarga[0] : quanto
             onChange({ ...cura, quanto: sim ? { porCarga: [zero, zero, zero, zero] } : zero })
           }}
         />
@@ -90,7 +119,8 @@ export function BlocoDosEfeitos({ mecanica, ficha, onChange }: Pick<BlocosProps,
     trocarEfeitos(novo === null ? efeitos.filter((_, j) => j !== indice) : efeitos.map((efeito, j) => (j === indice ? novo : efeito)))
   }
   const selos = efeitos.flatMap((efeito, indice) => (efeito.tipo === 'selo' ? [{ indice, selo: efeito }] : []))
-  const curaNoAlvo = efeitos.find((efeito): efeito is CuraDaPeca => efeito.tipo === 'cura' && efeito.em === undefined)
+  const curasNoAlvo = efeitos.filter((efeito): efeito is CuraDaPeca => efeito.tipo === 'cura' && efeito.em === undefined)
+  const [curaNoAlvo, segundaCura] = curasNoAlvo
   const curaEmQuemUsa = efeitos.find((efeito): efeito is CuraDaPeca => efeito.tipo === 'cura' && efeito.em === 'quemUsa')
   const tira = efeitos.find((efeito) => efeito.tipo === 'tirarSelos')
   const dreno = efeitos.find((efeito) => efeito.tipo === 'dreno')
@@ -138,7 +168,17 @@ export function BlocoDosEfeitos({ mecanica, ficha, onChange }: Pick<BlocosProps,
         {soReacao ? '+ Selo em quem atacou' : selos.length === 0 ? (ajuda ? '+ Dá um selo' : '+ Se acertar, deixa um selo') : '+ Outro selo'}
       </button>
       <Marcar rotulo="Cura ou recupera (no alvo)" marcado={curaNoAlvo !== undefined} bloqueio={curaNoAlvo === undefined ? cheioOu(semAjuda) : null} onChange={(sim) => trocarUm((efeito) => efeito.tipo === 'cura' && efeito.em === undefined, sim ? { tipo: 'cura', recurso: 'hp', quanto: { fixo: 100 }, emQuem: 'alvo' } : null)} />
-      {curaNoAlvo !== undefined && <PecasDaCura cura={curaNoAlvo} comConcentracao onChange={(nova) => trocarUm((efeito) => efeito.tipo === 'cura' && efeito.em === undefined, nova)} />}
+      {curaNoAlvo !== undefined && <PecasDaCura cura={curaNoAlvo} comConcentracao onChange={(nova) => trocarUm((efeito) => efeito === curaNoAlvo, nova)} />}
+      {/* Fase 7 (o Elixir): o mesmo alvo recupera também outro recurso (HP e SP), cada um uma vez. */}
+      {curaNoAlvo !== undefined && curaNoAlvo.recurso !== 'escudo' && (
+        <Marcar
+          rotulo={`Também recupera ${curaNoAlvo.recurso === 'hp' ? 'SP' : 'HP'} (no alvo)`}
+          marcado={segundaCura !== undefined}
+          bloqueio={segundaCura === undefined ? cheioOu(curasNoAlvo.length >= CURAS_NO_ALVO_MAX ? 'Já há duas curas no alvo.' : null) : null}
+          onChange={(sim) => trocarUm((efeito) => efeito === segundaCura, sim ? { tipo: 'cura', recurso: curaNoAlvo.recurso === 'hp' ? 'sp' : 'hp', quanto: { fixo: 50 }, emQuem: 'alvo' } : null)}
+        />
+      )}
+      {segundaCura !== undefined && <PecasDaCura cura={segundaCura} comConcentracao={false} onChange={(nova) => trocarUm((efeito) => efeito === segundaCura, nova)} />}
       <Marcar rotulo="Quem usa também recupera" marcado={curaEmQuemUsa !== undefined} bloqueio={curaEmQuemUsa === undefined ? cheioOu(daVez) : null} onChange={(sim) => trocarUm((efeito) => efeito.tipo === 'cura' && efeito.em === 'quemUsa', sim ? { tipo: 'cura', recurso: 'sp', quanto: { fixo: 10 }, emQuem: 'alvo', em: 'quemUsa' } : null)} />
       {curaEmQuemUsa !== undefined && <PecasDaCura cura={curaEmQuemUsa} comConcentracao={false} onChange={(nova) => trocarUm((efeito) => efeito.tipo === 'cura' && efeito.em === 'quemUsa', nova)} />}
       <Marcar rotulo="Tira selos" marcado={tira !== undefined} bloqueio={tira === undefined ? cheioOu(semAjuda) : null} onChange={(sim) => trocarUm((efeito) => efeito.tipo === 'tirarSelos', sim ? { tipo: 'tirarSelos', quais: 'negativos' } : null)} />

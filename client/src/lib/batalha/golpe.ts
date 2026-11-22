@@ -633,9 +633,14 @@ function motivoDoDanoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formu
 function motivoDaCuraSemConta(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg, carga: number): string | null {
   const limpeza = limpezaDe(cartao)
   if (limpeza === null) return null
-  const formula = formulaDaCura(limpeza, carga)
-  const lida = lerDano(formula, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) })
-  if (lida.tipo === 'valor' || lida.tipo === 'semDano') return null
+  const contexto = { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) }
+  // Fase 7 (o Elixir): a segunda cura também precisa fechar a conta (a pela parte do máximo é "0" aqui e fecha).
+  const outra = limpeza.tambem
+  const lidaOutra = outra === undefined ? null : lerDano(outra.formula, contexto)
+  const outraNaoFecha = outra !== undefined && lidaOutra !== null && lidaOutra.tipo !== 'valor' && lidaOutra.tipo !== 'semDano'
+  const formula = outraNaoFecha ? outra.formula : formulaDaCura(limpeza, carga)
+  const lida = lerDano(formula, contexto)
+  if (!outraNaoFecha && (lida.tipo === 'valor' || lida.tipo === 'semDano')) return null
   const nome = cartao.nome.trim() || 'A técnica'
   // O jogador não conserta a fórmula; o mestre lê qual é (cortada: o motivo tem teto no fio).
   if (ctx.autor.tipo !== 'mestre') return `${nome}: o mestre precisa conferir a fórmula da cura desta técnica`
@@ -707,7 +712,8 @@ function motivoDaCuraSemFerido(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvo
   const limpeza = limpezaDe(cartao)
   const recurso = recursoDeVida(ctx.sistema)
   // Fase 5: a cura de SP e o Escudo (a Barreira) não olham a vida: vale em quem está de vida cheia.
-  if (limpeza === null || recurso === null || comSelo || limpeza.recurso !== undefined) return null
+  // Fase 7 (o Elixir): com a segunda cura (o SP), a vida cheia não basta para dizer que nada mudaria.
+  if (limpeza === null || recurso === null || comSelo || limpeza.recurso !== undefined || limpeza.tambem !== undefined) return null
   if (alvos.length === 0) return MOTIVO_SEM_ALVO_NA_CURA
   let comEscudoGasto: { tokenId: string; personagem: Personagem } | null = null
   for (const alvo of alvos) {

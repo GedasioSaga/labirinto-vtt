@@ -24,7 +24,7 @@ import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, 
 import { bonusDaBatalha, comSeloNovo, criarSelo, ondeNaVez, novoIdDeSelo, selosDoToken } from '../../lib/batalha/selos'
 import { curaComOsSelos, curaDoDano, esquivaComDesvantagem, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao } from '../../lib/batalha/condicoes'
 import { selosQueALimpezaTira } from '../../lib/batalha/debuffs'
-import { ajustesDoRecursoDaCura, notaDoRecursoDaCura, quantoCabeNoRecurso } from '../../lib/batalha/curaDoRecurso'
+import { ajustesDoRecursoDaCura, curaPelaParteDoMaximo, notaDoRecursoDaCura, quantoCabeNoRecurso } from '../../lib/batalha/curaDoRecurso'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano, reducoesDosSelos } from '../../lib/batalha/reducaoDoDano'
 import {
   golpePendente,
@@ -626,14 +626,16 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => !fora.has(selo.id)) }
           // A cura lê o Espírito de quem usa DEPOIS da limpeza (sem o cansaço, se ele limpou a si mesmo); com 3 cargas, a fórmula do X3 da ficha.
           const lida = lerDano(formulaDaCura(limpeza, lancado.cargaUsada), { personagem: ctx.personagem, sistema: ctx.sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(novos.selos, carta.tokenId) })
-          // U6: a fórmula que não fecha a conta já foi recusada antes de cobrar (`podeAgir`); aqui só chega número ou "sem cura" (0).
-          // Fase 5: a cura cortada (ou aumentada) pela regra do selo de quem recebe (`curaRecebida`).
-          const cura = lida.tipo === 'valor' ? curaComOsSelos(lida.valor, novos.selos, alvo.tokenId) : 0
           // Pedido de 09/11 (a Bolha): o que cabe na vida do alvo AGORA (lido antes de gravar), para a nota dizer o que entrou.
           const sistemaDaCura = ctx.sistema
           const fichaDoAlvo = alvo.personagemId === null ? undefined : mesa.personagens().find((candidato) => candidato.id === alvo.personagemId)
           // Fase 5: o SP e o Escudo (a Barreira) pela mesma porta da ficha; a nota diz o recurso.
           const recursoDaCura = limpeza.recurso ?? 'hp'
+          // Fase 7 (itens): a parte do máximo DO ALVO (a Poção Suprema), lida na ficha dele; sem ficha, nada.
+          const pelaParte = limpeza.porcentoDoMaximo === undefined || recursoDaCura === 'escudo' ? null : fichaDoAlvo === undefined ? 0 : curaPelaParteDoMaximo(fichaDoAlvo, sistemaDaCura, recursoDaCura, limpeza.porcentoDoMaximo)
+          // U6: a fórmula que não fecha a conta já foi recusada antes de cobrar (`podeAgir`); aqui só chega número ou "sem cura" (0).
+          // Fase 5: a cura cortada (ou aumentada) pela regra do selo de quem recebe (`curaRecebida`).
+          const cura = pelaParte !== null ? curaComOsSelos(pelaParte, novos.selos, alvo.tokenId) : lida.tipo === 'valor' ? curaComOsSelos(lida.valor, novos.selos, alvo.tokenId) : 0
           const coube = fichaDoAlvo === undefined ? 0 : recursoDaCura === 'hp' ? curaQueCabe(fichaDoAlvo, sistemaDaCura, cura) : quantoCabeNoRecurso(fichaDoAlvo, sistemaDaCura, recursoDaCura, cura)
           const curou = alvo.personagemId === null || cura <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => (recursoDaCura === 'hp' ? ajustesDaCura(atual, sistema, cura) : ajustesDoRecursoDaCura(atual, sistema, recursoDaCura, cura)), quem)
           if (curou === 'recusada') {
@@ -641,6 +643,25 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
             return false
           }
           if (curou !== null && alvo.personagemId !== null) partes.push(...reversaoDaFicha(alvo.personagemId, curou))
+          // Fase 7 (o Elixir): a segunda cura no mesmo alvo, de outro recurso, lida na ficha já curada; recusada, nada sai.
+          const tambem = limpeza.tambem
+          let daOutra = ''
+          if (tambem !== undefined && alvo.personagemId !== null) {
+            const fichaAgora = mesa.personagens().find((candidato) => candidato.id === alvo.personagemId)
+            const lidaOutra = tambem.porcentoDoMaximo !== undefined ? null : lerDano(tambem.formula, { personagem: ctx.personagem, sistema: ctx.sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(novos.selos, carta.tokenId) })
+            const parte = tambem.porcentoDoMaximo === undefined || tambem.recurso === 'escudo' || fichaAgora === undefined ? 0 : curaPelaParteDoMaximo(fichaAgora, sistemaDaCura, tambem.recurso, tambem.porcentoDoMaximo)
+            const base = lidaOutra === null ? parte : lidaOutra.tipo === 'valor' ? lidaOutra.valor : 0
+            const outra = tambem.recurso === 'hp' ? curaComOsSelos(base, novos.selos, alvo.tokenId) : base
+            const recursoDaOutra = tambem.recurso
+            const coubeOutra = fichaAgora === undefined ? 0 : recursoDaOutra === 'hp' ? curaQueCabe(fichaAgora, sistemaDaCura, outra) : quantoCabeNoRecurso(fichaAgora, sistemaDaCura, recursoDaOutra, outra)
+            const curouOutra = outra <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => (recursoDaOutra === 'hp' ? ajustesDaCura(atual, sistema, outra) : ajustesDoRecursoDaCura(atual, sistema, recursoDaOutra, outra)), quem)
+            if (curouOutra === 'recusada') {
+              devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+              return false
+            }
+            if (curouOutra !== null) partes.push(...reversaoDaFicha(alvo.personagemId, curouOutra))
+            daOutra = `, ${recursoDaOutra === 'hp' ? notaDaCura(outra, coubeOutra) : notaDoRecursoDaCura(recursoDaOutra, outra, coubeOutra)}`
+          }
           // F2 (fatia F, Medicina): a nota diz o item gasto ("curou 100, gastou 1 Kit Médico").
           // Fase 5: pelo cartão (a montada tem o item nas peças, não na tabela pelo id).
           const item = pedido.tipo === 'habilidade' ? mecanicaDoCartao(cartaoDoPedido ?? pedido.cartaoId)?.gastaItem : undefined
@@ -649,7 +670,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           if (curaDoItem !== null) curasDoItem.push(curaDoItem)
           const doVeneno = curaDoItem === null || curaDoItem.curou.length === 0 ? '' : `, tirou ${curaDoItem.curou.join(', ')}`
           const doItem = item === undefined ? '' : `, gastou 1 ${item}${doVeneno}`
-          const daCura = `${recursoDaCura === 'hp' ? notaDaCura(cura, coube) : notaDoRecursoDaCura(recursoDaCura, cura, coube)}${doItem}`
+          const daCura = `${recursoDaCura === 'hp' ? notaDaCura(cura, coube) : notaDoRecursoDaCura(recursoDaCura, cura, coube)}${daOutra}${doItem}`
           const nomesTirados = limpeza.tira === undefined ? '' : tirados.length === 0 ? 'não tinha o que tirar' : `tirou ${tirados.map((selo) => selo.nome).join(', ')}`
           const nota = limpeza.soCura === true ? daCura : limpeza.tira !== undefined ? (cura > 0 ? `${nomesTirados}, ${daCura}` : nomesTirados) : `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}, ${daCura}`
           golpe = golpeComOAlvo(golpe, { ...alvo, nota })
