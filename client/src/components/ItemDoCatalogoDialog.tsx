@@ -220,6 +220,18 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
     }
   }, [])
 
+  /**
+   * O botão apertado fica desligado enquanto grava (e o Salvar continua
+   * desligado depois, sem mudança) e o foco cai no corpo da página. Ali o Esc
+   * não chega à janela: no mundo do livro ele fechava o livro inteiro. Acabou
+   * de gravar e o foco está num botão desligado ou no corpo: volta para a janela.
+   */
+  useEffect(() => {
+    if (ocupado) return
+    const ativo = document.activeElement
+    if (ativo === null || ativo === document.body || ativo.matches(':disabled')) dialogRef.current?.focus()
+  }, [ocupado])
+
   const trocarImagem = async (pegar: () => Promise<string | null>) => {
     setErro(null)
     setOcupado(true)
