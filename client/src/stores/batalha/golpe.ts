@@ -690,7 +690,9 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           const doItem = item === undefined ? '' : `, gastou 1 ${item}${doVeneno}`
           const daCura = `${recursoDaCura === 'hp' ? notaDaCura(cura, coube) : notaDoRecursoDaCura(recursoDaCura, cura, coube)}${daOutra}${doItem}`
           const nomesTirados = limpeza.tira === undefined ? '' : tirados.length === 0 ? 'não tinha o que tirar' : `tirou ${tirados.map((selo) => selo.nome).join(', ')}`
-          const nota = limpeza.soCura === true ? daCura : limpeza.tira !== undefined ? (cura > 0 ? `${nomesTirados}, ${daCura}` : nomesTirados) : `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}, ${daCura}`
+          // Fase 8 (a Panaceia): a limpeza sem cura não diz "curou 0"; o pedaço da cura só entra com cura, como na que tira pelo nome.
+          const tirouDebuffs = `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}`
+          const nota = limpeza.soCura === true ? daCura : limpeza.tira !== undefined ? (cura > 0 ? `${nomesTirados}, ${daCura}` : nomesTirados) : cura > 0 ? `${tirouDebuffs}, ${daCura}` : tirouDebuffs
           golpe = golpeComOAlvo(golpe, { ...alvo, nota })
         }
         // Só depois de todo alvo aceito: o pedido recusado no meio (acima) não deixa o veneno tirado de ninguém.
