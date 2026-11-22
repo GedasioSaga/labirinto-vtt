@@ -1,4 +1,4 @@
-# 22/11 09h38: EDITAR ITEM DO ACERVO NA PÁGINA ITENS, PUBLICANDO 0.5.92 (antes: 0.5.91 PUBLICADA 22/11 02h43)
+# 22/11 09h38: EDITAR ITEM DO ACERVO NA PÁGINA ITENS, 0.5.92 PUBLICADA 22/11 10h12 (antes: 0.5.91 PUBLICADA 22/11 02h43)
 
 ## Pedido de 22/11 09h38 (literal no PEDIDOS)
 "não é para eu conseguir editar um item ?" (print: cartões Do acervo da página Itens só com Pôr em Aira).
@@ -7,7 +7,8 @@
 - Evidência: navegador Edge/Playwright 6/6 PASS (cartão com Editar; janela z 100 por cima do livro z 28, sem Dar a; salvar com Poção Pequena grava itens.json e cartão mostra efeito + Testar; Esc/fundo fecham só a janela; painel Acervo ainda tem Dar a; longtask 0); tsc 0; vitest 9/9; prints tmp/pedidos-2026-11-22/editar-acervo/1-4.
 - NÃO visto: Tauri real, Apagar pela página do livro, escolher imagem.
 - 10h00: bump 32e0f20a pushado; portões em tmp/rel-0.5.92/ (tsc, vite, guarda, gitleaks) rodaram; publicar-versao em curso (publicar.log), disco 12 GB. Ao fim: conferir latest.json 0.5.92 e junções removidas antes do worktree remove.
-- Próximo: publicar 0.5.92 (memória lançar logo) com o fluxo da 0.5.91; critério: latest.json público = 0.5.92.
+- 0.5.92 PUBLICADA: release 32e0f20a (push origin main), registro fd06e5b1 (local); Worker 76566017, site e368ab8d.labirintolobby.pages.dev; latest.json público 0.5.92 com Labirinto_0.5.92_x64-setup.exe conferido pelo Claude (curl); tsc client e nuvem 0, vite build ok, guarda nada bloqueia, gitleaks a9e01ef1..HEAD limpo; disco 12,2 / mín 9,1 / fim 11,7 GB; worktree e junções removidas; branch local release/0.5.92 sobrou (não pushada). Logs tmp/rel-0.5.92/.
+- Próximo: dono atualiza o app, escolhe O que ele faz nos 3 itens e clica Atualizar as cópias; continua pendente o teste LAN do jogador (usar item, reagir com técnica).
 - Os 3 itens do dono não têm O que ele faz (cura só no texto): explicado a ele.
 
 ## Objetivo
