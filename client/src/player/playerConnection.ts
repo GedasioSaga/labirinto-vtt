@@ -14,6 +14,7 @@ import {
   COINS_GIVE_REJECTIONS,
   DOOR_REQUEST_REJECTIONS,
   ITEM_GIVE_REJECTIONS,
+  ITEM_USAR_MOTIVO_MAX,
   parseHostTradeMessage,
   type CoinsGiveRejection,
   type TradeClosedResult,
@@ -1798,6 +1799,12 @@ export interface PlayerConnection {
    */
   giveItem(itemId: string, toTokenId: string): boolean
   /**
+   * Fase 8 (o "Usar" fora da batalha): usa o item da vaga `vagaId` da ficha
+   * `tokenId` (dele) na ficha `alvoTokenId`. Resolve com `null` (o mestre usou)
+   * ou o motivo da recusa; sem resposta em `USAR_ITEM_ESPERA_MS`, o motivo do teto.
+   */
+  usarItemFora(tokenId: string, vagaId: string, alvoTokenId: string): Promise<string | null>
+  /**
    * MOEDAS E TROCA — "Pagar a…": `moedas` à ficha `toTokenId`. `false` (e nada
    * sai) quando não joga, o valor não é inteiro positivo, as fichas dele não
    * somam tanto, ou o socket caiu. Quem confere de verdade é o host.
@@ -2344,6 +2351,8 @@ export function travelPhaseOfSceneChange(by: unknown): 'arrived' | 'moved' | 'ga
  */
 export const RECONNECT_MAX_DELAY_MS = 30_000
 const RECONNECT_FIRST_DELAY_MS = 1_000
+/** Fase 8: quanto o "Usar" fora da batalha espera o `item.usar.result` antes de desistir. */
+const USAR_ITEM_ESPERA_MS = 8_000
 /** Depois disto fora, a tela oferece "Reconectar" (as tentativas sozinhas continuam). */
 export const MANUAL_RECONNECT_AFTER_MS = 30_000
 /**
@@ -2813,6 +2822,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   // mesmo relógio: um novo toma o lugar do outro, nunca aparecem sobrepostos.
   let doorNoticeTimer: ReturnType<typeof setTimeout> | null = null
   let nextNoticeId = 1
+  // Fase 8: os "Usar" esperando o `item.usar.result`, pelo reqId.
+  const usosPendentes = new Map<string, (motivo: string | null) => void>()
   /** PUZZLES: o puzzle de onde ele acabou de sair; a vista dele que ainda estava a caminho não reabre a tela. */
   let puzzleQueSaiu: string | null = null
   /** PESCA: `performance.now()` do último `pesca.vivo` que saiu (no máximo 4 por segundo). */
@@ -5842,6 +5853,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         answerCompra(reason)
         return
       }
+      case 'item.usar.result': {
+        const responder = typeof data.reqId === 'string' ? usosPendentes.get(data.reqId) : undefined
+        if (responder === undefined || typeof data.reqId !== 'string') return
+        usosPendentes.delete(data.reqId)
+        responder(data.ok === true ? null : typeof data.motivo === 'string' ? data.motivo.slice(0, ITEM_USAR_MOTIVO_MAX) : 'O mestre recusou')
+        return
+      }
       case 'item.give.rejected': {
         if (state.status !== 'playing') return
         const reason = ITEM_GIVE_REJECTIONS.find((r) => r === data.reason)
@@ -6708,6 +6726,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (!send({ type: 'pin.buy', pinId, itemId })) return false
       showCompra({ id: nextNoticeId++, pinId, itemId, nome: item.nome, phase: 'sent' })
       return true
+    },
+
+    usarItemFora(tokenId, vagaId, alvoTokenId) {
+      if (state.status !== 'playing') return Promise.resolve('Você ainda não está na mesa')
+      const reqId = `u${nextReqId++}`
+      if (!send({ type: 'item.usar', reqId, tokenId, vagaId, alvoTokenId })) return Promise.resolve('Sem conexão com o mestre')
+      return new Promise((resolve) => {
+        usosPendentes.set(reqId, resolve)
+        setTimeout(() => {
+          if (usosPendentes.delete(reqId)) resolve('O mestre não respondeu: tente de novo')
+        }, USAR_ITEM_ESPERA_MS)
+      })
     },
 
     giveItem(itemId, toTokenId) {

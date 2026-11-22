@@ -436,6 +436,8 @@ export interface HostBridgeDeps {
    * vai aos jogadores.
    */
   ponteDaBatalhaDBT?: HostSessionOptions['ponteDaBatalhaDBT']
+  /** Fase 8: o 'Usar' fora da batalha pedido pelo jogador, na mesa do mestre (`stores/usoDoItemFora.ts`). */
+  usarItemFora?: HostSessionOptions['usarItemFora']
   /** MODO BATALHA: a ficha do jogador `nome` esbarrou numa parede que ele não via (`invisivel`: parede invisível); aviso só do mestre. */
   onEsbarrouNaParede?: HostSessionOptions['onEsbarrouNaParede']
   /** DIA/TARDE/NOITE: o período da sessão no mestre. O jogador só recebe o da cena dele (`luzParaJogador`). */
@@ -4726,6 +4728,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         getCaminhosDaBatalha: deps.getCaminhosDaBatalha,
         ponteDaBatalha: deps.ponteDaBatalha,
         ponteDaBatalhaDBT: deps.ponteDaBatalhaDBT,
+        usarItemFora: deps.usarItemFora,
         onEsbarrouNaParede: deps.onEsbarrouNaParede,
         getPeriodo: deps.getPeriodo,
         restoreSeats,

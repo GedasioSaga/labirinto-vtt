@@ -82,6 +82,12 @@ export interface HostSessionOptions {
    */
   ponteDaBatalhaDBT?: PonteDaBatalhaDBT
   /**
+   * Fase 8 (o "Usar" fora da batalha): usa o item na mesa do mestre, depois
+   * de o host conferir que a ficha é do jogador (`stores/usoDoItemFora.ts`).
+   * Devolve a linha do chat, ou o motivo da recusa. Ausente = o host recusa.
+   */
+  usarItemFora?: (pedido: { sceneKey: string; tokenId: string; personagemId: string; vagaId: string; alvoPersonagemId: string; quem: string }) => { ok: true; texto: string } | { ok: false; motivo: string }
+  /**
    * MODO BATALHA (regra de 27/10): a ficha de `nome` parou numa parede que o
    * recorte dele não tem (`invisivel`: alguma delas é parede invisível; senão
    * ainda estava na névoa dele). A parede passa a valer como explorada para

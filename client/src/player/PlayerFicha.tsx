@@ -3,6 +3,7 @@ import type { LivroDaFicha } from '../components/EscolherDoLivro'
 import type { QuemEditaAMecanica } from '../components/batalha/MecanicaDaTecnica'
 import { FichaDoSistema } from '../components/dbt/registroDeFichas'
 import { InventarioDaFicha } from '../components/InventarioDaFicha'
+import { UsarItemFora } from '../components/UsarItemFora'
 import { LivroDeRegras } from '../components/LivroDeRegras'
 import type { ResumoDoLivro } from '../lib/livroDeRegras'
 import { cliqueDaTela, comAjustes, valorDaParte, type Ajuste } from '../lib/ajusteDaFicha'
@@ -59,6 +60,8 @@ export interface PlayerFichaProps {
   onDarItem?: (itemId: string, toTokenId: string) => void
   /** ITEM QUE ILUMINA: "Acender"/"Apagar" o item da ficha `tokenId` (`item.acender`). */
   onAcenderItem?: (tokenId: string, itemId: string, acesa: boolean) => void
+  /** Fase 8: o "Usar" fora da batalha do item com efeito, da ficha `tokenId` na ficha `alvoTokenId` (`item.usar`); o motivo da recusa, ou `null`. */
+  onUsarItem?: (tokenId: string, vagaId: string, alvoTokenId: string) => Promise<string | null>
   /**
    * SÓ LER (o site do Lobby, na ficha de um colega): sem "Editar", sem o ajuste
    * rápido (−/+), sem "Criar" e sem "Dar a…". Ausente = como sempre (edita).
@@ -149,6 +152,7 @@ export function PlayerFicha({
   inventarioDe,
   mochilaNoBoneco = false,
   onDarItem,
+  onUsarItem,
   onAcenderItem,
   somenteLeitura = false,
   aoAbrirEdicao,
@@ -501,6 +505,10 @@ export function PlayerFicha({
                                 {item.luz !== undefined && onAcenderItem !== undefined && inventario.tokenId !== undefined && (
                                   <AcenderItem item={item} tokenId={inventario.tokenId} onAcender={onAcenderItem} />
                                 )}
+                                {/* Fase 8: o item com efeito (a frase veio do host) se usa fora da batalha; quem recusa, com o motivo, é o host. */}
+                                {item.efeitoResumo !== undefined && onUsarItem !== undefined && inventario.tokenId !== undefined && (
+                                  <UsarDaFicha item={item} tokenId={inventario.tokenId} nome={mostradoComAjustes?.nome ?? 'Você'} colegas={inventario.colegas} onUsar={onUsarItem} />
+                                )}
                                 <DarAColega item={item} colegas={inventario.colegas} onDar={onDarItem} />
                               </>
                             )
@@ -562,6 +570,16 @@ function AcenderItem({ item, tokenId, onAcender }: { item: CarriedItem; tokenId:
       {acesa ? 'Apagar' : 'Acender'}
     </button>
   )
+}
+
+/**
+ * Fase 8: o "Usar" fora da batalha, em si ou num colega encostado. O jogador
+ * não tem as peças do efeito (só a frase): quem diz se o item se usa fora, e
+ * por que não, é o host, na resposta.
+ */
+function UsarDaFicha({ item, tokenId, nome, colegas, onUsar }: { item: CarriedItem; tokenId: string; nome: string; colegas: readonly BackpackColleague[]; onUsar: (tokenId: string, vagaId: string, alvoTokenId: string) => Promise<string | null> }) {
+  const candidatos = [{ id: tokenId, nome }, ...colegas.filter((colega) => colega.tokenId !== tokenId).map((colega) => ({ id: colega.tokenId, nome: colega.name }))]
+  return <UsarItemFora item={item} motivo={null} candidatos={candidatos} onUsar={(alvoTokenId) => onUsar(tokenId, item.id, alvoTokenId)} />
 }
 
 /**

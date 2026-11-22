@@ -726,6 +726,25 @@ export interface ItemAcenderMessage {
 }
 
 /**
+ * "USAR" FORA DA BATALHA (Fase 8, SISTEMA.md §5.2): o jogador usa o item da
+ * vaga `vagaId` da mochila da PRÓPRIA ficha `tokenId` na ficha `alvoTokenId`
+ * (a dele mesma, ou a de um colega na cena). Só os ids: o host confere que a
+ * ficha é dele e a vaga está na mochila dela, lê o efeito da cópia DELE e
+ * responde `item.usar.result` (o motivo, se recusou). Aditiva: mestre antigo
+ * responde `error invalid_message`, e a tela do jogador espera o teto.
+ */
+export interface ItemUsarMessage {
+  type: 'item.usar'
+  reqId: string
+  tokenId: string
+  vagaId: string
+  alvoTokenId: string
+}
+
+/** Teto do motivo da recusa do `item.usar.result`. */
+export const ITEM_USAR_MOTIVO_MAX = 240
+
+/**
  * Jogador pede ao mestre para passar pelo pino de viagem `pinId` da cena em que
  * está. Só o id do pino: o destino o jogador nem conhece (`lib/fogFilter.ts`).
  * O host valida e, se valer, pergunta ao mestre.
@@ -1455,6 +1474,7 @@ export type PlayerMessage =
   | TokenEditMessage
   | TokenAuraMessage
   | ItemAcenderMessage
+  | ItemUsarMessage
   | PinTravelRequestMessage
   | PinTakeMessage
   | PinBuyMessage
@@ -2356,6 +2376,8 @@ export type HostMessage =
   | { type: 'pin.buy.answer'; answer: 'sold'; nome: string }
   | { type: 'pin.buy.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
+  // Fase 8: a resposta ao `item.usar`, só a quem pediu; `motivo` só na recusa.
+  | { type: 'item.usar.result'; reqId: string; ok: boolean; motivo?: string }
   // DAR ITEM (decisão 8): o aviso de quem deu e de quem recebeu. Aditivo.
   | ItemGivenMessage
   // MOEDAS E TROCA, só a quem pagou ou a quem a oferta foi feita.
@@ -4000,6 +4022,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'item.acender':
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && typeof value.acesa === 'boolean'
         ? { type: 'item.acender', tokenId: value.tokenId, itemId: value.itemId, acesa: value.acesa }
+        : null
+    case 'item.usar':
+      return isBoundedString(value.reqId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.vagaId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.alvoTokenId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'item.usar', reqId: value.reqId, tokenId: value.tokenId, vagaId: value.vagaId, alvoTokenId: value.alvoTokenId }
         : null
     case 'item.give':
       return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)

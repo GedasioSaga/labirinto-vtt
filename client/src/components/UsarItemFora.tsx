@@ -9,7 +9,8 @@ import type { CarriedItem } from '../types/map'
  */
 
 export interface CandidatoDoUso {
-  personagemId: string
+  /** O id que `onUsar` recebe: o personagem (mestre) ou o token (jogador, pela rede). */
+  id: string
   nome: string
 }
 
@@ -19,17 +20,18 @@ export interface UsarItemForaProps {
   motivo: string | null
   /** Em quem pode: o primeiro é quem usa. Só um = sem escolha. */
   candidatos: readonly CandidatoDoUso[]
-  /** Usa em `personagemId`; devolve o motivo de não ter usado, ou `null` (usou). */
-  onUsar: (personagemId: string) => string | null
+  /** Usa em `id`; devolve o motivo de não ter usado, ou `null` (usou). O jogador espera a resposta do host. */
+  onUsar: (id: string) => string | null | Promise<string | null>
 }
 
 export function UsarItemFora({ item, motivo, candidatos, onUsar }: UsarItemForaProps) {
   const idBase = useId()
-  const [escolhido, setEscolhido] = useState<string>(candidatos[0]?.personagemId ?? '')
+  const [escolhido, setEscolhido] = useState<string>(candidatos[0]?.id ?? '')
   const [recusa, setRecusa] = useState<string | null>(null)
+  const [esperando, setEsperando] = useState(false)
   // O candidato escolhido saiu da cena: volta para quem usa.
-  const alvo = candidatos.some((candidato) => candidato.personagemId === escolhido) ? escolhido : (candidatos[0]?.personagemId ?? '')
-  const desligado = motivo !== null || alvo === ''
+  const alvo = candidatos.some((candidato) => candidato.id === escolhido) ? escolhido : (candidatos[0]?.id ?? '')
+  const desligado = motivo !== null || alvo === '' || esperando
   const aviso = motivo ?? recusa
   return (
     <span className="lb-inv__usar">
@@ -40,7 +42,7 @@ export function UsarItemFora({ item, motivo, candidatos, onUsar }: UsarItemForaP
           </label>
           <select id={`${idBase}-em`} className="lb-input lb-inv__usar-em" value={alvo} onChange={(event) => setEscolhido(event.target.value)}>
             {candidatos.map((candidato, indice) => (
-              <option key={candidato.personagemId} value={candidato.personagemId}>
+              <option key={candidato.id} value={candidato.id}>
                 {indice === 0 ? `${candidato.nome} (si)` : candidato.nome}
               </option>
             ))}
@@ -53,7 +55,18 @@ export function UsarItemFora({ item, motivo, candidatos, onUsar }: UsarItemForaP
         disabled={desligado}
         aria-label={`Usar ${item.nome}`}
         aria-describedby={aviso === null ? undefined : `${idBase}-aviso`}
-        onClick={() => setRecusa(onUsar(alvo))}
+        onClick={() => {
+          const resposta = onUsar(alvo)
+          if (!(resposta instanceof Promise)) {
+            setRecusa(resposta)
+            return
+          }
+          setEsperando(true)
+          void resposta.then((dita) => {
+            setRecusa(dita)
+            setEsperando(false)
+          })
+        }}
       >
         Usar
       </button>

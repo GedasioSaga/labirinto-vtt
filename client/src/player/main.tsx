@@ -2721,6 +2721,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             mochilaNoBoneco
             onDarItem={(itemId, toTokenId) => void connection.giveItem(itemId, toTokenId)}
             onAcenderItem={(tokenId, itemId, acesa) => void connection.acenderItem(tokenId, itemId, acesa)}
+            onUsarItem={(tokenId, vagaId, alvoTokenId) => connection.usarItemFora(tokenId, vagaId, alvoTokenId)}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".

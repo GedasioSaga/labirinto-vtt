@@ -256,6 +256,8 @@ import {
   type TokenEditMessage,
   type TokenAuraMessage,
   type ItemAcenderMessage,
+  type ItemUsarMessage,
+  ITEM_USAR_MOTIVO_MAX,
   type TokenHideRejection,
   type TokenHideRequestMessage,
   type VehicleBoardMessage,
@@ -7011,6 +7013,40 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * "USAR" FORA DA BATALHA (Fase 8, SISTEMA.md §5.2): a ficha `tokenId` tem de
+   * ser DELE de verdade (`fichasDoPersonagem`: sem empréstimo, sem NPC do
+   * mestre) e ligada a um personagem; o alvo, uma ficha da MESMA cena. A vaga,
+   * o efeito e o gasto a mesa do mestre confere na cópia dela
+   * (`options.usarItemFora`): o pedido traz só ids. Valeu: a linha vai ao chat
+   * Global (como o aviso do mestre) e a ficha nova chega pelo recorte de sempre.
+   */
+  function handleItemUsar(clientId: string, msg: ItemUsarMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    const jogador = playerId === undefined ? undefined : players.get(playerId)
+    if (playerId === undefined || jogador === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const recusa = (motivo: string): HostResult => reply(clientId, { type: 'item.usar.result', reqId: msg.reqId, ok: false, motivo: motivo.slice(0, ITEM_USAR_MOTIVO_MAX) })
+    if (statusOf(playerId) !== 'playing') return recusa('Você ainda não está na mesa')
+    const usar = options.usarItemFora
+    if (usar === undefined) return recusa('O mestre não usa item pela rede nesta versão')
+    const ficha = fichasDoPersonagem(playerId, world).find(({ token: candidato }) => candidato.id === msg.tokenId)
+    // Segurança (aceite 3 da Fase 8): a ficha de outro (ou emprestada) cai aqui, antes de qualquer leitura da mochila.
+    if (ficha === undefined || ficha.token.characterId === null) return recusa('Esta ficha não é sua')
+    const alvo = ficha.scene.map.tokens.find((candidato) => candidato.id === msg.alvoTokenId)
+    if (alvo === undefined || alvo.characterId === null) return recusa('Quem recebe precisa ser você ou uma ficha de jogador nesta cena')
+    const feito = usar({
+      sceneKey: ficha.scene.sceneId ?? ficha.scene.map.id,
+      tokenId: ficha.token.id,
+      personagemId: ficha.token.characterId,
+      vagaId: msg.vagaId,
+      alvoPersonagemId: alvo.characterId,
+      quem: nomeDoJogadorNoHistorico(jogador.name),
+    })
+    if (!feito.ok) return recusa(feito.motivo)
+    const { sent: _saiu, ...doChat } = masterChatSend(feito.texto)
+    return { ...doChat, outbound: [...doChat.outbound, { clientId, msg: { type: 'item.usar.result', reqId: msg.reqId, ok: true } }] }
+  }
+
+  /**
    * FICHA DE PERSONAGEM — as fichas (tokens) do jogador que podem ter a ficha
    * de personagem DELE: as que ele tem de verdade, em qualquer cena. Ficam de
    * fora as mesmas que o `token.edit` recusa: a emprestada (ajudante
@@ -9762,6 +9798,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleTokenAura(clientId, msg, world)
       case 'item.acender':
         return handleItemAcender(clientId, msg, world)
+      case 'item.usar':
+        return handleItemUsar(clientId, msg, world)
       case 'personagem.criar':
         return handlePersonagemCriar(clientId, msg, world)
       case 'personagem.editar':

@@ -389,7 +389,7 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
             <UsarItemFora
               item={item}
               motivo={motivoDeNaoUsarFora(item)}
-              candidatos={(soEmQuemUsa(item) ? candidatosDoUso().slice(0, 1) : candidatosDoUso()).map(({ personagem: candidato }) => ({ personagemId: candidato.id, nome: candidato.nome }))}
+              candidatos={(soEmQuemUsa(item) ? candidatosDoUso().slice(0, 1) : candidatosDoUso()).map(({ personagem: candidato }) => ({ id: candidato.id, nome: candidato.nome }))}
               onUsar={(alvoPersonagemId) => usarComEfeito(item, alvoPersonagemId, fechar)}
             />
           ) : (

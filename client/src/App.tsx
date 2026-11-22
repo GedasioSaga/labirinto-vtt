@@ -16,6 +16,7 @@ import type { PincelNasCamadas } from './components/FloorLayersList'
 import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ligarFalaNoChat } from './stores/falaNoChat'
+import { usarItemForaNaMesa } from './stores/usoDoItemFora'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
 import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
 import { subscribeToDirtyFlag, saveOpenMap } from './stores/sessionStore'
@@ -1121,6 +1122,13 @@ function App() {
         ponteDaBatalha,
         // BATALHA DBT: a mesma coisa para a batalha Dragon Ball (`batalhaDBT.*`); cada cena está numa store só.
         ponteDaBatalhaDBT,
+        // Fase 8: o "Usar" fora da batalha do jogador, na mesa do mestre; o mestre vê o aviso com Desfazer (o chat o host manda).
+        usarItemFora: (pedido) => {
+          const feito = usarItemForaNaMesa(pedido)
+          if (!feito.ok) return feito
+          useToastStore.getState().push('info', feito.texto, undefined, { actions: [{ label: 'Desfazer', run: () => void feito.desfazer() }] })
+          return { ok: true, texto: feito.texto }
+        },
         // Regra de 27/10: esbarrar em parede invisível REVELA (só para ele) e AVISA o mestre (o nome vem do registro do host, não do jogador).
         onEsbarrouNaParede: (nome, invisivel) =>
           useToastStore.getState().push('info', invisivel ? `${nome} esbarrou na parede invisível` : `${nome} esbarrou numa parede que ainda estava na névoa`),
