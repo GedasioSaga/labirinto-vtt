@@ -719,6 +719,15 @@ export function textoDoTempo(tempo: LeituraDoTempo, combate: CombateDoPersonagem
   }
 }
 
+/**
+ * ARMAS-FONTE-UNICA §7: na arma montada, os usos dizem o que sobra ("Restam 2 de 3"); a técnica segue
+ * "1/3 usos" (gastos). O resto do tempo (recarga, Overload) é o mesmo da técnica.
+ */
+export function textoDoTempoDaArma(tempo: LeituraDoTempo, combate: CombateDoPersonagem | undefined, cartaoId: string): string | null {
+  if (tempo.tipo !== 'usos') return textoDoTempo(tempo, combate, cartaoId)
+  return `Restam ${Math.max(0, tempo.vezes - (combate?.usos[cartaoId] ?? 0))} de ${tempo.vezes}`
+}
+
 /** F2 (fatia B): uma mudança por resposta, como a mira a usa: o dano já lido e o selo; `null` = a resposta não muda aquilo. */
 export interface RespostaNaTela {
   chave: string
@@ -1281,7 +1290,7 @@ export function golpesDeAtaque(
 
 /**
  * Construtor C8: a tira da arma montada (o Boomerang). O dano, o selo do
- * acerto, quem reage, o custo, a ação e os usos ("1/3 usos") saem das peças,
+ * acerto, quem reage, o custo, a ação e os usos ("Restam 2 de 3") saem das peças,
  * e o motivo é o mesmo do host (`motivoDaArmaNaVez`). Tudo ou nada: o Dano e o
  * Efeito em texto da arma ficam só na leitura, e as balas saem (o dano delas é
  * o do Atacar de texto).
@@ -1300,7 +1309,7 @@ function golpeDaArmaMontada(
   const { balas: _balas, selo: _selo, ...semOTexto } = base
   if (lida.tipo === 'recusada') return { ...semOTexto, motivo: lida.motivo }
   const { mecanica } = lida
-  const tempo = [textoDoTempo(lida.tempo, combate, arma.id), lida.acao === 'simples' ? textoDoAtaqueExtra(acoes) : null].filter((texto): texto is string => texto !== null)
+  const tempo = [textoDoTempoDaArma(lida.tempo, combate, arma.id), lida.acao === 'simples' ? textoDoAtaqueExtra(acoes) : null].filter((texto): texto is string => texto !== null)
   // A leitura com o dano das peças: a "Conta" do Dano em texto diria um número que a arma montada não dá.
   const dano = danoNaTela(danoDaTecnica(arma, { personagem, sistema, arma, bonusDaBatalha: bonus }))
   const golpe: GolpeNaTela = {
