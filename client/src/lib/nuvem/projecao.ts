@@ -1,10 +1,11 @@
 import { partesDoLivro } from '../../net/protocoloDoLivro'
 import { resumoDoLivro, type ResumoDoLivro } from '../livroDeRegras'
 import { semOcultas } from '../habilidadeOculta'
+import { semAsPecasDoEfeito } from '../leituraDoItem'
 import type { Personagem } from '../personagem'
 import { lerSistemaDeRpg, type SistemaDeRpg } from '../sistemaDeRpg'
 import { alvoDoCaminho, CAMPOS_DO_MESTRE, ESQUEMA_DO_CAMINHO, type NomeDaRegra } from './caminho'
-import { ehRegistro, type Json } from './json'
+import { ehRegistro, proprio, type Json } from './json'
 import { podeEscreverNaFicha, podeVer } from './permissao'
 import type { FichaGuardada, FichaNoEstado, Membro, MembroProjetado, OpGravada, Visibilidade } from './tipos'
 
@@ -12,7 +13,8 @@ import type { FichaGuardada, FichaNoEstado, Membro, MembroProjetado, OpGravada, 
  * PROJEÇÃO (docs/planos/lobby-jogadores-2026-11-05.md §6.4): o que o jogador
  * recebe. Ele vê TUDO dos colegas, menos os campos do mestre (dono, combate,
  * soCenario, nomeDoJogador, notaDoMestre) e o bloco de NPC da ficha Dragon
- * Ball. Mochila e moedas ficam (≠ `paraOFio`, que é só da sala LAN).
+ * Ball. Mochila e moedas ficam (≠ `paraOFio`, que é só da sala LAN); a
+ * mochila, sem as peças do efeito do item (decisão C8: só a frase desce).
  *
  * O INIMIGO LIBERADO para o treino (§8.2, T8) tem projeção própria, mais
  * estreita: além dos campos do mestre, também sem mochila, moedas e documentos
@@ -54,6 +56,8 @@ export function projetarParaJogador(doc: Personagem): Personagem {
   // Fatia C7, por garantia: o app do mestre nunca sobe cartão oculto (o emissor o tira), mas se um chegar, não desce ao jogador.
   const copia: Personagem = { ...semOcultas(doc) }
   for (const campo of CAMPOS_DO_MESTRE) delete copia[campo]
+  // EFEITO DO ITEM (Fase 7, decisão C8), por garantia: as peças nunca sobem (`lerFicha` recusa), mas se um doc as tiver, não descem.
+  if (copia.mochila !== undefined) copia.mochila = copia.mochila.map(semAsPecasDoEfeito)
   if (copia.dbt !== undefined && copia.dbt.npc !== undefined) {
     // Sem a chave, como a ficha de jogador (nada de `npc: undefined`).
     const { npc: _doMestre, ...fichaPublica } = copia.dbt
@@ -81,12 +85,33 @@ const CHAVES_FORA_DO_TREINO: ReadonlySet<string> = new Set([...CAMPOS_DO_MESTRE,
 /** O mesmo que `projetarParaJogador` (ou `projetarParaTreino`), sobre o doc em JSON do `valor`/`antes` de uma op. */
 function projetarDocEmJson(valor: Json | undefined, tiradas: ReadonlySet<string>): Json | undefined {
   if (!ehObjetoJson(valor)) return valor
-  const publico: ObjetoJson = Object.fromEntries(Object.entries(valor).filter(([chave]) => !tiradas.has(chave)))
+  const publico: ObjetoJson = Object.fromEntries(Object.entries(mochilaSemAsPecas(valor)).filter(([chave]) => !tiradas.has(chave)))
   const dbt = publico.dbt
   if (ehObjetoJson(dbt) && Object.hasOwn(dbt, 'npc')) {
     publico.dbt = Object.fromEntries(Object.entries(dbt).filter(([chave]) => chave !== 'npc'))
   }
   return publico
+}
+
+/** EFEITO DO ITEM (Fase 7, decisão C8): a vaga em JSON sem as peças do efeito; a frase (`efeitoResumo`) fica. */
+function vagaEmJsonSemAsPecas(vaga: Json): Json {
+  if (!ehObjetoJson(vaga) || !Object.hasOwn(vaga, 'efeito')) return vaga
+  return Object.fromEntries(Object.entries(vaga).filter(([chave]) => chave !== 'efeito'))
+}
+
+/**
+ * A ficha em JSON com a mochila sem as peças do efeito; sem peça, a mesma
+ * referência. A projeção a usa por garantia, e o publicar do Worker, porque
+ * o app manda a ficha como a tem (a peça só fica no app do mestre).
+ */
+export function fichaEmJsonSemAsPecas(valor: Json): Json {
+  return ehObjetoJson(valor) ? mochilaSemAsPecas(valor) : valor
+}
+
+function mochilaSemAsPecas(doc: ObjetoJson): ObjetoJson {
+  const mochila = proprio(doc, 'mochila')
+  if (!Array.isArray(mochila) || mochila.every((vaga) => vagaEmJsonSemAsPecas(vaga) === vaga)) return doc
+  return { ...doc, mochila: mochila.map(vagaEmJsonSemAsPecas) }
 }
 
 /**
@@ -101,11 +126,23 @@ export function projetarOpParaJogador(op: OpGravada, visivel: Visibilidade): OpG
   const alvo = alvoDoCaminho(op.caminho)
   if (alvo === null || !ESQUEMA_DO_CAMINHO[alvo.regra].visivelAoJogador) return null
   if (visivel === 'treino' && REGRAS_FORA_DO_TREINO.has(alvo.regra)) return null
+  if (alvo.regra === 'vaga') return opDaVagaSemAsPecas(op)
   if (alvo.regra !== 'ficha') return op
   const tiradas = visivel === 'treino' ? CHAVES_FORA_DO_TREINO : CHAVES_DO_MESTRE
   const projetada: OpGravada = { ...op }
   const valor = projetarDocEmJson(op.valor, tiradas)
   const antes = projetarDocEmJson(op.antes, tiradas)
+  if (valor !== undefined) projetada.valor = valor
+  if (antes !== undefined) projetada.antes = antes
+  return projetada
+}
+
+/** A op de uma vaga (o item novo, ou o `antes` do apagar) sem as peças do efeito, por garantia; sem peça, a mesma op. */
+function opDaVagaSemAsPecas(op: OpGravada): OpGravada {
+  const valor = op.valor === undefined ? undefined : vagaEmJsonSemAsPecas(op.valor)
+  const antes = op.antes === undefined ? undefined : vagaEmJsonSemAsPecas(op.antes)
+  if (valor === op.valor && antes === op.antes) return op
+  const projetada: OpGravada = { ...op }
   if (valor !== undefined) projetada.valor = valor
   if (antes !== undefined) projetada.antes = antes
   return projetada

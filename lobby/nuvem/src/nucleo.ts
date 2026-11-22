@@ -62,6 +62,7 @@ export { lerEnvelope, processarLote, respostasAdiadas, type Gravacoes, type Leit
 export { membroAtivo, podeVer } from '../../../client/src/lib/nuvem/permissao'
 export {
   ehCopiaDeTreino,
+  fichaEmJsonSemAsPecas,
   fichaNoEstado,
   partesDoLivroPublicado,
   projetarMembro,

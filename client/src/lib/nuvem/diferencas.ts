@@ -76,7 +76,10 @@ function definir(fichaId: string, caminho: string[], valor: unknown): Mudanca {
 }
 
 function criarFicha(ficha: Personagem): Mudanca {
-  return { fichaId: ficha.id, caminho: [], acao: 'criar', valor: paraJson(ficha) }
+  // EFEITO DO ITEM (Fase 7, decisão C8): a ficha inteira sobe como a vaga nova, sem as peças (ficam no app do mestre).
+  const mochila = ficha.mochila
+  const naNuvem = mochila === undefined ? ficha : { ...ficha, mochila: mochila.map(semAsPecasDoEfeito) }
+  return { fichaId: ficha.id, caminho: [], acao: 'criar', valor: paraJson(naNuvem) }
 }
 
 function apagarFicha(fichaId: string): Mudanca {

@@ -5,7 +5,9 @@ import {
   CONTA_DO_MESTRE,
   diferencas,
   ehCopiaDeTreino,
+  ehJson,
   ehRegistro,
+  fichaEmJsonSemAsPecas,
   LIMITES,
   personagemDoArquivo,
   processarLote,
@@ -86,10 +88,15 @@ function idDaFicha(bruta: unknown): string | null {
   return segmentoValido(fichaId) && fichaId.length <= ID_DA_FICHA_MAX ? fichaId : null
 }
 
-/** A op de criar a ficha inteira, como o cliente mandaria: o núcleo lê e confere tudo (esquema, teto, permissão). */
+/**
+ * A op de criar a ficha inteira, como o cliente mandaria: o núcleo lê e confere tudo (esquema, teto, permissão).
+ * EFEITO DO ITEM (Fase 7, decisão C8): o app manda a ficha como a tem, e as peças do efeito ficam no app do
+ * mestre: saem aqui, antes do `lerMudanca`, que recusa a ficha que as traz (a frase fica).
+ */
 function opDeCriar(fichaId: string, bruta: unknown, quem: Identidade, baseRev: number, agora: number): Record<string, unknown> {
   const opId = `${PREFIXO_DO_PUBLICAR}${fichaId}`
-  return { opId, loteId: opId, fichaId, caminho: [], acao: 'criar', valor: bruta, baseRev, clienteId: quem.clienteId, quandoCliente: agora }
+  const valor = ehJson(bruta) ? fichaEmJsonSemAsPecas(bruta) : bruta
+  return { opId, loteId: opId, fichaId, caminho: [], acao: 'criar', valor, baseRev, clienteId: quem.clienteId, quandoCliente: agora }
 }
 
 /** As fichas que ainda não existem viram `criar`; as que já existem sobem depois como ops normais (diferença contra a base). */
