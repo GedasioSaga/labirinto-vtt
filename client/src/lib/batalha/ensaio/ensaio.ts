@@ -9,13 +9,13 @@ import { criarMesaEmMemoria, montarLutadores, type EscolhaDaVaga, type LadoDoTre
 import { danoNoTeto, seloDaMira } from '../../treino/robo'
 import { criarSorteio } from '../../treino/sorteio'
 import { recursoDeVida, vidaDoPersonagem } from '../../vidaDaFicha'
-import { tecnicasNoMenu } from '../acoes'
+import { armaNaVez, motivoDaArmaNaVez, tecnicasNoMenu } from '../acoes'
 import type { PedidoDeAcao, PedidoDeAlvo, PedidoDeReacao, SaidaDaReacao, SaidaDaTecnica, SeloPedido } from '../combate'
 import type { QuaisSelosTira } from '../debuffs'
 import { danoDoAtaque, normalizar } from '../formula'
-import { ABA_DAS_TECNICAS, armasDe, recursoDoCusto, type LeituraDoTempo } from '../leituraDaFicha'
+import { ABA_DAS_ARMAS, ABA_DAS_TECNICAS, armasDe, recursoDoCusto, type LeituraDoTempo } from '../leituraDaFicha'
 import { armaPadraoEntre } from '../mecanica/arma'
-import { danoDaTecnicaComAVida } from '../leituraDaTecnica'
+import { danoDaTecnica, danoDaTecnicaComAVida } from '../leituraDaTecnica'
 import { pecasDoCartao } from '../mecanica/leitura'
 import { mecanicaDoCartao } from '../mecanicasAMao'
 import { reacoesParaOAlvo, type ReacaoComTecnica } from '../reacaoComTecnica'
@@ -63,6 +63,8 @@ export interface PedidoDeEnsaio {
   recursosCheios?: boolean
   /** Fase 4: a técnica que também reage é testada NA REAÇÃO (o boneco bate, ela defende); a só de reação vai sempre por ela. */
   naReacao?: boolean
+  /** ARMAS-FONTE-UNICA §7: o cartão é uma ARMA montada; o teste vai pelo Atacar com ela (`ensaiarArma`). */
+  naArma?: boolean
 }
 
 /** `gasto` (Fase 7): o último passo do Testar do item, com o que a pilha tinha e com quanto fica. */
@@ -564,6 +566,7 @@ function ensaiarAReacao(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
  */
 export function ensaiar(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   const { cartao, sistema } = pedido
+  if (pedido.naArma === true) return ensaiarArma(pedido)
   if (ensaioNaReacao(pedido)) return ensaiarAReacao(pedido)
   const arrumacao = arrumacaoDoBoneco(cartao)
   const arrumou: PassoDoEnsaio = { tipo: 'arrumou', titulo: 'Boneco', texto: arrumacao.frase }
@@ -630,6 +633,61 @@ export function ensaiar(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   const reacoes = bonecosReagem(montada)
   const passos: PassoDoEnsaio[] = [arrumou, ...passoDoBonus, ...passoDePe, ...formula, ...reacoes, ...passosDoRegistro(loja, desde, 'Na batalha').filter((passo) => !/ ganhou ações extras/.test(passo.texto)), ...passosDosSelosNovos(montada, sistema, selosAntes), ...passosDosRecursos(mesa, sistema, antes)]
   const depois = passoDoTempo(tecnica.tempo)
+  if (depois !== null) passos.push(depois)
+  return { passos, barras: barrasDosAlvos(mesa, sistema, alvosTokens, vidaAntes), passarUmaVez: passarUmaVezNa(montada, sistema) }
+}
+
+/** A ficha de quem usa com a arma na aba Armas (a que já está lá, de mesmo id, é trocada; a nova entra no fim). */
+function comAArma(personagem: Personagem, arma: CartaoDaFicha): Personagem {
+  const armas = cartoesDaAba(personagem, ABA_DAS_ARMAS)
+  const nas = armas.some((atual) => atual.id === arma.id) ? armas.map((atual) => (atual.id === arma.id ? arma : atual)) : [...armas, arma]
+  return { ...personagem, abas: { ...personagem.abas, [ABA_DAS_ARMAS]: nas } }
+}
+
+/**
+ * O TESTAR DA ARMA (ARMAS-FONTE-UNICA §7): o Atacar com a arma montada no
+ * boneco, pelo mesmo caminho do host (`armaNaVez`, `motivoDaArmaNaVez`, o
+ * `agir` com `armaId`). A arma sem mecânica não tem o que testar aqui: o Atacar
+ * de texto usa só o dano dela. Nunca lança: a recusa vira o passo "Não saiu".
+ */
+function ensaiarArma(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
+  const { cartao, sistema } = pedido
+  const arrumacao = arrumacaoDoBoneco(cartao)
+  const arrumou: PassoDoEnsaio = { tipo: 'arrumou', titulo: 'Boneco', texto: arrumacao.frase }
+  const naoSaiu = (texto: string): ResultadoDoEnsaio => ({ passos: [arrumou, recusa(texto)], barras: [], passarUmaVez: null })
+  const montada = montarMesa({ ...pedido, quemUsa: comAArma(pedido.quemUsa, cartao) }, arrumacao)
+  if (typeof montada === 'string') return naoSaiu(montada)
+  const { mesa, loja, vagaDeQuemUsa, vagasDosBonecos } = montada
+  const turnos = cenaDe(loja).turnos
+  const naMesa = mesa.personagens().find((personagem) => personagem.id === vagaDeQuemUsa.personagemId)
+  const arma = naMesa === undefined ? undefined : armasDe(naMesa).find((atual) => atual.id === cartao.id)
+  if (naMesa === undefined || arma === undefined) return naoSaiu('A arma não entrou na ficha do teste.')
+  const lida = armaNaVez(arma, naMesa, sistema)
+  if (lida.tipo === 'texto') return naoSaiu('Sem mecânica montada: o Atacar usa só o dano da arma.')
+  if (lida.tipo === 'recusada') return naoSaiu(lida.motivo)
+  const motivo = motivoDaArmaNaVez(arma, lida, naMesa, sistema, turnos.combate?.[naMesa.id], null)
+  if (motivo !== null) return naoSaiu(motivo)
+  if (turnos.vez === null) return naoSaiu('A mesa do teste não chegou à vez de quem usa.')
+
+  const lido = danoDaTecnica(arma, { personagem: naMesa, sistema, arma })
+  const alvosTokens = vagasDosBonecos.map((vaga) => vaga.tokenId)
+  const alvos: PedidoDeAlvo[] = alvosTokens.map((tokenId) => ({ tokenId, dano: lido.tipo === 'valor' ? danoNoTeto(lido.valor) : null }))
+  const selo = seloDaMira(arma, sistema)
+  const golpe: PedidoDeAcao = { tipo: 'atacar', armaId: arma.id, alvos, surpresa: false, perfurante: lida.mecanica.dano?.perfurante === true, ...(selo === null ? {} : { selo }) }
+  const vida = recursoDeVida(sistema)
+  const antes = fotoDosRecursos(mesa)
+  const vidaAntes = new Map(mesa.personagens().map((personagem) => [personagem.id, vida === null ? null : vidaDoPersonagem(personagem, vida)]))
+  const selosAntes = new Set((turnos.selos ?? []).map((atual) => atual.id))
+  const desde = cenaDe(loja).registro.length
+  const esperado = { cartaId: turnos.vez, rodada: turnos.rodada }
+  // O motivo é o mesmo que o host daria ao golpe (`podeAgir`), palavra por palavra.
+  const motivoDoMotor = loja.getState().motivoDoAgir(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, esperado, golpe)
+  if (motivoDoMotor !== null) return naoSaiu(motivoDoMotor)
+  if (!loja.getState().agir(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, esperado, golpe)) return naoSaiu('A batalha recusou o golpe.')
+
+  const formula: PassoDoEnsaio[] = lido.tipo === 'valor' ? [{ tipo: 'formula', titulo: 'Fórmula', texto: lido.conta }] : []
+  const passos: PassoDoEnsaio[] = [arrumou, ...formula, ...bonecosReagem(montada), ...passosDoRegistro(loja, desde, 'Na batalha'), ...passosDosSelosNovos(montada, sistema, selosAntes), ...passosDosRecursos(mesa, sistema, antes)]
+  const depois = passoDoTempo(lida.tempo)
   if (depois !== null) passos.push(depois)
   return { passos, barras: barrasDosAlvos(mesa, sistema, alvosTokens, vidaAntes), passarUmaVez: passarUmaVezNa(montada, sistema) }
 }

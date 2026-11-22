@@ -285,7 +285,8 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
   const temAlgo = cartao.mecanica !== undefined || cartao.mecanicaProposta !== undefined
   // O teste roda o que está na tela: o rascunho completo (mesmo a proposta do dono, ainda sem o mestre); pela metade, o cartão como está.
   const cartaoDoTeste = useMemo(() => (rascunho !== null && problemaDe(rascunho, { personagem: ficha.personagem, sistema: ficha.sistema }, naArma) === null ? { ...cartao, mecanica: guardarMecanica(rascunho) } : cartao), [cartao, rascunho, ficha.personagem, ficha.sistema, naArma])
-  const botaoTestar = naArma ? null : (
+  // ARMAS-FONTE-UNICA §7: a arma também testa, pelo Atacar com ela no boneco (o mesmo caminho do host).
+  const botaoTestar = (
     <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" aria-pressed={testando} onClick={() => setTestando((antes) => !antes)}>
       {testando ? 'Fechar o teste' : 'Testar no boneco'}
     </button>
@@ -478,9 +479,9 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
         </div>
       )}
 
-      {testando && !naArma && fase !== 'escolhendo' && (
+      {testando && fase !== 'escolhendo' && (
         <Suspense fallback={null}>
-          <PainelDeEnsaio cartao={cartaoDoTeste} quemUsa={ficha.personagem} sistema={ficha.sistema} onFechar={fecharTeste} embutido {...(noItem !== null ? { item: { gasta: gastoDoItem?.gasta ?? 'um', onde: gastoDoItem?.onde ?? 'sempre', quantos: 1 } } : {})} />
+          <PainelDeEnsaio cartao={cartaoDoTeste} quemUsa={ficha.personagem} sistema={ficha.sistema} onFechar={fecharTeste} embutido naArma={naArma} {...(noItem !== null ? { item: { gasta: gastoDoItem?.gasta ?? 'um', onde: gastoDoItem?.onde ?? 'sempre', quantos: 1 } } : {})} />
         </Suspense>
       )}
     </section>

@@ -36,9 +36,11 @@ interface PainelDeEnsaioProps {
    * o teste termina no gasto ("Gasta 1: tinha 1, fica 0"). Ausente = técnica.
    */
   item?: Pick<EfeitoDoItem, 'gasta' | 'onde'> & { quantos: number }
+  /** ARMAS-FONTE-UNICA §7: o cartão é uma arma montada; o teste vai pelo Atacar com ela (sem a escolha da reação). */
+  naArma?: boolean
 }
 
-export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = false, item }: PainelDeEnsaioProps) {
+export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = false, item, naArma = false }: PainelDeEnsaioProps) {
   const tituloId = useId()
   const d20Id = useId()
   const [semente, setSemente] = useState(novaSemente)
@@ -48,8 +50,8 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
   // Fase 4: a técnica que vale na vez e na reação escolhe por onde testar; a só de reação vai sempre pela reação.
   const [naReacao, setNaReacao] = useState(false)
   const tipo = lerTipo(cartao)
-  const escolheOnde = item === undefined && tipo.tambemReacao && tipo.tipo !== 'reacao'
-  const reagindo = item === undefined && ensaioNaReacao({ cartao, naReacao })
+  const escolheOnde = item === undefined && !naArma && tipo.tambemReacao && tipo.tipo !== 'reacao'
+  const reagindo = item === undefined && !naArma && ensaioNaReacao({ cartao, naReacao })
   const gasta = item?.gasta
   const onde = item?.onde
   const quantos = item?.quantos
@@ -60,8 +62,8 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
     if (gasta !== undefined && onde !== undefined && quantos !== undefined) {
       return ensaiarItem({ nome: cartao.nome, efeito: { mecanica: cartao.mecanica ?? {}, gasta, onde }, quemUsa, sistema, semente, quantos, ...d20 })
     }
-    return ensaiar({ cartao, quemUsa, sistema, semente, recursosCheios, naReacao, ...d20 })
-  }, [cartao, quemUsa, sistema, semente, d20Fixo, recursosCheios, naReacao, gasta, onde, quantos])
+    return ensaiar({ cartao, quemUsa, sistema, semente, recursosCheios, naReacao, naArma, ...d20 })
+  }, [cartao, quemUsa, sistema, semente, d20Fixo, recursosCheios, naReacao, naArma, gasta, onde, quantos])
   // O conserto de um clique só aparece na recusa que ele conserta (SP ou HP que faltam na cópia).
   const consertaRecursos = resultado.passos.some((passo) => passo.conserto === 'encherRecursos')
   // O "Passar 1 vez" vale para o golpe que está na tela: outro golpe, outra conta.
