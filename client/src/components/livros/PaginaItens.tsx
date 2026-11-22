@@ -75,6 +75,17 @@ const DESTAQUE_MS = 1600
 const ULTIMOS_NA_SECAO = 5
 /** Quantas vagas da mochila a ficha que recebe mostra (as últimas: é onde a coisa nova entra). */
 const ULTIMAS_DA_MOCHILA = 8
+/**
+ * O nome do cartão mostra no máximo 2 linhas (o resto vira reticências). Até
+ * este tamanho ele sempre cabe nas 2 linhas, mesmo no cartão mais estreito;
+ * acima, o nome inteiro vai também na dica do mouse.
+ */
+const NOME_QUE_SEMPRE_CABE = 24
+
+/** A dica do nome do cartão: só quando o nome pode ter sido cortado nas 2 linhas. */
+function tituloDoNome(nome: string): string | undefined {
+  return nome.length > NOME_QUE_SEMPRE_CABE ? nome : undefined
+}
 
 /** O que a página lista: uma entrada do catálogo ou do livro (vira cartão numa aba) ou uma coisa do Acervo (vai para a mochila). */
 type EntradaDaPagina = EntradaParaFicha | EntradaDoAcervo
@@ -918,22 +929,31 @@ function CartaoDaEntrada({ entrada, coisa, linhas, resumo, estado, destino, pode
               <ImagemOuIniciais imagem={coisa.imagem} nome={coisa.nome} />
             </span>
           )}
-          <h3 className="mu-item__nome">{entrada.nome}</h3>
-          <span className={doMestre === null ? 'mu-etiqueta mu-etiqueta--livro' : 'mu-etiqueta mu-etiqueta--catalogo'}>{doMestre === null ? 'Do livro' : 'Do catálogo'}</span>
+          <div className="mu-item__titulo">
+            <h3 className="mu-item__nome" title={tituloDoNome(entrada.nome)}>
+              {entrada.nome}
+            </h3>
+            <p className="mu-item__tipo">{dados.um}</p>
+          </div>
+        </div>
+        <ul className="mu-item__selos" aria-label="Selos">
+          <li className={doMestre === null ? 'mu-item__selo mu-item__selo--livro' : 'mu-item__selo mu-item__selo--catalogo'}>{doMestre === null ? 'Do livro' : 'Do catálogo'}</li>
           {coisa !== undefined && (
-            <span className="mu-etiqueta mu-etiqueta--acervo" title={`Ligada à coisa ${coisa.nome} do Acervo`}>
+            <li className="mu-item__selo mu-item__selo--acervo" title={`Ligada à coisa ${coisa.nome} do Acervo`}>
               Ligada ao acervo
-            </span>
+            </li>
           )}
           {doMestre?.mecanica !== undefined && (
-            <span className="mu-etiqueta mu-etiqueta--montada" title={resumo === null ? 'A mecânica guardada não abre neste app: vale à mão' : 'O app faz a conta pelas peças montadas'}>
+            <li className="mu-item__selo mu-item__selo--montada" title={resumo === null ? 'A mecânica guardada não abre neste app: vale à mão' : 'O app faz a conta pelas peças montadas'}>
               {resumo === null ? 'Mecânica à mão' : 'Montada'}
-            </span>
+            </li>
           )}
-        </div>
-        <p className="mu-item__txt" title={entrada.texto.length > 0 ? entrada.texto : undefined}>
-          {entrada.texto.length === 0 ? dados.um : `${dados.um} · ${entrada.texto}`}
-        </p>
+        </ul>
+        {entrada.texto.length > 0 && (
+          <p className="mu-item__txt" title={entrada.texto}>
+            {entrada.texto}
+          </p>
+        )}
         {resumo !== null && resumo.length > 0 && (
           <ul className="mu-item__efeito" aria-label="O que faz">
             {resumo.map((frase) => (
@@ -1064,12 +1084,21 @@ function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrast
           <span className="mu-item__foto" aria-hidden="true">
             <ImagemOuIniciais imagem={acervo.imagem} nome={acervo.nome} />
           </span>
-          <h3 className="mu-item__nome">{acervo.nome}</h3>
-          <span className="mu-etiqueta mu-etiqueta--acervo">Do acervo</span>
+          <div className="mu-item__titulo">
+            <h3 className="mu-item__nome" title={tituloDoNome(acervo.nome)}>
+              {acervo.nome}
+            </h3>
+            <p className="mu-item__tipo">{categoria}</p>
+          </div>
         </div>
-        <p className="mu-item__txt" title={descricao.length > 0 ? descricao : undefined}>
-          {descricao.length === 0 ? categoria : `${categoria} · ${descricao}`}
-        </p>
+        <ul className="mu-item__selos" aria-label="Selos">
+          <li className="mu-item__selo mu-item__selo--acervo">Do acervo</li>
+        </ul>
+        {descricao.length > 0 && (
+          <p className="mu-item__txt" title={descricao}>
+            {descricao}
+          </p>
+        )}
         {/* Fase 7: o que o item faz, na mesma frase que a vaga da mochila mostra. */}
         {efeito !== undefined && <p className="mu-item__efeito">{resumoDoEfeitoDoItem(efeito, sistema)}</p>}
         <AtualizarCopias acervo={acervo} personagens={personagens} />
