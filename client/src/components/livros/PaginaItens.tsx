@@ -112,7 +112,9 @@ function mensagemDoErro(erro: unknown): string {
 /** O resumo das peças da entrada montada (as primeiras frases); `null` = sem mecânica válida (vale o texto). */
 function resumoDaEntrada(entrada: EntradaParaFicha): string[] | null {
   const pecas = pecasDaEntrada(entrada)
-  return pecas === null ? null : resumoDaMecanica(pecas).slice(0, FRASES_DO_RESUMO)
+  if (pecas === null) return null
+  // ARMAS-FONTE-UNICA §6: a arma mostra o "O que ela faz" inteiro, como o lápis, o Acervo e a ficha (cortado, sumiam o selo e os usos).
+  return entrada.tipo === 'arma' ? resumoDaMecanica(pecas) : resumoDaMecanica(pecas).slice(0, FRASES_DO_RESUMO)
 }
 
 interface GrupoQueRecebe {
