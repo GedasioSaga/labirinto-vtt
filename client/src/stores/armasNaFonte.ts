@@ -1,12 +1,13 @@
 import { guardarAcervoAntesDasArmas, novoIdDeItem, novoItemDoCatalogo } from '../lib/acervoDeItens'
 import type { ItemDoCatalogo } from '../lib/livros/catalogo'
-import { guardarCatalogoAntesDasArmas } from '../lib/livros/catalogoNoDisco'
+import { guardarCatalogoAntesDasArmas, lerCatalogo } from '../lib/livros/catalogoNoDisco'
 import { ABA_DAS_ARMAS } from '../lib/batalha/leituraDaFicha'
 import { ensaiarArmas, entradaComARegraDoCartao, fichasComARegraDaArma, juntarAsArmas, mesmaRegra, regraDaEntrada, regraDoCartao, type EnsaioDasArmas, type EntradaDoJuntar, type EscolhaDaArma } from '../lib/livros/regraDaArma'
 import { guardarRpgAntesDasArmas } from '../lib/pastasDeMapas'
 import { cartoesDaAba, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { useAcervoDeItensStore } from './acervoDeItensStore'
+import { personagensAtivos, useAdventureStore } from './adventureStore'
 import { useCatalogoStore } from './catalogoStore'
 import { useMundoDoLivroStore, type MundoAberto } from './mundoDoLivroStore'
 import { useToastStore } from './toastStore'
@@ -149,5 +150,37 @@ export async function consertarArmasAoAbrir(sistema: SistemaDeRpg): Promise<void
     useToastStore.getState().push('info', `Voltei ao que diz o livro: ${quais}.`)
   } catch (erro) {
     useToastStore.getState().push('error', `Não deu para conferir as armas das fichas: ${erro instanceof Error ? erro.message : String(erro)}`)
+  }
+}
+
+/** O catálogo do sistema para a batalha: o do livro aberto, senão o do disco; `null` = não deu para ler (nada se conserta). */
+async function entradasDoSistema(sistema: SistemaDeRpg): Promise<ItemDoCatalogo[] | null> {
+  const catalogo = useCatalogoStore.getState()
+  if (catalogo.sistemaId === sistema.id && catalogo.podeGravar) return catalogo.itens
+  const lido = await lerCatalogo(sistema.id)
+  return lido.lido ? lido.itens : null
+}
+
+/**
+ * COMEÇAR A BATALHA (§2, "Na batalha, o host"): antes da 1ª jogada, a cópia de
+ * arma ligada nas fichas da aventura que divergiu (app velho, Lobby) volta ao
+ * livro, para o host ler a mesma regra que o livro diz. Só o cartão já ligado;
+ * o `id` do cartão fica (os usos são por ele). Pede Salvar como os ajustes do
+ * mestre, com a cópia de antes das armas. Nunca lança: a falha vira aviso.
+ */
+export async function consertarArmasAoComecarABatalha(sistema: SistemaDeRpg): Promise<void> {
+  try {
+    const entradas = await entradasDoSistema(sistema)
+    const ligadas = (entradas ?? []).filter((entrada) => entrada.tipo === 'arma' && entrada.acervoId !== undefined)
+    if (ligadas.length === 0) return
+    const aventura = useAdventureStore.getState()
+    const fichas = personagensAtivos(aventura)
+    const mudam = comAsRegras([...fichas], ligadas, sistema).filter((personagem, indice) => personagem !== fichas[indice])
+    if (mudam.length === 0) return
+    if (aventura.pasta !== null) await guardarRpgAntesDasArmas(aventura.pasta.pastaId)
+    for (const ficha of mudam) useAdventureStore.getState().ajustarPersonagem(ficha.id, (atual) => comAsRegras([atual], ligadas, sistema)[0] ?? atual)
+    useToastStore.getState().push('info', `Começo da batalha: voltei ao que diz o livro as armas de ${mudam.map((ficha) => ficha.nome).join(', ')}.`)
+  } catch (erro) {
+    useToastStore.getState().push('error', `Não deu para conferir as armas da batalha: ${erro instanceof Error ? erro.message : String(erro)}`)
   }
 }

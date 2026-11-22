@@ -28,6 +28,8 @@ import { lerQuemPodeEntrar, prepararQuemEntra, rotulosDoMapa, type ListaDeQuemEn
 import { motivoParaNaoGuardar } from '../batalha/PainelDoMestre'
 import { useLivroDaMesaStore } from '../../stores/livroDaMesaStore'
 import { lerOAcervoSeFaltar } from '../../stores/acervoDeItensStore'
+import { consertarArmasAoComecarABatalha } from '../../stores/armasNaFonte'
+import { consertarItensAoComecarABatalha } from '../../stores/itensNaFonte'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
 import { assinarAberturasDeBatalha, listarAberturasDeBatalha } from '../../transicoes/aberturasDeBatalha'
 import { AberturaDeBatalhaOverlay, type AberturaPedida } from '../../transicoes/AberturaDeBatalhaOverlay'
@@ -180,6 +182,9 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     const lados = combatentesDoJudge(combatentes, { equipes: equipesAtivas(aventura), personagens: personagensAtivos(aventura) })
     const judge = judgeNoMapaDaBatalha(mapa, lados, lerJudgeLembrado(guardado, aventuraId, sceneKey)) ?? undefined
     useBatalhaStore.getState().ligar(sceneKey, abertura, { combatentes, regras, desempate, judge })
+    // ARMAS-FONTE-UNICA §2 e F6: antes da 1ª jogada, a cópia de arma e de item ligada que divergiu volta à fonte (livro, Acervo).
+    if (sistema !== null) void consertarArmasAoComecarABatalha(sistema)
+    void consertarItensAoComecarABatalha()
     // MUNIÇÃO: a Garrucha de vaga antiga atira as balas do Acervo; o disco responde antes de o mestre abrir a primeira mira.
     lerOAcervoSeFaltar()
     // BATALHA F2 (5.1): iniciar (pelo botão ou pelo Shift+B) leva o livro à página Batalha; encerrar deixa onde está.

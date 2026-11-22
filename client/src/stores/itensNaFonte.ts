@@ -3,6 +3,7 @@ import { comAEscolhaDasCopias, comAsCopiasQueSeguem, ensaiarCopias, fichaComOEfe
 import { guardarRpgAntesDosItens } from '../lib/pastasDeMapas'
 import type { Personagem } from '../lib/personagem'
 import { useAcervoDeItensStore } from './acervoDeItensStore'
+import { personagensAtivos, useAdventureStore } from './adventureStore'
 import { useMundoDoLivroStore, type MundoAberto } from './mundoDoLivroStore'
 import { useToastStore } from './toastStore'
 
@@ -86,4 +87,26 @@ export async function decidirCopias(item: ItemDoCatalogo, escolha: EscolhaDaCopi
   await guardarRpgAntesDosItens(aberto.pastaId)
   await useMundoDoLivroStore.getState().mudar((lista) => comAEscolhaDasCopias(lista, item, escolha))
   return quantas
+}
+
+/**
+ * COMEÇAR A BATALHA: a mesma rede de segurança das armas para os itens. A
+ * cópia já com efeito que divergiu nas fichas da aventura volta ao Acervo
+ * antes da 1ª jogada (o host lê o efeito da vaga). O conflito fica para o
+ * mestre. Acervo não lido = nada. Nunca lança: a falha vira aviso.
+ */
+export async function consertarItensAoComecarABatalha(): Promise<void> {
+  const acervo = useAcervoDeItensStore.getState()
+  if (!acervo.podeGravar) return
+  const aventura = useAdventureStore.getState()
+  const fichas = personagensAtivos(aventura)
+  const mudam = comAsCopiasQueSeguem(fichas, acervo.itens).filter((personagem, indice) => personagem !== fichas[indice])
+  if (mudam.length === 0) return
+  try {
+    if (aventura.pasta !== null) await guardarRpgAntesDosItens(aventura.pasta.pastaId)
+    for (const ficha of mudam) useAdventureStore.getState().ajustarPersonagem(ficha.id, (atual) => comAsCopiasQueSeguem([atual], useAcervoDeItensStore.getState().itens)[0] ?? atual)
+    useToastStore.getState().push('info', `Começo da batalha: voltei ao que o Acervo diz os itens da mochila de ${juntos(mudam.map((ficha) => ficha.nome))}.`)
+  } catch (erro) {
+    useToastStore.getState().push('error', `Não deu para conferir os itens da batalha: ${erro instanceof Error ? erro.message : String(erro)}`)
+  }
 }
