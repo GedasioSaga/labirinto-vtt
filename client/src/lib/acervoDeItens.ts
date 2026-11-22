@@ -40,6 +40,8 @@ const ARQUIVO_INVALIDO = 'itens.json.invalido'
 const ARQUIVO_ANTERIOR = 'itens.json.anterior'
 /** Fase 7 (SISTEMA.md, cópias de segurança): o índice de antes do efeito, guardado UMA vez, nunca por cima. */
 const ARQUIVO_ANTES_DOS_EFEITOS = 'itens.json.antes-dos-efeitos'
+/** Armas numa fonte só (ARMAS-FONTE-UNICA §4): o índice de antes de o Juntar as armas criar coisas, guardado UMA vez, nunca por cima. */
+const ARQUIVO_ANTES_DAS_ARMAS = 'itens.json.antes-das-armas'
 /**
  * 2 (16/11/2026): a categoria Munição entrou; o índice de antes a ganha uma vez ao ser lido (`acervoDoTexto`).
  * 3 (18/11/2026): as pastas entraram; o índice de antes ganha uma pasta por categoria mostrada (`pastasDasCategorias`).
@@ -417,6 +419,25 @@ async function guardarAntesDosEfeitos(pasta: string, antes: string): Promise<voi
   if (indice === null || indice.versao >= VERSAO_DOS_EFEITOS) return
   const copia = await join(pasta, ARQUIVO_ANTES_DOS_EFEITOS)
   if (!(await exists(copia))) await writeTextFile(copia, antes)
+}
+
+/**
+ * Armas numa fonte só (§4): antes da 1ª coisa que o Juntar as armas cria, o
+ * índice de agora fica ao lado, UMA vez (a cópia que já existe nunca é
+ * regravada). Sem índice no disco, nada a guardar. Lança: sem a cópia, quem
+ * chamou não grava.
+ */
+export function guardarAcervoAntesDasArmas(): Promise<void> {
+  return naFila(async () => {
+    try {
+      const pasta = await pastaDoAcervo()
+      const caminho = await join(pasta, ARQUIVO_DO_INDICE)
+      const copia = await join(pasta, ARQUIVO_ANTES_DAS_ARMAS)
+      if ((await exists(caminho)) && !(await exists(copia))) await writeTextFile(copia, await readTextFile(caminho))
+    } catch (erro) {
+      throw new Error(`Não foi possível guardar a cópia do acervo de antes das armas: ${motivo(erro)}.`)
+    }
+  })
 }
 
 /** Grava o acervo INTEIRO. Lança com a frase pronta. */

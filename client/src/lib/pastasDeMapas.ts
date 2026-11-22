@@ -547,6 +547,27 @@ function jaNaVez(pastaId: string, vez: VezNaPasta | undefined): boolean {
   return vez !== undefined && vez.pastaId === pastaId && vezesAtivas.has(vez)
 }
 
+/** Armas numa fonte só (ARMAS-FONTE-UNICA §4): o `rpg.json` de antes da 1ª gravação das armas, guardado UMA vez. */
+const SUFIXO_ANTES_DAS_ARMAS = '.antes-das-armas'
+
+/**
+ * Armas numa fonte só (§4): antes da 1ª gravação das armas nas fichas da
+ * pasta, o `rpg.json` de agora fica ao lado, UMA vez (nunca por cima). Sem
+ * arquivo, nada a guardar. Na fila da pasta. Lança: sem a cópia, quem chamou
+ * não grava.
+ */
+export function guardarRpgAntesDasArmas(pastaId: string): Promise<void> {
+  return naFilaDaPasta(pastaId, async () => {
+    try {
+      const caminho = await join(await pastaDe(pastaId), ARQUIVO_DO_RPG)
+      const copia = `${caminho}${SUFIXO_ANTES_DAS_ARMAS}`
+      if ((await exists(caminho)) && !(await exists(copia))) await writeTextFile(copia, await readTextFile(caminho))
+    } catch (erro) {
+      throw new Error(`Não deu para guardar a cópia dos personagens de antes das armas: ${motivo(erro)}.`)
+    }
+  })
+}
+
 /**
  * Grava o RPG da pasta e leva a mídia das fichas para `<id>/midia` (como a
  * aventura leva a dela, `lib/midiaDaPasta.ts`). Lança com a razão em

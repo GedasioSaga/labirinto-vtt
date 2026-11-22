@@ -11,7 +11,7 @@ import {
   type ItemDoCatalogo,
 } from '../lib/livros/catalogo'
 import { entradasDoLivro } from '../lib/livros/catalogoDoLivro'
-import { gravarCatalogo, lerCatalogo } from '../lib/livros/catalogoNoDisco'
+import { gravarCatalogo, guardarCatalogoAntesDasArmas, lerCatalogo } from '../lib/livros/catalogoNoDisco'
 import type { Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 
@@ -45,6 +45,12 @@ interface CatalogoState {
   juntarDasFichas: (personagens: readonly Personagem[]) => Promise<{ novas: number; comMecanica: number }>
   /** Fase 5, "Ligar pelo nome": liga cada arma e item solto à coisa do Acervo de mesmo nome; devolve quantas (0 = nada, sem gravar). */
   ligarPeloNome: (acervo: readonly { id: string; nome: string }[]) => Promise<number>
+  /**
+   * Armas numa fonte só (ARMAS-FONTE-UNICA §4): grava o catálogo inteiro que o
+   * "Juntar as armas" ou a regra da arma montou, depois de guardar a cópia de
+   * antes das armas (uma vez; sem ela, nada se grava). Lança com a frase pronta.
+   */
+  gravarArmas: (itens: readonly ItemDoCatalogo[]) => Promise<void>
 }
 
 const SEM_NOME = 'A entrada precisa de um nome.'
@@ -126,6 +132,14 @@ export const useCatalogoStore = create<CatalogoState>()((set, get) => {
       if (ligadas === 0) return 0
       await gravar(itens)
       return ligadas
+    },
+
+    gravarArmas: async (itens) => {
+      const { sistemaId, podeGravar } = get()
+      if (sistemaId === null) throw new Error(SEM_SISTEMA)
+      if (!podeGravar) throw new Error(NAO_LIDO)
+      await guardarCatalogoAntesDasArmas(sistemaId)
+      await gravar([...itens])
     },
   }
 })

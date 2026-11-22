@@ -3,6 +3,7 @@ import { entraNaBatalha } from '../../lib/livros/combate'
 import { lerSaude } from '../../lib/livros/saude'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
+import { consertarArmasAoAbrir } from '../../stores/armasNaFonte'
 import { useCatalogoStore } from '../../stores/catalogoStore'
 import { useIaStore } from '../../stores/iaStore'
 import { useMundoDoLivroStore, usePersonagensDoMundo, type AbaDoMundo } from '../../stores/mundoDoLivroStore'
@@ -124,6 +125,13 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   useEffect(() => {
     if (!useAcervoDeItensStore.getState().podeGravar) void useAcervoDeItensStore.getState().recarregar()
   }, [])
+
+  // Armas numa fonte só (ARMAS-FONTE-UNICA §2): com a pasta e o catálogo lidos, a cópia de arma ligada que divergiu volta ao livro (uma vez por abertura).
+  const pastaLida = useMundoDoLivroStore((state) => state.daPasta !== null)
+  const catalogoLido = useCatalogoStore((state) => sistema !== undefined && state.sistemaId === sistema.id && state.podeGravar)
+  useEffect(() => {
+    if (sistema !== undefined && pastaLida && catalogoLido) void consertarArmasAoAbrir(sistema)
+  }, [sistema, pastaLida, catalogoLido])
 
   // A fita de latão vai até o marcador aberto: a primeira vez sem deslizar, depois a cada troca (e se a lombada encolher).
   useLayoutEffect(() => {

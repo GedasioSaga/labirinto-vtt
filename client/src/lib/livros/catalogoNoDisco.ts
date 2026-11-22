@@ -1,4 +1,4 @@
-import { exists, readTextFile } from '@tauri-apps/plugin-fs'
+import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { ensureDir, writeTextFileSafely } from '../mapFileIO'
 import { idValido } from '../sistemaDeRpg'
@@ -58,6 +58,32 @@ export function gravarCatalogo(sistemaId: string, itens: readonly ItemDoCatalogo
       await writeTextFileSafely(arquivo, serializarCatalogo(itens))
     } catch (erro) {
       throw new Error(`Não foi possível gravar o catálogo do livro: ${mensagemDoErro(erro)}.`)
+    }
+  })
+  filaDoCatalogo = resultado.then(
+    () => undefined,
+    () => undefined,
+  )
+  return resultado
+}
+
+/** Armas numa fonte só (ARMAS-FONTE-UNICA §4): o catálogo de antes da 1ª gravação das armas, guardado UMA vez. */
+const SUFIXO_ANTES_DAS_ARMAS = '.antes-das-armas'
+
+/**
+ * Armas numa fonte só (§4): antes da 1ª gravação das armas, o catálogo de
+ * agora fica ao lado (`catalogo.json.antes-das-armas`), UMA vez: a cópia que
+ * já existe nunca é regravada. Sem catálogo no disco, nada a guardar. Na fila
+ * das gravações. Lança: sem a cópia, quem chamou não grava.
+ */
+export function guardarCatalogoAntesDasArmas(sistemaId: string): Promise<void> {
+  const resultado = filaDoCatalogo.then(async () => {
+    try {
+      const { arquivo } = await caminhoDoCatalogo(sistemaId)
+      const copia = `${arquivo}${SUFIXO_ANTES_DAS_ARMAS}`
+      if ((await exists(arquivo)) && !(await exists(copia))) await writeTextFile(copia, await readTextFile(arquivo))
+    } catch (erro) {
+      throw new Error(`Não foi possível guardar a cópia do catálogo de antes das armas: ${mensagemDoErro(erro)}.`)
     }
   })
   filaDoCatalogo = resultado.then(
