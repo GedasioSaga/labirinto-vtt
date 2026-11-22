@@ -140,6 +140,12 @@ const CAMPOS_DO_ITEM_DO_MESTRE: ReadonlySet<CampoDoItem> = new Set<CampoDoItem>(
 
 const EFEITO_FICA_NO_APP = 'O efeito do item fica no app do mestre'
 
+/**
+ * ARMAS-FONTE-UNICA §8: a ligação do cartão com o Acervo (`itemId`) diz qual regra do livro o host copia
+ * para ele, então só o mestre grava, também dentro de um cartão novo (como a vaga).
+ */
+const CAMPOS_DO_CARTAO_DO_MESTRE: ReadonlySet<CampoSimplesDoCartao> = new Set<CampoSimplesDoCartao>(['itemId'])
+
 /** Só do mestre e nunca difundidos ao jogador (§6.4). */
 export type CampoDoMestre = 'dono' | 'combate' | 'soCenario' | 'nomeDoJogador' | 'notaDoMestre'
 const CAMPO_DO_MESTRE: Record<CampoDoMestre, true> = { dono: true, combate: true, soCenario: true, nomeDoJogador: true, notaDoMestre: true }
@@ -370,6 +376,7 @@ export function quemEscreve(caminho: unknown): QuemEscreve | null {
 /** A regra da tabela, mais o campo da vaga que é só do mestre (`CAMPOS_DO_ITEM_DO_MESTRE`). */
 function quemEscreveNoAlvo(alvo: Alvo): QuemEscreve {
   if (alvo.regra === 'campoDoItem' && CAMPOS_DO_ITEM_DO_MESTRE.has(alvo.campo)) return 'mestre'
+  if (alvo.regra === 'campoDoCartao' && CAMPOS_DO_CARTAO_DO_MESTRE.has(alvo.campo)) return 'mestre'
   return ESQUEMA_DO_CAMINHO[alvo.regra].quem
 }
 
@@ -405,6 +412,8 @@ function cartaoTrazDoMestre(valor: unknown, profundidade = 0): boolean {
   const imagem = proprio(valor, 'imagem')
   if (imagem !== undefined && imagem !== null) return true
   if (proprio(valor, 'mecanica') !== undefined) return true
+  // ARMAS-FONTE-UNICA §8: o cartão que já nasce ligado ao Acervo escolheria a regra do livro que o host copia.
+  if ([...CAMPOS_DO_CARTAO_DO_MESTRE].some((campo) => proprio(valor, campo) !== undefined)) return true
   // Fatia C7: o cartão que já nasce oculto também é do mestre (o jogador não esconde nada de si).
   if (proprio(valor, 'oculta') !== undefined || proprio(valor, 'revelaAoUsar') !== undefined) return true
   const subcartoes = proprio(valor, 'subcartoes')

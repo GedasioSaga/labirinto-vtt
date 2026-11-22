@@ -222,6 +222,7 @@ describe('munição na sala LAN: a ligação da arma e da bala com a mochila é 
       ['bala_sal', undefined, undefined],
     ]
     // Salvar de verdade: o jogador muda o texto da Garrucha; a aba vai inteira pelo fio, com as ligações, e o host as guarda.
+    // ARMAS-FONTE-UNICA §8: a Garrucha é ligada (itemId), então o texto dela é a regra do livro e o do jogador não fica.
     const comTexto: Personagem = { ...doMestre, abas: { ...doMestre.abas, armas: [{ ...garrucha, campos: { ...garrucha.campos, descricao: 'Cano curto' } }] } }
     const doFio = parsePartesDoPersonagem(JSON.parse(JSON.stringify(partesMudadas(doMestre, comTexto))))
     expect(doFio?.abas?.armas?.[0]?.subcartoes.map((bala) => [bala.itemId, bala.municaoPeloNome])).toEqual([
@@ -230,7 +231,7 @@ describe('munição na sala LAN: a ligação da arma e da bala com a mochila é 
       [undefined, undefined],
     ])
     const salvo = aplicarPartesPelaBase(doMestre, doMestre, doFio ?? {})
-    expect([salvo.abas.armas?.[0]?.campos.descricao, ligacoes(salvo)]).toEqual(['Cano curto', DO_MESTRE])
+    expect([salvo.abas.armas?.[0]?.campos.descricao, ligacoes(salvo)]).toEqual([undefined, DO_MESTRE])
     // Fio forjado (sem a tela): a arma e a bala pelo nome sem ligação, a do Acervo apontando para outro item, a solta com item e marca que ele não tem.
     const semLigacao = ({ imagem: _imagem, itemId: _itemId, municaoPeloNome: _peloNome, ...resto }: CartaoDaFicha) => resto
     const forjado = parsePartesDoPersonagem({

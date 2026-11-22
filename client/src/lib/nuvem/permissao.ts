@@ -1,6 +1,8 @@
+import { ABA_DAS_ARMAS } from '../batalha/leituraDaFicha'
 import { quantidadeDe } from '../items'
 import type { Personagem } from '../personagem'
 import { alvoDoCaminho, quemEscreveAMudanca } from './caminho'
+import { ehRegistro, proprio } from './json'
 import type { FichaGuardada, Identidade, Membro, MotivoNegado, Mudanca, OpGravada, Papel } from './tipos'
 
 /**
@@ -13,6 +15,7 @@ import type { FichaGuardada, Identidade, Membro, MotivoNegado, Mudanca, OpGravad
  *   servidor) é a conta dele — uma conta pode ter várias fichas —, nunca em
  *   caminho do mestre, nunca cria nem apaga ficha. Ficha sem dono: só o mestre.
  *   Na vaga com efeito, só baixa a quantidade (`sobeItemComEfeito`).
+ *   Na arma ligada ao livro, não muda o que ela faz (`mexeNaArmaDoLivro`).
  * - `autorDeclarado` (mesa LAN): só com a identidade do app e com um membro
  *   ativo; a permissão é a do app (o mestre), que já conferiu a edição na sala.
  */
@@ -20,6 +23,9 @@ import type { FichaGuardada, Identidade, Membro, MotivoNegado, Mudanca, OpGravad
 export type Veredito = { ok: true } | { ok: false; motivo: MotivoNegado; detalhe: string }
 
 const PERMITIDO: Veredito = { ok: true }
+
+/** ARMAS-FONTE-UNICA §8: a frase da recusa na arma ligada ao livro (e na ligação dela). */
+export const ARMA_DO_LIVRO = 'Arma do livro: só o mestre muda o que ela faz'
 
 function negar(detalhe: string): Veredito {
   return { ok: false, motivo: 'sem-permissao', detalhe }
@@ -61,13 +67,46 @@ export function permissaoDaMudanca(membro: Membro | undefined, ficha: FichaGuard
   // Fatia C7: esconder um cartão é só no app do mestre (o cartão oculto nunca sobe); no Lobby o segredo ficaria no servidor.
   if (alvoDoCaminho(mudanca.caminho)?.regra === 'ocultaDoCartao') return negar('Esconder um cartão dos jogadores é só pelo app do mestre')
   if (membro.papel === 'mestre') return PERMITIDO
-  if (quem === 'mestre') return negar('Só o mestre muda este campo')
+  if (quem === 'mestre') return negar(mexeNaLigacaoDaArma(mudanca) ? ARMA_DO_LIVRO : 'Só o mestre muda este campo')
   if (!podeEscreverNaFicha(membro, ficha)) {
     if (ficha !== undefined && donoDaFicha(ficha) === null) return negar('Ficha sem dono: só o mestre edita')
     return negar('Esta ficha não é sua')
   }
   if (ficha !== undefined && sobeItemComEfeito(ficha.doc, mudanca)) return negar('Item com efeito: o jogador só gasta, quem dá mais é o mestre')
+  if (ficha !== undefined && mexeNaArmaDoLivro(ficha.doc, mudanca)) return negar(ARMA_DO_LIVRO)
   return PERMITIDO
+}
+
+/** O cartão (ou um subcartão dele) traz `itemId`: a ligação com o Acervo, que escolhe a regra do livro. */
+function trazItemId(valor: unknown, profundidade = 0): boolean {
+  if (!ehRegistro(valor) || profundidade > 2) return false
+  if (proprio(valor, 'itemId') !== undefined) return true
+  const subcartoes = proprio(valor, 'subcartoes')
+  return Array.isArray(subcartoes) && Array.from(subcartoes).some((sub: unknown) => trazItemId(sub, profundidade + 1))
+}
+
+/** A mudança é na ligação do cartão com o Acervo (o `itemId`, ou o cartão novo que já nasce com ele). */
+function mexeNaLigacaoDaArma(mudanca: Pick<Mudanca, 'caminho' | 'acao' | 'valor'>): boolean {
+  const alvo = alvoDoCaminho(mudanca.caminho)
+  if (alvo?.regra === 'campoDoCartao') return alvo.campo === 'itemId'
+  return alvo?.regra === 'cartao' && mudanca.acao === 'criar' && trazItemId(mudanca.valor)
+}
+
+/**
+ * ARMAS-FONTE-UNICA §8: o cartão de arma ligado (`itemId`, no doc do servidor)
+ * é cópia da regra do livro; o que ela faz (os campos, a mecânica e as balas:
+ * criar, apagar, renomear e reordenar) só o mestre muda. O nome, a arma padrão
+ * e a proposta continuam do dono.
+ */
+function mexeNaArmaDoLivro(doc: Personagem, mudanca: Pick<Mudanca, 'caminho'>): boolean {
+  const alvo = alvoDoCaminho(mudanca.caminho)
+  if (alvo === null || !('aba' in alvo) || alvo.aba !== ABA_DAS_ARMAS) return false
+  const [cartaoId, ...dentro] = alvo.trilha
+  const cartao = (doc.abas[alvo.aba] ?? []).find((atual) => atual.id === cartaoId)
+  if (cartao?.itemId === undefined) return false
+  if (alvo.regra === 'textoDoCartao' || alvo.regra === 'mecanicaDoCartao') return true
+  if (alvo.regra === 'ordemDosCartoes') return alvo.trilha.length > 0
+  return dentro.length > 0 && (alvo.regra === 'cartao' || alvo.regra === 'campoDoCartao')
 }
 
 /**

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   AGORA,
+  campanhaDeTeste,
+  cartao,
+  guardada,
   docDe,
   enviar,
   F_DO_MESTRE,
@@ -20,6 +23,7 @@ import {
   ZORO_NO_SITE,
 } from './campanha.fixture'
 import { paraJson } from './json'
+import { ARMA_DO_LIVRO } from './permissao'
 import { chaveDaCotaDaCampanha, chaveDaCotaDaConta, conferirRitmo, inicioDoDiaSeguinte, LIMITES, type Cota } from './limites'
 import { respostasAdiadas } from './lote'
 
@@ -188,5 +192,30 @@ describe('cota e ritmo adiam, nunca negam', () => {
     expect(conferirRitmo(paceAt, sexto.tentarDepoisDe).ok).toBe(true)
     const mudar = op(NAMI_NO_PC, F_NAMI, HP, 'definir', { valor: 1 })
     expect(respostasAdiadas([mudar, { semId: true }], 'ritmo', sexto.tentarDepoisDe)).toEqual([{ t: 'adiado', opId: mudar.opId, motivo: 'ritmo', tentarDepoisDe: sexto.tentarDepoisDe }])
+  })
+})
+
+describe('arma do livro (ARMAS-FONTE-UNICA §8)', () => {
+  const BOOMERANG = cartao('arma_boom', 'Boomerang', { itemId: 'item_boom', campos: { dano: '10' } })
+  const comArma = () => campanhaDeTeste([guardada(ficha(F_NAMI, { dono: NAMI.contaId, abas: { armas: [BOOMERANG] } }))])
+  const ARMA = ['abas', 'armas', 'arma_boom']
+
+  it('a ligação com o Acervo é só do mestre: trocar o itemId e criar cartão que já nasce ligado', () => {
+    const campanha = comArma()
+    const novo = JSON.parse(JSON.stringify(cartao('arma_faca', 'Faca', { itemId: 'item_faca' })))
+    const respostas = enviar(campanha, NAMI_NO_PC, [op(NAMI_NO_PC, F_NAMI, [...ARMA, 'itemId'], 'definir', { valor: 'item_rifle' }), op(NAMI_NO_PC, F_NAMI, ['abas', 'armas', 'arma_faca'], 'criar', { valor: novo })]).respostas
+    expect(respostas).toMatchObject([
+      { t: 'negado', motivo: 'sem-permissao', detalhe: ARMA_DO_LIVRO },
+      { t: 'negado', motivo: 'sem-permissao', detalhe: ARMA_DO_LIVRO },
+    ])
+    expect(docDe(campanha, F_NAMI).abas.armas?.map((arma) => [arma.id, arma.itemId])).toEqual([['arma_boom', 'item_boom']])
+  })
+
+  it('o que a arma ligada faz o dono não muda (o nome sim); o mestre muda', () => {
+    const campanha = comArma()
+    const respostas = enviar(campanha, NAMI_NO_PC, [op(NAMI_NO_PC, F_NAMI, [...ARMA, 'campos', 'dano'], 'definir', { valor: '99' }), op(NAMI_NO_PC, F_NAMI, [...ARMA, 'nome'], 'definir', { valor: 'Boomerang da Nami' })]).respostas
+    expect(respostas).toMatchObject([{ t: 'negado', motivo: 'sem-permissao', detalhe: ARMA_DO_LIVRO }, { t: 'ack' }])
+    expect(enviar(campanha, MESTRE_NO_SITE, [op(MESTRE_NO_SITE, F_NAMI, [...ARMA, 'campos', 'dano'], 'definir', { valor: '20' })]).respostas[0]).toMatchObject({ t: 'ack' })
+    expect(docDe(campanha, F_NAMI).abas.armas?.[0]).toMatchObject({ nome: 'Boomerang da Nami', campos: { dano: '20' } })
   })
 })

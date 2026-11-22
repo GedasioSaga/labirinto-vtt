@@ -1,3 +1,4 @@
+import { ABA_DAS_ARMAS } from '../lib/batalha/leituraDaFicha'
 import { aplicarCamposDBT, camposDBTMudados, PERSONAGEM_SEM_NOME, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { comOcultasDe, comOcultasDoLocal } from '../lib/habilidadeOculta'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
@@ -235,6 +236,10 @@ export function mensagensDoSalvar(base: Personagem, rascunho: Personagem, opcoes
  * o mestre ou o tiro no host (`comABalaLigada`); o Salvar do jogador não a cria
  * (bala que aponta para item que ele não tem), não a troca e não a apaga — e a
  * bala zerada continua bloqueando o tiro.
+ *
+ * ARMAS-FONTE-UNICA §8: o cartão de arma ligado (`itemId` no host) é cópia da
+ * regra do livro; os campos e as balas dele também ficam os do host (o que o
+ * jogador mandou neles não fica). O nome e a arma padrão continuam do dono.
  */
 export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, base?: Personagem): Personagem {
   const imagens = imagensDosCartoes(atual.abas)
@@ -242,6 +247,11 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, bas
   const ligacoes = ligacoesDosCartoes(atual.abas)
   const propostasDeAgora = mecanicasDosCartoes(atual.abas, 'mecanicaProposta')
   const propostasDaBase = base === undefined ? null : mecanicasDosCartoes(base.abas, 'mecanicaProposta')
+  const armasDoLivro = new Map((atual.abas[ABA_DAS_ARMAS] ?? []).filter((arma) => arma.itemId !== undefined).map((arma) => [arma.id, arma]))
+  const comARegraDoHost = (abaId: string, cartao: CartaoDaFicha): CartaoDaFicha => {
+    const doHost = abaId === ABA_DAS_ARMAS ? armasDoLivro.get(cartao.id) : undefined
+    return doHost === undefined ? cartao : { ...cartao, campos: doHost.campos, subcartoes: doHost.subcartoes }
+  }
   const comImagem = ({ mecanica: _doJogador, mecanicaProposta: doJogador, itemId: _itemDoJogador, municaoPeloNome: _marcaDoJogador, ...cartao }: CartaoSemImagem): CartaoDaFicha => {
     const mecanica = mecanicas.get(cartao.id)
     const tocada = propostasDaBase === null || !mesmoTexto(doJogador, propostasDaBase.get(cartao.id))
@@ -259,7 +269,7 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, bas
   }
   // Fatia C7: a aba volta inteira do jogador, que nunca viu os cartões ocultos; eles voltam do personagem de AGORA.
   const abasNovas =
-    partes.abas === undefined ? {} : Object.fromEntries(Object.entries(partes.abas).map(([abaId, cartoes]) => [abaId, comOcultasDe(atual.abas[abaId] ?? [], cartoes.map(comImagem))]))
+    partes.abas === undefined ? {} : Object.fromEntries(Object.entries(partes.abas).map(([abaId, cartoes]) => [abaId, comOcultasDe(atual.abas[abaId] ?? [], cartoes.map(comImagem).map((cartao) => comARegraDoHost(abaId, cartao)))]))
   const aplicado: Personagem = {
     ...atual,
     ...(partes.nome === undefined ? {} : { nome: partes.nome.trim() || PERSONAGEM_SEM_NOME }),
