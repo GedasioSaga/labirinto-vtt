@@ -130,6 +130,16 @@ const CAMPO_DO_ITEM: Record<CampoDoItem, true> = {
 const ehCampoDoItem = guardaDe(CAMPO_DO_ITEM)
 export const CAMPOS_DO_ITEM = chavesDe(CAMPO_DO_ITEM, ehCampoDoItem)
 
+/**
+ * EFEITO DO ITEM (Fase 7, decisão C8: só o mestre dá item com efeito): a ligação com o Acervo e a
+ * frase do efeito só o mestre grava, também dentro de uma vaga nova. O jogador vê o `itemId` da poção
+ * na ficha de um colega; se pudesse pô-lo na própria vaga, a pilha do "Dar a…" (no app e no `aplicar`)
+ * e o "Atualizar as cópias" levariam o efeito de verdade até ela.
+ */
+const CAMPOS_DO_ITEM_DO_MESTRE: ReadonlySet<CampoDoItem> = new Set<CampoDoItem>(['itemId', 'efeitoResumo'])
+
+const EFEITO_FICA_NO_APP = 'O efeito do item fica no app do mestre'
+
 /** Só do mestre e nunca difundidos ao jogador (§6.4). */
 export type CampoDoMestre = 'dono' | 'combate' | 'soCenario' | 'nomeDoJogador' | 'notaDoMestre'
 const CAMPO_DO_MESTRE: Record<CampoDoMestre, true> = { dono: true, combate: true, soCenario: true, nomeDoJogador: true, notaDoMestre: true }
@@ -232,7 +242,9 @@ export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> =
   ocultaDoCartao: { caminho: "['abas', aba, cartaoId, 'oculta' | 'revelaAoUsar']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: false },
   textoDoCartao: { caminho: "['abas', aba, cartaoId, 'campos', campoId]", acoes: ['definir'], quem: 'donoOuMestre', visivelAoJogador: true },
   vaga: { caminho: "['mochila', vagaId]", acoes: ['criar', 'apagar'], quem: 'donoOuMestre', visivelAoJogador: true },
+  // Na vaga com efeito, o jogador só baixa a quantidade (gasta); quem dá mais é o mestre (`permissaoDaMudanca`).
   quantidade: { caminho: "['mochila', vagaId, 'quantidade']", acoes: ['somar', 'definir'], quem: 'donoOuMestre', visivelAoJogador: true },
+  // `itemId` e `efeitoResumo` são só do mestre (`CAMPOS_DO_ITEM_DO_MESTRE`), também dentro da vaga nova.
   campoDoItem: { caminho: "['mochila', vagaId, campo]", acoes: ['definir'], quem: 'donoOuMestre', visivelAoJogador: true },
   moedas: { caminho: "['moedas']", acoes: ['somar', 'definir'], quem: 'donoOuMestre', visivelAoJogador: true },
   dbt: { caminho: "['dbt', chaveDeTopo]", acoes: ['definir'], quem: 'donoOuMestre', visivelAoJogador: true },
@@ -352,7 +364,13 @@ export function alvoDoCaminho(caminho: unknown): Alvo | null {
  */
 export function quemEscreve(caminho: unknown): QuemEscreve | null {
   const alvo = alvoDoCaminho(caminho)
-  return alvo === null ? null : ESQUEMA_DO_CAMINHO[alvo.regra].quem
+  return alvo === null ? null : quemEscreveNoAlvo(alvo)
+}
+
+/** A regra da tabela, mais o campo da vaga que é só do mestre (`CAMPOS_DO_ITEM_DO_MESTRE`). */
+function quemEscreveNoAlvo(alvo: Alvo): QuemEscreve {
+  if (alvo.regra === 'campoDoItem' && CAMPOS_DO_ITEM_DO_MESTRE.has(alvo.campo)) return 'mestre'
+  return ESQUEMA_DO_CAMINHO[alvo.regra].quem
 }
 
 /**
@@ -366,7 +384,13 @@ export function quemEscreveAMudanca(m: Pick<Mudanca, 'caminho' | 'acao' | 'valor
   const alvo = alvoDoCaminho(m.caminho)
   if (alvo === null) return null
   if (alvo.regra === 'cartao' && m.acao === 'criar' && cartaoTrazDoMestre(m.valor)) return 'mestre'
-  return ESQUEMA_DO_CAMINHO[alvo.regra].quem
+  if (alvo.regra === 'vaga' && m.acao === 'criar' && vagaTrazDoMestre(m.valor)) return 'mestre'
+  return quemEscreveNoAlvo(alvo)
+}
+
+/** A vaga nova, como veio, já traz o que só o mestre grava (`itemId`, `efeitoResumo`): senão bastaria criá-la com eles. */
+function vagaTrazDoMestre(valor: unknown): boolean {
+  return ehRegistro(valor) && [...CAMPOS_DO_ITEM_DO_MESTRE].some((campo) => Object.hasOwn(valor, campo))
 }
 
 /**
@@ -685,6 +709,9 @@ function lerFicha(m: Mudanca): Leitura {
   if (m.acao === 'apagar') return aceita({ regra: 'ficha', acao: 'apagar' })
   if (!ehRegistro(m.valor)) return recusa('fora-do-esquema', 'Ficha que não é ficha')
   if (bytesDoJson(m.valor) > TETOS_DO_CAMINHO.docBytes) return recusa('doc-grande', 'Ficha grande demais: máximo 256 KiB')
+  // EFEITO DO ITEM (Fase 7, decisão C8): a ficha inteira sobe sem as peças, como a vaga nova (`diferencas`
+  // as tira). Olha o que veio do fio, não o lido: a peça torta que o leitor tiraria ficaria no log da op.
+  if (fichaTrazPecasDoEfeito(m.valor)) return recusa('fora-do-esquema', EFEITO_FICA_NO_APP)
   // Só o mestre cria ficha: o leitor do disco normaliza (nome aparado, campo torto fora), como ao abrir a pasta.
   const doc = personagemDoArquivo(m.valor)
   if (doc === null || doc.id !== m.fichaId) return recusa('fora-do-esquema', 'A ficha não bate com o id da op')
@@ -692,6 +719,12 @@ function lerFicha(m: Mudanca): Leitura {
   // deixaria sem volta o desfazer de qualquer mudança sobre ela (a volta passa de novo por `lerMudanca`).
   if (fichaComImagemForaDaMidia(doc)) return recusa('fora-do-esquema', IMAGEM_FORA_DA_MIDIA)
   return aceita({ regra: 'ficha', acao: 'criar', doc })
+}
+
+/** Alguma vaga da mochila, como veio do fio, traz a chave `efeito` (as peças), mesmo torta. */
+function fichaTrazPecasDoEfeito(valor: Readonly<Record<string, unknown>>): boolean {
+  const mochila = proprio(valor, 'mochila')
+  return Array.isArray(mochila) && Array.from(mochila).some((vaga: unknown) => ehRegistro(vaga) && Object.hasOwn(vaga, 'efeito'))
 }
 
 function lerTexto(campo: 'nome' | 'descricao', valor: Json | undefined): Leitura {
@@ -812,7 +845,7 @@ function lerItemNovo(vagaId: string, valor: Json | undefined): Leitura {
   const item = itemPeloLeitor(valor)
   if (item === null || !jsonIgual(item, valor)) return recusa('fora-do-esquema', 'Item fora do formato da mochila')
   // EFEITO DO ITEM (Fase 7, decisão C8): as peças nunca vêm pela nuvem; senão o jogador forjaria o efeito que o host executa.
-  if (item.efeito !== undefined) return recusa('fora-do-esquema', 'O efeito do item fica no app do mestre')
+  if (item.efeito !== undefined) return recusa('fora-do-esquema', EFEITO_FICA_NO_APP)
   if (item.id !== vagaId) return recusa('fora-do-esquema', 'O item não bate com o caminho')
   if (bytesDoJson(valor) > TETOS_DO_CAMINHO.itemBytes) return recusa('acima-do-teto', 'Item grande demais: máximo 4 KiB')
   return aceita({ regra: 'vaga', acao: 'criar', item })

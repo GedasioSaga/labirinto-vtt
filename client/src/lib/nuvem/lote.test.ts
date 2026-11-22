@@ -238,8 +238,9 @@ describe('reenvio com o mesmo opId', () => {
 describe('o que fica no log', () => {
   it('criar item empilhável que já está na mochila grava a SOMA (é ela que entra no histórico e no desfazer)', () => {
     const campanha = mesa()
-    const mais = op(NAMI_NO_PC, F_NAMI, ['mochila', 'vaga_nova'], 'criar', { valor: { id: 'vaga_nova', nome: 'Tangerina', itemId: 'item_tangerina', empilhavel: true, quantidade: 2 } })
-    expect(enviar(campanha, NAMI_NO_PC, [mais]).respostas[0]).toMatchObject({ t: 'ack', rev: 1 })
+    // A vaga com `itemId` é só do mestre (efeito do item, decisão C8).
+    const mais = op(MESTRE_NO_SITE, F_NAMI, ['mochila', 'vaga_nova'], 'criar', { valor: { id: 'vaga_nova', nome: 'Tangerina', itemId: 'item_tangerina', empilhavel: true, quantidade: 2 } })
+    expect(enviar(campanha, MESTRE_NO_SITE, [mais]).respostas[0]).toMatchObject({ t: 'ack', rev: 1 })
     expect(campanha.todasAsOps()[0]).toMatchObject({ opId: mais.opId, caminho: QTD_TANGERINA, acao: 'somar', delta: 2, antes: 3 })
     expect(campanha.todasAsOps()[0]).not.toHaveProperty('valor')
     expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...TANGERINA, quantidade: 5 }])

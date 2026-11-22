@@ -1,3 +1,5 @@
+import { quantidadeDe } from '../items'
+import type { Personagem } from '../personagem'
 import { alvoDoCaminho, quemEscreveAMudanca } from './caminho'
 import type { FichaGuardada, Identidade, Membro, MotivoNegado, Mudanca, OpGravada, Papel } from './tipos'
 
@@ -10,6 +12,7 @@ import type { FichaGuardada, Identidade, Membro, MotivoNegado, Mudanca, OpGravad
  * - Jogador: escreve só nas fichas cujo `dono` (lido do doc COMPLETO no
  *   servidor) é a conta dele — uma conta pode ter várias fichas —, nunca em
  *   caminho do mestre, nunca cria nem apaga ficha. Ficha sem dono: só o mestre.
+ *   Na vaga com efeito, só baixa a quantidade (`sobeItemComEfeito`).
  * - `autorDeclarado` (mesa LAN): só com a identidade do app e com um membro
  *   ativo; a permissão é a do app (o mestre), que já conferiu a edição na sala.
  */
@@ -51,7 +54,7 @@ export function podeEscreverNaFicha(membro: Membro, ficha: FichaGuardada | undef
 }
 
 /** A mudança no caminho, com o valor (cartão novo com imagem é só do mestre, 12.4), nesta ficha. */
-export function permissaoDaMudanca(membro: Membro | undefined, ficha: FichaGuardada | undefined, mudanca: Pick<Mudanca, 'caminho' | 'acao' | 'valor'>): Veredito {
+export function permissaoDaMudanca(membro: Membro | undefined, ficha: FichaGuardada | undefined, mudanca: Pick<Mudanca, 'caminho' | 'acao' | 'valor' | 'delta'>): Veredito {
   if (!membroAtivo(membro)) return negar('Você não está nesta campanha')
   const quem = quemEscreveAMudanca(mudanca)
   if (quem === null) return { ok: false, motivo: 'fora-do-esquema', detalhe: 'Campo fora da tabela do Lobby' }
@@ -59,9 +62,30 @@ export function permissaoDaMudanca(membro: Membro | undefined, ficha: FichaGuard
   if (alvoDoCaminho(mudanca.caminho)?.regra === 'ocultaDoCartao') return negar('Esconder um cartão dos jogadores é só pelo app do mestre')
   if (membro.papel === 'mestre') return PERMITIDO
   if (quem === 'mestre') return negar('Só o mestre muda este campo')
-  if (podeEscreverNaFicha(membro, ficha)) return PERMITIDO
-  if (ficha !== undefined && donoDaFicha(ficha) === null) return negar('Ficha sem dono: só o mestre edita')
-  return negar('Esta ficha não é sua')
+  if (!podeEscreverNaFicha(membro, ficha)) {
+    if (ficha !== undefined && donoDaFicha(ficha) === null) return negar('Ficha sem dono: só o mestre edita')
+    return negar('Esta ficha não é sua')
+  }
+  if (ficha !== undefined && sobeItemComEfeito(ficha.doc, mudanca)) return negar('Item com efeito: o jogador só gasta, quem dá mais é o mestre')
+  return PERMITIDO
+}
+
+/**
+ * EFEITO DO ITEM (Fase 7, decisão C8: só o mestre dá item com efeito): na
+ * vaga que tem efeito, o jogador baixa a quantidade (gastou), nunca sobe —
+ * cada unidade a mais seria um uso de verdade, que o host executa pela cópia
+ * dele. O doc do servidor não tem as peças: a vaga com efeito é a que tem a
+ * frase (`efeitoResumo`, que só o mestre grava e que todo efeito dá).
+ */
+function sobeItemComEfeito(doc: Personagem, mudanca: Pick<Mudanca, 'caminho' | 'acao' | 'valor' | 'delta'>): boolean {
+  const alvo = alvoDoCaminho(mudanca.caminho)
+  if (alvo?.regra !== 'quantidade') return false
+  const vaga = (doc.mochila ?? []).find((item) => item.id === alvo.vagaId)
+  if (vaga === undefined || (vaga.efeitoResumo === undefined && vaga.efeito === undefined)) return false
+  if (mudanca.acao === 'somar') return typeof mudanca.delta !== 'number' || mudanca.delta > 0
+  // `definir` sem valor é o ausente, 1 (`quantidadeDe`), como em `lerMudanca`.
+  const nova = mudanca.valor === undefined ? 1 : mudanca.valor
+  return typeof nova !== 'number' || nova > quantidadeDe(vaga)
 }
 
 /** Quem fez a mudança de fato: quem mandou, ou o jogador da sala que o app declarou. */

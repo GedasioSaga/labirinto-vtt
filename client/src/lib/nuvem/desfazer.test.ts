@@ -156,9 +156,10 @@ describe('desfazer o desfazer e nada a desfazer', () => {
 
   it('criar que foi eco (a coisa já existia) não tem volta: desfazer não apaga o que é de outro', () => {
     const campanha = mesa()
-    const eco = op(NAMI_NO_PC, F_NAMI, ['mochila', 'vaga_tangerina'], 'criar', { valor: { ...TANGERINA } })
-    enviar(campanha, NAMI_NO_PC, [eco])
-    expect(pedirDesfazer(campanha, NAMI_NO_PC, { opId: eco.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'negado', motivo: 'nada-a-desfazer' })
+    // A vaga com `itemId` é só do mestre (efeito do item, decisão C8).
+    const eco = op(MESTRE_NO_SITE, F_NAMI, ['mochila', 'vaga_tangerina'], 'criar', { valor: { ...TANGERINA } })
+    enviar(campanha, MESTRE_NO_SITE, [eco])
+    expect(pedirDesfazer(campanha, MESTRE_NO_SITE, { opId: eco.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'negado', motivo: 'nada-a-desfazer' })
     expect(docDe(campanha, F_NAMI).mochila).toEqual([TANGERINA])
   })
 })
@@ -194,42 +195,42 @@ describe('a volta de cada ação', () => {
 
     it('grava o que entrou de fato (+9, não +20) e o desfazer volta a pilha ao valor de antes', () => {
       const campanha = pilhaPertoDoTeto()
-      const ganhar = op(NAMI_NO_PC, F_NAMI, ['mochila', vinte.id], 'criar', { valor: vinte })
-      enviar(campanha, NAMI_NO_PC, [ganhar])
+      const ganhar = op(MESTRE_NO_SITE, F_NAMI, ['mochila', vinte.id], 'criar', { valor: vinte })
+      enviar(campanha, MESTRE_NO_SITE, [ganhar])
       expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...TANGERINA, quantidade: ITEM_QUANTIDADE_MAX }])
       expect(campanha.todasAsOps()[0]).toMatchObject({ opId: ganhar.opId, caminho: QTD_TANGERINA, acao: 'somar', delta: 9, antes: PERTO_DO_TETO })
       expect(mudancaInversa(campanha.todasAsOps()[0])).toEqual({ fichaId: F_NAMI, caminho: QTD_TANGERINA, acao: 'somar', delta: -9 })
-      expect(pedirDesfazer(campanha, NAMI_NO_PC, { opId: ganhar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'ack' })
+      expect(pedirDesfazer(campanha, MESTRE_NO_SITE, { opId: ganhar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'ack' })
       expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...TANGERINA, quantidade: PERTO_DO_TETO }])
     })
 
     it('com uma soma depois, a volta tira só o que entrou e a soma do meio continua', () => {
       const campanha = pilhaPertoDoTeto()
-      const ganhar = op(NAMI_NO_PC, F_NAMI, ['mochila', vinte.id], 'criar', { valor: vinte })
-      enviar(campanha, NAMI_NO_PC, [ganhar])
-      enviar(campanha, NAMI_NO_PC, [op(NAMI_NO_PC, F_NAMI, QTD_TANGERINA, 'somar', { delta: -5, baseRev: 1 })])
-      pedirDesfazer(campanha, NAMI_NO_PC, { opId: ganhar.opId, novoOpId: novoId() })
+      const ganhar = op(MESTRE_NO_SITE, F_NAMI, ['mochila', vinte.id], 'criar', { valor: vinte })
+      enviar(campanha, MESTRE_NO_SITE, [ganhar])
+      enviar(campanha, MESTRE_NO_SITE, [op(MESTRE_NO_SITE, F_NAMI, QTD_TANGERINA, 'somar', { delta: -5, baseRev: 1 })])
+      pedirDesfazer(campanha, MESTRE_NO_SITE, { opId: ganhar.opId, novoOpId: novoId() })
       expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...TANGERINA, quantidade: PERTO_DO_TETO - 5 }])
     })
 
     it('pilha e item sem quantidade (ausente = 1): grava +1 e a volta tira a chave de novo', () => {
       const semQuantidade: CarriedItem = { id: 'vaga_carne', nome: 'Carne', itemId: 'item_carne', empilhavel: true }
       const campanha = campanhaDeTeste([guardada(ficha(F_NAMI, { dono: NAMI.contaId, mochila: [semQuantidade] }))])
-      const ganhar = op(NAMI_NO_PC, F_NAMI, ['mochila', 'vaga_carne_nova'], 'criar', { valor: { ...semQuantidade, id: 'vaga_carne_nova' } })
-      enviar(campanha, NAMI_NO_PC, [ganhar])
+      const ganhar = op(MESTRE_NO_SITE, F_NAMI, ['mochila', 'vaga_carne_nova'], 'criar', { valor: { ...semQuantidade, id: 'vaga_carne_nova' } })
+      enviar(campanha, MESTRE_NO_SITE, [ganhar])
       expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...semQuantidade, quantidade: 2 }])
       expect(campanha.todasAsOps()[0]).toMatchObject({ caminho: ['mochila', 'vaga_carne', 'quantidade'], acao: 'somar', delta: 1 })
       expect(campanha.todasAsOps()[0]).not.toHaveProperty('antes')
-      expect(pedirDesfazer(campanha, NAMI_NO_PC, { opId: ganhar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'ack' })
+      expect(pedirDesfazer(campanha, MESTRE_NO_SITE, { opId: ganhar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'ack' })
       expect(docDe(campanha, F_NAMI).mochila).toEqual([semQuantidade])
     })
 
     it('pilha já no teto: nada entrou, o desfazer não tem o que fazer', () => {
       const campanha = campanhaDeTeste([guardada(ficha(F_NAMI, { dono: NAMI.contaId, mochila: [{ ...TANGERINA, quantidade: ITEM_QUANTIDADE_MAX }] }))])
-      const ganhar = op(NAMI_NO_PC, F_NAMI, ['mochila', vinte.id], 'criar', { valor: vinte })
-      enviar(campanha, NAMI_NO_PC, [ganhar])
+      const ganhar = op(MESTRE_NO_SITE, F_NAMI, ['mochila', vinte.id], 'criar', { valor: vinte })
+      enviar(campanha, MESTRE_NO_SITE, [ganhar])
       expect(campanha.todasAsOps()[0]).toMatchObject({ acao: 'somar', delta: 0, antes: ITEM_QUANTIDADE_MAX })
-      expect(pedirDesfazer(campanha, NAMI_NO_PC, { opId: ganhar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'negado', motivo: 'nada-a-desfazer' })
+      expect(pedirDesfazer(campanha, MESTRE_NO_SITE, { opId: ganhar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'negado', motivo: 'nada-a-desfazer' })
       expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...TANGERINA, quantidade: ITEM_QUANTIDADE_MAX }])
     })
   })
