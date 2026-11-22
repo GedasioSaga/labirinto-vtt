@@ -18,9 +18,13 @@ import {
 } from '../../lib/livros/catalogo'
 import { CAMPO_DO_ATRIBUTO_DO_ATAQUE } from '../../lib/batalha/formula'
 import { CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../../lib/batalha/leituraDaFicha'
+import type { MecanicaGuardada } from '../../lib/personagem'
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { gravarRegraDaArma } from '../../stores/armasNaFonte'
 import { useCatalogoStore } from '../../stores/catalogoStore'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
+import { useToastStore } from '../../stores/toastStore'
+import { EfeitoDaArmaCampos } from '../EfeitoDaArmaCampos'
 import { avisoDoAtributoDoAtaque, avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, opcoesDoCampo, rotuloDoVazio, valorDaEscolha } from '../escolhaDeCampo'
 import { formatarNumero, movimentoReduzido } from './comum'
 import { IconeDoMundo } from './icones'
@@ -99,6 +103,8 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
   const [texto, setTexto] = useState(editando?.texto ?? '')
   // Fase 5 (coisa x regra): a coisa do Acervo de que esta entrada é a regra; '' = solta.
   const [acervoId, setAcervoId] = useState(editando?.acervoId ?? '')
+  // ARMAS-FONTE-UNICA §6: o "O que ela faz" da arma (a mecânica da entrada, que é a fonte das fichas ligadas).
+  const [mecanicaDaArma, setMecanicaDaArma] = useState<MecanicaGuardada | undefined>(editando?.tipo === 'arma' ? editando.mecanica : undefined)
   const acervoIdCampo = useId()
   const doAcervo = useAcervoDeItensStore((state) => state.itens)
   /** Todos os campos digitados, de qualquer tipo: trocar de Arma para Habilidade e voltar não perde o Dano. */
@@ -210,8 +216,8 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
     const doTipo = Object.fromEntries(Object.entries(campos).filter(([chave]) => ids.has(chave)))
     const balasMontadas = montarBalas()
     const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined, acervoId: acervoId === '' ? undefined : acervoId,
-      // B04: a janela ainda não edita a mecânica; o Salvar mantém a que a entrada já tinha (no mesmo tipo).
-      mecanica: editando?.tipo === tipo ? editando.mecanica : undefined,
+      // Na arma, o "O que ela faz" daqui; nos outros tipos a janela não edita a mecânica e o Salvar mantém a que a entrada já tinha (B04).
+      mecanica: tipo === 'arma' ? mecanicaDaArma : editando?.tipo === tipo ? editando.mecanica : undefined,
     })
     if (item === null) return { erro: 'Dê um nome à entrada.' }
     if ('erro' in balasMontadas) return { erro: balasMontadas.erro, bala: balasMontadas.chave }
@@ -238,7 +244,11 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
     setGravando(true)
     setErroDoDisco(null)
     try {
-      await useCatalogoStore.getState().salvarEntrada(montado.item)
+      // A arma é a fonte das fichas ligadas: salvar aqui reescreve na hora cada cópia (o mesmo caminho do Acervo e da ficha).
+      if (montado.item.tipo === 'arma') {
+        const quantas = await gravarRegraDaArma(montado.item, sistema)
+        if (quantas > 0) useToastStore.getState().push('info', `${montado.item.nome}: o que ela faz mudou também em ${quantas} ${quantas === 1 ? 'ficha' : 'fichas'}.`)
+      } else await useCatalogoStore.getState().salvarEntrada(montado.item)
     } catch (erro) {
       setGravando(false)
       setErroDoDisco(mensagemDoErro(erro))
@@ -301,7 +311,9 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
           <p className="mu-modal__sub" id={subId}>
             {editando === null
               ? 'Fica no catálogo deste livro e serve para qualquer ficha das pastas que o usam.'
-              : 'Muda só o catálogo: as fichas que já receberam esta entrada ficam como estão.'}
+              : tipo === 'arma'
+                ? 'A arma vale igual no livro, no Acervo e em toda ficha ligada a ela: salvar muda todos.'
+                : 'Muda só o catálogo: as fichas que já receberam esta entrada ficam como estão.'}
           </p>
         </div>
         <div className="mu-modal__corpo">
@@ -506,6 +518,17 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
                 {balasCheias && <span className="mu-campo__dica">Até {formatarNumero(BALAS_POR_ENTRADA_MAX)} tipos de bala por arma.</span>}
               </div>
             </fieldset>
+          )}
+
+          {tipo === 'arma' && !semAba && (
+            <EfeitoDaArmaCampos
+              entrada={{ nome, campos, acervoId: acervoId === '' ? undefined : acervoId, mecanica: mecanicaDaArma }}
+              sistema={sistema}
+              onMudar={(mecanica) => {
+                setMecanicaDaArma(mecanica)
+                mexer()
+              }}
+            />
           )}
 
           {tipo !== 'habilidade' && (

@@ -2,6 +2,12 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent
 import { createPortal } from 'react-dom'
 import { categoriaLimpa, ehCategoriaDeMunicao, ITEM_SEM_NOME, MUNICOES_POR_ARMA_MAX, type ItemDoCatalogo } from '../lib/acervoDeItens'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
+import { chaveDoNomeDaEntrada, novoIdDeEntrada, regraDaCoisa, type ItemDoCatalogo as EntradaDoCatalogo } from '../lib/livros/catalogo'
+import type { MecanicaGuardada } from '../lib/personagem'
+import { gravarRegraDaArma } from '../stores/armasNaFonte'
+import { useCatalogoStore } from '../stores/catalogoStore'
+import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
+import { EfeitoDaArmaCampos } from './EfeitoDaArmaCampos'
 import { cleanItemName, ITEM_DESCRICAO_MAX, ITEM_NAME_MAX_LENGTH, ITEM_PRECO_MAX, ITEM_QUANTIDADE_MAX } from '../lib/items'
 import type { AlvoDoAcervo } from '../lib/party'
 import { ALCANCE_DA_LUZ_DO_ITEM_MAX, ALCANCE_DA_LUZ_DO_ITEM_MIN, CORES_SUGERIDAS_DA_LUZ_DO_ITEM, FORCA_DA_LUZ_DO_ITEM_MAX, FORCA_DA_LUZ_DO_ITEM_MIN, LUZ_DO_ITEM_PADRAO } from '../lib/luzDoItem'
@@ -54,6 +60,18 @@ function precoDoTexto(texto: string): number | null | undefined {
   if (!/^\d+$/.test(limpo)) return undefined
   const valor = Number(limpo)
   return Number.isSafeInteger(valor) && valor <= ITEM_PRECO_MAX ? valor : undefined
+}
+
+/**
+ * A REGRA da arma no livro aberto (ARMAS-FONTE-UNICA §3): a entrada de arma ligada à coisa; senão a única
+ * entrada de arma solta com o mesmo nome (`ligar`: o Salvar liga as duas). `undefined` = sem regra neste livro.
+ */
+function regraDaArmaNoLivro(catalogo: readonly EntradaDoCatalogo[], coisa: { id: string; nome: string }): { entrada: EntradaDoCatalogo; ligar: boolean } | undefined {
+  const ligada = regraDaCoisa(catalogo, coisa.id)
+  if (ligada !== undefined) return ligada.tipo === 'arma' ? { entrada: ligada, ligar: false } : undefined
+  const chave = chaveDoNomeDaEntrada(coisa.nome)
+  const soltas = catalogo.filter((entrada) => entrada.tipo === 'arma' && entrada.acervoId === undefined && chaveDoNomeDaEntrada(entrada.nome) === chave)
+  return soltas.length === 1 ? { entrada: soltas[0], ligar: true } : undefined
 }
 
 /** A categoria das armas do Acervo ("Arma", "armas"), a mesma que a batalha lê da mochila. */
@@ -209,8 +227,17 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
   const [quantidade, setQuantidade] = useState(1)
   const [resultadoDoDar, setResultadoDoDar] = useState<string | null>(null)
 
+  // ARMAS-FONTE-UNICA §6: a arma do Acervo mostra e edita a regra do livro aberto (a fonte); o Salvar grava a entrada e as fichas ligadas.
+  const sistemaIdDoLivro = useCatalogoStore((state) => (state.podeGravar ? state.sistemaId : null))
+  const entradasDoLivro = useCatalogoStore((state) => state.itens)
+  const sistemaDoLivro = useRpgStore((state) => (sistemaIdDoLivro === null ? undefined : sistemaPorId(state.biblioteca, sistemaIdDoLivro)))
+  const ehArma = ehCategoriaDeArma(rascunho.categoria)
+  const regraDaArma = ehArma && sistemaDoLivro !== undefined ? regraDaArmaNoLivro(entradasDoLivro, rascunho) : undefined
+  /** O que o mestre mudou no "O que ela faz"; `null` = nada (o Salvar não toca no livro). */
+  const [mecanicaDaArma, setMecanicaDaArma] = useState<{ mecanica: MecanicaGuardada | undefined } | null>(null)
+
   const preco = precoDoTexto(precoTexto)
-  const mudou = novo || rascunho !== item || preco !== item.preco
+  const mudou = novo || rascunho !== item || preco !== item.preco || mecanicaDaArma !== null
 
   useEffect(() => {
     const quemAbriu = document.activeElement
@@ -255,6 +282,12 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
     try {
       const salvo = { ...rascunho, nome: cleanItemName(rascunho.nome) || ITEM_SEM_NOME, categoria: categoriaLimpa(rascunho.categoria), preco }
       await onSalvar(salvo)
+      if (mecanicaDaArma !== null && sistemaDoLivro !== undefined && ehCategoriaDeArma(salvo.categoria)) {
+        // Sem regra neste livro, nasce a entrada de arma ligada a esta coisa; a de mesmo nome solta ganha a ligação.
+        const { mecanica: _antes, ...base }: EntradaDoCatalogo = regraDaArma?.entrada ?? { id: novoIdDeEntrada(), tipo: 'arma', nome: salvo.nome, texto: '', campos: {} }
+        await gravarRegraDaArma({ ...base, acervoId: salvo.id, ...(mecanicaDaArma.mecanica === undefined ? {} : { mecanica: mecanicaDaArma.mecanica }) }, sistemaDoLivro)
+        setMecanicaDaArma(null)
+      }
       // A store guarda este mesmo objeto: com ele no rascunho, "nada mudou" volta a valer e o "Dar" libera.
       setRascunho(salvo)
       if (novo) onClose()
@@ -400,8 +433,21 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
           {(ehCategoriaDeArma(rascunho.categoria) || (rascunho.municoes?.length ?? 0) > 0) && (
             <MunicoesDaArma armaId={rascunho.id} escolhidas={rascunho.municoes ?? []} onMudar={(municoes) => setRascunho(comMunicoes(rascunho, municoes))} />
           )}
-          {/* Fase 7 (SISTEMA.md §5.1): o efeito vai com a cópia dada; o jogador recebe só a frase. */}
-          <EfeitoDoItemCampos item={rascunho} onMudar={(efeito) => setRascunho((atual) => comEfeito(atual, efeito))} />
+          {/* Arma: o "O que ela faz" é a regra do livro (um efeito de item aqui seria uma 2ª verdade). Item: Fase 7, o efeito vai com a cópia dada. */}
+          {ehArma ? (
+            sistemaDoLivro === undefined ? (
+              <p className="lb-field__hint">O que a arma faz mora no livro do sistema: abra o livro (Biblioteca, página Itens) para ver e mudar.</p>
+            ) : (
+              <EfeitoDaArmaCampos
+                entrada={{ nome: regraDaArma?.entrada.nome ?? rascunho.nome, campos: regraDaArma?.entrada.campos ?? {}, acervoId: rascunho.id, mecanica: mecanicaDaArma === null ? regraDaArma?.entrada.mecanica : mecanicaDaArma.mecanica }}
+                sistema={sistemaDoLivro}
+                onMudar={(mecanica) => setMecanicaDaArma({ mecanica })}
+                {...(regraDaArma === undefined ? { nota: 'Sem regra neste livro: salvar cria a entrada de arma ligada a esta coisa.' } : regraDaArma.ligar ? { nota: 'Salvar liga esta coisa à entrada de mesmo nome do livro.' } : {})}
+              />
+            )
+          ) : (
+            <EfeitoDoItemCampos item={rascunho} onMudar={(efeito) => setRascunho((atual) => comEfeito(atual, efeito))} />
+          )}
           {erro !== null && (
             <p className="lb-field__error" role="alert">
               {erro}

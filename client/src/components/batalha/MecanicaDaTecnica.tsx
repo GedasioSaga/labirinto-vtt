@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useId, useMemo, useRef, useState } from 'react'
 import { avisoDaMecanica, lerMecanica, type MecanicaLida as LeituraDaMecanica, type MecanicaV1 } from '../../lib/batalha/mecanica/modelo'
-import { MODELOS_DA_ARMA, mecanicaDoModeloDaArma, motivoDaArmaNasPecas } from '../../lib/batalha/mecanica/arma'
+import { GRUPOS_DOS_MODELOS_DA_ARMA, MODELOS_DA_ARMA, mecanicaDoModeloDaArma, motivoDaArmaNasPecas } from '../../lib/batalha/mecanica/arma'
 import { GRUPOS_DOS_MODELOS, guardarMecanica, MODELOS_PRONTOS, mecanicaDoModeloNoCartao, mesmaMecanica, problemaDaMecanica, tecnicasParaCopiar, type GrupoDoModelo } from '../../lib/batalha/mecanica/modelos'
 import { etiquetaDaMecanica, pecasAMao, resumoDaMecanica, type FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
 import { GRUPOS_DOS_MODELOS_DE_ITEM, MODELOS_DE_ITEM, mecanicaDoModeloDeItem } from '../../lib/batalha/mecanica/modelosDeItem'
@@ -187,7 +187,8 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
   const naArma = doQue === 'arma'
   const noItem = doQue === 'item' ? TEXTOS_DO_ITEM : null
   const modelos = naArma ? MODELOS_DA_ARMA_NA_TELA : noItem !== null ? MODELOS_DO_ITEM_NA_TELA : MODELOS_DA_TECNICA_NA_TELA
-  const grupos = noItem !== null ? GRUPOS_DOS_MODELOS_DE_ITEM : GRUPOS_DA_TECNICA
+  // ARMAS-FONTE-UNICA §5: os 20 modelos da arma em 4 grupos (Sem dano, Golpe e selo, Golpe forte, Vários), como os do item.
+  const grupos = naArma ? GRUPOS_DOS_MODELOS_DA_ARMA : noItem !== null ? GRUPOS_DOS_MODELOS_DE_ITEM : GRUPOS_DA_TECNICA
   const tituloId = useId()
   const copiarId = useId()
   const campo = quemEdita === 'mestre' ? 'mecanica' : 'mecanicaProposta'
@@ -376,7 +377,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           <p className="lb-mec__comeco-titulo" id={`${tituloId}-comeco`}>
             Comece por um modelo e ajuste os números.
           </p>
-          {/* Fase 5 (SISTEMA.md §8, degrau 1): os modelos da técnica em grupos; os da arma, corridos. */}
+          {/* Fase 5 (SISTEMA.md §8, degrau 1): os modelos em grupos (técnica, item e arma). */}
           {modelos.some((modelo) => modelo.grupo !== undefined) ? (
             grupos.map(({ grupo, nome }) => {
               const doGrupo = modelos.filter((modelo) => modelo.grupo === grupo)
