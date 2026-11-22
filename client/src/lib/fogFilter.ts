@@ -64,6 +64,7 @@ import { marcaParaJogador } from './marcas'
 import { mobiliaParaJogador, vistaDosMoveisParaJogador } from './mobilia'
 import { amostrasAoLongoDoMuro, amostrasDaCercaCurva } from './cercaCurva'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
+import { semAsPecasDoEfeito } from './leituraDoItem'
 import { itemDoBrilho, itemDoObjeto, itemParaJogador } from './itemNoMapa'
 import { abrivelParaJogador } from './conteudoDoObjeto'
 import { readMoedas } from './troca'
@@ -1995,7 +1996,8 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   if (token.secret !== undefined) forPlayer.secret = token.secret
   if (cut.isOwner) {
     const mochila = readCarriedItems(token.mochila)
-    if (mochila !== undefined) forPlayer.mochila = mochila
+    // EFEITO DO ITEM (Fase 7, decisão C8): a vaga vai com a frase do efeito, nunca com as peças; o host lê as dele.
+    if (mochila !== undefined) forPlayer.mochila = mochila.map(semAsPecasDoEfeito)
     // BOLSA: mesma regra da mochila — só o dono lê quanto a ficha carrega.
     const moedas = readMoedas(token.moedas)
     if (moedas !== undefined) forPlayer.moedas = moedas

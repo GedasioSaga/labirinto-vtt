@@ -2,6 +2,7 @@ import type { DocumentoNaFicha } from '../../documentos/tipos'
 import type { CarriedItem } from '../../types/map'
 import type { FichaDBT } from '../dbt/modelo'
 import { quantidadeDe } from '../items'
+import { semAsPecasDoEfeito } from '../leituraDoItem'
 import type { CampoDaFichaDBT, CartaoDaFicha, Personagem } from '../personagem'
 import {
   alvoDoCaminho,
@@ -192,7 +193,8 @@ function mochila(f: string, antes: readonly CarriedItem[], depois: readonly Carr
       const velho = porIdAntes.get(item.id)
       return velho === undefined ? [] : umItem(f, velho, item)
     }),
-    ...depois.filter((item) => !porIdAntes.has(item.id)).map((item): Mudanca => ({ fichaId: f, caminho: ['mochila', item.id], acao: 'criar', valor: paraJson(item) })),
+    // EFEITO DO ITEM (Fase 7, decisão C8): a vaga nova vai à nuvem com a frase, sem as peças (ficam no app do mestre).
+    ...depois.filter((item) => !porIdAntes.has(item.id)).map((item): Mudanca => ({ fichaId: f, caminho: ['mochila', item.id], acao: 'criar', valor: paraJson(semAsPecasDoEfeito(item)) })),
   ]
 }
 

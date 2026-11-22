@@ -817,7 +817,33 @@ export interface DadosDoItem {
    * 18/11/2026 a lista anda por toda porta do item (chão, baú, loja, mochila).
    */
   municoes?: { itemId: string; nome: string }[]
+  /**
+   * EFEITO DO ITEM (Fase 7 de docs/design/habilidades/SISTEMA.md §5.1): as
+   * MESMAS peças da técnica (`mecanica`, lidas por `lerMecanica`), quanto
+   * gasta e onde vale. Vai com a cópia dada, como a luz e as munições, e fica
+   * no mapa do mestre: o recorte do jogador tira o campo e deixa só a frase
+   * (`efeitoResumo`, decisão C8). Ausente = item sem efeito, sem migração.
+   */
+  efeito?: EfeitoDoItem
+  /** A frase do efeito ("Cura 100 de HP. Gasta 1."), até 200 letras numa linha: o que o jogador lê na vaga. */
+  efeitoResumo?: string
 }
+
+/**
+ * O que o item faz (SISTEMA.md §5.1). `mecanica` fica opaca aqui (como a do
+ * cartão da ficha, `MecanicaGuardada`): quem usa relê pelas peças. `gasta`:
+ * 'um' tira 1 da pilha a cada uso (poção), 'nada' não acaba (amuleto).
+ * `type` (não `interface`): viaja como JSON da nuvem, como a luz.
+ */
+export type EfeitoDoItem = {
+  mecanica: PecasDoEfeito
+  gasta: 'um' | 'nada'
+  onde: 'sempre' | 'soNaBatalha' | 'soFora'
+}
+
+/** As peças guardadas do efeito: JSON puro (a vaga viaja como JSON da nuvem, `lib/nuvem/json.ts`). */
+export type PecasDoEfeito = { [chave: string]: ValorDasPecas }
+export type ValorDasPecas = null | boolean | number | string | ValorDasPecas[] | { [chave: string]: ValorDasPecas }
 
 /**
  * A luz que o item dá: o tom, o alcance em casas da grade, a força (0 a 1) e

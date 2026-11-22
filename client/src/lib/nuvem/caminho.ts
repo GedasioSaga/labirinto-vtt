@@ -109,7 +109,8 @@ const ehCampoSimplesDoCartao = guardaDe(CAMPO_SIMPLES_DO_CARTAO)
 export const CAMPOS_SIMPLES_DO_CARTAO = chavesDe(CAMPO_SIMPLES_DO_CARTAO, ehCampoSimplesDoCartao)
 
 /** Partes do item trocadas por `definir`; a `quantidade` soma. */
-export type CampoDoItem = Exclude<keyof CarriedItem, 'id' | 'quantidade'>
+/** EFEITO DO ITEM (Fase 7, decisão C8): as peças ficam no app do mestre; pela nuvem vai só a frase (`efeitoResumo`). */
+export type CampoDoItem = Exclude<keyof CarriedItem, 'id' | 'quantidade' | 'efeito'>
 const CAMPO_DO_ITEM: Record<CampoDoItem, true> = {
   nome: true,
   itemId: true,
@@ -123,6 +124,8 @@ const CAMPO_DO_ITEM: Record<CampoDoItem, true> = {
   // ITEM QUE ILUMINA (18/11/2026): a luz do item e o "aceso" da vaga viajam como os outros dados; o leitor é o juiz.
   luz: true,
   acesa: true,
+  // EFEITO DO ITEM (Fase 7): a frase viaja; o leitor da mochila é o juiz (uma linha, no teto).
+  efeitoResumo: true,
 }
 const ehCampoDoItem = guardaDe(CAMPO_DO_ITEM)
 export const CAMPOS_DO_ITEM = chavesDe(CAMPO_DO_ITEM, ehCampoDoItem)
@@ -808,6 +811,8 @@ export function itemPeloLeitor(valor: unknown): CarriedItem | null {
 function lerItemNovo(vagaId: string, valor: Json | undefined): Leitura {
   const item = itemPeloLeitor(valor)
   if (item === null || !jsonIgual(item, valor)) return recusa('fora-do-esquema', 'Item fora do formato da mochila')
+  // EFEITO DO ITEM (Fase 7, decisão C8): as peças nunca vêm pela nuvem; senão o jogador forjaria o efeito que o host executa.
+  if (item.efeito !== undefined) return recusa('fora-do-esquema', 'O efeito do item fica no app do mestre')
   if (item.id !== vagaId) return recusa('fora-do-esquema', 'O item não bate com o caminho')
   if (bytesDoJson(valor) > TETOS_DO_CAMINHO.itemBytes) return recusa('acima-do-teto', 'Item grande demais: máximo 4 KiB')
   return aceita({ regra: 'vaga', acao: 'criar', item })

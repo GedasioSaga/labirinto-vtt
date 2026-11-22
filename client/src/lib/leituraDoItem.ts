@@ -1,4 +1,4 @@
-import type { DadosDoItem } from '../types/map'
+import type { DadosDoItem, EfeitoDoItem, PecasDoEfeito } from '../types/map'
 import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
 
@@ -107,5 +107,72 @@ export function dadosDoItemLidos(value: Record<string, unknown>): DadosDoItem {
   // MUNIÇÃO: a arma leva as munições que aceita por toda porta (chão, baú, loja, mochila).
   const { municoes } = municoesDaVagaLidas(value.municoes)
   if (municoes !== undefined) dados.municoes = municoes
+  // EFEITO DO ITEM (Fase 7): as peças por toda porta do item; torto sai sozinho (o item fica, sem efeito).
+  const efeito = efeitoDoItemLido(value.efeito)
+  if (efeito !== undefined) dados.efeito = efeito
+  const resumo = efeitoResumoLido(value.efeitoResumo)
+  if (resumo !== undefined) dados.efeitoResumo = resumo
   return dados
+}
+
+/** Teto da frase do efeito na vaga (SISTEMA.md §5.1). */
+export const EFEITO_RESUMO_MAX = 200
+/** Teto das peças guardadas do efeito, em letras de JSON: o mesmo da mecânica do cartão (`lib/personagem.ts`). */
+const MECANICA_DO_ITEM_MAX = 16_000
+const GASTOS_DO_ITEM: readonly EfeitoDoItem['gasta'][] = ['um', 'nada']
+const ONDES_DO_ITEM: readonly EfeitoDoItem['onde'][] = ['sempre', 'soNaBatalha', 'soFora']
+
+/**
+ * O efeito lido de fora. As peças ficam OPACAS (uma cópia JSON, no teto):
+ * quem usa relê por `lerMecanica`, que diz "atualize o app" ou "inválida"
+ * sem perder nada. `undefined` = sem efeito, ou forma torta.
+ */
+export function efeitoDoItemLido(value: unknown): EfeitoDoItem | undefined {
+  if (!isRecord(value) || !isRecord(value.mecanica)) return undefined
+  const gasta = GASTOS_DO_ITEM.find((opcao) => opcao === value.gasta)
+  const onde = ONDES_DO_ITEM.find((opcao) => opcao === value.onde)
+  if (gasta === undefined || onde === undefined) return undefined
+  let texto: string
+  try {
+    texto = JSON.stringify(value.mecanica)
+  } catch {
+    return undefined
+  }
+  if (texto.length > MECANICA_DO_ITEM_MAX) return undefined
+  const copia = pecasDoTexto(texto)
+  return copia === null ? undefined : { mecanica: copia, gasta, onde }
+}
+
+/** As peças guardadas como JSON puro (a cópia que a vaga leva); `null` = não é peça, ou passa do teto. */
+export function pecasDoEfeito(mecanica: Readonly<Record<string, unknown>>): PecasDoEfeito | null {
+  let texto: string
+  try {
+    texto = JSON.stringify(mecanica)
+  } catch {
+    return null
+  }
+  return texto.length > MECANICA_DO_ITEM_MAX ? null : pecasDoTexto(texto)
+}
+
+function pecasDoTexto(texto: string): PecasDoEfeito | null {
+  const copia: unknown = JSON.parse(texto)
+  return isRecord(copia) ? (copia as PecasDoEfeito) : null // saiu de JSON.stringify: todo valor de dentro já é JSON, por construção
+}
+
+/** A frase do efeito: uma linha, aparada, no teto (sem meio emoji). */
+export function efeitoResumoLido(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const linha = value.replace(/\s+/g, ' ').trim()
+  return linha === '' ? undefined : cortado(linha, EFEITO_RESUMO_MAX)
+}
+
+/**
+ * O item como vai ao JOGADOR (decisão C8): sem as peças do efeito, só a
+ * frase. O host lê o efeito da cópia DELE; o pacote fica leve e ninguém
+ * forja efeito. Sem efeito, a mesma referência.
+ */
+export function semAsPecasDoEfeito<T extends DadosDoItem>(item: T): Omit<T, 'efeito'> {
+  if (item.efeito === undefined) return item
+  const { efeito: _doMestre, ...semPecas } = item
+  return semPecas
 }

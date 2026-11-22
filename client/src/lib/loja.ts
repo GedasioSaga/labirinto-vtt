@@ -1,5 +1,5 @@
 import type { LojaItem, MapData, Pin } from '../types/map'
-import { dadosDoItemLidos, ehIdDeItemDoAcervo } from './leituraDoItem'
+import { dadosDoItemLidos, ehIdDeItemDoAcervo, semAsPecasDoEfeito } from './leituraDoItem'
 
 /**
  * LOJA COM PREÇOS — a banca de um pino: mercadorias com nome, preço e estoque.
@@ -90,7 +90,8 @@ export function lerLojaDoArquivo(value: unknown): LojaItem[] | undefined {
 export function lojaParaJogador(pin: Pick<Pin, 'kind' | 'loja'>): LojaItem[] | null {
   if (pin.kind === 'viagem' || pin.kind === 'alavanca' || pin.kind === 'minigame') return null
   const itens = (lerLojaDoArquivo(pin.loja) ?? []).filter((item) => item.nome.trim() !== '')
-  return itens.length === 0 ? null : itens
+  // EFEITO DO ITEM (Fase 7, decisão C8): a mercadoria do Acervo vai ao jogador com a frase do efeito, sem as peças.
+  return itens.length === 0 ? null : itens.map((item) => (item.acervo?.efeito === undefined ? item : { ...item, acervo: { ...semAsPecasDoEfeito(item.acervo), itemId: item.acervo.itemId } }))
 }
 
 /** A mercadoria `itemId` que se pode pedir agora: existe no que o jogador recebe e não acabou. */

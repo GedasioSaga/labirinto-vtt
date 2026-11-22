@@ -3,7 +3,9 @@ import { appDataDir, join } from '@tauri-apps/api/path'
 import { cleanItemName, ITEM_CATEGORIA_MAX, ITEM_DESCRICAO_MAX, ITEM_PRECO_MAX, MUNICOES_POR_ARMA_MAX, type ItemParaDar, type MunicaoDaVaga } from './items'
 import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
-import type { LuzDoItem } from '../types/map'
+import type { EfeitoDoItem, LuzDoItem } from '../types/map'
+import { resumoDoEfeitoDoItem } from './batalha/mecanica/resumoDoItem'
+import { efeitoDoItemLido } from './leituraDoItem'
 import { ensureDir, writeTextFileSafely } from './mapFileIO'
 import { ehIdDePasta, pastasDasCategorias, pastasLidas, pastasPorPai, PASTAS_MAX, type PastaDeItens } from './pastasDosItens'
 import { PECAS_DESENHADAS } from '../puzzles/padroes'
@@ -36,12 +38,17 @@ const PASTA_DO_ACERVO = 'itens'
 const ARQUIVO_DO_INDICE = 'itens.json'
 const ARQUIVO_INVALIDO = 'itens.json.invalido'
 const ARQUIVO_ANTERIOR = 'itens.json.anterior'
+/** Fase 7 (SISTEMA.md, cópias de segurança): o índice de antes do efeito, guardado UMA vez, nunca por cima. */
+const ARQUIVO_ANTES_DOS_EFEITOS = 'itens.json.antes-dos-efeitos'
 /**
  * 2 (16/11/2026): a categoria Munição entrou; o índice de antes a ganha uma vez ao ser lido (`acervoDoTexto`).
  * 3 (18/11/2026): as pastas entraram; o índice de antes ganha uma pasta por categoria mostrada (`pastasDasCategorias`).
  * 4 (19/11/2026): as peças de puzzle entraram; o índice de antes ganha a categoria e a pasta "Peça de puzzle" uma vez (`comAPecaDePuzzle`).
+ * 5 (21/11/2026): o efeito do item entrou (`ItemDoCatalogo.efeito`, opcional); nada se transforma, o de antes fica guardado.
  */
-const VERSAO_DO_INDICE = 4
+const VERSAO_DO_INDICE = 5
+/** A versão que trouxe o efeito do item: o índice de antes dela é guardado ao lado antes da 1ª gravação. */
+const VERSAO_DOS_EFEITOS = 5
 /** A versão que trouxe a categoria Munição. */
 const VERSAO_DA_MUNICAO = 2
 /** A versão que trouxe a categoria e a pasta das peças de puzzle. */
@@ -100,6 +107,12 @@ export interface ItemDoCatalogo {
    * Ausente = Sem pasta. Só organiza o Acervo: não vai com a cópia dada.
    */
   pasta?: string
+  /**
+   * EFEITO DO ITEM (Fase 7, SISTEMA.md §5.1): as peças da técnica, quanto
+   * gasta e onde vale. Vai com a cópia dada (`itemParaDar`), com a frase.
+   * Ausente = item sem efeito (os de antes da Fase 7 abrem iguais).
+   */
+  efeito?: EfeitoDoItem
 }
 
 export interface AcervoDeItens {
@@ -166,7 +179,14 @@ export function itemDoCatalogoLido(value: unknown): ItemDoCatalogo | null {
     ...municoesLidas(value.municoes, value.id),
     ...luzLida(value.luz),
     ...(ehIdDePasta(value.pasta) ? { pasta: value.pasta } : {}),
+    ...efeitoLido(value.efeito),
   }
+}
+
+/** O efeito do item: torto sai (o item fica, sem efeito). */
+function efeitoLido(value: unknown): { efeito?: EfeitoDoItem } {
+  const efeito = efeitoDoItemLido(value)
+  return efeito === undefined ? {} : { efeito }
 }
 
 /** A luz do item: torta sai (o item só não ilumina). */
@@ -319,7 +339,15 @@ export function itemParaDar(item: ItemDoCatalogo, acervo: readonly Pick<ItemDoCa
     ...(item.empilhavel ? { empilhavel: true as const } : {}),
     ...municoesParaDar(item, acervo),
     ...(item.luz !== undefined ? { luz: { ...item.luz } } : {}),
+    ...efeitoParaDar(item),
   }
+}
+
+/** Fase 7: a vaga leva as peças (o host as lê) e a frase (o que o jogador recebe, decisão C8). */
+export function efeitoParaDar(item: Pick<ItemDoCatalogo, 'efeito'>): Pick<ItemParaDar, 'efeito' | 'efeitoResumo'> {
+  if (item.efeito === undefined) return {}
+  const efeitoResumo = resumoDoEfeitoDoItem(item.efeito)
+  return { efeito: { ...item.efeito, mecanica: structuredClone(item.efeito.mecanica) }, ...(efeitoResumo !== '' ? { efeitoResumo } : {}) }
 }
 
 function municoesParaDar(item: ItemDoCatalogo, acervo: readonly Pick<ItemDoCatalogo, 'id' | 'nome'>[]): { municoes?: MunicaoDaVaga[] } {
@@ -380,6 +408,17 @@ function naFila<T>(operacao: () => Promise<T>): Promise<T> {
   return resultado
 }
 
+/**
+ * Fase 7: o índice de antes da versão do efeito fica ao lado, UMA vez: a
+ * cópia que já existe nunca é regravada (a 2ª gravação já veria o índice novo).
+ */
+async function guardarAntesDosEfeitos(pasta: string, antes: string): Promise<void> {
+  const indice = indiceDoTexto(antes)
+  if (indice === null || indice.versao >= VERSAO_DOS_EFEITOS) return
+  const copia = await join(pasta, ARQUIVO_ANTES_DOS_EFEITOS)
+  if (!(await exists(copia))) await writeTextFile(copia, antes)
+}
+
 /** Grava o acervo INTEIRO. Lança com a frase pronta. */
 export function gravarAcervoDeItens(acervo: AcervoDeItens): Promise<void> {
   return naFila(async () => {
@@ -388,11 +427,17 @@ export function gravarAcervoDeItens(acervo: AcervoDeItens): Promise<void> {
       const caminho = await join(pasta, ARQUIVO_DO_INDICE)
       await ensureDir(pasta)
       // Cópia do de antes: melhor esforço — sem ela a gravação segue.
+      let antes: string | null = null
       try {
-        if (await exists(caminho)) await writeTextFile(await join(pasta, ARQUIVO_ANTERIOR), await readTextFile(caminho))
+        if (await exists(caminho)) {
+          antes = await readTextFile(caminho)
+          await writeTextFile(await join(pasta, ARQUIVO_ANTERIOR), antes)
+        }
       } catch {
         // A cópia é a segunda linha de defesa; a primeira é a gravação segura logo abaixo.
       }
+      // Fase 7: esta não é melhor esforço — sem a cópia de antes do efeito, nada se grava.
+      if (antes !== null) await guardarAntesDosEfeitos(pasta, antes)
       await writeTextFileSafely(caminho, serializarAcervo(acervo))
     } catch (erro) {
       throw new Error(`Não foi possível gravar o acervo de itens: ${motivo(erro)}.`)

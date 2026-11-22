@@ -130,7 +130,7 @@ const ALCANCE_DA_EXPLOSAO = 6
 const PARTE_DO_REVIVER = 25
 
 /** O atributo de partida de um teste: o pedido (`forca`, `resistencia`) ou, sem ele no sistema, o 1º; `null` = sistema sem atributos. */
-function atributoDePartida(sistema: SistemaDeRpg, preferido: string): string | null {
+export function atributoDePartida(sistema: SistemaDeRpg, preferido: string): string | null {
   const achado = sistema.atributos.find((atributo) => atributo.id === preferido) ?? sistema.atributos.at(0)
   return achado === undefined ? null : achado.id
 }
