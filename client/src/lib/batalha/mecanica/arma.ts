@@ -1,8 +1,6 @@
 import type { CartaoDaFicha } from '../../personagem'
-import type { SistemaDeRpg } from '../../sistemaDeRpg'
-import { FORMULA_DO_ATAQUE, formulaDoAtaque } from '../formula'
 import { avisoDoCartaoMontado, cartaoMontado, mecanicaLidaDoCartao } from './leitura'
-import { testeRolado, VERSAO_GRAVADA, type MecanicaV1 } from './modelo'
+import { testeRolado, type MecanicaV1 } from './modelo'
 
 /**
  * A ARMA MONTADA (construtor de mecânicas, fatia C8; seção 1 do plano: "vale
@@ -52,41 +50,8 @@ export function armaLida(arma: Pick<CartaoDaFicha, 'mecanica' | 'nome'>): ArmaLi
 
 // ─── Os modelos da arma ─────────────────────────────────────────────────────
 
-export type IdDoModeloDaArma = 'atordoa' | 'golpeComSelo'
-
-export const MODELOS_DA_ARMA: readonly { id: IdDoModeloDaArma; nome: string; dica: string }[] = [
-  { id: 'atordoa', nome: 'Atordoa sem dano', dica: '1 inimigo reage normal; se acertar, Atordoado. 3 vezes por batalha' },
-  { id: 'golpeComSelo', nome: 'Golpe com efeito', dica: 'Dano da arma e um selo no acerto. 2 vezes por batalha' },
-]
-
-/**
- * A fórmula do golpe da arma: a mesma do Atacar com ela, o "Soma no ataque"
- * dela mais o Dano da arma (a Rosa Fúnebre soma Percepção, não Força). Sem a
- * arma em mãos, a do Atacar de sempre (Força + Dano da arma).
- */
-function formulaDaArma(sistema: SistemaDeRpg, arma: CartaoDaFicha | undefined): string {
-  return arma === undefined ? FORMULA_DO_ATAQUE : formulaDoAtaque(arma, sistema)
-}
-
-/** USOS de partida de cada modelo (o Boomerang: 3 por combate). */
-const USOS_DO_ATORDOA = 3
-const USOS_DO_GOLPE_COM_SELO = 2
-
-/** `arma`: a arma em que o modelo vai (o editor passa o cartão); o "Golpe com efeito" soma o que ela soma no Atacar. */
-export function mecanicaDoModeloDaArma(id: IdDoModeloDaArma, sistema: SistemaDeRpg, arma?: CartaoDaFicha): MecanicaV1 {
-  const base = { versao: VERSAO_GRAVADA, acao: 'simples', custos: [], teste: { tipo: 'reacao' }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } } } as const
-  switch (id) {
-    case 'atordoa':
-      return { ...base, limite: { usosPorBatalha: USOS_DO_ATORDOA }, efeitos: [{ tipo: 'selo', nome: 'Atordoado', duracao: 1, natureza: 'debuff' }] }
-    case 'golpeComSelo':
-      return {
-        ...base,
-        limite: { usosPorBatalha: USOS_DO_GOLPE_COM_SELO },
-        dano: { base: { formula: formulaDaArma(sistema, arma) }, arma: 'padrao', multiplicadores: { concentracao: true, surpresa: true } },
-        efeitos: [{ tipo: 'selo', nome: 'Sangrando', duracao: 3, natureza: 'debuff' }],
-      }
-  }
-}
+// Os 20 modelos moram em `modelosDaArma.ts` (plano ARMAS-FONTE-UNICA §5); quem já importava daqui continua.
+export { GRUPOS_DOS_MODELOS_DA_ARMA, MODELOS_DA_ARMA, mecanicaDoModeloDaArma, type GrupoDoModeloDaArma, type IdDoModeloDaArma, type ModeloDaArma } from './modelosDaArma'
 
 // ─── A arma padrão da ficha ─────────────────────────────────────────────────
 
