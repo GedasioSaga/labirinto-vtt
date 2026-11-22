@@ -6,6 +6,7 @@
 - FEITO d59e8e43 (agente): Esc depois do Salvar fechava o livro inteiro (foco caía no body); useEffect devolve o foco à janela.
 - Evidência: navegador Edge/Playwright 6/6 PASS (cartão com Editar; janela z 100 por cima do livro z 28, sem Dar a; salvar com Poção Pequena grava itens.json e cartão mostra efeito + Testar; Esc/fundo fecham só a janela; painel Acervo ainda tem Dar a; longtask 0); tsc 0; vitest 9/9; prints tmp/pedidos-2026-11-22/editar-acervo/1-4.
 - NÃO visto: Tauri real, Apagar pela página do livro, escolher imagem.
+- 10h00: bump 32e0f20a pushado; portões em tmp/rel-0.5.92/ (tsc, vite, guarda, gitleaks) rodaram; publicar-versao em curso (publicar.log), disco 12 GB. Ao fim: conferir latest.json 0.5.92 e junções removidas antes do worktree remove.
 - Próximo: publicar 0.5.92 (memória lançar logo) com o fluxo da 0.5.91; critério: latest.json público = 0.5.92.
 - Os 3 itens do dono não têm O que ele faz (cura só no texto): explicado a ele.
 
