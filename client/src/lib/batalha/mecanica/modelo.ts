@@ -86,21 +86,42 @@ export interface Limite {
   overload?: true
 }
 
-/** O desenho do alvo. `quadrado` com `centro: 'si'` = em volta de quem usa (lado ímpar: 3x3 = raio 1). */
+/**
+ * O desenho do alvo. `quadrado` com `centro: 'si'` = em volta de quem usa (lado ímpar: 3x3 = raio 1).
+ * Fase 6: `centro: 'ponto'` = em volta de uma casa que quem usa escolhe (a granada; a casa do ponto
+ * entra); no `raio`, `centro: 'alvo'` = em volta de uma ficha escolhida (ela entra). Ausente = 'si'.
+ */
 export type FormaDoAlvo =
   | { tipo: 'um' }
   | { tipo: 'varios'; max: number; dividirDano?: true }
   | { tipo: 'linha'; casas: number }
-  | { tipo: 'quadrado'; lado: number; centro: 'si' | 'frente' }
-  | { tipo: 'raio'; casas: number }
+  | { tipo: 'quadrado'; lado: number; centro: 'si' | 'frente' | 'ponto' }
+  | { tipo: 'raio'; casas: number; centro?: 'alvo' | 'ponto' }
 
 export type QuemOAlvoPega = 'inimigos' | 'aliados' | 'todos' | 'si' | 'escolha'
+
+/** Fase 6: em quem a técnica vale pela vida. 'caido' = quem está com 0 de vida (o reviver); ausente = de pé. */
+export type EstadoDoAlvo = 'dePe' | 'caido'
 
 export interface AlvoDaMecanica {
   quem: QuemOAlvoPega
   forma: FormaDoAlvo
   /** Fase 5: só vale em quem tem este selo (a redoma da Florescer). Ausente = em qualquer um. */
   exigeSelo?: string
+  /**
+   * Fase 6: até quantas casas de quem usa (a distância do xadrez, da borda da ficha): o alvo
+   * escolhido, ou a casa / a ficha no centro da área longe. Ausente = sem limite conferido (como hoje).
+   */
+  alcance?: number
+  /** Fase 6: 'caido' só com o efeito reviver (e o reviver só com ele). Ausente = 'dePe'. */
+  estado?: 'caido'
+}
+
+/** Fase 6: a área longe (em volta de um ponto ou de uma ficha escolhida); `null` = a área sai de quem usa, ou não há área. */
+export function centroDaArea(forma: FormaDoAlvo): 'ponto' | 'alvo' | null {
+  if (forma.tipo === 'quadrado') return forma.centro === 'ponto' ? 'ponto' : null
+  if (forma.tipo === 'raio') return forma.centro ?? null
+  return null
 }
 
 /** Um número da CD que muda com a Concentração; `automatico` = naquela carga pega sem teste. */
@@ -211,6 +232,9 @@ export interface ModDaPeca {
 /** Fase 5: teto de selos no mesmo golpe (decisão C4). */
 export const SELOS_NO_GOLPE_MAX = 3
 
+/** Fase 6: com quanta vida o caído volta: "25% do HP máximo" (dele) ou um número / fórmula na ficha de quem usa. */
+export type VoltaDoReviver = NumeroSimples | { porcento: number; de: 'hpMaximo'; deQuem: 'alvo' }
+
 export type Efeito =
   /**
    * O comportamento do selo vem do NOME, pela tabela de `condicoes.ts` (a
@@ -227,6 +251,8 @@ export type Efeito =
   | { tipo: 'tirarSelos'; quais: 'negativos' | 'positivos' | 'todos' | { nomes: readonly string[] } }
   /** Fase 5: roubo de vida: parte do dano que o golpe causou volta em HP para quem usa. */
   | { tipo: 'dreno'; recurso: 'hp'; porcentoDoDano: number }
+  /** Fase 6 (H14): o caído volta com esta vida (a parte do HP máximo dele, ou um número / fórmula de quem usa). Só com `alvo.estado: 'caido'`. */
+  | { tipo: 'reviver'; volta: VoltaDoReviver }
   /** Porta de escape: o app não executa nada, só lembra o mestre. */
   | { tipo: 'aMao'; texto: string }
 
@@ -279,6 +305,9 @@ export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | '
   if (mecanica.alvo.exigeSelo !== undefined || mecanica.custoEmItem !== undefined) return true
   if (mecanica.efeitos.some((efeito) => efeito.tipo === 'dreno' || (efeito.tipo === 'cura' && (efeito.recurso !== 'hp' || efeito.em !== undefined)) || (efeito.tipo === 'tirarSelos' && efeito.quais !== 'negativos'))) return true
   if (mecanica.efeitos.filter((efeito) => efeito.tipo === 'selo').length > 1) return true
+  // Fase 6: a área longe, o alcance, o alvo caído e o reviver.
+  if (mecanica.alvo.alcance !== undefined || mecanica.alvo.estado !== undefined || centroDaArea(mecanica.alvo.forma) !== null) return true
+  if (mecanica.efeitos.some((efeito) => efeito.tipo === 'reviver')) return true
   return mecanica.efeitos.some((efeito) => efeito.tipo === 'selo' && seloDaVersao2(efeito))
 }
 
@@ -336,13 +365,11 @@ export interface ReacaoDaMecanica {
  */
 export const PECAS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   limite: { porRodada: 'limite por rodada' },
-  alvo: { alcance: 'alcance do alvo', estado: 'alvo caído (reviver)' },
-  forma: { centro: 'área em volta de um alvo ou de um ponto' },
   selo: { seJaTem: 'renovar o selo' },
 }
 
 /** Os efeitos da versão 2 que ainda não rodam, pelo tipo. */
-const EFEITOS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, string>> = { reviver: 'reviver', mover: 'empurrar e puxar' }
+const EFEITOS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, string>> = { mover: 'empurrar e puxar' }
 
 /** O que a leitura do campo `mecanica` dá. */
 export type MecanicaLida =
@@ -501,15 +528,22 @@ function forma(valor: unknown): FormaDoAlvo {
       return lida
     }
     case 'linha':
-    case 'raio':
-      soChaves(peca, ['tipo', 'casas'], 'alvo', 'forma')
+      soChaves(peca, ['tipo', 'casas'], 'alvo')
       return { tipo, casas: inteiro(peca.casas, 1, CASAS_MAX, 'casas') }
+    case 'raio': {
+      soChaves(peca, ['tipo', 'casas', 'centro'], 'alvo')
+      const lida: FormaDoAlvo = { tipo, casas: inteiro(peca.casas, 1, CASAS_MAX, 'casas') }
+      // Fase 6: em volta de um ponto ou de uma ficha escolhida; 'si' (ou ausente) = em volta de quem usa, como sempre.
+      const centro = umDe(peca.centro ?? 'si', ['si', 'alvo', 'ponto'] as const, 'centro da área')
+      if (centro !== 'si') lida.centro = centro
+      return lida
+    }
     case 'quadrado': {
       soChaves(peca, ['tipo', 'lado', 'centro'], 'alvo')
-      if (peca.centro === 'ponto') aindaNaoRoda('área em volta de um ponto')
       const lado = inteiro(peca.lado, 1, CASAS_MAX, 'lado do quadrado')
-      const centro = umDe(peca.centro, ['si', 'frente'] as const, 'centro do quadrado')
+      const centro = umDe(peca.centro, ['si', 'frente', 'ponto'] as const, 'centro do quadrado')
       if (centro === 'si' && lado % 2 === 0) torta('o quadrado em volta de quem usa precisa de lado ímpar (3x3, 5x5)')
+      if (centro === 'ponto' && lado % 2 === 0) torta('o quadrado em volta de um ponto precisa de lado ímpar (3x3, 5x5)')
       return { tipo, lado, centro }
     }
   }
@@ -517,13 +551,24 @@ function forma(valor: unknown): FormaDoAlvo {
 
 function alvo(valor: unknown): AlvoDaMecanica {
   const peca = registro(valor, 'alvo')
-  soChaves(peca, ['quem', 'forma', 'exigeSelo'], 'alvo', 'alvo')
+  soChaves(peca, ['quem', 'forma', 'exigeSelo', 'alcance', 'estado'], 'alvo', 'alvo')
   const quem = umDe(peca.quem, ['inimigos', 'aliados', 'todos', 'si', 'escolha'] as const, 'quem o alvo pega')
   const lida = forma(peca.forma)
   // Construtor C3: a área marca os inimigos, os aliados (a cura em área) ou todos; "em si" não tem área.
   if (quem === 'si' && lida.tipo !== 'um') torta('"em si" é um alvo só')
   const lido: AlvoDaMecanica = { quem, forma: lida }
   if (peca.exigeSelo !== undefined) lido.exigeSelo = texto(peca.exigeSelo, NOME_DO_SELO_MAX, 'o selo que o alvo precisa ter')
+  if (peca.alcance !== undefined) {
+    // Fase 6: o alcance mede o alvo escolhido, ou o centro da área longe; a área que sai de quem usa já tem o tamanho dela.
+    const escolhido = lida.tipo === 'um' || lida.tipo === 'varios' || centroDaArea(lida) !== null
+    if (quem === 'si' || !escolhido) torta('o alcance só vale no alvo escolhido ou no centro da área longe')
+    lido.alcance = inteiro(peca.alcance, 1, CASAS_MAX, 'alcance (casas)')
+  }
+  if (peca.estado !== undefined && umDe(peca.estado, ['dePe', 'caido'] as const, 'estado do alvo') === 'caido') {
+    // Fase 6 (decisão C18): o caído é escolhido um a um, entre os aliados (a área de hoje não marca quem caiu).
+    if (quem !== 'aliados' || (lida.tipo !== 'um' && lida.tipo !== 'varios')) torta('o alvo caído é um aliado escolhido (um ou vários), sem área')
+    lido.estado = 'caido'
+  }
   return lido
 }
 
@@ -686,7 +731,7 @@ function efeito(valor: unknown, indice: number): Efeito {
   const peca = registro(valor, onde)
   const novo = typeof peca.tipo === 'string' && Object.hasOwn(EFEITOS_QUE_AINDA_NAO_RODAM, peca.tipo) ? EFEITOS_QUE_AINDA_NAO_RODAM[peca.tipo] : undefined
   if (novo !== undefined) aindaNaoRoda(novo)
-  const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'dreno', 'aMao'] as const, onde)
+  const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'dreno', 'reviver', 'aMao'] as const, onde)
   switch (tipo) {
     case 'selo': {
       soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em', 'mods', 'regra'], onde, 'selo')
@@ -724,10 +769,31 @@ function efeito(valor: unknown, indice: number): Efeito {
       soChaves(peca, ['tipo', 'recurso', 'porcentoDoDano'], onde)
       if (peca.recurso === 'sp') aindaNaoRoda('roubo de SP pelo dano')
       return { tipo, recurso: umDe(peca.recurso, ['hp'] as const, `${onde} (recurso)`), porcentoDoDano: inteiro(peca.porcentoDoDano, 1, 100, `${onde} (parte do dano que volta, %)`) }
+    case 'reviver':
+      soChaves(peca, ['tipo', 'volta'], onde)
+      return { tipo, volta: voltaDoReviver(peca.volta, onde) }
     case 'aMao':
       soChaves(peca, ['tipo', 'texto'], onde)
       return { tipo, texto: texto(peca.texto, TEXTO_A_MAO_MAX, `${onde} (texto)`) }
   }
+}
+
+/** Fase 6: a vida com que o caído volta; a parte da vida é só do HP máximo dele, de 1% a 100%. */
+function voltaDoReviver(valor: unknown, onde: string): VoltaDoReviver {
+  const peca = registro(valor, `${onde} (com quanto volta)`)
+  if (!('porcento' in peca)) return numeroSimples(peca, DANO_MAX, `${onde} (com quanto volta)`)
+  soChaves(peca, ['porcento', 'de', 'deQuem'], `${onde} (com quanto volta)`)
+  if ((peca.de ?? 'hpMaximo') !== 'hpMaximo' || (peca.deQuem ?? 'alvo') !== 'alvo') aindaNaoRoda('reviver com outra parte que não o HP máximo do caído')
+  return { porcento: inteiro(peca.porcento, 1, 100, `${onde} (com quanto volta, %)`), de: 'hpMaximo', deQuem: 'alvo' }
+}
+
+/** Fase 6: o reviver pede o alvo caído e o alvo caído pede o reviver; ele não junta com dano, cura ou limpeza (a vida que volta é a dele). */
+function conferirReviver(efeitos: readonly Efeito[], alvoLido: AlvoDaMecanica, temDano: boolean): void {
+  const revive = efeitos.filter((item) => item.tipo === 'reviver').length
+  if (revive > 1) torta('mais de um efeito "reviver"')
+  if (revive === 1 && alvoLido.estado !== 'caido') torta('reviver só vale no alvo caído')
+  if (revive === 0 && alvoLido.estado === 'caido') torta('o alvo caído só serve para reviver')
+  if (revive === 1 && (temDano || efeitos.some((item) => item.tipo === 'cura' || item.tipo === 'tirarSelos' || item.tipo === 'dreno'))) torta('reviver não junta com dano, cura nem tirar condições')
 }
 
 /** Um de cada: selo, cura e tirar selos (a fatia C5 abre mais de um selo). */
@@ -829,6 +895,7 @@ function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): 
   const lidoAlvo = alvo(peca.alvo)
   const efeitos = lista(peca.efeitos ?? [], EFEITOS_MAX, 'efeitos').map(efeito)
   conferirEfeitos(efeitos, lidoAlvo.quem, peca.dano !== undefined)
+  conferirReviver(efeitos, lidoAlvo, peca.dano !== undefined)
   const mecanica: MecanicaV2 = {
     versao,
     acao: umDe(peca.acao, ['simples', 'bonus', 'completa', 'livre', 'perguntar'] as const, 'ação'),

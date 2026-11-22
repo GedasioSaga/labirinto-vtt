@@ -188,7 +188,16 @@ export interface DisputaAMao {
 export interface AreaAMao {
   forma: FormaDaArea
   quem: QuemEntraNaArea
+  /**
+   * Fase 6 (técnica montada): a área longe. 'ponto' = em volta de uma casa que quem usa escolhe
+   * (a casa entra); 'alvo' = em volta de uma ficha escolhida (ela entra). Só com a forma `raio`.
+   * Ausente = a área sai de quem usa, como sempre.
+   */
+  centro?: 'ponto' | 'alvo'
 }
+
+/** Fase 6 (técnica montada, H14): o caído volta com esta vida: a parte do HP máximo dele, ou a fórmula na ficha de quem usa. */
+export type ReviverAMao = { porcento: number } | { formula: string }
 
 /**
  * F2 (fatia B): o que uma resposta muda no golpe. `dano`: a fórmula no lugar
@@ -359,6 +368,10 @@ export interface MecanicaAMao {
   acao?: AcaoDaTecnica
   /** F2 (fatia F, Florescer): só vale em alvo com este selo (o da Orquídea); o motivo da recusa. */
   soContraOSelo?: { nome: string; motivo: string }
+  /** Fase 6 (técnica montada): até quantas casas de quem usa (o alvo escolhido, ou o centro da área longe); o host confere com o mapa. */
+  alcance?: number
+  /** Fase 6 (técnica montada, H14): só vale em aliado caído (0 de vida), que volta com esta vida. */
+  reviver?: ReviverAMao
   /** F2 (fatia F, Florescer): não aceita Concentração (a carga guardada não multiplica nem é gasta). */
   semConcentracao?: true
   /**

@@ -414,6 +414,23 @@ function lerContraDe(value: unknown): string | undefined | false {
 }
 
 /** `balaId` ausente, ou o id do subcartão da bala (a mesma forma do id de cartão). `false` = torto. */
+/** Fase 6: teto da coluna e da linha da casa no fio (a grade de qualquer mapa cabe). */
+const CASA_DO_PONTO_MAX = 100_000
+
+/** Fase 6: o centro da área longe: a casa da grade (dois inteiros), ausente, ou `false` = torto. */
+function lerPonto(value: unknown): { col: number; row: number } | undefined | false {
+  if (value === undefined) return undefined
+  if (!isRecord(value) || Object.keys(value).length !== 2) return false
+  const { col, row } = value
+  return inteiroAte(col, -CASA_DO_PONTO_MAX, CASA_DO_PONTO_MAX) && inteiroAte(row, -CASA_DO_PONTO_MAX, CASA_DO_PONTO_MAX) ? { col, row } : false
+}
+
+/** Fase 6: a ficha no centro da área em volta de um alvo; ausente, ou `false` = torto. */
+function lerCentroId(value: unknown): string | undefined | false {
+  if (value === undefined) return undefined
+  return textoAte(value, 1, ID_DA_BATALHA_MAX) ? value : false
+}
+
 function lerBalaId(value: unknown): string | undefined | false {
   if (value === undefined) return undefined
   return textoAte(value, 1, CARTAO_ID_MAX) ? value : false
@@ -506,6 +523,9 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const variante = lerVarianteOpcional(value.variante)
       // F2 (revisão da fatia E): a bala da técnica que diz "Dano da Bala" (Desenhar o alvo); se vale para a técnica, quem confere é a store.
       const balaId = lerBalaId(value.balaId)
+      // Fase 6: o centro da área longe; se ele vale (alcance, área), quem confere é a store, pelo mapa.
+      const ponto = lerPonto(value.ponto)
+      const centroId = lerCentroId(value.centroId)
       // F2 (fatia A): as respostas das perguntas na hora; se valem para a técnica, quem confere é a store.
       const respostas = value.respostas === undefined ? undefined : lerRespostas(value.respostas)
       if (respostas === null) return null
@@ -513,7 +533,7 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const alvosLidos = lerAlvosDoPedido(alvos, 0)
       const acaoLida = acao === null ? null : lerAcaoDaTecnica(acao)
       if (!textoAte(cartaoId, 1, CARTAO_ID_MAX) || !cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean') return null
-      if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false || selo === false || perfuracao === false || variante === false || balaId === false) return null
+      if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false || selo === false || perfuracao === false || variante === false || balaId === false || ponto === false || centroId === false) return null
       // Bala sem arma não existe: a bala é subcartão da arma.
       if (balaId !== undefined && armaId === null) return null
       const pedido: PedidoDeAcao = { tipo: 'habilidade', cartaoId, armaId, alvos: alvosLidos, surpresa, perfurante, custo, acao: acaoLida }
@@ -523,6 +543,8 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       if (selo !== undefined) pedido.selo = selo
       if (variante !== undefined) pedido.variante = variante
       if (respostas !== undefined) pedido.respostas = respostas
+      if (ponto !== undefined) pedido.ponto = ponto
+      if (centroId !== undefined) pedido.centroId = centroId
       return pedido
     }
     case 'concentrar':

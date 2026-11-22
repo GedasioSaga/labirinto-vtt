@@ -88,7 +88,7 @@ import {
   somaContraOSelo,
   type MecanicaAMao,
 } from './mecanicasAMao'
-import { dividirDano } from './area'
+import { distanciaEntreFichas, dividirDano, fichaPertoDoCentro, pegadaDaCasa, type PegadaNaGrade } from './area'
 import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoCartao, reacaoDasPecas, divisaoDasPecas, selosDasPecas, type MultiplicadoresDasPecas } from './mecanica/leitura'
 import { armaPadraoEntre } from './mecanica/arma'
 import { danoUsaArma } from './mecanica/modelo'
@@ -154,6 +154,12 @@ export interface ContextoDoGolpe {
    * espera a pergunta. Ausente = ninguém (a mesa sem mapa).
    */
   quemRebatePor?: (tokenId: string) => readonly string[]
+  /**
+   * Fase 6: a ficha do token na grade do mapa (a casa de cima e à esquerda e o
+   * lado), para o host conferir o alcance e a área longe. `null` = fora do
+   * mapa. Ausente = a mesa sem mapa (o Testar): só o centro é pedido.
+   */
+  pegadaDoToken?: (tokenId: string) => PegadaNaGrade | null
   /**
    * U3 (plano de 10/11): a regra única de "quem pode ajudar quem". Os ids de
    * personagem ALIADOS de quem age NA LUTA (`aliadosNaLuta`: quem está do lado
@@ -486,6 +492,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
         motivoDoTetoDeDano(tecnica.cartao, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>()) ??
         motivoDoDivide(tecnica.cartao, pedido.alvos.length) ??
         motivoDoSeloPedido(tecnica.cartao, selosDosAlvos) ??
+        motivoDoReviver(ctx, mecanicaDoCartao(tecnica.cartao), pedido.alvos) ??
+        motivoDaAreaLonge(ctx, mecanicaDoCartao(tecnica.cartao), pedido) ??
         motivoDaCuraSemFerido(ctx, tecnica.cartao, pedido.alvos, pedido.selo !== undefined && pedido.selo !== null)
       )
     }
@@ -712,6 +720,77 @@ function motivoDaCuraSemFerido(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvo
     if (comEscudoGasto === null && dele !== undefined && escudoGasto(ctx, dele)) comEscudoGasto = { tokenId: alvo.tokenId, personagem: dele }
   }
   return comEscudoGasto === null ? MOTIVO_SEM_FERIDO : motivoDoEscudoQueSegurou(ctx, cartao, comEscudoGasto)
+}
+
+/** Fase 6: a vida de agora da ficha do token; `null` = sem personagem ou sistema sem vida. */
+function vidaDoToken(ctx: ContextoDoGolpe, tokenId: string): { atual: number; maximo: number } | null {
+  const recurso = recursoDeVida(ctx.sistema)
+  const personagemId = ctx.personagemDoToken(tokenId)
+  const dele = typeof personagemId === 'string' ? ctx.personagens.find((candidato) => candidato.id === personagemId) : undefined
+  return dele === undefined || recurso === null ? null : vidaDoPersonagem(dele, recurso)
+}
+
+/** O nome do alvo na frase da recusa: o da carta, ou o da ficha. */
+function nomeDoAlvo(ctx: ContextoDoGolpe, tokenId: string): string {
+  const personagemId = ctx.personagemDoToken(tokenId)
+  return ctx.turnos.cartas.find((carta) => carta.tokenId === tokenId)?.nome?.trim() || ctx.personagens.find((personagem) => personagem.id === personagemId)?.nome.trim() || 'O alvo'
+}
+
+/** Fase 6 (H14): a recusa do reviver em quem está de pé; a mira diz a mesma frase. */
+export function motivoDoAlvoDePe(nome: string): string {
+  return `${nome} está de pé: reviver só vale em quem caiu (0 de vida)`
+}
+
+/**
+ * Fase 6 (H14, decisão C18): o reviver só vale em quem está com 0 de vida
+ * (lido da ficha agora, como a ordem dos turnos lê o caído). Sem alvo, ou um
+ * alvo de pé: recusa antes de cobrar. Ficha sem vida conhecida também recusa:
+ * não há o que reviver.
+ */
+function motivoDoReviver(ctx: ContextoDoGolpe, linha: MecanicaAMao | null, alvos: readonly PedidoDeAlvo[]): string | null {
+  if (linha?.reviver === undefined) return null
+  if (alvos.length === 0) return 'Escolha quem caiu para reviver'
+  const dePe = alvos.find((alvo) => (vidaDoToken(ctx, alvo.tokenId)?.atual ?? 1) > 0)
+  return dePe === undefined ? null : motivoDoAlvoDePe(nomeDoAlvo(ctx, dePe.tokenId))
+}
+
+/** Fase 6: a recusa do alvo (ou do centro da área) longe demais. */
+export function motivoForaDoAlcance(alcance: number, distancia: number): string {
+  return `Fora do alcance: ${distancia} ${distancia === 1 ? 'casa' : 'casas'}, a técnica vai até ${alcance}`
+}
+
+/**
+ * Fase 6: o alcance e a área longe, conferidos pelo mapa (o host nunca confia
+ * na lista da mira). O alvo escolhido (ou o centro da área) a até `alcance`
+ * casas de quem usa; na área longe, o centro é obrigatório e cada alvo marcado
+ * tem de estar nela (desmarcar pode). Sem mapa (`pegadaDoToken` ausente, a
+ * mesa do Testar) só o centro é pedido.
+ */
+function motivoDaAreaLonge(ctx: ContextoDoGolpe, linha: MecanicaAMao | null, pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }>): string | null {
+  if (linha === null) return null
+  const centro = linha.area?.centro
+  if (centro === 'ponto' && pedido.ponto === undefined) return 'Escolha a casa do centro da área'
+  if (centro === 'alvo' && pedido.centroId === undefined) return 'Escolha a ficha do centro da área'
+  const pegadaDe = ctx.pegadaDoToken
+  if (pegadaDe === undefined) return null
+  const deQuemUsa = pegadaDe(ctx.carta.tokenId)
+  if (deQuemUsa === null) return null
+  const pegadaDoCentro = centro === 'ponto' && pedido.ponto !== undefined ? pegadaDaCasa(pedido.ponto) : centro === 'alvo' && pedido.centroId !== undefined ? pegadaDe(pedido.centroId) : null
+  if (centro === 'alvo' && pegadaDoCentro === null) return 'A ficha do centro da área não está no mapa'
+  const alcance = linha.alcance
+  if (alcance !== undefined) {
+    const medidos = pegadaDoCentro !== null ? [pegadaDoCentro] : pedido.alvos.flatMap((alvo) => pegadaDe(alvo.tokenId) ?? [])
+    const longe = medidos.map((pegada) => distanciaEntreFichas(deQuemUsa, pegada)).find((distancia) => distancia > alcance)
+    if (longe !== undefined) return motivoForaDoAlcance(alcance, longe)
+  }
+  const area = linha.area
+  if (pegadaDoCentro === null || area === undefined || area.forma.tipo !== 'raio') return null
+  const casas = area.forma.casas
+  const fora = pedido.alvos.find((alvo) => {
+    const pegada = pegadaDe(alvo.tokenId)
+    return pegada !== null && !fichaPertoDoCentro(pegadaDoCentro, casas, pegada)
+  })
+  return fora === undefined ? null : `${nomeDoAlvo(ctx, fora.tokenId)} está fora da área (a mais de ${casas} ${casas === 1 ? 'casa' : 'casas'} do centro)`
 }
 
 /** A recusa da cura sem ninguém para curar; a mira diz a mesma frase antes de mandar. */

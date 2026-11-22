@@ -90,6 +90,13 @@ const QUEM: Readonly<Record<Exclude<QuemOAlvoPega, 'si'>, readonly [string, stri
 
 /** Bloco 3: "Acerta todos os inimigos num quadrado 3x3 à frente." */
 export function fraseDoAlvo(mecanica: MecanicaV1): string {
+  const frase = fraseDaForma(mecanica)
+  // Fase 6: o alcance (o alvo escolhido ou o centro da área longe).
+  const { alcance } = mecanica.alvo
+  return alcance === undefined ? frase : `${frase.slice(0, -1)}, com alcance de ${alcance} ${alcance === 1 ? 'casa' : 'casas'}.`
+}
+
+function fraseDaForma(mecanica: MecanicaV1): string {
   const { quem, forma } = mecanica.alvo
   const ajuda = quem === 'aliados' || quem === 'si'
   const verbo = ajuda ? 'Pega' : 'Acerta'
@@ -97,15 +104,17 @@ export function fraseDoAlvo(mecanica: MecanicaV1): string {
   const [um, varios] = QUEM[quem]
   switch (forma.tipo) {
     case 'um':
+      // Fase 6 (H14): o reviver só pega quem caiu.
+      if (mecanica.alvo.estado === 'caido') return `${verbo} 1 ${um} caído (0 de vida).`
       return `${verbo} 1 ${um}.`
     case 'varios':
       return `${verbo} até ${forma.max} ${varios}${forma.dividirDano === true ? ', e o dano se divide entre eles' : ''}.`
     case 'linha':
       return `${verbo} todos os ${varios} numa linha reta de ${forma.casas} ${forma.casas === 1 ? 'casa' : 'casas'}.`
     case 'quadrado':
-      return `${verbo} todos os ${varios} num quadrado ${forma.lado}x${forma.lado} ${forma.centro === 'frente' ? 'à frente' : 'em volta de quem usa'}.`
+      return `${verbo} todos os ${varios} num quadrado ${forma.lado}x${forma.lado} ${forma.centro === 'frente' ? 'à frente' : forma.centro === 'ponto' ? 'em volta de um ponto escolhido' : 'em volta de quem usa'}.`
     case 'raio':
-      return `${verbo} todos os ${varios} a até ${forma.casas} ${forma.casas === 1 ? 'casa' : 'casas'} de quem usa.`
+      return `${verbo} todos os ${varios} a até ${forma.casas} ${forma.casas === 1 ? 'casa' : 'casas'} ${forma.centro === 'ponto' ? 'de um ponto escolhido (a casa dele entra)' : forma.centro === 'alvo' ? 'de uma ficha escolhida (ela entra)' : 'de quem usa'}.`
   }
 }
 
@@ -298,6 +307,9 @@ export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1, ficha?: Fich
     }
     case 'dreno':
       return `Quem usa recupera ${efeito.porcentoDoDano}% do dano que causar, em HP.`
+    case 'reviver':
+      // Fase 6 (H14): o caído volta e joga de novo na próxima vez dele (a ordem lê a vida de agora).
+      return 'porcento' in efeito.volta ? `Quem caiu levanta com ${efeito.volta.porcento}% do HP máximo dele e joga de novo na próxima vez.` : `Quem caiu levanta com ${numeroDaPeca(efeito.volta)} de HP e joga de novo na próxima vez.`
     case 'aMao':
       return `À mão (o app lembra o mestre): ${efeito.texto.trim()}`
   }

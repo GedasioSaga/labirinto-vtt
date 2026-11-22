@@ -5,7 +5,7 @@ import type { FormaDaArea } from '../area'
 import type { LeituraDaAcao, LeituraDoCusto, LeituraDoTempo } from '../leituraDaFicha'
 import type { LimpezaAMao, MecanicaAMao, ReacaoAMao, SaidaDaReacaoAMao } from '../mecanicasAMao'
 import type { ReacaoDoTipo } from '../tiposDaHabilidade'
-import { avisoDaMecanica, lerMecanica, testeRolado, VIDA_DO_PORCENTO, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type Porcento, type ReacaoDaMecanica } from './modelo'
+import { avisoDaMecanica, centroDaArea, lerMecanica, testeRolado, VIDA_DO_PORCENTO, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type Porcento, type ReacaoDaMecanica } from './modelo'
 import { disputaDoTeste } from './teste'
 
 /**
@@ -338,6 +338,12 @@ export function linhaDasPecas(nome: string, mecanica: MecanicaV1): MecanicaAMao 
   const area = areaDaForma(forma)
   // Construtor C3: "a escolher" e "todos" marcam todos na área (quem usa desmarca); "aliados" só os do lado dele.
   if (area !== null) linha.area = { forma: area, quem: quem === 'inimigos' || quem === 'aliados' ? quem : 'todos' }
+  // Fase 6: a área longe (em volta de um ponto ou de uma ficha), o alcance e o reviver.
+  const centro = centroDaArea(forma)
+  if (linha.area !== undefined && centro !== null) linha.area.centro = centro
+  if (mecanica.alvo.alcance !== undefined) linha.alcance = mecanica.alvo.alcance
+  const reviver = mecanica.efeitos.find((efeito) => efeito.tipo === 'reviver')
+  if (reviver !== undefined && reviver.tipo === 'reviver') linha.reviver = 'porcento' in reviver.volta ? { porcento: reviver.volta.porcento } : { formula: formulaDoNumero(reviver.volta) }
   if (forma.tipo === 'varios' && forma.dividirDano === true) linha.divide = { teto: forma.max }
   else if (forma.tipo === 'varios') linha.tetoDeAlvosComDano = forma.max
   else if (forma.tipo === 'um') linha.tetoDeAlvosComDano = 1

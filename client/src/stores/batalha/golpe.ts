@@ -45,7 +45,8 @@ import { chavesDoDono, disputaNoUso, formulaDaCura, limpezaDe, mecanicaDoCartao,
 import { comADisputaNoUso } from '../../lib/batalha/disputaNoUso'
 import { debuffsDobrados } from '../../lib/batalha/debuffs'
 import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOverloadDeReacao, temReacaoContraSurpresa, type PedidoDeTecnica } from '../../lib/batalha/reacaoComTecnica'
-import { casaNaAreaVirada } from '../../lib/batalha/area'
+import { casaNaAreaVirada, pegadaDaFicha } from '../../lib/batalha/area'
+import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
 import { armasDe, limiteDeArmas, recursoDoEscudo, tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
 import { fichaComAMochilaDoBoneco } from '../../lib/batalha/municaoDaFicha'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
@@ -463,6 +464,15 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         return alvo !== undefined && sistema !== null && temReacaoContraSurpresa(alvo, sistema, turnos.combate?.[alvo.id])
       },
       quemRebatePor: quemRebatePor(sceneKey, turnos, carta.tokenId),
+      // Fase 6: a ficha inteira na grade, para o host conferir o alcance e a área longe; a mesa sem mapa (o Testar) não confere.
+      ...(mesa.posicaoDoToken === undefined
+        ? {}
+        : {
+            pegadaDoToken: (tokenId: string) => {
+              const posicao = mesa.posicaoDoToken?.(sceneKey, tokenId) ?? null
+              return posicao === null ? null : pegadaDaFicha(posicao.casa, mesa.fichaDaCena?.(sceneKey, tokenId)?.size)
+            },
+          }),
       // U3: a regra única de "quem pode ajudar quem": o aliado é o do lado na luta, jogador ou NPC, para toda técnica (montada,
       // de texto e à mão), a mesma regra da mira do mestre. A Luz do Sol (o selo só nos aliados, sem dano neles) lê a mesma lista.
       aliados: aliadosNaLutaDe(carta.personagemId, turnos, personagens),
@@ -646,6 +656,27 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         }
         // Só depois de todo alvo aceito: o pedido recusado no meio (acima) não deixa o veneno tirado de ninguém.
         partes.push(...gravarCurasDoItem(sceneKey, curasDoItem))
+      }
+      // Fase 6 (H14): o caído volta com a parte do HP máximo dele (ou a fórmula de quem usa). O `podeAgir` já conferiu que todos estão a 0.
+      const reviver = cartaoDoPedido === null ? undefined : mecanicaDoCartao(cartaoDoPedido)?.reviver
+      if (reviver !== undefined && ctx.personagem !== null && ctx.sistema !== null) {
+        const vida = recursoDeVida(ctx.sistema)
+        for (const alvo of golpe.alvos) {
+          const fichaDoAlvo = alvo.personagemId === null ? undefined : mesa.personagens().find((candidato) => candidato.id === alvo.personagemId)
+          const vidaDoAlvo = fichaDoAlvo === undefined || vida === null ? null : vidaDoPersonagem(fichaDoAlvo, vida)
+          if (vidaDoAlvo === null || alvo.personagemId === null) continue
+          const lida = 'porcento' in reviver ? null : lerDano(reviver.formula, { personagem: ctx.personagem, sistema: ctx.sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(novos.selos, carta.tokenId) })
+          // Volta com pelo menos 1: reviver que deixa a ficha a 0 não reviveria.
+          const volta = Math.max(1, 'porcento' in reviver ? Math.floor((vidaDoAlvo.maximo * reviver.porcento) / 100) : lida?.tipo === 'valor' ? lida.valor : 1)
+          const voltou = mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDaCura(atual, sistema, volta), quem)
+          if (voltou === 'recusada') {
+            devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+            return false
+          }
+          if (voltou !== null) partes.push(...reversaoDaFicha(alvo.personagemId, voltou))
+          const coube = Math.min(volta, vidaDoAlvo.maximo - vidaDoAlvo.atual)
+          golpe = golpeComOAlvo(golpe, { ...alvo, nota: `levantou com ${coube} de vida` })
+        }
       }
       // Fase 5: a cura em quem usa (o golpe que cura quem bate), depois dos alvos; recusada, nada sai.
       const emQuemUsa = cartaoDoPedido === null ? undefined : mecanicaDoCartao(cartaoDoPedido)?.curaEmQuemUsa

@@ -129,6 +129,10 @@ interface Arrumacao {
   escudo: number
   /** Fase 5: o roubo de vida pede quem usa com metade da vida, senão a cura dele não aparece. */
   quemUsaFerido: boolean
+  /** Fase 6 (H14): o reviver pede o boneco caído (0 de vida), do lado de quem usa. */
+  caido: boolean
+  /** Fase 6: a área longe (o teste manda o centro que o host pede). */
+  centro: 'ponto' | 'alvo' | null
   frase: string
 }
 
@@ -166,19 +170,26 @@ function arrumacaoDoBoneco(cartao: CartaoDaFicha): Arrumacao {
   const spPelaMetade = linha?.limpa?.recurso === 'sp'
   const escudo = linha?.perfuracao !== undefined && !ajuda ? ESCUDO_PARA_A_PERFURACAO : 0
   const quemUsaFerido = (pecas?.efeitos ?? []).some((efeito) => efeito.tipo === 'dreno')
+  // Fase 6: o reviver só vale em quem caiu; a área longe cai num ponto (ou numa ficha) e pega os bonecos em volta.
+  const caido = linha?.reviver !== undefined
+  const centro = linha?.area?.centro ?? null
+  const alcance = linha?.alcance
+  const dentro = centro === 'ponto' ? `todos a até ${forma?.tipo === 'raio' ? forma.casas : 1} casa do ponto escolhido` : centro === 'alvo' ? 'todos em volta do primeiro, o centro escolhido' : 'todos dentro da área'
   const partes = [
     quemUsaFerido ? 'quem usa com metade da vida, para o roubo de vida aparecer' : null,
     ajuda ? 'do lado de quem usa' : null,
     cura && !spPelaMetade ? 'ferido, com metade da vida, para a cura aparecer' : null,
     spPelaMetade ? 'com metade do SP, para a recuperação aparecer' : null,
     escudo > 0 ? `com ${escudo} de Escudo, para a perfuração aparecer` : null,
-    area ? `${quantos} bonecos, todos dentro da área` : null,
+    area ? `${quantos} bonecos, ${dentro}` : null,
+    centro !== null && alcance !== undefined ? `o alcance de ${alcance} casas é conferido no mapa e na Arena (o teste não tem mapa)` : null,
+    caido ? 'caído, com 0 de vida, para o reviver aparecer' : null,
     quem === 'si' ? 'a técnica é em quem usa' : null,
     seloPedido === null ? null : `já com ${seloPedido}, que a técnica pede`,
     selosParaTirar.length === 0 ? null : `já com ${selosParaTirar.map((selo) => selo.nome).join(', ')}, para ver o que sai e o que fica`,
   ].filter((parte): parte is string => parte !== null)
   const frase = partes.length === 0 ? 'Boneco de treino de 500 de vida, sem Escudo, reagindo com o d20.' : `Boneco arrumado: ${partes.join('; ')}.`
-  return { lado: ajuda ? 'a' : 'b', quantos, ferido: cura && !spPelaMetade, emSi: quem === 'si', seloPedido, selosParaTirar, spPelaMetade, escudo, quemUsaFerido, frase }
+  return { lado: ajuda ? 'a' : 'b', quantos, ferido: cura && !spPelaMetade, emSi: quem === 'si', seloPedido, selosParaTirar, spPelaMetade, escudo, quemUsaFerido, caido, centro, frase }
 }
 
 /** A ficha de quem usa com o cartão do rascunho: troca o de mesmo id, ou entra na aba Habilidades. */
@@ -279,6 +290,7 @@ function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao, vezDe: 'quemUs
     const ficha = fichaDoBoneco(sistema, arrumacao.escudo > 0 ? { ...BONECO_PADRAO, escudo: arrumacao.escudo } : BONECO_PADRAO, `ensaio-boneco-${i + 1}`)
     const nome = arrumacao.quantos === 1 ? `${NOME_DO_BONECO} (boneco de treino)` : `${NOME_DO_BONECO} ${i + 1}`
     if (arrumacao.spPelaMetade) return comMetadeDoSp({ ...ficha, nome }, sistema)
+    if (arrumacao.caido && vida !== null) return { ...ficha, nome, recursos: { ...ficha.recursos, [vida.id]: 0 } }
     if (!arrumacao.ferido || vida === null) return { ...ficha, nome }
     return { ...ficha, nome, recursos: { ...ficha.recursos, [vida.id]: Math.round(BONECO_PADRAO.hp * PARTE_DO_FERIDO) } }
   })
@@ -475,7 +487,7 @@ function ensaiarAReacao(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   const { cartao, sistema } = pedido
   const arrumou: PassoDoEnsaio = { tipo: 'arrumou', titulo: 'Boneco', texto: `O boneco de treino bate em quem usa com ${DANO_DO_BONECO} de dano; a técnica entra no lugar da reação, antes do d20.` }
   const naoSaiu = (texto: string): ResultadoDoEnsaio => ({ passos: [arrumou, recusa(texto)], barras: [], passarUmaVez: null })
-  const montada = montarMesa(pedido, { lado: 'b', quantos: 1, ferido: false, emSi: false, seloPedido: null, selosParaTirar: [], spPelaMetade: false, escudo: 0, quemUsaFerido: false, frase: arrumou.texto }, 'boneco')
+  const montada = montarMesa(pedido, { lado: 'b', quantos: 1, ferido: false, emSi: false, seloPedido: null, selosParaTirar: [], spPelaMetade: false, escudo: 0, quemUsaFerido: false, caido: false, centro: null, frase: arrumou.texto }, 'boneco')
   if (typeof montada === 'string') return naoSaiu(montada)
   const { mesa, loja, vagaDeQuemUsa, vagasDosBonecos } = montada
   const boneco = vagasDosBonecos[0]
@@ -570,6 +582,9 @@ export function ensaiar(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
     custo: null,
     acao: tecnica.acao === 'passiva' ? null : tecnica.acao,
     ...(selo === null ? {} : { selo }),
+    // Fase 6: a área longe pede o centro; sem mapa no teste, a casa é a de referência e a ficha é o 1º boneco (todos em volta dele).
+    ...(arrumacao.centro === 'ponto' ? { ponto: { col: 0, row: 0 } } : {}),
+    ...(arrumacao.centro === 'alvo' && vagasDosBonecos[0] !== undefined ? { centroId: vagasDosBonecos[0].tokenId } : {}),
   }
 
   // Fase 5: o teste confere o efeito, não a ação da vez: a técnica de Ação Bônus ganha a bônus, como o mestre daria.
@@ -583,13 +598,16 @@ export function ensaiar(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   // O motivo é o mesmo que o host daria ao golpe (`podeAgir`), palavra por palavra.
   const motivoDoMotor = loja.getState().motivoDoAgir(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, esperado, golpe)
   if (motivoDoMotor !== null) return naoSaiu(motivoDoMotor)
+  // Fase 6 (aceite 2): num de pé (quem usa), o motor recusa com o motivo; a frase é a do host, palavra por palavra.
+  const motivoDePe = arrumacao.caido ? loja.getState().motivoDoAgir(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, esperado, { ...golpe, alvos: [{ tokenId: vagaDeQuemUsa.tokenId, dano: null }] }) : null
+  const passoDePe: PassoDoEnsaio[] = motivoDePe === null ? [] : [{ tipo: 'registro', titulo: 'Num de pé', texto: `A batalha recusa: ${motivoDePe}.` }]
   if (!loja.getState().agir(CENA_DO_ENSAIO, AUTOR_DO_ENSAIO, esperado, golpe)) return naoSaiu('A batalha recusou o golpe.')
 
   // A fórmula com os números da ficha, como o menu da vez a leu (o mesmo número que foi ao golpe).
   const primeiro = lidos[0]?.lido
   const formula: PassoDoEnsaio[] = primeiro !== undefined && (primeiro.tipo === 'valor' || primeiro.tipo === 'precisaArma') ? [{ tipo: 'formula', titulo: 'Fórmula', texto: primeiro.tipo === 'valor' ? primeiro.conta : `${primeiro.conta} (falta a arma)` }] : []
   const reacoes = bonecosReagem(montada)
-  const passos: PassoDoEnsaio[] = [arrumou, ...passoDoBonus, ...formula, ...reacoes, ...passosDoRegistro(loja, desde, 'Na batalha').filter((passo) => !/ ganhou ações extras/.test(passo.texto)), ...passosDosSelosNovos(montada, sistema, selosAntes), ...passosDosRecursos(mesa, sistema, antes)]
+  const passos: PassoDoEnsaio[] = [arrumou, ...passoDoBonus, ...passoDePe, ...formula, ...reacoes, ...passosDoRegistro(loja, desde, 'Na batalha').filter((passo) => !/ ganhou ações extras/.test(passo.texto)), ...passosDosSelosNovos(montada, sistema, selosAntes), ...passosDosRecursos(mesa, sistema, antes)]
   const depois = passoDoTempo(tecnica.tempo)
   if (depois !== null) passos.push(depois)
   return { passos, barras: barrasDosAlvos(mesa, sistema, alvosTokens, vidaAntes), passarUmaVez: passarUmaVezNa(montada, sistema) }

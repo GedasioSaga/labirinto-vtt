@@ -6,7 +6,7 @@ import { CAMPO_DO_DANO, lerFormula } from '../formula'
 import { CAMPO_DO_CUSTO, type LeituraDaAcao, type LeituraDoCusto } from '../leituraDaFicha'
 import { leituraDaTecnica } from '../leituraDaTecnica'
 import { formulaDaMecanica } from '../mecanicasAMao'
-import { CD_MAX, FORMULA_MAX, lerMecanica, migrarV1ParaV2, precisaDaVersao2, testeRolado, VERSAO_GRAVADA, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
+import { CD_MAX, FORMULA_MAX, lerMecanica, migrarV1ParaV2, precisaDaVersao2, testeRolado, VERSAO_GRAVADA, type AlvoDaMecanica, centroDaArea, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
 import type { FichaDaPrevia } from './resumo'
 
 /**
@@ -23,6 +23,7 @@ export type IdDoModelo =
   | 'area'
   | 'giro'
   | 'linha'
+  | 'explosao'
   | 'perfurante'
   | 'duplo'
   | 'sangra'
@@ -31,6 +32,7 @@ export type IdDoModelo =
   | 'cura'
   | 'curaEmArea'
   | 'purificar'
+  | 'reviver'
   | 'buff'
   | 'barreira'
   | 'drenoDeVida'
@@ -58,12 +60,14 @@ export interface ModeloPronto {
   grupo: GrupoDoModelo
 }
 
-/** Os modelos da seção 9.1 do SISTEMA (H01 a H22; H05 e H14 esperam a fase 6), na ordem da tabela dentro de cada grupo. */
+/** Os modelos da seção 9.1 do SISTEMA (H01 a H22), na ordem da tabela dentro de cada grupo. */
 export const MODELOS_PRONTOS: readonly ModeloPronto[] = [
   { id: 'golpe', nome: 'Golpe simples', dica: '1 inimigo, que reage normal; dano por fórmula', grupo: 'ataque' },
   { id: 'area', nome: 'Golpe em área', dica: 'Todos os inimigos num quadrado 3x3 à frente', grupo: 'ataque' },
   { id: 'giro', nome: 'Giro', dica: 'Os inimigos a 1 casa em volta de quem usa', grupo: 'ataque' },
   { id: 'linha', nome: 'Disparo em linha', dica: 'Todos numa linha de 6 casas', grupo: 'ataque' },
+  // Fase 6 (H05): a área longe, num ponto a até 6 casas; pega todos em volta (o mestre desmarca, C21).
+  { id: 'explosao', nome: 'Explosão à distância', dica: 'Todos a 1 casa de um ponto a até 6; teste de Agilidade, metade se passar', grupo: 'ataque' },
   { id: 'perfurante', nome: 'Golpe perfurante', dica: '1 inimigo; o dano passa direto pelo Escudo', grupo: 'ataque' },
   { id: 'duplo', nome: 'Golpe duplo', dica: '2 golpes: o 2º com metade do dano, perfurante', grupo: 'ataque' },
   { id: 'sangra', nome: 'Corte que sangra', dica: 'Dano com a arma e Sangrando por 3 vezes', grupo: 'ataque' },
@@ -72,6 +76,8 @@ export const MODELOS_PRONTOS: readonly ModeloPronto[] = [
   { id: 'cura', nome: 'Cura', dica: 'Cura HP de 1 aliado, sem teste', grupo: 'apoio' },
   { id: 'curaEmArea', nome: 'Cura em área', dica: 'Cura os aliados a 2 casas em volta', grupo: 'apoio' },
   { id: 'purificar', nome: 'Purificar', dica: 'Tira as condições negativas e cura 30', grupo: 'apoio' },
+  // Fase 6 (H14): só em aliado caído (0 de vida); ele volta e joga na próxima vez dele.
+  { id: 'reviver', nome: 'Reviver', dica: '1 aliado caído volta com 25% do HP; 1 uso por batalha', grupo: 'apoio' },
   { id: 'buff', nome: 'Buff em aliado', dica: 'Fortalecido por 2 vezes: Força +20', grupo: 'apoio' },
   { id: 'barreira', nome: 'Barreira', dica: '+50 de Escudo em 1 aliado', grupo: 'apoio' },
   { id: 'debuff', nome: 'Atordoar com teste', dica: '1 inimigo testa contra CD 12; se falhar, fica Atordoado', grupo: 'condicao' },
@@ -117,6 +123,11 @@ const MULTIPLICADORES_DE_SEMPRE = { concentracao: true, surpresa: true } as cons
 
 /** CD de partida do modelo com teste (construtor C4). */
 const CD_DO_MODELO = 12
+/** Fase 6 (H05): a CD do teste de Agilidade e o alcance do ponto. */
+const CD_DA_EXPLOSAO = 13
+const ALCANCE_DA_EXPLOSAO = 6
+/** Fase 6 (H14): a parte do HP máximo com que o caído volta. */
+const PARTE_DO_REVIVER = 25
 
 /** O atributo de partida de um teste: o pedido (`forca`, `resistencia`) ou, sem ele no sistema, o 1º; `null` = sistema sem atributos. */
 function atributoDePartida(sistema: SistemaDeRpg, preferido: string): string | null {
@@ -186,6 +197,30 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
       return { ...base, acao: 'simples', custos: [...custo30], limite: { recarga: 1 }, alvo: { quem: 'inimigos', forma: { tipo: 'raio', casas: 1 } }, dano: danoDe(formulaComAtributos(sistema, ['forca', 'agilidade'], 30)) }
     case 'linha':
       return { ...base, acao: 'simples', custos: [{ recurso: 'sp', quanto: { fixo: 20 }, quando: 'aoUsar' }], limite: { recarga: 1 }, alvo: { quem: 'todos', forma: { tipo: 'linha', casas: 6 } }, dano: danoDe(formulaComAtributos(sistema, ['espirito'], 20)) }
+    case 'explosao': {
+      // H05: teste de Agilidade CD 13, metade se passar; sem atributo no sistema, o alvo reage normal.
+      const agilidade = atributoDePartida(sistema, 'agilidade')
+      const teste: Teste = agilidade === null ? { tipo: 'reacao' } : { tipo: 'resistencia', alvo: { atributo: agilidade }, cd: { fixo: CD_DA_EXPLOSAO }, sePassar: 'metade' }
+      return {
+        ...base,
+        acao: 'completa',
+        custos: [{ recurso: 'sp', quanto: { fixo: 40 }, quando: 'aoUsar' }],
+        limite: { recarga: 2 },
+        alvo: { quem: 'todos', forma: { tipo: 'raio', casas: 1, centro: 'ponto' }, alcance: ALCANCE_DA_EXPLOSAO },
+        teste,
+        dano: danoDe(formulaComAtributos(sistema, ['espirito'], 30)),
+      }
+    }
+    case 'reviver':
+      // H14: volta com 25% do HP máximo dele, 1 uso por batalha.
+      return {
+        ...base,
+        acao: 'completa',
+        custos: [{ recurso: 'sp', quanto: { fixo: 60 }, quando: 'aoUsar' }],
+        limite: { usosPorBatalha: 1 },
+        alvo: { quem: 'aliados', forma: { tipo: 'um' }, estado: 'caido' },
+        efeitos: [{ tipo: 'reviver', volta: { porcento: PARTE_DO_REVIVER, de: 'hpMaximo', deQuem: 'alvo' } }],
+      }
     case 'perfurante':
       return { ...base, acao: 'completa', custos: [{ recurso: 'sp', quanto: { fixo: 35 }, quando: 'aoUsar' }], limite: { recarga: 3 }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, dano: { ...danoDe(formulaComAtributos(sistema, ['forca'], 50)), perfurante: true } }
     case 'duplo':
@@ -506,6 +541,7 @@ export function temLimpeza(mecanica: MecanicaV1): boolean {
  */
 export function motivoDoQuem(mecanica: MecanicaV1, quem: QuemOAlvoPega): string | null {
   if (!ehAjuda(quem) && temLimpeza(mecanica)) return 'Tem cura ou tira selos: isso só pega em aliado ou em quem usa.'
+  if (quem !== 'aliados' && mecanica.efeitos.some((efeito) => efeito.tipo === 'reviver')) return 'Reviver só pega num aliado caído.'
   return null
 }
 
@@ -519,7 +555,9 @@ export function trocarQuem(mecanica: MecanicaV1, quem: QuemOAlvoPega): MecanicaV
   const natureza: 'buff' | 'debuff' = ehAjuda(quem) ? 'buff' : 'debuff'
   const efeitos = mecanica.efeitos.map((efeito) => (efeito.tipo === 'selo' ? { ...efeito, natureza } : efeito))
   const teste: Teste = ehAjuda(quem) && testeRolado(mecanica.teste) ? { tipo: 'reacao' } : mecanica.teste
-  return { ...mecanica, alvo: { quem, forma }, efeitos, teste }
+  // Fase 6: o alcance segue fora de "em si" (onde a forma ainda o aceita); o caído só nos aliados.
+  const alvo = alvoComForma({ quem, forma, ...(quem === 'si' || mecanica.alvo.alcance === undefined ? {} : { alcance: mecanica.alvo.alcance }), ...(quem === 'aliados' && mecanica.alvo.estado !== undefined ? { estado: mecanica.alvo.estado } : {}) }, forma)
+  return { ...mecanica, alvo, efeitos, teste }
 }
 
 /** A forma nova com números de partida razoáveis (3x3 à frente, linha de 5, raio de 1, até 3). */
@@ -540,7 +578,21 @@ export function formaNova(tipo: FormaDoAlvo['tipo'], atual: FormaDoAlvo): FormaD
 }
 
 /** Lado do quadrado em volta de quem usa: só ímpar (3x3 = 1 casa para cada lado). */
-export function ladoValido(lado: number, centro: 'si' | 'frente'): number {
+export function ladoValido(lado: number, centro: 'si' | 'frente' | 'ponto'): number {
   const inteiro = Math.max(1, Math.round(lado))
-  return centro === 'si' && inteiro % 2 === 0 ? inteiro + 1 : inteiro
+  // Fase 6: em volta de um ponto também (a casa do ponto no meio).
+  return centro !== 'frente' && inteiro % 2 === 0 ? inteiro + 1 : inteiro
+}
+
+/**
+ * Fase 6: o alvo com a forma nova; o alcance só fica onde ele mede algo (o
+ * alvo escolhido ou o centro da área longe) e o caído só no alvo escolhido.
+ */
+export function alvoComForma(alvo: AlvoDaMecanica, forma: FormaDoAlvo): AlvoDaMecanica {
+  const { alcance, estado, ...resto } = alvo
+  const escolhido = forma.tipo === 'um' || forma.tipo === 'varios'
+  const novo: AlvoDaMecanica = { ...resto, forma }
+  if (alcance !== undefined && (escolhido || centroDaArea(forma) !== null)) novo.alcance = alcance
+  if (estado !== undefined && escolhido) novo.estado = estado
+  return novo
 }

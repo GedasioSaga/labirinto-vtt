@@ -399,6 +399,13 @@ export type PedidoDeAcao =
        * registro. Exige `armaId`. Ausente = sem bala especial.
        */
       balaId?: string
+      /**
+       * Fase 6: o centro da área longe que quem usa escolheu na mira: a casa
+       * (`ponto`, a granada) ou a ficha (`centroId`, em volta de um alvo). O
+       * host confere o alcance e que cada alvo está na área, pelo mapa.
+       */
+      ponto?: { col: number; row: number }
+      centroId?: string
     }
   | { tipo: 'concentrar' }
   /** Q6: o contra-ataque gasto em se mover. Só marca (e tira o atalho); o movimento em si é o arrasto de sempre. */

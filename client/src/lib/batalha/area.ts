@@ -162,6 +162,28 @@ export function fichaNaArea(forma: FormaDaArea, origem: PegadaNaGrade, direcao: 
   return false
 }
 
+// ─── Fase 6: a área longe e o alcance ───────────────────────────────────────
+
+/** A distância do xadrez entre duas fichas inteiras, de borda a borda (coladas = 1; uma em cima da outra = 0). */
+export function distanciaEntreFichas(a: PegadaNaGrade, b: PegadaNaGrade): number {
+  const vaoNaCol = Math.max(0, b.col - (a.col + a.tamanho - 1), a.col - (b.col + b.tamanho - 1))
+  const vaoNaRow = Math.max(0, b.row - (a.row + a.tamanho - 1), a.row - (b.row + b.tamanho - 1))
+  return Math.max(vaoNaCol, vaoNaRow)
+}
+
+/**
+ * A ficha `alvo` está na área em volta de `centro` (uma casa, o ponto da
+ * granada; ou a ficha no centro, que entra): alguma casa dela a até `casas`.
+ */
+export function fichaPertoDoCentro(centro: PegadaNaGrade, casas: number, alvo: PegadaNaGrade): boolean {
+  return distanciaEntreFichas(centro, alvo) <= casas
+}
+
+/** A casa como pegada de 1 casa (o ponto escolhido). */
+export function pegadaDaCasa(casa: Casa): PegadaNaGrade {
+  return { col: casa.col, row: casa.row, tamanho: 1 }
+}
+
 /**
  * O dano dividido entre os alvos marcados, para baixo (Lua Incandescente: 71
  * em 3 = 23 em cada). Acima do `teto` de alvos, ou nenhum alvo = `null`.
