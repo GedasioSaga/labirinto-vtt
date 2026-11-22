@@ -615,6 +615,12 @@ export interface GolpeDaBatalha {
   seloEmQuemUsa?: SeloDoGolpe
   /** Fase 5 (SISTEMA.md): os selos a mais da técnica montada (Sangrando E Enfraquecido); cada um pega como o `selo`. Tirados pelo host. Ausente = nenhum. */
   selosAMais?: readonly SeloDoGolpe[]
+  /**
+   * Fase 8 (usar item): quantos sobram na vaga depois do uso. A linha do
+   * registro fecha com o gasto ("item da mochila: sobra 1") também quando ela
+   * é reescrita alvo a alvo. Ausente = não é item, ou o item não acaba.
+   */
+  sobraDoItem?: number
 }
 
 /**

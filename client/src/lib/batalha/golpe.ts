@@ -41,7 +41,7 @@ import {
   type SeloPedido,
   type VantagemNaRolagem,
 } from './combate'
-import { usoDoItem, type PedidoDoItem, type UsoDoItem } from './itemNaBatalha'
+import { linhaComOGasto, textoDaSobra, usoDoItem, type PedidoDoItem, type UsoDoItem } from './itemNaBatalha'
 import { comAMantida } from './custoPorTurno'
 import { debuffsDoToken } from './debuffs'
 import { equipeDe, type Equipe } from './equipes'
@@ -1450,10 +1450,12 @@ function marcaDoPerfurante(golpe: GolpeDaBatalha): string | null {
  * "Lia usa Rajada em Ilo e Teo: Ilo d20 15+0 = 15 · esquivou · Teo esperando reação";
  * com bala: "Lia atira com Rosa Fúnebre (Bala de Prata) em Ilo: 195 · recebeu 195 · efeito: sangra".
  */
-export function textoDoGolpe(golpe: GolpeDaBatalha, nomeDoToken: (tokenId: string) => string): string {
+/** `depois` = o que a linha diz a mais (quem saiu do mapa); o gasto do item vem depois dele, no fim (`linhaComOGasto`). */
+export function textoDoGolpe(golpe: GolpeDaBatalha, nomeDoToken: (tokenId: string) => string, depois = ''): string {
   const linha = textoDoGolpeSemBala(golpe, nomeDoToken)
   const efeito = golpe.bala?.efeito
-  return efeito === undefined ? linha : `${linha} · efeito: ${efeito}`
+  const corpo = `${efeito === undefined ? linha : `${linha} · efeito: ${efeito}`}${depois}`
+  return golpe.sobraDoItem === undefined ? corpo : linhaComOGasto(corpo, textoDaSobra(golpe.sobraDoItem))
 }
 
 function textoDoGolpeSemBala(golpe: GolpeDaBatalha, nomeDoToken: (tokenId: string) => string): string {

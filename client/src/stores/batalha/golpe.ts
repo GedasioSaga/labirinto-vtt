@@ -41,7 +41,7 @@ import {
   ctxDoItem,
   type ContextoDoGolpe,
 } from '../../lib/batalha/golpe'
-import { textoDoGasto } from '../../lib/batalha/itemNaBatalha'
+import { linhaComOGasto, sobraDoUso, textoDoGasto } from '../../lib/batalha/itemNaBatalha'
 import { lerDano } from '../../lib/batalha/formula'
 import { chavesDoDono, disputaNoUso, formulaDaCura, limpezaDe, mecanicaDoCartao, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono } from '../../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../../lib/batalha/disputaNoUso'
@@ -578,7 +578,9 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       novos = { ...novos, contras: (novos.contras ?? []).filter((candidato) => !(candidato.golpeId === usado.golpeId && candidato.tokenId === usado.tokenId)) }
     }
     const efeitos: EfeitoNovo[] = []
-    let golpe = lancado.golpe
+    // Fase 8: o golpe do item guarda quantos sobram, para a linha fechar com o gasto também ao ser reescrita alvo a alvo.
+    const sobraDoItem = doItem === null ? undefined : sobraDoUso(doItem.uso.vaga)
+    let golpe = lancado.golpe === null || sobraDoItem === undefined ? lancado.golpe : { ...lancado.golpe, sobraDoItem }
     if (golpe !== null) {
       // F2 (fatia F, redoma da Orquídea): o selo que dura "até o próximo golpe" sai dos alvos deste golpe (antes do selo novo dele).
       // Construtor C5 (revisão): o montado não sai com a técnica de ajuda (a cura de um aliado, a técnica "em si").
@@ -768,18 +770,17 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     const quemAge = nomeDoToken(carta.tokenId)
     let texto: string
     let tipo: TipoDaLinha
+    const quemSaiu = textoDosQueSairam(caidos.nomes)
     if (golpe !== null) {
-      texto = textoDoGolpe(golpe, nomeDoToken)
+      // Fase 8: o gasto do item (`sobraDoItem`) vem por último, depois de quem saiu: o teto do registro não o come.
+      texto = textoDoGolpe(golpe, nomeDoToken, quemSaiu)
       tipo = pedido.tipo === 'habilidade' ? 'habilidade' : 'golpe'
-    } else if (pedido.tipo === 'concentrar') {
-      texto = `${quemAge} concentrou (carga ${lancado.combate?.carga ?? 0}${lancado.acao === 'livre' ? ', sem gastar ação' : ''})`
-      tipo = 'acao'
     } else {
-      texto = `${quemAge} usou o contra-ataque para se mover`
+      texto = pedido.tipo === 'concentrar' ? `${quemAge} concentrou (carga ${lancado.combate?.carga ?? 0}${lancado.acao === 'livre' ? ', sem gastar ação' : ''})` : `${quemAge} usou o contra-ataque para se mover`
+      texto += quemSaiu
+      if (doItem !== null) texto = linhaComOGasto(texto, textoDoGasto(doItem.uso.vaga))
       tipo = 'acao'
     }
-    if (doItem !== null) texto += textoDoGasto(doItem.uso.vaga)
-    texto += textoDosQueSairam(caidos.nomes)
     const tokenIds = [...new Set([carta.tokenId, ...(golpe?.alvos.map((alvo) => alvo.tokenId) ?? [])])]
     // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
     const atual = cenaDe(sceneKey) ?? cena

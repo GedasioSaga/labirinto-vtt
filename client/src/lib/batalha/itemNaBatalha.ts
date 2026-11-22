@@ -10,6 +10,7 @@ import { pecasDoCartao, reacaoDasPecas } from './mecanica/leitura'
 import { lerMecanica, type QuemOAlvoPega } from './mecanica/modelo'
 import { resumoDoEfeitoDoItem } from './mecanica/resumoDoItem'
 import { limpezaDe, mecanicaDoCartao, perfuranteDaMecanica, respostasPadrao, type AreaAMao } from './mecanicasAMao'
+import { REGISTRO_TEXTO_MAX } from './registro'
 import { bonusDaBatalha, seloPedidoValido, type SeloQueSoma } from './selos'
 import { seloSugeridoDaTecnica, type ReacaoDoTipo } from './tiposDaHabilidade'
 
@@ -182,9 +183,31 @@ export function itensParaJogador(mochila: readonly CarriedItem[] | undefined): I
     })
 }
 
-/** O que a linha do registro diz do gasto: " · item da mochila: sobram 2", ou nada (o amuleto não acaba). */
-export function textoDoGasto(vaga: VagaComEfeito): string {
-  if (vaga.efeito.gasta !== 'um') return ''
-  const sobra = Math.max(0, quantidadeDe(vaga) - 1)
+/** O corte do corpo da linha do item (o mesmo "…" de `textoDaLinha`). */
+const RETICENCIAS = '…'
+
+/** Quantos sobram na vaga depois deste uso; `undefined` = o item não acaba (o amuleto). */
+export function sobraDoUso(vaga: VagaComEfeito): number | undefined {
+  return vaga.efeito.gasta === 'um' ? Math.max(0, quantidadeDe(vaga) - 1) : undefined
+}
+
+/** O que a linha do registro diz do gasto: " · item da mochila: sobram 2". */
+export function textoDaSobra(sobra: number): string {
   return ` · item da mochila: ${sobra === 0 ? 'era o último' : sobra === 1 ? 'sobra 1' : `sobram ${sobra}`}`
+}
+
+/** O gasto da vaga na linha do registro, ou nada (o amuleto não acaba). */
+export function textoDoGasto(vaga: VagaComEfeito): string {
+  const sobra = sobraDoUso(vaga)
+  return sobra === undefined ? '' : textoDaSobra(sobra)
+}
+
+/**
+ * A linha do item no teto do registro (`REGISTRO_TEXTO_MAX`): o gasto fecha a
+ * linha e nunca some; quem cede é o corpo (os alvos), cortado com "…". Sem
+ * isto, a granada com dois testes passava do teto e o corte comia o "sobra N".
+ */
+export function linhaComOGasto(corpo: string, gasto: string): string {
+  if (corpo.length + gasto.length <= REGISTRO_TEXTO_MAX) return `${corpo}${gasto}`
+  return `${corpo.slice(0, Math.max(0, REGISTRO_TEXTO_MAX - gasto.length - RETICENCIAS.length))}${RETICENCIAS}${gasto}`
 }
