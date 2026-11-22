@@ -10,7 +10,7 @@ import { guardarMecanica } from '../batalha/mecanica/modelos'
 import { novoCartao, novoPersonagem, type CartaoDaFicha, type Personagem } from '../personagem'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
 import type { ItemDoCatalogo } from './catalogo'
-import { comARegraDaArma, ensaiarArmas, juntarAsArmas } from './regraDaArma'
+import { comARegraDaArma, ensaiarArmas, entradaNovaDaCoisa, juntarAsArmas } from './regraDaArma'
 
 const sistema = SISTEMA_ONE_PIECE
 const COISA = 'item_teste-bumerangue'
@@ -50,5 +50,18 @@ describe('o par do Vincent', () => {
     expect(juntadas.catalogo[0].campos.efeito).toBe(ligado.campos.efeito)
     const segunda = { ...dados, catalogo: juntadas.catalogo, personagens: juntadas.personagens }
     expect(juntarAsArmas(segunda, ensaiarArmas(segunda), opcoes).mudancas).toBe(0)
+  })
+})
+
+describe('a coisa do Acervo sem entrada no livro (a entrada foi apagada)', () => {
+  it('a entrada nova nasce do cartão ligado e o Salvar não apaga dano, descrição nem categoria; cópias que discordam = conflito', () => {
+    const cartao: CartaoDaFicha = { ...novoCartao('Boomerang'), itemId: COISA, campos: { categoria: 'Arremesso', dano: '30', descricao: 'Volta para a mão.' }, mecanica: ATORDOA }
+    const nova: ItemDoCatalogo = { id: 'cat_nova', tipo: 'arma', nome: 'Boomerang', texto: '', campos: {}, acervoId: COISA }
+    const entrada = entradaNovaDaCoisa(nova, [fichaCom('Vincent de Teste', [cartao])], sistema)
+    expect(entrada).toMatchObject({ id: 'cat_nova', acervoId: COISA, texto: 'Volta para a mão.', campos: { categoria: 'Arremesso', dano: '30' } })
+    if (entrada === 'conflito') throw new Error('não devia ser conflito')
+    expect(comARegraDaArma(cartao, entrada, sistema).campos).toEqual(cartao.campos)
+    const outra: CartaoDaFicha = { ...cartao, id: 'outro', campos: { ...cartao.campos, dano: '40' } }
+    expect([entradaNovaDaCoisa(nova, [fichaCom('A', [cartao]), fichaCom('B', [outra])], sistema), entradaNovaDaCoisa(nova, null, sistema)]).toEqual(['conflito', nova])
   })
 })

@@ -5,6 +5,8 @@ import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { chaveDoNomeDaEntrada, novoIdDeEntrada, regraDaCoisa, type ItemDoCatalogo as EntradaDoCatalogo } from '../lib/livros/catalogo'
 import type { MecanicaGuardada } from '../lib/personagem'
 import { gravarRegraDaArma } from '../stores/armasNaFonte'
+import { usePersonagensDoMundo } from '../stores/mundoDoLivroStore'
+import { entradaNovaDaCoisa } from '../lib/livros/regraDaArma'
 import { useCatalogoStore } from '../stores/catalogoStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { CAMPO_DO_EFEITO } from '../lib/batalha/leituraDaFicha'
@@ -54,6 +56,9 @@ const FOCAVEIS = 'button:not([disabled]), input:not([disabled]), select:not([dis
 function mensagemDe(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
 }
+
+/** A coisa sem regra neste livro cujas cópias nas fichas discordam: a entrada nova apagaria o que uma delas diz. */
+const ARMA_COM_COPIAS_DIFERENTES = 'As fichas ligadas a esta arma dizem coisas diferentes (dano, descrição ou balas). Abra o livro na página Itens e use Juntar as armas para escolher antes de salvar o que ela faz.'
 
 /** O preço digitado: vazio = sem preço; o resto, inteiro dentro do teto ou `undefined` (inválido). */
 function precoDoTexto(texto: string): number | null | undefined {
@@ -237,9 +242,17 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
   const regraDaArma = ehArma && sistemaDoLivro !== undefined ? regraDaArmaNoLivro(entradasDoLivro, rascunho) : undefined
   /** O que o mestre mudou no "O que ela faz"; `null` = nada (o Salvar não toca no livro). */
   const [mecanicaDaArma, setMecanicaDaArma] = useState<{ mecanica: MecanicaGuardada | undefined; efeito?: string } | null>(null)
+  const fichasDoMundo = usePersonagensDoMundo()
+  const [idDaEntradaNova] = useState(novoIdDeEntrada)
+  /** Sem regra neste livro, a entrada que o Salvar cria: nasce do cartão ligado das fichas (dano, descrição e categoria não somem calados). */
+  const entradaNova =
+    ehArma && sistemaDoLivro !== undefined && regraDaArma === undefined
+      ? entradaNovaDaCoisa({ id: idDaEntradaNova, tipo: 'arma', nome: cleanItemName(rascunho.nome) || ITEM_SEM_NOME, texto: '', campos: {}, acervoId: rascunho.id }, fichasDoMundo, sistemaDoLivro)
+      : undefined
+  const entradaDaArma = regraDaArma?.entrada ?? (entradaNova === 'conflito' ? undefined : entradaNova)
 
   /** Os campos da regra como ficariam ao salvar: o Efeito em texto que seguiu a mecânica entra por cima. */
-  const camposDaArmaNaTela = mecanicaDaArma?.efeito === undefined ? (regraDaArma?.entrada.campos ?? {}) : { ...(regraDaArma?.entrada.campos ?? {}), [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }
+  const camposDaArmaNaTela = mecanicaDaArma?.efeito === undefined ? (entradaDaArma?.campos ?? {}) : { ...(entradaDaArma?.campos ?? {}), [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }
 
   const preco = precoDoTexto(precoTexto)
   const mudou = novo || rascunho !== item || preco !== item.preco || mecanicaDaArma !== null
@@ -286,10 +299,16 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
     setOcupado(true)
     try {
       const salvo = { ...rascunho, nome: cleanItemName(rascunho.nome) || ITEM_SEM_NOME, categoria: categoriaLimpa(rascunho.categoria), preco }
+      const vaiAoLivro = mecanicaDaArma !== null && sistemaDoLivro !== undefined && ehCategoriaDeArma(salvo.categoria)
+      // Antes de gravar qualquer coisa: com cópias que discordam, a entrada nova apagaria o que uma delas diz.
+      if (vaiAoLivro && entradaNova === 'conflito') {
+        setErro(ARMA_COM_COPIAS_DIFERENTES)
+        return
+      }
       await onSalvar(salvo)
-      if (mecanicaDaArma !== null && sistemaDoLivro !== undefined && ehCategoriaDeArma(salvo.categoria)) {
-        // Sem regra neste livro, nasce a entrada de arma ligada a esta coisa; a de mesmo nome solta ganha a ligação.
-        const { mecanica: _antes, ...base }: EntradaDoCatalogo = regraDaArma?.entrada ?? { id: novoIdDeEntrada(), tipo: 'arma', nome: salvo.nome, texto: '', campos: {} }
+      if (vaiAoLivro && entradaDaArma !== undefined) {
+        // Sem regra neste livro, nasce a entrada de arma ligada a esta coisa (com o que o cartão ligado diz); a de mesmo nome solta ganha a ligação.
+        const { mecanica: _antes, ...base }: EntradaDoCatalogo = entradaDaArma
         const campos = camposComOEfeitoDaMecanica(mecanicaDaArma.efeito === undefined ? base.campos : { ...base.campos, [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }, mecanicaDaArma.mecanica, sistemaDoLivro)
         await gravarRegraDaArma({ ...base, campos, acervoId: salvo.id, ...(mecanicaDaArma.mecanica === undefined ? {} : { mecanica: mecanicaDaArma.mecanica }) }, sistemaDoLivro)
         setMecanicaDaArma(null)
@@ -445,10 +464,10 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
               <p className="lb-field__hint">O que a arma faz mora no livro do sistema: abra o livro (Biblioteca, página Itens) para ver e mudar.</p>
             ) : (
               <EfeitoDaArmaCampos
-                entrada={{ nome: regraDaArma?.entrada.nome ?? rascunho.nome, campos: camposDaArmaNaTela, acervoId: rascunho.id, mecanica: mecanicaDaArma === null ? regraDaArma?.entrada.mecanica : mecanicaDaArma.mecanica }}
+                entrada={{ nome: entradaDaArma?.nome ?? rascunho.nome, campos: camposDaArmaNaTela, acervoId: rascunho.id, mecanica: mecanicaDaArma === null ? entradaDaArma?.mecanica : mecanicaDaArma.mecanica }}
                 sistema={sistemaDoLivro}
                 onMudar={(mecanica, efeito) => setMecanicaDaArma((antes) => ({ mecanica, ...(efeito !== undefined ? { efeito } : antes?.efeito !== undefined ? { efeito: antes.efeito } : {}) }))}
-                {...(regraDaArma === undefined ? { nota: 'Sem regra neste livro: salvar cria a entrada de arma ligada a esta coisa.' } : regraDaArma.ligar ? { nota: 'Salvar liga esta coisa à entrada de mesmo nome do livro.' } : {})}
+                {...(entradaNova === 'conflito' ? { nota: ARMA_COM_COPIAS_DIFERENTES } : regraDaArma === undefined ? { nota: 'Sem regra neste livro: salvar cria a entrada de arma ligada a esta coisa.' } : regraDaArma.ligar ? { nota: 'Salvar liga esta coisa à entrada de mesmo nome do livro.' } : {})}
               />
             )
           ) : (

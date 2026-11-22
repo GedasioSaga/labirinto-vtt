@@ -150,6 +150,29 @@ export function entradaComARegraDoCartao(entrada: ItemDoCatalogo, cartao: Cartao
   return { ...base, texto: descricao ?? '', campos, ...(regra.balas === undefined || regra.balas.length === 0 ? {} : { balas: regra.balas }), ...(regra.mecanica === undefined ? {} : { mecanica: regra.mecanica }) }
 }
 
+/** O que o cartão diz da arma, sem a mecânica (a do "O que ela faz" vem de quem edita). */
+function regraDoCartaoSemMecanica(cartao: CartaoDaFicha, sistema: SistemaDeRpg): RegraDaArma {
+  const { mecanica: _daEdicao, ...regra } = regraDoCartao(cartao, sistema)
+  return regra
+}
+
+/**
+ * A ENTRADA QUE NASCE para a coisa do Acervo sem regra neste livro (a entrada
+ * foi apagada, ou nunca houve): os campos, a Descrição e as balas vêm do
+ * cartão ligado das fichas. Sem isso a entrada nasce vazia e a cópia, que só
+ * guarda o que a fonte diz, perde dano, descrição e categoria calada.
+ * Cartões ligados que dizem coisas diferentes = 'conflito' (quem escolhe é o
+ * "Juntar as armas"). Nenhum cartão ligado = a `nova` como veio. Puro.
+ */
+export function entradaNovaDaCoisa(nova: ItemDoCatalogo, personagens: readonly Personagem[] | null, sistema: SistemaDeRpg): ItemDoCatalogo | 'conflito' {
+  const ligados = nova.acervoId === undefined ? [] : (personagens ?? []).flatMap((personagem) => cartoesDaAba(personagem, ABA_DAS_ARMAS)).filter((cartao) => cartao.itemId === nova.acervoId)
+  if (ligados.length === 0) return nova
+  const primeiro = ligados[0]
+  const doPrimeiro = regraDoCartaoSemMecanica(primeiro, sistema)
+  if (ligados.some((cartao) => !mesmaRegra(doPrimeiro, regraDoCartaoSemMecanica(cartao, sistema)))) return 'conflito'
+  return entradaComARegraDoCartao(nova, primeiro, sistema)
+}
+
 /** A entrada sem a frase velha (só a arma montada: sem mecânica, a frase ainda é verdade). Nada a tirar = a MESMA entrada. */
 export function entradaSemTrechoVelho(entrada: ItemDoCatalogo): ItemDoCatalogo {
   if (entrada.tipo !== 'arma' || entrada.mecanica === undefined) return entrada
