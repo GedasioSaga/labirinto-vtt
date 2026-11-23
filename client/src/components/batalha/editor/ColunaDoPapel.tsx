@@ -3,7 +3,7 @@ import type { MecanicaV1 } from '../../../lib/batalha/mecanica/modelo'
 import type { FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import type { CartaoDaFicha } from '../../../lib/personagem'
 import { TestarDoAlcance } from '../alcance/TestarDoAlcance'
-import { armaTemCampoDeEfeito, NOME_DO_TEXTO_DE_ANTES, pedacosDoPapel, textoDoCartao } from '../../../lib/batalha/mecanica/textoGerado'
+import { armaTemCampoDeEfeito, pedacosDoPapel, textoDoCartao } from '../../../lib/batalha/mecanica/textoGerado'
 import type { GrupoDoAlcance } from '../../../lib/batalha/alcance/condicoes'
 import { CAMPO_DO_EFEITO } from '../../../lib/batalha/leituraDaFicha'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
@@ -11,6 +11,7 @@ import { linhaCurtaDoPapel, type IdDaLinha } from './fraseDoPapel'
 import type { DoQueNoEditor } from './gravarNoCartao'
 import type { GastoDoItem } from './linhas/LinhaDoGasto'
 import { ancoraDaLinha } from './Linha'
+import { fraseDoTexto, PapelDoCartao } from './PapelDoCartao'
 
 /** O Testar pesa o motor da batalha inteiro: só carrega com o editor aberto (como na fachada de hoje). */
 const PainelDeEnsaio = lazy(() => import('../../ensaio/PainelDeEnsaio').then((modulo) => ({ default: modulo.PainelDeEnsaio })))
@@ -61,10 +62,7 @@ export function ColunaDoPapel({ cartao, mecanica, ficha, prefixo, onIr, doQue, g
   const pedacos = useMemo(() => (mecanica === null ? null : pedacosDoPapel(mecanica, ficha)), [mecanica, ficha])
   const linhaCurta = useMemo(() => (mecanica === null ? 'Só texto: a batalha lê os campos escritos' : linhaCurtaDoPapel(mecanica, ficha)), [mecanica, ficha])
   // Os valores vêm de uma fonte só (`textoDoCartao`): o mesmo que o Salvar grava nos campos da técnica montada.
-  // O "Texto de antes" é o guardado do Desmontar: não é anotação do cartão para ler no papel.
-  const extrasDoPapel = cartao.extras.filter((extra) => extra.nome !== NOME_DO_TEXTO_DE_ANTES)
   const gerado = useMemo<Readonly<Record<string, string>> | null>(() => (mecanica === null ? null : textoDoCartao(mecanica, ficha.sistema)), [mecanica, ficha.sistema])
-  const descricao = (cartao.campos.descricao ?? '').trim()
   const campos = camposQueOAppEscreve(doQue, ficha.sistema)
   const noItem = doQue === 'item' ? { gasta: gastoDoItem?.gasta ?? 'um', onde: gastoDoItem?.onde ?? 'sempre', quantos: 1 } : undefined
   const irPara = (linha: IdDaLinha) => (evento: MouseEvent<HTMLAnchorElement>) => {
@@ -80,12 +78,12 @@ export function ColunaDoPapel({ cartao, mecanica, ficha, prefixo, onIr, doQue, g
           <h2 id={tituloId}>Como fica no cartão</h2>
           {pedacos !== null && <span className="lb-ed__dica">clique num pedaço para mudar</span>}
         </div>
-        <article className="lb-ed__papel">
-          <h3 className="lb-ed__papel-nome">{cartao.nome.trim() || 'Sem nome'}</h3>
-          <p className="lb-ed__papel-linha">{linhaCurta}</p>
-          <p className="lb-ed__papel-frase">
-            {pedacos === null
-              ? (cartao.campos.efeito ?? '').trim() || 'Sem efeito escrito.'
+        <PapelDoCartao
+          cartao={cartao}
+          linhaCurta={linhaCurta}
+          frase={
+            pedacos === null
+              ? fraseDoTexto(cartao)
               : pedacos.map((pedaco, indice) =>
                   pedaco.linha === undefined ? (
                     <span key={indice}>{pedaco.texto}</span>
@@ -94,19 +92,9 @@ export function ColunaDoPapel({ cartao, mecanica, ficha, prefixo, onIr, doQue, g
                       {pedaco.texto}
                     </a>
                   ),
-                )}
-          </p>
-          {descricao !== '' && <p className="lb-ed__papel-desc">{descricao}</p>}
-          {extrasDoPapel.length > 0 && (
-            <div className="lb-ed__papel-extras">
-              {extrasDoPapel.map((extra, indice) => (
-                <span key={indice}>
-                  <b>{extra.nome.trim() || '(sem nome)'}:</b> {extra.valor}
-                </span>
-              ))}
-            </div>
-          )}
-        </article>
+                )
+          }
+        />
         {/* ED2: o que o app escreve nos campos de texto, das escolhas (o app de antes e o site do Lobby leem estes). Só leitura, de propósito. */}
         {gerado !== null && campos.length > 0 && (
           <details className="lb-ed__textos">

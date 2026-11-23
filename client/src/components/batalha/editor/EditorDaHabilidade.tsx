@@ -96,6 +96,13 @@ function digitando(alvo: EventTarget): boolean {
   return alvo instanceof HTMLInputElement && !['radio', 'checkbox', 'button', 'submit', 'range', 'color'].includes(alvo.type)
 }
 
+/**
+ * O que o editor faz assim que abre: `montar` = o "Montar no editor" do cartão de texto (o mesmo
+ * "Montar a partir do texto", com o Ctrl+Z); `modelo` = abre o "Começar de um modelo"; `nome` = a
+ * habilidade que acabou de nascer em branco, com o foco no Nome para já escrever.
+ */
+export type AoAbrirOEditor = 'montar' | 'modelo' | 'nome'
+
 export interface EditorDaHabilidadeProps {
   cartao: CartaoDaFicha
   ficha: FichaDaPrevia
@@ -118,6 +125,8 @@ export interface EditorDaHabilidadeProps {
   gastoDoItem?: { gasto: GastoDoItem; onChange: (gasto: GastoDoItem) => void }
   /** Só no item: o modelo escolhido, antes da mudança das peças (a janela acerta o "onde vale" dele). */
   onModelo?: (modelo: ModeloNoEditor) => void
+  /** O que faz assim que abre; ausente = só abre. */
+  aoAbrir?: AoAbrirOEditor
 }
 
 /**
@@ -130,7 +139,7 @@ export interface EditorDaHabilidadeProps {
  * (`cartaoComTextoGerado`, o ponto único); o dono grava a `mecanicaProposta`. Requisitos, evolução,
  * esconder e campos extras gravam no cartão, fora da mecânica.
  */
-export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFechar, tecnicas, podeOcultar, doQue = 'tecnica', foraDaFicha = false, trilha, gastoDoItem, onModelo }: EditorDaHabilidadeProps) {
+export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFechar, tecnicas, podeOcultar, doQue = 'tecnica', foraDaFicha = false, trilha, gastoDoItem, onModelo, aoAbrir }: EditorDaHabilidadeProps) {
   const naTecnica = doQue === 'tecnica'
   const textos = doQue === 'tecnica' ? null : TEXTOS[doQue]
   const prefixo = useId()
@@ -138,6 +147,9 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
   const nomeId = useId()
   const descricaoId = useId()
   const janela = useRef<HTMLDialogElement>(null)
+  const campoDoNome = useRef<HTMLInputElement>(null)
+  // O "ao abrir" roda uma vez só (o StrictMode do React roda os efeitos duas vezes; a ref fica).
+  const jaAbriu = useRef(false)
   const [rascunho, setRascunho] = useState<MecanicaV1 | null>(() => mecanicaQueAbre(cartao, quemEdita))
   const [pilha, setPilha] = useState<readonly Passo[]>([])
   const ultimoPasso = useRef(0)
@@ -266,6 +278,20 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
     avisar('Proposta aceita: vale depois que você salvar a ficha.', true)
   }
 
+  useEffect(() => {
+    // Depois do showModal (o efeito de cima): o "Começar de um modelo" é outra janela, e precisa abrir por cima desta.
+    if (aoAbrir === undefined || jaAbriu.current) return
+    jaAbriu.current = true
+    if (aoAbrir === 'modelo') setEscolhendoModelo(true)
+    else if (aoAbrir === 'montar') montarDoTexto()
+    else {
+      campoDoNome.current?.focus()
+      campoDoNome.current?.select()
+    }
+    // Só ao abrir: o que a ação lê é o cartão de quando o editor abriu.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   /** O pedaço da frase leva à linha dele: rola até ela, acende o brilho e põe o foco no primeiro controle. */
   const irPara = useCallback(
     (linha: IdDaLinha, porTeclado: boolean) => {
@@ -372,7 +398,7 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
             <div className="lb-ed__topo">
               <div className="lb-ed__campo">
                 <label htmlFor={nomeId}>Nome</label>
-                <input id={nomeId} className="lb-ed__entrada lb-ed__entrada--nome" value={cartao.nome} placeholder="Nome da habilidade" onChange={(evento) => mudarCartao({ ...cartao, nome: evento.target.value })} />
+                <input ref={campoDoNome} id={nomeId} className="lb-ed__entrada lb-ed__entrada--nome" value={cartao.nome} placeholder="Nome da habilidade" onChange={(evento) => mudarCartao({ ...cartao, nome: evento.target.value })} />
               </div>
               <div className="lb-ed__campo lb-ed__campo--tipo">
                 <span className="lb-ed__rot">Tipo na batalha</span>

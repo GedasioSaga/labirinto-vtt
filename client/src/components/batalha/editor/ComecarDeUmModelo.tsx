@@ -59,6 +59,8 @@ export function ComecarDeUmModelo({ ficha, doQue, onEscolher, onFechar }: Comeca
       aria-describedby={dicaId}
       onCancel={(evento) => {
         evento.preventDefault()
+        // O React leva o cancel pela árvore até o <dialog> do editor: sem parar aqui, o Esc fechava os dois.
+        evento.stopPropagation()
         onFechar()
       }}
       onClick={noFundo}
