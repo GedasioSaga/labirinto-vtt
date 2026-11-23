@@ -8,13 +8,14 @@ import { BlocoDosEfeitos } from '../../blocos/BlocoDosEfeitos'
  * LINHA EFEITOS (EDITOR.md §5): selo, cura, tirar selos, dreno, reviver e o
  * lembrete à mão, com as peças do selo de hoje (`PecasDoSelo`). ED6: e o
  * "+N <acumulador>" ao usar, gravado como regra do acumulador (o motor de hoje
- * roda); só aparece para o mestre editando a ficha.
+ * roda); só aparece para o mestre editando a ficha. ED7: a regra do acumulador
+ * é "usar a técnica", então a arma e o item não a têm (`comAcumulador`).
  */
-export function LinhaDosEfeitos({ mecanica, cartao, ficha, onChange }: { mecanica: MecanicaV1; cartao: CartaoDaFicha; ficha: FichaDaPrevia; onChange: (mecanica: MecanicaV1) => void }) {
+export function LinhaDosEfeitos({ mecanica, cartao, ficha, comAcumulador = true, onChange }: { mecanica: MecanicaV1; cartao: CartaoDaFicha; ficha: FichaDaPrevia; comAcumulador?: boolean; onChange: (mecanica: MecanicaV1) => void }) {
   return (
     <>
       <BlocoDosEfeitos mecanica={mecanica} ficha={ficha} onChange={onChange} />
-      <SomaNoAcumulador cartao={cartao} />
+      {comAcumulador && <SomaNoAcumulador cartao={cartao} />}
     </>
   )
 }

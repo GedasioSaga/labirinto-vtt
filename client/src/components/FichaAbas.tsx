@@ -9,7 +9,6 @@ import type { Ajuste } from '../lib/ajusteDaFicha'
 import { EXTRAS_DA_EVOLUCAO, nomeDaNovaOpcao, sugestaoDeEvolucao, temExtrasDaEvolucao } from '../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_ATRIBUTO_DO_ATAQUE, CAMPO_DO_DANO } from '../lib/batalha/formula'
 import { ABA_DAS_ARMAS, ABA_DAS_BALAS, ABA_DAS_TECNICAS, CAMPO_DA_ACAO, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO } from '../lib/batalha/leituraDaFicha'
-import { cartaoComOEfeitoDaMecanica } from '../lib/livros/fraseDaArma'
 import { cartaoMontado, pecasDoCartao } from '../lib/batalha/mecanica/leitura'
 import { perdeuARegraAoSerTrazida } from '../lib/batalha/mecanicasAMao'
 import { CampoDeDano } from './CampoDeDano'
@@ -18,7 +17,7 @@ import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './Esco
 import { TrazerDeOutraFicha } from './TrazerDeOutraFicha'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
-import { MecanicaDaTecnica, MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
+import { MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
 import { HabilidadeNaFicha } from './batalha/editor/HabilidadeNaFicha'
 import { camposGeradosDaAba } from '../lib/batalha/mecanica/textoGerado'
 import { AlcanceDoCartaoDeTexto } from './batalha/alcance/AlcanceDoCartaoDeTexto'
@@ -906,10 +905,8 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
               )}
             </>
           ) : (
-            <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={cartoesDaAba(personagem, ABA_DAS_ARMAS)}
-              onChange={(novo) => onChange(cartaoComOEfeitoDaMecanica(cartao, novo, sistema))}
-              doQue="arma"
-            />
+            // ED7: o editor novo, no modo arma (o Efeito em texto segue a mecânica dentro dele, pelo ponto único do texto gerado).
+            <HabilidadeNaFicha cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} podeOcultar={false} onChange={onChange} doQue="arma" />
           ))}
         {/* Fase F do alcance: o cartão sem mecânica montada (técnica de texto, arma só com o dano) guarda o alcance no campo dele. */}
         {(aba.id === ABA_DAS_TECNICAS || ehArma) && cartao.mecanica === undefined && (

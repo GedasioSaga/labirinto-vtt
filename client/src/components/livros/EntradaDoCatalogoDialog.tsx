@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   abaDeDestino,
@@ -20,7 +20,8 @@ import { CAMPO_DO_ATRIBUTO_DO_ATAQUE } from '../../lib/batalha/formula'
 import { CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA, CAMPO_DO_EFEITO } from '../../lib/batalha/leituraDaFicha'
 import { lerMecanica } from '../../lib/batalha/mecanica/modelo'
 import { camposComOEfeitoDaMecanica } from '../../lib/livros/fraseDaArma'
-import type { AlcanceGuardado, MecanicaGuardada } from '../../lib/personagem'
+import { camposGeradosDaAba } from '../../lib/batalha/mecanica/textoGerado'
+import { novoCartao, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type RequisitosGuardados } from '../../lib/personagem'
 import { formaDoAlcanceGuardada } from '../../lib/batalha/alcanceDoCartao'
 import { corDoAlcance } from '../../lib/batalha/alcance/cor'
 import { quemUsaDeTreino } from '../../lib/batalha/ensaio/ensaioDoItem'
@@ -32,6 +33,7 @@ import { useCatalogoStore } from '../../stores/catalogoStore'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
 import { useToastStore } from '../../stores/toastStore'
 import { EfeitoDaArmaCampos } from '../EfeitoDaArmaCampos'
+import { HabilidadeNaFicha } from '../batalha/editor/HabilidadeNaFicha'
 import { avisoDoAtributoDoAtaque, avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, opcoesDoCampo, rotuloDoVazio, valorDaEscolha } from '../escolhaDeCampo'
 import { formatarNumero, movimentoReduzido } from './comum'
 import { IconeDoMundo } from './icones'
@@ -91,6 +93,9 @@ function mensagemDoErro(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
 }
 
+/** O id do cartão de mentira que leva a entrada de habilidade ao editor (nunca vai a ficha nenhuma). */
+const ID_DO_CARTAO_DA_HABILIDADE = 'regra-da-habilidade'
+
 export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: EntradaDoCatalogoDialogProps) {
   const tituloId = useId()
   const subId = useId()
@@ -112,6 +117,11 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
   const [acervoId, setAcervoId] = useState(editando?.acervoId ?? '')
   // ARMAS-FONTE-UNICA §6: o "O que ela faz" da arma (a mecânica da entrada, que é a fonte das fichas ligadas).
   const [mecanicaDaArma, setMecanicaDaArma] = useState<MecanicaGuardada | undefined>(editando?.tipo === 'arma' ? editando.mecanica : undefined)
+  // ED7: a mecânica da entrada de habilidade, no editor novo com a ficha de treino ("Trazer" e "Juntar" a levam ao cartão).
+  const [mecanicaDaHabilidade, setMecanicaDaHabilidade] = useState<MecanicaGuardada | undefined>(editando?.tipo === 'habilidade' ? editando.mecanica : undefined)
+  // ED7 (fase F dos requisitos): o bloco e as marcas da habilidade e da arma; o item do livro não os guarda (o do Acervo, sim).
+  const [requisitos, setRequisitos] = useState<RequisitosGuardados | undefined>(editando?.requisitos)
+  const [marcas, setMarcas] = useState<string[] | undefined>(editando?.marcas)
   // Fase F do alcance: o alcance da entrada sem mecânica montada (a montada o diz no bloco 4); guardado como veio até a pessoa mudar.
   const [alcance, setAlcance] = useState<AlcanceGuardado | undefined>(editando?.alcance)
   const acervoIdCampo = useId()
@@ -139,7 +149,33 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
   const semTiro = tipo === 'arma' && categoriaSemTiro(campos)
   // Arma montada: o Efeito em texto é a frase da mecânica (regra do dono: um lugar não diz outra coisa); o "O que ela faz" a mostra e a janela não deixa escrever outra.
   const armaMontada = tipo === 'arma' && lerMecanica(mecanicaDaArma).tipo === 'pecas'
-  const camposMostrados = camposDoTipoEscolhido.filter((campo) => !(semTiro && campo.id === CAMPO_DA_CAPACIDADE) && !(armaMontada && campo.id === CAMPO_DO_EFEITO))
+  // ED7: a habilidade montada tem os campos de texto escritos pelo app (EDITOR.md §3.4): o editor os mostra, a janela não os deixa escrever outra coisa.
+  const habilidadeMontada = tipo === 'habilidade' && lerMecanica(mecanicaDaHabilidade).tipo === 'pecas'
+  const geradosDaHabilidade: ReadonlySet<string> = habilidadeMontada ? new Set(camposGeradosDaAba(sistema)) : new Set()
+  const camposMostrados = camposDoTipoEscolhido.filter((campo) => !(semTiro && campo.id === CAMPO_DA_CAPACIDADE) && !(armaMontada && campo.id === CAMPO_DO_EFEITO) && !geradosDaHabilidade.has(campo.id))
+  // O cartão de mentira que leva a habilidade ao editor: a descrição é o texto da entrada; nunca vai a ficha nenhuma.
+  const cartaoDaHabilidade = useMemo<CartaoDaFicha>(
+    () => ({
+      ...novoCartao(nome),
+      id: ID_DO_CARTAO_DA_HABILIDADE,
+      campos: { ...campos, descricao: texto },
+      ...(mecanicaDaHabilidade === undefined ? {} : { mecanica: mecanicaDaHabilidade }),
+      ...(requisitos === undefined ? {} : { requisitos }),
+      ...(marcas === undefined ? {} : { marcas }),
+    }),
+    [nome, campos, texto, mecanicaDaHabilidade, requisitos, marcas],
+  )
+  const treino = useMemo(() => quemUsaDeTreino(sistema), [sistema])
+  const mudarAHabilidade = (cartao: CartaoDaFicha) => {
+    const { descricao, ...doCartao } = cartao.campos
+    setNome(cartao.nome.slice(0, ENTRADA_NOME_MAX))
+    setTexto((descricao ?? '').slice(0, ENTRADA_TEXTO_MAX))
+    setCampos((atuais) => ({ ...atuais, ...doCartao }))
+    setMecanicaDaHabilidade(cartao.mecanica)
+    setRequisitos(cartao.requisitos)
+    setMarcas(cartao.marcas)
+    mexer()
+  }
   const avisoSemTiro = semTiro ? avisoDoQueFicaGuardado((campos[CAMPO_DA_CAPACIDADE] ?? '').trim().length > 0, molde === undefined ? 0 : balas.length) : null
   const balasCheias = balas.length >= BALAS_POR_ENTRADA_MAX
 
@@ -227,13 +263,13 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
     const doTipo = Object.fromEntries(Object.entries(campos).filter(([chave]) => ids.has(chave)))
     const balasMontadas = montarBalas()
     const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: tipo === 'arma' ? camposComOEfeitoDaMecanica(doTipo, mecanicaDaArma, sistema) : doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined, acervoId: acervoId === '' ? undefined : acervoId,
-      // Na arma, o "O que ela faz" daqui; nos outros tipos a janela não edita a mecânica e o Salvar mantém a que a entrada já tinha (B04).
-      mecanica: tipo === 'arma' ? mecanicaDaArma : editando?.tipo === tipo ? editando.mecanica : undefined,
+      // Na arma, o "O que ela faz" daqui; na habilidade, o editor novo (ED7); no item a janela não edita a mecânica e o Salvar mantém a que a entrada já tinha (B04).
+      mecanica: tipo === 'arma' ? mecanicaDaArma : tipo === 'habilidade' ? mecanicaDaHabilidade : editando?.tipo === tipo ? editando.mecanica : undefined,
       // Fase F do alcance: o campo da janela (o item ainda não tem alcance próprio no catálogo, como a mecânica).
       alcance: tipo === 'item' ? undefined : alcance,
-      // Fase B2 dos requisitos: a janela ainda não edita o bloco nem as marcas (fase F); o Salvar mantém os que a entrada já tinha.
-      requisitos: editando?.tipo === tipo ? editando.requisitos : undefined,
-      marcas: editando?.tipo === tipo ? editando.marcas : undefined,
+      // ED7: o bloco e as marcas, do editor (habilidade e arma); `itemLimpo` não os guarda no item.
+      requisitos,
+      marcas,
     })
     if (item === null) return { erro: 'Dê um nome à entrada.' }
     if ('erro' in balasMontadas) return { erro: balasMontadas.erro, bala: balasMontadas.chave }
@@ -538,28 +574,35 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
 
           {tipo === 'arma' && !semAba && (
             <EfeitoDaArmaCampos
-              entrada={{ nome, campos, acervoId: acervoId === '' ? undefined : acervoId, mecanica: mecanicaDaArma }}
+              entrada={{ nome, campos, acervoId: acervoId === '' ? undefined : acervoId, mecanica: mecanicaDaArma, requisitos, marcas }}
               sistema={sistema}
-              onMudar={(mecanica, efeito) => {
-                setMecanicaDaArma(mecanica)
+              onMudar={(regra) => {
+                setMecanicaDaArma(regra.mecanica)
                 // O Efeito em texto segue a mecânica (modelo escolhido): o cartão não diz uma coisa e a mecânica outra.
+                const { efeito } = regra
                 if (efeito !== undefined) setCampos((atuais) => ({ ...atuais, [CAMPO_DO_EFEITO]: efeito }))
+                setRequisitos(regra.requisitos)
+                setMarcas(regra.marcas)
                 mexer()
               }}
             />
           )}
 
+          {tipo === 'habilidade' && !semAba && (
+            <HabilidadeNaFicha cartao={cartaoDaHabilidade} ficha={{ personagem: treino, sistema }} quemEdita="mestre" tecnicas={[]} podeOcultar={false} onChange={mudarAHabilidade} foraDaFicha trilha="vale no livro; o Trazer e o Juntar a levam às fichas" />
+          )}
+
           {tipo !== 'item' && !semAba && (
             <fieldset className="lb-item-janela__efeito">
               <legend className="lb-label">Alcance</legend>
-              {armaMontada || (tipo !== 'arma' && editando?.tipo === tipo && lerMecanica(editando.mecanica).tipo === 'pecas') ? (
-                <p className="mu-campo__dica">Com a mecânica montada, o alcance mora nela (bloco 4, Em quem pega).</p>
+              {armaMontada || habilidadeMontada ? (
+                <p className="mu-campo__dica">Com a mecânica montada, o alcance mora nela (a linha Alcance do editor).</p>
               ) : (
                 <CampoDoAlcance
                   valor={alcance === undefined ? null : formaDoAlcanceGuardada(alcance)}
                   torto={alcance !== undefined && formaDoAlcanceGuardada(alcance) === null}
                   // A arma vai pelo Atacar (azul); a habilidade sem mecânica, pelo Dano da ficha de treino.
-                  cor={tipo === 'arma' ? corDoAlcance({ tipo: 'atacar' }) : corDoAlcance({ tipo: 'cartao', dano: danoDaTecnica({ campos }, { personagem: quemUsaDeTreino(sistema), sistema, arma: null }) })}
+                  cor={tipo === 'arma' ? corDoAlcance({ tipo: 'atacar' }) : corDoAlcance({ tipo: 'cartao', dano: danoDaTecnica({ campos }, { personagem: treino, sistema, arma: null }) })}
                   onChange={(forma) => {
                     setAlcance(forma ?? undefined)
                     mexer()

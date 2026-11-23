@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { categoriaLimpa, ehCategoriaDeMunicao, ITEM_SEM_NOME, MUNICOES_POR_ARMA_MAX, type ItemDoCatalogo } from '../lib/acervoDeItens'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { chaveDoNomeDaEntrada, novoIdDeEntrada, regraDaCoisa, type ItemDoCatalogo as EntradaDoCatalogo } from '../lib/livros/catalogo'
-import type { MecanicaGuardada } from '../lib/personagem'
 import { gravarRegraDaArma } from '../stores/armasNaFonte'
 import { usePersonagensDoMundo } from '../stores/mundoDoLivroStore'
 import { entradaNovaDaCoisa } from '../lib/livros/regraDaArma'
@@ -11,12 +10,12 @@ import { useCatalogoStore } from '../stores/catalogoStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { CAMPO_DO_EFEITO } from '../lib/batalha/leituraDaFicha'
 import { camposComOEfeitoDaMecanica } from '../lib/livros/fraseDaArma'
-import { EfeitoDaArmaCampos } from './EfeitoDaArmaCampos'
+import { EfeitoDaArmaCampos, type RegraDaArmaNoEditor } from './EfeitoDaArmaCampos'
 import { cleanItemName, ITEM_DESCRICAO_MAX, ITEM_NAME_MAX_LENGTH, ITEM_PRECO_MAX, ITEM_QUANTIDADE_MAX } from '../lib/items'
 import type { AlvoDoAcervo } from '../lib/party'
 import { ALCANCE_DA_LUZ_DO_ITEM_MAX, ALCANCE_DA_LUZ_DO_ITEM_MIN, CORES_SUGERIDAS_DA_LUZ_DO_ITEM, FORCA_DA_LUZ_DO_ITEM_MAX, FORCA_DA_LUZ_DO_ITEM_MIN, LUZ_DO_ITEM_PADRAO } from '../lib/luzDoItem'
 import type { LuzDoItem } from '../types/map'
-import { comEfeito, EfeitoDoItemCampos } from './EfeitoDoItemCampos'
+import { comEfeito, comRequisitosDoItem, EfeitoDoItemCampos } from './EfeitoDoItemCampos'
 import { ImagemOuIniciais } from './FichaPecas'
 import { CloseIcon } from './icons'
 import { PinImageDrop } from './PinImageDrop'
@@ -241,7 +240,8 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
   const ehArma = ehCategoriaDeArma(rascunho.categoria)
   const regraDaArma = ehArma && sistemaDoLivro !== undefined ? regraDaArmaNoLivro(entradasDoLivro, rascunho) : undefined
   /** O que o mestre mudou no "O que ela faz"; `null` = nada (o Salvar não toca no livro). */
-  const [mecanicaDaArma, setMecanicaDaArma] = useState<{ mecanica: MecanicaGuardada | undefined; efeito?: string } | null>(null)
+  // ED7: o que o editor mudou na regra da arma (mecânica, Efeito em texto, requisitos e marcas); `null` = nada.
+  const [mecanicaDaArma, setMecanicaDaArma] = useState<RegraDaArmaNoEditor | null>(null)
   const fichasDoMundo = usePersonagensDoMundo()
   const [idDaEntradaNova] = useState(novoIdDeEntrada)
   /** Sem regra neste livro, a entrada que o Salvar cria: nasce do cartão ligado das fichas (dano, descrição e categoria não somem calados). */
@@ -308,9 +308,10 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
       await onSalvar(salvo)
       if (vaiAoLivro && entradaDaArma !== undefined) {
         // Sem regra neste livro, nasce a entrada de arma ligada a esta coisa (com o que o cartão ligado diz); a de mesmo nome solta ganha a ligação.
-        const { mecanica: _antes, ...base }: EntradaDoCatalogo = entradaDaArma
-        const campos = camposComOEfeitoDaMecanica(mecanicaDaArma.efeito === undefined ? base.campos : { ...base.campos, [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }, mecanicaDaArma.mecanica, sistemaDoLivro)
-        await gravarRegraDaArma({ ...base, campos, acervoId: salvo.id, ...(mecanicaDaArma.mecanica === undefined ? {} : { mecanica: mecanicaDaArma.mecanica }) }, sistemaDoLivro)
+        const { mecanica: _antes, requisitos: _requisitosAntes, marcas: _marcasAntes, ...base }: EntradaDoCatalogo = entradaDaArma
+        const { mecanica, requisitos, marcas } = mecanicaDaArma
+        const campos = camposComOEfeitoDaMecanica(mecanicaDaArma.efeito === undefined ? base.campos : { ...base.campos, [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }, mecanica, sistemaDoLivro)
+        await gravarRegraDaArma({ ...base, campos, acervoId: salvo.id, ...(mecanica === undefined ? {} : { mecanica }), ...(requisitos === undefined ? {} : { requisitos }), ...(marcas === undefined ? {} : { marcas }) }, sistemaDoLivro)
         setMecanicaDaArma(null)
       }
       // A store guarda este mesmo objeto: com ele no rascunho, "nada mudou" volta a valer e o "Dar" libera.
@@ -464,9 +465,17 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
               <p className="lb-field__hint">O que a arma faz mora no livro do sistema: abra o livro (Biblioteca, página Itens) para ver e mudar.</p>
             ) : (
               <EfeitoDaArmaCampos
-                entrada={{ nome: entradaDaArma?.nome ?? rascunho.nome, campos: camposDaArmaNaTela, acervoId: rascunho.id, mecanica: mecanicaDaArma === null ? entradaDaArma?.mecanica : mecanicaDaArma.mecanica }}
+                entrada={{
+                  nome: entradaDaArma?.nome ?? rascunho.nome,
+                  campos: camposDaArmaNaTela,
+                  acervoId: rascunho.id,
+                  mecanica: mecanicaDaArma === null ? entradaDaArma?.mecanica : mecanicaDaArma.mecanica,
+                  requisitos: mecanicaDaArma === null ? entradaDaArma?.requisitos : mecanicaDaArma.requisitos,
+                  marcas: mecanicaDaArma === null ? entradaDaArma?.marcas : mecanicaDaArma.marcas,
+                }}
                 sistema={sistemaDoLivro}
-                onMudar={(mecanica, efeito) => setMecanicaDaArma((antes) => ({ mecanica, ...(efeito !== undefined ? { efeito } : antes?.efeito !== undefined ? { efeito: antes.efeito } : {}) }))}
+                // O Efeito em texto que mudou antes fica, se esta mudança não o mexeu (só os requisitos, por exemplo).
+                onMudar={(regra) => setMecanicaDaArma((antes) => (regra.efeito === undefined && antes?.efeito !== undefined ? { ...regra, efeito: antes.efeito } : regra))}
                 {...(entradaNova === 'conflito' ? { nota: ARMA_COM_COPIAS_DIFERENTES } : regraDaArma === undefined ? { nota: 'Sem regra neste livro: salvar cria a entrada de arma ligada a esta coisa.' } : regraDaArma.ligar ? { nota: 'Salvar liga esta coisa à entrada de mesmo nome do livro.' } : {})}
               />
             )
@@ -474,6 +483,7 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
             <EfeitoDoItemCampos
               item={rascunho}
               onMudar={(efeito) => setRascunho((atual) => comEfeito(atual, efeito))}
+              onRequisitos={(requisitos) => setRascunho((atual) => comRequisitosDoItem(atual, requisitos))}
               onTrocarDescricao={(descricao) => setRascunho((atual) => ({ ...atual, descricao: descricao.slice(0, ITEM_DESCRICAO_MAX) }))}
             />
           )}

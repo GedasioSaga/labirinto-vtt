@@ -1,7 +1,8 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import type { ItemDoCatalogo } from '../lib/acervoDeItens'
 import { quemUsaDeTreino } from '../lib/batalha/ensaio/ensaioDoItem'
-import { MODELOS_DE_ITEM, efeitoDoModeloDeItem, modeloSugeridoParaOItem, ondeDoModeloDeItem } from '../lib/batalha/mecanica/modelosDeItem'
+import { MODELOS_DE_ITEM, efeitoDoModeloDeItem, modeloSugeridoParaOItem } from '../lib/batalha/mecanica/modelosDeItem'
+import { requisitosGuardados } from '../lib/batalha/requisitos/guardados'
 import { resumoDoEfeitoDoItem } from '../lib/batalha/mecanica/resumoDoItem'
 import { descricaoDizOEfeito } from '../lib/descricaoDoEfeito'
 import { pecasDoEfeito } from '../lib/leituraDoItem'
@@ -9,27 +10,20 @@ import { novoCartao, type CartaoDaFicha } from '../lib/personagem'
 import { SISTEMA_ONE_PIECE } from '../lib/sistemaOnePiece'
 import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
-import type { EfeitoDoItem } from '../types/map'
-import { MecanicaDaTecnica } from './batalha/MecanicaDaTecnica'
+import type { EfeitoDoItem, RequisitosNaVaga } from '../types/map'
+import { HabilidadeNaFicha } from './batalha/editor/HabilidadeNaFicha'
+import type { GastoDoItem } from './batalha/editor/linhas/LinhaDoGasto'
+import type { ModeloNoEditor } from './batalha/editor/modelosDoEditor'
 
 /**
  * "O QUE ELE FAZ" na janela do item do Acervo (Fase 7 de
- * docs/design/habilidades/SISTEMA.md §5.1): o mesmo editor da técnica (os 3
- * degraus, com os 25 modelos de item), quanto gasta, onde vale, a frase que a
- * vaga mostra e o Testar no boneco. "Sugerir efeito" monta o modelo mais
- * parecido com o nome e a descrição; nada muda até o mestre clicar.
+ * docs/design/habilidades/SISTEMA.md §5.1): o editor da habilidade no modo
+ * item (ED7: os 25 modelos de item, Alcance, Efeitos, Gasto e Requisitos), a
+ * frase que a vaga mostra e o Testar no boneco. "Sugerir efeito" monta o
+ * modelo mais parecido com o nome e a descrição; nada muda até o mestre
+ * clicar. O Acervo é a fonte: as vagas da mochila seguem o efeito e os
+ * requisitos ao salvar (`stores/itensNaFonte.ts`).
  */
-
-const GASTOS: readonly { valor: EfeitoDoItem['gasta']; nome: string }[] = [
-  { valor: 'um', nome: 'Gasta 1 por uso' },
-  { valor: 'nada', nome: 'Não acaba (amuleto)' },
-]
-
-const ONDES: readonly { valor: EfeitoDoItem['onde']; nome: string }[] = [
-  { valor: 'sempre', nome: 'Na batalha e fora' },
-  { valor: 'soNaBatalha', nome: 'Só na batalha' },
-  { valor: 'soFora', nome: 'Só fora da batalha' },
-]
 
 /** O id do cartão de mentira que leva as peças ao editor (nunca vai a ficha nenhuma). */
 const ID_DO_CARTAO_DO_EFEITO = 'efeito-do-item'
@@ -42,9 +36,17 @@ export function comEfeito(item: ItemDoCatalogo, efeito: EfeitoDoItem | undefined
   return efeito === undefined ? semEfeito : { ...semEfeito, efeito }
 }
 
+/** ED7: o item com os requisitos para usar; `undefined` tira o campo (ausente = sem bloco). */
+export function comRequisitosDoItem(item: ItemDoCatalogo, requisitos: RequisitosNaVaga | undefined): ItemDoCatalogo {
+  const { requisitos: _antes, ...semRequisitos } = item
+  return requisitos === undefined ? semRequisitos : { ...semRequisitos, requisitos }
+}
+
 interface EfeitoDoItemCamposProps {
   item: ItemDoCatalogo
   onMudar: (efeito: EfeitoDoItem | undefined) => void
+  /** ED7: os requisitos para usar o item (fase F); `undefined` = sem bloco. Andam com o efeito até a vaga. */
+  onRequisitos: (requisitos: RequisitosNaVaga | undefined) => void
   /**
    * Regra do dono (um lugar não diz uma coisa e outro outra): o modelo escolhido sobre a descrição que dizia um
    * efeito com número ('Cura 50 HP') troca a descrição pela frase do modelo. Sem a prop, a descrição fica.
@@ -52,7 +54,7 @@ interface EfeitoDoItemCamposProps {
   onTrocarDescricao?: (descricao: string) => void
 }
 
-export function EfeitoDoItemCampos({ item, onMudar, onTrocarDescricao }: EfeitoDoItemCamposProps) {
+export function EfeitoDoItemCampos({ item, onMudar, onRequisitos, onTrocarDescricao }: EfeitoDoItemCamposProps) {
   const idBase = useId()
   const idDoSistema = useAdventureStore(sistemaAtivo)
   const sistema = useRpgStore((state) => sistemaPorId(state.biblioteca, idDoSistema)) ?? SISTEMA_ONE_PIECE
@@ -63,7 +65,10 @@ export function EfeitoDoItemCampos({ item, onMudar, onTrocarDescricao }: EfeitoD
   const { efeito } = item
   const gasto = useMemo(() => ({ gasta: efeito?.gasta ?? 'um', onde: efeito?.onde ?? 'sempre' }), [efeito?.gasta, efeito?.onde])
   // O editor trabalha sobre um cartão: as peças do item entram e saem por ele, com o nome do item no Testar.
-  const cartao = useMemo<CartaoDaFicha>(() => ({ ...novoCartao(item.nome.trim() || 'Item'), id: ID_DO_CARTAO_DO_EFEITO, ...(efeito === undefined ? {} : { mecanica: efeito.mecanica }) }), [item.nome, efeito])
+  const cartao = useMemo<CartaoDaFicha>(
+    () => ({ ...novoCartao(item.nome.trim() || 'Item'), id: ID_DO_CARTAO_DO_EFEITO, ...(efeito === undefined ? {} : { mecanica: efeito.mecanica }), ...(item.requisitos === undefined ? {} : { requisitos: item.requisitos }) }),
+    [item.nome, efeito, item.requisitos],
+  )
   const sugerido = efeito === undefined ? modeloSugeridoParaOItem(item.nome, item.descricao) : null
   const nomeDoSugerido = sugerido === null ? null : (MODELOS_DE_ITEM.find((modelo) => modelo.id === sugerido)?.nome ?? null)
   /** O "onde vale" do modelo recém-escolhido (a granada, só na batalha), para a gravação que vem logo depois. */
@@ -79,6 +84,9 @@ export function EfeitoDoItemCampos({ item, onMudar, onTrocarDescricao }: EfeitoD
   }
 
   const aoMudarCartao = (novo: CartaoDaFicha) => {
+    if (novo.requisitos !== cartao.requisitos) onRequisitos(requisitosGuardados(novo.requisitos))
+    // Só os requisitos mudaram (a mesma mecânica): o efeito fica como está.
+    if (novo.mecanica === cartao.mecanica) return
     if (novo.mecanica === undefined) {
       onMudar(undefined)
       return
@@ -93,10 +101,10 @@ export function EfeitoDoItemCampos({ item, onMudar, onTrocarDescricao }: EfeitoD
     if (veioDoModelo) doModelo(efeitoNovo)
     else onMudar(efeitoNovo)
   }
-  const aoEscolherModelo = (id: string) => {
-    const modelo = MODELOS_DE_ITEM.find((candidato) => candidato.id === id)
-    ondeDoModelo.current = modelo === undefined ? null : ondeDoModeloDeItem(modelo.id)
+  const aoEscolherModelo = (modelo: ModeloNoEditor) => {
+    ondeDoModelo.current = modelo.onde ?? null
   }
+  const gastoNoEditor = efeito === undefined ? undefined : { gasto, onChange: (novo: GastoDoItem) => onMudar({ ...efeito, ...novo }) }
 
   return (
     <fieldset className="lb-item-janela__efeito">
@@ -116,31 +124,22 @@ export function EfeitoDoItemCampos({ item, onMudar, onTrocarDescricao }: EfeitoD
           </button>
         </p>
       )}
-      <MecanicaDaTecnica key={item.id} cartao={cartao} ficha={{ personagem: quemUsa, sistema }} quemEdita="mestre" tecnicas={[]} onChange={aoMudarCartao} doQue="item" gastoDoItem={gasto} onModelo={aoEscolherModelo} />
+      <HabilidadeNaFicha
+        key={item.id}
+        cartao={cartao}
+        ficha={{ personagem: quemUsa, sistema }}
+        quemEdita="mestre"
+        tecnicas={[]}
+        podeOcultar={false}
+        onChange={aoMudarCartao}
+        doQue="item"
+        foraDaFicha
+        trilha="vale no Acervo; as cópias na mochila seguem ao salvar"
+        {...(gastoNoEditor === undefined ? {} : { gastoDoItem: gastoNoEditor })}
+        onModelo={aoEscolherModelo}
+      />
       {efeito !== undefined && (
         <>
-          <div className="lb-item-janela__linha">
-            <label className="lb-field" htmlFor={`${idBase}-gasta`}>
-              <span className="lb-label">Quanto gasta</span>
-              <select id={`${idBase}-gasta`} className="lb-input" value={efeito.gasta} onChange={(event) => onMudar({ ...efeito, gasta: GASTOS.find((opcao) => opcao.valor === event.target.value)?.valor ?? efeito.gasta })}>
-                {GASTOS.map((opcao) => (
-                  <option key={opcao.valor} value={opcao.valor}>
-                    {opcao.nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="lb-field" htmlFor={`${idBase}-onde`}>
-              <span className="lb-label">Onde vale</span>
-              <select id={`${idBase}-onde`} className="lb-input" value={efeito.onde} onChange={(event) => onMudar({ ...efeito, onde: ONDES.find((opcao) => opcao.valor === event.target.value)?.valor ?? efeito.onde })}>
-                {ONDES.map((opcao) => (
-                  <option key={opcao.valor} value={opcao.valor}>
-                    {opcao.nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
           <p className="lb-item-janela__frase">
             <span className="lb-label">Na mochila aparece</span> {resumoDoEfeitoDoItem(efeito, sistema)}
           </p>

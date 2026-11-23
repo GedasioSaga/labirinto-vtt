@@ -15,6 +15,10 @@ interface LinhaDosRequisitosProps {
   listas: ListasDosRequisitos
   custoEmSp: number
   onChange: (cartao: CartaoDaFicha) => void
+  /** ED7: o item não tem marcas (o catálogo as guarda só na habilidade e na arma). */
+  comMarcas?: boolean
+  /** A frase do bloco vazio ("Sem requisito: a técnica se usa..."). */
+  vazio?: string
 }
 
 /** As marcas do cartão ("Fogo"): o que o requisito "Ajuda de um aliado com Fogo" procura nas fichas dos aliados. */
@@ -78,7 +82,7 @@ function MarcasDoCartao({ cartao, listas, onChange }: Pick<LinhaDosRequisitosPro
  * com a busca nos 41 tipos, "Em palavras" e o "Falta:" ao vivo, e as marcas do cartão. Grava no
  * campo `requisitos` do cartão, nunca na mecânica: vale também para a técnica que é só texto.
  */
-export function LinhaDosRequisitos({ cartao, personagem, fontes, listas, custoEmSp, onChange }: LinhaDosRequisitosProps) {
+export function LinhaDosRequisitos({ cartao, personagem, fontes, listas, custoEmSp, onChange, comMarcas = true, vazio = 'Sem requisito: a técnica se usa sempre que tiver o custo.' }: LinhaDosRequisitosProps) {
   const bloco = blocoCru(cartao)
   const todos = useMemo(() => todosCru(bloco, 'usar'), [bloco])
   const lidos = useMemo(() => lerRequisitos(blocoParaLer(todos, 'usar')), [todos])
@@ -87,9 +91,9 @@ export function LinhaDosRequisitos({ cartao, personagem, fontes, listas, custoEm
   return (
     <>
       {doCartao.deAppNovo && <p className="lb-ed__alerta">Estes requisitos têm parte de um app mais novo: o que não se lê aqui fica guardado como veio.</p>}
-      <BlocoDosRequisitos todos={todos} lidos={lidos.bloco?.usar?.todos ?? []} fontes={fontes} listas={listas} vazio="Sem requisito: a técnica se usa sempre que tiver o custo." onChange={mudar} />
+      <BlocoDosRequisitos todos={todos} lidos={lidos.bloco?.usar?.todos ?? []} fontes={fontes} listas={listas} vazio={vazio} onChange={mudar} />
       <ResumoDosRequisitos todos={todos} qual="usar" nome={cartao.nome} personagem={personagem} custoEmSp={custoEmSp} />
-      <MarcasDoCartao cartao={cartao} listas={listas} onChange={onChange} />
+      {comMarcas && <MarcasDoCartao cartao={cartao} listas={listas} onChange={onChange} />}
     </>
   )
 }

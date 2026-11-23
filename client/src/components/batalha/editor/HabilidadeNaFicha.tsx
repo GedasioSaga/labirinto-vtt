@@ -5,7 +5,9 @@ import { frasesDosRequisitos } from '../../../lib/batalha/requisitos/frases'
 import { lerRequisitos } from '../../../lib/batalha/requisitos/ler'
 import type { CartaoDaFicha } from '../../../lib/personagem'
 import { ResumoDaMecanica } from '../MecanicaDaTecnica'
-import type { QuemEditaNoEditor } from './gravarNoCartao'
+import type { DoQueNoEditor, QuemEditaNoEditor } from './gravarNoCartao'
+import type { GastoDoItem } from './linhas/LinhaDoGasto'
+import type { ModeloNoEditor } from './modelosDoEditor'
 import '../MecanicaDaTecnica.css'
 
 const EditorDaHabilidade = lazy(() => import('./EditorDaHabilidade').then((modulo) => ({ default: modulo.EditorDaHabilidade })))
@@ -17,14 +19,31 @@ interface HabilidadeNaFichaProps {
   tecnicas: readonly CartaoDaFicha[]
   podeOcultar: boolean
   onChange: (cartao: CartaoDaFicha) => void
+  /** ED7: a técnica, a arma ou o efeito do item; ausente = a técnica. */
+  doQue?: DoQueNoEditor
+  /** ED7: no livro ou no Acervo (o cartão é de mentira, só leva a regra ao editor). */
+  foraDaFicha?: boolean
+  /** ED7: onde a regra vale, no cabeçalho do editor. */
+  trilha?: string
+  /** Só no item: quanto e onde gasta. */
+  gastoDoItem?: { gasto: GastoDoItem; onChange: (gasto: GastoDoItem) => void }
+  /** Só no item: o modelo escolhido, antes da mudança das peças. */
+  onModelo?: (modelo: ModeloNoEditor) => void
+}
+
+/** O título e a frase sem peças de cada coisa (a técnica de texto, a arma só com o dano, o item só de descrição). */
+const NA_TELA: Readonly<Record<DoQueNoEditor, { titulo: string; semPecas: string; aria: string }>> = {
+  tecnica: { titulo: 'Mecânica', semPecas: 'Só texto: o app lê o Custo, a Ação e o Dano escritos.', aria: 'Mecânica e requisitos' },
+  arma: { titulo: 'O que ela faz', semPecas: 'Sem mecânica, o Atacar usa só o dano da arma.', aria: 'O que a arma faz e requisitos' },
+  item: { titulo: 'O que ele faz', semPecas: 'Sem efeito, o item é só descrição (o mestre narra).', aria: 'O que o item faz e requisitos' },
 }
 
 /**
- * A TÉCNICA NO CARTÃO DA FICHA (ED5): o resumo do que ela faz e pede, e o botão que abre o editor da
- * habilidade (EDITOR.md §5). O editor carrega só ao abrir. A arma e o item seguem com a fachada
- * `MecanicaDaTecnica` até a ED7.
+ * A HABILIDADE NO CARTÃO (ED5; ED7 também a arma e o item): o resumo do que ela faz e pede, e o
+ * botão que abre o editor da habilidade (EDITOR.md §5). O editor carrega só ao abrir. Na ficha, no
+ * livro (a entrada de habilidade e de arma) e no Acervo (o efeito do item), pela mesma porta.
  */
-export function HabilidadeNaFicha({ cartao, ficha, quemEdita, tecnicas, podeOcultar, onChange }: HabilidadeNaFichaProps) {
+export function HabilidadeNaFicha({ cartao, ficha, quemEdita, tecnicas, podeOcultar, onChange, doQue = 'tecnica', foraDaFicha = false, trilha, gastoDoItem, onModelo }: HabilidadeNaFichaProps) {
   const [aberto, setAberto] = useState(false)
   const fechar = useCallback(() => setAberto(false), [])
   const valendo = lerMecanica(cartao.mecanica)
@@ -35,11 +54,12 @@ export function HabilidadeNaFicha({ cartao, ficha, quemEdita, tecnicas, podeOcul
   }, [cartao.requisitos])
   const futura = valendo.tipo === 'futura' || (quemEdita === 'dono' && proposta?.tipo === 'futura')
   const montada = valendo.tipo === 'pecas'
+  const textos = NA_TELA[doQue]
   return (
-    <section className="lb-mec" aria-label="Mecânica e requisitos">
+    <section className="lb-mec" aria-label={textos.aria}>
       <div className="lb-mec__cab">
-        <h5 className="lb-label lb-mec__titulo">Mecânica</h5>
-        {!montada && <span className="lb-mec__cab-dica">Só texto: o app lê o Custo, a Ação e o Dano escritos.</span>}
+        <h5 className="lb-label lb-mec__titulo">{textos.titulo}</h5>
+        {!montada && <span className="lb-mec__cab-dica">{textos.semPecas}</span>}
       </div>
       {valendo.tipo === 'pecas' && <ResumoDaMecanica mecanica={valendo.mecanica} ficha={ficha} titulo={proposta !== null ? 'Vale agora' : undefined} />}
       {(valendo.tipo === 'invalida' || valendo.tipo === 'futura') && (
@@ -64,7 +84,20 @@ export function HabilidadeNaFicha({ cartao, ficha, quemEdita, tecnicas, podeOcul
       </div>
       {aberto && (
         <Suspense fallback={null}>
-          <EditorDaHabilidade cartao={cartao} ficha={ficha} quemEdita={quemEdita} tecnicas={tecnicas} podeOcultar={podeOcultar} onChange={onChange} onFechar={fechar} />
+          <EditorDaHabilidade
+            cartao={cartao}
+            ficha={ficha}
+            quemEdita={quemEdita}
+            tecnicas={tecnicas}
+            podeOcultar={podeOcultar}
+            onChange={onChange}
+            onFechar={fechar}
+            doQue={doQue}
+            foraDaFicha={foraDaFicha}
+            {...(trilha === undefined ? {} : { trilha })}
+            {...(gastoDoItem === undefined ? {} : { gastoDoItem })}
+            {...(onModelo === undefined ? {} : { onModelo })}
+          />
         </Suspense>
       )}
     </section>

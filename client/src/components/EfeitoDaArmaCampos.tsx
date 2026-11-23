@@ -2,21 +2,21 @@ import { useCallback, useMemo } from 'react'
 import { quemUsaDeTreino } from '../lib/batalha/ensaio/ensaioDoItem'
 import { ABA_DAS_ARMAS, CAMPO_DO_EFEITO } from '../lib/batalha/leituraDaFicha'
 import type { ItemDoCatalogo } from '../lib/livros/catalogo'
-import { armaTemCampoDeEfeito, efeitoQueSegueAMecanica } from '../lib/livros/fraseDaArma'
-import { cartoesDaAba, novoCartao, type CartaoDaFicha, type MecanicaGuardada, type Personagem } from '../lib/personagem'
+import { cartoesDaAba, novoCartao, type CartaoDaFicha, type MecanicaGuardada, type Personagem, type RequisitosGuardados } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { useCatalogoStore } from '../stores/catalogoStore'
 import { usePersonagensDoMundo } from '../stores/mundoDoLivroStore'
 import type { FonteDaArma } from './fonteDaArma'
-import { MecanicaDaTecnica } from './batalha/MecanicaDaTecnica'
+import { HabilidadeNaFicha } from './batalha/editor/HabilidadeNaFicha'
 import './AcervoDeItensPanel.css'
 
 /**
  * "O QUE ELA FAZ" da arma, o MESMO editor nos 3 lugares (docs/design/habilidades/
  * ARMAS-FONTE-UNICA.md §6): o lápis do catálogo, a coisa de categoria Arma do
- * Acervo e (pela mesma frase) o cartão da ficha. Edita a `mecanica` da ENTRADA
+ * Acervo e o cartão da ficha. Edita a `mecanica` e os `requisitos` da ENTRADA
  * do catálogo, que é a fonte: quem grava é a janela, por `gravarRegraDaArma`,
- * que reescreve na hora toda cópia ligada.
+ * que reescreve na hora toda cópia ligada. ED7: o editor é o novo
+ * (`EditorDaHabilidade` no modo arma), com as marcas da entrada.
  */
 
 /** O id do cartão de mentira que leva a mecânica da entrada ao editor (nunca vai a ficha nenhuma). */
@@ -49,15 +49,21 @@ export function useFonteDasArmas(sistema: SistemaDeRpg | undefined): (itemId: st
   )
 }
 
+/** O que o editor mudou na regra da arma: o que vai à entrada no Salvar da janela. */
+export interface RegraDaArmaNoEditor {
+  /** `undefined` = sem mecânica (a arma volta a só o dano). */
+  mecanica: MecanicaGuardada | undefined
+  /** O texto novo do campo Efeito quando ele segue a mecânica; `undefined` = o texto fica. */
+  efeito?: string
+  requisitos: RequisitosGuardados | undefined
+  marcas: string[] | undefined
+}
+
 export interface EfeitoDaArmaCamposProps {
   /** A entrada como ela ficaria ao salvar (o rascunho da janela). */
-  entrada: Pick<ItemDoCatalogo, 'nome' | 'campos' | 'acervoId' | 'mecanica'>
+  entrada: Pick<ItemDoCatalogo, 'nome' | 'campos' | 'acervoId' | 'mecanica' | 'requisitos' | 'marcas'>
   sistema: SistemaDeRpg
-  /**
-   * A mecânica nova; `undefined` = tirar (a arma volta a só o dano). `efeito`: o texto novo do campo Efeito
-   * quando ele segue a mecânica (modelo escolhido, ou o texto já era a frase); `undefined` = o texto fica.
-   */
-  onMudar: (mecanica: MecanicaGuardada | undefined, efeito?: string) => void
+  onMudar: (regra: RegraDaArmaNoEditor) => void
   /** Uma frase a mais embaixo (a coisa sem regra neste livro: salvar cria a entrada). */
   nota?: string
 }
@@ -66,22 +72,30 @@ export function EfeitoDaArmaCampos({ entrada, sistema, onMudar, nota }: EfeitoDa
   const fichas = usePersonagensDoMundo()
   const quantas = fichasComAArma(fichas, entrada.acervoId)
   const treino = useMemo(() => quemUsaDeTreino(sistema), [sistema])
-  // Com mecânica, o Efeito em texto é a frase do resumo (regra do dono: um lugar não diz outra coisa).
-  const aoMudar = (mecanica: MecanicaGuardada | undefined) => {
-    const texto = entrada.campos[CAMPO_DO_EFEITO] ?? ''
-    const novo = efeitoQueSegueAMecanica(texto, entrada.mecanica, mecanica, sistema)
-    onMudar(mecanica, armaTemCampoDeEfeito(sistema) && novo !== texto ? novo : undefined)
-  }
-  // O editor trabalha sobre um cartão: a mecânica da entrada entra e sai por ele, com os campos dela (o Dano e a fórmula do Atacar).
+  const ondeVale = fraseDeOndeVale(quantas, entrada.acervoId !== undefined)
+  // O editor trabalha sobre um cartão: a regra da entrada entra e sai por ele, com os campos dela (o Dano e a fórmula do Atacar).
   const cartao = useMemo<CartaoDaFicha>(
-    () => ({ ...novoCartao(entrada.nome.trim() || 'Arma'), id: ID_DO_CARTAO_DA_REGRA, campos: { ...entrada.campos }, ...(entrada.mecanica === undefined ? {} : { mecanica: entrada.mecanica }) }),
-    [entrada.nome, entrada.campos, entrada.mecanica],
+    () => ({
+      ...novoCartao(entrada.nome.trim() || 'Arma'),
+      id: ID_DO_CARTAO_DA_REGRA,
+      campos: { ...entrada.campos },
+      ...(entrada.mecanica === undefined ? {} : { mecanica: entrada.mecanica }),
+      ...(entrada.requisitos === undefined ? {} : { requisitos: entrada.requisitos }),
+      ...(entrada.marcas === undefined ? {} : { marcas: entrada.marcas }),
+    }),
+    [entrada.nome, entrada.campos, entrada.mecanica, entrada.requisitos, entrada.marcas],
   )
+  // Com mecânica, o Efeito em texto é a frase do resumo (regra do dono: um lugar não diz outra coisa); quem escreve é o editor, pelo ponto único do texto gerado.
+  const aoMudar = (novo: CartaoDaFicha) => {
+    const efeito = novo.campos[CAMPO_DO_EFEITO]
+    const mudouOEfeito = efeito !== undefined && efeito !== entrada.campos[CAMPO_DO_EFEITO]
+    onMudar({ mecanica: novo.mecanica, ...(mudouOEfeito ? { efeito } : {}), requisitos: novo.requisitos, marcas: novo.marcas })
+  }
   return (
     <fieldset className="lb-item-janela__efeito">
       <legend className="lb-label">O que ela faz</legend>
-      <p className="lb-item-janela__frase">{fraseDeOndeVale(quantas, entrada.acervoId !== undefined)}</p>
-      <MecanicaDaTecnica cartao={cartao} ficha={{ personagem: treino, sistema }} quemEdita="mestre" tecnicas={[]} onChange={(novo) => aoMudar(novo.mecanica)} doQue="arma" />
+      <p className="lb-item-janela__frase">{ondeVale}</p>
+      <HabilidadeNaFicha cartao={cartao} ficha={{ personagem: treino, sistema }} quemEdita="mestre" tecnicas={[]} podeOcultar={false} onChange={aoMudar} doQue="arma" foraDaFicha trilha={ondeVale} />
       {nota !== undefined && <p className="lb-field__hint">{nota}</p>}
     </fieldset>
   )

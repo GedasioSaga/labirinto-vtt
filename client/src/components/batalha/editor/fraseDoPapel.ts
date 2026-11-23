@@ -12,7 +12,7 @@ import { textoDoNumero } from '../blocos/controles'
  */
 
 /** As linhas do editor, na ordem da tela; o id também é a âncora da linha. As da mecânica são as partes do papel. */
-export type IdDaLinha = ParteDoPapel | 'textos' | 'requisitos' | 'evolucao' | 'jogadores' | 'campos'
+export type IdDaLinha = ParteDoPapel | 'textos' | 'gasto' | 'requisitos' | 'evolucao' | 'jogadores' | 'campos'
 
 /** A linha curta embaixo do nome ("Ataque Completo · 35 SP · Tempo 4 · Dano 70"). */
 export function linhaCurtaDoPapel(mecanica: MecanicaV1, ficha: FichaDaPrevia): string {

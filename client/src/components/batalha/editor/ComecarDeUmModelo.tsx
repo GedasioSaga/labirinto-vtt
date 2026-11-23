@@ -1,26 +1,38 @@
 import { useEffect, useId, useMemo, useRef, type MouseEvent } from 'react'
-import { GRUPOS_DOS_MODELOS, MODELOS_PRONTOS, mecanicaDoModelo, type IdDoModelo } from '../../../lib/batalha/mecanica/modelos'
 import type { FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import { linhaCurtaDoPapel } from './fraseDoPapel'
+import type { DoQueNoEditor } from './gravarNoCartao'
+import { modelosDoEditor, type ModeloNoEditor } from './modelosDoEditor'
 
 interface ComecarDeUmModeloProps {
   ficha: FichaDaPrevia
-  onEscolher: (id: IdDoModelo) => void
+  /** ED7: os modelos da técnica, da arma ou do item. */
+  doQue: DoQueNoEditor
+  onEscolher: (modelo: ModeloNoEditor) => void
   onFechar: () => void
 }
 
 /**
- * "COMEÇAR DE UM MODELO" (ED3; EDITOR.md §5, protótipo `abrirModelos`): os 22
- * modelos de hoje como pontos de partida, nos grupos de sempre. A janela é o
+ * "COMEÇAR DE UM MODELO" (ED3; EDITOR.md §5, protótipo `abrirModelos`): os
+ * modelos de hoje como pontos de partida, nos grupos de sempre (ED7: os 22 da
+ * técnica, os 20 da arma ou os 25 do item). A janela é o
  * `<dialog>` do sistema por cima do editor: o Tab fica dentro, o Esc fecha e
  * o foco volta a quem abriu. Quem aplica (com o aviso e o Ctrl+Z) é o editor.
  */
-export function ComecarDeUmModelo({ ficha, onEscolher, onFechar }: ComecarDeUmModeloProps) {
+/** O que o modelo preenche, na frase do topo: a arma e o item não têm a ação, o custo e o dano do cartão de texto. */
+const O_QUE_PREENCHE: Readonly<Record<DoQueNoEditor, string>> = {
+  tecnica: 'O modelo preenche a ação, o alcance, o dano, o acerto, os efeitos e o custo (o custo, a ação e o dano escritos no cartão entram quando dá). O nome, a descrição e os requisitos ficam. Dá para desfazer.',
+  arma: 'O modelo preenche o que a arma faz no Atacar: o alcance, o dano, o acerto, os efeitos e os usos. O dano soma o que a arma já soma. Os requisitos ficam. Dá para desfazer.',
+  item: 'O modelo preenche o que o item faz ao ser usado: o alcance, os efeitos e onde vale. Os requisitos ficam. Dá para desfazer.',
+}
+
+export function ComecarDeUmModelo({ ficha, doQue, onEscolher, onFechar }: ComecarDeUmModeloProps) {
   const tituloId = useId()
   const dicaId = useId()
   const janela = useRef<HTMLDialogElement>(null)
   // Uma linha por modelo com o que ele monta ("Ataque Completo · 30 SP · Tempo 2"), com a ficha de quem usa.
-  const linhas = useMemo(() => new Map(MODELOS_PRONTOS.map((modelo) => [modelo.id, linhaCurtaDoPapel(mecanicaDoModelo(modelo.id, ficha.sistema), ficha)])), [ficha])
+  const { grupos, modelos } = modelosDoEditor(doQue)
+  const linhas = useMemo(() => new Map(modelos.map((modelo) => [modelo.id, linhaCurtaDoPapel(modelo.previa(ficha), ficha)])), [modelos, ficha])
 
   useEffect(() => {
     const aberta = janela.current
@@ -55,12 +67,12 @@ export function ComecarDeUmModelo({ ficha, onEscolher, onFechar }: ComecarDeUmMo
         <div className="lb-ed__modelos-cab">
           <h2 id={tituloId}>Começar de um modelo</h2>
           <p className="lb-ed__dica" id={dicaId}>
-            O modelo preenche a ação, o alcance, o dano, o acerto, os efeitos e o custo (o custo, a ação e o dano escritos no cartão entram quando dá). O nome, a descrição e os requisitos ficam. Dá para desfazer.
+            {O_QUE_PREENCHE[doQue]}
           </p>
         </div>
         <div className="lb-ed__modelos-corpo">
-          {GRUPOS_DOS_MODELOS.map(({ grupo, nome }) => {
-            const doGrupo = MODELOS_PRONTOS.filter((modelo) => modelo.grupo === grupo)
+          {grupos.map(({ grupo, nome }) => {
+            const doGrupo = modelos.filter((modelo) => modelo.grupo === grupo)
             if (doGrupo.length === 0) return null
             return (
               <div key={grupo} className="lb-ed__modelos-grupo" role="group" aria-labelledby={`${tituloId}-${grupo}`}>
@@ -69,7 +81,7 @@ export function ComecarDeUmModelo({ ficha, onEscolher, onFechar }: ComecarDeUmMo
                 </p>
                 <div className="lb-ed__modelos">
                   {doGrupo.map((modelo) => (
-                    <button key={modelo.id} type="button" className="lb-ed__modelo" onClick={() => onEscolher(modelo.id)}>
+                    <button key={modelo.id} type="button" className="lb-ed__modelo" onClick={() => onEscolher(modelo)}>
                       <b>{modelo.nome}</b>
                       <span>{modelo.dica}</span>
                       <span className="lb-ed__modelo-linha">{linhas.get(modelo.id)}</span>
