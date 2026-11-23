@@ -3,7 +3,10 @@
  * cena, avisar quem caiu, os lembretes depois do dano, a revelação ao usar e o Desfazer de uma linha.
  */
 import type { StoreApi } from 'zustand/vanilla'
-import { combateVazio, type CombateDoPersonagem } from '../../lib/batalha/combate'
+import { acumuladoresDoPersonagem, comOEventoNosAcumuladores, type EventoDoAcumulador } from '../../lib/batalha/acumuladorNaBatalha'
+import { combateVazio, type CombateDoPersonagem, type GolpeDaBatalha, type UltimaAcaoDoRastro } from '../../lib/batalha/combate'
+import { acertouOAlvo, alvosResolvidosAgora, chaveDaVezDe, comAcaoNoRastro, comDanoNoRastro, comGolpeNoRastro, comQueda, comReacaoNoRastro } from '../../lib/batalha/rastro'
+import type { AcumuladorDaFicha } from '../../lib/batalha/requisitos/modelo'
 import { comBandosEmDia } from '../../lib/batalha/invocacao'
 import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
 import { textoDoGolpe } from '../../lib/batalha/golpe'
@@ -15,8 +18,19 @@ import type { AutorDaAcao, TurnosDaCena } from '../../lib/batalha/turnos'
 import { motivoDoOcultoParaJogador, revelacaoAoUsar } from '../../lib/habilidadeOculta'
 import type { Personagem } from '../../lib/personagem'
 import type { DependenciasDaBatalha, BatalhaDaCena, BatalhaState } from './tipos'
-import { type FichasDaMesa, fichasDaMesa, type LinhaNova, comMudanca, comEfeitos, nomeDoTokenNa, nomeDoBandoNa, linhaAtualizada } from './cena'
+import { type EfeitoNovo, type FichasDaMesa, fichasDaMesa, type LinhaNova, comMudanca, comEfeitos, nomeDoTokenNa, nomeDoBandoNa, linhaAtualizada, personagemDoTokenNa } from './cena'
 import { desfazerReversao, reacoesComTecnicaDe, contrasDaReversao } from './desfazer'
+
+/** REQUISITOS B3: um golpe que a linha lançou (`antes` `null`) ou resolveu (alvo a alvo), para o rastro de quem atacou. */
+export interface GolpeNaLinha {
+  antes: GolpeDaBatalha | null
+  depois: GolpeDaBatalha
+}
+
+/** As partes soltas da reversão (a composta aberta). */
+function partesSoltas(reversao: Reversao): Reversao[] {
+  return reversao.tipo === 'composta' ? reversao.partes.flatMap(partesSoltas) : [reversao]
+}
 
 /**
  * O núcleo preso à `mesa` (toda leitura e gravação de ficha passa por ela) e à store do zustand (`set`,
@@ -105,6 +119,101 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
   const lembrarDepoisDoDano = (turnos: TurnosDaCena): TurnosComLembretes => comLembretesDoMomento('dano', turnos, mesaDoRpg())
 
   /**
+   * REQUISITOS, fase B3: o rastro do que a linha fez, chamado nos mesmos pontos do
+   * `lembrarDepoisDoDano` (antes dele). O dano vem dos efeitos "dano" da linha (o custo de HP da
+   * técnica não é dano: não tem efeito); a queda, da parte "ficha" de quem apanhou que levou o HP de
+   * mais de 0 a 0; o acerto e o erro, dos alvos de ataque que os `golpes` resolveram agora. Os
+   * acumuladores sobem e descem com isso (`acumuladorNaBatalha.ts`). Devolve os turnos novos e as
+   * partes da linha: uma "combate" por personagem que mudou e uma "caiu" por queda.
+   */
+  const rastrear = (turnos: TurnosDaCena, efeitos: readonly EfeitoNovo[], partes: readonly Reversao[], golpes: readonly GolpeNaLinha[] = []): { turnos: TurnosDaCena; partes: Reversao[] } => {
+    const { personagens, sistema } = mesaDoRpg()
+    const vida = sistema === null ? null : recursoDeVida(sistema)
+    const doToken = personagemDoTokenNa(turnos)
+    const mudados = new Map<string, CombateDoPersonagem>()
+    const definicoes = new Map<string, readonly AcumuladorDaFicha[]>()
+    const combateDe = (personagemId: string): CombateDoPersonagem => mudados.get(personagemId) ?? turnos.combate?.[personagemId] ?? combateVazio()
+    const anotar = (personagemId: string, mudar: (combate: CombateDoPersonagem) => CombateDoPersonagem): void => {
+      const antes = combateDe(personagemId)
+      const depois = mudar(antes)
+      if (depois !== antes) mudados.set(personagemId, depois)
+    }
+    const noAcumulador = (personagemId: string, evento: EventoDoAcumulador): void => {
+      let dele = definicoes.get(personagemId)
+      if (dele === undefined) {
+        const personagem = personagens.find((candidato) => candidato.id === personagemId)
+        dele = personagem === undefined ? [] : acumuladoresDoPersonagem(personagem)
+        definicoes.set(personagemId, dele)
+      }
+      const daFicha = dele
+      if (daFicha.length > 0) anotar(personagemId, (combate) => comOEventoNosAcumuladores(combate, daFicha, evento))
+    }
+    // O dano: o de verdade (o que esquivou ou contra-atacou não apanhou).
+    const apanharam = new Map<string, string>()
+    for (const efeito of efeitos) {
+      if (efeito.tipo !== 'dano' || !(efeito.valor > 0) || efeito.saida === 'esquiva' || efeito.saida === 'contra') continue
+      const personagemId = doToken(efeito.tokenId)
+      if (personagemId === undefined || personagemId === null) continue
+      const valor = efeito.valor
+      anotar(personagemId, (combate) => comDanoNoRastro(combate, valor))
+      noAcumulador(personagemId, { quando: 'apanha' })
+      if (!apanharam.has(personagemId)) apanharam.set(personagemId, efeito.tokenId)
+    }
+    const cairam = new Set<string>()
+    if (vida !== null) {
+      for (const parte of partes.flatMap(partesSoltas)) {
+        if (parte.tipo !== 'ficha' || !apanharam.has(parte.personagemId)) continue
+        if (parte.partes.some((mudou) => mudou.parte === 'recurso' && mudou.chave === vida.id && mudou.de > 0 && mudou.para <= 0)) cairam.add(parte.personagemId)
+      }
+    }
+    // O golpe: o último ataque, o "acertou na vez", e os acumuladores de quem acerta, esquiva ou derruba.
+    const vezDeAgora = chaveDaVezDe(turnos)
+    for (const { antes, depois } of golpes) {
+      const agora = alvosResolvidosAgora(antes, depois)
+      const quem = depois.atacantePersonagemId
+      if (agora.length === 0 || quem === null) continue
+      anotar(quem, (combate) => comGolpeNoRastro(combate, depois, vezDeAgora))
+      for (const alvo of agora) {
+        if (acertouOAlvo(alvo) === true) noAcumulador(quem, { quando: 'acerta' })
+        else if (alvo.saida === 'esquiva' && alvo.personagemId !== null) noAcumulador(alvo.personagemId, { quando: 'esquiva' })
+        if (alvo.personagemId !== null && cairam.has(alvo.personagemId)) noAcumulador(quem, { quando: 'derruba' })
+      }
+    }
+    let novos = turnos
+    const novas: Reversao[] = []
+    for (const [personagemId, depois] of mudados) {
+      novas.push({ tipo: 'combate', personagemId, antes: turnos.combate?.[personagemId] ?? null, depois })
+      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
+    }
+    for (const personagemId of cairam) {
+      const tokenId = apanharam.get(personagemId)
+      const comEla = tokenId === undefined ? null : comQueda(novos, tokenId)
+      if (comEla === null || tokenId === undefined) continue
+      novos = comEla
+      novas.push({ tipo: 'caiu', tokenId })
+    }
+    return { turnos: novos, partes: novas }
+  }
+
+  /**
+   * REQUISITOS, fase B3: a ação de `personagemId` no rastro (a técnica, o Atacar ou o item; a
+   * técnica da reação só entra nas usadas) e o acumulador que sobe ao usar a técnica. `naVez` = a
+   * chave da vez dele quando a carta da vez é a dele; senão `null`. Nada mudou = sem parte.
+   */
+  const anotarAcao = (turnos: TurnosDaCena, personagemId: string, acao: UltimaAcaoDoRastro | { tipo: 'reacao'; cartaoId: string; nome: string }, naVez: string | null): { turnos: TurnosDaCena; partes: Reversao[] } => {
+    const antes = turnos.combate?.[personagemId]
+    const base = antes ?? combateVazio()
+    let depois = acao.tipo === 'reacao' ? comReacaoNoRastro(base, acao.cartaoId, turnos.rodada) : comAcaoNoRastro(base, acao, turnos.rodada, naVez)
+    if (acao.tipo === 'cartao' || acao.tipo === 'reacao') {
+      const personagem = mesaDoRpg().personagens.find((candidato) => candidato.id === personagemId)
+      const definicoes = personagem === undefined ? [] : acumuladoresDoPersonagem(personagem)
+      if (definicoes.length > 0) depois = comOEventoNosAcumuladores(depois, definicoes, { quando: 'usaTecnica', tecnica: { id: acao.cartaoId, nome: acao.nome } })
+    }
+    if (depois === base) return { turnos, partes: [] }
+    return { turnos: { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: depois } }, partes: [{ tipo: 'combate', personagemId, antes: antes ?? null, depois }] }
+  }
+
+  /**
    * Reverte a linha e a deixa riscada, sem conferir quem pede (o `desfazer`
    * confere). A reação com técnica desfeita refaz o texto da linha do golpe
    * (o alvo volta a "esperando reação").
@@ -136,7 +245,7 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
     gravarCena(sceneKey, { ...atual, turnos, regras: feito.cena.regras, registro, efeitos, turnosRev: atual.turnosRev + 1 })
     return true
   }
-  return { mesa, deps, set, get, mesaDoRpg, cenaDe, gravarCena, mudarTurnos, avisarQuemCaiu, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, desfazerLinha }
+  return { mesa, deps, set, get, mesaDoRpg, cenaDe, gravarCena, mudarTurnos, avisarQuemCaiu, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, rastrear, anotarAcao, desfazerLinha }
 }
 
 /** O que `criarNucleo` devolve. */

@@ -68,7 +68,7 @@ import { novoIdDaMarca } from './golpe'
 
 /** As passivas presas ao núcleo da store e às formas. */
 export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalha) {
-  const { mesa, deps, mesaDoRpg, cenaDe, gravarCena, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano } = nucleo
+  const { mesa, deps, mesaDoRpg, cenaDe, gravarCena, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, rastrear } = nucleo
   const { custoDaFormaNaVez, custoDaMantidaNaVez } = fatiaDasFormas
 
   /**
@@ -123,7 +123,10 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       if (feito === 'recusada') return false
       partes.push(...reversaoDaFicha(personagemId, feito))
       const atual = cenaDe(sceneKey) ?? cena
-      const caidos = semOsCaidos(mesa, sceneKey, comCombate(atual.turnos))
+      // REQUISITOS B3: o dano do selo por vez também é "apanhou" (e pode derrubar).
+      const rastreado = rastrear(comCombate(atual.turnos), [{ tipo: 'dano', tokenId: carta.tokenId, valor: dado, saida: 'direto' }], partes)
+      partes.push(...rastreado.partes)
+      const caidos = semOsCaidos(mesa, sceneKey, rastreado.turnos)
       partes.push(...caidos.partes)
       const semCaidos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
       const lembrados = lembrarDepoisDoDano(semCaidos)

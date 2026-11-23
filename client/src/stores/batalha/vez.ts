@@ -79,7 +79,7 @@ interface VezQueComeca {
 
 /** A vez presa ao núcleo da store, às formas e ao golpe. */
 export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalha, fatiaDoGolpe: GolpeNaStore) {
-  const { mesa, get, mesaDoRpg, cenaDe, gravarCena, avisarQuemCaiu, lembrarDepoisDoDano } = nucleo
+  const { mesa, get, mesaDoRpg, cenaDe, gravarCena, avisarQuemCaiu, lembrarDepoisDoDano, rastrear } = nucleo
   const { desligarAForma } = fatiaDasFormas
   const { fecharGolpesSemResposta } = fatiaDoGolpe
 
@@ -282,7 +282,10 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     // Só o desconto, sem nada que acabou nem dano: não há o que dizer ao mestre (o número que falta está na pastilha).
     if (textos.length === 0) return
     const atual = cenaDe(sceneKey) ?? cena
-    const caidos = semOsCaidos(mesa, sceneKey, atual.turnos)
+    // REQUISITOS B3: o dano do prazo no começo da vez também é "apanhou" (e pode derrubar).
+    const rastreado = rastrear(atual.turnos, efeitos, partes)
+    partes.push(...rastreado.partes)
+    const caidos = semOsCaidos(mesa, sceneKey, rastreado.turnos)
     partes.push(...caidos.partes)
     const semCaidos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
     const lembrados = lembrarDepoisDoDano(semCaidos)

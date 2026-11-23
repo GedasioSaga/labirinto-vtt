@@ -18,6 +18,7 @@ import {
   type GolpeDaBatalha,
   type PedidoDeAcao,
   type SaidaDaReacao,
+  type UltimaAcaoDoRastro,
 } from '../../lib/batalha/combate'
 import { comBandosEmDia, invocadoDoToken } from '../../lib/batalha/invocacao'
 import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, passivaDaMarca, type AcertoNaMarca } from '../../lib/batalha/marca'
@@ -183,7 +184,7 @@ function contadorDeExtra(valor: number): number {
 
 /** O golpe preso ao núcleo da store, às formas e aos selos. */
 export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalha, fatiaDosSelos: SelosDaBatalha) {
-  const { mesa, deps, mesaDoRpg, cenaDe, gravarCena, avisarQuemCaiu, revelarAoUsar, lembrarDepoisDoDano } = nucleo
+  const { mesa, deps, mesaDoRpg, cenaDe, gravarCena, avisarQuemCaiu, revelarAoUsar, lembrarDepoisDoDano, rastrear, anotarAcao } = nucleo
   const { cansarNoOverload, subidaDoPedido, mudarForma } = fatiaDasFormas
   const { seloNoAcerto, aliadosNaLutaDe } = fatiaDosSelos
 
@@ -360,6 +361,11 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         novos = { ...novos, selos }
       }
     }
+    // REQUISITOS B3: a técnica da reação entra nas usadas de quem reagiu; o golpe resolvido e o dano, no rastro.
+    const reagiu = anotarAcao(novos, personagemId, { tipo: 'reacao', cartaoId: pedido.cartaoId, nome: depois.tecnica?.nome ?? personagem.nome }, null)
+    const rastreado = rastrear(reagiu.turnos, efeitos, partes, [{ antes: golpe, depois: golpeFeito }])
+    partes.push(...reagiu.partes, ...rastreado.partes)
+    novos = rastreado.turnos
     // Tipos de habilidade F3: o dano (ou o custo de HP da técnica) pode levar alguém abaixo do gatilho de vida.
     const lembrados = lembrarDepoisDoDano(novos)
     partes.push(...partesDosLembretes(lembrados))
@@ -764,6 +770,19 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       novos = { ...novos, golpes: comGolpe(novos.golpes, golpeDaParte) }
       seguintes.push({ golpe: golpeDaParte, partes: daParte })
     }
+    // REQUISITOS B3: a ação dele (técnica, Atacar ou item; concentrar e mover não trocam a de antes) e o que os golpes
+    // e o dano deixaram no rastro (antes de o invocado caído sair: a queda dele também conta).
+    const acaoDoRastro: UltimaAcaoDoRastro | null =
+      pedidoDeQuemAge.tipo === 'atacar' ? { tipo: 'atacar' } : pedidoDeQuemAge.tipo === 'item' ? { tipo: 'item' } : pedidoDeQuemAge.tipo === 'habilidade' ? { tipo: 'cartao', cartaoId: pedidoDeQuemAge.cartaoId, nome: typeof cartaoDoPedido === 'object' && cartaoDoPedido !== null ? cartaoDoPedido.nome : (golpe?.nome ?? '') } : null
+    if (acaoDoRastro !== null && carta.personagemId !== null) {
+      const agiu = anotarAcao(novos, carta.personagemId, acaoDoRastro, turnos.vez === carta.id ? chaveDaVez(turnos.rodada, carta.id) : null)
+      partes.push(...agiu.partes)
+      novos = agiu.turnos
+    }
+    const golpesDaLinha = [...(golpe === null ? [] : [{ antes: null, depois: golpe }]), ...seguintes.map((parte) => ({ antes: null, depois: parte.golpe }))]
+    const rastreado = rastrear(novos, efeitos, [...partes, ...seguintes.flatMap((parte) => parte.partes)], golpesDaLinha)
+    partes.push(...rastreado.partes)
+    novos = rastreado.turnos
     // Invocação (decisão 9): o invocado que o dano levou a 0 sai do mapa e do bando.
     const caidos = semOsCaidos(mesa, sceneKey, novos)
     partes.push(...caidos.partes)
@@ -866,6 +885,10 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       }
       if (recusou || resolvidos.length === 0) continue
       novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
+      // REQUISITOS B3: o golpe fechado e o dano, no rastro.
+      const rastreado = rastrear(novos, efeitos, partes, [{ antes, depois: golpe }])
+      partes.push(...rastreado.partes)
+      novos = rastreado.turnos
       const lembrados = lembrarDepoisDoDano(novos)
       partes.push(...partesDosLembretes(lembrados))
       novos = lembrados.turnos
@@ -1036,8 +1059,13 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       let novos: TurnosDaCena = { ...marcados, golpes: comGolpe(turnos.golpes, novo) }
       if (contras !== undefined) novos.contras = contras
       if (selos !== undefined) novos.selos = selos
+      const mexeuNaFicha = partes.length > 0
+      // REQUISITOS B3: o alvo resolvido (o que esquivou também: o erro não tem dano) e o dano, no rastro (as partes vão na linha do golpe).
+      const rastreado = rastrear(novos, efeitos, partes, [{ antes: golpe, depois: novo }])
+      partes.push(...rastreado.partes)
+      novos = rastreado.turnos
       // Tipos de habilidade F3: o alvo resolvido tomou o dano: o gatilho de vida lê a ficha de agora (a reversão vai na linha do golpe).
-      if (partes.length > 0) {
+      if (mexeuNaFicha) {
         const lembrados = lembrarDepoisDoDano(novos)
         partes.push(...partesDosLembretes(lembrados))
         novos = lembrados.turnos
@@ -1073,14 +1101,17 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       if (partes === null || partes === 'recusada') return false
       const alvo = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)(tokenId)
       const atual = cenaDe(sceneKey) ?? cena
+      const daFicha = reversaoDaFicha(personagemId, partes)
+      // REQUISITOS B3: o dano livre também entra no rastro (o apanhou, a queda).
+      const rastreado = rastrear(atual.turnos, [{ tipo: 'dano', tokenId, valor: dado, saida: 'direto' }], daFicha)
       // Invocação (decisão 9): o invocado que o dano levou a 0 sai do mapa e do bando.
-      const caidos = semOsCaidos(mesa, sceneKey, atual.turnos)
+      const caidos = semOsCaidos(mesa, sceneKey, rastreado.turnos)
       const semCaidos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
       const texto = `${nomeDoAutor(autor)} deu ${dado} de dano em ${alvo}${reducao}${textoDosQueSairam(caidos.nomes)}`
       // Tipos de habilidade F3: o gatilho de vida depois do dano livre (o mesmo ponto do golpe).
       const lembrados = lembrarDepoisDoDano(semCaidos)
       gravarCena(sceneKey, {
-        ...comMudanca(atual, lembrados.turnos, { tipo: 'dano', texto, autor, tokenIds: [tokenId], reversao: { tipo: 'composta', partes: [...reversaoDaFicha(personagemId, partes), ...caidos.partes, ...partesDosLembretes(lembrados)] } }),
+        ...comMudanca(atual, lembrados.turnos, { tipo: 'dano', texto, autor, tokenIds: [tokenId], reversao: { tipo: 'composta', partes: [...daFicha, ...rastreado.partes, ...caidos.partes, ...partesDosLembretes(lembrados)] } }),
         efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId, valor: dado, saida: 'direto' }]),
       })
       // F2 (fatia B): o dano livre também pode levar a ficha a 0 (Recuperação Espantosa avisa o mestre).
