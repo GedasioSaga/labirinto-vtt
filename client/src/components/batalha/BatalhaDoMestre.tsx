@@ -123,7 +123,10 @@ const PRAZO_DA_VARREDURA_MS = 1_000
 function ajudaNaTelaDoMestre(ajuda: AjudaPendente): AjudaNaTela[] {
   const esperando = ajuda.estado === 'esperando'
   if (!esperando && ajuda.autor.tipo !== 'mestre') return []
-  const item: AjudaNaTela = { id: ajuda.id, papel: esperando ? 'responde' : 'pede', frase: ajuda.frase, nomeDe: ajuda.nomeDe, nomePara: ajuda.nomePara, tecnica: ajuda.tecnica, estado: ajuda.estado, prazoS: null, npc: true }
+  // REQUISITOS J2: o pedido ao mestre ("Ana pede: ...") com Aprovar e Recusar e o prazo correndo (o do aliado).
+  const aoMestre = ajuda.aoMestre === true
+  const prazoS = aoMestre && ajuda.venceEm !== null ? Math.max(1, Math.round((ajuda.venceEm - ajuda.criadoEm) / 1000)) : null
+  const item: AjudaNaTela = { id: ajuda.id, papel: esperando ? 'responde' : 'pede', frase: ajuda.frase, nomeDe: ajuda.nomeDe, nomePara: ajuda.nomePara, tecnica: ajuda.tecnica, estado: ajuda.estado, prazoS, ...(aoMestre ? { aoMestre: true } : { npc: true }) }
   if (ajuda.paga !== undefined) item.paga = ajuda.paga
   if (ajuda.motivo !== undefined) item.motivo = ajuda.motivo
   return [item]

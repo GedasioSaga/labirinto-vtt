@@ -63,7 +63,8 @@ import { comMudanca, type EfeitoNovo, comEfeitos, quemNaFicha, personagemDoToken
 import { mexerNaFicha, semOsCaidos, textoDosQueSairam, tirouSp, reversaoDaFicha, mudancaValida } from './naMesa'
 import { devolverFichasDaAcao } from './desfazer'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
-import { pedirAjuda } from './ajuda'
+import { pedirAjuda, pedirAoMestre } from './ajuda'
+import type { AceitesDoPedido } from '../../lib/batalha/requisitos/ajuda'
 import { aliadosNaLuta } from '../../lib/batalha/equipes'
 import { acumuladoresDoPersonagem, acumuladorQueCarrega, comGastoNoAcumulador, comOEventoNosAcumuladores, nivelDoAcumulador } from '../../lib/batalha/acumuladorNaBatalha'
 import type { NucleoDaBatalha } from './nucleo'
@@ -318,7 +319,7 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
    * técnica de `evoluidas` e devolve o SP. O custo e o SP saem do texto do
    * NPC: a linha pode chegar a jogador da equipe dele.
    */
-  const evoluirTecnica = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao, aceite?: true): boolean => {
+  const evoluirTecnica = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao, aceite?: AceitesDoPedido): boolean => {
     const cena = cenaDe(sceneKey)
     if (cena === undefined) return false
     const { turnos } = cena
@@ -339,16 +340,22 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       personagens,
       aliados,
       autorEhMestre: autor.tipo === 'mestre',
-      // REQUISITOS E: `aceite` = o aliado aceitou o pedido de ajuda; no treino do Lobby o pedido fica "Só na mesa".
-      ...(aceite === true ? { ajudaAceita: true } : {}),
+      // REQUISITOS E e J2: `aceite` = o aliado aceitou o pedido de ajuda (ou o mestre aprovou); no treino do Lobby o pedido fica "Só na mesa".
+      ...(aceite?.ajuda === true ? { ajudaAceita: true } : {}),
+      ...(aceite?.mestre === true ? { mestreDeixou: true } : {}),
       ...(deps.treino === true ? { noTreino: true } : {}),
+      // REQUISITOS E5: a luz é medida no host, com o mapa inteiro.
+      ...(mesa.naLuz === undefined ? {} : { naLuz: (tokenId: string) => mesa.naLuz?.(sceneKey, tokenId) ?? null }),
     }
-    // REQUISITOS E (§7): só falta o aliado aceitar. Se o resto vale supondo o aceite, nasce a pendência; nada é gasto antes.
-    const antesDaAjuda = aceite === true ? null : portaoDoEvoluir(ctxDaEvolucao, pedido)
-    if (antesDaAjuda !== null && antesDaAjuda.tipo === 'perguntaAoAliado') {
-      if (motivoDoEvoluir({ ...ctxDaEvolucao, ajudaAceita: true }, pedido) !== null || personagem === null || sistema === null) return false
+    // REQUISITOS E (§7) e J2: só falta o aliado aceitar (ou o mestre aprovar). Se o resto vale supondo os dois sins, nasce a
+    // pendência; nada é gasto antes.
+    const antesDaAjuda = portaoDoEvoluir(ctxDaEvolucao, pedido)
+    if (antesDaAjuda.tipo === 'perguntaAoAliado' || antesDaAjuda.tipo === 'perguntaAoMestre') {
+      if (motivoDoEvoluir({ ...ctxDaEvolucao, ajudaAceita: true, mestreDeixou: true }, pedido) !== null || personagem === null || sistema === null) return false
       const daBase = tecnicaPorId(personagem, sistema, pedido.cartaoId)
-      return pedirAjuda(nucleo, sceneKey, cena, autor, carta, { tipo: 'evoluir', pedido }, antesDaAjuda.pergunta, `Evoluir ${daBase === null ? 'a técnica' : nomeNaBatalha(personagem, daBase.cartao, 'a técnica')}`)
+      const tecnica = `Evoluir ${daBase === null ? 'a técnica' : nomeNaBatalha(personagem, daBase.cartao, 'a técnica')}`
+      if (antesDaAjuda.tipo === 'perguntaAoMestre') return pedirAoMestre(nucleo, sceneKey, cena, autor, carta, { tipo: 'evoluir', pedido }, antesDaAjuda.pergunta, tecnica, aceite?.ajuda === true)
+      return pedirAjuda(nucleo, sceneKey, cena, autor, carta, { tipo: 'evoluir', pedido }, antesDaAjuda.pergunta, tecnica)
     }
     if (motivoDoEvoluir(ctxDaEvolucao, pedido) !== null || personagem === null || sistema === null) return false
     const doPortao = portaoDoEvoluir(ctxDaEvolucao, pedido)
@@ -381,7 +388,7 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       notaDosRequisitos = notaDaLinha(gastos.texto, notaDosRequisitos)
     }
     // REQUISITOS E (G2 aceito): a ajuda sem pagamento também fica na linha.
-    if (aceite === true && doPortao.tipo === 'passa' && pedido.ajudaDe !== undefined && !doPortao.gastos.some((gasto) => gasto.recurso === 'doAliado')) {
+    if (aceite?.ajuda === true && doPortao.tipo === 'passa' && pedido.ajudaDe !== undefined && !doPortao.gastos.some((gasto) => gasto.recurso === 'doAliado')) {
       notaDosRequisitos = notaDaLinha(notaDosRequisitos, `(com a ajuda de ${nomeDoTokenNa(turnos, personagens)(pedido.ajudaDe)})`)
     }
     const dono = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
@@ -646,6 +653,6 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     contador: (sceneKey, autor, pedido) => mexerNoContador(sceneKey, autor, pedido),
   }
   /** REQUISITOS E: o aliado aceitou; o Evoluir congelado roda o portão inteiro de novo, com o autor de quem pediu. */
-  const evoluirComAjudaAceita = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao): boolean => evoluirTecnica(sceneKey, autor, pedido, true)
+  const evoluirComAjudaAceita = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao, aceites: AceitesDoPedido): boolean => evoluirTecnica(sceneKey, autor, pedido, aceites)
   return { acoes, evoluirComAjudaAceita }
 }

@@ -390,9 +390,21 @@ export function fraseDoPedidoDeAjuda(quemPede: string, requisito: RequisitoDo<'p
       return `${quemPede} pede ${requisito.n} ${RECURSO[requisito.recurso]} para ${tecnica}`
     case 'ajudaDeAliado':
       return `${quemPede} pede ajuda (${requisito.marca}) para ${tecnica}`
-    case 'mestreDecide':
-      return requisito.texto === undefined ? `${quemPede} pede ao mestre para usar ${tecnica}` : `${quemPede} pede ao mestre para usar ${tecnica}: ${requisito.texto}`
+    case 'mestreDecide': {
+      // J2: a caixa do mestre diz o requisito como foi escrito ("Ana pede: Só se o bardo tocou").
+      const texto = requisito.texto?.trim() ?? ''
+      return texto === '' ? `${quemPede} pede ao mestre para usar ${tecnica}` : `${quemPede} pede: ${texto}`
+    }
   }
+}
+
+/** A nota do registro quando o mestre aprova o J2: "(o mestre aprovou: Só se o bardo tocou)". */
+export function fraseDoAprovado(requisitos: readonly RequisitoDo<'mestreDecide'>[]): string {
+  const textos = requisitos.flatMap((requisito) => {
+    const texto = (requisito.texto ?? '').replace(/[.!?;:,\s]+$/u, '').trim()
+    return texto === '' ? [] : [texto]
+  })
+  return textos.length === 0 ? '(o mestre aprovou)' : `(o mestre aprovou: ${textos.join('; ')})`
 }
 
 /* ------------------------------------------------------------------ o acumulador ---------- */

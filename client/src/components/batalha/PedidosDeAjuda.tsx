@@ -21,8 +21,11 @@ import './pedidosDeAjuda.css'
 const NOME_DO_RECURSO: Readonly<Record<'sp' | 'hp' | 'escudo', string>> = { sp: 'SP', hp: 'HP', escudo: 'Escudo' }
 const TIQUE_MS = 1_000
 
-/** Um pedido pronto para a tela. `npc`: o mestre responde por um NPC aliado (a frase muda). */
-export type AjudaNaTela = AjudaParaJogador & { npc?: boolean }
+/**
+ * Um pedido pronto para a tela. `npc`: o mestre responde por um NPC aliado (a frase muda). `aoMestre`: o
+ * J2 ("o mestre decide"), na tela do mestre: "Ana pede: <requisito>" com Aprovar e Recusar.
+ */
+export type AjudaNaTela = AjudaParaJogador & { npc?: boolean; aoMestre?: boolean }
 
 /** O que o pedido pede, curto: "25 SP" ou "ajuda". */
 function oQuePede(item: AjudaNaTela): string {
@@ -61,6 +64,38 @@ function CaixaDoPedido({ item, faltam, onPedir }: { item: AjudaNaTela; faltam: n
     setErro(saiu ? null : 'Não saiu: sem conexão com o mestre, ou o pedido já fechou.')
   }
   const quem = item.npc === true ? `O ${item.nomePara} paga` : 'Você paga'
+  const erroNaTela =
+    erro === null ? null : (
+      <p className="bt-lembrete__motivo" role="alert">
+        {erro}
+      </p>
+    )
+  if (item.aoMestre === true) {
+    return (
+      <li className="bt-pedido-ajuda" aria-labelledby={`${id}-tit`} data-ajuda={item.id} data-ao-mestre="">
+        <h3 className="bt-pedido-ajuda__tit" id={`${id}-tit`}>
+          {item.frase}
+        </h3>
+        <p className="bt-pedido-ajuda__txt">
+          Para usar <b>{item.tecnica}</b>. Nada é gasto até você aprovar.
+        </p>
+        {faltam !== undefined && (
+          <span className="bt-pedido-ajuda__prazo" aria-live="off">
+            Faltam {faltam} s
+          </span>
+        )}
+        <div className="bt-pedido-ajuda__acoes" role="group" aria-labelledby={`${id}-tit`}>
+          <button type="button" className="bt-botao bt-botao--passiva" disabled={esperando} onClick={() => responder(true)}>
+            Aprovar
+          </button>
+          <button type="button" className="bt-botao" disabled={esperando} onClick={() => responder(false)}>
+            Recusar
+          </button>
+        </div>
+        {erroNaTela}
+      </li>
+    )
+  }
   return (
     <li className="bt-pedido-ajuda" aria-labelledby={`${id}-tit`} data-ajuda={item.id}>
       <h3 className="bt-pedido-ajuda__tit" id={`${id}-tit`}>
@@ -92,11 +127,7 @@ function CaixaDoPedido({ item, faltam, onPedir }: { item: AjudaNaTela; faltam: n
           Recusar
         </button>
       </div>
-      {erro !== null && (
-        <p className="bt-lembrete__motivo" role="alert">
-          {erro}
-        </p>
-      )}
+      {erroNaTela}
     </li>
   )
 }

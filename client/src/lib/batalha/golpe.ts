@@ -209,6 +209,13 @@ export interface ContextoDoGolpe {
    * congelado no aceite (`stores/batalha/ajuda.ts`); nunca vem do fio.
    */
   ajudaAceita?: boolean
+  /**
+   * REQUISITOS J2: o mestre aprovou o "o mestre decide" do pedido. Só a store põe, ao rodar o pedido
+   * congelado na aprovação (`stores/batalha/ajuda.ts`); nunca vem do fio.
+   */
+  mestreDeixou?: boolean
+  /** REQUISITOS E5: a ficha está na luz (o host mede no mapa, `MesaDaBatalha.naLuz`). Ausente = não sei. */
+  naLuz?: (tokenId: string) => boolean | null
   /** REQUISITOS E: o treino do Lobby (sem mestre nem relógio): o que espera alguém fica "Só na mesa". */
   noTreino?: boolean
 }
@@ -452,6 +459,7 @@ export function contextoDosRequisitosDoGolpe(ctx: ContextoDoGolpe, alvos: readon
     ...(custoEmSp === undefined ? {} : { custoEmSp }),
     autorEhMestre: ctx.autor.tipo === 'mestre',
     ...(ctx.noTreino === true ? { noTreino: true } : {}),
+    ...(ctx.naLuz === undefined ? {} : { naLuz: ctx.naLuz }),
   })
 }
 
@@ -474,7 +482,8 @@ export function portaoDoPedido(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): Resu
     const testes = ctx.testesDosRequisitos
     const ajudaDe = 'ajudaDe' in pedido ? pedido.ajudaDe : undefined
     const ajuda = ajudaDe === undefined ? {} : { ajudaDe, ...(ctx.ajudaAceita === true ? { ajudaAceita: true } : {}) }
-    return portaoDosRequisitos(requisitos, 'usar', retrato, { ...(respostas === undefined ? {} : { respostas }), forcar, ...(testes === undefined ? {} : { testes }), ...ajuda }, autorEhMestre)
+    const doMestre = ctx.mestreDeixou === true ? { mestreDeixou: true } : {}
+    return portaoDosRequisitos(requisitos, 'usar', retrato, { ...(respostas === undefined ? {} : { respostas }), forcar, ...(testes === undefined ? {} : { testes }), ...ajuda, ...doMestre }, autorEhMestre)
   }
   switch (pedido.tipo) {
     case 'habilidade': {

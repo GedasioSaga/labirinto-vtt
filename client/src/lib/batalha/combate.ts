@@ -390,6 +390,10 @@ export interface AjudaPendente extends PedidoDeAjuda<AcaoDaAjuda> {
   tecnica: string
   /** G1 que gasta: o que o aliado paga (sai dele, não entra em quem pede). Ausente = só ajuda (G2). */
   paga?: { recurso: 'sp' | 'hp' | 'escudo'; n: number }
+  /** J2 ("o mestre decide"): o pedido é ao mestre, que aprova ou recusa (com o prazo do aliado). */
+  aoMestre?: true
+  /** J2 depois do G1/G2: o aliado já aceitou; a aprovação roda o pedido com os dois aceites. */
+  jaAceita?: true
   estado: 'esperando' | 'recusado' | 'venceu' | 'cancelado' | 'naoPassou'
   /** Com `estado` diferente de `esperando`: o porquê curto ("Aira recusou", "a vez passou"). */
   motivo?: string

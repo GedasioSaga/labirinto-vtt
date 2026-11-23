@@ -43,6 +43,53 @@ export interface EntradaDaAjuda {
   agora: number
 }
 
+/** J2: a pergunta do portão que vira pedido ao mestre ("o mestre decide"). */
+export type PerguntaAoMestre = Extract<PerguntaDosRequisitos, { tipo: 'mestre' }>
+
+/** O que já disseram ao pedido congelado quando ele roda de novo: o aliado aceitou (G1, G2), o mestre aprovou (J2). */
+export interface AceitesDoPedido {
+  ajuda?: true
+  mestre?: true
+}
+
+export interface EntradaDoPedidoAoMestre extends Omit<EntradaDaAjuda, 'paraTokenId' | 'paraPersonagemId' | 'nomePara' | 'responde' | 'pergunta'> {
+  pergunta: PerguntaAoMestre
+  /** O aliado já aceitou antes (G1/G2 e J2 no mesmo cartão). */
+  jaAceita: boolean
+}
+
+/** O nome do mestre nas duas telas ("Esperando o mestre responder"). */
+export const NOME_DO_MESTRE_NA_AJUDA = 'o mestre'
+
+/**
+ * J2: o pedido ao mestre, na mesma lista e nas mesmas regras do pedido ao aliado (uma pendência por ficha,
+ * a vez que passa cancela, nada é gasto antes). Só o mestre responde (`paraPersonagemId` `null`), com o
+ * prazo do aliado (`PRAZO_DA_AJUDA_MS`): o jogador não fica preso esperando.
+ */
+export function novoPedidoAoMestre(entrada: EntradaDoPedidoAoMestre): AjudaPendente {
+  const ajuda: AjudaPendente = {
+    id: entrada.id,
+    acao: entrada.acao,
+    autor: entrada.autor,
+    deTokenId: entrada.deTokenId,
+    dePersonagemId: entrada.dePersonagemId,
+    paraTokenId: null,
+    paraPersonagemId: null,
+    requisitoId: entrada.pergunta.requisitoId,
+    frase: fraseDoPedidoDeAjuda(entrada.nomeDe, entrada.pergunta.requisito, entrada.tecnica),
+    criadoEm: entrada.agora,
+    venceEm: entrada.agora + PRAZO_DA_AJUDA_MS,
+    vez: { cartaId: entrada.turnos.vez, rodada: entrada.turnos.rodada },
+    nomeDe: entrada.nomeDe,
+    nomePara: NOME_DO_MESTRE_NA_AJUDA,
+    tecnica: entrada.tecnica,
+    aoMestre: true,
+    estado: 'esperando',
+  }
+  if (entrada.jaAceita) ajuda.jaAceita = true
+  return ajuda
+}
+
 /** A pendência nova. */
 export function novaAjuda(entrada: EntradaDaAjuda): AjudaPendente {
   const { requisito } = entrada.pergunta
@@ -111,7 +158,7 @@ export function comOPrazo(turnos: TurnosDaCena, agora: number): TurnosDaCena {
   const ficam: AjudaPendente[] = []
   for (const ajuda of lista) {
     if (ajuda.estado === 'esperando' && ajuda.venceEm !== null && agora >= ajuda.venceEm) {
-      ficam.push({ ...ajuda, estado: 'venceu', motivo: `${ajuda.nomePara} não respondeu a tempo: o pedido venceu`, fechadoEm: agora })
+      ficam.push({ ...ajuda, estado: 'venceu', motivo: `${ajuda.aoMestre === true ? 'O mestre' : ajuda.nomePara} não respondeu a tempo: o pedido venceu`, fechadoEm: agora })
       mudou = true
     } else if (ajuda.estado !== 'esperando' && (ajuda.fechadoEm ?? 0) + AVISO_DA_AJUDA_MS <= agora) {
       mudou = true

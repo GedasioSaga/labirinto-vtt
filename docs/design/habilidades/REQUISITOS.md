@@ -142,6 +142,13 @@ agiu (D6, pela ordem), aliados de pé (G4), munição (`municaoDaFicha.ts`, F3) 
 ou saem de conta. Toda linha que muda o rastro guarda o antes e o depois, e `combateSemALinha` (`registro.ts:631`)
 passa a desfazer cada campo do rastro; a linha de dano desfaz o `jaCairam` e o `danoDesdeAVez` do alvo.
 
+**Luz (E5), como ficou (23/11, decisão do Claude):** o host mede com o mapa inteiro (`lib/luzNaFicha.ts`, pela
+`MesaDaBatalha.naLuz`) e passa só o sim ou não ao portão; `lib/batalha` não lê o mapa. A casa só é escura se a cena
+pede escuro: "Cena escura" (`map.dark`), o período Noite da cena (externa à noite ou período fixo) ou o centro da ficha
+dentro de sala escura. **Mapa sem nada disso = na luz.** A Tarde não escurece. No escuro, está na luz quem fica no raio
+de uma luz acesa (Luz acesa no período, objeto ou carimbo que ilumina, item aceso) sem parede da visão no meio. O menu
+do jogador não mede (fica "o mestre confere"); o host decide.
+
 ## 6. Host: conferir, gastar e o mestre forçar
 
 - **Um portão para cinco caminhos**: `motivoDosRequisitos(cartao, ctx, pedido)` chamado em `motivoDaTecnica` (técnica e
@@ -177,6 +184,12 @@ Tudo aditivo em `net/protocoloDaBatalha.ts` e `net/batalhaNoHost.ts`:
    janela das miras, `batalhaNoHost.ts:207`) e passar a vez cancela. Resposta depois do prazo = "o pedido venceu". O
    primeiro evento que chega ao host vence.
 6. **Salvar**: a pendência não entra na batalha salva; ao reabrir, cai com aviso.
+6b. **J2, como ficou (23/11)**: o portão dá `perguntaAoMestre` e a store cria a pendência na mesma lista
+   (`aoMestre`, `paraPersonagemId` `null`): o mestre vê "Ana pede: <texto do requisito>" com Aprovar e Recusar, prazo
+   de 60 s como o do aliado (o jogador não fica preso), passar a vez cancela, nada é gasto antes. Aprovar roda o pedido
+   congelado com `mestreDeixou` e a linha leva "(o mestre aprovou: <texto>)"; o Desfazer dela volta tudo. Com G1/G2 no
+   mesmo cartão, o aliado responde primeiro e o pedido ao mestre nasce depois (`jaAceita`). Fora: ligar a forma e a
+   reação seguem sem J2 (cinza "Espera o mestre decidir" / "Não dá na reação").
 7. **Treino do Lobby (Worker)**: sem mestre e sem relógio de servidor neste lote: G1, G2 e J2 ficam cinza "Só na mesa";
    a caixa J1 vale; forçar não existe.
 

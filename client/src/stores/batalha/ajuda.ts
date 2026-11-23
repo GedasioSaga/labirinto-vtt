@@ -6,10 +6,10 @@
  * inteiro de novo, com o autor de quem pediu, e sai uma linha só (o Desfazer dela volta os dois). Quem
  * pode responder ou cancelar pela rede o host confere (`net/batalhaNoHost.ts`).
  */
-import type { AcaoDaAjuda, PedidoDeAcao } from '../../lib/batalha/combate'
+import type { AcaoDaAjuda, AjudaPendente, PedidoDeAcao } from '../../lib/batalha/combate'
 import type { ContextoDoGolpe } from '../../lib/batalha/golpe'
 import { tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
-import { ajudaAberta, comAAjuda, comOPrazo, esperandoAjuda, fecharAAjuda, novaAjuda, semAAjuda, type PerguntaDaAjuda } from '../../lib/batalha/requisitos/ajuda'
+import { ajudaAberta, comAAjuda, comOPrazo, esperandoAjuda, fecharAAjuda, novaAjuda, novoPedidoAoMestre, semAAjuda, type AceitesDoPedido, type PerguntaAoMestre, type PerguntaDaAjuda } from '../../lib/batalha/requisitos/ajuda'
 import { PREFIXO_DA_AJUDA, type CancelamentoDaAjuda, type RespostaDaAjuda } from '../../lib/batalha/requisitos/modelo'
 import type { AutorDaAcao, CartaDaOrdem, TurnosDaCena } from '../../lib/batalha/turnos'
 import { nomeNaBatalha } from '../../lib/habilidadeOculta'
@@ -70,8 +70,29 @@ export function pedirAjuda(nucleo: Pick<NucleoDaBatalha, 'deps' | 'mesaDoRpg' | 
   return true
 }
 
+/**
+ * REQUISITOS J2: o pedido ao mestre nasce (o portão já disse que o resto do pedido vale supondo a
+ * aprovação). Mesma lista e mesmas regras da ajuda; `jaAceita` = o aliado aceitou antes (G1/G2 + J2).
+ * `false` = a ficha já espera outra resposta.
+ */
+export function pedirAoMestre(nucleo: Pick<NucleoDaBatalha, 'deps' | 'mesaDoRpg' | 'gravarCena'>, sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, acao: AcaoDaAjuda, pergunta: PerguntaAoMestre, tecnica: string, jaAceita: boolean): boolean {
+  if (carta.personagemId === null) return false
+  const { turnos } = cena
+  if (esperandoAjuda(turnos, carta.tokenId) !== null) return false
+  const nomeDe = nomeDoTokenNa(turnos, nucleo.mesaDoRpg().personagens)
+  const ajuda = novoPedidoAoMestre({ id: `${PREFIXO_DA_AJUDA}${crypto.randomUUID()}`, acao, autor, deTokenId: carta.tokenId, dePersonagemId: carta.personagemId, nomeDe: nomeDe(carta.tokenId), pergunta, tecnica, turnos, agora: agoraDa(nucleo), jaAceita })
+  nucleo.gravarCena(sceneKey, { ...cena, turnos: comAAjuda(turnos, ajuda), turnosRev: cena.turnosRev + 1 })
+  return true
+}
+
+/** O que o pedido congelado leva ao rodar de novo: o aceite do aliado ou a aprovação do mestre (com o aceite de antes). */
+function aceitesDa(ajuda: AjudaPendente): AceitesDoPedido {
+  if (ajuda.aoMestre !== true) return { ajuda: true }
+  return ajuda.jaAceita === true ? { ajuda: true, mestre: true } : { mestre: true }
+}
+
 /** A fatia da ajuda: responder, cancelar e o prazo. */
-export function criarAjuda(nucleo: NucleoDaBatalha, fatiaDoGolpe: Pick<GolpeNaStore, 'agirComAjudaAceita'>, fatiaDasPassivas: { evoluirComAjudaAceita: (sceneKey: string, autor: AutorDaAcao, pedido: Extract<AcaoDaAjuda, { tipo: 'evoluir' }>['pedido']) => boolean }) {
+export function criarAjuda(nucleo: NucleoDaBatalha, fatiaDoGolpe: Pick<GolpeNaStore, 'agirComAjudaAceita'>, fatiaDasPassivas: { evoluirComAjudaAceita: (sceneKey: string, autor: AutorDaAcao, pedido: Extract<AcaoDaAjuda, { tipo: 'evoluir' }>['pedido'], aceites: AceitesDoPedido) => boolean }) {
   const { cenaDe, gravarCena } = nucleo
 
   /** Os turnos novos sem linha no registro: o `turnosRev` sobe para os jogadores verem. */
@@ -94,17 +115,20 @@ export function criarAjuda(nucleo: NucleoDaBatalha, fatiaDoGolpe: Pick<GolpeNaSt
       return false
     }
     if (!pedido.aceita) {
-      const quem = autor.tipo === 'mestre' ? `O mestre recusou por ${ajuda.nomePara}` : `${ajuda.nomePara} recusou`
+      const quem = ajuda.aoMestre === true ? 'O mestre recusou' : autor.tipo === 'mestre' ? `O mestre recusou por ${ajuda.nomePara}` : `${ajuda.nomePara} recusou`
       return gravarTurnos(sceneKey, cena, fecharAAjuda(cena.turnos, ajuda.id, 'recusado', quem, agora))
     }
-    // O aceite: a pendência sai e o pedido congelado roda o portão inteiro de novo (o estado pode ter mudado), com o autor de quem pediu.
+    // O aceite (ou a aprovação do mestre, J2): a pendência sai e o pedido congelado roda o portão inteiro de novo (o estado pode ter
+    // mudado), com o autor de quem pediu.
     gravarCena(sceneKey, { ...cena, turnos: semAAjuda(cena.turnos, ajuda.id) })
     const { acao } = ajuda
-    const saiu = acao.tipo === 'agir' ? fatiaDoGolpe.agirComAjudaAceita(sceneKey, ajuda.autor, acao.vez, acao.pedido) : fatiaDasPassivas.evoluirComAjudaAceita(sceneKey, ajuda.autor, acao.pedido)
+    const aceites = aceitesDa(ajuda)
+    const saiu = acao.tipo === 'agir' ? fatiaDoGolpe.agirComAjudaAceita(sceneKey, ajuda.autor, acao.vez, acao.pedido, aceites) : fatiaDasPassivas.evoluirComAjudaAceita(sceneKey, ajuda.autor, acao.pedido, aceites)
     if (saiu) return true
     // Não passou mais: a pendência volta como aviso para quem pediu; o aliado vê a recusa do pedido dele.
     const depois = cenaDe(sceneKey) ?? cena
-    gravarTurnos(sceneKey, depois, comAAjuda(depois.turnos, { ...ajuda, estado: 'naoPassou', motivo: `${ajuda.nomePara} aceitou, mas ${ajuda.nomeDe} já não pode usar ${ajuda.tecnica}`, fechadoEm: agora }))
+    const quemAceitou = ajuda.aoMestre === true ? 'O mestre aprovou' : `${ajuda.nomePara} aceitou`
+    gravarTurnos(sceneKey, depois, comAAjuda(depois.turnos, { ...ajuda, estado: 'naoPassou', motivo: `${quemAceitou}, mas ${ajuda.nomeDe} já não pode usar ${ajuda.tecnica}`, fechadoEm: agora }))
     return false
   }
 

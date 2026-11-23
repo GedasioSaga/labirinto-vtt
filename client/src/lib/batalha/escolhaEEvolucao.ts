@@ -406,6 +406,10 @@ export interface ContextoDaEvolucao {
   autorEhMestre?: boolean
   /** REQUISITOS E: o aliado do `ajudaDe` aceitou (só a store põe, no aceite). */
   ajudaAceita?: boolean
+  /** REQUISITOS J2: o mestre aprovou o "o mestre decide" (só a store põe, na aprovação). */
+  mestreDeixou?: boolean
+  /** REQUISITOS E5: a ficha está na luz (o host mede no mapa). Ausente = não sei. */
+  naLuz?: (tokenId: string) => boolean | null
   /** REQUISITOS E: o treino do Lobby: o que espera alguém fica "Só na mesa". */
   noTreino?: boolean
 }
@@ -434,9 +438,10 @@ export function portaoDoEvoluir(ctx: ContextoDaEvolucao, pedido: PedidoDeEvoluca
     custoEmSp: custo.tipo === 'valor' && custo.recurso === 'sp' ? custo.valor : 0,
     autorEhMestre: ctx.autorEhMestre === true,
     ...(ctx.noTreino === true ? { noTreino: true } : {}),
+    ...(ctx.naLuz === undefined ? {} : { naLuz: ctx.naLuz }),
   })
   const ajuda = pedido.ajudaDe === undefined ? {} : { ajudaDe: pedido.ajudaDe, ...(ctx.ajudaAceita === true ? { ajudaAceita: true } : {}) }
-  const pedidoNoPortao = { ...(pedido.respostas === undefined ? {} : { respostas: pedido.respostas }), forcar: pedido.forcarRequisitos === true, ...ajuda }
+  const pedidoNoPortao = { ...(pedido.respostas === undefined ? {} : { respostas: pedido.respostas }), forcar: pedido.forcarRequisitos === true, ...ajuda, ...(ctx.mestreDeixou === true ? { mestreDeixou: true } : {}) }
   return portaoDosRequisitos(achada.cartao.requisitos, 'evoluir', retrato, pedidoNoPortao, ctx.autorEhMestre === true)
 }
 
