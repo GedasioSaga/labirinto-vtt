@@ -1,8 +1,8 @@
-import { ATRIBUTOS_DA_REACAO_MAX, CD_MAX, LIMITE_MAX, type ReacaoDaMecanica } from '../../../lib/batalha/mecanica/modelo'
-import { fraseDoLimite, frasesDaReacao, type FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
+import { ATRIBUTOS_DA_REACAO_MAX, CD_MAX, type ReacaoDaMecanica } from '../../../lib/batalha/mecanica/modelo'
+import { frasesDaReacao, type FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import { Bloco, CampoInteiro, Escolha, Marcar, type BlocosProps, type Opcao } from './controles'
 
-/** Os blocos 8 e 9 da mecânica: a reação (quando a técnica vai no lugar dela) e os limites. */
+/** O bloco da reação (quando a técnica vai no lugar dela), que a linha Acerto do editor mostra como "Defesa". */
 
 type TipoDaDefesa = ReacaoDaMecanica['defesa']['tipo']
 
@@ -133,42 +133,3 @@ export function BlocoDaReacao({ mecanica, ficha, onChange }: Pick<BlocosProps, '
   )
 }
 
-type TipoDeLimite = 'livre' | 'recarga' | 'usos'
-
-export function BlocoDosLimites({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
-  const { limite } = mecanica
-  const tipo: TipoDeLimite = limite.recarga !== undefined ? 'recarga' : limite.usosPorBatalha !== undefined ? 'usos' : 'livre'
-  const comOverload = limite.overload === true ? { overload: true as const } : {}
-  return (
-    <Bloco numero={9} titulo="Limites" frase={fraseDoLimite(mecanica) ?? 'Sem limite: usa sempre que tiver o custo.'} abertoAoMontar={tipo !== 'livre' || limite.overload === true}>
-      <Escolha
-        legenda="Quantas vezes"
-        opcoes={[
-          { valor: 'livre', rotulo: 'Sem limite' },
-          { valor: 'recarga', rotulo: 'Recarga' },
-          { valor: 'usos', rotulo: 'Usos por batalha' },
-        ]}
-        valor={tipo}
-        onChange={(novo) => onChange({ ...mecanica, limite: { ...comOverload, ...(novo === 'recarga' ? { recarga: 2 } : novo === 'usos' ? { usosPorBatalha: 3 } : {}) } })}
-      />
-      {limite.recarga !== undefined && (
-        <div className="lb-mec__linha lb-mec__linha--recuo">
-          <CampoInteiro rotulo="Espera" valor={limite.recarga} minimo={1} maximo={LIMITE_MAX} depois={limite.recarga === 1 ? 'vez para usar de novo' : 'vezes para usar de novo'} onChange={(recarga) => onChange({ ...mecanica, limite: { ...comOverload, recarga } })} />
-        </div>
-      )}
-      {limite.usosPorBatalha !== undefined && (
-        <div className="lb-mec__linha lb-mec__linha--recuo">
-          <CampoInteiro rotulo="Até" valor={limite.usosPorBatalha} minimo={1} maximo={LIMITE_MAX} depois="usos por batalha" onChange={(usosPorBatalha) => onChange({ ...mecanica, limite: { ...comOverload, usosPorBatalha } })} />
-        </div>
-      )}
-      <Marcar
-        rotulo="Overload (1 por batalha, gasta a Ação Completa; só outra Overload defende)"
-        marcado={limite.overload === true}
-        onChange={(sim) => {
-          const { overload: _antes, ...semOverload } = limite
-          onChange({ ...mecanica, limite: sim ? { ...semOverload, overload: true } : semOverload })
-        }}
-      />
-    </Bloco>
-  )
-}

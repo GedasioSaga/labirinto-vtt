@@ -1,10 +1,9 @@
 import { CUSTO_MAX, NOME_DO_SELO_MAX } from '../../../lib/batalha/combate'
-import { FORMULA_MAX, ITENS_POR_USO_MAX, type AcaoDaMecanica, type Custo, type CustoEmItem, type UsoDaMecanica } from '../../../lib/batalha/mecanica/modelo'
-import { trocarUso } from '../../../lib/batalha/mecanica/modelos'
+import { FORMULA_MAX, ITENS_POR_USO_MAX, type AcaoDaMecanica, type Custo, type CustoEmItem } from '../../../lib/batalha/mecanica/modelo'
 import { fraseDoCusto, frasesDosOutrosCustos } from '../../../lib/batalha/mecanica/resumo'
 import { Bloco, CampoInteiro, Escolha, Marcar, Texto, type BlocosProps, type Opcao } from './controles'
 
-/** Os blocos 1 a 3 da mecânica: quando usa, quanto custa (com o item da mochila, fase 5) e que ação gasta. */
+/** O bloco do custo (com o item da mochila, fase 5) e as ações que a linha Ação do editor oferece. */
 
 const RECURSOS: readonly Opcao<'sp' | 'hp'>[] = [
   { valor: 'sp', rotulo: 'SP' },
@@ -116,33 +115,3 @@ export const ACOES: readonly Opcao<AcaoDaMecanica>[] = [
   { valor: 'perguntar', rotulo: 'Perguntar na hora' },
 ]
 
-export function BlocoDaAcao({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
-  const frase = mecanica.acao === 'perguntar' ? 'Quem usa escolhe na hora.' : `Gasta ${ACOES.find((acao) => acao.valor === mecanica.acao)?.rotulo ?? ''}.`
-  return (
-    <Bloco numero={3} titulo="Que ação gasta" frase={frase} abertoAoMontar>
-      <Escolha legenda="A ação" opcoes={ACOES} valor={mecanica.acao} onChange={(acao) => onChange({ ...mecanica, acao })} />
-    </Bloco>
-  )
-}
-
-const USOS: readonly Opcao<UsoDaMecanica>[] = [
-  { valor: 'ativa', rotulo: 'Na vez' },
-  { valor: 'reacao', rotulo: 'No lugar da reação' },
-  { valor: 'ativaOuReacao', rotulo: 'Os dois' },
-]
-
-const FRASE_DO_USO: Record<UsoDaMecanica, string> = {
-  ativa: 'Na vez, como qualquer técnica.',
-  reacao: 'No lugar da reação, antes do d20.',
-  ativaOuReacao: 'Na vez ou no lugar da reação.',
-}
-
-export function BlocoDoUso({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
-  const uso = mecanica.uso ?? 'ativa'
-  return (
-    <Bloco numero={1} titulo="Quando usa" frase={FRASE_DO_USO[uso]} abertoAoMontar={uso !== 'ativa'}>
-      <Escolha legenda="Quando usa" opcoes={USOS} valor={uso} onChange={(novo) => onChange(trocarUso(mecanica, novo))} />
-      <p className="lb-field__hint">No lugar da reação: aparece na caixa REAÇÃO de quem leva o golpe, antes de rolar o d20. Uma por golpe; não gasta a ação da vez.</p>
-    </Bloco>
-  )
-}

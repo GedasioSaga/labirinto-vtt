@@ -4,7 +4,7 @@ import { CampoInteiro, Escolha } from '../../blocos/controles'
 
 type QuandoVolta = 'livre' | 'recarga' | 'usos'
 
-/** Os números de partida de hoje (`BlocoDosLimites`). */
+/** Os números de partida do bloco Limites de antes (saiu na ED7; estes ficaram). */
 const RECARGA_DE_PARTIDA = 2
 const USOS_DE_PARTIDA = 3
 

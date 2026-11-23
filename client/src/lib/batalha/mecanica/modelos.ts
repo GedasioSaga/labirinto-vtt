@@ -518,21 +518,6 @@ export function mesmaMecanica(a: MecanicaGuardada | undefined, b: MecanicaGuarda
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
-export interface TecnicaParaCopiar {
-  id: string
-  nome: string
-  mecanica: MecanicaV1
-}
-
-/** As técnicas montadas (peças válidas) da lista, menos a que está sendo editada. */
-export function tecnicasParaCopiar(cartoes: readonly CartaoDaFicha[], excetoId: string): TecnicaParaCopiar[] {
-  return cartoes.flatMap((cartao) => {
-    if (cartao.id === excetoId || cartao.mecanica === undefined) return []
-    const lida = lerMecanica(cartao.mecanica)
-    return lida.tipo === 'pecas' ? [{ id: cartao.id, nome: cartao.nome, mecanica: lida.mecanica }] : []
-  })
-}
-
 // ─── As regras que a tela segue ao trocar uma peça ──────────────────────────
 
 /** Ajuda: o golpe pega em quem usa ou num aliado (cura e tirar selos só valem aí). */

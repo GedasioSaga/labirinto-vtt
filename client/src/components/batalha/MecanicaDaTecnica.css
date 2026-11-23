@@ -117,136 +117,13 @@
 
 /* ─── A proposta do dono ─────────────────────────────────────────────────── */
 
-.lb-mec__proposta {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-2);
-  padding: var(--lb-space-2) var(--lb-space-3);
-  border: 1px solid var(--lb-color-line);
-  border-left: 3px solid var(--lb-color-brass);
-  border-radius: var(--lb-radius-sm);
-  background: var(--lb-color-brass-soft);
-}
-
-.lb-mec__proposta-texto {
-  margin: 0;
-  font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment);
-}
-
 /* ─── O começo: modelos prontos e "copiar de" ────────────────────────────── */
-
-.lb-mec__comeco {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-2);
-}
-
-.lb-mec__comeco-titulo {
-  margin: 0;
-  font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment-dim);
-}
-
-.lb-mec__modelos {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--lb-space-2);
-}
-
-.lb-mec__modelo {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  min-height: 44px;
-  padding: var(--lb-space-2) var(--lb-space-3);
-  border: 1px solid var(--lb-color-line-strong);
-  border-radius: var(--lb-radius-md);
-  background: var(--lb-color-stone-raised);
-  font-family: inherit;
-  text-align: left;
-  color: var(--lb-color-parchment);
-  cursor: pointer;
-  transition:
-    border-color var(--lb-motion-fast) var(--lb-motion-ease),
-    background var(--lb-motion-fast) var(--lb-motion-ease),
-    transform var(--lb-motion-fast) var(--lb-motion-ease);
-}
-
-.lb-mec__modelo:active {
-  transform: scale(0.97);
-}
-
-.lb-mec__modelo:focus-visible {
-  outline: 2px solid var(--lb-color-brass);
-  outline-offset: 2px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .lb-mec__modelo:hover {
-    border-color: var(--lb-color-brass);
-    background: var(--lb-color-stone-hover);
-  }
-}
-
-.lb-mec__modelo-nome {
-  font-size: var(--lb-font-size-md);
-  font-weight: var(--lb-font-weight-semibold);
-}
-
-.lb-mec__modelo-dica {
-  font-size: var(--lb-font-size-sm);
-  line-height: var(--lb-font-leading-tight);
-  color: var(--lb-color-parchment-dim);
-}
-
-.lb-mec__copiar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--lb-control-gap);
-}
-
-.lb-mec__copiar .lb-input {
-  width: auto;
-  min-width: 200px;
-}
 
 /* ─── Fase 5: os 3 degraus (SISTEMA.md §8) ───────────────────────────────── */
 
 /* Degrau 1: os modelos em grupos (Ataque, Cura e apoio, Condição, Reação). */
-.lb-mec__grupo {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-1);
-}
-
-.lb-mec__grupo-titulo {
-  margin: 0;
-  font-size: var(--lb-font-size-xs);
-  letter-spacing: var(--lb-font-tracking-wide);
-  text-transform: uppercase;
-  color: var(--lb-color-parchment-faint);
-}
 
 /* Degrau 2: os números no meio da frase. */
-.lb-mec__numeros {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-2);
-  padding: var(--lb-space-3);
-  border: 1px solid var(--lb-color-line);
-  border-radius: var(--lb-radius-md);
-}
-
-.lb-mec__numeros .lb-mec__comeco-titulo {
-  font-size: var(--lb-font-size-xs);
-  font-weight: inherit;
-  letter-spacing: var(--lb-font-tracking-wide);
-  text-transform: uppercase;
-  color: var(--lb-color-parchment-faint);
-}
 
 .lb-mec__frase {
   margin: 0;
@@ -270,75 +147,10 @@
 }
 
 /* Degrau 3: os blocos, dobrados; quem não abre, não vê. */
-.lb-mec__avancado {
-  border-top: 1px solid var(--lb-color-line);
-  padding-top: var(--lb-space-2);
-}
-
-.lb-mec__avancado-cab {
-  display: flex;
-  align-items: center;
-  gap: var(--lb-space-2);
-  width: fit-content;
-  min-height: 32px;
-  padding: 0 var(--lb-space-2);
-  border-radius: var(--lb-radius-md);
-  font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment-dim);
-  list-style: none;
-  cursor: pointer;
-}
-
-.lb-mec__avancado-cab::-webkit-details-marker {
-  display: none;
-}
 
 /* A mesma seta dos blocos, à esquerda: fechada aponta para a direita. */
-.lb-mec__avancado-cab::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-right: 1.5px solid var(--lb-color-parchment-faint);
-  border-bottom: 1.5px solid var(--lb-color-parchment-faint);
-  transform: rotate(-45deg);
-  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
-}
-
-.lb-mec__avancado[open] > .lb-mec__avancado-cab::before {
-  transform: rotate(45deg);
-}
-
-.lb-mec__avancado[open] > .lb-mec__avancado-cab {
-  margin-bottom: var(--lb-space-2);
-}
-
-.lb-mec__avancado-cab:focus-visible {
-  outline: 2px solid var(--lb-color-brass);
-  outline-offset: 2px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .lb-mec__avancado-cab:hover {
-    color: var(--lb-color-parchment);
-    background: var(--lb-color-stone-hover);
-  }
-}
 
 /* ─── O editor e os 7 blocos ─────────────────────────────────────────────── */
-
-.lb-mec__editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-3);
-}
-
-.lb-mec__blocos {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--lb-color-line);
-  border-radius: var(--lb-radius-md);
-  overflow: hidden;
-}
 
 .lb-mec__bloco + .lb-mec__bloco {
   border-top: 1px solid var(--lb-color-line);
@@ -640,13 +452,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lb-mec__modelo:active,
   .lb-mec__opcao:active:not([data-bloqueada]) {
     transform: none;
   }
 
-  .lb-mec__bloco-cab::after,
-  .lb-mec__avancado-cab::before {
+  .lb-mec__bloco-cab::after {
     transition: none;
   }
 }
