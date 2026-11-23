@@ -5,7 +5,7 @@ import { ajustesDoRecursoDaCura, curaPelaParteDoMaximo, notaDoRecursoDaCura, qua
 import { lerDano } from '../batalha/formula'
 import { textoDaSobra, sobraDoUso, vagaParaUsar, type VagaComEfeito } from '../batalha/itemNaBatalha'
 import type { Efeito, MecanicaV2, NumeroSimples } from '../batalha/mecanica/modelo'
-import { lerMecanica } from '../batalha/mecanica/modelo'
+import { lerMecanicaParaOMotor } from '../batalha/mecanica/golpe'
 import { ajustesDaCura, curaQueCabe, notaDaCura } from '../batalha/reacao'
 import { bonusDaBatalha } from '../batalha/selos'
 import { chaveDaCondicao } from '../condicaoPorNome'
@@ -81,8 +81,9 @@ export function soEmQuemUsa(vaga: CarriedItem): boolean {
   return mecanica?.alvo.quem === 'si'
 }
 
+/** As peças que o uso executa (fase ED1: com o tipo do golpe já montado, como no motor da batalha). */
 function mecanicaDa(vaga: VagaComEfeito): MecanicaV2 | null {
-  const lida = lerMecanica(vaga.efeito.mecanica)
+  const lida = lerMecanicaParaOMotor(vaga.efeito.mecanica)
   return lida.tipo === 'pecas' ? lida.mecanica : null
 }
 

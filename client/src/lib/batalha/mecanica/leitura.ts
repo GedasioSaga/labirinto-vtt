@@ -5,7 +5,8 @@ import type { FormaDaArea } from '../area'
 import type { LeituraDaAcao, LeituraDoCusto, LeituraDoTempo } from '../leituraDaFicha'
 import type { LimpezaAMao, MecanicaAMao, ReacaoAMao, SaidaDaReacaoAMao } from '../mecanicasAMao'
 import type { ReacaoDoTipo } from '../tiposDaHabilidade'
-import { avisoDaMecanica, centroDaArea, lerMecanica, testeRolado, VIDA_DO_PORCENTO, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type Porcento, type ReacaoDaMecanica } from './modelo'
+import { lerMecanicaParaOMotor } from './golpe'
+import { avisoDaMecanica, centroDaArea, testeRolado, VIDA_DO_PORCENTO, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type Porcento, type ReacaoDaMecanica } from './modelo'
 import { disputaDoTeste } from './teste'
 
 /**
@@ -26,13 +27,16 @@ import { disputaDoTeste } from './teste'
 /** A leitura de cada objeto de mecânica, uma vez só (o cartão é imutável: editar troca o objeto). */
 const lidas = new WeakMap<object, MecanicaLida>()
 
-/** As peças do cartão, lidas e conferidas (`lerMecanica`). */
+/**
+ * As peças do cartão para o MOTOR, lidas e conferidas: com o tipo do golpe já montado em peças
+ * (`lerMecanicaParaOMotor`, fase ED1). Quem edita e grava lê a escolha por `lerMecanica`.
+ */
 export function mecanicaLidaDoCartao(cartao: Pick<CartaoDaFicha, 'mecanica'>): MecanicaLida {
   const guardada = cartao.mecanica
   if (guardada === undefined) return { tipo: 'nenhuma' }
   const memoria = lidas.get(guardada)
   if (memoria !== undefined) return memoria
-  const lida = lerMecanica(guardada)
+  const lida = lerMecanicaParaOMotor(guardada)
   lidas.set(guardada, lida)
   return lida
 }
@@ -42,7 +46,7 @@ export function cartaoMontado(cartao: Pick<CartaoDaFicha, 'mecanica'>): boolean 
   return cartao.mecanica !== undefined
 }
 
-/** As peças válidas do cartão; `null` = sem campo, torto ou futuro. */
+/** As peças válidas do cartão, para o motor (o tipo do golpe já em peças: nunca grave isto); `null` = sem campo, torto ou futuro. */
 export function pecasDoCartao(cartao: Pick<CartaoDaFicha, 'mecanica'>): MecanicaV1 | null {
   const lida = mecanicaLidaDoCartao(cartao)
   return lida.tipo === 'pecas' ? lida.mecanica : null

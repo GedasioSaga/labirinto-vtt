@@ -6,7 +6,7 @@ import { cartoesDaAba, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGu
 import { alcanceDaMecanica, alcanceDoCartao, formaDoAlcanceGuardada } from '../alcanceDoCartao'
 import { ABA_DAS_ARMAS, ABA_DAS_TECNICAS, ehArmaDaMochila } from '../leituraDaFicha'
 import { pecasDoCartao } from '../mecanica/leitura'
-import type { MecanicaV1 } from '../mecanica/modelo'
+import { lerMecanica, type MecanicaV1 } from '../mecanica/modelo'
 import { guardarMecanica } from '../mecanica/modelos'
 import { efeitoDoModeloDeItem, mecanicaDoModeloDeItem, modeloSugeridoParaOItem, MODELOS_DE_ITEM, type IdDoModeloDeItem } from '../mecanica/modelosDeItem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
@@ -438,7 +438,9 @@ function comAlcance<T extends ComAlcance>(x: T, forma: FormaDoAlcance): T | null
     const guardada: AlcanceGuardado = { ...forma }
     return formaDoAlcanceGuardada(guardada) === null ? null : { ...x, alcance: guardada }
   }
-  const pecas = pecasDoCartao(x)
+  // Grava a ESCOLHA (`lerMecanica`), nunca as peças do motor: nelas o tipo do golpe já vem montado (fase ED1 do editor).
+  const lida = lerMecanica(x.mecanica)
+  const pecas = lida.tipo === 'pecas' ? lida.mecanica : null
   const alvo = pecas === null ? null : alvoComAlcance(pecas, forma)
   return pecas === null || alvo === null ? null : { ...x, mecanica: guardarMecanica({ ...pecas, alvo }) }
 }
