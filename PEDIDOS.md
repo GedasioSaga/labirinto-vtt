@@ -2984,3 +2984,16 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - Literal: "[Image #52] Cadê os blocos azuis com animação dizendo qual é a área de acerto?"
 - Print: 0.5.95, batalha, vez do Hector, mira "TIRO DE REVOLVER" (Um alvo a até 5 casas, Vincent G. marcado "CHEGA 70"), mapa com grade e as fichas, nenhum quadrado aceso.
 - 23/11 18h33 (date). Suspeita do Claude: a prova da fase E ligou a mira pela store direto (falso-verde); o caminho real do menu ao mapa não acende. Fila: debugador reproduz só por cliques, conserta, e sai junto na 0.5.96 com o editor padrão.
+- 23/11 18h53 (date). Editor como padrão FEITO 52315b21 e36c02e6 ("+ Habilidade" abre direto no editor novo pelo preset Em branco; cartão de texto com papel + "Montar no editor" no topo e "Editar como texto" recolhido; prova só por cliques 38/38).
+
+## PEDIDO NOVO (23/11 18h53): a descrição da Bolha está estranha
+
+- Literal: "[Image #54] [Image #55] isso ta certo? a descrição parece estranha."
+- Print: habilidade "Bolha" na leitura: Tipo Buff; Efeito "Apoio: pega 1 aliado. Ajuda não se esquiva: pega sem teste. Cura Espirito*3 de HP. Custa 30 SP ao usar. Depois de usar, espera 2 vezes para usar de novo."; "Texto de antes: Ação: Ação Simples / Tipo: Buff / Dano:" aparecendo no cartão; Mecânica "Custa 30 SP e gasta a Ação Completa."
+- 23/11 18h53 (date). Achados do Claude: (1) o Montar trocou a Ação Simples do texto por Ação Completa: um lugar diz uma coisa e outro diz outra, contra a regra do dono; (2) o "Texto de antes" é guarda interna e não devia aparecer no cartão; (3) a frase sai robótica ("Ajuda não se esquiva: pega sem teste") e com a fórmula crua ("Espirito*3"). Fila: consertar e sair na 0.5.96; a Bolha do dono, já montada errada, precisa ser corrigida (Desmontar e Montar de novo, ou trocar a Ação no editor).
+
+## PEDIDO NOVO (23/11 18h53): puxar um NPC para dentro de outro como variação
+
+- Literal: "[Image #56] porque não consigo puxar o cavaleiro de escudo para dentro do cavaleiro com clava ?" e "eu quero pode deixar".
+- Print: lista de NPCs do Acervo: "Cavaleiro com Clava · Modelo · 2 variações" (Cavaleiro com Maça, Cavaleiro com Bazooka), "Borboleta Mirage", "Zumbi" e "Cavaleiro com Escudo" como NPC único.
+- 23/11 18h53 (date). Fila: arrastar um NPC único para cima de um Modelo o transforma em variação dele (e o contrário: tirar uma variação vira NPC único), com Desfazer; sai na 0.5.96.
