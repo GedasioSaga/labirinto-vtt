@@ -10,7 +10,7 @@ import type { MesaDaBatalha } from '../../lib/batalha/mesa'
 import type { Reversao } from '../../lib/batalha/registro'
 import type { Gasto } from '../../lib/batalha/requisitos/avaliar'
 import { mesmaReferencia } from '../../lib/batalha/requisitos/contexto'
-import { ajustesDosGastos, aplicarGastos } from '../../lib/batalha/requisitos/gastos'
+import { ajustesDoAliado, ajustesDosGastos, aplicarGastos, fraseDoPagoPeloAliado } from '../../lib/batalha/requisitos/gastos'
 import type { AutorDaAcao, TurnosDaCena } from '../../lib/batalha/turnos'
 import { quemNaFicha } from './cena'
 import { gastarItemNaMesa, mexerNaFicha, reversaoDaFicha } from './naMesa'
@@ -54,7 +54,20 @@ export function gastarOsRequisitos(mesa: MesaDaBatalha, sceneKey: string, person
       partes.push(parte)
     }
   }
-  return { turnos: novos, partes, texto: aplicados.texto }
+  // REQUISITOS E (G1 aceito): o aliado PAGA da ficha dele, na mesma linha (o Desfazer devolve os dois); nada entra em quem pediu.
+  const pagos: string[] = []
+  for (const { aliadoTokenId, de, n } of aplicados.doAliado) {
+    const aliadoId = turnos.cartas.find((carta) => carta.tokenId === aliadoTokenId)?.personagemId ?? null
+    const aliado = aliadoId === null ? undefined : mesa.personagens().find((candidato) => candidato.id === aliadoId)
+    if (aliadoId === null || aliado === undefined) return 'recusada'
+    const feito = mexerNaFicha(mesa, aliadoId, (atual, sistema) => ajustesDoAliado(atual, sistema, de, n), quemNaFicha(autor))
+    if (feito === 'recusada') return 'recusada'
+    partes.push(...reversaoDaFicha(aliadoId, feito))
+    pagos.push(fraseDoPagoPeloAliado(aliado.nome.trim() || 'O aliado', de, n))
+  }
+  // Entre parênteses, como o "(com a ajuda de X)": a frase cola no fim da linha do golpe.
+  const texto = pagos.length === 0 ? aplicados.texto : [aplicados.texto, `(${pagos.join(' e ')})`].filter((parte): parte is string => parte !== null).join(' ')
+  return { turnos: novos, partes, texto }
 }
 
 /** A nota da linha: o que gastou e o que o portão disse ("(declarou: ...)", "(o mestre forçou: ...)"). */

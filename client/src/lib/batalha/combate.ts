@@ -2,6 +2,7 @@ import type { Modificador } from '../personagem'
 import type { Direcao } from './area'
 import type { MudancaDoAlcance } from './alcance/condicoes'
 import type { RespostasDoPedido } from './perguntaNaHora'
+import type { PedidoDeAjuda } from './requisitos/modelo'
 import type { AutorDaAcao } from './turnos'
 
 /**
@@ -253,6 +254,8 @@ export interface PedidoDeEvolucao {
   respostas?: RespostasDoPedido
   /** REQUISITOS, fase C: o mestre evolui mesmo sem cumprir (pula o que falta e os gastos disso). Só vale com autor mestre. */
   forcarRequisitos?: true
+  /** REQUISITOS, fase E (G1, G2): o tokenId do aliado a quem pede a ajuda. */
+  ajudaDe?: string
 }
 
 /**
@@ -364,6 +367,42 @@ export interface FormaPendente {
 
 /** C6: formas esperando o mestre numa cena. */
 export const FORMAS_PENDENTES_MAX = 8
+
+/**
+ * REQUISITOS, fase E (REQUISITOS.md §7): o pedido de ajuda a um aliado (G1 paga, G2 tem a marca),
+ * no molde da `FormaPendente`. Nada é gasto até o aceite; o aceite roda o pedido congelado pelo
+ * portão inteiro de novo, com o autor de quem pediu. Nunca vai à batalha salva.
+ *
+ * `estado` diferente de `esperando` é o aviso para quem pediu ("Aira recusou", "o pedido venceu"):
+ * fica até ele pedir de novo, a vez passar ou `AVISO_DA_AJUDA_MS`.
+ */
+export interface AjudaPendente extends PedidoDeAjuda<AcaoDaAjuda> {
+  /** Quem pediu, como o registro o mostra; o aceite age com este autor. */
+  autor: AutorDaAcao
+  /** A vez em que nasceu: passar a vez cancela. */
+  vez: { cartaId: string | null; rodada: number }
+  /** O personagem do aliado (o dono dele responde); `null` = o mestre responde (NPC aliado). */
+  paraPersonagemId: string | null
+  /** O nome de quem pede e do aliado, e o nome da técnica, para as duas telas. */
+  nomeDe: string
+  nomePara: string
+  tecnica: string
+  /** G1 que gasta: o que o aliado paga (sai dele, não entra em quem pede). Ausente = só ajuda (G2). */
+  paga?: { recurso: 'sp' | 'hp' | 'escudo'; n: number }
+  estado: 'esperando' | 'recusado' | 'venceu' | 'cancelado' | 'naoPassou'
+  /** Com `estado` diferente de `esperando`: o porquê curto ("Aira recusou", "a vez passou"). */
+  motivo?: string
+  /** Quando o aviso nasceu (relógio do host), para sumir sozinho. */
+  fechadoEm?: number
+}
+
+/** A ação congelada do pedido de ajuda: agir (técnica, Atacar, item, ligar a forma) ou Evoluir. */
+export type AcaoDaAjuda = { tipo: 'agir'; vez: { cartaId: string; rodada: number } | null; pedido: PedidoDeAcao } | { tipo: 'evoluir'; pedido: PedidoDeEvolucao }
+
+/** Pedidos de ajuda numa cena (um por ficha que pede; o teto só segura forja). */
+export const AJUDAS_PENDENTES_MAX = 16
+/** Quanto o aviso de recusa, prazo ou cancelamento fica na tela de quem pediu. */
+export const AVISO_DA_AJUDA_MS = 15_000
 /** C6: modificadores que o mestre decide numa forma (atributos e recursos de atual e máximo). */
 export const MODS_DA_DECISAO_MAX = 8
 /** C6: o nome da habilidade que a forma ganha. */
@@ -427,6 +466,8 @@ export type PedidoDeAcao =
       foraDoAlcance?: true
       /** REQUISITOS, fase C: o mestre usa mesmo sem cumprir os requisitos da arma (o custo normal continua). Só vale com autor mestre. */
       forcarRequisitos?: true
+      /** REQUISITOS, fase E (G1, G2): o tokenId do aliado a quem pede a ajuda. O host cria a pendência; nada é gasto antes do aceite. */
+      ajudaDe?: string
     }
   | {
       tipo: 'habilidade'
@@ -478,6 +519,8 @@ export type PedidoDeAcao =
       foraDoAlcance?: true
       /** REQUISITOS, fase C: o mestre usa mesmo sem cumprir os requisitos (o custo normal continua). Só vale com autor mestre. */
       forcarRequisitos?: true
+      /** REQUISITOS, fase E (G1, G2): o tokenId do aliado a quem pede a ajuda. */
+      ajudaDe?: string
     }
   | { tipo: 'concentrar' }
   /** Q6: o contra-ataque gasto em se mover. Só marca (e tira o atalho); o movimento em si é o arrasto de sempre. */
@@ -490,7 +533,7 @@ export type PedidoDeAcao =
    * a Parte, a técnica do "Só liga com"). Só a store o põe, ao trocar o pedido
    * da técnica pelo Ativar; o leitor da rede não o lê (ninguém o forja).
    */
-  | { tipo: 'transformar'; cartaoId: string; acao: AcaoDaForma; trocarImagem: boolean; contraDe?: undefined; respostas?: RespostasDoPedido; forcarRequisitos?: true; pela?: string }
+  | { tipo: 'transformar'; cartaoId: string; acao: AcaoDaForma; trocarImagem: boolean; contraDe?: undefined; respostas?: RespostasDoPedido; forcarRequisitos?: true; pela?: string; ajudaDe?: string }
   /** F3: "Desfazer a forma" (ação livre). Nunca é contra-ataque. */
   | { tipo: 'destransformar'; cartaoId: string; contraDe?: undefined }
   /**
@@ -500,7 +543,7 @@ export type PedidoDeAcao =
    * das peças). `ponto`/`centroId` = o centro da área longe (a granada), como
    * na habilidade. Nunca é contra-ataque.
    */
-  | { tipo: 'item'; vagaId: string; alvos: readonly PedidoDeAlvo[]; ponto?: { col: number; row: number }; centroId?: string; direcao?: Direcao; foraDoAlcance?: true; contraDe?: undefined; respostas?: RespostasDoPedido; forcarRequisitos?: true }
+  | { tipo: 'item'; vagaId: string; alvos: readonly PedidoDeAlvo[]; ponto?: { col: number; row: number }; centroId?: string; direcao?: Direcao; foraDoAlcance?: true; contraDe?: undefined; respostas?: RespostasDoPedido; forcarRequisitos?: true; ajudaDe?: string }
 
 /** Os tipos de pedido de ação, para o enum fechado do fio. */
 export type TipoDoPedidoDeAcao = PedidoDeAcao['tipo']

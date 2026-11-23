@@ -19,6 +19,7 @@ import type { AutorDaAcao, TurnosDaCena } from '../../lib/batalha/turnos'
 import { motivoDoOcultoParaJogador, revelacaoAoUsar } from '../../lib/habilidadeOculta'
 import type { Personagem } from '../../lib/personagem'
 import type { DependenciasDaBatalha, BatalhaDaCena, BatalhaState } from './tipos'
+import { comAVezDeAgora } from '../../lib/batalha/requisitos/ajuda'
 import { type EfeitoNovo, type FichasDaMesa, fichasDaMesa, type LinhaNova, comMudanca, comEfeitos, nomeDoTokenNa, nomeDoBandoNa, linhaAtualizada, personagemDoTokenNa } from './cena'
 import { desfazerReversao, reacoesComTecnicaDe, contrasDaReversao } from './desfazer'
 
@@ -46,7 +47,9 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
 
   /** Troca a cena (que tem de estar ligada). */
   const gravarCena = (sceneKey: string, cena: BatalhaDaCena): void => {
-    set({ cenas: { ...get().cenas, [sceneKey]: cena } })
+    // REQUISITOS E (§7.5): passar a vez (ou a rodada) cancela o pedido de ajuda que esperava; num lugar só, para todo caminho que troca a vez.
+    const turnos = cena.turnos.pedidosDeAjuda === undefined ? cena.turnos : comAVezDeAgora(cena.turnos, deps.agora === undefined ? Date.now() : deps.agora())
+    set({ cenas: { ...get().cenas, [sceneKey]: turnos === cena.turnos ? cena : { ...cena, turnos } } })
   }
 
   /** Aplica `mudar` aos turnos da cena; mudou = grava com a linha que `linha` monta. */

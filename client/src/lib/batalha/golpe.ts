@@ -75,7 +75,7 @@ import { danoDaTecnica, danoDaTecnicaComAVida, leituraDaTecnica } from './leitur
 import { comOBonusDosAcumuladores } from './acumuladorNaBatalha'
 import type { ContextoDosRequisitos } from './requisitos/contexto'
 import { contextoDosRequisitos } from './requisitos/montar'
-import { motivoDoPortao, portaoDosRequisitos, type ResultadoDoPortao } from './requisitos/portao'
+import { motivoDoPortao, portaoDosRequisitos, spPagoPeloAliado, type ResultadoDoPortao } from './requisitos/portao'
 import { blocoDoCartao, motivoDoSoLigaPor } from './requisitos/partes'
 import {
   ataqueComOSelo,
@@ -204,6 +204,13 @@ export interface ContextoDoGolpe {
    * não rola nunca deixa passar sem o dado).
    */
   testesDosRequisitos?: Readonly<Record<string, boolean>>
+  /**
+   * REQUISITOS E (G1, G2): o aliado do `ajudaDe` do pedido aceitou. Só a store põe, ao rodar o pedido
+   * congelado no aceite (`stores/batalha/ajuda.ts`); nunca vem do fio.
+   */
+  ajudaAceita?: boolean
+  /** REQUISITOS E: o treino do Lobby (sem mestre nem relógio): o que espera alguém fica "Só na mesa". */
+  noTreino?: boolean
 }
 
 /** O que `lancarGolpe` devolve para a store aplicar. */
@@ -356,6 +363,12 @@ interface TecnicaPedida {
   evoluida: boolean
 }
 
+/** REQUISITOS E (G1 aceito): o custo em SP de quem pede menos o que o aliado paga, nunca abaixo de 0. */
+function comOPagoPeloAliado<T extends { custo: LeituraDoCusto }>(tecnica: T, pago: number): T {
+  if (pago <= 0 || tecnica.custo.tipo !== 'valor' || tecnica.custo.recurso !== 'sp') return tecnica
+  return { ...tecnica, custo: { ...tecnica.custo, valor: Math.max(0, tecnica.custo.valor - pago) } }
+}
+
 /**
  * A técnica do pedido. `evoluidas` (tipos de habilidade F4) = as do combate
  * de quem age: a base evoluída sem link cujo texto diz OVERLOAD vira Overload.
@@ -438,6 +451,7 @@ export function contextoDosRequisitosDoGolpe(ctx: ContextoDoGolpe, alvos: readon
     ...(alvos === undefined ? {} : { alvos }),
     ...(custoEmSp === undefined ? {} : { custoEmSp }),
     autorEhMestre: ctx.autor.tipo === 'mestre',
+    ...(ctx.noTreino === true ? { noTreino: true } : {}),
   })
 }
 
@@ -458,7 +472,9 @@ export function portaoDoPedido(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): Resu
     const respostas = 'respostas' in pedido ? pedido.respostas : undefined
     const forcar = 'forcarRequisitos' in pedido && pedido.forcarRequisitos === true
     const testes = ctx.testesDosRequisitos
-    return portaoDosRequisitos(requisitos, 'usar', retrato, { ...(respostas === undefined ? {} : { respostas }), forcar, ...(testes === undefined ? {} : { testes }) }, autorEhMestre)
+    const ajudaDe = 'ajudaDe' in pedido ? pedido.ajudaDe : undefined
+    const ajuda = ajudaDe === undefined ? {} : { ajudaDe, ...(ctx.ajudaAceita === true ? { ajudaAceita: true } : {}) }
+    return portaoDosRequisitos(requisitos, 'usar', retrato, { ...(respostas === undefined ? {} : { respostas }), forcar, ...(testes === undefined ? {} : { testes }), ...ajuda }, autorEhMestre)
   }
   switch (pedido.tipo) {
     case 'habilidade': {
@@ -560,8 +576,11 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
     case 'habilidade': {
       const { personagem, sistema } = ctx
       if (personagem === null || sistema === null) return 'Ficha sem personagem não usa habilidade'
-      const tecnica = tecnicaPedida(personagem, sistema, pedido, combate.evoluidas)
-      if (tecnica === null) return 'Técnica não encontrada na ficha'
+      const lida = tecnicaPedida(personagem, sistema, pedido, combate.evoluidas)
+      if (lida === null) return 'Técnica não encontrada na ficha'
+      // REQUISITOS E: o portão uma vez só; o SP que o aliado paga sai do custo de quem pede.
+      const doPortao = portaoDoPedido(ctx, pedido)
+      const tecnica = comOPagoPeloAliado(lida, spPagoPeloAliado(doPortao))
       // Tipos de habilidade F4: a opção dos chips da mira tem de ser opção desta técnica.
       if (pedido.variante !== undefined && varianteDoPedido(tecnica.cartao, pedido.variante) === null) return 'Opção não encontrada na técnica'
       // F2 (fatia A): com respostas, as perguntas na hora da mecânica à mão (`mecanicasAMao.ts`) todas respondidas, e só elas.
@@ -583,7 +602,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const balaDaFormula = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
       const semConta = motivoDoDanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDeQuemAge(ctx) })
       // REQUISITOS C: o portão dos requisitos entra no meio do motivo da técnica (depois da evolução, antes da recarga).
-      const motivo = motivoDaTecnica(tecnica, personagem, sistema, combate, acoes, undefined, undefined, motivoDoPortao(portaoDoPedido(ctx, pedido)))
+      const motivo = motivoDaTecnica(tecnica, personagem, sistema, combate, acoes, undefined, undefined, motivoDoPortao(doPortao))
       // F2 (fatia D, Imbuir Fogo): a resposta que a forma ligada não deixa (fogo com a Ignição).
       const vetada = motivoDaRespostaVetada(tecnica.cartao.id, pedido.respostas, personagem.cartoesAtivos)
       // F2 (fatia C, A Luz do Sol): o teto de alvos que tomam dano ("em um inimigo"); os aliados marcados só levam o selo.
@@ -1063,7 +1082,9 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const arma = armaDoPedido(ctx, pedido.armaId) ?? null
   // Construtor C8: o Atacar com a arma montada (o Boomerang) vira a "técnica" do golpe: dano, selo, custo e usos pelas peças.
   const daArma = pedido.tipo === 'atacar' && arma !== null && personagem !== null && sistema !== null && cartaoMontado(arma) ? tecnicaDaArma(personagem, sistema, arma) : null
-  const tecnica = pedido.tipo === 'habilidade' && personagem !== null && sistema !== null ? tecnicaPedida(personagem, sistema, pedido, combate.evoluidas) : daArma
+  const pedida = pedido.tipo === 'habilidade' && personagem !== null && sistema !== null ? tecnicaPedida(personagem, sistema, pedido, combate.evoluidas) : null
+  // REQUISITOS E: o G1 aceito paga o custo de quem pede (o SP sai do aliado; nada passa para quem pede).
+  const tecnica = pedida === null ? daArma : comOPagoPeloAliado(pedida, pedido.ajudaDe === undefined ? 0 : spPagoPeloAliado(portaoDoPedido(ctx, pedido)))
   const acaoBase = pedido.tipo === 'atacar' ? (daArma?.acao ?? 'simples') : tecnica?.acao
   const acao = acaoBase === undefined || acaoBase === null || acaoBase === 'passiva' ? null : acaoDoGolpe(acaoBase, combate.carga)
   // F2b (A Caçada Começa): com a forma ligada, todo golpe do dono é Overload (não dá para desviar; só outra Overload defende).

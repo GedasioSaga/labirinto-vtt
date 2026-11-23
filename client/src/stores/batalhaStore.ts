@@ -102,6 +102,7 @@ export const ponteDaBatalha: PonteDaBatalha = {
   marcar: (sceneKey, autor, pedido) => useBatalhaStore.getState().marcar(sceneKey, autor, pedido),
   ajustar: (sceneKey, autor, pedido) => useBatalhaStore.getState().ajustar(sceneKey, autor, pedido),
   contador: (sceneKey, autor, pedido) => useBatalhaStore.getState().contador(sceneKey, autor, pedido),
+  ajuda: (sceneKey, autor, pedido) => useBatalhaStore.getState().ajuda(sceneKey, autor, pedido),
 }
 
 /**

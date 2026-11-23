@@ -130,7 +130,8 @@ interface EstadoDoRelogio {
 }
 
 function lojaDoTreino(mesa: MesaDaLuta, sorteio: Sorteio): LojaDaBatalha {
-  return criarBatalhaStore(mesa, { rolarD20: () => sorteio.d20(), outraBatalhaLigada: () => false })
+  // REQUISITOS E: no treino o pedido ao aliado fica "Só na mesa".
+  return criarBatalhaStore(mesa, { rolarD20: () => sorteio.d20(), outraBatalhaLigada: () => false, treino: true })
 }
 
 function lutadoresNoResumo<L extends LadoDaLuta>(mesa: MesaDaLuta<L>): LutadorNoResumo<L>[] {

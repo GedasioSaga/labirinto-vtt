@@ -15,6 +15,7 @@ import type {
 import type { JudgeNaCena } from './judge'
 import type { LinhaDoRegistro } from './registro'
 import type { RegrasDaBatalha } from './regrasDoCampo'
+import type { CancelamentoDaAjuda, RespostaDaAjuda } from './requisitos/modelo'
 import type { AutorDaAcao, TurnosDaCena } from './turnos'
 
 /**
@@ -141,4 +142,6 @@ export interface PonteDaBatalha {
   ajustar?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeAjusteNaBatalha): boolean
   /** R5 (lote de 01/11): ganhar (ou, o mestre, zerar) o contador. Opcional. */
   contador?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDoContador): boolean
+  /** REQUISITOS E: responder ou cancelar o pedido de ajuda (quem pode, o host já conferiu). */
+  ajuda?(sceneKey: string, autor: AutorDaAcao, pedido: RespostaDaAjuda | CancelamentoDaAjuda): boolean
 }

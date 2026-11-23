@@ -404,6 +404,10 @@ export interface ContextoDaEvolucao {
   aliados?: ReadonlySet<string>
   /** REQUISITOS C: o pedido é do mestre (o J2 vale e ele pode forçar). */
   autorEhMestre?: boolean
+  /** REQUISITOS E: o aliado do `ajudaDe` aceitou (só a store põe, no aceite). */
+  ajudaAceita?: boolean
+  /** REQUISITOS E: o treino do Lobby: o que espera alguém fica "Só na mesa". */
+  noTreino?: boolean
 }
 
 /**
@@ -429,8 +433,10 @@ export function portaoDoEvoluir(ctx: ContextoDaEvolucao, pedido: PedidoDeEvoluca
     visao: 'tudo',
     custoEmSp: custo.tipo === 'valor' && custo.recurso === 'sp' ? custo.valor : 0,
     autorEhMestre: ctx.autorEhMestre === true,
+    ...(ctx.noTreino === true ? { noTreino: true } : {}),
   })
-  const pedidoNoPortao = { ...(pedido.respostas === undefined ? {} : { respostas: pedido.respostas }), forcar: pedido.forcarRequisitos === true }
+  const ajuda = pedido.ajudaDe === undefined ? {} : { ajudaDe: pedido.ajudaDe, ...(ctx.ajudaAceita === true ? { ajudaAceita: true } : {}) }
+  const pedidoNoPortao = { ...(pedido.respostas === undefined ? {} : { respostas: pedido.respostas }), forcar: pedido.forcarRequisitos === true, ...ajuda }
   return portaoDosRequisitos(achada.cartao.requisitos, 'evoluir', retrato, pedidoNoPortao, ctx.autorEhMestre === true)
 }
 

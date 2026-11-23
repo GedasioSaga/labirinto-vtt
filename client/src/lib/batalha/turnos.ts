@@ -3,7 +3,7 @@ import { valorDoRank } from '../ajusteDaFicha'
 import { entraNaBatalha, fichaSemHp } from '../livros/combate'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { combateVazio, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type FormaPendente, type GolpeDaBatalha, type InvocacaoPendente, type InvocadoNaBatalha, type LembreteDaMarca, type SeloDaBatalha } from './combate'
+import { combateVazio, type AjudaPendente, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type FormaPendente, type GolpeDaBatalha, type InvocacaoPendente, type InvocadoNaBatalha, type LembreteDaMarca, type SeloDaBatalha } from './combate'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { contarSelos } from './selos'
 import { semODanoDaVez } from './rastro'
@@ -125,6 +125,11 @@ export interface TurnosDaCena {
    * aparece duas vezes: o Desfazer de uma tira só uma). Até `QUEDAS_MAX`. Ausente = ninguém caiu.
    */
   jaCairam?: readonly string[]
+  /**
+   * REQUISITOS, fase E: os pedidos de ajuda a um aliado esperando resposta, e os avisos dos que
+   * fecharam sem aceite (até `AJUDAS_PENDENTES_MAX`). Nunca vai à batalha salva. Ausente = nenhum.
+   */
+  pedidosDeAjuda?: readonly AjudaPendente[]
 }
 
 /** Quem fez a ação que entra no registro. O `nome` do jogador é o da mesa, na hora. */

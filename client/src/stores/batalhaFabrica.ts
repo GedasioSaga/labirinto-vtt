@@ -35,6 +35,7 @@ import { criarVez } from './batalha/vez'
 import { criarOrdem } from './batalha/ordem'
 import { criarInvocacao } from './batalha/invocacao'
 import { criarPassivas } from './batalha/passivas'
+import { criarAjuda } from './batalha/ajuda'
 
 /**
  * MODO BATALHA (fatia B4 de docs/planos/modo-batalha-2026-10-24.md): quais
@@ -99,6 +100,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   const fatiaDaOrdem = criarOrdem(nucleo, fatiaDaVez)
   const fatiaDaInvocacao = criarInvocacao(nucleo, fatiaDoGolpe)
   const fatiaDasPassivas = criarPassivas(nucleo, fatiaDasFormas)
+  const fatiaDaAjuda = criarAjuda(nucleo, fatiaDoGolpe, fatiaDasPassivas)
 
   /**
    * Conserto das fichas F1 (resposta do Vincent, "o Escudo volta cheio a cada
@@ -307,6 +309,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     ...fatiaDaOrdem.acoes,
     ...fatiaDaInvocacao.acoes,
     ...fatiaDasPassivas.acoes,
+    ...fatiaDaAjuda.acoes,
   }
 }
 

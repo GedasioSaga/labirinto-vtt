@@ -224,6 +224,25 @@ export interface EstadoParaJogador {
 /** "Simples 0/1 · Bônus 0/0 · Mov 2/4": a mesma forma de `acoesDaVez`. */
 export type AcoesParaJogador = AcoesDaVez
 
+/** REQUISITOS E: um pedido de ajuda como vai ao jogador (os nomes e a frase; nada do pedido congelado). */
+export interface AjudaParaJogador {
+  id: string
+  papel: 'pede' | 'responde'
+  frase: string
+  nomeDe: string
+  nomePara: string
+  tecnica: string
+  paga?: { recurso: 'sp' | 'hp' | 'escudo'; n: number }
+  estado: 'esperando' | 'recusado' | 'venceu' | 'cancelado' | 'naoPassou'
+  motivo?: string
+  /** O prazo inteiro em segundos (a tela conta a partir de quando viu); `null` = sem prazo (o mestre responde). */
+  prazoS: number | null
+}
+
+/** REQUISITOS E: textos do pedido de ajuda no fio. */
+export const TEXTO_DA_AJUDA_MAX = 160
+export const AJUDAS_PARA_JOGADOR_MAX = 8
+
 export interface CombateParaJogador {
   personagemId: string
   /** cartaoId → turnos que faltam. */
@@ -264,6 +283,12 @@ export interface CombateParaJogador {
    * ficha dele (`passivaDaMarca`); responde por `batalha.marcar`. Ausente = nenhum.
    */
   marcas?: MarcaParaJogador[]
+  /**
+   * REQUISITOS E (§7.2): os pedidos de ajuda deste personagem. `pede` = ele pediu (o "Esperando..." e
+   * os avisos de recusa, prazo e cancelamento); `responde` = pediram a ele (o "Aceitar / Recusar").
+   * Ausente = nenhum.
+   */
+  ajudas?: AjudaParaJogador[]
   /**
    * Fase 8: os itens com efeito da mochila DESTE personagem (as vagas sem
    * efeito não vêm), com a frase e o que a mira precisa; nunca as peças do
@@ -708,6 +733,19 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
       .slice(-LEMBRETES_DA_MARCA_MAX)
       .map((lembrete) => ({ id: lembrete.id, tokenId: lembrete.tokenId, alvoTokenId: lembrete.alvoTokenId, cartaoId: lembrete.cartaoId }))
     if (marcas.length > 0) meu.marcas = marcas
+    // REQUISITOS E: os pedidos de ajuda que ele fez por esta ficha, e os que pediram ao personagem DELE de verdade (só esperando).
+    const corte = (texto: string): string => texto.slice(0, TEXTO_DA_AJUDA_MAX)
+    const ajudas: AjudaParaJogador[] = []
+    for (const ajuda of turnos.pedidosDeAjuda ?? []) {
+      const pede = ajuda.dePersonagemId === personagemId && ctx.meusTokens.has(ajuda.deTokenId)
+      const responde = !pede && ajuda.estado === 'esperando' && ajuda.paraPersonagemId === personagemId && ctx.meusPersonagens.has(personagemId)
+      if (!pede && !responde) continue
+      const paraOFio: AjudaParaJogador = { id: ajuda.id, papel: pede ? 'pede' : 'responde', frase: corte(ajuda.frase), nomeDe: corte(ajuda.nomeDe), nomePara: corte(ajuda.nomePara), tecnica: corte(ajuda.tecnica), estado: ajuda.estado, prazoS: ajuda.venceEm === null ? null : Math.max(1, Math.round((ajuda.venceEm - ajuda.criadoEm) / 1000)) }
+      if (ajuda.paga !== undefined) paraOFio.paga = ajuda.paga
+      if (ajuda.motivo !== undefined) paraOFio.motivo = corte(ajuda.motivo)
+      ajudas.push(paraOFio)
+    }
+    if (ajudas.length > 0) meu.ajudas = ajudas.slice(-AJUDAS_PARA_JOGADOR_MAX)
     // Fase 8: os itens da mochila da cópia do host (a ficha que ele opera na vez): só a frase e a mira.
     const itens = personagem === undefined ? [] : itensParaJogador(personagem.mochila)
     if (itens.length > 0) meu.itens = itens

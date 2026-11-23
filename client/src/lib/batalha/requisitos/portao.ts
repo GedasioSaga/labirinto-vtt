@@ -16,12 +16,13 @@ import { PREFIXO_DA_RESPOSTA, type RequisitoDo } from './modelo'
  * - O mestre força (`forcarRequisitos`): pula o que falta, as perguntas e os gastos do que falta; os
  *   gastos do que vale saem; o custo normal da técnica é do caminho, não daqui.
  * - O pedido ao aliado (G1, G2) sai como `perguntaAoAliado`: a rede da ajuda (pendência, aceite,
- *   prazo) é da fase E; até lá o host recusa com o motivo dela, sem gastar nada.
+ *   prazo) é da fase E (`stores/batalha/ajuda.ts`): a store cria a pendência e, no aceite, roda o
+ *   pedido de novo com `ajudaAceita`.
  *
  * Puro: sem store, sem rede, sem Pixi.
  */
 
-export const MOTIVO_PEDE_AJUDA = 'Pede ajuda de um aliado: o pedido ainda não chega a ele'
+export const MOTIVO_PEDE_AJUDA = 'Pede ajuda de um aliado: escolha a quem pedir'
 export const MOTIVO_ESPERA_O_MESTRE = 'Espera o mestre decidir'
 export const MOTIVO_SO_O_MESTRE_FORCA = 'Só o mestre usa mesmo assim'
 export const MOTIVO_DO_TESTE_DO_REQUISITO = 'O teste do requisito: o mestre rola e usa mesmo assim'
@@ -33,6 +34,8 @@ export interface PedidoNoPortao {
   forcar?: boolean
   /** G1, G2: o aliado escolhido (fase E). */
   ajudaDe?: string
+  /** Fase E: o aliado escolhido aceitou (só o host põe, ao rodar o pedido congelado no aceite). */
+  ajudaAceita?: boolean
   /** H1, H2 (fase D): os testes que o host rolou (id do requisito → passou). */
   testes?: Readonly<Record<string, boolean>>
 }
@@ -113,7 +116,7 @@ export function portaoDosRequisitos(requisitos: unknown, para: 'usar' | 'evoluir
   const doReq = respostasDosRequisitos(pedido.respostas)
   if (requisitos === undefined) return doReq === undefined ? LIVRE : recusa(MOTIVO_RESPOSTA_SEM_PERGUNTA, null)
   if (pedido.forcar === true && !autorEhMestre) return recusa(MOTIVO_SO_O_MESTRE_FORCA, null)
-  const avaliacao = avaliarDoCartao(lerRequisitos(requisitos), para, ctx, { respostas: doReq, ...(pedido.ajudaDe === undefined ? {} : { ajudaDe: pedido.ajudaDe }), ...(pedido.testes === undefined ? {} : { testes: pedido.testes }) })
+  const avaliacao = avaliarDoCartao(lerRequisitos(requisitos), para, ctx, { respostas: doReq, ...(pedido.ajudaDe === undefined ? {} : { ajudaDe: pedido.ajudaDe }), ...(pedido.ajudaAceita === true ? { ajudaAceita: true } : {}), ...(pedido.testes === undefined ? {} : { testes: pedido.testes }) })
   if (avaliacao === null) return doReq === undefined ? LIVRE : recusa(MOTIVO_RESPOSTA_SEM_PERGUNTA, null)
   if (pedido.forcar === true) return forcado(avaliacao)
   if (avaliacao.veredito === 'falta') return recusa(avaliacao.motivo ?? 'Falta um requisito', avaliacao)
@@ -145,4 +148,17 @@ export function motivoDosRequisitosNoMenu(requisitos: unknown, para: 'usar' | 'e
   if (requisitos === undefined || ctx === undefined) return null
   const avaliacao = avaliarDoCartao(lerRequisitos(requisitos), para, ctx)
   return avaliacao !== null && avaliacao.veredito === 'falta' ? (avaliacao.motivo ?? 'Falta um requisito') : null
+}
+
+/**
+ * Fase E (decisão do dono, 23/11): no G1 que gasta, o aliado PAGA o custo da técnica; nada passa
+ * para quem pede. O SP que o aliado paga sai do custo de quem pede (o Vagn fica com os 120 SP e o
+ * aliado vai de 80 a 55). Vale quando o pedido já foi aceito (`passa` com o gasto do aliado) e ao
+ * criar a pendência (`perguntaAoAliado`), para o custo de quem pede não recusar o pedido antes.
+ */
+export function spPagoPeloAliado(resultado: ResultadoDoPortao): number {
+  if (resultado.tipo === 'passa') return resultado.gastos.reduce((soma, gasto) => (gasto.recurso === 'doAliado' && gasto.de === 'sp' ? soma + gasto.n : soma), 0)
+  if (resultado.tipo !== 'perguntaAoAliado') return 0
+  const { requisito } = resultado.pergunta
+  return requisito.tipo === 'pedirAoAliado' && requisito.gasta === true && requisito.recurso === 'sp' ? requisito.n : 0
 }

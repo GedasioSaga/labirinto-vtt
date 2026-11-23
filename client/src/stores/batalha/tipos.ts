@@ -17,6 +17,7 @@ import type {
   SeloPedido,
 } from '../../lib/batalha/combate'
 import type { JudgeNaCena } from '../../lib/batalha/judge'
+import type { CancelamentoDaAjuda, RespostaDaAjuda } from '../../lib/batalha/requisitos/modelo'
 import type { BatalhaEmTurnos, TelaDoPedido, VezEsperada } from '../../lib/batalha/ponte'
 import type { AcaoDaMira, AlcanceDaMira } from '../../lib/batalha/golpe'
 import type { RegrasDaBatalha } from '../../lib/batalha/regrasDoCampo'
@@ -29,6 +30,10 @@ export interface DependenciasDaBatalha {
   rolarD20: () => number
   /** A cena já está ligada na OUTRA batalha (a DBT, na mesa)? Ligada = o `ligar` não liga por cima. */
   outraBatalhaLigada: (sceneKey: string) => boolean
+  /** REQUISITOS E: o treino do Lobby (sem mestre nem relógio do servidor): o pedido ao aliado e o J2 ficam "Só na mesa". */
+  treino?: true
+  /** REQUISITOS E: o relógio do prazo dos pedidos de ajuda. Ausente = `Date.now`. */
+  agora?: () => number
 }
 
 /** A abertura escolhida ao ligar: id da animação de transição e o texto dela ("Royals"). Os dois opcionais. */
@@ -298,6 +303,14 @@ export interface BatalhaState {
    * "habilidade" com Desfazer por diff do nível.
    */
   contador: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDoContador) => boolean
+  /**
+   * REQUISITOS E (§7): responder ao pedido de ajuda (o aliado, ou o mestre pelo NPC) ou cancelá-lo
+   * (quem pediu, ou o mestre). Quem pode, pela rede, o host confere; a store confere o estado, o
+   * prazo e, no aceite, o portão inteiro de novo.
+   */
+  ajuda: (sceneKey: string, autor: AutorDaAcao, pedido: RespostaDaAjuda | CancelamentoDaAjuda) => boolean
+  /** REQUISITOS E: o prazo dos pedidos de ajuda (o host chama a cada segundo enquanto algum espera). */
+  vencerAjudas: (sceneKey: string, agora: number) => boolean
 }
 
 /** Invocação: onde o invocado nasce (px do mundo, o centro da casa) e em que piso; `piso` ausente = o térreo. */

@@ -60,7 +60,7 @@ import { escudoMaisAlto, nomeDoAutor, novoIdDeLinha, type Reversao, type TipoDaL
 import { cartaDaVez, contraGanhoAgora, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
 import { revelacaoAoUsar } from '../../lib/habilidadeOculta'
 import { chavesDosSelos } from '../../lib/ponteDasCondicoes'
-import type { TelaDoPedido } from '../../lib/batalha/ponte'
+import type { TelaDoPedido, VezEsperada } from '../../lib/batalha/ponte'
 import { condicoesQueACuraTirou, curarPeloItem } from '../../lib/curaPeloItem'
 import { comCondicoes, condicoesDaFicha } from '../../lib/turnoForaDaBatalha'
 import type { BatalhaDaCena, BatalhaState } from './tipos'
@@ -82,6 +82,7 @@ import {
 import { mexerNaFicha, type Recusada, type CuraDoItemNoAlvo, gastarMunicaoNaMesa, gastarItemNaMesa, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from './naMesa'
 import { devolverFichasDaAcao } from './desfazer'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
+import { nomeDaAcaoDaAjuda, pedirAjuda } from './ajuda'
 import { basesQueVoltamAoUsar, semEvoluida } from '../../lib/batalha/escolhaEEvolucao'
 import { contextoDosRequisitos } from '../../lib/batalha/requisitos/montar'
 import { motivoDoPortao, portaoDosRequisitos, testesQuePassam, type RequisitoDeTeste, type ResultadoDoPortao } from '../../lib/batalha/requisitos/portao'
@@ -551,6 +552,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         const escudo = sistema === null ? null : recursoDoEscudo(sistema)
         return escudo === null ? 0 : escudoMaisAlto(cena.registro, personagemId, escudo.id)
       },
+      // REQUISITOS E: no treino do Lobby o que espera alguém (G1, G2, J2) fica "Só na mesa".
+      ...(deps.treino === true ? { noTreino: true } : {}),
     }
   }
 
@@ -616,13 +619,23 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     return true
   }
 
-  const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedidoDeQuemAge: PedidoDeAcao, tela?: TelaDoPedido): boolean => {
+  const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedidoDeQuemAge: PedidoDeAcao, tela?: TelaDoPedido, aceite?: true): boolean => {
     const { turnos } = cena
     const { personagens } = mesaDoRpg()
-    const ctxSemTestes = contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx, tela)
+    // REQUISITOS E: `aceite` = o pedido congelado rodando de novo porque o aliado aceitou (o G1, o G2 valem).
+    const ctxSemTestes: ContextoDoGolpe = aceite === true ? { ...contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx, tela), ajudaAceita: true } : contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx, tela)
     // REQUISITOS D (H1, H2): o teste do requisito é rolado AQUI, no host, e só depois de o resto do pedido valer (supondo que
     // passe): pedido torto não gasta dado. Falhou: a linha diz o dado e, com "perde a ação", a ação e o custo vão.
     const antesDosTestes = portaoDoPedido(ctxSemTestes, pedidoDeQuemAge)
+    // REQUISITOS E (§7): só falta o aliado aceitar. Se o resto do pedido vale supondo o aceite, nasce a pendência e nada é gasto.
+    if (antesDosTestes.tipo === 'perguntaAoAliado') {
+      const supondo: ContextoDoGolpe = { ...ctxSemTestes, ajudaAceita: true }
+      const comAjuda = portaoDoPedido(supondo, pedidoDeQuemAge)
+      const supondoTudo: ContextoDoGolpe = comAjuda.tipo === 'teste' ? { ...supondo, testesDosRequisitos: testesQuePassam(comAjuda.testes) } : supondo
+      if (podeAgir(supondoTudo, pedidoDeQuemAge) !== null) return false
+      const vez = turnos.vez === null ? null : { cartaId: turnos.vez, rodada: turnos.rodada }
+      return pedirAjuda(nucleo, sceneKey, cena, autor, carta, { tipo: 'agir', vez, pedido: pedidoDeQuemAge }, antesDosTestes.pergunta, nomeDaAcaoDaAjuda(ctxSemTestes, pedidoDeQuemAge))
+    }
     let ctxDaCarta = ctxSemTestes
     let rolados: TesteRolado[] = []
     if (antesDosTestes.tipo === 'teste') {
@@ -701,6 +714,9 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       novos = gastos.turnos
       notaDosRequisitos = notaDaLinha(gastos.texto, notaDosRequisitos)
     }
+    // REQUISITOS E (G2 aceito): a ajuda sem pagamento também fica na linha.
+    const ajudouSemPagar = aceite === true && doPortao.tipo === 'passa' && 'ajudaDe' in pedidoDeQuemAge && pedidoDeQuemAge.ajudaDe !== undefined && !doPortao.gastos.some((gasto) => gasto.recurso === 'doAliado')
+    if (ajudouSemPagar && 'ajudaDe' in pedidoDeQuemAge && pedidoDeQuemAge.ajudaDe !== undefined) notaDosRequisitos = notaDaLinha(notaDosRequisitos, `(com a ajuda de ${nomeDoTokenNa(turnos, personagens)(pedidoDeQuemAge.ajudaDe)})`)
     // REQUISITOS C (I3, "dura um uso"): a versão super usada uma vez volta a base a comum (só a base com "Para evoluir").
     const cartaoUsado = pedido.tipo === 'habilidade' && ctx.personagem !== null && ctx.sistema !== null ? tecnicaPorId(ctx.personagem, ctx.sistema, pedido.cartaoId) : null
     const combateDeQuemUsa = carta.personagemId === null ? undefined : novos.combate?.[carta.personagemId]
@@ -1070,6 +1086,30 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     return linhas
   }
 
+  /** O `agir` da store; `aceite` (REQUISITOS E) = o pedido congelado de um pedido de ajuda aceito. */
+  const agirNaCena = (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao, tela?: TelaDoPedido, aceite?: true): boolean => {
+    // F3 (fatia T): Ativar e Desfazer a forma têm caminho próprio (não lançam golpe).
+    if (pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') return mudarForma(sceneKey, autor, vez, pedido)
+    // F2 (fatia E, Fúria do Dragão): a técnica que sobe de Parte é o Ativar da Parte seguinte, com a ação da técnica.
+    const subida = subidaDoPedido(sceneKey, pedido)
+    if (subida !== null) return mudarForma(sceneKey, autor, vez, subida)
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined) return false
+    const { turnos } = cena
+    const contraDe = pedido.tipo === 'concentrar' ? undefined : pedido.contraDe
+    // O contra-ataque (Q6) age fora da vez, pela carta da ficha que o ganhou; o resto, só a carta da vez nesta rodada.
+    const contra = contraDe === undefined ? null : ((turnos.contras ?? []).find((candidato) => candidato.golpeId === contraDe) ?? null)
+    if (contraDe !== undefined && contra === null) return false
+    if (contra === null && (vez === null || turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada)) return false
+    const carta = contra === null ? cartaDaVez(turnos) : (turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId) ?? null)
+    // Invocação: na carta do bando, o mestre age pelo invocado (`agirComInvocado`), nunca pela carta.
+    if (carta === null || carta.bando !== undefined) return false
+    return agirComACarta(sceneKey, cena, autor, carta, turnos, carta.id, pedido, tela, aceite)
+  }
+
+  /** REQUISITOS E: o aliado aceitou; o pedido congelado roda o portão inteiro de novo, com o autor de quem pediu. */
+  const agirComAjudaAceita = (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao): boolean => agirNaCena(sceneKey, autor, vez, pedido, undefined, true)
+
   const acoes: Pick<BatalhaState, 'motivoDoAgir' | 'alcanceDaMira' | 'agir' | 'reagir' | 'darDano' | 'darAcoesExtras' | 'escolherArmas' | 'zerarCarga' | 'trocarPerfurante'> = {
     motivoDoAgir: (sceneKey, autor, vez, pedido, tela) => {
       const cena = cenaDe(sceneKey)
@@ -1096,25 +1136,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       return alcanceDaMira(contextoDaCarta(sceneKey, cena, autor, carta, turnos), acao)
     },
 
-    agir: (sceneKey, autor, vez, pedido, tela) => {
-      // F3 (fatia T): Ativar e Desfazer a forma têm caminho próprio (não lançam golpe).
-      if (pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') return mudarForma(sceneKey, autor, vez, pedido)
-      // F2 (fatia E, Fúria do Dragão): a técnica que sobe de Parte é o Ativar da Parte seguinte, com a ação da técnica.
-      const subida = subidaDoPedido(sceneKey, pedido)
-      if (subida !== null) return mudarForma(sceneKey, autor, vez, subida)
-      const cena = cenaDe(sceneKey)
-      if (cena === undefined) return false
-      const { turnos } = cena
-      const contraDe = pedido.tipo === 'concentrar' ? undefined : pedido.contraDe
-      // O contra-ataque (Q6) age fora da vez, pela carta da ficha que o ganhou; o resto, só a carta da vez nesta rodada.
-      const contra = contraDe === undefined ? null : ((turnos.contras ?? []).find((candidato) => candidato.golpeId === contraDe) ?? null)
-      if (contraDe !== undefined && contra === null) return false
-      if (contra === null && (vez === null || turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada)) return false
-      const carta = contra === null ? cartaDaVez(turnos) : (turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId) ?? null)
-      // Invocação: na carta do bando, o mestre age pelo invocado (`agirComInvocado`), nunca pela carta.
-      if (carta === null || carta.bando !== undefined) return false
-      return agirComACarta(sceneKey, cena, autor, carta, turnos, carta.id, pedido, tela)
-    },
+    agir: (sceneKey, autor, vez, pedido, tela) => agirNaCena(sceneKey, autor, vez, pedido, tela),
 
     reagir:(sceneKey, autor, pedido) => {
       const cena = cenaDe(sceneKey)
@@ -1365,7 +1387,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       return true
     },
   }
-  return { agirComACarta, fecharGolpesSemResposta, acoes }
+  return { agirComACarta, agirComAjudaAceita, fecharGolpesSemResposta, acoes }
 }
 
 /** O que `criarGolpe` devolve. */

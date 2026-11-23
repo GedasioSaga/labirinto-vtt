@@ -47,10 +47,12 @@ export interface BatalhaSalva {
 /** O que a leitura do texto deu. `versao-mais-nova` = gravada por um app mais novo: não volta e não se grava por cima. */
 export type TextoDaBatalhaSalva = { ok: true; salva: BatalhaSalva } | { ok: false; motivo: 'ilegivel' | 'versao-mais-nova' }
 
-/** A cena como vai ao arquivo: sem as animações. */
+/** A cena como vai ao arquivo: sem as animações e sem os pedidos de ajuda (REQUISITOS E: nunca salvos; ao reabrir, caem). */
 function cenaParaOArquivo(cena: BatalhaDaCena): BatalhaDaCena {
   const { efeitos: _animacoes, ...semEfeitos } = cena
-  return semEfeitos
+  if (semEfeitos.turnos.pedidosDeAjuda === undefined) return semEfeitos
+  const { pedidosDeAjuda: _naoSalvos, ...turnos } = semEfeitos.turnos
+  return { ...semEfeitos, turnos }
 }
 
 export function textoDaBatalhaSalva(salva: BatalhaSalva): string {
@@ -180,7 +182,9 @@ function cenaDoArquivo(valor: unknown): BatalhaDaCena | null {
   const trilhas = trilhasDe(valor.trilhas)
   if (caminhos === null || trilhas === null) return null
   const regras = valor.regras === null ? null : lerRegrasDaBatalha(valor.regras)
-  const cena: BatalhaDaCena = { caminhos, trilhas, zerados, rev, turnosRev, turnos, registro: linhas, regras }
+  // REQUISITOS E: pedido de ajuda nunca volta do arquivo (o prazo e quem responde eram da mesa de antes).
+  const { pedidosDeAjuda: _caem, ...semAjudas } = turnos
+  const cena: BatalhaDaCena = { caminhos, trilhas, zerados, rev, turnosRev, turnos: semAjudas, registro: linhas, regras }
   const judge = valor.judge === undefined ? null : lerJudgeNaCena(valor.judge)
   if (judge !== null) cena.judge = judge
   return cena

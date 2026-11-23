@@ -283,7 +283,8 @@ export interface DueloNoFio {
 }
 
 function lojaDoDuelo(mesa: MesaDaBatalha, motor: MotorDoDuelo): LojaDaBatalha {
-  return criarBatalhaStore(mesa, { rolarD20: motor.rolarD20, outraBatalhaLigada: () => false })
+  // REQUISITOS E: no treino do Lobby o pedido ao aliado e o "o mestre decide" ficam "Só na mesa".
+  return criarBatalhaStore(mesa, { rolarD20: motor.rolarD20, outraBatalhaLigada: () => false, treino: true })
 }
 
 function cenaDaLoja(loja: LojaDaBatalha): BatalhaDaCena {

@@ -4,7 +4,7 @@ import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import { recursoDeVida } from '../../vidaDaFicha'
 import { acumuladorDaReferencia, comGastoNoAcumulador, comOEventoNosAcumuladores } from '../acumuladorNaBatalha'
 import type { CombateDoPersonagem } from '../combate'
-import { recursoDoCusto } from '../leituraDaFicha'
+import { recursoDoCusto, recursoDoEscudo } from '../leituraDaFicha'
 import type { Gasto } from './avaliar'
 import type { AcumuladorDaFicha, RecursoDoAliado, Referencia } from './modelo'
 
@@ -113,4 +113,21 @@ export function ajustesDosGastos(personagem: Personagem, sistema: SistemaDeRpg, 
   const vida = gastos.hp > 0 ? recursoDeVida(sistema) : null
   if (vida !== null) ajustes.push({ parte: 'recurso', chave: vida.id, valor: Math.max(0, numeroDaFicha(personagem.recursos, vida.id) - gastos.hp) })
   return ajustes
+}
+
+const NOME_DO_RECURSO_DO_ALIADO: Readonly<Record<RecursoDoAliado, string>> = { sp: 'SP', hp: 'HP', escudo: 'Escudo' }
+
+/**
+ * Fase E (G1 aceito): o ajuste da ficha do ALIADO que paga. Sai do que ele tem agora, nunca abaixo de 0;
+ * nada entra em quem pediu. Sem o recurso no sistema = nenhum ajuste.
+ */
+export function ajustesDoAliado(personagem: Personagem, sistema: SistemaDeRpg, de: RecursoDoAliado, n: number): Ajuste[] {
+  const recurso = de === 'sp' ? recursoDoCusto(sistema, 'sp') : de === 'hp' ? recursoDeVida(sistema) : recursoDoEscudo(sistema)
+  if (recurso === null || n <= 0) return []
+  return [{ parte: 'recurso', chave: recurso.id, valor: Math.max(0, numeroDaFicha(personagem.recursos, recurso.id) - n) }]
+}
+
+/** "Marujo pagou 25 SP" (a linha do golpe aceito). */
+export function fraseDoPagoPeloAliado(nome: string, de: RecursoDoAliado, n: number): string {
+  return `${nome} pagou ${n} ${NOME_DO_RECURSO_DO_ALIADO[de]}`
 }
