@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requisitos e acumulador: do cartão ao portão do host e ao menu</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif KR', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1080px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Fluxo de dados · Requisitos e acumulador</p>
+    <h1>O mestre escreve o requisito no cartão; o host o julga com o estado da batalha antes de cada ação, e o menu mostra o resultado</h1>
+
+    <svg viewBox="0 0 1080 624" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="requisitos-title requisitos-desc">
+      <title id="requisitos-title">Requisitos e acumulador: do cartão ao portão do host e ao menu</title>
+      <desc id="requisitos-desc">O mestre monta requisitos, marcas e acumulador no editor, ou confirma a proposta para os cartões antigos; o bloco fica no cartão, no catálogo e no Acervo. O avaliador julga o bloco contra o retrato da batalha, alimentado pelo rastro e pelo nível dos acumuladores, e o portão do host decide as cinco ações com as respostas, o teste rolado, os gastos e a força do mestre. O pedido de ajuda vai ao aliado e volta com o aceite; o menu usa a mesma conta para acinzentar a técnica com o motivo e manda o pedido de volta ao host.</desc>
+      <defs>
+        <marker id="requisitos-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="requisitos-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="requisitos-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+      <!-- 23/11/2026: plano em docs/design/habilidades/REQUISITOS.md (fases A a H) e EDITOR.md (ED1 a ED4). O menu do jogador roda o MESMO portao.ts com o retrato recortado (montar.ts, visao jogador): o que ele nao recebe vira naoSei e a tecnica fica clicavel; quem decide e sempre o host, que refaz a conta no pedido. O mestre e o host: o menu dele chama o portao direto, sem rede. -->
+
+      <!-- Legendas das tres faixas -->
+      <text x="24" y="28" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">1 · O QUE O MESTRE ESCREVE E O CARTÃO GUARDA</text>
+      <text x="24" y="220" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">2 · O HOST JULGA O PEDIDO COM O ESTADO DA BATALHA</text>
+      <text x="24" y="428" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">3 · O MENU DE QUEM JOGA E O ALIADO QUE AJUDA</text>
+
+      <!-- Conectores primeiro -->
+      <!-- Faixa 1: o editor e a proposta dos antigos gravam o bloco no cartão -->
+      <line x1="272" y1="96" x2="336" y2="96" stroke="#4f5d75" stroke-width="1" marker-end="url(#requisitos-arrow)"/>
+      <rect x="286" y="78" width="36" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="304" y="87" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">GRAVA</text>
+
+      <line x1="712" y1="96" x2="648" y2="96" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#requisitos-arrow)"/>
+      <rect x="652" y="78" width="56" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="680" y="87" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">CONFIRMAR</text>
+
+      <!-- O avaliador lê o bloco do cartão -->
+      <line x1="492" y1="152" x2="492" y2="232" stroke="#4f5d75" stroke-width="1" marker-end="url(#requisitos-arrow)"/>
+      <rect x="500" y="186" width="60" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="195" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">LÊ O BLOCO</text>
+
+      <!-- Faixa 2: o rastro alimenta o avaliador; o avaliador entrega o veredito ao portão -->
+      <line x1="272" y1="292" x2="336" y2="292" stroke="#4f5d75" stroke-width="1" marker-end="url(#requisitos-arrow)"/>
+      <rect x="280" y="274" width="48" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="304" y="283" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ALIMENTA</text>
+
+      <line x1="648" y1="292" x2="712" y2="292" stroke="#4f5d75" stroke-width="1" marker-end="url(#requisitos-arrow)"/>
+      <rect x="656" y="274" width="48" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="680" y="283" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">VEREDITO</text>
+
+      <!-- Faixa 3: o pedido de ajuda vai ao aliado (a pendência nasce na store) e volta com o aceite pela rede -->
+      <path d="M776 352 V376 A8 8 0 0 1 768 384 H556 A8 8 0 0 0 548 392 V440" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#requisitos-arrow)"/>
+      <rect x="624" y="366" width="72" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="660" y="375" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PEDE AJUDA</text>
+
+      <path d="M596 440 V416 A8 8 0 0 1 604 408 H836 A8 8 0 0 0 844 400 V352" fill="none" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#requisitos-arrow-link)"/>
+      <rect x="618" y="414" width="84" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="660" y="423" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ACEITE/RECUSA</text>
+
+      <!-- O menu roda a mesma conta do portão; o pedido volta ao host pela rede -->
+      <line x1="948" y1="352" x2="948" y2="440" stroke="#4f5d75" stroke-width="1" marker-end="url(#requisitos-arrow)"/>
+      <rect x="872" y="390" width="68" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="906" y="399" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MESMA CONTA</text>
+
+      <line x1="1020" y1="440" x2="1020" y2="352" stroke="#2e5aa8" stroke-width="1" marker-end="url(#requisitos-arrow-link)"/>
+      <rect x="968" y="390" width="44" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="990" y="399" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PEDIDO</text>
+
+      <!-- Nós -->
+      <!-- Editor do mestre -->
+      <rect x="24" y="40" width="248" height="112" rx="6" fill="#f5f5f5"/>
+      <rect x="24" y="40" width="248" height="112" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="148" y="66" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Editor do mestre</text>
+      <text x="148" y="84" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">editor/ e blocos/BlocoDosRequisitos</text>
+      <text x="148" y="98" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">acumulador/EditorDoAcumulador</text>
+      <text x="148" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">monta requisitos, marcas e acumulador</text>
+
+      <!-- Cartão, catálogo e Acervo: onde o bloco mora -->
+      <rect x="336" y="40" width="312" height="112" rx="6" fill="#f5f5f5"/>
+      <rect x="336" y="40" width="312" height="112" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="492" y="66" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Cartão, catálogo e Acervo</text>
+      <text x="492" y="84" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">campos: requisitos · marcas · acumulador</text>
+      <text x="492" y="98" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">modelo.ts · ler.ts · guardados.ts</text>
+      <text x="492" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">peça torta ou de app novo não derruba o resto</text>
+      <text x="492" y="126" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">mora no cartão, no catálogo, no Acervo e no item</text>
+
+      <!-- Cartões antigos: a proposta que o mestre confere (uma vez, opcional) -->
+      <rect x="712" y="40" width="344" height="112" rx="6" fill="#f5f5f5"/>
+      <rect x="712" y="40" width="344" height="112" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="884" y="66" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Cartões antigos, sem requisitos</text>
+      <text x="884" y="84" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">antigos.ts propõe; o mestre confere a lista</text>
+      <text x="884" y="98" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">requisitos-propostos.json, fora do repo</text>
+      <text x="884" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Confirmar grava; cópia: rpg.json.antes-dos-requisitos</text>
+      <text x="884" y="126" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">só preenche o que o cartão ainda não tem</text>
+
+      <!-- Rastro e acumulador da batalha -->
+      <rect x="24" y="232" width="248" height="120" rx="6" fill="#f5f5f5"/>
+      <rect x="24" y="232" width="248" height="120" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="148" y="258" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Rastro e acumulador da batalha</text>
+      <text x="148" y="276" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">rastro.ts · acumuladorNaBatalha.ts</text>
+      <text x="148" y="290" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">andou, acertou, apanhou, ação de antes</text>
+      <text x="148" y="304" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">nível de cada acumulador na batalha</text>
+      <text x="148" y="318" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">o Desfazer volta campo a campo</text>
+
+      <!-- O avaliador (focal 1) -->
+      <rect x="336" y="232" width="312" height="120" rx="6" fill="#f5f5f5"/>
+      <rect x="336" y="232" width="312" height="120" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="492" y="258" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Avaliador</text>
+      <text x="492" y="276" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">contexto.ts · montar.ts · avaliar.ts</text>
+      <text x="492" y="290" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">julga o retrato da batalha contra o bloco</text>
+      <text x="492" y="304" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">estado: ok, falta, pergunta ou naoSei</text>
+      <text x="492" y="318" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sem o dado vira naoSei: o mestre confere</text>
+
+      <!-- O portão do host (focal 2) -->
+      <rect x="712" y="232" width="344" height="120" rx="6" fill="#f5f5f5"/>
+      <rect x="712" y="232" width="344" height="120" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="884" y="258" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Portão do host</text>
+      <text x="884" y="276" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">portao.ts · gastos.ts · testes.ts</text>
+      <text x="884" y="290" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">5 caminhos: técnica, arma, item, forma e Evoluir</text>
+      <text x="884" y="304" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">respostas req.&lt;id&gt;: caixa Cumpriu? e Um destes</text>
+      <text x="884" y="318" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">o host rola os testes; gastos na linha do golpe</text>
+      <text x="884" y="332" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">mestre força com forcarRequisitos (jogador não)</text>
+
+      <!-- Pedido de ajuda ao aliado -->
+      <rect x="336" y="440" width="312" height="104" rx="6" fill="#f5f5f5"/>
+      <rect x="336" y="440" width="312" height="104" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="492" y="466" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Pedido de ajuda ao aliado</text>
+      <text x="492" y="484" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">ajuda.ts · stores/batalha/ajuda.ts</text>
+      <text x="492" y="498" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">nasce pendência; nada é gasto antes do aceite</text>
+      <text x="492" y="512" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">batalha.ajuda: aliado aceita ou recusa no prazo</text>
+      <text x="492" y="526" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">no aceite roda o pedido de novo; o aliado paga</text>
+
+      <!-- Menu da vez -->
+      <rect x="712" y="440" width="344" height="104" rx="6" fill="#f5f5f5"/>
+      <rect x="712" y="440" width="344" height="104" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="884" y="466" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Menu da vez, do mestre e do jogador</text>
+      <text x="884" y="484" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">requisitosNoMenu.ts · PerguntasDosRequisitos.tsx</text>
+      <text x="884" y="498" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">técnica cinza com o motivo, pelo mesmo portão</text>
+      <text x="884" y="512" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">medidores do acumulador e botão Carregar</text>
+      <text x="884" y="526" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">caixa Cumpriu? e Um destes antes de usar</text>
+
+      <!-- Legenda: faixa horizontal no pé -->
+      <line x1="24" y1="576" x2="1056" y2="576" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="24" y="600" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+      <line x1="120" y1="596" x2="152" y2="596" stroke="#4f5d75" stroke-width="1" marker-end="url(#requisitos-arrow)"/>
+      <text x="164" y="600" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">dentro do app</text>
+      <line x1="260" y1="596" x2="292" y2="596" stroke="#2e5aa8" stroke-width="1" marker-end="url(#requisitos-arrow-link)"/>
+      <text x="304" y="600" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">pedido pela rede</text>
+      <line x1="416" y1="596" x2="448" y2="596" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#requisitos-arrow-link)"/>
+      <text x="460" y="600" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">resposta do aliado pela rede</text>
+      <line x1="628" y1="596" x2="660" y2="596" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#requisitos-arrow)"/>
+      <text x="672" y="600" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">uma vez, só com o Confirmar</text>
+      <rect x="836" y="590" width="16" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="860" y="600" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">onde o requisito é julgado e decidido</text>
+    </svg>
+  </div>
+</body>
+</html>
