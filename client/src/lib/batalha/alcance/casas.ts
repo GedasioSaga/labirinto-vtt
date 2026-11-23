@@ -15,7 +15,7 @@
  * Puro: sem store, sem rede, sem Pixi.
  */
 
-import { hasLineOfSight, type Segment } from '../../visibility'
+import { hasLineOfSight, type Segment } from '../../linhaDeVisao'
 import type { Casa, Direcao, PegadaNaGrade } from '../area'
 import { centroDaCasa } from '../blocos'
 import { raioDaExplosao, type FormaDaAreaLonge, type FormaDoAlcance } from './forma'

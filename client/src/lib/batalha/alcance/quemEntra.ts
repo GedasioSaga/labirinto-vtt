@@ -8,7 +8,7 @@
  * Puro: sem store, sem rede, sem Pixi.
  */
 
-import type { Segment } from '../../visibility'
+import type { Segment } from '../../linhaDeVisao'
 import { DIRECOES, distanciaEntreFichas, type Casa, type Direcao, type PegadaNaGrade } from '../area'
 import { casasDaExplosao, casasDoAlcance } from './casas'
 import { usaDirecao, type FormaDoAlcance } from './forma'

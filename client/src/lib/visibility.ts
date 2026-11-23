@@ -6,6 +6,11 @@ import { chaoQueLimita } from './offFloor'
 import { construcoesQueTapam } from './obstaculosDeObjeto'
 import { trechosDosCarimbosQueTapam } from './carimbosQueBarram'
 import { simplifyRing } from './refineFloor'
+import { MIN_HIT_DISTANCE, PARALLEL_EPSILON, type Segment } from './linhaDeVisao'
+
+// A parte pura (o tipo do trecho e a linha de visão) mora em `linhaDeVisao.ts`, que o Worker alcança;
+// os importadores antigos seguem lendo daqui.
+export { hasLineOfSight, type Segment } from './linhaDeVisao'
 
 /**
  * Polígono de visão (modo jogador): varredura angular clássica. Um raio é
@@ -15,21 +20,10 @@ import { simplifyRing } from './refineFloor'
  * mais próximo ou no raio de visão, o que vier antes.
  */
 
-export interface Segment {
-  x1: number
-  y1: number
-  x2: number
-  y2: number
-}
-
 /** Desvio angular dos raios auxiliares em volta de cada extremidade, em radianos. */
 const ENDPOINT_ANGLE_OFFSET = 1e-4
 /** Raios uniformes que aproximam o arco do círculo de alcance. */
 const CIRCLE_RAYS = 64
-/** Abaixo disto o raio é tratado como paralelo ao segmento. */
-const PARALLEL_EPSILON = 1e-12
-/** Intersecção colada na origem é ignorada: token em cima de uma linha não fica cego. */
-const MIN_HIT_DISTANCE = 1e-6
 /** Desvio máximo da simplificação do contorno do chão, em px de mundo. */
 const FLOOR_SIMPLIFY_TOLERANCE = 1.0
 
@@ -167,42 +161,6 @@ export function computeVisibility(origin: RegionPoint, segments: Segment[], radi
     polygon[r] = { x: ox + dirX[r] * nearest[r], y: oy + dirY[r] * nearest[r] }
   }
   return polygon
-}
-
-/**
- * Linha de visão SEM limite de alcance: nenhum obstáculo corta o trecho de
- * `from` até `to`. Os mesmos obstáculos e a mesma folga de `computeVisibility`
- * (encostar no obstáculo na própria origem não cega); o alvo em cima de um
- * obstáculo (lampião pendurado na parede) conta como visto.
- */
-export function hasLineOfSight(from: RegionPoint, to: RegionPoint, segments: readonly Segment[]): boolean {
-  const dx = to.x - from.x
-  const dy = to.y - from.y
-  const length = Math.hypot(dx, dy)
-  if (!Number.isFinite(length)) return false
-  if (length < MIN_HIT_DISTANCE) return true
-  // Folgas em px convertidas para a fração do trecho (0 = origem, 1 = alvo).
-  const minT = MIN_HIT_DISTANCE / length
-  const maxT = 1 - MIN_HIT_DISTANCE / length
-  const minX = Math.min(from.x, to.x)
-  const maxX = Math.max(from.x, to.x)
-  const minY = Math.min(from.y, to.y)
-  const maxY = Math.max(from.y, to.y)
-  for (const s of segments) {
-    // Caixa do obstáculo longe da caixa do trecho: não corta.
-    if (Math.max(s.x1, s.x2) < minX || Math.min(s.x1, s.x2) > maxX || Math.max(s.y1, s.y2) < minY || Math.min(s.y1, s.y2) > maxY) continue
-    const ex = s.x2 - s.x1
-    const ey = s.y2 - s.y1
-    const denom = dx * ey - dy * ex
-    if (Math.abs(denom) < PARALLEL_EPSILON) continue
-    const wx = s.x1 - from.x
-    const wy = s.y1 - from.y
-    const t = (wx * ey - wy * ex) / denom
-    if (t < minT || t > maxT) continue
-    const u = (wx * dy - wy * dx) / denom
-    if (u >= 0 && u <= 1) return false
-  }
-  return true
 }
 
 /** Arestas de um anel fechado (o último vértice liga ao primeiro). */
