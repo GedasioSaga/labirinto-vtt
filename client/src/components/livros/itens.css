@@ -320,3 +320,6 @@
 .mu-alc-antigo__acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 .mu-alc-antigo__acoes .mu-bt[aria-pressed='true'] { border-color: var(--lb-color-brass); background: var(--lb-color-brass-soft); color: var(--lb-color-parchment); }
 @media (max-width: 720px) { .mu-alc-antigo { grid-template-columns: 40px minmax(0, 1fr); } .mu-alc-antigo__acoes { grid-column: 1 / -1; justify-content: flex-start; } }
+/* REQUISITOS.md §11 (fase H): a linha do "Dar requisitos aos antigos" não tem a prévia da forma; o corpo ocupa a coluna dela. */
+.mu-req-antigos .mu-alc-antigo { grid-template-columns: minmax(0, 1fr) auto; }
+@media (max-width: 720px) { .mu-req-antigos .mu-alc-antigo { grid-template-columns: minmax(0, 1fr); } }
