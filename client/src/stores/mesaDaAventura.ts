@@ -1,5 +1,6 @@
 import { direcaoDaRotacao } from '../lib/batalha/area'
 import { mapaDoAlcance } from '../lib/batalha/alcance/segmentos'
+import { fichaNaLuz } from '../lib/luzNaFicha'
 import { pisoDe } from '../lib/pisos'
 import { temporariosDaCena } from '../lib/batalha/invocacao'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
@@ -8,7 +9,7 @@ import * as mapFactory from '../lib/mapFactory'
 import { mudarFichaNoMapa } from '../lib/prazoDaCondicao'
 import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import type { MapData, Token } from '../types/map'
-import { applyItemsInScene, equipesAtivas, mochilaMoraNaFicha, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
+import { applyItemsInScene, equipesAtivas, mochilaMoraNaFicha, periodoDaSessao, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
 import { sistemaPorId, useRpgStore } from './rpgStore'
 
@@ -161,5 +162,11 @@ export const mesaDaAventura: MesaDaBatalha = {
     const map = mapaDaCena(sceneKey)
     const token = map?.tokens.find((candidato) => candidato.id === tokenId)
     return map === null || token === undefined || !(map.grid > 0) ? null : mapaDoAlcance(map, pisoDe(token))
+  },
+
+  // REQUISITOS E5: a luz pelo mapa inteiro da cena e o período da sessão (o mestre vê toda luz).
+  naLuz: (sceneKey, tokenId) => {
+    const map = mapaDaCena(sceneKey)
+    return map === null ? null : fichaNaLuz(map, tokenId, periodoDaSessao(useAdventureStore.getState()))
   },
 }

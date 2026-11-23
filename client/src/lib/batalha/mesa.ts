@@ -67,6 +67,11 @@ export interface MesaDaBatalha {
    */
   mapaDoAlcance?(sceneKey: string, tokenId: string): MapaDoAlcance | null
   /**
+   * REQUISITOS E5: a ficha `tokenId` está na luz agora (o mapa inteiro da cena, `lib/luzNaFicha.ts`).
+   * `null` = ficha ou cena fora de alcance. Opcional: sem ele o requisito de luz sai "não sei".
+   */
+  naLuz?(sceneKey: string, tokenId: string): boolean | null
+  /**
    * Fase C (prazo das condições, `lib/prazoDaCondicao.ts`): a ficha `tokenId`
    * da cena como está AGORA, para a vida por turno no começo da vez e o
    * desconto do prazo no fim. `null` = ficha ou cena fora de alcance.

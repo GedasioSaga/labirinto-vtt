@@ -49,6 +49,11 @@ export interface EntradaDoMontador {
   naReacao?: boolean
   noTreino?: boolean
   autorEhMestre?: boolean
+  /**
+   * E5: a ficha está na luz, medido por quem tem o mapa (o host, `MesaDaBatalha.naLuz`). Ausente ou
+   * `null` = não sei (o requisito de luz sai "o mestre confere").
+   */
+  naLuz?: (tokenId: string) => boolean | null
 }
 
 function todosOsCartoes(personagem: Pick<Personagem, 'abas'>): CartaoDaFicha[] {
@@ -268,6 +273,8 @@ export function contextoDosRequisitos(entrada: EntradaDoMontador): ContextoDosRe
   if (entrada.naReacao === true) ctx.naReacao = true
   if (entrada.noTreino === true) ctx.noTreino = true
   if (entrada.autorEhMestre === true) ctx.autorEhMestre = true
+  const luz = entrada.naLuz?.(tokenId) ?? null
+  if (luz !== null) ctx.naLuz = luz
   if (entrada.alvos !== undefined) {
     ctx.alvos = entrada.alvos.map((alvoTokenId): AlvoNoContexto => {
       const personagemId = entrada.personagemDoToken(alvoTokenId)
