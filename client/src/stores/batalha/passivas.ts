@@ -34,7 +34,7 @@ import { ehLembreteDoSangramento, porVezDoLembrete, travaDoToken, verboDoPorVez 
 import { ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../../lib/batalha/preparacao'
 import { danoComAsReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { custoPorTurno, textoDoCustoPorTurno } from '../../lib/batalha/custoPorTurno'
-import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../../lib/batalha/escolhaEEvolucao'
+import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, portaoDoEvoluir, varianteDoPedido, type ContextoDaEvolucao } from '../../lib/batalha/escolhaEEvolucao'
 import { ajustesDoCusto, custoEmSp, depoisDaTecnica, textoDaRolagem } from '../../lib/batalha/golpe'
 import { mantidaDe } from '../../lib/batalha/mecanicasAMao'
 import {
@@ -62,6 +62,9 @@ import type { BatalhaDaCena, BatalhaState } from './tipos'
 import { comMudanca, type EfeitoNovo, comEfeitos, quemNaFicha, personagemDoTokenNa, nomeDoTokenNa, nomeDoBandoNa, partesDosLembretes } from './cena'
 import { mexerNaFicha, semOsCaidos, textoDosQueSairam, tirouSp, reversaoDaFicha, mudancaValida } from './naMesa'
 import { devolverFichasDaAcao } from './desfazer'
+import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
+import { aliadosNaLuta } from '../../lib/batalha/equipes'
+import { acumuladoresDoPersonagem, acumuladorQueCarrega, comGastoNoAcumulador, comOEventoNosAcumuladores, nivelDoAcumulador } from '../../lib/batalha/acumuladorNaBatalha'
 import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
 import { novoIdDaMarca } from './golpe'
@@ -324,7 +327,12 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     const { personagens, sistema } = mesaDoRpg()
     const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
     if (ocultoParaQuemPede(autor, personagem, pedido.cartaoId)) return false
-    if (motivoDoEvoluir({ personagem, sistema, turnos, soNaVez: autor.tipo === 'jogador' }, pedido) !== null || personagem === null || sistema === null) return false
+    // REQUISITOS C: o retrato do "Para evoluir" vê as fichas da mesa e os aliados na luta; o mestre força.
+    const invocados = turnos.invocados ?? []
+    const aliados = aliadosNaLuta(personagemId, [...turnos.cartas.map((candidata) => candidata.personagemId), ...invocados.map((invocado) => invocado.personagemId)], { equipes: mesa.equipes(), personagens, invocados })
+    const ctxDaEvolucao: ContextoDaEvolucao = { personagem, sistema, turnos, soNaVez: autor.tipo === 'jogador', personagens, aliados, autorEhMestre: autor.tipo === 'mestre' }
+    if (motivoDoEvoluir(ctxDaEvolucao, pedido) !== null || personagem === null || sistema === null) return false
+    const doPortao = portaoDoEvoluir(ctxDaEvolucao, pedido)
     const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
     const evolucao = achada === null ? null : evolucaoDe(achada.cartao, tecnicasDe(personagem, sistema))
     if (achada === null || evolucao === null) return false
@@ -334,13 +342,25 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     const evoluida = comEvoluida(combateAntes ?? combateVazio(), cartao.id)
     // Conserto das fichas F1 (+10 SP por vez): evoluir pagando SP conta como gastar SP na vez.
     const combate: CombateDoPersonagem = custoEmSp(custo) && evoluida.gastouSp !== true ? { ...evoluida, gastouSp: true } : evoluida
-    const novos: TurnosDaCena = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
+    let novos: TurnosDaCena = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
     const partes: Reversao[] = [{ tipo: 'evolucao', personagemId, cartaoId: cartao.id }]
     if (combate !== evoluida) partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois: combate })
     const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quemNaFicha(autor))
     // Bug 11: custo recusado = a técnica não evolui.
     if (doCusto === 'recusada') return false
     partes.push(...reversaoDaFicha(personagemId, doCusto))
+    // REQUISITOS C (I3): os gastos do "Para evoluir" que vale, nesta linha (o Desfazer devolve tudo).
+    let notaDosRequisitos = doPortao.tipo === 'passa' ? doPortao.nota : null
+    if (doPortao.tipo === 'passa') {
+      const gastos = gastarOsRequisitos(mesa, sceneKey, personagemId, carta.tokenId, novos, doPortao.gastos, autor)
+      if (gastos === 'recusada') {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+      partes.push(...gastos.partes)
+      novos = gastos.turnos
+      notaDosRequisitos = notaDaLinha(gastos.texto, notaDosRequisitos)
+    }
     const dono = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
     const nome = nomeNaBatalha(personagem, cartao, 'a técnica')
     // Com link: "→ SUPER CAÇA AS BRUXAS!"; sem link e o texto diz OVERLOAD: o uso evoluído é Overload.
@@ -348,7 +368,11 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     const destino = evolucao.para !== null ? ` → ${nomeNaBatalha(personagem, evolucao.para, 'a evoluída')}` : evolucao.overload ? ' (agora Overload)' : ''
     const recurso = recursoDoCusto(sistema, 'sp')?.nome ?? 'SP'
     const pago = custo.tipo === 'valor' && personagem.tipo === 'jogador' ? ` (${custo.valor} ${recurso})` : ''
-    const texto = `${dono} evoluiu ${nome}${destino}${pago}`
+    const texto = `${dono} evoluiu ${nome}${destino}${pago}${notaDosRequisitos === null ? '' : ` ${notaDosRequisitos}`}`
+    // REQUISITOS C: o SP do Evoluir (o custo e o gasto do requisito) sobe o acumulador "a cada N SP gastos".
+    const rastreado = rastrear(novos, [], partes)
+    partes.push(...rastreado.partes)
+    novos = rastreado.turnos
     // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
     const atual = cenaDe(sceneKey) ?? cena
     gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'habilidade', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
@@ -496,6 +520,41 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
   }
 
   /** R5: o contador (ver `contador` no estado). O "sem reação" mora no combate; o nível, no selo do token. */
+  /**
+   * REQUISITOS C: o "Carregar" do acumulador genérico que sobe ao gastar a reação (a Polaridade no motor
+   * novo): as travas do contador antigo; gasta a reação (`semReacao`) e o evento sobe o nível; zerar
+   * (do mestre) volta a 0. Uma parte "combate" na linha: o Desfazer devolve o nível e a reação.
+   */
+  const carregarOAcumulador = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDoContador, personagem: Personagem): boolean => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined) return false
+    const { turnos } = cena
+    const achado = acumuladorQueCarrega(personagem)
+    if (achado === null || achado.cartao.id !== pedido.cartaoId) return false
+    if (ocultoParaQuemPede(autor, personagem, achado.cartao.id)) return false
+    if (pedido.tipo === 'ganhar' && travaDoToken(turnos.selos, pedido.tokenId) !== null) return false
+    const { acumulador } = achado
+    const combateAntes = turnos.combate?.[personagem.id]
+    const base = combateAntes ?? combateVazio()
+    const nivel = nivelDoAcumulador(combateAntes, acumulador.id)
+    if (motivoDoContador(pedido.tipo, nivel, acumulador.maximo, combateAntes?.semReacao === true, temGolpeEsperando(turnos.golpes, pedido.tokenId)) !== null) return false
+    const definicoes = acumuladoresDoPersonagem(personagem)
+    const depois =
+      pedido.tipo === 'ganhar'
+        ? comOEventoNosAcumuladores({ ...base, semReacao: true }, definicoes, { quando: 'gastaReacao' }, turnos.rodada)
+        : comGastoNoAcumulador(base, definicoes, { id: acumulador.id, nome: acumulador.nome }, nivel, turnos.rodada)
+    const nivelDepois = nivelDoAcumulador(depois, acumulador.id)
+    const oculto = ocultoNaBatalha(personagem, achado.cartao)
+    const nomeDoAcumulador = oculto ? NOME_DO_OCULTO : acumulador.nome
+    const nome = nomeDoTokenNa(turnos, mesaDoRpg().personagens)(pedido.tokenId)
+    const texto = pedido.tipo === 'ganhar' ? `${nome} carregou ${nomeDoAcumulador}: nível ${nivelDepois} · sem reação até a vez dele` : `${nomeDoAutor(autor)} zerou ${nomeDoAcumulador} de ${nome}`
+    const novos: TurnosDaCena = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagem.id]: depois } }
+    const partes: Reversao[] = [{ tipo: 'combate', personagemId: personagem.id, antes: combateAntes ?? null, depois }]
+    gravarCena(sceneKey, comMudanca(cena, novos, { tipo: 'habilidade', texto, autor, tokenIds: [pedido.tokenId], personagemIds: [personagem.id], reversao: { tipo: 'composta', partes } }))
+    if (pedido.tipo === 'ganhar') revelarAoUsar(personagem.id, achado.cartao.id)
+    return true
+  }
+
   const mexerNoContador = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDoContador): boolean => {
     const cena = cenaDe(sceneKey)
     if (cena === undefined || (pedido.tipo === 'zerar' && autor.tipo !== 'mestre')) return false
@@ -505,6 +564,7 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     const { personagens, sistema } = mesaDoRpg()
     const personagem = personagens.find((candidato) => candidato.id === personagemId)
     const achado = personagem === undefined || sistema === null ? null : contadorDoPersonagem(personagem, sistema)
+    if (personagemId !== null && personagem !== undefined && achado === null) return carregarOAcumulador(sceneKey, autor, pedido, personagem)
     if (personagemId === null || achado === null || achado.cartao.id !== pedido.cartaoId) return false
     if (ocultoParaQuemPede(autor, personagem, achado.cartao.id)) return false
     // S4: carregar gasta a reação, e o Atordoado ou Paralisado não reage. Zerar (do mestre) continua valendo.

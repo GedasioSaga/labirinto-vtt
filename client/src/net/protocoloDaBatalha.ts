@@ -77,6 +77,7 @@ import { lerRegrasDaBatalha, type RegrasDaBatalha } from '../lib/batalha/regrasD
 import { ehAlvoDeMod, ehNomeDeSelo } from '../lib/batalha/selos'
 import type { DuracaoDaExtra } from '../lib/batalha/turnos'
 import {
+  ACUMULADORES_DO_DONO_MAX,
   APARENCIAS_MAX,
   CARTAS_PARA_JOGADOR_MAX,
   CARTOES_NO_COMBATE_MAX,
@@ -101,6 +102,7 @@ import {
   type SeloParaJogador,
   type VidaNaCarta,
 } from '../lib/batalha/vistaDoJogador'
+import { NIVEL_DO_ACUMULADOR_MAX } from '../lib/batalha/requisitos/modelo'
 
 /**
  * BATALHA ONE PIECE, F1 (seção 3 de docs/planos/batalha-one-piece-f1-plano.md):
@@ -520,6 +522,12 @@ function lerAcaoDaForma(value: unknown): AcaoDaForma | null {
   return ACOES_DA_FORMA.find((acao) => acao === value) ?? null
 }
 
+/** REQUISITOS C: `forcarRequisitos` ausente = `undefined`; `true` = o mestre força; outro valor = torto (`false`). */
+function forcarDoPedido(value: Record<string, unknown>): true | undefined | false {
+  if (value.forcarRequisitos === undefined) return undefined
+  return value.forcarRequisitos === true ? true : false
+}
+
 /** O pedido de ação, enum fechado no `tipo`. */
 export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
   if (!isRecord(value)) return null
@@ -545,6 +553,9 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       if (selo !== undefined) pedido.selo = selo
       if (balaId !== undefined) pedido.balaId = balaId
       if (respostas !== undefined) pedido.respostas = respostas
+      // REQUISITOS C: o "usar mesmo assim" do mestre; quem confere o autor é a store.
+      if (forcarDoPedido(value) === false) return null
+      if (forcarDoPedido(value) === true) pedido.forcarRequisitos = true
       return pedido
     }
     case 'habilidade': {
@@ -580,6 +591,8 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       if (respostas !== undefined) pedido.respostas = respostas
       if (ponto !== undefined) pedido.ponto = ponto
       if (centroId !== undefined) pedido.centroId = centroId
+      if (forcarDoPedido(value) === false) return null
+      if (forcarDoPedido(value) === true) pedido.forcarRequisitos = true
       return pedido
     }
     case 'concentrar':
@@ -593,7 +606,11 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const { cartaoId, trocarImagem } = value
       const acao = lerAcaoDaForma(value.acao)
       if (!textoAte(cartaoId, 1, CARTAO_ID_MAX) || acao === null || typeof trocarImagem !== 'boolean') return null
-      return { tipo: 'transformar', cartaoId, acao, trocarImagem }
+      // REQUISITOS C: a caixa e a escolha do "Para ligar" e o "usar mesmo assim" do mestre.
+      const respostas = value.respostas === undefined ? undefined : lerRespostas(value.respostas)
+      const forcar = forcarDoPedido(value)
+      if (respostas === null || forcar === false) return null
+      return { tipo: 'transformar', cartaoId, acao, trocarImagem, ...(respostas === undefined ? {} : { respostas }), ...(forcar === true ? { forcarRequisitos: true } : {}) }
     }
     case 'destransformar': {
       const { cartaoId } = value
@@ -607,9 +624,15 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const centroId = lerCentroId(value.centroId)
       const doAlcance = lerAlcanceDoPedido(value)
       if (!textoAte(vagaId, 1, ID_DA_BATALHA_MAX) || alvosLidos === null || ponto === false || centroId === false || doAlcance === false || value.contraDe !== undefined) return null
+      // REQUISITOS C: as respostas dos requisitos do item e o "usar mesmo assim" do mestre.
+      const respostas = value.respostas === undefined ? undefined : lerRespostas(value.respostas)
+      const forcar = forcarDoPedido(value)
+      if (respostas === null || forcar === false) return null
       const pedido: PedidoDeAcao = { tipo: 'item', vagaId, alvos: alvosLidos, ...doAlcance }
       if (ponto !== undefined) pedido.ponto = ponto
       if (centroId !== undefined) pedido.centroId = centroId
+      if (respostas !== undefined) pedido.respostas = respostas
+      if (forcar === true) pedido.forcarRequisitos = true
       return pedido
     }
     default:
@@ -804,7 +827,11 @@ export function lerPedidoDeEvolucao(value: unknown): PedidoDeEvolucao | null {
   const { tokenId, cartaoId, custo } = value
   if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX)) return null
   if (custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) return null
-  return { tipo: 'evoluir', tokenId, cartaoId, custo }
+  // REQUISITOS C: as respostas do "Para evoluir" e o "evoluir mesmo assim" do mestre.
+  const respostas = value.respostas === undefined ? undefined : lerRespostas(value.respostas)
+  const forcar = forcarDoPedido(value)
+  if (respostas === null || forcar === false) return null
+  return { tipo: 'evoluir', tokenId, cartaoId, custo, ...(respostas === undefined ? {} : { respostas }), ...(forcar === true ? { forcarRequisitos: true } : {}) }
 }
 
 export function parseBatalhaEvoluir(value: unknown): BatalhaEvoluirMessage | null {
@@ -1140,6 +1167,15 @@ function comPassivasLidas(combate: CombateParaJogador, value: Record<string, unk
   if (lembradas !== undefined) combate.lembradas = lembradas
   if (ativas !== undefined) combate.passivasAtivas = ativas
   if (evoluidas !== undefined) combate.evoluidas = evoluidas
+  // REQUISITOS C: os níveis dos acumuladores dele (id no teto, inteiro de 1 ao máximo).
+  if (value.acumuladores !== undefined) {
+    if (!isRecord(value.acumuladores)) return null
+    const entradas = Object.entries(value.acumuladores)
+    if (entradas.length > ACUMULADORES_DO_DONO_MAX || entradas.some(([id, nivel]) => !textoAte(id, 1, CARTAO_ID_MAX) || !inteiroAte(nivel, 1, NIVEL_DO_ACUMULADOR_MAX))) return null
+    const niveis: Record<string, number> = {}
+    for (const [id, nivel] of entradas) if (typeof nivel === 'number') niveis[id] = nivel
+    combate.acumuladores = niveis
+  }
   // R5: sem reação até a vez dele; R1: os lembretes da marca do atirador.
   if (value.semReacao !== undefined) {
     if (value.semReacao !== true) return null

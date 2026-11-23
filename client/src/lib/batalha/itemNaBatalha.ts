@@ -70,7 +70,8 @@ export function vagaParaUsar(mochila: readonly CarriedItem[] | undefined, vagaId
 
 /** O cartão do item só para a conta: o nome da vaga e as peças do efeito. */
 export function cartaoDoItem(vaga: VagaComEfeito): CartaoDaFicha {
-  return { ...novoCartao(vaga.nome.trim() || 'Item'), id: idDoCartaoDoItem(vaga.id), mecanica: vaga.efeito.mecanica }
+  // REQUISITOS C: os requisitos da vaga (cópia do Acervo) vão com o cartão: o portão da técnica os confere.
+  return { ...novoCartao(vaga.nome.trim() || 'Item'), id: idDoCartaoDoItem(vaga.id), mecanica: vaga.efeito.mecanica, ...(vaga.requisitos === undefined ? {} : { requisitos: vaga.requisitos }) }
 }
 
 /** A ficha com o cartão do item na aba Habilidades (troca o de mesmo id). Só para a conta: não grava. */
@@ -106,6 +107,9 @@ export function pedidoDaTecnicaDoItem(pedido: PedidoDoItem, cartao: CartaoDaFich
     // Fase C do alcance: o lado da mira e a confirmação do "usar mesmo assim" seguem para a técnica do item.
     ...(pedido.direcao === undefined ? {} : { direcao: pedido.direcao }),
     ...(pedido.foraDoAlcance === undefined ? {} : { foraDoAlcance: pedido.foraDoAlcance }),
+    // REQUISITOS C: a caixa, a escolha e o "usar mesmo assim" do mestre seguem para a técnica do item.
+    ...(pedido.respostas === undefined ? {} : { respostas: pedido.respostas }),
+    ...(pedido.forcarRequisitos === undefined ? {} : { forcarRequisitos: pedido.forcarRequisitos }),
   }
 }
 

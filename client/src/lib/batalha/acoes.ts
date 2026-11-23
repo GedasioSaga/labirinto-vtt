@@ -20,6 +20,8 @@ import { cartaoMontado } from './mecanica/leitura'
 import type { MecanicaV1 } from './mecanica/modelo'
 import { itensQueSobram, mecanicaDoCartao, perfuranteDaMecanica, respostasPadrao } from './mecanicasAMao'
 import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
+import type { ContextoDosRequisitos } from './requisitos/contexto'
+import { motivoDosRequisitosNoMenu } from './requisitos/portao'
 import type { AcoesExtras, GastoDaVez } from './turnos'
 
 /**
@@ -232,6 +234,7 @@ export function motivoDaTecnica(
   acoes: AcoesDaVez | null,
   comoReacao?: boolean,
   comoInvocacao?: boolean,
+  requisitos?: string | null,
 ): string | null {
   const { cartao } = tecnica
   const tipo = lerTipo(cartao).tipo
@@ -244,6 +247,8 @@ export function motivoDaTecnica(
   const voltou = combate?.overload === true && mecanicaDoCartao(cartao.id)?.voltaDepoisDoOverload === true
   if (evolucao !== null && !voltou) return evolucao
   if (tecnica.overload && combate?.overload === true) return MOTIVO_DO_OVERLOAD_USADO
+  // REQUISITOS C (§6): o motivo do portão dos requisitos (calculado por quem chama), antes de recarga, usos, custo e ação.
+  if (requisitos !== undefined && requisitos !== null) return requisitos
   const recarga = combate?.recargas[cartao.id] ?? 0
   if (recarga > 0) return `Recarga: ${turnos(vezesDeRecarga(recarga, tecnica.tempo))}`
   if (tecnica.tempo.tipo === 'usos') {
@@ -349,6 +354,7 @@ export function tecnicasNoMenu(
   acoes: AcoesDaVez | null,
   arma: CartaoDaFicha | null,
   bonus?: BonusDaBatalha,
+  requisitos?: ContextoDosRequisitos,
 ): TecnicaNoMenu[] {
   const tecnicas = tecnicasComForma(personagem, sistema)
   const todas = tecnicas.map((tecnica) => tecnica.cartao)
@@ -374,7 +380,8 @@ export function tecnicasNoMenu(
       // Construtor C1: o cartão montado dá o perfurante da peça (passa o cartão, não o id).
       perfurante: perfuranteDaMecanica(cartao, respostasPadrao(cartao)) ?? ehPerfurante(cartao),
       tipo: lida.tipo,
-      motivo: motivoDaTecnica(base, personagem, sistema, combate, acoes),
+      // REQUISITOS C: o cinza dos requisitos no menu (o retrato sem alvo; o que pergunta fica clicável).
+      motivo: motivoDaTecnica(base, personagem, sistema, combate, acoes, undefined, undefined, motivoDosRequisitosNoMenu(cartao.requisitos, 'usar', requisitos === undefined ? undefined : comCustoEmSp(requisitos, base.custo))),
     }
     if (forma !== undefined) tecnica.forma = forma
     // Construtor C1: a perfuração parcial é leitura do texto; a técnica montada perfura inteiro ou nada.
@@ -382,6 +389,11 @@ export function tecnicasNoMenu(
     if (perfuracao !== null) tecnica.perfuracao = perfuracao
     return tecnica
   })
+}
+
+/** O retrato do menu com o custo normal da técnica em SP (o A1 que gasta pede o dele além deste). */
+function comCustoEmSp(ctx: ContextoDosRequisitos, custo: TecnicaNoMenu['custo']): ContextoDosRequisitos {
+  return custo.tipo === 'valor' && custo.recurso === 'sp' ? { ...ctx, custoEmSp: custo.valor } : ctx
 }
 
 /** O Concentrar já usado nesta vez; com ele, zerar desfaz o Concentrar da vez (C2: a ação volta). */

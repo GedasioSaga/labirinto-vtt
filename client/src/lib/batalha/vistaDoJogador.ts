@@ -41,6 +41,7 @@ import {
   type SeloDaBatalha,
 } from './combate'
 import { mudancaDoSelo } from './alcance/doGolpe'
+import { NIVEL_DO_ACUMULADOR_MAX } from './requisitos/modelo'
 import { corDaEquipe, equipeDe, equipesNaLeitura, ladoNaBatalha, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe, type LadosDaBatalha } from './equipes'
 import type { JudgeNaCena } from './judge'
 import { limiteDeArmas, recursoDoEscudo } from './leituraDaFicha'
@@ -245,6 +246,8 @@ export interface CombateParaJogador {
   passivasAtivas?: string[]
   /** Tipos de habilidade F4: os cartaoIds base que evoluíram nesta batalha (o menu apaga e libera por eles). Ausente = nenhum. */
   evoluidas?: string[]
+  /** REQUISITOS C: o nível de cada acumulador DELE (id → nível), para o menu apagar "Falta: Polaridade 2, tem 1". Ausente = todos em 0. */
+  acumuladores?: Record<string, number>
   /**
    * Invocação F3: os invocados DESTE dono, esperando o mestre colocar (`posto` false) ou já no mapa. Só do
    * personagem dele: o nome e a opção, nunca números (o HP do invocado vai no bando, só do lado do dono).
@@ -719,6 +722,9 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
  * e as técnicas evoluídas. Nos tetos do fio; campo vazio não sai (o JSON de
  * quem não tem passiva nem evolução fica igual byte a byte).
  */
+/** REQUISITOS C: teto de acumuladores do dono no recorte (a ficha costuma ter um ou dois). */
+export const ACUMULADORES_DO_DONO_MAX = 16
+
 function comPassivasDoDono(meu: CombateParaJogador, combate: CombateDoPersonagem, ativas: readonly string[], visivel: (cartaoId: string) => boolean): CombateParaJogador {
   // `visivel` (fatia C7): o cartão oculto não sai, nem só o id.
   const cabe = (cartaoId: string): boolean => cartaoId.length >= 1 && cartaoId.length <= ID_DO_CARTAO_MAX && visivel(cartaoId)
@@ -734,6 +740,9 @@ function comPassivasDoDono(meu: CombateParaJogador, combate: CombateDoPersonagem
   if (lembradas.length > 0) meu.lembradas = lembradas
   if (passivasAtivas.length > 0) meu.passivasAtivas = passivasAtivas
   if (evoluidas.length > 0) meu.evoluidas = evoluidas
+  // REQUISITOS C: os níveis dos acumuladores dele (só id e número; o nome vem da ficha dele).
+  const acumuladores = Object.entries(combate.acumuladores ?? {}).filter(([id, nivel]) => id.length >= 1 && id.length <= ID_DO_CARTAO_MAX && Number.isInteger(nivel) && nivel > 0 && nivel <= NIVEL_DO_ACUMULADOR_MAX)
+  if (acumuladores.length > 0) meu.acumuladores = Object.fromEntries(acumuladores.slice(0, ACUMULADORES_DO_DONO_MAX))
   return meu
 }
 

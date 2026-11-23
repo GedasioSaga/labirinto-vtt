@@ -6,6 +6,7 @@ import { normalizar } from './formula'
 import type { CdDaDisputa, ContraDaDisputa, QuemRola } from './disputa'
 import type { FormaDaArea, QuemEntraNaArea } from './area'
 import { motivoDasRespostas, type OpcaoDaPergunta, type PerguntaNaHora, type RespostasDoPedido } from './perguntaNaHora'
+import { PREFIXO_DA_RESPOSTA } from './requisitos/modelo'
 
 /**
  * AS MECÂNICAS DAS FICHAS DE HOJE, PROGRAMADAS À MÃO (conserto das fichas F2;
@@ -1046,7 +1047,10 @@ export function perguntasDoGolpe(cartaoId: string | null, cartoesDoDono: readonl
  * as de todo golpe do dono, só quando vêm (sem resposta = "Não": o pedido
  * de antes, ou de quem não tocou, segue valendo).
  */
-export function motivoDasRespostasDoGolpe(cartaoId: string | null, cartoesDoDono: readonly string[], respostas: RespostasDoPedido | undefined): string | null {
+export function motivoDasRespostasDoGolpe(cartaoId: string | null, cartoesDoDono: readonly string[], todas: RespostasDoPedido | undefined): string | null {
+  // REQUISITOS C: as respostas dos requisitos (`req.*`, a caixa e o "Um destes") são do portão dos requisitos, não da mecânica.
+  const daMecanica = todas === undefined ? [] : Object.entries(todas).filter(([chave]) => !chave.startsWith(PREFIXO_DA_RESPOSTA))
+  const respostas: RespostasDoPedido | undefined = todas === undefined || daMecanica.length === 0 ? undefined : Object.fromEntries(daMecanica)
   const daTecnica = new Set((cartaoId === null ? [] : perguntasDoCartao(cartaoId)).map((pergunta) => pergunta.chave))
   const conferidas = perguntasDoGolpe(cartaoId, cartoesDoDono).filter((pergunta) => daTecnica.has(pergunta.chave) || respostas?.[pergunta.chave] !== undefined)
   return motivoDasRespostas(conferidas, respostas)

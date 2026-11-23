@@ -31,7 +31,9 @@ import {
 } from '../../lib/batalha/mecanica/formaDoMestre'
 import { comOCansaco, modsDoCansaco } from '../../lib/batalha/recursosDaBatalha'
 import { custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, pararAMantida, textoDoCustoPorTurno } from '../../lib/batalha/custoPorTurno'
-import { ajustesDoCusto, custoEmSp, podeAgir, type ContextoDoGolpe } from '../../lib/batalha/golpe'
+import { ajustesDoCusto, custoEmSp, podeAgir, portaoDoPedido, type ContextoDoGolpe } from '../../lib/batalha/golpe'
+import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
+import { devolverFichasDaAcao } from './desfazer'
 import { fatorDaVelocidade, sobeDeParte } from '../../lib/batalha/mecanicasAMao'
 import { semLembretes } from '../../lib/batalha/passivas'
 import { ehOverload, recursoDoCusto, tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
@@ -168,6 +170,8 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
     if (personagem === null || sistema === null) return false
     const ctx: ContextoDoGolpe = { turnos, carta, personagem, sistema, regras: cena.regras, autor, personagens, personagemDoToken: personagemDoTokenNa(turnos) }
     if (podeAgir(ctx, pedido) !== null) return false
+    // REQUISITOS C: o "Para ligar" da forma (o mesmo portão do `podeAgir`), lido antes de mexer: os gastos e a nota.
+    const doPortao = pedido.tipo === 'transformar' ? portaoDoPedido(ctx, pedido) : null
     const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
     // Fatia C7: a forma oculta liga como "???" (a não ser que revele ao usar: aí o uso a revela, logo abaixo).
     const nomeDaForma = cartao === null ? 'a forma' : nomeNaBatalha(personagem, cartao, 'a forma')
@@ -214,6 +218,18 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       // e o delta tiraria o ganho de novo (1.200 − 600 = 600).
       const cartaoPrimeiro = [...fichaMudou.filter((parte) => parte.parte === 'cartao'), ...fichaMudou.filter((parte) => parte.parte !== 'cartao')]
       partes.push(...reversaoDaFicha(personagemId, cartaoPrimeiro))
+      // REQUISITOS C: os gastos do "Para ligar" que vale, nesta linha (o Desfazer devolve tudo).
+      let notaDosRequisitos = doPortao?.tipo === 'passa' ? doPortao.nota : null
+      if (doPortao?.tipo === 'passa') {
+        const gastosDoPortao = gastarOsRequisitos(mesa, sceneKey, personagemId, carta.tokenId, novos, doPortao.gastos, autor)
+        if (gastosDoPortao === 'recusada') {
+          devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+          return false
+        }
+        partes.push(...gastosDoPortao.partes)
+        novos = gastosDoPortao.turnos
+        notaDosRequisitos = notaDaLinha(gastosDoPortao.texto, notaDosRequisitos)
+      }
       const imagem = pedido.trocarImagem ? (cartao?.imagem ?? null) : null
       const forma: FormaNaBatalha = { cartaoId: pedido.cartaoId, imagem }
       // F2b (A Caçada Começa): a forma com duração conta as vezes dele DEPOIS desta (`fimDaVezDasMecanicas` desliga no fim da última).
@@ -227,7 +243,7 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       if (numeros.length > 0 && (cartao === null || !ocultoNaBatalha(personagem, cartao))) efeito.numeros = numeros
       efeitos.push(efeito)
       const comoAtiva = pedido.acao === 'livre' ? 'sem gastar ação' : ROTULO_DA_ACAO_DA_FORMA[pedido.acao]
-      texto = `${quemAge} ativa ${nomeDaForma} (${comoAtiva})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
+      texto = `${quemAge} ativa ${nomeDaForma} (${comoAtiva})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}${notaDosRequisitos === null ? '' : ` ${notaDosRequisitos}`}`
     } else {
       const desligada = desligarAForma(personagemId, carta.tokenId, pedido.cartaoId, cartao !== null && ehOverload(cartao), novos, quem)
       if (desligada === null) return false

@@ -9,6 +9,7 @@ import { acertouOAlvo, alvosResolvidosAgora, chaveDaVezDe, comAcaoNoRastro, comD
 import type { AcumuladorDaFicha } from '../../lib/batalha/requisitos/modelo'
 import { comBandosEmDia } from '../../lib/batalha/invocacao'
 import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
+import { recursoDoCusto } from '../../lib/batalha/leituraDaFicha'
 import { textoDoGolpe } from '../../lib/batalha/golpe'
 import { avisoAoCairDe } from '../../lib/batalha/mecanicasAMao'
 import { comLembretesDoMomento, type TurnosComLembretes } from '../../lib/batalha/passivas'
@@ -146,7 +147,16 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
         definicoes.set(personagemId, dele)
       }
       const daFicha = dele
-      if (daFicha.length > 0) anotar(personagemId, (combate) => comOEventoNosAcumuladores(combate, daFicha, evento))
+      if (daFicha.length > 0) anotar(personagemId, (combate) => comOEventoNosAcumuladores(combate, daFicha, evento, turnos.rodada))
+    }
+    // REQUISITOS C: o SP que a linha tirou (o custo, o gasto do requisito) sobe o acumulador "a cada N SP gastos".
+    const sp = sistema === null ? null : recursoDoCusto(sistema, 'sp')
+    if (sp !== null) {
+      for (const parte of partes.flatMap(partesSoltas)) {
+        if (parte.tipo !== 'ficha') continue
+        const gasto = parte.partes.reduce((soma, mudou) => (mudou.parte === 'recurso' && mudou.chave === sp.id && mudou.de > mudou.para ? soma + (mudou.de - mudou.para) : soma), 0)
+        if (gasto > 0) noAcumulador(parte.personagemId, { quando: 'gastaSp', sp: gasto })
+      }
     }
     // O dano: o de verdade (o que esquivou ou contra-atacou não apanhou).
     const apanharam = new Map<string, string>()
@@ -207,7 +217,7 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
     if (acao.tipo === 'cartao' || acao.tipo === 'reacao') {
       const personagem = mesaDoRpg().personagens.find((candidato) => candidato.id === personagemId)
       const definicoes = personagem === undefined ? [] : acumuladoresDoPersonagem(personagem)
-      if (definicoes.length > 0) depois = comOEventoNosAcumuladores(depois, definicoes, { quando: 'usaTecnica', tecnica: { id: acao.cartaoId, nome: acao.nome } })
+      if (definicoes.length > 0) depois = comOEventoNosAcumuladores(depois, definicoes, { quando: 'usaTecnica', tecnica: { id: acao.cartaoId, nome: acao.nome } }, turnos.rodada)
     }
     if (depois === base) return { turnos, partes: [] }
     return { turnos: { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: depois } }, partes: [{ tipo: 'combate', personagemId, antes: antes ?? null, depois }] }

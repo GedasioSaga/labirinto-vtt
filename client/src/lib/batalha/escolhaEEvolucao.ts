@@ -7,6 +7,9 @@ import { mecanicaDoCartao, motivoDoEvoluirPelaMecanica } from './mecanicasAMao'
 import { lerDuracao, lerMods, seloComMods } from './selos'
 import { lerTipo, seloSugeridoDaTecnica } from './tiposDaHabilidade'
 import { cartaDaVez, type TurnosDaCena } from './turnos'
+import { lerRequisitos } from './requisitos/ler'
+import { contextoDosRequisitos } from './requisitos/montar'
+import { motivoDoPortao, portaoDosRequisitos, type ResultadoDoPortao } from './requisitos/portao'
 
 /**
  * ESCOLHA E EVOLUÇÃO, tipos de habilidade F4 (seções 4d, 4e e 7 de
@@ -394,6 +397,55 @@ export interface ContextoDaEvolucao {
   turnos: TurnosDaCena
   /** Jogador: só na vez de uma carta do mesmo personagem. O mestre evolui sempre. */
   soNaVez: boolean
+  /** REQUISITOS C: as fichas da mesa (aliados de pé, marcas, SP). Ausente = só a de quem evolui. */
+  personagens?: readonly Personagem[]
+  /** REQUISITOS C: os ids de personagem aliados de quem evolui. Ausente = nenhum. */
+  aliados?: ReadonlySet<string>
+  /** REQUISITOS C: o pedido é do mestre (o J2 vale e ele pode forçar). */
+  autorEhMestre?: boolean
+}
+
+/**
+ * REQUISITOS C (I3): o portão do grupo "Para evoluir" da base. Sem o grupo = `livre` (a evolução segue
+ * como hoje, e a tabela à mão vale). O mestre força com `forcarRequisitos`.
+ */
+export function portaoDoEvoluir(ctx: ContextoDaEvolucao, pedido: PedidoDeEvolucao): ResultadoDoPortao {
+  const { personagem, sistema, turnos } = ctx
+  if (personagem === null || sistema === null) return { tipo: 'livre' }
+  const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
+  const carta = turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId)
+  if (achada === null || carta === undefined) return { tipo: 'livre' }
+  const custo = custoDaEvolucao(pedido.custo)
+  const retrato = contextoDosRequisitos({
+    personagem,
+    sistema,
+    tokenId: pedido.tokenId,
+    cartaId: carta.id,
+    turnos,
+    personagens: ctx.personagens ?? [personagem],
+    personagemDoToken: (tokenId) => turnos.cartas.find((candidata) => candidata.tokenId === tokenId)?.personagemId,
+    ...(ctx.aliados === undefined ? {} : { aliados: ctx.aliados }),
+    visao: 'tudo',
+    custoEmSp: custo.tipo === 'valor' && custo.recurso === 'sp' ? custo.valor : 0,
+    autorEhMestre: ctx.autorEhMestre === true,
+  })
+  const pedidoNoPortao = { ...(pedido.respostas === undefined ? {} : { respostas: pedido.respostas }), forcar: pedido.forcarRequisitos === true }
+  return portaoDosRequisitos(achada.cartao.requisitos, 'evoluir', retrato, pedidoNoPortao, ctx.autorEhMestre === true)
+}
+
+/** A base tem o grupo "Para evoluir" (I3, `dura: 'umUso'`): a versão super vale até ser usada uma vez. */
+function evoluiPorRequisitos(cartao: CartaoDaFicha): boolean {
+  return cartao.requisitos !== undefined && lerRequisitos(cartao.requisitos).bloco?.evoluir !== undefined
+}
+
+/**
+ * REQUISITOS C (I3): as bases evoluídas que voltam a comuns porque a versão super acabou de ser usada:
+ * a própria técnica no uso evoluído (sem link), ou a base evoluída da técnica de link ("Evolui para").
+ * Só as bases com o grupo "Para evoluir"; as outras seguem como hoje.
+ */
+export function basesQueVoltamAoUsar(cartao: CartaoDaFicha, todos: readonly CartaoDaFicha[], evoluidas: readonly string[] | undefined): string[] {
+  const bases = usoEvoluido(cartao, todos, evoluidas) ? [cartao] : basesDaEvolucao(cartao, todos).filter((base) => evoluiuNaBatalha(evoluidas, base.id))
+  return bases.filter(evoluiPorRequisitos).map((base) => base.id)
 }
 
 /**
@@ -409,8 +461,13 @@ export function motivoDoEvoluir(ctx: ContextoDaEvolucao, pedido: PedidoDeEvoluca
   const carta = turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId)
   if (carta === undefined || carta.personagemId !== personagem.id) return 'A ficha não está na luta'
   if (ctx.soNaVez && cartaDaVez(turnos)?.personagemId !== personagem.id) return 'Evoluir só na sua vez'
+  const naFicha = motivoDoEvoluirNaFicha(personagem, sistema, turnos.combate?.[personagem.id]?.evoluidas, pedido)
+  if (naFicha !== null) return naFicha
+  // REQUISITOS C: a base com o grupo "Para evoluir" manda (cinza com o motivo; o mestre força); sem ele, a tabela à mão.
+  const portao = portaoDoEvoluir(ctx, pedido)
+  if (portao.tipo !== 'livre') return motivoDoPortao(portao)
   // F2 (fatia F, CAÇA AS BRUXAS!): "Melodia ativada e o caminho do dano ativo" = a Melodia ligada na opção do +20.
-  return motivoDoEvoluirNaFicha(personagem, sistema, turnos.combate?.[personagem.id]?.evoluidas, pedido) ?? motivoDoEvoluirPelaMecanica(pedido.cartaoId, turnos.selos, personagem.id)
+  return motivoDoEvoluirPelaMecanica(pedido.cartaoId, turnos.selos, personagem.id)
 }
 
 /**

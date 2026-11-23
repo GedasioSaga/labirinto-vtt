@@ -33,6 +33,7 @@ import {
   PARTES_SEGUINTES_MAX,
   partesSeguintes,
   podeAgir,
+  portaoDoPedido,
   passarSemDano,
   resolverAlvo,
   rolarReacao,
@@ -51,7 +52,7 @@ import { debuffsDobrados } from '../../lib/batalha/debuffs'
 import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOverloadDeReacao, temReacaoContraSurpresa, type PedidoDeTecnica } from '../../lib/batalha/reacaoComTecnica'
 import { casaNaAreaVirada, pegadaDaFicha } from '../../lib/batalha/area'
 import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
-import { armasDe, limiteDeArmas, recursoDoEscudo, tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
+import { armasDe, limiteDeArmas, recursoDoEscudo, tecnicaPorId, tecnicasDe } from '../../lib/batalha/leituraDaFicha'
 import { fichaComAMochilaDoBoneco } from '../../lib/batalha/municaoDaFicha'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
 import { ajustesDaCura, ajustesDoDano, curaQueCabe, notaDaCura, perfuracaoValida, rolarComVantagem, rolarODadoDaEsquiva, saidaDoPassar, saidasDaRolagem } from '../../lib/batalha/reacao'
@@ -80,6 +81,8 @@ import {
 } from './cena'
 import { mexerNaFicha, type Recusada, type CuraDoItemNoAlvo, gastarMunicaoNaMesa, gastarItemNaMesa, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from './naMesa'
 import { devolverFichasDaAcao } from './desfazer'
+import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
+import { basesQueVoltamAoUsar, semEvoluida } from '../../lib/batalha/escolhaEEvolucao'
 import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
 import type { SelosDaBatalha } from './selos'
@@ -501,6 +504,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     const { personagens } = mesaDoRpg()
     const ctxDaCarta = contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx, tela)
     if (podeAgir(ctxDaCarta, pedidoDeQuemAge) !== null) return false
+    // REQUISITOS C (§6): o mesmo portão do `podeAgir`, lido ANTES de a linha mexer em nada: os gastos e a nota.
+    const doPortao = portaoDoPedido(ctxDaCarta, pedidoDeQuemAge)
     // Fase 8: o item vira a técnica dele (a ficha com o cartão do item só nesta conta, nunca gravada); a pilha desce mais abaixo.
     const doItem = pedidoDeQuemAge.tipo === 'item' ? ctxDoItem(ctxDaCarta, pedidoDeQuemAge) : null
     if (typeof doItem === 'string') return false
@@ -554,6 +559,29 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       if (doCusto === 'recusada') return false
       partes.push(...reversaoDaFicha(carta.personagemId, doCusto))
     }
+    // REQUISITOS C: os gastos dos requisitos que valem, depois do custo normal e nesta linha (o Desfazer devolve tudo).
+    let notaDosRequisitos = doPortao.tipo === 'passa' ? doPortao.nota : null
+    if (doPortao.tipo === 'passa' && carta.personagemId !== null) {
+      const gastos = gastarOsRequisitos(mesa, sceneKey, carta.personagemId, carta.tokenId, novos, doPortao.gastos, autor)
+      if (gastos === 'recusada') {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+      partes.push(...gastos.partes)
+      novos = gastos.turnos
+      notaDosRequisitos = notaDaLinha(gastos.texto, notaDosRequisitos)
+    }
+    // REQUISITOS C (I3, "dura um uso"): a versão super usada uma vez volta a base a comum (só a base com "Para evoluir").
+    const cartaoUsado = pedido.tipo === 'habilidade' && ctx.personagem !== null && ctx.sistema !== null ? tecnicaPorId(ctx.personagem, ctx.sistema, pedido.cartaoId) : null
+    const combateDeQuemUsa = carta.personagemId === null ? undefined : novos.combate?.[carta.personagemId]
+    if (cartaoUsado !== null && combateDeQuemUsa !== undefined && carta.personagemId !== null && ctx.personagem !== null && ctx.sistema !== null) {
+      const voltam = basesQueVoltamAoUsar(cartaoUsado.cartao, tecnicasDe(ctx.personagem, ctx.sistema), combateDeQuemUsa.evoluidas)
+      const semAsSuper = voltam.reduce(semEvoluida, combateDeQuemUsa)
+      if (semAsSuper !== combateDeQuemUsa) {
+        partes.push({ tipo: 'combate', personagemId: carta.personagemId, antes: combateDeQuemUsa, depois: semAsSuper })
+        novos = { ...novos, combate: { ...(novos.combate ?? {}), [carta.personagemId]: semAsSuper } }
+      }
+    }
     // MUNIÇÃO (pedido de 16/11/2026): o tiro com a bala ligada tira 1 da mochila da ficha (o boneco espelha). No host, o
     // tiro do jogador chega aqui pelo mesmo `agir`: o `podeAgir` acima já recusou a bala com 0.
     if (lancado.municao !== undefined && carta.personagemId !== null) {
@@ -591,6 +619,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     // Fase 8: o golpe do item guarda quantos sobram, para a linha fechar com o gasto também ao ser reescrita alvo a alvo.
     const sobraDoItem = doItem === null ? undefined : sobraDoUso(doItem.uso.vaga)
     let golpe = lancado.golpe === null || sobraDoItem === undefined ? lancado.golpe : { ...lancado.golpe, sobraDoItem }
+    // REQUISITOS C: a nota fica no golpe (a linha reescrita alvo a alvo a mantém).
+    if (golpe !== null && notaDosRequisitos !== null) golpe = { ...golpe, notaDosRequisitos }
     if (golpe !== null) {
       // F2 (fatia F, redoma da Orquídea): o selo que dura "até o próximo golpe" sai dos alvos deste golpe (antes do selo novo dele).
       // Construtor C5 (revisão): o montado não sai com a técnica de ajuda (a cura de um aliado, a técnica "em si").

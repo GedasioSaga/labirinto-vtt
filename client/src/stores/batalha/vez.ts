@@ -4,6 +4,7 @@
  * prazo das condições (de quem joga e, na virada, de quem está fora da ordem).
  */
 import { chaveDaVez, type SeloDaBatalha } from '../../lib/batalha/combate'
+import { combatesNoComecoDaVez } from '../../lib/batalha/acumuladorNaBatalha'
 import { comBandosEmDia, semBandosVazios } from '../../lib/batalha/invocacao'
 import { textoDosQueAcabaram } from '../../lib/batalha/selos'
 import { formaDaFicha } from '../../lib/batalha/transformacao'
@@ -351,7 +352,11 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
    * `vez.antes` foi lido.
    */
   const comecarAVez = (sceneKey: string, cena: BatalhaDaCena, vez: VezQueComeca): void => {
-    const { antes, depois, sai, autor } = vez
+    const { antes, sai, autor } = vez
+    // REQUISITOS C: os acumuladores na vez (a queda por rodada sem uso na virada; o "sobe no começo da vez" de quem
+    // entra), no combate que a linha "Vez" guarda: o Desfazer da vez os volta.
+    const combates = combatesNoComecoDaVez(vez.depois, mesaDoRpg().personagens, vez.entra?.personagemId ?? null, vez.virou ? antes.rodada : null)
+    const depois = combates === undefined || combates === vez.depois.combate ? vez.depois : { ...vez.depois, combate: combates }
     // Conserto das fichas F1 (bug 3): a linha guarda só o que a vez mudou (o Desfazer volta só isso).
     const mudou = mudancasDaVez(antes, depois)
     // Conserto das fichas F1: +10 SP para quem começa a vez sem ter gastado SP na anterior.

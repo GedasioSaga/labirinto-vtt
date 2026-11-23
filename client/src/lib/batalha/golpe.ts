@@ -22,6 +22,7 @@ import {
 } from './acoes'
 import {
   ALVOS_MAX,
+  type BonusDaBatalha,
   chaveDaVez,
   combateVazio,
   DANO_MAX,
@@ -71,6 +72,10 @@ import {
   type LeituraDoCusto,
 } from './leituraDaFicha'
 import { danoDaTecnica, danoDaTecnicaComAVida, leituraDaTecnica } from './leituraDaTecnica'
+import { comOBonusDosAcumuladores } from './acumuladorNaBatalha'
+import type { ContextoDosRequisitos } from './requisitos/contexto'
+import { contextoDosRequisitos } from './requisitos/montar'
+import { motivoDoPortao, portaoDosRequisitos, type ResultadoDoPortao } from './requisitos/portao'
 import {
   ataqueComOSelo,
   chavesDoDono,
@@ -391,11 +396,83 @@ function motivoDoAtacarComArmaMontada(ctx: ContextoDoGolpe, pedido: Extract<Pedi
   const alvosPersonagemIds = pedido.alvos.map((alvo) => ctx.personagemDoToken(alvo.tokenId))
   return (
     motivoDaArmaNaVez(arma, lida, personagem, sistema, combate, acoes) ??
-    motivoDoDanoDasPecas(ctx, arma, { personagem, sistema, arma, bala, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) }) ??
+    motivoDoDanoDasPecas(ctx, arma, { personagem, sistema, arma, bala, bonusDaBatalha: bonusDeQuemAge(ctx) }) ??
     // Sem peça de dano (o Boomerang), a recusa diz "acerta um inimigo só", não "dá dano".
     motivoDoTetoDeDano(arma, arma.nome.trim() || 'A arma', alvosPersonagemIds, ctx.aliados ?? new Set<string>(), lida.mecanica.dano !== undefined) ??
     motivoDoDivide(arma, pedido.alvos.length)
   )
+}
+
+/**
+ * REQUISITOS C: o bônus da batalha de quem age (os selos) com o ganho dos acumuladores dele no nível
+ * de AGORA: o golpe que gasta o acumulador conta o dano pelo nível de antes do gasto (decisão de 23/11).
+ */
+export function bonusDeQuemAge(ctx: Pick<ContextoDoGolpe, 'turnos' | 'carta' | 'personagem'>): BonusDaBatalha | undefined {
+  const personagemId = ctx.carta.personagemId
+  const combate = personagemId === null ? undefined : ctx.turnos.combate?.[personagemId]
+  return comOBonusDosAcumuladores(bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId), ctx.personagem, combate)
+}
+
+/** REQUISITOS C: o retrato dos requisitos de quem age, pelo host (tudo), com os alvos do pedido (ausente = o menu). */
+export function contextoDosRequisitosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly string[] | undefined, custoEmSp?: number): ContextoDosRequisitos | null {
+  const { personagem, sistema } = ctx
+  if (personagem === null || sistema === null) return null
+  return contextoDosRequisitos({
+    personagem,
+    sistema,
+    tokenId: ctx.carta.tokenId,
+    cartaId: ctx.carta.id,
+    turnos: ctx.turnos,
+    personagens: ctx.personagens,
+    personagemDoToken: ctx.personagemDoToken,
+    ...(ctx.aliados === undefined ? {} : { aliados: ctx.aliados }),
+    ...(ctx.pegadaDoToken === undefined ? {} : { pegadaDoToken: ctx.pegadaDoToken }),
+    visao: 'tudo',
+    ...(alvos === undefined ? {} : { alvos }),
+    ...(custoEmSp === undefined ? {} : { custoEmSp }),
+    autorEhMestre: ctx.autor.tipo === 'mestre',
+  })
+}
+
+/**
+ * REQUISITOS C (§6): o portão dos requisitos do pedido, nos caminhos da técnica, do Atacar com arma,
+ * do item (o cartão do item leva os requisitos da vaga) e do ligar a forma. O Evoluir passa pelo
+ * `motivoDoEvoluir`. O mesmo no `podeAgir` (o motivo) e na store (os gastos e a nota da linha).
+ */
+export function portaoDoPedido(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): ResultadoDoPortao {
+  const { personagem, sistema } = ctx
+  if (personagem === null || sistema === null) return { tipo: 'livre' }
+  const autorEhMestre = ctx.autor.tipo === 'mestre'
+  const alvos = 'alvos' in pedido ? pedido.alvos.map((alvo) => alvo.tokenId) : []
+  const noPortao = (requisitos: unknown, custoEmSp: number | undefined): ResultadoDoPortao => {
+    if (requisitos === undefined && (!('respostas' in pedido) || pedido.respostas === undefined)) return { tipo: 'livre' }
+    const retrato = contextoDosRequisitosDoGolpe(ctx, alvos, custoEmSp)
+    if (retrato === null) return { tipo: 'livre' }
+    const respostas = 'respostas' in pedido ? pedido.respostas : undefined
+    const forcar = 'forcarRequisitos' in pedido && pedido.forcarRequisitos === true
+    return portaoDosRequisitos(requisitos, 'usar', retrato, { ...(respostas === undefined ? {} : { respostas }), forcar }, autorEhMestre)
+  }
+  switch (pedido.tipo) {
+    case 'habilidade': {
+      const tecnica = tecnicaPedida(personagem, sistema, pedido, combateDe(ctx).evoluidas)
+      if (tecnica === null) return { tipo: 'livre' }
+      return noPortao(tecnica.cartao.requisitos, custoEmSp(tecnica.custo) && tecnica.custo.tipo === 'valor' ? tecnica.custo.valor : 0)
+    }
+    case 'atacar': {
+      const arma = armaDoPedido(ctx, pedido.armaId)
+      return arma === null || arma === undefined ? { tipo: 'livre' } : noPortao(arma.requisitos, undefined)
+    }
+    case 'transformar': {
+      const forma = formaDaFicha(personagem, sistema, pedido.cartaoId)
+      return forma === null ? { tipo: 'livre' } : noPortao(forma.requisitos, undefined)
+    }
+    case 'item': {
+      const uso = ctxDoItem(ctx, pedido)
+      return typeof uso === 'string' ? { tipo: 'livre' } : portaoDoPedido(uso.ctx, uso.uso.pedido)
+    }
+    default:
+      return { tipo: 'livre' }
+  }
 }
 
 /** Por que o pedido não vale, ou `null` (pode). Mesma regra no mestre e no jogador. */
@@ -430,6 +507,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       // F2 (fatia E, Forma Híbrida da Ryoko): as Partes ligam em ordem, uma por vez.
       const ordem = motivoDaOrdemDasPartes(personagem, sistema, cartao)
       if (ordem !== null) return ordem
+      // REQUISITOS C: o "Para ligar" da forma, antes do Overload, dos usos, do custo e da ação.
+      const paraLigar = motivoDoPortao(portaoDoPedido(ctx, pedido))
+      if (paraLigar !== null) return paraLigar
       // Conserto das fichas F1: Overload (técnica ou forma) é UMA vez por batalha.
       if (ehOverload(cartao) && combate.overload) return MOTIVO_DO_OVERLOAD_USADO
       // R6: "Usos por batalha" (Ignição: 2) e a Ação "Livre" (liga sem gastar ação).
@@ -455,6 +535,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (semMunicao !== null) return semMunicao
       const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas, null)
       if (motivo !== null) return motivo
+      // REQUISITOS C: os requisitos da arma (cinza com motivo; o mestre força), antes dos usos, do custo e da ação.
+      const daArma = arma === null ? null : motivoDoPortao(portaoDoPedido(ctx, pedido))
+      if (daArma !== null) return daArma
       // Construtor C8: a arma montada (o Boomerang) segue as peças: usos da batalha, custo, ação, dano e alvos.
       // R6: depois de um Atacar na vez, o ataque adicional da forma (Ignição) cabe sem a Simples.
       const daRegra = arma !== null && cartaoMontado(arma) ? motivoDoAtacarComArmaMontada(ctx, pedido, arma, combate, acoes) : acoes === null ? null : motivoDoAtacar(acoes)
@@ -486,8 +569,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (semMunicao !== null) return semMunicao
       // Construtor C1 (revisão, decisão 2): a mesma conta que `lancarGolpe` faz pelas peças, com a arma, a bala e os selos de quem usa.
       const balaDaFormula = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
-      const semConta = motivoDoDanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) })
-      const motivo = motivoDaTecnica(tecnica, personagem, sistema, combate, acoes)
+      const semConta = motivoDoDanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDeQuemAge(ctx) })
+      // REQUISITOS C: o portão dos requisitos entra no meio do motivo da técnica (depois da evolução, antes da recarga).
+      const motivo = motivoDaTecnica(tecnica, personagem, sistema, combate, acoes, undefined, undefined, motivoDoPortao(portaoDoPedido(ctx, pedido)))
       // F2 (fatia D, Imbuir Fogo): a resposta que a forma ligada não deixa (fogo com a Ignição).
       const vetada = motivoDaRespostaVetada(tecnica.cartao.id, pedido.respostas, personagem.cartoesAtivos)
       // F2 (fatia C, A Luz do Sol): o teto de alvos que tomam dano ("em um inimigo"); os aliados marcados só levam o selo.
@@ -1005,7 +1089,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     ? pedido.alvos.map((alvo) => ({ ...alvo, dano: null }))
     : tecnica === null || !montada || personagem === null || sistema === null
       ? pedido.alvos
-      : comODanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) }, pedido.alvos)
+      : comODanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDeQuemAge(ctx) }, pedido.alvos)
   // F2 (fatia D, Explosão): o dano "% da vida do alvo" sai da vida de cada alvo.
   const pelaVida = tecnica === null || personagem === null || sistema === null ? daTela : comDanoPelaVida(ctx, tecnica.cartao, { personagem, sistema, arma }, respostas, daTela)
   // F2 (fatia F, Lua Incandescente): a base dividida entre os marcados, para baixo (71 em 3 = 23 em cada).
@@ -1541,7 +1625,9 @@ function marcaDoPerfurante(golpe: GolpeDaBatalha): string | null {
 export function textoDoGolpe(golpe: GolpeDaBatalha, nomeDoToken: (tokenId: string) => string, depois = ''): string {
   const linha = textoDoGolpeSemBala(golpe, nomeDoToken)
   const efeito = golpe.bala?.efeito
-  const corpo = `${efeito === undefined ? linha : `${linha} · efeito: ${efeito}`}${depois}`
+  // REQUISITOS C: "gastou Polaridade 2", "(declarou: ...)", "(o mestre forçou: ...)".
+  const nota = golpe.notaDosRequisitos === undefined ? '' : ` ${golpe.notaDosRequisitos}`
+  const corpo = `${efeito === undefined ? linha : `${linha} · efeito: ${efeito}`}${nota}${depois}`
   return golpe.sobraDoItem === undefined ? corpo : linhaComOGasto(corpo, textoDaSobra(golpe.sobraDoItem))
 }
 
