@@ -18,6 +18,7 @@ import type {
 } from '../../lib/batalha/combate'
 import type { JudgeNaCena } from '../../lib/batalha/judge'
 import type { BatalhaEmTurnos, TelaDoPedido, VezEsperada } from '../../lib/batalha/ponte'
+import type { AcaoDaMira, AlcanceDaMira } from '../../lib/batalha/golpe'
 import type { RegrasDaBatalha } from '../../lib/batalha/regrasDoCampo'
 import type { AcoesExtras, AutorDaAcao, CartaDaOrdem, Desempate, DuracaoDaExtra } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
@@ -111,6 +112,8 @@ export interface BatalhaState {
    * recusado agora (o texto curto da regra, `podeAgir`), ou `null`. Só lê.
    */
   motivoDoAgir: (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao, tela?: TelaDoPedido) => string | null
+  /** Fase D do alcance: a mira aberta de `tokenId` (a carta da vez ou a do contra-ataque) como a mesa a vê; `null` = nada acende. Só lê. */
+  alcanceDaMira: (sceneKey: string, autor: AutorDaAcao, tokenId: string, acao: AcaoDaMira) => AlcanceDaMira | null
   /** O mestre dá a vez a uma carta (até a de quem caiu). */
   darVez: (sceneKey: string, cartaId: string) => boolean
   /** Arrastar ou Alt + seta. Movimentos seguidos da mesma carta viram uma linha só. */

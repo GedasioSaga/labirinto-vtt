@@ -90,6 +90,7 @@ export const ponteDaBatalha: PonteDaBatalha = {
   registrarAjuste: (personagemId, antes, depois, autor) => useBatalhaStore.getState().registrarAjuste(personagemId, antes, depois, autor),
   agir: (sceneKey, autor, vez, pedido, tela) => useBatalhaStore.getState().agir(sceneKey, autor, vez, pedido, tela),
   motivoDoAgir: (sceneKey, autor, vez, pedido, tela) => useBatalhaStore.getState().motivoDoAgir(sceneKey, autor, vez, pedido, tela),
+  alcanceDaMira: (sceneKey, autor, tokenId, acao) => useBatalhaStore.getState().alcanceDaMira(sceneKey, autor, tokenId, acao),
   reagir: (sceneKey, autor, pedido) => useBatalhaStore.getState().reagir(sceneKey, autor, pedido),
   darDano: (sceneKey, autor, tokenId, valor) => useBatalhaStore.getState().darDano(sceneKey, autor, tokenId, valor),
   escolherArmas: (sceneKey, autor, personagemId, armas) => useBatalhaStore.getState().escolherArmas(sceneKey, autor, personagemId, armas),

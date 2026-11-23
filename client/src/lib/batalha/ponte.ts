@@ -1,4 +1,5 @@
 import type { Personagem } from '../personagem'
+import type { AcaoDaMira, AlcanceDaMira } from './golpe'
 import type { MapaDoAlcance } from './alcance/quemEntra'
 import type {
   EfeitoDaBatalha,
@@ -93,6 +94,12 @@ export interface PonteDaBatalha {
    * recusa genérica.
    */
   motivoDoAgir?(sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao, tela?: TelaDoPedido): string | null
+  /**
+   * Fase D do alcance: a forma, a cor e a ajuda da mira que `tokenId` tem aberta agora (a carta da
+   * vez, ou a do contra-ataque guardado), pelo cartão da ficha. Só lê. `null` = nada acende. Ausente
+   * = a mira não viaja (só quem mira vê as casas).
+   */
+  alcanceDaMira?(sceneKey: string, autor: AutorDaAcao, tokenId: string, acao: AcaoDaMira): AlcanceDaMira | null
   /** F2: rolar (o d20 é do host), rerolar, escolher a saída ou Não reagir. Devolve se valeu. */
   reagir(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeReacao): boolean
   /** F2: dano livre numa ficha (o jogador, só na dele; o host confere). */

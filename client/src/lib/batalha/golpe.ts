@@ -44,7 +44,9 @@ import {
 import { idDoCartaoDoItem, linhaComOGasto, textoDaSobra, usoDoItem, type PedidoDoItem, type UsoDoItem } from './itemNaBatalha'
 import type { CartaoComAlcance } from './alcanceDoCartao'
 import type { GrupoDoAlcance } from './alcance/condicoes'
+import { corDoAlcance, type CorDoAlcance } from './alcance/cor'
 import { alcanceDoGolpe, MOTIVO_FORA_DO_ALCANCE, selosQueMudamOAlcance } from './alcance/doGolpe'
+import type { FormaDoAlcance } from './alcance/forma'
 import { foraDasCasas, MAPA_SEM_PAREDES, type MapaDoAlcance } from './alcance/quemEntra'
 import { comAMantida } from './custoPorTurno'
 import { debuffsDoToken } from './debuffs'
@@ -838,6 +840,62 @@ function golpeForaDasCasas(ctx: ContextoDoGolpe, cartao: CartaoComAlcance, grupo
 function motivoDoAlcance(ctx: ContextoDoGolpe, cartao: CartaoComAlcance, grupo: GrupoDoAlcance, pedido: PedidoNoAlcance): string | null {
   if (pedido.foraDoAlcance === true) return null
   return golpeForaDasCasas(ctx, cartao, grupo, pedido) === true ? MOTIVO_FORA_DO_ALCANCE : null
+}
+
+/**
+ * Fase D do alcance (ALCANCE.md §6): o que a mira aberta usa, como o jogador o manda à mesa. Só o
+ * id (da arma, da técnica, da vaga): a forma e a cor quem resolve é o host, pelo cartão dele.
+ */
+export type AcaoDaMira = { tipo: 'atacar'; armaId: string | null } | { tipo: 'habilidade'; cartaoId: string } | { tipo: 'item'; vagaId: string }
+
+/** A mira como a mesa a vê: a forma que vale agora (com as condições de quem usa), a cor e se as casas de quem usa acendem. */
+export interface AlcanceDaMira {
+  forma: FormaDoAlcance
+  cor: CorDoAlcance
+  acendeQuemUsa: boolean
+}
+
+/** A técnica ajuda (as casas de quem usa acendem): pelas peças ("em si", "nos aliados") ou, de texto, pelo Tipo Buff, como `tecnicaDeAjuda`. */
+function cartaoDeAjuda(cartao: CartaoDaFicha): boolean {
+  const pecas = pecasDoCartao(cartao)
+  if (pecas !== null) return pecas.alvo.quem === 'si' || pecas.alvo.quem === 'aliados'
+  return lerTipo(cartao).tipo === 'buff'
+}
+
+/** A forma, a cor e a ajuda de um cartão de técnica (ou do item virado técnica) na mão de `personagem`. */
+function alcanceDoCartaoNaMira(ctx: ContextoDoGolpe, personagem: Personagem, sistema: SistemaDeRpg, cartao: CartaoDaFicha, grupo: GrupoDoAlcance): AlcanceDaMira | null {
+  const alcance = alcanceDoGolpe(cartao, grupo, selosQueMudamOAlcance(ctx.turnos.selos, ctx.carta.tokenId))
+  if (alcance === null) return null
+  const cor = corDoAlcance({ tipo: 'cartao', dano: danoDaTecnica(cartao, { personagem, sistema, arma: null }) })
+  return { forma: alcance.forma, cor, acendeQuemUsa: cartaoDeAjuda(cartao) }
+}
+
+/**
+ * Fase D do alcance: a mira de quem age como as outras telas a desenham, pelo cartão DESTA ficha (o
+ * pedido nunca traz a forma). A mesma leitura do `podeAgir` (`alcanceDoGolpe` com as condições de
+ * quem usa); `null` = nada acende (sem alcance definido, a Mão nua, ação que a ficha não tem).
+ */
+export function alcanceDaMira(ctx: ContextoDoGolpe, acao: AcaoDaMira): AlcanceDaMira | null {
+  const { personagem, sistema } = ctx
+  switch (acao.tipo) {
+    case 'atacar': {
+      const arma = armaDoPedido(ctx, acao.armaId)
+      // A Mão nua não acende na mira de quem usa (`dadosDoMenu`): na mesa também não.
+      if (arma === null || arma === undefined) return null
+      const alcance = alcanceDoGolpe(arma, 'armas', selosQueMudamOAlcance(ctx.turnos.selos, ctx.carta.tokenId))
+      return alcance === null ? null : { forma: alcance.forma, cor: corDoAlcance({ tipo: 'atacar' }), acendeQuemUsa: false }
+    }
+    case 'habilidade': {
+      if (personagem === null || sistema === null) return null
+      const tecnica = tecnicaPorId(personagem, sistema, acao.cartaoId)
+      return tecnica === null ? null : alcanceDoCartaoNaMira(ctx, personagem, sistema, tecnica.cartao, grupoDoCartao(tecnica.cartao.id))
+    }
+    case 'item': {
+      const uso = ctxDoItem(ctx, { tipo: 'item', vagaId: acao.vagaId, alvos: [] })
+      if (typeof uso === 'string' || sistema === null) return null
+      return alcanceDoCartaoNaMira(uso.ctx, uso.uso.quemUsa, sistema, uso.uso.cartao, 'itens')
+    }
+  }
 }
 
 /** A recusa da cura sem ninguém para curar; a mira diz a mesma frase antes de mandar. */

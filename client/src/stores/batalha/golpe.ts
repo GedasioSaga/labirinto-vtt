@@ -39,6 +39,7 @@ import {
   textoDaRolagem,
   textoDoGolpe,
   ctxDoItem,
+  alcanceDaMira,
   type ContextoDoGolpe,
 } from '../../lib/batalha/golpe'
 import { linhaComOGasto, sobraDoUso, textoDoGasto } from '../../lib/batalha/itemNaBatalha'
@@ -886,7 +887,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     return linhas
   }
 
-  const acoes: Pick<BatalhaState, 'motivoDoAgir' | 'agir' | 'reagir' | 'darDano' | 'darAcoesExtras' | 'escolherArmas' | 'zerarCarga' | 'trocarPerfurante'> = {
+  const acoes: Pick<BatalhaState, 'motivoDoAgir' | 'alcanceDaMira' | 'agir' | 'reagir' | 'darDano' | 'darAcoesExtras' | 'escolherArmas' | 'zerarCarga' | 'trocarPerfurante'> = {
     motivoDoAgir: (sceneKey, autor, vez, pedido, tela) => {
       const cena = cenaDe(sceneKey)
       if (cena === undefined) return 'A batalha não está ligada nesta cena'
@@ -898,6 +899,18 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       const carta = contra === null ? cartaDaVez(turnos) : (turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId) ?? null)
       if (carta === null || carta.bando !== undefined) return 'Não é a vez desta ficha'
       return podeAgir(contextoDaCarta(sceneKey, cena, autor, carta, turnos, tela), pedido)
+    },
+
+    alcanceDaMira: (sceneKey, autor, tokenId, acao) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return null
+      const { turnos } = cena
+      // A carta da vez dessa ficha, ou a do contra-ataque que ela guardou (a mira do contra abre fora da vez).
+      const daVez = cartaDaVez(turnos)
+      const contra = (turnos.contras ?? []).find((candidato) => candidato.tokenId === tokenId)
+      const carta = daVez !== null && daVez.tokenId === tokenId ? daVez : contra === undefined ? null : (turnos.cartas.find((candidata) => candidata.tokenId === tokenId) ?? null)
+      if (carta === null || carta.bando !== undefined) return null
+      return alcanceDaMira(contextoDaCarta(sceneKey, cena, autor, carta, turnos), acao)
     },
 
     agir: (sceneKey, autor, vez, pedido, tela) => {
