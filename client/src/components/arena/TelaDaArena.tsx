@@ -296,15 +296,16 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
   const dados = useMemo(() => faixaDoMestre({ turnos, fichas: sessao.tokens, personagens: sessao.copias, equipes, sistema }), [turnos, sessao, equipes, sistema])
   const registro = useMemo(() => linhasDoMestre(cena.registro), [cena.registro])
   // U4: a mesa como o mestre a lê (`MesaDoMestre`, a mesma do mapa): a vez do bando, as invocações esperando e o Dar dano saem dela.
-  const mesa = useMemo<MesaDoMestre>(
-    () => ({ cena, fichas: sessao.tokens, tamanhoDaCasa: CASA_DA_ARENA, personagens: sessao.copias, equipes, sistema, rotulos: nomesNumerados(sessao.tokens.map((token) => ({ id: token.id, nome: token.name }))) }),
-    [cena, sessao, equipes, sistema],
-  )
   // Conserto de 23/11 (0.5.95): a conta das casas acesas na grade da arena, sem parede; sem ela a mira não punha nada no palco.
   const gradeDoAlcance = useMemo<MapaDoAlcance>(() => {
     const { colunas, linhas } = GRADES_DA_ARENA[sessao.montagem.grade]
     return { segmentos: [], colunas, linhas, grade: CASA_DA_ARENA }
   }, [sessao.montagem.grade])
+  // A mesma grade na mesa do mestre: a mira da vez do bando (o invocado) também acende as casas no palco.
+  const mesa = useMemo<MesaDoMestre>(
+    () => ({ cena, fichas: sessao.tokens, tamanhoDaCasa: CASA_DA_ARENA, gradeSemMapa: gradeDoAlcance, personagens: sessao.copias, equipes, sistema, rotulos: nomesNumerados(sessao.tokens.map((token) => ({ id: token.id, nome: token.name }))) }),
+    [cena, sessao, equipes, sistema, gradeDoAlcance],
+  )
   const pendenciasDeInvocacao = useMemo(() => pendenciasDeInvocacaoNaTela(mesa, turnos), [mesa, turnos])
   const lugarDasPendencias = useRef<HTMLDivElement>(null)
   const lugarDoBando = useRef<HTMLDivElement>(null)

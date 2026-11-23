@@ -1,5 +1,6 @@
 import type { InvocadoNaBatalha } from '../../lib/batalha/combate'
 import { selosQueMudamOAlcance } from '../../lib/batalha/alcance/doGolpe'
+import type { MapaDoAlcance } from '../../lib/batalha/alcance/quemEntra'
 import { mapaDoAlcance } from '../../lib/batalha/alcance/segmentos'
 import { pisoDe } from '../../lib/pisos'
 import type { MapData } from '../../types/map'
@@ -36,6 +37,11 @@ export interface MesaDoMestre {
   tamanhoDaCasa?: number
   /** Fase C do alcance: o mapa da cena, para as paredes da conta das casas acesas (a Arena não tem: só a distância). */
   mapa?: MapData
+  /**
+   * A conta das casas quando não há `mapa` (a Arena: a grade dela, sem parede), como o `gradeSemMapa` do
+   * `BatalhaDoJogador`. Sem nenhum dos dois, a mira do mestre (a vez do bando) não põe casa nenhuma no chão.
+   */
+  gradeSemMapa?: MapaDoAlcance
   personagens: readonly Personagem[]
   equipes: readonly Equipe[] | undefined
   sistema: SistemaDeRpg | null
@@ -119,9 +125,10 @@ export function alvosDaOrdem(mesa: MesaDoMestre, cartas: readonly CartaDaOrdem[]
       }),
     )
   }
-  // Fase C do alcance: as paredes no piso de quem age, as mesmas que o host usa para o mestre.
+  // Fase C do alcance: as paredes no piso de quem age, as mesmas que o host usa para o mestre. Sem mapa (a Arena),
+  // a grade dela: sem isso a mira da vez do bando nunca publicava as casas na store do chão.
   const ficha = mesa.mapa?.tokens.find((token) => token.id === quemAge.tokenId)
-  const mapa = mesa.mapa === undefined || ficha === undefined ? undefined : mapaDoAlcance(mesa.mapa, pisoDe(ficha))
+  const mapa = mesa.mapa === undefined ? mesa.gradeSemMapa : ficha === undefined ? undefined : mapaDoAlcance(mesa.mapa, pisoDe(ficha))
   // Fase E do alcance: as condições de quem age (Ofuscado, Mira Firme) entram na conta da mira, como no host.
   return alvosNaOrdemDaMira(alvos, mesa.fichas, quemAge.tokenId, mesa.tamanhoDaCasa, mapa, selosQueMudamOAlcance(mesa.cena?.turnos.selos, quemAge.tokenId))
 }
