@@ -1,16 +1,13 @@
 /*
- * ITENS, ARMAS E HABILIDADES (M3): porte da seção 9 de
- * docs/design/livros-de-regras/prototipo.css (catálogo + ficha que recebe),
- * com o prefixo `mu-` do mundo. Arquivo próprio, como anotacoes.css, para não
- * disputar o mundo.css; importado pela página e pela janela de entrada. A
- * janela vive em portal no `body` (fora de `.lb-mundo`): os seletores dela
- * usam só os tokens globais --lb-* e os --lb-gr-* do grimório.
+ * ITENS, ARMAS E HABILIDADES (M3): a busca, os avisos, a janela de entrada e
+ * as ferramentas de manutenção (Juntar as armas, Dar alcance, Dar requisitos),
+ * com o prefixo `mu-` do mundo. O layout da página (as três colunas) mora em
+ * biblioteca/biblioteca.css desde o protótipo aprovado em 23/11. Arquivo
+ * próprio, como anotacoes.css, para não disputar o mundo.css; importado pela
+ * página e pela janela de entrada. A janela vive em portal no `body` (fora de
+ * `.lb-mundo`): os seletores dela usam só os tokens globais --lb-* e os
+ * --lb-gr-* do grimório.
  */
-
-/* ---------- Página: catálogo à esquerda, ficha que recebe à direita ---------- */
-.mu-cat { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 20px; align-items: start; }
-.mu-cat-col { min-width: 0; }
-.mu-cat-busca { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-bottom: 12px; }
 
 .mu-busca { position: relative; }
 .mu-busca > .mu-ic { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--lb-color-parchment-faint); pointer-events: none; }
@@ -37,69 +34,7 @@
   text-align: center;
 }
 
-/* ---------- Cartões do catálogo ---------- */
-.mu-cat-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
-/* Fora da tela o cartão não é desenhado (o catálogo pode ter centenas). */
-.mu-cat-lista > li { min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 150px; }
-.mu-item {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  height: 100%;
-  padding: 12px 12px 10px;
-  cursor: grab;
-  user-select: none;
-  transition:
-    border-color var(--lb-motion-fast) ease,
-    opacity var(--lb-motion-fast) ease,
-    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
-}
-.mu-item:active { cursor: grabbing; }
-.mu-item[draggable='false'] { cursor: default; }
-.mu-item--arrastando { opacity: 0.4; transform: scale(0.98); }
-/* A entrada recém-criada: o contorno de latão diz onde ela caiu e se apaga sozinho. */
-.mu-item--destacado { outline: 1px solid transparent; animation: mu-it-destaque 1600ms ease both; }
-/*
- * O topo do cartão lê como o verbete do livro: o nome (a letra de título do
- * livro), embaixo o que ele é, e os selos de onde veio numa linha baixa só
- * deles. O nome tem a largura inteira ao lado da foto e quebra por palavra,
- * em até 2 linhas; o que passar vira reticências (o nome inteiro vai na dica).
- */
-.mu-item__cab { display: flex; align-items: flex-start; gap: 10px; }
-.mu-item__titulo { flex: 1; min-width: 0; }
-.mu-item__nome {
-  display: -webkit-box;
-  margin: 0;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  font-family: var(--lb-font-display);
-  font-size: 17px;
-  font-weight: 400;
-  line-height: 1.15;
-  color: var(--lb-color-parchment);
-  overflow-wrap: break-word;
-}
-.mu-item__tipo { margin: 2px 0 0; font-size: var(--lb-font-size-sm); line-height: 1.35; color: var(--lb-color-parchment-dim); }
-/* Os selos: texto baixo com um losango na cor de cada origem (o catálogo é verde, o livro é gravado, o Acervo é latão). */
-.mu-item__selos { display: flex; flex-wrap: wrap; gap: 2px 12px; margin: 0 0 4px; padding: 0; list-style: none; }
-.mu-item__selo {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font: 400 var(--lb-font-size-xs) / 1.4 var(--lb-font-utility);
-  color: var(--lb-color-parchment-dim);
-  white-space: nowrap;
-}
-.mu-item__selo::before { content: ''; flex: none; width: 5px; height: 5px; background: var(--mu-selo, var(--lb-color-parchment-faint)); transform: rotate(45deg); }
-.mu-item__selo--livro { --mu-selo: var(--lb-gr-gravado); }
-.mu-item__selo--catalogo { --mu-selo: var(--lb-color-online); }
-/* A coisa do Acervo (Fase 1): latão, a cor do "é seu, do app". */
-.mu-item__selo--acervo { --mu-selo: var(--lb-color-brass-bright); }
-/* B04 (docs/design/habilidades/): a entrada que guarda a mecânica montada. */
-.mu-item__selo--montada { --mu-selo: var(--lb-color-parchment-dim); }
-/* Fase 7: a frase do efeito do item do Acervo (a mesma da vaga da mochila). */
+/* F6: a frase e os botões do "Conferir as cópias diferentes" de um item do Acervo. */
 .mu-item__efeito {
   margin: 0;
   font-size: var(--lb-font-size-sm);
@@ -107,52 +42,9 @@
   overflow-wrap: anywhere;
 }
 
-.mu-item__txt {
-  display: -webkit-box;
-  margin: 0;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  font-size: var(--lb-font-size-sm);
-  line-height: 1.45;
-  color: var(--lb-color-parchment-dim);
-  overflow-wrap: anywhere;
-}
-.mu-item__campos { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
-.mu-item__campos span { min-width: 0; overflow-wrap: anywhere; }
-.mu-item__campos b { font-weight: 500; color: var(--lb-color-parchment); font-family: var(--lb-font-utility); }
-.mu-item__pe { display: flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 4px; }
-.mu-item__alca { display: inline-flex; color: var(--lb-color-parchment-faint); }
 .mu-item__acoes { display: flex; align-items: center; justify-content: flex-end; gap: 2px; min-width: 0; margin-left: auto; }
 .mu-item__acoes .mu-bt--p:not(.mu-bt--ic) { margin-left: 4px; }
-/* "Já está em Aira": fica focável e legível, mas sem cara de botão que age. */
-.lb-mundo .mu-item__ja { border-color: transparent; background: transparent; color: var(--lb-color-online); cursor: default; }
-.lb-mundo .mu-item__ja:active:not(:disabled) { transform: none; }
-@media (hover: hover) and (pointer: fine) {
-  .lb-mundo .mu-item__ja:hover:not(:disabled) { border-color: transparent; }
-}
-.mu-item__ja .mu-ic { width: 14px; height: 14px; stroke-width: 2; }
-.mu-item__sem { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); text-align: right; }
-/* B04: o resumo da mecânica montada em frases (protótipo, .item__efeito). */
-.mu-item__efeito { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment-dim); }
-.mu-item__efeito li { display: flex; gap: 7px; align-items: baseline; overflow-wrap: anywhere; }
-.mu-item__efeito li::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--lb-color-brass-bright); transform: translateY(-1px); }
 .mu-chip__n { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
-/* A foto da coisa: quadrada e contida (a figura do item não se corta), no mesmo campo escuro das vagas da ficha. */
-.mu-item__foto {
-  flex: none;
-  display: grid;
-  width: 40px;
-  height: 40px;
-  overflow: hidden;
-  border: 1px solid var(--lb-gr-filete);
-  border-radius: var(--lb-radius-sm);
-  background: var(--lb-gr-campo);
-}
-.mu-item__foto img { width: 100%; height: 100%; object-fit: contain; }
-.mu-item__foto .lb-ficha__iniciais { font: 600 12px / 1 var(--lb-font-utility); }
-
-.mu-cat-mais { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 14px; }
 
 .mu-it-estado { margin: -10px 0 16px; }
 .mu-it-aviso {
@@ -171,70 +63,6 @@
 
 /* Leitor de tela só (rótulo da busca, contagem dos resultados, os rádios do tipo). */
 .mu-it-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-
-/* ---------- Ficha que recebe ---------- */
-.mu-destino {
-  position: sticky;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: calc(100vh - 40px);
-  padding: 14px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.mu-destino__tit { margin: 0; font-size: var(--lb-font-size-md); font-weight: 600; }
-.mu-destino__quem { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.mu-destino__quem-txt { flex: 1; min-width: 0; }
-.mu-destino__nome { display: block; font-family: var(--lb-font-display); font-size: 17px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mu-destino__sub { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mu-destino__recusa { margin: 0; padding: 8px 10px; border-radius: var(--lb-radius-sm); background: var(--lb-gr-campo); font-size: var(--lb-font-size-sm); color: var(--lb-color-brass-bright); }
-.mu-destino__secoes { display: flex; flex-direction: column; margin: 0 -8px; }
-.mu-destino__secao {
-  padding: 6px 8px;
-  border: 1px dashed transparent;
-  border-radius: var(--lb-radius-sm);
-  transition:
-    border-color 120ms ease,
-    background-color 120ms ease;
-}
-.mu-destino__secao h4 { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 6px; font-size: var(--lb-font-size-md); font-weight: 600; }
-.mu-destino__secao h4 small { font-weight: 400; color: var(--lb-color-parchment-faint); font-family: var(--lb-font-utility); white-space: nowrap; }
-.mu-destino__secao ul { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0; list-style: none; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment-dim); }
-.mu-destino__secao li { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
-.mu-destino__secao li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mu-destino__dano { flex: none; font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
-/* A mochila: foto pequena, nome que corta com reticências e a quantidade em números de mesma largura. */
-.mu-destino__mochila li { align-items: center; }
-.mu-destino__foto {
-  flex: none;
-  display: grid;
-  width: 22px;
-  height: 22px;
-  overflow: hidden;
-  border: 1px solid var(--lb-gr-filete);
-  border-radius: 4px;
-  background: var(--lb-gr-campo);
-}
-.mu-destino__foto img { width: 100%; height: 100%; object-fit: contain; }
-.mu-destino__foto .lb-ficha__iniciais { font: 600 9px / 1 var(--lb-font-utility); }
-.mu-destino__vaga { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mu-destino__qtd { flex: none; font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
-.mu-destino__mais { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
-/* O que acabou de entrar fica em latão. Sem esmaecer: o "Pôr em" é o caminho do teclado, e a cor já conta o que mudou. */
-.mu-destino__secao li.mu-destino__novo { color: var(--lb-color-brass-bright); }
-.mu-destino__vazio { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
-.mu-destino__solta { display: none; margin: 6px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-brass-bright); }
-/* Arrastando: a seção que recebe ganha o tracejado e o convite; com o cartão em cima do painel, enche de latão. */
-.mu-destino--ativo .mu-destino__secao[data-aceita='sim'] { border-color: var(--lb-gr-filete-latao); }
-.mu-destino--ativo .mu-destino__secao[data-aceita='sim'] .mu-destino__solta { display: block; }
-.mu-destino--sobre .mu-destino__secao[data-aceita='sim'] { border-style: solid; border-color: var(--lb-color-brass); background: var(--lb-color-brass-soft); }
-
-/* Só cor: segura o latão um instante e apaga (vale também com movimento reduzido). */
-@keyframes mu-it-destaque {
-  from, 40% { border-color: var(--lb-color-brass); outline-color: var(--lb-color-brass); }
-}
 
 /* ---------- Janela de entrada (portal, fora do .lb-mundo) ---------- */
 .mu-ent-tipos { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
@@ -259,25 +87,18 @@
 .mu-ent-pe { flex-wrap: wrap; align-items: center; }
 .mu-ent-pe__erro { flex: 1 1 100%; margin: 0 0 4px; }
 
-@media (max-width: 980px) {
-  .mu-cat { grid-template-columns: minmax(0, 1fr); }
-  .mu-destino { position: static; max-height: none; overflow: visible; }
-}
 @media (max-width: 520px) {
   .mu-ent-campos { grid-template-columns: minmax(0, 1fr); }
   .mu-ent-bala__campos { grid-template-columns: minmax(0, 1fr); }
   .mu-ent-bala__topo { flex-wrap: wrap; }
 }
 
-/* Movimento reduzido: o cartão arrastado só esmaece; nada encolhe nem aparece aos poucos. */
+/* Movimento reduzido: o botão de limpar não encolhe ao apertar. */
 @media (prefers-reduced-motion: reduce) {
-  .mu-item { transition-property: opacity, border-color; }
-  .mu-item--arrastando { transform: none; }
   .mu-busca .mu-busca__limpar:active:not(:disabled) { transform: translateY(-50%); }
 }
 
-/* ARMAS-FONTE-UNICA §4 e §6: o rótulo "O que ela faz" da arma e o ensaio do "Juntar as armas". */
-.mu-item__faz { margin: 0; font-size: var(--lb-font-size-xs); letter-spacing: var(--lb-font-tracking-wide); text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+/* ARMAS-FONTE-UNICA §6: o ensaio do "Juntar as armas". */
 .mu-armas { display: flex; flex-direction: column; gap: 12px; margin: -6px 0 18px; padding: 14px 16px; border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-sm); }
 .mu-armas__tit { margin: 0; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment); }
 .mu-armas__sub, .mu-armas__nada { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
