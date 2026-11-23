@@ -150,6 +150,8 @@ import type { CampoDaBatalha } from '../lib/batalha/marcasNoCampo'
 import { criarCampoNoJogador, type CampoNoJogador } from './campoNoJogador'
 import { criarFiosDaBatalha, type FiosDaBatalha } from '../pixi/fiosDaBatalha'
 import { criarAlcanceDaBatalha, type AlcanceDaBatalha } from '../pixi/alcanceDaBatalha'
+import { criarAlcanceDoGolpe, type AlcanceDoGolpe } from '../pixi/alcanceDoGolpe'
+import { mirasParaDesenhar, useMiraNoMapa } from '../stores/batalha/miraNoMapa'
 import { criarCalculoDoAlcance, type CalculoDoAlcance } from '../lib/batalha/alcanceNoCampo'
 import {
   criarTextoDosSelos,
@@ -1537,6 +1539,8 @@ interface Scene {
   /** CAMPO DE BATALHA: os fios entre fichas e as casas ao alcance, no chão da grade da batalha. */
   fios: FiosDaBatalha
   alcance: AlcanceDaBatalha
+  /** Fase E do alcance: as casas do golpe na mira (a dele e, na fase D, as dos outros), acima do alcance de andar. */
+  alcanceDoGolpe: AlcanceDoGolpe
   calcularAlcance: CalculoDoAlcance
   /** O que o chão da batalha desenhou por último: o zoom refaz o traço (px de tela) com isto. */
   chaoDaBatalha: { map: MapData; campo: CampoDaBatalha | null; casas: readonly { col: number; row: number }[] | null } | null
@@ -1838,7 +1842,9 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
 function desenharChaoDaBatalha(scene: Scene): void {
   const chao = scene.chaoDaBatalha
   const escala = scene.camera.scale
-  scene.alcance.desenhar(chao?.casas ?? null, chao?.map.grid ?? 0, escala)
+  // Fase E: com golpe na mira, as casas dele no chão e o alcance de andar some (como no protótipo); hexagonal, sem casas.
+  scene.alcanceDoGolpe.desenhar(chao === null || chao.map.gridShape === 'hex' ? [] : mirasParaDesenhar(useMiraNoMapa.getState()), escala)
+  scene.alcance.desenhar(scene.alcanceDoGolpe.temMira() ? null : (chao?.casas ?? null), chao?.map.grid ?? 0, escala)
   scene.fios.desenhar(
     chao?.campo?.fios ?? null,
     (tokenId) => {
@@ -4269,6 +4275,7 @@ function PlayerViewDoCanvas({
     let removeWheel: (() => void) | null = null
     let resizeObserver: ResizeObserver | null = null
     let pararDeSeguir: (() => void) | null = null
+    let pararDeOuvirAMira: (() => void) | null = null
 
     const setup = async () => {
       // Densidade do monitor/celular: backbuffer em pixels físicos, canvas no tamanho CSS.
@@ -4584,7 +4591,9 @@ function PlayerViewDoCanvas({
       // CAMPO DE BATALHA: as casas ao alcance e os fios moram no chão da grade (por baixo das fichas).
       const alcanceDaBatalha = criarAlcanceDaBatalha()
       const fiosDaBatalha = criarFiosDaBatalha()
-      gradeDaBatalha.camada.addChild(alcanceDaBatalha.camada, fiosDaBatalha.grafico)
+      // Fase E do alcance: o golpe na mira, entre o alcance de andar e os fios; o relógio CRU (o brilho troca o alfa a 30 por segundo).
+      const alcanceDoGolpe = criarAlcanceDoGolpe({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      gradeDaBatalha.camada.addChild(alcanceDaBatalha.camada, alcanceDoGolpe.camada, fiosDaBatalha.grafico)
       const pins = new Container()
       // O selo do objeto que abre mora no container de hoje dos pinos, acima da névoa como eles (o pintor dos
       // pinos só limpa o próprio desenho); a visão de agora decide quais aparecem (`redrawSelosDosObjetos`).
@@ -4954,6 +4963,7 @@ function PlayerViewDoCanvas({
         campo: criarCampoNoJogador(),
         fios: fiosDaBatalha,
         alcance: alcanceDaBatalha,
+        alcanceDoGolpe,
         calcularAlcance: criarCalculoDoAlcance(),
         chaoDaBatalha: null,
         vezDoAnel: null,
@@ -5093,6 +5103,10 @@ function PlayerViewDoCanvas({
         reportZoomLimits(scene.camera.scale)
       }
       sceneRef.current = scene
+      // Fase E do alcance: a mira abriu, virou ou o mouse mudou de casa: só o chão da batalha redesenha.
+      pararDeOuvirAMira = useMiraNoMapa.subscribe((estado, antes) => {
+        if (estado.local !== antes.local || estado.remotas !== antes.remotas || estado.foco !== antes.foco) desenharChaoDaBatalha(scene)
+      })
       // TERRENO ALTO: a vista do piso de baixo segue cada câmera que a tela de cima publica.
       if (scene.espelho?.modo === 'segue') {
         pararDeSeguir = scene.espelho.espelho.ouvir(() => {
@@ -5609,6 +5623,11 @@ function PlayerViewDoCanvas({
         longPress = { timer, pointerId, x, y }
       })
       app.stage.on('globalpointermove', (event: FederatedPointerEvent) => {
+        // Fase E do alcance: com golpe na mira, o mouse diz a casa em foco e o lado da forma (a store só muda quando eles mudam).
+        if (event.pointerType !== 'touch' && useMiraNoMapa.getState().local !== null) {
+          const noMundo = scene.world.toLocal(event.global)
+          useMiraNoMapa.getState().apontar(noMundo.x, noMundo.y)
+        }
         if (event.pointerType === 'touch') {
           const { state, camera } = fingerMove(scene.touch, event.pointerId, { x: event.global.x, y: event.global.y })
           scene.touch = state
@@ -5970,8 +5989,10 @@ function PlayerViewDoCanvas({
 
     return () => {
       destroyed = true
+      sceneRef.current?.alcanceDoGolpe.destruir()
       sceneRef.current = null
       pararDeSeguir?.()
+      pararDeOuvirAMira?.()
       removeWheel?.()
       resizeObserver?.disconnect()
       if (initialized) app.destroy({ removeView: true }, { children: true }) // `true` limparia o TexturePool GLOBAL e quebraria Text de outro app vivo

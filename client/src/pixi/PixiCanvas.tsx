@@ -30,6 +30,8 @@ import { criarPortaoDaVista } from './vistaCoberta'
 import { criarGradeDaBatalha } from './gradeDaBatalha'
 import { criarFiosDaBatalha } from './fiosDaBatalha'
 import { criarAlcanceDaBatalha } from './alcanceDaBatalha'
+import { criarAlcanceDoGolpe } from './alcanceDoGolpe'
+import { mirasParaDesenhar, useMiraNoMapa } from '../stores/batalha/miraNoMapa'
 import { criarCalculoDoAlcance } from '../lib/batalha/alcanceNoCampo'
 import { acoesDaCarta } from '../lib/batalha/golpe'
 import { cartaDaVez } from '../lib/batalha/turnos'
@@ -1407,6 +1409,12 @@ function PixiCanvasDoContexto({
       // Até onde a ficha da vez anda: casas claras com a linha da grade, por baixo dos fios.
       const alcanceDaBatalha = criarAlcanceDaBatalha()
       gradeDaBatalha.camada.addChildAt(alcanceDaBatalha.camada, gradeDaBatalha.camada.getChildIndex(fiosDaBatalha.grafico))
+      // ALCANCE DO GOLPE (fase E, 23/11/2026): as casas que o golpe na mira alcança, acima do alcance de andar e por baixo dos fios.
+      // O relógio CRU: o brilho troca o alfa a 30 por segundo e o desenho sob pedido vê a mudança.
+      const alcanceDoGolpe = criarAlcanceDoGolpe({ ticker: app.ticker, reducedMotion: prefersReducedMotion }, (estado) => {
+        el.dataset.alcanceDoGolpe = `${estado.miras}:${estado.casas}:${estado.animando ? 'anima' : 'parado'}`
+      })
+      gradeDaBatalha.camada.addChildAt(alcanceDoGolpe.camada, gradeDaBatalha.camada.getChildIndex(fiosDaBatalha.grafico))
       const calcularAlcance = criarCalculoDoAlcance()
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
@@ -2331,8 +2339,16 @@ function PixiCanvasDoContexto({
           const vez = alcanceDaVez(campo)
           ultimasCasas = calcularAlcance(sceneState().map, vez?.tokenId ?? null, vez?.sobra ?? null)
         }
-        alcanceDaBatalha.desenhar(ultimasCasas, sceneState().map.grid, camera.scale)
+        const { map } = sceneState()
+        // Fase E: com golpe na mira, as casas dele no chão e o alcance de andar some (como no protótipo).
+        // Grade hexagonal e imagem exportada: sem casas (a mira só diz o número).
+        const miras = exportScene !== null || map.gridShape === 'hex' || !batalhaLigadaRef.current ? [] : mirasParaDesenhar(useMiraNoMapa.getState())
+        alcanceDoGolpe.desenhar(miras, camera.scale)
+        alcanceDaBatalha.desenhar(alcanceDoGolpe.temMira() ? null : ultimasCasas, map.grid, camera.scale)
       }
+      const pararDeOuvirAMira = useMiraNoMapa.subscribe((estado, antes) => {
+        if (estado.local !== antes.local || estado.remotas !== antes.remotas || estado.foco !== antes.foco) redesenharAlcance(null)
+      })
       /** O campo do último desenho das fichas: o pan e o zoom refazem os fios com ele, sem reler a batalha. */
       let ultimoCampo: CampoDaBatalha = CAMPO_VAZIO
       const redesenharFios = (campo: CampoDaBatalha) => {
@@ -8816,6 +8832,8 @@ function PixiCanvasDoContexto({
       app.stage.on('pointermove', (event) => {
         // B2 — antes de qualquer gesto: guarda o ponteiro (L só arma sobre o canvas).
         laserPointer = toWorldPoint(event.global.x, event.global.y)
+        // Fase E do alcance: com golpe na mira, o mouse diz a casa em foco e o lado da forma (a store só muda quando eles mudam).
+        if (useMiraNoMapa.getState().local !== null) useMiraNoMapa.getState().apontar(laserPointer.x, laserPointer.y)
         // Mexer o mouse com L apertado já arma o laser, sem esperar o tempo do toque.
         if (laserKeyTimer !== null) activateLaserKey()
         // Traço do laser em curso (botão esquerdo pressionado): consome o move.
@@ -10226,6 +10244,9 @@ function PixiCanvasDoContexto({
         estrelasDosItens.destruir()
         // E os fogos (saem do relógio antes do app).
         fogos.destruir()
+        // E o alcance do golpe (sai do relógio e da store da mira).
+        pararDeOuvirAMira()
+        alcanceDoGolpe.destruir()
         // E o Judge (a folha fica no cache do `Assets` para o próximo palco).
         judgeGesture.cancel()
         judgeDoMapa.destruir()

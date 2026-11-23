@@ -1,0 +1,436 @@
+import { CanvasSource, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js'
+import { pegadaDaCasa, type Casa, type PegadaNaGrade } from '../lib/batalha/area'
+import { casasDaExplosao, casasDoAlcance } from '../lib/batalha/alcance/casas'
+import type { CorDoAlcance } from '../lib/batalha/alcance/cor'
+import { usaDirecao, type FormaDaAreaLonge } from '../lib/batalha/alcance/forma'
+import { casasDaFormaDeQuemUsa, conjuntoDasCasas, fichaNasCasas, type MapaDoAlcance } from '../lib/batalha/alcance/quemEntra'
+import type { MiraNoDesenho } from '../stores/batalha/miraNoMapa'
+
+/**
+ * O ALCANCE DO GOLPE NO CHÃO (plano docs/design/habilidades/ALCANCE.md §7.1, fase E; protótipo
+ * aprovado tmp/proto-alcance/fonte.html). Com um golpe na mira, as casas que ele alcança acendem:
+ * azul quando dá dano, verde claro quando não dá. No mestre e no jogador, na faixa da grade da
+ * batalha, acima do alcance de andar (que some enquanto há mira) e por baixo das fichas.
+ *
+ * - Casa acesa: preenchimento com recuo, contorno escuro e a borda de dentro clara.
+ * - O brilho (pedido do dono, 23/11: "uma animação que nem o Final Fantasy Tactics"): um sprite de
+ *   degradê redondo por casa, a mesma textura para todas, que respira (ciclo de 1,4 s) e é cruzado
+ *   por uma onda de luz que sai de quem usa para fora (o atraso cresce com a distância). Só o alfa
+ *   dos sprites muda, a 30 quadros por segundo, só enquanto há mira; as casas não são refeitas.
+ *   Movimento reduzido: o brilho fica parado no meio.
+ * - Mouse em cima (só a mira desta tela): a casa forte com borda branca; no alvo e no anel só a
+ *   casa, na área longe a explosão; nas formas inteiras, todas. Fora das casas, o tracejado.
+ * - Os marcados ganham os cantos de latão; a forma que olha para um lado, a seta.
+ *
+ * Traços em px de TELA: o zoom refaz o traço sem refazer a conta das casas.
+ */
+
+interface TintaDoAlcance {
+  base: number
+  baseAlpha: number
+  forte: number
+  forteAlpha: number
+  borda: number
+  contorno: number
+  contornoAlpha: number
+  /** O brilho do degradê, em `rgb()` do canvas. */
+  brilho: string
+}
+
+/** As cores do protótipo (`fonte.html`, `CORES`). */
+const TINTAS: Readonly<Record<CorDoAlcance, TintaDoAlcance>> = {
+  azul: { base: 0x1664ec, baseAlpha: 0.6, forte: 0x3088ff, forteAlpha: 0.84, borda: 0xcdeeff, contorno: 0x06122e, contornoAlpha: 0.6, brilho: '168, 222, 255' },
+  verde: { base: 0x68de68, baseAlpha: 0.58, forte: 0x96f28c, forteAlpha: 0.86, borda: 0xecffe2, contorno: 0x0a280e, contornoAlpha: 0.62, brilho: '214, 255, 204' },
+}
+
+const BRANCO = 0xffffff
+const TINTA_ESCURA = 0x0c0c0e
+const LATAO_CLARO = 0xf3ba66
+const TRACEJADO = 0xeceae4
+const TRACEJADO_ALPHA = 0.85
+
+/** O ciclo do brilho: respira e a onda passa, uma vez a cada 1,4 s (pedido do orquestrador, 23/11). */
+const PERIODO_MS = 1400
+/** Quanto do ciclo a onda atrasa a cada casa de distância (~112 ms por casa: ~9 casas por segundo). */
+const ATRASO_DA_ONDA_POR_CASA = 0.08
+/** A crista da onda: quanto maior, mais estreita (um anel de luz, não um piscar da área toda). */
+const ESTREITEZA_DA_ONDA = 6
+/** O alfa do brilho: o mínimo, o que a respiração soma e o que a onda soma (0,4 a 0,9, o do protótipo). */
+const ALFA_MINIMO = 0.4
+const ALFA_DA_RESPIRACAO = 0.3
+const ALFA_DA_ONDA = 0.2
+/** Movimento reduzido: o brilho parado, no meio do que ele respiraria. */
+const ALFA_PARADO = 0.65
+/** A mira acende em 160 ms (ease-out quártico): aparece, sem pular. */
+const ENTRADA_MS = 160
+/** O brilho troca de alfa a 30 quadros por segundo: o respirar de 1,4 s não pede mais. */
+const QUADRO_DO_BRILHO_MS = 1000 / 30
+/** A textura do brilho, em px (o sprite estica para a casa). */
+const TEXTURA_PX = 64
+
+export interface MovimentoDoAlcance {
+  /** O relógio cru do app (`app.ticker`): o desenho sob pedido vê o alfa mudar e desenha. */
+  ticker: Pick<Ticker, 'add' | 'remove'>
+  reducedMotion: () => boolean
+  /** Agora, em ms. Padrão `performance.now()`. */
+  agora?: () => number
+}
+
+export interface EstadoDoAlcanceDoGolpe {
+  miras: number
+  casas: number
+  animando: boolean
+}
+
+export interface AlcanceDoGolpe {
+  readonly camada: Container
+  /** As miras no chão (`mirasParaDesenhar`); a mesma lista e a mesma escala não refazem nada. */
+  desenhar(miras: readonly MiraNoDesenho[], escala: number): void
+  /** Há alguma mira no chão (o alcance de andar some enquanto houver). */
+  temMira(): boolean
+  destruir(): void
+}
+
+/** As casas acesas de uma mira, a conta das casas da lib (a mesma do host). */
+function casasDaMira(mira: MiraNoDesenho): Casa[] {
+  const { forma, quemUsa, direcao, mapa, acendeQuemUsa } = mira
+  if (direcao !== null || !usaDirecao(forma) || acendeQuemUsa) return casasDoAlcance({ forma, quemUsa, direcao: direcao ?? 'norte', acendeQuemUsa, ...mapa })
+  return casasDaFormaDeQuemUsa(forma, quemUsa, null, mapa)
+}
+
+function chaveDaCasa(casa: Casa): string {
+  return `${casa.col},${casa.row}`
+}
+
+function chaveDaPegada(pegada: PegadaNaGrade | null): string {
+  return pegada === null ? '-' : `${pegada.col},${pegada.row},${pegada.tamanho}`
+}
+
+/** A distância do xadrez da casa até a borda da ficha de quem usa (a onda sai dela). */
+function distanciaDeQuemUsa(quemUsa: PegadaNaGrade, casa: Casa): number {
+  const naCol = Math.max(quemUsa.col - casa.col, 0, casa.col - (quemUsa.col + quemUsa.tamanho - 1))
+  const naRow = Math.max(quemUsa.row - casa.row, 0, casa.row - (quemUsa.row + quemUsa.tamanho - 1))
+  return Math.max(naCol, naRow)
+}
+
+const texturas = new Map<CorDoAlcance, Texture>()
+
+/** O degradê redondo do brilho, feito uma vez por cor (o do protótipo, `brilhoDa`). */
+function texturaDoBrilho(cor: CorDoAlcance): Texture {
+  const pronta = texturas.get(cor)
+  if (pronta !== undefined) return pronta
+  const tela = typeof document === 'undefined' ? null : document.createElement('canvas')
+  const g = tela?.getContext('2d') ?? null
+  if (tela === null || g === null) return Texture.WHITE
+  tela.width = TEXTURA_PX
+  tela.height = TEXTURA_PX
+  const meio = TEXTURA_PX / 2
+  const degrade = g.createRadialGradient(meio, meio, 0, meio, meio, meio * 0.92)
+  const rgb = TINTAS[cor].brilho
+  degrade.addColorStop(0, `rgba(${rgb}, 0.95)`)
+  degrade.addColorStop(0.45, `rgba(${rgb}, 0.45)`)
+  degrade.addColorStop(1, `rgba(${rgb}, 0)`)
+  g.fillStyle = degrade
+  g.fillRect(0, 0, TEXTURA_PX, TEXTURA_PX)
+  const textura = new Texture({ source: new CanvasSource({ resource: tela, autoGenerateMipmaps: true, scaleMode: 'linear' }) })
+  texturas.set(cor, textura)
+  return textura
+}
+
+/** O ease-out quártico: começa rápido e assenta (a entrada). */
+function saidaQuartica(p: number): number {
+  return 1 - (1 - p) ** 4
+}
+
+/** As medidas da casa acesa (as do protótipo, em px de mundo): o recuo e a borda de dentro. */
+function medidasDaCasa(grid: number, px: number): { recuo: number; dentro: number } {
+  const recuo = Math.max(1.5 * px, grid * 0.04)
+  return { recuo, dentro: recuo + Math.max(2 * px, grid * 0.04) }
+}
+
+/** Casas acesas num traço só: o preenchimento, o contorno escuro e a borda de dentro. */
+function pintarCasas(g: Graphics, casas: readonly Casa[], grid: number, px: number, tinta: TintaDoAlcance, forte: boolean): void {
+  if (casas.length === 0) return
+  const { recuo, dentro } = medidasDaCasa(grid, px)
+  for (const { col, row } of casas) g.rect(col * grid + recuo, row * grid + recuo, grid - 2 * recuo, grid - 2 * recuo)
+  g.fill({ color: forte ? tinta.forte : tinta.base, alpha: forte ? tinta.forteAlpha : tinta.baseAlpha })
+  g.stroke({ width: 2 * px, color: tinta.contorno, alpha: tinta.contornoAlpha })
+  for (const { col, row } of casas) g.rect(col * grid + dentro, row * grid + dentro, grid - 2 * dentro, grid - 2 * dentro)
+  g.stroke({ width: (forte ? 2 : 1.25) * px, color: forte ? BRANCO : tinta.borda })
+}
+
+/** O tracejado 6/5 (px de tela) em volta da casa sob o mouse, fora das acesas. */
+function pintarTracejado(g: Graphics, casa: Casa, grid: number, px: number): void {
+  const recuo = grid * 0.0625
+  const x0 = casa.col * grid + recuo
+  const y0 = casa.row * grid + recuo
+  const lado = grid - 2 * recuo
+  const traco = 6 * px
+  const vao = 5 * px
+  const cantos: readonly [number, number, number, number][] = [
+    [x0, y0, 1, 0],
+    [x0 + lado, y0, 0, 1],
+    [x0 + lado, y0 + lado, -1, 0],
+    [x0, y0 + lado, 0, -1],
+  ]
+  for (const [x, y, dx, dy] of cantos) {
+    for (let andado = 0; andado < lado; andado += traco + vao) {
+      const fim = Math.min(lado, andado + traco)
+      g.moveTo(x + dx * andado, y + dy * andado).lineTo(x + dx * fim, y + dy * fim)
+    }
+  }
+  g.stroke({ width: 2 * px, color: TRACEJADO, alpha: TRACEJADO_ALPHA })
+}
+
+/** Os cantos de latão em volta da ficha marcada (escuro 6 px, latão 3 px). */
+function pintarCantos(g: Graphics, pegadas: readonly PegadaNaGrade[], grid: number, px: number): void {
+  if (pegadas.length === 0) return
+  const tracar = () => {
+    for (const pegada of pegadas) {
+      const x = pegada.col * grid
+      const y = pegada.row * grid
+      const lado = pegada.tamanho * grid
+      const fora = grid * 0.06
+      const braco = grid * 0.3
+      const cantos: readonly [number, number, number, number][] = [
+        [x - fora, y - fora, 1, 1],
+        [x + lado + fora, y - fora, -1, 1],
+        [x - fora, y + lado + fora, 1, -1],
+        [x + lado + fora, y + lado + fora, -1, -1],
+      ]
+      for (const [cx, cy, sx, sy] of cantos) g.moveTo(cx + sx * braco, cy).lineTo(cx, cy).lineTo(cx, cy + sy * braco)
+    }
+  }
+  tracar()
+  g.stroke({ width: 6 * px, color: TINTA_ESCURA, alpha: 0.85, cap: 'round', join: 'round' })
+  tracar()
+  g.stroke({ width: 3 * px, color: LATAO_CLARO, cap: 'round', join: 'round' })
+}
+
+const VETOR: Readonly<Record<'norte' | 'sul' | 'leste' | 'oeste', readonly [number, number]>> = { norte: [0, -1], sul: [0, 1], leste: [1, 0], oeste: [-1, 0] }
+
+/** A seta da direção, a meia casa da borda da ficha, na cor da borda com contorno escuro. */
+function pintarSeta(g: Graphics, mira: MiraNoDesenho, grid: number, px: number, tinta: TintaDoAlcance): void {
+  if (mira.direcao === null || !usaDirecao(mira.forma)) return
+  const [vx, vy] = VETOR[mira.direcao]
+  const meio = (mira.quemUsa.tamanho * grid) / 2
+  const cx = mira.quemUsa.col * grid + meio + vx * (meio - grid / 2 + grid * 0.5)
+  const cy = mira.quemUsa.row * grid + meio + vy * (meio - grid / 2 + grid * 0.5)
+  const t = grid * 0.13
+  // A ponta, e a base atrás dela, girada para o lado (vx, vy).
+  const pontos = [cx + vx * t, cy + vy * t, cx - vx * t * 0.7 - vy * t, cy - vy * t * 0.7 + vx * t, cx - vx * t * 0.7 + vy * t, cy - vy * t * 0.7 - vx * t]
+  g.poly(pontos).stroke({ width: 3 * px, color: TINTA_ESCURA, alpha: 0.85, join: 'round' })
+  g.poly(pontos).fill({ color: tinta.borda })
+}
+
+/** A explosão da área longe em volta de `centro` (a granada sob o mouse, ou a escolhida). */
+function explosaoEm(forma: FormaDaAreaLonge, centro: PegadaNaGrade, mapa: MapaDoAlcance): Casa[] {
+  return casasDaExplosao({ forma, centro, ...mapa })
+}
+
+/** As casas fortes com o mouse em `foco` (uma casa acesa). */
+function fortesNoFoco(mira: MiraNoDesenho, foco: Casa, casas: readonly Casa[]): readonly Casa[] {
+  const { forma } = mira
+  if (forma.tipo === 'ponto') return explosaoEm(forma, pegadaDaCasa(foco), mira.mapa)
+  if (forma.tipo === 'ficha') {
+    const naFicha = mira.fichas.find((ficha) => fichaNasCasas(conjuntoDasCasas([foco]), ficha))
+    return naFicha === undefined ? [foco] : explosaoEm(forma, naFicha, mira.mapa)
+  }
+  return forma.tipo === 'alvo' ? [foco] : casas
+}
+
+interface DesenhoDaMira {
+  raiz: Container
+  base: Graphics
+  brilho: Container
+  foco: Graphics
+  sprites: Sprite[]
+  /** A distância de cada sprite em uso até quem usa (a onda). */
+  distancias: number[]
+  usados: number
+  casas: Casa[]
+  acesas: ReadonlySet<string>
+  cor: CorDoAlcance | null
+  chaveDasCasas: string
+  chaveDoTraco: string
+  chaveDoFoco: string
+  abriuEm: number
+}
+
+let proximoIdDoMapa = 1
+const idsDosMapas = new WeakMap<MapaDoAlcance, number>()
+
+function idDoMapa(mapa: MapaDoAlcance): number {
+  let id = idsDosMapas.get(mapa)
+  if (id === undefined) {
+    id = proximoIdDoMapa
+    proximoIdDoMapa += 1
+    idsDosMapas.set(mapa, id)
+  }
+  return id
+}
+
+export function criarAlcanceDoGolpe(movimento?: MovimentoDoAlcance, aoMudar?: (estado: EstadoDoAlcanceDoGolpe) => void): AlcanceDoGolpe {
+  const camada = new Container()
+  camada.label = 'alcance-do-golpe'
+  camada.eventMode = 'none'
+  camada.interactiveChildren = false
+  const desenhos = new Map<string, DesenhoDaMira>()
+  const agora = movimento?.agora ?? (() => performance.now())
+  let parado = movimento === undefined || movimento.reducedMotion()
+  let noRelogio = false
+  let ultimoQuadro = -Infinity
+  let ultimas: readonly MiraNoDesenho[] = []
+  let ultimaEscala = 0
+
+  function animar(desenho: DesenhoDaMira, instante: number): void {
+    if (parado) {
+      desenho.raiz.alpha = 1
+      for (let i = 0; i < desenho.usados; i += 1) desenho.sprites[i].alpha = ALFA_PARADO
+      return
+    }
+    const t = Math.max(0, instante - desenho.abriuEm)
+    desenho.raiz.alpha = saidaQuartica(Math.min(1, t / ENTRADA_MS))
+    const fase = t / PERIODO_MS
+    const respira = 0.5 - 0.5 * Math.cos(2 * Math.PI * fase)
+    for (let i = 0; i < desenho.usados; i += 1) {
+      const onda = (0.5 + 0.5 * Math.cos(2 * Math.PI * (fase - desenho.distancias[i] * ATRASO_DA_ONDA_POR_CASA))) ** ESTREITEZA_DA_ONDA
+      desenho.sprites[i].alpha = ALFA_MINIMO + ALFA_DA_RESPIRACAO * respira + ALFA_DA_ONDA * onda
+    }
+  }
+
+  const passo = () => {
+    const instante = agora()
+    // Na entrada, todo quadro (160 ms); depois, 30 por segundo.
+    const entrando = [...desenhos.values()].some((desenho) => instante - desenho.abriuEm < ENTRADA_MS)
+    if (!entrando && instante - ultimoQuadro < QUADRO_DO_BRILHO_MS) return
+    ultimoQuadro = instante
+    for (const desenho of desenhos.values()) animar(desenho, instante)
+  }
+
+  function conferirRelogio(): void {
+    const quer = movimento !== undefined && !parado && desenhos.size > 0
+    if (quer === noRelogio || movimento === undefined) return
+    noRelogio = quer
+    if (quer) movimento.ticker.add(passo)
+    else movimento.ticker.remove(passo)
+  }
+
+  function avisar(): void {
+    if (aoMudar === undefined) return
+    let casas = 0
+    for (const desenho of desenhos.values()) casas += desenho.casas.length
+    aoMudar({ miras: desenhos.size, casas, animando: noRelogio })
+  }
+
+  function novoDesenho(): DesenhoDaMira {
+    const raiz = new Container()
+    const base = new Graphics()
+    const brilho = new Container()
+    // Como o protótipo (`mix-blend-mode: screen`): o brilho clareia a casa sem estourar em branco.
+    brilho.blendMode = 'screen'
+    const foco = new Graphics()
+    raiz.addChild(base, brilho, foco)
+    camada.addChild(raiz)
+    return { raiz, base, brilho, foco, sprites: [], distancias: [], usados: 0, casas: [], acesas: new Set(), cor: null, chaveDasCasas: '', chaveDoTraco: '', chaveDoFoco: '', abriuEm: agora() }
+  }
+
+  /** As casas e o brilho: refeitos só quando a forma, a direção, a ficha ou as paredes mudam. */
+  function refazerCasas(desenho: DesenhoDaMira, mira: MiraNoDesenho): void {
+    const casas = casasDaMira(mira)
+    desenho.casas = casas
+    desenho.acesas = conjuntoDasCasas(casas)
+    const textura = texturaDoBrilho(mira.cor)
+    const grid = mira.mapa.grade
+    for (let i = 0; i < casas.length; i += 1) {
+      let sprite = desenho.sprites[i]
+      if (sprite === undefined) {
+        sprite = new Sprite(textura)
+        sprite.anchor.set(0.5)
+        desenho.sprites.push(sprite)
+        desenho.brilho.addChild(sprite)
+      }
+      if (sprite.texture !== textura) sprite.texture = textura
+      sprite.visible = true
+      sprite.position.set((casas[i].col + 0.5) * grid, (casas[i].row + 0.5) * grid)
+      sprite.setSize(grid, grid)
+      desenho.distancias[i] = distanciaDeQuemUsa(mira.quemUsa, casas[i])
+    }
+    for (let i = casas.length; i < desenho.sprites.length; i += 1) desenho.sprites[i].visible = false
+    desenho.usados = casas.length
+    desenho.cor = mira.cor
+  }
+
+  function desenharUma(desenho: DesenhoDaMira, mira: MiraNoDesenho, escala: number): void {
+    const grid = mira.mapa.grade
+    const px = 1 / (escala > 0 ? escala : 1)
+    const tinta = TINTAS[mira.cor]
+    const chaveDasCasas = `${JSON.stringify(mira.forma)}|${mira.cor}|${chaveDaPegada(mira.quemUsa)}|${mira.direcao ?? '-'}|${mira.acendeQuemUsa}|${idDoMapa(mira.mapa)}`
+    if (chaveDasCasas !== desenho.chaveDasCasas) {
+      desenho.chaveDasCasas = chaveDasCasas
+      refazerCasas(desenho, mira)
+      animar(desenho, agora())
+    }
+    const chaveDoTraco = `${chaveDasCasas}|${escala}`
+    if (chaveDoTraco !== desenho.chaveDoTraco) {
+      desenho.chaveDoTraco = chaveDoTraco
+      desenho.base.clear()
+      pintarCasas(desenho.base, desenho.casas, grid, px, tinta, false)
+    }
+    const foco = mira.foco
+    const chaveDoFoco = `${chaveDoTraco}|${foco === null ? '-' : chaveDaCasa(foco)}|${chaveDaPegada(mira.centro)}|${mira.alvos.map(chaveDaPegada).join(';')}`
+    if (chaveDoFoco === desenho.chaveDoFoco) return
+    desenho.chaveDoFoco = chaveDoFoco
+    const g = desenho.foco
+    g.clear()
+    const longe = mira.forma.tipo === 'ponto' || mira.forma.tipo === 'ficha' ? mira.forma : null
+    // A explosão já escolhida fica forte; o mouse em cima mostra outra por cima dela.
+    if (longe !== null && mira.centro !== null) pintarCasas(g, explosaoEm(longe, mira.centro, mira.mapa), grid, px, tinta, true)
+    if (foco !== null) {
+      if (desenho.acesas.has(chaveDaCasa(foco))) pintarCasas(g, fortesNoFoco(mira, foco, desenho.casas), grid, px, tinta, true)
+      else pintarTracejado(g, foco, grid, px)
+    }
+    pintarSeta(g, mira, grid, px, tinta)
+    pintarCantos(g, longe !== null && mira.centro !== null ? [mira.centro, ...mira.alvos] : mira.alvos, grid, px)
+  }
+
+  function soltar(desenho: DesenhoDaMira): void {
+    desenho.raiz.destroy({ children: true })
+  }
+
+  return {
+    camada,
+    desenhar(miras, escala) {
+      if (miras === ultimas && escala === ultimaEscala) return
+      const antes = desenhos.size
+      ultimas = miras
+      ultimaEscala = escala
+      if (antes === 0 && miras.length > 0) parado = movimento === undefined || movimento.reducedMotion()
+      const vistas = new Set<string>()
+      for (const mira of miras) {
+        if (mira.mapa.grade <= 0) continue
+        vistas.add(mira.tokenId)
+        let desenho = desenhos.get(mira.tokenId)
+        if (desenho === undefined) {
+          desenho = novoDesenho()
+          desenhos.set(mira.tokenId, desenho)
+        }
+        desenharUma(desenho, mira, escala)
+      }
+      for (const [tokenId, desenho] of desenhos) {
+        if (vistas.has(tokenId)) continue
+        soltar(desenho)
+        desenhos.delete(tokenId)
+      }
+      conferirRelogio()
+      avisar()
+    },
+    temMira: () => desenhos.size > 0,
+    destruir() {
+      for (const desenho of desenhos.values()) soltar(desenho)
+      desenhos.clear()
+      conferirRelogio()
+      camada.destroy({ children: true })
+    },
+  }
+}
