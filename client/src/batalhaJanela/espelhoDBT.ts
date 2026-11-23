@@ -104,6 +104,8 @@ function golpeNoEspelho(cena: CenaDBT, vez: CombatenteDBT, opcao: OpcaoDeAcao): 
     detalhe: [custo, opcao.alvo === 'nenhum' ? 'sem alvo' : opcao.alvosMax > 1 ? `até ${opcao.alvosMax} alvos` : null].filter((parte): parte is string => typeof parte === 'string' && parte !== '').join(' · '),
     motivo: opcao.bloqueio,
     noMapa: null,
+    // Os requisitos são do One Piece: nada a forçar aqui.
+    forcavel: false,
     alvo: opcao.alvo === 'nenhum' ? 'nenhum' : opcao.alvosMax > 1 ? 'varios' : 'um',
     alvosMax: opcao.alvo === 'nenhum' ? 0 : opcao.alvosMax,
     alvosPermitidos: opcao.alvo === 'nenhum' ? [] : candidatosDoAlvo(cena, vez.id, opcao.alvo).map((candidato) => candidato.id),
@@ -282,6 +284,7 @@ export function aplicarPedidoDBT(pedido: PedidoDaMesa): RespostaDaMesa {
     }
     case 'agir':
       if (vez === null || chaveDe(cena, vez) !== pedido.vez) return recusa('A vez já mudou: confira a ordem.')
+      if (pedido.forcar === true) return recusa('No Dragon Ball não há requisitos para forçar.')
       return comando(sceneKey, { tipo: 'agir', combatenteId: vez.id, vez: { rodada: cena.ordem.rodada, turno: vez.turnosJogados }, opcao: pedido.golpe, alvos: [...new Set(pedido.alvos)] })
     case 'responder':
       return comando(sceneKey, { tipo: 'responder', pendenciaId: pedido.pendente, combatenteId: null, opcao: pedido.resposta })

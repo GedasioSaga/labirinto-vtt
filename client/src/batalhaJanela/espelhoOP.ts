@@ -76,15 +76,34 @@ function detalheDoGolpe(golpe: GolpeNaTela): string {
   return [golpe.acaoTexto, dano, golpe.custoTexto, golpe.tempoTexto].filter((parte): parte is string => typeof parte === 'string' && parte !== '').join(' · ')
 }
 
+/** REQUISITOS G: o golpe está cinza só pelo que falta dos requisitos (o mesmo teste do "Usar mesmo assim" do menu do centro). */
+function cinzaSoDosRequisitos(golpe: GolpeNaTela): boolean {
+  return golpe.faltaDosRequisitos !== undefined && golpe.motivo === golpe.faltaDosRequisitos
+}
+
+/**
+ * O golpe que o pedido lança. Com `forcar` (o "Usar mesmo assim" da mesa), o cinza só pelos requisitos
+ * sai com `forcarRequisitos` (o host pula o que falta; o custo normal fica). Cinza por outra regra
+ * (recarga, custo, ação gasta, trava) continua recusado com o motivo dela.
+ */
+function golpeDoPedido(golpe: GolpeNaTela, forcar: boolean): { golpe: GolpeNaTela; motivo: null } | { golpe: null; motivo: string } {
+  if (golpe.motivo === null) return { golpe, motivo: null }
+  if (forcar && cinzaSoDosRequisitos(golpe)) return { golpe: { ...golpe, motivo: null, forcarRequisitos: true }, motivo: null }
+  return { golpe: null, motivo: golpe.motivo }
+}
+
 function golpeNoEspelho(golpe: GolpeNaTela): GolpeNoEspelho {
   const teto = golpe.semAlvo === true ? 0 : (golpe.tetoDeAlvos ?? golpe.divide ?? 8)
   const comNumero = !golpe.dano.semDano && golpe.dano.valor !== null
+  const forcavel = cinzaSoDosRequisitos(golpe)
   return {
     chave: golpe.chave,
     nome: golpe.nome,
     detalhe: detalheDoGolpe(golpe),
     motivo: golpe.motivo,
-    noMapa: golpe.motivo === null ? porQueNoMapa(golpe) : null,
+    // O forçável diz também se sai daqui: forçado, o cinza some e o que sobra é o de sempre.
+    noMapa: golpe.motivo === null || forcavel ? porQueNoMapa(golpe) : null,
+    forcavel,
     alvo: golpe.semAlvo === true ? 'nenhum' : teto === 1 ? 'um' : 'varios',
     alvosMax: teto,
     alvosPermitidos: null,
@@ -364,9 +383,10 @@ function agirOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'agir' }
   if (turnos === undefined || carta === null || chaveDe(turnos, carta) !== pedido.vez) return recusa('A vez já mudou: confira a ordem.')
   const doNpc = vezDoNpc(mesa, turnos, carta)
   if (doNpc === null) return recusa('A vez não é de um NPC: o jogador age na tela dele.')
-  const golpe = doNpc.golpes.find((candidato) => candidato.chave === pedido.golpe)
-  if (golpe === undefined) return recusa('Esta ação não está mais na ficha.')
-  if (golpe.motivo !== null) return recusa(golpe.motivo)
+  const naFicha = doNpc.golpes.find((candidato) => candidato.chave === pedido.golpe)
+  if (naFicha === undefined) return recusa('Esta ação não está mais na ficha.')
+  const { golpe, motivo: doCinza } = golpeDoPedido(naFicha, pedido.forcar === true)
+  if (golpe === null) return recusa(doCinza)
   const noMapa = porQueNoMapa(golpe)
   if (noMapa !== null) return recusa(noMapa)
   const dosAlvos = motivoDosAlvos(golpe, pedido.alvos, doNpc.alvos)
@@ -395,9 +415,10 @@ function contraOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'contr
   }
   const carta = turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId && candidata.bando === undefined)
   if (carta === undefined) return recusa('Quem contra-ataca saiu da ordem.')
-  const golpe = golpesDoContra(mesa, turnos, carta).find((candidato) => candidato.chave === pedido.golpe)
-  if (golpe === undefined) return recusa('Esta ação não está mais na ficha.')
-  if (golpe.motivo !== null) return recusa(golpe.motivo)
+  const naFicha = golpesDoContra(mesa, turnos, carta).find((candidato) => candidato.chave === pedido.golpe)
+  if (naFicha === undefined) return recusa('Esta ação não está mais na ficha.')
+  const { golpe, motivo: doCinza } = golpeDoPedido(naFicha, pedido.forcar === true)
+  if (golpe === null) return recusa(doCinza)
   const noMapa = porQueNoMapa(golpe)
   if (noMapa !== null) return recusa(noMapa)
   const dosAlvos = motivoDosAlvos(golpe, pedido.alvos, alvosDaOrdem(mesa, turnos.cartas, carta))

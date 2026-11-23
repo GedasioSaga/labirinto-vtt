@@ -359,6 +359,9 @@ button.mb-linha__quem:focus-visible,
 .mb-op[data-apagado] .mb-op__nome { color: var(--lb-color-parchment-faint); font-weight: 400; }
 .mb-op__porque { grid-column: 2 / -1; font-size: 11px; color: var(--lb-color-parchment-faint); }
 .mb-op[data-mapa]:not([data-apagado]) .mb-op__porque { color: var(--lb-color-parchment-dim); }
+/* REQUISITOS G: cinza só pelos requisitos: escolhível (o mestre usa mesmo assim), o nome apagado e o que falta em latão. */
+.mb-op[data-forcar] .mb-op__nome { color: var(--lb-color-parchment-faint); font-weight: 400; }
+.mb-op[data-forcar] .mb-op__porque { color: var(--lb-color-brass-bright); }
 .mb-sug { margin-left: 6px; padding: 0 6px; border-radius: var(--lb-radius-full); background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); font: 400 var(--lb-font-size-xs)/1.6 var(--lb-font-utility); }
 @media (hover: hover) and (pointer: fine) {
   .mb-op:not([data-apagado]):hover { background: rgba(255, 255, 255, 0.06); }
@@ -381,6 +384,7 @@ button.mb-linha__quem:focus-visible,
 .mb-lancar > .mb-bt--golpe,
 .mb-lancar > .mb-bt:first-child { flex: 1 1 200px; min-width: 0; }
 .mb-lancar__porque { flex-basis: 100%; margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.mb-lancar__forcar { color: var(--lb-color-parchment-dim); }
 .mb-joga { margin: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--lb-color-parchment-dim); }
 .mb-nota { margin: 2px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
 .mb-nota--solta { margin: 12px 4px 0; }

@@ -272,7 +272,10 @@ function alvosDoGolpe(golpe: GolpeNoEspelho | null, alvos: readonly AlvoNoEspelh
 }
 
 const lancavel = (golpe: GolpeNoEspelho) => golpe.motivo === null && golpe.noMapa === null
-const escolhivel = (golpe: GolpeNoEspelho) => golpe.motivo === null
+/** REQUISITOS G: o cinza só dos requisitos fica escolhível: o mestre usa mesmo assim. */
+const escolhivel = (golpe: GolpeNoEspelho) => golpe.motivo === null || golpe.forcavel
+/** O mesmo aviso do "Usar mesmo assim" do menu do centro (a mesa é só do mestre). */
+const NOTA_DO_FORCAR = 'O registro anota o que faltava; o custo normal continua.'
 
 interface EscolhaProps {
   /** A identidade da escolha (a vez, ou o contra): trocou, a escolha recomeça. */
@@ -323,9 +326,13 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
   }
 
   const faltaAlvo = golpe !== null && golpe.alvo !== 'nenhum' && validos.length === 0
-  const podeLancar = golpe !== null && lancavel(golpe) && !faltaAlvo && !desligado && !ocupado
-  const porQueNao = golpe === null ? 'Escolha um golpe.' : (golpe.motivo ?? golpe.noMapa ?? (faltaAlvo ? (possiveis.length === 0 ? 'Ninguém pode ser alvo deste golpe agora.' : 'Escolha o alvo.') : null))
-  const ajustavel = golpe !== null && golpe.ajustavel && lancavel(golpe)
+  // REQUISITOS G: o cinza só dos requisitos sai daqui "mesmo assim" (a principal confere de novo); com `noMapa`, pelo menu do mapa.
+  const forcando = golpe !== null && golpe.forcavel && golpe.noMapa === null
+  const pronto = golpe !== null && (lancavel(golpe) || forcando)
+  const podeLancar = pronto && !faltaAlvo && !desligado && !ocupado
+  const doCinza = golpe === null || golpe.forcavel ? null : golpe.motivo
+  const porQueNao = golpe === null ? 'Escolha um golpe.' : (doCinza ?? golpe.noMapa ?? (faltaAlvo ? (possiveis.length === 0 ? 'Ninguém pode ser alvo deste golpe agora.' : 'Escolha o alvo.') : null))
+  const ajustavel = golpe !== null && golpe.ajustavel && pronto
   const danoBase = dano ?? golpe?.dano ?? 0
   const perfuranteAgora = perfurante ?? golpe?.perfurante ?? false
   const ajuste: AjusteDoGolpe | undefined = ajustavel && (dano !== null || surpresa || perfurante !== null) ? { dano, surpresa, perfurante: perfuranteAgora } : undefined
@@ -335,9 +342,9 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
   const lancar = () => {
     if (podeLancar && golpe !== null) onLancar(golpe, golpe.alvo === 'nenhum' ? [] : validos, ajuste)
   }
-  // Enter numa opção (golpe ou alvo) lança: o atalho do protótipo, só com o foco na escolha.
+  // Enter numa opção (golpe ou alvo) lança: o atalho do protótipo, só com o foco na escolha. O "mesmo assim" é só no botão.
   const teclas = (evento: TeclaDoReact<HTMLDivElement>) => {
-    if (evento.key !== 'Enter' || evento.ctrlKey || evento.metaKey || evento.altKey || evento.shiftKey) return
+    if (evento.key !== 'Enter' || evento.ctrlKey || evento.metaKey || evento.altKey || evento.shiftKey || forcando) return
     const alvo = evento.target
     if (alvo instanceof HTMLInputElement && (alvo.type === 'radio' || alvo.type === 'checkbox') && alvo.closest('[data-escolha]') !== null) {
       evento.preventDefault()
@@ -365,7 +372,7 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
         {golpes.map((item) => {
           const apagado = !escolhivel(item)
           return (
-            <label key={item.chave} className="mb-op" data-apagado={apagado ? 'sim' : undefined} data-mapa={item.noMapa !== null ? 'sim' : undefined}>
+            <label key={item.chave} className="mb-op" data-apagado={apagado ? 'sim' : undefined} data-mapa={item.noMapa !== null ? 'sim' : undefined} data-forcar={item.forcavel ? 'sim' : undefined}>
               <input type="radio" name={`mb-golpe-${chave}`} checked={escolhido === item.chave} disabled={apagado} onChange={() => setEscolhido(item.chave)} />
               <span className="mb-op__nome">
                 {item.nome}
@@ -433,6 +440,10 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
           <button type="button" className="mb-bt mb-bt--alto" aria-pressed={menuDoMapa.aberto} onClick={menuDoMapa.onAlternar} disabled={desligado}>
             {menuDoMapa.aberto ? 'Fechar o menu no mapa' : 'Usar pelo menu no mapa'}
           </button>
+        ) : forcando && golpe !== null ? (
+          <button type="button" className="mb-bt mb-bt--alto mb-bt--ouro" disabled={!podeLancar} onClick={lancar}>
+            <span>{ocupado ? 'Lançando…' : `Usar ${golpe.nome} mesmo assim`}</span>
+          </button>
         ) : (
           <button type="button" className="mb-bt mb-bt--alto mb-bt--golpe" disabled={!podeLancar} onClick={lancar}>
             <span>{ocupado ? 'Lançando…' : golpe === null ? verbo.replace(' com', '') : `${verbo} ${golpe.nome}${nomeDoAlvo === null || verbo !== 'Lançar' ? '' : ` em ${nomeDoAlvo}`}`}</span>
@@ -446,6 +457,11 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
           </button>
         )}
         {porQueNao !== null && !podeLancar && <p className="mb-lancar__porque">{porQueNao}</p>}
+        {forcando && golpe !== null && (
+          <p className="mb-lancar__porque mb-lancar__forcar">
+            {golpe.motivo}. {NOTA_DO_FORCAR}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -994,7 +1010,11 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
           desligado={desligado}
           menuDoMapa={menuDoMapa}
           onContra={(golpe, alvos, ajuste) =>
-            void pedir('contra', { acao: 'contra', sceneKey, golpeId: contra.golpeId, golpe: golpe.chave, alvos, ...(ajuste === undefined ? {} : { ajuste }) }, `${contra.quem} contra-atacou com ${golpe.nome}.`)
+            void pedir(
+              'contra',
+              { acao: 'contra', sceneKey, golpeId: contra.golpeId, golpe: golpe.chave, alvos, ...(ajuste === undefined ? {} : { ajuste }), ...(golpe.forcavel ? { forcar: true } : {}) },
+              `${contra.quem} contra-atacou com ${golpe.nome}${golpe.forcavel ? ' mesmo assim' : ''}.`,
+            )
           }
           onAbrirMao={() => void pedir('abrirMao', { acao: 'abrirMao', sceneKey, golpeId: contra.golpeId }, `${contra.quem} abriu mão do golpe: a vez voltou para ${contra.de}.`)}
         />
@@ -1038,7 +1058,11 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
             desligado={desligado}
             menuDoMapa={menuDoMapa}
             onLancar={(golpe, alvos, ajuste) =>
-              void pedir('agir', ajuste === undefined ? { acao: 'agir', sceneKey, vez: atual.chave, golpe: golpe.chave, alvos } : { acao: 'agir', sceneKey, vez: atual.chave, golpe: golpe.chave, alvos, ajuste }, `${atual.quem} lançou ${golpe.nome}.`)
+              void pedir(
+                'agir',
+                { acao: 'agir', sceneKey, vez: atual.chave, golpe: golpe.chave, alvos, ...(ajuste === undefined ? {} : { ajuste }), ...(golpe.forcavel ? { forcar: true } : {}) },
+                golpe.forcavel ? `${atual.quem} usou ${golpe.nome} mesmo assim.` : `${atual.quem} lançou ${golpe.nome}.`,
+              )
             }
           />
         )}

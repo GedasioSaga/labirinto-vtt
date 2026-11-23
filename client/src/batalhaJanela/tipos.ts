@@ -80,6 +80,11 @@ export interface GolpeNoEspelho {
   motivo: string | null
   /** Presente = a ação pede escolhas que só o menu do mapa faz (custo à mão, opção, pergunta), com a frase. */
   noMapa: string | null
+  /**
+   * REQUISITOS G: o cinza é só dos requisitos (o `motivo` é o que falta): o mestre usa mesmo assim, e o
+   * pedido vai com `forcar`. Com `noMapa`, o "mesmo assim" é pelo menu do mapa.
+   */
+  forcavel: boolean
   alvo: 'nenhum' | 'um' | 'varios'
   alvosMax: number
   /** Os alvos que valem para esta ação; `null` = todos os da lista sem motivo. */
@@ -246,9 +251,10 @@ export type PedidoDaMesa =
   | { acao: 'darVez'; sceneKey: string; cartaId: string }
   /** Um item do menu da carta (`CartaNoEspelho.menu`): a principal remonta o menu e aplica o item com este id. */
   | { acao: 'itemDaCarta'; sceneKey: string; cartaId: string; item: string }
-  | { acao: 'agir'; sceneKey: string; vez: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe }
+  /** `forcar` (REQUISITOS G): o "Usar mesmo assim" do golpe cinza só pelos requisitos (`GolpeNoEspelho.forcavel`). */
+  | { acao: 'agir'; sceneKey: string; vez: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe; forcar?: true }
   /** O contra-ataque do NPC: o golpe dele fora da vez. */
-  | { acao: 'contra'; sceneKey: string; golpeId: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe }
+  | { acao: 'contra'; sceneKey: string; golpeId: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe; forcar?: true }
   /** O contra-ataque gasto em se mover (o jeito de abrir mão dele). */
   | { acao: 'abrirMao'; sceneKey: string; golpeId: string }
   | { acao: 'ordenar'; sceneKey: string }

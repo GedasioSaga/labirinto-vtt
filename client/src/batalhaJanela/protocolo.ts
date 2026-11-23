@@ -69,6 +69,24 @@ function lerAjuste(valor: unknown): AjusteDoGolpe | null {
   return { dano: o.dano, surpresa: o.surpresa, perfurante: o.perfurante }
 }
 
+/** REQUISITOS G: o "Usar mesmo assim" (`forcar`): ausente = `undefined`; `true` = forçar; outro valor = torto (`null`). */
+function lerForcar(valor: unknown): true | undefined | null {
+  if (valor === undefined) return undefined
+  return valor === true ? true : null
+}
+
+/** O golpe (`agir`, `contra`) com o ajuste e o `forcar` opcionais; torto = `null`. */
+function comOpcionaisDoGolpe<P extends { ajuste?: AjusteDoGolpe; forcar?: true }>(pedido: P, o: Record<string, unknown>): P | null {
+  const forcar = lerForcar(o.forcar)
+  if (forcar === null) return null
+  if (forcar === true) pedido.forcar = true
+  if (o.ajuste === undefined) return pedido
+  const ajuste = lerAjuste(o.ajuste)
+  if (ajuste === null) return null
+  pedido.ajuste = ajuste
+  return pedido
+}
+
 /** O pedido inteiro, campo a campo; torto = `null`. */
 export function lerPedido(dado: unknown): PedidoDaMesa | null {
   const o = objeto(dado)
@@ -94,18 +112,16 @@ export function lerPedido(dado: unknown): PedidoDaMesa | null {
       const golpe = id(o.golpe)
       const alvos = listaDeIds(o.alvos)
       if (vez === null || golpe === null || alvos === null) return null
-      if (o.ajuste === undefined) return { acao: 'agir', sceneKey, vez, golpe, alvos }
-      const ajuste = lerAjuste(o.ajuste)
-      return ajuste === null ? null : { acao: 'agir', sceneKey, vez, golpe, alvos, ajuste }
+      const agir: Extract<PedidoDaMesa, { acao: 'agir' }> = { acao: 'agir', sceneKey, vez, golpe, alvos }
+      return comOpcionaisDoGolpe(agir, o)
     }
     case 'contra': {
       const golpeId = id(o.golpeId)
       const golpe = id(o.golpe)
       const alvos = listaDeIds(o.alvos)
       if (golpeId === null || golpe === null || alvos === null) return null
-      if (o.ajuste === undefined) return { acao: 'contra', sceneKey, golpeId, golpe, alvos }
-      const ajuste = lerAjuste(o.ajuste)
-      return ajuste === null ? null : { acao: 'contra', sceneKey, golpeId, golpe, alvos, ajuste }
+      const contra: Extract<PedidoDaMesa, { acao: 'contra' }> = { acao: 'contra', sceneKey, golpeId, golpe, alvos }
+      return comOpcionaisDoGolpe(contra, o)
     }
     case 'abrirMao': {
       const golpeId = id(o.golpeId)
