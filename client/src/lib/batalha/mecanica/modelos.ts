@@ -3,10 +3,11 @@ import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import { CUSTO_MAX, DANO_MAX } from '../combate'
 import { cdDaExpressao } from '../disputa'
 import { CAMPO_DO_DANO, lerFormula } from '../formula'
-import { CAMPO_DO_CUSTO, type LeituraDaAcao, type LeituraDoCusto } from '../leituraDaFicha'
+import { formaDoAlcanceGuardada } from '../alcanceDoCartao'
+import { CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, type LeituraDaAcao, type LeituraDoCusto, type LeituraDoTempo } from '../leituraDaFicha'
 import { leituraDaTecnica } from '../leituraDaTecnica'
 import { formulaDaMecanica } from '../mecanicasAMao'
-import { CD_MAX, FORMULA_MAX, golpeQueVale, lerMecanica, migrarV1ParaV2, precisaDaVersao2, precisaDaVersao3, precisaDaVersao4, testeRolado, VERSAO_GRAVADA, type AlvoDaMecanica, centroDaArea, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
+import { CD_MAX, FORMULA_MAX, LIMITE_MAX, golpeQueVale, lerMecanica, migrarV1ParaV2, precisaDaVersao2, precisaDaVersao3, precisaDaVersao4, testeRolado, VERSAO_GRAVADA, type AlvoDaMecanica, centroDaArea, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
 import type { FichaDaPrevia } from './resumo'
 
 /**
@@ -374,30 +375,110 @@ function custosDoCartao(modelo: MecanicaV1, lido: LeituraDoCusto, cartao: Cartao
   return fichaSemSp(ficha.personagem) ? [] : modelo.custos
 }
 
-/** O dano que o cartão diz (o da tabela à mão vence o campo Dano, como na batalha), quando a fórmula fecha; senão, o do modelo. */
+/**
+ * O dano que o cartão diz (o da tabela à mão vence o campo Dano, como na batalha), quando a fórmula fecha; senão, o do modelo.
+ * O modelo sem dano que ataca (o Debuff) leva o Dano escrito; a ajuda e a reação sozinha não dão dano.
+ */
 function danoDoCartao(modelo: MecanicaV1, cartao: CartaoDaFicha, ficha: FichaDaPrevia): Pick<MecanicaV1, 'dano'> {
-  if (modelo.dano === undefined) return {}
+  const doModelo: Pick<MecanicaV1, 'dano'> = modelo.dano === undefined ? {} : { dano: modelo.dano }
+  const base = modelo.dano ?? (ehAjuda(modelo.alvo.quem) || modelo.uso === 'reacao' ? undefined : danoDe(''))
+  if (base === undefined) return {}
   const formula = (formulaDaMecanica(cartao.id) ?? cartao.campos[CAMPO_DO_DANO] ?? '').trim()
-  if (formula === '' || formula.length > FORMULA_MAX) return { dano: modelo.dano }
+  if (formula === '' || formula.length > FORMULA_MAX) return doModelo
   const lido = lerFormula(formula, { personagem: ficha.personagem, sistema: ficha.sistema, arma: null, vidaDoAlvo: null })
   // Célula com "Dano 1: … Dano 2: …" (o `aviso`) fica com o modelo: a peça leria só a primeira parte.
-  if (lido.tipo === 'valor' && lido.aviso === undefined) return { dano: { ...modelo.dano, base: { formula } } }
-  if (lido.tipo === 'precisaArma') return { dano: { ...modelo.dano, base: { formula }, arma: 'padrao' } }
-  if (lido.tipo === 'precisaAlvo') return { dano: { ...modelo.dano, base: { formula } } }
-  return { dano: modelo.dano }
+  if (lido.tipo === 'valor' && lido.aviso === undefined) return { dano: { ...base, base: { formula } } }
+  if (lido.tipo === 'precisaArma') return { dano: { ...base, base: { formula }, arma: 'padrao' } }
+  if (lido.tipo === 'precisaAlvo') return { dano: { ...base, base: { formula } } }
+  return doModelo
+}
+
+/** O Tempo que o cartão diz (a recarga, os usos, a Overload); vazio, texto que não se lê ou número fora do teto = o do modelo. */
+function limiteDoCartao(limite: MecanicaV1['limite'], tempo: LeituraDoTempo): MecanicaV1['limite'] {
+  const { recarga: _recarga, usosPorBatalha: _usos, ...semTempo } = limite
+  const cabe = (numero: number): boolean => numero >= 1 && numero <= LIMITE_MAX
+  switch (tempo.tipo) {
+    case 'recarga':
+      return cabe(tempo.turnos) ? { ...semTempo, recarga: tempo.turnos } : limite
+    case 'usos':
+      return cabe(tempo.vezes) ? { ...semTempo, usosPorBatalha: tempo.vezes } : limite
+    case 'overload':
+      // "OVERLOAD" no Tempo é o limite inteiro (1 por batalha): a recarga do modelo diria outro Tempo.
+      return { ...semTempo, overload: true }
+    case 'livre':
+    case 'texto':
+      return limite
+  }
+}
+
+/** "Cura Espírito*3 de HP" no Efeito do cartão: a quantia é o que fica entre "cura" e "de HP". */
+const CURA_NO_TEXTO = /\bcurar?\s+(.+?)\s+(?:de\s+)?(?:hp|vida|pv)\b/i
+
+/** A cura de HP que o Efeito escrito diz, quando a conta fecha na ficha; senão, a do modelo. */
+function efeitosDoCartao(modelo: MecanicaV1, cartao: CartaoDaFicha, ficha: FichaDaPrevia): MecanicaV1['efeitos'] {
+  const escrito = CURA_NO_TEXTO.exec(cartao.campos[CAMPO_DO_EFEITO] ?? '')?.[1]?.trim() ?? ''
+  if (escrito === '' || escrito.length > FORMULA_MAX) return modelo.efeitos
+  const lido = lerFormula(escrito, { personagem: ficha.personagem, sistema: ficha.sistema, arma: null, vidaDoAlvo: null })
+  if (lido.tipo !== 'valor' || lido.aviso !== undefined) return modelo.efeitos
+  const quanto: NumeroSimples = /^\d+$/.test(escrito) ? { fixo: Number.parseInt(escrito, 10) } : { formula: escrito }
+  return modelo.efeitos.map((efeito) => (efeito.tipo === 'cura' && efeito.recurso === 'hp' ? { ...efeito, quanto } : efeito))
+}
+
+/**
+ * O alvo que o campo `alcance` do cartão de texto diz (a mesma forma que a mira desenha, `alcanceDoCartao`):
+ * o alvo escolhido leva o número (e o anel); a área vira a forma da peça. `null` = o cartão não diz (ou a forma
+ * não cabe neste modelo): fica o do modelo.
+ */
+function alvoDoCartao(modelo: MecanicaV1, cartao: CartaoDaFicha): AlvoDaMecanica | null {
+  const forma = cartao.alcance === undefined ? null : formaDoAlcanceGuardada(cartao.alcance)
+  if (forma === null) return null
+  const { alcance: _alcance, alcanceMinimo: _minimo, ...semAlcance } = modelo.alvo
+  const escolhe = semAlcance.forma.tipo === 'um' || semAlcance.forma.tipo === 'varios'
+  switch (forma.tipo) {
+    case 'si':
+      return ehAjuda(modelo.alvo.quem) ? { ...semAlcance, quem: 'si', forma: { tipo: 'um' } } : null
+    case 'alvo':
+      if (!escolhe) return null
+      return forma.de === undefined ? { ...semAlcance, alcance: forma.ate } : { ...semAlcance, alcance: forma.ate, alcanceMinimo: forma.de }
+    case 'linha':
+    case 'cruz':
+    case 'leque':
+      return { ...semAlcance, forma: { tipo: forma.tipo, casas: forma.ate } }
+    case 'volta':
+      return { ...semAlcance, forma: { tipo: 'raio', casas: forma.ate } }
+    case 'frente':
+      return { ...semAlcance, forma: { tipo: 'quadrado', lado: forma.lado, centro: 'frente' } }
+    case 'ponto':
+      return forma.raio !== undefined ? { ...semAlcance, forma: { tipo: 'raio', casas: forma.raio, centro: 'ponto' }, alcance: forma.ate } : { ...semAlcance, forma: { tipo: 'quadrado', lado: forma.lado, centro: 'ponto' }, alcance: forma.ate }
+    case 'ficha':
+      return forma.raio !== undefined ? { ...semAlcance, forma: { tipo: 'raio', casas: forma.raio, centro: 'alvo' }, alcance: forma.ate } : null
+  }
+}
+
+/** A troca só entra se a mecânica continua valendo (a peça que o editor recusaria fica a do modelo). */
+function seVale(antes: MecanicaV1, depois: MecanicaV1, ficha: FichaDaPrevia): MecanicaV1 {
+  return problemaDaMecanica(depois, ficha) === null ? depois : antes
 }
 
 /**
  * B02 (docs/design/habilidades/ANALISE.md): o modelo pronto NO CARTÃO. Os
  * números de fábrica (Força + 20, 30 SP) só ficam onde o cartão não diz nada:
- * a Ação, o Custo e o Dano vêm do que a batalha lê hoje do texto e da tabela à
- * mão (`leituraDaTecnica`). O NPC com Dano "80" e 0 de SP sai com 80 e sem custo.
+ * a Ação, o Custo, o Tempo, o Dano, a cura e o alcance vêm do que a batalha lê
+ * hoje do texto e da tabela à mão (`leituraDaTecnica`). O NPC com Dano "80" e
+ * 0 de SP sai com 80 e sem custo. Regra do dono: o Montar não diz uma coisa e
+ * o texto outra ("Ação Simples" continua Simples, "Tempo 2" continua 2).
  */
 export function mecanicaDoModeloNoCartao(id: IdDoModelo, ficha: FichaDaPrevia, cartao: CartaoDaFicha): MecanicaV1 {
   const modelo = mecanicaDoModelo(id, ficha.sistema)
   const texto = soOTexto(cartao)
   const lido = leituraDaTecnica(texto, { personagem: ficha.personagem, sistema: ficha.sistema })
-  return { ...modelo, ...acaoDoCartao(modelo, lido.acaoDaFicha), custos: custosDoCartao(modelo, lido.custo, texto, ficha), ...danoDoCartao(modelo, texto, ficha) }
+  const daAcao = acaoDoCartao(modelo, lido.acaoDaFicha)
+  const noCartao: MecanicaV1 = { ...modelo, acao: daAcao.acao, limite: limiteDoCartao(daAcao.limite, lido.tempo), custos: custosDoCartao(modelo, lido.custo, texto, ficha), efeitos: efeitosDoCartao(modelo, texto, ficha), ...danoDoCartao(modelo, texto, ficha) }
+  const alvo = alvoDoCartao(noCartao, texto)
+  const comAlvo = alvo === null ? noCartao : seVale(noCartao, { ...noCartao, alvo }, ficha)
+  // "Reação/Ação Simples": também no lugar da reação (a defesa de partida do editor). A Reação sozinha já escolheu o modelo de reação.
+  const tambemReacao = lido.acaoDaFicha.tambemReacao && lido.acaoDaFicha.soReacao !== true && comAlvo.uso === undefined
+  return tambemReacao ? seVale(comAlvo, trocarUso(comAlvo, 'ativaOuReacao'), ficha) : comAlvo
 }
 
 /**
