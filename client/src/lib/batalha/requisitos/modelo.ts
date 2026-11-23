@@ -331,7 +331,8 @@ export type QuandoSobe =
   | { quando: 'gastaReacao' }
   | { quando: 'acerta' }
   | { quando: 'apanha' }
-  | { quando: 'usaTecnica'; tecnica: Referencia }
+  /** Fase ED4: `seAcertar` = só quando o golpe da técnica acerta alguém (uma vez por golpe); ausente = ao usar. */
+  | { quando: 'usaTecnica'; tecnica: Referencia; seAcertar?: true }
   | { quando: 'comecoDaVez' }
   | { quando: 'derruba' }
   | { quando: 'esquiva' }
@@ -365,6 +366,8 @@ export interface AcumuladorDaFicha {
   id: string
   nome: string
   maximo: number
+  /** Fase ED4: o nível com que começa toda batalha (de 1 ao máximo); ausente = 0. */
+  inicial?: number
   sobe: readonly (SubidaDoAcumulador | ({ quando: 'naoLida' } & RegraNaoLida))[]
   desce: readonly (DescidaDoAcumulador | ({ quando: 'naoLida' } & RegraNaoLida))[]
   ganho: GanhoDoAcumulador | ({ ganho: 'naoLido' } & RegraNaoLida)

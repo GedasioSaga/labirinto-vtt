@@ -25,6 +25,8 @@ export type EventoDoAcumulador =
   | { quando: 'acerta' }
   | { quando: 'apanha' }
   | { quando: 'usaTecnica'; tecnica: Referencia }
+  /** Fase ED4: o golpe da técnica acertou alguém (o "+N se acertar"); uma vez por golpe. */
+  | { quando: 'acertaComTecnica'; tecnica: Referencia }
   | { quando: 'derruba' }
   | { quando: 'esquiva' }
   | { quando: 'gastaReacao' }
@@ -103,8 +105,13 @@ function comUso(combate: CombateDoPersonagem, acumuladorId: string, rodada: numb
 function deltaDoEvento(acumulador: AcumuladorDaFicha, nivel: number, evento: EventoDoAcumulador): number {
   let delta = 0
   for (const regra of acumulador.sobe) {
+    if (regra.quando === 'usaTecnica') {
+      // Fase ED4: o "+N ao usar" sobe no uso; o "+N se acertar", quando o golpe da técnica acerta.
+      const espera = regra.seAcertar === true ? 'acertaComTecnica' : 'usaTecnica'
+      if ((evento.quando === 'usaTecnica' || evento.quando === 'acertaComTecnica') && evento.quando === espera && mesmaReferencia(regra.tecnica, evento.tecnica)) delta += regra.quanto
+      continue
+    }
     if (regra.quando !== evento.quando) continue
-    if (regra.quando === 'usaTecnica' && (evento.quando !== 'usaTecnica' || !mesmaReferencia(regra.tecnica, evento.tecnica))) continue
     if (regra.quando === 'gastaSp') {
       // "Sobe 1 a cada 10 SP gastos": só os inteiros (25 SP = 2 vezes); o resto não guarda.
       if (evento.quando !== 'gastaSp' || !(regra.cada > 0)) continue
@@ -190,6 +197,36 @@ export function combatesNoComecoDaVez(turnos: Pick<TurnosDaCena, 'combate' | 'ro
     const daFicha = deQuem(entra)
     const base = combates?.[entra] ?? combateVazio()
     if (daFicha.length > 0) trocar(entra, comOEventoNosAcumuladores(base, daFicha, { quando: 'comecoDaVez' }, turnos.rodada), base)
+  }
+  return combates
+}
+
+/**
+ * Fase ED4: o combate de quem entra na batalha com o nível de começo de cada acumulador ("começa a
+ * batalha em N"); o acumulador que já tem nível fica como está. Sem nenhum = o MESMO combate.
+ */
+export function combateNoComecoDaBatalha(combate: CombateDoPersonagem, definicoes: readonly Pick<AcumuladorDaFicha, 'id' | 'maximo' | 'inicial'>[]): CombateDoPersonagem {
+  let volta = combate
+  for (const acumulador of definicoes) {
+    const inicial = acumulador.inicial ?? 0
+    if (inicial > 0 && nivelDoAcumulador(volta, acumulador.id) === 0) volta = comNivelSomado(volta, acumulador, inicial)
+  }
+  return volta
+}
+
+/** Fase ED4: o Iniciar põe o nível de começo dos acumuladores de cada ficha da ordem. Sem nenhum = o MESMO mapa. */
+export function combatesNoComecoDaBatalha(turnos: Pick<TurnosDaCena, 'cartas' | 'combate'>, personagens: readonly Pick<Personagem, 'id' | 'abas'>[]): TurnosDaCena['combate'] {
+  let combates = turnos.combate
+  const vistos = new Set<string>()
+  for (const carta of turnos.cartas) {
+    const personagemId = carta.personagemId
+    if (personagemId === null || vistos.has(personagemId)) continue
+    vistos.add(personagemId)
+    const personagem = personagens.find((candidato) => candidato.id === personagemId)
+    if (personagem === undefined) continue
+    const base = combates?.[personagemId] ?? combateVazio()
+    const depois = combateNoComecoDaBatalha(base, acumuladoresDoPersonagem(personagem))
+    if (depois !== base) combates = { ...(combates ?? {}), [personagemId]: depois }
   }
   return combates
 }

@@ -405,7 +405,7 @@ function fraseDaSubida(regra: SubidaDoAcumulador): string {
     case 'apanha':
       return `+${regra.quanto} ao receber dano`
     case 'usaTecnica':
-      return `+${regra.quanto} ao usar ${regra.tecnica.nome}`
+      return regra.seAcertar === true ? `+${regra.quanto} quando ${regra.tecnica.nome} acerta` : `+${regra.quanto} ao usar ${regra.tecnica.nome}`
     case 'comecoDaVez':
       return `+${regra.quanto} no começo da vez`
     case 'derruba':

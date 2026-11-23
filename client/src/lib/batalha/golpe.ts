@@ -1171,6 +1171,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     const grupo = pedido.tipo === 'habilidade' ? grupoDoCartao(pedido.cartaoId) : 'armas'
     if (cartaoDoAlcance !== null && golpeForaDasCasas(ctx, cartaoDoAlcance, grupo, pedido) === true) golpe.foraDoAlcance = true
   }
+  // Fase ED4: a técnica do golpe, para o "+N se acertar" do acumulador (o rastro da store lê no acerto).
+  if (tecnica !== null && pedido.tipo === 'habilidade') golpe.tecnicaId = tecnica.cartao.id
   // R1: a técnica que marca ao acertar (Desenhar o Alvo) e a arma que atira (o acerto lembra a passiva de marca).
   if (tecnica !== null && sistema !== null && lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar') golpe.marca = tecnica.cartao.id
   // F3 (Q6): o selo marcado na mira vai junto; pega em cada alvo que o golpe acerta (a store aplica).

@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { somarNaTrilha } from '../lib/batalha/caminhoAndado'
+import { combatesNoComecoDaBatalha } from '../lib/batalha/acumuladorNaBatalha'
 import type { EfeitoDaBatalha } from '../lib/batalha/combate'
 import { chaveDoGastoDoInvocado, membrosDoBando, temporariosDaCena } from '../lib/batalha/invocacao'
 import { desfazerFormasNoFim } from '../lib/batalha/transformacao'
@@ -341,7 +342,10 @@ function cenaDoInicio(mesa: MesaDaBatalha, inicio: InicioDaBatalha, rolarD20: ()
   // Nunca ativa (decisão 3). Sem linha: o Iniciar não se desfaz.
   const lembrados = comLembretesDoMomento('inicio', comeco?.turnos ?? ordenados, { personagens, sistema }).turnos
   // Conserto das fichas F1 (S4): quem tem a Preparação para a Batalha recebe a pergunta "vai fazer?" no começo.
-  const turnos = comLembretesDaPreparacao(lembrados, { personagens, sistema }).turnos
+  const preparados = comLembretesDaPreparacao(lembrados, { personagens, sistema }).turnos
+  // Fase ED4: o acumulador que "começa a batalha em N" já entra com o nível. Sem linha: o Iniciar não se desfaz.
+  const combate = combatesNoComecoDaBatalha(preparados, personagens)
+  const turnos = combate === preparados.combate ? preparados : { ...preparados, combate }
   const cena: BatalhaDaCena = { ...CENA_NOVA, turnos, regras: inicio.regras }
   // F3: o Judge que o Iniciar já trouxe (torto fica de fora; o App põe depois).
   const judge = inicio.judge === undefined ? null : lerJudgeNaCena(inicio.judge)

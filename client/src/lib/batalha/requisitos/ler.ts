@@ -590,8 +590,9 @@ function subidaLida(valor: unknown): SubidaDoAcumulador {
   const onde = `regra de subir "${quando}"`
   switch (quando) {
     case 'usaTecnica':
-      soChaves(peca, ['quando', 'quanto', 'tecnica'], onde)
-      return { quando, tecnica: referencia(peca.tecnica, `${onde} (técnica)`), quanto: inteiro(peca.quanto, 1, PASSO_DO_ACUMULADOR_MAX, `${onde} (quanto)`) }
+      soChaves(peca, ['quando', 'quanto', 'tecnica', 'seAcertar'], onde)
+      if (peca.seAcertar !== undefined && peca.seAcertar !== true) torta(`${onde} (se acertar): só "sim"`)
+      return { quando, tecnica: referencia(peca.tecnica, `${onde} (técnica)`), quanto: inteiro(peca.quanto, 1, PASSO_DO_ACUMULADOR_MAX, `${onde} (quanto)`), ...(peca.seAcertar === true ? { seAcertar: true } : {}) }
     case 'gastaSp':
       soChaves(peca, ['quando', 'quanto', 'cada'], onde)
       return { quando, cada: inteiro(peca.cada, 1, RECURSO_DO_REQUISITO_MAX, `${onde} (a cada quanto SP)`), quanto: inteiro(peca.quanto, 1, PASSO_DO_ACUMULADOR_MAX, `${onde} (quanto)`) }
@@ -658,7 +659,7 @@ function ehRegraNaoLida<T extends object>(regra: T | RegraNaoLida): regra is Reg
   return 'bruto' in regra
 }
 
-const CHAVES_DO_ACUMULADOR = ['v', 'id', 'nome', 'maximo', 'sobe', 'desce', 'ganho']
+const CHAVES_DO_ACUMULADOR = ['v', 'id', 'nome', 'maximo', 'inicial', 'sobe', 'desce', 'ganho']
 
 /**
  * Lê a definição de um acumulador (`AcumuladorDaFicha`). Nunca lança. Sem id, nome ou máximo que
@@ -687,7 +688,11 @@ export function lerAcumulador(valor: unknown): AcumuladorLido {
   const sobe = regrasLidas(valor.sobe, 'regras de subir', subidaLida, leitura).map((regra): AcumuladorDaFicha['sobe'][number] => (ehRegraNaoLida(regra) ? { quando: 'naoLida', ...regra } : regra))
   const desce = regrasLidas(valor.desce, 'regras de cair', descidaLida, leitura).map((regra): AcumuladorDaFicha['desce'][number] => (ehRegraNaoLida(regra) ? { quando: 'naoLida', ...regra } : regra))
   const ganho: GanhoDoAcumulador | RegraNaoLida = valor.ganho === undefined ? { ganho: 'nada' } : ouNaoLida(valor.ganho, ganhoLido(base.maximo), leitura)
-  return { acumulador: { v: VERSAO_DO_ACUMULADOR, ...base, sobe, desce, ganho: ehRegraNaoLida(ganho) ? { ganho: 'naoLido', ...ganho } : ganho }, deAppNovo: leitura.appNovo, avisos: leitura.avisos }
+  // Fase ED4: o nível do começo da batalha; torto (fora de 0 ao máximo) = 0, com aviso, e o resto do acumulador fica.
+  const inicial = valor.inicial === undefined || valor.inicial === 0 ? undefined : typeof valor.inicial === 'number' && Number.isInteger(valor.inicial) && valor.inicial > 0 && valor.inicial <= base.maximo ? valor.inicial : null
+  if (inicial === null) leitura.avisos.push(`Acumulador: o nível do começo precisa ser inteiro de 0 a ${base.maximo}; começa em 0`)
+  const comInicial = inicial === undefined || inicial === null ? base : { ...base, inicial }
+  return { acumulador: { v: VERSAO_DO_ACUMULADOR, ...comInicial, sobe, desce, ganho: ehRegraNaoLida(ganho) ? { ganho: 'naoLido', ...ganho } : ganho }, deAppNovo: leitura.appNovo, avisos: leitura.avisos }
 }
 
 /** A definição como o disco a guarda; a regra não lida volta como veio. */
@@ -697,6 +702,7 @@ export function acumuladorParaGuardar(acumulador: AcumuladorDaFicha): ObjetoJson
     id: acumulador.id,
     nome: acumulador.nome,
     maximo: acumulador.maximo,
+    ...(acumulador.inicial !== undefined && acumulador.inicial > 0 ? { inicial: acumulador.inicial } : {}),
     sobe: acumulador.sobe.map((regra) => (regra.quando === 'naoLida' ? regra.bruto : comoJson(regra))),
     desce: acumulador.desce.map((regra) => (regra.quando === 'naoLida' ? regra.bruto : comoJson(regra))),
     ganho: acumulador.ganho.ganho === 'naoLido' ? acumulador.ganho.bruto : comoJson(acumulador.ganho),

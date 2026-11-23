@@ -2,15 +2,12 @@ import { useContext, useMemo } from 'react'
 import { PASSO_DO_ACUMULADOR_MAX, REGRAS_DO_ACUMULADOR_MAX } from '../../../lib/batalha/requisitos/modelo'
 import type { CartaoDaFicha } from '../../../lib/personagem'
 import { CampoInteiro, Escolha, Marcar } from '../blocos/controles'
-import { acumuladoresNaFicha, comOAcumuladorGravado, comSomaDaTecnica, somaDaTecnica, type AcumuladorNaFicha } from './acumuladoresDaFicha'
+import { acumuladoresNaFicha, comOAcumuladorGravado, comSomaDaTecnica, quandoSomaATecnica, somaDaTecnica, type AcumuladorNaFicha, type QuandoSomaATecnica } from './acumuladoresDaFicha'
 import { MexerNaFicha } from './mexerNaFicha'
-
-/** Por que "se acertar" ainda não dá: o motor de hoje sobe o acumulador no acerto de qualquer golpe, sem saber qual técnica acertou. */
-const SE_ACERTAR_AINDA_NAO = 'Se acertar ainda não roda: a batalha de hoje não sabe qual técnica acertou (fica para o motor da ED4). Ao usar já vale.'
 
 /**
  * "+N <acumulador>" NOS EFEITOS DA TÉCNICA (ED6, o lugar que a ED5 deixou): a técnica soma N num
- * acumulador da ficha ao ser usada. Grava a regra "usar a técnica X" no acumulador (no cartão que o
+ * acumulador da ficha ao ser usada, ou só se o golpe dela acertar (ED4: uma vez por golpe). Grava a regra "usar a técnica X" no acumulador (no cartão que o
  * define), que é o que o motor de hoje roda; por isso precisa da ficha inteira (`MexerNaFicha`) e só
  * aparece para o mestre editando a ficha.
  */
@@ -19,8 +16,8 @@ export function SomaNoAcumulador({ cartao }: { cartao: CartaoDaFicha }) {
   const lista = useMemo(() => (ficha === null ? [] : acumuladoresNaFicha(ficha.personagem)), [ficha])
   if (ficha === null) return null
   const tecnica = { id: cartao.id, nome: cartao.nome.trim() }
-  const somar = (item: AcumuladorNaFicha, quanto: number | null) => {
-    const novo = comSomaDaTecnica(item.acumulador, tecnica, quanto)
+  const somar = (item: AcumuladorNaFicha, quanto: number | null, quando?: QuandoSomaATecnica) => {
+    const novo = comSomaDaTecnica(item.acumulador, tecnica, quanto, quando)
     if (novo !== null) ficha.mudar(comOAcumuladorGravado(ficha.personagem, item, novo))
   }
   return (
@@ -41,12 +38,12 @@ export function SomaNoAcumulador({ cartao }: { cartao: CartaoDaFicha }) {
                   <CampoInteiro rotulo="+" valor={soma} minimo={1} maximo={PASSO_DO_ACUMULADOR_MAX} depois={item.acumulador.nome} onChange={(quanto) => somar(item, quanto)} />
                   <Escolha
                     legenda={`Quando soma em ${item.acumulador.nome}`}
-                    valor="aoUsar"
+                    valor={quandoSomaATecnica(item.acumulador, tecnica)}
                     opcoes={[
                       { valor: 'aoUsar', rotulo: 'ao usar' },
-                      { valor: 'seAcertar', rotulo: 'se acertar', bloqueio: SE_ACERTAR_AINDA_NAO },
+                      { valor: 'seAcertar', rotulo: 'se acertar' },
                     ]}
-                    onChange={() => undefined}
+                    onChange={(quando) => somar(item, soma, quando)}
                   />
                 </>
               )}

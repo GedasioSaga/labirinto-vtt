@@ -101,10 +101,18 @@ function niveisNoMaximo(niveis: readonly number[], maximo: number): number[] {
   return Array.from({ length: maximo }, (_, indice) => niveis[indice] ?? ultimo)
 }
 
+/** Fase ED4: o nível do começo da batalha; 0 sai da definição (o de sempre). */
+function comInicial(acumulador: AcumuladorDaFicha, inicial: number): AcumuladorDaFicha {
+  const { inicial: _antes, ...semInicial } = acumulador
+  return inicial > 0 ? { ...semInicial, inicial: Math.min(inicial, acumulador.maximo) } : semInicial
+}
+
 function comMaximo(acumulador: AcumuladorDaFicha, maximo: number): AcumuladorDaFicha {
   const { ganho } = acumulador
-  if ((ganho.ganho === 'dano' || ganho.ganho === 'atributo') && ganho.niveis !== undefined) return { ...acumulador, maximo, ganho: comValores(ganho, { niveis: niveisNoMaximo(ganho.niveis, maximo) }) }
-  return { ...acumulador, maximo }
+  // Fase ED4: o começo nunca passa do máximo novo.
+  const noTeto = comInicial(acumulador, Math.min(acumulador.inicial ?? 0, maximo))
+  if ((ganho.ganho === 'dano' || ganho.ganho === 'atributo') && ganho.niveis !== undefined) return { ...noTeto, maximo, ganho: comValores(ganho, { niveis: niveisNoMaximo(ganho.niveis, maximo) }) }
+  return { ...noTeto, maximo }
 }
 
 /** "10, 25, 40" → os números, se forem tantos quanto o máximo. */
@@ -264,7 +272,7 @@ export function EditorDoAcumulador({ personagem, sistema, inicial, nomeEmFoco = 
         {item !== null && (
           <TestarOAcumulador
             acumulador={item.acumulador}
-            estado={testes[item.acumulador.id] ?? testeNovo()}
+            estado={testes[item.acumulador.id] ?? testeNovo(item.acumulador)}
             onEstado={(estado) => setTestes((antes) => ({ ...antes, [item.acumulador.id]: estado }))}
           />
         )}
@@ -369,13 +377,16 @@ function ConfigDoAcumulador({ item, lista, personagem, sistema, tecnicas, nomeId
                 />
               </span>
               <CampoInteiro rotulo="Vai até o nível" valor={a.maximo} minimo={1} maximo={NIVEL_DO_ACUMULADOR_MAX} onChange={(maximo) => gravar(comMaximo(a, maximo))} />
+              <CampoInteiro rotulo="Começa a batalha em" valor={a.inicial ?? 0} minimo={0} maximo={a.maximo} onChange={(inicial) => gravar(comInicial(a, inicial))} />
             </div>
             {erroDoNome !== null && (
               <p className="lb-acu__erro" id={`${nomeId}-erro`} role="alert">
                 {erroDoNome}
               </p>
             )}
-            <p className="lb-ed__dica">Começa toda batalha em 0. No menu da batalha aparece no topo, como “{a.nome.toUpperCase()} 0/{a.maximo}”.</p>
+            <p className="lb-ed__dica">
+              Começa toda batalha em {a.inicial ?? 0}. No menu da batalha aparece no topo, como “{a.nome.toUpperCase()} {a.inicial ?? 0}/{a.maximo}”.
+            </p>
           </div>
         </section>
 
@@ -430,6 +441,16 @@ function ConfigDoAcumulador({ item, lista, personagem, sistema, tecnicas, nomeId
                               </option>
                             ))}
                           </select>
+                        )}
+                        {regra.quando === 'usaTecnica' && (
+                          <Marcar
+                            rotulo="só se acertar"
+                            marcado={regra.seAcertar === true}
+                            onChange={(marcado) => {
+                              const { seAcertar: _antes, ...aoUsar } = regra
+                              trocarSubida(indice, marcado ? { ...aoUsar, seAcertar: true } : aoUsar)
+                            }}
+                          />
                         )}
                         {regra.quando === 'gastaSp' && <CampoInteiro rotulo="a cada" valor={regra.cada} minimo={1} maximo={RECURSO_DO_REQUISITO_MAX} depois="SP" onChange={(cada) => trocarSubida(indice, { ...regra, cada })} />}
                         <CampoInteiro rotulo="soma" valor={regra.quanto} minimo={1} maximo={PASSO_DO_ACUMULADOR_MAX} onChange={(quanto) => trocarSubida(indice, { ...regra, quanto })} />

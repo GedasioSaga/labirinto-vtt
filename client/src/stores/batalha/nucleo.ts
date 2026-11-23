@@ -191,6 +191,10 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
         else if (alvo.saida === 'esquiva' && alvo.personagemId !== null) noAcumulador(alvo.personagemId, { quando: 'esquiva' })
         if (alvo.personagemId !== null && cairam.has(alvo.personagemId)) noAcumulador(quem, { quando: 'derruba' })
       }
+      // Fase ED4: o "+N se acertar" da técnica, uma vez por golpe: no primeiro alvo que ele acerta (o de antes já resolvido não conta de novo).
+      const tecnicaId = depois.tecnicaId
+      const jaAcertara = antes !== null && alvosResolvidosAgora(null, antes).some((alvo) => acertouOAlvo(alvo) === true)
+      if (tecnicaId !== undefined && !jaAcertara && agora.some((alvo) => acertouOAlvo(alvo) === true)) noAcumulador(quem, { quando: 'acertaComTecnica', tecnica: { id: tecnicaId, nome: depois.nome } })
     }
     let novos = turnos
     const novas: Reversao[] = []

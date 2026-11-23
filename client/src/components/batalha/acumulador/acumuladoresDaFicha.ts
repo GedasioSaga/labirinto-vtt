@@ -1,4 +1,4 @@
-import { comARodadaSemUso, comGastoNoAcumulador, comOEventoNosAcumuladores, nivelDoAcumulador, valorDoGanho, type EventoDoAcumulador } from '../../../lib/batalha/acumuladorNaBatalha'
+import { comARodadaSemUso, comGastoNoAcumulador, combateNoComecoDaBatalha, comOEventoNosAcumuladores, nivelDoAcumulador, valorDoGanho, type EventoDoAcumulador } from '../../../lib/batalha/acumuladorNaBatalha'
 import { combateVazio, type CombateDoPersonagem } from '../../../lib/batalha/combate'
 import { lerContador, type LeituraDoContador } from '../../../lib/batalha/contador'
 import { normalizar } from '../../../lib/batalha/formula'
@@ -13,6 +13,7 @@ import {
   type AcumuladorDaFicha,
   type ObjetoJson,
   type Referencia,
+  type SubidaDoAcumulador,
   type ValorJson,
 } from '../../../lib/batalha/requisitos/modelo'
 import { cartoesDaAba, novoCartao, type CartaoDaFicha, type Personagem } from '../../../lib/personagem'
@@ -259,18 +260,27 @@ export function somaDaTecnica(acumulador: AcumuladorDaFicha, tecnica: Referencia
   return null
 }
 
+/** Fase ED4: quando a técnica soma: ao usar, ou só se o golpe dela acertar. */
+export type QuandoSomaATecnica = 'aoUsar' | 'seAcertar'
+
+/** Quando a regra "usar a técnica X" soma; sem a regra = 'aoUsar' (a escolha de partida). */
+export function quandoSomaATecnica(acumulador: AcumuladorDaFicha, tecnica: Referencia): QuandoSomaATecnica {
+  for (const regra of acumulador.sobe) if (regra.quando === 'usaTecnica' && mesmaReferencia(regra.tecnica, tecnica)) return regra.seAcertar === true ? 'seAcertar' : 'aoUsar'
+  return 'aoUsar'
+}
+
 /**
  * O acumulador com a técnica somando `quanto` ao ser usada (`null` = não soma mais). A regra fica no
  * acumulador ("usar a técnica X"), que é o que o motor de hoje roda. Sem espaço para mais uma regra =
  * `null` (o editor avisa).
  */
-export function comSomaDaTecnica(acumulador: AcumuladorDaFicha, tecnica: Referencia, quanto: number | null): AcumuladorDaFicha | null {
+export function comSomaDaTecnica(acumulador: AcumuladorDaFicha, tecnica: Referencia, quanto: number | null, quando: QuandoSomaATecnica = quandoSomaATecnica(acumulador, tecnica)): AcumuladorDaFicha | null {
   const outras = acumulador.sobe.filter((regra) => !(regra.quando === 'usaTecnica' && mesmaReferencia(regra.tecnica, tecnica)))
   if (quanto === null) return { ...acumulador, sobe: outras }
   if (outras.length >= REGRAS_DO_ACUMULADOR_MAX) return null
   const tecnicaGuardada: Referencia = tecnica.id === undefined ? { nome: tecnica.nome } : { id: tecnica.id, nome: tecnica.nome }
   const indice = acumulador.sobe.findIndex((regra) => regra.quando === 'usaTecnica' && mesmaReferencia(regra.tecnica, tecnica))
-  const nova = { quando: 'usaTecnica' as const, tecnica: tecnicaGuardada, quanto }
+  const nova: SubidaDoAcumulador = quando === 'seAcertar' ? { quando: 'usaTecnica', tecnica: tecnicaGuardada, quanto, seAcertar: true } : { quando: 'usaTecnica', tecnica: tecnicaGuardada, quanto }
   if (indice < 0) return { ...acumulador, sobe: [...outras, nova] }
   return { ...acumulador, sobe: acumulador.sobe.map((regra, atual) => (atual === indice ? nova : regra)) }
 }
@@ -299,7 +309,7 @@ export function usosDoAcumulador(personagem: Pick<Personagem, 'abas'>, acumulado
   const usos: UsoDoAcumulador[] = []
   acumulador.sobe.forEach((regra, indice) => {
     if (regra.quando === 'gastaReacao') usos.push({ chave: `sobe-${indice}`, tecnica: `Carregar ${acumulador.nome}`, oQue: `soma +${regra.quanto} e gasta a reação`, nota: 'ação do menu da batalha, nasce desta regra' })
-    if (regra.quando === 'usaTecnica') usos.push({ chave: `sobe-${indice}`, tecnica: regra.tecnica.nome, oQue: `soma +${regra.quanto} ao usar`, nota: 'regra "usar uma técnica" deste acumulador' })
+    if (regra.quando === 'usaTecnica') usos.push({ chave: `sobe-${indice}`, tecnica: regra.tecnica.nome, oQue: `soma +${regra.quanto} ${regra.seAcertar === true ? 'se acertar' : 'ao usar'}`, nota: 'regra "usar uma técnica" deste acumulador' })
   })
   const casa = (ref: ValorJson | undefined) => referenciaCasa(ref, acumulador.id, acumulador.nome)
   for (const cartao of todosOsCartoes(personagem)) {
@@ -331,11 +341,12 @@ export interface EstadoDoTeste {
   registro: readonly string[]
 }
 
-export function testeNovo(): EstadoDoTeste {
-  return { combate: combateVazio(), rodada: 1, registro: [] }
+/** Fase ED4: o Testar começa como a batalha, com o nível de começo do acumulador. */
+export function testeNovo(acumulador?: Pick<AcumuladorDaFicha, 'id' | 'maximo' | 'inicial'>): EstadoDoTeste {
+  return { combate: acumulador === undefined ? combateVazio() : combateNoComecoDaBatalha(combateVazio(), [acumulador]), rodada: 1, registro: [] }
 }
 
-const ROTULO_DO_EVENTO: Readonly<Record<Exclude<EventoDoAcumulador['quando'], 'usaTecnica' | 'gastaSp'>, string>> = {
+const ROTULO_DO_EVENTO: Readonly<Record<Exclude<EventoDoAcumulador['quando'], 'usaTecnica' | 'acertaComTecnica' | 'gastaSp'>, string>> = {
   gastaReacao: 'Gastou a reação',
   acerta: 'Acertou um golpe',
   apanha: 'Recebeu dano',
@@ -352,7 +363,9 @@ export function eventosDoTeste(acumulador: AcumuladorDaFicha): EventoDoTeste[] {
     if (regra.quando === 'naoLida') continue
     const evento: EventoDoTeste =
       regra.quando === 'usaTecnica'
-        ? { tipo: 'evento', evento: { quando: 'usaTecnica', tecnica: regra.tecnica }, rotulo: `Usou ${regra.tecnica.nome}` }
+        ? regra.seAcertar === true
+          ? { tipo: 'evento', evento: { quando: 'acertaComTecnica', tecnica: regra.tecnica }, rotulo: `Acertou com ${regra.tecnica.nome}` }
+          : { tipo: 'evento', evento: { quando: 'usaTecnica', tecnica: regra.tecnica }, rotulo: `Usou ${regra.tecnica.nome}` }
         : regra.quando === 'gastaSp'
           ? { tipo: 'evento', evento: { quando: 'gastaSp', sp: regra.cada }, rotulo: `Gastou ${regra.cada} SP` }
           : { tipo: 'evento', evento: { quando: regra.quando }, rotulo: ROTULO_DO_EVENTO[regra.quando] }
@@ -374,7 +387,7 @@ export function passoDoTeste(acumulador: AcumuladorDaFicha, estado: EstadoDoTest
   else if (evento.tipo === 'rodada') {
     combate = comARodadaSemUso(combate, definicoes, rodada)
     rodada += 1
-  } else combate = combateVazio()
+  } else combate = combateNoComecoDaBatalha(combateVazio(), definicoes)
   const depois = nivelDoAcumulador(combate, acumulador.id)
   const linha = depois === antes ? `${evento.rotulo}: ${acumulador.nome} fica em ${depois}.` : `${evento.rotulo}: ${acumulador.nome} ${antes} → ${depois}.`
   return { combate, rodada: evento.tipo === 'fim' ? 1 : rodada, registro: [linha, ...estado.registro].slice(0, LINHAS_DO_TESTE) }
