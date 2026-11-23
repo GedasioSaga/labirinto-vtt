@@ -1,6 +1,7 @@
 import type { EfeitoDoItem } from '../../../types/map'
 import type { ItemDoCatalogo as ItemDoAcervo } from '../../acervoDeItens'
 import type { ItemDoCatalogo } from '../../livros/catalogo'
+import type { PastaDeItens } from '../../pastasDosItens'
 import { cartoesDaAba, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type Personagem } from '../../personagem'
 import { alcanceDaMecanica, alcanceDoCartao, formaDoAlcanceGuardada } from '../alcanceDoCartao'
 import { ABA_DAS_ARMAS, ABA_DAS_TECNICAS, ehArmaDaMochila } from '../leituraDaFicha'
@@ -32,8 +33,14 @@ import type { FormaDoAlcance } from './forma'
  *   já tem efeito já tem alcance pelo modelo dele. O que não tem entra com o modelo proposto (o do
  *   arquivo, senão o do "Sugerir efeito", `modeloSugeridoParaOItem`) e o alcance desse modelo;
  *   o Confirmar grava o efeito inteiro. Sem modelo parecido, o item não entra. O item da categoria
- *   Arma também não: o que ele faz é a regra de arma do livro (ItemDoCatalogoDialog), e a batalha o
- *   lê como arma (ehArmaDaMochila); um efeito de item nele seria uma 2a verdade, escondida na janela.
+ *   Arma com entrada de arma no livro também não: o que ele faz é a regra de arma do livro
+ *   (ItemDoCatalogoDialog), e um efeito de item nele seria uma 2a verdade, escondida na janela.
+ * - O item da categoria Arma SEM entrada de arma no livro (decisão do dono, 23/11, a Granada:
+ *   "Virar Consumível"): entra só quando o arquivo da proposta dá um modelo a ele (nunca pelo
+ *   "Sugerir efeito": a Garrucha não vira poção por uma palavra do nome). O Confirmar o passa a
+ *   Consumível junto com o efeito (a batalha deixa de lê-lo como arma, `ehArmaDaMochila`), e as
+ *   vagas das mochilas que são cópia dele também; ele muda da pasta da categoria velha para a da
+ *   nova, quando mora numa e a outra existe. O Desfazer devolve a categoria, a pasta e as vagas.
  *
  * Puro: sem store, sem rede, sem disco.
  */
@@ -70,7 +77,20 @@ export interface AntigoSemAlcance {
   personagemNome?: string
   /** Só no item do Acervo: o modelo do "O que ele faz" proposto (a lista deixa trocar). */
   modelo?: IdDoModeloDeItem
+  /** Só no item da categoria Arma sem entrada de arma no livro: a categoria (e a pasta) que ele ganha no Confirmar. */
+  virar?: ViradaDaCategoria
 }
+
+/** O item que era Arma e vira Consumível: de que categoria, para qual, e a pasta nova. */
+export interface ViradaDaCategoria {
+  de: string
+  para: string
+  /** A pasta do Acervo da categoria nova, quando ele mora na pasta da categoria velha; ausente = a pasta fica. */
+  pasta?: string
+}
+
+/** A categoria que o item da categoria Arma sem regra no livro ganha (a do dono, 23/11: "Virar Consumível"). */
+export const CATEGORIA_DO_ITEM_QUE_ERA_ARMA = 'Consumível'
 
 /** Quem não deu para ler (a mecânica torta ou de app mais novo): o editor dela diz o que fazer. */
 export interface AntigoNaoLido {
@@ -85,6 +105,8 @@ export interface DadosDosAntigos {
   catalogo: readonly ItemDoCatalogo[]
   /** Os itens do Acervo (vazio = o Acervo não foi lido: nenhum item entra nem se grava). */
   acervo: readonly ItemDoAcervo[]
+  /** As pastas do Acervo: o item que vira Consumível muda da pasta Arma para a Consumível. */
+  pastasDoAcervo: readonly PastaDeItens[]
   pastaId: string | null
   personagens: readonly Personagem[]
 }
@@ -147,9 +169,14 @@ function ondeDaMecanica(pecas: MecanicaV1): OndeOAlcanceVai {
   return forma.tipo === 'um' || forma.tipo === 'varios' ? 'alvo' : 'centro'
 }
 
+/** A coisa do Acervo tem entrada de arma no livro (a regra dela é a entrada). */
+function temArmaNoLivro(itemId: string, catalogo: readonly ItemDoCatalogo[]): boolean {
+  return catalogo.some((entrada) => entrada.tipo === 'arma' && entrada.acervoId === itemId)
+}
+
 /** A arma da ficha que segue uma entrada do livro (pela coisa do Acervo): quem recebe é a entrada. */
 function armaQueSegueOLivro(cartao: CartaoDaFicha, catalogo: readonly ItemDoCatalogo[]): boolean {
-  return cartao.itemId !== undefined && catalogo.some((entrada) => entrada.tipo === 'arma' && entrada.acervoId === cartao.itemId)
+  return cartao.itemId !== undefined && temArmaNoLivro(cartao.itemId, catalogo)
 }
 
 // ─── O item do Acervo ───────────────────────────────────────────────────────
@@ -163,6 +190,41 @@ export function modeloPropostoParaOItem(item: Pick<ItemDoAcervo, 'id' | 'nome' |
   if (doArquivo.semModelo.has(chave)) return null
   // A linha do arquivo é opcional (o item novo depois do arquivo não está nele): sem ela, o "Sugerir efeito".
   return doArquivo.propostas.get(chave)?.modelo ?? modeloSugeridoParaOItem(item.nome, item.descricao)
+}
+
+/** O mesmo nome de pasta ou categoria, sem diferença de caixa nem de espaço nas pontas. */
+function mesmoNome(a: string, b: string): boolean {
+  return a.trim().toLocaleLowerCase('pt-BR') === b.trim().toLocaleLowerCase('pt-BR')
+}
+
+/**
+ * O item da categoria Arma que vira Consumível; `null` = não vira (não é Arma, ou tem entrada de
+ * arma no livro: a regra é a entrada). A pasta só muda se ele mora na pasta da categoria velha e
+ * a da nova existe (a pasta que o mestre criou à mão fica).
+ */
+export function viradaDoItem(item: Pick<ItemDoAcervo, 'id' | 'categoria' | 'pasta'>, dados: Pick<DadosDosAntigos, 'catalogo' | 'pastasDoAcervo'>): ViradaDaCategoria | null {
+  if (!ehArmaDaMochila(item) || temArmaNoLivro(item.id, dados.catalogo)) return null
+  const para = CATEGORIA_DO_ITEM_QUE_ERA_ARMA
+  const atual = item.pasta === undefined ? undefined : dados.pastasDoAcervo.find((pasta) => pasta.id === item.pasta)
+  const nova = atual === undefined || !mesmoNome(atual.nome, item.categoria) ? undefined : dados.pastasDoAcervo.find((pasta) => mesmoNome(pasta.nome, para))
+  return nova === undefined ? { de: item.categoria, para } : { de: item.categoria, para, pasta: nova.id }
+}
+
+/**
+ * Como o item do Acervo entra na lista: o modelo e, no da categoria Arma, a virada; `null` = fica
+ * fora (já tem efeito, é arma do livro, ou nenhum modelo serve). A Arma só entra pelo modelo do
+ * arquivo, nunca pelo "Sugerir efeito".
+ */
+function comoOItemEntra(item: ItemDoAcervo, dados: DadosDosAntigos, doArquivo: PropostasDoArquivo): { modelo: IdDoModeloDeItem; virar?: ViradaDaCategoria } | null {
+  if (item.efeito !== undefined) return null
+  if (!ehArmaDaMochila(item)) {
+    const modelo = modeloPropostoParaOItem(item, doArquivo)
+    return modelo === null ? null : { modelo }
+  }
+  const virar = viradaDoItem(item, dados)
+  // A linha do arquivo é opcional: a arma sem ela fica fora (só o Claude, lendo o texto, a propõe como item).
+  const modelo = doArquivo.propostas.get(chaveDoAcervo(item.id))?.modelo
+  return virar === null || modelo === undefined ? null : { modelo, virar }
 }
 
 /** A forma do alcance que o modelo traz de fábrica; `null` = o modelo não diz até onde vai. */
@@ -245,11 +307,12 @@ export function antigosSemAlcance(dados: DadosDosAntigos, doArquivo: PropostasDo
     else antigos.push({ chave, lugar: 'livro', grupo, nome: entrada.nome, texto: textoDe(entrada.texto, entrada.campos), onde, daDano: daDano(entrada, grupo) })
   }
   for (const item of dados.acervo) {
-    if (item.efeito !== undefined || ehArmaDaMochila(item)) continue
-    const modelo = modeloPropostoParaOItem(item, doArquivo)
-    if (modelo === null) continue
+    const entra = comoOItemEntra(item, dados, doArquivo)
+    if (entra === null) continue
+    const { modelo, virar } = entra
     const { sistema } = dados
-    antigos.push({ chave: chaveDoAcervo(item.id), lugar: 'acervo', grupo: 'item', nome: item.nome, texto: textoDe(item.descricao, {}), onde: ondeNoModelo(modelo, sistema), daDano: modeloDaDano(modelo, sistema), modelo })
+    const antigo: AntigoSemAlcance = { chave: chaveDoAcervo(item.id), lugar: 'acervo', grupo: 'item', nome: item.nome, texto: textoDe(item.descricao, {}), onde: ondeNoModelo(modelo, sistema), daDano: modeloDaDano(modelo, sistema), modelo }
+    antigos.push(virar === undefined ? antigo : { ...antigo, virar })
   }
   if (dados.pastaId === null) return { antigos, naoLidos }
   for (const personagem of dados.personagens) {
@@ -337,6 +400,23 @@ export interface AntesDoAlcance {
   mecanica: MecanicaGuardada | undefined
   /** Só no item do Acervo: o "O que ele faz" de antes (ausente = não tinha; o Confirmar só dá a quem não tinha). */
   efeito?: EfeitoDoItem
+  /** Só no item que virou Consumível: a categoria, a pasta e as vagas de antes. */
+  virada?: ViradaDeAntes
+}
+
+/** O que o item que era Arma tinha antes de virar Consumível. */
+export interface ViradaDeAntes {
+  categoria: string
+  /** A pasta de antes, só quando o Confirmar a mudou. */
+  pasta?: string
+  /** As vagas das mochilas (da pasta aberta) que eram cópia dele como arma, com a categoria de antes. */
+  copias: CategoriaDaVagaDeAntes[]
+}
+
+export interface CategoriaDaVagaDeAntes {
+  personagemId: string
+  vagaId: string
+  categoria: string
 }
 
 export interface AlcancesGravados {
@@ -426,18 +506,64 @@ export function comOsAlcances(dados: DadosDosAntigos, escolhas: readonly Escolha
     if (novo !== null) antes.push(antesDe(chave, x))
     return novo
   })
+  let { personagens } = feito
   const acervo = dados.acervo.map((item) => {
     const chave = chaveDoAcervo(item.id)
     const escolha = porChave.get(chave)
     // Só quem ainda não tem "O que ele faz": o efeito que o mestre montou nunca é trocado daqui.
-    if (item.efeito !== undefined || ehArmaDaMochila(item) || escolha?.modelo === undefined) return item
+    if (item.efeito !== undefined || escolha?.modelo === undefined) return item
+    const virar = ehArmaDaMochila(item) ? viradaDoItem(item, dados) : undefined
+    if (virar === null) return item
     const efeito = efeitoComAlcance(escolha.modelo, escolha.forma, dados.sistema)
     if (efeito === undefined) return item
-    antes.push({ chave, alcance: undefined, mecanica: undefined })
-    return { ...item, efeito }
+    if (virar === undefined) {
+      antes.push({ chave, alcance: undefined, mecanica: undefined })
+      return { ...item, efeito }
+    }
+    const nasFichas = fichasComACategoria(personagens, item.id, virar.para)
+    personagens = nasFichas.personagens
+    const virada: ViradaDeAntes = virar.pasta === undefined || item.pasta === undefined ? { categoria: item.categoria, copias: nasFichas.copias } : { categoria: item.categoria, pasta: item.pasta, copias: nasFichas.copias }
+    antes.push({ chave, alcance: undefined, mecanica: undefined, virada })
+    // A categoria e a pasta trocam no lugar delas (a ordem das chaves no disco fica); o efeito vai no fim.
+    return { ...item, categoria: virar.para, ...(virar.pasta === undefined ? {} : { pasta: virar.pasta }), efeito }
   })
   const armasDoLivro = dados.catalogo.filter((entrada, indice) => entrada.tipo === 'arma' && feito.catalogo[indice] !== entrada).map((entrada) => entrada.id)
-  return { catalogo: feito.catalogo, personagens: feito.personagens, acervo, antes, armasDoLivro }
+  return { catalogo: feito.catalogo, personagens, acervo, antes, armasDoLivro }
+}
+
+/**
+ * As vagas das mochilas que são cópia do item (mesmo `itemId`) e que a batalha lê como arma passam
+ * à categoria nova, com o que cada uma era. O efeito chega a elas pelo caminho de sempre
+ * (`itensNaFonte`, ao gravar o Acervo); a categoria não, por isso vem aqui.
+ */
+function fichasComACategoria(personagens: readonly Personagem[], itemId: string, para: string): { personagens: Personagem[]; copias: CategoriaDaVagaDeAntes[] } {
+  const copias: CategoriaDaVagaDeAntes[] = []
+  const novas = personagens.map((personagem) => {
+    const { mochila } = personagem
+    if (mochila === undefined) return personagem
+    const nova = mochila.map((vaga) => {
+      if (vaga.itemId !== itemId || vaga.categoria === undefined || !ehArmaDaMochila(vaga)) return vaga
+      copias.push({ personagemId: personagem.id, vagaId: vaga.id, categoria: vaga.categoria })
+      return { ...vaga, categoria: para }
+    })
+    return nova.every((vaga, indice) => vaga === mochila[indice]) ? personagem : { ...personagem, mochila: nova }
+  })
+  return { personagens: novas, copias }
+}
+
+/** As vagas listadas com a categoria de antes (a vaga sumida não volta; a que já está igual fica a mesma). */
+function fichasComACategoriaDeAntes(personagens: readonly Personagem[], copias: readonly CategoriaDaVagaDeAntes[]): Personagem[] {
+  if (copias.length === 0) return [...personagens]
+  return personagens.map((personagem) => {
+    const { mochila } = personagem
+    if (mochila === undefined) return personagem
+    const daFicha = new Map(copias.filter((copia) => copia.personagemId === personagem.id).map((copia) => [copia.vagaId, copia.categoria]))
+    const nova = mochila.map((vaga) => {
+      const era = daFicha.get(vaga.id)
+      return era === undefined || vaga.categoria === era ? vaga : { ...vaga, categoria: era }
+    })
+    return nova.every((vaga, indice) => vaga === mochila[indice]) ? personagem : { ...personagem, mochila: nova }
+  })
 }
 
 /** O item com o "O que ele faz" de antes: ausente tira o campo; presente volta no lugar dele. */
@@ -457,14 +583,19 @@ export function semOsAlcances(dados: DadosDosAntigos, antes: readonly AntesDoAlc
     desfeitos.push(antesDe(chave, x))
     return comOQueEra(x, era)
   })
+  let { personagens } = feito
   const acervo = dados.acervo.map((item) => {
     const era = porChave.get(chaveDoAcervo(item.id))
     if (era === undefined) return item
     desfeitos.push({ chave: era.chave, alcance: undefined, mecanica: undefined, ...(item.efeito === undefined ? {} : { efeito: item.efeito }) })
-    return itemComOEfeitoDeAntes(item, era.efeito)
+    const semEfeito = itemComOEfeitoDeAntes(item, era.efeito)
+    if (era.virada === undefined) return semEfeito
+    personagens = fichasComACategoriaDeAntes(personagens, era.virada.copias)
+    // No lugar delas: o disco volta a sair na mesma ordem de chaves de antes.
+    return { ...semEfeito, categoria: era.virada.categoria, ...(era.virada.pasta === undefined ? {} : { pasta: era.virada.pasta }) }
   })
   const armasDoLivro = dados.catalogo.filter((entrada, indice) => entrada.tipo === 'arma' && feito.catalogo[indice] !== entrada).map((entrada) => entrada.id)
-  return { catalogo: feito.catalogo, personagens: feito.personagens, acervo, antes: desfeitos, armasDoLivro }
+  return { catalogo: feito.catalogo, personagens, acervo, antes: desfeitos, armasDoLivro }
 }
 
 // ─── O arquivo da proposta ──────────────────────────────────────────────────

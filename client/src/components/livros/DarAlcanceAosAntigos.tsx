@@ -21,7 +21,8 @@ import { formatarNumero } from './comum'
  * O ITEM do Acervo sem "O que ele faz" (pedido de 23/11: "Coloque isso para itens quanto para
  * habilidades") entra com o modelo proposto (o do arquivo, senão o do "Sugerir efeito"), sempre
  * certeza baixa: o Confirmar grava o efeito inteiro do modelo, com o alcance da linha. A descrição
- * do item fica como o mestre escreveu.
+ * do item fica como o mestre escreveu. O item da categoria Arma sem regra no livro (a Granada, 23/11)
+ * só entra com o modelo do arquivo, e a linha diz que ele vira Consumível no Confirmar.
  */
 
 type Decisao = 'aceitar' | 'pular'
@@ -171,19 +172,26 @@ const LinhaDoAntigo = memo(function LinhaDoAntigo({ antigo, linha, proposta, edi
   const nota = NOTA_DO_LUGAR[modelo === undefined ? antigo.onde : ondeNoModelo(modelo, sistema)]
   const doModelo = modelo === undefined ? undefined : modeloPeloId(modelo)
   const mudada = linha.forma !== null && proposta !== undefined && (JSON.stringify(linha.forma) !== JSON.stringify(proposta.forma) || modelo !== proposta.modelo)
+  const { virar } = antigo
+  const ficaComo = antigo.grupo !== 'item' ? ' · fica sem alcance' : virar === undefined ? ' · fica sem efeito' : ` · fica ${virar.de}, sem efeito`
   return (
     <li className="mu-alc-antigo" data-decisao={linha.decisao} data-certeza={proposta?.certeza}>
       <div className="mu-alc-antigo__previa">{linha.forma === null ? <span className="mu-alc-antigo__vazio" aria-hidden="true" /> : <GlifoDoAlcance forma={linha.forma} cor={cor} />}</div>
       <div className="mu-alc-antigo__corpo">
         <p className="mu-alc-antigo__nome">
           <b>{antigo.nome.trim() || 'Sem nome'}</b>
-          <span className="mu-alc-antigo__tipo">{TIPO_DO_GRUPO[antigo.grupo]}</span>
+          <span className="mu-alc-antigo__tipo">{virar === undefined ? TIPO_DO_GRUPO[antigo.grupo] : `${virar.de} → ${virar.para}`}</span>
           {proposta !== undefined && <span className={`mu-alc-antigo__certeza mu-alc-antigo__certeza--${proposta.certeza}`}>certeza {proposta.certeza}</span>}
         </p>
         <p className="mu-alc-antigo__forma">
           {linha.forma === null ? SEM_PROPOSTA : `${descreverAlcance(linha.forma)}${mudada ? ' (mudado por você)' : ''}`}
-          {linha.decisao === 'pular' && linha.forma !== null ? (antigo.grupo === 'item' ? ' · fica sem efeito' : ' · fica sem alcance') : ''}
+          {linha.decisao === 'pular' && linha.forma !== null ? ficaComo : ''}
         </p>
+        {virar !== undefined && (
+          <p className="mu-alc-antigo__forma">
+            Vira <b>{virar.para}</b>: está em {virar.de} sem regra de arma no livro, e a batalha passa a usá-lo como item{virar.pasta === undefined ? '' : `; vai para a pasta ${virar.para}`}.
+          </p>
+        )}
         {doModelo !== undefined && (
           <p className="mu-alc-antigo__forma">
             O que ele faz: <b>{doModelo.nome}</b> ({doModelo.dica})

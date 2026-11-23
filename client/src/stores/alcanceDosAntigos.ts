@@ -21,8 +21,9 @@ import { useMundoDoLivroStore } from './mundoDoLivroStore'
  *
  *   cópias de antes (`.antes-do-alcance` do catálogo, do `rpg.json` e do `itens.json`, uma vez;
  *   sem elas nada se grava) -> catálogo -> fichas (`mundo.mudar`, com as cópias das armas ligadas
- *   seguindo o livro) -> Acervo (o "O que ele faz" dos itens; as cópias nas mochilas seguem pelo
- *   caminho de sempre, `itensNaFonte.ts`)
+ *   seguindo o livro, e a categoria das vagas do item que era Arma e vira Consumível) -> Acervo
+ *   (o "O que ele faz" dos itens; o efeito das cópias nas mochilas segue pelo caminho de sempre,
+ *   `itensNaFonte.ts`)
  *
  * O arquivo da proposta (`alcances-propostos.json`, na pasta de dados do app) só se lê, nunca
  * se grava daqui. Nada é decidido sozinho: só grava o que o mestre deixou marcado no Confirmar.
@@ -38,7 +39,14 @@ function dadosDeAgora(sistema: SistemaDeRpg): DadosDosAntigos {
   const comPasta = aberto !== null && daPasta !== null
   // O Acervo que não foi lido do disco não entra: gravar seria por cima do que não se viu.
   const acervo = useAcervoDeItensStore.getState()
-  return { sistema, catalogo: catalogo.itens, acervo: acervo.podeGravar ? acervo.itens : [], pastaId: comPasta ? aberto.pastaId : null, personagens: comPasta ? daPasta : [] }
+  return {
+    sistema,
+    catalogo: catalogo.itens,
+    acervo: acervo.podeGravar ? acervo.itens : [],
+    pastasDoAcervo: acervo.podeGravar ? acervo.pastas : [],
+    pastaId: comPasta ? aberto.pastaId : null,
+    personagens: comPasta ? daPasta : [],
+  }
 }
 
 export interface PropostasLidas extends PropostasDoArquivo {
