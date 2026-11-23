@@ -103,6 +103,9 @@ export function pedidoDaTecnicaDoItem(pedido: PedidoDoItem, cartao: CartaoDaFich
     ...(selo === null ? {} : { selo }),
     ...(pedido.ponto === undefined ? {} : { ponto: pedido.ponto }),
     ...(pedido.centroId === undefined ? {} : { centroId: pedido.centroId }),
+    // Fase C do alcance: o lado da mira e a confirmação do "usar mesmo assim" seguem para a técnica do item.
+    ...(pedido.direcao === undefined ? {} : { direcao: pedido.direcao }),
+    ...(pedido.foraDoAlcance === undefined ? {} : { foraDoAlcance: pedido.foraDoAlcance }),
   }
 }
 

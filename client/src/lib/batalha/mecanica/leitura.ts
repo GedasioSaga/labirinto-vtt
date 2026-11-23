@@ -205,11 +205,11 @@ function areaDaForma(forma: FormaDoAlvo): FormaDaArea | null {
     case 'um':
     case 'varios':
       return null
-    // Fase B do alcance: a área de hoje (`area.ts`) não desenha a cruz nem o leque; até a fase C
-    // (`fichasNaForma`, ALCANCE.md §5) os alvos delas são marcados à mão na mira. Nenhum editor as grava antes disso.
+    // Fase C do alcance (ALCANCE.md §5): a cruz e o leque marcam pela grade como as outras áreas de quem usa.
     case 'cruz':
+      return { tipo: 'cruz', casas: forma.casas }
     case 'leque':
-      return null
+      return { tipo: 'leque', casas: forma.casas }
   }
 }
 
@@ -284,6 +284,8 @@ function seloDaPeca(selo: SeloDaPeca, valorNaFicha?: (formula: string) => number
   }
   if (porTurno?.sinal === 'da') lido.regenera = { recurso: porTurno.recurso, quanto: porTurno.quanto.fixo }
   else if (porTurno?.recurso === 'sp') lido.drenaSp = { quanto: porTurno.quanto.fixo, paraQuemUsa: porTurno.paraQuemUsa ?? 0 }
+  // Fase C do alcance: o selo que muda o alcance de quem o tem segue para a carta (o host lê na hora do golpe).
+  if (selo.alcance !== undefined) lido.alcance = selo.alcance
   return lido
 }
 

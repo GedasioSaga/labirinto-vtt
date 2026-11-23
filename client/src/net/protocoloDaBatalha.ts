@@ -60,7 +60,7 @@ import { COMO_MARCA, LEMBRETES_DA_MARCA_MAX } from '../lib/batalha/marca'
 import { NOME_DA_EQUIPE_MAX } from '../lib/batalha/equipes'
 import { lerJudgeNaCena } from '../lib/batalha/judge'
 import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
-import type { FormaDaArea, QuemEntraNaArea } from '../lib/batalha/area'
+import { DIRECOES, type Direcao, type FormaDaArea, type QuemEntraNaArea } from '../lib/batalha/area'
 import { ITENS_PARA_JOGADOR_MAX, type ItemParaJogador } from '../lib/batalha/itemNaBatalha'
 import { lerAlcanceDoSelo, type QuemOAlvoPega } from '../lib/batalha/mecanica/modelo'
 import type { ReacaoDoTipo } from '../lib/batalha/tiposDaHabilidade'
@@ -437,6 +437,26 @@ function lerCentroId(value: unknown): string | undefined | false {
   return textoAte(value, 1, ID_DA_BATALHA_MAX) ? value : false
 }
 
+/** Fase C do alcance: o lado que a mira escolheu; ausente, ou `false` = torto. */
+function lerDirecao(value: unknown): Direcao | undefined | false {
+  if (value === undefined) return undefined
+  return DIRECOES.find((direcao) => direcao === value) ?? false
+}
+
+/** Fase C do alcance: a confirmação do "Fora do alcance, usar mesmo assim?" (só `true`); ausente, ou `false` = torto. */
+function lerForaDoAlcance(value: unknown): true | undefined | false {
+  if (value === undefined) return undefined
+  return value === true ? true : false
+}
+
+/** Fase C do alcance: a direção e a confirmação do pedido, juntas (o `false` torna o pedido torto). */
+function lerAlcanceDoPedido(value: Record<string, unknown>): { direcao?: Direcao; foraDoAlcance?: true } | false {
+  const direcao = lerDirecao(value.direcao)
+  const foraDoAlcance = lerForaDoAlcance(value.foraDoAlcance)
+  if (direcao === false || foraDoAlcance === false) return false
+  return { ...(direcao === undefined ? {} : { direcao }), ...(foraDoAlcance === undefined ? {} : { foraDoAlcance }) }
+}
+
 function lerBalaId(value: unknown): string | undefined | false {
   if (value === undefined) return undefined
   return textoAte(value, 1, CARTAO_ID_MAX) ? value : false
@@ -507,13 +527,15 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const perfuracao = lerPerfuracao(value.perfuracao)
       const balaId = lerBalaId(value.balaId)
       const alvosLidos = lerAlvosDoPedido(alvos, 1)
+      const doAlcance = lerAlcanceDoPedido(value)
+      if (doAlcance === false) return null
       // F2 (fatia C): as respostas de todo golpe do dono (Electro); se valem, quem confere é a store.
       const respostas = value.respostas === undefined ? undefined : lerRespostas(value.respostas)
       if (respostas === null) return null
       if (!cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean' || contraDe === false || selo === false || perfuracao === false || balaId === false) return null
       // Bala sem arma não existe: a bala é subcartão da arma.
       if (balaId !== undefined && armaId === null) return null
-      const pedido: PedidoDeAcao = { tipo: 'atacar', armaId, alvos: alvosLidos, surpresa, perfurante }
+      const pedido: PedidoDeAcao = { tipo: 'atacar', armaId, alvos: alvosLidos, surpresa, perfurante, ...doAlcance }
       if (perfuracao !== undefined) pedido.perfuracao = perfuracao
       if (contraDe !== undefined) pedido.contraDe = contraDe
       if (selo !== undefined) pedido.selo = selo
@@ -532,6 +554,9 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       // Fase 6: o centro da área longe; se ele vale (alcance, área), quem confere é a store, pelo mapa.
       const ponto = lerPonto(value.ponto)
       const centroId = lerCentroId(value.centroId)
+      // Fase C do alcance: a direção da mira e a confirmação do fora do alcance; se valem, quem confere é a store.
+      const doAlcance = lerAlcanceDoPedido(value)
+      if (doAlcance === false) return null
       // F2 (fatia A): as respostas das perguntas na hora; se valem para a técnica, quem confere é a store.
       const respostas = value.respostas === undefined ? undefined : lerRespostas(value.respostas)
       if (respostas === null) return null
@@ -542,7 +567,7 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false || selo === false || perfuracao === false || variante === false || balaId === false || ponto === false || centroId === false) return null
       // Bala sem arma não existe: a bala é subcartão da arma.
       if (balaId !== undefined && armaId === null) return null
-      const pedido: PedidoDeAcao = { tipo: 'habilidade', cartaoId, armaId, alvos: alvosLidos, surpresa, perfurante, custo, acao: acaoLida }
+      const pedido: PedidoDeAcao = { tipo: 'habilidade', cartaoId, armaId, alvos: alvosLidos, surpresa, perfurante, custo, acao: acaoLida, ...doAlcance }
       if (balaId !== undefined) pedido.balaId = balaId
       if (perfuracao !== undefined) pedido.perfuracao = perfuracao
       if (contraDe !== undefined) pedido.contraDe = contraDe
@@ -576,8 +601,9 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const alvosLidos = lerAlvosDoPedido(value.alvos, 0)
       const ponto = lerPonto(value.ponto)
       const centroId = lerCentroId(value.centroId)
-      if (!textoAte(vagaId, 1, ID_DA_BATALHA_MAX) || alvosLidos === null || ponto === false || centroId === false || value.contraDe !== undefined) return null
-      const pedido: PedidoDeAcao = { tipo: 'item', vagaId, alvos: alvosLidos }
+      const doAlcance = lerAlcanceDoPedido(value)
+      if (!textoAte(vagaId, 1, ID_DA_BATALHA_MAX) || alvosLidos === null || ponto === false || centroId === false || doAlcance === false || value.contraDe !== undefined) return null
+      const pedido: PedidoDeAcao = { tipo: 'item', vagaId, alvos: alvosLidos, ...doAlcance }
       if (ponto !== undefined) pedido.ponto = ponto
       if (centroId !== undefined) pedido.centroId = centroId
       return pedido
@@ -1143,6 +1169,8 @@ function lerFormaDaArea(forma: Record<string, unknown>): FormaDaArea | null {
   if (forma.tipo === 'raio' && inteiroAte(forma.casas, 0, CASAS_DO_ITEM_MAX)) return { tipo: 'raio', casas: forma.casas }
   if (forma.tipo === 'frente' && inteiroAte(forma.lado, 1, CASAS_DO_ITEM_MAX)) return { tipo: 'frente', lado: forma.lado }
   if (forma.tipo === 'linha' && inteiroAte(forma.alcance, 1, CASAS_DO_ITEM_MAX)) return { tipo: 'linha', alcance: forma.alcance }
+  // Fase C do alcance: a cruz e o leque também são área de quem usa.
+  if ((forma.tipo === 'cruz' || forma.tipo === 'leque') && inteiroAte(forma.casas, 1, CASAS_DO_ITEM_MAX)) return { tipo: forma.tipo, casas: forma.casas }
   return null
 }
 

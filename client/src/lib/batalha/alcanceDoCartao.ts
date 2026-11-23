@@ -102,6 +102,10 @@ export function alcanceDaTabela(linha: Pick<MecanicaAMao, 'area' | 'alcance'>): 
       return { tipo: 'frente', lado: forma.lado }
     case 'linha':
       return { tipo: 'linha', ate: forma.alcance }
+    case 'cruz':
+      return { tipo: 'cruz', ate: forma.casas }
+    case 'leque':
+      return { tipo: 'leque', ate: forma.casas }
   }
 }
 

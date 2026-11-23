@@ -175,6 +175,8 @@ export function criarSelo(tokenId: string, pedido: SeloDoGolpe, onde: OndeNasceO
   if (pedido.regra !== undefined) selo.regra = pedido.regra
   if (pedido.regenera !== undefined) selo.regenera = pedido.regenera
   if (pedido.drenaSp !== undefined) selo.drenaSp = pedido.drenaSp
+  // Fase C do alcance: o que o selo da peça faz no alcance de quem o tem (a carta do jogador o leva para o aviso da mira).
+  if (pedido.alcance !== undefined) selo.alcance = pedido.alcance
   if (onde.tokenDaVez === tokenId) {
     selo.contadoNaRodada = onde.rodada
     if (onde.cartaIdDaVez !== undefined) selo.contadoNaCarta = onde.cartaIdDaVez

@@ -40,7 +40,7 @@ import {
   type SaidaDaReacao,
   type SeloDaBatalha,
 } from './combate'
-import { alcanceDaCondicao } from './condicoes'
+import { mudancaDoSelo } from './alcance/doGolpe'
 import { corDaEquipe, equipeDe, equipesNaLeitura, ladoNaBatalha, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe, type LadosDaBatalha } from './equipes'
 import type { JudgeNaCena } from './judge'
 import { limiteDeArmas, recursoDoEscudo } from './leituraDaFicha'
@@ -166,8 +166,8 @@ export interface SeloParaJogador {
   natureza?: NaturezaDoSelo
   /**
    * Fase B do alcance (ALCANCE.md §3.3): o que o selo faz no alcance de quem o tem, para o aviso
-   * da mira do jogador ("Alcance 6 → 4 (Ofuscado)"). Aditivo: o jogador de antes ignora. Hoje vem
-   * da tabela de condições (`alcanceDaCondicao`, vazia); a fase C traz o do selo montado.
+   * da mira do jogador ("Alcance 6 → 4 (Ofuscado)"). Aditivo: o jogador de antes ignora. Vem do
+   * selo montado e, sem ele, da tabela de condições (`mudancaDoSelo`).
    */
   alcance?: AlcanceDoSelo
 }
@@ -431,7 +431,8 @@ function seloNaCarta(selo: SeloDaBatalha): SeloParaJogador {
     .map((mod) => ({ alvo: mod.alvo, delta: mod.delta }))
   if (mods.length > 0) saida.mods = mods
   if (selo.natureza !== undefined && selo.natureza !== 'condicao') saida.natureza = selo.natureza
-  const alcance = alcanceDaCondicao(selo.nome)
+  // Fase C do alcance: o do selo montado e, sem ele, o da tabela de condições (`mudancaDoSelo`, a mesma leitura do host).
+  const alcance = mudancaDoSelo(selo)
   if (alcance !== null) saida.alcance = alcance
   return saida
 }

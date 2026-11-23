@@ -22,7 +22,13 @@ export type Direcao = 'norte' | 'sul' | 'leste' | 'oeste'
  * `lado` x `lado` logo à frente, centrado na linha de quem usa (Aplauso 6x6).
  * `linha`: a linha reta à frente até `alcance` casas (Projeção Letal).
  */
-export type FormaDaArea = { tipo: 'raio'; casas: number } | { tipo: 'frente'; lado: number } | { tipo: 'linha'; alcance: number }
+export type FormaDaArea =
+  | { tipo: 'raio'; casas: number }
+  | { tipo: 'frente'; lado: number }
+  | { tipo: 'linha'; alcance: number }
+  // Fase C do alcance: as quatro linhas retas até `casas`, e o leque à frente (1, 3, 5 por fileira).
+  | { tipo: 'cruz'; casas: number }
+  | { tipo: 'leque'; casas: number }
 
 /**
  * Quem entra: só os inimigos de quem usa, só os aliados (construtor C3: a
@@ -53,11 +59,13 @@ export function distanciaEmCasas(a: Casa, b: Casa): number {
 export function casaNaArea(forma: FormaDaArea, origem: Casa, direcao: Direcao, casa: Casa): boolean {
   if (casa.col === origem.col && casa.row === origem.row) return false
   if (forma.tipo === 'raio') return distanciaEmCasas(origem, casa) <= forma.casas
+  if (forma.tipo === 'cruz') return (casa.col === origem.col || casa.row === origem.row) && distanciaEmCasas(origem, casa) <= forma.casas
   const passo = PASSO[direcao]
   // "à frente": quanto anda na direção e quanto desvia para o lado (positivo = à direita de quem olha).
   const frente = (casa.col - origem.col) * passo.col + (casa.row - origem.row) * passo.row
   const lado = (casa.row - origem.row) * passo.col - (casa.col - origem.col) * passo.row
   if (forma.tipo === 'linha') return lado === 0 && frente >= 1 && frente <= forma.alcance
+  if (forma.tipo === 'leque') return frente >= 1 && frente <= forma.casas && Math.abs(lado) <= frente - 1
   // O quadrado começa na casa da frente; com lado par, a metade a mais fica à direita de quem olha.
   const esquerda = -Math.floor((forma.lado - 1) / 2)
   return frente >= 1 && frente <= forma.lado && lado >= esquerda && lado < esquerda + forma.lado
@@ -146,8 +154,11 @@ export function casaNaAreaDaFicha(forma: FormaDaArea, origem: PegadaNaGrade, dir
   const foraNaRow = Math.max(origem.row - casa.row, 0, casa.row - ultimaRow)
   if (foraNaCol === 0 && foraNaRow === 0) return false
   if (forma.tipo === 'raio') return Math.max(foraNaCol, foraNaRow) <= forma.casas
+  if (forma.tipo === 'cruz') return (foraNaCol === 0 || foraNaRow === 0) && Math.max(foraNaCol, foraNaRow) <= forma.casas
   const { frente, lado } = vistaDaFicha(origem, direcao, casa)
   if (forma.tipo === 'linha') return frente >= 1 && frente <= forma.alcance && lado >= 0 && lado < origem.tamanho
+  // A fileira colada tem a largura da ficha; cada seguinte abre uma casa de cada lado (a mesma conta de `casas.ts`).
+  if (forma.tipo === 'leque') return frente >= 1 && frente <= forma.casas && lado >= 1 - frente && lado <= origem.tamanho - 2 + frente
   const esquerda = -Math.floor((forma.lado - origem.tamanho) / 2)
   return frente >= 1 && frente <= forma.lado && lado >= esquerda && lado < esquerda + forma.lado
 }

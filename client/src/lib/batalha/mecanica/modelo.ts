@@ -1,4 +1,5 @@
 import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX, MODS_POR_SELO_MAX, type VantagemDoDado } from '../combate'
+import type { EscopoDoAlcance, MudancaDoAlcance } from '../alcance/condicoes'
 
 /**
  * AS PEÇAS DA TÉCNICA MONTADA (construtor de mecânicas, fatia C1; seção 1 de
@@ -235,24 +236,20 @@ export interface PorTurnoDoSelo {
 }
 
 /** Versão 3 (fase B do alcance): como o selo mexe no alcance. 'soma' = +N ou -N casas; 'teto' = no máximo N casas. */
-export type MexeNoAlcance = 'soma' | 'teto'
+export type MexeNoAlcance = MudancaDoAlcance['mexe']
 
 /** Versão 3: em que o selo mexe no alcance (o escopo, ALCANCE.md §3.3). */
-export type ValeParaOAlcance = 'tudo' | 'armas' | 'habilidades' | 'itens'
+export type ValeParaOAlcance = EscopoDoAlcance
 
 /** Os escopos, na ordem da tela. */
 export const VALES_DO_ALCANCE: readonly ValeParaOAlcance[] = ['tudo', 'armas', 'habilidades', 'itens']
 
 /**
  * Versão 3 (fase B do alcance): o que o selo faz no alcance de quem o tem ("Ofuscado: -2 em tudo",
- * "Cego: no máximo 1"). Quem soma e põe o teto é `alcanceComCondicoes` (lib/batalha/alcance/):
- * primeiro as somas, depois o menor teto, nunca abaixo de 1. Na soma, `n` nunca é 0; no teto, de 1 a `CASAS_MAX`.
+ * "Cego: no máximo 1"). É a MESMA forma que `alcanceComCondicoes` (lib/batalha/alcance/condicoes.ts)
+ * lê: primeiro as somas, depois o menor teto, nunca abaixo de 1. Na soma, `n` nunca é 0; no teto, de 1 a `CASAS_MAX`.
  */
-export interface AlcanceDoSelo {
-  mexe: MexeNoAlcance
-  n: number
-  vale: ValeParaOAlcance
-}
+export type AlcanceDoSelo = MudancaDoAlcance
 
 /** Fase 5: o número que o selo soma enquanto existe ("Força +20"). `alvo` = id de atributo, 'dano' ou 'reacao'; o fixo pode ser negativo (tira). */
 export interface ModDaPeca {

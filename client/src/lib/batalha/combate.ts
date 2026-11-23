@@ -1,4 +1,6 @@
 import type { Modificador } from '../personagem'
+import type { Direcao } from './area'
+import type { MudancaDoAlcance } from './alcance/condicoes'
 import type { RespostasDoPedido } from './perguntaNaHora'
 import type { AutorDaAcao } from './turnos'
 
@@ -364,6 +366,13 @@ export type PedidoDeAcao =
       balaId?: string
       /** F2 (fatia C): as respostas das perguntas de todo golpe do dono (o Electro da Aira). Ausente = sem pergunta. */
       respostas?: RespostasDoPedido
+      /**
+       * Fase C do alcance (ALCANCE.md §3.4, §5): o lado que a mira escolheu (o host confere a área
+       * virada para ele; ausente = qualquer lado, como o pedido de antes) e a confirmação do
+       * "Fora do alcance, usar mesmo assim?": sem ela, alvo ou centro fora das casas acesas é recusado.
+       */
+      direcao?: Direcao
+      foraDoAlcance?: true
     }
   | {
       tipo: 'habilidade'
@@ -406,6 +415,13 @@ export type PedidoDeAcao =
        */
       ponto?: { col: number; row: number }
       centroId?: string
+      /**
+       * Fase C do alcance (ALCANCE.md §3.4, §5): o lado que a mira escolheu (o host confere a área
+       * virada para ele; ausente = qualquer lado, como o pedido de antes) e a confirmação do
+       * "Fora do alcance, usar mesmo assim?": sem ela, alvo ou centro fora das casas acesas é recusado.
+       */
+      direcao?: Direcao
+      foraDoAlcance?: true
     }
   | { tipo: 'concentrar' }
   /** Q6: o contra-ataque gasto em se mover. Só marca (e tira o atalho); o movimento em si é o arrasto de sempre. */
@@ -425,7 +441,7 @@ export type PedidoDeAcao =
    * das peças). `ponto`/`centroId` = o centro da área longe (a granada), como
    * na habilidade. Nunca é contra-ataque.
    */
-  | { tipo: 'item'; vagaId: string; alvos: readonly PedidoDeAlvo[]; ponto?: { col: number; row: number }; centroId?: string; contraDe?: undefined }
+  | { tipo: 'item'; vagaId: string; alvos: readonly PedidoDeAlvo[]; ponto?: { col: number; row: number }; centroId?: string; direcao?: Direcao; foraDoAlcance?: true; contraDe?: undefined }
 
 /** Os tipos de pedido de ação, para o enum fechado do fio. */
 export type TipoDoPedidoDeAcao = PedidoDeAcao['tipo']
@@ -574,6 +590,8 @@ export interface GolpeDaBatalha {
   autor: AutorDaAcao
   /** Da arma, da habilidade, ou "Ataque". */
   nome: string
+  /** Fase C do alcance: saiu com alvo ou centro fora das casas acesas, confirmado; a linha diz "(fora do alcance)". */
+  foraDoAlcance?: true
   surpresa: boolean
   overload: boolean
   /** Q4: o dano vai direto ao HP, sem gastar o Escudo. O mestre pode trocar enquanto há alvo esperando. */
@@ -790,6 +808,11 @@ export interface SeloDaBatalha {
   regenera?: RegeneraDoSelo
   /** Fase 5: o SP que o selo tira no fim de cada vez de quem o tem, e o que vai ao dono da técnica. Só do host. */
   drenaSp?: DrenaSpDoSelo
+  /**
+   * Fase C do alcance (ALCANCE.md §3.3): o que o selo montado faz no alcance de quem o tem ("-2 só
+   * armas"). Ausente = o da tabela de condições pelo nome (`alcanceDaCondicao`), ou nada.
+   */
+  alcance?: MudancaDoAlcance
 }
 
 /** Fase 5: a regra do selo montado, em %: -20 = toma 20% a menos; +50 = toma 50% a mais. */
@@ -834,6 +857,8 @@ export interface SeloDoGolpe extends SeloPedido {
   regra?: RegraDoSeloNaBatalha
   regenera?: RegeneraDoSelo
   drenaSp?: DrenaSpDoSelo
+  /** Fase C do alcance: o que o selo da peça faz no alcance, nunca do fio. */
+  alcance?: MudancaDoAlcance
 }
 
 /**
