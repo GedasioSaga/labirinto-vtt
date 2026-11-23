@@ -4,8 +4,9 @@ import type { SaidaDaReacao } from '../combate'
 import { comportamentoDoSelo } from '../condicoes'
 import { cdDaExpressao } from '../disputa'
 import { lerDano } from '../formula'
+import { ADJETIVO_DO_TIPO, ATRIBUTO_DO_ENFRAQUECER, fraseDoEmpurrao, NOME_DO_TIPO } from './golpe'
 import { formulaDoNumero } from './leitura'
-import type { CdDoTeste, Custo, DuracaoDoSelo, Efeito, MecanicaV1, Numero, NumeroDaCd, NumeroSimples, QuemOAlvoPega, QuemRolaNoTeste } from './modelo'
+import { TESTE_DO_TIPO_DE_PARTIDA, type CdDoTeste, type Custo, type DuracaoDoSelo, type Efeito, type MecanicaV1, type Numero, type NumeroDaCd, type NumeroSimples, type QuemOAlvoPega, type QuemRolaNoTeste, type TipoComRegra, type TipoDoGolpe } from './modelo'
 
 /**
  * O RESUMO EM FRASES da técnica montada (construtor de mecânicas, fatia C2;
@@ -229,6 +230,74 @@ export function frasesDoDano(mecanica: MecanicaV1, ficha?: FichaDaPrevia): strin
   return frases
 }
 
+/** "3 vezes dele": a duração da condição, contada na vez de quem a tem. */
+function vezesDele(vezes: number): string {
+  return `${vezes} ${vezes === 1 ? 'vez' : 'vezes'} dele`
+}
+
+/** Fase ED1: a regra de cada tipo do golpe, nas frases do protótipo aprovado (editor/prototipo.html). */
+function regraDoTipoEmFrase(escolha: TipoComRegra<TipoDoGolpe>, ficha?: FichaDaPrevia): string {
+  switch (escolha.tipo) {
+    case 'impacto':
+      return `Atordoado por ${vezesDele(escolha.regra.vezes)}: perde a vez e não reage.`
+    case 'cortante':
+      return `Sangrando por ${vezesDele(escolha.regra.vezes)}: tira ${escolha.regra.porVez} de HP no começo de cada vez, direto (sem o Escudo).`
+    case 'perfurante':
+      return escolha.regra.porcento >= 100 ? 'Todo o dano vai direto no HP: o Escudo não segura nada.' : `${escolha.regra.porcento}% do dano vai direto no HP; o resto bate no Escudo antes.`
+    case 'queimadura':
+      return `Queimando por ${vezesDele(escolha.regra.vezes)}: tira ${escolha.regra.porVez} de HP no começo de cada vez. Acertar de novo renova a conta.`
+    case 'veneno':
+      return `Envenenado por ${vezesDele(escolha.regra.vezes)}: ${escolha.regra.porVez > 0 ? `tira ${escolha.regra.porVez} de HP por vez e ` : ''}a cura que ele recebe cai pela metade.`
+    case 'congelamento':
+      return `Congelado por ${vezesDele(escolha.regra.vezes)}: reage com desvantagem e alcança ${escolha.regra.casas} ${escolha.regra.casas === 1 ? 'casa' : 'casas'} a menos.`
+    case 'choque':
+      return `Eletrizado por ${vezesDele(escolha.regra.vezes)}: perde ${escolha.regra.porVez} de SP no fim de cada vez.`
+    case 'cegueira':
+      return `Cego por ${vezesDele(escolha.regra.vezes)}: a ${nomeDoAtributo('percepcao', ficha)} fica em 0.`
+    case 'enfraquecer': {
+      const { forca, dano, vezes } = escolha.regra
+      const partes = [...(forca > 0 ? [`${nomeDoAtributo(ATRIBUTO_DO_ENFRAQUECER, ficha)} −${forca}`] : []), ...(dano > 0 ? [`Dano −${dano}`] : [])]
+      return `Enfraquecido por ${vezesDele(vezes)}${partes.length === 0 ? '' : `: ${partes.join(' e ')}`}.`
+    }
+    case 'outro':
+      return `${escolha.regra.nome} por ${vezesDele(escolha.regra.vezes)}${escolha.regra.porVez > 0 ? `: tira ${escolha.regra.porVez} de HP por vez` : ''}.`
+  }
+}
+
+/** O "acertar" do "sempre que acertar", pelo jeito que a técnica pega. */
+function quandoATecnicaPega(mecanica: MecanicaV1): string {
+  switch (mecanica.teste.tipo) {
+    case 'resistencia':
+      return 'o alvo falhar no teste da técnica'
+    case 'disputa':
+      return 'vencer a disputa'
+    case 'reacao':
+    case 'naoErra':
+      return 'acertar'
+  }
+}
+
+/** Fase ED1: um tipo do golpe em frase: o nome, quando pega e a regra ("Veneno, sempre que acertar. Envenenado por 3 vezes dele: ..."). */
+function fraseDoTipo(escolha: TipoComRegra<TipoDoGolpe>, mecanica: MecanicaV1, ficha?: FichaDaPrevia): string {
+  const nome = NOME_DO_TIPO[escolha.tipo]
+  if (escolha.tipo === 'perfurante') return `${nome}. ${regraDoTipoEmFrase(escolha, ficha)}`
+  // O empurrão do Impacto é lembrete ao mestre e vale em todo modo, como no protótipo.
+  const empurra = escolha.tipo === 'impacto' && escolha.regra.casas > 0 ? ` ${fraseDoEmpurrao(escolha.regra.casas)}` : ''
+  const { regra } = escolha
+  if (regra.quando === 'soTipo') return `${nome}, só o tipo: só marca o golpe como ${escolha.tipo === 'outro' ? `de ${escolha.regra.nome}` : ADJETIVO_DO_TIPO[escolha.tipo]}.${empurra}`
+  const teste = regra.teste ?? TESTE_DO_TIPO_DE_PARTIDA
+  const quando = regra.quando === 'teste' ? `com teste: se ${quandoATecnicaPega(mecanica)}, o alvo testa ${nomeDoAtributo(teste.atributo, ficha)} (d20 + mod) contra ${textoDaCd(teste.cd, ficha)} e, se falhar, pega` : `sempre que ${quandoATecnicaPega(mecanica)}`
+  return `${nome}, ${quando}. ${regraDoTipoEmFrase(escolha, ficha)}${empurra}`
+}
+
+/** Fase ED1: o tipo do golpe em frases, um por linha (como bate, depois o que causa); sem tipo = nenhuma. */
+export function frasesDoGolpe(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string[] {
+  const { golpe } = mecanica
+  if (golpe === undefined) return []
+  const tipos: TipoComRegra<TipoDoGolpe>[] = [...(golpe.bate === undefined ? [] : [golpe.bate]), ...(golpe.causa ?? [])]
+  return tipos.map((escolha) => fraseDoTipo(escolha, mecanica, ficha))
+}
+
 /** Construtor C5: o número conta na vez de quem tem o selo (a regra do sistema), e a frase diz de quem. */
 function duracaoDoSelo(duracao: DuracaoDoSelo, ajuda: boolean): string {
   if (duracao === 'ateTirar') return 'até tirarem'
@@ -337,9 +406,11 @@ export function fraseDoLimite(mecanica: MecanicaV1): string | null {
   return partes.length === 0 ? null : partes.join(' ')
 }
 
-/** Quantas peças o app não executa (só lembra o mestre). */
+/** Quantas peças o app não executa (só lembra o mestre). Fase ED1: o empurrão do Impacto é uma delas. */
 export function pecasAMao(mecanica: MecanicaV1): number {
-  return mecanica.efeitos.filter((efeito) => efeito.tipo === 'aMao').length
+  const bate = mecanica.golpe?.bate
+  const empurra = bate?.tipo === 'impacto' && bate.regra.casas > 0 ? 1 : 0
+  return mecanica.efeitos.filter((efeito) => efeito.tipo === 'aMao').length + empurra
 }
 
 /** A etiqueta do resumo: "O app faz tudo" ou "1 peça à mão". */
@@ -363,7 +434,7 @@ export function resumoDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): s
     daVez ? fraseDoCustoEDaAcao(mecanica) : fraseDoCusto(mecanica),
     ...frasesDosOutrosCustos(mecanica),
     ...doItem,
-    ...(daVez ? [alvoETeste, ...frasesDoDano(mecanica, ficha)] : []),
+    ...(daVez ? [alvoETeste, ...frasesDoDano(mecanica, ficha), ...frasesDoGolpe(mecanica, ficha)] : []),
     ...frasesDaReacao(mecanica, ficha),
     ...mecanica.efeitos.filter((efeito) => daVez || (efeito.tipo === 'selo' && efeito.em === 'atacante')).map((efeito) => fraseDoEfeito(efeito, mecanica, ficha)),
     ...(limite === null ? [] : [limite]),
