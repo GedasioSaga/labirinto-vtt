@@ -307,13 +307,18 @@ function fraseDaPeca(peca: PecaDoGrupo): string {
   return ehUmDestes(peca) ? fraseDoUmDestes(peca) : fraseDoRequisito(peca)
 }
 
+/** A frase da peça no meio de uma frase maior ("precisa: 50 SP ou mais; com Melodia ligada"): sem a maiúscula do começo, os nomes como vieram. */
+function fraseDaPecaNoMeio(peca: PecaDoGrupo): string {
+  return ehUmDestes(peca) ? minuscula(fraseDoUmDestes(peca)) : textosDaOpcao(peca).frase
+}
+
 function curtoDaPeca(peca: PecaDoGrupo): string {
   return ehUmDestes(peca) ? peca.umDestes.map(nomeCurtoDoRequisito).join(' ou ') : nomeCurtoDoRequisito(peca)
 }
 
-/** Uma linha por peça da raiz "Todos estes". */
-export function frasesDoGrupo(grupo: GrupoDeRequisitos): string[] {
-  return grupo.todos.map(fraseDaPeca)
+/** Uma linha por peça da raiz "Todos estes". `noMeio`: as linhas vão juntas depois de "precisa:" (sem maiúscula no começo). */
+export function frasesDoGrupo(grupo: GrupoDeRequisitos, noMeio = false): string[] {
+  return grupo.todos.map(noMeio ? fraseDaPecaNoMeio : fraseDaPeca)
 }
 
 /** Uma seção do bloco, com o título que o editor e o menu mostram. */
@@ -324,16 +329,19 @@ export interface SecaoDosRequisitos {
 
 /**
  * O bloco inteiro, por seção; seção vazia não sai. `ehForma`: o cartão é uma forma (o "Para usar"
- * vira "Para ligar").
+ * vira "Para ligar"). `noMeio`: quem mostra junta as linhas de uma seção numa frase só ("Para usar:
+ * 50 SP ou mais; com Melodia ligada"), então os requisitos saem sem a maiúscula do começo.
  */
-export function frasesDosRequisitos(bloco: RequisitosDoCartao, ehForma = false): SecaoDosRequisitos[] {
+export function frasesDosRequisitos(bloco: RequisitosDoCartao, ehForma = false, noMeio = false): SecaoDosRequisitos[] {
   const secoes: SecaoDosRequisitos[] = []
-  if (bloco.usar !== undefined && bloco.usar.todos.length > 0) secoes.push({ titulo: ehForma ? 'Para ligar' : 'Para usar', linhas: frasesDoGrupo(bloco.usar) })
-  if (bloco.evoluir !== undefined) secoes.push({ titulo: 'Para evoluir', linhas: [...frasesDoGrupo(bloco.evoluir.grupo), 'Evoluída, vale até ser usada uma vez'] })
-  if (bloco.aoUsar !== undefined) secoes.push({ titulo: 'Ao usar', linhas: ['Sobe uma Parte da forma de onde vem'] })
+  if (bloco.usar !== undefined && bloco.usar.todos.length > 0) secoes.push({ titulo: ehForma ? 'Para ligar' : 'Para usar', linhas: frasesDoGrupo(bloco.usar, noMeio) })
+  // As linhas fixas também vão no meio da frase com `noMeio` (nenhuma começa por nome).
+  const fixa = (texto: string): string => (noMeio ? minuscula(texto) : texto)
+  if (bloco.evoluir !== undefined) secoes.push({ titulo: 'Para evoluir', linhas: [...frasesDoGrupo(bloco.evoluir.grupo, noMeio), fixa('Evoluída, vale até ser usada uma vez')] })
+  if (bloco.aoUsar !== undefined) secoes.push({ titulo: 'Ao usar', linhas: [fixa('Sobe uma Parte da forma de onde vem')] })
   const forma: string[] = []
-  if (bloco.forma?.partesEmOrdem === true) forma.push('Uma Parte por vez, em ordem')
-  if (bloco.forma?.soLigaPor !== undefined) forma.push(`Só liga com ${bloco.forma.soLigaPor.map((ref) => ref.nome).join(' ou ')}`)
+  if (bloco.forma?.partesEmOrdem === true) forma.push(fixa('Uma Parte por vez, em ordem'))
+  if (bloco.forma?.soLigaPor !== undefined) forma.push(fixa(`Só liga com ${bloco.forma.soLigaPor.map((ref) => ref.nome).join(' ou ')}`))
   if (forma.length > 0) secoes.push({ titulo: 'Forma', linhas: forma })
   return secoes
 }

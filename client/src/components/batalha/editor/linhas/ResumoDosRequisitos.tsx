@@ -25,7 +25,7 @@ export function ResumoDosRequisitos({ todos, qual, nome, personagem, custoEmSp }
   const lidos = useMemo(() => lerRequisitos(blocoParaLer(todos, qual)), [todos, qual])
   const contexto = useMemo(() => contextoDaFicha(personagem, custoEmSp), [personagem, custoEmSp])
   const avaliacao = useMemo(() => avaliarDoCartao(lidos, qual, contexto), [lidos, qual, contexto])
-  const linhas = lidos.bloco === null ? [] : frasesDosRequisitos(lidos.bloco).flatMap((secao) => secao.linhas.filter((linha) => !linha.startsWith('Evoluída')))
+  const linhas = lidos.bloco === null ? [] : frasesDosRequisitos(lidos.bloco, false, true).flatMap((secao) => secao.linhas.filter((linha) => !linha.startsWith('evoluída')))
   const quem = nome.trim() || 'esta técnica'
   if (linhas.length === 0) return null
   const comeco = qual === 'evoluir' ? `Para evoluir para ${quem}, precisa` : `Para usar ${quem}, precisa`

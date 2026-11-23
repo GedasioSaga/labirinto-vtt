@@ -31,7 +31,7 @@ export function HabilidadeNaFicha({ cartao, ficha, quemEdita, tecnicas, podeOcul
   const proposta = cartao.mecanicaProposta === undefined ? null : lerMecanica(cartao.mecanicaProposta)
   const requisitos = useMemo(() => {
     const lidos = lerRequisitos(cartao.requisitos)
-    return lidos.bloco === null ? [] : frasesDosRequisitos(lidos.bloco)
+    return lidos.bloco === null ? [] : frasesDosRequisitos(lidos.bloco, false, true)
   }, [cartao.requisitos])
   const futura = valendo.tipo === 'futura' || (quemEdita === 'dono' && proposta?.tipo === 'futura')
   const montada = valendo.tipo === 'pecas'
