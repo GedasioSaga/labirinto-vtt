@@ -8,13 +8,10 @@ import type { CartaoDaFicha, MecanicaGuardada } from '../../lib/personagem'
 import type { EfeitoDoItem } from '../../types/map'
 import { BlocosDaMecanica } from './BlocosDaMecanica'
 import { OsNumeros } from './blocos/OsNumeros'
-import { editorNovoLigado } from './editor/ligado'
 import './MecanicaDaTecnica.css'
 
 /** Fase 3: o Testar pesa o motor da batalha inteiro; só carrega quando o mestre abre. */
 const PainelDeEnsaio = lazy(() => import('../ensaio/PainelDeEnsaio').then((modulo) => ({ default: modulo.PainelDeEnsaio })))
-/** ED3 (docs/design/habilidades/EDITOR.md): o editor novo, só com a chave ligada (`editor/ligado.ts`) até a ED5 trocar esta fachada. */
-const EditorDaHabilidade = lazy(() => import('./editor/EditorDaHabilidade').then((modulo) => ({ default: modulo.EditorDaHabilidade })))
 
 /**
  * A MECÂNICA DA TÉCNICA no cartão da ficha (construtor de mecânicas, fatia C2;
@@ -206,15 +203,6 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
   const [testando, setTestando] = useState(false)
   const fecharTeste = useCallback(() => setTestando(false), [])
   const futura = valendo.tipo === 'futura' || (quemEdita === 'dono' && proposta.tipo === 'futura')
-  // ED3: a chave é lida uma vez por cartão aberto; ligar ou desligar vale ao reabrir a ficha.
-  const [comEditorNovo] = useState(() => doQue === 'tecnica' && editorNovoLigado())
-  const [noEditorNovo, setNoEditorNovo] = useState(false)
-  const fecharEditorNovo = useCallback(() => {
-    setNoEditorNovo(false)
-    // O editor novo gravou no cartão: o rascunho daqui volta a sair do cartão na próxima abertura.
-    setRascunho(null)
-  }, [])
-
   /** A mecânica que o editor abre: a proposta do dono (se for ele), senão a que vale. */
   const inicial = (): MecanicaV1 | null => {
     if (quemEdita === 'dono' && proposta.tipo === 'pecas') return proposta.mecanica
@@ -369,17 +357,6 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
               {noItem !== null ? (temAlgo ? noItem.editar : noItem.montar) : temAlgo ? (quemEdita === 'dono' ? 'Editar a proposta' : 'Editar a mecânica') : quemEdita === 'dono' ? 'Montar mecânica (vai ao mestre)' : 'Montar mecânica'}
             </button>
             {botaoTestar}
-            {comEditorNovo && (
-              <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" disabled={futura}
-                onClick={() => {
-                  // O Testar daqui escuta o Esc na captura da janela: fechado, o Esc fica com o editor novo.
-                  setTestando(false)
-                  setNoEditorNovo(true)
-                }}
-              >
-                Abrir no editor novo
-              </button>
-            )}
             {quemEdita === 'mestre' && cartao.mecanica !== undefined && (
               <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={tirar}>
                 {noItem !== null ? noItem.tirar : 'Tirar a mecânica (volta ao texto)'}
@@ -499,12 +476,6 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
             <BlocosDaMecanica mecanica={rascunho} cartao={cartao} ficha={ficha} onChange={editar} naArma={naArma} />
           </details>
         </div>
-      )}
-
-      {noEditorNovo && (
-        <Suspense fallback={null}>
-          <EditorDaHabilidade cartao={cartao} ficha={ficha} quemEdita={quemEdita} onChange={onChange} onFechar={fecharEditorNovo} />
-        </Suspense>
       )}
 
       {testando && fase !== 'escolhendo' && (

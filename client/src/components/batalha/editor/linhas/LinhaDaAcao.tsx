@@ -3,7 +3,8 @@ import type { AcaoDaMecanica, MecanicaV1, Teste, UsoDaMecanica } from '../../../
 import { trocarUso } from '../../../../lib/batalha/mecanica/modelos'
 import { ACOES } from '../../blocos/BlocosDoComeco'
 import { Escolha } from '../../blocos/controles'
-import { categoriaDaMecanica, mecanicaNaCategoria, motivoDaCategoria, nomeDaAcao, oQueSaiu, type CategoriaDaAcao } from '../acaoNaTela'
+import { categoriaDaMecanica, nomeDaAcao, type CategoriaDaAcao } from '../../../../lib/batalha/mecanica/categoria'
+import { mecanicaNaCategoria, motivoDaCategoria, oQueSaiu } from '../acaoNaTela'
 import type { MudarNoEditor } from '../mudarNoEditor'
 
 interface CartaoDaCategoria {

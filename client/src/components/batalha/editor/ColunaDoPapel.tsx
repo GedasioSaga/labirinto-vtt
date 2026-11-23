@@ -3,7 +3,8 @@ import type { MecanicaV1 } from '../../../lib/batalha/mecanica/modelo'
 import type { FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import type { CartaoDaFicha } from '../../../lib/personagem'
 import { TestarDoAlcance } from '../alcance/TestarDoAlcance'
-import { linhaCurtaDoPapel, pedacosDaFrase, type IdDaLinha } from './fraseDoPapel'
+import { pedacosDoPapel, textoDoCartao } from '../../../lib/batalha/mecanica/textoGerado'
+import { linhaCurtaDoPapel, type IdDaLinha } from './fraseDoPapel'
 import { ancoraDaLinha } from './Linha'
 
 /** O Testar pesa o motor da batalha inteiro: só carrega com o editor aberto (como na fachada de hoje). */
@@ -38,8 +39,10 @@ interface ColunaDoPapelProps {
  */
 export function ColunaDoPapel({ cartao, mecanica, ficha, prefixo, onIr }: ColunaDoPapelProps) {
   const tituloId = useId()
-  const pedacos = useMemo(() => (mecanica === null ? null : pedacosDaFrase(mecanica, ficha)), [mecanica, ficha])
+  const pedacos = useMemo(() => (mecanica === null ? null : pedacosDoPapel(mecanica, ficha)), [mecanica, ficha])
   const linhaCurta = useMemo(() => (mecanica === null ? 'Só texto: a batalha lê os campos escritos' : linhaCurtaDoPapel(mecanica, ficha)), [mecanica, ficha])
+  // Os valores vêm de uma fonte só (`textoDoCartao`): o mesmo que o Salvar grava nos campos da técnica montada.
+  const gerado = useMemo<Readonly<Record<string, string>> | null>(() => (mecanica === null ? null : textoDoCartao(mecanica, ficha.sistema)), [mecanica, ficha.sistema])
   const descricao = (cartao.campos.descricao ?? '').trim()
   const irPara = (linha: IdDaLinha) => (evento: MouseEvent<HTMLAnchorElement>) => {
     evento.preventDefault()
@@ -81,19 +84,21 @@ export function ColunaDoPapel({ cartao, mecanica, ficha, prefixo, onIr }: Coluna
             </div>
           )}
         </article>
-        {/* ED2 (texto gerado): aqui entram os campos que o app escreve das escolhas; até lá, o que o cartão guarda hoje. */}
-        <details className="lb-ed__textos">
-          <summary>O que o app escreve nos campos de texto</summary>
-          <p className="lb-ed__dica">Por enquanto, o texto que o cartão guarda hoje. Com o texto gerado, o app escreve sozinho a partir das escolhas, e não dá para editar aqui, para nunca dizerem outra coisa.</p>
-          <dl>
-            {CAMPOS_DE_TEXTO.map(({ chave, nome }) => (
-              <div key={chave} className="lb-ed__texto">
-                <dt>{nome}</dt>
-                <dd>{(cartao.campos[chave] ?? '').trim() || '—'}</dd>
-              </div>
-            ))}
-          </dl>
-        </details>
+        {/* ED2: o que o app escreve nos campos de texto, das escolhas (o app de antes e o site do Lobby leem estes). Só leitura, de propósito. */}
+        {gerado !== null && (
+          <details className="lb-ed__textos">
+            <summary>O que o app escreve nos campos de texto</summary>
+            <p className="lb-ed__dica">O app escreve sozinho a partir das escolhas, e não dá para editar aqui, para nunca dizerem outra coisa. O app de antes e o site do Lobby leem estes campos.</p>
+            <dl>
+              {CAMPOS_DE_TEXTO.map(({ chave, nome }) => (
+                <div key={chave} className="lb-ed__texto">
+                  <dt>{nome}</dt>
+                  <dd>{(gerado[chave] ?? '').trim() || '—'}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+        )}
       </section>
 
       {mecanica?.uso !== 'reacao' && (

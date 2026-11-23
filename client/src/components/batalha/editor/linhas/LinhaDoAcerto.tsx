@@ -2,7 +2,7 @@ import type { MecanicaV1 } from '../../../../lib/batalha/mecanica/modelo'
 import type { FichaDaPrevia } from '../../../../lib/batalha/mecanica/resumo'
 import { BlocoDaReacao } from '../../blocos/BlocosDoFim'
 import { BlocoDoTeste } from '../../blocos/BlocoDoTeste'
-import { categoriaDaMecanica } from '../acaoNaTela'
+import { categoriaDaMecanica } from '../../../../lib/batalha/mecanica/categoria'
 
 /**
  * LINHA ACERTO (EDITOR.md §5; na Reação ela vira "Defesa"): como o golpe pega

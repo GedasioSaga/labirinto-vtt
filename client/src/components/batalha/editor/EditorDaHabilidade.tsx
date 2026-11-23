@@ -1,23 +1,34 @@
 import { useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { categoriaDaMecanica, tipoNaBatalha } from '../../../lib/batalha/mecanica/categoria'
+import { modeloDoTexto } from '../../../lib/batalha/mecanica/doTexto'
 import { avisoDaMecanica, lerMecanica, type MecanicaV1 } from '../../../lib/batalha/mecanica/modelo'
-import { MODELOS_PRONTOS, mecanicaDoModeloNoCartao, problemaDaMecanica, type IdDoModelo } from '../../../lib/batalha/mecanica/modelos'
-import { frasesDoGolpe, type FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
+import { guardarMecanica, MODELOS_PRONTOS, mecanicaDoModeloNoCartao, problemaDaMecanica, type IdDoModelo } from '../../../lib/batalha/mecanica/modelos'
+import type { FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
+import { camposGeradosDaAba, cartaoComTextoGerado, desmontarCartao } from '../../../lib/batalha/mecanica/textoGerado'
+import { ABA_DAS_TECNICAS } from '../../../lib/batalha/leituraDaFicha'
+import { leituraDaTecnica } from '../../../lib/batalha/leituraDaTecnica'
 import type { CartaoDaFicha } from '../../../lib/personagem'
+import { abaDoSistema } from '../../../lib/sistemaDeRpg'
 import { BlocoSemCaixa } from '../blocos/controles'
-import { categoriaDaMecanica, tipoNaBatalha } from './acaoNaTela'
+import { OcultaNoCartao } from '../HabilidadeOculta'
 import { ColunaDoPapel } from './ColunaDoPapel'
 import { ComecarDeUmModelo } from './ComecarDeUmModelo'
 import type { IdDaLinha } from './fraseDoPapel'
 import { cartaoComAMecanica, cartaoDaTela, mecanicaQueAbre, type QuemEditaNoEditor } from './gravarNoCartao'
-import { ancoraDaLinha, Linha, LinhaQueVem } from './Linha'
+import { ancoraDaLinha, Linha } from './Linha'
 import { LinhaDaAcao } from './linhas/LinhaDaAcao'
+import { LinhaDaEvolucao } from './linhas/LinhaDaEvolucao'
 import { LinhaDoAcerto } from './linhas/LinhaDoAcerto'
 import { LinhaDoAlcance } from './linhas/LinhaDoAlcance'
 import { LinhaDoCusto } from './linhas/LinhaDoCusto'
 import { LinhaDoDano } from './linhas/LinhaDoDano'
+import { LinhaDoGolpe } from './linhas/LinhaDoGolpe'
+import { LinhaDosCampos } from './linhas/LinhaDosCampos'
 import { LinhaDosEfeitos } from './linhas/LinhaDosEfeitos'
+import { LinhaDosRequisitos } from './linhas/LinhaDosRequisitos'
 import type { MudarNoEditor } from './mudarNoEditor'
+import { fontesDaFicha, listasDaFicha } from './requisitosDoCartao'
 import './editor.css'
 
 /** Quantos passos o Ctrl+Z guarda. */
@@ -28,6 +39,12 @@ const JUNTAR_MS = 800
 const AVISO_MS = 6000
 /** A saída do aviso (mais rápida que a entrada, 200 ms no CSS). */
 const SAIDA_DO_AVISO_MS = 150
+
+/** Um passo do Ctrl+Z: o cartão inteiro (requisitos, extras, Montar e Desmontar voltam iguais) e o rascunho. */
+interface Passo {
+  cartao: CartaoDaFicha
+  rascunho: MecanicaV1 | null
+}
 
 interface Aviso {
   texto: string
@@ -48,32 +65,35 @@ function digitando(alvo: EventTarget): boolean {
 export interface EditorDaHabilidadeProps {
   cartao: CartaoDaFicha
   ficha: FichaDaPrevia
-  /** O mestre grava a `mecanica`; o dono, a `mecanicaProposta` (como na fachada `MecanicaDaTecnica`). */
+  /** O mestre grava a `mecanica`; o dono, a `mecanicaProposta`. */
   quemEdita: QuemEditaNoEditor
   /** Cada mudança completa vai na hora para o cartão em edição; quem grava em disco é o Salvar da ficha. */
   onChange: (cartao: CartaoDaFicha) => void
   onFechar: () => void
+  /** As técnicas da ficha (com esta): o "Evolui para" e os requisitos que apontam outra técnica. */
+  tecnicas: readonly CartaoDaFicha[]
+  /** O app do mestre esconde cartões dos jogadores (o site, não: lá o segredo subiria ao Lobby). */
+  podeOcultar: boolean
 }
 
 /**
- * O EDITOR DA HABILIDADE novo, a casca (ED3; docs/design/habilidades/EDITOR.md §5
- * e o protótipo aprovado `editor/prototipo.html`, direção C): uma linha por
- * pergunta à esquerda e, à direita, o papel com a frase (cada pedaço leva à
- * sua linha), o mapa do alcance e o Testar no boneco, vivos. Por dentro, os
- * controles de hoje (`blocos/`, `EscolhaDaForma`, `CampoDeDano`, `PecasDoSelo`,
- * `PainelDeEnsaio`). Abre por cima da ficha, numa janela do sistema
+ * O EDITOR DA HABILIDADE (EDITOR.md §5; protótipo aprovado `editor/prototipo.html`, direção C): uma
+ * linha por pergunta à esquerda e, à direita, o papel com a frase (cada pedaço leva à sua linha), o
+ * mapa do alcance e o Testar no boneco, vivos. Abre por cima da ficha, numa janela do sistema
  * (`<dialog>`): Esc fecha, Ctrl+Z desfaz fora dos campos de texto.
  *
- * Até a ED5 trocar a fachada, só abre pela chave `lb-editor:novo` (`ligado.ts`).
+ * ED5: é o editor das técnicas na ficha. O mestre grava a `mecanica` e os campos de texto saem dela
+ * (`cartaoComTextoGerado`, o ponto único); o dono grava a `mecanicaProposta`. Requisitos, evolução,
+ * esconder e campos extras gravam no cartão, fora da mecânica.
  */
-export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFechar }: EditorDaHabilidadeProps) {
+export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFechar, tecnicas, podeOcultar }: EditorDaHabilidadeProps) {
   const prefixo = useId()
   const tituloId = useId()
   const nomeId = useId()
   const descricaoId = useId()
   const janela = useRef<HTMLDialogElement>(null)
   const [rascunho, setRascunho] = useState<MecanicaV1 | null>(() => mecanicaQueAbre(cartao, quemEdita))
-  const [pilha, setPilha] = useState<readonly (MecanicaV1 | null)[]>([])
+  const [pilha, setPilha] = useState<readonly Passo[]>([])
   const ultimoPasso = useRef(0)
   const [aviso, setAviso] = useState<Aviso | null>(null)
   const [escolhendoModelo, setEscolhendoModelo] = useState(false)
@@ -105,22 +125,37 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
 
   const avisar = (texto: string, comDesfazer: boolean) => setAviso({ texto, comDesfazer, saindo: false, vez: performance.now() })
 
-  /** O rascunho na tela e, se completo, no cartão; peça pela metade fica só aqui. */
-  const gravar = (nova: MecanicaV1 | null) => {
-    setRascunho(nova)
+  /** O passo de agora vai para a pilha: `novo` sempre; `junta` só depois de uma pausa (digitar vira um passo só). */
+  const guardarPasso = (passo: 'novo' | 'junta') => {
+    const agora = performance.now()
+    if (passo === 'novo' || agora - ultimoPasso.current > JUNTAR_MS) setPilha((antes) => [...antes.slice(-(PILHA_MAX - 1)), { cartao, rascunho }])
+    ultimoPasso.current = passo === 'novo' ? 0 : agora
+  }
+
+  /**
+   * O cartão com a mecânica do rascunho; `null` = não muda (peça pela metade fica só aqui). O mestre
+   * leva junto os campos de texto que a mecânica diz (EDITOR.md §3.4).
+   */
+  const cartaoComRascunho = (nova: MecanicaV1 | null): CartaoDaFicha | null => {
     const proximo = cartaoComAMecanica(cartao, nova, quemEdita, fichaFixa)
-    if (proximo !== null) onChange(proximo)
+    if (proximo === null || quemEdita !== 'mestre') return proximo
+    return cartaoComTextoGerado(cartao, proximo, fichaFixa.sistema, 'tecnica')
   }
 
   /** `novo`: um passo próprio no Ctrl+Z (modelo, categoria que tira peças); `junta`: cola no passo de agora há pouco. */
   const mudar = (nova: MecanicaV1 | null, passo: 'novo' | 'junta', textoDoAviso?: string) => {
-    const agora = performance.now()
-    if (passo === 'novo' || agora - ultimoPasso.current > JUNTAR_MS) setPilha((antes) => [...antes.slice(-(PILHA_MAX - 1)), rascunho])
-    ultimoPasso.current = passo === 'novo' ? 0 : agora
-    gravar(nova)
+    guardarPasso(passo)
+    setRascunho(nova)
+    const proximo = cartaoComRascunho(nova)
+    if (proximo !== null) onChange(proximo)
     if (textoDoAviso !== undefined) avisar(textoDoAviso, true)
   }
   const mudarNaLinha: MudarNoEditor = (nova, textoDoAviso) => mudar(nova, textoDoAviso === undefined ? 'junta' : 'novo', textoDoAviso)
+  /** O que muda fora da mecânica (nome, requisitos, evolução, extras): digitar junta num passo só. */
+  const mudarCartao = (proximo: CartaoDaFicha) => {
+    guardarPasso('junta')
+    onChange(proximo)
+  }
 
   const desfazer = () => {
     const anterior = pilha.at(-1)
@@ -130,14 +165,49 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
     }
     setPilha((antes) => antes.slice(0, -1))
     ultimoPasso.current = 0
-    gravar(anterior)
-    avisar(anterior === null ? 'Desfeito: a técnica voltou a ser só texto.' : 'Desfeito.', false)
+    setRascunho(anterior.rascunho)
+    onChange(anterior.cartao)
+    avisar(anterior.rascunho === null && rascunho !== null ? 'Desfeito: a técnica voltou a ser só texto.' : 'Desfeito.', false)
   }
 
   const aplicarModelo = (id: IdDoModelo) => {
     setEscolhendoModelo(false)
     const nome = MODELOS_PRONTOS.find((modelo) => modelo.id === id)?.nome ?? 'escolhido'
     mudar(mecanicaDoModeloNoCartao(id, fichaFixa, cartao), 'novo', `Modelo ${nome}: preencheu Ação, Alcance, Dano, Acerto, Efeitos e Custo. Nome, descrição e requisitos ficaram.`)
+  }
+
+  /** Montar a partir do texto (EDITOR.md §3.5): o modelo que o texto pede, com o custo, a ação e o dano escritos. */
+  const montarDoTexto = () => {
+    const id = modeloDoTexto(cartao)
+    if (id === null) {
+      avisar('Técnica passiva: fica no texto. A batalha não usa passiva; o mestre aplica o que ela faz.', false)
+      return
+    }
+    const nome = MODELOS_PRONTOS.find((modelo) => modelo.id === id)?.nome ?? id
+    const guardado = quemEdita === 'mestre' ? ' O texto de antes ficou guardado e volta no Desmontar.' : ''
+    mudar(mecanicaDoModeloNoCartao(id, fichaFixa, cartao), 'novo', `Montada como ${nome}: confira cada linha.${guardado}`)
+  }
+
+  /** Desmontar (§3.5, só o mestre): a mecânica sai e o texto de antes volta aos campos. A proposta do dono fica. */
+  const desmontar = () => {
+    guardarPasso('novo')
+    setRascunho(null)
+    onChange(desmontarCartao(cartao, fichaFixa.sistema))
+    avisar('Desmontada: a técnica voltou a ser só texto, com o texto de antes.', true)
+  }
+
+  /** O mestre decide a proposta do dono: aceita = vira a mecânica, com o texto gerado; recusa = a proposta sai. */
+  const decidirProposta = (aceitar: boolean) => {
+    const { mecanicaProposta: _fora, ...semProposta } = cartao
+    const proposta = lerMecanica(cartao.mecanicaProposta)
+    guardarPasso('novo')
+    if (!aceitar || proposta.tipo !== 'pecas') {
+      onChange(semProposta)
+      return
+    }
+    setRascunho(proposta.mecanica)
+    onChange(cartaoComTextoGerado(cartao, { ...semProposta, mecanica: guardarMecanica(proposta.mecanica) }, fichaFixa.sistema, 'tecnica'))
+    avisar('Proposta aceita: vale depois que você salvar a ficha.', true)
   }
 
   /** O pedaço da frase leva à linha dele: rola até ela, acende o brilho e põe o foco no primeiro controle. */
@@ -165,6 +235,18 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
     desfazer()
   }
 
+  const fontes = useMemo(() => fontesDaFicha(fichaFixa.personagem, fichaFixa.sistema, tecnicas, cartao.id), [fichaFixa, tecnicas, cartao.id])
+  const listas = useMemo(() => listasDaFicha(fichaFixa.personagem), [fichaFixa.personagem])
+  const custoEmSp = useMemo(() => {
+    const custo = leituraDaTecnica(telaAdiada, fichaFixa).custo
+    return custo.tipo === 'valor' && custo.recurso === 'sp' ? custo.valor : 0
+  }, [telaAdiada, fichaFixa])
+  const camposDeTexto = useMemo(() => {
+    const ids: ReadonlySet<string> = new Set(camposGeradosDaAba(fichaFixa.sistema))
+    return (abaDoSistema(fichaFixa.sistema, ABA_DAS_TECNICAS)?.campos ?? []).filter((campo) => ids.has(campo.id))
+  }, [fichaFixa.sistema])
+
+  const proposta = quemEdita === 'mestre' && cartao.mecanicaProposta !== undefined ? lerMecanica(cartao.mecanicaProposta) : null
   const lida = lerMecanica(quemEdita === 'dono' && cartao.mecanicaProposta !== undefined ? cartao.mecanicaProposta : cartao.mecanica)
   const futura = lida.tipo === 'futura'
   const categoria = rascunho === null ? null : categoriaDaMecanica(rascunho)
@@ -204,6 +286,11 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
             </svg>
             Começar de um modelo
           </button>
+          {quemEdita === 'mestre' && cartao.mecanica !== undefined && (
+            <button type="button" className="lb-ed__bt lb-ed__bt--fantasma" title="A mecânica sai e o texto de antes volta aos campos" onClick={desmontar}>
+              Desmontar
+            </button>
+          )}
           <button type="button" className="lb-ed__bt lb-ed__bt--fantasma" disabled={pilha.length === 0} aria-keyshortcuts="Control+Z" title="Ctrl+Z" onClick={desfazer}>
             Desfazer
           </button>
@@ -218,7 +305,7 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
           <div className="lb-ed__topo">
             <div className="lb-ed__campo">
               <label htmlFor={nomeId}>Nome</label>
-              <input id={nomeId} className="lb-ed__entrada lb-ed__entrada--nome" value={cartao.nome} placeholder="Nome da habilidade" onChange={(evento) => onChange({ ...cartao, nome: evento.target.value })} />
+              <input id={nomeId} className="lb-ed__entrada lb-ed__entrada--nome" value={cartao.nome} placeholder="Nome da habilidade" onChange={(evento) => mudarCartao({ ...cartao, nome: evento.target.value })} />
             </div>
             <div className="lb-ed__campo lb-ed__campo--tipo">
               <span className="lb-ed__rot">Tipo na batalha</span>
@@ -230,9 +317,25 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
               <label htmlFor={descricaoId}>
                 Descrição <span className="lb-ed__dica">como o golpe é, com suas palavras (só para ler; o app não lê)</span>
               </label>
-              <textarea id={descricaoId} className="lb-ed__entrada" rows={2} value={cartao.campos.descricao ?? ''} placeholder="Ex.: uma flecha de fogo que corta o céu" onChange={(evento) => onChange({ ...cartao, campos: { ...cartao.campos, descricao: evento.target.value } })} />
+              <textarea id={descricaoId} className="lb-ed__entrada" rows={2} value={cartao.campos.descricao ?? ''} placeholder="Ex.: uma flecha de fogo que corta o céu" onChange={(evento) => mudarCartao({ ...cartao, campos: { ...cartao.campos, descricao: evento.target.value } })} />
             </div>
           </div>
+
+          {proposta !== null && (
+            <div className="lb-ed__proposta" role="group" aria-label="Proposta do dono da ficha">
+              <p>
+                {proposta.tipo === 'pecas' ? 'O dono da ficha propôs uma mecânica para esta técnica. Ela só vale depois que você aceitar e salvar a ficha.' : `O dono da ficha propôs uma mecânica que não se lê aqui${proposta.tipo === 'nenhuma' ? '' : `: ${avisoDaMecanica(proposta)}`}`}
+              </p>
+              <div className="lb-ed__linha-acoes">
+                <button type="button" className="lb-ed__bt lb-ed__bt--primario lb-ed__bt--p" disabled={proposta.tipo !== 'pecas'} onClick={() => decidirProposta(true)}>
+                  Aceitar a proposta
+                </button>
+                <button type="button" className="lb-ed__bt lb-ed__bt--fantasma lb-ed__bt--p" onClick={() => decidirProposta(false)}>
+                  Recusar
+                </button>
+              </div>
+            </div>
+          )}
 
           {(lida.tipo === 'futura' || lida.tipo === 'invalida') && (
             <p className="lb-ed__alerta" role="note">
@@ -243,15 +346,37 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
 
           <BlocoSemCaixa.Provider value={true}>
             {rascunho === null ? (
-              <Linha prefixo={prefixo} linha="acao" nome="Ação" dica="o que é e o que gasta" brilho={brilhoDe('acao')}>
-                <p className="lb-ed__vazio">Esta técnica ainda é só texto: a batalha lê a Ação, o Custo e o Dano escritos no cartão. Para montar as peças, comece de um modelo; o custo, a ação e o dano escritos entram nele quando dá.</p>
-                {!futura && (
-                  <button type="button" className="lb-ed__bt lb-ed__bt--latao lb-ed__bt--sozinho" onClick={abrirModelos}>
-                    Começar de um modelo
-                  </button>
+              <>
+                <Linha prefixo={prefixo} linha="acao" nome="Montar" dica="a técnica ainda é só texto" brilho={brilhoDe('acao')}>
+                  <p className="lb-ed__vazio">Esta técnica é só texto: a batalha lê a Ação, o Custo e o Dano escritos no cartão. Monte as peças a partir do que está escrito, ou comece de um modelo. O texto de agora fica guardado; o Desmontar o põe de volta.</p>
+                  {!futura && (
+                    <div className="lb-ed__linha-acoes">
+                      <button type="button" className="lb-ed__bt lb-ed__bt--primario lb-ed__bt--p" onClick={montarDoTexto}>
+                        Montar a partir do texto
+                      </button>
+                      <button type="button" className="lb-ed__bt lb-ed__bt--latao lb-ed__bt--p" onClick={abrirModelos}>
+                        Começar de um modelo
+                      </button>
+                    </div>
+                  )}
+                </Linha>
+                {camposDeTexto.length > 0 && (
+                  <Linha prefixo={prefixo} linha="textos" nome="Texto" dica="o que a batalha lê, escrito" brilho={brilhoDe('textos')}>
+                    <div className="lb-ed__textos-editaveis">
+                      {camposDeTexto.map((campo) => (
+                        <label key={campo.id} className="lb-ed__campo">
+                          <span>{campo.rotulo}</span>
+                          {campo.forma === 'paragrafo' ? (
+                            <textarea className="lb-ed__entrada" rows={2} value={cartao.campos[campo.id] ?? ''} onChange={(evento) => mudarCartao({ ...cartao, campos: { ...cartao.campos, [campo.id]: evento.target.value } })} />
+                          ) : (
+                            <input className="lb-ed__entrada" value={cartao.campos[campo.id] ?? ''} onChange={(evento) => mudarCartao({ ...cartao, campos: { ...cartao.campos, [campo.id]: evento.target.value } })} />
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </Linha>
                 )}
-                <LinhaQueVem texto='"Montar a partir do texto" e "Desmontar" chegam com o editor inteiro.' />
-              </Linha>
+              </>
             ) : (
               <>
                 <Linha prefixo={prefixo} linha="acao" nome="Ação" dica="o que é e o que gasta" brilho={brilhoDe('acao')}>
@@ -259,12 +384,7 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
                 </Linha>
                 {ataque && (
                   <Linha prefixo={prefixo} linha="golpe" nome="Golpe" dica="que tipo de golpe é" brilho={brilhoDe('golpe')}>
-                    {frasesDoGolpe(rascunho, fichaFixa).map((frase, indice) => (
-                      <p key={indice} className="lb-ed__golpe-lido">
-                        {frase}
-                      </p>
-                    ))}
-                    <LinhaQueVem texto="Escolher como bate (impacto, cortante, perfurante) e o que causa (queimadura, veneno, congelamento…), com a regra de cada um e o teste para pegar, chega com o editor inteiro." />
+                    <LinhaDoGolpe mecanica={rascunho} ficha={fichaFixa} onChange={mudarNaLinha} />
                   </Linha>
                 )}
                 {naVez && (
@@ -289,16 +409,18 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
               </>
             )}
             <Linha prefixo={prefixo} linha="requisitos" nome="Requisitos" dica="o que precisa para usar" brilho={brilhoDe('requisitos')}>
-              <LinhaQueVem texto="O que precisa para usar (Polaridade 2, Melodia ligada, 50 SP ou a ajuda de um aliado com Fogo…), com o Cumpriu? de quem usa. Chega com o editor inteiro." />
+              <LinhaDosRequisitos cartao={cartao} personagem={fichaFixa.personagem} fontes={fontes} listas={listas} custoEmSp={custoEmSp} onChange={mudarCartao} />
             </Linha>
             <Linha prefixo={prefixo} linha="evolucao" nome="Evolução" dica="vira outra versão" brilho={brilhoDe('evolucao')}>
-              <LinhaQueVem texto="Para qual versão evolui e o que pede para evoluir. Chega com o editor inteiro." />
+              <LinhaDaEvolucao cartao={cartao} tecnicas={tecnicas} personagem={fichaFixa.personagem} fontes={fontes} listas={listas} custoEmSp={custoEmSp} onChange={mudarCartao} />
             </Linha>
-            <Linha prefixo={prefixo} linha="jogadores" nome="Jogadores" dica="o que eles veem" brilho={brilhoDe('jogadores')}>
-              <LinhaQueVem texto="Esconder dos jogadores: por enquanto, no cartão da ficha. Chega com o editor inteiro." />
-            </Linha>
+            {podeOcultar && (
+              <Linha prefixo={prefixo} linha="jogadores" nome="Jogadores" dica="o que eles veem" brilho={brilhoDe('jogadores')}>
+                <OcultaNoCartao cartao={cartao} onChange={mudarCartao} />
+              </Linha>
+            )}
             <Linha prefixo={prefixo} linha="campos" nome="Campos extras" dica="anotações do cartão" brilho={brilhoDe('campos')}>
-              <LinhaQueVem texto={`${cartao.extras.length === 0 ? 'Nenhum campo extra' : cartao.extras.length === 1 ? '1 campo extra' : `${cartao.extras.length} campos extras`} no cartão (o papel ao lado mostra). Por enquanto, edite no cartão da ficha.`} />
+              <LinhaDosCampos cartao={cartao} onChange={mudarCartao} />
             </Linha>
           </BlocoSemCaixa.Provider>
         </div>

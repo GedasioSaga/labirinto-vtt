@@ -1,49 +1,13 @@
+import { categoriaDaMecanica, type CategoriaDaAcao } from '../../../lib/batalha/mecanica/categoria'
 import type { AcaoDaMecanica, MecanicaV1, Teste } from '../../../lib/batalha/mecanica/modelo'
 import { ehAjuda, motivoDoQuem, trocarQuem, trocarUso } from '../../../lib/batalha/mecanica/modelos'
 
 /**
- * A LINHA AÇÃO do editor novo (ED3; docs/design/habilidades/EDITOR.md §3.3):
- * a categoria não tem campo, sai das peças. A ED2 traz a mesma leitura em
- * `lib/batalha/mecanica/categoria.ts` para o texto gerado; quando ela chegar,
- * `categoriaDaMecanica` passa a ser a de lá (uma leitura só).
- *
- * Passiva não está aqui: é o cartão sem mecânica (decisão de 23/11), e o
- * editor só a escolhe na ED5, junto com o modo "Só texto".
+ * A LINHA AÇÃO do editor novo (EDITOR.md §3.3): a categoria não tem campo, sai
+ * das peças, numa leitura só para a tela e o texto gerado
+ * (`lib/batalha/mecanica/categoria.ts`). Aqui fica só o que a tela faz com
+ * ela: trocar de categoria e dizer o que a troca tirou.
  */
-export type CategoriaDaAcao = 'simples' | 'completo' | 'overload' | 'apoio' | 'reacao'
-
-export function categoriaDaMecanica(mecanica: MecanicaV1): CategoriaDaAcao {
-  if (mecanica.uso === 'reacao' || mecanica.uso === 'ativaOuReacao') return 'reacao'
-  if (mecanica.limite.overload === true) return 'overload'
-  if (ehAjuda(mecanica.alvo.quem)) return 'apoio'
-  return mecanica.acao === 'completa' ? 'completo' : 'simples'
-}
-
-/** Ataque que gasta outra ação (a Bônus, a Livre ou a da hora) continua no cartão "Ataque Simples", com o nome dela. */
-const NOME_DO_ATAQUE: Readonly<Record<AcaoDaMecanica, string>> = {
-  simples: 'Ataque Simples',
-  bonus: 'Ataque Bônus',
-  completa: 'Ataque Completo',
-  livre: 'Ataque Livre',
-  perguntar: 'Ataque (a ação na hora)',
-}
-
-/** O nome que abre a frase do papel e a linha curta ("Ataque Completo", "Reação (ou na vez)"). */
-export function nomeDaAcao(mecanica: MecanicaV1): string {
-  const categoria = categoriaDaMecanica(mecanica)
-  if (categoria === 'simples' || categoria === 'completo') return NOME_DO_ATAQUE[mecanica.acao]
-  if (categoria === 'reacao') return mecanica.uso === 'ativaOuReacao' ? 'Reação (ou na vez)' : 'Reação'
-  return categoria === 'overload' ? 'Overload' : 'Apoio'
-}
-
-/** "Tipo na batalha" (§3.3): sai das escolhas, não é mais um campo à parte. */
-export function tipoNaBatalha(mecanica: MecanicaV1): 'Ativa' | 'Buff' | 'Debuff' | 'Reação' {
-  const categoria = categoriaDaMecanica(mecanica)
-  if (categoria === 'reacao') return 'Reação'
-  if (categoria === 'apoio') return 'Buff'
-  const soPoeSelo = mecanica.dano === undefined && mecanica.efeitos.length > 0 && mecanica.efeitos.every((efeito) => efeito.tipo === 'selo')
-  return soPoeSelo ? 'Debuff' : 'Ativa'
-}
 
 /** Por que a categoria não pode ser escolhida agora; `null` = pode (a cura e o reviver prendem o alvo). */
 export function motivoDaCategoria(mecanica: MecanicaV1, categoria: CategoriaDaAcao): string | null {
