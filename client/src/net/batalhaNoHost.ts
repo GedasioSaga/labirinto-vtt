@@ -1,7 +1,7 @@
 import type { Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { aliadosDe, type Equipe } from '../lib/batalha/equipes'
-import type { BatalhaEmTurnos, PonteDaBatalha } from '../lib/batalha/ponte'
+import type { BatalhaEmTurnos, PonteDaBatalha, TelaDoPedido } from '../lib/batalha/ponte'
 import { podeDesfazer } from '../lib/batalha/registro'
 import { cartaDaVez, type AutorDaAcao } from '../lib/batalha/turnos'
 import { efeitosParaJogador, vistaParaJogador, type ContextoDoJogador, type EfeitoParaJogador } from '../lib/batalha/vistaDoJogador'
@@ -72,6 +72,11 @@ export interface LugarNaBatalha {
   meusPersonagens: ReadonlySet<string>
   /** F2: tokenId → personagemId das mesmas fichas de `meusPersonagens` (o dano livre só vale numa delas). */
   personagemDaFicha: ReadonlyMap<string, string>
+  /**
+   * Fase C do alcance: a tela que saiu para ele (as paredes que ELE vê), para a conta das casas
+   * acesas do pedido dele. Ausente = sem parede, só a distância.
+   */
+  tela?: TelaDoPedido
 }
 
 export interface ConexaoNaBatalha {
@@ -430,7 +435,7 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       const tokenId = (cena.turnos.contras ?? []).find((contra) => contra.golpeId === contraDe)?.tokenId
       if (tokenId === undefined || !fichaDeVerdade(lugar, cena, tokenId)) return RECUSA_GENERICA
     } else if (!podePedirAcao(lugar, cena, msg)) return RECUSA_GENERICA
-    const motivo = ponte.motivoDoAgir?.(lugar.sceneKey, autorDe(conexao), msg.vez, msg.pedido) ?? null
+    const motivo = ponte.motivoDoAgir?.(lugar.sceneKey, autorDe(conexao), msg.vez, msg.pedido, lugar.tela) ?? null
     return motivo === null ? RECUSA_GENERICA : { motivo }
   }
 
@@ -526,7 +531,7 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         if (!vezAindaE(cena, msg.vez)) return RECUSA_DA_VEZ
         if (!podePedirAcao(lugar, cena, msg)) return RECUSA_DA_FICHA
         if (!alvosNaTela(lugar, msg)) return RECUSA_DO_ALVO
-        return ponte.agir(lugar.sceneKey, autorDe(conexao), msg.vez, msg.pedido) || recusaDoAgir(ponte, lugar, cena, conexao, msg)
+        return ponte.agir(lugar.sceneKey, autorDe(conexao), msg.vez, msg.pedido, lugar.tela) || recusaDoAgir(ponte, lugar, cena, conexao, msg)
       })
     },
 

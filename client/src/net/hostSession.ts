@@ -108,6 +108,8 @@ import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveOptions, type T
 import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
+import { mapaDoAlcance } from '../lib/batalha/alcance/segmentos'
+import type { MapaDoAlcance } from '../lib/batalha/alcance/quemEntra'
 import { terrenoAltoDoJogador } from '../lib/terrenoAlto'
 import { paredesParaAndar } from '../lib/barranco'
 import { alcancePeloObjeto, paredesParaAndarDoJogador } from '../lib/obstaculosDeObjeto'
@@ -7116,7 +7118,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       fichasNaTela: tela.fichas,
       meusPersonagens: new Set(personagemDaFicha.values()),
       personagemDaFicha,
+      tela: { mapaDoAlcance: (tokenId) => mapaDoAlcanceDaTela(playerId, scene.map.id, tokenId) },
     }
+  }
+
+  /**
+   * Fase C do alcance (ALCANCE.md §5): as paredes da conta das casas acesas do pedido do jogador,
+   * do recorte que saiu para ele (`telaDoJogador`), no piso da ficha como ele a vê. Assim a recusa
+   * nunca conta que existe parede secreta. Sem tela dessa cena, ou a ficha fora dela: `null` (sem
+   * parede, só a distância).
+   */
+  function mapaDoAlcanceDaTela(playerId: string, mapId: string, tokenId: string): MapaDoAlcance | null {
+    const recorte = telaDoJogador.get(playerId)
+    const ficha = recorte === undefined || recorte.id !== mapId ? undefined : recorte.tokens.find((token) => token.id === tokenId)
+    return recorte === undefined || ficha === undefined || !(recorte.grid > 0) ? null : mapaDoAlcance(recorte, pisoDe(ficha))
   }
 
   /** O nome no registro passa pela mesma regra do histórico da ficha: o jogador chamado "Mestre" vira "Mestre (jogador)". */

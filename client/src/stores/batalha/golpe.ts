@@ -57,6 +57,7 @@ import { escudoMaisAlto, nomeDoAutor, novoIdDeLinha, type Reversao, type TipoDaL
 import { cartaDaVez, contraGanhoAgora, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
 import { revelacaoAoUsar } from '../../lib/habilidadeOculta'
 import { chavesDosSelos } from '../../lib/ponteDasCondicoes'
+import type { TelaDoPedido } from '../../lib/batalha/ponte'
 import { condicoesQueACuraTirou, curarPeloItem } from '../../lib/curaPeloItem'
 import { comCondicoes, condicoesDaFicha } from '../../lib/turnoForaDaBatalha'
 import type { BatalhaDaCena, BatalhaState } from './tipos'
@@ -434,7 +435,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
   }
 
   /** O que a regra do golpe lê para `carta` agir agora (`podeAgir`, `lancarGolpe`). */
-  const contextoDaCarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena): ContextoDoGolpe => {
+  const contextoDaCarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, tela?: TelaDoPedido): ContextoDoGolpe => {
     const { turnos } = cena
     const { personagens, sistema } = mesaDoRpg()
     const daFicha = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
@@ -474,6 +475,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
               const posicao = mesa.posicaoDoToken?.(sceneKey, tokenId) ?? null
               return posicao === null ? null : pegadaDaFicha(posicao.casa, mesa.fichaDaCena?.(sceneKey, tokenId)?.size)
             },
+            // Fase C do alcance: o pedido do jogador mede com as paredes que ELE vê (a tela dele); o do mestre, com o mapa inteiro.
+            mapaDoAlcance: () => (tela === undefined ? (mesa.mapaDoAlcance?.(sceneKey, carta.tokenId) ?? null) : tela.mapaDoAlcance(carta.tokenId)),
           }),
       // U3: a regra única de "quem pode ajudar quem": o aliado é o do lado na luta, jogador ou NPC, para toda técnica (montada,
       // de texto e à mão), a mesma regra da mira do mestre. A Luz do Sol (o selo só nos aliados, sem dano neles) lê a mesma lista.
@@ -486,10 +489,10 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     }
   }
 
-  const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedidoDeQuemAge: PedidoDeAcao): boolean => {
+  const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedidoDeQuemAge: PedidoDeAcao, tela?: TelaDoPedido): boolean => {
     const { turnos } = cena
     const { personagens } = mesaDoRpg()
-    const ctxDaCarta = contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx)
+    const ctxDaCarta = contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx, tela)
     if (podeAgir(ctxDaCarta, pedidoDeQuemAge) !== null) return false
     // Fase 8: o item vira a técnica dele (a ficha com o cartão do item só nesta conta, nunca gravada); a pilha desce mais abaixo.
     const doItem = pedidoDeQuemAge.tipo === 'item' ? ctxDoItem(ctxDaCarta, pedidoDeQuemAge) : null
@@ -884,7 +887,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
   }
 
   const acoes: Pick<BatalhaState, 'motivoDoAgir' | 'agir' | 'reagir' | 'darDano' | 'darAcoesExtras' | 'escolherArmas' | 'zerarCarga' | 'trocarPerfurante'> = {
-    motivoDoAgir: (sceneKey, autor, vez, pedido) => {
+    motivoDoAgir: (sceneKey, autor, vez, pedido, tela) => {
       const cena = cenaDe(sceneKey)
       if (cena === undefined) return 'A batalha não está ligada nesta cena'
       const { turnos } = cena
@@ -894,10 +897,10 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       if (contra === null && (vez === null || turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada)) return 'A vez já passou'
       const carta = contra === null ? cartaDaVez(turnos) : (turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId) ?? null)
       if (carta === null || carta.bando !== undefined) return 'Não é a vez desta ficha'
-      return podeAgir(contextoDaCarta(sceneKey, cena, autor, carta, turnos), pedido)
+      return podeAgir(contextoDaCarta(sceneKey, cena, autor, carta, turnos, tela), pedido)
     },
 
-    agir: (sceneKey, autor, vez, pedido) => {
+    agir: (sceneKey, autor, vez, pedido, tela) => {
       // F3 (fatia T): Ativar e Desfazer a forma têm caminho próprio (não lançam golpe).
       if (pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') return mudarForma(sceneKey, autor, vez, pedido)
       // F2 (fatia E, Fúria do Dragão): a técnica que sobe de Parte é o Ativar da Parte seguinte, com a ação da técnica.
@@ -914,7 +917,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       const carta = contra === null ? cartaDaVez(turnos) : (turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId) ?? null)
       // Invocação: na carta do bando, o mestre age pelo invocado (`agirComInvocado`), nunca pela carta.
       if (carta === null || carta.bando !== undefined) return false
-      return agirComACarta(sceneKey, cena, autor, carta, turnos, carta.id, pedido)
+      return agirComACarta(sceneKey, cena, autor, carta, turnos, carta.id, pedido, tela)
     },
 
     reagir:(sceneKey, autor, pedido) => {

@@ -1,4 +1,6 @@
 import { direcaoDaRotacao } from '../lib/batalha/area'
+import { mapaDoAlcance } from '../lib/batalha/alcance/segmentos'
+import { pisoDe } from '../lib/pisos'
 import { temporariosDaCena } from '../lib/batalha/invocacao'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { casaDoToken } from '../lib/batalha/movimentoEmBatalha'
@@ -54,9 +56,14 @@ function invocadoNoTamanhoDaCena(sceneKey: string, token: Token): Token {
 
 /** O tamanho da casa da grade da cena (a aberta, ou a de fundo já carregada); cena que não está à mão = `null`. */
 function gradeDaCena(sceneKey: string): number | null {
-  if (cenaAberta(sceneKey)) return useMapStore.getState().map.grid
+  return mapaDaCena(sceneKey)?.grid ?? null
+}
+
+/** O mapa inteiro da cena (a aberta ou a de fundo à mão); `null` = cena fora de alcance. */
+function mapaDaCena(sceneKey: string): MapData | null {
+  if (cenaAberta(sceneKey)) return useMapStore.getState().map
   const slot = useAdventureStore.getState().cache[sceneKey]
-  return slot !== undefined && slot.status === 'ok' ? slot.map.grid : null
+  return slot !== undefined && slot.status === 'ok' ? slot.map : null
 }
 
 /** Muda o mapa da cena: a aberta por `naAberta`, a de fundo por `mudar`. `false` = cena que não está à mão. */
@@ -147,5 +154,12 @@ export const mesaDaAventura: MesaDaBatalha = {
     const grid = gradeDaCena(sceneKey)
     if (token === undefined || grid === null || !(grid > 0)) return null
     return { casa: casaDoToken(token, token.size, grid), direcao: direcaoDaRotacao(token.rotation) }
+  },
+
+  // Fase C do alcance: o mestre (e o NPC) mede com o mapa inteiro, no piso da ficha que usa.
+  mapaDoAlcance: (sceneKey, tokenId) => {
+    const map = mapaDaCena(sceneKey)
+    const token = map?.tokens.find((candidato) => candidato.id === tokenId)
+    return map === null || token === undefined || !(map.grid > 0) ? null : mapaDoAlcance(map, pisoDe(token))
   },
 }

@@ -17,7 +17,7 @@ import type {
   SeloPedido,
 } from '../../lib/batalha/combate'
 import type { JudgeNaCena } from '../../lib/batalha/judge'
-import type { BatalhaEmTurnos, VezEsperada } from '../../lib/batalha/ponte'
+import type { BatalhaEmTurnos, TelaDoPedido, VezEsperada } from '../../lib/batalha/ponte'
 import type { RegrasDaBatalha } from '../../lib/batalha/regrasDoCampo'
 import type { AcoesExtras, AutorDaAcao, CartaDaOrdem, Desempate, DuracaoDaExtra } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
@@ -110,7 +110,7 @@ export interface BatalhaState {
    * Conserto das fichas F1 (bug 1): por que o `agir` deste pedido seria
    * recusado agora (o texto curto da regra, `podeAgir`), ou `null`. Só lê.
    */
-  motivoDoAgir: (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao) => string | null
+  motivoDoAgir: (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao, tela?: TelaDoPedido) => string | null
   /** O mestre dá a vez a uma carta (até a de quem caiu). */
   darVez: (sceneKey: string, cartaId: string) => boolean
   /** Arrastar ou Alt + seta. Movimentos seguidos da mesma carta viram uma linha só. */
@@ -159,7 +159,7 @@ export interface BatalhaState {
    * recarga, usos e Overload, cria o golpe (alvo sem reação resolve na hora),
    * escreve UMA linha e os efeitos. `vez` null só com `contraDe` (Q6).
    */
-  agir: (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao) => boolean
+  agir: (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao, tela?: TelaDoPedido) => boolean
   /** Rola (d20 do host) ou resolve a reação; o dano final cai na ficha e a linha do golpe é atualizada. Contra-atacar (Q6) zera o dano e dá a ação extra. */
   reagir: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeReacao) => boolean
   /** Dano livre numa ficha: linha "dano" e efeito "dano" (a animação toca sempre). */

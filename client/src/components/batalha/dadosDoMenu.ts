@@ -26,9 +26,13 @@ import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, t
 import { lerMarca } from '../../lib/batalha/marca'
 import { chavesDoDono, golpesSaoOverload, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao, reacaoDasPecas, seloDasPecas } from '../../lib/batalha/mecanica/leitura'
-import { casaNaAreaVirada, direcaoDaRotacao, DIRECOES, distanciaEntreFichas, fichaNaArea, fichaPertoDoCentro, pegadaDaFicha, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
+import { direcaoDaRotacao, DIRECOES, distanciaEntreFichas, pegadaDaCasa, pegadaDaFicha, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
+import { alcanceDaTabela, alcanceDoCartao } from '../../lib/batalha/alcanceDoCartao'
+import { casasDaExplosao, casasDoAlcance } from '../../lib/batalha/alcance/casas'
+import type { FormaDoAlcance } from '../../lib/batalha/alcance/forma'
+import { casasDaFormaDeQuemUsa, fichasNaForma, foraDasCasas, MAPA_SEM_PAREDES, type CandidatoNaForma, type MapaDoAlcance } from '../../lib/batalha/alcance/quemEntra'
 import { casaDoToken } from '../../lib/batalha/movimentoEmBatalha'
-import { motivoDoAlvoDePe, motivoForaDoAlcance } from '../../lib/batalha/golpe'
+import { motivoDoAlvoDePe } from '../../lib/batalha/golpe'
 import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
 import { subidaDeParte } from '../../lib/batalha/transformacao'
 import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
@@ -98,8 +102,14 @@ export interface GolpeNaTela {
   areaPelaGrade?: true
   /** Construtor C3: a técnica montada acerta no máximo tantos alvos (1 alvo, "até N"); a mira avisa antes do host. */
   tetoDeAlvos?: number
-  /** Fase 6: até quantas casas de quem usa (o alvo, ou o centro da área longe); a mira apaga o que passa e o host confere. */
+  /** Fase 6: até quantas casas de quem usa (o alvo, ou o centro da área longe); a escolha do centro e o host conferem. */
   alcance?: number
+  /**
+   * Fase C do alcance (ALCANCE.md §3.2): a forma do alcance, sem as condições (`alcanceDoCartao` para
+   * qualquer cartão; o Atacar desarmado é o alvo colado). As casas só mostram: o alvo de fora pede o
+   * "Fora do alcance, usar mesmo assim?". Ausente = sem alcance definido (nada é conferido).
+   */
+  formaDoAlcance?: FormaDoAlcance
   /** Fase 6 (H14): só vale em aliado caído; a mira abre nele e recusa quem está de pé, com o motivo. */
   reviver?: true
   /** F2 (fatia F, Golpe Baixo): o que a mira lembra (o mestre confere). */
@@ -612,6 +622,11 @@ export interface GradeDaMira {
   deQuemAge: PegadaNaGrade
   /** Para onde quem age olha (a rotação do token); `null` = o mestre nunca deu frente. */
   frente: Direcao | null
+  /**
+   * Fase C do alcance: as paredes e a grade da conta das casas (`mapaDoAlcance`, do mapa que a tela
+   * tem: o mestre, o inteiro; o jogador, o recorte). Ausente = sem parede (a Arena), só a distância.
+   */
+  mapa?: MapaDoAlcance
 }
 
 /** A ficha sem personagem não é alvo (a store recusa): fica na lista, apagada. */
@@ -641,7 +656,7 @@ export interface FichaComPosicao {
  * (`ordenarAlvosDaMira`). `tamanhoDaCasa` ausente (a Arena) = a conta em px, que
  * dá a mesma ordem fora do empate dentro da casa.
  */
-export function alvosNaOrdemDaMira<T extends AlvoNaMira>(alvos: readonly T[], fichas: readonly FichaComPosicao[], deTokenId: string, tamanhoDaCasa?: number): T[] {
+export function alvosNaOrdemDaMira<T extends AlvoNaMira>(alvos: readonly T[], fichas: readonly FichaComPosicao[], deTokenId: string, tamanhoDaCasa?: number, mapa?: MapaDoAlcance): T[] {
   const porId = new Map(fichas.map((ficha) => [ficha.id, ficha] as const))
   const ponto = (tokenId: string) => {
     const ficha = porId.get(tokenId)
@@ -666,7 +681,9 @@ export function alvosNaOrdemDaMira<T extends AlvoNaMira>(alvos: readonly T[], fi
     const p = ponto(alvo.tokenId)
     if (p === undefined) return alvo
     const dele = casaDe(p)
-    return { ...alvo, deslocamento: { col: dele.col - daOrigem.col, row: dele.row - daOrigem.row }, naGrade: { ficha: pegadaDe(p, alvo.tokenId), deQuemAge, frente } }
+    const naGrade: GradeDaMira = { ficha: pegadaDe(p, alvo.tokenId), deQuemAge, frente }
+    if (mapa !== undefined) naGrade.mapa = mapa
+    return { ...alvo, deslocamento: { col: dele.col - daOrigem.col, row: dele.row - daOrigem.row }, naGrade }
   })
 }
 
@@ -896,11 +913,15 @@ function golpeDaTecnica(
   // F2 (fatia F): a área (Giro de Pá), o dano dividido (Lua Incandescente) e o lembrete da mira (Golpe Baixo).
   if (mecanica?.area !== undefined) golpe.area = mecanica.area
   if (mecanica?.divide !== undefined) golpe.divide = mecanica.divide.teto
+  // Fase C do alcance: o alcance de QUALQUER cartão (montado, da tabela à mão ou o campo do cartão), como o host confere.
+  const doAlcance = alcanceDoCartao(cartao)
+  if (doAlcance !== null) golpe.formaDoAlcance = doAlcance.forma
+  const ate = doAlcance === null ? null : ateDoAlvoOuDoCentro(doAlcance.forma)
+  if (ate !== null) golpe.alcance = ate
   // Construtor C3: só a técnica montada marca pela grade e avisa o teto na mira (as fichas de hoje seguem como estão).
   if (cartaoMontado(cartao)) {
     if (mecanica?.area !== undefined) golpe.areaPelaGrade = true
     if (mecanica?.tetoDeAlvosComDano !== undefined) golpe.tetoDeAlvos = mecanica.tetoDeAlvosComDano
-    if (mecanica?.alcance !== undefined) golpe.alcance = mecanica.alcance
     if (mecanica?.reviver !== undefined) golpe.reviver = true
     // A peça de alvo manda na mira como manda no host (`reacaoDasPecas`), não o Tipo escrito: ajuda não reage e começa em quem usa.
     const alvoDasPecas = pecasDoCartao(cartao)
@@ -1053,6 +1074,9 @@ export function golpesDosItensDoJogador(itens: readonly ItemParaJogador[], acoes
       base.areaPelaGrade = true
     }
     if (item.alcance !== undefined) base.alcance = item.alcance
+    // Fase C do alcance: o jogador recebe a área e o número do item; a forma sai pela mesma leitura da tabela à mão.
+    const formaDoItem = alcanceDaTabela({ ...(item.area === undefined ? {} : { area: item.area }), ...(item.alcance === undefined ? {} : { alcance: item.alcance }) })
+    if (formaDoItem !== null) base.formaDoAlcance = formaDoItem
     if (item.tetoDeAlvos !== undefined) base.tetoDeAlvos = item.tetoDeAlvos
     if (item.reviver === true) base.reviver = true
     if (item.semAlvo === true) base.semAlvo = true
@@ -1079,55 +1103,62 @@ function armasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: 
 }
 
 /**
- * F2 (fatia F, Giro de Pá): quem a área da técnica pega, pela casa de cada
- * alvo em relação a quem usa (`deslocamento`, de `alvosNaOrdemDaMira`). A
- * frente de quem usa não é conhecida aqui: vale qualquer lado
- * (`casaNaAreaVirada`). Alvo sem posição fica de fora (quem usa marca à mão).
+ * Fase C do alcance (ALCANCE.md §5): a área de quem usa como a forma do alcance (o raio é o "em
+ * volta"); a área longe aqui é medida em volta de quem usa, como antes de escolher o centro.
+ */
+function formaDaAreaDeQuemUsa(area: AreaAMao): FormaDoAlcance | null {
+  return alcanceDaTabela({ area: { forma: area.forma, quem: area.quem } })
+}
+
+/** Quem age na grade (a ficha inteira e o mapa da conta, com as paredes que a tela tem); `null` = sem posição. */
+function quemAgeNaGrade(alvos: readonly AlvoNaMira[]): GradeDaMira | null {
+  return alvos.find((alvo) => alvo.naGrade !== undefined)?.naGrade ?? null
+}
+
+/** Os alvos que podem entrar numa área (com posição, de pé e com ficha), como candidatos da conta das casas. */
+function candidatosDaArea(alvos: readonly AlvoNaMira[]): CandidatoNaForma[] {
+  return alvos.flatMap((alvo) => (alvo.motivo || alvo.caiu || alvo.naGrade === undefined ? [] : [{ tokenId: alvo.tokenId, ficha: alvo.naGrade.ficha, inimigo: alvo.lado === 'outro' }]))
+}
+
+/**
+ * F2 (fatia F, Giro de Pá): quem a área da técnica pega. A frente de quem usa não é conhecida
+ * aqui: vale qualquer lado. Fase C do alcance: pelas casas acesas (`lib/batalha/alcance`), com a
+ * parede cortando; quem usa nunca entra; alvo sem posição fica de fora (quem usa marca à mão).
  */
 export function alvosNaAreaDaMira(area: AreaAMao, alvos: readonly AlvoNaMira[]): string[] {
-  const origem: Casa = { col: 0, row: 0 }
-  return alvos
-    .filter((alvo) => !alvo.motivo && !alvo.caiu && alvo.lado !== 'eu' && (area.quem === 'todos' || alvo.lado === (area.quem === 'inimigos' ? 'outro' : 'aliado')))
-    .filter((alvo) => alvo.deslocamento !== undefined && casaNaAreaVirada(area.forma, origem, null, alvo.deslocamento))
-    .map((alvo) => alvo.tokenId)
+  const grade = quemAgeNaGrade(alvos)
+  const forma = formaDaAreaDeQuemUsa(area)
+  if (grade === null || forma === null) return []
+  const casas = casasDaFormaDeQuemUsa(forma, grade.deQuemAge, null, grade.mapa ?? MAPA_SEM_PAREDES)
+  const eu = new Set(alvos.filter((alvo) => alvo.lado === 'eu').map((alvo) => alvo.tokenId))
+  return fichasNaForma(casas, candidatosDaArea(alvos), area.quem).filter((tokenId) => !eu.has(tokenId))
 }
 
 /**
- * Construtor C3: o lado do alvo entra pelo filtro da área ("aliados" inclui
- * as outras fichas de quem olha, como o invocado dele). Revisão: o lado da
- * mira do mestre sai de `ladoNaBatalha`, a regra que o host confere na área
- * "aliados" (`doMesmoLado`); o da mira do jogador vem do recorte (os colegas
- * jogadores da equipe dele), que o host também aceita.
- */
-function entraPeloLado(quem: AreaAMao['quem'], lado: AlvoNaMira['lado']): boolean {
-  if (quem === 'todos') return true
-  return quem === 'inimigos' ? lado === 'outro' : lado !== 'outro'
-}
-
-/**
- * Construtor C3: quem a área da técnica montada pega, pela grade, com a área
- * virada para `direcao`: a ficha inteira de quem age e a de cada alvo (o
- * token grande entra com qualquer casa dele). Quem age nunca entra (a casa
- * dele não é da área); alvo sem posição fica de fora (quem usa marca à mão).
+ * Construtor C3: quem a área da técnica montada pega, pela grade, com a área virada para
+ * `direcao`: a ficha inteira de quem age e a de cada alvo (o token grande entra com qualquer casa
+ * dele). Fase C do alcance: pelas casas acesas, com a parede cortando. Quem age nunca entra (a
+ * casa dele não acende); alvo sem posição fica de fora (quem usa marca à mão).
  */
 export function alvosNaAreaPelaGrade(area: AreaAMao, alvos: readonly AlvoNaMira[], direcao: Direcao): string[] {
-  return alvos
-    .filter((alvo) => !alvo.motivo && !alvo.caiu && entraPeloLado(area.quem, alvo.lado))
-    .filter((alvo) => alvo.naGrade !== undefined && fichaNaArea(area.forma, alvo.naGrade.deQuemAge, direcao, alvo.naGrade.ficha))
-    .map((alvo) => alvo.tokenId)
+  const grade = quemAgeNaGrade(alvos)
+  const forma = formaDaAreaDeQuemUsa(area)
+  if (grade === null || forma === null) return []
+  return fichasNaForma(casasDoAlcance({ forma, quemUsa: grade.deQuemAge, direcao, ...(grade.mapa ?? MAPA_SEM_PAREDES) }), candidatosDaArea(alvos), area.quem)
 }
 
 /**
- * Fase 6: quem a área longe pega, em volta de `centro` (a casa escolhida, ou a
- * ficha no centro, que entra): a ficha inteira de cada alvo a até as casas do
- * raio. Quem age entra só na "todos" (a granada aos pés dele pega ele também).
+ * Fase 6: quem a área longe pega, em volta de `centro` (a casa escolhida, ou a ficha no centro,
+ * que entra): a ficha inteira de cada alvo a até as casas do raio. Quem age entra só na "todos" (a
+ * granada aos pés dele pega ele também). Fase C do alcance: quem está atrás de parede, vista do
+ * centro, não entra.
  */
 export function alvosEmVoltaDoCentro(area: AreaAMao, alvos: readonly AlvoNaMira[], centro: PegadaNaGrade): string[] {
-  const casas = area.forma.tipo === 'raio' ? area.forma.casas : 0
-  return alvos
-    .filter((alvo) => !alvo.motivo && !alvo.caiu && entraPeloLado(area.quem, alvo.lado) && (alvo.lado !== 'eu' || area.quem === 'todos'))
-    .filter((alvo) => alvo.naGrade !== undefined && fichaPertoDoCentro(centro, casas, alvo.naGrade.ficha))
-    .map((alvo) => alvo.tokenId)
+  const raio = area.forma.tipo === 'raio' ? area.forma.casas : 0
+  const mapa = quemAgeNaGrade(alvos)?.mapa ?? MAPA_SEM_PAREDES
+  const casas = casasDaExplosao({ forma: { tipo: 'ponto', ate: 1, raio }, centro, ...mapa })
+  const eu = new Set(alvos.filter((alvo) => alvo.lado === 'eu').map((alvo) => alvo.tokenId))
+  return fichasNaForma(casas, candidatosDaArea(alvos), area.quem).filter((tokenId) => area.quem === 'todos' || !eu.has(tokenId))
 }
 
 /** Fase 6: a distância do alvo a quem age, da borda da ficha (`null` = sem posição na grade). */
@@ -1136,21 +1167,56 @@ export function distanciaNaMira(alvo: AlvoNaMira): number | null {
 }
 
 /**
- * Fase 6: por que a mira não deixa marcar `alvo` nesta técnica: o reviver em
- * quem está de pé, ou o alvo fora do alcance (as mesmas frases do host).
- * `null` = pode. Na área longe o alcance mede o centro, não os alvos.
+ * Fase 6: por que a mira não deixa marcar `alvo` nesta técnica: o reviver em quem está de pé (a
+ * mesma frase do host). `null` = pode. Fase C do alcance: o alvo longe é marcável (as casas só
+ * mostram); ao mandar, a mira pede a confirmação (`foraDoAlcanceNaMira`).
  */
-export function motivoDoAlvoNaTecnica(golpe: Pick<GolpeNaTela, 'reviver' | 'alcance' | 'area'>, alvo: AlvoNaMira): string | null {
-  if (golpe.reviver === true && !alvo.caiu) return motivoDoAlvoDePe(alvo.nome)
-  const { alcance } = golpe
-  if (alcance === undefined || golpe.area?.centro !== undefined) return null
-  const distancia = distanciaNaMira(alvo)
-  return distancia !== null && distancia > alcance ? motivoForaDoAlcance(alcance, distancia) : null
+export function motivoDoAlvoNaTecnica(golpe: Pick<GolpeNaTela, 'reviver'>, alvo: AlvoNaMira): string | null {
+  return golpe.reviver === true && !alvo.caiu ? motivoDoAlvoDePe(alvo.nome) : null
+}
+
+/** O que a mira escolheu, para a conferência do alcance. `direcao` `null` = a forma não olha para um lado escolhido. */
+export interface EscolhaNoAlcance {
+  marcados: readonly string[]
+  direcao: Direcao | null
+  ponto: Casa | null
+  centroId: string | null
+}
+
+/**
+ * Fase C do alcance: o golpe sai das casas acesas de quem usa (a mesma conta do host,
+ * `foraDasCasas`, com as paredes que a tela tem)? `false` também sem grade ou sem alcance
+ * definido. As condições de quem usa ficam para o host (a recusa abre a mesma confirmação).
+ */
+export function foraDoAlcanceNaMira(golpe: Pick<GolpeNaTela, 'formaDoAlcance'>, alvos: readonly AlvoNaMira[], escolha: EscolhaNoAlcance): boolean {
+  const grade = quemAgeNaGrade(alvos)
+  const forma = golpe.formaDoAlcance
+  const quemUsa = alvos.find((alvo) => alvo.lado === 'eu')
+  if (grade === null || forma === undefined) return false
+  const fichaDe = (tokenId: string): PegadaNaGrade | null => alvos.find((alvo) => alvo.tokenId === tokenId)?.naGrade?.ficha ?? null
+  const centro = escolha.ponto !== null ? pegadaDaCasa(escolha.ponto) : escolha.centroId !== null ? fichaDe(escolha.centroId) : null
+  const marcados = escolha.marcados.flatMap((tokenId) => {
+    const ficha = fichaDe(tokenId)
+    return ficha === null ? [] : [{ tokenId, ficha }]
+  })
+  const golpeNoAlcance = { forma, quemUsa: grade.deQuemAge, quemUsaTokenId: quemUsa?.tokenId ?? '', direcao: escolha.direcao, mapa: grade.mapa ?? MAPA_SEM_PAREDES, centro, alvos: marcados }
+  return foraDasCasas(golpeNoAlcance) !== null
+}
+
+/** Fase C do alcance: a forma só entra no golpe quando há uma (sem alcance definido, nada a conferir). */
+function comAlcance(forma: FormaDoAlcance | null): { formaDoAlcance?: FormaDoAlcance } {
+  return forma === null ? {} : { formaDoAlcance: forma }
+}
+
+/** Fase C do alcance: o número de casas até o alvo (ou até o centro da área longe); `null` = a forma que sai de quem usa. */
+function ateDoAlvoOuDoCentro(forma: FormaDoAlcance): number | null {
+  return forma.tipo === 'alvo' || forma.tipo === 'ponto' || forma.tipo === 'ficha' ? forma.ate : null
 }
 
 /** Construtor C3: a área aponta para um lado (linha, quadrado à frente); o raio e o "em volta" não. */
 export function areaComFrente(area: AreaAMao): boolean {
-  return area.forma.tipo !== 'raio'
+  // Fase C do alcance: a cruz pega os quatro lados (não vira); o leque aponta, como a linha.
+  return area.forma.tipo !== 'raio' && area.forma.tipo !== 'cruz'
 }
 
 /** Construtor C3: alguma ficha da mira tem posição na grade (sem mapa, a Arena: a área não marca nada sozinha). */
@@ -1257,6 +1323,8 @@ export function golpesDeAtaque(
       ...(arma === null || arma.capacidade === null ? {} : { capacidade: arma.capacidade }),
       ...(balas.length === 0 ? {} : { balas }),
       ...(arma?.exigeMunicao === true ? { exigeMunicao: true as const } : {}),
+      // Fase C do alcance: a arma pelo leitor único, como o host confere (a Mão nua fica sem, como no host).
+      ...comAlcance(arma === null ? null : (alcanceDoCartao(arma)?.forma ?? null)),
       chave: arma === null ? CHAVE_DA_MAO_NUA : `arma:${arma.id}`,
       tipo: 'atacar',
       cartaoId: null,

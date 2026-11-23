@@ -41,7 +41,11 @@ import {
   type SeloPedido,
   type VantagemNaRolagem,
 } from './combate'
-import { linhaComOGasto, textoDaSobra, usoDoItem, type PedidoDoItem, type UsoDoItem } from './itemNaBatalha'
+import { idDoCartaoDoItem, linhaComOGasto, textoDaSobra, usoDoItem, type PedidoDoItem, type UsoDoItem } from './itemNaBatalha'
+import type { CartaoComAlcance } from './alcanceDoCartao'
+import type { GrupoDoAlcance } from './alcance/condicoes'
+import { alcanceDoGolpe, MOTIVO_FORA_DO_ALCANCE, selosQueMudamOAlcance } from './alcance/doGolpe'
+import { foraDasCasas, MAPA_SEM_PAREDES, type MapaDoAlcance } from './alcance/quemEntra'
 import { comAMantida } from './custoPorTurno'
 import { debuffsDoToken } from './debuffs'
 import { equipeDe, type Equipe } from './equipes'
@@ -89,7 +93,7 @@ import {
   somaContraOSelo,
   type MecanicaAMao,
 } from './mecanicasAMao'
-import { distanciaEntreFichas, dividirDano, fichaPertoDoCentro, pegadaDaCasa, type PegadaNaGrade } from './area'
+import { dividirDano, pegadaDaCasa, type PegadaNaGrade } from './area'
 import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoCartao, reacaoDasPecas, divisaoDasPecas, selosDasPecas, type MultiplicadoresDasPecas } from './mecanica/leitura'
 import { armaPadraoEntre } from './mecanica/arma'
 import { danoUsaArma } from './mecanica/modelo'
@@ -161,6 +165,13 @@ export interface ContextoDoGolpe {
    * mapa. Ausente = a mesa sem mapa (o Testar): só o centro é pedido.
    */
   pegadaDoToken?: (tokenId: string) => PegadaNaGrade | null
+  /**
+   * Fase C do alcance (ALCANCE.md §5): as paredes e a grade da conta das casas, no piso de quem
+   * usa. Para a ficha de um jogador, só as paredes que ESSE jogador vê (o recorte dele): a recusa
+   * não conta que existe parede secreta. Ausente (ou `null`) com `pegadaDoToken` = sem parede, só a
+   * distância (a Arena).
+   */
+  mapaDoAlcance?: () => MapaDoAlcance | null
   /**
    * U3 (plano de 10/11): a regra única de "quem pode ajudar quem". Os ids de
    * personagem ALIADOS de quem age NA LUTA (`aliadosNaLuta`: quem está do lado
@@ -443,9 +454,11 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas, null)
       if (motivo !== null) return motivo
       // Construtor C8: a arma montada (o Boomerang) segue as peças: usos da batalha, custo, ação, dano e alvos.
-      if (arma !== null && cartaoMontado(arma)) return motivoDoAtacarComArmaMontada(ctx, pedido, arma, combate, acoes)
       // R6: depois de um Atacar na vez, o ataque adicional da forma (Ignição) cabe sem a Simples.
-      return acoes === null ? null : motivoDoAtacar(acoes)
+      const daRegra = arma !== null && cartaoMontado(arma) ? motivoDoAtacarComArmaMontada(ctx, pedido, arma, combate, acoes) : acoes === null ? null : motivoDoAtacar(acoes)
+      // Fase C do alcance: por último, para a confirmação do "usar mesmo assim" só aparecer quando o resto já vale.
+      // A Mão nua (o alvo colado de `ALCANCE_DESARMADO`) ainda não é conferida: a Arena e o treino atacam de longe sem a mira.
+      return daRegra ?? (arma === null ? null : motivoDoAlcance(ctx, arma, 'armas', pedido))
     }
     case 'habilidade': {
       const { personagem, sistema } = ctx
@@ -495,7 +508,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
         motivoDoSeloPedido(tecnica.cartao, selosDosAlvos) ??
         motivoDoReviver(ctx, mecanicaDoCartao(tecnica.cartao), pedido.alvos) ??
         motivoDaAreaLonge(ctx, mecanicaDoCartao(tecnica.cartao), pedido) ??
-        motivoDaCuraSemFerido(ctx, tecnica.cartao, pedido.alvos, pedido.selo !== undefined && pedido.selo !== null)
+        motivoDaCuraSemFerido(ctx, tecnica.cartao, pedido.alvos, pedido.selo !== undefined && pedido.selo !== null) ??
+        // Fase C do alcance: por último, como no Atacar.
+        motivoDoAlcance(ctx, tecnica.cartao, grupoDoCartao(tecnica.cartao.id), pedido)
       )
     }
     // Fase 8: o item da mochila de quem age, virado técnica montada (sem custo); a regra é a da técnica, palavra por palavra.
@@ -778,43 +793,51 @@ function motivoDoReviver(ctx: ContextoDoGolpe, linha: MecanicaAMao | null, alvos
   return dePe === undefined ? null : motivoDoAlvoDePe(nomeDoAlvo(ctx, dePe.tokenId))
 }
 
-/** Fase 6: a recusa do alvo (ou do centro da área) longe demais. */
-export function motivoForaDoAlcance(alcance: number, distancia: number): string {
-  return `Fora do alcance: ${distancia} ${distancia === 1 ? 'casa' : 'casas'}, a técnica vai até ${alcance}`
+/**
+ * Fase 6: o centro da área longe é obrigatório (a granada pede a casa; "em volta de um alvo", a
+ * ficha, que tem de estar no mapa). Sem mapa (`pegadaDoToken` ausente, a mesa do Testar) só o
+ * centro é pedido. A distância e quem está na explosão são do `motivoDoAlcance`.
+ */
+function motivoDaAreaLonge(ctx: ContextoDoGolpe, linha: MecanicaAMao | null, pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }>): string | null {
+  const centro = linha?.area?.centro
+  if (centro === 'ponto' && pedido.ponto === undefined) return 'Escolha a casa do centro da área'
+  if (centro === 'alvo' && pedido.centroId === undefined) return 'Escolha a ficha do centro da área'
+  if (centro !== 'alvo' || pedido.centroId === undefined || ctx.pegadaDoToken === undefined) return null
+  return ctx.pegadaDoToken(pedido.centroId) === null ? 'A ficha do centro da área não está no mapa' : null
+}
+
+/** O pedido como a conferência do alcance o lê (Atacar, a técnica e a técnica do item). */
+type PedidoNoAlcance = Pick<Extract<PedidoDeAcao, { tipo: 'habilidade' }>, 'alvos' | 'ponto' | 'centroId' | 'direcao' | 'foraDoAlcance'>
+
+/** Fase C do alcance: de onde vem o golpe, para as condições que valem só em armas, habilidades ou itens. */
+function grupoDoCartao(cartaoId: string): GrupoDoAlcance {
+  return cartaoId.startsWith(idDoCartaoDoItem('')) ? 'itens' : 'habilidades'
 }
 
 /**
- * Fase 6: o alcance e a área longe, conferidos pelo mapa (o host nunca confia
- * na lista da mira). O alvo escolhido (ou o centro da área) a até `alcance`
- * casas de quem usa; na área longe, o centro é obrigatório e cada alvo marcado
- * tem de estar nela (desmarcar pode). Sem mapa (`pegadaDoToken` ausente, a
- * mesa do Testar) só o centro é pedido.
+ * Fase C do alcance (ALCANCE.md §5): o golpe sai das casas acesas de quem usa (a distância e a
+ * parede, com as condições dele)? `null` = sem conta: sem mapa, quem usa fora da grade, ou o
+ * cartão sem alcance definido.
  */
-function motivoDaAreaLonge(ctx: ContextoDoGolpe, linha: MecanicaAMao | null, pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }>): string | null {
-  if (linha === null) return null
-  const centro = linha.area?.centro
-  if (centro === 'ponto' && pedido.ponto === undefined) return 'Escolha a casa do centro da área'
-  if (centro === 'alvo' && pedido.centroId === undefined) return 'Escolha a ficha do centro da área'
+function golpeForaDasCasas(ctx: ContextoDoGolpe, cartao: CartaoComAlcance, grupo: GrupoDoAlcance, pedido: PedidoNoAlcance): boolean | null {
   const pegadaDe = ctx.pegadaDoToken
   if (pegadaDe === undefined) return null
-  const deQuemUsa = pegadaDe(ctx.carta.tokenId)
-  if (deQuemUsa === null) return null
-  const pegadaDoCentro = centro === 'ponto' && pedido.ponto !== undefined ? pegadaDaCasa(pedido.ponto) : centro === 'alvo' && pedido.centroId !== undefined ? pegadaDe(pedido.centroId) : null
-  if (centro === 'alvo' && pegadaDoCentro === null) return 'A ficha do centro da área não está no mapa'
-  const alcance = linha.alcance
-  if (alcance !== undefined) {
-    const medidos = pegadaDoCentro !== null ? [pegadaDoCentro] : pedido.alvos.flatMap((alvo) => pegadaDe(alvo.tokenId) ?? [])
-    const longe = medidos.map((pegada) => distanciaEntreFichas(deQuemUsa, pegada)).find((distancia) => distancia > alcance)
-    if (longe !== undefined) return motivoForaDoAlcance(alcance, longe)
-  }
-  const area = linha.area
-  if (pegadaDoCentro === null || area === undefined || area.forma.tipo !== 'raio') return null
-  const casas = area.forma.casas
-  const fora = pedido.alvos.find((alvo) => {
-    const pegada = pegadaDe(alvo.tokenId)
-    return pegada !== null && !fichaPertoDoCentro(pegadaDoCentro, casas, pegada)
+  const quemUsa = pegadaDe(ctx.carta.tokenId)
+  const alcance = quemUsa === null ? null : alcanceDoGolpe(cartao, grupo, selosQueMudamOAlcance(ctx.turnos.selos, ctx.carta.tokenId))
+  if (quemUsa === null || alcance === null) return null
+  const centro = pedido.ponto !== undefined ? pegadaDaCasa(pedido.ponto) : pedido.centroId !== undefined ? pegadaDe(pedido.centroId) : null
+  const alvos = pedido.alvos.flatMap((alvo) => {
+    const ficha = pegadaDe(alvo.tokenId)
+    return ficha === null ? [] : [{ tokenId: alvo.tokenId, ficha }]
   })
-  return fora === undefined ? null : `${nomeDoAlvo(ctx, fora.tokenId)} está fora da área (a mais de ${casas} ${casas === 1 ? 'casa' : 'casas'} do centro)`
+  const mapa = ctx.mapaDoAlcance?.() ?? MAPA_SEM_PAREDES
+  return foraDasCasas({ forma: alcance.forma, quemUsa, quemUsaTokenId: ctx.carta.tokenId, direcao: pedido.direcao ?? null, mapa, centro, alvos }) !== null
+}
+
+/** Fase C do alcance: fora das casas acesas sem a confirmação do "usar mesmo assim" é recusado (a mira abre a confirmação). */
+function motivoDoAlcance(ctx: ContextoDoGolpe, cartao: CartaoComAlcance, grupo: GrupoDoAlcance, pedido: PedidoNoAlcance): string | null {
+  if (pedido.foraDoAlcance === true) return null
+  return golpeForaDasCasas(ctx, cartao, grupo, pedido) === true ? MOTIVO_FORA_DO_ALCANCE : null
 }
 
 /** A recusa da cura sem ninguém para curar; a mira diz a mesma frase antes de mandar. */
@@ -967,6 +990,12 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const perfuracao = montada ? (mecanica?.perfuracao ?? null) : perfuracaoValida(pedido.perfuracao)
   if (perfuracao !== null && perfuracao < PERFURACAO_MAX) golpe.perfuracao = perfuracao
   if (pedido.contraDe !== undefined) golpe.contraDe = pedido.contraDe
+  // Fase C do alcance: confirmado e de fato fora das casas acesas, a linha do registro diz "(fora do alcance)".
+  if (pedido.foraDoAlcance === true) {
+    const cartaoDoAlcance = pedido.tipo === 'habilidade' ? (tecnica?.cartao ?? null) : arma
+    const grupo = pedido.tipo === 'habilidade' ? grupoDoCartao(pedido.cartaoId) : 'armas'
+    if (cartaoDoAlcance !== null && golpeForaDasCasas(ctx, cartaoDoAlcance, grupo, pedido) === true) golpe.foraDoAlcance = true
+  }
   // R1: a técnica que marca ao acertar (Desenhar o Alvo) e a arma que atira (o acerto lembra a passiva de marca).
   if (tecnica !== null && sistema !== null && lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar') golpe.marca = tecnica.cartao.id
   // F3 (Q6): o selo marcado na mira vai junto; pega em cada alvo que o golpe acerta (a store aplica).
@@ -1459,7 +1488,14 @@ export function textoDoGolpe(golpe: GolpeDaBatalha, nomeDoToken: (tokenId: strin
 }
 
 function textoDoGolpeSemBala(golpe: GolpeDaBatalha, nomeDoToken: (tokenId: string) => string): string {
-  const marcas = [golpe.surpresa ? 'Surpresa' : null, golpe.overload ? 'Overload' : null, marcaDoPerfurante(golpe), golpe.contraDe !== undefined ? 'contra-ataque' : null].filter((marca): marca is string => marca !== null)
+  const marcas = [
+    golpe.surpresa ? 'Surpresa' : null,
+    golpe.overload ? 'Overload' : null,
+    marcaDoPerfurante(golpe),
+    golpe.contraDe !== undefined ? 'contra-ataque' : null,
+    // Fase C do alcance: o mestre lê depois que o golpe saiu confirmado fora das casas acesas.
+    golpe.foraDoAlcance === true ? 'fora do alcance' : null,
+  ].filter((marca): marca is string => marca !== null)
   const nomes = golpe.alvos.map((alvo) => nomeDoToken(alvo.tokenId))
   const emQuem = nomes.length === 0 ? '' : ` em ${nomes.length === 1 ? (nomes[0] ?? '') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1] ?? ''}`}`
   const acao = golpe.bala === undefined ? `usa ${nomeComEscolha(golpe)}` : `atira com ${golpe.nome} (${golpe.bala.nome})`

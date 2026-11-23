@@ -1,4 +1,7 @@
 import type { InvocadoNaBatalha } from '../../lib/batalha/combate'
+import { mapaDoAlcance } from '../../lib/batalha/alcance/segmentos'
+import { pisoDe } from '../../lib/pisos'
+import type { MapData } from '../../types/map'
 import { equipeDe, ladoNaBatalha, type Equipe } from '../../lib/batalha/equipes'
 import { acoesDoInvocado, comunsQueSaem, membrosDoBando } from '../../lib/batalha/invocacao'
 import type { BatalhaEmTurnos } from '../../lib/batalha/ponte'
@@ -30,6 +33,8 @@ export interface MesaDoMestre {
   fichas: readonly { id: string; name: string; imageData?: string | null; x?: number; y?: number; size?: number; rotation?: number }[]
   /** C4: o lado da casa (px), para a ordem dos alvos por distância. */
   tamanhoDaCasa?: number
+  /** Fase C do alcance: o mapa da cena, para as paredes da conta das casas acesas (a Arena não tem: só a distância). */
+  mapa?: MapData
   personagens: readonly Personagem[]
   equipes: readonly Equipe[] | undefined
   sistema: SistemaDeRpg | null
@@ -113,7 +118,10 @@ export function alvosDaOrdem(mesa: MesaDoMestre, cartas: readonly CartaDaOrdem[]
       }),
     )
   }
-  return alvosNaOrdemDaMira(alvos, mesa.fichas, quemAge.tokenId, mesa.tamanhoDaCasa)
+  // Fase C do alcance: as paredes no piso de quem age, as mesmas que o host usa para o mestre.
+  const ficha = mesa.mapa?.tokens.find((token) => token.id === quemAge.tokenId)
+  const mapa = mesa.mapa === undefined || ficha === undefined ? undefined : mapaDoAlcance(mesa.mapa, pisoDe(ficha))
+  return alvosNaOrdemDaMira(alvos, mesa.fichas, quemAge.tokenId, mesa.tamanhoDaCasa, mapa)
 }
 
 /**

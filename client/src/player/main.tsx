@@ -2264,6 +2264,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               marcar: (pedido) => connection.marcarNaBatalha(pedido),
             }}
             tamanhoDaCasa={state.map.grid}
+            mapa={state.map}
             consulta={consultaEstavel}
             alvoDoMapa={alvoDoMapa}
             onMirando={setMirandoNaBatalha}

@@ -28,6 +28,9 @@ import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNa
 import type { ConexaoDaBatalha } from './pedidosDaVez'
 import './batalha.css'
 import './combate.css'
+import { mapaDoAlcance } from '../../lib/batalha/alcance/segmentos'
+import { pisoDe } from '../../lib/pisos'
+import type { MapData } from '../../types/map'
 
 /**
  * A BATALHA DO JOGADOR sobre o mapa (S3): os efeitos (com a faixa da vez e o
@@ -92,6 +95,8 @@ export interface BatalhaDoJogadorProps {
   textoDaVez?: 'suaVez' | 'vezDe'
   /** C4: o lado da casa do mapa (px), para a ordem dos alvos. Ausente = a conta em px (a Arena). */
   tamanhoDaCasa?: number
+  /** Fase C do alcance: o recorte que ele tem, para as paredes da conta das casas acesas (as mesmas que o host usa por ele). Ausente = só a distância. */
+  mapa?: MapData
   /**
    * Conserto das fichas F1 (bug 1): a última recusa da mesa ("A mesa não
    * aceitou: a vez já passou."), por alguns segundos. `id` novo = mostra de
@@ -154,7 +159,7 @@ function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusD
   return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
 }
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, mapa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica }: BatalhaDoJogadorProps) {
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
   const [armasDe_, setArmasDe] = useState<string | null>(null)
@@ -188,6 +193,12 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const tokenQueAge = estado.minhaVez ? cartaDaVez?.tokenId : contras[0]?.tokenId
   const cartaQueAge = tokenQueAge === undefined ? undefined : (estado.minhaVez ? cartaDaVez : estado.cartas.find((carta) => carta.tokenId === tokenQueAge && carta.lado === 'eu'))
   const personagemId = cartaQueAge?.personagemId
+  // Fase C do alcance: as paredes do recorte dele, no piso da ficha que age (refaz só quando o mapa muda).
+  const tokenDaMira = cartaQueAge?.tokenId
+  const mapaDaMira = useMemo(() => {
+    const ficha = tokenDaMira === undefined ? undefined : mapa?.tokens.find((token) => token.id === tokenDaMira)
+    return mapa === undefined || ficha === undefined || !(mapa.grid > 0) ? undefined : mapaDoAlcance(mapa, pisoDe(ficha))
+  }, [mapa, tokenDaMira])
   // F2b (bug 8): a carta da vez é "eu" (a tela dele); fora dos personagens dele, é a emprestada ou o NPC que ele controla (vem com os aliados).
   const personagem = personagemId === undefined ? null : (meus.find((candidato) => candidato.id === personagemId) ?? aliados.find((candidato) => candidato.id === personagemId) ?? null)
   const meuCombate = personagemId === undefined ? undefined : estado.meus?.find((combate) => combate.personagemId === personagemId)
@@ -222,7 +233,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       habilidades: habilidades(acoes),
       contra: { armas: golpesDeAtaque(personagem, sistema, combate, null, bonus), habilidades: habilidades(null) },
       // C4: inimigos do mais perto ao mais longe, aliados depois, ele por último.
-      alvos: alvosNaOrdemDaMira(alvosPara(cartaQueAge), fichas, cartaQueAge.tokenId, tamanhoDaCasa),
+      alvos: alvosNaOrdemDaMira(alvosPara(cartaQueAge), fichas, cartaQueAge.tokenId, tamanhoDaCasa, mapaDaMira),
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
       // C6: a forma em que o mestre decide os números não mostra prévia, e a que já espera o mestre fica apagada.
       formas: personagem !== null && sistema !== null ? formasComODecidirDoMestre(formasNoMenu(personagem, sistema, acoes, combate), meuCombate?.formasEsperando) : [],
@@ -231,7 +242,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       // Fase 8: os itens que o host mandou (a frase e a mira, sem as peças); usar um gasta a ação da vez.
       itens: golpesDosItensDoJogador(meuCombate?.itens ?? [], acoes),
     }
-  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvosPara, selosQueSomam, fichas, tamanhoDaCasa])
+  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvosPara, selosQueSomam, fichas, tamanhoDaCasa, mapaDaMira])
 
   const contrasNoMenu = useMemo<ContraNoMenu[]>(
     () =>

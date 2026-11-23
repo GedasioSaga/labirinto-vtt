@@ -1,4 +1,5 @@
 import type { Personagem } from '../personagem'
+import type { MapaDoAlcance } from './alcance/quemEntra'
 import type {
   EfeitoDaBatalha,
   PedidoDeAcao,
@@ -58,6 +59,15 @@ export interface VezEsperada {
   rodada: number
 }
 
+/**
+ * Fase C do alcance (ALCANCE.md §5): o que o host sabe da tela do JOGADOR que pede. A conta das
+ * casas acesas usa só as paredes que ele vê (o recorte que saiu para ele): a recusa não conta que
+ * existe parede secreta. `null` = sem tela da cena: sem parede, só a distância.
+ */
+export interface TelaDoPedido {
+  mapaDoAlcance(tokenId: string): MapaDoAlcance | null
+}
+
 export interface PonteDaBatalha {
   /** A cena em batalha, ou `null` (fora de batalha, ou cena desconhecida). */
   cena(sceneKey: string): BatalhaEmTurnos | null
@@ -76,13 +86,13 @@ export interface PonteDaBatalha {
    * store confere a regra (`podeAgir`); o host já conferiu posse e vez. `vez`
    * null só com `contraDe` (o contra-ataque, Q6, é fora da vez). Devolve se agiu.
    */
-  agir(sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao): boolean
+  agir(sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao, tela?: TelaDoPedido): boolean
   /**
    * Conserto das fichas F1 (bug 1): por que o `agir` recusaria este pedido
    * agora (texto curto da regra), ou `null`. Só lê. Ausente = o host diz a
    * recusa genérica.
    */
-  motivoDoAgir?(sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao): string | null
+  motivoDoAgir?(sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao, tela?: TelaDoPedido): string | null
   /** F2: rolar (o d20 é do host), rerolar, escolher a saída ou Não reagir. Devolve se valeu. */
   reagir(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeReacao): boolean
   /** F2: dano livre numa ficha (o jogador, só na dele; o host confere). */

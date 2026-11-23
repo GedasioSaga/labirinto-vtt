@@ -2,6 +2,7 @@ import type { CarriedItem, Token } from '../../types/map'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { Casa, Direcao } from './area'
+import type { MapaDoAlcance } from './alcance/quemEntra'
 import type { Equipe } from './equipes'
 
 /**
@@ -59,6 +60,12 @@ export interface MesaDaBatalha {
    * sabe onde ninguém está, e nada depende de "perto" lá.
    */
   posicaoDoToken?(sceneKey: string, tokenId: string): PosicaoNaGrade | null
+  /**
+   * Fase C do alcance (ALCANCE.md §5): as paredes (da visão) e a grade da cena no piso de
+   * `tokenId`, para o host conferir as casas acesas. O mapa inteiro: o pedido do jogador chega com
+   * a tela dele (`TelaDoPedido`), que vence isto. Opcional: sem ele, só a distância (a Arena).
+   */
+  mapaDoAlcance?(sceneKey: string, tokenId: string): MapaDoAlcance | null
   /**
    * Fase C (prazo das condições, `lib/prazoDaCondicao.ts`): a ficha `tokenId`
    * da cena como está AGORA, para a vida por turno no começo da vez e o

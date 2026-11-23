@@ -115,6 +115,7 @@ function useMesa(sceneKey: string): Mesa {
   const cena = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey] : undefined))
   const fichas = useMapStore((state) => state.map.tokens)
   const tamanhoDaCasa = useMapStore((state) => state.map.grid)
+  const mapa = useMapStore((state) => state.map)
   const daAventura = useAdventureStore(personagensAtivos)
   const mochilaNaFicha = useAdventureStore(mochilaMoraNaFicha)
   // MUNIÇÃO: na aventura que não migrou a mochila, a mira conta a bala na mochila do boneco, a mesma que o tiro gasta (`mochilaDoBoneco`).
@@ -124,7 +125,7 @@ function useMesa(sceneKey: string): Mesa {
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const sistema = useMemo(() => sistemaPorId(biblioteca, sistemaId) ?? null, [biblioteca, sistemaId])
   const rotulos = useMemo(() => nomesNumerados(fichas.map((ficha) => ({ id: ficha.id, nome: ficha.name }))), [fichas])
-  return { cena, fichas, tamanhoDaCasa, personagens, equipes, sistema, rotulos }
+  return { cena, fichas, tamanhoDaCasa, mapa, personagens, equipes, sistema, rotulos }
 }
 
 /** A mesa da cena lida AGORA, fora do React: a mesma do `useMesa`, para a mesa da batalha (`batalhaJanela/espelhoOP.ts`). */
@@ -138,7 +139,7 @@ export function mesaAgora(sceneKey: string): Mesa {
   const personagens = mochilaMoraNaFicha(aventura) ? daAventura : fichasComAsMochilasDosBonecos(daAventura, map.tokens)
   const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura)) ?? null
   const rotulos = nomesNumerados(map.tokens.map((ficha) => ({ id: ficha.id, nome: ficha.name })))
-  return { cena, fichas: map.tokens, tamanhoDaCasa: map.grid, personagens, equipes: equipesAtivas(aventura), sistema, rotulos }
+  return { cena, fichas: map.tokens, tamanhoDaCasa: map.grid, mapa: map, personagens, equipes: equipesAtivas(aventura), sistema, rotulos }
 }
 
 /** Ficha que o mestre move: sem personagem, ou de personagem NPC. */
