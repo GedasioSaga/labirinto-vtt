@@ -19,6 +19,7 @@ import { TrazerDeOutraFicha } from './TrazerDeOutraFicha'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
 import { MecanicaDaTecnica, MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
+import { AlcanceDoCartaoDeTexto } from './batalha/alcance/AlcanceDoCartaoDeTexto'
 import { FonteDaArmaContexto, SeloDaFonteDaArma } from './fonteDaArma'
 import type { CarriedItem } from '../types/map'
 import { PecaDoMestreNaForma } from './batalha/FormasDoMestre'
@@ -892,6 +893,18 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
               doQue="arma"
             />
           ))}
+        {/* Fase F do alcance: o cartão sem mecânica montada (técnica de texto, arma só com o dano) guarda o alcance no campo dele. */}
+        {(aba.id === ABA_DAS_TECNICAS || ehArma) && cartao.mecanica === undefined && (
+          <AlcanceDoCartaoDeTexto
+            cartao={cartao}
+            personagem={personagem}
+            sistema={sistema}
+            naArma={ehArma}
+            podeMudar={quemEditaAMecanica !== 'ninguem' && fonte?.tipo !== 'livro' && fonte?.tipo !== 'semLivro'}
+            {...(fonte?.tipo === 'livro' || fonte?.tipo === 'semLivro' ? { nota: 'Arma do livro: o alcance muda no livro (Biblioteca, página Itens).' } : {})}
+            onChange={onChange}
+          />
+        )}
         {aba.modificadores === true && <PecaDoMestreNaForma cartao={cartao} podeMudar={quemEditaAMecanica === 'mestre'} onChange={onChange} />}
         {podeOcultar && <OcultaNoCartao cartao={cartao} onChange={onChange} />}
         {aba.atributos === true && <EscolhaDeAtributos sistema={sistema} escolhidos={cartao.atributos} onChange={(atributos) => onChange({ ...cartao, atributos })} />}

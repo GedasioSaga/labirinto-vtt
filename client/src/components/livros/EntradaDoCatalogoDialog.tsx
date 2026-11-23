@@ -20,7 +20,12 @@ import { CAMPO_DO_ATRIBUTO_DO_ATAQUE } from '../../lib/batalha/formula'
 import { CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA, CAMPO_DO_EFEITO } from '../../lib/batalha/leituraDaFicha'
 import { lerMecanica } from '../../lib/batalha/mecanica/modelo'
 import { camposComOEfeitoDaMecanica } from '../../lib/livros/fraseDaArma'
-import type { MecanicaGuardada } from '../../lib/personagem'
+import type { AlcanceGuardado, MecanicaGuardada } from '../../lib/personagem'
+import { formaDoAlcanceGuardada } from '../../lib/batalha/alcanceDoCartao'
+import { corDoAlcance } from '../../lib/batalha/alcance/cor'
+import { quemUsaDeTreino } from '../../lib/batalha/ensaio/ensaioDoItem'
+import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
+import { CampoDoAlcance } from '../batalha/alcance/CampoDoAlcance'
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { gravarRegraDaArma } from '../../stores/armasNaFonte'
 import { useCatalogoStore } from '../../stores/catalogoStore'
@@ -107,6 +112,8 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
   const [acervoId, setAcervoId] = useState(editando?.acervoId ?? '')
   // ARMAS-FONTE-UNICA §6: o "O que ela faz" da arma (a mecânica da entrada, que é a fonte das fichas ligadas).
   const [mecanicaDaArma, setMecanicaDaArma] = useState<MecanicaGuardada | undefined>(editando?.tipo === 'arma' ? editando.mecanica : undefined)
+  // Fase F do alcance: o alcance da entrada sem mecânica montada (a montada o diz no bloco 4); guardado como veio até a pessoa mudar.
+  const [alcance, setAlcance] = useState<AlcanceGuardado | undefined>(editando?.alcance)
   const acervoIdCampo = useId()
   const doAcervo = useAcervoDeItensStore((state) => state.itens)
   /** Todos os campos digitados, de qualquer tipo: trocar de Arma para Habilidade e voltar não perde o Dano. */
@@ -222,8 +229,8 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
     const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: tipo === 'arma' ? camposComOEfeitoDaMecanica(doTipo, mecanicaDaArma, sistema) : doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined, acervoId: acervoId === '' ? undefined : acervoId,
       // Na arma, o "O que ela faz" daqui; nos outros tipos a janela não edita a mecânica e o Salvar mantém a que a entrada já tinha (B04).
       mecanica: tipo === 'arma' ? mecanicaDaArma : editando?.tipo === tipo ? editando.mecanica : undefined,
-      // Fase B do alcance: a janela ainda não edita o alcance (fase F); o Salvar mantém o que a entrada já tinha.
-      alcance: editando?.tipo === tipo ? editando.alcance : undefined,
+      // Fase F do alcance: o campo da janela (o item ainda não tem alcance próprio no catálogo, como a mecânica).
+      alcance: tipo === 'item' ? undefined : alcance,
     })
     if (item === null) return { erro: 'Dê um nome à entrada.' }
     if ('erro' in balasMontadas) return { erro: balasMontadas.erro, bala: balasMontadas.chave }
@@ -537,6 +544,26 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
                 mexer()
               }}
             />
+          )}
+
+          {tipo !== 'item' && !semAba && (
+            <fieldset className="lb-item-janela__efeito">
+              <legend className="lb-label">Alcance</legend>
+              {armaMontada || (tipo !== 'arma' && editando?.tipo === tipo && lerMecanica(editando.mecanica).tipo === 'pecas') ? (
+                <p className="mu-campo__dica">Com a mecânica montada, o alcance mora nela (bloco 4, Em quem pega).</p>
+              ) : (
+                <CampoDoAlcance
+                  valor={alcance === undefined ? null : formaDoAlcanceGuardada(alcance)}
+                  torto={alcance !== undefined && formaDoAlcanceGuardada(alcance) === null}
+                  // A arma vai pelo Atacar (azul); a habilidade sem mecânica, pelo Dano da ficha de treino.
+                  cor={tipo === 'arma' ? corDoAlcance({ tipo: 'atacar' }) : corDoAlcance({ tipo: 'cartao', dano: danoDaTecnica({ campos }, { personagem: quemUsaDeTreino(sistema), sistema, arma: null }) })}
+                  onChange={(forma) => {
+                    setAlcance(forma ?? undefined)
+                    mexer()
+                  }}
+                />
+              )}
+            </fieldset>
           )}
 
           {tipo !== 'habilidade' && (
