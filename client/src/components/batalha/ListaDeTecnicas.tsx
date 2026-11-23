@@ -256,6 +256,7 @@ function PartesDaForma({ partes }: { partes: PartesNaTela }) {
   return (
     <div className="bt-partes" role="img" aria-label={parte > 0 ? `${grupo}, Parte ${parte} de ${total}` : `Fora de ${grupo}`}>
       <span className="bt-partes__txt">{grupo}</span>
+      {/* `as`: CSSProperties não tipa variável CSS ("--n"); o valor é só o número de segmentos (o mesmo padrão da tira, acima). */}
       <span className="bt-partes__segs" style={{ '--n': total } as CSSProperties}>
         {segmentos.map((i) => (
           <span key={i} className="bt-partes__seg" data-cheio={i < parte ? '' : undefined} />
