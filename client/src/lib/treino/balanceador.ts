@@ -6,6 +6,8 @@ import {
   escudoDe,
   faixaDoDano,
   hpMaximo,
+  LUTAS_DA_CONFERENCIA,
+  LUTAS_POR_TENTATIVA,
   medianaSuave,
   NOME_DO_BOTAO,
   quantil,
@@ -35,10 +37,6 @@ import type { LadoDoTreino, LutadoresDoTreino } from './mesaEmMemoria'
  * `cemLutas.ts`.
  */
 
-/** Lutas por tentativa do resolvedor: o motor de verdade é ~100x mais lento que o do protótipo (NOTAS.md, "Velocidade"). */
-export const LUTAS_POR_TENTATIVA = 40
-/** Lutas novas da conferência. */
-export const LUTAS_DA_CONFERENCIA = 200
 /** Tentativas por botão: a primeira volta e as voltas seguintes, quando há duas metas. */
 const TENTATIVAS_NA_PRIMEIRA = 7
 const TENTATIVAS_DEPOIS = 4

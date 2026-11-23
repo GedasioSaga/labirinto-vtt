@@ -16,6 +16,11 @@ import type { LadoDoTreino, LutadoresDoTreino } from './mesaEmMemoria'
 export const LUTAS_POR_TESTE = [100, 200, 500] as const
 export type LutasPorTeste = (typeof LUTAS_POR_TESTE)[number]
 
+/** Lutas por tentativa do resolvedor: o motor de verdade é ~100x mais lento que o do protótipo (NOTAS.md, "Velocidade"). */
+export const LUTAS_POR_TENTATIVA = 40
+/** Lutas novas da conferência. */
+export const LUTAS_DA_CONFERENCIA = 200
+
 /** Os botões do "Achar os números": o HP vem ligado; os outros, só se o mestre ligar. */
 export type BotaoDoAjuste = 'hp' | 'escudo' | 'dano' | 'atributos'
 export const BOTOES_DO_AJUSTE: readonly BotaoDoAjuste[] = ['hp', 'escudo', 'dano', 'atributos']

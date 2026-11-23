@@ -1,78 +1,36 @@
-import { useMemo, type ReactNode } from 'react'
-import { maximoComposto } from '../../lib/ajusteDaFicha'
-import { ehVariacao, entraNaBatalha, trocarForca, variacoesDe } from '../../lib/livros/combate'
-import {
-  COMPARAR_MAX,
-  COMPARAR_MIN,
-  FATOR_DA_REACAO,
-  NOME_DO_PESO,
-  ajusteDoPeso,
-  colunaDaComparacao,
-  melhorGolpe,
-  pesoDoEncontro,
-  type AlvoDoPeso,
-  type ColunaDaComparacao,
-  type GolpeDaFicha,
-  type PesoDoEncontro,
-  type ResultadoDoEncontro,
-} from '../../lib/livros/encontro'
+import { useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { ehVariacao, entraNaBatalha, variacoesDe } from '../../lib/livros/combate'
+import { COMPARAR_MAX, COMPARAR_MIN, FATOR_DA_REACAO, colunaDaComparacao, melhorGolpe, type ColunaDaComparacao, type GolpeDaFicha } from '../../lib/livros/encontro'
 import type { EstadoDaLeitura } from '../../lib/livros/saude'
-import { forcaDe, type Personagem } from '../../lib/personagem'
+import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
-import { recursoDeVida } from '../../lib/vidaDaFicha'
-import { INIMIGOS_POR_NPC_MAX, useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
-import { useToastStore } from '../../stores/toastStore'
-import { avisarComDesfazer, formatarForca, formatarNumero, forcaMexida, gravarNoMundo, Retrato } from './comum'
-import { IconeDoMundo } from './icones'
+import type { BalancoDaSerie } from '../../lib/treino/balanceadorComum'
+import { useBalanceadorStore, type AbaDoBalanceador } from '../../stores/balanceadorStore'
+import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
+import { BalanceadorDaLuta } from './BalanceadorDaLuta'
+import { formatarForca, formatarNumero, forcaMexida, Retrato } from './comum'
+import './balancear.css'
 
 /**
- * COMPARAR E BALANCEAR (M2, docs/planos/livros-de-regras-plano.md, seção M2):
- * de 2 a 4 fichas lado a lado com a força já aplicada e, embaixo, o peso do
- * encontro (grupo x inimigos) com os botões que ajustam a força dos inimigos.
- * Porte fiel da aba Comparar do protótipo aprovado
- * (docs/design/livros-de-regras/). Os números vêm todos de
- * lib/livros/encontro.ts (que só usa os funis da batalha); a escolha das
- * fichas, o grupo e os inimigos são estado de sessão do mundoDoLivroStore.
+ * COMPARAR E BALANCEAR (M2, docs/planos/livros-de-regras-plano.md; refeita
+ * pelo protótipo aprovado de 23/11/2026, docs/design/balanceamento/): duas
+ * abas. "Testar a luta" (`BalanceadorDaLuta`) monta aliados contra inimigos,
+ * roda as lutas do robô do treino e acha os números; o antigo "peso do
+ * encontro" virou a linha da conta rápida. "Comparar fichas" mostra de 2 a 4
+ * fichas lado a lado, com uma coluna base, a diferença para ela e "Só as
+ * linhas que mudam". Os números da tabela vêm de lib/livros/encontro.ts.
  */
-
-function IconeDoPeso({ peso }: { peso: PesoDoEncontro }) {
-  if (peso === 'facil') return <IconeDoMundo nome="ok" />
-  if (peso === 'justo') return <IconeDoMundo nome="balanca" />
-  if (peso === 'duro') return <IconeDoMundo nome="alerta" />
-  return <IconeDoMundo nome="nao" />
-}
 
 /** O que o golpe sem número mostra no lugar do dano, em cinza. */
 const DANO_SEM_NUMERO: Readonly<Record<EstadoDaLeitura, string>> = { lido: 'Lido', naHora: 'Na hora', naoLe: 'Não lê', aMao: 'À mão' }
 
-/** A frase final do veredito, do protótipo. */
-const FRASE_DO_PESO: Readonly<Record<PesoDoEncontro, string>> = {
-  facil: 'O grupo atropela.',
-  justo: 'Dá trabalho, mas o grupo chega primeiro.',
-  duro: 'Perto demais: um azar no d20 vira derrota.',
-  mortal: 'Os inimigos chegam antes.',
-}
-
-const ALVOS: readonly AlvoDoPeso[] = ['facil', 'justo', 'duro']
-
-/** "×0,6": o fator da reação como a linha "Por rodada" e as premissas o escrevem. */
+/** "×0,6": o fator da reação como a linha "Por rodada" o escreve. */
 const FATOR_ESCRITO = formatarNumero(Math.round(FATOR_DA_REACAO * 100) / 100)
-/** "40%": quanto a reação tira em média (o resto do fator). */
-const REACAO_TIRA = `${Math.round((1 - FATOR_DA_REACAO) * 100)}%`
 
-/** "~2,3", "menos de 1", "nunca": as rodadas como o protótipo escreve. */
-function rodadasEscritas(rodadas: number): string {
-  if (rodadas === Infinity) return 'nunca'
-  if (rodadas < 1) return 'menos de 1'
-  return `~${formatarNumero(Math.round(rodadas * 10) / 10)}`
-}
-
-/** "em ~2,3 rodadas", "em menos de 1 rodada"; `null` = nunca. */
-function emRodadas(rodadas: number): string | null {
-  if (rodadas === Infinity) return null
-  if (rodadas < 1) return 'menos de 1 rodada'
-  return `${rodadasEscritas(rodadas)} rodadas`
-}
+const ABAS: readonly { id: AbaDoBalanceador; rotulo: string }[] = [
+  { id: 'testar', rotulo: 'Testar a luta' },
+  { id: 'comparar', rotulo: 'Comparar fichas' },
+]
 
 function papelDaFicha(personagem: Personagem, personagens: readonly Personagem[]): { rotulo: string; classe: string } {
   if (personagem.tipo === 'jogador') return { rotulo: 'Jogador', classe: 'mu-etiqueta--jogador' }
@@ -89,21 +47,34 @@ function Barra({ fracao, classe }: { fracao: number; classe?: string }) {
   )
 }
 
+/** "+920", "−40", "igual": a diferença de uma coluna para a base. */
+function diferenca(valor: number, base: number): string {
+  const delta = Math.round((valor - base) * 10) / 10
+  if (delta === 0) return 'igual'
+  return delta > 0 ? `+${formatarNumero(delta)}` : `−${formatarNumero(-delta)}`
+}
+
 interface LinhaDeBarrasProps {
   rotulo: string
   sub?: string
   /** Um valor por coluna; `null` = a ficha não tem (o sistema não tem o recurso). */
   valores: readonly (number | null)[]
   chaves: readonly string[]
+  /** A coluna base: as outras mostram a diferença para ela. */
+  base: number
+  /** "Só as linhas que mudam": a linha com todos iguais some. */
+  soDiferencas: boolean
   classe?: string
   extra?: (indice: number) => ReactNode
 }
 
-/** Uma linha da tabela: o número e a barra; a barra mais longa (sozinha) marca quem lidera. */
-function LinhaDeBarras({ rotulo, sub, valores, chaves, classe, extra }: LinhaDeBarrasProps) {
+/** Uma linha da tabela: o número e a barra; o maior valor (sozinho) fica em latão. */
+function LinhaDeBarras({ rotulo, sub, valores, chaves, base, soDiferencas, classe, extra }: LinhaDeBarrasProps) {
   const numeros = valores.map((valor) => valor ?? 0)
+  if (soDiferencas && valores.every((valor) => valor === valores[0])) return null
   const maior = Math.max(...numeros, 1)
   const lideres = numeros.filter((valor) => valor === maior).length
+  const valorDaBase = valores[base]
   return (
     <tr>
       <th scope="row">
@@ -120,6 +91,7 @@ function LinhaDeBarras({ rotulo, sub, valores, chaves, classe, extra }: LinhaDeB
               <span className="mu-val__num">
                 {formatarNumero(valor)}
                 {extra?.(i)}
+                {i !== base && valorDaBase !== null && valorDaBase !== undefined && <small className={valor === valorDaBase ? 'bl-dif bl-dif--igual' : 'bl-dif'}>{diferenca(valor, valorDaBase)}</small>}
               </span>
             </div>
           )}
@@ -155,9 +127,23 @@ interface TabelaProps {
   personagens: readonly Personagem[]
   porRodada: readonly number[]
   sistema: SistemaDeRpg
+  base: number
+  soDiferencas: boolean
+  onBase: (indice: number) => void
+  /** O último teste, para as linhas "Na última simulação"; `null` = sem teste. */
+  balanco: BalancoDaSerie | null
 }
 
-function TabelaDaComparacao({ colunas, fichas, personagens, porRodada, sistema }: TabelaProps) {
+/** O que a ficha fez no último teste (as cópias somadas); `null` = não estava nele. */
+function naSimulacao(balanco: BalancoDaSerie | null, id: string): { dano: number; primeiro: number; sp: number } | null {
+  if (balanco === null) return null
+  const vagas = balanco.vagas.filter((vaga) => vaga.origem === id)
+  if (vagas.length === 0) return null
+  const soma = (campo: 'danoCausado' | 'primeiro' | 'spGasto') => vagas.reduce((total, vaga) => total + vaga[campo], 0) / vagas.length
+  return { dano: Math.round(soma('danoCausado')), primeiro: Math.round(soma('primeiro') * 100), sp: Math.round(soma('spGasto')) }
+}
+
+function TabelaDaComparacao({ colunas, fichas, personagens, porRodada, sistema, base, soDiferencas, onBase, balanco }: TabelaProps) {
   const chaves = colunas.map((coluna) => coluna.personagemId)
   const vezes = colunas.length + 1
   const grupo = (titulo: string) => (
@@ -170,7 +156,10 @@ function TabelaDaComparacao({ colunas, fichas, personagens, porRodada, sistema }
   const hp = colunas.map((coluna) => coluna.hp?.maximo ?? null)
   const sp = colunas.map((coluna) => coluna.sp?.maximo ?? null)
   const escudo = colunas.map((coluna) => coluna.escudo)
+  const golpeForte = colunas.map((coluna) => Math.max(0, ...coluna.golpes.map((golpe) => golpe.valor ?? 0)))
   const algum = (valores: readonly (number | null)[]) => valores.some((valor) => valor !== null)
+  const simulacao = colunas.map((coluna) => naSimulacao(balanco, coluna.personagemId))
+  const linha = { chaves, base, soDiferencas }
 
   return (
     <table>
@@ -183,6 +172,7 @@ function TabelaDaComparacao({ colunas, fichas, personagens, porRodada, sistema }
           {colunas.map((coluna, i) => {
             const ficha = fichas[i]
             const papel = papelDaFicha(ficha, personagens)
+            const modelo = ficha.combate?.modeloId === undefined ? undefined : personagens.find((outro) => outro.id === ficha.combate?.modeloId)
             return (
               <th key={coluna.personagemId} scope="col">
                 <div className="mu-cmp-col">
@@ -195,6 +185,14 @@ function TabelaDaComparacao({ colunas, fichas, personagens, porRodada, sistema }
                       <span className={`mu-etiqueta ${papel.classe}`}>{papel.rotulo}</span>
                       {forcaMexida(coluna.forca) && <span className="mu-etiqueta mu-etiqueta--forca">{formatarForca(coluna.forca)}</span>}
                     </span>
+                    {modelo !== undefined && <span className="bl-cmp-col__var">variação de {modelo.nome}</span>}
+                    {i === base ? (
+                      <span className="bl-cmp-col__base">Base</span>
+                    ) : (
+                      <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma bl-cmp-col__usar" onClick={() => onBase(i)}>
+                        Usar como base
+                      </button>
+                    )}
                   </div>
                 </div>
               </th>
@@ -204,9 +202,9 @@ function TabelaDaComparacao({ colunas, fichas, personagens, porRodada, sistema }
       </thead>
       <tbody>
         {(algum(hp) || algum(sp) || algum(escudo)) && grupo('Vida e fôlego')}
-        {algum(hp) && <LinhaDeBarras rotulo="HP" sub="com a força" valores={hp} chaves={chaves} classe="mu-barra--hp" />}
-        {algum(sp) && <LinhaDeBarras rotulo="SP" valores={sp} chaves={chaves} classe="mu-barra--sp" />}
-        {algum(escudo) && <LinhaDeBarras rotulo="Escudo" valores={escudo} chaves={chaves} classe="mu-barra--esc" />}
+        {algum(hp) && <LinhaDeBarras rotulo="HP" sub="com a força" valores={hp} classe="mu-barra--hp" {...linha} />}
+        {algum(sp) && <LinhaDeBarras rotulo="SP" valores={sp} classe="mu-barra--sp" {...linha} />}
+        {algum(escudo) && <LinhaDeBarras rotulo="Escudo" valores={escudo} classe="mu-barra--esc" {...linha} />}
         {sistema.atributos.length > 0 && grupo('Atributos')}
         {sistema.atributos.map((atributo, a) => (
           <LinhaDeBarras
@@ -214,14 +212,16 @@ function TabelaDaComparacao({ colunas, fichas, personagens, porRodada, sistema }
             rotulo={atributo.nome}
             sub={atributo.abreviacao}
             valores={colunas.map((coluna) => coluna.atributos[a]?.valor ?? null)}
-            chaves={chaves}
             extra={(i) => {
               const rank = colunas[i].atributos[a]?.rank
               return rank === null || rank === undefined ? null : <small>{rank}</small>
             }}
+            {...linha}
           />
         ))}
         {grupo('Dano pelas fórmulas da ficha')}
+        <LinhaDeBarras rotulo="Golpe mais forte" valores={golpeForte} {...linha} />
+        <LinhaDeBarras rotulo="Por rodada" sub={`melhor golpe × reação (${FATOR_ESCRITO})`} valores={porRodada} {...linha} />
         <tr className="mu-cmp-golpes">
           <th scope="row">
             Golpes<small>conta do app</small>
@@ -240,153 +240,16 @@ function TabelaDaComparacao({ colunas, fichas, personagens, porRodada, sistema }
             </td>
           ))}
         </tr>
-        <LinhaDeBarras rotulo="Por rodada" sub={`melhor golpe × reação (${FATOR_ESCRITO})`} valores={porRodada} chaves={chaves} />
+        {simulacao.some((item) => item !== null) && (
+          <>
+            {grupo('Na última simulação')}
+            <LinhaDeBarras rotulo="Dano por luta" valores={simulacao.map((item) => item?.dano ?? null)} {...linha} />
+            <LinhaDeBarras rotulo="Cai primeiro" sub="% das lutas" valores={simulacao.map((item) => item?.primeiro ?? null)} {...linha} />
+            <LinhaDeBarras rotulo="SP gasto" sub="por luta" valores={simulacao.map((item) => item?.sp ?? null)} {...linha} />
+          </>
+        )}
       </tbody>
     </table>
-  )
-}
-
-/** Um NPC na lista dos inimigos, com a quantidade. */
-interface ResumoDoInimigo {
-  personagem: Personagem
-  hp: number | null
-  golpe: number | null
-  forca: number
-}
-
-function PassoDoInimigo({ resumo, quantos }: { resumo: ResumoDoInimigo; quantos: number }) {
-  const { personagem, hp, golpe, forca } = resumo
-  const nome = personagem.nome
-  const partes = [hp === null ? null : `HP ${formatarNumero(hp)}`, golpe === null ? 'sem golpe que o app lê' : `golpe ${formatarNumero(golpe)}`, forcaMexida(forca) ? formatarForca(forca) : null]
-  const mudar = (n: number) => useMundoDoLivroStore.getState().quantosInimigos(personagem.id, n)
-  return (
-    <div className="mu-passo">
-      <Retrato imagem={personagem.retrato} nome={nome} tamanho="p" />
-      <span className="mu-passo__nome">
-        <span className="mu-passo__quem" title={nome}>
-          {nome}
-        </span>
-        <small>{partes.filter((parte) => parte !== null).join(' · ')}</small>
-      </span>
-      <span className="mu-passo__ctrl" role="group" aria-label={`Quantos ${nome}`}>
-        <button type="button" className="mu-bt mu-bt--ic mu-bt--p" aria-label={`Um ${nome} a menos`} disabled={quantos === 0} onClick={() => mudar(quantos - 1)}>
-          <IconeDoMundo nome="menos" />
-        </button>
-        <output aria-live="polite" className={quantos > 0 ? 'mu-passo__n mu-passo__n--tem' : 'mu-passo__n'}>
-          {quantos}
-        </output>
-        <button type="button" className="mu-bt mu-bt--ic mu-bt--p" aria-label={`Um ${nome} a mais`} disabled={quantos >= INIMIGOS_POR_NPC_MAX} onClick={() => mudar(quantos + 1)}>
-          <IconeDoMundo nome="mais" />
-        </button>
-      </span>
-    </div>
-  )
-}
-
-interface VereditoProps {
-  resultado: ResultadoDoEncontro
-  personagens: readonly Personagem[]
-  onDeixar: (alvo: AlvoDoPeso) => void
-  onVerSaude: () => void
-}
-
-function Veredito({ resultado, personagens, onDeixar, onVerSaude }: VereditoProps) {
-  const { peso, razao } = resultado
-  if (peso === null) {
-    return (
-      <div className="mu-vazio mu-peso__todo">
-        <p>Escolha pelo menos um jogador e um inimigo para ver o peso do encontro.</p>
-      </div>
-    )
-  }
-  const rodadasDoGrupo = resultado.grupo.rodadasParaDerrubar
-  const rodadasDosInimigos = resultado.inimigos.rodadasParaDerrubar
-  const maior = Math.max(Number.isFinite(rodadasDoGrupo) ? rodadasDoGrupo : 0, Number.isFinite(rodadasDosInimigos) ? rodadasDosInimigos : 0, 1)
-  const fracao = (rodadas: number) => (Number.isFinite(rodadas) ? rodadas / maior : 1)
-  const grupoEm = emRodadas(rodadasDoGrupo)
-  const inimigosEm = emRodadas(rodadasDosInimigos)
-  const semGolpe = resultado.semGolpe.flatMap((id) => personagens.find((personagem) => personagem.id === id) ?? [])
-  let travado: string | null = null
-  if (razao === 0) travado = 'Os inimigos não têm golpe que o app lê: não há força para ajustar.'
-  else if (!Number.isFinite(razao)) travado = 'O grupo não tem golpe que o app lê: a força dos inimigos não muda o resultado.'
-
-  return (
-    <div className="mu-cartao mu-veredito" data-peso={peso}>
-      <div>
-        <span className="mu-veredito__selo">
-          <IconeDoPeso peso={peso} />
-          {NOME_DO_PESO[peso]}
-        </span>
-        <p className="mu-veredito__txt">
-          {grupoEm === null ? (
-            <>
-              O grupo <b>nunca</b> derruba os inimigos.
-            </>
-          ) : (
-            <>
-              O grupo derruba os inimigos em <b>{grupoEm}</b>.
-            </>
-          )}{' '}
-          {inimigosEm === null ? (
-            <>
-              Os inimigos <b>nunca</b> derrubam o grupo.
-            </>
-          ) : (
-            <>
-              Os inimigos derrubam o grupo em <b>{inimigosEm}</b>.
-            </>
-          )}{' '}
-          {FRASE_DO_PESO[peso]}
-        </p>
-      </div>
-      <div className="mu-rodadas" role="group" aria-label="Rodadas até cair">
-        <div className="mu-rodadas__lin mu-rodadas__grupo">
-          <span className="mu-rodadas__rot">
-            <span>Grupo derruba os inimigos</span>
-            <b>{rodadasEscritas(rodadasDoGrupo)}</b>
-          </span>
-          <Barra fracao={fracao(rodadasDoGrupo)} />
-        </div>
-        <div className="mu-rodadas__lin mu-rodadas__inim">
-          <span className="mu-rodadas__rot">
-            <span>Inimigos derrubam o grupo</span>
-            <b>{rodadasEscritas(rodadasDosInimigos)}</b>
-          </span>
-          <Barra fracao={fracao(rodadasDosInimigos)} />
-        </div>
-      </div>
-      {semGolpe.length > 0 && (
-        <p className="mu-pg-nota mu-veredito__aviso">
-          <IconeDoMundo nome="alerta" />
-          <span>
-            {semGolpe.map((personagem, i) => (
-              <span key={personagem.id}>
-                {i > 0 && ', '}
-                <b>{personagem.nome}</b>
-              </span>
-            ))}{' '}
-            {semGolpe.length === 1 ? 'não tem golpe que o app lê: entra com dano 0.' : 'não têm golpe que o app lê: entram com dano 0.'}
-          </span>
-          <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={onVerSaude}>
-            Ver na Saúde da ficha
-          </button>
-        </p>
-      )}
-      <div className="mu-veredito__acoes">
-        <span className="mu-pg-nota">Ajustar a força dos inimigos:</span>
-        {ALVOS.map((alvo) => (
-          <button key={alvo} type="button" className={alvo === peso ? 'mu-bt mu-bt--p mu-bt--latao' : 'mu-bt mu-bt--p'} disabled={travado !== null} onClick={() => onDeixar(alvo)}>
-            <IconeDoMundo nome="raio" />
-            Deixar {NOME_DO_PESO[alvo]}
-          </button>
-        ))}
-        {travado !== null && <span className="mu-pg-nota">{travado}</span>}
-      </div>
-      <p className="mu-premissas">
-        Estimativa simples: cada um usa todo turno o melhor golpe que a ficha paga (sem OVERLOAD), a reação do alvo tira em média {REACAO_TIRA} do dano, e HP + Escudo somam a vida. Sem
-        cura; transformação só conta se já estiver ligada na ficha.
-      </p>
-    </div>
   )
 }
 
@@ -397,73 +260,20 @@ export interface PaginaCompararProps {
   onVerSaude: () => void
 }
 
-export function PaginaComparar({ personagens, sistema, onVerSaude }: PaginaCompararProps) {
-  const comparar = useMundoDoLivroStore((state) => state.comparar)
-  const grupo = useMundoDoLivroStore((state) => state.grupo)
-  const inimigos = useMundoDoLivroStore((state) => state.inimigos)
+export function PaginaComparar({ personagens, sistema }: PaginaCompararProps) {
+  const aba = useBalanceadorStore((state) => state.aba)
+  const refs = useRef<(HTMLButtonElement | null)[]>([])
 
-  const jogadores = useMemo(() => personagens.filter((personagem) => personagem.tipo === 'jogador'), [personagens])
-  const npcs = useMemo(() => personagens.filter((personagem) => personagem.tipo === 'npc' && entraNaBatalha(personagem)), [personagens])
-  const escolhidas = useMemo(() => comparar.flatMap((id) => personagens.find((personagem) => personagem.id === id) ?? []), [comparar, personagens])
-  const colunas = useMemo(() => escolhidas.map((personagem) => colunaDaComparacao(personagem, sistema)), [escolhidas, sistema])
-  const porRodada = useMemo(
-    () => escolhidas.map((personagem) => Math.round((melhorGolpe(personagem, sistema)?.valor ?? 0) * FATOR_DA_REACAO)),
-    [escolhidas, sistema],
-  )
-  const resumos = useMemo<ResumoDoInimigo[]>(() => {
-    const vida = recursoDeVida(sistema)
-    return npcs.map((personagem) => ({
-      personagem,
-      hp: vida === null ? null : maximoComposto(personagem, vida.id).total,
-      golpe: melhorGolpe(personagem, sistema)?.valor ?? null,
-      forca: forcaDe(personagem),
-    }))
-  }, [npcs, sistema])
-  const resultado = useMemo(() => pesoDoEncontro(grupo, inimigos, personagens, sistema), [grupo, inimigos, personagens, sistema])
-
-  const cheio = comparar.length >= COMPARAR_MAX
-  const noGrupo = grupo.filter((id) => jogadores.some((personagem) => personagem.id === id)).length
-  const quantosInimigos = npcs.reduce((soma, personagem) => soma + (inimigos[personagem.id] ?? 0), 0)
-  const temEncontro = grupo.length > 0 || Object.keys(inimigos).length > 0
-
-  const alternar = (id: string) => useMundoDoLivroStore.getState().alternarComparar(id)
-
-  const chips = (lista: readonly Personagem[]) =>
-    lista.map((personagem) => {
-      const dentro = comparar.includes(personagem.id)
-      return (
-        <button key={personagem.id} type="button" className="mu-chip" aria-pressed={dentro} disabled={!dentro && cheio} onClick={() => alternar(personagem.id)}>
-          <Retrato imagem={personagem.retrato} nome={personagem.nome} tamanho="p" />
-          {personagem.nome}
-        </button>
-      )
-    })
-
-  const esvaziar = () => {
-    const antes = { grupo, inimigos }
-    useMundoDoLivroStore.getState().limparEncontro()
-    avisarComDesfazer('Encontro esvaziado.', () => useMundoDoLivroStore.setState(antes))
-  }
-
-  const deixar = (alvo: AlvoDoPeso) => {
-    const atual = useMundoDoLivroStore.getState()
-    const ajuste = ajusteDoPeso(atual.grupo, atual.inimigos, personagens, sistema, alvo)
-    const mudou = Object.keys(ajuste.forcas).some((id) => ajuste.forcas[id] !== ajuste.antes[id])
-    if (!mudou) {
-      const texto = ajuste.noLimite
-        ? 'A força dos inimigos já está no limite (×0,5 a ×2): mude o número de inimigos.'
-        : `Nada mudou: o encontro já está ${NOME_DO_PESO[resultado.peso ?? alvo]}.`
-      useToastStore.getState().push('info', texto)
-      return
-    }
-    const ficou = ajuste.pesoDepois === null ? '' : `: o encontro ficou ${NOME_DO_PESO[ajuste.pesoDepois]}`
-    const limite = ajuste.noLimite ? ' A força bateu no limite (×0,5 a ×2): mude o número de inimigos para chegar lá.' : ''
-    const aplicar = (forcas: Readonly<Record<string, number>>) => (lista: Personagem[]) =>
-      lista.map((personagem) => {
-        const forca = forcas[personagem.id]
-        return forca === undefined ? personagem : trocarForca(personagem, forca)
-      })
-    void gravarNoMundo(aplicar(ajuste.forcas), { texto: `Força dos inimigos ajustada${ficou}.${limite}`, desfazer: aplicar(ajuste.antes) })
+  // Abas: setas, Home e End trocam de aba (e o foco vai junto); o Tab entra no painel.
+  const teclarNasAbas = (evento: KeyboardEvent) => {
+    const atual = ABAS.findIndex((item) => item.id === aba)
+    const alvos: Record<string, number> = { ArrowRight: atual + 1, ArrowLeft: atual - 1, Home: 0, End: ABAS.length - 1 }
+    const proximo = alvos[evento.key]
+    if (proximo === undefined) return
+    evento.preventDefault()
+    const indice = (proximo + ABAS.length) % ABAS.length
+    useBalanceadorStore.getState().trocarAba(ABAS[indice].id)
+    refs.current[indice]?.focus()
   }
 
   return (
@@ -471,110 +281,134 @@ export function PaginaComparar({ personagens, sistema, onVerSaude }: PaginaCompa
       <header className="mu-pg-cab">
         <div className="mu-pg-cab__txt">
           <h2 className="mu-pg-titulo">Comparar e balancear</h2>
-          <p className="mu-pg-sub">Até 4 fichas lado a lado: atributos, vida e o dano que as fórmulas dão de verdade. Embaixo, o peso de um grupo de inimigos contra os jogadores.</p>
+          <p className="mu-pg-sub">
+            Monte os dois lados e deixe o robô jogar a luta muitas vezes: o app conta quem vence, quanto dura e quem carrega cada lado, e diz o que mudar. Ajuste nunca mexe na ficha original: vira uma variação.
+          </p>
         </div>
       </header>
 
-      {jogadores.length + npcs.length === 0 ? (
+      <div className="bl-abas" role="tablist" aria-label="O que fazer" onKeyDown={teclarNasAbas}>
+        {ABAS.map((item, i) => (
+          <button
+            key={item.id}
+            ref={(elemento) => {
+              refs.current[i] = elemento
+            }}
+            type="button"
+            role="tab"
+            id={`bl-aba-${item.id}`}
+            className="bl-aba"
+            aria-selected={aba === item.id}
+            aria-controls={`bl-painel-${item.id}`}
+            tabIndex={aba === item.id ? 0 : -1}
+            onClick={() => useBalanceadorStore.getState().trocarAba(item.id)}
+          >
+            {item.rotulo}
+          </button>
+        ))}
+      </div>
+
+      <section id={`bl-painel-${aba}`} role="tabpanel" aria-labelledby={`bl-aba-${aba}`} tabIndex={-1}>
+        {aba === 'testar' ? <BalanceadorDaLuta personagens={personagens} sistema={sistema} /> : <CompararFichas personagens={personagens} sistema={sistema} />}
+      </section>
+    </div>
+  )
+}
+
+function CompararFichas({ personagens, sistema }: { personagens: readonly Personagem[]; sistema: SistemaDeRpg }) {
+  const comparar = useMundoDoLivroStore((state) => state.comparar)
+  const lados = useBalanceadorStore((state) => state.lados)
+  const balanco = useBalanceadorStore((state) => state.balanco)
+  const baseId = useBalanceadorStore((state) => state.baseDoComparar)
+  const soDiferencas = useBalanceadorStore((state) => state.soDiferencas)
+
+  const lutaveis = useMemo(() => personagens.filter((personagem) => entraNaBatalha(personagem)), [personagens])
+  const grupos = useMemo(
+    () => [
+      { titulo: 'Jogadores', fichas: lutaveis.filter((personagem) => personagem.tipo === 'jogador') },
+      { titulo: 'NPCs', fichas: lutaveis.filter((personagem) => personagem.tipo === 'npc' && !ehVariacao(personagem)) },
+      { titulo: 'Variações', fichas: lutaveis.filter((personagem) => personagem.tipo === 'npc' && ehVariacao(personagem)) },
+    ],
+    [lutaveis],
+  )
+  const escolhidas = useMemo(() => comparar.flatMap((id) => personagens.find((personagem) => personagem.id === id) ?? []), [comparar, personagens])
+  const colunas = useMemo(() => escolhidas.map((personagem) => colunaDaComparacao(personagem, sistema)), [escolhidas, sistema])
+  const porRodada = useMemo(() => escolhidas.map((personagem) => Math.round((melhorGolpe(personagem, sistema)?.valor ?? 0) * FATOR_DA_REACAO)), [escolhidas, sistema])
+  const base = Math.max(0, escolhidas.findIndex((personagem) => personagem.id === baseId))
+  const cheio = comparar.length >= COMPARAR_MAX
+  const daLuta = [...lados.a, ...lados.b].map((ficha) => ficha.id).filter((id) => lutaveis.some((personagem) => personagem.id === id))
+
+  const chips = (lista: readonly Personagem[]) =>
+    lista.map((personagem) => {
+      const dentro = comparar.includes(personagem.id)
+      return (
+        <button key={personagem.id} type="button" className="mu-chip" aria-pressed={dentro} disabled={!dentro && cheio} onClick={() => useMundoDoLivroStore.getState().alternarComparar(personagem.id)}>
+          <Retrato imagem={personagem.retrato} nome={personagem.nome} tamanho="p" />
+          {personagem.nome}
+        </button>
+      )
+    })
+
+  if (lutaveis.length === 0) {
+    return (
+      <div className="mu-vazio">
+        <p>Nenhuma ficha de combate nesta pasta ainda. Crie um jogador em Jogadores ou um NPC em NPCs de combate para comparar aqui.</p>
+      </div>
+    )
+  }
+  return (
+    <>
+      <div className="mu-cmp-escolha" role="group" aria-label="Fichas para comparar">
+        {grupos.map(
+          (grupo) =>
+            grupo.fichas.length > 0 && (
+              <div key={grupo.titulo} className="mu-cmp-escolha__lin">
+                <span className="mu-cmp-escolha__rot">{grupo.titulo}</span>
+                <div className="mu-chips">{chips(grupo.fichas)}</div>
+              </div>
+            ),
+        )}
+        <div className="bl-cmp-ctrl">
+          <p className="mu-pg-nota" aria-live="polite">
+            {comparar.length} de {COMPARAR_MAX} escolhidas{cheio ? '. Tire uma para pôr outra.' : '.'}
+          </p>
+          <label className="bl-interruptor">
+            <input type="checkbox" checked={soDiferencas} onChange={(e) => useBalanceadorStore.getState().mudarComparar({ soDiferencas: e.target.checked })} /> Só as linhas que mudam
+          </label>
+          <button
+            type="button"
+            className="mu-bt mu-bt--p mu-bt--fantasma"
+            disabled={daLuta.length < COMPARAR_MIN}
+            title={daLuta.length < COMPARAR_MIN ? 'Monte a luta em "Testar a luta" primeiro.' : undefined}
+            onClick={() => useMundoDoLivroStore.setState({ comparar: daLuta.slice(0, COMPARAR_MAX) })}
+          >
+            Usar as fichas da luta
+          </button>
+        </div>
+      </div>
+
+      {colunas.length < COMPARAR_MIN ? (
         <div className="mu-vazio">
-          <p>Nenhuma ficha de combate nesta pasta ainda. Crie um jogador em Jogadores ou um NPC em NPCs de combate para comparar aqui.</p>
+          <p>Escolha pelo menos {COMPARAR_MIN} fichas acima para ver lado a lado.</p>
         </div>
       ) : (
         <>
-          <div className="mu-cmp-escolha" role="group" aria-label="Fichas para comparar">
-            {jogadores.length > 0 && (
-              <div className="mu-cmp-escolha__lin">
-                <span className="mu-cmp-escolha__rot">Jogadores</span>
-                <div className="mu-chips">{chips(jogadores)}</div>
-              </div>
-            )}
-            {npcs.length > 0 && (
-              <div className="mu-cmp-escolha__lin">
-                <span className="mu-cmp-escolha__rot">NPCs</span>
-                <div className="mu-chips">{chips(npcs)}</div>
-              </div>
-            )}
-            <p className="mu-pg-nota" aria-live="polite">
-              {comparar.length} de {COMPARAR_MAX} escolhidas{cheio ? '. Tire uma para pôr outra.' : '.'} {jogadores.length + npcs.length} fichas de combate nesta pasta.
-            </p>
+          <div className="mu-cartao mu-cmp">
+            <TabelaDaComparacao
+              colunas={colunas}
+              fichas={escolhidas}
+              personagens={personagens}
+              porRodada={porRodada}
+              sistema={sistema}
+              base={base}
+              soDiferencas={soDiferencas}
+              onBase={(indice) => useBalanceadorStore.getState().mudarComparar({ baseDoComparar: escolhidas[indice]?.id ?? null })}
+              balanco={balanco?.valor ?? null}
+            />
           </div>
-
-          {colunas.length < COMPARAR_MIN ? (
-            <div className="mu-vazio">
-              <p>Escolha pelo menos {COMPARAR_MIN} fichas acima para ver lado a lado.</p>
-            </div>
-          ) : (
-            <>
-              <div className="mu-cartao mu-cmp">
-                <TabelaDaComparacao colunas={colunas} fichas={escolhidas} personagens={personagens} porRodada={porRodada} sistema={sistema} />
-              </div>
-              <p className="mu-tabela-dica">A barra mais longa de cada linha marca quem lidera. NPC com força diferente de ×1 já aparece com a força aplicada.</p>
-            </>
-          )}
-
-          <section className="mu-pg-secao" aria-labelledby="mu-peso-tit">
-            <div className="mu-pg-secao__cab">
-              <h3 className="mu-pg-secao__tit" id="mu-peso-tit">
-                Peso do encontro{' '}
-                <small>
-                  {noGrupo} {noGrupo === 1 ? 'jogador' : 'jogadores'} contra {quantosInimigos} {quantosInimigos === 1 ? 'inimigo' : 'inimigos'}
-                </small>
-              </h3>
-              {temEncontro && (
-                <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={esvaziar}>
-                  Esvaziar
-                </button>
-              )}
-            </div>
-            <div className="mu-peso">
-              <div className="mu-cartao mu-peso__lado">
-                <h4 className="mu-peso__tit">
-                  Jogadores
-                  <small className="mu-pg-nota">
-                    Vida {formatarNumero(resultado.grupo.vida)} · {formatarNumero(Math.round(resultado.grupo.danoPorRodada))} por rodada
-                  </small>
-                </h4>
-                {jogadores.length === 0 ? (
-                  <p className="mu-pg-nota">Nenhum jogador nesta pasta. Crie em Jogadores.</p>
-                ) : (
-                  <div className="mu-chips" role="group" aria-label="Jogadores no grupo">
-                    {jogadores.map((personagem) => (
-                      <button
-                        key={personagem.id}
-                        type="button"
-                        className="mu-chip"
-                        aria-pressed={grupo.includes(personagem.id)}
-                        onClick={() => useMundoDoLivroStore.getState().alternarNoGrupo(personagem.id)}
-                      >
-                        <Retrato imagem={personagem.retrato} nome={personagem.nome} tamanho="p" />
-                        {personagem.nome}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="mu-cartao mu-peso__lado">
-                <h4 className="mu-peso__tit">
-                  Inimigos
-                  <small className="mu-pg-nota">
-                    Vida {formatarNumero(resultado.inimigos.vida)} · {formatarNumero(Math.round(resultado.inimigos.danoPorRodada))} por rodada
-                  </small>
-                </h4>
-                {resumos.length === 0 ? (
-                  <p className="mu-pg-nota">Nenhum NPC de combate nesta pasta. Crie em NPCs de combate.</p>
-                ) : (
-                  <div className="mu-peso__lista">
-                    {resumos.map((resumo) => (
-                      <PassoDoInimigo key={resumo.personagem.id} resumo={resumo} quantos={inimigos[resumo.personagem.id] ?? 0} />
-                    ))}
-                  </div>
-                )}
-              </div>
-              <Veredito resultado={resultado} personagens={personagens} onDeixar={deixar} onVerSaude={onVerSaude} />
-            </div>
-          </section>
+          <p className="mu-tabela-dica">O maior valor de cada linha fica em latão; as outras colunas mostram a diferença para a base. NPC com força diferente de ×1 já aparece com a força aplicada.</p>
         </>
       )}
-    </div>
+    </>
   )
 }
