@@ -3,7 +3,7 @@ import { appDataDir, join } from '@tauri-apps/api/path'
 import { cleanItemName, ITEM_CATEGORIA_MAX, ITEM_DESCRICAO_MAX, ITEM_PRECO_MAX, MUNICOES_POR_ARMA_MAX, type ItemParaDar, type MunicaoDaVaga } from './items'
 import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
-import type { EfeitoDoItem, LuzDoItem } from '../types/map'
+import type { EfeitoDoItem, LuzDoItem, RequisitosNaVaga } from '../types/map'
 import { resumoDoEfeitoDoItem } from './batalha/mecanica/resumoDoItem'
 import { efeitoDoItemLido } from './leituraDoItem'
 import { ensureDir, writeTextFileSafely } from './mapFileIO'
@@ -117,6 +117,12 @@ export interface ItemDoCatalogo {
    * Ausente = item sem efeito (os de antes da Fase 7 abrem iguais).
    */
   efeito?: EfeitoDoItem
+  /**
+   * REQUISITOS (fase A de docs/design/habilidades/REQUISITOS.md §3.2): o que precisa estar certo
+   * para usar o item. Vai com a cópia dada, como o efeito (fase B2). Opaco aqui; quem lê é
+   * `lerRequisitos`. Ausente = sem requisito.
+   */
+  requisitos?: RequisitosNaVaga
 }
 
 export interface AcervoDeItens {

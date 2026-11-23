@@ -827,7 +827,16 @@ export interface DadosDoItem {
   efeito?: EfeitoDoItem
   /** A frase do efeito ("Cura 100 de HP. Gasta 1."), até 200 letras numa linha: o que o jogador lê na vaga. */
   efeitoResumo?: string
+  /**
+   * REQUISITOS (fase A de docs/design/habilidades/REQUISITOS.md §3.2): o bloco do item do Acervo,
+   * copiado como o `efeito` ("Atualizar as cópias"); o host lê da cópia dele. Opaco aqui; quem lê é
+   * `lerRequisitos` (lib/batalha/requisitos/ler.ts). Ausente = sem requisito, sem migração.
+   */
+  requisitos?: RequisitosNaVaga
 }
+
+/** O bloco de requisitos guardado no item e na vaga: JSON puro (a vaga viaja como JSON da nuvem, como as peças do efeito). */
+export type RequisitosNaVaga = { [chave: string]: ValorDasPecas }
 
 /**
  * O que o item faz (SISTEMA.md §5.1). `mecanica` fica opaca aqui (como a do

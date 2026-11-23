@@ -94,6 +94,20 @@ export interface CartaoDaFicha {
    */
   alcance?: AlcanceGuardado
   /**
+   * REQUISITOS (fase A, docs/design/habilidades/REQUISITOS.md §3.2): o que precisa estar certo
+   * para usar a técnica, a arma ou o item, para ligar a forma (o cartão da forma e das Partes) e
+   * para evoluir. Guardado como veio (opaco, como a `mecanica`), para o app de antes regravar o
+   * bloco de um app mais novo sem apagá-lo; quem lê e confere é `lerRequisitos`
+   * (lib/batalha/requisitos/ler.ts). Ausente = sem requisito, como antes.
+   */
+  requisitos?: RequisitosGuardados
+  /**
+   * REQUISITOS (resposta do dono de 23/11 ao G2): as marcas do cartão ("Fogo"), editáveis. O
+   * requisito "ajuda de um aliado com Fogo" lista só os aliados com uma técnica dessa marca.
+   * Quem lê é `lerMarcas` (tolerante). Ausente = sem marca.
+   */
+  marcas?: string[]
+  /**
    * HABILIDADE OCULTA (fatia C7, `lib/habilidadeOculta.ts`): o jogador vê "???"
    * no lugar deste cartão (e dos subcartões dele) até o mestre revelar. Só o
    * mestre grava: o cartão oculto nunca vai ao jogador (`paraOFio`, emissor do
@@ -132,6 +146,9 @@ export type MecanicaGuardada = Readonly<Record<string, unknown>>
 
 /** A forma do alcance como o disco e o fio a guardam: um objeto JSON com `tipo`, conferido só por quem lê (`alcanceDoCartao`). */
 export type AlcanceGuardado = Readonly<Record<string, unknown>>
+
+/** O bloco de requisitos como o disco e o fio o guardam: um objeto JSON com `v`, conferido só por quem lê (`lerRequisitos`). */
+export type RequisitosGuardados = Readonly<Record<string, unknown>>
 
 /**
  * Que número da ficha um ajuste rápido mexe (`lib/ajusteDaFicha.ts`):

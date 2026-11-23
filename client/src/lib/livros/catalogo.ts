@@ -1,6 +1,6 @@
 import { normalizarParaBusca } from '../buscaNoLivro'
 import { ABA_DAS_ARMAS, armasDe, limiteDeArmas } from '../batalha/leituraDaFicha'
-import { alcanceDoArquivo, cartoesDaAba, mecanicaDoArquivo, novoCartao, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type Personagem } from '../personagem'
+import { alcanceDoArquivo, cartoesDaAba, mecanicaDoArquivo, novoCartao, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type Personagem, type RequisitosGuardados } from '../personagem'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../sistemaDeRpg'
 
 /**
@@ -91,6 +91,12 @@ export interface ItemDoCatalogo {
    * a copia como a `mecanica` (`regraDaArma.ts`). Ausente = sem alcance próprio.
    */
   alcance?: AlcanceGuardado
+  /**
+   * REQUISITOS (fase A, docs/design/habilidades/REQUISITOS.md §3.2): o bloco da habilidade ou da
+   * arma, guardado como no cartão (opaco; quem lê é `lerRequisitos`). "Trazer" e "Juntar" o levam
+   * ao cartão (fase B2). Ausente = sem requisito.
+   */
+  requisitos?: RequisitosGuardados
 }
 
 /** Um tipo de bala da arma do catálogo: nome e os campos da aba das balas (`dano`, `efeito`, `quantidade`). */

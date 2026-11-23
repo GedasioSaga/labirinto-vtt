@@ -86,7 +86,8 @@ export const MAPAS_NUMERICOS = chavesDe(MAPA_NUMERICO, ehMapaNumerico)
  * mestre aceita. As duas pedem o servidor do Lobby publicado com esta tabela (ele usa esta mesma).
  */
 // Fase B do alcance: o `alcance` do cartão é regra como a `mecanica`: caminho próprio, só do mestre (`alcanceDoCartao`).
-export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' | 'campos' | 'subcartoes' | 'mecanica' | 'alcance' | CampoDeOculta>
+// Fase A dos requisitos: `requisitos` e `marcas` ainda não andam pelo Lobby (quem os edita e o caminho deles é a fase B2).
+export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' | 'campos' | 'subcartoes' | 'mecanica' | 'alcance' | 'requisitos' | 'marcas' | CampoDeOculta>
 
 /**
  * Habilidade oculta (fatia C7, `lib/habilidadeOculta.ts`): as duas marcas do cartão, só do mestre. O cartão
@@ -111,7 +112,8 @@ export const CAMPOS_SIMPLES_DO_CARTAO = chavesDe(CAMPO_SIMPLES_DO_CARTAO, ehCamp
 
 /** Partes do item trocadas por `definir`; a `quantidade` soma. */
 /** EFEITO DO ITEM (Fase 7, decisão C8): as peças ficam no app do mestre; pela nuvem vai só a frase (`efeitoResumo`). */
-export type CampoDoItem = Exclude<keyof CarriedItem, 'id' | 'quantidade' | 'efeito'>
+// Fase A dos requisitos: o bloco da vaga fica no app do mestre, como as peças do efeito (o caminho dele é a fase B2).
+export type CampoDoItem = Exclude<keyof CarriedItem, 'id' | 'quantidade' | 'efeito' | 'requisitos'>
 const CAMPO_DO_ITEM: Record<CampoDoItem, true> = {
   nome: true,
   itemId: true,
