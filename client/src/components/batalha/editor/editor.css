@@ -6,7 +6,9 @@
  * Movimento: só opacity e transform; com movimento reduzido, o que se mexe só aparece.
  */
 
-.lb-ed {
+/* .lb-edf: a técnica de texto no cartão da ficha, com o papel e os botões do editor. */
+.lb-ed,
+.lb-edf {
   /* as tintas sobre o papel (combate.css e o protótipo aprovado) */
   --ed-tinta: #26221c;
   --ed-dano: #8a2c22;
@@ -15,6 +17,8 @@
   --ed-custo: #2c5578;
   --ed-tenue: #5d5a54;
   --ed-erro: #f0897f;
+}
+.lb-ed {
   width: min(1400px, calc(100vw - 32px));
   height: calc(100vh - 32px);
   max-width: none;
@@ -124,9 +128,49 @@
     color: var(--lb-color-parchment);
   }
 }
-.lb-ed :focus-visible {
+.lb-ed :focus-visible,
+.lb-edf :focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+}
+
+/* ---------------------------------------------------------------- a técnica de texto no cartão da ficha */
+.lb-edf {
+  display: grid;
+  gap: 10px;
+  padding-top: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line);
+}
+/* No topo do cartão, logo abaixo do título: sem o filete de cima (o título já separa). */
+.lb-cartao__form > .lb-edf:first-child,
+.lb-cartao__form > .lb-mec:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.lb-edf__cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.lb-edf__selo {
+  padding: 1px 8px;
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: 999px;
+  font: 500 var(--lb-font-size-sm) / 1.4 var(--lb-font-utility);
+  letter-spacing: 0.02em;
+  color: var(--lb-color-brass-bright);
+}
+.lb-edf__dica {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-edf__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 .lb-ed__dica {
   font-size: var(--lb-font-size-sm);

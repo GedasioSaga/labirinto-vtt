@@ -19,6 +19,7 @@ import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
 import { MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
 import { HabilidadeNaFicha } from './batalha/editor/HabilidadeNaFicha'
+import { cartaoNovoNoEditor } from './batalha/editor/emBranco'
 import { camposGeradosDaAba } from '../lib/batalha/mecanica/textoGerado'
 import { AlcanceDoCartaoDeTexto } from './batalha/alcance/AlcanceDoCartaoDeTexto'
 import { FonteDaArmaContexto, SeloDaFonteDaArma } from './fonteDaArma'
@@ -522,6 +523,8 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
   const [recemCriados, setRecemCriados] = useState<ReadonlySet<string>>(() => new Set())
   const [removido, setRemovido] = useState<CartaoRemovido | null>(null)
   const nasceu = (id: string) => setRecemCriados((antes) => new Set(antes).add(id))
+  // A habilidade nova do "+ Habilidade" nasce montada em branco e abre direto no editor (o protótipo aprovado).
+  const [noEditor, setNoEditor] = useState<string | null>(null)
   const remover = (indice: number) => {
     const cartao = cartoes[indice]
     if (cartao === undefined) return
@@ -588,8 +591,11 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
     onChange(novos)
   }
   const adicionar = () => {
-    const cartao = novoCartao(aba.item)
+    const vazio = novoCartao(aba.item)
+    // Sem quem edite a mecânica (o site do Lobby), a habilidade nova segue no texto, como sempre.
+    const cartao = aba.id === ABA_DAS_TECNICAS && quemEditaAMecanica !== 'ninguem' ? cartaoNovoNoEditor(vazio, quemEditaAMecanica, { personagem, sistema }) : vazio
     nasceu(cartao.id)
+    if (cartao !== vazio) setNoEditor(cartao.id)
     onChange([...cartoes, cartao])
   }
   return (
@@ -604,6 +610,7 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
           personagem={personagem}
           daArma={daArma}
           aberto={recemCriados.has(cartao.id)}
+          abrirNoEditor={noEditor === cartao.id}
           onChange={(novo) => trocar(cartao.id, novo)}
           onMarcarPadrao={!daArma && aba.id === ABA_DAS_ARMAS ? (marcar) => marcarPadrao(cartao.id, marcar) : undefined}
           onRemover={() => remover(indice)}
@@ -716,6 +723,8 @@ interface CartaoEditavelProps {
   /** Cartão de dentro de uma arma (bala). */
   daArma: boolean
   aberto: boolean
+  /** A habilidade que acabou de nascer em branco: o editor abre sozinho. */
+  abrirNoEditor: boolean
   onChange: (cartao: CartaoDaFicha) => void
   /** Construtor C8: na arma, marca esta como a padrão (e desmarca as outras). */
   onMarcarPadrao?: (marcar: boolean) => void
@@ -728,7 +737,7 @@ interface CartaoEditavelProps {
   podeOcultar: boolean
 }
 
-function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onChange, onMarcarPadrao, onRemover, onSubir, onDescer, escolherImagem, quemEditaAMecanica, podeOcultar }: CartaoEditavelProps) {
+function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, abrirNoEditor, onChange, onMarcarPadrao, onRemover, onSubir, onDescer, escolherImagem, quemEditaAMecanica, podeOcultar }: CartaoEditavelProps) {
   const ehArma = !daArma && aba.id === ABA_DAS_ARMAS
   const semTiro = ehArma && armaQueNaoAtira(aba, cartao)
   // ARMAS-FONTE-UNICA §6: ligada ao livro, o Salvar da ficha leva a regra ao livro e às outras fichas; livro fechado, a mecânica só se lê.
@@ -750,6 +759,11 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
   const gerados: ReadonlySet<string> = montada ? new Set(camposGeradosDaAba(sistema)) : new Set()
   const camposDaFrente = aba.campos.filter((campo) => !gerados.has(campo.id))
   const camposGerados = aba.campos.filter((campo) => gerados.has(campo.id))
+  // A técnica sem mecânica abre pelo editor novo: no topo, o papel e o "Montar no editor" (ou a proposta do dono); o texto
+  // antigo fica embaixo, recolhido e editável. Sem quem edite a mecânica (o site do Lobby), o cartão segue como sempre.
+  const textoEmBaixo = aba.id === ABA_DAS_TECNICAS && quemEditaAMecanica !== 'ninguem' && !montada
+  // Sem nome a ficha não salva: o texto já abre, com o erro à vista. Decidido uma vez, ao aparecer (senão fecharia no meio da digitação).
+  const [textoAbertoDeInicio] = useState(semNome)
   // Tipos de habilidade F4: "+ Evolução" e "+ Opção" só nas técnicas; criam os extras com o nome que a batalha lê.
   const ehTecnica = aba.id === ABA_DAS_TECNICAS && aba.extras === true
   const jaEvolui = ehTecnica && temExtrasDaEvolucao(cartao)
@@ -826,6 +840,39 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
             </label>
           )
 
+  const campoDoNome = (
+    <div className="lb-field">
+      <label className="lb-label" htmlFor={nomeId}>
+        Nome
+      </label>
+      <input
+        id={nomeId}
+        className="lb-input"
+        value={cartao.nome}
+        aria-invalid={semNome || undefined}
+        aria-describedby={semNome ? `${nomeId}-erro` : undefined}
+        onChange={(event) => onChange({ ...cartao, nome: event.target.value })}
+      />
+      {semNome && (
+        <span className="lb-field__error" id={`${nomeId}-erro`}>
+          Dê um nome: sem ele a ficha não salva.
+        </span>
+      )}
+    </div>
+  )
+  // A arma e a técnica de texto guardam o alcance no campo delas; na técnica de texto, ele fica com o resto do texto.
+  const alcanceDeTexto = (aba.id === ABA_DAS_TECNICAS || ehArma) && cartao.mecanica === undefined && (
+    <AlcanceDoCartaoDeTexto
+      cartao={cartao}
+      personagem={personagem}
+      sistema={sistema}
+      naArma={ehArma}
+      podeMudar={quemEditaAMecanica !== 'ninguem' && fonte?.tipo !== 'livro' && fonte?.tipo !== 'semLivro'}
+      {...(fonte?.tipo === 'livro' || fonte?.tipo === 'semLivro' ? { nota: 'Arma do livro: o alcance muda no livro (Biblioteca, página Itens).' } : {})}
+      onChange={onChange}
+    />
+  )
+
   return (
     <details className="lb-cartao lb-cartao--edit" open={aberto}>
       <summary className="lb-cartao__resumo">
@@ -836,26 +883,9 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
         {fonte !== null && <SeloDaFonteDaArma fonte={fonte} />}
       </summary>
       <div className="lb-cartao__form">
-        <div className="lb-field">
-          <label className="lb-label" htmlFor={nomeId}>
-            Nome
-          </label>
-          <input
-            id={nomeId}
-            className="lb-input"
-            value={cartao.nome}
-            aria-invalid={semNome || undefined}
-            aria-describedby={semNome ? `${nomeId}-erro` : undefined}
-            onChange={(event) => onChange({ ...cartao, nome: event.target.value })}
-          />
-          {semNome && (
-            <span className="lb-field__error" id={`${nomeId}-erro`}>
-              Dê um nome: sem ele a ficha não salva.
-            </span>
-          )}
-        </div>
-        {camposDaFrente.map(campoNaTela)}
-        {camposGerados.length > 0 && (
+        {!textoEmBaixo && campoDoNome}
+        {!textoEmBaixo && camposDaFrente.map(campoNaTela)}
+        {!textoEmBaixo && camposGerados.length > 0 && (
           <details className="lb-cartao__grupo lb-cartao__texto-antigo">
             <summary className="lb-label">Texto do cartão (sai da mecânica)</summary>
             <p className="lb-field__hint">Com a mecânica montada, estes campos saem dela: para mudar, abra o editor. O Desmontar devolve o texto de antes.</p>
@@ -878,8 +908,17 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
           (quemEditaAMecanica === 'ninguem' ? (
             <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />
           ) : (
-            <HabilidadeNaFicha cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} podeOcultar={podeOcultar} onChange={onChange} />
+            <HabilidadeNaFicha cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} podeOcultar={podeOcultar} onChange={onChange} abrirAoNascer={abrirNoEditor} />
           ))}
+        {textoEmBaixo && (
+          <details className="lb-cartao__grupo lb-cartao__texto-antigo" open={textoAbertoDeInicio}>
+            <summary className="lb-label">Editar como texto</summary>
+            <p className="lb-field__hint">O nome e os campos escritos à mão. A batalha lê este texto até a habilidade ser montada.</p>
+            {campoDoNome}
+            {camposDaFrente.map(campoNaTela)}
+            {alcanceDeTexto}
+          </details>
+        )}
         {ehArma && onMarcarPadrao !== undefined && (
           <div className="lb-field">
             <label className="lb-mec__marcar">
@@ -909,17 +948,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
             <HabilidadeNaFicha cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} podeOcultar={false} onChange={onChange} doQue="arma" />
           ))}
         {/* Fase F do alcance: o cartão sem mecânica montada (técnica de texto, arma só com o dano) guarda o alcance no campo dele. */}
-        {(aba.id === ABA_DAS_TECNICAS || ehArma) && cartao.mecanica === undefined && (
-          <AlcanceDoCartaoDeTexto
-            cartao={cartao}
-            personagem={personagem}
-            sistema={sistema}
-            naArma={ehArma}
-            podeMudar={quemEditaAMecanica !== 'ninguem' && fonte?.tipo !== 'livro' && fonte?.tipo !== 'semLivro'}
-            {...(fonte?.tipo === 'livro' || fonte?.tipo === 'semLivro' ? { nota: 'Arma do livro: o alcance muda no livro (Biblioteca, página Itens).' } : {})}
-            onChange={onChange}
-          />
-        )}
+        {!textoEmBaixo && alcanceDeTexto}
         {aba.modificadores === true && <PecaDoMestreNaForma cartao={cartao} podeMudar={quemEditaAMecanica === 'mestre'} onChange={onChange} />}
         {podeOcultar && <OcultaNoCartao cartao={cartao} onChange={onChange} />}
         {aba.atributos === true && <EscolhaDeAtributos sistema={sistema} escolhidos={cartao.atributos} onChange={(atributos) => onChange({ ...cartao, atributos })} />}
