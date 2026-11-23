@@ -123,6 +123,11 @@ const MULTIPLICADORES_DE_SEMPRE = { concentracao: true, surpresa: true } as cons
 
 /** CD de partida do modelo com teste (construtor C4). */
 const CD_DO_MODELO = 12
+
+/** Fase G do alcance (ALCANCE.md §8): o golpe de um alvo, a cura e o reviver chegam no colado. */
+const ALCANCE_COLADO = 1
+/** Fase G do alcance: o buff, a barreira e o que atrapalha alcançam um pouco mais longe. */
+const ALCANCE_DE_APOIO = 3
 /** Fase 6 (H05): a CD do teste de Agilidade e o alcance do ponto. */
 const CD_DA_EXPLOSAO = 13
 const ALCANCE_DA_EXPLOSAO = 6
@@ -167,7 +172,7 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
   const custo30 = [{ recurso: 'sp', quanto: { fixo: 30 }, quando: 'aoUsar' }] as const
   switch (id) {
     case 'golpe':
-      return { ...base, acao: 'simples', custos: [...custo30], alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, dano: { base: { formula: formulaDeExemplo(sistema) }, multiplicadores: { ...MULTIPLICADORES_DE_SEMPRE } }, efeitos: [] }
+      return { ...base, acao: 'simples', custos: [...custo30], alvo: { quem: 'inimigos', forma: { tipo: 'um' }, alcance: ALCANCE_COLADO }, dano: { base: { formula: formulaDeExemplo(sistema) }, multiplicadores: { ...MULTIPLICADORES_DE_SEMPRE } }, efeitos: [] }
     case 'area':
       return {
         ...base,
@@ -179,9 +184,9 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
         efeitos: [],
       }
     case 'cura':
-      return { ...base, acao: 'simples', custos: [...custo30], alvo: { quem: 'aliados', forma: { tipo: 'um' } }, efeitos: [{ tipo: 'cura', recurso: 'hp', quanto: { fixo: 100 }, emQuem: 'alvo' }] }
+      return { ...base, acao: 'simples', custos: [...custo30], alvo: { quem: 'aliados', forma: { tipo: 'um' }, alcance: ALCANCE_COLADO }, efeitos: [{ tipo: 'cura', recurso: 'hp', quanto: { fixo: 100 }, emQuem: 'alvo' }] }
     case 'debuff':
-      return { ...base, acao: 'simples', custos: [...custo30], limite: { recarga: 2 }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, teste: testeDoModelo(sistema), efeitos: [{ tipo: 'selo', nome: 'Atordoado', duracao: 1, natureza: 'debuff' }] }
+      return { ...base, acao: 'simples', custos: [...custo30], limite: { recarga: 2 }, alvo: { quem: 'inimigos', forma: { tipo: 'um' }, alcance: ALCANCE_DE_APOIO }, teste: testeDoModelo(sistema), efeitos: [{ tipo: 'selo', nome: 'Atordoado', duracao: 1, natureza: 'debuff' }] }
     case 'buff': {
       // H15: Força +20 de verdade (fase 5, `selo.mods`); sem atributo no sistema, +20 no dano.
       const forca = atributoDoSelo(sistema, 'forca')
@@ -189,7 +194,7 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
         ...base,
         acao: 'bonus',
         custos: [{ recurso: 'sp', quanto: { fixo: 20 }, quando: 'aoUsar' }],
-        alvo: { quem: 'aliados', forma: { tipo: 'um' } },
+        alvo: { quem: 'aliados', forma: { tipo: 'um' }, alcance: ALCANCE_DE_APOIO },
         efeitos: [{ tipo: 'selo', nome: 'Fortalecido', duracao: 2, natureza: 'buff', mods: [{ alvo: forca ?? 'dano', delta: { fixo: 20 } }] }],
       }
     }
@@ -218,18 +223,18 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
         acao: 'completa',
         custos: [{ recurso: 'sp', quanto: { fixo: 60 }, quando: 'aoUsar' }],
         limite: { usosPorBatalha: 1 },
-        alvo: { quem: 'aliados', forma: { tipo: 'um' }, estado: 'caido' },
+        alvo: { quem: 'aliados', forma: { tipo: 'um' }, alcance: ALCANCE_COLADO, estado: 'caido' },
         efeitos: [{ tipo: 'reviver', volta: { porcento: PARTE_DO_REVIVER, de: 'hpMaximo', deQuem: 'alvo' } }],
       }
     case 'perfurante':
-      return { ...base, acao: 'completa', custos: [{ recurso: 'sp', quanto: { fixo: 35 }, quando: 'aoUsar' }], limite: { recarga: 3 }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, dano: { ...danoDe(formulaComAtributos(sistema, ['forca'], 50)), perfurante: true } }
+      return { ...base, acao: 'completa', custos: [{ recurso: 'sp', quanto: { fixo: 35 }, quando: 'aoUsar' }], limite: { recarga: 3 }, alvo: { quem: 'inimigos', forma: { tipo: 'um' }, alcance: ALCANCE_COLADO }, dano: { ...danoDe(formulaComAtributos(sistema, ['forca'], 50)), perfurante: true } }
     case 'duplo':
       return {
         ...base,
         acao: 'completa',
         custos: [{ recurso: 'sp', quanto: { fixo: 40 }, quando: 'aoUsar' }],
         limite: { recarga: 3 },
-        alvo: { quem: 'inimigos', forma: { tipo: 'um' } },
+        alvo: { quem: 'inimigos', forma: { tipo: 'um' }, alcance: ALCANCE_COLADO },
         dano: { ...danoDe(formulaComAtributos(sistema, ['forca', 'espirito'], 20)), segundoGolpe: { fracao: 0.5, perfurante: true } },
       }
     case 'sangra':
@@ -237,7 +242,7 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
         ...base,
         acao: 'simples',
         custos: [...custo30],
-        alvo: { quem: 'inimigos', forma: { tipo: 'um' } },
+        alvo: { quem: 'inimigos', forma: { tipo: 'um' }, alcance: ALCANCE_COLADO },
         dano: { ...danoDe(`${formulaComAtributos(sistema, ['forca'], 20)} + Dano da Arma`), arma: 'padrao' },
         // Sangrando já tira 10 por vez pelo nome (`condicoes.ts`); a peça não repete.
         efeitos: [{ tipo: 'selo', nome: 'Sangrando', duracao: 3, natureza: 'debuff' }],
@@ -245,7 +250,7 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
     case 'enfraquecer': {
       const forca = atributoDoSelo(sistema, 'forca')
       const mods = forca === null ? [{ alvo: 'dano', delta: { fixo: -10 } }] : [{ alvo: forca, delta: { fixo: -20 } }, { alvo: 'dano', delta: { fixo: -10 } }]
-      return { ...base, acao: 'simples', custos: [{ recurso: 'sp', quanto: { fixo: 20 }, quando: 'aoUsar' }], alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, efeitos: [{ tipo: 'selo', nome: 'Enfraquecido', duracao: 2, natureza: 'debuff', mods }] }
+      return { ...base, acao: 'simples', custos: [{ recurso: 'sp', quanto: { fixo: 20 }, quando: 'aoUsar' }], alvo: { quem: 'inimigos', forma: { tipo: 'um' }, alcance: ALCANCE_DE_APOIO }, efeitos: [{ tipo: 'selo', nome: 'Enfraquecido', duracao: 2, natureza: 'debuff', mods }] }
     }
     case 'curaEmArea':
       return {
@@ -262,21 +267,21 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
         acao: 'simples',
         custos: [...custo30],
         limite: { usosPorBatalha: 2 },
-        alvo: { quem: 'aliados', forma: { tipo: 'um' } },
+        alvo: { quem: 'aliados', forma: { tipo: 'um' }, alcance: ALCANCE_COLADO },
         efeitos: [
           { tipo: 'cura', recurso: 'hp', quanto: { fixo: 30 }, emQuem: 'alvo' },
           { tipo: 'tirarSelos', quais: 'negativos' },
         ],
       }
     case 'barreira':
-      return { ...base, acao: 'simples', custos: [...custo30], limite: { recarga: 2 }, alvo: { quem: 'aliados', forma: { tipo: 'um' } }, efeitos: [{ tipo: 'cura', recurso: 'escudo', quanto: { fixo: 50 }, emQuem: 'alvo' }] }
+      return { ...base, acao: 'simples', custos: [...custo30], limite: { recarga: 2 }, alvo: { quem: 'aliados', forma: { tipo: 'um' }, alcance: ALCANCE_DE_APOIO }, efeitos: [{ tipo: 'cura', recurso: 'escudo', quanto: { fixo: 50 }, emQuem: 'alvo' }] }
     case 'drenoDeVida':
       return {
         ...base,
         acao: 'simples',
         custos: [{ recurso: 'sp', quanto: { fixo: 35 }, quando: 'aoUsar' }],
         limite: { recarga: 2 },
-        alvo: { quem: 'inimigos', forma: { tipo: 'um' } },
+        alvo: { quem: 'inimigos', forma: { tipo: 'um' }, alcance: ALCANCE_COLADO },
         dano: danoDe(formulaComAtributos(sistema, ['espirito'], 20)),
         efeitos: [{ tipo: 'dreno', recurso: 'hp', porcentoDoDano: 50 }],
       }
@@ -286,7 +291,7 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
         acao: 'completa',
         custos: [{ recurso: 'sp', quanto: { fixo: 100 }, quando: 'aoUsar' }],
         limite: { overload: true },
-        alvo: { quem: 'inimigos', forma: { tipo: 'um' } },
+        alvo: { quem: 'inimigos', forma: { tipo: 'um' }, alcance: ALCANCE_COLADO },
         teste: { tipo: 'naoErra' },
         dano: { ...danoDe(`(${formulaComAtributos(sistema, ['forca', 'espirito'], null)}) + 100`), perfurante: true },
         efeitos: [{ tipo: 'selo', nome: 'Atordoado', duracao: 2, natureza: 'debuff' }],

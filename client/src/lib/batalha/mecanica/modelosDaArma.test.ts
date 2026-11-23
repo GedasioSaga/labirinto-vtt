@@ -9,8 +9,8 @@ import { SISTEMA_ONE_PIECE } from '../../sistemaOnePiece'
 import { armaLida, MODELOS_DA_ARMA, mecanicaDoModeloDaArma } from './arma'
 import { guardarMecanica } from './modelos'
 
-/** A coluna v da tabela: 2 = pede 0.5.91+; o resto é 1. */
-const DA_VERSAO_2 = new Set(['A10', 'A11', 'A14', 'A18', 'A20'])
+/** Fase G do alcance: todo modelo vem com o alcance de fábrica, e o alcance pede a versão 2 (0.5.91+). */
+const DA_VERSAO_2 = new Set(MODELOS_DA_ARMA.map((modelo) => modelo.numero))
 
 describe('os 20 modelos de arma', () => {
   it('cada um é lido como peças na arma (nenhum recusado) e grava a versão da tabela', () => {

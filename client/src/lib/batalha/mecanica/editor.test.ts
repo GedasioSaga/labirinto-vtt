@@ -36,7 +36,8 @@ describe('modelos prontos e resumo em frases', () => {
     }
     expect(resumoDaMecanica(espadada, { personagem: marinheiro, sistema })).toEqual([
       'Custa 30 SP e gasta a Ação Simples.',
-      'Acerta 1 inimigo. O alvo reage normal (o d20 de sempre).',
+      // Fase G do alcance: o Golpe simples já vem com o alcance de fábrica (1 casa).
+      'Acerta 1 inimigo, com alcance de 1 casa. O alvo reage normal (o d20 de sempre).',
       'Dano: Força + 20 (= 80 com a ficha de hoje).',
       'Se acertar: Atordoado por 1 vez do alvo (na vez dele só passa a vez, e não reage).',
       'Depois de usar, espera 3 vezes para usar de novo.',

@@ -1,7 +1,8 @@
 import type { CartaoDaFicha } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import { FORMULA_DO_ATAQUE, formulaDoAtaque } from '../formula'
-import { VERSAO_GRAVADA, type Custo, type DanoDaMecanica, type Efeito, type Limite, type MecanicaV1 } from './modelo'
+import { formaDoAlcanceGuardada } from '../alcanceDoCartao'
+import { VERSAO_GRAVADA, type AlvoDaMecanica, type Custo, type DanoDaMecanica, type Efeito, type Limite, type MecanicaV1 } from './modelo'
 
 /**
  * OS 20 MODELOS DE ARMA (docs/design/habilidades/ARMAS-FONTE-UNICA.md §5): o
@@ -110,10 +111,49 @@ const usos = (usosPorBatalha: number): Limite => ({ usosPorBatalha })
 const recarga = (vezes: number): Limite => ({ recarga: vezes })
 const custoAoUsar = (recurso: Custo['recurso'], fixo: number): Custo => ({ recurso, quanto: { fixo }, quando: 'aoUsar' })
 
+/**
+ * Fase G do alcance (ALCANCE.md §8, "Modelos ganham alcance de fábrica"): até onde o golpe
+ * do modelo chega quando a arma não diz o dela. Corpo a corpo = 1; o que se atira (areia,
+ * rede, lâminas, a descarga) vai um pouco mais longe; a mira e o tiro, longe.
+ */
+const ALCANCE_DO_MODELO_DA_ARMA: Readonly<Record<IdDoModeloDaArma, number>> = {
+  atordoa: 1,
+  golpeComSelo: 1,
+  laminaQueSangra: 1,
+  pontaEmBrasa: 1,
+  punhadoDeAreia: 2,
+  miraDoCacador: 6,
+  descargaParalisante: 2,
+  redeDePesca: 3,
+  golpeNaFresta: 1,
+  furaCouraca: 1,
+  golpeEVolta: 1,
+  arcoLargo: 1,
+  lequeDeLaminas: 3,
+  laminaSedenta: 1,
+  tiroCerteiro: 8,
+  golpePesado: 1,
+  precoDeSangue: 1,
+  cacadaAoMarcado: 1,
+  pancadaAtordoante: 1,
+  poCeganteECorte: 1,
+}
+
+/**
+ * O alcance do golpe do modelo: o da própria arma, quando ela tem o campo `alcance` de um alvo
+ * (o anel vai junto), senão o de fábrica do modelo. A arma montada só aceita o alvo (`arma.ts`).
+ */
+function alcanceDoModelo(id: IdDoModeloDaArma, arma: CartaoDaFicha | undefined): Pick<AlvoDaMecanica, 'alcance' | 'alcanceMinimo'> {
+  const daArma = arma?.alcance === undefined ? null : formaDoAlcanceGuardada(arma.alcance)
+  if (daArma === null || daArma.tipo !== 'alvo') return { alcance: ALCANCE_DO_MODELO_DA_ARMA[id] }
+  return daArma.de === undefined ? { alcance: daArma.ate } : { alcance: daArma.ate, alcanceMinimo: daArma.de }
+}
+
 /** `arma`: a arma em que o modelo vai (o editor passa o cartão); o golpe soma o que ela soma no Atacar. */
 export function mecanicaDoModeloDaArma(id: IdDoModeloDaArma, sistema: SistemaDeRpg, arma?: CartaoDaFicha): MecanicaV1 {
   // A ordem das chaves é a do modelo de antes: o Boomerang gravado (catálogo e ficha) sai igual, byte a byte.
-  const base = { versao: VERSAO_GRAVADA, acao: 'simples', custos: [], teste: { tipo: 'reacao' }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } } } satisfies Partial<MecanicaV1>
+  const alcance = alcanceDoModelo(id, arma)
+  const base = { versao: VERSAO_GRAVADA, acao: 'simples', custos: [], teste: { tipo: 'reacao' }, alvo: { quem: 'inimigos', forma: { tipo: 'um' }, ...alcance } } satisfies Partial<MecanicaV1>
   const golpe = (extra: Partial<DanoDaMecanica> = {}): DanoDaMecanica => ({
     base: { formula: formulaDaArma(sistema, arma) },
     arma: 'padrao',
@@ -157,10 +197,10 @@ export function mecanicaDoModeloDaArma(id: IdDoModeloDaArma, sistema: SistemaDeR
     case 'golpePesado':
       return { ...comDano({}, [], golpe({ perfurante: true })), custos: [custoAoUsar('sp', SP_DO_GOLPE_PESADO)] }
     case 'cacadaAoMarcado':
-      return { ...comDano({}, [], golpe({ perfurante: true })), alvo: { quem: 'inimigos', forma: { tipo: 'um' }, exigeSelo: 'Marcado' } }
+      return { ...comDano({}, [], golpe({ perfurante: true })), alvo: { quem: 'inimigos', forma: { tipo: 'um' }, exigeSelo: 'Marcado', ...alcance } }
     case 'arcoLargo':
-      return { ...comDano(usos(2), []), alvo: { quem: 'inimigos', forma: { tipo: 'varios', max: ALVOS_DO_VARIOS } } }
+      return { ...comDano(usos(2), []), alvo: { quem: 'inimigos', forma: { tipo: 'varios', max: ALVOS_DO_VARIOS }, ...alcance } }
     case 'lequeDeLaminas':
-      return { ...comDano({}, []), alvo: { quem: 'inimigos', forma: { tipo: 'varios', max: ALVOS_DO_VARIOS, dividirDano: true } } }
+      return { ...comDano({}, []), alvo: { quem: 'inimigos', forma: { tipo: 'varios', max: ALVOS_DO_VARIOS, dividirDano: true }, ...alcance } }
   }
 }
