@@ -18,6 +18,7 @@ import {
 import type { PerguntaNaHora, RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
 import { divisaoDoDano } from '../../lib/batalha/reacao'
 import { dividirDano, pegadaDaCasa, type Casa, type Direcao } from '../../lib/batalha/area'
+import { MOTIVO_FORA_DO_ALCANCE } from '../../lib/batalha/alcance/doGolpe'
 import type { AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
@@ -32,6 +33,7 @@ import {
   alvosNaOrdemDaAjuda,
   distanciaNaMira,
   motivoDoAlvoNaTecnica,
+  foraDoAlcanceNaMira,
   golpeDeAjuda,
   marcadosAoAbrirAMira,
   semFeridoDoLado,
@@ -110,6 +112,10 @@ export interface EscolhaDaMira {
   /** Fase 6: o centro da área longe: a casa escolhida (a granada) ou a ficha no centro; ausente = a área sai de quem usa. */
   ponto?: { col: number; row: number }
   centroId?: string
+  /** Fase C do alcance: o lado da área pela grade (o host confere a mesma área virada); ausente = a forma não olha para um lado. */
+  direcao?: Direcao
+  /** Fase C do alcance: quem usa confirmou o "Fora do alcance, usar mesmo assim?". */
+  foraDoAlcance?: true
 }
 
 /** F2 (fatia B): a resposta de cada pergunta ao abrir: a 1ª opção, ou o mínimo do número. */
@@ -141,6 +147,8 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
   // A bala só vai com a arma (o pedido sem `armaId` e com `balaId` é torto). F2 (revisão da fatia E): também na técnica
   // que diz "Dano da Bala" (Desenhar o alvo): o host lê dela o selo da bala ("Ferido por prata").
   const bala = golpe.armaId !== null && escolha.balaId !== undefined ? { balaId: escolha.balaId } : {}
+  // Fase C do alcance: o lado da mira e a confirmação do fora do alcance vão em todo golpe (o host confere as casas acesas).
+  const doAlcance = { ...(escolha.direcao === undefined ? {} : { direcao: escolha.direcao }), ...(escolha.foraDoAlcance === undefined ? {} : { foraDoAlcance: escolha.foraDoAlcance }) }
   // Fase 8: o item manda só a vaga e os alvos (e o centro da área longe); o efeito, o dano e o selo saem da cópia do host.
   if (golpe.vagaId !== undefined) {
     return {
@@ -149,12 +157,13 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
       alvos: escolha.alvos.map((alvo) => ({ tokenId: alvo.tokenId, dano: null })),
       ...(escolha.ponto === undefined ? {} : { ponto: escolha.ponto }),
       ...(escolha.centroId === undefined ? {} : { centroId: escolha.centroId }),
+      ...doAlcance,
     }
   }
   if (golpe.tipo === 'atacar') {
     // F2 (fatia C): as respostas de todo golpe do dono (o Electro da Aira) também no Atacar.
     const respostas = escolha.respostas === undefined ? {} : { respostas: escolha.respostas }
-    return { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante, ...perfuracao, ...selo, ...bala, ...respostas }
+    return { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante, ...perfuracao, ...selo, ...bala, ...respostas, ...doAlcance }
   }
   return {
     tipo: 'habilidade',
@@ -172,6 +181,7 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
     ...bala,
     ...(escolha.ponto === undefined ? {} : { ponto: escolha.ponto }),
     ...(escolha.centroId === undefined ? {} : { centroId: escolha.centroId }),
+    ...doAlcance,
   }
 }
 
@@ -382,6 +392,8 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
   const [linhasDoSelo, setLinhasDoSelo] = useState<LinhaDeMod[]>(() => linhasDosMods(sugerido?.mods))
   const resumoDoSelo = alvosDeMod === undefined ? '' : resumoDasLinhas(linhasDoSelo, alvosDeMod)
   const [erro, setErro] = useState<string | null>(null)
+  // Fase C do alcance: as casas só mostram; mandar com alvo, centro ou marcado fora delas pede "usar mesmo assim?".
+  const [pedindoForaDoAlcance, setPedindoForaDoAlcance] = useState(false)
   // A bala da arma (Atacar com arma de fogo ou híbrida): `null` = sem bala especial, o dano da arma.
   const balas = golpe.balas ?? SEM_BALAS
   // MUNIÇÃO: a arma do Acervo que exige munição abre com a primeira que a mochila tem (não há "Sem bala especial").
@@ -494,8 +506,9 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
     setMarcados(pegada === null ? [] : alvosEmVoltaDoCentro(area, alvos, pegada).slice(0, ALVOS_MAX))
   }
 
-  const lancar = (evento?: FormEvent) => {
+  const lancar = (evento?: FormEvent, confirmouForaDoAlcance = false) => {
     evento?.preventDefault()
+    setPedindoForaDoAlcance(false)
     // Fase 6: a área longe pede o centro antes (a mesma frase do host).
     if (golpe.area?.centro === 'ponto' && ponto === null) {
       setErro('Escolha a casa do centro da área')
@@ -567,6 +580,15 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
         if (lidos.mods.length > 0) selo.mods = lidos.mods
       }
     }
+    // Fase C do alcance: a área pela grade manda o lado escolhido (o host vira a mesma área); as outras formas não olham.
+    const direcaoDoPedido = areaDaGrade(golpe, alvos) !== null ? direcao : null
+    const pontoDoPedido = golpe.area?.centro === 'ponto' ? ponto : null
+    const centroDoPedido = golpe.area?.centro === 'alvo' ? centroId : null
+    if (!confirmouForaDoAlcance && foraDoAlcanceNaMira(golpe, alvos, { marcados, direcao: direcaoDoPedido, ponto: pontoDoPedido, centroId: centroDoPedido })) {
+      setErro(null)
+      setPedindoForaDoAlcance(true)
+      return
+    }
     const saiu = onLancar({
       alvos: pedidoDeAlvos,
       surpresa: comSurpresa,
@@ -581,7 +603,14 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
       ...(armaEscolhida === null ? {} : { armaId: armaEscolhida.id }),
       ...(golpe.area?.centro === 'ponto' && ponto !== null ? { ponto } : {}),
       ...(golpe.area?.centro === 'alvo' && centroId !== null ? { centroId } : {}),
+      ...(direcaoDoPedido === null ? {} : { direcao: direcaoDoPedido }),
+      ...(confirmouForaDoAlcance ? { foraDoAlcance: true as const } : {}),
     })
+    // A recusa do host pelo alcance (parede ou condição que a mira não viu) abre a mesma confirmação.
+    if (saiu === MOTIVO_FORA_DO_ALCANCE && !confirmouForaDoAlcance) {
+      setPedindoForaDoAlcance(true)
+      return
+    }
     if (saiu !== true) setErro(typeof saiu === 'string' ? saiu : 'O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
     else tocarSomDoCombate('confirmar')
   }
@@ -1074,6 +1103,19 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
             <p className="bt-mira__erro" role="alert">
               {erro}
             </p>
+          )}
+          {pedindoForaDoAlcance && (
+            <div className="bt-mira__erro" role="alert">
+              <p>Fora do alcance, usar mesmo assim?</p>
+              <div className="bt-pendente__acoes">
+                <button type="button" className="bt-botao bt-botao--batalha" onClick={() => lancar(undefined, true)}>
+                  Usar mesmo assim
+                </button>
+                <button type="button" className="bt-botao" onClick={() => setPedindoForaDoAlcance(false)}>
+                  Voltar
+                </button>
+              </div>
+            </div>
           )}
           <div className="bt-pendente__acoes">
             <button type="submit" className="bt-botao bt-botao--batalha">
