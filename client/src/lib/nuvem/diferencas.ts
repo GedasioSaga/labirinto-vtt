@@ -63,10 +63,10 @@ function cartaoNovoSemImagem(mudanca: Mudanca): Mudanca {
   return { ...mudanca, valor: semImagem(mudanca.valor) }
 }
 
-/** O cartão (já em JSON) com `imagem: null` e sem `mecanica`, nele e em todos os subcartões. */
+/** O cartão (já em JSON) com `imagem: null` e sem `mecanica` nem `alcance` (fase B do alcance), nele e em todos os subcartões. */
 function semImagem(cartao: Json): Json {
   if (cartao === null || typeof cartao !== 'object' || Array.isArray(cartao)) return cartao
-  const { mecanica: _soDoMestre, oculta: _oculta, revelaAoUsar: _revela, ...resto } = cartao
+  const { mecanica: _soDoMestre, alcance: _alcanceDoMestre, oculta: _oculta, revelaAoUsar: _revela, ...resto } = cartao
   const subcartoes = proprio(resto, 'subcartoes')
   return { ...resto, imagem: null, ...(Array.isArray(subcartoes) ? { subcartoes: subcartoes.map(semImagem) } : {}) }
 }
@@ -175,6 +175,8 @@ function umCartao(f: string, base: string[], antes: CartaoDaFicha, depois: Carta
     ...CAMPOS_SIMPLES_DO_CARTAO.filter((campo) => !jsonIgual(antes[campo], depois[campo])).map((campo) => definir(f, [...base, campo], depois[campo])),
     ...(antes.imagem === depois.imagem ? [] : [definir(f, [...base, 'imagem'], depois.imagem)]),
     ...(jsonIgual(antes.mecanica, depois.mecanica) ? [] : [definir(f, [...base, 'mecanica'], depois.mecanica)]),
+    // Fase B do alcance: a forma do alcance do cartão, só do mestre como a mecânica (o jogador a perde em `quemEscreveAMudanca`).
+    ...(jsonIgual(antes.alcance, depois.alcance) ? [] : [definir(f, [...base, 'alcance'], depois.alcance)]),
     // Fatia C7: a marca de oculta (só do mestre; o cartão oculto nem sobe ao Lobby, `semOcultas`).
     ...CAMPOS_DE_OCULTA.filter((campo) => antes[campo] !== depois[campo]).map((campo) => definir(f, [...base, campo], depois[campo])),
     ...registro(f, [...base, 'campos'], antes.campos, depois.campos),

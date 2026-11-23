@@ -91,8 +91,8 @@ function imagensDosCartoes(abas: Record<string, CartaoDaFicha[]>): Map<string, s
   return imagens
 }
 
-/** A mecânica montada (ou a proposta do dono) de cada cartão que tem uma, pelo id, subcartões juntos. */
-function mecanicasDosCartoes(abas: Record<string, CartaoDaFicha[]>, campo: 'mecanica' | 'mecanicaProposta' = 'mecanica'): Map<string, NonNullable<CartaoDaFicha['mecanica']>> {
+/** A mecânica montada (ou a proposta do dono, ou a forma do alcance: fase B) de cada cartão que tem uma, pelo id, subcartões juntos. */
+function mecanicasDosCartoes(abas: Record<string, CartaoDaFicha[]>, campo: 'mecanica' | 'mecanicaProposta' | 'alcance' = 'mecanica'): Map<string, NonNullable<CartaoDaFicha['mecanica']>> {
   const mecanicas = new Map<string, NonNullable<CartaoDaFicha['mecanica']>>()
   const visitar = (cartao: CartaoDaFicha): void => {
     const mecanica = cartao[campo]
@@ -244,6 +244,8 @@ export function mensagensDoSalvar(base: Personagem, rascunho: Personagem, opcoes
 export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, base?: Personagem): Personagem {
   const imagens = imagensDosCartoes(atual.abas)
   const mecanicas = mecanicasDosCartoes(atual.abas)
+  // Fase B do alcance: a forma do alcance é regra do mestre, como a mecânica: fica a do cartão de mesmo id no host.
+  const alcances = mecanicasDosCartoes(atual.abas, 'alcance')
   const ligacoes = ligacoesDosCartoes(atual.abas)
   const propostasDeAgora = mecanicasDosCartoes(atual.abas, 'mecanicaProposta')
   const propostasDaBase = base === undefined ? null : mecanicasDosCartoes(base.abas, 'mecanicaProposta')
@@ -257,11 +259,13 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, bas
     const tocada = propostasDaBase === null || !mesmoTexto(doJogador, propostasDaBase.get(cartao.id))
     const proposta = tocada ? doJogador : propostasDeAgora.get(cartao.id)
     const espera = proposta !== undefined && !mesmoTexto(proposta, mecanica)
+    const alcance = alcances.get(cartao.id)
     return {
       ...cartao,
       imagem: imagens.get(cartao.id) ?? null,
       subcartoes: cartao.subcartoes.map(comImagem),
       ...(mecanica === undefined ? {} : { mecanica }),
+      ...(alcance === undefined ? {} : { alcance }),
       ...(espera ? { mecanicaProposta: proposta } : {}),
       // Cartão sem ligação no host (o novo também) fica solto, seja o que for que o jogador mandou.
       ...ligacoes.get(cartao.id),

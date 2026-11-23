@@ -94,6 +94,7 @@ export function valorNoCaminho(doc: Personagem | null, caminho: readonly string[
     if (alvo.regra === 'campoDoCartao') return comoJson(cartao[alvo.campo])
     if (alvo.regra === 'imagemDoCartao') return cartao.imagem
     if (alvo.regra === 'mecanicaDoCartao') return comoJson(cartao.mecanica)
+    if (alvo.regra === 'alcanceDoCartao') return comoJson(cartao.alcance)
     if (alvo.regra === 'ocultaDoCartao') return cartao[alvo.campo]
     return proprio(cartao.campos, alvo.campoId)
   }

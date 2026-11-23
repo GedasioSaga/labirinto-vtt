@@ -4,7 +4,7 @@ import type { CarriedItem } from '../../types/map'
 import { ITEM_QUANTIDADE_MAX, readCarriedItems } from '../items'
 import { ehRefDeMidia } from '../midia'
 import { ocultasDoArquivo, personagemDoArquivo } from '../personagem'
-import type { CampoDaFichaDBT, CampoExtra, CartaoDaFicha, MarcaDeCombate, MecanicaGuardada, Modificador, Personagem } from '../personagem'
+import type { AlcanceGuardado, CampoDaFichaDBT, CampoExtra, CartaoDaFicha, MarcaDeCombate, MecanicaGuardada, Modificador, Personagem } from '../personagem'
 import { MOEDAS_MAX } from '../troca'
 import { bytesDoJson, bytesDoTexto, CHAVES_PROIBIDAS, ehJson, ehRegistro, jsonIgual, PROFUNDIDADE_MAX, problemaNoValor, proprio, type Json } from './json'
 import type { Acao, MotivoNegado, Mudanca } from './tipos'
@@ -85,7 +85,8 @@ export const MAPAS_NUMERICOS = chavesDe(MAPA_NUMERICO, ehMapaNumerico)
  * que vale na batalha tem caminho próprio, só do mestre (`mecanicaDoCartao`): o dono propõe e o
  * mestre aceita. As duas pedem o servidor do Lobby publicado com esta tabela (ele usa esta mesma).
  */
-export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' | 'campos' | 'subcartoes' | 'mecanica' | CampoDeOculta>
+// Fase B do alcance: o `alcance` do cartão é regra como a `mecanica`: caminho próprio, só do mestre (`alcanceDoCartao`).
+export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' | 'campos' | 'subcartoes' | 'mecanica' | 'alcance' | CampoDeOculta>
 
 /**
  * Habilidade oculta (fatia C7, `lib/habilidadeOculta.ts`): as duas marcas do cartão, só do mestre. O cartão
@@ -195,6 +196,7 @@ export type NomeDaRegra =
   | 'campoDoCartao'
   | 'imagemDoCartao'
   | 'mecanicaDoCartao'
+  | 'alcanceDoCartao'
   | 'ocultaDoCartao'
   | 'textoDoCartao'
   | 'vaga'
@@ -245,6 +247,8 @@ export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> =
   },
   imagemDoCartao: { caminho: "['abas', aba, cartaoId, 'imagem']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: true },
   mecanicaDoCartao: { caminho: "['abas', aba, cartaoId, 'mecanica']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: true },
+  // Fase B do alcance: a forma do alcance do cartão só de texto; o jogador a vê (é a da própria mira).
+  alcanceDoCartao: { caminho: "['abas', aba, cartaoId, 'alcance']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: true },
   ocultaDoCartao: { caminho: "['abas', aba, cartaoId, 'oculta' | 'revelaAoUsar']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: false },
   textoDoCartao: { caminho: "['abas', aba, cartaoId, 'campos', campoId]", acoes: ['definir'], quem: 'donoOuMestre', visivelAoJogador: true },
   vaga: { caminho: "['mochila', vagaId]", acoes: ['criar', 'apagar'], quem: 'donoOuMestre', visivelAoJogador: true },
@@ -281,6 +285,7 @@ export type Alvo =
   | { regra: 'campoDoCartao'; aba: string; trilha: string[]; campo: CampoSimplesDoCartao }
   | { regra: 'imagemDoCartao'; aba: string; trilha: string[] }
   | { regra: 'mecanicaDoCartao'; aba: string; trilha: string[] }
+  | { regra: 'alcanceDoCartao'; aba: string; trilha: string[] }
   | { regra: 'ocultaDoCartao'; aba: string; trilha: string[]; campo: CampoDeOculta }
   | { regra: 'textoDoCartao'; aba: string; trilha: string[]; campoId: string }
   | { regra: 'vaga'; vagaId: string }
@@ -306,6 +311,7 @@ function alvoNaLista(aba: string, dono: readonly string[], resto: readonly strin
   if (mais.length > 0) return null
   if (campo === 'imagem') return { regra: 'imagemDoCartao', aba, trilha }
   if (campo === 'mecanica') return { regra: 'mecanicaDoCartao', aba, trilha }
+  if (campo === 'alcance') return { regra: 'alcanceDoCartao', aba, trilha }
   if (campo === 'oculta' || campo === 'revelaAoUsar') return { regra: 'ocultaDoCartao', aba, trilha, campo }
   return ehCampoSimplesDoCartao(campo) ? { regra: 'campoDoCartao', aba, trilha, campo } : null
 }
@@ -411,7 +417,8 @@ function cartaoTrazDoMestre(valor: unknown, profundidade = 0): boolean {
   if (!ehRegistro(valor)) return false
   const imagem = proprio(valor, 'imagem')
   if (imagem !== undefined && imagem !== null) return true
-  if (proprio(valor, 'mecanica') !== undefined) return true
+  // Fase B do alcance: o `alcance` do cartão é regra do mestre, como a `mecanica`.
+  if (proprio(valor, 'mecanica') !== undefined || proprio(valor, 'alcance') !== undefined) return true
   // ARMAS-FONTE-UNICA §8: o cartão que já nasce ligado ao Acervo escolheria a regra do livro que o host copia.
   if ([...CAMPOS_DO_CARTAO_DO_MESTRE].some((campo) => proprio(valor, campo) !== undefined)) return true
   // Fatia C7: o cartão que já nasce oculto também é do mestre (o jogador não esconde nada de si).
@@ -489,6 +496,7 @@ export type MudancaLida =
   | { regra: 'campoDoCartao'; aba: string; trilha: string[]; mudar: MudancaNoCartao }
   | { regra: 'imagemDoCartao'; aba: string; trilha: string[]; valor: string | null }
   | { regra: 'mecanicaDoCartao'; aba: string; trilha: string[]; valor: MecanicaGuardada | undefined }
+  | { regra: 'alcanceDoCartao'; aba: string; trilha: string[]; valor: AlcanceGuardado | undefined }
   | { regra: 'ocultaDoCartao'; aba: string; trilha: string[]; campo: CampoDeOculta; valor: true | undefined }
   | { regra: 'textoDoCartao'; aba: string; trilha: string[]; campoId: string; valor: string | undefined }
   | { regra: 'vaga'; acao: 'criar'; item: CarriedItem }
@@ -649,6 +657,8 @@ function lerNoAlvo(m: Mudanca, alvo: Alvo): Leitura {
         : recusa('fora-do-esquema', IMAGEM_FORA_DA_MIDIA)
     case 'mecanicaDoCartao':
       return lerMecanicaDoCartao(alvo.aba, alvo.trilha, valor)
+    case 'alcanceDoCartao':
+      return lerAlcanceDoCartao(alvo.aba, alvo.trilha, valor)
     case 'ocultaDoCartao':
       return valor === undefined || valor === true
         ? aceita({ regra: 'ocultaDoCartao', aba: alvo.aba, trilha: alvo.trilha, campo: alvo.campo, valor })
@@ -841,6 +851,13 @@ function lerMecanicaDoCartao(aba: string, trilha: string[], valor: Json | undefi
   const lido = cartaoPeloLeitor({ ...CARTAO_DE_LEITURA, mecanica: valor })
   if (lido === null || !jsonIgual(lido.mecanica, valor)) return recusa('fora-do-esquema', FORA_DO_FORMATO)
   return aceita({ regra: 'mecanicaDoCartao', aba, trilha, valor: lido.mecanica })
+}
+
+/** Fase B do alcance: a forma do alcance do cartão (só o mestre), pelo mesmo juiz: o leitor guarda opaca a forma com `tipo` e tira o resto. */
+function lerAlcanceDoCartao(aba: string, trilha: string[], valor: Json | undefined): Leitura {
+  const lido = cartaoPeloLeitor({ ...CARTAO_DE_LEITURA, alcance: valor })
+  if (lido === null || !jsonIgual(lido.alcance, valor)) return recusa('fora-do-esquema', FORA_DO_FORMATO)
+  return aceita({ regra: 'alcanceDoCartao', aba, trilha, valor: lido.alcance })
 }
 
 // ── Item da mochila: `readCarriedItems` é o juiz ────────────────────────────

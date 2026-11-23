@@ -204,6 +204,7 @@ function naFicha(doc: Personagem, lida: Exclude<MudancaLida, { regra: 'ficha' }>
     case 'campoDoCartao':
     case 'imagemDoCartao':
     case 'mecanicaDoCartao':
+    case 'alcanceDoCartao':
     case 'ocultaDoCartao':
     case 'textoDoCartao':
       return nasAbas(doc, lida)
@@ -309,6 +310,14 @@ function mudarLista(lista: CartaoDaFicha[], lida: MudancaNasAbas): Passo<CartaoD
         // Sem valor, a chave sai (o cartão volta ao texto), como o leitor do disco guarda.
         const { mecanica: antes, ...semMecanica } = cartao
         return { ok: true, novo: mecanica === undefined ? semMecanica : { ...semMecanica, mecanica }, antes, depois: mecanica }
+      })
+    }
+    case 'alcanceDoCartao': {
+      const alcance = lida.valor
+      return noCartao(lista, lida.trilha, (cartao) => {
+        // Fase B do alcance: sem valor, a chave sai (o cartão fica sem alcance próprio), como o leitor do disco guarda.
+        const { alcance: antes, ...semAlcance } = cartao
+        return { ok: true, novo: alcance === undefined ? semAlcance : { ...semAlcance, alcance }, antes, depois: alcance }
       })
     }
     case 'ocultaDoCartao': {

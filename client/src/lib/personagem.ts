@@ -85,6 +85,15 @@ export interface CartaoDaFicha {
    */
   mecanicaProposta?: MecanicaGuardada
   /**
+   * ALCANCE (fase B, docs/design/habilidades/ALCANCE.md §3.2): a forma do alcance do cartão
+   * só de texto e da arma não montada (`{ tipo: 'alvo', ate: 5 }`, `FormaDoAlcance`). Guardada
+   * como veio (opaca, como a `mecanica`), para o app de antes regravar a forma de um app mais
+   * novo sem apagá-la; quem lê e confere é `alcanceDoCartao` (lib/batalha/alcanceDoCartao.ts),
+   * que ignora a forma torta. Só o mestre grava (como a `mecanica`). Ausente = sem alcance
+   * próprio (a mecânica montada ou a tabela à mão ainda podem dar um).
+   */
+  alcance?: AlcanceGuardado
+  /**
    * HABILIDADE OCULTA (fatia C7, `lib/habilidadeOculta.ts`): o jogador vê "???"
    * no lugar deste cartão (e dos subcartões dele) até o mestre revelar. Só o
    * mestre grava: o cartão oculto nunca vai ao jogador (`paraOFio`, emissor do
@@ -120,6 +129,9 @@ export interface CartaoDaFicha {
 
 /** A mecânica do cartão como o disco e o fio a guardam: um objeto JSON, conferido só por quem lê (`lerMecanica`). */
 export type MecanicaGuardada = Readonly<Record<string, unknown>>
+
+/** A forma do alcance como o disco e o fio a guardam: um objeto JSON com `tipo`, conferido só por quem lê (`alcanceDoCartao`). */
+export type AlcanceGuardado = Readonly<Record<string, unknown>>
 
 /**
  * Que número da ficha um ajuste rápido mexe (`lib/ajusteDaFicha.ts`):
@@ -538,6 +550,7 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
     ...(value.aMao === true ? { aMao: true } : {}),
     ...mecanicaDoArquivo(value.mecanica),
     ...mecanicaPropostaDoArquivo(value.mecanicaProposta),
+    ...alcanceDoArquivo(value.alcance),
     // Fatia C7: só o `true` conta (como o `aMao`); "revela ao usar" só vale no cartão oculto.
     ...(value.oculta === true ? { oculta: true, ...(value.revelaAoUsar === true ? { revelaAoUsar: true } : {}) } : {}),
     // Fatia C8: só o `true` conta (como o `aMao`).
@@ -583,7 +596,22 @@ export function mecanicaPropostaDoArquivo(value: unknown): Pick<CartaoDaFicha, '
   return copia === null ? {} : { mecanicaProposta: copia }
 }
 
-function copiaDaMecanica(value: unknown): MecanicaGuardada | null {
+/** Teto do JSON da forma do alcance guardada: a maior forma de hoje tem uns 60; mais que isto é lixo. */
+const ALCANCE_GUARDADO_MAX = 1_000
+
+/**
+ * ALCANCE (fase B): a forma do alcance do cartão como veio, em cópia funda e só JSON, pelo mesmo
+ * jeito da mecânica. Só objeto com `tipo` em texto e abaixo do teto fica; o resto sai (o cartão
+ * fica sem alcance próprio). Forma torta com `tipo` fica, para `alcanceDoCartao` ignorá-la sem
+ * apagar a de um app mais novo. O fio do jogador e a entrada do catálogo usam o mesmo leitor.
+ */
+export function alcanceDoArquivo(value: unknown): Pick<CartaoDaFicha, 'alcance'> {
+  if (!isRecord(value) || typeof value.tipo !== 'string') return {}
+  const copia = copiaDaMecanica(value, ALCANCE_GUARDADO_MAX)
+  return copia === null ? {} : { alcance: copia }
+}
+
+function copiaDaMecanica(value: unknown, max = MECANICA_GUARDADA_MAX): MecanicaGuardada | null {
   if (!isRecord(value)) return null
   let texto: string
   try {
@@ -591,7 +619,7 @@ function copiaDaMecanica(value: unknown): MecanicaGuardada | null {
   } catch {
     return null
   }
-  if (texto.length > MECANICA_GUARDADA_MAX) return null
+  if (texto.length > max) return null
   const copia: unknown = JSON.parse(texto)
   return isRecord(copia) ? copia : null
 }

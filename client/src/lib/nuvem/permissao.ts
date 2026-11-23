@@ -104,7 +104,8 @@ function mexeNaArmaDoLivro(doc: Personagem, mudanca: Pick<Mudanca, 'caminho'>): 
   const [cartaoId, ...dentro] = alvo.trilha
   const cartao = (doc.abas[alvo.aba] ?? []).find((atual) => atual.id === cartaoId)
   if (cartao?.itemId === undefined) return false
-  if (alvo.regra === 'textoDoCartao' || alvo.regra === 'mecanicaDoCartao') return true
+  // Fase B do alcance: o alcance da arma ligada também é do livro (copiado pelo mesmo caminho da mecânica).
+  if (alvo.regra === 'textoDoCartao' || alvo.regra === 'mecanicaDoCartao' || alvo.regra === 'alcanceDoCartao') return true
   if (alvo.regra === 'ordemDosCartoes') return alvo.trilha.length > 0
   return dentro.length > 0 && (alvo.regra === 'cartao' || alvo.regra === 'campoDoCartao')
 }
