@@ -199,6 +199,11 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     const ficha = tokenDaMira === undefined ? undefined : mapa?.tokens.find((token) => token.id === tokenDaMira)
     return mapa === undefined || ficha === undefined || !(mapa.grid > 0) ? undefined : mapaDoAlcance(mapa, pisoDe(ficha))
   }, [mapa, tokenDaMira])
+  // Fase E do alcance: os selos da ficha que age que mudam o alcance (o host já diz o que cada um faz), para a mira contar como ele.
+  const condicoesDaMira = useMemo(() => {
+    const carta = tokenDaMira === undefined ? undefined : estado.cartas.find((candidata) => candidata.tokenId === tokenDaMira)
+    return (carta?.selos ?? []).flatMap((selo) => (selo.alcance === undefined ? [] : [{ nome: selo.nome, alcance: selo.alcance }]))
+  }, [estado.cartas, tokenDaMira])
   // F2b (bug 8): a carta da vez é "eu" (a tela dele); fora dos personagens dele, é a emprestada ou o NPC que ele controla (vem com os aliados).
   const personagem = personagemId === undefined ? null : (meus.find((candidato) => candidato.id === personagemId) ?? aliados.find((candidato) => candidato.id === personagemId) ?? null)
   const meuCombate = personagemId === undefined ? undefined : estado.meus?.find((combate) => combate.personagemId === personagemId)
@@ -233,7 +238,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       habilidades: habilidades(acoes),
       contra: { armas: golpesDeAtaque(personagem, sistema, combate, null, bonus), habilidades: habilidades(null) },
       // C4: inimigos do mais perto ao mais longe, aliados depois, ele por último.
-      alvos: alvosNaOrdemDaMira(alvosPara(cartaQueAge), fichas, cartaQueAge.tokenId, tamanhoDaCasa, mapaDaMira),
+      alvos: alvosNaOrdemDaMira(alvosPara(cartaQueAge), fichas, cartaQueAge.tokenId, tamanhoDaCasa, mapaDaMira, condicoesDaMira),
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
       // C6: a forma em que o mestre decide os números não mostra prévia, e a que já espera o mestre fica apagada.
       formas: personagem !== null && sistema !== null ? formasComODecidirDoMestre(formasNoMenu(personagem, sistema, acoes, combate), meuCombate?.formasEsperando) : [],
@@ -242,7 +247,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       // Fase 8: os itens que o host mandou (a frase e a mira, sem as peças); usar um gasta a ação da vez.
       itens: golpesDosItensDoJogador(meuCombate?.itens ?? [], acoes),
     }
-  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvosPara, selosQueSomam, fichas, tamanhoDaCasa, mapaDaMira])
+  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvosPara, selosQueSomam, fichas, tamanhoDaCasa, mapaDaMira, condicoesDaMira])
 
   const contrasNoMenu = useMemo<ContraNoMenu[]>(
     () =>

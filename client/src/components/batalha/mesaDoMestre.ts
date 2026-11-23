@@ -1,4 +1,5 @@
 import type { InvocadoNaBatalha } from '../../lib/batalha/combate'
+import { selosQueMudamOAlcance } from '../../lib/batalha/alcance/doGolpe'
 import { mapaDoAlcance } from '../../lib/batalha/alcance/segmentos'
 import { pisoDe } from '../../lib/pisos'
 import type { MapData } from '../../types/map'
@@ -121,7 +122,8 @@ export function alvosDaOrdem(mesa: MesaDoMestre, cartas: readonly CartaDaOrdem[]
   // Fase C do alcance: as paredes no piso de quem age, as mesmas que o host usa para o mestre.
   const ficha = mesa.mapa?.tokens.find((token) => token.id === quemAge.tokenId)
   const mapa = mesa.mapa === undefined || ficha === undefined ? undefined : mapaDoAlcance(mesa.mapa, pisoDe(ficha))
-  return alvosNaOrdemDaMira(alvos, mesa.fichas, quemAge.tokenId, mesa.tamanhoDaCasa, mapa)
+  // Fase E do alcance: as condições de quem age (Ofuscado, Mira Firme) entram na conta da mira, como no host.
+  return alvosNaOrdemDaMira(alvos, mesa.fichas, quemAge.tokenId, mesa.tamanhoDaCasa, mapa, selosQueMudamOAlcance(mesa.cena?.turnos.selos, quemAge.tokenId))
 }
 
 /**

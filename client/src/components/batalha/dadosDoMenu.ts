@@ -30,6 +30,7 @@ import { direcaoDaRotacao, DIRECOES, distanciaEntreFichas, pegadaDaCasa, pegadaD
 import { alcanceDaTabela, alcanceDoCartao } from '../../lib/batalha/alcanceDoCartao'
 import { casasDaExplosao, casasDoAlcance } from '../../lib/batalha/alcance/casas'
 import type { FormaDoAlcance } from '../../lib/batalha/alcance/forma'
+import type { SeloQueMudaOAlcance } from '../../lib/batalha/alcance/condicoes'
 import { casasDaFormaDeQuemUsa, fichasNaForma, foraDasCasas, MAPA_SEM_PAREDES, type CandidatoNaForma, type MapaDoAlcance } from '../../lib/batalha/alcance/quemEntra'
 import { casaDoToken } from '../../lib/batalha/movimentoEmBatalha'
 import { motivoDoAlvoDePe } from '../../lib/batalha/golpe'
@@ -627,6 +628,11 @@ export interface GradeDaMira {
    * tem: o mestre, o inteiro; o jogador, o recorte). Ausente = sem parede (a Arena), só a distância.
    */
   mapa?: MapaDoAlcance
+  /**
+   * Fase E do alcance: os selos de quem age que mudam o alcance (Ofuscado, Mira Firme), na ordem da
+   * carta, para a mira contar como o host (`alcanceComCondicoes`). Ausente = nenhum.
+   */
+  condicoes?: readonly SeloQueMudaOAlcance[]
 }
 
 /** A ficha sem personagem não é alvo (a store recusa): fica na lista, apagada. */
@@ -656,7 +662,7 @@ export interface FichaComPosicao {
  * (`ordenarAlvosDaMira`). `tamanhoDaCasa` ausente (a Arena) = a conta em px, que
  * dá a mesma ordem fora do empate dentro da casa.
  */
-export function alvosNaOrdemDaMira<T extends AlvoNaMira>(alvos: readonly T[], fichas: readonly FichaComPosicao[], deTokenId: string, tamanhoDaCasa?: number, mapa?: MapaDoAlcance): T[] {
+export function alvosNaOrdemDaMira<T extends AlvoNaMira>(alvos: readonly T[], fichas: readonly FichaComPosicao[], deTokenId: string, tamanhoDaCasa?: number, mapa?: MapaDoAlcance, condicoes?: readonly SeloQueMudaOAlcance[]): T[] {
   const porId = new Map(fichas.map((ficha) => [ficha.id, ficha] as const))
   const ponto = (tokenId: string) => {
     const ficha = porId.get(tokenId)
@@ -683,6 +689,7 @@ export function alvosNaOrdemDaMira<T extends AlvoNaMira>(alvos: readonly T[], fi
     const dele = casaDe(p)
     const naGrade: GradeDaMira = { ficha: pegadaDe(p, alvo.tokenId), deQuemAge, frente }
     if (mapa !== undefined) naGrade.mapa = mapa
+    if (condicoes !== undefined && condicoes.length > 0) naGrade.condicoes = condicoes
     return { ...alvo, deslocamento: { col: dele.col - daOrigem.col, row: dele.row - daOrigem.row }, naGrade }
   })
 }
@@ -1140,9 +1147,10 @@ export function alvosNaAreaDaMira(area: AreaAMao, alvos: readonly AlvoNaMira[]):
  * dele). Fase C do alcance: pelas casas acesas, com a parede cortando. Quem age nunca entra (a
  * casa dele não acende); alvo sem posição fica de fora (quem usa marca à mão).
  */
-export function alvosNaAreaPelaGrade(area: AreaAMao, alvos: readonly AlvoNaMira[], direcao: Direcao): string[] {
+export function alvosNaAreaPelaGrade(area: AreaAMao, alvos: readonly AlvoNaMira[], direcao: Direcao, comCondicoes?: FormaDoAlcance): string[] {
   const grade = quemAgeNaGrade(alvos)
-  const forma = formaDaAreaDeQuemUsa(area)
+  // Fase E do alcance: a mira passa a forma com as condições de quem usa (o host conta com elas).
+  const forma = comCondicoes ?? formaDaAreaDeQuemUsa(area)
   if (grade === null || forma === null) return []
   return fichasNaForma(casasDoAlcance({ forma, quemUsa: grade.deQuemAge, direcao, ...(grade.mapa ?? MAPA_SEM_PAREDES) }), candidatosDaArea(alvos), area.quem)
 }
@@ -1189,10 +1197,19 @@ export interface EscolhaNoAlcance {
  * definido. As condições de quem usa ficam para o host (a recusa abre a mesma confirmação).
  */
 export function foraDoAlcanceNaMira(golpe: Pick<GolpeNaTela, 'formaDoAlcance'>, alvos: readonly AlvoNaMira[], escolha: EscolhaNoAlcance): boolean {
+  return quemSaiDoAlcanceNaMira(golpe, alvos, escolha) !== null
+}
+
+/**
+ * Fase E do alcance: o que sai das casas acesas (`foraDasCasas`): `'centro'`, o tokenId do
+ * primeiro marcado fora, ou `null` (tudo dentro, sem grade ou sem alcance definido). A mira passa
+ * a forma já com as condições de quem usa, para a confirmação dizer quem ficou de fora.
+ */
+export function quemSaiDoAlcanceNaMira(golpe: Pick<GolpeNaTela, 'formaDoAlcance'>, alvos: readonly AlvoNaMira[], escolha: EscolhaNoAlcance): string | 'centro' | null {
   const grade = quemAgeNaGrade(alvos)
   const forma = golpe.formaDoAlcance
   const quemUsa = alvos.find((alvo) => alvo.lado === 'eu')
-  if (grade === null || forma === undefined) return false
+  if (grade === null || forma === undefined) return null
   const fichaDe = (tokenId: string): PegadaNaGrade | null => alvos.find((alvo) => alvo.tokenId === tokenId)?.naGrade?.ficha ?? null
   const centro = escolha.ponto !== null ? pegadaDaCasa(escolha.ponto) : escolha.centroId !== null ? fichaDe(escolha.centroId) : null
   const marcados = escolha.marcados.flatMap((tokenId) => {
@@ -1200,7 +1217,7 @@ export function foraDoAlcanceNaMira(golpe: Pick<GolpeNaTela, 'formaDoAlcance'>, 
     return ficha === null ? [] : [{ tokenId, ficha }]
   })
   const golpeNoAlcance = { forma, quemUsa: grade.deQuemAge, quemUsaTokenId: quemUsa?.tokenId ?? '', direcao: escolha.direcao, mapa: grade.mapa ?? MAPA_SEM_PAREDES, centro, alvos: marcados }
-  return foraDasCasas(golpeNoAlcance) !== null
+  return foraDasCasas(golpeNoAlcance)
 }
 
 /** Fase C do alcance: a forma só entra no golpe quando há uma (sem alcance definido, nada a conferir). */
