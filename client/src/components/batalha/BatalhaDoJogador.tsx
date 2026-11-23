@@ -26,6 +26,7 @@ import type { EvoluirNaTela } from './ListaDeTecnicas'
 import { MenuDaVez, textoDaEspera, textoDoMestreDecidindo, type ContraNoMenu, type InvocarNoMenu } from './MenuDaVez'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
 import { LembretesDaMarca, marcaNaTela, type MarcaNaTela } from './LembretesDaMarca'
+import { PedidosDeAjuda } from './PedidosDeAjuda'
 import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNaTela } from './PassivasDaBatalha'
 import type { ConexaoDaBatalha } from './pedidosDaVez'
 import './batalha.css'
@@ -295,6 +296,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   }, [comPassiva, estado.meus, estado.rodada, estado.cartas, meus, sistema, alvosPara, nomeDe])
   // ---- R1 (lote de 01/11): os lembretes da marca, de todas as fichas dele (o nome quando ele tem mais de uma).
   const pedirMarca = conexao.marcar
+  // REQUISITOS E: os pedidos de ajuda dele (a caixa Aceitar/Recusar quando pediram a ele; o "Esperando" quando ele pediu).
+  const ajudas = useMemo(() => (estado.meus ?? []).flatMap((meu) => meu.ajudas ?? []), [estado.meus])
+  const pedirAjuda = conexao.ajuda
   const marcas = useMemo<MarcaNaTela[]>(() => {
     if (pedirMarca === undefined) return []
     const varios = (estado.meus?.length ?? 0) > 1
@@ -448,7 +452,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const lugarDosLembretes = useRef<HTMLDivElement>(null)
   const comEspera = esperandoOMestre.length > 0 && conexao.invocar !== undefined
   const comFormaEsperando = formasEsperando.length > 0
-  const comLembretes = lembretes.length > 0 || marcas.length > 0 || ((comEspera || comFormaEsperando) && !mostrarMenu) || esperandoOContra
+  const comLembretes = lembretes.length > 0 || marcas.length > 0 || (ajudas.length > 0 && pedirAjuda !== undefined) || ((comEspera || comFormaEsperando) && !mostrarMenu) || esperandoOContra
   useLayoutEffect(() => {
     const menuNaTela = lugarDoMenu.current
     const avisos = lugarDosLembretes.current
@@ -556,6 +560,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
               Esperando o mestre pôr no mapa: {textoDaEspera(esperandoOMestre)}
             </p>
           )}
+          {ajudas.length > 0 && pedirAjuda !== undefined && <PedidosDeAjuda itens={ajudas} onPedir={pedirAjuda} />}
           {marcas.length > 0 && pedirMarca !== undefined && <LembretesDaMarca itens={marcas} onResponder={pedirMarca} />}
           {lembretes.length > 0 && conexao.passiva !== undefined && <LembretesDaPassiva itens={lembretes} sistema={sistema} aplicarLivre={operaComoMestre} onPedir={conexao.passiva} />}
         </div>

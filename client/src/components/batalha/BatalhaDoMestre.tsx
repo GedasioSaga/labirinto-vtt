@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type ContraAtaque, type FormaPendente, type PedidoDeAcao } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type AjudaPendente, type ContraAtaque, type FormaPendente, type PedidoDeAcao } from '../../lib/batalha/combate'
+import { PedidosDeAjuda, type AjudaNaTela } from './PedidosDeAjuda'
 import { equipeDe } from '../../lib/batalha/equipes'
 import { comOBonusDosAcumuladores } from '../../lib/batalha/acumuladorNaBatalha'
 import { contextoDosRequisitos } from '../../lib/batalha/requisitos/montar'
@@ -107,6 +108,19 @@ function SelosDaVez({ turnos, tokenId, nome, sistema, onDialogo }: { turnos: Tur
 
 /** C6: nenhuma forma esperando o mestre (a mesma lista vazia, para a fila não refazer a cada quadro). */
 const SEM_FORMAS_PENDENTES: readonly FormaPendente[] = []
+const SEM_AJUDAS: readonly AjudaPendente[] = []
+/** REQUISITOS E: de quanto em quanto a tela do mestre (o host) confere o prazo dos pedidos de ajuda. */
+const PRAZO_DA_VARREDURA_MS = 1_000
+
+/** REQUISITOS E: o pedido de ajuda como o mestre vê: esperando = ele pode responder; o aviso só do pedido que ele fez. */
+function ajudaNaTelaDoMestre(ajuda: AjudaPendente): AjudaNaTela[] {
+  const esperando = ajuda.estado === 'esperando'
+  if (!esperando && ajuda.autor.tipo !== 'mestre') return []
+  const item: AjudaNaTela = { id: ajuda.id, papel: esperando ? 'responde' : 'pede', frase: ajuda.frase, nomeDe: ajuda.nomeDe, nomePara: ajuda.nomePara, tecnica: ajuda.tecnica, estado: ajuda.estado, prazoS: null, npc: true }
+  if (ajuda.paga !== undefined) item.paga = ajuda.paga
+  if (ajuda.motivo !== undefined) item.motivo = ajuda.motivo
+  return [item]
+}
 
 /** A mesa do mapa: a leitura comum (`MesaDoMestre`, a mesma da Arena) com a cena inteira da store. */
 interface Mesa extends MesaDoMestre {
@@ -400,6 +414,29 @@ function MenuDaVezDoNpc({
 }
 
 /** Tipos de habilidade F3: os lembretes dos NPCs fora do `exceto` (o da vez, que os vê no painel), com o nome de cada um. */
+/**
+ * REQUISITOS E (§7.2): o mestre vê todos os pedidos de ajuda e responde por qualquer um (o NPC aliado
+ * só ele); os avisos dos pedidos que ELE fez (pelo NPC) também. A tela do mestre é o host: ela varre o
+ * prazo a cada segundo enquanto algum pedido espera.
+ */
+function AjudasDoMestre({ pedidos, turnos }: { pedidos: PedidosDaVez; turnos: TurnosDaCena }) {
+  const lista = turnos.pedidosDeAjuda ?? SEM_AJUDAS
+  const algumEspera = lista.some((ajuda) => ajuda.estado === 'esperando' || ajuda.fechadoEm !== undefined)
+  useEffect(() => {
+    if (!algumEspera) return undefined
+    const relogio = setInterval(() => pedidos.vencerAjudas(Date.now()), PRAZO_DA_VARREDURA_MS)
+    return () => clearInterval(relogio)
+  }, [algumEspera, pedidos])
+  const itens = useMemo(() => lista.flatMap((ajuda): AjudaNaTela[] => ajudaNaTelaDoMestre(ajuda)), [lista])
+  if (itens.length === 0) return null
+  return (
+    <section className="bt-secao" aria-label="Pedidos de ajuda">
+      <h3 className="bt-secao__titulo">Pedidos de ajuda</h3>
+      <PedidosDeAjuda itens={itens} onPedir={pedidos.ajuda} />
+    </section>
+  )
+}
+
 function LembretesDosNpcs({ pedidos, mesa, turnos, exceto }: { pedidos: PedidosDaVez; mesa: Mesa; turnos: TurnosDaCena; exceto: string | null }) {
   const itens: LembreteNaTela[] = []
   for (const [personagemId, combate] of Object.entries(turnos.combate ?? {})) {
@@ -577,6 +614,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo, comAMesa = false }: { sce
     return (
       <>
         {invocacoes}
+        <AjudasDoMestre pedidos={pedidos} turnos={turnos} />
         <LembretesDosNpcs pedidos={pedidos} mesa={mesa} turnos={turnos} exceto={null} />
         {reacoes}
       </>
@@ -605,6 +643,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo, comAMesa = false }: { sce
             mapa={{ ligado: mirando, onTrocar: (ligado) => useMiraDoMestre.getState().mirar(ligado) }}
           />
         </section>
+        <AjudasDoMestre pedidos={pedidos} turnos={turnos} />
         <LembretesDosNpcs pedidos={pedidos} mesa={mesa} turnos={turnos} exceto={null} />
         {reacoes}
       </>
@@ -644,6 +683,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo, comAMesa = false }: { sce
           </div>
           <SelosDaVez turnos={turnos} tokenId={carta.tokenId} nome={nome} sistema={sistema} onDialogo={onDialogo} />
         </section>
+        <AjudasDoMestre pedidos={pedidos} turnos={turnos} />
         <LembretesDosNpcs pedidos={pedidos} mesa={mesa} turnos={turnos} exceto={null} />
         {reacoes}
       </>
@@ -704,6 +744,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo, comAMesa = false }: { sce
           invocacao={personagem === null || pedidos.invocar === undefined ? undefined : invocarDoNpc(pedidos.invocar, personagem, sistema, turnos, carta, acoes)}
         />
       </section>
+      <AjudasDoMestre pedidos={pedidos} turnos={turnos} />
       <LembretesDosNpcs pedidos={pedidos} mesa={mesa} turnos={turnos} exceto={carta.personagemId} />
       {reacoes}
     </>

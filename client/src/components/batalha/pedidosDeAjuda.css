@@ -1,0 +1,59 @@
+/*
+ * REQUISITOS E: o pedido de ajuda a um aliado (protótipo aprovado, tela 5). Na tela do aliado (ou do
+ * mestre, pelo NPC) a caixa "VAGN PEDE 25 SP" com Aceitar e Recusar; na de quem pediu, o "Esperando"
+ * e os avisos. Movimento: só a entrada da caixa (200 ms); movimento reduzido = só aparece.
+ */
+.bt-ajudas { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.bt-pedido-ajuda {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  box-shadow: inset 4px 0 0 var(--lb-color-tide), 5px 5px 0 rgba(121, 169, 204, 0.4);
+  animation: bt-pedido-ajuda-entra 200ms var(--bt-ease-out) both;
+}
+@keyframes bt-pedido-ajuda-entra { from { opacity: 0; transform: translateY(-6px); } }
+.bt-pedido-ajuda__tit {
+  margin: 0;
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.bt-pedido-ajuda__txt { margin: 0; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment-dim); max-width: 52ch; overflow-wrap: anywhere; }
+.bt-pedido-ajuda__txt b { color: var(--bt-papel); font-weight: 600; }
+.bt-pedido-ajuda__prazo { font-size: var(--lb-font-size-sm); font-variant-numeric: tabular-nums; color: var(--lb-color-parchment-faint); }
+.bt-pedido-ajuda__acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Quem pediu: o "Esperando ..." e os avisos (recusou, venceu, a vez passou). */
+.bt-espera-ajuda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--lb-color-tide);
+  background: rgba(12, 12, 14, 0.72);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+.bt-espera-ajuda[data-estado='esperando'] .bt-espera-ajuda__ponto { animation: bt-espera-ajuda-pulso 1.2s ease-in-out infinite; }
+.bt-espera-ajuda[data-estado='recusado'],
+.bt-espera-ajuda[data-estado='venceu'],
+.bt-espera-ajuda[data-estado='naoPassou'],
+.bt-espera-ajuda[data-estado='cancelado'] { border-left-color: var(--lb-color-ember); }
+.bt-espera-ajuda__ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--lb-color-tide); }
+.bt-espera-ajuda__texto { flex: 1 1 18ch; min-width: 0; overflow-wrap: anywhere; }
+@keyframes bt-espera-ajuda-pulso { 50% { opacity: 0.35; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .bt-pedido-ajuda { animation: none; }
+  .bt-espera-ajuda[data-estado='esperando'] .bt-espera-ajuda__ponto { animation: none; }
+}

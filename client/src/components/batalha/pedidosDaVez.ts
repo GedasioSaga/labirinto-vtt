@@ -2,6 +2,7 @@ import type { PedidoDeAcao, PedidoDeEvolucao, PedidoDeInvocacao, PedidoDeMarca, 
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import type { BatalhaMiraMessage } from '../../net/protocoloDaBatalha'
 import type { AutorDaAcao } from '../../lib/batalha/turnos'
+import type { CancelamentoDaAjuda, RespostaDaAjuda } from '../../lib/batalha/requisitos/modelo'
 import type { BatalhaState, LojaDaBatalha } from '../../stores/batalhaFabrica'
 
 /**
@@ -35,6 +36,8 @@ export interface ConexaoDaBatalha {
   invocar?: (pedido: PedidoDeInvocacao) => boolean
   /** R1 (lote de 01/11): responder o lembrete da marca. Ausente = sem os lembretes da marca. */
   marcar?: (pedido: PedidoDeMarca) => boolean
+  /** REQUISITOS E: responder ao pedido de ajuda (Aceitar/Recusar) ou cancelar o dele. Ausente = sem os cartões do pedido. */
+  ajuda?: (pedido: RespostaDaAjuda | CancelamentoDaAjuda) => boolean
   /**
    * Fase D do alcance: a mira aberta vai à mesa (os outros veem só as casas, a cor e o lado). Ausente =
    * só esta tela vê (a Arena, o treino do Lobby).
@@ -59,6 +62,9 @@ export interface PedidosDaVez extends ConexaoDaBatalha {
   passiva: ComAutor<'passiva'>
   evoluir: ComAutor<'evoluir'>
   marcar: ComAutor<'marcar'>
+  ajuda: ComAutor<'ajuda'>
+  /** REQUISITOS E: o prazo dos pedidos de ajuda (o mestre é o host: a tela dele varre a cada segundo). */
+  vencerAjudas: SoDoMestre<'vencerAjudas'>
   /** O motivo da regra para o `agir` que ela recusaria agora; `null` = não recusa. */
   motivoDoAgir: ComAutor<'motivoDoAgir'>
   ajustar: ComAutor<'ajustar'>
@@ -101,6 +107,7 @@ export function pedidosDaVez(loja: LojaDaBatalha, sceneKey: string, autor: Autor
     passiva: (pedido) => agora().passiva(sceneKey, autor, pedido),
     evoluir: (pedido) => agora().evoluir(sceneKey, autor, pedido),
     marcar: (pedido) => agora().marcar(sceneKey, autor, pedido),
+    ajuda: (pedido) => agora().ajuda(sceneKey, autor, pedido),
     ajustar: (pedido) => agora().ajustar(sceneKey, autor, pedido),
     contador: (pedido) => agora().contador(sceneKey, autor, pedido),
     darDano: (tokenId, valor) => agora().darDano(sceneKey, autor, tokenId, valor),
@@ -113,6 +120,7 @@ export function pedidosDaVez(loja: LojaDaBatalha, sceneKey: string, autor: Autor
     cancelarForma: (pendenteId) => agora().cancelarForma(sceneKey, pendenteId),
     agirComInvocado: (vez, tokenId, pedido) => agora().agirComInvocado(sceneKey, vez, tokenId, pedido),
     cancelarInvocacao: (invocacaoId) => agora().cancelarInvocacao(sceneKey, invocacaoId),
+    vencerAjudas: (agoraMs) => agora().vencerAjudas(sceneKey, agoraMs),
     desfazer: (linhaId) => agora().desfazer(sceneKey, linhaId, autor),
   }
   if (fora.invocar !== true) pedidos.invocar = (pedido) => agora().invocar(sceneKey, autor, pedido)

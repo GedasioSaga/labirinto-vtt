@@ -2262,6 +2262,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               evoluir: (pedido) => connection.evoluirNaBatalha(pedido),
               invocar: (pedido) => connection.invocarNaBatalha(pedido),
               marcar: (pedido) => connection.marcarNaBatalha(pedido),
+              ajuda: (pedido) => connection.ajudaNaBatalha(pedido),
               mirar: (msg) => connection.mirarNaBatalha(msg),
             }}
             tamanhoDaCasa={state.map.grid}
