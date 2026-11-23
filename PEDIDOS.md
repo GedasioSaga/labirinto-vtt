@@ -3003,3 +3003,9 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - Literal: "[Image #57] melhore isso aqui, eu quero um prototipo que faça teste, recomendações e afins, as vezes eu quero colocar algo assim: 3 aliados sendo 2 npc e jogador vs 1 inimigos quanto o inimigo tem que ter para a batalha durar 10 turnos."
 - Print: página "Comparar e balancear" do livro (até 4 fichas lado a lado: HP, SP, Escudo e os 8 atributos em barras; chips de Jogadores e NPCs).
 - 23/11 18h57 (date). Achado do Claude: o app já tem lutas automáticas com o robô (lib/treino/cemLutas.ts, lutaAutomatica.ts, lutas.worker.ts). Fila: designer faz o protótipo (montar os lados, simular N lutas, meta "durar 10 turnos", o app acha os números do inimigo, recomendações em palavras); depois plano e construir com o motor de verdade.
+
+## PEDIDO NOVO (23/11 18h58): páginas Habilidades e Itens do livro organizadas
+
+- Literal: "[Image #58] [Image #59] cara é para dar para fazer isso melhor, ta muito mal organizado, faça um prototipo organiziado"
+- Prints: página Habilidades (botões Juntar das fichas da pasta, Dar alcance aos antigos, Dar requisitos aos antigos, Nova habilidade; busca; chips Tudo 171, Ataque 39, Reação 6, Cura e apoio 5, Do livro 121; cartões em grade com texto longo cortado, campos Ação/Efeito/Custo/Tempo/Dano, ícones testar/editar/apagar, "Já está em Aira"/"Pôr em Aira"; à direita "Ficha que recebe" Aira com listas de Habilidades, Perícias, Vantagens, Desvantagens) e página Itens (5 botões de manutenção + Novo item; chips Tudo 40, Com efeito 1, Armas 16, Consumíveis 3, Outros 21; cartões de arma; à direita Mochila/Armas/Itens da Aira).
+- 23/11 18h58 (date). Fila: designer-opus faz protótipo organizado das duas páginas (pensar 2-3 arranjos, escolher o melhor); construir depois da aprovação.
