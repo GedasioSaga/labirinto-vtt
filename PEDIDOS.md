@@ -2978,3 +2978,9 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - Literal: "[Image #51] ué eu mandei o protipo de fazer a skill cadê ?"
 - Print: na 0.5.95, aba Habilidades da ficha (faixa Acumuladores "Cargas até 3", + Acumulador); a habilidade nova "Habilidade" abre com o formulário antigo (Nome, Descrição, Ação, Tipo, Efeito, Custo, Tempo, Dano Fórmula/Personalizado).
 - 23/11 18h18 (date). Causa (Claude): pelo plano, cartão só de texto fica no formulário antigo até o "Montar", e o editor novo aparece só como um bloco no fim do cartão, embaixo de todos os campos. A habilidade NOVA também nasce só texto. Erro de leitura do Claude: o dono aprovou o protótipo como O editor da habilidade. Fila: habilidade nova abre direto no editor novo; cartão só de texto mostra no topo o editor novo com "Montar" em destaque e o texto antigo recolhido; publicar a 0.5.96 logo (memória lançar logo).
+
+## PEDIDO NOVO (23/11 18h33): os quadrados azuis do alcance não aparecem
+
+- Literal: "[Image #52] Cadê os blocos azuis com animação dizendo qual é a área de acerto?"
+- Print: 0.5.95, batalha, vez do Hector, mira "TIRO DE REVOLVER" (Um alvo a até 5 casas, Vincent G. marcado "CHEGA 70"), mapa com grade e as fichas, nenhum quadrado aceso.
+- 23/11 18h33 (date). Suspeita do Claude: a prova da fase E ligou a mira pela store direto (falso-verde); o caminho real do menu ao mapa não acende. Fila: debugador reproduz só por cliques, conserta, e sai junto na 0.5.96 com o editor padrão.
