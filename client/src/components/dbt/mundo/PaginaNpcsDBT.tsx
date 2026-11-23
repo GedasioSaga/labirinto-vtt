@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { avisosDosAtributosDoNpc } from '../../../lib/dbt/regras/npc'
 import type { TabelaDeRanksDBT } from '../../../lib/dbt/regras/tecnicas'
-import { ehVariacao, entraNaBatalha, soltarDoModelo, variacoesDe } from '../../../lib/livros/combate'
-import { FORCA_PADRAO, type Personagem } from '../../../lib/personagem'
+import { ehVariacao, entraNaBatalha, variacoesDe } from '../../../lib/livros/combate'
+import type { Personagem } from '../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
 import { useMundoDoLivroStore } from '../../../stores/mundoDoLivroStore'
+import { FaixaSoltarDoModelo, LinhaDoBestiario, MoverParaOModelo, PROPS_DO_CARTAO_DA_LISTA, soltarDoModeloNoMundo, useArrastoDoBestiario, type ArrastoDoBestiario } from '../../livros/ArrastoDoBestiario'
 import { gravarNoMundo, Retrato, semCenario, trocarFicha } from '../../livros/comum'
 import { IconeDoMundo } from '../../livros/icones'
 import { EditorDaNota, SoVoceVe } from '../../livros/PaginaAnotacoes'
@@ -46,30 +47,24 @@ interface ItemDaListaProps {
   deCombate: readonly Personagem[]
   escolhido: boolean
   variacao: boolean
+  arrasto: ArrastoDoBestiario
 }
 
-function ItemDaLista({ personagem, deCombate, escolhido, variacao }: ItemDaListaProps) {
+function ItemDaLista({ personagem, deCombate, escolhido, variacao, arrasto }: ItemDaListaProps) {
   return (
-    <li>
-      <button
-        type="button"
-        className={variacao ? 'mu-bes-item mu-bes-item--var' : 'mu-bes-item'}
-        aria-current={escolhido}
-        onClick={() => useMundoDoLivroStore.getState().escolherNpc(personagem.id)}
-      >
-        <Retrato imagem={personagem.retrato} nome={personagem.nome} tamanho="p" />
-        <span className="mu-bes-item__txt">
-          <span className="mu-bes-item__nome">{personagem.nome}</span>
-          <span className="mu-bes-item__sub">
-            {papelDoNpc(personagem, deCombate)}
-            {daBatalha(personagem) ? ' · criado na batalha' : ''}
-          </span>
+    <LinhaDoBestiario personagem={personagem} deCombate={deCombate} escolhido={escolhido} variacao={variacao} arrasto={arrasto}>
+      <Retrato imagem={personagem.retrato} nome={personagem.nome} tamanho="p" />
+      <span className="mu-bes-item__txt">
+        <span className="mu-bes-item__nome">{personagem.nome}</span>
+        <span className="mu-bes-item__sub">
+          {papelDoNpc(personagem, deCombate)}
+          {daBatalha(personagem) ? ' · criado na batalha' : ''}
         </span>
-        <span className="mu-bes-item__forca" aria-label={rankDe(personagem)}>
-          {fichaDe(personagem).npc?.rank ?? '—'}
-        </span>
-      </button>
-    </li>
+      </span>
+      <span className="mu-bes-item__forca" aria-label={rankDe(personagem)}>
+        {fichaDe(personagem).npc?.rank ?? '—'}
+      </span>
+    </LinhaDoBestiario>
   )
 }
 
@@ -98,10 +93,7 @@ function DetalheDoNpc({ personagem, personagens, deCombate, ranks, onNovoNpc }: 
 
   const soltar = () => {
     if (modeloId === undefined) return
-    void gravarNoMundo((lista) => trocarFicha(lista, personagem.id, soltarDoModelo), {
-      texto: `${nome} agora é NPC único: a ficha não segue mais ${modelo?.nome ?? 'o modelo'}.`,
-      desfazer: (lista) => trocarFicha(lista, personagem.id, (atual) => ({ ...atual, combate: { forca: atual.combate?.forca ?? FORCA_PADRAO, ...atual.combate, modeloId } })),
-    })
+    void soltarDoModeloNoMundo(personagem, modelo?.nome ?? 'o modelo')
   }
 
   const apagar = () => {
@@ -162,6 +154,7 @@ function DetalheDoNpc({ personagem, personagens, deCombate, ranks, onNovoNpc }: 
           </button>
         )}
       </p>
+      <MoverParaOModelo personagem={personagem} deCombate={deCombate} />
 
       <div className="mu-bes-bloco dbm">
         <ResumoDoNpcDBT personagem={personagem} ranks={ranks} />
@@ -231,6 +224,7 @@ export function PaginaNpcsDBT({ personagens, sistema }: PaginaNpcsDBTProps) {
     ...(ehVariacao(personagem) ? [] : variacoesDe(personagem.id, deCombate).map((variacao) => ({ personagem: variacao, variacao: true }))),
   ])
   const escolhido = ordem.find((item) => item.personagem.id === escolhidoId)?.personagem ?? ordem[0]?.personagem
+  const arrasto = useArrastoDoBestiario(deCombate)
 
   const voltarParaABatalha = (personagem: Personagem) =>
     void gravarNoMundo((lista) => trocarFicha(lista, personagem.id, semCenario), {
@@ -268,7 +262,7 @@ export function PaginaNpcsDBT({ personagens, sistema }: PaginaNpcsDBTProps) {
 
       <div className="mu-bes">
         <div className="mu-bes-lista">
-          <div className="mu-cartao mu-bes-grupo">
+          <div className="mu-cartao mu-bes-grupo" {...PROPS_DO_CARTAO_DA_LISTA}>
             <h3 className="mu-bes-grupo__tit">
               <span>Modelos e variações</span>
               <span aria-hidden="true">Rank</span>
@@ -280,8 +274,9 @@ export function PaginaNpcsDBT({ personagens, sistema }: PaginaNpcsDBTProps) {
             ) : (
               <ul>
                 {ordem.map(({ personagem, variacao }) => (
-                  <ItemDaLista key={personagem.id} personagem={personagem} deCombate={deCombate} escolhido={escolhido?.id === personagem.id} variacao={variacao} />
+                  <ItemDaLista key={personagem.id} personagem={personagem} deCombate={deCombate} escolhido={escolhido?.id === personagem.id} variacao={variacao} arrasto={arrasto} />
                 ))}
+                <FaixaSoltarDoModelo arrasto={arrasto} />
               </ul>
             )}
           </div>
@@ -324,6 +319,7 @@ export function PaginaNpcsDBT({ personagens, sistema }: PaginaNpcsDBTProps) {
           <DetalheDoNpc key={escolhido.id} personagem={escolhido} personagens={personagens} deCombate={deCombate} ranks={ranks} onNovoNpc={setDialogo} />
         )}
       </div>
+      {arrasto.fantasma}
 
       {dialogo !== null && (
         <NovoNpcDBTDialog

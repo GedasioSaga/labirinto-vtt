@@ -2,11 +2,12 @@ import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from 
 import { maximoComposto, temMaximo } from '../../lib/ajusteDaFicha'
 import { CAMPO_DO_DANO, lerDano, type ContextoDaFormula } from '../../lib/batalha/formula'
 import { armasDe, tecnicasDe } from '../../lib/batalha/leituraDaFicha'
-import { ATALHOS_DA_FORCA, ehVariacao, entraNaBatalha, semForca, soltarDoModelo, trocarForca, variacoesDe } from '../../lib/livros/combate'
+import { ATALHOS_DA_FORCA, ehVariacao, entraNaBatalha, semForca, trocarForca, variacoesDe } from '../../lib/livros/combate'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
-import { FORCA_MAX, FORCA_MIN, FORCA_PADRAO, FORCA_PASSO, forcaDe, forcaNoPasso, RECURSO_QUE_A_FORCA_MULTIPLICA, type Personagem } from '../../lib/personagem'
+import { FORCA_MAX, FORCA_MIN, FORCA_PASSO, forcaDe, forcaNoPasso, RECURSO_QUE_A_FORCA_MULTIPLICA, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
+import { FaixaSoltarDoModelo, LinhaDoBestiario, MoverParaOModelo, PROPS_DO_CARTAO_DA_LISTA, soltarDoModeloNoMundo, useArrastoDoBestiario, type ArrastoDoBestiario } from './ArrastoDoBestiario'
 import { escolhasDaFicha, formatarForca, formatarNumero, forcaMexida, gravarNoMundo, primeiroNome, Retrato, semCenario, trocarFicha } from './comum'
 import { IconeDoMundo } from './icones'
 import { NovoNpcDialog, type ModoDoNovoNpc } from './NovoNpcDialog'
@@ -99,30 +100,24 @@ interface ItemDaListaProps {
   escolhido: boolean
   variacao: boolean
   forca: number
+  arrasto: ArrastoDoBestiario
 }
 
-function ItemDaLista({ personagem, deCombate, escolhido, variacao, forca }: ItemDaListaProps) {
+function ItemDaLista({ personagem, deCombate, escolhido, variacao, forca, arrasto }: ItemDaListaProps) {
   return (
-    <li>
-      <button
-        type="button"
-        className={variacao ? 'mu-bes-item mu-bes-item--var' : 'mu-bes-item'}
-        aria-current={escolhido}
-        onClick={() => useMundoDoLivroStore.getState().escolherNpc(personagem.id)}
-      >
-        <Retrato imagem={personagem.retrato} nome={personagem.nome} tamanho="p" />
-        <span className="mu-bes-item__txt">
-          <span className="mu-bes-item__nome">{personagem.nome}</span>
-          <span className="mu-bes-item__sub">
-            {papelDoNpc(personagem, deCombate)}
-            {daBatalha(personagem) ? ' · criado na batalha' : ''}
-          </span>
+    <LinhaDoBestiario personagem={personagem} deCombate={deCombate} escolhido={escolhido} variacao={variacao} arrasto={arrasto}>
+      <Retrato imagem={personagem.retrato} nome={personagem.nome} tamanho="p" />
+      <span className="mu-bes-item__txt">
+        <span className="mu-bes-item__nome">{personagem.nome}</span>
+        <span className="mu-bes-item__sub">
+          {papelDoNpc(personagem, deCombate)}
+          {daBatalha(personagem) ? ' · criado na batalha' : ''}
         </span>
-        <span className={forcaMexida(forca) ? 'mu-bes-item__forca mu-bes-item__forca--mexida' : 'mu-bes-item__forca'} aria-label={`Força ${formatarForca(forca)}`}>
-          {formatarForca(forca)}
-        </span>
-      </button>
-    </li>
+      </span>
+      <span className={forcaMexida(forca) ? 'mu-bes-item__forca mu-bes-item__forca--mexida' : 'mu-bes-item__forca'} aria-label={`Força ${formatarForca(forca)}`}>
+        {formatarForca(forca)}
+      </span>
+    </LinhaDoBestiario>
   )
 }
 
@@ -158,10 +153,7 @@ function DetalheDoNpc({ personagem, personagens, deCombate, sistema, aoVivo, onF
 
   const soltar = () => {
     if (modeloId === undefined) return
-    void gravarNoMundo((lista) => trocarFicha(lista, personagem.id, soltarDoModelo), {
-      texto: `${nome} agora é NPC único: a ficha não segue mais ${modelo?.nome ?? 'o modelo'}.`,
-      desfazer: (lista) => trocarFicha(lista, personagem.id, (atual) => ({ ...atual, combate: { forca: atual.combate?.forca ?? FORCA_PADRAO, ...atual.combate, modeloId } })),
-    })
+    void soltarDoModeloNoMundo(personagem, modelo?.nome ?? 'o modelo')
   }
 
   const apagar = () => {
@@ -222,6 +214,7 @@ function DetalheDoNpc({ personagem, personagens, deCombate, sistema, aoVivo, onF
           </button>
         )}
       </p>
+      <MoverParaOModelo personagem={personagem} deCombate={deCombate} />
 
       <div className="mu-bes-bloco">
         <h4 className="mu-bes-bloco__tit">
@@ -354,6 +347,7 @@ function PaginaNpcsPadrao({ personagens, sistema }: PaginaNpcsProps) {
     ...(ehVariacao(personagem) ? [] : variacoesDe(personagem.id, deCombate).map((variacao) => ({ personagem: variacao, variacao: true }))),
   ])
   const escolhido = ordem.find((item) => item.personagem.id === escolhidoId)?.personagem ?? ordem[0]?.personagem
+  const arrasto = useArrastoDoBestiario(deCombate)
 
   /** Grava a força que o deslizante deixou (a pendente), se ainda há uma. */
   const gravarPendente = () => {
@@ -396,7 +390,7 @@ function PaginaNpcsPadrao({ personagens, sistema }: PaginaNpcsProps) {
 
       <div className="mu-bes">
         <div className="mu-bes-lista">
-          <div className="mu-cartao mu-bes-grupo">
+          <div className="mu-cartao mu-bes-grupo" {...PROPS_DO_CARTAO_DA_LISTA}>
             <h3 className="mu-bes-grupo__tit">
               <span>Modelos e variações</span>
               <span aria-hidden="true">Força</span>
@@ -415,8 +409,10 @@ function PaginaNpcsPadrao({ personagens, sistema }: PaginaNpcsProps) {
                     escolhido={escolhido?.id === personagem.id}
                     variacao={variacao}
                     forca={forcaNaLista(personagem)}
+                    arrasto={arrasto}
                   />
                 ))}
+                <FaixaSoltarDoModelo arrasto={arrasto} />
               </ul>
             )}
           </div>
@@ -468,6 +464,7 @@ function PaginaNpcsPadrao({ personagens, sistema }: PaginaNpcsProps) {
           />
         )}
       </div>
+      {arrasto.fantasma}
 
       {dialogo !== null && (
         <NovoNpcDialog

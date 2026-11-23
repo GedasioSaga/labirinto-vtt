@@ -125,6 +125,61 @@ export function soltarDoModelo(personagem: Personagem): Personagem {
   return { ...personagem, combate: marca }
 }
 
+/** O modelo da família do NPC: o da variação, ou ele mesmo (modelo ou NPC único). */
+export function idDaFamilia(personagem: Personagem): string {
+  return personagem.combate?.modeloId ?? personagem.id
+}
+
+/** NPC que entra no bestiário de combate e pode mudar de família: não é jogador, nem "Só no cenário", nem invocado temporário. */
+function npcDoBestiario(personagem: Personagem): boolean {
+  return personagem.tipo === 'npc' && entraNaBatalha(personagem) && !ehInvocadoTemporario(personagem)
+}
+
+/**
+ * O NPC pode VIRAR VARIAÇÃO da família de `alvo` (pedido de 23/11/2026, "puxar
+ * o cavaleiro de escudo para dentro do cavaleiro com clava")? Os dois são do
+ * bestiário de combate; o arrastado não é modelo de ninguém (as variações dele
+ * ficariam sem lugar na lista: soltam-se antes); e ainda não está nessa
+ * família. Alvo que é variação conta como o modelo dela.
+ */
+export function podeVirarVariacaoDe(personagem: Personagem, alvo: Personagem, personagens: readonly Personagem[]): boolean {
+  if (!npcDoBestiario(personagem) || !npcDoBestiario(alvo)) return false
+  const familia = idDaFamilia(alvo)
+  if (familia === personagem.id || personagem.combate?.modeloId === familia) return false
+  return variacoesDe(personagem.id, personagens).length === 0
+}
+
+/**
+ * "Virar variação" de NPC que já existe: só a ligação ao modelo muda
+ * (`combate.modeloId`); id, nome, retrato próprio, nota, histórico e força
+ * ficam, então o token do mapa (`characterId`) continua achando a ficha. A
+ * ficha (técnicas, armas, atributos) passa a seguir o modelo, como toda
+ * variação (`sincronizarVariacoes`, aqui mesmo: o HP cheio continua cheio no
+ * máximo novo). Recusado (`podeVirarVariacaoDe`) ou ficha que sumiu: a MESMA
+ * lista.
+ */
+export function virarVariacaoDe(personagens: Personagem[], personagemId: string, alvoId: string): Personagem[] {
+  const personagem = personagens.find((candidato) => candidato.id === personagemId)
+  const alvo = personagens.find((candidato) => candidato.id === alvoId)
+  if (personagem === undefined || alvo === undefined || !podeVirarVariacaoDe(personagem, alvo, personagens)) return personagens
+  const ligada: Personagem = { ...personagem, combate: { forca: FORCA_PADRAO, ...personagem.combate, modeloId: idDaFamilia(alvo) } }
+  const sincronizados = sincronizarVariacoes(personagens.map((candidato) => (candidato.id === personagemId ? ligada : candidato)))
+  if (!hpCheio(personagem)) return sincronizados
+  return sincronizados.map((candidato) => (candidato.id === personagemId ? comHpCheio(candidato) : candidato))
+}
+
+/** O HP atual é o máximo lido (com força e modificadores)? Sem HP na ficha: não. */
+function hpCheio(personagem: Personagem): boolean {
+  const atual = personagem.recursos[RECURSO_QUE_A_FORCA_MULTIPLICA]
+  return atual !== undefined && atual === maximoComposto(personagem, RECURSO_QUE_A_FORCA_MULTIPLICA).total
+}
+
+function comHpCheio(personagem: Personagem): Personagem {
+  const maximo = maximoComposto(personagem, RECURSO_QUE_A_FORCA_MULTIPLICA).total
+  if (personagem.recursos[RECURSO_QUE_A_FORCA_MULTIPLICA] === maximo) return personagem
+  return { ...personagem, recursos: { ...personagem.recursos, [RECURSO_QUE_A_FORCA_MULTIPLICA]: maximo } }
+}
+
 /** O selo "criado na batalha" (decisão D3): a ficha fica no bestiário depois da luta. */
 export function criadaNaBatalha(personagem: Personagem): Personagem {
   if (personagem.combate?.criadoNaBatalha === true) return personagem
