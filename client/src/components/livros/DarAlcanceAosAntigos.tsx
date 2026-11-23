@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useId, useMemo, useState } from 'react'
-import { formaQueCabeNoAntigo, type AntesDoAlcance, type AntigoSemAlcance, type DadosDosAntigos, type EscolhaDoAlcance, type ListaDosAntigos, type PropostaDeAlcance } from '../../lib/batalha/alcance/antigos'
+import { formaDoModelo, formaQueCabeNoAntigo, modeloDaDano, ondeNoModelo, propostasDaLista, SEM_ARQUIVO, type AntesDoAlcance, type AntigoSemAlcance, type DadosDosAntigos, type EscolhaDoAlcance, type ListaDosAntigos, type PropostaDeAlcance, type PropostasDoArquivo } from '../../lib/batalha/alcance/antigos'
 import { descreverAlcance, type FormaDoAlcance } from '../../lib/batalha/alcance/forma'
+import { GRUPOS_DOS_MODELOS_DE_ITEM, MODELOS_DE_ITEM, type IdDoModeloDeItem } from '../../lib/batalha/mecanica/modelosDeItem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { confirmarAlcanceDosAntigos, desfazerAlcanceDosAntigos, ensaiarAlcanceDosAntigos, lerPropostasDoAlcance, type PropostasLidas } from '../../stores/alcanceDosAntigos'
 import { useToastStore } from '../../stores/toastStore'
@@ -16,6 +17,11 @@ import { formatarNumero } from './comum'
  * (a forma desenhada, a frase, a certeza e o trecho do texto que a justifica), e o mestre
  * aceita, muda ou deixa sem alcance. Nada se grava antes do Confirmar; o que fica "Não mexer"
  * continua sem casas (a mesa não confere a distância dele). Depois do Confirmar, Desfazer.
+ *
+ * O ITEM do Acervo sem "O que ele faz" (pedido de 23/11: "Coloque isso para itens quanto para
+ * habilidades") entra com o modelo proposto (o do arquivo, senão o do "Sugerir efeito"), sempre
+ * certeza baixa: o Confirmar grava o efeito inteiro do modelo, com o alcance da linha. A descrição
+ * do item fica como o mestre escreveu.
  */
 
 type Decisao = 'aceitar' | 'pular'
@@ -24,6 +30,8 @@ interface Linha {
   decisao: Decisao
   /** A forma que vai gravar; `null` = sem proposta e ainda sem escolha (só "Não mexer" vale). */
   forma: FormaDoAlcance | null
+  /** Só no item: o modelo do "O que ele faz" que vai gravar. */
+  modelo?: IdDoModeloDeItem
 }
 
 /** O texto mostrado de cada linha (o resto fica no `title`). */
@@ -52,12 +60,17 @@ function mensagemDoErro(erro: unknown): string {
 
 type Ensaio = (ListaDosAntigos & { dados: DadosDosAntigos }) | string
 
-function ensaiar(sistema: SistemaDeRpg): Ensaio {
+function ensaiar(sistema: SistemaDeRpg, doArquivo: PropostasDoArquivo = SEM_ARQUIVO): Ensaio {
   try {
-    return ensaiarAlcanceDosAntigos(sistema)
+    return ensaiarAlcanceDosAntigos(sistema, doArquivo)
   } catch (erro) {
     return mensagemDoErro(erro)
   }
+}
+
+/** As propostas da lista: as do arquivo e as dos itens (o modelo com o alcance de fábrica). */
+function propostasDe(ensaio: Ensaio, doArquivo: PropostasDoArquivo, sistema: SistemaDeRpg): ReadonlyMap<string, PropostaDeAlcance> {
+  return propostasDaLista(typeof ensaio === 'string' ? [] : ensaio.antigos, doArquivo, sistema)
 }
 
 /** Cada linha começa com a proposta que cabe no lugar dela (aceita); sem proposta, "Não mexer". */
@@ -66,8 +79,10 @@ function linhasDe(ensaio: Ensaio, propostas: ReadonlyMap<string, PropostaDeAlcan
   return Object.fromEntries(
     ensaio.antigos.map((antigo) => {
       const proposta = propostas.get(antigo.chave)
-      const forma = proposta === undefined ? null : formaQueCabeNoAntigo(ensaio.dados, antigo.chave, proposta.forma)
-      return [antigo.chave, { decisao: forma === null ? 'pular' : 'aceitar', forma }]
+      const { modelo } = antigo
+      const forma = proposta === undefined ? null : formaQueCabeNoAntigo(ensaio.dados, antigo.chave, proposta.forma, modelo)
+      const linha: Linha = { decisao: forma === null ? 'pular' : 'aceitar', forma }
+      return [antigo.chave, modelo === undefined ? linha : { ...linha, modelo }]
     }),
   )
 }
@@ -76,7 +91,7 @@ function linhasDe(ensaio: Ensaio, propostas: ReadonlyMap<string, PropostaDeAlcan
 function agrupar(antigos: readonly AntigoSemAlcance[]): { titulo: string; antigos: AntigoSemAlcance[] }[] {
   const grupos = new Map<string, AntigoSemAlcance[]>()
   for (const antigo of antigos) {
-    const titulo = antigo.lugar === 'livro' ? 'No livro' : `Ficha de ${antigo.personagemNome ?? 'sem nome'}`
+    const titulo = antigo.lugar === 'livro' ? 'No livro' : antigo.lugar === 'acervo' ? 'No Acervo (itens sem "O que ele faz")' : `Ficha de ${antigo.personagemNome ?? 'sem nome'}`
     grupos.set(titulo, [...(grupos.get(titulo) ?? []), antigo])
   }
   return [...grupos].map(([titulo, lista]) => ({ titulo, antigos: lista }))
@@ -92,6 +107,45 @@ const NOTA_DO_LUGAR: Readonly<Record<AntigoSemAlcance['onde'], string | null>> =
   centro: 'Área longe montada: só até onde vai o centro muda; a explosão fica.',
 }
 
+const TIPO_DO_GRUPO: Readonly<Record<AntigoSemAlcance['grupo'], string>> = { arma: 'Arma', habilidade: 'Habilidade', item: 'Item' }
+
+const NOTA_DO_ITEM = 'Ganha o "O que ele faz" deste modelo (dá para ajustar depois na janela do item); a descrição fica como está.'
+
+/** O modelo pelo id (o nome e a frase do que ele monta). */
+function modeloPeloId(id: IdDoModeloDeItem) {
+  return MODELOS_DE_ITEM.find((modelo) => modelo.id === id)
+}
+
+/** O seletor do modelo, nos grupos do degrau 1 do item (os mesmos do editor do item). */
+function EscolhaDoModelo({ valor, onChange }: { valor: IdDoModeloDeItem | undefined; onChange: (modelo: IdDoModeloDeItem) => void }) {
+  const id = useId()
+  return (
+    <div className="mu-campo">
+      <label htmlFor={id}>O que ele faz</label>
+      <select
+        className="mu-seletor"
+        id={id}
+        value={valor ?? ''}
+        onChange={(event) => {
+          const escolhido = MODELOS_DE_ITEM.find((modelo) => modelo.id === event.target.value)
+          if (escolhido !== undefined) onChange(escolhido.id)
+        }}
+      >
+        {valor === undefined && <option value="">Escolha um modelo</option>}
+        {GRUPOS_DOS_MODELOS_DE_ITEM.map(({ grupo, nome }) => (
+          <optgroup key={grupo} label={nome}>
+            {MODELOS_DE_ITEM.filter((modelo) => modelo.grupo === grupo).map((modelo) => (
+              <option key={modelo.id} value={modelo.id}>
+                {modelo.nome}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 interface LinhaDoAntigoProps {
   antigo: AntigoSemAlcance
   linha: Linha
@@ -101,30 +155,40 @@ interface LinhaDoAntigoProps {
   onDecidir: (chave: string, decisao: Decisao) => void
   onEditar: (chave: string, editando: boolean) => void
   onForma: (chave: string, forma: FormaDoAlcance | null) => void
+  onModelo: (chave: string, modelo: IdDoModeloDeItem) => void
+  /** O livro aberto: a cor e a nota do item saem das peças do modelo dele. */
+  sistema: SistemaDeRpg
 }
 
 const LINHA_VAZIA: Linha = { decisao: 'pular', forma: null }
 
-const LinhaDoAntigo = memo(function LinhaDoAntigo({ antigo, linha, proposta, editando, onDecidir: decidirPelaChave, onEditar: editarPelaChave, onForma: formaPelaChave }: LinhaDoAntigoProps) {
+const LinhaDoAntigo = memo(function LinhaDoAntigo({ antigo, linha, proposta, editando, onDecidir: decidirPelaChave, onEditar: editarPelaChave, onForma: formaPelaChave, onModelo: modeloPelaChave, sistema }: LinhaDoAntigoProps) {
   const onDecidir = (decisao: Decisao) => decidirPelaChave(antigo.chave, decisao)
   const onEditar = (sim: boolean) => editarPelaChave(antigo.chave, sim)
   const onForma = (forma: FormaDoAlcance | null) => formaPelaChave(antigo.chave, forma)
-  const cor = antigo.daDano ? 'azul' : 'verde'
-  const nota = NOTA_DO_LUGAR[antigo.onde]
-  const mudada = linha.forma !== null && proposta !== undefined && JSON.stringify(linha.forma) !== JSON.stringify(proposta.forma)
+  const { modelo } = linha
+  const cor = (modelo === undefined ? antigo.daDano : modeloDaDano(modelo, sistema)) ? 'azul' : 'verde'
+  const nota = NOTA_DO_LUGAR[modelo === undefined ? antigo.onde : ondeNoModelo(modelo, sistema)]
+  const doModelo = modelo === undefined ? undefined : modeloPeloId(modelo)
+  const mudada = linha.forma !== null && proposta !== undefined && (JSON.stringify(linha.forma) !== JSON.stringify(proposta.forma) || modelo !== proposta.modelo)
   return (
     <li className="mu-alc-antigo" data-decisao={linha.decisao} data-certeza={proposta?.certeza}>
       <div className="mu-alc-antigo__previa">{linha.forma === null ? <span className="mu-alc-antigo__vazio" aria-hidden="true" /> : <GlifoDoAlcance forma={linha.forma} cor={cor} />}</div>
       <div className="mu-alc-antigo__corpo">
         <p className="mu-alc-antigo__nome">
           <b>{antigo.nome.trim() || 'Sem nome'}</b>
-          <span className="mu-alc-antigo__tipo">{antigo.grupo === 'arma' ? 'Arma' : 'Habilidade'}</span>
+          <span className="mu-alc-antigo__tipo">{TIPO_DO_GRUPO[antigo.grupo]}</span>
           {proposta !== undefined && <span className={`mu-alc-antigo__certeza mu-alc-antigo__certeza--${proposta.certeza}`}>certeza {proposta.certeza}</span>}
         </p>
         <p className="mu-alc-antigo__forma">
           {linha.forma === null ? SEM_PROPOSTA : `${descreverAlcance(linha.forma)}${mudada ? ' (mudado por você)' : ''}`}
-          {linha.decisao === 'pular' && linha.forma !== null ? ' · fica sem alcance' : ''}
+          {linha.decisao === 'pular' && linha.forma !== null ? (antigo.grupo === 'item' ? ' · fica sem efeito' : ' · fica sem alcance') : ''}
         </p>
+        {doModelo !== undefined && (
+          <p className="mu-alc-antigo__forma">
+            O que ele faz: <b>{doModelo.nome}</b> ({doModelo.dica})
+          </p>
+        )}
         {antigo.texto !== '' && (
           <p className="mu-alc-antigo__texto" title={antigo.texto}>
             {proposta !== undefined && proposta.trecho !== '' ? <q className="mu-alc-antigo__trecho">{proposta.trecho}</q> : null} {encurtar(antigo.texto)}
@@ -132,7 +196,9 @@ const LinhaDoAntigo = memo(function LinhaDoAntigo({ antigo, linha, proposta, edi
         )}
         {editando && (
           <div className="mu-alc-antigo__editor">
+            {antigo.grupo === 'item' && <EscolhaDoModelo valor={modelo} onChange={(novo) => modeloPelaChave(antigo.chave, novo)} />}
             <CampoDoAlcance valor={linha.forma} cor={cor} onChange={onForma} />
+            {antigo.grupo === 'item' && <p className="mu-campo__dica">{NOTA_DO_ITEM}</p>}
             {nota !== null && <p className="mu-campo__dica">{nota}</p>}
           </div>
         )}
@@ -166,8 +232,11 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
     let vivo = true
     void lerPropostasDoAlcance().then((lido) => {
       if (!vivo) return
+      // O arquivo diz quais itens entram (o modelo de cada um): a lista é refeita com ele.
+      const novo = ensaiar(sistema, lido)
       setLidas(lido)
-      setLinhas(linhasDe(ensaiar(sistema), lido.propostas))
+      setEnsaio(novo)
+      setLinhas(linhasDe(novo, propostasDe(novo, lido, sistema)))
     })
     return () => {
       vivo = false
@@ -179,15 +248,28 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
   const grupos = useMemo(() => (typeof ensaio === 'string' ? [] : agrupar(ensaio.antigos)), [ensaio])
   const visiveis = useMemo(() => primeirasLinhas(grupos, mostrar), [grupos, mostrar])
   const dados = typeof ensaio === 'string' ? null : ensaio.dados
+  const propostas = useMemo(() => propostasDe(ensaio, lidas ?? SEM_ARQUIVO, sistema), [ensaio, lidas, sistema])
   const decidir = useCallback((chave: string, decisao: Decisao) => setLinhas((atuais) => ({ ...atuais, [chave]: { ...(atuais[chave] ?? LINHA_VAZIA), decisao } })), [])
   const editar = useCallback((chave: string, sim: boolean) => setEditando(sim ? chave : null), [])
   const mudarForma = useCallback(
     (chave: string, forma: FormaDoAlcance | null) => {
-      // A mecânica montada só aceita o que cabe nela (o número do alvo ou do centro).
-      const cabe = forma === null || dados === null ? null : formaQueCabeNoAntigo(dados, chave, forma)
-      setLinhas((atuais) => ({ ...atuais, [chave]: cabe === null ? { forma: null, decisao: 'pular' } : { forma: cabe, decisao: 'aceitar' } }))
+      setLinhas((atuais) => {
+        const { modelo } = atuais[chave] ?? LINHA_VAZIA
+        // A mecânica montada (e o efeito do modelo do item) só aceita o que cabe nela: o número do alvo ou do centro.
+        const cabe = forma === null || dados === null ? null : formaQueCabeNoAntigo(dados, chave, forma, modelo)
+        const linha: Linha = cabe === null ? { forma: null, decisao: 'pular' } : { forma: cabe, decisao: 'aceitar' }
+        return { ...atuais, [chave]: modelo === undefined ? linha : { ...linha, modelo } }
+      })
     },
     [dados],
+  )
+  /** Outro modelo para o item: a forma volta ao alcance de fábrica dele. */
+  const mudarModelo = useCallback(
+    (chave: string, modelo: IdDoModeloDeItem) => {
+      const forma = formaDoModelo(modelo, sistema)
+      setLinhas((atuais) => ({ ...atuais, [chave]: { modelo, forma, decisao: forma === null ? 'pular' : 'aceitar' } }))
+    },
+    [sistema],
   )
 
   if (typeof ensaio === 'string') {
@@ -208,10 +290,10 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
     )
   }
 
-  const propostas = lidas?.propostas ?? new Map<string, PropostaDeAlcance>()
   const escolhas: EscolhaDoAlcance[] = ensaio.antigos.flatMap((antigo) => {
     const linha = linhas[antigo.chave]
-    return linha !== undefined && linha.decisao === 'aceitar' && linha.forma !== null ? [{ chave: antigo.chave, forma: linha.forma }] : []
+    if (linha === undefined || linha.decisao !== 'aceitar' || linha.forma === null) return []
+    return [linha.modelo === undefined ? { chave: antigo.chave, forma: linha.forma } : { chave: antigo.chave, forma: linha.forma, modelo: linha.modelo }]
   })
   const comProposta = ensaio.antigos.filter((antigo) => propostas.has(antigo.chave))
   const baixas = comProposta.filter((antigo) => propostas.get(antigo.chave)?.certeza === 'baixa').length
@@ -220,9 +302,10 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
   const marcarTodas = (decisao: Decisao) => setLinhas((atuais) => Object.fromEntries(Object.entries(atuais).map(([chave, linha]) => [chave, { ...linha, decisao: linha.forma === null ? 'pular' : decisao }])))
 
   const depoisDeGravar = () => {
-    const novo = ensaiar(sistema)
+    const doArquivo = lidas ?? SEM_ARQUIVO
+    const novo = ensaiar(sistema, doArquivo)
     setEnsaio(novo)
-    setLinhas(linhasDe(novo, propostas))
+    setLinhas(linhasDe(novo, propostasDe(novo, doArquivo, sistema)))
     setEditando(null)
     setMostrar(PASSO_DA_LISTA)
   }
@@ -233,7 +316,7 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
     const toasts = useToastStore.getState()
     try {
       const antes = await confirmarAlcanceDosAntigos(sistema, escolhas)
-      toasts.push('info', antes.length === 0 ? 'Nada mudou: todos já tinham alcance.' : `Alcance gravado em ${formatarNumero(antes.length)} ${antes.length === 1 ? 'entrada' : 'entradas'} do livro e das fichas.`)
+      toasts.push('info', antes.length === 0 ? 'Nada mudou: todos já tinham alcance.' : `Alcance gravado em ${formatarNumero(antes.length)} ${antes.length === 1 ? 'entrada' : 'entradas'} do livro, das fichas e do Acervo.`)
       setUltimo(antes)
       depoisDeGravar()
     } catch (erro) {
@@ -265,7 +348,7 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
         Dar alcance aos antigos
       </h3>
       <p className="mu-armas__sub">
-        Habilidades e armas sem alcance não acendem casas na batalha. O Claude propôs um alcance para cada uma pelo texto; confira, mude o que quiser e Confirme. Nada se grava antes. O que ficar em Não mexer segue sem alcance.
+        Habilidades, armas e itens sem alcance não acendem casas na batalha. O Claude propôs um alcance para cada um pelo texto; o item sem "O que ele faz" ganha o modelo proposto junto. Confira, mude o que quiser e Confirme. Nada se grava antes. O que ficar em Não mexer segue como está.
       </p>
       {lidas !== null && lidas.aviso !== null && <p className="mu-campo__dica">{lidas.aviso}</p>}
       {ultimo.length > 0 && (
@@ -277,7 +360,7 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
         </p>
       )}
       {nada ? (
-        <p className="mu-armas__nada">Nada a fazer: as habilidades e armas do livro e das fichas desta pasta já têm alcance.</p>
+        <p className="mu-armas__nada">Nada a fazer: as habilidades e armas do livro e das fichas desta pasta, e os itens do Acervo com modelo parecido, já têm alcance.</p>
       ) : (
         <>
           <div className="mu-alc__resumo">
@@ -309,6 +392,8 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
                     onDecidir={decidir}
                     onEditar={editar}
                     onForma={mudarForma}
+                    onModelo={mudarModelo}
+                    sistema={sistema}
                   />
                 ))}
               </ul>

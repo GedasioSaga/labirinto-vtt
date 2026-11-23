@@ -1,7 +1,8 @@
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import type { EfeitoDoItem } from '../../../types/map'
+import { pecasDoEfeito } from '../../leituraDoItem'
 import { VERSAO_GRAVADA, type AlvoDaMecanica, type Efeito, type MecanicaV1, type Teste } from './modelo'
-import { atributoDePartida } from './modelos'
+import { atributoDePartida, guardarMecanica } from './modelos'
 
 /**
  * OS 25 MODELOS DE ITEM (Fase 7 de docs/design/habilidades/SISTEMA.md §9.2):
@@ -229,6 +230,16 @@ export function ondeDoModeloDeItem(id: IdDoModeloDeItem): EfeitoDoItem['onde'] {
   const modelo = MODELOS_DE_ITEM.find((candidato) => candidato.id === id)
   if (modelo?.grupo === 'arremesso') return 'soNaBatalha'
   return modelo?.grupo === 'fora' ? 'soFora' : 'sempre'
+}
+
+/**
+ * O "O que ele faz" inteiro do modelo, como o "Sugerir efeito" o grava: as peças, gasta 1, e o
+ * onde de fábrica. `mecanica` troca as peças (o alcance mudado na lista dos antigos). `undefined`
+ * = as peças passam do teto do item (nenhum modelo de fábrica passa).
+ */
+export function efeitoDoModeloDeItem(id: IdDoModeloDeItem, sistema: SistemaDeRpg, mecanica: MecanicaV1 = mecanicaDoModeloDeItem(id, sistema)): EfeitoDoItem | undefined {
+  const pecas = pecasDoEfeito(guardarMecanica(mecanica))
+  return pecas === null ? undefined : { mecanica: pecas, gasta: 'um', onde: ondeDoModeloDeItem(id) }
 }
 
 /**

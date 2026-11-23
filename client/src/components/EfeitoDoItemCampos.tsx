@@ -1,8 +1,7 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import type { ItemDoCatalogo } from '../lib/acervoDeItens'
 import { quemUsaDeTreino } from '../lib/batalha/ensaio/ensaioDoItem'
-import { guardarMecanica } from '../lib/batalha/mecanica/modelos'
-import { MODELOS_DE_ITEM, mecanicaDoModeloDeItem, modeloSugeridoParaOItem, ondeDoModeloDeItem, type IdDoModeloDeItem } from '../lib/batalha/mecanica/modelosDeItem'
+import { MODELOS_DE_ITEM, efeitoDoModeloDeItem, modeloSugeridoParaOItem, ondeDoModeloDeItem } from '../lib/batalha/mecanica/modelosDeItem'
 import { resumoDoEfeitoDoItem } from '../lib/batalha/mecanica/resumoDoItem'
 import { descricaoDizOEfeito } from '../lib/descricaoDoEfeito'
 import { pecasDoEfeito } from '../lib/leituraDoItem'
@@ -41,11 +40,6 @@ const QUEM_USA_TREINO = ''
 export function comEfeito(item: ItemDoCatalogo, efeito: EfeitoDoItem | undefined): ItemDoCatalogo {
   const { efeito: _antes, ...semEfeito } = item
   return efeito === undefined ? semEfeito : { ...semEfeito, efeito }
-}
-
-function efeitoDoModelo(id: IdDoModeloDeItem, sistema: Parameters<typeof mecanicaDoModeloDeItem>[1]): EfeitoDoItem | undefined {
-  const pecas = pecasDoEfeito(guardarMecanica(mecanicaDoModeloDeItem(id, sistema)))
-  return pecas === null ? undefined : { mecanica: pecas, gasta: 'um', onde: ondeDoModeloDeItem(id) }
 }
 
 interface EfeitoDoItemCamposProps {
@@ -114,7 +108,7 @@ export function EfeitoDoItemCampos({ item, onMudar, onTrocarDescricao }: EfeitoD
             type="button"
             className="lb-btn lb-btn--compact"
             onClick={() => {
-              const novo = efeitoDoModelo(sugerido, sistema)
+              const novo = efeitoDoModeloDeItem(sugerido, sistema)
               if (novo !== undefined) doModelo(novo)
             }}
           >

@@ -42,6 +42,8 @@ const ARQUIVO_ANTERIOR = 'itens.json.anterior'
 const ARQUIVO_ANTES_DOS_EFEITOS = 'itens.json.antes-dos-efeitos'
 /** Armas numa fonte só (ARMAS-FONTE-UNICA §4): o índice de antes de o Juntar as armas criar coisas, guardado UMA vez, nunca por cima. */
 const ARQUIVO_ANTES_DAS_ARMAS = 'itens.json.antes-das-armas'
+/** Alcance (ALCANCE.md §9): o índice de antes de o "Dar alcance aos antigos" dar efeito aos itens, guardado UMA vez, nunca por cima. */
+const ARQUIVO_ANTES_DO_ALCANCE = 'itens.json.antes-do-alcance'
 /**
  * 2 (16/11/2026): a categoria Munição entrou; o índice de antes a ganha uma vez ao ser lido (`acervoDoTexto`).
  * 3 (18/11/2026): as pastas entraram; o índice de antes ganha uma pasta por categoria mostrada (`pastasDasCategorias`).
@@ -428,14 +430,23 @@ async function guardarAntesDosEfeitos(pasta: string, antes: string): Promise<voi
  * chamou não grava.
  */
 export function guardarAcervoAntesDasArmas(): Promise<void> {
+  return guardarAcervoUmaVez(ARQUIVO_ANTES_DAS_ARMAS, 'das armas')
+}
+
+/** Alcance (§9): antes do 1º efeito que o "Dar alcance aos antigos" grava, a mesma cópia UMA vez. Lança: sem ela, quem chamou não grava. */
+export function guardarAcervoAntesDoAlcance(): Promise<void> {
+  return guardarAcervoUmaVez(ARQUIVO_ANTES_DO_ALCANCE, 'do alcance')
+}
+
+function guardarAcervoUmaVez(arquivo: string, deQue: string): Promise<void> {
   return naFila(async () => {
     try {
       const pasta = await pastaDoAcervo()
       const caminho = await join(pasta, ARQUIVO_DO_INDICE)
-      const copia = await join(pasta, ARQUIVO_ANTES_DAS_ARMAS)
+      const copia = await join(pasta, arquivo)
       if ((await exists(caminho)) && !(await exists(copia))) await writeTextFile(copia, await readTextFile(caminho))
     } catch (erro) {
-      throw new Error(`Não foi possível guardar a cópia do acervo de antes das armas: ${motivo(erro)}.`)
+      throw new Error(`Não foi possível guardar a cópia do acervo de antes ${deQue}: ${motivo(erro)}.`)
     }
   })
 }

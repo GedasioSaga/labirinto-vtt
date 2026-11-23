@@ -33,6 +33,11 @@ interface AcervoDeItensState extends AcervoDeItens {
    * árvore e ao Desfazer dela; o resto de cada item fica como está.
    */
   organizar: (pastas: readonly PastaDeItens[], ondeMoram?: ReadonlyMap<string, string | undefined>) => Promise<void>
+  /**
+   * VÁRIOS DE UMA VEZ (o "Dar alcance aos antigos" e o Desfazer dele): cada item da lista troca o
+   * de mesmo id, numa gravação só; o id que sumiu do Acervo no meio não volta.
+   */
+  trocarItens: (trocados: readonly ItemDoCatalogo[]) => Promise<void>
 }
 
 /** O item na pasta (`undefined` = Sem pasta, sem o campo). Já está lá: o mesmo objeto. */
@@ -94,6 +99,12 @@ export const useAcervoDeItensStore = create<AcervoDeItensState>()((set, get) => 
       const { itens, categorias } = get()
       const proximos = ondeMoram === undefined ? itens : itens.map((item) => (ondeMoram.has(item.id) ? naPasta(item, ondeMoram.get(item.id)) : item))
       return gravar({ itens: proximos, categorias, pastas: [...pastas] })
+    },
+
+    trocarItens: (trocados) => {
+      const { itens, categorias, pastas } = get()
+      const porId = new Map(trocados.map((item) => [item.id, item]))
+      return gravar({ itens: itens.map((atual) => porId.get(atual.id) ?? atual), categorias, pastas })
     },
   }
 })
