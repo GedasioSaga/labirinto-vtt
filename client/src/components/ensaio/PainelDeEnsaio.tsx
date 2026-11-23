@@ -29,9 +29,12 @@ interface PainelDeEnsaioProps {
   /** A ficha de quem usa; o teste trabalha numa cópia dela. */
   quemUsa: Personagem
   sistema: SistemaDeRpg
-  onFechar: () => void
+  /** Ausente = o teste não fecha (ED3: a coluna do papel do editor novo o mostra sempre). */
+  onFechar?: () => void
   /** Dentro do editor ou do cartão da ficha: sem a coluna fixa da biblioteca. */
   embutido?: boolean
+  /** ED3: o editor novo mostra o mapa do alcance num bloco próprio, acima do teste. */
+  semAlcance?: boolean
   /**
    * Fase 7: o cartão é o EFEITO DE UM ITEM (as peças em `cartao.mecanica`):
    * o teste termina no gasto ("Gasta 1: tinha 1, fica 0"). Ausente = técnica.
@@ -41,7 +44,7 @@ interface PainelDeEnsaioProps {
   naArma?: boolean
 }
 
-export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = false, item, naArma = false }: PainelDeEnsaioProps) {
+export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = false, semAlcance = false, item, naArma = false }: PainelDeEnsaioProps) {
   const tituloId = useId()
   const d20Id = useId()
   const [semente, setSemente] = useState(novaSemente)
@@ -71,6 +74,8 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
   useEffect(() => setDepois([]), [resultado])
 
   useEffect(() => {
+    // Sem quem feche (a coluna do editor novo), o Esc é da janela de fora.
+    if (onFechar === undefined) return
     // Esc fecha a camada de cima (nota 22 do protótipo): o teste antes da janela da ficha, por isso na captura.
     const aoTeclar = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -91,15 +96,17 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
         <h3 id={tituloId} className="ens-tit">
           Testar: {cartao.nome.trim().length > 0 ? cartao.nome : 'sem nome'}
         </h3>
-        <button type="button" className="mu-bt mu-bt--p" aria-label="Fechar o teste" onClick={onFechar}>
-          Fechar
-        </button>
+        {onFechar !== undefined && (
+          <button type="button" className="mu-bt mu-bt--p" aria-label="Fechar o teste" onClick={onFechar}>
+            Fechar
+          </button>
+        )}
       </header>
       <p className="ens-quem">
         {reagindo ? `O boneco de treino bate em ${quemUsa.nome}, que reage com a técnica.` : `${quemUsa.nome} usa num boneco de treino.`} {item === undefined ? 'A ficha e o mapa não mudam.' : 'A ficha, a mochila e o mapa não mudam.'}
       </p>
       {/* Fase F do alcance: as casas que acendem na mesa, pela mesma conta da batalha; a reação não mira. */}
-      {!reagindo && <TestarDoAlcance cartao={cartao} quemUsa={quemUsa} sistema={sistema} grupo={item !== undefined ? 'itens' : naArma ? 'armas' : 'habilidades'} />}
+      {!reagindo && !semAlcance && <TestarDoAlcance cartao={cartao} quemUsa={quemUsa} sistema={sistema} grupo={item !== undefined ? 'itens' : naArma ? 'armas' : 'habilidades'} />}
       {escolheOnde && (
         <div className="ens-onde" role="group" aria-label="Testar por onde">
           <button type="button" className="mu-bt mu-bt--p" aria-pressed={!naReacao} onClick={() => setNaReacao(false)}>

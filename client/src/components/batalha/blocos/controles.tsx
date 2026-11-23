@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react'
+import { createContext, useContext, useId, useState, type ReactNode } from 'react'
 import { VEZES_MAX, type MecanicaV1, type NumeroSimples } from '../../../lib/batalha/mecanica/modelo'
 import { numeroComVirgula, type FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import type { CartaoDaFicha } from '../../../lib/personagem'
@@ -130,6 +130,12 @@ export function CampoDasVezes({ rotulo, vezes, onChange }: { rotulo: string; vez
 }
 
 /**
+ * ED3 (docs/design/habilidades/EDITOR.md §5): no editor novo, cada linha já tem
+ * o nome e a pergunta; o bloco de dentro mostra só o corpo, sempre aberto.
+ */
+export const BlocoSemCaixa = createContext(false)
+
+/**
  * Um bloco numerado que abre e fecha; fechado, a frase do que está escolhido.
  * `abertoAoMontar` vale só quando o editor abre: depois, quem abre e fecha é
  * a pessoa. O bloco não fecha sozinho quando o conteúdo muda (desmarcar "Dá
@@ -137,7 +143,9 @@ export function CampoDasVezes({ rotulo, vezes, onChange }: { rotulo: string; vez
  * foco do teclado sumia junto com o controle.
  */
 export function Bloco({ numero, titulo, frase, abertoAoMontar, children }: { numero: number; titulo: string; frase: string; abertoAoMontar: boolean; children: ReactNode }) {
+  const semCaixa = useContext(BlocoSemCaixa)
   const [aberto, setAberto] = useState(abertoAoMontar)
+  if (semCaixa) return <div className="lb-mec__bloco-corpo lb-mec__bloco-corpo--na-linha">{children}</div>
   return (
     <details className="lb-mec__bloco" open={aberto} onToggle={(event) => setAberto(event.currentTarget.open)}>
       <summary className="lb-mec__bloco-cab">
