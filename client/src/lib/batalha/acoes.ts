@@ -22,6 +22,7 @@ import { itensQueSobram, mecanicaDoCartao, perfuranteDaMecanica, respostasPadrao
 import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
 import type { ContextoDosRequisitos } from './requisitos/contexto'
 import { motivoDosRequisitosNoMenu } from './requisitos/portao'
+import { blocoDoCartao } from './requisitos/partes'
 import type { AcoesExtras, GastoDaVez } from './turnos'
 
 /**
@@ -244,7 +245,8 @@ export function motivoDaTecnica(
   if (tecnica.transformacao) return 'É transformação: use a tira Transformação'
   const evolucao = motivoDaEvolucao(cartao, tecnicasDe(personagem, sistema), combate?.evoluidas)
   // F2 (fatia F, CAÇA AS BRUXAS!): depois da evoluída (Overload) usada, a base volta.
-  const voltou = combate?.overload === true && mecanicaDoCartao(cartao.id)?.voltaDepoisDoOverload === true
+  // REQUISITOS D (§8): com bloco, a volta é a do "Para evoluir" (dura um uso, `basesQueVoltamAoUsar`), não a da tabela.
+  const voltou = combate?.overload === true && blocoDoCartao(cartao) === null && mecanicaDoCartao(cartao.id)?.voltaDepoisDoOverload === true
   if (evolucao !== null && !voltou) return evolucao
   if (tecnica.overload && combate?.overload === true) return MOTIVO_DO_OVERLOAD_USADO
   // REQUISITOS C (§6): o motivo do portão dos requisitos (calculado por quem chama), antes de recarga, usos, custo e ação.

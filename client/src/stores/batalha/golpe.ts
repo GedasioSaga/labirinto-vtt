@@ -83,6 +83,10 @@ import { mexerNaFicha, type Recusada, type CuraDoItemNoAlvo, gastarMunicaoNaMesa
 import { devolverFichasDaAcao } from './desfazer'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
 import { basesQueVoltamAoUsar, semEvoluida } from '../../lib/batalha/escolhaEEvolucao'
+import { contextoDosRequisitos } from '../../lib/batalha/requisitos/montar'
+import { motivoDoPortao, portaoDosRequisitos, testesQuePassam, type RequisitoDeTeste, type ResultadoDoPortao } from '../../lib/batalha/requisitos/portao'
+import { perdeAAcaoNosTestes, rolarOsTestes, testesDoPortao, textoDosTestes, type TesteRolado } from '../../lib/batalha/requisitos/testes'
+import type { Personagem } from '../../lib/personagem'
 import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
 import type { SelosDaBatalha } from './selos'
@@ -217,6 +221,42 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
   }
 
   /**
+   * REQUISITOS D: o portão dos requisitos da técnica de REAÇÃO de `personagemId` (a ficha do token
+   * `reageTokenId`), com o retrato do host "na reação" e o alvo = quem atacou. Sem ficha, sem sistema ou
+   * técnica fora da ficha = `livre` (a regra da reação recusa por conta própria). O teste (H1, H2) na
+   * reação não é rolado: recusa com o motivo de sempre.
+   */
+  const portaoDaReacao = (sceneKey: string, turnos: TurnosDaCena, autor: AutorDaAcao, personagem: Personagem | null, personagemId: string, reageTokenId: string, atacanteTokenId: string, cartaoId: string): ResultadoDoPortao => {
+    const { personagens, sistema } = mesaDoRpg()
+    const cartao = personagem === null || sistema === null ? null : (tecnicaPorId(personagem, sistema, cartaoId)?.cartao ?? null)
+    if (personagem === null || sistema === null || cartao === null || cartao.requisitos === undefined) return { tipo: 'livre' }
+    const { posicaoDoToken } = mesa
+    const retrato = contextoDosRequisitos({
+      personagem,
+      sistema,
+      tokenId: reageTokenId,
+      cartaId: turnos.cartas.find((carta) => carta.tokenId === reageTokenId)?.id ?? '',
+      turnos,
+      personagens,
+      personagemDoToken: personagemDoTokenNa(turnos),
+      aliados: aliadosNaLutaDe(personagemId, turnos, personagens),
+      ...(posicaoDoToken === undefined
+        ? {}
+        : {
+            pegadaDoToken: (tokenId: string) => {
+              const posicao = posicaoDoToken(sceneKey, tokenId)
+              return posicao === null ? null : pegadaDaFicha(posicao.casa, mesa.fichaDaCena?.(sceneKey, tokenId)?.size)
+            },
+          }),
+      visao: 'tudo',
+      alvos: [atacanteTokenId],
+      naReacao: true,
+      autorEhMestre: autor.tipo === 'mestre',
+    })
+    return portaoDosRequisitos(cartao.requisitos, 'usar', retrato, {}, autor.tipo === 'mestre')
+  }
+
+  /**
    * Tipos de habilidade F1: a reação COM TÉCNICA (sem d20, ou "rolar" com o
    * d20 do host). Confere a regra (`motivoDaReacaoComTecnica`), cobra o custo
    * pela aventura, marca recarga, usos e Overload, resolve o alvo (dano,
@@ -236,9 +276,12 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     const { personagens, sistema } = mesaDoRpg()
     const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
     const combateAntes = turnos.combate?.[personagemId]
+    // REQUISITOS D: a técnica na reação passa pelo mesmo portão do golpe, com o retrato "na reação" (o pedido ao aliado e o
+    // "o mestre decide" não valem nela) e o alvo dela = quem atacou. O pedido da reação não leva respostas: a caixa recusa.
+    const doPortao = portaoDaReacao(sceneKey, turnos, autor, personagem, personagemId, reageTokenId, golpe.atacanteTokenId, pedido.cartaoId)
     // Conserto das fichas F1: contra golpe Overload, só técnica Overload. F2 (revisão da fatia E): contra Surpresa, só a que vale contra
     // ela; a técnica que o mestre confirma (Recuperação de forças) só ele usa.
-    if (motivoDaReacaoComTecnica({ personagem, sistema, combate: combateAntes, quemPede: autor.tipo }, alvo, pedido, golpe.overload, golpe.surpresa) !== null || personagem === null || sistema === null) return false
+    if (motivoDaReacaoComTecnica({ personagem, sistema, combate: combateAntes, quemPede: autor.tipo, requisitos: motivoDoPortao(doPortao) }, alvo, pedido, golpe.overload, golpe.surpresa) !== null || personagem === null || sistema === null) return false
     // S4: Atordoado ou Paralisado não reage, nem com técnica.
     if (travaDoToken(turnos.selos, reageTokenId) !== null) return false
     // F2 (revisão da fatia D): quem está preso no Campo de Contenção rola com desvantagem, sem marcar.
@@ -269,6 +312,18 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       // Bug 11: custo recusado = a reação não sai (o alvo segue esperando).
       if (doCusto === 'recusada') return false
       partes.push(...reversaoDaFicha(personagemId, doCusto))
+    }
+    // REQUISITOS D: os gastos dos requisitos que valem, depois do custo e nesta linha (o Desfazer devolve; o rastro conta o SP).
+    let notaDosRequisitos = doPortao.tipo === 'passa' ? doPortao.nota : null
+    if (doPortao.tipo === 'passa') {
+      const gastos = gastarOsRequisitos(mesa, sceneKey, personagemId, reageTokenId, novos, doPortao.gastos, autor)
+      if (gastos === 'recusada') {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+      partes.push(...gastos.partes)
+      novos = gastos.turnos
+      notaDosRequisitos = notaDaLinha(gastos.texto, notaDosRequisitos)
     }
     // Conserto das fichas F1 (Overload, resposta da May "nos 2 modos"): reagir com Overload também cansa.
     if (feita.combate.overload && !combateBase.overload) {
@@ -378,7 +433,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     const atual = cenaDe(sceneKey) ?? cena
     const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(golpeFeito, nomeDoToken), []) }
     const quemReage = por === undefined ? textoDaReacaoComTecnica(depois, nomeDoToken) : `${nomeDoToken(por)} reage com ${depois.tecnica?.nome ?? 'técnica'} por ${nomeDoToken(depois.tokenId)}: o golpe não pega`
-    const texto = quemReage + textoDoRebate
+    const texto = quemReage + textoDoRebate + (notaDosRequisitos === null ? '' : ` ${notaDosRequisitos}`)
     gravarCena(sceneKey, {
       ...comMudanca(comOGolpe, novos, { id: linhaId, tipo: 'reacao', texto, autor, tokenIds: [...new Set([reageTokenId, depois.tokenId, golpe.atacanteTokenId])], reversao: { tipo: 'composta', partes } }),
       efeitos: comEfeitos(atual.efeitos, efeitos),
@@ -499,10 +554,84 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     }
   }
 
+  /**
+   * REQUISITOS D (H1, H2): rola os testes do pedido com o d20 do host: quem usa (a ficha com o cartão
+   * do item, no item) com os selos dele, contra a CD ou contra o primeiro alvo do pedido.
+   */
+  const rolarOsTestesDoPedido = (ctx: ContextoDoGolpe, pedido: PedidoDeAcao, testes: readonly RequisitoDeTeste[]): TesteRolado[] => {
+    const { sistema } = ctx
+    const doItem = pedido.tipo === 'item' ? ctxDoItem(ctx, pedido) : null
+    const quemUsa = doItem === null || typeof doItem === 'string' ? ctx.personagem : doItem.ctx.personagem
+    const primeiro = 'alvos' in pedido ? pedido.alvos[0]?.tokenId : undefined
+    const doAlvo = primeiro === undefined ? undefined : ctx.personagemDoToken(primeiro)
+    const alvo = doAlvo === null || doAlvo === undefined ? undefined : ctx.personagens.find((candidato) => candidato.id === doAlvo)
+    // Sem ficha ou sem sistema não há o que rolar: os testes falham (o mestre força, se quiser).
+    if (quemUsa === null || sistema === null) return testes.map((teste) => ({ requisitoId: teste.id, passou: false, seFalhar: teste.seFalhar, texto: `${teste.atributo.nome}: sem ficha para rolar, falhou` }))
+    return rolarOsTestes(testes, {
+      quemUsa: { personagem: quemUsa, bonus: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) },
+      alvo: alvo === undefined || primeiro === undefined ? null : { personagem: alvo, bonus: bonusDaBatalha(ctx.turnos.selos, primeiro) },
+      sistema,
+      rolarD20: deps.rolarD20,
+    })
+  }
+
+  /**
+   * REQUISITOS D (H1, H2): o teste do requisito falhou. A linha diz o dado; com "perde a ação" a ação
+   * e o custo normal vão (o golpe não sai; recarga e usos não contam), com "não gasta" nada muda. O
+   * Desfazer da linha devolve a ação e o custo. `ctx` = o contexto supondo os testes passando (só
+   * para ler a ação, o custo e o nome do que seria usado).
+   */
+  const falhouNoTeste = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, chaveDoGasto: string, ctx: ContextoDoGolpe, pedidoDeQuemAge: PedidoDeAcao, rolados: readonly TesteRolado[]): boolean => {
+    const { turnos } = cena
+    const doItem = pedidoDeQuemAge.tipo === 'item' ? ctxDoItem(ctx, pedidoDeQuemAge) : null
+    if (typeof doItem === 'string') return false
+    const linhaId = novoIdDeLinha()
+    const lido = lancarGolpe(doItem === null ? ctx : doItem.ctx, doItem === null ? pedidoDeQuemAge : doItem.uso.pedido, {
+      golpe: novoIdDeGolpe(),
+      linha: linhaId,
+      segundo: { golpe: novoIdDeGolpe(), linha: novoIdDeLinha() },
+      seguintes: [],
+    })
+    const perde = perdeAAcaoNosTestes(rolados)
+    const partes: Reversao[] = []
+    let novos: TurnosDaCena = turnos
+    if (perde && lido.gasto !== null) {
+      partes.push({ tipo: 'gasto', cartaId: chaveDoGasto, antes: turnos.gastos[chaveDoGasto] ?? null })
+      novos = { ...novos, gastos: { ...novos.gastos, [chaveDoGasto]: lido.gasto } }
+    }
+    if (perde && lido.custo.length > 0 && carta.personagemId !== null) {
+      const custo = lido.custo
+      const doCusto = mexerNaFicha(mesa, carta.personagemId, () => custo, quemNaFicha(autor))
+      if (doCusto === 'recusada') return false
+      partes.push(...reversaoDaFicha(carta.personagemId, doCusto))
+      // O SP perdido conta como gasto para o acumulador "a cada N SP gastos".
+      const rastreado = rastrear(novos, [], partes)
+      partes.push(...rastreado.partes)
+      novos = rastreado.turnos
+    }
+    const nomeDoToken = nomeDoTokenNa(turnos, mesaDoRpg().personagens)
+    const texto = `${nomeDoToken(carta.tokenId)} tentou ${lido.golpe?.nome ?? 'agir'}: ${rolados.map((rolado) => rolado.texto).join('; ')} · ${perde ? 'perdeu a ação' : 'não usou e não gastou nada'}`
+    const atual = cenaDe(sceneKey) ?? cena
+    gravarCena(sceneKey, comMudanca(atual, novos, { id: linhaId, tipo: 'acao', texto, autor, tokenIds: [carta.tokenId], reversao: { tipo: 'composta', partes } }))
+    return true
+  }
+
   const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedidoDeQuemAge: PedidoDeAcao, tela?: TelaDoPedido): boolean => {
     const { turnos } = cena
     const { personagens } = mesaDoRpg()
-    const ctxDaCarta = contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx, tela)
+    const ctxSemTestes = contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx, tela)
+    // REQUISITOS D (H1, H2): o teste do requisito é rolado AQUI, no host, e só depois de o resto do pedido valer (supondo que
+    // passe): pedido torto não gasta dado. Falhou: a linha diz o dado e, com "perde a ação", a ação e o custo vão.
+    const antesDosTestes = portaoDoPedido(ctxSemTestes, pedidoDeQuemAge)
+    let ctxDaCarta = ctxSemTestes
+    let rolados: TesteRolado[] = []
+    if (antesDosTestes.tipo === 'teste') {
+      const supondo: ContextoDoGolpe = { ...ctxSemTestes, testesDosRequisitos: testesQuePassam(antesDosTestes.testes) }
+      if (podeAgir(supondo, pedidoDeQuemAge) !== null) return false
+      rolados = rolarOsTestesDoPedido(ctxSemTestes, pedidoDeQuemAge, antesDosTestes.testes)
+      if (rolados.some((rolado) => !rolado.passou)) return falhouNoTeste(sceneKey, cena, autor, carta, chaveDoGasto, supondo, pedidoDeQuemAge, rolados)
+      ctxDaCarta = { ...ctxSemTestes, testesDosRequisitos: testesDoPortao(rolados) }
+    }
     if (podeAgir(ctxDaCarta, pedidoDeQuemAge) !== null) return false
     // REQUISITOS C (§6): o mesmo portão do `podeAgir`, lido ANTES de a linha mexer em nada: os gastos e a nota.
     const doPortao = portaoDoPedido(ctxDaCarta, pedidoDeQuemAge)
@@ -560,7 +689,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       partes.push(...reversaoDaFicha(carta.personagemId, doCusto))
     }
     // REQUISITOS C: os gastos dos requisitos que valem, depois do custo normal e nesta linha (o Desfazer devolve tudo).
-    let notaDosRequisitos = doPortao.tipo === 'passa' ? doPortao.nota : null
+    // REQUISITOS D: o dado dos testes que passaram vai junto ("(Percepção: teste d20 14+2 = 16 contra CD 15, passou)").
+    let notaDosRequisitos = doPortao.tipo === 'passa' ? notaDaLinha(rolados.length === 0 ? null : textoDosTestes(rolados), doPortao.nota) : null
     if (doPortao.tipo === 'passa' && carta.personagemId !== null) {
       const gastos = gastarOsRequisitos(mesa, sceneKey, carta.personagemId, carta.tokenId, novos, doPortao.gastos, autor)
       if (gastos === 'recusada') {

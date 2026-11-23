@@ -243,6 +243,12 @@ export interface ContextoDaReacao {
   combate: CombateDoPersonagem | undefined
   /** F2 (revisão da fatia E): quem pede; o jogador não usa a técnica que só o mestre usa (`soOMestreReage`). Ausente = o mestre. */
   quemPede?: AutorDaAcao['tipo']
+  /**
+   * REQUISITOS D: o motivo do portão dos requisitos da técnica NA REAÇÃO (o host monta o retrato com
+   * `naReacao` e o passa aqui; o mesmo lugar do golpe: depois da evolução, antes da recarga). Ausente
+   * ou `null` = cumpre, ou sem bloco.
+   */
+  requisitos?: string | null
 }
 
 /**
@@ -277,7 +283,7 @@ export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueRea
   const soOMestre = ctx.quemPede === 'jogador' ? soOMestreReage(tecnica.cartao) : null
   if (soOMestre !== null) return soOMestre
   if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
-  return motivoDaTecnica(tecnica, personagem, sistema, ctx.combate, null, true)
+  return motivoDaTecnica(tecnica, personagem, sistema, ctx.combate, null, true, undefined, ctx.requisitos)
 }
 
 /** O que `reagirComTecnica` devolve para a store aplicar. */

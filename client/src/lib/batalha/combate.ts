@@ -486,8 +486,11 @@ export type PedidoDeAcao =
    * F3: Ativar a forma pelo menu. `acao` = a escolhida na tela; `trocarImagem`
    * = a caixa "Trocar a imagem". Nunca é contra-ataque: `contraDe` existe só
    * como `undefined`, para quem lê `pedido.contraDe` sem olhar o tipo.
+   * REQUISITOS D: `pela` = o id da técnica que liga a forma (a Fúria que sobe
+   * a Parte, a técnica do "Só liga com"). Só a store o põe, ao trocar o pedido
+   * da técnica pelo Ativar; o leitor da rede não o lê (ninguém o forja).
    */
-  | { tipo: 'transformar'; cartaoId: string; acao: AcaoDaForma; trocarImagem: boolean; contraDe?: undefined; respostas?: RespostasDoPedido; forcarRequisitos?: true }
+  | { tipo: 'transformar'; cartaoId: string; acao: AcaoDaForma; trocarImagem: boolean; contraDe?: undefined; respostas?: RespostasDoPedido; forcarRequisitos?: true; pela?: string }
   /** F3: "Desfazer a forma" (ação livre). Nunca é contra-ataque. */
   | { tipo: 'destransformar'; cartaoId: string; contraDe?: undefined }
   /**

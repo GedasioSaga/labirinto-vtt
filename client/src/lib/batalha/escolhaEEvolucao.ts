@@ -10,6 +10,7 @@ import { cartaDaVez, type TurnosDaCena } from './turnos'
 import { lerRequisitos } from './requisitos/ler'
 import { contextoDosRequisitos } from './requisitos/montar'
 import { motivoDoPortao, portaoDosRequisitos, type ResultadoDoPortao } from './requisitos/portao'
+import { blocoDoCartao } from './requisitos/partes'
 
 /**
  * ESCOLHA E EVOLUÇÃO, tipos de habilidade F4 (seções 4d, 4e e 7 de
@@ -466,6 +467,9 @@ export function motivoDoEvoluir(ctx: ContextoDaEvolucao, pedido: PedidoDeEvoluca
   // REQUISITOS C: a base com o grupo "Para evoluir" manda (cinza com o motivo; o mestre força); sem ele, a tabela à mão.
   const portao = portaoDoEvoluir(ctx, pedido)
   if (portao.tipo !== 'livre') return motivoDoPortao(portao)
+  // REQUISITOS D (§8): cartão com bloco (mesmo sem o grupo "Para evoluir") não lê a tabela à mão.
+  const cartao = tecnicaPorId(personagem, sistema, pedido.cartaoId)?.cartao
+  if (cartao !== undefined && blocoDoCartao(cartao) !== null) return null
   // F2 (fatia F, CAÇA AS BRUXAS!): "Melodia ativada e o caminho do dano ativo" = a Melodia ligada na opção do +20.
   return motivoDoEvoluirPelaMecanica(pedido.cartaoId, turnos.selos, personagem.id)
 }

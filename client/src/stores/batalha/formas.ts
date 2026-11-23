@@ -17,7 +17,7 @@ import {
 } from '../../lib/batalha/combate'
 import { gastarAcao } from '../../lib/batalha/acoes'
 import { novoIdDeSelo } from '../../lib/batalha/selos'
-import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, duracaoDaForma, formaDaFicha, subidaDeParte, usosDaForma } from '../../lib/batalha/transformacao'
+import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, duracaoDaForma, formaDaFicha, formaQueATecnicaLiga, subidaDeParte, usosDaForma } from '../../lib/batalha/transformacao'
 import {
   cartaoComADecisao,
   cartaoPorId,
@@ -34,7 +34,7 @@ import { custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, mo
 import { ajustesDoCusto, custoEmSp, podeAgir, portaoDoPedido, type ContextoDoGolpe } from '../../lib/batalha/golpe'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
 import { devolverFichasDaAcao } from './desfazer'
-import { fatorDaVelocidade, sobeDeParte } from '../../lib/batalha/mecanicasAMao'
+import { fatorDaVelocidade } from '../../lib/batalha/mecanicasAMao'
 import { semLembretes } from '../../lib/batalha/passivas'
 import { ehOverload, recursoDoCusto, tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
 import type { VezEsperada } from '../../lib/batalha/ponte'
@@ -53,7 +53,7 @@ const ROTULO_DA_ACAO_DA_FORMA: Readonly<Record<AcaoDaForma, string>> = { simples
 
 /** As formas presas ao núcleo da store. */
 export function criarFormas(nucleo: NucleoDaBatalha) {
-  const { mesa, mesaDoRpg, cenaDe, gravarCena, desfazerLinha } = nucleo
+  const { mesa, mesaDoRpg, cenaDe, gravarCena, desfazerLinha, rastrear } = nucleo
 
   /**
    * Conserto das fichas F1 (Overload): depois dele, os atributos base do
@@ -113,16 +113,21 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
    * segue e o `podeAgir` recusa com o motivo).
    */
   const subidaDoPedido = (sceneKey: string, pedido: PedidoDeAcao): Extract<PedidoDeAcao, { tipo: 'transformar' }> | null => {
-    if (pedido.tipo !== 'habilidade' || pedido.contraDe !== undefined || !sobeDeParte(pedido.cartaoId)) return null
+    if (pedido.tipo !== 'habilidade' || pedido.contraDe !== undefined) return null
     const cena = cenaDe(sceneKey)
     const carta = cena === undefined ? null : cartaDaVez(cena.turnos)
     const { personagens, sistema } = mesaDoRpg()
     const personagem = carta === null || carta.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === carta.personagemId)
     if (personagem === undefined || sistema === null) return null
-    const subida = subidaDeParte(personagem, sistema, pedido.cartaoId)
     const tecnica = tecnicaPorId(personagem, sistema, pedido.cartaoId)
-    if (subida === null || !('para' in subida) || tecnica === null) return null
-    return { tipo: 'transformar', cartaoId: subida.para.id, acao: acaoDaForma(tecnica.cartao), trocarImagem: true }
+    if (tecnica === null) return null
+    // REQUISITOS D (I1): a subida pelo bloco da técnica (`aoUsar.sobeParte`) ou, sem bloco, pela tabela à mão.
+    // I2 (`forma.soLigaPor`): a técnica listada numa forma desligada liga essa forma. O mestre que força leva a força junto.
+    const subida = subidaDeParte(personagem, sistema, pedido.cartaoId)
+    const liga = subida === null ? formaQueATecnicaLiga(personagem, sistema, tecnica.cartao) : null
+    const para = subida !== null && 'para' in subida ? subida.para : liga
+    if (para === null) return null
+    return { tipo: 'transformar', cartaoId: para.id, acao: acaoDaForma(tecnica.cartao), trocarImagem: true, pela: tecnica.cartao.id, ...(pedido.forcarRequisitos === true ? { forcarRequisitos: true } : {}) }
   }
 
   /**
@@ -229,6 +234,11 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
         partes.push(...gastosDoPortao.partes)
         novos = gastosDoPortao.turnos
         notaDosRequisitos = notaDaLinha(gastosDoPortao.texto, notaDosRequisitos)
+        // REQUISITOS D: o SP que o "Para ligar" gastou sobe o acumulador "a cada N SP gastos" (gatilho gastaSp). Só as partes
+        // dos gastos: o atual que a troca de Parte mexe (o máximo que cai) não é gasto.
+        const rastreado = rastrear(novos, [], gastosDoPortao.partes)
+        partes.push(...rastreado.partes)
+        novos = rastreado.turnos
       }
       const imagem = pedido.trocarImagem ? (cartao?.imagem ?? null) : null
       const forma: FormaNaBatalha = { cartaoId: pedido.cartaoId, imagem }
@@ -312,8 +322,13 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       // Bug 11: o custo recusado não aplica (o lembrete fica esperando).
       if (doCusto === 'recusada') return false
       const combate: CombateDoPersonagem = custoEmSp(custo) && semOLembrete.gastouSp !== true ? { ...semOLembrete, gastouSp: true } : semOLembrete
-      partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate }, ...reversaoDaFicha(personagemId, doCusto))
+      const doCustoNaLinha = reversaoDaFicha(personagemId, doCusto)
+      partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate }, ...doCustoNaLinha)
       novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
+      // REQUISITOS D: o SP que a forma ligada paga na vez sobe o acumulador "a cada N SP gastos" (gatilho gastaSp).
+      const rastreado = rastrear(novos, [], doCustoNaLinha)
+      partes.push(...rastreado.partes)
+      novos = rastreado.turnos
       texto = `${dono} mantém ${nome} (paga ${textoDoCustoPorTurno(custo, sistema)})`
     } else {
       // Sem recurso (resposta da Ryoko): desce uma Parte. O cartão vem primeiro na reversão, como no Ativar da forma.

@@ -76,6 +76,7 @@ import { comOBonusDosAcumuladores } from './acumuladorNaBatalha'
 import type { ContextoDosRequisitos } from './requisitos/contexto'
 import { contextoDosRequisitos } from './requisitos/montar'
 import { motivoDoPortao, portaoDosRequisitos, type ResultadoDoPortao } from './requisitos/portao'
+import { blocoDoCartao, motivoDoSoLigaPor } from './requisitos/partes'
 import {
   ataqueComOSelo,
   chavesDoDono,
@@ -197,6 +198,12 @@ export interface ContextoDoGolpe {
    * frase de sempre (`MOTIVO_SEM_FERIDO`).
    */
   escudoCheio?: (personagemId: string) => number
+  /**
+   * REQUISITOS D (H1, H2): o resultado dos testes dos requisitos que o HOST rolou para este pedido (id
+   * do requisito → passou). Ausente = ninguém rolou: o portão recusa com "o mestre rola" (o caminho que
+   * não rola nunca deixa passar sem o dado).
+   */
+  testesDosRequisitos?: Readonly<Record<string, boolean>>
 }
 
 /** O que `lancarGolpe` devolve para a store aplicar. */
@@ -450,7 +457,8 @@ export function portaoDoPedido(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): Resu
     if (retrato === null) return { tipo: 'livre' }
     const respostas = 'respostas' in pedido ? pedido.respostas : undefined
     const forcar = 'forcarRequisitos' in pedido && pedido.forcarRequisitos === true
-    return portaoDosRequisitos(requisitos, 'usar', retrato, { ...(respostas === undefined ? {} : { respostas }), forcar }, autorEhMestre)
+    const testes = ctx.testesDosRequisitos
+    return portaoDosRequisitos(requisitos, 'usar', retrato, { ...(respostas === undefined ? {} : { respostas }), forcar, ...(testes === undefined ? {} : { testes }) }, autorEhMestre)
   }
   switch (pedido.tipo) {
     case 'habilidade': {
@@ -504,6 +512,10 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
       if (cartao === null) return 'Forma não encontrada na ficha'
       if (personagem.cartoesAtivos.includes(pedido.cartaoId)) return 'A forma já está ativa'
+      // REQUISITOS D (I2): "Só liga com o Grito": o Ativar da tira não liga; a técnica listada liga (`pela`, posto pela store).
+      const pela = pedido.pela === undefined ? null : tecnicaPorId(personagem, sistema, pedido.pela)
+      const soLiga = motivoDoSoLigaPor(blocoDoCartao(cartao), pela === null ? undefined : { id: pela.cartao.id, nome: pela.cartao.nome })
+      if (soLiga !== null) return soLiga
       // F2 (fatia E, Forma Híbrida da Ryoko): as Partes ligam em ordem, uma por vez.
       const ordem = motivoDaOrdemDasPartes(personagem, sistema, cartao)
       if (ordem !== null) return ordem

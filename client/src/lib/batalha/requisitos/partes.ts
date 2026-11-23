@@ -1,4 +1,5 @@
 import { mesmaReferencia } from './contexto'
+import { lerRequisitos } from './ler'
 import type { Referencia, RequisitosDoCartao } from './modelo'
 
 /**
@@ -15,6 +16,16 @@ import type { Referencia, RequisitosDoCartao } from './modelo'
 /** Os motivos de hoje (`transformacao.ts`), iguais para o portão das três regras dar o mesmo veredito. */
 export const MOTIVO_FORMA_DESLIGADA = 'A forma desta técnica não está ligada'
 export const MOTIVO_ULTIMA_PARTE = 'Já está na última Parte'
+
+/**
+ * Fase D (§8, "precedência durante a troca"): o bloco do cartão, ou `null` (sem bloco, bloco torto
+ * inteiro ou de app mais novo). Com bloco, o cartão manda e as três regras à mão de
+ * `mecanicasAMao.ts` (Caça às Bruxas, Fúria do Dragão, Partes da Forma Híbrida) não valem para ele;
+ * sem bloco, a tabela segue valendo até a fase H.
+ */
+export function blocoDoCartao(cartao: { requisitos?: unknown }): RequisitosDoCartao | null {
+  return cartao.requisitos === undefined ? null : lerRequisitos(cartao.requisitos).bloco
+}
 
 /** A forma de onde a técnica vem: as Partes do grupo em ordem, a posição dela e se está ligada. */
 export interface FormaDeOndeVem {

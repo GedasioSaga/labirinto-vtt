@@ -4,8 +4,11 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { MOTIVO_DO_OVERLOAD_USADO, motivoDaAcao, motivoDoCustoAcimaDoMaximo, type AcoesDaVez, type MovimentoDaForma } from './acoes'
 import { NUMEROS_DA_FORMA_MAX, type AcaoDaForma, type CombateDoPersonagem, type FormaNaBatalha, type NumeroDaForma } from './combate'
 import { normalizar } from './formula'
-import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, ehOverload, lerAcao, lerCusto } from './leituraDaFicha'
+import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, ehOverload, lerAcao, lerCusto, tecnicaPorId } from './leituraDaFicha'
 import { partesEmOrdem, sobeDeParte, usosContamOAdicional, vezesDaForma } from './mecanicasAMao'
+import { mesmaReferencia } from './requisitos/contexto'
+import type { Referencia } from './requisitos/modelo'
+import { blocoDoCartao, motivoDaOrdem, motivoDoSoLigaPor, subidaDaParte, MOTIVO_FORMA_DESLIGADA, MOTIVO_ULTIMA_PARTE } from './requisitos/partes'
 
 /**
  * TRANSFORMAÇÃO NA BATALHA, F3 fatia T (seção 3.2 de
@@ -275,7 +278,12 @@ export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoe
     const ligada = personagem.cartoesAtivos.includes(cartao.id)
     const motivoDosUsos = ligada ? null : motivoDosUsosDaForma(cartao, combate?.usos)
     // F2 (fatia E): a Forma Híbrida liga em ordem (a mesma frase que o host usa ao recusar).
-    const motivoDaFicha = ligada ? null : ehOverload(cartao) && combate?.overload === true ? MOTIVO_DO_OVERLOAD_USADO : (motivoDaOrdemDasPartes(personagem, sistema, cartao) ?? motivoDoCustoDaForma(cartao, personagem, sistema))
+    // REQUISITOS D (I2): a forma que só liga por uma técnica fica cinza no Ativar ("Só liga com o Grito").
+    const motivoDaFicha = ligada
+      ? null
+      : ehOverload(cartao) && combate?.overload === true
+        ? MOTIVO_DO_OVERLOAD_USADO
+        : (motivoDoSoLigaPor(blocoDoCartao(cartao)) ?? motivoDaOrdemDasPartes(personagem, sistema, cartao) ?? motivoDoCustoDaForma(cartao, personagem, sistema))
     const acaoDaFicha = acaoDaForma(cartao)
     // A prévia é a própria ativação feita no ar (o histórico e o relógio não importam aqui).
     const previa = ligada ? null : ativarForma(personagem, sistema, cartao.id, '', 0)
@@ -445,30 +453,68 @@ function parteQueLiga(personagem: Personagem, sistema: SistemaDeRpg, cartao: Car
   return grupo[ligada + 1] ?? null
 }
 
+/** A referência do cartão (o que o bloco dos requisitos compara). */
+function referenciaDe(cartao: Pick<CartaoDaFicha, 'id' | 'nome'>): Referencia {
+  return { id: cartao.id, nome: cartao.nome }
+}
+
+/** A posição da Parte ligada mais alta do grupo (-1 = nenhuma). */
+function indiceDaLigada(personagem: Personagem, grupo: readonly CartaoDaFicha[]): number {
+  return grupo.reduce((maior, forma, indice) => (personagem.cartoesAtivos.includes(forma.id) ? indice : maior), -1)
+}
+
 /**
  * F2 (fatia E): por que Ativar esta forma fura a ordem das Partes, ou `null`.
- * Só vale nas formas da tabela com `partesEmOrdem` (a Forma Híbrida); as
- * outras trocam no grupo como sempre.
+ * REQUISITOS D (I2): a Parte com bloco manda (`forma.partesEmOrdem`); sem
+ * bloco, a tabela à mão (a Forma Híbrida). As outras trocam no grupo como sempre.
  */
 export function motivoDaOrdemDasPartes(personagem: Personagem, sistema: SistemaDeRpg, cartao: CartaoDaFicha): string | null {
+  const bloco = blocoDoCartao(cartao)
+  if (bloco !== null) {
+    const grupo = formasDoGrupo(personagem, sistema, cartao)
+    return motivoDaOrdem(bloco, grupo.map(referenciaDe), grupo.findIndex((forma) => forma.id === cartao.id), indiceDaLigada(personagem, grupo))
+  }
   if (!partesEmOrdem(cartao.id)) return null
   const seguinte = parteQueLiga(personagem, sistema, cartao)
   if (seguinte?.id === cartao.id) return null
-  return seguinte === null ? 'Já está na última Parte' : `Uma Parte por vez: a próxima é ${seguinte.nome.trim() || 'a Parte seguinte'}`
+  return seguinte === null ? MOTIVO_ULTIMA_PARTE : `Uma Parte por vez: a próxima é ${seguinte.nome.trim() || 'a Parte seguinte'}`
 }
 
 /**
  * F2 (fatia E, Fúria do Dragão): a Parte que a técnica liga (a seguinte à
  * forma de onde ela vem), ou o motivo de não subir. `null` = a técnica não
- * sobe de Parte.
+ * sobe de Parte. REQUISITOS D (I1): a técnica com bloco manda
+ * (`aoUsar.sobeParte`); sem bloco, a tabela à mão.
  */
 export function subidaDeParte(personagem: Personagem, sistema: SistemaDeRpg, cartaoId: string): { para: CartaoDaFicha } | { motivo: string } | null {
-  if (!sobeDeParte(cartaoId)) return null
   const dona = cartoesQueLigam(personagem, sistema).find((forma) => forma.subcartoes.some((subcartao) => subcartao.id === cartaoId))
-  if (dona === undefined || !personagem.cartoesAtivos.includes(dona.id)) return { motivo: 'A forma desta técnica não está ligada' }
+  const tecnica = dona?.subcartoes.find((subcartao) => subcartao.id === cartaoId) ?? tecnicaPorId(personagem, sistema, cartaoId)?.cartao
+  const bloco = tecnica === undefined ? null : blocoDoCartao(tecnica)
+  if (bloco === null && !sobeDeParte(cartaoId)) return null
+  if (bloco !== null && bloco.aoUsar?.sobeParte !== true) return null
+  if (dona === undefined || !personagem.cartoesAtivos.includes(dona.id)) return { motivo: MOTIVO_FORMA_DESLIGADA }
   const grupo = formasDoGrupo(personagem, sistema, dona)
-  const seguinte = grupo[grupo.findIndex((forma) => forma.id === dona.id) + 1]
-  return seguinte === undefined ? { motivo: 'Já está na última Parte' } : { para: seguinte }
+  const indice = grupo.findIndex((forma) => forma.id === dona.id)
+  // A mesma conta nos dois caminhos: o bloco pela função pura dos requisitos, a tabela pela ordem do grupo.
+  const subida = bloco === null ? null : subidaDaParte(bloco, { partes: grupo.map(referenciaDe), indice, ligada: true })
+  if (subida !== null && 'motivo' in subida) return subida
+  const seguinte = grupo[indice + 1]
+  return seguinte === undefined ? { motivo: MOTIVO_ULTIMA_PARTE } : { para: seguinte }
+}
+
+/**
+ * REQUISITOS D (I2, `forma.soLigaPor`): a forma desligada da ficha que a técnica `tecnica` liga ao ser
+ * usada (a forma lista a técnica em "Só liga com"), ou `null`. Mais de uma: a primeira na ordem da ficha.
+ */
+export function formaQueATecnicaLiga(personagem: Personagem, sistema: SistemaDeRpg, tecnica: Pick<CartaoDaFicha, 'id' | 'nome'>): CartaoDaFicha | null {
+  const ref = referenciaDe(tecnica)
+  return (
+    cartoesQueLigam(personagem, sistema).find((forma) => {
+      if (personagem.cartoesAtivos.includes(forma.id)) return false
+      const lista = blocoDoCartao(forma)?.forma?.soLigaPor
+      return lista !== undefined && lista.some((pela) => mesmaReferencia(pela, ref))
+    }) ?? null
+  )
 }
 
 /**

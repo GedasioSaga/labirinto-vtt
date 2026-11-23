@@ -3,7 +3,7 @@ import { avaliarDoCartao, type AvaliacaoDosRequisitos, type Gasto, type Pergunta
 import type { ContextoDosRequisitos } from './contexto'
 import { fraseDoDeclarado, fraseDoForcado } from './frases'
 import { lerRequisitos } from './ler'
-import { PREFIXO_DA_RESPOSTA } from './modelo'
+import { PREFIXO_DA_RESPOSTA, type RequisitoDo } from './modelo'
 
 /**
  * REQUISITOS, fase C (docs/design/habilidades/REQUISITOS.md §6): o PORTÃO. Uma função para os cinco
@@ -33,7 +33,12 @@ export interface PedidoNoPortao {
   forcar?: boolean
   /** G1, G2: o aliado escolhido (fase E). */
   ajudaDe?: string
+  /** H1, H2 (fase D): os testes que o host rolou (id do requisito → passou). */
+  testes?: Readonly<Record<string, boolean>>
 }
+
+/** Um requisito que o host rola (H1 teste, H2 disputa). */
+export type RequisitoDeTeste = RequisitoDo<'teste' | 'disputa'>
 
 export type ResultadoDoPortao =
   /** O cartão não tem esse grupo: segue como hoje. */
@@ -43,6 +48,11 @@ export type ResultadoDoPortao =
   | { tipo: 'recusa'; motivo: string; avaliacao: AvaliacaoDosRequisitos | null }
   /** Só falta o aliado aceitar (G1, G2): a fase E cria a pendência; nada é gasto antes do aceite. */
   | { tipo: 'perguntaAoAliado'; motivo: string; pergunta: Extract<PerguntaDosRequisitos, { tipo: 'aliado' }>; avaliacao: AvaliacaoDosRequisitos }
+  /**
+   * Fase D (H1, H2): só faltam os testes, que o HOST rola na hora do pedido. Quem não rola trata como
+   * recusa (`motivoDoPortao` dá o motivo); quem rola chama de novo com `testes` e sai `passa` ou `recusa`.
+   */
+  | { tipo: 'teste'; motivo: string; testes: readonly RequisitoDeTeste[]; avaliacao: AvaliacaoDosRequisitos }
 
 const LIVRE: ResultadoDoPortao = { tipo: 'livre' }
 
@@ -87,7 +97,7 @@ function daPergunta(pergunta: PerguntaDosRequisitos, av: AvaliacaoDosRequisitos)
     case 'mestre':
       return recusa(MOTIVO_ESPERA_O_MESTRE, av)
     case 'teste':
-      return recusa(MOTIVO_DO_TESTE_DO_REQUISITO, av)
+      return { tipo: 'teste', motivo: MOTIVO_DO_TESTE_DO_REQUISITO, testes: av.perguntas.flatMap((outra) => (outra.tipo === 'teste' ? [outra.requisito] : [])), avaliacao: av }
     case 'escolha':
     case 'caixa':
       return recusa(`Responda: ${pergunta.pergunta.texto}`, av)
@@ -103,22 +113,28 @@ export function portaoDosRequisitos(requisitos: unknown, para: 'usar' | 'evoluir
   const doReq = respostasDosRequisitos(pedido.respostas)
   if (requisitos === undefined) return doReq === undefined ? LIVRE : recusa(MOTIVO_RESPOSTA_SEM_PERGUNTA, null)
   if (pedido.forcar === true && !autorEhMestre) return recusa(MOTIVO_SO_O_MESTRE_FORCA, null)
-  const avaliacao = avaliarDoCartao(lerRequisitos(requisitos), para, ctx, { respostas: doReq, ...(pedido.ajudaDe === undefined ? {} : { ajudaDe: pedido.ajudaDe }) })
+  const avaliacao = avaliarDoCartao(lerRequisitos(requisitos), para, ctx, { respostas: doReq, ...(pedido.ajudaDe === undefined ? {} : { ajudaDe: pedido.ajudaDe }), ...(pedido.testes === undefined ? {} : { testes: pedido.testes }) })
   if (avaliacao === null) return doReq === undefined ? LIVRE : recusa(MOTIVO_RESPOSTA_SEM_PERGUNTA, null)
   if (pedido.forcar === true) return forcado(avaliacao)
   if (avaliacao.veredito === 'falta') return recusa(avaliacao.motivo ?? 'Falta um requisito', avaliacao)
   // Toda caixa e toda escolha respondidas, e só elas (resposta sem pergunta = recusa).
   const dasRespostas = motivoDasRespostas(avaliacao.perguntasNaHora, doReq)
   const [primeira] = avaliacao.perguntas
-  if (avaliacao.veredito === 'pergunta' && primeira !== undefined && primeira.tipo !== 'escolha' && primeira.tipo !== 'caixa') return daPergunta(primeira, avaliacao)
+  // O teste (o último na ordem das perguntas) espera as respostas conferidas: o host só rola um pedido que já vale.
+  if (avaliacao.veredito === 'pergunta' && primeira !== undefined && primeira.tipo !== 'escolha' && primeira.tipo !== 'caixa' && primeira.tipo !== 'teste') return daPergunta(primeira, avaliacao)
   if (dasRespostas !== null) return recusa(dasRespostas, avaliacao)
   if (avaliacao.veredito === 'pergunta' && primeira !== undefined) return daPergunta(primeira, avaliacao)
   return { tipo: 'passa', avaliacao, gastos: avaliacao.gastos, nota: avaliacao.declarados.length > 0 ? fraseDoDeclarado(avaliacao.declarados) : null }
 }
 
-/** O motivo da recusa do portão (o que `podeAgir` devolve); passa ou livre = `null`. */
+/** O motivo da recusa do portão (o que `podeAgir` devolve); passa ou livre = `null`. O teste não rolado recusa. */
 export function motivoDoPortao(resultado: ResultadoDoPortao): string | null {
-  return resultado.tipo === 'recusa' || resultado.tipo === 'perguntaAoAliado' ? resultado.motivo : null
+  return resultado.tipo === 'recusa' || resultado.tipo === 'perguntaAoAliado' || resultado.tipo === 'teste' ? resultado.motivo : null
+}
+
+/** Fase D: os testes como se todos passassem (o host confere o resto do pedido ANTES de rolar o dado). */
+export function testesQuePassam(testes: readonly RequisitoDeTeste[]): Record<string, boolean> {
+  return Object.fromEntries(testes.map((teste) => [teste.id, true]))
 }
 
 /**
