@@ -46,6 +46,7 @@ import { decidirCopias } from '../../stores/itensNaFonte'
 import type { EfeitoDoItem } from '../../types/map'
 import { EntradaDoCatalogoDialog, type ModoDaEntrada } from './EntradaDoCatalogoDialog'
 import { DarAlcanceAosAntigos } from './DarAlcanceAosAntigos'
+import { DarRequisitosAosAntigos } from './DarRequisitosAosAntigos'
 import { JuntarAsArmas } from './JuntarAsArmas'
 import { IconeDoMundo } from './icones'
 import './itens.css'
@@ -250,6 +251,8 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   const [juntandoArmas, setJuntandoArmas] = useState(false)
   /** ALCANCE.md §9 (fase G): a lista do "Dar alcance aos antigos" aberta embaixo do topo, nas duas páginas. */
   const [dandoAlcance, setDandoAlcance] = useState(false)
+  /** REQUISITOS.md §11 (fase H): a lista do "Dar requisitos aos antigos", no mesmo lugar. */
+  const [dandoRequisitos, setDandoRequisitos] = useState(false)
   const [arrastando, setArrastando] = useState<EntradaDaPagina | null>(null)
   const [sobre, setSobre] = useState(false)
   /** Cartões e vagas da mochila postos nesta visita (`ficha:cartão`, `ficha:vaga`): a seção da ficha os mostra em latão. */
@@ -746,6 +749,9 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
           <button type="button" className="mu-bt" aria-expanded={dandoAlcance} disabled={!podeGravar || juntando} onClick={() => setDandoAlcance((antes) => !antes)} title="Propõe um alcance para cada habilidade e arma antiga sem alcance; mostra a lista antes de gravar">
             Dar alcance aos antigos
           </button>
+          <button type="button" className="mu-bt" aria-expanded={dandoRequisitos} disabled={!podeGravar || juntando} onClick={() => setDandoRequisitos((antes) => !antes)} title="Propõe os requisitos (e as marcas e o acumulador) de cada cartão antigo das fichas pelo texto; mostra a lista antes de gravar">
+            Dar requisitos aos antigos
+          </button>
           <button type="button" className="mu-bt mu-bt--primario" disabled={!podeGravar} onClick={() => setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })}>
             <IconeDoMundo nome="mais" />
             {NOVA_DO_TIPO[tipoSugerido]}
@@ -755,6 +761,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
 
       {juntandoArmas && podeGravar && <JuntarAsArmas sistema={sistema} onFechar={() => setJuntandoArmas(false)} />}
       {dandoAlcance && podeGravar && <DarAlcanceAosAntigos sistema={sistema} onFechar={() => setDandoAlcance(false)} />}
+      {dandoRequisitos && podeGravar && <DarRequisitosAosAntigos sistema={sistema} onFechar={() => setDandoRequisitos(false)} />}
 
       {!podeGravar &&
         (lendo ? (

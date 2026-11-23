@@ -576,6 +576,14 @@ export function guardarRpgAntesDoAlcance(pastaId: string): Promise<void> {
   return guardarRpgUmaVez(pastaId, SUFIXO_ANTES_DO_ALCANCE, 'do alcance')
 }
 
+/** Requisitos dos antigos (REQUISITOS.md §11): o `rpg.json` de antes da 1ª gravação dos requisitos propostos, guardado UMA vez. */
+const SUFIXO_ANTES_DOS_REQUISITOS = '.antes-dos-requisitos'
+
+/** Requisitos dos antigos (§11): a mesma cópia de antes, UMA vez, nunca por cima. Lança: sem a cópia, quem chamou não grava. */
+export function guardarRpgAntesDosRequisitos(pastaId: string): Promise<void> {
+  return guardarRpgUmaVez(pastaId, SUFIXO_ANTES_DOS_REQUISITOS, 'dos requisitos')
+}
+
 function guardarRpgUmaVez(pastaId: string, sufixo: string, deQue: string): Promise<void> {
   return naFilaDaPasta(pastaId, async () => {
     try {
