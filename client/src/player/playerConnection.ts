@@ -264,6 +264,8 @@ import {
   parseBatalhaArmas,
   parseBatalhaDano,
   parseBatalhaEfeitos,
+  parseBatalhaMira,
+  parseBatalhaMiraNaMesa,
   parseBatalhaEstado,
   parseBatalhaEvoluir,
   parseBatalhaAjustar,
@@ -278,6 +280,8 @@ import {
   type BatalhaDesfazerMessage,
   type BatalhaPassarMessage,
   type BatalhaPlayerMessage,
+  type BatalhaMiraMessage,
+  type MiraNaMesaNoFio,
 } from '../net/protocoloDaBatalha'
 import type { EfeitoParaJogador, EstadoParaJogador } from '../lib/batalha/vistaDoJogador'
 import {
@@ -613,6 +617,11 @@ export interface PlayerState {
   laser?: LaserTrail
   /** Lasers dos OUTROS jogadores da mesma cena, um por jogador, na cor da ficha dele. */
   playerLasers?: RemoteLaser[]
+  /**
+   * Fase D do alcance: as miras abertas dos outros na mesa (só a forma, a cor e o lado), uma por ficha,
+   * só das fichas que esta tela tem. Ausente = nenhuma. Sai junto com a faixa da batalha.
+   */
+  mirasDaMesa?: readonly MiraNaMesaNoFio[]
   /**
    * Recusa do mestre ao movimento (parede, fora do chão, ficha alheia, lugar
    * ocupado); a ficha já voltou sozinha. Some sozinha; `id` novo repete o aviso.
@@ -1666,6 +1675,11 @@ export interface PlayerConnection {
    * `false` = não saiu.
    */
   zerarCargaNaBatalha(personagemId: string): boolean
+  /**
+   * Fase D do alcance: a mira aberta desta tela (ou o fechar) vai ao host, que a repassa só como casas a
+   * quem vê a ficha. Sem resposta, como o laser. `false` = não saiu (fora da batalha, mensagem torta).
+   */
+  mirarNaBatalha(msg: BatalhaMiraMessage): boolean
   /**
    * BATALHA, tipos de habilidade F3 — a passiva da ficha dele, fora da vez:
    * Ativar/Desligar (`tipo` "passiva") ou a resposta ao lembrete (`tipo`
@@ -3430,8 +3444,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function esquecerBatalha(): void {
     for (const { prazo } of pedidosDeBatalha.values()) clearTimeout(prazo)
     pedidosDeBatalha.clear()
-    if (state.batalhaEstado !== undefined || state.aliados !== undefined || state.batalhaEfeitos !== undefined || state.recusaDaBatalha !== undefined) {
-      setState({ batalhaEstado: undefined, aliados: undefined, batalhaEfeitos: undefined, recusaDaBatalha: undefined })
+    if (state.batalhaEstado !== undefined || state.aliados !== undefined || state.batalhaEfeitos !== undefined || state.recusaDaBatalha !== undefined || state.mirasDaMesa !== undefined) {
+      setState({ batalhaEstado: undefined, aliados: undefined, batalhaEfeitos: undefined, recusaDaBatalha: undefined, mirasDaMesa: undefined })
     }
     // BATALHA DBT: a faixa Dragon Ball também mentiria na cena nova.
     esquecerBatalhaDBT()
@@ -6076,6 +6090,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (msg !== null && state.status === 'playing' && state.batalhaEstado !== undefined) receberEfeitos(msg.efeitos)
         return
       }
+      case 'batalha.miraNaMesa': {
+        // Fase D do alcance: a mira de outro na mesa. Só com o mapa na tela; torta derruba a mensagem.
+        if (isTable || state.status !== 'playing') return
+        const msg = parseBatalhaMiraNaMesa(data)
+        if (msg === null) return
+        const outras = (state.mirasDaMesa ?? []).filter((mira) => mira.tokenId !== msg.tokenId)
+        if ('off' in msg) {
+          if (outras.length !== (state.mirasDaMesa ?? []).length) setState({ mirasDaMesa: outras.length === 0 ? undefined : outras })
+          return
+        }
+        const { type: _tipo, ...mira } = msg
+        setState({ mirasDaMesa: [...outras, mira] })
+        return
+      }
       case 'batalhaDBT.estado': {
         // BATALHA DBT: a tela da mesa fica sem faixa, como no One Piece. Campo torto derruba o recorte inteiro.
         if (isTable) return
@@ -7569,6 +7597,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const mensagem = parseBatalhaArmas({ type: 'batalha.armas', reqId: `b${nextReqId++}`, personagemId, armas })
       if (mensagem === null) return false
       return pedirNaBatalha(chaveDoPedido('armas', [personagemId, mensagem.armas]), mensagem)
+    },
+    mirarNaBatalha(msg) {
+      // Fechar sai sempre que há conexão (a mira presa na tela dos outros seria pior); abrir, só com a faixa na tela.
+      if (!('off' in msg) && (state.status !== 'playing' || state.batalhaEstado === undefined)) return false
+      const mensagem = parseBatalhaMira(msg)
+      return mensagem !== null && send(mensagem)
     },
     zerarCargaNaBatalha(personagemId) {
       const estado = state.batalhaEstado

@@ -31,6 +31,8 @@ import './combate.css'
 import { mapaDoAlcance } from '../../lib/batalha/alcance/segmentos'
 import { pisoDe } from '../../lib/pisos'
 import type { MapData } from '../../types/map'
+import type { MiraNaMesaNoFio } from '../../net/protocoloDaBatalha'
+import { ligarEnvioDaMira, useMirasDaMesaNoChao } from '../../stores/batalha/miraNaMesa'
 
 /**
  * A BATALHA DO JOGADOR sobre o mapa (S3): os efeitos (com a faixa da vez e o
@@ -119,6 +121,11 @@ export interface BatalhaDoJogadorProps {
    * (`useMemo`/`useCallback`): a cada função nova a mira refaz os alvos. Ausente = tudo como antes.
    */
   vidaPublica?: (tokenId: string) => VidaNaMira | null
+  /**
+   * Fase D do alcance: as miras dos outros na mesa (a conexão guarda o que o host mandou), desenhadas
+   * no chão com as fichas e as paredes de `mapa`. Ausente = só a mira desta tela acende (a Arena, o Lobby).
+   */
+  mirasDaMesa?: readonly MiraNaMesaNoFio[]
 }
 
 /** Conserto das fichas F1 (bug 1): quanto o aviso da recusa fica na tela. */
@@ -159,7 +166,12 @@ function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusD
   return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
 }
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, mapa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, mapa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica, mirasDaMesa }: BatalhaDoJogadorProps) {
+  // Fase D do alcance: a mira desta tela vai à mesa (quando a conexão sabe mandar) e as dos outros chegam ao chão.
+  const mirar = useRef(conexao.mirar)
+  mirar.current = conexao.mirar
+  useEffect(() => ligarEnvioDaMira((msg) => mirar.current?.(msg)), [])
+  useMirasDaMesaNoChao(mirasDaMesa, mapa)
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
   const [armasDe_, setArmasDe] = useState<string | null>(null)

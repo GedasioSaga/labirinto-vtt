@@ -2262,9 +2262,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               evoluir: (pedido) => connection.evoluirNaBatalha(pedido),
               invocar: (pedido) => connection.invocarNaBatalha(pedido),
               marcar: (pedido) => connection.marcarNaBatalha(pedido),
+              mirar: (msg) => connection.mirarNaBatalha(msg),
             }}
             tamanhoDaCasa={state.map.grid}
             mapa={state.map}
+            mirasDaMesa={state.mirasDaMesa}
             consulta={consultaEstavel}
             alvoDoMapa={alvoDoMapa}
             onMirando={setMirandoNaBatalha}

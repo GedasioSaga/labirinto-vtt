@@ -3,6 +3,7 @@ import type { Casa, Direcao, PegadaNaGrade } from '../../lib/batalha/area'
 import type { CorDoAlcance } from '../../lib/batalha/alcance/cor'
 import { usaDirecao, type FormaDoAlcance } from '../../lib/batalha/alcance/forma'
 import type { MapaDoAlcance } from '../../lib/batalha/alcance/quemEntra'
+import type { AcaoDaMira } from '../../lib/batalha/golpe'
 
 /**
  * A MIRA NO MAPA (plano docs/design/habilidades/ALCANCE.md §7.2, fase E): o que a mira de quem age
@@ -16,6 +17,16 @@ import type { MapaDoAlcance } from '../../lib/batalha/alcance/quemEntra'
  * O ponteiro (`apontar`) vira a casa em foco e o lado para onde a forma olha; muda o estado só
  * quando a casa ou o lado mudam, para o mouse correndo não acordar a mira a cada pixel.
  */
+
+/**
+ * Fase D do alcance: o que a mira desta tela diz à mesa (`batalha.mira`): só a ação (o host tira a
+ * forma do cartão dele), o ponto e a ficha do centro. O lado vai pela `direcao` da mira.
+ */
+export interface MiraParaOFio {
+  acao: AcaoDaMira
+  ponto?: Casa
+  centroId?: string
+}
 
 /** Uma mira como o chão a desenha: a forma que vale agora (com as condições) e onde quem usa está. */
 export interface MiraNoMapa {
@@ -38,6 +49,8 @@ export interface MiraNoMapa {
   alvos: readonly PegadaNaGrade[]
   /** As fichas da mesa na grade: a área numa ficha acende a explosão da ficha sob o mouse. */
   fichas: readonly PegadaNaGrade[]
+  /** Fase D: só na mira desta tela, o que vai à mesa; ausente = a mira não sai daqui (as dos outros, a do Testar). */
+  fio?: MiraParaOFio
 }
 
 /** Uma mira na hora de desenhar: a casa sob o mouse vale só para a mira desta tela. */

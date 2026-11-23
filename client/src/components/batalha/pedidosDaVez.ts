@@ -1,5 +1,6 @@
 import type { PedidoDeAcao, PedidoDeEvolucao, PedidoDeInvocacao, PedidoDeMarca, PedidoDePassiva, PedidoDeReacao } from '../../lib/batalha/combate'
 import type { VezEsperada } from '../../lib/batalha/ponte'
+import type { BatalhaMiraMessage } from '../../net/protocoloDaBatalha'
 import type { AutorDaAcao } from '../../lib/batalha/turnos'
 import type { BatalhaState, LojaDaBatalha } from '../../stores/batalhaFabrica'
 
@@ -34,6 +35,11 @@ export interface ConexaoDaBatalha {
   invocar?: (pedido: PedidoDeInvocacao) => boolean
   /** R1 (lote de 01/11): responder o lembrete da marca. Ausente = sem os lembretes da marca. */
   marcar?: (pedido: PedidoDeMarca) => boolean
+  /**
+   * Fase D do alcance: a mira aberta vai à mesa (os outros veem só as casas, a cor e o lado). Ausente =
+   * só esta tela vê (a Arena, o treino do Lobby).
+   */
+  mirar?: (msg: BatalhaMiraMessage) => void
 }
 
 /** A ação da store sem a cena e o autor na frente: quem monta os pedidos já disse os dois. */

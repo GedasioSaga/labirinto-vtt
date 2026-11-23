@@ -23,6 +23,7 @@ import { alcanceComCondicoes, type GrupoDoAlcance } from '../../lib/batalha/alca
 import { corDoAlcance, type CorDoAlcance } from '../../lib/batalha/alcance/cor'
 import { descreverAlcance, usaDirecao } from '../../lib/batalha/alcance/forma'
 import { useMiraNoMapa, type MiraNoMapa } from '../../stores/batalha/miraNoMapa'
+import type { AcaoDaMira } from '../../lib/batalha/golpe'
 import type { AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
@@ -354,6 +355,13 @@ function textoDoForaDoAlcance(quem: string | null, alvos: readonly AlvoNaMira[])
   const nome = quem === null ? undefined : alvos.find((alvo) => alvo.tokenId === quem)?.nome
   if (nome !== undefined) return `${nome} está fora das casas acesas. ${registro}`
   return `O mestre conta o alcance com uma parede ou condição que esta tela não mostra. ${registro}`
+}
+
+/** Fase D do alcance: a ação que a mira manda à mesa (só o id; o host tira a forma do cartão dele), como `pedidoDoGolpe`. */
+function acaoDaMiraDoGolpe(golpe: GolpeNaTela): AcaoDaMira | null {
+  if (golpe.vagaId !== undefined) return { tipo: 'item', vagaId: golpe.vagaId }
+  if (golpe.tipo === 'atacar') return { tipo: 'atacar', armaId: golpe.armaId }
+  return golpe.cartaoId === null ? null : { tipo: 'habilidade', cartaoId: golpe.cartaoId }
 }
 
 /** Fase E do alcance: para onde a forma olha, como a frase do protótipo diz. */
@@ -805,9 +813,18 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
       }),
       fichas: alvos.flatMap((alvo) => (alvo.naGrade === undefined ? [] : [alvo.naGrade.ficha])),
     }
+    // Fase D: o que vai à mesa (o host resolve a forma pelo cartão dele; os outros veem só as casas).
+    const acao = acaoDaMiraDoGolpe(golpe)
+    if (acao !== null) {
+      mira.fio = {
+        acao,
+        ...(golpe.area?.centro === 'ponto' && ponto !== null ? { ponto } : {}),
+        ...(golpe.area?.centro === 'alvo' && centroId !== null ? { centroId } : {}),
+      }
+    }
     publicada.current = mira
     mostrar(mira)
-  }, [alcanceAgora, gradeDeQuemAge, quemUsaId, cor, direcao, acendeQuemUsa, ponto, centroId, marcados, alvos, golpe.area?.centro])
+  }, [alcanceAgora, gradeDeQuemAge, quemUsaId, cor, direcao, acendeQuemUsa, ponto, centroId, marcados, alvos, golpe])
   // Ao fechar a mira, o chão apaga (só a mira que esta tela pôs: outra que abriu depois fica).
   useEffect(
     () => () => {

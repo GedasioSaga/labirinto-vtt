@@ -155,6 +155,8 @@ import type { AppliedObjetoAberto } from './objetoNoHost'
 import type { AppliedPuzzle, PuzzleAoVivo } from './puzzleNoHost'
 import type { AppliedDocumento } from './documentoNoHost'
 import { useDocumentosStore } from '../stores/documentosStore'
+import { useMiraNoMapa } from '../stores/batalha/miraNoMapa'
+import { ligarMirasDoMestreAoChao, miraDaTelaNoFio, useMiraNaMesa } from '../stores/batalha/miraNaMesa'
 import { useDocumentosDoMestreStore } from '../components/documentos/documentosDoMestreStore'
 import { itemParaDar } from '../lib/acervoDeItens'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
@@ -2179,6 +2181,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (msg.type === 'scene.changed') session?.faixaDaBatalhaPerdida(clientId, 'vazia')
     }
     if (screensChanged) notifyScreens()
+    // Fase D do alcance: as miras dos jogadores (a mesma lista enquanto nada muda) vão ao chão do mestre.
+    if (session !== null) useMiraNaMesa.getState().trocar(session.mirasDosJogadores())
     // Todo recorte e toda leitura passam por aqui: o painel Pistas acompanha
     // o que SAI (recebeu) e o que o jogador abriu (leu), sem esperar nada.
     notifyPinCluesIfChanged()
@@ -4750,6 +4754,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         useDocumentosStore.subscribe((agora, antes) => {
           if (agora.documentos !== antes.documentos && (agora.documentos.length > 0 || antes.documentos.length > 0)) scheduleBroadcast()
         }),
+        // Fase D do alcance: a mira do mestre (a store local dele) vai só como casas a quem vê a ficha;
+        // as dos jogadores chegam ao chão do mapa aberto dele.
+        useMiraNoMapa.subscribe((agora, antes) => {
+          if (agora.local !== antes.local && session !== null) void dispatch(session.miraDoMestre(miraDaTelaNoFio(agora.local), world()))
+        }),
+        ligarMirasDoMestreAoChao(),
       ]
       // DOCUMENTOS: a biblioteca só era lida ao abrir a página Documentos; a sala precisa dela desde o começo (o papel no chão, a leitura).
       const biblioteca = useDocumentosStore.getState()
