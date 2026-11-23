@@ -2935,3 +2935,9 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - Print: referência de RPG tático isométrico com quadrados azuis brilhantes nas casas ao alcance, em volta e à frente do personagem.
 - 22/11 23h04 (date). Fila: mapear o que já existe (grade da batalha, alcance da técnica, destaque de casas), perguntas ao dono, plano antes de codar.
 - 22/11 23h10 (date). Respostas: cor "Azul se dá dano (Recomendado)" (verde claro = sem dano: buff, debuff, cura); regra "Só mostram" (os quadrados não recusam alvo fora); paredes "Parede corta (Recomendado)"; armas "Sim, armas também (Recomendado)"; quem vê "Todos na mesa (Recomendado)"; formas "Mais cruz, leque e anel"; os antigos "Eu preencho e você confere (Recomendado)" (cópia antes, lista, só grava no Confirmar); protótipo, literal: "Sim, prototipo antes e eu quero isso nos testes, tipo um teste visual mostrando de onde o personagem apareceria e tal."
+
+## PEDIDO NOVO (22/11 23h13): protótipo do alcance em cima do token, com ficha em pixel art andando
+
+- Literal: "Faça um prototipo disso em cima do token de jogador: Hoje o toke é um anel com a foto da pessoa [Image #44] e não tem muito como fazer mais que isso mas certos tokens quero um modelo 3d estilo final fantasy tatics com animações e tal [Image #45] aqui acha que consegue fazer um prototipo de ficha andando com essa pixel art?"
+- Prints: #44 arte do personagem do dono (chapéu roxo, óculos roxos, sobretudo preto com sol dourado, revólver roxo); #45 o mesmo em pixel art, 4 quadros (parado, mão no chapéu, passada, mão no revólver) sobre fundo amarelo.
+- 22/11 23h13 (date). Decisão do Claude: a arte do dono NÃO vai para o repositório público. Fica em tmp/proto-alcance/ (ignorado pelo git) e o protótipo sai como artifact privado. Junta o protótipo do alcance (respostas acima) com a ficha em pixel art andando no mapa de cima, como o do app. Disco em 7,0 GB (abaixo do piso de 8 GB; o protótipo usa poucos MB).
