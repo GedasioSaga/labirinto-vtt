@@ -3,7 +3,7 @@ import type { MecanicaV1 } from '../../../lib/batalha/mecanica/modelo'
 import type { FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import type { CartaoDaFicha } from '../../../lib/personagem'
 import { TestarDoAlcance } from '../alcance/TestarDoAlcance'
-import { pedacosDoPapel, textoDoCartao } from '../../../lib/batalha/mecanica/textoGerado'
+import { NOME_DO_TEXTO_DE_ANTES, pedacosDoPapel, textoDoCartao } from '../../../lib/batalha/mecanica/textoGerado'
 import { linhaCurtaDoPapel, type IdDaLinha } from './fraseDoPapel'
 import { ancoraDaLinha } from './Linha'
 
@@ -42,6 +42,8 @@ export function ColunaDoPapel({ cartao, mecanica, ficha, prefixo, onIr }: Coluna
   const pedacos = useMemo(() => (mecanica === null ? null : pedacosDoPapel(mecanica, ficha)), [mecanica, ficha])
   const linhaCurta = useMemo(() => (mecanica === null ? 'Só texto: a batalha lê os campos escritos' : linhaCurtaDoPapel(mecanica, ficha)), [mecanica, ficha])
   // Os valores vêm de uma fonte só (`textoDoCartao`): o mesmo que o Salvar grava nos campos da técnica montada.
+  // O "Texto de antes" é o guardado do Desmontar: não é anotação do cartão para ler no papel.
+  const extrasDoPapel = cartao.extras.filter((extra) => extra.nome !== NOME_DO_TEXTO_DE_ANTES)
   const gerado = useMemo<Readonly<Record<string, string>> | null>(() => (mecanica === null ? null : textoDoCartao(mecanica, ficha.sistema)), [mecanica, ficha.sistema])
   const descricao = (cartao.campos.descricao ?? '').trim()
   const irPara = (linha: IdDaLinha) => (evento: MouseEvent<HTMLAnchorElement>) => {
@@ -74,9 +76,9 @@ export function ColunaDoPapel({ cartao, mecanica, ficha, prefixo, onIr }: Coluna
                 )}
           </p>
           {descricao !== '' && <p className="lb-ed__papel-desc">{descricao}</p>}
-          {cartao.extras.length > 0 && (
+          {extrasDoPapel.length > 0 && (
             <div className="lb-ed__papel-extras">
-              {cartao.extras.map((extra, indice) => (
+              {extrasDoPapel.map((extra, indice) => (
                 <span key={indice}>
                   <b>{extra.nome.trim() || '(sem nome)'}:</b> {extra.valor}
                 </span>

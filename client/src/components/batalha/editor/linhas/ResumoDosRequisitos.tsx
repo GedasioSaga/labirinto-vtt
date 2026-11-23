@@ -41,7 +41,7 @@ export function ResumoDosRequisitos({ todos, qual, nome, personagem, custoEmSp }
     <div className="lb-req__resumo" aria-live="polite">
       <p className="lb-req__resumo-tit">Em palavras</p>
       <p className="lb-req__resumo-frase">
-        {comeco}: {linhas.map((linha) => linha.charAt(0).toLocaleLowerCase('pt-BR') + linha.slice(1)).join('; ')}.
+        {comeco}: {linhas.join('; ')}.
         {qual === 'evoluir' && ` Vale até usar ${quem} uma vez; depois volta à comum.`}
       </p>
       <p className="lb-req__resumo-lin">

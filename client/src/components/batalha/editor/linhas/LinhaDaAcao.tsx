@@ -26,7 +26,7 @@ const SEM_SER_ATAQUE: readonly CartaoDaCategoria[] = [
 ]
 
 /** Passiva é o cartão sem mecânica (decisão de 23/11): o editor a escolhe junto com o modo "Só texto" (ED5). */
-const PASSIVA_AINDA_NAO = 'A Passiva é o cartão sem peças (o app lê a descrição). Escolher aqui chega com o editor inteiro.'
+const PASSIVA_AINDA_NAO = 'A Passiva é o cartão sem peças: a batalha não a usa, o mestre aplica o que ela faz. Para virar Passiva, use Desmontar (volta ao texto).'
 
 const OUTRAS_ACOES_DO_ATAQUE = ACOES.filter((acao) => acao.valor !== 'completa')
 
