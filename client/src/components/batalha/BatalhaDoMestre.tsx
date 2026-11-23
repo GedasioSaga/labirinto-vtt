@@ -1,10 +1,11 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type AjudaPendente, type ContraAtaque, type FormaPendente, type PedidoDeAcao } from '../../lib/batalha/combate'
-import { PedidosDeAjuda, type AjudaNaTela } from './PedidosDeAjuda'
-import { equipeDe } from '../../lib/batalha/equipes'
+import { EscolhaDoAliado, PedidosDeAjuda, type AjudaNaTela } from './PedidosDeAjuda'
+import { escolhaDaAjuda, type EscolhaDaAjuda } from '../../lib/batalha/requisitos/ajuda'
+import { aliadosNaLuta, equipeDe } from '../../lib/batalha/equipes'
 import { comOBonusDosAcumuladores } from '../../lib/batalha/acumuladorNaBatalha'
-import { contextoDosRequisitos } from '../../lib/batalha/requisitos/montar'
+import { cartaoDoPedido, contextoDosRequisitos, vizinhosDaTela } from '../../lib/batalha/requisitos/montar'
 import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
@@ -353,6 +354,8 @@ function MenuDaVezDoNpc({
 }) {
   const { personagens, sistema, equipes } = mesa
   const cena = mesa.cena
+  // REQUISITOS E: a técnica do NPC que pede ajuda abre a escolha do aliado antes de ir (o mesmo do jogador). Antes do `return`: é hook.
+  const [escolhendo, setEscolhendo] = useState<{ escolha: EscolhaDaAjuda; mandar: (ajudaDe: string) => boolean } | null>(null)
   if (cena === undefined) return null
   const { personagemId, tokenId } = carta
   const personagem = personagemId === null ? null : (personagens.find((candidato) => candidato.id === personagemId) ?? null)
@@ -372,8 +375,50 @@ function MenuDaVezDoNpc({
     guardados.length === 0
       ? undefined
       : { armas: comATrava(golpesDeAtaque(personagem, sistema, combate, null, bonus), trava), habilidades: comATrava(personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, null, arma, bonus) : [], trava) }
+  // O mestre vê tudo: os aliados do NPC são os do lado dele na luta (a mesma regra do host).
+  const escolhaDoNpc = (cartaoId: string, para: 'usar' | 'evoluir'): EscolhaDaAjuda | null => {
+    if (personagem === null || sistema === null) return null
+    const cartao = cartaoDoPedido(personagem, cartaoId)
+    if (cartao === undefined) return null
+    const lados = aliadosNaLuta(personagemId, turnos.cartas.map((daOrdem) => daOrdem.personagemId), { equipes, personagens, invocados: turnos.invocados ?? [] })
+    const doLado = turnos.cartas.flatMap((daOrdem) => {
+      const ficha = daOrdem.tokenId === tokenId || daOrdem.personagemId === null || !lados.has(daOrdem.personagemId) ? undefined : personagens.find((candidata) => candidata.id === daOrdem.personagemId)
+      return ficha === undefined ? [] : [{ tokenId: daOrdem.tokenId, personagem: ficha }]
+    })
+    const ctx = contextoDosRequisitos({ personagem, sistema, tokenId, cartaId: carta.id, turnos, personagens, personagemDoToken: (outro) => turnos.cartas.find((daOrdem) => daOrdem.tokenId === outro)?.personagemId, visao: 'tudo', autorEhMestre: true })
+    return escolhaDaAjuda(cartao.requisitos, para, { ...ctx, aliados: { ...vizinhosDaTela(doLado, sistema), completa: true } })
+  }
+  const agirOuEscolher = (pedido: PedidoDeAcao): boolean => {
+    if ((pedido.tipo === 'habilidade' || pedido.tipo === 'atacar') && pedido.ajudaDe === undefined) {
+      const cartaoId = pedido.tipo === 'habilidade' ? pedido.cartaoId : pedido.armaId
+      const escolha = cartaoId === null ? null : escolhaDoNpc(cartaoId, 'usar')
+      if (escolha !== null) {
+        setEscolhendo({ escolha, mandar: (ajudaDe) => pedidos.agir(vez, { ...pedido, ajudaDe }) })
+        return true
+      }
+    }
+    return pedidos.agir(vez, pedido)
+  }
+  const evoluirOuEscolher = (cartaoId: string, custo: number | null): boolean => {
+    const pedido = { tipo: 'evoluir' as const, tokenId, cartaoId, custo }
+    const escolha = escolhaDoNpc(cartaoId, 'evoluir')
+    if (escolha === null) return pedidos.evoluir(pedido)
+    setEscolhendo({ escolha, mandar: (ajudaDe) => pedidos.evoluir({ ...pedido, ajudaDe }) })
+    return true
+  }
   return (
     <div className="bt-centro-do-mestre" data-limite-da-leitura data-atras={atras ? 'sim' : undefined} inert={atras}>
+      {escolhendo !== null && (
+        <EscolhaDoAliado
+          escolha={escolhendo.escolha}
+          onPedir={(ajudaDe) => {
+            const saiu = escolhendo.mandar(ajudaDe)
+            if (saiu) setEscolhendo(null)
+            return saiu
+          }}
+          onCancelar={() => setEscolhendo(null)}
+        />
+      )}
       <MenuDaVez
         atras={atras}
         key={`${carta.id}:${turnos.rodada}`}
@@ -392,7 +437,7 @@ function MenuDaVezDoNpc({
         motivoDaRecusa={(pedido) => pedidos.motivoDoAgir(vez, pedido)}
         doMestre
         sugestao={sugestaoNaTela(sugestao)}
-        onAgir={(pedido) => pedidos.agir(vez, pedido)}
+        onAgir={agirOuEscolher}
         onZerarCarga={personagemId === null || carga === 0 ? undefined : () => pedidos.zerarCarga(personagemId)}
         onEncerrar={passarAVez}
         alvoDoMapa={alvoDoMapa}
@@ -404,7 +449,7 @@ function MenuDaVezDoNpc({
         evoluir={{
           // Tipos de habilidade F4: o mestre evolui sempre (fora da vez também); a regra é a da store.
           motivo: (cartaoId, custo) => motivoDoEvoluir({ personagem, sistema, turnos, soNaVez: false }, { tipo: 'evoluir', tokenId, cartaoId, custo }),
-          onEvoluir: (cartaoId, custo) => pedidos.evoluir({ tipo: 'evoluir', tokenId, cartaoId, custo }),
+          onEvoluir: evoluirOuEscolher,
         }}
         invocacao={personagem === null || pedidos.invocar === undefined ? undefined : invocarDoNpc(pedidos.invocar, personagem, sistema, turnos, carta, acoes)}
         travado={trava}
