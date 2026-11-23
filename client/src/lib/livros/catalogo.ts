@@ -1,6 +1,7 @@
 import { normalizarParaBusca } from '../buscaNoLivro'
 import { ABA_DAS_ARMAS, armasDe, limiteDeArmas } from '../batalha/leituraDaFicha'
 import { alcanceDoArquivo, cartoesDaAba, mecanicaDoArquivo, novoCartao, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type Personagem, type RequisitosGuardados } from '../personagem'
+import { marcasGuardadas, requisitosGuardados } from '../batalha/requisitos/guardados'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../sistemaDeRpg'
 
 /**
@@ -97,6 +98,12 @@ export interface ItemDoCatalogo {
    * ao cartão (fase B2). Ausente = sem requisito.
    */
   requisitos?: RequisitosGuardados
+  /**
+   * MARCAS (fase B2 dos requisitos, resposta do dono de 23/11 ao G2): as da habilidade ou da arma
+   * ("Fogo"), como no cartão. "Pôr em" as leva ao cartão novo e "Juntar das fichas" as traz.
+   * Ausente = sem marca.
+   */
+  marcas?: string[]
 }
 
 /** Um tipo de bala da arma do catálogo: nome e os campos da aba das balas (`dano`, `efeito`, `quantidade`). */
@@ -184,7 +191,7 @@ function camposLimpos(value: unknown): Record<string, string> {
  * campos limpos. `null` = sem nome (não entra). Funil único da leitura do
  * arquivo e do "Salvar" da janela de entrada.
  */
-export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; texto: unknown; campos: unknown; balas?: unknown; acervoId?: unknown; mecanica?: unknown; alcance?: unknown }): ItemDoCatalogo | null {
+export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; texto: unknown; campos: unknown; balas?: unknown; acervoId?: unknown; mecanica?: unknown; alcance?: unknown; requisitos?: unknown; marcas?: unknown }): ItemDoCatalogo | null {
   if (typeof item.id !== 'string' || !ID_DE_ENTRADA.test(item.id) || !ehTipoDoCatalogo(item.tipo) || typeof item.nome !== 'string') return null
   const nome = cortar(item.nome.trim(), ENTRADA_NOME_MAX).trim()
   if (nome.length === 0) return null
@@ -198,7 +205,16 @@ export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; tex
   if (item.tipo !== 'item') Object.assign(limpo, mecanicaDoArquivo(item.mecanica))
   // Fase B do alcance: a forma do alcance pelo mesmo leitor do cartão, nos mesmos tipos da mecânica.
   if (item.tipo !== 'item') Object.assign(limpo, alcanceDoArquivo(item.alcance))
+  // Fase B2 dos requisitos: o bloco e as marcas como vieram, nos mesmos tipos (o item os tem no Acervo).
+  if (item.tipo !== 'item') Object.assign(limpo, requisitosEMarcas(item.requisitos, item.marcas))
   return limpo
+}
+
+/** Fase B2 dos requisitos: o bloco e as marcas pelos leitores do cartão (`lib/batalha/requisitos/guardados.ts`); o que não vale sai. */
+function requisitosEMarcas(requisitos: unknown, marcas: unknown): Pick<ItemDoCatalogo, 'requisitos' | 'marcas'> {
+  const bloco = requisitosGuardados(requisitos)
+  const lidas = marcasGuardadas(marcas)
+  return { ...(bloco === undefined ? {} : { requisitos: bloco }), ...(lidas === undefined ? {} : { marcas: lidas }) }
 }
 
 /**
@@ -254,7 +270,7 @@ export function catalogoDoArquivo(value: unknown): ItemDoCatalogo[] {
   for (const bruto of brutos) {
     if (itens.length === CATALOGO_MAX) break
     if (!isRecord(bruto)) continue
-    const item = itemLimpo({ id: bruto.id, tipo: bruto.tipo, nome: bruto.nome, texto: bruto.texto, campos: bruto.campos, balas: bruto.balas, acervoId: bruto.acervoId, mecanica: bruto.mecanica, alcance: bruto.alcance })
+    const item = itemLimpo({ id: bruto.id, tipo: bruto.tipo, nome: bruto.nome, texto: bruto.texto, campos: bruto.campos, balas: bruto.balas, acervoId: bruto.acervoId, mecanica: bruto.mecanica, alcance: bruto.alcance, requisitos: bruto.requisitos, marcas: bruto.marcas })
     if (item === null || ids.has(item.id)) continue
     ids.add(item.id)
     itens.push(item)
@@ -311,7 +327,9 @@ export function cartaoDaEntrada(entrada: EntradaParaFicha, aba: AbaDoSistema, si
   const mecanica = ehDoLivro(entrada) ? {} : mecanicaDoArquivo(entrada.mecanica)
   // Fase B do alcance: a forma do alcance também, em cópia.
   const alcance = ehDoLivro(entrada) ? {} : alcanceDoArquivo(entrada.alcance)
-  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema), ...(itemId === undefined ? {} : { itemId }), ...mecanica, ...alcance }
+  // Fase B2 dos requisitos: o bloco e as marcas também, em cópia.
+  const requisitos = ehDoLivro(entrada) ? {} : requisitosEMarcas(entrada.requisitos, entrada.marcas)
+  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema), ...(itemId === undefined ? {} : { itemId }), ...mecanica, ...alcance, ...requisitos }
 }
 
 /** As balas da arma do catálogo como subcartões da aba de destino; o campo que a aba das balas não tem fica de fora. */
@@ -358,7 +376,7 @@ export function tirarDaFicha(personagem: Personagem, abaId: string, cartaoId: st
 /** O cartão da ficha como entrada do catálogo. `null` = sem nome, ou com o nome de fábrica ("Arma"). */
 function itemDoCartao(cartao: CartaoDaFicha, tipo: TipoDoCatalogo): ItemDoCatalogo | null {
   const balas = tipo === 'arma' && cartao.subcartoes.length > 0 ? cartao.subcartoes.map((sub) => ({ nome: sub.nome, campos: sub.campos })) : undefined
-  const item = itemLimpo({ id: novoIdDeEntrada(), tipo, nome: cartao.nome, texto: cartao.campos[CAMPO_DA_DESCRICAO] ?? '', campos: cartao.campos, balas, mecanica: cartao.mecanica, alcance: cartao.alcance })
+  const item = itemLimpo({ id: novoIdDeEntrada(), tipo, nome: cartao.nome, texto: cartao.campos[CAMPO_DA_DESCRICAO] ?? '', campos: cartao.campos, balas, mecanica: cartao.mecanica, alcance: cartao.alcance, requisitos: cartao.requisitos, marcas: cartao.marcas })
   if (item === null || chaveDoNomeDaEntrada(item.nome) === chaveDoNomeDaEntrada(DADOS_DO_TIPO[tipo].um)) return null
   return item
 }

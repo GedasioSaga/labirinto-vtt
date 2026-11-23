@@ -231,6 +231,9 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
       mecanica: tipo === 'arma' ? mecanicaDaArma : editando?.tipo === tipo ? editando.mecanica : undefined,
       // Fase F do alcance: o campo da janela (o item ainda não tem alcance próprio no catálogo, como a mecânica).
       alcance: tipo === 'item' ? undefined : alcance,
+      // Fase B2 dos requisitos: a janela ainda não edita o bloco nem as marcas (fase F); o Salvar mantém os que a entrada já tinha.
+      requisitos: editando?.tipo === tipo ? editando.requisitos : undefined,
+      marcas: editando?.tipo === tipo ? editando.marcas : undefined,
     })
     if (item === null) return { erro: 'Dê um nome à entrada.' }
     if ('erro' in balasMontadas) return { erro: balasMontadas.erro, bala: balasMontadas.chave }
