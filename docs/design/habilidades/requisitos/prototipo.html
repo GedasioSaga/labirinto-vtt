@@ -532,6 +532,36 @@ ul, ol { list-style: none; }
 .ociosa { max-width: 420px; padding: 14px 16px; border: 1px dashed var(--lb-gr-filete-forte); color: var(--lb-color-parchment-dim); background: rgba(12, 12, 14, 0.6); }
 .duas .painel, .duas .pedido { max-width: 470px; }
 
+/* ============================================================ 8. o acumulador (medidor que qualquer ficha cria) */
+.ac { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 22px; align-items: start; }
+.ac__cfg { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ac-sec { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--lb-color-line); }
+.ac-campos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.ac-campos > label { display: inline-flex; align-items: center; gap: 8px; }
+.ac-erro { font-size: var(--lb-font-size-sm); color: var(--mu-erro-texto); }
+.ac-lin { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 48px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--lb-color-line); }
+.ac-lin:last-child { border-bottom: 0; }
+.ac-lin--x { display: grid; grid-template-columns: minmax(0, 1fr) 28px; }
+.ac-lin__campos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.ac-lin__campos > .f-sel { max-width: 200px; }
+.ac-par { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.ac-lin[data-entra] { animation: lin-entra 180ms var(--bt-ease-out) both; }
+.ac-pe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 12px; border-top: 1px solid var(--lb-color-line); }
+.ac-niveis { display: flex; flex-wrap: wrap; gap: 6px; }
+.ac-usos { display: grid; gap: 8px; }
+.ac-uso { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.ac-uso small { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.ac-novo { display: grid; gap: 6px; margin-top: 12px; padding: 10px 8px 0; border-top: 1px solid var(--lb-color-line); }
+.ac-amostra { display: inline-flex; vertical-align: middle; margin-left: 6px; padding: 0; }
+/* o teste: um pedaço da batalha, em tinta, que fica à vista enquanto a ficha rola */
+.ac-teste { position: sticky; top: 0; display: grid; gap: 10px; padding: 14px 14px 16px; background: var(--bt-tinta); color: var(--bt-papel); box-shadow: 5px 5px 0 var(--bt-sangue); }
+.ac-teste__tit { font: 500 var(--lb-font-size-xs) / 1.3 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wider); text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.ac-teste__da { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.ac-teste__da b { color: var(--lb-color-brass-bright); font-weight: 600; }
+.ac-teste__evs { display: flex; flex-wrap: wrap; gap: 6px; }
+.ac-teste .bt-registro { max-height: 180px; }
+.bt-etq--acum { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+
 /* avisos (Desfazer), embaixo no meio */
 .avisos { position: fixed; z-index: 90; left: 50%; bottom: 18px; display: flex; flex-direction: column; align-items: center; gap: 8px; transform: translateX(-50%); pointer-events: none; }
 .aviso {
@@ -548,7 +578,7 @@ ul, ol { list-style: none; }
   .bt-tira[data-evoluiu] .bt-tira__brilho::before { animation: none; }
   .bt-tira[data-evoluiu] .bt-tira__nome, .bt-tira[data-evoluiu] .bt-tira__chips { animation: so-aparece 200ms ease both; }
   .cont__seg[data-novo]::after { animation: none; }
-  .pk[data-entra], .pedido[data-entra], .dado[data-entra], .cumpriu[data-entra], .rq-lin[data-entra] { animation: so-aparece 150ms ease both; }
+  .pk[data-entra], .pedido[data-entra], .dado[data-entra], .cumpriu[data-entra], .rq-lin[data-entra], .ac-lin[data-entra] { animation: so-aparece 150ms ease both; }
   .espera__ponto { animation: none; }
   .sw__trilho::after { transition: background-color var(--lb-motion-fast) ease; }
   .aviso, .aviso[data-saindo] { transform: none; }
@@ -579,6 +609,7 @@ ul, ol { list-style: none; }
     <button type="button" class="proto__tela" data-acao="tela" data-tela="pedido">5 Pedido ao aliado</button>
     <button type="button" class="proto__tela" data-acao="tela" data-tela="cumpriu">6 Cumpriu?</button>
     <button type="button" class="proto__tela" data-acao="tela" data-tela="teste">7 Teste do Vincent</button>
+    <button type="button" class="proto__tela" data-acao="tela" data-tela="acum">8 Acumulador</button>
   </nav>
   <div class="proto__sobra">
     <span id="ver-rot">Ver como</span>
@@ -660,7 +691,7 @@ function tipo(cod, nome, ex, confere, molde, texto, extra) {
 tipo('A1', 'Ter SP (só exige ou gasta)', '“Só com 100 SP ou mais”; “gastar 50 SP”', 'auto', 'Ter pelo menos {n:num:Quanto de SP} de SP', (r) => (r.gasta ? `gastar ${r.n} SP` : `ter ${r.n} SP ou mais`), { gasta: true, padrao: { n: 50, gasta: false } });
 tipo('A2', 'Vida abaixo ou acima de X%', '“Só abaixo de 30% de vida”', 'auto', 'Vida {lado:sel:Lado:abaixo de|acima de} {n:num:Porcentagem}%', (r) => `ter a vida ${r.lado} ${r.n}%`, { padrao: { lado: 'abaixo de', n: 30 } });
 tipo('A3', 'Ter Escudo (ou estar sem)', '“Só com o escudo de pé”', 'auto', 'Ter Escudo de pé', (r) => (r.nao ? 'estar sem Escudo' : 'ter Escudo de pé'), { nao: true });
-tipo('A4', 'Nível de um contador', 'Polaridade 2 do Vagn, fúria, cargas', 'auto', 'Contador {cont:sel:Contador:@CONT} no nível {n:num:Nível} ou mais', (r) => `ter ${r.cont} no nível ${r.n} ou mais` + (r.gasta ? ` (e gasta ${r.n})` : ''), { gasta: true, padrao: { cont: '@0', n: 2, gasta: true } });
+tipo('A4', 'Nível de um acumulador', 'Polaridade 2 do Vagn, Fúria, Cargas (crie na tela 8)', 'auto', '{cont:sel:Acumulador:@CONT} no nível {n:num:Nível} ou mais', (r) => `ter ${r.cont} no nível ${r.n} ou mais` + (r.gasta ? ` (e gasta ${r.n})` : ''), { gasta: true, padrao: { cont: '@0', n: 2, gasta: true } });
 tipo('A5', 'Concentração (as cargas de 0 a 3)', '“Concentrado 2x” (super lobo do Alexei)', 'auto', 'Concentração {n:num:Cargas} ou mais', (r) => `ter Concentração ${r.n} ou mais` + (r.gasta ? ` (e gasta ${r.n})` : ''), { gasta: true, padrao: { n: 2 } });
 tipo('A6', 'Pagar com vida', 'Chamas Celestes: 10% do HP', 'auto', 'Pagar {n:num:Quanto} {un:sel:Unidade:% do HP|de HP}', (r) => `pagar ${r.n}${r.un === '% do HP' ? '% do HP' : ' de HP'}`, { padrao: { n: 10, un: '% do HP' } });
 tipo('A7', 'Ter a reação livre (e gasta)', 'Carregar a Polaridade gasta a reação', 'auto', 'Ter a reação livre', (r) => (r.gasta ? 'gastar a reação' : 'ter a reação livre'), { gasta: true, padrao: { gasta: true } });
@@ -694,7 +725,7 @@ tipo('E6', 'Ver o alvo (sem parede no meio)', '(o alcance já confere)', 'auto',
 tipo('F1', 'Item na mochila (e gasta N)', '“Gasta 1 Pólvora” (já existe “custo em item”)', 'auto', 'Ter {n:num:Quantos} {item:sel:Item:@ITENS} na mochila', (r) => (r.gasta ? `gastar ${r.n} ${r.item}` : `ter ${r.n} ${r.item} na mochila`), { gasta: true, padrao: { n: 1, item: 'Pólvora', gasta: true } });
 tipo('F2', 'Arma na mão (ou um tipo)', 'Imperador das Armas', 'auto', 'Estar com {arma:sel:Arma:@ARMAS} na mão', (r) => (r.nao ? `estar sem ${r.arma} na mão` : `estar com ${r.arma} na mão`), { nao: true, padrao: { arma: '@0' } });
 tipo('F3', 'Ter munição (balas)', 'Balas do Vincent', 'auto', 'Ter {n:num:Balas} balas', (r) => (r.gasta ? `gastar ${r.n} ${Number(r.n) === 1 ? 'bala' : 'balas'}` : `ter ${r.n} balas`), { gasta: true, padrao: { n: 1, gasta: true } });
-tipo('G1', 'Pedir SP, HP ou Escudo a um aliado', '“Vagn pede 30 SP”', 'pergunta', 'Pedir {n:num:Quanto} de {rec:sel:Recurso:SP|HP|Escudo} a um aliado', (r) => `pedir ${r.n} ${r.rec} a um aliado (ele aceita na tela dele)`, { padrao: { n: 30, rec: 'SP' } });
+tipo('G1', 'Um aliado paga SP, HP ou Escudo', '“Vagn pede 25 SP”: o aliado paga a técnica', 'pergunta', 'Um aliado paga {n:num:Quanto} de {rec:sel:Recurso:SP|HP|Escudo} da técnica', (r) => `ter um aliado que pague ${r.n} ${r.rec} da técnica (ele aceita na tela dele)`, { padrao: { n: 25, rec: 'SP' } });
 tipo('G2', 'Ajuda de um aliado com um poder', 'Caça às Bruxas: ajuda de quem tem poder de fogo', 'pergunta', 'Ajuda de um aliado com {poder:txt:Poder}', (r) => `ter ajuda de um aliado com ${r.poder || '(qual poder?)'}`, { padrao: { poder: 'poder de fogo' } });
 tipo('G3', 'Um aliado usou X nesta rodada', 'Combo de dupla', 'auto', 'Um aliado usou {tec:txt:Técnica do aliado} nesta rodada', (r) => `um aliado ter usado ${r.tec || '(qual técnica?)'} nesta rodada`, { padrao: { tec: '' } });
 tipo('G4', 'N aliados de pé', '“Só com o bando inteiro”', 'auto', '{n:num:Aliados} aliados de pé ou mais', (r) => `${r.n} aliados de pé ou mais`, { padrao: { n: 3 } });
@@ -709,7 +740,7 @@ tipo('J2', 'O mestre decide', '“Só se o mestre deixar”', 'pergunta', 'O mes
 
 /* O que aparece "na hora" (os tipos que não dá para conferir antes). */
 function horaCurta(r) {
-  if (r.tipo === 'G1') return `pede ${r.n} ${r.rec} a um aliado`;
+  if (r.tipo === 'G1') return `pede a um aliado que pague ${r.n} ${r.rec}`;
   if (r.tipo === 'G2') return `pede ajuda a um aliado com ${r.poder}`;
   if (r.tipo === 'H1') return `rola ${r.atr} (CD ${r.n})`;
   if (r.tipo === 'H2') return `disputa de ${r.atr} com o alvo`;
@@ -725,12 +756,16 @@ const COMUNS = {
   ITENS: ['Pólvora', 'Bala de Prata', 'Kit Médico', 'Poção Grande'],
 };
 const LISTAS = {
-  sieg: { TEC: ['Melodia de Todas as Coisas', 'Caminho do Dano', 'Ignição', 'Resiliente', 'Apunhaladora: Orquídea', 'Balmung: Lua Incandescente'], CONT: ['(nenhum contador na ficha)'], FORMAS: ['Ignição', 'Resiliente'], ARMAS: ['Balmung', 'Gram', 'Gilgamesh', 'Yamato', 'Apunhaladora', 'qualquer arma Branca'] },
-  vagn: { TEC: ['Campo de Contenção', 'Projeção Letal', 'Atração Relâmpago', 'Armadura Humana', 'Chuva', 'Ignição', 'Resiliente'], CONT: ['Polaridade', 'Campo de Contenção'], FORMAS: ['Ignição', 'Resiliente'], ARMAS: ['qualquer arma Branca', 'qualquer arma De fogo'] },
-  vincent: { TEC: ['Olhar Artístico', 'Passo de Valsa', 'Desenhar o Alvo'], CONT: ['(nenhum contador na ficha)'], FORMAS: ['(nenhuma forma na ficha)'], ARMAS: ['Rosa Fúnebre', 'qualquer arma De fogo'] },
-  ryoko: { TEC: ['Fúria do Dragão', 'Sopro do Dragão', 'Chute do Dragão', 'Golpe de Chifres'], CONT: ['(nenhum contador na ficha)'], FORMAS: ['Forma Híbrida'], ARMAS: ['qualquer arma Branca'] },
+  sieg: { TEC: ['Melodia de Todas as Coisas', 'Caminho do Dano', 'Ignição', 'Resiliente', 'Apunhaladora: Orquídea', 'Balmung: Lua Incandescente'], CONT: [], FORMAS: ['Ignição', 'Resiliente'], ARMAS: ['Balmung', 'Gram', 'Gilgamesh', 'Yamato', 'Apunhaladora', 'qualquer arma Branca'] },
+  vagn: { TEC: ['Campo de Contenção', 'Projeção Letal', 'Atração Relâmpago', 'Armadura Humana', 'Chuva', 'Ignição', 'Resiliente'], CONT: ['Campo de Contenção'], FORMAS: ['Ignição', 'Resiliente'], ARMAS: ['qualquer arma Branca', 'qualquer arma De fogo'] },
+  vincent: { TEC: ['Olhar Artístico', 'Passo de Valsa', 'Desenhar o Alvo'], CONT: [], FORMAS: ['(nenhuma forma na ficha)'], ARMAS: ['Rosa Fúnebre', 'qualquer arma De fogo'] },
+  ryoko: { TEC: ['Fúria do Dragão', 'Sopro do Dragão', 'Chute do Dragão', 'Golpe de Chifres'], CONT: [], FORMAS: ['Forma Híbrida'], ARMAS: ['qualquer arma Branca'] },
 };
-function lista(fichaId, nome) { return (LISTAS[fichaId] && LISTAS[fichaId][nome]) || COMUNS[nome] || []; }
+/* "CONT" junta os acumuladores que a ficha criou (tela 8) com os contadores fixos dela */
+function lista(fichaId, nome) {
+  if (nome === 'CONT') return contadoresDaFicha(fichaId);
+  return (LISTAS[fichaId] && LISTAS[fichaId][nome]) || COMUNS[nome] || [];
+}
 
 /* ------------------------------------------------------------ os exemplos do editor (as técnicas das fichas) */
 const EXEMPLOS_DE_FABRICA = [
@@ -754,8 +789,8 @@ const EXEMPLOS_DE_FABRICA = [
       { modo: 'um', itens: [{ tipo: 'H1', atr: 'Percepção', n: 15, falha: 'não perde a ação' }, { tipo: 'A1', n: 30, gasta: true }] },
     ] } },
   { id: 'armadura', ficha: 'vagn', quem: 'Vagn', tec: 'Armadura Humana LVL 1', linha: 'Completa · 25 SP · Tempo 4 · defender: −10% de dano',
-    nota: 'O pedido de 30 SP foi posto aqui só para mostrar o fluxo; a ficha não pede isso.',
-    req: { para: 'usar', grupos: [{ modo: 'todos', itens: [{ tipo: 'G1', n: 30, rec: 'SP' }] }] } },
+    nota: 'O pedido foi posto aqui só para mostrar o fluxo; a ficha não pede isso. O aliado paga os 25 SP da técnica; nada vai para o Vagn.',
+    req: { para: 'usar', grupos: [{ modo: 'todos', itens: [{ tipo: 'G1', n: 25, rec: 'SP' }] }] } },
   { id: 'atracao', ficha: 'vagn', quem: 'Vagn', tec: 'Atração Relâmpago', linha: 'Simples · 15 SP · Tempo 1 · o alvo testa Força e é puxado',
     nota: 'Exemplo de personalizado: o app não sabe quem carrega metal.',
     req: { para: 'usar', grupos: [{ modo: 'todos', itens: [{ tipo: 'J1', texto: 'o alvo carrega metal (arma ou armadura)' }] }] } },
@@ -781,19 +816,138 @@ const ALIADOS_DO_VAGN = () => [
   { nome: 'Ryoko', papel: 'jogadora', sp: 240, poderes: [] },
   { nome: 'Marujo do bando', papel: 'NPC', sp: 80, poderes: [] },
 ];
-const estVagn = (aliados) => ({ nome: 'Vagn', sp: 120, contadores: { Polaridade: 1, 'Campo de Contenção': 0 }, ligadas: [], forma: null, reacao: true, aliados: aliados || [], mods: {} });
+/* ==========================================================================
+ * ACUMULADORES: o medidor que QUALQUER ficha cria (Polaridade, Fúria, Cargas, Almas…).
+ * Sobe por gatilhos, desce por regras, cada nível dá algo. As técnicas somam (gatilho
+ * "usar a técnica"), exigem (A4) e gastam (A4 "e gasta").
+ * ========================================================================== */
+const SOBE = {
+  reacao: { rot: 'Gastar a reação', ev: 'gastou a reação', dica: 'vira a ação «Carregar» no menu' },
+  acerto: { rot: 'Acertar um golpe', ev: 'acertou um golpe' },
+  golpe: { rot: 'Levar um golpe', ev: 'levou um golpe' },
+  tec: { rot: 'Usar uma técnica', ev: 'usou' },
+  vez: { rot: 'Começar a vez', ev: 'começou a vez' },
+  derrubar: { rot: 'Derrubar alguém', ev: 'derrubou alguém' },
+  esquiva: { rot: 'Esquivar', ev: 'esquivou' },
+  sp: { rot: 'A cada tanto de SP gasto', ev: 'gastou SP' },
+};
+const EV_MESA = ['acerto', 'golpe', 'derrubar', 'esquiva'];
+const ACUM_DE_FABRICA = [
+  { id: 'pol', ficha: 'vagn', quem: 'Vagn', nome: 'Polaridade', max: 3, comeca: 0,
+    sobe: [{ id: 's1', g: 'reacao', n: 1 }],
+    desce: { fim: true, rodada: { on: false, n: 1 }, golpe: { on: false, n: 1 } },
+    da: { tipo: 'dano', n: 10, atr: 'Força' },
+    nota: 'Da ficha: carrega gastando a reação, até 3; +10, +20, +30 de dano.' },
+  { id: 'furia', ficha: 'ryoko', quem: 'Ryoko', nome: 'Fúria', max: 5, comeca: 0,
+    sobe: [{ id: 's2', g: 'golpe', n: 1 }, { id: 's3', g: 'tec', n: 1, tec: 'Golpe de Chifres' }],
+    desce: { fim: true, rodada: { on: true, n: 1 }, golpe: { on: false, n: 1 } },
+    da: { tipo: 'atributo', n: 5, atr: 'Força' },
+    nota: 'Exemplo inventado (não está na ficha), só para provar que serve para qualquer um.' },
+];
+const QUEM_DA_FICHA = { sieg: 'Siegfried', vagn: 'Vagn', ryoko: 'Ryoko', vincent: 'Vincent' };
+const acumsDa = (ficha) => (S.acums || []).filter((a) => a.ficha === ficha);
+const acumPorNome = (ficha, nome) => acumsDa(ficha).find((a) => a.nome === nome);
+const nivel = (est, a) => (est.contadores && est.contadores[a.nome]) || 0;
+/* a lista "Acumulador" do tipo A4: os acumuladores da ficha mais os contadores fixos */
+function contadoresDaFicha(ficha) {
+  const l = acumsDa(ficha).map((a) => a.nome).concat((LISTAS[ficha] && LISTAS[ficha].CONT) || []);
+  return l.length ? l : ['(nenhum acumulador na ficha)'];
+}
+function contIniciais(ficha, cenario) {
+  const c = {};
+  for (const a of acumsDa(ficha)) c[a.nome] = clampN(cenario && cenario[a.id] !== undefined ? cenario[a.id] : a.comeca, 0, a.max);
+  return c;
+}
+const clampN = (v, a, b) => Math.max(a, Math.min(b, Number(v) || 0));
+function daTexto(a, v) {
+  if (a.da.tipo === 'nada') return 'não dá nada sozinho: serve para liberar técnicas';
+  const alvo = a.da.tipo === 'dano' ? 'de dano' : `de ${a.da.atr}`;
+  return v === undefined ? `+${a.da.n} ${alvo} por nível` : `+${a.da.n * v} ${alvo}`;
+}
+function bonus(est, tipo, atr) {
+  let total = 0;
+  const partes = [];
+  for (const a of acumsDa(est.ficha)) {
+    if (a.da.tipo !== tipo || (tipo === 'atributo' && a.da.atr !== atr)) continue;
+    const v = nivel(est, a);
+    if (!v) continue;
+    total += v * a.da.n;
+    partes.push(`${a.nome} ${v} (+${v * a.da.n})`);
+  }
+  return { total, txt: partes.join(' + ') };
+}
+/* aplica um acontecimento da batalha a todos os acumuladores da ficha; devolve o que mudou */
+function aplicarEvento(s, ev, extra, soId) {
+  const est = s.est;
+  s.subiu = s.subiu || {};
+  s.spAcum = s.spAcum || {};
+  const mudou = [];
+  for (const a of acumsDa(est.ficha)) {
+    if (soId && a.id !== soId) continue;
+    const antes = nivel(est, a);
+    let v = antes;
+    for (const r of a.sobe) {
+      if (r.g !== ev) continue;
+      if (ev === 'tec' && r.tec !== (extra && extra.tec)) continue;
+      if (ev === 'sp') {
+        const passo = Math.max(1, Number(r.sp) || 1);
+        s.spAcum[a.id] = (s.spAcum[a.id] || 0) + ((extra && extra.sp) || 0);
+        const vezes = Math.floor(s.spAcum[a.id] / passo);
+        s.spAcum[a.id] -= vezes * passo;
+        v += vezes * Number(r.n);
+        continue;
+      }
+      v += Number(r.n);
+    }
+    if (ev === 'golpe' && a.desce.golpe.on) v -= Number(a.desce.golpe.n);
+    if (ev === 'fim' && a.desce.fim) v = 0;
+    if (ev === 'rodada') { if (a.desce.rodada.on && !s.subiu[a.id]) v -= Number(a.desce.rodada.n); s.subiu[a.id] = false; }
+    if (ev === 'gastar') v -= Number((extra && extra.n) || 1);
+    v = clampN(v, 0, a.max);
+    if (v > antes) { s.subiu[a.id] = true; S.entrar.add('acum-' + a.id); }
+    if (v !== antes) { est.contadores[a.nome] = v; mudou.push(`${a.nome} ${antes} → ${v}`); }
+  }
+  return mudou;
+}
+/* técnica com gatilho "usar a técnica": aparece "+1 Fúria" na tira */
+function ganhosDaTec(est, nomeTec) {
+  const out = [];
+  for (const a of acumsDa(est.ficha)) for (const r of a.sobe) if (r.g === 'tec' && r.tec === nomeTec) out.push(`+${r.n} ${a.nome}`);
+  return out;
+}
+function renomearRefs(ficha, velho, novo) {
+  if (!velho || velho === novo) return;
+  for (const ex of S.ed.exemplos) if (ex.ficha === ficha) for (const g of ex.req.grupos) for (const r of g.itens) if (r.tipo === 'A4' && r.cont === velho) r.cont = novo;
+  for (const t of TELAS_DE_BATALHA) {
+    const c = S[t] && S[t].est.ficha === ficha ? S[t].est.contadores : null;
+    if (c && velho in c) { c[novo] = c[velho]; delete c[velho]; }
+  }
+}
+/* acumulador novo ou máximo menor: as telas de batalha acompanham */
+function sincronizarContadores() {
+  for (const t of TELAS_DE_BATALHA) {
+    const est = S[t] && S[t].est;
+    if (!est) continue;
+    for (const a of acumsDa(est.ficha)) est.contadores[a.nome] = clampN(est.contadores[a.nome] === undefined ? a.comeca : est.contadores[a.nome], 0, a.max);
+  }
+}
+const TELAS_DE_BATALHA = ['sieg', 'vagn', 'ryoko', 'pedido', 'cumpriu', 'teste'];
+
+const estVagn = (aliados) => ({ nome: 'Vagn', ficha: 'vagn', sp: 120, contadores: Object.assign(contIniciais('vagn', { pol: 1 }), { 'Campo de Contenção': 0 }), ligadas: [], forma: null, reacao: true, aliados: aliados || [], mods: {} });
 const INICIAL = {
   editor: () => ({ ex: 'caca', exemplos: exemplosNovos(), pk: null }),
-  sieg: () => ({ est: { nome: 'Siegfried', sp: 140, contadores: {}, ligadas: [], forma: null, reacao: true, aliados: ALIADOS_DO_SIEG(), mods: {} }, melodia: false, caminho: false, vagnPerto: true, fase: 'comum', metade: false, sel: 'evo', rv: null, reg: [], ultimo: null }),
+  sieg: () => ({ est: { nome: 'Siegfried', ficha: 'sieg', sp: 140, contadores: contIniciais('sieg'), ligadas: [], forma: null, reacao: true, aliados: ALIADOS_DO_SIEG(), mods: {} }, melodia: false, caminho: false, vagnPerto: true, fase: 'comum', metade: false, sel: 'evo', rv: null, reg: [], ultimo: null }),
   vagn: () => ({ est: estVagn(), sel: 'chuva', rv: null, reg: [], ultimo: null }),
-  ryoko: () => ({ est: { nome: 'Ryoko', sp: 240, contadores: {}, ligadas: [], forma: { nome: 'Forma Híbrida', parte: 1 }, reacao: true, aliados: [], mods: {} }, sel: 'furia', rv: null, reg: [], ultimo: null }),
+  ryoko: () => ({ est: { nome: 'Ryoko', ficha: 'ryoko', sp: 240, contadores: contIniciais('ryoko'), ligadas: [], forma: { nome: 'Forma Híbrida', parte: 1 }, reacao: true, aliados: [], mods: {} }, sel: 'furia', rv: null, reg: [], ultimo: null }),
   pedido: () => ({ est: estVagn(ALIADOS_DO_VAGN()), sel: 'armadura', rv: null, reg: [], ultimo: null, aliadoTela: null }),
   cumpriu: () => ({ est: estVagn(), sel: 'atracao', rv: null, reg: [], ultimo: null }),
-  teste: () => ({ est: { nome: 'Vincent', sp: 60, contadores: {}, ligadas: [], forma: null, reacao: true, aliados: [], mods: { Percepção: 1 } }, sel: 'desenhar', rv: null, reg: [], ultimo: null, d20: [9, 17, 4, 15, 20, 11], d20i: 0, falhouNestaVez: {} }),
+  teste: () => ({ est: { nome: 'Vincent', ficha: 'vincent', sp: 60, contadores: contIniciais('vincent'), ligadas: [], forma: null, reacao: true, aliados: [], mods: { Percepção: 1 } }, sel: 'desenhar', rv: null, reg: [], ultimo: null, d20: [9, 17, 4, 15, 20, 11], d20i: 0, falhouNestaVez: {} }),
+  acum: () => ({ sel: 'pol', teste: {}, erro: null }),
 };
 const S = { tela: 'editor', ver: 'jogador', entrar: new Set() };
 const CUSTO_DO_EXEMPLO = { caca: 0, chuva: 40, furia: 0, desenhar: 30, armadura: 25, atracao: 15 };
-const EST_DA_FICHA = { sieg: () => INICIAL.sieg().est, vagn: () => estVagn(ALIADOS_DO_VAGN()), ryoko: () => INICIAL.ryoko().est, vincent: () => INICIAL.teste().est };
+/* a prévia do editor usa a ficha como está na tela de batalha dela */
+const EST_DA_FICHA = { sieg: () => S.sieg.est, vagn: () => S.vagn.est, ryoko: () => S.ryoko.est, vincent: () => S.teste.est };
 const exemplo = (id) => S.ed.exemplos.find((e) => e.id === id);
 const exAtual = () => exemplo(S.ed.ex);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -904,19 +1058,43 @@ function horaTexto(av) {
 /* ==========================================================================
  * AS TÉCNICAS de cada tela (as tiras do menu).
  * ========================================================================== */
+/* o dano com o que os acumuladores dão: "Força 50 + Polaridade 1 (+10) = 60" */
+function comBonus(est, base, rotulo) {
+  const b = bonus(est, 'dano');
+  return { n: base + b.total, txt: b.total ? `${rotulo} = ${base}, + ${b.txt} = ${base + b.total}` : `${rotulo} = ${base}` };
+}
+/* a tira "Carregar X" nasce de todo acumulador que sobe ao gastar a reação */
+function tirasDeCarregar(s) {
+  const out = [];
+  for (const a of acumsDa(s.est.ficha)) {
+    const r = a.sobe.find((x) => x.g === 'reacao');
+    if (!r) continue;
+    out.push({ chave: 'carregar-' + a.id, nome: `Carregar ${a.nome}`, lado: 'Reação', custo: 0, acums: [a.nome], acao: 'Reação (gasta a reação)',
+      dano: `+${r.n} de ${a.nome}, até ${a.max}. ${cap(daTexto(a))}.`,
+      det: `Nasce do acumulador ${a.nome} (sobe ao gastar a reação).`,
+      req: { grupos: [{ id: 'gc-' + a.id, modo: 'todos', itens: [{ id: 'rc-' + a.id, tipo: 'A7', gasta: true }] }] },
+      bloqueio: (st) => (nivel(st.est, a) >= a.max ? `${a.nome} já no máximo (${a.max}/${a.max})` : null),
+      chips: [['vazado', 'Reação'], ['acum', `+${r.n} ${a.nome}`]] });
+  }
+  return out;
+}
+function chipDoReq(exId) {
+  const ex = exemplo(exId);
+  const r = ex && ex.req.grupos.flatMap((g) => g.itens).find((x) => x.tipo === 'A4');
+  return r ? `${r.cont} ${r.n}` : 'Requisito';
+}
 function tecsDoVagn(s) {
-  const pol = s.est.contadores.Polaridade;
-  const campo = s.est.contadores['Campo de Contenção'];
+  const campo = s.est.contadores['Campo de Contenção'] || 0;
+  const at = comBonus(s.est, 50, 'Força 50');
+  const pj = comBonus(s.est, 55, 'Espírito + 20');
+  const ch = comBonus(s.est, 65, 'Espírito + 30');
   return {
-    atacar: { chave: 'atacar', nome: 'Atacar', lado: String(50 + 10 * pol), custo: 0, acao: 'Simples', dano: `Força 50 + Polaridade ${pol} (+${10 * pol}) = ${50 + 10 * pol}`, chips: [['vazado', 'Simples'], ['dano', String(50 + 10 * pol)]] },
-    projecao: { chave: 'projecao', nome: 'Projeção Letal', lado: '20 SP', custo: 20, acao: 'Simples', dano: `Espírito + 20 = 55, mais ${10 * pol} da Polaridade; em linha reta`, chips: [['vazado', 'Simples'], ['dano', String(55 + 10 * pol)], ['', 'Linha reta']] },
-    chuva: { chave: 'chuva', nome: 'Chuva', lado: '40 SP', custo: 40, req: 'chuva', contador: true, acao: 'Completa', dano: `Espírito + 30 = 65, mais ${10 * pol} da Polaridade; área de 2 casas`, chips: [['vazado', 'Completa'], ['dano', String(65 + 10 * pol)], ['', 'Área de 2 casas'], ['req', 'Polaridade 2']] },
+    atacar: { chave: 'atacar', nome: 'Atacar', lado: String(at.n), custo: 0, acao: 'Simples', dano: at.txt, chips: [['vazado', 'Simples'], ['dano', String(at.n)]] },
+    projecao: { chave: 'projecao', nome: 'Projeção Letal', lado: '20 SP', custo: 20, acao: 'Simples', dano: `${pj.txt}; em linha reta`, chips: [['vazado', 'Simples'], ['dano', String(pj.n)], ['', 'Linha reta']] },
+    chuva: { chave: 'chuva', nome: 'Chuva', lado: '40 SP', custo: 40, req: 'chuva', acao: 'Completa', dano: `${ch.txt}; área de 2 casas`, chips: [['vazado', 'Completa'], ['dano', String(ch.n)], ['', 'Área de 2 casas'], ['req', chipDoReq('chuva')]] },
     campo: { chave: 'campo', nome: 'Campo de Contenção', lado: campo ? 'Ligado' : '15 SP', custo: campo ? 0 : 15, acao: 'Completa e mantém', dano: 'Sem dano. Quem tem metal não ataca; quem veste armadura fica paralisado.', det: campo ? `Ligado no nível ${campo} (15 SP por turno). Use de novo para desligar.` : 'Liga no nível 1 e mantém pagando 15 SP por turno.', chips: [['vazado', 'Completa'], ['', '15 SP por turno']],
       aoUsar: (st) => { const c = st.est.contadores; if (c['Campo de Contenção']) { c['Campo de Contenção'] = 0; return 'Desligou o Campo de Contenção.'; } c['Campo de Contenção'] = 1; return 'Ligou o Campo de Contenção no nível 1.'; } },
-    carregar: { chave: 'carregar', nome: 'Carregar Polaridade', lado: 'Reação', custo: 0, contador: true, acao: 'Reação (gasta a reação)', dano: '+1 de Polaridade, até 3. Cada nível soma +10 de dano em todo golpe do Vagn.', req: { grupos: [{ id: 'gc', modo: 'todos', itens: [{ id: 'rc', tipo: 'A7', gasta: true }] }] },
-      bloqueio: (st) => (st.est.contadores.Polaridade >= 3 ? 'Polaridade já no máximo (3/3)' : null), chips: [['vazado', 'Reação'], ['', '+1 Polaridade']],
-      aoUsar: (st) => { st.est.contadores.Polaridade += 1; S.entrar.add('pol'); return `Polaridade ${st.est.contadores.Polaridade}/3.`; } },
-    armadura: { chave: 'armadura', nome: 'Armadura Humana LVL 1', lado: '25 SP', custo: 25, req: 'armadura', acao: 'Completa', dano: 'Defender: −10% de dano. Atacar: toma tudo e devolve o dano ÷ 7.', chips: [['vazado', 'Completa'], ['req', 'Pede 30 SP']] },
+    armadura: { chave: 'armadura', nome: 'Armadura Humana LVL 1', lado: '25 SP', custo: 25, req: 'armadura', acao: 'Completa', dano: 'Defender: −10% de dano. Atacar: toma tudo e devolve o dano ÷ 7.', chips: [['vazado', 'Completa'], ['req', 'Um aliado paga']] },
     atracao: { chave: 'atracao', nome: 'Atração Relâmpago', lado: '15 SP', custo: 15, req: 'atracao', acao: 'Simples', dano: 'Sem dano: o alvo testa Força, é puxado e fica vulnerável no próximo turno.', chips: [['vazado', 'Simples'], ['req', 'Personalizado']] },
   };
 }
@@ -935,22 +1113,25 @@ const TECS = {
     const gram = { chave: 'gram', nome: 'Gram: Alvorada', lado: '20 SP', custo: 20, acao: 'Simples', dano: `(Força + 10) + arma = ${forc + 18}; joga o alvo para cima`, chips: [['vazado', 'Simples'], ['dano', String(forc + 18)], ['', 'Queimadura']] };
     return s.fase === 'super' ? [atacar, sup, balmung, gram] : [atacar, caca, evo, balmung, gram];
   },
-  vagn(s) { const t = tecsDoVagn(s); return [t.atacar, t.projecao, t.chuva, t.campo, t.carregar]; },
+  vagn(s) { const t = tecsDoVagn(s); return [t.atacar, t.projecao, t.chuva, t.campo].concat(tirasDeCarregar(s)); },
   pedido(s) { const t = tecsDoVagn(s); return [t.armadura, t.projecao, t.chuva]; },
   cumpriu(s) { const t = tecsDoVagn(s); return [t.atracao, t.projecao, t.campo]; },
   ryoko(s) {
     const p = s.est.forma ? s.est.forma.parte : 0;
-    const chute = [105, 120, 125, 145][p];
-    const chifres = [110, 125, 130, 150][p];
-    const fissura = [210, 210, 215, 235][p];
+    /* a Fúria (exemplo inventado) dá Força: entra em todo golpe de Força */
+    const bf = bonus(s.est, 'atributo', 'Força');
+    const mais = bf.total ? `, + ${bf.txt} de Força` : '';
+    const chute = [105, 120, 125, 145][p] + bf.total;
+    const chifres = [110, 125, 130, 150][p] + bf.total;
+    const fissura = [210, 210, 215, 235][p] + bf.total;
     const sobe = p === 0 ? 'Só na Forma Híbrida' : p < 3 ? `Sobe: Parte ${p} → ${p + 1}` : 'Parte 3 é a última';
     return [
-      { chave: 'chute', nome: 'Chute do Dragão', lado: '10 SP', custo: 10, acao: 'Simples', dano: `Força + 20 + 25 de queimadura = ${chute}`, chips: [['vazado', 'Simples'], ['dano', String(chute)]] },
-      { chave: 'chifres', nome: 'Golpe de Chifres', lado: '35 SP', custo: 35, acao: 'Completa', dano: `Força + 50, perfura = ${chifres}`, chips: [['vazado', 'Completa'], ['dano', String(chifres)], ['vazado', 'Perfurante']] },
+      { chave: 'chute', nome: 'Chute do Dragão', lado: '10 SP', custo: 10, acao: 'Simples', dano: `Força + 20 + 25 de queimadura${mais} = ${chute}`, chips: [['vazado', 'Simples'], ['dano', String(chute)]] },
+      { chave: 'chifres', nome: 'Golpe de Chifres', lado: '35 SP', custo: 35, acao: 'Completa', dano: `Força + 50, perfura${mais} = ${chifres}`, chips: [['vazado', 'Completa'], ['dano', String(chifres)], ['vazado', 'Perfurante']] },
       { chave: 'sopro', nome: 'Sopro do Dragão', lado: '30 SP', custo: 30, acao: 'Completa', dano: 'Espírito + 45 = 80, perfura 50%, vários alvos', chips: [['vazado', 'Completa'], ['dano', '80']] },
       { chave: 'furia', nome: 'Fúria do Dragão', forma: true, lado: '0 SP', custo: 0, req: 'furia', acao: 'Completa', dano: 'Sem dano: sobe a Forma Híbrida uma Parte.', chips: [['vazado', 'Completa'], ['forma', sobe]],
         aoUsar: (st) => { const q = st.est.forma ? st.est.forma.parte : 0; return q === 2 ? 'Agora mantém 10 SP por turno.' : q === 3 ? 'Agora mantém 20 SP por turno.' : ''; } },
-      { chave: 'fissura', nome: 'Grande Fissura', lado: '65 SP', custo: 65, req: { grupos: [{ id: 'gf', modo: 'todos', itens: [{ id: 'rf', tipo: 'B3', forma: 'Forma Híbrida' }] }] }, acao: 'Overload', dano: `(Força + Espírito) + 100 = ${fissura}`, chips: [['over', 'Overload'], ['dano', String(fissura)], ['', '1 vez na batalha']] },
+      { chave: 'fissura', nome: 'Grande Fissura', lado: '65 SP', custo: 65, req: { grupos: [{ id: 'gf', modo: 'todos', itens: [{ id: 'rf', tipo: 'B3', forma: 'Forma Híbrida' }] }] }, acao: 'Overload', dano: `(Força + Espírito) + 100${mais} = ${fissura}`, chips: [['over', 'Overload'], ['dano', String(fissura)], ['', '1 vez na batalha']] },
     ];
   },
   teste() {
@@ -968,10 +1149,22 @@ function reqDe(t) {
   if (typeof t.req === 'string') { const ex = exemplo(t.req); return ex ? ex.req : null; }
   return t.req;
 }
+/* G1: o aliado só PAGA (decisão de 23/11). O SP sai dele e cobre o custo; nada vai para quem pede. */
+function pagoPorAliado(req) {
+  if (!req) return 0;
+  let n = 0;
+  for (const g of req.grupos) {
+    if (g.modo !== 'todos' && g.itens.length > 1) continue;
+    for (const r of g.itens) if (r.tipo === 'G1' && r.rec === 'SP') n += Number(r.n) || 0;
+  }
+  return n;
+}
+const custoProprio = (t) => Math.max(0, (t.custo || 0) - pagoPorAliado(reqDe(t)));
 function estadoDaTec(tela, t) {
   const s = S[tela];
   const faltas = [];
-  if (t.custo && s.est.sp < t.custo) faltas.push(`${t.custo} SP (tem ${s.est.sp})`);
+  const proprio = custoProprio(t);
+  if (proprio && s.est.sp < proprio) faltas.push(`${proprio} SP (tem ${s.est.sp})`);
   const b = t.bloqueio ? t.bloqueio(s) : null;
   if (b) faltas.push(b);
   const req = reqDe(t);
@@ -1040,7 +1233,7 @@ function continuar(tela) {
 }
 function gastosTexto(tela, t, rv) {
   const s = S[tela];
-  let sp = t.custo || 0;
+  let sp = custoProprio(t);
   const g = [];
   const ef = [];
   const req = reqDe(t);
@@ -1051,6 +1244,7 @@ function gastosTexto(tela, t, rv) {
       if (r.tipo === 'A1' && r.gasta) sp += Number(r.n);
       if (r.tipo === 'A4' && r.gasta) g.push(`${r.n} de ${r.cont}`);
       if (r.tipo === 'A7' && r.gasta) g.push('a reação');
+      if (r.tipo === 'G1') ef.push(`${rv && rv.pedido && rv.pedido.k === i.k && rv.pedido.status === 'aceito' ? rv.pedido.a : 'um aliado'} paga ${r.n} ${r.rec}`);
       if (r.tipo === 'I1') ef.push(`sobe a ${r.forma} para a Parte ${s.est.forma ? s.est.forma.parte + 1 : 1}`);
     }
   }
@@ -1069,24 +1263,40 @@ function concluir(tela, t, rv, porMestre) {
   let ajuda = null;
   let rol = null;
   let spReq = 0;
+  let reacaoGasta = false;
+  let pagoAliado = 0;
   const req = reqDe(t);
   if (req && !porMestre) {
     const rvx = rv || novoRv(tela, t);
     for (const i of necessarios(rvx, avDoRv(tela, t))) {
       const r = i.r;
       if (r.tipo === 'A1' && r.gasta) { est.sp -= Number(r.n); inverso.sp += Number(r.n); spReq += Number(r.n); }
-      if (r.tipo === 'A4' && r.gasta) { est.contadores[r.cont] -= Number(r.n); inverso.cont[r.cont] = Number(r.n); gastos.push(`${r.n} de ${r.cont} (ficou ${est.contadores[r.cont]}${r.cont === 'Polaridade' ? '/3' : ''})`); }
-      if (r.tipo === 'A7' && r.gasta) { est.reacao = false; gastos.push('a reação'); }
+      if (r.tipo === 'A4' && r.gasta) {
+        const ac = acumPorNome(est.ficha, r.cont);
+        est.contadores[r.cont] = Math.max(0, (est.contadores[r.cont] || 0) - Number(r.n));
+        inverso.cont[r.cont] = Number(r.n);
+        gastos.push(`${r.n} de ${r.cont} (ficou ${est.contadores[r.cont]}${ac ? '/' + ac.max : ''})`);
+      }
+      if (r.tipo === 'A7' && r.gasta) { est.reacao = false; reacaoGasta = true; gastos.push('a reação'); }
       if (r.tipo === 'I1') { const de = est.forma.parte; est.forma.parte = Math.min(de + 1, Number(r.n)); efeitos.push(`${r.forma} Parte ${de} → Parte ${est.forma.parte}`); S.entrar.add('parte'); }
       if (r.tipo === 'J1') decl = r.texto;
-      if ((r.tipo === 'G1' || r.tipo === 'G2') && rvx.pedido && rvx.pedido.k === i.k) ajuda = r.tipo === 'G1' ? `recebeu ${oQue(r)} de ${rvx.pedido.a}` : `com a ajuda de ${rvx.pedido.a}`;
+      if ((r.tipo === 'G1' || r.tipo === 'G2') && rvx.pedido && rvx.pedido.k === i.k) {
+        if (r.tipo === 'G1') { ajuda = `${rvx.pedido.a} pagou ${oQue(r)}`; if (r.rec === 'SP') pagoAliado += Number(r.n); }
+        else ajuda = `com a ajuda de ${rvx.pedido.a}`;
+      }
       if (r.tipo === 'H1' && rvx.rol[i.k]) rol = rvx.rol[i.k];
     }
   }
   let sp = spReq;
-  if (t.custo) { const pago = Math.min(t.custo, est.sp); est.sp -= pago; inverso.sp += pago; sp += pago; }
+  const custo = Math.max(0, (t.custo || 0) - pagoAliado);
+  if (custo) { const pago = Math.min(custo, est.sp); est.sp -= pago; inverso.sp += pago; sp += pago; }
   if (sp) gastos.unshift(`${sp} SP`);
   const extra = t.aoUsar ? t.aoUsar(s) : '';
+  /* os acumuladores ouvem o que aconteceu: reação gasta, técnica usada, SP gasto */
+  const mudou = [];
+  if (reacaoGasta) mudou.push(...aplicarEvento(s, 'reacao'));
+  if (t.modo !== 'evoluir') mudou.push(...aplicarEvento(s, 'tec', { tec: t.nome }));
+  if (sp) mudou.push(...aplicarEvento(s, 'sp', { sp }));
   let txt = t.modo === 'evoluir' ? `${est.nome} evoluiu ${t.base} para ${t.nome}` : `${est.nome} usou ${t.nome}`;
   const det = [];
   if (rol) det.push(`passou em ${rol.atr} (${rol.total} contra CD ${rol.cd})`);
@@ -1097,6 +1307,7 @@ function concluir(tela, t, rv, porMestre) {
   if (det.length) txt += /[!?]$/.test(txt) ? ' ' + cap(det.join('; ')) : ': ' + det.join('; ');
   txt = fim(txt);
   if (extra) txt += ' ' + extra;
+  if (mudou.length) txt += ' ' + mudou.join(', ') + '.';
   if (porMestre) txt += ' O mestre liberou sem os requisitos.';
   s.reg.unshift({ id: uid('l'), texto: txt, quem: porMestre ? 'liberado pelo mestre' : '', decl, inverso, desfeita: false });
   s.rv = null;
@@ -1116,7 +1327,7 @@ function pedir(tela) {
   s.rv.pedido = { k: p.k, a: nome, status: 'esperando' };
   s.rv.msg = null;
   s.aliadoTela = { quem: nome, papel: a.papel, status: 'esperando', o: oQue(p.r), para: t.nome, tipo: p.r.tipo, n: Number(p.r.n), rec: p.r.rec };
-  s.reg.unshift({ id: uid('l'), texto: `${s.est.nome} pediu ${oQue(p.r)} a ${nome}${a.papel === 'NPC' ? ' (NPC: o mestre responde)' : ''}.` });
+  s.reg.unshift({ id: uid('l'), texto: (p.r.tipo === 'G1' ? `${s.est.nome} pediu a ${nome} que pague ${oQue(p.r)} da ${t.nome}` : `${s.est.nome} pediu ${oQue(p.r)} a ${nome}`) + `${a.papel === 'NPC' ? ' (NPC: o mestre responde)' : ''}.` });
   S.entrar.add('pedido');
   render();
 }
@@ -1130,10 +1341,10 @@ function responder(tela, sim) {
   const quemResponde = a.papel === 'NPC' ? `O mestre, pelo ${a.nome},` : a.nome;
   if (sim) {
     if (it.r.tipo === 'G1') {
+      /* o aliado só paga: o SP sai dele e cobre a técnica, nada entra na conta de quem pediu */
       const chave = String(it.r.rec).toLowerCase();
       a[chave] -= Number(it.r.n);
-      if (chave === 'sp') s.est.sp += Number(it.r.n);
-      s.reg.unshift({ id: uid('l'), texto: `${quemResponde} aceitou: deu ${oQue(it.r)} ao ${s.est.nome}.` });
+      s.reg.unshift({ id: uid('l'), texto: `${quemResponde} aceitou: pagou ${oQue(it.r)} da ${t.nome} do ${s.est.nome}.` });
     } else {
       s.reg.unshift({ id: uid('l'), texto: `${quemResponde} aceitou ajudar ${s.est.nome} (${it.r.poder}).` });
     }
@@ -1197,10 +1408,9 @@ function cabecaHTML(tela) {
     if (s.melodia) pips.push(pip(s.caminho ? 'Melodia: Caminho do Dano' : 'Melodia ligada', false, 'bt-pip--carga'));
     if (s.metade) pips.push(pip('Status pela metade', false, 'bt-pip--alerta'));
   }
-  if (['vagn', 'pedido', 'cumpriu'].includes(tela)) {
-    pips.push(pip(`Polaridade ${est.contadores.Polaridade}/3`, false, 'bt-pip--carga'));
-    if (est.contadores['Campo de Contenção']) pips.push(pip(`Campo nível ${est.contadores['Campo de Contenção']}`, false, 'bt-pip--carga'));
-  }
+  /* todo acumulador da ficha vira um pip: "POLARIDADE 1/3", "FÚRIA 2/5" */
+  for (const a of acumsDa(est.ficha)) pips.push(pip(`${a.nome} ${nivel(est, a)}/${a.max}`, false, 'bt-pip--carga'));
+  if (est.contadores['Campo de Contenção']) pips.push(pip(`Campo nível ${est.contadores['Campo de Contenção']}`, false, 'bt-pip--carga'));
   if (tela === 'ryoko' && est.forma) {
     pips.push(pip(`Forma Híbrida · Parte ${est.forma.parte}`, false, 'bt-pip--forma'));
     if (est.forma.parte > 1) pips.push(pip(`Mantém ${est.forma.parte === 2 ? 10 : 20} SP por turno`, false, 'bt-pip--forma'));
@@ -1228,11 +1438,13 @@ function tiraHTML(tela, t, i) {
   else if (e.av && horaTexto(e.av)) det = esc('Na hora: ' + horaTexto(e.av) + '.');
   const cls = ['bt-tira', t.evo ? 'bt-tira--evo bt-tira--pequena' : '', t.super ? 'bt-tira--super' : '', t.forma ? 'bt-tira--forma' : ''].filter(Boolean).join(' ');
   const evoluiu = t.super && S.entrar.has('evoluiu');
+  /* técnica que soma num acumulador ganha a etiqueta "+1 Fúria" sozinha */
+  const chips = (t.chips || []).concat(ganhosDaTec(s.est, t.nome).map((g) => ['acum', g]));
   return `<button type="button" class="${cls}" style="${estilo}" data-acao="tira" data-tela="${tela}" data-sel="${t.chave}" data-k="tira-${tela}-${t.chave}" data-esta="${s.sel === t.chave ? 'sim' : 'nao'}"${e.pode ? '' : ' aria-disabled="true"'} aria-keyshortcuts="${i + 1}"${evoluiu ? ' data-evoluiu' : ''}>`
     + (evoluiu ? '<span class="bt-tira__brilho" aria-hidden="true"></span>' : '')
     + `<span class="bt-tira__tecla" aria-hidden="true">${i + 1}</span><span class="bt-tira__nome">${esc(t.nome)}</span><span class="bt-tira__lado">${esc(t.lado)}</span>`
     + (det ? `<span class="bt-tira__det">${det}</span>` : '')
-    + (t.chips && t.chips.length ? `<span class="bt-tira__chips">${t.chips.map(chip).join('')}</span>` : '')
+    + (chips.length ? `<span class="bt-tira__chips">${chips.map(chip).join('')}</span>` : '')
     + '</button>';
 }
 function menuHTML(tela, tecs) {
@@ -1260,9 +1472,17 @@ function checklistHTML(e, t) {
 function dadoHTML(rol) {
   return `<div class="dado" data-ok="${rol.ok ? 'sim' : 'nao'}"${S.entrar.has('dado') ? ' data-entra' : ''}><span class="dado__face" aria-hidden="true">${rol.d}</span><span class="dado__txt"><b>${rol.ok ? 'Passou' : 'Falhou'}</b><span>1d20 (${rol.d}) ${rol.m >= 0 ? '+' : '−'} ${Math.abs(rol.m)} de ${esc(rol.atr)} = ${rol.total} contra CD ${rol.cd}</span></span></div>`;
 }
-function contadorHTML(est) {
-  const v = est.contadores.Polaridade;
-  return `<div class="cont" role="img" aria-label="Polaridade ${v} de 3"><div class="cont__lin"><span class="cont__nome">Polaridade</span><span class="cont__n">${v}/3</span></div>${segsHTML(v, 3, S.entrar.has('pol'))}</div>`;
+function contadorHTML(est, a, escuro) {
+  const v = nivel(est, a);
+  return `<div class="cont${escuro ? ' cont--escuro' : ''}" role="img" aria-label="${esc(a.nome)} ${v} de ${a.max}"><div class="cont__lin"><span class="cont__nome">${esc(a.nome)}</span><span class="cont__n">${v}/${a.max}</span></div>${segsHTML(v, a.max, S.entrar.has('acum-' + a.id))}</div>`;
+}
+/* os acumuladores que a técnica toca: os que ela pede (A4), os que ela carrega e os que ela soma */
+function acumsDaTec(est, t) {
+  const nomes = new Set(t.acums || []);
+  const req = reqDe(t);
+  if (req) for (const g of req.grupos) for (const r of g.itens) if (r.tipo === 'A4') nomes.add(r.cont);
+  for (const a of acumsDa(est.ficha)) if (a.sobe.some((r) => r.g === 'tec' && r.tec === t.nome)) nomes.add(a.nome);
+  return [...nomes].map((n) => acumPorNome(est.ficha, n)).filter(Boolean);
 }
 function leituraHTML(tela) {
   const s = S[tela];
@@ -1273,7 +1493,7 @@ function leituraHTML(tela) {
   let h = `<section class="bt-detalhe" aria-label="Leitura: ${esc(t.nome)}"><h3 class="bt-detalhe__nome"><span>${esc(t.nome)}</span><span class="bt-detalhe__custo">${esc(t.lado)}</span></h3>`;
   if (s.ultimo && s.ultimo.chave === t.chave) h += (s.ultimo.rol ? dadoHTML(s.ultimo.rol) : '') + `<p class="rv__msg"${s.ultimo.falhou ? '' : ' data-tom="ok"'} style="margin:8px 0 10px">${esc(s.ultimo.texto)}</p>`;
   h += `<dl><div><dt>Ação</dt><dd>${esc(t.acao)}</dd></div><div><dt>${t.modo === 'evoluir' ? 'O que faz' : 'Dano e efeito'}</dt><dd>${esc(t.dano)}</dd></div>${t.efeito ? `<div><dt>Efeito</dt><dd>${esc(t.efeito)}</dd></div>` : ''}</dl>`;
-  if (t.contador) h += '<div class="bt-detalhe__sep"></div>' + contadorHTML(s.est);
+  for (const a of acumsDaTec(s.est, t)) h += '<div class="bt-detalhe__sep"></div>' + contadorHTML(s.est, a);
   if (e.req && e.av) h += '<div class="bt-detalhe__sep"></div>' + checklistHTML(e, t);
   h += '<div class="acoes">';
   const rot = t.modo === 'evoluir' ? 'Evoluir' : t.chave === 'campo' && s.est.contadores['Campo de Contenção'] ? 'Desligar' : 'Usar';
@@ -1361,6 +1581,26 @@ function registroHTML(tela, titulo, mestre) {
 const mesa = (corpo) => `<section class="mesa" aria-label="Mesa do protótipo"><h3 class="mesa__tit">Mesa do protótipo<small>Não existe no app. Mexa aqui para ver o menu mudar.</small></h3>${corpo}</section>`;
 const passo = (tela, campo, rot, valor, d) => `<div class="mesa__grupo"><span class="mesa__rot">${esc(rot)}</span><div class="passo"><button type="button" class="bt bt--p" data-acao="passo" data-tela="${tela}" data-campo="${campo}" data-d="${-d}" aria-label="${esc(rot)}: menos ${d}" data-k="ps-${tela}-${campo}-m">−${d}</button><output aria-live="polite">${esc(valor)}</output><button type="button" class="bt bt--p" data-acao="passo" data-tela="${tela}" data-campo="${campo}" data-d="${d}" aria-label="${esc(rot)}: mais ${d}" data-k="ps-${tela}-${campo}-p">+${d}</button></div></div>`;
 const chave = (muda, rot, dica, ligado, desligado) => `<label class="sw"><input type="checkbox" role="switch" data-muda="${muda}" data-k="sw-${muda}"${ligado ? ' checked' : ''}${desligado ? ' disabled' : ''}><span class="sw__trilho" aria-hidden="true"></span><span>${esc(rot)}<small>${esc(dica)}</small></span></label>`;
+/* a mesa mostra só os acontecimentos que algum acumulador da ficha escuta */
+function eventosDaFicha(ficha) {
+  const evs = new Set();
+  for (const a of acumsDa(ficha)) {
+    for (const r of a.sobe) if (EV_MESA.includes(r.g)) evs.add(r.g);
+    if (a.desce.golpe.on) evs.add('golpe');
+  }
+  return EV_MESA.filter((e) => evs.has(e));
+}
+function eventosHTML(tela) {
+  const s = S[tela];
+  const evs = eventosDaFicha(s.est.ficha);
+  const bts = evs.map((e) => `<button type="button" class="bt bt--p" data-acao="evento" data-tela="${tela}" data-ev="${e}" data-k="ev-${tela}-${e}">${esc(cap(SOBE[e].ev))}</button>`).join('');
+  return `<div class="mesa__grupo"><span class="mesa__rot">Acontece na batalha</span><div class="mesa__linha">${bts}`
+    + `<button type="button" class="bt bt--p" data-acao="nova-vez" data-tela="${tela}" data-k="nv-${tela}">Nova rodada${s.est.reacao ? '' : ': a reação volta'}</button>`
+    + `<button type="button" class="bt bt--p" data-acao="evento" data-tela="${tela}" data-ev="fim" data-k="ev-${tela}-fim">Fim da batalha</button></div></div>`;
+}
+/* ficha que ganhou acumulador na tela 8 ganha os botões dele na mesa */
+const mesaAcums = (tela) => (acumsDa(S[tela].est.ficha).length ? eventosHTML(tela) + acumPassos(tela) : '');
+const acumPassos = (tela) => acumsDa(S[tela].est.ficha).map((a) => passo(tela, 'acum:' + a.id, a.nome, `${nivel(S[tela].est, a)}/${a.max}`, 1)).join('');
 function momentoDoSieg(s) {
   if (s.fase === 'super') return 3;
   if (s.fase === 'usada') return 4;
@@ -1377,12 +1617,12 @@ const MESAS = {
       + chave('sieg-melodia', 'Melodia de Todas as Coisas ligada', 'a passiva da rodada 3', s.melodia, false)
       + chave('sieg-caminho', 'Opção Caminho do Dano', s.melodia ? '+20 de dano, opção da Melodia' : 'ligue a Melodia primeiro', s.caminho, !s.melodia)
       + chave('sieg-vagn', 'Vagn na batalha', 'aliado com poder de fogo', s.vagnPerto, false)
+      + mesaAcums('sieg')
       + passo('sieg', 'sp', 'SP do Siegfried', `${s.est.sp}`, 10));
   },
   vagn(s) {
     const c = s.est.contadores;
-    return mesa(`<div class="mesa__linha"><button type="button" class="bt bt--p" data-acao="nova-vez" data-tela="vagn" data-k="nv-vagn"${s.est.reacao ? ' disabled' : ''}>Nova vez: a reação volta</button></div>`
-      + passo('vagn', 'pol', 'Polaridade', `${c.Polaridade}/3`, 1)
+    return mesa(eventosHTML('vagn') + acumPassos('vagn')
       + passo('vagn', 'campo', 'Campo de Contenção (0 = desligado)', String(c['Campo de Contenção']), 1)
       + passo('vagn', 'sp', 'SP do Vagn', String(s.est.sp), 10));
   },
@@ -1390,7 +1630,7 @@ const MESAS = {
     const p = s.est.forma ? s.est.forma.parte : 0;
     const mom = [[0, 'Fora da forma'], [1, 'Parte 1'], [2, 'Parte 2'], [3, 'Parte 3']]
       .map(([n, txt]) => `<button type="button" class="bt bt--p" data-acao="momento" data-tela="ryoko" data-n="${n}" aria-pressed="${p === n}" data-k="mom-r${n}">${esc(txt)}</button>`).join('');
-    return mesa(`<div class="mesa__grupo"><span class="mesa__rot">Pôr a Ryoko em</span><div class="momentos">${mom}</div></div>` + passo('ryoko', 'sp', 'SP da Ryoko', String(s.est.sp), 10));
+    return mesa(`<div class="mesa__grupo"><span class="mesa__rot">Pôr a Ryoko em</span><div class="momentos">${mom}</div></div>` + eventosHTML('ryoko') + acumPassos('ryoko') + passo('ryoko', 'sp', 'SP da Ryoko', String(s.est.sp), 10));
   },
   cumpriu(s) {
     return mesa(`<p class="dica">A caixa é marcada por quem usa. A linha vai ao registro com “(declarou: …)”, e o mestre pode Desfazer: o SP volta.</p>` + passo('cumpriu', 'sp', 'SP do Vagn', String(s.est.sp), 10));
@@ -1398,7 +1638,7 @@ const MESAS = {
   teste(s) {
     const prox = s.d20.slice(s.d20i % s.d20.length).concat(s.d20.slice(0, s.d20i % s.d20.length));
     return mesa(`<div class="mesa__grupo"><span class="mesa__rot">Os próximos d20 (fixos, para dar igual sempre)</span><span class="num">${prox.join(' · ')}</span></div>`
-      + `<div class="mesa__linha"><button type="button" class="bt bt--p" data-acao="nova-vez" data-tela="teste" data-k="nv-teste">Nova vez</button><span class="dica">apaga a falha da vez</span></div>`
+      + (acumsDa('vincent').length ? mesaAcums('teste') : `<div class="mesa__linha"><button type="button" class="bt bt--p" data-acao="nova-vez" data-tela="teste" data-k="nv-teste">Nova vez</button><span class="dica">apaga a falha da vez</span></div>`)
       + passo('teste', 'sp', 'SP do Vincent', String(s.est.sp), 10));
   },
 };
@@ -1415,12 +1655,16 @@ function telaDoAliadoHTML(s) {
   const cab = `<div class="bt-vez"><div class="bt-vez__cabeca"><h2 class="bt-vez__quem">${npc ? 'Mestre' : esc(a.quem)}</h2><div class="bt-vez__economia">${npc ? pip(`${a.quem} · SP ${al.sp}`) : pip(`SP ${al.sp}`)}${pip('Fora da vez')}</div></div></div>`;
   let corpo = '';
   if (a.status === 'esperando') {
-    const fica = a.tipo === 'G1' ? ` ${npc ? `O ${esc(a.quem)} fica` : 'Você fica'} com <b>${al[String(a.rec).toLowerCase()] - a.n} de ${al[String(a.rec).toLowerCase()]}</b> ${esc(a.rec)}.` : '';
+    const tem = a.tipo === 'G1' ? al[String(a.rec).toLowerCase()] : 0;
+    const txt = a.tipo === 'G1'
+      ? `${npc ? `O ${esc(a.quem)} paga` : 'Você paga'} a <b>${esc(a.para)}</b> do ${esc(s.est.nome)}: ${npc ? 'fica' : 'você fica'} com <b>${tem - a.n} de ${tem}</b> ${esc(a.rec)}. O SP não vai para o ${esc(s.est.nome)}, só paga a técnica.`
+      : `Para usar <b>${esc(a.para)}</b>.`;
     corpo = `<section class="pedido" aria-labelledby="ped-tit"${S.entrar.has('pedido') ? ' data-entra' : ''}><h3 class="pedido__tit" id="ped-tit">${esc(s.est.nome)} pede ${esc(a.o)}${npc ? ` ao ${esc(a.quem)}` : ''}</h3>`
-      + `<p class="pedido__txt">Para usar <b>${esc(a.para)}</b>.${fica}${npc ? ' O aliado é NPC: você, mestre, responde por ele.' : ''}</p>`
+      + `<p class="pedido__txt">${txt}${npc ? ' O aliado é NPC: você, mestre, responde por ele.' : ''}</p>`
       + `<div class="acoes" style="margin-top:2px"><button type="button" class="bt-carimbo bt-carimbo--claro" data-acao="responder" data-tela="pedido" data-sim="1" data-k="ped-s">Aceitar</button><button type="button" class="bt-carimbo bt-carimbo--claro bt-carimbo--vazado" data-acao="responder" data-tela="pedido" data-sim="0" data-k="ped-n">Recusar</button></div></section>`;
   } else {
-    const txt = { aceito: npc ? `O ${a.quem} deu ${a.o} ao ${s.est.nome}.` : `Você deu ${a.o} ao ${s.est.nome}.`, recusado: `${npc ? 'O mestre recusou' : 'Você recusou'}. O ${s.est.nome} foi avisado.`, cancelado: `O ${s.est.nome} cancelou o pedido.` }[a.status];
+    const pagou = a.tipo === 'G1' ? `pagou ${a.o} da ${a.para} do ${s.est.nome}` : `ajudou o ${s.est.nome} (${a.para})`;
+    const txt = { aceito: npc ? `O ${a.quem} ${pagou}.` : `Você ${pagou}.`, recusado: `${npc ? 'O mestre recusou' : 'Você recusou'}. O ${s.est.nome} foi avisado.`, cancelado: `O ${s.est.nome} cancelou o pedido.` }[a.status];
     corpo = `<section class="pedido"><p class="pedido__fim">${esc(txt)}</p></section>`;
   }
   return cab + corpo;
@@ -1575,6 +1819,188 @@ function abrirPicker(gid) {
 /* ==========================================================================
  * RENDER, avisos e eventos
  * ========================================================================== */
+/* ==========================================================================
+ * 8. O ACUMULADOR (na ficha: Acumuladores). Um editor só, para qualquer medidor.
+ * ========================================================================== */
+const acAtual = () => S.acums.find((a) => a.id === S.ac.sel) || S.acums[0] || null;
+const MAX_NIVEL = 10;
+function recomecarAcums() {
+  for (const fab of ACUM_DE_FABRICA) { const a = S.acums.find((x) => x.id === fab.id); if (a) renomearRefs(a.ficha, a.nome, fab.nome); }
+  S.acums = clone(ACUM_DE_FABRICA);
+  S.ac = INICIAL.acum();
+}
+function regraSobeTexto(r) {
+  if (r.g === 'tec') return `+${r.n} ao usar ${r.tec}`;
+  if (r.g === 'sp') return `+${r.n} a cada ${r.sp} SP gastos`;
+  return `+${r.n} ao ${SOBE[r.g].rot.toLowerCase()}`;
+}
+function fraseAcum(a) {
+  const frases = [`${a.nome} vai de 0 a ${a.max}${a.comeca ? ` e começa a batalha em ${a.comeca}` : ''}.`];
+  frases.push(a.sobe.length ? `Sobe ${juntar(a.sobe.map(regraSobeTexto), 'e')}.` : 'Nada faz subir sozinho: só o mestre mexe.');
+  const desce = ['as técnicas com «e gasta» tiram o que gastam'];
+  if (a.desce.fim) desce.push('zera no fim da batalha');
+  if (a.desce.rodada.on) desce.push(`cai ${a.desce.rodada.n} por rodada sem subir`);
+  if (a.desce.golpe.on) desce.push(`cai ${a.desce.golpe.n} ao levar um golpe`);
+  frases.push(cap(juntar(desce, 'e')) + '.');
+  frases.push(a.da.tipo === 'nada' ? 'Não dá nada sozinho: serve para liberar técnicas.' : `Cada nível dá ${daTexto(a, 1)} (no nível ${a.max}: ${daTexto(a, a.max)}).`);
+  return frases.join(' ');
+}
+function usosDoAcum(a) {
+  const out = [];
+  for (const r of a.sobe) {
+    if (r.g === 'reacao') out.push({ tec: `Carregar ${a.nome}`, o: `soma +${r.n} e gasta a reação`, nota: 'ação nova no menu, criada por este acumulador' });
+    if (r.g === 'tec') out.push({ tec: r.tec, o: `soma +${r.n} ao usar`, nota: `a tira ganha a etiqueta “+${r.n} ${a.nome}”` });
+  }
+  for (const ex of S.ed.exemplos) {
+    if (ex.ficha !== a.ficha) continue;
+    for (const g of ex.req.grupos) for (const r of g.itens) {
+      if (r.tipo !== 'A4' || r.cont !== a.nome) continue;
+      out.push({ tec: ex.tec, o: r.nao ? `precisa ter menos de ${r.n}` : `precisa de ${r.n}${r.gasta ? ` e gasta ${r.n}` : ''}`, nota: 'nos Requisitos da técnica (tipo A4)', ex: ex.id });
+    }
+  }
+  return out;
+}
+function testeDe(a) {
+  const t = S.ac.teste[a.id] || (S.ac.teste[a.id] = { v: a.comeca, subiu: {}, spAcum: {}, reg: [] });
+  t.v = clampN(t.v, 0, a.max);
+  return t;
+}
+function eventoTeste(a, ev, extra) {
+  const t = testeDe(a);
+  const s = { est: { ficha: a.ficha, contadores: { [a.nome]: t.v } }, subiu: t.subiu, spAcum: t.spAcum };
+  const mudou = aplicarEvento(s, ev, extra, a.id);
+  t.v = s.est.contadores[a.nome];
+  return mudou;
+}
+const numAc = (acc, v, rot, sid, min, max) => `<input type="number" class="f-num" inputmode="numeric" min="${min}" max="${max}" value="${esc(v)}" aria-label="${esc(rot)}" data-acc="${acc}"${sid ? ` data-sid="${sid}"` : ''} data-k="ac-${acc}-${sid || ''}">`;
+function linhaSobeHTML(a, r) {
+  const ops = Object.entries(SOBE).map(([k, d]) => `<option value="${k}"${k === r.g ? ' selected' : ''}>${esc(d.rot)}</option>`).join('');
+  let h = `<select class="f-sel" data-acc="sobe:g" data-sid="${r.id}" data-k="ac-g-${r.id}" aria-label="Quando sobe">${ops}</select>`;
+  if (r.g === 'tec') {
+    const tecs = lista(a.ficha, 'TEC');
+    const o = tecs.includes(r.tec) ? tecs : [r.tec].concat(tecs);
+    h += `<select class="f-sel" data-acc="sobe:tec" data-sid="${r.id}" data-k="ac-tec-${r.id}" aria-label="Qual técnica">${o.map((x) => `<option${x === r.tec ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+  }
+  if (r.g === 'sp') h += `<span class="ac-par"><span>a cada</span>${numAc('sobe:sp', r.sp, 'A cada quantos SP', r.id, 1, 400)}<span>SP</span></span>`;
+  h += `<span class="ac-par"><span>soma</span>${numAc('sobe:n', r.n, 'Quanto soma', r.id, 1, MAX_NIVEL)}</span>`;
+  if (r.g === 'reacao') h += `<span class="dica">vira a ação «Carregar ${esc(a.nome)}» no menu</span>`;
+  return `<li class="ac-lin ac-lin--x"${S.entrar.has('acl-' + r.id) ? ' data-entra' : ''}><span class="ac-lin__campos">${h}</span><button type="button" class="bt bt--ic bt--p" data-acao="ac-tirar-sobe" data-sid="${r.id}" data-k="ac-x-${r.id}" aria-label="Tirar: ${esc(regraSobeTexto(r))}">${ic('x')}</button></li>`;
+}
+const togAc = (acc, liga, txt) => `<label class="tg"><input type="checkbox" data-acc="${acc}" data-k="ac-${acc}"${liga ? ' checked' : ''}><span>${esc(txt)}</span></label>`;
+function telaAcumLado(atual) {
+  const itens = S.acums.map((a) => `<li><button type="button" class="ex" data-acao="ac-sel" data-id="${a.id}" data-k="acs-${a.id}" aria-current="${atual && a.id === atual.id}"><b>${esc(a.nome)}</b><small>${esc(a.quem)} · até ${a.max} · ${esc(a.da.tipo === 'nada' ? 'só libera técnicas' : daTexto(a))}</small></button></li>`).join('');
+  const fichas = Object.entries(QUEM_DA_FICHA).map(([f, q]) => `<option value="${f}"${f === (S.ac.novaFicha || (atual ? atual.ficha : 'vagn')) ? ' selected' : ''}>${esc(q)}</option>`).join('');
+  return `<nav class="janela__lado" aria-label="Acumuladores das fichas"><p class="lado__tit">Acumuladores das fichas<small>Qualquer ficha cria o seu: Polaridade, Fúria, Cargas, Almas…</small></p><ul>${itens || '<li class="rq-vazio">Nenhum acumulador ainda.</li>'}</ul>`
+    + `<div class="ac-novo"><label class="rot" for="ac-nova-ficha">Novo na ficha de</label><select id="ac-nova-ficha" class="f-sel" data-muda="ac-nova-ficha" data-k="ac-nova-ficha">${fichas}</select><button type="button" class="bt bt--fantasma" data-acao="ac-criar" data-k="ac-criar">${ic('mais')}Acumulador</button></div></nav>`;
+}
+function testeHTML(a) {
+  const t = testeDe(a);
+  const evs = [];
+  for (const r of a.sobe) {
+    if (r.g === 'tec') evs.push({ ev: 'tec', rot: `Usou ${r.tec}`, extra: ` data-tec="${esc(r.tec)}"` });
+    else if (r.g === 'sp') evs.push({ ev: 'sp', rot: `Gastou ${r.sp} SP`, extra: ` data-sp="${r.sp}"` });
+    else if (!evs.some((e) => e.ev === r.g)) evs.push({ ev: r.g, rot: cap(SOBE[r.g].ev) });
+  }
+  if (a.desce.golpe.on && !evs.some((e) => e.ev === 'golpe')) evs.push({ ev: 'golpe', rot: 'Levou um golpe' });
+  evs.push({ ev: 'gastar', rot: 'Uma técnica gasta 1' }, { ev: 'rodada', rot: 'Nova rodada' }, { ev: 'fim', rot: 'Fim da batalha' });
+  const bts = evs.map((e, i) => `<button type="button" class="bt bt--p" data-acao="ac-ev" data-ev="${e.ev}" data-rot="${esc(e.rot)}"${e.extra || ''} data-k="ac-ev-${i}">${esc(e.rot)}</button>`).join('');
+  const reg = t.reg.slice(0, 6).map((l) => `<li class="bt-registro__linha"><span class="bt-registro__texto">${esc(l.texto)}</span></li>`).join('');
+  return `<aside class="ac-teste" aria-label="Testar ${esc(a.nome)}"><p class="ac-teste__tit">Testar · só no protótipo</p>`
+    + `<div class="bt-vez__economia">${pip(`${a.nome} ${t.v}/${a.max}`, false, 'bt-pip--carga')}</div>`
+    + `<div class="cont cont--escuro" role="img" aria-label="${esc(a.nome)} ${t.v} de ${a.max}"><div class="cont__lin"><span class="cont__nome">${esc(a.nome)}</span><span class="cont__n">${t.v}/${a.max}</span></div>${segsHTML(t.v, a.max, S.entrar.has('acum-' + a.id))}</div>`
+    + `<p class="ac-teste__da">${a.da.tipo === 'nada' ? 'Não dá nada sozinho.' : t.v ? `Agora dá <b>${esc(daTexto(a, t.v))}</b>.` : 'No nível 0 não dá nada.'}</p>`
+    + `<div class="ac-teste__evs" role="group" aria-label="Acontece na batalha">${bts}</div>`
+    + (reg ? `<ol class="bt-registro" aria-label="O que aconteceu no teste">${reg}</ol>` : '<p class="bt-registro__vazio">Clique num acontecimento para ver o medidor mudar.</p>')
+    + '</aside>';
+}
+function telaAcum() {
+  const a = acAtual();
+  const cab = (tit, onde) => `<header class="janela__topo"><h1 class="janela__tit">${esc(tit)}</h1><span class="janela__onde">${esc(onde)}</span></header>`;
+  if (!a) {
+    return `<div class="ed"><div class="janela">${cab('Acumuladores', 'Nenhum acumulador')}<div class="janela__corpo">${telaAcumLado(null)}<div class="janela__principal"><p class="rq-vazio">Nenhuma ficha tem acumulador. Crie um ao lado: escolha a ficha e clique em “Acumulador”.</p></div></div></div></div>`;
+  }
+  const usos = usosDoAcum(a);
+  const nomeCampo = a.rascunho !== undefined ? a.rascunho : a.nome;
+  let h = `<div class="cartao-lido"><span class="cartao-lido__nome">${esc(a.nome)}</span><span class="cartao-lido__linha">No menu da batalha aparece assim: <span class="bt-vez__economia ac-amostra">${pip(`${a.nome} ${testeDe(a).v}/${a.max}`, false, 'bt-pip--carga')}</span></span>${a.nota ? `<span class="cartao-lido__nota">${esc(a.nota)}</span>` : ''}</div>`;
+  h += `<section class="ac-sec" aria-labelledby="ac-s1"><h2 class="mec__tit" id="ac-s1">O medidor</h2><div class="ac-campos">`
+    + `<label><span class="rot">Nome</span><input type="text" class="f-txt" style="--w:18ch" maxlength="24" value="${esc(nomeCampo)}" data-acc="nome" data-k="ac-nome" aria-invalid="${S.ac.erro ? 'true' : 'false'}"${S.ac.erro ? ' aria-describedby="ac-erro"' : ''}></label>`
+    + `<label><span class="rot">Vai até o nível</span>${numAc('max', a.max, 'Nível máximo', '', 1, MAX_NIVEL)}</label>`
+    + `<label><span class="rot">Começa a batalha em</span>${numAc('comeca', a.comeca, 'Começa a batalha em', '', 0, a.max)}</label></div>`
+    + (S.ac.erro ? `<p class="ac-erro" id="ac-erro" role="alert">${esc(S.ac.erro)}</p>` : '') + '</section>';
+  h += `<section class="ac-sec" aria-labelledby="ac-s2"><h2 class="mec__tit" id="ac-s2">Como sobe</h2><div class="rq-grupo">`
+    + (a.sobe.length ? `<ul class="rq-lins">${a.sobe.map((r) => linhaSobeHTML(a, r)).join('')}</ul>` : '<p class="rq-vazio">Nada faz subir ainda. Escolha abaixo quando ele sobe.</p>')
+    + `<div class="ac-pe"><select class="f-sel" data-muda="ac-add-sobe" data-k="ac-add-sobe" aria-label="Pôr um jeito de subir"><option value="" selected disabled>+ Pôr um jeito de subir…</option>${Object.entries(SOBE).map(([k, d]) => `<option value="${k}">${esc(d.rot)}</option>`).join('')}</select><span class="dica">pode ter vários; cada um soma o seu</span></div></div></section>`;
+  h += `<section class="ac-sec" aria-labelledby="ac-s3"><h2 class="mec__tit" id="ac-s3">Como desce</h2><div class="rq-grupo"><ul class="rq-lins">`
+    + `<li class="ac-lin"><span>As técnicas com <b>«e gasta»</b> tiram o que gastam</span><span class="dica">sempre; vem dos Requisitos (A4)</span></li>`
+    + `<li class="ac-lin">${togAc('desce:fim', a.desce.fim, 'Zera no fim da batalha')}</li>`
+    + `<li class="ac-lin">${togAc('desce:rodada', a.desce.rodada.on, 'Cai por rodada sem subir')}${a.desce.rodada.on ? `<span>cai</span>${numAc('desce:rodada:n', a.desce.rodada.n, 'Quanto cai por rodada', '', 1, MAX_NIVEL)}` : ''}</li>`
+    + `<li class="ac-lin">${togAc('desce:golpe', a.desce.golpe.on, 'Cai ao levar um golpe')}${a.desce.golpe.on ? `<span>cai</span>${numAc('desce:golpe:n', a.desce.golpe.n, 'Quanto cai por golpe', '', 1, MAX_NIVEL)}` : ''}</li>`
+    + '</ul></div></section>';
+  const niveis = a.da.tipo === 'nada' ? '' : Array.from({ length: a.max }, (_, i) => `<span class="bt-etq bt-etq--acum">Nível ${i + 1}: ${esc(daTexto(a, i + 1))}</span>`).join('');
+  h += `<section class="ac-sec" aria-labelledby="ac-s4"><h2 class="mec__tit" id="ac-s4">O que cada nível dá</h2><div class="ac-campos"><div class="seg" role="radiogroup" aria-labelledby="ac-s4">`
+    + [['dano', 'Dano'], ['atributo', 'Atributo'], ['nada', 'Nada (só libera)']].map(([v, t]) => `<label><input type="radio" name="ac-da" value="${v}" data-acc="da:tipo" data-k="ac-da-${v}"${a.da.tipo === v ? ' checked' : ''}><span>${t}</span></label>`).join('')
+    + '</div>';
+  if (a.da.tipo === 'dano') h += `<span>+</span>${numAc('da:n', a.da.n, 'Dano por nível', '', 1, 999)}<span>de dano em todo golpe, por nível</span>`;
+  if (a.da.tipo === 'atributo') h += `<span>+</span>${numAc('da:n', a.da.n, 'Quanto por nível', '', 1, 999)}<span>de</span><select class="f-sel" data-acc="da:atr" data-k="ac-da-atr" aria-label="Qual atributo">${COMUNS.ATR.map((x) => `<option${x === a.da.atr ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select><span>por nível</span>`;
+  h += `</div>${niveis ? `<div class="ac-niveis">${niveis}</div>` : '<p class="dica">Sem bônus: as técnicas só exigem ou gastam o nível.</p>'}</section>`;
+  const exDaFicha = S.ed.exemplos.find((e) => e.ficha === a.ficha);
+  h += `<section class="ac-sec" aria-labelledby="ac-s5"><h2 class="mec__tit" id="ac-s5">Técnicas que usam ${esc(a.nome)}</h2>`
+    + (usos.length ? `<ul class="ac-usos">${usos.map((u) => `<li class="ac-uso"><b>${esc(u.tec)}</b><span>${esc(u.o)}</span><small>${esc(u.nota)}</small>${u.ex ? `<button type="button" class="bt bt--p" data-acao="ac-abrir-req" data-ex="${u.ex}">Abrir os Requisitos</button>` : ''}</li>`).join('')}</ul>` : `<p class="dica">Nenhuma técnica usa ${esc(a.nome)} ainda.</p>`)
+    + `<p class="dica">Para uma técnica <b>somar</b>, ponha o jeito de subir “Usar uma técnica”. Para <b>exigir</b> ou <b>gastar</b>, use o tipo A4 nos Requisitos dela${exDaFicha ? '' : ' (esta ficha não tem exemplo no protótipo)'}.</p>`
+    + (exDaFicha && !usos.some((u) => u.ex) ? `<button type="button" class="bt bt--p" data-acao="ac-abrir-req" data-ex="${exDaFicha.id}">Abrir os Requisitos de ${esc(exDaFicha.tec)}</button>` : '')
+    + '</section>';
+  h += `<section class="resumo" aria-live="polite"><p class="mec__tit">Em palavras</p><p class="resumo__frase">${esc(fraseAcum(a))}</p></section>`;
+  h += `<div class="acoes"><button type="button" class="bt bt--p" data-acao="ac-tirar" data-k="ac-tirar">${ic('x')}Apagar ${esc(a.nome)}</button></div>`;
+  return `<div class="ed"><div class="janela">${cab(`Ficha de ${a.quem}`, `Acumuladores › ${a.nome}`)}<div class="janela__corpo">${telaAcumLado(a)}`
+    + `<div class="janela__principal"><div class="ac"><div class="ac__cfg">${h}</div>${testeHTML(a)}</div></div></div></div></div>`;
+}
+function gravarAc(el, final) {
+  const a = acAtual();
+  if (!a) return false;
+  const k = el.dataset.acc;
+  const num = (min, max) => {
+    if (el.value === '') return final ? null : undefined;
+    return clampN(Math.round(Number(el.value)), min, max);
+  };
+  if (k === 'nome') {
+    const novo = el.value.trim();
+    a.rascunho = el.value;
+    const outros = contadoresDaFicha(a.ficha).filter((n) => n !== a.nome);
+    if (!novo) { S.ac.erro = 'Dê um nome ao acumulador.'; return true; }
+    if (outros.some((n) => semAcento(n) === semAcento(novo))) { S.ac.erro = `Já existe “${novo}” na ficha de ${a.quem}.`; return true; }
+    renomearRefs(a.ficha, a.nome, novo);
+    a.nome = novo;
+    S.ac.erro = null;
+    if (final) delete a.rascunho;
+    return true;
+  }
+  if (k.startsWith('sobe:')) {
+    const r = a.sobe.find((x) => x.id === el.dataset.sid);
+    if (!r) return false;
+    const c = k.slice(5);
+    if (c === 'g') { r.g = el.value; if (r.g === 'tec' && !r.tec) r.tec = lista(a.ficha, 'TEC')[0]; if (r.g === 'sp' && !r.sp) r.sp = 20; return true; }
+    if (c === 'tec') { r.tec = el.value; return true; }
+    const v = num(1, c === 'sp' ? 400 : MAX_NIVEL);
+    if (v === undefined) return false;
+    if (v !== null) r[c] = v;
+    return true;
+  }
+  if (k === 'desce:fim') { a.desce.fim = el.checked; return true; }
+  if (k === 'desce:rodada' || k === 'desce:golpe') { a.desce[k.slice(6)].on = el.checked; return true; }
+  if (k === 'da:tipo') { a.da.tipo = el.value; return true; }
+  if (k === 'da:atr') { a.da.atr = el.value; return true; }
+  const lim = { max: [1, MAX_NIVEL], comeca: [0, a.max], 'desce:rodada:n': [1, MAX_NIVEL], 'desce:golpe:n': [1, MAX_NIVEL], 'da:n': [1, 999] }[k];
+  if (!lim) return false;
+  const v = num(lim[0], lim[1]);
+  if (v === undefined) return false;
+  if (v === null) return true;
+  if (k === 'max') { a.max = v; a.comeca = Math.min(a.comeca, v); }
+  else if (k === 'comeca') a.comeca = v;
+  else if (k === 'da:n') a.da.n = v;
+  else a.desce[k.split(':')[1]].n = v;
+  return true;
+}
+
 const TELAS = {
   editor: telaEditor,
   sieg: () => telaBatalha('sieg'),
@@ -1583,11 +2009,23 @@ const TELAS = {
   pedido: telaPedido,
   cumpriu: () => telaBatalha('cumpriu', { reg: 'Registro, na tela do mestre', mestre: true }),
   teste: () => telaBatalha('teste'),
+  acum: telaAcum,
 };
+/* trocar o innerHTML tira o campo em foco; o navegador dispara "change" nele no meio da troca.
+   Esse change não pode renderizar por dentro: marca e renderiza uma vez quando a troca acabar. */
+let renderizando = false;
+let renderPendente = false;
 function render() {
+  if (renderizando) { renderPendente = true; return; }
+  renderizando = true;
+  try { renderAgora(); } finally { renderizando = false; }
+  if (renderPendente) { renderPendente = false; render(); }
+}
+function renderAgora() {
   const ativo = document.activeElement;
   const k = ativo && ativo.dataset ? ativo.dataset.k : null;
   const sel = ativo && ativo.tagName === 'INPUT' && ativo.type === 'text' ? [ativo.selectionStart, ativo.selectionEnd] : null;
+  sincronizarContadores();
   $('#tela').innerHTML = TELAS[S.tela]();
   S.entrar.clear();
   $$('.proto__tela').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tela === S.tela)));
@@ -1625,7 +2063,65 @@ function avisar(texto, desfazer) {
 const ACOES = {
   /* o Desfazer de um aviso vale para a tela em que ele nasceu: trocar de tela limpa os avisos */
   tela: (el) => { S.tela = el.dataset.tela; $('#avisos').replaceChildren(); render(); },
-  recomecar: () => { S[S.tela === 'editor' ? 'ed' : S.tela] = INICIAL[S.tela](); if (S.tela === 'sieg') sincronizarSieg(S.sieg); render(); avisar('Tela recomeçada.'); },
+  recomecar: () => {
+    if (S.tela === 'acum') recomecarAcums();
+    else S[S.tela === 'editor' ? 'ed' : S.tela] = INICIAL[S.tela]();
+    if (S.tela === 'sieg') sincronizarSieg(S.sieg);
+    render();
+    avisar('Tela recomeçada.');
+  },
+  /* 8. acumulador */
+  'ac-sel': (el) => { S.ac.sel = el.dataset.id; S.ac.erro = null; render(); },
+  'ac-criar': () => {
+    const ficha = S.ac.novaFicha || (acAtual() ? acAtual().ficha : 'vagn');
+    const usados = contadoresDaFicha(ficha);
+    let nome = 'Cargas';
+    for (let i = 2; usados.includes(nome); i += 1) nome = `Cargas ${i}`;
+    const a = { id: uid('ac'), ficha, quem: QUEM_DA_FICHA[ficha], nome, max: 3, comeca: 0, sobe: [], desce: { fim: true, rodada: { on: false, n: 1 }, golpe: { on: false, n: 1 } }, da: { tipo: 'nada', n: 5, atr: 'Força' } };
+    S.acums.push(a);
+    S.ac.sel = a.id;
+    S.ac.erro = null;
+    render();
+    const f = $('[data-k="ac-nome"]');
+    if (f) { f.focus(); f.select(); }
+    avisar(`Acumulador “${nome}” criado na ficha de ${a.quem}. Dê o nome que quiser.`);
+  },
+  'ac-tirar': () => {
+    const a = acAtual();
+    if (!a) return;
+    const i = S.acums.indexOf(a);
+    S.acums.splice(i, 1);
+    S.ac.sel = S.acums[0] ? S.acums[0].id : null;
+    S.ac.erro = null;
+    render();
+    avisar(`${a.nome} apagado da ficha de ${a.quem}.`, () => { S.acums.splice(i, 0, a); S.ac.sel = a.id; render(); });
+  },
+  'ac-tirar-sobe': (el) => {
+    const a = acAtual();
+    const i = a.sobe.findIndex((r) => r.id === el.dataset.sid);
+    if (i < 0) return;
+    const [r] = a.sobe.splice(i, 1);
+    render();
+    avisar(`Tirado: ${regraSobeTexto(r)}.`, () => { a.sobe.splice(i, 0, r); render(); });
+  },
+  'ac-ev': (el) => {
+    const a = acAtual();
+    const ev = el.dataset.ev;
+    const extra = ev === 'tec' ? { tec: el.dataset.tec } : ev === 'sp' ? { sp: Number(el.dataset.sp) } : ev === 'gastar' ? { n: 1 } : null;
+    const mudou = ev === 'rodada' ? eventoTeste(a, 'rodada').concat(eventoTeste(a, 'vez')) : eventoTeste(a, ev, extra);
+    testeDe(a).reg.unshift({ id: uid('l'), texto: `${el.dataset.rot}: ${mudou.length ? mudou.join(', ') : 'nada mudou'}.` });
+    render();
+  },
+  'ac-abrir-req': (el) => { S.ed.ex = el.dataset.ex; S.ed.pk = null; S.tela = 'editor'; $('#avisos').replaceChildren(); render(); },
+  evento: (el) => {
+    const tela = el.dataset.tela;
+    const s = S[tela];
+    const ev = el.dataset.ev;
+    const mudou = aplicarEvento(s, ev);
+    const quem = ev === 'fim' ? 'A batalha acabou' : `${s.est.nome} ${SOBE[ev].ev}`;
+    s.reg.unshift({ id: uid('l'), texto: `${quem}: ${mudou.length ? mudou.join(', ') : 'nenhum acumulador mudou'}.` });
+    render();
+  },
   tira: (el) => {
     const tela = el.dataset.tela;
     const ch = el.dataset.sel;
@@ -1665,15 +2161,25 @@ const ACOES = {
     const d = Number(el.dataset.d);
     const c = el.dataset.campo;
     if (c === 'sp') s.est.sp = clamp(s.est.sp + d, 0, 400);
-    if (c === 'pol') { const v = clamp(s.est.contadores.Polaridade + d, 0, 3); if (v > s.est.contadores.Polaridade) S.entrar.add('pol'); s.est.contadores.Polaridade = v; }
+    if (c.startsWith('acum:')) {
+      const a = S.acums.find((x) => x.id === c.slice(5));
+      const antes = nivel(s.est, a);
+      const v = clamp(antes + d, 0, a.max);
+      if (v > antes) S.entrar.add('acum-' + a.id);
+      s.est.contadores[a.nome] = v;
+    }
     if (c === 'campo') s.est.contadores['Campo de Contenção'] = clamp(s.est.contadores['Campo de Contenção'] + d, 0, 3);
     render();
   },
   'nova-vez': (el) => {
     const s = S[el.dataset.tela];
+    const voltou = !s.est.reacao;
     s.est.reacao = true;
     if (s.falhouNestaVez) s.falhouNestaVez = {};
-    s.reg.unshift({ id: uid('l'), texto: `Nova vez de ${s.est.nome}${el.dataset.tela === 'vagn' ? ': a reação voltou' : ''}.` });
+    /* a rodada nova: quem cai "por rodada sem subir" cai agora; quem sobe "ao começar a vez" sobe */
+    const mudou = aplicarEvento(s, 'rodada').concat(aplicarEvento(s, 'vez'));
+    const partes = [voltou ? 'a reação voltou' : ''].concat(mudou).filter(Boolean);
+    s.reg.unshift({ id: uid('l'), texto: `Nova rodada de ${s.est.nome}${partes.length ? ': ' + partes.join(', ') : ''}.` });
     render();
   },
   momento: (el) => {
@@ -1761,6 +2267,20 @@ const MUDA = {
   'rv-esc': (el) => { const s = S[el.dataset.tela]; s.rv.esc[el.dataset.g] = el.value; s.rv.msg = null; render(); },
   'rv-aliado': (el) => { const s = S[el.dataset.tela]; s.rv.aliado[el.dataset.kitem] = el.value; render(); },
   'rv-caixa': (el) => { const s = S[el.dataset.tela]; s.rv.caixa[el.dataset.kitem] = el.checked; render(); },
+  'ac-nova-ficha': (el) => { S.ac.novaFicha = el.value; },
+  'ac-add-sobe': (el) => {
+    const a = acAtual();
+    const g = el.value;
+    if (!a || !g) return;
+    const r = { id: uid('s'), g, n: 1 };
+    if (g === 'tec') r.tec = lista(a.ficha, 'TEC')[0];
+    if (g === 'sp') r.sp = 20;
+    a.sobe.push(r);
+    S.entrar.add('acl-' + r.id);
+    render();
+    const f = $(`[data-k="ac-sobe:n-${r.id}"]`);
+    if (f) f.focus();
+  },
 };
 function gravarCampo(el) {
   const achado = reqPorId(exAtual(), el.dataset.lin);
@@ -1784,11 +2304,13 @@ document.addEventListener('click', (ev) => {
 });
 document.addEventListener('change', (ev) => {
   const el = ev.target;
+  if (el.matches('[data-acc]')) { if (gravarAc(el, true)) render(); return; }
   if (el.matches('[data-muda]')) { MUDA[el.dataset.muda](el, ev); return; }
   if (el.matches('select[data-campo], input[type="checkbox"][data-campo]')) { gravarCampo(el); render(); }
 });
 document.addEventListener('input', (ev) => {
   const el = ev.target;
+  if (el.matches('input[data-acc][type="text"], input[data-acc][type="number"]')) { if (gravarAc(el, false)) render(); return; }
   if (el.matches('input[data-campo][type="number"], input[data-campo][type="text"]')) { gravarCampo(el); atualizarResumo(); return; }
   if (el.matches('[data-pk-busca]')) { S.ed.pk.busca = el.value; $('#pk-lista').innerHTML = pkListaHTML(exAtual(), el.value); $('#pk-lista').scrollTop = 0; }
 });
@@ -1834,8 +2356,10 @@ document.addEventListener('keydown', (ev) => {
 });
 
 /* ---------------------------------------------------------------- começo */
+S.acums = clone(ACUM_DE_FABRICA);
+S.ac = INICIAL.acum();
 S.ed = INICIAL.editor();
-for (const t of ['sieg', 'vagn', 'ryoko', 'pedido', 'cumpriu', 'teste']) S[t] = INICIAL[t]();
+for (const t of TELAS_DE_BATALHA) S[t] = INICIAL[t]();
 sincronizarSieg(S.sieg);
 render();
 window.__proto = { S, render, avisar };
