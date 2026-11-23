@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alcance da mira: do cartão às casas e à rede</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif KR', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1080px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Fluxo de dados · Alcance do golpe (casas acesas)</p>
+    <h1>Uma conta só acende as casas no mestre, no jogador e no host; a mira de quem joga chega a todos pela rede</h1>
+
+    <svg viewBox="0 0 1080 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="alcance-da-mira-title alcance-da-mira-desc">
+      <title id="alcance-da-mira-title">Alcance da mira: do cartão às casas e à rede</title>
+      <desc id="alcance-da-mira-desc">O cartão do golpe é lido por alcanceDoCartao, a conta das casas (lib/batalha/alcance) alimenta a mira e a camada Pixi no mestre e no jogador; a mira do jogador vai ao host por batalha.mira, o host resolve a forma pelo cartão dele e manda batalha.miraNaMesa só a quem vê a ficha, e o pedido de ação leva a direção e o foraDoAlcance, que o host aceita ou recusa com a mesma conta.</desc>
+      <defs>
+        <marker id="alcance-da-mira-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="alcance-da-mira-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="alcance-da-mira-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+      <!-- 23/11/2026: plano em docs/design/habilidades/ALCANCE.md (fases A a G). A grade hexagonal não acende casas (só o número); a mira do mestre não passa pela rede: hostBridge manda a store local direto ao host (miraDoMestre). A regra de quem vê o quê é a do recorte: o host só manda a mira de uma ficha à tela que tem a ficha (batalhaNoHost.mirasParaATela) -->
+
+      <!-- Legendas das duas faixas -->
+      <text x="24" y="28" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">1 · DO CARTÃO ÀS CASAS NO MAPA</text>
+      <text x="24" y="252" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">2 · PELA REDE: O HOST CONFERE E TODOS VEEM</text>
+
+      <!-- Conectores primeiro -->
+      <!-- Faixa 1: o cartão vira casas nesta tela -->
+      <line x1="160" y1="80" x2="200" y2="80" stroke="#4f5d75" stroke-width="1" marker-end="url(#alcance-da-mira-arrow)"/>
+      <line x1="344" y1="80" x2="392" y2="80" stroke="#4f5d75" stroke-width="1" marker-end="url(#alcance-da-mira-arrow)"/>
+      <line x1="600" y1="80" x2="640" y2="80" stroke="#4f5d75" stroke-width="1" marker-end="url(#alcance-da-mira-arrow)"/>
+      <line x1="840" y1="80" x2="880" y2="80" stroke="#4f5d75" stroke-width="1" marker-end="url(#alcance-da-mira-arrow)"/>
+
+      <!-- O host confere com a mesma conta das casas -->
+      <path d="M500 120 V272 A8 8 0 0 0 508 280 H592" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#alcance-da-mira-arrow)"/>
+      <rect x="516" y="260" width="68" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="550" y="269" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MESMA CONTA</text>
+
+      <!-- Jogador para o host: a mira aberta (batalha.mira) -->
+      <line x1="668" y1="120" x2="668" y2="232" stroke="#2e5aa8" stroke-width="1" marker-end="url(#alcance-da-mira-arrow-link)"/>
+      <rect x="592" y="148" width="68" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="626" y="157" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MIRA ABERTA</text>
+
+      <!-- Jogador para o host: o pedido de ação com direcao e foraDoAlcance -->
+      <line x1="732" y1="120" x2="732" y2="232" stroke="#2e5aa8" stroke-width="1" marker-end="url(#alcance-da-mira-arrow-link)"/>
+      <rect x="740" y="176" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="760" y="185" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PEDIDO</text>
+
+      <!-- Volta: o host recusa com MOTIVO_FORA_DO_ALCANCE e a mira pergunta "usar mesmo assim?" -->
+      <line x1="804" y1="232" x2="804" y2="120" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#alcance-da-mira-arrow-link)"/>
+      <rect x="812" y="148" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="832" y="157" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RECUSA</text>
+
+      <!-- Host para as telas que veem a ficha (batalha.miraNaMesa) -->
+      <line x1="824" y1="280" x2="912" y2="280" stroke="#2e5aa8" stroke-width="1" marker-end="url(#alcance-da-mira-arrow-link)"/>
+      <rect x="832" y="260" width="72" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="868" y="269" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MIRA NA MESA</text>
+
+      <!-- As miras dos outros são desenhadas pela mesma camada Pixi -->
+      <line x1="984" y1="232" x2="984" y2="120" stroke="#4f5d75" stroke-width="1" marker-end="url(#alcance-da-mira-arrow)"/>
+      <rect x="992" y="172" width="48" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="1016" y="181" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REMOTAS</text>
+
+      <!-- Nós -->
+      <!-- Cartão do golpe: as três fontes da forma -->
+      <rect x="24" y="40" width="136" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="24" y="40" width="136" height="80" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="92" y="66" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Cartão do golpe</text>
+      <text x="92" y="84" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">1 mecânica montada</text>
+      <text x="92" y="98" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">2 tabela à mão</text>
+      <text x="92" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">3 campo alcance</text>
+
+      <!-- alcanceDoCartao: o único leitor -->
+      <rect x="200" y="40" width="144" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="200" y="40" width="144" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="272" y="66" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">alcanceDoCartao</text>
+      <text x="272" y="84" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">único leitor do cartão</text>
+      <text x="272" y="98" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">lê na ordem 1, 2, 3</text>
+      <text x="272" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">devolve forma + origem</text>
+
+      <!-- A conta das casas (focal 1) -->
+      <rect x="392" y="40" width="208" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="392" y="40" width="208" height="80" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="496" y="66" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">lib/batalha/alcance</text>
+      <text x="496" y="84" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">casasDoAlcance · casasDaExplosao</text>
+      <text x="496" y="98" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">condicoes · cor azul ou verde</text>
+      <text x="496" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">segmentos: paredes da visão</text>
+
+      <!-- A mira de quem age: componente e store -->
+      <rect x="640" y="40" width="200" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="640" y="40" width="200" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="740" y="66" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">MiraDoGolpe + miraNoMapa</text>
+      <text x="740" y="84" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">MiraDoGolpe escreve a mira</text>
+      <text x="740" y="98" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">store: local + remotas</text>
+      <text x="740" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">confirma o fora do alcance</text>
+
+      <!-- A camada Pixi, no mestre e no jogador -->
+      <rect x="880" y="40" width="176" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="880" y="40" width="176" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="968" y="66" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">pixi/alcanceDoGolpe</text>
+      <text x="968" y="84" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">mestre: PixiCanvas</text>
+      <text x="968" y="98" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">jogador: PlayerView</text>
+      <text x="968" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">casas com as paredes da tela</text>
+
+      <!-- O host (focal 2) -->
+      <rect x="592" y="232" width="232" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="592" y="232" width="232" height="96" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="708" y="258" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Host da mesa</text>
+      <text x="708" y="276" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">mira: alcanceDaMira, cartão dele</text>
+      <text x="708" y="290" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">manda só a quem vê a ficha</text>
+      <text x="708" y="304" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">pedido: direcao + foraDoAlcance</text>
+      <text x="708" y="318" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">recusa o fora sem confirmação</text>
+
+      <!-- As miras dos outros, como chegaram -->
+      <rect x="912" y="232" width="144" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="912" y="232" width="144" height="96" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="984" y="258" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">miraNaMesa</text>
+      <text x="984" y="276" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">store do que chegou</text>
+      <text x="984" y="290" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">vira miraNoMapa.remotas</text>
+      <text x="984" y="304" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sem nome nem dano</text>
+
+      <!-- Legenda: faixa horizontal no pé -->
+      <line x1="24" y1="356" x2="1056" y2="356" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="24" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+      <line x1="120" y1="376" x2="152" y2="376" stroke="#4f5d75" stroke-width="1" marker-end="url(#alcance-da-mira-arrow)"/>
+      <text x="164" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">dentro da mesma tela</text>
+      <line x1="300" y1="376" x2="332" y2="376" stroke="#2e5aa8" stroke-width="1" marker-end="url(#alcance-da-mira-arrow-link)"/>
+      <text x="344" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">mensagem pela rede</text>
+      <line x1="472" y1="376" x2="504" y2="376" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#alcance-da-mira-arrow-link)"/>
+      <text x="516" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">volta do host: a recusa</text>
+      <rect x="680" y="370" width="16" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="704" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">onde mora a regra: a conta das casas e a decisão do host</text>
+    </svg>
+  </div>
+</body>
+</html>
