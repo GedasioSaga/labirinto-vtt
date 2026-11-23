@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom'
 import { equipesDaArena, vistaDaArena, AUTOR_DA_ARENA } from '../../lib/arena/estadoDaArena'
 import { CASA_DA_ARENA, GRADES_DA_ARENA } from '../../lib/arena/grade'
+import type { MapaDoAlcance } from '../../lib/batalha/alcance/quemEntra'
 import { CENA_DA_ARENA, type ContaDoPlacar, type SessaoDaArena } from '../../lib/arena/tipos'
 import type { FormaPendente } from '../../lib/batalha/combate'
 import { contadorNoMenu } from '../../lib/batalha/contadorNoMenu'
@@ -299,6 +300,11 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
     () => ({ cena, fichas: sessao.tokens, tamanhoDaCasa: CASA_DA_ARENA, personagens: sessao.copias, equipes, sistema, rotulos: nomesNumerados(sessao.tokens.map((token) => ({ id: token.id, nome: token.name }))) }),
     [cena, sessao, equipes, sistema],
   )
+  // Conserto de 23/11 (0.5.95): a conta das casas acesas na grade da arena, sem parede; sem ela a mira não punha nada no palco.
+  const gradeDoAlcance = useMemo<MapaDoAlcance>(() => {
+    const { colunas, linhas } = GRADES_DA_ARENA[sessao.montagem.grade]
+    return { segmentos: [], colunas, linhas, grade: CASA_DA_ARENA }
+  }, [sessao.montagem.grade])
   const pendenciasDeInvocacao = useMemo(() => pendenciasDeInvocacaoNaTela(mesa, turnos), [mesa, turnos])
   const lugarDasPendencias = useRef<HTMLDivElement>(null)
   const lugarDoBando = useRef<HTMLDivElement>(null)
@@ -548,6 +554,7 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         textoDaVez="vezDe"
         // U4: a arena tem grade: a área da técnica marca pelas casas, como no mapa.
         tamanhoDaCasa={CASA_DA_ARENA}
+        gradeSemMapa={gradeDoAlcance}
         // U2: a regra roda aqui mesmo: a recusa diz o motivo dela, como na vez do NPC no mapa (nunca "sem conexão com o mestre").
         motivoDaRecusa={PEDIDOS.motivoDoAgir}
         avisoDaRecusa={RECUSA_SEM_MOTIVO}

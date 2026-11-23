@@ -35,6 +35,7 @@ import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNa
 import type { ConexaoDaBatalha } from './pedidosDaVez'
 import './batalha.css'
 import './combate.css'
+import type { MapaDoAlcance } from '../../lib/batalha/alcance/quemEntra'
 import { mapaDoAlcance } from '../../lib/batalha/alcance/segmentos'
 import { pisoDe } from '../../lib/pisos'
 import type { MapData } from '../../types/map'
@@ -109,6 +110,11 @@ export interface BatalhaDoJogadorProps {
   /** Fase C do alcance: o recorte que ele tem, para as paredes da conta das casas acesas (as mesmas que o host usa por ele). Ausente = só a distância. */
   mapa?: MapData
   /**
+   * Conserto de 23/11 (0.5.95, "cadê os blocos azuis?"): a conta das casas quando não há `mapa` (a Arena: a
+   * grade dela, sem parede). Sem nenhum dos dois, a mira não põe nada no chão. `mapa` vence.
+   */
+  gradeSemMapa?: MapaDoAlcance
+  /**
    * Conserto das fichas F1 (bug 1): a última recusa da mesa ("A mesa não
    * aceitou: a vez já passou."), por alguns segundos. `id` novo = mostra de
    * novo. Ausente = sem aviso (a Arena e o Lobby, que não passam).
@@ -175,7 +181,7 @@ function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusD
   return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
 }
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, noTreino = false, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, mapa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica, mirasDaMesa }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, noTreino = false, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, mapa, gradeSemMapa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica, mirasDaMesa }: BatalhaDoJogadorProps) {
   // Fase D do alcance: a mira desta tela vai à mesa (quando a conexão sabe mandar) e as dos outros chegam ao chão.
   const mirar = useRef(conexao.mirar)
   mirar.current = conexao.mirar
@@ -218,8 +224,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const tokenDaMira = cartaQueAge?.tokenId
   const mapaDaMira = useMemo(() => {
     const ficha = tokenDaMira === undefined ? undefined : mapa?.tokens.find((token) => token.id === tokenDaMira)
-    return mapa === undefined || ficha === undefined || !(mapa.grid > 0) ? undefined : mapaDoAlcance(mapa, pisoDe(ficha))
-  }, [mapa, tokenDaMira])
+    if (mapa === undefined) return gradeSemMapa
+    return ficha === undefined || !(mapa.grid > 0) ? undefined : mapaDoAlcance(mapa, pisoDe(ficha))
+  }, [mapa, gradeSemMapa, tokenDaMira])
   // Fase E do alcance: os selos da ficha que age que mudam o alcance (o host já diz o que cada um faz), para a mira contar como ele.
   const condicoesDaMira = useMemo(() => {
     const carta = tokenDaMira === undefined ? undefined : estado.cartas.find((candidata) => candidata.tokenId === tokenDaMira)
