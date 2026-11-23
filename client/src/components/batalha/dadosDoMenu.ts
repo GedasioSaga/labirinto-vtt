@@ -58,6 +58,7 @@ import type { CartaParaJogador, CombateParaJogador } from '../../lib/batalha/vis
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
+import type { ContextoDosRequisitos } from '../../lib/batalha/requisitos/contexto'
 
 /**
  * O ADAPTADOR DO MENU DA VEZ (F2 da batalha One Piece, seção 5.2 do plano):
@@ -999,9 +1000,11 @@ export function golpesDeHabilidade(
   acoes: AcoesDaVez | null,
   arma: ArmaDaFicha | null,
   bonus?: BonusDaBatalha,
+  requisitos?: ContextoDosRequisitos,
 ): GolpeNaTela[] {
   const todas = tecnicasDe(personagem, sistema)
-  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas, acoes))
+  // REQUISITOS C: `requisitos` = o retrato de quem age (o mestre vê tudo; o jogador, o recorte): o que FALTA apaga com o motivo.
+  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus, requisitos).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas, acoes))
 }
 
 /** Fase 8: o golpe da técnica do item com a cara do item: a chave, o nome, a frase e quantos tem. */
@@ -1470,6 +1473,10 @@ export function combateDoJogador(meu: CombateParaJogador | undefined, chaveDaVez
   if (meu.concentrouNestaVez && chaveDaVezAgora !== null) combate.concentrouEm = chaveDaVezAgora
   // Tipos de habilidade F4: as evoluídas apagam e liberam técnicas no menu e valem como Overload na caixa REAÇÃO.
   if (meu.evoluidas !== undefined && meu.evoluidas.length > 0) combate.evoluidas = meu.evoluidas
+  // REQUISITOS C: os níveis dos acumuladores (o menu apaga pelo requisito e soma o ganho no dano).
+  if (meu.acumuladores !== undefined) combate.acumuladores = meu.acumuladores
+  // R5: sem reação até a vez dele (o "reação livre" dos requisitos).
+  if (meu.semReacao === true) combate.semReacao = true
   return combate
 }
 

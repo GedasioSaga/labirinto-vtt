@@ -2,6 +2,8 @@ import { useEffect, useMemo } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type ContraAtaque, type FormaPendente, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { equipeDe } from '../../lib/batalha/equipes'
+import { comOBonusDosAcumuladores } from '../../lib/batalha/acumuladorNaBatalha'
+import { contextoDosRequisitos } from '../../lib/batalha/requisitos/montar'
 import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
@@ -188,10 +190,16 @@ export function golpesDaVezDoNpc(mesa: Mesa, turnos: TurnosDaCena, carta: CartaD
   // Construtor C8: a arma padrão da ficha entra no "Dano da arma" das técnicas (sem padrão, a 1ª levada).
   const arma = armaPadraoNaBatalha(personagem, combate)
   // Tipos de habilidade F2: os selos do NPC somam na conta (a mesma `bonusDaBatalha` do jogador e da caixa).
-  const bonus = bonusDaBatalha(turnos.selos, carta.tokenId)
+  // REQUISITOS C: o ganho dos acumuladores soma no dano (a mesma conta do host).
+  const bonus = comOBonusDosAcumuladores(bonusDaBatalha(turnos.selos, carta.tokenId), personagem, combate)
   // Conserto das fichas F1 (S4): Atordoado ou Paralisado só passa a vez; tudo apaga com o motivo, menos o Encerrar.
   const trava = travaDoToken(turnos.selos, carta.tokenId)
-  const habilidades = comATrava(personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, acoes, arma, bonus) : [], trava)
+  // REQUISITOS C: o mestre vê tudo: o que falta apaga com o motivo (o "usar mesmo assim" é da fase G).
+  const requisitos =
+    personagem === null || sistema === null
+      ? undefined
+      : contextoDosRequisitos({ personagem, sistema, tokenId: carta.tokenId, cartaId: carta.id, turnos, personagens: mesa.personagens, personagemDoToken: (tokenId) => turnos.cartas.find((daOrdem) => daOrdem.tokenId === tokenId)?.personagemId, visao: 'tudo', autorEhMestre: true })
+  const habilidades = comATrava(personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, acoes, arma, bonus, requisitos) : [], trava)
   const armas = comATrava(golpesDeAtaque(personagem, sistema, combate, acoes, bonus), trava)
   // Fase 8: os itens com efeito da mochila da ficha do NPC (NPC sem ficha não tem mochila: o mestre usa Dar dano).
   const itens = comATrava(personagem !== null && sistema !== null ? golpesDeItem(personagem, sistema, combate, acoes, bonus) : [], trava)

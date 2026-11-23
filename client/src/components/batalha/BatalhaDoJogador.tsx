@@ -9,6 +9,8 @@ import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDan
 import { reacoesDoJogador, reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import { bonusDaBatalha, bonusDaReacao, type SeloQueSoma } from '../../lib/batalha/selos'
+import { comOBonusDosAcumuladores } from '../../lib/batalha/acumuladorNaBatalha'
+import { contextoDoMenuDoJogador } from '../../lib/batalha/requisitos/montar'
 import { formasNoMenu } from '../../lib/batalha/transformacao'
 import { formasComODecidirDoMestre } from '../../lib/batalha/mecanica/formaDoMestre'
 import { ATACANTE_FORA_DA_VISTA, selosParaOBonus, type CartaParaJogador, type EfeitoParaJogador, type EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
@@ -242,8 +244,11 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     if (cartaQueAge === undefined) return null
     // Construtor C8: a arma padrão da ficha entra no "Dano da arma" das técnicas (sem padrão, a 1ª levada).
     const arma = armaPadraoNaBatalha(personagem, combate)
-    const bonus = bonusDaBatalha(selosQueSomam, cartaQueAge.tokenId)
-    const habilidades = (comAcoes: typeof acoes) => (personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, comAcoes, arma, bonus) : [])
+    // REQUISITOS C: o ganho dos acumuladores dele soma no dano (a mesma conta do host).
+    const bonus = comOBonusDosAcumuladores(bonusDaBatalha(selosQueSomam, cartaQueAge.tokenId), personagem, combate)
+    // REQUISITOS C: o que o recorte deixa ver dos requisitos (o que falta apaga com o motivo; o host confere tudo).
+    const requisitos = personagem !== null && sistema !== null ? contextoDoMenuDoJogador(personagem, sistema, cartaQueAge.tokenId, combate) : undefined
+    const habilidades = (comAcoes: typeof acoes) => (personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, comAcoes, arma, bonus, requisitos) : [])
     const selosDoDono = estado.cartas.find((carta) => carta.tokenId === cartaQueAge.tokenId)?.selos?.length ?? 0
     return {
       armas: golpesDeAtaque(personagem, sistema, combate, acoes, bonus),
