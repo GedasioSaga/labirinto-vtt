@@ -98,7 +98,7 @@ export const ETIQUETA_DA_PERGUNTA: Readonly<Record<PerguntaDosRequisitos['tipo']
   teste: 'teste',
 }
 
-/** Um requisito julgado: a frase, e na falta o pedaço do motivo ("polaridade 2, tem 1"). */
+/** Um requisito julgado: a frase, e na falta o pedaço do motivo ("Polaridade 2, tem 1"). */
 export interface AvaliacaoDoRequisito {
   tipo: 'requisito'
   id: string
@@ -126,7 +126,7 @@ export interface AvaliacaoDosRequisitos {
   veredito: Veredito
   /** Uma por peça da raiz, na ordem do bloco. */
   itens: readonly (AvaliacaoDoRequisito | AvaliacaoDoUmDestes)[]
-  /** O motivo curto do cinza ("Falta: polaridade 2, tem 1"); `null` fora da falta. */
+  /** O motivo curto do cinza ("Falta: Polaridade 2, tem 1"); `null` fora da falta. */
   motivo: string | null
   /** As peças que faltam (para o registro do mestre que força, `fraseDoForcado`). */
   faltas: readonly FaltaDoRequisito[]

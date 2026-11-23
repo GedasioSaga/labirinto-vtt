@@ -25,7 +25,7 @@ import { normalizar } from '../formula'
  * `descreverAlcance` fez para o alcance. A mesma frase no editor, no menu, no host e no registro:
  *
  * - `fraseDoRequisito`: a frase inteira ("Polaridade 2 ou mais, gasta 2");
- * - `motivoDaFalta`: o motivo curto do cinza ("Falta: polaridade 2, tem 1"; vários: "Falta:
+ * - `motivoDaFalta`: o motivo curto do cinza ("Falta: Polaridade 2, tem 1"; vários: "Falta:
  *   Melodia ligada; 50 SP ou ajuda de aliado com Fogo");
  * - `frasesDosRequisitos`: o bloco inteiro, por seção ("Para usar", "Para evoluir", "Ao usar", "Forma").
  *
@@ -105,7 +105,8 @@ function textosDoRecurso(r: RequisitoDo<'sp' | 'pagaVida' | 'reacaoLivre' | 'con
       if (r.nao === true) return iguais(`menos de ${r.n} SP`)
       return { frase: r.gasta === true ? `gasta ${r.n} SP` : `${r.n} SP ou mais`, curto: `${r.n} SP` }
     case 'contador': {
-      const nome = minuscula(r.acumulador.nome)
+      // O nome do acumulador é do dono: vai como ele escreveu ("Polaridade 2, tem 1"), como o da técnica ligada.
+      const nome = r.acumulador.nome
       if (r.nao === true) return iguais(`${nome} abaixo de ${r.nivel}`)
       return { frase: `${nome} ${r.nivel} ou mais${r.gasta === true ? `, gasta ${r.nivel}` : ''}`, curto: `${nome} ${r.nivel}` }
     }
@@ -292,7 +293,7 @@ export function fraseDoRequisito(requisito: OpcaoDoUmDestes): string {
   return maiuscula(textosDaOpcao(requisito).frase)
 }
 
-/** O nome curto do requisito, o que vai no motivo ("polaridade 2", "50 SP", "Melodia ligada"). */
+/** O nome curto do requisito, o que vai no motivo ("Polaridade 2", "50 SP", "Melodia ligada"). */
 export function nomeCurtoDoRequisito(requisito: OpcaoDoUmDestes): string {
   return textosDaOpcao(requisito).curto
 }
@@ -358,7 +359,7 @@ function temAlgumDeAppNovo(faltas: readonly FaltaDoRequisito[]): boolean {
 }
 
 /**
- * O motivo curto do cinza: "Falta: polaridade 2, tem 1"; vários, separados por ";". Peça de app
+ * O motivo curto do cinza: "Falta: Polaridade 2, tem 1"; vários, separados por ";". Peça de app
  * mais novo manda sozinha ("Requisito de app mais novo: atualize o app"). Nada faltando = `null`.
  */
 export function motivoDaFalta(faltas: readonly FaltaDoRequisito[]): string | null {
