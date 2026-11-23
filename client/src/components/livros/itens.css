@@ -294,3 +294,28 @@
 .mu-armas__outras { display: flex; flex-wrap: wrap; gap: 6px 18px; }
 .mu-armas__opcao { display: flex; gap: 8px; align-items: baseline; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); cursor: pointer; }
 .mu-armas__pe { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ALCANCE.md §9, fase G: "Dar alcance aos antigos", a lista com a proposta de cada um (o mesmo painel do Juntar as armas). */
+.mu-alc__resumo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); font-variant-numeric: tabular-nums; }
+.mu-alc__todas { display: flex; flex-wrap: wrap; gap: 6px; }
+.mu-alc__feito { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 8px 10px; border: 1px solid var(--lb-color-brass); border-radius: var(--lb-radius-sm); background: var(--lb-color-brass-soft); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment); }
+.mu-alc__lista { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mu-alc-antigo { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; padding: 8px 10px; border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-sm); }
+.mu-alc-antigo[data-decisao='pular'] { opacity: 0.72; }
+.mu-alc-antigo[data-decisao='aceitar'] { border-color: var(--lb-color-brass); }
+.mu-alc-antigo__previa { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--lb-radius-sm); background: rgba(0, 0, 0, 0.28); }
+.mu-alc-antigo__previa .lb-alc__glifo { width: 34px; height: 34px; }
+.mu-alc-antigo__vazio { width: 26px; height: 26px; border: 1px dashed var(--lb-color-line-strong); border-radius: 3px; }
+.mu-alc-antigo__corpo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mu-alc-antigo__nome { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 0; color: var(--lb-color-parchment); overflow-wrap: anywhere; }
+.mu-alc-antigo__tipo { font-size: var(--lb-font-size-xs, 0.75rem); color: var(--lb-color-parchment-dim); }
+.mu-alc-antigo__certeza { padding: 0 6px; border-radius: 999px; font-size: var(--lb-font-size-xs, 0.75rem); white-space: nowrap; }
+.mu-alc-antigo__certeza--alta { background: rgba(104, 222, 104, 0.18); color: #c9f5c4; }
+.mu-alc-antigo__certeza--baixa { background: rgba(243, 186, 102, 0.2); color: #f6d39a; }
+.mu-alc-antigo__forma { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment); }
+.mu-alc-antigo__texto { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); overflow-wrap: anywhere; }
+.mu-alc-antigo__trecho { color: var(--lb-color-brass-bright); }
+.mu-alc-antigo__editor { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.mu-alc-antigo__acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.mu-alc-antigo__acoes .mu-bt[aria-pressed='true'] { border-color: var(--lb-color-brass); background: var(--lb-color-brass-soft); color: var(--lb-color-parchment); }
+@media (max-width: 720px) { .mu-alc-antigo { grid-template-columns: 40px minmax(0, 1fr); } .mu-alc-antigo__acoes { grid-column: 1 / -1; justify-content: flex-start; } }

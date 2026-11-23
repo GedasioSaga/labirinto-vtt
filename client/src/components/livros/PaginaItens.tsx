@@ -45,6 +45,7 @@ import { ensaiarCopias, type EscolhaDaCopia } from '../../lib/mochila/efeitoNasC
 import { decidirCopias } from '../../stores/itensNaFonte'
 import type { EfeitoDoItem } from '../../types/map'
 import { EntradaDoCatalogoDialog, type ModoDaEntrada } from './EntradaDoCatalogoDialog'
+import { DarAlcanceAosAntigos } from './DarAlcanceAosAntigos'
 import { JuntarAsArmas } from './JuntarAsArmas'
 import { IconeDoMundo } from './icones'
 import './itens.css'
@@ -247,6 +248,8 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   const [juntando, setJuntando] = useState(false)
   /** ARMAS-FONTE-UNICA §4: o ensaio do "Juntar as armas" aberto embaixo do topo. */
   const [juntandoArmas, setJuntandoArmas] = useState(false)
+  /** ALCANCE.md §9 (fase G): a lista do "Dar alcance aos antigos" aberta embaixo do topo, nas duas páginas. */
+  const [dandoAlcance, setDandoAlcance] = useState(false)
   const [arrastando, setArrastando] = useState<EntradaDaPagina | null>(null)
   const [sobre, setSobre] = useState(false)
   /** Cartões e vagas da mochila postos nesta visita (`ficha:cartão`, `ficha:vaga`): a seção da ficha os mostra em latão. */
@@ -740,6 +743,9 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
               Juntar as armas
             </button>
           )}
+          <button type="button" className="mu-bt" aria-expanded={dandoAlcance} disabled={!podeGravar || juntando} onClick={() => setDandoAlcance((antes) => !antes)} title="Propõe um alcance para cada habilidade e arma antiga sem alcance; mostra a lista antes de gravar">
+            Dar alcance aos antigos
+          </button>
           <button type="button" className="mu-bt mu-bt--primario" disabled={!podeGravar} onClick={() => setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })}>
             <IconeDoMundo nome="mais" />
             {NOVA_DO_TIPO[tipoSugerido]}
@@ -748,6 +754,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
       </header>
 
       {juntandoArmas && podeGravar && <JuntarAsArmas sistema={sistema} onFechar={() => setJuntandoArmas(false)} />}
+      {dandoAlcance && podeGravar && <DarAlcanceAosAntigos sistema={sistema} onFechar={() => setDandoAlcance(false)} />}
 
       {!podeGravar &&
         (lendo ? (
