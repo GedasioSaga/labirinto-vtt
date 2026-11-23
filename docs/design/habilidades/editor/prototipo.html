@@ -1,0 +1,2034 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de habilidade: protótipo para aprovar</title>
+<style>
+/*
+ * EDITOR DE HABILIDADE, protótipo de 23/11/2026 (pedido do dono de 23/11: categorias de
+ * Ataque, tipo do golpe, alcance; e "o protótipo é tudo isso": o cartão inteiro).
+ * Arquivo único, sem nada de fora. Tokens: cópia dos --lb-* do app (client/src/theme.ts) e
+ * dos --bt-* da batalha (components/batalha/combate.css), como o protótipo dos requisitos.
+ * As cores das casas do alcance são as de lib/batalha/alcance/cores.ts. O app só tem tema escuro.
+ */
+:root {
+  --lb-color-ink: #121214;
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-online-soft: rgba(127, 180, 138, 0.14);
+  --lb-color-tide: #79a9cc;
+  --lb-color-tide-soft: rgba(121, 169, 204, 0.14);
+  --lb-color-arcane: #ab93d6;
+  --lb-color-arcane-soft: rgba(171, 147, 214, 0.15);
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-font-size-xl: 20px;
+  --lb-font-tracking-wide: 0.06em;
+  --lb-font-tracking-wider: 0.14em;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.34);
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-focus: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+  --lb-shadow-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lb-motion-fast: 110ms;
+  --lb-motion-base: 170ms;
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-cartao: #211c15;
+  --lb-gr-cartao-alto: #29231a;
+  --lb-gr-campo: #15120e;
+  --lb-gr-filete: rgba(236, 234, 228, 0.09);
+  --lb-gr-filete-forte: rgba(236, 234, 228, 0.16);
+  --lb-gr-filete-latao: rgba(224, 164, 74, 0.26);
+  --lb-gr-gravado: #c8b089;
+  --lb-gr-latao-1: #f6cb84;
+  --lb-gr-latao-2: #e0a44a;
+  --lb-gr-hover: rgba(255, 236, 200, 0.06);
+  --lb-gr-hover-forte: rgba(255, 236, 200, 0.1);
+  --bt-papel: var(--lb-color-parchment);
+  --bt-titulo: 'Bahnschrift Condensed', 'Bahnschrift', var(--lb-font-utility);
+  --bt-rasgo-caixa: polygon(0 3px, 6% 0, 13% 4px, 21% 1px, 28% 3px, 37% 0, 45% 4px, 52% 1px, 60% 3px, 68% 0, 76% 4px, 84% 1px, 92% 3px, 100% 0, calc(100% - 3px) 30%, 100% 60%, calc(100% - 2px) 100%, 92% calc(100% - 3px), 84% 100%, 76% calc(100% - 4px), 68% calc(100% - 1px), 60% calc(100% - 3px), 52% 100%, 45% calc(100% - 4px), 37% calc(100% - 1px), 28% calc(100% - 3px), 21% 100%, 13% calc(100% - 4px), 6% calc(100% - 1px), 0 calc(100% - 3px), 2px 60%, 0 30%);
+  /* as tintas sobre o papel (combate.css #8a2c22 e #5d5a54, o verde de "cumpriu"), mais o roxo e o azul do protótipo aprovado */
+  --papel-tinta: #26221c;
+  --papel-dano: #8a2c22;
+  --papel-cura: #2d6a3e;
+  --papel-selo: #5a3f8c;
+  --papel-custo: #2c5578;
+  --papel-tenue: #5d5a54;
+  --mu-erro-texto: #f0897f;
+  --barra: 46px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: var(--lb-font-sans); font-size: var(--lb-font-size-md); line-height: 1.45;
+  color: var(--lb-color-parchment); background: var(--lb-color-ink); overflow: hidden;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+[aria-disabled='true'], button:disabled { cursor: not-allowed; }
+h1, h2, h3, h4, p, ul, ol, dl, dd, fieldset, legend { margin: 0; padding: 0; border: 0; }
+ul, ol { list-style: none; }
+:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.num { font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.ic { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ------------------------------------------------------------ barra do protótipo (não é do app) */
+.proto {
+  height: var(--barra); display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  background: #0c0c0e; border-bottom: 1px dashed var(--lb-gr-filete-forte);
+  font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); white-space: nowrap; overflow-x: auto; scrollbar-width: thin;
+}
+.proto strong { color: var(--lb-color-parchment); font-weight: 600; }
+.proto__telas { display: flex; gap: 4px; }
+.proto__tela {
+  min-height: 28px; padding: 0 10px; border-radius: var(--lb-radius-full); border: 1px solid var(--lb-gr-filete-forte);
+  color: var(--lb-color-parchment-dim);
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.proto__tela:active { transform: scale(0.97); }
+.proto__tela[aria-pressed='true'] { background: var(--lb-color-brass-soft); border-color: var(--lb-gr-filete-latao); color: var(--lb-color-parchment); }
+.proto__sobra { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* ------------------------------------------------------------ primitivos */
+.bt {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 12px;
+  border-radius: var(--lb-radius-sm); background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment);
+  border: 1px solid var(--lb-gr-filete-forte); font-weight: 500; white-space: nowrap;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out), opacity var(--lb-motion-fast) ease;
+}
+.bt:active:not([aria-disabled='true']) { transform: scale(0.97); }
+.bt[aria-disabled='true'] { opacity: 0.45; }
+.bt--latao { background: transparent; border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.bt--fantasma { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+.bt--primario { background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2)); border-color: rgba(0, 0, 0, 0.35); color: var(--lb-color-brass-contrast); font-weight: 600; box-shadow: var(--lb-shadow-bevel); }
+.bt--p { min-height: 28px; padding: 0 9px; font-size: var(--lb-font-size-sm); }
+.bt--ic { width: 28px; min-height: 28px; padding: 0; background: transparent; border-color: transparent; color: var(--lb-color-parchment-faint); }
+.bt .ic { width: 15px; height: 15px; }
+@media (hover: hover) and (pointer: fine) {
+  .bt:hover:not([aria-disabled='true']) { border-color: var(--lb-gr-filete-latao); }
+  .bt--fantasma:hover:not([aria-disabled='true']), .bt--ic:hover { background: var(--lb-gr-hover); border-color: transparent; color: var(--lb-color-parchment); }
+  .proto__tela:hover { color: var(--lb-color-parchment); }
+}
+.etq {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: var(--lb-radius-full);
+  font: 500 var(--lb-font-size-xs) / 1.6 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wide); white-space: nowrap;
+  background: var(--lb-gr-hover-forte); color: var(--lb-gr-gravado);
+}
+.etq[data-c='auto'] { background: var(--lb-color-online-soft); color: var(--lb-color-online); }
+.etq[data-c='pergunta'] { background: var(--lb-color-tide-soft); color: var(--lb-color-tide); }
+.etq[data-c='caixa'] { background: var(--lb-color-arcane-soft); color: var(--lb-color-arcane); }
+.etq[data-c='novo'] { background: var(--lb-color-arcane-soft); color: var(--lb-color-arcane); }
+.etq[data-c='mao'] { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.entrada {
+  width: 100%; min-height: 32px; padding: 5px 9px; border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo); border: 1px solid var(--lb-gr-filete-forte); color: var(--lb-color-parchment);
+  transition: border-color var(--lb-motion-fast) ease;
+}
+.entrada:focus-visible { border-color: var(--lb-color-brass); box-shadow: none; outline: none; }
+.entrada[aria-invalid='true'] { border-color: var(--lb-color-ember); }
+textarea.entrada { resize: vertical; min-height: 54px; line-height: 1.5; }
+select.entrada { width: auto; padding-right: 24px; }
+.entrada--nome { font-family: var(--lb-font-display); font-size: 21px; min-height: 42px; padding: 5px 11px; }
+.dica { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.link { color: var(--lb-color-brass-bright); text-decoration: underline; text-decoration-color: var(--lb-gr-filete-latao); text-underline-offset: 3px; border-radius: 3px; font-size: var(--lb-font-size-sm); }
+@media (hover: hover) and (pointer: fine) { .link:hover { text-decoration-color: currentColor; } }
+.erro { font-size: var(--lb-font-size-sm); color: var(--mu-erro-texto); }
+
+/* o número com − e + */
+.np { display: inline-flex; align-items: stretch; height: 28px; border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm); background: var(--lb-gr-campo); vertical-align: middle; }
+.np__b { width: 24px; color: var(--lb-color-parchment-dim); font-size: 14px; line-height: 1; transition: color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out); }
+.np__b:active { transform: scale(0.9); }
+.np__i { width: 4.2ch; min-width: 0; padding: 0 2px; text-align: center; background: transparent; border: 0; border-left: 1px solid var(--lb-gr-filete); border-right: 1px solid var(--lb-gr-filete); color: var(--lb-color-parchment); font-size: var(--lb-font-size-md); }
+.np__i:focus-visible { box-shadow: inset 0 0 0 1px var(--lb-color-brass); }
+@media (hover: hover) and (pointer: fine) { .np__b:hover { color: var(--lb-color-parchment); } }
+
+/* segmentado (radiogroup) */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: var(--lb-radius-sm); background: var(--lb-gr-campo); border: 1px solid var(--lb-gr-filete); }
+.seg__o {
+  min-height: 26px; padding: 0 10px; border-radius: 4px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim);
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.seg__o:active:not([aria-disabled='true']) { transform: scale(0.97); }
+.seg__o[aria-checked='true'] { background: var(--lb-gr-cartao-alto); color: var(--lb-color-brass-bright); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.seg__o[aria-disabled='true'] { opacity: 0.4; }
+@media (hover: hover) and (pointer: fine) { .seg__o:hover:not([aria-checked='true']):not([aria-disabled='true']) { color: var(--lb-color-parchment); background: var(--lb-gr-hover); } }
+
+/* caixa de marcar */
+.marca { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; cursor: pointer; }
+.marca input { width: 16px; height: 16px; margin: 0; accent-color: var(--lb-color-brass); }
+
+/* ------------------------------------------------------------ a moldura (janela da ficha) */
+.palco { height: calc(100% - var(--barra)); padding: 16px; display: flex; justify-content: center; background: radial-gradient(1200px 600px at 50% -10%, #1b1a1f 0%, var(--lb-color-ink) 70%); }
+.janela {
+  width: 100%; max-width: 1400px; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr);
+  background: var(--lb-color-stone-solid); border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-lg);
+  box-shadow: var(--lb-shadow-lg); overflow: hidden; position: relative;
+}
+.janela__cab { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--lb-gr-filete); }
+.janela__tit { font-family: var(--lb-font-display); font-size: var(--lb-font-size-xl); font-weight: 400; white-space: nowrap; }
+.trilha { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.janela__acoes { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.corpo { display: grid; grid-template-columns: minmax(0, 1fr) 440px; min-height: 0; }
+.editor { overflow-y: auto; min-height: 0; padding: 18px 22px 80px; scrollbar-width: thin; scroll-behavior: smooth; }
+.ver { overflow-y: auto; min-height: 0; border-left: 1px solid var(--lb-gr-filete); background: var(--lb-color-stone-sunken); padding: 16px 18px 60px; scrollbar-width: thin; }
+@media (max-width: 1080px) {
+  body { overflow: auto; }
+  .palco { height: auto; }
+  .janela { height: auto; }
+  .corpo { grid-template-columns: minmax(0, 1fr); }
+  .editor, .ver { overflow: visible; }
+  .ver { border-left: 0; border-top: 1px solid var(--lb-gr-filete); }
+}
+@media (prefers-reduced-motion: reduce) { .editor { scroll-behavior: auto; } }
+
+/* abas da versão (comum / evoluída) */
+.abas { display: flex; gap: 2px; margin-bottom: 12px; border-bottom: 1px solid var(--lb-gr-filete); }
+.aba { position: relative; min-height: 34px; padding: 0 12px; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-md); }
+.aba[aria-selected='true'] { color: var(--lb-color-parchment); }
+.aba[aria-selected='true']::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--lb-color-brass); }
+.aba .etq { margin-left: 6px; }
+@media (hover: hover) and (pointer: fine) { .aba:hover { color: var(--lb-color-parchment); } }
+
+/* o topo do cartão: nome e descrição */
+.topo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; align-items: end; padding-bottom: 16px; }
+.topo__campo { display: grid; gap: 5px; }
+.topo__campo > label, .rot { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.topo__desc { grid-column: 1 / -1; }
+.aviso-evo { grid-column: 1 / -1; display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border-radius: var(--lb-radius-md); background: var(--lb-color-arcane-soft); color: var(--lb-color-parchment); font-size: var(--lb-font-size-sm); }
+
+/* ------------------------------------------------------------ as dimensões */
+.dim { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 10px 18px; padding: 16px 0; border-top: 1px solid var(--lb-gr-filete); position: relative; scroll-margin-top: 8px; }
+.dim__cab { display: grid; align-content: start; gap: 2px; }
+.dim__nome { font-family: var(--lb-font-display); font-size: 17px; font-weight: 400; line-height: 1.2; }
+.dim__dica { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.dim__corpo { display: grid; gap: 10px; min-width: 0; }
+.dim__vazio { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.dim__brilho { position: absolute; inset: 4px -10px; border-radius: var(--lb-radius-md); background: var(--lb-color-brass-soft); pointer-events: none; }
+.linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.linha > .rot { min-width: 0; }
+.frase-ed { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment); }
+.frase-ed .entrada { width: auto; }
+
+/* Ação: os 6 cartões em dois grupos */
+.acoes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.acoes__grupo { grid-column: 1 / -1; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); margin-top: 4px; }
+.acoes__grupo:first-child { margin-top: 0; }
+.opc {
+  display: grid; gap: 2px; align-content: start; text-align: left; min-height: 58px; padding: 9px 11px; border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised); border: 1px solid var(--lb-color-line);
+  transition: border-color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.opc:active { transform: scale(0.98); }
+.opc__n { font-weight: 600; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment); }
+.opc__d { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.35; }
+.opc[aria-checked='true'] { border-color: var(--lb-color-brass); background: var(--lb-color-brass-soft); }
+.opc[data-sobre='true'] { border-color: var(--lb-color-arcane); }
+.opc[data-sobre='true'][aria-checked='true'] { background: var(--lb-color-arcane-soft); }
+@media (hover: hover) and (pointer: fine) { .opc:hover:not([aria-checked='true']) { border-color: var(--lb-color-line-strong); background: var(--lb-color-stone-hover); } }
+.mais-acao { justify-self: start; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); text-decoration: underline; text-decoration-color: var(--lb-gr-filete-forte); text-underline-offset: 3px; min-height: 24px; }
+
+/* Golpe: os tipos */
+.tipos { display: flex; flex-wrap: wrap; gap: 6px; }
+.tipo {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 12px 0 9px; border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-raised); border: 1px solid var(--lb-color-line); color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-md);
+  transition: border-color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.tipo:active:not([aria-disabled='true']) { transform: scale(0.97); }
+.tipo .ic { width: 17px; height: 17px; color: var(--cor, currentColor); }
+.tipo[aria-pressed='true'], .tipo[aria-checked='true'] { color: var(--lb-color-parchment); border-color: var(--cor, var(--lb-color-brass)); background: color-mix(in srgb, var(--cor, var(--lb-color-brass)) 14%, transparent); }
+.tipo[aria-disabled='true'] { opacity: 0.4; }
+@media (hover: hover) and (pointer: fine) { .tipo:hover:not([aria-pressed='true']):not([aria-checked='true']):not([aria-disabled='true']) { border-color: var(--lb-color-line-strong); color: var(--lb-color-parchment); } }
+.regras { display: grid; gap: 6px; }
+.regra { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 4px 10px; align-items: start; padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete); }
+.regra > .ic { margin-top: 3px; color: var(--cor); width: 18px; height: 18px; }
+.regra__tit { font-weight: 600; }
+.regra__faz { grid-column: 2 / 3; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; color: var(--lb-color-parchment-dim); }
+.regra__faz b { color: var(--lb-color-parchment); font-weight: 600; }
+.regra__quando { grid-column: 2 / 4; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.regra__lado { grid-row: 1; grid-column: 3; display: flex; gap: 4px; align-items: center; }
+
+/* Alcance: as formas (o seletor aprovado, lb-alc__forma) */
+.formas { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; max-width: 560px; }
+.forma {
+  display: grid; justify-items: center; align-content: start; gap: 4px; min-height: 64px; padding: 8px 4px 6px;
+  border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-xs); line-height: 1.2; text-align: center;
+  transition: transform 120ms var(--lb-gr-ease-out), border-color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.forma:active { transform: scale(0.97); }
+.forma[aria-checked='true'] { border-color: var(--lb-color-brass); background: var(--lb-color-brass-soft); color: var(--lb-color-parchment); }
+@media (hover: hover) and (pointer: fine) { .forma:not([aria-checked='true']):hover { border-color: var(--lb-color-parchment-faint); color: var(--lb-color-parchment); } }
+.glifo { width: 26px; height: 26px; }
+
+/* Dano: a fórmula (a do campo Dano de hoje) */
+.formula { display: grid; gap: 8px; }
+.teclas { display: flex; flex-wrap: wrap; gap: 5px; }
+.tecla {
+  display: inline-flex; align-items: baseline; gap: 4px; min-height: 28px; padding: 0 9px; border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised); border: 1px solid var(--lb-color-line-strong); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment);
+  transition: border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.tecla:active { transform: scale(0.96); }
+.tecla sup { font-family: var(--lb-font-utility); font-size: 9.5px; color: var(--lb-color-parchment-faint); }
+.tecla--op { min-width: 30px; justify-content: center; font-family: var(--lb-font-utility); }
+@media (hover: hover) and (pointer: fine) { .tecla:hover { border-color: var(--lb-gr-filete-latao); } }
+.calcula { font-size: var(--lb-font-size-sm); font-family: var(--lb-font-utility); color: var(--lb-color-online); }
+.calcula b { color: var(--lb-color-parchment); font-size: var(--lb-font-size-md); }
+.calcula[data-erro] { color: var(--mu-erro-texto); font-family: var(--lb-font-sans); }
+
+/* listas de efeitos, requisitos e campos */
+.itens { display: grid; gap: 6px; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; padding: 8px 8px 8px 12px; border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete); }
+.item__lado { display: flex; gap: 4px; align-items: center; }
+.grupo { border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao); }
+.grupo[data-modo='um'] { border-color: var(--lb-gr-filete-latao); }
+.grupo__cab { display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 10px; border-bottom: 1px solid var(--lb-gr-filete); }
+.grupo__cab .dica { flex: 1; }
+.req { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 8px 7px 10px; border-bottom: 1px solid var(--lb-gr-filete); }
+.req:last-of-type { border-bottom: 0; }
+.req__cod { font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.req__frase { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.req__frase .entrada { width: auto; min-height: 28px; padding: 2px 8px; }
+.req__lado { display: flex; gap: 6px; align-items: center; }
+.gasta { min-height: 24px; padding: 0 9px; border-radius: var(--lb-radius-full); border: 1px dashed var(--lb-gr-filete-forte); font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-dim); }
+.gasta[aria-pressed='true'] { border-style: solid; border-color: var(--lb-gr-filete-latao); background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.grupo__pe { padding: 7px 10px; }
+.entre { padding: 2px 0 2px 12px; font-size: var(--lb-font-size-xs); letter-spacing: var(--lb-font-tracking-wider); color: var(--lb-color-parchment-faint); border-left: 1px dashed var(--lb-gr-filete-forte); margin-left: 12px; }
+.estado-evo { display: grid; gap: 3px; padding: 9px 12px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-gr-filete); font-size: var(--lb-font-size-sm); }
+.ok { color: var(--lb-color-online); }
+.falta { color: var(--mu-erro-texto); }
+.trava { display: inline-flex; align-items: center; gap: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-arcane); }
+.trava .ic { width: 14px; height: 14px; }
+.campo-extra { display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+
+/* ------------------------------------------------------------ a coluna da direita */
+.ver__bloco { display: grid; gap: 10px; }
+.ver__bloco + .ver__bloco { margin-top: 18px; }
+.ver__tit { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ver__tit h2 { font-family: var(--lb-font-display); font-size: 16px; font-weight: 400; }
+.ver__tit .dica { text-align: right; }
+
+/* o papel (a leitura em papel do combate) */
+.papel { position: relative; padding: 16px 18px 15px; background: var(--bt-papel); color: var(--papel-tinta); clip-path: var(--bt-rasgo-caixa); }
+.papel__nome { font-family: var(--lb-font-display); font-size: 21px; line-height: 1.15; overflow-wrap: anywhere; }
+.papel__linha { margin-top: 3px; font: 500 var(--lb-font-size-sm) / 1.4 var(--lb-font-utility); color: var(--papel-tenue); letter-spacing: 0.02em; }
+.papel__frase { margin-top: 9px; font-size: 14px; line-height: 1.55; }
+.papel__desc { margin-top: 8px; font-size: var(--lb-font-size-sm); font-style: italic; color: var(--papel-tenue); }
+.papel__extras { margin-top: 8px; display: grid; gap: 1px; font-size: var(--lb-font-size-sm); color: var(--papel-tenue); }
+.papel__extras b { color: var(--papel-tinta); font-weight: 600; }
+.papel__selo { position: absolute; top: 12px; right: 12px; padding: 1px 7px; border: 1.5px solid var(--papel-selo); border-radius: 4px; font: 600 var(--lb-font-size-xs) / 1.5 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wide); color: var(--papel-selo); transform: rotate(4deg); }
+.pedaco { color: inherit; text-align: left; border-radius: 3px; text-decoration: underline; text-decoration-color: rgba(38, 34, 28, 0.25); text-decoration-thickness: 1px; text-underline-offset: 3px; transition: background-color var(--lb-motion-fast) ease; }
+.pedaco[data-c='dano'] { color: var(--papel-dano); }
+.pedaco[data-c='cura'] { color: var(--papel-cura); }
+.pedaco[data-c='selo'] { color: var(--papel-selo); }
+.pedaco[data-c='custo'] { color: var(--papel-custo); }
+.pedaco:focus-visible { box-shadow: 0 0 0 2px var(--lb-color-brass); }
+@media (hover: hover) and (pointer: fine) { .pedaco:hover { background: rgba(38, 34, 28, 0.08); } }
+.textos { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.textos > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px; min-height: 26px; }
+.textos > summary::-webkit-details-marker { display: none; }
+.textos > summary::before { content: ''; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform var(--lb-motion-fast) ease; }
+.textos[open] > summary::before { transform: rotate(45deg); }
+.textos dl { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 3px 10px; padding: 6px 0 2px; }
+.textos dt { color: var(--lb-color-parchment-faint); }
+.textos dd { color: var(--lb-color-parchment); overflow-wrap: anywhere; }
+
+/* o mapa do alcance */
+.mapa { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--lb-color-line); border-radius: 12px; background: #121215; }
+.mapa canvas { justify-self: center; border-radius: 6px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); cursor: crosshair; touch-action: none; }
+.mapa canvas:focus-visible { box-shadow: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass); }
+.mapa__pe { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.setas { display: flex; gap: 4px; }
+.seta { width: 32px; height: 30px; border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-sm); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment-dim); transition: transform 120ms var(--lb-gr-ease-out), border-color var(--lb-motion-fast) ease; }
+.seta:active { transform: scale(0.95); }
+.seta[aria-pressed='true'] { border-color: var(--lb-color-brass); background: var(--lb-color-brass-soft); color: var(--lb-color-parchment); }
+.seta[aria-disabled='true'] { opacity: 0.35; }
+.legenda { display: flex; gap: 10px; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-dim); }
+.legenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+/* o teste no boneco */
+.teste { display: grid; gap: 0; border: 1px solid var(--lb-color-line); border-radius: 12px; background: #121215; overflow: hidden; }
+.teste__cab { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--lb-gr-filete); }
+.dado { display: inline-flex; align-items: center; gap: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.dado b { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: var(--lb-gr-cartao-alto); border: 1px solid var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); font: 600 14px / 1 var(--lb-font-utility); }
+.dado b[data-rola] { animation: rola 240ms var(--lb-gr-ease-out); }
+@keyframes rola { from { transform: rotate(-90deg) scale(0.92); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.arrumado { padding: 7px 12px; font-size: var(--lb-font-size-sm); color: var(--lb-color-brass-bright); border-bottom: 1px solid var(--lb-gr-filete); }
+.bonecos { display: grid; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--lb-gr-filete); }
+.bon { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; grid-template-areas: 'fig nome hp' 'fig barra barra' 'fig selos selos'; column-gap: 10px; row-gap: 3px; align-items: center; }
+.bon > svg { grid-area: fig; width: 26px; height: 34px; color: #b89a6c; align-self: start; }
+.bon[data-fora] { opacity: 0.45; }
+.bon__nome { grid-area: nome; font-size: var(--lb-font-size-sm); font-weight: 600; }
+.bon__nome small { font-weight: 400; color: var(--lb-color-parchment-faint); margin-left: 6px; }
+.bon__hp { grid-area: hp; font: 500 var(--lb-font-size-sm) / 1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); white-space: nowrap; }
+.bon__hp b { color: var(--lb-color-parchment); }
+.bon__barras { grid-area: barra; display: grid; gap: 2px; }
+.barra { position: relative; height: 6px; border-radius: 3px; background: var(--lb-gr-campo); overflow: hidden; box-shadow: inset 0 0 0 1px var(--lb-gr-filete); }
+.barra__antes, .barra__fim { position: absolute; inset: 0 auto 0 0; width: 100%; border-radius: 3px; transform-origin: left center; }
+.barra__antes { background: rgba(226, 100, 90, 0.35); }
+.barra__fim { background: #d0574d; }
+.barra--cura .barra__antes { background: rgba(127, 180, 138, 0.45); }
+.barra--cura .barra__fim { background: #d0574d; }
+.barra--esc { height: 4px; }
+.barra--esc .barra__antes { background: rgba(121, 169, 204, 0.3); }
+.barra--esc .barra__fim { background: var(--lb-color-tide); }
+.bon__selos { grid-area: selos; display: flex; flex-wrap: wrap; gap: 4px; }
+.passos { counter-reset: passo; display: grid; }
+.passos > li { counter-increment: passo; display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 2px 8px; padding: 7px 12px; border-bottom: 1px solid var(--lb-gr-filete); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.passos > li:last-child { border-bottom: 0; }
+.passos > li::before { content: counter(passo); font: 600 var(--lb-font-size-xs) / 1.7 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.passos b { color: var(--lb-color-parchment); font-weight: 600; }
+.passos > li[data-falta] { background: var(--lb-color-ember-soft); }
+.passos > li[data-falta]::before { color: var(--mu-erro-texto); }
+.passos .conserto { grid-column: 2; justify-self: start; margin-top: 4px; }
+.ajustes { padding: 8px 12px 10px; border-top: 1px solid var(--lb-gr-filete); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.ajustes > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px; min-height: 26px; }
+.ajustes > summary::-webkit-details-marker { display: none; }
+.ajustes > summary::before { content: ''; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform var(--lb-motion-fast) ease; }
+.ajustes[open] > summary::before { transform: rotate(45deg); }
+.ajustes__corpo { display: grid; gap: 8px; padding-top: 6px; }
+.ajustes__corpo .linha > .rot { min-width: 92px; }
+
+/* ------------------------------------------------------------ menu, janela de modelos, aviso */
+.menu {
+  position: fixed; z-index: 40; min-width: 260px; max-width: 340px; max-height: 70vh; overflow-y: auto; padding: 5px;
+  background: var(--lb-color-stone-raised); border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-md); box-shadow: var(--lb-shadow-float);
+  transform-origin: top left; transition: opacity 150ms var(--lb-gr-ease-out), transform 150ms var(--lb-gr-ease-out);
+}
+@starting-style { .menu { opacity: 0; transform: scale(0.97); } }
+.menu__item { display: grid; width: 100%; gap: 1px; text-align: left; padding: 7px 10px; border-radius: 6px; }
+.menu__item b { font-weight: 600; font-size: var(--lb-font-size-md); }
+.menu__item span { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.menu__item:focus-visible, .menu__item:focus { outline: none; box-shadow: none; background: var(--lb-gr-hover-forte); }
+.menu__item[aria-disabled='true'] { opacity: 0.45; }
+.menu__sep { margin: 4px 8px 2px; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+@media (hover: hover) and (pointer: fine) { .menu__item:hover:not([aria-disabled='true']) { background: var(--lb-gr-hover-forte); } }
+.fundo { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(6, 6, 8, 0.62); transition: opacity 200ms var(--lb-gr-ease-out); }
+@starting-style { .fundo { opacity: 0; } }
+.dialogo {
+  width: min(980px, 100%); max-height: calc(100vh - 48px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--lb-color-stone-solid); border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-lg); box-shadow: var(--lb-shadow-float);
+  transition: opacity 200ms var(--lb-gr-ease-out), transform 200ms var(--lb-gr-ease-out);
+}
+@starting-style { .dialogo { opacity: 0; transform: scale(0.96); } }
+.dialogo__cab { display: grid; gap: 3px; padding: 16px 20px 12px; border-bottom: 1px solid var(--lb-gr-filete); }
+.dialogo__cab h2 { font-family: var(--lb-font-display); font-size: var(--lb-font-size-xl); font-weight: 400; }
+.dialogo__corpo { overflow-y: auto; padding: 14px 20px; display: grid; gap: 14px; }
+.dialogo__pe { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--lb-gr-filete); }
+.modelos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.modelos__grupo { grid-column: 1 / -1; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); margin-top: 4px; }
+.modelo { display: grid; gap: 4px; align-content: start; text-align: left; padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); border: 1px solid var(--lb-color-line); transition: border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out); }
+.modelo:active { transform: scale(0.98); }
+.modelo b { font-weight: 600; }
+.modelo span { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.modelo .modelo__dims { font-size: var(--lb-font-size-xs); font-family: var(--lb-font-utility); color: var(--lb-gr-gravado); }
+@media (hover: hover) and (pointer: fine) { .modelo:hover { border-color: var(--lb-gr-filete-latao); } }
+.avisos { position: fixed; left: 50%; bottom: 20px; z-index: 60; display: grid; gap: 8px; transform: translateX(-50%); pointer-events: none; }
+.aviso {
+  pointer-events: auto; display: flex; align-items: center; gap: 12px; max-width: 560px; padding: 10px 10px 10px 14px; border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised); border: 1px solid var(--lb-color-line-strong); box-shadow: var(--lb-shadow-float); font-size: var(--lb-font-size-sm);
+  transition: opacity 200ms var(--lb-gr-ease-out), transform 200ms var(--lb-gr-ease-out);
+}
+@starting-style { .aviso { opacity: 0; transform: translateY(100%); } }
+.aviso[data-saindo] { opacity: 0; transform: translateY(100%); transition-duration: 150ms; }
+@media (prefers-reduced-motion: reduce) {
+  .menu, .dialogo, .aviso, .aviso[data-saindo] { transform: none !important; }
+  @starting-style { .menu, .dialogo, .aviso { transform: none; } }
+  .dado b[data-rola] { animation: none; }
+  .bt:active, .seg__o:active, .opc:active, .tipo:active, .forma:active, .tecla:active, .seta:active, .np__b:active, .modelo:active, .proto__tela:active { transform: none; }
+}
+</style>
+</head>
+<body>
+<header class="proto" aria-label="Barra do protótipo">
+  <strong>Editor de habilidade</strong><span>protótipo: nada é salvo</span>
+  <nav class="proto__telas" aria-label="Exemplos">
+    <button type="button" class="proto__tela" data-a="exemplo" data-v="caca" aria-pressed="true">CAÇA AS BRUXAS! (Siegfried)</button>
+    <button type="button" class="proto__tela" data-a="exemplo" data-v="chuva" aria-pressed="false">Chuva (Vagn)</button>
+    <button type="button" class="proto__tela" data-a="exemplo" data-v="bencao" aria-pressed="false">A Virtude Traz Benção (Aira)</button>
+    <button type="button" class="proto__tela" data-a="exemplo" data-v="branco" aria-pressed="false">Em branco</button>
+  </nav>
+  <div class="proto__sobra"><span>Números de exemplo; o teste usa um motor de mentira.</span><button type="button" class="proto__tela" data-a="recomecar">Recomeçar</button></div>
+</header>
+<main class="palco">
+  <div class="janela">
+    <div class="janela__cab">
+      <h1 class="janela__tit" id="tit-ficha">Ficha de Siegfried</h1>
+      <span class="trilha" id="trilha"></span>
+      <div class="janela__acoes">
+        <button type="button" class="bt bt--latao" data-a="modelos"><svg class="ic" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><path d="M11.5 9v5M9 11.5h5"/></svg>Começar de um modelo</button>
+        <button type="button" class="bt bt--fantasma" data-a="cancelar">Cancelar</button>
+        <button type="button" class="bt bt--primario" data-a="salvar">Salvar a ficha</button>
+      </div>
+    </div>
+    <div class="corpo">
+      <div class="editor" id="editor" aria-label="Editor da habilidade"></div>
+      <aside class="ver" id="ver" aria-label="Como fica, alcance e teste"></aside>
+    </div>
+  </div>
+</main>
+<div class="avisos" id="avisos" role="status" aria-live="polite"></div>
+<div id="camada"></div>
+
+<script>
+'use strict';
+/* ============================================================ utilidades */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const copia = (o) => JSON.parse(JSON.stringify(o));
+const vezes = (n) => (n === 1 ? '1 vez' : `${n} vezes`);
+const casas = (n) => (n === 1 ? '1 casa' : `${n} casas`);
+const rodadas = (n) => (n === 1 ? '1 rodada' : `${n} rodadas`);
+
+const ATRIBUTOS = ['Força', 'Agilidade', 'Percepção', 'Resistência', 'Intuição', 'Espírito', 'Carisma', 'Determinação'];
+const CASAS_MAX = 20;
+const EFEITOS_MAX = 8;
+const SELOS_NO_GOLPE_MAX = 3;
+/* a reação de sempre (reacao.ts): 10 = metade, 15 = esquiva, 20 = contra */
+const REACAO_METADE = 10;
+const REACAO_ESQUIVA = 15;
+/* Concentração (Aira, formula.ts): carga 1, 2 e 3 */
+const MULT_CARGA = [1, 1.5, 2, 3.5];
+/* onde o acumulador é criado e ajustado (nome, máximo, como sobe e cai, o que cada nível dá) */
+const LINK_ACUMULADOR = '../requisitos/prototipo.html';
+const acumDe = (f, nome) => (f.acums && f.acums[nome]) || { max: 9, sobe: '', desce: '', da: { tipo: 'nada', n: 0 } };
+const linkAcum = (rot) => `<a class="link" href="${LINK_ACUMULADOR}" target="_blank" rel="noopener">${rot}</a>`;
+
+/* ============================================================ as fichas de exemplo (números das auditorias de 07/11) */
+const FICHAS = {
+  sieg: { nome: 'Siegfried', ini: 'S', hp: 900, sp: 140, escudo: 80, arma: { nome: 'Balmung', dano: 5 },
+    atr: { 'Força': 46, 'Agilidade': 33, 'Percepção': 0, 'Resistência': 40, 'Intuição': 0, 'Espírito': 35, 'Carisma': 0, 'Determinação': 0 },
+    tec: ['Melodia de Todas as Coisas', 'Caminho do Dano', 'Ignição', 'Resiliente', 'Apunhaladora: Orquídea'], contadores: [] },
+  vagn: { nome: 'Vagn', ini: 'V', hp: 1000, sp: 120, escudo: 100, arma: null,
+    atr: { 'Força': 50, 'Agilidade': 0, 'Percepção': 0, 'Resistência': 50, 'Intuição': 30, 'Espírito': 35, 'Carisma': 0, 'Determinação': 40 },
+    tec: ['Campo de Contenção', 'Projeção Letal', 'Atração Relâmpago', 'Armadura Humana', 'Ignição', 'Resiliente'], contadores: ['Polaridade', 'Campo de Contenção'],
+    /* os acumuladores da ficha (criados no editor de acumulador, tela 8 do protótipo dos requisitos) */
+    acums: { 'Polaridade': { max: 3, sobe: '+1 ao gastar a reação', desce: 'zera no fim da batalha', da: { tipo: 'dano', n: 10 } },
+      'Campo de Contenção': { max: 3, sobe: '+1 ao usar o Campo de Contenção', desce: 'zera no fim da batalha', da: { tipo: 'nada', n: 0 } } } },
+  aira: { nome: 'Aira', ini: 'A', hp: 900, sp: 140, escudo: 100, arma: null,
+    atr: { 'Força': 1, 'Agilidade': 34, 'Percepção': 0, 'Resistência': 0, 'Intuição': 0, 'Espírito': 40, 'Carisma': 55, 'Determinação': 0 },
+    tec: ['Em Meio às Alegres Nuvens', 'A Luz do Sol'], contadores: [] },
+};
+
+/* ============================================================ os ícones */
+const IC = {
+  impacto: '<path d="M8 1.8v2.4M8 11.8v2.4M1.8 8h2.4M11.8 8h2.4M3.6 3.6l1.7 1.7M10.7 10.7l1.7 1.7M3.6 12.4l1.7-1.7M10.7 5.3l1.7-1.7"/><circle cx="8" cy="8" r="2"/>',
+  cortante: '<path d="M2.5 13.5 13 3"/><path d="M5 13.8 13.6 5.2"/>',
+  perfurante: '<path d="M2 8h9.5"/><path d="M9 4.5 13.5 8 9 11.5"/><path d="M2 5.5v5"/>',
+  queimadura: '<path d="M8 14c2.6 0 4.3-1.8 4.3-4.2 0-2.6-2.1-3.8-2.6-6.6-1.2 1-1.6 2.3-1.6 3.4C7.3 5.6 6 4.6 5.8 2.6 4.3 4.2 3.7 6.6 3.7 9.8 3.7 12.2 5.4 14 8 14Z"/>',
+  veneno: '<path d="M8 2.2c2 2.7 4.2 5.1 4.2 7.4A4.2 4.2 0 0 1 3.8 9.6C3.8 7.3 6 4.9 8 2.2Z"/><path d="M6.3 10.2c.3.9 1 1.5 1.9 1.6"/>',
+  congelamento: '<path d="M8 1.8v12.4M2.6 4.9l10.8 6.2M2.6 11.1l10.8-6.2"/><path d="M6.4 2.9 8 4.4l1.6-1.5M6.4 13.1 8 11.6l1.6 1.5"/>',
+  choque: '<path d="M9.2 1.8 3.8 9h3.6l-.8 5.2L12.2 7H8.6l.6-5.2Z"/>',
+  cegueira: '<path d="M1.8 8s2.3-4 6.2-4 6.2 4 6.2 4-2.3 4-6.2 4-6.2-4-6.2-4Z"/><path d="M2.5 13.5 13.5 2.5"/>',
+  enfraquecer: '<path d="M8 2.5v10"/><path d="M4.2 8.8 8 12.6l3.8-3.8"/><path d="M3 14h10"/>',
+  outro: '<circle cx="8" cy="8" r="5.6"/><path d="M8 5.4v5.2M5.4 8h5.2"/>',
+  x: '<path d="M4 4l8 8M12 4l-8 8"/>',
+  mais: '<path d="M8 3.5v9M3.5 8h9"/>',
+  cadeado: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/>',
+  dado: '<rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><circle cx="5.7" cy="5.7" r=".6"/><circle cx="10.3" cy="10.3" r=".6"/><circle cx="8" cy="8" r=".6"/>',
+};
+const ic = (nome, cor) => `<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"${cor ? ` style="--cor:${cor}"` : ''}>${IC[nome] || ''}</svg>`;
+const BONECO_SVG = '<svg viewBox="0 0 26 34" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="13" cy="6" r="4"/><path d="M13 10v13M5 14h16M13 23l-4 8M13 23l4 8"/></svg>';
+
+/* ============================================================ o tipo do golpe: o que cada um FAZ */
+const COR_TIPO = { impacto: '#d9cfb8', cortante: '#d9cfb8', perfurante: '#d9cfb8', queimadura: '#e2845a', veneno: '#7fb48a', congelamento: '#8cc4e8', choque: '#f3ba66', cegueira: '#ab93d6', enfraquecer: '#ab93d6', outro: '#c8b089' };
+/* existe: 'auto' = o motor já faz com as peças de hoje; 'novo' = selo novo montado com peças que existem; 'mao' = o app só lembra o mestre */
+const FISICOS = {
+  impacto: { nome: 'Impacto', adj: 'de impacto', selo: 'Atordoado', faz: 'Pode atordoar', existe: 'auto',
+    padrao: { modo: 'teste', atr: 'Resistência', cd: 12, vezes: 1, empurra: 0 },
+    regra: (r) => `${r.modo === 'tipo' ? 'Só marca o golpe como de impacto.' : `Atordoado por ${vezes(r.vezes)} dele: perde a vez e não reage.`}${r.empurra > 0 ? ` Empurra ${casas(r.empurra)} (o mestre move a ficha).` : ''}` },
+  cortante: { nome: 'Cortante', adj: 'cortante', selo: 'Sangrando', faz: 'Pode sangrar', existe: 'auto',
+    padrao: { modo: 'sempre', vezes: 3, porVez: 10 },
+    regra: (r) => (r.modo === 'tipo' ? 'Só marca o golpe como cortante.' : `Sangrando por ${vezes(r.vezes)} dele: tira ${r.porVez} de HP no começo de cada vez, direto (sem o Escudo).`) },
+  perfurante: { nome: 'Perfurante', adj: 'perfurante', selo: null, faz: 'Passa o Escudo', existe: 'auto',
+    padrao: { pct: 100 },
+    regra: (r) => (r.pct >= 100 ? 'Todo o dano vai direto no HP: o Escudo não segura nada.' : `${r.pct}% do dano vai direto no HP; o resto bate no Escudo antes.`) },
+};
+const ELEMENTOS = {
+  queimadura: { nome: 'Queimadura', adj: 'de fogo', selo: 'Queimando', existe: 'auto', padrao: { modo: 'sempre', vezes: 3, porVez: 10 },
+    regra: (r) => `Queimando por ${vezes(r.vezes)} dele: tira ${r.porVez} de HP no começo de cada vez. Acertar de novo renova a conta.` },
+  veneno: { nome: 'Veneno', adj: 'venenoso', selo: 'Envenenado', existe: 'novo', padrao: { modo: 'sempre', vezes: 3, porVez: 10 },
+    regra: (r) => `Envenenado por ${vezes(r.vezes)} dele: tira ${r.porVez} de HP por vez e a cura que ele recebe cai pela metade.` },
+  congelamento: { nome: 'Congelamento', adj: 'de gelo', selo: 'Congelado', existe: 'novo', padrao: { modo: 'teste', atr: 'Resistência', cd: 12, vezes: 2, menos: 2 },
+    regra: (r) => `Congelado por ${vezes(r.vezes)} dele: reage com desvantagem e alcança ${casas(r.menos)} a menos.` },
+  choque: { nome: 'Choque', adj: 'elétrico', selo: 'Eletrizado', existe: 'novo', padrao: { modo: 'sempre', vezes: 2, porVez: 10 },
+    regra: (r) => `Eletrizado por ${vezes(r.vezes)} dele: perde ${r.porVez} de SP no fim de cada vez.` },
+  cegueira: { nome: 'Cegueira', adj: 'que cega', selo: 'Cego', existe: 'auto', padrao: { modo: 'teste', atr: 'Resistência', cd: 12, vezes: 2 },
+    regra: (r) => `Cego por ${vezes(r.vezes)} dele: a Percepção fica em 0.` },
+  enfraquecer: { nome: 'Enfraquecer', adj: 'que enfraquece', selo: 'Enfraquecido', existe: 'auto', padrao: { modo: 'sempre', vezes: 2, forca: 20, dano: 10 },
+    regra: (r) => `Enfraquecido por ${vezes(r.vezes)} dele: Força −${r.forca} e Dano −${r.dano}.` },
+  outro: { nome: 'Outro', adj: 'especial', selo: null, existe: 'auto', padrao: { modo: 'sempre', vezes: 2, porVez: 0, nome: 'Marcado' },
+    regra: (r) => `${r.nome || '(sem nome)'} por ${vezes(r.vezes)} dele${r.porVez > 0 ? `: tira ${r.porVez} de HP por vez` : ''}.` },
+};
+const EXISTE_TXT = { auto: ['auto', 'o app já faz'], novo: ['novo', 'selo novo, peças de hoje'], mao: ['mao', 'o mestre aplica'] };
+const MODOS_TXT = { sempre: 'Sempre que acertar', teste: 'Com teste', tipo: 'Só o tipo' };
+const nomeDoSelo = (id, r) => (id === 'outro' ? (r.nome || 'Selo') : (FISICOS[id] || ELEMENTOS[id]).selo);
+
+/* ============================================================ o alcance: as formas (formaNaTela.ts) */
+const FORMAS = [
+  { id: 'alvo', rot: 'Alvo até' }, { id: 'linha', rot: 'Linha reta' }, { id: 'volta', rot: 'Em volta' }, { id: 'frente', rot: 'Quadrado à frente' },
+  { id: 'cruz', rot: 'Cruz' }, { id: 'leque', rot: 'Leque' }, { id: 'anel', rot: 'Anel (só longe)' }, { id: 'ponto', rot: 'Área num ponto' },
+  { id: 'ficha', rot: 'Área numa ficha' }, { id: 'si', rot: 'Só em quem usa' },
+];
+const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+const DIR_NOME = ['para cima', 'para a direita', 'para baixo', 'para a esquerda'];
+const LADO = 13;
+const MEIO = 6;
+const cheb = (ax, ay, bx, by) => Math.max(Math.abs(ax - bx), Math.abs(ay - by));
+const temDirecao = (f) => f === 'linha' || f === 'frente' || f === 'leque';
+
+/** As casas acesas (area) e as casas onde a mira pode ir (alcance), como o Testar do app. */
+function celulas(al, dir, ponto, alvoFicha) {
+  const area = new Set();
+  const alcance = new Set();
+  const k = (x, y) => `${x},${y}`;
+  const [dx, dy] = DIRS[dir];
+  const n = al.n;
+  const dentro = (x, y) => x >= 0 && y >= 0 && x < LADO && y < LADO;
+  const varre = (fn) => { for (let y = 0; y < LADO; y++) for (let x = 0; x < LADO; x++) fn(x, y); };
+  let centro = null;
+  switch (al.forma) {
+    case 'alvo': varre((x, y) => { const d = cheb(x, y, MEIO, MEIO); if (d >= 1 && (al.semLimite || d <= n)) alcance.add(k(x, y)); }); break;
+    case 'anel': varre((x, y) => { const d = cheb(x, y, MEIO, MEIO); if (d >= al.min && d <= n) alcance.add(k(x, y)); }); break;
+    case 'linha': for (let i = 1; i <= n; i++) { const x = MEIO + dx * i, y = MEIO + dy * i; if (dentro(x, y)) area.add(k(x, y)); } break;
+    case 'volta': varre((x, y) => { const d = cheb(x, y, MEIO, MEIO); if (d >= 1 && d <= n) area.add(k(x, y)); }); break;
+    case 'frente': { const meia = Math.floor((n - 1) / 2); for (let i = 1; i <= n; i++) for (let j = -meia; j <= n - 1 - meia; j++) { const x = MEIO + dx * i + dy * j * -1, y = MEIO + dy * i + dx * j; if (dentro(x, y)) area.add(k(x, y)); } break; }
+    case 'cruz': for (const [ax, ay] of DIRS) for (let i = 1; i <= n; i++) { const x = MEIO + ax * i, y = MEIO + ay * i; if (dentro(x, y)) area.add(k(x, y)); } break;
+    case 'leque': for (let i = 1; i <= n; i++) for (let j = -(i - 1); j <= i - 1; j++) { const x = MEIO + dx * i - dy * j, y = MEIO + dy * i + dx * j; if (dentro(x, y)) area.add(k(x, y)); } break;
+    case 'ponto': {
+      varre((x, y) => { if (cheb(x, y, MEIO, MEIO) <= n) alcance.add(k(x, y)); });
+      centro = ponto;
+      varre((x, y) => { if (cheb(x, y, centro.x, centro.y) <= al.raio) area.add(k(x, y)); });
+      break;
+    }
+    case 'ficha': {
+      varre((x, y) => { const d = cheb(x, y, MEIO, MEIO); if (d >= 1 && d <= n) alcance.add(k(x, y)); });
+      if (alvoFicha && alcance.has(k(alvoFicha.x, alvoFicha.y))) { centro = alvoFicha; varre((x, y) => { if (cheb(x, y, centro.x, centro.y) <= al.raio) area.add(k(x, y)); }); }
+      break;
+    }
+    case 'si': area.add(k(MEIO, MEIO)); break;
+  }
+  return { area, alcance, centro };
+}
+
+/* ============================================================ o estado */
+function habVazia() {
+  return {
+    nome: '', descricao: '', uso: 'ataque', acao: 'simples', fisico: null, fis: {}, elementos: [], el: {},
+    alcance: { forma: 'alvo', n: 1, raio: 1, min: 2, quem: 'inimigos', quantos: 1, dividir: false, semLimite: false },
+    dano: { modo: 'formula', formula: '', pct: 25, de: 'maxima', concentracao: false },
+    teste: { tipo: 'reacao', atr: 'Agilidade', cd: 12, sePassar: 'metade', atrUsa: 'Força', atrAlvo: 'Força' },
+    defesa: { tipo: 'fica', pct: 50, atrs: 'Força', anulaCom: 15, devolve: 0, contraOverload: false },
+    extras: [], custo: { sp: 0, porVez: 0, recarga: 0, usos: 0, item: '', itemN: 1 },
+    req: [], evolui: null, reqEvolui: [], evolucaoDe: null, esconder: false, campos: [], outraAcao: false,
+  };
+}
+function hab(over) { return Object.assign(habVazia(), copia(over)); }
+
+function exemplo(id) {
+  const base = { exemplo: id, d20: 7, d20b: 12, reage: 'd20', carga: 0, dir: 0, ativo: 0, animar: false, aberta: null, habs: {},
+    bonecos: [{ x: 6, y: 4 }, { x: 8, y: 2 }, { x: 2, y: 8 }], ponto: { x: 7, y: 3 } };
+  if (id === 'caca') {
+    base.ficha = 'sieg';
+    base.est = { sp: 140, ligadas: [], contadores: {}, rodada: 1 };
+    base.habs.caca = hab({ id: 'caca', nome: 'CAÇA AS BRUXAS!', descricao: 'Dispara uma flecha flamejante condensada que causa dano flamejante, e atinge alvos a distância.',
+      uso: 'ataque', acao: 'completa', elementos: ['queimadura'], el: { queimadura: { modo: 'tipo', vezes: 3, porVez: 10 } },
+      alcance: { forma: 'alvo', n: 10, raio: 1, min: 2, quem: 'inimigos', quantos: 1, dividir: false, semLimite: false },
+      dano: { modo: 'formula', formula: 'Espírito + 15 + 20', pct: 25, de: 'maxima', concentracao: false },
+      custo: { sp: 35, porVez: 0, recarga: 4, usos: 0, item: '', itemN: 1 }, evolui: 'super',
+      reqEvolui: [
+        { modo: 'todos', itens: [{ tipo: 'B1', tec: 'Melodia de Todas as Coisas' }, { tipo: 'B1', tec: 'Caminho do Dano' }] },
+        { modo: 'um', itens: [{ tipo: 'A1', n: 50, gasta: true }, { tipo: 'G2', poder: 'poder de fogo' }] },
+      ],
+      campos: [{ nome: 'Imbuir Fogo', valor: 'Sim' }] });
+    base.habs.super = hab({ id: 'super', nome: 'SUPER CAÇA AS BRUXAS!', descricao: 'O mesmo do CAÇA AS BRUXAS! comum, com muito mais força. Quem usa ganha muita fadiga.',
+      uso: 'ataque', acao: 'overload', fisico: 'perfurante', fis: { perfurante: { pct: 100 } }, elementos: ['queimadura'], el: { queimadura: { modo: 'tipo', vezes: 3, porVez: 10 } },
+      alcance: { forma: 'alvo', n: 10, raio: 1, min: 2, quem: 'inimigos', quantos: 1, dividir: false, semLimite: false },
+      dano: { modo: 'formula', formula: '(Força + Espírito) + 100 + 30', pct: 25, de: 'maxima', concentracao: false },
+      extras: [{ tipo: 'aMao', texto: 'Quem usa perde metade dos Status até o fim da batalha.' }], evolucaoDe: 'caca' });
+    base.aberta = 'caca';
+  } else if (id === 'chuva') {
+    base.ficha = 'vagn';
+    base.est = { sp: 120, ligadas: [], contadores: { 'Polaridade': 1, 'Campo de Contenção': 1 }, rodada: 1 };
+    base.habs.chuva = hab({ id: 'chuva', nome: 'Chuva', descricao: 'Faz chover sobre uma área de 2 casas.',
+      uso: 'ataque', acao: 'completa',
+      alcance: { forma: 'ponto', n: 6, raio: 2, min: 2, quem: 'todos', quantos: 1, dividir: false, semLimite: false },
+      dano: { modo: 'formula', formula: 'Espírito + 30', pct: 25, de: 'maxima', concentracao: false },
+      custo: { sp: 40, porVez: 0, recarga: 2, usos: 0, item: '', itemN: 1 },
+      req: [{ modo: 'todos', itens: [{ tipo: 'A4', cont: 'Polaridade', n: 2, gasta: true }, { tipo: 'A4', cont: 'Campo de Contenção', n: 1, gasta: false }] }] });
+    base.aberta = 'chuva';
+  } else if (id === 'bencao') {
+    base.ficha = 'aira';
+    base.est = { sp: 140, ligadas: [], contadores: {}, rodada: 1 };
+    base.habs.bencao = hab({ id: 'bencao', nome: 'A Virtude Traz Benção', descricao: 'Aira abençoa um aliado: ele fica mais forte e a vida volta com o dano que ele causa.',
+      uso: 'apoio', acao: 'completa',
+      alcance: { forma: 'alvo', n: 3, raio: 1, min: 2, quem: 'aliados', quantos: 1, dividir: false, semLimite: false },
+      dano: { modo: 'nenhum', formula: '', pct: 25, de: 'maxima', concentracao: false },
+      extras: [{ tipo: 'selo', nome: 'Bênção de uma Raposa', natureza: 'buff', dura: 0, atr: 'Força', delta: 8, curaDoDano: 10 }],
+      custo: { sp: 35, porVez: 0, recarga: 1, usos: 0, item: '', itemN: 1 } });
+    base.aberta = 'bencao';
+  } else {
+    base.ficha = 'sieg';
+    base.est = { sp: 140, ligadas: [], contadores: {}, rodada: 1 };
+    base.habs.nova = hab({ id: 'nova' });
+    base.aberta = 'nova';
+  }
+  return base;
+}
+
+let S = exemplo('caca');
+const H = () => S.habs[S.aberta];
+const F = () => FICHAS[S.ficha];
+const PILHA = [];
+function guardar() { PILHA.push(JSON.stringify(S)); if (PILHA.length > 60) PILHA.shift(); }
+function desfazer() { const v = PILHA.pop(); if (!v) { aviso('Nada para desfazer.'); return; } S = JSON.parse(v); renderTudo(); aviso('Desfeito.'); }
+
+/* ============================================================ o dano: a fórmula */
+const PALAVRAS_SOLTAS = new Set(['de', 'do', 'da', 'e', 'dano', 'base', 'fogo', 'raio', 'gelo', 'veneno']);
+const ATR_POR_NOME = Object.fromEntries(ATRIBUTOS.map((a) => [norm(a), a]));
+/** Lê "Espírito + 15 + 20" com os números da ficha. Nunca usa eval. */
+function calcular(formula, ficha) {
+  const texto = norm(formula).replace(/dano da arma/g, ' @arma ').replace(/×/g, '*').replace(/÷/g, '/').replace(/x(?=\s*\d)/g, '*');
+  if (texto.trim() === '') return { ok: false, vazio: true };
+  const toks = [];
+  const conta = [];
+  const re = /\s*(@arma|\d+(?:[.,]\d+)?|[a-z]+|[-+*/()])/gy;
+  let m;
+  let pos = 0;
+  while (pos < texto.length) {
+    re.lastIndex = pos;
+    m = re.exec(texto);
+    if (!m) { if (texto.slice(pos).trim() === '') break; return { ok: false, erro: `Não entendi "${texto.slice(pos).trim().slice(0, 12)}". Use os botões abaixo.` }; }
+    pos = re.lastIndex;
+    const t = m[1];
+    if (t === '@arma') { const v = ficha.arma ? ficha.arma.dano : 0; toks.push({ n: v }); conta.push(`Arma ${v}`); }
+    else if (/^\d/.test(t)) { const v = Number(t.replace(',', '.')); toks.push({ n: v }); conta.push(String(v).replace('.', ',')); }
+    else if (/^[a-z]+$/.test(t)) {
+      if (ATR_POR_NOME[t]) { const nome = ATR_POR_NOME[t]; const v = ficha.atr[nome] || 0; toks.push({ n: v }); conta.push(`${nome} ${v}`); }
+      else if (PALAVRAS_SOLTAS.has(t)) continue;
+      else return { ok: false, erro: `"${t}" não é um atributo desta ficha. Use os botões abaixo.` };
+    } else { toks.push({ op: t }); conta.push(t === '*' ? '×' : t === '/' ? '÷' : t); }
+  }
+  let i = 0;
+  const olha = () => toks[i];
+  function expr() { let v = termo(); while (olha() && (olha().op === '+' || olha().op === '-')) { const op = toks[i++].op; const d = termo(); v = op === '+' ? v + d : v - d; } return v; }
+  function termo() { let v = fator(); while (olha() && (olha().op === '*' || olha().op === '/')) { const op = toks[i++].op; const d = fator(); if (op === '/' && d === 0) throw new Error('Divisão por zero.'); v = op === '*' ? v * d : v / d; } return v; }
+  function fator() {
+    const t = toks[i++];
+    if (!t) throw new Error('A conta termina num sinal. Complete com um número ou atributo.');
+    if (t.n !== undefined) return t.n;
+    if (t.op === '-') return -fator();
+    if (t.op === '(') { const v = expr(); if (!olha() || olha().op !== ')') throw new Error('Falta fechar o parêntese.'); i++; return v; }
+    throw new Error(`Sinal "${t.op}" fora do lugar.`);
+  }
+  try {
+    const v = expr();
+    if (i < toks.length) throw new Error('Sobrou algo no fim da conta.');
+    return { ok: true, valor: Math.max(0, Math.round(v)), conta: conta.join(' ').replace(/\( /g, '(').replace(/ \)/g, ')') };
+  } catch (e) { return { ok: false, erro: e.message }; }
+}
+
+/* ============================================================ derivados: o que a escolha implica */
+const ehOverload = (h) => h.uso === 'ataque' && h.acao === 'overload';
+const testeEfetivo = (h) => (ehOverload(h) ? { tipo: 'naoErra' } : h.teste);
+const temDano = (h) => h.uso === 'ataque' && h.dano.modo !== 'nenhum';
+const ACAO_NOME = { simples: 'Simples', completa: 'Completa', bonus: 'Bônus', livre: 'Livre', perguntar: 'Perguntar na hora', overload: 'Overload' };
+function nomeDoUso(h) {
+  if (h.uso === 'ataque') return { overload: 'Overload', perguntar: 'Ataque (ação na hora)', simples: 'Ataque Simples', completa: 'Ataque Completo', bonus: 'Ataque Bônus', livre: 'Ataque Livre' }[h.acao];
+  if (h.uso === 'apoio') return `Apoio (Ação ${ACAO_NOME[h.acao] || 'Simples'})`;
+  if (h.uso === 'reacao') return h.acao === 'osDois' ? 'Reação ou na vez' : 'Reação';
+  return 'Passiva';
+}
+function tipoNaBatalha(h) {
+  if (h.uso === 'apoio') return 'Buff';
+  if (h.uso === 'reacao') return 'Reação';
+  if (h.uso === 'passiva') return 'Passiva';
+  const efeitos = (h.fisico && h.fisico !== 'perfurante' && h.fis[h.fisico].modo !== 'tipo') || h.elementos.some((e) => h.el[e].modo !== 'tipo') || h.extras.some((x) => x.tipo === 'selo');
+  return h.dano.modo === 'nenhum' && efeitos ? 'Debuff' : 'Ativa';
+}
+/** Os selos que o golpe põe (para o teto de 3 no mesmo golpe). */
+function selosDoGolpe(h) {
+  const lista = [];
+  if (h.fisico && FISICOS[h.fisico].selo && h.fis[h.fisico].modo !== 'tipo') lista.push(h.fisico);
+  for (const e of h.elementos) if (h.el[e].modo !== 'tipo') lista.push(e);
+  for (const x of h.extras) if (x.tipo === 'selo' || x.tipo === 'seloPronto') lista.push('extra');
+  return lista;
+}
+function valorDoDano(h, f) {
+  if (h.dano.modo !== 'formula') return null;
+  const r = calcular(h.dano.formula, f);
+  return r.ok ? r.valor : null;
+}
+
+/* ============================================================ os requisitos (tipos do REQUISITOS-LISTA.md) */
+const REQ = {
+  A1: { nome: 'Ter pelo menos N de SP', conf: 'auto', gasta: true, padrao: { n: 30, gasta: false },
+    frase: (r, k) => `Ter pelo menos ${numIn(k + '.n', r.n, 0, 999, 'SP')} de SP`, curta: (r) => `${r.n} SP${r.gasta ? ' (gasta)' : ''}`,
+    checa: (r, e) => (e.sp >= r.n ? null : `SP ${r.n}, tem ${e.sp}`) },
+  A2: { nome: 'Vida abaixo de X%', conf: 'auto', padrao: { n: 30 },
+    frase: (r, k) => `Vida abaixo de ${numIn(k + '.n', r.n, 1, 99, 'por cento')}%`, curta: (r) => `vida abaixo de ${r.n}%`, checa: (r) => `vida abaixo de ${r.n}% (está cheia)` },
+  A4: { nome: 'Nível de um acumulador', conf: 'auto', gasta: true, padrao: { cont: '', n: 2, gasta: true },
+    frase: (r, k, f) => (f.contadores.length ? `${selIn(k + '.cont', r.cont, f.contadores, 'Acumulador')} no nível ${numIn(k + '.n', r.n, 1, acumDe(f, r.cont).max, 'nível')} ou mais` : `<span class="dica">Esta ficha não tem acumulador.</span> ${linkAcum('Criar um acumulador')}`),
+    curta: (r) => `${r.cont} ${r.n}${r.gasta ? ' (gasta)' : ''}`,
+    checa: (r, e) => { const v = e.contadores[r.cont] || 0; return v >= r.n ? null : `${r.cont} ${r.n}, tem ${v}`; } },
+  B1: { nome: 'Técnica ou passiva ligada', conf: 'auto', padrao: { tec: '' },
+    frase: (r, k, f) => `${selIn(k + '.tec', r.tec, f.tec, 'Técnica')} ligada`, curta: (r) => `${r.tec} ligada`,
+    checa: (r, e) => (e.ligadas.includes(r.tec) ? null : `${r.tec} ligada`) },
+  B2: { nome: 'Ter um selo em si', conf: 'auto', padrao: { selo: 'Fortalecido' },
+    frase: (r, k) => `Estar com ${txtIn(k + '.selo', r.selo, 'Selo')}`, curta: (r) => `estar com ${r.selo}`, checa: (r) => `estar com ${r.selo}` },
+  C1: { nome: 'A partir da rodada N', conf: 'auto', padrao: { n: 3 },
+    frase: (r, k) => `A partir da rodada ${numIn(k + '.n', r.n, 1, 20, 'rodada')}`, curta: (r) => `rodada ${r.n} em diante`,
+    checa: (r, e) => (e.rodada >= r.n ? null : `rodada ${r.n}, está na ${e.rodada}`) },
+  G2: { nome: 'Ajuda de um aliado com um poder', conf: 'pergunta', padrao: { poder: 'poder de fogo' },
+    frase: (r, k) => `Ajuda de um aliado com ${txtIn(k + '.poder', r.poder, 'Poder')}`, curta: (r) => `ajuda de um aliado com ${r.poder}`, checa: () => 'pergunta' },
+  J1: { nome: 'Personalizado (caixa "Cumpriu?")', conf: 'caixa', padrao: { texto: '' },
+    frase: (r, k) => `${txtIn(k + '.texto', r.texto, 'O que precisa', 'Ex.: só depois da música do bardo')}`, curta: (r) => r.texto || '(sem texto)', checa: () => 'caixa' },
+};
+const CONF_TXT = { auto: 'Auto', pergunta: 'Pergunta', caixa: 'Caixa' };
+function checarGrupos(grupos, e) {
+  const faltas = [];
+  for (const g of grupos) {
+    const res = g.itens.map((r) => ({ r, f: REQ[r.tipo].checa(r, e) }));
+    const ok = (x) => x.f === null || x.f === 'pergunta' || x.f === 'caixa';
+    if (g.modo === 'todos') res.filter((x) => !ok(x)).forEach((x) => faltas.push(x));
+    else if (g.itens.length && !res.some(ok)) faltas.push({ r: g.itens[0], f: `um destes: ${res.map((x) => x.f).join(' ou ')}` });
+  }
+  return faltas;
+}
+function fraseDosRequisitos(grupos) {
+  return grupos.map((g) => (g.modo === 'todos' ? g.itens.map((r) => REQ[r.tipo].curta(r)).join(' e ') : `${g.itens.map((r) => REQ[r.tipo].curta(r)).join(' ou ')}`)).filter(Boolean).join('; e ');
+}
+
+/* ============================================================ os efeitos extras (+ Efeito) */
+const EFEITOS = {
+  cura: { nome: 'Cura', faz: 'Recupera HP, SP ou Escudo', padrao: { recurso: 'hp', formula: 'Espírito', em: 'alvo' } },
+  seloPronto: { nome: 'Condição pronta', faz: 'Atordoado, Paralisado, Aéreo, Cego, Marcado…', padrao: { nome: 'Atordoado', dura: 2, em: 'alvo' } },
+  selo: { nome: 'Buff ou debuff com números', faz: 'Um selo que soma ou tira (Força +20)', padrao: { nome: 'Fortalecido', natureza: 'buff', dura: 2, atr: 'Força', delta: 20, curaDoDano: 0 } },
+  tirar: { nome: 'Tirar condições', faz: 'As negativas, as positivas ou todas', padrao: { quais: 'negativas' } },
+  dreno: { nome: 'Roubo de vida', faz: 'Parte do dano volta em HP para quem usa', padrao: { pct: 50 }, precisaDano: true },
+  segundo: { nome: '2º golpe', faz: 'Outro golpe nos mesmos alvos', padrao: { pct: 50, perfurante: true }, precisaDano: true },
+  reviver: { nome: 'Reviver', faz: 'Aliado caído volta com parte da vida', padrao: { pct: 25 } },
+  acumular: { nome: 'Somar num acumulador', faz: '+1 Polaridade, +1 Fúria: o medidor da ficha sobe', padrao: { acum: '', n: 1, quando: 'usar' } },
+  aMao: { nome: 'Lembrete para o mestre', faz: 'O app não faz; só lembra', padrao: { texto: '' } },
+};
+const SELOS_PRONTOS = ['Atordoado', 'Paralisado', 'Aéreo', 'Cego', 'Marcado', 'Sangrando', 'Queimando'];
+
+/* ============================================================ pedaços de formulário */
+function numIn(campo, valor, min, max, rot) {
+  return `<span class="np"><button type="button" class="np__b" data-a="passo" data-campo="${campo}" data-d="-1" data-min="${min}" data-max="${max}" aria-label="Menos ${esc(rot)}">−</button><input class="np__i num" type="text" inputmode="numeric" data-campo="${campo}" data-tipo="num" data-min="${min}" data-max="${max}" value="${esc(valor)}" aria-label="${esc(rot)}"><button type="button" class="np__b" data-a="passo" data-campo="${campo}" data-d="1" data-min="${min}" data-max="${max}" aria-label="Mais ${esc(rot)}">+</button></span>`;
+}
+function selIn(campo, valor, opcoes, rot) {
+  const lista = opcoes.includes(valor) || !valor ? opcoes : [valor, ...opcoes];
+  return `<select class="entrada" data-campo="${campo}" aria-label="${esc(rot)}">${valor ? '' : '<option value="">(escolha)</option>'}${lista.map((o) => `<option${o === valor ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+}
+function txtIn(campo, valor, rot, ph) { return `<input class="entrada" style="width:${Math.max(12, String(valor || ph || '').length + 4)}ch" data-campo="${campo}" value="${esc(valor)}" aria-label="${esc(rot)}"${ph ? ` placeholder="${esc(ph)}"` : ''}>`; }
+function seg(rot, opcoes, atual, acao, extra = '') {
+  return `<div class="seg" role="radiogroup" aria-label="${esc(rot)}">${opcoes.map(([v, r, motivo]) => `<button type="button" role="radio" class="seg__o" aria-checked="${v === atual}" tabindex="${v === atual ? 0 : -1}" data-a="${acao}" data-v="${v}"${extra}${motivo ? ` aria-disabled="true" title="${esc(motivo)}"` : ''}>${esc(r)}</button>`).join('')}</div>`;
+}
+function dim(id, nome, dica, corpo) {
+  return `<section class="dim" id="dim-${id}" data-dim="${id}" aria-labelledby="dn-${id}"><div class="dim__cab"><h2 class="dim__nome" id="dn-${id}">${nome}</h2><p class="dim__dica">${dica}</p></div><div class="dim__corpo">${corpo}</div></section>`;
+}
+function glifo(forma, verde) {
+  const al = { forma, n: forma === 'frente' ? 3 : 2, raio: 1, min: 2, semLimite: false };
+  const { area, alcance } = celulas(al, 0, { x: MEIO, y: MEIO - 2 }, { x: MEIO, y: MEIO - 2 });
+  const cor = verde ? '#8fe08f' : '#3b8ff0';
+  let s = '';
+  for (let y = 3; y <= 9; y++) for (let x = 3; x <= 9; x++) {
+    const k = `${x},${y}`;
+    const fill = x === MEIO && y === MEIO ? '#eceae4' : area.has(k) ? cor : alcance.has(k) ? (verde ? 'rgba(143,224,143,0.45)' : 'rgba(59,143,240,0.45)') : 'rgba(255,255,255,0.07)';
+    s += `<rect x="${(x - 3) * 3.7 + 0.3}" y="${(y - 3) * 3.7 + 0.3}" width="3.1" height="3.1" rx="0.5" fill="${fill}"/>`;
+  }
+  return `<svg class="glifo" viewBox="0 0 26 26" aria-hidden="true">${s}</svg>`;
+}
+
+/* ============================================================ o editor: as dimensões */
+function htmlEditor() {
+  const h = H();
+  const f = F();
+  const evo = h.evolui ? S.habs[h.evolui] : null;
+  const base = h.evolucaoDe ? S.habs[h.evolucaoDe] : null;
+  let o = '';
+  if (evo || base) {
+    const a = base || h;
+    const b = evo || h;
+    o += `<div class="abas" role="tablist" aria-label="Versões desta habilidade">${[a, b].map((x, i) => `<button type="button" role="tab" class="aba" aria-selected="${x.id === h.id}" tabindex="${x.id === h.id ? 0 : -1}" data-a="aba" data-v="${x.id}">${esc(x.nome || '(sem nome)')}${i === 1 ? '<span class="etq" data-c="novo">evolução</span>' : ''}</button>`).join('')}</div>`;
+  }
+  o += `<div class="topo">
+    <div class="topo__campo"><label for="f-nome">Nome</label><input id="f-nome" class="entrada entrada--nome" data-campo="nome" value="${esc(h.nome)}" placeholder="Nome da habilidade" aria-describedby="erro-nome"${S.erroNome ? ' aria-invalid="true"' : ''}>${S.erroNome ? '<p class="erro" id="erro-nome">Dê um nome à habilidade para salvar a ficha.</p>' : ''}</div>
+    <div class="topo__campo" style="justify-items:end"><span class="rot">Tipo na batalha</span><span class="etq" id="tipo-batalha" title="Sai das escolhas abaixo; não é mais um campo à parte">${esc(tipoNaBatalha(h))}</span></div>
+    ${base ? `<p class="aviso-evo">Esta é a evolução de <b>${esc(base.nome)}</b>: aparece no lugar dela quando os requisitos de evolução são cumpridos, até ser usada uma vez. Depois volta a comum.</p>` : ''}
+    <div class="topo__campo topo__desc"><label for="f-desc">Descrição <span class="dica">como o golpe é, com suas palavras (só para ler; o app não lê)</span></label><textarea id="f-desc" class="entrada" data-campo="descricao" rows="2" placeholder="Ex.: uma flecha de fogo que corta o céu">${esc(h.descricao)}</textarea></div>
+  </div>`;
+  o += dim('acao', 'Ação', 'o que é e o que gasta', htmlAcao(h));
+  if (h.uso === 'passiva') {
+    o += dim('passiva', 'Mecânica', 'o que o app faz', '<p class="dim__vazio">A passiva ainda não tem peças: o app lê a descrição, como hoje (a Melodia de Todas as Coisas é assim). Os requisitos abaixo dizem quando ela liga.</p>');
+  }
+  if (h.uso === 'ataque') o += dim('golpe', 'Golpe', 'que tipo de golpe é', htmlGolpe(h));
+  if (h.uso === 'ataque' || h.uso === 'apoio') o += dim('alcance', 'Alcance', 'onde pega', htmlAlcance(h));
+  if (h.uso === 'ataque') o += dim('dano', 'Dano', 'quanto tira', htmlDano(h, f));
+  if (h.uso === 'ataque') o += dim('acerto', 'Acerto', 'como o golpe pega', htmlAcerto(h));
+  if (h.uso === 'reacao') o += dim('acerto', 'Defesa', 'o que faz no lugar da reação', htmlDefesa(h));
+  if (h.uso !== 'passiva') o += dim('efeitos', 'Efeitos', h.uso === 'apoio' ? 'o que faz no aliado' : 'o que mais faz', htmlEfeitos(h));
+  if (h.uso !== 'passiva') o += dim('custo', 'Custo', 'o que gasta e quando volta', htmlCusto(h));
+  o += dim('requisitos', 'Requisitos', h.uso === 'passiva' ? 'quando ela liga' : 'o que precisa para usar', htmlGrupos('req', h.req, f));
+  if (!h.evolucaoDe) o += dim('evolucao', 'Evolução', 'vira outra versão', htmlEvolucao(h, f));
+  o += dim('jogadores', 'Jogadores', 'o que eles veem', `<label class="marca"><input type="checkbox" data-campo="esconder" data-tipo="bool"${h.esconder ? ' checked' : ''}> Esconder dos jogadores</label><p class="dica">${h.esconder ? 'Eles não veem este cartão. Na batalha, a técnica aparece só para o mestre.' : 'Eles veem este cartão inteiro, com a frase da direita.'}</p>`);
+  o += dim('campos', 'Campos extras', 'anotações do cartão', htmlCampos(h));
+  return o;
+}
+
+function htmlAcao(h) {
+  const op = (uso, acao, nome, desc, sobre) => {
+    const marcado = h.uso === uso && (acao === null || h.acao === acao || (uso === 'ataque' && acao === 'simples' && ['bonus', 'livre', 'perguntar'].includes(h.acao)));
+    const rotulo = uso === 'ataque' && acao === 'simples' && ['bonus', 'livre', 'perguntar'].includes(h.acao) ? nomeDoUso(h) : nome;
+    return `<button type="button" role="radio" class="opc" aria-checked="${marcado}" tabindex="${marcado ? 0 : -1}" data-a="uso" data-uso="${uso}" data-v="${uso}:${acao || ''}" data-acao="${acao || ''}"${sobre ? ' data-sobre="true"' : ''}><span class="opc__n">${rotulo}</span><span class="opc__d">${desc}</span></button>`;
+  };
+  let o = `<div class="acoes" role="radiogroup" aria-label="Ação">
+    <p class="acoes__grupo">Ataque</p>
+    ${op('ataque', 'simples', 'Ataque Simples', 'Gasta a ação simples da vez.')}
+    ${op('ataque', 'completa', 'Ataque Completo', 'Gasta a vez inteira.')}
+    ${op('ataque', 'overload', 'Overload', '1 por batalha. Não erra: só outra Overload defende.', true)}
+    <p class="acoes__grupo">Sem ser ataque</p>
+    ${op('apoio', null, 'Apoio', 'Cura, buff ou escudo num aliado. Ninguém reage.')}
+    ${op('reacao', null, 'Reação', 'Usada no lugar da reação, quando apanha.')}
+    ${op('passiva', null, 'Passiva', 'Vale sozinha, sem gastar ação.')}
+  </div>`;
+  if (h.uso === 'ataque' && h.acao !== 'overload') {
+    if (h.outraAcao || ['bonus', 'livre', 'perguntar'].includes(h.acao)) {
+      o += `<div class="linha"><span class="rot">Gasta outra ação</span>${seg('Outra ação', [['simples', 'Simples'], ['bonus', 'Bônus'], ['livre', 'Livre'], ['perguntar', 'Perguntar na hora']], h.acao === 'completa' ? '' : h.acao, 'acao')}</div>`;
+    } else o += '<button type="button" class="mais-acao" data-a="outraAcao">Gasta a Bônus, a Livre ou pergunta na hora?</button>';
+  }
+  if (h.uso === 'apoio') o += `<div class="linha"><span class="rot">Gasta</span>${seg('Ação do apoio', [['simples', 'Simples'], ['bonus', 'Bônus'], ['completa', 'Completa'], ['livre', 'Livre']], h.acao, 'acao')}</div>`;
+  if (h.uso === 'reacao') o += `<div class="linha"><span class="rot">Quando usa</span>${seg('Quando usa', [['reacao', 'Só no lugar da reação'], ['osDois', 'Na vez ou na reação']], h.acao === 'osDois' ? 'osDois' : 'reacao', 'acao')}</div>`;
+  if (ehOverload(h)) o += `<p class="trava">${ic('cadeado')}Overload gasta a vez inteira, vale 1 vez por batalha e o alvo não reage (só outra Overload defende). Acerto e Custo seguem isso.</p>`;
+  return o;
+}
+
+function htmlGolpe(h) {
+  const nSelos = selosDoGolpe(h).length;
+  const cheio = nSelos >= SELOS_NO_GOLPE_MAX;
+  const chipFis = (id) => { const t = FISICOS[id]; const on = h.fisico === id; return `<button type="button" role="radio" class="tipo" aria-checked="${on}" tabindex="${on || (!h.fisico && id === 'impacto') ? 0 : -1}" data-a="fisico" data-v="${id}" style="--cor:${COR_TIPO[id]}">${ic(id)}${t.nome}</button>`; };
+  const chipEl = (id) => {
+    const t = ELEMENTOS[id];
+    const on = h.elementos.includes(id);
+    const motivo = !on && cheio ? `Até ${SELOS_NO_GOLPE_MAX} condições no mesmo golpe` : '';
+    return `<button type="button" class="tipo" aria-pressed="${on}" data-a="elemento" data-v="${id}" style="--cor:${COR_TIPO[id]}"${motivo ? ` aria-disabled="true" title="${motivo}"` : ''}>${ic(id)}${t.nome}</button>`;
+  };
+  let o = `<div class="linha"><span class="rot" id="rot-fis">Como bate</span><div class="tipos" role="radiogroup" aria-labelledby="rot-fis">${Object.keys(FISICOS).map(chipFis).join('')}</div></div>`;
+  o += `<div class="linha"><span class="rot">O que causa</span><div class="tipos" role="group" aria-label="O que causa">${Object.keys(ELEMENTOS).map(chipEl).join('')}</div></div>`;
+  const regras = [];
+  if (h.fisico) regras.push(htmlRegra(h.fisico, FISICOS[h.fisico], h.fis[h.fisico], 'fis'));
+  for (const e of h.elementos) regras.push(htmlRegra(e, ELEMENTOS[e], h.el[e], 'el'));
+  if (regras.length) o += `<div class="regras">${regras.join('')}</div>`;
+  else o += '<p class="dim__vazio">O golpe ainda não tem tipo. Escolha como bate e o que causa; cada um já vem com uma regra que dá para mudar. Sem tipo, ele só dá o dano.</p>';
+  if (cheio) o += `<p class="dica">Este golpe já põe ${SELOS_NO_GOLPE_MAX} condições: o máximo num golpe só. Para outra, mude um tipo para "Só o tipo".</p>`;
+  return o;
+}
+
+function htmlRegra(id, t, r, onde) {
+  const k = `${onde}.${id}`;
+  const [c, txt] = EXISTE_TXT[t.existe];
+  let faz = '';
+  if (id === 'perfurante') faz = `Passa ${numIn(k + '.pct', r.pct, 1, 100, 'por cento que passa')}% do dano direto no HP.`;
+  else if (r.modo !== 'tipo') {
+    const partes = [];
+    if (id === 'outro') partes.push(`Nome ${txtIn(k + '.nome', r.nome, 'Nome do selo')}`);
+    partes.push(`Dura ${numIn(k + '.vezes', r.vezes, 1, 20, 'vezes')} ${r.vezes === 1 ? 'vez' : 'vezes'} dele`);
+    if (r.porVez !== undefined) partes.push(`tira ${numIn(k + '.porVez', r.porVez, 0, 99, 'por vez')} ${id === 'choque' ? 'de SP' : 'de HP'} por vez`);
+    if (r.menos !== undefined) partes.push(`alcance −${numIn(k + '.menos', r.menos, 1, 5, 'casas a menos')}`);
+    if (r.forca !== undefined) partes.push(`Força −${numIn(k + '.forca', r.forca, 0, 99, 'Força a menos')} Dano −${numIn(k + '.dano', r.dano, 0, 99, 'Dano a menos')}`);
+    if (r.empurra !== undefined) partes.push(`empurra ${numIn(k + '.empurra', r.empurra, 0, 5, 'casas que empurra')}`);
+    faz = partes.join('<span aria-hidden="true">·</span>');
+  }
+  let quando = '';
+  if (id !== 'perfurante') {
+    quando = `<span class="rot">Pega</span>${seg('Quando pega: ' + t.nome, [['sempre', 'Sempre que acertar'], ['teste', 'Com teste'], ['tipo', 'Só o tipo, sem efeito']], r.modo, 'modo', ` data-onde="${onde}" data-id="${id}"`)}`;
+    if (r.modo === 'teste') quando += `<span class="frase-ed">o alvo testa ${selIn(k + '.atr', r.atr || 'Resistência', ATRIBUTOS, 'Atributo do teste')} contra CD ${numIn(k + '.cd', r.cd || 12, 1, 99, 'CD')}; falhou, pega</span>`;
+  }
+  return `<div class="regra" data-tipo-id="${id}">${ic(id, COR_TIPO[id])}<div><span class="regra__tit">${t.nome}${t.faz ? ` <span class="dica">${t.faz.toLowerCase()}</span>` : ''}</span><p class="dica">${esc(t.regra(Object.assign({}, r, { modo: r.modo })))}</p></div><div class="regra__lado"><span class="etq" data-c="${c}">${txt}</span><button type="button" class="bt bt--ic" data-a="${onde === 'fis' ? 'fisico' : 'elemento'}" data-v="${id}" aria-label="Tirar ${t.nome}">${ic('x')}</button></div>${faz ? `<div class="regra__faz">${faz}</div>` : ''}${quando ? `<div class="regra__quando">${quando}</div>` : ''}</div>`;
+}
+
+function htmlAlcance(h) {
+  const al = h.alcance;
+  const verde = !temDano(h);
+  let o = `<div class="formas" role="radiogroup" aria-label="Forma do alcance">${FORMAS.map((fm) => `<button type="button" role="radio" class="forma" aria-checked="${al.forma === fm.id}" tabindex="${al.forma === fm.id ? 0 : -1}" data-a="forma" data-v="${fm.id}">${glifo(fm.id, verde)}${fm.rot}</button>`).join('')}</div>`;
+  let tam = '';
+  switch (al.forma) {
+    case 'alvo': tam = al.semLimite ? 'Escolhe o alvo em qualquer lugar do mapa.' : `Escolhe o alvo a até ${numIn('alcance.n', al.n, 1, CASAS_MAX, 'casas')} ${al.n === 1 ? 'casa' : 'casas'} (1 = colado).`; break;
+    case 'anel': tam = `Só longe: de ${numIn('alcance.min', al.min, 2, al.n - 1, 'casas no mínimo')} a ${numIn('alcance.n', al.n, al.min + 1, CASAS_MAX, 'casas no máximo')} casas; colado não pega.`; break;
+    case 'linha': tam = `Uma reta de ${numIn('alcance.n', al.n, 1, CASAS_MAX, 'casas')} ${al.n === 1 ? 'casa' : 'casas'} a partir de quem usa.`; break;
+    case 'volta': tam = `Todas as casas a até ${numIn('alcance.n', al.n, 1, CASAS_MAX, 'casas')} de quem usa (${2 * al.n + 1}x${2 * al.n + 1}).`; break;
+    case 'frente': tam = `Um quadrado de ${numIn('alcance.n', al.n, 2, 9, 'lado')}x${al.n} colado na frente.`; break;
+    case 'cruz': tam = `As 4 retas, ${numIn('alcance.n', al.n, 1, CASAS_MAX, 'casas')} para cada lado.`; break;
+    case 'leque': tam = `Abre à frente: 1, 3, 5 casas por fileira, ${numIn('alcance.n', al.n, 1, 9, 'fileiras')} fileiras.`; break;
+    case 'ponto': tam = `Cai num ponto a até ${numIn('alcance.n', al.n, 1, CASAS_MAX, 'casas até o ponto')} casas e pega ${numIn('alcance.raio', al.raio, 0, 5, 'casas em volta do ponto')} em volta (${2 * al.raio + 1}x${2 * al.raio + 1}).`; break;
+    case 'ficha': tam = `Escolhe uma ficha a até ${numIn('alcance.n', al.n, 1, CASAS_MAX, 'casas até a ficha')} casas e pega ${numIn('alcance.raio', al.raio, 0, 5, 'casas em volta da ficha')} em volta dela.`; break;
+    case 'si': tam = 'Vale só em quem usa (o próprio cartão).'; break;
+  }
+  o += `<p class="frase-ed">${tam}</p>`;
+  if (al.forma === 'alvo') o += `<label class="marca"><input type="checkbox" data-campo="alcance.semLimite" data-tipo="bool"${al.semLimite ? ' checked' : ''}> Sem conferir a distância (como o "Tem alcance" desmarcado de hoje)</label>`;
+  if (al.forma === 'alvo' || al.forma === 'anel') {
+    o += `<div class="linha"><span class="rot">Quantos</span>${seg('Quantos alvos', [['1', '1 alvo'], ['varios', 'Vários']], al.quantos > 1 ? 'varios' : '1', 'quantos')}${al.quantos > 1 ? `<span class="frase-ed">até ${numIn('alcance.quantos', al.quantos, 2, 12, 'alvos')} alvos</span><label class="marca"><input type="checkbox" data-campo="alcance.dividir" data-tipo="bool"${al.dividir ? ' checked' : ''}> O dano se divide entre eles</label>` : ''}</div>`;
+  }
+  if (al.forma !== 'si') {
+    const ops = h.uso === 'apoio' ? [['aliados', 'Aliados'], ['todos', 'Todos']] : [['inimigos', 'Inimigos'], ['aliados', 'Aliados'], ['todos', 'Todos']];
+    o += `<div class="linha"><span class="rot">Pega</span>${seg('Em quem pega', ops, al.quem, 'quem')}${['ponto', 'ficha', 'volta', 'linha', 'cruz', 'leque', 'frente'].includes(al.forma) && al.quem !== 'aliados' && h.uso === 'ataque' ? '<span class="dica">Na área, o mestre desmarca quem não quer acertar.</span>' : ''}</div>`;
+  }
+  return o;
+}
+
+function htmlDano(h, f) {
+  const d = h.dano;
+  let o = `<div class="linha">${seg('Como é o dano', [['formula', 'Fórmula'], ['porcento', '% da vida do alvo'], ['nenhum', 'Sem dano']], d.modo, 'danoModo')}</div>`;
+  if (d.modo === 'formula') {
+    const r = calcular(d.formula, f);
+    o += `<div class="formula"><input class="entrada num" id="f-formula" data-campo="dano.formula" value="${esc(d.formula)}" placeholder="Ex.: Força + 20" aria-label="Fórmula do dano" aria-describedby="f-calcula"${r.erro ? ' aria-invalid="true"' : ''}>
+      <div class="teclas" aria-label="Pôr na fórmula">${ATRIBUTOS.map((a) => `<button type="button" class="tecla" data-a="tecla" data-v="${a}">${a}<sup>${f.atr[a]}</sup></button>`).join('')}<button type="button" class="tecla" data-a="tecla" data-v="Dano da Arma"${f.arma ? ` title="${esc(f.arma.nome)}: ${f.arma.dano}"` : ' title="Sem arma padrão na ficha: conta 0"'}>Dano da Arma<sup>${f.arma ? f.arma.dano : 0}</sup></button></div>
+      <div class="teclas">${['+', '−', '×', '÷', '(', ')', ','].map((t) => `<button type="button" class="tecla tecla--op" data-a="tecla" data-v="${t}" aria-label="${{ '+': 'mais', '−': 'menos', '×': 'vezes', '÷': 'dividido por', '(': 'abre parêntese', ')': 'fecha parêntese', ',': 'vírgula' }[t]}">${t}</button>`).join('')}</div>
+      <p class="calcula" id="f-calcula" aria-live="polite"${r.ok ? '' : ' data-erro'}>${htmlCalcula(r)}</p>
+      ${f.contadores.filter((n) => acumDe(f, n).da.tipo === 'dano').map((n) => `<p class="dica">O acumulador ${esc(n)} soma +${acumDe(f, n).da.n} por nível em todo golpe de ${esc(f.nome)}: não entra na fórmula, o teste mostra.</p>`).join('')}</div>`;
+  } else if (d.modo === 'porcento') {
+    o += `<p class="frase-ed">Tira ${numIn('dano.pct', d.pct, 1, 100, 'por cento')}% da ${selIn('dano.de', { maxima: 'vida máxima', atual: 'vida atual', falta: 'vida que falta' }[d.de], ['vida máxima', 'vida atual', 'vida que falta'], 'De qual vida')} do alvo.</p>`;
+  } else {
+    o += '<p class="dim__vazio">Sem dano: o golpe só põe o que o tipo e os efeitos dizem. O alvo ainda reage (esquivou, nada pega).</p>';
+  }
+  if (d.modo !== 'nenhum') o += `<label class="marca"><input type="checkbox" data-campo="dano.concentracao" data-tipo="bool"${d.concentracao ? ' checked' : ''}> Cresce com a Concentração guardada (carga 1: ×1,5 · 2: ×2 · 3: ×3,5)</label>`;
+  return o;
+}
+function htmlCalcula(r) {
+  if (r.vazio) return 'Escreva a conta ou use os botões: o app calcula sozinho.';
+  if (!r.ok) return esc(r.erro);
+  return `O app calcula sozinho <b>= ${r.valor}</b> (${esc(r.conta)})`;
+}
+
+function htmlAcerto(h) {
+  if (ehOverload(h)) return `<p class="trava">${ic('cadeado')}Não erra: o alvo não reage, só outra Overload defende (regra da Overload).</p>`;
+  const t = h.teste;
+  let o = `<div class="linha">${seg('Como acerta', [['reacao', 'O alvo reage (d20)'], ['resistencia', 'O alvo testa contra uma CD'], ['disputa', 'Disputa (d20 contra d20)'], ['naoErra', 'Não erra']], t.tipo, 'teste')}</div>`;
+  if (t.tipo === 'reacao') o += '<p class="dica">O alvo rola a reação de sempre: 10 = metade, 15 = esquiva, 20 = contra.</p>';
+  if (t.tipo === 'resistencia') o += `<p class="frase-ed">O alvo rola d20 + ${selIn('teste.atr', t.atr, ATRIBUTOS, 'Atributo do alvo')} contra CD ${numIn('teste.cd', t.cd, 1, 99, 'CD')}. Se passar: ${seg('Se passar', [['nada', 'nada'], ['metade', 'leva metade'], ['devolve', 'nada, e não gasta']], t.sePassar, 'sePassar')}</p>`;
+  if (t.tipo === 'disputa') o += `<p class="frase-ed">Quem usa rola d20 + ${selIn('teste.atrUsa', t.atrUsa, ATRIBUTOS, 'Atributo de quem usa')} contra d20 + ${selIn('teste.atrAlvo', t.atrAlvo, ATRIBUTOS, 'Atributo do alvo')} do alvo; o empate fica com o alvo.</p>`;
+  if (t.tipo === 'naoErra') o += '<p class="dica">O alvo não rola nada: o golpe sempre pega.</p>';
+  return o;
+}
+
+function htmlDefesa(h) {
+  const d = h.defesa;
+  let o = `<div class="linha">${seg('Defesa', [['anula', 'Anula o golpe'], ['fica', 'Fica com parte'], ['rola', 'Rola o d20'], ['nenhuma', 'Não defende']], d.tipo, 'defesa')}</div>`;
+  if (d.tipo === 'fica') o += `<p class="frase-ed">Quem usa fica com ${numIn('defesa.pct', d.pct, 0, 100, 'por cento do dano')}% do dano.</p>`;
+  if (d.tipo === 'rola') o += `<p class="frase-ed">Rola d20 + ${selIn('defesa.atrs', d.atrs, ATRIBUTOS, 'Atributo')}; com ${numIn('defesa.anulaCom', d.anulaCom, 2, 30, 'número que anula')} ou mais, anula.</p>`;
+  o += `<p class="frase-ed">Devolve em quem atacou: ${d.devolve > 0 ? `o dano ÷ ${numIn('defesa.devolve', d.devolve, 1, 10, 'dividido por')}` : 'nada'} ${d.devolve > 0 ? '<button type="button" class="bt bt--fantasma bt--p" data-a="devolve" data-v="0">Não devolver</button>' : '<button type="button" class="bt bt--fantasma bt--p" data-a="devolve" data-v="2">Devolver parte</button>'}</p>`;
+  o += `<label class="marca"><input type="checkbox" data-campo="defesa.contraOverload" data-tipo="bool"${d.contraOverload ? ' checked' : ''}> Vale também contra Overload</label>`;
+  return o;
+}
+
+function htmlEfeitos(h) {
+  let o = '';
+  if (h.extras.length === 0) o += `<p class="dim__vazio">${h.uso === 'apoio' ? 'O apoio ainda não faz nada no aliado. Ponha uma cura, um buff ou um escudo.' : 'Nada além do golpe. Cura em quem usa, condição pronta, roubo de vida e 2º golpe entram aqui.'}</p>`;
+  else o += `<div class="itens">${h.extras.map((x, i) => `<div class="item"><div class="frase-ed">${htmlEfeito(x, i, h)}</div><div class="item__lado">${x.tipo === 'aMao' ? '<span class="etq" data-c="mao">o mestre aplica</span>' : x.tipo === 'acumular' ? '<span class="etq" data-c="novo">peça nova</span>' : '<span class="etq" data-c="auto">o app faz</span>'}<button type="button" class="bt bt--ic" data-a="tirarEfeito" data-i="${i}" aria-label="Tirar ${esc(EFEITOS[x.tipo].nome)}">${ic('x')}</button></div></div>`).join('')}</div>`;
+  const cheio = h.extras.length >= EFEITOS_MAX;
+  o += `<div><button type="button" class="bt bt--latao bt--p" data-a="menuEfeito" aria-haspopup="menu"${cheio ? ` aria-disabled="true" title="Até ${EFEITOS_MAX} efeitos"` : ''}>${ic('mais')}Efeito</button></div>`;
+  return o;
+}
+function htmlEfeito(x, i, h) {
+  const k = `extras.${i}`;
+  const em = h.uso === 'reacao' ? [['alvo', 'em quem usa'], ['atacante', 'em quem atacou']] : [['alvo', 'no alvo'], ['quemUsa', 'em quem usa']];
+  switch (x.tipo) {
+    case 'cura': return `<b>Cura</b> ${selIn(k + '.recursoTxt', { hp: 'HP', sp: 'SP', escudo: 'Escudo' }[x.recurso], ['HP', 'SP', 'Escudo'], 'O que recupera')} igual a ${txtIn(k + '.formula', x.formula, 'Fórmula da cura')} ${seg('Em quem', [['alvo', 'no alvo'], ['quemUsa', 'em quem usa']], x.em, 'efeitoEm', ` data-i="${i}"`)}`;
+    case 'seloPronto': return `<b>Condição</b> ${selIn(k + '.nome', x.nome, SELOS_PRONTOS, 'Condição')} por ${numIn(k + '.dura', x.dura, 1, 20, 'vezes')} ${x.dura === 1 ? 'vez' : 'vezes'} ${seg('Em quem', em, x.em, 'efeitoEm', ` data-i="${i}"`)}`;
+    case 'selo': return `<b>${x.natureza === 'buff' ? 'Buff' : 'Debuff'}</b> ${txtIn(k + '.nome', x.nome, 'Nome do selo')} ${x.dura > 0 ? `por ${numIn(k + '.dura', x.dura, 1, 20, 'vezes')} vezes` : 'até tirarem'}: ${selIn(k + '.atr', x.atr, ATRIBUTOS.concat(['Dano']), 'Atributo')} ${x.delta >= 0 ? '+' : '−'}${numIn(k + '.deltaAbs', Math.abs(x.delta), 0, 999, 'quanto')}${x.curaDoDano ? ` e cura ${numIn(k + '.curaDoDano', x.curaDoDano, 1, 100, 'por cento do dano')}% do dano que causa` : ''} ${seg('Natureza', [['buff', 'buff'], ['debuff', 'debuff']], x.natureza, 'natureza', ` data-i="${i}"`)}`;
+    case 'tirar': return `<b>Tira</b> ${seg('Quais condições', [['negativas', 'as negativas'], ['positivas', 'as positivas'], ['todas', 'todas']], x.quais, 'quais', ` data-i="${i}"`)}`;
+    case 'dreno': return `<b>Roubo de vida</b>: quem usa recupera ${numIn(k + '.pct', x.pct, 1, 100, 'por cento')}% do dano em HP`;
+    case 'segundo': return `<b>2º golpe</b> nos mesmos alvos com ${numIn(k + '.pct', x.pct, 1, 100, 'por cento do dano')}% do dano <label class="marca"><input type="checkbox" data-campo="${k}.perfurante" data-tipo="bool"${x.perfurante ? ' checked' : ''}> perfurante</label>`;
+    case 'reviver': return `<b>Reviver</b>: o aliado caído volta com ${numIn(k + '.pct', x.pct, 1, 100, 'por cento')}% do HP máximo dele`;
+    case 'aMao': return `<b>Lembrete</b> ${txtIn(k + '.texto', x.texto, 'Lembrete', 'O que o mestre faz à mão')}`;
+    case 'acumular': {
+      const f = F();
+      if (!f.contadores.length) return `<b>Somar num acumulador</b>: <span class="dica">${esc(f.nome)} não tem acumulador.</span> ${linkAcum('Criar um acumulador')}`;
+      const a = acumDe(f, x.acum);
+      return `<b>Soma</b> ${numIn(k + '.n', x.n, 1, a.max, 'quanto soma')} em ${selIn(k + '.acum', x.acum, f.contadores, 'Acumulador')} ${seg('Quando soma', [['usar', 'ao usar'], ['acertar', 'se acertar']], x.quando, 'acumQuando', ` data-i="${i}"`)} <span class="dica">vai até ${a.max}; ${a.da.tipo === 'dano' ? `cada nível dá +${a.da.n} de dano` : 'não dá nada sozinho'}</span> ${linkAcum('Mudar o acumulador')}`;
+    }
+  }
+  return '';
+}
+
+function htmlCusto(h) {
+  const c = h.custo;
+  let o = `<p class="frase-ed">Gasta ${numIn('custo.sp', c.sp, 0, 999, 'SP')} de SP ao usar${h.uso === 'ataque' ? '' : ''}.</p>`;
+  o += `<p class="frase-ed">Enquanto mantém, gasta ${numIn('custo.porVez', c.porVez, 0, 99, 'SP por vez')} de SP por vez ${c.porVez === 0 ? '<span class="dica">(0 = não é mantida)</span>' : ''}</p>`;
+  if (ehOverload(h)) o += `<p class="trava">${ic('cadeado')}1 vez por batalha (Overload). Sem espera: depois de usar, some até a próxima batalha.</p>`;
+  else {
+    o += `<p class="frase-ed">Tempo: espera ${numIn('custo.recarga', c.recarga, 0, 20, 'rodadas')} ${c.recarga === 1 ? 'rodada' : 'rodadas'} para usar de novo ${c.recarga === 0 ? '<span class="dica">(0 = pode repetir)</span>' : ''}</p>`;
+    o += `<div class="linha"><span class="rot">Por batalha</span>${seg('Usos por batalha', [['0', 'Sem limite'], ['n', 'Algumas vezes']], c.usos > 0 ? 'n' : '0', 'usos')}${c.usos > 0 ? `<span class="frase-ed">${numIn('custo.usos', c.usos, 1, 20, 'vezes por batalha')} ${c.usos === 1 ? 'vez' : 'vezes'}</span>` : ''}</div>`;
+  }
+  o += `<p class="frase-ed">Gasta da mochila: ${txtIn('custo.item', c.item, 'Item da mochila', 'nenhum item')}${c.item ? ` × ${numIn('custo.itemN', c.itemN, 1, 10, 'quantos')}` : ''}</p>`;
+  return o;
+}
+
+function htmlGrupos(lugar, grupos, f) {
+  let o = '';
+  if (lugar === 'reqEvolui') o += `<p class="rot">Para evoluir, precisa de:</p>`;
+  if (grupos.length === 0) o += `<p class="dim__vazio">${lugar === 'req' ? 'Nenhum requisito: usa a qualquer hora, se tiver o custo.' : 'Sem requisitos: evolui sempre (vira a outra até usar uma vez).'}</p>`;
+  grupos.forEach((g, gi) => {
+    if (gi > 0) o += '<p class="entre">e também</p>';
+    o += `<div class="grupo" data-modo="${g.modo}"><div class="grupo__cab">${seg('Como vale o grupo ' + (gi + 1), [['todos', 'Todos estes'], ['um', 'Um destes']], g.modo, 'grupoModo', ` data-lugar="${lugar}" data-g="${gi}"`)}<span class="dica">${g.modo === 'todos' ? 'precisa de todos' : 'basta um: quem usa escolhe na hora'}</span><button type="button" class="bt bt--ic" data-a="tirarGrupo" data-lugar="${lugar}" data-g="${gi}" aria-label="Tirar o grupo ${gi + 1}">${ic('x')}</button></div>`;
+    g.itens.forEach((r, ri) => {
+      const t = REQ[r.tipo];
+      const k = `${lugar}.${gi}.itens.${ri}`;
+      o += `<div class="req"><span class="req__cod">${r.tipo}</span><div class="req__frase">${t.frase(r, k, f)}</div><div class="req__lado">${t.gasta ? `<button type="button" class="gasta" aria-pressed="${!!r.gasta}" data-a="gasta" data-lugar="${lugar}" data-g="${gi}" data-i="${ri}">${r.gasta ? '✓ e gasta' : 'só exige'}</button>` : ''}<span class="etq" data-c="${t.conf}">${CONF_TXT[t.conf]}</span><button type="button" class="bt bt--ic" data-a="tirarReq" data-lugar="${lugar}" data-g="${gi}" data-i="${ri}" aria-label="Tirar requisito">${ic('x')}</button></div></div>`;
+    });
+    o += `<div class="grupo__pe"><button type="button" class="bt bt--latao bt--p" data-a="menuReq" data-lugar="${lugar}" data-g="${gi}" aria-haspopup="menu">${ic('mais')}Requisito</button></div></div>`;
+  });
+  o += `<div><button type="button" class="bt bt--fantasma bt--p" data-a="novoGrupo" data-lugar="${lugar}">${ic('mais')}Grupo</button> <span class="dica">Sem o requisito, a habilidade fica cinza com o motivo, e o mestre pode usar mesmo assim.</span></div>`;
+  if (lugar === 'req') o += `<p class="dica">Nível de um acumulador (Polaridade 2, Fúria 3) entra como requisito e pode gastar o nível; somar no acumulador é um Efeito. O acumulador em si (nome, máximo, como sobe e cai, o que cada nível dá) se cria no ${linkAcum('editor de acumulador')}.</p>`;
+  return o;
+}
+
+function htmlEvolucao(h, f) {
+  if (!h.evolui) return `<p class="dim__vazio">Não evolui.</p><div><button type="button" class="bt bt--latao bt--p" data-a="evoluir">${ic('mais')}Esta habilidade evolui</button> <span class="dica">Cria a versão evoluída (super ou Overload) ao lado, com os requisitos para virar.</span></div>`;
+  const evo = S.habs[h.evolui];
+  const faltas = checarGrupos(h.reqEvolui, S.est);
+  let o = `<p class="frase-ed">Cumpridos os requisitos, vira <button type="button" class="bt bt--p" data-a="aba" data-v="${evo.id}">${esc(evo.nome || '(sem nome)')}</button> até usar uma vez; depois volta a esta.</p>`;
+  o += htmlGrupos('reqEvolui', h.reqEvolui, f);
+  o += `<div class="estado-evo" aria-live="polite"><b>Agora, com ${esc(f.nome)}:</b>${faltas.length === 0 ? '<span class="ok">Pode evoluir.</span>' : faltas.map((x) => `<span class="falta">Falta: ${esc(x.f)}</span>`).join('')}<span class="dica">Mude em "Ajustar quem usa", no teste à direita.</span></div>`;
+  o += `<div><button type="button" class="bt bt--fantasma bt--p" data-a="naoEvolui">Não evolui mais</button></div>`;
+  return o;
+}
+
+function htmlCampos(h) {
+  let o = h.campos.length ? `<div class="itens">${h.campos.map((c, i) => `<div class="campo-extra"><input class="entrada" data-campo="campos.${i}.nome" value="${esc(c.nome)}" aria-label="Nome do campo ${i + 1}" placeholder="${c.opcao ? 'Opção' : 'Campo'}"><input class="entrada" data-campo="campos.${i}.valor" value="${esc(c.valor)}" aria-label="Valor do campo ${i + 1}" placeholder="${c.opcao ? 'O que a opção faz' : 'Valor'}"><button type="button" class="bt bt--ic" data-a="tirarCampo" data-i="${i}" aria-label="Tirar o campo ${esc(c.nome)}">${ic('x')}</button></div>`).join('')}</div>` : '<p class="dim__vazio">Nenhum campo extra.</p>';
+  o += `<div class="linha"><button type="button" class="bt bt--p" data-a="novoCampo">${ic('mais')}Campo</button><button type="button" class="bt bt--fantasma bt--p" data-a="novaOpcao">${ic('mais')}Opção</button><span class="dica">A Evolução agora tem lugar próprio, acima.</span></div>`;
+  return o;
+}
+
+/* ============================================================ a frase (o Efeito do cartão, gerado) */
+function frase(h, f) {
+  const p = [];
+  const add = (t, dimId, c) => p.push({ t, dim: dimId, c });
+  const sep = (t) => p.push({ t });
+  if (h.uso === 'passiva') { add('Passiva', 'acao'); sep(': vale sozinha, sem gastar ação. '); if (h.descricao) sep(h.descricao + ' '); if (h.req.length) { add(`Liga com: ${fraseDosRequisitos(h.req)}`, 'requisitos', 'custo'); sep('.'); } return p; }
+  if (h.uso === 'reacao') {
+    add(h.acao === 'osDois' ? 'Reação (ou na vez)' : 'Reação', 'acao');
+    sep(': no lugar da reação, ');
+    const d = h.defesa;
+    add(d.tipo === 'anula' ? 'anula o golpe' : d.tipo === 'fica' ? `fica com ${d.pct}% do dano` : d.tipo === 'rola' ? `rola d20 + ${d.atrs}; com ${d.anulaCom} ou mais, anula` : 'não defende', 'acerto');
+    if (d.devolve > 0) { sep(' e '); add(`devolve o dano ÷ ${d.devolve} em quem atacou`, 'acerto', 'dano'); }
+    sep('. ');
+  } else {
+    const adjs = [];
+    if (h.uso === 'ataque') { if (h.fisico) adjs.push(FISICOS[h.fisico].adj); h.elementos.forEach((e) => adjs.push(e === 'outro' ? `de ${h.el.outro.nome || 'efeito'}` : ELEMENTOS[e].adj)); }
+    add(nomeDoUso(h) + (adjs.length ? ' ' + adjs.join(' e ') : ''), h.uso === 'ataque' && adjs.length ? 'golpe' : 'acao');
+    sep(': ');
+    add(fraseAlcance(h), 'alcance');
+    sep('. ');
+    if (h.uso === 'ataque') {
+      if (h.dano.modo === 'formula') {
+        const r = calcular(h.dano.formula, f);
+        add(r.ok ? `Dá ${h.dano.formula.trim()} de dano (${r.valor})` : 'Dá um dano que a conta ainda não fecha', 'dano', 'dano');
+      } else if (h.dano.modo === 'porcento') add(`Tira ${h.dano.pct}% da ${{ maxima: 'vida máxima', atual: 'vida atual', falta: 'vida que falta' }[h.dano.de]} do alvo`, 'dano', 'dano');
+      else add('Não dá dano', 'dano');
+      if (h.dano.modo !== 'nenhum' && h.fisico === 'perfurante') { sep(', '); add(h.fis.perfurante.pct >= 100 ? 'que passa o Escudo' : `${h.fis.perfurante.pct}% direto no HP`, 'golpe', 'dano'); }
+      if (h.alcance.dividir && h.alcance.quantos > 1) sep(', dividido entre os alvos');
+      sep('. ');
+      const t = testeEfetivo(h);
+      add(t.tipo === 'reacao' ? 'O alvo reage com o d20' : t.tipo === 'resistencia' ? `O alvo testa ${t.atr} contra CD ${t.cd}${t.sePassar === 'metade' ? '; passou, leva metade' : t.sePassar === 'devolve' ? '; passou, nada, e não gasta' : '; passou, nada'}` : t.tipo === 'disputa' ? `Disputa: ${t.atrUsa} contra ${t.atrAlvo} do alvo` : ehOverload(h) ? 'Não erra: só outra Overload defende' : 'Não erra', 'acerto');
+      sep('. ');
+      const efs = [];
+      const lista = [];
+      if (h.fisico && FISICOS[h.fisico].selo && h.fis[h.fisico].modo !== 'tipo') lista.push([h.fisico, h.fis[h.fisico]]);
+      h.elementos.forEach((e) => { if (h.el[e].modo !== 'tipo') lista.push([e, h.el[e]]); });
+      lista.forEach(([id, r]) => efs.push(`${r.modo === 'teste' ? `se falhar em ${r.atr} (CD ${r.cd}), ` : ''}${nomeDoSelo(id, r)} ${vezes(r.vezes)}${r.porVez ? ` (−${r.porVez} ${id === 'choque' ? 'SP' : 'HP'} por vez)` : ''}`));
+      if (efs.length) { add(`Se acertar: ${efs.join('; ')}`, 'golpe', 'selo'); sep('. '); }
+    }
+  }
+  h.extras.forEach((x) => {
+    const t = { cura: () => `${x.em === 'quemUsa' ? 'Quem usa recupera' : 'Recupera'} ${x.formula || '?'} de ${{ hp: 'HP', sp: 'SP', escudo: 'Escudo' }[x.recurso]}`,
+      seloPronto: () => `${x.nome} ${vezes(x.dura)}${x.em === 'quemUsa' ? ' em quem usa' : x.em === 'atacante' ? ' em quem atacou' : ''}`,
+      selo: () => `${x.nome} ${x.dura > 0 ? vezes(x.dura) : 'até tirarem'}: ${x.atr} ${x.delta >= 0 ? '+' : '−'}${Math.abs(x.delta)}${x.curaDoDano ? ` e cura ${x.curaDoDano}% do dano que causa` : ''}`,
+      tirar: () => `Tira as condições ${x.quais === 'todas' ? '(todas)' : x.quais}`,
+      dreno: () => `Quem usa recupera ${x.pct}% do dano em HP`,
+      segundo: () => `Um 2º golpe com ${x.pct}% do dano${x.perfurante ? ', perfurante' : ''}`,
+      reviver: () => `O aliado caído volta com ${x.pct}% do HP`,
+      aMao: () => `Lembrete: ${x.texto || '(vazio)'}`,
+      acumular: () => `+${x.n} ${x.acum || 'acumulador'}${x.quando === 'acertar' ? ' se acertar' : ''}` }[x.tipo]();
+    add(t, 'efeitos', x.tipo === 'cura' || x.tipo === 'dreno' || x.tipo === 'reviver' ? 'cura' : x.tipo === 'aMao' ? null : x.tipo === 'segundo' ? 'dano' : x.tipo === 'acumular' ? 'custo' : 'selo');
+    sep('. ');
+  });
+  if (h.uso === 'apoio') { add('Não pede reação', 'acerto'); sep('. '); }
+  const c = h.custo;
+  const custo = [];
+  if (c.sp > 0) custo.push(`Custa ${c.sp} SP`);
+  if (c.porVez > 0) custo.push(`mantida, ${c.porVez} SP por vez`);
+  if (ehOverload(h)) custo.push('1 vez por batalha');
+  else { if (c.recarga > 0) custo.push(`espera ${rodadas(c.recarga)}`); if (c.usos > 0) custo.push(`${vezes(c.usos)} por batalha`); }
+  if (c.item) custo.push(`gasta ${c.itemN} ${c.item}`);
+  if (custo.length) { const t = custo.join('; '); add(t.charAt(0).toUpperCase() + t.slice(1), 'custo', 'custo'); sep('. '); }
+  if (h.req.length) { add(`Só com: ${fraseDosRequisitos(h.req)}`, 'requisitos', 'custo'); sep('. '); }
+  if (h.evolui) { add(`Evolui para ${S.habs[h.evolui].nome || '(sem nome)'}`, 'evolucao', 'selo'); sep('.'); }
+  return p;
+}
+function fraseAlcance(h) {
+  const al = h.alcance;
+  const quem = al.quem === 'aliados' ? (al.quantos > 1 ? 'aliados' : 'aliado') : al.quem === 'todos' ? 'ficha' : (al.quantos > 1 ? 'inimigos' : 'inimigo');
+  const n = al.quantos > 1 ? `até ${al.quantos} ${quem === 'ficha' ? 'fichas' : quem}` : `1 ${quem}`;
+  const todos = al.quem === 'aliados' ? 'os aliados' : al.quem === 'todos' ? 'todos' : 'os inimigos';
+  switch (al.forma) {
+    case 'alvo': return al.semLimite ? `${n} em qualquer lugar` : `${n} a até ${casas(al.n)}`;
+    case 'anel': return `${n} de ${al.min} a ${al.n} casas (nunca colado)`;
+    case 'linha': return `${todos} numa linha de ${casas(al.n)}`;
+    case 'volta': return `${todos} a até ${casas(al.n)} em volta`;
+    case 'frente': return `${todos} num quadrado ${al.n}x${al.n} à frente`;
+    case 'cruz': return `${todos} em cruz, ${casas(al.n)} para cada lado`;
+    case 'leque': return `${todos} num leque de ${al.n} ${al.n === 1 ? 'fileira' : 'fileiras'}`;
+    case 'ponto': return `cai num ponto a até ${casas(al.n)} e pega ${todos} a ${casas(al.raio)} dele (${2 * al.raio + 1}x${2 * al.raio + 1})`;
+    case 'ficha': return `explode em volta de uma ficha a até ${casas(al.n)}, ${casas(al.raio)} em volta`;
+    case 'si': return 'vale só em quem usa';
+  }
+  return '';
+}
+/** O que o app escreve nos campos de texto antigos (Ação, Tipo, Custo, Tempo, Dano, Efeito). */
+function camposDeTexto(h, frasePlana) {
+  const acao = h.uso === 'passiva' ? 'Passiva' : h.uso === 'reacao' ? (h.acao === 'osDois' ? 'Reação/Ação Completa' : 'Reação') : ehOverload(h) ? 'OVERLOAD' : `Ação ${ACAO_NOME[h.acao] || 'Simples'}`;
+  const tempo = ehOverload(h) ? 'OVERLOAD' : h.custo.usos > 0 ? `${h.custo.usos} vezes por combate` : String(h.custo.recarga || '');
+  const dano = h.uso !== 'ataque' || h.dano.modo === 'nenhum' ? '0' : h.dano.modo === 'porcento' ? `${h.dano.pct}% da vida do alvo` : h.dano.formula;
+  return [['Ação', acao], ['Tipo', tipoNaBatalha(h)], ['Custo', h.custo.sp ? `${h.custo.sp} SP` : '0'], ['Tempo', tempo || '—'], ['Dano', dano || '—'], ['Efeito', frasePlana]];
+}
+
+/* ============================================================ o teste no boneco (motor de mentira, com as regras de hoje) */
+function bonecoBase(i, aliado) {
+  return aliado ? { nome: `Aliado ${i + 1}`, hp: 300, hpMax: 640, esc: 0, escMax: 100, atr: { 'Força': 40 }, mod: 1, selos: i === 0 ? ['Envenenado 2'] : [], aliado: true }
+    : { nome: `Boneco ${i + 1}`, hp: 500, hpMax: 500, esc: 100, escMax: 100, atr: {}, mod: 2, selos: [], aliado: false };
+}
+function testar(h, f) {
+  const passos = [];
+  const fala = (t, extra = {}) => passos.push(Object.assign({ t }, extra));
+  const e = S.est;
+  const al = h.alcance;
+  const aliado = h.uso === 'apoio' || al.quem === 'aliados';
+  const arrumado = [];
+  if (aliado) arrumado.push('Os bonecos viraram aliados feridos (300/640 de HP) para mostrar o apoio.');
+  if (h.uso === 'passiva') { fala('<b>Passiva</b>: não há teste montado. O app lê a descrição, como hoje.'); return { passos, bonecos: [], arrumado }; }
+  /* o nível dos acumuladores ao longo do teste (o golpe gasta e soma numa cópia) */
+  const cont = Object.assign({}, e.contadores);
+  if (h.uso === 'reacao') return testarReacao(h, f, fala, passos, cont);
+  /* 1. requisitos */
+  const faltas = checarGrupos(h.req, e);
+  if (h.req.length) {
+    if (faltas.length) faltas.forEach((x) => fala(`<b>Requisito</b>: falta ${esc(x.f)}. Na batalha fica cinza com esse motivo; o mestre pode usar mesmo assim.`, { falta: true, fix: x.r.tipo === 'A4' ? { a: 'fixCont', v: x.r.cont, n: x.r.n, t: `Pôr ${x.r.cont} ${x.r.n}` } : x.r.tipo === 'B1' ? { a: 'fixLigar', v: x.r.tec, t: `Ligar ${x.r.tec}` } : x.r.tipo === 'A1' ? { a: 'fixSp', t: 'Encher o SP' } : x.r.tipo === 'C1' ? { a: 'fixRodada', n: x.r.n, t: `Ir para a rodada ${x.r.n}` } : null }));
+    else {
+      const gastos = [];
+      h.req.forEach((g) => g.itens.forEach((r) => { if (r.tipo === 'A4' && r.gasta && g.modo === 'todos') { const v = cont[r.cont] || 0; cont[r.cont] = v - r.n; gastos.push(`${r.cont} ${v} → ${v - r.n}`); } }));
+      fala(`<b>Requisitos</b> cumpridos: ${esc(fraseDosRequisitos(h.req))}.${gastos.length ? ` Gasta: ${gastos.join(', ')}.` : ''}`);
+    }
+  }
+  /* 2. custo */
+  const c = h.custo;
+  if (c.sp > e.sp) fala(`<b>Custo</b>: precisa de ${c.sp} SP e ${esc(f.nome)} tem ${e.sp}.`, { falta: true, fix: { a: 'fixSp', t: 'Encher o SP da cópia' } });
+  else if (c.sp > 0) fala(`<b>Custo</b>: SP ${e.sp} → ${e.sp - c.sp}.${c.item ? ` Gasta ${c.itemN} ${esc(c.item)} da mochila.` : ''}`);
+  else fala(`<b>Custo</b>: nenhum SP.${c.item ? ` Gasta ${c.itemN} ${esc(c.item)} da mochila.` : ''}`);
+  /* 3. alvos */
+  const { area, alcance, centro } = celulas(al, S.dir, S.ponto, S.bonecos[S.ativo]);
+  const k = (b) => `${b.x},${b.y}`;
+  let alvos = [];
+  if (al.forma === 'si') alvos = ['si'];
+  else if (al.forma === 'alvo' || al.forma === 'anel') {
+    const dentro = S.bonecos.map((b, i) => i).filter((i) => alcance.has(k(S.bonecos[i])));
+    const ordem = dentro.includes(S.ativo) ? [S.ativo, ...dentro.filter((i) => i !== S.ativo)] : dentro;
+    alvos = ordem.slice(0, Math.max(1, al.quantos));
+  } else alvos = S.bonecos.map((b, i) => i).filter((i) => area.has(k(S.bonecos[i])));
+  const nomes = alvos.map((i) => (i === 'si' ? f.nome : bonecoBase(i, aliado).nome));
+  const bonecos = S.bonecos.map((b, i) => Object.assign(bonecoBase(i, aliado), { fora: !alvos.includes(i) }));
+  if (al.forma === 'ficha' && !centro) fala('<b>Alvo</b>: escolha uma ficha ao alcance no mapa (clique num boneco).', { falta: true, fix: { a: 'fixPerto', t: 'Trazer o boneco para perto' } });
+  else if (alvos.length === 0) fala(`<b>Alvo</b>: nenhum boneco ${al.forma === 'alvo' || al.forma === 'anel' ? 'ao alcance' : 'na área'}.`, { falta: true, fix: { a: 'fixPerto', t: 'Trazer o boneco para perto' } });
+  else fala(`<b>Alvo</b>: ${esc(nomes.join(', '))}${alvos[0] !== 'si' && S.bonecos.length > alvos.length ? ` (${alvos.length} de ${S.bonecos.length}; o resto está fora)` : ''}.`);
+  /* 4. dano */
+  let dano = 0;
+  if (h.uso === 'ataque' && h.dano.modo === 'formula') {
+    const r = calcular(h.dano.formula, f);
+    if (!r.ok) fala(`<b>Dano</b>: ${esc(r.vazio ? 'a fórmula está vazia' : r.erro)}`, { falta: true });
+    else {
+      dano = r.valor;
+      let conta = `${esc(r.conta)} = ${r.valor}`;
+      /* o que cada nível dá: conta o nível de ANTES de gastar (o golpe sai com a carga; decisão do dono) */
+      f.contadores.forEach((nome) => {
+        const a = acumDe(f, nome);
+        const v = e.contadores[nome] || 0;
+        if (a.da.tipo !== 'dano' || v <= 0) return;
+        dano += v * a.da.n;
+        conta += `, +${v * a.da.n} da ${nome} ${v} = ${dano}`;
+      });
+      if (h.dano.concentracao && S.carga > 0) { dano = Math.round(dano * MULT_CARGA[S.carga]); conta += `, ×${String(MULT_CARGA[S.carga]).replace('.', ',')} da carga ${S.carga} = ${dano}`; }
+      if (al.dividir && alvos.length > 1) { dano = Math.round(dano / alvos.length); conta += `, ÷ ${alvos.length} alvos = ${dano} em cada`; }
+      fala(`<b>Dano</b>: ${conta}.`);
+    }
+  } else if (h.uso === 'ataque' && h.dano.modo === 'porcento') fala(`<b>Dano</b>: ${h.dano.pct}% da ${{ maxima: 'vida máxima', atual: 'vida atual', falta: 'vida que falta' }[h.dano.de]} de cada alvo.`);
+  /* 5. em cada alvo */
+  const t = testeEfetivo(h);
+  const d20 = S.d20;
+  let acertouAlguem = false;
+  for (const i of alvos) {
+    if (i === 'si') { acertouAlguem = true; aplicarExtras(h, f, null, fala, dano, true); continue; }
+    const b = bonecos[i];
+    const antes = { hp: b.hp, esc: b.esc };
+    let fator = 1;
+    let pega = true;
+    if (h.uso === 'ataque') {
+      if (t.tipo === 'reacao' && S.reage === 'd20') {
+        if (d20 >= REACAO_ESQUIVA) { fator = 0; pega = false; fala(`<b>${b.nome} reage</b>: d20 ${d20} = esquiva${d20 === 20 ? ' (e contra-ataca)' : ''}. Nada pega.`); }
+        else if (d20 >= REACAO_METADE) { fator = 0.5; fala(`<b>${b.nome} reage</b>: d20 ${d20} = defende, leva metade.`); }
+        else fala(`<b>${b.nome} reage</b>: d20 ${d20}, não passa de 10: recebe tudo.`);
+      } else if (t.tipo === 'reacao') fala(`<b>${b.nome}</b> recebe sem reagir (ajuste do teste).`);
+      else if (t.tipo === 'resistencia') {
+        const tot = d20 + b.mod;
+        const passou = tot >= t.cd;
+        if (passou) { fator = t.sePassar === 'metade' ? 0.5 : 0; pega = false; }
+        fala(`<b>${b.nome} testa ${t.atr}</b>: d20 ${d20} + ${b.mod} = ${tot} contra CD ${t.cd}: ${passou ? (t.sePassar === 'metade' ? 'passou, leva metade' : t.sePassar === 'devolve' ? 'passou: nada, e o SP volta' : 'passou: nada') : 'falhou'}.`);
+      } else if (t.tipo === 'disputa') {
+        const usa = S.d20b + Math.floor((f.atr[t.atrUsa] || 0) / 20);
+        const alvo = d20 + b.mod;
+        if (alvo >= usa) { fator = 0; pega = false; }
+        fala(`<b>Disputa</b>: ${esc(f.nome)} ${S.d20b} + ${Math.floor((f.atr[t.atrUsa] || 0) / 20)} = ${usa} contra ${b.nome} ${d20} + ${b.mod} = ${alvo}: ${alvo >= usa ? 'o alvo vence (empate é dele)' : 'acertou'}.`);
+      } else fala(`<b>${b.nome}</b> não reage: ${ehOverload(h) ? 'Overload, só outra Overload defende' : 'o golpe não erra'}.`);
+      let dd = h.dano.modo === 'porcento' ? Math.round(b.hpMax * h.dano.pct / 100) : dano;
+      dd = Math.round(dd * fator);
+      if (dd > 0) {
+        const pct = h.fisico === 'perfurante' ? h.fis.perfurante.pct : 0;
+        const direto = Math.round(dd * pct / 100);
+        const resto = dd - direto;
+        const noEsc = Math.min(b.esc, resto);
+        b.esc -= noEsc;
+        b.hp = Math.max(0, b.hp - direto - (resto - noEsc));
+        fala(`<b>${b.nome}</b>: ${dd} de dano${pct > 0 ? `, ${direto} direto no HP (perfurante)` : ''}. Escudo ${antes.esc} → ${b.esc}, HP ${antes.hp} → ${b.hp}.`);
+      }
+      if (pega || fator > 0) acertouAlguem = true;
+      if (pega) {
+        const lista = [];
+        if (h.fisico && FISICOS[h.fisico].selo && h.fis[h.fisico].modo !== 'tipo') lista.push([h.fisico, h.fis[h.fisico]]);
+        h.elementos.forEach((x) => { if (h.el[x].modo !== 'tipo') lista.push([x, h.el[x]]); });
+        lista.forEach(([id, r]) => {
+          const nome = nomeDoSelo(id, r);
+          if (r.modo === 'teste') {
+            const tot = d20 + b.mod;
+            if (tot >= r.cd) { fala(`<b>${nome}</b>: ${b.nome} testa ${r.atr}, d20 ${d20} + ${b.mod} = ${tot} contra CD ${r.cd}: passou, não pega.`); return; }
+            fala(`<b>${nome}</b>: ${b.nome} testa ${r.atr}, ${tot} contra CD ${r.cd}: falhou.`);
+          }
+          b.selos.push(`${nome} ${r.vezes}`);
+        });
+      }
+    }
+    else acertouAlguem = true;
+    aplicarExtras(h, f, b, fala, Math.round((h.dano.modo === 'porcento' ? Math.round(b.hpMax * h.dano.pct / 100) : dano) * fator), pega);
+    b.antes = antes;
+  }
+  somarAcumuladores(h, f, cont, fala, acertouAlguem);
+  /* 6. depois */
+  const depois = [];
+  if (ehOverload(h)) depois.push('Overload: some até a próxima batalha');
+  else { if (c.recarga > 0) depois.push(`espera ${rodadas(c.recarga)}`); if (c.usos > 0) depois.push(`sobram ${c.usos - 1} de ${c.usos} usos`); }
+  const porVez = bonecos.filter((b) => !b.fora && b.selos.length).map((b) => `${b.nome}: ${b.selos.join(', ')}`);
+  if (porVez.length) depois.push(`na vez de cada um, o lembrete "Aplicar / pular" do mestre (${porVez.join('; ')})`);
+  if (h.extras.some((x) => x.tipo === 'aMao')) depois.push('o lembrete aparece para o mestre');
+  if (depois.length) fala(`<b>Depois</b>: ${esc(depois.join('; '))}.`);
+  return { passos, bonecos, arrumado };
+}
+function aplicarExtras(h, f, b, fala, danoCausado, pegou) {
+  for (const x of h.extras) {
+    if (x.tipo === 'cura') {
+      const r = calcular(x.formula, f);
+      const v = r.ok ? r.valor : 0;
+      if (x.em === 'quemUsa' || !b) fala(`<b>Cura</b>: ${esc(f.nome)} recupera ${v} de ${x.recurso.toUpperCase()} (${esc(r.ok ? r.conta : 'fórmula vazia')}).`);
+      else { const antes = b.hp; if (x.recurso === 'hp') b.hp = Math.min(b.hpMax, b.hp + v); else if (x.recurso === 'escudo') b.esc = b.esc + v; fala(`<b>Cura</b>: ${b.nome} ${x.recurso === 'hp' ? `HP ${antes} → ${b.hp}` : x.recurso === 'escudo' ? `ganha ${v} de Escudo` : `recupera ${v} de SP`}.`); }
+    } else if (x.tipo === 'seloPronto' && pegou) { if (b && x.em !== 'quemUsa') b.selos.push(`${x.nome} ${x.dura}`); fala(`<b>${esc(x.nome)}</b> ${vezes(x.dura)} ${x.em === 'quemUsa' || !b ? `em ${esc(f.nome)}` : `em ${b.nome}`}.`); }
+    else if (x.tipo === 'selo' && pegou) {
+      if (b) b.selos.push(`${x.nome}${x.dura > 0 ? ' ' + x.dura : ''}`);
+      const base = b && b.atr[x.atr] !== undefined ? b.atr[x.atr] : null;
+      fala(`<b>${esc(x.nome)}</b> em ${b ? b.nome : esc(f.nome)}: ${esc(x.atr)} ${base !== null ? `${base} → ${base + x.delta}` : `${x.delta >= 0 ? '+' : '−'}${Math.abs(x.delta)}`}${x.curaDoDano ? `; quando ele causar 100 de dano, recupera ${x.curaDoDano} de HP` : ''}${x.dura > 0 ? `, por ${vezes(x.dura)} dele` : ', até tirarem'}.`);
+    } else if (x.tipo === 'tirar' && b) { const n = b.selos.length; if (x.quais !== 'positivas') b.selos = []; fala(`<b>Tira</b> as condições ${x.quais}: ${n ? `${b.nome} fica sem ${n === 1 ? 'a condição' : 'as condições'}` : 'não havia nenhuma'}.`); }
+    else if (x.tipo === 'dreno' && danoCausado > 0) fala(`<b>Roubo de vida</b>: ${esc(f.nome)} recupera ${Math.round(danoCausado * x.pct / 100)} de HP (${x.pct}% de ${danoCausado}).`);
+    else if (x.tipo === 'segundo' && b && pegou) { const v = Math.round(danoCausado * x.pct / 100); const a = b.hp; b.hp = Math.max(0, b.hp - v); fala(`<b>2º golpe</b> em ${b.nome}: ${v}${x.perfurante ? ', direto no HP' : ''}. HP ${a} → ${b.hp}.`); }
+    else if (x.tipo === 'reviver') fala('<b>Reviver</b>: só vale em aliado caído (o boneco está de pé).', { falta: true });
+    else if (x.tipo === 'aMao') fala(`<b>Lembrete do mestre</b>: ${esc(x.texto || '(vazio)')}`);
+  }
+}
+/** A peça "+N acumulador": soma uma vez por uso (não por alvo) e para no máximo. */
+function somarAcumuladores(h, f, cont, fala, acertou) {
+  h.extras.filter((x) => x.tipo === 'acumular' && x.acum).forEach((x) => {
+    const a = acumDe(f, x.acum);
+    const antes = cont[x.acum] || 0;
+    if (x.quando === 'acertar' && !acertou) { fala(`<b>+${x.n} ${esc(x.acum)}</b>: não acertou ninguém, não soma.`); return; }
+    const depois = Math.min(a.max, antes + x.n);
+    cont[x.acum] = depois;
+    fala(`<b>+${x.n} ${esc(x.acum)}</b>: ${antes} → ${depois}${antes + x.n > a.max ? ` (para no máximo, ${a.max})` : ''}${a.da.tipo === 'dano' && depois > 0 ? `. O próximo golpe ganha +${depois * a.da.n} de dano` : ''}.`);
+  });
+}
+function testarReacao(h, f, fala, passos, cont) {
+  const golpe = 80;
+  const d = h.defesa;
+  const c = h.custo;
+  const e = S.est;
+  fala(`<b>O boneco bate</b> ${golpe} de dano em ${esc(f.nome)}. ${esc(f.nome)} usa ${esc(h.nome || 'esta técnica')} no lugar do d20.`);
+  if (c.sp > e.sp) fala(`<b>Custo</b>: precisa de ${c.sp} SP e tem ${e.sp}.`, { falta: true, fix: { a: 'fixSp', t: 'Encher o SP da cópia' } });
+  else if (c.sp > 0) fala(`<b>Custo</b>: SP ${e.sp} → ${e.sp - c.sp}.`);
+  let fica = golpe;
+  if (d.tipo === 'anula') fica = 0;
+  else if (d.tipo === 'fica') fica = Math.round(golpe * d.pct / 100);
+  else if (d.tipo === 'rola') { const tot = S.d20 + Math.floor((f.atr[d.atrs] || 0) / 20); fica = tot >= d.anulaCom ? 0 : golpe; fala(`<b>Rola</b>: d20 ${S.d20} + ${Math.floor((f.atr[d.atrs] || 0) / 20)} = ${tot}: ${tot >= d.anulaCom ? 'anula' : `não chega a ${d.anulaCom}`}.`); }
+  fala(`<b>Fica</b>: ${esc(f.nome)} leva ${fica}. HP ${f.hp} → ${f.hp - Math.max(0, fica - f.escudo)} (o Escudo ${f.escudo} segura antes).`);
+  if (d.devolve > 0) fala(`<b>Devolve</b>: ${Math.round(fica / d.devolve)} no boneco, sem reação dele.`);
+  aplicarExtras(h, f, null, fala, 0, true);
+  somarAcumuladores(h, f, cont, fala, true);
+  if (c.recarga > 0) fala(`<b>Depois</b>: espera ${rodadas(c.recarga)}.`);
+  return { passos, bonecos: [], arrumado: [] };
+}
+
+/* ============================================================ a coluna da direita */
+function htmlVer() {
+  const h = H();
+  const f = F();
+  const pedacos = frase(h, f);
+  const plana = pedacos.map((x) => x.t).join('').trim();
+  const linha = camposDeTexto(h, plana);
+  const curto = [nomeDoUso(h), h.custo.sp ? `${h.custo.sp} SP` : null, ehOverload(h) ? 'OVERLOAD' : h.custo.recarga ? `Tempo ${h.custo.recarga}` : null, h.uso === 'ataque' && h.dano.modo === 'formula' ? (valorDoDano(h, f) !== null ? `Dano ${valorDoDano(h, f)}` : null) : null, h.uso !== 'passiva' && h.uso !== 'reacao' ? fraseAlcanceCurta(h) : null].filter(Boolean).join(' · ');
+  let o = `<section class="ver__bloco" aria-labelledby="v-cartao"><div class="ver__tit"><h2 id="v-cartao">Como fica no cartão</h2><span class="dica">clique num pedaço para mudar</span></div>
+    <article class="papel">${h.esconder ? '<span class="papel__selo">escondida</span>' : ''}<h3 class="papel__nome">${esc(h.nome || 'Sem nome')}</h3><p class="papel__linha">${esc(curto)}</p>
+    <p class="papel__frase" id="frase">${pedacos.map((x) => (x.dim ? `<a class="pedaco" href="#dim-${x.dim}" data-a="ir" data-v="${x.dim}"${x.c ? ` data-c="${x.c}"` : ''}>${esc(x.t)}</a>` : esc(x.t))).join('')}</p>
+    ${h.descricao ? `<p class="papel__desc">${esc(h.descricao)}</p>` : ''}
+    ${h.campos.length ? `<div class="papel__extras">${h.campos.map((c) => `<span><b>${esc(c.nome || '(sem nome)')}:</b> ${esc(c.valor)}</span>`).join('')}</div>` : ''}</article>
+    <details class="textos"><summary>O que o app escreve nos campos de texto</summary><p class="dica">Saem das escolhas, sozinhos: o app de antes e o site do Lobby continuam lendo. Não dá para editar aqui, para nunca dizerem outra coisa.</p><dl>${linha.map(([a, b]) => `<dt>${a}</dt><dd>${esc(b)}</dd>`).join('')}</dl></details></section>`;
+  if (h.uso === 'ataque' || h.uso === 'apoio') {
+    const verde = !temDano(h);
+    o += `<section class="ver__bloco" aria-labelledby="v-mapa"><div class="ver__tit"><h2 id="v-mapa">Alcance no mapa</h2><span class="legenda"><span><i style="background:${verde ? '#68de68' : '#1664ec'}"></i>${verde ? 'sem dano (verde)' : 'dá dano (azul)'}</span></span></div>
+      <div class="mapa"><canvas id="grade" width="286" height="286" tabindex="0" aria-label="Mapa do alcance: ${esc(fraseAlcance(h))}. Clique numa casa para pôr o boneco${h.alcance.forma === 'ponto' ? ' ou o ponto' : ''}; setas ${h.alcance.forma === 'ponto' ? 'movem o ponto' : 'viram a direção'}."></canvas>
+      <div class="mapa__pe"><div class="setas" role="group" aria-label="Direção">${['↑', '→', '↓', '←'].map((s, i) => `<button type="button" class="seta" data-a="dir" data-v="${i}" aria-pressed="${S.dir === i}" aria-label="Virar ${DIR_NOME[i]}"${temDirecao(h.alcance.forma) ? '' : ' aria-disabled="true" title="Esta forma não tem direção"'}>${s}</button>`).join('')}</div>
+      <span class="dica">${h.alcance.forma === 'ponto' ? 'Clique para pôr o ponto; num boneco, escolhe ele.' : 'Clique numa casa para pôr o boneco escolhido.'}${h.alcance.n > MEIO && h.alcance.forma !== 'si' && !(h.alcance.forma === 'alvo' && h.alcance.semLimite) ? ` O alcance (${h.alcance.n}) passa da borda: o mapa mostra ${MEIO} casas para cada lado.` : ''}</span></div></div></section>`;
+  }
+  const res = testar(h, f);
+  const dadoUsado = h.uso === 'ataque' && (testeEfetivo(h).tipo !== 'naoErra') || (h.uso === 'reacao' && h.defesa.tipo === 'rola') || (h.uso === 'ataque' && [h.fisico ? h.fis[h.fisico] : null, ...h.elementos.map((x) => h.el[x])].some((r) => r && r.modo === 'teste'));
+  o += `<section class="ver__bloco" aria-labelledby="v-teste"><div class="ver__tit"><h2 id="v-teste">Testar no boneco</h2><span class="dica">refaz a cada mudança, com o mesmo dado</span></div><div class="teste">`;
+  o += `<div class="teste__cab"><span class="dado">${dadoUsado ? `d20 <b id="d20"${S.rolou ? ' data-rola' : ''}>${S.d20}</b>` : 'sem dado'}</span>${dadoUsado ? '<button type="button" class="bt bt--p" data-a="rolar">' + ic('dado') + 'Rolar de novo</button>' : ''}${h.uso === 'ataque' && testeEfetivo(h).tipo === 'reacao' ? seg('O boneco', [['d20', 'reage'], ['nao', 'não reage']], S.reage, 'reage') : ''}</div>`;
+  if (res.arrumado.length) o += `<p class="arrumado">${esc(res.arrumado.join(' '))}</p>`;
+  if (res.bonecos.length) o += `<div class="bonecos">${res.bonecos.map((b, i) => htmlBoneco(b, i)).join('')}</div>`;
+  o += `<ol class="passos" aria-live="polite">${res.passos.map((p) => `<li${p.falta ? ' data-falta' : ''}><span>${p.t}</span>${p.fix ? `<button type="button" class="bt bt--p conserto" data-a="${p.fix.a}" data-v="${esc(p.fix.v || '')}" data-n="${p.fix.n || ''}">${esc(p.fix.t)}</button>` : ''}</li>`).join('')}</ol>`;
+  o += htmlAjustes(h, f);
+  o += '</div></section>';
+  return o;
+}
+function fraseAlcanceCurta(h) {
+  const al = h.alcance;
+  return { alvo: al.semLimite ? 'qualquer distância' : `até ${casas(al.n)}`, anel: `de ${al.min} a ${al.n} casas`, linha: `linha de ${al.n}`, volta: `${al.n} em volta`, frente: `${al.n}x${al.n} à frente`, cruz: `cruz de ${al.n}`, leque: `leque de ${al.n}`, ponto: `área de ${casas(al.raio)} a até ${al.n}`, ficha: `área numa ficha a até ${al.n}`, si: 'em si' }[al.forma];
+}
+function htmlBoneco(b, i) {
+  const antes = b.antes || { hp: b.hp, esc: b.esc };
+  const cura = b.hp > antes.hp;
+  const hpA = antes.hp / b.hpMax;
+  const hpD = b.hp / b.hpMax;
+  return `<div class="bon" data-i="${i}"${b.fora ? ' data-fora' : ''}>${BONECO_SVG}<span class="bon__nome">${b.nome}${b.fora ? '<small>fora do alcance</small>' : i === S.ativo ? '<small>escolhido</small>' : ''}</span><span class="bon__hp num">HP ${antes.hp !== b.hp ? `${antes.hp} → ` : ''}<b>${b.hp}</b>/${b.hpMax}</span>
+    <span class="bon__barras"><span class="barra${cura ? ' barra--cura' : ''}"><span class="barra__antes" style="transform:scaleX(${cura ? hpD : hpA})"></span><span class="barra__fim" data-de="${cura ? hpA : hpA}" style="transform:scaleX(${cura ? hpA : hpD})"></span></span>${b.escMax ? `<span class="barra barra--esc"><span class="barra__antes" style="transform:scaleX(${antes.esc / b.escMax})"></span><span class="barra__fim" data-de="${antes.esc / b.escMax}" style="transform:scaleX(${Math.min(1, b.esc / b.escMax)})"></span></span>` : ''}</span>
+    <span class="bon__selos">${b.selos.map((s) => `<span class="etq" data-c="caixa">${esc(s)}</span>`).join('')}</span></div>`;
+}
+function htmlAjustes(h, f) {
+  const e = S.est;
+  let o = `<details class="ajustes"${S.ajustesAbertos ? ' open' : ''}><summary data-a="ajustes">Ajustar quem usa e o boneco</summary><div class="ajustes__corpo">`;
+  o += `<div class="linha"><span class="rot">SP de ${esc(f.nome)}</span>${numIn('est.sp', e.sp, 0, 999, 'SP de quem usa')}</div>`;
+  f.contadores.forEach((c) => { const a = acumDe(f, c); o += `<div class="linha"><span class="rot">${esc(c)}</span>${numIn('est.contadores.' + c, e.contadores[c] || 0, 0, a.max, c)}<span class="dica">de ${a.max}; sobe ${esc(a.sobe)}</span></div>`; });
+  if (f.contadores.length) o += `<p>${linkAcum('Criar ou mudar os acumuladores da ficha')}</p>`;
+  if (S.ficha === 'sieg') ['Melodia de Todas as Coisas', 'Caminho do Dano'].forEach((t) => { o += `<label class="marca"><input type="checkbox" data-a="ligar" data-v="${t}"${e.ligadas.includes(t) ? ' checked' : ''}> ${t} ligada</label>`; });
+  o += `<div class="linha"><span class="rot">Rodada</span>${numIn('est.rodada', e.rodada, 1, 20, 'rodada')}</div>`;
+  if (h.dano.concentracao) o += `<div class="linha"><span class="rot">Concentração</span>${seg('Carga guardada', [['0', '0'], ['1', '1'], ['2', '2'], ['3', '3']], String(S.carga), 'carga')}</div>`;
+  o += `<div class="linha"><span class="rot">Boneco escolhido</span>${seg('Boneco escolhido', S.bonecos.map((b, i) => [String(i), String(i + 1)]), String(S.ativo), 'boneco')}</div>`;
+  o += '</div></details>';
+  return o;
+}
+
+/* ============================================================ o mapa (canvas) */
+function desenharGrade() {
+  const cv = $('#grade');
+  if (!cv) return;
+  const h = H();
+  const al = h.alcance;
+  const px = 22;
+  const dpr = window.devicePixelRatio || 1;
+  const lado = LADO * px;
+  cv.width = lado * dpr; cv.height = lado * dpr; cv.style.width = lado + 'px'; cv.style.height = lado + 'px';
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (let y = 0; y < LADO; y++) for (let x = 0; x < LADO; x++) { g.fillStyle = (x + y) % 2 === 0 ? '#2a2620' : '#26221d'; g.fillRect(x * px, y * px, px, px); }
+  g.strokeStyle = 'rgba(86, 78, 62, 0.5)'; g.lineWidth = 1;
+  for (let i = 0; i <= LADO; i++) { g.beginPath(); g.moveTo(i * px + 0.5, 0); g.lineTo(i * px + 0.5, lado); g.stroke(); g.beginPath(); g.moveTo(0, i * px + 0.5); g.lineTo(lado, i * px + 0.5); g.stroke(); }
+  const verde = !temDano(h);
+  const tinta = verde ? { base: 'rgba(104, 222, 104, 0.58)', forte: 'rgba(150, 242, 140, 0.86)', fraca: 'rgba(104, 222, 104, 0.16)', borda: '#ecffe2', contorno: 'rgba(10, 40, 14, 0.62)' }
+    : { base: 'rgba(22, 100, 236, 0.6)', forte: 'rgba(48, 136, 255, 0.84)', fraca: 'rgba(22, 100, 236, 0.2)', borda: '#cdeeff', contorno: 'rgba(6, 18, 46, 0.6)' };
+  const { area, alcance, centro } = celulas(al, S.dir, S.ponto, S.bonecos[S.ativo]);
+  const casa = (x, y, cor, forte) => { const m = 1.5; g.fillStyle = cor; g.fillRect(x * px + m, y * px + m, px - 2 * m, px - 2 * m); g.strokeStyle = tinta.contorno; g.strokeRect(x * px + m + 0.5, y * px + m + 0.5, px - 2 * m - 1, px - 2 * m - 1); if (forte) { g.strokeStyle = '#ffffff'; g.lineWidth = 1.5; g.strokeRect(x * px + 3, y * px + 3, px - 6, px - 6); g.lineWidth = 1; } };
+  const ehArea = al.forma !== 'alvo' && al.forma !== 'anel';
+  alcance.forEach((k) => { const [x, y] = k.split(',').map(Number); casa(x, y, ehArea ? tinta.fraca : tinta.base, false); });
+  area.forEach((k) => { const [x, y] = k.split(',').map(Number); casa(x, y, tinta.base, false); });
+  if (centro) casa(centro.x, centro.y, tinta.forte, true);
+  /* a borda clara da forma */
+  const contorno = ehArea ? area : alcance;
+  g.strokeStyle = tinta.borda; g.lineWidth = 1.5;
+  contorno.forEach((k) => {
+    const [x, y] = k.split(',').map(Number);
+    const lados = [[0, -1, x * px, y * px, (x + 1) * px, y * px], [1, 0, (x + 1) * px, y * px, (x + 1) * px, (y + 1) * px], [0, 1, x * px, (y + 1) * px, (x + 1) * px, (y + 1) * px], [-1, 0, x * px, y * px, x * px, (y + 1) * px]];
+    lados.forEach(([dx, dy, x1, y1, x2, y2]) => { if (!contorno.has(`${x + dx},${y + dy}`)) { g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); } });
+  });
+  g.lineWidth = 1;
+  /* os bonecos */
+  const aliado = h.uso === 'apoio' || al.quem === 'aliados';
+  S.bonecos.forEach((b, i) => {
+    const cx = b.x * px + px / 2, cy = b.y * px + px / 2;
+    const alvoAqui = (al.forma === 'alvo' || al.forma === 'anel') && alcance.has(`${b.x},${b.y}`) && i === S.ativo;
+    if (alvoAqui) casa(b.x, b.y, tinta.forte, true);
+    g.beginPath(); g.arc(cx, cy, px * 0.36, 0, Math.PI * 2); g.fillStyle = '#34302a'; g.fill();
+    g.lineWidth = 2; g.strokeStyle = i === S.ativo ? '#f3ba66' : aliado ? '#7fb48a' : '#e2645a'; g.stroke(); g.lineWidth = 1;
+    g.fillStyle = '#eceae4'; g.font = '600 10px Bahnschrift, Segoe UI, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(i + 1), cx, cy + 0.5);
+  });
+  /* quem usa: o anel verde das fichas do mapa, com a inicial, e a seta da direção */
+  const cx = MEIO * px + px / 2, cy = MEIO * px + px / 2;
+  if (temDirecao(al.forma)) {
+    const [dx, dy] = DIRS[S.dir];
+    g.fillStyle = '#d9cfb8'; g.beginPath(); g.moveTo(cx + dx * px * 0.62, cy + dy * px * 0.62); g.lineTo(cx + dx * px * 0.44 - dy * px * 0.16, cy + dy * px * 0.44 + dx * px * 0.16); g.lineTo(cx + dx * px * 0.44 + dy * px * 0.16, cy + dy * px * 0.44 - dx * px * 0.16); g.closePath(); g.fill();
+  }
+  g.beginPath(); g.arc(cx, cy, px * 0.42, 0, Math.PI * 2); g.fillStyle = '#34302a'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = 'rgba(12, 12, 14, 0.9)'; g.stroke(); g.lineWidth = 1.6; g.strokeStyle = '#7fb48a'; g.stroke(); g.lineWidth = 1;
+  g.fillStyle = '#eceae4'; g.font = '600 11px Bahnschrift, Segoe UI, sans-serif'; g.fillText(F().ini, cx, cy + 0.5);
+}
+
+/* ============================================================ desenhar tudo, sem perder o foco */
+function chave(el) { return el.id ? '#' + el.id : [el.dataset.a, el.dataset.v, el.dataset.campo, el.dataset.i, el.dataset.g, el.dataset.lugar, el.dataset.onde, el.dataset.id].join('|'); }
+function renderTudo(opts = {}) {
+  const ativo = document.activeElement;
+  const k = ativo && ativo !== document.body ? chave(ativo) : null;
+  const selecao = ativo && 'selectionStart' in ativo ? [ativo.selectionStart, ativo.selectionEnd] : null;
+  const h = H();
+  const f = F();
+  document.querySelectorAll('[data-a="exemplo"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === S.exemplo)));
+  $('#tit-ficha').textContent = `Ficha de ${f.nome}`;
+  $('#trilha').textContent = `Habilidades › ${h.nome || 'Nova habilidade'}`;
+  if (!opts.soVer) $('#editor').innerHTML = htmlEditor();
+  renderVer();
+  if (k) {
+    const alvo = k.startsWith('#') ? document.getElementById(k.slice(1)) : [...document.querySelectorAll('[data-a],[data-campo]')].find((el) => chave(el) === k);
+    if (alvo && alvo !== document.activeElement) { alvo.focus({ preventScroll: true }); if (selecao && 'setSelectionRange' in alvo) try { alvo.setSelectionRange(selecao[0], selecao[1]); } catch (_) { /* select não tem seleção */ } }
+  }
+}
+const larguras = new Map();
+function renderVer() {
+  const ver = $('#ver');
+  const rolagem = ver.scrollTop;
+  ver.innerHTML = htmlVer();
+  ver.scrollTop = rolagem;
+  desenharGrade();
+  if (S.animar && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    ver.querySelectorAll('.barra__fim[data-de]').forEach((el) => {
+      const fim = el.style.transform;
+      el.animate([{ transform: `scaleX(${el.dataset.de})` }, { transform: fim }], { duration: 260, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+    });
+  }
+  S.animar = false;
+  S.rolou = false;
+  const tipo = $('#tipo-batalha');
+  if (tipo) tipo.textContent = tipoNaBatalha(H());
+}
+
+/* ============================================================ mudar o estado por caminho ("alcance.n") */
+function pegar(obj, caminho) { return caminho.split('.').reduce((o, p) => (o == null ? undefined : o[p]), obj); }
+function pôr(obj, caminho, valor) {
+  const partes = caminho.split('.');
+  const ult = partes.pop();
+  const alvo = partes.reduce((o, p) => o[p], obj);
+  alvo[ult] = valor;
+}
+function raizDoCampo(campo) {
+  if (campo.startsWith('est.')) return [S, campo];
+  if (campo.startsWith('fis.') || campo.startsWith('el.')) return [H(), campo];
+  return [H(), campo];
+}
+function aplicarCampo(el, valorBruto, final) {
+  const campo = el.dataset.campo;
+  const [raiz, caminho] = raizDoCampo(campo);
+  let v = valorBruto;
+  if (el.dataset.tipo === 'num') {
+    const n = parseInt(String(v).replace(/\D/g, ''), 10);
+    if (Number.isNaN(n)) { if (!final) return; v = Number(el.dataset.min || 0); }
+    else v = final ? clamp(n, Number(el.dataset.min || 0), Number(el.dataset.max || 999)) : n;
+  }
+  if (el.dataset.tipo === 'bool') v = el.checked;
+  /* os campos com rótulo diferente do valor */
+  if (caminho.endsWith('.recursoTxt')) { pôr(raiz, caminho.replace('.recursoTxt', '.recurso'), { HP: 'hp', SP: 'sp', Escudo: 'escudo' }[v]); return; }
+  if (caminho.endsWith('.deltaAbs')) { const x = pegar(raiz, caminho.replace('.deltaAbs', '')); x.delta = (x.natureza === 'debuff' ? -1 : 1) * v; return; }
+  if (caminho === 'dano.de') { H().dano.de = { 'vida máxima': 'maxima', 'vida atual': 'atual', 'vida que falta': 'falta' }[v]; return; }
+  if (caminho.startsWith('est.contadores.')) { S.est.contadores[caminho.slice('est.contadores.'.length)] = v; return; }
+  pôr(raiz, caminho, v);
+}
+
+/* ============================================================ os modelos de antes (como presets das dimensões) */
+const MODELOS = [
+  ['ataque', 'golpe', 'Golpe simples', '1 inimigo, que reage normal; dano por fórmula'],
+  ['ataque', 'area', 'Golpe em área', 'Todos os inimigos num quadrado 3x3 à frente'],
+  ['ataque', 'giro', 'Giro', 'Os inimigos a 1 casa em volta de quem usa'],
+  ['ataque', 'linha', 'Disparo em linha', 'Todos numa linha de 6 casas'],
+  ['ataque', 'explosao', 'Explosão à distância', 'Todos a 1 casa de um ponto a até 6; teste de Agilidade, metade se passar'],
+  ['ataque', 'perfurante', 'Golpe perfurante', '1 inimigo; o dano passa direto pelo Escudo'],
+  ['ataque', 'duplo', 'Golpe duplo', '2 golpes: o 2º com metade do dano, perfurante'],
+  ['ataque', 'sangra', 'Corte que sangra', 'Dano com a arma e Sangrando por 3 vezes'],
+  ['ataque', 'drenoDeVida', 'Dreno de vida', 'Dano; quem usa recupera metade em HP'],
+  ['ataque', 'overload', 'Overload', 'Não erra, perfurante, Atordoado 2; 1 por batalha'],
+  ['apoio', 'cura', 'Cura', 'Cura HP de 1 aliado, sem teste'],
+  ['apoio', 'curaEmArea', 'Cura em área', 'Cura os aliados a 2 casas em volta'],
+  ['apoio', 'purificar', 'Purificar', 'Tira as condições negativas e cura 30'],
+  ['apoio', 'reviver', 'Reviver', '1 aliado caído volta com 25% do HP; 1 uso por batalha'],
+  ['apoio', 'buff', 'Buff em aliado', 'Fortalecido por 2 vezes: Força +20'],
+  ['apoio', 'barreira', 'Barreira', '+50 de Escudo em 1 aliado'],
+  ['condicao', 'debuff', 'Atordoar com teste', '1 inimigo testa contra CD 12; se falhar, fica Atordoado'],
+  ['condicao', 'enfraquecer', 'Enfraquecer', 'Enfraquecido por 2 vezes: Força −20, Dano −10'],
+  ['reacao', 'esquivaPerfeita', 'Esquiva perfeita', 'Reação: anula o golpe e marca quem atacou (Marcado)'],
+  ['reacao', 'bloqueio', 'Bloqueio', 'Reação: fica com metade do dano'],
+  ['reacao', 'aparar', 'Aparar', 'Reação: d20 + Força ou Agilidade; 15 ou mais anula'],
+  ['reacao', 'contraGolpe', 'Contra-golpe', 'Reação: fica com 90% e devolve metade em quem atacou'],
+];
+const GRUPOS_MODELO = { ataque: 'Ataque', apoio: 'Cura e apoio', condicao: 'Condição (agora: ataque sem dano com um tipo)', reacao: 'Reação' };
+function dimsDoModelo(id) {
+  const al = (forma, n, extra = {}) => Object.assign({ forma, n, raio: 1, min: 2, quem: 'inimigos', quantos: 1, dividir: false, semLimite: false }, extra);
+  const formula = (x) => ({ modo: 'formula', formula: x, pct: 25, de: 'maxima', concentracao: false });
+  const semDano = { modo: 'nenhum', formula: '', pct: 25, de: 'maxima', concentracao: false };
+  const custo = (sp, recarga, usos = 0) => ({ sp, porVez: 0, recarga, usos, item: '', itemN: 1 });
+  const t = { tipo: 'reacao', atr: 'Agilidade', cd: 12, sePassar: 'metade', atrUsa: 'Força', atrAlvo: 'Força' };
+  const d = { uso: 'ataque', acao: 'simples', fisico: null, fis: {}, elementos: [], el: {}, alcance: al('alvo', 1), dano: formula('Força + 20'), teste: t, extras: [], custo: custo(20, 1), defesa: { tipo: 'fica', pct: 50, atrs: 'Força', anulaCom: 15, devolve: 0, contraOverload: false } };
+  const apoio = (extra) => Object.assign(d, { uso: 'apoio', alcance: al('alvo', 3, { quem: 'aliados' }), dano: semDano }, extra);
+  switch (id) {
+    case 'golpe': break;
+    case 'area': Object.assign(d, { acao: 'completa', alcance: al('frente', 3), custo: custo(30, 2) }); break;
+    case 'giro': Object.assign(d, { acao: 'completa', alcance: al('volta', 1), custo: custo(30, 2) }); break;
+    case 'linha': Object.assign(d, { alcance: al('linha', 6), custo: custo(25, 2) }); break;
+    case 'explosao': Object.assign(d, { acao: 'completa', alcance: al('ponto', 6, { quem: 'todos' }), teste: Object.assign({}, t, { tipo: 'resistencia', atr: 'Agilidade', sePassar: 'metade' }), custo: custo(35, 3) }); break;
+    case 'perfurante': Object.assign(d, { fisico: 'perfurante', fis: { perfurante: { pct: 100 } } }); break;
+    case 'duplo': Object.assign(d, { extras: [{ tipo: 'segundo', pct: 50, perfurante: true }] }); break;
+    case 'sangra': Object.assign(d, { fisico: 'cortante', fis: { cortante: { modo: 'sempre', vezes: 3, porVez: 10 } }, dano: formula('Força + Dano da Arma') }); break;
+    case 'drenoDeVida': Object.assign(d, { extras: [{ tipo: 'dreno', pct: 50 }] }); break;
+    case 'overload': Object.assign(d, { acao: 'overload', fisico: 'perfurante', fis: { perfurante: { pct: 100 } }, dano: formula('Força + 100'), extras: [{ tipo: 'seloPronto', nome: 'Atordoado', dura: 2, em: 'alvo' }], custo: custo(0, 0) }); break;
+    case 'cura': apoio({ extras: [{ tipo: 'cura', recurso: 'hp', formula: 'Espírito', em: 'alvo' }], custo: custo(20, 1) }); break;
+    case 'curaEmArea': apoio({ acao: 'completa', alcance: al('volta', 2, { quem: 'aliados' }), extras: [{ tipo: 'cura', recurso: 'hp', formula: 'Espírito', em: 'alvo' }], custo: custo(40, 3) }); break;
+    case 'purificar': apoio({ extras: [{ tipo: 'tirar', quais: 'negativas' }, { tipo: 'cura', recurso: 'hp', formula: '30', em: 'alvo' }], custo: custo(25, 2) }); break;
+    case 'reviver': apoio({ acao: 'completa', alcance: al('alvo', 1, { quem: 'aliados' }), extras: [{ tipo: 'reviver', pct: 25 }], custo: custo(50, 0, 1) }); break;
+    case 'buff': apoio({ acao: 'bonus', extras: [{ tipo: 'selo', nome: 'Fortalecido', natureza: 'buff', dura: 2, atr: 'Força', delta: 20, curaDoDano: 0 }], custo: custo(20, 2) }); break;
+    case 'barreira': apoio({ extras: [{ tipo: 'cura', recurso: 'escudo', formula: '50', em: 'alvo' }], custo: custo(25, 2) }); break;
+    case 'debuff': Object.assign(d, { fisico: 'impacto', fis: { impacto: { modo: 'teste', atr: 'Resistência', cd: 12, vezes: 1, empurra: 0 } }, dano: semDano, teste: Object.assign({}, t, { tipo: 'naoErra' }) }); break;
+    case 'enfraquecer': Object.assign(d, { elementos: ['enfraquecer'], el: { enfraquecer: { modo: 'sempre', vezes: 2, forca: 20, dano: 10 } }, dano: semDano }); break;
+    case 'esquivaPerfeita': Object.assign(d, { uso: 'reacao', acao: 'reacao', defesa: { tipo: 'anula', pct: 50, atrs: 'Agilidade', anulaCom: 15, devolve: 0, contraOverload: false }, extras: [{ tipo: 'seloPronto', nome: 'Marcado', dura: 2, em: 'atacante' }], custo: custo(20, 2) }); break;
+    case 'bloqueio': Object.assign(d, { uso: 'reacao', acao: 'reacao', defesa: { tipo: 'fica', pct: 50, atrs: 'Força', anulaCom: 15, devolve: 0, contraOverload: false }, custo: custo(15, 1) }); break;
+    case 'aparar': Object.assign(d, { uso: 'reacao', acao: 'reacao', defesa: { tipo: 'rola', pct: 50, atrs: 'Força', anulaCom: 15, devolve: 0, contraOverload: false }, custo: custo(15, 1) }); break;
+    case 'contraGolpe': Object.assign(d, { uso: 'reacao', acao: 'reacao', defesa: { tipo: 'fica', pct: 90, atrs: 'Força', anulaCom: 15, devolve: 2, contraOverload: false }, custo: custo(25, 2) }); break;
+  }
+  return d;
+}
+function resumoDoModelo(id) {
+  const x = Object.assign(habVazia(), dimsDoModelo(id));
+  const partes = [nomeDoUso(x)];
+  if (x.fisico) partes.push(FISICOS[x.fisico].nome);
+  x.elementos.forEach((e) => partes.push(ELEMENTOS[e].nome));
+  if (x.uso !== 'reacao') partes.push(fraseAlcanceCurta(x));
+  return partes.join(' · ');
+}
+function aplicarModelo(id) {
+  guardar();
+  const h = H();
+  const d = dimsDoModelo(id);
+  Object.assign(h, copia(d));
+  fecharCamada();
+  const nome = MODELOS.find((m) => m[1] === id)[2];
+  renderTudo();
+  aviso(`Modelo ${nome}: preencheu Ação, Golpe, Alcance, Dano, Acerto, Efeitos e Custo. Nome, descrição e requisitos ficaram.`, true);
+}
+
+/* ============================================================ camadas: menu e janela */
+let quemAbriu = null;
+function fecharCamada(devolver = true) {
+  const c = $('#camada');
+  if (!c.innerHTML) return;
+  c.innerHTML = '';
+  document.removeEventListener('keydown', teclaDaCamada, true);
+  if (devolver && quemAbriu && document.contains(quemAbriu)) quemAbriu.focus();
+  quemAbriu = null;
+}
+function abrirMenu(botao, itens) {
+  fecharCamada(false);
+  quemAbriu = botao;
+  const r = botao.getBoundingClientRect();
+  const c = $('#camada');
+  c.innerHTML = `<div class="menu" role="menu" aria-label="${esc(botao.textContent.trim())}">${itens.map((it) => (it.sep ? `<p class="menu__sep" role="presentation">${esc(it.sep)}</p>` : `<button type="button" role="menuitem" class="menu__item" tabindex="-1" data-a="${it.a}" data-v="${esc(it.v)}"${it.lugar !== undefined ? ` data-lugar="${it.lugar}" data-g="${it.g}"` : ''}${it.motivo ? ' aria-disabled="true"' : ''}><b>${esc(it.nome)}</b><span>${esc(it.motivo || it.faz)}</span></button>`)).join('')}</div>`;
+  const menu = c.firstElementChild;
+  const alto = menu.offsetHeight;
+  const cabeBaixo = r.bottom + 4 + alto < window.innerHeight;
+  menu.style.left = Math.min(r.left, window.innerWidth - menu.offsetWidth - 8) + 'px';
+  menu.style.top = (cabeBaixo ? r.bottom + 4 : Math.max(8, r.top - alto - 4)) + 'px';
+  menu.style.transformOrigin = cabeBaixo ? 'top left' : 'bottom left';
+  const primeiro = menu.querySelector('.menu__item:not([aria-disabled="true"])');
+  if (primeiro) primeiro.focus();
+  document.addEventListener('keydown', teclaDaCamada, true);
+}
+function abrirModelos(botao) {
+  fecharCamada(false);
+  quemAbriu = botao;
+  const grupos = Object.keys(GRUPOS_MODELO);
+  $('#camada').innerHTML = `<div class="fundo" data-a="fundo"><div class="dialogo" role="dialog" aria-modal="true" aria-labelledby="dlg-tit"><div class="dialogo__cab"><h2 id="dlg-tit">Começar de um modelo</h2><p class="dica">O modelo preenche as escolhas do editor (ação, golpe, alcance, dano, acerto, efeitos e custo). O nome, a descrição e os requisitos ficam. Dá para desfazer.</p></div>
+    <div class="dialogo__corpo"><div class="modelos">${grupos.map((g) => `<p class="modelos__grupo">${GRUPOS_MODELO[g]}</p>${MODELOS.filter((m) => m[0] === g).map((m) => `<button type="button" class="modelo" data-a="modelo" data-v="${m[1]}"><b>${m[2]}</b><span>${m[3]}</span><span class="modelo__dims">${esc(resumoDoModelo(m[1]))}</span></button>`).join('')}`).join('')}</div></div>
+    <div class="dialogo__pe"><button type="button" class="bt bt--fantasma" data-a="fecharCamada">Cancelar</button></div></div></div>`;
+  $('#camada .modelo').focus();
+  document.addEventListener('keydown', teclaDaCamada, true);
+}
+function teclaDaCamada(ev) {
+  const c = $('#camada');
+  if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); fecharCamada(); return; }
+  const menu = c.querySelector('.menu');
+  if (menu && (ev.key === 'ArrowDown' || ev.key === 'ArrowUp' || ev.key === 'Home' || ev.key === 'End')) {
+    ev.preventDefault();
+    const itens = [...menu.querySelectorAll('.menu__item:not([aria-disabled="true"])')];
+    const i = itens.indexOf(document.activeElement);
+    const prox = ev.key === 'Home' ? 0 : ev.key === 'End' ? itens.length - 1 : ev.key === 'ArrowDown' ? (i + 1) % itens.length : (i - 1 + itens.length) % itens.length;
+    itens[prox].focus();
+  }
+  if (menu && ev.key === 'Tab') fecharCamada(false);
+  const dlg = c.querySelector('.dialogo');
+  if (dlg && ev.key === 'Tab') {
+    const foco = [...dlg.querySelectorAll('button')];
+    const i = foco.indexOf(document.activeElement);
+    if (ev.shiftKey && i <= 0) { ev.preventDefault(); foco[foco.length - 1].focus(); }
+    else if (!ev.shiftKey && i === foco.length - 1) { ev.preventDefault(); foco[0].focus(); }
+  }
+}
+
+/* ============================================================ o aviso (com Desfazer) */
+function aviso(texto, comDesfazer) {
+  const raiz = $('#avisos');
+  raiz.querySelectorAll('.aviso').forEach((a) => a.remove());
+  const el = document.createElement('div');
+  el.className = 'aviso';
+  el.innerHTML = `<span>${esc(texto)}</span>${comDesfazer ? '<button type="button" class="bt bt--p" data-a="desfazer">Desfazer</button>' : ''}`;
+  raiz.appendChild(el);
+  let tempo = null;
+  const some = () => { el.setAttribute('data-saindo', ''); setTimeout(() => el.remove(), 160); };
+  const arma = () => { tempo = setTimeout(some, comDesfazer ? 6000 : 3200); };
+  el.addEventListener('pointerenter', () => clearTimeout(tempo));
+  el.addEventListener('pointerleave', arma);
+  arma();
+}
+
+/* ============================================================ o que cada clique faz */
+function novoReqItem(tipo) { const it = Object.assign({ tipo }, copia(REQ[tipo].padrao)); const f = F(); if (tipo === 'A4') it.cont = f.contadores[0] || ''; if (tipo === 'B1') it.tec = f.tec[0] || ''; return it; }
+const ACOES = {
+  exemplo(el) { S = exemplo(el.dataset.v); PILHA.length = 0; renderTudo(); $('#editor').scrollTop = 0; },
+  recomecar() { S = exemplo(S.exemplo); PILHA.length = 0; renderTudo(); aviso('Exemplo recomeçado.'); },
+  aba(el) { S.aberta = el.dataset.v; renderTudo(); $('#editor').scrollTop = 0; },
+  uso(el) {
+    const h = H();
+    const uso = el.dataset.uso;
+    const acao = el.dataset.acao;
+    if (h.uso === uso && (!acao || h.acao === acao)) return;
+    guardar();
+    h.uso = uso;
+    if (uso === 'ataque') { h.acao = acao; if (h.alcance.quem === 'aliados') h.alcance.quem = 'inimigos'; if (h.dano.modo === 'nenhum' && h.dano.formula) h.dano.modo = 'formula'; }
+    if (uso === 'apoio') { h.acao = ['simples', 'bonus', 'completa', 'livre'].includes(h.acao) ? h.acao : 'simples'; h.alcance.quem = 'aliados'; }
+    if (uso === 'reacao') h.acao = 'reacao';
+    renderTudo();
+  },
+  acao(el) { guardar(); H().acao = el.dataset.v; renderTudo(); },
+  outraAcao() { H().outraAcao = true; renderTudo(); const o = document.querySelector('[data-a="acao"][aria-checked="false"]'); if (o) o.focus(); },
+  fisico(el) {
+    guardar();
+    const h = H();
+    const id = el.dataset.v;
+    if (h.fisico === id) h.fisico = null;
+    else { h.fisico = id; if (!h.fis[id]) h.fis[id] = copia(FISICOS[id].padrao); }
+    renderTudo();
+  },
+  elemento(el) {
+    if (el.getAttribute('aria-disabled') === 'true') { aviso(el.title); return; }
+    guardar();
+    const h = H();
+    const id = el.dataset.v;
+    if (h.elementos.includes(id)) h.elementos = h.elementos.filter((x) => x !== id);
+    else { h.elementos.push(id); if (!h.el[id]) h.el[id] = copia(ELEMENTOS[id].padrao); }
+    renderTudo();
+  },
+  modo(el) {
+    const h = H();
+    const r = el.dataset.onde === 'fis' ? h.fis[el.dataset.id] : h.el[el.dataset.id];
+    if (el.dataset.v !== 'tipo' && r.modo === 'tipo' && selosDoGolpe(h).length >= SELOS_NO_GOLPE_MAX) { aviso(`Até ${SELOS_NO_GOLPE_MAX} condições no mesmo golpe.`); return; }
+    guardar();
+    r.modo = el.dataset.v;
+    if (r.modo === 'teste') { r.atr = r.atr || 'Resistência'; r.cd = r.cd || 12; }
+    renderTudo();
+  },
+  forma(el) {
+    guardar();
+    const al = H().alcance;
+    const nova = el.dataset.v;
+    const n = al.forma === 'frente' ? al.n : al.n;
+    al.forma = nova;
+    if (nova === 'frente') al.n = clamp(n, 2, 5);
+    else if (nova === 'anel') { al.min = 2; al.n = Math.max(3, n); }
+    else al.n = clamp(n, 1, CASAS_MAX);
+    if ((nova === 'ponto' || nova === 'ficha') && al.raio < 1) al.raio = 1;
+    if (nova === 'ponto') { const p = S.ponto; if (cheb(p.x, p.y, MEIO, MEIO) > al.n) S.ponto = { x: MEIO, y: MEIO - Math.min(al.n, 3) }; }
+    renderTudo();
+  },
+  quem(el) { guardar(); H().alcance.quem = el.dataset.v; renderTudo(); },
+  quantos(el) { guardar(); const al = H().alcance; al.quantos = el.dataset.v === '1' ? 1 : Math.max(2, al.quantos); renderTudo(); },
+  danoModo(el) { guardar(); H().dano.modo = el.dataset.v; renderTudo(); },
+  tecla(el) {
+    const h = H();
+    const t = el.dataset.v;
+    const ins = { '−': ' - ', '+': ' + ', '×': ' × ', '÷': ' ÷ ', '(': '(', ')': ')', ',': ',' }[t] || t;
+    const atual = h.dano.formula;
+    const pos = S.caret == null ? atual.length : Math.min(S.caret, atual.length);
+    const antes = atual.slice(0, pos);
+    const precisaEspaco = /[A-Za-zÀ-ÿ0-9)]$/.test(antes.trimEnd()) && /^[A-Za-zÀ-ÿ(]/.test(ins);
+    const novo = (antes.trimEnd() + (precisaEspaco ? ' + ' : antes && !/[(\s]$/.test(antes) && /^[A-Za-zÀ-ÿ]/.test(ins) ? ' ' : '') + ins).replace(/\s{2,}/g, ' ');
+    guardar();
+    h.dano.formula = novo + atual.slice(pos);
+    S.caret = novo.length;
+    renderTudo();
+    const inp = $('#f-formula');
+    if (inp) { inp.focus(); inp.setSelectionRange(S.caret, S.caret); }
+  },
+  teste(el) { guardar(); H().teste.tipo = el.dataset.v; renderTudo(); },
+  sePassar(el) { guardar(); H().teste.sePassar = el.dataset.v; renderTudo(); },
+  defesa(el) { guardar(); H().defesa.tipo = el.dataset.v; renderTudo(); },
+  devolve(el) { guardar(); H().defesa.devolve = Number(el.dataset.v); renderTudo(); },
+  usos(el) { guardar(); H().custo.usos = el.dataset.v === '0' ? 0 : Math.max(1, H().custo.usos || 2); renderTudo(); },
+  passo(el) {
+    const inp = el.parentElement.querySelector('input');
+    const atual = parseInt(inp.value, 10) || 0;
+    const v = clamp(atual + Number(el.dataset.d), Number(el.dataset.min), Number(el.dataset.max));
+    if (v === atual) return;
+    guardar();
+    aplicarCampo(inp, String(v), true);
+    renderTudo();
+  },
+  menuEfeito(el) {
+    if (el.getAttribute('aria-disabled') === 'true') { aviso(el.title); return; }
+    const h = H();
+    const itens = Object.entries(EFEITOS).map(([id, e]) => {
+      let motivo = '';
+      if (e.precisaDano && !temDano(h)) motivo = 'Precisa de dano (este não dá dano)';
+      if (id === 'reviver' && h.uso !== 'apoio') motivo = 'Só num Apoio em aliado caído';
+      if ((id === 'selo' || id === 'seloPronto') && h.uso === 'ataque' && selosDoGolpe(h).length >= SELOS_NO_GOLPE_MAX) motivo = `Já são ${SELOS_NO_GOLPE_MAX} condições neste golpe`;
+      if (id === 'acumular' && F().contadores.length === 0) motivo = `${F().nome} não tem acumulador: crie um no editor de acumulador`;
+      return { a: 'addEfeito', v: id, nome: e.nome, faz: e.faz, motivo };
+    });
+    abrirMenu(el, itens);
+  },
+  addEfeito(el) {
+    if (el.getAttribute('aria-disabled') === 'true') return;
+    guardar();
+    const h = H();
+    const x = Object.assign({ tipo: el.dataset.v }, copia(EFEITOS[el.dataset.v].padrao));
+    if (x.tipo === 'selo' && h.uso === 'ataque') { x.natureza = 'debuff'; x.nome = 'Abalado'; x.delta = -10; }
+    if (x.tipo === 'cura' && h.uso === 'ataque') x.em = 'quemUsa';
+    if (x.tipo === 'acumular') x.acum = F().contadores[0] || '';
+    h.extras.push(x);
+    fecharCamada(false);
+    renderTudo();
+    const ult = document.querySelectorAll('#dim-efeitos .item');
+    if (ult.length) { const campo = ult[ult.length - 1].querySelector('input, select, button'); if (campo) campo.focus(); }
+  },
+  tirarEfeito(el) { guardar(); const h = H(); const x = h.extras.splice(Number(el.dataset.i), 1)[0]; renderTudo(); aviso(`${EFEITOS[x.tipo].nome} tirado.`, true); },
+  efeitoEm(el) { guardar(); H().extras[Number(el.dataset.i)].em = el.dataset.v; renderTudo(); },
+  natureza(el) { guardar(); const x = H().extras[Number(el.dataset.i)]; x.natureza = el.dataset.v; x.delta = (el.dataset.v === 'debuff' ? -1 : 1) * Math.abs(x.delta); renderTudo(); },
+  quais(el) { guardar(); H().extras[Number(el.dataset.i)].quais = el.dataset.v; renderTudo(); },
+  acumQuando(el) { guardar(); H().extras[Number(el.dataset.i)].quando = el.dataset.v; renderTudo(); },
+  menuReq(el) {
+    abrirMenu(el, [{ sep: 'Recursos e estado de quem usa' }, ...['A1', 'A2', 'A4', 'B1', 'B2', 'C1'].map((t) => ({ a: 'addReq', v: t, nome: `${t} · ${REQ[t].nome}`, faz: CONF_TXT[REQ[t].conf] + ': ' + (REQ[t].conf === 'auto' ? 'o app confere sozinho' : ''), lugar: el.dataset.lugar, g: el.dataset.g, motivo: t === 'A4' && F().contadores.length === 0 ? 'Esta ficha não tem acumulador: crie um no editor de acumulador' : '' })),
+      { sep: 'Aliados e o resto' }, ...['G2', 'J1'].map((t) => ({ a: 'addReq', v: t, nome: `${t} · ${REQ[t].nome}`, faz: t === 'G2' ? 'Pergunta ao aliado na tela dele' : 'Ao usar, abre "Cumpriu?"', lugar: el.dataset.lugar, g: el.dataset.g })),
+      { sep: 'A lista inteira de tipos está no protótipo dos requisitos' }]);
+  },
+  addReq(el) {
+    if (el.getAttribute('aria-disabled') === 'true') return;
+    guardar();
+    const lista = H()[el.dataset.lugar];
+    lista[Number(el.dataset.g)].itens.push(novoReqItem(el.dataset.v));
+    fecharCamada(false);
+    renderTudo();
+  },
+  novoGrupo(el) { guardar(); H()[el.dataset.lugar].push({ modo: 'todos', itens: [] }); renderTudo(); const b = document.querySelectorAll(`[data-a="menuReq"][data-lugar="${el.dataset.lugar}"]`); if (b.length) b[b.length - 1].focus(); },
+  tirarGrupo(el) { guardar(); H()[el.dataset.lugar].splice(Number(el.dataset.g), 1); renderTudo(); aviso('Grupo tirado.', true); },
+  grupoModo(el) { guardar(); H()[el.dataset.lugar][Number(el.dataset.g)].modo = el.dataset.v; renderTudo(); },
+  tirarReq(el) { guardar(); H()[el.dataset.lugar][Number(el.dataset.g)].itens.splice(Number(el.dataset.i), 1); renderTudo(); aviso('Requisito tirado.', true); },
+  gasta(el) { guardar(); const r = H()[el.dataset.lugar][Number(el.dataset.g)].itens[Number(el.dataset.i)]; r.gasta = !r.gasta; renderTudo(); },
+  evoluir() {
+    guardar();
+    const h = H();
+    const id = h.id + 'Evo';
+    S.habs[id] = Object.assign(copia(h), { id, nome: `SUPER ${h.nome || 'habilidade'}`, acao: h.uso === 'ataque' ? 'overload' : h.acao, evolui: null, reqEvolui: [], evolucaoDe: h.id, req: [] });
+    h.evolui = id;
+    h.reqEvolui = [{ modo: 'todos', itens: [] }];
+    renderTudo();
+    aviso(`Criada a versão evoluída "${S.habs[id].nome}". Ela abre na aba ao lado do nome.`, true);
+  },
+  naoEvolui() { guardar(); const h = H(); delete S.habs[h.evolui]; h.evolui = null; h.reqEvolui = []; renderTudo(); aviso('A evolução saiu.', true); },
+  novoCampo() { guardar(); H().campos.push({ nome: '', valor: '' }); renderTudo(); const c = document.querySelectorAll('#dim-campos .campo-extra input'); if (c.length) c[c.length - 2].focus(); },
+  novaOpcao() { guardar(); H().campos.push({ nome: 'Opção ', valor: '', opcao: true }); renderTudo(); const c = document.querySelectorAll('#dim-campos .campo-extra input'); if (c.length) c[c.length - 2].focus(); },
+  tirarCampo(el) { guardar(); H().campos.splice(Number(el.dataset.i), 1); renderTudo(); aviso('Campo tirado.', true); },
+  modelos(el) { abrirModelos(el); },
+  modelo(el) { aplicarModelo(el.dataset.v); },
+  fecharCamada() { fecharCamada(); },
+  fundo(el, ev) { if (ev.target === el) fecharCamada(); },
+  desfazer() { $('#avisos').innerHTML = ''; desfazer(); },
+  salvar() {
+    const sem = Object.values(S.habs).find((x) => !x.nome.trim());
+    if (sem) { S.aberta = sem.id; S.erroNome = true; renderTudo(); $('#f-nome').focus(); return; }
+    S.erroNome = false; renderTudo(); aviso('Protótipo: no app, isto salva a ficha. Aqui nada é salvo.');
+  },
+  cancelar() { aviso('Protótipo: no app, Cancelar fecha sem salvar.'); },
+  ir(el, ev) {
+    if (ev) ev.preventDefault();
+    const alvo = document.getElementById('dim-' + el.dataset.v);
+    if (!alvo) return;
+    alvo.scrollIntoView({ block: 'start' });
+    /* "você chegou aqui": só opacidade, por isso vale também com movimento reduzido */
+    alvo.querySelectorAll('.dim__brilho').forEach((b) => b.remove());
+    const brilho = document.createElement('div');
+    brilho.className = 'dim__brilho';
+    alvo.appendChild(brilho);
+    brilho.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 600, delay: 150, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' }).onfinish = () => brilho.remove();
+    const primeiro = alvo.querySelector('[aria-checked="true"], input, select, button');
+    if (primeiro) primeiro.focus({ preventScroll: true });
+  },
+  dir(el) { if (el.getAttribute('aria-disabled') === 'true') return; S.dir = Number(el.dataset.v); renderTudo({ soVer: true }); },
+  rolar() { S.d20 = 1 + Math.floor(Math.random() * 20); S.d20b = 1 + Math.floor(Math.random() * 20); S.animar = true; S.rolou = true; renderTudo({ soVer: true }); },
+  reage(el) { S.reage = el.dataset.v; S.animar = true; renderTudo({ soVer: true }); },
+  carga(el) { S.carga = Number(el.dataset.v); renderTudo({ soVer: true }); },
+  boneco(el) { S.ativo = Number(el.dataset.v); S.animar = true; renderTudo({ soVer: true }); },
+  ajustes(el, ev) { ev.preventDefault(); S.ajustesAbertos = !S.ajustesAbertos; renderTudo({ soVer: true }); },
+  ligar(el) { const l = S.est.ligadas; const t = el.dataset.v; S.est.ligadas = l.includes(t) ? l.filter((x) => x !== t) : l.concat([t]); renderTudo(); },
+  fixCont(el) { S.est.contadores[el.dataset.v] = Math.min(Number(el.dataset.n), acumDe(F(), el.dataset.v).max); S.animar = true; S.ajustesAbertos = true; renderTudo(); },
+  fixLigar(el) { if (!S.est.ligadas.includes(el.dataset.v)) S.est.ligadas.push(el.dataset.v); renderTudo(); },
+  fixSp() { S.est.sp = F().sp; S.animar = true; renderTudo(); },
+  fixRodada(el) { S.est.rodada = Number(el.dataset.n); renderTudo(); },
+  fixPerto() {
+    const al = H().alcance;
+    const d = al.forma === 'anel' ? al.min : 1;
+    const dir = temDirecao(al.forma) ? DIRS[S.dir] : [0, -1];
+    S.bonecos[S.ativo] = { x: MEIO + dir[0] * d, y: MEIO + dir[1] * d };
+    if (al.forma === 'ponto') S.ponto = { x: MEIO, y: MEIO - Math.min(al.n, 2) };
+    S.animar = true;
+    renderTudo({ soVer: true });
+  },
+};
+
+/* ============================================================ eventos */
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-a]');
+  if (!el) { if (!ev.target.closest('.menu')) fecharCamada(false); return; }
+  if (el.tagName === 'INPUT' && el.type === 'checkbox' && el.dataset.a === 'ligar') { ACOES.ligar(el, ev); return; }
+  if (!el.closest('#camada') && $('#camada').innerHTML && el.dataset.a !== 'fundo') fecharCamada(false);
+  const fn = ACOES[el.dataset.a];
+  if (fn) fn(el, ev);
+});
+document.addEventListener('input', (ev) => {
+  const el = ev.target;
+  if (!el.dataset || !el.dataset.campo || el.dataset.tipo === 'bool' || el.tagName === 'SELECT') return;
+  aplicarCampo(el, el.value, false);
+  if (el.id === 'f-formula') {
+    S.caret = el.selectionStart;
+    const r = calcular(H().dano.formula, F());
+    const c = $('#f-calcula');
+    c.innerHTML = htmlCalcula(r);
+    c.toggleAttribute('data-erro', !r.ok);
+    el.setAttribute('aria-invalid', String(!!r.erro));
+  }
+  if (el.dataset.campo === 'nome') { $('#trilha').textContent = `Habilidades › ${el.value || 'Nova habilidade'}`; document.querySelectorAll('.aba[aria-selected="true"]').forEach((a) => { a.firstChild.textContent = el.value || '(sem nome)'; }); if (S.erroNome && el.value.trim()) { S.erroNome = false; renderTudo(); return; } }
+  renderVer();
+});
+let guardouTexto = null;
+document.addEventListener('focusin', (ev) => { if (ev.target.dataset && ev.target.dataset.campo) guardouTexto = ev.target; });
+document.addEventListener('keydown', (ev) => {
+  const el = ev.target;
+  if (el.dataset && el.dataset.campo && ev.key === 'Enter' && el.tagName === 'INPUT') { el.blur(); el.focus(); }
+}, true);
+document.addEventListener('change', (ev) => {
+  const el = ev.target;
+  if (!el.dataset || !el.dataset.campo) return;
+  guardar();
+  aplicarCampo(el, el.value, true);
+  renderTudo();
+});
+document.addEventListener('keyup', (ev) => { if (ev.target.id === 'f-formula') S.caret = ev.target.selectionStart; });
+document.addEventListener('pointerup', (ev) => { if (ev.target.id === 'f-formula') S.caret = ev.target.selectionStart; });
+/* setas nos grupos de rádio (uma parada só do Tab) e nas abas */
+document.addEventListener('keydown', (ev) => {
+  const el = ev.target;
+  const grupo = el.closest && (el.closest('[role="radiogroup"]') || el.closest('[role="tablist"]'));
+  if (grupo && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(ev.key) && !el.closest('#camada')) {
+    const itens = [...grupo.querySelectorAll('[role="radio"]:not([aria-disabled="true"]), [role="tab"]')];
+    const i = itens.indexOf(el);
+    if (i < 0) return;
+    ev.preventDefault();
+    const prox = ev.key === 'Home' ? 0 : ev.key === 'End' ? itens.length - 1 : ['ArrowRight', 'ArrowDown'].includes(ev.key) ? (i + 1) % itens.length : (i - 1 + itens.length) % itens.length;
+    itens[prox].click();
+    return;
+  }
+  if (el.id === 'grade' && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(ev.key)) {
+    ev.preventDefault();
+    const d = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 }[ev.key];
+    const al = H().alcance;
+    if (al.forma === 'ponto') { const p = { x: clamp(S.ponto.x + DIRS[d][0], 0, LADO - 1), y: clamp(S.ponto.y + DIRS[d][1], 0, LADO - 1) }; if (cheb(p.x, p.y, MEIO, MEIO) <= al.n) S.ponto = p; }
+    else if (temDirecao(al.forma)) S.dir = d;
+    renderTudo({ soVer: true });
+    return;
+  }
+  const digitando = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT';
+  if (!digitando && (ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); desfazer(); }
+});
+/* o clique no mapa */
+document.addEventListener('pointerdown', (ev) => {
+  if (ev.target.id !== 'grade') return;
+  const r = ev.target.getBoundingClientRect();
+  const x = Math.floor((ev.clientX - r.left) / 22);
+  const y = Math.floor((ev.clientY - r.top) / 22);
+  if (x < 0 || y < 0 || x >= LADO || y >= LADO || (x === MEIO && y === MEIO)) return;
+  const al = H().alcance;
+  const i = S.bonecos.findIndex((b) => b.x === x && b.y === y);
+  if (i >= 0) S.ativo = i;
+  else if (al.forma === 'ponto') { if (cheb(x, y, MEIO, MEIO) <= al.n) S.ponto = { x, y }; else aviso(`Longe demais: o ponto cai a até ${casas(al.n)}.`); }
+  else S.bonecos[S.ativo] = { x, y };
+  S.animar = true;
+  renderTudo({ soVer: true });
+  const g = $('#grade');
+  if (g) g.focus({ preventScroll: true });
+});
+
+renderTudo();
+</script>
+</body>
+</html>
