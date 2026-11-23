@@ -44,16 +44,18 @@
   color: var(--lb-color-parchment-dim);
   font-size: var(--lb-font-size-sm);
 }
-.bt-espera-ajuda[data-estado='esperando'] .bt-espera-ajuda__ponto { animation: bt-espera-ajuda-pulso 1.2s ease-in-out infinite; }
+/* O mesmo pulso do "Esperando o mestre" (combate.css, bt-espera): uma espera só na tela. */
+.bt-espera-ajuda[data-estado='esperando'] .bt-espera-ajuda__ponto { animation: bt-espera 1.6s ease-in-out infinite; }
 .bt-espera-ajuda[data-estado='recusado'],
 .bt-espera-ajuda[data-estado='venceu'],
 .bt-espera-ajuda[data-estado='naoPassou'],
 .bt-espera-ajuda[data-estado='cancelado'] { border-left-color: var(--lb-color-ember); }
 .bt-espera-ajuda__ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--lb-color-tide); }
 .bt-espera-ajuda__texto { flex: 1 1 18ch; min-width: 0; overflow-wrap: anywhere; }
-@keyframes bt-espera-ajuda-pulso { 50% { opacity: 0.35; } }
+@keyframes bt-pedido-ajuda-aparece { from { opacity: 0; } }
 
+/* Movimento reduzido: sem deslocar; a caixa só aparece (opacidade curta) e o ponto fica parado. */
 @media (prefers-reduced-motion: reduce) {
-  .bt-pedido-ajuda { animation: none; }
+  .bt-pedido-ajuda { animation: bt-pedido-ajuda-aparece 150ms ease-out both; }
   .bt-espera-ajuda[data-estado='esperando'] .bt-espera-ajuda__ponto { animation: none; }
 }
