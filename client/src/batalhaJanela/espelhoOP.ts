@@ -34,6 +34,10 @@ const LINHAS_NA_MESA = 60
 /** O que aconteceu nesta vez, no cartão da vez: as mais novas. */
 const FEITOS_NA_VEZ = 3
 const SEPARA_ID = '|'
+/** O id do pendente que é um pedido de ajuda (o resto é golpe|ficha da reação). */
+const PREFIXO_DA_AJUDA = 'ajuda:'
+const RESPOSTA_ACEITA = 'aceitar'
+const RESPOSTA_RECUSA = 'recusar'
 /** As linhas que contam o que a vez fez (golpe, reação, dano); as de ordem e regra ficam só no registro. */
 const LINHAS_DA_VEZ: ReadonlySet<TipoDaLinha> = new Set<TipoDaLinha>(['acao', 'golpe', 'habilidade', 'reacao', 'dano', 'transformacao', 'selo'])
 
@@ -245,7 +249,36 @@ function pendentes(mesa: MesaDaCena, turnos: TurnosDaCena, quandoDaLinha: Readon
       })
     }
   }
+  itens.push(...ajudasDoMestre(turnos))
   return itens
+}
+
+/**
+ * REQUISITOS E/J2: os pedidos de ajuda que só o mestre responde (o J2 "o mestre decide" e o NPC aliado que
+ * paga). A mesa encostada cobre a página Batalha do livro, onde a caixa deles mora: sem isto o mestre não
+ * os via nem aprovava (jornada por gesto de 23/11). Os entre jogadores ficam com o aliado, como antes.
+ */
+function ajudasDoMestre(turnos: TurnosDaCena): PendenteNoEspelho[] {
+  return (turnos.pedidosDeAjuda ?? []).flatMap((ajuda): PendenteNoEspelho[] => {
+    if (ajuda.estado !== 'esperando' || (ajuda.aoMestre !== true && ajuda.paraPersonagemId !== null)) return []
+    const aoMestre = ajuda.aoMestre === true
+    return [
+      {
+        id: `${PREFIXO_DA_AJUDA}${ajuda.id}`,
+        titulo: ajuda.frase,
+        quem: aoMestre ? 'Você' : `Você (${ajuda.nomePara})`,
+        doMestre: true,
+        desde: ajuda.criadoEm,
+        ativa: true,
+        respostas: [
+          { chave: RESPOSTA_ACEITA, rotulo: aoMestre ? 'Aprovar' : 'Aceitar', bloqueio: null },
+          { chave: RESPOSTA_RECUSA, rotulo: 'Recusar', bloqueio: null },
+        ],
+        nota: aoMestre ? `Para usar ${ajuda.tecnica}. Nada é gasto até você aprovar.` : `${ajuda.nomeDe} pede para usar ${ajuda.tecnica}; o ${ajuda.nomePara} paga.`,
+        golpe: null,
+      },
+    ]
+  })
 }
 
 function contraNoEspelho(mesa: MesaDaCena, turnos: TurnosDaCena): ContraNoEspelho | null {
@@ -433,6 +466,12 @@ function contraOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'contr
 
 /** A resposta do mestre a um golpe que espera: "Sem reação" antes do dado, "Tomar o golpe" depois (NPC ou jogador que sumiu). */
 function responderOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'responder' }>): RespostaDaMesa {
+  if (pedido.pendente.startsWith(PREFIXO_DA_AJUDA)) {
+    if (pedido.resposta !== RESPOSTA_ACEITA && pedido.resposta !== RESPOSTA_RECUSA) return recusa('Resposta desconhecida.')
+    const ajudaId = pedido.pendente.slice(PREFIXO_DA_AJUDA.length)
+    const ok = useBatalhaStore.getState().ajuda(sceneKey, MESTRE, { tipo: 'responderAjuda', ajudaId, aceita: pedido.resposta === RESPOSTA_ACEITA })
+    return ok ? OK : recusa('O pedido já fechou, venceu o prazo ou não passou mais na regra.')
+  }
   const [golpeId, tokenId] = pedido.pendente.split(SEPARA_ID)
   const mesa = mesaAgora(sceneKey)
   const golpe = mesa.cena?.turnos.golpes?.find((candidato) => candidato.id === golpeId)
