@@ -3,7 +3,7 @@ import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import type { SaidaDaReacao } from '../combate'
 import { comportamentoDoSelo } from '../condicoes'
 import { cdDaExpressao } from '../disputa'
-import { lerDano } from '../formula'
+import { lerDano, normalizar } from '../formula'
 import { ADJETIVO_DO_TIPO, ATRIBUTO_DO_ENFRAQUECER, fraseDoEmpurrao, NOME_DO_TIPO } from './golpe'
 import { formulaDoNumero } from './leitura'
 import { TESTE_DO_TIPO_DE_PARTIDA, type CdDoTeste, type Custo, type DuracaoDoSelo, type Efeito, type MecanicaV1, type Numero, type NumeroDaCd, type NumeroSimples, type QuemOAlvoPega, type QuemRolaNoTeste, type TipoComRegra, type TipoDoGolpe } from './modelo'
@@ -44,15 +44,36 @@ export function numeroComVirgula(valor: number): string {
   return String(valor).replace('.', ',')
 }
 
-function numeroSimples(numero: NumeroSimples): string {
-  return 'fixo' in numero ? String(numero.fixo) : numero.formula.trim()
+/** Uma palavra da fórmula (letras com acento, depois letras, dígitos e "_"). */
+const PALAVRA_DA_FORMULA = /\p{L}[\p{L}\d_]*/gu
+
+/**
+ * A fórmula como se lê numa frase: o atributo pelo nome que o sistema usa (com acento, "Espirito" →
+ * "Espírito") e "×" no lugar de "*" ("Espirito*3" → "Espírito × 3"). Só a leitura muda: a conta
+ * guardada e os campos que o app escreve (`textoGerado.ts`, lidos de volta pelo `lerDano`) ficam
+ * como estão.
+ */
+export function formulaNaFrase(formula: string, ficha?: FichaDaPrevia): string {
+  const nomes = new Map<string, string>()
+  for (const atributo of ficha?.sistema.atributos ?? []) {
+    const nome = atributo.nome.trim()
+    if (nome === '') continue
+    nomes.set(normalizar(nome), nome)
+    nomes.set(normalizar(atributo.id), nome)
+  }
+  const comNomes = formula.trim().replace(PALAVRA_DA_FORMULA, (palavra) => nomes.get(normalizar(palavra)) ?? palavra)
+  return comNomes.replace(/\s*\*\s*/g, ' × ')
+}
+
+function numeroSimples(numero: NumeroSimples, ficha?: FichaDaPrevia): string {
+  return 'fixo' in numero ? String(numero.fixo) : formulaNaFrase(numero.formula, ficha)
 }
 
 /** "100" ou "100 (com Concentração: 150 / 200 / 350)". */
-function numeroDaPeca(numero: Numero): string {
-  if (!('porCarga' in numero)) return numeroSimples(numero)
+function numeroDaPeca(numero: Numero, ficha?: FichaDaPrevia): string {
+  if (!('porCarga' in numero)) return numeroSimples(numero, ficha)
   const [zero, um, dois, tres] = numero.porCarga
-  return `${numeroSimples(zero)} (com Concentração: ${numeroSimples(um)} / ${numeroSimples(dois)} / ${numeroSimples(tres)})`
+  return `${numeroSimples(zero, ficha)} (com Concentração: ${numeroSimples(um, ficha)} / ${numeroSimples(dois, ficha)} / ${numeroSimples(tres, ficha)})`
 }
 
 /** "30 SP", "10% do HP máximo", "Força de SP". Fase ED2: é também o campo Custo que o app escreve (`textoGerado.ts`). */
@@ -64,26 +85,33 @@ export function quantoCusta(custo: Custo): string {
   return `${quanto.formula.trim() || '?'} de ${recurso}`
 }
 
+/** O custo numa frase: o mesmo `quantoCusta`, com a fórmula do jeito que se lê ("Força × 2 de SP"). */
+function custoNaFrase(custo: Custo, ficha?: FichaDaPrevia): string {
+  const { quanto } = custo
+  if (!('formula' in quanto)) return quantoCusta(custo)
+  return `${formulaNaFrase(quanto.formula, ficha) || '?'} de ${RECURSO[custo.recurso]}`
+}
+
 /** Bloco 1 e 2 juntos: "Custa 30 SP e gasta a Ação Simples." */
-export function fraseDoCustoEDaAcao(mecanica: MecanicaV1): string {
+export function fraseDoCustoEDaAcao(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string {
   const aoUsar = mecanica.custos.find((custo) => custo.quando === 'aoUsar')
-  const custa = aoUsar === undefined ? 'Não custa nada' : `Custa ${quantoCusta(aoUsar)}`
+  const custa = aoUsar === undefined ? 'Não custa nada' : `Custa ${custoNaFrase(aoUsar, ficha)}`
   return mecanica.acao === 'perguntar' ? `${custa}, e quem usa escolhe a ação na hora.` : `${custa} e gasta ${ACAO[mecanica.acao]}.`
 }
 
-/** Só o bloco 1 (o custo ao usar): "Custa 30 SP ao usar." */
-export function fraseDoCusto(mecanica: MecanicaV1): string {
+/** Só o bloco 1 (o custo ao usar): "Custa 30 SP." (o de cada vez e o de depois têm frase própria). */
+export function fraseDoCusto(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string {
   const aoUsar = mecanica.custos.find((custo) => custo.quando === 'aoUsar')
-  return aoUsar === undefined ? 'Não custa nada ao usar.' : `Custa ${quantoCusta(aoUsar)} ao usar.`
+  return aoUsar === undefined ? 'Não custa nada.' : `Custa ${custoNaFrase(aoUsar, ficha)}.`
 }
 
 /** Os custos de fora do "ao usar": o da técnica mantida e o de depois. */
-export function frasesDosOutrosCustos(mecanica: MecanicaV1): string[] {
+export function frasesDosOutrosCustos(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string[] {
   const frases: string[] = []
   const porTurno = mecanica.custos.find((custo) => custo.quando === 'porTurno')
-  if (porTurno !== undefined) frases.push(`Enquanto mantida, custa ${quantoCusta(porTurno)} a cada vez (o mestre aplica ou pula).`)
+  if (porTurno !== undefined) frases.push(`Enquanto mantida, custa ${custoNaFrase(porTurno, ficha)} a cada vez (o mestre aplica ou pula).`)
   const depois = mecanica.custos.find((custo) => custo.quando === 'depois')
-  if (depois !== undefined) frases.push(`Depois de usar, perde ${quantoCusta(depois)}.`)
+  if (depois !== undefined) frases.push(`Depois de usar, perde ${custoNaFrase(depois, ficha)}.`)
   return frases
 }
 
@@ -151,21 +179,26 @@ export function previaDaCd(formula: string, ficha?: FichaDaPrevia): string | nul
   return valor === null ? 'a fórmula não fecha com esta ficha' : `= ${valor} com a ficha de hoje`
 }
 
-function numeroDaCdNaFrase(numero: NumeroDaCd): string {
-  return numero === 'automatico' ? 'pega sem teste' : numeroSimples(numero) || '?'
+function numeroDaCdNaFrase(numero: NumeroDaCd, ficha?: FichaDaPrevia): string {
+  return numero === 'automatico' ? 'pega sem teste' : numeroSimples(numero, ficha) || '?'
 }
 
 /** "CD 12", "CD 12 + mod(Carisma) (= 14 com a ficha de hoje)", "CD 11 (com Concentração: 14 / 17 / pega sem teste)". */
 export function textoDaCd(cd: CdDoTeste, ficha?: FichaDaPrevia): string {
   if ('porCarga' in cd) {
     const [zero, um, dois, tres] = cd.porCarga
-    return `CD ${numeroSimples(zero) || '?'} (com Concentração: ${[um, dois, tres].map(numeroDaCdNaFrase).join(' / ')})`
+    return `CD ${numeroSimples(zero, ficha) || '?'} (com Concentração: ${[um, dois, tres].map((numero) => numeroDaCdNaFrase(numero, ficha)).join(' / ')})`
   }
   const previa = 'formula' in cd ? previaDaCd(cd.formula, ficha) : null
-  return `CD ${numeroSimples(cd) || '?'}${previa === null ? '' : ` (${previa})`}`
+  return `CD ${numeroSimples(cd, ficha) || '?'}${previa === null ? '' : ` (${previa})`}`
 }
 
-/** Bloco 4: como acerta. Ajuda (aliado, em si) não se esquiva. */
+/** A ajuda (aliado, em si) não tem "como acerta": pega sempre, e a frase da técnica não diz o óbvio. */
+export function ehAjudaNaFrase(mecanica: MecanicaV1): boolean {
+  return mecanica.alvo.quem === 'aliados' || mecanica.alvo.quem === 'si'
+}
+
+/** Bloco 4: como acerta. Ajuda (aliado, em si) não se esquiva (o bloco do editor diz; a frase da técnica não repete). */
 export function fraseDoTeste(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string {
   const { quem } = mecanica.alvo
   if (quem === 'aliados' || quem === 'si') return 'Ajuda não se esquiva: pega sem teste.'
@@ -222,9 +255,10 @@ export function frasesDoDano(mecanica: MecanicaV1, ficha?: FichaDaPrevia): strin
   const { quem } = mecanica.alvo
   if (dano === undefined) return quem === 'aliados' || quem === 'si' ? [] : ['Não dá dano.']
   // Fase 5 (B10): a base pela vida do alvo é a frase que a fórmula lê ("25% da vida máxima do alvo").
-  const formula = 'porcento' in dano.base ? formulaDoNumero(dano.base) : numeroSimples(dano.base)
+  const formula = 'porcento' in dano.base ? formulaDoNumero(dano.base) : 'fixo' in dano.base ? String(dano.base.fixo) : dano.base.formula.trim()
   const previa = previaDoDano(formula, ficha)
-  const frases = [`Dano: ${formula || '(vazio)'}${previa === null ? '' : ` (${previa})`}${dano.perfuracao !== undefined ? `, perfurante ${dano.perfuracao}% (o resto passa pelo Escudo)` : dano.perfurante === true ? ', perfurante' : ''}.`]
+  // A prévia lê a fórmula guardada; a frase a mostra do jeito que se lê ("Espírito × 3").
+  const frases = [`Dano: ${formulaNaFrase(formula, ficha) || '(vazio)'}${previa === null ? '' : ` (${previa})`}${dano.perfuracao !== undefined ? `, perfurante ${dano.perfuracao}% (o resto passa pelo Escudo)` : dano.perfurante === true ? ', perfurante' : ''}.`]
   // Fase 5 (B17): o 2º golpe.
   if (dano.segundoGolpe !== undefined) frases.push(`Depois, um 2º golpe nos mesmos alvos com ${Math.round(dano.segundoGolpe.fracao * 100)}% do dano${dano.segundoGolpe.perfurante ? ', perfurante' : ''}, com outra reação.`)
   const { concentracao, surpresa, extra = [] } = dano.multiplicadores
@@ -339,7 +373,7 @@ export function frasesDoSelo(selo: Pick<Extract<Efeito, { tipo: 'selo' }>, 'nome
   const regra = comportamentoDoSelo(selo.nome)
   const frases: string[] = []
   // Fase 5: os números do selo ("Força +20") e a regra própria (dano e cura recebidos).
-  for (const mod of selo.mods ?? []) frases.push(`${nomeDoAlvoDoMod(mod.alvo, ficha)} ${'fixo' in mod.delta ? (mod.delta.fixo < 0 ? `${mod.delta.fixo}` : `+${mod.delta.fixo}`) : `+ (${mod.delta.formula})`}`)
+  for (const mod of selo.mods ?? []) frases.push(`${nomeDoAlvoDoMod(mod.alvo, ficha)} ${'fixo' in mod.delta ? (mod.delta.fixo < 0 ? `${mod.delta.fixo}` : `+${mod.delta.fixo}`) : `+ (${formulaNaFrase(mod.delta.formula, ficha)})`}`)
   const recebido = selo.regra?.danoRecebido
   if (recebido !== undefined && recebido !== 0) frases.push(recebido < 0 ? `toma ${-recebido}% a menos de dano` : `toma ${recebido}% a mais de dano`)
   const curaRecebida = selo.regra?.curaRecebida
@@ -381,7 +415,7 @@ export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1, ficha?: Fich
         return efeito.quanto.porcento >= 100 ? `Enche o ${sigla} (100% do máximo).` : `${efeito.recurso === 'sp' ? 'Recupera' : 'Cura'} ${efeito.quanto.porcento}% do ${sigla} máximo.`
       }
       // Fase 5: o SP (o Tônico), o Escudo (a Barreira) e a cura em quem usa.
-      const quanto = numeroDaPeca(efeito.quanto)
+      const quanto = numeroDaPeca(efeito.quanto, ficha)
       const frase = efeito.recurso === 'escudo' ? `Dá ${quanto} de Escudo` : efeito.recurso === 'sp' ? `Recupera ${quanto} de SP` : `Cura ${quanto} de HP`
       return `${frase}${efeito.em === 'quemUsa' ? ' em quem usa' : ''}.`
     }
@@ -396,7 +430,7 @@ export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1, ficha?: Fich
       return `Quem usa recupera ${efeito.porcentoDoDano}% do dano que causar, em HP.`
     case 'reviver':
       // Fase 6 (H14): o caído volta e joga de novo na próxima vez dele (a ordem lê a vida de agora).
-      return 'porcento' in efeito.volta ? `Quem caiu levanta com ${efeito.volta.porcento}% do HP máximo dele e joga de novo na próxima vez.` : `Quem caiu levanta com ${numeroDaPeca(efeito.volta)} de HP e joga de novo na próxima vez.`
+      return 'porcento' in efeito.volta ? `Quem caiu levanta com ${efeito.volta.porcento}% do HP máximo dele e joga de novo na próxima vez.` : `Quem caiu levanta com ${numeroDaPeca(efeito.volta, ficha)} de HP e joga de novo na próxima vez.`
     case 'aMao':
       return `À mão (o app lembra o mestre): ${efeito.texto.trim()}`
   }
@@ -406,7 +440,7 @@ export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1, ficha?: Fich
 export function fraseDoLimite(mecanica: MecanicaV1): string | null {
   const { recarga, usosPorBatalha, overload } = mecanica.limite
   const partes: string[] = []
-  if (recarga !== undefined) partes.push(`Depois de usar, espera ${recarga} ${recarga === 1 ? 'vez' : 'vezes'} para usar de novo.`)
+  if (recarga !== undefined) partes.push(`Espera ${recarga} ${recarga === 1 ? 'rodada' : 'rodadas'} para usar de novo.`)
   if (usosPorBatalha !== undefined) partes.push(`Até ${usosPorBatalha} ${usosPorBatalha === 1 ? 'uso' : 'usos'} por batalha.`)
   if (overload === true) partes.push('Overload: 1 por batalha.')
   return partes.length === 0 ? null : partes.join(' ')
@@ -434,11 +468,12 @@ export function resumoDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): s
   const exige = mecanica.alvo.exigeSelo === undefined ? '' : ` Só vale em quem tem ${mecanica.alvo.exigeSelo}.`
   const item = mecanica.custoEmItem
   const doItem = item === undefined ? [] : [`Cada uso gasta ${item.quantos} ${item.nome} da mochila.`]
-  const alvoETeste = `${fraseDoAlvo(mecanica)}${exige} ${fraseDoTeste(mecanica, ficha)}`
+  // A ajuda não diz "como acerta": pega sempre (`ehAjudaNaFrase`).
+  const alvoETeste = ehAjudaNaFrase(mecanica) ? `${fraseDoAlvo(mecanica)}${exige}` : `${fraseDoAlvo(mecanica)}${exige} ${fraseDoTeste(mecanica, ficha)}`
   // Fase 4: só no lugar da reação, a ação, o alvo e o dano da vez não valem; o custo vale nos dois usos.
   return [
-    daVez ? fraseDoCustoEDaAcao(mecanica) : fraseDoCusto(mecanica),
-    ...frasesDosOutrosCustos(mecanica),
+    daVez ? fraseDoCustoEDaAcao(mecanica, ficha) : fraseDoCusto(mecanica, ficha),
+    ...frasesDosOutrosCustos(mecanica, ficha),
     ...doItem,
     ...(daVez ? [alvoETeste, ...frasesDoDano(mecanica, ficha), ...frasesDoGolpe(mecanica, ficha)] : []),
     ...frasesDaReacao(mecanica, ficha),

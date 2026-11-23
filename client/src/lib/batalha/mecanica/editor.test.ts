@@ -40,7 +40,7 @@ describe('modelos prontos e resumo em frases', () => {
       'Acerta 1 inimigo, com alcance de 1 casa. O alvo reage normal (o d20 de sempre).',
       'Dano: Força + 20 (= 80 com a ficha de hoje).',
       'Se acertar: Atordoado por 1 vez do alvo (na vez dele só passa a vez, e não reage).',
-      'Depois de usar, espera 3 vezes para usar de novo.',
+      'Espera 3 rodadas para usar de novo.',
     ])
     expect(etiquetaDaMecanica(espadada)).toBe('O app faz tudo')
     // Fase 5: o Buff em aliado (H15) soma Força +20 pela peça; o lembrete à mão saiu.

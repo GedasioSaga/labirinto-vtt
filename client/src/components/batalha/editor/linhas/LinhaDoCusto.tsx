@@ -37,7 +37,7 @@ export function LinhaDoCusto({ mecanica, onChange }: { mecanica: MecanicaV1; onC
           />
           {limite.recarga !== undefined && (
             <div className="lb-mec__linha lb-mec__linha--recuo">
-              <CampoInteiro rotulo="Espera" valor={limite.recarga} minimo={1} maximo={LIMITE_MAX} depois={limite.recarga === 1 ? 'vez para usar de novo' : 'vezes para usar de novo'} onChange={(recarga) => onChange({ ...mecanica, limite: { recarga } })} />
+              <CampoInteiro rotulo="Espera" valor={limite.recarga} minimo={1} maximo={LIMITE_MAX} depois={limite.recarga === 1 ? 'rodada para usar de novo' : 'rodadas para usar de novo'} onChange={(recarga) => onChange({ ...mecanica, limite: { recarga } })} />
             </div>
           )}
           {limite.usosPorBatalha !== undefined && (

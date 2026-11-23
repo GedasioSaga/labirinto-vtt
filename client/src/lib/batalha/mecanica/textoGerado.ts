@@ -1,4 +1,4 @@
-import type { CampoExtra, CartaoDaFicha, MecanicaGuardada } from '../../personagem'
+import { NOME_DO_TEXTO_DE_ANTES, type CampoExtra, type CartaoDaFicha, type MecanicaGuardada } from '../../personagem'
 import { abaDoSistema, type SistemaDeRpg } from '../../sistemaDeRpg'
 import { quemUsaDeTreino } from '../ensaio/ensaioDoItem'
 import { CAMPO_DO_DANO } from '../formula'
@@ -8,7 +8,7 @@ import { categoriaDaMecanica, nomeDaAcao, tipoDasPecas } from './categoria'
 import { ADJETIVO_DO_TIPO } from './golpe'
 import { formulaDoNumero } from './leitura'
 import { lerMecanica, type AcaoDaMecanica, type Efeito, type MecanicaV1, type TipoComRegra, type TipoDoGolpe } from './modelo'
-import { fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, fraseDoTeste, frasesDaReacao, frasesDoDano, frasesDoGolpe, frasesDosOutrosCustos, quantoCusta, resumoDaMecanica, type FichaDaPrevia } from './resumo'
+import { ehAjudaNaFrase, fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, fraseDoTeste, frasesDaReacao, frasesDoDano, frasesDoGolpe, frasesDosOutrosCustos, quantoCusta, resumoDaMecanica, type FichaDaPrevia } from './resumo'
 
 /**
  * O TEXTO GERADO (fase ED2 do editor novo; EDITOR.md §3.4). Regra do dono: "não posso ter nada
@@ -70,10 +70,14 @@ function pedacosDoCorpo(mecanica: MecanicaV1, ficha: FichaDaPrevia): PedacoDoPap
   const exige = mecanica.alvo.exigeSelo === undefined ? '' : ` Só vale em quem tem ${mecanica.alvo.exigeSelo}.`
   const corpo: PedacoDoPapel[] = []
   if (daVez) {
-    corpo.push(...pedaco(`${fraseDoAlvo(mecanica)}${exige}`, 'alcance'))
+    const ajuda = ehAjudaNaFrase(mecanica)
+    // "Apoio: 1 aliado." (o "Pega" sobra depois do nome); o ataque continua "acerta 1 inimigo".
+    const alvo = ajuda ? fraseDoAlvo(mecanica).replace(/^Pega /, '') : fraseDoAlvo(mecanica)
+    corpo.push(...pedaco(`${alvo}${exige}`, 'alcance'))
     // Apoio sem dano não diz "Não dá dano": a frase do resumo já some na ajuda.
     corpo.push(...pedaco(frasesDoDano(mecanica, ficha).join(' '), 'dano', mecanica.dano === undefined ? null : 'dano'))
-    corpo.push(...pedaco(fraseDoTeste(mecanica, ficha), 'acerto'))
+    // A ajuda pega sempre: "Ajuda não se esquiva" só confundia (o bloco Acerto do editor ainda diz).
+    if (!ajuda) corpo.push(...pedaco(fraseDoTeste(mecanica, ficha), 'acerto'))
     // ED1: o tipo do golpe (como bate, o que causa), lido da escolha guardada.
     for (const frase of frasesDoGolpe(mecanica, ficha)) corpo.push(...pedaco(frase, 'golpe', 'selo'))
   }
@@ -82,7 +86,7 @@ function pedacosDoCorpo(mecanica: MecanicaV1, ficha: FichaDaPrevia): PedacoDoPap
   const efeitos = mecanica.efeitos.filter((efeito) => daVez || efeito.tipo === 'aMao' || (efeito.tipo === 'selo' && efeito.em === 'atacante'))
   for (const efeito of efeitos) corpo.push(...pedaco(fraseDoEfeito(efeito, mecanica, ficha), 'efeitos', COR_DO_EFEITO[efeito.tipo]))
   const item = mecanica.custoEmItem
-  const custo = [fraseDoCusto(mecanica), ...frasesDosOutrosCustos(mecanica), item === undefined ? '' : `Cada uso gasta ${item.quantos} ${item.nome} da mochila.`, fraseDoLimite(mecanica) ?? '']
+  const custo = [fraseDoCusto(mecanica, ficha), ...frasesDosOutrosCustos(mecanica, ficha), item === undefined ? '' : `Cada uso gasta ${item.quantos} ${item.nome} da mochila.`, fraseDoLimite(mecanica) ?? '']
   for (const frase of custo) corpo.push(...pedaco(frase, 'custo', 'custo'))
   // Overload: a trava aparece no fim, mas é a Ação que a muda.
   if (categoriaDaMecanica(mecanica) === 'overload') corpo.push({ texto: 'Gasta a vez inteira', linha: 'acao' })
@@ -97,12 +101,17 @@ function adjetivosDoGolpe(mecanica: MecanicaV1): string[] {
   return tipos.map((escolha) => (escolha.tipo === 'outro' ? `de ${escolha.regra.nome}` : ADJETIVO_DO_TIPO[escolha.tipo]))
 }
 
-/** A frase do papel em pedaços: "Ataque Completo: acerta 1 inimigo… . Dano: … . Custa 35 SP ao usar." */
+/** O nome que abre a frase do papel ("Apoio", "Ataque Completo de fogo"). */
+function nomeNoPapel(mecanica: MecanicaV1): string {
+  const adjetivos = adjetivosDoGolpe(mecanica)
+  return adjetivos.length === 0 ? nomeDaAcao(mecanica) : `${nomeDaAcao(mecanica)} ${adjetivos.join(' e ')}`
+}
+
+/** A frase do papel em pedaços: "Ataque Completo: acerta 1 inimigo… . Dano: … . Custa 35 SP." */
 export function pedacosDoPapel(mecanica: MecanicaV1, ficha: FichaDaPrevia): PedacoDoPapel[] {
   const corpo = pedacosDoCorpo(mecanica, ficha)
   // Com tipo, o nome leva ao Golpe (protótipo): é ele que dá o "de fogo".
-  const adjetivos = adjetivosDoGolpe(mecanica)
-  const frase: PedacoDoPapel[] = [adjetivos.length === 0 ? { texto: nomeDaAcao(mecanica), linha: 'acao' } : { texto: `${nomeDaAcao(mecanica)} ${adjetivos.join(' e ')}`, linha: 'golpe' }]
+  const frase: PedacoDoPapel[] = [{ texto: nomeNoPapel(mecanica), linha: adjetivosDoGolpe(mecanica).length === 0 ? 'acao' : 'golpe' }]
   corpo.forEach((parte, indice) => {
     frase.push({ texto: indice === 0 ? ': ' : '. ' })
     frase.push(indice === 0 ? { ...parte, texto: comMinuscula(parte.texto) } : parte)
@@ -279,8 +288,8 @@ export function cartaoComTextoGerado(antes: CartaoDaFicha, depois: CartaoDaFicha
 
 // ─── Texto de antes, Montar e Desmontar (EDITOR.md §3.5) ────────────────────
 
-/** O extra que guarda, uma vez, o texto que o mestre escreveu antes de o app escrever. */
-export const NOME_DO_TEXTO_DE_ANTES = 'Texto de antes'
+/** O extra que guarda, uma vez, o texto que o mestre escreveu antes de o app escrever (mora em `personagem.ts`, que as vistas do cartão leem). */
+export { NOME_DO_TEXTO_DE_ANTES }
 
 /** Como cada campo aparece no extra ("Ação: Ação Simples"); os nomes são fixos, para a volta ler sempre igual. */
 const ROTULO_NO_TEXTO_DE_ANTES: Readonly<Record<CampoGerado, string>> = {
@@ -339,9 +348,12 @@ function comOTextoDeAntes(antes: CartaoDaFicha, depois: CartaoDaFicha, ids: read
   if (antes.mecanica !== undefined) {
     const lidaAntes = lerMecanica(antes.mecanica)
     const deAntes = lidaAntes.tipo === 'pecas' ? valoresGerados(depois.campos, lidaAntes.mecanica, sistema) : {}
+    // O Efeito que o app escreveu com as palavras de uma versão anterior (a frase do papel começa igual, "Apoio: ") não é texto à mão.
+    const comeco = lidaAntes.tipo === 'pecas' ? `${nomeNoPapel(lidaAntes.mecanica)}: ` : null
     const aMao = ids.some((id) => {
       const atual = depois.campos[id]
-      return atual !== undefined && atual !== valores[id] && atual !== deAntes[id]
+      if (atual === undefined || atual === valores[id] || atual === deAntes[id]) return false
+      return !(id === CAMPO_DO_EFEITO && comeco !== null && atual.startsWith(comeco))
     })
     if (!aMao) return depois
   }
