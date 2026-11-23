@@ -61,6 +61,7 @@ import {
   parseBatalhaEvoluir,
   parseBatalhaAjustar,
   parseBatalhaContador,
+  parseBatalhaAjuda,
   parseBatalhaMira,
   parseBatalhaInvocar,
   parseBatalhaMarcar,
@@ -3949,6 +3950,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseBatalhaAjustar(value)
     case 'batalha.contador':
       return parseBatalhaContador(value)
+    case 'batalha.ajuda':
+      return parseBatalhaAjuda(value)
     case 'batalha.mira':
       return parseBatalhaMira(value)
     case 'batalhaDBT.declarar':

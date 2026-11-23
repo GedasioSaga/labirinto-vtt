@@ -270,6 +270,7 @@ import {
   parseBatalhaEvoluir,
   parseBatalhaAjustar,
   parseBatalhaContador,
+  parseBatalhaAjuda,
   parseBatalhaInvocar,
   parseBatalhaMarcar,
   parseBatalhaPassiva,
@@ -305,6 +306,7 @@ import {
   type PedidoDeReacao,
 } from '../lib/batalha/combate'
 import type { VezEsperada } from '../lib/batalha/ponte'
+import type { CancelamentoDaAjuda, RespostaDaAjuda } from '../lib/batalha/requisitos/modelo'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -1711,6 +1713,8 @@ export interface PlayerConnection {
   ajustarNaBatalha(pedido: PedidoDeAjusteNaBatalha): boolean
   /** R5 (lote de 01/11): ganhar 1 nível do contador (a polaridade) gastando a reação. `false` = não saiu. */
   ganharContadorNaBatalha(tokenId: string, cartaoId: string): boolean
+  /** REQUISITOS E: responder ao pedido de ajuda (Aceitar/Recusar) ou cancelar o dele. Quem pode, o host confere. `false` = não saiu. */
+  ajudaNaBatalha(pedido: RespostaDaAjuda | CancelamentoDaAjuda): boolean
   /**
    * BATALHA DBT — "transformar antes do 1º turno?" de um combatente dele
    * (`batalhaDBTEstado.declaracoes`); `null` = não se transforma. `false` = não saiu.
@@ -7647,6 +7651,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const mensagem = parseBatalhaAjustar({ type: 'batalha.ajustar', reqId: `b${nextReqId++}`, pedido })
       if (mensagem === null) return false
       return pedirNaBatalha(chaveDoPedido('ajustar', mensagem.pedido), mensagem)
+    },
+    ajudaNaBatalha(pedido) {
+      if (state.status !== 'playing' || state.batalhaEstado === undefined) return false
+      const mensagem = parseBatalhaAjuda({ type: 'batalha.ajuda', reqId: `b${nextReqId++}`, pedido })
+      if (mensagem === null) return false
+      return pedirNaBatalha(`ajuda:${mensagem.pedido.tipo}:${mensagem.pedido.ajudaId}`, mensagem)
     },
     ganharContadorNaBatalha(tokenId, cartaoId) {
       if (state.status !== 'playing' || state.batalhaEstado === undefined || !(state.ownTokens ?? []).includes(tokenId)) return false

@@ -13,6 +13,7 @@ import {
   PEDIDOS_DE_BATALHA_POR_JANELA,
   type BatalhaAgirMessage,
   type BatalhaAjustarMessage,
+  type BatalhaAjudaMessage,
   type BatalhaContadorMessage,
   type BatalhaMarcarMessage,
   type BatalhaArmasMessage,
@@ -188,6 +189,11 @@ export interface BatalhaNoHost {
   /** R5 (lote de 01/11): ganhar 1 nível do contador, na ficha DELE de verdade. A regra (reação livre, máximo) a store confere. */
   contador(conexao: ConexaoNaBatalha, msg: BatalhaContadorMessage): RespostaDaBatalha
   /**
+   * REQUISITOS E (§7.3): responder ao pedido de ajuda (só o dono da ficha pedida; o NPC aliado só o
+   * mestre, na tela dele) ou cancelá-lo (só quem pediu). O prazo e o portão a store confere.
+   */
+  ajuda(conexao: ConexaoNaBatalha, msg: BatalhaAjudaMessage): RespostaDaBatalha
+  /**
    * Fase D do alcance (ALCANCE.md §6): a mira aberta de um jogador. Só em ficha que ele opera, na
    * vez dela (ou com o contra-ataque guardado); a forma e a cor saem do cartão do host
    * (`ponte.alcanceDaMira`), nunca do pedido. `true` = as miras mudaram: quem chama manda
@@ -229,6 +235,10 @@ const RECUSA_DA_FICHA: Recusa = { motivo: 'Essa ficha não pode fazer isso agora
 const RECUSA_DO_ALVO: Recusa = { motivo: 'O alvo não está na sua tela' }
 const RECUSA_DA_REACAO: Recusa = { motivo: 'Esse golpe já foi resolvido' }
 const RECUSA_FORA_DA_BATALHA: Recusa = { motivo: 'A batalha não está ligada na sua cena' }
+const RECUSA_DA_AJUDA_FECHADA: Recusa = { motivo: 'Esse pedido de ajuda já fechou' }
+const RECUSA_DA_AJUDA_DE_OUTRO: Recusa = { motivo: 'Esse pedido de ajuda não é para você' }
+const RECUSA_DO_ACEITE: Recusa = { motivo: 'O pedido não vale mais: quem pediu já não pode usar' }
+const RECUSA_DA_AJUDA_VENCIDA: Recusa = { motivo: 'O pedido venceu: passou de 60 s' }
 
 const mesmasReferencias = (a: readonly Personagem[], b: readonly Personagem[]): boolean => a.length === b.length && a.every((personagem, i) => personagem === b[i])
 
@@ -828,6 +838,28 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         // O fio só deixa "ganhar"; zerar é do mestre, na tela dele.
         if (ponte.contador === undefined || msg.pedido.tipo !== 'ganhar' || !fichaDeVerdade(lugar, cena, msg.pedido.tokenId)) return false
         return ponte.contador(lugar.sceneKey, autorDe(conexao), msg.pedido)
+      })
+    },
+
+    ajuda(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return RECUSA_FORA_DA_BATALHA
+        const { ponte, lugar, cena } = daCena
+        const ajuda = (cena.turnos.pedidosDeAjuda ?? []).find((candidata) => candidata.id === msg.pedido.ajudaId)
+        if (ponte.ajuda === undefined || ajuda === undefined) return RECUSA_DA_AJUDA_FECHADA
+        if (msg.pedido.tipo === 'responderAjuda') {
+          // Só o dono DE VERDADE do personagem pedido (nunca a ficha emprestada); o NPC aliado o mestre responde na tela dele.
+          if (ajuda.paraPersonagemId === null || !lugar.meusPersonagens.has(ajuda.paraPersonagemId)) return RECUSA_DA_AJUDA_DE_OUTRO
+          if (ajuda.estado !== 'esperando') return RECUSA_DA_AJUDA_FECHADA
+          if (ponte.ajuda(lugar.sceneKey, autorDe(conexao), msg.pedido)) return true
+          // O store fechou o pedido no caminho (venceu o prazo): a recusa diz isso, não "quem pediu já não pode".
+          const depois = ponte.cena(lugar.sceneKey)?.turnos.pedidosDeAjuda?.find((candidata) => candidata.id === ajuda.id)
+          return depois?.estado === 'venceu' ? RECUSA_DA_AJUDA_VENCIDA : msg.pedido.aceita ? RECUSA_DO_ACEITE : RECUSA_DA_AJUDA_FECHADA
+        }
+        // Cancelar (ou fechar o aviso): só quem pediu, pela ficha que pediu.
+        if (!fichaDele(lugar, ajuda.deTokenId, ajuda.dePersonagemId)) return RECUSA_DA_AJUDA_DE_OUTRO
+        return ponte.ajuda(lugar.sceneKey, autorDe(conexao), msg.pedido) || RECUSA_DA_AJUDA_FECHADA
       })
     },
 

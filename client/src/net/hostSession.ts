@@ -7493,6 +7493,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return batalhaNoHost.ajustar(conexao, msg)
       case 'batalha.contador':
         return batalhaNoHost.contador(conexao, msg)
+      case 'batalha.ajuda':
+        return batalhaNoHost.ajuda(conexao, msg)
     }
   }
 
@@ -9864,6 +9866,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'batalha.marcar':
       case 'batalha.ajustar':
       case 'batalha.contador':
+      case 'batalha.ajuda':
         return handleBatalha(clientId, msg, world)
       case 'batalhaDBT.declarar':
       case 'batalhaDBT.agir':

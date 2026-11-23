@@ -71,6 +71,7 @@ import type { ReacaoDoTipo } from '../lib/batalha/tiposDaHabilidade'
 import type { AreaAMao } from '../lib/batalha/mecanicasAMao'
 import { ITEM_QUANTIDADE_MAX } from '../lib/leituraDoItem'
 import { lerRespostas } from '../lib/batalha/perguntaNaHora'
+import { PREFIXO_DA_AJUDA, type CancelamentoDaAjuda, type RespostaDaAjuda } from '../lib/batalha/requisitos/modelo'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { AUTOR_NO_REGISTRO_MAX, REGISTRO_PARA_JOGADOR_MAX, REGISTRO_TEXTO_MAX, type LinhaParaJogador } from '../lib/batalha/registro'
 import { lerRegrasDaBatalha, type RegrasDaBatalha } from '../lib/batalha/regrasDoCampo'
@@ -96,6 +97,9 @@ import {
   type FormaEsperandoOMestre,
   type InvocacaoDoDono,
   type MarcaParaJogador,
+  type AjudaParaJogador,
+  AJUDAS_PARA_JOGADOR_MAX,
+  TEXTO_DA_AJUDA_MAX,
   type LadoNaCarta,
   type MembroDoBandoParaJogador,
   type ReacaoParaJogador,
@@ -275,6 +279,13 @@ export interface BatalhaContadorMessage {
   pedido: PedidoDoContador
 }
 
+/** REQUISITOS E (§7.3): responder ao pedido de ajuda (o aliado) ou cancelá-lo (quem pediu). */
+export interface BatalhaAjudaMessage {
+  type: 'batalha.ajuda'
+  reqId: string
+  pedido: RespostaDaAjuda | CancelamentoDaAjuda
+}
+
 /** Os pedidos de batalha do jogador da F1 (entram na união `PlayerMessage`). */
 export type BatalhaPlayerMessage = BatalhaPassarMessage | BatalhaDesfazerMessage
 
@@ -295,6 +306,7 @@ export type BatalhaAcaoPlayerMessage =
   | BatalhaMarcarMessage
   | BatalhaAjustarMessage
   | BatalhaContadorMessage
+  | BatalhaAjudaMessage
 
 export interface BatalhaEstadoMessage {
   type: 'batalha.estado'
@@ -556,6 +568,10 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       // REQUISITOS C: o "usar mesmo assim" do mestre; quem confere o autor é a store.
       if (forcarDoPedido(value) === false) return null
       if (forcarDoPedido(value) === true) pedido.forcarRequisitos = true
+      // REQUISITOS E: o aliado a quem pede a ajuda (se ele pode, quem confere é a store).
+      const ajudaDe = ajudaDoPedido(value)
+      if (ajudaDe === false) return null
+      if (ajudaDe !== undefined) pedido.ajudaDe = ajudaDe
       return pedido
     }
     case 'habilidade': {
@@ -593,6 +609,9 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       if (centroId !== undefined) pedido.centroId = centroId
       if (forcarDoPedido(value) === false) return null
       if (forcarDoPedido(value) === true) pedido.forcarRequisitos = true
+      const ajudaDe = ajudaDoPedido(value)
+      if (ajudaDe === false) return null
+      if (ajudaDe !== undefined) pedido.ajudaDe = ajudaDe
       return pedido
     }
     case 'concentrar':
@@ -633,6 +652,9 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       if (centroId !== undefined) pedido.centroId = centroId
       if (respostas !== undefined) pedido.respostas = respostas
       if (forcar === true) pedido.forcarRequisitos = true
+      const ajudaDe = ajudaDoPedido(value)
+      if (ajudaDe === false) return null
+      if (ajudaDe !== undefined) pedido.ajudaDe = ajudaDe
       return pedido
     }
     default:
@@ -830,8 +852,9 @@ export function lerPedidoDeEvolucao(value: unknown): PedidoDeEvolucao | null {
   // REQUISITOS C: as respostas do "Para evoluir" e o "evoluir mesmo assim" do mestre.
   const respostas = value.respostas === undefined ? undefined : lerRespostas(value.respostas)
   const forcar = forcarDoPedido(value)
-  if (respostas === null || forcar === false) return null
-  return { tipo: 'evoluir', tokenId, cartaoId, custo, ...(respostas === undefined ? {} : { respostas }), ...(forcar === true ? { forcarRequisitos: true } : {}) }
+  const ajudaDe = ajudaDoPedido(value)
+  if (respostas === null || forcar === false || ajudaDe === false) return null
+  return { tipo: 'evoluir', tokenId, cartaoId, custo, ...(respostas === undefined ? {} : { respostas }), ...(forcar === true ? { forcarRequisitos: true } : {}), ...(ajudaDe === undefined ? {} : { ajudaDe }) }
 }
 
 export function parseBatalhaEvoluir(value: unknown): BatalhaEvoluirMessage | null {
@@ -904,6 +927,25 @@ export function parseBatalhaAjustar(value: unknown): BatalhaAjustarMessage | nul
     lidas.push(lida)
   }
   return { type: 'batalha.ajustar', reqId, pedido: { tokenId, mudancas: lidas } }
+}
+
+/**
+ * REQUISITOS E (§7.3): `{ tipo: 'responderAjuda', ajudaId, aceita }` ou `{ tipo: 'cancelarAjuda', ajudaId }`.
+ * Quem pode (o dono da ficha pedida; quem pediu) o host confere.
+ */
+export function parseBatalhaAjuda(value: unknown): BatalhaAjudaMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.ajuda' || !isRecord(value.pedido)) return null
+  const { reqId } = value
+  const { tipo, ajudaId, aceita } = value.pedido
+  if (!textoAte(reqId, 1, REQ_ID_MAX) || !textoAte(ajudaId, PREFIXO_DA_AJUDA.length + 1, ID_DA_BATALHA_MAX) || !ajudaId.startsWith(PREFIXO_DA_AJUDA)) return null
+  if (tipo === 'responderAjuda') return typeof aceita === 'boolean' ? { type: 'batalha.ajuda', reqId, pedido: { tipo, ajudaId, aceita } } : null
+  return tipo === 'cancelarAjuda' && aceita === undefined ? { type: 'batalha.ajuda', reqId, pedido: { tipo, ajudaId } } : null
+}
+
+/** REQUISITOS E: `ajudaDe` ausente = `undefined`; um tokenId no teto = o aliado escolhido; outro valor = torto (`false`). */
+function ajudaDoPedido(value: Record<string, unknown>): string | undefined | false {
+  if (value.ajudaDe === undefined) return undefined
+  return textoAte(value.ajudaDe, 1, ID_DA_BATALHA_MAX) ? value.ajudaDe : false
 }
 
 /** R5: `{ tipo: 'ganhar', tokenId, cartaoId }`. "zerar" recusa aqui: é só do mestre. */
@@ -1186,6 +1228,12 @@ function comPassivasLidas(combate: CombateParaJogador, value: Record<string, unk
     if (marcas === null || marcas.length === 0) return null
     combate.marcas = marcas
   }
+  // REQUISITOS E: os pedidos de ajuda dele (quem pede e a quem pediram).
+  if (value.ajudas !== undefined) {
+    const ajudas = lerLista(value.ajudas, AJUDAS_PARA_JOGADOR_MAX, lerAjudaParaJogador)
+    if (ajudas === null || ajudas.length === 0) return null
+    combate.ajudas = ajudas
+  }
   // Fase 8: os itens da mochila dele (frase e mira, sem as peças do efeito).
   if (value.itens !== undefined) {
     const itens = lerLista(value.itens, ITENS_PARA_JOGADOR_MAX, lerItemParaJogador)
@@ -1262,6 +1310,29 @@ function lerMarcaParaJogador(value: unknown): MarcaParaJogador | null {
   const { id, tokenId, alvoTokenId, cartaoId } = value
   if (!textoAte(id, 1, ID_DA_BATALHA_MAX) || !textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(alvoTokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX)) return null
   return { id, tokenId, alvoTokenId, cartaoId }
+}
+
+const ESTADOS_DA_AJUDA = ['esperando', 'recusado', 'venceu', 'cancelado', 'naoPassou'] as const
+const RECURSOS_DO_ALIADO = ['sp', 'hp', 'escudo'] as const
+
+/** REQUISITOS E: um pedido de ajuda no recorte. Textos no teto, enums fechados, prazo inteiro ou `null`. */
+function lerAjudaParaJogador(value: unknown): AjudaParaJogador | null {
+  if (!isRecord(value)) return null
+  const { id, papel, frase, nomeDe, nomePara, tecnica, motivo, prazoS, paga } = value
+  const estado = ESTADOS_DA_AJUDA.find((candidato) => candidato === value.estado)
+  const texto = (campo: unknown): campo is string => textoAte(campo, 0, TEXTO_DA_AJUDA_MAX)
+  if (!textoAte(id, 1, ID_DA_BATALHA_MAX) || (papel !== 'pede' && papel !== 'responde') || estado === undefined) return null
+  if (!texto(frase) || !texto(nomeDe) || !texto(nomePara) || !texto(tecnica) || (motivo !== undefined && !texto(motivo))) return null
+  if (prazoS !== null && !inteiroAte(prazoS, 1, 3_600)) return null
+  const lida: AjudaParaJogador = { id, papel, frase, nomeDe, nomePara, tecnica, estado, prazoS }
+  if (typeof motivo === 'string') lida.motivo = motivo
+  if (paga !== undefined) {
+    if (!isRecord(paga)) return null
+    const recurso = RECURSOS_DO_ALIADO.find((candidato) => candidato === paga.recurso)
+    if (recurso === undefined || !inteiroAte(paga.n, 1, CUSTO_MAX)) return null
+    lida.paga = { recurso, n: paga.n }
+  }
+  return lida
 }
 
 /** Invocação F3: um invocado do dono no recorte. Ids, opção, nome e rótulo no teto; `posto` booleano. */
