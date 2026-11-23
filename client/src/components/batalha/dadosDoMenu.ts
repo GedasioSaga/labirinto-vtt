@@ -35,7 +35,7 @@ import { casasDaFormaDeQuemUsa, fichasNaForma, foraDasCasas, MAPA_SEM_PAREDES, t
 import { casaDoToken } from '../../lib/batalha/movimentoEmBatalha'
 import { motivoDoAlvoDePe } from '../../lib/batalha/golpe'
 import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
-import { subidaDeParte } from '../../lib/batalha/transformacao'
+import { formaQueATecnicaLiga, subidaDeParte } from '../../lib/batalha/transformacao'
 import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
 import { alvoPadraoEmSi, reacaoDoTipo, rotuloDoTipo, seloSugeridoDaTecnica, type ReacaoDoTipo } from '../../lib/batalha/tiposDaHabilidade'
 import {
@@ -952,6 +952,8 @@ function golpeDaTecnica(
   // F2 (fatia E, Fúria do Dragão): sem Parte acima, apagada com o motivo (a mesma frase do host).
   const subida = subidaDeParte(personagem, sistema, id)
   if (golpe.motivo === null && subida !== null && 'motivo' in subida) golpe.motivo = subida.motivo
+  // REQUISITOS D (I1, I2): a técnica que sobe a Parte ou liga a forma do "Só liga com" vira o Ativar: sem mira (o host ignora alvos).
+  if (subida !== null || formaQueATecnicaLiga(personagem, sistema, cartao) !== null) golpe.semAlvo = true
   // F2 (fatia D, Revigorar): a técnica que limpa começa em quem usa (vale nele ou num aliado).
   // Construtor C3: a cura montada em área começa em quem está na área (a grade marca os aliados).
   if (limpezaDe(cartao) !== null && golpe.areaPelaGrade !== true) {
