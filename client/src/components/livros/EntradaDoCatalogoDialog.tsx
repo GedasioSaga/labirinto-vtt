@@ -222,6 +222,8 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
     const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: tipo === 'arma' ? camposComOEfeitoDaMecanica(doTipo, mecanicaDaArma, sistema) : doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined, acervoId: acervoId === '' ? undefined : acervoId,
       // Na arma, o "O que ela faz" daqui; nos outros tipos a janela não edita a mecânica e o Salvar mantém a que a entrada já tinha (B04).
       mecanica: tipo === 'arma' ? mecanicaDaArma : editando?.tipo === tipo ? editando.mecanica : undefined,
+      // Fase B do alcance: a janela ainda não edita o alcance (fase F); o Salvar mantém o que a entrada já tinha.
+      alcance: editando?.tipo === tipo ? editando.alcance : undefined,
     })
     if (item === null) return { erro: 'Dê um nome à entrada.' }
     if ('erro' in balasMontadas) return { erro: balasMontadas.erro, bala: balasMontadas.chave }

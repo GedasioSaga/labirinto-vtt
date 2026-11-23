@@ -1,5 +1,7 @@
 import { ABA_DAS_ARMAS } from '../batalha/leituraDaFicha'
-import { cartoesDaAba, mecanicaDoArquivo, novoCartao, type CartaoDaFicha, type MecanicaGuardada, type Personagem } from '../personagem'
+import { descreverAlcance } from '../batalha/alcance/forma'
+import { formaDoAlcanceGuardada } from '../batalha/alcanceDoCartao'
+import { alcanceDoArquivo, cartoesDaAba, mecanicaDoArquivo, novoCartao, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type Personagem } from '../personagem'
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../sistemaDeRpg'
 import { chaveDoNomeDaEntrada, podeReceber, type BalaDoCatalogo, type ItemDoCatalogo } from './catalogo'
 
@@ -7,8 +9,9 @@ import { chaveDoNomeDaEntrada, podeReceber, type BalaDoCatalogo, type ItemDoCata
  * A ARMA NUMA FONTE SÓ (docs/design/habilidades/ARMAS-FONTE-UNICA.md §2 a §4):
  * a entrada de arma do catálogo do livro é a fonte de TUDO o que a arma faz —
  * os campos da aba Armas (a Descrição é o `texto` da entrada), as balas e a
- * `mecanica`. O cartão da ficha ligado a ela (`itemId` = `acervoId`) é CÓPIA:
- * só a fonte escreve nele (`comARegraDaArma`).
+ * `mecanica` (e o `alcance` da arma não montada, fase B do alcance, que anda
+ * junto com ela). O cartão da ficha ligado a ela (`itemId` = `acervoId`) é
+ * CÓPIA: só a fonte escreve nele (`comARegraDaArma`).
  *
  * O que é da ficha e nunca é sobrescrito: o `id` do cartão (os usos da batalha
  * são por ele), `armaPadrao`, `municaoPeloNome`, `oculta`/`revelaAoUsar`,
@@ -38,6 +41,8 @@ export interface RegraDaArma {
   /** As balas; `undefined` = a fonte não diz (não entra na comparação nem na cópia). */
   balas?: BalaDoCatalogo[]
   mecanica?: MecanicaGuardada
+  /** Fase B do alcance: a forma do alcance da arma não montada (a montada a diz na `mecanica`). Anda junto com ela. */
+  alcance?: AlcanceGuardado
 }
 
 function abaDasArmas(sistema: SistemaDeRpg): AbaDoSistema | undefined {
@@ -69,7 +74,7 @@ export function regraDaEntrada(entrada: ItemDoCatalogo, sistema: SistemaDeRpg): 
   const molde = moldeDasBalas(sistema)
   const campos = camposDoMolde(abaDasArmas(sistema), (id) => (id === CAMPO_DA_DESCRICAO ? entrada.texto : entrada.campos[id]))
   const balas = molde === undefined || entrada.balas === undefined ? undefined : entrada.balas.map((bala) => ({ nome: bala.nome.trim(), campos: camposDoMolde(molde, (id) => bala.campos[id]) }))
-  return { campos, ...(balas === undefined ? {} : { balas }), ...mecanicaDoArquivo(entrada.mecanica) }
+  return { campos, ...(balas === undefined ? {} : { balas }), ...mecanicaDoArquivo(entrada.mecanica), ...alcanceDoArquivo(entrada.alcance) }
 }
 
 /** A regra que o cartão da ficha diz (as balas são os subcartões). */
@@ -77,7 +82,7 @@ export function regraDoCartao(cartao: CartaoDaFicha, sistema: SistemaDeRpg): Reg
   const molde = moldeDasBalas(sistema)
   const campos = camposDoMolde(abaDasArmas(sistema), (id) => cartao.campos[id])
   const balas = molde === undefined ? undefined : cartao.subcartoes.map((sub) => ({ nome: sub.nome.trim(), campos: camposDoMolde(molde, (id) => sub.campos[id]) }))
-  return { campos, ...(balas === undefined ? {} : { balas }), ...mecanicaDoArquivo(cartao.mecanica) }
+  return { campos, ...(balas === undefined ? {} : { balas }), ...mecanicaDoArquivo(cartao.mecanica), ...alcanceDoArquivo(cartao.alcance) }
 }
 
 /** JSON com as chaves em ordem: a mesma regra dá o mesmo texto, venha de onde vier. */
@@ -94,7 +99,7 @@ function jsonEstavel(valor: unknown): string {
 
 /** A cópia diz o mesmo que a fonte? As balas só contam quando a fonte as diz. */
 export function mesmaRegra(fonte: RegraDaArma, copia: RegraDaArma): boolean {
-  if (jsonEstavel(fonte.campos) !== jsonEstavel(copia.campos) || jsonEstavel(fonte.mecanica) !== jsonEstavel(copia.mecanica)) return false
+  if (jsonEstavel(fonte.campos) !== jsonEstavel(copia.campos) || jsonEstavel(fonte.mecanica) !== jsonEstavel(copia.mecanica) || jsonEstavel(fonte.alcance) !== jsonEstavel(copia.alcance)) return false
   return fonte.balas === undefined || jsonEstavel(fonte.balas) === jsonEstavel(copia.balas ?? [])
 }
 
@@ -135,10 +140,14 @@ export function comARegraDaArma(cartao: CartaoDaFicha, entrada: ItemDoCatalogo, 
     campos: camposComARegra(cartao.campos, regra.campos, abaDasArmas(sistema)),
     subcartoes: regra.balas === undefined ? cartao.subcartoes : balasComARegra(cartao.subcartoes, regra.balas, moldeDasBalas(sistema)),
     ...(regra.mecanica === undefined ? {} : { mecanica: regra.mecanica }),
+    ...(regra.alcance === undefined ? {} : { alcance: regra.alcance }),
     ...(entrada.acervoId === undefined ? {} : { itemId: entrada.acervoId }),
   }
+  // A fonte sem mecânica (ou sem alcance) tira a da cópia: só a fonte escreve nela. As outras chaves ficam onde estavam.
   const { mecanica: _semFonte, ...semMecanica } = comTudo
-  const novo = regra.mecanica === undefined ? semMecanica : comTudo
+  const comMecanica = regra.mecanica === undefined ? semMecanica : comTudo
+  const { alcance: _semAlcance, ...semAlcance } = comMecanica
+  const novo = regra.alcance === undefined ? semAlcance : comMecanica
   return jsonEstavel(novo) === jsonEstavel(cartao) ? cartao : novo
 }
 
@@ -146,13 +155,13 @@ export function comARegraDaArma(cartao: CartaoDaFicha, entrada: ItemDoCatalogo, 
 export function entradaComARegraDoCartao(entrada: ItemDoCatalogo, cartao: CartaoDaFicha, sistema: SistemaDeRpg): ItemDoCatalogo {
   const regra = regraDoCartao(cartao, sistema)
   const { [CAMPO_DA_DESCRICAO]: descricao, ...campos } = regra.campos
-  const { mecanica: _antes, balas: _balas, ...base } = entrada
-  return { ...base, texto: descricao ?? '', campos, ...(regra.balas === undefined || regra.balas.length === 0 ? {} : { balas: regra.balas }), ...(regra.mecanica === undefined ? {} : { mecanica: regra.mecanica }) }
+  const { mecanica: _antes, alcance: _alcanceAntes, balas: _balas, ...base } = entrada
+  return { ...base, texto: descricao ?? '', campos, ...(regra.balas === undefined || regra.balas.length === 0 ? {} : { balas: regra.balas }), ...(regra.mecanica === undefined ? {} : { mecanica: regra.mecanica }), ...(regra.alcance === undefined ? {} : { alcance: regra.alcance }) }
 }
 
-/** O que o cartão diz da arma, sem a mecânica (a do "O que ela faz" vem de quem edita). */
+/** O que o cartão diz da arma, sem a mecânica nem o alcance (o "O que ela faz" vem de quem edita). */
 function regraDoCartaoSemMecanica(cartao: CartaoDaFicha, sistema: SistemaDeRpg): RegraDaArma {
-  const { mecanica: _daEdicao, ...regra } = regraDoCartao(cartao, sistema)
+  const { mecanica: _daEdicao, alcance: _alcanceDaEdicao, ...regra } = regraDoCartao(cartao, sistema)
   return regra
 }
 
@@ -309,6 +318,10 @@ export function resumoDaRegra(regra: RegraDaArma, sistema: SistemaDeRpg): string
   const partes = Object.entries(regra.campos).map(([chave, valor]) => `${rotulos.get(chave) ?? chave}: ${valor}`)
   if (regra.balas !== undefined && regra.balas.length > 0) partes.push(`Balas: ${regra.balas.map((bala) => bala.nome).join(', ')}`)
   partes.push(regra.mecanica === undefined ? 'O que ela faz: só o texto' : 'O que ela faz: montada')
+  if (regra.alcance !== undefined) {
+    const forma = formaDoAlcanceGuardada(regra.alcance)
+    partes.push(`Alcance: ${forma === null ? 'que este app não lê' : descreverAlcance(forma)}`)
+  }
   return partes.join(' · ')
 }
 
@@ -318,11 +331,13 @@ function casoDaArma(entrada: ItemDoCatalogo, pares: readonly CartaoPareado[], re
   const todosIguais = regras.every((regra) => mesmaRegra(fonte, regra))
   const todosLigados = pares.every((par) => par.como === 'itemId')
   if (todosIguais) return todosLigados && entrada.acervoId !== undefined ? null : 'iguais'
+  // "O que ela faz" = a mecânica e (fase B do alcance) o alcance: os dois casos certos olham os dois juntos.
   const semMecanica = (regra: RegraDaArma): RegraDaArma => ({ campos: regra.campos, ...(regra.balas === undefined ? {} : { balas: regra.balas }) })
+  const faz = (regra: RegraDaArma): boolean => regra.mecanica !== undefined || regra.alcance !== undefined
   const fonteSemMecanica = semMecanica(fonte)
   const restoIgual = regras.every((regra) => mesmaRegra(fonteSemMecanica, semMecanica(regra)))
-  if (restoIgual && fonte.mecanica !== undefined && regras.every((regra) => regra.mecanica === undefined)) return 'livroVaiAFicha'
-  if (restoIgual && fonte.mecanica === undefined && regras.length === 1 && regras[0].mecanica !== undefined) return 'fichaVaiAoLivro'
+  if (restoIgual && faz(fonte) && regras.every((regra) => !faz(regra))) return 'livroVaiAFicha'
+  if (restoIgual && !faz(fonte) && regras.length === 1 && faz(regras[0])) return 'fichaVaiAoLivro'
   return todosLigados ? 'fonteGanha' : 'conflito'
 }
 
@@ -399,7 +414,7 @@ function coisaParaAEntrada(entrada: ItemDoCatalogo, cartoes: readonly CartaoPare
 function fonteEscolhida(arma: ArmaNoEnsaio, entrada: ItemDoCatalogo, dados: EntradaDoJuntar, escolha: EscolhaDaArma | undefined): ItemDoCatalogo | null {
   if (arma.caso === 'fichaVaiAoLivro') {
     const cartao = cartaoDoPar(dados.personagens, arma.cartoes[0])
-    return cartao === undefined ? null : { ...entrada, mecanica: mecanicaDoArquivo(cartao.mecanica).mecanica }
+    return cartao === undefined ? null : { ...entrada, mecanica: mecanicaDoArquivo(cartao.mecanica).mecanica, alcance: alcanceDoArquivo(cartao.alcance).alcance }
   }
   if (arma.caso !== 'conflito') return entrada
   if (escolha === undefined || !('vale' in escolha)) return null
