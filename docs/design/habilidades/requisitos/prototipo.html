@@ -1,0 +1,1844 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Requisitos: protótipo para aprovar</title>
+<style>
+/*
+ * REQUISITOS, protótipo de 23/11/2026 (pedido de 23/11 09h46 e respostas até 09h59).
+ * Arquivo único, sem nada de fora. Os tokens são cópia dos `--lb-*` do app
+ * (client/src/theme.ts) e dos `--bt-*` da batalha (components/batalha/combate.css):
+ * mesmo nome, mesmo valor. As tiras, a leitura em papel e o registro copiam
+ * combate.css e batalha.css. O app só tem tema escuro.
+ */
+:root {
+  --lb-color-ink: #121214;
+  --lb-color-stone: rgba(19, 19, 23, 0.94);
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-online-soft: rgba(127, 180, 138, 0.14);
+  --lb-color-tide: #79a9cc;
+  --lb-color-tide-soft: rgba(121, 169, 204, 0.14);
+  --lb-color-arcane: #ab93d6;
+  --lb-color-arcane-soft: rgba(171, 147, 214, 0.15);
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-font-size-xl: 20px;
+  --lb-font-tracking-wide: 0.06em;
+  --lb-font-tracking-wider: 0.14em;
+  --lb-space-1: 4px;
+  --lb-space-2: 8px;
+  --lb-space-3: 12px;
+  --lb-space-4: 16px;
+  --lb-space-5: 20px;
+  --lb-space-6: 24px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.34);
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-focus: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+  --lb-shadow-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lb-motion-fast: 110ms;
+  --lb-motion-base: 170ms;
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-cartao: #211c15;
+  --lb-gr-cartao-alto: #29231a;
+  --lb-gr-campo: #15120e;
+  --lb-gr-filete: rgba(236, 234, 228, 0.09);
+  --lb-gr-filete-forte: rgba(236, 234, 228, 0.16);
+  --lb-gr-filete-latao: rgba(224, 164, 74, 0.26);
+  --lb-gr-gravado: #c8b089;
+  --lb-gr-latao-1: #f6cb84;
+  --lb-gr-latao-2: #e0a44a;
+  --lb-gr-latao-3: #b87d2e;
+  --lb-gr-hover: rgba(255, 236, 200, 0.06);
+  --lb-gr-hover-forte: rgba(255, 236, 200, 0.1);
+  /* batalha (combate.css) */
+  --bt-tinta: #0c0c0e;
+  --bt-papel: var(--lb-color-parchment);
+  --bt-sangue: #b4493c;
+  --bt-forma: var(--lb-color-arcane);
+  --bt-titulo: 'Bahnschrift Condensed', 'Bahnschrift', var(--lb-font-utility);
+  --bt-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* as tintas sobre o papel da leitura (as do combate.css: #8a2c22 e #5d5a54), mais o verde de "cumpriu" */
+  --papel-falta: #8a2c22;
+  --papel-tenue: #5d5a54;
+  --papel-ok: #2d6a3e;
+  --mu-erro-texto: #f0897f;
+  --barra: 46px;
+  /* a borda rasgada das caixas do combate (copiada do combate.css) */
+  --bt-rasgo-caixa: polygon(0 3px, 6% 0, 13% 4px, 21% 1px, 28% 3px, 37% 0, 45% 4px, 52% 1px, 60% 3px, 68% 0, 76% 4px, 84% 1px, 92% 3px, 100% 0, calc(100% - 3px) 30%, 100% 60%, calc(100% - 2px) 100%, 92% calc(100% - 3px), 84% 100%, 76% calc(100% - 4px), 68% calc(100% - 1px), 60% calc(100% - 3px), 52% 100%, 45% calc(100% - 4px), 37% calc(100% - 1px), 28% calc(100% - 3px), 21% 100%, 13% calc(100% - 4px), 6% calc(100% - 1px), 0 calc(100% - 3px), 2px 60%, 0 30%);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: var(--lb-font-sans); font-size: var(--lb-font-size-md); line-height: 1.45;
+  color: var(--lb-color-parchment); background: var(--lb-color-ink); overflow: hidden;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+button:disabled, [aria-disabled='true'] { cursor: not-allowed; }
+h1, h2, h3, h4, p, ul, ol, dl, dd, fieldset, legend { margin: 0; padding: 0; border: 0; }
+ul, ol { list-style: none; }
+:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.num { font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.ic { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ------------------------------------------------------------ barra do protótipo (não é do app) */
+.proto {
+  height: var(--barra); display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  background: #0c0c0e; border-bottom: 1px dashed var(--lb-gr-filete-forte);
+  font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); white-space: nowrap; overflow-x: auto; scrollbar-width: thin;
+}
+.proto strong { color: var(--lb-color-parchment); font-weight: 600; }
+.proto__telas { display: flex; gap: 4px; }
+.proto__tela {
+  min-height: 28px; padding: 0 10px; border-radius: var(--lb-radius-full); border: 1px solid var(--lb-gr-filete-forte);
+  color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm);
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.proto__tela:active { transform: scale(0.97); }
+.proto__tela[aria-pressed='true'] { background: var(--lb-color-brass-soft); border-color: var(--lb-gr-filete-latao); color: var(--lb-color-parchment); }
+.proto__sobra { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.telas { position: relative; height: calc(100% - var(--barra)); min-height: 600px; }
+.tela { position: absolute; inset: 0; overflow: hidden; }
+
+/* ------------------------------------------------------------ primitivos */
+.bt {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 12px;
+  border-radius: var(--lb-radius-sm); background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment);
+  border: 1px solid var(--lb-gr-filete-forte); font-weight: 500; white-space: nowrap;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out), opacity var(--lb-motion-fast) ease;
+}
+.bt:active:not(:disabled):not([aria-disabled='true']) { transform: scale(0.97); }
+.bt:disabled, .bt[aria-disabled='true'] { opacity: 0.45; }
+@media (hover: hover) and (pointer: fine) {
+  .bt:hover:not(:disabled) { border-color: var(--lb-gr-filete-latao); }
+  .bt--fantasma:hover:not(:disabled) { background: var(--lb-gr-hover); border-color: transparent; color: var(--lb-color-parchment); }
+}
+.bt--latao { background: transparent; border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.bt--fantasma { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+.bt--p { min-height: 28px; padding: 0 9px; font-size: var(--lb-font-size-sm); }
+.bt--ic { width: 32px; padding: 0; background: transparent; border-color: transparent; color: var(--lb-color-parchment-faint); }
+.bt--ic.bt--p { width: 28px; }
+.bt .ic { width: 15px; height: 15px; }
+.etq {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: var(--lb-radius-full);
+  font: 500 var(--lb-font-size-xs) / 1.6 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wide); white-space: nowrap;
+  background: var(--lb-gr-hover-forte); color: var(--lb-gr-gravado);
+}
+.etq[data-confere='auto'] { background: var(--lb-color-online-soft); color: var(--lb-color-online); }
+.etq[data-confere='pergunta'] { background: var(--lb-color-tide-soft); color: var(--lb-color-tide); }
+.etq[data-confere='d20'] { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.etq[data-confere='caixa'] { background: var(--lb-color-arcane-soft); color: var(--lb-color-arcane); }
+.entrada {
+  width: 100%; min-height: 34px; padding: 0 10px; border-radius: var(--lb-radius-sm);
+  border: 1px solid var(--lb-gr-filete-forte); background: var(--lb-gr-campo); color: var(--lb-color-parchment);
+}
+.entrada::placeholder { color: var(--lb-color-parchment-faint); }
+.entrada:focus-visible { border-color: var(--lb-color-brass); }
+.dica { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.rot { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+
+/* segmentado: rádios que viram régua */
+.seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--lb-radius-sm); background: var(--lb-gr-campo); border: 1px solid var(--lb-gr-filete); }
+.seg label { position: relative; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span {
+  display: inline-flex; align-items: center; min-height: 26px; padding: 0 10px; border-radius: 4px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim);
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.seg input:checked + span { background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.seg input:focus-visible + span { box-shadow: var(--lb-shadow-focus); }
+
+/* chave (switch) e caixinha em pílula */
+.sw { display: flex; align-items: center; gap: 10px; min-height: 36px; cursor: pointer; font-size: var(--lb-font-size-md); }
+.sw input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.sw__trilho { position: relative; flex: none; width: 32px; height: 18px; border-radius: 9px; background: var(--lb-color-stone-hover); box-shadow: inset 0 0 0 1px var(--lb-color-line-strong); transition: background-color var(--lb-motion-fast) ease; }
+.sw__trilho::after { content: ''; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--lb-color-parchment-dim); transition: transform 160ms var(--lb-gr-ease-out), background-color var(--lb-motion-fast) ease; }
+.sw input:checked + .sw__trilho { background: var(--lb-color-brass-soft); box-shadow: inset 0 0 0 1px var(--lb-color-brass); }
+.sw input:checked + .sw__trilho::after { transform: translateX(14px); background: var(--lb-color-brass-bright); }
+.sw input:focus-visible + .sw__trilho { box-shadow: var(--lb-shadow-focus); }
+.sw input:disabled ~ * { opacity: 0.45; }
+.sw:has(input:disabled) { cursor: not-allowed; }
+.sw small { display: block; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+
+.tg { position: relative; display: inline-flex; }
+.tg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.tg span {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 9px; border-radius: var(--lb-radius-full);
+  border: 1px dashed var(--lb-gr-filete-forte); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); white-space: nowrap;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.tg input:checked + span { border-style: solid; border-color: var(--lb-gr-filete-latao); background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.tg input:checked + span::before { content: '✓'; font-size: 11px; }
+.tg input:focus-visible + span { box-shadow: var(--lb-shadow-focus); }
+
+/* ============================================================ 1. O EDITOR (a ficha) */
+.ed { position: absolute; inset: 0; display: grid; place-items: center; padding: 18px; background: radial-gradient(ellipse at 50% 0%, #1c1a17, var(--lb-color-ink) 70%); }
+.janela {
+  display: flex; flex-direction: column; width: min(1120px, 100%); height: min(860px, 100%);
+  border: 1px solid var(--lb-color-line-panel); border-radius: var(--lb-radius-lg); background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-lg), var(--lb-shadow-bevel); overflow: hidden;
+}
+.janela__topo { display: flex; align-items: baseline; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--lb-color-line); }
+.janela__tit { font-family: var(--lb-font-display); font-size: var(--lb-font-size-xl); font-weight: 400; }
+.janela__onde { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.janela__corpo { flex: 1; min-height: 0; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
+.janela__lado { min-height: 0; overflow: auto; padding: 14px 10px; border-right: 1px solid var(--lb-color-line); background: var(--lb-color-stone-sunken); scrollbar-width: thin; }
+.janela__principal { position: relative; min-height: 0; overflow: auto; padding: 16px 22px 60px; scrollbar-width: thin; }
+.lado__tit { padding: 0 8px 8px; font: 500 var(--lb-font-size-xs) / 1.4 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wider); text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.lado__tit small { display: block; letter-spacing: 0.02em; text-transform: none; }
+.ex { display: grid; gap: 1px; width: 100%; min-height: 48px; padding: 7px 10px; border-radius: var(--lb-radius-sm); text-align: left; transition: background-color var(--lb-motion-fast) ease; }
+.ex b { font-weight: 600; }
+.ex small { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+@media (hover: hover) and (pointer: fine) { .ex:hover { background: var(--lb-gr-hover); } }
+.ex[aria-current='true'] { background: var(--lb-gr-hover-forte); box-shadow: inset 3px 0 0 var(--lb-color-brass); }
+.ex[aria-current='true'] small { color: var(--lb-color-parchment-dim); }
+
+.cartao-lido { display: grid; gap: 4px; padding: 12px 16px; border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); }
+.cartao-lido__nome { font-family: var(--lb-font-display); font-size: 22px; line-height: 1.15; }
+.cartao-lido__linha { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-md); }
+.cartao-lido__nota { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+
+.rq { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--lb-color-line); }
+.rq__cab { display: grid; gap: 2px; }
+.mec__tit { font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wider); text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.mec__pergunta { font-family: var(--lb-font-display); font-size: 19px; line-height: 1.25; }
+.rq__para { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.rq-e { align-self: flex-start; margin: -2px 0 -2px 14px; padding: 0 8px; font: 600 var(--lb-font-size-xs) / 1.8 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wider); text-transform: uppercase; color: var(--lb-color-parchment-faint); border-left: 1px dashed var(--lb-gr-filete-forte); }
+.rq-grupo { border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); }
+.rq-grupo[data-modo='um'] { border-color: var(--lb-gr-filete-latao); }
+.rq-grupo__cab { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 8px 8px 12px; border-bottom: 1px solid var(--lb-color-line); }
+.rq-grupo__cab .bt--ic { margin-left: auto; }
+.rq-lins { display: flex; flex-direction: column; }
+.rq-lin {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto 28px; gap: 6px 10px; align-items: center; min-height: 48px; padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--lb-color-line);
+}
+.rq-lin:last-child { border-bottom: 0; }
+/* linha recém-posta: entra uma vez (o render limpa a marca depois) */
+.rq-lin[data-entra] { animation: lin-entra 180ms var(--bt-ease-out) both; }
+@keyframes lin-entra { from { opacity: 0; transform: translateY(-4px); } }
+.rq-cod { font: 600 var(--lb-font-size-sm) / 1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+.rq-frase { line-height: 2.1; min-width: 0; }
+.rq-frase[data-nao='sim']::before { content: 'Não ter:'; margin-right: 6px; padding: 1px 6px; border-radius: 3px; background: var(--lb-color-ember-soft); color: var(--mu-erro-texto); font: 600 var(--lb-font-size-xs) / 1.6 var(--lb-font-utility); letter-spacing: 0.04em; text-transform: uppercase; }
+.rq-opcoes { display: flex; gap: 6px; }
+.rq-vazio { padding: 12px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.rq-grupo__pe { padding: 8px 10px 10px; border-top: 1px solid var(--lb-color-line); }
+.rq-aviso { padding: 0 12px 10px; font-size: var(--lb-font-size-sm); color: var(--lb-color-brass-bright); }
+.f-num, .f-txt, .f-sel {
+  display: inline-block; vertical-align: baseline; min-height: 28px; margin: 0 2px; padding: 0 6px; border-radius: 5px;
+  border: 1px solid var(--lb-gr-filete-forte); background: var(--lb-gr-campo); color: var(--lb-color-parchment);
+  font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; font-size: 13.5px;
+  transition: border-color var(--lb-motion-fast) ease;
+}
+.f-num { width: 6ch; text-align: right; }
+.f-txt { width: var(--w, 24ch); max-width: 100%; }
+@supports (field-sizing: content) { .f-txt { field-sizing: content; width: auto; min-width: 10ch; max-width: 100%; } }
+.f-sel { padding-right: 4px; cursor: pointer; max-width: 100%; }
+.f-num:focus-visible, .f-txt:focus-visible, .f-sel:focus-visible { border-color: var(--lb-color-brass); }
+
+/* o menu de pôr requisito: cresce do botão */
+.ancora { position: relative; display: inline-block; }
+.pk {
+  position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: 400px; display: flex; flex-direction: column; max-height: 430px;
+  border: 1px solid var(--lb-color-line-panel); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-solid); box-shadow: var(--lb-shadow-float);
+  transform-origin: top left;
+}
+.pk[data-entra] { animation: pk-entra 150ms var(--lb-gr-ease-out) both; }
+@keyframes pk-entra { from { opacity: 0; transform: scale(0.96); } }
+.pk__busca { position: relative; padding: 8px 8px 6px; }
+.pk__busca .ic { position: absolute; left: 18px; top: 17px; color: var(--lb-color-parchment-faint); }
+.pk__busca .entrada { padding-left: 32px; }
+.pk__letras { display: flex; gap: 2px; padding: 0 8px 6px; border-bottom: 1px solid var(--lb-color-line); }
+.pk__letra { flex: 1; min-height: 28px; border-radius: 4px; font: 600 var(--lb-font-size-sm) / 1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease; }
+@media (hover: hover) and (pointer: fine) { .pk__letra:hover { background: var(--lb-gr-hover-forte); color: var(--lb-color-parchment); } }
+.pk__lista { overflow: auto; padding: 4px 6px 8px; scrollbar-width: thin; overscroll-behavior: contain; }
+.pk__gr { position: sticky; top: -4px; z-index: 1; padding: 8px 6px 4px; background: var(--lb-color-stone-solid); font: 600 var(--lb-font-size-xs) / 1.3 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wide); text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.pk__op { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 0 8px; align-items: baseline; width: 100%; padding: 6px 6px; border-radius: var(--lb-radius-sm); text-align: left; }
+.pk__op b { font-weight: 500; }
+.pk__op small { grid-column: 2; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.pk__op .rq-cod { grid-row: span 2; }
+.pk__op .etq { grid-row: span 2; align-self: center; }
+.pk__op:disabled { opacity: 0.45; }
+@media (hover: hover) and (pointer: fine) { .pk__op:hover:not(:disabled) { background: var(--lb-gr-hover-forte); } }
+.pk__op:focus-visible { background: var(--lb-gr-hover-forte); }
+.pk__nada { display: grid; gap: 8px; justify-items: start; padding: 14px 8px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+
+/* o resumo em palavras */
+.resumo { display: grid; gap: 10px; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); }
+.resumo__frase { max-width: 72ch; font-size: var(--lb-font-size-lg); line-height: 1.5; }
+.resumo__lin { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.resumo__falta { padding: 3px 10px 4px; background: var(--bt-tinta); color: var(--lb-color-ember); font-size: var(--lb-font-size-sm); box-shadow: 3px 3px 0 var(--bt-sangue); max-width: 64ch; }
+.resumo__falta b { font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--lb-color-parchment-faint); margin-right: 6px; }
+
+/* ============================================================ A BATALHA (o mapa, o menu, a leitura, o registro) */
+.campo {
+  position: absolute; inset: 0; display: grid; grid-template-columns: minmax(300px, 470px) minmax(280px, 360px) minmax(250px, 320px);
+  gap: 30px; align-items: start; padding: 22px 28px 28px; overflow: auto; scrollbar-width: thin;
+  background-color: #15171a;
+  background-image:
+    linear-gradient(90deg, rgba(8, 8, 10, 0.86), rgba(8, 8, 10, 0.35) 46%, rgba(8, 8, 10, 0.6)),
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    radial-gradient(ellipse at 62% 46%, #2a2b22, #15171a 70%);
+  background-size: 100% 100%, 48px 48px, 48px 48px, 100% 100%;
+}
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.bt-vez { display: flex; flex-direction: column; color: var(--bt-papel); }
+.bt-vez__cabeca { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px var(--lb-space-3); margin: calc(6px + 5.3%) 0 10px 6px; transform: rotate(-3deg); transform-origin: left bottom; }
+.bt-vez__quem { font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: clamp(22px, 2.6vw, 34px); line-height: 0.95; letter-spacing: 0.02em; text-transform: uppercase; color: var(--bt-papel); text-shadow: 3px 3px 0 var(--bt-sangue); }
+.bt-vez__economia { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 3px; font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.08em; text-transform: uppercase; }
+.bt-pip { padding: 1px 6px; border-radius: 3px; background: var(--bt-papel); color: var(--bt-tinta); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bt-pip[data-gasto='sim'] { background: rgba(255, 255, 255, 0.1); color: var(--lb-color-parchment-faint); text-decoration: line-through; font-weight: 400; }
+.bt-pip--carga { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.bt-pip--forma { background: var(--lb-color-arcane-soft); color: var(--bt-forma); }
+.bt-pip--alerta { background: var(--bt-sangue); color: #fff; }
+.bt-vez__tiras { display: flex; flex-direction: column; gap: 13px; padding: 10px 26px calc(8px + 3%) 12px; }
+.bt-vez__dica { margin: 4px 0 0 8px; font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.06em; color: var(--lb-color-parchment-dim); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); }
+.bt-vez__dica kbd { padding: 0 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); font-family: inherit; color: var(--lb-color-parchment); }
+
+.bt-tira {
+  position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: 14px;
+  width: 100%; min-height: 44px; padding: 9px 22px 11px 24px; border: 0; background: none; color: var(--bt-papel); font: inherit; text-align: left; cursor: pointer;
+  transform: rotate(var(--giro, -3deg)) translateX(var(--dx, 0px));
+  transition: transform 80ms var(--bt-ease-out), color 80ms ease;
+}
+.bt-tira::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--bt-tinta); clip-path: var(--rasgo); transition: background-color 90ms ease; }
+.bt-tira::after { content: ''; position: absolute; inset: 0; z-index: -2; background: var(--bt-sangue); clip-path: var(--rasgo2); transform: translate(5px, 5px); transition: transform var(--lb-motion-fast) var(--bt-ease-out); }
+.bt-tira__nome { min-width: 0; font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: clamp(18px, 2.1vw, 28px); line-height: 1.05; letter-spacing: 0.02em; text-transform: uppercase; overflow-wrap: anywhere; }
+.bt-tira__lado { font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: clamp(15px, 1.6vw, 22px); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bt-tira__det { grid-column: 1 / -1; margin-top: 2px; font-size: 13px; line-height: 1.35; color: var(--lb-color-parchment-dim); }
+.bt-tira__chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.bt-tira__tecla { position: absolute; left: 9px; top: 13px; font-family: var(--lb-font-utility); font-size: 11px; font-weight: 700; line-height: 1; color: var(--lb-color-parchment-faint); pointer-events: none; }
+.bt-tira[data-esta='sim'] { --dx: 14px; color: var(--bt-tinta); }
+.bt-tira[data-esta='sim']::before { background: var(--bt-papel); }
+.bt-tira[data-esta='sim']::after { transform: translate(10px, 7px); }
+.bt-tira[data-esta='sim'] .bt-tira__det { color: #3b3a36; }
+.bt-tira[data-esta='sim'] .bt-tira__tecla { color: rgba(12, 12, 14, 0.5); }
+.bt-tira[aria-disabled='true'] { color: var(--lb-color-parchment-faint); }
+.bt-tira[aria-disabled='true']::after { opacity: 0.25; }
+.bt-tira[aria-disabled='true'] .bt-tira__det { color: var(--lb-color-ember); }
+.bt-tira[aria-disabled='true'][data-esta='sim'] { color: var(--papel-tenue); }
+.bt-tira[aria-disabled='true'][data-esta='sim'] .bt-tira__det { color: var(--papel-falta); }
+.bt-tira:not([aria-disabled='true']):active { transform: rotate(var(--giro, -3deg)) translateX(var(--dx, 0px)) scale(0.97); }
+.bt-tira:focus-visible { outline: none; box-shadow: none; }
+.bt-tira:not([data-esta='sim']):focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 5px; }
+.bt-tira--pequena .bt-tira__nome { font-size: clamp(15px, 1.6vw, 20px); }
+.bt-tira--forma::after { background: var(--bt-forma); }
+/* a evolução pendurada na tira de cima: menor e recuada, com a seta */
+.bt-tira--evo { width: calc(100% - 30px); margin: -4px 0 0 30px; }
+.bt-tira--evo .bt-tira__nome::before { content: '↳ '; font-weight: 400; }
+.bt-tira--super::before { background: linear-gradient(100deg, var(--bt-tinta) 55%, #2a1e0c); }
+.bt-tira--super::after { background: var(--lb-color-brass); }
+.bt-tira--super[data-esta='sim']::before { background: linear-gradient(100deg, var(--bt-papel) 55%, var(--lb-gr-latao-1)); }
+
+.bt-etq { padding: 1px 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.04em; white-space: nowrap; color: var(--lb-color-parchment); }
+.bt-etq--dano { background: var(--bt-sangue); color: #fff; }
+.bt-etq--over { background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-weight: 700; }
+.bt-etq--forma { background: var(--lb-color-arcane-soft); color: var(--bt-forma); }
+.bt-etq--vazado { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); text-transform: uppercase; letter-spacing: 0.08em; }
+.bt-etq--evolui { background: transparent; outline: 1px dashed rgba(255, 255, 255, 0.55); outline-offset: -1px; text-transform: uppercase; letter-spacing: 0.08em; }
+.bt-etq--req { background: transparent; box-shadow: inset 0 0 0 1px rgba(243, 186, 102, 0.55); color: var(--lb-color-brass-bright); text-transform: uppercase; letter-spacing: 0.08em; }
+.bt-tira[data-esta='sim'] .bt-etq { background: rgba(12, 12, 14, 0.1); color: var(--bt-tinta); }
+.bt-tira[data-esta='sim'] .bt-etq--dano { background: var(--bt-sangue); color: #fff; }
+.bt-tira[data-esta='sim'] .bt-etq--over { background: var(--bt-tinta); color: var(--lb-color-brass-bright); }
+.bt-tira[data-esta='sim'] .bt-etq--forma { background: rgba(110, 80, 170, 0.18); color: #4b3482; }
+.bt-tira[data-esta='sim'] .bt-etq--vazado, .bt-tira[data-esta='sim'] .bt-etq--req { background: transparent; box-shadow: inset 0 0 0 1px rgba(12, 12, 14, 0.45); }
+.bt-tira[data-esta='sim'] .bt-etq--evolui { background: transparent; outline-color: rgba(12, 12, 14, 0.6); }
+
+/* o momento da evolução (raro: 1 vez por batalha). Um brilho de latão corre a tira e o nome novo entra. */
+.bt-tira__brilho { position: absolute; inset: 0; z-index: 1; clip-path: var(--rasgo); pointer-events: none; overflow: hidden; }
+.bt-tira__brilho::before {
+  content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(246, 203, 132, 0), var(--lb-gr-latao-1) 70%, #fff4dc);
+  transform: scaleX(0); transform-origin: left center; opacity: 0;
+}
+.bt-tira[data-evoluiu] .bt-tira__brilho::before { animation: evo-varre 440ms var(--bt-ease-out) both; }
+.bt-tira[data-evoluiu] .bt-tira__nome { animation: evo-nome 260ms var(--bt-ease-out) 150ms both; }
+.bt-tira[data-evoluiu] .bt-tira__chips { animation: evo-chips 220ms var(--bt-ease-out) 230ms both; }
+@keyframes evo-varre { 0% { transform: scaleX(0); opacity: 0.9; } 55% { transform: scaleX(1); opacity: 0.9; } 100% { transform: scaleX(1); opacity: 0; } }
+@keyframes evo-nome { from { opacity: 0; filter: blur(3px); transform: translateX(-8px); } }
+@keyframes evo-chips { from { opacity: 0; transform: translateY(4px); } }
+
+/* a leitura (o papel ao lado do menu, como .bt-detalhe--lado) */
+.bt-detalhe {
+  padding: 14px 18px 16px; background: var(--bt-papel); color: var(--bt-tinta); box-shadow: 7px 7px 0 var(--bt-sangue);
+  font-size: var(--lb-font-size-md); line-height: 1.5; margin-top: 18px;
+}
+.bt-detalhe__nome { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 2px solid var(--bt-tinta); font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: clamp(18px, 1.8vw, 24px); line-height: 1.05; letter-spacing: 0.02em; text-transform: uppercase; overflow-wrap: anywhere; }
+.bt-detalhe__custo { flex: none; color: var(--bt-sangue); font-variant-numeric: tabular-nums; }
+.bt-detalhe dl { display: grid; gap: 8px; }
+.bt-detalhe dt, .rq-k { font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--bt-sangue); font-weight: 700; }
+.bt-detalhe dd { overflow-wrap: anywhere; }
+.bt-detalhe__sep { margin: 12px 0 8px; border-top: 1px solid rgba(12, 12, 14, 0.2); }
+
+/* a lista de conferência dos requisitos, no papel */
+.rq-ck { display: grid; gap: 8px; }
+.rq-ck__gr { display: grid; gap: 3px; }
+.rq-ck__cab { display: flex; align-items: center; gap: 6px; }
+.rq-ck__cab .rq-k { color: var(--bt-tinta); }
+.rq-ck__est { font: 600 var(--lb-font-size-xs) / 1 var(--lb-font-utility); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 5px; border-radius: 3px; }
+.rq-ck__est[data-ok='sim'] { background: rgba(45, 106, 62, 0.14); color: var(--papel-ok); }
+.rq-ck__est[data-ok='nao'] { background: rgba(138, 44, 34, 0.1); color: var(--papel-falta); }
+.rq-ck__it { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; align-items: start; }
+.rq-ck__it .ic { width: 15px; height: 15px; margin-top: 2px; stroke-width: 2.2; }
+.rq-ck__it[data-ok='sim'] .ic { color: var(--papel-ok); }
+.rq-ck__it[data-ok='nao'] { color: var(--papel-falta); font-weight: 600; }
+.rq-ck__it[data-ok='hora'] .ic { color: var(--bt-tinta); }
+.rq-ck__it[data-ok='nc'] { color: var(--papel-tenue); }
+.rq-ck__it small { display: block; font-weight: 400; font-size: var(--lb-font-size-sm); color: var(--papel-tenue); }
+.rq-ck__it[data-ok='nao'] small { color: var(--papel-falta); }
+
+/* o contador (Polaridade) e as Partes da forma: segmentos inclinados */
+.cont { display: grid; gap: 4px; }
+.cont__lin { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cont__nome { font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: 18px; letter-spacing: 0.04em; text-transform: uppercase; }
+.cont__n { font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; }
+.cont__segs { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 5px; }
+.cont__seg { position: relative; height: 12px; transform: skewX(-14deg); background: rgba(12, 12, 14, 0.12); overflow: hidden; }
+.cont__seg::after { content: ''; position: absolute; inset: 0; background: var(--c, var(--lb-gr-latao-3)); transform: scaleX(0); transform-origin: left center; }
+.cont__seg[data-cheio]::after { transform: scaleX(1); }
+.cont__seg[data-novo]::after { animation: enche 220ms var(--bt-ease-out) both; }
+@keyframes enche { from { transform: scaleX(0); } }
+.cont--escuro .cont__seg { background: rgba(255, 255, 255, 0.1); }
+.cont--escuro { color: var(--bt-papel); }
+.partes { display: flex; align-items: center; gap: 8px; margin: 0 0 4px 8px; transform: rotate(-3deg); transform-origin: left bottom; }
+.partes .cont__segs { width: 132px; }
+.partes__txt { font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bt-forma); }
+
+/* botões em cima do papel e na tinta: carimbos (como o .bt-zerar do app) */
+.bt-carimbo {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 4px 14px;
+  border: 2px solid var(--bt-tinta); border-radius: 3px; background: var(--bt-tinta); color: var(--bt-papel);
+  font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: 16px; letter-spacing: 0.06em; text-transform: uppercase;
+  box-shadow: 3px 3px 0 var(--bt-sangue); transition: transform 120ms var(--bt-ease-out), background-color 80ms ease, color 80ms ease;
+}
+.bt-carimbo:active:not(:disabled) { transform: scale(0.97); }
+.bt-carimbo:disabled { opacity: 0.4; box-shadow: none; }
+.bt-carimbo:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 3px; box-shadow: 3px 3px 0 var(--bt-sangue); }
+.bt-carimbo--vazado { background: transparent; color: var(--bt-tinta); box-shadow: none; }
+.bt-carimbo--latao { background: var(--lb-color-brass); border-color: var(--bt-tinta); color: var(--lb-color-brass-contrast); }
+.bt-carimbo--claro { border-color: var(--bt-papel); background: var(--bt-papel); color: var(--bt-tinta); }
+.bt-carimbo--claro.bt-carimbo--vazado { background: transparent; color: var(--bt-papel); }
+.acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 12px; }
+.acoes__por-que { flex-basis: 100%; font-size: var(--lb-font-size-sm); color: var(--papel-falta); }
+.mestre-nota { flex-basis: 100%; font-size: var(--lb-font-size-sm); color: var(--papel-tenue); }
+
+/* a resolução na hora de usar: escolher, pedir, rolar, marcar */
+.rv { display: grid; gap: 12px; }
+.rv__passo { display: grid; gap: 6px; }
+.rv__op { position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 8px; align-items: start; min-height: 44px; padding: 8px 10px; border: 1.5px solid rgba(12, 12, 14, 0.25); cursor: pointer; transition: border-color 90ms ease, background-color 90ms ease; }
+.rv__op input { margin: 3px 0 0; accent-color: var(--bt-sangue); width: 16px; height: 16px; }
+.rv__op:has(input:checked) { border-color: var(--bt-tinta); background: rgba(12, 12, 14, 0.06); }
+.rv__op:has(input:disabled) { cursor: not-allowed; color: var(--papel-tenue); }
+.rv__op:has(input:focus-visible) { outline: 2px solid var(--bt-sangue); outline-offset: 2px; }
+.rv__op b { font-weight: 600; }
+.rv__op small { display: block; font-size: var(--lb-font-size-sm); color: var(--papel-tenue); }
+.rv__msg { padding: 6px 10px; border-left: 3px solid var(--bt-sangue); background: rgba(180, 73, 60, 0.08); font-size: var(--lb-font-size-md); }
+.rv__msg[data-tom='ok'] { border-left-color: var(--papel-ok); background: rgba(45, 106, 62, 0.08); }
+.espera { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.espera__ponto { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulso 1200ms linear infinite; }
+@keyframes pulso { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+/* o d20 do teste */
+.dado { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 10px; background: var(--bt-tinta); color: var(--bt-papel); box-shadow: 4px 4px 0 var(--bt-sangue); }
+.dado[data-entra] { animation: dado-entra 180ms var(--bt-ease-out) both; }
+@keyframes dado-entra { from { opacity: 0; transform: scale(0.95); } }
+.dado__face { display: grid; place-items: center; width: 64px; height: 64px; clip-path: polygon(50% 0, 96% 26%, 96% 74%, 50% 100%, 4% 74%, 4% 26%); background: var(--bt-papel); color: var(--bt-tinta); font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: 30px; font-variant-numeric: tabular-nums; }
+.dado[data-ok='nao'] .dado__face { background: var(--bt-sangue); color: #fff; }
+.dado__txt b { display: block; font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: 20px; letter-spacing: 0.03em; text-transform: uppercase; }
+.dado__txt span { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+
+/* a caixa "Cumpriu?" (personalizado): tinta, borda rasgada, como a caixa REAÇÃO */
+.cumpriu { position: relative; display: grid; gap: 10px; padding: 16px 18px 18px; background: var(--bt-tinta); color: var(--bt-papel); clip-path: var(--bt-rasgo-caixa, none); box-shadow: inset 4px 0 0 var(--lb-color-arcane); }
+.cumpriu[data-entra] { animation: pedido-entra 200ms var(--bt-ease-out) both; }
+.cumpriu__tit { font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: 26px; line-height: 1; letter-spacing: 0.03em; text-transform: uppercase; text-shadow: 3px 3px 0 var(--bt-sangue); }
+.cumpriu__marca { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; min-height: 44px; padding: 10px 12px; border: 1.5px dashed rgba(236, 234, 228, 0.35); cursor: pointer; font-size: var(--lb-font-size-lg); line-height: 1.35; transition: border-color 90ms ease, background-color 90ms ease; }
+.cumpriu__marca input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--lb-color-brass); }
+.cumpriu__marca:has(input:checked) { border-style: solid; border-color: var(--lb-color-brass); background: var(--lb-color-brass-soft); }
+.cumpriu__marca:has(input:focus-visible) { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 2px; }
+.cumpriu__nota { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.cumpriu__falta { font-size: var(--lb-font-size-sm); color: var(--lb-color-ember); }
+
+/* o pedido que chega na tela do aliado (como o .bt-lembrete do app) */
+.pedido { display: grid; gap: 10px; padding: 14px 16px 16px; background: var(--bt-tinta); color: var(--bt-papel); box-shadow: inset 4px 0 0 var(--lb-color-tide), 5px 5px 0 rgba(121, 169, 204, 0.4); }
+.pedido[data-entra] { animation: pedido-entra 200ms var(--bt-ease-out) both; }
+@keyframes pedido-entra { from { opacity: 0; transform: translateY(-6px); } }
+.pedido__tit { font-family: var(--bt-titulo); font-stretch: condensed; font-weight: 700; font-size: 28px; line-height: 1; letter-spacing: 0.02em; text-transform: uppercase; }
+.pedido__txt { font-size: var(--lb-font-size-md); color: var(--lb-color-parchment-dim); max-width: 52ch; }
+.pedido__txt b { color: var(--bt-papel); font-weight: 600; }
+.pedido__fim { font-size: var(--lb-font-size-md); }
+
+/* painéis de pedra: o registro e a mesa */
+.painel { padding: 12px 14px; border-radius: var(--lb-radius-lg); background: var(--lb-color-stone); box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel); }
+.painel__tit { margin-bottom: 8px; font: 500 var(--lb-font-size-xs) / 1.3 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wider); text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.bt-registro { display: grid; gap: 6px; max-height: 260px; overflow: auto; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); scrollbar-width: thin; }
+.bt-registro__linha { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--lb-space-2); padding-left: 10px; border-left: 2px solid var(--lb-color-line-strong); }
+.bt-registro__linha:first-child { border-left-color: var(--lb-color-brass); color: var(--lb-color-parchment); }
+.bt-registro__linha[data-desfeita='sim'] { border-left-color: var(--lb-color-line); color: var(--lb-color-parchment-faint); }
+.bt-registro__linha[data-desfeita='sim'] .bt-registro__texto { text-decoration: line-through; }
+.bt-registro__quem { display: block; font-size: var(--lb-font-size-xs); font-style: italic; color: var(--lb-color-parchment-faint); }
+.bt-registro__decl { color: var(--lb-color-arcane); }
+.bt-registro__vazio { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.mesa { display: grid; gap: 10px; padding: 12px 14px 14px; border: 1px dashed var(--lb-gr-filete-forte); border-radius: var(--lb-radius-lg); background: rgba(12, 12, 14, 0.72); }
+.mesa__tit { font: 600 var(--lb-font-size-xs) / 1.3 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wider); text-transform: uppercase; color: var(--lb-color-parchment-dim); }
+.mesa__tit small { display: block; margin-top: 2px; font-weight: 400; letter-spacing: 0.02em; text-transform: none; color: var(--lb-color-parchment-faint); }
+.mesa__grupo { display: grid; gap: 4px; }
+.mesa__rot { font-size: var(--lb-font-size-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.mesa__linha { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.passo { display: inline-flex; align-items: center; gap: 4px; }
+.passo output { min-width: 5ch; text-align: center; font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.momentos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.momentos .bt { justify-content: flex-start; white-space: normal; text-align: left; min-height: 36px; line-height: 1.2; padding: 4px 10px; }
+.momentos .bt[aria-pressed='true'] { background: var(--lb-color-brass-soft); border-color: var(--lb-color-brass); }
+.momentos .num { color: var(--lb-color-brass-bright); }
+
+/* ============================================================ 5. as duas telas lado a lado (pedido ao aliado) */
+.duas { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr); }
+.duas > .campo { position: relative; grid-template-columns: minmax(0, 1fr); padding: 52px 26px 26px; }
+.duas > .campo + .campo { border-left: 2px dashed var(--lb-gr-filete-forte); }
+.duas__rot { position: absolute; top: 14px; left: 26px; z-index: 2; padding: 3px 10px; border-radius: var(--lb-radius-full); background: rgba(12, 12, 14, 0.85); border: 1px dashed var(--lb-gr-filete-forte); font: 600 var(--lb-font-size-xs) / 1.5 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wider); text-transform: uppercase; color: var(--lb-color-parchment-dim); }
+.duas .bt-vez { max-width: 470px; }
+.duas .bt-detalhe { max-width: 470px; margin-top: 0; }
+.ociosa { max-width: 420px; padding: 14px 16px; border: 1px dashed var(--lb-gr-filete-forte); color: var(--lb-color-parchment-dim); background: rgba(12, 12, 14, 0.6); }
+.duas .painel, .duas .pedido { max-width: 470px; }
+
+/* avisos (Desfazer), embaixo no meio */
+.avisos { position: fixed; z-index: 90; left: 50%; bottom: 18px; display: flex; flex-direction: column; align-items: center; gap: 8px; transform: translateX(-50%); pointer-events: none; }
+.aviso {
+  display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 6px 8px 6px 14px; border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid); border: 1px solid var(--lb-color-line-panel); box-shadow: var(--lb-shadow-float); pointer-events: auto;
+  transition: opacity 200ms var(--lb-gr-ease-out), transform 200ms var(--lb-gr-ease-out);
+}
+@starting-style { .aviso { opacity: 0; transform: translateY(8px); } }
+.aviso[data-saindo] { opacity: 0; transform: translateY(8px); transition-duration: 140ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bt-tira, .bt-tira::after { transition: color 80ms ease; }
+  .bt-tira:not([aria-disabled='true']):active { transform: rotate(var(--giro, -3deg)) translateX(var(--dx, 0px)); }
+  .bt-tira[data-evoluiu] .bt-tira__brilho::before { animation: none; }
+  .bt-tira[data-evoluiu] .bt-tira__nome, .bt-tira[data-evoluiu] .bt-tira__chips { animation: so-aparece 200ms ease both; }
+  .cont__seg[data-novo]::after { animation: none; }
+  .pk[data-entra], .pedido[data-entra], .dado[data-entra], .cumpriu[data-entra], .rq-lin[data-entra] { animation: so-aparece 150ms ease both; }
+  .espera__ponto { animation: none; }
+  .sw__trilho::after { transition: background-color var(--lb-motion-fast) ease; }
+  .aviso, .aviso[data-saindo] { transform: none; }
+  @starting-style { .aviso { transform: none; } }
+  .bt:active, .bt-carimbo:active, .proto__tela:active { transform: none !important; }
+}
+@keyframes so-aparece { from { opacity: 0; } }
+</style>
+</head>
+
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.6l3.1 3L13 4.6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 16 16"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></symbol>
+  <symbol id="i-hora" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6"/><path d="M8 5v3.3l2.1 1.3"/></symbol>
+  <symbol id="i-nc" viewBox="0 0 16 16"><path d="M4 8h8"/></symbol>
+  <symbol id="i-busca" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.4 10.4L14 14"/></symbol>
+  <symbol id="i-mais" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></symbol>
+</svg>
+
+<header class="proto">
+  <strong>Requisitos</strong><span>protótipo: nada é salvo</span>
+  <nav class="proto__telas" aria-label="Telas do protótipo">
+    <button type="button" class="proto__tela" data-acao="tela" data-tela="editor">1 Editor</button>
+    <button type="button" class="proto__tela" data-acao="tela" data-tela="sieg">2 Sieg: evolução</button>
+    <button type="button" class="proto__tela" data-acao="tela" data-tela="vagn">3 Vagn: Polaridade</button>
+    <button type="button" class="proto__tela" data-acao="tela" data-tela="ryoko">4 Ryoko: Partes</button>
+    <button type="button" class="proto__tela" data-acao="tela" data-tela="pedido">5 Pedido ao aliado</button>
+    <button type="button" class="proto__tela" data-acao="tela" data-tela="cumpriu">6 Cumpriu?</button>
+    <button type="button" class="proto__tela" data-acao="tela" data-tela="teste">7 Teste do Vincent</button>
+  </nav>
+  <div class="proto__sobra">
+    <span id="ver-rot">Ver como</span>
+    <div class="seg" role="radiogroup" aria-labelledby="ver-rot">
+      <label><input type="radio" name="ver" value="jogador" data-muda="ver" checked><span>Jogador</span></label>
+      <label><input type="radio" name="ver" value="mestre" data-muda="ver"><span>Mestre</span></label>
+    </div>
+    <button type="button" class="bt bt--p bt--fantasma" data-acao="recomecar">Recomeçar esta tela</button>
+  </div>
+</header>
+<main class="telas"><div id="tela" class="tela"></div></main>
+<div id="avisos" class="avisos" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* ==========================================================================
+ * DADOS. As fichas são as reais da pasta One Piece (auditorias de 07/11/2026,
+ * docs/auditoria-fichas/): Siegfried, Vagn, Ryoko e Vincent, com os números de
+ * lá. Os requisitos são os 49 tipos de REQUISITOS-LISTA.md (A1 a J2).
+ * ========================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clone = (v) => JSON.parse(JSON.stringify(v));
+const ic = (n) => `<svg class="ic" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const semAcento = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const cap = (t) => (t ? t[0].toUpperCase() + t.slice(1) : '');
+let seq = 0;
+const uid = (p) => (p || 'r') + (++seq);
+function juntar(ts, conj) {
+  const v = ts.filter(Boolean);
+  if (v.length <= 1) return v[0] || '';
+  return v.slice(0, -1).join(', ') + ' ' + conj + ' ' + v[v.length - 1];
+}
+const masc = (nome) => /^(Caminho|Campo|Olhar|Passo|Golpe|Sopro|Chute|Grito)/.test(nome);
+const ligad = (nome) => (masc(nome) ? 'ligado' : 'ligada');
+const desligad = (nome) => (masc(nome) ? 'desligado' : 'desligada');
+
+/* A borda rasgada e o giro das tiras: o mesmo código de ListaDeTecnicas.tsx. */
+const GIROS = [-3, -1.6, -2.6, -1.2, -3.4, -2];
+function mulberry32(semente) {
+  let a = semente >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function rasgo(semente, amplitude = 4) {
+  const r = mulberry32(semente);
+  const n = 28;
+  const p = [];
+  for (let i = 0; i <= n; i += 1) p.push(`${((i / n) * 100).toFixed(2)}% ${(r() * amplitude).toFixed(1)}px`);
+  for (let i = 1; i <= 3; i += 1) p.push(`calc(100% - ${(r() * amplitude * 1.6).toFixed(1)}px) ${i * 25}%`);
+  for (let i = n; i >= 0; i -= 1) p.push(`${((i / n) * 100).toFixed(2)}% calc(100% - ${(r() * amplitude).toFixed(1)}px)`);
+  for (let i = 3; i >= 1; i -= 1) p.push(`${(r() * amplitude * 1.6).toFixed(1)}px ${i * 25}%`);
+  return `polygon(${p.join(',')})`;
+}
+function sementeDe(texto) {
+  let h = 2166136261;
+  for (let i = 0; i < texto.length; i += 1) h = Math.imul(h ^ texto.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/* ------------------------------------------------------------ os 49 tipos (REQUISITOS-LISTA.md) */
+const GRUPOS = [
+  ['A', 'Recursos de quem usa'], ['B', 'Estado de quem usa'], ['C', 'Tempo e ordem'], ['D', 'Alvo'], ['E', 'Campo'],
+  ['F', 'Equipamento'], ['G', 'Aliados'], ['H', 'Testes'], ['I', 'Transformação e evolução'], ['J', 'Personalizado'],
+];
+const CONFERE = { auto: 'Auto', pergunta: 'Pergunta', d20: 'Rola d20', caixa: 'Cumpriu?' };
+const CONFERE_LONGO = { auto: 'o app confere sozinho', pergunta: 'pergunta a alguém na hora', d20: 'rola o d20 na hora', caixa: 'quem usa marca a caixa «Cumpriu?»' };
+const TIPOS = {};
+/* molde: a frase do editor. {chave:num:Rótulo} número; {chave:sel:Rótulo:a|b} ou {chave:sel:Rótulo:@LISTA} escolha; {chave:txt:Rótulo} texto. */
+function tipo(cod, nome, ex, confere, molde, texto, extra) {
+  TIPOS[cod] = Object.assign({ cod, grupo: cod[0], nome, ex, confere, molde, texto, padrao: {} }, extra || {});
+}
+tipo('A1', 'Ter SP (só exige ou gasta)', '“Só com 100 SP ou mais”; “gastar 50 SP”', 'auto', 'Ter pelo menos {n:num:Quanto de SP} de SP', (r) => (r.gasta ? `gastar ${r.n} SP` : `ter ${r.n} SP ou mais`), { gasta: true, padrao: { n: 50, gasta: false } });
+tipo('A2', 'Vida abaixo ou acima de X%', '“Só abaixo de 30% de vida”', 'auto', 'Vida {lado:sel:Lado:abaixo de|acima de} {n:num:Porcentagem}%', (r) => `ter a vida ${r.lado} ${r.n}%`, { padrao: { lado: 'abaixo de', n: 30 } });
+tipo('A3', 'Ter Escudo (ou estar sem)', '“Só com o escudo de pé”', 'auto', 'Ter Escudo de pé', (r) => (r.nao ? 'estar sem Escudo' : 'ter Escudo de pé'), { nao: true });
+tipo('A4', 'Nível de um contador', 'Polaridade 2 do Vagn, fúria, cargas', 'auto', 'Contador {cont:sel:Contador:@CONT} no nível {n:num:Nível} ou mais', (r) => `ter ${r.cont} no nível ${r.n} ou mais` + (r.gasta ? ` (e gasta ${r.n})` : ''), { gasta: true, padrao: { cont: '@0', n: 2, gasta: true } });
+tipo('A5', 'Concentração (as cargas de 0 a 3)', '“Concentrado 2x” (super lobo do Alexei)', 'auto', 'Concentração {n:num:Cargas} ou mais', (r) => `ter Concentração ${r.n} ou mais` + (r.gasta ? ` (e gasta ${r.n})` : ''), { gasta: true, padrao: { n: 2 } });
+tipo('A6', 'Pagar com vida', 'Chamas Celestes: 10% do HP', 'auto', 'Pagar {n:num:Quanto} {un:sel:Unidade:% do HP|de HP}', (r) => `pagar ${r.n}${r.un === '% do HP' ? '% do HP' : ' de HP'}`, { padrao: { n: 10, un: '% do HP' } });
+tipo('A7', 'Ter a reação livre (e gasta)', 'Carregar a Polaridade gasta a reação', 'auto', 'Ter a reação livre', (r) => (r.gasta ? 'gastar a reação' : 'ter a reação livre'), { gasta: true, padrao: { gasta: true } });
+tipo('B1', 'Técnica ou passiva ligada', 'Melodia de Todas as Coisas ligada (Sieg)', 'auto', (r) => `{tec:sel:Técnica:@TEC} ${ligad(r.tec || '')}`, (r) => (r.nao ? `estar com ${r.tec} ${desligad(r.tec)}` : `estar com ${r.tec} ${ligad(r.tec)}`), { nao: true, padrao: { tec: '@0' } });
+tipo('B2', 'Ter um selo em si (ou não ter)', '“Só Fortalecido”; “não pode estar Atordoado”', 'auto', 'Ter o selo {selo:sel:Selo:@SELOS} em si', (r) => (r.nao ? `não estar ${r.selo}` : `estar ${r.selo}`), { nao: true, padrao: { selo: 'Fortalecido' } });
+tipo('B3', 'Estar numa forma (ou fora dela)', '“Só na Parte 2 da Forma Híbrida”', 'auto', 'Estar na forma {forma:sel:Forma:@FORMAS}', (r) => (r.nao ? `estar fora da ${r.forma}` : `estar na ${r.forma}`), { nao: true, padrao: { forma: '@0' } });
+tipo('B4', 'Não ter andado nesta vez', 'Tiro de precisão: parado', 'auto', 'Não ter andado nesta vez', () => 'não ter andado nesta vez');
+tipo('B5', 'Ter andado N casas nesta vez', 'Investida: correu 3 casas', 'auto', 'Ter andado {n:num:Casas} casas ou mais nesta vez', (r) => `ter andado ${r.n} casas ou mais nesta vez`, { padrao: { n: 3 } });
+tipo('B6', 'Ter recebido dano desde a última vez', '“Vingança”: só se apanhou', 'auto', 'Ter recebido dano desde a última vez', (r) => (r.nao ? 'não ter recebido dano desde a última vez' : 'ter recebido dano desde a última vez'), { nao: true });
+tipo('B7', 'Ter acertado alguém nesta vez', '“Golpe de continuação”', 'auto', 'Ter acertado alguém nesta vez', () => 'ter acertado alguém nesta vez');
+tipo('B8', 'Ter errado o último ataque', '“Fúria de quem errou”', 'auto', 'Ter errado o último ataque', () => 'ter errado o último ataque');
+tipo('C1', 'A partir da rodada N (ou até ela)', 'Melodia: no início da 3ª rodada', 'auto', '{lado:sel:Quando:A partir da|Até a} rodada {n:num:Rodada}', (r) => `${r.lado.toLowerCase()} rodada ${r.n}`, { padrao: { lado: 'A partir da', n: 3 } });
+tipo('C2', 'Logo depois de usar X (combo)', 'Florescer depois da Orquídea', 'auto', 'Logo depois de usar {tec:sel:Técnica:@TEC}', (r) => `vir logo depois de ${r.tec}`, { padrao: { tec: '@0' } });
+tipo('C3', 'X já usada nesta batalha', '“Só depois de abrir com o Grito”', 'auto', '{tec:sel:Técnica:@TEC} já usada nesta batalha', (r) => (r.nao ? `${r.tec} ainda não usada nesta batalha` : `${r.tec} já usada nesta batalha`), { nao: true, padrao: { tec: '@0' } });
+tipo('C4', 'Primeira ou última ação da vez', '“Abre a vez”', 'auto', '{qual:sel:Qual:Primeira|Última} ação da vez', (r) => `ser a ${r.qual.toLowerCase()} ação da vez`, { padrao: { qual: 'Primeira' } });
+tipo('C5', 'N vezes por rodada, vez ou batalha', 'Ignição: até 2x por batalha (já existe “usos”)', 'auto', 'Até {n:num:Vezes} vezes por {por:sel:Por:rodada|vez|batalha}', (r) => `no máximo ${r.n} ${Number(r.n) === 1 ? 'vez' : 'vezes'} por ${r.por}`, { padrao: { n: 2, por: 'batalha' } });
+tipo('C6', 'Recarga de N rodadas', '(já existe)', 'auto', 'Recarga de {n:num:Rodadas} rodadas', (r) => `recarga de ${r.n} rodadas`, { padrao: { n: 2 } });
+tipo('C7', 'Manter pagando por rodada', 'Campo de Contenção: 15 SP por turno', 'auto', 'Manter pagando {n:num:SP por rodada} de SP por rodada', (r) => `pagar ${r.n} SP por rodada para manter`, { padrao: { n: 15 } });
+tipo('D1', 'Alvo com um selo (ou sem)', 'Florescer: alvo sob a Orquídea (já existe)', 'auto', 'Alvo com o selo {selo:sel:Selo:@SELOS}', (r) => (r.nao ? `alvo sem o selo ${r.selo}` : `alvo com o selo ${r.selo}`), { nao: true, padrao: { selo: 'Marcado' } });
+tipo('D2', 'Alvo com vida abaixo de X%', 'Execução: só abaixo de 25%', 'auto', 'Alvo com vida abaixo de {n:num:Porcentagem}%', (r) => `alvo com vida abaixo de ${r.n}%`, { padrao: { n: 25 } });
+tipo('D3', 'Alvo marcado por quem usa', 'Caçada ao Marcado', 'auto', 'Alvo marcado por quem usa', () => 'alvo marcado por quem usa');
+tipo('D4', 'Alvo caído', 'Reviver (já existe)', 'auto', 'Alvo caído', () => 'alvo caído');
+tipo('D5', 'Alvo de um tipo: NPC, jogador, invocação', '“Só contra invocações”', 'auto', 'Alvo do tipo {tipo:sel:Tipo:NPC|jogador|invocação}', (r) => (r.nao ? `alvo que não seja ${r.tipo}` : `alvo do tipo ${r.tipo}`), { nao: true, padrao: { tipo: 'invocação' } });
+tipo('D6', 'Alvo que agiu antes nesta rodada (ou não)', '“Pega quem já jogou”', 'auto', 'Alvo que {qual:sel:Qual:já agiu|ainda não agiu} nesta rodada', (r) => `alvo que ${r.qual} nesta rodada`, { padrao: { qual: 'já agiu' } });
+tipo('E1', 'Aliado a até N casas', '“Com um aliado do lado”', 'auto', 'Aliado a até {n:num:Casas} casas', (r) => `aliado a até ${r.n} ${Number(r.n) === 1 ? 'casa' : 'casas'}`, { padrao: { n: 1 } });
+tipo('E2', 'Sozinho: nenhum aliado perto', '“Lobo solitário”', 'auto', 'Nenhum aliado a até {n:num:Casas} casas', (r) => `nenhum aliado a até ${r.n} casas`, { padrao: { n: 3 } });
+tipo('E3', 'Nenhum inimigo colado', 'Atirador', 'auto', 'Nenhum inimigo colado (a 1 casa)', () => 'nenhum inimigo colado');
+tipo('E4', 'N ou mais inimigos no alcance', '“Só com 3 inimigos perto”', 'auto', '{n:num:Inimigos} ou mais inimigos no alcance', (r) => `${r.n} ou mais inimigos no alcance`, { padrao: { n: 3 } });
+tipo('E5', 'Na luz ou no escuro', '“Só nas sombras”', 'auto', 'Estar {onde:sel:Onde:na luz|no escuro}', (r) => `estar ${r.onde}`, { padrao: { onde: 'no escuro' } });
+tipo('E6', 'Ver o alvo (sem parede no meio)', '(o alcance já confere)', 'auto', 'Ver o alvo (sem parede no meio)', () => 'ver o alvo');
+tipo('F1', 'Item na mochila (e gasta N)', '“Gasta 1 Pólvora” (já existe “custo em item”)', 'auto', 'Ter {n:num:Quantos} {item:sel:Item:@ITENS} na mochila', (r) => (r.gasta ? `gastar ${r.n} ${r.item}` : `ter ${r.n} ${r.item} na mochila`), { gasta: true, padrao: { n: 1, item: 'Pólvora', gasta: true } });
+tipo('F2', 'Arma na mão (ou um tipo)', 'Imperador das Armas', 'auto', 'Estar com {arma:sel:Arma:@ARMAS} na mão', (r) => (r.nao ? `estar sem ${r.arma} na mão` : `estar com ${r.arma} na mão`), { nao: true, padrao: { arma: '@0' } });
+tipo('F3', 'Ter munição (balas)', 'Balas do Vincent', 'auto', 'Ter {n:num:Balas} balas', (r) => (r.gasta ? `gastar ${r.n} ${Number(r.n) === 1 ? 'bala' : 'balas'}` : `ter ${r.n} balas`), { gasta: true, padrao: { n: 1, gasta: true } });
+tipo('G1', 'Pedir SP, HP ou Escudo a um aliado', '“Vagn pede 30 SP”', 'pergunta', 'Pedir {n:num:Quanto} de {rec:sel:Recurso:SP|HP|Escudo} a um aliado', (r) => `pedir ${r.n} ${r.rec} a um aliado (ele aceita na tela dele)`, { padrao: { n: 30, rec: 'SP' } });
+tipo('G2', 'Ajuda de um aliado com um poder', 'Caça às Bruxas: ajuda de quem tem poder de fogo', 'pergunta', 'Ajuda de um aliado com {poder:txt:Poder}', (r) => `ter ajuda de um aliado com ${r.poder || '(qual poder?)'}`, { padrao: { poder: 'poder de fogo' } });
+tipo('G3', 'Um aliado usou X nesta rodada', 'Combo de dupla', 'auto', 'Um aliado usou {tec:txt:Técnica do aliado} nesta rodada', (r) => `um aliado ter usado ${r.tec || '(qual técnica?)'} nesta rodada`, { padrao: { tec: '' } });
+tipo('G4', 'N aliados de pé', '“Só com o bando inteiro”', 'auto', '{n:num:Aliados} aliados de pé ou mais', (r) => `${r.n} aliados de pé ou mais`, { padrao: { n: 3 } });
+tipo('G5', 'Um aliado caiu nesta batalha', '“Pela honra do companheiro”', 'auto', 'Um aliado caiu nesta batalha', () => 'um aliado ter caído nesta batalha');
+tipo('H1', 'Passar num teste antes (atributo e CD)', 'Vincent: Percepção CD 15', 'd20', 'Passar em {atr:sel:Atributo:@ATR} CD {n:num:CD}; se falhar, {falha:sel:Se falhar:perde a ação|não perde a ação}', (r) => `passar em ${r.atr} CD ${r.n} (se falhar, ${r.falha})`, { padrao: { atr: 'Percepção', n: 15, falha: 'perde a ação' } });
+tipo('H2', 'Disputa com o alvo antes', '“Vence a Força do alvo para agarrar”', 'd20', 'Vencer o alvo numa disputa de {atr:sel:Atributo:@ATR}', (r) => `vencer o alvo numa disputa de ${r.atr}`, { padrao: { atr: 'Força' } });
+tipo('I1', 'Usar sobe a forma uma Parte', 'Fúria do Dragão: Parte 1 para 2, 2 para 3 (Ryoko)', 'auto', 'Ao usar, sobe {forma:sel:Forma:@FORMAS} uma Parte, até a Parte {n:num:Última Parte}', (r) => `ao usar, subir a ${r.forma} uma Parte (até a Parte ${r.n})`, { padrao: { forma: '@0', n: 3 } });
+tipo('I2', 'Transformar só usando esta técnica', '“Só transforma com o Grito”', 'auto', 'Transformar em {forma:sel:Forma:@FORMAS} só usando esta técnica', (r) => `transformar em ${r.forma} só por esta técnica`, { padrao: { forma: '@0' } });
+tipo('I3', 'Evolução: vira a versão super até usar uma vez', 'Caça às Bruxas para SUPER Caça às Bruxas', 'auto', '', () => '', { especial: 'evolucao' });
+tipo('J1', 'Personalizado (caixa «Cumpriu?»)', '“Só depois de ouvir a música do bardo”', 'caixa', 'Personalizado: {texto:txt:O que precisa}', (r) => `${r.texto || '(escreva o que precisa)'} (quem usa marca «Cumpriu?»)`, { padrao: { texto: '' } });
+tipo('J2', 'O mestre decide', '“Só se o mestre deixar”', 'pergunta', 'O mestre decide (o pedido espera o mestre)', () => 'o mestre deixar');
+
+/* O que aparece "na hora" (os tipos que não dá para conferir antes). */
+function horaCurta(r) {
+  if (r.tipo === 'G1') return `pede ${r.n} ${r.rec} a um aliado`;
+  if (r.tipo === 'G2') return `pede ajuda a um aliado com ${r.poder}`;
+  if (r.tipo === 'H1') return `rola ${r.atr} (CD ${r.n})`;
+  if (r.tipo === 'H2') return `disputa de ${r.atr} com o alvo`;
+  if (r.tipo === 'J1') return `caixa «Cumpriu: ${r.texto}?»`;
+  if (r.tipo === 'J2') return 'pergunta ao mestre';
+  return '';
+}
+
+/* ------------------------------------------------------------ as listas de cada ficha */
+const COMUNS = {
+  SELOS: ['Fortalecido', 'Atordoado', 'Marcado', 'Cego', 'Sangrando', 'Queimando', 'Enfraquecido', 'Orquídea (redoma)'],
+  ATR: ['Força', 'Agilidade', 'Espírito', 'Resistência', 'Percepção', 'Intuição', 'Determinação', 'Carisma'],
+  ITENS: ['Pólvora', 'Bala de Prata', 'Kit Médico', 'Poção Grande'],
+};
+const LISTAS = {
+  sieg: { TEC: ['Melodia de Todas as Coisas', 'Caminho do Dano', 'Ignição', 'Resiliente', 'Apunhaladora: Orquídea', 'Balmung: Lua Incandescente'], CONT: ['(nenhum contador na ficha)'], FORMAS: ['Ignição', 'Resiliente'], ARMAS: ['Balmung', 'Gram', 'Gilgamesh', 'Yamato', 'Apunhaladora', 'qualquer arma Branca'] },
+  vagn: { TEC: ['Campo de Contenção', 'Projeção Letal', 'Atração Relâmpago', 'Armadura Humana', 'Chuva', 'Ignição', 'Resiliente'], CONT: ['Polaridade', 'Campo de Contenção'], FORMAS: ['Ignição', 'Resiliente'], ARMAS: ['qualquer arma Branca', 'qualquer arma De fogo'] },
+  vincent: { TEC: ['Olhar Artístico', 'Passo de Valsa', 'Desenhar o Alvo'], CONT: ['(nenhum contador na ficha)'], FORMAS: ['(nenhuma forma na ficha)'], ARMAS: ['Rosa Fúnebre', 'qualquer arma De fogo'] },
+  ryoko: { TEC: ['Fúria do Dragão', 'Sopro do Dragão', 'Chute do Dragão', 'Golpe de Chifres'], CONT: ['(nenhum contador na ficha)'], FORMAS: ['Forma Híbrida'], ARMAS: ['qualquer arma Branca'] },
+};
+function lista(fichaId, nome) { return (LISTAS[fichaId] && LISTAS[fichaId][nome]) || COMUNS[nome] || []; }
+
+/* ------------------------------------------------------------ os exemplos do editor (as técnicas das fichas) */
+const EXEMPLOS_DE_FABRICA = [
+  { id: 'caca', ficha: 'sieg', quem: 'Siegfried', tec: 'CAÇA AS BRUXAS!', linha: 'Completa · 35 SP · Tempo 4 · Espírito + 15 + 20 de fogo (70) · até 10 casas',
+    nota: 'O Caminho do Dano é a opção +20 de dano da Melodia (resposta de 07/11).', evoluiOpcoes: ['SUPER CAÇA AS BRUXAS!'],
+    req: { para: 'evoluir', evoluiPara: 'SUPER CAÇA AS BRUXAS!', grupos: [
+      { modo: 'todos', itens: [{ tipo: 'B1', tec: 'Melodia de Todas as Coisas' }, { tipo: 'B1', tec: 'Caminho do Dano' }] },
+      { modo: 'um', itens: [{ tipo: 'A1', n: 50, gasta: true }, { tipo: 'G2', poder: 'poder de fogo' }] },
+    ] } },
+  { id: 'chuva', ficha: 'vagn', quem: 'Vagn', tec: 'Chuva', linha: 'Completa · 40 SP · Tempo 2 · Espírito + 30 (65) · área de 2 casas',
+    req: { para: 'usar', grupos: [
+      { modo: 'todos', itens: [{ tipo: 'A4', cont: 'Polaridade', n: 2, gasta: true }, { tipo: 'A4', cont: 'Campo de Contenção', n: 1, gasta: false }] },
+    ] } },
+  { id: 'furia', ficha: 'ryoko', quem: 'Ryoko', tec: 'Fúria do Dragão', linha: 'Completa · 0 SP · Tempo 1 · nas 3 Partes da Forma Híbrida',
+    nota: 'Resposta de 07/11: usar a Fúria leva para a Parte seguinte.',
+    req: { para: 'usar', grupos: [
+      { modo: 'todos', itens: [{ tipo: 'B3', forma: 'Forma Híbrida' }, { tipo: 'I1', forma: 'Forma Híbrida', n: 3 }] },
+    ] } },
+  { id: 'desenhar', ficha: 'vincent', quem: 'Vincent', tec: 'Desenhar o Alvo', linha: 'Simples · 30 SP · Tempo 3 · marca o alvo, Dano Perfurante',
+    req: { para: 'usar', grupos: [
+      { modo: 'um', itens: [{ tipo: 'H1', atr: 'Percepção', n: 15, falha: 'não perde a ação' }, { tipo: 'A1', n: 30, gasta: true }] },
+    ] } },
+  { id: 'armadura', ficha: 'vagn', quem: 'Vagn', tec: 'Armadura Humana LVL 1', linha: 'Completa · 25 SP · Tempo 4 · defender: −10% de dano',
+    nota: 'O pedido de 30 SP foi posto aqui só para mostrar o fluxo; a ficha não pede isso.',
+    req: { para: 'usar', grupos: [{ modo: 'todos', itens: [{ tipo: 'G1', n: 30, rec: 'SP' }] }] } },
+  { id: 'atracao', ficha: 'vagn', quem: 'Vagn', tec: 'Atração Relâmpago', linha: 'Simples · 15 SP · Tempo 1 · o alvo testa Força e é puxado',
+    nota: 'Exemplo de personalizado: o app não sabe quem carrega metal.',
+    req: { para: 'usar', grupos: [{ modo: 'todos', itens: [{ tipo: 'J1', texto: 'o alvo carrega metal (arma ou armadura)' }] }] } },
+];
+function exemplosNovos() {
+  const lista = clone(EXEMPLOS_DE_FABRICA);
+  for (const ex of lista) for (const g of ex.req.grupos) { g.id = uid('g'); for (const r of g.itens) r.id = uid('r'); }
+  return lista;
+}
+
+
+/* ==========================================================================
+ * O ESTADO de cada tela. Os números das fichas são os das auditorias.
+ * ========================================================================== */
+const ALIADOS_DO_SIEG = () => [
+  { nome: 'Vagn', papel: 'jogador', sp: 120, poderes: ['fogo'] },
+  { nome: 'Vincent', papel: 'jogador', sp: 60, poderes: [] },
+  { nome: 'Ryoko', papel: 'jogadora', sp: 240, poderes: [] },
+];
+const ALIADOS_DO_VAGN = () => [
+  { nome: 'Siegfried', papel: 'jogador', sp: 140, poderes: ['fogo'] },
+  { nome: 'Vincent', papel: 'jogador', sp: 60, poderes: [] },
+  { nome: 'Ryoko', papel: 'jogadora', sp: 240, poderes: [] },
+  { nome: 'Marujo do bando', papel: 'NPC', sp: 80, poderes: [] },
+];
+const estVagn = (aliados) => ({ nome: 'Vagn', sp: 120, contadores: { Polaridade: 1, 'Campo de Contenção': 0 }, ligadas: [], forma: null, reacao: true, aliados: aliados || [], mods: {} });
+const INICIAL = {
+  editor: () => ({ ex: 'caca', exemplos: exemplosNovos(), pk: null }),
+  sieg: () => ({ est: { nome: 'Siegfried', sp: 140, contadores: {}, ligadas: [], forma: null, reacao: true, aliados: ALIADOS_DO_SIEG(), mods: {} }, melodia: false, caminho: false, vagnPerto: true, fase: 'comum', metade: false, sel: 'evo', rv: null, reg: [], ultimo: null }),
+  vagn: () => ({ est: estVagn(), sel: 'chuva', rv: null, reg: [], ultimo: null }),
+  ryoko: () => ({ est: { nome: 'Ryoko', sp: 240, contadores: {}, ligadas: [], forma: { nome: 'Forma Híbrida', parte: 1 }, reacao: true, aliados: [], mods: {} }, sel: 'furia', rv: null, reg: [], ultimo: null }),
+  pedido: () => ({ est: estVagn(ALIADOS_DO_VAGN()), sel: 'armadura', rv: null, reg: [], ultimo: null, aliadoTela: null }),
+  cumpriu: () => ({ est: estVagn(), sel: 'atracao', rv: null, reg: [], ultimo: null }),
+  teste: () => ({ est: { nome: 'Vincent', sp: 60, contadores: {}, ligadas: [], forma: null, reacao: true, aliados: [], mods: { Percepção: 1 } }, sel: 'desenhar', rv: null, reg: [], ultimo: null, d20: [9, 17, 4, 15, 20, 11], d20i: 0, falhouNestaVez: {} }),
+};
+const S = { tela: 'editor', ver: 'jogador', entrar: new Set() };
+const CUSTO_DO_EXEMPLO = { caca: 0, chuva: 40, furia: 0, desenhar: 30, armadura: 25, atracao: 15 };
+const EST_DA_FICHA = { sieg: () => INICIAL.sieg().est, vagn: () => estVagn(ALIADOS_DO_VAGN()), ryoko: () => INICIAL.ryoko().est, vincent: () => INICIAL.teste().est };
+const exemplo = (id) => S.ed.exemplos.find((e) => e.id === id);
+const exAtual = () => exemplo(S.ed.ex);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fim = (t) => (/[.!?]$/.test(t) ? t : t + '.');
+
+function sincronizarSieg(s) {
+  s.est.ligadas = s.melodia ? ['Melodia de Todas as Coisas'].concat(s.caminho ? ['Caminho do Dano'] : []) : [];
+  const vivos = ALIADOS_DO_SIEG();
+  s.est.aliados = s.vagnPerto ? vivos : vivos.filter((a) => a.nome !== 'Vagn');
+}
+
+/* ==========================================================================
+ * CONFERIR: cada requisito contra a ficha na batalha.
+ * ok: 'sim' cumpriu, 'nao' falta, 'hora' só dá para saber na hora (pergunta, d20, caixa), 'nc' o protótipo não confere.
+ * ========================================================================== */
+function aliadosComPoder(est, poder) {
+  const p = semAcento(poder || '');
+  return p.includes('fogo') ? est.aliados.filter((a) => a.poderes.includes('fogo')) : est.aliados;
+}
+function candidatos(r, est) {
+  if (r.tipo === 'G2') return aliadosComPoder(est, r.poder);
+  const chave = String(r.rec || 'SP').toLowerCase();
+  return est.aliados.filter((a) => (a[chave] ?? 0) >= Number(r.n));
+}
+function avaliar(r, est, tec) {
+  const custo = (tec && tec.custo) || 0;
+  switch (r.tipo) {
+    case 'A1': {
+      const livre = Math.max(0, est.sp - custo);
+      const ok = livre >= Number(r.n);
+      return { ok: ok ? 'sim' : 'nao', nota: custo ? `tem ${est.sp} SP (${custo} vão no custo)` : `tem ${est.sp} SP`, falta: custo ? `${r.n} SP além do custo (sobram ${livre})` : `${r.n} SP (tem ${est.sp})` };
+    }
+    case 'A4': {
+      const v = (est.contadores && est.contadores[r.cont]) || 0;
+      const ok = r.nao ? v < Number(r.n) : v >= Number(r.n);
+      return { ok: ok ? 'sim' : 'nao', nota: `tem ${v}`, falta: `${String(r.cont).toLowerCase()} ${r.n} (tem ${v})` };
+    }
+    case 'A7':
+      return { ok: est.reacao ? 'sim' : 'nao', nota: est.reacao ? 'reação livre' : 'reação já gasta', falta: 'a reação (já gasta nesta rodada)' };
+    case 'B1': {
+      const lig = est.ligadas.includes(r.tec);
+      const ok = r.nao ? !lig : lig;
+      return { ok: ok ? 'sim' : 'nao', nota: lig ? ligad(r.tec) : desligad(r.tec), falta: r.nao ? `${r.tec} ${desligad(r.tec)}` : `${r.tec} ${ligad(r.tec)}` };
+    }
+    case 'B3': {
+      const na = !!est.forma && est.forma.nome === r.forma;
+      const ok = r.nao ? !na : na;
+      return { ok: ok ? 'sim' : 'nao', nota: na ? `na Parte ${est.forma.parte}` : 'fora da forma', falta: r.nao ? `sair da ${r.forma}` : `estar na ${r.forma}` };
+    }
+    case 'I1': {
+      const na = !!est.forma && est.forma.nome === r.forma;
+      if (!na) return { ok: 'nao', nota: 'fora da forma', falta: `estar na ${r.forma}` };
+      if (est.forma.parte >= Number(r.n)) return { ok: 'nao', nota: `já na Parte ${est.forma.parte}`, falta: `subir: já está na Parte ${est.forma.parte} (a última)` };
+      return { ok: 'sim', nota: `sobe da Parte ${est.forma.parte} para a ${est.forma.parte + 1}`, falta: '' };
+    }
+    case 'G1': {
+      const c = candidatos(r, est);
+      return c.length ? { ok: 'hora', nota: `na hora: você escolhe a quem pedir (${c.length} ${c.length === 1 ? 'pode' : 'podem'} dar)`, falta: '' } : { ok: 'nao', nota: '', falta: `um aliado com ${r.n} ${r.rec}` };
+    }
+    case 'G2': {
+      const c = aliadosComPoder(est, r.poder);
+      return c.length ? { ok: 'hora', nota: `na hora: pede a ${juntar(c.map((a) => a.nome), 'ou')}`, falta: '' } : { ok: 'nao', nota: 'ninguém com esse poder na batalha', falta: `um aliado com ${r.poder} na batalha` };
+    }
+    case 'H1': {
+      const m = (est.mods && est.mods[r.atr]) || 0;
+      return { ok: 'hora', nota: `na hora: 1d20 ${m >= 0 ? '+' : '−'} ${Math.abs(m)} contra ${r.n}`, falta: '' };
+    }
+    case 'J1':
+      return { ok: 'hora', nota: 'na hora: quem usa marca «Cumpriu?»', falta: '' };
+    default:
+      return { ok: 'nc', nota: 'o protótipo não confere este tipo (o app confere)', falta: '' };
+  }
+}
+function avaliarReq(req, est, tec, falhou) {
+  const gs = req.grupos.map((g, gi) => {
+    const its = g.itens.map((r, ii) => {
+      const k = gi + '.' + ii;
+      const a = avaliar(r, est, tec);
+      if (falhou && falhou[k]) a.ok = 'nao', a.falta = `${r.atr} (falhou nesta vez)`;
+      return { r, gi, ii, k, a };
+    });
+    const passa = (x) => x.a.ok !== 'nao';
+    const ok = !its.length || (g.modo === 'todos' ? its.every(passa) : its.some(passa));
+    return { g, its, ok };
+  });
+  return { gs, ok: gs.every((x) => x.ok) };
+}
+function faltaTexto(av) {
+  const partes = [];
+  for (const x of av.gs) {
+    if (x.ok) continue;
+    if (x.g.modo === 'todos' || x.its.length === 1) x.its.filter((i) => i.a.ok === 'nao').forEach((i) => partes.push(i.a.falta));
+    else partes.push('um destes: ' + juntar(x.its.map((i) => i.a.falta), 'ou'));
+  }
+  return partes.join('; ');
+}
+function horaTexto(av) {
+  const partes = [];
+  for (const x of av.gs) {
+    const comHora = x.its.some((i) => i.a.ok === 'hora');
+    if (!comHora) continue;
+    if (x.g.modo === 'todos') x.its.filter((i) => i.a.ok === 'hora').forEach((i) => partes.push(horaCurta(i.r)));
+    else partes.push(juntar(x.its.filter((i) => i.a.ok !== 'nao').map((i) => (i.a.ok === 'hora' ? horaCurta(i.r) : TIPOS[i.r.tipo].texto(i.r))), 'ou'));
+  }
+  return partes.join('; ');
+}
+
+/* ==========================================================================
+ * AS TÉCNICAS de cada tela (as tiras do menu).
+ * ========================================================================== */
+function tecsDoVagn(s) {
+  const pol = s.est.contadores.Polaridade;
+  const campo = s.est.contadores['Campo de Contenção'];
+  return {
+    atacar: { chave: 'atacar', nome: 'Atacar', lado: String(50 + 10 * pol), custo: 0, acao: 'Simples', dano: `Força 50 + Polaridade ${pol} (+${10 * pol}) = ${50 + 10 * pol}`, chips: [['vazado', 'Simples'], ['dano', String(50 + 10 * pol)]] },
+    projecao: { chave: 'projecao', nome: 'Projeção Letal', lado: '20 SP', custo: 20, acao: 'Simples', dano: `Espírito + 20 = 55, mais ${10 * pol} da Polaridade; em linha reta`, chips: [['vazado', 'Simples'], ['dano', String(55 + 10 * pol)], ['', 'Linha reta']] },
+    chuva: { chave: 'chuva', nome: 'Chuva', lado: '40 SP', custo: 40, req: 'chuva', contador: true, acao: 'Completa', dano: `Espírito + 30 = 65, mais ${10 * pol} da Polaridade; área de 2 casas`, chips: [['vazado', 'Completa'], ['dano', String(65 + 10 * pol)], ['', 'Área de 2 casas'], ['req', 'Polaridade 2']] },
+    campo: { chave: 'campo', nome: 'Campo de Contenção', lado: campo ? 'Ligado' : '15 SP', custo: campo ? 0 : 15, acao: 'Completa e mantém', dano: 'Sem dano. Quem tem metal não ataca; quem veste armadura fica paralisado.', det: campo ? `Ligado no nível ${campo} (15 SP por turno). Use de novo para desligar.` : 'Liga no nível 1 e mantém pagando 15 SP por turno.', chips: [['vazado', 'Completa'], ['', '15 SP por turno']],
+      aoUsar: (st) => { const c = st.est.contadores; if (c['Campo de Contenção']) { c['Campo de Contenção'] = 0; return 'Desligou o Campo de Contenção.'; } c['Campo de Contenção'] = 1; return 'Ligou o Campo de Contenção no nível 1.'; } },
+    carregar: { chave: 'carregar', nome: 'Carregar Polaridade', lado: 'Reação', custo: 0, contador: true, acao: 'Reação (gasta a reação)', dano: '+1 de Polaridade, até 3. Cada nível soma +10 de dano em todo golpe do Vagn.', req: { grupos: [{ id: 'gc', modo: 'todos', itens: [{ id: 'rc', tipo: 'A7', gasta: true }] }] },
+      bloqueio: (st) => (st.est.contadores.Polaridade >= 3 ? 'Polaridade já no máximo (3/3)' : null), chips: [['vazado', 'Reação'], ['', '+1 Polaridade']],
+      aoUsar: (st) => { st.est.contadores.Polaridade += 1; S.entrar.add('pol'); return `Polaridade ${st.est.contadores.Polaridade}/3.`; } },
+    armadura: { chave: 'armadura', nome: 'Armadura Humana LVL 1', lado: '25 SP', custo: 25, req: 'armadura', acao: 'Completa', dano: 'Defender: −10% de dano. Atacar: toma tudo e devolve o dano ÷ 7.', chips: [['vazado', 'Completa'], ['req', 'Pede 30 SP']] },
+    atracao: { chave: 'atracao', nome: 'Atração Relâmpago', lado: '15 SP', custo: 15, req: 'atracao', acao: 'Simples', dano: 'Sem dano: o alvo testa Força, é puxado e fica vulnerável no próximo turno.', chips: [['vazado', 'Simples'], ['req', 'Personalizado']] },
+  };
+}
+const TECS = {
+  sieg(s) {
+    const forc = s.metade ? 23 : 46;
+    const esp = s.metade ? 17 : 35;
+    const atacar = { chave: 'atacar', nome: 'Atacar', lado: String(forc + 5), custo: 0, acao: 'Simples', dano: `Força ${forc} + Balmung 5 = ${forc + 5}`, chips: [['vazado', 'Simples'], ['dano', String(forc + 5)]] };
+    const caca = { chave: 'caca', nome: 'CAÇA AS BRUXAS!', lado: '35 SP', custo: 35, acao: 'Completa', dano: `Espírito ${esp} + 15 + 20 de fogo = ${esp + 35}; até 10 casas`, chips: [['vazado', 'Completa'], ['dano', String(esp + 35)], ['', 'Até 10 casas'], s.fase === 'usada' ? ['', 'Já evoluiu'] : ['evolui', 'Evolui']] };
+    const sup = { chave: 'caca', super: true, nome: 'SUPER CAÇA AS BRUXAS!', lado: 'Overload', custo: 0, acao: 'Overload', dano: '(Força 46 + Espírito 35) + 100 + 30 de fogo = 211', efeito: 'Perfurante. 1 vez na batalha; quem usa perde metade dos status.', det: 'Vale até usar uma vez; depois volta a ser CAÇA AS BRUXAS!', gasto: 'metade dos status (Overload)', chips: [['over', 'Overload'], ['dano', '211'], ['vazado', 'Perfurante'], ['', '1 vez na batalha'], ['', 'Perde metade dos status']],
+      aoUsar: (st) => { st.fase = 'usada'; st.metade = true; st.sel = 'evo'; return 'Perdeu metade dos status (Força 46 → 23, Espírito 35 → 17). CAÇA AS BRUXAS! voltou ao menu.'; } };
+    const evo = { chave: 'evo', evo: true, base: 'CAÇA AS BRUXAS!', nome: 'SUPER CAÇA AS BRUXAS!', lado: 'Evoluir', custo: 0, req: 'caca', modo: 'evoluir', acao: 'Evolução', dano: 'A CAÇA AS BRUXAS! vira a SUPER (211, Overload) até ser usada uma vez.', det: 'Pronta para evoluir.',
+      bloqueio: (st) => (st.fase === 'usada' ? 'já evoluiu nesta batalha (a SUPER é Overload: 1 vez)' : null),
+      aoUsar: (st) => { st.fase = 'super'; st.sel = 'caca'; S.entrar.add('evoluiu'); return ''; } };
+    const balmung = { chave: 'balmung', nome: 'Balmung: Lua Incandescente', lado: '30 SP', custo: 30, acao: 'Simples', dano: `(Força + 20) + arma = ${forc + 25}, dividido entre até 3 em linha`, chips: [['vazado', 'Simples'], ['dano', String(forc + 25)], ['', 'Até 3 em linha']] };
+    const gram = { chave: 'gram', nome: 'Gram: Alvorada', lado: '20 SP', custo: 20, acao: 'Simples', dano: `(Força + 10) + arma = ${forc + 18}; joga o alvo para cima`, chips: [['vazado', 'Simples'], ['dano', String(forc + 18)], ['', 'Queimadura']] };
+    return s.fase === 'super' ? [atacar, sup, balmung, gram] : [atacar, caca, evo, balmung, gram];
+  },
+  vagn(s) { const t = tecsDoVagn(s); return [t.atacar, t.projecao, t.chuva, t.campo, t.carregar]; },
+  pedido(s) { const t = tecsDoVagn(s); return [t.armadura, t.projecao, t.chuva]; },
+  cumpriu(s) { const t = tecsDoVagn(s); return [t.atracao, t.projecao, t.campo]; },
+  ryoko(s) {
+    const p = s.est.forma ? s.est.forma.parte : 0;
+    const chute = [105, 120, 125, 145][p];
+    const chifres = [110, 125, 130, 150][p];
+    const fissura = [210, 210, 215, 235][p];
+    const sobe = p === 0 ? 'Só na Forma Híbrida' : p < 3 ? `Sobe: Parte ${p} → ${p + 1}` : 'Parte 3 é a última';
+    return [
+      { chave: 'chute', nome: 'Chute do Dragão', lado: '10 SP', custo: 10, acao: 'Simples', dano: `Força + 20 + 25 de queimadura = ${chute}`, chips: [['vazado', 'Simples'], ['dano', String(chute)]] },
+      { chave: 'chifres', nome: 'Golpe de Chifres', lado: '35 SP', custo: 35, acao: 'Completa', dano: `Força + 50, perfura = ${chifres}`, chips: [['vazado', 'Completa'], ['dano', String(chifres)], ['vazado', 'Perfurante']] },
+      { chave: 'sopro', nome: 'Sopro do Dragão', lado: '30 SP', custo: 30, acao: 'Completa', dano: 'Espírito + 45 = 80, perfura 50%, vários alvos', chips: [['vazado', 'Completa'], ['dano', '80']] },
+      { chave: 'furia', nome: 'Fúria do Dragão', forma: true, lado: '0 SP', custo: 0, req: 'furia', acao: 'Completa', dano: 'Sem dano: sobe a Forma Híbrida uma Parte.', chips: [['vazado', 'Completa'], ['forma', sobe]],
+        aoUsar: (st) => { const q = st.est.forma ? st.est.forma.parte : 0; return q === 2 ? 'Agora mantém 10 SP por turno.' : q === 3 ? 'Agora mantém 20 SP por turno.' : ''; } },
+      { chave: 'fissura', nome: 'Grande Fissura', lado: '65 SP', custo: 65, req: { grupos: [{ id: 'gf', modo: 'todos', itens: [{ id: 'rf', tipo: 'B3', forma: 'Forma Híbrida' }] }] }, acao: 'Overload', dano: `(Força + Espírito) + 100 = ${fissura}`, chips: [['over', 'Overload'], ['dano', String(fissura)], ['', '1 vez na batalha']] },
+    ];
+  },
+  teste() {
+    return [
+      { chave: 'atacar', nome: 'Atacar', lado: '55', custo: 0, acao: 'Simples', dano: 'Percepção 35 + Rosa Fúnebre 20 = 55', chips: [['vazado', 'Simples'], ['dano', '55'], ['', 'De fogo']] },
+      { chave: 'desenhar', nome: 'Desenhar o Alvo', lado: '30 SP', custo: 30, req: 'desenhar', acao: 'Simples', dano: 'Marca o alvo. Dano Perfurante: bala + arma + Percepção.', chips: [['vazado', 'Simples'], ['', 'Debuff'], ['req', 'Teste ou 30 SP']] },
+      { chave: 'valsa', nome: 'Passo de Valsa', lado: 'Reação', custo: 35, acao: 'Reação', dano: 'Contra ataque corpo a corpo: esquiva e marca quem atacou.', bloqueio: () => 'só como reação, na caixa REAÇÃO', chips: [['vazado', 'Reação']] },
+    ];
+  },
+};
+const tecsDe = (tela) => TECS[tela](S[tela]);
+const tecPorChave = (tela, chave) => tecsDe(tela).find((t) => t.chave === chave);
+function reqDe(t) {
+  if (!t || !t.req) return null;
+  if (typeof t.req === 'string') { const ex = exemplo(t.req); return ex ? ex.req : null; }
+  return t.req;
+}
+function estadoDaTec(tela, t) {
+  const s = S[tela];
+  const faltas = [];
+  if (t.custo && s.est.sp < t.custo) faltas.push(`${t.custo} SP (tem ${s.est.sp})`);
+  const b = t.bloqueio ? t.bloqueio(s) : null;
+  if (b) faltas.push(b);
+  const req = reqDe(t);
+  const av = req ? avaliarReq(req, s.est, t, s.falhouNestaVez) : null;
+  if (av && !av.ok) faltas.push(faltaTexto(av));
+  return { pode: !faltas.length, falta: faltas.join('; '), av, req };
+}
+
+/* ==========================================================================
+ * USAR: o que é automático sai na hora; o resto vira a resolução no papel
+ * (escolher um caminho, pedir ao aliado, rolar o d20, marcar «Cumpriu?»).
+ * ========================================================================== */
+function precisaResolver(av) {
+  return av.gs.some((x) => (x.g.modo === 'todos' ? x.its.some((i) => i.a.ok === 'hora') : x.its.some((i) => i.a.ok === 'hora') || x.its.filter((i) => i.a.ok !== 'nao').length > 1));
+}
+function novoRv(tela, t, modo) {
+  const e = estadoDaTec(tela, t);
+  const rv = { chave: t.chave, modo: modo || t.modo || 'usar', esc: {}, feito: {}, aliado: {}, recusou: {}, pedido: null, rol: {}, caixa: {}, msg: null };
+  if (e.av) e.av.gs.forEach((x, gi) => { if (x.g.modo === 'um') { const it = x.its.find((i) => i.a.ok !== 'nao'); if (it) rv.esc[gi] = it.k; } });
+  return rv;
+}
+function necessarios(rv, av) {
+  const out = [];
+  av.gs.forEach((x, gi) => {
+    if (x.g.modo === 'todos' || x.its.length === 1) out.push(...x.its);
+    else { const it = x.its.find((i) => i.k === rv.esc[gi]); if (it) out.push(it); }
+  });
+  return out;
+}
+function avDoRv(tela, t) { const s = S[tela]; return avaliarReq(reqDe(t), s.est, t, s.falhouNestaVez); }
+const passoAtual = (rv, av) => necessarios(rv, av).find((i) => i.a.ok === 'hora' && !rv.feito[i.k]) || null;
+const oQue = (r) => (r.tipo === 'G1' ? `${r.n} ${r.rec}` : `ajuda com ${r.poder}`);
+
+function usar(tela, chave) {
+  const s = S[tela];
+  const t = tecPorChave(tela, chave);
+  if (!t) return;
+  const e = estadoDaTec(tela, t);
+  if (!e.pode) return;
+  s.sel = chave;
+  s.ultimo = null;
+  if (e.av && precisaResolver(e.av)) {
+    s.rv = novoRv(tela, t);
+    const p = passoAtual(s.rv, e.av);
+    if (p && p.r.tipo === 'J1') S.entrar.add('caixa');
+    render();
+    focarLeitura(tela);
+    return;
+  }
+  concluir(tela, t, null, false);
+}
+function cancelarRv(tela) {
+  const s = S[tela];
+  if (!s.rv) return;
+  if (s.rv.pedido && s.rv.pedido.status === 'esperando') {
+    if (s.aliadoTela) s.aliadoTela.status = 'cancelado';
+    s.reg.unshift({ id: uid('l'), texto: `${s.est.nome} cancelou o pedido a ${s.rv.pedido.a}.` });
+  }
+  s.rv = null;
+}
+function continuar(tela) {
+  const s = S[tela];
+  const t = tecPorChave(tela, s.rv.chave);
+  if (!passoAtual(s.rv, avDoRv(tela, t))) { concluir(tela, t, s.rv, false); return; }
+  render();
+}
+function gastosTexto(tela, t, rv) {
+  const s = S[tela];
+  let sp = t.custo || 0;
+  const g = [];
+  const ef = [];
+  const req = reqDe(t);
+  if (req) {
+    const av = avDoRv(tela, t);
+    for (const i of necessarios(rv || novoRv(tela, t), av)) {
+      const r = i.r;
+      if (r.tipo === 'A1' && r.gasta) sp += Number(r.n);
+      if (r.tipo === 'A4' && r.gasta) g.push(`${r.n} de ${r.cont}`);
+      if (r.tipo === 'A7' && r.gasta) g.push('a reação');
+      if (r.tipo === 'I1') ef.push(`sobe a ${r.forma} para a Parte ${s.est.forma ? s.est.forma.parte + 1 : 1}`);
+    }
+  }
+  if (sp) g.unshift(`${sp} SP`);
+  if (t.gasto) g.push(t.gasto);
+  /* subir a forma é efeito, não custo: vai numa frase à parte */
+  return (g.length ? 'Gasta ' + juntar(g, 'e') + '.' : 'Não gasta nada.') + (ef.length ? ' ' + cap(ef.join('; ')) + '.' : '');
+}
+function concluir(tela, t, rv, porMestre) {
+  const s = S[tela];
+  const est = s.est;
+  const gastos = [];
+  const efeitos = [];
+  const inverso = { sp: 0, cont: {} };
+  let decl = null;
+  let ajuda = null;
+  let rol = null;
+  let spReq = 0;
+  const req = reqDe(t);
+  if (req && !porMestre) {
+    const rvx = rv || novoRv(tela, t);
+    for (const i of necessarios(rvx, avDoRv(tela, t))) {
+      const r = i.r;
+      if (r.tipo === 'A1' && r.gasta) { est.sp -= Number(r.n); inverso.sp += Number(r.n); spReq += Number(r.n); }
+      if (r.tipo === 'A4' && r.gasta) { est.contadores[r.cont] -= Number(r.n); inverso.cont[r.cont] = Number(r.n); gastos.push(`${r.n} de ${r.cont} (ficou ${est.contadores[r.cont]}${r.cont === 'Polaridade' ? '/3' : ''})`); }
+      if (r.tipo === 'A7' && r.gasta) { est.reacao = false; gastos.push('a reação'); }
+      if (r.tipo === 'I1') { const de = est.forma.parte; est.forma.parte = Math.min(de + 1, Number(r.n)); efeitos.push(`${r.forma} Parte ${de} → Parte ${est.forma.parte}`); S.entrar.add('parte'); }
+      if (r.tipo === 'J1') decl = r.texto;
+      if ((r.tipo === 'G1' || r.tipo === 'G2') && rvx.pedido && rvx.pedido.k === i.k) ajuda = r.tipo === 'G1' ? `recebeu ${oQue(r)} de ${rvx.pedido.a}` : `com a ajuda de ${rvx.pedido.a}`;
+      if (r.tipo === 'H1' && rvx.rol[i.k]) rol = rvx.rol[i.k];
+    }
+  }
+  let sp = spReq;
+  if (t.custo) { const pago = Math.min(t.custo, est.sp); est.sp -= pago; inverso.sp += pago; sp += pago; }
+  if (sp) gastos.unshift(`${sp} SP`);
+  const extra = t.aoUsar ? t.aoUsar(s) : '';
+  let txt = t.modo === 'evoluir' ? `${est.nome} evoluiu ${t.base} para ${t.nome}` : `${est.nome} usou ${t.nome}`;
+  const det = [];
+  if (rol) det.push(`passou em ${rol.atr} (${rol.total} contra CD ${rol.cd})`);
+  if (ajuda) det.push(ajuda);
+  if (gastos.length) det.push('gastou ' + juntar(gastos, 'e'));
+  if (efeitos.length) det.push(efeitos.join(', '));
+  /* nome que já termina em "!" (CAÇA AS BRUXAS!) não leva dois-pontos: vira frase nova */
+  if (det.length) txt += /[!?]$/.test(txt) ? ' ' + cap(det.join('; ')) : ': ' + det.join('; ');
+  txt = fim(txt);
+  if (extra) txt += ' ' + extra;
+  if (porMestre) txt += ' O mestre liberou sem os requisitos.';
+  s.reg.unshift({ id: uid('l'), texto: txt, quem: porMestre ? 'liberado pelo mestre' : '', decl, inverso, desfeita: false });
+  s.rv = null;
+  s.ultimo = { chave: s.sel, texto: txt, rol };
+  render();
+}
+
+/* ---------------------------------------------------------------- os passos da hora */
+function pedir(tela) {
+  const s = S[tela];
+  const t = tecPorChave(tela, s.rv.chave);
+  const p = passoAtual(s.rv, avDoRv(tela, t));
+  if (!p) return;
+  const cands = candidatos(p.r, s.est);
+  const nome = s.rv.aliado[p.k] || (cands.find((a) => !s.rv.recusou[a.nome]) || cands[0]).nome;
+  const a = s.est.aliados.find((x) => x.nome === nome);
+  s.rv.pedido = { k: p.k, a: nome, status: 'esperando' };
+  s.rv.msg = null;
+  s.aliadoTela = { quem: nome, papel: a.papel, status: 'esperando', o: oQue(p.r), para: t.nome, tipo: p.r.tipo, n: Number(p.r.n), rec: p.r.rec };
+  s.reg.unshift({ id: uid('l'), texto: `${s.est.nome} pediu ${oQue(p.r)} a ${nome}${a.papel === 'NPC' ? ' (NPC: o mestre responde)' : ''}.` });
+  S.entrar.add('pedido');
+  render();
+}
+function responder(tela, sim) {
+  const s = S[tela];
+  const rv = s.rv;
+  if (!rv || !rv.pedido || rv.pedido.status !== 'esperando') return;
+  const t = tecPorChave(tela, rv.chave);
+  const it = avDoRv(tela, t).gs.flatMap((x) => x.its).find((i) => i.k === rv.pedido.k);
+  const a = s.est.aliados.find((x) => x.nome === rv.pedido.a);
+  const quemResponde = a.papel === 'NPC' ? `O mestre, pelo ${a.nome},` : a.nome;
+  if (sim) {
+    if (it.r.tipo === 'G1') {
+      const chave = String(it.r.rec).toLowerCase();
+      a[chave] -= Number(it.r.n);
+      if (chave === 'sp') s.est.sp += Number(it.r.n);
+      s.reg.unshift({ id: uid('l'), texto: `${quemResponde} aceitou: deu ${oQue(it.r)} ao ${s.est.nome}.` });
+    } else {
+      s.reg.unshift({ id: uid('l'), texto: `${quemResponde} aceitou ajudar ${s.est.nome} (${it.r.poder}).` });
+    }
+    rv.pedido.status = 'aceito';
+    rv.feito[rv.pedido.k] = true;
+    if (s.aliadoTela) s.aliadoTela.status = 'aceito';
+    continuar(tela);
+    return;
+  }
+  rv.pedido.status = 'recusado';
+  rv.recusou[a.nome] = true;
+  const outros = candidatos(it.r, s.est).some((x) => !rv.recusou[x.nome]);
+  const grupo = avDoRv(tela, t).gs[it.gi];
+  const outroCaminho = grupo.g.modo === 'um' && grupo.its.some((i) => i.k !== it.k && i.a.ok !== 'nao');
+  rv.msg = `${a.nome} recusou.` + (outros ? ' Peça a outro aliado.' : '') + (outroCaminho ? ' Ou escolha o outro caminho.' : '') + (!outros && !outroCaminho ? ' Ninguém mais pode: volte e escolha outra técnica.' : '');
+  if (s.aliadoTela) s.aliadoTela.status = 'recusado';
+  s.reg.unshift({ id: uid('l'), texto: `${quemResponde} recusou o pedido de ${s.est.nome}.` });
+  render();
+}
+function rolar(tela) {
+  const s = S[tela];
+  const rv = s.rv;
+  const t = tecPorChave(tela, rv.chave);
+  const av = avDoRv(tela, t);
+  const p = passoAtual(rv, av);
+  if (!p || p.r.tipo !== 'H1') return;
+  const d = s.d20 ? s.d20[s.d20i++ % s.d20.length] : 1 + Math.floor(Math.random() * 20);
+  const m = (s.est.mods && s.est.mods[p.r.atr]) || 0;
+  const total = d + m;
+  const ok = total >= Number(p.r.n);
+  rv.rol[p.k] = { d, m, total, cd: Number(p.r.n), atr: p.r.atr, ok };
+  S.entrar.add('dado');
+  if (ok) { rv.feito[p.k] = true; continuar(tela); return; }
+  if (p.r.falha === 'perde a ação') {
+    s.reg.unshift({ id: uid('l'), texto: `${s.est.nome} falhou em ${p.r.atr} (${total} contra CD ${p.r.n}) e perdeu a ação.` });
+    s.rv = null;
+    s.ultimo = { chave: t.chave, texto: 'Falhou: perdeu a ação.', rol: rv.rol[p.k], falhou: true };
+    render();
+    return;
+  }
+  if (s.falhouNestaVez) s.falhouNestaVez[p.k] = true;
+  s.reg.unshift({ id: uid('l'), texto: `${s.est.nome} falhou em ${p.r.atr} (${total} contra CD ${p.r.n}); não perdeu a ação.` });
+  const grupo = av.gs[p.gi];
+  const outro = grupo.g.modo === 'um' ? grupo.its.find((i) => i.k !== p.k && i.a.ok !== 'nao') : null;
+  if (outro) { rv.esc[p.gi] = outro.k; rv.msg = `Falhou (${total} contra ${p.r.n}). Não perde a ação: pode ${TIPOS[outro.r.tipo].texto(outro.r)} no lugar.`; }
+  else rv.msg = `Falhou (${total} contra ${p.r.n}). Não perde a ação, mas não dá para usar agora.`;
+  render();
+}
+
+/* ==========================================================================
+ * DESENHAR: o menu de tiras, a leitura em papel, o registro e a mesa.
+ * ========================================================================== */
+const chip = ([k, txt]) => `<span class="bt-etq${k ? ' bt-etq--' + k : ''}">${esc(txt)}</span>`;
+const pip = (txt, gasto, extra) => `<span class="bt-pip${extra ? ' ' + extra : ''}"${gasto ? ' data-gasto="sim"' : ''}>${esc(txt)}</span>`;
+
+function cabecaHTML(tela) {
+  const s = S[tela];
+  const est = s.est;
+  const pips = [pip('Completa'), pip('Simples'), pip('Movimento'), pip('Reação', !est.reacao), pip(`SP ${est.sp}`)];
+  if (tela === 'sieg') {
+    if (s.melodia) pips.push(pip(s.caminho ? 'Melodia: Caminho do Dano' : 'Melodia ligada', false, 'bt-pip--carga'));
+    if (s.metade) pips.push(pip('Status pela metade', false, 'bt-pip--alerta'));
+  }
+  if (['vagn', 'pedido', 'cumpriu'].includes(tela)) {
+    pips.push(pip(`Polaridade ${est.contadores.Polaridade}/3`, false, 'bt-pip--carga'));
+    if (est.contadores['Campo de Contenção']) pips.push(pip(`Campo nível ${est.contadores['Campo de Contenção']}`, false, 'bt-pip--carga'));
+  }
+  if (tela === 'ryoko' && est.forma) {
+    pips.push(pip(`Forma Híbrida · Parte ${est.forma.parte}`, false, 'bt-pip--forma'));
+    if (est.forma.parte > 1) pips.push(pip(`Mantém ${est.forma.parte === 2 ? 10 : 20} SP por turno`, false, 'bt-pip--forma'));
+  }
+  return `<div class="bt-vez__cabeca"><h2 class="bt-vez__quem">${esc(est.nome)}</h2><div class="bt-vez__economia">${pips.join('')}</div></div>`;
+}
+function segsHTML(v, max, novo, cor) {
+  let h = '';
+  for (let i = 0; i < max; i += 1) h += `<span class="cont__seg"${i < v ? ' data-cheio' : ''}${novo && i === v - 1 ? ' data-novo' : ''}${cor ? ` style="--c:${cor}"` : ''}></span>`;
+  return `<span class="cont__segs" style="--n:${max}">${h}</span>`;
+}
+function partesHTML(s) {
+  const p = s.est.forma ? s.est.forma.parte : 0;
+  return `<div class="partes cont--escuro" role="img" aria-label="${p ? `Forma Híbrida, Parte ${p} de 3` : 'Fora da Forma Híbrida'}"><span class="partes__txt">Forma Híbrida</span>${segsHTML(p, 3, S.entrar.has('parte'), 'var(--bt-forma)')}<span class="partes__txt">${p ? `Parte ${p}` : 'Fora'}</span></div>`;
+}
+function tiraHTML(tela, t, i) {
+  const s = S[tela];
+  const e = estadoDaTec(tela, t);
+  const sem = sementeDe(tela + ':' + t.chave + (t.super ? ':s' : ''));
+  const estilo = `--giro:${GIROS[i % GIROS.length]}deg;--rasgo:${rasgo(sem)};--rasgo2:${rasgo(sem + 101, 5)}`;
+  let det = '';
+  if (!e.pode) det = esc('Falta: ' + e.falta);
+  else if (s.rv && s.rv.chave === t.chave && s.rv.pedido && s.rv.pedido.status === 'esperando') det = `<span class="espera"><span class="espera__ponto" aria-hidden="true"></span>Esperando ${esc(s.rv.pedido.a)} responder…</span>`;
+  else if (t.det) det = esc(t.det + (e.av && horaTexto(e.av) ? ' Na hora: ' + horaTexto(e.av) + '.' : ''));
+  else if (e.av && horaTexto(e.av)) det = esc('Na hora: ' + horaTexto(e.av) + '.');
+  const cls = ['bt-tira', t.evo ? 'bt-tira--evo bt-tira--pequena' : '', t.super ? 'bt-tira--super' : '', t.forma ? 'bt-tira--forma' : ''].filter(Boolean).join(' ');
+  const evoluiu = t.super && S.entrar.has('evoluiu');
+  return `<button type="button" class="${cls}" style="${estilo}" data-acao="tira" data-tela="${tela}" data-sel="${t.chave}" data-k="tira-${tela}-${t.chave}" data-esta="${s.sel === t.chave ? 'sim' : 'nao'}"${e.pode ? '' : ' aria-disabled="true"'} aria-keyshortcuts="${i + 1}"${evoluiu ? ' data-evoluiu' : ''}>`
+    + (evoluiu ? '<span class="bt-tira__brilho" aria-hidden="true"></span>' : '')
+    + `<span class="bt-tira__tecla" aria-hidden="true">${i + 1}</span><span class="bt-tira__nome">${esc(t.nome)}</span><span class="bt-tira__lado">${esc(t.lado)}</span>`
+    + (det ? `<span class="bt-tira__det">${det}</span>` : '')
+    + (t.chips && t.chips.length ? `<span class="bt-tira__chips">${t.chips.map(chip).join('')}</span>` : '')
+    + '</button>';
+}
+function menuHTML(tela, tecs) {
+  return `<div class="bt-vez">${cabecaHTML(tela)}${tela === 'ryoko' ? partesHTML(S.ryoko) : ''}<ul class="bt-vez__tiras" aria-label="Técnicas de ${esc(S[tela].est.nome)}">${tecs.map((t, i) => `<li>${tiraHTML(tela, t, i)}</li>`).join('')}</ul>`
+    + `<p class="bt-vez__dica"><kbd>↑</kbd> <kbd>↓</kbd> escolhe · <kbd>1</kbd>–<kbd>${tecs.length}</kbd> usa · a tira cinza mostra o que falta</p></div>`;
+}
+
+/* ---------------------------------------------------------------- a leitura em papel */
+function itemCk(i, feito) {
+  const ok = feito ? 'sim' : i.a.ok;
+  const marca = { sim: 'check', nao: 'x', hora: 'hora', nc: 'nc' }[ok];
+  const nota = feito ? 'feito' : ok === 'nao' ? 'falta: ' + i.a.falta : i.a.nota;
+  return `<li class="rq-ck__it" data-ok="${ok}">${ic(marca)}<span>${esc(cap(TIPOS[i.r.tipo].texto(i.r)))}${nota ? `<small>${esc(nota)}</small>` : ''}</span></li>`;
+}
+function checklistHTML(e, t) {
+  const tit = t.modo === 'evoluir' ? `Para evoluir (vira ${t.nome} até usar uma vez)` : 'Requisitos';
+  let h = `<div class="rq-ck"><p class="rq-k">${esc(tit)}</p>`;
+  e.av.gs.forEach((x, gi) => {
+    if (!x.its.length) return;
+    const nome = x.g.modo === 'todos' ? (gi ? 'E também todos estes' : 'Todos estes') : (gi ? 'E também um destes' : 'Um destes');
+    h += `<div class="rq-ck__gr"><div class="rq-ck__cab"><span class="rq-k">${nome}</span><span class="rq-ck__est" data-ok="${x.ok ? 'sim' : 'nao'}">${x.ok ? 'Cumprido' : 'Falta'}</span></div><ul class="rq-ck__gr">${x.its.map((i) => itemCk(i, false)).join('')}</ul></div>`;
+  });
+  return h + '</div>';
+}
+function dadoHTML(rol) {
+  return `<div class="dado" data-ok="${rol.ok ? 'sim' : 'nao'}"${S.entrar.has('dado') ? ' data-entra' : ''}><span class="dado__face" aria-hidden="true">${rol.d}</span><span class="dado__txt"><b>${rol.ok ? 'Passou' : 'Falhou'}</b><span>1d20 (${rol.d}) ${rol.m >= 0 ? '+' : '−'} ${Math.abs(rol.m)} de ${esc(rol.atr)} = ${rol.total} contra CD ${rol.cd}</span></span></div>`;
+}
+function contadorHTML(est) {
+  const v = est.contadores.Polaridade;
+  return `<div class="cont" role="img" aria-label="Polaridade ${v} de 3"><div class="cont__lin"><span class="cont__nome">Polaridade</span><span class="cont__n">${v}/3</span></div>${segsHTML(v, 3, S.entrar.has('pol'))}</div>`;
+}
+function leituraHTML(tela) {
+  const s = S[tela];
+  const t = tecPorChave(tela, s.sel);
+  if (!t) return '';
+  if (s.rv && s.rv.chave === t.chave) return resolverHTML(tela, t);
+  const e = estadoDaTec(tela, t);
+  let h = `<section class="bt-detalhe" aria-label="Leitura: ${esc(t.nome)}"><h3 class="bt-detalhe__nome"><span>${esc(t.nome)}</span><span class="bt-detalhe__custo">${esc(t.lado)}</span></h3>`;
+  if (s.ultimo && s.ultimo.chave === t.chave) h += (s.ultimo.rol ? dadoHTML(s.ultimo.rol) : '') + `<p class="rv__msg"${s.ultimo.falhou ? '' : ' data-tom="ok"'} style="margin:8px 0 10px">${esc(s.ultimo.texto)}</p>`;
+  h += `<dl><div><dt>Ação</dt><dd>${esc(t.acao)}</dd></div><div><dt>${t.modo === 'evoluir' ? 'O que faz' : 'Dano e efeito'}</dt><dd>${esc(t.dano)}</dd></div>${t.efeito ? `<div><dt>Efeito</dt><dd>${esc(t.efeito)}</dd></div>` : ''}</dl>`;
+  if (t.contador) h += '<div class="bt-detalhe__sep"></div>' + contadorHTML(s.est);
+  if (e.req && e.av) h += '<div class="bt-detalhe__sep"></div>' + checklistHTML(e, t);
+  h += '<div class="acoes">';
+  const rot = t.modo === 'evoluir' ? 'Evoluir' : t.chave === 'campo' && s.est.contadores['Campo de Contenção'] ? 'Desligar' : 'Usar';
+  if (e.pode) {
+    h += `<button type="button" class="bt-carimbo" data-acao="usar" data-tela="${tela}" data-chave="${t.chave}" data-k="usar-${tela}">${rot}</button><span class="mestre-nota" style="flex-basis:auto">${esc(gastosTexto(tela, t))}</span>`;
+  } else {
+    h += `<button type="button" class="bt-carimbo" disabled>${rot}</button><p class="acoes__por-que">${esc('Falta: ' + e.falta)}</p>`;
+    if (S.ver === 'mestre') h += `<button type="button" class="bt-carimbo bt-carimbo--latao" data-acao="mestre-usar" data-tela="${tela}" data-chave="${t.chave}" data-k="mestre-${tela}">${t.modo === 'evoluir' ? 'Evoluir' : 'Usar'} mesmo assim</button><p class="mestre-nota">Só o mestre vê este botão. O registro anota que foi liberado.</p>`;
+    else h += '<p class="mestre-nota">O mestre pode liberar mesmo assim (no protótipo: “Ver como” Mestre, lá em cima).</p>';
+  }
+  return h + '</div></section>';
+}
+function resolverHTML(tela, t) {
+  const s = S[tela];
+  const rv = s.rv;
+  const av = avDoRv(tela, t);
+  const p = passoAtual(rv, av);
+  let h = `<section class="bt-detalhe" aria-label="Para ${rv.modo === 'evoluir' ? 'evoluir' : 'usar'}: ${esc(t.nome)}"><h3 class="bt-detalhe__nome"><span>${esc(t.nome)}</span><span class="bt-detalhe__custo">${rv.modo === 'evoluir' ? 'Evoluir' : esc(t.lado)}</span></h3><div class="rv">`;
+  av.gs.forEach((x, gi) => {
+    if (!x.its.length) return;
+    if (x.g.modo === 'todos' || x.its.length === 1) {
+      h += `<div class="rv__passo"><p class="rq-k">${gi ? 'E também todos estes' : 'Todos estes'}</p><ul class="rq-ck__gr">${x.its.map((i) => itemCk(i, rv.feito[i.k])).join('')}</ul></div>`;
+      return;
+    }
+    h += `<fieldset class="rv__passo"><legend class="rq-k">Um destes: escolha um</legend>`;
+    for (const i of x.its) {
+      const des = i.a.ok === 'nao';
+      const nota = des ? 'Falta: ' + i.a.falta : i.a.ok === 'hora' ? i.a.nota : i.a.nota || CONFERE_LONGO[TIPOS[i.r.tipo].confere];
+      h += `<label class="rv__op"><input type="radio" name="esc-${tela}-${gi}" value="${i.k}" data-muda="rv-esc" data-tela="${tela}" data-g="${gi}" data-k="esc-${tela}-${i.k}"${rv.esc[gi] === i.k ? ' checked' : ''}${des ? ' disabled' : ''}${rv.esc[gi] === i.k ? ' data-foco' : ''}><span><b>${esc(cap(TIPOS[i.r.tipo].texto(i.r)))}</b><small>${esc(nota)}</small></span></label>`;
+    }
+    h += '</fieldset>';
+  });
+  if (p && (p.r.tipo === 'G1' || p.r.tipo === 'G2')) {
+    const cands = candidatos(p.r, s.est);
+    const esperando = rv.pedido && rv.pedido.status === 'esperando';
+    const atual = rv.aliado[p.k] || (cands.find((a) => !rv.recusou[a.nome]) || cands[0]).nome;
+    h += `<fieldset class="rv__passo"><legend class="rq-k">${p.r.tipo === 'G1' ? `Pedir ${esc(oQue(p.r))} a quem?` : `Quem tem ${esc(p.r.poder)}?`}</legend>`;
+    for (const a of cands) {
+      const nota = (a.papel === 'NPC' ? 'NPC: o mestre aceita por ele' : `${a.papel}: aceita na tela dele`) + (p.r.tipo === 'G1' ? ` · tem ${a[String(p.r.rec).toLowerCase()]} ${p.r.rec}` : '') + (rv.recusou[a.nome] ? ' · recusou' : '');
+      h += `<label class="rv__op"><input type="radio" name="al-${tela}" value="${esc(a.nome)}" data-muda="rv-aliado" data-tela="${tela}" data-kitem="${p.k}" data-k="al-${tela}-${esc(a.nome)}"${a.nome === atual ? ' checked' : ''}${esperando ? ' disabled' : ''}><span><b>${esc(a.nome)}</b><small>${esc(nota)}</small></span></label>`;
+    }
+    h += '</fieldset>';
+    if (esperando) h += `<p class="espera" role="status"><span class="espera__ponto" aria-hidden="true"></span>Esperando ${esc(rv.pedido.a)} responder${s.est.aliados.find((a) => a.nome === rv.pedido.a).papel === 'NPC' ? ' (na tela do mestre)' : ' na tela dele'}…</p>`;
+  }
+  if (p && p.r.tipo === 'H1' && rv.rol[p.k]) h += dadoHTML(rv.rol[p.k]);
+  const falhaH1 = Object.values(rv.rol).find((x) => !x.ok);
+  if (!p && falhaH1) h += dadoHTML(falhaH1);
+  if (rv.msg) h += `<p class="rv__msg">${esc(rv.msg)}</p>`;
+  let caixa = '';
+  h += '<div class="acoes" style="margin-top:0">';
+  const fazer = rv.modo === 'evoluir' ? 'Evoluir' : 'Usar';
+  if (!p) h += `<button type="button" class="bt-carimbo" data-acao="rv-ok" data-tela="${tela}" data-k="rvok-${tela}" data-foco>${fazer}</button><span class="mestre-nota" style="flex-basis:auto">${esc(gastosTexto(tela, t, rv))}</span>`;
+  else if (p.r.tipo === 'G1' || p.r.tipo === 'G2') {
+    if (rv.pedido && rv.pedido.status === 'esperando') h += `<button type="button" class="bt-carimbo" disabled>Esperando…</button><button type="button" class="bt-carimbo bt-carimbo--vazado" data-acao="rv-cancelar" data-tela="${tela}" data-k="rvcan-${tela}">Cancelar pedido</button>`;
+    else {
+      const cands = candidatos(p.r, s.est);
+      const atual = rv.aliado[p.k] || (cands.find((a) => !rv.recusou[a.nome]) || cands[0]).nome;
+      h += `<button type="button" class="bt-carimbo" data-acao="rv-pedir" data-tela="${tela}" data-k="rvped-${tela}" data-foco>Pedir a ${esc(atual)}</button>`;
+    }
+  } else if (p.r.tipo === 'H1') {
+    h += `<button type="button" class="bt-carimbo" data-acao="rv-rolar" data-tela="${tela}" data-k="rvrol-${tela}" data-foco>Rolar ${esc(p.r.atr)}</button><span class="mestre-nota" style="flex-basis:auto">${esc(p.a.nota.replace('na hora: ', ''))}</span>`;
+  } else if (p.r.tipo === 'J1') {
+    const marcado = !!rv.caixa[p.k];
+    caixa = `<section class="cumpriu" aria-labelledby="cumpriu-${tela}"${S.entrar.has('caixa') ? ' data-entra' : ''}><h3 class="cumpriu__tit" id="cumpriu-${tela}">Cumpriu?</h3><p class="cumpriu__nota">${esc(t.nome)} pede algo que o app não confere sozinho.</p>`
+      + `<label class="cumpriu__marca"><input type="checkbox" data-muda="rv-caixa" data-tela="${tela}" data-kitem="${p.k}" data-k="cx-${tela}" data-foco${marcado ? ' checked' : ''}><span>Cumpri: ${esc(p.r.texto)}</span></label>`
+      + '<p class="cumpriu__nota">O mestre vê no registro o que você declarou e pode desfazer.</p>'
+      + `<div class="acoes" style="margin-top:2px"><button type="button" class="bt-carimbo bt-carimbo--claro" data-acao="rv-ok" data-tela="${tela}" data-k="cxok-${tela}"${marcado ? '' : ' disabled'}>${fazer}</button><button type="button" class="bt-carimbo bt-carimbo--claro bt-carimbo--vazado" data-acao="rv-voltar" data-tela="${tela}">Voltar</button>${marcado ? '' : '<p class="cumpriu__falta">Marque a caixa para usar.</p>'}</div></section>`;
+  }
+  if (!p || p.r.tipo !== 'J1') h += `<button type="button" class="bt-carimbo bt-carimbo--vazado" data-acao="rv-voltar" data-tela="${tela}" data-k="rvvol-${tela}">Voltar</button>`;
+  h += '</div></div></section>';
+  return h + caixa;
+}
+
+/* ---------------------------------------------------------------- o registro e a mesa */
+function registroHTML(tela, titulo, mestre) {
+  const s = S[tela];
+  const linhas = s.reg.map((l) => {
+    const decl = l.decl ? ` <span class="bt-registro__decl">(declarou: ${esc(l.decl)})</span>` : '';
+    const quem = l.desfeita ? 'desfeito pelo mestre' : l.quem;
+    const bt = mestre && l.decl && !l.desfeita ? `<button type="button" class="bt bt--p" data-acao="desfazer" data-tela="${tela}" data-id="${l.id}" data-k="desf-${l.id}">Desfazer</button>` : '';
+    return `<li class="bt-registro__linha" data-desfeita="${l.desfeita ? 'sim' : 'nao'}"><span class="bt-registro__texto">${esc(l.texto)}${decl}${quem ? `<span class="bt-registro__quem">${esc(quem)}</span>` : ''}</span>${bt}</li>`;
+  }).join('');
+  return `<section class="painel" aria-label="${esc(titulo)}"><h3 class="painel__tit">${esc(titulo)}</h3>${linhas ? `<ol class="bt-registro">${linhas}</ol>` : '<p class="bt-registro__vazio">Nada ainda. Use uma técnica.</p>'}</section>`;
+}
+const mesa = (corpo) => `<section class="mesa" aria-label="Mesa do protótipo"><h3 class="mesa__tit">Mesa do protótipo<small>Não existe no app. Mexa aqui para ver o menu mudar.</small></h3>${corpo}</section>`;
+const passo = (tela, campo, rot, valor, d) => `<div class="mesa__grupo"><span class="mesa__rot">${esc(rot)}</span><div class="passo"><button type="button" class="bt bt--p" data-acao="passo" data-tela="${tela}" data-campo="${campo}" data-d="${-d}" aria-label="${esc(rot)}: menos ${d}" data-k="ps-${tela}-${campo}-m">−${d}</button><output aria-live="polite">${esc(valor)}</output><button type="button" class="bt bt--p" data-acao="passo" data-tela="${tela}" data-campo="${campo}" data-d="${d}" aria-label="${esc(rot)}: mais ${d}" data-k="ps-${tela}-${campo}-p">+${d}</button></div></div>`;
+const chave = (muda, rot, dica, ligado, desligado) => `<label class="sw"><input type="checkbox" role="switch" data-muda="${muda}" data-k="sw-${muda}"${ligado ? ' checked' : ''}${desligado ? ' disabled' : ''}><span class="sw__trilho" aria-hidden="true"></span><span>${esc(rot)}<small>${esc(dica)}</small></span></label>`;
+function momentoDoSieg(s) {
+  if (s.fase === 'super') return 3;
+  if (s.fase === 'usada') return 4;
+  return estadoDaTec('sieg', tecPorChave('sieg', 'evo')).pode ? 2 : 1;
+}
+const MESAS = {
+  sieg(s) {
+    const m = momentoDoSieg(s);
+    const mom = [[1, 'Antes: falta a Melodia'], [2, 'Pronta para evoluir'], [3, 'SUPER pronta'], [4, 'Depois de usar']]
+      .map(([n, txt]) => `<button type="button" class="bt bt--p" data-acao="momento" data-tela="sieg" data-n="${n}" aria-pressed="${m === n}" data-k="mom-${n}"><span class="num">${n}</span> ${esc(txt)}</button>`).join('');
+    const espera = s.rv && s.rv.pedido && s.rv.pedido.status === 'esperando'
+      ? `<div class="mesa__grupo"><span class="mesa__rot">Chegou na tela do ${esc(s.rv.pedido.a)}: “Siegfried pede ajuda com poder de fogo”</span><div class="mesa__linha"><button type="button" class="bt bt--p bt--latao" data-acao="responder" data-tela="sieg" data-sim="1" data-k="resp-s">Aceitar</button><button type="button" class="bt bt--p" data-acao="responder" data-tela="sieg" data-sim="0" data-k="resp-n">Recusar</button></div></div>` : '';
+    return mesa(`<div class="mesa__grupo"><span class="mesa__rot">Ir para o momento</span><div class="momentos">${mom}</div></div>${espera}`
+      + chave('sieg-melodia', 'Melodia de Todas as Coisas ligada', 'a passiva da rodada 3', s.melodia, false)
+      + chave('sieg-caminho', 'Opção Caminho do Dano', s.melodia ? '+20 de dano, opção da Melodia' : 'ligue a Melodia primeiro', s.caminho, !s.melodia)
+      + chave('sieg-vagn', 'Vagn na batalha', 'aliado com poder de fogo', s.vagnPerto, false)
+      + passo('sieg', 'sp', 'SP do Siegfried', `${s.est.sp}`, 10));
+  },
+  vagn(s) {
+    const c = s.est.contadores;
+    return mesa(`<div class="mesa__linha"><button type="button" class="bt bt--p" data-acao="nova-vez" data-tela="vagn" data-k="nv-vagn"${s.est.reacao ? ' disabled' : ''}>Nova vez: a reação volta</button></div>`
+      + passo('vagn', 'pol', 'Polaridade', `${c.Polaridade}/3`, 1)
+      + passo('vagn', 'campo', 'Campo de Contenção (0 = desligado)', String(c['Campo de Contenção']), 1)
+      + passo('vagn', 'sp', 'SP do Vagn', String(s.est.sp), 10));
+  },
+  ryoko(s) {
+    const p = s.est.forma ? s.est.forma.parte : 0;
+    const mom = [[0, 'Fora da forma'], [1, 'Parte 1'], [2, 'Parte 2'], [3, 'Parte 3']]
+      .map(([n, txt]) => `<button type="button" class="bt bt--p" data-acao="momento" data-tela="ryoko" data-n="${n}" aria-pressed="${p === n}" data-k="mom-r${n}">${esc(txt)}</button>`).join('');
+    return mesa(`<div class="mesa__grupo"><span class="mesa__rot">Pôr a Ryoko em</span><div class="momentos">${mom}</div></div>` + passo('ryoko', 'sp', 'SP da Ryoko', String(s.est.sp), 10));
+  },
+  cumpriu(s) {
+    return mesa(`<p class="dica">A caixa é marcada por quem usa. A linha vai ao registro com “(declarou: …)”, e o mestre pode Desfazer: o SP volta.</p>` + passo('cumpriu', 'sp', 'SP do Vagn', String(s.est.sp), 10));
+  },
+  teste(s) {
+    const prox = s.d20.slice(s.d20i % s.d20.length).concat(s.d20.slice(0, s.d20i % s.d20.length));
+    return mesa(`<div class="mesa__grupo"><span class="mesa__rot">Os próximos d20 (fixos, para dar igual sempre)</span><span class="num">${prox.join(' · ')}</span></div>`
+      + `<div class="mesa__linha"><button type="button" class="bt bt--p" data-acao="nova-vez" data-tela="teste" data-k="nv-teste">Nova vez</button><span class="dica">apaga a falha da vez</span></div>`
+      + passo('teste', 'sp', 'SP do Vincent', String(s.est.sp), 10));
+  },
+};
+function telaBatalha(tela, o) {
+  const op = o || {};
+  return `<div class="campo"><div class="col">${menuHTML(tela, tecsDe(tela))}</div><div class="col" id="leitura-${tela}">${leituraHTML(tela)}</div>`
+    + `<div class="col">${registroHTML(tela, op.reg || 'Registro da batalha', op.mestre || S.ver === 'mestre')}${MESAS[tela] ? MESAS[tela](S[tela]) : ''}</div></div>`;
+}
+function telaDoAliadoHTML(s) {
+  const a = s.aliadoTela;
+  if (!a) return '<p class="ociosa">Quando o Vagn pedir, a caixa aparece aqui, na tela de quem ele escolher. Se for um NPC, aparece na tela do mestre.</p>';
+  const al = s.est.aliados.find((x) => x.nome === a.quem);
+  const npc = a.papel === 'NPC';
+  const cab = `<div class="bt-vez"><div class="bt-vez__cabeca"><h2 class="bt-vez__quem">${npc ? 'Mestre' : esc(a.quem)}</h2><div class="bt-vez__economia">${npc ? pip(`${a.quem} · SP ${al.sp}`) : pip(`SP ${al.sp}`)}${pip('Fora da vez')}</div></div></div>`;
+  let corpo = '';
+  if (a.status === 'esperando') {
+    const fica = a.tipo === 'G1' ? ` ${npc ? `O ${esc(a.quem)} fica` : 'Você fica'} com <b>${al[String(a.rec).toLowerCase()] - a.n} de ${al[String(a.rec).toLowerCase()]}</b> ${esc(a.rec)}.` : '';
+    corpo = `<section class="pedido" aria-labelledby="ped-tit"${S.entrar.has('pedido') ? ' data-entra' : ''}><h3 class="pedido__tit" id="ped-tit">${esc(s.est.nome)} pede ${esc(a.o)}${npc ? ` ao ${esc(a.quem)}` : ''}</h3>`
+      + `<p class="pedido__txt">Para usar <b>${esc(a.para)}</b>.${fica}${npc ? ' O aliado é NPC: você, mestre, responde por ele.' : ''}</p>`
+      + `<div class="acoes" style="margin-top:2px"><button type="button" class="bt-carimbo bt-carimbo--claro" data-acao="responder" data-tela="pedido" data-sim="1" data-k="ped-s">Aceitar</button><button type="button" class="bt-carimbo bt-carimbo--claro bt-carimbo--vazado" data-acao="responder" data-tela="pedido" data-sim="0" data-k="ped-n">Recusar</button></div></section>`;
+  } else {
+    const txt = { aceito: npc ? `O ${a.quem} deu ${a.o} ao ${s.est.nome}.` : `Você deu ${a.o} ao ${s.est.nome}.`, recusado: `${npc ? 'O mestre recusou' : 'Você recusou'}. O ${s.est.nome} foi avisado.`, cancelado: `O ${s.est.nome} cancelou o pedido.` }[a.status];
+    corpo = `<section class="pedido"><p class="pedido__fim">${esc(txt)}</p></section>`;
+  }
+  return cab + corpo;
+}
+function telaPedido() {
+  const s = S.pedido;
+  const a = s.aliadoTela;
+  const rot = !a ? 'Tela do aliado' : a.papel === 'NPC' ? 'Tela do mestre (o aliado é NPC)' : `Tela do ${a.quem}`;
+  return `<div class="duas"><div class="campo"><span class="duas__rot">Tela do Vagn (quem pede)</span><div class="col">${menuHTML('pedido', tecsDe('pedido'))}<div id="leitura-pedido">${leituraHTML('pedido')}</div></div></div>`
+    + `<div class="campo"><span class="duas__rot">${esc(rot)}</span><div class="col">${telaDoAliadoHTML(s)}${registroHTML('pedido', 'Registro da batalha (todos veem)', S.ver === 'mestre')}</div></div></div>`;
+}
+
+/* ==========================================================================
+ * O EDITOR dos requisitos (dentro da técnica, na ficha).
+ * ========================================================================== */
+const MOLDE_RE = /\{(\w+):(\w+):([^:}]+)(?::([^}]+))?\}/g;
+function moldeDe(r) { const T = TIPOS[r.tipo]; return typeof T.molde === 'function' ? T.molde(r) : T.molde; }
+function opcoesDe(ex, ops) { return ops.startsWith('@') ? lista(ex.ficha, ops.slice(1)) : ops.split('|'); }
+function novoReq(ex, cod) {
+  const T = TIPOS[cod];
+  const r = Object.assign({ id: uid('r'), tipo: cod }, clone(T.padrao));
+  const molde = moldeDe(r);
+  for (const m of molde.matchAll(MOLDE_RE)) {
+    const [, k, tipoC, , ops] = m;
+    if (tipoC === 'sel') { const o = opcoesDe(ex, ops); if (r[k] === undefined || r[k] === '@0' || !o.includes(r[k])) r[k] = o[0]; }
+    else if (r[k] === undefined) r[k] = tipoC === 'num' ? 1 : '';
+  }
+  return r;
+}
+function campoHTML(ex, r, k, tipoC, rot, ops) {
+  const base = `data-campo="${k}" data-lin="${r.id}" data-k="${r.id}-${k}" aria-label="${esc(rot)}"`;
+  if (tipoC === 'num') return `<input type="number" class="f-num" inputmode="numeric" min="0" max="999" value="${esc(r[k])}" ${base}>`;
+  if (tipoC === 'txt') return `<input type="text" class="f-txt" value="${esc(r[k])}" placeholder="${esc(rot)}" ${base}>`;
+  const o = opcoesDe(ex, ops);
+  if (!o.includes(r[k])) o.unshift(r[k]);
+  return `<select class="f-sel" ${base}>${o.map((x) => `<option${x === r[k] ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+}
+const toggle = (r, k, txt) => `<label class="tg"><input type="checkbox" data-campo="${k}" data-lin="${r.id}" data-k="${r.id}-${k}"${r[k] ? ' checked' : ''}><span>${esc(txt)}</span></label>`;
+function linhaReqHTML(ex, r) {
+  const T = TIPOS[r.tipo];
+  const frase = moldeDe(r).split(MOLDE_RE);
+  /* split com 4 grupos: [texto, k, tipo, rot, ops, texto, ...] */
+  let h = '';
+  for (let i = 0; i < frase.length; i += 5) {
+    h += esc(frase[i]);
+    if (i + 1 < frase.length) h += campoHTML(ex, r, frase[i + 1], frase[i + 2], frase[i + 3], frase[i + 4] || '');
+  }
+  return `<li class="rq-lin"${S.entrar.has('lin-' + r.id) ? ' data-entra' : ''}><span class="rq-cod" title="${esc(T.nome)}">${r.tipo}</span><span class="rq-frase" data-nao="${r.nao ? 'sim' : 'nao'}">${h}</span>`
+    + `<span class="rq-opcoes">${T.nao ? toggle(r, 'nao', 'não ter') : ''}${T.gasta ? toggle(r, 'gasta', r.tipo === 'A7' ? 'e gasta a reação' : 'e gasta') : ''}</span>`
+    + `<span class="etq" data-confere="${T.confere}" title="${esc(CONFERE_LONGO[T.confere])}">${CONFERE[T.confere]}</span>`
+    + `<button type="button" class="bt bt--ic bt--p" data-acao="ed-tirar" data-lin="${r.id}" data-k="x-${r.id}" aria-label="Tirar: ${esc(T.texto(r))}">${ic('x')}</button></li>`;
+}
+function pkListaHTML(ex, busca) {
+  const q = semAcento(busca.trim());
+  let h = '';
+  let n = 0;
+  for (const [l, nome] of GRUPOS) {
+    const tipos = Object.values(TIPOS).filter((t) => t.grupo === l && (!q || semAcento(`${t.cod} ${t.nome} ${t.ex} ${nome}`).includes(q)));
+    if (!tipos.length) continue;
+    h += `<p class="pk__gr" id="pk-gr-${l}">${l}. ${esc(nome)}</p>`;
+    for (const t of tipos) {
+      n += 1;
+      const evo = t.especial === 'evolucao';
+      const des = evo && ex.req.para === 'evoluir';
+      h += `<button type="button" class="pk__op" data-acao="${evo ? 'pk-evolucao' : 'pk-por'}" data-tipo="${t.cod}"${des ? ' disabled' : ''}><span class="rq-cod">${t.cod}</span><b>${esc(t.nome)}</b><span class="etq" data-confere="${t.confere}">${CONFERE[t.confere]}</span><small>${des ? 'Já vale para evoluir (veja “Valem para”)' : esc(t.ex)}</small></button>`;
+    }
+  }
+  if (!n) h = `<div class="pk__nada"><span>Nada com «${esc(busca)}». O que o app não confere sozinho vira personalizado:</span><button type="button" class="bt bt--p bt--latao" data-acao="pk-pers">Pôr como personalizado: «${esc(busca)}»</button></div>`;
+  return h;
+}
+function pickerHTML(ex) {
+  const pk = S.ed.pk;
+  return `<div class="pk" role="dialog" aria-label="Pôr requisito"${S.entrar.has('pk') ? ' data-entra' : ''}>`
+    + `<div class="pk__busca">${ic('busca')}<input type="text" class="entrada" data-pk-busca data-k="pk-busca" value="${esc(pk.busca)}" placeholder="Buscar: SP, selo, aliado, forma, A4…" aria-label="Buscar requisito" aria-controls="pk-lista" autocomplete="off"></div>`
+    + `<div class="pk__letras" role="toolbar" aria-label="Ir ao grupo">${GRUPOS.map(([l, nome]) => `<button type="button" class="pk__letra" data-acao="pk-letra" data-l="${l}" title="${l}. ${esc(nome)}" aria-label="${l}: ${esc(nome)}">${l}</button>`).join('')}</div>`
+    + `<div class="pk__lista" id="pk-lista">${pkListaHTML(ex, pk.busca)}</div></div>`;
+}
+const radio = (nome, valor, txt, atual, muda, extra) => `<label><input type="radio" name="${nome}" value="${valor}" data-muda="${muda}" data-k="${nome}-${valor}"${atual === valor ? ' checked' : ''}${extra || ''}><span>${esc(txt)}</span></label>`;
+function grupoHTML(ex, g, gi) {
+  const aberto = S.ed.pk && S.ed.pk.g === g.id;
+  return `<div class="rq-grupo" data-modo="${g.modo}" role="group" aria-label="Grupo ${gi + 1}: ${g.modo === 'todos' ? 'todos estes' : 'um destes'}">`
+    + `<div class="rq-grupo__cab"><div class="seg" role="radiogroup" aria-label="Como vale o grupo ${gi + 1}">${radio('modo-' + g.id, 'todos', 'Todos estes', g.modo, 'ed-modo', ` data-g="${g.id}"`)}${radio('modo-' + g.id, 'um', 'Um destes', g.modo, 'ed-modo', ` data-g="${g.id}"`)}</div>`
+    + `<span class="dica">${g.modo === 'todos' ? 'precisa de todos' : 'basta um: quem usa escolhe na hora'}</span>`
+    + `<button type="button" class="bt bt--ic bt--p" data-acao="ed-tirar-grupo" data-g="${g.id}" data-k="tg-${g.id}" aria-label="Tirar o grupo ${gi + 1}">${ic('x')}</button></div>`
+    + (g.itens.length ? `<ul class="rq-lins">${g.itens.map((r) => linhaReqHTML(ex, r)).join('')}</ul>` : '<p class="rq-vazio">Grupo vazio: ponha um requisito.</p>')
+    + (g.modo === 'um' && g.itens.length === 1 ? '<p class="rq-aviso">Com um só, “Um destes” vale o mesmo que “Todos estes”.</p>' : '')
+    + `<div class="rq-grupo__pe"><div class="ancora"><button type="button" class="bt bt--p bt--latao" data-acao="ed-abrir" data-g="${g.id}" data-k="ab-${g.id}" aria-haspopup="dialog" aria-expanded="${aberto ? 'true' : 'false'}">${ic('mais')}Requisito</button>${aberto ? pickerHTML(ex) : ''}</div></div></div>`;
+}
+const opcoesEvo = (ex) => ex.evoluiOpcoes || [`SUPER ${ex.tec}`];
+function fraseGrupo(g) {
+  const ts = g.itens.map((r) => TIPOS[r.tipo].texto(r));
+  if (!ts.length) return '';
+  return g.modo === 'todos' || ts.length === 1 ? juntar(ts, 'e') : 'um destes: ' + juntar(ts, 'ou');
+}
+function fraseToda(ex) {
+  const r = ex.req;
+  const gs = r.grupos.map(fraseGrupo).filter(Boolean);
+  if (!gs.length) return r.para === 'evoluir' ? `Sem requisito: ${ex.tec} evolui quando quem usa quiser.` : `Sem requisito: ${ex.tec} fica livre (só o custo).`;
+  let corpo = gs[0];
+  for (let i = 1; i < gs.length; i += 1) corpo += `; e também ${gs[i]}`;
+  let f = `${r.para === 'evoluir' ? `Para evoluir para ${r.evoluiPara}` : `Para usar ${ex.tec}`}, precisa: ${corpo}.`;
+  if (r.para === 'evoluir') f += ` Vale até usar a ${r.evoluiPara} uma vez; depois volta a ser ${fim(ex.tec)}`;
+  return f;
+}
+function resumoHTML(ex) {
+  const tem = ex.req.grupos.some((g) => g.itens.length);
+  let previa = '<span>Livre (só o custo).</span>';
+  let hora = '';
+  if (tem) {
+    const av = avaliarReq(ex.req, EST_DA_FICHA[ex.ficha](), { custo: CUSTO_DO_EXEMPLO[ex.id] || 0 });
+    previa = av.ok ? '<span>Liberada com a ficha de agora.</span>' : `<span class="resumo__falta"><b>${esc(ex.req.para === 'evoluir' ? ex.req.evoluiPara : ex.tec)}</b>${esc('Falta: ' + faltaTexto(av))}</span>`;
+    hora = horaTexto(av);
+  }
+  return `<p class="mec__tit">Em palavras</p><p class="resumo__frase">${esc(fraseToda(ex))}</p>`
+    + `<div class="resumo__lin"><span>No menu da batalha, com a ficha de agora:</span>${previa}</div>`
+    + (hora ? `<div class="resumo__lin"><span>Na hora de usar:</span><span>${esc(cap(hora))}.</span></div>` : '');
+}
+function contarReq(req) {
+  const n = req.grupos.reduce((a, g) => a + g.itens.length, 0);
+  if (!n) return 'sem requisito';
+  return `${n} ${n === 1 ? 'requisito' : 'requisitos'}${req.para === 'evoluir' ? ', evolução' : ''}`;
+}
+function telaEditor() {
+  const ed = S.ed;
+  const ex = exAtual();
+  const r = ex.req;
+  const lado = ed.exemplos.map((e) => `<li><button type="button" class="ex" data-acao="ex" data-id="${e.id}" data-k="ex-${e.id}" aria-current="${e.id === ed.ex}"><b>${esc(e.tec)}</b><small>${esc(e.quem)} · ${esc(contarReq(e.req))}</small></button></li>`).join('');
+  let rq = `<section class="rq" aria-labelledby="rq-tit"><div class="rq__cab"><h2 class="mec__tit" id="rq-tit">Requisitos</h2><p class="mec__pergunta">O que precisa para ${r.para === 'evoluir' ? 'evoluir' : 'usar'}?</p></div>`;
+  rq += `<div class="rq__para"><span class="rot" id="para-rot">Valem para</span><div class="seg" role="radiogroup" aria-labelledby="para-rot">${radio('para', 'usar', 'Usar a técnica', r.para, 'ed-para')}${radio('para', 'evoluir', 'Evoluir', r.para, 'ed-para')}</div>`;
+  if (r.para === 'evoluir') rq += `<span class="rot">vira</span><select class="f-sel" data-muda="ed-evo" data-k="ed-evo" aria-label="Evolui para">${opcoesEvo(ex).map((o) => `<option${o === r.evoluiPara ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select><span class="dica">até usar uma vez; depois volta</span>`;
+  rq += '</div>';
+  r.grupos.forEach((g, gi) => { if (gi) rq += '<div class="rq-e" aria-hidden="true">e também</div>'; rq += grupoHTML(ex, g, gi); });
+  rq += `<div class="rq__para"><button type="button" class="bt bt--fantasma" data-acao="ed-grupo" data-k="ed-grupo">${ic('mais')}Grupo</button><span class="dica">Os grupos valem juntos: precisa cumprir todos os grupos.</span></div></section>`;
+  return `<div class="ed"><div class="janela"><header class="janela__topo"><h1 class="janela__tit">Ficha de ${esc(ex.quem)}</h1><span class="janela__onde">Habilidades › ${esc(ex.tec)} › Requisitos</span></header>`
+    + `<div class="janela__corpo"><nav class="janela__lado" aria-label="Exemplos das fichas"><p class="lado__tit">Exemplos das fichas<small>Só no protótipo: no app, cada ficha abre a sua.</small></p><ul>${lado}</ul></nav>`
+    + `<div class="janela__principal"><div class="cartao-lido"><span class="cartao-lido__nome">${esc(ex.tec)}</span><span class="cartao-lido__linha">${esc(ex.linha)}</span>${ex.nota ? `<span class="cartao-lido__nota">${esc(ex.nota)}</span>` : ''}</div>`
+    + `${rq}<section class="resumo" id="resumo" aria-live="polite">${resumoHTML(ex)}</section></div></div></div></div>`;
+}
+const grupoPorId = (ex, id) => ex.req.grupos.find((g) => g.id === id);
+function reqPorId(ex, id) { for (const g of ex.req.grupos) { const i = g.itens.findIndex((r) => r.id === id); if (i >= 0) return { g, i, r: g.itens[i] }; } return null; }
+function atualizarResumo() { const el = $('#resumo'); if (el) el.innerHTML = resumoHTML(exAtual()); }
+function abrirPicker(gid) {
+  S.ed.pk = { g: gid, busca: '' };
+  S.entrar.add('pk');
+  render();
+  const pk = $('.pk');
+  if (pk) pk.scrollIntoView({ block: 'nearest' });
+  const b = $('[data-pk-busca]');
+  if (b) b.focus({ preventScroll: true });
+}
+
+/* ==========================================================================
+ * RENDER, avisos e eventos
+ * ========================================================================== */
+const TELAS = {
+  editor: telaEditor,
+  sieg: () => telaBatalha('sieg'),
+  vagn: () => telaBatalha('vagn'),
+  ryoko: () => telaBatalha('ryoko'),
+  pedido: telaPedido,
+  cumpriu: () => telaBatalha('cumpriu', { reg: 'Registro, na tela do mestre', mestre: true }),
+  teste: () => telaBatalha('teste'),
+};
+function render() {
+  const ativo = document.activeElement;
+  const k = ativo && ativo.dataset ? ativo.dataset.k : null;
+  const sel = ativo && ativo.tagName === 'INPUT' && ativo.type === 'text' ? [ativo.selectionStart, ativo.selectionEnd] : null;
+  $('#tela').innerHTML = TELAS[S.tela]();
+  S.entrar.clear();
+  $$('.proto__tela').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tela === S.tela)));
+  if (k) {
+    const el = $$('[data-k]').find((x) => x.dataset.k === k);
+    if (el && !el.disabled) { el.focus({ preventScroll: true }); if (sel && el.setSelectionRange) el.setSelectionRange(sel[0], sel[1]); }
+  }
+}
+function focarLeitura(tela) {
+  const raiz = $(`#leitura-${tela}`) || document;
+  const el = raiz.querySelector('[data-foco]:not(:disabled)') || raiz.querySelector('button:not(:disabled), input:not(:disabled)');
+  if (el) el.focus({ preventScroll: true });
+}
+function selecionar(tela, chave) {
+  const s = S[tela];
+  if (s.sel === chave) return;
+  s.sel = chave;
+  if (s.ultimo && s.ultimo.chave !== chave) s.ultimo = null;
+  $$(`.bt-tira[data-tela="${tela}"]`).forEach((b) => { b.dataset.esta = b.dataset.sel === chave ? 'sim' : 'nao'; });
+  const l = $(`#leitura-${tela}`);
+  if (l) l.innerHTML = leituraHTML(tela);
+}
+function avisar(texto, desfazer) {
+  const box = $('#avisos');
+  const el = document.createElement('div');
+  el.className = 'aviso';
+  el.innerHTML = `<span>${esc(texto)}</span>` + (desfazer ? '<button type="button" class="bt bt--p">Desfazer</button>' : '');
+  const sair = () => { if (!el.isConnected) return; el.setAttribute('data-saindo', ''); setTimeout(() => el.remove(), 160); };
+  if (desfazer) el.querySelector('button').addEventListener('click', () => { desfazer(); sair(); });
+  box.appendChild(el);
+  while (box.children.length > 3) box.firstElementChild.remove();
+  setTimeout(sair, desfazer ? 6000 : 3600);
+}
+
+const ACOES = {
+  /* o Desfazer de um aviso vale para a tela em que ele nasceu: trocar de tela limpa os avisos */
+  tela: (el) => { S.tela = el.dataset.tela; $('#avisos').replaceChildren(); render(); },
+  recomecar: () => { S[S.tela === 'editor' ? 'ed' : S.tela] = INICIAL[S.tela](); if (S.tela === 'sieg') sincronizarSieg(S.sieg); render(); avisar('Tela recomeçada.'); },
+  tira: (el) => {
+    const tela = el.dataset.tela;
+    const ch = el.dataset.sel;
+    const s = S[tela];
+    if (s.rv && s.rv.chave === ch) { focarLeitura(tela); return; }
+    if (s.rv) cancelarRv(tela);
+    const t = tecPorChave(tela, ch);
+    if (!estadoDaTec(tela, t).pode) { s.sel = ch; s.ultimo = null; render(); return; }
+    usar(tela, ch);
+  },
+  usar: (el) => usar(el.dataset.tela, el.dataset.chave),
+  'mestre-usar': (el) => concluir(el.dataset.tela, tecPorChave(el.dataset.tela, el.dataset.chave), null, true),
+  'rv-ok': (el) => {
+    const tela = el.dataset.tela;
+    const s = S[tela];
+    const p = passoAtual(s.rv, avDoRv(tela, tecPorChave(tela, s.rv.chave)));
+    if (p && p.r.tipo === 'J1') { if (!s.rv.caixa[p.k]) return; s.rv.feito[p.k] = true; }
+    continuar(tela);
+  },
+  'rv-voltar': (el) => { const tela = el.dataset.tela; const ch = S[tela].rv && S[tela].rv.chave; cancelarRv(tela); render(); const b = $$('.bt-tira').find((x) => x.dataset.sel === ch); if (b) b.focus(); },
+  'rv-pedir': (el) => pedir(el.dataset.tela),
+  'rv-cancelar': (el) => { const tela = el.dataset.tela; const s = S[tela]; if (s.rv && s.rv.pedido) { s.reg.unshift({ id: uid('l'), texto: `${s.est.nome} cancelou o pedido a ${s.rv.pedido.a}.` }); if (s.aliadoTela) s.aliadoTela.status = 'cancelado'; s.rv.pedido = null; } render(); },
+  'rv-rolar': (el) => rolar(el.dataset.tela),
+  responder: (el) => responder(el.dataset.tela, el.dataset.sim === '1'),
+  desfazer: (el) => {
+    const s = S[el.dataset.tela];
+    const l = s.reg.find((x) => x.id === el.dataset.id);
+    if (!l || l.desfeita) return;
+    l.desfeita = true;
+    s.est.sp += l.inverso.sp;
+    for (const [c, v] of Object.entries(l.inverso.cont)) s.est.contadores[c] += v;
+    render();
+    avisar(`Desfeito pelo mestre: ${s.est.nome} recebe ${l.inverso.sp} SP de volta.`);
+  },
+  passo: (el) => {
+    const s = S[el.dataset.tela];
+    const d = Number(el.dataset.d);
+    const c = el.dataset.campo;
+    if (c === 'sp') s.est.sp = clamp(s.est.sp + d, 0, 400);
+    if (c === 'pol') { const v = clamp(s.est.contadores.Polaridade + d, 0, 3); if (v > s.est.contadores.Polaridade) S.entrar.add('pol'); s.est.contadores.Polaridade = v; }
+    if (c === 'campo') s.est.contadores['Campo de Contenção'] = clamp(s.est.contadores['Campo de Contenção'] + d, 0, 3);
+    render();
+  },
+  'nova-vez': (el) => {
+    const s = S[el.dataset.tela];
+    s.est.reacao = true;
+    if (s.falhouNestaVez) s.falhouNestaVez = {};
+    s.reg.unshift({ id: uid('l'), texto: `Nova vez de ${s.est.nome}${el.dataset.tela === 'vagn' ? ': a reação voltou' : ''}.` });
+    render();
+  },
+  momento: (el) => {
+    const n = Number(el.dataset.n);
+    if (el.dataset.tela === 'ryoko') {
+      const s = S.ryoko;
+      s.rv = null;
+      s.ultimo = null;
+      const antes = s.est.forma ? s.est.forma.parte : 0;
+      s.est.forma = n ? { nome: 'Forma Híbrida', parte: n } : null;
+      if (n > antes) S.entrar.add('parte');
+      render();
+      return;
+    }
+    const s = INICIAL.sieg();
+    if (n >= 2) { s.melodia = true; s.caminho = true; }
+    sincronizarSieg(s);
+    if (n >= 3) { s.est.sp = 90; s.fase = 'super'; s.sel = 'caca'; s.reg.unshift({ id: uid('l'), texto: 'Siegfried evoluiu CAÇA AS BRUXAS! para SUPER CAÇA AS BRUXAS! Gastou 50 SP.' }); S.entrar.add('evoluiu'); }
+    if (n >= 4) { s.fase = 'usada'; s.metade = true; s.sel = 'evo'; s.reg.unshift({ id: uid('l'), texto: 'Siegfried usou SUPER CAÇA AS BRUXAS! Perdeu metade dos status (Força 46 → 23, Espírito 35 → 17). CAÇA AS BRUXAS! voltou ao menu.' }); }
+    S.sieg = s;
+    render();
+  },
+  /* editor */
+  ex: (el) => { S.ed.ex = el.dataset.id; S.ed.pk = null; render(); },
+  'ed-grupo': () => { const ex = exAtual(); const g = { id: uid('g'), modo: ex.req.grupos.length ? 'um' : 'todos', itens: [] }; ex.req.grupos.push(g); abrirPicker(g.id); },
+  'ed-tirar-grupo': (el) => {
+    const ex = exAtual();
+    const i = ex.req.grupos.findIndex((g) => g.id === el.dataset.g);
+    if (i < 0) return;
+    const [g] = ex.req.grupos.splice(i, 1);
+    S.ed.pk = null;
+    render();
+    avisar(`Grupo tirado (${g.itens.length} ${g.itens.length === 1 ? 'requisito' : 'requisitos'}).`, () => { ex.req.grupos.splice(i, 0, g); render(); });
+  },
+  'ed-abrir': (el) => { if (S.ed.pk && S.ed.pk.g === el.dataset.g) { S.ed.pk = null; render(); return; } abrirPicker(el.dataset.g); },
+  'pk-por': (el) => {
+    const ex = exAtual();
+    const g = grupoPorId(ex, S.ed.pk.g);
+    const r = novoReq(ex, el.dataset.tipo);
+    g.itens.push(r);
+    S.ed.pk = null;
+    S.entrar.add('lin-' + r.id);
+    render();
+    const f = $$('[data-campo]').find((x) => x.dataset.lin === r.id) || $$('[data-k]').find((x) => x.dataset.k === 'x-' + r.id);
+    if (f) f.focus();
+  },
+  'pk-evolucao': () => { const ex = exAtual(); ex.req.para = 'evoluir'; if (!ex.req.evoluiPara) ex.req.evoluiPara = opcoesEvo(ex)[0]; const g = S.ed.pk.g; S.ed.pk = null; render(); const b = $$('[data-k]').find((x) => x.dataset.k === 'ab-' + g); if (b) b.focus(); avisar('Agora os requisitos valem para evoluir.'); },
+  'pk-pers': () => {
+    const ex = exAtual();
+    const g = grupoPorId(ex, S.ed.pk.g);
+    const r = novoReq(ex, 'J1');
+    r.texto = S.ed.pk.busca.trim();
+    g.itens.push(r);
+    S.ed.pk = null;
+    S.entrar.add('lin-' + r.id);
+    render();
+  },
+  'pk-letra': (el) => {
+    const busca = $('[data-pk-busca]');
+    if (busca && busca.value) { busca.value = ''; S.ed.pk.busca = ''; $('#pk-lista').innerHTML = pkListaHTML(exAtual(), ''); }
+    const lst = $('#pk-lista');
+    const gr = $(`#pk-gr-${el.dataset.l}`);
+    if (!lst || !gr) return;
+    lst.scrollTop = gr.offsetTop - lst.offsetTop;
+    const op = gr.nextElementSibling;
+    if (op) op.focus({ preventScroll: true });
+  },
+  'ed-tirar': (el) => {
+    const ex = exAtual();
+    const achado = reqPorId(ex, el.dataset.lin);
+    if (!achado) return;
+    achado.g.itens.splice(achado.i, 1);
+    render();
+    avisar(`Tirado: ${cap(TIPOS[achado.r.tipo].texto(achado.r))}.`, () => { achado.g.itens.splice(achado.i, 0, achado.r); render(); });
+  },
+};
+const MUDA = {
+  ver: (el) => { S.ver = el.value; render(); },
+  'ed-para': (el) => { const ex = exAtual(); ex.req.para = el.value; if (el.value === 'evoluir' && !ex.req.evoluiPara) ex.req.evoluiPara = opcoesEvo(ex)[0]; render(); },
+  'ed-evo': (el) => { exAtual().req.evoluiPara = el.value; atualizarResumo(); },
+  'ed-modo': (el) => { grupoPorId(exAtual(), el.dataset.g).modo = el.value; render(); },
+  'sieg-melodia': (el) => { const s = S.sieg; s.melodia = el.checked; if (!s.melodia) s.caminho = false; sincronizarSieg(s); cancelarRv('sieg'); render(); },
+  'sieg-caminho': (el) => { const s = S.sieg; s.caminho = el.checked; sincronizarSieg(s); cancelarRv('sieg'); render(); },
+  'sieg-vagn': (el) => { const s = S.sieg; s.vagnPerto = el.checked; sincronizarSieg(s); cancelarRv('sieg'); render(); },
+  'rv-esc': (el) => { const s = S[el.dataset.tela]; s.rv.esc[el.dataset.g] = el.value; s.rv.msg = null; render(); },
+  'rv-aliado': (el) => { const s = S[el.dataset.tela]; s.rv.aliado[el.dataset.kitem] = el.value; render(); },
+  'rv-caixa': (el) => { const s = S[el.dataset.tela]; s.rv.caixa[el.dataset.kitem] = el.checked; render(); },
+};
+function gravarCampo(el) {
+  const achado = reqPorId(exAtual(), el.dataset.lin);
+  if (!achado) return;
+  const k = el.dataset.campo;
+  if (el.type === 'checkbox') achado.r[k] = el.checked;
+  else if (el.type === 'number') achado.r[k] = el.value === '' ? 0 : clamp(Math.round(Number(el.value)) || 0, 0, 999);
+  else achado.r[k] = el.value;
+}
+
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-acao]');
+  if (S.tela === 'editor' && S.ed.pk && !ev.target.closest('.pk') && !(el && el.dataset.acao === 'ed-abrir')) {
+    S.ed.pk = null;
+    if (!el) { render(); return; }
+  }
+  if (!el || el.disabled) return;
+  if (el.getAttribute('aria-disabled') === 'true' && el.dataset.acao !== 'tira') return;
+  const f = ACOES[el.dataset.acao];
+  if (f) f(el, ev);
+});
+document.addEventListener('change', (ev) => {
+  const el = ev.target;
+  if (el.matches('[data-muda]')) { MUDA[el.dataset.muda](el, ev); return; }
+  if (el.matches('select[data-campo], input[type="checkbox"][data-campo]')) { gravarCampo(el); render(); }
+});
+document.addEventListener('input', (ev) => {
+  const el = ev.target;
+  if (el.matches('input[data-campo][type="number"], input[data-campo][type="text"]')) { gravarCampo(el); atualizarResumo(); return; }
+  if (el.matches('[data-pk-busca]')) { S.ed.pk.busca = el.value; $('#pk-lista').innerHTML = pkListaHTML(exAtual(), el.value); $('#pk-lista').scrollTop = 0; }
+});
+document.addEventListener('pointerover', (ev) => {
+  if (ev.pointerType !== 'mouse') return;
+  const b = ev.target.closest('.bt-tira[data-sel]');
+  if (!b || S[b.dataset.tela].rv) return;
+  selecionar(b.dataset.tela, b.dataset.sel);
+});
+document.addEventListener('focusin', (ev) => {
+  const b = ev.target.closest && ev.target.closest('.bt-tira[data-sel]');
+  if (b && !S[b.dataset.tela].rv) selecionar(b.dataset.tela, b.dataset.sel);
+});
+const digitando = (el) => el && (el.tagName === 'INPUT' && !['checkbox', 'radio'].includes(el.type) || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA');
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') {
+    if (S.tela === 'editor' && S.ed.pk) { const g = S.ed.pk.g; S.ed.pk = null; render(); const b = $$('[data-k]').find((x) => x.dataset.k === 'ab-' + g); if (b) b.focus(); ev.preventDefault(); return; }
+    const s = S[S.tela];
+    if (s && s.rv) { const ch = s.rv.chave; cancelarRv(S.tela); render(); const b = $$('.bt-tira').find((x) => x.dataset.sel === ch); if (b) b.focus(); ev.preventDefault(); }
+    return;
+  }
+  const pk = ev.target.closest && ev.target.closest('.pk');
+  if (pk && (ev.key === 'ArrowDown' || ev.key === 'ArrowUp')) {
+    const lst = [$('[data-pk-busca]')].concat($$('.pk__op:not(:disabled), .pk__nada button'));
+    const i = lst.indexOf(document.activeElement);
+    const j = clamp(i + (ev.key === 'ArrowDown' ? 1 : -1), 0, lst.length - 1);
+    lst[j].focus();
+    ev.preventDefault();
+    return;
+  }
+  const tira = ev.target.closest && ev.target.closest('.bt-tira[data-sel]');
+  if (tira && (ev.key === 'ArrowDown' || ev.key === 'ArrowUp')) {
+    const todas = $$(`.bt-tira[data-tela="${tira.dataset.tela}"]`);
+    const j = (todas.indexOf(tira) + (ev.key === 'ArrowDown' ? 1 : -1) + todas.length) % todas.length;
+    todas[j].focus();
+    ev.preventDefault();
+    return;
+  }
+  if (/^[1-9]$/.test(ev.key) && !digitando(ev.target) && !ev.ctrlKey && !ev.metaKey && !ev.altKey && S.tela !== 'editor') {
+    const b = $$(`.bt-tira[data-tela="${S.tela}"]`)[Number(ev.key) - 1];
+    if (b) { b.focus(); b.click(); ev.preventDefault(); }
+  }
+});
+
+/* ---------------------------------------------------------------- começo */
+S.ed = INICIAL.editor();
+for (const t of ['sieg', 'vagn', 'ryoko', 'pedido', 'cumpriu', 'teste']) S[t] = INICIAL[t]();
+sincronizarSieg(S.sieg);
+render();
+window.__proto = { S, render, avisar };
+</script>
+</body>
+</html>
