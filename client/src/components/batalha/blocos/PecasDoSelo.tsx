@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { DANO_MAX, MODS_POR_SELO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX } from '../../../lib/batalha/combate'
 import { comportamentoDoSelo, SELOS_COM_REGRA } from '../../../lib/batalha/condicoes'
-import { ATRIBUTO_MAX, FORMULA_MAX, type Efeito, type ModDaPeca, type NumeroSimples, type RegraDoSelo } from '../../../lib/batalha/mecanica/modelo'
+import { ATRIBUTO_MAX, CASAS_MAX, FORMULA_MAX, VALES_DO_ALCANCE, type AlcanceDoSelo, type Efeito, type ModDaPeca, type NumeroSimples, type RegraDoSelo, type ValeParaOAlcance } from '../../../lib/batalha/mecanica/modelo'
 import { frasesDoSelo, type FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import { SELOS_PRONTOS } from '../../../lib/batalha/selos'
 import { CampoInteiro, Escolha, Marcar, Texto, type Opcao } from './controles'
@@ -21,7 +21,7 @@ type EmQuemDoSelo = 'alvo' | 'quemUsa' | 'atacante'
 type PorVez = 'nada' | 'tiraHp' | 'tiraSp' | 'daHp' | 'daSp'
 
 /** O selo sem uma das chaves opcionais. */
-function semChave<K extends 'porTurno' | 'em' | 'mods' | 'regra'>(selo: SeloDaPeca, chave: K): Omit<SeloDaPeca, K> {
+function semChave<K extends 'porTurno' | 'em' | 'mods' | 'regra' | 'alcance'>(selo: SeloDaPeca, chave: K): Omit<SeloDaPeca, K> {
   const { [chave]: _fora, ...resto } = selo
   return resto
 }
@@ -91,6 +91,54 @@ function NumeroDoSelo({ mod, indice, ficha, onChange, onTirar }: { mod: ModDaPec
         ×
       </button>
     </div>
+  )
+}
+
+/** Fase F do alcance: o selo de partida que muda o alcance (o Ofuscado do protótipo: -2 em tudo). */
+const ALCANCE_DO_SELO_DE_PARTIDA: AlcanceDoSelo = { mexe: 'soma', n: -2, vale: 'tudo' }
+
+const NOMES_DOS_VALES: Record<ValeParaOAlcance, string> = { tudo: 'Tudo', armas: 'Só armas', habilidades: 'Só habilidades', itens: 'Só itens' }
+
+/**
+ * Fase F do alcance (ALCANCE.md §8, "Selo"): quem tem o selo ganha ou perde casas de alcance
+ * (+N ou -N, nunca abaixo de 1) ou fica com no máximo N, valendo para tudo ou só armas,
+ * habilidades ou itens. A batalha aplica as somas, depois o menor máximo (`alcanceComCondicoes`).
+ */
+function AlcanceDaPeca({ selo, onChange }: { selo: SeloDaPeca; onChange: (selo: SeloDaPeca) => void }) {
+  const alcance = selo.alcance
+  const trocar = (novo: AlcanceDoSelo) => onChange({ ...selo, alcance: novo })
+  return (
+    <>
+      <Marcar rotulo="Muda o alcance de quem tem o selo" marcado={alcance !== undefined} onChange={(sim) => onChange(sim ? { ...selo, alcance: ALCANCE_DO_SELO_DE_PARTIDA } : semChave(selo, 'alcance'))} />
+      {alcance !== undefined && (
+        <div className="lb-mec__linha lb-mec__linha--recuo">
+          <Escolha
+            legenda="Como"
+            opcoes={[
+              { valor: 'soma', rotulo: 'Soma ou tira' },
+              { valor: 'teto', rotulo: 'No máximo' },
+            ]}
+            valor={alcance.mexe}
+            onChange={(mexe) => trocar({ ...alcance, mexe, n: mexe === 'teto' ? Math.max(1, Math.abs(alcance.n)) : alcance.n })}
+          />
+          {alcance.mexe === 'teto' ? (
+            <CampoInteiro rotulo="No máximo" valor={alcance.n} minimo={1} maximo={CASAS_MAX} depois={alcance.n === 1 ? 'casa' : 'casas'} onChange={(n) => trocar({ ...alcance, n })} />
+          ) : (
+            <CampoInteiro
+              rotulo="Casas"
+              valor={alcance.n}
+              minimo={-CASAS_MAX}
+              maximo={CASAS_MAX}
+              depois="(−2 = 2 a menos; +2 = 2 a mais)"
+              // O 0 não muda nada e o disco não aceita: passa direto para o outro lado de quem vinha.
+              onChange={(n) => trocar({ ...alcance, n: n === 0 ? (alcance.n > 0 ? -1 : 1) : n })}
+            />
+          )}
+          <Escolha legenda="Vale para" opcoes={VALES_DO_ALCANCE.map((vale) => ({ valor: vale, rotulo: NOMES_DOS_VALES[vale] }))} valor={alcance.vale} onChange={(vale) => trocar({ ...alcance, vale })} />
+        </div>
+      )}
+      {alcance !== undefined && <p className="lb-field__hint lb-mec__regra">Na mira aparece o porquê: "Alcance 6 → 4 ({selo.nome.trim().length > 0 ? selo.nome.trim() : 'o selo'})". Primeiro as somas, depois o máximo; nunca abaixo de 1.</p>}
+    </>
   )
 }
 
@@ -189,6 +237,7 @@ export function PecasDoSelo({ selo, ajuda, emQuemPode, bloqueioEmQuemUsa, listaI
       )}
       {mods.length > 0 && <p className="lb-field__hint lb-mec__regra">O número entra na conta de quem tem o selo enquanto ele durar; negativo tira.</p>}
       <RegraDaPeca selo={selo} onChange={onChange} />
+      <AlcanceDaPeca selo={selo} onChange={onChange} />
       {daRegra !== undefined && regra !== null ? (
         <p className="lb-field__hint lb-mec__regra">{`${regra.nome} sempre tira ${daRegra} de HP por vez, pelo nome.`}</p>
       ) : (

@@ -6,6 +6,7 @@ import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import type { EfeitoDoItem } from '../../types/map'
 import { SEMENTE_MAX } from '../../lib/treino/sorteio'
+import { TestarDoAlcance } from '../batalha/alcance/TestarDoAlcance'
 import './ensaio.css'
 
 /**
@@ -97,6 +98,8 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
       <p className="ens-quem">
         {reagindo ? `O boneco de treino bate em ${quemUsa.nome}, que reage com a técnica.` : `${quemUsa.nome} usa num boneco de treino.`} {item === undefined ? 'A ficha e o mapa não mudam.' : 'A ficha, a mochila e o mapa não mudam.'}
       </p>
+      {/* Fase F do alcance: as casas que acendem na mesa, pela mesma conta da batalha; a reação não mira. */}
+      {!reagindo && <TestarDoAlcance cartao={cartao} quemUsa={quemUsa} sistema={sistema} grupo={item !== undefined ? 'itens' : naArma ? 'armas' : 'habilidades'} />}
       {escolheOnde && (
         <div className="ens-onde" role="group" aria-label="Testar por onde">
           <button type="button" className="mu-bt mu-bt--p" aria-pressed={!naReacao} onClick={() => setNaReacao(false)}>
