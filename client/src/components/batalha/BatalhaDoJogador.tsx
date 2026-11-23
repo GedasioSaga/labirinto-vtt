@@ -10,7 +10,7 @@ import { reacoesDoJogador, reacoesParaOAlvo, reacoesPorPerto } from '../../lib/b
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import { bonusDaBatalha, bonusDaReacao, type SeloQueSoma } from '../../lib/batalha/selos'
 import { comOBonusDosAcumuladores } from '../../lib/batalha/acumuladorNaBatalha'
-import { contextoDoMenuDoJogador } from '../../lib/batalha/requisitos/montar'
+import { cartaoDoPedido, contextoDoMenuDoJogador, vizinhosDaTela, type AliadoDaTela } from '../../lib/batalha/requisitos/montar'
 import { formasNoMenu } from '../../lib/batalha/transformacao'
 import { formasComODecidirDoMestre } from '../../lib/batalha/mecanica/formaDoMestre'
 import { ATACANTE_FORA_DA_VISTA, selosParaOBonus, type CartaParaJogador, type EfeitoParaJogador, type EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
@@ -26,7 +26,8 @@ import type { EvoluirNaTela } from './ListaDeTecnicas'
 import { MenuDaVez, textoDaEspera, textoDoMestreDecidindo, type ContraNoMenu, type InvocarNoMenu } from './MenuDaVez'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
 import { LembretesDaMarca, marcaNaTela, type MarcaNaTela } from './LembretesDaMarca'
-import { PedidosDeAjuda } from './PedidosDeAjuda'
+import { EscolhaDoAliado, PedidosDeAjuda } from './PedidosDeAjuda'
+import { escolhaDaAjuda, type EscolhaDaAjuda } from '../../lib/batalha/requisitos/ajuda'
 import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNaTela } from './PassivasDaBatalha'
 import type { ConexaoDaBatalha } from './pedidosDaVez'
 import './batalha.css'
@@ -82,6 +83,8 @@ export interface BatalhaDoJogadorProps {
    * Ausente = só `meus`.
    */
   aliados?: readonly Personagem[]
+  /** REQUISITOS E: o treino do Lobby. O pedido ao aliado apaga com "Só na mesa". */
+  noTreino?: boolean
   fichas: readonly FichaDoJogador[]
   sistema: SistemaDeRpg | null
   conexao: ConexaoDaBatalha
@@ -169,7 +172,7 @@ function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusD
   return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
 }
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, mapa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica, mirasDaMesa }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, noTreino = false, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, mapa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica, mirasDaMesa }: BatalhaDoJogadorProps) {
   // Fase D do alcance: a mira desta tela vai à mesa (quando a conexão sabe mandar) e as dos outros chegam ao chão.
   const mirar = useRef(conexao.mirar)
   mirar.current = conexao.mirar
@@ -248,7 +251,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     // REQUISITOS C: o ganho dos acumuladores dele soma no dano (a mesma conta do host).
     const bonus = comOBonusDosAcumuladores(bonusDaBatalha(selosQueSomam, cartaQueAge.tokenId), personagem, combate)
     // REQUISITOS C: o que o recorte deixa ver dos requisitos (o que falta apaga com o motivo; o host confere tudo).
-    const requisitos = personagem !== null && sistema !== null ? contextoDoMenuDoJogador(personagem, sistema, cartaQueAge.tokenId, combate) : undefined
+    // REQUISITOS E: no treino do Lobby o pedido ao aliado apaga com "Só na mesa".
+    const doMenu = personagem !== null && sistema !== null ? contextoDoMenuDoJogador(personagem, sistema, cartaQueAge.tokenId, combate) : undefined
+    const requisitos = doMenu === undefined || !noTreino ? doMenu : { ...doMenu, noTreino: true }
     const habilidades = (comAcoes: typeof acoes) => (personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, comAcoes, arma, bonus, requisitos) : [])
     const selosDoDono = estado.cartas.find((carta) => carta.tokenId === cartaQueAge.tokenId)?.selos?.length ?? 0
     return {
@@ -265,7 +270,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       // Fase 8: os itens que o host mandou (a frase e a mira, sem as peças); usar um gasta a ação da vez.
       itens: golpesDosItensDoJogador(meuCombate?.itens ?? [], acoes),
     }
-  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvosPara, selosQueSomam, fichas, tamanhoDaCasa, mapaDaMira, condicoesDaMira])
+  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvosPara, selosQueSomam, fichas, tamanhoDaCasa, mapaDaMira, condicoesDaMira, noTreino])
 
   const contrasNoMenu = useMemo<ContraNoMenu[]>(
     () =>
@@ -299,6 +304,39 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   // REQUISITOS E: os pedidos de ajuda dele (a caixa Aceitar/Recusar quando pediram a ele; o "Esperando" quando ele pediu).
   const ajudas = useMemo(() => (estado.meus ?? []).flatMap((meu) => meu.ajudas ?? []), [estado.meus])
   const pedirAjuda = conexao.ajuda
+  // REQUISITOS E (G1, G2): a técnica que pede ajuda abre a escolha de quem ajuda ANTES de ir ao host (os aliados que esta tela vê).
+  const [escolhendo, setEscolhendo] = useState<{ escolha: EscolhaDaAjuda; mandar: (ajudaDe: string) => boolean } | null>(null)
+  const aliadosDaAjuda = useMemo<AliadoDaTela[]>(() => {
+    if (cartaQueAge === undefined) return []
+    // Na Arena a tela tem todas as cópias: só as do lado dele.
+    const lado = estado.cartas.find((carta) => carta.tokenId === cartaQueAge.tokenId)?.equipe?.nome
+    const vistos = new Set<string>([cartaQueAge.tokenId])
+    const lista: AliadoDaTela[] = []
+    for (const carta of estado.cartas) {
+      if (vistos.has(carta.tokenId) || carta.personagemId === undefined || (lado !== undefined && carta.equipe?.nome !== lado)) continue
+      vistos.add(carta.tokenId)
+      const ficha = fichasInteiras.find((candidata) => candidata.id === carta.personagemId)
+      if (ficha !== undefined) lista.push({ tokenId: carta.tokenId, personagem: ficha })
+    }
+    return lista
+  }, [cartaQueAge, estado.cartas, fichasInteiras])
+  const escolhaDaAjudaNaTela = (cartaoId: string, para: 'usar' | 'evoluir'): EscolhaDaAjuda | null => {
+    if (noTreino || pedirAjuda === undefined || personagem === null || sistema === null || cartaQueAge === undefined) return null
+    const cartao = cartaoDoPedido(personagem, cartaoId)
+    if (cartao === undefined) return null
+    return escolhaDaAjuda(cartao.requisitos, para, { ...contextoDoMenuDoJogador(personagem, sistema, cartaQueAge.tokenId, combate), aliados: vizinhosDaTela(aliadosDaAjuda, sistema) })
+  }
+  const agirOuEscolher = (pedido: PedidoDeAcao): boolean => {
+    if ((pedido.tipo === 'habilidade' || pedido.tipo === 'atacar') && pedido.ajudaDe === undefined) {
+      const cartaoId = pedido.tipo === 'habilidade' ? pedido.cartaoId : pedido.armaId
+      const escolha = cartaoId === null ? null : escolhaDaAjudaNaTela(cartaoId, 'usar')
+      if (escolha !== null) {
+        setEscolhendo({ escolha, mandar: (ajudaDe) => conexao.agir(vezDoPedido(pedido), { ...pedido, ajudaDe }) })
+        return true
+      }
+    }
+    return conexao.agir(vezDoPedido(pedido), pedido)
+  }
   const marcas = useMemo<MarcaNaTela[]>(() => {
     if (pedirMarca === undefined) return []
     const varios = (estado.meus?.length ?? 0) > 1
@@ -324,7 +362,13 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       ? undefined
       : {
           motivo: (cartaoId, custo) => (!operaComoMestre && !estado.minhaVez ? 'Evoluir só na sua vez' : motivoDoEvoluirNaFicha(personagem, sistema, meuCombate?.evoluidas, { cartaoId, custo })),
-          onEvoluir: (cartaoId, custo) => pedirEvolucao({ tipo: 'evoluir', tokenId: cartaQueAge.tokenId, cartaoId, custo }),
+          onEvoluir: (cartaoId, custo) => {
+            const pedido = { tipo: 'evoluir' as const, tokenId: cartaQueAge.tokenId, cartaoId, custo }
+            const escolha = escolhaDaAjudaNaTela(cartaoId, 'evoluir')
+            if (escolha === null) return pedirEvolucao(pedido)
+            setEscolhendo({ escolha, mandar: (ajudaDe) => pedirEvolucao({ ...pedido, ajudaDe }) })
+            return true
+          },
         }
 
   // ---- Invocação F3: a mira da invocação (as opções da ficha dele, o máximo pelo recorte) e o "esperando o mestre".
@@ -452,7 +496,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const lugarDosLembretes = useRef<HTMLDivElement>(null)
   const comEspera = esperandoOMestre.length > 0 && conexao.invocar !== undefined
   const comFormaEsperando = formasEsperando.length > 0
-  const comLembretes = lembretes.length > 0 || marcas.length > 0 || (ajudas.length > 0 && pedirAjuda !== undefined) || ((comEspera || comFormaEsperando) && !mostrarMenu) || esperandoOContra
+  const comLembretes = lembretes.length > 0 || marcas.length > 0 || escolhendo !== null || (ajudas.length > 0 && pedirAjuda !== undefined) || ((comEspera || comFormaEsperando) && !mostrarMenu) || esperandoOContra
   useLayoutEffect(() => {
     const menuNaTela = lugarDoMenu.current
     const avisos = lugarDosLembretes.current
@@ -519,7 +563,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
                 ? undefined
                 : { pendente: meuCombate.armas === null, onAbrir: () => setArmasDe(personagemId) }
             }
-            onAgir={(pedido) => conexao.agir(vezDoPedido(pedido), pedido)}
+            onAgir={agirOuEscolher}
             // U2: o motivo da regra para o pedido recusado na hora, lido com a mesma vez do pedido.
             motivoDaRecusa={motivoDaRecusa === undefined ? undefined : (pedido) => motivoDaRecusa(vezDoPedido(pedido), pedido)}
             avisoDaRecusa={avisoDaRecusa}
@@ -559,6 +603,17 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
               <span className="bt-vez__espera-ponto" aria-hidden="true" />
               Esperando o mestre pôr no mapa: {textoDaEspera(esperandoOMestre)}
             </p>
+          )}
+          {escolhendo !== null && (
+            <EscolhaDoAliado
+              escolha={escolhendo.escolha}
+              onPedir={(ajudaDe) => {
+                const saiu = escolhendo.mandar(ajudaDe)
+                if (saiu) setEscolhendo(null)
+                return saiu
+              }}
+              onCancelar={() => setEscolhendo(null)}
+            />
           )}
           {ajudas.length > 0 && pedirAjuda !== undefined && <PedidosDeAjuda itens={ajudas} onPedir={pedirAjuda} />}
           {marcas.length > 0 && pedirMarca !== undefined && <LembretesDaMarca itens={marcas} onResponder={pedirMarca} />}

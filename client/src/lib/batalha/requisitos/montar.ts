@@ -79,6 +79,35 @@ function vidaDe(personagem: Personagem, sistema: SistemaDeRpg): { atual: number;
   return vida === null ? undefined : { atual: vida.atual, max: vida.maximo }
 }
 
+/** Um aliado que a tela tem a ficha: o token dele na ordem e a ficha inteira (a do recorte). */
+export interface AliadoDaTela {
+  tokenId: string
+  personagem: Personagem
+}
+
+/**
+ * REQUISITOS E (G1, G2): os aliados que ESTA tela enxerga, no formato do avaliador, para listar a quem
+ * pedir ajuda. `completa: false` = pode haver aliado que ela não vê (quem decide é o host).
+ */
+export function vizinhosDaTela(aliados: readonly AliadoDaTela[], sistema: SistemaDeRpg): { lista: VizinhoNoContexto[]; completa: boolean } {
+  const lista = aliados.map(({ tokenId, personagem }): VizinhoNoContexto => {
+    const vida = vidaDe(personagem, sistema)
+    const vizinho: VizinhoNoContexto = { tokenId, nome: personagem.nome.trim() || 'Ficha', dePe: vida === undefined ? true : vida.atual > 0, npc: personagem.tipo === 'npc', marcas: marcasDaFicha(personagem) }
+    const sp = recursoDe(personagem, sistema, 'sp')
+    if (sp !== undefined) vizinho.sp = sp
+    const escudo = recursoDe(personagem, sistema, 'escudo')
+    if (escudo !== undefined) vizinho.escudo = escudo
+    if (vida !== undefined) vizinho.hp = vida.atual
+    return vizinho
+  })
+  return { lista, completa: false }
+}
+
+/** REQUISITOS E: o cartão que o pedido usa (técnica, arma), com o bloco; nenhum = `undefined`. */
+export function cartaoDoPedido(personagem: Pick<Personagem, 'abas'>, cartaoId: string): CartaoDaFicha | undefined {
+  return todosOsCartoes(personagem).find((cartao) => cartao.id === cartaoId)
+}
+
 /** B1: as ligadas = os selos que ele pôs com um cartão (a Melodia, na opção escolhida), as formas e passivas ativas e as mantidas. */
 function ligadasDe(personagem: Personagem, combate: CombateDoPersonagem | undefined, turnos: TurnosDaCena, nomeDoCartao: (id: string) => string | undefined): LigadaNoContexto[] {
   const ligadas: LigadaNoContexto[] = []

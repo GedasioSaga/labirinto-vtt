@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { AjudaParaJogador } from '../../lib/batalha/vistaDoJogador'
+import type { EscolhaDaAjuda } from '../../lib/batalha/requisitos/ajuda'
 import type { CancelamentoDaAjuda, RespostaDaAjuda } from '../../lib/batalha/requisitos/modelo'
 import './batalha.css'
 import './combate.css'
@@ -113,6 +114,47 @@ function EsperaDoPedido({ item, faltam, onPedir }: { item: AjudaNaTela; faltam: 
         {esperando ? 'Cancelar pedido' : 'Fechar'}
       </button>
     </li>
+  )
+}
+
+/**
+ * REQUISITOS E (protótipo, tela 5): a técnica pede ajuda; quem pede escolhe o aliado (a lista já vem
+ * filtrada pela marca ou pelo recurso). Nada é gasto aqui: o pedido vai ao aliado, que aceita na tela dele.
+ */
+export function EscolhaDoAliado({ escolha, onPedir, onCancelar }: { escolha: EscolhaDaAjuda; onPedir: (ajudaDe: string) => boolean; onCancelar: () => void }) {
+  const id = useId()
+  const [erro, setErro] = useState<string | null>(null)
+  const primeiro = useRef<HTMLButtonElement>(null)
+  useEffect(() => primeiro.current?.focus(), [])
+  return (
+    <section className="bt-pedido-ajuda bt-pedido-ajuda--escolha" aria-labelledby={`${id}-tit`} onKeyDown={(evento) => evento.key === 'Escape' && onCancelar()}>
+      <h3 className="bt-pedido-ajuda__tit" id={`${id}-tit`}>
+        Pedir {escolha.pede}
+      </h3>
+      <p className="bt-pedido-ajuda__txt">A quem? O pedido chega na tela dele; nada é gasto até ele aceitar.</p>
+      <div className="bt-pedido-ajuda__acoes" role="group" aria-labelledby={`${id}-tit`}>
+        {escolha.candidatos.map((candidato, indice) => (
+          <button
+            key={candidato.tokenId}
+            ref={indice === 0 ? primeiro : undefined}
+            type="button"
+            className="bt-botao bt-botao--passiva"
+            onClick={() => setErro(onPedir(candidato.tokenId) ? null : 'Não saiu: sem conexão com o mestre.')}
+          >
+            {candidato.nome}
+            {candidato.responde === 'mestre' ? ' (o mestre responde)' : ''}
+          </button>
+        ))}
+        <button type="button" className="bt-botao" onClick={onCancelar}>
+          Cancelar
+        </button>
+      </div>
+      {erro !== null && (
+        <p className="bt-lembrete__motivo" role="alert">
+          {erro}
+        </p>
+      )}
+    </section>
   )
 }
 

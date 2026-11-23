@@ -1,7 +1,9 @@
 import { AJUDAS_PENDENTES_MAX, AVISO_DA_AJUDA_MS, type AcaoDaAjuda, type AjudaPendente } from '../combate'
 import type { AutorDaAcao, TurnosDaCena } from '../turnos'
-import type { PerguntaDosRequisitos } from './avaliar'
+import { avaliarDoCartao, type CandidatoDaAjuda, type PerguntaDosRequisitos } from './avaliar'
+import type { ContextoDosRequisitos } from './contexto'
 import { fraseDoPedidoDeAjuda } from './frases'
+import { lerRequisitos } from './ler'
 import { PRAZO_DA_AJUDA_MS } from './modelo'
 
 /**
@@ -138,4 +140,28 @@ export function comAVezDeAgora(turnos: TurnosDaCena, agora: number): TurnosDaCen
 /** O pedido ainda espera e está no prazo. */
 export function ajudaAberta(ajuda: AjudaPendente, agora: number): boolean {
   return ajuda.estado === 'esperando' && (ajuda.venceEm === null || agora < ajuda.venceEm)
+}
+
+/** REQUISITOS E: o pedido ao aliado que a tela monta antes de mandar (a escolha de quem ajuda). */
+export interface EscolhaDaAjuda {
+  /** O que o pedido pede, como o protótipo diz ("Fogo", "25 SP"). */
+  pede: string
+  candidatos: readonly CandidatoDaAjuda[]
+}
+
+/**
+ * REQUISITOS E (G1, G2): a quem a tela pode pedir ajuda para usar (ou evoluir) este bloco, com os
+ * aliados que ela enxerga. `null` = o bloco não pede ajuda, ou a tela não sabe dizer quem pode (o host
+ * decide). Só a primeira pergunta de aliado: a ajuda é um pedido por vez.
+ */
+export function escolhaDaAjuda(requisitos: unknown, para: 'usar' | 'evoluir', ctx: ContextoDosRequisitos): EscolhaDaAjuda | null {
+  if (requisitos === undefined) return null
+  const avaliacao = avaliarDoCartao(lerRequisitos(requisitos), para, ctx)
+  if (avaliacao === null || avaliacao.veredito === 'falta') return null
+  for (const pergunta of avaliacao.perguntas) {
+    if (pergunta.tipo !== 'aliado' || pergunta.candidatos.length === 0) continue
+    const r = pergunta.requisito
+    return { pede: r.tipo === 'pedirAoAliado' ? `${r.n} ${r.recurso === 'sp' ? 'SP' : r.recurso === 'hp' ? 'HP' : 'Escudo'}` : r.marca, candidatos: pergunta.candidatos }
+  }
+  return null
 }

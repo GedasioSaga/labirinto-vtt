@@ -316,6 +316,8 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade
           // A mesma casa que põe as fichas na grade (`fichasDaLuta`): sem ela a mira conta em px e a técnica de área marca 1 inimigo em vez de 2.
           tamanhoDaCasa={CASA_DA_ARENA}
           sistema={sistema}
+          // REQUISITOS E: o pedido ao aliado é só na mesa (aqui apaga com "Só na mesa").
+          noTreino
           vidaPublica={vidaPublica}
           conexao={conexao}
           consulta={consulta}
