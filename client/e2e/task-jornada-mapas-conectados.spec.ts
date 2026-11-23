@@ -336,7 +336,7 @@ async function arrastarToken(page: Page, de: Ponto, para: Ponto): Promise<void> 
  */
 async function entrarComoJogador(page: Page, nome: string): Promise<void> {
   await page.goto('/player.html')
-  const codigo = page.getByLabel('Código da sala')
+  const codigo = page.getByLabel('Código da mesa online')
   await codigo.click()
   await codigo.press('ControlOrMeta+a')
   await codigo.pressSequentially(CODIGO, { delay: 15 })

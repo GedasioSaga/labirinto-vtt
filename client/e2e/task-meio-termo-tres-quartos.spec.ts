@@ -170,7 +170,7 @@ async function abrirJogador(page: Page, mapa: MapData): Promise<Abertura> {
   await observarTarefasLongas(page)
   await page.routeWebSocket((url) => url.pathname === '/ws', hostCom(mapa))
   await page.goto('/player.html?obra=meio-termo')
-  await page.getByLabel('Código da sala').fill('MT11JG')
+  await page.getByLabel('Código da mesa online').fill('MT11JG')
   await page.getByLabel('Seu nome').fill('Ana')
   const noClique = await page.evaluate(() => performance.now())
   const quadros = page.evaluate(

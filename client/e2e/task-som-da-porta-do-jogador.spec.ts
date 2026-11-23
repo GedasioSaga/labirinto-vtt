@@ -150,7 +150,7 @@ async function entrarComAPorta(page: Page, host: HostDeMentira, portaAberta: boo
     (ws) => host.ligar(ws),
   )
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill(CODIGO)
+  await page.getByLabel('Código da mesa online').fill(CODIGO)
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect.poll(() => host.entradas).toBe(1)

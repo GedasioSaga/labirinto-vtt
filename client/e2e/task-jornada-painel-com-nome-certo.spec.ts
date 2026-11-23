@@ -37,7 +37,9 @@ const NOMES_DA_BARRA = [
   'Polígono Regular',
   'Chão',
   'Escada',
-  'Peça',
+  // Era "Peça": desde o E20 (12/11/2026) a ferramenta se chama "Objeto de imagem", e a dos móveis "Objeto".
+  'Objeto de imagem',
+  'Objeto',
   'Zona oculta',
   'Texto',
   'Medir',

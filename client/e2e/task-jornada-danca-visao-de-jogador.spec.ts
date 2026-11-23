@@ -346,7 +346,7 @@ test('Visão de jogador sem sala: o mestre chama o jogador de teste, dança no O
 
   // 1. Aba Jogo, SEM abrir sala: "Visão de jogador" → a ficha → o popup abre.
   await mestre.getByRole('tab', { name: 'Grupo' }).click()
-  await expect(mestre.getByRole('button', { name: 'Abrir sala' }), 'a jornada é sem sala: "Abrir sala" deveria estar à vista').toBeVisible()
+  await expect(mestre.getByRole('button', { name: 'Abrir mesa online' }), 'a jornada é sem sala: "Abrir mesa online" deveria estar à vista').toBeVisible()
   await mestre.getByRole('button', { name: /Visão de jogador/ }).click()
   const escolha = mestre.getByRole('dialog', { name: 'Escolher a ficha' })
   await expect(escolha, 'o botão "Visão de jogador" não abriu a escolha da ficha').toBeVisible({ timeout: ESPERA })
@@ -358,7 +358,12 @@ test('Visão de jogador sem sala: o mestre chama o jogador de teste, dança no O
   const barra = popup.locator('header.vj-barra')
   await expect(barra, 'a barra do teste não apareceu no popup').toBeVisible({ timeout: ESPERA })
   await expect(barra).toHaveAttribute('aria-label', `Visão de jogador: ${TOKEN} (teste)`)
-  await expect(barra.getByRole('radio', { name: 'Olhar' }), 'o modo padrão da janela de teste deveria ser Olhar').toHaveAttribute('aria-checked', 'true')
+  // J2 (decisão 6 do mestre, 12/11/2026): aberta pelo livro, a janela de teste nasce em Jogar.
+  await expect(barra.getByRole('radio', { name: 'Jogar' }), 'aberta pelo livro, a janela de teste deveria nascer em Jogar').toHaveAttribute('aria-checked', 'true')
+  // Esta jornada prova a dança no Olhar: o mestre passa para o Olhar com um clique, como faria.
+  const olhar = barra.getByRole('radio', { name: 'Olhar' })
+  await olhar.click()
+  await expect(olhar, 'o clique em Olhar deveria passar a janela de teste para o Olhar').toHaveAttribute('aria-checked', 'true')
   // Controle: a ficha está encostada na porta FECHADA, então a tela do jogador oferece espiar.
   const espiar = popup.getByRole('button', { name: 'Espiar pela porta' })
   await expect(espiar, 'controle: com a ficha na porta fechada, a tela de teste deveria mostrar "Espiar pela porta"').toBeVisible({ timeout: ESPERA })

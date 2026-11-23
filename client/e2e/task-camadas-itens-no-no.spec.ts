@@ -229,7 +229,7 @@ test.describe('jogador: o item de camada escolhida desenha no nó da camada', ()
       },
     )
     await page.goto('/player.html')
-    await page.getByLabel('Código da sala').fill('CAMADA')
+    await page.getByLabel('Código da mesa online').fill('CAMADA')
     await page.getByLabel('Seu nome').fill('Ana')
     await page.getByRole('button', { name: 'Entrar' }).click()
     await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()

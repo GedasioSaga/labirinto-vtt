@@ -72,7 +72,7 @@ async function jogadorEntra(page: Page): Promise<void> {
     (ws) => host.ligar(ws),
   )
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill('FICHA1')
+  await page.getByLabel('Código da mesa online').fill('FICHA1')
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).tap()
   await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()

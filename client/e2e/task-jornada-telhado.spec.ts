@@ -575,10 +575,13 @@ test('telhado de madeira verde: o mestre escolhe, o jogador de fora vê, entra e
   await page.getByRole('button', { name: 'Adicionar token' }).click()
   await page.getByLabel('Nome do novo token').fill('Heroi')
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
+  // E7 (decisão 15 do mestre, 12/11/2026): o token novo nasce sem seleção; o formulário fecha e o "+ Token" volta.
+  // Que o Heroi nasceu, prova a escolha do personagem mais abaixo (o botão "Heroi" na lista do jogador).
+  await expect(page.getByRole('button', { name: 'Adicionar token' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toHaveCount(0)
   await page.getByRole('tab', { name: 'Grupo' }).click()
-  await page.getByRole('button', { name: 'Abrir sala' }).click()
-  await expect(page.getByRole('button', { name: new RegExp(`Código da sala ${CODE}`) })).toBeVisible()
+  await page.getByRole('button', { name: 'Abrir mesa online' }).click()
+  await expect(page.getByRole('button', { name: new RegExp(`Código da mesa online ${CODE}`) })).toBeVisible()
 
   const jogador = await context.newPage()
   jogador.on('pageerror', (e) => errosDoJogador.push(e.message))
@@ -597,7 +600,7 @@ test('telhado de madeira verde: o mestre escolhe, o jogador de fora vê, entra e
     },
   )
   await jogador.goto('/player.html')
-  await jogador.getByLabel('Código da sala').fill(CODE)
+  await jogador.getByLabel('Código da mesa online').fill(CODE)
   await jogador.getByLabel('Seu nome').fill('Ana')
   await jogador.getByRole('button', { name: 'Entrar' }).click()
   await expect(jogador.getByRole('status')).toHaveText(/Aguardando o mestre/)

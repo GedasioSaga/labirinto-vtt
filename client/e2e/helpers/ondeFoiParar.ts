@@ -277,10 +277,10 @@ export const BLOCOS: readonly Bloco[] = [
     ['Texturas', [['heading', 'Ferramenta · Texturas'], rg('Ao pintar'), rg('Textura'), ['region', 'Colar ou soltar a imagem da nova textura'], b('Escolher imagem…'), b('Procurar texturas novas'), ['slider', 'Tamanho do pincel'], ['slider', 'Força']]],
     ['Carimbos', [['heading', 'Ferramenta · Carimbos'], rg('Ao clicar'), rg('Objeto'), ['radio', 'Árvore'], ['region', 'Colar ou soltar a imagem do novo carimbo'], b('Escolher imagem…'), b('Procurar carimbos novos'), ['slider', 'Tamanho'], ['slider', 'Largura do spray'], ['slider', 'Densidade do spray']]],
     ['Escada', [['heading', 'Ferramenta · Escada'], rg('Tamanho')]],
-    ['Peça', [['heading', 'Ferramenta · Peça'], rg('Colocar')]],
+    ['Peça', [['heading', 'Ferramenta · Objeto de imagem'], rg('Colocar')]],
     ['Zona oculta', [['heading', 'Ferramenta · Zona oculta']]],
     ['Pincel de revelar', [['heading', 'Ferramenta · Pincel de revelar'], rg('Ao pintar'), rg('Largura do pincel')]],
-    ['Objetos', [['heading', 'Ferramenta · Objetos'], rg('Colocar'), rg('Objeto')]],
+    ['Objetos', [['heading', 'Ferramenta · Objeto'], rg('Colocar'), rg('Objeto')]],
     ['Desenho', [['heading', 'Ferramenta · Pincel'], rg('Forma'), rg('Modo'), rg('Textura do traço'), ['textbox', 'Cor'], ['slider', 'Espessura'], rg('Ponta da linha')]],
     ['Texto', [['heading', 'Ferramenta · Texto'], ['textbox', 'Cor'], ['slider', 'Tamanho da fonte'], ['combobox', 'Fonte']]],
     ['Pino', [['heading', 'Ferramenta · Pino'], rg('Tipo do pino'), rg('Ícone no mapa')]],
@@ -331,7 +331,7 @@ export const BLOCOS: readonly Bloco[] = [
     vai: 'Página Ficha do pino: essencial + "+ Adicionar ao pino" + Aparência, Na mesa (feito)', fatia: '12',
     linhas: [
       // O essencial, sem clique; o Excluir mora na cabeça da ficha.
-      ...todos([...PINO_ESSENCIAL, b('Excluir ponto de interesse')]),
+      ...todos([...PINO_ESSENCIAL, b('Apagar pino')]),
       // A ficha recolhida "Aparência" (o nome do cabeçalho leva o resumo, daí a expressão).
       ...todos([...PINO_APARENCIA, rg('Ícone no mapa')], b('/^Aparência/')),
       // Cada recurso entra pelo menu "+ Adicionar ao pino" e ganha ficha própria, com "Tirar do pino".
@@ -364,7 +364,7 @@ export const BLOCOS: readonly Bloco[] = [
     tela: 'mestre', titulo: 'Ficha do pino de viagem', estado: 'pino de viagem selecionado', escopo: 'esquerda', preparo: sel('pin', 'pin-v'),
     vai: 'Página Ficha do pino: destino e Passagem no essencial, o resto na ficha "Mais da viagem" (feito)', fatia: '12',
     linhas: [
-      ...todos([b('Leva a…'), rg('Passagem'), b('Excluir pino de viagem')]),
+      ...todos([b('Leva a…'), rg('Passagem'), b('Apagar pino de viagem')]),
       ...todos(
         [...TRANSICAO('Transição ao atravessar'), ['combobox', 'Preso à ficha'], ['combobox', 'Cabine (elevador, cesto)'], ['textbox', 'Nova cabine'], b('Criar cabine aqui')],
         b('/^Mais da viagem/'),
@@ -374,7 +374,7 @@ export const BLOCOS: readonly Bloco[] = [
   {
     tela: 'mestre', titulo: 'Ficha da alavanca', estado: 'alavanca selecionada', escopo: 'esquerda', preparo: sel('pin', 'pin-a'),
     vai: 'Página Ficha do pino (alavanca com "Acionar agora") (feito)', fatia: '12',
-    linhas: todos([['combobox', 'Abre a porta'], b('Excluir alavanca')]),
+    linhas: todos([['combobox', 'Abre a porta'], b('Apagar alavanca')]),
   },
   {
     tela: 'mestre', titulo: 'Ficha da porta', estado: 'porta selecionada no mapa', escopo: 'esquerda', preparo: sel('wall', 'd1'),
@@ -497,9 +497,9 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha da zona oculta', estado: 'zona oculta selecionada', escopo: 'esquerda', preparo: sel('zona', 'z1'),
-    vai: 'Página Ficha da zona: cabeça com o Excluir zona; Nome, Revelar para jogadores e Revelar para… no essencial; Depende do estado fechada (feito)', fatia: '16a',
+    vai: 'Página Ficha da zona: cabeça com o Apagar zona; Nome, Revelar para jogadores e Revelar para… no essencial; Depende do estado fechada (feito)', fatia: '16a',
     // O "Excluir zona" agora é o Apagar da cabeça, com o mesmo nome acessível.
-    linhas: todos([['textbox', 'Nome'], cx('Revelar para jogadores'), b('Excluir zona')]),
+    linhas: todos([['textbox', 'Nome'], cx('Revelar para jogadores'), b('Apagar zona')]),
   },
   {
     tela: 'mestre', titulo: 'Seleção múltipla', estado: 'token e parede selecionados juntos', escopo: 'esquerda', preparo: { selecao: [{ tipo: 'token', id: 't1' }, { tipo: 'wall', id: 'w1' }] },
@@ -511,13 +511,13 @@ export const BLOCOS: readonly Bloco[] = [
   {
     tela: 'mestre', titulo: 'Configurações do mapa', estado: 'diálogo aberto pela engrenagem', escopo: 'pagina', preparo: { abrir: b('Configurações do mapa') },
     vai: 'Mesmo diálogo, casca nova com navegação vertical', fatia: '20',
-    linhas: todos([rg('Formato da grade'), ['textbox', 'Cor da grade'], ['slider', 'Opacidade'], ['slider', 'Espessura'], rg('Estilo da linha da grade'), ['heading', 'Alinhar grade à imagem'], ['spinbutton', 'Unidades por célula'], ['textbox', 'Unidade'], ['spinbutton', 'Casas decimais'], ['combobox', 'Modo de medição'], ['spinbutton', 'Passo máximo (quadrados)'], cx('Fichas ocupam espaço'), ['spinbutton', 'Largura (quadros)'], ['spinbutton', 'Altura (quadros)'], b('Aplicar 30 × 20'), ['textbox', 'Texto de chegada'], cx('Rostos só de perto'), ['spinbutton', 'Casas'], b('Escolher sistema…')]),
+    linhas: todos([rg('Formato da grade'), ['textbox', 'Cor da grade'], ['slider', 'Opacidade'], ['slider', 'Espessura'], rg('Estilo da linha da grade'), ['heading', 'Alinhar grade à imagem'], ['spinbutton', 'Unidades por casa'], ['textbox', 'Unidade'], ['spinbutton', 'Casas decimais'], ['combobox', 'Modo de medição'], ['spinbutton', 'Passo máximo (casas)'], cx('Fichas ocupam espaço'), ['spinbutton', 'Largura (casas)'], ['spinbutton', 'Altura (casas)'], b('Aplicar 30 × 20'), ['textbox', 'Texto de chegada'], cx('Rostos só de perto'), ['spinbutton', 'Casas'], b('Escolher sistema…')]),
   },
   {
     tela: 'mestre', titulo: 'Configurar cena', estado: 'diálogo aberto pela engrenagem da cena (livro da mesa, página Cenas)', escopo: 'pagina', preparo: { abrir: b('Configurar Cripta'), abrirDe: { escopo: 'direita', gatilho: marcador('Cenas') } },
     vai: 'Configurar cena com navegação vertical; Relevo, Nomes dos lugares e Nuvens na seção "Mapa vivo"', fatia: '20',
     linhas: [
-      ...todos([['spinbutton', 'Visão nesta cena (quadrados)'], cx('Cena escura'), rg('Tipo de mapa'), cx('Relevo'), cx('Nomes dos lugares'), cx('Nuvens')]),
+      ...todos([['spinbutton', 'Visão nesta cena (casas)'], cx('Cena escura'), rg('Tipo de mapa'), cx('Relevo'), cx('Nomes dos lugares'), cx('Nuvens')]),
       l('Grupo anda junto (caravana), em mapa Continente', cx('Grupo anda junto (caravana)'), ['radio', 'Continente']),
     ],
   },
@@ -546,7 +546,7 @@ export const BLOCOS: readonly Bloco[] = [
     vai: 'Livro da mesa: topo da Sala (sala fechada), páginas Grupo e Mesa (feito); Personagens e Contas viram fichas recolhidas no fim do Grupo (fatia 5, feito)', fatia: '4 e 5',
     linhas: [
       l('Marcador Grupo (a aba Jogo de antes)', marcador('Grupo')),
-      l('Abrir sala', b('Abrir sala')),
+      l('Abrir mesa online', b('Abrir mesa online')),
       l('Visão de jogador', b('Visão de jogador')),
       { ...l('Rede local (a dica do firewall)', ['dialog', 'Rede local'], b('Rede')), noPop: true },
       l('Personagens: + Personagem', b('+ Personagem'), marcador('Grupo'), b('Personagens')),
@@ -564,7 +564,7 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Chat do mestre', estado: 'sala fechada', escopo: 'direita', vai: 'Marcador Chat do livro da mesa (feito)', fatia: '4',
-    linhas: [{ ...l('Chat sem sala: o convite com Abrir sala (no lugar do "Ir para Jogo")', ['region', 'Chat dos jogadores'], marcador('Chat')), vai: 'Página Chat, "O chat abre junto com a sala" + Abrir sala' }],
+    linhas: [{ ...l('Chat sem sala: o convite com Abrir mesa online (no lugar do "Ir para Jogo")', ['region', 'Chat dos jogadores'], marcador('Chat')), vai: 'Página Chat, "O chat abre junto com a mesa online" + Abrir mesa online' }],
   },
   {
     tela: 'mestre', titulo: 'Cenas', estado: 'aventura aberta, livro da mesa', escopo: 'direita',
@@ -573,24 +573,24 @@ export const BLOCOS: readonly Bloco[] = [
       ...todos([b('Cripta'), b('Configurar Cripta'), b('+ Nova cena'), b('Revisar aventura')], marcador('Cenas')),
       // Renomear e Mover saíram da linha da cena aberta para o menu "…" (lista de cenas, ideia 5);
       // a Planta também, quando a faixa do hover passou a ter no máximo quatro botões.
-      ...['Renomear…', 'Mover para…', 'Planta…', 'Duplicar', 'Subir', 'Descer', 'É a cena inicial', 'Apagar cena…'].map((m) =>
+      ...['Renomear…', 'Mover para…', 'Mostrar a planta aos jogadores…', 'Duplicar', 'Subir', 'Descer', 'É a cena inicial', 'Apagar cena…'].map((m) =>
         l(`Mais ações da cena: ${m}`, ['menuitem', m], marcador('Cenas'), b('Mais ações de Cripta')),
       ),
     ],
   },
   {
     tela: 'mestre-sala-aberta', titulo: 'Livro da mesa, sala aberta', estado: 'sala aberta (código ONDE01), página Grupo', escopo: 'direita',
-    vai: 'Livro da mesa: topo da Sala (código, Mais da sala, Laser, Som, Convidar) e página Mesa (feito)', fatia: '4',
+    vai: 'Livro da mesa: topo da Sala (código, Mais da mesa online, Laser, Som, Convidar) e página Mesa (feito)', fatia: '4',
     linhas: [
-      l('Código da sala (copia ao clicar)', b('/^Código da sala ONDE01/')),
+      l('Código da mesa online (copia ao clicar)', b('/^Código da mesa online ONDE01/')),
       l('Laser do mestre', b('Laser')),
       { ...l('Som da mesa (pop do botão Som)', ['slider', 'Volume'], b('Som')), noPop: true },
       l('Grupo', ['heading', 'Grupo'], marcador('Grupo')),
       { ...l('Convidar jogadores: Tornar pública', b('Tornar pública'), b('Convidar')), noPop: true },
       { ...l('Convidar jogadores: o pop com o QR, os endereços na rede local e a dica do firewall', ['dialog', 'Convidar jogadores'], b('Convidar')), noPop: true },
-      l('Mais da sala: Visão de jogador', menu('Visão de jogador…'), b('Mais da sala')),
-      l('Mais da sala: Fechar sala', menu('Fechar sala…'), b('Mais da sala')),
-      { ...l('Fechar sala: a confirmação', ['alertdialog', 'Fechar a sala?'], b('Mais da sala'), menu('Fechar sala…')), noPop: true },
+      l('Mais da mesa online: Visão de jogador', menu('Visão de jogador…'), b('Mais da mesa online')),
+      l('Mais da mesa online: Fechar mesa online', menu('Fechar mesa online…'), b('Mais da mesa online')),
+      { ...l('Fechar mesa online: a confirmação', ['alertdialog', 'Fechar a mesa online?'], b('Mais da mesa online'), menu('Fechar mesa online…')), noPop: true },
       l('Mesa: Teste secreto', b('/^Teste secreto/'), marcador('Mesa')),
       l('Mesa: Ruído', b('Ruído'), marcador('Mesa'), b('/^Ruído/')),
       l('Mesa: Alcance do ruído', ['combobox', 'Alcance do ruído'], marcador('Mesa'), b('/^Ruído/')),
@@ -653,7 +653,7 @@ export const BLOCOS: readonly Bloco[] = [
       ...todos([['tab', 'Jogo'], ['tab', 'Caderno'], ['tab', 'Lugares'], ['tab', 'Dados'], ['tab', 'Chat']]),
       ...todos([b('Centralizar em Heroi'), b('Sinalizar'), b('Marcações'), b('Medir'), b('Laser'), b('Mostrar meu mapa a…'), b('Volto já'), b('Sair')]),
       ...todos([['heading', 'Comigo'], ['textbox', 'Nome'], b('Foto'), b('Esconder')]),
-      ...todos([['slider', 'Brilho do explorado 55%'], cx('Grade'), cx('Nomes'), cx('Câmera segue minha ficha'), cx('Efeitos do mapa')]),
+      ...todos([['slider', 'Brilho do explorado 45%'], cx('Grade'), cx('Nomes'), cx('Câmera segue minha ficha'), cx('Efeitos do mapa')]),
     ],
   },
 ]
@@ -680,8 +680,8 @@ export const FORA_DO_ESPECIFICADO: readonly (readonly [string, string])[] = [
     'Grupo do mestre (fatia 5): sob o título de cada cena, o pedido de passagem ("Deixar ir: <nome>", "Não: <nome>")',
     'pede um jogador que viajou até um pino de passagem ligado a outra cena; GrupoCompacto.test.tsx e PartySection.test.tsx alcançam os dois botões sob o título da cena (o resto do Grupo com jogadores está no estado "mestre com jogadores")',
   ],
-  ['Teste secreto com jogadores (Teste, Para quem, Pedir teste, Encerrar), na ficha Teste secreto da página Mesa', 'só com jogadores na sala; sem eles a ficha mostra o aviso e o Pedir teste apagado (coberto)'],
-  ['Pausa geral dos NPCs (faixa no alto da página Grupo e "Pausar todos os NPCs" no "Mais da sala")', 'só com NPC andando; TopoDaSala.test.tsx cobre o item do menu'],
+  ['Teste secreto com jogadores (Teste, Para quem, Pedir teste, Encerrar), na ficha Teste secreto da página Mesa', 'só com jogadores na mesa online; sem eles a ficha mostra o aviso e o Pedir teste apagado (coberto)'],
+  ['Pausa geral dos NPCs (faixa no alto da página Grupo e "Pausar todos os NPCs" no "Mais da mesa online")', 'só com NPC andando; TopoDaSala.test.tsx cobre o item do menu'],
   ['Depende do estado (porta, luz, zona, pino)', 'só com Estado do mundo criado'],
   [
     'Item no chão (essencial da ficha do objeto: Nome do item, Quantidade, Pega sem pedir ao mestre)',

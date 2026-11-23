@@ -67,7 +67,7 @@ async function openPlayer(page: Page, map: () => MapData) {
   })
 
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill(CODE)
+  await page.getByLabel('Código da mesa online').fill(CODE)
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('status')).toHaveText(/Aguardando o mestre/)

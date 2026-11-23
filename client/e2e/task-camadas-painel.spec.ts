@@ -426,7 +426,7 @@ test.describe('jogador: os dois olhos e a opacidade pelo recorte do host', () =>
       },
     )
     await jogador.goto('/player.html')
-    await jogador.getByLabel('Código da sala').fill('PAINEL')
+    await jogador.getByLabel('Código da mesa online').fill('PAINEL')
     await jogador.getByLabel('Seu nome').fill('Ana')
     await jogador.getByRole('button', { name: 'Entrar' }).click()
     await expect(jogador.getByText('Aguardando o mestre atribuir um personagem.')).toHaveCount(0)

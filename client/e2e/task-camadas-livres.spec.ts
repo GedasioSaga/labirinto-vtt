@@ -542,7 +542,7 @@ test.describe('jogador: camada livre escondida dos jogadores pelo recorte do hos
       },
     )
     await jogador.goto('/player.html')
-    await jogador.getByLabel('Código da sala').fill('LIVRES')
+    await jogador.getByLabel('Código da mesa online').fill('LIVRES')
     await jogador.getByLabel('Seu nome').fill('Ana')
     await jogador.getByRole('button', { name: 'Entrar' }).click()
     await expect(jogador.getByText('Aguardando o mestre atribuir um personagem.')).toHaveCount(0)

@@ -181,6 +181,13 @@ test('imagem do token: soltar e colar usam o mesmo caminho do "Trocar imagem..."
   await campo.click()
   await campo.pressSequentially('Kael', { delay: 20 })
   await campo.press('Enter')
+  // E7 (decisão 15 do mestre, 12/11/2026): o token novo nasce sem seleção; um clique nele abre o painel.
+  await expect(page.getByRole('button', { name: 'Adicionar token', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toHaveCount(0)
+  const caixaDoMapa = await page.locator('canvas').first().boundingBox()
+  const novo = await oToken(page)
+  if (!caixaDoMapa || !novo) throw new Error('sem canvas ou o token novo não nasceu')
+  await page.mouse.click(caixaDoMapa.x + novo.x, caixaDoMapa.y + novo.y)
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
   // "No mapa" nasce fechada (fatia 9): a imagem do token mora nela.
   await abrirNoMapa(page)

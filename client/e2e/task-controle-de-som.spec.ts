@@ -137,7 +137,7 @@ async function jogadorEntra(page: Page, extras: ExtrasDoRecorte = {}): Promise<H
     (ws) => host.ligar(ws),
   )
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill('SOM123')
+  await page.getByLabel('Código da mesa online').fill('SOM123')
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()
@@ -424,7 +424,7 @@ async function mestreAbreASala(mestre: Page): Promise<void> {
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
   await mestre.getByRole('tab', { name: 'Grupo' }).click()
-  await mestre.getByRole('button', { name: 'Abrir sala' }).click()
+  await mestre.getByRole('button', { name: 'Abrir mesa online' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
 }
 
@@ -437,7 +437,7 @@ test('mestre: o botão "Som" do topo da Sala (livro da mesa) abre o pop "Som da 
   const som = livro.getByRole('button', { name: 'Som', exact: true })
   await expect(som).toBeVisible()
   // O código fica inteiro na linha de cima; Laser, Som e Convidar dividem a de baixo.
-  const linhaDoCodigo = await caixa(livro.getByRole('button', { name: /^Código da sala/ }))
+  const linhaDoCodigo = await caixa(livro.getByRole('button', { name: /^Código da mesa online/ }))
   expect(linhaDoCodigo.height).toBeLessThan(40)
   const caixaDoSom = await caixa(som)
   expect(caixaDoSom.y).toBeGreaterThan(linhaDoCodigo.y + linhaDoCodigo.height)

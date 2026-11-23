@@ -467,11 +467,14 @@ test('duas salas olhadas do mesmo jeito: o que o jogador viu tem de ficar lembra
   await page.getByRole('button', { name: 'Adicionar token' }).click()
   await page.getByLabel('Nome do novo token').fill('Heroi')
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
+  // E7 (decisão 15 do mestre, 12/11/2026): o token novo nasce sem seleção; o formulário fecha e o "+ Token" volta.
+  // Que o Heroi nasceu, prova a escolha do personagem mais abaixo.
+  await expect(page.getByRole('button', { name: 'Adicionar token' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toHaveCount(0)
 
   // 4. O mestre abre a sala.
   await page.getByRole('tab', { name: 'Grupo' }).click()
-  await page.getByRole('button', { name: 'Abrir sala' }).click()
+  await page.getByRole('button', { name: 'Abrir mesa online' }).click()
   await expect(page.getByText(CODE)).toBeVisible()
 
   // 5. O jogador entra pela página dele, em outra aba.
@@ -497,7 +500,7 @@ test('duas salas olhadas do mesmo jeito: o que o jogador viu tem de ficar lembra
     },
   )
   await playerPage.goto('/player.html')
-  await playerPage.getByLabel('Código da sala').fill(CODE)
+  await playerPage.getByLabel('Código da mesa online').fill(CODE)
   await playerPage.getByLabel('Seu nome').fill('Ana')
   await playerPage.getByRole('button', { name: 'Entrar' }).click()
   await expect(playerPage.getByRole('status')).toHaveText(/Aguardando o mestre/)

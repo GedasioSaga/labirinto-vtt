@@ -151,7 +151,7 @@ test('o portão desenha pixel: a tela do jogador sobe e pinta', async ({ page })
 
   await page.goto('/player.html')
   // A página do jogador começa pedindo o código da sala — é o que a pessoa vê.
-  await expect(page.getByLabel('Código da sala')).toBeVisible()
+  await expect(page.getByLabel('Código da mesa online')).toBeVisible()
 
   const foto = await page.screenshot()
   expect(foto.length, 'a tela do jogador voltou uma foto vazia').toBeGreaterThan(1000)

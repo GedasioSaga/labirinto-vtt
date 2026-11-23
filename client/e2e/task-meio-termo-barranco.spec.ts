@@ -323,7 +323,7 @@ async function medirJogador(page: Page, busca: string): Promise<MedidaDoJogador>
   })
   await page.routeWebSocket((url) => url.pathname === '/ws', hostDoBarranco())
   await page.goto(`/player.html${busca}`)
-  await page.getByLabel('Código da sala').fill('PENHA8')
+  await page.getByLabel('Código da mesa online').fill('PENHA8')
   await page.getByLabel('Seu nome').fill('Ana')
   const clique = await page.evaluate(() => performance.now())
   await page.getByRole('button', { name: 'Entrar' }).click()

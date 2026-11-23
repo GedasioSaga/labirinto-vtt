@@ -102,7 +102,7 @@ function hostCom(modeloDeA: ModeloDoTeto): (ws: WebSocketRoute) => void {
 async function fotoDoJogador(page: Page, modeloDeA: ModeloDoTeto): Promise<string> {
   await page.routeWebSocket((url) => url.pathname === '/ws', hostCom(modeloDeA))
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill('PALHA6')
+  await page.getByLabel('Código da mesa online').fill('PALHA6')
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByText('Aguardando o mestre atribuir um personagem.')).toHaveCount(0)

@@ -96,7 +96,7 @@ test('página do jogador: espera, mapa com névoa, movimento aceito e bloqueado 
 
   // 1. Entrar -> espera
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill(CODE)
+  await page.getByLabel('Código da mesa online').fill(CODE)
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('status')).toHaveText(/Aguardando o mestre/)

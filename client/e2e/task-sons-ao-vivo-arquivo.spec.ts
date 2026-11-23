@@ -199,7 +199,7 @@ test('jogador: nada toca antes do toque, a faixinha destrava, o loop entra no po
   test.setTimeout(60_000)
   const { host, midia, erros } = await preparar(page, 390, 844)
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill(CODIGO)
+  await page.getByLabel('Código da mesa online').fill(CODIGO)
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect.poll(() => host.entradas).toBe(1)

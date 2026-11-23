@@ -133,7 +133,7 @@ test('tela do jogador: zona oculta esconde o token alheio e pinta preto; Revelar
   const shot = (name: string) => `${test.info().project.outputDir}/conceal-zone/${name}.png`
 
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill(CODE)
+  await page.getByLabel('Código da mesa online').fill(CODE)
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('status')).toHaveText(/Aguardando o mestre/)
@@ -207,8 +207,12 @@ test('editor: ferramenta Zona oculta cria por arrasto, sem paredes, e o painel r
   expect(created.zones).toHaveLength(1)
   expect(created.zones[0]).toMatchObject({ name: 'Zona oculta', revealed: false })
   expect(created.walls).toBe(0)
-  expect(created.selected).toBe(created.zones[0].id)
+  // E7 (decisão 15 do mestre, 12/11/2026): pôr a zona não seleciona nem pula para a ficha dela.
+  expect(created.selected).toBeNull()
 
+  // Um clique na zona abre a ficha dela.
+  await page.mouse.click(box.x + 500, box.y + 380)
+  await expect.poll(async () => (await editorZones(page)).selected).toBe(created.zones[0].id)
   await expect(page.getByRole('heading', { name: 'Zona oculta' })).toBeVisible()
   await page.getByText('Revelar para jogadores').click()
   await expect.poll(async () => (await editorZones(page)).zones[0]?.revealed).toBe(true)
@@ -220,6 +224,6 @@ test('editor: ferramenta Zona oculta cria por arrasto, sem paredes, e o painel r
   await page.mouse.click(box.x + 500, box.y + 380)
   await expect.poll(async () => (await editorZones(page)).selected).toBe(created.zones[0].id)
 
-  await page.getByRole('button', { name: 'Excluir zona' }).click()
+  await page.getByRole('button', { name: 'Apagar zona' }).click()
   await expect.poll(async () => (await editorZones(page)).zones.length).toBe(0)
 })

@@ -258,7 +258,7 @@ async function abrirNoJogador(page: Page, cena: CenaDoJogador): Promise<void> {
 /** Abre a tela do jogador e entra como Ana; o host de mentira (rota do WebSocket) já está na página. */
 async function entrarComoAna(page: Page): Promise<void> {
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill('GOLDEN')
+  await page.getByLabel('Código da mesa online').fill('GOLDEN')
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()

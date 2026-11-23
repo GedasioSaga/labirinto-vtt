@@ -214,7 +214,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.waitForSelector('canvas')
 
   await mestre.getByRole('tab', { name: 'Grupo' }).click()
-  await mestre.getByRole('button', { name: 'Abrir sala' }).click()
+  await mestre.getByRole('button', { name: 'Abrir mesa online' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
 }
@@ -259,7 +259,7 @@ async function jogadorEntra(browser: Browser, baseURL: string, rede: Rede, clien
     },
   )
   await page.goto('/player.html')
-  const codigo = page.getByLabel('Código da sala')
+  const codigo = page.getByLabel('Código da mesa online')
   await codigo.click()
   await codigo.pressSequentially(CODIGO, { delay: 20 })
   const campoNome = page.getByLabel('Seu nome')
@@ -347,17 +347,17 @@ test('o chat fica salvo: fecha a sala, reabre, e a conversa volta para o mestre 
   // Fecha a sala: a conversa some junto, e a aba Chat fica só com o convite para abrir a sala.
   await mestre.getByRole('tab', { name: 'Grupo' }).click()
   // Fechar sala mora no "Mais da sala" do topo do livro da mesa e pede confirmação (fatia 4).
-  await mestre.getByRole('button', { name: 'Mais da sala' }).click()
-  await mestre.getByRole('menuitem', { name: 'Fechar sala…' }).click()
-  await mestre.getByRole('alertdialog', { name: 'Fechar a sala?' }).getByRole('button', { name: 'Fechar sala', exact: true }).click()
+  await mestre.getByRole('button', { name: 'Mais da mesa online' }).click()
+  await mestre.getByRole('menuitem', { name: 'Fechar mesa online…' }).click()
+  await mestre.getByRole('alertdialog', { name: 'Fechar a mesa online?' }).getByRole('button', { name: 'Fechar mesa online', exact: true }).click()
   // (com o Grupo à frente, a página Chat está escondida: lida pelo id, não pelo papel)
   const abaChat = mestre.locator('#lb-rail-panel-chat')
   await expect(abaChat.locator('.lb-mchat__log')).toHaveCount(0)
-  await expect(abaChat).toContainText('O chat abre junto com a sala')
-  await expect(ana.getByText('O mestre encerrou a sala.').first()).toBeVisible({ timeout: ESPERA_FALA })
+  await expect(abaChat).toContainText('O chat abre junto com a mesa online')
+  await expect(ana.getByText('O mestre encerrou a mesa online.').first()).toBeVisible({ timeout: ESPERA_FALA })
 
   // Reabre retomando a mesa: a conversa volta para o mestre, sem contar como nova.
-  await mestre.getByRole('button', { name: 'Abrir sala' }).click()
+  await mestre.getByRole('button', { name: 'Abrir mesa online' }).click()
   await mestre.getByRole('button', { name: 'Retomar a mesa', exact: true }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   const botaoDeNovo = mestre.getByRole('tab', { name: /^Chat/ })

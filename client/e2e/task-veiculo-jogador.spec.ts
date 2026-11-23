@@ -107,7 +107,7 @@ async function entrar(browser: Browser, mesa: ReturnType<typeof criarMesa>, clie
   const page = await context.newPage()
   await mesa.ligar(page, clientId)
   await page.goto('/player.html')
-  const codigo = page.getByLabel('Código da sala')
+  const codigo = page.getByLabel('Código da mesa online')
   await codigo.click()
   await codigo.pressSequentially(CODE, { delay: 20 })
   const campoNome = page.getByLabel('Seu nome')

@@ -241,7 +241,7 @@ async function mestreAbreAventura(mestre: Page, mapa: MapData): Promise<Rede> {
   await mestre.waitForSelector('canvas')
   await mostrarColunaDireita(mestre)
   await mestre.getByRole('tab', { name: 'Grupo' }).click()
-  await mestre.getByRole('button', { name: 'Abrir sala' }).click()
+  await mestre.getByRole('button', { name: 'Abrir mesa online' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
 }
@@ -455,7 +455,7 @@ async function jogadorEntra(browser: Browser, baseURL: string, rede: Rede, clien
     },
   )
   await page.goto('/player.html')
-  const codigo = page.getByLabel('Código da sala')
+  const codigo = page.getByLabel('Código da mesa online')
   await codigo.click()
   await codigo.pressSequentially(CODIGO, { delay: 20 })
   const campoNome = page.getByLabel('Seu nome')
@@ -918,7 +918,7 @@ test('(c) Visão de jogador: o mestre chama o jogador de teste, a pesca roda na 
 
   // 1. Aba Grupo, SEM abrir sala: "Visão de jogador" → a ficha → o popup abre.
   await mestre.getByRole('tab', { name: 'Grupo' }).click()
-  await expect(mestre.getByRole('button', { name: 'Abrir sala' }), 'a jornada é sem sala: "Abrir sala" deveria estar à vista').toBeVisible()
+  await expect(mestre.getByRole('button', { name: 'Abrir mesa online' }), 'a jornada é sem sala: "Abrir mesa online" deveria estar à vista').toBeVisible()
   await mestre.getByRole('button', { name: /Visão de jogador/ }).click()
   const escolha = mestre.getByRole('dialog', { name: 'Escolher a ficha' })
   await expect(escolha, 'o botão "Visão de jogador" não abriu a escolha da ficha').toBeVisible({ timeout: ESPERA })
@@ -927,7 +927,12 @@ test('(c) Visão de jogador: o mestre chama o jogador de teste, a pesca roda na 
   const barra = popup.locator('header.vj-barra')
   await expect(barra, 'a barra do teste não apareceu no popup').toBeVisible({ timeout: ESPERA })
   const olhar = barra.getByRole('radio', { name: 'Olhar' })
-  await expect(olhar, 'o modo padrão da janela de teste deveria ser Olhar').toHaveAttribute('aria-checked', 'true')
+  // J2 (decisão 6 do mestre, 12/11/2026): aberta pelo livro, a janela de teste nasce em Jogar.
+  await expect(barra.getByRole('radio', { name: 'Jogar' }), 'aberta pelo livro, a janela de teste deveria nascer em Jogar').toHaveAttribute('aria-checked', 'true')
+  await expect(olhar).toHaveAttribute('aria-checked', 'false')
+  // Esta jornada prova a pesca no Olhar: o mestre passa para o Olhar com um clique, como faria.
+  await olhar.click()
+  await expect(olhar, 'o clique em Olhar deveria passar a janela de teste para o Olhar').toHaveAttribute('aria-checked', 'true')
 
   // 2. O pino no editor vira Pesca; o "Chamar para pescar" lista só o jogador de teste.
   const aoVivo = await mestrePoePesca(mestre, mapa, 'Mestre chama', LANCES)
@@ -955,5 +960,5 @@ test('(c) Visão de jogador: o mestre chama o jogador de teste, a pesca roda na 
   // 5. O jogo de verdade não muda: o mapa do editor é o mesmo de antes do convite, e a sala segue fechada.
   expect(await mapaDoEditor(mestre), 'a pesca de teste não pode tocar o mapa do editor').toBe(antes)
   await mestre.getByRole('tab', { name: 'Grupo' }).click()
-  await expect(mestre.getByRole('button', { name: 'Abrir sala' }), 'a pesca de teste não abre a sala').toBeVisible()
+  await expect(mestre.getByRole('button', { name: 'Abrir mesa online' }), 'a pesca de teste não abre a sala').toBeVisible()
 })

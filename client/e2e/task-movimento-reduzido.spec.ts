@@ -140,7 +140,7 @@ async function entrarComoJogador(page: Page): Promise<void> {
   })
   await page.goto('/player.html')
   expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true)
-  await page.getByLabel('Código da sala').fill(CODIGO)
+  await page.getByLabel('Código da mesa online').fill(CODIGO)
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('status')).toHaveText(/Aguardando o mestre/)

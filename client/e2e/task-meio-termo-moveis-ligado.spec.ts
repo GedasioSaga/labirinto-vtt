@@ -69,13 +69,18 @@ async function fotoDoJogador(page: Page, busca: string, mapa: MapData = mapaDosM
   await page.routeWebSocket((url) => url.pathname === '/ws', hostCom(mapa))
   await page.goto(`/player.html${busca}`)
   // O código da sala tem 6 caracteres (o botão Entrar só liga com ele inteiro).
-  await page.getByLabel('Código da sala').fill('MEIOTE')
+  await page.getByLabel('Código da mesa online').fill('MEIOTE')
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()
   await page.addStyleTag({ content: '*:not(canvas) { visibility: hidden !important; } canvas { visibility: visible !important; }' })
   const canvas = page.locator('canvas').first()
-  // Espera a tela parar: duas fotos seguidas iguais (com a obra ligada, as imagens dos móveis ficam prontas na fila).
+  // O10 (12/11/2026): o jogador só redesenha quando há motivo, com um pulso de 500 ms de rede de segurança. Duas fotos
+  // iguais a 250 ms não provam mais que a tela parou: espera a fila das imagens dos móveis esvaziar e compara fotos
+  // separadas por mais que o pulso.
+  await expect
+    .poll(() => page.evaluate(async () => (await import('/src/pixi/rasterDosMoveis.ts')).rasterDosMoveis().naFila), { timeout: 20_000 })
+    .toBe(0)
   let anterior = ''
   await expect
     .poll(
@@ -85,7 +90,7 @@ async function fotoDoJogador(page: Page, busca: string, mapa: MapData = mapaDosM
         anterior = atual
         return parada
       },
-      { timeout: 30_000, intervals: [250, 500, 1000] },
+      { timeout: 30_000, intervals: [700] },
     )
     .toBe(true)
   return anterior

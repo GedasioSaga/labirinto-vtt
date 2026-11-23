@@ -130,7 +130,7 @@ async function entrarEAbrirOSom(page: Page): Promise<HostDeMentira> {
     (ws) => host.ligar(ws),
   )
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill('SOM123')
+  await page.getByLabel('Código da mesa online').fill('SOM123')
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()

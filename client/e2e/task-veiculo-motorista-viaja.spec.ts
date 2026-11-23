@@ -174,7 +174,7 @@ async function entrar(browser: Browser, mesa: ReturnType<typeof criarMesa>, clie
   const page = await context.newPage()
   await mesa.ligar(page, clientId)
   await page.goto('/player.html')
-  const codigo = page.getByLabel('Código da sala')
+  const codigo = page.getByLabel('Código da mesa online')
   await codigo.click()
   await codigo.pressSequentially(CODE, { delay: 20 })
   const campoNome = page.getByLabel('Seu nome')
@@ -194,13 +194,17 @@ async function tocar(page: Page, p: Ponto): Promise<void> {
   await page.mouse.up()
 }
 
-/** Toca a cabeça do poço → "Passar" → confirma "Passar por aqui?". */
+/**
+ * Toca a cabeça do poço → "Passar", num toque só (J1, decisão 5 do mestre,
+ * 12/11/2026): o poço é de ida e volta e o Gui tem uma ficha só, então não há
+ * pergunta "Passar por aqui?".
+ */
 async function passarPeloPoco(page: Page): Promise<void> {
   await tocar(page, naTela({ x: POCO.x, y: POCO.y - PIN_HEAD_OFFSET }))
   const cartao = page.getByRole('dialog').filter({ hasText: 'Poço' })
   await expect(cartao).toBeVisible({ timeout: ESPERA })
   await cartao.getByRole('button', { name: 'Passar', exact: true }).click()
-  await page.getByRole('group', { name: 'Passar por aqui?' }).getByRole('button', { name: /^(passar|sim|confirmar|ir)$/i }).first().click()
+  await expect(page.getByRole('group', { name: 'Passar por aqui?' }), 'um toque em "Passar" manda: a pergunta não abre').toHaveCount(0)
 }
 
 async function foto(page: Page, nome: string): Promise<void> {

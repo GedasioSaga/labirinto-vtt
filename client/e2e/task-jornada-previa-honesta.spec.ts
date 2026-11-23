@@ -141,8 +141,8 @@ test('a prévia da criação promete a mesma grade que o editor entrega', async 
 
   // O passeio que gerou a dor: Quadrado, 30 x 20, 64 px.
   await page.getByRole('radio', { name: 'Quadrado' }).click()
-  await page.getByLabel('Largura (quadros)').fill('30')
-  await page.getByLabel('Altura (quadros)').fill('20')
+  await page.getByLabel('Largura (casas)').fill('30')
+  await page.getByLabel('Altura (casas)').fill('20')
   await page.getByLabel('Tamanho do quadro').fill('64')
 
   const previa = page.getByRole('img', { name: /^Prévia do mapa/ })

@@ -355,8 +355,8 @@ test('quando o desenho do mapa quebra, o jogador vê uma tela do produto e não 
   )
 
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').click()
-  await page.getByLabel('Código da sala').pressSequentially(CODIGO, { delay: 20 })
+  await page.getByLabel('Código da mesa online').click()
+  await page.getByLabel('Código da mesa online').pressSequentially(CODIGO, { delay: 20 })
   await page.getByLabel('Seu nome').click()
   await page.getByLabel('Seu nome').pressSequentially('Ana', { delay: 20 })
   await page.getByRole('button', { name: 'Entrar' }).click()
@@ -418,8 +418,8 @@ test('"Conectando…" tem prazo: código de sala que não existe vira explicaç�
   )
 
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').click()
-  await page.getByLabel('Código da sala').pressSequentially('ZZZ999', { delay: 20 })
+  await page.getByLabel('Código da mesa online').click()
+  await page.getByLabel('Código da mesa online').pressSequentially('ZZZ999', { delay: 20 })
   await page.getByLabel('Seu nome').click()
   await page.getByLabel('Seu nome').pressSequentially('Ana', { delay: 20 })
   await page.getByRole('button', { name: 'Entrar' }).click()
@@ -435,7 +435,7 @@ test('"Conectando…" tem prazo: código de sala que não existe vira explicaç�
   ).not.toHaveText(/Conectando/, { timeout: PRAZO_CONECTANDO_MS })
 
   await expect(
-    page.getByRole('button', { name: /Voltar|Corrigir|outra sala|Tentar/ }),
+    page.getByRole('button', { name: /Voltar|Corrigir|outra mesa online|Tentar/ }),
     'o jogador precisa de um caminho de volta visível',
   ).toBeVisible({ timeout: 2_000 })
 })

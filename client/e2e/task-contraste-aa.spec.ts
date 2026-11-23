@@ -196,7 +196,7 @@ async function entrarComoJogador(page: Page): Promise<void> {
     ws.onMessage((raw) => enviar(sessao.handleMessage('c1', typeof raw === 'string' ? raw : raw.toString('utf8'), mapa).outbound))
   })
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill(CODIGO)
+  await page.getByLabel('Código da mesa online').fill(CODIGO)
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('status')).toHaveText(/Aguardando o mestre/)

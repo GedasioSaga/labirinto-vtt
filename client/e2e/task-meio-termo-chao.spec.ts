@@ -114,7 +114,7 @@ async function abrir(page: Page, comObra: boolean): Promise<Abertura> {
   await instrumentar(page)
   await page.routeWebSocket((url) => url.pathname === '/ws', host())
   await page.goto(`/player.html${comObra ? OBRA : SEM_OBRA}`)
-  await page.getByLabel('Código da sala').fill('CHAO77')
+  await page.getByLabel('Código da mesa online').fill('CHAO77')
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await page.waitForFunction(() => performance.getEntriesByName('texturas:no-palco').length > 0, undefined, { timeout: 60_000 })

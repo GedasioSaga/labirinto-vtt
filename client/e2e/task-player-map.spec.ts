@@ -89,7 +89,7 @@ test('tela do jogador: salas coloridas, explorado persiste e token alheio fora d
   const shot = (name: string) => `${test.info().project.outputDir}/player-map/${name}.png`
 
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill(CODE)
+  await page.getByLabel('Código da mesa online').fill(CODE)
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('status')).toHaveText(/Aguardando o mestre/)
@@ -138,7 +138,8 @@ test('tela do jogador: salas coloridas, explorado persiste e token alheio fora d
   await page.getByLabel('Grade').uncheck()
   await page.getByLabel('Nomes').uncheck()
   const saved = await page.evaluate((key) => localStorage.getItem(key), SETTINGS_KEY)
-  expect(JSON.parse(saved ?? 'null')).toEqual({ exploredBrightness: 0.8, showGrid: false, showNames: false })
+  // S6 (12/11/2026): o ajuste guardado leva a versão, para o 55% de antes virar o padrão novo só em quem nunca mexeu.
+  expect(JSON.parse(saved ?? 'null')).toEqual({ exploredBrightness: 0.8, showGrid: false, showNames: false, versao: 2 })
   await page.waitForTimeout(300)
   await page.screenshot({ path: shot('painel-ajustado') })
 

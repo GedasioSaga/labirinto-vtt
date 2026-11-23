@@ -259,7 +259,7 @@ async function mestreAbreASala(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
   await abrirAbaJogo(mestre)
-  await mestre.getByRole('button', { name: 'Abrir sala' }).click()
+  await mestre.getByRole('button', { name: 'Abrir mesa online' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
 }
@@ -322,7 +322,7 @@ async function anaEntra(browser: Browser, baseURL: string | undefined, rede: Red
     },
   )
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill(CODIGO)
+  await page.getByLabel('Código da mesa online').fill(CODIGO)
   await page.getByLabel('Seu nome').fill(JOGADORA)
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('status')).toHaveText(/Aguardando o mestre/, { timeout: ESPERA })

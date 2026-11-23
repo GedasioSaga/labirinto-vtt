@@ -52,6 +52,16 @@ async function selectTool(page: Page, label: 'Selecionar' | 'Parede' | 'Luz' | '
   await pickTool(page, label)
 }
 
+/**
+ * Ponto do MUNDO na tela. Desde o E14 (12/11/2026) o mapa vazio abre enquadrado
+ * no espaço que os painéis deixam livre: a câmera deixou de ser a identidade, e
+ * o que entra pela store em (400, 400) do mundo não está mais em (400, 400) do canvas.
+ */
+async function naTela(page: Page, box: { x: number; y: number }, x: number, y: number): Promise<{ x: number; y: number }> {
+  const c = await page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().camera)
+  return { x: box.x + x * c.scale + c.x, y: box.y + y * c.scale + c.y }
+}
+
 function deleteButton(page: Page) {
   return page.getByRole('button', { name: /Apagar|Nada selecionado/ })
 }
@@ -141,7 +151,8 @@ test('4. selecionar token: halo de destaque, Delete apaga (comportamento preexis
     mod.useMapStore.getState().addToken({ id: 'tokSel', characterId: null, name: 'Token', x: 400, y: 400, size: 1, image: null })
   })
   await selectTool(page, 'Selecionar')
-  await page.mouse.click(box.x + 400, box.y + 400)
+  const noToken = await naTela(page, box, 400, 400)
+  await page.mouse.click(noToken.x, noToken.y)
 
   expect(await getSelection(page)).toEqual({ kind: 'token', id: 'tokSel' })
   await expect(deleteButton(page)).toHaveText('Apagar token selecionado')
@@ -162,10 +173,11 @@ test('5. selecionar peça (prop): contorno de destaque, Delete apaga', async ({ 
     mod.useMapStore.getState().addProp({ id: 'propSel', src: 'fake.png', x: 400, y: 400, width: 64, height: 64, linkedMapPath: null })
   })
   await selectTool(page, 'Selecionar')
-  await page.mouse.click(box.x + 400, box.y + 400)
+  const naPeca = await naTela(page, box, 400, 400)
+  await page.mouse.click(naPeca.x, naPeca.y)
 
   expect(await getSelection(page)).toEqual({ kind: 'prop', id: 'propSel' })
-  await expect(deleteButton(page)).toHaveText('Apagar peça selecionada')
+  await expect(deleteButton(page)).toHaveText('Apagar objeto selecionado')
 
   await page.keyboard.press('Delete')
   expect((await getMapState(page)).props.length).toBe(0)
@@ -180,7 +192,8 @@ test('6. clique em área vazia desseleciona: botão volta a "Nada selecionado" e
     mod.useMapStore.getState().addToken({ id: 'tokEmpty', characterId: null, name: 'Token', x: 400, y: 400, size: 1, image: null })
   })
   await selectTool(page, 'Selecionar')
-  await page.mouse.click(box.x + 400, box.y + 400)
+  const noToken = await naTela(page, box, 400, 400)
+  await page.mouse.click(noToken.x, noToken.y)
   expect(await getSelection(page)).not.toBeNull()
 
   // y 600, não 700: a barra de ferramentas mora no pé do mapa desde a fatia 6.
@@ -228,7 +241,8 @@ test('7. sem erro de console durante o fluxo completo de seleção+apagar', asyn
   await page.keyboard.press('Delete')
   await page.mouse.click(box.x + 450, box.y + 585)
   await page.keyboard.press('Delete')
-  await page.mouse.click(box.x + 900, box.y + 400)
+  const noToken = await naTela(page, box, 900, 400)
+  await page.mouse.click(noToken.x, noToken.y)
   await page.keyboard.press('Delete')
 
   const state = await getMapState(page)

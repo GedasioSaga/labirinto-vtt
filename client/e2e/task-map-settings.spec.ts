@@ -52,7 +52,7 @@ test('1. engrenagem abre a janela; trocar o modo de medição grava na store; Es
   await expect.poll(() => getMeasurementMode(page)).toBe('manhattan')
   await expect(select).toHaveValue('manhattan')
   await expect(hint).not.toHaveText(hintBefore ?? '')
-  await expect(hint).toContainText('diagonal custa 2 células')
+  await expect(hint).toContainText('diagonal custa 2 casas')
 
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)

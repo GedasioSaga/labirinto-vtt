@@ -187,7 +187,7 @@ async function jogadorEntra(page: Page, cena: Cena = CENA_CHEIA): Promise<HostDe
     (ws) => host.ligar(ws),
   )
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill('HUD123')
+  await page.getByLabel('Código da mesa online').fill('HUD123')
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()
@@ -707,8 +707,17 @@ for (const { tela, alarme } of PORTA_TRANCADA) {
       expect(apagados(comAFaixa, acesos), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
       expect(problemas(comAFaixa, tela, alvoMinimo(tela))).toEqual([])
 
-      // "Bater": a faixa sai e o aviso do pedido entra no mesmo chão.
-      await faixa.getByRole('button', { name: 'Bater' }).click()
+      // J3 (12/11/2026): "Pedir ao mestre" abre o campo do pedido no mesmo chão, com os atalhos; ele também não cobre nada.
+      await faixa.getByRole('button', { name: 'Pedir ao mestre' }).click()
+      const pedido = page.getByRole('form', { name: 'Pedir ao mestre' })
+      await expect(pedido).toBeVisible()
+      const comOPedido = await medirEFotografar(page, `pedir-ao-mestre-${tela.width}x${tela.height}${alarme ? '-alarme' : ''}`)
+      expect(apagados(comOPedido, acesos), 'flutuantes que deviam estar acesos e não foram medidos (campo do pedido)').toEqual([])
+      expect(problemas(comOPedido, tela, alvoMinimo(tela))).toEqual([])
+
+      // "Bater" preenche o pedido e "Enviar ao mestre" manda: o campo sai e o aviso do pedido entra no mesmo chão.
+      await pedido.getByRole('button', { name: 'Bater' }).click()
+      await pedido.getByRole('button', { name: 'Enviar ao mestre' }).click()
       await expect(page.getByText('Pedido enviado')).toBeVisible()
       const comOAviso = await medirEFotografar(page, `pedido-enviado-${tela.width}x${tela.height}${alarme ? '-alarme' : ''}`)
       expect(apagados(comOAviso, ['aviso', 'Espiar pela porta', 'escada'])).toEqual([])

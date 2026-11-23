@@ -72,7 +72,7 @@ async function jogadorEntra(page: Page): Promise<Mandar> {
     },
   )
   await page.goto('/player.html')
-  await page.getByLabel('Código da sala').fill(CODIGO)
+  await page.getByLabel('Código da mesa online').fill(CODIGO)
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('status')).toHaveText(/Aguardando o mestre/)

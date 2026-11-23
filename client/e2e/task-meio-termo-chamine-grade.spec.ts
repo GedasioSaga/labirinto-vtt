@@ -345,7 +345,7 @@ test('provas: jogador a 1440 com a obra (chaminé na telha e na palha, grade na 
   const page = await contexto.newPage()
   await page.routeWebSocket((url) => url.pathname === '/ws', hostDoJogador())
   await page.goto(`/player.html${OBRA}`)
-  await page.getByLabel('Código da sala').fill('MT10JG')
+  await page.getByLabel('Código da mesa online').fill('MT10JG')
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()
