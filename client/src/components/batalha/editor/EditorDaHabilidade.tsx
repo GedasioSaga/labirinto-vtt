@@ -149,8 +149,8 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
       const reduzido = porTeclado || window.matchMedia('(prefers-reduced-motion: reduce)').matches
       alvo.scrollIntoView({ block: 'start', behavior: reduzido ? 'auto' : 'smooth' })
       setBrilho((antes) => ({ linha, vez: (antes === null ? 0 : antes.vez) + 1 }))
-      const primeiro = alvo.querySelector<HTMLElement>('input:checked:not(:disabled)') ?? alvo.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href]')
-      if (primeiro !== null) primeiro.focus({ preventScroll: true })
+      const primeiro = alvo.querySelector('input:checked:not(:disabled)') ?? alvo.querySelector('input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href]')
+      if (primeiro instanceof HTMLElement) primeiro.focus({ preventScroll: true })
     },
     [prefixo],
   )
