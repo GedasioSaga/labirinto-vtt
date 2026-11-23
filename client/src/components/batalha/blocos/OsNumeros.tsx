@@ -192,6 +192,64 @@ function linhaDaAreaLonge(mecanica: MecanicaV1, onChange: Mudar): ReactNode {
   )
 }
 
+/**
+ * Fase F do alcance: o alcance da forma que sai de quem usa ou do alvo escolhido, com o número no
+ * meio da frase ("Leque de [3] casas à frente."). A área longe tem a linha dela; o "em si" e o alvo
+ * sem limite não têm número.
+ */
+function linhaDoAlcance(mecanica: MecanicaV1, onChange: Mudar): ReactNode {
+  const { alvo } = mecanica
+  const { forma, alcance, alcanceMinimo } = alvo
+  if (alvo.quem === 'si') return null
+  const casas = (n: number) => (n === 1 ? 'casa' : 'casas')
+  const trocarForma = (nova: typeof forma) => onChange({ ...mecanica, alvo: { ...alvo, forma: nova } })
+  switch (forma.tipo) {
+    case 'um':
+    case 'varios': {
+      if (alcance === undefined) return null
+      const ate = <NumeroNaFrase rotulo="Alcance, em casas" valor={alcance} minimo={Math.max(1, alcanceMinimo ?? 1)} maximo={CASAS_MAX} onChange={(n) => onChange({ ...mecanica, alvo: { ...alvo, alcance: n } })} />
+      if (alcanceMinimo !== undefined) {
+        return (
+          <Frase>
+            Pega de <NumeroNaFrase rotulo="Alcance mínimo, em casas" valor={alcanceMinimo} minimo={2} maximo={alcance} onChange={(n) => onChange({ ...mecanica, alvo: { ...alvo, alcanceMinimo: n } })} /> a {ate} casas, nunca colado.
+          </Frase>
+        )
+      }
+      return (
+        <Frase>
+          Pega {forma.tipo === 'um' ? 'um alvo' : 'os alvos'} a até {ate} {casas(alcance)}.
+        </Frase>
+      )
+    }
+    case 'linha':
+    case 'cruz':
+    case 'leque': {
+      const numero = <NumeroNaFrase rotulo="Alcance, em casas" valor={forma.casas} minimo={1} maximo={CASAS_MAX} onChange={(n) => trocarForma({ ...forma, casas: n })} />
+      const nome = forma.tipo === 'linha' ? 'Linha reta' : forma.tipo === 'cruz' ? 'Cruz' : 'Leque'
+      return (
+        <Frase>
+          {nome} de {numero} {casas(forma.casas)}
+          {forma.tipo === 'leque' ? ' à frente' : ''}.
+        </Frase>
+      )
+    }
+    case 'raio':
+      if (forma.centro !== undefined) return null
+      return (
+        <Frase>
+          Em volta, <NumeroNaFrase rotulo="Alcance, em casas" valor={forma.casas} minimo={1} maximo={CASAS_MAX} onChange={(n) => trocarForma({ ...forma, casas: n })} /> {casas(forma.casas)}.
+        </Frase>
+      )
+    case 'quadrado':
+      if (forma.centro !== 'frente') return null
+      return (
+        <Frase>
+          Quadrado de lado <NumeroNaFrase rotulo="Lado do quadrado, em casas" valor={forma.lado} minimo={1} maximo={CASAS_MAX} onChange={(n) => trocarForma({ ...forma, lado: n })} /> à frente.
+        </Frase>
+      )
+  }
+}
+
 function linhaDoDreno(mecanica: MecanicaV1, onChange: Mudar): ReactNode {
   const indice = mecanica.efeitos.findIndex((efeito) => efeito.tipo === 'dreno')
   const dreno = mecanica.efeitos[indice]
@@ -311,6 +369,7 @@ export function OsNumeros({ mecanica, ficha, onChange }: Pick<BlocosProps, 'meca
   const linhas = [
     { chave: 'reacao', no: linhaDaReacao(mecanica, onChange) },
     { chave: 'dano', no: mecanica.uso === 'reacao' ? null : linhaDoDano(mecanica, onChange) },
+    { chave: 'alcance', no: mecanica.uso === 'reacao' ? null : linhaDoAlcance(mecanica, onChange) },
     { chave: 'area', no: linhaDaAreaLonge(mecanica, onChange) },
     { chave: 'cura', no: linhaDaCura(mecanica, onChange) },
     { chave: 'reviver', no: linhaDoReviver(mecanica, onChange) },

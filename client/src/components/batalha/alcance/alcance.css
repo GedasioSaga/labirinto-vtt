@@ -1,0 +1,207 @@
+/*
+ * ALCANCE: o seletor de forma e o Testar (fase F, docs/design/habilidades/ALCANCE.md §8).
+ * Medidas e cores do protótipo aprovado (tmp/proto-alcance/fonte.html, .formas e .testar),
+ * com as variáveis do app.
+ */
+
+.lb-alc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-alc__campo {
+  display: grid;
+  /* O mínimo da grade auto-fill é a largura de 5 botões: sem o minmax(0) a coluna estreita vaza para a direita. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-alc__formas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 6px;
+  min-width: 0;
+  max-width: 440px;
+}
+
+.lb-alc__forma {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  min-height: 64px;
+  padding: 8px 4px 6px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-xs);
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    transform 120ms var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-alc__forma:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.lb-alc__forma[aria-checked='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment);
+}
+
+.lb-alc__forma:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lb-alc__forma:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-alc__forma:not(:disabled):not([aria-checked='true']):hover {
+    border-color: var(--lb-color-parchment-faint);
+    color: var(--lb-color-parchment);
+  }
+}
+
+.lb-alc__glifo {
+  width: 26px;
+  height: 26px;
+}
+
+.lb-alc__glifo-casa {
+  fill: rgba(255, 255, 255, 0.07);
+}
+
+.lb-alc__glifo-acesa--azul {
+  fill: #3b8ff0;
+}
+
+.lb-alc__glifo-acesa--verde {
+  fill: #8fe08f;
+}
+
+.lb-alc__glifo-ficha {
+  fill: #eceae4;
+}
+
+.lb-alc__frase {
+  margin: 0;
+}
+
+/* ─── O Testar ─────────────────────────────────────────────────────────────── */
+
+.lb-alc__testar {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: 12px;
+  background: #121215;
+}
+
+.lb-alc__testar-cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+
+.lb-alc__testar-titulo {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment);
+}
+
+.lb-alc__testar-conta {
+  color: var(--lb-color-parchment-dim);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-alc__testar-palco {
+  justify-self: center;
+  max-width: 100%;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  touch-action: none;
+}
+
+.lb-alc__testar-comandos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.lb-alc__setas {
+  display: flex;
+  gap: 4px;
+}
+
+.lb-alc__seta {
+  width: 34px;
+  height: 32px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  transition:
+    transform 120ms var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-alc__seta:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.lb-alc__seta[aria-pressed='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment);
+}
+
+.lb-alc__seta:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lb-alc__seta:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lb-alc__testar-condicao {
+  display: grid;
+  gap: 4px;
+  max-width: 286px;
+}
+
+.lb-alc__testar-nota {
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-xs);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-alc__forma:active:not(:disabled),
+  .lb-alc__seta:active:not(:disabled) {
+    transform: none;
+  }
+}

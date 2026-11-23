@@ -25,7 +25,7 @@ export function BlocosDaMecanica(props: BlocosProps) {
       {props.mecanica.uso !== 'reacao' && (
         <>
           <BlocoDaAcao mecanica={props.mecanica} onChange={props.onChange} />
-          <BlocoDoAlvo mecanica={props.mecanica} onChange={props.onChange} />
+          <BlocoDoAlvo mecanica={props.mecanica} onChange={props.onChange} {...(props.naArma === true ? { naArma: true } : {})} />
           <BlocoDoTeste mecanica={props.mecanica} ficha={props.ficha} onChange={props.onChange} />
           <BlocoDoDano {...props} />
         </>
