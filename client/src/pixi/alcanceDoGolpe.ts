@@ -2,6 +2,7 @@ import { CanvasSource, Container, Graphics, Sprite, Texture, type Ticker } from 
 import { pegadaDaCasa, type Casa, type PegadaNaGrade } from '../lib/batalha/area'
 import { casasDaExplosao, casasDoAlcance } from '../lib/batalha/alcance/casas'
 import type { CorDoAlcance } from '../lib/batalha/alcance/cor'
+import { TINTAS_DO_ALCANCE, type TintaDoAlcance } from '../lib/batalha/alcance/cores'
 import { usaDirecao, type FormaDaAreaLonge } from '../lib/batalha/alcance/forma'
 import { casasDaFormaDeQuemUsa, conjuntoDasCasas, fichaNasCasas, type MapaDoAlcance } from '../lib/batalha/alcance/quemEntra'
 import type { MiraNoDesenho } from '../stores/batalha/miraNoMapa'
@@ -25,23 +26,8 @@ import type { MiraNoDesenho } from '../stores/batalha/miraNoMapa'
  * Traços em px de TELA: o zoom refaz o traço sem refazer a conta das casas.
  */
 
-interface TintaDoAlcance {
-  base: number
-  baseAlpha: number
-  forte: number
-  forteAlpha: number
-  borda: number
-  contorno: number
-  contornoAlpha: number
-  /** O brilho do degradê, em `rgb()` do canvas. */
-  brilho: string
-}
-
-/** As cores do protótipo (`fonte.html`, `CORES`). */
-const TINTAS: Readonly<Record<CorDoAlcance, TintaDoAlcance>> = {
-  azul: { base: 0x1664ec, baseAlpha: 0.6, forte: 0x3088ff, forteAlpha: 0.84, borda: 0xcdeeff, contorno: 0x06122e, contornoAlpha: 0.6, brilho: '168, 222, 255' },
-  verde: { base: 0x68de68, baseAlpha: 0.58, forte: 0x96f28c, forteAlpha: 0.86, borda: 0xecffe2, contorno: 0x0a280e, contornoAlpha: 0.62, brilho: '214, 255, 204' },
-}
+/** As cores do protótipo, as mesmas do Testar do editor (`lib/batalha/alcance/cores.ts`). */
+const TINTAS = TINTAS_DO_ALCANCE
 
 const BRANCO = 0xffffff
 const TINTA_ESCURA = 0x0c0c0e

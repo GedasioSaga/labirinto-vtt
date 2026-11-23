@@ -3,6 +3,7 @@ import { alcanceDoCartao, type CartaoComAlcance } from '../../../lib/batalha/alc
 import { casasDaExplosao, casasDoAlcance } from '../../../lib/batalha/alcance/casas'
 import { alcanceComCondicoes, type GrupoDoAlcance, type MudancaDoAlcance, type SeloQueMudaOAlcance } from '../../../lib/batalha/alcance/condicoes'
 import { corDoAlcance, type CorDoAlcance } from '../../../lib/batalha/alcance/cor'
+import { TINTAS_DO_CANVAS, type TintaDoCanvas } from '../../../lib/batalha/alcance/cores'
 import { descreverAlcance, usaDirecao, type FormaDoAlcance } from '../../../lib/batalha/alcance/forma'
 import type { Casa, Direcao } from '../../../lib/batalha/area'
 import { normalizar } from '../../../lib/batalha/formula'
@@ -35,11 +36,8 @@ const GRADE = 50
 /** A parede do protótipo: em pé, 3 casas à direita, da linha 2 à 6 (corta o lado de cima à direita). */
 const PAREDE_DO_TESTE: readonly Segment[] = [{ x1: 9 * GRADE, y1: 2 * GRADE, x2: 9 * GRADE, y2: 6 * GRADE }]
 
-/** As tintas das casas, as do protótipo aprovado (`CORES`), as mesmas da mesa. */
-const TINTAS: Record<CorDoAlcance, { base: string; forte: string; borda: string; contorno: string }> = {
-  azul: { base: 'rgba(22, 100, 236, 0.6)', forte: 'rgba(48, 136, 255, 0.84)', borda: '#cdeeff', contorno: 'rgba(6, 18, 46, 0.6)' },
-  verde: { base: 'rgba(104, 222, 104, 0.58)', forte: 'rgba(150, 242, 140, 0.86)', borda: '#ecffe2', contorno: 'rgba(10, 40, 14, 0.62)' },
-}
+/** As tintas das casas, as da mesa (`lib/batalha/alcance/cores.ts`). */
+const TINTAS = TINTAS_DO_CANVAS
 
 const SETAS: readonly { direcao: Direcao; seta: string; rotulo: string }[] = [
   { direcao: 'oeste', seta: '←', rotulo: 'Virado para a esquerda' },
@@ -89,7 +87,7 @@ function chegaAte(forma: FormaDoAlcance): number {
   }
 }
 
-function pintarCasa(g: CanvasRenderingContext2D, casa: Casa, tinta: (typeof TINTAS)[CorDoAlcance], forte: boolean): void {
+function pintarCasa(g: CanvasRenderingContext2D, casa: Casa, tinta: TintaDoCanvas, forte: boolean): void {
   const x = casa.col * CASA_PX
   const y = casa.row * CASA_PX
   const margem = 1.5
