@@ -28,6 +28,9 @@ import type { ConsultaDaFicha } from './MiraDoGolpe'
 import { LembretesDaMarca, marcaNaTela, type MarcaNaTela } from './LembretesDaMarca'
 import { EscolhaDoAliado, PedidosDeAjuda } from './PedidosDeAjuda'
 import { escolhaDaAjuda, type EscolhaDaAjuda } from '../../lib/batalha/requisitos/ajuda'
+import { motivoDosRequisitosNoMenu } from '../../lib/batalha/requisitos/portao'
+import type { RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
+import { medidoresDaFicha, nivelNosSelos, perguntasDosRequisitos, reacoesComOsRequisitos } from './requisitosNoMenu'
 import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNaTela } from './PassivasDaBatalha'
 import type { ConexaoDaBatalha } from './pedidosDaVez'
 import './batalha.css'
@@ -256,10 +259,13 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     const requisitos = doMenu === undefined || !noTreino ? doMenu : { ...doMenu, noTreino: true }
     const habilidades = (comAcoes: typeof acoes) => (personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, comAcoes, arma, bonus, requisitos) : [])
     const selosDoDono = estado.cartas.find((carta) => carta.tokenId === cartaQueAge.tokenId)?.selos?.length ?? 0
+    // REQUISITOS G: os acumuladores dele no topo ("POLARIDADE 1/3"); o contador antigo, pelo selo da carta.
+    const seloDaCarta = estado.cartas.find((carta) => carta.tokenId === cartaQueAge.tokenId)?.selos
     return {
-      armas: golpesDeAtaque(personagem, sistema, combate, acoes, bonus),
+      armas: golpesDeAtaque(personagem, sistema, combate, acoes, bonus, requisitos),
       habilidades: habilidades(acoes),
-      contra: { armas: golpesDeAtaque(personagem, sistema, combate, null, bonus), habilidades: habilidades(null) },
+      contra: { armas: golpesDeAtaque(personagem, sistema, combate, null, bonus, requisitos), habilidades: habilidades(null) },
+      medidores: personagem !== null && sistema !== null ? medidoresDaFicha(personagem, sistema, combate, (_cartaoId, nome) => nivelNosSelos(seloDaCarta, nome)) : undefined,
       // C4: inimigos do mais perto ao mais longe, aliados depois, ele por último.
       alvos: alvosNaOrdemDaMira(alvosPara(cartaQueAge), fichas, cartaQueAge.tokenId, tamanhoDaCasa, mapaDaMira, condicoesDaMira),
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
@@ -320,16 +326,16 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     }
     return lista
   }, [cartaQueAge, estado.cartas, fichasInteiras])
-  const escolhaDaAjudaNaTela = (cartaoId: string, para: 'usar' | 'evoluir'): EscolhaDaAjuda | null => {
+  const escolhaDaAjudaNaTela = (cartaoId: string, para: 'usar' | 'evoluir', respostas?: RespostasDoPedido): EscolhaDaAjuda | null => {
     if (noTreino || pedirAjuda === undefined || personagem === null || sistema === null || cartaQueAge === undefined) return null
     const cartao = cartaoDoPedido(personagem, cartaoId)
     if (cartao === undefined) return null
-    return escolhaDaAjuda(cartao.requisitos, para, { ...contextoDoMenuDoJogador(personagem, sistema, cartaQueAge.tokenId, combate), aliados: vizinhosDaTela(aliadosDaAjuda, sistema) })
+    return escolhaDaAjuda(cartao.requisitos, para, { ...contextoDoMenuDoJogador(personagem, sistema, cartaQueAge.tokenId, combate), aliados: vizinhosDaTela(aliadosDaAjuda, sistema) }, respostas)
   }
   const agirOuEscolher = (pedido: PedidoDeAcao): boolean => {
     if ((pedido.tipo === 'habilidade' || pedido.tipo === 'atacar') && pedido.ajudaDe === undefined) {
       const cartaoId = pedido.tipo === 'habilidade' ? pedido.cartaoId : pedido.armaId
-      const escolha = cartaoId === null ? null : escolhaDaAjudaNaTela(cartaoId, 'usar')
+      const escolha = cartaoId === null ? null : escolhaDaAjudaNaTela(cartaoId, 'usar', pedido.respostas)
       if (escolha !== null) {
         setEscolhendo({ escolha, mandar: (ajudaDe) => conexao.agir(vezDoPedido(pedido), { ...pedido, ajudaDe }) })
         return true
@@ -361,10 +367,16 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     pedirEvolucao === undefined || cartaQueAge === undefined || personagem === null || sistema === null
       ? undefined
       : {
-          motivo: (cartaoId, custo) => (!operaComoMestre && !estado.minhaVez ? 'Evoluir só na sua vez' : motivoDoEvoluirNaFicha(personagem, sistema, meuCombate?.evoluidas, { cartaoId, custo })),
-          onEvoluir: (cartaoId, custo) => {
-            const pedido = { tipo: 'evoluir' as const, tokenId: cartaQueAge.tokenId, cartaoId, custo }
-            const escolha = escolhaDaAjudaNaTela(cartaoId, 'evoluir')
+          // REQUISITOS G: depois da ficha, o que falta do grupo "Para evoluir" que o recorte deixa ver (o que pergunta fica livre).
+          motivo: (cartaoId, custo) =>
+            !operaComoMestre && !estado.minhaVez
+              ? 'Evoluir só na sua vez'
+              : (motivoDoEvoluirNaFicha(personagem, sistema, meuCombate?.evoluidas, { cartaoId, custo }) ?? motivoDosRequisitosNoMenu(cartaoDoPedido(personagem, cartaoId)?.requisitos, 'evoluir', contextoDoMenuDoJogador(personagem, sistema, cartaQueAge.tokenId, combate))),
+          perguntas: (cartaoId, respostas) => perguntasDosRequisitos(cartaoDoPedido(personagem, cartaoId)?.requisitos, 'evoluir', contextoDoMenuDoJogador(personagem, sistema, cartaQueAge.tokenId, combate), respostas),
+          onEvoluir: (cartaoId, custo, extra) => {
+            // O jogador não força: só as respostas vão.
+            const pedido = { tipo: 'evoluir' as const, tokenId: cartaQueAge.tokenId, cartaoId, custo, ...(extra?.respostas === undefined ? {} : { respostas: extra.respostas }) }
+            const escolha = escolhaDaAjudaNaTela(cartaoId, 'evoluir', extra?.respostas)
             if (escolha === null) return pedirEvolucao(pedido)
             setEscolhendo({ escolha, mandar: (ajudaDe) => pedirEvolucao({ ...pedido, ajudaDe }) })
             return true
@@ -411,7 +423,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         const personagemDoPor = estado.cartas.find((carta) => carta.tokenId === por && carta.lado === 'eu')?.personagemId
         const quemRebate = personagemDoPor === undefined ? undefined : meus.find((candidato) => candidato.id === personagemDoPor)
         if (quemRebate !== undefined && sistema !== null) {
-          item.tecnicas = reacoesPorPerto({ podeReagir: true, rolagem: reacao.rolagem }, quemRebate, sistema, combateDoJogador(estado.meus?.find((meu) => meu.personagemId === quemRebate.id), null))
+          const combateDoPor = combateDoJogador(estado.meus?.find((meu) => meu.personagemId === quemRebate.id), null)
+          // REQUISITOS G: a técnica cujo requisito não vale na reação fica cinza com o motivo (o host recusaria igual).
+          item.tecnicas = reacoesComOsRequisitos(reacoesPorPerto({ podeReagir: true, rolagem: reacao.rolagem }, quemRebate, sistema, combateDoPor), contextoDoMenuDoJogador(quemRebate, sistema, por, combateDoPor))
         }
         return item
       }
@@ -432,7 +446,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       if (dele !== undefined && sistema !== null) {
         const combateDele = combateDoJogador(estado.meus?.find((meu) => meu.personagemId === dele.id), null)
         // F2 (revisão da fatia E): contra Surpresa só a técnica que vale contra ela; a que o mestre confirma vem apagada com o motivo.
-        item.tecnicas = reacoesDoJogador(reacoesParaOAlvo({ podeReagir: true, rolagem: reacao.rolagem }, dele, sistema, combateDele, reacao.overload === true, reacao.surpresa === true))
+        // REQUISITOS G: e a que o requisito não deixa na reação (o pedido ao aliado, a caixa), cinza com o motivo.
+        item.tecnicas = reacoesComOsRequisitos(reacoesDoJogador(reacoesParaOAlvo({ podeReagir: true, rolagem: reacao.rolagem }, dele, sistema, combateDele, reacao.overload === true, reacao.surpresa === true)), contextoDoMenuDoJogador(dele, sistema, reacao.tokenId, combateDele))
         // Conserto das fichas F1 (S4): Resiliente, Determinação (HP abaixo da metade): o aviso do que sai do dano.
         const reducao = avisoDasReducoes(reducoesDoDano(dele, sistema))
         if (reducao !== '') item.reducao = reducao
@@ -551,6 +566,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             quem={cartaQueAge.nome.trim() || 'Você'}
             acoes={acoes}
             carga={combate?.carga ?? 0}
+            medidores={menu.medidores}
             motivoDoConcentrar={acoes === null ? 'Fora da vez' : motivoDoConcentrar(combate, acoes, chave ?? '')}
             armas={menu.armas}
             habilidades={menu.habilidades}

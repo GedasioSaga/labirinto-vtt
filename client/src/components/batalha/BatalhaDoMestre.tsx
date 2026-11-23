@@ -6,11 +6,11 @@ import { escolhaDaAjuda, type EscolhaDaAjuda } from '../../lib/batalha/requisito
 import { aliadosNaLuta, equipeDe } from '../../lib/batalha/equipes'
 import { comOBonusDosAcumuladores } from '../../lib/batalha/acumuladorNaBatalha'
 import { cartaoDoPedido, contextoDosRequisitos, vizinhosDaTela } from '../../lib/batalha/requisitos/montar'
-import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
+import { motivoDoEvoluir, portaoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { nivelDoContador } from '../../lib/batalha/contador'
 import type { PerguntaNaHora, RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
 import type { ContextoDosRequisitos } from '../../lib/batalha/requisitos/contexto'
-import { MOTIVO_PEDE_AJUDA, motivoDosRequisitosNoMenu } from '../../lib/batalha/requisitos/portao'
+import { motivoDoPortao, motivoDosRequisitosNoMenu } from '../../lib/batalha/requisitos/portao'
 import { medidoresDaFicha, perguntasDosRequisitos, reacoesComOsRequisitos } from './requisitosNoMenu'
 import type { EvoluirNaTela } from './ListaDeTecnicas'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
@@ -266,8 +266,13 @@ function evoluirDoMestre(mesa: Mesa, turnos: TurnosDaCena, carta: CartaDaOrdem, 
   const requisitosDe = (cartaoId: string): unknown => (personagem === null ? undefined : cartaoDoPedido(personagem, cartaoId)?.requisitos)
   return {
     motivo: (cartaoId, custo, respostas) => {
-      const motivo = motivoDoEvoluir({ personagem, sistema, turnos, soNaVez: false, personagens, autorEhMestre: true }, { tipo: 'evoluir', tokenId: carta.tokenId, cartaoId, custo, ...(respostas === undefined ? {} : { respostas }) })
-      return motivo === MOTIVO_PEDE_AJUDA ? null : motivo
+      const daEvolucao = { personagem, sistema, turnos, soNaVez: false, personagens, autorEhMestre: true }
+      const pedido = { tipo: 'evoluir' as const, tokenId: carta.tokenId, cartaoId, custo, ...(respostas === undefined ? {} : { respostas }) }
+      const motivo = motivoDoEvoluir(daEvolucao, pedido)
+      if (motivo === null) return null
+      // O pedido ao aliado (a escolha vem depois) e o teste (o host rola) não apagam o botão: são do caminho, não do que falta.
+      const portao = portaoDoEvoluir(daEvolucao, pedido)
+      return (portao.tipo === 'perguntaAoAliado' || portao.tipo === 'teste') && motivoDoPortao(portao) === motivo ? null : motivo
     },
     onEvoluir: (cartaoId, custo, extra) => {
       const pedido = { tipo: 'evoluir' as const, tokenId: carta.tokenId, cartaoId, custo, ...(extra ?? {}) }

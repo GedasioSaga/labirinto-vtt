@@ -43,7 +43,7 @@ function chaveDoNome(nome: string): string {
  * `contador.ts`) entra com o nível que quem monta sabe ler (`nivelDoContador`); o bloco novo com o mesmo
  * nome vence. Sem nenhum = lista vazia.
  */
-export function medidoresDaFicha(personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, nivelDoContador: (cartaoId: string) => number): MedidorNaTela[] {
+export function medidoresDaFicha(personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, nivelDoContador: (cartaoId: string, nome: string) => number): MedidorNaTela[] {
   const medidores: MedidorNaTela[] = acumuladoresDoPersonagem(personagem).map((acumulador) => ({
     id: acumulador.id,
     nome: acumulador.nome.trim() || 'Acumulador',
@@ -53,8 +53,23 @@ export function medidoresDaFicha(personagem: Personagem, sistema: SistemaDeRpg, 
   const antigo = contadorDoPersonagem(personagem, sistema)
   const maximo = antigo === null ? 0 : antigo.leitura.danoPorNivel.length
   if (antigo !== null && maximo > 0 && !medidores.some((medidor) => chaveDoNome(medidor.nome) === chaveDoNome(antigo.leitura.nome)))
-    medidores.push({ id: antigo.cartao.id, nome: antigo.leitura.nome.trim() || 'Contador', nivel: Math.min(maximo, nivelDoContador(antigo.cartao.id)), maximo })
+    medidores.push({ id: antigo.cartao.id, nome: antigo.leitura.nome.trim() || 'Contador', nivel: Math.min(maximo, nivelDoContador(antigo.cartao.id, antigo.leitura.nome)), maximo })
   return medidores.filter((medidor) => medidor.maximo > 0)
+}
+
+/**
+ * O nível do contador antigo como a tela do jogador o vê: no selo da carta ("Polaridade 2"). Sem o selo
+ * = 0. (O mestre lê dos turnos, `nivelDoContador` de `contador.ts`.)
+ */
+export function nivelNosSelos(selos: readonly { nome: string }[] | undefined, nome: string): number {
+  const prefixo = `${nome.toLowerCase()} `
+  for (const selo of selos ?? []) {
+    const texto = selo.nome.toLowerCase()
+    if (!texto.startsWith(prefixo)) continue
+    const nivel = Number.parseInt(texto.slice(prefixo.length), 10)
+    if (Number.isInteger(nivel) && nivel > 0) return nivel
+  }
+  return 0
 }
 
 /** A forma em Partes como o topo do menu mostra: "Forma Híbrida · Parte 2" (0 = fora dela). */

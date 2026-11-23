@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import type { PedidoDeAjusteNaBatalha, PedidoDePassiva } from '../../lib/batalha/combate'
 import { travaDoContador } from '../../lib/batalha/condicoes'
 import { contadorDoPersonagem } from '../../lib/batalha/contador'
+import { acumuladorQueCarrega } from '../../lib/batalha/acumuladorNaBatalha'
+import { nivelNosSelos } from './requisitosNoMenu'
 import { reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import type { EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
@@ -62,16 +64,28 @@ export interface FaixaDoJogadorProps {
   className?: string
 }
 
-/** R5: o nível do contador pelo selo da carta ("Polaridade 2"); sem selo = 0. */
-function nivelNaCarta(carta: DadosDaCarta, nome: string): number {
-  const prefixo = `${nome.toLowerCase()} `
-  for (const selo of carta.selos ?? []) {
-    const texto = selo.nome.toLowerCase()
-    if (!texto.startsWith(prefixo)) continue
-    const nivel = Number.parseInt(texto.slice(prefixo.length), 10)
-    if (Number.isInteger(nivel) && nivel > 0) return nivel
+/** REQUISITOS G: o que o "Carregar" do menu da carta sobe: o nome, o nível de agora, o teto e o que o próximo nível dá. */
+interface CarregavelNaCarta {
+  nome: string
+  nivel: number
+  maximo: number
+  /** O cartão que o pedido leva (o host acha o acumulador, ou o contador, por ele). */
+  cartaoId: string
+  ganho: (nivel: number) => string
+}
+
+function carregavelDaFicha(personagem: Personagem, sistema: SistemaDeRpg, carta: DadosDaCarta, niveis: Readonly<Record<string, number>> | undefined): CarregavelNaCarta | null {
+  // A mesma ordem do host (`mexerNoContador`): o contador antigo manda; sem ele, o acumulador genérico.
+  const contador = contadorDoPersonagem(personagem, sistema)
+  if (contador !== null) {
+    const { nome, danoPorNivel } = contador.leitura
+    return { nome, nivel: nivelNosSelos(carta.selos, nome), maximo: danoPorNivel.length, cartaoId: contador.cartao.id, ganho: (agora) => `nível ${agora + 1} soma +${danoPorNivel[agora] ?? 0} de dano` }
   }
-  return 0
+  const generico = acumuladorQueCarrega(personagem)
+  if (generico === null) return null
+  const { acumulador, cartao } = generico
+  const nivel = niveis !== undefined && Object.hasOwn(niveis, acumulador.id) ? (niveis[acumulador.id] ?? 0) : 0
+  return { nome: acumulador.nome, nivel, maximo: acumulador.maximo, cartaoId: cartao.id, ganho: (agora) => `vai a ${agora + 1} de ${acumulador.maximo}` }
 }
 
 /** Sem resposta do host neste prazo, o Desfazer volta (o pedido foi recusado ou se perdeu). */
@@ -171,10 +185,11 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
                 if (onAjustar !== undefined && personagem !== undefined && sistema !== null)
                   itens.push({ id: 'ajustar', rotulo: 'Ajustar…', detalhe: 'HP, SP, Escudo e um atributo; vai ao registro', onEscolher: () => setAjusteEm(carta) })
                 // R5: o contador da ficha (a Polaridade): gasta a reação até a vez dele; zerar é do mestre.
-                const contador = onCarregar === undefined || personagem === undefined || sistema === null ? null : contadorDoPersonagem(personagem, sistema)
-                if (contador !== null && onCarregar !== undefined) {
-                  const nivel = nivelNaCarta(carta, contador.leitura.nome)
-                  const maximo = contador.leitura.danoPorNivel.length
+                // REQUISITOS G: sem o contador antigo (o nível no selo da carta), o acumulador genérico que sobe ao gastar a reação
+                // (o nível do recorte, `meu.acumuladores`).
+                const carregavel = onCarregar === undefined || personagem === undefined || sistema === null ? null : carregavelDaFicha(personagem, sistema, carta, estado.meus?.find((meu) => meu.personagemId === personagemId)?.acumuladores)
+                if (carregavel !== null && onCarregar !== undefined) {
+                  const { nome, nivel, maximo, cartaoId, ganho } = carregavel
                   const semReacao = estado.meus?.find((meu) => meu.personagemId === personagemId)?.semReacao === true
                   // F2 (fatia D, Q6 do Vagn): com golpe esperando a reação dele, carregar não vale (o host recusa igual).
                   const esperando = (estado.reacoes ?? []).some((reacao) => reacao.tokenId === carta.tokenId)
@@ -182,12 +197,12 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
                   const travado = travaDoContador(estado.cartas.find((daOrdem) => daOrdem.tokenId === carta.tokenId)?.selos)
                   itens.push({
                     id: 'carregar',
-                    rotulo: `Carregar ${contador.leitura.nome} (${nivel} de ${maximo})`,
+                    rotulo: `Carregar ${nome} (${nivel} de ${maximo})`,
                     detalhe:
                       travado ??
-                      (semReacao ? 'Já gastou a reação: volta na sua vez' : esperando ? 'Tem golpe esperando a sua reação: responda antes de carregar' : nivel >= maximo ? 'Já está no máximo' : `Perde a reação até a sua vez; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
+                      (semReacao ? 'Já gastou a reação: volta na sua vez' : esperando ? 'Tem golpe esperando a sua reação: responda antes de carregar' : nivel >= maximo ? 'Já está no máximo' : `Perde a reação até a sua vez; ${ganho(nivel)}`),
                     desabilitado: travado !== null || semReacao || esperando || nivel >= maximo,
-                    onEscolher: () => onCarregar(carta.tokenId, contador.cartao.id),
+                    onEscolher: () => onCarregar(carta.tokenId, cartaoId),
                   })
                 }
                 // Fora da vez também: ele perde a concentração ao tomar o golpe.
