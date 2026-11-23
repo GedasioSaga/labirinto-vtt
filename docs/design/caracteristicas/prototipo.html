@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Características especiais (protótipo)</title>
+<style>
+/* =========================================================================
+ * Características especiais (Companion e Cegueira): protótipo
+ * (docs/design/caracteristicas). Tokens: os MESMOS --lb-* de
+ * docs/design/balanceamento/prototipo.html (que copia client/src/theme.ts).
+ * Derivados deste protótipo, declarados só aqui:
+ *   --ficha-*   cinzas da ficha real (print tmp/biblioteca/dono-ficha-aira.png)
+ *   --aliado / --inimigo   os lados do balanceador aprovado
+ *   --onda      a onda da cegueira (o gravado claro do livro, não é latão:
+ *               latão é "vez" e "escolhido"; a onda não pode ser confundida)
+ *   --chao-* / --parede / --nevoa   o mapa do estado 5
+ * ========================================================================= */
+:root {
+  --lb-color-ink: #121214;
+  --lb-color-stone-raised: #232328;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-online-soft: rgba(127, 180, 138, 0.14);
+  --lb-color-tide: #79a9cc;
+  --lb-color-tide-soft: rgba(121, 169, 204, 0.14);
+  --lb-color-arcane: #ab93d6;
+  --lb-color-arcane-soft: rgba(171, 147, 214, 0.15);
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-focus: 0 0 0 2px #1a1a1e, 0 0 0 4px var(--lb-color-brass);
+  --lb-motion-fast: 110ms;
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --lb-gr-filete: rgba(236, 234, 228, 0.09);
+  --lb-gr-filete-forte: rgba(236, 234, 228, 0.16);
+  --lb-gr-filete-latao: rgba(224, 164, 74, 0.26);
+  --lb-gr-gravado-forte: #ead6ae;
+  --lb-gr-latao-1: #f6cb84;
+  --lb-gr-latao-2: #e0a44a;
+  --lb-gr-hover: rgba(255, 236, 200, 0.06);
+  --lb-gr-hover-forte: rgba(255, 236, 200, 0.1);
+  --mu-erro-texto: #f0897f;
+
+  --ficha-fundo: #18181b;
+  --ficha-cartao: #1e1e22;
+  --ficha-campo: #141416;
+  --aliado: #4f95d6;
+  --inimigo: #e2645a;
+  --onda: var(--lb-gr-gravado-forte);
+  --chao: #2b2925;
+  --chao-escuro: #27251f;
+  --chao-linha: rgba(236, 234, 228, 0.055);
+  --parede: #a1988a;
+  --parede-sombra: #141210;
+  --nevoa: #0b0a09;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body {
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr);
+  background: var(--lb-color-ink); color: var(--lb-color-parchment);
+  font: var(--lb-font-size-md)/1.45 var(--lb-font-sans);
+  -webkit-font-smoothing: antialiased; overflow: hidden;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.num { font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+h1, h2, h3, p { margin: 0; }
+.ic { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+kbd { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: inherit; opacity: 0.75; border: 1px solid currentColor; border-bottom-width: 2px; border-radius: 4px; padding: 2px 4px; }
+
+/* ---- botões (iguais aos protótipos aprovados) ---- */
+.bt {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 32px; padding: 0 12px; border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised); color: var(--lb-color-parchment);
+  border: 1px solid var(--lb-gr-filete-forte); font-weight: 500; white-space: nowrap;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out), opacity var(--lb-motion-fast) ease;
+}
+.bt:active:not(:disabled) { transform: scale(0.97); }
+.bt:disabled { opacity: 0.45; }
+@media (hover: hover) and (pointer: fine) { .bt:hover:not(:disabled) { border-color: var(--lb-gr-filete-latao); } }
+.bt--primario { background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 60%, #cf9440); color: var(--lb-color-brass-contrast); border-color: rgba(0, 0, 0, 0.35); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); font-weight: 600; }
+.bt--latao { background: transparent; border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.bt--fantasma { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+@media (hover: hover) and (pointer: fine) { .bt--fantasma:hover:not(:disabled) { background: var(--lb-gr-hover); border-color: transparent; color: var(--lb-color-parchment); } }
+.bt--perigo { background: transparent; border-color: transparent; color: var(--mu-erro-texto); }
+@media (hover: hover) and (pointer: fine) { .bt--perigo:hover:not(:disabled) { background: var(--lb-color-ember-soft); border-color: transparent; } }
+.bt--perigo-cheio { background: var(--lb-color-ember); border-color: rgba(0, 0, 0, 0.3); color: #1d0a08; font-weight: 600; }
+.bt--p { min-height: 28px; padding: 0 9px; font-size: var(--lb-font-size-sm); }
+.bt--ic { width: 28px; min-height: 28px; padding: 0; background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+@media (hover: hover) and (pointer: fine) { .bt--ic:hover:not(:disabled) { background: var(--lb-gr-hover); border-color: transparent; color: var(--lb-color-parchment); } }
+.bt--mini { width: 26px; min-height: 26px; padding: 0; font-size: 14px; background: var(--ficha-campo); }
+.bt--lancar { flex: 1; min-height: 40px; background: #c4574d; border-color: rgba(0, 0, 0, 0.3); color: #fff4ee; font-weight: 600; }
+
+/* ---- barra do protótipo ---- */
+.topo { position: relative; z-index: 30; display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: #0d0d0f; border-bottom: 1px solid var(--lb-color-line); }
+.topo__nome { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); white-space: nowrap; }
+.estados { display: flex; gap: 4px; flex-wrap: wrap; }
+.estado { min-height: 32px; padding: 0 12px; border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete-forte); background: transparent; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out); }
+.estado:active { transform: scale(0.97); }
+.estado .num { margin-right: 5px; opacity: 0.7; }
+.estado[aria-selected='true'] { background: var(--lb-color-parchment); border-color: transparent; color: #141210; }
+@media (hover: hover) and (pointer: fine) { .estado:hover:not([aria-selected='true']) { color: var(--lb-color-parchment); border-color: var(--lb-gr-filete-latao); } }
+.topo__dir { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.topo__rot { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); white-space: nowrap; }
+.seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--lb-radius-sm); background: var(--ficha-campo); border: 1px solid var(--lb-color-line); }
+.seg button { min-height: 26px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease; }
+.seg button[aria-pressed='true'], .seg button[aria-checked='true'] { background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+@media (hover: hover) and (pointer: fine) { .seg button:hover { color: var(--lb-color-parchment); } }
+.roteiro { padding: 7px 16px 8px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); border-bottom: 1px solid var(--lb-color-line); background: #0f0f11; }
+.roteiro b { color: var(--lb-color-parchment-dim); font-weight: 600; }
+#palco { position: relative; min-height: 0; overflow: hidden; }
+
+/* ---- fundo do app atrás da ficha ---- */
+.fundo-app { position: absolute; inset: 0; background-color: #1d1d21; background-image: linear-gradient(var(--chao-linha) 1px, transparent 1px), linear-gradient(90deg, var(--chao-linha) 1px, transparent 1px); background-size: 48px 48px; }
+.fundo-app::after { content: ''; position: absolute; inset: 0; background: rgba(6, 6, 8, 0.66); }
+.reabrir { position: absolute; inset: 0; display: grid; place-items: center; }
+
+/* ---- ficha ---- */
+.ficha { position: absolute; inset: 14px 24px; max-width: 1200px; margin: 0 auto; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--ficha-fundo); border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-lg); box-shadow: var(--lb-shadow-float); overflow: hidden; }
+.ficha__cab { display: flex; align-items: center; gap: 8px; padding: 12px 16px 12px 20px; border-bottom: 1px solid var(--lb-color-line); }
+.ficha__sobre { flex: 1; font: 500 var(--lb-font-size-sm)/1 var(--lb-font-sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--lb-color-parchment-dim); }
+.ficha__corpo { display: grid; grid-template-columns: 316px minmax(0, 1fr); gap: 20px; padding: 14px 20px 16px; min-height: 0; }
+.ficha__esq { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 2px 6px 2px 2px; scrollbar-width: thin; }
+.tags { display: flex; gap: 6px; }
+.tag { padding: 3px 8px; border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm); font-size: var(--lb-font-size-sm); background: var(--lb-color-stone-raised); }
+.perfil { padding: 14px 16px 16px; border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--ficha-cartao); }
+.foto { display: block; width: 100px; height: 100px; margin: 0 auto 8px; border-radius: var(--lb-radius-md); overflow: hidden; box-shadow: 0 0 0 1px var(--lb-color-line); }
+.perfil__nome { display: flex; align-items: center; justify-content: center; gap: 8px; font: 400 21px/1.2 var(--lb-font-display); }
+.selo { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--lb-radius-full); font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+.selo--jogador { background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2)); color: var(--lb-color-brass-contrast); }
+.selo--npc { background: var(--lb-color-tide-soft); color: var(--lb-color-tide); }
+.selo--invocacao { background: var(--lb-color-arcane-soft); color: var(--lb-color-arcane); }
+.selo--seguir { background: var(--lb-gr-hover-forte); color: var(--lb-color-parchment-dim); letter-spacing: 0.02em; text-transform: none; }
+.perfil__dados { margin: 8px 0 12px; text-align: center; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.6; }
+.recursos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.recurso { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line); background: var(--ficha-campo); }
+.recurso__rot { font: 500 var(--lb-font-size-xs)/1.3 var(--lb-font-utility); letter-spacing: 0.08em; text-transform: uppercase; color: var(--lb-color-parchment-dim); }
+.recurso__v { font: 600 17px/1.2 var(--lb-font-utility); }
+.recurso__v small { font-size: var(--lb-font-size-sm); font-weight: 400; color: var(--lb-color-parchment-faint); }
+.recurso--hp { background: rgba(226, 100, 90, 0.1); border-color: rgba(226, 100, 90, 0.32); }
+.recurso--hp .recurso__rot, .recurso--hp .recurso__v { color: #f0897f; }
+.recurso--sp { background: var(--lb-color-tide-soft); border-color: rgba(121, 169, 204, 0.3); }
+.recurso--sp .recurso__rot, .recurso--sp .recurso__v { color: var(--lb-color-tide); }
+.recurso__passo { display: flex; gap: 4px; }
+.secao { font: 500 var(--lb-font-size-sm)/1.2 var(--lb-font-sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--lb-color-parchment-dim); }
+.atributos { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 2px; }
+.atr { display: grid; grid-template-columns: minmax(0, 1fr) 26px 36px 26px 34px; align-items: center; gap: 4px; min-height: 28px; }
+.atr__v { text-align: center; font-weight: 600; }
+.atr__r { justify-self: end; padding: 3px 6px; border-radius: 4px; background: var(--lb-color-stone-raised); font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-dim); }
+
+/* ---- o bloco novo ---- */
+.carac { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--lb-color-line); }
+.carac__cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+.carac__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.carac__vazio { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); line-height: 1.5; }
+.cchip {
+  position: relative; display: inline-flex; align-items: center; gap: 7px; max-width: 100%; min-height: 32px; padding: 0 11px 0 9px;
+  border-radius: var(--lb-radius-full); border: 1px solid var(--lb-gr-filete-forte); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment);
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.cchip:active { transform: scale(0.97); }
+.cchip .ic { color: var(--lb-color-brass); }
+.cchip--cegueira .ic { color: var(--onda); }
+.cchip__txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cchip__n { color: var(--lb-color-parchment-faint); }
+.cchip[aria-pressed='true'] { background: var(--lb-color-brass-soft); border-color: var(--lb-gr-filete-latao); }
+.cchip--novo { background: transparent; border-style: dashed; border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.cchip--novo .ic { color: currentColor; }
+.carac__vazio { margin-bottom: 8px; }
+@media (hover: hover) and (pointer: fine) { .cchip:hover { border-color: var(--lb-gr-filete-latao); } }
+/* "Aqui está a nova": acende na hora e apaga em 600 ms, num ::after só de opacidade (o anel de foco nunca anima) */
+.novo-brilho::after { content: ''; position: absolute; inset: -4px; border-radius: inherit; box-shadow: 0 0 0 2px rgba(224, 164, 74, 0.6); opacity: 0; pointer-events: none; transition: opacity 600ms ease; }
+.novo-brilho.aceso::after { opacity: 1; transition-duration: 0ms; }
+
+/* ---- lado direito: abas da ficha ---- */
+.ficha__dir { min-height: 0; overflow: auto; padding-right: 4px; scrollbar-width: thin; }
+.abas-f { display: flex; gap: 22px; border-bottom: 1px solid var(--lb-color-line); margin-bottom: 14px; }
+.aba-f { position: relative; padding: 9px 0 10px; border: 0; background: none; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-md); font-weight: 500; }
+.aba-f sup { margin-left: 3px; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.aba-f[aria-selected='true'] { color: var(--lb-color-parchment); }
+.aba-f[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--lb-color-brass); }
+@media (hover: hover) and (pointer: fine) { .aba-f:hover { color: var(--lb-color-parchment); } }
+.hab { padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--ficha-cartao); }
+.hab h3 { font-size: var(--lb-font-size-lg); font-weight: 500; margin-bottom: 8px; }
+.hab p { color: var(--lb-color-parchment-dim); line-height: 1.6; max-width: 92ch; }
+.hab dl { display: grid; grid-template-columns: 90px 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: var(--lb-font-size-md); }
+.hab dt { color: var(--lb-color-parchment-faint); }
+.hab dd { margin: 0; }
+.fora-do-proto { padding: 28px 4px; color: var(--lb-color-parchment-faint); }
+
+/* ---- página da característica ---- */
+.pag { max-width: 760px; }
+.pag__barra { margin: -2px 0 10px -9px; }
+.pag__cab { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; padding-bottom: 16px; border-bottom: 1px solid var(--lb-color-line); }
+.pag__ic { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.pag__ic .ic { width: 20px; height: 20px; }
+.pag__ic--onda { background: rgba(234, 214, 174, 0.08); color: var(--onda); box-shadow: inset 0 0 0 1px rgba(234, 214, 174, 0.22); }
+.pag__tit { font: 400 26px/1.15 var(--lb-font-display); overflow-wrap: anywhere; }
+.pag__sub { margin-top: 6px; color: var(--lb-color-parchment-dim); line-height: 1.6; max-width: 64ch; }
+.pag__campos { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 28px; padding: 16px 0; border-bottom: 1px solid var(--lb-color-line); }
+.campo { display: grid; gap: 6px; align-content: start; }
+.campo > label, .campo__rot { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.campo__v { font-size: var(--lb-font-size-lg); }
+.campo__ajuda { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.entrada { width: 100%; min-height: 34px; padding: 0 10px; border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete-forte); background: var(--ficha-campo); transition: border-color var(--lb-motion-fast) ease; }
+.entrada:focus-visible { border-color: var(--lb-color-brass); box-shadow: none; }
+.entrada--p { min-height: 30px; font-size: var(--lb-font-size-sm); }
+.passo { display: inline-flex; align-items: center; gap: 6px; }
+.passo__v { min-width: 30px; text-align: center; font-size: 20px; font-weight: 600; }
+.pag__lista-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0 10px; }
+.pag__lista-cab h3 { font-size: var(--lb-font-size-lg); font-weight: 600; }
+.cont { margin-left: 6px; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment-faint); font-weight: 400; }
+.ligadas { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ligada { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto 28px; align-items: center; gap: 4px 14px; padding: 10px 10px 10px 12px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line); background: var(--ficha-cartao); }
+.ligada__nome { display: flex; align-items: center; gap: 8px; font-size: var(--lb-font-size-lg); font-weight: 500; min-width: 0; }
+.ligada__nome span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ligada__meta { margin-top: 2px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.ligada__nivel { display: flex; align-items: center; gap: 8px; color: var(--lb-color-parchment-dim); }
+.ligada__modo { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.ligada__efeito { grid-column: 2 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; }
+.ligada__efeito-rot { font-size: var(--lb-font-size-sm); color: var(--lb-color-arcane); white-space: nowrap; }
+.ligada__efeito p { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.ligada.novo-brilho::after { border-radius: var(--lb-radius-md); }
+.retrato {
+  --cor: var(--lb-color-parchment-faint); --lado: var(--lb-gr-filete-latao);
+  position: relative; width: 34px; height: 34px; flex: none; border-radius: 50%;
+  display: grid; place-items: center; font: 600 11px/1 var(--lb-font-utility); color: #101214;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--cor) 70%, white), var(--cor) 70%);
+  box-shadow: 0 0 0 2px var(--ficha-fundo), 0 0 0 3.5px var(--lado);
+}
+.retrato--g { width: 40px; height: 40px; font-size: 13px; }
+.retrato--p { width: 24px; height: 24px; font-size: 9px; }
+.retrato__dono { position: absolute; right: -4px; bottom: -4px; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font: 700 8px/1 var(--lb-font-utility); box-shadow: 0 0 0 2px var(--ficha-fundo); }
+.vazio { display: grid; justify-items: start; gap: 12px; padding: 22px 20px; border: 1px dashed var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); color: var(--lb-color-parchment-dim); }
+.vazio p { max-width: 56ch; line-height: 1.6; }
+.vazio b { color: var(--lb-color-parchment); font-weight: 600; }
+.pag__pe { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--lb-color-line); }
+
+/* cegueira na ficha */
+.cg-numeros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 16px 0; }
+.cg-num { padding: 12px 14px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line); background: var(--ficha-cartao); }
+.cg-num b { display: block; font: 600 22px/1.1 var(--lb-font-utility); }
+.cg-num span { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.cg-fig { margin: 0 0 16px; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; align-items: center; padding: 14px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line); background: var(--ficha-campo); }
+.cg-fig figcaption { color: var(--lb-color-parchment-dim); line-height: 1.6; font-size: var(--lb-font-size-md); }
+.cg-fig figcaption b { color: var(--lb-color-parchment); font-weight: 600; }
+
+/* ---- menu ---- */
+.menu { position: fixed; z-index: 60; width: 300px; padding: 4px; background: var(--lb-color-stone-raised); border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); box-shadow: var(--lb-shadow-float); transform-origin: top left; transition: transform 150ms var(--lb-gr-ease-out), opacity 150ms var(--lb-gr-ease-out); }
+.menu.entrando { transform: scale(0.96); opacity: 0; }
+.menu.saindo { transform: scale(0.98); opacity: 0; transition-duration: 100ms; }
+.menu__item { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 2px 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 6px; background: none; text-align: left; }
+.menu__item .ic { margin-top: 1px; color: var(--lb-color-brass); }
+.menu__item:focus-visible { box-shadow: none; background: var(--lb-gr-hover-forte); }
+@media (hover: hover) and (pointer: fine) { .menu__item:hover { background: var(--lb-gr-hover-forte); } }
+.menu__item b { font-weight: 500; }
+.menu__item small { grid-column: 2; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); line-height: 1.45; }
+.menu__item[aria-disabled='true'] { cursor: not-allowed; }
+.menu__item[aria-disabled='true'] b, .menu__item[aria-disabled='true'] .ic { opacity: 0.5; }
+
+/* ---- diálogos ---- */
+.veu { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(5, 5, 6, 0.62); transition: opacity 200ms ease; }
+.veu.entrando, .veu.saindo { opacity: 0; }
+.veu.saindo { transition-duration: 140ms; }
+.dialogo { width: min(560px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column; background: var(--ficha-cartao); border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-lg); box-shadow: var(--lb-shadow-float); transition: transform 200ms var(--lb-gr-ease-out), opacity 200ms var(--lb-gr-ease-out); }
+.veu.entrando .dialogo { transform: scale(0.96); opacity: 0; }
+.veu.saindo .dialogo { transform: scale(0.98); opacity: 0; transition-duration: 140ms; }
+.dialogo__cab { display: flex; align-items: flex-start; gap: 10px; padding: 18px 18px 0 20px; }
+.dialogo__cab h2 { flex: 1; font: 400 21px/1.25 var(--lb-font-display); }
+.dialogo__sub { padding: 6px 20px 0; color: var(--lb-color-parchment-dim); line-height: 1.55; }
+.dialogo__corpo { padding: 14px 20px; min-height: 0; overflow: auto; }
+.dialogo__pe { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--lb-color-line); }
+.dialogo__nota { margin-right: auto; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.busca { position: relative; margin: 14px 20px 0; }
+.busca .ic { position: absolute; left: 10px; top: 9px; color: var(--lb-color-parchment-faint); }
+.busca .entrada { padding-left: 32px; }
+.dl-grupo { display: flex; align-items: center; gap: 10px; margin: 4px 0 6px; padding: 6px 0 4px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); font-weight: 500; }
+.dl-grupo + .dl-op { margin-top: 0; }
+.dl-grupo:not(:first-child) { margin-top: 14px; }
+.dl-op { display: grid; grid-template-columns: 18px 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 44px; padding: 4px 8px; border-radius: var(--lb-radius-sm); cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { .dl-op:hover { background: var(--lb-gr-hover); } }
+.dl-op:has(input:disabled) { cursor: not-allowed; opacity: 0.55; }
+.dl-op input, .dl-grupo input { width: 16px; height: 16px; margin: 0; accent-color: var(--lb-color-brass); }
+.dl-op__nome { font-weight: 500; }
+.dl-op__sub { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.dl-op__dir { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.dl-nada { padding: 20px 4px; color: var(--lb-color-parchment-dim); }
+
+/* ---- avisos ---- */
+#avisos { position: fixed; left: 50%; bottom: 18px; z-index: 70; display: grid; gap: 8px; width: min(460px, calc(100vw - 32px)); transform: translateX(-50%); pointer-events: none; }
+#avisos:focus-visible { box-shadow: none; }
+.aviso { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: var(--lb-radius-md); background: #2a2a30; border: 1px solid var(--lb-gr-filete-forte); box-shadow: var(--lb-shadow-float); transition: transform 200ms var(--lb-gr-ease-out), opacity 200ms var(--lb-gr-ease-out); }
+.aviso p { flex: 1; line-height: 1.45; }
+.aviso.entrando, .aviso.saindo { transform: translateY(100%); opacity: 0; }
+.aviso.saindo { transition-duration: 140ms; }
+#avisos:focus-within .aviso { border-color: var(--lb-gr-filete-latao); }
+</style>
+<style>
+/* ---- estados 3 e 4: a mesa ---- */
+.mesa { display: grid; grid-template-columns: minmax(0, 1fr) 392px; gap: 12px; height: 100%; padding: 12px; }
+.mapa { --casa: 56px; position: relative; overflow: hidden; border-radius: var(--lb-radius-lg); border: 1px solid var(--lb-color-line); background-color: #232327; background-image: linear-gradient(var(--chao-linha) 1px, transparent 1px), linear-gradient(90deg, var(--chao-linha) 1px, transparent 1px); background-size: var(--casa) var(--casa); }
+.mapa__faixa { position: absolute; left: 14px; top: 14px; z-index: 3; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 28px); padding: 7px 12px; border-radius: var(--lb-radius-full); background: rgba(14, 14, 16, 0.88); border: 1px solid var(--lb-color-line); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.mapa__faixa b { color: var(--lb-color-parchment); font-weight: 600; }
+.mapa__faixa--vez { border-color: var(--lb-gr-filete-latao); }
+.tk { --lado: var(--aliado); position: absolute; left: 0; top: 0; width: var(--casa); height: var(--casa); display: grid; place-items: center; }
+.tk__disco { position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--cor) 55%, #2b2b30), #1b1b1f 75%); box-shadow: 0 0 0 3px var(--lado), 0 4px 10px rgba(0, 0, 0, 0.5); font: 600 12px/1 var(--lb-font-utility); }
+.tk--inimigo { --lado: var(--inimigo); }
+.tk--p .tk__disco { width: 36px; height: 36px; font-size: 11px; }
+.tk__nome { position: absolute; top: calc(100% - 4px); padding: 2px 6px; border-radius: 4px; background: rgba(10, 10, 12, 0.82); font-size: var(--lb-font-size-xs); white-space: nowrap; }
+.tk[data-vez='true'] .tk__disco { box-shadow: 0 0 0 3px var(--lado), 0 0 0 6px var(--lb-color-brass), 0 0 22px rgba(224, 164, 74, 0.45); }
+.tk[data-caido='true'] { opacity: 0.4; }
+.tk__dono { position: absolute; right: -5px; bottom: -5px; width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font: 700 9px/1 var(--lb-font-utility); box-shadow: 0 0 0 2px #1b1b1f; }
+.tk__selo { position: absolute; left: -8px; top: -8px; padding: 1px 4px; border-radius: 4px; background: var(--lb-color-arcane-soft); color: var(--lb-color-arcane); font: 600 9px/1.3 var(--lb-font-utility); box-shadow: inset 0 0 0 1px rgba(171, 147, 214, 0.4); }
+.dano { position: absolute; z-index: 4; pointer-events: none; font: 700 16px/1 var(--lb-font-utility); color: #ff9a8f; text-shadow: 0 1px 2px #000; }
+.dano--cura { color: #9be3ad; }
+.painel { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; border-radius: var(--lb-radius-lg); border: 1px solid var(--lb-color-line); background: var(--ficha-fundo); overflow: hidden; }
+.painel__cab { display: flex; align-items: baseline; gap: 8px; padding: 14px 16px 10px; border-bottom: 1px solid var(--lb-color-line); }
+.painel__rod { font: 400 19px/1.2 var(--lb-font-display); }
+.painel__vez { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.painel__quem { margin-left: auto; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.vez { position: relative; margin: 14px 12px 6px; padding: 18px 14px 14px; border-radius: 10px; background: linear-gradient(180deg, rgba(224, 164, 74, 0.16), var(--ficha-cartao) 110px); box-shadow: inset 0 0 0 1.5px var(--lb-color-brass), 0 6px 18px rgba(0, 0, 0, 0.35); }
+.vez__fita { position: absolute; left: 12px; top: -9px; padding: 2px 7px; border-radius: 4px; background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font: 700 var(--lb-font-size-xs)/1.3 var(--lb-font-utility); letter-spacing: 0.12em; }
+.vez__conteudo { transition: opacity 180ms var(--lb-gr-ease-out), transform 180ms var(--lb-gr-ease-out); }
+.vez__conteudo.entrando { opacity: 0; transform: translateY(6px); }
+@media (prefers-reduced-motion: reduce) { .vez__conteudo.entrando { transform: none; } }
+.vez__topo { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; align-items: center; }
+.vez__nome { font: 400 23px/1.15 var(--lb-font-display); color: var(--lb-color-brass-bright); overflow-wrap: anywhere; }
+.vez__sub { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.vez__sub b { color: var(--lb-color-parchment); font-weight: 600; }
+.barras { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; margin: 12px 0 4px; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.barra { height: 4px; border-radius: 2px; background: rgba(236, 234, 228, 0.08); overflow: hidden; }
+.barra i { display: block; height: 100%; border-radius: inherit; background: #e06a5f; transform-origin: left; }
+.barra--sp i { background: var(--lb-color-tide); }
+.vez__rot { margin: 12px 0 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.opcoes { display: grid; gap: 6px; }
+.opcoes--2 { grid-template-columns: 1fr 1fr; }
+.opcao { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px; border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete); background: var(--ficha-campo); text-align: left; transition: border-color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease; }
+.opcao__bola { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--lb-color-parchment-faint); }
+.opcao[aria-checked='true'] { border-color: var(--lb-gr-filete-latao); background: rgba(224, 164, 74, 0.08); }
+.opcao[aria-checked='true'] .opcao__bola { box-shadow: inset 0 0 0 1.5px var(--lb-color-brass), inset 0 0 0 4px var(--ficha-campo); background: var(--lb-color-brass); }
+.opcao__dir { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.opcao:disabled { opacity: 0.45; }
+.vez__acoes { display: flex; gap: 8px; margin-top: 12px; }
+.vez__texto { margin-top: 12px; color: var(--lb-color-parchment-dim); line-height: 1.55; }
+.vez__feito { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--lb-color-online); }
+.ordem { list-style: none; margin: 0; padding: 4px 12px 12px; display: grid; align-content: start; gap: 2px; overflow: auto; }
+.linha { display: grid; grid-template-columns: 16px 34px minmax(0, 1fr) 84px; align-items: center; gap: 10px; min-height: 52px; padding: 4px 6px; border-radius: var(--lb-radius-sm); }
+.linha__n { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); text-align: center; }
+.linha__nome { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 500; }
+.linha__nome > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linha__sub { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.linha__sub b { color: var(--lb-color-brass-bright); font-weight: 500; }
+.linha__barras { display: grid; grid-template-columns: minmax(0, 1fr) 30px; align-items: center; gap: 3px 6px; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); text-align: right; }
+.linha[data-caido='true'] { opacity: 0.45; }
+.painel__pe { display: grid; gap: 10px; padding: 12px 14px 14px; border-top: 1px solid var(--lb-color-line); }
+.registro { min-height: 2.9em; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.45; }
+.painel__pe .bt { justify-self: end; min-height: 40px; padding: 0 18px; }
+
+/* ---- estado 3: escolha ---- */
+.mesa--atras { filter: saturate(0.6); }
+.veu-palco { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(5, 5, 6, 0.6); }
+.escolha { width: min(760px, 100%); max-height: 100%; display: flex; flex-direction: column; background: var(--ficha-cartao); border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-lg); box-shadow: var(--lb-shadow-float); }
+.escolha__cab { padding: 20px 22px 0; }
+.escolha__sobre { font-size: var(--lb-font-size-sm); color: var(--lb-color-brass-bright); }
+.escolha__cab h2 { margin-top: 4px; font: 400 27px/1.15 var(--lb-font-display); }
+.escolha__cab p:last-child { margin-top: 6px; max-width: 66ch; color: var(--lb-color-parchment-dim); line-height: 1.55; }
+.escolha__corpo { padding: 8px 22px 6px; overflow: auto; }
+.grupo-esc { padding: 14px 0 10px; }
+.grupo-esc + .grupo-esc { border-top: 1px solid var(--lb-color-line); }
+.grupo-esc__cab { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.grupo-esc__cab h3 { font-size: var(--lb-font-size-lg); font-weight: 600; }
+.grupo-esc__lim { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.grupo-esc__conta { margin-left: auto; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment-dim); }
+.grupo-esc__conta b { color: var(--lb-color-brass-bright); }
+.cartas-esc { display: grid; grid-template-columns: repeat(auto-fill, minmax(214px, 1fr)); gap: 8px; }
+.esc { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr) 18px; align-items: center; gap: 10px; min-height: 64px; padding: 10px 12px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-gr-filete-forte); background: var(--ficha-campo); cursor: pointer; transition: border-color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out), opacity var(--lb-motion-fast) ease; }
+.esc:active:not(.esc--off) { transform: scale(0.98); }
+@media (hover: hover) and (pointer: fine) { .esc:not(.esc--off):hover { border-color: var(--lb-gr-filete-latao); } }
+.esc:has(input:checked) { border-color: var(--lb-color-brass); background: rgba(224, 164, 74, 0.09); }
+.esc:has(input:focus-visible) { box-shadow: var(--lb-shadow-focus); }
+.esc--off { cursor: not-allowed; opacity: 0.5; }
+.esc__txt { display: grid; min-width: 0; }
+.esc__txt b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.esc__txt span { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.esc__txt .esc__motivo { color: var(--mu-erro-texto); }
+.esc__caixa { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; box-shadow: inset 0 0 0 1.5px var(--lb-color-parchment-faint); color: var(--lb-color-brass-contrast); }
+.esc__caixa .ic { width: 13px; height: 13px; stroke-width: 2.4; opacity: 0; }
+.esc:has(input:checked) .esc__caixa { background: var(--lb-color-brass); box-shadow: none; }
+.esc:has(input:checked) .esc__caixa .ic { opacity: 1; }
+.grupo-esc__aviso { margin-top: 8px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.escolha__pe { display: flex; align-items: center; gap: 8px; padding: 14px 22px 18px; border-top: 1px solid var(--lb-color-line); }
+.escolha__pe .dialogo__nota { max-width: 36ch; }
+
+/* ---- estado 5: visão ---- */
+.visao { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; height: 100%; padding: 12px; }
+.mv { position: relative; overflow: hidden; border-radius: var(--lb-radius-lg); border: 1px solid var(--lb-color-line); background: var(--nevoa); touch-action: none; }
+.mv canvas { position: absolute; left: 0; top: 0; }
+.mv__fichas, .mv__ondas { position: absolute; inset: 0; pointer-events: none; }
+.tk5 { --lado: var(--aliado); position: absolute; left: 0; top: 0; width: calc(var(--casa) * 0.86); height: calc(var(--casa) * 0.86); margin: calc(var(--casa) * -0.43) 0 0 calc(var(--casa) * -0.43); padding: 0; border: 0; border-radius: 50%; background: none; pointer-events: auto; display: grid; place-items: center; touch-action: none; }
+.tk5--inimigo { --lado: var(--inimigo); }
+.tk5 .tk__disco { width: 100%; height: 100%; font-size: 12px; }
+.tk5[data-arrasta='true'] { cursor: grab; }
+.tk5.arrastando { cursor: grabbing; z-index: 5; }
+.tk5.arrastando .tk__disco { box-shadow: 0 0 0 3px var(--lado), 0 10px 22px rgba(0, 0, 0, 0.6); }
+.tk5:focus-visible { box-shadow: var(--lb-shadow-focus); }
+.tk5--eu .tk__disco { box-shadow: 0 0 0 3px var(--lado), 0 0 0 5px rgba(234, 214, 174, 0.35), 0 4px 10px rgba(0, 0, 0, 0.5); }
+.tk5[hidden] { display: none; }
+.mv__dica { position: absolute; left: 0; top: 0; z-index: 6; padding: 5px 9px; border-radius: var(--lb-radius-sm); background: rgba(12, 12, 14, 0.92); border: 1px solid var(--lb-gr-filete-forte); font-size: var(--lb-font-size-sm); white-space: nowrap; pointer-events: none; }
+.mv__dica[data-sit='ve'] { border-color: rgba(236, 234, 228, 0.4); }
+.mv__dica[data-sit='sente'] { border-color: rgba(234, 214, 174, 0.55); color: var(--onda); }
+.mv__dica[data-sit='fora'] { color: var(--lb-color-parchment-faint); }
+
+/* A ONDA. Três anéis que nascem no chão onde a ficha está e se abrem.
+ * Por quê animar: é estado ("tem alguém ali"), não enfeite; parada, uma onda
+ * vira um círculo e lê como marcação do mestre. Abre em linha reta (a frente
+ * de uma onda anda com velocidade constante; com ease-out o anel parava na
+ * borda meio aceso por quase 1 s e lia como um círculo fixo: ver
+ * provas/onda-amostras.csv) e some em linha reta; 2,1 s por anel, 3 anéis a
+ * cada 700 ms, e cada ficha com a sua fase para não pulsarem em coro. O miolo
+ * fica parado: o movimento é só dos anéis. Só transform e opacity
+ * (compositor). Movimento reduzido: anéis parados. */
+.onda { position: absolute; left: 0; top: 0; width: calc(var(--casa) * 2.6); height: calc(var(--casa) * 2.6); margin: calc(var(--casa) * -1.3) 0 0 calc(var(--casa) * -1.3); pointer-events: none; }
+.onda i { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--onda); box-shadow: 0 0 8px rgba(234, 214, 174, 0.22), inset 0 0 6px rgba(234, 214, 174, 0.14); opacity: 0; transform: scale(0.18); animation: onda-abre 2100ms linear infinite, onda-some 2100ms linear infinite; animation-delay: var(--fase, 0ms); }
+.onda i:nth-of-type(2) { animation-delay: calc(var(--fase, 0ms) - 700ms); }
+.onda i:nth-of-type(3) { animation-delay: calc(var(--fase, 0ms) - 1400ms); }
+.onda b { position: absolute; left: 50%; top: 50%; width: 34%; height: 34%; margin: -17% 0 0 -17%; border-radius: 50%; background: radial-gradient(circle, rgba(234, 214, 174, 0.55), rgba(234, 214, 174, 0) 70%); opacity: 0.7; }
+/* Ao começar a sentir alguém, a onda entra em 150 ms (sem isso ela salta já no meio do ciclo); ao parar de sentir, some na hora. */
+.onda { transition: opacity 150ms var(--lb-gr-ease-out); }
+.onda.nascendo { opacity: 0; }
+@keyframes onda-abre { from { transform: scale(0.18); } to { transform: scale(1); } }
+@keyframes onda-some { 0% { opacity: 0; } 14% { opacity: 0.85; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .onda i { animation: none; }
+  .onda i:nth-of-type(1) { transform: scale(0.4); opacity: 0.62; }
+  .onda i:nth-of-type(2) { transform: scale(0.7); opacity: 0.4; }
+  .onda i:nth-of-type(3) { transform: scale(1); opacity: 0.22; }
+  .onda b { opacity: 0.6; }
+}
+.lado5 { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: auto; padding: 16px; border-radius: var(--lb-radius-lg); border: 1px solid var(--lb-color-line); background: var(--ficha-fundo); }
+.lado5 h2 { font: 400 22px/1.2 var(--lb-font-display); }
+.lado5__txt { color: var(--lb-color-parchment-dim); line-height: 1.6; }
+.lado5__txt b { color: var(--lb-color-parchment); font-weight: 600; }
+.interruptor { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--ficha-cartao); border: 1px solid var(--lb-color-line); }
+.interruptor label { flex: 1; cursor: pointer; }
+.interruptor label small { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.sw { position: relative; width: 38px; height: 22px; padding: 0; border: 0; border-radius: 11px; background: rgba(236, 234, 228, 0.16); transition: background-color 160ms ease; }
+.sw::after { content: ''; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--lb-color-parchment); transition: transform 160ms var(--lb-gr-ease-in-out); }
+.sw[aria-checked='true'] { background: var(--lb-color-brass); }
+.sw[aria-checked='true']::after { transform: translateX(16px); background: #1b1508; }
+.contagem { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.contagem div { padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--ficha-cartao); border: 1px solid var(--lb-color-line); }
+.contagem b { display: block; font: 600 22px/1.1 var(--lb-font-utility); }
+.contagem span { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.sit { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.sit li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 40px; padding: 4px 8px; border-radius: var(--lb-radius-sm); background: var(--ficha-cartao); }
+.sit__nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sit__nome small { display: block; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.pilula { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--lb-radius-full); font-size: var(--lb-font-size-sm); white-space: nowrap; }
+.pilula .ic { width: 13px; height: 13px; }
+.pilula--ve { background: rgba(236, 234, 228, 0.1); color: var(--lb-color-parchment); }
+.pilula--sente { background: rgba(234, 214, 174, 0.1); color: var(--onda); box-shadow: inset 0 0 0 1px rgba(234, 214, 174, 0.28); }
+.pilula--fora { color: var(--lb-color-parchment-faint); }
+.legenda { display: grid; gap: 8px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.legenda div { display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; gap: 8px; }
+.legenda svg { width: 26px; height: 26px; }
+.lado5__dica { margin-top: auto; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); line-height: 1.55; }
+
+@media (max-width: 1500px) {
+  .ficha { inset: 10px 14px; }
+  .ficha__corpo { grid-template-columns: 300px minmax(0, 1fr); }
+  .mesa { grid-template-columns: minmax(0, 1fr) 364px; }
+  .visao { grid-template-columns: minmax(0, 1fr) 310px; }
+  .topo__nome { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="topo">
+  <p class="topo__nome">Protótipo · características especiais</p>
+  <div class="estados" role="tablist" aria-label="Estados do protótipo">
+    <button class="estado" role="tab" data-estado="1" aria-controls="palco"><span class="num">1</span>Bloco na ficha</button>
+    <button class="estado" role="tab" data-estado="2" aria-controls="palco"><span class="num">2</span>Ligar companions</button>
+    <button class="estado" role="tab" data-estado="3" aria-controls="palco"><span class="num">3</span>Começar a batalha</button>
+    <button class="estado" role="tab" data-estado="4" aria-controls="palco"><span class="num">4</span>Vez do companion</button>
+    <button class="estado" role="tab" data-estado="5" aria-controls="palco"><span class="num">5</span>Cegueira no mapa</button>
+  </div>
+  <div class="topo__dir">
+    <span class="topo__rot" id="vercomo-rot">Ver como</span>
+    <div class="seg" role="group" aria-labelledby="vercomo-rot" id="vercomo">
+      <button data-papel="mestre" aria-pressed="true">Mestre</button>
+      <button data-papel="jogador" aria-pressed="false">Jogador</button>
+    </div>
+    <span class="topo__rot" id="vercomo-fixo" hidden>Tela de quem joga a Aira</span>
+    <button class="bt bt--p bt--fantasma" id="recomecar" title="Volta tudo ao começo">Recomeçar</button>
+  </div>
+</header>
+<p class="roteiro" id="roteiro"></p>
+<main id="palco" role="tabpanel" aria-live="off"></main>
+<div id="avisos" role="region" aria-label="Notificações (F8)" tabindex="-1"></div>
+<p class="sr" id="anuncio" aria-live="polite"></p>
+
+<script>
+'use strict'
+/* =========================================================================
+ * Dados de mentira. Nada é salvo; "Recomeçar" volta tudo.
+ * ========================================================================= */
+const $ = (s, r = document) => r.querySelector(s)
+const $$ = (s, r = document) => [...r.querySelectorAll(s)]
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+const reduz = matchMedia('(prefers-reduced-motion: reduce)')
+const palco = $('#palco')
+const anunciar = (t) => { $('#anuncio').textContent = ''; requestAnimationFrame(() => { $('#anuncio').textContent = t }) }
+
+const IC = {
+  companion: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5c.6-3.3 2.8-5.3 5.5-5.3s4.9 2 5.5 5.3"/><circle cx="17.3" cy="10" r="2.3"/><path d="M15.6 14.6c.5-.2 1.1-.3 1.7-.3 2 0 3.5 1.4 4 3.9"/></svg>',
+  onda: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="12" r="5.2" opacity=".75"/><circle cx="12" cy="12" r="8.8" opacity=".4"/></svg>',
+  olho: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/></svg>',
+  mais: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  x: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
+  voltar: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>',
+  subir: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/></svg>',
+  busca: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>',
+  check: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+}
+
+const FICHAS = {
+  mimi: { nome: 'Mimi', tipo: 'npc', raca: 'Lovecat', nivel: 2, hp: 120, sp: 40, agi: 30, cor: '#d99ab8', golpes: [{ id: 'arranhao', nome: 'Arranhão', dano: 40 }, { id: 'ronronar', nome: 'Ronronar', cura: 30 }] },
+  bolota: { nome: 'Bolota', tipo: 'npc', raca: 'Lovecat', nivel: 1, hp: 160, sp: 20, agi: 12, cor: '#c9a36b', golpes: [{ id: 'pancada', nome: 'Pancada de pata', dano: 30 }] },
+  sombra: { nome: 'Sombra', tipo: 'npc', raca: 'Lovecat', nivel: 3, hp: 100, sp: 60, agi: 26, cor: '#8f88ad', golpes: [{ id: 'bote', nome: 'Bote', dano: 55 }] },
+  nina: { nome: 'Nina', tipo: 'npc', raca: 'Lovecat', nivel: 1, hp: 90, sp: 30, agi: 25, cor: '#e3c27a', golpes: [{ id: 'arranhao', nome: 'Arranhão', dano: 35 }] },
+  pipoca: { nome: 'Pipoca', tipo: 'npc', raca: 'Lovecat', nivel: 2, hp: 110, sp: 30, agi: 18, cor: '#e9e2cf', golpes: [{ id: 'arranhao', nome: 'Arranhão', dano: 35 }] },
+  urso: { nome: 'Urso Pardo', tipo: 'npc', raca: 'Fera', nivel: 2, hp: 300, sp: 0, agi: 20, cor: '#9a6b45' },
+  soldado: { nome: 'Soldado da Marinha', tipo: 'npc', raca: 'Humano', nivel: 2, hp: 200, sp: 40, agi: 16, cor: '#7f9cc0' },
+  cisco: { nome: 'Cavalo Cisco', tipo: 'npc', raca: 'Montaria', nivel: 1, hp: 300, sp: 100, agi: 24, cor: '#b49a7a' },
+  raposa: { nome: 'Raposa de Nuvem', tipo: 'invocacao', raca: 'Espírito', nivel: 1, hp: 80, sp: 0, agi: 28, cor: '#efe7d6', efeito: 'Névoa da Raposa: aliados a até 3 casas ganham +10% de Espírito até a próxima vez dela.', efeitoNome: 'Névoa da Raposa' },
+  lobo: { nome: 'Lobo de Gelo', tipo: 'invocacao', raca: 'Espírito', nivel: 2, hp: 140, sp: 0, agi: 27, cor: '#a9d4e6', golpes: [{ id: 'mordida', nome: 'Mordida gelada', dano: 45 }] },
+  golem: { nome: 'Golem de Pedra', tipo: 'invocacao', raca: 'Construto', nivel: 3, hp: 400, sp: 0, agi: 6, cor: '#a09a8e', golpes: [{ id: 'soco', nome: 'Soco de pedra', dano: 60 }] },
+}
+const ORDEM_DO_LIVRO = ['mimi', 'bolota', 'sombra', 'nina', 'pipoca', 'urso', 'soldado', 'cisco', 'raposa', 'lobo', 'golem']
+const sigla = (nome) => { const p = nome.split(/\s+/).filter((x) => x.length > 2 || /^[A-Z]/.test(x)); return ((p[0] || nome)[0] + (p[1] ? p[1][0] : (p[0] || nome)[1] || '')).toUpperCase() }
+const ATRIBUTOS = [['Força', 1], ['Agilidade', 2], ['Percepção', 1], ['Resistência', 2], ['Intuição', 1], ['Espírito', 2], ['Carisma', 3]]
+
+function inicial() {
+  return {
+    estado: 1, papel: 'mestre', aberta: null, abaFicha: 'Habilidades', fichaFechada: false,
+    atrib: { Força: 1, Agilidade: 34, Percepção: 5, Resistência: 50, Intuição: 4, Espírito: 40, Carisma: 55 },
+    escudo: 50,
+    carac: [
+      { id: 'c1', tipo: 'companion', nome: 'Lovecats', limite: 3, ligadas: [], modo: {}, efeito: {} },
+      { id: 'c2', tipo: 'cegueira' },
+    ],
+    seq: 3,
+    nivel: Object.fromEntries(Object.entries(FICHAS).map(([id, f]) => [id, f.nivel])),
+    hp: Object.fromEntries(Object.entries(FICHAS).map(([id, f]) => [id, id === 'pipoca' ? 0 : f.hp])),
+    escolha: null, escolhaTemp: null, b: null,
+    mapa: { cegueira: true, pos: { aira: [8.5, 10.5], mimi: [10.5, 11.5], soldado: [8.5, 8.5], urso1: [12.5, 7.5], urso2: [3.5, 12.5], cisco: [18.5, 8.5] } },
+  }
+}
+let S = inicial()
+const dadosPersistentes = () => ({ carac: S.carac, nivel: S.nivel, hp: S.hp, seq: S.seq, aberta: S.aberta })
+const grupo = (id) => S.carac.find((c) => c.id === id)
+const companions = () => S.carac.filter((c) => c.tipo === 'companion')
+const temCegueira = () => S.carac.some((c) => c.tipo === 'cegueira')
+const hpMax = (id) => FICHAS[id].hp + (S.nivel[id] - FICHAS[id].nivel) * 20
+const modoDe = (g, id) => g.modo[id] || (FICHAS[id].efeito ? 'efeito' : 'luta')
+const rotuloCarac = (c) => (c.tipo === 'companion' ? `Companion · ${c.nome.trim() || 'sem nome'}` : 'Cegueira')
+const grupoDaFicha = (id) => companions().find((g) => g.ligadas.includes(id))
+
+/* =========================================================================
+ * Avisos (com Desfazer e Ctrl+Z; F8 leva o foco até eles)
+ * ========================================================================= */
+const avisos = $('#avisos')
+let ultimoDesfazer = null
+/** A ação veio do teclado (Enter/Espaço num botão dá clique com detail 0): menu, diálogo e troca de vez entram sem animação. */
+let porTeclado = false
+function avisar(texto, desfazer) {
+  const el = document.createElement('div')
+  el.className = 'aviso entrando'
+  el.setAttribute('role', 'status')
+  el.innerHTML = `<p>${esc(texto)}</p>${desfazer ? '<button class="bt bt--p bt--latao" data-a="desfazer">Desfazer <kbd>Ctrl Z</kbd></button>' : ''}<button class="bt bt--ic" data-a="fechar" aria-label="Fechar aviso">${IC.x}</button>`
+  avisos.append(el)
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('entrando')))
+  let restante = desfazer ? 6000 : 3600
+  let inicio = performance.now()
+  let timer = 0
+  const sair = (paraOLado) => {
+    if (el.dataset.saindo) return
+    el.dataset.saindo = '1'
+    clearTimeout(timer)
+    if (paraOLado) { el.style.transform = `translateX(${paraOLado > 0 ? 110 : -110}%)`; el.style.opacity = '0' } else el.classList.add('saindo')
+    setTimeout(() => el.remove(), 160)
+    if (ultimoDesfazer && ultimoDesfazer.el === el) ultimoDesfazer = null
+  }
+  /* Arrastar para o lado dispensa: pela distância (80 px) ou por um peteleco (mais de 0,11 px/ms). */
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('button')) return
+    const x0 = e.clientX, t0 = performance.now()
+    el.setPointerCapture(e.pointerId)
+    el.style.transition = 'none'
+    const mover = (ev) => { el.style.transform = `translateX(${ev.clientX - x0}px)` }
+    const soltar = (ev) => {
+      el.removeEventListener('pointermove', mover); el.removeEventListener('pointerup', soltar); el.removeEventListener('pointercancel', soltar)
+      const dx = ev.clientX - x0
+      const vel = Math.abs(dx) / Math.max(1, performance.now() - t0)
+      el.style.transition = ''
+      if (Math.abs(dx) > 80 || (Math.abs(dx) > 12 && vel > 0.11)) sair(dx)
+      else el.style.transform = ''
+    }
+    el.addEventListener('pointermove', mover); el.addEventListener('pointerup', soltar); el.addEventListener('pointercancel', soltar)
+  })
+  const armar = () => { inicio = performance.now(); timer = setTimeout(sair, restante) }
+  el.addEventListener('pointerenter', () => { clearTimeout(timer); restante = Math.max(1500, restante - (performance.now() - inicio)) })
+  el.addEventListener('pointerleave', armar)
+  el.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-a]')?.dataset.a
+    if (a === 'desfazer') { sair(); desfazer(); avisar('Desfeito.') } else if (a === 'fechar') sair()
+  })
+  if (desfazer) ultimoDesfazer = { el, desfazer, sair }
+  armar()
+  const vivos = $$('.aviso:not([data-saindo])', avisos)
+  if (vivos.length > 3) vivos[0].remove()
+}
+/** Muda os dados e oferece Desfazer: guarda a foto de antes e volta a ela. */
+function mudar(texto, fn) {
+  const antes = structuredClone(dadosPersistentes())
+  fn()
+  render()
+  avisar(texto, () => { Object.assign(S, structuredClone(antes)); render() })
+}
+function acender(sel) {
+  const el = $(sel)
+  if (!el) return
+  el.classList.add('novo-brilho', 'aceso')
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('aceso')))
+}
+
+/* =========================================================================
+ * Diálogos e menu (foco preso, Esc, foco volta a quem abriu)
+ * ========================================================================= */
+const pilha = []
+const focaveis = (raiz) => $$('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])', raiz).filter((el) => el.offsetParent !== null)
+function abrirDialogo({ html, alerta = false, aoAbrir, aoFechar }) {
+  const quemAbriu = document.activeElement
+  const veu = document.createElement('div')
+  veu.className = porTeclado ? 'veu' : 'veu entrando'
+  veu.innerHTML = html
+  document.body.append(veu)
+  const dlg = veu.firstElementChild
+  let fechado = false
+  const fechar = (motivo) => {
+    if (fechado) return
+    fechado = true
+    pilha.splice(pilha.findIndex((p) => p.veu === veu), 1)
+    veu.classList.add('saindo')
+    setTimeout(() => veu.remove(), 150)
+    aoFechar?.(motivo)
+    const volta = typeof quemAbriu?.dataset?.foco === 'string' ? $(`[data-foco="${quemAbriu.dataset.foco}"]`) : quemAbriu
+    if (volta && document.contains(volta)) volta.focus({ preventScroll: true })
+  }
+  veu.addEventListener('pointerdown', (e) => { if (e.target === veu && !alerta) fechar('fora') })
+  pilha.push({ veu, dlg, fechar })
+  requestAnimationFrame(() => requestAnimationFrame(() => veu.classList.remove('entrando')))
+  aoAbrir?.(dlg, fechar)
+  return { dlg, fechar }
+}
+
+let menuAtual = null
+function fecharMenu(devolver = true) {
+  if (!menuAtual) return
+  const { el, botao } = menuAtual
+  menuAtual = null
+  botao.setAttribute('aria-expanded', 'false')
+  el.classList.add('saindo')
+  setTimeout(() => el.remove(), 110)
+  if (devolver) botao.focus({ preventScroll: true })
+}
+function abrirMenu(botao, itens, aoEscolher) {
+  fecharMenu(false)
+  const r = botao.getBoundingClientRect()
+  const el = document.createElement('div')
+  el.className = porTeclado ? 'menu' : 'menu entrando'
+  el.setAttribute('role', 'menu')
+  el.setAttribute('aria-label', botao.textContent.trim())
+  el.innerHTML = itens.map((it) => `<button class="menu__item" role="menuitem" data-id="${it.id}" ${it.motivo ? 'aria-disabled="true"' : ''} tabindex="-1">${it.ic}<b>${esc(it.rotulo)}</b><small>${esc(it.motivo || it.desc)}</small></button>`).join('')
+  document.body.append(el)
+  el.style.left = `${Math.min(window.innerWidth - el.offsetWidth - 8, r.left)}px`
+  el.style.top = `${r.bottom + 6}px`
+  botao.setAttribute('aria-expanded', 'true')
+  menuAtual = { el, botao }
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('entrando')))
+  const opcoes = $$('.menu__item', el)
+  opcoes[0].focus()
+  el.addEventListener('click', (e) => {
+    const it = e.target.closest('.menu__item')
+    if (!it || it.getAttribute('aria-disabled') === 'true') return
+    fecharMenu(false)
+    aoEscolher(it.dataset.id)
+  })
+  el.addEventListener('keydown', (e) => {
+    const i = opcoes.indexOf(document.activeElement)
+    if (e.key === 'ArrowDown') { e.preventDefault(); opcoes[(i + 1) % opcoes.length].focus() }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); opcoes[(i - 1 + opcoes.length) % opcoes.length].focus() }
+    else if (e.key === 'Home') { e.preventDefault(); opcoes[0].focus() }
+    else if (e.key === 'End') { e.preventDefault(); opcoes.at(-1).focus() }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fecharMenu() }
+    else if (e.key === 'Tab') { fecharMenu(false) }
+  })
+}
+document.addEventListener('pointerdown', (e) => { if (menuAtual && !menuAtual.el.contains(e.target) && !menuAtual.botao.contains(e.target)) fecharMenu(false) })
+
+/* =========================================================================
+ * Estados 1 e 2: a ficha da Aira com o bloco novo
+ * ========================================================================= */
+/* No lugar do retrato do app (a arte da Aira não entra no protótipo): só a inicial. */
+const FOTO = `<svg class="foto" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a2a2c"/><stop offset="1" stop-color="#2c0d12"/></linearGradient></defs><rect width="120" height="120" fill="url(#fg)"/><text x="60" y="80" text-anchor="middle" font-family="Sitka Banner, Constantia, Georgia, serif" font-size="62" fill="#f3e3d3" fill-opacity=".85">A</text></svg>`
+
+function htmlChip(c) {
+  const aberto = S.aberta === c.id
+  if (c.tipo === 'companion') {
+    const rot = `Companion ${c.nome}, leva até ${c.limite} para a batalha, ${c.ligadas.length} ${c.ligadas.length === 1 ? 'ficha ligada' : 'fichas ligadas'}`
+    return `<button class="cchip" aria-pressed="${aberto}" data-acao="abrir-carac" data-id="${c.id}" data-foco="chip-${c.id}" aria-label="${esc(rot)}" title="${esc(rot)}">${IC.companion}<span class="cchip__txt">${esc(rotuloCarac(c))}</span><span class="cchip__n num">(${c.limite})</span></button>`
+  }
+  return `<button class="cchip cchip--cegueira" aria-pressed="${aberto}" data-acao="abrir-carac" data-id="${c.id}" data-foco="chip-${c.id}" title="Vê metade do raio; sente o resto como uma onda no chão">${IC.onda}<span class="cchip__txt">Cegueira</span></button>`
+}
+
+function htmlFicha() {
+  const mestre = S.papel === 'mestre'
+  if (S.fichaFechada) return `<div class="fundo-app" aria-hidden="true"></div><div class="reabrir"><button class="bt bt--primario" data-acao="reabrir" data-foco="reabrir">Abrir a ficha da Aira</button></div>`
+  const atrs = ATRIBUTOS.map(([n, r]) => `<li class="atr"><span>${n}</span><button class="bt bt--mini" data-acao="atr" data-nome="${n}" data-d="-1" aria-label="Menos ${n}">−</button><span class="atr__v num">${S.atrib[n]}</span><button class="bt bt--mini" data-acao="atr" data-nome="${n}" data-d="1" aria-label="Mais ${n}">+</button><span class="atr__r num">R${r}</span></li>`).join('')
+  const chips = S.carac.map(htmlChip).join('')
+  return `<div class="fundo-app" aria-hidden="true"></div>
+  <section class="ficha" aria-labelledby="ficha-tit">
+    <header class="ficha__cab"><h1 class="ficha__sobre" id="ficha-tit">Ficha de personagem · One Piece</h1><button class="bt bt--ic" data-acao="fechar-ficha" aria-label="Fechar a ficha">${IC.x}</button></header>
+    <div class="ficha__corpo">
+      <aside class="ficha__esq" aria-label="Aira">
+        <div class="tags"><span class="tag">Mink (Raposa)</span><span class="tag">Artista</span></div>
+        <div class="perfil">
+          ${FOTO}
+          <h2 class="perfil__nome">Aira <span class="selo selo--jogador">Jogador</span></h2>
+          <p class="perfil__dados">Idade: 24<br>Raça: Mink (Raposa)<br>Ofício: Artista</p>
+          <div class="recursos">
+            <div class="recurso recurso--hp"><span class="recurso__rot">HP</span><span class="recurso__v num">900<small>/900</small></span></div>
+            <div class="recurso recurso--sp"><span class="recurso__rot">SP</span><span class="recurso__v num">15<small>/140</small></span></div>
+            <div class="recurso"><span class="recurso__rot">Escudo</span><span class="recurso__v num">${S.escudo}</span><span class="recurso__passo"><button class="bt bt--mini" data-acao="escudo" data-d="-10" aria-label="Menos 10 de escudo">−</button><button class="bt bt--mini" data-acao="escudo" data-d="10" aria-label="Mais 10 de escudo">+</button></span></div>
+          </div>
+          <h3 class="secao">Atributos</h3>
+          <ul class="atributos">${atrs}</ul>
+          <section class="carac" id="bloco-carac" aria-labelledby="carac-tit">
+            <div class="carac__cab"><h3 class="secao" id="carac-tit">Características especiais</h3></div>
+            ${S.carac.length ? '' : `<p class="carac__vazio">Nenhuma. ${mestre ? 'O mestre dá Companion ou Cegueira aqui.' : 'O mestre é quem dá as características.'}</p>`}
+            <div class="carac__chips">${chips}${mestre ? `<button class="cchip cchip--novo" data-acao="menu-carac" data-foco="mais-carac" aria-haspopup="menu" aria-expanded="false">${IC.mais}<span class="cchip__txt">Característica</span></button>` : ''}</div>
+          </section>
+        </div>
+      </aside>
+      <div class="ficha__dir" id="ficha-dir">${S.aberta && grupo(S.aberta) ? htmlPagina(grupo(S.aberta)) : htmlAbas()}</div>
+    </div>
+  </section>`
+}
+
+const ABAS = [['Habilidades', 3], ['Perícias', 4], ['Vantagens', 4], ['Desvantagens', 4], ['Transformações', 0], ['Armas', 0], ['Itens', 1]]
+function htmlAbas() {
+  const abas = ABAS.map(([n, q]) => `<button class="aba-f" role="tab" aria-selected="${S.abaFicha === n}" tabindex="${S.abaFicha === n ? 0 : -1}" data-acao="aba-ficha" data-nome="${n}" data-foco="aba-${n}">${n}${q ? `<sup>${q}</sup>` : ''}</button>`).join('')
+  const corpo = S.abaFicha === 'Habilidades'
+    ? `<article class="hab"><h3>A Virtude Traz Benção</h3><p>Buff no aliado: 20% do Espírito da Aira vira um Status Físico dele; enquanto tiver a Benção, cada dano que ele causa cura 10% desse dano.</p><dl><dt>Ação</dt><dd>Completa</dd><dt>Tipo</dt><dd>Buff</dd><dt>Custo</dt><dd>35 de SP</dd><dt>Tempo</dt><dd>1</dd></dl></article>
+       <article class="hab"><h3>Em Meio às Alegres Nuvens</h3><p>Atordoamento: o alvo testa Espírito (d20 + mod. de ESP contra 12 + mod. de CAR da Aira); se falhar, fica Atordoado e pode receber um golpe de oportunidade.</p><dl><dt>Ação</dt><dd>Completa</dd><dt>Tipo</dt><dd>Debuff</dd><dt>Custo</dt><dd>15 de SP</dd><dt>Tempo</dt><dd>1</dd></dl></article>
+       <article class="hab"><h3>A Luz do Sol Brilha Sobre Todos</h3><p>Dano igual ao Espírito dela em um inimigo, e todos os aliados ganham a Benção de Uma Raposa.</p></article>`
+    : `<p class="fora-do-proto">A aba ${esc(S.abaFicha)} fica como hoje; não faz parte deste protótipo.</p>`
+  return `<div class="abas-f" role="tablist" aria-label="Partes da ficha">${abas}</div><div role="tabpanel">${corpo}</div>`
+}
+
+function htmlPagina(c) {
+  return c.tipo === 'companion' ? htmlPagCompanion(c) : htmlPagCegueira(c)
+}
+function htmlPagCompanion(c) {
+  const mestre = S.papel === 'mestre'
+  const n = c.ligadas.length
+  const ajuda = n === 0 ? 'Ligue fichas abaixo; na batalha, o dono escolhe quem entra.' : n <= c.limite ? `${n} ${n === 1 ? 'ligada' : 'ligadas'}: na batalha entram todas, se o dono quiser.` : `${n} ligadas: na batalha o dono escolhe ${c.limite}.`
+  return `<div class="pag" data-pag="${c.id}">
+    <div class="pag__barra"><button class="bt bt--p bt--fantasma" data-acao="fechar-carac" data-foco="voltar">${IC.voltar} Abas da ficha <kbd>Esc</kbd></button></div>
+    <header class="pag__cab"><span class="pag__ic">${IC.companion}</span><div>
+      <h2 class="pag__tit" id="pag-tit">${esc(rotuloCarac(c))}</h2>
+      <p class="pag__sub">Fichas de NPC ou de invocação que andam com a Aira. Cada uma tem ficha, vida e nível próprios e vez própria na batalha, do lado da Aira; quem joga por elas é o dono da Aira. Lutam no campo ou dão um efeito.</p>
+    </div></header>
+    <div class="pag__campos">
+      <div class="campo">${mestre ? `<label for="nome-grupo">Nome do grupo</label><input id="nome-grupo" class="entrada" value="${esc(c.nome)}" maxlength="40" autocomplete="off" data-input="nome-grupo" data-id="${c.id}" data-foco="nome-grupo">` : `<span class="campo__rot">Nome do grupo</span><p class="campo__v">${esc(c.nome)}</p>`}</div>
+      <div class="campo"><span class="campo__rot" id="lim-rot">Leva para a batalha até</span>
+        <div class="passo" role="group" aria-labelledby="lim-rot">
+          ${mestre ? `<button class="bt bt--mini" data-acao="limite" data-d="-1" data-id="${c.id}" data-foco="lim-menos" aria-label="Um a menos" ${c.limite <= 1 ? 'disabled' : ''}>−</button>` : ''}
+          <output class="passo__v num" aria-live="polite">${c.limite}</output>
+          ${mestre ? `<button class="bt bt--mini" data-acao="limite" data-d="1" data-id="${c.id}" data-foco="lim-mais" aria-label="Um a mais" ${c.limite >= 9 ? 'disabled' : ''}>+</button>` : ''}
+        </div>
+      </div>
+      <p class="campo__ajuda" style="grid-column: 1 / -1">${ajuda}</p>
+    </div>
+    <div class="pag__lista-cab"><h3>Fichas ligadas<span class="cont num">${n}</span></h3>${mestre && n ? `<button class="bt bt--latao" data-acao="ligar" data-id="${c.id}" data-foco="ligar">${IC.mais} Ligar ficha</button>` : ''}</div>
+    ${n ? `<ul class="ligadas">${c.ligadas.map((id) => htmlLigada(c, id, mestre)).join('')}</ul>`
+      : `<div class="vazio">${mestre ? `<p><b>Nenhuma ficha ligada.</b> Ligue os Lovecats ou qualquer NPC ou invocação do livro: viram os companions da Aira.</p><button class="bt bt--primario" data-acao="ligar" data-id="${c.id}" data-foco="ligar">${IC.mais} Ligar ficha</button>` : '<p><b>Nenhuma ficha ligada ainda.</b> O mestre é quem liga.</p>'}</div>`}
+    ${mestre ? `<footer class="pag__pe"><button class="bt bt--perigo" data-acao="tirar-carac" data-id="${c.id}" data-foco="tirar-carac">Tirar característica</button></footer>` : ''}
+  </div>`
+}
+function htmlLigada(c, id, mestre) {
+  const f = FICHAS[id]
+  const modo = modoDe(c, id)
+  const efeito = c.efeito[id] ?? f.efeito ?? ''
+  return `<li class="ligada" data-ligada="${id}">
+    <span class="retrato" style="--cor:${f.cor}" aria-hidden="true">${sigla(f.nome)}</span>
+    <div><p class="ligada__nome"><span>${esc(f.nome)}</span><span class="selo ${f.tipo === 'invocacao' ? 'selo--invocacao' : 'selo--npc'}">${f.tipo === 'invocacao' ? 'Invocação' : 'NPC'}</span></p>
+      <p class="ligada__meta num">${esc(f.raca)} · HP ${S.hp[id]}/${hpMax(id)} · Agi ${f.agi}${S.hp[id] <= 0 ? ' · <span style="color:var(--mu-erro-texto)">desmaiada</span>' : ''}</p></div>
+    <div class="ligada__nivel"><span class="num">Nível ${S.nivel[id]}</span>${mestre ? `<button class="bt bt--p" data-acao="evoluir" data-g="${c.id}" data-f="${id}" data-foco="evoluir-${id}" aria-label="Evoluir ${esc(f.nome)} para o nível ${S.nivel[id] + 1}">${IC.subir} Evoluir</button>` : ''}</div>
+    ${mestre ? `<div class="seg" role="radiogroup" aria-label="${esc(f.nome)} na batalha">
+        <button role="radio" aria-checked="${modo === 'luta'}" tabindex="${modo === 'luta' ? 0 : -1}" data-acao="modo" data-g="${c.id}" data-f="${id}" data-m="luta" data-foco="modo-${id}-luta">Luta no campo</button>
+        <button role="radio" aria-checked="${modo === 'efeito'}" tabindex="${modo === 'efeito' ? 0 : -1}" data-acao="modo" data-g="${c.id}" data-f="${id}" data-m="efeito" data-foco="modo-${id}-efeito">Dá efeito</button></div>`
+      : `<span class="ligada__modo">${modo === 'luta' ? 'Luta no campo' : 'Dá efeito'}</span>`}
+    ${mestre ? `<button class="bt bt--ic" data-acao="desligar" data-g="${c.id}" data-f="${id}" aria-label="Tirar ${esc(f.nome)} de ${esc(c.nome)}" title="Tirar do grupo">${IC.x}</button>` : '<span></span>'}
+    ${modo === 'efeito' ? `<div class="ligada__efeito"><span class="ligada__efeito-rot">Efeito na vez dela</span>${mestre ? `<input class="entrada entrada--p" value="${esc(efeito)}" placeholder="Escreva o efeito (ex.: aliados a 3 casas ganham +10% de Espírito)" aria-label="Efeito de ${esc(f.nome)}" data-input="efeito" data-g="${c.id}" data-f="${id}" data-foco="efeito-${id}">` : `<p>${esc(efeito || 'Sem efeito escrito.')}</p>`}</div>` : ''}
+  </li>`
+}
+function htmlPagCegueira() {
+  const mestre = S.papel === 'mestre'
+  return `<div class="pag" data-pag="cegueira">
+    <div class="pag__barra"><button class="bt bt--p bt--fantasma" data-acao="fechar-carac" data-foco="voltar">${IC.voltar} Abas da ficha <kbd>Esc</kbd></button></div>
+    <header class="pag__cab"><span class="pag__ic pag__ic--onda">${IC.onda}</span><div>
+      <h2 class="pag__tit">Cegueira</h2>
+      <p class="pag__sub">O raio de visão cai pela metade, no mapa e na batalha. Quem está entre a metade e o raio normal aparece só como uma onda no chão: sem rosto e sem nome. A parede não para a onda: é sentir, não ver.</p>
+    </div></header>
+    <div class="cg-numeros">
+      <div class="cg-num"><b class="num">6</b><span>casas: a visão da Aira no mapa, sem cegueira</span></div>
+      <div class="cg-num"><b class="num">3</b><span>casas: o que ela vê, cega</span></div>
+      <div class="cg-num"><b class="num">3 a 6</b><span>casas: onde ela sente quem está</span></div>
+    </div>
+    <figure class="cg-fig">
+      <svg viewBox="0 0 220 160" width="220" height="160" aria-hidden="true">
+        <circle cx="110" cy="80" r="70" fill="none" stroke="#ead6ae" stroke-opacity=".35" stroke-dasharray="4 4"/>
+        <circle cx="110" cy="80" r="35" fill="rgba(236,234,228,.08)" stroke="#e0a44a" stroke-opacity=".7"/>
+        <line x1="60" y1="118" x2="60" y2="150" stroke="#a1988a" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="110" cy="80" r="9" fill="#1b1b1f" stroke="#4f95d6" stroke-width="2.5"/>
+        <circle cx="128" cy="92" r="7" fill="#1b1b1f" stroke="#e2645a" stroke-width="2.2"/>
+        <g stroke="#ead6ae" fill="none"><circle cx="160" cy="48" r="5" stroke-opacity=".8"/><circle cx="160" cy="48" r="10" stroke-opacity=".45"/><circle cx="160" cy="48" r="15" stroke-opacity=".2"/></g>
+        <g stroke="#ead6ae" fill="none"><circle cx="46" cy="130" r="5" stroke-opacity=".8"/><circle cx="46" cy="130" r="10" stroke-opacity=".45"/><circle cx="46" cy="130" r="15" stroke-opacity=".2"/></g>
+      </svg>
+      <figcaption><b>Dentro do círculo cheio</b>, ela vê normal: ficha, rosto e nome. <b>Entre ele e o tracejado</b>, só a onda, mesmo atrás de parede. <b>Fora do tracejado</b>, nada. O mestre vê tudo, com os dois círculos.</figcaption>
+    </figure>
+    <button class="bt bt--primario" data-acao="ir-mapa" data-foco="ir-mapa">${IC.olho} Ver no mapa</button>
+    ${mestre ? `<footer class="pag__pe"><button class="bt bt--perigo" data-acao="tirar-carac" data-id="cegueira" data-foco="tirar-carac">Tirar característica</button></footer>` : ''}
+  </div>`
+}
+
+function abrirLigar(gid) {
+  const g = grupo(gid)
+  const marcadas = new Set()
+  let filtro = ''
+  const linha = (id) => {
+    const f = FICHAS[id]
+    const outro = grupoDaFicha(id)
+    const bloqueada = !!outro
+    const motivo = outro ? (outro.id === gid ? 'já ligada' : `já em ${outro.nome}`) : ''
+    return `<label class="dl-op"><input type="checkbox" data-f="${id}" ${marcadas.has(id) ? 'checked' : ''} ${bloqueada ? 'disabled' : ''}><span class="retrato retrato--p" style="--cor:${f.cor}" aria-hidden="true">${sigla(f.nome)}</span><span><span class="dl-op__nome">${esc(f.nome)}</span><span class="dl-op__sub">${esc(f.raca)} · Nível ${S.nivel[id]}${f.efeito ? ' · dá efeito' : ''}</span></span><span class="dl-op__dir">${esc(motivo)}</span></label>`
+  }
+  const secao = (titulo, ids, chave) => {
+    if (!ids.length) return ''
+    const livres = ids.filter((id) => !grupoDaFicha(id))
+    const n = livres.filter((id) => marcadas.has(id)).length
+    return `<div class="dl-grupo"><input type="checkbox" data-todos="${chave}" aria-label="Marcar todas de ${titulo}" ${livres.length && n === livres.length ? 'checked' : ''} ${livres.length ? '' : 'disabled'}><span>${titulo} <span class="num">${ids.length}</span></span></div>${ids.map(linha).join('')}`
+  }
+  const lista = (dlg) => {
+    const casa = (id) => { const f = FICHAS[id]; const t = filtro.trim().toLowerCase(); return !t || f.nome.toLowerCase().includes(t) || f.raca.toLowerCase().includes(t) }
+    const npcs = ORDEM_DO_LIVRO.filter((id) => FICHAS[id].tipo === 'npc' && casa(id))
+    const invs = ORDEM_DO_LIVRO.filter((id) => FICHAS[id].tipo === 'invocacao' && casa(id))
+    $('[data-d="lista"]', dlg).innerHTML = npcs.length + invs.length ? secao('NPCs', npcs, 'npc') + secao('Invocações', invs, 'invocacao') : `<p class="dl-nada">Nenhuma ficha com “${esc(filtro)}”. Busque pelo nome ou pela raça (ex.: Lovecat).</p>`
+    for (const chave of ['npc', 'invocacao']) {
+      const cx = $(`[data-todos="${chave}"]`, dlg)
+      if (!cx) continue
+      const livres = (chave === 'npc' ? npcs : invs).filter((id) => !grupoDaFicha(id))
+      const n = livres.filter((id) => marcadas.has(id)).length
+      cx.indeterminate = n > 0 && n < livres.length
+    }
+    const bt = $('[data-d="ligar"]', dlg)
+    bt.disabled = marcadas.size === 0
+    bt.textContent = marcadas.size ? `Ligar ${marcadas.size}` : 'Ligar'
+    $('[data-d="nota"]', dlg).textContent = marcadas.size ? `${marcadas.size} ${marcadas.size === 1 ? 'marcada' : 'marcadas'}` : 'Marque ao menos uma.'
+  }
+  abrirDialogo({
+    html: `<div class="dialogo" role="dialog" aria-modal="true" aria-labelledby="lg-tit" aria-describedby="lg-sub">
+      <header class="dialogo__cab"><h2 id="lg-tit">Ligar fichas a ${esc(g.nome)}</h2><button class="bt bt--ic" data-d="fechar" aria-label="Fechar">${IC.x}</button></header>
+      <p class="dialogo__sub" id="lg-sub">Qualquer ficha de NPC ou de invocação do livro. Ela continua com a própria ficha, vida e nível; só passa a andar com a Aira.</p>
+      <div class="busca">${IC.busca}<input type="search" class="entrada" placeholder="Buscar ficha" aria-label="Buscar ficha" data-d="busca" autocomplete="off"></div>
+      <div class="dialogo__corpo" data-d="lista"></div>
+      <footer class="dialogo__pe"><span class="dialogo__nota" data-d="nota"></span><button class="bt" data-d="fechar">Cancelar</button><button class="bt bt--primario" data-d="ligar" disabled>Ligar</button></footer>
+    </div>`,
+    aoAbrir(dlg, fechar) {
+      lista(dlg)
+      $('[data-d="busca"]', dlg).focus()
+      dlg.addEventListener('input', (e) => { if (e.target.dataset.d === 'busca') { filtro = e.target.value; lista(dlg) } })
+      dlg.addEventListener('change', (e) => {
+        const t = e.target
+        /* A busca também dispara "change" quando perde o foco: redesenhar aí destruía a caixa sob o clique. */
+        if (!t.dataset.f && !t.dataset.todos) return
+        if (t.dataset.f) { t.checked ? marcadas.add(t.dataset.f) : marcadas.delete(t.dataset.f) }
+        else if (t.dataset.todos) {
+          const ids = $$(`.dl-op input[data-f]:not(:disabled)`, dlg).map((x) => x.dataset.f).filter((id) => FICHAS[id].tipo === t.dataset.todos)
+          ids.forEach((id) => (t.checked ? marcadas.add(id) : marcadas.delete(id)))
+        }
+        const foco = t.dataset.f ? `[data-f="${t.dataset.f}"]` : `[data-todos="${t.dataset.todos}"]`
+        lista(dlg)
+        $(foco, dlg)?.focus()
+      })
+      /* Enter na busca ou numa caixa liga as marcadas (como enviar um formulário). */
+      dlg.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('input') && marcadas.size) { e.preventDefault(); $('[data-d="ligar"]', dlg).click() } })
+      dlg.addEventListener('click', (e) => {
+        const d = e.target.closest('[data-d]')?.dataset.d
+        if (d === 'fechar') fechar('cancelar')
+        if (d === 'ligar' && marcadas.size) {
+          const ids = ORDEM_DO_LIVRO.filter((id) => marcadas.has(id))
+          fechar('ligou')
+          const nomes = ids.map((id) => FICHAS[id].nome)
+          /* As ligadas ficam na ordem do livro, não na ordem em que foram ligadas: tirar e religar não muda o lugar de ninguém. */
+          mudar(`${ids.length === 1 ? nomes[0] + ' ligada' : ids.length + ' fichas ligadas'} a ${g.nome}.`, () => { const todas = new Set([...grupo(gid).ligadas, ...ids]); grupo(gid).ligadas = ORDEM_DO_LIVRO.filter((id) => todas.has(id)) })
+          ids.forEach((id) => acender(`[data-ligada="${id}"]`))
+          $('[data-foco="ligar"]')?.focus()
+        }
+      })
+    },
+  })
+}
+
+function confirmarTirar(id) {
+  const c = id === 'cegueira' ? S.carac.find((x) => x.tipo === 'cegueira') : grupo(id)
+  if (!c) return
+  const n = c.tipo === 'companion' ? c.ligadas.length : 0
+  abrirDialogo({
+    alerta: true,
+    html: `<div class="dialogo" role="alertdialog" aria-modal="true" aria-labelledby="tr-tit" aria-describedby="tr-sub">
+      <header class="dialogo__cab"><h2 id="tr-tit">Tirar ${esc(rotuloCarac(c))} da Aira?</h2></header>
+      <p class="dialogo__sub" id="tr-sub" style="padding-bottom:16px">${c.tipo === 'companion' ? (n ? `As ${n} fichas continuam no livro, com nível e vida; só deixam de andar com a Aira.` : 'O grupo está vazio; nenhuma ficha é mexida.') : 'A Aira volta a ver o raio inteiro no mapa e na batalha.'}</p>
+      <footer class="dialogo__pe"><button class="bt" data-d="cancelar">Cancelar</button><button class="bt bt--perigo-cheio" data-d="tirar">Tirar</button></footer>
+    </div>`,
+    aoAbrir(dlg, fechar) {
+      $('[data-d="cancelar"]', dlg).focus()
+      dlg.addEventListener('click', (e) => {
+        const d = e.target.closest('[data-d]')?.dataset.d
+        if (d === 'cancelar') fechar('cancelar')
+        if (d === 'tirar') {
+          fechar('tirou')
+          mudar(`${rotuloCarac(c)} tirada da Aira.`, () => { S.carac = S.carac.filter((x) => x !== c); S.aberta = null })
+          $('[data-foco="mais-carac"]')?.focus()
+        }
+      })
+    },
+  })
+}
+
+function menuCarac(botao) {
+  const cega = temCegueira()
+  abrirMenu(botao, [
+    { id: 'companion', ic: IC.companion, rotulo: 'Companion', desc: 'Fichas de NPC ou invocação que andam com ela e lutam por ela ou dão efeito. Pode ter mais de um grupo.' },
+    { id: 'cegueira', ic: IC.onda, rotulo: 'Cegueira', desc: 'Vê metade do raio; sente o resto como uma onda no chão.', motivo: cega ? 'A Aira já tem Cegueira.' : '' },
+  ], (tipo) => {
+    if (tipo === 'companion') {
+      const id = `c${S.seq}`
+      mudar('Companion criado. Dê um nome e ligue as fichas.', () => { S.seq += 1; S.carac.push({ id, tipo: 'companion', nome: 'Novo companion', limite: 1, ligadas: [], modo: {}, efeito: {} }); S.aberta = id })
+      acender(`[data-foco="chip-${id}"]`)
+      const campo = $('#nome-grupo')
+      if (campo) { campo.focus(); campo.select() }
+    } else {
+      const id = `c${S.seq}`
+      mudar('Cegueira dada à Aira.', () => { S.seq += 1; S.carac.push({ id, tipo: 'cegueira' }); S.aberta = id })
+      acender(`[data-foco="chip-${id}"]`)
+    }
+  })
+}
+
+/* =========================================================================
+ * Estado 3: o dono escolhe quem entra
+ * ========================================================================= */
+function garantirExemplo() {
+  if (companions().some((g) => g.ligadas.length)) return
+  let lc = companions()[0]
+  if (!lc) { lc = { id: `c${S.seq++}`, tipo: 'companion', nome: 'Lovecats', limite: 3, ligadas: [], modo: {}, efeito: {} }; S.carac.unshift(lc) }
+  lc.ligadas = ['mimi', 'bolota', 'sombra', 'nina', 'pipoca']
+  if (!grupoDaFicha('raposa')) S.carac.push({ id: `c${S.seq++}`, tipo: 'companion', nome: 'Raposa de Nuvem', limite: 1, ligadas: ['raposa'], modo: { raposa: 'efeito' }, efeito: {} })
+  avisar('Dados de exemplo: ligamos 5 Lovecats e a Raposa de Nuvem para mostrar este estado.')
+}
+function escolhaPadrao() {
+  const e = {}
+  for (const g of companions()) e[g.id] = g.ligadas.filter((id) => S.hp[id] > 0).slice(0, g.limite)
+  return e
+}
+function mapaFundo(tokens, extra = '') {
+  return `<div class="mapa" id="mapa">${extra}${tokens}</div>`
+}
+function htmlEscolha() {
+  const e = S.escolhaTemp
+  const gs = companions().filter((g) => g.ligadas.length)
+  const total = gs.reduce((s, g) => s + (e[g.id] || []).length, 0)
+  const grupos = gs.map((g) => {
+    const esc_ = e[g.id] || []
+    const cheio = esc_.length >= g.limite
+    const cartas = g.ligadas.map((id) => {
+      const f = FICHAS[id]
+      const marcado = esc_.includes(id)
+      const caido = S.hp[id] <= 0
+      const off = caido || (cheio && !marcado)
+      const modo = modoDe(g, id)
+      return `<label class="esc ${off ? 'esc--off' : ''}"><input type="checkbox" class="sr" data-esc-g="${g.id}" data-esc-f="${id}" ${marcado ? 'checked' : ''} ${off ? 'disabled' : ''}>
+        <span class="retrato retrato--g" style="--cor:${f.cor}" aria-hidden="true">${sigla(f.nome)}</span>
+        <span class="esc__txt"><b>${esc(f.nome)}</b><span class="num">Nível ${S.nivel[id]} · HP ${S.hp[id]}/${hpMax(id)}</span>${caido ? '<span class="esc__motivo">Desmaiada: cure antes de levar</span>' : `<span>${modo === 'luta' ? 'Luta no campo' : 'Dá efeito'}</span>`}</span>
+        <span class="esc__caixa" aria-hidden="true">${IC.check}</span></label>`
+    }).join('')
+    return `<section class="grupo-esc" aria-labelledby="ge-${g.id}"><header class="grupo-esc__cab"><h3 id="ge-${g.id}">${esc(g.nome)}</h3><span class="grupo-esc__lim">leve até ${g.limite}</span><span class="grupo-esc__conta num" aria-live="polite"><b>${esc_.length}</b> de ${g.limite}</span></header>
+      <div class="cartas-esc">${cartas}</div>
+      <p class="grupo-esc__aviso">${cheio && g.ligadas.length > g.limite ? `Já são ${g.limite}. Desmarque um para trocar.` : '&nbsp;'}</p></section>`
+  }).join('')
+  return `${htmlMesaFundo()}
+  <div class="veu-palco"><div class="escolha" role="dialog" aria-modal="true" aria-labelledby="esc-tit" aria-describedby="esc-sub">
+    <header class="escolha__cab"><p class="escolha__sobre">A batalha vai começar</p><h2 id="esc-tit">Quem vai com a Aira?</h2><p id="esc-sub">Cada um entra do lado da Aira, colado nela no mapa, com vez própria na ordem. Você joga por eles.</p></header>
+    <div class="escolha__corpo">${grupos}</div>
+    <footer class="escolha__pe"><span class="dialogo__nota">O mestre vê “Aira escolhendo…” até você entrar.</span><button class="bt" data-acao="entrar" data-sozinha="1" data-foco="sozinha">Entrar sozinha</button><button class="bt bt--primario" data-acao="entrar" data-foco="entrar">${total ? `Entrar com ${total}` : 'Entrar'} <kbd>Enter</kbd></button></footer>
+  </div></div>`
+}
+
+/* =========================================================================
+ * Estado 4: a ordem com o companion na vez
+ * ========================================================================= */
+const POS4 = { aira: [6, 7], urso1: [12, 5], urso2: [13, 9] }
+/* Colados na Aira, em volta dela, com folga para o nome de cada um não cobrir o do vizinho. */
+const VIZINHOS = [[7.4, 6.1], [4.6, 6.1], [7.4, 8.1], [4.6, 8.1], [6, 9.1], [6, 5.1]]
+function novaBatalha(escolha) {
+  const p = {}
+  p.aira = { id: 'aira', nome: 'Aira', lado: 'aliado', tipo: 'jogador', agi: 34, hp: 900, hpMax: 900, sp: 15, spMax: 140, cor: '#c0464a' }
+  let v = 0
+  for (const g of companions()) {
+    for (const id of escolha[g.id] || []) {
+      const f = FICHAS[id]
+      p[id] = { id, nome: f.nome, lado: 'aliado', tipo: 'companion', grupo: g.nome, modo: modoDe(g, id), efeito: g.efeito[id] ?? f.efeito ?? '', efeitoNome: f.efeitoNome || 'Efeito', agi: f.agi, hp: S.hp[id], hpMax: hpMax(id), sp: f.sp, spMax: f.sp, golpes: f.golpes || [], cor: f.cor, pos: VIZINHOS[v++ % VIZINHOS.length] }
+    }
+  }
+  p.urso1 = { id: 'urso1', nome: 'Urso Pardo 1', lado: 'inimigo', tipo: 'npc', agi: 22, hp: 300, hpMax: 300, sp: 0, spMax: 0, cor: '#9a6b45' }
+  p.urso2 = { id: 'urso2', nome: 'Urso Pardo 2', lado: 'inimigo', tipo: 'npc', agi: 15, hp: 300, hpMax: 300, sp: 0, spMax: 0, cor: '#9a6b45' }
+  const ordem = Object.values(p).sort((a, b) => b.agi - a.agi).map((x) => x.id)
+  return { p, ordem, vez: 0, rodada: 1, agiu: false, golpe: null, alvo: null, selos: {}, log: 'A batalha começou. Vez da Aira.' }
+}
+const atual = () => S.b.p[S.b.ordem[S.b.vez]]
+const vivos = (lado) => Object.values(S.b.p).filter((x) => x.lado === lado && x.hp > 0)
+function subDe(x) {
+  if (x.tipo === 'jogador') return 'Jogadora · <b>você</b>'
+  if (x.tipo === 'companion') return `Companion de Aira · <b>você joga</b>`
+  return 'NPC · o mestre joga'
+}
+function htmlBarras(x) {
+  return `<div class="barras"><span>HP</span><span class="barra"><i style="transform:scaleX(${x.hp / x.hpMax})"></i></span><span class="num">${x.hp}/${x.hpMax}</span>${x.spMax ? `<span>SP</span><span class="barra barra--sp"><i style="transform:scaleX(${x.sp / x.spMax})"></i></span><span class="num">${x.sp}/${x.spMax}</span>` : ''}</div>`
+}
+function htmlVez(x) {
+  const b = S.b
+  const topo = `<div class="vez__topo"><span class="retrato retrato--g" style="--cor:${x.cor};--lado:${x.lado === 'aliado' ? 'var(--aliado)' : 'var(--inimigo)'}" aria-hidden="true">${sigla(x.nome)}${x.tipo === 'companion' ? '<span class="retrato__dono">A</span>' : ''}</span><div><h3 class="vez__nome">${esc(x.nome)}</h3><p class="vez__sub">${subDe(x)}${x.tipo === 'companion' ? ` · ${esc(x.grupo)}` : ''}</p></div></div>${htmlBarras(x)}`
+  let corpo = ''
+  if (x.tipo === 'jogador') corpo = '<p class="vez__texto">Sua vez. Os golpes da Aira ficam como hoje (fora deste protótipo). Passe a vez para ver um companion jogar.</p>'
+  else if (x.tipo === 'npc') corpo = `<p class="vez__texto">O mestre está jogando esta vez.</p><div class="vez__acoes"><button class="bt" data-acao="simular" data-foco="simular">Simular a vez do mestre (só no protótipo)</button></div>`
+  else if (b.agiu) corpo = `<p class="vez__feito">${IC.check} ${esc(x.nome)} já agiu. Passe a vez.</p>`
+  else if (x.modo === 'efeito') corpo = `<p class="vez__rot">Efeito</p><p class="vez__texto" style="margin-top:0">${esc(x.efeito || 'Sem efeito escrito na ficha.')}</p><div class="vez__acoes"><button class="bt bt--primario" style="flex:1;min-height:40px" data-acao="efeito" data-foco="lancar" ${x.efeito ? '' : 'disabled'}>Usar ${esc(x.efeitoNome)} <kbd>Enter</kbd></button></div>`
+  else if (!x.golpes.length) corpo = '<p class="vez__texto">Esta ficha não tem golpe. O mestre pode dar um no editor.</p>'
+  else {
+    const g = x.golpes.find((k) => k.id === b.golpe) || x.golpes[0]
+    const alvos = g.cura ? vivos('aliado') : vivos('inimigo')
+    const alvo = alvos.find((a) => a.id === b.alvo) || alvos[0]
+    corpo = `<p class="vez__rot" id="rot-golpe">Golpe</p><div class="opcoes" role="radiogroup" aria-labelledby="rot-golpe">${x.golpes.map((k) => `<button class="opcao" role="radio" aria-checked="${k.id === g.id}" tabindex="${k.id === g.id ? 0 : -1}" data-acao="golpe" data-id="${k.id}" data-foco="golpe-${k.id}"><span class="opcao__bola"></span><span>${esc(k.nome)}</span><span class="opcao__dir num">${k.cura ? `cura ${k.cura}` : `dano ${k.dano}`}</span></button>`).join('')}</div>
+      <p class="vez__rot" id="rot-alvo">Alvo</p><div class="opcoes opcoes--2" role="radiogroup" aria-labelledby="rot-alvo">${alvos.map((a) => `<button class="opcao" role="radio" aria-checked="${a.id === alvo.id}" tabindex="${a.id === alvo.id ? 0 : -1}" data-acao="alvo" data-id="${a.id}" data-foco="alvo-${a.id}"><span class="opcao__bola"></span><span>${esc(a.nome)}</span><span class="opcao__dir num">${a.hp}</span></button>`).join('')}</div>
+      <div class="vez__acoes"><button class="bt bt--lancar" data-acao="lancar" data-foco="lancar">${g.cura ? 'Usar' : 'Lançar'} ${esc(g.nome)} em ${esc(alvo.nome)} <kbd>Enter</kbd></button></div>`
+  }
+  return `<span class="vez__fita">VEZ</span><div class="vez__conteudo" data-chave="${x.id}">${topo}${corpo}</div>`
+}
+function htmlTokens4(comVez) {
+  const b = S.b
+  const ids = b ? Object.keys(b.p) : ['aira', 'urso1', 'urso2']
+  return ids.map((id) => {
+    const x = b ? b.p[id] : { id, nome: id === 'aira' ? 'Aira' : FICHAS.urso.nome, lado: id === 'aira' ? 'aliado' : 'inimigo', cor: id === 'aira' ? '#c0464a' : '#9a6b45', hp: 1 }
+    const [cx, cy] = x.pos || POS4[id]
+    const selo = b && b.selos[id] ? `<span class="tk__selo">+10% ESP</span>` : ''
+    return `<div class="tk ${x.lado === 'inimigo' ? 'tk--inimigo' : ''} ${x.tipo === 'companion' ? 'tk--p' : ''}" data-tk="${id}" data-vez="${comVez && b && b.ordem[b.vez] === id}" data-caido="${x.hp <= 0}" style="transform:translate(calc(var(--casa) * ${cx}), calc(var(--casa) * ${cy}))"><span class="tk__disco" style="--cor:${x.cor}">${sigla(x.nome)}${x.tipo === 'companion' ? '<span class="tk__dono" title="Companion da Aira">A</span>' : ''}${selo}</span><span class="tk__nome">${esc(x.nome)}</span></div>`
+  }).join('')
+}
+function htmlMesaFundo() {
+  return `<div class="mesa mesa--atras" aria-hidden="true">${mapaFundo(htmlTokens4(false))}<aside class="painel"><header class="painel__cab"><h2 class="painel__rod">Batalha</h2><span class="painel__vez">montando a ordem</span></header></aside></div>`
+}
+function htmlMesa() {
+  const b = S.b
+  const x = atual()
+  const n = b.ordem.length
+  const linhas = []
+  for (let k = 1; k < n; k++) {
+    const i = (b.vez + k) % n
+    const y = b.p[b.ordem[i]]
+    linhas.push(`<li class="linha" data-chave="${y.id}" data-caido="${y.hp <= 0}"><span class="linha__n num">${i + 1}</span><span class="retrato" style="--cor:${y.cor};--lado:${y.lado === 'aliado' ? 'var(--aliado)' : 'var(--inimigo)'}" aria-hidden="true">${sigla(y.nome)}${y.tipo === 'companion' ? '<span class="retrato__dono">A</span>' : ''}</span><span><span class="linha__nome"><span>${esc(y.nome)}</span>${k === 1 ? '<span class="selo selo--seguir">a seguir</span>' : ''}</span><span class="linha__sub">${subDe(y)}${b.selos[y.id] ? ' · +10% ESP' : ''}</span></span><span class="linha__barras"><span class="barra"><i style="transform:scaleX(${y.hp / y.hpMax})"></i></span><span class="num">${y.hp}</span></span></li>`)
+  }
+  const controla = x.tipo !== 'npc'
+  const faixa = x.tipo === 'companion' ? `<p class="mapa__faixa mapa__faixa--vez">${IC.companion}<span>Vez de <b>${esc(x.nome)}</b>, companion da Aira. Você joga por ela.</span></p>`
+    : x.tipo === 'jogador' ? `<p class="mapa__faixa"><span>Sua vez, <b>Aira</b>.</span></p>` : `<p class="mapa__faixa"><span>Vez de <b>${esc(x.nome)}</b>. O mestre joga.</span></p>`
+  return `<div class="mesa">${mapaFundo(htmlTokens4(true), faixa)}
+    <aside class="painel" aria-label="Ordem dos turnos">
+      <header class="painel__cab"><h2 class="painel__rod">Rodada ${b.rodada}</h2><span class="painel__vez num">vez ${b.vez + 1} de ${n}</span></header>
+      <div class="vez" data-tipo="${x.tipo}">${htmlVez(x)}</div>
+      <ol class="ordem" aria-label="Depois">${linhas.join('')}</ol>
+      <footer class="painel__pe"><p class="registro" aria-live="polite">${esc(b.log)}</p>${controla ? `<button class="bt ${x.tipo === 'jogador' || b.agiu ? 'bt--primario' : ''}" data-acao="passar" data-foco="passar">Passar a vez</button>` : ''}</footer>
+    </aside></div>`
+}
+function flutuar(id, texto, cura) {
+  const tk = $(`[data-tk="${id}"]`)
+  const mapa = $('#mapa')
+  if (!tk || !mapa) return
+  const r = tk.getBoundingClientRect()
+  const m = mapa.getBoundingClientRect()
+  const el = document.createElement('span')
+  el.className = `dano ${cura ? 'dano--cura' : ''}`
+  el.textContent = texto
+  el.style.left = `${r.left - m.left + r.width / 2 - 14}px`
+  el.style.top = `${r.top - m.top - 6}px`
+  mapa.append(el)
+  const quadros = reduz.matches ? [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0 }] : [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'translateY(-6px)', offset: 0.22 }, { opacity: 0, transform: 'translateY(-20px)' }]
+  el.animate(quadros, { duration: 720, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }).finished.then(() => el.remove())
+}
+/** Troca de vez: as linhas andam até o lugar novo (FLIP, só transform, ease-in-out) e o cartão da vez entra de baixo. */
+function renderComFlip() {
+  const antes = new Map($$('.linha').map((el) => [el.dataset.chave, el.getBoundingClientRect().top]))
+  const vezAntes = $('.vez')?.getBoundingClientRect().top
+  render()
+  if (porTeclado) return
+  for (const el of reduz.matches ? [] : $$('.linha')) {
+    const t = antes.has(el.dataset.chave) ? antes.get(el.dataset.chave) : vezAntes
+    if (t === undefined) continue
+    const d = t - el.getBoundingClientRect().top
+    if (Math.abs(d) > 1) el.animate([{ transform: `translateY(${d}px)` }, { transform: 'translateY(0)' }], { duration: 240, easing: 'cubic-bezier(0.77, 0, 0.175, 1)' })
+  }
+  const c = $('.vez__conteudo')
+  if (c) { c.classList.add('entrando'); requestAnimationFrame(() => requestAnimationFrame(() => c.classList.remove('entrando'))) }
+}
+function passarVez() {
+  const b = S.b
+  const n = b.ordem.length
+  for (let k = 0; k < n; k++) {
+    b.vez = (b.vez + 1) % n
+    if (b.vez === 0) b.rodada += 1
+    if (b.p[b.ordem[b.vez]].hp > 0) break
+  }
+  b.agiu = false; b.golpe = null; b.alvo = null
+  const x = atual()
+  if (b.selosDe === x.id) { b.selos = {}; b.selosDe = null }
+  b.log = x.tipo === 'companion' ? `Vez de ${x.nome}, companion da Aira. Você joga por ela.` : x.tipo === 'jogador' ? 'Vez da Aira.' : `Vez de ${x.nome}. O mestre joga.`
+  renderComFlip()
+  anunciar(b.log)
+}
+function lancar() {
+  const b = S.b
+  const x = atual()
+  if (b.agiu || x.tipo !== 'companion') return
+  if (x.modo === 'efeito') {
+    if (!x.efeito) return
+    b.selos = {}
+    for (const a of vivos('aliado')) b.selos[a.id] = true
+    b.selosDe = x.id
+    b.agiu = true
+    b.log = `${x.nome} usa ${x.efeitoNome}: ${vivos('aliado').length} aliados ganham +10% de Espírito.`
+    render(); anunciar(b.log)
+    $('[data-foco="passar"]')?.focus()
+    return
+  }
+  const g = x.golpes.find((k) => k.id === b.golpe) || x.golpes[0]
+  const alvos = g.cura ? vivos('aliado') : vivos('inimigo')
+  const alvo = alvos.find((a) => a.id === b.alvo) || alvos[0]
+  if (!alvo) return
+  if (g.cura) alvo.hp = Math.min(alvo.hpMax, alvo.hp + g.cura)
+  else alvo.hp = Math.max(0, alvo.hp - g.dano)
+  if (FICHAS[alvo.id]) S.hp[alvo.id] = alvo.hp
+  b.agiu = true
+  b.log = g.cura ? `${x.nome} usa ${g.nome} em ${alvo.nome}: cura ${g.cura}.` : `${x.nome} usa ${g.nome} em ${alvo.nome}: ${g.dano} de dano.${alvo.hp === 0 ? ` ${alvo.nome} caiu.` : ''}`
+  render()
+  flutuar(alvo.id, g.cura ? `+${g.cura}` : `−${g.dano}`, !!g.cura)
+  anunciar(b.log)
+  $('[data-foco="passar"]')?.focus()
+}
+function simularMestre() {
+  const b = S.b
+  const x = atual()
+  const alvos = vivos('aliado').filter((a) => a.tipo === 'companion')
+  const alvo = alvos.sort((a, c) => a.hp / a.hpMax - c.hp / c.hpMax)[0] || b.p.aira
+  alvo.hp = Math.max(0, alvo.hp - 35)
+  if (alvo.id !== 'aira' && FICHAS[alvo.id]) S.hp[alvo.id] = alvo.hp
+  const msg = `${x.nome} ataca ${alvo.nome}: 35 de dano.${alvo.hp === 0 ? ` ${alvo.nome} caiu e sai da ordem até ser curada.` : ''}`
+  passarVez()
+  flutuar(alvo.id, '−35')
+  S.b.log = `${msg} ${S.b.log}`
+  $('.registro').textContent = S.b.log
+}
+</script>
+<script>
+'use strict'
+/* =========================================================================
+ * Estado 5: cegueira no mapa. Chão, paredes e névoa num canvas; fichas e
+ * ondas em DOM por cima (a onda é animação CSS: roda no compositor).
+ * Unidades em casas; 1 casa = S5.casa px.
+ * ========================================================================= */
+const MV = { w: 22, h: 15, R: 6 }
+const PAREDES = [[6, 9, 10, 9], [4, 11, 4, 15], [14, 0, 14, 7], [14, 10, 14, 15]]
+const BORDA = [[0, 0, 22, 0], [22, 0, 22, 15], [22, 15, 0, 15], [0, 15, 0, 0]]
+const TK5 = [
+  { id: 'aira', nome: 'Aira', lado: 'aliado', cor: '#c0464a' },
+  { id: 'mimi', nome: 'Mimi', lado: 'aliado', cor: '#d99ab8' },
+  { id: 'soldado', nome: 'Soldado da Marinha', lado: 'inimigo', cor: '#7f9cc0' },
+  { id: 'urso1', nome: 'Urso Pardo 1', lado: 'inimigo', cor: '#9a6b45' },
+  { id: 'urso2', nome: 'Urso Pardo 2', lado: 'inimigo', cor: '#9a6b45' },
+  { id: 'cisco', nome: 'Cavalo Cisco', lado: 'inimigo', cor: '#b49a7a' },
+]
+const S5 = { casa: 40, ox: 0, oy: 0, dpr: 1, ro: null, cores: null, arrasto: null, quadro: 0, ondas: new Map() }
+
+function cruza(ox, oy, dx, dy, x1, y1, x2, y2) {
+  const sx = x2 - x1, sy = y2 - y1
+  const den = dx * sy - dy * sx
+  if (Math.abs(den) < 1e-9) return null
+  const t = ((x1 - ox) * sy - (y1 - oy) * sx) / den
+  const u = ((x1 - ox) * dy - (y1 - oy) * dx) / den
+  return t > 1e-6 && u >= 0 && u <= 1 ? t : null
+}
+function poligonoVisao(o, r) {
+  const pts = []
+  const N = 540
+  const segs = PAREDES.concat(BORDA)
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2
+    const dx = Math.cos(a), dy = Math.sin(a)
+    let t = r
+    for (const s of segs) { const h = cruza(o[0], o[1], dx, dy, s[0], s[1], s[2], s[3]); if (h !== null && h < t) t = h }
+    pts.push([o[0] + dx * t, o[1] + dy * t])
+  }
+  return pts
+}
+function bloqueado(a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1]
+  const len = Math.hypot(dx, dy)
+  if (len < 1e-6) return false
+  for (const s of PAREDES) { const t = cruza(a[0], a[1], dx / len, dy / len, s[0], s[1], s[2], s[3]); if (t !== null && t < len - 1e-6) return true }
+  return false
+}
+const raioVe = () => (S.mapa.cegueira ? MV.R / 2 : MV.R)
+/** 've' | 'sente' | 'fora' | 'eu', e se uma parede está no meio. */
+function situacao(id) {
+  if (id === 'aira') return { sit: 'eu', d: 0, parede: false }
+  const a = S.mapa.pos.aira, p = S.mapa.pos[id]
+  const d = Math.hypot(p[0] - a[0], p[1] - a[1])
+  const parede = bloqueado(a, p)
+  if (d <= raioVe() + 1e-6 && !parede) return { sit: 've', d, parede }
+  if (S.mapa.cegueira && d <= MV.R + 1e-6) return { sit: 'sente', d, parede }
+  return { sit: 'fora', d, parede }
+}
+
+function htmlVisao() {
+  const mestre = S.papel === 'mestre'
+  const lista = TK5.filter((t) => t.id !== 'aira').map((t) => `<li data-sit-li="${t.id}"><span class="retrato retrato--p" style="--cor:${t.cor};--lado:${t.lado === 'aliado' ? 'var(--aliado)' : 'var(--inimigo)'}" aria-hidden="true">${sigla(t.nome)}</span><span class="sit__nome">${esc(t.nome)}<small></small></span><span class="pilula"></span></li>`).join('')
+  const legenda = `<div class="legenda" aria-label="Legenda">
+      <div><svg viewBox="0 0 26 26" aria-hidden="true">${mestre ? '<circle cx="13" cy="13" r="10" fill="rgba(236,234,228,.1)" stroke="#e0a44a" stroke-opacity=".75"/>' : '<circle cx="13" cy="13" r="10" fill="#2b2925"/>'}</svg><span>${mestre ? 'Até onde ela vê' : 'O chão aceso: até onde você vê'}</span></div>
+      <div><svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="10" fill="none" stroke="#ead6ae" stroke-opacity=".55" stroke-dasharray="3 3"/></svg><span>${mestre ? 'Até onde ela sente' : 'Até onde você sente'}</span></div>
+      <div><svg viewBox="0 0 26 26" aria-hidden="true"><g fill="none" stroke="#ead6ae"><circle cx="13" cy="13" r="3" stroke-opacity=".85"/><circle cx="13" cy="13" r="7" stroke-opacity=".5"/><circle cx="13" cy="13" r="11" stroke-opacity=".25"/></g></svg><span>Alguém ali: a onda, sem rosto nem nome</span></div>
+    </div>`
+  const lado = mestre
+    ? `<h2>Visão da Aira</h2>
+       <div class="interruptor"><label for="sw-ceg">Cegueira<small>Desligue para comparar com a visão normal</small></label><button class="sw" id="sw-ceg" role="switch" aria-checked="${S.mapa.cegueira}" data-acao="cegueira" data-foco="sw-ceg"></button></div>
+       <p class="lado5__txt" data-txt-raio></p>
+       <ul class="sit" aria-label="Quem a Aira vê ou sente">${lista}</ul>${legenda}
+       <p class="lado5__dica">Arraste qualquer ficha; durante o arrasto aparece o que a Aira vai ter dela. Com uma ficha em foco, as setas andam uma casa. <kbd>Esc</kbd> cancela o arrasto.</p>`
+    : `<h2>${S.mapa.cegueira ? 'Você está cega' : 'Sua visão'}</h2>
+       <p class="lado5__txt">${S.mapa.cegueira ? 'Você vê <b>3 casas</b>, não 6. Mais longe, até 6 casas, sente quem está lá: <b>uma onda no chão</b>, sem rosto e sem nome. A parede não para a onda.' : 'O mestre desligou a cegueira: você vê as 6 casas, e a parede tapa o que está atrás.'}</p>
+       <div class="contagem" aria-live="polite"><div><b class="num" data-conta="ve">0</b><span>vendo</span></div><div><b class="num" data-conta="sente">0</b><span>sentindo</span></div></div>${legenda}
+       <p class="lado5__dica">Arraste a Aira, ou use as setas com ela em foco.</p>`
+  return `<div class="visao"><div class="mv" id="mv" aria-label="Mapa: ${mestre ? 'visão do mestre' : 'o que a Aira vê'}" role="group"><canvas id="mv-canvas" aria-hidden="true"></canvas><div class="mv__ondas" aria-hidden="true"></div><div class="mv__fichas"></div></div><aside class="lado5">${lado}</aside></div>`
+}
+
+function montarVisao() {
+  palco.innerHTML = htmlVisao()
+  const mv = $('#mv')
+  const cs = getComputedStyle(document.documentElement)
+  const cor = (n) => cs.getPropertyValue(n).trim()
+  S5.cores = { chao: cor('--chao'), chaoEsc: cor('--chao-escuro'), linha: cor('--chao-linha'), parede: cor('--parede'), sombra: cor('--parede-sombra'), nevoa: cor('--nevoa'), onda: cor('--onda'), latao: cor('--lb-color-brass') }
+  S5.ondas = new Map()
+  const mestre = S.papel === 'mestre'
+  const fichas = $('.mv__fichas', mv)
+  fichas.innerHTML = TK5.map((t, i) => {
+    const arrasta = mestre || t.id === 'aira'
+    const cls = `tk5 ${t.lado === 'inimigo' ? 'tk5--inimigo' : ''} ${t.id === 'aira' ? 'tk5--eu' : ''}`
+    const miolo = `<span class="tk__disco" style="--cor:${t.cor}">${sigla(t.nome)}</span><span class="tk__nome">${esc(t.nome)}</span>`
+    return arrasta
+      ? `<button class="${cls}" data-tk5="${t.id}" data-arrasta="true" data-foco="tk5-${t.id}" data-i="${i}">${miolo}</button>`
+      : `<div class="${cls}" data-tk5="${t.id}" data-i="${i}" role="img">${miolo}</div>`
+  }).join('')
+  S5.ro?.disconnect()
+  S5.ro = new ResizeObserver(() => { medir(); atualizarVisao(true) })
+  S5.ro.observe(mv)
+  medir()
+  atualizarVisao(true)
+  mv.addEventListener('pointerdown', iniciarArrasto)
+}
+function medir() {
+  const mv = $('#mv')
+  if (!mv) return
+  const w = mv.clientWidth, h = mv.clientHeight
+  S5.casa = Math.max(20, Math.floor(Math.min(w / MV.w, h / MV.h)))
+  S5.ox = Math.round((w - S5.casa * MV.w) / 2)
+  S5.oy = Math.round((h - S5.casa * MV.h) / 2)
+  S5.dpr = window.devicePixelRatio || 1
+  const cv = $('#mv-canvas')
+  cv.width = Math.round(w * S5.dpr); cv.height = Math.round(h * S5.dpr)
+  cv.style.width = `${w}px`; cv.style.height = `${h}px`
+  mv.style.setProperty('--casa', `${S5.casa}px`)
+}
+const px = (p) => [S5.ox + p[0] * S5.casa, S5.oy + p[1] * S5.casa]
+
+function desenhar() {
+  const cv = $('#mv-canvas')
+  if (!cv) return
+  const ctx = cv.getContext('2d')
+  const c = S5.cores
+  const k = S5.casa
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.fillStyle = c.nevoa
+  ctx.fillRect(0, 0, cv.width, cv.height)
+  ctx.setTransform(S5.dpr * k, 0, 0, S5.dpr * k, S5.dpr * S5.ox, S5.dpr * S5.oy)
+  const aira = S.mapa.pos.aira
+  const rv = raioVe()
+  const poli = poligonoVisao(aira, rv)
+  const caminho = () => { ctx.beginPath(); poli.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath() }
+  const chao = () => {
+    ctx.fillStyle = c.chao
+    ctx.fillRect(0, 0, MV.w, MV.h)
+    ctx.fillStyle = c.chaoEsc
+    for (let y = 0; y < MV.h; y++) for (let x = 0; x < MV.w; x++) if ((x * 7 + y * 13) % 5 === 0) ctx.fillRect(x, y, 1, 1)
+    ctx.strokeStyle = c.linha
+    ctx.lineWidth = 1 / k
+    ctx.beginPath()
+    for (let x = 1; x < MV.w; x++) { ctx.moveTo(x, 0); ctx.lineTo(x, MV.h) }
+    for (let y = 1; y < MV.h; y++) { ctx.moveTo(0, y); ctx.lineTo(MV.w, y) }
+    ctx.stroke()
+  }
+  const paredes = () => {
+    ctx.lineCap = 'round'
+    for (const [lw, cor] of [[0.34, c.sombra], [0.2, c.parede]]) {
+      ctx.lineWidth = lw
+      ctx.strokeStyle = cor
+      ctx.beginPath()
+      for (const s of PAREDES) { ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]) }
+      ctx.stroke()
+    }
+  }
+  const circulo = (r, cor, alfa, tracejado) => {
+    ctx.save()
+    ctx.globalAlpha = alfa
+    ctx.strokeStyle = cor
+    ctx.lineWidth = 1.5 / k
+    ctx.setLineDash(tracejado ? [5 / k, 5 / k] : [])
+    ctx.beginPath(); ctx.arc(aira[0], aira[1], r, 0, Math.PI * 2); ctx.stroke()
+    ctx.restore()
+  }
+  if (S.papel === 'mestre') {
+    chao(); paredes()
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, MV.w, MV.h); poli.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath()
+    ctx.fillStyle = 'rgba(6, 5, 4, 0.52)'; ctx.fill('evenodd'); ctx.restore()
+    circulo(rv, c.latao, 0.7, false)
+    if (S.mapa.cegueira) circulo(MV.R, c.onda, 0.45, true)
+  } else {
+    ctx.save(); caminho(); ctx.clip()
+    chao(); paredes()
+    const g = ctx.createRadialGradient(aira[0], aira[1], rv * 0.55, aira[0], aira[1], rv)
+    g.addColorStop(0, 'rgba(11, 10, 9, 0)'); g.addColorStop(1, 'rgba(11, 10, 9, 0.72)')
+    ctx.fillStyle = g; ctx.fillRect(0, 0, MV.w, MV.h)
+    ctx.restore()
+    if (S.mapa.cegueira) circulo(MV.R, c.onda, 0.16, true)
+  }
+}
+
+/** Atualiza fichas, ondas, lista e contagem. `canvas` = a visão mudou (a Aira andou ou a cegueira trocou). */
+function atualizarVisao(canvas) {
+  if (canvas) desenhar()
+  const mestre = S.papel === 'mestre'
+  let ve = 0, sente = 0
+  const camada = $('.mv__ondas')
+  const vivas = new Set()
+  for (const t of TK5) {
+    const { sit, d, parede } = situacao(t.id)
+    const el = $(`[data-tk5="${t.id}"]`)
+    const [x, y] = px(S.mapa.pos[t.id])
+    el.style.transform = `translate(${x}px, ${y}px)`
+    const mostra = mestre || sit === 'eu' || sit === 've'
+    el.hidden = !mostra
+    const rot = sit === 'eu' ? 'Aira (você)' : `${t.nome}: ${sit === 've' ? 'a Aira vê' : sit === 'sente' ? 'a Aira sente, uma onda' : 'fora do alcance'}, ${d.toFixed(1).replace('.', ',')} casas`
+    el.setAttribute('aria-label', rot)
+    if (sit === 've') ve++
+    if (sit === 'sente') {
+      sente++
+      vivas.add(t.id)
+      let o = S5.ondas.get(t.id)
+      if (!o) {
+        o = document.createElement('div')
+        o.className = 'onda nascendo'
+        requestAnimationFrame(() => requestAnimationFrame(() => o.classList.remove('nascendo')))
+        o.dataset.onda = t.id
+        o.style.setProperty('--fase', `${-((Number(el.dataset.i) * 640) % 2100)}ms`)
+        o.innerHTML = '<b></b><i></i><i></i><i></i>'
+        camada.append(o)
+        S5.ondas.set(t.id, o)
+      }
+      o.style.transform = `translate(${x}px, ${y}px)`
+    }
+    const li = $(`[data-sit-li="${t.id}"]`)
+    if (li) {
+      $('small', li).textContent = `${d.toFixed(1).replace('.', ',')} casas${parede ? ' · atrás da parede' : ''}`
+      const p = $('.pilula', li)
+      p.className = `pilula pilula--${sit}`
+      p.innerHTML = sit === 've' ? `${IC.olho} vê` : sit === 'sente' ? `${IC.onda} sente` : 'fora'
+    }
+  }
+  for (const [id, o] of S5.ondas) if (!vivas.has(id)) { o.remove(); S5.ondas.delete(id) }
+  const txt = $('[data-txt-raio]')
+  if (txt) txt.innerHTML = S.mapa.cegueira ? `Vê <b>3 casas</b> (sem cegueira, 6). De 3 a 6 casas, sente: ${sente === 1 ? '1 onda' : `${sente} ondas`}. A parede tapa a vista, não a onda.` : 'Cegueira desligada: vê <b>6 casas</b> e a parede tapa o que está atrás. Nenhuma onda.'
+  const cv = $('[data-conta="ve"]'); if (cv) cv.textContent = ve
+  const cs = $('[data-conta="sente"]'); if (cs) cs.textContent = sente
+  return { ve, sente }
+}
+
+function iniciarArrasto(e) {
+  const el = e.target.closest('[data-arrasta="true"]')
+  if (!el || e.button !== 0 || S5.arrasto) return
+  e.preventDefault()
+  el.focus({ preventScroll: true })
+  const id = el.dataset.tk5
+  el.setPointerCapture(e.pointerId)
+  el.classList.add('arrastando')
+  const mv = $('#mv')
+  const dica = document.createElement('div')
+  dica.className = 'mv__dica'
+  mv.append(dica)
+  S5.arrasto = { id, el, inicio: [...S.mapa.pos[id]], pid: e.pointerId, dica, mexeu: false, x0: e.clientX, y0: e.clientY }
+  const mover = (ev) => {
+    const a = S5.arrasto
+    if (!a || ev.pointerId !== a.pid) return
+    if (Math.hypot(ev.clientX - a.x0, ev.clientY - a.y0) > 3) a.mexeu = true
+    const r = mv.getBoundingClientRect()
+    const cx = Math.min(MV.w - 0.5, Math.max(0.5, (ev.clientX - r.left - S5.ox) / S5.casa))
+    const cy = Math.min(MV.h - 0.5, Math.max(0.5, (ev.clientY - r.top - S5.oy) / S5.casa))
+    S.mapa.pos[id] = [cx, cy]
+    if (!S5.quadro) S5.quadro = requestAnimationFrame(() => { S5.quadro = 0; quadroArrasto() })
+  }
+  const soltar = (ev, cancelou) => {
+    const a = S5.arrasto
+    if (!a || (ev && ev.pointerId !== a.pid)) return
+    el.removeEventListener('pointermove', mover)
+    el.removeEventListener('pointerup', soltar)
+    el.removeEventListener('pointercancel', cancelar)
+    S5.arrasto = null
+    cancelAnimationFrame(S5.quadro); S5.quadro = 0
+    el.classList.remove('arrastando')
+    dica.remove()
+    S.mapa.pos[id] = cancelou ? a.inicio : S.mapa.pos[id].map((v) => Math.floor(v) + 0.5)
+    const r = atualizarVisao(true)
+    if (a.mexeu && !cancelou) anunciar(id === 'aira' ? `Aira andou. Vendo ${r.ve}, sentindo ${r.sente}.` : `${TK5.find((t) => t.id === id).nome}: ${({ ve: 'a Aira vê', sente: 'a Aira sente, uma onda', fora: 'fora do alcance' })[situacao(id).sit]}.`)
+  }
+  const cancelar = (ev) => soltar(ev, true)
+  S5.arrasto.cancelar = () => soltar({ pointerId: e.pointerId }, true)
+  el.addEventListener('pointermove', mover)
+  el.addEventListener('pointerup', soltar)
+  el.addEventListener('pointercancel', cancelar)
+  quadroArrasto()
+}
+function quadroArrasto() {
+  const a = S5.arrasto
+  if (!a) return
+  const r = atualizarVisao(a.id === 'aira')
+  const [x, y] = px(S.mapa.pos[a.id])
+  let txt, sit
+  if (a.id === 'aira') { txt = `Vê ${r.ve} · sente ${r.sente}`; sit = 've' }
+  else {
+    const s = situacao(a.id)
+    sit = s.sit
+    txt = sit === 've' ? 'Solta aqui: a Aira vê' : sit === 'sente' ? `Solta aqui: a Aira sente (onda)${s.parede ? ', mesmo atrás da parede' : ''}` : 'Solta aqui: fora do alcance'
+  }
+  a.dica.dataset.sit = sit
+  a.dica.textContent = txt
+  a.dica.style.transform = `translate(${Math.round(x + S5.casa * 0.6)}px, ${Math.round(y - S5.casa * 1.1)}px)`
+}
+function moverComSeta(el, key) {
+  const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key]
+  const id = el.dataset.tk5
+  const p = S.mapa.pos[id]
+  S.mapa.pos[id] = [Math.min(MV.w - 0.5, Math.max(0.5, p[0] + d[0])), Math.min(MV.h - 0.5, Math.max(0.5, p[1] + d[1]))]
+  const r = atualizarVisao(id === 'aira')
+  anunciar(id === 'aira' ? `Vendo ${r.ve}, sentindo ${r.sente}.` : el.getAttribute('aria-label'))
+}
+/** Para a prova: congela as ondas no instante t (ms) do ciclo. */
+window.__ondaNoInstante = (t) => { for (const an of document.getAnimations()) { if (an.effect?.target?.closest?.('.onda')) { an.pause(); an.currentTime = t } } }
+
+/* =========================================================================
+ * Render, troca de estado e eventos
+ * ========================================================================= */
+const ROTEIRO = {
+  1: '<b>Bloco na ficha.</b> Na coluna da esquerda, abaixo dos atributos. Clique num chip para abrir; o “+ Característica” é só do mestre.',
+  2: '<b>Ligar companions.</b> Em “Ligar ficha”, marque os Lovecats. Depois, em “+ Característica” › Companion, crie outro grupo e ligue a Raposa de Nuvem (invocação que dá efeito).',
+  3: '<b>Começar a batalha</b>, na tela de quem joga a Aira: escolha até 3 Lovecats e a Raposa. <kbd>Enter</kbd> entra.',
+  4: '<b>Vez do companion.</b> Passe a vez da Aira: o companion tem vez própria na ordem, do lado dela, e quem joga é o dono da Aira.',
+  5: '<b>Cegueira no mapa.</b> Arraste as fichas (ou setas com uma em foco). Troque entre Mestre e Jogador no alto.',
+}
+function render() {
+  const foco = document.activeElement?.dataset?.foco
+  const est = S.estado
+  for (const b of $$('.estado')) { const sel = Number(b.dataset.estado) === est; b.setAttribute('aria-selected', String(sel)); b.tabIndex = sel ? 0 : -1 }
+  $('#roteiro').innerHTML = ROTEIRO[est]
+  const comPapel = est === 1 || est === 2 || est === 5
+  $('#vercomo').hidden = !comPapel
+  $('#vercomo-rot').hidden = !comPapel
+  $('#vercomo-fixo').hidden = comPapel
+  for (const b of $$('#vercomo button')) {
+    b.setAttribute('aria-pressed', String(b.dataset.papel === S.papel))
+    if (b.dataset.papel === 'jogador') b.textContent = est === 5 ? 'Jogador (Aira cega)' : 'Jogador'
+  }
+  /* Redesenhar não pode mexer na rolagem de quem está lendo (coluna da ficha, ordem dos turnos). */
+  const mesmoEstado = Number(palco.dataset.estado) === est || (Number(palco.dataset.estado) <= 2 && est <= 2)
+  const rolagem = mesmoEstado ? ['.ficha__esq', '.ficha__dir', '.ordem'].map((s) => [s, $(s)?.scrollTop || 0]) : []
+  palco.dataset.estado = est
+  if (est !== 5) { S5.ro?.disconnect(); S5.ro = null; S5.arrasto = null }
+  if (est <= 2) palco.innerHTML = htmlFicha()
+  else if (est === 3) palco.innerHTML = htmlEscolha()
+  else if (est === 4) palco.innerHTML = htmlMesa()
+  else montarVisao()
+  for (const [s, y] of rolagem) { const el = $(s); if (el) el.scrollTop = y }
+  if (foco) $(`[data-foco="${foco}"]`)?.focus({ preventScroll: true })
+}
+function irPara(n, focarAba) {
+  fecharMenu(false)
+  while (pilha.length) pilha.at(-1).fechar('troca')
+  /* O Desfazer de um aviso vale para a tela em que ele nasceu: trocar de estado fecha os avisos. */
+  for (const a of $$('.aviso')) a.remove()
+  ultimoDesfazer = null
+  S.estado = n
+  if (n === 1) S.aberta = null
+  if (n === 2) { S.fichaFechada = false; S.aberta = (companions()[0] || {}).id || null }
+  if (n === 3) { garantirExemplo(); S.escolhaTemp = structuredClone(S.escolha || escolhaPadrao()) }
+  if (n === 4) { garantirExemplo(); if (!S.b) { S.escolha = S.escolha || escolhaPadrao(); S.b = novaBatalha(S.escolha) } }
+  render()
+  if (focarAba) $(`.estado[data-estado="${n}"]`).focus()
+  if (n <= 2) $('#bloco-carac')?.scrollIntoView({ block: 'nearest' })
+  if (n === 3) $('.escolha input:not(:disabled)')?.focus({ preventScroll: true })
+}
+function fecharCarac() {
+  const id = S.aberta
+  S.aberta = null
+  if (S.estado === 2) S.estado = 1
+  render()
+  $(`[data-foco="chip-${id}"]`)?.focus()
+}
+function entrar(sozinha) {
+  const e = sozinha ? Object.fromEntries(companions().map((g) => [g.id, []])) : S.escolhaTemp
+  S.escolha = structuredClone(e)
+  S.b = novaBatalha(S.escolha)
+  const nomes = Object.values(S.escolha).flat().map((id) => FICHAS[id].nome)
+  S.estado = 4
+  render()
+  avisar(nomes.length ? `A Aira entrou com ${nomes.length > 1 ? nomes.slice(0, -1).join(', ') + ' e ' + nomes.at(-1) : nomes[0]}.` : 'A Aira entrou sozinha.')
+  $('[data-foco="passar"]')?.focus()
+}
+
+$('.estados').addEventListener('click', (e) => { const b = e.target.closest('.estado'); if (b) irPara(Number(b.dataset.estado)) })
+$('.estados').addEventListener('keydown', (e) => {
+  const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key]
+  if (d) { e.preventDefault(); irPara(((S.estado - 1 + d + 5) % 5) + 1, true) }
+  else if (e.key === 'Home') { e.preventDefault(); irPara(1, true) }
+  else if (e.key === 'End') { e.preventDefault(); irPara(5, true) }
+})
+$('#vercomo').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-papel]')
+  if (!b || b.dataset.papel === S.papel) return
+  S.papel = b.dataset.papel
+  render()
+  b.focus()
+  if (S.estado === 5) desenhar()
+})
+$('#recomecar').addEventListener('click', () => { fecharMenu(false); while (pilha.length) pilha.at(-1).fechar('troca'); S = inicial(); render(); avisar('Tudo voltou ao começo.') })
+
+palco.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-acao]')
+  if (!el) return
+  porTeclado = e.detail === 0
+  const a = el.dataset.acao
+  if (a === 'abrir-carac') {
+    if (S.aberta === el.dataset.id) { fecharCarac(); return }
+    S.aberta = el.dataset.id
+    const c = grupo(S.aberta)
+    S.estado = c.tipo === 'companion' ? 2 : 1
+    render()
+    $(`[data-foco="chip-${el.dataset.id}"]`)?.focus()
+  } else if (a === 'fechar-carac') fecharCarac()
+  else if (a === 'menu-carac') menuCarac(el)
+  else if (a === 'aba-ficha') { S.abaFicha = el.dataset.nome; render() }
+  else if (a === 'atr') { S.atrib[el.dataset.nome] = Math.max(0, S.atrib[el.dataset.nome] + Number(el.dataset.d)); render() }
+  else if (a === 'escudo') { S.escudo = Math.max(0, S.escudo + Number(el.dataset.d)); render() }
+  else if (a === 'fechar-ficha') { S.fichaFechada = true; render(); $('[data-foco="reabrir"]')?.focus() }
+  else if (a === 'reabrir') { S.fichaFechada = false; render(); $('[data-foco="mais-carac"]')?.focus() }
+  else if (a === 'limite') {
+    const g = grupo(el.dataset.id)
+    const novo = Math.min(9, Math.max(1, g.limite + Number(el.dataset.d)))
+    if (novo !== g.limite) { g.limite = novo; render() }
+  } else if (a === 'ligar') abrirLigar(el.dataset.id)
+  else if (a === 'evoluir') {
+    const id = el.dataset.f
+    const f = FICHAS[id]
+    mudar(`${f.nome} subiu para o nível ${S.nivel[id] + 1} (HP ${hpMax(id) + 20}).`, () => { S.nivel[id] += 1; if (S.hp[id] > 0) S.hp[id] += 20 })
+    acender(`[data-ligada="${id}"]`)
+  } else if (a === 'modo') {
+    const g = grupo(el.dataset.g)
+    g.modo[el.dataset.f] = el.dataset.m
+    render()
+    if (el.dataset.m === 'efeito') $(`[data-foco="efeito-${el.dataset.f}"]`)?.focus()
+  } else if (a === 'desligar') {
+    const g = grupo(el.dataset.g)
+    const id = el.dataset.f
+    mudar(`${FICHAS[id].nome} saiu de ${g.nome}. A ficha continua no livro.`, () => { g.ligadas = g.ligadas.filter((x) => x !== id) })
+    ;($('.ligada .bt--ic') || $('[data-foco="ligar"]'))?.focus()
+  } else if (a === 'tirar-carac') confirmarTirar(el.dataset.id)
+  else if (a === 'ir-mapa') irPara(5)
+  else if (a === 'entrar') entrar(!!el.dataset.sozinha)
+  else if (a === 'golpe') { S.b.golpe = el.dataset.id; S.b.alvo = null; render() }
+  else if (a === 'alvo') { S.b.alvo = el.dataset.id; render() }
+  else if (a === 'lancar' || a === 'efeito') lancar()
+  else if (a === 'passar') { passarVez(); ($('[data-foco="lancar"]') || $('[data-foco="passar"]') || $('[data-foco="simular"]'))?.focus() }
+  else if (a === 'simular') { simularMestre(); ($('[data-foco="lancar"]') || $('[data-foco="passar"]') || $('[data-foco="simular"]'))?.focus() }
+  else if (a === 'cegueira') {
+    S.mapa.cegueira = !S.mapa.cegueira
+    el.setAttribute('aria-checked', String(S.mapa.cegueira))
+    atualizarVisao(true)
+  }
+})
+palco.addEventListener('input', (e) => {
+  const t = e.target
+  if (t.dataset.input === 'nome-grupo') {
+    const g = grupo(t.dataset.id)
+    g.nome = t.value
+    const chip = $(`[data-foco="chip-${g.id}"] .cchip__txt`)
+    if (chip) chip.textContent = rotuloCarac(g)
+    $('#pag-tit').textContent = rotuloCarac(g)
+  } else if (t.dataset.input === 'efeito') grupo(t.dataset.g).efeito[t.dataset.f] = t.value
+})
+palco.addEventListener('change', (e) => {
+  const t = e.target
+  if (t.dataset.escG) {
+    const lista = S.escolhaTemp[t.dataset.escG] || (S.escolhaTemp[t.dataset.escG] = [])
+    const id = t.dataset.escF
+    if (t.checked && !lista.includes(id)) lista.push(id)
+    if (!t.checked) S.escolhaTemp[t.dataset.escG] = lista.filter((x) => x !== id)
+    render()
+    $(`[data-esc-f="${id}"]`)?.focus({ preventScroll: true })
+  }
+})
+palco.addEventListener('keydown', (e) => {
+  const t = e.target
+  if (t.matches?.('[role="radio"]') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+    e.preventDefault()
+    const irmaos = $$('[role="radio"]', t.closest('[role="radiogroup"]'))
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1
+    const novo = irmaos[(irmaos.indexOf(t) + d + irmaos.length) % irmaos.length]
+    const chave = novo.dataset.foco
+    novo.click()
+    if (chave) $(`[data-foco="${chave}"]`)?.focus()
+  } else if (t.matches?.('.aba-f') && ['ArrowLeft', 'ArrowRight'].includes(e.key)) {
+    e.preventDefault()
+    const i = ABAS.findIndex(([n]) => n === S.abaFicha)
+    S.abaFicha = ABAS[(i + (e.key === 'ArrowRight' ? 1 : -1) + ABAS.length) % ABAS.length][0]
+    render()
+    $(`[data-foco="aba-${S.abaFicha}"]`).focus()
+  } else if (t.matches?.('[data-tk5]') && e.key.startsWith('Arrow')) {
+    e.preventDefault()
+    moverComSeta(t, e.key)
+  }
+})
+
+document.addEventListener('keydown', (e) => {
+  const t = e.target
+  const digitando = !!t.matches?.('input[type="search"], input:not([type]), input[type="text"], textarea')
+  if (e.key === 'F8') { e.preventDefault(); avisos.focus(); return }
+  if (pilha.length) {
+    const topo = pilha.at(-1)
+    if (e.key === 'Escape') { e.preventDefault(); topo.fechar('esc'); return }
+    if (e.key === 'Tab') {
+      const f = focaveis(topo.dlg)
+      if (!f.length) return
+      const i = f.indexOf(document.activeElement)
+      if (e.shiftKey && i <= 0) { e.preventDefault(); f.at(-1).focus() } else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus() }
+    }
+    return
+  }
+  if (menuAtual) return
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !digitando) {
+    if (ultimoDesfazer) { e.preventDefault(); const u = ultimoDesfazer; u.sair(); u.desfazer(); avisar('Desfeito.') }
+    return
+  }
+  if (e.key === 'Escape') {
+    if (S5.arrasto) { e.preventDefault(); S5.arrasto.cancelar(); return }
+    if (digitando) { t.blur(); return }
+    if (S.estado <= 2 && S.aberta) { e.preventDefault(); fecharCarac() }
+    return
+  }
+  if (digitando) return
+  if (!e.ctrlKey && !e.altKey && !e.metaKey && /^[1-5]$/.test(e.key)) { e.preventDefault(); irPara(Number(e.key)); return }
+  if (e.key === 'Enter' && !t.closest?.('button, a, input, [role="tab"]')) {
+    if (S.estado === 3) { e.preventDefault(); entrar(false) }
+    else if (S.estado === 4) { const p = $('[data-foco="lancar"]:not(:disabled)'); if (p) { e.preventDefault(); p.click() } }
+  }
+  if (e.key === 'Enter' && S.estado === 3 && t.matches?.('.escolha input[type="checkbox"]')) { e.preventDefault(); entrar(false) }
+})
+
+irPara(1)
+</script>
+</body>
+</html>

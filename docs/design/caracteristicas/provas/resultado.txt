@@ -1,0 +1,61 @@
+ok    1. bloco "Características especiais" vem depois dos atributos
+ok    1. chips "Companion · Lovecats (3)" e "Cegueira"  [Companion · Lovecats
+(3) | Cegueira]
+ok    1. mestre vê "+ Característica"
+ok    1. jogador não vê "+ Característica"
+ok    1. menu com Companion e Cegueira; Cegueira travada com o motivo  [Companion Fichas de NPC ou invocação que andam com ela e lutam por ela ou dão efeito. Pode ter mais de um grupo. | Cegueira A Aira já tem Cegueira.]
+ok    1. Esc fecha o menu e devolve o foco ao botão  [mais-carac]
+ok    1. chip Cegueira abre a página dela
+ok    1. Esc volta às abas e o foco fica no chip  [chip-c2]
+ok    2. Lovecats começa vazio, com o convite para ligar
+ok    2. "Ligar ficha" abre o diálogo com o foco na busca
+ok    2. Esc fecha o diálogo e devolve o foco ao "Ligar ficha"  [ligar]
+ok    2. busca "lovecat" mostra os 5 Lovecats  [5]
+ok    2. "Marcar todas" marca os 5 e o botão diz "Ligar 5"  [Ligar 5]
+ok    2. busca sem resultado diz o que fazer
+ok    2. as 5 fichas aparecem ligadas, com aviso e Desfazer  [5]
+ok    2. arrastar o aviso para o lado o dispensa
+ok    2. tirar e religar a Mimi pelo teclado (Tab, Espaço, Enter)  [5]
+ok    2. Ctrl+Z desfaz a última ligação (a Mimi sai de novo)
+ok    2. Enter na busca liga as marcadas
+ok    2. Evoluir sobe a Mimi para o nível 3 (HP 140)  [Lovecat · HP 140/140 · Agi 30]
+ok    2. o limite sobe e desce e o chip acompanha  [4]
+ok    2. Companion novo abre com o nome selecionado para trocar
+ok    2. o chip troca de nome enquanto digita
+ok    2. a Raposa de Nuvem (invocação) entra marcada "Dá efeito", com o texto do efeito
+ok    2. "Luta no campo" tira a linha do efeito
+ok    3. dois grupos: Lovecats e Raposa de Nuvem  [Lovecats|Raposa de Nuvem]
+ok    3. Lovecats vem com 3 de 3 e a Nina travada pelo limite
+ok    3. Pipoca (HP 0) travada com o motivo
+ok    3. desmarcar a Sombra libera a Nina (2 de 3)
+ok    3. o botão diz "Entrar com 4"
+ok    4. Enter entra na batalha com a vez da Aira
+ok    4. a ordem tem os 4 companions, cada um com linha própria  [Mimi a seguir | Raposa de Nuvem | Sombra | Urso Pardo 1 | Urso Pardo 2 | Bolota]
+ok    4. a Mimi vem "a seguir"  [Mimi
+a seguir]
+ok    4. a vez passa para a Mimi, companion jogado pelo dono
+ok    4. o mapa diz de quem é a vez
+ok    4. o token da Mimi acende no mapa
+ok    4. Enter lança o Arranhão: Urso Pardo 1 cai para 260  [Mimi usa Arranhão em Urso Pardo 1: 40 de dano.]
+ok    4. a Raposa (dá efeito) tem vez própria com "Usar Névoa da Raposa"
+ok    4. o efeito marca os aliados (+10% ESP no mapa)  [5]
+ok    5. mestre: Mimi "vê", Soldado/Urso 1/Urso 2 "sente", Cisco "fora"
+ok    5. a parede não para a onda (Soldado e Urso 2 atrás da parede ainda pulsam)  [3]
+ok    5. sem cegueira: 6 casas, nenhuma onda, Urso 1 visto e o Soldado tapado pela parede
+ok    5. durante a pausa do arrasto a dica diz o que vai acontecer  [Solta aqui: fora do alcance]
+ok    5. solto longe: Urso 1 fora e 2 ondas
+ok    5. Esc no meio do arrasto devolve a ficha ao lugar
+ok    5. de volta: Urso 1 sente de novo
+ok    5. jogador cego vê só a Aira e a Mimi  [aira,mimi]
+ok    5. e sente 3 ondas, sem nome
+ok    5. nenhum nome de quem só é sentido aparece no mapa  [AI Aira MI Mimi]
+ok    5. setas andam com a Aira e a contagem muda  [0/3]
+ok    onda: cada anel abre de < 0,35 a 1 e some ao chegar no fim (a cada 50 ms)
+ok    onda: os 3 anéis estão defasados e sempre há um visível (nunca pisca apagada)  [menor pico de opacidade 0.58]
+ok    nenhuma tarefa longa >= 200 ms em todo o passeio  [maior 0 ms; 0 acima de 50 ms]
+ok    nenhum erro no console
+ok    movimento reduzido: anéis sem animação, parados em 0,4 / 0,7 / 1  [none:0.40:0.62 none:0.70:0.40 none:1.00:0.22]
+ok    1440 x 900: nada vaza para fora da tela nos 5 estados
+ok    1440 x 900: a coluna rola até o bloco e mexer num atributo não a faz pular  [88 -> 88, Carisma 56]
+
+57/57
