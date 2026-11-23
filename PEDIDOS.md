@@ -3009,3 +3009,10 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - Literal: "[Image #58] [Image #59] cara é para dar para fazer isso melhor, ta muito mal organizado, faça um prototipo organiziado"
 - Prints: página Habilidades (botões Juntar das fichas da pasta, Dar alcance aos antigos, Dar requisitos aos antigos, Nova habilidade; busca; chips Tudo 171, Ataque 39, Reação 6, Cura e apoio 5, Do livro 121; cartões em grade com texto longo cortado, campos Ação/Efeito/Custo/Tempo/Dano, ícones testar/editar/apagar, "Já está em Aira"/"Pôr em Aira"; à direita "Ficha que recebe" Aira com listas de Habilidades, Perícias, Vantagens, Desvantagens) e página Itens (5 botões de manutenção + Novo item; chips Tudo 40, Com efeito 1, Armas 16, Consumíveis 3, Outros 21; cartões de arma; à direita Mochila/Armas/Itens da Aira).
 - 23/11 18h58 (date). Fila: designer-opus faz protótipo organizado das duas páginas (pensar 2-3 arranjos, escolher o melhor); construir depois da aprovação.
+
+## PEDIDO NOVO (23/11 19h19): características especiais na ficha (Companion e Cegueira)
+
+- Pergunta do dono antes: "você já fez a mecanica de companion ?" Resposta do Claude: não; pedido de 07/11 (Lovecats da Aira) nunca construído; hoje só existe a invocação temporária.
+- Literal: "[Image #60] pois vamos trabalhar nisso, na ficha vamos colocar em algum lugar caracteristicas especiais, onde vamos colocar duas caracteristicas especiais que é a de companion que quer dizer que a o jogador tem familiares ou coisa assim que eu vou ligar a ficha de npc,  e outro é cegueira cegueira ele diminui a visão pela metade no jogo e no mapa mas em contrapartida o que não seria visto e tokens que não seria vistos ficam pulsando tipo a rek'sai do lol quando ela se afunda na terra."
+- Print: ficha da Aira (Mink Raposa, Artista; HP 900, SP 15/140, Escudo 50; atributos; abas Habilidades, Perícias, Vantagens, Desvantagens, Transformações, Armas, Itens).
+- 23/11 19h19 (date). Fila: perguntas ao dono, protótipo, plano, construir. Referência de jogo só para a ideia (sentir pelo tremor); visual próprio.
