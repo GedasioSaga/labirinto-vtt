@@ -5,6 +5,8 @@ import type { ContextoDosRequisitos } from './contexto'
 import { fraseDoPedidoDeAjuda } from './frases'
 import { lerRequisitos } from './ler'
 import { PRAZO_DA_AJUDA_MS } from './modelo'
+import { respostasDosRequisitos } from './portao'
+import type { RespostasDoPedido } from '../perguntaNaHora'
 
 /**
  * REQUISITOS, fase E (docs/design/habilidades/REQUISITOS.md §7): o PEDIDO DE AJUDA a um aliado no
@@ -154,9 +156,11 @@ export interface EscolhaDaAjuda {
  * aliados que ela enxerga. `null` = o bloco não pede ajuda, ou a tela não sabe dizer quem pode (o host
  * decide). Só a primeira pergunta de aliado: a ajuda é um pedido por vez.
  */
-export function escolhaDaAjuda(requisitos: unknown, para: 'usar' | 'evoluir', ctx: ContextoDosRequisitos): EscolhaDaAjuda | null {
+export function escolhaDaAjuda(requisitos: unknown, para: 'usar' | 'evoluir', ctx: ContextoDosRequisitos, respostas?: RespostasDoPedido): EscolhaDaAjuda | null {
   if (requisitos === undefined) return null
-  const avaliacao = avaliarDoCartao(lerRequisitos(requisitos), para, ctx)
+  // REQUISITOS G: com as respostas da mira (o "Um destes" escolhido), a ajuda que a opção pede aparece.
+  const doReq = respostasDosRequisitos(respostas)
+  const avaliacao = avaliarDoCartao(lerRequisitos(requisitos), para, ctx, doReq === undefined ? {} : { respostas: doReq })
   if (avaliacao === null || avaliacao.veredito === 'falta') return null
   for (const pergunta of avaliacao.perguntas) {
     if (pergunta.tipo !== 'aliado' || pergunta.candidatos.length === 0) continue

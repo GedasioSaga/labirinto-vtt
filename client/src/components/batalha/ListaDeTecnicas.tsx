@@ -1,10 +1,15 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type ReactNode, type Ref, type UIEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type ReactNode, type Ref, type UIEvent } from 'react'
 import { CUSTO_MAX } from '../../lib/batalha/combate'
 import { tocarSomDoCombate } from '../../lib/sons/sonsDoCombate'
 import { ContaComBonus } from './ContaComBonus'
 import { lerInteiro, textoDaCarga, type EvolucaoNaTela, type GolpeNaTela, type LinhaDaLeitura, type PipDaVez } from './dadosDoMenu'
+import type { PerguntaNaHora, RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
+import { TiposDoGolpe } from './IconeDoGolpe'
+import { PerguntasDosRequisitos, faltaResponder, respostasDeAgora } from './PerguntasDosRequisitos'
+import type { MedidorNaTela, PartesNaTela } from './requisitosNoMenu'
 import './batalha.css'
 import './combate.css'
+import './requisitosNoMenu.css'
 
 /**
  * AS TIRAS DO MENU DE BATALHA (o `.tira` do protótipo aprovado) e a LISTA DE
@@ -91,9 +96,13 @@ export interface TiraProps {
   refDaTira?: (elemento: HTMLButtonElement | null) => void
   /** D2: a tecla de atalho (1 a 9), escrita miúda na ponta da tira. Ausente = sem atalho. */
   tecla?: number
+  /** REQUISITOS G: a versão SUPER pronta para usar (a tira de latão). */
+  super?: boolean
+  /** REQUISITOS G: acabou de evoluir: o brilho de latão corre a tira uma vez. */
+  evoluiu?: boolean
 }
 
-export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips, esta, forma, passiva, pequena, expandida, controla, descritaPor, onEscolher, onFoco, onApontar, refDaTira, tecla }: TiraProps) {
+export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips, esta, forma, passiva, pequena, expandida, controla, descritaPor, onEscolher, onFoco, onApontar, refDaTira, tecla, super: ehSuper, evoluiu }: TiraProps) {
   const estilo = useMemo(() => {
     const semente = sementeDe(chave)
     return {
@@ -103,7 +112,7 @@ export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips
       '--i': indice,
     } as CSSProperties
   }, [chave, indice])
-  const classe = ['bt-tira', forma ? 'bt-tira--forma' : '', passiva ? 'bt-tira--passiva' : '', pequena ? 'bt-tira--pequena' : ''].filter(Boolean).join(' ')
+  const classe = ['bt-tira', forma ? 'bt-tira--forma' : '', passiva ? 'bt-tira--passiva' : '', pequena ? 'bt-tira--pequena' : '', ehSuper ? 'bt-tira--super' : ''].filter(Boolean).join(' ')
   const linha = motivo ?? detalhe ?? null
   return (
     <button
@@ -118,6 +127,7 @@ export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips
       aria-controls={controla}
       aria-describedby={descritaPor}
       aria-keyshortcuts={tecla === undefined ? undefined : String(tecla)}
+      data-evoluiu={evoluiu ? '' : undefined}
       onFocus={onFoco}
       onPointerEnter={(evento) => {
         if (evento.pointerType === 'mouse') onApontar?.()
@@ -127,6 +137,7 @@ export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips
         if (!motivo) onEscolher(evento.detail === 0)
       }}
     >
+      {evoluiu && <span className="bt-tira__brilho" aria-hidden="true" />}
       {tecla !== undefined && (
         <span className="bt-tira__tecla" aria-hidden="true">
           {tecla}
@@ -207,12 +218,15 @@ export function semRolarDeLado(evento: UIEvent<HTMLElement>) {
 }
 
 /** A cabeça do menu: o nome e a economia da vez ("Simples 1 · Bônus 0 · Mov 2/4"). */
-export function CabecaDaVez({ quem, pips, carga, titulo }: { quem: string; pips: readonly PipDaVez[] | null; carga: number; titulo?: string }) {
+export function CabecaDaVez({ quem, pips, carga, titulo, medidores, partes }: { quem: string; pips: readonly PipDaVez[] | null; carga: number; titulo?: string; medidores?: readonly MedidorNaTela[]; partes?: PartesNaTela | null }) {
   const textoCarga = textoDaCarga(carga)
+  // REQUISITOS G: cada acumulador da ficha vira um medidor ("POLARIDADE 1/3").
+  const textosDosMedidores = (medidores ?? []).map((medidor) => `${medidor.nome} ${medidor.nivel} de ${medidor.maximo}`)
   return (
+    <>
     <div className="bt-vez__cabeca">
       <h2 className="bt-vez__quem">{titulo === undefined ? quem : `${titulo}`}</h2>
-      <div className="bt-vez__economia" aria-label={[...(pips ?? []).map((pip) => pip.texto), textoCarga].filter(Boolean).join(', ')}>
+      <div className="bt-vez__economia" aria-label={[...(pips ?? []).map((pip) => pip.texto), textoCarga, ...textosDosMedidores].filter(Boolean).join(', ')}>
         {(pips ?? []).map((pip) => (
           <span key={pip.id} className="bt-pip" data-gasto={pip.gasto ? 'sim' : 'nao'} data-passou={pip.passou ? 'sim' : 'nao'} aria-hidden="true">
             {pip.texto}
@@ -223,9 +237,67 @@ export function CabecaDaVez({ quem, pips, carga, titulo }: { quem: string; pips:
             Carga {carga}
           </span>
         )}
+        {(medidores ?? []).map((medidor) => (
+          <span key={medidor.id} className="bt-pip bt-pip--medidor" data-cheio={medidor.nivel >= medidor.maximo ? 'sim' : undefined} aria-hidden="true">
+            {medidor.nome} {medidor.nivel}/{medidor.maximo}
+          </span>
+        ))}
       </div>
     </div>
+    {partes !== undefined && partes !== null && <PartesDaForma partes={partes} />}
+    </>
   )
+}
+
+/** REQUISITOS G: as Partes da forma ("Forma Híbrida · Parte 2"), em segmentos inclinados, sob o topo. */
+function PartesDaForma({ partes }: { partes: PartesNaTela }) {
+  const { grupo, parte, total } = partes
+  const segmentos = Array.from({ length: total }, (_, i) => i)
+  return (
+    <div className="bt-partes" role="img" aria-label={parte > 0 ? `${grupo}, Parte ${parte} de ${total}` : `Fora de ${grupo}`}>
+      <span className="bt-partes__txt">{grupo}</span>
+      <span className="bt-partes__segs" style={{ '--n': total } as CSSProperties}>
+        {segmentos.map((i) => (
+          <span key={i} className="bt-partes__seg" data-cheio={i < parte ? '' : undefined} />
+        ))}
+      </span>
+      <span className="bt-partes__txt">{parte > 0 ? `Parte ${parte}` : 'Fora'}</span>
+    </div>
+  )
+}
+
+/** Quanto o brilho da evolução fica na tira: os 440 ms do varrer mais a entrada do nome e dos chips. */
+const BRILHO_DA_EVOLUCAO_MS = 700
+
+/**
+ * REQUISITOS G (o momento da evolução, raro: uma vez por batalha): a técnica que acabou de virar a versão
+ * evoluída pronta para usar (a SUPER liberada, ou a base sem link que virou a evoluída). Lê a mudança
+ * entre um render e o seguinte; ao abrir a lista nada brilha.
+ */
+function useMomentoDaEvolucao(golpes: readonly GolpeNaTela[]): string | null {
+  const antes = useRef<ReadonlyMap<string, { marca: string | undefined; motivo: string | null }> | null>(null)
+  const [brilha, setBrilha] = useState<string | null>(null)
+  useLayoutEffect(() => {
+    const anterior = antes.current
+    antes.current = new Map(golpes.map((golpe) => [golpe.chave, { marca: golpe.evolucao?.marca, motivo: golpe.motivo }]))
+    if (anterior === null) return
+    const nova = golpes.find((golpe) => {
+      const era = anterior.get(golpe.chave)
+      return era !== undefined && golpe.evolucao?.marca === 'Evoluída' && golpe.motivo === null && (era.marca !== 'Evoluída' || era.motivo !== null)
+    })
+    if (nova !== undefined) setBrilha(nova.chave)
+  }, [golpes])
+  useEffect(() => {
+    if (brilha === null) return undefined
+    const relogio = window.setTimeout(() => setBrilha(null), BRILHO_DA_EVOLUCAO_MS)
+    return () => window.clearTimeout(relogio)
+  }, [brilha])
+  return brilha
+}
+
+/** REQUISITOS G: a versão evoluída pronta para usar ganha a tira de latão (a SUPER do protótipo). */
+function ehSuperPronta(golpe: GolpeNaTela): boolean {
+  return golpe.evolucao?.marca === 'Evoluída' && golpe.motivo === null
 }
 
 /** Tipos de habilidade F4: a marca da evolução ("Evolui", "Evoluída", "Evoluiu"), com o que ela quer dizer no título. */
@@ -252,6 +324,12 @@ export function MarcaDasOpcoes({ golpe }: { golpe: GolpeNaTela }) {
 export function ChipsDoGolpe({ golpe }: { golpe: GolpeNaTela }) {
   return (
     <>
+      <TiposDoGolpe tipos={golpe.tiposDoGolpe} />
+      {golpe.somas?.map((soma) => (
+        <span key={soma.nome} className="bt-etq bt-etq--acum" title={`Ao usar, ${soma.nome} sobe ${soma.quanto}`}>
+          +{soma.quanto} {soma.nome}
+        </span>
+      ))}
       {golpe.tipoTexto !== undefined && (
         <span
           className="bt-etq bt-etq--tipo"
@@ -297,6 +375,11 @@ export interface ListaDeTecnicasProps {
   evoluir?: EvoluirNaTela
   /** D2: a chave da memória (ficha e lista): a lista reabre na última técnica escolhida. Ausente = na primeira. */
   memoria?: string
+  /** REQUISITOS G: a lista é do mestre: a tira cinza pelos requisitos ganha "Usar mesmo assim" na leitura. */
+  forcar?: boolean
+  /** REQUISITOS G: os medidores e as Partes no topo (os mesmos do menu). */
+  medidores?: readonly MedidorNaTela[]
+  partes?: PartesNaTela | null
 }
 
 /** D2: a última técnica escolhida em cada lista de cada ficha (enquanto o app está aberto). */
@@ -308,8 +391,19 @@ const ultimaTecnica = new Map<string, string>()
  * não saiu). Quem monta decide a regra (o mestre sempre; o jogador, na vez).
  */
 export interface EvoluirNaTela {
-  motivo: (cartaoId: string, custo: number | null) => string | null
-  onEvoluir: (cartaoId: string, custo: number | null) => boolean
+  /** `respostas` (REQUISITOS G) = as da caixa e do "Um destes" já marcadas. */
+  motivo: (cartaoId: string, custo: number | null, respostas?: RespostasDoPedido) => string | null
+  onEvoluir: (cartaoId: string, custo: number | null, extra?: ExtraDoEvoluir) => boolean
+  /** REQUISITOS G: o que falta dos requisitos do Evoluir (`null` = nada); com o motivo igual, o mestre vê "Evoluir mesmo assim". Ausente = o jogador. */
+  faltaDosRequisitos?: (cartaoId: string) => string | null
+  /** REQUISITOS G: as perguntas do grupo "Para evoluir" (o "Um destes", a caixa). Ausente = não pergunta. */
+  perguntas?: (cartaoId: string, respostas: RespostasDoPedido) => readonly PerguntaNaHora[]
+}
+
+/** REQUISITOS G: o que o Evoluir leva além do custo: as respostas dos requisitos, ou o mestre forçando. */
+export interface ExtraDoEvoluir {
+  respostas?: RespostasDoPedido
+  forcarRequisitos?: true
 }
 
 /** A leitura ao lado da lista: largura entre o mínimo e o máximo, com o vão até a lista e a folga até a borda da janela. */
@@ -328,7 +422,7 @@ function mesmoLugar(a: LugarDaLeitura, b: LugarDaLeitura): boolean {
   return a.largura === b.largura && a.topo === b.topo && a.altura === b.altura
 }
 
-export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, sugerida = null, onVoltar, armas, instantaneo, vazio, evoluir, memoria }: ListaDeTecnicasProps) {
+export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, sugerida = null, onVoltar, armas, instantaneo, vazio, evoluir, memoria, forcar = false, medidores, partes }: ListaDeTecnicasProps) {
   const raiz = useRef<HTMLDivElement>(null)
   const coluna = useRef<HTMLUListElement>(null)
   const leitura = useRef<HTMLDivElement>(null)
@@ -354,6 +448,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
   const lendo = lendoEscolhido ?? lugar.tipo === 'lado'
   const idDaLeitura = golpeAtual === undefined ? undefined : `bt-leitura-${golpeAtual.chave}`
   const chaveAtual = golpeAtual?.chave ?? null
+  const evoluiuAgora = useMomentoDaEvolucao(golpes)
 
   // Cabe ao lado? A sobra à direita da lista na janela (o livro aberto empurra a lista para a direita).
   useLayoutEffect(() => {
@@ -413,13 +508,23 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
     evoluir === undefined
       ? undefined
       : {
-          motivo: evoluir.motivo,
-          onEvoluir: (cartaoId, custo) => {
-            const saiu = evoluir.onEvoluir(cartaoId, custo)
+          ...evoluir,
+          onEvoluir: (cartaoId, custo, extra) => {
+            const saiu = evoluir.onEvoluir(cartaoId, custo, extra)
             if (saiu) tiras.current[atual]?.focus()
             return saiu
           },
         }
+
+  // REQUISITOS G: só o mestre, e só a tira apagada PELOS requisitos (o resto do cinza, ação ou SP, o host recusa igual).
+  const forcarDe = (golpe: GolpeNaTela): (() => void) | undefined =>
+    forcar && golpe.faltaDosRequisitos !== undefined && golpe.motivo === golpe.faltaDosRequisitos
+      ? () => {
+          if (memoria !== undefined) ultimaTecnica.set(memoria, golpe.chave)
+          tocarSomDoCombate('confirmar')
+          onEscolher({ ...golpe, motivo: null, forcarRequisitos: true }, false)
+        }
+      : undefined
 
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
     toque.current = null
@@ -465,7 +570,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
         if (!evento.currentTarget.contains(evento.relatedTarget as Node | null)) setComFoco(false)
       }}
     >
-      <CabecaDaVez quem={titulo} pips={pips} carga={carga} />
+      <CabecaDaVez quem={titulo} pips={pips} carga={carga} medidores={medidores} partes={partes} />
       {total === 0 ? (
         <p className="bt-vez__aviso">{vazio}</p>
       ) : (
@@ -520,6 +625,8 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
                     </>
                   }
                   forma={golpe.forma !== undefined}
+                  super={ehSuperPronta(golpe)}
+                  evoluiu={evoluiuAgora === golpe.chave}
                   esta={atual === indice}
                   expandida={aberta}
                   controla={aberta ? id : undefined}
@@ -534,7 +641,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
                     tiras.current[indice] = elemento
                   }}
                 />
-                {aberta && lugar.tipo === 'lugar' && <DetalheDoGolpe id={id} golpe={golpe} refDaCaixa={leitura} evoluir={evoluirAqui} />}
+                {aberta && lugar.tipo === 'lugar' && <DetalheDoGolpe id={id} golpe={golpe} refDaCaixa={leitura} evoluir={evoluirAqui} onForcar={forcarDe(golpe)} />}
               </li>
             )
           })}
@@ -549,6 +656,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
           style={{ left: `calc(100% + ${VAO_DA_LEITURA}px)`, top: lugar.topo, width: lugar.largura, maxHeight: lugar.altura }}
           refDaCaixa={leitura}
           evoluir={evoluirAqui}
+          onForcar={forcarDe(golpeAtual)}
         />
       )}
       {/* D2: a dica das teclas só com o foco na lista (é quando elas funcionam). */}
@@ -585,6 +693,8 @@ export interface DetalheDoGolpeProps {
   refDaCaixa?: Ref<HTMLDivElement>
   /** Tipos de habilidade F4: o Evoluir, na técnica que ainda evolui. Ausente = só a leitura. */
   evoluir?: EvoluirNaTela
+  /** REQUISITOS G: o "Usar mesmo assim" do mestre (a tira apagada pelos requisitos). Ausente = sem o botão. */
+  onForcar?: () => void
 }
 
 /**
@@ -610,7 +720,7 @@ function linhasDoGolpe(golpe: GolpeNaTela): LinhaDaLeitura[] {
 }
 
 /** A leitura inteira de um golpe (na lista do jogador e na seta do painel do NPC no mestre), com rolagem própria. */
-export function DetalheDoGolpe({ id, golpe, comNome, className, style, refDaCaixa, evoluir }: DetalheDoGolpeProps) {
+export function DetalheDoGolpe({ id, golpe, comNome, className, style, refDaCaixa, evoluir, onForcar }: DetalheDoGolpeProps) {
   const evolucao = golpe.evolucao
   return (
     <div ref={refDaCaixa} className={className === undefined ? 'bt-detalhe' : `bt-detalhe ${className}`} id={id} style={style}>
@@ -630,6 +740,14 @@ export function DetalheDoGolpe({ id, golpe, comNome, className, style, refDaCaix
           </div>
         ))}
       </dl>
+      {onForcar !== undefined && (
+        <div className="bt-forcar">
+          <button type="button" className="bt-forcar__botao" onClick={onForcar}>
+            Usar mesmo assim
+          </button>
+          <p className="bt-forcar__nota">Só o mestre vê este botão. O registro anota o que faltava; o custo normal continua.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -650,7 +768,15 @@ function EvoluirDaTecnica({ cartaoId, evolucao, evoluir }: { cartaoId: string; e
   const limpo = custoTexto.trim()
   const custo = limpo === '' ? null : lerInteiro(limpo, CUSTO_MAX)
   const torto = limpo !== '' && (!SO_ALGARISMOS.test(limpo) || Number(limpo) > CUSTO_MAX)
-  const motivo = torto ? `O custo é um número de 0 a ${CUSTO_MAX} (vazio = sem custo)` : evoluir.motivo(cartaoId, custo)
+  // REQUISITOS G: o "Um destes" e a caixa do grupo "Para evoluir", relidos a cada resposta.
+  const [respostas, setRespostas] = useState<Readonly<Record<string, string | number>>>({})
+  const perguntas = evoluir.perguntas?.(cartaoId, respostas) ?? []
+  const deAgora = respostasDeAgora(perguntas, respostas)
+  const faltaDasPerguntas = faltaResponder(perguntas, respostas)
+  const motivo = torto ? `O custo é um número de 0 a ${CUSTO_MAX} (vazio = sem custo)` : (faltaDasPerguntas ?? evoluir.motivo(cartaoId, custo, deAgora))
+  // REQUISITOS G: o mestre evolui mesmo assim quando o que impede é só o que falta dos requisitos.
+  const falta = torto ? null : (evoluir.faltaDosRequisitos?.(cartaoId) ?? null)
+  const forcavel = falta !== null && motivo === falta
   const destino = evolucao.para !== null ? `vira ${evolucao.para}` : evolucao.overload ? 'o efeito vira o da Evolução, como Overload' : 'o efeito vira o da Evolução'
 
   const enviar = (evento: FormEvent) => {
@@ -659,8 +785,13 @@ function EvoluirDaTecnica({ cartaoId, evolucao, evoluir }: { cartaoId: string; e
       setErro(motivo)
       return
     }
-    const saiu = evoluir.onEvoluir(cartaoId, custo)
+    const saiu = evoluir.onEvoluir(cartaoId, custo, Object.keys(deAgora).length === 0 ? undefined : { respostas: deAgora })
     setErro(saiu ? null : 'Não evoluiu: sem conexão com o mestre, ou a regra recusou. Tente de novo.')
+  }
+
+  const forcarOEvoluir = () => {
+    const saiu = evoluir.onEvoluir(cartaoId, custo, { forcarRequisitos: true })
+    setErro(saiu ? null : 'Não evoluiu: sem conexão, ou a regra recusou (o custo normal continua valendo).')
   }
 
   return (
@@ -668,6 +799,16 @@ function EvoluirDaTecnica({ cartaoId, evolucao, evoluir }: { cartaoId: string; e
       <p className="bt-evoluir__titulo" id={`${id}-titulo`}>
         Evoluir <span className="bt-evoluir__destino">· {destino}</span>
       </p>
+      <PerguntasDosRequisitos
+        idBase={id}
+        nome="A evolução"
+        perguntas={perguntas}
+        respostas={respostas}
+        onResponder={(chave, valor) => {
+          setErro(null)
+          setRespostas((antes) => ({ ...antes, [chave]: valor }))
+        }}
+      />
       <div className="bt-evoluir__linha">
         <label className="bt-evoluir__custo">
           <span>Custo SP</span>
@@ -690,6 +831,14 @@ function EvoluirDaTecnica({ cartaoId, evolucao, evoluir }: { cartaoId: string; e
       <p className={motivo === null ? 'bt-evoluir__nota' : 'bt-evoluir__nota bt-evoluir__nota--motivo'} id={`${id}-nota`}>
         {motivo ?? (evolucao.condicoes === '' ? 'Só nesta batalha, sem gastar ação.' : 'Só nesta batalha, sem gastar ação. A condição está no texto: o app não confere.')}
       </p>
+      {forcavel && (
+        <div className="bt-forcar">
+          <button type="button" className="bt-forcar__botao" onClick={forcarOEvoluir}>
+            Evoluir mesmo assim
+          </button>
+          <p className="bt-forcar__nota">Só o mestre vê este botão. O registro anota o que faltava.</p>
+        </div>
+      )}
       {erro !== null && erro !== motivo && (
         <p className="bt-evoluir__nota bt-evoluir__nota--motivo" role="alert">
           {erro}

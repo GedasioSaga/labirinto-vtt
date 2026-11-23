@@ -1,6 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react'
 import { tocarSomDoCombate } from '../../lib/sons/sonsDoCombate'
 import { rasgo, sementeDe } from './ListaDeTecnicas'
+import { PerguntasDosRequisitos, faltaResponder, respostasDeAgora } from './PerguntasDosRequisitos'
+import { respostasDosRequisitos } from '../../lib/batalha/requisitos/portao'
 import {
   ALVOS_MAX,
   CUSTO_MAX,
@@ -146,6 +148,18 @@ function mudancaNaMira(golpe: GolpeNaTela, respostas: Readonly<Record<string, st
 
 /** O pedido de um golpe da mira (o mesmo no menu do jogador e no painel do NPC). */
 export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): PedidoDeAcao {
+  const pedido = pedidoSemForcar(golpe, escolha)
+  // REQUISITOS G: o "Usar mesmo assim" do mestre (o host só aceita com autor mestre).
+  return golpe.forcarRequisitos === true && (pedido.tipo === 'habilidade' || pedido.tipo === 'atacar' || pedido.tipo === 'item') ? { ...pedido, forcarRequisitos: true } : pedido
+}
+
+/** As respostas da mecânica e as dos requisitos (`req.*`) num campo só; nenhuma = sem o campo. */
+function respostasDoPedido(daMecanica: RespostasDoPedido | undefined, dosRequisitos: RespostasDoPedido): { respostas?: RespostasDoPedido } {
+  if (daMecanica === undefined && Object.keys(dosRequisitos).length === 0) return {}
+  return { respostas: { ...(daMecanica ?? {}), ...dosRequisitos } }
+}
+
+function pedidoSemForcar(golpe: GolpeNaTela, escolha: EscolhaDaMira): PedidoDeAcao {
   const selo = escolha.selo === null ? {} : { selo: escolha.selo }
   // A porcentagem só vai quando é parcial: 100% é o Perfurante de sempre, o pedido sem o campo.
   const perfuracao = escolha.perfurante && escolha.perfuracao !== null && escolha.perfuracao < PERFURACAO_MAX ? { perfuracao: escolha.perfuracao } : {}
@@ -163,6 +177,8 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
       ...(escolha.ponto === undefined ? {} : { ponto: escolha.ponto }),
       ...(escolha.centroId === undefined ? {} : { centroId: escolha.centroId }),
       ...doAlcance,
+      // REQUISITOS G: só as respostas dos requisitos da vaga (a caixa, o "Um destes"); o item não tem as da mecânica.
+      ...(respostasDosRequisitos(escolha.respostas) === undefined ? {} : { respostas: respostasDosRequisitos(escolha.respostas) }),
     }
   }
   if (golpe.tipo === 'atacar') {
@@ -432,6 +448,9 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
   const opcao = opcoes?.find((candidata) => candidata.chave === opcaoChave) ?? null
   // F2 (fatia B): as perguntas na hora (ponto vital, quadrados empurrados): a resposta troca o dano e o selo sugeridos.
   const [respostas, setRespostas] = useState(() => respostasAoAbrir(golpe.perguntas))
+  // REQUISITOS G: as perguntas dos requisitos (o "Um destes", a caixa "Cumpriu?"), relidas a cada resposta; o mestre que força não responde.
+  const [respostasDosRequisitos, setRespostasDosRequisitos] = useState<Readonly<Record<string, string | number>>>({})
+  const perguntasDosRequisitos = useMemo(() => (golpe.forcarRequisitos === true || golpe.perguntasDosRequisitos === undefined ? [] : golpe.perguntasDosRequisitos(respostasDosRequisitos)), [golpe, respostasDosRequisitos])
   const mudanca = mudancaNaMira(golpe, respostas)
   const danoDaOpcao = opcao?.dano ?? mudanca.dano ?? armaEscolhida?.dano ?? golpe.dano
   // F3: o selo sugerido começa marcado; desmarcar tira do golpe.
@@ -567,6 +586,11 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
   const lancar = (evento?: FormEvent, confirmouForaDoAlcance = false) => {
     evento?.preventDefault()
     setPedindoForaDoAlcance(false)
+    const faltaDosRequisitos = faltaResponder(perguntasDosRequisitos, respostasDosRequisitos)
+    if (faltaDosRequisitos !== null) {
+      setErro(faltaDosRequisitos)
+      return
+    }
     // Fase 6: a área longe pede o centro antes (a mesma frase do host).
     if (golpe.area?.centro === 'ponto' && ponto === null) {
       setErro('Escolha a casa do centro da área')
@@ -661,7 +685,7 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
       selo,
       ...(balaEscolhida === null ? {} : { balaId: balaEscolhida.id }),
       ...(opcao === null ? {} : { variante: opcao.chave }),
-      ...(golpe.perguntas === undefined ? {} : { respostas }),
+      ...respostasDoPedido(golpe.perguntas === undefined ? undefined : respostas, respostasDeAgora(perguntasDosRequisitos, respostasDosRequisitos)),
       ...(armaEscolhida === null ? {} : { armaId: armaEscolhida.id }),
       ...(golpe.area?.centro === 'ponto' && ponto !== null ? { ponto } : {}),
       ...(golpe.area?.centro === 'alvo' && centroId !== null ? { centroId } : {}),
@@ -885,6 +909,16 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
           />
         )}
         {golpe.perguntas?.map((pergunta) => <PerguntaDaMira key={pergunta.chave} idBase={idBase} pergunta={pergunta} resposta={respostas[pergunta.chave]} onResponder={responder} />)}
+        <PerguntasDosRequisitos
+          idBase={idBase}
+          nome={golpe.nome}
+          perguntas={perguntasDosRequisitos}
+          respostas={respostasDosRequisitos}
+          onResponder={(chave, valor) => {
+            setErro(null)
+            setRespostasDosRequisitos((antes) => ({ ...antes, [chave]: valor }))
+          }}
+        />
         {golpe.lembrete !== undefined && <p className="bt-mira__nota">{golpe.lembrete}</p>}
         {olhaParaUmLado && (
           <fieldset className="bt-escolha">

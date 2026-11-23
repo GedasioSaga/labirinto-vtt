@@ -36,7 +36,9 @@ import { casaDoToken } from '../../lib/batalha/movimentoEmBatalha'
 import { motivoDoAlvoDePe } from '../../lib/batalha/golpe'
 import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
 import { formaQueATecnicaLiga, subidaDeParte } from '../../lib/batalha/transformacao'
-import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
+import type { PerguntaNaHora, RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
+import { motivoDosRequisitosNoMenu } from '../../lib/batalha/requisitos/portao'
+import { leitorDasPerguntas, somasDaTecnica, tiposDoGolpe, type SomaNaTira, type TipoNaTira } from './requisitosNoMenu'
 import { alvoPadraoEmSi, reacaoDoTipo, rotuloDoTipo, seloSugeridoDaTecnica, type ReacaoDoTipo } from '../../lib/batalha/tiposDaHabilidade'
 import {
   CAMPO_DA_ACAO,
@@ -202,6 +204,16 @@ export interface GolpeNaTela {
   invocacao?: boolean
   /** Fase 8: o item da mochila (a vaga); a mira manda o pedido `item` com ela, não o da técnica. Ausente = golpe da ficha. */
   vagaId?: string
+  /** REQUISITOS G: o que falta dos requisitos; com `motivo` igual a ele, o mestre vê "Usar mesmo assim". Ausente = o cinza não é dos requisitos. */
+  faltaDosRequisitos?: string
+  /** REQUISITOS G: o mestre usou mesmo assim: o pedido vai com `forcarRequisitos` (o host pula o que falta; o custo normal fica). */
+  forcarRequisitos?: true
+  /** REQUISITOS G: as perguntas dos requisitos na hora de usar (a caixa "Cumpriu?", o "Um destes"), relidas com as respostas. Ausente = não pergunta. */
+  perguntasDosRequisitos?: (respostas: RespostasDoPedido) => readonly PerguntaNaHora[]
+  /** REQUISITOS G (ED1): os tipos do golpe montado, o ícone da tira (fogo, veneno, gelo...). Ausente = sem golpe. */
+  tiposDoGolpe?: readonly TipoNaTira[]
+  /** REQUISITOS G: o que a técnica soma nos acumuladores (o selo dourado "+1 Polaridade"). Ausente = nada. */
+  somas?: readonly SomaNaTira[]
 }
 
 /**
@@ -866,6 +878,7 @@ function golpeDaTecnica(
   bonus: BonusDaBatalha | undefined,
   todas: readonly CartaoDaFicha[],
   acoes: AcoesDaVez | null,
+  requisitos?: ContextoDosRequisitos,
 ): GolpeNaTela {
   const dano = danoNaTela(tecnica.dano)
   const balas = balasDaTecnica(tecnica.cartao, personagem, sistema, arma, bonus)
@@ -987,7 +1000,22 @@ function golpeDaTecnica(
   // As linhas "atributo / delta" do selo: Buff e Debuff, ou a opção cujo texto traz mods (senão a mira os perderia).
   const comMods = selo?.natureza === 'buff' || selo?.natureza === 'debuff' || (opcoes ?? []).some((opcao) => (opcao.selo?.mods?.length ?? 0) > 0)
   if (comMods) golpe.alvosDeMod = alvosDeMod(sistema)
+  comOsRequisitosNaTira(golpe, cartao, tecnica.motivoDosRequisitos, requisitos)
+  const tipos = tiposDoGolpe(cartao)
+  if (tipos.length > 0) golpe.tiposDoGolpe = tipos
+  const somas = somasDaTecnica(personagem, cartao)
+  if (somas.length > 0) golpe.somas = somas
   return golpe
+}
+
+/**
+ * REQUISITOS G: o cinza que vem dos requisitos fica marcado (o mestre usa mesmo assim) e as perguntas
+ * dos requisitos vão para a mira (a caixa "Cumpriu?", o "Um destes"). `falta` = o motivo dos requisitos.
+ */
+function comOsRequisitosNaTira(golpe: GolpeNaTela, cartao: Pick<CartaoDaFicha, 'requisitos'>, falta: string | undefined, requisitos: ContextoDosRequisitos | undefined): void {
+  if (falta !== undefined && golpe.motivo === falta) golpe.faltaDosRequisitos = falta
+  const perguntas = golpe.motivo === null ? leitorDasPerguntas(cartao.requisitos, 'usar', requisitos) : undefined
+  if (perguntas !== undefined) golpe.perguntasDosRequisitos = perguntas
 }
 
 /**
@@ -1006,7 +1034,7 @@ export function golpesDeHabilidade(
 ): GolpeNaTela[] {
   const todas = tecnicasDe(personagem, sistema)
   // REQUISITOS C: `requisitos` = o retrato de quem age (o mestre vê tudo; o jogador, o recorte): o que FALTA apaga com o motivo.
-  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus, requisitos).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas, acoes))
+  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus, requisitos).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas, acoes, requisitos))
 }
 
 /** Fase 8: o golpe da técnica do item com a cara do item: a chave, o nome, a frase e quantos tem. */
@@ -1033,7 +1061,7 @@ function comACaraDoItem(golpe: GolpeNaTela, item: { vagaId: string; nome: string
  * lança (`ctxDoItem`). Para quem tem as peças: o mestre e o NPC com ficha. O
  * jogador recebe a lista pronta do host (`golpesDosItensDoJogador`).
  */
-export function golpesDeItem(personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, acoes: AcoesDaVez | null, bonus?: BonusDaBatalha): GolpeNaTela[] {
+export function golpesDeItem(personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, acoes: AcoesDaVez | null, bonus?: BonusDaBatalha, requisitos?: ContextoDosRequisitos): GolpeNaTela[] {
   const vagas = vagasDeUsarNaBatalha(personagem.mochila)
   if (vagas.length === 0) return []
   // Todos os cartões dos itens de uma vez na conta: o menu das técnicas é lido uma vez só.
@@ -1043,10 +1071,11 @@ export function golpesDeItem(personagem: Personagem, sistema: SistemaDeRpg, comb
     return vaga === undefined ? atual : fichaComOItem(atual, cartaoDoItem(vaga))
   }, personagem)
   const todas = tecnicasDe(ficha, sistema)
-  return tecnicasNoMenu(ficha, sistema, combate, acoes, null, bonus).flatMap((tecnica) => {
+  // REQUISITOS G: os requisitos da vaga (a cópia do Acervo) apagam o item como apagam a técnica.
+  return tecnicasNoMenu(ficha, sistema, combate, acoes, null, bonus, requisitos).flatMap((tecnica) => {
     const vaga = cartoes.get(tecnica.cartao.id)
     if (vaga === undefined) return []
-    const golpe = golpeDaTecnica(tecnica, ficha, sistema, combate, null, bonus, todas, acoes)
+    const golpe = golpeDaTecnica(tecnica, ficha, sistema, combate, null, bonus, todas, acoes, requisitos)
     return [comACaraDoItem(golpe, { vagaId: vaga.id, nome: vaga.nome.trim() || 'Item', resumo: vaga.efeitoResumo ?? '', quantos: quantidadeDe(vaga), gasta: vaga.efeito.gasta === 'um' })]
   })
 }
@@ -1317,6 +1346,7 @@ export function golpesDeAtaque(
   combate: CombateDoPersonagem | undefined,
   acoes: AcoesDaVez | null,
   bonus?: BonusDaBatalha,
+  requisitos?: ContextoDosRequisitos,
 ): GolpeNaTela[] {
   const carga = combate?.carga ?? 0
   const danoCom = (arma: ArmaDaFicha | null, bala: BalaDaArma | null): DanoNaTela =>
@@ -1373,7 +1403,16 @@ export function golpesDeAtaque(
   // Construtor C8: a arma padrão da ficha vem primeiro na lista do Atacar.
   const armas = comAPadraoNaFrente(armasNaBatalha(personagem, combate))
   // Construtor C8: a arma montada (o Boomerang) ataca pelas peças; a de texto segue como sempre.
-  const comArma = armas.map((arma) => (personagem !== null && sistema !== null && cartaoMontado(arma) ? golpeDaArmaMontada(golpeDe(arma), arma, personagem, sistema, combate, acoes, bonus) : golpeDe(arma)))
+  const comArma = armas.map((arma) => {
+    const golpe = personagem !== null && sistema !== null && cartaoMontado(arma) ? golpeDaArmaMontada(golpeDe(arma), arma, personagem, sistema, combate, acoes, bonus) : golpeDe(arma)
+    // REQUISITOS G: os requisitos da arma (o portão do Atacar no host) apagam depois do que a vez já recusa.
+    const falta = motivoDosRequisitosNoMenu(arma.requisitos, 'usar', requisitos)
+    if (golpe.motivo === null && falta !== null) golpe.motivo = falta
+    comOsRequisitosNaTira(golpe, arma, falta ?? undefined, requisitos)
+    const tipos = tiposDoGolpe(arma)
+    if (tipos.length > 0) golpe.tiposDoGolpe = tipos
+    return golpe
+  })
   // Pedido de 09/11 (item 3): a Mão nua fecha a lista, com arma ou sem.
   return [...comArma, golpeDe(null)]
 }

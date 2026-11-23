@@ -4,6 +4,7 @@ import type { AcaoDaTecnica, PedidoDeAcao } from '../../lib/batalha/combate'
 import type { OpcaoDaInvocacao } from '../../lib/batalha/invocacao'
 import type { MotivoDaOpcao } from './dadosDaInvocacao'
 import type { FormaNoMenu } from '../../lib/batalha/transformacao'
+import { partesDaFicha, type MedidorNaTela } from './requisitosNoMenu'
 import { CHAVE_DA_MAO_NUA, pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import { tocarSomDoCombate } from '../../lib/sons/sonsDoCombate'
 import { BotaoDoSomDoCombate } from './ChavesDoCombate'
@@ -129,6 +130,8 @@ export interface MenuDaVezProps {
    * aberta para de escutar o clique no mapa até o menu voltar. Ausente = à vista.
    */
   atras?: boolean
+  /** REQUISITOS G: os acumuladores da ficha que age, no topo ("POLARIDADE 1/3"). Ausente = nenhum. */
+  medidores?: readonly MedidorNaTela[]
 }
 
 type Tela =
@@ -177,7 +180,9 @@ const SEM_FORMAS: readonly FormaNoMenu[] = []
 const SEM_TRANSFORMACAO = 'Nenhuma transformação na ficha'
 
 export function MenuDaVez(props: MenuDaVezProps) {
-  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir, invocacao, travado = null, formasEsperando } = props
+  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir, invocacao, travado = null, formasEsperando, medidores } = props
+  // REQUISITOS G: as Partes da forma no topo ("Forma Híbrida · Parte 2"), das formas que o menu já tem.
+  const partes = partesDaFicha(formas)
   const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
   const [contraId, setContraId] = useState<string | null>(null)
   const foraDaVez = props.acoes === null
@@ -314,6 +319,9 @@ export function MenuDaVez(props: MenuDaVezProps) {
         evoluir={tela.de === 'habilidade' ? evoluir : undefined}
         sugerida={props.sugestao?.chave ?? null}
         memoria={`${fichaDaMemoria}:${tela.de}`}
+        forcar={props.doMestre === true}
+        medidores={medidores}
+        partes={partes}
         onVoltar={() => abrir({ tipo: 'menu' }, true)}
         onEscolher={(golpe, teclado) => abrir(golpe.invocacao === true && tela.de === 'habilidade' ? { tipo: 'invocacao', golpe } : { tipo: 'mira', golpe, de: tela.de }, teclado)}
       />
@@ -357,7 +365,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
     if (leitura !== null)
       return (
         <div className="bt-vez bt-vez--lista" data-instantaneo="sim">
-          <CabecaDaVez quem={quem} pips={pips} carga={carga} />
+          <CabecaDaVez quem={quem} pips={pips} carga={carga} medidores={medidores} partes={partes} />
           <MiraDaInvocacao
             key={tela.golpe.chave}
             golpe={tela.golpe}
@@ -380,7 +388,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
   if (tela.tipo === 'mira') {
     return (
       <div className="bt-vez bt-vez--lista" data-instantaneo="sim">
-        <CabecaDaVez quem={quem} pips={pips} carga={carga} />
+        <CabecaDaVez quem={quem} pips={pips} carga={carga} medidores={medidores} partes={partes} />
         <MiraDoGolpe
           key={tela.golpe.chave}
           golpe={tela.golpe}
@@ -564,7 +572,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
       onBlur={focoSaiu}
       aria-busy={esperando ? true : undefined}
     >
-      <CabecaDaVez quem={modoContra || foraDaVez ? `${quem} · contra-ataque` : quem} pips={pips} carga={carga} />
+      <CabecaDaVez quem={modoContra || foraDaVez ? `${quem} · contra-ataque` : quem} pips={pips} carga={carga} medidores={medidores} partes={partes} />
       {formasEsperando !== undefined && formasEsperando.length > 0 && (
         <p className="bt-vez__espera" role="status">
           <span className="bt-vez__espera-ponto" aria-hidden="true" />

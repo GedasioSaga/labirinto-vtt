@@ -169,6 +169,8 @@ export interface TecnicaNoMenu {
   /** Tipos de habilidade F1: o tipo (campo Tipo, ou deduzido da Ação) e se aparece também na caixa REAÇÃO. */
   tipo: LeituraDoTipo
   motivo: string | null
+  /** REQUISITOS G: o que falta dos requisitos (o mesmo texto do motivo, quando é ele que apaga): o mestre usa mesmo assim. */
+  motivoDosRequisitos?: string
 }
 
 /** "1 turno", "2 turnos". */
@@ -371,6 +373,7 @@ export function tecnicasNoMenu(
       overload: lida.overload,
       transformacao: lida.transformacao,
     }
+    const doRequisito = motivoDosRequisitosNoMenu(cartao.requisitos, 'usar', requisitos === undefined ? undefined : comCustoEmSp(requisitos, base.custo))
     const tecnica: TecnicaNoMenu = {
       cartao,
       custo: base.custo,
@@ -383,8 +386,9 @@ export function tecnicasNoMenu(
       perfurante: perfuranteDaMecanica(cartao, respostasPadrao(cartao)) ?? ehPerfurante(cartao),
       tipo: lida.tipo,
       // REQUISITOS C: o cinza dos requisitos no menu (o retrato sem alvo; o que pergunta fica clicável).
-      motivo: motivoDaTecnica(base, personagem, sistema, combate, acoes, undefined, undefined, motivoDosRequisitosNoMenu(cartao.requisitos, 'usar', requisitos === undefined ? undefined : comCustoEmSp(requisitos, base.custo))),
+      motivo: motivoDaTecnica(base, personagem, sistema, combate, acoes, undefined, undefined, doRequisito),
     }
+    if (doRequisito !== null) tecnica.motivoDosRequisitos = doRequisito
     if (forma !== undefined) tecnica.forma = forma
     // Construtor C1: a perfuração parcial é leitura do texto; a técnica montada perfura inteiro ou nada.
     const perfuracao = cartaoMontado(cartao) ? null : perfuracaoDe(cartao)

@@ -1,0 +1,297 @@
+/*
+ * REQUISITOS G: o que o menu da vez mostra dos requisitos (protótipo aprovado,
+ * docs/design/habilidades/requisitos/prototipo.html, telas 2 a 7): os medidores no topo, as Partes da
+ * forma, o ícone do golpe, o selo dourado "+1 Polaridade", o "Usar mesmo assim" do mestre, a caixa
+ * "Cumpriu?" e o "Um destes" na mira, e o momento da evolução (o brilho de latão que corre a tira).
+ * Movimento: só transform, opacity e clip-path; movimento reduzido = aparece e some.
+ */
+
+/* ---------------------------------------------------------------- o topo: medidores e Partes */
+.bt-pip--medidor {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.bt-pip--medidor[data-cheio='sim'] {
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+}
+
+.bt-partes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 6px 8px;
+  color: var(--bt-papel);
+  transform: rotate(-3deg);
+  transform-origin: left bottom;
+}
+.bt-partes__txt {
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bt-forma);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.bt-partes__segs {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 3), 1fr);
+  gap: 5px;
+  flex: none;
+  width: 132px;
+}
+.bt-partes__seg {
+  position: relative;
+  height: 12px;
+  transform: skewX(-14deg);
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.bt-partes__seg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bt-forma);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 220ms var(--bt-ease-out);
+}
+.bt-partes__seg[data-cheio]::after {
+  transform: scaleX(1);
+}
+
+/* ---------------------------------------------------------------- os chips da tira */
+.bt-golpe-ic {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bt-etq--golpe {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.bt-etq--acum {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font-weight: 700;
+}
+.bt-tira[data-esta='sim'] .bt-etq--golpe {
+  background: rgba(12, 12, 14, 0.1);
+}
+.bt-tira[data-esta='sim'] .bt-etq--acum {
+  background: var(--bt-tinta);
+  color: var(--lb-color-brass-bright);
+}
+
+/* ---------------------------------------------------------------- a versão SUPER pronta e o momento da evolução */
+.bt-tira--super::before {
+  background: linear-gradient(100deg, var(--bt-tinta) 55%, #2a1e0c);
+}
+.bt-tira--super::after {
+  background: var(--lb-color-brass);
+}
+.bt-tira--super[data-esta='sim']::before {
+  background: linear-gradient(100deg, var(--bt-papel) 55%, var(--lb-gr-latao-1, #f6cb84));
+}
+/* Raro (uma vez por batalha): um brilho de latão corre a tira e o nome novo entra. */
+.bt-tira__brilho {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  clip-path: var(--rasgo);
+  pointer-events: none;
+  overflow: hidden;
+}
+.bt-tira__brilho::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(246, 203, 132, 0), var(--lb-gr-latao-1, #f6cb84) 70%, #fff4dc);
+  transform: scaleX(0);
+  transform-origin: left center;
+  opacity: 0;
+  animation: bt-evo-varre 440ms var(--bt-ease-out) both;
+}
+.bt-tira[data-evoluiu] .bt-tira__nome {
+  animation: bt-evo-nome 260ms var(--bt-ease-out) 150ms both;
+}
+.bt-tira[data-evoluiu] .bt-tira__chips {
+  animation: bt-evo-chips 220ms var(--bt-ease-out) 230ms both;
+}
+@keyframes bt-evo-varre {
+  0% { transform: scaleX(0); opacity: 0.9; }
+  55% { transform: scaleX(1); opacity: 0.9; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+@keyframes bt-evo-nome { from { opacity: 0; filter: blur(3px); transform: translateX(-8px); } }
+@keyframes bt-evo-chips { from { opacity: 0; transform: translateY(4px); } }
+
+/* ---------------------------------------------------------------- o "Usar mesmo assim" do mestre (no papel) */
+.bt-forcar {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 2px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(12, 12, 14, 0.2);
+}
+.bt-forcar__botao {
+  justify-self: start;
+  min-height: 40px;
+  padding: 4px 14px;
+  border: 2px solid var(--bt-tinta);
+  border-radius: 3px;
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 3px 3px 0 var(--bt-sangue);
+  cursor: pointer;
+  transition: transform 120ms var(--bt-ease-out);
+}
+.bt-forcar__botao:active {
+  transform: scale(0.97);
+}
+.bt-forcar__botao:focus-visible {
+  outline: 2px solid var(--bt-tinta);
+  outline-offset: 3px;
+}
+.bt-forcar__nota {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: #5d5a52;
+}
+/* No Evoluir (na tinta): o mesmo botão, com a nota clara. */
+.bt-evoluir .bt-forcar {
+  border-top-color: rgba(236, 234, 228, 0.2);
+}
+.bt-evoluir .bt-forcar__nota {
+  color: var(--lb-color-parchment-dim);
+}
+
+/* ---------------------------------------------------------------- a caixa "Cumpriu?" e o "Um destes" (na mira e no Evoluir) */
+.bt-cumpriu {
+  display: grid;
+  gap: 10px;
+  margin: 6px 0;
+  padding: 14px 16px 16px;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  clip-path: var(--bt-rasgo-caixa, none);
+  box-shadow: inset 4px 0 0 var(--lb-color-arcane);
+  animation: bt-cumpriu-entra 200ms var(--bt-ease-out) both;
+}
+@keyframes bt-cumpriu-entra { from { opacity: 0; transform: translateY(-6px); } }
+.bt-cumpriu__tit {
+  margin: 0;
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-shadow: 3px 3px 0 var(--bt-sangue);
+}
+.bt-cumpriu__marca {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1.5px dashed rgba(236, 234, 228, 0.35);
+  cursor: pointer;
+  font-size: var(--lb-font-size-md);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  transition: border-color 90ms ease, background-color 90ms ease;
+}
+.bt-cumpriu__marca input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--lb-color-brass);
+}
+.bt-cumpriu__marca:has(input:checked) {
+  border-style: solid;
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+}
+.bt-cumpriu__marca:has(input:focus-visible) {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+.bt-cumpriu__nota {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-umdestes {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 0;
+  border: 0;
+}
+.bt-umdestes legend {
+  margin-bottom: 4px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lb-color-brass-bright);
+}
+.bt-umdestes__op {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1.5px solid rgba(236, 234, 228, 0.25);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  transition: border-color 90ms ease, background-color 90ms ease;
+}
+.bt-umdestes__op input {
+  width: 16px;
+  height: 16px;
+  margin: 3px 0 0;
+  accent-color: var(--lb-color-brass);
+}
+.bt-umdestes__op:has(input:checked) {
+  border-color: var(--lb-color-brass);
+  background: rgba(255, 255, 255, 0.06);
+}
+.bt-umdestes__op:has(input:focus-visible) {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bt-partes__seg::after { transition: none; }
+  .bt-tira__brilho::before { animation: none; }
+  .bt-tira[data-evoluiu] .bt-tira__nome,
+  .bt-tira[data-evoluiu] .bt-tira__chips { animation: bt-so-aparece 200ms ease both; }
+  .bt-cumpriu { animation: bt-so-aparece 150ms ease both; }
+  .bt-forcar__botao:active { transform: none; }
+}
+@keyframes bt-so-aparece { from { opacity: 0; } }
