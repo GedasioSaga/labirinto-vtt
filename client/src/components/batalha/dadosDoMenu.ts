@@ -621,7 +621,9 @@ export function marcadosAoAbrirAMira(golpe: GolpeNaTela, alvos: readonly AlvoNaM
   if (golpe.semAlvo === true) return []
   if (golpe.area !== undefined) {
     const pelaGrade = golpe.areaPelaGrade === true && miraComGrade(alvos)
-    const daArea = abertura.daArea ?? (pelaGrade ? alvosNaAreaPelaGrade(golpe.area, alvos, abertura.direcao ?? direcaoDaAreaAoAbrir(golpe.area, alvos)) : alvosNaAreaDaMira(golpe.area, alvos))
+    // A ajuda que pega quem usa (a Bênção "com ele"): as casas dele acendem no chão, e ele vem marcado como os aliados.
+    const comQuemUsa = golpeDeAjuda(golpe)
+    const daArea = abertura.daArea ?? (pelaGrade ? alvosNaAreaPelaGrade(golpe.area, alvos, abertura.direcao ?? direcaoDaAreaAoAbrir(golpe.area, alvos), undefined, comQuemUsa) : alvosNaAreaDaMira(golpe.area, alvos, comQuemUsa))
     if (pelaGrade || daArea.length > 0) return daArea.filter(valido).slice(0, ALVOS_MAX)
   }
   const { sugerido } = abertura
@@ -1165,29 +1167,31 @@ function candidatosDaArea(alvos: readonly AlvoNaMira[]): CandidatoNaForma[] {
 /**
  * F2 (fatia F, Giro de Pá): quem a área da técnica pega. A frente de quem usa não é conhecida
  * aqui: vale qualquer lado. Fase C do alcance: pelas casas acesas (`lib/batalha/alcance`), com a
- * parede cortando; quem usa nunca entra; alvo sem posição fica de fora (quem usa marca à mão).
+ * parede cortando; quem usa só entra com `acendeQuemUsa` (a ajuda que o pega, as casas dele acesas
+ * no chão); alvo sem posição fica de fora (quem usa marca à mão).
  */
-export function alvosNaAreaDaMira(area: AreaAMao, alvos: readonly AlvoNaMira[]): string[] {
+export function alvosNaAreaDaMira(area: AreaAMao, alvos: readonly AlvoNaMira[], acendeQuemUsa = false): string[] {
   const grade = quemAgeNaGrade(alvos)
   const forma = formaDaAreaDeQuemUsa(area)
   if (grade === null || forma === null) return []
-  const casas = casasDaFormaDeQuemUsa(forma, grade.deQuemAge, null, grade.mapa ?? MAPA_SEM_PAREDES)
+  const casas = casasDaFormaDeQuemUsa(forma, grade.deQuemAge, null, grade.mapa ?? MAPA_SEM_PAREDES, acendeQuemUsa)
   const eu = new Set(alvos.filter((alvo) => alvo.lado === 'eu').map((alvo) => alvo.tokenId))
-  return fichasNaForma(casas, candidatosDaArea(alvos), area.quem).filter((tokenId) => !eu.has(tokenId))
+  return fichasNaForma(casas, candidatosDaArea(alvos), area.quem).filter((tokenId) => acendeQuemUsa || !eu.has(tokenId))
 }
 
 /**
  * Construtor C3: quem a área da técnica montada pega, pela grade, com a área virada para
  * `direcao`: a ficha inteira de quem age e a de cada alvo (o token grande entra com qualquer casa
- * dele). Fase C do alcance: pelas casas acesas, com a parede cortando. Quem age nunca entra (a
- * casa dele não acende); alvo sem posição fica de fora (quem usa marca à mão).
+ * dele). Fase C do alcance: pelas casas acesas, com a parede cortando. Quem age só entra com
+ * `acendeQuemUsa` (a ajuda que o pega: a Bênção "com ele", as casas dele acesas no chão); alvo sem
+ * posição fica de fora (quem usa marca à mão).
  */
-export function alvosNaAreaPelaGrade(area: AreaAMao, alvos: readonly AlvoNaMira[], direcao: Direcao, comCondicoes?: FormaDoAlcance): string[] {
+export function alvosNaAreaPelaGrade(area: AreaAMao, alvos: readonly AlvoNaMira[], direcao: Direcao, comCondicoes?: FormaDoAlcance, acendeQuemUsa = false): string[] {
   const grade = quemAgeNaGrade(alvos)
   // Fase E do alcance: a mira passa a forma com as condições de quem usa (o host conta com elas).
   const forma = comCondicoes ?? formaDaAreaDeQuemUsa(area)
   if (grade === null || forma === null) return []
-  return fichasNaForma(casasDoAlcance({ forma, quemUsa: grade.deQuemAge, direcao, ...(grade.mapa ?? MAPA_SEM_PAREDES) }), candidatosDaArea(alvos), area.quem)
+  return fichasNaForma(casasDoAlcance({ forma, quemUsa: grade.deQuemAge, direcao, acendeQuemUsa, ...(grade.mapa ?? MAPA_SEM_PAREDES) }), candidatosDaArea(alvos), area.quem)
 }
 
 /**

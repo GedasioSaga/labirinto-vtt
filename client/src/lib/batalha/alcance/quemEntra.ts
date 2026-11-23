@@ -60,13 +60,15 @@ export function fichasNaForma(casas: readonly Casa[], candidatos: readonly Candi
 /**
  * As casas acesas da forma de quem usa. `direcao` `null` = o pedido não diz o lado (o de antes, a
  * tabela à mão sem frente): a forma que olha para um lado acende os quatro lados juntos.
+ * `acendeQuemUsa`: as casas da ficha de quem usa também acendem (a ajuda que o pega, como no chão),
+ * e por isso ele entra em `fichasNaForma` como qualquer ficha do lado dele.
  */
-export function casasDaFormaDeQuemUsa(forma: FormaDoAlcance, quemUsa: PegadaNaGrade, direcao: Direcao | null, mapa: MapaDoAlcance): Casa[] {
-  if (direcao !== null || !usaDirecao(forma)) return casasDoAlcance({ forma, quemUsa, direcao: direcao ?? 'norte', ...mapa })
+export function casasDaFormaDeQuemUsa(forma: FormaDoAlcance, quemUsa: PegadaNaGrade, direcao: Direcao | null, mapa: MapaDoAlcance, acendeQuemUsa = false): Casa[] {
+  if (direcao !== null || !usaDirecao(forma)) return casasDoAlcance({ forma, quemUsa, direcao: direcao ?? 'norte', acendeQuemUsa, ...mapa })
   const vistas = new Set<string>()
   const todas: Casa[] = []
   for (const lado of DIRECOES) {
-    for (const casa of casasDoAlcance({ forma, quemUsa, direcao: lado, ...mapa })) {
+    for (const casa of casasDoAlcance({ forma, quemUsa, direcao: lado, acendeQuemUsa, ...mapa })) {
       const chave = chaveDaCasa(casa)
       if (vistas.has(chave)) continue
       vistas.add(chave)

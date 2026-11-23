@@ -427,7 +427,7 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
   const [marcados, setMarcados] = useState<readonly string[]>(() => {
     // Fase E: a condição que encolhe ou estica a área muda quem ela pega já ao abrir.
     const area = areaDaGrade(golpe, alvos)
-    const daArea = marcadosDaArea ?? (area !== null && formaComCondicoes !== undefined ? alvosNaAreaPelaGrade(area, alvos, direcao, formaComCondicoes) : undefined)
+    const daArea = marcadosDaArea ?? (area !== null && formaComCondicoes !== undefined ? alvosNaAreaPelaGrade(area, alvos, direcao, formaComCondicoes, ajuda) : undefined)
     return marcadosAoAbrirAMira(golpe, alvos, { sugerido: alvoInicial, daArea, direcao })
   })
   // F2 (fatia F, Siegfried): a arma da técnica (a 1ª levada vem marcada); trocar refaz o Dano base.
@@ -569,7 +569,7 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
     setDirecao(lado)
     // Fase E do alcance: a forma que olha sem área montada (o alcance do cartão de texto) só vira; não marca ninguém.
     const area = areaDaGrade(golpe, alvos)
-    if (area !== null) setMarcados(alvosNaAreaPelaGrade(area, alvos, lado, formaComCondicoes).slice(0, ALVOS_MAX))
+    if (area !== null) setMarcados(alvosNaAreaPelaGrade(area, alvos, lado, formaComCondicoes, ajuda).slice(0, ALVOS_MAX))
   }
 
   /** Fase 6: escolher o centro da área longe marca quem está em volta dele (o que quem usa mudou à mão sai junto: é outra mira). */
@@ -934,7 +934,7 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
             </div>
           </fieldset>
         )}
-        {areaNaGrade !== null && golpe.area?.centro === undefined && <p className="bt-mira__nota">{textoDaAreaNaMira(alvosNaAreaPelaGrade(areaNaGrade, alvos, direcao, formaComCondicoes).length, areaComFrente(areaNaGrade))}</p>}
+        {areaNaGrade !== null && golpe.area?.centro === undefined && <p className="bt-mira__nota">{textoDaAreaNaMira(alvosNaAreaPelaGrade(areaNaGrade, alvos, direcao, formaComCondicoes, ajuda).length, areaComFrente(areaNaGrade))}</p>}
         {golpe.area?.centro === 'ponto' && deQuemAge !== null && (
           <EscolhaDoPonto deQuemAge={deQuemAge} alvos={alvos} alcance={ateAgora} raio={golpe.area.forma.tipo === 'raio' ? golpe.area.forma.casas : 0} ponto={ponto} onEscolher={(casa) => escolherCentro({ ponto: casa })} />
         )}

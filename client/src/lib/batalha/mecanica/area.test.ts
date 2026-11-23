@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CartaoDaFicha, Personagem } from '../../personagem'
 import { ficha, sistema } from '../fichasDaFatiaB.testkit'
-import { alvosNaAreaPelaGrade, alvosNaOrdemDaMira, direcaoDaAreaAoAbrir, golpesDeHabilidade, type AlvoNaMira } from '../../../components/batalha/dadosDoMenu'
+import { alvosNaAreaPelaGrade, alvosNaOrdemDaMira, direcaoDaAreaAoAbrir, golpesDeHabilidade, marcadosAoAbrirAMira, type AlvoNaMira } from '../../../components/batalha/dadosDoMenu'
 import { lancarGolpe, podeAgir, type ContextoDoGolpe } from '../golpe'
 import { novaCarta, type TurnosDaCena } from '../turnos'
 
@@ -69,6 +69,32 @@ describe('a área montada marca pela grade', () => {
       CASA,
     )
     expect(alvosNaAreaPelaGrade(emVolta, doCanto, 'norte')).toEqual(['perto'])
+  })
+
+  it('a Bênção (aliados em volta, 2 casas) abre marcando quem usa e o aliado dentro; o aliado longe e o inimigo ficam de fora', () => {
+    const bencao = cartao('cart_bencao_de_teste', 'Bênção de Teste', {
+      versao: 1,
+      acao: 'simples',
+      alvo: { quem: 'aliados', forma: { tipo: 'raio', casas: 2 } },
+      teste: { tipo: 'naoErra' },
+    })
+    const npc = ficha('Sacerdote de Teste', { forca: 30 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [bencao] })
+    const golpe = golpesDeHabilidade(npc, sistema, undefined, null, null).find((item) => item.chave === `tecnica:${bencao.id}`)
+    if (golpe === undefined) throw new Error('a Bênção montada sumiu da lista')
+    const fichas = [
+      { id: 'quemUsa', ...naCasa(2, 2) },
+      { id: 'perto', ...naCasa(3, 3) },
+      { id: 'longe', ...naCasa(6, 2) },
+      { id: 'inimigo', ...naCasa(2, 3) },
+    ]
+    const lado = (id: string): AlvoNaMira['lado'] => (id === 'quemUsa' ? 'eu' : id === 'inimigo' ? 'outro' : 'aliado')
+    const alvos = alvosNaOrdemDaMira(
+      fichas.map((item): AlvoNaMira => ({ tokenId: item.id, nome: item.id, lado: lado(item.id), caiu: false })),
+      fichas,
+      'quemUsa',
+      CASA,
+    )
+    expect(marcadosAoAbrirAMira(golpe, alvos).sort()).toEqual(['perto', 'quemUsa'])
   })
 })
 
