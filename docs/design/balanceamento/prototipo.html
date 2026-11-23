@@ -1,0 +1,2171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparar e balancear (protótipo)</title>
+<style>
+/* =========================================================================
+ * Comparar e balancear: protótipo (docs/design/balanceamento).
+ * Tokens: os MESMOS --lb-* e --lb-gr-* de docs/design/livros-de-regras/
+ * prototipo.css (que copia client/src/theme.ts). Derivados deste protótipo:
+ * --lado-a, --lado-b (validados pelo validate_palette do dataviz contra o
+ * cartão #211c15, modo escuro) e --empate (neutro, não é série).
+ * ========================================================================= */
+:root {
+  --lb-color-ink: #121214;
+  --lb-color-stone-raised: #232328;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-online-soft: rgba(127, 180, 138, 0.14);
+  --lb-color-tide: #79a9cc;
+  --lb-color-tide-soft: rgba(121, 169, 204, 0.14);
+  --lb-color-arcane: #ab93d6;
+  --lb-color-arcane-soft: rgba(171, 147, 214, 0.15);
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-space-1: 4px;
+  --lb-space-2: 8px;
+  --lb-space-3: 12px;
+  --lb-space-4: 16px;
+  --lb-space-5: 20px;
+  --lb-space-6: 24px;
+  --lb-control-gap: 8px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-focus: 0 0 0 2px #1a1a1e, 0 0 0 4px var(--lb-color-brass);
+  --lb-motion-fast: 110ms;
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --lb-gr-papel-alto: #1b1711;
+  --lb-gr-papel-baixo: #13100c;
+  --lb-gr-cartao: #211c15;
+  --lb-gr-cartao-alto: #29231a;
+  --lb-gr-campo: #15120e;
+  --lb-gr-filete: rgba(236, 234, 228, 0.09);
+  --lb-gr-filete-forte: rgba(236, 234, 228, 0.16);
+  --lb-gr-filete-latao: rgba(224, 164, 74, 0.26);
+  --lb-gr-couro-1: #17100a;
+  --lb-gr-couro-2: #251a11;
+  --lb-gr-couro-3: #2f2216;
+  --lb-gr-gravado: #c8b089;
+  --lb-gr-gravado-forte: #ead6ae;
+  --lb-gr-latao-1: #f6cb84;
+  --lb-gr-latao-2: #e0a44a;
+  --lb-gr-latao-3: #b87d2e;
+  --lb-gr-hover: rgba(255, 236, 200, 0.06);
+  --lb-gr-hover-forte: rgba(255, 236, 200, 0.1);
+  --mu-erro-texto: #f0897f;
+
+  --lado-a: #4f95d6;
+  --lado-b: #e2645a;
+  --empate: #6f6b63;
+  --trilho: rgba(236, 234, 228, 0.06);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh;
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo) 60%) fixed, var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font: var(--lb-font-size-md)/1.45 var(--lb-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.num { font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+
+/* ---- página ---- */
+.pg { max-width: 1200px; margin: 0 auto; padding: 28px 32px 96px; }
+.pg-cab { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; margin-bottom: 18px; }
+.pg-cab__txt { flex: 1 1 420px; min-width: 0; }
+.pg-titulo { margin: 0; font-family: var(--lb-font-display); font-size: 30px; font-weight: 400; line-height: 1.1; }
+.pg-sub { margin: 6px 0 0; max-width: 70ch; color: var(--lb-color-parchment-dim); font-size: 14px; line-height: 1.55; }
+.pg-nota { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.pg-nota b { color: var(--lb-color-parchment-dim); font-weight: 500; }
+.aviso-proto { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); max-width: 34ch; text-align: right; }
+
+/* ---- primitivos (iguais ao protótipo do livro de regras) ---- */
+.bt {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 32px; padding: 0 12px; border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment);
+  border: 1px solid var(--lb-gr-filete-forte);
+  font-weight: 500; white-space: nowrap;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out), opacity var(--lb-motion-fast) ease;
+}
+.bt:active:not(:disabled) { transform: scale(0.97); }
+.bt:disabled { opacity: 0.45; }
+@media (hover: hover) and (pointer: fine) { .bt:hover:not(:disabled) { border-color: var(--lb-gr-filete-latao); } }
+.bt--primario { background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 60%, #cf9440); color: var(--lb-color-brass-contrast); border-color: rgba(0, 0, 0, 0.35); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); font-weight: 600; }
+.bt--latao { background: transparent; border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.bt--fantasma { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+@media (hover: hover) and (pointer: fine) { .bt--fantasma:hover:not(:disabled) { background: var(--lb-gr-hover); border-color: transparent; color: var(--lb-color-parchment); } }
+.bt--p { min-height: 28px; padding: 0 9px; font-size: var(--lb-font-size-sm); }
+.bt--ic { width: 28px; min-height: 28px; padding: 0; background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+@media (hover: hover) and (pointer: fine) { .bt--ic:hover:not(:disabled) { background: var(--lb-gr-hover); border-color: transparent; color: var(--lb-color-parchment); } }
+.bt[aria-pressed='true'] { background: var(--lb-color-brass-soft); border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+kbd { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: inherit; opacity: 0.8; border: 1px solid currentColor; border-bottom-width: 2px; border-radius: 4px; padding: 2px 4px; }
+.ic { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cartao { background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-md); box-shadow: inset 0 1px 0 rgba(255, 236, 200, 0.04); }
+.retrato {
+  --cor: var(--lb-color-parchment-faint);
+  width: 28px; height: 28px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  font: 600 11px/1 var(--lb-font-utility); color: #101214;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--cor) 70%, white), var(--cor) 70%);
+  box-shadow: 0 0 0 2px var(--lb-gr-papel-alto), 0 0 0 3px var(--lb-gr-filete-latao);
+}
+.retrato--g { width: 40px; height: 40px; font-size: 14px; }
+.selo { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--lb-radius-full); font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+.selo--jogador { background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2)); color: var(--lb-color-brass-contrast); }
+.selo--npc { background: var(--lb-color-tide-soft); color: var(--lb-color-tide); }
+.selo--variacao { background: var(--lb-color-arcane-soft); color: var(--lb-color-arcane); }
+.selo--base { background: var(--lb-gr-hover-forte); color: var(--lb-gr-gravado); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px 0 3px;
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-full);
+  background: transparent; color: var(--lb-color-parchment-dim);
+  position: relative;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out), opacity 150ms ease;
+}
+/* "Aqui está a variação nova": acende na hora e apaga em 600 ms. Num ::after só de opacidade, para o anel de foco do teclado nunca animar. */
+.chip::after { content: ''; position: absolute; inset: -4px; border-radius: inherit; box-shadow: 0 0 0 2px rgba(171, 147, 214, 0.6); opacity: 0; pointer-events: none; transition: opacity 600ms ease; }
+.chip.novo::after { opacity: 1; transition-duration: 0ms; }
+.chip:active:not(:disabled) { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) { .chip:hover:not(:disabled) { border-color: var(--lb-gr-filete-latao); color: var(--lb-color-parchment); } }
+.chip[aria-pressed='true'] { background: var(--lb-color-brass-soft); border-color: var(--lb-gr-filete-latao); color: var(--lb-color-parchment); }
+.chip:disabled { opacity: 0.45; }
+.chip--texto { padding-left: 10px; }
+.chip.arrastando { opacity: 0.4; }
+.chip__n { font: 600 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-brass-bright); }
+
+/* ---- abas ---- */
+.abas { position: relative; display: flex; gap: 2px; border-bottom: 1px solid var(--lb-gr-filete); margin-bottom: 22px; }
+.aba { position: relative; padding: 10px 14px 11px; border: 0; background: none; color: var(--lb-color-parchment-dim); font-size: 14px; font-weight: 500; border-radius: var(--lb-radius-sm) var(--lb-radius-sm) 0 0; }
+.aba[aria-selected='true'] { color: var(--lb-color-parchment); }
+@media (hover: hover) and (pointer: fine) { .aba:hover { color: var(--lb-color-parchment); } }
+.abas__marca { position: absolute; left: 0; bottom: -1px; width: 100px; height: 2px; background: var(--lb-color-brass); transform-origin: left; transition: transform 220ms var(--lb-gr-ease-in-out); }
+.abas__marca.sem-mov { transition: none; }
+
+/* ---- montagem ---- */
+.montagem { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 24px; align-items: start; }
+.acervo { position: sticky; top: 16px; padding: 14px 14px 16px; max-height: calc(100vh - 32px); overflow: auto; transition: border-color 150ms ease, background-color 150ms ease; }
+.acervo.recebe { border-color: var(--lb-color-brass); background: color-mix(in srgb, var(--lb-gr-cartao) 88%, var(--lb-color-brass)); }
+.acervo__tit { margin: 0; font-size: var(--lb-font-size-lg); font-weight: 600; }
+.acervo__dica { margin: 4px 0 2px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); line-height: 1.5; }
+.acervo__dica b { color: var(--lb-color-parchment); font-weight: 600; }
+.acervo__grupo { margin: 14px 0 6px; font-size: var(--lb-font-size-sm); font-weight: 500; color: var(--lb-color-parchment-dim); }
+.acervo__solta { margin-top: 12px; font-size: var(--lb-font-size-sm); color: var(--lb-color-brass-bright); display: none; }
+.acervo.recebe .acervo__solta { display: block; }
+
+.lados { display: grid; grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr); align-items: stretch; }
+.lado {
+  --cor-lado: var(--lado-a);
+  position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 236px; padding: 12px 12px 10px 15px;
+  border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-lg);
+  background: linear-gradient(180deg, var(--lb-gr-cartao-alto), var(--lb-gr-cartao));
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.lado::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--cor-lado); }
+.lado--b { --cor-lado: var(--lado-b); }
+.lado[data-armado='true'] { border-color: var(--lb-gr-filete-latao); }
+.lado.recebe { border-color: var(--lb-color-brass); background: linear-gradient(180deg, color-mix(in srgb, var(--lb-gr-cartao-alto) 86%, var(--lb-color-brass)), var(--lb-gr-cartao)); }
+.lado__cab { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.lado__tit { margin: 0; flex: 1; font-family: var(--lb-font-display); font-size: 21px; font-weight: 400; line-height: 1.2; }
+.lado__tit small { margin-left: 6px; font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.lado__lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lado__vazio { margin: auto 0; padding: 18px 12px; text-align: center; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); border: 1px dashed var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); }
+.lado__soma { margin-top: auto; padding-top: 10px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.lado__soma b { color: var(--lb-color-parchment-dim); font-weight: 500; }
+.lado__msg { margin: 6px 0 0; font-size: var(--lb-font-size-sm); color: var(--mu-erro-texto); min-height: 0; }
+.vaga { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 5px 4px 5px 4px; border-radius: var(--lb-radius-sm); }
+@media (hover: hover) and (pointer: fine) { .vaga:hover { background: var(--lb-gr-hover); } }
+.vaga[draggable='true'] { cursor: grab; }
+.vaga.arrastando { opacity: 0.4; }
+.vaga__txt { min-width: 0; display: flex; flex-direction: column; }
+.vaga__nome { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 500; }
+.vaga__nome span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vaga__sub { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vaga__qt { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-full); }
+.vaga__qt output { min-width: 22px; text-align: center; font: 600 var(--lb-font-size-md)/1 var(--lb-font-utility); }
+.vaga__qt .bt--ic { width: 26px; min-height: 26px; border-radius: 50%; }
+.vaga__acoes { display: inline-flex; }
+.vaga--fantasma { grid-template-columns: 1fr; padding: 9px 10px; border: 1px dashed var(--lb-color-brass); color: var(--lb-color-brass-bright); font-size: var(--lb-font-size-sm); background: var(--lb-color-brass-soft); animation: surge-fantasma 150ms var(--lb-gr-ease-out); }
+@keyframes surge-fantasma { from { opacity: 0; transform: translateY(-3px); } }
+
+.vs { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.vs__moeda {
+  display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 55%, var(--lb-gr-latao-3));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -2px 4px rgba(0, 0, 0, 0.3), 0 0 0 4px var(--lb-gr-papel-alto), 0 0 0 5px var(--lb-gr-filete-latao), 0 8px 18px rgba(0, 0, 0, 0.45);
+  color: var(--lb-color-brass-contrast); font: 600 17px/1 var(--lb-font-utility); letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+}
+.vs__rot { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); text-align: center; line-height: 1.3; }
+
+/* ---- a meta (a frase do mestre) ---- */
+.meta {
+  margin-top: 16px; padding: 16px 20px 14px; border-radius: var(--lb-radius-lg);
+  background: radial-gradient(120% 140% at 0% 0%, var(--lb-gr-couro-3), var(--lb-gr-couro-2) 45%, var(--lb-gr-couro-1));
+  border: 1px solid var(--lb-gr-filete-latao);
+  box-shadow: inset 0 1px 0 rgba(255, 220, 160, 0.08), 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+.meta__frase { margin: 0; font-family: var(--lb-font-display); font-size: 22px; line-height: 1.75; color: var(--lb-gr-gravado-forte); }
+.meta__parte { transition: opacity 150ms ease; }
+.meta__parte[data-ligada='false'] { opacity: 0.45; }
+.meta__marca { position: relative; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 6px; vertical-align: -3px; }
+.meta__marca input { appearance: none; margin: 0; width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--lb-gr-latao-3); background: rgba(0, 0, 0, 0.25); cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease; }
+.meta__marca input:checked { background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2)); border-color: var(--lb-gr-latao-2); }
+.meta__marca svg { position: absolute; width: 14px; height: 14px; pointer-events: none; stroke: var(--lb-color-brass-contrast); stroke-width: 2.4; fill: none; opacity: 0; transition: opacity 120ms ease; }
+.meta__marca input:checked + svg { opacity: 1; }
+.meta__campo {
+  width: 2.6ch; padding: 0 2px 1px; margin: 0 2px; border: 0; border-bottom: 2px solid var(--lb-gr-latao-3); border-radius: 0;
+  background: transparent; color: var(--lb-gr-latao-1); text-align: center;
+  font: 600 22px/1.2 var(--lb-font-utility); font-variant-numeric: tabular-nums; -moz-appearance: textfield;
+}
+.meta__campo::-webkit-inner-spin-button, .meta__campo::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.meta__campo:focus-visible { box-shadow: none; border-bottom-color: var(--lb-gr-latao-1); background: rgba(246, 203, 132, 0.08); }
+.meta__campo[aria-invalid='true'] { border-bottom-color: var(--lb-color-ember); color: var(--mu-erro-texto); }
+.meta__campo:disabled { cursor: not-allowed; }
+.meta__linha2 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 8px; color: var(--lb-gr-gravado); font-size: var(--lb-font-size-md); }
+.meta__linha2 select { min-height: 30px; padding: 0 8px; border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete-latao); background: rgba(0, 0, 0, 0.25); color: var(--lb-gr-latao-1); font-weight: 600; }
+.meta .chip { color: var(--lb-gr-gravado); border-color: rgba(224, 164, 74, 0.2); }
+.meta .chip[aria-pressed='true'] { color: var(--lb-gr-latao-1); }
+.meta__erro { margin: 8px 0 0; font-size: var(--lb-font-size-sm); color: var(--mu-erro-texto); }
+.meta__erro:empty { display: none; }
+
+/* ---- ações e progresso ---- */
+.acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+.acoes__n { display: inline-flex; align-items: center; gap: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.acoes__n select { min-height: 28px; padding: 0 6px; border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-gr-filete-forte); background: var(--lb-gr-campo); }
+.acoes__porque { flex-basis: 100%; margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.acoes__porque:empty { display: none; }
+.conta { margin: 12px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); line-height: 1.55; }
+.conta b { color: var(--lb-color-parchment-dim); font-weight: 600; }
+.progresso { margin-top: 14px; padding: 12px 14px; }
+.progresso[hidden] { display: none; }
+.progresso__cab { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.progresso__txt { flex: 1; min-width: 0; font-size: var(--lb-font-size-md); }
+.progresso__txt small { display: block; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+.progresso__trilho { height: 6px; border-radius: var(--lb-radius-full); background: var(--trilho); overflow: hidden; }
+.progresso__ench { height: 100%; background: linear-gradient(90deg, var(--lb-gr-latao-3), var(--lb-gr-latao-1)); transform-origin: left; transform: scaleX(0); transition: transform 120ms linear; }
+
+/* ---- proposta do resolvedor ---- */
+.proposta { margin-top: 16px; padding: 16px 18px; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px 28px; border-color: var(--lb-gr-filete-latao); }
+.proposta[hidden] { display: none; }
+.proposta.velha { opacity: 0.55; }
+.proposta__tit { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0; font-family: var(--lb-font-display); font-size: 22px; font-weight: 400; }
+.proposta__tit small { font: 400 var(--lb-font-size-sm)/1.4 var(--lb-font-sans); color: var(--lb-color-parchment-faint); }
+.antes-depois { width: 100%; border-collapse: collapse; }
+.antes-depois th, .antes-depois td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--lb-gr-filete); text-align: left; }
+.antes-depois th { font-weight: 500; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+.antes-depois td.num { text-align: right; }
+.antes-depois .mudou { color: var(--lb-gr-latao-1); font-weight: 600; }
+.proposta__conf { margin: 10px 0 0; line-height: 1.6; }
+.proposta__conf b { font-weight: 600; }
+.confianca { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 4px 10px; border-radius: var(--lb-radius-full); background: var(--lb-gr-hover-forte); font-size: var(--lb-font-size-sm); }
+.confianca__pips { display: inline-flex; gap: 3px; }
+.confianca__pips i { width: 6px; height: 6px; border-radius: 50%; background: var(--lb-gr-filete-forte); }
+.confianca__pips i.on { background: var(--lb-color-brass-bright); }
+.proposta__outra { margin: 10px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.proposta__aviso { margin: 10px 0 0; display: flex; gap: 8px; font-size: var(--lb-font-size-sm); color: var(--mu-erro-texto); }
+.proposta__acoes { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.busca__tit { margin: 0 0 4px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); font-weight: 500; }
+.busca svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* ---- resultado ---- */
+.res { margin-top: 28px; display: grid; gap: 16px; }
+.res__aviso { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--lb-radius-md); background: var(--lb-color-brass-soft); border: 1px solid var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); font-size: var(--lb-font-size-md); }
+.res.velho > :not(.res__aviso) { opacity: 0.5; }
+.res > * { transition: opacity 150ms ease; }
+.surge { animation: surge 260ms var(--lb-gr-ease-out) both; animation-delay: calc(var(--i, 0) * 45ms); }
+@keyframes surge { from { opacity: 0; transform: translateY(6px); } }
+.secao { padding: 16px 18px; min-width: 0; }
+.secao__tit { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 0 0 12px; font-size: var(--lb-font-size-lg); font-weight: 600; }
+.secao__tit small { font-weight: 400; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.duas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.vazio-res { padding: 28px 24px; text-align: center; color: var(--lb-color-parchment-dim); }
+.vazio-res p { margin: 6px auto 0; max-width: 60ch; }
+.vazio-res strong { display: block; font-family: var(--lb-font-display); font-weight: 400; font-size: 20px; color: var(--lb-color-parchment); }
+
+.veredito { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 24px; align-items: start; }
+.veredito__frase { margin: 0; font-family: var(--lb-font-display); font-size: 22px; line-height: 1.35; max-width: 46ch; }
+.peso { display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px 8px 12px; border-radius: var(--lb-radius-md); background: var(--lb-gr-couro-2); border: 1px solid var(--lb-gr-filete-latao); }
+.peso__pips { display: inline-flex; gap: 4px; }
+.peso__pips i { width: 9px; height: 18px; border-radius: 3px; background: var(--trilho); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte); }
+.peso__pips i.on { background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-3)); box-shadow: none; }
+.peso__nome { font-family: var(--lb-font-display); font-size: 20px; line-height: 1; }
+.peso__rot { display: block; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); margin-bottom: 3px; }
+.placar { grid-column: 1 / -1; }
+.placar__barra { display: flex; gap: 2px; height: 28px; }
+.placar__parte { display: flex; align-items: center; min-width: 0; padding: 0 8px; border-radius: 4px; font: 600 12px/1 var(--lb-font-utility); white-space: nowrap; overflow: hidden; }
+.placar__parte--a { background: var(--lado-a); color: #0e1218; }
+.placar__parte--b { background: var(--lado-b); color: #170c0a; }
+.placar__parte--t { background: var(--empate); color: #f4f2ec; }
+.legenda { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.legenda i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
+.legenda b { color: var(--lb-color-parchment); font-weight: 600; }
+.tiles { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--lb-gr-filete); padding-top: 12px; }
+.tile { padding: 0 14px; border-left: 1px solid var(--lb-gr-filete); }
+.tile:first-child { padding-left: 0; border-left: 0; }
+.tile__rot { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.tile__val { display: block; margin-top: 2px; font: 600 26px/1.15 var(--lb-font-sans); }
+.tile__val small { font-size: 14px; font-weight: 500; color: var(--lb-color-parchment-dim); }
+.tile__sub { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+
+.recs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rec { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; gap: 10px; padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--lb-gr-campo); border: 1px solid var(--lb-gr-filete); }
+.rec__ic { margin-top: 1px; color: var(--lb-color-brass-bright); }
+.rec--alerta .rec__ic { color: var(--mu-erro-texto); }
+.rec--info .rec__ic { color: var(--lb-color-tide); }
+.rec__txt { margin: 0; line-height: 1.55; }
+.rec__txt b { font-weight: 600; }
+.rec__txt small { display: block; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+
+.hist { position: relative; }
+.hist svg { display: block; width: 100%; height: 200px; overflow: visible; }
+.hist svg:focus-visible { box-shadow: var(--lb-shadow-focus); border-radius: 4px; }
+.eixo { fill: var(--lb-color-parchment-faint); font: 500 10.5px/1 var(--lb-font-utility); }
+.grade { stroke: var(--lb-gr-filete); stroke-width: 1; }
+.dica {
+  position: absolute; z-index: 5; pointer-events: none; min-width: 150px; padding: 8px 10px; border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised); border: 1px solid var(--lb-gr-filete-forte); box-shadow: var(--lb-shadow-float);
+  font-size: var(--lb-font-size-sm); line-height: 1.5; opacity: 0; transform: translateY(2px); transition: opacity 120ms ease, transform 120ms var(--lb-gr-ease-out);
+}
+.dica.on { opacity: 1; transform: none; }
+.dica b { font-size: var(--lb-font-size-md); }
+.dica__lin { display: flex; align-items: center; gap: 6px; color: var(--lb-color-parchment-dim); }
+.dica__lin i { width: 10px; height: 2px; border-radius: 1px; background: var(--c); }
+.dica__lin span { margin-left: auto; padding-left: 12px; color: var(--lb-color-parchment); font-family: var(--lb-font-utility); }
+details.tabela-ver { margin-top: 8px; }
+details.tabela-ver summary { cursor: pointer; width: max-content; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); border-radius: 4px; }
+details.tabela-ver summary:hover { color: var(--lb-color-parchment); }
+
+.tabela { width: 100%; border-collapse: collapse; }
+.tabela th, .tabela td { padding: 7px 8px; border-bottom: 1px solid var(--lb-gr-filete); text-align: left; vertical-align: middle; }
+.tabela th { font-weight: 500; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); white-space: nowrap; }
+.tabela td.num, .tabela th.num { text-align: right; }
+.tabela tbody th { color: var(--lb-color-parchment); font-size: var(--lb-font-size-md); }
+.tabela tr.grupo th { padding-top: 14px; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); border-bottom-color: var(--lb-gr-filete-forte); }
+.tabela tr.grupo i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--c); vertical-align: -1px; }
+.quem { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.quem span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.quem small { color: var(--lb-color-parchment-faint); font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); }
+.mini { display: grid; grid-template-columns: minmax(40px, 1fr) auto; align-items: center; gap: 8px; min-width: 110px; }
+.mini__barra { display: block; height: 6px; border-radius: var(--lb-radius-full); background: var(--trilho); overflow: hidden; }
+.mini__ench { display: block; height: 100%; width: 100%; border-radius: var(--lb-radius-full); background: var(--c, var(--lb-gr-gravado)); transform-origin: left; }
+.mini__val { font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; text-align: right; min-width: 4ch; }
+.fraco { color: var(--lb-color-parchment-faint); }
+.tecs { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.tec { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; align-items: center; }
+.tec__nome { min-width: 0; display: flex; flex-direction: column; }
+.tec__nome span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tec__nome small { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+.luta-tipica summary { cursor: pointer; font-weight: 600; font-size: var(--lb-font-size-lg); list-style: none; display: flex; align-items: baseline; gap: 10px; border-radius: 4px; }
+.luta-tipica summary::-webkit-details-marker { display: none; }
+.luta-tipica summary::before { content: ''; width: 7px; height: 7px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(-45deg); transition: transform 150ms var(--lb-gr-ease-out); align-self: center; }
+.luta-tipica[open] summary::before { transform: rotate(45deg); }
+.luta-tipica summary small { font-weight: 400; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.registro { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 2px; max-height: 360px; overflow: auto; font-size: var(--lb-font-size-md); }
+.registro li { padding: 3px 0; color: var(--lb-color-parchment-dim); }
+.registro li.turno { margin-top: 8px; color: var(--lb-color-parchment); font-weight: 600; font-size: var(--lb-font-size-sm); }
+.registro li.cai { color: var(--mu-erro-texto); }
+.registro li.fim { margin-top: 8px; color: var(--lb-color-brass-bright); font-weight: 600; }
+.rodape-res { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+
+/* ---- comparar ---- */
+.cmp-topo { display: grid; gap: 10px; margin-bottom: 16px; }
+.cmp-topo__lin { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; align-items: start; }
+.cmp-topo__rot { padding-top: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.cmp-ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.interruptor { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--lb-color-parchment-dim); }
+.interruptor input { appearance: none; margin: 0; width: 30px; height: 18px; border-radius: 9px; background: var(--trilho); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte); position: relative; cursor: pointer; transition: background-color 150ms ease; }
+.interruptor input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--lb-color-parchment-dim); transition: transform 150ms var(--lb-gr-ease-out), background-color 150ms ease; }
+.interruptor input:checked { background: var(--lb-color-brass-soft); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.interruptor input:checked::after { transform: translateX(12px); background: var(--lb-color-brass-bright); }
+.cmp { overflow-x: auto; }
+.cmp table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 640px; }
+.cmp th, .cmp td { padding: 9px 12px; border-bottom: 1px solid var(--lb-gr-filete); text-align: left; vertical-align: middle; }
+.cmp thead th { vertical-align: bottom; padding-top: 14px; }
+.cmp col.cmp__rot { width: 170px; }
+.cmp-col { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cmp-col__txt { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cmp-col__nome { font-family: var(--lb-font-display); font-size: 17px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-col__sub { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.cmp tr.grupo th { padding-top: 16px; font-size: var(--lb-font-size-sm); font-weight: 500; color: var(--lb-color-parchment-faint); border-bottom: 0; }
+.cmp tbody th { font-weight: 500; }
+.cmp tbody th small { display: block; font-weight: 400; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); font-family: var(--lb-font-utility); letter-spacing: 0.04em; }
+.val { display: grid; grid-template-columns: minmax(30px, 1fr) auto; align-items: center; gap: 10px; }
+.val__num { text-align: right; font: 600 var(--lb-font-size-md)/1.2 var(--lb-font-utility); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.val__num small { font-weight: 500; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); margin-left: 3px; }
+.val__dif { display: block; font: 500 var(--lb-font-size-xs)/1.2 var(--lb-font-utility); color: var(--lb-color-parchment-faint); text-align: right; }
+.val__dif.mexe { color: var(--lb-color-parchment-dim); }
+.val--max .mini__ench { background: var(--lb-color-brass); }
+.val--max .val__num { color: var(--lb-color-brass-bright); }
+.golpes-cmp { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: var(--lb-font-size-sm); }
+.golpes-cmp li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.golpes-cmp span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--lb-color-parchment-dim); }
+.golpes-cmp b { font-family: var(--lb-font-utility); font-weight: 600; }
+.golpes-cmp small { grid-column: 1 / -1; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-xs); margin-top: -2px; }
+
+/* ---- notificações ---- */
+.avisos { position: fixed; right: 20px; bottom: 20px; z-index: 30; display: grid; gap: 8px; width: min(380px, calc(100vw - 40px)); }
+.aviso { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px 10px; padding: 12px 10px 12px 14px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); border: 1px solid var(--lb-gr-filete-forte); box-shadow: var(--lb-shadow-float); transition: opacity 200ms ease, transform 200ms var(--lb-gr-ease-out); }
+.aviso p { margin: 4px 0 0; line-height: 1.5; }
+.aviso__acoes { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.aviso.entra { opacity: 0; transform: translateY(12px); }
+.aviso.sai { opacity: 0; transform: translateY(12px); transition-duration: 150ms; }
+
+@media (max-width: 980px) {
+  .montagem { grid-template-columns: 1fr; }
+  .acervo { position: static; max-height: none; }
+  .duas, .proposta { grid-template-columns: 1fr; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }
+  .tile:nth-child(3) { padding-left: 0; border-left: 0; }
+}
+@media (max-width: 720px) {
+  .pg { padding: 20px 16px 80px; }
+  .lados { grid-template-columns: 1fr; gap: 10px; }
+  .vs { flex-direction: row; }
+  .veredito { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .surge { animation: fade 200ms ease both; }
+  @keyframes fade { from { opacity: 0; } }
+  .vaga--fantasma { animation: none; }
+  .abas__marca, .progresso__ench, .aviso, .dica, .chip, .bt { transition-property: opacity, background-color, border-color, color; }
+  .aviso.entra, .aviso.sai { transform: none; }
+}
+</style>
+</head>
+<body>
+<main class="pg">
+  <header class="pg-cab">
+    <div class="pg-cab__txt">
+      <h1 class="pg-titulo">Comparar e balancear</h1>
+      <p class="pg-sub">Monte os dois lados e deixe o robô jogar a luta muitas vezes: o app conta quem vence, quanto dura e quem carrega cada lado, e diz o que mudar. Ajuste nunca mexe na ficha original: vira uma variação.</p>
+    </div>
+    <p class="aviso-proto">Protótipo: fichas de exemplo e um motor de luta simplificado. No app, as lutas são as do robô do treino.</p>
+  </header>
+
+  <div class="abas" role="tablist" aria-label="O que fazer">
+    <button class="aba" role="tab" id="aba-testar" aria-controls="painel-testar" aria-selected="true">Testar a luta</button>
+    <button class="aba" role="tab" id="aba-comparar" aria-controls="painel-comparar" aria-selected="false" tabindex="-1">Comparar fichas</button>
+    <span class="abas__marca" aria-hidden="true"></span>
+  </div>
+
+  <!-- =================== TESTAR =================== -->
+  <section id="painel-testar" role="tabpanel" aria-labelledby="aba-testar" tabindex="-1">
+    <div class="montagem">
+      <aside class="acervo cartao" id="acervo" aria-labelledby="acervo-tit">
+        <h2 class="acervo__tit" id="acervo-tit">Fichas</h2>
+        <p class="acervo__dica" id="acervo-dica"></p>
+        <div id="acervo-grupos"></div>
+        <p class="acervo__solta">Soltar aqui tira a ficha da luta.</p>
+      </aside>
+
+      <div class="mesa">
+        <div class="lados">
+          <section class="lado lado--a" id="lado-a" data-lado="a" aria-labelledby="lado-a-tit"></section>
+          <div class="vs" aria-hidden="true"><span class="vs__moeda" id="placar-moeda">0 × 0</span><span class="vs__rot">aliados<br>contra<br>inimigos</span></div>
+          <section class="lado lado--b" id="lado-b" data-lado="b" aria-labelledby="lado-b-tit"></section>
+        </div>
+
+        <form class="meta" id="meta" novalidate aria-label="Meta da luta">
+          <p class="meta__frase">
+            <span class="meta__parte" id="parte-dura">
+              <label class="meta__marca"><input type="checkbox" id="meta-dura" aria-label="Usar a meta de duração" checked><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></label><label for="meta-turnos">Quero que a luta dure</label>
+              <input class="meta__campo" id="meta-turnos" type="number" inputmode="numeric" min="1" max="30" step="1" value="10" aria-describedby="meta-erro"> turnos</span><span class="meta__parte" id="parte-vence"><label class="meta__marca" style="margin-left:10px"><input type="checkbox" id="meta-vence" aria-label="Usar a meta de vitória"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></label><label for="meta-pct">e que os aliados vençam</label>
+              <input class="meta__campo" id="meta-pct" type="number" inputmode="numeric" min="5" max="95" step="1" value="70" aria-describedby="meta-erro">% das lutas.</span>
+          </p>
+          <div class="meta__linha2">
+            <label for="meta-alvo">Ajustar</label>
+            <select id="meta-alvo"></select>
+            <span id="meta-botoes-rot">mexendo em</span>
+            <span class="chips" role="group" aria-labelledby="meta-botoes-rot" id="meta-botoes"></span>
+          </div>
+          <p class="meta__erro" id="meta-erro" role="alert"></p>
+        </form>
+
+        <div class="acoes">
+          <button type="button" class="bt bt--primario" id="bt-testar">Testar <span id="bt-testar-n">200</span> lutas <kbd>Ctrl Enter</kbd></button>
+          <label class="acoes__n">Lutas por teste
+            <select id="n-lutas"><option value="100">100</option><option value="200" selected>200</option><option value="500">500</option></select>
+          </label>
+          <button type="submit" form="meta" class="bt bt--latao" id="bt-achar">Achar os números</button>
+          <p class="acoes__porque" id="acoes-porque" role="status"></p>
+        </div>
+        <p class="conta" id="conta"></p>
+
+        <div class="progresso cartao" id="progresso" hidden>
+          <div class="progresso__cab">
+            <p class="progresso__txt" id="progresso-txt" role="status" aria-live="polite"></p>
+            <button type="button" class="bt bt--p bt--fantasma" id="bt-cancelar">Cancelar <kbd>Esc</kbd></button>
+          </div>
+          <div class="progresso__trilho" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="100" id="progresso-barra"><div class="progresso__ench" id="progresso-ench"></div></div>
+        </div>
+
+        <section class="proposta cartao" id="proposta" hidden aria-live="polite"></section>
+      </div>
+    </div>
+
+    <div class="res" id="res"></div>
+  </section>
+
+  <!-- =================== COMPARAR =================== -->
+  <section id="painel-comparar" role="tabpanel" aria-labelledby="aba-comparar" tabindex="-1" hidden>
+    <div class="cmp-topo">
+      <div class="cmp-topo__lin"><span class="cmp-topo__rot">Jogadores</span><div class="chips" id="cmp-jog" role="group" aria-label="Jogadores para comparar"></div></div>
+      <div class="cmp-topo__lin"><span class="cmp-topo__rot">NPCs</span><div class="chips" id="cmp-npc" role="group" aria-label="NPCs para comparar"></div></div>
+      <div class="cmp-topo__lin" id="cmp-var-lin" hidden><span class="cmp-topo__rot">Variações</span><div class="chips" id="cmp-var" role="group" aria-label="Variações para comparar"></div></div>
+      <div class="cmp-ctrl">
+        <span id="cmp-conta"></span>
+        <label class="interruptor"><input type="checkbox" id="cmp-so-dif"> Só as linhas que mudam</label>
+        <button type="button" class="bt bt--p bt--fantasma" id="cmp-da-luta">Usar as fichas da luta</button>
+      </div>
+    </div>
+    <div class="cmp cartao" id="cmp"></div>
+  </section>
+</main>
+
+<div class="avisos" id="avisos" role="region" aria-label="Avisos"></div>
+
+<script>
+'use strict'
+
+/* =========================================================================
+ * 1. O MOTOR DA LUTA (mock). Uma função só, sem nada de fora: roda num Web
+ *    Worker (a fonte vira Blob) e também na página (luta típica, conta
+ *    rápida, comparar). Regras: dano = base + atributo × mult; o alvo reage
+ *    com 1d20 (1 crítico ×1,5; 2-9 cheio; 10-14 defende metade; 15-19
+ *    esquiva; 20 esquiva e contra-ataca); Escudo absorve antes do HP; SP paga
+ *    técnica; cada vez tem 2 ações simples ou 1 completa. O robô cura quem
+ *    está abaixo de 60% e bate no inimigo de pé mais ferido, como o robô do
+ *    treino (client/src/lib/treino/robo.ts). Semente por luta como em
+ *    cemLutas.ts: mesma semente, mesma luta.
+ * ========================================================================= */
+function motorDasLutas(escopo) {
+  'use strict'
+  const TETO_DE_TURNOS = 30
+  const VIDA_QUE_PEDE_CURA = 0.6
+  const VIDA_CRITICA = 0.3
+  const CURA_MINIMA = 0.05
+  const GOLPES_POR_VEZ_MAX = 3
+
+  function misturar(valor) {
+    let h = valor >>> 0
+    h ^= h >>> 16; h = Math.imul(h, 0x7feb352d); h ^= h >>> 15; h = Math.imul(h, 0x846ca68b); h ^= h >>> 16
+    return h >>> 0
+  }
+  function sementeDaLuta(semente, indice) { return misturar((semente + Math.imul(indice, 0x9e3779b9)) >>> 0) }
+  function sorteio(semente) {
+    let a = semente >>> 0
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0
+      let t = a
+      t = Math.imul(t ^ (t >>> 15), t | 1)
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+  }
+  function valorDo(ficha, sigla) { const a = ficha.atr[sigla]; return a ? a[0] : 0 }
+  function danoDoGolpe(ficha, golpe) {
+    const k = golpe.tipo === 'dano' ? (ficha.kDano || 1) : 1
+    return Math.max(0, Math.round((golpe.base + valorDo(ficha, golpe.atr) * golpe.mult) * k))
+  }
+  function golpesDa(ficha) {
+    const atacar = { nome: 'Atacar', base: ficha.arma, atr: 'FOR', mult: 1, sp: 0, acao: 's', tipo: 'dano' }
+    return [atacar, ...ficha.golpes].map((g) => ({ nome: g.nome, dano: danoDoGolpe(ficha, g), sp: g.sp, acao: g.acao, tipo: g.tipo }))
+  }
+  /** A ficha com o ajuste do resolvedor: HP × k, Escudo + n, dano × k, atributos × k. */
+  function ajustar(ficha, aj) {
+    if (!aj) return ficha
+    const atr = {}
+    for (const sigla in ficha.atr) atr[sigla] = [Math.round(ficha.atr[sigla][0] * (aj.atr ?? 1)), ficha.atr[sigla][1]]
+    return {
+      ...ficha, atr,
+      hp: Math.max(10, Math.round((ficha.hp * (aj.hp ?? 1)) / 10) * 10),
+      escudo: Math.max(0, Math.round((ficha.escudo + (aj.escudo ?? 0)) / 10) * 10),
+      kDano: Math.round((ficha.kDano || 1) * (aj.dano ?? 1) * 100) / 100,
+    }
+  }
+  function montar(fichas, lados, ajustes) {
+    const lutadores = []
+    for (const lado of ['a', 'b']) {
+      for (const vaga of lados[lado]) {
+        const ficha = ajustar(fichas[vaga.id], ajustes && ajustes[vaga.id])
+        const golpes = golpesDa(ficha)
+        for (let c = 1; c <= vaga.n; c += 1) {
+          lutadores.push({ grupo: vaga.id, lado, nome: vaga.n > 1 ? ficha.nome + ' ' + c : ficha.nome, hp: ficha.hp, escudo: ficha.escudo, sp: ficha.sp, agi: valorDo(ficha, 'AGI'), golpes })
+        }
+      }
+    }
+    return lutadores
+  }
+
+  function lutar(lutadores, semente, comRegistro) {
+    const r = sorteio(semente)
+    const d20 = () => 1 + Math.floor(r() * 20)
+    const ls = lutadores.map((l, i) => ({ i, l, hp: l.hp, esc: l.escudo, sp: l.sp, ini: l.agi + d20(), dealt: 0, taken: 0, healed: 0, spUsed: 0, caiu: 0, semSp: 0, usos: new Array(l.golpes.length).fill(0), contras: 0 }))
+    const ordem = ls.slice().sort((x, y) => y.ini - x.ini || x.i - y.i)
+    const reg = comRegistro ? [] : null
+    let rodada = 1
+    let primeiro = -1
+    let fim = null
+    const dePe = (lado) => { for (const x of ls) if (x.l.lado === lado && x.hp > 0) return true; return false }
+    const checar = () => { const a = dePe('a'); const b = dePe('b'); return !a && !b ? 'x' : !b ? 'a' : !a ? 'b' : null }
+    const cair = (x) => {
+      if (x.hp > 0 || x.caiu) return
+      x.caiu = rodada
+      if (primeiro < 0) primeiro = x.i
+      if (reg) reg.push({ t: 'cai', quem: x.l.nome })
+    }
+    const ferir = (alvo, dano) => {
+      const antes = alvo.hp + alvo.esc
+      const absorvido = Math.min(alvo.esc, dano)
+      alvo.esc -= absorvido
+      alvo.hp = Math.max(0, alvo.hp - (dano - absorvido))
+      return antes - alvo.hp - alvo.esc
+    }
+    const alvoDe = (x) => {
+      let m = null
+      for (const y of ls) if (y.l.lado !== x.l.lado && y.hp > 0 && (!m || y.hp / y.l.hp < m.hp / m.l.hp - 1e-9)) m = y
+      return m
+    }
+    const custoMin = (x) => { let m = Infinity; for (const g of x.l.golpes) if (g.sp > 0 && g.sp < m) m = g.sp; return m }
+    const golpe = (x, alvo, gi) => {
+      const g = x.l.golpes[gi]
+      const dado = d20()
+      let k = 1; let saida = 'em cheio'
+      if (dado === 1) { k = 1.5; saida = 'crítico' } else if (dado >= 20) { k = 0; saida = 'esquiva e contra-ataca' } else if (dado >= 15) { k = 0; saida = 'esquiva' } else if (dado >= 10) { k = 0.5; saida = 'defende metade' }
+      x.sp -= g.sp; x.spUsed += g.sp; x.usos[gi] += 1
+      const ef = ferir(alvo, Math.round(g.dano * k))
+      x.dealt += ef; alvo.taken += ef
+      if (reg) reg.push({ t: 'golpe', quem: x.l.nome, golpe: g.nome, alvo: alvo.l.nome, dado, saida, dano: ef, hp: alvo.hp, hpMax: alvo.l.hp, esc: alvo.esc })
+      cair(alvo)
+      if (dado >= 20 && alvo.hp > 0 && x.hp > 0) {
+        const ef2 = ferir(x, alvo.l.golpes[0].dano)
+        alvo.dealt += ef2; x.taken += ef2; alvo.contras += 1
+        if (reg) reg.push({ t: 'contra', quem: alvo.l.nome, alvo: x.l.nome, dano: ef2, hp: x.hp, hpMax: x.l.hp })
+        cair(x)
+      }
+    }
+    const curar = (x, pontos) => {
+      for (let gi = 0; gi < x.l.golpes.length; gi += 1) {
+        const g = x.l.golpes[gi]
+        const custo = g.acao === 'c' ? 2 : 1
+        if (g.tipo !== 'cura' || g.sp > x.sp || custo > pontos) continue
+        let f = null
+        for (const y of ls) if (y.l.lado === x.l.lado && y.hp > 0 && y.hp < VIDA_QUE_PEDE_CURA * y.l.hp && (!f || y.hp / y.l.hp < f.hp / f.l.hp)) f = y
+        if (!f) return 0
+        const cura = Math.min(g.dano, f.l.hp - f.hp)
+        if (cura < CURA_MINIMA * f.l.hp || !(rodada % 2 === 1 || f.hp < VIDA_CRITICA * f.l.hp)) return 0
+        f.hp += cura; x.healed += cura; x.sp -= g.sp; x.spUsed += g.sp; x.usos[gi] += 1
+        if (reg) reg.push({ t: 'cura', quem: x.l.nome, golpe: g.nome, alvo: f.l.nome, cura, hp: f.hp, hpMax: f.l.hp })
+        return custo
+      }
+      return 0
+    }
+    const vez = (x) => {
+      let pontos = 2
+      pontos -= curar(x, pontos)
+      let golpes = 0
+      while (pontos > 0 && golpes < GOLPES_POR_VEZ_MAX) {
+        const alvo = alvoDe(x)
+        if (!alvo) break
+        let bs = -1; let bc = -1
+        for (let gi = 0; gi < x.l.golpes.length; gi += 1) {
+          const g = x.l.golpes[gi]
+          if (g.tipo !== 'dano' || g.sp > x.sp) continue
+          if (g.acao === 's') { if (bs < 0 || g.dano > x.l.golpes[bs].dano) bs = gi } else if (pontos === 2 && (bc < 0 || g.dano > x.l.golpes[bc].dano)) bc = gi
+        }
+        const gi = bc >= 0 && (bs < 0 || x.l.golpes[bc].dano > 2 * x.l.golpes[bs].dano) ? bc : bs
+        if (gi < 0) break
+        golpe(x, alvo, gi)
+        golpes += 1
+        pontos -= x.l.golpes[gi].acao === 'c' ? 2 : 1
+        if (x.hp <= 0 || checar()) break
+      }
+      const custo = custoMin(x)
+      if (!x.semSp && custo !== Infinity && x.sp < custo) x.semSp = rodada
+    }
+    while (rodada <= TETO_DE_TURNOS) {
+      if (reg) reg.push({ t: 'turno', r: rodada })
+      for (const x of ordem) {
+        if (x.hp <= 0) continue
+        vez(x)
+        fim = checar()
+        if (fim) break
+      }
+      if (fim) break
+      rodada += 1
+    }
+    if (!fim) { fim = 't'; rodada = TETO_DE_TURNOS }
+    if (reg) reg.push({ t: 'fim', v: fim, r: rodada })
+    return { v: fim, r: rodada, p: primeiro, ls, reg }
+  }
+
+  function quantil(ordenados, q) {
+    if (ordenados.length === 0) return 0
+    const pos = (ordenados.length - 1) * q
+    const b = Math.floor(pos)
+    const resto = pos - b
+    return ordenados[b + 1] === undefined ? ordenados[b] : ordenados[b] + resto * (ordenados[b + 1] - ordenados[b])
+  }
+
+  /**
+   * A mediana de turnos inteiros, interpolada dentro do turno onde a metade cai
+   * (40% das lutas em 2, 45% em 3 = 2,7, não 3). Contínua no ajuste: é ela que
+   * o resolvedor persegue; com a média, uma meta de 10 saía com mediana 9.
+   */
+  function medianaSuave(ordenados) {
+    const n = ordenados.length
+    if (!n) return 0
+    const meio = n / 2
+    let i = 0
+    while (i < n) {
+      const v = ordenados[i]
+      let j = i
+      while (j < n && ordenados[j] === v) j += 1
+      if (j >= meio) return v - 0.5 + (meio - i) / (j - i)
+      i = j
+    }
+    return ordenados[n - 1]
+  }
+
+  function* serie(p) {
+    const L = montar(p.fichas, p.lados, p.ajustes)
+    yield { fase: 'Lutando', total: p.n }
+    const ac = { n: 0, v: { a: 0, b: 0, t: 0, x: 0 }, rodadas: [], hist: [], porLuta: [], f: L.map((l) => ({ dealt: 0, taken: 0, healed: 0, spUsed: 0, caiu: 0, caiuSoma: 0, primeiro: 0, semSp: 0, semSpSoma: 0, vivoSoma: 0, contras: 0, usos: new Array(l.golpes.length).fill(0) })) }
+    for (let i = 0; i < p.n; i += 1) {
+      const semente = sementeDaLuta(p.semente, i)
+      const res = lutar(L, semente, false)
+      ac.n += 1; ac.v[res.v] += 1; ac.rodadas.push(res.r)
+      const h = ac.hist[res.r] || (ac.hist[res.r] = { a: 0, b: 0, t: 0, x: 0 })
+      h[res.v] += 1
+      ac.porLuta.push([semente, res.r, res.v])
+      res.ls.forEach((x, k) => {
+        const s = ac.f[k]
+        s.dealt += x.dealt; s.taken += x.taken; s.healed += x.healed; s.spUsed += x.spUsed; s.contras += x.contras
+        if (x.caiu) { s.caiu += 1; s.caiuSoma += x.caiu }
+        if (res.p === k) s.primeiro += 1
+        if (x.semSp) { s.semSp += 1; s.semSpSoma += x.semSp }
+        s.vivoSoma += x.caiu || res.r
+        for (let u = 0; u < x.usos.length; u += 1) s.usos[u] += x.usos[u]
+      })
+      yield 1
+    }
+    const ord = ac.rodadas.slice().sort((a, b) => a - b)
+    const n = ac.n
+    const med = medianaSuave(ord)
+    const vencedorComum = ac.v.a >= ac.v.b ? 'a' : 'b'
+    const alvoMed = Math.round(med)
+    let tipica = ac.porLuta.find((l) => l[1] === alvoMed && l[2] === vencedorComum) || ac.porLuta.reduce((m, l) => (Math.abs(l[1] - med) < Math.abs(m[1] - med) ? l : m), ac.porLuta[0])
+    const maxR = ord[ord.length - 1] || 1
+    const hist = []
+    for (let r = 1; r <= maxR; r += 1) hist.push(ac.hist[r] || { a: 0, b: 0, t: 0, x: 0 })
+    return {
+      n, vitorias: ac.v, med, media: ac.rodadas.reduce((s, r) => s + r, 0) / n,
+      q25: quantil(ord, 0.25), q75: quantil(ord, 0.75), p10: quantil(ord, 0.1), p90: quantil(ord, 0.9), maxR, hist,
+      tipica: tipica ? tipica[0] : null, semente: p.semente,
+      lutadores: L.map((l, k) => {
+        const s = ac.f[k]
+        return {
+          grupo: l.grupo, lado: l.lado, nome: l.nome, hpMax: l.hp, escudo: l.escudo, spMax: l.sp,
+          dealt: s.dealt / n, taken: s.taken / n, healed: s.healed / n, spUsed: s.spUsed / n, contras: s.contras / n,
+          caiu: s.caiu / n, caiuMed: s.caiu ? s.caiuSoma / s.caiu : 0, primeiro: s.primeiro / n,
+          semSp: s.semSp / n, semSpMed: s.semSp ? s.semSpSoma / s.semSp : 0, vivo: s.vivoSoma / n,
+          usos: l.golpes.map((g, u) => ({ nome: g.nome, tipo: g.tipo, dano: g.dano, n: s.usos[u] / n })),
+        }
+      }),
+    }
+  }
+
+  /** Mede a luta com um ajuste: só o que o resolvedor precisa. */
+  function* medir(ctx, aj, n, semente) {
+    const L = montar(ctx.fichas, ctx.lados, ctx.ajustesDe(aj))
+    let soma = 0; let vitorias = 0
+    const rs = []
+    for (let i = 0; i < n; i += 1) {
+      const res = lutar(L, sementeDaLuta(semente, i), false)
+      soma += res.r; rs.push(res.r)
+      if (res.v === 'a') vitorias += 1
+      yield 1
+    }
+    rs.sort((a, b) => a - b)
+    return { media: soma / n, med: medianaSuave(rs), q25: quantil(rs, 0.25), q75: quantil(rs, 0.75), p10: quantil(rs, 0.1), p90: quantil(rs, 0.9), win: vitorias / n, n }
+  }
+
+  const DOMINIO = { hp: [0.1, 25], escudo: [0, 0], dano: [0.2, 6], atr: [0.2, 6] }
+
+  /** Procura o valor de UM botão que leva a métrica à meta: chute proporcional, depois falsa posição com o intervalo cercado. */
+  function* procurar(ctx, botao, meta, alvo, ajBase, sondasMax) {
+    const log = botao !== 'escudo'
+    const dom = botao === 'escudo' ? [0, ctx.escudoMax] : DOMINIO[botao]
+    const paraU = (v) => (log ? Math.log(v) : v)
+    const deU = (u) => (log ? Math.exp(u) : u)
+    const uMin = paraU(dom[0]); const uMax = paraU(dom[1])
+    const prender = (u) => Math.min(uMax, Math.max(uMin, u))
+    const sinal = meta === 'turnos' ? 1 : -1
+    const tol = meta === 'turnos' ? 0.3 : 0.025
+    const metrica = (m) => (meta === 'turnos' ? m.med : m.win)
+    const avaliar = function* (u) {
+      const aj = { ...ajBase, [botao]: deU(u) }
+      const m = yield* medir(ctx, aj, ctx.N, ctx.semente)
+      const ponto = { u, aj, m, g: sinal * (metrica(m) - alvo) }
+      ctx.tentativas.push({ botao, meta, aj, valor: metrica(m) })
+      yield { fase: ctx.textoDaTentativa(botao, aj, meta, m) }
+      return ponto
+    }
+    let lo = null; let hi = null; let melhor = null
+    const anotar = (p) => {
+      if (p.g < 0) { if (!lo || p.u > lo.u) lo = p } else if (!hi || p.u < hi.u) hi = p
+      if (!melhor || Math.abs(p.g) < Math.abs(melhor.g)) melhor = p
+    }
+    let atual = yield* avaliar(paraU(ajBase[botao]))
+    anotar(atual)
+    if (Math.abs(atual.g) <= tol) return { ...melhor, botao, ok: true, limite: false }
+    let anterior = null
+    let prox
+    if (meta === 'turnos' && botao === 'hp') prox = paraU(ajBase.hp * alvo / Math.max(1, atual.m.med))
+    else if (meta === 'turnos' && botao === 'escudo') prox = ajBase.escudo + ctx.vidaDoAlvo * (alvo / Math.max(1, atual.m.med) - 1)
+    else prox = atual.u + (atual.g < 0 ? 1 : -1) * (log ? Math.log(1.8) : ctx.vidaDoAlvo * 0.6)
+    for (let k = 1; k < sondasMax; k += 1) {
+      if (lo && hi) {
+        const t = lo.g / (lo.g - hi.g)
+        const margem = 0.12 * (hi.u - lo.u)
+        prox = Math.min(hi.u - margem, Math.max(lo.u + margem, lo.u + t * (hi.u - lo.u)))
+      }
+      prox = prender(prox)
+      if (Math.abs(prox - atual.u) < (log ? 0.004 : 5)) {
+        const naBorda = (atual.g < 0 && atual.u >= uMax - 1e-9) || (atual.g > 0 && atual.u <= uMin + 1e-9)
+        if (naBorda) return { ...melhor, botao, ok: false, limite: true }
+        break
+      }
+      anterior = atual
+      atual = yield* avaliar(prox)
+      anotar(atual)
+      if (Math.abs(atual.g) <= tol) return { ...melhor, botao, ok: true, limite: false }
+      if (!(lo && hi)) {
+        const inclinacao = (atual.g - anterior.g) / (atual.u - anterior.u)
+        const passo = atual.u - anterior.u
+        let chute = inclinacao > 0 ? atual.u - atual.g / inclinacao : atual.u + 2 * passo
+        const precisaSubir = atual.g < 0
+        if (precisaSubir) chute = Math.max(chute, atual.u + Math.abs(passo) * 0.5)
+        else chute = Math.min(chute, atual.u - Math.abs(passo) * 0.5)
+        const teto = Math.abs(passo) * 3 + (log ? 0.1 : 50)
+        prox = Math.min(atual.u + teto, Math.max(atual.u - teto, chute))
+      }
+    }
+    return { ...melhor, botao, ok: Math.abs(melhor.g) <= tol * 2.5, limite: false }
+  }
+
+  function wilson(p, n) {
+    const z = 1.96
+    const den = 1 + (z * z) / n
+    const centro = (p + (z * z) / (2 * n)) / den
+    const meio = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / den
+    return [Math.max(0, centro - meio), Math.min(1, centro + meio)]
+  }
+
+  function* resolver(p) {
+    const alvos = p.alvo === 'todos' ? [...new Set(p.lados.b.map((v) => v.id))] : [p.alvo]
+    const vidaDoAlvo = alvos.reduce((s, id) => s + p.fichas[id].hp + p.fichas[id].escudo, 0)
+    const ctx = {
+      fichas: p.fichas, lados: p.lados, semente: p.semente, N: 80, tentativas: [], vidaDoAlvo,
+      escudoMax: Math.max(200, vidaDoAlvo * 20),
+      ajustesDe: (aj) => { const o = {}; for (const id of alvos) o[id] = aj; return o },
+    }
+    ctx.textoDaTentativa = (botao, aj, meta, m) => {
+      const virgula = (v) => v.toFixed(2).replace('.', ',')
+      const nome = { hp: 'HP ×' + virgula(aj.hp), escudo: 'Escudo +' + Math.round(aj.escudo), dano: 'dano ×' + virgula(aj.dano), atr: 'atributos ×' + virgula(aj.atr) }[botao]
+      return 'Tentativa ' + ctx.tentativas.length + ': ' + nome + ' dá ' + (meta === 'turnos' ? m.med.toFixed(1).replace('.', ',') + ' turnos (mediana)' : Math.round(m.win * 100) + '% de vitória dos aliados')
+    }
+    const T = p.turnos; const W = p.vitoria
+    const pool = p.botoes.hp ? 'hp' : p.botoes.escudo ? 'escudo' : null
+    const ameaca = p.botoes.dano ? 'dano' : p.botoes.atr ? 'atr' : null
+    const sondasPrevistas = T && W && pool && ameaca ? 20 : 7
+    yield { fase: 'Medindo a luta de agora', total: ctx.N * sondasPrevistas + 300 }
+    let aj = { hp: 1, escudo: 0, dano: 1, atr: 1 }
+    const avisos = []
+    let rT = null; let rW = null
+    if (T && W && pool && ameaca) {
+      for (let ciclo = 0; ciclo < 3; ciclo += 1) {
+        rT = yield* procurar(ctx, pool, 'turnos', T, aj, ciclo === 0 ? 7 : 4); aj = rT.aj
+        rW = yield* procurar(ctx, ameaca, 'vitoria', W, aj, ciclo === 0 ? 7 : 4); aj = rW.aj
+        const confere = yield* medir(ctx, aj, ctx.N, ctx.semente)
+        if (Math.abs(confere.med - T) <= 0.5 && Math.abs(confere.win - W) <= 0.04) break
+      }
+    } else if (T) {
+      rT = yield* procurar(ctx, pool, 'turnos', T, aj, 8); aj = rT.aj
+      if (W) avisos.push({ tipo: 'conflito', botao: pool })
+    } else if (W) {
+      const primeiro = pool || ameaca
+      rW = yield* procurar(ctx, primeiro, 'vitoria', W, aj, 8); aj = rW.aj
+      if (!rW.ok && pool && ameaca) { rW = yield* procurar(ctx, ameaca, 'vitoria', W, aj, 8); aj = rW.aj }
+    }
+    if (rT && rT.limite) avisos.push({ tipo: 'limiteTurnos', botao: pool })
+    if (rW && rW.limite) avisos.push({ tipo: 'limiteVitoria', botao: rW.botao })
+    const final = {
+      hp: Math.round(aj.hp * 1000) / 1000,
+      escudo: Math.round(aj.escudo / 10) * 10,
+      dano: Math.round(aj.dano * 20) / 20,
+      atr: Math.round(aj.atr * 20) / 20,
+    }
+    yield { fase: 'Conferindo com 300 lutas novas' }
+    const sementeNova = misturar(p.semente ^ 0x5bd1e995)
+    const conf = yield* medir(ctx, final, 300, sementeNova)
+    const [winLo, winHi] = wilson(conf.win, conf.n)
+    const depois = {}
+    for (const id of alvos) depois[id] = ajustar(p.fichas[id], final)
+    return { alvos, aj: final, depois, conf: { ...conf, winLo, winHi }, tentativas: ctx.tentativas, avisos, metas: { turnos: T, vitoria: W }, botoes: { pool, ameaca }, semente: sementeNova }
+  }
+
+  /** Roda um gerador até o fim, avisando o progresso no máximo a cada 40 ms. */
+  function rodar(gerador, enviar, agora) {
+    const inicio = agora()
+    let feitas = 0; let total = 0; let fase = ''; let ultimo = -1e9
+    let passo = gerador.next()
+    while (!passo.done) {
+      const v = passo.value
+      if (typeof v === 'number') feitas += v
+      else { if (v.fase !== undefined) fase = v.fase; if (v.total) total = v.total }
+      const t = agora()
+      if (t - ultimo > 40) { ultimo = t; enviar({ tipo: 'progresso', feitas, total: Math.max(total, feitas + 1), fase }) }
+      passo = gerador.next()
+    }
+    enviar({ tipo: 'fim', valor: passo.value, ms: agora() - inicio })
+  }
+
+  if (escopo) {
+    escopo.onmessage = (evento) => {
+      const { tipo, pedido } = evento.data
+      try {
+        rodar(tipo === 'serie' ? serie(pedido) : resolver(pedido), (m) => escopo.postMessage(m), () => performance.now())
+      } catch (erro) {
+        escopo.postMessage({ tipo: 'erro', motivo: String((erro && erro.message) || erro) })
+      }
+    }
+  }
+  return { montar, lutar, golpesDa, danoDoGolpe, ajustar, serie, resolver, sementeDaLuta, TETO_DE_TURNOS }
+}
+
+/* =========================================================================
+ * 2. AS FICHAS (amostra plausível, números no estilo da tela de hoje).
+ *    atr: [valor, rank] na ordem FOR AGI PER RES INT ESP CAR DET.
+ *    Golpe: [nome, base, atributo, mult, SP, 's'|'c', 'dano'|'cura'].
+ * ========================================================================= */
+const ATRIBUTOS = [['FOR', 'Força'], ['AGI', 'Agilidade'], ['PER', 'Percepção'], ['RES', 'Resistência'], ['INT', 'Intuição'], ['ESP', 'Espírito'], ['CAR', 'Carisma'], ['DET', 'Determinação']]
+function ficha(id, nome, tipo, cor, hp, sp, escudo, arma, atr, golpes) {
+  const mapa = {}
+  ATRIBUTOS.forEach(([sigla], i) => { mapa[sigla] = atr[i] })
+  return { id, nome, tipo, cor, hp, sp, escudo, arma, atr: mapa, golpes: golpes.map(([n, base, at, mult, sp, acao, t]) => ({ nome: n, base, atr: at, mult, sp, acao, tipo: t || 'dano' })) }
+}
+const FICHAS_INICIAIS = [
+  ficha('aira', 'Aira', 'jogador', '#c47a86', 420, 120, 60, 10, [[30, 1], [50, 2], [30, 1], [20, 1], [10, 1], [10, 1], [20, 1], [20, 1]], [['Corte duplo', 15, 'AGI', 1, 15, 's'], ['Tempestade de lâminas', 30, 'AGI', 2.1, 35, 'c']]),
+  ficha('alexei', 'Alexei', 'jogador', '#8a9bb5', 520, 100, 120, 15, [[50, 2], [20, 1], [10, 1], [40, 2], [0, 1], [10, 1], [0, 1], [30, 1]], [['Martelo de gelo', 30, 'FOR', 1, 20, 's']]),
+  ficha('guilherme', 'Guilherme', 'jogador', '#b8a46a', 460, 160, 40, 5, [[10, 1], [20, 1], [20, 1], [20, 1], [30, 1], [50, 2], [20, 1], [20, 1]], [['Lança de luz', 20, 'ESP', 1, 20, 's'], ['Revigorar', 25, 'ESP', 0.8, 25, 's', 'cura']]),
+  ficha('harvey', 'Harvey Solferino', 'jogador', '#7d8f7a', 480, 110, 80, 10, [[20, 1], [30, 1], [50, 2], [20, 1], [10, 1], [0, 0], [20, 1], [30, 1]], [['Tiro de rifle', 25, 'PER', 1, 10, 's'], ['Disparo carregado', 60, 'PER', 2, 30, 'c']]),
+  ficha('may', 'May D. Ark', 'jogador', '#9e86b8', 400, 180, 40, 10, [[10, 1], [20, 1], [20, 1], [20, 1], [40, 2], [50, 2], [30, 1], [20, 1]], [['Rajada de bolhas', 10, 'ESP', 0.9, 15, 's'], ['Bolha', 30, 'ESP', 0.7, 30, 's', 'cura']]),
+  ficha('vincent', 'Vincent G.', 'jogador', '#b5806a', 440, 120, 60, 10, [[20, 1], [40, 2], [40, 2], [20, 1], [20, 1], [10, 1], [40, 2], [20, 1]], [['Pincelada', 15, 'PER', 1.1, 15, 's']]),
+  ficha('siegfried', 'Siegfried', 'jogador', '#8c8c94', 600, 80, 160, 15, [[50, 2], [10, 1], [10, 1], [50, 2], [0, 1], [10, 1], [10, 1], [40, 2]], [['Golpe de escudo', 20, 'RES', 1.1, 10, 's']]),
+  ficha('lobo', 'Lobo', 'npc', '#8f8a80', 180, 30, 0, 10, [[30, 1], [40, 1], [30, 1], [20, 1], [0, 1], [0, 0], [0, 1], [10, 1]], [['Bote', 15, 'AGI', 0.8, 10, 's']]),
+  ficha('urso', 'Urso', 'npc', '#9b7652', 600, 40, 0, 15, [[50, 2], [10, 1], [10, 1], [50, 2], [0, 1], [0, 0], [0, 1], [20, 1]], [['Abraço de urso', 40, 'FOR', 2, 20, 'c']]),
+  ficha('alce', 'Alce', 'npc', '#a08d6b', 320, 20, 0, 10, [[40, 1], [30, 1], [20, 1], [30, 1], [0, 1], [0, 0], [0, 1], [10, 1]], [['Chifrada', 20, 'FOR', 1.2, 10, 's']]),
+  ficha('javali', 'Javali', 'npc', '#7f6a5a', 260, 20, 0, 10, [[40, 1], [20, 1], [10, 1], [30, 1], [0, 1], [0, 0], [0, 1], [10, 1]], [['Investida', 25, 'FOR', 1, 10, 's']]),
+  ficha('hector', 'Hector', 'npc', '#6f6a78', 500, 100, 100, 10, [[10, 1], [20, 1], [50, 2], [50, 2], [0, 1], [0, 0], [0, 1], [0, 1]], [['Tiro certeiro', 20, 'PER', 1, 15, 's'], ['Chuva de balas', 50, 'PER', 2.4, 35, 'c']]),
+  ficha('tree', 'Tree', 'npc', '#6f9a6a', 500, 120, 100, 15, [[50, 2], [30, 1], [10, 1], [50, 2], [0, 1], [50, 2], [0, 1], [0, 1]], [['Galhada', 25, 'FOR', 1, 10, 's'], ['Seiva', 20, 'ESP', 0.8, 25, 's', 'cura']]),
+  ficha('frog', 'Frog', 'npc', '#8fae6a', 220, 40, 0, 10, [[20, 1], [50, 2], [20, 1], [10, 1], [0, 1], [0, 0], [10, 1], [0, 1]], [['Língua', 10, 'AGI', 0.8, 8, 's']]),
+  ficha('draco', 'Draco', 'npc', '#b0614f', 900, 150, 200, 20, [[60, 2], [30, 1], [30, 1], [50, 2], [20, 1], [50, 2], [20, 1], [40, 2]], [['Sopro de fogo', 40, 'ESP', 2.6, 30, 'c']]),
+  ficha('cav-clava', 'Cavaleiro com Clava', 'npc', '#7a8494', 520, 40, 150, 25, [[50, 2], [10, 1], [10, 1], [40, 2], [0, 1], [0, 0], [0, 1], [20, 1]], [['Esmagar', 60, 'FOR', 2, 20, 'c']]),
+  ficha('cav-escudo', 'Cavaleiro com Escudo', 'npc', '#7d8a8f', 480, 40, 300, 15, [[30, 1], [10, 1], [10, 1], [50, 2], [0, 1], [0, 0], [0, 1], [30, 1]], [['Empurrão', 20, 'RES', 0.7, 10, 's']]),
+  ficha('cav-bazooka', 'Cavaleiro com Bazooka', 'npc', '#8a7d6f', 420, 90, 120, 10, [[20, 1], [10, 1], [40, 1], [30, 1], [0, 1], [0, 0], [0, 1], [10, 1]], [['Bazooka', 70, 'PER', 2.2, 30, 'c']]),
+  ficha('zumbi', 'Zumbi', 'npc', '#6f8a78', 300, 0, 0, 10, [[30, 1], [10, 1], [10, 1], [30, 1], [0, 1], [0, 0], [0, 1], [0, 1]], []),
+  ficha('borboleta', 'Borboleta Mirage', 'npc', '#b58fb8', 200, 80, 0, 5, [[10, 1], [50, 2], [30, 1], [10, 1], [20, 1], [40, 1], [30, 1], [10, 1]], [['Pó de ilusão', 10, 'ESP', 1, 10, 's']]),
+]
+
+/* =========================================================================
+ * 3. ESTADO E AJUDANTES
+ * ========================================================================= */
+const M = motorDasLutas(null)
+const VAGAS_POR_LADO_MAX = 6
+const NOME_DO_LADO = { a: 'Aliados', b: 'Inimigos' }
+const NOME_DO_PESO = { facil: 'Fácil', justo: 'Justo', duro: 'Duro', mortal: 'Mortal' }
+const PIPS_DO_PESO = { facil: 1, justo: 2, duro: 3, mortal: 4 }
+const FATOR_DA_REACAO = 0.6
+
+const estado = {
+  fichas: Object.fromEntries(FICHAS_INICIAIS.map((f) => [f.id, f])),
+  ordem: FICHAS_INICIAIS.map((f) => f.id),
+  lados: { a: [{ id: 'aira', n: 1 }, { id: 'hector', n: 1 }, { id: 'tree', n: 1 }], b: [{ id: 'urso', n: 1 }] },
+  armado: 'a',
+  meta: { dura: true, turnos: 10, vence: false, pct: 70, alvo: 'urso', botoes: { hp: true, escudo: false, dano: false, atr: false } },
+  nLutas: 200,
+  semente: 4127,
+  resultado: null, resultadoVelho: false, jaMostrou: false,
+  proposta: null, propostaVelha: false,
+  comparar: { ids: [], base: null, soDif: false, tocado: false },
+  variacoes: 0,
+  ocupado: null,
+  novo: null,
+  msgLado: { a: '', b: '' },
+}
+
+const fmt = new Intl.NumberFormat('pt-BR')
+const fmt1 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
+const n0 = (v) => fmt.format(Math.round(v))
+const n1 = (v) => fmt1.format(v)
+const pct = (v) => Math.round(v * 100) + '%'
+const arred = (v, passo) => Math.round(v / passo) * passo
+
+function h(tag, props, ...filhos) {
+  const el = document.createElement(tag)
+  if (props) {
+    for (const k in props) {
+      const v = props[k]
+      if (v == null || v === false) continue
+      if (k === 'class') el.className = v
+      else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v)
+      else if (v === true) el.setAttribute(k, '')
+      else el.setAttribute(k, v)
+    }
+  }
+  for (const f of filhos.flat(Infinity)) {
+    if (f == null || f === false) continue
+    el.append(f.nodeType ? f : document.createTextNode(String(f)))
+  }
+  return el
+}
+const SVGNS = 'http://www.w3.org/2000/svg'
+function s(tag, props, ...filhos) {
+  const el = document.createElementNS(SVGNS, tag)
+  for (const k in props || {}) if (props[k] != null) el.setAttribute(k, props[k])
+  for (const f of filhos.flat(Infinity)) if (f != null && f !== false) el.append(f.nodeType ? f : document.createTextNode(String(f)))
+  return el
+}
+const ICONES = {
+  mais: '<path d="M8 3.5v9M3.5 8h9"/>',
+  menos: '<path d="M3.5 8h9"/>',
+  trocar: '<path d="M3 5.5h9.5l-2.5-2.5M13 10.5H3.5L6 13"/>',
+  fechar: '<path d="M4 4l8 8M12 4l-8 8"/>',
+  relogio: '<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.2l2 1.3"/>',
+  alerta: '<path d="M8 2.5l6 10.5H2z"/><path d="M8 6.5v3M8 11.3v.2"/>',
+  coracao: '<path d="M8 13s-5-3-5-6.6A2.7 2.7 0 0 1 8 4.8a2.7 2.7 0 0 1 5 1.6C13 10 8 13 8 13z"/>',
+  gota: '<path d="M8 2.5s4 4.3 4 7a4 4 0 0 1-8 0c0-2.7 4-7 4-7z"/>',
+  alvo: '<circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2"/>',
+  balanca: '<path d="M8 3v10M4.5 13h7M3 5.5h10M3 5.5l-1.5 4h3zM13 5.5l-1.5 4h3z"/>',
+  raio: '<path d="M9 2L4 9h4l-1 5 5-7H8z"/>',
+  dado: '<rect x="3" y="3" width="10" height="10" rx="2"/><circle cx="6" cy="6" r=".6"/><circle cx="10" cy="10" r=".6"/><circle cx="10" cy="6" r=".6"/><circle cx="6" cy="10" r=".6"/>',
+}
+function ic(nome) {
+  const el = document.createElementNS(SVGNS, 'svg')
+  el.setAttribute('viewBox', '0 0 16 16'); el.setAttribute('class', 'ic'); el.setAttribute('aria-hidden', 'true')
+  el.innerHTML = ICONES[nome]
+  return el
+}
+function retrato(f, grande) {
+  return h('span', { class: grande ? 'retrato retrato--g' : 'retrato', style: '--cor:' + f.cor, 'aria-hidden': 'true' }, f.nome.charAt(0))
+}
+function seloDa(f) {
+  if (f.modelo) return h('span', { class: 'selo selo--variacao' }, 'Variação')
+  return f.tipo === 'jogador' ? h('span', { class: 'selo selo--jogador' }, 'Jogador') : h('span', { class: 'selo selo--npc' }, 'NPC')
+}
+function vagasNo(lado) { return estado.lados[lado].reduce((soma, v) => soma + v.n, 0) }
+function melhorPorVez(f) {
+  const g = M.golpesDa(f).filter((x) => x.tipo === 'dano')
+  const simples = Math.max(0, ...g.filter((x) => x.acao === 's').map((x) => x.dano))
+  const completa = Math.max(0, ...g.filter((x) => x.acao === 'c').map((x) => x.dano))
+  return Math.max(simples * 2, completa)
+}
+/**
+ * O dano que a ficha dá em T turnos, com o SP acabando no caminho (a mesma
+ * escolha do robô: 2 simples ou 1 completa, o mais forte que ela paga), já
+ * com o desconto médio da reação (×0,6). É o que a recomendação usa para
+ * dizer "suba o HP para ~X" sem rodar lutas: a primeira leva de golpes gasta
+ * o SP, e a conta pela média dos primeiros turnos exagerava.
+ */
+function danoEmTurnos(f, turnos) {
+  const golpes = M.golpesDa(f).filter((g) => g.tipo === 'dano')
+  let sp = f.sp
+  let total = 0
+  for (let t = 0; t < turnos; t += 1) {
+    let pontos = 2
+    let feitos = 0
+    while (pontos > 0 && feitos < 3) {
+      let bs = null; let bc = null
+      for (const g of golpes) {
+        if (g.sp > sp) continue
+        if (g.acao === 's') { if (!bs || g.dano > bs.dano) bs = g } else if (pontos === 2 && (!bc || g.dano > bc.dano)) bc = g
+      }
+      const escolha = bc && (!bs || bc.dano > 2 * bs.dano) ? bc : bs
+      if (!escolha) break
+      sp -= escolha.sp; total += escolha.dano; pontos -= escolha.acao === 'c' ? 2 : 1; feitos += 1
+    }
+  }
+  return total * FATOR_DA_REACAO
+}
+/** A vida (HP + Escudo) que os inimigos precisam para cair no turno T: o dano dos aliados até o meio do turno T. */
+function vidaParaDurar(lados, turnos) {
+  const ate = (t) => lados.a.reduce((s2, v) => s2 + danoEmTurnos(estado.fichas[v.id], t) * v.n, 0)
+  return (ate(turnos) + ate(turnos - 1)) / 2
+}
+function temCura(f) { return f.golpes.some((g) => g.tipo === 'cura') }
+function artigo(f) { return /a$/i.test(f.nome.split(' ')[0]) && f.tipo === 'jogador' ? 'a' : 'o' }
+function nomeCom(f) { return (artigo(f) === 'a' ? 'A ' : 'O ') + f.nome }
+
+/* =========================================================================
+ * 4. O WORKER (um por pedido, fechado no fim; cancelar = fechar na hora,
+ *    como client/src/lib/treino/lutasNoWorker.ts)
+ * ========================================================================= */
+const URL_DO_MOTOR = (() => {
+  try { return URL.createObjectURL(new Blob(['(' + motorDasLutas.toString() + ')(self)'], { type: 'text/javascript' })) } catch { return null }
+})()
+function executar(tipo, pedido, aoProgresso) {
+  let encerrar = () => undefined
+  const promessa = new Promise((resolver) => {
+    let worker = null
+    try { worker = URL_DO_MOTOR ? new Worker(URL_DO_MOTOR) : null } catch { worker = null }
+    if (!worker) {
+      // Sem worker (navegador que recusa Blob): o mesmo gerador em fatias de 8 ms na página.
+      const gerador = tipo === 'serie' ? M.serie(pedido) : M.resolver(pedido)
+      let vivo = true; let feitas = 0; let total = 0; let fase = ''
+      const inicio = performance.now()
+      encerrar = (fim) => { if (vivo) { vivo = false; resolver(fim) } }
+      const fatia = () => {
+        if (!vivo) return
+        const t0 = performance.now()
+        try {
+          while (performance.now() - t0 < 8) {
+            const passo = gerador.next()
+            if (passo.done) { encerrar({ ok: true, valor: passo.value, ms: performance.now() - inicio }); return }
+            const v = passo.value
+            if (typeof v === 'number') feitas += v
+            else { if (v.fase !== undefined) fase = v.fase; if (v.total) total = v.total }
+          }
+        } catch (erro) { encerrar({ ok: false, motivo: 'falhou', detalhe: String(erro) }); return }
+        aoProgresso(feitas, Math.max(total, feitas + 1), fase)
+        setTimeout(fatia, 0)
+      }
+      setTimeout(fatia, 0)
+      return
+    }
+    let aberto = true
+    encerrar = (fim) => { if (!aberto) return; aberto = false; worker.terminate(); resolver(fim) }
+    worker.onmessage = (e) => {
+      const m = e.data
+      if (m.tipo === 'progresso') aoProgresso(m.feitas, m.total, m.fase)
+      else if (m.tipo === 'fim') encerrar({ ok: true, valor: m.valor, ms: m.ms })
+      else encerrar({ ok: false, motivo: 'falhou', detalhe: m.motivo })
+    }
+    worker.onerror = (e) => { e.preventDefault(); encerrar({ ok: false, motivo: 'falhou', detalhe: e.message || 'o worker das lutas parou' }) }
+    worker.postMessage({ tipo, pedido })
+  })
+  return { promessa, cancelar: () => encerrar({ ok: false, motivo: 'cancelado' }) }
+}
+
+/* =========================================================================
+ * 5. ACERVO, LADOS E ARRASTO
+ * ========================================================================= */
+let arrasto = null
+
+function porNoLado(id, lado, alvoTexto) {
+  const f = estado.fichas[id]
+  if (vagasNo(lado) >= VAGAS_POR_LADO_MAX) {
+    estado.msgLado[lado] = 'Os ' + NOME_DO_LADO[lado] + ' já têm ' + VAGAS_POR_LADO_MAX + ' vagas, o máximo da luta de treino.'
+    renderLados()
+    return false
+  }
+  estado.msgLado[lado] = ''
+  const vaga = estado.lados[lado].find((v) => v.id === id)
+  if (vaga) vaga.n += 1
+  else estado.lados[lado].push({ id, n: 1 })
+  mudouMontagem(alvoTexto ?? (f.nome + ' entrou nos ' + NOME_DO_LADO[lado] + '.'))
+  return true
+}
+function tirarDoLado(id, lado) {
+  estado.lados[lado] = estado.lados[lado].filter((v) => v.id !== id)
+  estado.msgLado[lado] = ''
+  mudouMontagem(estado.fichas[id].nome + ' saiu da luta.')
+}
+function mudarQuantos(id, lado, n) {
+  const vaga = estado.lados[lado].find((v) => v.id === id)
+  if (!vaga) return
+  const livre = VAGAS_POR_LADO_MAX - vagasNo(lado) + vaga.n
+  vaga.n = Math.max(1, Math.min(n, livre))
+  estado.msgLado[lado] = ''
+  mudouMontagem()
+}
+function passarDeLado(id, de) {
+  const para = de === 'a' ? 'b' : 'a'
+  const vaga = estado.lados[de].find((v) => v.id === id)
+  if (!vaga) return
+  const livre = VAGAS_POR_LADO_MAX - vagasNo(para)
+  if (livre < vaga.n) {
+    estado.msgLado[para] = 'Não cabe: os ' + NOME_DO_LADO[para] + ' têm ' + livre + ' vaga' + (livre === 1 ? '' : 's') + ' livre' + (livre === 1 ? '' : 's') + '.'
+    renderLados()
+    return
+  }
+  estado.lados[de] = estado.lados[de].filter((v) => v.id !== id)
+  const ja = estado.lados[para].find((v) => v.id === id)
+  if (ja) ja.n += vaga.n
+  else estado.lados[para].push({ id, n: vaga.n })
+  estado.msgLado = { a: '', b: '' }
+  mudouMontagem(estado.fichas[id].nome + ' passou para os ' + NOME_DO_LADO[para] + '.')
+}
+
+function mudouMontagem(anuncio) {
+  if (estado.resultado) estado.resultadoVelho = true
+  if (estado.proposta) estado.propostaVelha = true
+  const ids = new Set(estado.lados.b.map((v) => v.id))
+  const alvoSumiu = estado.meta.alvo === 'todos' ? ids.size <= 1 : !ids.has(estado.meta.alvo)
+  if (alvoSumiu) estado.meta.alvo = estado.lados.b[0] ? estado.lados.b[0].id : 'todos'
+  renderTudo()
+  if (anuncio) anunciar(anuncio)
+}
+
+const anunciador = h('div', { class: 'sr', role: 'status', 'aria-live': 'polite' })
+document.body.append(anunciador)
+function anunciar(texto) { anunciador.textContent = ''; requestAnimationFrame(() => { anunciador.textContent = texto }) }
+
+function renderAcervo() {
+  const dica = document.getElementById('acervo-dica')
+  dica.replaceChildren('Clique numa ficha para pôr nos ', h('b', null, NOME_DO_LADO[estado.armado]), '. Ou arraste para um lado. Clicar de novo põe mais uma cópia.')
+  const grupos = document.getElementById('acervo-grupos')
+  const naLuta = new Map()
+  for (const lado of ['a', 'b']) for (const v of estado.lados[lado]) naLuta.set(v.id, (naLuta.get(v.id) || 0) + v.n)
+  const chip = (f) => {
+    const n = naLuta.get(f.id) || 0
+    const el = h('button', {
+      type: 'button', class: 'chip' + (estado.novo === f.id ? ' novo' : ''), draggable: 'true', 'data-id': f.id, 'aria-pressed': n > 0 ? 'true' : 'false',
+      'aria-label': f.nome + (f.modelo ? ', variação de ' + estado.fichas[f.modelo].nome : f.tipo === 'jogador' ? ', jogador' : ', NPC') + (n ? ', ' + n + ' na luta' : '') + '. Clique para pôr nos ' + NOME_DO_LADO[estado.armado],
+      onclick: () => porNoLado(f.id, estado.armado),
+      ondragstart: (e) => { arrasto = { origem: 'acervo', id: f.id }; e.dataTransfer.effectAllowed = 'copyMove'; e.dataTransfer.setData('text/plain', f.nome); el.classList.add('arrastando') },
+      ondragend: () => { el.classList.remove('arrastando'); fimDoArrasto() },
+    }, retrato(f), h('span', null, f.nome), n > 0 ? h('span', { class: 'chip__n', 'aria-hidden': 'true' }, '×' + n) : null)
+    return el
+  }
+  const lista = estado.ordem.map((id) => estado.fichas[id])
+  const variacoes = lista.filter((f) => f.modelo)
+  grupos.replaceChildren(...[
+    h('p', { class: 'acervo__grupo' }, 'Jogadores'), h('div', { class: 'chips' }, lista.filter((f) => f.tipo === 'jogador' && !f.modelo).map(chip)),
+    h('p', { class: 'acervo__grupo' }, 'NPCs'), h('div', { class: 'chips' }, lista.filter((f) => f.tipo === 'npc' && !f.modelo).map(chip)),
+    variacoes.length ? h('p', { class: 'acervo__grupo' }, 'Variações (criadas aqui)') : null,
+    variacoes.length ? h('div', { class: 'chips' }, variacoes.map(chip)) : null,
+  ].filter(Boolean))
+}
+
+function renderLado(lado) {
+  const raiz = document.getElementById('lado-' + lado)
+  raiz.dataset.armado = String(estado.armado === lado)
+  const vagas = estado.lados[lado]
+  const usadas = vagasNo(lado)
+  const fichasDoLado = vagas.map((v) => estado.fichas[v.id])
+  const vida = vagas.reduce((s2, v) => s2 + estado.fichas[v.id].hp * v.n, 0)
+  const escudo = vagas.reduce((s2, v) => s2 + estado.fichas[v.id].escudo * v.n, 0)
+  const porVez = vagas.reduce((s2, v) => s2 + melhorPorVez(estado.fichas[v.id]) * v.n, 0)
+  const outro = lado === 'a' ? 'b' : 'a'
+  const lista = h('ul', { class: 'lado__lista', 'aria-label': NOME_DO_LADO[lado] }, vagas.map((v) => {
+    const f = estado.fichas[v.id]
+    const golpes = M.golpesDa(f).filter((g) => g.tipo === 'dano')
+    const maior = golpes.reduce((m, g) => (g.dano > m.dano ? g : m), golpes[0])
+    const li = h('li', {
+      class: 'vaga', draggable: 'true', 'data-id': v.id,
+      ondragstart: (e) => { arrasto = { origem: lado, id: v.id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', f.nome); li.classList.add('arrastando') },
+      ondragend: () => { li.classList.remove('arrastando'); fimDoArrasto() },
+    },
+    retrato(f),
+    h('span', { class: 'vaga__txt' },
+      h('span', { class: 'vaga__nome' }, h('span', null, f.nome), seloDa(f)),
+      h('span', { class: 'vaga__sub num' }, 'HP ' + n0(f.hp) + (f.escudo ? ' · Esc ' + n0(f.escudo) : '') + ' · SP ' + n0(f.sp) + ' · golpe ' + n0(maior.dano) + (temCura(f) ? ' · cura' : ''))),
+    h('span', { class: 'vaga__qt', role: 'group', 'aria-label': 'Quantos ' + f.nome },
+      h('button', { type: 'button', class: 'bt bt--ic', 'aria-label': 'Um ' + f.nome + ' a menos', disabled: v.n <= 1, onclick: () => mudarQuantos(v.id, lado, v.n - 1) }, ic('menos')),
+      h('output', { 'aria-live': 'polite' }, v.n),
+      h('button', { type: 'button', class: 'bt bt--ic', 'aria-label': 'Um ' + f.nome + ' a mais', disabled: usadas >= VAGAS_POR_LADO_MAX, onclick: () => mudarQuantos(v.id, lado, v.n + 1) }, ic('mais'))),
+    h('span', { class: 'vaga__acoes' },
+      h('button', { type: 'button', class: 'bt bt--ic', title: 'Passar para os ' + NOME_DO_LADO[outro], 'aria-label': 'Passar ' + f.nome + ' para os ' + NOME_DO_LADO[outro], onclick: () => passarDeLado(v.id, lado) }, ic('trocar')),
+      h('button', { type: 'button', class: 'bt bt--ic', title: 'Tirar da luta', 'aria-label': 'Tirar ' + f.nome + ' da luta', onclick: () => tirarDoLado(v.id, lado) }, ic('fechar'))))
+    return li
+  }))
+  raiz.replaceChildren(
+    h('header', { class: 'lado__cab' },
+      h('h2', { class: 'lado__tit', id: 'lado-' + lado + '-tit' }, NOME_DO_LADO[lado], h('small', null, usadas + ' de ' + VAGAS_POR_LADO_MAX)),
+      h('button', { type: 'button', class: 'bt bt--p', 'aria-pressed': String(estado.armado === lado), onclick: () => { estado.armado = lado; renderAcervo(); renderLados() } }, estado.armado === lado ? 'O clique põe aqui' : 'Clicar põe aqui')),
+    vagas.length ? lista : h('p', { class: 'lado__vazio' }, lado === 'a' ? 'Arraste jogadores e NPCs para cá, ou deixe este lado marcado e clique nas fichas.' : 'Arraste os inimigos para cá. Para "3 Lobos", ponha o Lobo e use o +.'),
+    h('p', { class: 'lado__msg', role: 'status' }, estado.msgLado[lado]),
+    vagas.length ? h('p', { class: 'lado__soma' }, 'Vida somada ', h('b', { class: 'num' }, n0(vida)), escudo ? [' + Escudo ', h('b', { class: 'num' }, n0(escudo))] : null, ' · até ', h('b', { class: 'num' }, n0(porVez)), ' de dano por turno', fichasDoLado.some(temCura) ? ' · tem cura' : ' · sem cura') : null,
+  )
+}
+function renderLados() {
+  renderLado('a'); renderLado('b')
+  document.getElementById('placar-moeda').textContent = vagasNo('a') + ' × ' + vagasNo('b')
+}
+
+function zonaDoArrasto(el, lado) {
+  let contador = 0
+  const limpar = () => { contador = 0; el.classList.remove('recebe'); el.querySelectorAll('.vaga--fantasma').forEach((x) => x.remove()) }
+  el.addEventListener('dragenter', (e) => {
+    if (!arrasto) return
+    e.preventDefault()
+    contador += 1
+    if (lado === 'acervo' ? arrasto.origem === 'acervo' : arrasto.origem === lado) return
+    el.classList.add('recebe')
+    if (lado !== 'acervo' && !el.querySelector('.vaga--fantasma')) {
+      const f = estado.fichas[arrasto.id]
+      const cheio = vagasNo(lado) >= VAGAS_POR_LADO_MAX && arrasto.origem === 'acervo'
+      const fantasma = h('li', { class: 'vaga vaga--fantasma' }, h('span', null, cheio ? 'Sem vaga: os ' + NOME_DO_LADO[lado] + ' já têm 6.' : ['Soltar aqui: ', h('b', null, f.nome), ' entra nos ' + NOME_DO_LADO[lado] + '.']))
+      const ul = el.querySelector('.lado__lista')
+      if (ul) ul.append(fantasma)
+      else el.querySelector('.lado__vazio')?.before(h('ul', { class: 'lado__lista' }, fantasma))
+    }
+  })
+  el.addEventListener('dragover', (e) => { if (arrasto) { e.preventDefault(); e.dataTransfer.dropEffect = arrasto.origem === 'acervo' ? 'copy' : 'move' } })
+  el.addEventListener('dragleave', () => { contador -= 1; if (contador <= 0) limpar() })
+  el.addEventListener('drop', (e) => {
+    e.preventDefault()
+    const a = arrasto
+    limpar()
+    if (!a) return
+    if (lado === 'acervo') { if (a.origem !== 'acervo') tirarDoLado(a.id, a.origem); return }
+    if (a.origem === 'acervo') porNoLado(a.id, lado)
+    else if (a.origem !== lado) passarDeLado(a.id, a.origem)
+  })
+  return limpar
+}
+const limpezas = [zonaDoArrasto(document.getElementById('lado-a'), 'a'), zonaDoArrasto(document.getElementById('lado-b'), 'b'), zonaDoArrasto(document.getElementById('acervo'), 'acervo')]
+function fimDoArrasto() { arrasto = null; limpezas.forEach((f) => f()) }
+
+/* =========================================================================
+ * 6. A META, AS AÇÕES E A CONTA RÁPIDA
+ * ========================================================================= */
+const BOTOES = [['hp', 'HP'], ['escudo', 'Escudo'], ['dano', 'Dano'], ['atr', 'Atributos']]
+function lerMeta() {
+  const turnos = Number(document.getElementById('meta-turnos').value)
+  const pctV = Number(document.getElementById('meta-pct').value)
+  estado.meta.turnos = turnos; estado.meta.pct = pctV
+}
+function errosDaMeta() {
+  const m = estado.meta
+  const e = {}
+  if (m.dura && !(Number.isInteger(m.turnos) && m.turnos >= 1 && m.turnos <= 30)) e.turnos = 'Use de 1 a 30 turnos: a luta de treino para no turno 30.'
+  if (m.vence && !(Number.isInteger(m.pct) && m.pct >= 5 && m.pct <= 95)) e.pct = 'Use de 5% a 95%: 0% e 100% não dá para conferir com dado.'
+  return e
+}
+function porqueNaoResolve() {
+  const m = estado.meta
+  if (!vagasNo('a') || !vagasNo('b')) return 'Ponha alguém nos dois lados para testar.'
+  if (!m.dura && !m.vence) return 'Para achar os números, marque pelo menos uma meta na frase.'
+  if (!Object.values(m.botoes).some(Boolean)) return 'Escolha em que o app pode mexer (HP, Escudo, Dano ou Atributos).'
+  if (m.dura && !m.botoes.hp && !m.botoes.escudo) return 'Para mudar quanto a luta dura, deixe o app mexer no HP ou no Escudo.'
+  const e = errosDaMeta()
+  if (e.turnos || e.pct) return e.turnos || e.pct
+  return null
+}
+function renderMeta() {
+  const m = estado.meta
+  document.getElementById('meta-dura').checked = m.dura
+  document.getElementById('meta-vence').checked = m.vence
+  document.getElementById('parte-dura').dataset.ligada = String(m.dura)
+  document.getElementById('parte-vence').dataset.ligada = String(m.vence)
+  document.getElementById('meta-turnos').disabled = !m.dura
+  document.getElementById('meta-pct').disabled = !m.vence
+  const e = errosDaMeta()
+  document.getElementById('meta-turnos').setAttribute('aria-invalid', String(Boolean(e.turnos)))
+  document.getElementById('meta-pct').setAttribute('aria-invalid', String(Boolean(e.pct)))
+  document.getElementById('meta-erro').textContent = e.turnos || e.pct || ''
+  const sel = document.getElementById('meta-alvo')
+  const ids = [...new Set(estado.lados.b.map((v) => v.id))]
+  const opcoes = ids.map((id) => h('option', { value: id }, estado.fichas[id].nome + (estado.lados.b.find((v) => v.id === id).n > 1 ? ' (as ' + estado.lados.b.find((v) => v.id === id).n + ' cópias)' : '')))
+  if (ids.length > 1) opcoes.push(h('option', { value: 'todos' }, 'todos os inimigos'))
+  if (!ids.length) opcoes.push(h('option', { value: '' }, 'ninguém nos Inimigos'))
+  sel.replaceChildren(...opcoes)
+  sel.value = ids.length ? m.alvo : ''
+  sel.disabled = !ids.length
+  document.getElementById('meta-botoes').replaceChildren(...BOTOES.map(([k, rot]) => h('button', {
+    type: 'button', class: 'chip chip--texto', 'aria-pressed': String(m.botoes[k]),
+    onclick: () => { m.botoes[k] = !m.botoes[k]; renderMeta(); renderAcoes() },
+  }, rot)))
+}
+function renderAcoes() {
+  const ocupado = Boolean(estado.ocupado)
+  const semLados = !vagasNo('a') || !vagasNo('b')
+  const btT = document.getElementById('bt-testar')
+  btT.disabled = ocupado || semLados
+  document.getElementById('bt-testar-n').textContent = estado.nLutas
+  const porque = porqueNaoResolve()
+  document.getElementById('bt-achar').disabled = ocupado || Boolean(porque)
+  document.getElementById('acoes-porque').textContent = semLados ? 'Ponha alguém nos dois lados para testar.' : (porque && !ocupado ? 'Achar os números: ' + porque.charAt(0).toLowerCase() + porque.slice(1) : '')
+  renderConta()
+}
+function renderConta() {
+  const el = document.getElementById('conta')
+  if (!vagasNo('a') || !vagasNo('b')) { el.replaceChildren(); return }
+  const somar = (lado, fn) => estado.lados[lado].reduce((s2, v) => s2 + fn(estado.fichas[v.id]) * v.n, 0)
+  const vidaA = somar('a', (f) => f.hp + f.escudo); const vidaB = somar('b', (f) => f.hp + f.escudo)
+  const danoA = somar('a', melhorPorVez) * FATOR_DA_REACAO; const danoB = somar('b', melhorPorVez) * FATOR_DA_REACAO
+  const tA = danoA > 0 ? vidaB / danoA : Infinity; const tB = danoB > 0 ? vidaA / danoB : Infinity
+  const escrito = (t) => (t === Infinity ? 'nunca' : t < 1 ? 'menos de 1 turno' : '~' + n1(Math.round(t * 10) / 10) + ' turnos')
+  el.replaceChildren(h('b', null, 'Conta rápida, sem dado: '), 'os aliados derrubam os inimigos em ', h('b', null, escrito(tA)), '; os inimigos derrubam os aliados em ', h('b', null, escrito(tB)), '. A conta não sabe do SP que acaba, da cura nem do d20: o teste sabe.')
+}
+
+/* =========================================================================
+ * 7. TESTAR (as N lutas)
+ * ========================================================================= */
+function pedidoDaSerie() {
+  return { fichas: estado.fichas, lados: JSON.parse(JSON.stringify(estado.lados)), ajustes: null, semente: estado.semente, n: estado.nLutas }
+}
+function mostrarProgresso(texto, sub, fracao) {
+  const box = document.getElementById('progresso')
+  box.hidden = false
+  document.getElementById('progresso-txt').replaceChildren(...[texto, sub ? h('small', null, sub) : null].filter(Boolean))
+  document.getElementById('progresso-ench').style.transform = 'scaleX(' + Math.max(0, Math.min(1, fracao)) + ')'
+  document.getElementById('progresso-barra').setAttribute('aria-valuenow', String(Math.round(fracao * 100)))
+}
+function esconderProgresso() { document.getElementById('progresso').hidden = true }
+
+async function testar(origem) {
+  if (estado.ocupado || !vagasNo('a') || !vagasNo('b')) return
+  const pedido = pedidoDaSerie()
+  const total = pedido.n
+  const tarefa = executar('serie', pedido, (feitas) => mostrarProgresso('Lutando… ' + feitas + ' de ' + total + ' lutas', null, feitas / total))
+  estado.ocupado = { tipo: 'serie', cancelar: tarefa.cancelar }
+  renderAcoes()
+  mostrarProgresso('Lutando… 0 de ' + total + ' lutas', null, 0)
+  const saida = await tarefa.promessa
+  estado.ocupado = null
+  esconderProgresso()
+  renderAcoes()
+  if (!saida.ok) {
+    if (saida.motivo === 'cancelado') aviso('Teste cancelado. O resultado anterior continua na tela.')
+    else aviso('O teste falhou: ' + saida.detalhe + '. Tente de novo.', { acao: 'Tentar de novo', fn: () => testar() })
+    return
+  }
+  estado.resultado = { ...saida.valor, ms: saida.ms, lados: pedido.lados, metaNaHora: { ...estado.meta } }
+  estado.resultadoVelho = false
+  renderResultado(true)
+  anunciar('Teste pronto: ' + fraseDoVeredito(estado.resultado).texto)
+  if (origem === 'aplicar') document.getElementById('res').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+}
+
+function pesoDe(res) {
+  const n = res.n
+  const a = res.vitorias.a / n
+  const quedas = res.lutadores.filter((l) => l.lado === 'a').reduce((s2, l) => s2 + l.caiu, 0) / Math.max(1, res.lutadores.filter((l) => l.lado === 'a').length)
+  if (a >= 0.9) return quedas >= 0.34 ? 'justo' : 'facil'
+  if (a >= 0.65) return 'justo'
+  if (a >= 0.4) return 'duro'
+  return 'mortal'
+}
+function fraseDoVeredito(res) {
+  const n = res.n
+  const a = res.vitorias.a / n; const b = res.vitorias.b / n; const t = (res.vitorias.t + res.vitorias.x) / n
+  const dur = 'em ' + n1(Math.round(res.med * 10) / 10) + ' turnos (mediana)'
+  let texto
+  if (a >= b && a >= t) texto = 'Os aliados vencem ' + pct(a) + ' das lutas, ' + dur + '.'
+  else if (b >= t) texto = 'Os inimigos vencem ' + pct(b) + ' das lutas, ' + dur + '.'
+  else texto = 'A maioria das lutas (' + pct(t) + ') termina empatada no teto de 30 turnos.'
+  return { texto }
+}
+
+/* --- recomendações em palavras --- */
+function gruposDe(res) {
+  const mapa = new Map()
+  for (const l of res.lutadores) {
+    const k = l.lado + ':' + l.grupo
+    if (!mapa.has(k)) mapa.set(k, { grupo: l.grupo, lado: l.lado, f: estado.fichas[l.grupo], n: 0, dealt: 0, taken: 0, healed: 0, spUsed: 0, spMax: l.spMax, caiu: 0, caiuMed: 0, primeiro: 0, semSp: 0, semSpMed: 0, vivo: 0, contras: 0, usos: new Map() })
+    const g = mapa.get(k)
+    g.n += 1; g.dealt += l.dealt; g.taken += l.taken; g.healed += l.healed; g.spUsed += l.spUsed; g.contras += l.contras
+    g.caiu += l.caiu; g.caiuMed += l.caiuMed * l.caiu; g.primeiro += l.primeiro; g.semSp += l.semSp; g.semSpMed += l.semSpMed * l.semSp; g.vivo += l.vivo
+    for (const u of l.usos) g.usos.set(u.nome, { ...u, n: (g.usos.get(u.nome)?.n || 0) + u.n })
+  }
+  for (const g of mapa.values()) {
+    g.caiuMed = g.caiu ? g.caiuMed / g.caiu : 0
+    g.semSpMed = g.semSp ? g.semSpMed / g.semSp : 0
+    g.caiu /= g.n; g.semSp /= g.n; g.spUsed /= g.n; g.vivo /= g.n
+  }
+  return [...mapa.values()]
+}
+
+function recomendar(res) {
+  const recs = []
+  const grupos = gruposDe(res)
+  const aliados = grupos.filter((g) => g.lado === 'a'); const inimigos = grupos.filter((g) => g.lado === 'b')
+  const meta = res.metaNaHora
+  const n = res.n
+  const winA = res.vitorias.a / n
+  const b = (t) => h('b', null, t)
+
+  // 1. duração contra a meta
+  if (meta.dura) {
+    const alvo = meta.turnos
+    if (res.med < alvo - 1 && winA < 0.5) {
+      recs.push({ ic: 'relogio', tom: 'alerta', txt: ['A luta acaba em ', b(n1(res.med) + ' turnos'), ' porque os ', b('aliados'), ' caem antes. Para durar ', b(alvo), ', os inimigos precisam bater menos: ligue "Dano" na frase da meta.'], acao: { rot: 'Achar os números', fn: () => resolver() } })
+    } else if (res.med < alvo - 1) {
+      if (inimigos.length === 1) {
+        const g = inimigos[0]
+        const precisa = vidaParaDurar(res.lados, alvo) / g.n
+        const hpSug = arred(Math.max(g.f.hp, precisa - g.f.escudo), 50)
+        const escSug = arred(Math.max(0, precisa - g.f.hp - g.f.escudo), 50)
+        recs.push({ ic: 'relogio', tom: 'dica', txt: [nomeCom(g.f), g.n > 1 ? ' (cada cópia)' : '', ' cai em ~', b(n1(Math.round((g.caiuMed || res.med) * 10) / 10) + ' turnos'), '; para a luta durar ', b(alvo), ', suba o HP para ~', b(n0(hpSug)), ' ou dê Escudo ~', b(n0(escSug)), '.'], sub: 'Estimativa pelo dano dos aliados com o SP acabando. "Achar os números" confere com lutas de verdade.', acao: { rot: 'Achar os números', fn: () => resolver() } })
+      } else {
+        const vidaHoje = inimigos.reduce((s2, g) => s2 + (g.f.hp + g.f.escudo) * g.n, 0)
+        recs.push({ ic: 'relogio', tom: 'dica', txt: ['A luta acaba em ', b(n1(Math.round(res.med * 10) / 10) + ' turnos'), ', antes dos ', b(alvo), ' da meta. Os inimigos precisam de ~', b(n0(arred(vidaParaDurar(res.lados, alvo), 50))), ' de vida somada (HP + Escudo); hoje têm ', b(n0(vidaHoje)), '.'], acao: { rot: 'Achar os números', fn: () => resolver() } })
+      }
+    } else if (res.med > alvo + 1) {
+      recs.push({ ic: 'relogio', tom: 'dica', txt: ['A luta dura ', b(n1(res.med) + ' turnos'), ', mais que os ', b(alvo), ' da meta. Baixe o HP ou o Escudo dos inimigos, ou dê mais dano aos aliados.'], acao: { rot: 'Achar os números', fn: () => resolver() } })
+    } else {
+      recs.push({ ic: 'relogio', tom: 'info', txt: ['A duração já bate a meta: ', b(n1(res.med) + ' turnos'), ' de mediana para ', b(alvo), ' pedidos.'] })
+    }
+  }
+  // 2. vitória contra a meta
+  if (meta.vence) {
+    const alvo = meta.pct / 100
+    if (Math.abs(winA - alvo) > 0.06) recs.push({ ic: 'balanca', tom: 'dica', txt: ['Os aliados vencem ', b(pct(winA)), ' e a meta é ', b(meta.pct + '%'), '. ', winA > alvo ? 'Os inimigos precisam bater mais forte: ligue "Dano" na frase da meta.' : 'Os inimigos batem forte demais: ligue "Dano" para o app baixar.'], acao: { rot: 'Achar os números', fn: () => resolver() } })
+  }
+  // 3. quem carrega
+  const danoAliados = aliados.reduce((s2, g) => s2 + g.dealt, 0)
+  if (aliados.length >= 2 && danoAliados > 0) {
+    const maior = aliados.reduce((m, g) => (g.dealt > m.dealt ? g : m), aliados[0])
+    const parte = maior.dealt / danoAliados
+    if (parte >= 0.42) recs.push({ ic: 'raio', tom: 'info', txt: [nomeCom(maior.f), ' carrega ', b(pct(parte)), ' do dano dos aliados. Se ', artigo(maior.f) === 'a' ? 'ela' : 'ele', ' cair cedo, a luta vira.'] })
+  }
+  // 4. quem cai primeiro
+  const primeiro = aliados.reduce((m, g) => (!m || g.primeiro > m.primeiro ? g : m), null)
+  if (primeiro && primeiro.primeiro >= 0.35) recs.push({ ic: 'alvo', tom: 'alerta', txt: [nomeCom(primeiro.f), ' é ', artigo(primeiro.f) === 'a' ? 'a primeira' : 'o primeiro', ' a cair em ', b(pct(primeiro.primeiro)), ' das lutas', primeiro.caiuMed ? [', por volta do turno ', b(Math.round(primeiro.caiuMed))] : '', '.'], sub: 'O robô bate sempre no inimigo de pé mais ferido: quem tem menos vida vira alvo.' })
+  // 5. cura
+  const curaAliados = aliados.some((g) => temCura(g.f))
+  const longa = (meta.dura && meta.turnos >= 6) || res.med >= 6
+  if (!curaAliados && longa) {
+    const curandeiros = estado.ordem.map((id) => estado.fichas[id]).filter((f) => !f.modelo && temCura(f)).map((f) => f.nome)
+    recs.push({ ic: 'coracao', tom: 'alerta', txt: ['Os aliados não têm cura: numa luta longa, o dano dos inimigos só acumula.'], sub: curandeiros.length ? 'Fichas com cura nesta pasta: ' + curandeiros.join(', ') + '.' : null })
+  }
+  const curaInimigos = inimigos.filter((g) => temCura(g.f))
+  if (curaInimigos.length) recs.push({ ic: 'coracao', tom: 'info', txt: [nomeCom(curaInimigos[0].f), ' cura os inimigos: ', b(n0(curaInimigos[0].healed)), ' de vida por luta, em média.'] })
+  // 6. SP
+  const semSp = aliados.filter((g) => g.semSp >= 0.5 && g.f.golpes.some((x) => x.sp > 0)).sort((x, y) => y.semSp - x.semSp)[0]
+  if (semSp) {
+    const atacar = M.golpesDa(semSp.f)[0].dano
+    recs.push({ ic: 'gota', tom: 'alerta', txt: [nomeCom(semSp.f), ' fica sem SP para as técnicas em ', b(pct(semSp.semSp)), ' das lutas, por volta do turno ', b(Math.round(semSp.semSpMed)), '. Depois disso só usa Atacar (', b(atacar), ' de dano).'] })
+  }
+  // 7. empate por tempo
+  const tempo = res.vitorias.t / n
+  if (tempo >= 0.1) recs.push({ ic: 'relogio', tom: 'alerta', txt: [b(pct(tempo)), ' das lutas bateram no teto de 30 turnos sem vencedor: ninguém consegue derrubar ninguém.'] })
+  // 8. dispersão
+  if (res.p90 - res.p10 >= Math.max(4, res.med)) recs.push({ ic: 'dado', tom: 'info', txt: ['A duração varia muito, de ', b(Math.round(res.p10)), ' a ', b(Math.round(res.p90)), ' turnos em 8 de cada 10 lutas: o d20 pesa. Mais HP e menos dano deixam a luta mais previsível.'] })
+  // 9. fácil demais / mortal
+  if (winA >= 0.97 && !meta.vence) recs.push({ ic: 'balanca', tom: 'info', txt: ['Os aliados vencem quase sempre (', b(pct(winA)), '). Para um chefe, marque "os aliados vençam em 70%" e deixe o app mexer no Dano.'] })
+  if (winA < 0.35) recs.push({ ic: 'alerta', tom: 'alerta', txt: ['Os aliados perdem ', b(pct(1 - winA)), ' das lutas. Para um encontro justo, tire um inimigo ou marque a meta de vitória.'] })
+  return recs
+}
+
+/* --- desenho do resultado --- */
+function barraMini(fracao, cor, texto) {
+  return h('span', { class: 'mini' },
+    h('span', { class: 'mini__barra', 'aria-hidden': 'true' }, h('span', { class: 'mini__ench', style: 'transform:scaleX(' + Math.max(0, Math.min(1, fracao)).toFixed(3) + ');' + (cor ? '--c:' + cor : '') })),
+    h('span', { class: 'mini__val' }, texto))
+}
+
+function renderResultado(primeiraVez) {
+  const raiz = document.getElementById('res')
+  const res = estado.resultado
+  raiz.classList.toggle('velho', estado.resultadoVelho)
+  if (!res) {
+    raiz.replaceChildren(h('div', { class: 'cartao vazio-res' }, h('strong', null, 'Ainda sem teste'), h('p', null, 'Monte os dois lados e clique em Testar. O robô joga a luta ' + estado.nLutas + ' vezes, rolando o d20 de cada golpe, e o app conta quem vence, quanto dura, quem cai primeiro e quem carrega cada lado.')))
+    return
+  }
+  const anima = primeiraVez && !estado.jaMostrou
+  estado.jaMostrou = true
+  const n = res.n
+  const v = res.vitorias
+  const peso = pesoDe(res)
+  const grupos = gruposDe(res)
+  const recs = recomendar(res)
+  const partes = []
+  let i = 0
+  const pos = (el) => { if (anima) { el.classList.add('surge'); el.style.setProperty('--i', String(i)) } i += 1; partes.push(el); return el }
+
+  if (estado.resultadoVelho) partes.push(h('div', { class: 'res__aviso', role: 'status' }, ic('alerta'), h('span', { style: 'flex:1' }, 'A montagem mudou depois deste teste: os números abaixo são da luta anterior.'), h('button', { type: 'button', class: 'bt bt--p bt--latao', onclick: () => testar() }, 'Testar de novo')))
+
+  // veredito
+  const fr = (k) => v[k] / n
+  const empate = fr('t') + fr('x')
+  const placar = h('div', { class: 'placar__barra', role: 'img', 'aria-label': 'Aliados vencem ' + pct(fr('a')) + ', inimigos vencem ' + pct(fr('b')) + ', empates ' + pct(empate) },
+    [['a', fr('a'), 'Aliados'], ['t', empate, 'Empate'], ['b', fr('b'), 'Inimigos']].filter(([, f]) => f > 0).map(([k, f]) => h('span', { class: 'placar__parte placar__parte--' + k, style: 'flex:' + f + ' 1 0', title: { a: 'Aliados', t: 'Empate', b: 'Inimigos' }[k] + ': ' + pct(f) }, f >= 0.07 ? pct(f) : '')))
+  pos(h('section', { class: 'cartao secao veredito', 'aria-labelledby': 'tit-veredito' },
+    h('div', null, h('h2', { class: 'sr', id: 'tit-veredito' }, 'Quem vence'), h('p', { class: 'veredito__frase' }, fraseDoVeredito(res).texto)),
+    h('div', { class: 'peso', title: 'Peso da luta, pela vitória dos aliados e por quantos caem' },
+      h('span', { class: 'peso__pips', 'aria-hidden': 'true' }, [1, 2, 3, 4].map((k) => h('i', { class: k <= PIPS_DO_PESO[peso] ? 'on' : '' }))),
+      h('span', null, h('span', { class: 'peso__rot' }, 'Peso da luta'), h('span', { class: 'peso__nome' }, NOME_DO_PESO[peso]))),
+    h('div', { class: 'placar' }, placar, h('div', { class: 'legenda' },
+      h('span', null, h('i', { style: '--c:var(--lado-a)' }), 'Aliados vencem ', h('b', null, pct(fr('a')))),
+      h('span', null, h('i', { style: '--c:var(--empate)' }), 'Empate ', h('b', null, pct(empate)), v.t ? ' (' + v.t + ' no teto de 30 turnos)' : ''),
+      h('span', null, h('i', { style: '--c:var(--lado-b)' }), 'Inimigos vencem ', h('b', null, pct(fr('b')))))),
+    h('div', { class: 'tiles' },
+      tile('Duração (mediana)', n1(Math.round(res.med * 10) / 10), ' turnos', 'média ' + n1(Math.round(res.media * 10) / 10)),
+      tile('Metade das lutas', Math.round(res.q25) + ' a ' + Math.round(res.q75), ' turnos', '8 em 10: ' + Math.round(res.p10) + ' a ' + Math.round(res.p90)),
+      tile('Aliados de pé no fim', n1(Math.round(grupos.filter((g) => g.lado === 'a').reduce((s2, g) => s2 + (1 - g.caiu) * g.n, 0) * 10) / 10), ' de ' + vagasNoRes(res.lados), 'média das ' + n + ' lutas'),
+      tile('Inimigos de pé no fim', n1(Math.round(grupos.filter((g) => g.lado === 'b').reduce((s2, g) => s2 + (1 - g.caiu) * g.n, 0) * 10) / 10), ' de ' + res.lados.b.reduce((s2, x) => s2 + x.n, 0), 'média das ' + n + ' lutas'))))
+
+  // recomendações
+  pos(h('section', { class: 'cartao secao', 'aria-labelledby': 'tit-recs' },
+    h('h2', { class: 'secao__tit', id: 'tit-recs' }, 'O que mudar', h('small', null, 'tirado das ' + n + ' lutas')),
+    recs.length ? h('ul', { class: 'recs' }, recs.map((r) => h('li', { class: 'rec rec--' + r.tom }, h('span', { class: 'rec__ic' }, ic(r.ic)), h('p', { class: 'rec__txt' }, r.txt, r.sub ? h('small', null, r.sub) : null), r.acao ? h('button', { type: 'button', class: 'bt bt--p bt--latao', disabled: Boolean(porqueNaoResolve()) || Boolean(estado.ocupado), onclick: r.acao.fn }, r.acao.rot) : h('span')))) : h('p', { class: 'pg-nota' }, 'Nada a apontar: a luta está equilibrada para a meta.')))
+
+  // duração + técnicas
+  const histCartao = h('section', { class: 'cartao secao', 'aria-labelledby': 'tit-hist' },
+    h('h2', { class: 'secao__tit', id: 'tit-hist' }, 'Quanto dura', h('small', null, 'lutas por turno em que acabaram, por quem venceu')),
+    h('div', { class: 'hist', id: 'hist' }),
+    h('div', { class: 'legenda' }, h('span', null, h('i', { style: '--c:var(--lado-a)' }), 'Aliados vencem'), h('span', null, h('i', { style: '--c:var(--lado-b)' }), 'Inimigos vencem'), h('span', null, h('i', { style: '--c:var(--empate)' }), 'Empate')),
+    tabelaDoHistograma(res))
+  const tecs = []
+  for (const g of grupos) for (const u of g.usos.values()) if (u.n > 0.005) tecs.push({ g, u })
+  for (const g of grupos) if (g.contras > 0.005) tecs.push({ g, u: { nome: 'Contra-ataque', n: g.contras, dano: M.golpesDa(g.f)[0].dano, tipo: 'contra' } })
+  tecs.sort((x, y) => y.u.n - x.u.n)
+  const topo = tecs.slice(0, 8)
+  const maxUso = Math.max(...topo.map((t) => t.u.n), 0.01)
+  const tecCartao = h('section', { class: 'cartao secao', 'aria-labelledby': 'tit-tec' },
+    h('h2', { class: 'secao__tit', id: 'tit-tec' }, 'Técnicas mais usadas', h('small', null, 'vezes por luta, em média')),
+    h('ul', { class: 'tecs' }, topo.map(({ g, u }) => h('li', { class: 'tec' },
+      h('span', { class: 'tec__nome' }, h('span', null, u.nome), h('small', null, g.f.nome + (g.n > 1 ? ' ×' + g.n : '') + ' · ' + (u.tipo === 'cura' ? 'cura ' : u.tipo === 'contra' ? 'no d20 = 20 · ' : 'dano ') + u.dano)),
+      barraMini(u.n / maxUso, g.lado === 'a' ? 'var(--lado-a)' : 'var(--lado-b)', n1(Math.round(u.n * 10) / 10))))))
+  pos(h('div', { class: 'duas' }, histCartao, tecCartao))
+
+  // ficha por ficha
+  const maxDano = Math.max(1, ...grupos.map((g) => Math.max(g.dealt, g.taken)))
+  const totalLado = { a: grupos.filter((g) => g.lado === 'a').reduce((s2, g) => s2 + g.dealt, 0), b: grupos.filter((g) => g.lado === 'b').reduce((s2, g) => s2 + g.dealt, 0) }
+  const linhas = []
+  for (const lado of ['a', 'b']) {
+    linhas.push(h('tr', { class: 'grupo' }, h('th', { colspan: '8', scope: 'colgroup' }, h('i', { style: '--c:' + (lado === 'a' ? 'var(--lado-a)' : 'var(--lado-b)') }), NOME_DO_LADO[lado])))
+    for (const g of grupos.filter((x) => x.lado === lado).sort((x, y) => y.dealt - x.dealt)) {
+      const maisUsada = [...g.usos.values()].sort((x, y) => y.n - x.n)[0]
+      const cor = lado === 'a' ? 'var(--lado-a)' : 'var(--lado-b)'
+      linhas.push(h('tr', null,
+        h('th', { scope: 'row' }, h('span', { class: 'quem' }, retrato(g.f), h('span', null, g.f.nome), g.n > 1 ? h('small', null, '×' + g.n) : null)),
+        h('td', null, barraMini(g.dealt / maxDano, cor, n0(g.dealt))),
+        h('td', null, barraMini(g.taken / maxDano, 'var(--lb-gr-gravado)', n0(g.taken))),
+        h('td', { class: 'num' }, totalLado[lado] ? pct(g.dealt / totalLado[lado]) : '—'),
+        h('td', { class: 'num' }, pct(g.primeiro)),
+        h('td', { class: 'num' }, pct(g.caiu), g.caiu > 0.02 ? h('span', { class: 'fraco' }, ' · t' + Math.round(g.caiuMed)) : null),
+        h('td', { class: 'num' }, g.spMax ? [n0(g.spUsed), h('span', { class: 'fraco' }, ' de ' + n0(g.spMax)), g.semSp >= 0.05 ? h('span', { class: 'fraco' }, ' · sem SP em ' + pct(g.semSp)) : null] : h('span', { class: 'fraco' }, 'sem SP')),
+        h('td', null, maisUsada && maisUsada.n > 0 ? [maisUsada.nome, h('span', { class: 'fraco' }, ' · ' + n1(Math.round(maisUsada.n * 10) / 10) + '×')] : '—')))
+    }
+  }
+  pos(h('section', { class: 'cartao secao', 'aria-labelledby': 'tit-fichas' },
+    h('h2', { class: 'secao__tit', id: 'tit-fichas' }, 'Ficha por ficha', h('small', null, 'média por luta; cópias somadas no dano, SP por cópia')),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tabela' },
+      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Ficha'), h('th', { scope: 'col' }, 'Dano causado'), h('th', { scope: 'col' }, 'Dano sofrido'), h('th', { scope: 'col', class: 'num' }, 'Parte do lado'), h('th', { scope: 'col', class: 'num' }, 'Cai primeiro'), h('th', { scope: 'col', class: 'num' }, 'Caiu'), h('th', { scope: 'col', class: 'num' }, 'SP gasto'), h('th', { scope: 'col' }, 'Mais usada'))),
+      h('tbody', null, linhas)))))
+
+  // luta típica
+  const det = h('details', { class: 'luta-tipica' }, h('summary', null, 'Ver uma luta típica', h('small', null, 'a luta do meio: ' + Math.round(res.med) + ' turnos, turno a turno')), h('ol', { class: 'registro', 'aria-label': 'Registro da luta' }))
+  det.addEventListener('toggle', () => { if (det.open && !det.dataset.feito) { det.dataset.feito = '1'; preencherRegistro(det.querySelector('ol'), res) } })
+  pos(h('section', { class: 'cartao secao' }, det))
+
+  partes.push(h('p', { class: 'rodape-res' }, n + ' lutas · semente ' + res.semente + ' (mesma semente, mesmas lutas) · ' + n0(res.ms) + ' ms no worker',
+    h('button', { type: 'button', class: 'bt bt--p bt--fantasma', disabled: Boolean(estado.ocupado), onclick: () => { estado.semente = (Math.random() * 1e6) | 0; testar() } }, ic('dado'), 'Rodar com outra semente')))
+
+  raiz.replaceChildren(...partes)
+  desenharHistograma(document.getElementById('hist'), res)
+}
+function vagasNoRes(lados) { return lados.a.reduce((s2, v) => s2 + v.n, 0) }
+function tile(rot, val, unid, sub) {
+  return h('div', { class: 'tile' }, h('span', { class: 'tile__rot' }, rot), h('span', { class: 'tile__val' }, val, h('small', null, unid)), h('span', { class: 'tile__sub' }, sub))
+}
+
+function tabelaDoHistograma(res) {
+  const linhas = res.hist.map((x, k) => ({ r: k + 1, ...x })).filter((x) => x.a + x.b + x.t + x.x > 0)
+  return h('details', { class: 'tabela-ver' }, h('summary', null, 'Ver como tabela'),
+    h('table', { class: 'tabela', style: 'margin-top:6px' },
+      h('thead', null, h('tr', null, ['Turno', 'Lutas', 'Aliados vencem', 'Inimigos vencem', 'Empate'].map((t, k) => h('th', { scope: 'col', class: k ? 'num' : '' }, t)))),
+      h('tbody', null, linhas.map((x) => h('tr', null, h('td', null, x.r), h('td', { class: 'num' }, x.a + x.b + x.t + x.x), h('td', { class: 'num' }, x.a), h('td', { class: 'num' }, x.b), h('td', { class: 'num' }, x.t + x.x))))))
+}
+
+function passoBonito(max) {
+  const bruto = max / 4
+  const p10 = Math.pow(10, Math.floor(Math.log10(bruto)))
+  const m = bruto / p10
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p10
+}
+function desenharHistograma(caixa, res) {
+  if (!caixa) return
+  const meta = res.metaNaHora.dura ? res.metaNaHora.turnos : null
+  const colunas = Math.max(10, res.maxR, meta || 0)
+  const L = caixa.clientWidth || 520; const A = 200
+  const m = { e: 34, d: 8, t: 22, b: 22 }
+  const w = L - m.e - m.d; const hh = A - m.t - m.b
+  const banda = w / colunas
+  const larg = Math.min(24, Math.max(3, banda - 4))
+  const totais = res.hist.map((x) => x.a + x.b + x.t + x.x)
+  const maxPct = Math.max(...totais, 1) / res.n * 100
+  const passo = passoBonito(maxPct)
+  const topo = Math.ceil(maxPct / passo) * passo
+  const y = (p) => m.t + hh - (p / topo) * hh
+  const xc = (r) => m.e + (r - 0.5) * banda
+  const svg = s('svg', { viewBox: '0 0 ' + L + ' ' + A, tabindex: '0', role: 'img', 'aria-label': 'Quanto dura: mediana ' + n1(res.med) + ' turnos; metade das lutas entre ' + Math.round(res.q25) + ' e ' + Math.round(res.q75) + ' turnos. Use as setas para ler cada turno.' })
+  for (let p = 0; p <= topo + 1e-9; p += passo) {
+    svg.append(s('line', { class: 'grade', x1: m.e, x2: L - m.d, y1: y(p), y2: y(p) }))
+    svg.append(s('text', { class: 'eixo', x: m.e - 6, y: y(p) + 3.5, 'text-anchor': 'end' }, Math.round(p) + '%'))
+  }
+  // metade das lutas (q25-q75): faixa lavada
+  svg.append(s('rect', { x: xc(res.q25) - banda / 2, y: m.t, width: Math.max(banda, (res.q75 - res.q25 + 1) * banda), height: hh, fill: 'rgba(236,234,228,0.05)' }))
+  const colunasEl = []
+  for (let r = 1; r <= colunas; r += 1) {
+    const d = res.hist[r - 1] || { a: 0, b: 0, t: 0, x: 0 }
+    const g = s('g', { 'data-r': r })
+    let base = y(0)
+    const pedacos = [['a', d.a, 'var(--lado-a)'], ['t', d.t + d.x, 'var(--empate)'], ['b', d.b, 'var(--lado-b)']].filter(([, c]) => c > 0)
+    pedacos.forEach(([, c, cor], k) => {
+      const altura = (c / res.n * 100) / topo * hh
+      const ehTopo = k === pedacos.length - 1
+      const x0 = xc(r) - larg / 2
+      const alturaVis = Math.max(1, altura - (k > 0 ? 2 : 0))
+      const yv = base - altura
+      if (ehTopo && alturaVis > 4) {
+        const raio = Math.min(4, larg / 2, alturaVis)
+        g.append(s('path', { d: 'M' + x0 + ',' + (yv + alturaVis) + 'V' + (yv + raio) + 'Q' + x0 + ',' + yv + ' ' + (x0 + raio) + ',' + yv + 'H' + (x0 + larg - raio) + 'Q' + (x0 + larg) + ',' + yv + ' ' + (x0 + larg) + ',' + (yv + raio) + 'V' + (yv + alturaVis) + 'Z', fill: cor }))
+      } else {
+        g.append(s('rect', { x: x0, y: yv, width: larg, height: alturaVis, fill: cor }))
+      }
+      base = yv
+    })
+    colunasEl.push(g)
+    svg.append(g)
+    const rotular = colunas <= 16 || r % 2 === 1 || r === meta
+    if (rotular) svg.append(s('text', { class: 'eixo', x: xc(r), y: A - 6, 'text-anchor': 'middle' }, r))
+  }
+  // mediana
+  const xm = xc(res.med)
+  svg.append(s('line', { x1: xm, x2: xm, y1: m.t - 4, y2: y(0), stroke: 'var(--lb-color-parchment)', 'stroke-width': 1 }))
+  svg.append(s('text', { class: 'eixo', x: xm + 4, y: m.t - 8, fill: 'var(--lb-color-parchment)' }, 'mediana ' + n1(Math.round(res.med * 10) / 10)))
+  if (meta) {
+    const xg = xc(meta)
+    svg.append(s('line', { x1: xg, x2: xg, y1: m.t - 4, y2: y(0), stroke: 'var(--lb-color-brass)', 'stroke-width': 2 }))
+    svg.append(s('text', { class: 'eixo', x: xg + (Math.abs(xg - xm) < 70 && xg < xm ? -4 : 4), y: m.t - 8 + (Math.abs(xg - xm) < 70 ? 11 : 0), 'text-anchor': Math.abs(xg - xm) < 70 && xg < xm ? 'end' : 'start', style: 'fill:var(--lb-color-brass-bright)' }, 'meta ' + meta))
+  }
+  const dica = h('div', { class: 'dica', role: 'presentation' })
+  caixa.replaceChildren(svg, dica)
+  let atual = -1
+  const mostrar = (r) => {
+    if (r < 1 || r > colunas) { esconder(); return }
+    atual = r
+    const d = res.hist[r - 1] || { a: 0, b: 0, t: 0, x: 0 }
+    const total = d.a + d.b + d.t + d.x
+    colunasEl.forEach((g, k) => { g.style.opacity = k === r - 1 ? '1' : '0.45' })
+    dica.replaceChildren(h('b', null, total + ' luta' + (total === 1 ? '' : 's') + ' (' + Math.round(total / res.n * 100) + '%)'), h('div', null, 'acabaram no turno ' + r),
+      [['Aliados vencem', d.a, 'var(--lado-a)'], ['Inimigos vencem', d.b, 'var(--lado-b)'], ['Empate', d.t + d.x, 'var(--empate)']].map(([rot, c, cor]) => h('div', { class: 'dica__lin' }, h('i', { style: '--c:' + cor }), rot, h('span', null, c))))
+    const escala = caixa.clientWidth / L
+    let left = xc(r) * escala + 12
+    if (left + 170 > caixa.clientWidth) left = xc(r) * escala - 182
+    dica.style.left = left + 'px'; dica.style.top = '8px'
+    dica.classList.add('on')
+  }
+  const esconder = () => { atual = -1; dica.classList.remove('on'); colunasEl.forEach((g) => { g.style.opacity = '1' }) }
+  svg.addEventListener('pointermove', (e) => {
+    const caixaSvg = svg.getBoundingClientRect()
+    const xv = (e.clientX - caixaSvg.left) * (L / caixaSvg.width)
+    const r = Math.floor((xv - m.e) / banda) + 1
+    if (r !== atual) mostrar(r)
+  })
+  svg.addEventListener('pointerleave', esconder)
+  svg.addEventListener('blur', esconder)
+  svg.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') { e.preventDefault(); mostrar(Math.min(colunas, (atual < 1 ? Math.round(res.med) - 1 : atual) + 1)) } else if (e.key === 'ArrowLeft') { e.preventDefault(); mostrar(Math.max(1, (atual < 1 ? Math.round(res.med) + 1 : atual) - 1)) } else if (e.key === 'Escape') esconder()
+  })
+}
+new ResizeObserver(() => { if (estado.resultado) desenharHistograma(document.getElementById('hist'), estado.resultado) }).observe(document.getElementById('res'))
+
+function preencherRegistro(ol, res) {
+  const L = M.montar(estado.fichas, res.lados, null)
+  const luta = M.lutar(L, res.tipica, true)
+  const itens = []
+  for (const e of luta.reg) {
+    if (e.t === 'turno') itens.push(h('li', { class: 'turno' }, 'Turno ' + e.r))
+    else if (e.t === 'golpe') itens.push(h('li', null, e.quem + ' usa ' + e.golpe + ' em ' + e.alvo + ' · d20 ' + e.dado + ': ' + e.saida + (e.dano ? ', ' + e.dano + ' de dano' : '') + ' (' + e.alvo + ' ' + n0(e.hp) + '/' + n0(e.hpMax) + (e.esc ? ', Escudo ' + n0(e.esc) : '') + ')'))
+    else if (e.t === 'contra') itens.push(h('li', null, e.quem + ' contra-ataca ' + e.alvo + ': ' + e.dano + ' de dano (' + e.alvo + ' ' + n0(e.hp) + '/' + n0(e.hpMax) + ')'))
+    else if (e.t === 'cura') itens.push(h('li', null, e.quem + ' usa ' + e.golpe + ' em ' + e.alvo + ': +' + e.cura + ' de vida (' + e.alvo + ' ' + n0(e.hp) + '/' + n0(e.hpMax) + ')'))
+    else if (e.t === 'cai') itens.push(h('li', { class: 'cai' }, e.quem + ' cai.'))
+    else if (e.t === 'fim') itens.push(h('li', { class: 'fim' }, e.v === 'a' ? 'Vitória dos Aliados no turno ' + e.r + '.' : e.v === 'b' ? 'Vitória dos Inimigos no turno ' + e.r + '.' : e.v === 't' ? 'Empate: bateu o teto de 30 turnos.' : 'Empate: todos caíram no mesmo golpe.'))
+  }
+  ol.replaceChildren(...itens)
+}
+
+/* =========================================================================
+ * 8. ACHAR OS NÚMEROS (o resolvedor) e APLICAR (vira variação)
+ * ========================================================================= */
+async function resolver() {
+  lerMeta()
+  const porque = porqueNaoResolve()
+  if (porque) { renderMeta(); renderAcoes(); document.getElementById('acoes-porque').textContent = porque; return }
+  if (estado.ocupado) return
+  const m = estado.meta
+  const alvo = m.alvo || 'todos'
+  const pedido = { fichas: estado.fichas, lados: JSON.parse(JSON.stringify(estado.lados)), alvo, turnos: m.dura ? m.turnos : null, vitoria: m.vence ? m.pct / 100 : null, botoes: { ...m.botoes }, semente: estado.semente }
+  const tarefa = executar('resolver', pedido, (feitas, total, fase) => mostrarProgresso(fase || 'Procurando…', feitas + ' lutas jogadas', feitas / total))
+  estado.ocupado = { tipo: 'resolver', cancelar: tarefa.cancelar }
+  renderAcoes()
+  mostrarProgresso('Medindo a luta de agora', '0 lutas jogadas', 0)
+  const saida = await tarefa.promessa
+  estado.ocupado = null
+  esconderProgresso()
+  renderAcoes()
+  if (!saida.ok) {
+    if (saida.motivo === 'cancelado') aviso('Busca cancelada. Nada mudou nas fichas.')
+    else aviso('A busca falhou: ' + saida.detalhe + '.', { acao: 'Tentar de novo', fn: () => resolver() })
+    return
+  }
+  estado.proposta = { ...saida.valor, ms: saida.ms, lados: pedido.lados }
+  estado.propostaVelha = false
+  renderProposta()
+  const el = document.getElementById('proposta')
+  el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' })
+  anunciar('Números achados. ' + el.querySelector('.proposta__tit').textContent)
+}
+
+function confiancaDa(p) {
+  const c = p.conf
+  const notas = []
+  let nivel = 3
+  if (p.metas.turnos) {
+    const d = Math.abs(c.med - p.metas.turnos)
+    if (d > 2) nivel = Math.min(nivel, 1); else if (d > 1) nivel = Math.min(nivel, 2)
+    notas.push('a mediana deu ' + n1(Math.round(c.med * 10) / 10) + ' turnos para ' + p.metas.turnos + ' pedidos')
+  }
+  if (p.metas.vitoria) {
+    const d = Math.abs(c.win - p.metas.vitoria)
+    if (d > 0.12) nivel = Math.min(nivel, 1); else if (d > 0.06) nivel = Math.min(nivel, 2)
+    notas.push('a vitória deu ' + pct(c.win) + ' para ' + Math.round(p.metas.vitoria * 100) + '% pedidos')
+  }
+  if (p.avisos.some((a) => a.tipo.startsWith('limite'))) nivel = 1
+  return { nivel, rot: ['', 'Baixa', 'Média', 'Alta'][nivel], notas }
+}
+function textoDoAviso(a, p) {
+  const nomeBotao = { hp: 'o HP', escudo: 'o Escudo', dano: 'o Dano', atr: 'os Atributos' }
+  if (a.tipo === 'conflito') return 'Só mexendo em ' + nomeBotao[a.botao] + ' não dá para ajustar as duas metas: o app acertou a duração. Ligue "Dano" para ele ajustar também a vitória.'
+  if (a.tipo === 'limiteTurnos') return 'Nem com ' + nomeBotao[a.botao] + ' no limite a luta chega a ' + p.metas.turnos + ' turnos: os inimigos derrubam os aliados antes. Ligue "Dano" para o app baixar a força deles.'
+  if (a.tipo === 'limiteVitoria') return 'Mexendo só n' + nomeBotao[a.botao].slice(1) + ', a vitória não chega a ' + Math.round(p.metas.vitoria * 100) + '%. Ligue outro botão na frase da meta.'
+  return ''
+}
+
+function renderProposta() {
+  const el = document.getElementById('proposta')
+  const p = estado.proposta
+  if (!p) { el.hidden = true; return }
+  el.hidden = false
+  el.classList.toggle('velha', estado.propostaVelha)
+  const c = p.conf
+  const conf = confiancaDa(p)
+  const alvos = p.alvos.map((id) => estado.fichas[id])
+  const nomes = alvos.map((f) => f.nome).join(', ')
+  const linhas = []
+  for (const f of alvos) {
+    const d = p.depois[f.id]
+    const gAntes = M.golpesDa(f).filter((g) => g.tipo === 'dano').reduce((mx, g) => Math.max(mx, g.dano), 0)
+    const gDepois = M.golpesDa(d).filter((g) => g.tipo === 'dano').reduce((mx, g) => Math.max(mx, g.dano), 0)
+    const lin = (rot, a, b) => h('tr', null, h('th', { scope: 'row' }, alvos.length > 1 ? f.nome + ': ' + rot : rot), h('td', { class: 'num' }, a), h('td', { class: 'num' + (a !== b ? ' mudou' : '') }, b))
+    linhas.push(lin('HP', n0(f.hp), n0(d.hp)), lin('Escudo', n0(f.escudo), n0(d.escudo)), lin('Golpe mais forte', n0(gAntes), n0(gDepois)))
+    if (p.aj.atr !== 1) linhas.push(lin('Força', f.atr.FOR[0], d.atr.FOR[0]))
+  }
+  const principal = alvos[0]
+  const dP = p.depois[principal.id]
+  let titulo = 'Achei: '
+  const mudancas = []
+  if (dP.hp !== principal.hp) mudancas.push('HP ' + n0(dP.hp))
+  if (dP.escudo !== principal.escudo) mudancas.push('Escudo ' + n0(dP.escudo))
+  if (p.aj.dano !== 1) mudancas.push('dano ×' + n1(p.aj.dano))
+  if (p.aj.atr !== 1) mudancas.push('atributos ×' + n1(p.aj.atr))
+  const mudou = mudancas.length > 0
+  const naoDeu = p.avisos.some((a) => a.tipo.startsWith('limite'))
+  const quem = alvos.length > 1 ? 'os inimigos com ' : principal.nome + ' com '
+  if (naoDeu) titulo = mudou ? 'Não chegou na meta. O mais perto: ' + quem + mudancas.join(', ') : 'Não deu para chegar na meta mexendo só nisso'
+  else titulo += quem + (mudancas.join(', ') || 'os mesmos números (já bate a meta)')
+  const sufixo = p.metas.turnos ? p.metas.turnos + ' turnos' : Math.round(p.metas.vitoria * 100) + '%'
+  // outra saída: o mesmo pool por Escudo
+  let outra = null
+  if (p.botoes.pool === 'hp' && p.metas.turnos && alvos.length === 1 && dP.hp > principal.hp && p.aj.dano === 1 && p.aj.atr === 1) {
+    outra = h('p', { class: 'proposta__outra' }, 'Outra saída com a mesma vida total: manter HP ' + n0(principal.hp) + ' e dar Escudo ~' + n0(arred(principal.escudo + dP.hp - principal.hp, 50)) + '. É uma estimativa: ligue só "Escudo" e clique de novo para conferir.')
+  }
+  // como achei: as tentativas
+  const t = p.tentativas.filter((x) => x.meta === (p.metas.turnos ? 'turnos' : 'vitoria'))
+  const busca = graficoDaBusca(t, p, principal)
+  el.replaceChildren(
+    h('h2', { class: 'proposta__tit' }, titulo, h('small', null, p.tentativas.length + ' tentativas de 80 lutas + 300 lutas novas para conferir · ' + (p.ms < 1000 ? 'menos de 1 s' : n1(Math.round(p.ms / 100) / 10) + ' s'))),
+    h('div', null,
+      h('table', { class: 'antes-depois' }, h('thead', null, h('tr', null, h('th', { scope: 'col' }, ''), h('th', { scope: 'col', class: 'num', style: 'text-align:right' }, 'Hoje'), h('th', { scope: 'col', style: 'text-align:right' }, 'Proposta'))), h('tbody', null, linhas)),
+      h('p', { class: 'proposta__conf' }, 'Em 300 lutas novas com estes números: ',
+        p.metas.turnos ? ['a luta dura ', h('b', null, n1(Math.round(c.med * 10) / 10) + ' turnos'), ' (mediana; metade entre ', Math.round(c.q25), ' e ', Math.round(c.q75), ')'] : ['dura ', h('b', null, n1(Math.round(c.med * 10) / 10) + ' turnos')],
+        ' e os aliados vencem ', h('b', null, pct(c.win)), ' (de ', pct(c.winLo), ' a ', pct(c.winHi), ' com 95% de certeza).'),
+      h('span', { class: 'confianca', title: conf.notas.join('; ') }, h('span', { class: 'confianca__pips', 'aria-hidden': 'true' }, [1, 2, 3].map((k) => h('i', { class: k <= conf.nivel ? 'on' : '' }))), 'Confiança ' + conf.rot.toLowerCase() + ': ' + conf.notas.join('; ') + '.'),
+      p.avisos.map((a) => h('p', { class: 'proposta__aviso' }, ic('alerta'), h('span', null, textoDoAviso(a, p)))),
+      outra),
+    busca,
+    h('div', { class: 'proposta__acoes' },
+      h('button', { type: 'button', class: 'bt bt--primario', disabled: estado.propostaVelha || Boolean(estado.ocupado) || !mudou, onclick: () => aplicar() }, alvos.length > 1 ? 'Aplicar aos inimigos (cria ' + alvos.length + ' variações)' : 'Aplicar ao ' + principal.nome + ' (cria "' + principal.nome.replace(/ \(.*\)$/, '') + ' (' + sufixo + ')")'),
+      h('button', { type: 'button', class: 'bt bt--fantasma', onclick: () => { estado.proposta = null; renderProposta() } }, 'Descartar'),
+      h('span', { class: 'pg-nota' }, estado.propostaVelha ? 'A montagem mudou depois desta busca. Clique em "Achar os números" de novo.' : !mudou ? 'Nada a aplicar: os números ficaram iguais aos de hoje.' : 'A ficha original não muda: a proposta vira uma variação nova, e a luta passa a usá-la.')))
+}
+
+function graficoDaBusca(t, p, principal) {
+  if (!t.length) return h('div')
+  const porTurnos = Boolean(p.metas.turnos)
+  const botao = t[0].botao
+  const valorX = (x) => (botao === 'hp' ? principal.hp * x.aj.hp : botao === 'escudo' ? principal.escudo + x.aj.escudo : x.aj[botao])
+  const rotX = (v) => (botao === 'hp' || botao === 'escudo' ? n0(v) : '×' + n1(Math.round(v * 100) / 100))
+  const alvo = porTurnos ? p.metas.turnos : p.metas.vitoria * 100
+  const pts = t.map((x, k) => ({ k, x: valorX(x), y: porTurnos ? x.valor : x.valor * 100 }))
+  const L = 360; const A = 170; const m = { e: 40, d: 12, t: 14, b: 26 }
+  const xs = pts.map((q) => q.x); const ys = pts.map((q) => q.y).concat([alvo])
+  const x0 = Math.min(...xs); const x1 = Math.max(...xs) === x0 ? x0 + 1 : Math.max(...xs)
+  const y0 = Math.max(0, Math.min(...ys) - 1); const y1 = Math.max(...ys) + 1
+  const X = (v) => m.e + ((v - x0) / (x1 - x0)) * (L - m.e - m.d)
+  const Y = (v) => m.t + (1 - (v - y0) / (y1 - y0)) * (A - m.t - m.b)
+  const svg = s('svg', { viewBox: '0 0 ' + L + ' ' + A, role: 'img', 'aria-label': 'Tentativas da busca: ' + pts.map((q) => rotX(q.x) + ' deu ' + n1(Math.round(q.y * 10) / 10)).join('; ') })
+  svg.append(s('line', { class: 'grade', x1: m.e, x2: L - m.d, y1: Y(alvo), y2: Y(alvo), style: 'stroke:var(--lb-color-brass);stroke-width:1.5' }))
+  svg.append(s('text', { class: 'eixo', x: L - m.d, y: Y(alvo) - 5, 'text-anchor': 'end', style: 'fill:var(--lb-color-brass-bright)' }, 'meta ' + (porTurnos ? alvo + ' turnos' : Math.round(alvo) + '%')))
+  svg.append(s('line', { class: 'grade', x1: m.e, x2: L - m.d, y1: A - m.b, y2: A - m.b }))
+  svg.append(s('text', { class: 'eixo', x: m.e, y: A - 8 }, rotX(x0)))
+  svg.append(s('text', { class: 'eixo', x: L - m.d, y: A - 8, 'text-anchor': 'end' }, rotX(x1)))
+  svg.append(s('text', { class: 'eixo', x: m.e - 6, y: Y(y1 - 1) + 4, 'text-anchor': 'end' }, n1(Math.round((y1 - 1) * 10) / 10)))
+  svg.append(s('text', { class: 'eixo', x: m.e - 6, y: Y(Math.max(y0, 0)) + 4, 'text-anchor': 'end' }, n1(Math.round(y0 * 10) / 10)))
+  svg.append(s('polyline', { points: pts.map((q) => X(q.x) + ',' + Y(q.y)).join(' '), fill: 'none', stroke: 'var(--lb-gr-gravado)', 'stroke-width': 1, 'stroke-opacity': 0.5, 'stroke-dasharray': '0' }))
+  pts.forEach((q, k) => {
+    const ultimo = k === pts.length - 1
+    svg.append(s('circle', { cx: X(q.x), cy: Y(q.y), r: ultimo ? 5 : 4, fill: ultimo ? 'var(--lb-color-brass-bright)' : 'var(--lb-gr-gravado)', stroke: 'var(--lb-gr-cartao)', 'stroke-width': 2 }, s('title', null, 'Tentativa ' + (k + 1) + ': ' + rotX(q.x) + ' deu ' + n1(Math.round(q.y * 10) / 10))))
+  })
+  // Só a primeira (a ficha de hoje) e a última (a proposta) levam rótulo: as do meio ficam no título de cada ponto.
+  const rotulo = (q, texto, cor) => svg.append(s('text', { class: 'eixo', x: X(q.x), y: Y(q.y) + (Y(q.y) < m.t + 16 ? 16 : -10), 'text-anchor': X(q.x) > L - 60 ? 'end' : X(q.x) < m.e + 30 ? 'start' : 'middle', style: cor ? 'fill:' + cor : null }, texto))
+  rotulo(pts[0], 'hoje')
+  if (pts.length > 1) rotulo(pts[pts.length - 1], 'proposta', 'var(--lb-color-brass-bright)')
+  const nomeX = { hp: 'HP do ' + principal.nome, escudo: 'Escudo do ' + principal.nome, dano: 'dano dos inimigos', atr: 'atributos dos inimigos' }[botao]
+  return h('div', { class: 'busca' }, h('p', { class: 'busca__tit' }, 'Como achei: cada ponto é uma tentativa (' + nomeX + ' × ' + (porTurnos ? 'turnos, mediana' : 'vitória dos aliados') + ')'), svg)
+}
+
+function aplicar() {
+  const p = estado.proposta
+  if (!p || estado.propostaVelha) return
+  const antes = { lados: JSON.parse(JSON.stringify(estado.lados)), ordem: estado.ordem.slice(), alvo: estado.meta.alvo, comparar: JSON.parse(JSON.stringify(estado.comparar)), resultado: estado.resultado, resultadoVelho: estado.resultadoVelho, proposta: p }
+  const sufixo = p.metas.turnos ? p.metas.turnos + ' turnos' : Math.round(p.metas.vitoria * 100) + '%'
+  const criadas = []
+  for (const id of p.alvos) {
+    const original = estado.fichas[id]
+    const modeloId = original.modelo || id
+    const modelo = estado.fichas[modeloId]
+    estado.variacoes += 1
+    const novoId = modeloId + '~v' + estado.variacoes
+    const d = p.depois[id]
+    estado.fichas[novoId] = { ...d, id: novoId, nome: modelo.nome + ' (' + sufixo + ')', modelo: modeloId, tipo: 'npc' }
+    const pos = estado.ordem.indexOf(id)
+    estado.ordem.splice(pos + 1, 0, novoId)
+    for (const vaga of estado.lados.b) if (vaga.id === id) vaga.id = novoId
+    criadas.push([modelo, estado.fichas[novoId]])
+    if (estado.meta.alvo === id) estado.meta.alvo = novoId
+  }
+  estado.novo = criadas[0][1].id
+  estado.comparar = { ids: criadas.flatMap(([mo, v]) => [mo.id, v.id]).slice(0, 4), base: criadas[0][0].id, soDif: estado.comparar.soDif, tocado: true }
+  estado.proposta = null
+  if (estado.resultado) estado.resultadoVelho = true
+  renderTudo()
+  setTimeout(() => { estado.novo = null; document.querySelectorAll('.chip.novo').forEach((c) => c.classList.remove('novo')) }, 1400)
+  const [mo, v] = criadas[0]
+  aviso(criadas.length > 1 ? criadas.length + ' variações criadas e postas na luta. As fichas originais não mudaram.' : 'Variação "' + v.nome + '" criada e posta na luta. ' + nomeCom(mo) + ' original não mudou.', {
+    acao: 'Desfazer',
+    fn: () => {
+      for (const [, vv] of criadas) delete estado.fichas[vv.id]
+      estado.lados = antes.lados; estado.ordem = antes.ordem; estado.meta.alvo = antes.alvo; estado.comparar = antes.comparar
+      estado.resultado = antes.resultado; estado.resultadoVelho = antes.resultadoVelho; estado.proposta = antes.proposta; estado.propostaVelha = false
+      renderTudo()
+      aviso('Desfeito: a variação foi apagada e a luta voltou como estava.')
+    },
+    extra: { rot: 'Comparar com o original', fn: () => trocarAba('comparar', true) },
+  })
+  testar('aplicar')
+}
+
+/* =========================================================================
+ * 9. COMPARAR FICHAS (a tela de hoje, melhorada)
+ * ========================================================================= */
+function idsDaLuta() { return [...new Set([...estado.lados.a, ...estado.lados.b].map((v) => v.id))].slice(0, 4) }
+function renderComparar() {
+  const c = estado.comparar
+  if (!c.tocado) c.ids = idsDaLuta()
+  c.ids = c.ids.filter((id) => estado.fichas[id])
+  if (!c.base || !c.ids.includes(c.base)) c.base = c.ids[0] || null
+  const chip = (f) => {
+    const on = c.ids.includes(f.id)
+    return h('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), disabled: !on && c.ids.length >= 4, title: !on && c.ids.length >= 4 ? 'Já são 4: tire uma para escolher outra' : null, onclick: () => { c.tocado = true; c.ids = on ? c.ids.filter((x) => x !== f.id) : [...c.ids, f.id]; renderComparar() } }, retrato(f), f.nome)
+  }
+  const lista = estado.ordem.map((id) => estado.fichas[id])
+  document.getElementById('cmp-jog').replaceChildren(...lista.filter((f) => f.tipo === 'jogador' && !f.modelo).map(chip))
+  document.getElementById('cmp-npc').replaceChildren(...lista.filter((f) => f.tipo === 'npc' && !f.modelo).map(chip))
+  const vars = lista.filter((f) => f.modelo)
+  document.getElementById('cmp-var-lin').hidden = !vars.length
+  document.getElementById('cmp-var').replaceChildren(...vars.map(chip))
+  document.getElementById('cmp-conta').textContent = c.ids.length + ' de 4 escolhidas · ' + lista.length + ' fichas de combate nesta pasta'
+  document.getElementById('cmp-so-dif').checked = c.soDif
+  const caixa = document.getElementById('cmp')
+  const cols = c.ids.map((id) => estado.fichas[id])
+  if (cols.length < 2) {
+    caixa.replaceChildren(h('div', { class: 'vazio-res' }, h('strong', null, cols.length ? 'Escolha mais uma ficha' : 'Escolha de 2 a 4 fichas'), h('p', null, 'Clique nas fichas acima para pôr lado a lado. A primeira vira a base, e as outras mostram quanto têm a mais ou a menos.')))
+    return
+  }
+  const res = estado.resultado && !estado.resultadoVelho ? estado.resultado : null
+  const gruposRes = res ? gruposDe(res) : []
+  const linha = (rot, sub, valores, formatar, unid) => {
+    const nums = valores.map((v2) => (v2 == null ? null : v2))
+    const validos = nums.filter((x) => x != null)
+    const max = Math.max(...validos, 1)
+    const iguais = validos.every((x) => x === validos[0])
+    if (c.soDif && iguais) return null
+    const vBase = nums[c.ids.indexOf(c.base)]
+    return h('tr', null, h('th', { scope: 'row' }, rot, sub ? h('small', null, sub) : null), nums.map((v2, k) => {
+      if (v2 == null) return h('td', null, h('span', { class: 'fraco' }, '—'))
+      const ehMax = !iguais && v2 === max
+      const dif = c.ids[k] === c.base || vBase == null ? null : v2 - vBase
+      return h('td', null, h('div', { class: 'val' + (ehMax ? ' val--max' : '') },
+        h('span', { class: 'mini__barra', 'aria-hidden': 'true' }, h('span', { class: 'mini__ench', style: 'transform:scaleX(' + (v2 / max).toFixed(3) + ');--c:var(--lb-gr-gravado)' })),
+        h('span', null, h('span', { class: 'val__num' }, formatar ? formatar(v2, k) : n0(v2), unid ? h('small', null, unid(k)) : null),
+          dif == null ? null : h('span', { class: 'val__dif' + (dif ? ' mexe' : '') }, dif === 0 ? 'igual' : (dif > 0 ? '+' : '−') + (formatar && formatar.dif ? formatar.dif(Math.abs(dif)) : n0(Math.abs(dif)))))))
+    }))
+  }
+  const grupo = (t) => h('tr', { class: 'grupo' }, h('th', { colspan: String(cols.length + 1), scope: 'colgroup' }, t))
+  const golpesDe = cols.map((f) => M.golpesDa(f))
+  const linhas = [
+    grupo('Vida e fôlego'),
+    linha('HP', null, cols.map((f) => f.hp)),
+    linha('SP', null, cols.map((f) => f.sp)),
+    linha('Escudo', 'absorve antes do HP', cols.map((f) => f.escudo)),
+    grupo('Atributos'),
+    ...ATRIBUTOS.map(([sigla, nome]) => linha(nome, sigla, cols.map((f) => f.atr[sigla][0]), null, (k) => ' R' + cols[k].atr[sigla][1])),
+    grupo('Dano pelas fórmulas da ficha'),
+    linha('Golpe mais forte', null, golpesDe.map((g) => g.filter((x) => x.tipo === 'dano').reduce((m, x) => Math.max(m, x.dano), 0))),
+    linha('Dano por turno', '2 simples ou 1 completa', cols.map(melhorPorVez)),
+    linha('Cura por uso', null, golpesDe.map((g) => { const cura = g.filter((x) => x.tipo === 'cura'); return cura.length ? cura[0].dano : 0 })),
+    c.soDif ? null : h('tr', null, h('th', { scope: 'row' }, 'Golpes', h('small', null, 'dano · SP · ação')), golpesDe.map((g) => h('td', null, h('ul', { class: 'golpes-cmp' }, g.map((x) => h('li', null, h('span', { title: x.nome }, x.nome), h('b', null, (x.tipo === 'cura' ? '+' : '') + x.dano), h('small', null, (x.sp ? x.sp + ' SP' : 'sem custo') + ' · ' + (x.acao === 'c' ? 'completa' : 'simples') + (x.tipo === 'cura' ? ' · cura' : '')))))))),
+  ]
+  if (res) {
+    const doGrupo = (f) => gruposRes.find((g) => g.grupo === f.id)
+    const fmtPct = (v2) => Math.round(v2) + '%'
+    fmtPct.dif = (v2) => Math.round(v2) + ' pts'
+    linhas.push(grupo('Na última simulação (' + res.n + ' lutas)'),
+      linha('Dano causado por luta', 'média, cópias somadas', cols.map((f) => (doGrupo(f) ? doGrupo(f).dealt : null))),
+      linha('Cai primeiro', '% das lutas', cols.map((f) => (doGrupo(f) ? Math.round(doGrupo(f).primeiro * 100) : null)), fmtPct),
+      linha('SP gasto por luta', 'por cópia', cols.map((f) => (doGrupo(f) ? Math.round(doGrupo(f).spUsed) : null))))
+    if (cols.some((f) => !doGrupo(f))) linhas.push(h('tr', null, h('td', { colspan: String(cols.length + 1), class: 'pg-nota' }, '"—" = a ficha não estava na última luta testada.')))
+  } else {
+    linhas.push(grupo('Na última simulação'), h('tr', null, h('td', { colspan: String(cols.length + 1), class: 'pg-nota' }, estado.resultado ? 'A montagem mudou depois do último teste: teste de novo na aba Testar a luta para ver dano, quedas e SP aqui.' : 'Rode um teste na aba Testar a luta para ver dano, quedas e SP de cada ficha aqui.')))
+  }
+  caixa.replaceChildren(h('table', null,
+    h('caption', { class: 'sr' }, 'Comparação de ' + cols.map((f) => f.nome).join(', ')),
+    h('colgroup', null, h('col', { class: 'cmp__rot' }), cols.map(() => h('col'))),
+    h('thead', null, h('tr', null, h('th', { scope: 'col' }, h('span', { class: 'sr' }, 'Linha')), cols.map((f) => h('th', { scope: 'col' }, h('div', { class: 'cmp-col' }, retrato(f, true), h('div', { class: 'cmp-col__txt' },
+      h('span', { class: 'cmp-col__nome', title: f.nome }, f.nome),
+      h('span', { class: 'cmp-col__sub' }, seloDa(f), f.id === c.base ? h('span', { class: 'selo selo--base' }, 'Base') : h('button', { type: 'button', class: 'bt bt--p bt--fantasma', style: 'min-height:22px;padding:0 6px', onclick: () => { c.base = f.id; renderComparar() } }, 'Usar como base')),
+      f.modelo ? h('span', { class: 'pg-nota' }, 'variação de ' + estado.fichas[f.modelo].nome) : null)))))),
+    h('tbody', null, linhas)))
+}
+
+/* =========================================================================
+ * 10. ABAS, AVISOS, ATALHOS
+ * ========================================================================= */
+const abas = [document.getElementById('aba-testar'), document.getElementById('aba-comparar')]
+function posicionarMarca(semMovimento) {
+  const marca = document.querySelector('.abas__marca')
+  const ativa = abas.find((a) => a.getAttribute('aria-selected') === 'true')
+  marca.classList.toggle('sem-mov', Boolean(semMovimento))
+  marca.style.transform = 'translateX(' + ativa.offsetLeft + 'px) scaleX(' + (ativa.offsetWidth / 100) + ')'
+}
+function trocarAba(qual, foco, peloTeclado) {
+  abas.forEach((a) => {
+    const on = a.id === 'aba-' + qual
+    a.setAttribute('aria-selected', String(on)); a.tabIndex = on ? 0 : -1
+    document.getElementById(a.getAttribute('aria-controls')).hidden = !on
+  })
+  if (qual === 'comparar') renderComparar()
+  posicionarMarca(peloTeclado)
+  if (foco) document.getElementById('aba-' + qual).focus()
+}
+abas.forEach((a, k) => {
+  a.addEventListener('click', () => trocarAba(a.id.replace('aba-', '')))
+  a.addEventListener('keydown', (e) => {
+    let alvo = null
+    if (e.key === 'ArrowRight') alvo = abas[(k + 1) % abas.length]
+    if (e.key === 'ArrowLeft') alvo = abas[(k - 1 + abas.length) % abas.length]
+    if (e.key === 'Home') alvo = abas[0]
+    if (e.key === 'End') alvo = abas[abas.length - 1]
+    if (alvo) { e.preventDefault(); trocarAba(alvo.id.replace('aba-', ''), true, true) }
+  })
+})
+window.addEventListener('resize', () => posicionarMarca(true))
+
+function aviso(texto, opcoes) {
+  const caixa = document.getElementById('avisos')
+  const el = h('div', { class: 'aviso entra', role: 'status' }, h('p', null, texto))
+  let timer = null
+  const fechar = () => { clearTimeout(timer); el.classList.add('sai'); setTimeout(() => el.remove(), 200) }
+  el.append(h('button', { type: 'button', class: 'bt bt--ic', 'aria-label': 'Fechar aviso', onclick: fechar }, ic('fechar')))
+  if (opcoes && (opcoes.extra || opcoes.acao)) {
+    el.append(h('div', { class: 'aviso__acoes' },
+      opcoes.extra ? h('button', { type: 'button', class: 'bt bt--p bt--fantasma', onclick: () => { opcoes.extra.fn(); fechar() } }, opcoes.extra.rot) : null,
+      opcoes.acao ? h('button', { type: 'button', class: 'bt bt--p bt--latao', onclick: () => { opcoes.fn(); fechar() } }, opcoes.acao) : null))
+  }
+  const armar = () => { timer = setTimeout(fechar, opcoes ? 8000 : 5000) }
+  el.addEventListener('pointerenter', () => clearTimeout(timer))
+  el.addEventListener('pointerleave', armar)
+  caixa.append(el)
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('entra')))
+  armar()
+  while (caixa.children.length > 3) caixa.firstElementChild.remove()
+}
+
+document.getElementById('meta').addEventListener('submit', (e) => { e.preventDefault(); resolver() })
+document.getElementById('meta-dura').addEventListener('change', (e) => { estado.meta.dura = e.target.checked; renderMeta(); renderAcoes() })
+document.getElementById('meta-vence').addEventListener('change', (e) => { estado.meta.vence = e.target.checked; renderMeta(); renderAcoes() })
+for (const id of ['meta-turnos', 'meta-pct']) {
+  const campo = document.getElementById(id)
+  // Valida ao sair do campo ou ao enviar, não a cada tecla: um campo vazio no meio da digitação não é erro ainda.
+  campo.addEventListener('input', () => { lerMeta(); if (!Object.keys(errosDaMeta()).length) { renderMeta(); renderAcoes() } })
+  campo.addEventListener('blur', () => { lerMeta(); renderMeta(); renderAcoes() })
+}
+document.getElementById('meta-alvo').addEventListener('change', (e) => { estado.meta.alvo = e.target.value })
+document.getElementById('n-lutas').addEventListener('change', (e) => { estado.nLutas = Number(e.target.value); renderAcoes(); if (!estado.resultado) renderResultado() })
+document.getElementById('bt-testar').addEventListener('click', () => testar())
+document.getElementById('bt-cancelar').addEventListener('click', () => estado.ocupado && estado.ocupado.cancelar())
+document.getElementById('cmp-so-dif').addEventListener('change', (e) => { estado.comparar.soDif = e.target.checked; renderComparar() })
+document.getElementById('cmp-da-luta').addEventListener('click', () => { estado.comparar.ids = idsDaLuta(); estado.comparar.tocado = true; renderComparar() })
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && estado.ocupado) { e.preventDefault(); estado.ocupado.cancelar() }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !document.getElementById('painel-testar').hidden) { e.preventDefault(); testar() }
+})
+
+function renderTudo() {
+  renderAcervo(); renderLados(); renderMeta(); renderAcoes()
+  renderResultado(); renderProposta()
+  if (!document.getElementById('painel-comparar').hidden) renderComparar()
+}
+renderTudo()
+posicionarMarca(true)
+</script>
+</body>
+</html>
