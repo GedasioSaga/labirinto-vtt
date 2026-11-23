@@ -91,9 +91,11 @@ const QUEM: Readonly<Record<Exclude<QuemOAlvoPega, 'si'>, readonly [string, stri
 /** Bloco 3: "Acerta todos os inimigos num quadrado 3x3 à frente." */
 export function fraseDoAlvo(mecanica: MecanicaV1): string {
   const frase = fraseDaForma(mecanica)
-  // Fase 6: o alcance (o alvo escolhido ou o centro da área longe).
-  const { alcance } = mecanica.alvo
-  return alcance === undefined ? frase : `${frase.slice(0, -1)}, com alcance de ${alcance} ${alcance === 1 ? 'casa' : 'casas'}.`
+  // Fase 6: o alcance (o alvo escolhido ou o centro da área longe). Fase B do alcance: o anel diz "de N a M".
+  const { alcance, alcanceMinimo } = mecanica.alvo
+  if (alcance === undefined) return frase
+  if (alcanceMinimo !== undefined) return `${frase.slice(0, -1)}, de ${alcanceMinimo} a ${alcance} casas, nunca colado.`
+  return `${frase.slice(0, -1)}, com alcance de ${alcance} ${alcance === 1 ? 'casa' : 'casas'}.`
 }
 
 function fraseDaForma(mecanica: MecanicaV1): string {
@@ -115,6 +117,11 @@ function fraseDaForma(mecanica: MecanicaV1): string {
       return `${verbo} todos os ${varios} num quadrado ${forma.lado}x${forma.lado} ${forma.centro === 'frente' ? 'à frente' : forma.centro === 'ponto' ? 'em volta de um ponto escolhido' : 'em volta de quem usa'}.`
     case 'raio':
       return `${verbo} todos os ${varios} a até ${forma.casas} ${forma.casas === 1 ? 'casa' : 'casas'} ${forma.centro === 'ponto' ? 'de um ponto escolhido (a casa dele entra)' : forma.centro === 'alvo' ? 'de uma ficha escolhida (ela entra)' : 'de quem usa'}.`
+    // Fase B do alcance: as frases do protótipo ("Cruz de 3 casas", "Leque de 3 casas à frente").
+    case 'cruz':
+      return `${verbo} todos os ${varios} numa cruz de ${forma.casas} ${forma.casas === 1 ? 'casa' : 'casas'} em volta de quem usa.`
+    case 'leque':
+      return `${verbo} todos os ${varios} num leque de ${forma.casas} ${forma.casas === 1 ? 'casa' : 'casas'} à frente.`
   }
 }
 

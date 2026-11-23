@@ -205,6 +205,11 @@ function areaDaForma(forma: FormaDoAlvo): FormaDaArea | null {
     case 'um':
     case 'varios':
       return null
+    // Fase B do alcance: a área de hoje (`area.ts`) não desenha a cruz nem o leque; até a fase C
+    // (`fichasNaForma`, ALCANCE.md §5) os alvos delas são marcados à mão na mira. Nenhum editor as grava antes disso.
+    case 'cruz':
+    case 'leque':
+      return null
   }
 }
 

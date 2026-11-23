@@ -22,12 +22,14 @@ import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX, MODS_POR_SEL
 
 /**
  * A versão mais nova que este app LÊ (Fase 2 de docs/design/habilidades/SISTEMA.md:
- * a versão 2 é a 1 com mais peças; a 1 continua lida como sempre).
+ * a versão 2 é a 1 com mais peças; a 1 continua lida como sempre). Fase B do
+ * alcance (docs/design/habilidades/ALCANCE.md §3.3): a 3 é a 2 com a cruz, o
+ * leque, o anel (`alcanceMinimo`) e o selo que muda o alcance.
  */
-export const VERSAO_DA_MECANICA = 2
+export const VERSAO_DA_MECANICA = 3
 
 /** As versões que este app lê. A peça lida guarda a versão com que veio. */
-export type VersaoDaMecanica = 1 | 2
+export type VersaoDaMecanica = 1 | 2 | 3
 
 /**
  * A versão que este app GRAVA numa mecânica nova (modelos, arma montada).
@@ -90,6 +92,8 @@ export interface Limite {
  * O desenho do alvo. `quadrado` com `centro: 'si'` = em volta de quem usa (lado ímpar: 3x3 = raio 1).
  * Fase 6: `centro: 'ponto'` = em volta de uma casa que quem usa escolhe (a granada; a casa do ponto
  * entra); no `raio`, `centro: 'alvo'` = em volta de uma ficha escolhida (ela entra). Ausente = 'si'.
+ * Versão 3 (fase B do alcance): `cruz` = as 4 retas de quem usa, até `casas`; `leque` = à frente,
+ * abrindo 1, 3, 5 casas por fileira, até `casas` fileiras. As duas saem de quem usa (o tamanho é o alcance).
  */
 export type FormaDoAlvo =
   | { tipo: 'um' }
@@ -97,6 +101,8 @@ export type FormaDoAlvo =
   | { tipo: 'linha'; casas: number }
   | { tipo: 'quadrado'; lado: number; centro: 'si' | 'frente' | 'ponto' }
   | { tipo: 'raio'; casas: number; centro?: 'alvo' | 'ponto' }
+  | { tipo: 'cruz'; casas: number }
+  | { tipo: 'leque'; casas: number }
 
 export type QuemOAlvoPega = 'inimigos' | 'aliados' | 'todos' | 'si' | 'escolha'
 
@@ -113,6 +119,11 @@ export interface AlvoDaMecanica {
    * escolhido, ou a casa / a ficha no centro da área longe. Ausente = sem limite conferido (como hoje).
    */
   alcance?: number
+  /**
+   * Versão 3 (fase B do alcance): o anel. O alvo escolhido (um ou vários) fica de `alcanceMinimo`
+   * a `alcance` casas, nunca mais perto. Só com `alcance`; de 2 até o `alcance`. Ausente = desde o colado.
+   */
+  alcanceMinimo?: number
   /** Fase 6: 'caido' só com o efeito reviver (e o reviver só com ele). Ausente = 'dePe'. */
   estado?: 'caido'
 }
@@ -223,6 +234,26 @@ export interface PorTurnoDoSelo {
   paraQuemUsa?: number
 }
 
+/** Versão 3 (fase B do alcance): como o selo mexe no alcance. 'soma' = +N ou -N casas; 'teto' = no máximo N casas. */
+export type MexeNoAlcance = 'soma' | 'teto'
+
+/** Versão 3: em que o selo mexe no alcance (o escopo, ALCANCE.md §3.3). */
+export type ValeParaOAlcance = 'tudo' | 'armas' | 'habilidades' | 'itens'
+
+/** Os escopos, na ordem da tela. */
+export const VALES_DO_ALCANCE: readonly ValeParaOAlcance[] = ['tudo', 'armas', 'habilidades', 'itens']
+
+/**
+ * Versão 3 (fase B do alcance): o que o selo faz no alcance de quem o tem ("Ofuscado: -2 em tudo",
+ * "Cego: no máximo 1"). Quem soma e põe o teto é `alcanceComCondicoes` (lib/batalha/alcance/):
+ * primeiro as somas, depois o menor teto, nunca abaixo de 1. Na soma, `n` nunca é 0; no teto, de 1 a `CASAS_MAX`.
+ */
+export interface AlcanceDoSelo {
+  mexe: MexeNoAlcance
+  n: number
+  vale: ValeParaOAlcance
+}
+
 /** Fase 5: o número que o selo soma enquanto existe ("Força +20"). `alvo` = id de atributo, 'dano' ou 'reacao'; o fixo pode ser negativo (tira). */
 export interface ModDaPeca {
   alvo: string
@@ -245,8 +276,8 @@ export type Efeito =
    * que só recebe o nome. Nome fora da tabela = selo sem regra própria.
    */
   /** `em: 'atacante'` (fase 4): só na técnica de reação, o selo vai em quem bateu. Ausente = no alvo do golpe. */
-  /** Fase 5: `em: 'quemUsa'` (a postura), `mods` (Força +20) e `regra` (dano e cura recebidos). */
-  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: Exclude<EmQuem, 'alvo'>; mods?: readonly ModDaPeca[]; regra?: RegraDoSelo }
+  /** Fase 5: `em: 'quemUsa'` (a postura), `mods` (Força +20) e `regra` (dano e cura recebidos). Versão 3: `alcance` (o selo muda o alcance). */
+  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: Exclude<EmQuem, 'alvo'>; mods?: readonly ModDaPeca[]; regra?: RegraDoSelo; alcance?: AlcanceDoSelo }
   /** Fase 5: recuperar SP, dar Escudo (a Barreira) e curar quem usa (`em: 'quemUsa'`, o golpe que cura quem bate). */
   /** Fase 7: `quanto` pela parte do máximo do alvo (a Poção Suprema, 50% do HP máximo); HP e SP juntos no mesmo alvo (o Elixir). */
   | { tipo: 'cura'; recurso: Recurso; quanto: Numero | PorcentoDaCura; emQuem: 'alvo'; em?: 'quemUsa' }
@@ -315,6 +346,17 @@ export function precisaDaVersao2(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | '
   if (mecanica.alvo.alcance !== undefined || mecanica.alvo.estado !== undefined || centroDaArea(mecanica.alvo.forma) !== null) return true
   if (mecanica.efeitos.some((efeito) => efeito.tipo === 'reviver')) return true
   return mecanica.efeitos.some((efeito) => efeito.tipo === 'selo' && seloDaVersao2(efeito))
+}
+
+/**
+ * Versão 3 (fase B do alcance, ALCANCE.md §3.3): a mecânica tem peça que só a 3 diz (a cruz, o leque,
+ * o anel, o selo que muda o alcance). Quem grava usa a 3 só nesse caso: o app de antes (que lê até a 2)
+ * lê a 3 como "atualize o app" e o cartão fica à mão sem perder nada; toda outra mecânica continua 1 ou 2.
+ */
+export function precisaDaVersao3(mecanica: Pick<MecanicaV2, 'alvo' | 'efeitos'>): boolean {
+  const { forma, alcanceMinimo } = mecanica.alvo
+  if (forma.tipo === 'cruz' || forma.tipo === 'leque' || alcanceMinimo !== undefined) return true
+  return mecanica.efeitos.some((efeito) => efeito.tipo === 'selo' && efeito.alcance !== undefined)
 }
 
 /** O selo com peça só da 2: em quem usa ou em quem atacou, com número, com regra, ou o "por vez" que não é o HP tirado. */
@@ -543,11 +585,16 @@ function limite(valor: unknown): Limite {
 
 function forma(valor: unknown): FormaDoAlvo {
   const peca = registro(valor, 'forma do alvo')
-  const tipo = umDe(peca.tipo, ['um', 'varios', 'linha', 'quadrado', 'raio'] as const, 'forma do alvo')
+  const tipo = umDe(peca.tipo, ['um', 'varios', 'linha', 'quadrado', 'raio', 'cruz', 'leque'] as const, 'forma do alvo')
   switch (tipo) {
     case 'um':
       soChaves(peca, ['tipo'], 'alvo')
       return { tipo }
+    // Versão 3: as duas saem de quem usa, com o tamanho como alcance (a versão é conferida em `mecanicaLida`).
+    case 'cruz':
+    case 'leque':
+      soChaves(peca, ['tipo', 'casas'], 'alvo')
+      return { tipo, casas: inteiro(peca.casas, 1, CASAS_MAX, 'casas') }
     case 'varios': {
       soChaves(peca, ['tipo', 'max', 'dividirDano'], 'alvo')
       const lida: FormaDoAlvo = { tipo, max: inteiro(peca.max, 2, CASAS_MAX, 'máximo de alvos') }
@@ -579,7 +626,7 @@ function forma(valor: unknown): FormaDoAlvo {
 
 function alvo(valor: unknown): AlvoDaMecanica {
   const peca = registro(valor, 'alvo')
-  soChaves(peca, ['quem', 'forma', 'exigeSelo', 'alcance', 'estado'], 'alvo', 'alvo')
+  soChaves(peca, ['quem', 'forma', 'exigeSelo', 'alcance', 'alcanceMinimo', 'estado'], 'alvo', 'alvo')
   const quem = umDe(peca.quem, ['inimigos', 'aliados', 'todos', 'si', 'escolha'] as const, 'quem o alvo pega')
   const lida = forma(peca.forma)
   // Construtor C3: a área marca os inimigos, os aliados (a cura em área) ou todos; "em si" não tem área.
@@ -591,6 +638,11 @@ function alvo(valor: unknown): AlvoDaMecanica {
     const escolhido = lida.tipo === 'um' || lida.tipo === 'varios' || centroDaArea(lida) !== null
     if (quem === 'si' || !escolhido) torta('o alcance só vale no alvo escolhido ou no centro da área longe')
     lido.alcance = inteiro(peca.alcance, 1, CASAS_MAX, 'alcance (casas)')
+  }
+  if (peca.alcanceMinimo !== undefined) {
+    // Versão 3 (o anel): só no alvo escolhido um a um; a área longe mede só até o centro.
+    if (lido.alcance === undefined || (lida.tipo !== 'um' && lida.tipo !== 'varios')) torta('o alcance mínimo (o anel) só vale no alvo escolhido, junto com o alcance')
+    lido.alcanceMinimo = inteiro(peca.alcanceMinimo, 2, lido.alcance, 'alcance mínimo (casas)')
   }
   if (peca.estado !== undefined && umDe(peca.estado, ['dePe', 'caido'] as const, 'estado do alvo') === 'caido') {
     // Fase 6 (decisão C18): o caído é escolhido um a um, entre os aliados (a área de hoje não marca quem caiu).
@@ -736,6 +788,17 @@ function regraDoSelo(valor: unknown, onde: string): RegraDoSelo {
   return lida
 }
 
+/** Versão 3 (fase B do alcance): o selo que muda o alcance. A soma tira ou põe (nunca 0); o teto vai de 1 a `CASAS_MAX`; o escopo é obrigatório. */
+function alcanceDoSelo(valor: unknown, onde: string): AlcanceDoSelo {
+  const ondeDoAlcance = `${onde} (alcance)`
+  const peca = registro(valor, ondeDoAlcance)
+  soChaves(peca, ['mexe', 'n', 'vale'], ondeDoAlcance)
+  const mexe = umDe(peca.mexe, ['soma', 'teto'] as const, `${ondeDoAlcance} (soma ou máximo)`)
+  const n = mexe === 'teto' ? inteiro(peca.n, 1, CASAS_MAX, `${ondeDoAlcance} (máximo)`) : inteiro(peca.n, -CASAS_MAX, CASAS_MAX, `${ondeDoAlcance} (casas a mais ou a menos)`)
+  if (n === 0) torta(`${onde}: o selo que soma no alcance precisa de um número diferente de 0`)
+  return { mexe, n, vale: umDe(peca.vale, VALES_DO_ALCANCE, `${ondeDoAlcance} (vale para)`) }
+}
+
 /** Fase 5: os números do selo ("Força +20"); o fixo pode tirar (negativo), a fórmula é lida na ficha de quem usa. */
 function modsDoSelo(valor: unknown, onde: string): ModDaPeca[] {
   const mods = lista(valor, MODS_POR_SELO_MAX, `${onde} (números do selo)`).map((item, indice): ModDaPeca => {
@@ -762,7 +825,7 @@ function efeito(valor: unknown, indice: number): Efeito {
   const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'dreno', 'reviver', 'aMao'] as const, onde)
   switch (tipo) {
     case 'selo': {
-      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em', 'mods', 'regra'], onde, 'selo')
+      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em', 'mods', 'regra', 'alcance'], onde, 'selo')
       const duracao = peca.duracao === 'ateTirar' || peca.duracao === 'proximoGolpe' ? peca.duracao : inteiro(peca.duracao, 1, TURNOS_DO_SELO_MAX, `${onde} (duração)`)
       const lido: Efeito = { tipo, nome: texto(peca.nome, NOME_DO_SELO_MAX, `${onde} (nome do selo)`), duracao }
       if (peca.natureza !== undefined) lido.natureza = umDe(peca.natureza, ['buff', 'debuff'] as const, `${onde} (natureza)`)
@@ -772,6 +835,7 @@ function efeito(valor: unknown, indice: number): Efeito {
       if (em !== 'alvo') lido.em = em
       if (peca.mods !== undefined) lido.mods = modsDoSelo(peca.mods, onde)
       if (peca.regra !== undefined) lido.regra = regraDoSelo(peca.regra, onde)
+      if (peca.alcance !== undefined) lido.alcance = alcanceDoSelo(peca.alcance, onde)
       return lido
     }
     case 'cura': {
@@ -946,6 +1010,8 @@ function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): 
   conferirReacao(mecanica)
   // Fase 5: a versão 1 é o que o app de antes lê; peça só da 2 nela é arquivo torto (quem grava usa a 2, `precisaDaVersao2`).
   if (versao === 1 && precisaDaVersao2(mecanica)) torta('peça da versão 2 numa mecânica da versão 1')
+  // Fase B do alcance: o mesmo para a 3 (o app de antes lê a 3 como "atualize o app"; quem grava usa a 3 só com `precisaDaVersao3`).
+  if (versao < 3 && precisaDaVersao3(mecanica)) torta(`peça da versão 3 numa mecânica da versão ${versao}`)
   return mecanica
 }
 
@@ -960,8 +1026,8 @@ export function lerMecanica(valor: unknown): MecanicaLida {
     const peca = registro(valor, 'mecânica')
     const versao = inteiro(peca.versao, 1, Number.MAX_SAFE_INTEGER, 'versão')
     if (versao > VERSAO_DA_MECANICA) return { tipo: 'futura', versao }
-    // A 1 e a 2 pelo mesmo leitor (a 2 é superconjunto); a peça guarda a versão com que veio.
-    return { tipo: 'pecas', mecanica: mecanicaLida(peca, versao === 1 ? 1 : 2) }
+    // A 1, a 2 e a 3 pelo mesmo leitor (cada uma é superconjunto da anterior); a peça guarda a versão com que veio.
+    return { tipo: 'pecas', mecanica: mecanicaLida(peca, versao === 1 ? 1 : versao === 2 ? 2 : 3) }
   } catch (erro) {
     if (erro instanceof PecaTorta) return { tipo: 'invalida', motivo: erro.message }
     throw erro

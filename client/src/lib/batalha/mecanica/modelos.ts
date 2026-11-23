@@ -6,7 +6,7 @@ import { CAMPO_DO_DANO, lerFormula } from '../formula'
 import { CAMPO_DO_CUSTO, type LeituraDaAcao, type LeituraDoCusto } from '../leituraDaFicha'
 import { leituraDaTecnica } from '../leituraDaTecnica'
 import { formulaDaMecanica } from '../mecanicasAMao'
-import { CD_MAX, FORMULA_MAX, lerMecanica, migrarV1ParaV2, precisaDaVersao2, testeRolado, VERSAO_GRAVADA, type AlvoDaMecanica, centroDaArea, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
+import { CD_MAX, FORMULA_MAX, lerMecanica, migrarV1ParaV2, precisaDaVersao2, precisaDaVersao3, testeRolado, VERSAO_GRAVADA, type AlvoDaMecanica, centroDaArea, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
 import type { FichaDaPrevia } from './resumo'
 
 /**
@@ -421,8 +421,9 @@ function semAtacante(efeito: Efeito): Efeito {
 export function guardarMecanica(mecanica: MecanicaV1): MecanicaGuardada {
   // Fase 4: só a mecânica com peça da versão 2 (a reação) grava 2; o resto continua 1 e abre no app de antes e no Lobby.
   // "Na vez" é o padrão: sem a chave, a mecânica volta a caber na versão 1.
+  // Fase B do alcance: a cruz, o leque, o anel e o selo do alcance gravam 3; sem eles, a de antes (a 3 lida que perdeu a peça volta a 2 ou 1).
   const { uso: _uso, ...semUso } = mecanica
-  const versionada = precisaDaVersao2(mecanica) ? migrarV1ParaV2(mecanica) : { ...semUso, versao: VERSAO_GRAVADA }
+  const versionada = precisaDaVersao3(mecanica) ? { ...mecanica, versao: 3 } : precisaDaVersao2(mecanica) ? migrarV1ParaV2(mecanica) : { ...semUso, versao: VERSAO_GRAVADA }
   const copia: unknown = JSON.parse(JSON.stringify(versionada))
   return typeof copia === 'object' && copia !== null && !Array.isArray(copia) ? { ...copia } : {}
 }
@@ -556,7 +557,10 @@ export function trocarQuem(mecanica: MecanicaV1, quem: QuemOAlvoPega): MecanicaV
   const efeitos = mecanica.efeitos.map((efeito) => (efeito.tipo === 'selo' ? { ...efeito, natureza } : efeito))
   const teste: Teste = ehAjuda(quem) && testeRolado(mecanica.teste) ? { tipo: 'reacao' } : mecanica.teste
   // Fase 6: o alcance segue fora de "em si" (onde a forma ainda o aceita); o caído só nos aliados.
-  const alvo = alvoComForma({ quem, forma, ...(quem === 'si' || mecanica.alvo.alcance === undefined ? {} : { alcance: mecanica.alvo.alcance }), ...(quem === 'aliados' && mecanica.alvo.estado !== undefined ? { estado: mecanica.alvo.estado } : {}) }, forma)
+  const { alcance, alcanceMinimo } = mecanica.alvo
+  // Fase B do alcance: o anel vai junto com o alcance (`alvoComForma` confere onde ele cabe).
+  const alcances = quem === 'si' || alcance === undefined ? {} : { alcance, ...(alcanceMinimo === undefined ? {} : { alcanceMinimo }) }
+  const alvo = alvoComForma({ quem, forma, ...alcances, ...(quem === 'aliados' && mecanica.alvo.estado !== undefined ? { estado: mecanica.alvo.estado } : {}) }, forma)
   return { ...mecanica, alvo, efeitos, teste }
 }
 
@@ -574,6 +578,10 @@ export function formaNova(tipo: FormaDoAlvo['tipo'], atual: FormaDoAlvo): FormaD
       return { tipo, lado: 3, centro: 'frente' }
     case 'raio':
       return { tipo, casas: 1 }
+    // Fase B do alcance: os números do protótipo (cruz de 3, leque de 3).
+    case 'cruz':
+    case 'leque':
+      return { tipo, casas: 3 }
   }
 }
 
@@ -589,10 +597,12 @@ export function ladoValido(lado: number, centro: 'si' | 'frente' | 'ponto'): num
  * alvo escolhido ou o centro da área longe) e o caído só no alvo escolhido.
  */
 export function alvoComForma(alvo: AlvoDaMecanica, forma: FormaDoAlvo): AlvoDaMecanica {
-  const { alcance, estado, ...resto } = alvo
+  const { alcance, alcanceMinimo, estado, ...resto } = alvo
   const escolhido = forma.tipo === 'um' || forma.tipo === 'varios'
   const novo: AlvoDaMecanica = { ...resto, forma }
   if (alcance !== undefined && (escolhido || centroDaArea(forma) !== null)) novo.alcance = alcance
+  // Fase B do alcance: o anel só no alvo escolhido, e só com o alcance que ele limita.
+  if (alcanceMinimo !== undefined && escolhido && novo.alcance !== undefined) novo.alcanceMinimo = alcanceMinimo
   if (estado !== undefined && escolhido) novo.estado = estado
   return novo
 }

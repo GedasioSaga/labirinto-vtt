@@ -46,6 +46,11 @@ function fraseDaArea(forma: FormaDoAlvo, quem: QuemOAlvoPega): string {
       return `${comeco} num quadrado de ${forma.lado} por ${forma.lado}: `
     case 'raio':
       return `${comeco} a até ${casas(forma.casas)}${forma.centro === 'ponto' ? ' de um ponto' : forma.centro === 'alvo' ? ' do alvo' : ''}: `
+    // Fase B do alcance.
+    case 'cruz':
+      return `${comeco} numa cruz de ${casas(forma.casas)}: `
+    case 'leque':
+      return `${comeco} num leque de ${casas(forma.casas)} à frente: `
   }
 }
 
