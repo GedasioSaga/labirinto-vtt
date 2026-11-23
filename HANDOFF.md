@@ -1,4 +1,8 @@
-# 22/11 noite: ALCANCE nas habilidades, itens e armas (perguntas + protótipo em voo)
+# 23/11: 0.5.94 PUBLICADA com o ALCANCE (habilidades, itens e armas)
+
+0.5.94 PUBLICADA 2464777c (push origin main), registro 46edeecb (local): latest.json público 0.5.94 conferido pelo Claude via curl (Labirinto_0.5.94_x64-setup.exe); Worker d412a7c1, site 858a88d2.labirintolobby.pages.dev; tsc client/nuvem 0, vite build 0, guarda nada bloqueia, gitleaks v0.5.93..HEAD limpo; worktree e junções limpos (node_modules 187/65/3); disco 20 GB; logs e notas tmp/rel-0.5.94/. FALTA (dono): atualizar o app (TODOS os jogadores: app velho apaga o alcance ao salvar), clicar "Dar alcance aos antigos" (página Itens ou Habilidades) e conferir as 158 linhas (Granada vira Consumível); ver os quadrados e a animação numa batalha real. NÃO VISTO: Worker real de fora, LAN real com Tauri. Abertos: centro da área clicando no mapa; Mão nua sem alcance; arma montada só alvo/anel; revisão inteira das condições (leva própria, dono pediu depois); pixel art descartada.
+
+# 22/11 noite: ALCANCE nas habilidades, itens e armas (histórico)
 
 ## Pedido de 22/11 23h04 + protótipo com a ficha em pixel art (literal no PEDIDOS)
 Alcance em habilidade, item e arma: quadrados azuis (dá dano) ou verde claro (sem dano: buff, debuff, cura) em volta/à frente de quem usa. RESPOSTAS: só mostram (alvo fora = "Fora do alcance, usar mesmo assim?"; hoje o host recusa, golpe.ts:793-818); parede corta; todos na mesa veem; formas existentes + cruz, leque, anel; antigos o Claude preenche pelo texto com backup e lista, grava só no Confirmar; armas também; grade quadrada só; protótipo antes, e o Testar do editor mostra mini-grade com o personagem e a forma. Pedido 2: protótipo em cima do token do jogador com a pixel art do dono andando (4 quadros, só de frente). ARTE DO DONO fica em tmp/proto-alcance/ (git ignora; repo é público); protótipo sai como artifact privado.
