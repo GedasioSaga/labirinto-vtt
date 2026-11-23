@@ -275,3 +275,10 @@ diagrama `docs/diagrams/requisitos.html` (pedido, avaliador, portão, gastos) co
 | Proposta errada nos antigos | Técnica travada à toa | Certeza baixa destacada, edição por linha, backup, Confirmar; o mestre sempre pode forçar |
 | Menu lento com muitas técnicas | Quadro travando ao abrir a Tira | Resultado guardado por `turnosRev`; luz só calculada quando um requisito pede |
 | Jogador marca a caixa sem cumprir | Abuso da caixa | É social: a linha "(declarou: ...)" fica destacada para o mestre, que desfaz |
+
+## Respostas do dono (23/11 10h20)
+
+- Quantos requisitos: "Uma tecnica pode ter varios requisitos, isso cabe ao jogador." Sem limite de quantidade; a forma continua de um nível (Todos estes, com grupos Um destes dentro).
+- Evolução: botão Evoluir, cinza com o que falta até cumprir.
+- Pedido ao aliado: "só quem pode ajudar é alguem que tem haver com tecnica de fogo, ou seja, manualmente ele pode escolher a quem pedir ajuda". O requisito G2 diz QUEM pode ajudar por uma marca (ex.: "Fogo") nas técnicas do aliado; o app lista só os aliados que têm essa marca (automático) e quem pede escolhe um deles (manual). As marcas são um campo novo e opcional nos cartões, editável. Prazo de 60 s, passar a vez cancela, nada gasto antes do aceite, Desfazer volta os dois.
+- Detalhes 1 a 5 (mestre força sem pular o custo normal; sem pedido na reação; "Só na mesa" no treino; textos antigos ficam; motivo do alvo só para quem vê a barra): aprovados.
