@@ -62,7 +62,7 @@ import { lerJudgeNaCena } from '../lib/batalha/judge'
 import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
 import type { FormaDaArea, QuemEntraNaArea } from '../lib/batalha/area'
 import { ITENS_PARA_JOGADOR_MAX, type ItemParaJogador } from '../lib/batalha/itemNaBatalha'
-import type { QuemOAlvoPega } from '../lib/batalha/mecanica/modelo'
+import { lerAlcanceDoSelo, type QuemOAlvoPega } from '../lib/batalha/mecanica/modelo'
 import type { ReacaoDoTipo } from '../lib/batalha/tiposDaHabilidade'
 import type { AreaAMao } from '../lib/batalha/mecanicasAMao'
 import { ITEM_QUANTIDADE_MAX } from '../lib/leituraDoItem'
@@ -981,6 +981,9 @@ function lerSeloVisto(value: unknown): SeloParaJogador | null {
   const selo: SeloParaJogador = { nome, turnos }
   if (mods !== undefined) selo.mods = mods
   if (naturezaLida !== undefined) selo.natureza = naturezaLida
+  // Fase B do alcance: aditivo e tolerante; o torto (de um host mais novo) sai calado, sem recusar o selo nem a lista.
+  const alcance = value.alcance === undefined ? null : lerAlcanceDoSelo(value.alcance)
+  if (alcance !== null) selo.alcance = alcance
   return selo
 }
 

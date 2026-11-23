@@ -1,5 +1,6 @@
 import type { GolpeDaBatalha, LembreteDaPassiva, PorVezDoSelo, SaidaDaReacao, SeloDaBatalha, VantagemDoDado } from './combate'
 import { normalizar } from './formula'
+import type { AlcanceDoSelo } from './mecanica/modelo'
 
 /**
  * CONDIÇÕES QUE A REGRA APLICA, conserto das fichas F1 (fatia S4; regras do
@@ -53,6 +54,12 @@ export interface ComportamentoDoSelo {
   esquivaComDesvantagem?: true
   /** F2 (fatia F, redoma da Orquídea): o selo sai quando o próximo golpe chega em quem o tem ("dura até o próximo golpe no alvo"). */
   saiNoProximoGolpe?: true
+  /**
+   * Fase B do alcance (docs/design/habilidades/ALCANCE.md §3.3): o que o selo faz no alcance de
+   * quem o tem ("Ofuscado: -2 em tudo"). Vazia de propósito: a revisão das condições (Cego,
+   * Ofuscado...) é o lote SEGUINTE, com perguntas e protótipo próprios.
+   */
+  alcance?: AlcanceDoSelo
 }
 
 /** Regra do sistema (respostas do Alexei e do Siegfried): o Sangramento tira 10 por vez, direto no HP. */
@@ -177,6 +184,11 @@ export function comportamentoDoSelo(nomeDoSelo: string): ComportamentoDoSelo | n
 /** O que o selo só lembra ao mestre (Ferido por prata: a cura cai pela metade), para o título da pílula; `null` = nada a lembrar. */
 export function lembreteDoSelo(nomeDoSelo: string): string | null {
   return comportamentoDoSelo(nomeDoSelo)?.lembrete ?? null
+}
+
+/** Fase B do alcance: o que a condição, pelo nome, faz no alcance de quem a tem; `null` = não mexe (hoje, nenhuma da tabela). */
+export function alcanceDaCondicao(nomeDoSelo: string): AlcanceDoSelo | null {
+  return comportamentoDoSelo(nomeDoSelo)?.alcance ?? null
 }
 
 /** O nome da condição que trava ("Atordoado"), se o selo é uma; `null` = não trava. */

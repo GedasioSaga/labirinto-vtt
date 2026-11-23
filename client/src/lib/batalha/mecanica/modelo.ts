@@ -799,6 +799,16 @@ function alcanceDoSelo(valor: unknown, onde: string): AlcanceDoSelo {
   return { mexe, n, vale: umDe(peca.vale, VALES_DO_ALCANCE, `${ondeDoAlcance} (vale para)`) }
 }
 
+/** O selo do alcance lido fora da mecânica (o fio do jogador, a tabela de condições), pelas mesmas regras da peça; `null` = torto. */
+export function lerAlcanceDoSelo(valor: unknown): AlcanceDoSelo | null {
+  try {
+    return alcanceDoSelo(valor, 'selo')
+  } catch (erro) {
+    if (erro instanceof PecaTorta) return null
+    throw erro
+  }
+}
+
 /** Fase 5: os números do selo ("Força +20"); o fixo pode tirar (negativo), a fórmula é lida na ficha de quem usa. */
 function modsDoSelo(valor: unknown, onde: string): ModDaPeca[] {
   const mods = lista(valor, MODS_POR_SELO_MAX, `${onde} (números do selo)`).map((item, indice): ModDaPeca => {
