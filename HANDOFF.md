@@ -1,3 +1,12 @@
+# 22/11 noite: ALCANCE nas habilidades, itens e armas (perguntas + protótipo em voo)
+
+## Pedido de 22/11 23h04 + protótipo com a ficha em pixel art (literal no PEDIDOS)
+Alcance em habilidade, item e arma: quadrados azuis (dá dano) ou verde claro (sem dano: buff, debuff, cura) em volta/à frente de quem usa. RESPOSTAS: só mostram (alvo fora = "Fora do alcance, usar mesmo assim?"; hoje o host recusa, golpe.ts:793-818); parede corta; todos na mesa veem; formas existentes + cruz, leque, anel; antigos o Claude preenche pelo texto com backup e lista, grava só no Confirmar; armas também; grade quadrada só; protótipo antes, e o Testar do editor mostra mini-grade com o personagem e a forma. Pedido 2: protótipo em cima do token do jogador com a pixel art do dono andando (4 quadros, só de frente). ARTE DO DONO fica em tmp/proto-alcance/ (git ignora; repo é público); protótipo sai como artifact privado.
+- Mapa (batedor-fundo): mira DOM em components/batalha/MiraDoGolpe.tsx (estado local, clique só em ficha; ponto via EscolhaDoPonto.tsx); só o alcance de movimento é Pixi (pixi/alcanceDaBatalha.ts, mestre PixiCanvas.tsx:1403/2313, jogador PlayerView.tsx:4584, sem mensagem de rede própria); direção 4 botões, não vai ao host (combate.ts:428); editor do alcance em blocos/BlocoDoAlvo.tsx:89-124 (só um/vários/raio com centro), usado por técnica, item (EfeitoDoItemCampos) e arma (EfeitoDaArmaCampos); sem classificador único de dano x ajuda (selo natureza em modelo.ts:249). Moldes com alcance: itens 23/25, técnicas 1/22, armas 0/20.
+- EM VOO: designer-opus monta tmp/proto-alcance/prototipo.html (mapa de cima, anel com foto x pixel art andando, formas e cores, parede corta, painel Testar). Depois: mostrar ao dono, plano das fases (rede para "todos veem", camada Pixi nova, formas novas no motor, aviso fora do alcance, preencher os antigos com backup).
+- Disco C: 7,0 GB às 23h (abaixo do piso; pagefile 26 GB com o Minecraft). Avisado ao dono; nada pesado até liberar.
+- Critério de pronto do protótipo: o dono abre a página, escolhe cada habilidade e vê a forma certa na cor certa, a parede cortando, a ficha em pixel art andando, sem tarefa longa >= 200 ms.
+
 # 22/11: 0.5.93 PUBLICADA (cartão do catálogo + armas e itens com regra única)
 
 ## Pedido de 22/11 22/11 11h23 (literal no PEDIDOS)
