@@ -6,7 +6,7 @@ import { CAMPO_DO_DANO, lerFormula } from '../formula'
 import { CAMPO_DO_CUSTO, type LeituraDaAcao, type LeituraDoCusto } from '../leituraDaFicha'
 import { leituraDaTecnica } from '../leituraDaTecnica'
 import { formulaDaMecanica } from '../mecanicasAMao'
-import { CD_MAX, FORMULA_MAX, lerMecanica, migrarV1ParaV2, precisaDaVersao2, precisaDaVersao3, testeRolado, VERSAO_GRAVADA, type AlvoDaMecanica, centroDaArea, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
+import { CD_MAX, FORMULA_MAX, golpeQueVale, lerMecanica, migrarV1ParaV2, precisaDaVersao2, precisaDaVersao3, precisaDaVersao4, testeRolado, VERSAO_GRAVADA, type AlvoDaMecanica, centroDaArea, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
 import type { FichaDaPrevia } from './resumo'
 
 /**
@@ -412,7 +412,9 @@ export function trocarUso(mecanica: MecanicaV1, uso: UsoDaMecanica): MecanicaV1 
   const reacao: ReacaoDaMecanica = mecanica.reacao ?? { defesa: { tipo: 'anula' } }
   if (uso === 'ativaOuReacao') return { ...base, ...(mecanica.dano === undefined ? {} : { dano: mecanica.dano }), uso, reacao }
   const efeitos = mecanica.efeitos.filter((efeito) => efeito.tipo === 'aMao' || (efeito.tipo === 'selo' && efeito.em === 'atacante'))
-  return { ...base, uso, reacao, efeitos }
+  // Fase ED1: só no lugar da reação não há golpe da vez, então o tipo do golpe sai junto.
+  const { golpe: _golpe, ...semGolpe } = base
+  return { ...semGolpe, uso, reacao, efeitos }
 }
 
 /** O selo volta a pegar no alvo do golpe. */
@@ -427,8 +429,11 @@ export function guardarMecanica(mecanica: MecanicaV1): MecanicaGuardada {
   // Fase 4: só a mecânica com peça da versão 2 (a reação) grava 2; o resto continua 1 e abre no app de antes e no Lobby.
   // "Na vez" é o padrão: sem a chave, a mecânica volta a caber na versão 1.
   // Fase B do alcance: a cruz, o leque, o anel e o selo do alcance gravam 3; sem eles, a de antes (a 3 lida que perdeu a peça volta a 2 ou 1).
-  const { uso: _uso, ...semUso } = mecanica
-  const versionada = precisaDaVersao3(mecanica) ? { ...mecanica, versao: 3 } : precisaDaVersao2(mecanica) ? migrarV1ParaV2(mecanica) : { ...semUso, versao: VERSAO_GRAVADA }
+  // Fase ED1: o tipo do golpe grava 4 (a ESCOLHA, nunca as peças montadas); sem tipo, a chave sai e vale a de antes.
+  const { golpe: _golpe, ...semGolpe } = mecanica
+  const golpe = golpeQueVale(mecanica.golpe)
+  const { uso: _uso, ...semUso } = semGolpe
+  const versionada = precisaDaVersao4(mecanica) ? { ...semGolpe, ...(golpe === undefined ? {} : { golpe }), versao: 4 } : precisaDaVersao3(semGolpe) ? { ...semGolpe, versao: 3 } : precisaDaVersao2(semGolpe) ? migrarV1ParaV2(semGolpe) : { ...semUso, versao: VERSAO_GRAVADA }
   const copia: unknown = JSON.parse(JSON.stringify(versionada))
   return typeof copia === 'object' && copia !== null && !Array.isArray(copia) ? { ...copia } : {}
 }

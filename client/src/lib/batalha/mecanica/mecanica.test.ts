@@ -34,7 +34,7 @@ const PECAS_DA_ESPADADA = {
 const ESPADADA_EM_TEXTO = cartao('cart_espadada_texto', 'Espadada do Marinheiro', { acao: 'Ação Simples', custo: '30', tempo: '3', dano: 'Força + 20', efeito: 'Atordoa por 1 turno.' })
 /** O texto velho do cartão montado diz outra coisa: com peças, ele é só descrição. */
 const ESPADADA_MONTADA = cartao('cart_espadada_pecas', 'Espadada do Marinheiro', { acao: 'Completa', custo: '999', tempo: '9', dano: '5000', efeito: 'Texto antigo.' }, PECAS_DA_ESPADADA)
-const DE_APP_NOVO = cartao('cart_futura', 'Golpe do Futuro', { custo: '10', dano: '40' }, { versao: 4, acao: 'simples', coisaNova: true })
+const DE_APP_NOVO = cartao('cart_futura', 'Golpe do Futuro', { custo: '10', dano: '40' }, { versao: 5, acao: 'simples', coisaNova: true })
 
 const marinheiro = ficha('Marinheiro de Teste', { forca: 60 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [ESPADADA_EM_TEXTO, ESPADADA_MONTADA, DE_APP_NOVO] })
 const boneco = ficha('Boneco de Treino', { forca: 10 }, { hp: 400, sp: 50, escudo: 0 }, {})
@@ -80,7 +80,7 @@ describe('tudo ou nada e a versão', () => {
     // Revisão: o "depois" só cobra HP fixo (`custoEmHp`); o resto seria lido e nunca cobrado.
     expect(lerMecanica({ ...PECAS_DA_ESPADADA, custos: [{ recurso: 'sp', quanto: { fixo: 10 }, quando: 'depois' }] })).toMatchObject({ tipo: 'invalida' })
     expect(lerMecanica({ ...PECAS_DA_ESPADADA, custos: [{ recurso: 'hp', quanto: { fixo: 200 }, quando: 'depois' }] })).toMatchObject({ tipo: 'pecas' })
-    expect(lerMecanica(DE_APP_NOVO.mecanica)).toEqual({ tipo: 'futura', versao: 4 })
+    expect(lerMecanica(DE_APP_NOVO.mecanica)).toEqual({ tipo: 'futura', versao: 5 })
     const lida = leituraDaTecnica(DE_APP_NOVO, { personagem: marinheiro, sistema })
     expect([lida.custo.tipo, lida.acaoDaFicha.acao]).toEqual(['pergunta', null])
     expect(danoDaTecnica(DE_APP_NOVO, { personagem: marinheiro, sistema, arma: null }).tipo).toBe('naoEntende')

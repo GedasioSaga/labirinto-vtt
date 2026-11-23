@@ -25,12 +25,15 @@ import type { EscopoDoAlcance, MudancaDoAlcance } from '../alcance/condicoes'
  * A versão mais nova que este app LÊ (Fase 2 de docs/design/habilidades/SISTEMA.md:
  * a versão 2 é a 1 com mais peças; a 1 continua lida como sempre). Fase B do
  * alcance (docs/design/habilidades/ALCANCE.md §3.3): a 3 é a 2 com a cruz, o
- * leque, o anel (`alcanceMinimo`) e o selo que muda o alcance.
+ * leque, o anel (`alcanceMinimo`) e o selo que muda o alcance. Fase ED1 do
+ * editor novo (docs/design/habilidades/EDITOR.md §3.1): a 4 é a 3 com o tipo do
+ * golpe (`golpe`), guardado como escolha e virado peças só na leitura do motor
+ * (`pecasParaOMotor`, golpe.ts).
  */
-export const VERSAO_DA_MECANICA = 3
+export const VERSAO_DA_MECANICA = 4
 
 /** As versões que este app lê. A peça lida guarda a versão com que veio. */
-export type VersaoDaMecanica = 1 | 2 | 3
+export type VersaoDaMecanica = 1 | 2 | 3 | 4
 
 /**
  * A versão que este app GRAVA numa mecânica nova (modelos, arma montada).
@@ -307,6 +310,109 @@ export interface MecanicaV2 {
   reacao?: ReacaoDaMecanica
   /** Fase 5: cada uso gasta isto da mochila (a Medicina gasta 1 Kit Médico); sem sobrar, a técnica fica apagada. */
   custoEmItem?: CustoEmItem
+  /**
+   * Versão 4 (fase ED1 do editor novo): o tipo do golpe, como o mestre escolheu. O motor nunca lê
+   * este campo: lê as peças que `pecasParaOMotor` (golpe.ts) monta com ele. Ausente = sem tipo.
+   */
+  golpe?: GolpeDaMecanica
+}
+
+// ─── Versão 4: o tipo do golpe (EDITOR.md §3.1 e §3.2) ─────────────────────
+// Guardado como ESCOLHA (o tipo e a regra que o mestre mudou), nunca como as
+// peças soltas: assim a escolha não se perde e o mesmo selo não mora em dois
+// lugares. Os padrões são os do protótipo aprovado (editor/prototipo.html,
+// tabelas FISICOS e ELEMENTOS).
+
+/** Quando o selo do tipo pega: sempre que o golpe acerta; com teste (o alvo rola para não pegar); ou só dá o nome ao golpe (o Caça às Bruxas é de fogo e não queima). */
+export type QuandoOTipoPega = 'sempre' | 'teste' | 'soTipo'
+
+/** O teste do "com teste": o alvo rola d20 + mod do atributo (id do sistema) contra a CD; passou, não pega. */
+export interface TesteDoTipo {
+  atributo: string
+  cd: CdDoTeste
+}
+
+/** A parte da regra de todo tipo que põe uma condição: quando pega e por quantas vezes do alvo (a contagem do selo). */
+export interface RegraQuePoeCondicao {
+  quando: QuandoOTipoPega
+  /** Só no "com teste". */
+  teste?: TesteDoTipo
+  vezes: number
+}
+
+/** A regra de cada tipo: o que o mestre pode mudar nele. */
+export interface RegrasDosTipos {
+  /** Atordoado; `casas` = empurra (0 = não empurra; o mestre move a ficha). */
+  impacto: RegraQuePoeCondicao & { casas: number }
+  /** Sangrando; `porVez` = HP tirado no começo de cada vez, direto. */
+  cortante: RegraQuePoeCondicao & { porVez: number }
+  /** A parte do dano que passa o Escudo (100 = tudo). Não põe condição. */
+  perfurante: { porcento: number }
+  queimadura: RegraQuePoeCondicao & { porVez: number }
+  /** Envenenado; além do HP por vez, a cura que o alvo recebe cai pela metade. */
+  veneno: RegraQuePoeCondicao & { porVez: number }
+  /** Congelado; `casas` = quanto o alcance dele cai. Reage com desvantagem. */
+  congelamento: RegraQuePoeCondicao & { casas: number }
+  /** Eletrizado; `porVez` = SP perdido no fim de cada vez. */
+  choque: RegraQuePoeCondicao & { porVez: number }
+  /** Cego (a Percepção fica em 0, pela tabela dos selos). */
+  cegueira: RegraQuePoeCondicao
+  /** Enfraquecido; quanto a Força e o Dano caem. */
+  enfraquecer: RegraQuePoeCondicao & { forca: number; dano: number }
+  /** Uma condição com o nome que o mestre quiser e, se quiser, HP por vez. */
+  outro: RegraQuePoeCondicao & { nome: string; porVez: number }
+}
+
+export type TipoDoGolpe = keyof RegrasDosTipos
+/** Como o golpe bate: escolhe um. */
+export type TipoQueBate = 'impacto' | 'cortante' | 'perfurante'
+/** O que o golpe causa: vários, cada tipo uma vez. */
+export type TipoQueCausa = Exclude<TipoDoGolpe, TipoQueBate>
+
+/** Os tipos, na ordem da tela. */
+export const TIPOS_QUE_BATEM: readonly TipoQueBate[] = ['impacto', 'cortante', 'perfurante']
+export const TIPOS_QUE_CAUSAM: readonly TipoQueCausa[] = ['queimadura', 'veneno', 'congelamento', 'choque', 'cegueira', 'enfraquecer', 'outro']
+
+/** Um tipo escolhido, com a regra dele. */
+export type TipoComRegra<T extends TipoDoGolpe> = { [K in T]: { tipo: K; regra: RegrasDosTipos[K] } }[T]
+
+export interface GolpeDaMecanica {
+  bate?: TipoComRegra<TipoQueBate>
+  causa?: readonly TipoComRegra<TipoQueCausa>[]
+}
+
+/** O teste de partida do "com teste": Resistência contra CD 12. */
+export const TESTE_DO_TIPO_DE_PARTIDA: TesteDoTipo = { atributo: 'resistencia', cd: { fixo: 12 } }
+
+/** A regra que cada tipo traz ao ser escolhido (os padrões aprovados no protótipo). A leitura completa com ela o que faltar. */
+export const REGRA_DE_PARTIDA: { readonly [K in TipoDoGolpe]: RegrasDosTipos[K] } = {
+  impacto: { quando: 'teste', teste: TESTE_DO_TIPO_DE_PARTIDA, vezes: 1, casas: 0 },
+  cortante: { quando: 'sempre', vezes: 3, porVez: 10 },
+  perfurante: { porcento: 100 },
+  queimadura: { quando: 'sempre', vezes: 3, porVez: 10 },
+  veneno: { quando: 'sempre', vezes: 3, porVez: 10 },
+  congelamento: { quando: 'teste', teste: TESTE_DO_TIPO_DE_PARTIDA, vezes: 2, casas: 2 },
+  choque: { quando: 'sempre', vezes: 2, porVez: 10 },
+  cegueira: { quando: 'teste', teste: TESTE_DO_TIPO_DE_PARTIDA, vezes: 2 },
+  enfraquecer: { quando: 'sempre', vezes: 2, forca: 20, dano: 10 },
+  outro: { quando: 'sempre', vezes: 2, porVez: 0, nome: 'Marcado' },
+}
+
+/** O golpe com o que vale: sem tipo nenhum (nem como bate, nem o que causa) = `undefined` (o cartão não precisa da 4). */
+export function golpeQueVale(golpe: GolpeDaMecanica | undefined): GolpeDaMecanica | undefined {
+  if (golpe === undefined) return undefined
+  const causa = golpe.causa === undefined || golpe.causa.length === 0 ? undefined : golpe.causa
+  if (golpe.bate === undefined && causa === undefined) return undefined
+  return { ...(golpe.bate === undefined ? {} : { bate: golpe.bate }), ...(causa === undefined ? {} : { causa }) }
+}
+
+/**
+ * Versão 4: a mecânica tem peça que só a 4 diz (fase ED1: o tipo do golpe; a ED4 soma o teste do selo
+ * e o acumulador). Quem grava usa a 4 só nesse caso: o app de antes (que lê até a 3) lê a 4 como
+ * "atualize o app" e o cartão fica à mão sem perder nada; toda outra mecânica continua 1, 2 ou 3.
+ */
+export function precisaDaVersao4(mecanica: Pick<MecanicaV2, 'golpe'>): boolean {
+  return golpeQueVale(mecanica.golpe) !== undefined
 }
 
 /** O nome da fatia C1, mantido para quem já o usa: são as mesmas peças lidas (`MecanicaV2`). */
@@ -421,7 +527,8 @@ export interface ReacaoDaMecanica {
  */
 export const PECAS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   limite: { porRodada: 'limite por rodada' },
-  selo: { seJaTem: 'renovar o selo' },
+  // Fase ED1: o "com teste" do tipo do golpe vira esta peça (`pecasParaOMotor`); o motor dela é da ED4.
+  selo: { seJaTem: 'renovar o selo', pega: 'o teste da condição (o "com teste" do tipo do golpe)' },
 }
 
 /** Os efeitos da versão 2 que ainda não rodam, pelo tipo. */
@@ -776,7 +883,9 @@ const REGRA_DO_SELO_MAX = 200
 /** Fase 5: a regra própria do selo. Travar e tirar saídas seguem pelo NOME (Atordoado, Aéreo); a peça abre o dano e a cura recebidos. */
 function regraDoSelo(valor: unknown, onde: string): RegraDoSelo {
   const peca = registro(valor, `${onde} (regra)`)
-  if (peca.trava !== undefined || peca.tiraSaidas !== undefined || peca.reageComDesvantagem !== undefined) aindaNaoRoda('travar ou tirar saídas pela regra do selo (use o nome: Atordoado, Aéreo)')
+  if (peca.trava !== undefined || peca.tiraSaidas !== undefined) aindaNaoRoda('travar ou tirar saídas pela regra do selo (use o nome: Atordoado, Aéreo)')
+  // Fase ED1: o Congelado do tipo do golpe pede esta peça; o selo da batalha ainda não a leva até a reação.
+  if (peca.reageComDesvantagem !== undefined) aindaNaoRoda('reagir com desvantagem pela regra do selo (o Congelado do tipo do golpe)')
   soChaves(peca, ['danoRecebido', 'curaRecebida'], `${onde} (regra)`)
   const lida: RegraDoSelo = {}
   if (peca.danoRecebido !== undefined) lida.danoRecebido = inteiro(peca.danoRecebido, -100, REGRA_DO_SELO_MAX, `${onde} (dano recebido %)`)
@@ -988,8 +1097,130 @@ function conferirReacao(mecanica: Pick<MecanicaV2, 'uso' | 'reacao' | 'efeitos'>
   if (mecanica.uso === 'reacao' && mecanica.efeitos.some((efeito) => !(efeito.tipo === 'aMao' || (efeito.tipo === 'selo' && efeito.em === 'atacante')))) aindaNaoRoda('efeito da vez numa técnica só de reação')
 }
 
+// ─── Leitura da versão 4: o tipo do golpe ───────────────────────────────────
+
+/** O teste do "com teste": o atributo e a CD, como no teste da técnica. */
+function testeDoTipo(valor: unknown, onde: string): TesteDoTipo {
+  const ondeDoTeste = `${onde} (teste)`
+  const peca = registro(valor, ondeDoTeste)
+  soChaves(peca, ['atributo', 'cd'], ondeDoTeste)
+  return { atributo: texto(peca.atributo, ATRIBUTO_MAX, `${ondeDoTeste} (atributo)`), cd: cd(peca.cd) }
+}
+
+/** Quando pega e por quantas vezes; o que faltar vem da regra de partida do tipo. O teste só existe no "com teste". */
+function regraQuePoeCondicao(peca: Record<string, unknown>, partida: RegraQuePoeCondicao, onde: string): RegraQuePoeCondicao {
+  const quando = umDe(peca.quando ?? partida.quando, ['sempre', 'teste', 'soTipo'] as const, `${onde} (quando pega)`)
+  const lida: RegraQuePoeCondicao = { quando, vezes: inteiro(peca.vezes ?? partida.vezes, 1, TURNOS_DO_SELO_MAX, `${onde} (vezes)`) }
+  if (quando === 'teste') lida.teste = testeDoTipo(peca.teste ?? partida.teste ?? TESTE_DO_TIPO_DE_PARTIDA, onde)
+  else if (peca.teste !== undefined) torta(`${onde}: o teste só vale no "com teste"`)
+  return lida
+}
+
+/** O HP ou o SP por vez. Sangrando e Queimando tiram pelo nome se a peça não disser, então neles e no Choque o mínimo é 1. */
+function porVezDoTipo(peca: Record<string, unknown>, partida: number, minimo: 0 | 1, onde: string): number {
+  return inteiro(peca.porVez ?? partida, minimo, DANO_MAX, `${onde} (por vez)`)
+}
+
+/** A peça de um tipo: `tipo` e `regra` (sem `regra` = a de partida). */
+function pecaDoTipo(valor: unknown, onde: string): { peca: Record<string, unknown>; regra: Record<string, unknown> } {
+  const peca = registro(valor, onde)
+  soChaves(peca, ['tipo', 'regra'], onde)
+  return { peca, regra: registro(peca.regra ?? {}, `${onde} (regra)`) }
+}
+
+/** Como o golpe bate: Impacto, Cortante ou Perfurante. */
+function tipoQueBate(valor: unknown): TipoComRegra<TipoQueBate> {
+  const { peca, regra } = pecaDoTipo(valor, 'como o golpe bate')
+  const tipo = umDe(peca.tipo, TIPOS_QUE_BATEM, 'como o golpe bate')
+  const onde = `o golpe ${tipo}`
+  switch (tipo) {
+    case 'impacto': {
+      soChaves(regra, ['quando', 'teste', 'vezes', 'casas'], onde)
+      const partida = REGRA_DE_PARTIDA.impacto
+      return { tipo, regra: { ...regraQuePoeCondicao(regra, partida, onde), casas: inteiro(regra.casas ?? partida.casas, 0, CASAS_MAX, `${onde} (casas que empurra)`) } }
+    }
+    case 'cortante': {
+      soChaves(regra, ['quando', 'teste', 'vezes', 'porVez'], onde)
+      const partida = REGRA_DE_PARTIDA.cortante
+      return { tipo, regra: { ...regraQuePoeCondicao(regra, partida, onde), porVez: porVezDoTipo(regra, partida.porVez, 1, onde) } }
+    }
+    case 'perfurante':
+      soChaves(regra, ['porcento'], onde)
+      return { tipo, regra: { porcento: inteiro(regra.porcento ?? REGRA_DE_PARTIDA.perfurante.porcento, 1, 100, `${onde} (% que passa o Escudo)`) } }
+  }
+}
+
+/** O que o golpe causa: uma condição por tipo (o Outro com o nome do mestre). */
+function tipoQueCausa(valor: unknown, indice: number): TipoComRegra<TipoQueCausa> {
+  const { peca, regra } = pecaDoTipo(valor, `o que o golpe causa ${indice + 1}`)
+  const tipo = umDe(peca.tipo, TIPOS_QUE_CAUSAM, `o que o golpe causa ${indice + 1}`)
+  const onde = `o golpe de ${tipo}`
+  switch (tipo) {
+    case 'queimadura':
+    case 'choque': {
+      soChaves(regra, ['quando', 'teste', 'vezes', 'porVez'], onde)
+      const partida = REGRA_DE_PARTIDA[tipo]
+      return { tipo, regra: { ...regraQuePoeCondicao(regra, partida, onde), porVez: porVezDoTipo(regra, partida.porVez, 1, onde) } }
+    }
+    case 'veneno': {
+      soChaves(regra, ['quando', 'teste', 'vezes', 'porVez'], onde)
+      const partida = REGRA_DE_PARTIDA.veneno
+      return { tipo, regra: { ...regraQuePoeCondicao(regra, partida, onde), porVez: porVezDoTipo(regra, partida.porVez, 0, onde) } }
+    }
+    case 'congelamento': {
+      soChaves(regra, ['quando', 'teste', 'vezes', 'casas'], onde)
+      const partida = REGRA_DE_PARTIDA.congelamento
+      return { tipo, regra: { ...regraQuePoeCondicao(regra, partida, onde), casas: inteiro(regra.casas ?? partida.casas, 1, CASAS_MAX, `${onde} (casas a menos no alcance)`) } }
+    }
+    case 'cegueira':
+      soChaves(regra, ['quando', 'teste', 'vezes'], onde)
+      return { tipo, regra: regraQuePoeCondicao(regra, REGRA_DE_PARTIDA.cegueira, onde) }
+    case 'enfraquecer': {
+      soChaves(regra, ['quando', 'teste', 'vezes', 'forca', 'dano'], onde)
+      const partida = REGRA_DE_PARTIDA.enfraquecer
+      const forca = inteiro(regra.forca ?? partida.forca, 0, DANO_MAX, `${onde} (Força a menos)`)
+      return { tipo, regra: { ...regraQuePoeCondicao(regra, partida, onde), forca, dano: inteiro(regra.dano ?? partida.dano, 0, DANO_MAX, `${onde} (Dano a menos)`) } }
+    }
+    case 'outro': {
+      soChaves(regra, ['quando', 'teste', 'vezes', 'nome', 'porVez'], onde)
+      const partida = REGRA_DE_PARTIDA.outro
+      const nome = texto(regra.nome ?? partida.nome, NOME_DO_SELO_MAX, `${onde} (nome da condição)`)
+      return { tipo, regra: { ...regraQuePoeCondicao(regra, partida, onde), nome, porVez: porVezDoTipo(regra, partida.porVez, 0, onde) } }
+    }
+  }
+}
+
+/**
+ * Versão 4: o tipo do golpe, lido como escolha. Vale só no golpe da vez em quem não é aliado (a ajuda
+ * não tem tipo); o Perfurante precisa de dano e fica só aqui (não também no dano). Sem tipo nenhum =
+ * `undefined`. O teto de 3 condições no mesmo golpe (tipo e Efeitos somados, sem repetir o nome) é
+ * conferido quando o motor monta as peças (`pecasParaOMotor`), pela mesma leitura das peças.
+ */
+function golpeDaPeca(valor: unknown, mecanica: Pick<MecanicaV2, 'alvo' | 'uso' | 'dano'>): GolpeDaMecanica | undefined {
+  const peca = registro(valor, 'tipo do golpe')
+  soChaves(peca, ['bate', 'causa'], 'tipo do golpe')
+  const lido: GolpeDaMecanica = {}
+  if (peca.bate !== undefined) lido.bate = tipoQueBate(peca.bate)
+  if (peca.causa !== undefined) {
+    const causa = lista(peca.causa, TIPOS_QUE_CAUSAM.length, 'o que o golpe causa').map(tipoQueCausa)
+    if (new Set(causa.map((item) => item.tipo)).size !== causa.length) torta('o mesmo tipo duas vezes no que o golpe causa')
+    lido.causa = causa
+  }
+  const golpe = golpeQueVale(lido)
+  if (golpe === undefined) return undefined
+  if (mecanica.alvo.quem === 'aliados' || mecanica.alvo.quem === 'si') torta('o tipo do golpe não vale em aliado nem em quem usa')
+  if (mecanica.uso === 'reacao') torta('o tipo do golpe não vale na técnica só de reação')
+  if (golpe.bate?.tipo === 'perfurante') {
+    if (mecanica.dano === undefined) torta('o golpe perfurante precisa de dano')
+    if (mecanica.dano.perfurante === true || mecanica.dano.perfuracao !== undefined) torta('o perfurante fica só no tipo do golpe, não também no dano')
+  }
+  return golpe
+}
+
 function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): MecanicaV2 {
-  soChaves(peca, ['versao', 'acao', 'custos', 'limite', 'alvo', 'teste', 'dano', 'efeitos', 'uso', 'reacao', 'custoEmItem'], 'mecânica', 'mecânica')
+  soChaves(peca, ['versao', 'acao', 'custos', 'limite', 'alvo', 'teste', 'dano', 'efeitos', 'uso', 'reacao', 'custoEmItem', 'golpe'], 'mecânica', 'mecânica')
+  // Fase ED1: o tipo do golpe só existe na 4 (o app de antes lê a 4 como "atualize o app"; quem grava usa a 4 só com `precisaDaVersao4`).
+  if (versao < 4 && peca.golpe !== undefined) torta(`o tipo do golpe só existe na versão 4 da mecânica, e esta é a ${versao}`)
   const custos = lista(peca.custos ?? [], CUSTOS_MAX, 'custos').map(custo)
   for (const quando of ['aoUsar', 'porTurno', 'depois'] as const) {
     if (custos.filter((item) => item.quando === quando).length > 1) torta('dois custos no mesmo momento')
@@ -1013,6 +1244,10 @@ function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): 
   if (peca.uso !== undefined) mecanica.uso = umDe(peca.uso, ['ativa', 'reacao', 'ativaOuReacao'] as const, 'quando usa')
   if (peca.reacao !== undefined) mecanica.reacao = reacaoDaPeca(peca.reacao)
   if (peca.custoEmItem !== undefined) mecanica.custoEmItem = custoEmItemDaPeca(peca.custoEmItem)
+  if (peca.golpe !== undefined) {
+    const golpe = golpeDaPeca(peca.golpe, mecanica)
+    if (golpe !== undefined) mecanica.golpe = golpe
+  }
   conferirTeste(mecanica)
   conferirReacao(mecanica)
   // Fase 5: a versão 1 é o que o app de antes lê; peça só da 2 nela é arquivo torto (quem grava usa a 2, `precisaDaVersao2`).
@@ -1033,8 +1268,8 @@ export function lerMecanica(valor: unknown): MecanicaLida {
     const peca = registro(valor, 'mecânica')
     const versao = inteiro(peca.versao, 1, Number.MAX_SAFE_INTEGER, 'versão')
     if (versao > VERSAO_DA_MECANICA) return { tipo: 'futura', versao }
-    // A 1, a 2 e a 3 pelo mesmo leitor (cada uma é superconjunto da anterior); a peça guarda a versão com que veio.
-    return { tipo: 'pecas', mecanica: mecanicaLida(peca, versao === 1 ? 1 : versao === 2 ? 2 : 3) }
+    // A 1, a 2, a 3 e a 4 pelo mesmo leitor (cada uma é superconjunto da anterior); a peça guarda a versão com que veio.
+    return { tipo: 'pecas', mecanica: mecanicaLida(peca, versao === 1 ? 1 : versao === 2 ? 2 : versao === 3 ? 3 : 4) }
   } catch (erro) {
     if (erro instanceof PecaTorta) return { tipo: 'invalida', motivo: erro.message }
     throw erro
