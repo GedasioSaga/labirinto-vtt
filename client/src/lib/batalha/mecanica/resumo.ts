@@ -22,6 +22,12 @@ import { TESTE_DO_TIPO_DE_PARTIDA, type CdDoTeste, type Custo, type DuracaoDoSel
 export interface FichaDaPrevia {
   personagem: Personagem
   sistema: SistemaDeRpg
+  /**
+   * Fase ED2: só os nomes do sistema (atributos), sem a prévia do número. É o texto que vai a um
+   * campo do cartão (`textoGerado.ts`): a conta de hoje mudaria com a ficha e o campo diria outra
+   * coisa que o golpe. Ausente = com a prévia.
+   */
+  soNomes?: true
 }
 
 const RECURSO: Readonly<Record<'sp' | 'hp', string>> = { sp: 'SP', hp: 'HP' }
@@ -49,8 +55,8 @@ function numeroDaPeca(numero: Numero): string {
   return `${numeroSimples(zero)} (com Concentração: ${numeroSimples(um)} / ${numeroSimples(dois)} / ${numeroSimples(tres)})`
 }
 
-/** "30 SP", "10% do HP máximo", "Força de SP". */
-function quantoCusta(custo: Custo): string {
+/** "30 SP", "10% do HP máximo", "Força de SP". Fase ED2: é também o campo Custo que o app escreve (`textoGerado.ts`). */
+export function quantoCusta(custo: Custo): string {
   const recurso = RECURSO[custo.recurso]
   const { quanto } = custo
   if ('porcento' in quanto) return `${quanto.porcento}% do ${recurso} ${quanto.de === 'maximo' ? 'máximo' : 'atual'}`
@@ -140,7 +146,7 @@ function quemRolaNaFrase(quem: QuemRolaNoTeste, ficha?: FichaDaPrevia): string {
 
 /** A prévia da CD por fórmula: "= 14 com a ficha de hoje"; `null` = sem ficha. */
 export function previaDaCd(formula: string, ficha?: FichaDaPrevia): string | null {
-  if (ficha === undefined || formula.trim() === '') return null
+  if (ficha === undefined || ficha.soNomes === true || formula.trim() === '') return null
   const valor = cdDaExpressao(formula, { personagem: ficha.personagem }, ficha.sistema)
   return valor === null ? 'a fórmula não fecha com esta ficha' : `= ${valor} com a ficha de hoje`
 }
@@ -195,7 +201,7 @@ function quandoOSeloPega(mecanica: MecanicaV1): string {
 
 /** A prévia do número com a ficha: "= 80 com a ficha de hoje", "+ a arma escolhida na hora"; `null` = sem prévia. */
 export function previaDoDano(formula: string, ficha: FichaDaPrevia | undefined): string | null {
-  if (ficha === undefined || formula.trim() === '') return null
+  if (ficha === undefined || ficha.soNomes === true || formula.trim() === '') return null
   const lido = lerDano(formula, { personagem: ficha.personagem, sistema: ficha.sistema, arma: null, vidaDoAlvo: null })
   switch (lido.tipo) {
     case 'valor':
