@@ -63,10 +63,13 @@ function cartaoNovoSemImagem(mudanca: Mudanca): Mudanca {
   return { ...mudanca, valor: semImagem(mudanca.valor) }
 }
 
-/** O cartão (já em JSON) com `imagem: null` e sem `mecanica` nem `alcance` (fase B do alcance), nele e em todos os subcartões. */
+/**
+ * O cartão (já em JSON) com `imagem: null` e sem `mecanica` nem `alcance` (fase B do alcance), nem `requisitos`,
+ * `marcas` e `acumulador` (fase B2 dos requisitos: regra do mestre), nele e em todos os subcartões.
+ */
 function semImagem(cartao: Json): Json {
   if (cartao === null || typeof cartao !== 'object' || Array.isArray(cartao)) return cartao
-  const { mecanica: _soDoMestre, alcance: _alcanceDoMestre, oculta: _oculta, revelaAoUsar: _revela, ...resto } = cartao
+  const { mecanica: _soDoMestre, alcance: _alcanceDoMestre, requisitos: _requisitos, marcas: _marcas, acumulador: _acumulador, oculta: _oculta, revelaAoUsar: _revela, ...resto } = cartao
   const subcartoes = proprio(resto, 'subcartoes')
   return { ...resto, imagem: null, ...(Array.isArray(subcartoes) ? { subcartoes: subcartoes.map(semImagem) } : {}) }
 }

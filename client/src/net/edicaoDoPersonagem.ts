@@ -118,6 +118,26 @@ function ligacoesDosCartoes(abas: Record<string, CartaoDaFicha[]>): Map<string, 
   return ligacoes
 }
 
+type RequisitosDoCartao = Pick<CartaoDaFicha, 'requisitos' | 'marcas' | 'acumulador'>
+
+/**
+ * Fase B2 dos requisitos: o bloco, as marcas e a definição do acumulador de cada cartão que tem
+ * algum, pelo id, subcartões juntos. São regra do mestre (como a mecânica e o alcance): o fio do
+ * jogador não os leva (`CartaoSemImagem`), e o host guarda os do cartão de mesmo id.
+ */
+function requisitosDosCartoes(abas: Record<string, CartaoDaFicha[]>): Map<string, RequisitosDoCartao> {
+  const porId = new Map<string, RequisitosDoCartao>()
+  const visitar = (cartao: CartaoDaFicha): void => {
+    const { requisitos, marcas, acumulador } = cartao
+    if (requisitos !== undefined || marcas !== undefined || acumulador !== undefined) {
+      porId.set(cartao.id, { ...(requisitos === undefined ? {} : { requisitos }), ...(marcas === undefined ? {} : { marcas }), ...(acumulador === undefined ? {} : { acumulador }) })
+    }
+    cartao.subcartoes.forEach(visitar)
+  }
+  for (const cartoes of Object.values(abas)) cartoes.forEach(visitar)
+  return porId
+}
+
 /**
  * Fatia C2 (revisão): a proposta de mecânica de um cartão que o jogador NÃO
  * tocou desde que a edição abriu sai como a da ficha recebida por último, ou
@@ -247,6 +267,7 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, bas
   // Fase B do alcance: a forma do alcance é regra do mestre, como a mecânica: fica a do cartão de mesmo id no host.
   const alcances = mecanicasDosCartoes(atual.abas, 'alcance')
   const ligacoes = ligacoesDosCartoes(atual.abas)
+  const requisitos = requisitosDosCartoes(atual.abas)
   const propostasDeAgora = mecanicasDosCartoes(atual.abas, 'mecanicaProposta')
   const propostasDaBase = base === undefined ? null : mecanicasDosCartoes(base.abas, 'mecanicaProposta')
   const armasDoLivro = new Map((atual.abas[ABA_DAS_ARMAS] ?? []).filter((arma) => arma.itemId !== undefined).map((arma) => [arma.id, arma]))
@@ -269,6 +290,8 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, bas
       ...(espera ? { mecanicaProposta: proposta } : {}),
       // Cartão sem ligação no host (o novo também) fica solto, seja o que for que o jogador mandou.
       ...ligacoes.get(cartao.id),
+      // Fase B2 dos requisitos: os do host; o cartão novo do jogador nasce sem.
+      ...requisitos.get(cartao.id),
     }
   }
   // Fatia C7: a aba volta inteira do jogador, que nunca viu os cartões ocultos; eles voltam do personagem de AGORA.
