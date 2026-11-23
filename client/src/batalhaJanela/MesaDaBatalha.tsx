@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as TeclaDoReact, type ReactNode, type RefObject } from 'react'
 import { MenuDaCarta, type ItemDoMenuDaCarta } from '../components/batalha/MenuDaCarta'
 import { iniciais } from '../components/FichaPecas'
-import type { AjusteDoGolpe, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, ItemDaCartaNoEspelho, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
+import type { AjusteDoGolpe, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, ItemDaCartaNoEspelho, MiraDaMesa, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
 import './mesaDaBatalha.css'
 
 /**
@@ -289,10 +289,15 @@ interface EscolhaProps {
   onLancar: (golpe: GolpeNoEspelho, alvos: readonly string[], ajuste: AjusteDoGolpe | undefined) => void
   /** Presente = o golpe que pede escolha a mais pode abrir o menu da vez sobre o mapa. */
   menuDoMapa?: { aberto: boolean; onAlternar: () => void }
+  /** Presente = a escolha acende as casas do alcance no mapa do app; `null` = apagar (lançou, Esc, saiu). */
+  onMira?: AoMirar
 }
 
+/** O golpe e os alvos escolhidos agora, para as casas no mapa do app; `null` = apagar. */
+type AoMirar = (escolha: { golpe: string; alvos: readonly string[] } | null) => void
+
 /** O golpe e o alvo da vez do NPC (e do contra-ataque dele): a lista, os alvos em duas colunas, o ajuste do dano e o Lançar. */
-function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, desligado, onLancar, menuDoMapa }: EscolhaProps) {
+function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, desligado, onLancar, menuDoMapa, onMira }: EscolhaProps) {
   const idDoAjuste = useId()
   const [escolhido, setEscolhido] = useState<string | null>(() => {
     const sugerido = golpes.find((golpe) => golpe.chave === sugestao.golpe && lancavel(golpe))
@@ -317,7 +322,22 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
   const umSo = golpe?.alvo === 'um'
   const nada = golpes.length > 0 && golpes.every((candidato) => !escolhivel(candidato))
 
+  // Sobra do alcance (23/11/2026): a escolha acende as casas no mapa do app, como a mira do menu da vez.
+  // Lançar e o Esc apagam até a próxima troca de golpe ou de alvo; sair da vez (ou fechar a mesa) apaga também.
+  const [miraApagada, setMiraApagada] = useState(false)
+  const aoMirar = useRef(onMira)
+  aoMirar.current = onMira
+  const alvosDaMira = useRef<readonly string[]>([])
+  alvosDaMira.current = golpe === null || golpe.alvo === 'nenhum' ? [] : validos
+  const golpeDaMira = golpe === null || desligado || miraApagada ? null : golpe.chave
+  const assinaturaDosAlvos = alvosDaMira.current.join('|')
+  useEffect(() => {
+    aoMirar.current?.(golpeDaMira === null ? null : { golpe: golpeDaMira, alvos: alvosDaMira.current })
+  }, [golpeDaMira, assinaturaDosAlvos])
+  useEffect(() => () => aoMirar.current?.(null), [])
+
   const alternar = (id: string) => {
+    setMiraApagada(false)
     if (umSo) {
       setMarcados([id])
       return
@@ -340,10 +360,14 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
   const marcasDoAjuste = [surpresa ? 'surpresa' : null, perfuranteAgora && golpe?.perfurante !== true ? 'perfurante' : null, !perfuranteAgora && golpe?.perfurante === true ? 'sem perfurar' : null].filter(Boolean).join(', ')
 
   const lancar = () => {
-    if (podeLancar && golpe !== null) onLancar(golpe, golpe.alvo === 'nenhum' ? [] : validos, ajuste)
+    if (!podeLancar || golpe === null) return
+    setMiraApagada(true)
+    onLancar(golpe, golpe.alvo === 'nenhum' ? [] : validos, ajuste)
   }
   // Enter numa opção (golpe ou alvo) lança: o atalho do protótipo, só com o foco na escolha. O "mesmo assim" é só no botão.
+  // O Esc na escolha cancela a mira no mapa (segue para a mesa, que fecha o que estiver aberto).
   const teclas = (evento: TeclaDoReact<HTMLDivElement>) => {
+    if (evento.key === 'Escape' && golpeDaMira !== null) setMiraApagada(true)
     if (evento.key !== 'Enter' || evento.ctrlKey || evento.metaKey || evento.altKey || evento.shiftKey || forcando) return
     const alvo = evento.target
     if (alvo instanceof HTMLInputElement && (alvo.type === 'radio' || alvo.type === 'checkbox') && alvo.closest('[data-escolha]') !== null) {
@@ -373,7 +397,16 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
           const apagado = !escolhivel(item)
           return (
             <label key={item.chave} className="mb-op" data-apagado={apagado ? 'sim' : undefined} data-mapa={item.noMapa !== null ? 'sim' : undefined} data-forcar={item.forcavel ? 'sim' : undefined}>
-              <input type="radio" name={`mb-golpe-${chave}`} checked={escolhido === item.chave} disabled={apagado} onChange={() => setEscolhido(item.chave)} />
+              <input
+                type="radio"
+                name={`mb-golpe-${chave}`}
+                checked={escolhido === item.chave}
+                disabled={apagado}
+                onChange={() => {
+                  setMiraApagada(false)
+                  setEscolhido(item.chave)
+                }}
+              />
               <span className="mb-op__nome">
                 {item.nome}
                 {sugestao.golpe === item.chave && <span className="mb-sug">sugestão</span>}
@@ -558,10 +591,11 @@ interface ContraProps {
   menuDoMapa?: { aberto: boolean; onAlternar: () => void }
   onContra: (golpe: GolpeNoEspelho, alvos: readonly string[], ajuste: AjusteDoGolpe | undefined) => void
   onAbrirMao: () => void
+  onMira?: AoMirar
 }
 
 /** O contra-ataque: a única hora em que a ação não é de quem tem a vez. Quem tirou 20 escolhe o golpe; depois a vez volta. */
-function TrocaDoContra({ contra, agora, ocupado, desligado, menuDoMapa, onContra, onAbrirMao }: ContraProps) {
+function TrocaDoContra({ contra, agora, ocupado, desligado, menuDoMapa, onContra, onAbrirMao, onMira }: ContraProps) {
   return (
     <div className="mb-troca" data-contra data-entra>
       <ol className="mb-trilha" aria-label="Ordem desta troca">
@@ -592,6 +626,7 @@ function TrocaDoContra({ contra, agora, ocupado, desligado, menuDoMapa, onContra
             desligado={desligado}
             onLancar={onContra}
             menuDoMapa={menuDoMapa}
+            onMira={onMira}
           />
           <div className="mb-troca__acoes">
             <button type="button" className="mb-bt mb-bt--fantasma" disabled={ocupado || desligado} onClick={onAbrirMao} title="O contra-ataque vira o movimento: arraste a ficha no mapa, se quiser.">
@@ -1000,6 +1035,15 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
 
   const responder = (item: PendenteNoEspelho, resposta: string) => void pedir('responder', { acao: 'responder', sceneKey, pendente: item.id, resposta }, 'Respondido.')
 
+  // Sobra do alcance (23/11/2026): a escolha da mesa acende as casas no mapa do app (só One Piece). É só a vista:
+  // sem "ocupado" nem frase no status; o pedido que se perder volta na próxima troca de golpe ou de alvo.
+  const mirarNoMapa = (tipo: MiraDaMesa['tipo'], id: string): AoMirar | undefined =>
+    soOnePiece
+      ? (escolha) => {
+          enviar({ acao: 'mira', sceneKey, mira: escolha === null ? null : { tipo, id, golpe: escolha.golpe, alvos: escolha.alvos } }).catch(() => undefined)
+        }
+      : undefined
+
   const corpoDaVez = (atual: VezNoEspelho): ReactNode => {
     if (contra !== null) {
       return (
@@ -1009,6 +1053,7 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
           ocupado={ocupadoAgora}
           desligado={desligado}
           menuDoMapa={menuDoMapa}
+          onMira={mirarNoMapa('contra', contra.golpeId)}
           onContra={(golpe, alvos, ajuste) =>
             void pedir(
               'contra',
@@ -1057,6 +1102,7 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
             ocupado={ocupadoAgora}
             desligado={desligado}
             menuDoMapa={menuDoMapa}
+            onMira={mirarNoMapa('vez', atual.chave)}
             onLancar={(golpe, alvos, ajuste) =>
               void pedir(
                 'agir',

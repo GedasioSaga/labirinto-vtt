@@ -19,7 +19,8 @@ import { useBatalhaStore } from '../stores/batalhaStore'
 import { useToastStore } from '../stores/toastStore'
 import { escolherItemDaCarta, itensNoEspelho } from './menuDaCartaNoEspelho'
 import { ligarOMenuDoMapa, menuDoMapaAberto } from './telaDaMesa'
-import type { AjusteDoGolpe, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, LinhaNoEspelho, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
+import { miraDaMesaNoChao, mostrarMiraDaMesa } from './miraDaMesa'
+import type { AjusteDoGolpe, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, LinhaNoEspelho, MiraDaMesa, PedidoDaMesa,PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
 
 /**
  * A MESA DA BATALHA no One Piece: o espelho lido das stores (as mesmas leituras
@@ -432,6 +433,33 @@ function agirOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'agir' }
   return loja.agir(sceneKey, MESTRE, vez, acao) ? OK : recusa('A regra recusou: confira a ação, o custo e a recarga.')
 }
 
+/** Os golpes e os alvos da escolha da mesa: a vez do NPC (pela chave da vez) ou o contra-ataque dele; `null` = já passou. */
+function escolhaDaMesa(mesa: MesaDaCena, turnos: TurnosDaCena, escolha: MiraDaMesa): { golpes: readonly GolpeNaTela[]; alvos: ReturnType<typeof alvosDaOrdem> } | null {
+  if (escolha.tipo === 'vez') {
+    const carta = cartaDaVez(turnos)
+    const doNpc = carta === null || chaveDe(turnos, carta) !== escolha.id ? null : vezDoNpc(mesa, turnos, carta)
+    return doNpc === null ? null : { golpes: doNpc.golpes, alvos: doNpc.alvos }
+  }
+  const contra = contrasQueSeguramAVez(turnos).find((candidato) => candidato.golpeId === escolha.id)
+  const carta = contra === undefined ? undefined : turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId && candidata.bando === undefined)
+  return carta === undefined ? null : { golpes: golpesDoContra(mesa, turnos, carta), alvos: alvosDaOrdem(mesa, turnos.cartas, carta) }
+}
+
+/** A escolha da mesa no mapa (sobra do alcance): as casas do golpe escolhido acendem como na mira do menu da vez. */
+function miraOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'mira' }>): RespostaDaMesa {
+  const escolha = pedido.mira
+  const mesa = mesaAgora(sceneKey)
+  const turnos = mesa.cena?.turnos
+  const daMesa = escolha === null || turnos === undefined ? null : escolhaDaMesa(mesa, turnos, escolha)
+  const golpe = escolha === null ? undefined : daMesa?.golpes.find((candidato) => candidato.chave === escolha.golpe)
+  if (escolha === null || daMesa === null || golpe === undefined) {
+    mostrarMiraDaMesa(null)
+    return escolha === null ? OK : recusa('Esta ação não está mais na ficha.')
+  }
+  mostrarMiraDaMesa(miraDaMesaNoChao(golpe, daMesa.alvos, escolha.alvos))
+  return OK
+}
+
 /** O contra-ataque do NPC (Q6): o golpe dele fora da vez, com `contraDe`; usado, a vez volta para quem atacou. */
 function contraOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'contra' | 'abrirMao' }>): RespostaDaMesa {
   const mesa = mesaAgora(sceneKey)
@@ -545,5 +573,7 @@ export function aplicarPedidoOP(pedido: PedidoDaMesa): RespostaDaMesa {
       return OK
     case 'encerrar':
       return encerrarOP(sceneKey)
+    case 'mira':
+      return miraOP(sceneKey, pedido)
   }
 }

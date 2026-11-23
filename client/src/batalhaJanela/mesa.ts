@@ -8,6 +8,7 @@ import { useMapStore } from '../stores/mapStore'
 import { useRpgStore } from '../stores/rpgStore'
 import { aplicarPedidoDBT, espelhoDBT } from './espelhoDBT'
 import { aplicarPedidoOP, espelhoOP } from './espelhoOP'
+import { mostrarMiraDaMesa } from './miraDaMesa'
 import { abrirOLivroDaBatalha, useTelaDaMesa } from './telaDaMesa'
 import type { EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa } from './tipos'
 
@@ -40,6 +41,11 @@ export function espelhoAgora(): EspelhoDaBatalha | null {
  * trocar de cena não vale para a outra.
  */
 export function aplicarPedido(pedido: PedidoDaMesa): RespostaDaMesa {
+  if (pedido.acao === 'mira' && pedido.mira === null) {
+    // Apagar a mira da mesa vale sempre: a cena trocada ou a batalha que acabou não deixam casas acesas para trás.
+    mostrarMiraDaMesa(null)
+    return { ok: true, motivo: null }
+  }
   if (pedido.sceneKey !== cenaAberta()) return { ok: false, motivo: 'A cena aberta mudou: a mesa já mostra a nova.' }
   if (pedido.acao === 'abrirLivro') {
     // Não é da batalha: o App abre o livro da mesa na página Batalha (dano, selos, extras, regras, formas).

@@ -309,6 +309,8 @@ export function aplicarPedidoDBT(pedido: PedidoDaMesa): RespostaDaMesa {
       return OK
     case 'abrirLivro':
       return recusa('O livro abre pela janela principal.')
+    case 'mira':
+      return recusa('No Dragon Ball não há casas de alcance no mapa.')
     case 'encerrar': {
       const loja = useBatalhaDBTStore.getState()
       loja.encerrar(sceneKey, cena.opcoes.exaustao ? loja.resumoDoFim(sceneKey) : null)

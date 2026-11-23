@@ -271,6 +271,19 @@ export type PedidoDaMesa =
   | { acao: 'desfazer'; sceneKey: string; linhaId: string }
   | { acao: 'iniciativa'; sceneKey: string; passo: 'rolar' | 'comecar' }
   | { acao: 'encerrar'; sceneKey: string }
+  /** A escolha da mesa acende as casas do alcance no mapa do app (só One Piece); `null` = apagar (lançou, cancelou, saiu). */
+  | { acao: 'mira'; sceneKey: string; mira: MiraDaMesa | null }
+
+/**
+ * O golpe e os alvos marcados na mesa, para a principal montar a mira no mapa com a mesma conta do menu da vez.
+ * `tipo` diz de onde vem a escolha: a vez do NPC (`id` = a chave da vez) ou o contra-ataque dele (`id` = o golpe que ele responde).
+ */
+export interface MiraDaMesa {
+  tipo: 'vez' | 'contra'
+  id: string
+  golpe: string
+  alvos: readonly string[]
+}
 
 /** A volta de um pedido: `ok`, ou a frase do porquê não. */
 export interface RespostaDaMesa {

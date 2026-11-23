@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event'
 import { create } from 'zustand'
 import { abrirCanalDoNavegador, type Canal } from '../net/visaoDeTeste/canal'
 import { aplicarPedido, assinarEspelho } from './mesa'
+import { mostrarMiraDaMesa } from './miraDaMesa'
 import { lerMensagemDaJanela, nomeDoCanal, PAGINA_DA_JANELA, SESSAO_VALIDA, type MensagemDaMesa } from './protocolo'
 
 /**
@@ -98,6 +99,8 @@ function criarControle(avisar: Avisar, abrirCanal: (nome: string) => Canal): Con
     gravarArmazem(window.sessionStorage, CHAVE_ABERTA, viva ? '1' : null)
     espelhar(viva)
     if (antes === viva) return
+    // A janela que fecha (ou some) não manda o "apagar": a mira que ela pôs no mapa apaga aqui.
+    if (!viva) mostrarMiraDaMesa(null)
     // A janela fechou: a mesa volta à vista no app (a doca), mesmo se estava recolhida antes de ir para a janela.
     useMesaDaBatalha.setState(viva ? { emJanela: true } : { emJanela: false, noApp: true })
     if (!viva && porque !== undefined) avisar(porque)

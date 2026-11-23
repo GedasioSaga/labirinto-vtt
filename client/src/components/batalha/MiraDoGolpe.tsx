@@ -354,13 +354,13 @@ const LADOS_DA_AREA: readonly { direcao: Direcao; seta: string; rotulo: string }
 ]
 
 /** Fase E do alcance: de onde vem o golpe, para as condições que valem só em armas, habilidades ou itens (a mesma regra do host). */
-function grupoDoGolpe(golpe: GolpeNaTela): GrupoDoAlcance {
+export function grupoDoGolpe(golpe: GolpeNaTela): GrupoDoAlcance {
   if (golpe.vagaId !== undefined) return 'itens'
   return golpe.tipo === 'atacar' ? 'armas' : 'habilidades'
 }
 
 /** Fase E do alcance: a cor das casas pelo classificador único; o golpe que dá dano pinta como o Atacar. */
-function corDoGolpe(golpe: GolpeNaTela, semDano: boolean): CorDoAlcance {
+export function corDoGolpe(golpe: GolpeNaTela, semDano: boolean): CorDoAlcance {
   return corDoAlcance(golpe.tipo !== 'atacar' && semDano ? { tipo: 'cartao', dano: { tipo: 'semDano' } } : { tipo: 'atacar' })
 }
 
@@ -374,7 +374,7 @@ function textoDoForaDoAlcance(quem: string | null, alvos: readonly AlvoNaMira[])
 }
 
 /** Fase D do alcance: a ação que a mira manda à mesa (só o id; o host tira a forma do cartão dele), como `pedidoDoGolpe`. */
-function acaoDaMiraDoGolpe(golpe: GolpeNaTela): AcaoDaMira | null {
+export function acaoDaMiraDoGolpe(golpe: GolpeNaTela): AcaoDaMira | null {
   if (golpe.vagaId !== undefined) return { tipo: 'item', vagaId: golpe.vagaId }
   if (golpe.tipo === 'atacar') return { tipo: 'atacar', armaId: golpe.armaId }
   return golpe.cartaoId === null ? null : { tipo: 'habilidade', cartaoId: golpe.cartaoId }

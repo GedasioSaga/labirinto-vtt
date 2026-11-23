@@ -152,6 +152,15 @@ export function lerPedido(dado: unknown): PedidoDaMesa | null {
       return o.passo === 'rolar' || o.passo === 'comecar' ? { acao: 'iniciativa', sceneKey, passo: o.passo } : null
     case 'encerrar':
       return { acao: 'encerrar', sceneKey }
+    case 'mira': {
+      if (o.mira === null) return { acao: 'mira', sceneKey, mira: null }
+      const mira = objeto(o.mira)
+      if (mira === null || (mira.tipo !== 'vez' && mira.tipo !== 'contra')) return null
+      const deQuem = id(mira.id)
+      const golpe = id(mira.golpe)
+      const alvos = listaDeIds(mira.alvos)
+      return deQuem === null || golpe === null || alvos === null ? null : { acao: 'mira', sceneKey, mira: { tipo: mira.tipo, id: deQuem, golpe, alvos } }
+    }
     default:
       return null
   }
