@@ -429,6 +429,19 @@ function mudarCampoDoCartao(cartao: CartaoDaFicha, mudar: MudancaNoCartao): Pass
       const { municaoPeloNome: antes, ...semMarca } = cartao
       return { ok: true, novo: mudar.valor === true ? { ...semMarca, municaoPeloNome: true } : semMarca, antes, depois: mudar.valor }
     }
+    // Fase B2 dos requisitos: sem valor, a chave sai (como o leitor do disco guarda o cartão sem bloco, sem marca, sem acumulador).
+    case 'requisitos': {
+      const { requisitos: antes, ...semRequisitos } = cartao
+      return { ok: true, novo: mudar.valor === undefined ? semRequisitos : { ...semRequisitos, requisitos: mudar.valor }, antes, depois: mudar.valor }
+    }
+    case 'marcas': {
+      const { marcas: antes, ...semMarcas } = cartao
+      return { ok: true, novo: mudar.valor === undefined ? semMarcas : { ...semMarcas, marcas: mudar.valor }, antes, depois: mudar.valor }
+    }
+    case 'acumulador': {
+      const { acumulador: antes, ...semAcumulador } = cartao
+      return { ok: true, novo: mudar.valor === undefined ? semAcumulador : { ...semAcumulador, acumulador: mudar.valor }, antes, depois: mudar.valor }
+    }
   }
 }
 

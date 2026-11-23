@@ -1,4 +1,5 @@
 import type { DadosDoItem, EfeitoDoItem, PecasDoEfeito } from '../types/map'
+import { requisitosGuardados } from './batalha/requisitos/guardados'
 import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
 
@@ -112,6 +113,9 @@ export function dadosDoItemLidos(value: Record<string, unknown>): DadosDoItem {
   if (efeito !== undefined) dados.efeito = efeito
   const resumo = efeitoResumoLido(value.efeitoResumo)
   if (resumo !== undefined) dados.efeitoResumo = resumo
+  // REQUISITOS (fase B2): o bloco por toda porta do item, como veio (quem confere é `lerRequisitos`).
+  const requisitos = requisitosGuardados(value.requisitos)
+  if (requisitos !== undefined) dados.requisitos = requisitos
   return dados
 }
 

@@ -1,5 +1,5 @@
 import type { CarriedItem } from '../../types/map'
-import { efeitoParaDar, type ItemDoCatalogo } from '../acervoDeItens'
+import { efeitoParaDar, requisitosParaDar, type ItemDoCatalogo } from '../acervoDeItens'
 import type { Personagem } from '../personagem'
 
 /**
@@ -12,16 +12,19 @@ import type { Personagem } from '../personagem'
  * nunca é decidida aqui: vai à lista que o mestre confirma. Puro.
  */
 
-/** A vaga com o efeito do item de agora; o item sem efeito tira o da vaga. Igual = a mesma referência. */
-export function vagaComOEfeitoDoItem(vaga: CarriedItem, item: Pick<ItemDoCatalogo, 'id' | 'efeito'>): CarriedItem {
+/**
+ * A vaga com o efeito do item de agora; o item sem efeito tira o da vaga. Igual = a mesma referência.
+ * REQUISITOS (fase B2, REQUISITOS.md §3.2): o bloco anda junto com o efeito, pela mesma regra (a fonte manda).
+ */
+export function vagaComOEfeitoDoItem(vaga: CarriedItem, item: ItemFonte): CarriedItem {
   if (vaga.itemId !== item.id) return vaga
-  const { efeito: _antes, efeitoResumo: _fraseDeAntes, ...semEfeito } = vaga
-  const nova: CarriedItem = { ...semEfeito, ...efeitoParaDar(item) }
+  const { efeito: _antes, efeitoResumo: _fraseDeAntes, requisitos: _requisitosDeAntes, ...semEfeito } = vaga
+  const nova: CarriedItem = { ...semEfeito, ...efeitoParaDar(item), ...requisitosParaDar(item) }
   return JSON.stringify(nova) === JSON.stringify(vaga) ? vaga : nova
 }
 
 /** A ficha com as vagas do item atualizadas; nada a mudar = a mesma referência. */
-export function fichaComOEfeitoDoItem(personagem: Personagem, item: Pick<ItemDoCatalogo, 'id' | 'efeito'>): Personagem {
+export function fichaComOEfeitoDoItem(personagem: Personagem, item: ItemFonte): Personagem {
   return fichaComAsVagas(personagem, (vaga) => vagaComOEfeitoDoItem(vaga, item))
 }
 
@@ -44,7 +47,7 @@ export interface CopiaDoItem {
 /** O que o mestre escolhe para as cópias em conflito: seguir o Acervo, ou separar (a vaga deixa de ser cópia, fica como está). */
 export type EscolhaDaCopia = 'acervo' | 'separar'
 
-type ItemFonte = Pick<ItemDoCatalogo, 'id' | 'efeito'>
+type ItemFonte = Pick<ItemDoCatalogo, 'id' | 'efeito' | 'requisitos'>
 
 function casoDa(vaga: CarriedItem, item: ItemFonte): CasoDaCopia {
   if (item.efeito !== undefined) return vaga.efeito === undefined ? 'semEfeitoNaCopia' : 'segue'
@@ -104,11 +107,11 @@ export function comAEscolhaDasCopias(personagens: readonly Personagem[], item: I
   })
 }
 
-/** SALVAR A COISA: as que existiam antes e cujo efeito mudou nesta gravação (as cópias delas seguem, todas). */
+/** SALVAR A COISA: as que existiam antes e cujo efeito (ou bloco de requisitos, fase B2) mudou nesta gravação (as cópias delas seguem, todas). */
 export function itensComOEfeitoMudado<T extends ItemFonte>(antes: readonly T[], depois: readonly T[]): T[] {
   const deAntes = new Map(antes.map((item) => [item.id, item]))
   return depois.filter((item) => {
     const velho = deAntes.get(item.id)
-    return velho !== undefined && velho !== item && JSON.stringify(velho.efeito) !== JSON.stringify(item.efeito)
+    return velho !== undefined && velho !== item && (JSON.stringify(velho.efeito) !== JSON.stringify(item.efeito) || JSON.stringify(velho.requisitos) !== JSON.stringify(item.requisitos))
   })
 }

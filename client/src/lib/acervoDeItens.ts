@@ -5,6 +5,7 @@ import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
 import type { EfeitoDoItem, LuzDoItem, RequisitosNaVaga } from '../types/map'
 import { resumoDoEfeitoDoItem } from './batalha/mecanica/resumoDoItem'
+import { requisitosGuardados } from './batalha/requisitos/guardados'
 import { efeitoDoItemLido } from './leituraDoItem'
 import { ensureDir, writeTextFileSafely } from './mapFileIO'
 import { ehIdDePasta, pastasDasCategorias, pastasLidas, pastasPorPai, PASTAS_MAX, type PastaDeItens } from './pastasDosItens'
@@ -190,7 +191,14 @@ export function itemDoCatalogoLido(value: unknown): ItemDoCatalogo | null {
     ...luzLida(value.luz),
     ...(ehIdDePasta(value.pasta) ? { pasta: value.pasta } : {}),
     ...efeitoLido(value.efeito),
+    ...requisitosLidos(value.requisitos),
   }
+}
+
+/** REQUISITOS (fase B2): o bloco do item como veio; o que não é objeto ou passa do teto sai (o item fica, sem requisito). */
+function requisitosLidos(value: unknown): { requisitos?: RequisitosNaVaga } {
+  const requisitos = requisitosGuardados(value)
+  return requisitos === undefined ? {} : { requisitos }
 }
 
 /** O efeito do item: torto sai (o item fica, sem efeito). */
@@ -350,7 +358,13 @@ export function itemParaDar(item: ItemDoCatalogo, acervo: readonly Pick<ItemDoCa
     ...municoesParaDar(item, acervo),
     ...(item.luz !== undefined ? { luz: { ...item.luz } } : {}),
     ...efeitoParaDar(item),
+    ...requisitosParaDar(item),
   }
+}
+
+/** REQUISITOS (fase B2): a vaga leva o bloco do item em cópia, como o efeito (o host lê da cópia dele). */
+export function requisitosParaDar(item: Pick<ItemDoCatalogo, 'requisitos'>): Pick<ItemParaDar, 'requisitos'> {
+  return item.requisitos === undefined ? {} : { requisitos: structuredClone(item.requisitos) }
 }
 
 /** Fase 7: a vaga leva as peças (o host as lê) e a frase (o que o jogador recebe, decisão C8). */

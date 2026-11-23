@@ -1,5 +1,6 @@
 import type { CarriedItem } from '../types/map'
 import { lerDocumentosDaFicha } from '../documentos/leitor'
+import { acumuladorGuardado, marcasGuardadas, requisitosGuardados } from './batalha/requisitos/guardados'
 import type { DocumentoNaFicha } from '../documentos/tipos'
 import { cleanPlayerName } from './chat'
 import { ATRIBUTO_INICIAL, fichaDBTVazia, lerFichaDBT, LIMITES_DBT, type FichaDBT } from './dbt/modelo'
@@ -104,9 +105,19 @@ export interface CartaoDaFicha {
   /**
    * REQUISITOS (resposta do dono de 23/11 ao G2): as marcas do cartão ("Fogo"), editáveis. O
    * requisito "ajuda de um aliado com Fogo" lista só os aliados com uma técnica dessa marca.
-   * Quem lê é `lerMarcas` (tolerante). Ausente = sem marca.
+   * Quem lê é `lerMarcas` (tolerante). Ausente = sem marca. Só o mestre grava (fase B2: decide
+   * quem pode ajudar, então é regra, como os `requisitos`).
    */
   marcas?: string[]
+  /**
+   * ACUMULADOR (pedido do dono de 23/11; decisão do Claude: a definição mora num cartão, como o
+   * contador de hoje mora nos extras da "Mecânicas gerais da fruta", `lib/batalha/contador.ts`): o
+   * medidor da ficha (Polaridade, Fúria, Cargas) com nome, máximo, como sobe e cai e o ganho por
+   * nível. O requisito A4 e a peça "+N" o apontam pelo `id`, único na ficha. Guardado como veio
+   * (opaco); quem lê é `lerAcumulador` (lib/batalha/requisitos/ler.ts). Só o mestre grava. O nível
+   * de agora mora na batalha, não aqui. Ausente = o cartão não define acumulador.
+   */
+  acumulador?: AcumuladorGuardado
   /**
    * HABILIDADE OCULTA (fatia C7, `lib/habilidadeOculta.ts`): o jogador vê "???"
    * no lugar deste cartão (e dos subcartões dele) até o mestre revelar. Só o
@@ -149,6 +160,9 @@ export type AlcanceGuardado = Readonly<Record<string, unknown>>
 
 /** O bloco de requisitos como o disco e o fio o guardam: um objeto JSON com `v`, conferido só por quem lê (`lerRequisitos`). */
 export type RequisitosGuardados = Readonly<Record<string, unknown>>
+
+/** A definição do acumulador como o disco e o fio a guardam: um objeto JSON com `id`, conferido só por quem lê (`lerAcumulador`). */
+export type AcumuladorGuardado = Readonly<Record<string, unknown>>
 
 /**
  * Que número da ficha um ajuste rápido mexe (`lib/ajusteDaFicha.ts`):
@@ -568,6 +582,7 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
     ...mecanicaDoArquivo(value.mecanica),
     ...mecanicaPropostaDoArquivo(value.mecanicaProposta),
     ...alcanceDoArquivo(value.alcance),
+    ...requisitosDoArquivo(value),
     // Fatia C7: só o `true` conta (como o `aMao`); "revela ao usar" só vale no cartão oculto.
     ...(value.oculta === true ? { oculta: true, ...(value.revelaAoUsar === true ? { revelaAoUsar: true } : {}) } : {}),
     // Fatia C8: só o `true` conta (como o `aMao`).
@@ -626,6 +641,23 @@ export function alcanceDoArquivo(value: unknown): Pick<CartaoDaFicha, 'alcance'>
   if (!isRecord(value) || typeof value.tipo !== 'string') return {}
   const copia = copiaDaMecanica(value, ALCANCE_GUARDADO_MAX)
   return copia === null ? {} : { alcance: copia }
+}
+
+/**
+ * REQUISITOS (fase B2): o bloco `requisitos`, as `marcas` e a definição do `acumulador` do cartão
+ * como vieram (`lib/batalha/requisitos/guardados.ts`): o torto ou de app mais novo fica, para quem
+ * lê dizer "atualize o app" sem que o app de agora o apague ao salvar. O catálogo usa os dois
+ * primeiros; o Lobby (o mesmo leitor como juiz) e o Worker os guardam por aqui.
+ */
+export function requisitosDoArquivo(value: Readonly<Record<string, unknown>>): Pick<CartaoDaFicha, 'requisitos' | 'marcas' | 'acumulador'> {
+  const requisitos = requisitosGuardados(value.requisitos)
+  const marcas = marcasGuardadas(value.marcas)
+  const acumulador = acumuladorGuardado(value.acumulador)
+  return {
+    ...(requisitos === undefined ? {} : { requisitos }),
+    ...(marcas === undefined ? {} : { marcas }),
+    ...(acumulador === undefined ? {} : { acumulador }),
+  }
 }
 
 function copiaDaMecanica(value: unknown, max = MECANICA_GUARDADA_MAX): MecanicaGuardada | null {
