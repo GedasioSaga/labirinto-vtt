@@ -11,7 +11,7 @@ import {
   type ItemDoCatalogo,
 } from '../lib/livros/catalogo'
 import { entradasDoLivro } from '../lib/livros/catalogoDoLivro'
-import { gravarCatalogo, guardarCatalogoAntesDasArmas, lerCatalogo } from '../lib/livros/catalogoNoDisco'
+import { gravarCatalogo, guardarCatalogoAntesDasArmas, guardarCatalogoAntesDoAlcance, lerCatalogo } from '../lib/livros/catalogoNoDisco'
 import type { Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 
@@ -51,6 +51,12 @@ interface CatalogoState {
    * antes das armas (uma vez; sem ela, nada se grava). Lança com a frase pronta.
    */
   gravarArmas: (itens: readonly ItemDoCatalogo[]) => Promise<void>
+  /**
+   * Alcance dos antigos (docs/design/habilidades/ALCANCE.md §9): grava o catálogo inteiro com os
+   * alcances que o mestre confirmou, depois de guardar a cópia de antes do alcance (uma vez; sem
+   * ela, nada se grava). Lança com a frase pronta.
+   */
+  gravarAlcances: (itens: readonly ItemDoCatalogo[]) => Promise<void>
 }
 
 const SEM_NOME = 'A entrada precisa de um nome.'
@@ -139,6 +145,13 @@ export const useCatalogoStore = create<CatalogoState>()((set, get) => {
       if (sistemaId === null) throw new Error(SEM_SISTEMA)
       if (!podeGravar) throw new Error(NAO_LIDO)
       await guardarCatalogoAntesDasArmas(sistemaId)
+      await gravar([...itens])
+    },
+    gravarAlcances: async (itens) => {
+      const { sistemaId, podeGravar } = get()
+      if (sistemaId === null) throw new Error(SEM_SISTEMA)
+      if (!podeGravar) throw new Error(NAO_LIDO)
+      await guardarCatalogoAntesDoAlcance(sistemaId)
       await gravar([...itens])
     },
   }

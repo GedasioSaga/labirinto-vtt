@@ -568,6 +568,14 @@ export function guardarRpgAntesDosItens(pastaId: string): Promise<void> {
   return guardarRpgUmaVez(pastaId, SUFIXO_ANTES_DOS_ITENS, 'dos itens')
 }
 
+/** Alcance dos antigos (ALCANCE.md §9): o `rpg.json` de antes da 1ª gravação dos alcances propostos, guardado UMA vez. */
+const SUFIXO_ANTES_DO_ALCANCE = '.antes-do-alcance'
+
+/** Alcance dos antigos (§9): a mesma cópia de antes, para os cartões que ganham alcance. Lança: sem a cópia, quem chamou não grava. */
+export function guardarRpgAntesDoAlcance(pastaId: string): Promise<void> {
+  return guardarRpgUmaVez(pastaId, SUFIXO_ANTES_DO_ALCANCE, 'do alcance')
+}
+
 function guardarRpgUmaVez(pastaId: string, sufixo: string, deQue: string): Promise<void> {
   return naFilaDaPasta(pastaId, async () => {
     try {

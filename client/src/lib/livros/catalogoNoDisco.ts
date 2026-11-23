@@ -77,13 +77,25 @@ const SUFIXO_ANTES_DAS_ARMAS = '.antes-das-armas'
  * das gravações. Lança: sem a cópia, quem chamou não grava.
  */
 export function guardarCatalogoAntesDasArmas(sistemaId: string): Promise<void> {
+  return guardarCatalogoUmaVez(sistemaId, SUFIXO_ANTES_DAS_ARMAS, 'das armas')
+}
+
+/** Alcance dos antigos (ALCANCE.md §9): o catálogo de antes da 1ª gravação dos alcances propostos, guardado UMA vez. */
+const SUFIXO_ANTES_DO_ALCANCE = '.antes-do-alcance'
+
+/** Alcance dos antigos (§9): a mesma cópia de antes, UMA vez, nunca por cima. Lança: sem a cópia, quem chamou não grava. */
+export function guardarCatalogoAntesDoAlcance(sistemaId: string): Promise<void> {
+  return guardarCatalogoUmaVez(sistemaId, SUFIXO_ANTES_DO_ALCANCE, 'do alcance')
+}
+
+function guardarCatalogoUmaVez(sistemaId: string, sufixo: string, deQue: string): Promise<void> {
   const resultado = filaDoCatalogo.then(async () => {
     try {
       const { arquivo } = await caminhoDoCatalogo(sistemaId)
-      const copia = `${arquivo}${SUFIXO_ANTES_DAS_ARMAS}`
+      const copia = `${arquivo}${sufixo}`
       if ((await exists(arquivo)) && !(await exists(copia))) await writeTextFile(copia, await readTextFile(arquivo))
     } catch (erro) {
-      throw new Error(`Não foi possível guardar a cópia do catálogo de antes das armas: ${mensagemDoErro(erro)}.`)
+      throw new Error(`Não foi possível guardar a cópia do catálogo de antes ${deQue}: ${mensagemDoErro(erro)}.`)
     }
   })
   filaDoCatalogo = resultado.then(
