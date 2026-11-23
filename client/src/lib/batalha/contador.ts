@@ -3,6 +3,7 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { ALVO_DO_DANO, DANO_MAX, type GolpeDaBatalha, type SeloDaBatalha } from './combate'
 import { normalizar } from './formula'
 import { tecnicasDe } from './leituraDaFicha'
+import { lerAcumulador } from './requisitos/ler'
 import type { TurnosDaCena } from './turnos'
 
 /**
@@ -90,9 +91,15 @@ export function lerContador(cartao: Pick<CartaoDaFicha, 'nome' | 'campos' | 'ext
   return danoPorNivel.length === 0 ? null : { nome: nomeDoContador(cartao, texto), danoPorNivel }
 }
 
-/** O primeiro contador do personagem (das técnicas que valem agora, passivas inclusive), ou `null`. */
+/**
+ * O primeiro contador do personagem (das técnicas que valem agora, passivas inclusive), ou `null`.
+ * ED6: o cartão que já guarda o acumulador novo (`acumulador`, gravado pelo editor do mestre) sai
+ * daqui: quem manda nele é o motor genérico (`acumuladorNaBatalha.ts`), e o texto de antes fica só
+ * para o app de antes ler.
+ */
 export function contadorDoPersonagem(personagem: Personagem, sistema: SistemaDeRpg): { cartao: CartaoDaFicha; leitura: LeituraDoContador } | null {
   for (const cartao of tecnicasDe(personagem, sistema)) {
+    if (cartao.acumulador !== undefined && lerAcumulador(cartao.acumulador).acumulador !== null) continue
     const leitura = lerContador(cartao)
     if (leitura !== null) return { cartao, leitura }
   }

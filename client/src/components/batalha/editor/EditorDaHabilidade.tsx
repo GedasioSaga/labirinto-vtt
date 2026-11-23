@@ -401,7 +401,7 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
                   <LinhaDoAcerto mecanica={rascunho} ficha={fichaFixa} onChange={mudarNaLinha} />
                 </Linha>
                 <Linha prefixo={prefixo} linha="efeitos" nome="Efeitos" dica={categoria === 'apoio' ? 'o que faz no aliado' : 'o que mais faz'} brilho={brilhoDe('efeitos')}>
-                  <LinhaDosEfeitos mecanica={rascunho} ficha={fichaFixa} onChange={mudarNaLinha} />
+                  <LinhaDosEfeitos mecanica={rascunho} cartao={cartao} ficha={fichaFixa} onChange={mudarNaLinha} />
                 </Linha>
                 <Linha prefixo={prefixo} linha="custo" nome="Custo" dica="o que gasta e quando volta" brilho={brilhoDe('custo')}>
                   <LinhaDoCusto mecanica={rascunho} onChange={mudarNaLinha} />

@@ -1,0 +1,407 @@
+/*
+ * ACUMULADORES (ED6; protótipo dos requisitos, tela 8: `.ac`, `.ac-lin`, `.ac-teste`, `.cont`).
+ * A janela usa a casca do editor da habilidade (`.lb-ed`, editor.css); aqui só o que é do
+ * acumulador. Movimento: a regra nova entra (180 ms) e o segmento enche (220 ms), só opacity e
+ * transform; com movimento reduzido, só aparece.
+ */
+
+/* ------------------------------------------------------------ a faixa no topo da aba Habilidades */
+.lb-acu-faixa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px dashed var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+}
+.lb-acu-faixa__tit {
+  margin: 0;
+}
+.lb-acu-faixa__dica {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-acu-faixa__lista {
+  display: contents;
+  list-style: none;
+}
+.lb-acu-faixa__chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 28px;
+  padding: 2px 10px;
+  border-radius: var(--lb-radius-full);
+  border: 1px solid var(--lb-color-line-strong);
+  background: transparent;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) ease,
+    transform 160ms var(--lb-gr-ease-out);
+}
+.lb-acu-faixa__chip small {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-acu-faixa__chip:active {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lb-acu-faixa__chip:hover {
+    border-color: var(--lb-color-brass);
+  }
+}
+
+/* ------------------------------------------------------------ a janela */
+.lb-acu__corpo {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 320px;
+  min-height: 0;
+}
+.lb-acu__lado {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 12px;
+  border-right: 1px solid var(--lb-gr-filete);
+}
+.lb-acu__lado-tit {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: 16px;
+}
+.lb-acu__lado-tit small {
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-acu__lista {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lb-acu__item {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: var(--lb-radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    border-color var(--lb-motion-fast) ease;
+}
+.lb-acu__item small {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-acu__item[aria-current='true'] {
+  background: var(--lb-gr-hover-forte);
+  border-color: var(--lb-gr-filete-latao);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lb-acu__item:hover {
+    background: var(--lb-gr-hover);
+  }
+}
+.lb-acu__novo {
+  justify-self: start;
+  align-self: flex-start;
+}
+.lb-acu__vazio {
+  padding: 28px 24px;
+  color: var(--lb-color-parchment-dim);
+}
+.lb-acu__config {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 22px 60px;
+  scrollbar-width: thin;
+}
+.lb-acu__campos {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.lb-acu__nota {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-brass-soft);
+  font-size: var(--lb-font-size-sm);
+}
+.lb-acu__linha-campos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 16px;
+}
+.lb-acu__nome {
+  width: 22ch;
+}
+.lb-acu__niveis {
+  width: 24ch;
+}
+.lb-acu__erro {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--ed-erro);
+}
+.lb-acu__sel {
+  max-width: 220px;
+}
+.lb-acu__regras {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-sm);
+}
+.lb-acu__regra {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 44px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--lb-gr-filete);
+  transition:
+    opacity 180ms var(--lb-gr-ease-out),
+    transform 180ms var(--lb-gr-ease-out);
+}
+/* Só a regra que o mestre põe entra com movimento; as fixas (e as que já existem ao abrir) não somam ruído. */
+@starting-style {
+  .lb-acu__regras--sobe .lb-acu__regra {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.lb-acu__regra:last-child {
+  border-bottom: 0;
+}
+.lb-acu__regra--fixa {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.lb-acu__regra-campos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+.lb-acu__tirar {
+  font-size: 18px;
+  line-height: 1;
+}
+.lb-acu__pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding-top: 8px;
+}
+.lb-acu__niveis-tira {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lb-acu__nivel {
+  padding: 1px 8px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font: 500 var(--lb-font-size-xs) / 1.7 var(--lb-font-utility);
+}
+.lb-acu__usos {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lb-acu__uso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+.lb-acu__uso small {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-acu__palavras {
+  padding: 12px 0;
+  border-top: 1px solid var(--lb-gr-filete);
+}
+.lb-acu__palavras ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.lb-acu__acoes {
+  display: flex;
+  gap: 10px;
+  padding-top: 8px;
+}
+.lb-acu__apagar[data-confirmando] {
+  color: var(--ed-erro);
+}
+
+/* ------------------------------------------------------------ o Testar, em tinta */
+.lb-acu__teste {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lb-acu__teste-tit {
+  margin: 0;
+  font: 500 var(--lb-font-size-xs) / 1.3 var(--lb-font-utility);
+  letter-spacing: var(--lb-font-tracking-wider);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.lb-acu__medidor {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-solid);
+  box-shadow: 4px 4px 0 var(--lb-color-ember-soft);
+}
+.lb-acu__medidor-cab {
+  display: flex;
+  justify-content: space-between;
+  font: 600 var(--lb-font-size-sm) / 1.2 var(--lb-font-utility);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+}
+.lb-acu__medidor-n {
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass-bright);
+}
+.lb-acu__segs {
+  display: flex;
+  gap: 3px;
+}
+.lb-acu__seg {
+  position: relative;
+  flex: 1;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--lb-gr-hover-forte);
+}
+.lb-acu__seg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--lb-color-brass);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 220ms var(--lb-gr-ease-out);
+}
+.lb-acu__seg[data-cheio]::after {
+  transform: scaleX(1);
+}
+.lb-acu__barra {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--lb-gr-hover-forte);
+}
+.lb-acu__barra span {
+  display: block;
+  height: 100%;
+  background: var(--lb-color-brass);
+  transform-origin: left;
+  transition: transform 220ms var(--lb-gr-ease-out);
+}
+.lb-acu__teste-da {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.lb-acu__teste-da b {
+  color: var(--lb-color-brass-bright);
+  font-weight: 600;
+}
+.lb-acu__eventos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lb-acu__registro {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--lb-font-size-sm);
+}
+.lb-acu__recomecar {
+  align-self: flex-start;
+}
+
+/* ------------------------------------------------------------ "+N <acumulador>" nos Efeitos da técnica */
+.lb-acu-soma {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--lb-gr-filete);
+}
+.lb-acu-soma__linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+@media (max-width: 1080px) {
+  .lb-acu__corpo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lb-acu__lado {
+    border-right: 0;
+    border-bottom: 1px solid var(--lb-gr-filete);
+  }
+  .lb-acu__config,
+  .lb-acu__lado {
+    overflow: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-acu__regra {
+    transition: opacity 150ms ease;
+  }
+  @starting-style {
+    .lb-acu__regras--sobe .lb-acu__regra {
+      transform: none;
+    }
+  }
+  .lb-acu__seg::after,
+  .lb-acu__barra span {
+    transition: opacity 150ms ease;
+  }
+  .lb-acu-faixa__chip:active {
+    transform: none;
+  }
+}

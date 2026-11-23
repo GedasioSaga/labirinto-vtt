@@ -1,12 +1,20 @@
 import type { MecanicaV1 } from '../../../../lib/batalha/mecanica/modelo'
 import type { FichaDaPrevia } from '../../../../lib/batalha/mecanica/resumo'
+import type { CartaoDaFicha } from '../../../../lib/personagem'
+import { SomaNoAcumulador } from '../../acumulador/SomaNoAcumulador'
 import { BlocoDosEfeitos } from '../../blocos/BlocoDosEfeitos'
 
 /**
  * LINHA EFEITOS (EDITOR.md §5): selo, cura, tirar selos, dreno, reviver e o
- * lembrete à mão, com as peças do selo de hoje (`PecasDoSelo`). O "+N no
- * acumulador" entra aqui na ED4/ED5, quando a peça existir no motor.
+ * lembrete à mão, com as peças do selo de hoje (`PecasDoSelo`). ED6: e o
+ * "+N <acumulador>" ao usar, gravado como regra do acumulador (o motor de hoje
+ * roda); só aparece para o mestre editando a ficha.
  */
-export function LinhaDosEfeitos({ mecanica, ficha, onChange }: { mecanica: MecanicaV1; ficha: FichaDaPrevia; onChange: (mecanica: MecanicaV1) => void }) {
-  return <BlocoDosEfeitos mecanica={mecanica} ficha={ficha} onChange={onChange} />
+export function LinhaDosEfeitos({ mecanica, cartao, ficha, onChange }: { mecanica: MecanicaV1; cartao: CartaoDaFicha; ficha: FichaDaPrevia; onChange: (mecanica: MecanicaV1) => void }) {
+  return (
+    <>
+      <BlocoDosEfeitos mecanica={mecanica} ficha={ficha} onChange={onChange} />
+      <SomaNoAcumulador cartao={cartao} />
+    </>
+  )
 }

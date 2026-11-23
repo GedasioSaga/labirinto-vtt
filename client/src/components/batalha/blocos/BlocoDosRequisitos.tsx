@@ -264,8 +264,9 @@ function CampoDaFrase({ campo, peca, fontes, listas, listaId, onChange }: CampoP
     case 'referencia': {
       const opcoes = fontes[campo.fonte]
       const nome = nomeDaReferencia(peca, campo.chave)
-      // Item, arma e acumulador vão pelo nome (o que casa vindo de outra ficha); com a lista de sugestões.
-      if (campo.fonte === 'item' || campo.fonte === 'arma' || campo.fonte === 'acumulador') {
+      // Item e arma vão pelo nome (o que casa vindo de outra ficha); com a lista de sugestões. O acumulador
+      // também, só quando a ficha não tem nenhum (ED6): com acumulador na ficha, a lista dela, como as técnicas.
+      if (campo.fonte === 'item' || campo.fonte === 'arma' || (campo.fonte === 'acumulador' && opcoes.length === 0)) {
         const lista = `${listaId}-${campo.fonte}`
         return (
           <>

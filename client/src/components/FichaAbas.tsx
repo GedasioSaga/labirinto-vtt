@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { quantidadeDe } from '../lib/items'
 import { ABA_DOS_ITENS, passarAbaItensParaMochila } from '../lib/livros/coisaERegra'
 import { InventarioDaFicha } from './InventarioDaFicha'
@@ -27,6 +27,8 @@ import type { CarriedItem } from '../types/map'
 import { PecaDoMestreNaForma } from './batalha/FormasDoMestre'
 import { CartoesOcultos, OcultaNoCartao, SeloDeOculta } from './batalha/HabilidadeOculta'
 import { ocultasDaAba } from '../lib/habilidadeOculta'
+import { AcumuladoresNaFicha } from './batalha/acumulador/AcumuladoresNaFicha'
+import { MexerNaFicha, type FichaQueSeMexe } from './batalha/acumulador/mexerNaFicha'
 
 /** Fase 3: o Testar pesa o motor da batalha inteiro; só carrega quando alguém abre. */
 const PainelDeEnsaio = lazy(() => import('./ensaio/PainelDeEnsaio').then((modulo) => ({ default: modulo.PainelDeEnsaio })))
@@ -199,6 +201,9 @@ export function FichaAbas({
   const abas = sistema.abas.filter((aba) => aba.id !== ABA_DAS_BALAS || cartoesDaAba(personagem, aba.id).length > 0)
   const [ativaId, setAtivaId] = useState(abas[0]?.id ?? '')
   const refs = useRef(new Map<string, HTMLButtonElement>())
+  // ED6: o mestre editando: o "+N <acumulador>" do editor da técnica grava no cartão do acumulador, outro cartão.
+  const mestreEditando = editando && quemEditaAMecanica === 'mestre'
+  const fichaQueSeMexe = useMemo<FichaQueSeMexe | null>(() => (mestreEditando ? { personagem, mudar: onChange } : null), [mestreEditando, personagem, onChange])
   const ativa = abas.find((aba) => aba.id === ativaId) ?? abas[0]
   if (ativa === undefined) return <p className="lb-ficha__vazio">Este sistema não tem abas.</p>
 
@@ -249,7 +254,9 @@ export function FichaAbas({
           )
         })}
       </div>
+      <MexerNaFicha.Provider value={fichaQueSeMexe}>
       <div id={`${idBase}-painel`} className="lb-ficha__painel" role="tabpanel" aria-labelledby={`${idBase}-aba-${ativa.id}`}>
+        {mestreEditando && ativa.id === ABA_DAS_TECNICAS && <AcumuladoresNaFicha personagem={personagem} sistema={sistema} onChange={onChange} />}
         {ativa.id === ABA_DOS_ITENS && (
           <MochilaNaAbaItens
             personagem={personagem}
@@ -299,6 +306,7 @@ export function FichaAbas({
           </ul>
         )}
       </div>
+      </MexerNaFicha.Provider>
     </div>
   )
 }

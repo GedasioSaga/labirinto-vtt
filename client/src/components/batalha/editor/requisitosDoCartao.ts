@@ -2,12 +2,13 @@ import { SELOS_COM_REGRA } from '../../../lib/batalha/condicoes'
 import { CONDICAO_DO_TIPO } from '../../../lib/batalha/mecanica/golpe'
 import { ABA_DAS_TECNICAS } from '../../../lib/batalha/leituraDaFicha'
 import type { ContextoDosRequisitos } from '../../../lib/batalha/requisitos/contexto'
-import { comoJson, lerAcumulador, lerMarcas, mesmaMarca, requisitosParaGuardar } from '../../../lib/batalha/requisitos/ler'
+import { comoJson, lerMarcas, mesmaMarca, requisitosParaGuardar } from '../../../lib/batalha/requisitos/ler'
 import { VERSAO_DOS_REQUISITOS, type AcumuladorDaFicha, type ObjetoJson, type RequisitosDoCartao, type ValorJson } from '../../../lib/batalha/requisitos/modelo'
 import { cartoesDaAba, numeroDaFicha, type CartaoDaFicha, type Personagem } from '../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
 import { ehObjetoJson, type OpcoesDasFontes } from '../blocos/requisitosNaTela'
 import type { ListasDosRequisitos } from '../blocos/BlocoDosRequisitos'
+import { acumuladoresNaFicha } from '../acumulador/acumuladoresDaFicha'
 
 /**
  * OS REQUISITOS DO CARTÃO NO EDITOR (ED5 = fase F de REQUISITOS.md): onde as linhas Requisitos e
@@ -63,16 +64,12 @@ export function blocoGuardado(bloco: RequisitosDoCartao): ObjetoJson {
   return requisitosParaGuardar(bloco)
 }
 
-/** Os acumuladores definidos nos cartões da ficha (a B2 os põe no cartão). */
+/**
+ * Os acumuladores da ficha: os definidos nos cartões (a B2 os põe no cartão) e, ED6, o contador de
+ * antes convertido em memória (a Polaridade do texto do Vagn), com o id que ele ganha ao ser gravado.
+ */
 export function acumuladoresDaFicha(personagem: Personagem): AcumuladorDaFicha[] {
-  const achados: AcumuladorDaFicha[] = []
-  for (const cartoes of Object.values(personagem.abas)) {
-    for (const cartao of cartoes) {
-      const lido = lerAcumulador(cartao.acumulador).acumulador
-      if (lido !== null && !achados.some((outro) => outro.id === lido.id)) achados.push(lido)
-    }
-  }
-  return achados
+  return acumuladoresNaFicha(personagem).map((item) => item.acumulador)
 }
 
 /** As opções dos campos que apontam outra coisa: as técnicas, as formas, os atributos, os acumuladores, a mochila. */
