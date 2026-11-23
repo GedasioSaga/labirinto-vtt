@@ -131,8 +131,12 @@ export const FORMATO_DO_CATALOGO = 1
 export const CATALOGO_MAX = 2000
 export const ENTRADA_NOME_MAX = 80
 export const ENTRADA_TEXTO_MAX = 600
-/** Valor de um campo (Dano, Ação...): é uma linha da ficha. */
-export const ENTRADA_CAMPO_MAX = 200
+/**
+ * Valor de um campo (Dano, Ação...): é uma linha da ficha. Fase ED4: era 200 e cortava no meio o Efeito
+ * que o app gera para a arma montada (o do Boomerang); agora o mesmo teto da Descrição. O app de antes
+ * ainda corta em 200 ao ler e, se salvar o catálogo, grava cortado (app, site e Worker saem juntos).
+ */
+export const ENTRADA_CAMPO_MAX = ENTRADA_TEXTO_MAX
 const CAMPOS_POR_ENTRADA_MAX = 16
 /** Tipos de bala de uma arma do catálogo. */
 export const BALAS_POR_ENTRADA_MAX = 16
