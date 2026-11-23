@@ -1,5 +1,4 @@
-import { NOME_DO_GOLPE_MAX, NOME_DO_SELO_MAX, CARGA_MAX } from '../combate'
-import { NIVEL_DO_CONTADOR_MAX, NOME_DO_CONTADOR_MAX } from '../contador'
+import { NOME_DO_GOLPE_MAX, NOME_DO_SELO_MAX, CARGA_MAX, DANO_MAX } from '../combate'
 import { normalizar } from '../formula'
 import {
   CASAS_DO_REQUISITO_MAX,
@@ -10,18 +9,26 @@ import {
   LIGA_POR_MAX,
   MARCA_MAX,
   MARCAS_MAX,
+  NIVEL_DO_ACUMULADOR_MAX,
   OPCOES_NO_UM_DESTES_MAX,
+  NOME_DO_ACUMULADOR_MAX,
+  PASSO_DO_ACUMULADOR_MAX,
   PECAS_NA_RAIZ_MAX,
+  REGRAS_DO_ACUMULADOR_MAX,
   PESSOAS_DO_REQUISITO_MAX,
   QUANTIDADE_DO_REQUISITO_MAX,
   RECURSO_DO_REQUISITO_MAX,
   RODADA_DO_REQUISITO_MAX,
   TEXTO_DO_REQUISITO_MAX,
   TIPOS_DE_REQUISITO,
+  VERSAO_DO_ACUMULADOR,
   VERSAO_DOS_REQUISITOS,
   ehNaoLido,
   ehTipoDeRequisito,
   ehUmDestes,
+  type AcumuladorDaFicha,
+  type DescidaDoAcumulador,
+  type GanhoDoAcumulador,
   type GrupoDeRequisitos,
   type ObjetoJson,
   type OpcaoDoUmDestes,
@@ -38,7 +45,12 @@ import {
   type TipoDeRequisito,
   type TipoDoAlvo,
   type UmDestes,
+  type PecaDoAcumulador,
+  type QuandoSobe,
+  type RegraNaoLida,
+  type SubidaDoAcumulador,
   type ValorJson,
+  type ValorPorNivel,
 } from './modelo'
 
 /**
@@ -174,7 +186,7 @@ const CHAVES_DO_TIPO: Readonly<Record<TipoDeRequisito, readonly string[]>> = {
   sp: ['n'],
   vida: ['porcento', 'lado'],
   escudo: [],
-  contador: ['nome', 'nivel', 'de'],
+  contador: ['acumulador', 'nivel'],
   concentracao: ['n'],
   pagaVida: ['porcento', 'hp'],
   reacaoLivre: [],
@@ -262,11 +274,8 @@ function requisitoLido(valor: unknown): Requisito {
     case 'semInimigoColado':
     case 'aliadoCaiu':
       return { id, tipo, ...marcas }
-    case 'contador': {
-      const de = referenciaOpcional(peca.de, `${onde} (cartão do contador)`)
-      const base = { id, tipo, nome: texto(peca.nome, NOME_DO_CONTADOR_MAX, `${onde} (nome)`), nivel: inteiro(peca.nivel, 1, NIVEL_DO_CONTADOR_MAX, `${onde} (nível)`) }
-      return { ...base, ...(de === undefined ? {} : { de }), ...marcas }
-    }
+    case 'contador':
+      return { id, tipo, acumulador: referencia(peca.acumulador, `${onde} (acumulador)`), nivel: inteiro(peca.nivel, 1, NIVEL_DO_ACUMULADOR_MAX, `${onde} (nível)`), ...marcas }
     case 'concentracao':
       return { id, tipo, n: inteiro(peca.n, 1, CARGA_MAX, `${onde} (cargas)`), ...marcas }
     case 'pagaVida':
@@ -402,7 +411,7 @@ function lerRequisito(valor: unknown, leitura: Leitura): Requisito | RequisitoNa
 }
 
 /** Lista com teto: o que passa do teto fica de fora, com aviso (o disco guarda até o editor regravar). */
-function comTeto(valor: readonly unknown[], maximo: number, onde: string, leitura: Leitura): readonly unknown[] {
+function comTeto(valor: readonly unknown[], maximo: number, onde: string, leitura: Pick<Leitura, 'avisos'>): readonly unknown[] {
   if (valor.length <= maximo) return valor
   leitura.avisos.push(`${onde}: passou de ${maximo}; os ${valor.length - maximo} do fim ficaram de fora`)
   return valor.slice(0, maximo)
@@ -537,6 +546,177 @@ export function lerRequisitos(valor: unknown): RequisitosLidos {
     ...(forma === undefined ? {} : { forma }),
   }
   return { bloco, deAppNovo: leitura.appNovo, avisos }
+}
+
+/* ------------------------------------------------------------------ o acumulador ---------- */
+
+export interface AcumuladorLido {
+  /** `null` = ausente, torto (id, nome ou máximo que não valem) ou de versão mais nova. */
+  acumulador: AcumuladorDaFicha | null
+  /** Alguma parte é de um app mais novo (a regra fica guardada e não roda). */
+  deAppNovo: boolean
+  avisos: readonly string[]
+}
+
+const QUANDO_SOBE: readonly QuandoSobe['quando'][] = ['gastaReacao', 'acerta', 'apanha', 'usaTecnica', 'comecoDaVez', 'derruba', 'esquiva', 'gastaSp']
+const QUANDO_DESCE: readonly DescidaDoAcumulador['quando'][] = ['fimDaBatalha', 'rodadaSemUso', 'apanha']
+const GANHOS: readonly GanhoDoAcumulador['ganho'][] = ['nada', 'dano', 'atributo']
+
+interface LeituraDoAcumulador {
+  avisos: string[]
+  appNovo: boolean
+}
+
+function regraNaoLida(valor: unknown, erro: PecaTorta | PecaDeAppNovo, leitura: LeituraDoAcumulador): RegraNaoLida {
+  const porque = erro instanceof PecaDeAppNovo ? 'appNovo' : 'torto'
+  if (porque === 'appNovo') leitura.appNovo = true
+  leitura.avisos.push(porque === 'appNovo' ? `Acumulador: ${erro.message}: atualize o app` : `Acumulador: ${erro.message}: refaça no editor`)
+  return { porque, motivo: erro.message, bruto: comoJson(valor) }
+}
+
+/** Lê com `ler`; a regra torta ou de app mais novo volta como `naoLida` (o resto do acumulador fica). */
+function ouNaoLida<T>(valor: unknown, ler: (valor: unknown) => T, leitura: LeituraDoAcumulador): T | RegraNaoLida {
+  try {
+    return ler(valor)
+  } catch (erro) {
+    if (!(erro instanceof PecaTorta || erro instanceof PecaDeAppNovo)) throw erro
+    return regraNaoLida(valor, erro, leitura)
+  }
+}
+
+function subidaLida(valor: unknown): SubidaDoAcumulador {
+  const peca = registro(valor, 'regra de subir')
+  const quando = umDe(peca.quando, QUANDO_SOBE, 'regra de subir (quando)')
+  const onde = `regra de subir "${quando}"`
+  switch (quando) {
+    case 'usaTecnica':
+      soChaves(peca, ['quando', 'quanto', 'tecnica'], onde)
+      return { quando, tecnica: referencia(peca.tecnica, `${onde} (técnica)`), quanto: inteiro(peca.quanto, 1, PASSO_DO_ACUMULADOR_MAX, `${onde} (quanto)`) }
+    case 'gastaSp':
+      soChaves(peca, ['quando', 'quanto', 'cada'], onde)
+      return { quando, cada: inteiro(peca.cada, 1, RECURSO_DO_REQUISITO_MAX, `${onde} (a cada quanto SP)`), quanto: inteiro(peca.quanto, 1, PASSO_DO_ACUMULADOR_MAX, `${onde} (quanto)`) }
+    default:
+      soChaves(peca, ['quando', 'quanto'], onde)
+      return { quando, quanto: inteiro(peca.quanto, 1, PASSO_DO_ACUMULADOR_MAX, `${onde} (quanto)`) }
+  }
+}
+
+function descidaLida(valor: unknown): DescidaDoAcumulador {
+  const peca = registro(valor, 'regra de cair')
+  const quando = umDe(peca.quando, QUANDO_DESCE, 'regra de cair (quando)')
+  const onde = `regra de cair "${quando}"`
+  switch (quando) {
+    case 'fimDaBatalha':
+      soChaves(peca, ['quando'], onde)
+      return { quando }
+    case 'rodadaSemUso':
+      soChaves(peca, ['quando', 'quanto'], onde)
+      return { quando, quanto: inteiro(peca.quanto, 1, PASSO_DO_ACUMULADOR_MAX, `${onde} (quanto)`) }
+    case 'apanha':
+      soChaves(peca, ['quando', 'quanto'], onde)
+      return { quando, quanto: peca.quanto === 'tudo' ? 'tudo' : inteiro(peca.quanto, 1, PASSO_DO_ACUMULADOR_MAX, `${onde} (quanto)`) }
+  }
+}
+
+/** `cada` x o nível, ou o total de cada nível (tantos quanto o máximo), um dos dois. */
+function valorPorNivel(peca: Readonly<Record<string, unknown>>, maximo: number, onde: string): ValorPorNivel {
+  if ((peca.cada === undefined) === (peca.niveis === undefined)) torta(`${onde}: diga "cada nível" ou o valor de cada nível, um dos dois`)
+  if (peca.cada !== undefined) return { cada: inteiro(peca.cada, 1, DANO_MAX, `${onde} (cada nível)`) }
+  if (!Array.isArray(peca.niveis) || peca.niveis.length !== maximo) torta(`${onde}: um valor para cada um dos ${maximo} níveis`)
+  return { niveis: peca.niveis.map((valor: unknown, indice) => inteiro(valor, 0, DANO_MAX, `${onde} (nível ${indice + 1})`)) }
+}
+
+function ganhoLido(maximo: number): (valor: unknown) => GanhoDoAcumulador {
+  return (valor) => {
+    const peca = registro(valor, 'o que cada nível dá')
+    const ganho = umDe(peca.ganho, GANHOS, 'o que cada nível dá')
+    const onde = `o que cada nível dá ("${ganho}")`
+    switch (ganho) {
+      case 'nada':
+        soChaves(peca, ['ganho'], onde)
+        return { ganho }
+      case 'dano':
+        soChaves(peca, ['ganho', 'cada', 'niveis'], onde)
+        return { ganho, ...valorPorNivel(peca, maximo, onde) }
+      case 'atributo':
+        soChaves(peca, ['ganho', 'atributo', 'cada', 'niveis'], onde)
+        return { ganho, atributo: referencia(peca.atributo, `${onde} (atributo)`), ...valorPorNivel(peca, maximo, onde) }
+    }
+  }
+}
+
+function regrasLidas<T>(valor: unknown, onde: string, ler: (valor: unknown) => T, leitura: LeituraDoAcumulador): (T | RegraNaoLida)[] {
+  if (valor === undefined) return []
+  if (!Array.isArray(valor)) {
+    leitura.avisos.push(`Acumulador: ${onde} torto, ignorado`)
+    return []
+  }
+  return comTeto(valor, REGRAS_DO_ACUMULADOR_MAX, `Acumulador: ${onde}`, leitura).map((regra) => ouNaoLida(regra, ler, leitura))
+}
+
+function ehRegraNaoLida<T extends object>(regra: T | RegraNaoLida): regra is RegraNaoLida {
+  return 'bruto' in regra
+}
+
+const CHAVES_DO_ACUMULADOR = ['v', 'id', 'nome', 'maximo', 'sobe', 'desce', 'ganho']
+
+/**
+ * Lê a definição de um acumulador (`AcumuladorDaFicha`). Nunca lança. Sem id, nome ou máximo que
+ * valham = ignorado com aviso; regra de subir ou de cair, ou o ganho, torta ou de app mais novo =
+ * guardada como veio (`naoLida`) e o resto fica. Sem ganho = "nada" (só conta).
+ */
+export function lerAcumulador(valor: unknown): AcumuladorLido {
+  if (valor === undefined || valor === null) return { acumulador: null, deAppNovo: false, avisos: [] }
+  if (!ehRegistro(valor)) return { acumulador: null, deAppNovo: false, avisos: ['Acumulador torto: ignorado'] }
+  if (valor.v !== undefined && (typeof valor.v !== 'number' || !Number.isInteger(valor.v) || valor.v < 1)) return { acumulador: null, deAppNovo: false, avisos: ['Acumulador com versão torta: ignorado'] }
+  if (typeof valor.v === 'number' && valor.v > VERSAO_DO_ACUMULADOR) return { acumulador: null, deAppNovo: true, avisos: [`Acumulador da versão ${valor.v}, de app mais novo: atualize o app`] }
+  const leitura: LeituraDoAcumulador = { avisos: valor.v === undefined ? ['Acumulador sem versão: lido como a versão 1'] : [], appNovo: false }
+  const desconhecida = chaveDesconhecida(valor, CHAVES_DO_ACUMULADOR)
+  if (desconhecida !== undefined) {
+    leitura.appNovo = true
+    leitura.avisos.push(`Acumulador: chave "${desconhecida}" de app mais novo: atualize o app`)
+  }
+  let base: Pick<AcumuladorDaFicha, 'id' | 'nome' | 'maximo'>
+  try {
+    if (typeof valor.id !== 'string' || valor.id.length > ID_DO_REQUISITO_MAX || !ID_VALIDO.test(valor.id)) torta('id torto')
+    base = { id: valor.id, nome: texto(valor.nome, NOME_DO_ACUMULADOR_MAX, 'nome'), maximo: inteiro(valor.maximo, 1, NIVEL_DO_ACUMULADOR_MAX, 'nível máximo') }
+  } catch (erro) {
+    if (!(erro instanceof PecaTorta || erro instanceof PecaDeAppNovo)) throw erro
+    return { acumulador: null, deAppNovo: leitura.appNovo, avisos: [...leitura.avisos, `Acumulador torto (${erro.message}): ignorado`] }
+  }
+  const sobe = regrasLidas(valor.sobe, 'regras de subir', subidaLida, leitura).map((regra): AcumuladorDaFicha['sobe'][number] => (ehRegraNaoLida(regra) ? { quando: 'naoLida', ...regra } : regra))
+  const desce = regrasLidas(valor.desce, 'regras de cair', descidaLida, leitura).map((regra): AcumuladorDaFicha['desce'][number] => (ehRegraNaoLida(regra) ? { quando: 'naoLida', ...regra } : regra))
+  const ganho: GanhoDoAcumulador | RegraNaoLida = valor.ganho === undefined ? { ganho: 'nada' } : ouNaoLida(valor.ganho, ganhoLido(base.maximo), leitura)
+  return { acumulador: { v: VERSAO_DO_ACUMULADOR, ...base, sobe, desce, ganho: ehRegraNaoLida(ganho) ? { ganho: 'naoLido', ...ganho } : ganho }, deAppNovo: leitura.appNovo, avisos: leitura.avisos }
+}
+
+/** A definição como o disco a guarda; a regra não lida volta como veio. */
+export function acumuladorParaGuardar(acumulador: AcumuladorDaFicha): ObjetoJson {
+  return {
+    v: acumulador.v,
+    id: acumulador.id,
+    nome: acumulador.nome,
+    maximo: acumulador.maximo,
+    sobe: acumulador.sobe.map((regra) => (regra.quando === 'naoLida' ? regra.bruto : comoJson(regra))),
+    desce: acumulador.desce.map((regra) => (regra.quando === 'naoLida' ? regra.bruto : comoJson(regra))),
+    ganho: acumulador.ganho.ganho === 'naoLido' ? acumulador.ganho.bruto : comoJson(acumulador.ganho),
+  }
+}
+
+/** A peça "+N <acumulador>" lida, ou por que não (o motor decide o que fazer com a não lida). */
+export type PecaDoAcumuladorLida = { peca: PecaDoAcumulador } | { peca: null; porque: 'appNovo' | 'torto'; motivo: string }
+
+/** Lê a peça de efeito "+N <acumulador>". Nunca lança. */
+export function lerPecaDoAcumulador(valor: unknown): PecaDoAcumuladorLida {
+  try {
+    const peca = registro(valor, 'peça do acumulador')
+    if (peca.tipo !== 'acumulador') torta('não é a peça do acumulador')
+    soChaves(peca, ['tipo', 'acumulador', 'quanto'], 'peça do acumulador')
+    return { peca: { tipo: 'acumulador', acumulador: referencia(peca.acumulador, 'peça do acumulador (acumulador)'), quanto: inteiro(peca.quanto, 1, PASSO_DO_ACUMULADOR_MAX, 'peça do acumulador (quanto)') } }
+  } catch (erro) {
+    if (!(erro instanceof PecaTorta || erro instanceof PecaDeAppNovo)) throw erro
+    return { peca: null, porque: erro instanceof PecaDeAppNovo ? 'appNovo' : 'torto', motivo: erro.message }
+  }
 }
 
 /* ------------------------------------------------------------------ gravar ---------------- */

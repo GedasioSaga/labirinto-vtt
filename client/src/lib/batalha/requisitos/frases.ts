@@ -1,15 +1,20 @@
 import {
   ehNaoLido,
   ehUmDestes,
+  type AcumuladorDaFicha,
+  type DescidaDoAcumulador,
+  type GanhoDoAcumulador,
   type GrupoDeRequisitos,
   type LadoDaVida,
   type OpcaoDoUmDestes,
+  type PecaDoAcumulador,
   type PecaDoGrupo,
   type RecursoDoAliado,
   type Requisito,
   type RequisitoDo,
   type RequisitosDoCartao,
   type SeFalhar,
+  type SubidaDoAcumulador,
   type TipoDoAlvo,
   type UmDestes,
 } from './modelo'
@@ -77,7 +82,7 @@ function textosDoRecurso(r: RequisitoDo<'sp' | 'pagaVida' | 'reacaoLivre' | 'con
       if (r.nao === true) return iguais(`menos de ${r.n} SP`)
       return { frase: r.gasta === true ? `gasta ${r.n} SP` : `${r.n} SP ou mais`, curto: `${r.n} SP` }
     case 'contador': {
-      const nome = minuscula(r.nome)
+      const nome = minuscula(r.acumulador.nome)
       if (r.nao === true) return iguais(`${nome} abaixo de ${r.nivel}`)
       return { frase: `${nome} ${r.nivel} ou mais${r.gasta === true ? `, gasta ${r.nivel}` : ''}`, curto: `${nome} ${r.nivel}` }
     }
@@ -354,4 +359,66 @@ export function fraseDoPedidoDeAjuda(quemPede: string, requisito: RequisitoDo<'p
     case 'mestreDecide':
       return requisito.texto === undefined ? `${quemPede} pede ao mestre para usar ${tecnica}` : `${quemPede} pede ao mestre para usar ${tecnica}: ${requisito.texto}`
   }
+}
+
+/* ------------------------------------------------------------------ o acumulador ---------- */
+
+function fraseDaSubida(regra: SubidaDoAcumulador): string {
+  switch (regra.quando) {
+    case 'gastaReacao':
+      return `+${regra.quanto} ao gastar a reação`
+    case 'acerta':
+      return `+${regra.quanto} ao acertar um golpe`
+    case 'apanha':
+      return `+${regra.quanto} ao receber dano`
+    case 'usaTecnica':
+      return `+${regra.quanto} ao usar ${regra.tecnica.nome}`
+    case 'comecoDaVez':
+      return `+${regra.quanto} no começo da vez`
+    case 'derruba':
+      return `+${regra.quanto} ao derrubar alguém`
+    case 'esquiva':
+      return `+${regra.quanto} ao esquivar`
+    case 'gastaSp':
+      return `+${regra.quanto} a cada ${regra.cada} SP gastos`
+  }
+}
+
+function fraseDaDescida(regra: DescidaDoAcumulador): string {
+  switch (regra.quando) {
+    case 'fimDaBatalha':
+      return 'zera no fim da batalha'
+    case 'rodadaSemUso':
+      return `−${regra.quanto} por rodada sem usar`
+    case 'apanha':
+      return regra.quanto === 'tudo' ? 'zera ao receber dano' : `−${regra.quanto} ao receber dano`
+  }
+}
+
+function fraseDoGanho(ganho: GanhoDoAcumulador): string {
+  if (ganho.ganho === 'nada') return 'Cada nível: nada a mais (só conta)'
+  const doQue = ganho.ganho === 'dano' ? 'de dano em todo golpe que acerta' : `de ${ganho.atributo.nome}`
+  if (ganho.cada !== undefined) return `Cada nível: +${ganho.cada} ${doQue}`
+  return `${ganho.niveis.map((valor, indice) => `${indice === 0 ? 'Nível' : 'nível'} ${indice + 1}: +${valor}`).join(', ')} ${doQue}`
+}
+
+/**
+ * O acumulador em linhas: "Polaridade, até o nível 3" / "Sobe: +1 ao gastar a reação" / "Cai: zera
+ * no fim da batalha" / "Nível 1: +10, nível 2: +20, nível 3: +30 de dano em todo golpe que acerta".
+ */
+export function frasesDoAcumulador(acumulador: AcumuladorDaFicha): string[] {
+  const textoDaNaoLida = (porque: 'appNovo' | 'torto'): string => (porque === 'appNovo' ? 'regra de app mais novo (atualize o app)' : 'regra torta (refaça no editor)')
+  const sobe = acumulador.sobe.map((regra) => (regra.quando === 'naoLida' ? textoDaNaoLida(regra.porque) : fraseDaSubida(regra)))
+  const desce = acumulador.desce.map((regra) => (regra.quando === 'naoLida' ? textoDaNaoLida(regra.porque) : fraseDaDescida(regra)))
+  return [
+    `${acumulador.nome}, até o nível ${acumulador.maximo}`,
+    sobe.length === 0 ? 'Sobe: só por uma técnica que dá "+N"' : `Sobe: ${sobe.join('; ')}`,
+    desce.length === 0 ? 'Cai: só quando um requisito gasta' : `Cai: ${desce.join('; ')}`,
+    acumulador.ganho.ganho === 'naoLido' ? `Cada nível: ${textoDaNaoLida(acumulador.ganho.porque)}` : fraseDoGanho(acumulador.ganho),
+  ]
+}
+
+/** A peça de efeito: "+1 Polaridade". */
+export function fraseDaPecaDoAcumulador(peca: PecaDoAcumulador): string {
+  return `+${peca.quanto} ${peca.acumulador.nome}`
 }

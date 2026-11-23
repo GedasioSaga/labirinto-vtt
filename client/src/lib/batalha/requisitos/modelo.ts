@@ -87,7 +87,7 @@ export type QuantoPagaDeVida = { porcento: number; hp?: undefined } | { hp: numb
  * Um requisito. A letra é a da lista (REQUISITOS-LISTA.md). Os números de cada tipo:
  *
  * - A1 `sp`: N de SP ou mais. A2 `vida`: vida abaixo/acima de X%. A3 `escudo`: com o Escudo de pé.
- *   A4 `contador`: o contador `nome` ("Polaridade", do cartão `de`) no nível N ou mais. A5
+ *   A4 `contador`: o acumulador (`AcumuladorDaFicha`, "Polaridade", pelo id e o nome) no nível N ou mais. A5
  *   `concentracao`: N cargas ou mais (0 a 3). A6 `pagaVida`: paga X% do HP máximo ou N de HP
  *   (sempre gasta). A7 `reacaoLivre`: a reação livre (sempre gasta).
  * - B1 `ligada`: a técnica ou passiva `cartao` ligada (na opção `opcao`, a `chave` da variante;
@@ -119,7 +119,7 @@ export type Requisito = ComId &
     | ({ tipo: 'sp'; n: number } & ComNao & ComGasto)
     | { tipo: 'vida'; porcento: number; lado: LadoDaVida }
     | ({ tipo: 'escudo' } & ComNao)
-    | ({ tipo: 'contador'; nome: string; nivel: number; de?: Referencia } & ComNao & ComGasto)
+    | ({ tipo: 'contador'; acumulador: Referencia; nivel: number } & ComNao & ComGasto)
     | ({ tipo: 'concentracao'; n: number } & ComNao & ComGasto)
     | ({ tipo: 'pagaVida' } & QuantoPagaDeVida)
     | { tipo: 'reacaoLivre' }
@@ -295,6 +295,86 @@ export const TIPOS_DE_REQUISITO: Readonly<Record<TipoDeRequisito, FichaDoTipo>> 
 /** O texto é um tipo de requisito que este app conhece. */
 export function ehTipoDeRequisito(valor: string): valor is TipoDeRequisito {
   return Object.hasOwn(TIPOS_DE_REQUISITO, valor)
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * O ACUMULADOR (acréscimo do dono de 23/11 à fase A): um medidor genérico que qualquer ficha
+ * define (Polaridade, Fúria, Cargas): o nome, o nível máximo, como sobe, como cai e o que cada
+ * nível dá. O requisito A4 (`contador`) aponta um acumulador; a peça de efeito "+N <acumulador>"
+ * o sobe. O motor (subir, cair, somar o ganho) é de fase posterior; aqui só o modelo.
+ *
+ * O contador de hoje (`lib/batalha/contador.ts`, os extras do Vagn) cabe inteiro aqui:
+ * - extra "Contador" (ou "Polaridade" achado no texto) = `nome`;
+ * - extra "Nível máximo" (ou "vai até N" no texto) = `maximo`;
+ * - extra "Dano por nível": "10" = `ganho: { ganho: 'dano', cada: 10 }` (nível x 10); "10, 20, 30"
+ *   (ou as linhas "Nível 1: + 10 de dano") = `ganho: { ganho: 'dano', niveis: [10, 20, 30] }`, o
+ *   mesmo `LeituraDoContador.danoPorNivel`;
+ * - "gastar a reação sobe 1 nível" (fixo hoje no motor) = `sobe: [{ quando: 'gastaReacao', quanto: 1 }]`;
+ * - "dura até a batalha acabar" = `desce: [{ quando: 'fimDaBatalha' }]` (o mestre zerar continua à mão);
+ * - o "gasta 2" da Chuva é o requisito A4 com `gasta`, não uma regra do acumulador (vale sempre).
+ * O `id` é novo: quem migrar dá um por ficha (ex.: `acu_polaridade`).
+ * ------------------------------------------------------------------------------------------- */
+
+/** A versão da definição do acumulador. */
+export const VERSAO_DO_ACUMULADOR = 1
+/** O maior nível de um acumulador (o contador de hoje para em 10; Fúria e Cargas podem ir além). */
+export const NIVEL_DO_ACUMULADOR_MAX = 99
+/** O nome ("Polaridade"), o mesmo teto do contador de hoje. */
+export const NOME_DO_ACUMULADOR_MAX = 40
+/** Quantas regras de subir e de cair. */
+export const REGRAS_DO_ACUMULADOR_MAX = 8
+/** Quanto uma regra sobe ou cai de uma vez, e quanto a peça "+N" sobe. */
+export const PASSO_DO_ACUMULADOR_MAX = 99
+
+/** Quando sobe (`quanto` níveis de cada vez). */
+export type QuandoSobe =
+  | { quando: 'gastaReacao' }
+  | { quando: 'acerta' }
+  | { quando: 'apanha' }
+  | { quando: 'usaTecnica'; tecnica: Referencia }
+  | { quando: 'comecoDaVez' }
+  | { quando: 'derruba' }
+  | { quando: 'esquiva' }
+  | { quando: 'gastaSp'; cada: number }
+
+export type SubidaDoAcumulador = QuandoSobe & { quanto: number }
+
+/** Quando cai, além do requisito A4 com "gasta" (que vale sempre). */
+export type DescidaDoAcumulador =
+  | { quando: 'fimDaBatalha' }
+  | { quando: 'rodadaSemUso'; quanto: number }
+  | { quando: 'apanha'; quanto: number | 'tudo' }
+
+/** O valor de cada nível: `cada` x o nível, ou o total de cada nível (`niveis[0]` é o do nível 1; o tamanho é o máximo). */
+export type ValorPorNivel = { cada: number; niveis?: undefined } | { niveis: readonly number[]; cada?: undefined }
+
+/** O que cada nível dá: dano a mais em todo golpe que acerta, um atributo a mais, ou nada (só conta). */
+export type GanhoDoAcumulador = { ganho: 'nada' } | ({ ganho: 'dano' } & ValorPorNivel) | ({ ganho: 'atributo'; atributo: Referencia } & ValorPorNivel)
+
+/** A regra (de subir, de cair, ou o ganho) que o leitor não entendeu, guardada como veio. */
+export interface RegraNaoLida {
+  porque: 'appNovo' | 'torto'
+  motivo: string
+  bruto: ValorJson
+}
+
+/** A definição do acumulador. */
+export interface AcumuladorDaFicha {
+  v: typeof VERSAO_DO_ACUMULADOR
+  /** Único na ficha: o requisito A4 e a peça "+N" o apontam por ele. */
+  id: string
+  nome: string
+  maximo: number
+  sobe: readonly (SubidaDoAcumulador | ({ quando: 'naoLida' } & RegraNaoLida))[]
+  desce: readonly (DescidaDoAcumulador | ({ quando: 'naoLida' } & RegraNaoLida))[]
+  ganho: GanhoDoAcumulador | ({ ganho: 'naoLido' } & RegraNaoLida)
+}
+
+/** A peça de efeito "+N <acumulador>" (o motor a liga a uma mecânica em fase posterior). */
+export interface PecaDoAcumulador {
+  tipo: 'acumulador'
+  acumulador: Referencia
+  quanto: number
 }
 
 /* ---------------------------------------------------------------------------------------------
