@@ -6,6 +6,7 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { combateVazio, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type FormaPendente, type GolpeDaBatalha, type InvocacaoPendente, type InvocadoNaBatalha, type LembreteDaMarca, type SeloDaBatalha } from './combate'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { contarSelos } from './selos'
+import { semODanoDaVez } from './rastro'
 import { fatorDaVelocidade } from './mecanicasAMao'
 
 /**
@@ -118,6 +119,12 @@ export interface TurnosDaCena {
   formasPendentes?: readonly FormaPendente[]
   /** R1 (lote de 01/11): os lembretes "Marcar o alvo?" esperando resposta (no máximo `LEMBRETES_DA_MARCA_MAX`). Ausente = nenhum. */
   lembretesDaMarca?: readonly LembreteDaMarca[]
+  /**
+   * REQUISITOS, fase B3 (G5 "um aliado caiu nesta batalha"): o tokenId de cada queda (HP de mais
+   * de 0 para 0 ou menos) nesta batalha, uma entrada por queda (a mesma ficha caída duas vezes
+   * aparece duas vezes: o Desfazer de uma tira só uma). Até `QUEDAS_MAX`. Ausente = ninguém caiu.
+   */
+  jaCairam?: readonly string[]
 }
 
 /** Quem fez a ação que entra no registro. O `nome` do jogador é o da mesa, na hora. */
@@ -568,12 +575,15 @@ function recargasDescendo(
   if (personagemId === null) return combate
   const dele = combate?.[personagemId]
   if (dele === undefined) return { ...(combate ?? {}), [personagemId]: { ...combateVazio(), jaJogou: true } }
-  if (Object.keys(dele.recargas).length === 0 && dele.semReacao === undefined && dele.jaJogou === true && dele.gastouSp === undefined) return combate
+  if (Object.keys(dele.recargas).length === 0 && dele.semReacao === undefined && dele.jaJogou === true && dele.gastouSp === undefined && dele.rastro?.danoDesdeAVez === undefined) return combate
   const recargas: Record<string, number> = {}
   for (const [cartaoId, faltam] of Object.entries(dele.recargas)) if (faltam > 1) recargas[cartaoId] = faltam - 1
   // R5 (lote de 01/11): a reação gasta no contador volta no começo da vez dele.
   const { semReacao: _gasta, gastouSp: _gastou, ...comReacao } = dele
-  return { ...combate, [personagemId]: { ...comReacao, recargas, jaJogou: true } }
+  // REQUISITOS B3: o "apanhou desde a vez dele" (B6) recomeça do zero.
+  const rastro = semODanoDaVez(dele.rastro)
+  const { rastro: _rastro, ...semRastro } = comReacao
+  return { ...combate, [personagemId]: { ...semRastro, recargas, jaJogou: true, ...(rastro === undefined ? {} : { rastro }) } }
 }
 
 /** O registro sem as chaves de `fora`; nada a tirar = o mesmo objeto. */

@@ -244,6 +244,7 @@ export function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: Ba
     case 'selo':
     case 'evolucao':
     case 'linhaJunto':
+    case 'caiu':
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
   }
 }

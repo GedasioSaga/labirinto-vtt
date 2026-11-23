@@ -122,7 +122,50 @@ export interface CombateDoPersonagem {
    * ligadas; o lembrete do custo sai no começo de cada vez. Ausente = nenhuma.
    */
   mantidas?: readonly string[]
+  /**
+   * REQUISITOS, fase B3 (docs/design/habilidades/REQUISITOS.md §5): o que ele fez e sofreu nesta
+   * batalha, para os requisitos de estado e de tempo (andou, acertou, errou, apanhou, a ação de
+   * antes, as já usadas). Ausente = nada ainda (a batalha salva antes da B3 abre assim).
+   */
+  rastro?: RastroDoCombate
+  /**
+   * REQUISITOS, fase B3: o nível de agora de cada acumulador da ficha (id da definição no cartão,
+   * `AcumuladorDaFicha`) → nível. Ausente, ou o id fora do mapa = nível 0.
+   */
+  acumuladores?: Readonly<Record<string, number>>
 }
+
+/**
+ * A ação dele que conta para o "depois de" (C2): o cartão (técnica ou a reação dele não contam
+ * aqui, só o que ele usou na vez), o Atacar ou o item. Concentrar e Mover não trocam a de antes.
+ */
+export type UltimaAcaoDoRastro = { tipo: 'cartao'; cartaoId: string; nome: string } | { tipo: 'atacar' } | { tipo: 'item' }
+
+/** O rastro de um personagem (fase B3). Todo campo ausente = zero / nada. */
+export interface RastroDoCombate {
+  /**
+   * A vez em que ele agiu por último (`chaveDaVez`): quantas ações fez nela e se acertou alguém.
+   * Chave de outra vez = 0 ações e não acertou (o leitor compara com a vez de agora). As casas
+   * andadas da vez NÃO moram aqui: são o `GastoDaVez.blocos` da carta, que já zera a cada vez.
+   */
+  vez?: { chave: string; acoes: number; acertou?: true }
+  /** O último ataque dele que se resolveu: acertou alguém, ou ninguém (esquivaram ou contra-atacaram). */
+  ultimoAtaque?: 'acertou' | 'errou'
+  /** A ação imediatamente anterior dele (C2). */
+  ultimaAcao?: UltimaAcaoDoRastro
+  /** cartaoId → vezes que ele usou a técnica nesta batalha, na vez ou na reação (C3). Até `USADAS_NO_RASTRO_MAX` técnicas. */
+  usadas?: Readonly<Record<string, number>>
+  /** As técnicas usadas na rodada `rodada` (G3, lido no combate do aliado). Outra rodada = nenhuma. */
+  naRodada?: { rodada: number; usadas: Readonly<Record<string, number>> }
+  /** O dano que ele recebeu (HP e Escudo) desde o começo da última vez dele (B6). Zera no começo da vez dele. */
+  danoDesdeAVez?: number
+}
+
+/** Quantas técnicas diferentes o rastro guarda em `usadas` (e por rodada); passou disso, a nova não entra. */
+export const USADAS_NO_RASTRO_MAX = 64
+
+/** Quantas quedas `TurnosDaCena.jaCairam` guarda numa batalha; passou disso, a nova não entra. */
+export const QUEDAS_MAX = 64
 
 /** C2: o que o Concentrar da vez gastou (a Simples ou a Bônus) e a linha que o registrou. */
 export interface ConcentracaoGasta {

@@ -24,7 +24,9 @@ import {
   type InvocadoNaBatalha,
   type LembreteDaMarca,
   type LembreteDaPassiva,
+  type RastroDoCombate,
   type SeloDaBatalha,
+  type UltimaAcaoDoRastro,
 } from './combate'
 import { selosComONivel } from './contador'
 import { ehLembreteDoSangramento } from './condicoes'
@@ -32,6 +34,7 @@ import { ehLembreteDoCustoDaForma } from './custoPorTurno'
 import { ehLembreteDaPreparacao } from './preparacao'
 import { semEvoluida } from './escolhaEEvolucao'
 import { passivasLigadas } from './passivas'
+import { semUmaQueda } from './rastro'
 import type { RegrasDaBatalha } from './regrasDoCampo'
 import { inserirCarta, removerCarta, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -261,6 +264,11 @@ export type Reversao =
    * era do boneco (`MesaDaBatalha.mochilaDoBoneco`): a unidade volta a ele.
    */
   | { tipo: 'municao'; personagemId: string; vaga: CarriedItem; indice: number; tokenId?: string }
+  /**
+   * REQUISITOS, fase B3: a linha levou a ficha `tokenId` a 0 e a queda entrou em
+   * `TurnosDaCena.jaCairam`. Desfazer = sai UMA entrada dela (a outra queda fica).
+   */
+  | { tipo: 'caiu'; tokenId: string }
 
 /** O combate de um personagem antes e depois da vez (as recargas que desceram, a reação que voltou, os lembretes). */
 export interface CombateNaVez {
@@ -635,7 +643,7 @@ function lembretesSemALinha(
  * Lista vazia e campo ausente saem do objeto.
  */
 function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>, daVez = false): CombateDoPersonagem {
-  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, mantidas: _mantidas, viramLutar: _viram, reordenarNaVirada: _reordenar, ...fixos } = atual
+  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, mantidas: _mantidas, viramLutar: _viram, reordenarNaVirada: _reordenar, rastro: _rastro, acumuladores: _acumuladores, ...fixos } = atual
   // F2 (revisão da fatia D): as técnicas mantidas voltam uma a uma (a linha que ligou o Giro desliga só ele).
   const mantidas = listaSemALinha(atual.mantidas ?? [], antes.mantidas ?? [], depois.mantidas ?? [])
   // Conserto das fichas F1: o "+10 SP por vez" (jaJogou, gastouSp) volta campo a campo.
@@ -652,6 +660,9 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
   const viramLutar = listaSemALinha(atual.viramLutar ?? [], antes.viramLutar ?? [], depois.viramLutar ?? [])
   // F2b (revisão, Ignição): a marca de reordenar na virada volta campo a campo (a da forma e a da virada).
   const reordenarNaVirada = campoSemALinha(atual.reordenarNaVirada, antes.reordenarNaVirada, depois.reordenarNaVirada)
+  // REQUISITOS B3: o rastro campo a campo (as contagens por delta) e o nível dos acumuladores por delta.
+  const rastro = rastroSemALinha(atual.rastro ?? {}, antes.rastro ?? {}, depois.rastro ?? {})
+  const acumuladores = numerosSemALinha(atual.acumuladores ?? {}, antes.acumuladores ?? {}, depois.acumuladores ?? {})
   return {
     ...fixos,
     recargas: numerosSemALinha(atual.recargas, antes.recargas, depois.recargas, daVez),
@@ -671,7 +682,77 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
     ...(gastouSp === undefined ? {} : { gastouSp }),
     ...(viramLutar.length === 0 ? {} : { viramLutar }),
     ...(reordenarNaVirada === undefined ? {} : { reordenarNaVirada }),
+    ...(rastro === undefined ? {} : { rastro }),
+    ...(Object.keys(acumuladores).length === 0 ? {} : { acumuladores }),
   }
+}
+
+function mesmaUltimaAcao(a: UltimaAcaoDoRastro | undefined, b: UltimaAcaoDoRastro | undefined): boolean {
+  if (a === b) return true
+  if (a === undefined || b === undefined || a.tipo !== b.tipo) return false
+  return a.tipo !== 'cartao' || (b.tipo === 'cartao' && a.cartaoId === b.cartaoId && a.nome === b.nome)
+}
+
+function mesmaVezDoRastro(a: RastroDoCombate['vez'], b: RastroDoCombate['vez']): boolean {
+  return a === b || (a !== undefined && b !== undefined && a.chave === b.chave && a.acoes === b.acoes && a.acertou === b.acertou)
+}
+
+function mesmasContagens(a: Readonly<Record<string, number>>, b: Readonly<Record<string, number>>): boolean {
+  const chaves = Object.keys(a)
+  return chaves.length === Object.keys(b).length && chaves.every((chave) => numeroDe(a, chave) === numeroDe(b, chave))
+}
+
+function mesmaRodadaDoRastro(a: RastroDoCombate['naRodada'], b: RastroDoCombate['naRodada']): boolean {
+  return a === b || (a !== undefined && b !== undefined && a.rodada === b.rodada && mesmasContagens(a.usadas, b.usadas))
+}
+
+/**
+ * B3: a vez do rastro sem o que a linha mudou. Ninguém mexeu depois = a de antes; outra vez depois
+ * (ou a vez sumiu) = a de agora; a mesma vez mexida depois = tira só a parte desta linha (as ações
+ * por delta, o "acertou" campo a campo).
+ */
+function vezDoRastroSemALinha(atual: RastroDoCombate['vez'], antes: RastroDoCombate['vez'], depois: RastroDoCombate['vez']): RastroDoCombate['vez'] {
+  if (mesmaVezDoRastro(antes, depois)) return atual
+  if (mesmaVezDoRastro(atual, depois)) return antes
+  if (atual === undefined || depois === undefined || atual.chave !== depois.chave) return atual
+  const desta = antes?.chave === depois.chave ? antes : undefined
+  const acoes = Math.max(0, atual.acoes - (depois.acoes - (desta?.acoes ?? 0)))
+  const acertou = campoSemALinha(atual.acertou, desta?.acertou, depois.acertou)
+  if (desta === undefined && acoes === 0 && acertou === undefined) return antes
+  return { chave: atual.chave, acoes, ...(acertou === undefined ? {} : { acertou }) }
+}
+
+/** B3: as técnicas da rodada sem as que a linha contou (por delta), se ainda é a rodada dela. */
+function rodadaDoRastroSemALinha(atual: RastroDoCombate['naRodada'], antes: RastroDoCombate['naRodada'], depois: RastroDoCombate['naRodada']): RastroDoCombate['naRodada'] {
+  if (mesmaRodadaDoRastro(antes, depois)) return atual
+  if (mesmaRodadaDoRastro(atual, depois)) return antes
+  if (atual === undefined || depois === undefined || atual.rodada !== depois.rodada) return atual
+  const desta = antes?.rodada === depois.rodada ? antes.usadas : {}
+  const usadas = numerosSemALinha(atual.usadas, desta, depois.usadas)
+  if (Object.keys(usadas).length > 0) return { rodada: atual.rodada, usadas }
+  return antes?.rodada === depois.rodada ? undefined : antes
+}
+
+/**
+ * B3: o rastro de agora sem o que a linha mudou. A ação de antes e o último ataque campo a campo
+ * (só se ninguém trocou depois); as usadas e o dano desde a vez por delta (o de outra linha fica).
+ * Nada sobrou = `undefined`.
+ */
+function rastroSemALinha(atual: RastroDoCombate, antes: RastroDoCombate, depois: RastroDoCombate): RastroDoCombate | undefined {
+  const volta: RastroDoCombate = {}
+  const vez = vezDoRastroSemALinha(atual.vez, antes.vez, depois.vez)
+  if (vez !== undefined) volta.vez = vez
+  const ultimoAtaque = campoSemALinha(atual.ultimoAtaque, antes.ultimoAtaque, depois.ultimoAtaque)
+  if (ultimoAtaque !== undefined) volta.ultimoAtaque = ultimoAtaque
+  const ultimaAcao = campoSemALinha(atual.ultimaAcao, antes.ultimaAcao, depois.ultimaAcao, mesmaUltimaAcao)
+  if (ultimaAcao !== undefined) volta.ultimaAcao = ultimaAcao
+  const usadas = numerosSemALinha(atual.usadas ?? {}, antes.usadas ?? {}, depois.usadas ?? {})
+  if (Object.keys(usadas).length > 0) volta.usadas = usadas
+  const naRodada = rodadaDoRastroSemALinha(atual.naRodada, antes.naRodada, depois.naRodada)
+  if (naRodada !== undefined) volta.naRodada = naRodada
+  const dano = (atual.danoDesdeAVez ?? 0) - ((depois.danoDesdeAVez ?? 0) - (antes.danoDesdeAVez ?? 0))
+  if (dano > 0) volta.danoDesdeAVez = dano
+  return Object.keys(volta).length === 0 ? undefined : volta
 }
 
 /**
@@ -901,6 +982,8 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       const volta = combateSemALinha(turnos.combate?.[personagemId] ?? combateVazio(), reversao.antes ?? combateVazio(), reversao.depois, passivasLigadas(turnos.selos, personagemId))
       return { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: volta } }
     }
+    case 'caiu':
+      return semUmaQueda(turnos, reversao.tokenId)
     case 'carga': {
       const atual = turnos.combate?.[reversao.personagemId] ?? combateVazio()
       return { ...turnos, combate: { ...(turnos.combate ?? {}), [reversao.personagemId]: { ...atual, carga: reversao.antes } } }
