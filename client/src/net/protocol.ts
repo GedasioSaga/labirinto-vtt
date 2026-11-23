@@ -61,6 +61,7 @@ import {
   parseBatalhaEvoluir,
   parseBatalhaAjustar,
   parseBatalhaContador,
+  parseBatalhaMira,
   parseBatalhaInvocar,
   parseBatalhaMarcar,
   parseBatalhaPassar,
@@ -69,6 +70,7 @@ import {
   parseBatalhaZerarCarga,
   type BatalhaAcaoPlayerMessage,
   type BatalhaHostMessage,
+  type BatalhaMiraMessage,
   type BatalhaPlayerMessage,
 } from './protocoloDaBatalha'
 import { parseBatalhaDBTPlayerMessage, type BatalhaDBTHostMessage, type BatalhaDBTPlayerMessage } from './protocoloDaBatalhaDBT'
@@ -1543,6 +1545,8 @@ export type PlayerMessage =
   | BatalhaPlayerMessage
   // BATALHA F2: agir, reagir, dano livre e armas levadas (`protocoloDaBatalha.ts`).
   | BatalhaAcaoPlayerMessage
+  // Fase D do alcance: a mira aberta, leve como o laser (`protocoloDaBatalha.ts`); host antigo descarta o tipo.
+  | BatalhaMiraMessage
   // BATALHA DRAGON BALL TALES: declarar, agir, responder, passar e desfazer (`protocoloDaBatalhaDBT.ts`).
   | BatalhaDBTPlayerMessage
 
@@ -3945,6 +3949,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseBatalhaAjustar(value)
     case 'batalha.contador':
       return parseBatalhaContador(value)
+    case 'batalha.mira':
+      return parseBatalhaMira(value)
     case 'batalhaDBT.declarar':
     case 'batalhaDBT.agir':
     case 'batalhaDBT.responder':

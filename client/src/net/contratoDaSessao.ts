@@ -26,11 +26,12 @@ import type { PecaDoAcervo } from '../puzzles/tipos'
 import type { Documento } from '../documentos/tipos'
 import type { PointActionAnswer } from '../lib/pointActions'
 import type { PonteDaBatalha } from '../lib/batalha/ponte'
+import type { MiraNaMesaNoFio } from './protocoloDaBatalha'
 import type { PonteDaBatalhaDBT } from '../lib/dbt/batalha/ponte'
 import type { SavedSeat, SavedSeatExploration, SavedSeatNotes } from '../lib/savedTable'
 import type { TiroAoVivo, TiroConviteResultado } from './tiroNoHost'
 import type { TradeProposal } from '../lib/troca'
-import type { AbaloResult, CallTarget, CaravanArrival, CaravanFollow, EntradaComConta, GatherArrival, HeldTokens, HostMapSource, HostResult, LoanTerms, MapChangeCause, MasterCall, MasterChatState, PartesDoBroadcast, PinClueState, PlayerInfo, PlayerNoteDelivery, SecretCheckState, TradeProposeRefusal, TravelRequestStatus } from './hostSession'
+import type { AbaloResult, CallTarget, CaravanArrival, CaravanFollow, EntradaComConta, GatherArrival, HeldTokens, HostMapSource, HostResult, HostWorld, LoanTerms, MapChangeCause, MasterCall, MasterChatState, PartesDoBroadcast, PinClueState, PlayerInfo, PlayerNoteDelivery, SecretCheckState, TradeProposeRefusal, TravelRequestStatus } from './hostSession'
 
 export interface HostSessionOptions {
   code: string
@@ -213,6 +214,13 @@ export interface HostSession {
    * `incerta`: um envio da batalha falhou. O próximo broadcast manda os aliados e o recorte de novo.
    */
   faixaDaBatalhaPerdida(clientId: string, como: 'vazia' | 'incerta'): void
+  /**
+   * Fase D do alcance: a mira que o mestre tem aberta (a store local dele), ou `null`. Cada tela que vê
+   * a ficha de quem mira recebe só a forma, a cor e o lado (`batalha.miraNaMesa`).
+   */
+  miraDoMestre(mira: MiraNaMesaNoFio | null, world: HostWorld): HostResult
+  /** Fase D: as miras abertas dos jogadores, para a tela do mestre; a mesma lista enquanto nada muda. */
+  mirasDosJogadores(): readonly MiraNaMesaNoFio[]
   kick(clientId: string): HostResult
   /**
    * "É ela" da pergunta "Ana voltou?": a conexão de `playerId` (quem entrou

@@ -135,7 +135,7 @@ import { PESCA_PARTICIPANTES_MAX, type PescaMotivoDaRecusa, type PescaPlayerMess
 import { criarTiroNoHost } from './tiroNoHost'
 import { TIRO_PARTICIPANTES_MAX, type TiroMotivoDaRecusa, type TiroPlayerMessage } from './protocoloDoTiro'
 import { criarBatalhaNoHost, type ConexaoNaBatalha, type LugarNaBatalha, type RespostaDaBatalha } from './batalhaNoHost'
-import type { BatalhaAcaoPlayerMessage, BatalhaPlayerMessage } from './protocoloDaBatalha'
+import type { BatalhaAcaoPlayerMessage, BatalhaMiraMessage, BatalhaPlayerMessage, MiraNaMesaNoFio } from './protocoloDaBatalha'
 import { criarBatalhaDBTNoHost, type ConexaoNaBatalhaDBT, type RespostaDaBatalhaDBT } from './batalhaDBTNoHost'
 import type { BatalhaDBTPlayerMessage } from './protocoloDaBatalhaDBT'
 import { metrosPorCasa } from '../lib/dbt/batalha/contas'
@@ -7420,6 +7420,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * Fase D do alcance (ALCANCE.md §6): a mira aberta do jogador, leve como o laser (sem resposta).
+   * A `batalhaNoHost` confere a ficha e a vez e resolve a forma pelo cartão do mestre; mudou, cada
+   * tela que vê a ficha de quem mira recebe só o que mudou para ela. Forjada ou acima do teto: nada.
+   */
+  function handleMiraDaBatalha(clientId: string, msg: BatalhaMiraMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return { outbound: [] }
+    if (!batalhaNoHost.mira(conexaoNaBatalha(clientId, playerId, world), msg)) return { outbound: [] }
+    return { outbound: batalhaNoHost.mirasNaMesa(conexoesNaBatalha(world)) }
+  }
+
+  /**
    * BATALHA DRAGON BALL TALES — os pedidos `batalhaDBT.*`, com o mesmo cuidado
    * do `handleBatalha`: a store DBT pede um broadcast na hora (dentro da ação,
    * com o mundo de agora); se ele já saiu, sincronizar de novo com o `world`
@@ -9837,6 +9849,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handlePlayerLaser(clientId, msg, world)
       case 'medida.compartilhar':
         return handleMedidaDoJogador(clientId, msg, world)
+      case 'batalha.mira':
+        return handleMiraDaBatalha(clientId, msg, world)
       case 'batalha.passar':
       case 'batalha.desfazer':
       case 'batalha.agir':
@@ -10880,6 +10894,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       batalhaDBTNoHost.perdeuAFaixa(clientId, como)
     },
 
+    miraDoMestre(mira: MiraNaMesaNoFio | null, world: HostWorld) {
+      if (!batalhaNoHost.miraDoMestre(mira)) return { outbound: [] }
+      return { outbound: batalhaNoHost.mirasNaMesa(conexoesNaBatalha(world)) }
+    },
+
+    mirasDosJogadores() {
+      return batalhaNoHost.mirasDosJogadores()
+    },
+
     disconnect(clientId, at) {
       tableClients.delete(clientId)
       const playerId = byClient.get(clientId)
@@ -10889,7 +10912,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       porConexao.esquecer(clientId, 'queda')
       sentViews.delete(clientId)
       // BATALHA F1: a faixa morreu com a tela; a volta recebe o recorte inteiro de novo (`entrou`).
-      batalhaNoHost.caiu(clientId)
+      // Fase D do alcance: a mira dele sai da tela de quem a via (o `off` vai junto com a queda).
+      const offDaMira = batalhaNoHost.caiu(clientId)
       batalhaDBTNoHost.caiu(clientId)
       const record = players.get(playerId)
       if (record !== undefined) {
@@ -10919,7 +10943,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // TIRO: quem atirava e caiu perde a rodada (a tentativa já contou).
       // COMPARTILHAR COM O MESTRE: a medida de quem caiu some da tela do mestre.
       return comDesfechoDaDanca({
-        outbound: [...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId), ...tiroNoHost.caiu(playerId), ...fogoNoHost.caiu(playerId), ...bolhaNoHost.caiu(playerId)],
+        outbound: [...offDaMira, ...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId), ...tiroNoHost.caiu(playerId), ...fogoNoHost.caiu(playerId), ...bolhaNoHost.caiu(playerId)],
         ...apagarMedidaNoMestre(playerId),
       })
     },
@@ -10933,8 +10957,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       forgetSentView(playerId)
       // No kick saem também o recorte e os tetos da tela (vidas `recorte` e `kick`), e as fichas da tela da batalha.
       forgetPlayer(playerId, 'kick')
-      // BATALHA F1: o expulso não recebe mais recorte, e o teto de pedidos e a tela dele saem.
-      batalhaNoHost.caiu(clientId)
+      // BATALHA F1: o expulso não recebe mais recorte, e o teto de pedidos e a tela dele saem (e a mira dele, da tela dos outros).
+      const offDaMira = batalhaNoHost.caiu(clientId)
       batalhaNoHost.esquecer(playerId)
       batalhaDBTNoHost.caiu(clientId)
       batalhaDBTNoHost.esquecer(playerId)
@@ -10944,7 +10968,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // PESCA: o expulso sai da pesca (do convite, ou da água).
       // TIRO: o expulso sai da barraca (do convite, ou da rodada, que conta como perdida).
       return comDesfechoDaDanca({
-        outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId), ...tiroNoHost.esquecer(playerId), ...fogoNoHost.esquecer(playerId), ...bolhaNoHost.esquecer(playerId), ...alavancaNoHost.esquecer(playerId)],
+        outbound: [{ clientId, msg: { type: 'kicked' } }, ...offDaMira, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId), ...tiroNoHost.esquecer(playerId), ...fogoNoHost.esquecer(playerId), ...bolhaNoHost.esquecer(playerId), ...alavancaNoHost.esquecer(playerId)],
         ...apagarMedidaNoMestre(playerId),
       })
     },

@@ -4,6 +4,7 @@ import { aliadosDe, type Equipe } from '../lib/batalha/equipes'
 import type { BatalhaEmTurnos, PonteDaBatalha, TelaDoPedido } from '../lib/batalha/ponte'
 import { podeDesfazer } from '../lib/batalha/registro'
 import { cartaDaVez, type AutorDaAcao } from '../lib/batalha/turnos'
+import { usaDirecao } from '../lib/batalha/alcance/forma'
 import { efeitosParaJogador, vistaParaJogador, type ContextoDoJogador, type EfeitoParaJogador } from '../lib/batalha/vistaDoJogador'
 import {
   ALIADOS_MAX,
@@ -20,6 +21,8 @@ import {
   type BatalhaEvoluirMessage,
   type BatalhaHostMessage,
   type BatalhaInvocarMessage,
+  type BatalhaMiraMessage,
+  type MiraNaMesaNoFio,
   type BatalhaPassarMessage,
   type BatalhaPassivaMessage,
   type BatalhaReagirMessage,
@@ -114,8 +117,11 @@ export interface BatalhaNoHost {
   sync(conexoes: readonly ConexaoNaBatalha[], mesa: FichasDaMesa | undefined): SaidaDaBatalha[]
   /** Conexão nova (entrada, volta, "É ela"): começa sem nada, e o recorte de agora sai já. */
   entrou(conexao: ConexaoNaBatalha, mesa: FichasDaMesa | undefined): SaidaDaBatalha[]
-  /** A conexão caiu ou foi expulsa: o que ela tinha não vale para a próxima. */
-  caiu(clientId: string): void
+  /**
+   * A conexão caiu ou foi expulsa: o que ela tinha não vale para a próxima. Fase D do alcance: a
+   * mira dela sai, e o `off` vai a quem a recebeu (sai junto com a queda).
+   */
+  caiu(clientId: string): SaidaDaBatalha[]
   /**
    * A conexão segue aberta, mas a tela dela não tem mais o que o host conta como entregue (conserto de
    * 18/11/2026). `vazia`: ela apagou a faixa sozinha (o `scene.changed`, que no atalho deixa o jogador na
@@ -181,6 +187,30 @@ export interface BatalhaNoHost {
   ajustar(conexao: ConexaoNaBatalha, msg: BatalhaAjustarMessage): RespostaDaBatalha
   /** R5 (lote de 01/11): ganhar 1 nível do contador, na ficha DELE de verdade. A regra (reação livre, máximo) a store confere. */
   contador(conexao: ConexaoNaBatalha, msg: BatalhaContadorMessage): RespostaDaBatalha
+  /**
+   * Fase D do alcance (ALCANCE.md §6): a mira aberta de um jogador. Só em ficha que ele opera, na
+   * vez dela (ou com o contra-ataque guardado); a forma e a cor saem do cartão do host
+   * (`ponte.alcanceDaMira`), nunca do pedido. `true` = as miras mudaram: quem chama manda
+   * `mirasNaMesa` a todos. Acima do teto (`MIRAS_POR_JANELA`) morre calado; o `off` passa sempre.
+   */
+  mira(conexao: ConexaoNaBatalha, msg: BatalhaMiraMessage): boolean
+  /** Fase D: a mira do mestre (a store local dele, que já é a do host); `null` = fechou. `true` = mudou. */
+  miraDoMestre(mira: MiraNaMesaNoFio | null): boolean
+  /** Fase D: o que mudou nas miras de cada tela: a nova, a virada e o `off` da que sumiu (a vez passou, a ficha saiu da tela). */
+  mirasNaMesa(conexoes: readonly ConexaoNaBatalha[]): SaidaDaBatalha[]
+  /** Fase D: as miras dos jogadores para a tela do mestre (ele vê todas as fichas); a mesma lista enquanto nada muda. */
+  mirasDosJogadores(): readonly MiraNaMesaNoFio[]
+}
+
+/** Fase D do alcance: o teto das miras por conta (o plano: 10 por segundo). A tela manda no máximo uma a cada `INTERVALO_DA_MIRA_MS`. */
+export const MIRAS_POR_JANELA = 10
+export const JANELA_DAS_MIRAS_MS = 1_000
+
+/** Fase D: a mira de um jogador no host: a cena, a vez em que abriu (`null` = o contra-ataque) e o que sai às telas. */
+interface MiraGuardada {
+  sceneKey: string
+  vez: { cartaId: string; rodada: number } | null
+  corpo: MiraNaMesaNoFio
 }
 
 const NADA: RespostaDaBatalha = { saidas: [], mudou: false }
@@ -215,6 +245,92 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   const respostas = new Map<string, Map<string, true | Recusa>>()
   // Por clientId: a tela não tem mais o que `estadoEnviado` diz (`perdeuAFaixa`). Sai no próximo `syncDe`.
   const telaPerdida = new Map<string, 'vazia' | 'incerta'>()
+  // Fase D do alcance, por clientId do dono: a mira aberta de cada jogador.
+  const miras = new Map<string, MiraGuardada>()
+  // Fase D: a mira do mestre (a store local dele); vale na cena cuja batalha tem a ficha dela.
+  let miraDoMestreAgora: MiraNaMesaNoFio | null = null
+  // Fase D, por clientId: tokenId → o JSON da última mira que saiu para a tela dele.
+  const mirasEnviadas = new Map<string, Map<string, string>>()
+  // Fase D, por playerId: os instantes das miras na janela (MIRAS_POR_JANELA).
+  const mirasNaJanela = new Map<string, number[]>()
+  // Fase D: a lista da tela do mestre, refeita só quando uma mira de jogador muda.
+  let listaDoMestre: readonly MiraNaMesaNoFio[] = []
+  let listaDoMestreVelha = false
+
+  /** Mais uma mira do jogador na janela; `false` = passou do teto. */
+  const cabeMira = (playerId: string): boolean => {
+    const agora = deps.agora()
+    const recentes = (mirasNaJanela.get(playerId) ?? []).filter((at) => agora - at < JANELA_DAS_MIRAS_MS)
+    const cabe = recentes.length < MIRAS_POR_JANELA
+    mirasNaJanela.set(playerId, cabe ? [...recentes, agora] : recentes)
+    return cabe
+  }
+
+  /** A mira do jogador ainda vale: a mesma vez (ou o contra-ataque ainda guardado) e a ficha ainda na ordem. */
+  const miraAindaVale = (mira: MiraGuardada): boolean => {
+    const cena = deps.ponte?.cena(mira.sceneKey) ?? null
+    if (cena === null) return false
+    const { turnos } = cena
+    const { tokenId } = mira.corpo
+    if (!turnos.cartas.some((carta) => carta.tokenId === tokenId)) return false
+    if (mira.vez === null) return (turnos.contras ?? []).some((contra) => contra.tokenId === tokenId)
+    return turnos.vez === mira.vez.cartaId && turnos.rodada === mira.vez.rodada
+  }
+
+  /** A vez passou, o golpe fechou a batalha, a ficha saiu da ordem: a mira sai sozinha. */
+  const podarMiras = (): void => {
+    for (const [dono, mira] of miras) {
+      if (miraAindaVale(mira)) continue
+      miras.delete(dono)
+      listaDoMestreVelha = true
+    }
+  }
+
+  const apagarMira = (dono: string): boolean => {
+    if (!miras.delete(dono)) return false
+    listaDoMestreVelha = true
+    return true
+  }
+
+  /**
+   * As miras que a tela desta conexão pode ver, por ficha: só na cena dela, só de ficha que a tela
+   * dela tem (a ficha escondida, na névoa ou noutra camada não chega, a mesma regra do recorte), e
+   * nunca a dela mesma. O centro numa ficha só vai se ela também vê essa ficha.
+   */
+  const mirasParaATela = (conexao: ConexaoNaBatalha): Map<string, MiraNaMesaNoFio> => {
+    const visiveis = new Map<string, MiraNaMesaNoFio>()
+    const { lugar } = conexao
+    const cena = lugar === null || deps.ponte === undefined ? null : deps.ponte.cena(lugar.sceneKey)
+    if (lugar === null || cena === null) return visiveis
+    const naTela = new Set(lugar.fichasNaTela.map((ficha) => ficha.id))
+    const corpos: MiraNaMesaNoFio[] = []
+    if (miraDoMestreAgora !== null && cena.turnos.cartas.some((carta) => carta.tokenId === miraDoMestreAgora?.tokenId)) corpos.push(miraDoMestreAgora)
+    for (const [dono, mira] of miras) if (dono !== conexao.clientId && mira.sceneKey === lugar.sceneKey) corpos.push(mira.corpo)
+    for (const corpo of corpos) {
+      if (!naTela.has(corpo.tokenId)) continue
+      const { centroId, ...resto } = corpo
+      visiveis.set(corpo.tokenId, centroId !== undefined && naTela.has(centroId) ? { ...resto, centroId } : resto)
+    }
+    return visiveis
+  }
+
+  /** O que mudou nas miras da tela desta conexão desde a última vez: a nova ou a virada, e o `off` da que sumiu. */
+  const mirasDaTela = (conexao: ConexaoNaBatalha): SaidaDaBatalha[] => {
+    const { clientId } = conexao
+    const agora = mirasParaATela(conexao)
+    const antes = mirasEnviadas.get(clientId)
+    const saidas: SaidaDaBatalha[] = []
+    const enviadas = new Map<string, string>()
+    for (const [tokenId, corpo] of agora) {
+      const texto = JSON.stringify(corpo)
+      enviadas.set(tokenId, texto)
+      if (antes?.get(tokenId) !== texto) saidas.push({ clientId, msg: { type: 'batalha.miraNaMesa', ...corpo } })
+    }
+    for (const tokenId of antes?.keys() ?? []) if (!agora.has(tokenId)) saidas.push({ clientId, msg: { type: 'batalha.miraNaMesa', tokenId, off: true } })
+    if (enviadas.size === 0) mirasEnviadas.delete(clientId)
+    else mirasEnviadas.set(clientId, enviadas)
+    return saidas
+  }
 
   /** Mais um pedido do jogador na janela; `false` = passou do teto. */
   const cabePedido = (playerId: string): boolean => {
@@ -459,7 +575,11 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       for (const clientId of efeitoVisto.keys()) if (!vivas.has(clientId)) efeitoVisto.delete(clientId)
       for (const clientId of respostas.keys()) if (!vivas.has(clientId)) respostas.delete(clientId)
       for (const clientId of telaPerdida.keys()) if (!vivas.has(clientId)) telaPerdida.delete(clientId)
-      return conexoes.flatMap((conexao) => syncDe(conexao, mesa))
+      for (const clientId of mirasEnviadas.keys()) if (!vivas.has(clientId)) mirasEnviadas.delete(clientId)
+      for (const dono of miras.keys()) if (!vivas.has(dono)) apagarMira(dono)
+      // Fase D: a vez que andou leva a mira embora; o `off` sai depois do recorte de cada tela.
+      podarMiras()
+      return conexoes.flatMap((conexao) => [...syncDe(conexao, mesa), ...mirasDaTela(conexao)])
     },
 
     entrou(conexao, mesa) {
@@ -468,7 +588,10 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       // Sem reprise: o primeiro sync marca o `seq` de agora e não manda os velhos.
       efeitoVisto.delete(conexao.clientId)
       telaPerdida.delete(conexao.clientId)
-      return syncDe(conexao, mesa)
+      // Fase D: a tela nova não tem mira nenhuma; as que estão abertas saem já, depois do recorte.
+      mirasEnviadas.delete(conexao.clientId)
+      podarMiras()
+      return [...syncDe(conexao, mesa), ...mirasDaTela(conexao)]
     },
 
     caiu(clientId) {
@@ -477,6 +600,19 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       efeitoVisto.delete(clientId)
       respostas.delete(clientId)
       telaPerdida.delete(clientId)
+      mirasEnviadas.delete(clientId)
+      // Fase D: a mira de quem caiu sai de todas as telas que a receberam (a do mestre volta no próximo sync).
+      const mira = miras.get(clientId)
+      if (mira === undefined) return []
+      apagarMira(clientId)
+      const { tokenId } = mira.corpo
+      const saidas: SaidaDaBatalha[] = []
+      for (const [outro, enviadas] of mirasEnviadas) {
+        if (!enviadas.delete(tokenId)) continue
+        saidas.push({ clientId: outro, msg: { type: 'batalha.miraNaMesa', tokenId, off: true } })
+        if (enviadas.size === 0) mirasEnviadas.delete(outro)
+      }
+      return saidas
     },
 
     perdeuAFaixa(clientId, como) {
@@ -486,6 +622,7 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
 
     esquecer(playerId) {
       pedidos.delete(playerId)
+      mirasNaJanela.delete(playerId)
     },
 
     passar(conexao, msg) {
@@ -692,6 +829,58 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         if (ponte.contador === undefined || msg.pedido.tipo !== 'ganhar' || !fichaDeVerdade(lugar, cena, msg.pedido.tokenId)) return false
         return ponte.contador(lugar.sceneKey, autorDe(conexao), msg.pedido)
       })
+    },
+
+    mira(conexao, msg) {
+      const { clientId } = conexao
+      // Fechar só tira: passa mesmo acima do teto (a mira presa na tela dos outros seria pior).
+      if ('off' in msg) return apagarMira(clientId)
+      if (!cabeMira(conexao.playerId)) return false
+      const daCena = cenaDa(conexao)
+      if (daCena === null) return apagarMira(clientId)
+      const { ponte, lugar, cena } = daCena
+      const { tokenId } = msg
+      // A ficha que ele opera (a dele, a emprestada, o NPC que ele controla): a de outro é forjada e não muda nada.
+      if (!lugar.meusTokens.has(tokenId)) return false
+      const daVez = cartaDaVez(cena.turnos)
+      const naVez = daVez !== null && daVez.tokenId === tokenId && daVez.bando === undefined
+      const comContra = (cena.turnos.contras ?? []).some((contra) => contra.tokenId === tokenId && fichaDele(lugar, contra.tokenId, contra.personagemId))
+      if (!naVez && !comContra) return false
+      // A forma e a cor pelo cartão do HOST: o jogador só diz qual ação.
+      const alcance = ponte.alcanceDaMira?.(lugar.sceneKey, autorDe(conexao), tokenId, msg.acao) ?? null
+      if (alcance === null) return apagarMira(clientId)
+      const { forma } = alcance
+      const corpo: MiraNaMesaNoFio = { tokenId, forma, cor: alcance.cor, acendeQuemUsa: alcance.acendeQuemUsa }
+      if (usaDirecao(forma) && msg.direcao !== undefined) corpo.direcao = msg.direcao
+      if (forma.tipo === 'ponto' && msg.ponto !== undefined) corpo.ponto = msg.ponto
+      // O centro numa ficha, só entre as fichas que a tela dele tem (o pedido não acha token que ele não vê).
+      if (forma.tipo === 'ficha' && msg.centroId !== undefined && lugar.fichasNaTela.some((ficha) => ficha.id === msg.centroId)) corpo.centroId = msg.centroId
+      const nova: MiraGuardada = { sceneKey: lugar.sceneKey, vez: naVez ? { cartaId: daVez.id, rodada: cena.turnos.rodada } : null, corpo }
+      const antes = miras.get(clientId)
+      if (antes !== undefined && JSON.stringify(antes) === JSON.stringify(nova)) return false
+      miras.set(clientId, nova)
+      listaDoMestreVelha = true
+      return true
+    },
+
+    miraDoMestre(mira) {
+      if (JSON.stringify(mira) === JSON.stringify(miraDoMestreAgora)) return false
+      miraDoMestreAgora = mira
+      return true
+    },
+
+    mirasNaMesa(conexoes) {
+      podarMiras()
+      return conexoes.flatMap(mirasDaTela)
+    },
+
+    mirasDosJogadores() {
+      podarMiras()
+      if (listaDoMestreVelha) {
+        listaDoMestre = [...miras.values()].map((mira) => mira.corpo)
+        listaDoMestreVelha = false
+      }
+      return listaDoMestre
     },
   }
 }

@@ -60,7 +60,11 @@ import { COMO_MARCA, LEMBRETES_DA_MARCA_MAX } from '../lib/batalha/marca'
 import { NOME_DA_EQUIPE_MAX } from '../lib/batalha/equipes'
 import { lerJudgeNaCena } from '../lib/batalha/judge'
 import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
-import { DIRECOES, type Direcao, type FormaDaArea, type QuemEntraNaArea } from '../lib/batalha/area'
+import { DIRECOES, type Casa, type Direcao, type FormaDaArea, type QuemEntraNaArea } from '../lib/batalha/area'
+import { formaDoAlcanceGuardada } from '../lib/batalha/alcanceDoCartao'
+import type { CorDoAlcance } from '../lib/batalha/alcance/cor'
+import type { FormaDoAlcance } from '../lib/batalha/alcance/forma'
+import type { AcaoDaMira } from '../lib/batalha/golpe'
 import { ITENS_PARA_JOGADOR_MAX, type ItemParaJogador } from '../lib/batalha/itemNaBatalha'
 import { lerAlcanceDoSelo, type QuemOAlvoPega } from '../lib/batalha/mecanica/modelo'
 import type { ReacaoDoTipo } from '../lib/batalha/tiposDaHabilidade'
@@ -340,7 +344,7 @@ export interface BatalhaEfeitosMessage {
 }
 
 /** As mensagens de batalha do host (entram na união `HostMessage`). */
-export type BatalhaHostMessage = BatalhaEstadoMessage | BatalhaAliadosMessage | BatalhaResultadoMessage | BatalhaEfeitosMessage
+export type BatalhaHostMessage = BatalhaEstadoMessage | BatalhaAliadosMessage | BatalhaResultadoMessage | BatalhaEfeitosMessage | BatalhaMiraNaMesaMessage
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -1547,4 +1551,104 @@ export function parseBatalhaResultado(value: unknown): BatalhaResultadoMessage |
   // O motivo torto só sai da mensagem: sem ele, o pedido ainda sai do ar e o jogador lê a recusa genérica.
   if (ok || !textoAte(motivo, 1, MOTIVO_DA_RECUSA_MAX)) return { type: 'batalha.resultado', reqId, ok }
   return { type: 'batalha.resultado', reqId, ok, motivo }
+}
+
+// ---- Fase D do alcance: a mira viaja (docs/design/habilidades/ALCANCE.md §6) ----
+
+/**
+ * Jogador → host: a mira que ele tem aberta, no molde do laser (leve, fora do `batalha.estado`,
+ * sem `reqId` nem resposta). Só o id da ação: a forma e a cor quem resolve é o host, pelo cartão
+ * dele. Sai ao abrir, ao virar, ao escolher o ponto ou o centro e ao fechar (`off`); o passar do
+ * mouse fica só na tela dele.
+ */
+export type BatalhaMiraMessage =
+  | { type: 'batalha.mira'; tokenId: string; acao: AcaoDaMira; direcao?: Direcao; ponto?: Casa; centroId?: string }
+  | { type: 'batalha.mira'; off: true }
+
+/**
+ * A mira de alguém como sai a cada tela: só a forma (já com as condições), a cor, se as casas de
+ * quem usa acendem e para onde olha. Sem nome, sem id de cartão, sem número de dano, sem aviso.
+ */
+export interface MiraNaMesaNoFio {
+  tokenId: string
+  forma: FormaDoAlcance
+  cor: CorDoAlcance
+  acendeQuemUsa: boolean
+  direcao?: Direcao
+  /** O centro da área num ponto (a casa da granada). */
+  ponto?: Casa
+  /** O centro da área numa ficha; só vai a quem vê essa ficha. */
+  centroId?: string
+}
+
+/** Host → cada tela que vê a ficha de quem mira. `off` = a mira fechou, a vez passou ou a ficha sumiu da tela dele. */
+export type BatalhaMiraNaMesaMessage = ({ type: 'batalha.miraNaMesa' } & MiraNaMesaNoFio) | { type: 'batalha.miraNaMesa'; tokenId: string; off: true }
+
+/** A casa no fio: o maior mapa do app cabe com folga; acima é forjado. */
+const CASA_DA_MIRA_MAX = 10_000
+
+function lerCasaDaMira(value: unknown): Casa | null {
+  if (!isRecord(value)) return null
+  const { col, row } = value
+  return inteiroAte(col, 0, CASA_DA_MIRA_MAX) && inteiroAte(row, 0, CASA_DA_MIRA_MAX) ? { col, row } : null
+}
+
+function lerDirecaoDaMira(value: unknown): Direcao | null {
+  return DIRECOES.find((direcao) => direcao === value) ?? null
+}
+
+function lerAcaoDaMira(value: unknown): AcaoDaMira | null {
+  if (!isRecord(value)) return null
+  switch (value.tipo) {
+    case 'atacar':
+      return idOuNulo(value.armaId) ? { tipo: 'atacar', armaId: value.armaId } : null
+    case 'habilidade':
+      return textoAte(value.cartaoId, 1, ID_DA_BATALHA_MAX) ? { tipo: 'habilidade', cartaoId: value.cartaoId } : null
+    case 'item':
+      return textoAte(value.vagaId, 1, ID_DA_BATALHA_MAX) ? { tipo: 'item', vagaId: value.vagaId } : null
+    default:
+      return null
+  }
+}
+
+/** Os campos opcionais da mira (lado, ponto, centro): ausente fica ausente; torto derruba a mensagem inteira. */
+function lerOndeDaMira(value: Record<string, unknown>): { direcao?: Direcao; ponto?: Casa; centroId?: string } | null {
+  const onde: { direcao?: Direcao; ponto?: Casa; centroId?: string } = {}
+  if (value.direcao !== undefined) {
+    const direcao = lerDirecaoDaMira(value.direcao)
+    if (direcao === null) return null
+    onde.direcao = direcao
+  }
+  if (value.ponto !== undefined) {
+    const ponto = lerCasaDaMira(value.ponto)
+    if (ponto === null) return null
+    onde.ponto = ponto
+  }
+  if (value.centroId !== undefined) {
+    if (!textoAte(value.centroId, 1, ID_DA_BATALHA_MAX)) return null
+    onde.centroId = value.centroId
+  }
+  return onde
+}
+
+/** Jogador → host. A forma, a cor e o nome que o jogador mandasse nem são lidos: o host os tira do cartão dele. */
+export function parseBatalhaMira(value: unknown): BatalhaMiraMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.mira') return null
+  if (value.off === true) return { type: 'batalha.mira', off: true }
+  const acao = lerAcaoDaMira(value.acao)
+  const onde = lerOndeDaMira(value)
+  if (!textoAte(value.tokenId, 1, ID_DA_BATALHA_MAX) || acao === null || onde === null) return null
+  return { type: 'batalha.mira', tokenId: value.tokenId, acao, ...onde }
+}
+
+/** Host → jogador. A forma pela mesma leitura do campo guardado (`formaDoAlcanceGuardada`): torta derruba a mensagem. */
+export function parseBatalhaMiraNaMesa(value: unknown): BatalhaMiraNaMesaMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.miraNaMesa' || !textoAte(value.tokenId, 1, ID_DA_BATALHA_MAX)) return null
+  const { tokenId } = value
+  if (value.off === true) return { type: 'batalha.miraNaMesa', tokenId, off: true }
+  const forma = formaDoAlcanceGuardada(value.forma)
+  const cor = value.cor === 'azul' || value.cor === 'verde' ? value.cor : null
+  const onde = lerOndeDaMira(value)
+  if (forma === null || cor === null || typeof value.acendeQuemUsa !== 'boolean' || onde === null) return null
+  return { type: 'batalha.miraNaMesa', tokenId, forma, cor, acendeQuemUsa: value.acendeQuemUsa, ...onde }
 }
