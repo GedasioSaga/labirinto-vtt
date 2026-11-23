@@ -2997,3 +2997,9 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - Literal: "[Image #56] porque não consigo puxar o cavaleiro de escudo para dentro do cavaleiro com clava ?" e "eu quero pode deixar".
 - Print: lista de NPCs do Acervo: "Cavaleiro com Clava · Modelo · 2 variações" (Cavaleiro com Maça, Cavaleiro com Bazooka), "Borboleta Mirage", "Zumbi" e "Cavaleiro com Escudo" como NPC único.
 - 23/11 18h53 (date). Fila: arrastar um NPC único para cima de um Modelo o transforma em variação dele (e o contrário: tirar uma variação vira NPC único), com Desfazer; sai na 0.5.96.
+
+## PEDIDO NOVO (23/11 18h57): Comparar e balancear com teste e recomendações
+
+- Literal: "[Image #57] melhore isso aqui, eu quero um prototipo que faça teste, recomendações e afins, as vezes eu quero colocar algo assim: 3 aliados sendo 2 npc e jogador vs 1 inimigos quanto o inimigo tem que ter para a batalha durar 10 turnos."
+- Print: página "Comparar e balancear" do livro (até 4 fichas lado a lado: HP, SP, Escudo e os 8 atributos em barras; chips de Jogadores e NPCs).
+- 23/11 18h57 (date). Achado do Claude: o app já tem lutas automáticas com o robô (lib/treino/cemLutas.ts, lutaAutomatica.ts, lutas.worker.ts). Fila: designer faz o protótipo (montar os lados, simular N lutas, meta "durar 10 turnos", o app acha os números do inimigo, recomendações em palavras); depois plano e construir com o motor de verdade.
