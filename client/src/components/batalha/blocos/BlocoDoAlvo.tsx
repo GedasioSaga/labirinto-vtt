@@ -15,6 +15,9 @@ import { Bloco, CampoInteiro, Escolha, Marcar, Texto, type BlocosProps } from '.
  * o selo que o alvo precisa ter.
  */
 
+/** Por que a arma montada não pega em aliado nem em quem usa: o Atacar com ela vai em inimigo. */
+const ARMA_SO_EM_INIMIGO = 'Na arma, o Atacar vai em inimigo'
+
 const QUEM: readonly { valor: QuemOAlvoPega; rotulo: string }[] = [
   { valor: 'inimigos', rotulo: 'Inimigos' },
   { valor: 'aliados', rotulo: 'Aliados' },
@@ -137,7 +140,8 @@ export function BlocoDoAlvo({ mecanica, onChange, naArma = false }: Pick<BlocosP
     <Bloco numero={4} titulo="Em quem pega" frase={`${fraseDoAlvo(mecanica)}${exige === undefined ? '' : ` Só em quem tem ${exige}.`}`} abertoAoMontar>
       <Escolha
         legenda="Pega"
-        opcoes={QUEM.map((quem) => ({ ...quem, bloqueio: quem.valor === alvo.quem ? null : motivoDoQuem(mecanica, quem.valor) }))}
+        // ED7: na arma montada, o Atacar vai em inimigo (`motivoDaArmaNasPecas`): ajuda e "em quem usa" ficam cinza com o motivo.
+        opcoes={QUEM.map((quem) => ({ ...quem, bloqueio: quem.valor === alvo.quem ? null : naArma && ehAjuda(quem.valor) ? ARMA_SO_EM_INIMIGO : motivoDoQuem(mecanica, quem.valor) }))}
         valor={alvo.quem}
         onChange={(quem) => onChange(trocarQuem(mecanica, quem))}
       />
