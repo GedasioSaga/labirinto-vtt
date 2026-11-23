@@ -120,7 +120,7 @@ export function BalanceadorDaLuta({ personagens, sistema }: BalanceadorDaLutaPro
 
   const escolhas = useMemo<EscolhaDaVaga[]>(() => {
     const lista: EscolhaDaVaga[] = []
-    for (const lado of ['a', 'b'] as const) {
+    for (const lado of ['a', 'b'] as const) { // `as const` só congela os literais dos dois lados do treino: não é cast
       for (const ficha of ladosVivos[lado]) {
         const personagem = porId.get(ficha.id)
         if (personagem !== undefined) for (let i = 0; i < ficha.n; i += 1) lista.push({ ficha: personagem, lado })
@@ -344,6 +344,7 @@ export function BalanceadorDaLuta({ personagens, sistema }: BalanceadorDaLutaPro
         />
         <div className="bl-mesa">
           <div className="bl-lados">
+            {/* `as const` só congela os literais dos dois lados do treino: não é cast */}
             {(['a', 'b'] as const).map((lado) => (
               <LadoDaMesa
                 key={lado}

@@ -13,7 +13,7 @@ import type { LadoDoTreino, LutadoresDoTreino } from './mesaEmMemoria'
  */
 
 /** Quantas lutas um teste pode ter (o seletor "Lutas por teste"). */
-export const LUTAS_POR_TESTE = [100, 200, 500] as const
+export const LUTAS_POR_TESTE = [100, 200, 500] as const // `as const`: a tupla de literais vira o tipo `LutasPorTeste`, não é cast
 export type LutasPorTeste = (typeof LUTAS_POR_TESTE)[number]
 
 /** Lutas por tentativa do resolvedor: o motor de verdade é ~100x mais lento que o do protótipo (NOTAS.md, "Velocidade"). */
