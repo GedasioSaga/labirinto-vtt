@@ -19,6 +19,8 @@ import { TrazerDeOutraFicha } from './TrazerDeOutraFicha'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
 import { MecanicaDaTecnica, MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
+import { HabilidadeNaFicha } from './batalha/editor/HabilidadeNaFicha'
+import { camposGeradosDaAba } from '../lib/batalha/mecanica/textoGerado'
 import { AlcanceDoCartaoDeTexto } from './batalha/alcance/AlcanceDoCartaoDeTexto'
 import { FonteDaArmaContexto, SeloDaFonteDaArma } from './fonteDaArma'
 import type { CarriedItem } from '../types/map'
@@ -736,10 +738,11 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
   const [confirmando, setConfirmando] = useState(false)
   const temMecanica = cartao.mecanica !== undefined || cartao.mecanicaProposta !== undefined
   const pedirRemover = () => (temMecanica ? setConfirmando(true) : onRemover())
-  // B08: na técnica montada, Ação, Custo, Tempo e Dano em texto não contam na batalha: vão para o dobrado "Texto antigo".
+  // ED5: na técnica montada, os campos que a mecânica escreve (Ação, Tipo, Efeito, Custo, Tempo, Dano) só se leem aqui; quem muda é o editor.
   const montada = aba.id === ABA_DAS_TECNICAS && cartaoMontado(cartao)
-  const camposDaFrente = montada ? aba.campos.filter((campo) => !CAMPOS_TROCADOS_PELAS_PECAS.has(campo.id)) : aba.campos
-  const camposDoTextoAntigo = montada ? aba.campos.filter((campo) => CAMPOS_TROCADOS_PELAS_PECAS.has(campo.id)) : []
+  const gerados: ReadonlySet<string> = montada ? new Set(camposGeradosDaAba(sistema)) : new Set()
+  const camposDaFrente = aba.campos.filter((campo) => !gerados.has(campo.id))
+  const camposGerados = aba.campos.filter((campo) => gerados.has(campo.id))
   // Tipos de habilidade F4: "+ Evolução" e "+ Opção" só nas técnicas; criam os extras com o nome que a batalha lê.
   const ehTecnica = aba.id === ABA_DAS_TECNICAS && aba.extras === true
   const jaEvolui = ehTecnica && temExtrasDaEvolucao(cartao)
@@ -845,11 +848,18 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
           )}
         </div>
         {camposDaFrente.map(campoNaTela)}
-        {camposDoTextoAntigo.length > 0 && (
+        {camposGerados.length > 0 && (
           <details className="lb-cartao__grupo lb-cartao__texto-antigo">
-            <summary className="lb-label">Texto antigo (só descrição)</summary>
-            <p className="lb-field__hint">Com a mecânica montada, a batalha não lê estes campos: vale o que a Mecânica diz. Nada aqui foi apagado.</p>
-            {camposDoTextoAntigo.map(campoNaTela)}
+            <summary className="lb-label">Texto do cartão (sai da mecânica)</summary>
+            <p className="lb-field__hint">Com a mecânica montada, estes campos saem dela: para mudar, abra o editor. O Desmontar devolve o texto de antes.</p>
+            <dl className="lb-cartao__gerados">
+              {camposGerados.map((campo) => (
+                <div key={campo.id}>
+                  <dt className="lb-label">{campo.rotulo}</dt>
+                  <dd>{(cartao.campos[campo.id] ?? '').trim() || '—'}</dd>
+                </div>
+              ))}
+            </dl>
           </details>
         )}
         {aba.id === ABA_DAS_TECNICAS && quemEditaAMecanica === 'mestre' && perdeuARegraAoSerTrazida(cartao) && (
@@ -861,7 +871,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
           (quemEditaAMecanica === 'ninguem' ? (
             <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />
           ) : (
-            <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} onChange={onChange} />
+            <HabilidadeNaFicha cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} podeOcultar={podeOcultar} onChange={onChange} />
           ))}
         {ehArma && onMarcarPadrao !== undefined && (
           <div className="lb-field">

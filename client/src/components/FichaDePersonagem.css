@@ -2261,3 +2261,19 @@
   cursor: pointer;
   color: var(--lb-color-parchment-dim);
 }
+/* ED5: na técnica montada, o texto que sai da mecânica (só para ler; quem muda é o editor). */
+.lb-cartao__gerados {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+}
+.lb-cartao__gerados > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 8px;
+}
+.lb-cartao__gerados dd {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--lb-color-parchment);
+}
