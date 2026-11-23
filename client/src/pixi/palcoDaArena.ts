@@ -4,6 +4,8 @@ import { CASA_DA_ARENA, centroDaCasaSob } from '../lib/arena/grade'
 import type { PalcoDaArenaProps } from '../lib/arena/tipos'
 import { tokenRadiusOf } from '../lib/doorReach'
 import type { Token } from '../types/map'
+import { mirasParaDesenhar, useMiraNoMapa } from '../stores/batalha/miraNoMapa'
+import { criarAlcanceDoGolpe } from './alcanceDoGolpe'
 import { criarGradeDaBatalha } from './gradeDaBatalha'
 import { ALTURA_DO_CORPO_EM_CASAS, createJudgeDoMapa } from './judgeDoMapa'
 import { snapToPhysicalPixel } from './pixelAlign'
@@ -158,7 +160,20 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
     // T3 (D4 da batalha, `impactoNasFichas.ts`): a ficha atingida recua e a que cai tomba também no palco da Arena.
     const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => tokensRenderer.involucroDe?.(tokenId) ?? null, relogio)
     const judge = createJudgeDoMapa({ movimento: { ticker: relogio, reducedMotion: prefersReducedMotion }, aoMudar: pedirQuadro })
-    world.addChild(chao, grade.camada, fichas, judge.camada)
+    // ALCANCE DO GOLPE (conserto de 23/11, 0.5.95): as casas da mira aberta, sobre a grade e por baixo das fichas, como no
+    // mapa. A mira (`MiraDoGolpe`) escreve na store; o palco só lê. O brilho anda no relógio do palco (liga só com mira).
+    const alcanceDoGolpe = criarAlcanceDoGolpe({ ticker: relogio, reducedMotion: prefersReducedMotion }, (estado) => {
+      el.dataset.alcanceDoGolpe = `${estado.miras}:${estado.casas}:${estado.animando ? 'anima' : 'parado'}`
+    })
+    world.addChild(chao, grade.camada, alcanceDoGolpe.camada, fichas, judge.camada)
+    const desenharAlcance = () => {
+      if (destruido) return
+      alcanceDoGolpe.desenhar(mirasParaDesenhar(useMiraNoMapa.getState()), camera.scale)
+      pedirQuadro()
+    }
+    const pararDeOuvirAMira = useMiraNoMapa.subscribe((estado, antes) => {
+      if (estado.local !== antes.local || estado.remotas !== antes.remotas || estado.foco !== antes.foco) desenharAlcance()
+    })
 
     // A foto da ficha chega depois do desenho: o relógio fica ligado até ela chegar (ou o prazo vencer).
     let prazoDasFotos = 0
@@ -197,6 +212,8 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
       grade.ajustarAVista({ left: minX, top: minY, right: maxX, bottom: maxY }, camera.scale, res)
       judge.ajustarAVista({ minX, minY, maxX, maxY })
       tokensRenderer.setCameraScale(camera.scale)
+      // A borda das casas é em px de tela: o zoom a refaz (a mesma lista e a mesma escala não refazem nada).
+      alcanceDoGolpe.desenhar(mirasParaDesenhar(useMiraNoMapa.getState()), camera.scale)
       pedirQuadro()
     }
 
@@ -325,7 +342,10 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
     const aoMover = (evento: PointerEvent) => {
       const tela = pontoNaTela(evento)
       if (gesto === null) {
-        app.canvas.style.cursor = fichaSob(noMundo(tela)) === null ? '' : 'grab'
+        const mundo = noMundo(tela)
+        app.canvas.style.cursor = fichaSob(mundo) === null ? '' : 'grab'
+        // A forma que olha para um lado (linha, leque) segue o mouse, como no mapa; sem mira, a store não muda.
+        useMiraNoMapa.getState().apontar(mundo.x, mundo.y)
         return
       }
       if (evento.pointerId !== gesto.pointerId) return
@@ -375,6 +395,7 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
     }
     const aoSoltar = (evento: PointerEvent) => terminar(evento, true)
     const aoCancelar = (evento: PointerEvent) => terminar(evento, false)
+    const aoSairDoPalco = () => useMiraNoMapa.getState().soltarPonteiro()
 
     const aoRodar = (evento: WheelEvent) => {
       evento.preventDefault()
@@ -395,6 +416,7 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
     app.canvas.addEventListener('pointermove', aoMover)
     app.canvas.addEventListener('pointerup', aoSoltar)
     app.canvas.addEventListener('pointercancel', aoCancelar)
+    app.canvas.addEventListener('pointerleave', aoSairDoPalco)
     app.canvas.addEventListener('wheel', aoRodar, { passive: false })
     app.canvas.addEventListener('dblclick', aoDuploClique)
 
@@ -415,6 +437,8 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
     })
 
     atualizar()
+    // A mira já aberta (o palco trocado por perda do contexto) acende de novo.
+    desenharAlcance()
 
     desmontar = () => {
       if (quadroPedido !== 0) cancelAnimationFrame(quadroPedido)
@@ -426,6 +450,7 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
       app.canvas.removeEventListener('pointermove', aoMover)
       app.canvas.removeEventListener('pointerup', aoSoltar)
       app.canvas.removeEventListener('pointercancel', aoCancelar)
+      app.canvas.removeEventListener('pointerleave', aoSairDoPalco)
       app.canvas.removeEventListener('wheel', aoRodar)
       app.canvas.removeEventListener('dblclick', aoDuploClique)
       app.canvas.removeEventListener('webglcontextlost', perderContexto)
@@ -434,6 +459,8 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
       tokensRenderer.cancelarAnimacoes()
       // O Judge sai do relógio antes do app (a folha fica no cache do `Assets` para o próximo palco).
       judge.destruir()
+      pararDeOuvirAMira()
+      alcanceDoGolpe.destruir()
       app.ticker.stop()
       app.destroy({ removeView: true }, { children: true }) // `true` limparia o TexturePool GLOBAL e quebraria Text do editor vivo atrás
     }
