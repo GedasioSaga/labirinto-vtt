@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { formaQueCabeNoAntigo, type AntesDoAlcance, type AntigoSemAlcance, type DadosDosAntigos, type EscolhaDoAlcance, type ListaDosAntigos, type PropostaDeAlcance } from '../../lib/batalha/alcance/antigos'
 import { descreverAlcance, type FormaDoAlcance } from '../../lib/batalha/alcance/forma'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -28,6 +28,21 @@ interface Linha {
 
 /** O texto mostrado de cada linha (o resto fica no `title`). */
 const TRECHO_NA_LINHA = 160
+
+/** Quantas linhas a lista desenha por vez (cada uma tem a forma em 49 casinhas). */
+const PASSO_DA_LISTA = 30
+
+/** Os grupos cortados nas primeiras `quantas` linhas, cada um com o total dele (o título diz quantos tem). */
+function primeirasLinhas(grupos: readonly { titulo: string; antigos: AntigoSemAlcance[] }[], quantas: number): { titulo: string; total: number; antigos: AntigoSemAlcance[] }[] {
+  const cortados: { titulo: string; total: number; antigos: AntigoSemAlcance[] }[] = []
+  let restam = quantas
+  for (const grupo of grupos) {
+    if (restam <= 0) break
+    cortados.push({ titulo: grupo.titulo, total: grupo.antigos.length, antigos: grupo.antigos.slice(0, restam) })
+    restam -= grupo.antigos.length
+  }
+  return cortados
+}
 
 const SEM_PROPOSTA = 'Sem proposta: escolha a forma em Mudar, ou deixe sem alcance.'
 
@@ -82,12 +97,18 @@ interface LinhaDoAntigoProps {
   linha: Linha
   proposta: PropostaDeAlcance | undefined
   editando: boolean
-  onDecidir: (decisao: Decisao) => void
-  onEditar: (editando: boolean) => void
-  onForma: (forma: FormaDoAlcance | null) => void
+  /** Os três pela chave e estáveis: a linha só se redesenha quando a dela muda (`memo`). */
+  onDecidir: (chave: string, decisao: Decisao) => void
+  onEditar: (chave: string, editando: boolean) => void
+  onForma: (chave: string, forma: FormaDoAlcance | null) => void
 }
 
-function LinhaDoAntigo({ antigo, linha, proposta, editando, onDecidir, onEditar, onForma }: LinhaDoAntigoProps) {
+const LINHA_VAZIA: Linha = { decisao: 'pular', forma: null }
+
+const LinhaDoAntigo = memo(function LinhaDoAntigo({ antigo, linha, proposta, editando, onDecidir: decidirPelaChave, onEditar: editarPelaChave, onForma: formaPelaChave }: LinhaDoAntigoProps) {
+  const onDecidir = (decisao: Decisao) => decidirPelaChave(antigo.chave, decisao)
+  const onEditar = (sim: boolean) => editarPelaChave(antigo.chave, sim)
+  const onForma = (forma: FormaDoAlcance | null) => formaPelaChave(antigo.chave, forma)
   const cor = antigo.daDano ? 'azul' : 'verde'
   const nota = NOTA_DO_LUGAR[antigo.onde]
   const mudada = linha.forma !== null && proposta !== undefined && JSON.stringify(linha.forma) !== JSON.stringify(proposta.forma)
@@ -129,7 +150,7 @@ function LinhaDoAntigo({ antigo, linha, proposta, editando, onDecidir, onEditar,
       </div>
     </li>
   )
-}
+})
 
 export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDeRpg; onFechar: () => void }) {
   const idBase = useId()
@@ -153,7 +174,21 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
     }
   }, [sistema])
 
+  /** Quantas linhas aparecem: a lista longa entra em passos (desenhar todas de uma vez travava a tela). */
+  const [mostrar, setMostrar] = useState(PASSO_DA_LISTA)
   const grupos = useMemo(() => (typeof ensaio === 'string' ? [] : agrupar(ensaio.antigos)), [ensaio])
+  const visiveis = useMemo(() => primeirasLinhas(grupos, mostrar), [grupos, mostrar])
+  const dados = typeof ensaio === 'string' ? null : ensaio.dados
+  const decidir = useCallback((chave: string, decisao: Decisao) => setLinhas((atuais) => ({ ...atuais, [chave]: { ...(atuais[chave] ?? LINHA_VAZIA), decisao } })), [])
+  const editar = useCallback((chave: string, sim: boolean) => setEditando(sim ? chave : null), [])
+  const mudarForma = useCallback(
+    (chave: string, forma: FormaDoAlcance | null) => {
+      // A mecânica montada só aceita o que cabe nela (o número do alvo ou do centro).
+      const cabe = forma === null || dados === null ? null : formaQueCabeNoAntigo(dados, chave, forma)
+      setLinhas((atuais) => ({ ...atuais, [chave]: cabe === null ? { forma: null, decisao: 'pular' } : { forma: cabe, decisao: 'aceitar' } }))
+    },
+    [dados],
+  )
 
   if (typeof ensaio === 'string') {
     return (
@@ -182,7 +217,6 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
   const baixas = comProposta.filter((antigo) => propostas.get(antigo.chave)?.certeza === 'baixa').length
   const nada = ensaio.antigos.length === 0
 
-  const mudarLinha = (chave: string, mudanca: Partial<Linha>) => setLinhas((atuais) => ({ ...atuais, [chave]: { ...(atuais[chave] ?? { decisao: 'pular', forma: null }), ...mudanca } }))
   const marcarTodas = (decisao: Decisao) => setLinhas((atuais) => Object.fromEntries(Object.entries(atuais).map(([chave, linha]) => [chave, { ...linha, decisao: linha.forma === null ? 'pular' : decisao }])))
 
   const depoisDeGravar = () => {
@@ -190,6 +224,7 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
     setEnsaio(novo)
     setLinhas(linhasDe(novo, propostas))
     setEditando(null)
+    setMostrar(PASSO_DA_LISTA)
   }
 
   const confirmar = async () => {
@@ -258,31 +293,32 @@ export function DarAlcanceAosAntigos({ sistema, onFechar }: { sistema: SistemaDe
               </button>
             </span>
           </div>
-          {grupos.map((grupo) => (
+          {visiveis.map((grupo) => (
             <div key={grupo.titulo} className="mu-armas__bloco">
               <h4 className="mu-armas__bloco-tit">
-                {grupo.titulo} ({formatarNumero(grupo.antigos.length)})
+                {grupo.titulo} ({formatarNumero(grupo.total)})
               </h4>
               <ul className="mu-alc__lista">
                 {grupo.antigos.map((antigo) => (
                   <LinhaDoAntigo
                     key={antigo.chave}
                     antigo={antigo}
-                    linha={linhas[antigo.chave] ?? { decisao: 'pular', forma: null }}
+                    linha={linhas[antigo.chave] ?? LINHA_VAZIA}
                     proposta={propostas.get(antigo.chave)}
                     editando={editando === antigo.chave}
-                    onDecidir={(decisao) => mudarLinha(antigo.chave, { decisao })}
-                    onEditar={(sim) => setEditando(sim ? antigo.chave : null)}
-                    onForma={(forma) => {
-                      // A mecânica montada só aceita o que cabe nela (o número do alvo ou do centro).
-                      const cabe = forma === null ? null : formaQueCabeNoAntigo(ensaio.dados, antigo.chave, forma)
-                      mudarLinha(antigo.chave, cabe === null ? { forma: null, decisao: 'pular' } : { forma: cabe, decisao: 'aceitar' })
-                    }}
+                    onDecidir={decidir}
+                    onEditar={editar}
+                    onForma={mudarForma}
                   />
                 ))}
               </ul>
             </div>
           ))}
+          {mostrar < ensaio.antigos.length && (
+            <button type="button" className="mu-bt mu-bt--p mu-alc__mais" onClick={() => setMostrar((antes) => antes + PASSO_DA_LISTA)}>
+              Mostrar mais {formatarNumero(Math.min(PASSO_DA_LISTA, ensaio.antigos.length - mostrar))} (faltam {formatarNumero(ensaio.antigos.length - mostrar)})
+            </button>
+          )}
           {ensaio.naoLidos.length > 0 && (
             <div className="mu-armas__bloco">
               <h4 className="mu-armas__bloco-tit">Não dá para ler ({formatarNumero(ensaio.naoLidos.length)})</h4>

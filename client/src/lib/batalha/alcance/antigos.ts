@@ -250,10 +250,20 @@ function antesDe(chave: string, x: ComAlcance): AntesDoAlcance {
   return { chave, alcance: x.alcance, mecanica: x.mecanica }
 }
 
-/** O cartão com o `alcance` e a `mecanica` de antes (ausente volta a ser ausente). */
+/**
+ * O cartão com o `alcance` e a `mecanica` de antes (ausente volta a ser ausente), cada chave no
+ * lugar em que estava: o Confirmar só pôs o `alcance` no fim ou trocou a `mecanica` no lugar dela,
+ * e o disco volta a sair na mesma ordem de antes.
+ */
 function comOQueEra<T extends ComAlcance>(x: T, era: AntesDoAlcance): T {
-  const { alcance: _alcance, mecanica: _mecanica, ...resto } = x
-  return { ...resto, ...(era.alcance === undefined ? {} : { alcance: era.alcance }), ...(era.mecanica === undefined ? {} : { mecanica: era.mecanica }) } as T // o resto de T sem as duas chaves opcionais, com elas de volta: é T de novo
+  const entradas = Object.entries(x).flatMap(([chave, valor]): [string, unknown][] => {
+    if (chave === 'alcance') return era.alcance === undefined ? [] : [[chave, era.alcance]]
+    if (chave === 'mecanica') return era.mecanica === undefined ? [] : [[chave, era.mecanica]]
+    return [[chave, valor]]
+  })
+  if (era.mecanica !== undefined && !('mecanica' in x)) entradas.push(['mecanica', era.mecanica])
+  if (era.alcance !== undefined && !('alcance' in x)) entradas.push(['alcance', era.alcance])
+  return Object.fromEntries(entradas) as T // as mesmas chaves de T, só o valor de `alcance` e `mecanica` trocado (as duas opcionais em T)
 }
 
 type Mudanca = <T extends ComAlcance>(chave: string, x: T) => T | null
