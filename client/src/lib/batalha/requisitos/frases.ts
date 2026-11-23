@@ -18,6 +18,7 @@ import {
   type TipoDoAlvo,
   type UmDestes,
 } from './modelo'
+import { normalizar } from '../formula'
 
 /**
  * REQUISITOS: AS FRASES (fase A de docs/design/habilidades/REQUISITOS.md §4), como
@@ -71,6 +72,28 @@ const RECURSO: Readonly<Record<RecursoDoAliado, string>> = { sp: 'SP', hp: 'HP',
 const ALVOS: Readonly<Record<TipoDoAlvo, string>> = { npc: 'NPCs', jogador: 'jogadores', invocacao: 'invocações' }
 const SE_FALHAR: Readonly<Record<SeFalhar, string>> = { perdeAAcao: 'perde a ação', naoGasta: 'não usa e não gasta nada' }
 
+/** As palavras que o final engana: masculinas com final de feminina (o "-ma" grego, "coração")... */
+const MASCULINAS: ReadonlySet<string> = new Set(['dia', 'mapa', 'planeta', 'cometa', 'sistema', 'problema', 'tema', 'esquema', 'programa', 'drama', 'poema', 'clima', 'dilema', 'fantasma', 'enigma', 'estigma', 'carisma', 'dogma', 'aroma', 'idioma', 'prisma', 'trauma', 'panorama', 'magma', 'axioma', 'coracao'])
+/** ...e femininas sem final de feminina (as comuns em nome de técnica). */
+const FEMININAS: ReadonlySet<string> = new Set(['mao', 'luz', 'voz', 'cruz', 'paz', 'raiz', 'flor', 'dor', 'cor', 'ordem', 'nuvem', 'lei', 'fe', 'morte', 'noite', 'tarde', 'arte', 'chave', 'sorte', 'mente', 'fome', 'febre', 'ponte', 'torre', 'lente', 'rede', 'neve', 'parede', 'fonte', 'frente', 'nave', 'serpente', 'corrente', 'ave', 'pele', 'fase', 'base', 'classe', 'fenix'])
+
+/**
+ * O nome pede "ligada" ou "ligado"? Pela primeira palavra ("Melodia de Todas as Coisas" → a,
+ * "Caminho do Dano" → o): as das listas acima pelo que são; o resto termina em -a, -ção, -são,
+ * -ade, -ude, -gem, -ie ou -ez = feminina; senão, masculina.
+ */
+function ehFeminino(nome: string): boolean {
+  const primeira = normalizar(nome).split(' ')[0] ?? ''
+  if (MASCULINAS.has(primeira)) return false
+  if (FEMININAS.has(primeira)) return true
+  return /(a|cao|sao|ade|ude|gem|ie|ez)$/.test(primeira)
+}
+
+/** "ligada" ou "ligado", "desligada" ou "desligado", de acordo com o nome. */
+function concordado(nome: string, palavra: 'ligad' | 'desligad'): string {
+  return `${palavra}${ehFeminino(nome) ? 'a' : 'o'}`
+}
+
 /** Igual nos dois. */
 function iguais(texto: string): TextosDoRequisito {
   return { frase: texto, curto: texto }
@@ -106,7 +129,9 @@ function textosDoEstado(r: RequisitoDo<'escudo' | 'vida' | 'ligada' | 'selo' | '
       return r.nao === true ? iguais('sem Escudo') : { frase: 'com o Escudo de pé', curto: 'Escudo de pé' }
     case 'ligada': {
       const opcao = r.opcao === undefined ? '' : ` na opção ${r.opcao}`
-      return r.nao === true ? { frase: `sem ${r.cartao.nome} ligada${opcao}`, curto: `${r.cartao.nome} desligada` } : { frase: `com ${r.cartao.nome} ligada${opcao}`, curto: `${r.cartao.nome} ligada` }
+      const nome = r.cartao.nome
+      const ligada = concordado(nome, 'ligad')
+      return r.nao === true ? { frase: `sem ${nome} ${ligada}${opcao}`, curto: `${nome} ${concordado(nome, 'desligad')}` } : { frase: `com ${nome} ${ligada}${opcao}`, curto: `${nome} ${ligada}` }
     }
     case 'selo':
       return r.nao === true ? { frase: `sem o selo ${r.nome}`, curto: `sem ${r.nome}` } : { frase: `com o selo ${r.nome}`, curto: r.nome }
