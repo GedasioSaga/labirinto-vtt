@@ -277,7 +277,8 @@ export type Efeito =
    */
   /** `em: 'atacante'` (fase 4): só na técnica de reação, o selo vai em quem bateu. Ausente = no alvo do golpe. */
   /** Fase 5: `em: 'quemUsa'` (a postura), `mods` (Força +20) e `regra` (dano e cura recebidos). Versão 3: `alcance` (o selo muda o alcance). */
-  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: Exclude<EmQuem, 'alvo'>; mods?: readonly ModDaPeca[]; regra?: RegraDoSelo; alcance?: AlcanceDoSelo }
+  /** Versão 4 (fase ED4): `pega` = o teste do selo (o alvo acertado rola d20 + mod do atributo contra a CD; passou, o selo não entra). Só no selo do alvo. */
+  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: Exclude<EmQuem, 'alvo'>; mods?: readonly ModDaPeca[]; regra?: RegraDoSelo; alcance?: AlcanceDoSelo; pega?: TesteDoTipo }
   /** Fase 5: recuperar SP, dar Escudo (a Barreira) e curar quem usa (`em: 'quemUsa'`, o golpe que cura quem bate). */
   /** Fase 7: `quanto` pela parte do máximo do alvo (a Poção Suprema, 50% do HP máximo); HP e SP juntos no mesmo alvo (o Elixir). */
   | { tipo: 'cura'; recurso: Recurso; quanto: Numero | PorcentoDaCura; emQuem: 'alvo'; em?: 'quemUsa' }
@@ -406,13 +407,19 @@ export function golpeQueVale(golpe: GolpeDaMecanica | undefined): GolpeDaMecanic
   return { ...(golpe.bate === undefined ? {} : { bate: golpe.bate }), ...(causa === undefined ? {} : { causa }) }
 }
 
+/** Fase ED4: o selo com peça que só a 4 diz (o teste do selo, `pega`, ou o "reage com desvantagem" da regra, o Congelado). */
+function seloDaVersao4(efeito: Efeito): boolean {
+  return efeito.tipo === 'selo' && (efeito.pega !== undefined || efeito.regra?.reageComDesvantagem === true)
+}
+
 /**
- * Versão 4: a mecânica tem peça que só a 4 diz (fase ED1: o tipo do golpe; a ED4 soma o teste do selo
- * e o acumulador). Quem grava usa a 4 só nesse caso: o app de antes (que lê até a 3) lê a 4 como
- * "atualize o app" e o cartão fica à mão sem perder nada; toda outra mecânica continua 1, 2 ou 3.
+ * Versão 4: a mecânica tem peça que só a 4 diz (fase ED1: o tipo do golpe; ED4: o teste do selo e o
+ * "reage com desvantagem" nos Efeitos; o "+N" no acumulador mora na definição do acumulador, não
+ * aqui). Quem grava usa a 4 só nesse caso: o app de antes (que lê até a 3) lê a 4 como "atualize o
+ * app" e o cartão fica à mão sem perder nada; toda outra mecânica continua 1, 2 ou 3.
  */
-export function precisaDaVersao4(mecanica: Pick<MecanicaV2, 'golpe'>): boolean {
-  return golpeQueVale(mecanica.golpe) !== undefined
+export function precisaDaVersao4(mecanica: Pick<MecanicaV2, 'golpe' | 'efeitos'>): boolean {
+  return golpeQueVale(mecanica.golpe) !== undefined || mecanica.efeitos.some(seloDaVersao4)
 }
 
 /** O nome da fatia C1, mantido para quem já o usa: são as mesmas peças lidas (`MecanicaV2`). */
@@ -527,8 +534,7 @@ export interface ReacaoDaMecanica {
  */
 export const PECAS_QUE_AINDA_NAO_RODAM: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   limite: { porRodada: 'limite por rodada' },
-  // Fase ED1: o "com teste" do tipo do golpe vira esta peça (`pecasParaOMotor`); o motor dela é da ED4.
-  selo: { seJaTem: 'renovar o selo', pega: 'o teste da condição (o "com teste" do tipo do golpe)' },
+  selo: { seJaTem: 'renovar o selo' },
 }
 
 /** Os efeitos da versão 2 que ainda não rodam, pelo tipo. */
@@ -884,13 +890,16 @@ const REGRA_DO_SELO_MAX = 200
 function regraDoSelo(valor: unknown, onde: string): RegraDoSelo {
   const peca = registro(valor, `${onde} (regra)`)
   if (peca.trava !== undefined || peca.tiraSaidas !== undefined) aindaNaoRoda('travar ou tirar saídas pela regra do selo (use o nome: Atordoado, Aéreo)')
-  // Fase ED1: o Congelado do tipo do golpe pede esta peça; o selo da batalha ainda não a leva até a reação.
-  if (peca.reageComDesvantagem !== undefined) aindaNaoRoda('reagir com desvantagem pela regra do selo (o Congelado do tipo do golpe)')
-  soChaves(peca, ['danoRecebido', 'curaRecebida'], `${onde} (regra)`)
+  soChaves(peca, ['danoRecebido', 'curaRecebida', 'reageComDesvantagem'], `${onde} (regra)`)
   const lida: RegraDoSelo = {}
   if (peca.danoRecebido !== undefined) lida.danoRecebido = inteiro(peca.danoRecebido, -100, REGRA_DO_SELO_MAX, `${onde} (dano recebido %)`)
   if (peca.curaRecebida !== undefined) lida.curaRecebida = inteiro(peca.curaRecebida, -100, REGRA_DO_SELO_MAX, `${onde} (cura recebida %)`)
-  if ((lida.danoRecebido ?? 0) === 0 && (lida.curaRecebida ?? 0) === 0) torta(`${onde}: a regra do selo precisa de um número diferente de 0`)
+  // Fase ED4: quem tem o selo rola a reação com desvantagem (o Congelado do tipo do golpe); a batalha lê no selo (`vantagemDaReacao`).
+  if (peca.reageComDesvantagem !== undefined) {
+    if (peca.reageComDesvantagem !== true) torta(`${onde} (reage com desvantagem): só "sim"`)
+    lida.reageComDesvantagem = true
+  }
+  if ((lida.danoRecebido ?? 0) === 0 && (lida.curaRecebida ?? 0) === 0 && lida.reageComDesvantagem !== true) torta(`${onde}: a regra do selo precisa de um número diferente de 0`)
   return lida
 }
 
@@ -941,7 +950,7 @@ function efeito(valor: unknown, indice: number): Efeito {
   const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'dreno', 'reviver', 'aMao'] as const, onde)
   switch (tipo) {
     case 'selo': {
-      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em', 'mods', 'regra', 'alcance'], onde, 'selo')
+      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em', 'mods', 'regra', 'alcance', 'pega'], onde, 'selo')
       const duracao = peca.duracao === 'ateTirar' || peca.duracao === 'proximoGolpe' ? peca.duracao : inteiro(peca.duracao, 1, TURNOS_DO_SELO_MAX, `${onde} (duração)`)
       const lido: Efeito = { tipo, nome: texto(peca.nome, NOME_DO_SELO_MAX, `${onde} (nome do selo)`), duracao }
       if (peca.natureza !== undefined) lido.natureza = umDe(peca.natureza, ['buff', 'debuff'] as const, `${onde} (natureza)`)
@@ -952,6 +961,11 @@ function efeito(valor: unknown, indice: number): Efeito {
       if (peca.mods !== undefined) lido.mods = modsDoSelo(peca.mods, onde)
       if (peca.regra !== undefined) lido.regra = regraDoSelo(peca.regra, onde)
       if (peca.alcance !== undefined) lido.alcance = alcanceDoSelo(peca.alcance, onde)
+      // Fase ED4: o teste do selo é do alvo acertado; o selo em quem usa ou em quem atacou não tem quem role.
+      if (peca.pega !== undefined) {
+        if (em !== 'alvo') torta(`${onde}: o teste da condição só vale no selo do alvo`)
+        lido.pega = testeDoTipo(peca.pega, onde)
+      }
       return lido
     }
     case 'cura': {
@@ -1254,6 +1268,8 @@ function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): 
   if (versao === 1 && precisaDaVersao2(mecanica)) torta('peça da versão 2 numa mecânica da versão 1')
   // Fase B do alcance: o mesmo para a 3 (o app de antes lê a 3 como "atualize o app"; quem grava usa a 3 só com `precisaDaVersao3`).
   if (versao < 3 && precisaDaVersao3(mecanica)) torta(`peça da versão 3 numa mecânica da versão ${versao}`)
+  // Fase ED4: o teste do selo e o "reage com desvantagem" só existem na 4 (o app de antes lê a 4 como "atualize o app").
+  if (versao < 4 && efeitos.some(seloDaVersao4)) torta(`o teste da condição e o "reage com desvantagem" só existem na versão 4 da mecânica, e esta é a ${versao}`)
   return mecanica
 }
 

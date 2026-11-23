@@ -113,16 +113,6 @@ function condicoesNoGolpe(mecanica: MecanicaV1): number {
   return tipos.length + mecanica.efeitos.filter((efeito) => efeito.tipo === 'selo' && efeito.em === undefined).length
 }
 
-/**
- * O que a batalha ainda não faz com este tipo (EDITOR.md §4, fase ED4): o teste para pegar e a
- * reação com desvantagem do Congelado. `null` = o app já faz.
- */
-function chegaDepois(escolha: EscolhaDoTipo): string | null {
-  if (escolha.tipo === 'perfurante' || escolha.regra.quando === 'soTipo') return null
-  if (escolha.regra.quando === 'teste') return 'O teste para pegar chega na próxima fase'
-  return escolha.tipo === 'congelamento' ? 'O Congelado chega na próxima fase' : null
-}
-
 interface RegraDoTipoProps {
   escolha: EscolhaDoTipo
   frase: string
@@ -134,14 +124,13 @@ interface RegraDoTipoProps {
 /** Um tipo escolhido: o que faz em frase, os números dele, quando pega e o teste. */
 function RegraDoTipo({ escolha, frase, ficha, onMudar, onTirar }: RegraDoTipoProps) {
   const nome = NOME_DO_TIPO[escolha.tipo]
-  const depois = chegaDepois(escolha)
   const atributos = ficha.sistema.atributos
   return (
     <div className="lb-ed__regra" data-tipo={escolha.tipo}>
       <div className="lb-ed__regra-cab">
         <span className="lb-ed__regra-tit">{nome}</span>
-        <span className="lb-ed__etq" data-c={depois === null ? 'auto' : 'depois'} title={depois ?? 'O motor da batalha já faz isto'}>
-          {depois === null ? 'o app já faz' : 'chega na próxima fase'}
+        <span className="lb-ed__etq" data-c="auto" title="O motor da batalha já faz isto">
+          o app já faz
         </span>
         <button type="button" className="lb-ed__bt lb-ed__bt--fantasma lb-ed__bt--p lb-ed__bt--ic" aria-label={`Tirar ${nome}`} onClick={onTirar}>
           ×
@@ -206,7 +195,6 @@ function RegraDoTipo({ escolha, frase, ficha, onMudar, onTirar }: RegraDoTipoPro
           )}
         </div>
       )}
-      {depois !== null && <p className="lb-ed__depois">{depois} (ED4). Até lá, na batalha, esta técnica vai à mão: o mestre aplica. Aqui ela já fica guardada.</p>}
     </div>
   )
 }
@@ -222,7 +210,7 @@ export function LinhaDoGolpe({ mecanica, ficha, onChange }: { mecanica: Mecanica
   const causa = golpe.causa ?? []
   const cheio = condicoesNoGolpe(mecanica) >= SELOS_NO_GOLPE_MAX
   const frases = useMemo(() => frasesDoGolpe(mecanica, ficha), [mecanica, ficha])
-  // O que a batalha lê hoje: o motivo de ir à mão (o teste para pegar, o Congelado, o teto) aparece sem esconder.
+  // O que a batalha lê hoje: o motivo de ir à mão (desde a ED4 o teste para pegar e o Congelado rodam) aparece sem esconder.
   const motor = useMemo(() => pecasParaOMotor(mecanica), [mecanica])
   const escolhidos: EscolhaDoTipo[] = [...(golpe.bate === undefined ? [] : [golpe.bate]), ...causa]
 
@@ -288,7 +276,7 @@ export function LinhaDoGolpe({ mecanica, ficha, onChange }: { mecanica: Mecanica
         </div>
       )}
       {cheio && <p className="lb-ed__dica">Este golpe já põe {SELOS_NO_GOLPE_MAX} condições: o máximo num golpe só. Para outra, mude um tipo para "Só o tipo, sem efeito".</p>}
-      {motor.tipo === 'invalida' && escolhidos.every((escolha) => chegaDepois(escolha) === null) && (
+      {motor.tipo === 'invalida' && (
         <p className="lb-ed__depois" role="note">
           Na batalha, por enquanto, esta técnica vai à mão: {motor.motivo}.
         </p>

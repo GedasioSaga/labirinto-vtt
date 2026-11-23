@@ -7,7 +7,7 @@ import type { LimpezaAMao, MecanicaAMao, ReacaoAMao, SaidaDaReacaoAMao } from '.
 import type { ReacaoDoTipo } from '../tiposDaHabilidade'
 import { lerMecanicaParaOMotor } from './golpe'
 import { avisoDaMecanica, centroDaArea, testeRolado, VIDA_DO_PORCENTO, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type Porcento, type ReacaoDaMecanica } from './modelo'
-import { disputaDoTeste } from './teste'
+import { cdDoTeste, disputaDoTeste } from './teste'
 
 /**
  * A TRADUÇÃO DAS PEÇAS (construtor de mecânicas, fatia C1; seção 2 do plano):
@@ -281,15 +281,19 @@ function seloDaPeca(selo: SeloDaPeca, valorNaFicha?: (formula: string) => number
   })
   if (mods.length > 0) lido.mods = mods
   if (selo.regra !== undefined) {
-    const regra: { danoRecebido?: number; curaRecebida?: number } = {}
+    const regra: NonNullable<SeloDoGolpe['regra']> = {}
     if (selo.regra.danoRecebido !== undefined) regra.danoRecebido = selo.regra.danoRecebido
     if (selo.regra.curaRecebida !== undefined) regra.curaRecebida = selo.regra.curaRecebida
+    // Fase ED4: o Congelado do tipo do golpe (a reação de quem o tem rola com desvantagem).
+    if (selo.regra.reageComDesvantagem === true) regra.reageComDesvantagem = true
     lido.regra = regra
   }
   if (porTurno?.sinal === 'da') lido.regenera = { recurso: porTurno.recurso, quanto: porTurno.quanto.fixo }
   else if (porTurno?.recurso === 'sp') lido.drenaSp = { quanto: porTurno.quanto.fixo, paraQuemUsa: porTurno.paraQuemUsa ?? 0 }
   // Fase C do alcance: o selo que muda o alcance de quem o tem segue para a carta (o host lê na hora do golpe).
   if (selo.alcance !== undefined) lido.alcance = selo.alcance
+  // Fase ED4: o teste do selo ("com teste"): o alvo acertado rola antes de o selo entrar (`stores/batalha/selos.ts`).
+  if (selo.pega !== undefined) lido.pega = { atributoId: selo.pega.atributo, cd: cdDoTeste(selo.pega.cd) }
   return lido
 }
 

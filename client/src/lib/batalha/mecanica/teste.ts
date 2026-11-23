@@ -1,3 +1,4 @@
+import type { TesteDoSeloNoGolpe } from '../combate'
 import type { CdDaDisputa, QuemRola } from '../disputa'
 import type { DisputaAMao } from '../mecanicasAMao'
 import type { CdDoTeste, NumeroDaCd, NumeroSimples, QuemRolaNoTeste, Teste } from './modelo'
@@ -38,6 +39,15 @@ export function cdDoTeste(cd: CdDoTeste): CdDaDisputa {
   if (!('porCarga' in cd)) return cdSimples(cd)
   const [zero, um, dois, tres] = cd.porCarga
   return { tipo: 'porCarga', semCarga: cdSimples(zero), cargas: [cdNaCarga(um), cdNaCarga(dois), cdNaCarga(tres)] }
+}
+
+/**
+ * Fase ED4: a disputa do teste do selo (a peça `pega`, o "com teste" do tipo do golpe): o alvo acertado
+ * rola d20 + mod do atributo contra a CD de quem usa, depois do dano; passou, o selo não entra. O alvo
+ * sem ficha não rola (o selo entra e a linha avisa o mestre).
+ */
+export function disputaDoTesteDoSelo(pega: TesteDoSeloNoGolpe): DisputaAMao {
+  return { quando: 'acerto', testa: 'alvo', rola: { atributoId: pega.atributoId }, contra: { tipo: 'cd', cd: pega.cd }, avisaSemFicha: true }
 }
 
 /** A disputa que o app rola ao usar a técnica montada; `null` = o alvo reage (ou não erra), sem teste. */

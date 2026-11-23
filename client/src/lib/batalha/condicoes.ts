@@ -132,10 +132,11 @@ export function selosQueSaemNoGolpe(selos: readonly SeloDaBatalha[] | undefined,
  * reage que pede desvantagem (Preso no Campo de Contenção) vence o que veio no
  * pedido, como o mestre disse ("vai jogar com desvantagem"); sem ele, vale o pedido.
  */
-export function vantagemDaReacao(pedida: VantagemDoDado | undefined, selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined, golpe?: Pick<GolpeDaBatalha, 'reacaoComDesvantagem'>): VantagemDoDado | undefined {
+export function vantagemDaReacao(pedida: VantagemDoDado | undefined, selos: readonly Pick<SeloDaBatalha, 'nome' | 'regra'>[] | undefined, golpe?: Pick<GolpeDaBatalha, 'reacaoComDesvantagem'>): VantagemDoDado | undefined {
   // F2 (fatia E): o golpe com a vantagem de Ogro (a Ryoko respondeu "sim") também faz o alvo rolar com desvantagem.
   if (golpe?.reacaoComDesvantagem === true) return 'desvantagem'
-  return (selos ?? []).some((selo) => comportamentoDoSelo(selo.nome)?.reageComDesvantagem === true) ? 'desvantagem' : pedida
+  // Fase ED4: também o selo montado com a regra (o Congelado do tipo do golpe), além da tabela pelo nome.
+  return (selos ?? []).some((selo) => selo.regra?.reageComDesvantagem === true || comportamentoDoSelo(selo.nome)?.reageComDesvantagem === true) ? 'desvantagem' : pedida
 }
 
 /**

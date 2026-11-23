@@ -1,5 +1,6 @@
 import type { Modificador } from '../personagem'
 import type { Direcao } from './area'
+import type { CdDaDisputa } from './disputa'
 import type { MudancaDoAlcance } from './alcance/condicoes'
 import type { RespostasDoPedido } from './perguntaNaHora'
 import type { PedidoDeAjuda } from './requisitos/modelo'
@@ -735,6 +736,8 @@ export interface GolpeDaBatalha {
   seloEmQuemUsa?: SeloDoGolpe
   /** Fase 5 (SISTEMA.md): os selos a mais da técnica montada (Sangrando E Enfraquecido); cada um pega como o `selo`. Tirados pelo host. Ausente = nenhum. */
   selosAMais?: readonly SeloDoGolpe[]
+  /** Fase ED4: o cartão da técnica que lançou o golpe (o "+N se acertar" do acumulador). Tirado da ficha pelo host; ausente = Atacar, item ou golpe de antes. */
+  tecnicaId?: string
   /**
    * Fase 8 (usar item): quantos sobram na vaga depois do uso. A linha do
    * registro fecha com o gasto ("item da mochila: sobra 1") também quando ela
@@ -927,6 +930,17 @@ export interface SeloDaBatalha {
 export interface RegraDoSeloNaBatalha {
   danoRecebido?: number
   curaRecebida?: number
+  /** Fase ED4: quem tem o selo rola a reação com desvantagem (o Congelado do tipo do golpe; `vantagemDaReacao`). */
+  reageComDesvantagem?: true
+}
+
+/**
+ * Fase ED4: o teste do selo (a peça `pega`): o alvo acertado rola d20 + mod do atributo (`atributoId`)
+ * contra a CD (a de quem usa, como no teste da técnica); passou, o selo não entra. Nunca do fio.
+ */
+export interface TesteDoSeloNoGolpe {
+  atributoId: string
+  cd: CdDaDisputa
 }
 
 /** Fase 5: a regeneração por vez ("recupera 20 HP por vez"), no fim da vez de quem tem o selo. */
@@ -967,6 +981,8 @@ export interface SeloDoGolpe extends SeloPedido {
   drenaSp?: DrenaSpDoSelo
   /** Fase C do alcance: o que o selo da peça faz no alcance, nunca do fio. */
   alcance?: MudancaDoAlcance
+  /** Fase ED4: o teste do selo; ausente = pega em todo acerto. Só do host, nunca do fio, e não vai para o selo da batalha. */
+  pega?: TesteDoSeloNoGolpe
 }
 
 /**

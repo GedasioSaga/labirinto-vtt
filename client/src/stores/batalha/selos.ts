@@ -21,6 +21,8 @@ import { comportamentoDoSelo } from '../../lib/batalha/condicoes'
 import { aliadosNaLuta } from '../../lib/batalha/equipes'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../../lib/batalha/disputa'
 import { disputaNoAcerto, seloPegaNoAlvo } from '../../lib/batalha/mecanicasAMao'
+import { TEXTO_DO_ALVO_SEM_FICHA } from '../../lib/batalha/disputaNoUso'
+import { disputaDoTesteDoSelo } from '../../lib/batalha/mecanica/teste'
 import type { Reversao } from '../../lib/batalha/registro'
 import type { TurnosDaCena } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
@@ -75,12 +77,47 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
     const feito = seloDoGolpeNoAcerto(turnos, golpe, alvo)
     // F2 (revisão da fatia E, Bala de Prata): o selo da bala pega junto, por cima do da mira, do da técnica e da marca.
     // Fase 5: os selos a mais da técnica montada pegam do mesmo jeito, um depois do outro (cada um com o seu Desfazer).
+    // Fase ED4: cada um com o seu teste (`pega`), rolado na ordem dos selos.
     const extras = [...(golpe.seloDaBala === undefined ? [] : [golpe.seloDaBala]), ...(golpe.selosAMais ?? [])]
     return extras.reduce((ate, extra) => {
-      const mais = seloDoGolpe(ate.selado === null ? turnos : { ...turnos, selos: ate.selado.selos }, { ...golpe, selo: extra }, ate.alvo)
-      if (mais === null) return ate
-      return { alvo: ate.alvo, selado: ate.selado === null ? mais : { selos: mais.selos, parte: { tipo: 'composta', partes: [ate.selado.parte, mais.parte] } } }
+      const teste = testeDoSelo(turnos, golpe, extra, ate.alvo)
+      if (!teste.pega) return { ...ate, alvo: teste.alvo }
+      const mais = seloDoGolpe(ate.selado === null ? turnos : { ...turnos, selos: ate.selado.selos }, { ...golpe, selo: extra }, teste.alvo)
+      if (mais === null) return { ...ate, alvo: teste.alvo }
+      return { alvo: teste.alvo, selado: ate.selado === null ? mais : { selos: mais.selos, parte: { tipo: 'composta', partes: [ate.selado.parte, mais.parte] } } }
     }, feito)
+  }
+
+  /**
+   * Fase ED4: o teste do selo (a peça `pega`, o "com teste" do tipo do golpe). No alvo que o golpe
+   * acertou, ele rola d20 + mod do atributo contra a CD de quem usa (`rolarDisputa`, o mesmo dado do
+   * teste da técnica, com os selos de cada um); passou, o selo não entra. A rolagem vai no texto do alvo
+   * (a linha do golpe: "Resistência: teste 9 + 2 = 11 contra CD 12, Atordoado"); o Desfazer da linha
+   * tira o selo junto. Sem teste, sem acerto, ou o alvo que já passou no teste da técnica: nada a rolar.
+   */
+  const testeDoSelo = (turnos: TurnosDaCena, golpe: GolpeDaBatalha, selo: SeloDoGolpe, alvo: AlvoDoGolpe): { pega: boolean; alvo: AlvoDoGolpe } => {
+    const pega = selo.pega
+    if (pega === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida) || alvo.passouNoTeste === true) return { pega: true, alvo }
+    const comTexto = (texto: string): AlvoDoGolpe => ({ ...alvo, disputa: alvo.disputa === undefined || alvo.disputa === '' ? texto : `${alvo.disputa}; ${texto}` })
+    const { personagens, sistema } = mesaDoRpg()
+    const usa = personagens.find((candidato) => candidato.id === golpe.atacantePersonagemId)
+    const resiste = personagens.find((candidato) => candidato.id === alvo.personagemId)
+    // O alvo sem ficha (token genérico) não rola: o selo entra e a linha avisa, como no teste da técnica montada.
+    if (usa === undefined || resiste === undefined || sistema === null) return { pega: true, alvo: comTexto(`${selo.nome}: ${TEXTO_DO_ALVO_SEM_FICHA}`) }
+    const deQuemUsa = { personagem: usa, bonus: bonusDaBatalha(turnos.selos, golpe.atacanteTokenId) }
+    const doAlvo = { personagem: resiste, bonus: bonusDaBatalha(turnos.selos, alvo.tokenId) }
+    const resultado = rolarDisputa(disputaDoTesteDoSelo(pega), { testa: doAlvo, usa: deQuemUsa, resiste: deQuemUsa }, sistema, golpe.carga ?? 0, deps.rolarD20)
+    const pegou = quemUsaVence(resultado, 'alvo')
+    const atributo = sistema.atributos.find((candidato) => candidato.id === pega.atributoId)?.nome.trim()
+    const quem = atributo === undefined || atributo === '' ? pega.atributoId : atributo
+    return { pega: pegou, alvo: comTexto(`${quem}: ${textoDaDisputa(resultado)}, ${pegou ? selo.nome : `sem ${selo.nome}`}`) }
+  }
+
+  /** O selo principal do golpe no alvo, depois do teste dele (`testeDoSelo`); sem selo = nada. */
+  const seloComOTeste = (turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selado: ReturnType<typeof seloDoGolpe>; alvo: AlvoDoGolpe } => {
+    if (golpe.selo === undefined) return { selado: null, alvo }
+    const teste = testeDoSelo(turnos, golpe, golpe.selo, alvo)
+    return { selado: teste.pega ? seloDoGolpe(turnos, golpe, teste.alvo) : null, alvo: teste.alvo }
   }
 
   /**
@@ -101,7 +138,7 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
     const disputa = cartaoId === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida) ? null : disputaNoAcerto(cartaoId)
     const usa = personagens.find((candidato) => candidato.id === golpe.atacantePersonagemId)
     const resiste = personagens.find((candidato) => candidato.id === alvo.personagemId)
-    if (disputa === null || usa === undefined || resiste === undefined || sistema === null) return { selado: seloDoGolpe(turnos, golpe, alvo), alvo }
+    if (disputa === null || usa === undefined || resiste === undefined || sistema === null) return seloComOTeste(turnos, golpe, alvo)
     const deQuemUsa = { personagem: usa, bonus: bonusDaBatalha(turnos.selos, golpe.atacanteTokenId) }
     const doAlvo = { personagem: resiste, bonus: bonusDaBatalha(turnos.selos, alvo.tokenId) }
     const quemUsaTesta = disputa.testa === 'quemUsa'
@@ -110,7 +147,7 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
     // Quando o alvo testa, quem usa vence se o alvo NÃO passou; sem teste (concentração), quem usa vence.
     const venceu = quemUsaVence(resultado, disputa.testa)
     const comTexto: AlvoDoGolpe = { ...alvo, disputa: `${textoDaDisputa(resultado)}, ${venceu ? 'o selo pegou' : 'o selo não pegou'}` }
-    return { selado: venceu ? seloDoGolpe(turnos, golpe, alvo) : null, alvo: comTexto }
+    return venceu ? seloComOTeste(turnos, golpe, comTexto) : { selado: null, alvo: comTexto }
   }
 
   /** O selo trocado (`depois`) ou tirado (`null`), com a linha "selo" do mestre. */

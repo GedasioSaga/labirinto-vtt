@@ -56,8 +56,8 @@ export const CONDICAO_DO_TIPO: Readonly<Record<Exclude<TipoDoGolpe, 'perfurante'
 const CURA_RECEBIDA_NO_VENENO = -50
 /** O atributo que o Enfraquecer baixa (id do sistema; o Dano é o `dano` dos números do selo). */
 export const ATRIBUTO_DO_ENFRAQUECER = 'forca'
-/** A versão das peças montadas: as do tipo cabem na 3 (a 4 só acrescenta a escolha). */
-const VERSAO_DAS_PECAS_MONTADAS = 3
+/** A versão das peças montadas: a 4 (o teste do selo e o "reage com desvantagem" só existem nela, fase ED4). */
+const VERSAO_DAS_PECAS_MONTADAS = 4
 
 /** Uma peça como o disco a guardaria, antes da leitura conferir. */
 type PecaCrua = Readonly<Record<string, unknown>>
@@ -149,8 +149,8 @@ export type MecanicaParaOMotor = Extract<MecanicaLida, { tipo: 'pecas' | 'invali
  * lembrete ao mestre. Sem tipo = a MESMA mecânica (o mesmo objeto: as versões 1 a 3 não mudam).
  *
  * As peças montadas passam pela mesma leitura das peças do disco: o motor nunca recebe o que não
- * receberia de um arquivo. O que ela recusa (o teto de 3 selos, o "com teste" e o Congelado, que o
- * motor ainda não executa) volta como `invalida` com o motivo, e o cartão fica à mão.
+ * receberia de um arquivo. O que ela recusa (o teto de 3 selos) volta como `invalida` com o motivo,
+ * e o cartão fica à mão. Desde a ED4 o "com teste" (`pega`) e o Congelado rodam.
  */
 export function pecasParaOMotor(mecanica: MecanicaV2): MecanicaParaOMotor {
   const { golpe, ...semGolpe } = mecanica
