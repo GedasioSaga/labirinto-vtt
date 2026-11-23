@@ -133,6 +133,11 @@ export interface CombateDoPersonagem {
    * `AcumuladorDaFicha`) → nível. Ausente, ou o id fora do mapa = nível 0.
    */
   acumuladores?: Readonly<Record<string, number>>
+  /**
+   * REQUISITOS, fase C: a última rodada em que cada acumulador mudou por uso (subiu por gatilho ou foi
+   * gasto pelo A4), id → rodada. A regra "cai por rodada sem uso" lê daqui na virada. Ausente = nunca.
+   */
+  acumuladoresUsados?: Readonly<Record<string, number>>
 }
 
 /**
@@ -244,6 +249,10 @@ export interface PedidoDeEvolucao {
   tokenId: string
   cartaoId: string
   custo: number | null
+  /** REQUISITOS, fase C: as respostas do grupo "Para evoluir" (a caixa e o "Um destes", chaves `req.<id>`). */
+  respostas?: RespostasDoPedido
+  /** REQUISITOS, fase C: o mestre evolui mesmo sem cumprir (pula o que falta e os gastos disso). Só vale com autor mestre. */
+  forcarRequisitos?: true
 }
 
 /**
@@ -416,6 +425,8 @@ export type PedidoDeAcao =
        */
       direcao?: Direcao
       foraDoAlcance?: true
+      /** REQUISITOS, fase C: o mestre usa mesmo sem cumprir os requisitos da arma (o custo normal continua). Só vale com autor mestre. */
+      forcarRequisitos?: true
     }
   | {
       tipo: 'habilidade'
@@ -465,6 +476,8 @@ export type PedidoDeAcao =
        */
       direcao?: Direcao
       foraDoAlcance?: true
+      /** REQUISITOS, fase C: o mestre usa mesmo sem cumprir os requisitos (o custo normal continua). Só vale com autor mestre. */
+      forcarRequisitos?: true
     }
   | { tipo: 'concentrar' }
   /** Q6: o contra-ataque gasto em se mover. Só marca (e tira o atalho); o movimento em si é o arrasto de sempre. */
@@ -474,7 +487,7 @@ export type PedidoDeAcao =
    * = a caixa "Trocar a imagem". Nunca é contra-ataque: `contraDe` existe só
    * como `undefined`, para quem lê `pedido.contraDe` sem olhar o tipo.
    */
-  | { tipo: 'transformar'; cartaoId: string; acao: AcaoDaForma; trocarImagem: boolean; contraDe?: undefined }
+  | { tipo: 'transformar'; cartaoId: string; acao: AcaoDaForma; trocarImagem: boolean; contraDe?: undefined; respostas?: RespostasDoPedido; forcarRequisitos?: true }
   /** F3: "Desfazer a forma" (ação livre). Nunca é contra-ataque. */
   | { tipo: 'destransformar'; cartaoId: string; contraDe?: undefined }
   /**
@@ -484,7 +497,7 @@ export type PedidoDeAcao =
    * das peças). `ponto`/`centroId` = o centro da área longe (a granada), como
    * na habilidade. Nunca é contra-ataque.
    */
-  | { tipo: 'item'; vagaId: string; alvos: readonly PedidoDeAlvo[]; ponto?: { col: number; row: number }; centroId?: string; direcao?: Direcao; foraDoAlcance?: true; contraDe?: undefined }
+  | { tipo: 'item'; vagaId: string; alvos: readonly PedidoDeAlvo[]; ponto?: { col: number; row: number }; centroId?: string; direcao?: Direcao; foraDoAlcance?: true; contraDe?: undefined; respostas?: RespostasDoPedido; forcarRequisitos?: true }
 
 /** Os tipos de pedido de ação, para o enum fechado do fio. */
 export type TipoDoPedidoDeAcao = PedidoDeAcao['tipo']
@@ -682,6 +695,12 @@ export interface GolpeDaBatalha {
    * é reescrita alvo a alvo. Ausente = não é item, ou o item não acaba.
    */
   sobraDoItem?: number
+  /**
+   * REQUISITOS, fase C: o que os requisitos deixaram na linha ("gastou Polaridade 2", "(o mestre
+   * forçou: faltava ...)", "(declarou: ...)"). Fica no golpe para a linha manter o texto quando é
+   * reescrita alvo a alvo. Ausente = nada.
+   */
+  notaDosRequisitos?: string
 }
 
 /**

@@ -1,19 +1,21 @@
 import type { CartaoDaFicha, Personagem } from '../personagem'
-import type { CombateDoPersonagem } from './combate'
+import { ALVO_DO_DANO, combateVazio, type BonusDaBatalha, type CombateDoPersonagem, type ParteDoBonus } from './combate'
+import type { TurnosDaCena } from './turnos'
 import { mesmaReferencia } from './requisitos/contexto'
 import { lerAcumulador } from './requisitos/ler'
-import type { AcumuladorDaFicha, Referencia } from './requisitos/modelo'
+import type { AcumuladorDaFicha, GanhoDoAcumulador, Referencia } from './requisitos/modelo'
 
 /**
- * REQUISITOS, fase B3: o NÍVEL de cada acumulador genérico na batalha (Polaridade, Fúria, Cargas).
+ * REQUISITOS, fases B3 e C: o NÍVEL de cada acumulador genérico na batalha (Polaridade, Fúria, Cargas).
  * A definição mora no cartão (`CartaoDaFicha.acumulador`, lida por `lerAcumulador`); o nível de
  * agora mora no combate (`CombateDoPersonagem.acumuladores`, id → nível) e volta no Desfazer pela
  * parte "combate" da linha, por delta (`combateSemALinha`).
  *
- * Aqui: ler as definições da ficha, ler e mudar o nível (de 0 ao máximo) e as regras de subir e de
- * cair que o motor já sabe disparar (acerta, apanha, usa a técnica, derruba, esquiva). Ainda não:
- * "gasta a reação", "gasta SP", "começo da vez", "rodada sem uso" (sem gancho no motor ainda), o
- * ganho por nível no golpe e o "gasta" do requisito A4 (fase C, `gastos.ts`).
+ * Aqui: ler as definições da ficha, ler e mudar o nível (de 0 ao máximo), as regras de subir e de
+ * cair por evento (acerta, apanha, usa a técnica, derruba, esquiva, gasta a reação, gasta SP, começo
+ * da vez), a queda por rodada sem uso (na virada), o gasto do requisito A4 e o ganho de cada nível
+ * (o dano a mais e o atributo a mais, como parte do bônus da batalha). O fim da batalha zera sozinho:
+ * o nível mora no combate, que a batalha nova começa vazio.
  *
  * Puro: sem store, sem rede, sem Pixi.
  */
@@ -25,6 +27,10 @@ export type EventoDoAcumulador =
   | { quando: 'usaTecnica'; tecnica: Referencia }
   | { quando: 'derruba' }
   | { quando: 'esquiva' }
+  | { quando: 'gastaReacao' }
+  | { quando: 'comecoDaVez' }
+  /** `sp`: quanto SP saiu agora (a regra sobe `quanto` a cada `cada` SP inteiros). */
+  | { quando: 'gastaSp'; sp: number }
 
 /** As definições de acumulador nos cartões da ficha (abas e subcartões), uma por id (a primeira vale). Torta = de fora. */
 export function acumuladoresDoPersonagem(personagem: Pick<Personagem, 'abas'>): AcumuladorDaFicha[] {
@@ -38,6 +44,36 @@ export function acumuladoresDoPersonagem(personagem: Pick<Personagem, 'abas'>): 
   }
   for (const cartoes of Object.values(personagem.abas)) cartoes.forEach(ler)
   return [...achados.values()]
+}
+
+/**
+ * REQUISITOS C: o acumulador que o "Carregar" sobe (a regra "sobe ao gastar a reação"; a Polaridade do
+ * Vagn no motor genérico), com o cartão que o define (o pedido `contador` o aponta por ele). O
+ * primeiro da ficha; nenhum = `null`.
+ */
+export function acumuladorQueCarrega(personagem: Pick<Personagem, 'abas'>): { cartao: CartaoDaFicha; acumulador: AcumuladorDaFicha } | null {
+  const achar = (cartao: CartaoDaFicha): { cartao: CartaoDaFicha; acumulador: AcumuladorDaFicha } | null => {
+    const lido = cartao.acumulador === undefined ? null : lerAcumulador(cartao.acumulador).acumulador
+    if (lido !== null && lido.sobe.some((regra) => regra.quando === 'gastaReacao')) return { cartao, acumulador: lido }
+    for (const sub of cartao.subcartoes) {
+      const doSub = achar(sub)
+      if (doSub !== null) return doSub
+    }
+    return null
+  }
+  for (const cartoes of Object.values(personagem.abas)) {
+    for (const cartao of cartoes) {
+      const achado = achar(cartao)
+      if (achado !== null) return achado
+    }
+  }
+  return null
+}
+
+/** A definição que a referência aponta: pelo id; senão pelo nome (o bloco veio do catálogo). */
+export function acumuladorDaReferencia(definicoes: readonly AcumuladorDaFicha[], ref: Referencia): AcumuladorDaFicha | null {
+  const id = ref.id
+  return (id === undefined ? undefined : definicoes.find((def) => def.id === id)) ?? definicoes.find((def) => mesmaReferencia({ nome: def.nome }, { nome: ref.nome })) ?? null
 }
 
 /** O nível de agora (fora do mapa = 0). */
@@ -57,12 +93,24 @@ export function comNivelSomado(combate: CombateDoPersonagem, acumulador: Pick<Ac
   return Object.keys(niveis).length === 0 ? resto : { ...resto, acumuladores: niveis }
 }
 
+/** O acumulador foi usado (subiu por gatilho ou foi gasto) na rodada `rodada`: a queda "por rodada sem uso" não o pega nesta virada. */
+function comUso(combate: CombateDoPersonagem, acumuladorId: string, rodada: number | undefined): CombateDoPersonagem {
+  if (rodada === undefined || combate.acumuladoresUsados?.[acumuladorId] === rodada) return combate
+  return { ...combate, acumuladoresUsados: { ...(combate.acumuladoresUsados ?? {}), [acumuladorId]: rodada } }
+}
+
 /** Quanto o evento sobe (as regras de subir) menos quanto desce (as de cair) num acumulador. "tudo" = o nível inteiro. */
 function deltaDoEvento(acumulador: AcumuladorDaFicha, nivel: number, evento: EventoDoAcumulador): number {
   let delta = 0
   for (const regra of acumulador.sobe) {
     if (regra.quando !== evento.quando) continue
     if (regra.quando === 'usaTecnica' && (evento.quando !== 'usaTecnica' || !mesmaReferencia(regra.tecnica, evento.tecnica))) continue
+    if (regra.quando === 'gastaSp') {
+      // "Sobe 1 a cada 10 SP gastos": só os inteiros (25 SP = 2 vezes); o resto não guarda.
+      if (evento.quando !== 'gastaSp' || !(regra.cada > 0)) continue
+      delta += Math.floor(evento.sp / regra.cada) * regra.quanto
+      continue
+    }
     delta += regra.quanto
   }
   for (const regra of acumulador.desce) {
@@ -72,12 +120,114 @@ function deltaDoEvento(acumulador: AcumuladorDaFicha, nivel: number, evento: Eve
   return delta
 }
 
-/** O combate com as regras de todos os acumuladores da ficha aplicadas ao evento. Nada muda = o MESMO combate. */
-export function comOEventoNosAcumuladores(combate: CombateDoPersonagem, definicoes: readonly AcumuladorDaFicha[], evento: EventoDoAcumulador): CombateDoPersonagem {
+/**
+ * O combate com as regras de todos os acumuladores da ficha aplicadas ao evento. `rodada` marca o
+ * uso de quem mudou (a queda por rodada sem uso lê); ausente = não marca. Nada muda = o MESMO combate.
+ */
+export function comOEventoNosAcumuladores(combate: CombateDoPersonagem, definicoes: readonly AcumuladorDaFicha[], evento: EventoDoAcumulador, rodada?: number): CombateDoPersonagem {
   let volta = combate
   for (const acumulador of definicoes) {
     const delta = deltaDoEvento(acumulador, nivelDoAcumulador(volta, acumulador.id), evento)
-    if (delta !== 0) volta = comNivelSomado(volta, acumulador, delta)
+    if (delta === 0) continue
+    const mudado = comNivelSomado(volta, acumulador, delta)
+    if (mudado !== volta) volta = comUso(mudado, acumulador.id, rodada)
   }
   return volta
+}
+
+/**
+ * O gasto do requisito A4 ("Polaridade 2 ou mais, gasta 2"): o nível desce `n` (nunca abaixo de 0) e
+ * conta como uso na `rodada`. Sem a definição na ficha = o mesmo combate (nada a gastar).
+ */
+export function comGastoNoAcumulador(combate: CombateDoPersonagem, definicoes: readonly AcumuladorDaFicha[], ref: Referencia, n: number, rodada?: number): CombateDoPersonagem {
+  const acumulador = acumuladorDaReferencia(definicoes, ref)
+  if (acumulador === null || !(n > 0)) return combate
+  const mudado = comNivelSomado(combate, acumulador, -n)
+  return mudado === combate ? combate : comUso(mudado, acumulador.id, rodada)
+}
+
+/**
+ * A virada da rodada: cada acumulador com a regra "cai N por rodada sem uso" que não mudou por uso
+ * na rodada que acabou (`rodadaQueAcabou`) desce N. Nada a mudar = o MESMO combate.
+ */
+export function comARodadaSemUso(combate: CombateDoPersonagem, definicoes: readonly AcumuladorDaFicha[], rodadaQueAcabou: number): CombateDoPersonagem {
+  let volta = combate
+  for (const acumulador of definicoes) {
+    const nivel = nivelDoAcumulador(volta, acumulador.id)
+    if (nivel === 0 || combate.acumuladoresUsados?.[acumulador.id] === rodadaQueAcabou) continue
+    const cai = acumulador.desce.reduce((soma, regra) => (regra.quando === 'rodadaSemUso' ? soma + regra.quanto : soma), 0)
+    if (cai > 0) volta = comNivelSomado(volta, acumulador, -cai)
+  }
+  return volta
+}
+
+/**
+ * O começo de uma vez (a store chama na linha "Vez", que guarda o combate de antes e de depois): na
+ * virada (`rodadaQueAcabou` não `null`), a queda por rodada sem uso de todos; depois, o "sobe no começo
+ * da vez" de quem entra (`entra`, o personagem da carta). Nada muda = o MESMO mapa.
+ */
+export function combatesNoComecoDaVez(turnos: Pick<TurnosDaCena, 'combate' | 'rodada'>, personagens: readonly Pick<Personagem, 'id' | 'abas'>[], entra: string | null, rodadaQueAcabou: number | null): TurnosDaCena['combate'] {
+  let combates = turnos.combate
+  const definicoes = new Map<string, AcumuladorDaFicha[]>()
+  const deQuem = (personagemId: string): AcumuladorDaFicha[] => {
+    const achadas = definicoes.get(personagemId)
+    if (achadas !== undefined) return achadas
+    const personagem = personagens.find((candidato) => candidato.id === personagemId)
+    const lidas = personagem === undefined ? [] : acumuladoresDoPersonagem(personagem)
+    definicoes.set(personagemId, lidas)
+    return lidas
+  }
+  const trocar = (personagemId: string, depois: CombateDoPersonagem, antes: CombateDoPersonagem | undefined): void => {
+    if (depois !== antes) combates = { ...(combates ?? {}), [personagemId]: depois }
+  }
+  if (rodadaQueAcabou !== null) {
+    for (const [personagemId, combate] of Object.entries(combates ?? {})) {
+      if (combate.acumuladores === undefined) continue
+      trocar(personagemId, comARodadaSemUso(combate, deQuem(personagemId), rodadaQueAcabou), combate)
+    }
+  }
+  if (entra !== null) {
+    const daFicha = deQuem(entra)
+    const base = combates?.[entra] ?? combateVazio()
+    if (daFicha.length > 0) trocar(entra, comOEventoNosAcumuladores(base, daFicha, { quando: 'comecoDaVez' }, turnos.rodada), base)
+  }
+  return combates
+}
+
+/** O valor do ganho no nível (0 = nada). `cada` x o nível; ou o total da lista (`niveis[0]` = nível 1; acima do tamanho, o último). */
+export function valorDoGanho(ganho: GanhoDoAcumulador | { ganho: 'naoLido' }, nivel: number): number {
+  if (nivel <= 0 || ganho.ganho === 'nada' || ganho.ganho === 'naoLido') return 0
+  if (ganho.cada !== undefined) return ganho.cada * nivel
+  const lista = ganho.niveis
+  return lista[Math.min(nivel, lista.length) - 1] ?? 0
+}
+
+/**
+ * O que os níveis de agora dão, no formato do bônus da batalha (`bonusDaBatalha`, por alvo: `dano`
+ * ou o id do atributo), com o nome e o nível ("Polaridade 2"). O golpe lê o bônus ANTES de a linha
+ * gastar o acumulador: o golpe que gasta sai com a carga (decisão do dono de 23/11).
+ */
+export function bonusDosAcumuladores(definicoes: readonly AcumuladorDaFicha[], combate: CombateDoPersonagem | undefined): BonusDaBatalha {
+  const porAlvo = new Map<string, ParteDoBonus[]>()
+  for (const acumulador of definicoes) {
+    const nivel = nivelDoAcumulador(combate, acumulador.id)
+    const valor = valorDoGanho(acumulador.ganho, nivel)
+    if (valor === 0) continue
+    const { ganho } = acumulador
+    const alvo = ganho.ganho === 'dano' ? ALVO_DO_DANO : ganho.ganho === 'atributo' ? ganho.atributo.id : undefined
+    if (alvo === undefined) continue
+    porAlvo.set(alvo, [...(porAlvo.get(alvo) ?? []), { nome: `${acumulador.nome} ${nivel}`, delta: valor }])
+  }
+  return Object.fromEntries(porAlvo)
+}
+
+/** O bônus da batalha com o dos acumuladores somado (sem acumulador com ganho = o MESMO bônus). */
+export function comOBonusDosAcumuladores(bonus: BonusDaBatalha | undefined, personagem: Pick<Personagem, 'abas'> | null | undefined, combate: CombateDoPersonagem | undefined): BonusDaBatalha | undefined {
+  if (personagem === null || personagem === undefined || combate?.acumuladores === undefined) return bonus
+  const dos = bonusDosAcumuladores(acumuladoresDoPersonagem(personagem), combate)
+  const alvos = Object.keys(dos)
+  if (alvos.length === 0) return bonus
+  const somado: Record<string, readonly ParteDoBonus[]> = { ...(bonus ?? {}) }
+  for (const alvo of alvos) somado[alvo] = [...(somado[alvo] ?? []), ...(dos[alvo] ?? [])]
+  return somado
 }

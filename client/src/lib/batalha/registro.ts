@@ -643,7 +643,7 @@ function lembretesSemALinha(
  * Lista vazia e campo ausente saem do objeto.
  */
 function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>, daVez = false): CombateDoPersonagem {
-  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, mantidas: _mantidas, viramLutar: _viram, reordenarNaVirada: _reordenar, rastro: _rastro, acumuladores: _acumuladores, ...fixos } = atual
+  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, mantidas: _mantidas, viramLutar: _viram, reordenarNaVirada: _reordenar, rastro: _rastro, acumuladores: _acumuladores, acumuladoresUsados: _usados, ...fixos } = atual
   // F2 (revisão da fatia D): as técnicas mantidas voltam uma a uma (a linha que ligou o Giro desliga só ele).
   const mantidas = listaSemALinha(atual.mantidas ?? [], antes.mantidas ?? [], depois.mantidas ?? [])
   // Conserto das fichas F1: o "+10 SP por vez" (jaJogou, gastouSp) volta campo a campo.
@@ -663,6 +663,8 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
   // REQUISITOS B3: o rastro campo a campo (as contagens por delta) e o nível dos acumuladores por delta.
   const rastro = rastroSemALinha(atual.rastro ?? {}, antes.rastro ?? {}, depois.rastro ?? {})
   const acumuladores = numerosSemALinha(atual.acumuladores ?? {}, antes.acumuladores ?? {}, depois.acumuladores ?? {})
+  // REQUISITOS C: a rodada do último uso de cada acumulador, também por delta.
+  const acumuladoresUsados = numerosSemALinha(atual.acumuladoresUsados ?? {}, antes.acumuladoresUsados ?? {}, depois.acumuladoresUsados ?? {})
   return {
     ...fixos,
     recargas: numerosSemALinha(atual.recargas, antes.recargas, depois.recargas, daVez),
@@ -684,6 +686,7 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
     ...(reordenarNaVirada === undefined ? {} : { reordenarNaVirada }),
     ...(rastro === undefined ? {} : { rastro }),
     ...(Object.keys(acumuladores).length === 0 ? {} : { acumuladores }),
+    ...(Object.keys(acumuladoresUsados).length === 0 ? {} : { acumuladoresUsados }),
   }
 }
 

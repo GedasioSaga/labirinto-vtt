@@ -2,6 +2,7 @@ import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { travaDoContador } from './condicoes'
 import { contadorDoPersonagem, motivoDoContador, nivelDoContador, temGolpeEsperando } from './contador'
+import { acumuladorQueCarrega, nivelDoAcumulador } from './acumuladorNaBatalha'
 import type { TurnosDaCena } from './turnos'
 
 /**
@@ -23,7 +24,7 @@ export interface ContadorNoMenu {
 /** O contador de `personagem` na carta de `tokenId`; `null` = a ficha não tem contador. */
 export function contadorNoMenu(tokenId: string, personagem: Personagem, sistema: SistemaDeRpg, turnos: TurnosDaCena): ContadorNoMenu | null {
   const contador = contadorDoPersonagem(personagem, sistema)
-  if (contador === null) return null
+  if (contador === null) return acumuladorNoMenu(tokenId, personagem, turnos)
   const { nome, danoPorNivel } = contador.leitura
   const nivel = nivelDoContador(turnos, tokenId, contador.cartao.id)
   const maximo = danoPorNivel.length
@@ -43,5 +44,33 @@ export function contadorNoMenu(tokenId: string, personagem: Personagem, sistema:
     pedido: { tokenId, cartaoId: contador.cartao.id },
     ganhar: { rotulo: `Carregar ${nome} (${nivel} de ${maximo})`, detalhe, desabilitado: travado !== null || motivo !== null },
     zerar: nivel > 0 ? { rotulo: `Zerar ${nome}`, detalhe: 'Volta a 0 e o dano a mais sai; entra no registro' } : null,
+  }
+}
+
+/**
+ * REQUISITOS C: o acumulador genérico que sobe ao gastar a reação (a Polaridade no motor novo), no
+ * mesmo item "Carregar" e com as mesmas travas do contador antigo.
+ */
+function acumuladorNoMenu(tokenId: string, personagem: Personagem, turnos: TurnosDaCena): ContadorNoMenu | null {
+  const achado = acumuladorQueCarrega(personagem)
+  if (achado === null) return null
+  const { nome, maximo, id } = achado.acumulador
+  const combate = turnos.combate?.[personagem.id]
+  const nivel = nivelDoAcumulador(combate, id)
+  const motivo = motivoDoContador('ganhar', nivel, maximo, combate?.semReacao === true, temGolpeEsperando(turnos.golpes, tokenId))
+  const travado = travaDoContador((turnos.selos ?? []).filter((selo) => selo.tokenId === tokenId))
+  const detalhe =
+    travado ??
+    (motivo === 'semReacao'
+      ? 'Já gastou a reação: volta na vez dela'
+      : motivo === 'golpeEsperando'
+        ? 'Tem golpe esperando a reação: responda antes de carregar'
+        : motivo === 'noMaximo'
+          ? 'Já está no máximo'
+          : `Perde a reação até a vez dela; ${nome} sobe`)
+  return {
+    pedido: { tokenId, cartaoId: achado.cartao.id },
+    ganhar: { rotulo: `Carregar ${nome} (${nivel} de ${maximo})`, detalhe, desabilitado: travado !== null || motivo !== null },
+    zerar: nivel > 0 ? { rotulo: `Zerar ${nome}`, detalhe: 'Volta a 0 e o ganho sai; entra no registro' } : null,
   }
 }
