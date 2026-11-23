@@ -2,6 +2,7 @@ import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../..
 import { chaveDaVez, type PedidoDeAcao, type PedidoDePassiva, type PedidoDeReacao } from '../batalha/combate'
 import { combatentesIniciais, type AutorDaAcao } from '../batalha/turnos'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
+import { numeroDaFicha } from '../personagem'
 import { recursoDeVida, vidaDoPersonagem, type VidaDaFicha } from '../vidaDaFicha'
 import { fimDaLuta, type FimDaLuta, type RelogioDaLuta, type TetosDaLuta } from './fimDaLuta'
 import { criarMesaEmMemoria, type LadoDaLuta, type LadoDoTreino, type LutadoresDaLuta, type MesaDaLuta } from './mesaEmMemoria'
@@ -253,6 +254,149 @@ export function comecarLuta<L extends LadoDaLuta = LadoDoTreino>(pedido: PedidoD
 /** A luta inteira, do começo ao fim: o resumo. */
 export function lutaAutomatica<L extends LadoDaLuta = LadoDoTreino>(pedido: PedidoDeLuta<L>): ResumoDaLuta<L> {
   return comecarLuta(pedido).terminar()
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// OS CONTADORES DO BALANCEADOR ("Comparar e balancear", docs/design/balanceamento/NOTAS.md):
+// só observam. `lutaContada` dá os MESMOS passos que `terminar` (resumo, passo,
+// resumo...) e, entre um passo e outro, lê a vida, o Escudo e o SP de cada
+// cópia. Nada aqui escreve na mesa, no sorteio ou na store: a luta contada e a
+// luta sem contador dão o mesmo resumo (lutaAutomatica.contadores.test.ts).
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Abaixo desta parte do máximo, a vaga "ficou sem SP" para as técnicas. */
+export const SP_QUE_ACABA = 0.1
+
+/** O que uma vaga fez e sofreu numa luta. */
+export interface ContadorDaVaga {
+  vaga: string
+  /** HP + Escudo que esta vaga tirou de vagas do outro lado (na vez dela, ou na reação ao golpe dela). */
+  danoCausado: number
+  /** HP + Escudo que a vaga perdeu. */
+  danoSofrido: number
+  /** HP que a vaga devolveu (a ela ou a um aliado) na vez dela. */
+  cura: number
+  /** O SP que saiu (só as quedas). */
+  spGasto: number
+  /** A rodada em que o HP chegou a 0 pela primeira vez; `null` = ficou de pé. */
+  caiuNaRodada: number | null
+  /** A rodada em que o SP ficou abaixo de `SP_QUE_ACABA` do máximo; `null` = não acabou (ou a ficha não tem SP). */
+  semSpNaRodada: number | null
+  /** Usos de cada ação: o id do cartão da técnica, ou o tipo (`atacar`, `item`, `concentrar`...). */
+  usos: Record<string, number>
+}
+
+/** A luta com os contadores ao lado do resumo. */
+export interface LutaContada<L extends LadoDaLuta = LadoDoTreino> {
+  resumo: ResumoDaLuta<L>
+  contadores: ContadorDaVaga[]
+  /** A vaga que caiu primeiro; `null` = ninguém caiu. */
+  primeiraACair: string | null
+}
+
+interface FotoDaVaga {
+  /** HP + Escudo. */
+  defesa: number
+  hp: number
+  sp: number
+  spMaximo: number
+}
+
+function contadorVazio(vaga: string): ContadorDaVaga {
+  return { vaga, danoCausado: 0, danoSofrido: 0, cura: 0, spGasto: 0, caiuNaRodada: null, semSpNaRodada: null, usos: {} }
+}
+
+/** O que o passo usou, pela chave dos usos; `null` = passo que não é uso (passar a vez, mover, parado). */
+function usoDoPasso(passo: PassoDaLuta): string | null {
+  if (passo.tipo === 'agir') {
+    const { pedido } = passo
+    if (pedido.tipo === 'mover') return null
+    return pedido.tipo === 'habilidade' ? pedido.cartaoId : pedido.tipo
+  }
+  if (passo.tipo === 'reagir' && passo.aceito && 'cartaoId' in passo.pedido) return passo.pedido.cartaoId
+  if (passo.tipo === 'passiva' && passo.pedido.tipo === 'passiva') return passo.pedido.cartaoId
+  return null
+}
+
+/** A luta inteira com os contadores de cada vaga: o resumo é o de `lutaAutomatica` com a mesma semente. */
+export function lutaContada<L extends LadoDaLuta = LadoDoTreino>(pedido: PedidoDeLuta<L>): LutaContada<L> {
+  const luta = comecarLuta(pedido)
+  const mesa = luta.mesa()
+  const sistema = mesa.sistema()
+  const recursoHp = recursoDeVida(sistema)
+  const recursoSp = sistema?.recursos.find((recurso) => recurso.tom === 'energia' && recurso.atualEMaximo === true) ?? null
+  const escudoId = sistema?.recursos.find((recurso) => recurso.id === 'escudo')?.id ?? null
+  const contadores = new Map<string, ContadorDaVaga>()
+  const contador = (vaga: string): ContadorDaVaga => {
+    const achado = contadores.get(vaga)
+    if (achado !== undefined) return achado
+    const novo = contadorVazio(vaga)
+    contadores.set(vaga, novo)
+    return novo
+  }
+
+  const fotografar = (): Map<string, FotoDaVaga> => {
+    const porId = new Map(mesa.personagens().map((personagem) => [personagem.id, personagem]))
+    const foto = new Map<string, FotoDaVaga>()
+    for (const vaga of mesa.vagas()) {
+      const copia = porId.get(vaga.personagemId)
+      if (copia === undefined) continue
+      const vida = recursoHp === null ? null : vidaDoPersonagem(copia, recursoHp)
+      const sp = recursoSp === null ? null : vidaDoPersonagem(copia, recursoSp)
+      const escudo = escudoId === null ? 0 : Math.max(0, numeroDaFicha(copia.recursos, escudoId) || 0)
+      const hp = vida?.atual ?? 0
+      foto.set(vaga.id, { defesa: hp + escudo, hp, sp: sp?.atual ?? 0, spMaximo: sp?.maximo ?? 0 })
+    }
+    return foto
+  }
+
+  // A vaga que nasce no meio da luta (invocado) entra nas buscas: por isso lê `mesa.vagas()` de novo, em vez de guardar no começo.
+  const ladoDa = (vaga: string): L | null => mesa.vagas().find((v) => v.id === vaga)?.lado ?? null
+  const vagaDoToken = (tokenId: string): string | null => mesa.vagas().find((vaga) => vaga.tokenId === tokenId)?.id ?? null
+  for (const vaga of mesa.vagas()) contador(vaga.id)
+
+  let primeiraACair: string | null = null
+  /** Quem deu o último golpe: o dano das reações e passivas que vêm depois é dele. */
+  let agressor: string | null = null
+  let antes = fotografar()
+  let resumo = luta.resumo()
+  while (resumo === null) {
+    const passo = luta.passo()
+    const depois = fotografar()
+    const rodada = luta.relogio().rodada
+    const autor = passo !== null && (passo.tipo === 'agir' || passo.tipo === 'passarVez') ? vagaDoToken(passo.tokenId) : null
+    if (passo !== null && passo.tipo === 'agir' && autor !== null) agressor = autor
+    const uso = passo === null ? null : usoDoPasso(passo)
+    const quemReagiu = passo !== null && (passo.tipo === 'reagir' || passo.tipo === 'passiva') ? vagaDoToken(passo.pedido.tokenId) : null
+    const quemUsou = autor ?? quemReagiu
+    if (uso !== null && quemUsou !== null) {
+      const usos = contador(quemUsou).usos
+      usos[uso] = (usos[uso] ?? 0) + 1
+    }
+    const causador = autor ?? agressor
+    for (const [vaga, agora] of depois) {
+      const eraAssim = antes.get(vaga)
+      const conta = contador(vaga)
+      if (eraAssim !== undefined) {
+        const perdeu = eraAssim.defesa - agora.defesa
+        if (perdeu > 0) {
+          conta.danoSofrido += perdeu
+          if (causador !== null && ladoDa(causador) !== ladoDa(vaga)) contador(causador).danoCausado += perdeu
+        }
+        const curou = agora.hp - eraAssim.hp
+        if (curou > 0 && autor !== null) contador(autor).cura += curou
+        if (agora.sp < eraAssim.sp) conta.spGasto += eraAssim.sp - agora.sp
+        if (eraAssim.hp > 0 && agora.hp <= 0 && conta.caiuNaRodada === null) {
+          conta.caiuNaRodada = rodada
+          primeiraACair ??= vaga
+        }
+      }
+      if (conta.semSpNaRodada === null && agora.spMaximo > 0 && agora.sp < agora.spMaximo * SP_QUE_ACABA) conta.semSpNaRodada = rodada
+    }
+    antes = depois
+    resumo = luta.resumo()
+  }
+  return { resumo, contadores: [...contadores.values()], primeiraACair }
 }
 
 function ehRegistro(valor: unknown): valor is Record<string, unknown> {
