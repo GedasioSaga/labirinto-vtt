@@ -57,7 +57,7 @@ import {
 import { danoFinal, danoQueChega, saidasDaRolagem } from '../../lib/batalha/reacao'
 import { blocosEntreTokens, ordenarAlvosDaMira } from '../../lib/batalha/ordemDosAlvos'
 import type { CartaParaJogador, CombateParaJogador } from '../../lib/batalha/vistaDoJogador'
-import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
+import { NOME_DO_TEXTO_DE_ANTES, type CartaoDaFicha, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
 import type { ContextoDosRequisitos } from '../../lib/batalha/requisitos/contexto'
@@ -321,7 +321,8 @@ export function leituraDoCartao(cartao: CartaoDaFicha | null, sistema: SistemaDe
   for (const extra of cartao?.extras ?? []) {
     const nome = extra.nome.trim()
     const valor = extra.valor.trim()
-    if (nome === '' && valor === '') continue
+    // O "Texto de antes" é o guardado do Desmontar, não linha para ler.
+    if ((nome === '' && valor === '') || extra.nome === NOME_DO_TEXTO_DE_ANTES) continue
     linhas.push(valor === '' || nome === '' ? { rotulo: 'Extra', texto: valor || nome } : { rotulo: nome, texto: valor })
   }
   return linhas

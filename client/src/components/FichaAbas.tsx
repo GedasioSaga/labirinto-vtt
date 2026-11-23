@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useContext, useEffect, useId, useMemo, use
 import { quantidadeDe } from '../lib/items'
 import { ABA_DOS_ITENS, passarAbaItensParaMochila } from '../lib/livros/coisaERegra'
 import { InventarioDaFicha } from './InventarioDaFicha'
-import { camposVisiveis, cartoesDaAba, novoCartao, paragrafosDoCartao, type CartaoDaFicha, type Personagem } from '../lib/personagem'
+import { camposVisiveis, cartoesDaAba, NOME_DO_TEXTO_DE_ANTES, novoCartao, paragrafosDoCartao, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } from '../lib/livroDeRegras'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { Ajuste } from '../lib/ajusteDaFicha'
@@ -1023,7 +1023,8 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, abri
         {aba.extras === true && (
           <fieldset className="lb-cartao__grupo">
             <legend className="lb-label">Campos extras</legend>
-            {cartao.extras.map((extra, i) => (
+            {/* O "Texto de antes" é o guardado do Desmontar: não é campo para ler nem para mexer à mão (a volta deixaria de achá-lo). */}
+            {cartao.extras.map((extra, i) => extra.nome === NOME_DO_TEXTO_DE_ANTES ? null : (
               <div key={i} className="lb-cartao__par">
                 <input
                   className="lb-input"

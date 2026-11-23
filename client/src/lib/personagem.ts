@@ -34,6 +34,13 @@ export interface CampoExtra {
   valor: string
 }
 
+/**
+ * O extra que o Montar grava, uma vez, com o texto escrito antes das peças (EDITOR.md §3.5;
+ * `textoGerado.ts`): é o guardado do Desmontar, nunca um campo para ler. Nenhuma vista do cartão
+ * (a ficha, o site do Lobby, o jogador, o catálogo) o mostra.
+ */
+export const NOME_DO_TEXTO_DE_ANTES = 'Texto de antes'
+
 /** Pontos que um cartão soma ou tira de um atributo (a transformação). */
 export interface Modificador {
   atributo: string
@@ -508,7 +515,7 @@ export function camposVisiveis(aba: AbaDoSistema, cartao: CartaoDaFicha, forma: 
   const fixos = aba.campos
     .filter((campo) => campo.forma === forma)
     .map((campo) => ({ rotulo: campo.rotulo, valor: (cartao.campos[campo.id] ?? '').trim() }))
-  const extras = forma === 'linha' && aba.extras === true ? cartao.extras.map((extra) => ({ rotulo: extra.nome.trim(), valor: extra.valor.trim() })) : []
+  const extras = forma === 'linha' && aba.extras === true ? cartao.extras.filter((extra) => extra.nome !== NOME_DO_TEXTO_DE_ANTES).map((extra) => ({ rotulo: extra.nome.trim(), valor: extra.valor.trim() })) : []
   return [...fixos, ...extras].filter((campo) => campo.valor.length > 0)
 }
 
