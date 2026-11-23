@@ -319,7 +319,7 @@ export function PaginaNpcsDBT({ personagens, sistema }: PaginaNpcsDBTProps) {
           <DetalheDoNpc key={escolhido.id} personagem={escolhido} personagens={personagens} deCombate={deCombate} ranks={ranks} onNovoNpc={setDialogo} />
         )}
       </div>
-      {arrasto.fantasma}
+      {arrasto.camadas}
 
       {dialogo !== null && (
         <NovoNpcDBTDialog

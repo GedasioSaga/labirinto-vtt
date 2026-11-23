@@ -168,6 +168,20 @@ export function virarVariacaoDe(personagens: Personagem[], personagemId: string,
   return sincronizados.map((candidato) => (candidato.id === personagemId ? comHpCheio(candidato) : candidato))
 }
 
+/**
+ * Virar variação de `alvoId` troca a ficha do NPC? Sim quando o sincronismo
+ * mudaria alguma parte que vem do modelo (`PARTES_DO_MODELO`: técnicas,
+ * armas, atributos e o resto da ficha): a dele some, e a tela pergunta antes
+ * (pedido de 23/11/2026). Ficha igual à do modelo, recusa
+ * (`podeVirarVariacaoDe`) ou NPC que sumiu: não.
+ */
+export function virarVariacaoTrocaAFicha(personagens: readonly Personagem[], personagemId: string, alvoId: string): boolean {
+  const antes = personagens.find((candidato) => candidato.id === personagemId)
+  if (antes === undefined) return false
+  const depois = virarVariacaoDe([...personagens], personagemId, alvoId).find((candidato) => candidato.id === personagemId)
+  return depois !== undefined && mexeuNoQueVemDoModelo(antes, depois)
+}
+
 /** O HP atual é o máximo lido (com força e modificadores)? Sem HP na ficha: não. */
 function hpCheio(personagem: Personagem): boolean {
   const atual = personagem.recursos[RECURSO_QUE_A_FORCA_MULTIPLICA]

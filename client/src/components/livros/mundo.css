@@ -625,6 +625,11 @@ html[data-mu-arrastando] * { cursor: grabbing; user-select: none; }
 .mu-modal__sub { margin: 6px 0 0; color: var(--lb-color-parchment-dim); }
 .mu-modal__corpo { display: flex; flex-direction: column; gap: 14px; padding: 12px 22px; }
 .mu-modal__pe { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px 20px; border-top: 1px solid var(--lb-gr-filete); }
+/* A pergunta antes de virar variação (ArrastoDoBestiario): só texto e dois botões. Nome comprido quebra em vez de vazar. */
+.mu-modal--pergunta { width: min(440px, 100%); }
+.mu-modal--pergunta .mu-modal__corpo { gap: 8px; }
+.mu-modal--pergunta .mu-modal__corpo p { margin: 0; overflow-wrap: anywhere; }
+.mu-modal--pergunta b { font-weight: 600; color: var(--lb-color-parchment); }
 
 /* =========================================================================
  * 7. Comparar e balancear (M2)

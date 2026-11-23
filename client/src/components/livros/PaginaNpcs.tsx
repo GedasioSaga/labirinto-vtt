@@ -464,7 +464,7 @@ function PaginaNpcsPadrao({ personagens, sistema }: PaginaNpcsProps) {
           />
         )}
       </div>
-      {arrasto.fantasma}
+      {arrasto.camadas}
 
       {dialogo !== null && (
         <NovoNpcDialog

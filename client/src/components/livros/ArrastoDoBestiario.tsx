@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ehVariacao, idDaFamilia, podeVirarVariacaoDe, soltarDoModelo, variacoesDe, virarVariacaoDe } from '../../lib/livros/combate'
+import { ehVariacao, idDaFamilia, podeVirarVariacaoDe, soltarDoModelo, variacoesDe, virarVariacaoDe, virarVariacaoTrocaAFicha } from '../../lib/livros/combate'
 import type { Personagem } from '../../lib/personagem'
 import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
 import { gravarNoMundo, Retrato, trocarFicha } from './comum'
@@ -26,6 +26,11 @@ import { IconeDoMundo } from './icones'
  * mudam (estilo e atributo direto no elemento): a lista re-renderiza uma vez
  * ao começar e uma ao terminar. Quem grava é o funil de sempre
  * (`gravarNoMundo`), com o aviso e o Desfazer dele.
+ *
+ * A variação não guarda ficha própria (`sincronizarVariacoes` copia a do
+ * modelo): quando os golpes, as armas ou os atributos do NPC são outros, a
+ * troca pergunta ANTES (`PerguntaAntesDeVirarVariacao`), no arrasto e no
+ * "Mover para o modelo…". Ficha igual à do modelo: grava sem perguntar.
  */
 
 /** Quanto o ponteiro anda (px) antes de o aperto virar arrasto; abaixo disso é clique. */
@@ -41,6 +46,10 @@ const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
  * tapava a linha-alvo e o realce dela (prova de 23/11/2026).
  */
 const FANTASMA_AO_LADO = { x: 14, y: 10 }
+/** A saída da pergunta (a mesma do "Novo NPC", `.mu-modal-fundo--saindo`). */
+const SAIDA_DA_PERGUNTA_MS = 150
+/** O que recebe o foco na prisão do Tab da pergunta (só os dois botões dela). */
+const FOCAVEIS_DA_PERGUNTA = 'button:not([disabled])'
 
 /** O `id` do NPC da linha (o `<li>`). */
 const ATRIBUTO_DO_NPC = 'data-bes-npc'
@@ -94,6 +103,24 @@ export function virarVariacaoNoMundo(personagem: Personagem, modelo: Personagem)
   })
 }
 
+/** A troca que espera o "Virar variação" da pergunta. */
+interface PedidoDeVariacao {
+  personagem: Personagem
+  /** O modelo da família de destino (o alvo que é variação já chega como o modelo dela). */
+  modelo: Personagem
+  /** O alvo era NPC único: os dois viram uma família, com ele de modelo. */
+  viraFamilia: boolean
+}
+
+/**
+ * A troca pede pergunta antes? Só quando a ficha do NPC some
+ * (`virarVariacaoTrocaAFicha`); `null` = grava direto.
+ */
+function pedidoQuePergunta(personagem: Personagem, modelo: Personagem, deCombate: readonly Personagem[]): PedidoDeVariacao | null {
+  if (!virarVariacaoTrocaAFicha(deCombate, personagem.id, modelo.id)) return null
+  return { personagem, modelo, viraFamilia: variacoesDe(modelo.id, deCombate).length === 0 }
+}
+
 /** "Soltar do modelo" (botão do detalhe e o arrasto para fora): vira NPC único com a ficha que tem agora. */
 export function soltarDoModeloNoMundo(personagem: Personagem, nomeDoModelo: string): Promise<boolean> {
   const antes = personagem
@@ -133,13 +160,15 @@ export interface ArrastoDoBestiario {
   arrastado: Personagem | null
   /** O NPC que acabou de mudar de família: a linha dele brilha no lugar novo. */
   pousou: string | null
-  fantasma: ReactNode
+  /** O fantasma do gesto e a pergunta antes de trocar a ficha (portais no `body`): a página os põe uma vez. */
+  camadas: ReactNode
 }
 
 /** O gesto da lista "Modelos e variações". `deCombate` é a lista dos NPCs de combate da página. */
 export function useArrastoDoBestiario(deCombate: readonly Personagem[]): ArrastoDoBestiario {
   const [arrastado, setArrastado] = useState<Personagem | null>(null)
   const [pousou, setPousou] = useState<string | null>(null)
+  const [pedido, setPedido] = useState<PedidoDeVariacao | null>(null)
   const apertoRef = useRef<ApertoNaLinha | null>(null)
   const pontoRef = useRef({ x: 0, y: 0 })
   const fantasmaRef = useRef<HTMLDivElement | null>(null)
@@ -189,14 +218,27 @@ export function useArrastoDoBestiario(deCombate: readonly Personagem[]): Arrasto
     }, POUSO_MS)
   }
 
-  /** Soltou num alvo: grava (aviso com Desfazer) e escolhe o NPC, que agora mostra a família nova. */
-  const aplicar = (personagem: Personagem, destino: DestinoNoBestiario, lista: readonly Personagem[]) => {
-    const gravou = destino.tipo === 'modelo' ? virarVariacaoNoMundo(personagem, destino.modelo) : soltarDoModeloNoMundo(personagem, nomeDoModelo(personagem, lista))
+  /** Gravou (aviso com Desfazer): escolhe o NPC, que agora mostra a família nova, e acende a linha dele. */
+  const mostrarOPouso = (gravou: Promise<boolean>, personagemId: string) => {
     void gravou.then((ok) => {
       if (!ok) return
-      useMundoDoLivroStore.getState().escolherNpc(personagem.id)
-      marcarPouso(personagem.id)
+      useMundoDoLivroStore.getState().escolherNpc(personagemId)
+      marcarPouso(personagemId)
     })
+  }
+
+  /** Soltou num alvo. Virar variação que apaga a ficha do NPC espera o "Virar variação" da pergunta. */
+  const aplicar = (personagem: Personagem, destino: DestinoNoBestiario, lista: readonly Personagem[]) => {
+    if (destino.tipo === 'soltar') {
+      mostrarOPouso(soltarDoModeloNoMundo(personagem, nomeDoModelo(personagem, lista)), personagem.id)
+      return
+    }
+    const pergunta = pedidoQuePergunta(personagem, destino.modelo, lista)
+    if (pergunta !== null) {
+      setPedido(pergunta)
+      return
+    }
+    mostrarOPouso(virarVariacaoNoMundo(personagem, destino.modelo), personagem.id)
   }
 
   /** Nada mudou: o fantasma volta para a linha de onde saiu (sem movimento reduzido) e some. */
@@ -333,7 +375,140 @@ export function useArrastoDoBestiario(deCombate: readonly Personagem[]): Arrasto
           document.body,
         )
 
-  return { comecar, engolirClique: () => engolirRef.current, arrastado, pousou, fantasma }
+  const camadas = (
+    <>
+      {fantasma}
+      {pedido !== null && (
+        <PerguntaAntesDeVirarVariacao
+          pedido={pedido}
+          onVirar={() => mostrarOPouso(virarVariacaoNoMundo(pedido.personagem, pedido.modelo), pedido.personagem.id)}
+          onFechar={() => setPedido(null)}
+        />
+      )}
+    </>
+  )
+
+  return { comecar, engolirClique: () => engolirRef.current, arrastado, pousou, camadas }
+}
+
+interface PerguntaAntesDeVirarVariacaoProps {
+  pedido: PedidoDeVariacao
+  /** "Virar variação": grava na hora; a janela sai em seguida. */
+  onVirar: () => void
+  /** A janela terminou de sair (pelos dois botões, pelo Esc ou pelo fundo). */
+  onFechar: () => void
+}
+
+/**
+ * A PERGUNTA ANTES DE TROCAR A FICHA: virar variação troca os golpes, as
+ * armas e os atributos do NPC pelos do modelo, e os dele somem (soltar do
+ * modelo depois não os traz de volta). Janela modal pequena, com o foco
+ * começando no Cancelar (o Enter sem querer não apaga nada); Esc ou clique
+ * no fundo cancelam; o Tab fica nos dois botões; o foco volta a quem estava
+ * com ele.
+ */
+function PerguntaAntesDeVirarVariacao({ pedido, onVirar, onFechar }: PerguntaAntesDeVirarVariacaoProps) {
+  const tituloId = useId()
+  const textoId = useId()
+  const caixaRef = useRef<HTMLDivElement | null>(null)
+  const cancelarRef = useRef<HTMLButtonElement | null>(null)
+  const apertouNoFundo = useRef(false)
+  const [saindo, setSaindo] = useState(false)
+  const { personagem, modelo, viraFamilia } = pedido
+
+  useEffect(() => {
+    const abriu = document.activeElement
+    cancelarRef.current?.focus()
+    return () => {
+      if (abriu instanceof HTMLElement && abriu !== document.body && abriu.isConnected) abriu.focus()
+    }
+  }, [])
+
+  const sair = () => {
+    if (saindo) return
+    setSaindo(true)
+    window.setTimeout(onFechar, movimentoReduzido() ? 0 : SAIDA_DA_PERGUNTA_MS)
+  }
+
+  const virar = () => {
+    if (saindo) return
+    onVirar()
+    sair()
+  }
+
+  const aoTeclar = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    // Janela modal: nenhuma tecla daqui vale para o mundo (o Esc fecharia o livro) nem para o "Mover para o modelo…".
+    event.stopPropagation()
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      sair()
+      return
+    }
+    if (event.key !== 'Tab') return
+    const botoes = Array.from(caixaRef.current?.querySelectorAll<HTMLElement>(FOCAVEIS_DA_PERGUNTA) ?? [])
+    const primeiro = botoes[0]
+    const ultimo = botoes[botoes.length - 1]
+    if (primeiro === undefined || ultimo === undefined) return
+    if (event.shiftKey && document.activeElement === primeiro) {
+      event.preventDefault()
+      ultimo.focus()
+    } else if (!event.shiftKey && document.activeElement === ultimo) {
+      event.preventDefault()
+      primeiro.focus()
+    }
+  }
+
+  const aoClicarNoFundo = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (apertouNoFundo.current && event.target === event.currentTarget) sair()
+    apertouNoFundo.current = false
+  }
+
+  return createPortal(
+    <div
+      className={saindo ? 'mu-modal-fundo mu-modal-fundo--saindo' : 'mu-modal-fundo'}
+      onMouseDown={(event) => (apertouNoFundo.current = event.target === event.currentTarget)}
+      onClick={aoClicarNoFundo}
+    >
+      <div
+        ref={caixaRef}
+        className="mu-modal mu-modal--pergunta"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={tituloId}
+        aria-describedby={textoId}
+        onKeyDown={aoTeclar}
+      >
+        <div className="mu-modal__cab">
+          <h2 className="mu-modal__tit" id={tituloId}>
+            Virar variação?
+          </h2>
+        </div>
+        <div className="mu-modal__corpo" id={textoId}>
+          {viraFamilia ? (
+            <p>
+              <b>{personagem.nome}</b> e <b>{modelo.nome}</b> viram uma família: <b>{modelo.nome}</b> fica como modelo, e <b>{personagem.nome}</b>, como variação.
+            </p>
+          ) : (
+            <p>
+              <b>{personagem.nome}</b> vai virar variação de <b>{modelo.nome}</b>.
+            </p>
+          )}
+          <p>
+            Os golpes, as armas e os atributos passam a ser os de <b>{modelo.nome}</b>: os de agora somem. O nome, o retrato e a vida ficam.
+          </p>
+        </div>
+        <div className="mu-modal__pe">
+          <button ref={cancelarRef} type="button" className="mu-bt" onClick={sair}>
+            Cancelar
+          </button>
+          <button type="button" className="mu-bt mu-bt--primario" onClick={virar}>
+            Virar variação
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
 }
 
 interface LinhaDoBestiarioProps {
@@ -392,10 +567,12 @@ export const PROPS_DO_CARTAO_DA_LISTA = { [ATRIBUTO_DA_LISTA]: '' }
  * "MOVER PARA O MODELO…" do detalhe do NPC: o mesmo que o arrasto, pelo
  * teclado e pelo leitor de tela. O botão abre, logo embaixo, os NPCs que
  * aceitam este como variação; Esc fecha e devolve o foco ao botão. Modelo com
- * variações não tem o botão (não vira variação, `podeVirarVariacaoDe`).
+ * variações não tem o botão (não vira variação, `podeVirarVariacaoDe`). A
+ * troca que apaga a ficha do NPC pergunta antes, como no arrasto.
  */
 export function MoverParaOModelo({ personagem, deCombate }: { personagem: Personagem; deCombate: readonly Personagem[] }) {
   const [aberto, setAberto] = useState(false)
+  const [pedido, setPedido] = useState<PedidoDeVariacao | null>(null)
   const botaoRef = useRef<HTMLButtonElement | null>(null)
   const listaRef = useRef<HTMLDivElement | null>(null)
   // Só as linhas de cima: a variação de um modelo leva à mesma família que ele.
@@ -438,7 +615,9 @@ export function MoverParaOModelo({ personagem, deCombate }: { personagem: Person
               className="mu-chip"
               onClick={() => {
                 setAberto(false)
-                void virarVariacaoNoMundo(personagem, alvo)
+                const pergunta = pedidoQuePergunta(personagem, alvo, deCombate)
+                if (pergunta === null) void virarVariacaoNoMundo(personagem, alvo)
+                else setPedido(pergunta)
               }}
             >
               <Retrato imagem={alvo.retrato} nome={alvo.nome} tamanho="p" />
@@ -446,6 +625,17 @@ export function MoverParaOModelo({ personagem, deCombate }: { personagem: Person
             </button>
           ))}
         </div>
+      )}
+      {pedido !== null && (
+        <PerguntaAntesDeVirarVariacao
+          pedido={pedido}
+          onVirar={() => void virarVariacaoNoMundo(pedido.personagem, pedido.modelo)}
+          onFechar={() => {
+            setPedido(null)
+            // O chip que abriu a pergunta já saiu da tela: o foco volta ao "Mover para o modelo…".
+            botaoRef.current?.focus()
+          }}
+        />
       )}
     </div>
   )
