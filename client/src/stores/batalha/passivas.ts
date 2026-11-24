@@ -65,7 +65,7 @@ import { devolverFichasDaAcao } from './desfazer'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
 import { pedirAjuda, pedirAoMestre } from './ajuda'
 import type { AceitesDoPedido } from '../../lib/batalha/requisitos/ajuda'
-import { aliadosNaLuta } from '../../lib/batalha/equipes'
+import { aliadosNaLuta, quemLutaPeloDono } from '../../lib/batalha/equipes'
 import { acumuladoresDoPersonagem, acumuladorQueCarrega, comGastoNoAcumulador, comOEventoNosAcumuladores, nivelDoAcumulador } from '../../lib/batalha/acumuladorNaBatalha'
 import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
@@ -331,7 +331,7 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     if (ocultoParaQuemPede(autor, personagem, pedido.cartaoId)) return false
     // REQUISITOS C: o retrato do "Para evoluir" vê as fichas da mesa e os aliados na luta; o mestre força.
     const invocados = turnos.invocados ?? []
-    const aliados = aliadosNaLuta(personagemId, [...turnos.cartas.map((candidata) => candidata.personagemId), ...invocados.map((invocado) => invocado.personagemId)], { equipes: mesa.equipes(), personagens, invocados })
+    const aliados = aliadosNaLuta(personagemId, [...turnos.cartas.map((candidata) => candidata.personagemId), ...invocados.map((invocado) => invocado.personagemId)], { equipes: mesa.equipes(), personagens, invocados: quemLutaPeloDono(turnos) })
     const ctxDaEvolucao: ContextoDaEvolucao = {
       personagem,
       sistema,

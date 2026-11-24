@@ -108,6 +108,7 @@
     <ul class="notas">
       <li>Fontes: client/src/lib/caracteristicas/, client/src/components/caracteristicas/, client/src/stores/batalha/companions.ts, client/src/stores/batalhaFabrica.ts (cenaDoInicio, desligar), client/src/stores/mesaDaAventura.ts, client/src/net/batalhaNoHost.ts, client/src/net/protocoloDaBatalha.ts, client/src/net/hostSession.ts (lugarNaBatalha), client/src/player/main.tsx.</li>
       <li>A Arena de testes, a batalha Dragon Ball e a janela separada da mesa da batalha ainda não levam companion.</li>
+      <li>Nota de 23/11/2026 (prova por gestos): na luta o companion conta como o dono, igual ao invocado. Todo lado da batalha (mira do jogador e do mestre, aliados do golpe, passivas) lê <code>quemLutaPeloDono</code> em client/src/lib/batalha/equipes.ts. Antes, o companion ficava do lado dos NPCs, e a mira da vez dele punha o dono do outro lado.</li>
     </ul>
   </div>
 </body>

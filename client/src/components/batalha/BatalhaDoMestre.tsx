@@ -3,7 +3,7 @@ import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type AjudaPendente, type ContraAtaque, type FormaPendente, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { EscolhaDoAliado, PedidosDeAjuda, type AjudaNaTela } from './PedidosDeAjuda'
 import { escolhaDaAjuda, type EscolhaDaAjuda } from '../../lib/batalha/requisitos/ajuda'
-import { aliadosNaLuta, equipeDe } from '../../lib/batalha/equipes'
+import { aliadosNaLuta, equipeDe, quemLutaPeloDono } from '../../lib/batalha/equipes'
 import { comOBonusDosAcumuladores } from '../../lib/batalha/acumuladorNaBatalha'
 import { cartaoDoPedido, contextoDosRequisitos, vizinhosDaTela } from '../../lib/batalha/requisitos/montar'
 import { motivoDoEvoluir, portaoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
@@ -247,7 +247,7 @@ function escolhaDaAjudaDoNpc(mesa: Mesa, turnos: TurnosDaCena, carta: CartaDaOrd
   if (personagem === null || sistema === null || ctx === undefined) return null
   const cartao = cartaoDoPedido(personagem, cartaoId)
   if (cartao === undefined) return null
-  const lados = aliadosNaLuta(carta.personagemId, turnos.cartas.map((daOrdem) => daOrdem.personagemId), { equipes, personagens, invocados: turnos.invocados ?? [] })
+  const lados = aliadosNaLuta(carta.personagemId, turnos.cartas.map((daOrdem) => daOrdem.personagemId), { equipes, personagens, invocados: quemLutaPeloDono(turnos) })
   const doLado = turnos.cartas.flatMap((daOrdem) => {
     const ficha = daOrdem.tokenId === carta.tokenId || daOrdem.personagemId === null || !lados.has(daOrdem.personagemId) ? undefined : personagens.find((candidata) => candidata.id === daOrdem.personagemId)
     return ficha === undefined ? [] : [{ tokenId: daOrdem.tokenId, personagem: ficha }]

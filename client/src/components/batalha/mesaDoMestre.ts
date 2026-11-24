@@ -4,7 +4,7 @@ import type { MapaDoAlcance } from '../../lib/batalha/alcance/quemEntra'
 import { mapaDoAlcance } from '../../lib/batalha/alcance/segmentos'
 import { pisoDe } from '../../lib/pisos'
 import type { MapData } from '../../types/map'
-import { equipeDe, ladoNaBatalha, type Equipe } from '../../lib/batalha/equipes'
+import { equipeDe, ladoNaBatalha, quemLutaPeloDono, type Equipe } from '../../lib/batalha/equipes'
 import { acoesDoInvocado, comunsQueSaem, membrosDoBando } from '../../lib/batalha/invocacao'
 import type { BatalhaEmTurnos } from '../../lib/batalha/ponte'
 import { reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
@@ -65,7 +65,7 @@ export function nomeDaFicha(mesa: MesaDoMestre, tokenId: string, carta?: CartaDa
  * confere na área "aliados" da técnica montada (`ladoNaBatalha`).
  */
 function ladoDoPersonagem(mesa: MesaDoMestre, personagemId: string | null): string | null {
-  return ladoNaBatalha(personagemId, { equipes: mesa.equipes, personagens: mesa.personagens, invocados: mesa.cena?.turnos.invocados ?? SEM_INVOCADOS })
+  return ladoNaBatalha(personagemId, { equipes: mesa.equipes, personagens: mesa.personagens, invocados: mesa.cena === undefined ? SEM_INVOCADOS : quemLutaPeloDono(mesa.cena.turnos) })
 }
 
 /** O HP de um invocado (a ficha temporária dele); sem ficha ou sem vida, `null`. */

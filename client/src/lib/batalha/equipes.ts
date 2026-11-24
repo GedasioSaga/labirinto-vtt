@@ -110,12 +110,31 @@ export function aliadosDe(meusPersonagens: ReadonlySet<string>, equipes: readonl
 /** O lado de todo NPC sem equipe: "contra os jogadores", o padrão. É o mesmo texto do lado por tipo (`tipo:npc`). */
 const LADO_DOS_NPCS = 'tipo:npc'
 
+/** Uma ficha na luta que conta como a do dono (invocado ou companion). */
+interface FichaPeloDono {
+  personagemId: string
+  donoPersonagemId: string
+}
+
 /** O que `ladoNaBatalha` lê da mesa. */
 export interface LadosDaBatalha {
   equipes: readonly Equipe[] | undefined
   personagens: readonly Personagem[]
-  /** Os invocados em campo: a ficha temporária conta como a do dono. */
-  invocados: readonly { personagemId: string; donoPersonagemId: string }[]
+  /** Quem conta como o dono: os invocados em campo e os companions (`quemLutaPeloDono`). */
+  invocados: readonly FichaPeloDono[]
+}
+
+/**
+ * COMPANION (prova por gestos, 23/11/2026): quem luta pelo lado do dono, os
+ * invocados e os companions. O companion é uma ficha de NPC sem equipe; sem
+ * ele aqui, ficava do lado dos NPCs, e a mira da vez dele punha o dono "do
+ * outro lado" e escondia o inimigo entre os aliados. Todo `LadosDaBatalha`
+ * montado a partir dos turnos lê daqui.
+ */
+export function quemLutaPeloDono(turnos: { invocados?: readonly FichaPeloDono[]; companions?: readonly FichaPeloDono[] }): readonly FichaPeloDono[] {
+  const invocados = turnos.invocados ?? []
+  const companions = turnos.companions ?? []
+  return companions.length === 0 ? invocados : [...invocados, ...companions]
 }
 
 /**

@@ -18,7 +18,7 @@ import {
   textoDoSeloComMods,
 } from '../../lib/batalha/selos'
 import { comportamentoDoSelo } from '../../lib/batalha/condicoes'
-import { aliadosNaLuta } from '../../lib/batalha/equipes'
+import { aliadosNaLuta, quemLutaPeloDono } from '../../lib/batalha/equipes'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../../lib/batalha/disputa'
 import { disputaNoAcerto, seloPegaNoAlvo } from '../../lib/batalha/mecanicasAMao'
 import { TEXTO_DO_ALVO_SEM_FICHA } from '../../lib/batalha/disputaNoUso'
@@ -126,7 +126,7 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
    */
   const aliadosNaLutaDe = (personagemId: string | null, turnos: TurnosDaCena, personagens: readonly Personagem[]): Set<string> => {
     const invocados = turnos.invocados ?? []
-    return aliadosNaLuta(personagemId, [...turnos.cartas.map((carta) => carta.personagemId), ...invocados.map((invocado) => invocado.personagemId)], { equipes: mesa.equipes(), personagens, invocados })
+    return aliadosNaLuta(personagemId, [...turnos.cartas.map((carta) => carta.personagemId), ...invocados.map((invocado) => invocado.personagemId)], { equipes: mesa.equipes(), personagens, invocados: quemLutaPeloDono(turnos) })
   }
 
   /** O selo do golpe (o da mira ou o da técnica) no alvo que ele acertou, com a disputa da mecânica à mão quando há. */

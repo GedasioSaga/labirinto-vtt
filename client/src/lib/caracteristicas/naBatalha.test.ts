@@ -78,12 +78,13 @@ describe('companion pelo fio', () => {
       clientId: 'c-ana',
       playerId: 'jogador_ana',
       nome: 'Ana',
-      lugar: { sceneKey: CENA, meusTokens: new Set([tokenDoZe]), fichasNaTela: tokens.map((token) => ({ id: token.id, name: token.name })), meusPersonagens: new Set([zeId]), personagemDaFicha: new Map([[tokenDoZe, zeId]]) },
+      lugar: { sceneKey: CENA, meusTokens: new Set([tokenDoZe]), fichasNaTela: [...tokens.map((token) => ({ id: token.id, name: token.name })), { id: TOKEN_DA_MIMI, name: 'Mimi' }], meusPersonagens: new Set([zeId]), personagemDaFicha: new Map([[tokenDoZe, zeId]]) },
     }
-    const escolhasNoEstado = () => {
+    const estadoNoFio = () => {
       const msg = host.sync([ana], { sistema: SISTEMA_DO_TESTE, personagens: mesa.personagens() }).map((saida) => saida.msg).find((candidata) => candidata.type === 'batalha.estado')
-      return msg?.type === 'batalha.estado' ? msg.estado?.companions : undefined
+      return msg?.type === 'batalha.estado' ? msg.estado : undefined
     }
+    const escolhasNoEstado = () => estadoNoFio()?.companions
     // A escolha vai no estado: só para o dono, com a Mimi já marcada (as primeiras de pé).
     expect(escolhasNoEstado()?.[0]).toMatchObject({ donoPersonagemId: zeId, grupos: [{ nome: 'Gatos', limite: 1, padrao: ['pers_mimi'] }] })
     const resposta = host.companions(ana, { type: 'batalha.companions', reqId: 'c1', donoPersonagemId: zeId, escolhidos: ['pers_mimi'] })
@@ -92,8 +93,18 @@ describe('companion pelo fio', () => {
     const outro: ConexaoNaBatalha = { ...ana, clientId: 'c-bia', playerId: 'jogador_bia', lugar: ana.lugar === null ? null : { ...ana.lugar, meusPersonagens: new Set(), meusTokens: new Set() } }
     expect(host.companions(outro, { type: 'batalha.companions', reqId: 'c2', donoPersonagemId: zeId, escolhidos: [] }).saidas[0]?.msg).toMatchObject({ ok: false })
     // Depois da escolha, a carta da Mimi diz de quem é, e a escolha some do estado.
-    expect(escolhasNoEstado()).toBeUndefined()
+    // (O host só manda o estado quando muda: um sync só para as duas leituras.)
+    const depois = estadoNoFio()
+    expect(depois?.companions).toBeUndefined()
     expect(tokensDosCompanionsDe(loja.getState().cenas[CENA]?.turnos, new Set([zeId]))).toEqual([TOKEN_DA_MIMI])
     expect(tokensDosCompanionsDe(loja.getState().cenas[CENA]?.turnos, new Set(['pers_outro']))).toEqual([])
+    // Prova por gestos (23/11): a Mimi luta do lado do Zé, não do lado dos NPCs. Antes a mira do
+    // jogador punha o dono "do outro lado" e escondia o inimigo entre os aliados dela.
+    const cartas = depois?.cartas ?? []
+    const ladoDoToken = (tokenId: string) => cartas.find((carta) => carta.tokenId === tokenId)?.ladoNaLuta
+    const tokenDoMarinheiro = tokens.find((token) => token.characterId === MARINHEIRO.id)?.id ?? ''
+    expect(ladoDoToken(TOKEN_DA_MIMI)).toBeDefined()
+    expect(ladoDoToken(TOKEN_DA_MIMI)).toBe(ladoDoToken(tokenDoZe))
+    expect(ladoDoToken(TOKEN_DA_MIMI)).not.toBe(ladoDoToken(tokenDoMarinheiro))
   })
 })

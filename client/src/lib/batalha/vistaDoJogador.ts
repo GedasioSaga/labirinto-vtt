@@ -43,7 +43,7 @@ import {
 } from './combate'
 import { mudancaDoSelo } from './alcance/doGolpe'
 import { NIVEL_DO_ACUMULADOR_MAX } from './requisitos/modelo'
-import { corDaEquipe, equipeDe, equipesNaLeitura, ladoNaBatalha, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe, type LadosDaBatalha } from './equipes'
+import { corDaEquipe, equipeDe, equipesNaLeitura, ladoNaBatalha, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, quemLutaPeloDono, type Equipe, type LadosDaBatalha } from './equipes'
 import type { JudgeNaCena } from './judge'
 import { limiteDeArmas, recursoDoEscudo } from './leituraDaFicha'
 import { LEMBRETES_DA_MARCA_MAX } from './marca'
@@ -511,7 +511,7 @@ interface LadosNoRecorte {
 }
 
 function ladosNoRecorte(turnos: TurnosDaCena, ctx: ContextoDoJogador): LadosNoRecorte {
-  const mesa: LadosDaBatalha = { equipes: ctx.equipes, personagens: ctx.personagens, invocados: turnos.invocados ?? [] }
+  const mesa: LadosDaBatalha = { equipes: ctx.equipes, personagens: ctx.personagens, invocados: quemLutaPeloDono(turnos) }
   const meus = new Set<string>()
   for (const personagemId of ctx.meusPersonagens) {
     const lado = ladoNaBatalha(personagemId, mesa)
