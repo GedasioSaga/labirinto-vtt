@@ -2,17 +2,42 @@
   "lote": "L03",
   "titulo": "Tortura e fogo",
   "data": "2026-11-24",
+  "revisao": "Revisão do diretor de arte aplicada em 24/11/2026 (20 mudanças, todos os 10 itens redesenhados em parte). O resumo de cada uma está em \"revisaoDoDiretorDeArte\".",
   "prova": "docs/design/objetos-24-11/provas/lote-L03.png",
-  "comoFoiFeitaAProva": "Página HTML montada com o mesmo código do app (esbuild dos arquivos de client/src, aberta no Chromium headless do Playwright): cada objeto sai do próprio montador, de cenaEmTresQuartos e de pintarCena; cada carimbo, do assarDesenho do palco, com a sombra deitada na transparência do app e, nos acesos, o brilho somado por cima. Cada objeto aparece de cima e em 3/4 a 2x (112 px por casa) sobre pedra escura (#3c3b39), chão do app (#a8776a) e pedra clara (#b4ac9e), com a grade de 1 casa, mais o tamanho de mesa (50 px por casa) no escuro e no claro. Cada carimbo, nos 8 desenhos (um a cada 45 graus, sementes 0 a 7) sobre pedra quase preta, pedra escura, terra, chão do app e pedra clara; nas brasas, os pares saem acesos e os ímpares apagados. Painéis por item em docs/design/objetos/<arquivo>.png, feitos com folhaDeObjetosNovos.test.ts (de cima e 3/4 a 4x sobre terra e lajotas claras, com as medidas do portão).",
-  "medidasDoPortao": "folhaDeObjetosNovos.test.ts, os 8 objetos dentro do portão: saturação p95 de 0,41 a 0,58 (teto 0,62), contorno 0,23 (mínimo 0,06), luz mínima 0,044 a 0,045 (piso 0,043), 3/4 diferente da de cima e repetindo igual em todos; o corpo do teste da 3/4 levou de 98 a 1389 ms de 5000 (os piores, a roda e o fosso, 2 x 2 casas; medidos com outros agentes rodando ao lado). folhaDeCarimbosNovos.test.ts, os 2 carimbos dentro das metas: brasas com saturação p95 0,63 (teto 0,82), 70 comandos por desenho (teto 600), 8 giros diferentes de 8; ratos com saturação p95 0,27, 84 comandos, 8 giros de 8.",
+  "comoFoiFeitaAProva": "Página HTML montada com o mesmo código do app (esbuild dos arquivos de client/src, aberta no Chromium headless do Playwright): cada objeto sai do próprio montador, de cenaEmTresQuartos e de pintarCena; cada carimbo, do assarDesenho do palco, com a sombra deitada na transparência do app (os dois carimbos do lote são do chão e pintam a própria) e, nos acesos, o brilho somado por cima. Cada objeto aparece de cima e em 3/4 a 2x (112 px por casa) sobre pedra escura (#3c3b39), chão do app (#a8776a) e pedra clara (#b4ac9e), com a grade de 1 casa, mais o tamanho de mesa (50 px por casa) no escuro e no claro. Cada carimbo, nos 8 desenhos (um a cada 45 graus, sementes 0 a 7) sobre pedra quase preta, pedra escura, terra, chão do app e pedra clara; nas brasas, os pares saem acesos e os ímpares apagados. Painéis por item em docs/design/objetos/<arquivo>.png, refeitos com folhaDeObjetosNovos.test.ts (de cima e 3/4 a 4x sobre terra e lajotas claras, com as medidas do portão).",
+  "medidasDoPortao": "Refeitas depois da revisão. folhaDeObjetosNovos.test.ts, os 8 objetos dentro do portão: saturação p95 de 0,43 a 0,58 (teto 0,62; o mais alto é o braseiro, 0,575), contorno 0,23 (mínimo 0,06), luz mínima 0,044 a 0,045 (piso 0,043), 3/4 diferente da de cima e repetindo igual em todos; o tampo sobe nos cinco derivados e a sombra de baixo aparece nos três em pé (o guincho com forcaDaSombraDeBaixo 0,1); o corpo do teste da 3/4 levou de 98 a 793 ms de 5000 (os piores, o fosso, 793, e a roda, 619; 2 x 2 casas). folhaDeCarimbosNovos.test.ts, os 2 carimbos dentro das metas: brasas com saturação p95 0,63 (teto 0,82), contorno 0,185 (mínimo 0,15), 85 comandos por desenho (teto 600), 8 giros diferentes de 8, números crus no quadro; ratos com saturação p95 0,26, contorno 0,165, 60 comandos, 8 giros de 8, números crus no quadro.",
+  "revisaoDoDiretorDeArte": [
+    "1. #23 marcas: as três marcas acesas saíram (opção a). A ponta de cada ferro some debaixo de um monte de carvão; da haste em brasa sobra à vista 0,15 do meio lado, entre a borda e o monte. Nenhuma forma geométrica em cima do leito.",
+    "2. #23 silhueta: pés de BORDA_DE_FORA-0,06 a +0,04, tom 0,6; argolas em BORDA_DE_FORA+0,02, raio 2,6*k, caídas contra o bojo.",
+    "3. #23 na 3/4: o tacho deixou de ser coluna; são dois pinos (bojo e boca). O bojo tem a luz de cilindro (claro a 30% da largura, direita a 0,55), a boca é 8% mais estreita que ele (0,66 contra 0,72) e ALTURA caiu de 0,26 para 0,2. A sombra de cada punho nasce dentro da sombra do tacho, força 0,16.",
+    "4. #23 leito: TORRAO 5,6, tamanhos misturados (cada torrão ganha um tanto sorteado de raio, de uns 0,6 a 1,4 do médio) e o calor concentrado no lado dos ferros. O peso multiplicado pedido dava bolhas redondas dentro dos torrões grandes; ficou o peso somado, que dá o mesmo espalhamento de tamanhos sem as bolhas.",
+    "5. #24 grelha: 5 x 5 barras quadradas, RAIO_DA_BARRA 2,4, sem quadro, dobradiça nem argola, pousada em 4 calços de ferro nos cunhais; a beira de baixo de cada barra tem o rim light de BRASA_QUENTE (0,5 em média, mais na quina), só em cima da cova.",
+    "6. #24 fundura: a parede de tijolo aparece no lado de trás (0,07 da meia pegada) e no da esquerda (0,06), laranja junto do leito e quase preta na boca; na frente e na direita, uma lasca de 0,016. CLARO_DO_FOGO_NA_BORDA 0,5, só nos 15% mais perto da boca.",
+    "7. #24 pedra: o grão caiu à metade no alto das pedras e a fuligem vem em manchas macias; um cunhal lascado (o de cima à direita) e uma pedra fora do prumo (a da frente à esquerda). A FRENTE da borda na 3/4 também perdeu o pontilhado: o assento de argamassa de cada pedra, que dá o material da frente, vai com o ruído macio da ardósia na cor da pedra escolhida, um pouco mais no escuro (0,84).",
+    "8. #22, #25 e #26 madeira: a escolhida entra escurecida a 0,75 (o carvalho cai em #6e5438), com veio fino e fechado por cima, manchas de idade e a umidade (0,25) subindo do pé de cada peça (na roda, nas pontas das vigas do pé). O latão claro saiu: fivelas em ferro escuro (#5a5652) ou no ferro das ferragens.",
+    "9. #22: corda de cânhamo #a08a68 com a torção num castanho do próprio tom; a sombra projetada tem a altura inteira da tábua (96,5 px do desenho, a conta dos outros em pé, como a armadura: z = a altura desenhada), força 0,22. O quadro de avisos usa 0,6 casa para um quadro de 0,4: a mesma ideia.",
+    "10. #25: 12 espinhos triangulares saem da beira de FORA do aro (comprimento 4*k, base 2,2*k, ferro escuro com o lado da luz claro; nenhum debaixo de uma tira); cada tira é uma faixa de 4*k que cruza o aro inteiro, em COURO #5c4533, com fivela de ferro em quadro e a ponta solta para fora. Os anéis dourados saíram.",
+    "11. #25 sombra da roda: força 0,18 e borda de 7*k.",
+    "12. #26: lâmina em ACO #8f9498 fosco (tom 0,92, brilho 0,16) com oxidação #6e6a64 a 0,2; FIO só na faixa de 1,2 do gume. A sombra tem a altura inteira do desenho: as duas colunas, a luneta, a trave e a lâmina caem compridas, força 0,22 (0,2 nas suspensas).",
+    "13. #27: recomposto como um monte só (oval de uns 70% da casa, uma sombra de contato debaixo de tudo): trouxa grande atrás no meio, roupas dobradas encostadas nela (a lã em #6a6f76), as duas botas deitadas de perfil, a espada atravessada por cima com ponteira de ferro escuro, e o cinto dela caindo da pilha até o chão como fita, com fivela em quadro reto.",
+    "14. #28: o tambor é a forma dominante (cilindro deitado de 60% da largura da tábua, com a corrente enrolada); a roda dentada virou catraca de lado, 35% do tamanho (raio 5,5 de 15,6), 8 dentes grossos, ferro escuro com brilho só nas pontas; a manivela tem punho de madeira escura.",
+    "15. #28 correntes: três, desiguais (uma esticada até a argola do chão, uma frouxa em barriga com a algema aberta na ponta, uma enrolada em monte), cada coisa com a sua sombra de contato. A elipse única da 3/4 NÃO pôde sair de todo: tresQuartos.test.ts pede que o objeto em pé ganhe sombra na 3/4 (2% a mais). Ficou em 0,1 (era 0,34), pelo perfil do tipo.",
+    "16. #21 perfil: ombro numa rampa só, de 0,38 em -0,78 (o pescoço) a 0,78 em -0,5; fim em [0,93, 0,44], [0,985, 0,3], [1, 0,14]; dois calombos pequenos dos pés; o peito são dois calombos compridos e sobrepostos, tom 1,02, borda de 3,2*k.",
+    "17. #21 corda e 3/4: corda em cânhamo #7e6848, tom 0,85. Na 3/4 o vulto deixou de ser coluna: são dois pinos, e o flanco é o mesmo contorno com o pano na sombra (tom 0,52), de beira arredondada, com as cordas dando a volta. O tom pedido (0,7) quase não mudava nada, porque a frente da coluna já saía a 0,74 e ainda lia como laje.",
+    "18. #30 sombra: 'nenhuma', com uma sombra de contato macia debaixo de cada rato (do tamanho do corpo, deslocada 0,012 na direção da sombra do mapa, alfa 0,3). MEIO_Y 0. O bando sobe só o que passar do fundo do quadro (0,27), para nada ser cortado.",
+    "19. #30 forma: corpo e cabeça num contorno só, em gota, liso; a luz é um degradê só, do lado da luz para o da sombra; rabo numa cor só; patas quase no tom do pelo; a orelha é uma mancha só (com miolo claro virava olho esbugalhado).",
+    "20. #29: cinza em degradês radiais macios de #7a7068, do núcleo até o meio da cauda; a brasa é um anel fino rente à base de cada torrão (num trecho sorteado) e, em alguns, uma fresta na face de cima; o punhado caiu com rumo (núcleo deslocado e cauda de migalhas)."
+  ],
   "notasGerais": [
     "Nada foi registrado: tipos.ts, pecasNovas.ts, gruposDoObjeto.ts, construcoes.ts, mobilia.ts, luzDoFogo.ts, materiais.ts, moveis/index.ts, tresQuartos.ts, icons.tsx, carimbos/novos/index.ts, pacote-animacoes.cjs e os testes de contagem ficam para o integrador.",
     "Os ids de tipo sugeridos são o nome do arquivo (camelCase), os da LISTA.md. Confira se não colidem com tipos já registrados.",
     "Grupos existentes usados: 'salaDeTortura' (Sala de tortura), onde já moram o potro, a dama de ferro e o tronco, e 'temploEMasmorra' (Templo e masmorra). O fosso é construção: sugiro 'construcoesDoCastelo' (Castelo) em GRUPO_DA_CONSTRUCAO.",
     "Dependências: todos os arquivos do lote só importam módulos que já estão na main (formas, motor, contexto, ruido, andaimeDaTresQuartos, fogoDeCasa, fogueira, corrente, carimbos/embutidos). Nenhum arquivo do lote importa outro arquivo do lote: podem ser registrados em qualquer ordem.",
     "TRÊS itens iluminam e pedem entrada em lib/luzDoFogo.ts: o braseiro com ferros e o fosso de brasas (LUZ_DOS_OBJETOS) e as brasas espalhadas (LUZ_DOS_CARIMBOS). A tabela só aceita tom CLARO (a luz multiplica o mapa); o laranja fica no desenho. Os valores sugeridos estão em cada item.",
-    "A brasa do braseiro e a do fosso são PARADAS, sem chama: não entram na disposição do fogo de casa (lib/mobilia/fogoDeCasa.ts). Reaproveitam FOGO_PARADO e texHalo de moveis/fogoDeCasa.ts e as cores BRASA_QUENTE e BRASA_VIVA de moveis/fogueira.ts.",
-    "Três objetos são desenhados DE FRENTE nas duas vistas (perfil EM_PE, como a armadura e a estátua de cavalo): prancha de tortura, guilhotina e guincho de corrente. Se tresQuartos.test.ts exigir que todo móvel suba, os três entram na lista dos em pé.",
+    "A brasa do braseiro e a do fosso são PARADAS, sem chama: não entram na disposição do fogo de casa (lib/mobilia/fogoDeCasa.ts). Reaproveitam FOGO_PARADO, texHalo e texBrasa de moveis/fogoDeCasa.ts e as cores BRASA_QUENTE e BRASA_VIVA de moveis/fogueira.ts.",
+    "Três objetos são desenhados DE FRENTE nas duas vistas (perfil em pé, como a armadura e a estátua de cavalo): prancha de tortura, guilhotina e guincho de corrente. A prancha e a guilhotina levam EM_PE; o guincho leva { modo: 'em-pe', forcaDaSombraDeBaixo: 0.1 } (ver o item).",
+    "Três objetos sobem na 3/4 por PINOS (pontos sem sombra, como a bacia do Braseiro), e não por coluna: o corpo amortalhado, o braseiro com ferros e, em parte, os pertences confiscados. O perfil continua DERIVADO; nada a fazer no registro.",
+    "A madeira das três peças de tortura (prancha, roda, guilhotina) é envelhecida DENTRO do desenho: o material escolhido entra a 0,75. Com o padrão (carvalho) a base cai em #6e5438; com a nogueira fica bem mais escura, com o pinho, mais clara. O padrão sugerido continua o carvalho.",
     "Prancha de tortura e roda de tortura são VAZIAS de propósito: o mestre põe o token em cima. Por isso não sugiro nenhuma das duas em ehMovelQueBarra.",
     "Sem sangue vivo em nenhum item. A única marca é a sombra de vinho velho, quase apagada, na tábua de baixo da luneta da guilhotina.",
     "Nenhum gesto, controle ou tela nova: são só desenhos para o catálogo. O que muda para quem usa o editor aparece só depois do registro (menu, busca, grupo, ícone e a luz dos três itens de fogo).",
@@ -33,11 +58,11 @@
       "tipoSugerido": "corpoAmortalhado",
       "imagem": "docs/design/objetos/corpo-amortalhado.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Pano cru de linho (#bdae92) enrolado em faixas de través, cada faixa com duas listras apagadas azul-acinzentadas (#76808a) que somem em manchas; sujeira de terra (#8c7960), nunca vinho; cinco voltas de corda (o material 'corda'), uma com o nó e as duas pontas, e a ponta da corda dos tornozelos largada no chão.",
-      "perfil3x4": "DERIVADO. O vulto é uma coluna baixa (0,19 do menor lado, cerca de 0,1 casa): a frente é uma faixa estreita do pano até o chão. A ponta da corda fica no chão.",
+      "coresFixas": "Pano cru de linho (#bdae92) enrolado em faixas de través, cada faixa com duas listras apagadas azul-acinzentadas (#76808a) que somem em manchas; sujeira de terra (#8c7960), nunca vinho; cinco voltas de corda de cânhamo ESCURO (#7e6848 a 0,85, torção #5a4830), uma com o nó e as duas pontas, e a ponta da corda dos tornozelos largada no chão.",
+      "perfil3x4": "DERIVADO, por dois pinos. O do lombo sobe o vulto visto de cima (0,24 do menor lado, cerca de 0,13 casa); o do flanco sobe menos (30% disso) o mesmo contorno com o pano na sombra (tom 0,52), e a parte de baixo dele aparece redonda debaixo do lombo, com as cordas dando a volta. A ponta da corda fica no chão.",
       "luz": null,
       "palavrasDeBusca": ["mortalha", "corpo", "cadáver", "defunto", "corpo enrolado", "corpo sob lençol", "fardo", "múmia"],
-      "paraOIntegrador": "A cabeça fica à ESQUERDA no giro 0. Sem rosto, sem mão e sem sangue: quem conta é o volume (cabeça, ombros, corpo afinando até os pés). Nada lê o giro nem c.m. Escala pelo menor lado (k = min(hw / 0,85 G, hh / 0,275 G)): esticado, o vulto cresce inteiro. Junta quatro itens da lista dos mapas (corpo enrolado, mortalha, corpo sob lençol, fardo embrulhado): as palavras de busca cobrem os quatro. Outro grupo possível: 'cemiterio'. Ícone sugerido: vulto comprido com a bola da cabeça e três riscos de corda."
+      "paraOIntegrador": "A cabeça fica à ESQUERDA no giro 0. Sem rosto, sem mão e sem sangue: quem conta é o volume (cabeça, ombros numa rampa só, corpo afinando até os pés, a ponta arredondada) e as voltas de corda escura. Nada lê o giro nem c.m. Escala pelo menor lado (k = min(hw / 0,85 G, hh / 0,275 G)): esticado, o vulto cresce inteiro. cena.corDoPiso é o pano na sombra (#52493c): com o piso padrão o contorno do pano saía castanho vivo. Junta quatro itens da lista dos mapas (corpo enrolado, mortalha, corpo sob lençol, fardo embrulhado): as palavras de busca cobrem os quatro. Outro grupo possível: 'cemiterio'. Ícone sugerido: vulto comprido com a bola da cabeça e três riscos de corda."
     },
     {
       "numero": 22,
@@ -56,8 +81,8 @@
         { "lugar": "madeira", "rotulo": "Madeira", "opcoes": "MADEIRAS", "padrao": "carvalho" },
         { "lugar": "ferragens", "rotulo": "Ferragens", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "As quatro cordas soltas (o material 'corda'), a cinta de couro da cintura com a fivela de latão, e o miolo da tábua gasto e mais claro onde as costas encostam.",
-      "perfil3x4": "EM_PE (figura desenhada de frente nas duas vistas; a 3/4 só põe a sombra de baixo).",
+      "coresFixas": "As quatro cordas soltas de cânhamo (#a08a68, torção #7a6648), a cinta de couro da cintura (#5a4331) com a fivela de ferro escuro (#5a5652), e o miolo da tábua gasto e mais claro onde as costas encostam. A madeira escolhida entra envelhecida (a 0,75, com veio fechado e a umidade subindo do pé).",
+      "perfil3x4": "EM_PE (figura desenhada de frente nas duas vistas; a 3/4 só põe a sombra de baixo). A sombra projetada tem a altura inteira da tábua e cai comprida para baixo à direita, força 0,22.",
       "luz": null,
       "palavrasDeBusca": ["tábua de amarrar", "tábua de tortura", "prancha", "cavalete de tortura"],
       "paraOIntegrador": "Tábua alta EM PÉ com as argolas e as cordas soltas, VAZIA: o mestre põe o token em cima, então NÃO entra em ehMovelQueBarra. Desenho em px de uma pegada de 1 x 2 casas (56 x 112), o chão embaixo; o quarto de volta deita a figura, como nos outros em pé. cena.corDoPiso é o escuro da madeira. Ícone sugerido: tábua alta com duas cintas de través e as escoras em triângulo no pé."
@@ -78,11 +103,11 @@
       "lugaresDeMaterial": [
         { "lugar": "metal", "rotulo": "Tacho", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "O carvão e a brasa viva (BRASA_QUENTE e BRASA_VIVA da fogueira), as três marcas acesas na ponta dos ferros (uma argola, uma cruz e um triângulo), os punhos de madeira com a virola e a fuligem da borda.",
-      "perfil3x4": "DERIVADO. O tacho é uma coluna (0,26 do menor lado); a boca, a brasa e os ferros sobem com ele (os ferros têm a caixa centrada no meio do tacho, por comMeioEm); os três pés ficam no chão.",
+      "coresFixas": "O carvão e a brasa viva (BRASA_QUENTE e BRASA_VIVA da fogueira), com o calor concentrado no lado dos ferros; o monte de carvão que enterra as pontas (a marca NÃO aparece: fica debaixo dele), o trecho da haste em brasa, os punhos de madeira com a virola e a fuligem da borda.",
+      "perfil3x4": "DERIVADO, por dois pinos (como a bacia do Braseiro). O do bojo sobe a barriga 42% da altura, e a parte de baixo dela aparece redonda debaixo da borda, com a luz de cilindro; o da boca (0,2 do menor lado) sobe a borda, o leito, os ferros e os punhos. Os três pés ficam no chão.",
       "luz": { "tabela": "LUZ_DOS_OBJETOS", "sugestao": "{ alcanceEmCasas: 2.5, cor: 0xffd29c, forca: 0.8, fumacaEBrasas: false }", "porque": "O tom do Braseiro, um pouco mais curto (tacho baixo, brasa sem chama). Sem fumaça nem brasas voando: a brasa é parada." },
       "palavrasDeBusca": ["ferro de marcar", "ferros em brasa", "marcar a ferro", "tacho de brasa", "braseiro do carrasco"],
-      "paraOIntegrador": "É o que o separa do Braseiro (bacia alta no tripé, só brasa): este é baixo, sem tripé, e os três punhos em leque saem para baixo à direita. A sombra dos punhos é pintada no chão já longe deles, para não virar estrutura na 3/4. Nada lê o giro. NÃO entra em lib/mobilia/fogoDeCasa.ts (sem chama animada). cena.corDoPiso é o escuro do ferro. Tudo sai do menor lado da pegada. Ícone sugerido: anel com três riscos saindo em leque."
+      "paraOIntegrador": "É o que o separa do Braseiro (bacia alta no tripé, só brasa): este é baixo e bojudo, sem tripé, e os três punhos em leque saem para baixo à direita. A sombra de cada punho nasce dentro da sombra do tacho. Nada lê o giro. NÃO entra em lib/mobilia/fogoDeCasa.ts (sem chama animada). cena.corDoPiso é o escuro do ferro. Tudo sai do menor lado da pegada. Ícone sugerido: anel com três riscos saindo em leque (sem símbolo nenhum dentro)."
     },
     {
       "numero": 24,
@@ -101,12 +126,12 @@
         { "lugar": "pedra", "rotulo": "Borda", "opcoes": "PEDRAS", "padrao": "granito" },
         { "lugar": "metal", "rotulo": "Grade", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "O leito de carvão em brasa viva (textura própria, texBrasasVivas: torrões escuros com cinza na crista, a brasa nas frestas e torrões inteiros acesos no meio), a fuligem na beira de dentro da borda e o vermelho da brasa nas beiras das barras (o fogo pega a grade por baixo).",
-      "perfil3x4": "DERIVADO. A borda de pedra é uma coluna em anel (0,09 do menor lado) e a grade, um tampo solto um fio acima dela; as paredes da cova, o leito e o halo têm a caixa centrada num vão da grade e ficam no chão.",
+      "coresFixas": "O leito de carvão em brasa viva (textura própria, texBrasasVivas: torrões de tamanhos misturados, a brasa nas frestas e torrões inteiros acesos no meio), a parede de tijolo da cova (#a66440 junto do leito, #2c2522 na boca), a fuligem em manchas e o calor na beira de dentro da borda, e o laranja da brasa na beira de baixo das barras.",
+      "perfil3x4": "DERIVADO. A borda de pedra é uma coluna em anel (0,09 do menor lado) e a grelha, um tampo solto pousado nos calços, um fio acima dela, que sai DEPOIS da borda (por cima das pedras); as paredes da cova, o leito e o halo têm a caixa centrada num vão da grelha e ficam no chão. A caixa de cada pedra (e do assento de argamassa dela) é centrada num ponto dela fora do eixo de qualquer barra, para subir com a borda e não com a grelha.",
       "luz": { "tabela": "LUZ_DOS_OBJETOS", "sugestao": "{ alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: true }", "porque": "A luz da fornalha (o item junta a 'fornalha de incineração' do mapa 2). Se a fumaça preta de uma cova gradeada incomodar na cena, fumacaEBrasas: false." },
       "regraDeFabrica": "{ barra: true } (barra a passagem, NÃO tapa a visão; sem peloMenorLado)",
-      "palavrasDeBusca": ["fosso de brasa", "cova de brasas", "fornalha de incineração", "poço de fogo", "grade de brasas"],
-      "paraOIntegrador": "CONSTRUÇÃO: além dos passos de objeto, uma linha em GRUPO_DA_CONSTRUCAO e outra em REGRA_DE_FABRICA (lib/mobilia/construcoes.ts); sai do menu do Objeto sozinho, por ehConstrucao. Dobradiças na borda de TRÁS e a argola de puxar na da frente (giro 0). Nada lê o giro: a cova é quase igual dos quatro lados. cena.corDoPiso é o escuro da pedra. Tudo sai de frações da pegada. Ícone sugerido: quadrado de borda grossa com barras verticais."
+      "palavrasDeBusca": ["fosso de brasa", "cova de brasas", "fornalha de incineração", "poço de fogo", "grelha de brasas", "grade de brasas"],
+      "paraOIntegrador": "CONSTRUÇÃO: além dos passos de objeto, uma linha em GRUPO_DA_CONSTRUCAO e outra em REGRA_DE_FABRICA (lib/mobilia/construcoes.ts); sai do menu do Objeto sozinho, por ehConstrucao. Por cima vai uma GRELHA de forja (5 x 5 barras quadradas cruzadas, pousada em calços), sem dobradiça nem argola: não é alçapão, bueiro nem grade de corredor. Nada lê o giro, mas a cova não é igual dos quatro lados: a parede de dentro aparece no lado de trás e no da esquerda. cena.corDoPiso é o escuro da pedra. Tudo sai de frações da pegada. Ícone sugerido: quadrado de borda grossa com uma grelha cruzada dentro."
     },
     {
       "numero": 25,
@@ -126,11 +151,11 @@
         { "lugar": "madeira", "rotulo": "Madeira", "opcoes": "MADEIRAS", "padrao": "carvalho" },
         { "lugar": "ferragens", "rotulo": "Ferragens", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "As quatro tiras de couro afiveladas (dois pulsos, dois tornozelos) com a fivela de latão, e o cubo gasto e mais claro.",
-      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_RODA_DE_TORTURA } (0,11 G, importada do arquivo). A roda é um tampo solto na altura do eixo, o eixo é uma coluna no meio e a cruzeta do pé fica no chão.",
+      "coresFixas": "As quatro tiras de couro escuro (#5c4533) que cruzam o aro, com a ponta solta para fora, e o cubo gasto e mais claro. Os espinhos e as fivelas saem do material das ferragens (os espinhos escurecidos, com o lado da luz claro). A madeira escolhida entra envelhecida (a 0,75, com veio fechado e a umidade nas pontas das vigas do pé).",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_RODA_DE_TORTURA } (0,11 G, importada do arquivo). A roda é um tampo solto na altura do eixo, o eixo é uma coluna no meio e a cruzeta do pé fica no chão. Os espinhos e a ponta solta das tiras ficam fora do aro: a caixa de cada um é centrada no aro, para subir com ele.",
       "luz": null,
-      "palavrasDeBusca": ["roda de suplício", "roda de despedaçar", "roda da tortura", "roda de carroção"],
-      "paraOIntegrador": "O perfil do tipo TEM de trazer a espessura exportada, senão a beirada da roda sai com a espessura do tampo de mesa. Roda deitada no alto de um eixo, VAZIA: o mestre põe o token em cima, então NÃO entra em ehMovelQueBarra. Do alto, o que diz 'erguida' é a sombra, que aparece inteira nos vãos entre os raios. Nada lê o giro. cena.corDoPiso é o escuro da madeira. Tudo sai do menor lado da pegada. É o objeto mais caro do lote na 3/4 (até 1,4 s no corpo do teste, de 5 s). Ícone sugerido: roda de oito raios com quatro traços grossos no aro."
+      "palavrasDeBusca": ["roda de suplício", "roda de despedaçar", "roda da tortura", "roda de espinhos", "roda de carroção"],
+      "paraOIntegrador": "O perfil do tipo TEM de trazer a espessura exportada, senão a beirada da roda sai com a espessura do tampo de mesa. Roda deitada no alto de um eixo, VAZIA: o mestre põe o token em cima, então NÃO entra em ehMovelQueBarra. O que a separa da roda de carroça: os espinhos saindo da beira de fora e os quatro riscos escuros do couro. Do alto, o que diz 'erguida' é a sombra (fraca e esfumada, para não brigar com a roda). Nada lê o giro. cena.corDoPiso é o escuro da madeira. Tudo sai do menor lado da pegada. Na 3/4 custa 619 ms no corpo do teste, de 5 s (o mais caro do lote agora é o fosso, 793 ms). Ícone sugerido: roda de oito raios com espinhos por fora e quatro traços grossos cruzando o aro."
     },
     {
       "numero": 26,
@@ -149,8 +174,8 @@
         { "lugar": "madeira", "rotulo": "Madeira", "opcoes": "MADEIRAS", "padrao": "carvalho" },
         { "lugar": "ferragens", "rotulo": "Ferragens", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "O aço da lâmina de fio inclinado, a corda que passa na roldana e desce até o cunho, o vime do cesto e a sombra de vinho velho, quase apagada, na tábua de baixo da luneta.",
-      "perfil3x4": "EM_PE (figura desenhada de frente nas duas vistas; a 3/4 só põe a sombra de baixo).",
+      "coresFixas": "O aço fosco da lâmina (#8f9498) com oxidação leve (#6e6a64) e só o gume inclinado claro (#cdd0cf, uma faixa de 1,2 px), a corda de cânhamo (#a08a68) que passa na roldana e desce até o cunho, o vime do cesto (#8a7450, um pouco mais escuro que antes, para acompanhar a madeira) e a sombra de vinho velho, quase apagada, na tábua de baixo da luneta. A madeira escolhida entra envelhecida (a 0,75, com veio fechado e a umidade subindo do pé das colunas).",
+      "perfil3x4": "EM_PE (figura desenhada de frente nas duas vistas; a 3/4 só põe a sombra de baixo). A sombra projetada tem a altura inteira do desenho: as colunas, a luneta, a trave e a lâmina caem compridas para baixo à direita.",
       "luz": null,
       "palavrasDeBusca": ["cadafalso", "decapitação", "lâmina", "execução", "carrasco"],
       "paraOIntegrador": "Vista do lado em que a cabeça cai: duas colunas, a trave, a lâmina suspensa no cepo de peso, a luneta de meia-lua e o cesto. VAZIA e limpa, sem corpo. Desenho em px de uma pegada de 1 x 2 casas (56 x 112), o chão embaixo; o quarto de volta deita a figura. Estrutura cheia: se o integrador quiser que barre, é a candidata do lote a ehMovelQueBarra (não pus nada, a decisão é dele). cena.corDoPiso é o escuro da madeira. Ícone sugerido: duas colunas com a lâmina em trapézio no alto."
@@ -169,11 +194,11 @@
       "tipoSugerido": "pertencesConfiscados",
       "imagem": "docs/design/objetos/pertences-confiscados.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Tudo fixo, em tons contidos: a pilha de roupas dobradas (lã azul-acinzentada #626e7e embaixo, túnica de lã castanha #866250 no meio, camisa de linho #c9bda4 por cima com a gola e os botões de osso), o cinto de couro enrolado com a fivela de latão, a trouxa de estopa (#a6906c) amarrada no alto, o par de botas de couro (#7c5b40) com correia e fivela, e a espada embainhada (bainha escura, bocal, ponteira e pomo de latão, guarda de ferro).",
-      "perfil3x4": "DERIVADO. A pilha (7 px de 56), a trouxa (9 px) e o cano da bota em pé (10 px) são colunas de alturas diferentes; a bota tombada é baixa (4,5 px) e a espada fica no chão.",
+      "coresFixas": "Tudo fixo, em tons contidos, num monte só: a trouxa grande de estopa (#a6906c) amarrada no alto, atrás no meio; a pilha de roupas dobradas encostada nela (lã cinza-azulada #6a6f76 embaixo, túnica de lã castanha #866250, camisa de linho #c9bda4 por cima com a gola e os botões de osso); as duas botas de couro (#7c5b40) deitadas de perfil, com a sola, o salto e a correia de fivela de ferro; a espada embainhada atravessada por cima (bainha escura #4c3833, guarda e ponteira de ferro escuro #5a5652, pomo e bocal de latão sujo #7d6a48); e o cinto dela (#503b2e) caindo da pilha até o chão, com a fivela de ferro em quadro reto.",
+      "perfil3x4": "DERIVADO. A trouxa (9 px de 56), a pilha (6 px) e as botas deitadas (3,4 px) são colunas de alturas diferentes; a espada sobe por um pino até o alto do monte (9,6 px) e sai por último, por cima de tudo; o cinto tem um pedaço que sobe com a pilha e outro, num pino rente ao chão, que desce pela frente dela.",
       "luz": null,
       "palavrasDeBusca": ["pertences", "roupas dobradas", "trouxa", "botas", "espada embainhada", "bagagem", "confisco", "coisas dos presos"],
-      "paraOIntegrador": "A silhueta do monte vem antes do detalhe: a 25% de zoom sobram a mancha de dois tons (o retângulo das roupas e a bola da trouxa), as botas e o risco comprido da espada embaixo. A gola da camisa é o que faz a pilha ler como roupa (sem ela lia como livro com etiqueta). Nada lê o giro nem c.m. cena.corDoPiso é um castanho-escuro do monte. Escala por frações da pegada (as medidas miúdas, pelo menor lado). Ícone sugerido: trouxa redonda com o nó, ao lado de uma bota."
+      "paraOIntegrador": "A silhueta do monte vem antes do detalhe: a 25% de zoom sobram a mancha oval de panos pardos e o risco escuro da espada atravessado nela. Nada mostra boca redonda nem faz círculo (as botas são de perfil, o cinto é uma fita, a fivela é um quadro reto). Nada lê o giro nem c.m. cena.corDoPiso é um castanho-escuro do monte. Escala por frações da pegada (as medidas miúdas, pelo menor lado). Ícone sugerido: trouxa redonda com o nó e um risco diagonal por cima (a espada)."
     },
     {
       "numero": 28,
@@ -192,11 +217,11 @@
         { "lugar": "metal", "rotulo": "Ferro", "opcoes": "METAIS", "padrao": "ferro" },
         { "lugar": "madeira", "rotulo": "Tábua", "opcoes": "MADEIRAS", "padrao": "nogueira" }
       ],
-      "coresFixas": "A ferrugem em manchas nos raios e na chapa e o punho de madeira da manivela.",
-      "perfil3x4": "EM_PE (figura de parede desenhada de frente nas duas vistas, como o quadro de avisos; a 3/4 só põe a sombra de baixo).",
+      "coresFixas": "A ferrugem em manchas nos mancais, na catraca e nas correntes. O tambor e o punho da manivela saem da madeira escolhida, escurecida (0,62 e 0,56); a tábua, a 0,8.",
+      "perfil3x4": "{ modo: 'em-pe', forcaDaSombraDeBaixo: 0.1 } (figura de parede desenhada de frente nas duas vistas, como o quadro de avisos). A argola, a algema e o monte de corrente têm cada um a sua sombra de contato; a elipse única que a 3/4 põe debaixo de tudo fica quase apagada (0,1, e não o 0,34 padrão). Zero não pode: tresQuartos.test.ts pede que o objeto em pé ganhe sombra na 3/4 (medido com 0,1: sombra de baixo sim).",
       "luz": null,
-      "palavrasDeBusca": ["roda dentada", "engrenagem", "sarilho", "cabrestante", "guincho", "correntes"],
-      "paraOIntegrador": "Objeto de PAREDE: a parede fica na beira de CIMA da pegada no giro 0 (a convenção da tocha de parede), e as quatro correntes abrem em leque para baixo até as argolas chumbadas no chão. Usa elosAoLongo e texDoElo da corrente.ts que já existe. Desenho em px de uma pegada de 1,5 x 1,5 casa (84 x 84). cena.corDoPiso é o escuro do ferro. Ícone sugerido: roda dentada com três traços saindo para baixo em leque."
+      "palavrasDeBusca": ["sarilho", "cabrestante", "guincho", "tambor de corrente", "catraca", "correntes", "algema", "roda dentada"],
+      "paraOIntegrador": "Objeto de PAREDE: a parede fica na beira de CIMA da pegada no giro 0 (a convenção da tocha de parede). A forma que manda é o TAMBOR (cilindro deitado com a corrente enrolada); a roda dentada grande virou uma catraca pequena de lado, para não ler como o ícone de configurações. Três correntes desiguais: uma esticada até a argola chumbada no chão, uma frouxa com a algema aberta na ponta e uma enrolada em monte. Usa elosAoLongo e texDoElo da corrente.ts que já existe. Desenho em px de uma pegada de 1,5 x 1,5 casa (84 x 84). cena.corDoPiso é o escuro do ferro. Ícone sugerido: barra deitada (o tambor) numa tábua, com três traços desiguais caindo dela. NÃO use engrenagem no ícone."
     },
     {
       "numero": 29,
@@ -206,14 +231,14 @@
       "grupoSugerido": "os do chão, ao lado da Fenda em brasa na paleta dos carimbos",
       "idDoCarimbo": "brasas-espalhadas",
       "tamanho": 8,
-      "ocupaEmCasas": [1.22, 0.72],
+      "ocupaEmCasas": [1.03, 0.39],
       "sombra": "nenhuma",
       "arquivo": "client/src/carimbos/novos/brasasEspalhadas.ts",
       "exportacao": "carimbo",
       "exportacoesExtras": ["brilho", "paleta"],
-      "coresFixas": "Carvão (#36302c), a face de cima (#58514b) e a quina com cinza (#8a837a); a brasa morna apagada (#76362c), que é a cara dele de dia; a cinza rala no chão (#706a62, meio transparente) e a sombrinha de cada torrão (#1e1816). O que acende mora só no brilho.",
+      "coresFixas": "Carvão (#36302c), a face de cima (#58514b) e a quina com cinza (#8a837a); a brasa morna apagada (#76362c), que é a cara dele de dia, num anel fino rente à base de cada torrão aceso e numa fresta em alguns; a cinza no chão em manchas macias de cinza quente (#7a7068, transparente na beira) e a sombrinha de cada torrão (#1e1816). O que acende mora só no brilho.",
       "luz": { "tabela": "LUZ_DOS_CARIMBOS", "sugestao": "'brasas-espalhadas': { alcanceEmCasas: 1, cor: 0xffc8b0, forca: 0.45, treme: true }", "porque": "Luz CURTA, como pede a lista: o tom da Fenda em brasa, com dois terços do alcance e menos força (brasa solta, não fenda)." },
-      "paraOIntegrador": "DOIS desenhos no mesmo quadro e no mesmo giro, como a Fenda em brasa: registrar em CARIMBOS_NOVOS como { ...brasasEspalhadas, brilho: brilhoDasBrasasEspalhadas } e a paleta em PALETA_DOS_NOVOS. 'desenhar' é o punhado com a brasa apagada; 'brilho' é só o que acende (somado por cima e pulsando no palco, pixi/brilhoDosCarimbos.ts). É do chão (sombra 'nenhuma'): a sombrinha de cada torrão é pintada no próprio desenho. O giro gira o punhado; a luz não gira. Somar o id à lista de ids reservados de scripts/pacote-animacoes.cjs e, se a lista estiver lá, a animacoes/carimbo/README.md. Vai em volta do fosso e dos braseiros."
+      "paraOIntegrador": "DOIS desenhos no mesmo quadro e no mesmo giro, como a Fenda em brasa: registrar em CARIMBOS_NOVOS como { ...brasasEspalhadas, brilho: brilhoDasBrasasEspalhadas } e a paleta em PALETA_DOS_NOVOS. 'desenhar' é o punhado com a brasa apagada; 'brilho' é só o que acende (somado por cima e pulsando no palco, pixi/brilhoDosCarimbos.ts); nele cada torrão apaga o brilho dos de trás onde os cobre (destination-out, como a rocha vulcânica). O punhado caiu com rumo: um núcleo deslocado e uma cauda de migalhas; o giro gira o rumo, a luz não gira. Usa degradê radial (a cinza): os raios ficam em unidades do quadro, sem esticar a escala, para a conta dos números crus de embutidos.test.ts. É do chão (sombra 'nenhuma'): a sombrinha de cada torrão é pintada no próprio desenho. Somar o id à lista de ids reservados de scripts/pacote-animacoes.cjs e, se a lista estiver lá, a animacoes/carimbo/README.md. Vai em volta do fosso e dos braseiros."
     },
     {
       "numero": 30,
@@ -223,14 +248,14 @@
       "grupoSugerido": "os bichos e miudezas do chão na paleta dos carimbos",
       "idDoCarimbo": "ratos",
       "tamanho": 7,
-      "ocupaEmCasas": [0.63, 0.46],
-      "sombra": "baixa",
+      "ocupaEmCasas": [0.61, 0.46],
+      "sombra": "nenhuma",
       "arquivo": "client/src/carimbos/novos/ratos.ts",
       "exportacao": "carimbo",
       "exportacoesExtras": ["paleta"],
-      "coresFixas": "Dois pelos de rato de verdade, cada um em três tons (pardo e preto), rabo rosado-acinzentado, patas claras, o rosa de dentro da orelha e o olho escuro. Sem contorno de cartoon.",
+      "coresFixas": "Dois pelos de rato de verdade, cada um em três tons (pardo e preto) num degradê só, rabo rosado-acinzentado numa cor só (#866e64), patas quase no tom do pelo, a orelha um nada rosada e o olho escuro; a sombra de contato de cada rato (#1a1614, macia, alfa 0,3). Sem contorno de cartoon.",
       "luz": null,
-      "paraOIntegrador": "Dois ou três ratos por desenho (dois em 45% das sementes), cada um no seu terço em volta do meio, correndo em roda ou para fora, em poses sorteadas pela semente; o segundo é sempre o preto. O giro gira o bando. Registrar o carimbo em CARIMBOS_NOVOS e a paleta em PALETA_DOS_NOVOS; somar o id à lista de ids reservados de scripts/pacote-animacoes.cjs. Não ilumina. No tamanho de mesa cada rato tem uns 12 px: leem pela silhueta (corpo em gota e o rabo comprido)."
+      "paraOIntegrador": "Dois ou três ratos por desenho (dois em 45% das sementes), cada um no seu terço em volta do ponto do carimbo, correndo em roda ou para fora, em poses sorteadas pela semente; o segundo é sempre o preto. O giro gira o bando. MUDOU a sombra: agora é 'nenhuma' (do chão), e cada rato pinta a própria sombra de contato; a sombra tirada da silhueta ('baixa') se soltava deles. Por ser do chão, o palco o põe por baixo das sombras e dos outros objetos, como a poça. Registrar o carimbo em CARIMBOS_NOVOS e a paleta em PALETA_DOS_NOVOS; somar o id à lista de ids reservados de scripts/pacote-animacoes.cjs. Não ilumina. Usa degradê linear (o pelo) e radial (a sombra), com os raios em unidades do quadro. No tamanho de mesa cada rato tem uns 12 px: leem pela silhueta (corpo em gota e o rabo comprido)."
     }
   ]
 }

@@ -4,29 +4,35 @@
  * alta, em pé, onde o preso é amarrado de braços abertos. VAZIA: o mestre põe
  * o token em cima. Três pranchas grossas de pé, de quinas cortadas no alto,
  * abraçadas por duas CINTAS de ferro rebitadas; nos quatro cantos uma ARGOLA
- * num grampo, e de cada uma pende a CORDA solta (as dos pulsos balançam, as
- * dos tornozelos caem até o chão). No meio, a CINTA DE COURO da cintura,
- * frouxa, com a fivela de latão e a ponta pendendo. A tábua assenta numa VIGA
- * deitada com dois pés atravessados e é escorada por duas MÃOS-FRANCESAS.
+ * num grampo, e de cada uma pende a CORDA de cânhamo solta (as dos pulsos
+ * balançam, as dos tornozelos caem até o chão). No meio, a CINTA DE COURO da
+ * cintura, frouxa, com a fivela de ferro e a ponta pendendo. A tábua assenta
+ * numa VIGA deitada com dois pés atravessados e é escorada por duas
+ * MÃOS-FRANCESAS.
  *
- * Quem conta a história é a madeira: o miolo da tábua está GASTO e mais claro
- * onde as costas encostam. Nada de gente, de sangue ou de mancha escura.
+ * Quem conta a história é a madeira: VELHA de masmorra (a escolhida,
+ * escurecida, de veio fechado, com a umidade subindo do pé de cada peça) e
+ * com o miolo da tábua GASTO e mais claro onde as costas encostam. Nada de
+ * gente, de sangue ou de mancha vermelha. A corda é cânhamo pardo: a corda
+ * clara do app era o ponto mais claro do objeto e saltava na grade.
  *
  * Figura em pé, desenhada de frente nas duas vistas, como a armadura e a
  * estátua de cavalo: de cima e na 3/4 é a mesma imagem, e a 3/4 só põe a
  * sombra de baixo (`EM_PE` em `tresQuartos.ts`); o quarto de volta deita a
- * figura, como nos outros em pé. Desenho em px de uma pegada de 1 x 2 casas
- * (56 x 112, y cresce para baixo, o chão embaixo).
+ * figura, como nos outros em pé. A sombra projetada tem a altura inteira da
+ * tábua (a conta dos outros em pé): cai comprida para baixo à direita.
+ * Desenho em px de uma pegada de 1 x 2 casas (56 x 112, y cresce para baixo,
+ * o chão embaixo).
  *
- * A 25% de zoom sobram a tábua clara e alta, as duas cintas escuras de través
- * e o triângulo das escoras no pé: é o que diz "prancha de amarrar", e não
- * porta, mesa em pé ou lápide. Materiais: `madeira` e `ferragens`. A corda e o
- * couro são fixos.
+ * A 25% de zoom sobram a tábua alta, as duas cintas escuras de través e o
+ * triângulo das escoras no pé: é o que diz "prancha de amarrar", e não porta,
+ * mesa em pé ou lápide. Materiais: `madeira` e `ferragens`. A corda e o couro
+ * são fixos.
  */
-import type { Rgb } from '../../ruido'
+import { limitar01, type Rgb } from '../../ruido'
 import { anel, barra, cadeia, caixa, capsula, elipse, poligono, uniao, type Forma, type Ponto } from './formas'
-import { contato, type MaterialDaPeca, type OpcoesDaPeca } from './motor'
-import { G, QUARTO, materialDaPeca, type MontarMovel } from './contexto'
+import { contato, ruido, texturaDaClasse, type MaterialDaPeca, type OpcoesDaPeca, type Textura } from './motor'
+import { G, QUARTO, type MontarMovel } from './contexto'
 
 /** A pegada em que o desenho foi medido (px do protótipo): 1 x 2 casas. */
 const LARGURA = G
@@ -42,8 +48,9 @@ const MEIA_CINTA = 1.9
 const SOBRA_DA_CINTA = 1.2
 /** A viga do pé: a meia largura, o alto do tampo, a quina da frente e o chão. */
 const VIGA = { meia: 23, fundo: 42, topo: 45, pe: 51 }
-/** Os pés atravessados (o x do meio), vistos de topo. */
+/** Os pés atravessados (o x do meio), vistos de topo, e o chão deles. */
 const PES: readonly number[] = [-18.5, 18.5]
+const CHAO_DOS_PES = 53.5
 /** As mãos-francesas: da beira da tábua (y) até a ponta da viga. */
 const ESCORA = { alto: 12, largura: 3.6 }
 /** As argolas: o x e o y do grampo de cada uma (pulsos em cima, tornozelos embaixo) e os raios. */
@@ -53,22 +60,56 @@ const RAIO_DA_CORDA = 0.95
 /** A cinta de couro da cintura: o y dos grampos, a largura, o quanto cede no meio e o x da fivela. */
 const CINTURA = { y: 1, largura: 3.6, cede: 7, fivela: 4.5 }
 /** O miolo gasto: o meio, os raios e o quanto clareia. */
-const GASTO = { y: -6, rx: 7.5, ry: 27, alfa: 0.3 }
+const GASTO = { y: -6, rx: 7.5, ry: 27, alfa: 0.28 }
 
-/** A altura da tábua para a sombra no chão (px): ela cai para baixo à direita, comprida. */
-const ALTURA_DA_SOMBRA = 64
-const FORCA_DA_SOMBRA = 0.24
+/**
+ * A sombra no chão: a tábua em pé tem a altura inteira do desenho (a conta dos outros em pé, como a armadura), e a
+ * sombra dela cai comprida para baixo à direita.
+ */
+const ALTURA_DA_SOMBRA = TABUA.pe - TABUA.topo
+const FORCA_DA_SOMBRA = 0.22
 
+/** A madeira de masmorra: a escolhida, escurecida (o carvalho cai perto de #6e5238). */
+const TOM_DA_MADEIRA_VELHA = 0.75
+/** A umidade que sobe do pé de cada peça: até onde (px do desenho) e o quanto escurece. */
+const UMIDADE = { sobe: 15, forca: 0.25 }
 const TOM_DA_VIGA_DE_FRENTE = 0.74
 const TOM_DA_ESCORA = 0.8
 const TOM_DO_REBITE = 1.32
 const BRILHO_DO_FERRO = 0.34
 const ESCURO_DA_MADEIRA: Rgb = [0x4f, 0x3b, 0x2c]
 
-const CORDA = materialDaPeca('corda')
-/** O couro da cinta e o latão da fivela. */
+/** A corda de cânhamo: parda, com a torção num castanho do próprio tom. */
+const CANHAMO: MaterialDaPeca = { classe: 'liso', rgb: [0xa0, 0x8a, 0x68] }
+const TORCAO_DO_CANHAMO: Rgb = [0x7a, 0x66, 0x48]
+/** O couro da cinta e o ferro escuro da fivela (o latão claro saltava). */
 const COURO: MaterialDaPeca = { classe: 'liso', rgb: [0x5a, 0x43, 0x31] }
-const LATAO: MaterialDaPeca = { classe: 'metal', rgb: [0xa8, 0x8a, 0x58] }
+const FERRO_ESCURO: MaterialDaPeca = { classe: 'metal', rgb: [0x5a, 0x56, 0x52] }
+
+const DA_MADEIRA = texturaDaClasse('madeira')
+
+/**
+ * A madeira velha: o veio da madeira com um veio FINO E FECHADO por cima, manchas escuras de idade e, a partir do pé
+ * da peça (`pe`, o y do chão dela; `null` = sem pé no chão), a umidade que sobe `sobe` px, de beira irregular.
+ */
+function texMadeiraVelha(pe: number | null, sobe: number): Textura {
+  return (u, v, x, y, p, s, escala) => {
+    if (DA_MADEIRA !== null) DA_MADEIRA(u, v, x, y, p, s, escala)
+    s[3] += ruido(u * 0.035 + p.su, v * 1.5 + p.sv) * 0.09 - limitar01(ruido(x * 0.1 + p.su, y * 0.1 + p.sv) * 2.4 - 0.2) * 0.12
+    if (pe === null) return
+    const altura = (pe - y) / sobe + ruido(x * 0.28 + p.su, y * 0.1 + 31) * 0.8
+    s[3] -= UMIDADE.forca * limitar01(1.15 - altura)
+  }
+}
+
+/** O cânhamo: a torção em faixas de través, num castanho mais escuro do próprio tom. */
+const texCanhamo: Textura = (u, v, _x, _y, _p, s) => {
+  const t = limitar01((Math.sin((u * 0.75 + v * 1.25) * 0.95) - 0.3) / 0.7)
+  s[0] += (TORCAO_DO_CANHAMO[0] - s[0]) * t
+  s[1] += (TORCAO_DO_CANHAMO[1] - s[1]) * t
+  s[2] += (TORCAO_DO_CANHAMO[2] - s[2]) * t
+  s[3] += ruido(u * 0.6, v * 0.6) * 0.04 + 0.04
+}
 
 /** A curva de três pontos (Bézier de segundo grau) em `n` trechos: a corda solta não faz quina. */
 function curva(a: Ponto, b: Ponto, c: Ponto, n: number): Ponto[] {
@@ -87,34 +128,37 @@ export const montarPranchaDeTortura: MontarMovel = (c, cena) => {
   const por = (f: Forma, mat: MaterialDaPeca, o: OpcoesDaPeca): void => {
     cena.partes.push(c.peca(na(f), mat, { ...o, bisel: (o.bisel ?? 1) * e }))
   }
-  const madeira = c.m.madeira
+  const escolhida = c.m.madeira
+  const madeira: MaterialDaPeca = { ...escolhida, rgb: [escolhida.rgb[0] * TOM_DA_MADEIRA_VELHA, escolhida.rgb[1] * TOM_DA_MADEIRA_VELHA, escolhida.rgb[2] * TOM_DA_MADEIRA_VELHA] }
   const ferro = c.m.ferragens
-  const daMadeira = (semente: number, mais: OpcoesDaPeca = {}): OpcoesDaPeca => ({ bisel: 1, contorno: 0.3, semente, ...mais })
+  /** A madeira velha de uma peça com o pé em `pe` (px do desenho; sem ele, só o veio e as manchas). */
+  const daMadeira = (semente: number, pe: number | null, mais: OpcoesDaPeca = {}): OpcoesDaPeca => ({ bisel: 1, contorno: 0.3, semente, textura: texMadeiraVelha(pe === null ? null : pe * e, UMIDADE.sobe * e), ...mais })
   const doFerro = (semente: number, mais: OpcoesDaPeca = {}): OpcoesDaPeca => ({ tabua: 0, bisel: 0.7, contorno: 0.3, metal: BRILHO_DO_FERRO, semente, ...mais })
+  const daCorda = (semente: number, mais: OpcoesDaPeca = {}): OpcoesDaPeca => ({ tabua: 0, eixo: QUARTO, bisel: RAIO_DA_CORDA, contorno: 0.26, textura: texCanhamo, semente, ...mais })
   const sombraMiuda = { dist: 0.9 * e, forca: 0.3 }
   cena.corDoPiso = ESCURO_DA_MADEIRA
 
   // ---------- as sombras: o pé no chão e a tábua alta, caindo comprida para baixo à direita ----------
-  const pe = uniao(caixa(-VIGA.meia, VIGA.fundo, VIGA.meia, VIGA.pe, 0.8), uniao(caixa(PES[0] - 3.6, 48.5, PES[0] + 3.6, 53.5, 1), caixa(PES[1] - 3.6, 48.5, PES[1] + 3.6, 53.5, 1)))
+  const pe = uniao(caixa(-VIGA.meia, VIGA.fundo, VIGA.meia, VIGA.pe, 0.8), uniao(caixa(PES[0] - 3.6, 48.5, PES[0] + 3.6, CHAO_DOS_PES, 1), caixa(PES[1] - 3.6, 48.5, PES[1] + 3.6, CHAO_DOS_PES, 1)))
   cena.sombras.push(contato(na(pe), 0.34))
   cena.sombras.push({ forma: na(caixa(-TABUA.meia, VIGA.topo, TABUA.meia, VIGA.pe - 1, 1)), z: ALTURA_DA_SOMBRA * e, forca: FORCA_DA_SOMBRA })
 
   // ---------- o pé: os dois pés de topo, as mãos-francesas, a viga (a frente e o tampo) ----------
   PES.forEach((x, i) => {
-    por(caixa(x - 3.6, 48.5, x + 3.6, 53.5, 1), madeira, daMadeira(24201 + i, { tabua: 0, tom: 0.66, polar: { cx: x, cy: 51, r: 3 } }))
+    por(caixa(x - 3.6, 48.5, x + 3.6, CHAO_DOS_PES, 1), madeira, daMadeira(24201 + i, CHAO_DOS_PES, { tabua: 0, tom: 0.66, polar: { cx: x, cy: 51, r: 3 } }))
   })
   for (const lado of [-1, 1]) {
-    por(barra(lado * (TABUA.meia - 0.6), ESCORA.alto, lado * (VIGA.meia - 3.4), VIGA.topo, ESCORA.largura), madeira, daMadeira(24205 + lado, { tabua: 0, eixo: QUARTO, tom: TOM_DA_ESCORA }))
+    por(barra(lado * (TABUA.meia - 0.6), ESCORA.alto, lado * (VIGA.meia - 3.4), VIGA.topo, ESCORA.largura), madeira, daMadeira(24205 + lado, VIGA.topo + 3, { tabua: 0, eixo: QUARTO, tom: TOM_DA_ESCORA }))
   }
-  por(caixa(-VIGA.meia, VIGA.topo, VIGA.meia, VIGA.pe, 0.8), madeira, daMadeira(24210, { tabua: 0, tom: TOM_DA_VIGA_DE_FRENTE }))
-  por(poligono([[-VIGA.meia + 1.6, VIGA.fundo], [VIGA.meia - 1.6, VIGA.fundo], [VIGA.meia, VIGA.topo], [-VIGA.meia, VIGA.topo]]), madeira, daMadeira(24211, { tabua: 0, tom: 1, bisel: 0.5 }))
+  por(caixa(-VIGA.meia, VIGA.topo, VIGA.meia, VIGA.pe, 0.8), madeira, daMadeira(24210, VIGA.pe + 5, { tabua: 0, tom: TOM_DA_VIGA_DE_FRENTE }))
+  por(poligono([[-VIGA.meia + 1.6, VIGA.fundo], [VIGA.meia - 1.6, VIGA.fundo], [VIGA.meia, VIGA.topo], [-VIGA.meia, VIGA.topo]]), madeira, daMadeira(24211, null, { tabua: 0, tom: 1, bisel: 0.5 }))
 
-  // ---------- a tábua: três pranchas de pé, as quinas cortadas, o miolo gasto ----------
+  // ---------- a tábua: três pranchas de pé, as quinas cortadas, a umidade subindo do pé e o miolo gasto ----------
   const tabua = poligono([
     [-TABUA.meia, TABUA.topo + TABUA.quina], [-TABUA.meia + TABUA.quina, TABUA.topo], [TABUA.meia - TABUA.quina, TABUA.topo],
     [TABUA.meia, TABUA.topo + TABUA.quina], [TABUA.meia, TABUA.pe], [-TABUA.meia, TABUA.pe],
   ])
-  por(tabua, madeira, daMadeira(24220, { eixo: QUARTO, tabua: PRANCHA, bisel: 1.3, projeta: { dist: 1.6 * e, forca: 0.3 } }))
+  por(tabua, madeira, daMadeira(24220, TABUA.pe, { eixo: QUARTO, tabua: PRANCHA, bisel: 1.3, projeta: { dist: 1.6 * e, forca: 0.3 } }))
   const claro: MaterialDaPeca = { classe: 'liso', rgb: [Math.min(255, madeira.rgb[0] * 1.3 + 16), Math.min(255, madeira.rgb[1] * 1.3 + 14), Math.min(255, madeira.rgb[2] * 1.3 + 10)] }
   por(elipse(0, GASTO.y, GASTO.rx, GASTO.ry), claro, { bisel: 0, contorno: 0, alfa: GASTO.alfa, suave: 5 * e, semente: 24221 })
 
@@ -126,7 +170,7 @@ export const montarPranchaDeTortura: MontarMovel = (c, cena) => {
     }
   })
 
-  // ---------- a cinta de couro da cintura: presa nas duas beiras, frouxa (cede no meio), com a fivela e a ponta pendendo ----------
+  // ---------- a cinta de couro da cintura: presa nas duas beiras, frouxa (cede no meio), com a fivela de ferro e a ponta pendendo ----------
   const cinta = cadeia(curva([-TABUA.meia + 1.4, CINTURA.y], [0, CINTURA.y + CINTURA.cede], [TABUA.meia - 1.4, CINTURA.y], 10), CINTURA.largura / 2)
   por(cinta, COURO, { tabua: 0, bisel: 0.8, contorno: 0.32, semente: 24240, projeta: { dist: 1.2 * e, forca: 0.32 } })
   // Onde a fivela cai na curva da cinta (a mesma conta da `curva`: t pelo x).
@@ -134,12 +178,12 @@ export const montarPranchaDeTortura: MontarMovel = (c, cena) => {
   const naCinta: Ponto = [CINTURA.fivela, CINTURA.y + 2 * t * (1 - t) * CINTURA.cede]
   por(barra(naCinta[0] + 1.2, naCinta[1] + 0.6, naCinta[0] + 3.4, naCinta[1] + 9.5, CINTURA.largura * 0.7), COURO, { tabua: 0, bisel: 0.6, contorno: 0.32, tom: 0.9, semente: 24241, projeta: sombraMiuda })
   const fivela = uniao(anel(naCinta[0], naCinta[1], 2.7, 2.7, 1.4, 1.4), capsula(naCinta[0] - 1.7, naCinta[1], naCinta[0] + 1.7, naCinta[1], 0.4))
-  por(fivela, LATAO, { tabua: 0, bisel: 0.7, contorno: 0.3, metal: 0.5, semente: 24246, projeta: sombraMiuda })
+  por(fivela, FERRO_ESCURO, { tabua: 0, bisel: 0.7, contorno: 0.3, metal: 0.36, tom: 1.08, semente: 24246, projeta: sombraMiuda })
   for (const lado of [-1, 1]) {
     por(caixa(lado * (TABUA.meia - 1.4) - 1.6, CINTURA.y - 2, lado * (TABUA.meia - 1.4) + 1.6, CINTURA.y + 2, 0.5), ferro, doFerro(24242 + lado, { tom: 1.05, projeta: sombraMiuda }))
   }
 
-  // ---------- as argolas nos grampos e as cordas soltas ----------
+  // ---------- as argolas nos grampos e as cordas de cânhamo soltas ----------
   ARGOLAS.forEach(([x, y], i) => {
     const pulso = y < 0
     const para = x < 0 ? -1 : 1
@@ -148,14 +192,14 @@ export const montarPranchaDeTortura: MontarMovel = (c, cena) => {
     const caminho = pulso
       ? curva([x, fundoDaArgola - 1.2], [x + para * 0.4, fundoDaArgola + 7], [x + para * 2.4, fundoDaArgola + 15.5], 6)
       : [...curva([x, fundoDaArgola - 1.2], [x + para * 0.6, VIGA.topo + 1], [x + para * 2.2, VIGA.pe + 0.6], 5), ...curva([x + para * 2.2, VIGA.pe + 0.6], [x + para * 3.6, 55], [x + para * 9, 54], 5).slice(1)]
-    por(cadeia(caminho, RAIO_DA_CORDA), CORDA, { tabua: 0, eixo: QUARTO, bisel: RAIO_DA_CORDA, contorno: 0.3, tom: pulso ? 1 : 0.96, semente: 24250 + i, projeta: sombraMiuda })
+    por(cadeia(caminho, RAIO_DA_CORDA), CANHAMO, daCorda(24250 + i, { tom: pulso ? 1 : 0.96, projeta: sombraMiuda }))
     if (pulso) {
       // A ponta desfiada: dois fios curtos abrindo.
       const [fx, fy] = caminho[caminho.length - 1]
-      for (const abre of [-1, 1]) por(capsula(fx, fy, fx + abre * 1.1, fy + 2.4, 0.45), CORDA, { tabua: 0, bisel: 0.4, contorno: 0.26, tom: 0.92, semente: 24256 + i * 2 + abre })
+      for (const abre of [-1, 1]) por(capsula(fx, fy, fx + abre * 1.1, fy + 2.4, 0.45), CANHAMO, daCorda(24256 + i * 2 + abre, { bisel: 0.4, tom: 0.92 }))
     }
     // O nó da corda na argola.
-    por(elipse(x, fundoDaArgola - 0.6, 1.5, 1.3), CORDA, { tabua: 0, bisel: 1.1, contorno: 0.3, tom: 1.03, semente: 24262 + i, projeta: sombraMiuda })
+    por(elipse(x, fundoDaArgola - 0.6, 1.5, 1.3), CANHAMO, daCorda(24262 + i, { bisel: 1.1, contorno: 0.3, tom: 1.03, projeta: sombraMiuda }))
     por(anel(x, y + 2.2, ARGOLA.fora, ARGOLA.fora, ARGOLA.dentro, ARGOLA.dentro), ferro, doFerro(24266 + i, { bisel: 0.65, metal: 0.42, projeta: sombraMiuda }))
     por(caixa(x - 2, y - 1.9, x + 2, y + 0.5, 0.6), ferro, doFerro(24270 + i, { tom: 1.08, projeta: sombraMiuda }))
     por(elipse(x, y - 0.7, 0.75, 0.75), ferro, doFerro(24274 + i, { bisel: 0.7, tom: TOM_DO_REBITE, metal: 0.5, contorno: 0.2 }))
