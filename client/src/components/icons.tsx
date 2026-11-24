@@ -6,6 +6,7 @@
 
 import type { ReactNode } from 'react'
 import type { FormaDoTapete, TipoMobilia } from '../types/map'
+import { glifoDaLeva2411 } from './glifosDaLeva2411'
 
 interface IconProps {
   size?: number
@@ -3904,7 +3905,8 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
     case 'lapideTorta':
       // A lápide em arco tombada no monte de terra.
       return <path d="M4 20h16M8 20l-1-9a5 5 0 0 1 9-2l1 11" />
-
+    default:
+      return glifoDaLeva2411(tipo)
   }
 }
 

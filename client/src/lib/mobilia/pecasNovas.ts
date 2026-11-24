@@ -85,6 +85,23 @@ export const PECAS_NOVAS = [
   'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande',
   // A estátua de cavalo (21/11/2026), com e sem o pedestal: enfeite do Castelo no Objeto.
   'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
+  // A leva de 24/11/2026 (lotes L01 a L11 da lista dos 8 mapas, docs/design/objetos-24-11/LISTA.md).
+  'cadeiraDeFerro', 'mesaDeFerro', 'catreDeFerro', 'esteiraDePalha', 'baldeDeDejetos', 'grilhoesDeParede',
+  'bolaDeFerroComCorrente', 'latrinaDeCela', 'bancoDePedra', 'mesaDoCarcereiro', 'quadroDeChaves', 'jaulaDeChao',
+  'raloDeMasmorra', 'bauDeFerro', 'tabuaDePregos', 'cepoDoCarrasco', 'posteDeAcoite', 'gradeDeCorredor',
+  'corpoAmortalhado', 'pranchaDeTortura', 'braseiroComFerros', 'fossoDeBrasas', 'rodaDeTortura', 'guilhotina',
+  'pertencesConfiscados', 'guinchoDeCorrente', 'fossoDoSalao', 'pilarComBraseiro', 'lanternaGradeada', 'globoDeLuzRubra',
+  'seloDeOrbitas', 'plataformaDeRitual', 'gargula', 'estatuaDeBesta', 'estatuaEncapuzada', 'ponteDeCorrente',
+  'sarcofagoEntreaberto', 'sarcofagoDeBronze', 'caixaoDeFerro', 'lajeTumular', 'nichoFunerario', 'colunaLisa',
+  'pilastraQuadrada', 'urnaFuneraria', 'columbario', 'estradoEmMeiaLua', 'sarcofagoDeCristais', 'relicarioDeCristal',
+  'lajeTumularAcesa', 'pedestalComCristal', 'arandelaDeCristal', 'braseiroDeChamaFria', 'ossario', 'arcossolio',
+  'seloDeCristal', 'ponteDePedraQuebrada', 'ponteDeTabuasQuebrada', 'calcadaSobreAgua', 'muroEmRuina', 'pedestalEntalhado',
+  'colunaComGlifos', 'estelaMaia', 'cabanaDeLajes', 'tanqueComBorda', 'piramideEmDegraus', 'topoDoTemplo',
+  'cabecaColossal', 'idoloDourado', 'cascataEmDegraus', 'ponteSobrePilares', 'catreDesarrumado', 'camaDeCaixotes',
+  'mesaDeCaixote', 'cadeiraRemendada', 'bancoCorrido', 'cortinaDePassagem', 'trouxaDeRoupa', 'passarelaDeTabuas',
+  'vasoComPiaDeAco', 'mesinhaDeCela', 'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico',
+  'maquinaDeLavar', 'leitoHospitalar', 'mesaComComputador', 'cercaDeAlambrado', 'arquibancadaDePedra', 'fossoDeArena',
+  'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra', 'monteDeEntulho', 'camaDeTrapos',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -652,6 +669,103 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // A estátua de cavalo (21/11/2026) ocupa uma casa, como a armadura de pé; sem o pedestal, a cabeça fica no chão.
   estatuaDeCavalo: { rotulo: 'Estátua de cavalo', artigo: 'uma estátua de cavalo', tamanho: { largura: 1, altura: 1 }, redonda: false },
   estatuaDeCavaloSemPedestal: { rotulo: 'Estátua de cavalo sem pedestal', artigo: 'uma estátua de cavalo sem pedestal', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // A leva de 24/11/2026 (lotes L01 a L11 da lista dos 8 mapas, docs/design/objetos-24-11/LISTA.md).
+  cadeiraDeFerro: { rotulo: 'Cadeira de ferro', artigo: 'uma cadeira de ferro', tamanho: { largura: 0.6, altura: 0.6 }, redonda: false },
+  mesaDeFerro: { rotulo: 'Mesa de ferro', artigo: 'uma mesa de ferro', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  catreDeFerro: { rotulo: 'Catre de ferro', artigo: 'um catre de ferro', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  esteiraDePalha: { rotulo: 'Esteira de palha', artigo: 'uma esteira de palha', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  baldeDeDejetos: { rotulo: 'Balde de dejetos', artigo: 'um balde de dejetos', tamanho: { largura: 0.5, altura: 0.5 }, redonda: true },
+  grilhoesDeParede: { rotulo: 'Grilhões de parede', artigo: 'uns grilhões de parede', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
+  bolaDeFerroComCorrente: { rotulo: 'Bola de ferro com corrente', artigo: 'uma bola de ferro com corrente', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  latrinaDeCela: { rotulo: 'Latrina de cela', artigo: 'uma latrina de cela', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  bancoDePedra: { rotulo: 'Banco de pedra', artigo: 'um banco de pedra', tamanho: { largura: 2, altura: 0.7 }, redonda: false },
+  mesaDoCarcereiro: { rotulo: 'Mesa do carcereiro', artigo: 'uma mesa do carcereiro', tamanho: { largura: 1.5, altura: 0.8 }, redonda: false },
+  quadroDeChaves: { rotulo: 'Quadro de chaves', artigo: 'um quadro de chaves', tamanho: { largura: 1, altura: 0.6 }, redonda: false },
+  jaulaDeChao: { rotulo: 'Jaula de chão', artigo: 'uma jaula de chão', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  raloDeMasmorra: { rotulo: 'Ralo de masmorra', artigo: 'um ralo de masmorra', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  bauDeFerro: { rotulo: 'Baú de ferro', artigo: 'um baú de ferro', tamanho: { largura: 1, altura: 0.6 }, redonda: false },
+  tabuaDePregos: { rotulo: 'Tábua de pregos', artigo: 'uma tábua de pregos', tamanho: { largura: 2, altura: 0.75 }, redonda: false },
+  cepoDoCarrasco: { rotulo: 'Cepo do carrasco', artigo: 'um cepo do carrasco', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  posteDeAcoite: { rotulo: 'Poste de açoite', artigo: 'um poste de açoite', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  gradeDeCorredor: { rotulo: 'Grade de corredor', artigo: 'uma grade de corredor', tamanho: { largura: 2, altura: 0.25 }, redonda: false },
+  corpoAmortalhado: { rotulo: 'Corpo amortalhado', artigo: 'um corpo amortalhado', tamanho: { largura: 1.7, altura: 0.55 }, redonda: false },
+  pranchaDeTortura: { rotulo: 'Prancha de tortura', artigo: 'uma prancha de tortura', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  braseiroComFerros: { rotulo: 'Braseiro com ferros de marcar', artigo: 'um braseiro com ferros de marcar', tamanho: { largura: 1, altura: 1 }, redonda: true },
+  fossoDeBrasas: { rotulo: 'Fosso de brasas', artigo: 'um fosso de brasas', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  rodaDeTortura: { rotulo: 'Roda de tortura', artigo: 'uma roda de tortura', tamanho: { largura: 2, altura: 2 }, redonda: true },
+  guilhotina: { rotulo: 'Guilhotina', artigo: 'uma guilhotina', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  pertencesConfiscados: { rotulo: 'Pertences confiscados', artigo: 'uns pertences confiscados', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  guinchoDeCorrente: { rotulo: 'Guincho de corrente', artigo: 'um guincho de corrente', tamanho: { largura: 1.5, altura: 1.5 }, redonda: false },
+  fossoDoSalao: { rotulo: 'Fosso do salão', artigo: 'um fosso do salão', tamanho: { largura: 6, altura: 6 }, redonda: true },
+  pilarComBraseiro: { rotulo: 'Pilar com braseiro', artigo: 'um pilar com braseiro', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  lanternaGradeada: { rotulo: 'Lanterna gradeada de parede', artigo: 'uma lanterna gradeada de parede', tamanho: { largura: 0.4, altura: 0.5 }, redonda: false },
+  globoDeLuzRubra: { rotulo: 'Globo de luz rubra', artigo: 'um globo de luz rubra', tamanho: { largura: 0.8, altura: 0.8 }, redonda: true },
+  seloDeOrbitas: { rotulo: 'Selo de órbitas', artigo: 'um selo de órbitas', tamanho: { largura: 3, altura: 3 }, redonda: true },
+  plataformaDeRitual: { rotulo: 'Plataforma de ritual', artigo: 'uma plataforma de ritual', tamanho: { largura: 5, altura: 5 }, redonda: true },
+  gargula: { rotulo: 'Gárgula', artigo: 'uma gárgula', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  estatuaDeBesta: { rotulo: 'Estátua de besta', artigo: 'uma estátua de besta', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  estatuaEncapuzada: { rotulo: 'Estátua encapuzada', artigo: 'uma estátua encapuzada', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  ponteDeCorrente: { rotulo: 'Ponte de corrente', artigo: 'uma ponte de corrente', tamanho: { largura: 4, altura: 1 }, redonda: false },
+  sarcofagoEntreaberto: { rotulo: 'Sarcófago entreaberto', artigo: 'um sarcófago entreaberto', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  sarcofagoDeBronze: { rotulo: 'Sarcófago de bronze', artigo: 'um sarcófago de bronze', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  caixaoDeFerro: { rotulo: 'Caixão de ferro', artigo: 'um caixão de ferro', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  lajeTumular: { rotulo: 'Laje tumular', artigo: 'uma laje tumular', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  nichoFunerario: { rotulo: 'Nicho funerário', artigo: 'um nicho funerário', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  colunaLisa: { rotulo: 'Coluna lisa', artigo: 'uma coluna lisa', tamanho: { largura: 1, altura: 1 }, redonda: true },
+  pilastraQuadrada: { rotulo: 'Pilastra quadrada', artigo: 'uma pilastra quadrada', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  urnaFuneraria: { rotulo: 'Urna funerária', artigo: 'uma urna funerária', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  columbario: { rotulo: 'Columbário', artigo: 'um columbário', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  estradoEmMeiaLua: { rotulo: 'Estrado em meia-lua', artigo: 'um estrado em meia-lua', tamanho: { largura: 3, altura: 1.5 }, redonda: false },
+  sarcofagoDeCristais: { rotulo: 'Sarcófago de cristais', artigo: 'um sarcófago de cristais', tamanho: { largura: 1.5, altura: 2.5 }, redonda: false },
+  relicarioDeCristal: { rotulo: 'Relicário de cristal', artigo: 'um relicário de cristal', tamanho: { largura: 1, altura: 0.75 }, redonda: false },
+  lajeTumularAcesa: { rotulo: 'Laje tumular acesa', artigo: 'uma laje tumular acesa', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  pedestalComCristal: { rotulo: 'Pedestal com cristal', artigo: 'um pedestal com cristal', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  arandelaDeCristal: { rotulo: 'Arandela de cristal', artigo: 'uma arandela de cristal', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  braseiroDeChamaFria: { rotulo: 'Braseiro de chama fria', artigo: 'um braseiro de chama fria', tamanho: { largura: 0.8, altura: 0.8 }, redonda: true },
+  ossario: { rotulo: 'Ossário', artigo: 'um ossário', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  arcossolio: { rotulo: 'Arcossólio', artigo: 'um arcossólio', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  seloDeCristal: { rotulo: 'Selo de cristal', artigo: 'um selo de cristal', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  ponteDePedraQuebrada: { rotulo: 'Ponte de pedra quebrada', artigo: 'uma ponte de pedra quebrada', tamanho: { largura: 4, altura: 1 }, redonda: false },
+  ponteDeTabuasQuebrada: { rotulo: 'Ponte de tábuas quebrada', artigo: 'uma ponte de tábuas quebrada', tamanho: { largura: 4, altura: 1 }, redonda: false },
+  calcadaSobreAgua: { rotulo: 'Calçada sobre a água', artigo: 'uma calçada sobre a água', tamanho: { largura: 1.5, altura: 3 }, redonda: false },
+  muroEmRuina: { rotulo: 'Muro em ruína', artigo: 'um muro em ruína', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  pedestalEntalhado: { rotulo: 'Pedestal entalhado', artigo: 'um pedestal entalhado', tamanho: { largura: 1, altura: 1 }, redonda: true },
+  colunaComGlifos: { rotulo: 'Coluna com glifos', artigo: 'uma coluna com glifos', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  estelaMaia: { rotulo: 'Estela entalhada', artigo: 'uma estela entalhada', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
+  cabanaDeLajes: { rotulo: 'Cabana de lajes', artigo: 'uma cabana de lajes', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  tanqueComBorda: { rotulo: 'Tanque com borda de pedra', artigo: 'um tanque com borda de pedra', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  piramideEmDegraus: { rotulo: 'Pirâmide em degraus', artigo: 'uma pirâmide em degraus', tamanho: { largura: 6, altura: 6 }, redonda: false },
+  topoDoTemplo: { rotulo: 'Topo do templo', artigo: 'um topo de templo', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  cabecaColossal: { rotulo: 'Cabeça colossal', artigo: 'uma cabeça colossal', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  idoloDourado: { rotulo: 'Ídolo dourado', artigo: 'um ídolo dourado', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  cascataEmDegraus: { rotulo: 'Cascata em degraus', artigo: 'uma cascata em degraus', tamanho: { largura: 2, altura: 3 }, redonda: false },
+  ponteSobrePilares: { rotulo: 'Ponte sobre pilares', artigo: 'uma ponte sobre pilares', tamanho: { largura: 5, altura: 2 }, redonda: false },
+  catreDesarrumado: { rotulo: 'Catre desarrumado', artigo: 'um catre desarrumado', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  camaDeCaixotes: { rotulo: 'Cama de caixotes', artigo: 'uma cama de caixotes', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  mesaDeCaixote: { rotulo: 'Mesa de caixote', artigo: 'uma mesa de caixote', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  cadeiraRemendada: { rotulo: 'Cadeira remendada', artigo: 'uma cadeira remendada', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  bancoCorrido: { rotulo: 'Banco corrido', artigo: 'um banco corrido', tamanho: { largura: 2, altura: 0.45 }, redonda: false },
+  cortinaDePassagem: { rotulo: 'Cortina de passagem', artigo: 'uma cortina de passagem', tamanho: { largura: 1, altura: 0.25 }, redonda: false },
+  trouxaDeRoupa: { rotulo: 'Trouxa de roupa', artigo: 'uma trouxa de roupa', tamanho: { largura: 1, altura: 0.8 }, redonda: false },
+  passarelaDeTabuas: { rotulo: 'Passarela de tábuas', artigo: 'uma passarela de tábuas', tamanho: { largura: 3, altura: 1 }, redonda: false },
+  vasoComPiaDeAco: { rotulo: 'Vaso com pia de aço', artigo: 'um vaso com pia de aço', tamanho: { largura: 0.6, altura: 0.7 }, redonda: false },
+  mesinhaDeCela: { rotulo: 'Mesinha de cela', artigo: 'uma mesinha de cela', tamanho: { largura: 0.7, altura: 0.7 }, redonda: false },
+  mesaDePatio: { rotulo: 'Mesa de pátio', artigo: 'uma mesa de pátio', tamanho: { largura: 1.4, altura: 1 }, redonda: false },
+  chuveiroColetivo: { rotulo: 'Chuveiro coletivo', artigo: 'um chuveiro coletivo', tamanho: { largura: 0.6, altura: 0.7 }, redonda: false },
+  armarioDeVestiario: { rotulo: 'Armário de vestiário', artigo: 'um armário de vestiário', tamanho: { largura: 1, altura: 0.4 }, redonda: false },
+  cadeiraDePlastico: { rotulo: 'Cadeira de plástico', artigo: 'uma cadeira de plástico', tamanho: { largura: 0.55, altura: 0.55 }, redonda: false },
+  maquinaDeLavar: { rotulo: 'Máquina de lavar', artigo: 'uma máquina de lavar', tamanho: { largura: 0.85, altura: 0.85 }, redonda: false },
+  leitoHospitalar: { rotulo: 'Leito hospitalar', artigo: 'um leito hospitalar', tamanho: { largura: 0.7, altura: 1.4 }, redonda: false },
+  mesaComComputador: { rotulo: 'Mesa com computador', artigo: 'uma mesa com computador', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
+  cercaDeAlambrado: { rotulo: 'Cerca de alambrado', artigo: 'uma cerca de alambrado', tamanho: { largura: 2, altura: 0.3 }, redonda: false },
+  arquibancadaDePedra: { rotulo: 'Arquibancada de pedra curva', artigo: 'uma arquibancada de pedra curva', tamanho: { largura: 4, altura: 4 }, redonda: false },
+  fossoDeArena: { rotulo: 'Fosso de arena', artigo: 'um fosso de arena', tamanho: { largura: 4, altura: 4 }, redonda: false },
+  balaustradaDeCamarote: { rotulo: 'Balaustrada de camarote', artigo: 'uma balaustrada de camarote', tamanho: { largura: 3, altura: 1.5 }, redonda: false },
+  pocoDeSangue: { rotulo: 'Poço de sangue', artigo: 'um poço de sangue', tamanho: { largura: 1.5, altura: 1.5 }, redonda: true },
+  velaNoPires: { rotulo: 'Vela no pires', artigo: 'uma vela no pires', tamanho: { largura: 0.5, altura: 0.5 }, redonda: true },
+  salamandra: { rotulo: 'Fogareiro de ferro', artigo: 'um fogareiro de ferro', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  monteDeEntulho: { rotulo: 'Monte de entulho', artigo: 'um monte de entulho', tamanho: { largura: 1.5, altura: 1.25 }, redonda: false },
+  camaDeTrapos: { rotulo: 'Cama de trapos', artigo: 'uma cama de trapos', tamanho: { largura: 1, altura: 2 }, redonda: false },
   lapideTorta: { rotulo: 'Lápide torta', artigo: 'uma lápide torta', tamanho: { largura: 0.6, altura: 0.4 }, redonda: false },
 }
 
@@ -978,6 +1092,102 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     montanhaGrande: valor(f.montanhaGrande),
     estatuaDeCavalo: valor(f.estatuaDeCavalo),
     estatuaDeCavaloSemPedestal: valor(f.estatuaDeCavaloSemPedestal),
+    cadeiraDeFerro: valor(f.cadeiraDeFerro),
+    mesaDeFerro: valor(f.mesaDeFerro),
+    catreDeFerro: valor(f.catreDeFerro),
+    esteiraDePalha: valor(f.esteiraDePalha),
+    baldeDeDejetos: valor(f.baldeDeDejetos),
+    grilhoesDeParede: valor(f.grilhoesDeParede),
+    bolaDeFerroComCorrente: valor(f.bolaDeFerroComCorrente),
+    latrinaDeCela: valor(f.latrinaDeCela),
+    bancoDePedra: valor(f.bancoDePedra),
+    mesaDoCarcereiro: valor(f.mesaDoCarcereiro),
+    quadroDeChaves: valor(f.quadroDeChaves),
+    jaulaDeChao: valor(f.jaulaDeChao),
+    raloDeMasmorra: valor(f.raloDeMasmorra),
+    bauDeFerro: valor(f.bauDeFerro),
+    tabuaDePregos: valor(f.tabuaDePregos),
+    cepoDoCarrasco: valor(f.cepoDoCarrasco),
+    posteDeAcoite: valor(f.posteDeAcoite),
+    gradeDeCorredor: valor(f.gradeDeCorredor),
+    corpoAmortalhado: valor(f.corpoAmortalhado),
+    pranchaDeTortura: valor(f.pranchaDeTortura),
+    braseiroComFerros: valor(f.braseiroComFerros),
+    fossoDeBrasas: valor(f.fossoDeBrasas),
+    rodaDeTortura: valor(f.rodaDeTortura),
+    guilhotina: valor(f.guilhotina),
+    pertencesConfiscados: valor(f.pertencesConfiscados),
+    guinchoDeCorrente: valor(f.guinchoDeCorrente),
+    fossoDoSalao: valor(f.fossoDoSalao),
+    pilarComBraseiro: valor(f.pilarComBraseiro),
+    lanternaGradeada: valor(f.lanternaGradeada),
+    globoDeLuzRubra: valor(f.globoDeLuzRubra),
+    seloDeOrbitas: valor(f.seloDeOrbitas),
+    plataformaDeRitual: valor(f.plataformaDeRitual),
+    gargula: valor(f.gargula),
+    estatuaDeBesta: valor(f.estatuaDeBesta),
+    estatuaEncapuzada: valor(f.estatuaEncapuzada),
+    ponteDeCorrente: valor(f.ponteDeCorrente),
+    sarcofagoEntreaberto: valor(f.sarcofagoEntreaberto),
+    sarcofagoDeBronze: valor(f.sarcofagoDeBronze),
+    caixaoDeFerro: valor(f.caixaoDeFerro),
+    lajeTumular: valor(f.lajeTumular),
+    nichoFunerario: valor(f.nichoFunerario),
+    colunaLisa: valor(f.colunaLisa),
+    pilastraQuadrada: valor(f.pilastraQuadrada),
+    urnaFuneraria: valor(f.urnaFuneraria),
+    columbario: valor(f.columbario),
+    estradoEmMeiaLua: valor(f.estradoEmMeiaLua),
+    sarcofagoDeCristais: valor(f.sarcofagoDeCristais),
+    relicarioDeCristal: valor(f.relicarioDeCristal),
+    lajeTumularAcesa: valor(f.lajeTumularAcesa),
+    pedestalComCristal: valor(f.pedestalComCristal),
+    arandelaDeCristal: valor(f.arandelaDeCristal),
+    braseiroDeChamaFria: valor(f.braseiroDeChamaFria),
+    ossario: valor(f.ossario),
+    arcossolio: valor(f.arcossolio),
+    seloDeCristal: valor(f.seloDeCristal),
+    ponteDePedraQuebrada: valor(f.ponteDePedraQuebrada),
+    ponteDeTabuasQuebrada: valor(f.ponteDeTabuasQuebrada),
+    calcadaSobreAgua: valor(f.calcadaSobreAgua),
+    muroEmRuina: valor(f.muroEmRuina),
+    pedestalEntalhado: valor(f.pedestalEntalhado),
+    colunaComGlifos: valor(f.colunaComGlifos),
+    estelaMaia: valor(f.estelaMaia),
+    cabanaDeLajes: valor(f.cabanaDeLajes),
+    tanqueComBorda: valor(f.tanqueComBorda),
+    piramideEmDegraus: valor(f.piramideEmDegraus),
+    topoDoTemplo: valor(f.topoDoTemplo),
+    cabecaColossal: valor(f.cabecaColossal),
+    idoloDourado: valor(f.idoloDourado),
+    cascataEmDegraus: valor(f.cascataEmDegraus),
+    ponteSobrePilares: valor(f.ponteSobrePilares),
+    catreDesarrumado: valor(f.catreDesarrumado),
+    camaDeCaixotes: valor(f.camaDeCaixotes),
+    mesaDeCaixote: valor(f.mesaDeCaixote),
+    cadeiraRemendada: valor(f.cadeiraRemendada),
+    bancoCorrido: valor(f.bancoCorrido),
+    cortinaDePassagem: valor(f.cortinaDePassagem),
+    trouxaDeRoupa: valor(f.trouxaDeRoupa),
+    passarelaDeTabuas: valor(f.passarelaDeTabuas),
+    vasoComPiaDeAco: valor(f.vasoComPiaDeAco),
+    mesinhaDeCela: valor(f.mesinhaDeCela),
+    mesaDePatio: valor(f.mesaDePatio),
+    chuveiroColetivo: valor(f.chuveiroColetivo),
+    armarioDeVestiario: valor(f.armarioDeVestiario),
+    cadeiraDePlastico: valor(f.cadeiraDePlastico),
+    maquinaDeLavar: valor(f.maquinaDeLavar),
+    leitoHospitalar: valor(f.leitoHospitalar),
+    mesaComComputador: valor(f.mesaComComputador),
+    cercaDeAlambrado: valor(f.cercaDeAlambrado),
+    arquibancadaDePedra: valor(f.arquibancadaDePedra),
+    fossoDeArena: valor(f.fossoDeArena),
+    balaustradaDeCamarote: valor(f.balaustradaDeCamarote),
+    pocoDeSangue: valor(f.pocoDeSangue),
+    velaNoPires: valor(f.velaNoPires),
+    salamandra: valor(f.salamandra),
+    monteDeEntulho: valor(f.monteDeEntulho),
+    camaDeTrapos: valor(f.camaDeTrapos),
   }
 }
 
@@ -1059,6 +1269,24 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande',
   // A estátua de cavalo (21/11/2026), com e sem o pedestal, depois da leva E2.
   'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
+  // A leva de 24/11/2026 (lotes L01 a L11 da lista dos 8 mapas, docs/design/objetos-24-11/LISTA.md). Os objetos e, depois, as construções.
+  'cadeiraDeFerro', 'mesaDeFerro', 'catreDeFerro', 'esteiraDePalha', 'baldeDeDejetos', 'grilhoesDeParede',
+  'bolaDeFerroComCorrente', 'latrinaDeCela', 'bancoDePedra', 'mesaDoCarcereiro', 'quadroDeChaves', 'jaulaDeChao',
+  'raloDeMasmorra', 'bauDeFerro', 'tabuaDePregos', 'cepoDoCarrasco', 'posteDeAcoite', 'gradeDeCorredor',
+  'corpoAmortalhado', 'pranchaDeTortura', 'braseiroComFerros', 'rodaDeTortura', 'guilhotina', 'pertencesConfiscados',
+  'guinchoDeCorrente', 'pilarComBraseiro', 'lanternaGradeada', 'globoDeLuzRubra', 'seloDeOrbitas', 'sarcofagoEntreaberto',
+  'sarcofagoDeBronze', 'caixaoDeFerro', 'lajeTumular', 'nichoFunerario', 'colunaLisa', 'pilastraQuadrada',
+  'urnaFuneraria', 'sarcofagoDeCristais', 'relicarioDeCristal', 'lajeTumularAcesa', 'pedestalComCristal', 'arandelaDeCristal',
+  'braseiroDeChamaFria', 'ossario', 'seloDeCristal', 'muroEmRuina', 'pedestalEntalhado', 'colunaComGlifos',
+  'estelaMaia', 'cabecaColossal', 'idoloDourado', 'catreDesarrumado', 'camaDeCaixotes', 'mesaDeCaixote',
+  'cadeiraRemendada', 'bancoCorrido', 'cortinaDePassagem', 'trouxaDeRoupa', 'vasoComPiaDeAco', 'mesinhaDeCela',
+  'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico', 'maquinaDeLavar', 'leitoHospitalar',
+  'mesaComComputador', 'cercaDeAlambrado', 'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra',
+  'monteDeEntulho', 'camaDeTrapos',
+  'fossoDeBrasas', 'fossoDoSalao', 'plataformaDeRitual', 'gargula', 'estatuaDeBesta', 'estatuaEncapuzada',
+  'ponteDeCorrente', 'columbario', 'estradoEmMeiaLua', 'arcossolio', 'ponteDePedraQuebrada', 'ponteDeTabuasQuebrada',
+  'calcadaSobreAgua', 'cabanaDeLajes', 'tanqueComBorda', 'piramideEmDegraus', 'topoDoTemplo', 'cascataEmDegraus',
+  'ponteSobrePilares', 'passarelaDeTabuas', 'arquibancadaDePedra', 'fossoDeArena',
   // As construções de 14/11/2026 (lotes L15 a L19), na ordem da lista do dia: a ferramenta Construção as arruma
   // pelos grupos de `construcoes.ts`.
   'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
@@ -4456,6 +4684,200 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
     case 'lapideTorta':
       // A lápide no monte de terra.
       return quadro(-hw * 0.9, -hh * 0.9, hw * 0.9, hh * 0.9)
+    // A leva de 24/11/2026: o traço provisório de cada objeto, o contorno e um ou dois traços do que ele é (o desenho
+    // de verdade é a textura).
+    case 'cadeiraDeFerro':
+      return [...quadro(-hw * 0.8, -hh * 0.3, hw * 0.8, hh * 0.85), ...quadro(-hw * 0.8, -hh * 0.85, hw * 0.8, -hh * 0.55), { x1: -hw * 0.3, y1: -hh * 0.2, x2: -hw * 0.3, y2: hh * 0.75 }, { x1: hw * 0.3, y1: -hh * 0.2, x2: hw * 0.3, y2: hh * 0.75 }]
+    case 'mesaDeFerro':
+      return [...quadro(-hw * 0.95, -hh * 0.9, hw * 0.95, hh * 0.9), { x1: 0, y1: -hh * 0.9, x2: 0, y2: hh * 0.9 }]
+    case 'catreDeFerro':
+      return [...quadro(-hw * 0.95, -hh * 0.35, hw * 0.95, hh * 0.95), { x1: -hw * 0.9, y1: -hh * 0.95, x2: -hw * 0.95, y2: -hh * 0.35 }, { x1: hw * 0.9, y1: -hh * 0.95, x2: hw * 0.95, y2: -hh * 0.35 }]
+    case 'esteiraDePalha':
+      return [...quadro(-hw * 0.85, -hh * 0.92, hw * 0.85, hh * 0.92), linha(-hw * 0.85, -hh * 0.7, hw * 0.85)]
+    case 'baldeDeDejetos':
+      return [...aro(largura * 0.92, altura * 0.92, 0, 0), ...aro(largura * 0.6, altura * 0.6, -hw * 0.1, -hh * 0.1)]
+    case 'grilhoesDeParede':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), { x1: -hw * 0.5, y1: -hh * 0.95, x2: -hw * 0.5, y2: hh * 0.3 }, { x1: hw * 0.5, y1: -hh * 0.95, x2: hw * 0.5, y2: hh * 0.3 }, ...aro(largura * 0.4, altura * 0.5, -hw * 0.5, hh * 0.6), ...aro(largura * 0.4, altura * 0.5, hw * 0.5, hh * 0.6)]
+    case 'bolaDeFerroComCorrente':
+      return [...aro(largura * 0.7, altura * 0.7, hw * 0.4, hh * 0.4), ...aro(largura * 0.4, altura * 0.4, -hw * 0.6, -hh * 0.6), { x1: -hw * 0.4, y1: -hh * 0.4, x2: hw * 0.1, y2: hh * 0.1 }]
+    case 'latrinaDeCela':
+      return [...quadro(-hw * 0.9, -hh * 0.9, hw * 0.9, hh * 0.9), ...aro(largura * 0.4, altura * 0.55, 0, -hh * 0.2)]
+    case 'bancoDePedra':
+      return [...quadro(-hw * 0.95, -hh * 0.8, hw * 0.95, hh * 0.6), ...quadro(-hw * 0.8, hh * 0.6, -hw * 0.45, hh * 0.95), ...quadro(hw * 0.45, hh * 0.6, hw * 0.8, hh * 0.95)]
+    case 'mesaDoCarcereiro':
+      return [...quadro(-hw * 0.95, -hh * 0.9, hw * 0.95, hh * 0.9), ...quadro(-hw * 0.4, -hh * 0.4, hw * 0.2, hh * 0.4)]
+    case 'quadroDeChaves':
+      return [...quadro(-hw * 0.9, -hh * 0.95, hw * 0.9, -hh * 0.1), { x1: -hw * 0.4, y1: -hh * 0.1, x2: -hw * 0.4, y2: hh * 0.5 }, { x1: hw * 0.4, y1: -hh * 0.1, x2: hw * 0.4, y2: hh * 0.5 }]
+    case 'jaulaDeChao':
+      return [...quadro(-hw * 0.9, -hh * 0.9, hw * 0.9, hh * 0.9), { x1: -hw * 0.3, y1: -hh * 0.9, x2: -hw * 0.3, y2: hh * 0.9 }, { x1: hw * 0.3, y1: -hh * 0.9, x2: hw * 0.3, y2: hh * 0.9 }]
+    case 'raloDeMasmorra':
+      return [...quadro(-hw * 0.6, -hh * 0.6, hw * 0.6, hh * 0.6), linha(-hw * 0.6, 0, hw * 0.6), { x1: 0, y1: -hh * 0.6, x2: 0, y2: hh * 0.6 }]
+    case 'bauDeFerro':
+      return [...quadro(-hw * 0.95, -hh * 0.9, hw * 0.95, hh * 0.9), { x1: -hw * 0.5, y1: -hh * 0.9, x2: -hw * 0.5, y2: hh * 0.9 }, { x1: hw * 0.5, y1: -hh * 0.9, x2: hw * 0.5, y2: hh * 0.9 }]
+    case 'tabuaDePregos':
+      return [...quadro(-hw * 0.95, -hh * 0.7, hw * 0.95, hh * 0.7), linha(-hw * 0.8, 0, hw * 0.8)]
+    case 'cepoDoCarrasco':
+      return [...quadro(-hw * 0.85, -hh * 0.85, hw * 0.85, hh * 0.85), { x1: -hw * 0.2, y1: -hh * 0.85, x2: 0, y2: -hh * 0.5 }, { x1: hw * 0.2, y1: -hh * 0.85, x2: 0, y2: -hh * 0.5 }]
+    case 'posteDeAcoite':
+      return [...aro(largura * 0.5, altura * 0.5, 0, 0), { x1: 0, y1: hh * 0.25, x2: hw * 0.5, y2: hh * 0.8 }]
+    case 'gradeDeCorredor':
+      return [...quadro(-hw * 0.95, -hh * 0.8, hw * 0.95, hh * 0.8), { x1: -hw * 0.5, y1: -hh * 0.8, x2: -hw * 0.5, y2: hh * 0.8 }, { x1: 0, y1: -hh * 0.8, x2: 0, y2: hh * 0.8 }, { x1: hw * 0.5, y1: -hh * 0.8, x2: hw * 0.5, y2: hh * 0.8 }]
+    case 'corpoAmortalhado':
+      return [...quadro(-hw * 0.95, -hh * 0.85, hw * 0.95, hh * 0.85), { x1: -hw * 0.55, y1: -hh * 0.85, x2: -hw * 0.55, y2: hh * 0.85 }, { x1: hw * 0.2, y1: -hh * 0.85, x2: hw * 0.2, y2: hh * 0.85 }]
+    case 'pranchaDeTortura':
+      return [...quadro(-hw * 0.7, -hh * 0.95, hw * 0.7, hh * 0.8), linha(-hw * 0.7, -hh * 0.5, hw * 0.7), linha(-hw * 0.7, hh * 0.3, hw * 0.7)]
+    case 'braseiroComFerros':
+      return [...aro(largura * 0.7, altura * 0.7, -hw * 0.1, -hh * 0.1), { x1: hw * 0.3, y1: hh * 0.3, x2: hw * 0.9, y2: hh * 0.6 }, { x1: hw * 0.2, y1: hh * 0.4, x2: hw * 0.5, y2: hh * 0.95 }]
+    case 'fossoDeBrasas':
+      return [...quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, hh * 0.95), ...quadro(-hw * 0.6, -hh * 0.6, hw * 0.6, hh * 0.6), linha(-hw * 0.6, 0, hw * 0.6)]
+    case 'rodaDeTortura':
+      return [...aro(largura * 0.92, altura * 0.92, 0, 0), ...aro(largura * 0.2, altura * 0.2, 0, 0), { x1: -hw * 0.9, y1: 0, x2: hw * 0.9, y2: 0 }]
+    case 'guilhotina':
+      return [...quadro(-hw * 0.8, -hh * 0.95, hw * 0.8, hh * 0.95), linha(-hw * 0.8, -hh * 0.5, hw * 0.8), ...aro(largura * 0.4, altura * 0.2, 0, hh * 0.3)]
+    case 'pertencesConfiscados':
+      return [...aro(largura * 0.9, altura * 0.7, 0, hh * 0.1), { x1: -hw * 0.8, y1: -hh * 0.8, x2: hw * 0.8, y2: hh * 0.8 }]
+    case 'guinchoDeCorrente':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), ...quadro(-hw * 0.6, -hh * 0.8, hw * 0.6, -hh * 0.3), { x1: -hw * 0.3, y1: -hh * 0.3, x2: -hw * 0.3, y2: hh * 0.9 }, { x1: hw * 0.3, y1: -hh * 0.3, x2: hw * 0.6, y2: hh * 0.9 }]
+    case 'fossoDoSalao':
+      return [...aro(largura * 0.95, altura * 0.95, 0, 0), ...aro(largura * 0.6, altura * 0.6, 0, 0), ...aro(largura * 0.25, altura * 0.25, 0, 0)]
+    case 'pilarComBraseiro':
+      return [...quadro(-hw * 0.85, -hh * 0.85, hw * 0.85, hh * 0.85), ...aro(largura * 0.7, altura * 0.7, 0, 0)]
+    case 'lanternaGradeada':
+      return [linha(-hw * 0.95, -hh * 0.9, hw * 0.95), ...quadro(-hw * 0.5, -hh * 0.6, hw * 0.5, hh * 0.8), { x1: 0, y1: -hh * 0.6, x2: 0, y2: hh * 0.8 }]
+    case 'globoDeLuzRubra':
+      return [...aro(largura * 0.92, altura * 0.92, 0, 0), ...aro(largura * 0.55, altura * 0.55, 0, 0)]
+    case 'seloDeOrbitas':
+      return [...aro(largura * 0.95, altura * 0.95, 0, 0), { x1: 0, y1: -hh * 0.95, x2: 0, y2: hh * 0.95 }]
+    case 'plataformaDeRitual':
+      return [...aro(largura * 0.95, altura * 0.95, 0, 0), ...aro(largura * 0.4, altura * 0.4, 0, 0)]
+    case 'gargula':
+      return [...quadro(-hw * 0.7, hh * 0.3, hw * 0.7, hh * 0.9), ...aro(largura * 0.6, altura * 0.6, 0, -hh * 0.3)]
+    case 'estatuaDeBesta':
+      return [...quadro(-hw * 0.95, hh * 0.5, hw * 0.95, hh * 0.95), ...quadro(-hw * 0.5, -hh * 0.5, hw * 0.5, hh * 0.5), { x1: -hw * 0.3, y1: -hh * 0.5, x2: -hw * 0.5, y2: -hh * 0.95 }, { x1: hw * 0.3, y1: -hh * 0.5, x2: hw * 0.5, y2: -hh * 0.95 }]
+    case 'estatuaEncapuzada':
+      return [...quadro(-hw * 0.6, hh * 0.6, hw * 0.6, hh * 0.95), ...aro(largura * 0.5, altura * 0.9, 0, 0)]
+    case 'ponteDeCorrente':
+      return [linha(-hw * 0.95, -hh * 0.8, hw * 0.95), linha(-hw * 0.95, hh * 0.8, hw * 0.95), { x1: -hw * 0.5, y1: -hh * 0.8, x2: -hw * 0.5, y2: hh * 0.8 }, { x1: 0, y1: -hh * 0.8, x2: 0, y2: hh * 0.8 }, { x1: hw * 0.5, y1: -hh * 0.8, x2: hw * 0.5, y2: hh * 0.8 }]
+    case 'sarcofagoEntreaberto':
+      return [...quadro(-hw * 0.9, -hh * 0.95, hw * 0.7, hh * 0.85), ...quadro(-hw * 0.7, -hh * 0.6, hw * 0.95, hh * 0.95)]
+    case 'sarcofagoDeBronze':
+      return [...quadro(-hw * 0.9, -hh * 0.92, hw * 0.9, hh * 0.92), ...quadro(-hw * 0.7, -hh * 0.75, hw * 0.7, hh * 0.75), ...aro(largura * 0.4, altura * 0.2, 0, -hh * 0.3)]
+    case 'caixaoDeFerro':
+      return [...quadro(-hw * 0.8, -hh * 0.95, hw * 0.8, hh * 0.95), linha(-hw * 0.8, -hh * 0.3, hw * 0.8), linha(-hw * 0.8, hh * 0.4, hw * 0.8)]
+    case 'lajeTumular':
+      return [...quadro(-hw * 0.9, -hh * 0.95, hw * 0.9, hh * 0.95), linha(-hw * 0.6, -hh * 0.6, hw * 0.6), linha(-hw * 0.6, -hh * 0.35, hw * 0.6)]
+    case 'nichoFunerario':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), ...quadro(-hw * 0.8, -hh * 0.95, hw * 0.8, hh * 0.85), ...quadro(-hw * 0.4, -hh * 0.3, hw * 0.4, hh * 0.85)]
+    case 'colunaLisa':
+      return [...aro(largura * 0.9, altura * 0.9, 0, 0), ...aro(largura * 0.7, altura * 0.7, 0, 0)]
+    case 'pilastraQuadrada':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), ...quadro(-hw * 0.7, -hh * 0.95, hw * 0.7, hh * 0.3), ...quadro(-hw * 0.9, -hh * 0.95, hw * 0.9, hh * 0.6)]
+    case 'urnaFuneraria':
+      return [...aro(largura * 0.85, altura * 0.85, 0, 0), ...aro(largura * 0.3, altura * 0.3, 0, 0)]
+    case 'columbario':
+      return [...quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, hh * 0.95), linha(-hw * 0.95, 0, hw * 0.95), { x1: 0, y1: -hh * 0.95, x2: 0, y2: hh * 0.95 }]
+    case 'estradoEmMeiaLua':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), { x1: -hw * 0.95, y1: -hh * 0.95, x2: 0, y2: hh * 0.95 }, { x1: 0, y1: hh * 0.95, x2: hw * 0.95, y2: -hh * 0.95 }]
+    case 'sarcofagoDeCristais':
+      return [...quadro(-hw * 0.6, -hh * 0.75, hw * 0.6, hh * 0.75), { x1: -hw * 0.95, y1: hh * 0.95, x2: -hw * 0.7, y2: hh * 0.6 }, { x1: hw * 0.95, y1: hh * 0.95, x2: hw * 0.7, y2: hh * 0.6 }]
+    case 'relicarioDeCristal':
+      return [...quadro(-hw * 0.9, -hh * 0.9, hw * 0.9, hh * 0.9), { x1: 0, y1: -hh * 0.6, x2: hw * 0.5, y2: 0 }, { x1: hw * 0.5, y1: 0, x2: 0, y2: hh * 0.6 }, { x1: 0, y1: hh * 0.6, x2: -hw * 0.5, y2: 0 }, { x1: -hw * 0.5, y1: 0, x2: 0, y2: -hh * 0.6 }]
+    case 'lajeTumularAcesa':
+      return [...quadro(-hw * 0.9, -hh * 0.95, hw * 0.9, hh * 0.95), { x1: -hw * 0.3, y1: -hh * 0.7, x2: hw * 0.3, y2: -hh * 0.3 }, { x1: hw * 0.3, y1: -hh * 0.7, x2: -hw * 0.3, y2: -hh * 0.3 }]
+    case 'pedestalComCristal':
+      return [{ x1: -hw * 0.95, y1: -hh * 0.95, x2: hw * 0.95, y2: -hh * 0.95 }, { x1: -hw * 0.95, y1: -hh * 0.95, x2: -hw * 0.95, y2: hh * 0.95 }, { x1: -hw * 0.95, y1: hh * 0.95, x2: hw * 0.95, y2: -hh * 0.95 }, ...aro(largura * 0.4, altura * 0.4, -hw * 0.4, -hh * 0.4)]
+    case 'arandelaDeCristal':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), { x1: 0, y1: -hh * 0.95, x2: 0, y2: -hh * 0.2 }, { x1: -hw * 0.4, y1: -hh * 0.2, x2: 0, y2: hh * 0.9 }, { x1: hw * 0.4, y1: -hh * 0.2, x2: 0, y2: hh * 0.9 }, { x1: -hw * 0.4, y1: -hh * 0.2, x2: hw * 0.4, y2: -hh * 0.2 }]
+    case 'braseiroDeChamaFria':
+      return [...aro(largura * 0.9, altura * 0.9, 0, 0), { x1: -hw * 0.3, y1: hh * 0.3, x2: hw * 0.3, y2: -hh * 0.3 }, { x1: -hw * 0.3, y1: -hh * 0.3, x2: hw * 0.3, y2: hh * 0.3 }]
+    case 'ossario':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), ...quadro(-hw * 0.9, -hh * 0.95, hw * 0.9, hh * 0.6), ...aro(largura * 0.3, altura * 0.6, -hw * 0.5, hh * 0.2), ...aro(largura * 0.3, altura * 0.6, hw * 0.5, hh * 0.2)]
+    case 'arcossolio':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), ...quadro(-hw * 0.9, -hh * 0.95, hw * 0.9, hh * 0.9), ...quadro(-hw * 0.6, hh * 0.1, hw * 0.6, hh * 0.7)]
+    case 'seloDeCristal':
+      return [{ x1: 0, y1: -hh * 0.95, x2: hw * 0.95, y2: 0 }, { x1: hw * 0.95, y1: 0, x2: 0, y2: hh * 0.95 }, { x1: 0, y1: hh * 0.95, x2: -hw * 0.95, y2: 0 }, { x1: -hw * 0.95, y1: 0, x2: 0, y2: -hh * 0.95 }, ...aro(largura * 0.15, altura * 0.15, 0, 0)]
+    case 'ponteDePedraQuebrada':
+      return [linha(-hw * 0.95, -hh * 0.85, hw * 0.95), linha(-hw * 0.95, hh * 0.85, hw * 0.95), ...aro(largura * 0.25, altura * 0.5, hw * 0.1, 0)]
+    case 'ponteDeTabuasQuebrada':
+      return [linha(-hw * 0.95, -hh * 0.85, hw * 0.95), linha(-hw * 0.95, hh * 0.85, hw * 0.95), { x1: -hw * 0.6, y1: -hh * 0.85, x2: -hw * 0.6, y2: hh * 0.85 }, { x1: hw * 0.4, y1: -hh * 0.85, x2: hw * 0.4, y2: hh * 0.85 }]
+    case 'calcadaSobreAgua':
+      return [{ x1: -hw * 0.7, y1: -hh * 0.95, x2: -hw * 0.7, y2: hh * 0.95 }, { x1: hw * 0.7, y1: -hh * 0.95, x2: hw * 0.7, y2: hh * 0.95 }, linha(-hw * 0.7, -hh * 0.3, hw * 0.7), linha(-hw * 0.7, hh * 0.35, hw * 0.7)]
+    case 'muroEmRuina':
+      return [...quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, -hh * 0.6), ...quadro(-hw * 0.95, -hh * 0.95, -hw * 0.6, hh * 0.95)]
+    case 'pedestalEntalhado':
+      return [...aro(largura * 0.92, altura * 0.92, 0, 0), ...quadro(-hw * 0.4, -hh * 0.4, hw * 0.4, hh * 0.4)]
+    case 'colunaComGlifos':
+      return [...quadro(-hw * 0.9, -hh * 0.9, hw * 0.9, hh * 0.9), ...aro(largura * 0.6, altura * 0.6, 0, 0), linha(-hw * 0.4, 0, hw * 0.4)]
+    case 'estelaMaia':
+      return [...quadro(-hw * 0.9, -hh * 0.5, hw * 0.9, hh * 0.5), linha(-hw * 0.9, hh * 0.8, hw * 0.9)]
+    case 'cabanaDeLajes':
+      return [...quadro(-hw * 0.9, -hh * 0.9, hw * 0.9, hh * 0.9), { x1: -hw * 0.9, y1: -hh * 0.9, x2: 0, y2: 0 }, { x1: hw * 0.9, y1: -hh * 0.9, x2: 0, y2: 0 }, { x1: -hw * 0.9, y1: hh * 0.9, x2: 0, y2: 0 }, { x1: hw * 0.9, y1: hh * 0.9, x2: 0, y2: 0 }]
+    case 'tanqueComBorda':
+      return [...quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, hh * 0.95), ...quadro(-hw * 0.75, -hh * 0.7, hw * 0.75, hh * 0.7)]
+    case 'piramideEmDegraus':
+      return [...quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, hh * 0.95), ...quadro(-hw * 0.65, -hh * 0.65, hw * 0.65, hh * 0.65), ...quadro(-hw * 0.35, -hh * 0.35, hw * 0.35, hh * 0.35)]
+    case 'topoDoTemplo':
+      return [...quadro(-hw * 0.9, -hh * 0.9, hw * 0.9, hh * 0.9), ...quadro(-hw * 0.35, 0, hw * 0.35, hh * 0.9), linha(-hw * 0.35, hh * 0.45, hw * 0.35)]
+    case 'cabecaColossal':
+      return [...aro(largura * 0.85, altura * 0.95, 0, 0), linha(-hw * 0.4, -hh * 0.1, -hw * 0.1), linha(hw * 0.1, -hh * 0.1, hw * 0.4), linha(-hw * 0.25, hh * 0.45, hw * 0.25)]
+    case 'idoloDourado':
+      return [...quadro(-hw * 0.6, hh * 0.4, hw * 0.6, hh * 0.95), ...aro(largura * 0.4, altura * 0.4, 0, -hh * 0.5), { x1: 0, y1: -hh * 0.3, x2: 0, y2: hh * 0.4 }]
+    case 'cascataEmDegraus':
+      return [{ x1: -hw * 0.9, y1: -hh * 0.95, x2: -hw * 0.9, y2: hh * 0.95 }, { x1: hw * 0.9, y1: -hh * 0.95, x2: hw * 0.9, y2: hh * 0.95 }, linha(-hw * 0.9, -hh * 0.3, hw * 0.9), linha(-hw * 0.9, hh * 0.35, hw * 0.9)]
+    case 'ponteSobrePilares':
+      return [linha(-hw * 0.95, -hh * 0.6, hw * 0.95), linha(-hw * 0.95, hh * 0.6, hw * 0.95), ...quadro(-hw * 0.5, -hh * 0.95, -hw * 0.3, hh * 0.95), ...quadro(hw * 0.3, -hh * 0.95, hw * 0.5, hh * 0.95)]
+    case 'catreDesarrumado':
+      return [...quadro(-hw * 0.9, -hh * 0.95, hw * 0.4, hh * 0.95), linha(-hw * 0.9, -hh * 0.6, hw * 0.4), { x1: hw * 0.4, y1: -hh * 0.2, x2: hw * 0.95, y2: hh * 0.6 }]
+    case 'camaDeCaixotes':
+      return [...quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, hh * 0.95), ...quadro(-hw * 0.75, -hh * 0.8, hw * 0.75, hh * 0.8), linha(-hw * 0.95, 0, hw * 0.95)]
+    case 'mesaDeCaixote':
+      return [...quadro(-hw * 0.6, -hh * 0.6, hw * 0.6, hh * 0.6), { x1: 0, y1: -hh * 0.95, x2: hw * 0.95, y2: 0 }, { x1: hw * 0.95, y1: 0, x2: 0, y2: hh * 0.95 }, { x1: 0, y1: hh * 0.95, x2: -hw * 0.95, y2: 0 }, { x1: -hw * 0.95, y1: 0, x2: 0, y2: -hh * 0.95 }]
+    case 'cadeiraRemendada':
+      return [...quadro(-hw * 0.8, -hh * 0.3, hw * 0.8, hh * 0.85), { x1: -hw * 0.8, y1: -hh * 0.9, x2: -hw * 0.8, y2: -hh * 0.3 }, linha(-hw * 0.8, -hh * 0.7, hw * 0.2)]
+    case 'bancoCorrido':
+      return [...quadro(-hw * 0.95, -hh * 0.8, hw * 0.95, hh * 0.8), linha(-hw * 0.95, hh * 0.05, hw * 0.95)]
+    case 'cortinaDePassagem':
+      return [linha(-hw * 0.95, -hh * 0.9, hw * 0.95), { x1: -hw * 0.6, y1: -hh * 0.9, x2: -hw * 0.5, y2: hh * 0.9 }, { x1: 0, y1: -hh * 0.9, x2: hw * 0.1, y2: hh * 0.9 }, { x1: hw * 0.6, y1: -hh * 0.9, x2: hw * 0.5, y2: hh * 0.9 }]
+    case 'trouxaDeRoupa':
+      return [...aro(largura * 0.5, altura * 0.8, -hw * 0.45, 0), ...quadro(hw * 0.1, -hh * 0.4, hw * 0.9, hh * 0.8)]
+    case 'passarelaDeTabuas':
+      return [linha(-hw * 0.95, -hh * 0.6, -hw * 0.1), linha(hw * 0.1, -hh * 0.6, hw * 0.95), linha(-hw * 0.9, 0, 0), linha(hw * 0.15, 0, hw * 0.9), linha(-hw * 0.95, hh * 0.6, -hw * 0.05), linha(hw * 0.1, hh * 0.6, hw * 0.9)]
+    case 'vasoComPiaDeAco':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), ...quadro(-hw * 0.6, -hh * 0.95, hw * 0.6, -hh * 0.4), ...aro(largura * 0.6, altura * 0.5, 0, hh * 0.4)]
+    case 'mesinhaDeCela':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), ...quadro(-hw * 0.7, -hh * 0.95, hw * 0.7, -hh * 0.1), ...aro(largura * 0.45, altura * 0.45, 0, hh * 0.55)]
+    case 'mesaDePatio':
+      return [...quadro(-hw * 0.95, -hh * 0.4, hw * 0.95, hh * 0.4), ...quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, -hh * 0.7), ...quadro(-hw * 0.95, hh * 0.7, hw * 0.95, hh * 0.95)]
+    case 'chuveiroColetivo':
+      return [linha(-hw * 0.95, -hh * 0.95, hw * 0.95), { x1: -hw * 0.9, y1: -hh * 0.95, x2: -hw * 0.9, y2: hh * 0.9 }, { x1: hw * 0.9, y1: -hh * 0.95, x2: hw * 0.9, y2: hh * 0.9 }, ...aro(largura * 0.3, altura * 0.25, 0, -hh * 0.6)]
+    case 'armarioDeVestiario':
+      return [...quadro(-hw * 0.95, -hh * 0.9, hw * 0.95, hh * 0.9), { x1: -hw * 0.5, y1: -hh * 0.9, x2: -hw * 0.5, y2: hh * 0.9 }, { x1: 0, y1: -hh * 0.9, x2: 0, y2: hh * 0.9 }, { x1: hw * 0.5, y1: -hh * 0.9, x2: hw * 0.5, y2: hh * 0.9 }]
+    case 'cadeiraDePlastico':
+      return [...quadro(-hw * 0.85, -hh * 0.95, hw * 0.85, -hh * 0.55), ...quadro(-hw * 0.75, -hh * 0.55, hw * 0.75, hh * 0.9)]
+    case 'maquinaDeLavar':
+      return [...quadro(-hw * 0.9, -hh * 0.9, hw * 0.9, hh * 0.9), ...aro(largura * 0.6, altura * 0.6, 0, hh * 0.1)]
+    case 'leitoHospitalar':
+      return [...quadro(-hw * 0.8, -hh * 0.9, hw * 0.8, hh * 0.9), linha(-hw * 0.8, -hh * 0.6, hw * 0.8), { x1: -hw * 0.95, y1: -hh * 0.3, x2: -hw * 0.95, y2: hh * 0.6 }, { x1: hw * 0.95, y1: -hh * 0.3, x2: hw * 0.95, y2: hh * 0.6 }]
+    case 'mesaComComputador':
+      return [...quadro(-hw * 0.95, -hh * 0.9, hw * 0.95, hh * 0.9), ...quadro(-hw * 0.4, -hh * 0.9, hw * 0.2, -hh * 0.5), { x1: hw * 0.5, y1: -hh * 0.9, x2: hw * 0.5, y2: hh * 0.9 }]
+    case 'cercaDeAlambrado':
+      return [linha(-hw * 0.95, 0, hw * 0.95), { x1: -hw * 0.95, y1: -hh * 0.8, x2: -hw * 0.95, y2: hh * 0.8 }, { x1: 0, y1: -hh * 0.8, x2: 0, y2: hh * 0.8 }, { x1: hw * 0.95, y1: -hh * 0.8, x2: hw * 0.95, y2: hh * 0.8 }]
+    case 'arquibancadaDePedra':
+      return [{ x1: -hw * 0.95, y1: hh * 0.95, x2: hw * 0.95, y2: -hh * 0.95 }, { x1: -hw * 0.3, y1: hh * 0.95, x2: hw * 0.95, y2: -hh * 0.3 }, linha(-hw * 0.95, hh * 0.95, hw * 0.95)]
+    case 'fossoDeArena':
+      return [...aro(largura * 0.95, altura * 0.95, 0, 0), ...aro(largura * 0.65, altura * 0.65, 0, 0), { x1: -hw * 0.12, y1: hh * 0.6, x2: -hw * 0.12, y2: hh * 0.95 }, { x1: hw * 0.12, y1: hh * 0.6, x2: hw * 0.12, y2: hh * 0.95 }]
+    case 'balaustradaDeCamarote':
+      return [{ x1: -hw * 0.95, y1: hh * 0.9, x2: 0, y2: -hh * 0.2 }, { x1: 0, y1: -hh * 0.2, x2: hw * 0.95, y2: hh * 0.9 }, ...quadro(-hw * 0.2, -hh * 0.9, hw * 0.2, -hh * 0.5)]
+    case 'pocoDeSangue':
+      return [...aro(largura * 0.92, altura * 0.92, 0, 0), ...aro(largura * 0.55, altura * 0.55, 0, 0), { x1: hw * 0.5, y1: hh * 0.5, x2: hw * 0.9, y2: hh * 0.9 }]
+    case 'velaNoPires':
+      return [...aro(largura * 0.85, altura * 0.85, 0, 0), ...aro(largura * 0.25, altura * 0.25, 0, 0), { x1: hw * 0.85, y1: 0, x2: hw * 0.98, y2: 0 }]
+    case 'salamandra':
+      return [...aro(largura * 0.7, altura * 0.7, 0, hh * 0.25), { x1: 0, y1: -hh * 0.4, x2: 0, y2: -hh * 0.95 }, linha(-hw * 0.95, -hh * 0.95, hw * 0.95)]
+    case 'monteDeEntulho':
+      return [...aro(largura * 0.95, altura * 0.85, 0, hh * 0.1), { x1: hw * 0.1, y1: -hh * 0.1, x2: hw * 0.95, y2: -hh * 0.9 }]
+    case 'camaDeTrapos':
+      return [...quadro(-hw * 0.6, -hh * 0.95, hw * 0.6, -hh * 0.7), ...aro(largura * 0.9, altura * 0.75, 0, hh * 0.2)]
   }
 }
 

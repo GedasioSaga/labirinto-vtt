@@ -113,6 +113,24 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
     fumacaEBrasas: false,
     facho: { fachos: 2, abertura: 0.42, voltaEmSegundos: 10, forca: 0.6 },
   },
+  // A leva de 24/11/2026 (lotes L01 a L11 da lista dos 8 mapas, docs/design/objetos-24-11/LISTA.md). As luzes que os desenhistas propuseram; a
+  // do cristal é fria e parada.
+  braseiroComFerros: { alcanceEmCasas: 2.5, cor: 0xffd29c, forca: 0.8, fumacaEBrasas: false },
+  fossoDeBrasas: { alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: true },
+  pilarComBraseiro: { alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: true },
+  lanternaGradeada: { alcanceEmCasas: 2.5, cor: 0xffe2a0, forca: 0.8, fumacaEBrasas: false },
+  globoDeLuzRubra: { alcanceEmCasas: 3, cor: 0xff6a5c, forca: 0.75, fumacaEBrasas: false },
+  sarcofagoDeCristais: { alcanceEmCasas: 2.5, cor: 0xd2f0f6, forca: 0.7, fumacaEBrasas: false },
+  relicarioDeCristal: { alcanceEmCasas: 2, cor: 0xd2f0f6, forca: 0.65, fumacaEBrasas: false },
+  lajeTumularAcesa: { alcanceEmCasas: 1.5, cor: 0xd2f0f6, forca: 0.55, fumacaEBrasas: false },
+  pedestalComCristal: { alcanceEmCasas: 3, cor: 0xd2f0f6, forca: 0.75, fumacaEBrasas: false },
+  arandelaDeCristal: { alcanceEmCasas: 2.5, cor: 0xd2f0f6, forca: 0.75, fumacaEBrasas: false },
+  braseiroDeChamaFria: { alcanceEmCasas: 3, cor: 0xd2f0f6, forca: 0.8, fumacaEBrasas: false },
+  arcossolio: { alcanceEmCasas: 2, cor: 0xd2f0f6, forca: 0.6, fumacaEBrasas: false },
+  seloDeCristal: { alcanceEmCasas: 2.5, cor: 0xd2f0f6, forca: 0.7, fumacaEBrasas: false },
+  idoloDourado: { alcanceEmCasas: 1.5, cor: 0xffe9c0, forca: 0.5, fumacaEBrasas: false },
+  velaNoPires: { alcanceEmCasas: 1.5, cor: 0xffe8c4, forca: 0.7, fumacaEBrasas: false },
+  salamandra: { alcanceEmCasas: 2.5, cor: 0xffd29c, forca: 0.75, fumacaEBrasas: true },
 }
 
 /** A luz de um CARIMBO: a do objeto, sem fumaça nem brasas, e se ela treme como a do fogo. */

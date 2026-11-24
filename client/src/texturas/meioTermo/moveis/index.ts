@@ -333,6 +333,102 @@ import { montarLapideTorta } from './lapideTorta'
 import { montarMontanhaGrande, montarMontanhaMedia, montarMontanhaPequena, prepararMontanhaGrande, prepararMontanhaMedia, prepararMontanhaPequena } from './montanha'
 import { montarTorreDoDragao } from './torreDoDragao'
 import { montarEstatuaDeCavalo, montarEstatuaDeCavaloSemPedestal } from './estatuaDeCavalo'
+import { montarCadeiraDeFerro } from './cadeiraDeFerro'
+import { montarMesaDeFerro } from './mesaDeFerro'
+import { montarCatreDeFerro } from './catreDeFerro'
+import { montarEsteiraDePalha } from './esteiraDePalha'
+import { montarBaldeDeDejetos } from './baldeDeDejetos'
+import { montarGrilhoesDeParede } from './grilhoesDeParede'
+import { montarBolaDeFerroComCorrente } from './bolaDeFerroComCorrente'
+import { montarLatrinaDeCela } from './latrinaDeCela'
+import { montarBancoDePedra } from './bancoDePedra'
+import { montarMesaDoCarcereiro } from './mesaDoCarcereiro'
+import { montarQuadroDeChaves } from './quadroDeChaves'
+import { montarJaulaDeChao } from './jaulaDeChao'
+import { montarRaloDeMasmorra } from './raloDeMasmorra'
+import { montarBauDeFerro } from './bauDeFerro'
+import { montarTabuaDePregos } from './tabuaDePregos'
+import { montarCepoDoCarrasco } from './cepoDoCarrasco'
+import { montarPosteDeAcoite } from './posteDeAcoite'
+import { montarGradeDeCorredor } from './gradeDeCorredor'
+import { montarCorpoAmortalhado } from './corpoAmortalhado'
+import { montarPranchaDeTortura } from './pranchaDeTortura'
+import { montarBraseiroComFerros } from './braseiroComFerros'
+import { montarFossoDeBrasas } from './fossoDeBrasas'
+import { montarRodaDeTortura } from './rodaDeTortura'
+import { montarGuilhotina } from './guilhotina'
+import { montarPertencesConfiscados } from './pertencesConfiscados'
+import { montarGuinchoDeCorrente } from './guinchoDeCorrente'
+import { montarFossoDoSalao } from './fossoDoSalao'
+import { montarPilarComBraseiro } from './pilarComBraseiro'
+import { montarLanternaGradeada } from './lanternaGradeada'
+import { montarGloboDeLuzRubra } from './globoDeLuzRubra'
+import { montarSeloDeOrbitas } from './seloDeOrbitas'
+import { montarPlataformaDeRitual } from './plataformaDeRitual'
+import { montarGargula } from './gargula'
+import { montarEstatuaDeBesta } from './estatuaDeBesta'
+import { montarEstatuaEncapuzada } from './estatuaEncapuzada'
+import { montarPonteDeCorrente } from './ponteDeCorrente'
+import { montarSarcofagoEntreaberto } from './sarcofagoEntreaberto'
+import { montarSarcofagoDeBronze } from './sarcofagoDeBronze'
+import { montarCaixaoDeFerro } from './caixaoDeFerro'
+import { montarLajeTumular } from './lajeTumular'
+import { montarNichoFunerario } from './nichoFunerario'
+import { montarColunaLisa } from './colunaLisa'
+import { montarPilastraQuadrada } from './pilastraQuadrada'
+import { montarUrnaFuneraria } from './urnaFuneraria'
+import { montarColumbario } from './columbario'
+import { montarEstradoEmMeiaLua } from './estradoEmMeiaLua'
+import { montarSarcofagoDeCristais } from './sarcofagoDeCristais'
+import { montarRelicarioDeCristal } from './relicarioDeCristal'
+import { montarLajeTumularAcesa } from './lajeTumularAcesa'
+import { montarPedestalComCristal } from './pedestalComCristal'
+import { montarArandelaDeCristal } from './arandelaDeCristal'
+import { montarBraseiroDeChamaFria } from './braseiroDeChamaFria'
+import { montarOssario } from './ossario'
+import { montarArcossolio } from './arcossolio'
+import { montarSeloDeCristal } from './seloDeCristal'
+import { montarPonteDePedraQuebrada } from './ponteDePedraQuebrada'
+import { montarPonteDeTabuasQuebrada } from './ponteDeTabuasQuebrada'
+import { montarCalcadaSobreAgua } from './calcadaSobreAgua'
+import { montarMuroEmRuina } from './muroEmRuina'
+import { montarPedestalEntalhado } from './pedestalEntalhado'
+import { montarColunaComGlifos } from './colunaComGlifos'
+import { montarEstelaMaia } from './estelaMaia'
+import { montarCabanaDeLajes } from './cabanaDeLajes'
+import { montarTanqueComBorda } from './tanqueComBorda'
+import { montarPiramideEmDegraus } from './piramideEmDegraus'
+import { montarTopoDoTemplo } from './topoDoTemplo'
+import { montarCabecaColossal } from './cabecaColossal'
+import { montarIdoloDourado } from './idoloDourado'
+import { montarCascataEmDegraus } from './cascataEmDegraus'
+import { montarPonteSobrePilares } from './ponteSobrePilares'
+import { montarCatreDesarrumado } from './catreDesarrumado'
+import { montarCamaDeCaixotes } from './camaDeCaixotes'
+import { montarMesaDeCaixote } from './mesaDeCaixote'
+import { montarCadeiraRemendada } from './cadeiraRemendada'
+import { montarBancoCorrido } from './bancoCorrido'
+import { montarCortinaDePassagem } from './cortinaDePassagem'
+import { montarTrouxaDeRoupa } from './trouxaDeRoupa'
+import { montarPassarelaDeTabuas } from './passarelaDeTabuas'
+import { montarVasoComPiaDeAco } from './vasoComPiaDeAco'
+import { montarMesinhaDeCela } from './mesinhaDeCela'
+import { montarMesaDePatio } from './mesaDePatio'
+import { montarChuveiroColetivo } from './chuveiroColetivo'
+import { montarArmarioDeVestiario } from './armarioDeVestiario'
+import { montarCadeiraDePlastico } from './cadeiraDePlastico'
+import { montarMaquinaDeLavar } from './maquinaDeLavar'
+import { montarLeitoHospitalar } from './leitoHospitalar'
+import { montarMesaComComputador } from './mesaComComputador'
+import { montarCercaDeAlambrado } from './cercaDeAlambrado'
+import { montarArquibancadaDePedra } from './arquibancadaDePedra'
+import { montarFossoDeArena } from './fossoDeArena'
+import { montarBalaustradaDeCamarote } from './balaustradaDeCamarote'
+import { montarPocoDeSangue } from './pocoDeSangue'
+import { montarVelaNoPires } from './velaNoPires'
+import { montarSalamandra } from './salamandra'
+import { montarMonteDeEntulho } from './monteDeEntulho'
+import { montarCamaDeTrapos } from './camaDeTrapos'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -733,6 +829,103 @@ const MONTADORES = {
   montanhaGrande: montarMontanhaGrande,
   estatuaDeCavalo: montarEstatuaDeCavalo,
   estatuaDeCavaloSemPedestal: montarEstatuaDeCavaloSemPedestal,
+  // A leva de 24/11/2026 (lotes L01 a L11 da lista dos 8 mapas, docs/design/objetos-24-11/LISTA.md).
+  cadeiraDeFerro: montarCadeiraDeFerro,
+  mesaDeFerro: montarMesaDeFerro,
+  catreDeFerro: montarCatreDeFerro,
+  esteiraDePalha: montarEsteiraDePalha,
+  baldeDeDejetos: montarBaldeDeDejetos,
+  grilhoesDeParede: montarGrilhoesDeParede,
+  bolaDeFerroComCorrente: montarBolaDeFerroComCorrente,
+  latrinaDeCela: montarLatrinaDeCela,
+  bancoDePedra: montarBancoDePedra,
+  mesaDoCarcereiro: montarMesaDoCarcereiro,
+  quadroDeChaves: montarQuadroDeChaves,
+  jaulaDeChao: montarJaulaDeChao,
+  raloDeMasmorra: montarRaloDeMasmorra,
+  bauDeFerro: montarBauDeFerro,
+  tabuaDePregos: montarTabuaDePregos,
+  cepoDoCarrasco: montarCepoDoCarrasco,
+  posteDeAcoite: montarPosteDeAcoite,
+  gradeDeCorredor: montarGradeDeCorredor,
+  corpoAmortalhado: montarCorpoAmortalhado,
+  pranchaDeTortura: montarPranchaDeTortura,
+  braseiroComFerros: montarBraseiroComFerros,
+  fossoDeBrasas: montarFossoDeBrasas,
+  rodaDeTortura: montarRodaDeTortura,
+  guilhotina: montarGuilhotina,
+  pertencesConfiscados: montarPertencesConfiscados,
+  guinchoDeCorrente: montarGuinchoDeCorrente,
+  fossoDoSalao: montarFossoDoSalao,
+  pilarComBraseiro: montarPilarComBraseiro,
+  lanternaGradeada: montarLanternaGradeada,
+  globoDeLuzRubra: montarGloboDeLuzRubra,
+  seloDeOrbitas: montarSeloDeOrbitas,
+  plataformaDeRitual: montarPlataformaDeRitual,
+  gargula: montarGargula,
+  estatuaDeBesta: montarEstatuaDeBesta,
+  estatuaEncapuzada: montarEstatuaEncapuzada,
+  ponteDeCorrente: montarPonteDeCorrente,
+  sarcofagoEntreaberto: montarSarcofagoEntreaberto,
+  sarcofagoDeBronze: montarSarcofagoDeBronze,
+  caixaoDeFerro: montarCaixaoDeFerro,
+  lajeTumular: montarLajeTumular,
+  nichoFunerario: montarNichoFunerario,
+  colunaLisa: montarColunaLisa,
+  pilastraQuadrada: montarPilastraQuadrada,
+  urnaFuneraria: montarUrnaFuneraria,
+  columbario: montarColumbario,
+  estradoEmMeiaLua: montarEstradoEmMeiaLua,
+  sarcofagoDeCristais: montarSarcofagoDeCristais,
+  relicarioDeCristal: montarRelicarioDeCristal,
+  lajeTumularAcesa: montarLajeTumularAcesa,
+  pedestalComCristal: montarPedestalComCristal,
+  arandelaDeCristal: montarArandelaDeCristal,
+  braseiroDeChamaFria: montarBraseiroDeChamaFria,
+  ossario: montarOssario,
+  arcossolio: montarArcossolio,
+  seloDeCristal: montarSeloDeCristal,
+  ponteDePedraQuebrada: montarPonteDePedraQuebrada,
+  ponteDeTabuasQuebrada: montarPonteDeTabuasQuebrada,
+  calcadaSobreAgua: montarCalcadaSobreAgua,
+  muroEmRuina: montarMuroEmRuina,
+  pedestalEntalhado: montarPedestalEntalhado,
+  colunaComGlifos: montarColunaComGlifos,
+  estelaMaia: montarEstelaMaia,
+  cabanaDeLajes: montarCabanaDeLajes,
+  tanqueComBorda: montarTanqueComBorda,
+  piramideEmDegraus: montarPiramideEmDegraus,
+  topoDoTemplo: montarTopoDoTemplo,
+  cabecaColossal: montarCabecaColossal,
+  idoloDourado: montarIdoloDourado,
+  cascataEmDegraus: montarCascataEmDegraus,
+  ponteSobrePilares: montarPonteSobrePilares,
+  catreDesarrumado: montarCatreDesarrumado,
+  camaDeCaixotes: montarCamaDeCaixotes,
+  mesaDeCaixote: montarMesaDeCaixote,
+  cadeiraRemendada: montarCadeiraRemendada,
+  bancoCorrido: montarBancoCorrido,
+  cortinaDePassagem: montarCortinaDePassagem,
+  trouxaDeRoupa: montarTrouxaDeRoupa,
+  passarelaDeTabuas: montarPassarelaDeTabuas,
+  vasoComPiaDeAco: montarVasoComPiaDeAco,
+  mesinhaDeCela: montarMesinhaDeCela,
+  mesaDePatio: montarMesaDePatio,
+  chuveiroColetivo: montarChuveiroColetivo,
+  armarioDeVestiario: montarArmarioDeVestiario,
+  cadeiraDePlastico: montarCadeiraDePlastico,
+  maquinaDeLavar: montarMaquinaDeLavar,
+  leitoHospitalar: montarLeitoHospitalar,
+  mesaComComputador: montarMesaComComputador,
+  cercaDeAlambrado: montarCercaDeAlambrado,
+  arquibancadaDePedra: montarArquibancadaDePedra,
+  fossoDeArena: montarFossoDeArena,
+  balaustradaDeCamarote: montarBalaustradaDeCamarote,
+  pocoDeSangue: montarPocoDeSangue,
+  velaNoPires: montarVelaNoPires,
+  salamandra: montarSalamandra,
+  monteDeEntulho: montarMonteDeEntulho,
+  camaDeTrapos: montarCamaDeTrapos,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -818,6 +1011,23 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande',
   // A estátua de cavalo (21/11/2026), com e sem o pedestal.
   'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
+  // A leva de 24/11/2026 (lotes L01 a L11 da lista dos 8 mapas, docs/design/objetos-24-11/LISTA.md).
+  'cadeiraDeFerro', 'mesaDeFerro', 'catreDeFerro', 'esteiraDePalha', 'baldeDeDejetos', 'grilhoesDeParede',
+  'bolaDeFerroComCorrente', 'latrinaDeCela', 'bancoDePedra', 'mesaDoCarcereiro', 'quadroDeChaves', 'jaulaDeChao',
+  'raloDeMasmorra', 'bauDeFerro', 'tabuaDePregos', 'cepoDoCarrasco', 'posteDeAcoite', 'gradeDeCorredor',
+  'corpoAmortalhado', 'pranchaDeTortura', 'braseiroComFerros', 'fossoDeBrasas', 'rodaDeTortura', 'guilhotina',
+  'pertencesConfiscados', 'guinchoDeCorrente', 'fossoDoSalao', 'pilarComBraseiro', 'lanternaGradeada', 'globoDeLuzRubra',
+  'seloDeOrbitas', 'plataformaDeRitual', 'gargula', 'estatuaDeBesta', 'estatuaEncapuzada', 'ponteDeCorrente',
+  'sarcofagoEntreaberto', 'sarcofagoDeBronze', 'caixaoDeFerro', 'lajeTumular', 'nichoFunerario', 'colunaLisa',
+  'pilastraQuadrada', 'urnaFuneraria', 'columbario', 'estradoEmMeiaLua', 'sarcofagoDeCristais', 'relicarioDeCristal',
+  'lajeTumularAcesa', 'pedestalComCristal', 'arandelaDeCristal', 'braseiroDeChamaFria', 'ossario', 'arcossolio',
+  'seloDeCristal', 'ponteDePedraQuebrada', 'ponteDeTabuasQuebrada', 'calcadaSobreAgua', 'muroEmRuina', 'pedestalEntalhado',
+  'colunaComGlifos', 'estelaMaia', 'cabanaDeLajes', 'tanqueComBorda', 'piramideEmDegraus', 'topoDoTemplo',
+  'cabecaColossal', 'idoloDourado', 'cascataEmDegraus', 'ponteSobrePilares', 'catreDesarrumado', 'camaDeCaixotes',
+  'mesaDeCaixote', 'cadeiraRemendada', 'bancoCorrido', 'cortinaDePassagem', 'trouxaDeRoupa', 'passarelaDeTabuas',
+  'vasoComPiaDeAco', 'mesinhaDeCela', 'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico',
+  'maquinaDeLavar', 'leitoHospitalar', 'mesaComComputador', 'cercaDeAlambrado', 'arquibancadaDePedra', 'fossoDeArena',
+  'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra', 'monteDeEntulho', 'camaDeTrapos',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

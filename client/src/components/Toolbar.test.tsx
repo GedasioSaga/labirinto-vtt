@@ -321,7 +321,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 274 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 348 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -335,23 +335,37 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Escrivaninha', 'Criado-mudo com vela', 'Cama de casal', 'Berço', 'Banqueta', 'Biombo', 'Piano', 'Candelabro de chão',
       // As referências (16/11/2026) entram no fim do grupo onde o mestre as procuraria: aqui, as duas da sala de jantar.
       'Cadeira de espaldar alto', 'Centro de mesa',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Sala e quarto: +9.
+      'Catre desarrumado', 'Cama de caixotes', 'Mesa de caixote', 'Cadeira remendada', 'Cortina de passagem', 'Cadeira de plástico',
+      'Mesa com computador', 'Vela no pires', 'Cama de trapos',
       // A Cozinha e o Banheiro se separaram em 15/11/2026, com as 12 peças do banheiro moderno.
       'Armário de cozinha', 'Balcão', 'Fogão', 'Geladeira', 'Pia', 'Pratos', 'Caldeirão', 'Forno de pão',
       'Prateleira de potes', 'Mesa de corte', 'Gancho com carne pendurada',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Cozinha: +1.
+      'Fogareiro de ferro',
       'Privada', 'Vaso sanitário moderno', 'Bidê', 'Suporte de papel',
       'Banheira', 'Banheira moderna', 'Tina de madeira', 'Box de chuveiro', 'Tapete de banheiro', 'Toalheiro',
       'Lavatório com jarro', 'Gabinete de banheiro',
       'Armário de banheiro', 'Prateleira de frascos', 'Cesto de roupa', 'Lixeira de pedal',
       'Prateleira de toalhas',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Banheiro: +3.
+      'Vaso com pia de aço', 'Chuveiro coletivo', 'Máquina de lavar',
       'Barril', 'Caixa', 'Baú', 'Sacos de grão', 'Prateleira de depósito',
       'Pilha de caixas', 'Barris deitados', 'Tonel de adega', 'Ânforas de barro', 'Cesto de vime', 'Cofre',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Armazenagem: +1.
+      'Trouxa de roupa',
       // A natureza com carimbo (pedras e rochas, toco de árvore, árvore seca e a sebe) saiu para o Carimbo na Fase 6.
       'Cerca', 'Jardineira', 'Vaso de planta', 'Placa de seta', 'Lampião', 'Fogueira', 'Fogo', 'Muro de fogo', 'Ponte', 'Banco de praça',
       'Varal de roupa', 'Horta', 'Canteiro de flores', 'Muro baixo de pedra', 'Carrinho de mão', 'Placa de loja pendurada',
       'Deck de madeira',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Rua e jardim: +2.
+      'Mesa de pátio', 'Cerca de alambrado',
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto',
       'Cruz de madeira', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas',
       'Túmulo de pedra', 'Lápide torta',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Cemitério: +10.
+      'Sarcófago entreaberto', 'Sarcófago de bronze', 'Caixão de ferro', 'Laje tumular', 'Nicho funerário', 'Urna funerária',
+      'Sarcófago de cristais', 'Relicário de cristal', 'Laje tumular acesa', 'Ossário',
       'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo', 'Banca de frutas', 'Toldo listrado',
       'Balança de mercador', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
       'Fornalha de ferreiro', 'Bigorna', 'Balde de água', 'Bancada de ferramentas', 'Pedra de amolar', 'Suporte de armas',
@@ -360,8 +374,12 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Colmeia', 'Arado', 'Toco com machado cravado', 'Plantação em fileiras',
       'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Escombros de pedra', 'Ossos',
       'Carroça quebrada', 'Barril quebrado', 'Caixa quebrada', 'Viga caída', 'Armadura enferrujada', 'Armadura despedaçada', 'Crânio',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Destroços e sucata: +1.
+      'Monte de entulho',
       'Campinho de futebol', 'Boneco de treino', 'Alvo de arco e flecha',
       'Mesa de jogo', 'Ringue de luta', 'Balanço', 'Mesa de sinuca',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Esporte e lazer: +2.
+      'Armário de vestiário', 'Balaustrada de camarote',
       // Os quatro grupos novos de 11/11/2026: Porto e navio (o canhão e o lote 12), Templo e masmorra (o pilar, o
       // altar, a armadura do lote 15 e os dos lotes 13 e 16), Sala de tortura (o lote 14) e Magia e alquimia (os
       // três últimos do lote 13). E o Tesouro (12/11/2026), com os oito do lote 17 que não foram para um grupo antigo.
@@ -370,11 +388,25 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Braseiro', 'Cela com grade', 'Corrente', 'Armadilha de espinhos', 'Círculo mágico',
       'Teia de aranha', 'Tocha de parede', 'Tocha de pé',
       'Coluna quebrada', 'Altar redondo', 'Laje de sacrifício', 'Alçapão',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Templo e masmorra: +32.
+      'Cadeira de ferro', 'Mesa de ferro', 'Catre de ferro', 'Esteira de palha', 'Balde de dejetos', 'Grilhões de parede',
+      'Bola de ferro com corrente', 'Latrina de cela', 'Banco de pedra', 'Mesa do carcereiro', 'Quadro de chaves', 'Jaula de chão',
+      'Baú de ferro', 'Grade de corredor', 'Corpo amortalhado', 'Pertences confiscados', 'Pilar com braseiro', 'Lanterna gradeada de parede',
+      'Selo de órbitas', 'Coluna lisa', 'Pilastra quadrada', 'Pedestal com cristal', 'Arandela de cristal', 'Braseiro de chama fria',
+      'Selo de cristal', 'Muro em ruína', 'Pedestal entalhado', 'Coluna com glifos', 'Estela entalhada', 'Cabeça colossal',
+      'Ídolo dourado', 'Mesinha de cela',
       'Potro de tortura', 'Dama de ferro', 'Tronco de prisioneiro', 'Gaiola suspensa', 'Cadeira de interrogatório', 'Mesa de instrumentos de tortura', 'Sangue no chão',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Sala de tortura: +10.
+      'Ralo de masmorra', 'Tábua de pregos', 'Cepo do carrasco', 'Poste de açoite', 'Prancha de tortura', 'Braseiro com ferros de marcar',
+      'Roda de tortura', 'Guilhotina', 'Guincho de corrente', 'Poço de sangue',
       'Estante de poções', 'Bola de cristal', 'Pedestal com livro aberto',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Magia e alquimia: +1.
+      'Globo de luz rubra',
       // O Necrotério e laboratório (16/11/2026), o lote L1 das referências.
       'Mesa de autópsia', 'Maca com lençol', 'Câmara frigorífica', 'Bandeja de instrumentos', 'Esterilizador', 'Panelas e bacias',
       'Mesa de laboratório', 'Luminária articulada', 'Cadeira giratória', 'Máquina de escrever',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Necrotério e laboratório: +1.
+      'Leito hospitalar',
       'Barra de ouro', 'Monte de ouro', 'Moeda de ouro', 'Monte de moedas de ouro', 'Diamante', 'Monte de diamantes', 'Joia', 'Monte de joias',
       // Os grupos novos de 14/11/2026: Castelo (os lotes L01 e L02), Cerco e defesa (o L03 e a primeira metade do L04),
       // Base militar (a segunda metade do L04, o L05 e o L06), Mar e piratas (o L07 e o L08), Taverna e festa (o L09 e o
@@ -393,6 +425,8 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Prato de carne no osso', 'Prancha do navio', 'Esqueleto de peixe gigante', 'Navio na garrafa', 'Concha mágica', 'Lanterna de pedra japonesa',
       'Balcão de taverna', 'Alvo de dardos', 'Mesa de queda de braço', 'Varal de bandeirinhas', 'Varal de lanternas', 'Mastro de fitas',
       'Caixa de fogos de artifício', 'Barraca de jogos da feira', 'Barraca de comida com fogareiro', 'Churrasqueira', 'Harpa', 'Tambores',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Taverna e festa: +1.
+      'Banco corrido',
       'Rede de dormir', 'Guarda-sol com espreguiçadeira', 'Toalha de piquenique', 'Xadrez gigante de jardim', 'Boliche de grama', 'Gangorra',
       'Escorregador', 'Aquário', 'Ofurô', 'Telescópio', 'Globo terrestre', 'Pebolim',
       'Arquibancada de torneio', 'Liça de justa',
@@ -404,7 +438,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
     // 275 menos a natureza que foi para o Carimbo na Fase 6 (pedras e rochas, toco de árvore, árvore seca e a sebe),
     // mais a caixa quebrada (16/11/2026) e as duas estátuas de cavalo (21/11/2026): cada um com um desenho diferente.
-    expect(new Set(desenhos).size).toBe(274)
+    expect(new Set(desenhos).size).toBe(348)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

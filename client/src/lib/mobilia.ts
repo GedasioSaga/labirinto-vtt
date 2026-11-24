@@ -477,7 +477,7 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * alçapão e o deck por último) leem esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'tapeteDeBanheiro' ||tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias' || tipo === 'ponteLevadica' || tipo === 'pranchaDoNavio' || tipo === 'arquibancadaDeTorneio' || tipo === 'bueiro' || tipo === 'alcapao' || tipo === 'deckDeMadeira'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'tapeteDeBanheiro' ||tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias' || tipo === 'ponteLevadica' || tipo === 'pranchaDoNavio' || tipo === 'arquibancadaDeTorneio' || tipo === 'bueiro' || tipo === 'alcapao' || tipo === 'deckDeMadeira' || tipo === 'esteiraDePalha' || tipo === 'latrinaDeCela' || tipo === 'raloDeMasmorra' || tipo === 'fossoDoSalao' || tipo === 'seloDeOrbitas' || tipo === 'plataformaDeRitual' || tipo === 'ponteDeCorrente' || tipo === 'lajeTumular' || tipo === 'lajeTumularAcesa' || tipo === 'seloDeCristal' || tipo === 'ponteDePedraQuebrada' || tipo === 'ponteDeTabuasQuebrada' || tipo === 'calcadaSobreAgua' || tipo === 'tanqueComBorda' || tipo === 'passarelaDeTabuas' || tipo === 'fossoDeArena'
 }
 
 /**
@@ -509,7 +509,7 @@ export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
  */
 export function ehMovelQueBarra(tipo: TipoMobilia | undefined): boolean {
   if (ehConstrucao(tipo)) return construcaoBarraDeFabrica(tipo)
-  return tipo === 'muroDeFogo' || tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'catapulta' || tipo === 'balista' || tipo === 'carroAntigo'
+  return tipo === 'muroDeFogo' || tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'catapulta' || tipo === 'balista' || tipo === 'carroAntigo' || tipo === 'jaulaDeChao' || tipo === 'gradeDeCorredor' || tipo === 'pilarComBraseiro' || tipo === 'colunaLisa' || tipo === 'pilastraQuadrada' || tipo === 'cabecaColossal' || tipo === 'cercaDeAlambrado' || tipo === 'balaustradaDeCamarote' || tipo === 'pocoDeSangue'
 }
 
 /**
@@ -522,7 +522,7 @@ export function ehMovelQueBarra(tipo: TipoMobilia | undefined): boolean {
  * editor e o clique (que pega os pratos primeiro) leem esta lista.
  */
 export function ehMovelDeCimaDaMesa(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'pratos' || tipo === 'pratoDeCarne' || tipo === 'maquinaDeEscrever' || tipo === 'centroDeMesa'
+  return tipo === 'pratos' || tipo === 'pratoDeCarne' || tipo === 'maquinaDeEscrever' || tipo === 'centroDeMesa' || tipo === 'velaNoPires'
 }
 
 /**

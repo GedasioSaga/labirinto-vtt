@@ -95,7 +95,11 @@ describe('vista 3/4: o catálogo inteiro', () => {
   // do desenho e do tampo que sobe. Objeto rente novo entra nesta lista (o bueiro, 14/11/2026: a moldura de pedra e a
   // grade são rentes, e o buraco é pintado).
   // O alçapão (16/11/2026) também: a tampa fica rente e só os nós das dobradiças e a chapa da argola sobem um nada.
-  const RENTES: readonly TipoMobilia[] = ['plantacaoEmFileiras', 'circuloMagico', 'sangueNoChao', 'teiaDeAranha', 'bueiro', 'alcapao']
+  const RENTES: readonly TipoMobilia[] = ['plantacaoEmFileiras', 'circuloMagico', 'sangueNoChao', 'teiaDeAranha', 'bueiro', 'alcapao',
+    // A leva de 24/11/2026: os rentes dela (a latrina e o ralo da cela, o quadro de chaves pintado na parede, o fosso do
+    // salão, os selos, a laje tumular, a calçada sobre a água e a passarela de tábuas), todos desenhados no plano do chão.
+    'latrinaDeCela', 'quadroDeChaves', 'raloDeMasmorra', 'fossoDoSalao', 'seloDeOrbitas', 'lajeTumular', 'seloDeCristal', 'calcadaSobreAgua', 'passarelaDeTabuas',
+  ]
   // Os quatro MONTES do tesouro (12/11/2026) são chão com altura: o anel e o miolo sobem em degraus baixos (a 3/4
   // muda o desenho), mas a beira de cima da imagem é uma peça solta no chão, que não sobe. A regra do tampo não
   // se aplica a eles, como ao campinho.
@@ -105,10 +109,17 @@ describe('vista 3/4: o catálogo inteiro', () => {
   // necessário: o chafariz e a cova têm o pixel mais escuro a 0,0428 e 0,0418 de luz linear (a régua pedia 0,043; o
   // protótipo aceita 0,03); o cata-vento de brinquedo e a ponte ganham ~1% de sombra embaixo na 3/4 (a régua pedia 2%).
   const FOLGA_DO_PISO: Partial<Record<TipoMobilia, number>> = { chafariz: 0.004, cova: 0.004 }
-  const GANHO_DA_SOMBRA: Partial<Record<TipoMobilia, number>> = { cataVentoBrinquedo: 1.005, ponte: 1.005 }
+  // O arcossólio (24/11/2026) é um arco cavado na parede: a sombra de baixo cresce 1,6% na 3/4 (a régua pede 2%).
+  const GANHO_DA_SOMBRA: Partial<Record<TipoMobilia, number>> = { cataVentoBrinquedo: 1.005, ponte: 1.005, arcossolio: 1.01 }
+  // O OSSÁRIO (24/11/2026) é desenhado de frente nas duas vistas e a base dele enche a pegada: a sombra da 3/4 cai
+  // embaixo do próprio desenho e a imagem sai igual. Segue as regras de cor; fica fora da troca do desenho e da sombra.
+  const IGUAIS_NA_TRES_QUARTOS: readonly TipoMobilia[] = ['ossario']
+  // A CABEÇA COLOSSAL (24/11/2026) tem 3/4 própria: a cabeça de pé, de frente, cujo alto fica 3,5 px abaixo do alto da
+  // vista de cima (que mostra o topo da cabeça). A regra do tampo não se aplica a ela, como aos montes.
+  const SEM_REGRA_DO_TAMPO: readonly TipoMobilia[] = ['cabecaColossal']
   // O muro de fogo (15/11/2026) fica de fora como o fogo: só chão queimado, plano, sem contorno nem tampo.
   for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'fogo' && t !== 'muroDeFogo')) {
-    const rente = RENTES.includes(tipo)
+    const rente = RENTES.includes(tipo) || IGUAIS_NA_TRES_QUARTOS.includes(tipo)
     // A torre de pedra (12/11/2026) pinta em 2,3 s com a máquina livre e 4,8 s ocupada: o teto do campinho, para falhar por imagem e não por tempo.
     // A cama de dossel (14/11/2026) também: o portão da folha mediu 1,7 s por pintura da 3/4, e o teste pinta mais de uma.
     // E a arquibancada de torneio (14/11/2026), que o portão da folha mediu em 1,6 s.
@@ -139,7 +150,7 @@ describe('vista 3/4: o catálogo inteiro', () => {
         // O CAMPINHO (10/11/2026) é chão: o gramado fica onde está e só as traves sobem, no meio da altura
         // dele. A beira de cima da imagem é o gramado, que não muda: a regra do tampo não se aplica a ele (a
         // troca do desenho e as regras de cor, logo acima, sim). Nem aos rentes, que não sobem nada, nem aos montes.
-        if (nivel !== 3 || tipo === 'campinho' || rente || MONTES.includes(tipo)) continue
+        if (nivel !== 3 || tipo === 'campinho' || rente || MONTES.includes(tipo) || SEM_REGRA_DO_TAMPO.includes(tipo)) continue
         if (emPe) expect(alfaDaSombra(b), `${tipo}: sombra de baixo`).toBeGreaterThan(alfaDaSombra(a) * (GANHO_DA_SOMBRA[tipo] ?? 1.02))
         else expect(topoDasPecas(b), `${tipo}: o tampo sobe`).toBeLessThanOrEqual(topoDasPecas(a) - 1)
       }

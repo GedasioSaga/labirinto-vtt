@@ -282,8 +282,22 @@ describe('TOOL_VARIANTS', () => {
       'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
       'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
       'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md): os 74 objetos, no fim.
+      'cadeiraDeFerro', 'mesaDeFerro', 'catreDeFerro', 'esteiraDePalha', 'baldeDeDejetos', 'grilhoesDeParede',
+      'bolaDeFerroComCorrente', 'latrinaDeCela', 'bancoDePedra', 'mesaDoCarcereiro', 'quadroDeChaves', 'jaulaDeChao',
+      'raloDeMasmorra', 'bauDeFerro', 'tabuaDePregos', 'cepoDoCarrasco', 'posteDeAcoite', 'gradeDeCorredor',
+      'corpoAmortalhado', 'pranchaDeTortura', 'braseiroComFerros', 'rodaDeTortura', 'guilhotina', 'pertencesConfiscados',
+      'guinchoDeCorrente', 'pilarComBraseiro', 'lanternaGradeada', 'globoDeLuzRubra', 'seloDeOrbitas', 'sarcofagoEntreaberto',
+      'sarcofagoDeBronze', 'caixaoDeFerro', 'lajeTumular', 'nichoFunerario', 'colunaLisa', 'pilastraQuadrada',
+      'urnaFuneraria', 'sarcofagoDeCristais', 'relicarioDeCristal', 'lajeTumularAcesa', 'pedestalComCristal', 'arandelaDeCristal',
+      'braseiroDeChamaFria', 'ossario', 'seloDeCristal', 'muroEmRuina', 'pedestalEntalhado', 'colunaComGlifos',
+      'estelaMaia', 'cabecaColossal', 'idoloDourado', 'catreDesarrumado', 'camaDeCaixotes', 'mesaDeCaixote',
+      'cadeiraRemendada', 'bancoCorrido', 'cortinaDePassagem', 'trouxaDeRoupa', 'vasoComPiaDeAco', 'mesinhaDeCela',
+      'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico', 'maquinaDeLavar', 'leitoHospitalar',
+      'mesaComComputador', 'cercaDeAlambrado', 'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra',
+      'monteDeEntulho', 'camaDeTrapos',
     ])
-    expect(grupo.options).toHaveLength(274)
+    expect(grupo.options).toHaveLength(348)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Muro de fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
@@ -330,6 +344,19 @@ describe('TOOL_VARIANTS', () => {
       'Elevador antigo', 'Alçapão', 'Deck de madeira', 'Coluna quebrada', 'Altar redondo', 'Laje de sacrifício', 'Túmulo de pedra',
       'Carro antigo', 'Prateleira de toalhas', 'Cadeira de espaldar alto', 'Centro de mesa', 'Lápide torta',
       'Estátua de cavalo', 'Estátua de cavalo sem pedestal',
+      'Cadeira de ferro', 'Mesa de ferro', 'Catre de ferro', 'Esteira de palha', 'Balde de dejetos', 'Grilhões de parede',
+      'Bola de ferro com corrente', 'Latrina de cela', 'Banco de pedra', 'Mesa do carcereiro', 'Quadro de chaves', 'Jaula de chão',
+      'Ralo de masmorra', 'Baú de ferro', 'Tábua de pregos', 'Cepo do carrasco', 'Poste de açoite', 'Grade de corredor',
+      'Corpo amortalhado', 'Prancha de tortura', 'Braseiro com ferros de marcar', 'Roda de tortura', 'Guilhotina', 'Pertences confiscados',
+      'Guincho de corrente', 'Pilar com braseiro', 'Lanterna gradeada de parede', 'Globo de luz rubra', 'Selo de órbitas', 'Sarcófago entreaberto',
+      'Sarcófago de bronze', 'Caixão de ferro', 'Laje tumular', 'Nicho funerário', 'Coluna lisa', 'Pilastra quadrada',
+      'Urna funerária', 'Sarcófago de cristais', 'Relicário de cristal', 'Laje tumular acesa', 'Pedestal com cristal', 'Arandela de cristal',
+      'Braseiro de chama fria', 'Ossário', 'Selo de cristal', 'Muro em ruína', 'Pedestal entalhado', 'Coluna com glifos',
+      'Estela entalhada', 'Cabeça colossal', 'Ídolo dourado', 'Catre desarrumado', 'Cama de caixotes', 'Mesa de caixote',
+      'Cadeira remendada', 'Banco corrido', 'Cortina de passagem', 'Trouxa de roupa', 'Vaso com pia de aço', 'Mesinha de cela',
+      'Mesa de pátio', 'Chuveiro coletivo', 'Armário de vestiário', 'Cadeira de plástico', 'Máquina de lavar', 'Leito hospitalar',
+      'Mesa com computador', 'Cerca de alambrado', 'Balaustrada de camarote', 'Poço de sangue', 'Vela no pires', 'Fogareiro de ferro',
+      'Monte de entulho', 'Cama de trapos',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'carroca']
@@ -363,7 +390,7 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 24 partes da ficha (Sala e quarto 23, Cozinha 11, Banheiro 17, Armazenagem 11, Rua e jardim 18, Cemitério 10, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 13, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 14, Sala de tortura 7, Magia e alquimia 3, Necrotério e laboratório 10, Tesouro 8, Castelo 13, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 12, Descanso e brincadeira 14, Cidade e vila 12; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 24 partes da ficha (Sala e quarto 32, Cozinha 12, Banheiro 20, Armazenagem 12, Rua e jardim 19, Cemitério 20, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 14, Esporte e lazer 9, Porto e navio 8, Templo e masmorra 46, Sala de tortura 17, Magia e alquimia 4, Necrotério e laboratório 11, Tesouro 8, Castelo 13, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 13, Descanso e brincadeira 14, Cidade e vila 12; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
@@ -378,28 +405,28 @@ describe('TOOL_VARIANTS', () => {
     // elevador e o carro). A Fase 6 (16/11/2026) levou a natureza com carimbo para o Carimbo: Rua e jardim -3 (as
     // pedras, o toco e, com a "Sebe aparada", a sebe) e Cemitério -1 (a árvore seca).
     expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
-      ['Sala e quarto', 23],
-      ['Cozinha', 11],
-      ['Banheiro', 17],
-      ['Armazenagem', 11],
-      ['Rua e jardim', 17],
-      ['Cemitério', 10],
+      ['Sala e quarto', 32],
+      ['Cozinha', 12],
+      ['Banheiro', 20],
+      ['Armazenagem', 12],
+      ['Rua e jardim', 19],
+      ['Cemitério', 20],
       ['Feira', 10],
       ['Oficina', 10],
       ['Fazenda', 8],
-      ['Destroços e sucata', 13],
-      ['Esporte e lazer', 7],
+      ['Destroços e sucata', 14],
+      ['Esporte e lazer', 9],
       ['Porto e navio', 8],
-      ['Templo e masmorra', 14],
-      ['Sala de tortura', 7],
-      ['Magia e alquimia', 3],
-      ['Necrotério e laboratório', 10],
+      ['Templo e masmorra', 46],
+      ['Sala de tortura', 17],
+      ['Magia e alquimia', 4],
+      ['Necrotério e laboratório', 11],
       ['Tesouro', 8],
       ['Castelo', 13],
       ['Cerco e defesa', 7],
       ['Base militar', 15],
       ['Mar e piratas', 14],
-      ['Taverna e festa', 12],
+      ['Taverna e festa', 13],
       ['Descanso e brincadeira', 14],
       ['Cidade e vila', 12],
     ])
@@ -407,14 +434,21 @@ describe('TOOL_VARIANTS', () => {
       'lapide', 'cova', 'caixao', 'caixaoAberto',
       'cruzDeMadeira', 'cercaDeFerro', 'paCravada', 'velasEOferendas',
       'tumuloDePedra', 'lapideTorta',
+      // A leva de 24/11/2026.
+      'sarcofagoEntreaberto', 'sarcofagoDeBronze', 'caixaoDeFerro', 'lajeTumular', 'nichoFunerario', 'urnaFuneraria',
+      'sarcofagoDeCristais', 'relicarioDeCristal', 'lajeTumularAcesa', 'ossario',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Destroços e sucata')?.tipos).toEqual([
       'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'escombrosDePedra', 'ossos',
       'carrocaQuebrada', 'barrilQuebrado', 'caixaQuebrada', 'vigaCaida', 'armaduraEnferrujada', 'armaduraDespedacada', 'cranio',
+      // A leva de 24/11/2026.
+      'monteDeEntulho',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Esporte e lazer')?.tipos).toEqual([
       'campinho', 'bonecoDeTreino', 'alvoDeArcoEFlecha',
       'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
+      // A leva de 24/11/2026.
+      'armarioDeVestiario', 'balaustradaDeCamarote',
     ])
     // Os dois grupos novos de 11/11/2026 e o objeto novo de cada grupo antigo, no fim do grupo dele: os do
     // lote 1 e, depois deles, os do lote 2, os do lote 3, os do lote 4 (todos de Sala e quarto), os do lote 5
@@ -435,6 +469,13 @@ describe('TOOL_VARIANTS', () => {
       'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico',
       'teiaDeAranha', 'tochaDeParede', 'tochaDePe',
       'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'alcapao',
+      // A leva de 24/11/2026.
+      'cadeiraDeFerro', 'mesaDeFerro', 'catreDeFerro', 'esteiraDePalha', 'baldeDeDejetos', 'grilhoesDeParede',
+      'bolaDeFerroComCorrente', 'latrinaDeCela', 'bancoDePedra', 'mesaDoCarcereiro', 'quadroDeChaves', 'jaulaDeChao',
+      'bauDeFerro', 'gradeDeCorredor', 'corpoAmortalhado', 'pertencesConfiscados', 'pilarComBraseiro', 'lanternaGradeada',
+      'seloDeOrbitas', 'colunaLisa', 'pilastraQuadrada', 'pedestalComCristal', 'arandelaDeCristal', 'braseiroDeChamaFria',
+      'seloDeCristal', 'muroEmRuina', 'pedestalEntalhado', 'colunaComGlifos', 'estelaMaia', 'cabecaColossal',
+      'idoloDourado', 'mesinhaDeCela',
     ])
     // O grupo novo das referências (16/11/2026), arrumado pelo uso: o corpo, o que corta e ferve, a bancada e a
     // escrivaninha do legista.
@@ -443,6 +484,8 @@ describe('TOOL_VARIANTS', () => {
       'bandejaDeInstrumentos', 'esterilizador', 'panelasEBacias',
       'mesaDeLaboratorio', 'luminariaArticulada',
       'cadeiraGiratoria', 'maquinaDeEscrever',
+      // A leva de 24/11/2026.
+      'leitoHospitalar',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Tesouro')?.tipos).toEqual([
       'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
@@ -469,6 +512,8 @@ describe('TOOL_VARIANTS', () => {
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Taverna e festa')?.tipos).toEqual([
       'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
       'caixaDeFogosDeArtificio', 'barracaDeJogosDaFeira', 'barracaDeEspetinho', 'churrasqueira', 'harpa', 'tambores',
+      // A leva de 24/11/2026.
+      'bancoCorrido',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Descanso e brincadeira')?.tipos).toEqual([
       'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
@@ -482,14 +527,22 @@ describe('TOOL_VARIANTS', () => {
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala de tortura')?.tipos).toEqual([
       'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
+      // A leva de 24/11/2026.
+      'raloDeMasmorra', 'tabuaDePregos', 'cepoDoCarrasco', 'posteDeAcoite', 'pranchaDeTortura', 'braseiroComFerros',
+      'rodaDeTortura', 'guilhotina', 'guinchoDeCorrente', 'pocoDeSangue',
     ])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Magia e alquimia')?.tipos).toEqual(['estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro'])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala e quarto')?.tipos.slice(-12)).toEqual([
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Magia e alquimia')?.tipos).toEqual(['estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro', 'globoDeLuzRubra'])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala e quarto')?.tipos.slice(-21)).toEqual([
       'estanteDeLivros', 'guardaRoupa', 'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
       'cadeiraDeEspaldarAlto', 'centroDeMesa',
+    // A leva de 24/11/2026.
+      'catreDesarrumado', 'camaDeCaixotes', 'mesaDeCaixote', 'cadeiraRemendada', 'cortinaDePassagem', 'cadeiraDePlastico',
+      'mesaComComputador', 'velaNoPires', 'camaDeTrapos',
     ])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cozinha')?.tipos.slice(-5)).toEqual([
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cozinha')?.tipos.slice(-6)).toEqual([
       'caldeirao', 'fornoDePao', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
+    // A leva de 24/11/2026.
+      'salamandra',
     ])
     // O Banheiro (15/11/2026) arrumado pelo uso, cada peça antiga com a moderna: o canto do vaso, o banho, a pia e o
     // que se guarda.
@@ -499,14 +552,20 @@ describe('TOOL_VARIANTS', () => {
       'lavatorioComJarro', 'gabineteDeBanheiro',
       'armarioDeBanheiro', 'prateleiraDeFrascos', 'cestoDeRoupa', 'lixeiraDePedal',
       'prateleiraDeToalhas',
+      // A leva de 24/11/2026.
+      'vasoComPiaDeAco', 'chuveiroColetivo', 'maquinaDeLavar',
     ])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Armazenagem')?.tipos.slice(-8)).toEqual([
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Armazenagem')?.tipos.slice(-9)).toEqual([
       'sacosDeGrao', 'prateleiraDeDeposito', 'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
+    // A leva de 24/11/2026.
+      'trouxaDeRoupa',
     ])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Rua e jardim')?.tipos.slice(-8)).toEqual([
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Rua e jardim')?.tipos.slice(-10)).toEqual([
       'bancoDePraca',
       'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'carrinhoDeMao', 'placaDeLoja',
       'deckDeMadeira',
+    // A leva de 24/11/2026.
+      'mesaDePatio', 'cercaDeAlambrado',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Feira')?.tipos).toEqual([
       'carroca', 'quadroDeAvisos', 'cataVentoBrinquedo', 'bancaDeFrutas', 'toldoListrado',

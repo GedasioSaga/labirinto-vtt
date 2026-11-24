@@ -32,6 +32,23 @@ import { SOMBRA_DO_TAPETE } from './tapete'
 import { ESPESSURA_DO_CAPITEL } from './pilar'
 import { ESPESSURA_DO_TAMPO_DO_ALTAR } from './altar'
 import { ESPESSURA_DO_ARCO_DO_FORNO } from './fornoDePao'
+import { ESPESSURA_DO_ARO_DO_BALDE } from './baldeDeDejetos'
+import { ESPESSURA_DO_BANCO_DE_PEDRA } from './bancoDePedra'
+import { ESPESSURA_DA_JAULA_DE_CHAO } from './jaulaDeChao'
+import { ESPESSURA_DA_TABUA_DE_PREGOS } from './tabuaDePregos'
+import { ESPESSURA_DA_GRADE_DE_CORREDOR } from './gradeDeCorredor'
+import { ESPESSURA_DA_RODA_DE_TORTURA } from './rodaDeTortura'
+import { ESPESSURA_DO_ABACO_DO_PILAR_COM_BRASEIRO } from './pilarComBraseiro'
+import { ESPESSURA_DA_LANTERNA_GRADEADA } from './lanternaGradeada'
+import { FORCA_DA_SOMBRA_DE_BAIXO_DA_GARGULA } from './gargula'
+import { FORCA_DA_SOMBRA_DE_BAIXO_DA_BESTA } from './estatuaDeBesta'
+import { ESPESSURA_DA_TAMPA_DO_SARCOFAGO } from './sarcofagoEntreaberto'
+import { ESPESSURA_DA_TAMPA_DO_SARCOFAGO_DE_BRONZE } from './sarcofagoDeBronze'
+import { ESPESSURA_DO_CAPITEL_DA_PILASTRA } from './pilastraQuadrada'
+import { ESPESSURA_DO_TAMPO_DA_MESINHA } from './mesinhaDeCela'
+import { ESPESSURA_DAS_PECAS_DO_CHUVEIRO_COLETIVO } from './chuveiroColetivo'
+import { ESPESSURA_DO_COLCHAO_DO_LEITO } from './leitoHospitalar'
+import { ESPESSURA_DO_TAMPO_DA_MESA_COM_COMPUTADOR } from './mesaComComputador'
 import { ESPESSURA_DA_CORNIJA } from './estatua'
 import { ESPESSURA_DA_FIADA } from './mausoleu'
 import { ESPESSURA_DA_BANCA } from './bancaDeFrutas'
@@ -509,6 +526,104 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // A estátua de cavalo (21/11/2026) é desenhada de frente, como a armadura: a cabeça de perfil em pé no pedestal.
   estatuaDeCavalo: EM_PE,
   estatuaDeCavaloSemPedestal: EM_PE,
+  // A leva de 24/11/2026 (lotes L01 a L11 da lista dos 8 mapas, docs/design/objetos-24-11/LISTA.md). O perfil que cada desenhista
+  // pediu na ficha do lote.
+  cadeiraDeFerro: DERIVADO,
+  mesaDeFerro: DERIVADO,
+  catreDeFerro: DERIVADO,
+  esteiraDePalha: { modo: 'derivado', alturaSolta: 0.03 * G },
+  baldeDeDejetos: { modo: 'derivado', espessura: ESPESSURA_DO_ARO_DO_BALDE },
+  grilhoesDeParede: { modo: 'derivado', alturaSolta: 0.03 * G },
+  bolaDeFerroComCorrente: { modo: 'derivado', alturaSolta: 0.03 * G },
+  latrinaDeCela: DERIVADO,
+  bancoDePedra: { modo: 'derivado', espessura: ESPESSURA_DO_BANCO_DE_PEDRA },
+  mesaDoCarcereiro: DERIVADO,
+  quadroDeChaves: DERIVADO,
+  jaulaDeChao: { modo: 'derivado', espessura: ESPESSURA_DA_JAULA_DE_CHAO },
+  raloDeMasmorra: DERIVADO,
+  bauDeFerro: DERIVADO,
+  tabuaDePregos: { modo: 'derivado', espessura: ESPESSURA_DA_TABUA_DE_PREGOS },
+  cepoDoCarrasco: DERIVADO,
+  posteDeAcoite: EM_PE,
+  gradeDeCorredor: { modo: 'derivado', espessura: ESPESSURA_DA_GRADE_DE_CORREDOR },
+  corpoAmortalhado: DERIVADO,
+  pranchaDeTortura: EM_PE,
+  braseiroComFerros: DERIVADO,
+  fossoDeBrasas: DERIVADO,
+  rodaDeTortura: { modo: 'derivado', espessura: ESPESSURA_DA_RODA_DE_TORTURA },
+  guilhotina: EM_PE,
+  pertencesConfiscados: DERIVADO,
+  guinchoDeCorrente: { modo: 'em-pe', forcaDaSombraDeBaixo: 0.1 },
+  fossoDoSalao: DERIVADO,
+  pilarComBraseiro: { modo: 'derivado', espessura: ESPESSURA_DO_ABACO_DO_PILAR_COM_BRASEIRO },
+  lanternaGradeada: { modo: 'derivado', espessura: ESPESSURA_DA_LANTERNA_GRADEADA },
+  globoDeLuzRubra: { modo: 'derivado', espessura: 0 },
+  seloDeOrbitas: DERIVADO,
+  plataformaDeRitual: { modo: 'derivado', espessura: 0 },
+  gargula: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DE_BAIXO_DA_GARGULA },
+  estatuaDeBesta: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DE_BAIXO_DA_BESTA },
+  estatuaEncapuzada: EM_PE,
+  ponteDeCorrente: EM_PE,
+  sarcofagoEntreaberto: { modo: 'derivado', espessura: ESPESSURA_DA_TAMPA_DO_SARCOFAGO },
+  sarcofagoDeBronze: { modo: 'derivado', espessura: ESPESSURA_DA_TAMPA_DO_SARCOFAGO_DE_BRONZE },
+  caixaoDeFerro: DERIVADO,
+  lajeTumular: DERIVADO,
+  nichoFunerario: EM_PE,
+  colunaLisa: DERIVADO,
+  pilastraQuadrada: { modo: 'derivado', espessura: ESPESSURA_DO_CAPITEL_DA_PILASTRA },
+  urnaFuneraria: EM_PE,
+  columbario: EM_PE,
+  estradoEmMeiaLua: DERIVADO,
+  sarcofagoDeCristais: { modo: 'derivado', espessura: 0 },
+  relicarioDeCristal: { modo: 'derivado', espessura: 0 },
+  lajeTumularAcesa: { modo: 'derivado', espessura: 0 },
+  pedestalComCristal: { modo: 'derivado', espessura: 0 },
+  arandelaDeCristal: { modo: 'derivado', espessura: 0 },
+  braseiroDeChamaFria: { modo: 'derivado', espessura: 0 },
+  ossario: EM_PE,
+  arcossolio: EM_PE,
+  seloDeCristal: DERIVADO,
+  ponteDePedraQuebrada: EM_PE,
+  ponteDeTabuasQuebrada: EM_PE,
+  calcadaSobreAgua: DERIVADO,
+  muroEmRuina: { modo: 'derivado', espessura: 0 },
+  pedestalEntalhado: { modo: 'derivado', espessura: 0 },
+  colunaComGlifos: { modo: 'derivado', espessura: 0 },
+  estelaMaia: { modo: 'derivado', espessura: 0 },
+  cabanaDeLajes: { modo: 'derivado', espessura: 0 },
+  tanqueComBorda: DERIVADO,
+  piramideEmDegraus: { modo: 'derivado', propria: true },
+  topoDoTemplo: { modo: 'derivado', propria: true },
+  cabecaColossal: { modo: 'derivado', propria: true },
+  idoloDourado: EM_PE,
+  cascataEmDegraus: { modo: 'derivado', propria: true },
+  ponteSobrePilares: { modo: 'derivado', propria: true },
+  catreDesarrumado: DERIVADO,
+  camaDeCaixotes: EM_PE,
+  mesaDeCaixote: DERIVADO,
+  cadeiraRemendada: DERIVADO,
+  bancoCorrido: DERIVADO,
+  cortinaDePassagem: DERIVADO,
+  trouxaDeRoupa: EM_PE,
+  passarelaDeTabuas: DERIVADO,
+  vasoComPiaDeAco: DERIVADO,
+  mesinhaDeCela: { modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_MESINHA },
+  mesaDePatio: DERIVADO,
+  chuveiroColetivo: { modo: 'derivado', espessura: ESPESSURA_DAS_PECAS_DO_CHUVEIRO_COLETIVO },
+  armarioDeVestiario: DERIVADO,
+  cadeiraDePlastico: DERIVADO,
+  maquinaDeLavar: DERIVADO,
+  leitoHospitalar: { modo: 'derivado', espessura: ESPESSURA_DO_COLCHAO_DO_LEITO },
+  mesaComComputador: { modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_MESA_COM_COMPUTADOR },
+  cercaDeAlambrado: DERIVADO,
+  arquibancadaDePedra: { modo: 'derivado', espessura: 0 },
+  fossoDeArena: DERIVADO,
+  balaustradaDeCamarote: { modo: 'derivado', espessura: 0.07 * G },
+  pocoDeSangue: DERIVADO,
+  velaNoPires: DERIVADO,
+  salamandra: { modo: 'derivado', espessura: 0 },
+  monteDeEntulho: { modo: 'derivado', espessura: 0.1 * G },
+  camaDeTrapos: { modo: 'derivado', espessura: 0.1 * G },
   // Lotes 13 e 16 dos 95 objetos novos (11/11/2026), o templo e a masmorra. O braseiro sobe pelas sombras: cada
   // perna é uma coluna da altura da borda e a bacia sobe em dois pinos, o do bojo e o da boca; a chama animada
   // sobe a mesma altura (`deslocamentoDaChama`), como a da fornalha.

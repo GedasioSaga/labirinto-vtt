@@ -40,15 +40,15 @@ export function ehMovelComFogoDeCasa(tipo: string | undefined): tipo is MovelCom
  * apagado, a luz do mapa some (`luzDoObjeto`) e o desenho troca para a lente escura (a variante 1). A LUMINÁRIA
  * ARTICULADA (16/11/2026, lote L1 das referências) acende do mesmo jeito: "Luz", e apagada a boca da cúpula escurece.
  */
-export type MovelQueAcende = MovelComFogoDeCasa | 'holofote' | 'luminariaArticulada'
+export type MovelQueAcende = MovelComFogoDeCasa | 'holofote' | 'luminariaArticulada' | 'pilarComBraseiro' | 'lanternaGradeada' | 'globoDeLuzRubra'
 
 export function ehMovelQueAcende(tipo: string | undefined): tipo is MovelQueAcende {
-  return ehMovelComFogoDeCasa(tipo) || tipo === 'holofote' || tipo === 'luminariaArticulada'
+  return ehMovelComFogoDeCasa(tipo) || tipo === 'holofote' || tipo === 'luminariaArticulada' || tipo === 'pilarComBraseiro' || tipo === 'lanternaGradeada' || tipo === 'globoDeLuzRubra'
 }
 
 /** O nome do controle no painel: "Fogo" no que queima, "Luz" no de lâmpada. */
 export function rotuloDoAcender(tipo: MovelQueAcende): 'Fogo' | 'Luz' {
-  return ehMovelComFogoDeCasa(tipo) ? 'Fogo' : 'Luz'
+  return ehMovelComFogoDeCasa(tipo) || tipo === 'pilarComBraseiro' ? 'Fogo' : 'Luz'
 }
 
 /** Uma língua: a base em fração da pegada (x da largura, y da altura), a altura em fração do lado menor e o atraso de fase. */

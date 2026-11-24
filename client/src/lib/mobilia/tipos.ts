@@ -181,6 +181,23 @@ export const TIPOS_MOBILIA = [
   // de cavalo de pedra esverdeada, com e sem o pedestal quadrado. Enfeite de salão do castelo, no Objeto, como a
   // armadura de pé: não é construção nem enigma.
   'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
+  // A leva de 24/11/2026 (lotes L01 a L11 da lista dos 8 mapas, docs/design/objetos-24-11/LISTA.md).
+  'cadeiraDeFerro', 'mesaDeFerro', 'catreDeFerro', 'esteiraDePalha', 'baldeDeDejetos', 'grilhoesDeParede',
+  'bolaDeFerroComCorrente', 'latrinaDeCela', 'bancoDePedra', 'mesaDoCarcereiro', 'quadroDeChaves', 'jaulaDeChao',
+  'raloDeMasmorra', 'bauDeFerro', 'tabuaDePregos', 'cepoDoCarrasco', 'posteDeAcoite', 'gradeDeCorredor',
+  'corpoAmortalhado', 'pranchaDeTortura', 'braseiroComFerros', 'fossoDeBrasas', 'rodaDeTortura', 'guilhotina',
+  'pertencesConfiscados', 'guinchoDeCorrente', 'fossoDoSalao', 'pilarComBraseiro', 'lanternaGradeada', 'globoDeLuzRubra',
+  'seloDeOrbitas', 'plataformaDeRitual', 'gargula', 'estatuaDeBesta', 'estatuaEncapuzada', 'ponteDeCorrente',
+  'sarcofagoEntreaberto', 'sarcofagoDeBronze', 'caixaoDeFerro', 'lajeTumular', 'nichoFunerario', 'colunaLisa',
+  'pilastraQuadrada', 'urnaFuneraria', 'columbario', 'estradoEmMeiaLua', 'sarcofagoDeCristais', 'relicarioDeCristal',
+  'lajeTumularAcesa', 'pedestalComCristal', 'arandelaDeCristal', 'braseiroDeChamaFria', 'ossario', 'arcossolio',
+  'seloDeCristal', 'ponteDePedraQuebrada', 'ponteDeTabuasQuebrada', 'calcadaSobreAgua', 'muroEmRuina', 'pedestalEntalhado',
+  'colunaComGlifos', 'estelaMaia', 'cabanaDeLajes', 'tanqueComBorda', 'piramideEmDegraus', 'topoDoTemplo',
+  'cabecaColossal', 'idoloDourado', 'cascataEmDegraus', 'ponteSobrePilares', 'catreDesarrumado', 'camaDeCaixotes',
+  'mesaDeCaixote', 'cadeiraRemendada', 'bancoCorrido', 'cortinaDePassagem', 'trouxaDeRoupa', 'passarelaDeTabuas',
+  'vasoComPiaDeAco', 'mesinhaDeCela', 'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico',
+  'maquinaDeLavar', 'leitoHospitalar', 'mesaComComputador', 'cercaDeAlambrado', 'arquibancadaDePedra', 'fossoDeArena',
+  'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra', 'monteDeEntulho', 'camaDeTrapos',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
