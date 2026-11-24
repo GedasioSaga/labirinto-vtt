@@ -86,6 +86,7 @@ import { CutsceneDeVideoOverlay } from '../transicoes/CutsceneDeVideoOverlay'
 import { aquecerAbertura, aquecerMotorDasCutscenes, aquecerTransicao, aquecerTransicoesDoMapa } from '../transicoes/aquecimento'
 import { parseTransicao } from '../transicoes/catalogo'
 import { FaixaDoJogador } from '../components/batalha/FaixaDoJogador'
+import { EscolhaDosCompanions } from '../components/caracteristicas/EscolhaDosCompanions'
 import { useLugarDaFaixa } from './lugarDaFaixa'
 import { BatalhaDoJogador } from '../components/batalha/BatalhaDoJogador'
 import { BatalhaDoJogadorDBT, type EnvioDaBatalhaDBT, type RespostaDoEnvioDBT } from '../components/dbt/batalha/BatalhaDoJogadorDBT'
@@ -2444,6 +2445,19 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         )}
         {/*
           BATALHA DBT: a faixa da ordem Dragon Ball no mesmo lugar, com PV e Ki só dele e dos aliados.
+        {/* COMPANION: "Quem vai com a Aira?" enquanto o host diz que a escolha espera este jogador. */}
+        {state.batalhaEstado?.companions?.[0] !== undefined && (
+          <EscolhaDosCompanions
+            key={state.batalhaEstado.companions[0].donoPersonagemId}
+            donoNome={state.batalhaEstado.companions[0].donoNome}
+            grupos={state.batalhaEstado.companions[0].grupos}
+            quem="jogador"
+            onEntrar={(escolhidos) => {
+              const escolha = state.batalhaEstado?.companions?.[0]
+              if (escolha !== undefined) connection.escolherCompanionsNaBatalha(escolha.donoPersonagemId, escolhidos)
+            }}
+          />
+        )}
           A recusa do host aparece num lugar só: no menu da batalha quando ele está na tela; olhando
           outro andar (sem o menu), aqui na faixa.
         */}

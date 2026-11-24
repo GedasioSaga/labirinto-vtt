@@ -520,6 +520,34 @@ button.bt-carta__corpo {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/* COMPANION: o "A" de latão e "Companion de Aira" (protótipo das características, estado 4). */
+.bt-carta__companion {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--lb-color-parchment-dim);
+  font-size: 10px;
+}
+.bt-carta__companion b {
+  color: var(--lb-color-brass-bright);
+  font-weight: 600;
+}
+.bt-carta__companion-a {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--lb-color-brass);
+  color: var(--lb-color-stone, #111);
+  font-size: 9px;
+  font-weight: 700;
+}
 /* F3: os selos sob as barras ("ATORDOADO 2"). */
 .bt-carta__selos {
   display: flex;

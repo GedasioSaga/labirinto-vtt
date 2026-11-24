@@ -13,6 +13,7 @@ import { faixaDoMestre, linhasDoMestre } from './dadosDaFaixa'
 import { EquipesDialog } from './EquipesDialog'
 import { EscolhaDaRegra, confirmarRascunho, rascunhoDe, type RascunhoDaRegra } from './EscolhaDaRegra'
 import { IncluirNaBatalha } from './IncluirNaBatalha'
+import { EscolhendoCompanions } from '../caracteristicas/EscolhendoCompanions'
 import { PainelDaBatalha } from './PainelDaBatalha'
 import { usePassarVezDoMestre } from './passarVezDoMestre'
 import { useTravaDoPassar } from './travaDoPassar'
@@ -80,7 +81,12 @@ export function PainelDoMestre({ sceneKey, comAMesa = false }: PainelDoMestrePro
         onOrdenar={() => store().ordenarPelaAgilidade(sceneKey)}
         desempate={cena.turnos.desempate}
         onDesempate={(desempate: Desempate) => store().trocarDesempate(sceneKey, desempate)}
-        incluir={<IncluirNaBatalha sceneKey={sceneKey} />}
+        incluir={
+        <>
+          <EscolhendoCompanions sceneKey={sceneKey} />
+          <IncluirNaBatalha sceneKey={sceneKey} />
+        </>
+      }
         regras={cena.regras}
         onMudarRegras={() => {
           void useRegrasDoCampoStore.getState().carregar()

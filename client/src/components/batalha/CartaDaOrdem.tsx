@@ -138,6 +138,7 @@ function MembrosDoBando({ membros }: { membros: readonly MembroNaCarta[] }) {
 /** O que o leitor de tela diz da carta: posição, nome, vez, vida e marcas, numa frase. */
 export function descricaoDaCarta(carta: DadosDaCarta, posicao: number, vez: boolean, proxima: boolean, doMestre: boolean): string {
   const partes = [`${posicao}º ${carta.nome}`]
+  if (carta.companionDe !== undefined) partes.push(`companion de ${carta.companionDe}`)
   if (carta.equipe !== null) partes.push(`equipe ${carta.equipe}`)
   if (vez) partes.push('é a vez')
   else if (proxima) partes.push('a seguir')
@@ -219,6 +220,7 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
       <span className="bt-carta__nome" title={carta.nome}>
         {carta.nome}
       </span>
+      {carta.companionDe !== undefined && <SeloDoCompanion dono={carta.companionDe} minha={carta.minha} />}
       <span className="bt-carta__vida">
         {carta.vida === 'numeros' && carta.recursos.map((recurso) => <Barra key={recurso.id} recurso={recurso} perda={comPerda && recurso.tom === 'vida' ? perda : 0} />)}
         {carta.escudo !== undefined && carta.escudo > 0 && carta.bando === undefined && (
@@ -272,6 +274,7 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
         </span>
         <span className="bt-carta__pos">{posicao}</span>
       </span>
+      {carta.companionDe !== undefined && <SeloDoCompanion dono={carta.companionDe} minha={false} />}
       {forma !== null && (
         <span className="bt-carta__forma" title={forma}>
           {forma}
@@ -354,5 +357,16 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
         </button>
       )}
     </li>
+  )
+}
+
+/** COMPANION: o "A" de latão e "Companion de Aira" (com "você joga" na carta do jogador dono). */
+function SeloDoCompanion({ dono, minha }: { dono: string; minha: boolean }) {
+  return (
+    <span className="bt-carta__companion" aria-hidden="true">
+      <span className="bt-carta__companion-a">A</span>
+      Companion de {dono}
+      {minha && <b> · você joga</b>}
+    </span>
   )
 }

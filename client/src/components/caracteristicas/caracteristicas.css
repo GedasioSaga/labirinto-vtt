@@ -447,3 +447,115 @@ button.lb-carac__chip:focus-visible,
   max-height: 320px;
   overflow: auto;
 }
+
+/* "Quem vai com a Aira?" */
+.lb-carac-escolha__olho {
+  margin: 0 0 4px;
+  color: var(--lb-color-brass-bright);
+  font-size: var(--lb-font-size-xs);
+}
+
+.lb-carac-escolha__tit {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.lb-carac-escolha__grupo {
+  margin: 0;
+  padding: var(--lb-space-2) 0 0;
+  border: 0;
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-carac-escolha__legenda {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 0 var(--lb-space-2);
+  color: var(--lb-color-parchment);
+}
+
+.lb-carac-escolha__conta b {
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-carac-escolha__opcoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.lb-carac-escolha__op {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.lb-carac-escolha__op[data-marcada='sim'] {
+  border-color: var(--lb-color-brass);
+  background: color-mix(in srgb, var(--lb-color-brass) 12%, transparent);
+}
+
+.lb-carac-escolha__op[data-travada='sim'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.lb-carac-escolha__op:has(input:focus-visible) {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+
+.lb-carac-escolha__texto {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-carac-escolha__texto strong {
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.lb-carac-escolha__rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  padding-top: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-carac-escolha__rodape .lb-carac-modal__sub {
+  max-width: 280px;
+}
+
+.lb-carac-escolha__erro {
+  margin: 0;
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* "Aira escolhendo…" no painel do mestre. */
+.lb-carac-esperando {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px dashed color-mix(in srgb, var(--lb-color-brass) 55%, transparent);
+  border-radius: var(--lb-radius-md);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}

@@ -77,6 +77,8 @@ export interface DadosDaCarta {
   escudo?: number
   /** C10: o cheio da barra do Escudo, o maior que ele teve na batalha (`escudoMaisAlto`). Ausente = o atual (barra cheia). */
   escudoMax?: number
+  /** COMPANION: o nome do dono ("Companion de Aira"). Ausente = não é companion. */
+  companionDe?: string
 }
 
 /** Invocação F3: um invocado na carta do bando. `vida` `null` = quem olha não vê (lado oposto). */
@@ -246,6 +248,7 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema, r
       npc: personagem?.tipo === 'npc',
       carga: carta.personagemId === null ? 0 : (turnos.combate?.[carta.personagemId]?.carga ?? 0),
       ...escudoDaFicha(personagem, sistema, registro),
+      ...companionNoMestre(turnos, carta.tokenId, personagemPorId),
     }
   })
   const proxima = proximaCarta(turnos, caidos)
@@ -260,6 +263,13 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema, r
     vezForaDaVista: false,
     depois: daProxima === null ? null : `Depois: ${daProxima.nome}`,
   }
+}
+
+/** COMPANION: "Companion de Aira" na carta do mestre (o dono pela lista da batalha). */
+function companionNoMestre(turnos: TurnosDaCena, tokenId: string, personagemPorId: ReadonlyMap<string, Personagem>): Pick<DadosDaCarta, 'companionDe'> {
+  const companion = turnos.companions?.find((candidato) => candidato.tokenId === tokenId)
+  const dono = companion === undefined ? undefined : personagemPorId.get(companion.donoPersonagemId)
+  return dono === undefined ? {} : { companionDe: dono.nome }
 }
 
 /**
@@ -401,7 +411,8 @@ export function faixaDoJogador({ estado, fichas, personagens, sistema }: Entrada
     )
     // F2: a carga só do que é dele (o recorte não manda a dos outros).
     const meu = carta.lado === 'eu' ? estado.meus?.find((combate) => combate.personagemId === carta.personagemId) : undefined
-    return meu === undefined ? dados : { ...dados, carga: meu.carga }
+    const comCarga = meu === undefined ? dados : { ...dados, carga: meu.carga }
+    return carta.companionDe === undefined ? comCarga : { ...comCarga, companionDe: carta.companionDe }
   })
   let depois: string | null = null
   if (!estado.minhaVez) {
