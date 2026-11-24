@@ -1,5 +1,6 @@
 import type { CarriedItem } from '../types/map'
 import { lerDocumentosDaFicha } from '../documentos/leitor'
+import { lerCaracteristicas, type Caracteristica } from './caracteristicas/tipos'
 import { acumuladorGuardado, marcasGuardadas, requisitosGuardados } from './batalha/requisitos/guardados'
 import type { DocumentoNaFicha } from '../documentos/tipos'
 import { cleanPlayerName } from './chat'
@@ -310,6 +311,12 @@ export interface Personagem {
    * `oculta` de cada cartão). Ausente = nenhum.
    */
   ocultas?: Record<string, number>
+  /**
+   * CARACTERÍSTICAS ESPECIAIS (Companion, Cegueira; `lib/caracteristicas/tipos.ts`).
+   * Só o mestre muda: a edição do jogador parte da ficha gravada. Vai ao
+   * jogador (ele vê os chips e escolhe os companions da batalha). Ausente = nenhuma.
+   */
+  caracteristicas?: Caracteristica[]
 }
 
 /** A marca de NPC de combate (`Personagem.combate`). */
@@ -757,7 +764,14 @@ export function personagemDoArquivo(value: unknown): Personagem | null {
     ...(typeof value.dono === 'string' && DONO_PADRAO.test(value.dono) ? { dono: value.dono } : {}),
     ...camposDoMundoDoArquivo(value),
     ...ocultasDoArquivo(value.ocultas),
+    ...caracteristicasDoArquivo(value.caracteristicas),
   }
+}
+
+/** As características do disco ou da rede; vazias ou tortas, a chave nem aparece. */
+function caracteristicasDoArquivo(value: unknown): Pick<Personagem, 'caracteristicas'> {
+  const caracteristicas = lerCaracteristicas(value)
+  return caracteristicas === undefined ? {} : { caracteristicas }
 }
 
 /** A chave de aba que a contagem aceita: a do segmento do Lobby (`lib/nuvem/caminho.ts`). */
