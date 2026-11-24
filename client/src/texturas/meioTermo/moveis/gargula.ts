@@ -1,30 +1,29 @@
 /**
  * GÁRGULA (lote L04 de 24/11/2026, a Fortaleza do ritual; construção nova, do
- * grupo Monumentos e colunas). A gárgula de pedra AGACHADA no seu bloco, de
- * asas FECHADAS, VISTA DE CIMA: a cabeça para a frente (o lado de baixo da
- * pegada), debruçada na beira do bloco, com os dois chifres grossos abertos
- * para os lados e virados para trás; os ombros e os braços descendo até as
- * mãos de três garras cravadas na beira; os joelhos dobrados dos lados; o
- * lombo largo com as vértebras e as duas omoplatas; as duas asas de morcego
- * dobradas e coladas aos flancos, fechando para trás, cada uma com a ponta
- * recortada em rabo de andorinha; e o rabo que sai por baixo delas, contorna
- * o bloco e acaba em ponta de lança.
+ * grupo Monumentos e colunas). A gárgula PEQUENA de pedra, AGACHADA num
+ * PEDESTAL QUADRADO e vista DE FRENTE, em pé, como a estátua de besta: o
+ * corpo compacto, sentado sobre as ancas, com os joelhos dobrados dos lados;
+ * os braços retos entre eles, com as MÃOS APOIADAS NA BEIRA do pedestal (os
+ * dedos dobrados por cima dela); a cabeça baixa, de CÃO (o focinho que
+ * avança, a testa pesada em V, os olhos fundos, as duas presas e as orelhas
+ * de ponta, sem chifre); e as duas ASAS FECHADAS, coladas ao corpo: duas
+ * gotas altas atrás dos ombros, com a ponta para cima.
  *
- * De cima é o que se vê de quem passa embaixo dela: nenhum rosto de frente, só
- * o alto da cabeça, as sobrancelhas e o focinho. Para ler numa casa, são
- * poucas massas grandes em três tons: as asas escuras dos lados, o corpo no
- * tom do meio e a cabeça com os chifres claros, em cima do quadrado do bloco.
- * O que diz "gárgula" é o bicho de costas entre as duas asas fechadas, com a
- * cabeça chifruda na ponta e o rabo de lança do lado.
+ * Revisão do diretor de arte (24/11/2026): a primeira era desenhada DE CIMA
+ * (o bicho de costas no bloco) e lia como um besouro com botões nas costas;
+ * na mesa virava ruído. De frente ela se lê pela silhueta, como a besta.
+ * O que a separa da besta de verdade: a silhueta compacta e de pé (mais alta
+ * que larga, sem envergadura), as asas fechadas, o focinho de cão no lugar
+ * dos chifres de touro e as mãos na beira do pedestal.
  *
  * A pedra é a do painel (`c.m.pedra`), com o TEMPO fixo por cima, como na
  * estátua de cavalo: o cinza puxado para o verde, manchas de verdete onde a
- * chuva escorre, pintas claras de líquen e musgo nos cantos do bloco.
+ * chuva escorre, pintas claras de líquen e musgo nos cantos do pedestal.
  *
- * Figura desenhada de uma vista só: de cima e na 3/4 é a mesma imagem, e a 3/4
- * só põe a sombra de baixo (`EM_PE` em `tresQuartos.ts`, como a âncora e o
- * canhão); o giro gira a imagem inteira, e a gárgula olha para onde o mestre
- * a virar. O desenho é feito numa casa de 56 px e escala com o menor lado.
+ * Figura desenhada de frente nas duas vistas: de cima e na 3/4 é a mesma
+ * imagem, e a 3/4 só põe a sombra de baixo (`EM_PE` em `tresQuartos.ts`); o
+ * quarto de volta deita a figura, como nos outros em pé. O desenho é feito
+ * numa casa de 56 px (y cresce para baixo) e escala com o menor lado.
  *
  * Este arquivo também guarda o que as três estátuas do lote dividem (a pedra
  * com o tempo, o cone de pontas redondas, o musgo, o pedestal visto de
@@ -32,7 +31,7 @@
  */
 import { hash, misturar, rgb, type Rgb } from '../../ruido'
 import { tomDoMeio } from '../materiais'
-import { cadeia, caixa, capsula, dentroDe, elipse, elipseGirada, menos, poligono, uniao, type Caixa, type Forma, type Ponto } from './formas'
+import { cadeia, caixa, elipse, elipseGirada, poligono, uniao, type Caixa, type Forma, type Ponto } from './formas'
 import { contato, ruido, texturaDaClasse, type Cena, type MaterialDaPeca, type OpcoesDaPeca, type Textura } from './motor'
 import type { ContextoDoMovel, MontarMovel } from './contexto'
 
@@ -49,10 +48,22 @@ const ESCURO_DA_PEDRA_VELHA: Rgb = [0x40, 0x47, 0x41]
 export const VAO_DA_PEDRA: MaterialDaPeca = { classe: 'liso', rgb: [0x33, 0x39, 0x34] }
 /** O líquen: rodelas claras e meio transparentes. */
 const LIQUEN_DA_PEDRA: MaterialDaPeca = { classe: 'liso', rgb: [0xb6, 0xb9, 0xa0] }
-/** As manchas: o tamanho (px do protótipo por volta do ruído). O líquen só aparece a partir desta escala. */
+/**
+ * As manchas: o tamanho (px do protótipo por volta do ruído) e o da mancha miúda que recorta a beira delas. O
+ * líquen só aparece a partir desta escala.
+ */
 const TAMANHO_DAS_MANCHAS = 6
+const TAMANHO_DA_MANCHA_MIUDA = 3.4
+const PESO_DA_MANCHA_MIUDA = 0.24
 const ESCALA_DO_LIQUEN = 1
 const LIMIAR_DO_LIQUEN = 0.34
+const LUZ_DO_LIQUEN = 0.5
+/**
+ * Quanto do salpico do granito fica na pedra velha: a metade (revisão do diretor de arte, 24/11/2026). Inteiro, por
+ * cima das manchas e do escorrido, o grão escuro lia como sujeira, igual nas quatro pedras do lote. O salpico é
+ * multiplicado na cor da pedra (`motor.ts`): é sempre o tom escuro dela, nunca preto.
+ */
+export const SALPICO_DA_PEDRA_VELHA = 0.5
 /** O escorrido da chuva: faixas finas de pé (a largura e o comprimento do ruído). */
 const LARGURA_DO_ESCORRIDO = 0.7
 const COMPRIMENTO_DO_ESCORRIDO = 0.045
@@ -68,7 +79,8 @@ const DA_PEDRA = texturaDaClasse('pedra')
 export function texDaPedraVelha(manchas: number, chuva = 0): Textura {
   return (u, v, x, y, p, s, escala) => {
     if (DA_PEDRA !== null) DA_PEDRA(u, v, x, y, p, s, escala)
-    const n = ruido(x / TAMANHO_DAS_MANCHAS + 13, y / TAMANHO_DAS_MANCHAS) + 0.5 * ruido(x / 2.4 + 7, y / 2.4 + 29)
+    s[6] *= SALPICO_DA_PEDRA_VELHA
+    const n = ruido(x / TAMANHO_DAS_MANCHAS + 13, y / TAMANHO_DAS_MANCHAS) + PESO_DA_MANCHA_MIUDA * ruido(x / TAMANHO_DA_MANCHA_MIUDA + 7, y / TAMANHO_DA_MANCHA_MIUDA + 29)
     const t = Math.min(1, Math.max(0, (n + 0.1) * 2.2)) * manchas
     if (t > 0) {
       s[0] += (VERDETE[0] - s[0]) * t
@@ -81,7 +93,7 @@ export function texDaPedraVelha(manchas: number, chuva = 0): Textura {
     }
     if (escala < ESCALA_DO_LIQUEN) return
     const l = ruido(x / 1.3 + 51, y / 1.3 + 3)
-    if (l > LIMIAR_DO_LIQUEN) s[3] += (l - LIMIAR_DO_LIQUEN) * 0.9
+    if (l > LIMIAR_DO_LIQUEN) s[3] += (l - LIMIAR_DO_LIQUEN) * LUZ_DO_LIQUEN
   }
 }
 
@@ -130,11 +142,6 @@ export function conico(ax: number, ay: number, ra: number, bx: number, by: numbe
 /** Os pontos do lado direito espelhados para o esquerdo. */
 export function espelho(pontos: readonly Ponto[]): Ponto[] {
   return pontos.map(([x, y]): Ponto => [-x, y])
-}
-
-/** A forma do lado direito espelhada para o esquerdo (para o que não é feito de pontos: a asa recortada). */
-function espelhada(f: Forma): Forma {
-  return { b: [-f.b[2], f.b[1], -f.b[0], f.b[3]], d: (x, y) => f.d(-x, y) }
 }
 
 /** A forma engordada `r` px: arredonda as quinas de fora de um polígono (as de dentro continuam vivas). */
@@ -234,134 +241,156 @@ export function sombraDoPedestalDeFrente(cena: Cena, na: (f: Forma) => Forma, m:
   cena.sombras.push({ forma: na(caixa(-m.soco.meia, m.chao - 1.4, m.soco.meia, m.chao + 0.2, 0.6)), z: (m.chao - m.tampo) * escala, forca: 0.3 })
 }
 
-// ---------- a gárgula (px da casa: o meio do bloco no 0, 0; a frente é para baixo) ----------
+// ---------- a gárgula (px da casa: 0 no meio, y cresce para baixo; o lado direito, o esquerdo é o espelho) ----------
 
-/** O bloco: o meio lado do soco e o do tampo, mais estreito (um degrau em volta). As asas, a cabeça e o rabo sobram dele. */
-const SOCO = 19.5
-const TAMPO = 17
-/** Quanto de verde vai na pedra da figura e na do bloco, e a força das manchas de cada uma. */
+/**
+ * O pedestal QUADRADO visto de frente: quase tão alto quanto largo, com a placa lisa rebaixada. O chão fica em 24,5
+ * (o da estátua encapuzada), e não em 25: no nível 3 da imagem, 25 px caem em cima de uma linha de pixels, e a
+ * beira do soco saía meio transparente; com a sombra de baixo da 3/4 por trás, essa linha passava a contar como
+ * peça e a soma da sombra CAÍA (o portão da sombra de baixo reprovava com qualquer força, medido na folha).
+ */
+const PEDESTAL: PedestalDeFrente = {
+  chao: 24.5,
+  soco: { meia: 13.6, topo: 21.2, frente: 22.3 },
+  dado: { meia: 11.6, topo: 12.6, pe: 21.6 },
+  cornija: { meia: 13.2, frente: 10.4, pe: 13 },
+  tampo: 8.2,
+  placa: { meia: 7.2, topo: 14.6, pe: 20 },
+}
+/**
+ * A força da sombra de baixo da gárgula na 3/4 (o perfil dela em `tresQuartos.ts` usa:
+ * `{ modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DE_BAIXO_DA_GARGULA }`), a mesma da besta. Com a de sempre
+ * (0,34) ela quase some debaixo da sombra do pedestal: a soma da sombra sobe só 2,15%, rente ao mínimo de 2% do
+ * portão; com 0,44 sobe 7%. (Medido no nível 3: 0,34 dá 1,0215; 0,44 dá 1,0715; 0,5 dá 1,0524.)
+ */
+export const FORCA_DA_SOMBRA_DE_BAIXO_DA_GARGULA = 0.44
+/** Quanto de verde vai na pedra da figura e na do pedestal, as manchas e a chuva da figura. */
 const VERDE_NA_FIGURA = 0.26
-const VERDE_NO_BLOCO = 0.14
-const MANCHAS_NA_FIGURA = 0.34
-const MANCHAS_NO_BLOCO = 0.26
-/** Os três tons da figura: as asas, o corpo e a cabeça com os chifres. */
-const TOM_DA_ASA = 0.66
+const VERDE_NO_PEDESTAL = 0.14
+const MANCHAS_NA_FIGURA = 0.3
+const CHUVA_NA_FIGURA = 0.2
+/** Os três tons da figura (vezes o da pedra): as asas, o corpo e a cabeça; e as garras, o mais claro. */
+const TOM_DA_ASA = 0.62
 const TOM_DO_CORPO = 0.92
 const TOM_DA_CABECA = 1.08
-const TOM_DO_CHIFRE = 1.2
+const TOM_DA_GARRA = 1.18
 
-/** O rabo: sai de trás, por baixo das pontas das asas, contorna o bloco pelo lado direito e acaba em ponta de lança. */
-const RABO: readonly Ponto[] = [[0.6, -17], [5, -22.4], [12, -24.6], [18.8, -22], [22.8, -16], [23.6, -8.4], [22.2, -1.6]]
-const PONTA_DO_RABO: readonly Ponto[] = [[19, -1.2], [25.2, -0.2], [21.4, 6]]
-/** A perna direita (a esquerda é o espelho): a coxa dobrada, do quadril ao joelho, e o pé na quina da frente do bloco. */
-const COXA: readonly [number, number, number, number, number, number] = [11.6, 3.4, 4.7, 15.4, 12.2, 3.7]
-const PE = { x: 16, y: 16.2, rx: 3, ry: 2.5 }
-/** O lombo, entre as duas asas: largo nos ombros e fechando para o rabo (o raio nas duas pontas); as vértebras ao longo da espinha e as omoplatas, de onde as asas saem. */
-const LOMBO = { ombros: 4.6, raioNosOmbros: 8.8, ancas: -15.6, raioNasAncas: 5 }
-const VERTEBRAS: readonly number[] = [-17, -12.8, -8.6, -4.4, -0.2, 4]
-const OMOPLATA = { x: 5.2, y: 3, rx: 2.5, ry: 3.7 }
+/** Um cone de pontas redondas: x, y e raio de uma ponta, x, y e raio da outra. */
+type Cone = readonly [number, number, number, number, number, number]
+/** A asa FECHADA: uma gota alta atrás do ombro (o bojo embaixo, a ponta em cima); e o osso dela, pela beira de fora. */
+const ASA: Cone = [7.1, -7.4, 5, 8.7, -25, 0.8]
+const OSSO_DA_ASA: Cone = [10.8, -8.8, 1.15, 9, -24.2, 0.5]
+/** O tronco: o peito e a barriga. */
+const PEITO = { y: -4.6, rx: 6.9, ry: 6.6 }
+const BARRIGA = { y: 2.8, rx: 5.5, ry: 5.2 }
+/** A perna dobrada: a coxa (do quadril ao joelho, que sobe e abre), a canela, o pé e as três garras na beira do pedestal. */
+const COXA: Cone = [5.2, 4.2, 4.3, 10.6, -1.8, 3.6]
+const CANELA: Cone = [10.8, -1.4, 3.1, 9.3, 6.2, 2.3]
+const PE = { x: 9.5, y: 7.2, rx: 3.5, ry: 1.7 }
+const GARRAS_DO_PE: readonly (readonly [number, number, number, number])[] = [[7.5, 7.8, 7.1, 10.5], [9.5, 8.1, 9.5, 10.9], [11.5, 7.8, 12, 10.5]]
+/** O braço reto, do ombro à mão apoiada na beira do pedestal, entre os joelhos; e os três dedos dobrados por cima da beira. */
+const OMBRO = { x: 6.2, y: -8.6, rx: 3.4, ry: 3.2 }
+const BRACO: Cone = [5.9, -7.4, 2.6, 3.6, 5.4, 1.9]
+const MAO = { x: 3.5, y: 7.1, rx: 2.4, ry: 1.6 }
+const DEDOS: readonly (readonly [number, number, number, number])[] = [[2, 7.7, 1.8, 10.5], [3.5, 7.9, 3.5, 10.8], [5, 7.7, 5.3, 10.5]]
 /**
- * A asa direita, dobrada e colada ao flanco (a esquerda é o espelho): uma folha comprida e estreita, do ombro para
- * trás, fechando para a espinha, com a ponta recortada por uma mordida redonda (as duas pontas da membrana).
+ * A cabeça baixa, de cão: o crânio, o focinho que avança (o que fica mais perto de quem olha, e mais claro), a
+ * mandíbula, o nariz, a boca, as duas presas, a testa pesada em V com os olhos fundos debaixo dela e as orelhas de
+ * ponta. Sem chifre: é o que a separa da besta.
  */
-const ASA = { x: 12.8, y: -6.6, rx: 5.7, ry: 16.8, giro: -0.2 }
-const MORDIDA: readonly [number, number, number] = [9, -27.2, 4.7]
-/** O punho da asa (na frente, ao lado do ombro) e as varetas da membrana, em relevo baixo: as duas das pontas e a do meio. */
-const PUNHO_DA_ASA: Ponto = [15.2, 7.6]
-const VARETAS: readonly Ponto[] = [[13, -20.6], [9.6, -21.4], [6.4, -21.4]]
-/** Os ombros, os braços (do ombro ao pulso), as mãos e as três garras de cada uma, cravadas na beira do bloco. */
-const OMBRO = { x: 6.8, y: 9.4, rx: 4, ry: 3.6 }
-const BRACO: readonly [number, number, number, number, number, number] = [7, 10, 2.8, 10.4, 17.2, 2.3]
-const MAO = { x: 10.7, y: 18.7, rx: 2.9, ry: 2.2 }
-const GARRAS: readonly (readonly [number, number, number, number])[] = [[8.9, 19.6, 8.4, 22.9], [10.7, 20.2, 10.9, 23.6], [12.5, 19.6, 13.3, 22.7]]
-/** O pescoço, o crânio, o focinho debruçado na beira, os chifres grossos virados para trás e as sobrancelhas. */
-const PESCOCO = { y: 10.2, rx: 4.6, ry: 3.6 }
-const CRANIO = { y: 15.6, rx: 6.5, ry: 5.9 }
-const FOCINHO = { y: 21.3, rx: 3.8, ry: 3.7 }
-const CHIFRE: Trechos = [[4.4, 13.4, 2.3], [9.2, 11.2, 1.9], [12.8, 7.6, 1.25], [13.8, 3.4, 0.45]]
-const SOBRANCELHA: readonly [number, number, number, number, number, number] = [0.7, 18.3, 0.8, 5, 16, 1.25]
-const OLHO = { x: 2.9, y: 18.9, rx: 1.2, ry: 0.55, giro: -0.42 }
-const NARINA = { x: 1.2, y: 23.3, r: 0.48 }
-/** As alturas da figura (px da casa), para a sombra no chão: o bloco e o lombo. */
-const ALTURA_DO_BLOCO = 14
-const ALTURA_DO_LOMBO = 32
-/** O musgo nos cantos do bloco e o líquen na figura (o meio e os raios). */
-const MUSGO_DO_BLOCO: readonly (readonly [number, number, number, number])[] = [
-  [-17.8, -17.4, 1.9, 1.4],
-  [-18, 17.6, 1.5, 1.9],
-  [17.4, 18.2, 1.8, 1.2],
+const CRANIO = { y: -13.6, rx: 5.5, ry: 4.9 }
+const FOCINHO = { y: -9.5, rx: 3.2, ry: 3.4 }
+const MANDIBULA = { y: -5.7, rx: 2.5, ry: 1.3 }
+const NARIZ = { y: -8.1, rx: 1.35, ry: 0.85 }
+const BOCA: readonly Ponto[] = [[-2.7, -7.3], [-1.3, -6.5], [0, -6.8], [1.3, -6.5], [2.7, -7.3]]
+const PRESA: Cone = [1.6, -6.7, 0.55, 1.7, -5, 0.15]
+const TESTA: Cone = [0.5, -13.1, 0.8, 4.3, -14.7, 1.05]
+const OLHO = { x: 2.6, y: -12.3, rx: 1.3, ry: 0.62, giro: -0.4 }
+const ORELHA: readonly Ponto[] = [[3.4, -16.6], [8.8, -20.8], [6, -13]]
+const CONCHA_DA_ORELHA: readonly Ponto[] = [[4.8, -16.4], [7.5, -19.2], [6, -14.8]]
+/**
+ * As alturas da figura (y da casa) para a sombra no chão: os ombros, o alto da cabeça e a ponta das asas. A sombra
+ * conta só `PARTE_DA_ALTURA` delas, como na besta: inteira, a de uma figura de uma casa passava da casa vizinha.
+ */
+const ALTURA_DOS_OMBROS = -9
+const ALTO_DA_CABECA = -18
+const PONTA_DA_ASA = -24
+const PARTE_DA_ALTURA = 0.8
+
+/** O musgo do pedestal e o líquen (o meio e os raios, px da casa). */
+const MUSGO_DO_PEDESTAL: readonly (readonly [number, number, number, number])[] = [
+  [-12.2, 10, 1.4, 0.7],
+  [-12.8, 23.8, 1.7, 0.8],
+  [12.2, 23.9, 1.9, 0.7],
+  [10.4, 21.4, 1.2, 0.6],
 ]
-const LIQUENS: readonly (readonly [number, number, number])[] = [[-11.6, -11, 1.4], [13.2, -4.4, 1.1], [-5.6, 14.2, 0.9], [-15.6, 6.4, 1]]
+const LIQUENS: readonly (readonly [number, number, number])[] = [[-8.6, -16, 1.1], [9.4, -4.2, 0.9], [-4.4, 1.6, 0.9], [8.6, 17.4, 1.1], [-9.4, 16, 0.9]]
 
 export const montarGargula: MontarMovel = (c, cena) => {
   const { por, na, escala } = prepararEstatua(c, cena)
   const figura = pedraDoTempo(c.m.pedra, VERDE_NA_FIGURA)
-  const bloco = pedraDoTempo(c.m.pedra, VERDE_NO_BLOCO)
-  const TEX = texDaPedraVelha(MANCHAS_NA_FIGURA)
-  const TEX_DO_BLOCO = texDaPedraVelha(MANCHAS_NO_BLOCO)
+  const base = pedraDoTempo(c.m.pedra, VERDE_NO_PEDESTAL)
+  const TEX = texDaPedraVelha(MANCHAS_NA_FIGURA, CHUVA_NA_FIGURA)
   const o = (semente: number, tom: number, bisel: number, mais: OpcoesDaPeca = {}): OpcoesDaPeca => ({ bisel, tom, contorno: 0.3, textura: TEX, semente, ...mais })
   const sombra = (dist: number, forca = 0.28): OpcoesDaPeca => ({ projeta: { dist, forca } })
   const vao = (f: Forma, alfa: number, semente: number): void => por(f, VAO_DA_PEDRA, { bisel: 0, contorno: 0, alfa, semente })
-  const cone = (m: readonly [number, number, number, number, number, number], lado: number): Forma => conico(lado * m[0], m[1], m[2], lado * m[3], m[4], m[5])
+  const cone = (m: Cone, lado: number): Forma => conico(lado * m[0], m[1], m[2], lado * m[3], m[4], m[5])
   const LADOS = [-1, 1] as const
   /** O lado da luz (a esquerda) um pouco mais claro que o outro. */
   const peloLado = (lado: number, tom: number): number => tom * (lado < 0 ? 1.04 : 0.96)
 
-  // ---------- as sombras no chão: o bloco e a figura agachada em cima dele ----------
-  const soco = caixa(-SOCO, -SOCO, SOCO, SOCO, 1.6)
-  cena.sombras.push(contato(na(soco), 0.32), { forma: na(soco), z: ALTURA_DO_BLOCO * escala, forca: 0.3 })
-  cena.sombras.push({ forma: na(elipse(0, -2, 16, 19)), z: ALTURA_DO_LOMBO * escala, forca: 0.26 })
+  // ---------- a sombra no chão: o pedestal, o corpo agachado, a cabeça e a ponta das duas asas ----------
+  const altura = (y: number): number => (PEDESTAL.chao - y) * PARTE_DA_ALTURA * escala
+  sombraDoPedestalDeFrente(cena, na, PEDESTAL, escala)
+  cena.sombras.push({ forma: na(reguaDeSombra(PEDESTAL.chao, 0, 11)), z: altura(ALTURA_DOS_OMBROS), forca: 0.28 })
+  cena.sombras.push({ forma: na(reguaDeSombra(PEDESTAL.chao, 0, 5.4)), z: altura(ALTO_DA_CABECA), forca: 0.28 })
+  for (const lado of LADOS) cena.sombras.push({ forma: na(reguaDeSombra(PEDESTAL.chao, lado * 8.2, 2.6)), z: altura(PONTA_DA_ASA), forca: 0.24 })
 
-  // ---------- o bloco: o soco, o tampo e o musgo dos cantos ----------
-  por(soco, bloco, { bisel: 1.6, tom: 0.76, contorno: 0.3, textura: TEX_DO_BLOCO, semente: 3701 })
-  por(caixa(-TAMPO, -TAMPO, TAMPO, TAMPO, 1.2), bloco, { bisel: 1.5, tom: 0.98, contorno: 0.26, textura: TEX_DO_BLOCO, semente: 3702, projeta: { dist: 1.4, forca: 0.26 } })
-  musgo(por, musgoDaPedra(bloco), MUSGO_DO_BLOCO, 3705)
+  // ---------- o pedestal quadrado, com a placa lisa, e o musgo dos cantos ----------
+  montarPedestalDeFrente(por, base, PEDESTAL, 3701)
+  musgo(por, musgoDaPedra(base), MUSGO_DO_PEDESTAL, 3708)
 
-  // ---------- o rabo, por baixo das asas, e a ponta de lança ----------
-  por(cadeia(RABO, 1.8), figura, o(3710, 0.86, 1.5, sombra(1.6, 0.3)))
-  por(arredondada(poligono(PONTA_DO_RABO), 0.5), figura, o(3711, 0.94, 1.2, sombra(1.6, 0.3)))
-
-  // ---------- as pernas dobradas, saindo de debaixo das asas, com o pé na quina da frente ----------
+  // ---------- as asas fechadas, atrás de tudo: a gota escura e o osso em relevo pela beira de fora ----------
   for (const lado of LADOS) {
-    por(elipse(lado * PE.x, PE.y, PE.rx, PE.ry), figura, o(3720, peloLado(lado, 0.9), 1.5, sombra(1.2, 0.26)))
-    por(cone(COXA, lado), figura, o(3722, peloLado(lado, 0.86), 2.4, sombra(1.6)))
+    por(cone(ASA, lado), figura, o(3712, peloLado(lado, TOM_DA_ASA), 2.4))
+    por(cone(OSSO_DA_ASA, lado), figura, o(3714, peloLado(lado, TOM_DA_ASA * 1.36), 0.9, { contorno: 0.16, ...sombra(0.8, 0.22) }))
   }
 
-  // ---------- o lombo, entre as asas, com as omoplatas e as vértebras ----------
-  por(conico(0, LOMBO.ombros, LOMBO.raioNosOmbros, 0, LOMBO.ancas, LOMBO.raioNasAncas), figura, o(3730, TOM_DO_CORPO, 3.4, sombra(1.8)))
-  for (const lado of LADOS) por(elipse(lado * OMOPLATA.x, OMOPLATA.y, OMOPLATA.rx, OMOPLATA.ry), figura, o(3738, peloLado(lado, TOM_DO_CORPO * 1.03), 2, { contorno: 0.08 }))
-  VERTEBRAS.forEach((y, i) => por(elipse(0, y, 1.15, 1.45), figura, o(3731 + i, 1.1, 0.9, { contorno: 0.22 })))
+  // ---------- o tronco: a barriga e o peito ----------
+  por(elipse(0, BARRIGA.y, BARRIGA.rx, BARRIGA.ry), figura, o(3720, TOM_DO_CORPO * 0.9, 3, sombra(1.6, 0.3)))
+  por(elipse(0, PEITO.y, PEITO.rx, PEITO.ry), figura, o(3721, TOM_DO_CORPO * 0.97, 3.4, sombra(1.8, 0.3)))
 
-  // ---------- as asas dobradas: a folha escura de ponta recortada e as varetas em relevo baixo ----------
-  const asaDireita = menos(elipseGirada(ASA.x, ASA.y, ASA.rx, ASA.ry, ASA.giro), elipse(MORDIDA[0], MORDIDA[1], MORDIDA[2], MORDIDA[2]))
+  // ---------- as pernas dobradas, com os pés de garras na beira do pedestal ----------
   for (const lado of LADOS) {
-    const asa = lado > 0 ? asaDireita : espelhada(asaDireita)
-    por(asa, figura, o(3740, peloLado(lado, TOM_DA_ASA), 2.2, sombra(2, 0.34)))
-    VARETAS.forEach(([x, y], i) => {
-      por(dentroDe(conico(lado * PUNHO_DA_ASA[0], PUNHO_DA_ASA[1], 1.25, lado * x, y, 0.5), asa), figura, o(3742 + i, peloLado(lado, TOM_DA_ASA * 1.2), 0.9, { contorno: 0.14 }))
-    })
+    por(cone(COXA, lado), figura, o(3730, peloLado(lado, TOM_DO_CORPO * 0.94), 2.6, sombra(1.6, 0.3)))
+    GARRAS_DO_PE.forEach(([ax, ay, bx, by], i) => por(conico(lado * ax, ay, 0.85, lado * bx, by, 0.3), figura, o(3732 + i, TOM_DA_GARRA, 0.6, sombra(0.7, 0.28))))
+    por(elipse(lado * PE.x, PE.y, PE.rx, PE.ry), figura, o(3735, peloLado(lado, TOM_DO_CORPO * 1.04), 1.4, sombra(1, 0.28)))
+    por(cone(CANELA, lado), figura, o(3736, peloLado(lado, TOM_DO_CORPO * 1.03), 2.2, sombra(1.5, 0.3)))
   }
 
-  // ---------- os braços e as garras cravadas na beira do bloco ----------
+  // ---------- os braços retos, entre os joelhos, com as mãos apoiadas na beira do pedestal ----------
+  // O braço com a mão é uma forma só, como na besta: em rodas soltas ele lia de boneco.
   for (const lado of LADOS) {
-    GARRAS.forEach(([ax, ay, bx, by], i) => por(conico(lado * ax, ay, 0.9, lado * bx, by, 0.34), figura, o(3760 + i, 1.02, 0.7, sombra(0.8, 0.26))))
-    por(elipse(lado * MAO.x, MAO.y, MAO.rx, MAO.ry), figura, o(3764, peloLado(lado, 1), 1.4, sombra(1.1)))
-    por(cone(BRACO, lado), figura, o(3765, peloLado(lado, TOM_DO_CORPO), 1.9, sombra(1.5)))
-    por(elipse(lado * OMBRO.x, OMBRO.y, OMBRO.rx, OMBRO.ry), figura, o(3767, peloLado(lado, 1), 2.2, sombra(1.5)))
+    DEDOS.forEach(([ax, ay, bx, by], i) => por(conico(lado * ax, ay, 0.8, lado * bx, by, 0.32), figura, o(3740 + i, TOM_DA_GARRA, 0.6, sombra(0.7, 0.28))))
+    por(uniao(cone(BRACO, lado), elipse(lado * MAO.x, MAO.y, MAO.rx, MAO.ry)), figura, o(3745, peloLado(lado, TOM_DO_CORPO * 1.08), 1.9, sombra(1.5, 0.3)))
+    por(elipse(lado * OMBRO.x, OMBRO.y, OMBRO.rx, OMBRO.ry), figura, o(3746, peloLado(lado, TOM_DO_CORPO * 1.04), 2.4, sombra(1.5, 0.3)))
   }
 
-  // ---------- a cabeça: o pescoço, o crânio com o focinho, os chifres e as sobrancelhas ----------
-  por(elipse(0, PESCOCO.y, PESCOCO.rx, PESCOCO.ry), figura, o(3770, TOM_DO_CORPO, 2, sombra(1.4)))
-  const cabeca = uniao(elipse(0, CRANIO.y, CRANIO.rx, CRANIO.ry), elipse(0, FOCINHO.y, FOCINHO.rx, FOCINHO.ry))
-  por(cabeca, figura, o(3772, TOM_DA_CABECA, 2.6, sombra(2.4, 0.34)))
+  // ---------- a cabeça de cão: as orelhas, o crânio, a mandíbula com as presas, o focinho, a testa e os olhos ----------
   for (const lado of LADOS) {
-    por(emTrechos(CHIFRE, lado), figura, o(3774, peloLado(lado, TOM_DO_CHIFRE), 1.5, { contorno: 0.32, ...sombra(1.8, 0.34) }))
-    por(cone(SOBRANCELHA, lado), figura, o(3777, TOM_DA_CABECA * 1.08, 0.9, { contorno: 0.2, ...sombra(0.7, 0.32) }))
-    vao(elipseGirada(lado * OLHO.x, OLHO.y, OLHO.rx, OLHO.ry, lado * OLHO.giro), 0.78, 3778)
-    vao(elipse(lado * NARINA.x, NARINA.y, NARINA.r, NARINA.r), 0.7, 3779)
+    por(arredondada(poligono(lado > 0 ? ORELHA : espelho(ORELHA)), 0.4), figura, o(3750, peloLado(lado, TOM_DO_CORPO * 1.02), 1.2, sombra(1.1, 0.28)))
+    vao(poligono(lado > 0 ? CONCHA_DA_ORELHA : espelho(CONCHA_DA_ORELHA)), 0.34, 3751)
   }
-  // O sulco do focinho, do meio das sobrancelhas à ponta.
-  vao(capsula(0, 19.6, 0, 22.8, 0.26), 0.3, 3780)
+  por(elipse(0, CRANIO.y, CRANIO.rx, CRANIO.ry), figura, o(3752, TOM_DA_CABECA * 0.96, 2.8, sombra(2.2, 0.34)))
+  por(elipse(0, MANDIBULA.y, MANDIBULA.rx, MANDIBULA.ry), figura, o(3753, TOM_DA_CABECA * 0.84, 0.9, sombra(1, 0.3)))
+  for (const lado of LADOS) por(cone(PRESA, lado), figura, o(3754, TOM_DA_GARRA, 0.5, { contorno: 0.2 }))
+  por(elipse(0, FOCINHO.y, FOCINHO.rx, FOCINHO.ry), figura, o(3756, TOM_DA_CABECA * 1.06, 2, sombra(1.5, 0.36)))
+  vao(elipse(0, NARIZ.y, NARIZ.rx, NARIZ.ry), 0.74, 3757)
+  vao(cadeia(BOCA, 0.3), 0.6, 3758)
+  for (const lado of LADOS) {
+    por(cone(TESTA, lado), figura, o(3760, TOM_DA_CABECA * 1.1, 1.1, { contorno: 0.2, ...sombra(1, 0.4) }))
+    vao(elipseGirada(lado * OLHO.x, OLHO.y, OLHO.rx, OLHO.ry, lado * OLHO.giro), 0.82, 3762)
+  }
 
   liquen(por, LIQUENS, 3790)
 }

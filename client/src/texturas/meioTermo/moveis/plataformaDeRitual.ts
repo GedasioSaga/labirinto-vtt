@@ -9,8 +9,8 @@
  *
  * Os pilaretes ficam nas oito diagonais (22,5 graus fora dos eixos): os
  * quatro eixos ficam livres para entrar no disco. Pisa-se nela: é CHÃO, não
- * barra a passagem e não tapa a visão; o disco é rente e mora por baixo dos
- * outros objetos e das fichas.
+ * barra a passagem e não tapa a visão; o disco é uma laje baixa (a espessura
+ * dela é só pintada) e mora por baixo dos outros objetos e das fichas.
  *
  * O disco é UMA peça com textura própria (um passo só por pixel, como o fosso
  * do salão): as lajes, as juntas, o canal com o fio verde e o brilho dele, o
@@ -24,6 +24,16 @@
  * plataforma é igual dos quatro lados, e a luz das águas fica do lado certo
  * com ela girada.
  *
+ * REVISÃO DO DIRETOR DE ARTE (24/11/2026): sem espessura, o disco lia como um
+ * decalque no chão, quase igual ao fosso do salão de longe. Agora a LAJE É
+ * ELEVADA e mostra a borda grossa: no arco de baixo à direita, a face de pé
+ * dela, uma faixa escura de 3 a 4 px; no arco de cima à esquerda, o fio claro
+ * da quina; e a sombra pousada, firme, um pouco para baixo e à direita. O
+ * fosso escurece para dentro; a plataforma CLAREIA no topo: é esse contraste
+ * que separa os dois. O verde do anel perdeu um quarto da saturação e o canal
+ * ficou mais escuro (na hierarquia do lote, o verde fica abaixo dos dois
+ * vermelhos). As argolas cresceram 30% e têm o ferro da ponte de corrente.
+ *
  * Esticada, os anéis viram elipse pela pegada; os pilaretes, as juntas e o fio
  * verde continuam com a medida em px do protótipo. Materiais: `pedra` (o
  * disco e os pilaretes) e `metal` (as argolas). O verde é fixo.
@@ -33,7 +43,8 @@ import { tomDoMeio } from '../materiais'
 import { caixa, capsula, elipse, elipseGirada, menos, poligono, type Forma, type Ponto } from './formas'
 import { ruido, SOMBRA_X, SOMBRA_Y, texturaDaClasse, type MaterialDaPeca, type Peca, type Textura } from './motor'
 import type { ContextoDoMovel, MontarMovel } from './contexto'
-import { comMeioEm, montadaNaTela, solta } from './andaimeDaTresQuartos'
+import { comMeioEm, deslocada, montadaNaTela, solta } from './andaimeDaTresQuartos'
+import { BRILHO_DO_FERRO_DA_PONTE, texDoFerroDaPonte, TOM_DO_FERRO_DA_PONTE } from './ponteDeCorrente'
 
 const VOLTA = Math.PI * 2
 
@@ -65,10 +76,13 @@ const PILARETE_EM = 0.845
 const MEIO_PILARETE = 0.105
 const ALTURA_DO_PILARETE = 0.5
 const MEIO_RODAPE = 0.14
-/** A argola: quanto o meio dela fica para fora do pilarete (casas), os raios, a grossura e a altura em que pende na 3/4. */
-const ARGOLA_ALEM = 0.2
-const ARGOLA: readonly [number, number] = [0.105, 0.075]
-const GROSSURA_DA_ARGOLA = 0.026
+/**
+ * A argola: quanto o meio dela fica para fora do pilarete (casas), os raios, a grossura e a altura em que pende na
+ * 3/4. São 30% maiores que as da primeira versão, que sumiam no tamanho de mesa.
+ */
+const ARGOLA_ALEM = 0.235
+const ARGOLA: readonly [number, number] = [0.137, 0.098]
+const GROSSURA_DA_ARGOLA = 0.034
 const ALTURA_DA_ARGOLA = 0.26
 /** As quatro águas da pirâmide pela direção na tela: a do norte e a do oeste pegam luz, a do sul e a do leste ficam na sombra. */
 const TOM_DAS_AGUAS: readonly number[] = [1.14, 0.82, 0.76, 1.06]
@@ -81,12 +95,29 @@ const LUZ_Y = 0.61
 const JUNTA = 0.85
 const FORCA_DA_JUNTA = 0.26
 const TOM_DAS_PEDRAS = 0.13
-/** O tom de cada anel: a guia mais clara, o medalhão polido. */
-const TOM_DA_GUIA = 1.05
-const TOM_DE_FORA = 0.94
-const TOM_DE_DENTRO = 0.9
-const TOM_DO_MEDALHAO = 0.98
-const TOM_DO_CANAL = 0.66
+/** O tom de cada anel: a laje CLAREIA no topo, da guia ao medalhão polido do meio (o contrário do fosso, que escurece para dentro). */
+const TOM_DA_GUIA = 1.03
+const TOM_DE_FORA = 1
+const TOM_DE_DENTRO = 1.03
+const TOM_DO_MEDALHAO = 1.08
+const TOM_DO_CANAL = 0.58
+/**
+ * A ESPESSURA da laje. No arco de baixo à direita, a face de pé da borda: uma faixa escura (a largura em px, no
+ * meio do arco, e o tom dela), que afina e some para os lados. No arco de cima à esquerda, o fio claro da quina.
+ * `VIRADA` = em quanto do giro a faixa e o fio chegam inteiros. E a sombra pousada: quanto ela anda para baixo à
+ * direita (px), a borda e a força (a de antes, força 0,36 sem deslocamento, não aparecia).
+ */
+const FAIXA_DA_BORDA = 3.8
+const TOM_DA_FACE_DA_BORDA = 0.56
+const FIO_DA_BORDA = 1.2
+const LUZ_DO_FIO_DA_BORDA = 0.2
+const VIRADA_DA_BORDA = 0.5
+const ALTURA_DA_LAJE = 9
+const BORDA_DA_SOMBRA_DA_LAJE = 2
+const FORCA_DA_SOMBRA_DA_LAJE = 0.5
+/** Quanto do salpico do granito fica na pedra: a metade do que o motor dá no disco, e a metade nos pilaretes. */
+const SALPICO_NO_DISCO = 0.38
+const SALPICO_NOS_PILARETES = 0.5
 /** A sombra de cada pilarete no disco: a força e a borda (px). */
 const FORCA_DA_SOMBRA = 0.3
 const BORDA_DA_SOMBRA = 1.6
@@ -102,21 +133,34 @@ const TRINCAS: readonly (readonly Ponto[])[] = [
 const MEIA_TRINCA = 0.5
 const FORCA_DA_TRINCA = 0.3
 
-/** O fio verde: o miolo claro, a beira, a borda escura do canal e o brilho. Um verde só, contido (a beira tem saturação 0,46). */
-const MIOLO_DO_FIO: Rgb = [0xdc, 0xf7, 0xe0]
-const BEIRA_DO_FIO: Rgb = [0x62, 0xb4, 0x84]
-const BRILHO_DO_FIO: Rgb = [0x8c, 0xd8, 0xa4]
+/**
+ * O fio verde: o miolo claro, a beira e o brilho. Um verde só, de erva e não de menta: a beira tem saturação 0,34
+ * (um quarto a menos que a da primeira versão, 0,46) e o brilho é mais fraco.
+ */
+const MIOLO_DO_FIO: Rgb = [0xc6, 0xde, 0xcb]
+const BEIRA_DO_FIO: Rgb = [0x67, 0x9c, 0x7e]
+const BRILHO_DO_FIO: Rgb = [0x88, 0xb8, 0x97]
 const MEIO_FIO = 0.95
 const MIOLO = 0.4
 const BRILHO = 5.5
-const ALFA_DO_BRILHO = 0.26
+const ALFA_DO_BRILHO = 0.17
 /** O escuro em que o pixel escuro demais é levantado: o cinza quente da pedra. */
 const ESCURO_DA_PEDRA: Rgb = [0x45, 0x43, 0x40]
 
 const DA_PEDRA = texturaDaClasse('pedra')
 
+/** A pedra dos pilaretes: a do material, com o salpico do granito à metade (multiplicado na cor: o tom escuro dela, nunca preto). */
+const DA_PEDRA_MANSA: Textura = (u, v, x, y, p, s, escala) => {
+  if (DA_PEDRA !== null) DA_PEDRA(u, v, x, y, p, s, escala)
+  s[6] *= SALPICO_NOS_PILARETES
+}
+
 function limitar01(t: number): number {
   return t <= 0 ? 0 : t >= 1 ? 1 : t
+}
+
+function suave01(t: number): number {
+  return t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t)
 }
 
 /** A distância (px) do ponto à linha quebrada. */
@@ -245,7 +289,22 @@ function texDoDisco(c: ContextoDoMovel, pedra: MaterialDaPeca): Textura {
     }
     if (naSombra > 0) luz -= FORCA_DA_SOMBRA * (naSombra < 1 ? naSombra : 1)
 
-    const f = 1 + pontilhado * 0.75
+    // ---------- a espessura da laje: a face de pé da borda (baixo à direita) e o fio claro da quina (cima à esquerda) ----------
+    const daBorda = (1 - rho) * pxPorRho
+    if (paraALuz < 0) {
+      const virada = suave01(-paraALuz / VIRADA_DA_BORDA)
+      const faixa = FAIXA_DA_BORDA * virada
+      if (daBorda < faixa + 0.3) {
+        const naFace = limitar01((faixa + 0.3 - daBorda) / 0.6)
+        tom *= 1 - (1 - TOM_DA_FACE_DA_BORDA) * naFace
+        // A quina de cima da face: um fio um pouco mais claro, onde o tampo acaba.
+        if (daBorda > faixa - 0.5 && virada > 0.3) luz += 0.06
+      }
+    } else if (daBorda < FIO_DA_BORDA + 0.3) {
+      luz += LUZ_DO_FIO_DA_BORDA * suave01(paraALuz / VIRADA_DA_BORDA) * limitar01((FIO_DA_BORDA + 0.3 - daBorda) / 0.6)
+    }
+
+    const f = 1 + pontilhado * SALPICO_NO_DISCO
     let cr = (pr * tom * (1 + luz) + 22 * luz) * f
     let cg = (pg * tom * (1 + luz) + 22 * luz) * f
     let cb = (pb * tom * (1 + luz) + 22 * luz) * f
@@ -299,14 +358,18 @@ function texDoDisco(c: ContextoDoMovel, pedra: MaterialDaPeca): Textura {
 const montar: MontarMovel = (c, cena) => {
   const { g, peca: P } = c
   const pedra = c.m.pedra
+  // A pedra dos pilaretes é LISA: a frente que a 3/4 varre leva o material da peça, e com a classe da pedra saía com
+  // o salpico inteiro. O grão dos tampos vem da textura (`DA_PEDRA_MANSA`), que lê o tipo de pedra daqui.
+  const pedraDoPilarete: MaterialDaPeca = { ...pedra, classe: 'liso' }
   const ferro = c.m.metal
   const L: Peca[] = cena.partes
   cena.corDoPiso = ESCURO_DA_PEDRA
 
-  // ---------- o disco: rente ao chão, com a sombra larga da laje grossa em volta ----------
+  // ---------- o disco: a laje elevada, com a sombra pousada para baixo à direita ----------
+  // A sombra é a do disco deslocado, sem altura: com altura, o disco viraria coluna na 3/4 e subiria com a frente dele.
   const disco = elipse(0, 0, c.hw, c.hh)
-  cena.sombras.push({ forma: disco, z: 0, suave: 3.2, forca: 0.36 })
-  L.push(P(disco, pedra, { tabua: 0, bisel: 2, contorno: 0.28, textura: texDoDisco(c, pedra), semente: 3601 }))
+  cena.sombras.push({ forma: deslocada(disco, SOMBRA_X * ALTURA_DA_LAJE, SOMBRA_Y * ALTURA_DA_LAJE), z: 0, suave: BORDA_DA_SOMBRA_DA_LAJE, forca: FORCA_DA_SOMBRA_DA_LAJE })
+  L.push(P(disco, pedra, { tabua: 0, bisel: 1.2, contorno: 0.28, textura: texDoDisco(c, pedra), semente: 3601 }))
 
   // ---------- os pilaretes: o rodapé, a coluna com as quatro águas da pirâmide e a argola pendurada por fora ----------
   const meio = MEIO_PILARETE * g
@@ -326,24 +389,25 @@ const montar: MontarMovel = (c, cena) => {
     // O olhal: o toco de ferro que sai do pilarete e segura a argola.
     const olhal = capsula(x + co * meio * 0.8, y + si * meio * 0.8, ax - co * (ARGOLA[0] - GROSSURA_DA_ARGOLA) * g, ay - si * (ARGOLA[0] - GROSSURA_DA_ARGOLA) * g, GROSSURA_DA_ARGOLA * g)
     cena.sombras.push(solta(elipseGirada(ax, ay, ARGOLA[0] * g, ARGOLA[1] * g, giro), ALTURA_DA_ARGOLA * g))
-    const doFerro = { tabua: 0, bisel: GROSSURA_DA_ARGOLA * g * 0.9, tom: 1.04, metal: 0.34, contorno: 0.3, projeta: { dist: 1.2, forca: 0.3 } }
+    // O ferro das argolas é o da ponte de corrente: o mesmo tom, o mesmo brilho e a mesma ferrugem.
+    const doFerro = { tabua: 0, bisel: GROSSURA_DA_ARGOLA * g * 0.9, tom: TOM_DO_FERRO_DA_PONTE, metal: BRILHO_DO_FERRO_DA_PONTE, contorno: 0.3, textura: texDoFerroDaPonte, projeta: { dist: 1.2, forca: 0.3 } }
     L.push(P(comMeioEm(olhal, ax, ay), ferro, { ...doFerro, tom: 0.9, semente: semente + 1 }))
     L.push(P(comMeioEm(aro, ax, ay), ferro, { ...doFerro, semente: semente + 2 }))
 
     // O rodapé: a laje baixa em volta do pé, rente ao disco (sem altura: com ela, a tira de trás sairia por cima da
     // coluna na 3/4). O meio da caixa da peça fica na quina de fora, fora do pilarete: ela não sobe com ele.
     const pe = caixa(x - rodape, y - rodape, x + rodape, y + rodape, 0.8)
-    L.push(P(comMeioEm(pe, x - (rodape + meio) / 2, y - (rodape + meio) / 2), pedra, { tabua: 0, bisel: 1, tom: 0.84, contorno: 0.3, semente }))
+    L.push(P(comMeioEm(pe, x - (rodape + meio) / 2, y - (rodape + meio) / 2), pedraDoPilarete, { tabua: 0, bisel: 1, tom: 0.84, contorno: 0.3, textura: DA_PEDRA_MANSA, semente }))
 
     // A coluna e as quatro águas (norte, leste, sul, oeste NA TELA), cada uma com a luz dela.
     const coluna = caixa(x - meio, y - meio, x + meio, y + meio, 0.5)
     cena.sombras.push({ forma: coluna, z: alto, suave: 1.6 })
-    L.push(P(coluna, pedra, { tabua: 0, bisel: 0.8, tom: 0.9, contorno: 0.3, semente: semente + 3 }))
+    L.push(P(coluna, pedraDoPilarete, { tabua: 0, bisel: 0.8, tom: 0.9, contorno: 0.3, textura: DA_PEDRA_MANSA, semente: semente + 3 }))
     const cantos: readonly Ponto[] = [[x - meio, y - meio], [x + meio, y - meio], [x + meio, y + meio], [x - meio, y + meio]]
     cantos.forEach((canto, k) => {
       const agua = poligono([canto, cantos[(k + 1) % 4], [x, y]])
       // O meio da caixa de cada água cai dentro da coluna: ela sobe com a coluna.
-      L.push(P(agua, pedra, { tabua: 0, bisel: 0, tom: TOM_DAS_AGUAS[k], contorno: 0.14, semente: semente + 4 + k }))
+      L.push(P(agua, pedraDoPilarete, { tabua: 0, bisel: 0, tom: TOM_DAS_AGUAS[k], contorno: 0.14, textura: DA_PEDRA_MANSA, semente: semente + 4 + k }))
     })
   }
 }

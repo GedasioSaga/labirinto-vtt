@@ -43,13 +43,18 @@ export const ESPESSURA_DA_LANTERNA_GRADEADA = 0.3 * G * SUBIDA_DA_TOCHA_DE_PARED
 const MEIA_LARGURA_DA_CHAPA = TOCHA_DE_PAREDE.meiaLarguraDaChapa
 const GROSSURA_DA_CHAPA = TOCHA_DE_PAREDE.grossuraDaChapa
 const RAIO_DO_BRACO = 0.085
-/** A lanterna: onde fica o meio dela, o meio lado da caixa, a moldura de ferro, a meia barra da grade, o pilarete e o botão. */
+/**
+ * A lanterna: onde fica o meio dela, o meio lado da caixa, a moldura de ferro, a meia barra da grade, o pilarete e
+ * o botão. A barra tem 0,078 (era 0,055) e é mais escura que a moldura (`TOM_DA_GRADE`), e o botão é menor: no
+ * tamanho de mesa a cruz da grade quase sumia no vidro aceso e a lanterna virava um ponto amarelo (conferido na
+ * revisão do diretor de arte, 24/11/2026).
+ */
 const LANTERNA_EM = 1.06
 const MEIO_LADO = 0.56
 const MOLDURA = 0.13
-const MEIA_BARRA = 0.055
+const MEIA_BARRA = 0.078
 const PILARETE = 0.15
-const BOTAO = 0.15
+const BOTAO = 0.13
 /** O brilho no chão, na frente da lanterna (o meio além dela, os raios e o alfa), e o halo em volta dela. */
 const BRILHO_NO_CHAO_ALEM = 0.62
 const BRILHO_NO_CHAO: readonly [number, number] = [1, 0.78]
@@ -66,7 +71,7 @@ const GIRO_DA_PAREDE_DE_BAIXO = 180
 const TOM_DA_CHAPA = 0.92
 const TOM_DO_BRACO = 1.04
 const TOM_DA_MOLDURA = 0.94
-const TOM_DA_GRADE = 1.06
+const TOM_DA_GRADE = 0.86
 const TOM_DO_PILARETE = 1.18
 const BRILHO_DO_FERRO = 0.3
 const ESCURO_DO_FERRO: Rgb = [0x4a, 0x45, 0x41]

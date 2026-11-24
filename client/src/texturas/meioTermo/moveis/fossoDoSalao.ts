@@ -1,23 +1,32 @@
 /**
  * FOSSO DO SALÃO (lote L04 de 24/11/2026, a Fortaleza do ritual; construção
  * nova). O piso rebaixado redondo do meio de um salão de fortaleza, de cerca
- * de 6 x 6 casas: a GUIA de pedra rente ao chão, dois ANÉIS DE DEGRAUS que
- * descem, o FUNDO com a faixa de INSCRIÇÕES gravadas em volta, a GRADE de
- * ferro em anel sobre o poço escuro e, no meio, o MARCO de pedra com a GEMA
- * rubra engastada, de brilho fraco.
+ * de 6 x 6 casas: a GUIA de pedra rente ao chão, com um LÁBIO na borda de
+ * fora, dois ANÉIS DE DEGRAUS que descem, o FUNDO com a faixa de INSCRIÇÕES
+ * gravadas em volta, a GRADE de ferro em anel sobre o poço escuro e, no meio,
+ * o MARCO de pedra com a GEMA rubra engastada, de brilho fraco.
  *
- * Quem diz "rebaixado" visto do alto é a luz: em cada degrau, do lado de onde
- * a luz vem (cima à esquerda) o espelho de cima faz SOMBRA no piso de baixo,
- * e do outro lado o espelho pega luz (um fio claro). Cada piso é mais escuro
- * que o de cima. No poço, a parede de dentro aparece em meia-lua do lado
- * claro, e o clarão rubro sobe do fundo por entre as barras.
+ * Quem diz "buraco" visto do alto são o TOM e a luz (revisão do diretor de
+ * arte, 24/11/2026: com a pedra clara no disco inteiro ele lia como palanque):
+ * - cada piso é perto de 12% mais escuro que o de cima, e o fundo ainda
+ *   escurece até a beira do poço, que é quase preto debaixo da grade (o
+ *   escuro neutro e quente do piso de luz do motor, sem cinza-violeta);
+ * - cada degrau mostra o ESPELHO, a face de pé: do lado de onde a luz vem
+ *   (cima à esquerda) ele está na sombra, uma faixa escura e firme de 2 a 3
+ *   px; do outro lado pega luz, um fio claro de 1 px;
+ * - a borda de fora tem um lábio com um fio claro por fora, que a separa do
+ *   chão sem sombra nenhuma para fora (o fosso é rente);
+ * - a gema é o vermelho mais vivo do lote, mas contido, e só deita um halo
+ *   rubro fraco no marco e nas barras da grade mais perto dela.
  *
  * O tempo: três trincas que atravessam os degraus e a quina lascada aqui e
  * ali, onde alguém arrastou coisa pesada escada abaixo.
  *
  * As inscrições são INVENTADAS, de talhe reto (cinzel não faz curva fácil):
  * oito sinais quadrados, cada um com um ponto, em grupos separados por um
- * losango. Nenhum é letra nem runa de verdade.
+ * losango. Nenhum é letra nem runa de verdade. No tamanho de mesa, em que o
+ * vão entre os riscos de um sinal teria menos de 4 pixels e a faixa viraria
+ * ruído, cada sinal é um tracinho deitado e o losango um ponto.
  *
  * É CHÃO: rente, não barra a passagem e não tapa a visão; mora por baixo dos
  * outros objetos e das fichas, e a 3/4 sai igual à vista de cima (nenhuma
@@ -31,7 +40,7 @@
  */
 import { hash, misturar, type Rgb } from '../../ruido'
 import { elipse, type Ponto } from './formas'
-import { contato, ruido, texturaDaClasse, type MaterialDaPeca, type Textura } from './motor'
+import { ruido, texturaDaClasse, type MaterialDaPeca, type Textura } from './motor'
 import type { ContextoDoMovel, MontarMovel } from './contexto'
 
 const VOLTA = Math.PI * 2
@@ -41,16 +50,22 @@ const VOLTA = Math.PI * 2
 /** Onde cada piso acaba, de fora para dentro: a guia, os dois degraus e o fundo, até a beira do poço. */
 const BEIRAS: readonly number[] = [1, 0.915, 0.79, 0.665]
 const BEIRA_DO_POCO = 0.4
-/** O tom de cada piso (a guia pega a luz do salão; o fundo, menos) e quantas lajes cada anel tem, com o desencontro delas. */
-const TOM_DO_PISO: readonly number[] = [1.04, 0.93, 0.83, 0.74]
+/**
+ * O tom de cada piso: cada um perto de 12% mais escuro que o de cima (a guia, os dois degraus e o fundo). Dentro
+ * de cada piso o tom ainda cai um pouco para dentro (`CAI_NO_PISO`), e no fundo cai `CAI_NO_FUNDO` até a beira do
+ * poço: é o degradê que acaba no quase preto debaixo da grade. Depois, quantas lajes cada anel tem e o desencontro.
+ */
+const TOM_DO_PISO: readonly number[] = [1, 0.875, 0.765, 0.67]
+const CAI_NO_PISO = 0.04
+const CAI_NO_FUNDO = 0.27
 const LAJES_DO_PISO: readonly number[] = [32, 26, 22, 16]
 const DESENCONTRO: readonly number[] = [0, 0.37, 0.71, 0.13]
 /** A faixa das inscrições, no fundo: de onde até onde, e quanto ela é mais clara (a pedra polida). */
 const FAIXA_DAS_INSCRICOES: readonly [number, number] = [0.478, 0.602]
-const LUZ_DA_FAIXA = 0.06
-/** O marco do meio: a beira, o tom, o sulco torneado e a coroa de dentes talhada entre o sulco e a beira. */
+const LUZ_DA_FAIXA = 0.015
+/** O marco do meio, no escuro do poço: a beira, o tom, o sulco torneado e a coroa de dentes talhada entre o sulco e a beira. */
 const MARCO = 0.19
-const TOM_DO_MARCO = 0.76
+const TOM_DO_MARCO = 0.5
 const SULCO_DO_MARCO = 0.138
 const DENTES_DO_MARCO = 12
 const COROA_DE_DENTES: readonly [number, number] = [0.15, 0.178]
@@ -72,25 +87,40 @@ const ESCALA_MINIMA_DO_FERRO = 0.6
 /** Para onde a luz anda no chão (baixo à direita). */
 const LUZ_X = 0.79
 const LUZ_Y = 0.61
-/** A sombra do espelho no piso de baixo: o comprimento (px, no fosso de partida) e a força. */
-const SOMBRA_DO_DEGRAU = 10.5
-const FORCA_DA_SOMBRA = 0.4
-/** O escuro no pé de cada espelho, na volta inteira (px e força), e o fio claro do espelho que pega luz. */
-const PE_DO_ESPELHO = 1.5
-const FORCA_DO_PE = 0.2
-const FIO_DO_ESPELHO = 2.4
-const LUZ_DO_ESPELHO = 0.26
+/**
+ * O ESPELHO de cada degrau (a face de pé), junto da beira de cima do piso: do lado de onde a luz vem ele está na
+ * sombra, uma FAIXA escura e firme (px, no fosso de partida, e a força); do outro lado pega luz, um FIO claro de
+ * 1 px. Os dois somem para os lados, onde a luz rasa o degrau (`VIRADA` = em quanto do giro eles chegam inteiros).
+ */
+const FAIXA_DO_ESPELHO = 2.6
+const FORCA_DO_ESPELHO = 0.4
+const FIO_DO_ESPELHO = 1.15
+const LUZ_DO_ESPELHO = 0.3
+const VIRADA_DO_ESPELHO = 0.34
+/** A sombra macia que o espelho ainda deita no piso de baixo, além da faixa: o comprimento (px) e a força. */
+const SOMBRA_DO_DEGRAU = 6
+const FORCA_DA_SOMBRA = 0.2
+/**
+ * O LÁBIO da borda de fora: a guia acaba num filete um pouco mais alto (a largura em px e quanto ele é mais claro).
+ * Por fora, na volta inteira, o fio claro da quina gasta; por dentro, o espelho baixo dele (escuro do lado da luz,
+ * claro do outro). Nenhuma sombra para fora: o fosso é rente ao chão.
+ */
+const LABIO = 5
+const LUZ_DO_LABIO = 0.05
+const FIO_DO_LABIO = 1.25
+const LUZ_DO_FIO_DO_LABIO = 0.2
+const ESPELHO_DO_LABIO = 1.1
+const FORCA_DO_ESPELHO_DO_LABIO = 0.22
 /** A quina de cima de cada degrau, gasta de pisar: um fio claro (px e força). */
 const QUINA = 1.1
 const LUZ_DA_QUINA = 0.06
 /** As juntas entre as lajes: a meia largura (px) e quanto escurecem. */
 const JUNTA = 0.8
 const FORCA_DA_JUNTA = 0.26
-/** Quanto o tom muda de uma laje para a outra. */
-const TOM_DAS_LAJES = 0.13
-/** A fuligem do poço no fundo: até onde vai (fração) e quanto escurece na beira dele. */
-const FULIGEM_ATE = 0.52
-const FORCA_DA_FULIGEM = 0.16
+/** Quanto o tom muda de uma laje para a outra (pouco: quem manda no tom é o piso). */
+const TOM_DAS_LAJES = 0.1
+/** Quanto do salpico do granito fica nas lajes: a metade do que o motor dá (inteiro, lia como sujeira). */
+const SALPICO_DA_PEDRA = 0.38
 
 // ---------- o tempo ----------
 
@@ -148,6 +178,16 @@ const LOSANGO = 0.36
 /** O talhe: quanto o fundo dele escurece e quanto a beira que pega luz clareia. */
 const FUNDO_DO_TALHE = 0.3
 const LUZ_DO_TALHE = 0.26
+/**
+ * Quando o sinal vira TRACINHO: o menor vão entre dois riscos de um sinal (em meias alturas de sinal) tem de dar
+ * pelo menos `VAO_LEGIVEL` pixels da imagem; abaixo disso (o tamanho de mesa) cada sinal é um traço deitado, de
+ * `MEIO_TRACINHO` meias alturas, e o losango um ponto. Abaixo de `TRACINHO_MINIMO` pixels de traço, nem isso.
+ */
+const VAO_DO_SINAL = 0.6
+const VAO_LEGIVEL = 4.2
+const MEIO_TRACINHO = 0.85
+const PONTO_DA_PAUSA = 0.3
+const TRACINHO_MINIMO = 3
 
 /** Distância (em meias alturas de sinal) do ponto (u, w) ao sinal: os riscos e o ponto. */
 function ateOSinal(s: Sinal, u: number, w: number): number {
@@ -196,27 +236,32 @@ function ateALinha(pontos: readonly Ponto[], x: number, y: number): number {
 // ---------- as cores fixas ----------
 
 /**
- * O escuro em que o pixel escuro demais é levantado: na pedra e no ferro, o cinza quente das outras pedras; onde o
- * clarão rubro chega, um cinza puxado para o vinho. Os dois têm luminância linear 0,066. Com o cinza de sempre
- * (0,056) o clarão do poço, levantado pelo motor, caía a 0,042, abaixo do piso de luz (0,045): o vermelho escuro
- * quase não tem luminância, e a mistura em sRGB rende menos que a conta linear.
+ * O escuro em que o pixel escuro demais é levantado, e o FUNDO DO POÇO, debaixo da grade: o quase preto que o motor
+ * deixa. O diretor de arte pediu o miolo perto de #2a2826; esse tom tem luminância linear 0,022, e o motor levanta
+ * todo pixel de peça abaixo de 0,045 (`PISO_DE_LUZ`, a regra do preto levantado). Ficam o mesmo cinza neutro e
+ * quente, sem violeta, no escuro mais fundo permitido: o fundo do poço em 0,047 e o alvo do levantamento em 0,054.
  */
-const ESCURO_DA_PEDRA: Rgb = [0x4b, 0x48, 0x45]
-const ESCURO_DO_CLARAO: Rgb = [0x56, 0x44, 0x42]
-const LUZ_DO_ESCURO = 0.066
+const ESCURO_DA_PEDRA: Rgb = [0x44, 0x41, 0x3e]
+const LUZ_DO_ESCURO = 0.054
 /** Abaixo desta luminância linear a própria textura levanta a cor, com folga sobre o piso de luz do motor. */
-const PISO_DO_FOSSO = 0.052
-const FUNDO_DO_POCO: Rgb = [0x36, 0x2c, 0x2b]
-/** A gema: o rubi fundo, a faceta na sombra, a faceta na luz e o reflexo. Vinho contido, não vermelho vivo. */
-const RUBI: Rgb = [0x8e, 0x2b, 0x39]
-const RUBI_NA_SOMBRA: Rgb = [0x54, 0x1a, 0x28]
-const RUBI_NA_LUZ: Rgb = [0xd2, 0x74, 0x7a]
-const REFLEXO: Rgb = [0xff, 0xea, 0xe4]
-/** O clarão rubro: no marco e nas barras em volta da gema, e subindo do fundo do poço. */
-const CLARAO: Rgb = [0xd6, 0x5a, 0x58]
-const ALFA_DO_CLARAO = 0.15
-const CLARAO_ATE = 0.38
-const ALFA_DO_CLARAO_NO_POCO = 0.5
+const PISO_DO_FOSSO = 0.047
+const FUNDO_DO_POCO: Rgb = [0x40, 0x3d, 0x3a]
+/**
+ * A gema: o rubi, a faceta na sombra, a faceta na luz e o reflexo. É o vermelho mais vivo do lote (o globo de luz
+ * rubra fica um passo mais escuro), mas contido: 17% menos saturado que o da primeira versão, que lia como botão.
+ */
+const RUBI: Rgb = [0x9e, 0x42, 0x4a]
+const RUBI_NA_SOMBRA: Rgb = [0x62, 0x2c, 0x34]
+const RUBI_NA_LUZ: Rgb = [0xcf, 0x8a, 0x8a]
+const REFLEXO: Rgb = [0xf4, 0xdc, 0xd6]
+/**
+ * O halo rubro da gema: fraco, na pedra do marco em volta dela e nas barras da grade mais perto (até onde vai, em
+ * fração da meia pegada, e o alfa junto da gema em cada um). No fundo do poço não pinta nada: lá é o quase preto.
+ */
+const CLARAO: Rgb = [0xc8, 0x5c, 0x58]
+const HALO_ATE = 0.31
+const ALFA_DO_HALO_NO_MARCO = 0.13
+const ALFA_DO_HALO_NO_FERRO = 0.34
 
 function limitar01(t: number): number {
   return t <= 0 ? 0 : t >= 1 ? 1 : t
@@ -233,8 +278,8 @@ function linear(v: number): number {
 
 /**
  * A pintura do fosso num passo só por pixel. De baixo para cima: a pedra do piso em que o ponto cai (o tom do
- * piso, a laje, as juntas, a sombra e a luz dos espelhos, as inscrições), o poço com a parede e o clarão, o
- * marco, o ferro da grade e a gema.
+ * piso, a laje, as juntas, o espelho de cada degrau, o lábio da guia, as inscrições), o poço com a meia-lua da
+ * parede e o quase preto do fundo, o marco com o halo da gema, o ferro da grade e a gema.
  */
 function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDaPeca): Textura {
   const { hw, hh } = c
@@ -258,8 +303,8 @@ function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDa
   }
   const talhe = TALHE * k
 
-  /** Quanto o ponto está dentro do talhe das inscrições (0 fora, 1 no fundo). */
-  const noTalhe = (x: number, y: number): number => {
+  /** Quanto o ponto está dentro do talhe das inscrições (0 fora, 1 no fundo); `simples` = os tracinhos do tamanho de mesa. */
+  const noTalhe = (x: number, y: number, simples: boolean): number => {
     const X = x / hw
     const Y = y / hh
     const rho = Math.sqrt(X * X + Y * Y)
@@ -271,6 +316,12 @@ function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDa
     const u = ((a - (j + 0.5) * passoDaVaga) * meioDaFaixa * R) / unidade
     const w = fora / unidade
     const sinal = sinais[j]
+    if (simples) {
+      // O tracinho deitado no lugar do sinal, e um ponto no lugar do losango.
+      const aoLado = Math.abs(u) - MEIO_TRACINHO
+      const d = sinal === null ? Math.max(0, Math.hypot(u, w) - PONTO_DA_PAUSA) : Math.hypot(aoLado > 0 ? aoLado : 0, w)
+      return limitar01(0.5 + (talhe * 1.15 - d * unidade) / 0.9)
+    }
     const d = sinal === null ? (Math.abs(u) + Math.abs(w) - LOSANGO) * 0.7 : ateOSinal(sinal, u, w)
     return limitar01(0.5 + (talhe - d * unidade) / 0.9)
   }
@@ -334,7 +385,9 @@ function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDa
       } else {
         let piso = 3
         while (piso > 0 && rho > BEIRAS[piso]) piso -= 1
-        tom = TOM_DO_PISO[piso]
+        // O tom do piso, caindo um pouco para dentro; no fundo, cai até a beira do poço (o degradê que acaba no escuro).
+        const paraDentro = (BEIRAS[piso] - rho) / (BEIRAS[piso] - (piso < 3 ? BEIRAS[piso + 1] : BEIRA_DO_POCO))
+        tom = TOM_DO_PISO[piso] * (1 - (piso === 3 ? CAI_NO_FUNDO : CAI_NO_PISO) * paraDentro)
         const lajes = LAJES_DO_PISO[piso]
         const naVolta = (th / VOLTA) * lajes + DESENCONTRO[piso]
         const laje = Math.floor(naVolta)
@@ -343,14 +396,30 @@ function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDa
         const daJunta = (fa < 1 - fa ? fa : 1 - fa) * ((VOLTA * rpx) / lajes)
         if (daJunta < JUNTA) luz -= FORCA_DA_JUNTA * (1 - daJunta / JUNTA)
         else if (fa < 0.5 && daJunta < JUNTA + 1) luz += 0.04
-        // O espelho de cima: a sombra dele do lado da luz, o pé escuro e o fio claro do outro lado.
+        // O espelho do degrau de cima: do lado da luz, a faixa escura e firme e a sombra macia dele no piso; do outro, o fio claro.
         if (piso > 0) {
           const t = (BEIRAS[piso] - rho) * pxPorRho
-          const comprida = SOMBRA_DO_DEGRAU * k * (paraALuz > 0 ? paraALuz : 0)
-          if (t < comprida) luz -= FORCA_DA_SOMBRA * suave01((comprida - t) / (0.5 * comprida + 0.8))
-          if (t < PE_DO_ESPELHO * k) luz -= FORCA_DO_PE * (1 - t / (PE_DO_ESPELHO * k)) * (0.5 + 0.5 * (paraALuz > 0 ? paraALuz : 0))
-          const fio = FIO_DO_ESPELHO * k * contraALuz
-          if (t < fio) luz += LUZ_DO_ESPELHO * (1 - t / fio)
+          if (paraALuz > 0) {
+            const faixa = FAIXA_DO_ESPELHO * k
+            if (t < faixa + 0.3) luz -= FORCA_DO_ESPELHO * suave01(paraALuz / VIRADA_DO_ESPELHO) * limitar01((faixa + 0.3 - t) / 0.6)
+            const comprida = faixa + SOMBRA_DO_DEGRAU * k * paraALuz
+            if (t < comprida) luz -= FORCA_DA_SOMBRA * paraALuz * (1 - t / comprida)
+          } else {
+            const fio = FIO_DO_ESPELHO * k
+            if (t < fio + 0.25) luz += LUZ_DO_ESPELHO * suave01(contraALuz / VIRADA_DO_ESPELHO) * limitar01((fio + 0.25 - t) / 0.5)
+          }
+        } else {
+          // A guia: o lábio da borda de fora, com o fio claro por fora e o espelho baixo dele por dentro.
+          const daBorda = (1 - rho) * pxPorRho
+          const labio = LABIO * k
+          if (daBorda < labio) luz += LUZ_DO_LABIO
+          const fio = FIO_DO_LABIO * k
+          if (daBorda < fio + 0.3) luz += LUZ_DO_FIO_DO_LABIO * (0.75 + 0.25 * paraALuz) * limitar01((fio + 0.3 - daBorda) / 0.6)
+          const doEspelho = daBorda - labio
+          if (doEspelho > -0.3 && doEspelho < ESPELHO_DO_LABIO * k) {
+            const q = 1 - (doEspelho > 0 ? doEspelho : 0) / (ESPELHO_DO_LABIO * k)
+            luz += paraALuz > 0 ? -FORCA_DO_ESPELHO_DO_LABIO * q * (0.4 + 0.6 * paraALuz) : 0.12 * q * contraALuz
+          }
         }
         // A quina de cima do degrau seguinte, gasta: mais clara do lado que pega luz. E as lascas dela.
         const dentro = piso < 3 ? BEIRAS[piso + 1] : BEIRA_DO_POCO
@@ -368,15 +437,19 @@ function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDa
           }
         }
         if (piso === 3) {
-          // O fundo: a fuligem do poço, a faixa polida das inscrições com os dois frisos e o talhe dos sinais.
-          if (rho < FULIGEM_ATE) luz -= FORCA_DA_FULIGEM * (1 - (rho - BEIRA_DO_POCO) / (FULIGEM_ATE - BEIRA_DO_POCO)) * (0.75 + ruido(x * 0.2 + 5, y * 0.2 + 9))
+          // O fundo: a fuligem em manchas, a faixa polida das inscrições com os dois frisos e o talhe dos sinais.
+          luz -= 0.05 * paraDentro * (0.5 + ruido(x * 0.2 + 5, y * 0.2 + 9))
           if (rho > FAIXA_DAS_INSCRICOES[0] && rho < FAIXA_DAS_INSCRICOES[1]) {
             luz += LUZ_DA_FAIXA
-            const e = 0.6
-            const fundo = noTalhe(x, y)
-            luz -= FUNDO_DO_TALHE * fundo
-            // A beira do talhe que olha para a luz (a de baixo à direita) clareia; a outra escurece.
-            luz += LUZ_DO_TALHE * (noTalhe(x - LUZ_X * e, y - LUZ_Y * e) - noTalhe(x + LUZ_X * e, y + LUZ_Y * e))
+            const simples = VAO_DO_SINAL * unidade * escala < VAO_LEGIVEL
+            if (!simples) {
+              const e = 0.6
+              luz -= FUNDO_DO_TALHE * noTalhe(x, y, false)
+              // A beira do talhe que olha para a luz (a de baixo à direita) clareia; a outra escurece.
+              luz += LUZ_DO_TALHE * (noTalhe(x - LUZ_X * e, y - LUZ_Y * e, false) - noTalhe(x + LUZ_X * e, y + LUZ_Y * e, false))
+            } else if (2 * MEIO_TRACINHO * unidade * escala >= TRACINHO_MINIMO) {
+              luz -= FUNDO_DO_TALHE * noTalhe(x, y, true)
+            }
           }
           const doFriso = Math.min(Math.abs(rho - FAIXA_DAS_INSCRICOES[0]), Math.abs(rho - FAIXA_DAS_INSCRICOES[1])) * pxPorRho
           if (doFriso < 0.7) luz -= 0.2 * (1 - doFriso / 0.7)
@@ -388,38 +461,36 @@ function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDa
           if (d < MEIA_TRINCA + 0.6) luz -= FORCA_DA_TRINCA * limitar01((MEIA_TRINCA + 0.6 - d) / 0.6) * (0.6 + 0.8 * ruido(x * 0.3 + 2, y * 0.3))
         }
       }
-      const f = 1 + pontilhado * 0.75
+      const f = 1 + pontilhado * SALPICO_DA_PEDRA
       cr = (pr * tom * (1 + luz) + 22 * luz) * f
       cg = (pg * tom * (1 + luz) + 22 * luz) * f
       cb = (pb * tom * (1 + luz) + 22 * luz) * f
     } else {
       // ---------- o poço: a parede de dentro em meia-lua do lado claro e o escuro do fundo ----------
+      // A parede só aparece do lado que pega luz (baixo à direita), em meia-lua curta; do outro, o escuro começa na beira.
       const t = (BEIRA_DO_POCO - rho) * pxPorRho
-      const parede = 8 * k * (0.3 + 0.7 * contraALuz)
+      const parede = 5.5 * k * contraALuz
       if (t < parede) {
         const q = t / parede
-        const tom = (0.66 - 0.3 * q) * (1 + luz) * (0.74 + 0.4 * contraALuz)
+        const tom = (0.44 - 0.2 * q) * (1 + luz) * (0.7 + 0.4 * contraALuz)
         cr = pr * tom
         cg = pg * tom
         cb = pb * tom
       } else {
-        const fundo = 1 + ruido(x * 0.16 + 3, y * 0.16 + 11) * 0.3
+        const fundo = 1 + ruido(x * 0.16 + 3, y * 0.16 + 11) * 0.08
         cr = FUNDO_DO_POCO[0] * fundo
         cg = FUNDO_DO_POCO[1] * fundo
         cb = FUNDO_DO_POCO[2] * fundo
       }
     }
 
-    // ---------- o clarão rubro: em volta da gema e subindo do poço ----------
-    let noClarao = 0
-    if (rho < CLARAO_ATE && rho > GEMA * 0.9) {
-      const q = 1 - (rho - GEMA) / (CLARAO_ATE - GEMA)
-      const noPoco = rho > MARCO && rho < BEIRA_DO_POCO
-      const a = (noPoco ? ALFA_DO_CLARAO_NO_POCO : ALFA_DO_CLARAO) * q * q * (0.85 + 0.3 * ruido(x * 0.12 + 17, y * 0.12 + 3))
+    // ---------- o halo rubro da gema na pedra do marco (no fundo do poço não: lá é o quase preto) ----------
+    if (rho <= MARCO && rho > GEMA * 0.9) {
+      const q = 1 - (rho - GEMA) / (MARCO - GEMA)
+      const a = ALFA_DO_HALO_NO_MARCO * (0.35 + 0.65 * q) * (0.85 + 0.3 * ruido(x * 0.12 + 17, y * 0.12 + 3))
       cr += (CLARAO[0] - cr) * a
       cg += (CLARAO[1] - cg) * a
       cb += (CLARAO[2] - cb) * a
-      noClarao = limitar01(a * 3)
     }
 
     // ---------- o ferro: os três aros, as barras em raio e o engaste da gema ----------
@@ -468,14 +539,16 @@ function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDa
       const lombo = -(nx * LUZ_X + ny * LUZ_Y)
       const beira = nx * nx + ny * ny
       const grao = ruido(x * 0.5 + 41, y * 0.5 + 13) * 0.14
-      const tom = 0.96 + 0.46 * lombo - 0.3 * beira + grao + 0.34 * rebite
+      // Um pouco mais claro que o ferro do painel: em cima do quase preto do poço, a grade tem de aparecer.
+      const tom = 1.1 + 0.46 * lombo - 0.3 * beira + grao + 0.34 * rebite
       const brilho = (lombo > 0.35 ? (lombo - 0.35) * 80 : 0) + 26 * rebite
       let mr = fr * tom + brilho
       let mg = fg * tom + brilho * 0.96
       let mb = fb * tom + brilho * 0.88
-      // O ferro perto da gema pega o clarão dela.
-      if (rho < CLARAO_ATE) {
-        const a = 0.26 * (1 - rho / CLARAO_ATE)
+      // As barras mais perto da gema pegam o halo rubro dela, que some antes do aro do meio.
+      if (rho < HALO_ATE) {
+        const perto = 1 - rho / HALO_ATE
+        const a = ALFA_DO_HALO_NO_FERRO * perto * perto
         mr += (CLARAO[0] - mr) * a
         mg += (CLARAO[1] - mg) * a
         mb += (CLARAO[2] - mb) * a
@@ -526,7 +599,7 @@ function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDa
         gb += (RUBI_NA_SOMBRA[2] - gb) * f
       }
       const gema = GEMA * pxPorRho
-      const reflexo = Math.max(limitar01(1.2 - Math.hypot(x + 0.3 * gema, y + 0.34 * gema) / (0.17 * gema)) * 0.75, limitar01(1.2 - Math.hypot(x - 0.36 * gema, y - 0.4 * gema) / (0.08 * gema)) * 0.45)
+      const reflexo = Math.max(limitar01(1.2 - Math.hypot(x + 0.3 * gema, y + 0.34 * gema) / (0.13 * gema)) * 0.5, limitar01(1.2 - Math.hypot(x - 0.36 * gema, y - 0.4 * gema) / (0.07 * gema)) * 0.25)
       gr += (REFLEXO[0] - gr) * reflexo
       gg += (REFLEXO[1] - gg) * reflexo
       gb += (REFLEXO[2] - gb) * reflexo
@@ -541,9 +614,9 @@ function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDa
       const L = 0.2126 * linear(cr) + 0.7152 * linear(cg) + 0.0722 * linear(cb)
       if (L < PISO_DO_FOSSO) {
         const t = Math.min(1, ((PISO_DO_FOSSO - L) / (LUZ_DO_ESCURO - L)) * 1.3)
-        cr += (ESCURO_DA_PEDRA[0] + (ESCURO_DO_CLARAO[0] - ESCURO_DA_PEDRA[0]) * noClarao - cr) * t
-        cg += (ESCURO_DA_PEDRA[1] + (ESCURO_DO_CLARAO[1] - ESCURO_DA_PEDRA[1]) * noClarao - cg) * t
-        cb += (ESCURO_DA_PEDRA[2] + (ESCURO_DO_CLARAO[2] - ESCURO_DA_PEDRA[2]) * noClarao - cb) * t
+        cr += (ESCURO_DA_PEDRA[0] - cr) * t
+        cg += (ESCURO_DA_PEDRA[1] - cg) * t
+        cb += (ESCURO_DA_PEDRA[2] - cb) * t
       }
     }
 
@@ -555,8 +628,8 @@ function texDoFosso(c: ContextoDoMovel, pedra: MaterialDaPeca, ferro: MaterialDa
 
 export const montarFossoDoSalao: MontarMovel = (c, cena) => {
   const forma = elipse(0, 0, c.hw, c.hh)
-  cena.corDoPiso = ESCURO_DO_CLARAO
-  // Rente ao chão: só o contato da guia, sem altura (a 3/4 não sobe nada).
-  cena.sombras.push(contato(forma, 0.18))
-  cena.partes.push(c.peca(forma, c.m.pedra, { tabua: 0, bisel: 1.6, contorno: 0.26, textura: texDoFosso(c, c.m.pedra, c.m.grade), semente: 3101 }))
+  cena.corDoPiso = ESCURO_DA_PEDRA
+  // Rente ao chão: nenhuma sombra, nem a de contato (para fora dele não cai nada), e nenhum chanfro: com a quina
+  // arredondada para fora, o disco lia como um tablado. Quem separa a guia do chão é o fio claro do lábio.
+  cena.partes.push(c.peca(forma, c.m.pedra, { tabua: 0, bisel: 0, contorno: 0.1, textura: texDoFosso(c, c.m.pedra, c.m.grade), semente: 3101 }))
 }

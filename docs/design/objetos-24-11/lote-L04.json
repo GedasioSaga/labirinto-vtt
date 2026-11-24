@@ -4,19 +4,40 @@
   "data": "2026-11-24",
   "prova": "docs/design/objetos-24-11/provas/lote-L04.png",
   "comoFoiFeitaAProva": "Folha pintada sem navegador, com o mesmo código do app: o montar de cada arquivo, cenaEmTresQuartos, girarCena e pintarCena, colados em cima dos chãos do app (as texturas embutidas 'lajotas-escuras' e 'lajotas', pelo pixelsDoLadrilho). Em cima, os 10 itens arrumados num salão de prova de 21 x 13 casas: de cima em piso escuro a 2x e, no tamanho de mesa (50 px por casa), em 3/4 e em piso claro. Embaixo, um cartão por item: de cima e em 3/4 no zoom escrito, o apagado quando tem, e os dois no tamanho de mesa, em piso escuro e em piso claro. Painéis por item, com as variantes e os giros da 3/4, em docs/design/objetos/<arquivo>.png. Os números do portão saíram da ferramenta do repo (folhaDeObjetosNovos.test.ts, com um pedido de 10 itens): os 10 dentro do portão.",
+  "revisaoDoDiretorDeArte": {
+    "data": "2026-11-24",
+    "oQueMudou": [
+      "#31 Fosso do salão: cada piso 12% mais escuro que o de cima e o fundo caindo até o poço, quase preto debaixo da grade; o espelho de cada degrau (faixa escura de 2,6 px do lado da luz, fio claro de 1,15 px do outro); lábio com fio claro na borda de fora, sem sombra nem chanfro para fora; gema 17% menos saturada, com halo rubro fraco só no marco e nas barras mais perto; no tamanho de mesa as inscrições viram tracinhos.",
+      "#32 Pilar com braseiro: leito em degradê de calor (amarelo-palha #f2c46a no meio, laranja, vermelho-escuro #7a2a18 na beira), cinco pedaços grandes de carvão de contorno irregular com a beira em brasa e três línguas de chama curtas e opacas, pendendo para a direita; salpico da pedra à metade nos tampos e nenhum nas frentes; faces do fuste a 20% de luz uma da outra.",
+      "#33 Lanterna gradeada: conferida no tamanho de mesa; a cruz quase sumia, então a barra engrossou (meia barra 0,055 para 0,078) e escureceu (tom 1,06 para 0,86) e o botão diminuiu. Só isso.",
+      "#34 Globo de luz rubra: vidro grosso (rubi fundo, anel escuro de refração junto do aro, miolo de luz #e88a6a pequeno e desfocado, reflexo de janela estreito com alfa até 0,33); o pino de argola virou cunha, com a orelha curta encostada no aro; clarão do chão e do anel mais fracos.",
+      "#35 Selo de órbitas: entalhe no piso (sulco escuro de 1,9 px com a beira de baixo à direita pegando luz e o fio azul fraco dentro; brilho azul com a metade da força); duas elipses em X; losangos gravados no lugar das bolinhas; o disco é pedra incrustada em dois tons, com borda gasta e trinca.",
+      "#36 Plataforma de ritual: laje elevada (face escura de 3,8 px no arco de baixo à direita, fio claro no de cima à esquerda, sombra pousada de força 0,5 deslocada 3 px); o topo clareia para o meio; verde 25% menos saturado e canal mais escuro; argolas 30% maiores, com o ferro da ponte.",
+      "#37 Gárgula: redesenhada DE FRENTE, agachada num pedestal quadrado (asas fechadas em duas gotas altas atrás dos ombros, cabeça de cão sem chifre, mãos na beira do pedestal); a fileira de vértebras saiu.",
+      "#38 Estátua de besta: salpico à metade; friso de três losangos no lugar das pseudo-letras; membrana das asas em degradê (mais escura junto do corpo) e fio claro nos ossos de cima.",
+      "#39 Estátua encapuzada: túnica em trapézio com quatro pregas largas e desiguais; mãos num nó claro no peito, entre as duas mangas largas; o vão do capuz em degradê (escuro debaixo da aba, tom da pedra embaixo), capuz assimétrico; pedestal com 1,17 vez a barra da túnica.",
+      "#40 Ponte de corrente: tábuas de largura (20% para mais e para menos), vão e torto (1 a 3 graus) próprios, uma faltando e uma partida; madeira puxada para o cinza; correntes de mão curvando 4,4 px para dentro e tabuleiro 8% mais estreito no meio; pilaretes redondos de pedra com argola nos cantos e soleira de madeira no lugar da travessa de ferro; sombra do que está no ar afastada 7 px e macia.",
+      "Geral: o salpico do granito cai à metade em todas as pedras do lote (multiplicado na cor, nunca preto). Hierarquia das cores acesas: a gema do fosso é o vermelho mais vivo; o globo fica um passo mais escuro; a brasa é laranja e palha; o verde da plataforma e o azul do selo ficam abaixo dos dois."
+    ],
+    "ondeOPedidoBateuNoPortao": [
+      "Fundo do poço perto de #2a2826: esse tom tem luminância linear 0,022, e o motor levanta todo pixel de peça abaixo de 0,045 (PISO_DE_LUZ). Ficou o mesmo cinza neutro e quente no escuro mais fundo permitido, #403d3a (0,047). Decisão do desenhista (Claude); para ir mais fundo é preciso mexer no piso de luz do motor, que vale para o catálogo inteiro.",
+      "Beira do globo por volta de #8e2a2a: esse tom tem saturação 0,70, e o globo é mais de um terço dos pixels opacos da peça; passaria do teto de 0,62. Ficou o mesmo rubi fundo com a saturação em 0,60 (#843835 na beira, #8f3f3a no corpo). Decisão do desenhista (Claude)."
+    ]
+  },
   "notasGerais": [
     "Nada foi registrado: tipos.ts, pecasNovas.ts, gruposDoObjeto.ts, construcoes.ts, materiais.ts, moveis/index.ts, tresQuartos.ts, icons.tsx, luzDoFogo.ts e mobilia.ts ficam para o integrador.",
     "Os ids de tipo sugeridos são o nome do arquivo (camelCase), os mesmos da LISTA.md.",
-    "DEPENDÊNCIA ENTRE ARQUIVOS DO LOTE: estatuaDeBesta.ts e estatuaEncapuzada.ts importam de gargula.ts o que as três estátuas dividem (a pedra com o tempo, o cone de pontas redondas, o musgo, o líquen, o pedestal visto de frente, a régua de sombra). Os três entram juntos; gargula.ts não pode sair sem os outros dois.",
-    "Imports de fora do lote (arquivos que já existem): pilarComBraseiro.ts usa andaimeDaTresQuartos.ts, fogoDeCasa.ts e fogueira.ts de moveis/; lanternaGradeada.ts usa lib/mobilia/fogoDeCasa.ts (TOCHA_DE_PAREDE e SUBIDA_DA_TOCHA_DE_PAREDE) e moveis/fogoDeCasa.ts; globoDeLuzRubra.ts usa andaimeDaTresQuartos.ts e pipaDeitada.ts (quartosDoGiro); plataformaDeRitual.ts usa andaimeDaTresQuartos.ts.",
+    "DEPENDÊNCIA ENTRE ARQUIVOS DO LOTE: estatuaDeBesta.ts e estatuaEncapuzada.ts importam de gargula.ts o que as três estátuas dividem (a pedra com o tempo, o cone de pontas redondas, o musgo, o líquen, o pedestal visto de frente, a régua de sombra). Os três entram juntos; gargula.ts não pode sair sem os outros dois. E, desde a revisão, plataformaDeRitual.ts importa de ponteDeCorrente.ts o ferro das argolas (TOM_DO_FERRO_DA_PONTE, BRILHO_DO_FERRO_DA_PONTE e texDoFerroDaPonte): a plataforma não entra sem a ponte.",
+    "Imports de fora do lote (arquivos que já existem): pilarComBraseiro.ts usa andaimeDaTresQuartos.ts, fogoDeCasa.ts e fogueira.ts de moveis/; lanternaGradeada.ts usa lib/mobilia/fogoDeCasa.ts (TOCHA_DE_PAREDE e SUBIDA_DA_TOCHA_DE_PAREDE) e moveis/fogoDeCasa.ts; globoDeLuzRubra.ts usa andaimeDaTresQuartos.ts e pipaDeitada.ts (quartosDoGiro); plataformaDeRitual.ts usa andaimeDaTresQuartos.ts; ponteDeCorrente.ts usa materialDaPeca de contexto.ts (o granito fixo dos pilaretes).",
     "QUEM LÊ c.giro (tem de entrar na lista dos que recebem o giro, como o pilar e a tocha de parede): pilarComBraseiro, lanternaGradeada, globoDeLuzRubra e plataformaDeRitual. Os três de pilar, globo e plataforma são montados com montadaNaTela.",
     "QUEM LÊ c.variante (0 aceso, 1 apagado, como o braseiro e o holofote): pilarComBraseiro, lanternaGradeada e globoDeLuzRubra. Entram em ehMovelQueAcende, e a forma gravada é só 'apagado'.",
     "LUZ: o desenho só tem o brilho fraco. As entradas sugeridas para LUZ_DOS_OBJETOS estão em cada item (campo luzSugerida). Fosso, selo e plataforma não precisam de luz; a sugestão deles é opcional.",
-    "ESTÁTUAS: a gárgula é desenhada DE CIMA, como a lista pede. A besta e a encapuzada são desenhadas DE FRENTE, em pé, como o anjo de pedra e a estátua de cavalo: de cima a figura vira uma roda de ombros e ninguém diz o que é (a lição escrita no cabeçalho de anjoDePedra.ts). Decisão do desenhista (Claude). Se o dono quiser as três na mesma vista, a que muda é a gárgula.",
+    "ESTÁTUAS: as três são desenhadas DE FRENTE, em pé, como o anjo de pedra e a estátua de cavalo: de cima a figura vira uma roda de ombros e ninguém diz o que é (a lição escrita no cabeçalho de anjoDePedra.ts). A gárgula era de cima na primeira versão, como a lista pede, e o diretor de arte mandou trocar (lia como besouro). A lista diz 'vista de cima'; quem decidiu a troca foi a revisão do diretor de arte.",
     "As três estátuas escalam pelo MENOR lado da pegada (a figura não estica): a sugestão é peloMenorLado na regra de fábrica.",
-    "TEMPO DO PORTÃO: medido duas vezes. Com a máquina livre o mais pesado é o fosso (1373 ms de 5000) e depois a plataforma (852 ms); com o tsc do projeto rodando ao lado, o fosso foi a 3136 ms e a plataforma a 2052 ms. O fosso é 6 x 6 casas numa peça só de textura própria; se o teste de 5 s por tipo oscilar na máquina cheia, é ele.",
+    "SOMBRA DE BAIXO DAS ESTÁTUAS (o portão da 3/4 pede a soma da sombra 2% maior que a de cima): a besta e a gárgula precisam da força 0,44 no perfil (as constantes exportadas de cada arquivo); a encapuzada passa com a de sempre por pouco (1,024) e passa com folga com 0,44 (1,074). Se o teste dela oscilar, use 0,44 nas três.",
+    "TEMPO DO PORTÃO depois da revisão: o mais pesado continua o fosso (1131 a 1982 ms de 5000, conforme a máquina) e depois a plataforma (775 a 1403 ms). Com o tsc do projeto rodando ao lado, a primeira versão do fosso chegou a 3136 ms. O fosso é 6 x 6 casas numa peça só de textura própria; se o teste de 5 s por tipo oscilar na máquina cheia, é ele.",
     "TESTES QUE VÃO MUDAR na integração: as contagens e os nomes (Toolbar.test.tsx, toolVariants.test.ts, pecasNovas.test.ts, materiais.test.ts) e, em tresQuartos.test.ts, a exceção dos dois objetos de chão sem altura (fossoDoSalao e seloDeOrbitas: a 3/4 sai igual à de cima e nenhum tampo sobe, como no círculo mágico).",
-    "Nenhum teste foi rodado (regra do projeto). Só o tsc do client, no projeto inteiro, e a folha de objetos novos, que é a ferramenta de prova."
+    "Nenhum teste foi rodado (regra do projeto). Só o tsc do client, no projeto inteiro, e a folha de objetos novos, que é a ferramenta de prova. Na revisão foi igual: o tsc do projeto inteiro (rtk proxy npx tsc --noEmit) saiu com zero erro, e a folha de objetos novos deu os dez dentro do portão."
   ],
   "itens": [
     {
@@ -35,14 +56,14 @@
         { "lugar": "pedra", "opcoes": "PEDRAS", "padrao": "granito" },
         { "lugar": "grade", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "A gema rubra do marco do meio e o clarão rubro que sobe do poço por entre as barras; as inscrições são inventadas, de talhe reto (oito sinais quadrados com um ponto, em grupos separados por um losango).",
+      "coresFixas": "A gema rubra do marco do meio (o vermelho mais vivo do lote, contido) e o halo rubro fraco dela no marco e nas barras mais perto; o quase preto neutro do fundo do poço; as inscrições são inventadas, de talhe reto (oito sinais quadrados com um ponto, em grupos separados por um losango), e viram tracinhos no tamanho de mesa.",
       "perfil3x4": "DERIVADO, como o círculo mágico: nenhuma sombra tem altura, a 3/4 sai igual à vista de cima",
       "comportamento": { "ehMovelDoChao": true, "barra": false, "tapa": false },
       "luzSugerida": "opcional: { alcanceEmCasas: 1.5, cor: 0xff7a66, forca: 0.35, fumacaEBrasas: false } (a gema; sem luz o desenho já funciona)",
-      "portao": "saturação p95 0,147, contorno 0,234, luz mínima 0,045, 1373 ms de 5000 (3136 ms com a máquina cheia)",
+      "portao": "saturação p95 0,106, contorno 0,447, luz mínima 0,049, 1131 a 1982 ms de 5000 conforme a máquina",
       "icone": "três rodas uma dentro da outra com um ponto no meio",
       "palavrasDeBusca": ["poço", "cova", "arena", "degraus", "grade", "gema", "ritual"],
-      "paraOIntegrador": "É chão: rente, não barra e não tapa; mora por baixo dos outros objetos e das fichas. O fosso inteiro é UMA peça com textura própria (um passo por pixel). Esticado, os anéis viram elipse pela pegada; as juntas, as barras e o talhe das inscrições continuam na medida em px. Entra na exceção de tresQuartos.test.ts dos objetos de chão sem altura."
+      "paraOIntegrador": "É chão: rente, não barra e não tapa; mora por baixo dos outros objetos e das fichas. O fosso inteiro é UMA peça com textura própria (um passo por pixel). Não tem sombra nenhuma, nem a de contato (cena.sombras fica vazio), nem chanfro: quem o separa do chão é o fio claro do lábio. Esticado, os anéis viram elipse pela pegada; as juntas, as barras e o talhe das inscrições continuam na medida em px. A textura lê a escala da imagem: abaixo de 4,2 pixels de vão entre os riscos de um sinal (o nível 1) as inscrições são tracinhos; do nível 2 em diante, os sinais inteiros. Entra na exceção de tresQuartos.test.ts dos objetos de chão sem altura."
     },
     {
       "numero": 32,
@@ -61,14 +82,14 @@
         { "lugar": "pedra", "opcoes": "PEDRAS", "padrao": "granito" },
         { "lugar": "metal", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "O carvão, a brasa, o halo parado e a cinza (os tons do braseiro e da fogueira); a fuligem no tampo do capitel.",
+      "coresFixas": "O fogo parado: o leito em degradê de calor (amarelo-palha, laranja, vermelho-escuro), os cinco pedaços de carvão com a beira em brasa, as três línguas de chama, o halo e a cinza; a fuligem no tampo do capitel.",
       "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_ABACO_DO_PILAR_COM_BRASEIRO } (0,14 casa)",
       "comportamento": { "ehMovelQueBarra": true, "leGiro": true, "variante": "0 aceso, 1 apagado (ehMovelQueAcende)" },
       "luzSugerida": "{ alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: true } (a do braseiro)",
-      "portao": "saturação p95 0,458, contorno 0,235, luz mínima 0,045, 472 ms de 5000",
+      "portao": "saturação p95 0,554, contorno 0,235, luz mínima 0,044, 537 a 685 ms de 5000 (o laranja do fogo é o que sobe a saturação; o teto é 0,62)",
       "icone": "quadrado com uma roda de fogo dentro",
       "palavrasDeBusca": ["coluna", "pira", "fogo", "tocheiro", "luz"],
-      "paraOIntegrador": "PILAR_COM_BRASEIRO é a disposição que a chama animada leria ({ fogo: { x, y }, alturaDaBorda }), no formato da BRASEIRO de lib/mobilia/fogoDeCasa.ts, se a chama for ligada. O desenho é montado na tela (montadaNaTela): igual dos quatro lados, e o plinto vai em metades do norte e do sul."
+      "paraOIntegrador": "PILAR_COM_BRASEIRO é a disposição que a chama animada leria ({ fogo: { x, y }, alturaDaBorda }), no formato da BRASEIRO de lib/mobilia/fogoDeCasa.ts, se a chama for ligada; a imagem parada já tem três línguas de chama curtas, que ficam por baixo dela. O desenho é montado na tela (montadaNaTela): igual dos quatro lados (as chamas sobem na tela em qualquer giro), e o plinto vai em metades do norte e do sul. O material das peças de pedra é passado como liso (a frente que a 3/4 varre sai sem o salpico do granito); o grão dos tampos vem da textura de cada um."
     },
     {
       "numero": 33,
@@ -90,7 +111,7 @@
       "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_LANTERNA_GRADEADA } (0,3 casa vezes SUBIDA_DA_TOCHA_DE_PAREDE: sobe pouco, como a tocha de parede)",
       "comportamento": { "ehMovelQueBarra": false, "leGiro": true, "variante": "0 acesa, 1 apagada (ehMovelQueAcende)", "deParede": "a chapa fica na beira de cima da pegada no giro 0; tudo o que a tocha de parede tem de regra de parede vale para ela" },
       "luzSugerida": "{ alcanceEmCasas: 2.5, cor: 0xffe2a0, forca: 0.8, fumacaEBrasas: false } (amarela e parada, sem fumaça)",
-      "portao": "saturação p95 0,565, contorno 0,232, luz mínima 0,045, 9 ms de 5000",
+      "portao": "saturação p95 0,564, contorno 0,232, luz mínima 0,045, 8 a 13 ms de 5000",
       "icone": "quadrado cortado em cruz na ponta de um braço curto",
       "palavrasDeBusca": ["arandela", "lampião de parede", "luz", "lanterna", "candeeiro"],
       "paraOIntegrador": "Sem sombra no chão (ela é a luz). Na parede de baixo (giro 180) a chapa sobe como coluna, para não ficar fresta até a linha da parede, como na tocha. Feita para ir às dezenas num corredor: a geração é a mais barata do lote."
@@ -110,14 +131,14 @@
       "lugaresDeMaterial": [
         { "lugar": "metal", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "O vidro rubro (aceso, de miolo claro e com um clarão discreto no chão; apagado, vinho escuro só com o reflexo).",
+      "coresFixas": "O vidro grosso rubro (aceso: rubi fundo, anel escuro de refração junto do aro, miolo de luz quente pequeno e desfocado, reflexo de janela estreito e um clarão discreto no chão; apagado: vinho escuro só com o reflexo).",
       "perfil3x4": "{ modo: 'derivado', espessura: 0 }, como a bola de cristal",
       "comportamento": { "ehMovelQueBarra": false, "leGiro": true, "variante": "0 aceso, 1 apagado (ehMovelQueAcende)" },
       "luzSugerida": "{ alcanceEmCasas: 3, cor: 0xff6a5c, forca: 0.75, fumacaEBrasas: false } (vermelha, sem fumaça)",
-      "portao": "saturação p95 0,591, contorno 0,228, luz mínima 0,045, 59 ms de 5000 (o vermelho do vidro é o que mais chega perto do teto de 0,62)",
-      "icone": "roda cheia dentro de um aro com uma orelha",
+      "portao": "saturação p95 0,594, contorno 0,233, luz mínima 0,044, 62 a 80 ms de 5000 (o vermelho do vidro é o que mais chega perto do teto de 0,62)",
+      "icone": "roda cheia dentro de um aro com uma cunha de lado",
       "palavrasDeBusca": ["luz vermelha", "lâmpada", "orbe", "esfera", "farol", "sinal"],
-      "paraOIntegrador": "Montado na tela (montadaNaTela): o globo é igual dos quatro lados e só a orelha com o pino anda com o giro. Se a saturação medida depois do registro (a semente muda) passar de 0,62, o que baixa é o tom do vidro aceso, no próprio arquivo."
+      "paraOIntegrador": "Montado na tela (montadaNaTela): o globo é igual dos quatro lados e só a orelha com a cunha anda com o giro. Se a saturação medida depois do registro (a semente muda) passar de 0,62, o que baixa é o tom do vidro aceso (CORPO_ACESO e BEIRA_ACESA), no próprio arquivo."
     },
     {
       "numero": 35,
@@ -132,14 +153,14 @@
       "exportacao": "montarSeloDeOrbitas",
       "folha": "docs/design/objetos/selo-de-orbitas.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "O fio de miolo quase branco e beira azul, com uma borda escura fina por fora (para aparecer em chão claro e em chão escuro) e o brilho azul fraco por baixo; o disco das duas metades, a clara e a escura.",
+      "coresFixas": "O sulco escuro (um escuro neutro meio transparente: sobre o piso, dá o tom escuro do próprio piso), a beira dele que pega luz, o fio azul fraco no fundo do sulco e o brilho azul muito leve em volta; o disco de pedra incrustada das duas metades, a clara e a cinza-azulada escura.",
       "perfil3x4": "DERIVADO, como o círculo mágico: sem altura, a 3/4 sai igual à vista de cima",
       "comportamento": { "ehMovelDoChao": true, "ehMovelQueBarra": false },
       "luzSugerida": "opcional: { alcanceEmCasas: 2, cor: 0x9cc4ff, forca: 0.35, fumacaEBrasas: false } (não é fonte de luz; só se o mestre quiser o selo ativo)",
-      "portao": "saturação p95 0,505, contorno 0,277, luz mínima 0,064, 375 ms de 5000",
-      "icone": "três elipses cruzadas com um ponto no meio",
-      "palavrasDeBusca": ["selo", "órbitas", "yin-yang", "átomo", "ritual", "magia", "círculo"],
-      "paraOIntegrador": "Rente, sem sombra nenhuma. É redondo e sai do menor lado da pegada: esticado, sobra chão dos lados. O traço não engrossa com o tamanho. Em piso claro ele fica mais fraco que em piso escuro (está na folha); é o preço do brilho azul fraco que a lista pede. Entra na exceção de tresQuartos.test.ts dos objetos de chão sem altura."
+      "portao": "saturação p95 0,188, contorno 0,244, luz mínima 0,049, 367 ms de 5000 (só o disco de pedra é opaco; o talhe é meio transparente e não entra na medida)",
+      "icone": "duas elipses cruzadas em X com um ponto no meio",
+      "palavrasDeBusca": ["selo", "órbitas", "yin-yang", "entalhe", "ritual", "magia", "círculo"],
+      "paraOIntegrador": "Rente, sem sombra nenhuma. É redondo e sai do menor lado da pegada: esticado, sobra chão dos lados. O sulco não engrossa com o tamanho. Agora ele lê nos dois chãos: no claro, pelo sulco escuro; no escuro, pela beira iluminada e pelo fio azul (mais discreto: é entalhe, não néon). Entra na exceção de tresQuartos.test.ts dos objetos de chão sem altura."
     },
     {
       "numero": 36,
@@ -157,14 +178,14 @@
         { "lugar": "pedra", "opcoes": "PEDRAS", "padrao": "granito" },
         { "lugar": "metal", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "O fio verde do anel mágico e o brilho dele no canal; o musgo da beira úmida.",
+      "coresFixas": "O fio verde do anel mágico (um verde de erva, saturação 0,34) e o brilho dele no canal; o musgo da beira úmida; a ferrugem das argolas (a do ferro da ponte de corrente).",
       "perfil3x4": "{ modo: 'derivado', espessura: 0 }: só os oito pilaretes sobem (colunas com as quatro águas da pirâmide), e a argola de cada um é um tampo solto a meia altura",
       "comportamento": { "ehMovelDoChao": true, "barra": false, "tapa": false, "leGiro": true },
       "luzSugerida": "opcional: { alcanceEmCasas: 2.5, cor: 0x8fe6b4, forca: 0.3, fumacaEBrasas: false }",
-      "portao": "saturação p95 0,139, contorno 0,234, luz mínima 0,045, 852 ms de 5000 (2052 ms com a máquina cheia)",
+      "portao": "saturação p95 0,134, contorno 0,234, luz mínima 0,044, 775 a 1403 ms de 5000 conforme a máquina",
       "icone": "roda com um anel dentro e pontos na beira",
       "palavrasDeBusca": ["altar", "disco", "tablado", "ritual", "correntes", "argolas", "pilaretes"],
-      "paraOIntegrador": "Pisa-se nela: não barra e não tapa, e o disco mora por baixo dos outros objetos e das fichas (o mestre põe o altar no medalhão do meio). As correntes NÃO vêm junto: as argolas são onde o mestre prende outra peça. Os pilaretes ficam nas oito diagonais, com os quatro eixos livres para entrar. A sombra de cada pilarete é pintada no disco (a sombra de chão do motor fica por baixo das peças)."
+      "paraOIntegrador": "Pisa-se nela: não barra e não tapa, e o disco mora por baixo dos outros objetos e das fichas (o mestre põe o altar no medalhão do meio). As correntes NÃO vêm junto: as argolas são onde o mestre prende outra peça. Os pilaretes ficam nas oito diagonais, com os quatro eixos livres para entrar. A sombra de cada pilarete é pintada no disco (a sombra de chão do motor fica por baixo das peças). A laje é elevada só no desenho (a face da borda e o fio claro são pintados no disco, e a sombra é a do disco deslocado, sem altura): o disco continua no chão na 3/4. Importa o ferro das argolas de ponteDeCorrente.ts."
     },
     {
       "numero": 37,
@@ -177,19 +198,19 @@
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/gargula.ts",
       "exportacao": "montarGargula",
-      "exportacoesExtras": ["o que as três estátuas dividem: texDaPedraVelha, pedraDoTempo, musgoDaPedra, conico, emTrechos, espelho, arredondada, prepararEstatua, musgo, liquen, montarPedestalDeFrente, sombraDoPedestalDeFrente, reguaDeSombra e os tipos e tons que vão com eles"],
+      "exportacoesExtras": ["FORCA_DA_SOMBRA_DE_BAIXO_DA_GARGULA", "o que as três estátuas dividem: texDaPedraVelha, SALPICO_DA_PEDRA_VELHA, pedraDoTempo, musgoDaPedra, conico, emTrechos, espelho, arredondada, prepararEstatua, musgo, liquen, montarPedestalDeFrente, sombraDoPedestalDeFrente, reguaDeSombra e os tipos e tons que vão com eles"],
       "folha": "docs/design/objetos/gargula.png",
       "lugaresDeMaterial": [
         { "lugar": "pedra", "opcoes": "PEDRAS", "padrao": "granito" }
       ],
-      "coresFixas": "O tempo: a pedra puxada para o cinza-esverdeado, manchas de verdete, líquen claro e musgo nos cantos do bloco.",
-      "perfil3x4": "EM_PE: de cima e na 3/4 é a mesma imagem, e a 3/4 só põe a sombra de baixo",
+      "coresFixas": "O tempo: a pedra puxada para o cinza-esverdeado, manchas de verdete, o escorrido da chuva, líquen claro e musgo nos cantos do pedestal.",
+      "perfil3x4": "{ modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DE_BAIXO_DA_GARGULA } (0,44), como a besta. Com o EM_PE puro (0,34) a soma da sombra sobe só 2,15%, rente ao mínimo de 2% do portão; com 0,44 sobe 7%",
       "comportamento": { "barra": true, "tapa": false, "peloMenorLado": true },
       "luzSugerida": null,
-      "portao": "saturação p95 0,115, contorno 0,234, luz mínima 0,045, 93 ms de 5000",
-      "icone": "quadrado com duas asas fechadas em V e dois chifres embaixo",
-      "palavrasDeBusca": ["estátua", "demônio", "quimera", "escultura", "monstro"],
-      "paraOIntegrador": "Desenhada DE CIMA: o bicho de costas no bloco, a cabeça chifruda debruçada na beira da frente (o lado de baixo da pegada no giro 0), as asas fechadas nos flancos e o rabo de lança do lado. O giro gira a imagem inteira: a gárgula olha para onde o mestre a virar. As asas, a cabeça e o rabo sobram do bloco, mas cabem na casa."
+      "portao": "saturação p95 0,113, contorno 0,235, luz mínima 0,045, 67 a 100 ms de 5000",
+      "icone": "bicho agachado de orelhas de ponta, entre duas gotas, em cima de um quadrado",
+      "palavrasDeBusca": ["estátua", "demônio", "quimera", "escultura", "monstro", "cão de pedra"],
+      "paraOIntegrador": "Desenhada DE FRENTE, em pé, numa casa de 56 px, como a besta e a encapuzada (a primeira versão, de cima, lia como besouro e foi trocada na revisão do diretor de arte): a gárgula pequena agachada num pedestal quadrado, de asas fechadas (duas gotas altas atrás dos ombros), cabeça de cão sem chifre e mãos na beira do pedestal. O quarto de volta deita a figura, como nos outros em pé. O chão do pedestal fica em 24,5 px de propósito (em 25 a beira do soco caía em cima de uma linha de pixels no nível 3 e o portão da sombra de baixo reprovava com qualquer força)."
     },
     {
       "numero": 38,
@@ -207,11 +228,11 @@
       "lugaresDeMaterial": [
         { "lugar": "pedra", "opcoes": "PEDRAS", "padrao": "granito" }
       ],
-      "coresFixas": "O tempo (cinza-esverdeado, verdete, o escorrido da chuva, líquen, musgo ao pé); a fileira de cinco sinais gastos na placa do pedestal, inventados.",
+      "coresFixas": "O tempo (cinza-esverdeado, verdete, o escorrido da chuva, líquen, musgo ao pé); o friso de três losangos talhados na placa do pedestal.",
       "perfil3x4": "{ modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DE_BAIXO_DA_BESTA } (0,44). NÃO use o EM_PE puro: com a força de sempre (0,34) a sombra de baixo some debaixo da sombra do pedestal e a 3/4 não passa no portão (medido na folha: 0,34 não passa; 0,38, 0,44 e 0,5 passam)",
       "comportamento": { "barra": true, "tapa": false, "peloMenorLado": true },
       "luzSugerida": null,
-      "portao": "saturação p95 0,110, contorno 0,234, luz mínima 0,045, 281 ms de 5000",
+      "portao": "saturação p95 0,110, contorno 0,234, luz mínima 0,045, 283 a 387 ms de 5000",
       "icone": "cabeça de dois chifres entre duas asas de morcego abertas",
       "palavrasDeBusca": ["demônio", "diabo", "ídolo", "monstro", "estátua", "escultura", "chifres"],
       "paraOIntegrador": "Desenhada DE FRENTE, em pé, num quadro de duas casas (escala = menor lado / 112 px). Feita para encostar na parede: o pedestal toma a largura toda e nada sai para trás; o mestre gira a peça para a parede. A sombra no chão conta só 0,66 da altura desenhada (a figura tem quase duas casas de alto, e a sombra inteira atravessava o salão). Criatura inventada, de nenhuma religião nem de jogo algum."
@@ -232,13 +253,13 @@
         { "lugar": "pedra", "opcoes": "PEDRAS", "padrao": "granito" }
       ],
       "coresFixas": "O tempo (cinza-esverdeado, verdete, o escorrido da chuva, líquen, musgo ao pé); o sinal gasto da placa do pedestal (um losango num aro, inventado).",
-      "perfil3x4": "EM_PE (passa no portão com a força de sempre)",
+      "perfil3x4": "EM_PE (passa no portão com a força de sempre, por pouco: a soma da sombra sobe 2,4%; com forcaDaSombraDeBaixo 0,44 sobe 7,4%)",
       "comportamento": { "barra": true, "tapa": false, "peloMenorLado": true },
       "luzSugerida": null,
-      "portao": "saturação p95 0,110, contorno 0,235, luz mínima 0,045, 60 ms de 5000",
-      "icone": "capuz de bico com a boca escura, sobre um trapézio",
+      "portao": "saturação p95 0,111, contorno 0,234, luz mínima 0,045, 72 a 86 ms de 5000",
+      "icone": "capuz de bico com o vão escuro, sobre um trapézio",
       "palavrasDeBusca": ["monge", "cultista", "vulto", "capuz", "estátua", "escultura"],
-      "paraOIntegrador": "Desenhada DE FRENTE, em pé, numa casa de 56 px: o capuz de bico com a boca escura (só o queixo sai da sombra), as mangas largas com as mãos postas, a túnica em pregas, o cordão de nó e o pedestal baixo. Sem rosto e sem símbolo de religião de verdade. O vulto é desenhado esguio e posto na casa 1,2 vez mais largo (a constante PORTE do arquivo): esguio, ele sumia na casa."
+      "paraOIntegrador": "Desenhada DE FRENTE, em pé, numa casa de 56 px: o capuz de bico caído para um lado, com o vão que escurece para o fundo (sem rosto), as duas mangas largas que se encontram no peito com as mãos num nó claro, a túnica em trapézio com quatro pregas largas e desiguais, o cordão de nó e o pedestal baixo, com 1,17 vez a largura da barra. Sem símbolo de religião de verdade. A constante PORTE da primeira versão saiu: o vulto é desenhado direto na casa."
     },
     {
       "numero": 40,
@@ -251,19 +272,20 @@
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/ponteDeCorrente.ts",
       "exportacao": "montarPonteDeCorrente",
+      "exportacoesExtras": ["TOM_DO_FERRO_DA_PONTE", "BRILHO_DO_FERRO_DA_PONTE", "texDoFerroDaPonte (o ferro velho com ferrugem; a plataforma de ritual usa nas argolas)"],
       "folha": "docs/design/objetos/ponte-de-corrente.png",
       "lugaresDeMaterial": [
         { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "nogueira" },
         { "lugar": "metal", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "A ferrugem aqui e ali nos elos; uma tábua lascada de um lado.",
-      "perfil3x4": "EM_PE, como a ponte",
+      "coresFixas": "A ferrugem aqui e ali nos elos; a pedra dos quatro pilaretes dos cantos (o granito do Meio-Termo, fixo: não é lugar de material); o cinza para onde a madeira do painel é puxada (madeira velha).",
+      "perfil3x4": "EM_PE, como a ponte (a soma da sombra sobe 38% na 3/4: passa com folga)",
       "comportamento": { "ehMovelDoChao": true, "barra": false, "tapa": false },
       "luzSugerida": null,
-      "portao": "saturação p95 0,528, contorno 0,231, luz mínima 0,044, 212 ms de 5000",
+      "portao": "saturação p95 0,244, contorno 0,233, luz mínima 0,044, 227 a 264 ms de 5000",
       "icone": "tábuas de través entre duas linhas de elos",
       "palavrasDeBusca": ["passarela", "pinguela", "ponte suspensa", "ponte de ferro", "abismo", "corrente"],
-      "paraOIntegrador": "Corre ao longo do lado MAIOR da pegada, como a ponte de sempre (4 x 1 deitada; mais alta que larga, em pé). As tábuas têm vão entre elas: o que está embaixo aparece, e é isso que diz abismo. Esticada, fica mais longa ou mais larga, nunca com o elo maior. A ponte de sempre está no grupo de objeto 'ruaEJardim'; a lista pede esta como construção, e a sugestão de grupo é 'abrigosEPassagens'."
+      "paraOIntegrador": "Corre ao longo do lado MAIOR da pegada, como a ponte de sempre (4 x 1 deitada; mais alta que larga, em pé). As tábuas têm vão entre elas e uma falta: o que está embaixo aparece, e é isso que diz abismo, junto com a sombra afastada e macia do que está no ar (a soleira e os pilaretes, pousados, têm a sombra junto do pé). Esticada, fica mais longa ou mais larga, nunca com o elo maior. A madeira do painel é puxada 62% para o cinza (madeira velha): o mestre ainda escolhe a madeira, mas ela sai sempre envelhecida. A ponte de sempre está no grupo de objeto 'ruaEJardim'; a lista pede esta como construção, e a sugestão de grupo é 'abrigosEPassagens'."
     }
   ]
 }

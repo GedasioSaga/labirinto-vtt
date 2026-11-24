@@ -22,8 +22,9 @@
  *
  * O tempo, o das estátuas do lote (`gargula.ts`): a pedra puxada para o
  * cinza-esverdeado, o escorrido da chuva, manchas de verdete, musgo ao pé e
- * nos cantos do pedestal e líquen nas asas. A placa do pedestal tem uma
- * fileira de sinais gastos de talhe reto (inventados, como os do fosso).
+ * nos cantos do pedestal e líquen nas asas. A placa do pedestal tem um friso
+ * de três losangos talhados, ligados por um fio (a fileira de sinais de antes
+ * lia como texto borrado: revisão do diretor de arte, 24/11/2026).
  *
  * Figura desenhada de frente nas duas vistas: de cima e na 3/4 é a mesma
  * imagem, e a 3/4 só põe a sombra de baixo (em pé em `tresQuartos.ts`, com a
@@ -32,8 +33,8 @@
  * num quadro de DUAS casas (112 px, y para baixo), cabe nele e escala com o
  * menor lado da pegada (2 x 2 casas de partida). Material: `pedra`.
  */
-import { cadeia, capsula, dentroDe, elipse, elipseGirada, poligono, uniao, type Forma, type Ponto } from './formas'
-import type { OpcoesDaPeca } from './motor'
+import { cadeia, capsula, dentroDe, elipse, elipseGirada, menos, poligono, uniao, type Forma, type Ponto } from './formas'
+import type { OpcoesDaPeca, Textura } from './motor'
 import type { MontarMovel } from './contexto'
 import {
   arredondada,
@@ -74,9 +75,11 @@ const PEDESTAL: PedestalDeFrente = {
   tampo: 23,
   placa: { meia: 26, topo: 35, pe: 41.4 },
 }
-/** Os sinais gastos da placa: o meio de cada um na fileira e o meio lado do quadrado. */
-const SINAIS: readonly number[] = [-19.5, -9.75, 0, 9.75, 19.5]
-const LADO_DO_SINAL = 2.3
+/** O friso da placa: três losangos talhados (o meio de cada um e a meia altura; o do meio é o maior), a grossura do talhe e o fio que os liga. */
+const LOSANGOS: readonly (readonly [number, number])[] = [[-14, 2], [0, 2.7], [14, 2]]
+const LARGURA_DO_LOSANGO = 1.55
+const TALHE_DO_LOSANGO = 0.75
+const FIO_DO_FRISO = 0.3
 
 /** Quanto de verde vai na pedra da figura e na do pedestal, as manchas e a chuva da figura. */
 const VERDE_NA_FIGURA = 0.24
@@ -89,6 +92,15 @@ const TOM_DO_CORPO = 0.9
 const TOM_DA_CABECA = 1.06
 const TOM_DO_CHIFRE = 1.2
 const TOM_DA_GARRA = 1.16
+/**
+ * A membrana das asas não é chapada: escurece junto do corpo (até `SOMBRA_DA_MEMBRANA`, de `MEMBRANA_PERTO` a
+ * `MEMBRANA_LONGE` px do meio do quadro) e os ossos de cima levam um fio claro do lado da luz.
+ */
+const SOMBRA_DA_MEMBRANA = 0.3
+const MEMBRANA_PERTO = 9
+const MEMBRANA_LONGE = 44
+const TOM_DO_FIO_DO_OSSO = 1.16
+const FIO_DO_OSSO: readonly [number, number, number] = [-0.95, -1.05, 0.5]
 
 /**
  * A asa direita, meio aberta atrás do ombro: da raiz, sobe pelo osso até o punho (o alto), desce pela beira de
@@ -187,6 +199,12 @@ export const montarEstatuaDeBesta: MontarMovel = (c, cena) => {
   const figura = pedraDoTempo(c.m.pedra, VERDE_NA_FIGURA)
   const base = pedraDoTempo(c.m.pedra, VERDE_NO_PEDESTAL)
   const TEX = texDaPedraVelha(MANCHAS_NA_FIGURA, CHUVA_NA_FIGURA)
+  /** A pedra da membrana: a da figura, mais escura junto do corpo e clareando até as pontas dos dedos. */
+  const TEX_DA_MEMBRANA: Textura = (u, v, x, y, p, s, e) => {
+    TEX(u, v, x, y, p, s, e)
+    const longe = (Math.abs(x) / escala - MEMBRANA_PERTO) / (MEMBRANA_LONGE - MEMBRANA_PERTO)
+    s[3] -= SOMBRA_DA_MEMBRANA * (1 - (longe <= 0 ? 0 : longe >= 1 ? 1 : longe)) ** 1.5
+  }
   const o = (semente: number, tom: number, bisel: number, mais: OpcoesDaPeca = {}): OpcoesDaPeca => ({ bisel, tom, contorno: 0.3, textura: TEX, semente, ...mais })
   const sombra = (dist: number, forca = 0.28): OpcoesDaPeca => ({ projeta: { dist, forca } })
   const vao = (f: Forma, alfa: number, semente: number): void => por(f, VAO_DA_PEDRA, { bisel: 0, contorno: 0, alfa, semente })
@@ -206,23 +224,28 @@ export const montarEstatuaDeBesta: MontarMovel = (c, cena) => {
   // ---------- o pedestal, com a fileira de sinais gastos na placa ----------
   montarPedestalDeFrente(por, base, PEDESTAL, 3801)
   const meio = (PEDESTAL.placa.topo + PEDESTAL.placa.pe) / 2
-  SINAIS.forEach((x, i) => {
-    const l = LADO_DO_SINAL
-    // Cada sinal: três lados de um quadrado (o lado aberto roda de um para o outro) e um ponto dentro.
-    const lados: readonly (readonly [number, number, number, number])[] = [[-l, -l, l, -l], [l, -l, l, l], [l, l, -l, l], [-l, l, -l, -l]]
-    lados.forEach(([ax, ay, bx, by], k) => {
-      if (k !== i % 4) vao(capsula(x + ax, meio + ay, x + bx, meio + by, 0.34), 0.5, 3810 + i)
-    })
-    vao(elipse(x + (i % 2 === 0 ? 0.5 : -0.5), meio + (i % 3 === 0 ? 0.5 : -0.3), 0.6, 0.6), 0.5, 3816 + i)
+  const losango = (x: number, meia: number): Forma => poligono([[x, meio - meia], [x + meia * LARGURA_DO_LOSANGO, meio], [x, meio + meia], [x - meia * LARGURA_DO_LOSANGO, meio]])
+  LOSANGOS.forEach(([x, meia], i) => {
+    // Cada losango é só o talhe da volta dele; o miolo fica na pedra da placa.
+    vao(menos(losango(x, meia), losango(x, meia - TALHE_DO_LOSANGO)), 0.5, 3810 + i)
+    if (i > 0) {
+      const [antes, meiaDeAntes] = LOSANGOS[i - 1]
+      vao(capsula(antes + meiaDeAntes * LARGURA_DO_LOSANGO + 1.2, meio, x - meia * LARGURA_DO_LOSANGO - 1.2, meio, FIO_DO_FRISO), 0.42, 3816 + i)
+    }
   })
   musgo(por, musgoDaPedra(base), MUSGO_DO_PEDESTAL, 3822)
 
   // ---------- as asas, atrás de tudo: a membrana escura, os dedos, o osso e a garra do polegar ----------
   for (const lado of LADOS) {
-    por(arredondada(poligono(lado > 0 ? [...ASA] : espelho(ASA)), 0.5), figura, o(3830, peloLado(lado, TOM_DA_ASA), 2.2))
+    por(arredondada(poligono(lado > 0 ? [...ASA] : espelho(ASA)), 0.5), figura, o(3830, peloLado(lado, TOM_DA_ASA * 1.12), 2.2, { textura: TEX_DA_MEMBRANA }))
     DEDOS_DA_ASA.forEach((dedo, i) => por(emTrechos(dedo, lado), figura, o(3832 + i, peloLado(lado, TOM_DA_ASA * 1.3), 1.1, { contorno: 0.22, ...sombra(1, 0.24) })))
     por(cone(POLEGAR, lado), figura, o(3836, TOM_DA_GARRA, 0.9, sombra(0.8, 0.24)))
     por(emTrechos(OSSO_DA_ASA, lado), figura, o(3837, peloLado(lado, TOM_DA_ASA * 1.42), 2.2, sombra(1.6, 0.3)))
+    // O fio claro dos ossos de cima (o do braço da asa e o do primeiro dedo), do lado de onde a luz vem.
+    for (const [k, osso] of [OSSO_DA_ASA, DEDOS_DA_ASA[0]].entries()) {
+      const fio: Trechos = osso.map(([x, y]) => [x + FIO_DO_OSSO[0] * (k === 0 ? 1 : -0.6), y + FIO_DO_OSSO[1] * (k === 0 ? 1 : 0.5), FIO_DO_OSSO[2]] as const)
+      por(emTrechos(fio, lado), figura, o(3838 + k, TOM_DO_FIO_DO_OSSO, 0.4, { contorno: 0, alfa: 0.8 }))
+    }
   }
 
   // ---------- o rabo, pelo tampo do pedestal, e a ponta de lança caída na frente ----------
