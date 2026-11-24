@@ -1,0 +1,1099 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tapete grande</title>
+<style>
+/* Página: tokens próprios, claro e escuro. O palco (o piso do mapa) fica no escuro
+   do app em qualquer tema: é o chão de pedra da masmorra, com a luz das tochas. */
+:root {
+  color-scheme: light;
+  --bg: #f1eee7;
+  --cartao: #faf8f3;
+  --ink: #23211d;
+  --ink-2: #4f4b44;
+  --ink-3: #6b665e;
+  --rule: #d9d3c7;
+  --destaque: #8a5a14;
+  --seg-on-bg: #23211d;
+  --seg-on-ink: #f6f3ec;
+  --bancada: #1d1b19;
+  --f-display: "Bahnschrift", "DIN Alternate", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --raio-cartao: 14px;
+  --raio-palco: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #161618;
+    --cartao: #1e1e21;
+    --ink: #eceae4;
+    --ink-2: #b9b6ae;
+    --ink-3: #94918a;
+    --rule: #34343a;
+    --destaque: #e0a44a;
+    --seg-on-bg: #eceae4;
+    --seg-on-ink: #1a1a1e;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #161618;
+  --cartao: #1e1e21;
+  --ink: #eceae4;
+  --ink-2: #b9b6ae;
+  --ink-3: #94918a;
+  --rule: #34343a;
+  --destaque: #e0a44a;
+  --seg-on-bg: #eceae4;
+  --seg-on-ink: #1a1a1e;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; padding: 0 16px 72px; }
+.coluna { max-width: 1240px; margin-inline: auto; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(30px, 5vw, 42px); line-height: 1.05; letter-spacing: -0.005em; }
+h2 { font-size: 19px; line-height: 1.2; }
+h3 { font-size: 16px; }
+p { margin: 0; max-width: 72ch; }
+
+.topo { padding-top: 40px; display: grid; gap: 12px; }
+.lede { font-size: 16.5px; color: var(--ink-2); }
+
+/* Controles: grupos de rádio com cara de segmentado, o deslizador e as duas chaves. */
+.controles { display: flex; flex-wrap: wrap; gap: 14px 26px; align-items: end; padding: 14px 16px; border: 1px solid var(--rule); border-radius: var(--raio-cartao); background: var(--cartao); position: sticky; top: 8px; z-index: 2; }
+.controles fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.controles legend, .rotulo-campo { font-size: 13px; color: var(--ink-3); margin-bottom: 6px; padding: 0; display: block; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; padding: 2px; gap: 2px; }
+.seg label { position: relative; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span { display: block; padding: 6px 13px; border-radius: 999px; font-size: 14px; color: var(--ink-2); transition: background-color 160ms ease, color 160ms ease; white-space: nowrap; }
+.seg input:checked + span { background: var(--seg-on-bg); color: var(--seg-on-ink); }
+.seg input:focus-visible + span { outline: 2px solid var(--destaque); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .seg label:hover input:not(:checked) + span { color: var(--ink); }
+}
+.chave { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink-2); cursor: pointer; min-height: 34px; }
+.chave input { width: 18px; height: 18px; accent-color: var(--destaque); margin: 0; }
+.chave input:focus-visible { outline: 2px solid var(--destaque); outline-offset: 2px; }
+.comprimento { display: grid; gap: 2px; }
+.comprimento .linha { display: flex; gap: 10px; align-items: center; }
+.comprimento input[type="range"] { width: 150px; accent-color: var(--destaque); }
+.comprimento input[type="range"]:focus-visible { outline: 2px solid var(--destaque); outline-offset: 4px; border-radius: 4px; }
+.comprimento output { font-variant-numeric: tabular-nums; font-size: 14px; color: var(--ink); min-width: 4.5ch; }
+
+/* As quatro colunas: Hoje e as três direções, lado a lado. */
+.grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--larg-cartao, 290px)), 1fr)); gap: 14px; align-items: start; }
+.cartao { background: var(--cartao); border: 1px solid var(--rule); border-radius: var(--raio-cartao); padding: 12px; display: grid; gap: 10px; min-width: 0; }
+.cartao header { display: grid; gap: 4px; padding: 2px 2px 0; }
+.cartao .letra { color: var(--destaque); font-variant-numeric: tabular-nums; margin-right: 6px; }
+.cartao .desc { font-size: 13.5px; line-height: 1.45; color: var(--ink-2); min-height: 7.3em; }
+.cartao[data-dir="hoje"] h2 { color: var(--ink-2); }
+.palco { background: var(--bancada); border-radius: var(--raio-palco); overflow: auto; line-height: 0; }
+.palco canvas { display: block; }
+.rodape { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; padding: 0 2px; }
+.estado { font-size: 12.5px; color: var(--ink-3); }
+.copiar { font: inherit; font-size: 13.5px; color: var(--ink); background: transparent; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 14px; cursor: pointer; min-height: 34px; transition: transform 140ms var(--ease-out), border-color 160ms ease; }
+.copiar:active { transform: scale(0.97); }
+.copiar:focus-visible { outline: 2px solid var(--destaque); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .copiar:hover { border-color: var(--ink-3); } }
+
+.notas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 14px; }
+.nota { border-top: 2px solid var(--rule); padding-top: 12px; display: grid; gap: 8px; align-content: start; }
+.nota ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--ink-2); font-size: 14.5px; }
+.nota code { font-size: 13px; }
+.nota.recomenda { border-top-color: var(--destaque); }
+
+@media (prefers-reduced-motion: reduce) {
+  .seg span, .copiar { transition: none; }
+}
+</style>
+</head>
+<body>
+<main class="coluna">
+  <header class="topo">
+    <h1>Tapete grande: três caminhos</h1>
+    <p class="lede">Hoje o tapete longo carimba o mesmo losango a cada casa. No corredor de 14 casas ele vira papel de parede e, aceso por igual, apaga a luz das tochas. Nas três propostas a moldura e os cantos têm tamanho fixo, só o miolo estica, e o desenho do meio aparece uma vez só, em qualquer comprimento. Todos estão no piso de pedra do mapa, com a luz das tochas.</p>
+  </header>
+
+  <form class="controles" id="controles" aria-label="Como ver os tapetes" onsubmit="return false">
+    <fieldset>
+      <legend>Cor</legend>
+      <div class="seg">
+        <label><input type="radio" name="pal" value="vinho" checked><span>Vinho, a de hoje</span></label>
+        <label><input type="radio" name="pal" value="indigo"><span>Índigo</span></label>
+        <label><input type="radio" name="pal" value="musgo"><span>Musgo</span></label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Zoom</legend>
+      <div class="seg">
+        <label><input type="radio" name="zoom" value="mapa" checked><span>Mapa</span></label>
+        <label><input type="radio" name="zoom" value="perto"><span>Perto</span></label>
+      </div>
+    </fieldset>
+    <div class="comprimento">
+      <label class="rotulo-campo" for="comprimento">Corredor</label>
+      <div class="linha">
+        <input type="range" id="comprimento" min="6" max="20" step="1" value="14" aria-describedby="comprimento-valor">
+        <output id="comprimento-valor" for="comprimento">2 x 14</output>
+      </div>
+    </div>
+    <label class="chave"><input type="checkbox" id="luz" checked> Tapete recebe a luz da cena</label>
+    <label class="chave"><input type="checkbox" id="fixo"> Mostrar o que fica fixo</label>
+  </form>
+
+  <section class="grade" id="grade" aria-label="Hoje e as três direções"></section>
+
+  <section class="notas" aria-label="Notas">
+    <div class="nota recomenda">
+      <h3>Minha recomendação</h3>
+      <p id="recomendacao"></p>
+    </div>
+    <div class="nota">
+      <h3>A regra que vale nas três</h3>
+      <ul>
+        <li>Moldura de 0,36 casa e franja de 0,15 casa, iguais em qualquer tamanho. Abaixo de 2 casas de largura a moldura encolhe para 20% da largura.</li>
+        <li>O motivo da borda cabe inteiro entre os cantos: o número de repetições é arredondado e o passo se ajusta, então nunca sobra meio desenho no canto.</li>
+        <li>O medalhão nasce da largura, não do comprimento: esticar o tapete não deforma nem repete o desenho.</li>
+        <li>Sombra de contato e bisel na borda dão volume. Desligue "Tapete recebe a luz da cena" para ver o efeito do print: o tapete aceso por igual sobre o piso escuro.</li>
+      </ul>
+    </div>
+    <div class="nota">
+      <h3>Para o dono escolher</h3>
+      <ul>
+        <li>Qual direção: A, B ou C.</li>
+        <li>Qual cor de partida. As três saem do tecido escolhido no painel e somam uma cor de moldura e um acento.</li>
+        <li>O botão "Copiar a escolha" põe a frase pronta na área de transferência, para colar no chat.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script>
+'use strict';
+
+/* ------------------------------------------------------------------ cores */
+
+const TAU = Math.PI * 2;
+const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+const suave = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+function hex(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function misturar(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+function escalar(a, k) { return [a[0] * k, a[1] * k, a[2] * k]; }
+
+/* Cores em luz cheia: a luz da cena (multiplicada no palco) é quem escurece. */
+const PALETAS = {
+  vinho:  { nome: 'Vinho',  campo: '#8f4a49', fundo: '#773b3c', faixa: '#3a455c', guarda: '#2a252c', fio: '#dccdab', acento: '#ae8a4c' },
+  indigo: { nome: 'Índigo', campo: '#4b5d7d', fundo: '#3e4d69', faixa: '#6c3737', guarda: '#25252e', fio: '#dccdab', acento: '#ae8a4c' },
+  musgo:  { nome: 'Musgo',  campo: '#67724a', fundo: '#57613e', faixa: '#77583a', guarda: '#2c2d24', fio: '#ddd1b2', acento: '#8b4747' },
+};
+const PAL = {};
+for (const [id, d] of Object.entries(PALETAS)) {
+  PAL[id] = { nome: d.nome, campo: hex(d.campo), fundo: hex(d.fundo), faixa: hex(d.faixa), guarda: hex(d.guarda), fio: hex(d.fio), acento: hex(d.acento) };
+}
+const URDIDURA = hex('#b9ad93');
+const FRANJA_COR = hex('#d5c8a9');
+const NO_COR = hex('#b3a282');
+const SAIA_COR = hex('#c9bb9b');
+const CREME = [232, 223, 202];
+
+/* ---------------------------------------------------------------- ruído */
+
+function hash2(x, y, s) {
+  let h = (Math.imul(x | 0, 0x27d4eb2d) ^ Math.imul(y | 0, 0x165667b1) ^ Math.imul(s | 0, 0x9e3779b1)) | 0;
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+function ruido(x, y, s) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy, s), b = hash2(ix + 1, iy, s), c2 = hash2(ix, iy + 1, s), d = hash2(ix + 1, iy + 1, s);
+  return a + (b - a) * ux + (c2 - a) * uy + (a - b - c2 + d) * ux * uy;
+}
+const fbm = (x, y, s) => ruido(x, y, s) * 0.62 + ruido(x * 2.13, y * 2.13, s + 7) * 0.38;
+
+/* ------------------------------------------------- pincel (como o app) */
+
+/* Tudo em CASAS. S = pixels por casa do desenho em curso. */
+let S = 56;
+const c = new Float32Array(3);
+const GUARDA = new Float32Array(3);
+const FR = new Float32Array(3);
+function pintar(k) { c[0] = k[0]; c[1] = k[1]; c[2] = k[2]; }
+function tingir(k, t) { if (t <= 0) return; if (t > 1) t = 1; c[0] += (k[0] - c[0]) * t; c[1] += (k[1] - c[1]) * t; c[2] += (k[2] - c[2]) * t; }
+/** Cobertura de um pixel numa área a `d` casas da borda (negativo = dentro): a borda suave do app. */
+function cob(d) { const k = 0.5 - d * S; return k <= 0 ? 0 : k >= 1 ? 1 : k; }
+const PX = 1 / 56; /* 1 px do protótipo do app, em casas */
+
+/* ------------------------------------------------------------ geometria */
+
+const FRANJA = 0.15;
+function geometriaBase(L, Wd) {
+  const fr = FRANJA;
+  const hu = L / 2 - fr, hv = Wd / 2;
+  const B = Math.min(0.36, 0.2 * Wd);
+  return { L, Wd, fr, hu, hv, B, bu: hu, Fu: hu - B, Fv: hv - B, fixos: [] };
+}
+
+/* ------------------------------------------------- moldura (as três) */
+
+function moldura(d, u, v, a, b, de, g, p) {
+  const B = g.B;
+  pintar(p.guarda);
+  tingir(p.faixa, cob(Math.abs(de - 0.5 * B) - 0.3 * B));
+  tingir(p.fio, cob(Math.abs(de - 0.17 * B) - 0.028 * B) * 0.88);
+  tingir(p.fio, cob(Math.abs(de - 0.83 * B) - 0.028 * B) * 0.88);
+  const mw = de - 0.5 * B;
+  if (a < B && b < B) { d.canto(a - 0.5 * B, b - 0.5 * B, g, p); return; }
+  let s, meio;
+  if (b <= a) { s = u; meio = g.bu - B; } else { s = v; meio = g.hv - B; }
+  const n = Math.max(1, Math.round((2 * meio) / d.periodo));
+  const per = (2 * meio) / n;
+  const t = (s + meio) / per;
+  const i = Math.floor(t);
+  const f = t - i;
+  d.motivo((f - 0.5) * per, mw, f, i, n, per, g, p);
+}
+
+function corpoPadrao(d, u, v, g, p, semente) {
+  const au = Math.abs(u), av = Math.abs(v);
+  if (g.saia && au > g.bu) { pintarSaia(au, g, p); return; }
+  const a = g.bu - au, b = g.hv - av, de = Math.min(a, b);
+  const kB = cob(de - g.B);
+  if (kB < 1) d.campo(u, v, g, p, semente);
+  if (kB > 0) {
+    if (kB < 1) { GUARDA[0] = c[0]; GUARDA[1] = c[1]; GUARDA[2] = c[2]; }
+    moldura(d, u, v, a, b, de, g, p);
+    if (kB < 1) { const t = 1 - kB; c[0] += (GUARDA[0] - c[0]) * t; c[1] += (GUARDA[1] - c[1]) * t; c[2] += (GUARDA[2] - c[2]) * t; }
+  }
+}
+
+function pintarSaia(au, g, p) {
+  const w = g.hu - g.bu;
+  const t = (au - g.bu) / w;
+  pintar(SAIA_COR);
+  tingir(p.faixa, cob(Math.abs(t - 0.36) * w - 0.008) * 0.7);
+  tingir(p.acento, cob(Math.abs(t - 0.64) * w - 0.006) * 0.65);
+}
+
+/* --------------------------------------------- A: medalhão e cantoneiras */
+
+const dirA = {
+  letra: 'A', nome: 'Medalhão e cantoneiras', periodo: 0.42, desgaste: 0.26,
+  desc: 'Persa clássico. Borda larga com rosetas, um medalhão recortado no centro e uma cantoneira em cada canto do campo. O resto do campo é liso, com raminhos soltos que não formam fileira.',
+  preparar(g) {
+    const alongado = g.L / g.Wd >= 2.5;
+    let R = (alongado ? 0.7 : 0.56) * g.Fv, Ra = 1.28 * R;
+    const k = Math.min(1, (0.6 * g.Fu) / Ra);
+    R *= k; Ra *= k;
+    const m = Math.min(R, Ra);
+    const rs = 0.46 * Math.min(g.Fv, g.Fu);
+    const pl = 0.11 * m + 0.03, pw = 0.075 * m + 0.02;
+    const pend = Ra * 1.06 + 0.16 * m + 0.05;
+    const temPendente = pend + pl < g.Fu - 0.08;
+    g.A = { R, Ra, m, rs, pl, pw, pend, temPendente };
+    g.fixos.push({ tipo: 'elipse', u: 0, v: 0, ru: temPendente ? pend + pl : Ra * 1.06, rv: R * 1.07 });
+  },
+  motivo(mu, mw, f, i, n, per, g, p) {
+    const B = g.B;
+    tingir(p.fio, cob(Math.abs(mw) - 0.016 * B) * 0.32);
+    const r = Math.hypot(mu, mw);
+    const th = Math.atan2(mw, mu);
+    const rr = 0.21 * B * (0.74 + 0.26 * Math.cos(6 * th));
+    tingir(p.campo, cob(r - rr));
+    tingir(p.fio, cob(r - 0.055 * B) * 0.9);
+    const ponta = (f < 0.5 && i === 0) || (f >= 0.5 && i === n - 1);
+    if (!ponta) {
+      const mb = (f < 0.5 ? f : f - 1) * per;
+      const e = Math.hypot(mb / (0.24 * per), mw / (0.11 * B));
+      tingir(p.acento, cob((e - 1) * 0.1 * B) * 0.85);
+    }
+  },
+  canto(x, y, g, p) {
+    const B = g.B;
+    const r = Math.hypot(x, y), th = Math.atan2(y, x);
+    const rr = 0.3 * B * (0.7 + 0.3 * Math.abs(Math.cos(4 * th)));
+    tingir(p.acento, cob(r - rr) * 0.92);
+    tingir(p.guarda, cob(r - 0.12 * B));
+    tingir(p.fio, cob(r - 0.06 * B));
+  },
+  campo(u, v, g, p, semente) {
+    const A = g.A;
+    pintar(p.campo);
+    const au = Math.abs(u), av = Math.abs(v);
+    /* raminhos soltos: grade sorteada, nunca uma fileira */
+    const cel = 0.36;
+    const gx = Math.floor(u / cel), gy = Math.floor(v / cel);
+    if (hash2(gx, gy, semente + 11) < 0.55) {
+      const cx = (gx + 0.25 + 0.5 * hash2(gx, gy, semente + 12)) * cel;
+      const cy = (gy + 0.25 + 0.5 * hash2(gx, gy, semente + 13)) * cel;
+      const dentro = Math.abs(cx) < g.Fu - 0.12 && Math.abs(cy) < g.Fv - 0.12;
+      const foraDoMedalhao = Math.hypot(cx / (A.Ra * 1.3 + 0.08), cy / (A.R * 1.3 + 0.08)) > 1 && (!A.temPendente || Math.abs(Math.abs(cx) - A.pend) > A.pl + 0.1 || Math.abs(cy) > A.pw + 0.1);
+      const foraDaCantoneira = Math.hypot(g.Fu - Math.abs(cx), g.Fv - Math.abs(cy)) > A.rs + 0.1;
+      if (dentro && foraDoMedalhao && foraDaCantoneira) {
+        const dx = u - cx, dy = v - cy, r = Math.hypot(dx, dy);
+        if (r < 0.07) {
+          const th = Math.atan2(dy, dx) - hash2(gx, gy, semente + 14) * TAU;
+          const rf = 0.048 * (0.35 + 0.65 * Math.abs(Math.cos(2 * th)));
+          tingir(p.fio, cob(r - rf) * 0.52);
+          tingir(p.acento, cob(r - 0.011) * 0.8);
+        }
+      }
+    }
+    /* cantoneiras: um quarto de roseta em cada canto do campo */
+    const pu = g.Fu - au, pv = g.Fv - av;
+    const rc = Math.hypot(pu, pv);
+    const ds = rc - A.rs;
+    if (ds < 0.03) {
+      tingir(p.faixa, cob(ds));
+      tingir(p.fio, cob(Math.abs(ds) - 0.011));
+      tingir(p.campo, cob(Math.abs(rc - A.rs * 0.58) - 0.018) * 0.85);
+      tingir(p.acento, cob(Math.hypot(pu - A.rs * 0.26, pv - A.rs * 0.26) - A.rs * 0.1));
+    }
+    /* haste e pendentes */
+    if (A.temPendente) {
+      if (au > A.Ra * 0.9 && au < A.pend) tingir(p.fio, cob(av - 0.009) * 0.9);
+      const dd = Math.abs(au - A.pend) / A.pl + av / A.pw;
+      if (dd < 1.5) {
+        const dist = (dd - 1) * Math.min(A.pl, A.pw) * 0.85;
+        tingir(p.faixa, cob(dist));
+        tingir(p.fio, cob(Math.abs(dist) - 0.009));
+        tingir(p.acento, cob((dd - 0.38) * Math.min(A.pl, A.pw) * 0.85));
+      }
+    }
+    /* medalhão recortado */
+    const eu = u / A.Ra, ev = v / A.R;
+    const e = Math.hypot(eu, ev);
+    if (e < 1.4) {
+      const th = Math.atan2(ev, eu);
+      const rr = 1 + 0.055 * Math.cos(12 * th);
+      const dist = (e - rr) * A.m;
+      tingir(p.guarda, cob(Math.abs(dist - 0.026) - 0.007) * 0.55);
+      tingir(p.faixa, cob(dist));
+      tingir(p.fio, cob(Math.abs(dist) - 0.012));
+      const ang = (Math.round(th / (TAU / 12)) * TAU) / 12;
+      tingir(p.acento, cob(Math.hypot((eu - 0.86 * Math.cos(ang)) * A.Ra, (ev - 0.86 * Math.sin(ang)) * A.R) - 0.032 * A.m));
+      const d2 = (e - 0.7) * A.m;
+      tingir(p.fundo, cob(d2));
+      tingir(p.fio, cob(Math.abs(d2) - 0.01));
+      const r = Math.hypot(u, v), t2 = Math.atan2(v, u);
+      const rf = 0.27 * A.m * (0.55 + 0.45 * Math.abs(Math.cos(2 * t2)));
+      tingir(p.acento, cob(r - rf));
+      tingir(p.campo, cob(r - 0.08 * A.m));
+      tingir(p.fio, cob(r - 0.035 * A.m));
+    }
+  },
+};
+
+/* ------------------------------------------------ B: losango em degraus */
+
+const DEGRAU = 0.032;
+const degrau = (x) => (Math.floor(x / DEGRAU) + 0.5) * DEGRAU;
+
+const dirB = {
+  letra: 'B', nome: 'Losango em degraus', periodo: 0.34, desgaste: 0.38, abrash: 1.5,
+  desc: 'Kilim de lã, rústico de taverna. Desenho em degraus, como ponto de tear: losangos na borda, um losango grande no meio e uma faixa tecida antes da franja. Mais gasto que os outros.',
+  preparar(g) {
+    g.saia = 0.1;
+    g.bu = g.hu - g.saia;
+    g.Fu = g.bu - g.B;
+    let Rv = 0.8 * g.Fv, Ru = 1.32 * Rv;
+    const k = Math.min(1, (0.66 * g.Fu) / Ru);
+    Rv *= k; Ru *= k;
+    const tp = 0.12 * Rv + 0.035;
+    const ponta = Ru + 0.08 + tp;
+    const temPonta = ponta + tp < g.Fu - 0.06;
+    g.K = { Rv, Ru, tp, ponta, temPonta };
+    g.fixos.push({ tipo: 'losango', u: 0, v: 0, ru: temPonta ? ponta + tp : Ru, rv: Rv });
+  },
+  motivo(mu, mw, f, i, n, per, g, p) {
+    const B = g.B;
+    const d = Math.abs(degrau(mu)) / (0.44 * per) + Math.abs(degrau(mw)) / (0.27 * B);
+    if (d < 1) {
+      pintar(i % 2 ? p.fio : p.acento);
+      tingir(p.faixa, i % 2 ? 0.34 : 0.22);
+      if (d < 0.42) pintar(p.campo);
+    }
+  },
+  canto(x, y, g, p) {
+    const B = g.B;
+    const qx = Math.abs(degrau(x)), qy = Math.abs(degrau(y));
+    if ((qx < 0.08 * B && qy < 0.3 * B) || (qy < 0.08 * B && qx < 0.3 * B)) { pintar(p.fio); tingir(p.faixa, 0.12); }
+    if (qx < 0.13 * B && qy < 0.13 * B) pintar(p.acento);
+  },
+  campo(u, v, g, p, semente) {
+    const K = g.K;
+    pintar(p.campo);
+    /* trama do tear: estria fina atravessada, de ruído (nunca listra regular) */
+    const tr = (ruido(u * 70, v * 5, semente + 19) - 0.5) * 0.07;
+    c[0] *= 1 + tr; c[1] *= 1 + tr; c[2] *= 1 + tr;
+    const uq = degrau(u), vq = degrau(v);
+    const auq = Math.abs(uq), avq = Math.abs(vq);
+    /* sinais soltos de tear, sorteados */
+    const cel = 0.5;
+    const gx = Math.floor(u / cel), gy = Math.floor(v / cel);
+    if (hash2(gx, gy, semente + 21) < 0.34) {
+      const cx = (gx + 0.3 + 0.4 * hash2(gx, gy, semente + 22)) * cel;
+      const cy = (gy + 0.3 + 0.4 * hash2(gx, gy, semente + 23)) * cel;
+      const dentro = Math.abs(cx) < g.Fu - 0.14 && Math.abs(cy) < g.Fv - 0.14;
+      const longe = Math.abs(cx) / (K.Ru * 1.25 + 0.1) + Math.abs(cy) / (K.Rv * 1.25 + 0.1) > 1 && (!K.temPonta || Math.abs(Math.abs(cx) - K.ponta) > K.tp + 0.14);
+      if (dentro && longe) {
+        const dx = Math.abs(degrau(u - cx)), dy = Math.abs(degrau(v - cy));
+        const cruz = (dx < 0.02 && dy < 0.06) || (dy < 0.02 && dx < 0.06);
+        if (cruz) { pintar(hash2(gx, gy, semente + 24) < 0.5 ? p.acento : p.fio); tingir(p.campo, 0.35); }
+      }
+    }
+    /* pontas do losango grande */
+    if (K.temPonta) {
+      if (auq > K.Ru * 0.96 && auq < K.ponta && avq < DEGRAU) { pintar(p.guarda); }
+      const dd = Math.abs(auq - K.ponta) / K.tp + avq / (K.tp * 0.8);
+      if (dd < 1) { pintar(p.faixa); if (dd < 0.45) pintar(p.fio); }
+    }
+    /* o losango grande, em anéis de degrau */
+    const d = auq / K.Ru + avq / K.Rv;
+    if (d < 1) {
+      if (d >= 0.88) pintar(p.guarda);
+      else if (d >= 0.74) pintar(p.faixa);
+      else if (d >= 0.65) { pintar(p.fio); tingir(p.faixa, 0.1); }
+      else if (d >= 0.3) {
+        pintar(p.fundo);
+        const gancho = Math.min(Math.abs(auq - 0.47 * K.Ru) / (0.09 * K.Ru) + avq / (0.09 * K.Rv), auq / (0.09 * K.Ru) + Math.abs(avq - 0.47 * K.Rv) / (0.09 * K.Rv));
+        if (gancho < 1) pintar(p.acento);
+      } else if (d >= 0.14) pintar(p.acento);
+      else pintar(p.fio);
+    }
+  },
+};
+
+/* ------------------------------------------------ C: medalhão com haste */
+
+const dirC = {
+  letra: 'C', nome: 'Medalhão com haste', periodo: 0.5, desgaste: 0.22,
+  desc: 'Passadeira de castelo. Um painel recortado nos cantos, um medalhão no meio e duas pontas em arco ligadas a ele por uma haste fina com folhas soltas. A haste é a única coisa que estica; no tapete curto ela some.',
+  preparar(g) {
+    const recuo = 0.09;
+    const Pu = g.Fu - recuo, Pv = g.Fv - recuo;
+    const n = Math.min(0.24, 0.38 * Pv);
+    const alongado = g.L / g.Wd >= 2.5;
+    const Rc = Math.min((alongado ? 0.82 : 0.62) * Pv, 0.8 * Pu);
+    const Rcap = (alongado ? 0.66 : 0.52) * Pv, Lc = (alongado ? 2.3 : 1.25) * Rcap;
+    const base = Pu - 0.04;
+    const ponta = base - Lc;
+    const temCap = ponta - Rc > 0.35;
+    g.C = { Pu, Pv, n, Rc, Rcap, Lc, base, ponta, temCap };
+    g.fixos.push({ tipo: 'elipse', u: 0, v: 0, ru: Rc * 1.05, rv: Rc * 1.05 });
+    if (temCap) {
+      g.fixos.push({ tipo: 'retangulo', u0: ponta, u1: base, rv: Rcap });
+      g.fixos.push({ tipo: 'retangulo', u0: -base, u1: -ponta, rv: Rcap });
+    }
+  },
+  motivo(mu, mw, f, i, n, per, g, p) {
+    const B = g.B;
+    const A = 0.16 * B, ph = TAU * f;
+    const y = A * Math.sin(ph);
+    const den = Math.sqrt(1 + Math.pow((A * TAU) / per * Math.cos(ph), 2));
+    tingir(p.fio, cob(Math.abs(mw - y) / den - 0.02 * B) * 0.82);
+    tingir(p.fio, cob(Math.abs(mw + y) / den - 0.02 * B) * 0.82);
+    const fo = (f < 0.5 ? f - 0.25 : f - 0.75) * per;
+    tingir(p.acento, cob(Math.hypot(fo, mw) - 0.075 * B));
+  },
+  canto(x, y, g, p) {
+    const B = g.B;
+    const r = Math.hypot(x, y);
+    tingir(p.fio, cob(Math.abs(r - 0.22 * B) - 0.022 * B) * 0.85);
+    tingir(p.acento, cob(r - 0.1 * B));
+    for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) tingir(p.fio, cob(Math.hypot(x - sx * 0.27 * B, y - sy * 0.27 * B) - 0.045 * B) * 0.8);
+  },
+  campo(u, v, g, p) {
+    const C = g.C;
+    pintar(p.campo);
+    const au = Math.abs(u), av = Math.abs(v);
+    /* painel recortado nos cantos */
+    const dRet = Math.max(au - C.Pu, av - C.Pv);
+    const dCanto = Math.max(C.Pu - C.n - au, C.Pv - C.n - av);
+    const sd = Math.max(dRet, -dCanto);
+    tingir(p.fundo, cob(sd));
+    tingir(p.fio, cob(Math.abs(sd) - 0.009) * 0.9);
+    const nx = C.Pu - C.n * 0.42, ny = C.Pv - C.n * 0.42;
+    tingir(p.acento, cob((Math.abs(au - nx) + Math.abs(av - ny)) * 0.7 - 0.035));
+    if (C.temCap) {
+      /* haste dupla */
+      if (au > C.Rc * 0.95 && au < C.ponta + 0.02) tingir(p.fio, cob(Math.abs(av - 0.026) - 0.0065) * 0.85);
+      /* folhas na haste: espaço sorteado e espelhado no meio, nunca um passo fixo */
+      const cel = 0.46;
+      const k = Math.floor(au / cel);
+      const uf = (k + 0.2 + 0.6 * hash2(k, 0, 61)) * cel;
+      if (hash2(k, 0, 62) < 0.7 && uf > C.Rc + 0.22 && uf < C.ponta - 0.22) {
+        const lado = hash2(k, 0, 63) < 0.5 ? -1 : 1;
+        const du = au - uf, dv = v * Math.sign(u || 1) - lado * 0.075;
+        const cs = Math.cos(0.6 * lado), sn = Math.sin(0.6 * lado);
+        const fx = du * cs + dv * sn, fy = -du * sn + dv * cs;
+        const e = Math.hypot(fx / 0.075, fy / 0.03);
+        tingir(p.acento, cob((e - 1) * 0.03) * 0.8);
+        tingir(p.fio, cob(Math.abs(fy) - 0.004) * cob((e - 1) * 0.03) * 0.5);
+      }
+      for (const ju of [C.Rc + 0.09, C.ponta - 0.07]) tingir(p.acento, cob((Math.abs(au - ju) + av) * 0.7 - 0.03));
+      /* pontas em arco */
+      const t = C.base - au;
+      if (t > -0.05 && t < C.Lc + 0.05) {
+        const meia = C.Rcap * Math.sqrt(clamp01(1 - t / C.Lc));
+        const dist = Math.max(av - meia, -t);
+        tingir(p.faixa, cob(dist));
+        tingir(p.fio, cob(Math.abs(dist) - 0.011));
+        const t2 = t - 0.07;
+        const meia2 = C.Rcap * 0.55 * Math.sqrt(clamp01(1 - t2 / (C.Lc * 0.62)));
+        const dist2 = Math.max(av - meia2, -t2);
+        tingir(p.fundo, cob(dist2));
+        tingir(p.acento, cob(Math.hypot(t - C.Lc * 0.3, v) - 0.06 * C.Rcap - 0.02));
+      }
+    }
+    /* medalhão */
+    const r = Math.hypot(u, v);
+    if (r < C.Rc * 1.3) {
+      const th = Math.atan2(v, u);
+      const dist = r - C.Rc * (1 + 0.045 * Math.cos(8 * th));
+      tingir(p.faixa, cob(dist));
+      tingir(p.fio, cob(Math.abs(dist) - 0.012));
+      const ang = (Math.round((th - TAU / 16) / (TAU / 8)) * TAU) / 8 + TAU / 16;
+      tingir(p.acento, cob(Math.hypot(u - 0.84 * C.Rc * Math.cos(ang), v - 0.84 * C.Rc * Math.sin(ang)) - 0.045 * C.Rc));
+      const d2 = r - C.Rc * 0.66;
+      tingir(p.campo, cob(d2));
+      tingir(p.fio, cob(Math.abs(d2) - 0.01));
+      const rs = C.Rc * 0.44 * (0.58 + 0.42 * Math.pow(Math.abs(Math.cos(4 * th)), 3));
+      tingir(p.acento, cob(r - rs));
+      tingir(p.fio, cob(r - C.Rc * 0.08));
+    }
+  },
+};
+
+/* ------------------------------------- Hoje: o tapete longo do app */
+
+/* Porta direta de texLongo (tapeteLongo.ts) com G = 1 casa. */
+function distanciaAoMotivo(s, v, borda) {
+  const P = 0.5;
+  const fase = s / P - Math.floor(s / P);
+  const du = Math.abs(fase - 0.5) * P;
+  const a = P * 0.3, b = borda * 0.3;
+  return ((du / a + Math.abs(v) / b - 1) * (a * b)) / Math.hypot(a, b);
+}
+const dirHoje = {
+  letra: '', nome: 'Hoje', desgaste: 0, abrash: 0.35, bisel: 0.025, forcaBisel: 0.45, sombra: 0.4, reto: true,
+  desc: 'O tapete longo do app, refeito aqui com a mesma conta: um losango e dois fios por casa, borda de 0,14 casa e franja curta. Nada fica fixo: tudo repete.',
+  preparar(g, p) {
+    g.fr = 0.06 * g.Wd;
+    g.hu = g.L / 2 - g.fr; g.bu = g.hu;
+    const borda = Math.min(0.14, 0.3 * g.hv);
+    const mx = 0.3, my = 0.62 * (g.hv - borda);
+    const base = p.campo;
+    g.B = borda; g.Fu = g.hu - borda; g.Fv = g.hv - borda;
+    g.H = { campo: base, escuro: escalar(base, 0.7), meio: escalar(base, 0.8), claro: misturar(base, CREME, 0.38), miolo: misturar(base, CREME, 0.2), borda, mx, my, escalaM: (mx * my) / Math.hypot(mx, my) };
+  },
+  corpo(u, v, g) {
+    const H = g.H;
+    pintar(H.campo);
+    const au = Math.abs(u), av = Math.abs(v);
+    const ateU = g.hu - au, ateV = g.hv - av, de = Math.min(ateU, ateV);
+    const fase = u + g.L / 2;
+    const du = Math.abs(fase - Math.floor(fase) - 0.5);
+    const q = du / H.mx + av / H.my;
+    const dm = (q - 1) * H.escalaM;
+    tingir(H.escuro, cob(dm));
+    tingir(H.claro, cob(Math.abs(dm) - 0.5 * PX));
+    tingir(H.miolo, cob((q / 0.42 - 1) * H.escalaM * 0.42));
+    const B = H.borda;
+    const kB = cob(de - B);
+    const daDivisa = Math.abs(fase - Math.round(fase));
+    tingir(H.claro, cob(Math.abs(daDivisa - 1.5 * PX) - 0.5 * PX) * (1 - kB));
+    tingir(H.escuro, kB);
+    if (kB > 0) {
+      tingir(H.meio, cob(Math.abs(de - B / 2) - 0.45 * PX) * kB);
+      const dl = distanciaAoMotivo(ateV <= ateU ? fase : v, de - B / 2, B);
+      tingir(H.claro, cob(dl) * kB);
+      tingir(H.escuro, cob(dl + B * 0.12) * kB);
+    }
+    tingir(H.claro, cob(Math.abs(de - B - 0.75 * PX) - 0.55 * PX));
+  },
+};
+
+const DIRECOES = { hoje: dirHoje, a: dirA, b: dirB, c: dirC };
+
+/* --------------------------------------------- franja, pelo, volume */
+
+function franja(u, v, g, semente) {
+  const fora = Math.abs(u) - g.hu;
+  const lado = u < 0 ? 0 : 1;
+  const lim = g.hv - 0.028;
+  if (Math.abs(v) > lim) return 0;
+  const tw = 0.034;
+  const vv = v + g.hv;
+  const k = Math.floor(vv / tw);
+  const onda = Math.sin(fora * 55 + k * 1.7) * 0.004;
+  const fv = vv / tw - k;
+  const comp = g.fr * (0.64 + 0.36 * hash2(k, lado, semente + 51));
+  let alfa = cob(Math.abs((fv - 0.5) * tw + onda) - tw * 0.32) * cob(fora - comp);
+  const tom = 0.9 + 0.14 * hash2(k, lado, semente + 52);
+  c[0] = FRANJA_COR[0] * tom; c[1] = FRANJA_COR[1] * tom; c[2] = FRANJA_COR[2] * tom;
+  /* a ponta do fio clareia, a raiz escurece */
+  const t = clamp01(fora / Math.max(comp, 0.01));
+  const kr = 0.88 + 0.12 * t;
+  c[0] *= kr; c[1] *= kr; c[2] *= kr;
+  /* nós de 5 em 5 fios, na raiz */
+  const grupo = Math.floor(vv / (tw * 5));
+  const gc = (grupo + 0.5) * tw * 5;
+  const dn = Math.hypot((vv - gc) / 2.2, (fora - 0.014) * 1.4) - 0.022;
+  const an = cob(dn);
+  if (an > 0) { tingir(NO_COR, an); alfa = alfa + an * (1 - alfa); }
+  if (fora < 0) alfa = Math.max(alfa, cob(-0.004 - fora));
+  return alfa;
+}
+
+function texturaDoPelo(u, v, g, d, semente, px, py) {
+  const k = 1
+    + (ruido(u * 0.55 + 3.1, v * 0.4 + 1.7, semente + 3) - 0.5) * 0.11 * (d.abrash ?? 1)
+    + (ruido(u * 3.2, v * 3.2, semente + 4) - 0.5) * 0.05
+    + (ruido(u * 34, v * 34, semente + 5) - 0.5) * 0.08
+    + (hash2(px, py, semente + 6) - 0.5) * 0.045;
+  c[0] *= k; c[1] *= k; c[2] *= k;
+  const forca = d.desgaste;
+  if (!forca) return;
+  const alongado = g.L / g.Wd > 1.6;
+  const trafego = alongado
+    ? Math.exp(-(v * v) / (0.4 * g.hv * g.hv))
+    : Math.exp(-(u * u + v * v) / (0.55 * Math.pow(Math.min(g.hu, g.hv), 2)));
+  const w = suave(0.5, 0.88, fbm(u * 1.15 + 13, v * 1.15, semente + 21) * 0.72 + trafego * 0.36) * forca;
+  if (w <= 0) return;
+  const lum = c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
+  const a1 = w * 0.42, a2 = w * 0.32;
+  for (let i = 0; i < 3; i++) { c[i] += (lum - c[i]) * a1; c[i] += (URDIDURA[i] - c[i]) * a2; }
+  if (hash2(px, py, semente + 31) < w * 0.16) for (let i = 0; i < 3; i++) c[i] += (URDIDURA[i] - c[i]) * 0.45;
+}
+
+function volume(x, y, g, deitado, d) {
+  const hx = deitado ? g.hu : g.hv, hy = deitado ? g.hv : g.hu;
+  const L = d.bisel ?? 0.06, F = d.forcaBisel ?? 1;
+  const t1 = 1 - clamp01((y + hy) / L), t2 = 1 - clamp01((x + hx) / L);
+  const t3 = 1 - clamp01((hy - y) / L), t4 = 1 - clamp01((hx - x) / L);
+  const k = 1 + F * (0.16 * t1 * t1 + 0.09 * t2 * t2 - 0.26 * t3 * t3 - 0.15 * t4 * t4) - 0.03 * F * (x / hx + y / hy);
+  c[0] *= k; c[1] *= k; c[2] *= k;
+}
+
+function pixelDoTapete(d, u, v, x, y, g, p, semente, px, py, deitado) {
+  const au = Math.abs(u), av = Math.abs(v);
+  if (au > g.L / 2 + 1 / S || av > g.hv + 1 / S) return 0;
+  let af = 0;
+  if (au > g.hu - 0.016) { af = franja(u, v, g, semente); if (af > 0) { FR[0] = c[0]; FR[1] = c[1]; FR[2] = c[2]; } }
+  const hvE = d.reto ? g.hv : g.hv - 0.004 + (ruido(u * 6.5, v < 0 ? 9.1 : 18.2, semente + 41) - 0.5) * 0.016;
+  const r = 0.035;
+  const qx = au - (g.hu - r), qy = av - (hvE - r);
+  const sd = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+  const ab = cob(sd);
+  if (ab <= 0) { if (af > 0) { c[0] = FR[0]; c[1] = FR[1]; c[2] = FR[2]; } return af; }
+  if (d.corpo) d.corpo(u, v, g, p, semente); else corpoPadrao(d, u, v, g, p, semente);
+  texturaDoPelo(u, v, g, d, semente, px, py);
+  volume(x, y, g, deitado, d);
+  if (ab >= 1 || af <= 0) return ab;
+  const a = ab + af * (1 - ab);
+  const wb = ab / a, wf = (af * (1 - ab)) / a;
+  c[0] = c[0] * wb + FR[0] * wf; c[1] = c[1] * wb + FR[1] * wf; c[2] = c[2] * wb + FR[2] * wf;
+  return a;
+}
+
+/* ------------------------------------- trabalho em fatias de 8 ms */
+
+const FATIA_MS = 8;
+function criarDesenho(dirId, palId, Wc, Hc, S_, semente) {
+  const Wpx = Math.ceil(Wc * S_), Hpx = Math.ceil(Hc * S_);
+  const tela = document.createElement('canvas');
+  tela.width = Wpx; tela.height = Hpx;
+  const ctx = tela.getContext('2d');
+  const img = ctx.createImageData(Wpx, Hpx);
+  const dados = img.data;
+  const deitado = Wc >= Hc;
+  const L = deitado ? Wc : Hc, Wd = deitado ? Hc : Wc;
+  const g = geometriaBase(L, Wd);
+  const d = DIRECOES[dirId];
+  const p = PAL[palId];
+  d.preparar(g, p);
+  let py = 0;
+  return {
+    tela, g, deitado, pronto: false,
+    passo(limite) {
+      S = S_;
+      while (py < Hpx) {
+        const y = (py + 0.5) / S_ - Hc / 2;
+        for (let px = 0; px < Wpx; px++) {
+          const x = (px + 0.5) / S_ - Wc / 2;
+          const u = deitado ? x : y, v = deitado ? y : x;
+          const a = pixelDoTapete(d, u, v, x, y, g, p, semente, px, py, deitado);
+          const o = (py * Wpx + px) * 4;
+          if (a <= 0) { dados[o + 3] = 0; continue; }
+          dados[o] = c[0]; dados[o + 1] = c[1]; dados[o + 2] = c[2]; dados[o + 3] = a * 255;
+        }
+        py++;
+        if (performance.now() > limite) break;
+      }
+      if (py >= Hpx) { ctx.putImageData(img, 0, 0); this.pronto = true; }
+    },
+  };
+}
+
+const cache = new Map();
+let fila = [];
+let agendado = false;
+const canal = new MessageChannel();
+canal.port1.onmessage = rodarFila;
+function agendar() { if (!agendado) { agendado = true; canal.port2.postMessage(0); } }
+function rodarFila() {
+  agendado = false;
+  const limite = performance.now() + FATIA_MS;
+  while (fila.length && performance.now() < limite) {
+    const job = fila[0];
+    job.desenho.passo(limite);
+    if (job.desenho.pronto) {
+      fila.shift();
+      cache.set(job.chave, job.desenho);
+      redesenharCartao(job.cartao);
+    }
+  }
+  if (fila.length) agendar();
+  atualizarEstados();
+}
+
+/* --------------------------------------------------------- estado e palco */
+
+const estado = { pal: 'vinho', zoom: 'mapa', N: 14, luz: true, fixo: false };
+const CELULA = { mapa: 24, perto: 56 };
+/* Nunca abaixo de 1: com o navegador em 80% o palco ficava com menos pixels que o tamanho na tela. */
+const dpr = () => Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+
+function layoutDoPalco(N) {
+  const itens = [
+    { id: 'q', w: 3, h: 3, x: 0.5, y: 0.5, rotulo: '3 x 3' },
+    { id: 'r', w: 6, h: 4, x: 0.5, y: 4.35, rotulo: '4 x 6' },
+    { id: 'c', w: 2, h: N, x: 7.6, y: 0.5, rotulo: '2 x ' + N },
+  ];
+  const h = Math.max(9.5, N + 1.4);
+  const tochas = [{ x: 4.4, y: 3.9 }, { x: 0.2, y: 6.35 }];
+  for (let y = 2.2, lado = 0; y < N + 0.6; y += 3.7, lado ^= 1) tochas.push({ x: lado ? 10.2 : 7.0, y });
+  return { w: 11, h, itens, tochas };
+}
+
+function chaveDo(dirId, item, S_) { return [dirId, estado.pal, item.w, item.h, S_].join('|'); }
+
+const cartoes = [];
+const ORDEM = ['hoje', 'a', 'b', 'c'];
+
+function criarCartoes() {
+  const grade = document.getElementById('grade');
+  for (const id of ORDEM) {
+    const d = DIRECOES[id];
+    const el = document.createElement('article');
+    el.className = 'cartao';
+    el.dataset.dir = id;
+    const titulo = id === 'hoje' ? 'Hoje' : `<span class="letra">${d.letra}</span>${d.nome}`;
+    el.innerHTML = `
+      <header><h2>${titulo}</h2><p class="desc">${d.desc}</p></header>
+      <div class="palco"><canvas role="img"></canvas></div>
+      <div class="rodape"><span class="estado" aria-live="polite"></span>${id === 'hoje' ? '' : '<button type="button" class="copiar">Copiar a escolha</button>'}</div>`;
+    grade.appendChild(el);
+    const canvas = el.querySelector('canvas');
+    const cartao = { id, el, canvas, ctx: canvas.getContext('2d'), estadoEl: el.querySelector('.estado'), antigos: new Map() };
+    cartoes.push(cartao);
+    const botao = el.querySelector('.copiar');
+    if (botao) botao.addEventListener('click', () => copiarEscolha(cartao, botao));
+  }
+}
+
+function copiarEscolha(cartao, botao) {
+  const d = DIRECOES[cartao.id];
+  const frase = `Tapete grande: quero a direção ${d.letra} (${d.nome}), cor ${PAL[estado.pal].nome}.`;
+  const voltar = () => { botao.textContent = 'Copiar a escolha'; };
+  const ok = () => { botao.textContent = 'Copiado'; setTimeout(voltar, 1600); };
+  const falhou = () => { botao.textContent = `Escreva: quero a ${d.letra}`; setTimeout(voltar, 3200); };
+  /* Cópia síncrona primeiro: funciona aberto direto do disco, sem pedir permissão. */
+  const ta = document.createElement('textarea');
+  ta.value = frase;
+  ta.setAttribute('readonly', '');
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(ta);
+  ta.select();
+  let copiou = false;
+  try { copiou = document.execCommand('copy'); } catch (_) { copiou = false; }
+  ta.remove();
+  botao.focus();
+  if (copiou) { ok(); return; }
+  if (!navigator.clipboard || !navigator.clipboard.writeText) { falhou(); return; }
+  /* Se a permissão nunca responder, o botão não fica mudo. */
+  const prazo = new Promise((_, rejeitar) => setTimeout(rejeitar, 1500));
+  Promise.race([navigator.clipboard.writeText(frase), prazo]).then(ok, falhou);
+}
+
+function renderS() { return Math.max(56, CELULA[estado.zoom] * dpr()); }
+
+function pedirTudo() {
+  fila = [];
+  const S_ = renderS();
+  const L = layoutDoPalco(estado.N);
+  for (const cartao of cartoes) {
+    for (const item of L.itens) {
+      const chave = chaveDo(cartao.id, item, S_);
+      if (cache.has(chave)) continue;
+      const semente = item.id === 'q' ? 3 : item.id === 'r' ? 5 : 7;
+      fila.push({ chave, cartao, desenho: criarDesenho(cartao.id, estado.pal, item.w, item.h, S_, semente) });
+    }
+  }
+  for (const cartao of cartoes) redesenharCartao(cartao);
+  atualizarEstados();
+  if (fila.length) agendar();
+}
+
+function atualizarEstados() {
+  for (const cartao of cartoes) {
+    const falta = fila.some((j) => j.cartao === cartao);
+    const texto = falta ? 'Desenhando…' : '';
+    if (cartao.estadoEl.textContent !== texto) cartao.estadoEl.textContent = texto;
+  }
+}
+
+/* piso de pedra sextavada da masmorra, em luz cheia */
+const pisos = new Map();
+function piso(L, cel) {
+  const chave = [L.w, L.h, cel].join('|');
+  if (pisos.has(chave)) return pisos.get(chave);
+  const t = document.createElement('canvas');
+  t.width = Math.ceil(L.w * cel); t.height = Math.ceil(L.h * cel);
+  const k = t.getContext('2d');
+  k.fillStyle = '#3a352f';
+  k.fillRect(0, 0, t.width, t.height);
+  const R = 0.27 * cel;
+  const dx = Math.sqrt(3) * R, dy = 1.5 * R;
+  let j = 0;
+  for (let y = -R; y < t.height + R; y += dy, j++) {
+    let i = 0;
+    for (let x = (j % 2) * dx / 2 - dx; x < t.width + dx; x += dx, i++) {
+      const h = hash2(i, j, 91);
+      const base = 92 + h * 18;
+      k.fillStyle = `rgb(${base + 6}, ${base}, ${base - 8})`;
+      k.beginPath();
+      for (let s = 0; s < 6; s++) {
+        const a = Math.PI / 6 + (s * Math.PI) / 3;
+        const px = x + Math.cos(a) * (R - cel * 0.018), py = y + Math.sin(a) * (R - cel * 0.018);
+        if (s === 0) k.moveTo(px, py); else k.lineTo(px, py);
+      }
+      k.closePath();
+      k.fill();
+      k.strokeStyle = 'rgba(255, 240, 220, 0.06)';
+      k.lineWidth = Math.max(1, cel * 0.012);
+      k.stroke();
+    }
+  }
+  pisos.set(chave, t);
+  return t;
+}
+
+/* a luz da cena: escuro ambiente + poças quentes das tochas, multiplicada */
+const luzes = new Map();
+function luzDaCena(L, cel) {
+  const chave = [L.w, L.h, cel, L.tochas.length].join('|');
+  if (luzes.has(chave)) return luzes.get(chave);
+  const t = document.createElement('canvas');
+  t.width = Math.ceil(L.w * cel); t.height = Math.ceil(L.h * cel);
+  const k = t.getContext('2d');
+  k.fillStyle = 'rgb(84, 80, 82)';
+  k.fillRect(0, 0, t.width, t.height);
+  k.globalCompositeOperation = 'lighter';
+  for (const tc of L.tochas) {
+    const x = tc.x * cel, y = tc.y * cel, r = 3.8 * cel;
+    const gr = k.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(255, 136, 70, 0.92)');
+    gr.addColorStop(0.22, 'rgba(226, 110, 56, 0.58)');
+    gr.addColorStop(0.55, 'rgba(140, 70, 38, 0.22)');
+    gr.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    k.fillStyle = gr;
+    k.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  luzes.set(chave, t);
+  return t;
+}
+
+function desenharTocha(k, x, y, cel) {
+  const halo = k.createRadialGradient(x, y, 0, x, y, cel * 0.42);
+  halo.addColorStop(0, 'rgba(255, 196, 120, 0.55)');
+  halo.addColorStop(1, 'rgba(255, 150, 70, 0)');
+  k.fillStyle = halo;
+  k.fillRect(x - cel * 0.42, y - cel * 0.42, cel * 0.84, cel * 0.84);
+  k.fillStyle = '#3b332c';
+  k.fillRect(x - cel * 0.035, y + cel * 0.02, cel * 0.07, cel * 0.16);
+  k.fillStyle = '#e9783a';
+  k.beginPath();
+  k.moveTo(x, y - cel * 0.17);
+  k.quadraticCurveTo(x + cel * 0.09, y - cel * 0.02, x, y + cel * 0.06);
+  k.quadraticCurveTo(x - cel * 0.09, y - cel * 0.02, x, y - cel * 0.17);
+  k.fill();
+  k.fillStyle = '#ffd27a';
+  k.beginPath();
+  k.ellipse(x, y - cel * 0.01, cel * 0.03, cel * 0.06, 0, 0, TAU);
+  k.fill();
+}
+
+function desenharTapetes(k, cartao, L, cel, S_) {
+  for (const item of L.itens) {
+    const chave = chaveDo(cartao.id, item, S_);
+    let des = cache.get(chave);
+    let provisorio = false;
+    if (!des) { des = cartao.antigos.get(item.id); provisorio = true; }
+    if (!des) continue;
+    const x = item.x * cel, y = item.y * cel, w = item.w * cel, h = item.h * cel;
+    const forca = DIRECOES[cartao.id].sombra ?? 1;
+    k.save();
+    k.imageSmoothingEnabled = true;
+    k.imageSmoothingQuality = 'high';
+    if (provisorio) k.globalAlpha = 0.45;
+    k.shadowColor = `rgba(0, 0, 0, ${0.6 * forca})`;
+    k.shadowBlur = 0.12 * cel;
+    k.shadowOffsetX = 0.02 * cel;
+    k.shadowOffsetY = 0.06 * cel;
+    k.drawImage(des.tela, x, y, w, h);
+    k.shadowColor = `rgba(0, 0, 0, ${0.5 * forca})`;
+    k.shadowBlur = 0.025 * cel;
+    k.shadowOffsetX = 0;
+    k.shadowOffsetY = 0.015 * cel;
+    k.drawImage(des.tela, x, y, w, h);
+    k.restore();
+    if (!provisorio) cartao.antigos.set(item.id, des);
+  }
+}
+
+function paraPalco(item, deitado, u, v) {
+  const cx = item.x + item.w / 2, cy = item.y + item.h / 2;
+  return deitado ? [cx + u, cy + v] : [cx + v, cy + u];
+}
+function retNoPalco(item, deitado, u0, u1, v0, v1, cel) {
+  const [ax, ay] = paraPalco(item, deitado, u0, v0);
+  const [bx, by] = paraPalco(item, deitado, u1, v1);
+  return [Math.min(ax, bx) * cel, Math.min(ay, by) * cel, Math.abs(bx - ax) * cel, Math.abs(by - ay) * cel];
+}
+
+function desenharFixos(k, cartao, L, cel, S_, escala) {
+  k.save();
+  k.lineWidth = Math.max(1, 1.25 * escala);
+  for (const item of L.itens) {
+    const des = cache.get(chaveDo(cartao.id, item, S_));
+    if (!des) continue;
+    const { g, deitado } = des;
+    if (cartao.id === 'hoje') {
+      k.strokeStyle = 'rgba(236, 196, 120, 0.85)';
+      k.setLineDash([4 * escala, 3 * escala]);
+      for (let s = 1; s < g.L; s++) {
+        const [x, y, w, h] = retNoPalco(item, deitado, -g.L / 2 + s, -g.L / 2 + s, -g.hv, g.hv, cel);
+        k.beginPath(); k.moveTo(x, y); k.lineTo(x + w, y + h); k.stroke();
+      }
+      continue;
+    }
+    k.setLineDash([]);
+    k.fillStyle = 'rgba(236, 180, 90, 0.42)';
+    for (const sinal of [-1, 1]) {
+      const [x, y, w, h] = retNoPalco(item, deitado, sinal * g.hu, sinal * (g.L / 2), -g.hv, g.hv, cel);
+      k.fillRect(x, y, w, h);
+      for (const sv of [-1, 1]) {
+        const [cx, cy, cw, ch] = retNoPalco(item, deitado, sinal * g.bu, sinal * (g.bu - g.B), sv * g.hv, sv * (g.hv - g.B), cel);
+        k.fillRect(cx, cy, cw, ch);
+      }
+    }
+    k.strokeStyle = 'rgba(240, 236, 226, 0.7)';
+    k.setLineDash([4 * escala, 4 * escala]);
+    const [fx, fy, fw, fh] = retNoPalco(item, deitado, -g.Fu, g.Fu, -g.Fv, g.Fv, cel);
+    k.strokeRect(fx, fy, fw, fh);
+    k.strokeStyle = 'rgba(255, 206, 120, 0.95)';
+    k.setLineDash([2.5 * escala, 2.5 * escala]);
+    for (const f of g.fixos) {
+      k.beginPath();
+      if (f.tipo === 'elipse' || f.tipo === 'losango') {
+        const [cx, cy] = paraPalco(item, deitado, f.u, f.v);
+        const rx = (deitado ? f.ru : f.rv) * cel, ry = (deitado ? f.rv : f.ru) * cel;
+        if (f.tipo === 'elipse') k.ellipse(cx * cel, cy * cel, rx, ry, 0, 0, TAU);
+        else { k.moveTo(cx * cel - rx, cy * cel); k.lineTo(cx * cel, cy * cel - ry); k.lineTo(cx * cel + rx, cy * cel); k.lineTo(cx * cel, cy * cel + ry); k.closePath(); }
+      } else {
+        const [x, y, w, h] = retNoPalco(item, deitado, f.u0, f.u1, -f.rv, f.rv, cel);
+        k.rect(x, y, w, h);
+      }
+      k.stroke();
+    }
+  }
+  k.restore();
+}
+
+function redesenharCartao(cartao) {
+  const L = layoutDoPalco(estado.N);
+  const celCss = CELULA[estado.zoom];
+  const escala = dpr();
+  const cel = celCss * escala;
+  const S_ = renderS();
+  const W = Math.ceil(L.w * cel), H = Math.ceil(L.h * cel);
+  const { canvas, ctx: k } = cartao;
+  if (canvas.width !== W || canvas.height !== H) {
+    canvas.width = W; canvas.height = H;
+    canvas.style.width = L.w * celCss + 'px';
+    canvas.style.height = L.h * celCss + 'px';
+  }
+  k.globalCompositeOperation = 'source-over';
+  k.drawImage(piso(L, cel), 0, 0);
+  if (estado.luz) {
+    desenharTapetes(k, cartao, L, cel, S_);
+    k.globalCompositeOperation = 'multiply';
+    k.drawImage(luzDaCena(L, cel), 0, 0);
+    k.globalCompositeOperation = 'source-over';
+  } else {
+    k.globalCompositeOperation = 'multiply';
+    k.drawImage(luzDaCena(L, cel), 0, 0);
+    k.globalCompositeOperation = 'source-over';
+    desenharTapetes(k, cartao, L, cel, S_);
+  }
+  for (const tc of L.tochas) desenharTocha(k, tc.x * cel, tc.y * cel, cel);
+  if (estado.fixo) desenharFixos(k, cartao, L, cel, S_, escala);
+  k.fillStyle = 'rgba(236, 234, 228, 0.72)';
+  k.font = `${11.5 * escala}px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`;
+  k.textAlign = 'center';
+  k.textBaseline = 'top';
+  for (const item of L.itens) k.fillText(item.rotulo, (item.x + item.w / 2) * cel, (item.y + item.h) * cel + 0.24 * cel);
+  const d = DIRECOES[cartao.id];
+  canvas.setAttribute('aria-label', `${cartao.id === 'hoje' ? 'Tapete de hoje' : 'Direção ' + d.letra + ', ' + d.nome}, cor ${PAL[estado.pal].nome}: tapetes 3 x 3, 4 x 6 e corredor 2 x ${estado.N} sobre o piso de pedra escura com tochas.`);
+  document.documentElement.style.setProperty('--larg-cartao', L.w * celCss + 26 + 'px');
+}
+
+/* ------------------------------------------------------------- controles */
+
+const form = document.getElementById('controles');
+form.addEventListener('change', (e) => {
+  const alvo = e.target;
+  if (alvo.name === 'pal') { estado.pal = alvo.value; for (const c2 of cartoes) c2.antigos.clear(); pedirTudo(); }
+  else if (alvo.name === 'zoom') { estado.zoom = alvo.value; for (const c2 of cartoes) c2.antigos.clear(); pedirTudo(); }
+  else if (alvo.id === 'luz') { estado.luz = alvo.checked; cartoes.forEach(redesenharCartao); }
+  else if (alvo.id === 'fixo') { estado.fixo = alvo.checked; cartoes.forEach(redesenharCartao); }
+});
+const deslizador = document.getElementById('comprimento');
+const saida = document.getElementById('comprimento-valor');
+let quadro = 0;
+deslizador.addEventListener('input', () => {
+  estado.N = Number(deslizador.value);
+  saida.textContent = '2 x ' + estado.N;
+  if (!quadro) quadro = requestAnimationFrame(() => { quadro = 0; pedirTudo(); });
+});
+
+document.getElementById('recomendacao').textContent =
+  'C, Medalhão com haste. É a única que resolve o corredor de verdade: o medalhão e as duas pontas ficam presos ao centro e às pontas, e a haste fina, com folhas em espaço sorteado, liga os três sem carimbar nada. No 3 x 3 ela vira um tapete de medalhão simples, e no 4 x 6 aparecem as pontas. A A é a mais bonita de perto, mas no corredor o campo fica comprido e vazio. A B lê melhor de longe, porém o degrau briga com o resto dos objetos do Meio-Termo, que são lisos.';
+
+criarCartoes();
+pedirTudo();
+</script>
+</body>
+</html>
