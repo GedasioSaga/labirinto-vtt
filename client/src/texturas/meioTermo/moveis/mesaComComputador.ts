@@ -1,19 +1,22 @@
 /**
  * MESA COM COMPUTADOR de cima com volume (lote L10 de 24/11/2026, presídio moderno, a sala da administração; versão
  * da escrivaninha): a mesa de repartição de fórmica cinza-cristal com a fita de borda escura, o pé de painel à
- * esquerda e o GAVETEIRO à direita. Em cima, o que o expediente deixa: o MONITOR na base, com o cabo descendo pelo
- * passa-cabo, o TECLADO escuro com as teclas e a barra de espaço, o MOUSE no tapete com o fio, a PASTA de papelão
- * com o ofício por cima (e outro por baixo, saindo), o CARIMBO de cabo de madeira ao lado da almofada de tinta e o
- * PORTA-LÁPIS com as três canetas.
+ * esquerda e o GAVETEIRO à direita. Em cima, o que o expediente deixa: o MONITOR (de cima, a tampa de trás em
+ * trapézio arredondado, larga junto da tela, a base redonda na frente e a sombra curta e firme no tampo), com o cabo
+ * saindo de trás para o passa-cabo, o TECLADO escuro com as teclas e a barra de espaço, o MOUSE no tapete com o fio,
+ * a PASTA de papelão com o ofício por cima (e outro por baixo, saindo), o CARIMBO de cabo de madeira ao lado da
+ * almofada de tinta e o PORTA-LÁPIS com as três canetas de cores apagadas, inclinadas para fora da boca do copo.
  *
  * NA 3/4 é derivada (`tresQuartos.ts`, beirada de `ESPESSURA_DO_TAMPO_DA_MESA_COM_COMPUTADOR`): o tampo é solto; o pé
  * de painel, o gaveteiro e o painel de trás são colunas (cada um com a peça dele num fio que sai do tampo, para a
  * frente sair de fórmica e não do que for maior). O MONITOR é uma pilha de tampos soltos da grossura da beirada, um
  * em cima do outro, que saem depois do tampo na ordem de pintura (`emOrdem`): as beiradas fazem a tela de plástico
  * escuro em qualquer giro; cada fatia é um nada mais rasa que a de baixo, e a peça dela tem o meio num ponto só dela
- * (é assim que cada fatia leva a sua peça escura, e não a da mesa). Só a 3/4 vê (`soNaTresQuartos`, sem giro) a
- * imagem da tela (a ficha do sistema, com a foto e as linhas), a luz de ligado, a fita de borda escura na frente do
- * tampo e as três gavetas com puxador e fechadura. Com giro fica a tela escura, de frente, de lado ou de costas.
+ * (é assim que cada fatia leva a sua peça escura, e não a da mesa); a tampa de trás sobe com a fatia de cima (é o
+ * alto da caixa do monitor, atrás da beira da tela). Só a 3/4 vê (`soNaTresQuartos`, sem giro) a imagem da tela (a
+ * ficha do sistema, com a foto e as linhas), a luz de ligado, a fita de borda escura na frente do tampo, o canto do
+ * PAINEL do pé (a fita de borda de 1,5 px, do tampo ao chão, na linha do gaveteiro) e as três gavetas com puxador e
+ * fechadura. Com giro fica a tela escura, de frente, de lado ou de costas, e o pé vira o fio claro de antes.
  *
  * Sem material escolhido: a fórmica, o plástico, o papel e o resto são fixos.
  */
@@ -44,6 +47,19 @@ const TECLA = { passoX: 1.36, passoY: 1.2, vao: 0.16 } as const
 const ESCALA_DAS_TECLAS = 1.5
 /** O passo (px) entre as bases das fatias na ordem de pintura da 3/4 (a de `emOrdem`). */
 const PASSO_DA_ORDEM = 0.05
+/**
+ * O monitor visto de cima: a tampa de trás em trapézio arredondado (o recuo dos lados junto da tela, a fundura, a
+ * meia largura atrás e o raio das quinas), a base redonda (os raios e o quanto o meio dela fica atrás da frente da
+ * tela) e a sombra que a tela e a tampa deitam no tampo, curta e firme.
+ */
+const TAMPA_DE_TRAS = { recuo: 1.2, fundura: 3.6, meiaLarguraAtras: 6.2, raio: 1.3 } as const
+const BASE_DO_MONITOR = { rx: 4.8, ry: 3.5, atras: 0.6 } as const
+const SOMBRA_DO_MONITOR = { dist: 2, forca: 0.42, suave: 1.2 } as const
+/** As canetas inclinadas para fora do copo: o ângulo (rad; 0 para a direita, y para baixo), o comprimento e o raio (px). */
+const CANETAS_INCLINADAS: readonly (readonly [number, number])[] = [[-2.4, 3.9], [-1.55, 3.4], [-0.7, 3.7]]
+const RAIO_DA_CANETA = 0.42
+/** O painel do pé, na 3/4: a grossura da fita de borda dele (px). */
+const GROSSURA_DO_PAINEL = 1.5
 
 /** A forma sem o ponto (x, y): a peça com o meio nele não sobe com ela, e sim com a estrutura de baixo. */
 function semOPonto(f: Forma, x: number, y: number): Forma {
@@ -53,6 +69,11 @@ function semOPonto(f: Forma, x: number, y: number): Forma {
 /** A mesma forma com a base da caixa em `base` (só para baixo): sai depois na ordem da 3/4 sem alargar a imagem. */
 function comBaseEm(f: Forma, base: number): Forma {
   return { b: [f.b[0], f.b[1], f.b[2], Math.max(f.b[3], base)], d: f.d }
+}
+
+/** A forma engordada `r` px para fora (com distância exata, as quinas saem redondas). */
+function engordada(f: Forma, r: number): Forma {
+  return { b: [f.b[0] - r, f.b[1] - r, f.b[2] + r, f.b[3] + r], d: (x, y) => f.d(x, y) - r }
 }
 
 /** A fórmica cinza-cristal, a fita de borda, o plástico escuro do monitor e do teclado, o tapete do mouse. */
@@ -70,9 +91,9 @@ const MADEIRA_DO_CARIMBO: MaterialDaPeca = { classe: 'madeira', rgb: [0x7b, 0x5b
 const ALMOFADA: MaterialDaPeca = { classe: 'liso', rgb: [0x3b, 0x40, 0x48] }
 const TINTA_DO_CARIMBO: MaterialDaPeca = { classe: 'liso', rgb: [0x46, 0x47, 0x62] }
 const CANETAS: readonly MaterialDaPeca[] = [
-  { classe: 'liso', rgb: [0x48, 0x5c, 0x86] },
-  { classe: 'liso', rgb: [0x98, 0x4b, 0x45] },
-  { classe: 'liso', rgb: [0x2e, 0x30, 0x33] },
+  { classe: 'liso', rgb: [0x52, 0x62, 0x80] },
+  { classe: 'liso', rgb: [0x8a, 0x58, 0x50] },
+  { classe: 'liso', rgb: [0x36, 0x38, 0x3b] },
 ]
 /** A tela acesa (azul-acinzentado apagado), a barra de cima, as letras, a foto e a luz de ligado. */
 const TELA: MaterialDaPeca = { classe: 'liso', rgb: [0x50, 0x63, 0x70] }
@@ -118,7 +139,7 @@ export const montarMesaComComputador: MontarMovel = (c, cena) => {
   const zDebaixo = zTampo - esp
   const tampo = caixa(-hw + 0.5, -hh + 0.5, hw - 0.5, hh - 0.5, 0.9)
   // O pé de painel, o gaveteiro e o painel de trás passam um fio do tampo: a peça de cada um tem o meio nesse fio.
-  const pe = caixa(-hw + 0.2, -hh + 1.6, -hw + 2, hh - 1.6, 0.3)
+  const pe = caixa(-hw + 0.2, -hh + 1.2, -hw + 0.2 + GROSSURA_DO_PAINEL, hh - 0.8, 0.3)
   const xG0 = hw - GAVETEIRO.recuo - GAVETEIRO.largura
   const xG1 = hw - GAVETEIRO.recuo
   const gaveteiro = caixa(xG0, -hh + 1.2, xG1, hh - 0.8, 0.6)
@@ -146,7 +167,7 @@ export const montarMesaComComputador: MontarMovel = (c, cena) => {
   const liso = { tabua: 0, bisel: 0, contorno: 0 }
 
   // As colunas debaixo do tampo: a peça de cada uma é o fio que sai dele (de cima fica escondida na borda).
-  L.push(P(caixa(-hw + 0.2, -hh + 1.6, -hw + 0.5, hh - 1.6), FORMICA, { tabua: 0, bisel: 0, tom: 0.9, contorno: 0.1, semente: 10401 }))
+  L.push(P(caixa(-hw + 0.2, -hh + 1.2, -hw + 0.5, hh - 0.8), FORMICA, { tabua: 0, bisel: 0, tom: 0.9, contorno: 0.1, semente: 10401 }))
   L.push(P(fioDoGaveteiro, FORMICA, { tabua: 0, bisel: 0, tom: 0.92, contorno: 0.1, semente: 10402 }))
   L.push(P(caixa(-hw + 2, -hh + 0.2, xG0, -hh + 0.5), FORMICA, { tabua: 0, bisel: 0, tom: 0.88, contorno: 0.1, semente: 10403 }))
 
@@ -154,11 +175,11 @@ export const montarMesaComComputador: MontarMovel = (c, cena) => {
   L.push(P(tampo, FORMICA, { tabua: 0, bisel: 0.9, contorno: 0.28, textura: texFormica, semente: 10410 }))
   L.push(P(menos(tampo, caixa(-hw + 1, -hh + 1, hw - 1, hh - 1, 0.5)), BORDA, { tabua: 0, bisel: 0.3, contorno: 0.06, semente: 10411 }))
 
-  // O passa-cabo e o cabo do monitor descendo por ele.
+  // O passa-cabo e o cabo do monitor saindo de debaixo da tampa de trás e descendo por ele.
   const xFuro = MONITOR.meio - 9
   L.push(P(elipse(xFuro, -hh + 2.6, 1.7, 1.7), PLASTICO, { tabua: 0, bisel: 0.5, contorno: 0.26, semente: 10412 }))
   L.push(P(elipse(xFuro, -hh + 2.6, 0.95, 0.95), CABO, { ...liso, alfa: 0.9, semente: 10413 }))
-  L.push(P(cadeia([[MONITOR.meio - 1, yM0 - 0.3], [MONITOR.meio - 3, -hh + 2.7], [xFuro + 0.4, -hh + 2.5]], 0.32), CABO, { tabua: 0, bisel: 0.3, contorno: 0.2, semente: 10414 }))
+  L.push(P(cadeia([[MONITOR.meio - 3, yM0 - 2], [MONITOR.meio - 6.5, -hh + 2.9], [xFuro + 0.4, -hh + 2.5]], 0.32), CABO, { tabua: 0, bisel: 0.3, contorno: 0.2, semente: 10414 }))
 
   // A PASTA de papelão com o ofício por cima e outro por baixo, saindo.
   L.push(P(folha(-21.6, 0.9, 4.3, 6, -0.2), PAPEL, { tabua: 0, bisel: 0.3, tom: 0.95, contorno: 0.22, semente: 10420 }))
@@ -196,16 +217,30 @@ export const montarMesaComComputador: MontarMovel = (c, cena) => {
   const [xCopo, yCopo] = [22, -9] as const
   L.push(P(elipse(xCopo, yCopo, 2.4, 2.4), PLASTICO, { tabua: 0, bisel: 0.6, contorno: 0.28, tom: 1.15, semente: 10465, projeta: { dist: 1.2, forca: 0.3 } }))
   L.push(P(elipse(xCopo, yCopo, 1.8, 1.8), CABO, { ...liso, alfa: 0.85, semente: 10466 }))
-  const pontas: readonly Ponto[] = [[-0.7, -0.5], [0.7, -0.3], [0, 0.8]]
-  pontas.forEach(([dx, dy], i) => L.push(P(elipse(xCopo + dx, yCopo + dy, 0.6, 0.6), CANETAS[i], { tabua: 0, bisel: 0.5, contorno: 0.24, semente: 10467 + i })))
+  // As canetas saem do fundo do copo e passam da boca, abertas em leque; a ponta de cima é a tampa, mais clara.
+  CANETAS_INCLINADAS.forEach(([a, comprimento], i) => {
+    const [co, si] = [Math.cos(a), Math.sin(a)]
+    const [x1, y1] = [xCopo + co * (0.5 + comprimento), yCopo + si * (0.5 + comprimento)]
+    L.push(P(capsula(xCopo + co * 0.5, yCopo + si * 0.5, x1, y1, RAIO_DA_CANETA), CANETAS[i], { tabua: 0, bisel: 0.4, contorno: 0.28, semente: 10467 + i, projeta: { dist: 1.4, forca: 0.3 } }))
+    L.push(P(elipse(x1, y1, 0.48, 0.48), CANETAS[i], { tabua: 0, bisel: 0.4, tom: 1.3, contorno: 0.24, semente: 10477 + i }))
+  })
 
-  // A BASE do monitor (no tampo: o meio dela vai para a frente da tela) e as FATIAS, cada peça no ponto da sua.
-  L.push(P(comMeioEm(caixa(MONITOR.meio - 4.5, yM0 - 2.6, MONITOR.meio + 4.5, yM1 + 1.6, 1.6), MONITOR.meio, yM1 + 1.2), PLASTICO, { tabua: 0, bisel: 1, tom: 1.08, contorno: 0.28, semente: 10470, projeta: { dist: 0.6, forca: 0.26 } }))
+  // A BASE redonda do monitor (no tampo: o meio dela vai para a frente da tela), a TAMPA DE TRÁS em trapézio
+  // arredondado (sobe com a fatia de cima: o meio dela fica atrás da tela, dentro de todas as fatias) e as FATIAS,
+  // cada peça no ponto da sua; a tampa e a fatia de cima deitam a sombra curta no tampo.
+  L.push(P(comMeioEm(elipse(MONITOR.meio, yM1 - BASE_DO_MONITOR.atras, BASE_DO_MONITOR.rx, BASE_DO_MONITOR.ry), MONITOR.meio, yM1 + 1.2), PLASTICO, { tabua: 0, bisel: 1.4, tom: 1.08, contorno: 0.28, semente: 10470, projeta: { dist: 0.6, forca: 0.26 } }))
+  const r = TAMPA_DE_TRAS.raio
+  const yTras = yM0 - TAMPA_DE_TRAS.fundura
+  const [xF0, xF1] = [xM0 + TAMPA_DE_TRAS.recuo + r, xM1 - TAMPA_DE_TRAS.recuo - r]
+  const [xA0, xA1] = [MONITOR.meio - TAMPA_DE_TRAS.meiaLarguraAtras + r, MONITOR.meio + TAMPA_DE_TRAS.meiaLarguraAtras - r]
+  const tampaDeTras = engordada(poligono([[xF0, yM0 + 0.3 - r], [xF1, yM0 + 0.3 - r], [xA1, yTras + r], [xA0, yTras + r]]), r)
+  L.push(P(comMeioEm(tampaDeTras, MONITOR.meio, yM0 + 0.5), PLASTICO, { tabua: 0, bisel: 1.6, tom: 1.1, contorno: 0.3, semente: 10469, projeta: SOMBRA_DO_MONITOR }))
+  L.push(P(capsula(xA0 + 0.4, yTras + 0.9, xA1 - 0.4, yTras + 0.9, 0.35), REFLEXO, { ...liso, alfa: 0.12, suave: 0.4, semente: 10468 }))
   const tela = caixa(xM0, yM0, xM1, yM1, 0.6)
   for (let k = 0; k < MONITOR.fatias; k += 1) {
     const ultima = k === MONITOR.fatias - 1
     const ponto = yM1 - k * RECUO_DA_FATIA - RECUO_DA_FATIA / 2
-    L.push(P(comMeioEm(tela, MONITOR.meio, ponto), PLASTICO, { tabua: 0, bisel: 0.6, contorno: 0.3, semente: 10471, ...(ultima ? { projeta: { dist: 4.2, forca: 0.34, suave: 1.5 } } : {}) }))
+    L.push(P(comMeioEm(tela, MONITOR.meio, ponto), PLASTICO, { tabua: 0, bisel: 0.6, contorno: 0.3, semente: 10471, ...(ultima ? { projeta: SOMBRA_DO_MONITOR } : {}) }))
   }
   L.push(P(capsula(xM0 + 1.2, yM0 + 0.55, xM1 - 1.2, yM0 + 0.55, 0.35), REFLEXO, { ...liso, alfa: 0.14, semente: 10476 }))
 
@@ -229,9 +264,14 @@ export const montarMesaComComputador: MontarMovel = (c, cena) => {
   // A tela sai depois da última fatia; a frente da mesa, depois do gaveteiro (o chão dele é a beira da frente).
   soNaTresQuartos(P, cena, MONITOR.meio, hh - 0.5 + PASSO_DA_ORDEM * (MONITOR.fatias + 1), tela3x4)
   const topoDaFrente = hh - 0.5 - zTampo
-  const frente: PecaDaTela[] = []
-  frente.push({ forma: caixa(-hw + 0.5, topoDaFrente, hw - 0.5, topoDaFrente + esp, 0.3), mat: BORDA, o: { tabua: 0, bisel: 0.3, contorno: 0.24, semente: 10491 } })
   const chaoDoGaveteiro = hh - 0.8
+  // O canto do PAINEL do pé (a fita de borda, do tampo ao chão, na linha do gaveteiro), debaixo da fita do tampo.
+  const xPainel = -hw + 0.2
+  const frente: PecaDaTela[] = [
+    { forma: caixa(xPainel, topoDaFrente + esp - 0.3, xPainel + GROSSURA_DO_PAINEL, chaoDoGaveteiro, 0.2), mat: BORDA, o: { tabua: 0, bisel: 0.4, contorno: 0.26, semente: 10489 } },
+    { forma: caixa(xPainel + 0.2, topoDaFrente + esp + 0.4, xPainel + 0.5, chaoDoGaveteiro - 0.8), mat: REFLEXO, o: { ...liso, alfa: 0.16, semente: 10490 } },
+  ]
+  frente.push({ forma: caixa(-hw + 0.5, topoDaFrente, hw - 0.5, topoDaFrente + esp, 0.3), mat: BORDA, o: { tabua: 0, bisel: 0.3, contorno: 0.24, semente: 10491 } })
   const gavetas: readonly (readonly [number, number])[] = [[topoDaFrente + esp + 0.5, topoDaFrente + esp + 6.4], [topoDaFrente + esp + 7, chaoDoGaveteiro - 10.6], [chaoDoGaveteiro - 10, chaoDoGaveteiro - 1.8]]
   gavetas.forEach(([y0, y1], i) => {
     frente.push({ forma: caixa(xG0 + 0.6, y0, xG1 - 0.6, y1, 0.4), mat: FORMICA, o: { tabua: 0, bisel: 0.4, tom: 0.97, contorno: 0.24, textura: texFormica, semente: 10492 + i } })

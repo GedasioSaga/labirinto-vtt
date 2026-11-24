@@ -1,7 +1,8 @@
 /**
  * MESINHA DE CELA de cima com volume (lote L10 de 24/11/2026, presídio moderno; objeto novo): o tampo de aço
- * dobrado, preso na parede do fundo (a beira de cima) por um flange parafusado e dois montantes de chapa rente à
- * parede, sem perna na frente; na frente, o BANQUINHO redondo num poste chumbado no piso. Em cima do tampo, o que um
+ * dobrado, preso na parede do fundo (a beira de cima) por um flange parafusado e por uma CHAPA DE FUNDO rente à
+ * parede, da largura do tampo, com dois parafusos à vista, sem perna nenhuma; na frente, o BANQUINHO redondo num
+ * poste grosso chumbado no piso pela chapa do pé, de três parafusos. Em cima do tampo, o que um
  * preso tem: as folhas soltas de uma carta (uma por cima da outra, com as linhas de letra), o lápis, um livro de bolso
  * e a CANECA de ágata com o café pela metade.
  *
@@ -9,19 +10,23 @@
  * que diz "mesa de cela". O tampo dobrado tem a beira da frente mais clara (a dobra pega a luz).
  *
  * NA 3/4 é derivada (`tresQuartos.ts`, beirada de `ESPESSURA_DO_TAMPO_DA_MESINHA`): o tampo e o assento são tampos
- * soltos; os montantes (rente à parede) e o poste do banquinho são colunas finas; a chapa do pé do banquinho fica no
- * chão (o meio da caixa dela vai para fora do assento, para não subir com ele). A caneca sobe em dois tampos
- * empilhados, o de baixo com a asa, com a base da caixa passada da beira do tampo para sair depois dele: a lateral
- * sai branca e a asa fica no meio da altura. Nada lê o giro.
+ * soltos; o poste do banquinho é coluna; a chapa do pé do banquinho e os parafusos dela ficam no chão (o meio da
+ * caixa vai para fora do assento, para não subir com ele). A caneca sobe em dois tampos empilhados, o de baixo com a
+ * asa, com a base da caixa passada da beira do tampo para sair depois dele: a lateral sai branca e a asa fica no
+ * meio da altura. Só a 3/4 vê (`soNaTresQuartos`, sem giro) a CHAPA DE FUNDO, inox mais escuro, pintada antes do
+ * tampo: o tampo sai de um painel, e não de pernas. A chapa desce 0,6 do vão que a 3/4 mostra debaixo do tampo
+ * (pendurada só 0,6 da altura do tampo, ela ficava inteira atrás dele) e não chega ao chão. Com giro ela some e o
+ * tampo fica solto, com a sombra no chão. Nada lê o giro.
  *
  * Sem material escolhido: o inox, o papel, a ágata, o lápis e o livro são fixos.
  */
 import { anel, caixa, capsula, elipse, poligono, uniao, type Forma, type Ponto } from './formas'
 import { contato, type MaterialDaPeca } from './motor'
-import { G, type MontarMovel } from './contexto'
+import { G, QUARTO, type MontarMovel } from './contexto'
 import { comMeioEm } from './andaimeDaTresQuartos'
 import { ESCURO, ESCURO_DO_INOX, INOX, texEscovado } from './geladeira'
 import { BEIRA_AZUL, ESMALTE, PAPEL, texEsmalte } from './apoioDoNecroterio'
+import { soNaTresQuartos, type PecaDaTela } from './apoioDoBanheiroModerno'
 
 /** A grossura da chapa do tampo e do assento (px do protótipo): o perfil da 3/4 em `tresQuartos.ts` usa este valor. */
 export const ESPESSURA_DO_TAMPO_DA_MESINHA = 0.04 * G
@@ -30,17 +35,25 @@ export const ESPESSURA_DO_TAMPO_DA_MESINHA = 0.04 * G
 const ALTURA_DO_TAMPO = 0.5
 const ALTURA_DO_BANCO = 0.3
 /** O tampo: a meia largura (fração da meia pegada) e a fundura (fração da pegada). */
-const MEIA_LARGURA_DO_TAMPO = 0.74
+const MEIA_LARGURA_DO_TAMPO = 0.9
 const FUNDURA_DO_TAMPO = 0.44
 /** O banquinho: o raio do assento, o do poste, o da chapa do pé e o vão até o tampo (px). */
-const BANCO = { raio: 6, poste: 1.3, chapa: 3.2, vao: 4 } as const
-/** Os montantes de chapa rente à parede, debaixo do tampo: a distância da ponta, a fundura e a meia grossura (px). */
-const ESQUADRO = { daPonta: 4, fundura: 2.6, meia: 0.7 } as const
+const BANCO = { raio: 7, poste: 2, chapa: 4.5, vao: 4 } as const
+/** A sombra de contato da chapa do pé passa dela este tanto (px), e os parafusos ficam este tanto para dentro. */
+const CONTATO_DA_CHAPA = 1.2
+const PARAFUSO_DA_CHAPA = 1.1
+/**
+ * A chapa de fundo, rente à parede: o quanto ela cobre do vão que a 3/4 mostra entre a beira do tampo e o chão da
+ * parede, o tom (inox mais escuro que o tampo) e os parafusos (fração da meia largura do tampo).
+ */
+const CHAPA_DO_VAO = 0.6
+const TOM_DA_CHAPA_DE_FUNDO = 0.75
+const PARAFUSOS_DA_CHAPA_DE_FUNDO = 0.62
 const BRILHO_DO_ACO = 0.36
-/** O lápis (amarelo apagado), o grafite, a capa do livro, o miolo e o café. */
+/** O lápis (amarelo apagado), o grafite, a capa do livro (verde 20% menos saturado: era o ponto de cor mais forte), o miolo e o café. */
 const LAPIS: MaterialDaPeca = { classe: 'liso', rgb: [0xb5, 0x9a, 0x58] }
 const GRAFITE: MaterialDaPeca = { classe: 'liso', rgb: [0x45, 0x43, 0x40] }
-const CAPA: MaterialDaPeca = { classe: 'liso', rgb: [0x5f, 0x6e, 0x64] }
+const CAPA: MaterialDaPeca = { classe: 'liso', rgb: [0x62, 0x6e, 0x66] }
 const MIOLO: MaterialDaPeca = { classe: 'liso', rgb: [0xd8, 0xcf, 0xb6] }
 const CAFE: MaterialDaPeca = { classe: 'liso', rgb: [0x4c, 0x36, 0x29] }
 /** A tinta da carta: cinza-azulado, meio transparente. */
@@ -71,21 +84,23 @@ export const montarMesinhaDeCela: MontarMovel = (c, cena) => {
   const assento = elipse(0, yBanco, BANCO.raio, BANCO.raio)
   const poste = elipse(0, yBanco, BANCO.poste, BANCO.poste)
 
-  // O tampo e o assento soltos; os montantes na parede e o poste chumbado são colunas finas.
+  // O tampo e o assento soltos; o poste chumbado é coluna, com a sombra de contato larga em volta da chapa do pé.
   cena.sombras.push({ forma: tampo, z: zTampo, solta: true, suave: 1.6, forca: 0.26 }, { forma: assento, z: zBanco, solta: true, suave: 1.4, forca: 0.26 })
-  for (const sx of [-1, 1]) {
-    const x = sx * (lx - ESQUADRO.daPonta)
-    cena.sombras.push({ forma: caixa(x - ESQUADRO.meia, -hh, x + ESQUADRO.meia, -hh + ESQUADRO.fundura), z: zTampo - esp, forca: 0.12 })
-  }
-  cena.sombras.push({ forma: poste, z: zBanco - esp, forca: 0.2 }, contato(elipse(0, yBanco, BANCO.chapa, BANCO.chapa), 0.28))
+  const rContato = BANCO.chapa + CONTATO_DA_CHAPA
+  cena.sombras.push({ forma: poste, z: zBanco - esp, forca: 0.2 }, contato(elipse(0, yBanco, rContato, rContato), 0.34))
 
   const L = cena.partes
   const aco = { tabua: 0, metal: BRILHO_DO_ACO, textura: texEscovado }
   const liso = { tabua: 0, bisel: 0, contorno: 0 }
 
-  // A chapa do pé do banquinho, com três parafusos: fica no chão (o meio da caixa sai para fora do assento).
+  // A chapa do pé do banquinho, chata, com três parafusos: fica no chão (o meio da caixa sai para fora do assento).
   const foraDoAssento = yBanco + BANCO.raio + 0.6
-  L.push(P(comMeioEm(elipse(0, yBanco, BANCO.chapa, BANCO.chapa), 0, foraDoAssento), INOX, { ...aco, bisel: 0.6, tom: 0.86, contorno: 0.26, semente: 9801 }))
+  L.push(P(comMeioEm(elipse(0, yBanco, BANCO.chapa, BANCO.chapa), 0, foraDoAssento), INOX, { ...aco, bisel: 0.4, tom: 0.86, contorno: 0.3, semente: 9801 }))
+  for (let k = 0; k < 3; k += 1) {
+    const a = -Math.PI / 2 + (k * 2 * Math.PI) / 3 + 0.5
+    const r = BANCO.chapa - PARAFUSO_DA_CHAPA
+    L.push(P(comMeioEm(elipse(r * Math.cos(a), yBanco + r * Math.sin(a), 0.55, 0.55), 0, foraDoAssento), ESCURO, { tabua: 0, bisel: 0.25, contorno: 0.2, tom: 1.3, semente: 9805 + k }))
+  }
   // O BANQUINHO: o assento com a beira enrolada e o meio gasto, mais escuro.
   L.push(P(assento, INOX, { ...aco, bisel: 2, contorno: 0.26, semente: 9802, projeta: { dist: 1.2, forca: 0.28, suave: 1.2 } }))
   L.push(P(anel(0, yBanco, BANCO.raio - 0.5, BANCO.raio - 0.5, BANCO.raio - 1.6, BANCO.raio - 1.6), INOX, { ...aco, bisel: 0.6, tom: 1.06, contorno: 0, semente: 9803 }))
@@ -143,4 +158,20 @@ export const montarMesinhaDeCela: MontarMovel = (c, cena) => {
   L.push(P(elipse(xCaneca, yCaneca, rCaneca - 0.5, rCaneca - 0.5), ESMALTE, { tabua: 0, bisel: 0, contorno: 0, tom: 0.86, recesso: { k: 0.8, forca: 0.3 }, semente: 9864 }))
   L.push(P(elipse(xCaneca + 0.15, yCaneca + 0.2, rCaneca - 1.2, rCaneca - 1.2), CAFE, { tabua: 0, bisel: 0, contorno: 0.12, recesso: { k: 0.6, forca: 0.25 }, semente: 9863 }))
   L.push(P(elipse(xCaneca - 0.5, yCaneca - 0.4, 0.45, 0.3), ESMALTE, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.4, semente: 9865 }))
+
+  // Só a 3/4 (o chão da parede em -hh, para cima negativo): a CHAPA DE FUNDO rente à parede, da largura do tampo, com
+  // a sombra do tampo no alto dela, a beira de baixo e os dois parafusos. A âncora fica na parede, fora da largura do
+  // tampo (senão subiria com ele), e a base dela vem antes da do tampo: o tampo cobre o alto da chapa.
+  const beiraDoTampo = yTampo - zTampo + esp
+  const vao = -hh - beiraDoTampo
+  const pe = -hh - vao * (1 - CHAPA_DO_VAO)
+  const xc = lx - 0.6
+  const yParafusos = (beiraDoTampo + pe) / 2
+  const chapaDeFundo: PecaDaTela[] = [
+    { forma: caixa(-xc, beiraDoTampo - 1.5, xc, pe, 0.5), mat: INOX, o: { ...aco, eixo: QUARTO, bisel: 0.5, tom: TOM_DA_CHAPA_DE_FUNDO, contorno: 0.24, semente: 9870 } },
+    { forma: caixa(-xc, beiraDoTampo - 1.5, xc, beiraDoTampo + 1.4), mat: ESCURO, o: { ...liso, alfa: 0.3, suave: 1, semente: 9871 } },
+    { forma: caixa(-xc + 0.4, pe - 0.8, xc - 0.4, pe - 0.2, 0.2), mat: ESCURO, o: { ...liso, alfa: 0.35, semente: 9872 } },
+  ]
+  for (const sx of [-1, 1]) chapaDeFundo.push({ forma: elipse(sx * lx * PARAFUSOS_DA_CHAPA_DE_FUNDO, yParafusos, 0.65, 0.65), mat: ESCURO, o: { tabua: 0, bisel: 0.3, contorno: 0.22, tom: 1.3, semente: 9873 } })
+  soNaTresQuartos(P, cena, lx + 0.8, -hh + 0.3, chapaDeFundo)
 }

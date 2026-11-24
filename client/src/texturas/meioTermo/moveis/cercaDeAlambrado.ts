@@ -4,13 +4,16 @@
  * tubo de cima (o travessão) e o arame liso de baixo. Barra a passagem e não tapa a visão: é quase toda vão.
  *
  * De cima a cerca é uma LINHA: o travessão, a ourela torcida da tela despontando ao lado dele (o ziguezague das
- * pontas), as amarras de arame e as tampas dos mourões. O que diz "tela" é a SOMBRA: uma faixa rala arrastada na
- * direção da luz com o LOSANGO do fio riscado nela (mais aberto do que a conta daria, para ler de cima), a linha mais
- * escura do travessão no fim e a risca de cada mourão.
+ * pontas), as amarras de arame (poucas: uma junto de cada mourão e as do meio bem espaçadas) e as tampas dos
+ * mourões. O que diz "tela" é a SOMBRA: uma faixa rala arrastada na direção da luz com o LOSANGO do fio riscado nela
+ * (mais aberto do que a conta daria, para ler de cima), a linha mais escura do travessão no fim e a risca de cada
+ * mourão. Na 3/4 o losango é largo (um fio mais grosso, cinza mais escuro que o tubo) e cada fio tem a luz só do lado
+ * de cima: a tela lê como arame, e não como chuvisco.
  *
- * O desenho se REPARTE pelo comprimento, como a cerca de ferro: um vão a cada `PASSO_DOS_MOUROES` casa, nunca vãos
- * mais largos. Cada mourão da ponta tem o MEIO na ponta da pegada: dois trechos encostados põem os mourões um em cima
- * do outro, e a emenda vira um mourão só. A cerca corre pelo lado MAIOR da pegada.
+ * O desenho se REPARTE pelo comprimento, como a cerca de ferro: um vão a cada `PASSO_DOS_MOUROES` casa (o trecho de
+ * duas casas ganha o mourão do meio), nunca vãos mais largos. Cada mourão da ponta tem o MEIO na ponta da pegada:
+ * dois trechos encostados põem os mourões um em cima do outro, e a emenda vira um mourão só. A cerca corre pelo lado
+ * MAIOR da pegada.
  *
  * NA 3/4 é derivada (`tresQuartos.ts`): cada mourão é uma coluna com a tampa em cima; o travessão sobe num ponto só
  * dele (uma estrutura do tamanho de um ponto não pinta beirada nenhuma); a TELA é uma pilha de faixas de 2 px, cada
@@ -31,32 +34,37 @@ import { REFLEXO } from './apoioDoBanheiroModerno'
 /** As alturas, em casas: o travessão (1,9 m) e o mourão acima dele. */
 const ALTURA_DO_TRAVESSAO = 1.27
 const MOURAO_ACIMA = 0.04
-/** Um vão a cada tanto de casa: é o que reparte o trecho. */
-const PASSO_DOS_MOUROES = 2
-/** Os raios (px): o mourão, a tampa dele, o travessão e o arame liso de baixo. */
-const RAIO_DO_MOURAO = 1.35
-const RAIO_DA_TAMPA = 1.75
-const RAIO_DO_TRAVESSAO = 1.05
+/** Um vão a cada tanto de casa: é o que reparte o trecho (o de duas casas ganha o mourão do meio). */
+const PASSO_DOS_MOUROES = 1
+/** Os raios (px): o mourão (mais grosso que o travessão, como na cerca de verdade), a tampa dele, o travessão e o arame liso de baixo. */
+const RAIO_DO_MOURAO = 1.6
+const RAIO_DA_TAMPA = 2.2
+const RAIO_DO_TRAVESSAO = 1.4
 const RAIO_DO_ARAME_LISO = 0.3
 /** A altura do arame liso de baixo (px): a tela começa nele. */
 const ALTURA_DO_ARAME_LISO = 2
 /** A tela: a largura do losango (px), o raio do fio, o quanto o fio cobre e a altura de cada faixa (px). */
-const PASSO_DA_TELA = 2.8
-const RAIO_DO_FIO = 0.2
+const PASSO_DA_TELA = 4.5
+const RAIO_DO_FIO = 0.26
 const ALFA_DO_FIO = 0.85
 const FAIXA = 2
+/** A luz do fio: o lado de cima (virado para a luz) clareia, o de baixo escurece um nada. */
+const LUZ_DO_FIO = { claro: 0.12, escuro: -0.06 } as const
 /** O passo (px) entre os pontos das faixas, atrás da linha da cerca: cada uma tem o seu. */
 const PASSO_DO_PONTO = 0.01
 /** A ourela torcida: o quanto o ziguezague desponta ao lado do travessão (px). */
 const OURELA = 0.55
-/** As amarras de arame no travessão: uma a cada tanto (px). */
-const PASSO_DAS_AMARRAS = 9
-/** O losango na sombra: a largura ao comprido e a altura de través (px no chão) e a meia grossura do fio. */
-const LOSANGO_DA_SOMBRA = { ao: 3.6, atraves: 2.4 } as const
+/** As amarras de arame no travessão: o passo das do meio e o quanto a de cada ponta fica do mourão (px). */
+const PASSO_DAS_AMARRAS = 22
+const AMARRA_DO_MOURAO = 3
+/** A cinta de cada amarra: a meia largura ao longo do tubo e o quanto passa dele de cada lado (px). */
+const AMARRA = { meia: 0.4, sobra: 0.2 } as const
+/** O losango na sombra: a largura ao comprido (a da tela) e a altura de través (px no chão), a meia grossura do fio e a força. */
+const LOSANGO_DA_SOMBRA = { ao: PASSO_DA_TELA, atraves: 3, forca: 0.26 } as const
 const FIO_DA_SOMBRA = 0.3
 
-/** O zinco do arame (o fio) e dos tubos: cinza frio, quase sem cor. */
-const ARAME: MaterialDaPeca = { classe: 'liso', rgb: [0x8d, 0x92, 0x93] }
+/** O zinco do arame (o fio, mais escuro que o tubo) e dos tubos: cinza frio, quase sem cor. */
+const ARAME: MaterialDaPeca = { classe: 'liso', rgb: [0x7e, 0x84, 0x86] }
 const ZINCO: MaterialDaPeca = { classe: 'liso', rgb: [0x9c, 0xa1, 0xa2] }
 /** O escuro em que o pixel escuro demais é levantado: o cinza frio da sombra do zinco. */
 const PISO_DA_CERCA: Rgb = [0x45, 0x49, 0x4b]
@@ -84,11 +92,13 @@ function texturaDaTela(z: number, sobe: number, ao: boolean): Textura {
     const b = (ua - h) / PASSO_DA_TELA
     const da = Math.abs(a - Math.round(a)) * PASSO_DA_TELA * Math.SQRT1_2
     const db = Math.abs(b - Math.round(b)) * PASSO_DA_TELA * Math.SQRT1_2
-    const liso = Math.abs(h - ALTURA_DO_ARAME_LISO)
-    const d = Math.min(da, db, liso + RAIO_DO_FIO - RAIO_DO_ARAME_LISO)
+    const liso = Math.abs(h - ALTURA_DO_ARAME_LISO) + RAIO_DO_FIO - RAIO_DO_ARAME_LISO
+    const d = Math.min(da, db, liso)
     const fio = Math.max(0, Math.min(1, (RAIO_DO_FIO + 0.5 / escala - d) * escala))
     s[5] *= fio * ALFA_DO_FIO
-    s[3] += (da < db ? 0.07 : -0.05) + ruido(ua * 0.2 + p.semente, h * 0.2) * 0.05
+    // O lado de cima de cada fio pega a luz: o do "\" é o de cima à direita, o do "/" o de cima à esquerda.
+    const claro = d === liso ? h > ALTURA_DO_ARAME_LISO : da < db ? a > Math.round(a) : b < Math.round(b)
+    s[3] += (claro ? LUZ_DO_FIO.claro : LUZ_DO_FIO.escuro) + ruido(ua * 0.2 + p.semente, h * 0.2) * 0.04
   }
 }
 
@@ -142,7 +152,7 @@ export const montarCercaDeAlambrado: MontarMovel = (c, cena) => {
   const [ax0, ay0] = xy(-L, -0.4)
   const [ax1, ay1] = xy(L, 0.4)
   const sombraDaTela: Sombra = { forma: caixaArrastada(Math.min(ax0, ax1), Math.min(ay0, ay1), Math.max(ax0, ax1), Math.max(ay0, ay1), zTravessao), z: 0, suave: 1.2, forca: 0.06 }
-  const losangos: Sombra = { forma: sombraEmLosango(L, zTravessao, ao), z: 0, suave: 0.45, forca: 0.2 }
+  const losangos: Sombra = { forma: sombraEmLosango(L, zTravessao, ao), z: 0, suave: 0.45, forca: LOSANGO_DA_SOMBRA.forca }
   const travessao = tubo(-L, L, 0, RAIO_DO_TRAVESSAO)
   cena.sombras.push(sombraDaTela, losangos, { forma: deslocada(travessao, SOMBRA_X * zTravessao, SOMBRA_Y * zTravessao), z: 0, suave: 1.3, forca: 0.2 })
   const pes = mouroes.map((u) => {
@@ -177,18 +187,25 @@ export const montarCercaDeAlambrado: MontarMovel = (c, cena) => {
     const n = Math.max(2, Math.round((u1 - u0) / (PASSO_DA_TELA / 2)))
     for (let j = 0; j <= n; j += 1) pontas.push(xy(u0 + ((u1 - u0) * j) / n, RAIO_DO_TRAVESSAO + (j % 2 === 0 ? 0.05 : OURELA)))
     partes.push(P(comMeioEm(cadeia(pontas, 0.16), tx, ty), ARAME, { tabua: 0, bisel: 0, contorno: 0.18, semente: 10565 + i }))
-    for (let a = u0 + PASSO_DAS_AMARRAS / 2; a < u1 - 2; a += PASSO_DAS_AMARRAS) {
-      const [mx, my] = xy(a, 0)
-      partes.push(P(comMeioEm(tubo(a - 0.35, a + 0.35, 0, RAIO_DO_TRAVESSAO + 0.25), tx, ty), ARAME, { tabua: 0, bisel: 0.3, tom: 0.88, contorno: 0.2, semente: 10570 + i }))
-      partes.push(P(comMeioEm(elipse(mx - 0.2, my - 0.35, 0.35, 0.25), tx, ty), REFLEXO, { ...liso, alfa: 0.25, semente: 10575 }))
+    // As amarras: uma junto de cada mourão e as do meio repartidas, bem espaçadas.
+    const doMeio = Math.max(1, Math.round((u1 - u0) / PASSO_DAS_AMARRAS))
+    const amarras = [u0 + AMARRA_DO_MOURAO, ...Array.from({ length: doMeio - 1 }, (_, j) => u0 + ((u1 - u0) * (j + 1)) / doMeio), u1 - AMARRA_DO_MOURAO]
+    for (const a of amarras) {
+      // A amarra é uma volta de arame: uma cinta estreita atravessando o tubo, um nada mais larga que ele.
+      const [bx0, by0] = xy(a - AMARRA.meia, -RAIO_DO_TRAVESSAO - AMARRA.sobra)
+      const [bx1, by1] = xy(a + AMARRA.meia, RAIO_DO_TRAVESSAO + AMARRA.sobra)
+      const cinta = caixa(Math.min(bx0, bx1), Math.min(by0, by1), Math.max(bx0, bx1), Math.max(by0, by1), 0.3)
+      partes.push(P(comMeioEm(cinta, tx, ty), ARAME, { tabua: 0, bisel: 0.3, tom: 1.04, contorno: 0.26, semente: 10570 + i }))
+      const [mx, my] = xy(a, -RAIO_DO_TRAVESSAO * 0.4)
+      partes.push(P(comMeioEm(elipse(mx, my, 0.25, 0.25), tx, ty), REFLEXO, { ...liso, alfa: 0.3, semente: 10575 }))
     }
-    partes.push(P(comMeioEm(tubo(u0 + 1.5, u1 - 1.5, -0.45, 0.28), tx, ty), REFLEXO, { ...liso, alfa: 0.22, suave: 0.3, semente: 10578 }))
+    partes.push(P(comMeioEm(tubo(u0 + 1.8, u1 - 1.8, -RAIO_DO_TRAVESSAO * 0.43, 0.32), tx, ty), REFLEXO, { ...liso, alfa: 0.22, suave: 0.3, semente: 10578 }))
   }
 
   // Os MOURÕES: a tampa de cima, com o brilho (a peça de cada coluna).
   pes.forEach((pe, i) => {
     const [cx, cy] = [(pe.b[0] + pe.b[2]) / 2, (pe.b[1] + pe.b[3]) / 2]
     partes.push(P(elipse(cx, cy, RAIO_DA_TAMPA, RAIO_DA_TAMPA), ZINCO, { tabua: 0, bisel: RAIO_DA_TAMPA, metal: 0.45, contorno: 0.3, semente: 10580 + i, projeta: { dist: 0.6, forca: 0.26 } }))
-    partes.push(P(elipse(cx - 0.5, cy - 0.5, 0.55, 0.45), REFLEXO, { ...liso, alfa: 0.45, suave: 0.3, semente: 10590 + i }))
+    partes.push(P(elipse(cx - 0.65, cy - 0.65, 0.7, 0.56), REFLEXO, { ...liso, alfa: 0.45, suave: 0.3, semente: 10590 + i }))
   })
 }

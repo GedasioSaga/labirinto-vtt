@@ -4,10 +4,12 @@
  * (nada que se arranque nem vire arma). Encostada na parede do fundo (a beira de cima) fica a TORRE da pia; no tampo
  * dela, a cuba rasa com o ralo e a bica curta, os dois botões de apertar (o grande é a descarga, o pequeno a água) e
  * os quatro parafusos de segurança nos cantos. Na frente fica o DECK do vaso, uma chapa larga escovada de trás para a
- * frente, com o aro contornado em volta da boca e, lá no fundo, a água escura com um brilho.
+ * frente, com a BOCA comprida em ovo (mais estreita na frente, como a bacia de verdade), o aro chato e fosco em volta
+ * dela, um poço só e, na frente do poço, a água: uma gota escura com o reflexo num risco fino na beira de trás.
  *
  * O que diz "presídio" de longe é o bloco único e cinza, sem a louça branca e sem a tampa do vaso moderno: a torre
- * alta atrás e o oval escuro da boca no deck. A 1x sobram o retângulo claro da torre, o deck arredondado e o furo.
+ * alta atrás e o ovo escuro da boca, comprido, ocupando quase todo o deck. A 1x sobram o retângulo claro da torre, o
+ * deck arredondado e a boca em ovo com a água na frente: nada de anéis em volta de um ponto (que lia como lente).
  *
  * NA 3/4 é derivada (`tresQuartos.ts`): a torre e o deck são colunas do chão até a altura de cada um. A frente
  * varrida é lisa; as duas peças que só a 3/4 vê (`soNaTresQuartos`, sem giro) põem o escovado de pé e a tampa de
@@ -16,7 +18,7 @@
  *
  * Sem material escolhido: o inox, a água e o escuro das frestas são fixos.
  */
-import { anel, caixa, capsula, elipse, uniao } from './formas'
+import { cadeia, caixa, capsula, elipse, menos, poligono, uniao, type Forma, type Ponto } from './formas'
 import { contato, type MaterialDaPeca } from './motor'
 import { QUARTO, type MontarMovel } from './contexto'
 import { ESCURO, ESCURO_DO_INOX, INOX, texEscovado } from './geladeira'
@@ -31,9 +33,21 @@ const MEIA_LARGURA_DO_DECK = 0.86
 /** O brilho do aço escovado (o `metal` do motor) e o dos botões e da bica, polidos. */
 const BRILHO_DO_ACO = 0.38
 const BRILHO_POLIDO = 0.75
-/** A boca do vaso (raios e quanto ela recua da frente do deck, px) e o aro contornado em volta dela. */
-const BOCA = { rx: 6.6, ry: 8.2, recuo: 4.2 } as const
-const ARO = 2.4
+/**
+ * A boca do vaso em ovo (raios e quanto ela recua da frente do deck, px) e o aro chato em volta dela. Comprida e
+ * estreita: com o aro, vai de um fio atrás da torre até um fio antes da frente do deck (~77% da fundura dele).
+ */
+const BOCA = { rx: 6, ry: 9.3, recuo: 3.4 } as const
+const ARO = 2
+/** O quanto o ovo estreita na frente (e alarga atrás), em fração da meia largura, e os pontos do contorno dele. */
+const ESTREITA_NA_FRENTE = 0.14
+const PONTOS_DO_OVO = 40
+/** O aro é chato e fosco: o brilho do aço bem baixo. */
+const BRILHO_DO_ARO = 0.16
+/** A água: o meio dela puxado para a frente da boca e os raios, em fração dos da boca. */
+const POCA = { frente: 0.35, rx: 0.6, ry: 0.5 } as const
+/** O reflexo da água: o risco fino na beira de trás dela, de um ângulo ao outro (rad, 0 = o fundo da gota). */
+const REFLEXO_DA_AGUA = { de: -1.05, ate: 0.6, dentro: 0.8, raio: 0.22 } as const
 /** A cuba: o recuo da beira da torre e o quanto ela vai na largura (fração da meia largura a partir do meio). */
 const CUBA = { recuo: 2.4, ate: 0.3, frente: 2.4 } as const
 /** Os botões de apertar: raio da descarga e da água (px). */
@@ -41,6 +55,17 @@ const BOTAO_DA_DESCARGA = 2.2
 const BOTAO_DA_AGUA = 1.6
 /** A água do fundo do vaso: cinza-esverdeado escuro, contido. */
 const AGUA: MaterialDaPeca = { classe: 'liso', rgb: [0x58, 0x66, 0x69] }
+
+/** O ponto do ovo no ângulo `a` (0 = atrás, no alto; pi = na frente): o raio de lado encolhe para a frente. */
+function pontoDoOvo(cx: number, cy: number, rx: number, ry: number, a: number): Ponto {
+  const v = -Math.cos(a)
+  return [cx + rx * Math.sin(a) * (1 - ESTREITA_NA_FRENTE * v), cy + ry * v]
+}
+
+/** O ovo da boca (e da água): a bacia comprida, mais larga atrás e mais estreita na frente. */
+function ovo(cx: number, cy: number, rx: number, ry: number): Forma {
+  return poligono(Array.from({ length: PONTOS_DO_OVO }, (_, k) => pontoDoOvo(cx, cy, rx, ry, (k / PONTOS_DO_OVO) * Math.PI * 2)))
+}
 
 export const montarVasoComPiaDeAco: MontarMovel = (c, cena) => {
   const { hw, hh, h, g, peca: P } = c
@@ -62,15 +87,20 @@ export const montarVasoComPiaDeAco: MontarMovel = (c, cena) => {
   const polido = { tabua: 0, metal: BRILHO_POLIDO }
   const liso = { tabua: 0, bisel: 0, contorno: 0 }
 
-  // O DECK escovado de trás para a frente, o aro contornado em volta da boca e a boca: a parede inclinada (o aro faz
-  // sombra no alto à esquerda), a garganta mais funda e a água com o brilho.
+  // O DECK escovado de trás para a frente; a BOCA em ovo com o aro chato e fosco em volta (sem sombra própria) e um
+  // poço só, a parede inclinada com a sombra do aro no alto à esquerda; na frente do poço, a ÁGUA em gota escura e o
+  // reflexo num risco fino na beira de trás dela.
   L.push(P(deck, INOX, { ...aco, eixo: QUARTO, bisel: 1.5, contorno: 0.26, semente: 9701 }))
   const cyBoca = yFrente - BOCA.recuo - BOCA.ry
-  L.push(P(anel(0, cyBoca, BOCA.rx + ARO, BOCA.ry + ARO, BOCA.rx, BOCA.ry), INOX, { ...aco, eixo: QUARTO, bisel: 1.2, tom: 1.05, contorno: 0.16, semente: 9702, projeta: { dist: 0.5, forca: 0.16 } }))
-  L.push(P(elipse(0, cyBoca, BOCA.rx, BOCA.ry), INOX, { ...aco, bisel: 0.8, tom: 0.8, contorno: 0.26, recesso: { k: 2.6, forca: 0.38 }, semente: 9703 }))
-  L.push(P(elipse(0, cyBoca + 0.6, BOCA.rx * 0.66, BOCA.ry * 0.62), INOX, { ...liso, tom: 0.66, alfa: 0.85, suave: 1.6, semente: 9704 }))
-  L.push(P(elipse(0, cyBoca - BOCA.ry * 0.12, BOCA.rx * 0.46, BOCA.ry * 0.4), AGUA, { tabua: 0, bisel: 0.5, contorno: 0.14, semente: 9705 }))
-  L.push(P(elipse(-BOCA.rx * 0.16, cyBoca - BOCA.ry * 0.25, BOCA.rx * 0.17, BOCA.ry * 0.09), REFLEXO, { ...liso, alfa: 0.45, suave: 0.6, semente: 9706 }))
+  const boca = ovo(0, cyBoca, BOCA.rx, BOCA.ry)
+  L.push(P(menos(ovo(0, cyBoca, BOCA.rx + ARO, BOCA.ry + ARO), boca), INOX, { ...aco, metal: BRILHO_DO_ARO, eixo: QUARTO, bisel: 0.6, tom: 0.95, contorno: 0.16, semente: 9702 }))
+  L.push(P(boca, INOX, { ...aco, bisel: 0.8, tom: 0.8, contorno: 0.26, recesso: { k: 2.6, forca: 0.38 }, semente: 9703 }))
+  const cyAgua = cyBoca + BOCA.ry * POCA.frente
+  const [rxAgua, ryAgua] = [BOCA.rx * POCA.rx, BOCA.ry * POCA.ry]
+  L.push(P(ovo(0, cyAgua, rxAgua, ryAgua), AGUA, { tabua: 0, bisel: 0.5, tom: 0.84, contorno: 0.16, recesso: { k: 1.2, forca: 0.22 }, semente: 9705 }))
+  const { de, ate, dentro, raio } = REFLEXO_DA_AGUA
+  const risco = Array.from({ length: 9 }, (_, k) => pontoDoOvo(0, cyAgua, rxAgua * dentro, ryAgua * dentro, de + ((ate - de) * k) / 8))
+  L.push(P(cadeia(risco, raio), REFLEXO, { ...liso, alfa: 0.4, suave: 0.3, semente: 9706 }))
 
   // A TORRE, mais alta: o tampo escovado de lado a lado, que faz sombra no deck.
   L.push(P(torre, INOX, { ...aco, eixo: 0, bisel: 1.7, contorno: 0.26, semente: 9710, projeta: { dist: 2.2, forca: 0.3, suave: 1.4 } }))

@@ -5,7 +5,8 @@
  * segundo e a CAIXA de sapato em cima do quarto; na beira da frente despontam os puxadores.
  *
  * NA 3/4 A FRENTE É DESENHADA (`soNaTresQuartos`, sem giro): as quatro portas estreitas, cada uma com as VENEZIANAS
- * de respiro em cima e embaixo (a fresta escura e a aba clara que pega a luz), a PLAQUINHA com o número (1 a 4, em
+ * de respiro em cima e embaixo (a fresta escura e a aba clara que pega a luz, de contraste baixo para não listrar a
+ * porta), a PLAQUINHA com o número (1 a 4, em
  * traço de sete segmentos), o PUXADOR de alavanca e, em três delas, o CADEADO de latão no ferrolho; as dobradiças do
  * outro lado e o rodapé escuro. O corpo é uma coluna do chão ao tampo, e a caixa de sapato sobe num tampo solto
  * (a beirada dela é a lateral do papelão). Com giro a frente desenhada some e a 3/4 mostra a lateral ou as costas
@@ -48,6 +49,11 @@ const ALETAS_DE_CIMA = 5
 const ALETAS_DE_BAIXO = 4
 const PASSO_DA_ALETA = 2.3
 const RECUO_DA_ALETA = 3
+/**
+ * O contraste das venezianas, 25% mais baixo que o da primeira prova (lá elas listravam a porta): a cobertura da
+ * fresta escura e o tom da aba clara (a porta tem o tom 0,86).
+ */
+const VENEZIANA = { fresta: 0.68, aba: 1.025 } as const
 /** O puxador: a altura (fração do armário) e a distância da beira da porta (px). */
 const ALTURA_DO_PUXADOR = 0.52
 const PUXADOR_DA_BEIRA = 2.5
@@ -141,8 +147,8 @@ export const montarArmarioDeVestiario: MontarMovel = (c, cena) => {
     const recuo = Math.min(RECUO_DA_ALETA, larguraDaPorta * 0.22)
     frente.push({ forma: caixa(x0 + 0.55, topo + 1.2, x1 - 0.55, hh - rodape - 0.5, 0.5), mat: PINTURA, o: { ...pintura, bisel: 0.6, tom: 0.86, contorno: 0.24, semente: 10041 + p } })
     const aleta = (y: number): void => {
-      frente.push({ forma: caixa(x0 + recuo, y - 0.42, x1 - recuo, y + 0.42, 0.35), mat: ESCURO_DA_PINTURA, o: { ...liso, alfa: 0.9, semente: 10050 } })
-      frente.push({ forma: caixa(x0 + recuo, y + 0.42, x1 - recuo, y + 0.9, 0.2), mat: PINTURA, o: { ...liso, tom: 1.08, semente: 10051 } })
+      frente.push({ forma: caixa(x0 + recuo, y - 0.42, x1 - recuo, y + 0.42, 0.35), mat: ESCURO_DA_PINTURA, o: { ...liso, alfa: VENEZIANA.fresta, semente: 10050 } })
+      frente.push({ forma: caixa(x0 + recuo, y + 0.42, x1 - recuo, y + 0.9, 0.2), mat: PINTURA, o: { ...liso, tom: VENEZIANA.aba, semente: 10051 } })
     }
     for (let a = 0; a < ALETAS_DE_CIMA; a += 1) aleta(topo + 5 + a * PASSO_DA_ALETA)
     for (let a = 0; a < ALETAS_DE_BAIXO; a += 1) aleta(hh - rodape - 4 - a * PASSO_DA_ALETA)

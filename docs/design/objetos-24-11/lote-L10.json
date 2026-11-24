@@ -2,19 +2,21 @@
   "lote": "L10",
   "titulo": "Presídio moderno",
   "data": "2026-11-24",
+  "revisaoDoDiretor": "2026-11-24: as 10 mudanças do diretor de arte aplicadas (itens 91 a 100; o armário, aprovado, só baixou o contraste das venezianas). Cada item tem 'mudancasDoDiretor' (o que foi feito) e, quando houve escolha que o pedido não fixava ou um número que não deu para seguir, 'decisoesDoClaude'. A folha e os 10 painéis foram refeitos.",
   "prova": "docs/design/objetos-24-11/provas/lote-L10.png",
-  "comoFoiFeitaAProva": "Folha pintada sem navegador, com o mesmo código do app, pela ferramenta do repo (folhaDeObjetosNovos.test.ts, numa cópia temporária com os chãos trocados pelas texturas embutidas 'lajotas-escuras' e 'lajotas', apagada depois): o montar de cada arquivo, cenaEmTresQuartos e pintarCena. Na folha do lote, um cartão por item: em piso escuro e em piso claro, de cima e em 3/4 no zoom de 4x, e os dois no tamanho de mesa. Painéis por item em docs/design/objetos/<arquivo>.png, no mesmo formato. Os números do portão saíram da mesma ferramenta, com o pedido dos 10 itens: os 10 dentro do portão.",
+  "comoFoiFeitaAProva": "Folha pintada sem navegador, com o mesmo código do app, pela ferramenta do repo (folhaDeObjetosNovos.test.ts, numa cópia temporária com os chãos trocados pelas texturas embutidas 'lajotas-escuras' e 'lajotas', apagada depois): o montar de cada arquivo, cenaEmTresQuartos e pintarCena. Na folha do lote, um cartão por item: em piso escuro e em piso claro, de cima e em 3/4 no zoom de 4x, e os dois no tamanho de mesa. Painéis por item em docs/design/objetos/<arquivo>.png, no mesmo formato. Os números do portão saíram da mesma ferramenta, com o pedido dos 10 itens: os 10 dentro do portão. Refeita em 24/11 depois da revisão do diretor de arte, com a mesma ferramenta e os mesmos pedidos (a folha do lote e os 10 painéis): os 10 dentro do portão de novo (saturação p95 de 0,043 a 0,355, contorno de 0,232 a 0,235, luz mínima 0,044 ou 0,045, a 3/4 de 45 a 287 ms de 5000).",
   "notasGerais": [
     "Nada foi registrado: tipos.ts, pecasNovas.ts, gruposDoObjeto.ts, construcoes.ts, materiais.ts, moveis/index.ts, tresQuartos.ts, icons.tsx, luzDoFogo.ts e mobilia.ts ficam para o integrador.",
     "Os ids de tipo sugeridos são o nome do arquivo (camelCase), os mesmos da LISTA.md.",
     "Sem dependência entre arquivos do lote: cada um entra sozinho. Imports de fora do lote (arquivos que já existem em moveis/): geladeira.ts (o inox escovado), apoioDoBanheiroModerno.ts (soNaTresQuartos, o reflexo, o cromo, o piso do banheiro), apoioDoNecroterio.ts (o esmalte, a ágata, o níquel, o papel) e andaimeDaTresQuartos.ts (pino, solta, comMeioEm, deslocada, caixaArrastada).",
     "PERFIL DA 3/4 (tresQuartos.ts): todos derivados. Quatro têm espessura própria, exportada no arquivo: mesinhaDeCela (ESPESSURA_DO_TAMPO_DA_MESINHA, 0,04 casa), chuveiroColetivo (ESPESSURA_DAS_PECAS_DO_CHUVEIRO_COLETIVO, 0,03 casa), leitoHospitalar (ESPESSURA_DO_COLCHAO_DO_LEITO, 0,09 casa) e mesaComComputador (ESPESSURA_DO_TAMPO_DA_MESA_COM_COMPUTADOR, 0,045 casa). Os outros seis usam o perfil padrão.",
     "QUEM LÊ c.giro: só a cercaDeAlambrado (entra na lista dos que recebem o giro, como a cerca de ferro). Ninguém lê c.variante.",
-    "FRENTE SÓ SEM GIRO: vaso, armário, cadeira, máquina de lavar, leito e mesa com computador desenham na 3/4 a frente que de cima não se vê (portas, venezianas, porta redonda, barras, fendas) com soNaTresQuartos, que só vale no giro 0. Girados, ficam com a 3/4 derivada pura, sem quebrar.",
+    "FRENTE SÓ SEM GIRO: nove dos dez desenham na 3/4 o que de cima não se vê, com soNaTresQuartos, que só vale no giro 0: o vaso (a frente), a mesinha (a chapa de fundo), a mesa de pátio (a armação em A das pontas), o chuveiro (o trecho aparente do cano e a face de azulejo das muretas), o armário (portas e venezianas), a cadeira (as fendas do encosto), a máquina (a porta redonda), o leito (as barras, a prancheta, o estrado e as quatro rodinhas) e a mesa com computador (a tela, as gavetas e o canto do painel do pé). Girados, ficam com a 3/4 derivada pura, sem quebrar. Só a cerca não usa.",
     "SEM MATERIAL ESCOLHIDO: os 10 têm as cores fixas (lugaresDeMaterial vazio). O inox, o azulejo, a napa e o plástico são o que diz \"presídio moderno\"; se o dono quiser trocar, o primeiro candidato é a cor da cadeira de plástico.",
     "Grupos usados, todos já existentes: banheiro, temploEMasmorra (ao lado da cela com grade), ruaEJardim, esporteELazer, salaEQuarto e necroterioELaboratorio. Se o integrador abrir um grupo Presídio, os 10 cabem nele.",
     "TESTES QUE VÃO MUDAR na integração: as contagens e os nomes (Toolbar.test.tsx, toolVariants.test.ts, pecasNovas.test.ts, materiais.test.ts).",
-    "Nenhum teste foi rodado (regra do projeto). Só o tsc do client, no projeto inteiro (sem erro), e a folha de objetos novos, que é a ferramenta de prova. Não toquei em tapete.ts, tapeteLongo.ts nem em arquivo de registro."
+    "Nenhum teste foi rodado (regra do projeto). Só o tsc do client, no projeto inteiro (sem erro), e a folha de objetos novos, que é a ferramenta de prova. Não toquei em tapete.ts, tapeteLongo.ts nem em arquivo de registro.",
+    "REVISÃO DO DIRETOR (24/11): o que mudou em cada item está em mudancasDoDiretor; nenhum arquivo fora do lote foi tocado, nenhum registro mudou, e o tamanho de partida de todos ficou igual."
   ],
   "itens": [
     {
@@ -34,7 +36,7 @@
       "exportacoesExtras": null,
       "folha": "docs/design/objetos/vaso-com-pia-de-aco.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Inox escovado de cela numa peça só (os tons e o escovado da geladeira.ts), o reflexo do banheiro moderno e a água da bacia em cinza-azulado (#586669). Pia redonda em cima da torre, botões de pressão e a placa parafusada.",
+      "coresFixas": "Inox escovado de cela numa peça só (os tons e o escovado da geladeira.ts), com o aro da boca chato e fosco; o reflexo do banheiro moderno e a água da bacia em cinza-azulado (#586669), uma gota escura na frente da boca. Pia redonda em cima da torre, botões de pressão e a placa parafusada.",
       "perfil3x4": "DERIVADO com o perfil padrão (beirada de 0,06 casa): a torre da pia é coluna, a bacia sobe menos",
       "comportamento": {
         "ehMovelDoChao": false,
@@ -42,7 +44,7 @@
         "tapa": false
       },
       "luzSugerida": null,
-      "portao": "saturação p95 0,040, contorno 0,234, luz mínima 0,045, 99 ms de 5000",
+      "portao": "saturação p95 0,043, contorno 0,234, luz mínima 0,045, 134 ms de 5000",
       "icone": "vaso de aço visto de cima com a pia redonda na torre de trás",
       "palavrasDeBusca": [
         "privada de aço",
@@ -52,6 +54,15 @@
         "inox",
         "cela",
         "presídio"
+      ],
+      "mudancasDoDiretor": [
+        "A boca ficou comprida e estreita na frente: um ovo (rx 6, ry 9,3) que estreita 14% na frente, com o aro ocupando ~77% da fundura do deck.",
+        "Saiu a elipse do meio (semente 9704): sobra o aro chato e fosco (sem projeção, tom 0,95, brilho 0,16) e uma bacia só.",
+        "A água virou uma gota escura puxada para a FRENTE da boca (o meio em 0,35 do raio para a frente, 0,6 x 0,5 dos raios da boca).",
+        "O reflexo virou um risco fino na beira de trás da água."
+      ],
+      "decisoesDoClaude": [
+        "ry 9,3 e não 10: com o aro de 2 px, 10 encostava na torre da pia atrás e passava da frente do deck. Com 9,3 vai de um fio atrás da torre até um fio antes da frente."
       ],
       "paraOIntegrador": "Versão do vaso sanitário moderno, para a cela: a torre com a pia fica na beira de cima (a parede) no giro 0. A frente que só a 3/4 vê sai por soNaTresQuartos (apoioDoBanheiroModerno.ts) e só vale SEM GIRO; girado, o objeto fica com a 3/4 derivada pura (o corpo e o tampo sobem, a frente fica lisa). Nada lê c.giro. Importa geladeira.ts e apoioDoBanheiroModerno.ts."
     },
@@ -74,7 +85,7 @@
       ],
       "folha": "docs/design/objetos/mesinha-de-cela.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Inox escovado no tampo e no banquinho; em cima, as folhas de uma carta (papel do necrotério) com a tinta cinza-azulada (#555c6e), o lápis amarelo apagado (#b59a58), o livro de bolso de capa verde-cinza (#5f6e64) e a caneca de ágata branca de beira azul com o café (#4c3629).",
+      "coresFixas": "Inox escovado no tampo e no banquinho, a chapa de fundo do mesmo inox mais escuro (tom 0,75); em cima, as folhas de uma carta (papel do necrotério) com a tinta cinza-azulada (#555c6e), o lápis amarelo apagado (#b59a58), o livro de bolso de capa verde-cinza (#626e66) e a caneca de ágata branca de beira azul com o café (#4c3629).",
       "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_MESINHA } (0,04 casa)",
       "comportamento": {
         "ehMovelDoChao": false,
@@ -82,7 +93,7 @@
         "tapa": false
       },
       "luzSugerida": null,
-      "portao": "saturação p95 0,135, contorno 0,234, luz mínima 0,045, 37 ms de 5000",
+      "portao": "saturação p95 0,117, contorno 0,235, luz mínima 0,045, 45 ms de 5000",
       "icone": "tampo retangular encostado na parede com uma roda pequena (o banquinho) na frente",
       "palavrasDeBusca": [
         "mesa de cela",
@@ -94,7 +105,17 @@
         "cela",
         "presídio"
       ],
-      "paraOIntegrador": "Objeto novo. O tampo encosta na beira de cima (a parede) no giro 0, preso por dois montantes rentes à parede, e o banquinho redondo num poste fica na frente: escala pelos dois lados sem problema. A caneca sobe em dois tampos empilhados com a base da caixa passada da beira do tampo, para sair depois dele na 3/4. Nada lê c.giro. Importa andaimeDaTresQuartos.ts, geladeira.ts e apoioDoNecroterio.ts."
+      "mudancasDoDiretor": [
+        "Os dois esquadros saíram: o tampo agora tem UMA chapa de fundo rente à parede, da largura do tampo, de inox mais escuro (tom 0,75), com 2 parafusos à vista e a sombra do tampo nela.",
+        "Banquinho: poste de 1,3 para 2,0 px, chapa do pé de 3,2 para 4,5 px (com 3 parafusos) e a sombra de contato em volta da chapa.",
+        "MEIA_LARGURA_DO_TAMPO de 0,74 para 0,9 e o assento do banquinho de raio 6 para 7.",
+        "A capa do livro ficou ~20% menos saturada (#5f6e64 para #626e66)."
+      ],
+      "decisoesDoClaude": [
+        "A chapa de fundo cobre 0,6 do VÃO VISÍVEL entre a beira de baixo do tampo e o chão (e não 0,6 da altura do tampo): na 3/4 oblíqua do app, uma chapa de 0,6 da altura do tampo pendurada nele fica inteira atrás do tampo e não aparece.",
+        "A chapa só aparece na 3/4 sem giro (soNaTresQuartos). De cima ela fica debaixo do tampo, como na cela de verdade."
+      ],
+      "paraOIntegrador": "Objeto novo. O tampo encosta na beira de cima (a parede) no giro 0, preso por uma chapa de fundo rente à parede (só a 3/4 sem giro a vê, por soNaTresQuartos; girado, o tampo fica solto na parede), e o banquinho redondo num poste fica na frente: escala pelos dois lados sem problema. A caneca sobe em dois tampos empilhados com a base da caixa passada da beira do tampo, para sair depois dele na 3/4. Nada lê c.giro. Importa andaimeDaTresQuartos.ts, geladeira.ts, apoioDoNecroterio.ts e apoioDoBanheiroModerno.ts."
     },
     {
       "numero": 93,
@@ -113,15 +134,15 @@
       "exportacoesExtras": null,
       "folha": "docs/design/objetos/mesa-de-patio.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Ripas de madeira tratada desbotada (#9e8a6e, classe madeira, com os riscos e os parafusos) na armação de tubo galvanizado (#929796); as frestas entre as ripas em #4a3d30.",
-      "perfil3x4": "DERIVADO com o perfil padrão (beirada de 0,06 casa): o tampo e os dois bancos são tampos soltos; os pés de tubo, colunas",
+      "coresFixas": "Ripas de madeira tratada desbotada (#948a78, classe madeira, com os riscos e os parafusos), as frestas na mesma madeira a 55% do valor (#514c42), a armação e as travessas de tubo galvanizado (#929796). O escuro levantado é a madeira a 50% (#4a453c).",
+      "perfil3x4": "DERIVADO com o perfil padrão (beirada de 0,06 casa): o tampo e os dois bancos são tampos soltos; a armação em A não faz estrutura, é desenhada na 3/4 sem giro (soNaTresQuartos)",
       "comportamento": {
         "ehMovelDoChao": false,
         "barra": true,
         "tapa": false
       },
       "luzSugerida": null,
-      "portao": "saturação p95 0,321, contorno 0,231, luz mínima 0,044, 72 ms de 5000",
+      "portao": "saturação p95 0,197, contorno 0,234, luz mínima 0,045, 72 ms de 5000",
       "icone": "tampo de ripas entre dois bancos de ripas",
       "palavrasDeBusca": [
         "mesa de piquenique",
@@ -132,7 +153,17 @@
         "presídio",
         "parque"
       ],
-      "paraOIntegrador": "Objeto novo: a mesa com os dois bancos presos na mesma armação, como no pátio de presídio e no parque. Ao comprido no giro 0. Só importa formas, motor e contexto. Nada lê c.giro."
+      "mudancasDoDiretor": [
+        "A armação em A de cada ponta agora aparece na 3/4: as duas pernas inclinadas em X, saindo de baixo da beira do tampo, cruzando logo abaixo dele e chegando ao chão por fora do banco da frente, com a travessa do banco passando por elas debaixo do assento (soNaTresQuartos, sem giro, como o diretor aceitou).",
+        "De cima, a travessa galvanizada passa por baixo das ripas: aparece só nas frestas e numa ponta saindo 1 px da beira de fora de cada banco.",
+        "A fresta mostra a madeira a 55% do valor (e não mais o ESCURO_DA_MADEIRA); FRESTA de 0,6 para 0,45 px.",
+        "MADEIRA de #9e8a6e para #948a78."
+      ],
+      "decisoesDoClaude": [
+        "cena.corDoPiso = a madeira a 50% (#4a453c). Sem ele, o pixel escuro demais subia para a nogueira do motor e o fio das ripas e o fundo das frestas na 3/4 saíam castanho-avermelhados (saturação ~0,6; p95 da 3/4 em 0,44). Com ele, p95 0,197.",
+        "Os pés deixaram de ser colunas: a armação não faz estrutura (de lado, cairia numa linha só na tela). Com giro, a armação some e ficam os tampos soltos com a sombra no chão."
+      ],
+      "paraOIntegrador": "Objeto novo: a mesa com os dois bancos presos na mesma armação, como no pátio de presídio e no parque. Ao comprido no giro 0. A armação em A das pontas só aparece na 3/4 sem giro (soNaTresQuartos); girada, a mesa fica com os tampos soltos. Nada lê c.giro. Importa geladeira.ts e apoioDoBanheiroModerno.ts."
     },
     {
       "numero": 94,
@@ -153,7 +184,7 @@
       ],
       "folha": "docs/design/objetos/chuveiro-coletivo.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "O piso do box em azulejo verde-cinza (#b4bcb2) com o rejunte e as manchas de molhado (#55605c), as duas muretas de azulejo creme (#cccac0), o cano, o registro e o chuveiro em cromo e inox, a saboneteira com o sabão (#c2c6a4) e o ralo redondo.",
+      "coresFixas": "O piso do box em azulejo verde-cinza (#b4bcb2) com o rejunte, caindo para o ralo, e a mancha molhada em gota (#55605c a 25%), as duas muretas de azulejo creme (#cccac0) com a tampa de granitina (#9a9a94), o cano, o registro e o chuveiro em cromo e inox, a saboneteira com o sabão (#c2c6a4) e o ralo redondo.",
       "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DAS_PECAS_DO_CHUVEIRO_COLETIVO } (0,03 casa)",
       "comportamento": {
         "ehMovelDoChao": false,
@@ -161,7 +192,7 @@
         "tapa": false
       },
       "luzSugerida": null,
-      "portao": "saturação p95 0,063, contorno 0,234, luz mínima 0,044, 161 ms de 5000",
+      "portao": "saturação p95 0,064, contorno 0,234, luz mínima 0,044, 95 ms de 5000",
       "icone": "quadrado de azulejo com o ralo redondo e o chuveiro na beira de cima",
       "palavrasDeBusca": [
         "chuveiro",
@@ -173,7 +204,16 @@
         "ralo",
         "presídio"
       ],
-      "paraOIntegrador": "Objeto novo: UM box do chuveiro coletivo (o banheirão se monta pondo vários lado a lado; as muretas das pontas encostam). O cano e o chuveiro ficam na beira de cima (a parede) no giro 0. As muretas têm 1,2 casa de altura (as de box), mas o box é aberto na frente: sugestão, não barra (a ficha entra no box) e não tapa. Nada lê c.giro. Importa andaimeDaTresQuartos.ts, apoioDoBanheiroModerno.ts e geladeira.ts."
+      "mudancasDoDiretor": [
+        "Muretas mais baixas e mais grossas: ALTURA_DA_MURETA de 1,2 para 0,9 casa e GROSSURA_DA_MURETA de 4,2 para 5,5 px.",
+        "A face da frente de cada mureta, na 3/4, é de azulejo com o rejunte à vista (duas peças na grossura), com a quina da tampa escura em cima; de cima, a tampa da mureta é de granitina mais escura (#9a9a94).",
+        "O cano aparente ficou curto: sai da parede numa canopla no alto da válvula e sobe até o braço; o trecho de baixo é embutido (o cano deixou de ser coluna do chão).",
+        "A mancha molhada virou uma gota (MOLHADO a alfa 0,25), da ducha até a volta do ralo, e o piso de azulejo cai para o ralo (as quatro águas, cada uma com a sua luz, e o fundo mais escuro em volta do ralo)."
+      ],
+      "decisoesDoClaude": [
+        "A face de azulejo e o trecho do cano são da 3/4 sem giro (soNaTresQuartos). Com giro ficam a frente varrida das muretas e o cano só no alto, com o braço."
+      ],
+      "paraOIntegrador": "Objeto novo: UM box do chuveiro coletivo (o banheirão se monta pondo vários lado a lado; as muretas das pontas encostam). O cano e o chuveiro ficam na beira de cima (a parede) no giro 0. As muretas têm 0,9 casa de altura (as de box), mas o box é aberto na frente: sugestão, não barra (a ficha entra no box) e não tapa. A face de azulejo das muretas e o trecho aparente do cano são da 3/4 sem giro (soNaTresQuartos). Nada lê c.giro. Importa andaimeDaTresQuartos.ts, apoioDoBanheiroModerno.ts e geladeira.ts."
     },
     {
       "numero": 95,
@@ -200,7 +240,7 @@
         "tapa": false
       },
       "luzSugerida": null,
-      "portao": "saturação p95 0,185, contorno 0,235, luz mínima 0,045, 209 ms de 5000",
+      "portao": "saturação p95 0,185, contorno 0,235, luz mínima 0,045, 287 ms de 5000",
       "icone": "quatro portas estreitas lado a lado com venezianas",
       "palavrasDeBusca": [
         "armário",
@@ -211,6 +251,9 @@
         "cadeado",
         "presídio",
         "academia"
+      ],
+      "mudancasDoDiretor": [
+        "Aprovado como estava; só o contraste das venezianas baixou ~25%: a fresta escura de alfa 0,9 para 0,68 e a aba clara de tom 1,08 para 1,025 (a porta tem 0,86). Ficaram 5 aletas em cima e 4 embaixo."
       ],
       "paraOIntegrador": "Versão do armário de ferro: a fileira de quatro portas estreitas, a frente para baixo no giro 0. Os números e as venezianas são desenhados na frente, que é da 3/4. A frente que só a 3/4 vê sai por soNaTresQuartos (apoioDoBanheiroModerno.ts) e só vale SEM GIRO; girado, o objeto fica com a 3/4 derivada pura (o corpo e o tampo sobem, a frente fica lisa). Nada lê c.giro. Importa andaimeDaTresQuartos.ts e apoioDoBanheiroModerno.ts. Grupo sugerido: esporteELazer (vestiário); a outra casa possível é baseMilitar, ao lado do armário de ferro."
     },
@@ -231,15 +274,15 @@
       "exportacoesExtras": null,
       "folha": "docs/design/objetos/cadeira-de-plastico.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Plástico injetado azul apagado (#67829b), com o azul escuro (#3a4856) nas fendas e nas costuras, o brilho mole do plástico e o furo de dreno no meio do assento.",
-      "perfil3x4": "DERIVADO com o perfil padrão: o assento é tampo solto, o encosto sobe solto e as pernas são colunas",
+      "coresFixas": "Plástico injetado azul apagado (#6d8496, saturação ~0,27), com o azul escuro (#404b56) nas fendas do encosto e no escuro levantado, o assento côncavo em degradê e o brilho mole do plástico.",
+      "perfil3x4": "DERIVADO com o perfil padrão: o assento é tampo solto, o encosto é coluna (o assento cobre o pé dela), os montantes sobem com o assento e as pernas são colunas",
       "comportamento": {
         "ehMovelDoChao": false,
         "barra": false,
         "tapa": false
       },
       "luzSugerida": null,
-      "portao": "saturação p95 0,340, contorno 0,232, luz mínima 0,044, 73 ms de 5000",
+      "portao": "saturação p95 0,280, contorno 0,232, luz mínima 0,044, 101 ms de 5000",
       "icone": "assento quadrado com o encosto em arco",
       "palavrasDeBusca": [
         "cadeira",
@@ -250,7 +293,15 @@
         "visita",
         "presídio"
       ],
-      "paraOIntegrador": "Versão da cadeira: o encosto fica na beira de cima no giro 0 (a cadeira olha para baixo). Como a cadeira, sugestão: não barra nem tapa. A frente que só a 3/4 vê sai por soNaTresQuartos (apoioDoBanheiroModerno.ts) e só vale SEM GIRO; girado, o objeto fica com a 3/4 derivada pura (o corpo e o tampo sobem, a frente fica lisa). Nada lê c.giro. Importa apoioDoBanheiroModerno.ts."
+      "mudancasDoDiretor": [
+        "Saíram o furo do meio e o quadro de dentro: o assento é CÔNCAVO (degradê radial, o meio mais escuro e a beira mais clara, a parede da cova virada para a luz mais clara), com a aba curta que dobra para baixo na frente e o vinco claro da dobra.",
+        "De cima, os dois montantes de trás (no mesmo azul) ligam o encosto ao assento, e o encosto deita a sombra no assento (projeção de 3,2 px).",
+        "AZUL de #67829b para #6d8496 (saturação ~0,27); o azul escuro foi para #404b56."
+      ],
+      "decisoesDoClaude": [
+        "De cima o encosto quase encosta no assento, então os montantes aparecem como dois tocos curtos nos cantos de trás do assento. Na 3/4 eles sobem com o assento."
+      ],
+      "paraOIntegrador": "Versão da cadeira: o encosto fica na beira de cima no giro 0 (a cadeira olha para baixo). Como a cadeira, sugestão: não barra nem tapa. As fendas do encosto são da 3/4 sem giro (soNaTresQuartos); girada, a placa fica lisa. Nada lê c.giro. Importa andaimeDaTresQuartos.ts e apoioDoBanheiroModerno.ts."
     },
     {
       "numero": 97,
@@ -269,7 +320,7 @@
       "exportacoesExtras": null,
       "folha": "docs/design/objetos/maquina-de-lavar.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Inox escovado da geladeira.ts no tampo e no corpo, o painel grafite (#585d61) com o visor verde-cinza (#78886f) e o 40 de temperatura, o botão vermelho (#a3554b) de parar, a porta redonda de vidro no aro de cromo com a roupa no tambor e a etiqueta (#d2c99e) colada.",
+      "coresFixas": "Inox escovado da geladeira.ts no tampo e no corpo (com 40% menos contraste), o painel grafite (#585d61) com o visor verde-cinza (#78886f) e o 40 de temperatura, o botão vermelho (#a3554b) de parar, a porta redonda de vidro no aro de cromo com a roupa no tambor (de cima, só a lente fina do aro) e a etiqueta (#d2c99e) colada.",
       "perfil3x4": "DERIVADO com o perfil padrão: o corpo é coluna e o tampo sobe com ele",
       "comportamento": {
         "ehMovelDoChao": false,
@@ -277,7 +328,7 @@
         "tapa": false
       },
       "luzSugerida": null,
-      "portao": "saturação p95 0,157, contorno 0,234, luz mínima 0,044, 156 ms de 5000",
+      "portao": "saturação p95 0,157, contorno 0,234, luz mínima 0,044, 146 ms de 5000",
       "icone": "quadrado com a porta redonda de vidro",
       "palavrasDeBusca": [
         "máquina de lavar",
@@ -287,6 +338,11 @@
         "industrial",
         "presídio",
         "hotel"
+      ],
+      "mudancasDoDiretor": [
+        "De cima, o disco branco da porta saliente virou uma lente fina de cromo: 1,4 px de altura (o teto era 1,5), tom 0,85, contorno no tom escuro do cromo, a sombra de contato embaixo, colada na frente do corpo.",
+        "O escovado do tampo e da frente tem 40% menos contraste (texEscovadoSuave: a variação do da geladeira x 0,6).",
+        "A 3/4 ficou como estava."
       ],
       "paraOIntegrador": "Objeto novo: a lavadora de frente (porta redonda), de lavanderia coletiva. A frente para baixo no giro 0. A frente que só a 3/4 vê sai por soNaTresQuartos (apoioDoBanheiroModerno.ts) e só vale SEM GIRO; girado, o objeto fica com a 3/4 derivada pura (o corpo e o tampo sobem, a frente fica lisa). Nada lê c.giro. Importa andaimeDaTresQuartos.ts, geladeira.ts e apoioDoBanheiroModerno.ts. Grupo sugerido: banheiro, onde já está o cesto de roupa."
     },
@@ -309,7 +365,7 @@
       ],
       "folha": "docs/design/objetos/leito-hospitalar.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Colchão de napa azul (#5c788e) com a costura (#384a59) e o cobertor dobrado no pé com as listras (#4f5356), travesseiro branco, a armação de tubo esmaltado branco com as juntas de níquel, as rodinhas de borracha e a prancheta do prontuário (#7d6b52) pendurada no pé.",
+      "coresFixas": "Colchão de napa azul (#5c788e) com a costura (#384a59) e o cobertor dobrado no pé com as listras (#4f5356), travesseiro branco, a armação de tubo esmaltado branco com as juntas de níquel, o estrado de aço escuro (#585d61), as rodinhas de borracha e a prancheta do prontuário (#7d6b52) pendurada no pé.",
       "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_COLCHAO_DO_LEITO } (0,09 casa)",
       "comportamento": {
         "ehMovelDoChao": false,
@@ -317,7 +373,7 @@
         "tapa": false
       },
       "luzSugerida": null,
-      "portao": "saturação p95 0,355, contorno 0,234, luz mínima 0,045, 78 ms de 5000",
+      "portao": "saturação p95 0,355, contorno 0,234, luz mínima 0,045, 121 ms de 5000",
       "icone": "cama comprida com o travesseiro em cima e a grade no pé",
       "palavrasDeBusca": [
         "leito",
@@ -328,7 +384,17 @@
         "prontuário",
         "presídio"
       ],
-      "paraOIntegrador": "Versão da maca com lençol, para a enfermaria do presídio: a cabeceira fica na beira de cima no giro 0. Com giro ficam os postes, os tubos e as grades; as barras da cabeceira e do pé, a prancheta e as rodinhas são da 3/4 sem giro (soNaTresQuartos). Nada lê c.giro. Importa andaimeDaTresQuartos.ts, apoioDoNecroterio.ts e apoioDoBanheiroModerno.ts."
+      "mudancasDoDiretor": [
+        "O risco comprido da napa saiu: fica um reflexo largo e suave só no terço de cima, a 40% do alfa de antes (0,1 para 0,04).",
+        "Na 3/4, o estrado de tubo debaixo do colchão: a faixa de aço escuro de 0,06 casa logo abaixo da beirada da frente, de poste a poste, e os tubos de lado correndo junto do colchão até o poste do pé.",
+        "Na 3/4, as quatro rodinhas (antes só as do pé apareciam).",
+        "De cima, as quatro rodinhas como pontos escuros nos cantos, despontando debaixo das bolas dos postes, com um brilho pequeno."
+      ],
+      "decisoesDoClaude": [
+        "Na 3/4 oblíqua as rodinhas da cabeceira caem atrás das grades. Para aparecerem, o garfo delas vira para fora (1,3 px, como roda de rodízio girada) e a roda é um nada menor que a do pé (raio 1,7 contra 1,9).",
+        "As rodinhas de cima passam ~1 px da pegada nos cantos: dentro dela ficavam inteiras debaixo das bolas. São peças só de cima (sobem num pino baixo e a textura as apaga na 3/4)."
+      ],
+      "paraOIntegrador": "Versão da maca com lençol, para a enfermaria do presídio: a cabeceira fica na beira de cima no giro 0. Com giro ficam os postes, os tubos e as grades; as barras da cabeceira e do pé, a prancheta, o estrado e as quatro rodinhas são da 3/4 sem giro (soNaTresQuartos). De cima as rodinhas despontam nos quatro cantos, um nada fora da pegada. Nada lê c.giro. Importa andaimeDaTresQuartos.ts, apoioDoNecroterio.ts e apoioDoBanheiroModerno.ts."
     },
     {
       "numero": 99,
@@ -349,7 +415,7 @@
       ],
       "folha": "docs/design/objetos/mesa-com-computador.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Tampo de fórmica bege (#bcb6a8) com a borda escura (#605c57), o gaveteiro de metal, o monitor e o teclado de plástico grafite (#35383b e #46494d), o mouse no tapete (#404851), a pasta de papel (#c0a87a) com as folhas, o carimbo de madeira e a tela azul apagada do sistema.",
+      "coresFixas": "Tampo de fórmica bege (#bcb6a8) com a borda escura (#605c57, também no canto do painel do pé), o gaveteiro de metal, o monitor e o teclado de plástico grafite (#35383b e #46494d), o mouse no tapete (#404851), a pasta de papel (#c0a87a) com as folhas, o carimbo de madeira, as canetas em cores apagadas (#526280, #8a5850, #36383b) e a tela azul apagada do sistema.",
       "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_MESA_COM_COMPUTADOR } (0,045 casa)",
       "comportamento": {
         "ehMovelDoChao": false,
@@ -357,7 +423,7 @@
         "tapa": false
       },
       "luzSugerida": "opcional: { alcanceEmCasas: 0.8, cor: 0x9fc4e0, forca: 0.15, fumacaEBrasas: false } (a tela do monitor; sem luz o desenho já funciona)",
-      "portao": "saturação p95 0,286, contorno 0,235, luz mínima 0,045, 62 ms de 5000",
+      "portao": "saturação p95 0,286, contorno 0,234, luz mínima 0,044, 90 ms de 5000",
       "icone": "mesa com o monitor na beira de cima e o teclado na frente",
       "palavrasDeBusca": [
         "computador",
@@ -369,7 +435,16 @@
         "delegacia",
         "presídio"
       ],
-      "paraOIntegrador": "Versão da escrivaninha: o monitor fica na beira de cima no giro 0 e o gaveteiro à direita. O monitor sobe em fatias empilhadas (cada uma um pouco mais rasa), então o corpo dele fica em pé em todos os giros; a tela acesa e a frente do gaveteiro são da 3/4 sem giro (soNaTresQuartos). Nada lê c.giro. Importa andaimeDaTresQuartos.ts, apoioDoNecroterio.ts e apoioDoBanheiroModerno.ts."
+      "mudancasDoDiretor": [
+        "De cima, o monitor tem a tampa de trás em trapézio arredondado (larga junto da tela, estreita atrás), a base redonda na frente e a sombra mais firme (projeção de 2 px, força 0,42, na tampa e na fatia de cima).",
+        "O porta-lápis tem as três canetas inclinadas para fora da boca do copo, traços de 3,4 a 3,9 px em cores apagadas, com a tampa mais clara na ponta.",
+        "Na 3/4, o pé da esquerda virou painel de fórmica: a fita de borda (#605c57) de 1,5 px, do tampo ao chão, na mesma linha de chão do gaveteiro."
+      ],
+      "decisoesDoClaude": [
+        "O cabo do monitor agora sai de debaixo da tampa de trás para o passa-cabo (antes saía do meio da tela).",
+        "Canetas: azul #526280, vermelho #8a5850 e preto #36383b (antes #485c86, #984b45 e #2e3033)."
+      ],
+      "paraOIntegrador": "Versão da escrivaninha: o monitor fica na beira de cima no giro 0 e o gaveteiro à direita. O monitor sobe em fatias empilhadas (cada uma um pouco mais rasa) e a tampa de trás sobe com a de cima, então o corpo dele fica em pé em todos os giros; a tela acesa, a frente do gaveteiro e o canto do painel do pé são da 3/4 sem giro (soNaTresQuartos). Nada lê c.giro. Importa andaimeDaTresQuartos.ts, apoioDoNecroterio.ts e apoioDoBanheiroModerno.ts."
     },
     {
       "numero": 100,
@@ -388,7 +463,7 @@
       "exportacoesExtras": null,
       "folha": "docs/design/objetos/cerca-de-alambrado.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Arame galvanizado (#8d9293) e tubo de zinco (#9ca1a2): a tela em losango, os mourões com tampa, o travessão de cima, as amarras e a ourela torcida. Quase sem cor (saturação p95 0,04): é a cerca que some no mapa e deixa ver o outro lado.",
+      "coresFixas": "Arame galvanizado (#7e8486, mais escuro que o tubo, com a luz só no lado de cima de cada fio) e tubo de zinco (#9ca1a2): a tela em losango, os mourões com tampa, o travessão de cima, as amarras e a ourela torcida. Quase sem cor (saturação p95 0,045): é a cerca que some no mapa e deixa ver o outro lado.",
       "perfil3x4": "DERIVADO com o perfil padrão; as tiras da tela e o travessão sobem em estruturas de ponto exato (sem beirada pintada), então a tela fica vazada na 3/4",
       "comportamento": {
         "ehMovelDoChao": false,
@@ -396,7 +471,7 @@
         "tapa": false
       },
       "luzSugerida": null,
-      "portao": "saturação p95 0,042, contorno 0,235, luz mínima 0,045, 115 ms de 5000",
+      "portao": "saturação p95 0,045, contorno 0,234, luz mínima 0,045, 158 ms de 5000",
       "icone": "faixa de losangos entre dois mourões",
       "palavrasDeBusca": [
         "alambrado",
@@ -408,7 +483,17 @@
         "presídio",
         "cerca"
       ],
-      "paraOIntegrador": "Versão da cerca de ferro. BARRA A PASSAGEM E NÃO TAPA A VISÃO (pedido do lote): entra em ehMovelQueBarra e fica fora do que tapa. LÊ c.giro (paraCima): entra na lista dos que recebem o giro, como a cerca de ferro. Esticada, reparte os vãos pelo comprimento (um mourão a cada PASSO_DOS_MOUROES casa); o mourão de cada ponta tem o meio na ponta da pegada, então dois trechos encostados dividem o mourão. De cima a tela é a sombra em losango arrastada na direção da luz. Importa andaimeDaTresQuartos.ts e apoioDoBanheiroModerno.ts. Grupo sugerido: ruaEJardim, ao lado da cerca; a outra casa possível é baseMilitar, ao lado da cancela."
+      "mudancasDoDiretor": [
+        "Tela mais aberta e fio mais grosso: PASSO_DA_TELA de 2,8 para 4,5 px e RAIO_DO_FIO de 0,2 para 0,26; o arame em #7e8486, com a luz só no lado de cima de cada fio.",
+        "Amarras: PASSO_DAS_AMARRAS de 9 para 22 px, mais uma junto de cada mourão (a 3 px dele), desenhadas como cinta estreita atravessando o tubo.",
+        "RAIO_DO_TRAVESSAO de 1,05 para 1,4 e RAIO_DA_TAMPA de 1,75 para 2,2; a força do losango da sombra +30% (0,2 para 0,26).",
+        "O trecho de 2 casas ganhou o mourão do meio (PASSO_DOS_MOUROES de 2 para 1)."
+      ],
+      "decisoesDoClaude": [
+        "RAIO_DO_MOURAO de 1,35 para 1,6: com o travessão a 1,4 o mourão ficava mais fino que ele, ao contrário da cerca de verdade.",
+        "O losango da sombra acompanha a tela: 4,5 px ao comprido (era 3,6) e 3 de través (era 2,4)."
+      ],
+      "paraOIntegrador": "Versão da cerca de ferro. BARRA A PASSAGEM E NÃO TAPA A VISÃO (pedido do lote): entra em ehMovelQueBarra e fica fora do que tapa. LÊ c.giro (paraCima): entra na lista dos que recebem o giro, como a cerca de ferro. Esticada, reparte os vãos pelo comprimento (um mourão a cada casa: o trecho de 2 casas tem o do meio); o mourão de cada ponta tem o meio na ponta da pegada, então dois trechos encostados dividem o mourão. De cima a tela é a sombra em losango arrastada na direção da luz. Importa andaimeDaTresQuartos.ts e apoioDoBanheiroModerno.ts. Grupo sugerido: ruaEJardim, ao lado da cerca; a outra casa possível é baseMilitar, ao lado da cancela."
     }
   ]
 }

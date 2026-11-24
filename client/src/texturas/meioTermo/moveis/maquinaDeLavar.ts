@@ -3,7 +3,9 @@
  * INDUSTRIAL da lavanderia, de abrir pela frente, toda de inox escovado. De cima aparecem o tampo com a caixa do sabão
  * de quatro tampinhas (atrás, à esquerda) e a grade de respiro (atrás, à direita), os parafusos dos cantos e, na
  * frente, o PAINEL escuro um degrau mais alto: o seletor redondo, o visor verde apagado marcando 40, os quatro botões
- * e o botão vermelho de EMERGÊNCIA no aro amarelo. Na beira da frente desponta o aro de cromo da porta redonda.
+ * e o botão vermelho de EMERGÊNCIA no aro amarelo. Na beira da frente desponta, colada ao corpo, a lente fina de
+ * cromo da porta redonda (o alto do aro, no tom escuro do cromo, com a sombra de contato embaixo). O escovado do
+ * tampo e da frente tem 40% menos contraste que o da geladeira: lá ele fazia faixas.
  *
  * NA 3/4 A FRENTE É DESENHADA (`soNaTresQuartos`, sem giro): a PORTA REDONDA de vidro no aro grosso de cromo, a
  * borracha, o tambor furadinho lá dentro com a roupa caída no fundo (o cáqui e o cinza do uniforme), o reflexo curvo
@@ -32,6 +34,13 @@ const PORTA = { raio: 16.5, cromo: 3.6, borracha: 1.4, meio: 0.46 } as const
 /** O passo dos furos do tambor e o raio de cada furo (px). */
 const FURO = { passo: 1.8, raio: 0.36 } as const
 const BRILHO_DO_ACO = 0.38
+/** O quanto sobra do contraste do escovado da geladeira (no tampo e na frente, o dela fazia faixas). */
+const CONTRASTE_DO_ESCOVADO = 0.6
+/**
+ * A lente da porta vista de cima: o alto do aro de cromo despontando, colado na frente do corpo. A meia largura (em
+ * fração do raio da porta), a altura (no máximo 1,5 px), o tom, o brilho e o contorno escuro do cromo.
+ */
+const LENTE = { largura: 0.92, altura: 1.4, tom: 0.85, brilho: 0.45, contorno: 0.42 } as const
 
 /** O painel (plástico grafite), a borracha, o visor de cristal líquido apagado, o tambor e as tintas do painel. */
 const GRAFITE: MaterialDaPeca = { classe: 'liso', rgb: [0x58, 0x5d, 0x61] }
@@ -60,6 +69,13 @@ function algarismo(n: number, cx: number, cy: number, mx: number, my: number, r:
   return tracos.length === 0 ? null : tracos.reduce(uniao)
 }
 
+/** O escovado da geladeira com menos contraste: só a variação dele é encolhida. */
+const texEscovadoSuave: Textura = (u, v, x, y, p, s, escala) => {
+  const antes = s[3]
+  texEscovado(u, v, x, y, p, s, escala)
+  s[3] = antes + (s[3] - antes) * CONTRASTE_DO_ESCOVADO
+}
+
 /** O tambor visto pelo vidro: a chapa furadinha, mais escura para a beira (é fundo e côncavo). */
 function texturaDoTambor(cx: number, cy: number, raio: number): Textura {
   return (_u, _v, x, y, _p, s, escala) => {
@@ -82,13 +98,13 @@ export const montarMaquinaDeLavar: MontarMovel = (c, cena) => {
   const painel = caixa(-hw + 0.6, yFrente - FUNDURA_DO_PAINEL, hw - 0.6, yFrente, 1.2)
   const yPorta = yFrente - H * PORTA.meio
   const R = PORTA.raio
-  // O aro visto de cima, na beira da frente: sobe num pino até o alto da porta.
-  const yAro = hh - 1.3
+  // A lente do aro vista de cima, colada na frente do corpo: sobe num pino até o alto da porta.
+  const yAro = yFrente + LENTE.altura / 2
   const zAro = yAro - (yPorta - R)
   cena.sombras.push({ forma: corpo, z: H }, { forma: painel, z: H + g * DEGRAU_DO_PAINEL, forca: 0.1 }, contato(corpo, 0.34), solta(pino(0, yAro), zAro))
 
   const L = cena.partes
-  const aco = { tabua: 0, metal: BRILHO_DO_ACO, textura: texEscovado }
+  const aco = { tabua: 0, metal: BRILHO_DO_ACO, textura: texEscovadoSuave }
   const cromo = { tabua: 0, metal: BRILHO_DO_CROMO }
   const liso = { tabua: 0, bisel: 0, contorno: 0 }
 
@@ -134,8 +150,11 @@ export const montarMaquinaDeLavar: MontarMovel = (c, cena) => {
   L.push(P(elipse(19.5, yP, 3.3, 3.3), AMARELO, { tabua: 0, bisel: 0.6, contorno: 0.28, semente: 10231 }))
   L.push(P(elipse(19.5, yP, 2.3, 2.3), VERMELHO, { tabua: 0, bisel: 1.8, contorno: 0.3, semente: 10232, projeta: { dist: 0.7, forca: 0.3 } }))
 
-  // O aro de cromo da porta despontando na beira da frente (sobe no pino até o alto da porta).
-  L.push(P(dentroDe(elipse(0, yAro, R, 1.9), caixa(-R, yFrente - 0.6, R, hh)), CROMO, { ...cromo, bisel: 0.9, contorno: 0.3, semente: 10240 }))
+  // A sombra de contato debaixo da lente (fica no chão) e a LENTE fina de cromo, colada na frente do corpo (o meio
+  // dela é o do pino: sobe até o alto da porta, onde a 3/4 a cobre com o aro desenhado).
+  const rLente = R * LENTE.largura
+  L.push(P(dentroDe(elipse(0.6, yFrente + 1, rLente + 0.8, 1.9), caixa(-R - 1, yFrente + 0.4, R + 1, hh + 1)), ESCURO, { ...liso, alfa: 0.32, suave: 0.8, semente: 10239 }))
+  L.push(P(dentroDe(elipse(0, yFrente, rLente, LENTE.altura), caixa(-rLente, yFrente, rLente, yFrente + LENTE.altura)), CROMO, { tabua: 0, metal: LENTE.brilho, bisel: 0.5, tom: LENTE.tom, contorno: LENTE.contorno, semente: 10240 }))
 
   // A FRENTE, que só a 3/4 vê (o chão da frente em `yFrente`, para cima negativo).
   const topo = yFrente - H
