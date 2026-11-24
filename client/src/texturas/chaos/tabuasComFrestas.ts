@@ -2,12 +2,14 @@ import { empacotar, hash, luz, misturar, passoSuave, rgb, valor, type Rgb } from
 
 /**
  * TÁBUAS COM FRESTAS (lista de 24/11/2026, item 115; forma no cartão Pisos de madeira; mapa 3): o assoalho velho de
- * barraco e de casa de tábua, TRÊS tábuas largas por casa (a Madeira velha tem quatro), de um pardo mais escuro e mais
- * quente que o cinza da Madeira velha, e FRESTAS: em uma de cada três juntas compridas a tábua encolheu e abriu um
- * vão largo e escuro, que alarga e estreita ao longo dela (a tábua empenada). No vão, a sombra da tábua de cima
- * escurece a metade de cima e a de baixo fica um nada mais clara; a beirada de cima da tábua de baixo pega a luz.
- * As outras juntas ficam fechadas e finas. Nós escuros, rachas que nascem nas pontas e uma ou outra tábua úmida, como
- * na Madeira velha; as emendas das pontas desencontradas fila a fila.
+ * barraco e de casa de tábua, TRÊS tábuas largas por casa (a Madeira velha tem quatro), de pardos bem separados, mais
+ * escuros e mais quentes que o cinza da Madeira velha, de veio aberto, e FRESTAS. A fresta é POR TÁBUA: o encontro de
+ * uma tábua com a da fila de baixo sorteia se abre (uns 40%) e a largura dele, e o vão fecha de novo na junta fina a
+ * 0,3 casa da ponta de qualquer das duas (a tábua encolheu no meio). Assim as frestas são traços de umas 2 a 4 casas,
+ * desencontrados, e nunca uma listra correndo a fila inteira. No vão, a beira da tábua de cima projeta a sombra em
+ * uns 40% dele e o resto mostra o fundo, um nada mais claro: o vão tem fundura e não é um traço chapado. A beirada de
+ * cima da tábua pega a luz. As outras juntas ficam fechadas e finas. Nós escuros, rachas que nascem nas pontas e uma
+ * ou outra tábua úmida, como na Madeira velha; as emendas das pontas desencontradas fila a fila.
  *
  * O vão é largo mas raso de contraste (a fresta é o pardo mais fundo, nunca preto): a regra das texturas de chão
  * (`embutidas.test.ts`) quer a junta macia, e três tábuas por casa já são 24 juntas no ladrilho.
@@ -30,12 +32,15 @@ const SEM_PERIODO = 1 << 20
 const PASSO_DO_INICIO = 4096
 const PRIMO_DA_FILA = 7919
 
-/** O pardo do tempo, mais escuro e quente que o da Madeira velha (croma ~0,1). Cinco tons vizinhos, um por tábua. */
-const TONS: readonly Rgb[] = [rgb('#6e6152'), rgb('#736556'), rgb('#695c4e'), rgb('#76695a'), rgb('#65584a')]
+/**
+ * O pardo do tempo, mais escuro e quente que o da Madeira velha (croma ~0,1). Três tons bem separados, um por tábua:
+ * com tons vizinhos o piso saía liso e sumia perto da Madeira velha.
+ */
+const TONS: readonly Rgb[] = [rgb('#7a6a55'), rgb('#615446'), rgb('#6e5d4b')]
 const UMIDO: Rgb = rgb('#554a3e')
 const NO: Rgb = rgb('#3f362d')
-/** O fundo da fresta: o pardo mais fundo, nunca preto; a metade de cima na sombra da tábua, a de baixo um nada mais clara. */
-const FRESTA: Rgb = rgb('#2a221c')
+/** O fundo da fresta: o pardo mais fundo, nunca preto; a parte de cima na sombra da tábua, a de baixo um nada mais clara. */
+const FRESTA: Rgb = rgb('#33291f')
 const SOMBRA_DA_FRESTA = luz(FRESTA, -0.12)
 const FUNDO_DA_FRESTA = luz(FRESTA, 0.14)
 
@@ -50,19 +55,25 @@ const CHANCE_DA_RACHA = 0.4
 const LARGURA_DA_RACHA = 0.06
 const ESCURO_DA_RACHA = 0.3
 const VARIACAO_DA_TABUA = 0.09
-const VEIO = 0.05
+const VEIO = 0.09
 const MANCHA = 0.06
 const PERIODO_DA_ASPEREZA = 256
 const ASPEREZA = 0.02
 /**
- * A fresta aberta: uma junta comprida em quantas, a meia largura dela (casas: o vão inteiro tem de 4 a 10 cm na
- * tábua de 50) e o quanto ela alarga e estreita ao longo (voltas inteiras no ladrilho, para a emenda fechar).
+ * A fresta aberta: em quantos encontros de duas tábuas (a de cima e a da fila de baixo), a meia largura de cada
+ * encontro (casas: o vão inteiro tem de 5 a 9 cm na tábua de 50) e o quanto ela alarga e estreita ao longo (voltas
+ * inteiras no ladrilho, para a emenda fechar).
  */
-const FRESTA_ABERTA = { chance: 0.34, meia: 0.03, varia: 0.014, ondas: 6 } as const
+const FRESTA_ABERTA = { chance: 0.4, meia: [0.024, 0.04] as const, varia: 0.006, ondas: 6 } as const
+/** A fresta fecha na junta fina perto da ponta de qualquer das duas tábuas: daqui (casas) para dentro ela abre. */
+const FECHA_NA_PONTA = 0.3
+/** A sombra da beira da tábua de cima cobre esta fração do vão (com a passagem macia); o resto é o fundo. */
+const SOMBRA_NO_VAO = { ate: 0.4, macio: 0.06 } as const
 /** A meia largura da junta fechada e da junta da ponta, em casas, e o macio da beira do vão. */
 const JUNTA_FECHADA = 0.009
-/** O quanto a junta fechada puxa para o fundo da fresta (a aberta puxa inteiro). */
+/** O quanto a junta fechada puxa para o fundo da fresta (a aberta puxa inteiro), e onde ela já conta como aberta. */
 const FORCA_DA_FECHADA = 0.38
+const ABRINDO = 0.008
 const JUNTA_DA_PONTA = 0.012
 const MACIO = 0.005
 /** A beirada da tábua: a de cima pega a luz, a de baixo cai na sombra (faixa em casas, força). */
@@ -124,11 +135,46 @@ function emendas(): readonly Float64Array[] {
   return filas
 }
 
-/** A meia largura da junta comprida de baixo da fila `fila` no ponto `uu` do ladrilho, em casas. */
+/** A tábua da fila `fila` no ponto `uu` do ladrilho: o número dela, onde o ponto está nela e o comprimento (casas). */
+interface TabuaNoPonto {
+  readonly tabua: number
+  readonly lx: number
+  readonly comprimento: number
+}
+
+function tabuaEm(fila: number, uu: number): TabuaNoPonto {
+  const doFila = emendas()[fila]
+  let k = doFila.length - 1
+  for (let i = 0; i < doFila.length; i += 1) if (doFila[i] <= uu) k = i
+  const inicio = doFila[k]
+  const fim = doFila[(k + 1) % doFila.length]
+  return { tabua: Math.round(inicio * PASSO_DO_INICIO) + fila * PRIMO_DA_FILA, lx: naVolta(uu - inicio) * CASAS, comprimento: (naVolta(fim - inicio) || 1) * CASAS }
+}
+
+/**
+ * A meia largura da junta comprida entre a fila `fila` e a de baixo, no ponto `uu` do ladrilho, em casas. A fresta é
+ * do ENCONTRO das duas tábuas (a sorte e a largura saem das duas), e fecha perto da ponta de qualquer uma delas.
+ */
 function meiaJuntaAbaixo(fila: number, uu: number): number {
-  if (hash(fila, 0, SEMENTE + 20) >= FRESTA_ABERTA.chance) return JUNTA_FECHADA
-  const aoLongo = valor(uu * FRESTA_ABERTA.ondas, 0.5, FRESTA_ABERTA.ondas, SEMENTE + 30 + fila)
-  return FRESTA_ABERTA.meia + (aoLongo - 0.5) * 2 * FRESTA_ABERTA.varia
+  const cima = tabuaEm(fila, uu)
+  const baixo = tabuaEm((fila + 1) % FILAS, uu)
+  if (hash(cima.tabua, baixo.tabua, SEMENTE + 20) >= FRESTA_ABERTA.chance) return JUNTA_FECHADA
+  const larga = FRESTA_ABERTA.meia[0] + (FRESTA_ABERTA.meia[1] - FRESTA_ABERTA.meia[0]) * hash(cima.tabua, baixo.tabua, SEMENTE + 21)
+  const aoLongo = valor(uu * FRESTA_ABERTA.ondas, 0.5, FRESTA_ABERTA.ondas, SEMENTE + 30 + fila) - 0.5
+  const ponta = Math.min(cima.lx, cima.comprimento - cima.lx, baixo.lx, baixo.comprimento - baixo.lx)
+  const aberta = larga + aoLongo * 2 * FRESTA_ABERTA.varia
+  return JUNTA_FECHADA + (aberta - JUNTA_FECHADA) * passoSuave(0, FECHA_NA_PONTA, ponta)
+}
+
+/** O quanto a junta puxa para a cor do vão: a fechada só um fio pardo, a aberta inteira. */
+function forcaDaJunta(meia: number): number {
+  return FORCA_DA_FECHADA + (1 - FORCA_DA_FECHADA) * passoSuave(JUNTA_FECHADA, JUNTA_FECHADA + ABRINDO, meia)
+}
+
+/** A cor do vão na fração `f` dele, de cima (0) para baixo (1): a sombra da tábua de cima e depois o fundo. */
+function corDoVao(f: number, sujeira: number): Rgb {
+  const fundo = passoSuave(SOMBRA_NO_VAO.ate - SOMBRA_NO_VAO.macio, SOMBRA_NO_VAO.ate + SOMBRA_NO_VAO.macio, f)
+  return luz(misturar(SOMBRA_DA_FRESTA, FUNDO_DA_FRESTA, fundo), sujeira)
 }
 
 function distanciaAoNo(tabua: number, n: number, lx: number, fy: number, comprimento: number): number {
@@ -160,14 +206,7 @@ export function texturaTabuasComFrestas(u: number, v: number): number {
   const y = naVolta(v) * FILAS + 0.5
   const fila = Math.floor(y) % FILAS
   const fy = y - Math.floor(y)
-  const doFila = emendas()[fila]
-  let k = doFila.length - 1
-  for (let i = 0; i < doFila.length; i += 1) if (doFila[i] <= uu) k = i
-  const inicio = doFila[k]
-  const fim = doFila[(k + 1) % doFila.length]
-  const lx = naVolta(uu - inicio) * CASAS
-  const comprimento = (naVolta(fim - inicio) || 1) * CASAS
-  const tabua = Math.round(inicio * PASSO_DO_INICIO) + fila * PRIMO_DA_FILA
+  const { tabua, lx, comprimento } = tabuaEm(fila, uu)
   const tom = TONS[Math.floor(hash(tabua, fila, SEMENTE + 2) * TONS.length) % TONS.length]
   const id = tabua * 4 + SEMENTE
   let claro = 1 + (hash(tabua, fila, SEMENTE + 3) - 0.5) * VARIACAO_DA_TABUA
@@ -202,13 +241,13 @@ export function texturaTabuasComFrestas(u: number, v: number): number {
   const b = (tom[2] + (UMIDO[2] - tom[2]) * umidade) * (1 - no) + NO[2] * no
   let c: Rgb = [r * claro, g * claro, b * claro]
 
-  // O vão: a metade de cima do vão de baixo na sombra; a metade de baixo do vão de cima, o fundo um nada mais claro.
-  // A junta fechada é só um fio pardo: o vão escuro inteiro fica para a fresta aberta.
-  const naFrestaDeCima = passoSuave(MACIO, -MACIO, dCima) * (meiaDeCima > JUNTA_FECHADA ? 1 : FORCA_DA_FECHADA)
-  const naFrestaDeBaixo = passoSuave(MACIO, -MACIO, dBaixo) * (meiaDeBaixo > JUNTA_FECHADA ? 1 : FORCA_DA_FECHADA)
+  // O vão: cada fila pinta a metade dele que cai nela. A fração `f` conta de cima para baixo do vão inteiro: a beira
+  // da tábua de cima faz sombra em uns 40% e o resto mostra o fundo. A junta fechada é só um fio pardo.
+  const naFrestaDeCima = passoSuave(MACIO, -MACIO, dCima) * forcaDaJunta(meiaDeCima)
+  const naFrestaDeBaixo = passoSuave(MACIO, -MACIO, dBaixo) * forcaDaJunta(meiaDeBaixo)
   const sujeira = (valor(uu * 128, naVolta(v) * 128, 128, SEMENTE + 12) - 0.5) * 0.2
-  if (naFrestaDeBaixo > 0) c = misturar(c, luz(SOMBRA_DA_FRESTA, sujeira), naFrestaDeBaixo)
-  if (naFrestaDeCima > 0) c = misturar(c, luz(FUNDO_DA_FRESTA, sujeira), naFrestaDeCima)
+  if (naFrestaDeBaixo > 0) c = misturar(c, corDoVao(Math.max(0, -dBaixo) / (2 * meiaDeBaixo), sujeira), naFrestaDeBaixo)
+  if (naFrestaDeCima > 0) c = misturar(c, corDoVao(1 - Math.max(0, -dCima) / (2 * meiaDeCima), sujeira), naFrestaDeCima)
   // A junta da ponta, fechada, com a beirada escurecida.
   const ponta = Math.min(lx, comprimento - lx)
   c = misturar(c, luz(FRESTA, 0.1 + sujeira), passoSuave(JUNTA_DA_PONTA + MACIO, JUNTA_DA_PONTA - MACIO, ponta) * 0.85)

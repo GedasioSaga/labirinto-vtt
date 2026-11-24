@@ -2,9 +2,10 @@ import { empacotar, fbm, hash, luz, luzNaInclinacao, LUZ_NO_PLANO, misturar, pas
 
 /**
  * TIJOLO DE CELA (lista de 24/11/2026, item 112; versão da Rua de tijolos; junta o "tijolo avermelhado" dos
- * corredores do mapa 4 e o chão das celas do mapa 2): tijolo MIÚDO, de 1/5 x 2/5 de casa (a Rua usa 1/3 x 2/3),
- * escuro e encardido, puxando para o vinho, assentado em fiadas corridas com a fiada de baixo meio tijolo adiante (e
- * um nada fora do lugar: assentado à mão). Cada tijolo de uma queima (um mais roxo, um mais pardo, um ou outro bem
+ * corredores do mapa 4 e o chão das celas do mapa 2): tijolo MIÚDO, de 1/4 x 1/2 de casa (a Rua usa 1/3 x 2/3; com
+ * 1/5 de casa a fiada tinha 6 px na mesa e virava moiré), escuro e encardido, puxando para o vinho encardido (nunca
+ * para o roxo: o azul fica abaixo do verde), assentado em fiadas corridas com a fiada de baixo meio tijolo adiante (e
+ * um nada fora do lugar: assentado à mão). Cada tijolo de uma queima (um mais pardo, um mais vinho, um raro bem
  * queimado e escuro, um raro desbotado), o barro manchado e poroso, os cantos gastos e a borda roída; o ombro de cima
  * à esquerda pega a luz. O ENCARDIDO é largo e por posição: a sujeira escurece e acinzenta trechos inteiros do chão,
  * junta mais na beira de cada tijolo e escurece a junta, que é de argamassa suja, mais escura que o tijolo.
@@ -14,16 +15,16 @@ import { empacotar, fbm, hash, luz, luzNaInclinacao, LUZ_NO_PLANO, misturar, pas
  */
 
 const CASAS = 8
-const FILAS_POR_CASA = 5
+const FILAS_POR_CASA = 4
 const FILAS = CASAS * FILAS_POR_CASA
-/** O tijolo, em casas: 1/5 de altura e o dobro de comprimento. */
+/** O tijolo, em casas: 1/4 de altura e o dobro de comprimento. */
 const ALTURA = 1 / FILAS_POR_CASA
 const COMPRIMENTO = 2 * ALTURA
 const POR_FILA = Math.round(CASAS / COMPRIMENTO)
 const SEMENTE = 11200
 
-/** Meia junta de cada tijolo, em casas (a junta inteira tem uns 4 cm). */
-const MEIA_JUNTA = [0.011, 0.015] as const
+/** Meia junta de cada tijolo, em casas (a junta inteira tem uns 5 cm: larga o bastante para a junta escura se ler). */
+const MEIA_JUNTA = [0.014, 0.018] as const
 /** O canto gasto (raio em casas) e o quanto a borda é roída. */
 const CANTO = [0.01, 0.03] as const
 const ROIDO = 0.0045
@@ -38,19 +39,23 @@ const TORTO = 0.03
 const PASSAGEM = { dentro: -0.006, fora: 0.006 } as const
 /** O tijolo: o quanto foge do tom, o bem queimado, o raro desbotado, a mancha do barro e o poro. */
 const VARIACAO = 0.06
-const QUEIMADO = { chance: 0.09, luz: -0.22 } as const
+/** O bem queimado é raro: com mais, os tijolos pretos salpicavam o chão como furos. */
+const QUEIMADO = { chance: 0.05, luz: -0.22 } as const
 const DESBOTADO = { chance: 0.06, luz: 0.1, tinta: 0.3 } as const
 const MANCHA = 0.04
 const PORO = 0.035
 /** O encardido largo: o quanto acinzenta e escurece onde está; e a sujeira que junta na beira do tijolo. */
-const ENCARDIDO = { tinta: 0.45, escuro: 0.14 } as const
+const ENCARDIDO = { tinta: 0.6, escuro: 0.14 } as const
 const SUJEIRA_NA_BEIRA = { largura: 0.035, forca: 0.07 } as const
 
-/** Barro cor de vinho, escuro e contido (croma ~0,15): o azul nunca abaixo do verde, para puxar ao vinho e não ao telha. */
-const TONS: readonly Rgb[] = [rgb('#563236'), rgb('#5b3539'), rgb('#502f33'), rgb('#5f383a'), rgb('#553437'), rgb('#52323a')]
+/**
+ * Barro cor de vinho encardido, escuro e contido (matiz ~5°, croma ~0,07): o azul nunca acima do verde. Com o azul
+ * acima, a grade virava um tapete magenta.
+ */
+const TONS: readonly Rgb[] = [rgb('#4f3330'), rgb('#553633'), rgb('#4a302e'), rgb('#583935'), rgb('#503432'), rgb('#4d3231')]
 /** O tijolo desbotado e o encardido: o mesmo barro lavado de cinza. */
-const DESBOTADA = rgb('#665052')
-const ENCARDIDA = rgb('#3c3534')
+const DESBOTADA = rgb('#5e4f4b')
+const ENCARDIDA = rgb('#3a3330')
 /** A argamassa suja (mais escura que o tijolo) e a dos trechos encardidos. */
 const COR_DA_JUNTA = rgb('#312a29')
 const JUNTA_SUJA = rgb('#272322')

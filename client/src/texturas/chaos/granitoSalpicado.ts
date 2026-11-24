@@ -16,12 +16,15 @@ import { empacotar, fbm, hash, luz, misturar, passoSuave, rgb, valor, vizinhos, 
 
 const SEMENTE = 11300
 
-/** O cinza-chumbo do granito (um nada azulado, croma 0,03) e as nuvens largas, a escura e a clara. */
+/**
+ * O cinza-chumbo do granito (um nada azulado, croma 0,03) e as nuvens largas, a escura e a clara, bem afastadas: o
+ * corredor comprido respira em manchas largas e não sai chapado como concreto.
+ */
 const BASE = rgb('#56595d')
-const NUVEM_ESCURA = rgb('#4b4e52')
-const NUVEM_CLARA = rgb('#606367')
-/** Os grãos: o quartzo claro (cinza, nunca branco), a mica escura e o meio-tom. */
-const CLARO = rgb('#9b9b96')
+const NUVEM_ESCURA = rgb('#46494d')
+const NUVEM_CLARA = rgb('#64676b')
+/** Os grãos: o quartzo claro (cinza-claro, nunca branco: contável a 32 px por casa), a mica escura e o meio-tom. */
+const CLARO = rgb('#b3b2ab')
 const ESCURO = rgb('#2c2e31')
 const MEIO = rgb('#73767a')
 
@@ -34,30 +37,33 @@ interface Grao {
   readonly forca: number
 }
 
-/** A camada graúda: 11 células por casa. */
+/** A camada graúda: 11 células por casa. O grão claro pesa o dobro dos outros: é ele que se conta na mesa. */
 const GRAUDOS = {
   celulas: 88,
   graos: [
-    { cor: CLARO, ate: 0.17, raio: [0.15, 0.28], forca: 0.72 },
+    { cor: CLARO, ate: 0.24, raio: [0.22, 0.38], forca: 0.85 },
     { cor: ESCURO, ate: 0.41, raio: [0.1, 0.2], forca: 0.66 },
     { cor: MEIO, ate: 0.68, raio: [0.14, 0.26], forca: 0.55 },
   ] as readonly Grao[],
 } as const
-/** A camada miúda: 19 células por casa, mais escura que clara. */
+/**
+ * A camada miúda: 19 células por casa, mais clara que escura (o meio-tom dela engolia o ponto claro da graúda) e
+ * mais fraca: na mesa ela não se conta, só soma chuvisco (e a medida da listra fina do portão).
+ */
 const MIUDOS = {
   celulas: 152,
   graos: [
-    { cor: CLARO, ate: 0.1, raio: [0.12, 0.2], forca: 0.6 },
-    { cor: ESCURO, ate: 0.36, raio: [0.1, 0.18], forca: 0.55 },
-    { cor: MEIO, ate: 0.62, raio: [0.1, 0.2], forca: 0.45 },
+    { cor: CLARO, ate: 0.14, raio: [0.12, 0.2], forca: 0.36 },
+    { cor: ESCURO, ate: 0.24, raio: [0.1, 0.18], forca: 0.34 },
+    { cor: MEIO, ate: 0.44, raio: [0.1, 0.2], forca: 0.24 },
   ] as readonly Grao[],
 } as const
 /** O quanto o ponto do grão foge do meio da célula (0 a 0,5). */
 const FOLGA = 0.42
 /** As nuvens largas e o grão fino de fundo (pixel a pixel, fraco: abaixo dele é chuvisco). */
-const NUVEM = 0.7
+const NUVEM = 1
 const MANCHA = 0.03
-const GRAO_FINO = 0.05
+const GRAO_FINO = 0.02
 
 function naVolta(t: number): number {
   return t - Math.floor(t)
