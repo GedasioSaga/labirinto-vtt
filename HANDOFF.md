@@ -1,3 +1,7 @@
+# 24/11 ~01h20: 0.5.97 PUBLICADA
+
+Bump 1f83393a (origin main); curl latest.json = "0.5.97 .../v0.5.97/Labirinto_0.5.97_x64-setup.exe"; tsc 0/0, vite 0, guarda ok, gitleaks 34 commits limpo; worktree de release removido, node_modules originais 186/66 intactos; disco 6,7 GB. Logs tmp/rel-0.5.97/. EM VOO: tapete grande opção C Vinho (escolha do Claude pela recomendação) + luz no tapete -> 0.5.98; limpeza de worktrees/branches velhas (operario). Golden das camadas da Cegueira ainda não rodado. Seção abaixo = estado antes da publicação.
+
 # 24/11 ~00h30: 0.5.97 PRONTA NA MAIN, PARADA POR DISCO
 
 ## Objetivo
