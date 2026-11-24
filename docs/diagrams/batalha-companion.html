@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Companion na batalha</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-muted); margin-bottom: 0.5rem; }
+    h1 { font-family: var(--font-serif); font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 1.5rem; }
+    .rolagem { overflow-x: auto; }
+    svg { width: 100%; min-width: 900px; display: block; }
+    .notas { margin-top: 1.25rem; font-size: 0.85rem; line-height: 1.5; color: var(--color-muted); max-width: 72ch; }
+    .notas li { margin-left: 1.1rem; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Fluxo · Labirinto · 23/11/2026</p>
+    <h1>Companion: da ficha do mestre à vez jogada pelo dono</h1>
+
+    <div class="rolagem">
+    <svg viewBox="0 0 1000 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="cmp-title cmp-desc">
+      <title id="cmp-title">Companion: da ficha do mestre à vez jogada pelo dono</title>
+      <desc id="cmp-desc">O mestre liga NPCs como grupo na ficha; o Iniciar marca quem escolhe; o jogador (ou o mestre) escolhe pelo fio; a store põe os tokens colados no dono e as cartas pela Agilidade; na batalha o token do companion conta como do jogador e a vez abre o menu da ficha dele.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+      </defs>
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+      <g font-family="Geist, system-ui, sans-serif" font-size="12" fill="#2d3142">
+        <rect x="20" y="40" width="210" height="96" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="32" y="64" font-weight="600">Ficha (mestre)</text>
+        <text x="32" y="84" fill="#4f5d75">"+ Característica" › Companion</text>
+        <text x="32" y="102" fill="#4f5d75">grupo: nome, limite, ligadas</text>
+        <text x="32" y="120" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">Personagem.caracteristicas</text>
+
+        <rect x="275" y="40" width="210" height="96" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="287" y="64" font-weight="600">Iniciar batalha</text>
+        <text x="287" y="84" fill="#4f5d75">cenaDoInicio → donosQueEscolhem</text>
+        <text x="287" y="102" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">turnos.escolhendoCompanions</text>
+        <text x="287" y="120" fill="#4f5d75">mestre vê "Aira escolhendo…"</text>
+
+        <rect x="530" y="40" width="210" height="96" rx="6" fill="#fff" stroke="#eb6c36" stroke-width="1.5"/>
+        <text x="542" y="64" font-weight="600">Quem vai com a Aira?</text>
+        <text x="542" y="84" fill="#4f5d75">jogador: batalha.estado.companions</text>
+        <text x="542" y="102" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">batalha.companions {dono, ids}</text>
+        <text x="542" y="120" fill="#4f5d75">mestre: "Escolher por ela"</text>
+
+        <rect x="785" y="40" width="195" height="96" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="797" y="64" font-weight="600">Host confere</text>
+        <text x="797" y="84" fill="#4f5d75">dono é dele de verdade</text>
+        <text x="797" y="102" fill="#4f5d75">grupo, limite, HP > 0</text>
+        <text x="797" y="120" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">batalhaNoHost.companions</text>
+
+        <rect x="785" y="200" width="195" height="110" rx="6" fill="#fff" stroke="#eb6c36" stroke-width="1.5"/>
+        <text x="797" y="224" font-weight="600">escolherCompanions</text>
+        <text x="797" y="244" fill="#4f5d75">tokens colados no dono</text>
+        <text x="797" y="262" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">mesa.porCompanionsAoLado</text>
+        <text x="797" y="280" fill="#4f5d75">carta própria pela Agilidade</text>
+        <text x="797" y="298" fill="#4f5d75">ultimaEscolha na ficha</text>
+
+        <rect x="530" y="200" width="210" height="110" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="542" y="224" font-weight="600">lugarNaBatalha</text>
+        <text x="542" y="244" fill="#4f5d75">meusTokens + tokens dos</text>
+        <text x="542" y="262" fill="#4f5d75">companions dos personagens dele</text>
+        <text x="542" y="280" fill="#4f5d75">(só na batalha; a névoa não muda)</text>
+
+        <rect x="275" y="200" width="210" height="110" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="287" y="224" font-weight="600">Vez do companion</text>
+        <text x="287" y="244" fill="#4f5d75">minhaVez; o menu da ficha dele</text>
+        <text x="287" y="262" fill="#4f5d75">(fichaDaVezQueEleControla)</text>
+        <text x="287" y="280" fill="#4f5d75">carta: "Companion de Aira"</text>
+
+        <rect x="20" y="200" width="210" height="110" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="32" y="224" font-weight="600">Fim da batalha</text>
+        <text x="32" y="244" fill="#4f5d75">token criado sai do mapa</text>
+        <text x="32" y="262" fill="#4f5d75">a ficha fica, com o dano</text>
+        <text x="32" y="280" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">tirarTokensDosCompanions</text>
+
+        <line x1="230" y1="88" x2="271" y2="88" stroke="#4f5d75" marker-end="url(#arrow)"/>
+        <line x1="485" y1="88" x2="526" y2="88" stroke="#eb6c36" marker-end="url(#arrow-accent)"/>
+        <line x1="740" y1="88" x2="781" y2="88" stroke="#4f5d75" marker-end="url(#arrow)"/>
+        <line x1="882" y1="136" x2="882" y2="196" stroke="#eb6c36" marker-end="url(#arrow-accent)"/>
+        <line x1="785" y1="255" x2="744" y2="255" stroke="#4f5d75" marker-end="url(#arrow)"/>
+        <line x1="530" y1="255" x2="489" y2="255" stroke="#4f5d75" marker-end="url(#arrow)"/>
+        <line x1="275" y1="255" x2="234" y2="255" stroke="#4f5d75" marker-end="url(#arrow)"/>
+
+        <rect x="20" y="360" width="460" height="70" rx="6" fill="none" stroke="#4f5d75" stroke-dasharray="4 3"/>
+        <text x="32" y="384" font-weight="600">Separado da invocação temporária</text>
+        <text x="32" y="404" fill="#4f5d75">o invocado age na carta do bando e quem joga é o mestre;</text>
+        <text x="32" y="420" fill="#4f5d75">o companion é ficha permanente, carta própria, jogada pelo dono</text>
+      </g>
+    </svg>
+    </div>
+    <ul class="notas">
+      <li>Fontes: client/src/lib/caracteristicas/, client/src/components/caracteristicas/, client/src/stores/batalha/companions.ts, client/src/stores/batalhaFabrica.ts (cenaDoInicio, desligar), client/src/stores/mesaDaAventura.ts, client/src/net/batalhaNoHost.ts, client/src/net/protocoloDaBatalha.ts, client/src/net/hostSession.ts (lugarNaBatalha), client/src/player/main.tsx.</li>
+      <li>A Arena de testes, a batalha Dragon Ball e a janela separada da mesa da batalha ainda não levam companion.</li>
+    </ul>
+  </div>
+</body>
+</html>
