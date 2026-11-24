@@ -2,13 +2,15 @@ import { css, misturar, type DefinicaoDeCarimbo, type Rgb } from '../embutidos'
 
 /**
  * Lixo espalhado (item 89 dos objetos de 24/11/2026, lote L09 "Cortiço"): o lixo miúdo que se junta na rua de lama e em
- * volta das casas. Um TRAPO amarrotado, CACOS de barro e de louça, PAPEL (uma bola amassada e um pedaço rasgado), uma
- * LATA deitada com ferrugem e os farelos em volta, tudo em cores APAGADAS (o vinho, o azul e o ocre desbotados, o barro
- * sem brilho), em cima de uma mancha de poeira bem transparente que amarra as peças numa coisa só.
+ * volta das casas. Uma peça ÂNCORA, grande (um quarto de casa): o TRAPO amarrotado ou a LATA deitada com ferrugem; e,
+ * ARRASTADAS para um lado só (a enxurrada ou o vento levou), de três a cinco peças menores, cada vez menores longe dela:
+ * CACOS de barro e de louça, PAPEL (uma bola amassada ou um pedaço rasgado), um retalho, e uns farelos no rastro. Tudo em
+ * cores APAGADAS (o vinho, o cinza-azulado e o ocre desbotados, o barro sem brilho), em cima de uma mancha de poeira bem
+ * transparente e de beira torta, comprida no rumo do rastro, que amarra as peças numa coisa só.
  *
  * Rente ao chão, como a palha espalhada: cada peça tem a sombrinha dela embaixo à direita (a luz vem de cima à esquerda e
  * não gira) e um fio de luz na beira de cima, sem contorno grosso; o carimbo não tem sombra própria. O giro gira o
- * arranjo e cada peça; a semente escolhe quantas de cada, onde caem, as cores e qual lata ou papel sai.
+ * arranjo e cada peça; a semente escolhe a âncora, para que lado vai o rastro, quantas peças e quais, e as cores.
  */
 
 const POEIRA: Rgb = [112, 98, 78]
@@ -16,7 +18,7 @@ const SOMBRA: Rgb = [62, 52, 40]
 /** Os panos desbotados do trapo. */
 const PANOS: readonly Rgb[] = [
   [128, 84, 76],
-  [92, 104, 118],
+  [110, 114, 118],
   [150, 128, 90],
 ]
 /** O barro do caco de telha e de pote, a louça encardida e a beira de cada um. */
@@ -45,6 +47,16 @@ const CENTRO_Y = -0.12
 const RAIO = 0.46
 /** A sombrinha de cada peça: para onde cai e quanto escurece. */
 const SOMBRINHA = { dx: 0.012, dy: 0.01, alfa: 0.34 } as const
+/** A poeira: metade da força de antes (lia anel), com a beira torta em tantos pontos. */
+const ALFA_DA_POEIRA = 0.065
+const PONTOS_DA_POEIRA = 22
+/** A âncora (um quarto de casa: o trapo grande ou a lata maior), o retalho do rastro e o leque do rastro (radianos). */
+const ESCALA_DO_TRAPO_ANCORA = 0.95
+const ESCALA_DA_LATA_ANCORA = 1.35
+const ESCALA_DO_RETALHO = 0.5
+const LEQUE_DO_RASTRO = 0.9
+/** Os farelos, só no rastro. */
+const FARELOS_NO_RASTRO = 5
 
 type Ponto = readonly [number, number]
 
@@ -192,53 +204,82 @@ function lata(g: CanvasRenderingContext2D, l: Lugar, semente: number, i: number)
   g.stroke()
 }
 
-/** A mancha de poeira de baixo: mansa e torta, amarra as peças. */
-function poeira(g: CanvasRenderingContext2D, giro: number, semente: number): void {
-  g.fillStyle = css(POEIRA, 0.13)
+/**
+ * A mancha de poeira de baixo: um borrão só, bem transparente, comprido no rumo do rastro e de beira torta (três ondas
+ * sorteadas no raio), que amarra as peças sem desenhar anel nem oval.
+ */
+function poeira(g: CanvasRenderingContext2D, rumo: number, semente: number): void {
+  const [ux, uz] = [Math.cos(rumo), Math.sin(rumo)]
+  const fases = [0, 1, 2].map((i) => sorteio(semente, 500 + i) * Math.PI * 2)
+  g.fillStyle = css(POEIRA, ALFA_DA_POEIRA)
   g.beginPath()
-  for (let i = 0; i < 6; i++) {
-    const a = giro + (i * Math.PI * 2) / 6 + (sorteio(semente, 500 + i) - 0.5) * 0.7
-    const d = RAIO * (0.2 + 0.3 * sorteio(semente, 510 + i))
-    const r = RAIO * (0.26 + 0.14 * sorteio(semente, 520 + i))
-    const [x, y] = noChao(Math.cos(a) * d, Math.sin(a) * d)
-    g.moveTo(x + r, y)
-    g.ellipse(x, y, r, r * ACHATA, 0, 0, Math.PI * 2)
+  for (let i = 0; i < PONTOS_DA_POEIRA; i++) {
+    const t = (i / PONTOS_DA_POEIRA) * Math.PI * 2
+    const torto = 1 + 0.2 * Math.sin(3 * t + fases[0]) + 0.13 * Math.sin(5 * t + fases[1]) + 0.08 * Math.sin(8 * t + fases[2])
+    const [al, at] = [Math.cos(t) * RAIO * 0.62 * torto, Math.sin(t) * RAIO * 0.36 * torto]
+    const [x, y] = noChao(ux * (al + RAIO * 0.12) - uz * at, uz * (al + RAIO * 0.12) + ux * at)
+    if (i === 0) g.moveTo(x, y)
+    else g.lineTo(x, y)
   }
+  g.closePath()
   g.fill()
 }
 
-/** Os lugares das peças, numa espiral sorteada: espalhados sem amontoar nem deixar buraco grande no meio. */
-function lugares(n: number, giro: number, semente: number): Lugar[] {
-  return Array.from({ length: n }, (_, i): Lugar => {
-    const a = giro + i * 2.39996 + sorteio(semente, 600 + i) * 0.5
-    const d = RAIO * Math.min(0.92, Math.pow((i + 0.6) / n, 0.6) * (0.78 + 0.3 * sorteio(semente, 620 + i)))
-    return { x: Math.cos(a) * d, z: Math.sin(a) * d, rumo: giro + sorteio(semente, 640 + i) * Math.PI * 2, escala: 0.9 + 0.25 * sorteio(semente, 660 + i) }
+/** Uma peça a desenhar: a função dela e a escala (a âncora inteira; as do rastro, menores). */
+type DesenhoDaPeca = (g: CanvasRenderingContext2D, l: Lugar, semente: number, i: number) => void
+
+/**
+ * O arranjo: a ÂNCORA um pouco para trás do meio e o RASTRO das menores, todas para o mesmo lado dela (num leque
+ * estreito em volta do `rumo`), cada vez mais longe e menores.
+ */
+function arranjo(n: number, rumo: number, giro: number, semente: number): { ancora: Lugar; rastro: Lugar[] } {
+  const [ux, uz] = [Math.cos(rumo), Math.sin(rumo)]
+  const ancora: Lugar = { x: -ux * RAIO * 0.3, z: -uz * RAIO * 0.3, rumo: giro + sorteio(semente, 611) * Math.PI * 2, escala: 1 }
+  const rastro = Array.from({ length: n }, (_, i): Lugar => {
+    const longe = RAIO * (0.42 + 0.62 * ((i + 0.35 + 0.4 * sorteio(semente, 620 + i)) / n))
+    const a = rumo + (sorteio(semente, 630 + i) - 0.5) * LEQUE_DO_RASTRO
+    return {
+      x: ancora.x + Math.cos(a) * longe,
+      z: ancora.z + Math.sin(a) * longe,
+      rumo: giro + sorteio(semente, 640 + i) * Math.PI * 2,
+      escala: 0.86 - (0.3 * i) / n,
+    }
   })
+  return { ancora, rastro }
+}
+
+/** O retalho: um trapo pequeno no rastro. */
+function retalho(g: CanvasRenderingContext2D, l: Lugar, semente: number, i: number): void {
+  trapo(g, { ...l, escala: l.escala * ESCALA_DO_RETALHO }, semente, i)
 }
 
 function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): void {
   g.save()
-  poeira(g, giro, semente)
-  // Os farelos primeiro (por baixo de tudo).
-  for (let i = 0; i < 12; i++) {
-    const a = giro + sorteio(semente, 700 + i) * Math.PI * 2
-    const d = RAIO * (0.15 + 0.85 * sorteio(semente, 720 + i))
-    const [x, y] = noChao(Math.cos(a) * d, Math.sin(a) * d)
+  // Para que lado o rastro foi arrastado: o giro e um tanto sorteado.
+  const rumo = giro + (sorteio(semente, 610) - 0.5) * 0.8
+  poeira(g, rumo, semente)
+  // A âncora (o trapo ou a lata) e as menores do rastro, de três a cinco.
+  const ancoraEhTrapo = sorteio(semente, 800) > 0.45
+  const doRastro: DesenhoDaPeca[] = [caco, papel, caco]
+  if (sorteio(semente, 801) > 0.35) doRastro.push(ancoraEhTrapo ? papel : retalho)
+  if (sorteio(semente, 802) > 0.6) doRastro.push(caco)
+  const { ancora, rastro } = arranjo(doRastro.length, rumo, giro, semente)
+  // Os farelos no rastro (por baixo de tudo), entre a âncora e a última peça.
+  for (let i = 0; i < FARELOS_NO_RASTRO; i++) {
+    const longe = RAIO * (0.3 + 0.75 * sorteio(semente, 720 + i))
+    const a = rumo + (sorteio(semente, 700 + i) - 0.5) * LEQUE_DO_RASTRO * 1.2
+    const [x, y] = noChao(ancora.x + Math.cos(a) * longe, ancora.z + Math.sin(a) * longe)
     g.fillStyle = css(FARELOS[i % FARELOS.length], 0.85)
     g.beginPath()
-    g.ellipse(x, y, 0.011 + 0.008 * sorteio(semente, 740 + i), 0.008, giro + i, 0, Math.PI * 2)
+    g.ellipse(x, y, 0.01 + 0.007 * sorteio(semente, 740 + i), 0.007, giro + i, 0, Math.PI * 2)
     g.fill()
   }
-  // Quantas de cada: sempre um trapo, uma lata ou um papel grande; o resto, cacos e papel.
-  const pecas: Array<(g: CanvasRenderingContext2D, l: Lugar, semente: number, i: number) => void> = [trapo, caco, papel, caco]
-  if (sorteio(semente, 800) > 0.3) pecas.push(lata)
-  if (sorteio(semente, 801) > 0.4) pecas.push(caco)
-  if (sorteio(semente, 802) > 0.5) pecas.push(papel)
-  if (sorteio(semente, 803) > 0.6) pecas.push(trapo)
-  const onde = lugares(pecas.length, giro, semente)
+  const pecas: { p: DesenhoDaPeca; l: Lugar; i: number }[] = [
+    { p: ancoraEhTrapo ? trapo : lata, l: { ...ancora, escala: ancoraEhTrapo ? ESCALA_DO_TRAPO_ANCORA : ESCALA_DA_LATA_ANCORA }, i: 0 },
+    ...doRastro.map((p, i) => ({ p, l: rastro[i], i: i + 1 })),
+  ]
   // As de trás (de cima no quadro) primeiro: a de baixo cobre a beira da de cima.
-  const ordem = pecas.map((p, i) => ({ p, l: onde[i], i })).sort((a, b) => a.l.z - b.l.z)
-  for (const { p, l, i } of ordem) p(g, l, semente, 900 + i * 13)
+  for (const { p, l, i } of [...pecas].sort((a, b) => a.l.z - b.l.z)) p(g, l, semente, 900 + i * 13)
   g.restore()
 }
 
