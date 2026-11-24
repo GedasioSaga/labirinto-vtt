@@ -1,3 +1,7 @@
+# 24/11 ~01h40: OBJETOS DOS 10 MAPAS (workflow em voo)
+
+Pedido literal no PEDIDOS (253c2b2a). Workflow wf_c24ccec9-2aa (script em ~/.claude/projects/C--dev-labirinto/d772d3ee-.../workflows/scripts/objetos-dos-10-mapas-wf_c24ccec9-2aa.js; retomar com Workflow({scriptPath, resumeFromRunId:'wf_c24ccec9-2aa'})): inventário -> 8 analistas (1 por mapa único) -> diretor de arte (docs/design/objetos-24-11/LISTA.md e ANALISE.md, máx 12 lotes) -> desenho em lotes (complexo designer-fable xhigh, simples designer-opus max; máx 5 ao mesmo tempo; revisão + ajuste por lote) -> 1 integrador (programador-frontend) com prova por gestos -> verificador-realidade + conserto. Em paralelo: tapete C Vinho (designer-opus). Ao terminar: publicar 0.5.98 (tapete + objetos). Disco 20,4 GB às 01h40.
+
 # 24/11 ~01h20: 0.5.97 PUBLICADA
 
 Bump 1f83393a (origin main); curl latest.json = "0.5.97 .../v0.5.97/Labirinto_0.5.97_x64-setup.exe"; tsc 0/0, vite 0, guarda ok, gitleaks 34 commits limpo; worktree de release removido, node_modules originais 186/66 intactos; disco 6,7 GB. Logs tmp/rel-0.5.97/. EM VOO: tapete grande opção C Vinho (escolha do Claude pela recomendação) + luz no tapete -> 0.5.98; limpeza de worktrees/branches velhas (operario). Golden das camadas da Cegueira ainda não rodado. Seção abaixo = estado antes da publicação.
