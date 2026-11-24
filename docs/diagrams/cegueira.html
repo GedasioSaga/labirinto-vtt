@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cegueira no mapa</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+    .frame { max-width: 1200px; width: 100%; }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 1.5rem;
+    }
+    .rolagem { overflow-x: auto; }
+    svg { width: 100%; min-width: 900px; display: block; }
+    .notas {
+      margin-top: 1.25rem;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: var(--color-muted);
+      max-width: 72ch;
+    }
+    .notas li { margin-left: 1.1rem; }
+  </style>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Arquitetura · Labirinto · 23/11/2026</p>
+    <h1>Cegueira: da ficha do mestre à onda na tela do jogador</h1>
+
+    <div class="rolagem">
+    <svg viewBox="0 0 1000 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ceg-title ceg-desc">
+      <title id="ceg-title">Cegueira: da ficha do mestre à onda na tela do jogador</title>
+      <desc id="ceg-desc">O mestre liga a Cegueira na ficha; o host marca as fichas cegas no raio; o recorte vê a metade e calcula as ondas; o fio leva só x e y; o jogador desenha os anéis no chão.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+      </defs>
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+      <g font-family="Geist, system-ui, sans-serif" font-size="12" fill="#2d3142">
+        <!-- linha 1: mestre e host -->
+        <rect x="20" y="40" width="200" height="86" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="32" y="64" font-weight="600">Ficha (mestre)</text>
+        <text x="32" y="84" fill="#4f5d75">"+ Característica" › Cegueira</text>
+        <text x="32" y="104" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">Personagem.caracteristicas</text>
+
+        <rect x="270" y="40" width="210" height="86" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="282" y="64" font-weight="600">Host: quem é cego</text>
+        <text x="282" y="84" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">personagensCegos (snapshotFor)</text>
+        <text x="282" y="104" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">fichasCegasDoMapa (characterId)</text>
+
+        <rect x="530" y="40" width="210" height="86" rx="6" fill="#fff" stroke="#eb6c36" stroke-width="1.5"/>
+        <text x="542" y="64" font-weight="600">Raio marcado</text>
+        <text x="542" y="84" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">tokenRadiusIn → comCegueira</text>
+        <text x="542" y="104" fill="#4f5d75">todo recorte (porta, item, mesa)</text>
+
+        <rect x="790" y="40" width="190" height="86" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="802" y="64" font-weight="600">recorteDoGrupo</text>
+        <text x="802" y="84" fill="#4f5d75">radiusOf: metade do normal</text>
+        <text x="802" y="104" fill="#4f5d75">(depois da Sala, antes da fumaça)</text>
+
+        <!-- linha 2: ondas, fio, jogador -->
+        <rect x="790" y="200" width="190" height="104" rx="6" fill="#fff" stroke="#eb6c36" stroke-width="1.5"/>
+        <text x="802" y="224" font-weight="600">ondasDosOlhosCegos</text>
+        <text x="802" y="244" fill="#4f5d75">até o raio normal, centro a centro</text>
+        <text x="802" y="262" fill="#4f5d75">parede e teto não param</text>
+        <text x="802" y="280" fill="#4f5d75">secreta, zona oculta: fora</text>
+
+        <rect x="530" y="200" width="210" height="104" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="542" y="224" font-weight="600">Fio (snapshot / patch)</text>
+        <text x="542" y="244" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">ondas?: {x, y}[]</text>
+        <text x="542" y="262" fill="#4f5d75">sem id, nome, retrato, tamanho</text>
+        <text x="542" y="280" fill="#4f5d75">ordem por posição; só para o cego</text>
+
+        <rect x="270" y="200" width="210" height="104" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="282" y="224" font-weight="600">playerConnection</text>
+        <text x="282" y="244" font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">lerOndas (até 200, finitos)</text>
+        <text x="282" y="262" fill="#4f5d75">state.ondas → PlayerView</text>
+
+        <rect x="20" y="200" width="200" height="104" rx="6" fill="#fff" stroke="#2d3142"/>
+        <text x="32" y="224" font-weight="600">camadaDasOndas (Pixi)</text>
+        <text x="32" y="244" fill="#4f5d75">3 anéis, 2,1 s, um a cada 700 ms</text>
+        <text x="32" y="262" fill="#4f5d75">linha reta; entra em 150 ms</text>
+        <text x="32" y="280" fill="#4f5d75">movimento reduzido: parados</text>
+
+        <!-- setas -->
+        <line x1="220" y1="83" x2="266" y2="83" stroke="#4f5d75" marker-end="url(#arrow)"/>
+        <line x1="480" y1="83" x2="526" y2="83" stroke="#4f5d75" marker-end="url(#arrow)"/>
+        <line x1="740" y1="83" x2="786" y2="83" stroke="#eb6c36" marker-end="url(#arrow-accent)"/>
+        <line x1="885" y1="126" x2="885" y2="196" stroke="#eb6c36" marker-end="url(#arrow-accent)"/>
+        <line x1="790" y1="252" x2="744" y2="252" stroke="#4f5d75" marker-end="url(#arrow)"/>
+        <line x1="530" y1="252" x2="484" y2="252" stroke="#4f5d75" marker-end="url(#arrow)"/>
+        <line x1="270" y1="252" x2="224" y2="252" stroke="#4f5d75" marker-end="url(#arrow)"/>
+
+        <!-- mestre vê tudo -->
+        <rect x="20" y="360" width="460" height="70" rx="6" fill="none" stroke="#4f5d75" stroke-dasharray="4 3"/>
+        <text x="32" y="384" font-weight="600">Mestre</text>
+        <text x="32" y="404" fill="#4f5d75">vê tudo como sempre; a visão do cego pelo "Ver tela" do Grupo</text>
+        <text x="32" y="420" fill="#4f5d75">(a janela de visão de jogador usa o recorte real)</text>
+      </g>
+    </svg>
+    </div>
+    <ul class="notas">
+      <li>Fontes: client/src/lib/cegueira/fichasCegas.ts, client/src/lib/fogFilter.ts (comCegueira, radiusOf, ondasDosOlhosCegos), client/src/net/hostSession.ts (tokenRadiusIn, snapshotFor), client/src/net/protocol.ts, client/src/net/viewPatch.ts, client/src/net/telaEnviadaNoHost.ts, client/src/player/playerConnection.ts, client/src/player/ondasDaCegueira.ts, client/src/player/camadaDasOndas.ts.</li>
+      <li>Sem olho cego, nada é calculado e o snapshot sai igual ao de antes (o campo nem existe).</li>
+      <li>A tela da mesa (TV) recebe a metade do raio, mas não as ondas.</li>
+    </ul>
+  </div>
+</body>
+</html>
