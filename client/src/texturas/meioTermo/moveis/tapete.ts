@@ -3,23 +3,23 @@
  * chão (quem o põe por baixo dos outros móveis é a ordem de desenho de
  * `lib/mobilia.ts`, `emOrdemDeDesenho`, e o contêiner do chão do editor).
  *
- * - Retangular: a franja de linho nas pontas curtas, o campo, a borda escura
- *   com o fio claro, o medalhão em losango com o miolo e os cantos. Deitado ou
- *   em pé (o comprimento corre no lado maior, como `eixoDoTapete`).
+ * - Retangular: o desenho "Medalhão com haste" (`tapeteComHaste.ts`, o mesmo
+ *   do tapete longo): moldura e franja fixas, um medalhão no centro e, quando
+ *   o tapete é comprido o bastante, a haste e as duas pontas.
  * - Redondo: a borda e o medalhão em volta do centro, sem franja.
  * - De Lado: a faixa deitada no chão, a borda escura nas pontas e a franja (só
  *   o retangular).
  *
- * A BORDA do retangular leva um MOTIVO (losangos claros) que se repete a cada
- * meia casa a partir do centro: a faixa de uma casa é igual à de qualquer
- * outra, base para o tapete longo de comprimento livre (fatia MT5).
  * Material: `tecido` (a borda e o medalhão saem do mesmo tecido, mais escuros,
  * com o fio puxado para o creme).
  */
 import { hash, type Rgb } from '../../ruido'
 import { caixa, elipse } from './formas'
 import { ruido, type Cena, type Textura } from './motor'
-import { G, materialDaPeca, sombraDeLado, type ContextoDoMovel, type MontarMovel } from './contexto'
+import { materialDaPeca, sombraDeLado, type ContextoDoMovel, type MontarMovel } from './contexto'
+import { montarTapeteComHaste, SOMBRA_DO_TAPETE } from './tapeteComHaste'
+
+export { SOMBRA_DO_TAPETE }
 
 /** O creme do fio claro (`objetos.js:329`). */
 const CREME: Rgb = [232, 223, 202]
@@ -65,93 +65,12 @@ export function pintarCampo(s: Float32Array, c: Rgb): void {
   s[2] = c[2]
 }
 
-/**
- * O motivo da borda se repete a cada meia casa DA GRADE DE REFERÊNCIA (50 px,
- * `GRADE_DE_REFERENCIA` de `index.ts`): uma casa de 50 px tem sempre os mesmos
- * dois losangos. Em mapa de outra grade a pegada sai em casas de 50 px, então
- * a conta muda: na grade 70 o tapete 3 x 2 é desenhado como 4,2 x 2,8 e cada
- * casa do mapa leva 2,8 losangos (limite registrado no plano, seção 7).
- */
-export const PERIODO_DO_MOTIVO = G / 2
-
-/**
- * Distância com sinal (negativa dentro) ao losango do motivo da borda: `s` é a
- * posição ao longo da faixa medida do CENTRO do tapete, `v` a distância ao meio
- * da faixa e `borda` a largura dela. Periódica em `s` com `PERIODO_DO_MOTIVO`.
- */
-export function distanciaAoMotivo(s: number, v: number, borda: number): number {
-  const fase = s / PERIODO_DO_MOTIVO - Math.floor(s / PERIODO_DO_MOTIVO)
-  const du = Math.abs(fase - 0.5) * PERIODO_DO_MOTIVO
-  const a = PERIODO_DO_MOTIVO * 0.3
-  const b = borda * 0.3
-  return ((du / a + Math.abs(v) / b - 1) * (a * b)) / Math.hypot(a, b)
-}
-
 /** Fio de 0,5 px do contorno do losango e o ponto escuro do meio dele. */
 export const MEIO_FIO_DO_MOTIVO = 0.45
-
-/** Medalhão e cantos do retangular, por tapete (não por pixel). U = ao longo, V = atravessado. */
-interface GeometriaDoRetangular {
-  readonly hu: number
-  readonly hv: number
-  readonly borda: number
-  readonly mx: number
-  readonly my: number
-  readonly cx: number
-  readonly cy: number
-  readonly fhu: number
-  readonly fhv: number
-  readonly escalaM: number
-  readonly escalaC: number
-}
-
-function geometriaDoRetangular(hu: number, hv: number, borda: number): GeometriaDoRetangular {
-  const fhu = hu - borda
-  const fhv = hv - borda
-  const mx = 0.42 * fhu
-  const my = 0.62 * fhv
-  const cx = 0.24 * fhu
-  const cy = 0.36 * fhv
-  return { hu, hv, borda, mx, my, cx, cy, fhu, fhv, escalaM: (mx * my) / Math.hypot(mx, my), escalaC: (cx * cy) / Math.hypot(cx, cy) }
-}
 
 /** O ruído de lã do tapete inteiro (o mesmo do protótipo). */
 export function ruidoDeLa(u: number, v: number): number {
   return ruido(u * 0.5 + 9, v * 0.5) * 0.08 + ruido(u * 0.12, v * 0.12 + 3) * 0.06 + Math.sin((u + v) * 2.6) * 0.012
-}
-
-/** O desenho do retangular: campo, cantos, medalhão, borda com o motivo e o fio claro. */
-function texRetangular(t: CoresDoTapete, g: GeometriaDoRetangular, deitado: boolean): Textura {
-  return (u, v, x, y, _p, s, S) => {
-    const U = deitado ? x : y
-    const V = deitado ? y : x
-    pintarCampo(s, t.campo)
-    const au = Math.abs(U)
-    const av = Math.abs(V)
-    const ateU = g.hu - au
-    const ateV = g.hv - av
-    const de = Math.min(ateU, ateV)
-    const q = au / g.mx + av / g.my
-    const dm = (q - 1) * g.escalaM
-    const dc = ((g.fhu - au) / g.cx + (g.fhv - av) / g.cy - 1) * g.escalaC
-    tingir(s, t.escuro, cobre(dc, S))
-    tingir(s, t.claro, cobre(Math.abs(dc) - 0.45, S))
-    tingir(s, t.escuro, cobre(dm, S))
-    tingir(s, t.claro, cobre(Math.abs(dm) - 0.5, S))
-    tingir(s, t.miolo, cobre((q / MIOLO_DO_MEDALHAO - 1) * g.escalaM * MIOLO_DO_MEDALHAO, S))
-    const B = g.borda
-    const kB = cobre(de - B, S)
-    tingir(s, t.escuro, kB)
-    if (kB > 0) {
-      tingir(s, t.meio, cobre(Math.abs(de - B / 2) - MEIO_FIO_DO_MOTIVO, S) * kB)
-      // No lado comprido o motivo corre ao longo do tapete; nas pontas, atravessado.
-      const dl = distanciaAoMotivo(ateV <= ateU ? U : V, de - B / 2, B)
-      tingir(s, t.claro, cobre(dl, S) * kB)
-      tingir(s, t.escuro, cobre(dl + B * 0.12, S) * kB)
-    }
-    tingir(s, t.claro, cobre(Math.abs(de - B - 0.75) - 0.55, S))
-    s[3] += ruidoDeLa(u, v)
-  }
 }
 
 /** O miolo do medalhão em losango, em fração dele (o mesmo no retangular e no redondo). */
@@ -215,15 +134,12 @@ export function texFranja(corpo: number, comprimento: number, lado: number, deit
   }
 }
 
-/** Frações do desenho de linhas (`TAPETE_DE_CIMA`, `TAPETE_REDONDO` e `TAPETE_DE_LADO` de `lib/mobilia.ts`). */
-export const FRANJA = 0.06
+/** Frações do desenho de linhas (`TAPETE_REDONDO` e `TAPETE_DE_LADO` de `lib/mobilia.ts`). */
 const BORDA = 0.12
 const MEDALHAO_REDONDO = 0.6
 const TOPO_DE_LADO = 0.6
 const FRANJA_DE_LADO = 0.04
 const BORDA_DE_LADO = 0.08
-/** Sombra do tapete: quase rente ao chão. */
-export const SOMBRA_DO_TAPETE = { z: 1.5, forca: 0.22, suave: 1.2 } as const
 
 function montarTapeteDeLado(c: ContextoDoMovel, cena: Cena): void {
   const { hw, hh, w, h, peca: P } = c
@@ -247,31 +163,14 @@ export const montarTapete: MontarMovel = (c, cena) => {
     montarTapeteDeLado(c, cena)
     return
   }
-  const { hw, hh, w, h, peca: P } = c
-  const tecido = c.m.tecido
-  const cores = coresDoTapete(tecido.rgb)
-  if (c.forma === 'redondo') {
-    const corpo = elipse(0, 0, hw, hh)
-    cena.sombras.push({ forma: corpo, ...SOMBRA_DO_TAPETE })
-    const menor = Math.min(hw, hh)
-    cena.partes.push(P(corpo, tecido, { textura: texRedondo(cores, hw, hh, 2 * menor * BORDA, MEDALHAO_REDONDO), bisel: 1.4, contorno: 0.16 }))
+  if (c.forma !== 'redondo') {
+    montarTapeteComHaste(c, cena)
     return
   }
-  // O comprimento corre no lado maior: deitado, U = x; em pé, U = y.
-  const deitado = w >= h
-  const hu = deitado ? hw : hh
-  const hv = deitado ? hh : hw
-  const lado = 2 * hv
-  const fr = FRANJA * lado
-  const corpoHU = hu - fr
-  const noMundo = (u0: number, v0: number, u1: number, v1: number, raio: number) => (deitado ? caixa(u0, v0, u1, v1, raio) : caixa(v0, u0, v1, u1, raio))
-  const corpo = noMundo(-corpoHU, -hv, corpoHU, hv, 1.2)
+  const { hw, hh, peca: P } = c
+  const tecido = c.m.tecido
+  const corpo = elipse(0, 0, hw, hh)
   cena.sombras.push({ forma: corpo, ...SOMBRA_DO_TAPETE })
-  for (const ponta of [-1, 1]) {
-    const u0 = ponta < 0 ? -hu : corpoHU - 1
-    const u1 = ponta < 0 ? -corpoHU + 1 : hu
-    cena.partes.push(P(noMundo(u0, -hv + 1.5, u1, hv - 1.5, 0), materialDaPeca('linho'), { textura: texFranja(corpoHU, fr, ponta, deitado), bisel: 0, contorno: 0 }))
-  }
-  const borda = BORDA * Math.min(2 * corpoHU, lado)
-  cena.partes.push(P(corpo, tecido, { textura: texRetangular(cores, geometriaDoRetangular(corpoHU, hv, borda), deitado), bisel: 1.4, contorno: 0.16 }))
+  const menor = Math.min(hw, hh)
+  cena.partes.push(P(corpo, tecido, { textura: texRedondo(coresDoTapete(tecido.rgb), hw, hh, 2 * menor * BORDA, MEDALHAO_REDONDO), bisel: 1.4, contorno: 0.16 }))
 }
