@@ -1,5 +1,6 @@
 import type { Token } from '../../types/map'
 import { valorDoRank } from '../ajusteDaFicha'
+import type { CompanionNaBatalha } from '../caracteristicas/tipos'
 import { entraNaBatalha, fichaSemHp } from '../livros/combate'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
@@ -130,6 +131,13 @@ export interface TurnosDaCena {
    * fecharam sem aceite (até `AJUDAS_PENDENTES_MAX`). Nunca vai à batalha salva. Ausente = nenhum.
    */
   pedidosDeAjuda?: readonly AjudaPendente[]
+  /**
+   * COMPANION (docs/design/caracteristicas/PLANO-COMPANION.md): as fichas ligadas que os donos
+   * levaram, cada uma com carta própria. O jogador dono joga a vez delas. Ausente = nenhum.
+   */
+  companions?: readonly CompanionNaBatalha[]
+  /** COMPANION: os personagemIds dos donos que ainda escolhem quem vai ("Aira escolhendo…"). Ausente = ninguém. */
+  escolhendoCompanions?: readonly string[]
 }
 
 /** Quem fez a ação que entra no registro. O `nome` do jogador é o da mesa, na hora. */

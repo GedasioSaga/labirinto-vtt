@@ -59,6 +59,7 @@ import { NUMERO_DA_FICHA_MAX } from '../lib/ajusteDaFicha'
 import { COMO_MARCA, LEMBRETES_DA_MARCA_MAX } from '../lib/batalha/marca'
 import { NOME_DA_EQUIPE_MAX } from '../lib/batalha/equipes'
 import { lerJudgeNaCena } from '../lib/batalha/judge'
+import type { GrupoNaEscolha, OpcaoDeCompanion } from '../lib/caracteristicas/companions'
 import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
 import { DIRECOES, type Casa, type Direcao, type FormaDaArea, type QuemEntraNaArea } from '../lib/batalha/area'
 import { formaDoAlcanceGuardada } from '../lib/batalha/alcanceDoCartao'
@@ -89,6 +90,7 @@ import {
   type AlvoParaJogador,
   type BandoParaJogador,
   type CartaParaJogador,
+  type EscolhaDeCompanionsParaJogador,
   type CombateParaJogador,
   type ContraParaJogador,
   type EfeitoParaJogador,
@@ -286,6 +288,14 @@ export interface BatalhaAjudaMessage {
   pedido: RespostaDaAjuda | CancelamentoDaAjuda
 }
 
+/** COMPANION: o dono diz quem vai (`[]` = entrar sozinho). O host confere o grupo, o limite e a vida. */
+export interface BatalhaCompanionsMessage {
+  type: 'batalha.companions'
+  reqId: string
+  donoPersonagemId: string
+  escolhidos: string[]
+}
+
 /** Os pedidos de batalha do jogador da F1 (entram na união `PlayerMessage`). */
 export type BatalhaPlayerMessage = BatalhaPassarMessage | BatalhaDesfazerMessage
 
@@ -307,6 +317,7 @@ export type BatalhaAcaoPlayerMessage =
   | BatalhaAjustarMessage
   | BatalhaContadorMessage
   | BatalhaAjudaMessage
+  | BatalhaCompanionsMessage
 
 export interface BatalhaEstadoMessage {
   type: 'batalha.estado'
@@ -957,6 +968,18 @@ export function parseBatalhaContador(value: unknown): BatalhaContadorMessage | n
   return { type: 'batalha.contador', reqId, pedido: { tipo, tokenId, cartaoId } }
 }
 
+/** COMPANION: quantas fichas uma escolha leva no fio (o limite de cada grupo o host confere). */
+const ESCOLHIDOS_MAX = 60
+
+export function parseBatalhaCompanions(value: unknown): BatalhaCompanionsMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.companions') return null
+  const { reqId, donoPersonagemId } = value
+  if (!textoAte(reqId, 1, REQ_ID_MAX) || !textoAte(donoPersonagemId, 1, ID_DA_BATALHA_MAX)) return null
+  const escolhidos = lerLista(value.escolhidos, ESCOLHIDOS_MAX, (item) => (textoAte(item, 1, ID_DA_BATALHA_MAX) ? item : null))
+  if (escolhidos === null || escolhidos.length !== (Array.isArray(value.escolhidos) ? value.escolhidos.length : -1)) return null
+  return { type: 'batalha.companions', reqId, donoPersonagemId, escolhidos }
+}
+
 // ---- host → jogador ----
 
 function lerLado(value: unknown): LadoNaCarta | null {
@@ -1029,7 +1052,48 @@ function lerCarta(value: unknown): CartaParaJogador | null {
     if (ladoLido === 'aliado' || carta.bando !== undefined || vida === null) return null
     carta.vida = vida
   }
+  // COMPANION: o nome do dono; o host de antes não manda, e a página de antes não lê.
+  if (value.companionDe !== undefined) {
+    if (!textoAte(value.companionDe, 1, NOME_DO_DONO_MAX)) return null
+    carta.companionDe = value.companionDe
+  }
   return carta
+}
+
+/** COMPANION: o nome do dono e o do grupo no fio (o nome do personagem tem 80 de teto). */
+const NOME_DO_DONO_MAX = 80
+const GRUPOS_NA_ESCOLHA_MAX = 12
+const OPCOES_DO_GRUPO_MAX = 40
+const NIVEL_NO_FIO_MAX = 99
+const LIMITE_NO_FIO_MAX = 20
+
+function lerOpcaoDeCompanion(value: unknown): OpcaoDeCompanion | null {
+  if (!isRecord(value)) return null
+  const { personagemId, nome, retrato, nivel, modo, vida, agilidade, desmaiada } = value
+  if (!textoAte(personagemId, 1, ID_DA_BATALHA_MAX) || !textoAte(nome, 1, NOME_DO_DONO_MAX) || !inteiroAte(nivel, 1, NIVEL_NO_FIO_MAX)) return null
+  if ((modo !== 'luta' && modo !== 'efeito') || typeof desmaiada !== 'boolean' || typeof agilidade !== 'number' || !Number.isFinite(agilidade)) return null
+  if (retrato !== null && !ehRefDeMidia(retrato)) return null
+  const vidaLida = vida === null ? null : lerVidaNaCarta(vida)
+  if (vida !== null && vidaLida === null) return null
+  return { personagemId, nome, retrato, nivel, modo, vida: vidaLida, agilidade, desmaiada }
+}
+
+function lerGrupoNaEscolha(value: unknown): GrupoNaEscolha | null {
+  if (!isRecord(value)) return null
+  const { id, nome, limite } = value
+  if (!textoAte(id, 1, ID_DA_BATALHA_MAX) || !textoAte(nome, 1, NOME_DO_DONO_MAX) || !inteiroAte(limite, 1, LIMITE_NO_FIO_MAX)) return null
+  const opcoes = lerLista(value.opcoes, OPCOES_DO_GRUPO_MAX, lerOpcaoDeCompanion)
+  const padrao = lerLista(value.padrao, OPCOES_DO_GRUPO_MAX, (item) => (textoAte(item, 1, ID_DA_BATALHA_MAX) ? item : null))
+  if (opcoes === null || padrao === null) return null
+  return { id, nome, limite, opcoes, padrao: padrao.filter((ide) => opcoes.some((opcao) => opcao.personagemId === ide)) }
+}
+
+function lerEscolhaDeCompanions(value: unknown): EscolhaDeCompanionsParaJogador | null {
+  if (!isRecord(value)) return null
+  const { donoPersonagemId, donoNome } = value
+  if (!textoAte(donoPersonagemId, 1, ID_DA_BATALHA_MAX) || !textoAte(donoNome, 1, NOME_DO_DONO_MAX)) return null
+  const grupos = lerLista(value.grupos, GRUPOS_NA_ESCOLHA_MAX, lerGrupoNaEscolha)
+  return grupos === null || grupos.length === 0 ? null : { donoPersonagemId, donoNome, grupos }
 }
 
 /** A vida no fio: o atual de 0 ao teto, o máximo de 1 ao teto. */
@@ -1532,6 +1596,10 @@ export function lerEstadoParaJogador(value: unknown): EstadoParaJogador | null {
   if (aparencias !== undefined) estado.aparencias = aparencias
   if (retratos !== undefined) estado.retratos = retratos
   if (esperaContra !== undefined) estado.esperaContra = esperaContra
+  // COMPANION: as escolhas de quem vai que esperam este jogador.
+  const companions = opcional(value.companions, (item) => lerLista(item, GRUPOS_NA_ESCOLHA_MAX, lerEscolhaDeCompanions))
+  if (companions === null) return null
+  if (companions !== undefined && companions.length > 0) estado.companions = companions
   return estado
 }
 

@@ -68,6 +68,21 @@ export type Caracteristica = CaracteristicaCompanion | CaracteristicaCegueira
 
 export type TipoDeCaracteristica = Caracteristica['tipo']
 
+/**
+ * Um companion NA BATALHA (`TurnosDaCena.companions`): a ficha ligada que o
+ * dono levou. Tem carta própria na ordem e o jogador dono joga a vez dele.
+ */
+export interface CompanionNaBatalha {
+  tokenId: string
+  personagemId: string
+  donoPersonagemId: string
+  donoTokenId: string
+  grupoId: string
+  modo: ModoDoCompanion
+  /** O token nasceu para esta batalha (sai no fim). `false` = já estava no mapa e fica. */
+  criado: boolean
+}
+
 /** O nome que o grupo sem nome ganha na tela e no disco. */
 export const NOME_PADRAO_DO_GRUPO = 'Companion'
 

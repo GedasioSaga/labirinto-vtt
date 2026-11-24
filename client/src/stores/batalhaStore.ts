@@ -103,6 +103,7 @@ export const ponteDaBatalha: PonteDaBatalha = {
   ajustar: (sceneKey, autor, pedido) => useBatalhaStore.getState().ajustar(sceneKey, autor, pedido),
   contador: (sceneKey, autor, pedido) => useBatalhaStore.getState().contador(sceneKey, autor, pedido),
   ajuda: (sceneKey, autor, pedido) => useBatalhaStore.getState().ajuda(sceneKey, autor, pedido),
+  escolherCompanions: (sceneKey, autor, donoPersonagemId, escolhidos) => useBatalhaStore.getState().escolherCompanions(sceneKey, autor, donoPersonagemId, escolhidos),
 }
 
 /**

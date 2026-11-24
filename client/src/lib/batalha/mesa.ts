@@ -54,6 +54,15 @@ export interface MesaDaBatalha {
   /** Invocação, fim da batalha: tira todo personagem temporário nascido nesta cena (`invocadoNaCena`) e os tokens ligados a eles. */
   limparInvocados?(sceneKey: string): void
   /**
+   * COMPANION (PLANO-COMPANION.md): põe um token para cada ficha em casas
+   * livres coladas no token do dono (a ficha que já tem token na cena usa o
+   * dela, `criado: false`). O personagem não muda. `null` = cena fora de
+   * alcance, e nada fica. Opcional: a mesa sem mapa (a arena) não leva companion.
+   */
+  porCompanionsAoLado?(sceneKey: string, donoTokenId: string, quem: readonly { personagemId: string; nome: string }[]): { personagemId: string; tokenId: string; criado: boolean }[] | null
+  /** COMPANION, fim da batalha: tira os tokens criados para ela (fora do desfazer do mapa). O personagem fica. */
+  tirarTokensDosCompanions?(sceneKey: string, tokenIds: readonly string[]): void
+  /**
    * F2 (fatia B, o "perto" do Aplauso): a casa do token na grade da cena e
    * para onde ele olha (`null` = o mestre nunca deu frente). `null` = token
    * ou cena fora de alcance. Opcional: a mesa sem mapa (a arena, o duelo) não

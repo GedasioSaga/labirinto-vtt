@@ -38,6 +38,7 @@ import type { CenarioLidoMessage } from './protocol'
 import { medidaCabeNoMapa, type MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
 import { centroDaCasa } from '../lib/batalha/blocos'
 import { caminhosParaJogador } from '../lib/batalha/caminhoAndado'
+import { tokensDosCompanionsDe } from '../lib/caracteristicas/naBatalha'
 import { paredesQueBarramOCaminho } from '../lib/batalha/movimentoEmBatalha'
 import { aliadosDe, type Equipe } from '../lib/batalha/equipes'
 import type { MedidaCompartilharMessage } from './protocoloDaMedida'
@@ -7113,10 +7114,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (tela === undefined || tela.mapId !== scene.map.id) return null
     const personagemDaFicha = personagemDasFichasDe(playerId, world)
     return {
-      sceneKey: tableSceneKey(scene),
-      meusTokens: new Set(ownership[playerId] ?? []),
+      sceneKey,
+      meusTokens,
       fichasNaTela: tela.fichas,
-      meusPersonagens: new Set(personagemDaFicha.values()),
+      meusPersonagens,
       personagemDaFicha,
       tela: { mapaDoAlcance: (tokenId) => mapaDoAlcanceDaTela(playerId, scene.map.id, tokenId) },
     }
@@ -7127,6 +7128,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * do recorte que saiu para ele (`telaDoJogador`), no piso da ficha como ele a vê. Assim a recusa
    * nunca conta que existe parede secreta. Sem tela dessa cena, ou a ficha fora dela: `null` (sem
    * parede, só a distância).
+    const sceneKey = tableSceneKey(scene)
+    const meusPersonagens = new Set(personagemDaFicha.values())
+    // COMPANION: na batalha, o token do companion de um personagem dele também é "dele" (a vez, o menu, o Passar).
+    // Só aqui: fora da batalha a posse não muda (a névoa e o mapa seguem o `ownership`).
+    const meusTokens = new Set([...(ownership[playerId] ?? []), ...tokensDosCompanionsDe(options.ponteDaBatalha?.cena(sceneKey)?.turnos, meusPersonagens)])
    */
   function mapaDoAlcanceDaTela(playerId: string, mapId: string, tokenId: string): MapaDoAlcance | null {
     const recorte = telaDoJogador.get(playerId)
@@ -7508,6 +7514,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (personagem === null || problemaNaMesa(alvo.atual, personagem, autoria, now()) !== null) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
     return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem, autoria })
   }
+      case 'batalha.companions':
+        return batalhaNoHost.companions(conexao, msg)
 
   /**
    * LEITURA DA PISTA: só conta pino que o host já mandou COM o texto a este
@@ -9882,6 +9890,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleClueShow(clientId, msg, world)
       case 'pin.take':
         return handlePinTake(clientId, msg, world)
+      case 'batalha.companions':
       case 'pin.buy':
         return handlePinBuy(clientId, msg, world)
       case 'item.give':

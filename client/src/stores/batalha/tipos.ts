@@ -279,6 +279,15 @@ export interface BatalhaState {
    * invocado sem reação, HP 0 tira o invocado do mapa.
    */
   agirComInvocado: (sceneKey: string, vez: VezEsperada, tokenId: string, pedido: PedidoDeAcao) => boolean
+  /**
+   * COMPANION (PLANO-COMPANION.md): o dono `donoPersonagemId` (pelo jogador,
+   * ou o mestre no "Escolher por ela") diz quem vai, até o limite de cada
+   * grupo, ninguém desmaiado. Os tokens nascem colados no dono, cada um com
+   * carta própria pela Agilidade; o dono sai de `escolhendoCompanions`; a
+   * escolha vira o padrão da próxima vez. `[]` = "Entrar sozinha". Linha
+   * "combatente" com Desfazer das cartas. Devolve `null` (feito) ou o motivo.
+   */
+  escolherCompanions: (sceneKey: string, autor: AutorDaAcao, donoPersonagemId: string, escolhidos: readonly string[]) => string | null
 
   // ---- Lote de 01/11 (docs/planos/batalha-lote-01-11-plano.md). O mestre chama direto; o jogador pela ponte, só na ficha dele. ----
   /**

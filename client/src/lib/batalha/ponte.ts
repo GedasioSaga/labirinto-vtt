@@ -144,4 +144,6 @@ export interface PonteDaBatalha {
   contador?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDoContador): boolean
   /** REQUISITOS E: responder ou cancelar o pedido de ajuda (quem pode, o host já conferiu). */
   ajuda?(sceneKey: string, autor: AutorDaAcao, pedido: RespostaDaAjuda | CancelamentoDaAjuda): boolean
+  /** COMPANION: o dono diz quem vai (o host já conferiu que o dono é do jogador). `null` = feito; texto = o motivo da recusa. */
+  escolherCompanions?(sceneKey: string, autor: AutorDaAcao, donoPersonagemId: string, escolhidos: readonly string[]): string | null
 }

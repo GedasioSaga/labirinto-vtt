@@ -35,6 +35,8 @@ import { criarGolpe } from './batalha/golpe'
 import { criarVez } from './batalha/vez'
 import { criarOrdem } from './batalha/ordem'
 import { criarInvocacao } from './batalha/invocacao'
+import { criarCompanions } from './batalha/companions'
+import { donosQueEscolhem } from '../lib/caracteristicas/naBatalha'
 import { criarPassivas } from './batalha/passivas'
 import { criarAjuda } from './batalha/ajuda'
 
@@ -100,6 +102,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   const { prazosDaVez } = fatiaDaVez
   const fatiaDaOrdem = criarOrdem(nucleo, fatiaDaVez)
   const fatiaDaInvocacao = criarInvocacao(nucleo, fatiaDoGolpe)
+  const fatiaDosCompanions = criarCompanions(nucleo)
   const fatiaDasPassivas = criarPassivas(nucleo, fatiaDasFormas)
   const fatiaDaAjuda = criarAjuda(nucleo, fatiaDoGolpe, fatiaDasPassivas)
 
@@ -134,6 +137,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     if (sistema === null) return
     const ids = new Set([...turnos.cartas.flatMap((carta) => (carta.personagemId === null ? [] : [carta.personagemId])), ...Object.keys(turnos.combate ?? {})])
     for (const personagemId of ids) mesa.ajustarPersonagem(personagemId, (atual) => desfazerFormasNoFim(atual, sistema, NOME_DO_MESTRE, Date.now()) ?? atual)
+  }
+
+  /** COMPANION, fim da batalha: os tokens que nasceram para ela saem do mapa (o que já estava fica). */
+  const tirarOsCompanions = (sceneKey: string, turnos: TurnosDaCena | undefined): void => {
+    const criados = (turnos?.companions ?? []).filter((companion) => companion.criado).map((companion) => companion.tokenId)
+    if (criados.length > 0) mesa.tirarTokensDosCompanions?.(sceneKey, criados)
   }
 
   return {
@@ -172,6 +181,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // Primeiro os da lista; depois a varredura pela marca pega o que sobrou (token tirado à mão, pendência perdida).
       for (const invocado of cena?.turnos.invocados ?? []) mesa.tirarInvocado?.(sceneKey, invocado.personagemId, invocado.tokenId)
       mesa.limparInvocados?.(sceneKey)
+      // COMPANION: o token criado para a batalha sai; a ficha (com o dano que levou) fica.
+      tirarOsCompanions(sceneKey, cena?.turnos)
       if (cena === undefined) return
       // Conserto das fichas F1: no fim da batalha as formas desligam sozinhas e o cansaço do Overload sai.
       fimDaBatalhaNasFichas(cena.turnos)
@@ -224,6 +235,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       if (Object.hasOwn(get().cenas, sceneKey)) return
       for (const invocado of cena.turnos.invocados ?? []) mesa.tirarInvocado?.(sceneKey, invocado.personagemId, invocado.tokenId)
       mesa.limparInvocados?.(sceneKey)
+      tirarOsCompanions(sceneKey, cena.turnos)
       fimDaBatalhaNasFichas(cena.turnos)
     },
 
@@ -309,6 +321,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     ...fatiaDaVez.acoes,
     ...fatiaDaOrdem.acoes,
     ...fatiaDaInvocacao.acoes,
+    ...fatiaDosCompanions.acoes,
     ...fatiaDasPassivas.acoes,
     ...fatiaDaAjuda.acoes,
   }
@@ -345,7 +358,10 @@ function cenaDoInicio(mesa: MesaDaBatalha, inicio: InicioDaBatalha, rolarD20: ()
   const preparados = comLembretesDaPreparacao(lembrados, { personagens, sistema }).turnos
   // Fase ED4: o acumulador que "começa a batalha em N" já entra com o nível. Sem linha: o Iniciar não se desfaz.
   const combate = combatesNoComecoDaBatalha(preparados, personagens)
-  const turnos = combate === preparados.combate ? preparados : { ...preparados, combate }
+  const comCombate = combate === preparados.combate ? preparados : { ...preparados, combate }
+  // COMPANION: quem tem companion escolhe quem vai ("Aira escolhendo…"). A mesa sem mapa (a arena) não leva companion.
+  const escolhendo = mesa.porCompanionsAoLado === undefined ? [] : donosQueEscolhem(comCombate.cartas, personagens)
+  const turnos: TurnosDaCena = escolhendo.length === 0 ? comCombate : { ...comCombate, escolhendoCompanions: escolhendo }
   const cena: BatalhaDaCena = { ...CENA_NOVA, turnos, regras: inicio.regras }
   // F3: o Judge que o Iniciar já trouxe (torto fica de fora; o App põe depois).
   const judge = inicio.judge === undefined ? null : lerJudgeNaCena(inicio.judge)

@@ -1,3 +1,4 @@
+import type { GrupoNaEscolha } from '../caracteristicas/companions'
 import { idsOcultos } from '../habilidadeOculta'
 import { ehImagemDaMesa, ehRefDeMidia } from '../midia'
 import { numeroDaFicha, type Personagem } from '../personagem'
@@ -128,6 +129,19 @@ export interface CartaParaJogador {
    * tira o ferido e o caído. Nunca de quem luta contra ele.
    */
   vida?: VidaNaCarta
+  /** COMPANION: o nome do dono ("Companion de Aira"). Para todos que veem a carta. */
+  companionDe?: string
+}
+
+/**
+ * COMPANION: uma escolha que espera ESTE jogador ("Quem vai com a Aira?"): os
+ * grupos do personagem dele, com nome, nível, vida e modo de cada ficha
+ * ligada. Só das fichas dele de verdade; nunca de outro jogador.
+ */
+export interface EscolhaDeCompanionsParaJogador {
+  donoPersonagemId: string
+  donoNome: string
+  grupos: GrupoNaEscolha[]
 }
 
 /** A vida que sai numa carta ou num invocado: inteiros no teto do fio, o máximo nunca abaixo de 1. */
@@ -204,6 +218,8 @@ export interface EstadoParaJogador {
    * fora da vista ("alguém"). Ausente = não espera nada.
    */
   esperaContra?: { tokenId: string | null }
+  /** COMPANION: as escolhas de quem vai que esperam este jogador. Ausente = nenhuma. */
+  companions?: EscolhaDeCompanionsParaJogador[]
   /** F3 (fatia J): onde o Judge está, só `{ x, y }` (a direção cada tela calcula). Sempre que a batalha tem Judge. */
   judge?: JudgeNaCena
   /**

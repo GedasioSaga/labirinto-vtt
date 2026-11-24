@@ -270,6 +270,7 @@ import {
   parseBatalhaEvoluir,
   parseBatalhaAjustar,
   parseBatalhaContador,
+  parseBatalhaCompanions,
   parseBatalhaAjuda,
   parseBatalhaInvocar,
   parseBatalhaMarcar,
@@ -1718,6 +1719,8 @@ export interface PlayerConnection {
   /**
    * BATALHA DBT — "transformar antes do 1º turno?" de um combatente dele
    * (`batalhaDBTEstado.declaracoes`); `null` = não se transforma. `false` = não saiu.
+  /** COMPANION: quem vai com o personagem dele (`[]` = sozinho). O host confere grupo, limite e vida. */
+  escolherCompanionsNaBatalha(donoPersonagemId: string, escolhidos: readonly string[]): boolean
    */
   declararNaBatalhaDBT(combatenteId: string, transformacaoId: string | null): boolean
   /**
@@ -7686,6 +7689,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || pendencia === undefined || !pendencia.ativa) return false
       const escolhida = pendencia.opcoes.find((candidata) => candidata.chave === opcao)
       if (escolhida === undefined || escolhida.bloqueio !== null) return false
+    escolherCompanionsNaBatalha(donoPersonagemId, escolhidos) {
+      if (state.status !== 'playing' || state.batalhaEstado === undefined) return false
+      const mensagem = parseBatalhaCompanions({ type: 'batalha.companions', reqId: `b${nextReqId++}`, donoPersonagemId, escolhidos: [...escolhidos] })
+      if (mensagem === null) return false
+      return pedirNaBatalha(`companions:${donoPersonagemId}`, mensagem)
+    },
       const pedido = {
         type: 'batalhaDBT.responder',
         reqId: `d${nextReqId++}`,

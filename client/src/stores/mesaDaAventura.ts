@@ -67,6 +67,16 @@ function mapaDaCena(sceneKey: string): MapData | null {
   return slot !== undefined && slot.status === 'ok' ? slot.map : null
 }
 
+const chaveDaCasa = (casa: { col: number; row: number }): string => `${casa.col},${casa.row}`
+
+/** As 8 casas em volta (primeiro as dos lados, depois as diagonais) e o anel de fora: onde os companions nascem. */
+function casasEmVolta(centro: { col: number; row: number }): { col: number; row: number }[] {
+  const anel1 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]
+  const anel2: number[][] = []
+  for (let dc = -2; dc <= 2; dc += 1) for (let dr = -2; dr <= 2; dr += 1) if (Math.max(Math.abs(dc), Math.abs(dr)) === 2) anel2.push([dc, dr])
+  return [...anel1, ...anel2].flatMap(([dc, dr]) => (dc === undefined || dr === undefined ? [] : [{ col: centro.col + dc, row: centro.row + dr }])).filter((casa) => casa.col >= 0 && casa.row >= 0)
+}
+
 /** Muda o mapa da cena: a aberta por `naAberta`, a de fundo por `mudar`. `false` = cena que não está à mão. */
 function mudarACena(sceneKey: string, naAberta: () => void, mudar: (map: MapData) => MapData): boolean {
   if (cenaAberta(sceneKey)) {
@@ -129,6 +139,40 @@ export const mesaDaAventura: MesaDaBatalha = {
     const ids = new Set(temporarios.map((personagem) => personagem.id))
     for (const token of tokensDaCena(sceneKey)) if (token.characterId !== null && ids.has(token.characterId)) tirarToken(sceneKey, token.id)
     for (const personagem of temporarios) useAdventureStore.getState().apagarPersonagem(personagem.id)
+  },
+
+  porCompanionsAoLado: (sceneKey, donoTokenId, quem) => {
+    const mapa = mapaDaCena(sceneKey)
+    const dono = mapa?.tokens.find((token) => token.id === donoTokenId)
+    if (mapa === null || dono === undefined || !(mapa.grid > 0)) return null
+    const postos: { personagemId: string; tokenId: string; criado: boolean }[] = []
+    const novos: Token[] = []
+    const ocupadas = new Set(mapa.tokens.filter((token) => pisoDe(token) === pisoDe(dono)).map((token) => chaveDaCasa(casaDoToken(token, token.size, mapa.grid))))
+    const casas = casasEmVolta(casaDoToken(dono, dono.size, mapa.grid))
+    for (const { personagemId, nome } of quem) {
+      const ja = mapa.tokens.find((token) => token.characterId === personagemId)
+      if (ja !== undefined) {
+        postos.push({ personagemId, tokenId: ja.id, criado: false })
+        continue
+      }
+      // A casa livre mais perto do dono; sem nenhuma em volta, em cima do dono (o mestre arrasta).
+      const casa = casas.find((candidata) => !ocupadas.has(chaveDaCasa(candidata)))
+      const deslocamento = casa === undefined ? { col: 0, row: 0 } : { col: casa.col - casaDoToken(dono, dono.size, mapa.grid).col, row: casa.row - casaDoToken(dono, dono.size, mapa.grid).row }
+      if (casa !== undefined) ocupadas.add(chaveDaCasa(casa))
+      const token: Token = invocadoNoTamanhoDaCena(sceneKey, { id: crypto.randomUUID(), characterId: personagemId, name: nome, x: dono.x + deslocamento.col * mapa.grid, y: dono.y + deslocamento.row * mapa.grid, size: 1, image: null })
+      if (dono.piso !== undefined) token.piso = dono.piso
+      novos.push(token)
+      postos.push({ personagemId, tokenId: token.id, criado: true })
+    }
+    if (novos.length === 0) return postos
+    // Um passo só no mapa: todos os tokens entram juntos (a cena aberta pelo mapStore, a de fundo pela aventura).
+    const comTodos = (map: MapData): MapData => novos.reduce((acumulado, token) => mapFactory.addToken(acumulado, token), map)
+    const entrou = mudarACena(sceneKey, () => useMapStore.getState().applyPlayerChange(comTodos), comTodos)
+    return entrou ? postos : null
+  },
+
+  tirarTokensDosCompanions: (sceneKey, tokenIds) => {
+    for (const tokenId of tokenIds) tirarToken(sceneKey, tokenId)
   },
 
   fichaDaCena: (sceneKey, tokenId) => tokensDaCena(sceneKey).find((candidato) => candidato.id === tokenId) ?? null,

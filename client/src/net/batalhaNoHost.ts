@@ -6,6 +6,7 @@ import { podeDesfazer } from '../lib/batalha/registro'
 import { cartaDaVez, type AutorDaAcao } from '../lib/batalha/turnos'
 import { usaDirecao } from '../lib/batalha/alcance/forma'
 import { efeitosParaJogador, vistaParaJogador, type ContextoDoJogador, type EfeitoParaJogador } from '../lib/batalha/vistaDoJogador'
+import { comCompanionsNaVista } from '../lib/caracteristicas/naBatalha'
 import {
   ALIADOS_MAX,
   JANELA_DOS_PEDIDOS_DE_BATALHA_MS,
@@ -15,6 +16,7 @@ import {
   type BatalhaAjustarMessage,
   type BatalhaAjudaMessage,
   type BatalhaContadorMessage,
+  type BatalhaCompanionsMessage,
   type BatalhaMarcarMessage,
   type BatalhaArmasMessage,
   type BatalhaDanoMessage,
@@ -193,6 +195,8 @@ export interface BatalhaNoHost {
    * mestre, na tela dele) ou cancelá-lo (só quem pediu). O prazo e o portão a store confere.
    */
   ajuda(conexao: ConexaoNaBatalha, msg: BatalhaAjudaMessage): RespostaDaBatalha
+  /** COMPANION: quem vai com o personagem DELE de verdade (nunca o emprestado). O grupo, o limite e a vida a store confere. */
+  companions(conexao: ConexaoNaBatalha, msg: BatalhaCompanionsMessage): RespostaDaBatalha
   /**
    * Fase D do alcance (ALCANCE.md §6): a mira aberta de um jogador. Só em ficha que ele opera, na
    * vez dela (ou com o contra-ataque guardado); a forma e a cor saem do cartão do host
@@ -420,7 +424,8 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
     const mudaram = perdida === 'incerta' ? aliados.length > 0 || antes !== undefined : antes === undefined ? aliados.length > 0 : !mesmasReferencias(antes, aliados)
     if (mudaram) saidas.push({ clientId, msg: { type: 'batalha.aliados', personagens: aliados.map(deps.paraOFio) } })
     aliadosEnviados.set(clientId, aliados)
-    const estado = vistaParaJogador(cena, ctx)
+    // COMPANION: as escolhas que esperam este jogador e o "Companion de Aira" nas cartas.
+    const estado = mesa === undefined ? vistaParaJogador(cena, ctx) : comCompanionsNaVista(vistaParaJogador(cena, ctx), cena.turnos, lugar.meusPersonagens, mesa.personagens, mesa.sistema)
     const texto = JSON.stringify(estado)
     if (perdida !== undefined || estadoEnviado.get(clientId) !== texto) {
       saidas.push({ clientId, msg: { type: 'batalha.estado', estado } })
@@ -860,6 +865,19 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         // Cancelar (ou fechar o aviso): só quem pediu, pela ficha que pediu.
         if (!fichaDele(lugar, ajuda.deTokenId, ajuda.dePersonagemId)) return RECUSA_DA_AJUDA_DE_OUTRO
         return ponte.ajuda(lugar.sceneKey, autorDe(conexao), msg.pedido) || RECUSA_DA_AJUDA_FECHADA
+      })
+    },
+
+    companions(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return RECUSA_FORA_DA_BATALHA
+        const { ponte, lugar } = daCena
+        if (ponte.escolherCompanions === undefined) return RECUSA_GENERICA
+        // Só o dono de verdade escolhe (a ficha emprestada não leva os companions de outro).
+        if (!lugar.meusPersonagens.has(msg.donoPersonagemId)) return RECUSA_DA_FICHA
+        const motivo = ponte.escolherCompanions(lugar.sceneKey, autorDe(conexao), msg.donoPersonagemId, msg.escolhidos)
+        return motivo === null ? true : { motivo }
       })
     },
 
