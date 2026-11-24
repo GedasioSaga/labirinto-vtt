@@ -1,0 +1,414 @@
+{
+  "lote": "L10",
+  "titulo": "Presídio moderno",
+  "data": "2026-11-24",
+  "prova": "docs/design/objetos-24-11/provas/lote-L10.png",
+  "comoFoiFeitaAProva": "Folha pintada sem navegador, com o mesmo código do app, pela ferramenta do repo (folhaDeObjetosNovos.test.ts, numa cópia temporária com os chãos trocados pelas texturas embutidas 'lajotas-escuras' e 'lajotas', apagada depois): o montar de cada arquivo, cenaEmTresQuartos e pintarCena. Na folha do lote, um cartão por item: em piso escuro e em piso claro, de cima e em 3/4 no zoom de 4x, e os dois no tamanho de mesa. Painéis por item em docs/design/objetos/<arquivo>.png, no mesmo formato. Os números do portão saíram da mesma ferramenta, com o pedido dos 10 itens: os 10 dentro do portão.",
+  "notasGerais": [
+    "Nada foi registrado: tipos.ts, pecasNovas.ts, gruposDoObjeto.ts, construcoes.ts, materiais.ts, moveis/index.ts, tresQuartos.ts, icons.tsx, luzDoFogo.ts e mobilia.ts ficam para o integrador.",
+    "Os ids de tipo sugeridos são o nome do arquivo (camelCase), os mesmos da LISTA.md.",
+    "Sem dependência entre arquivos do lote: cada um entra sozinho. Imports de fora do lote (arquivos que já existem em moveis/): geladeira.ts (o inox escovado), apoioDoBanheiroModerno.ts (soNaTresQuartos, o reflexo, o cromo, o piso do banheiro), apoioDoNecroterio.ts (o esmalte, a ágata, o níquel, o papel) e andaimeDaTresQuartos.ts (pino, solta, comMeioEm, deslocada, caixaArrastada).",
+    "PERFIL DA 3/4 (tresQuartos.ts): todos derivados. Quatro têm espessura própria, exportada no arquivo: mesinhaDeCela (ESPESSURA_DO_TAMPO_DA_MESINHA, 0,04 casa), chuveiroColetivo (ESPESSURA_DAS_PECAS_DO_CHUVEIRO_COLETIVO, 0,03 casa), leitoHospitalar (ESPESSURA_DO_COLCHAO_DO_LEITO, 0,09 casa) e mesaComComputador (ESPESSURA_DO_TAMPO_DA_MESA_COM_COMPUTADOR, 0,045 casa). Os outros seis usam o perfil padrão.",
+    "QUEM LÊ c.giro: só a cercaDeAlambrado (entra na lista dos que recebem o giro, como a cerca de ferro). Ninguém lê c.variante.",
+    "FRENTE SÓ SEM GIRO: vaso, armário, cadeira, máquina de lavar, leito e mesa com computador desenham na 3/4 a frente que de cima não se vê (portas, venezianas, porta redonda, barras, fendas) com soNaTresQuartos, que só vale no giro 0. Girados, ficam com a 3/4 derivada pura, sem quebrar.",
+    "SEM MATERIAL ESCOLHIDO: os 10 têm as cores fixas (lugaresDeMaterial vazio). O inox, o azulejo, a napa e o plástico são o que diz \"presídio moderno\"; se o dono quiser trocar, o primeiro candidato é a cor da cadeira de plástico.",
+    "Grupos usados, todos já existentes: banheiro, temploEMasmorra (ao lado da cela com grade), ruaEJardim, esporteELazer, salaEQuarto e necroterioELaboratorio. Se o integrador abrir um grupo Presídio, os 10 cabem nele.",
+    "TESTES QUE VÃO MUDAR na integração: as contagens e os nomes (Toolbar.test.tsx, toolVariants.test.ts, pecasNovas.test.ts, materiais.test.ts).",
+    "Nenhum teste foi rodado (regra do projeto). Só o tsc do client, no projeto inteiro (sem erro), e a folha de objetos novos, que é a ferramenta de prova. Não toquei em tapete.ts, tapeteLongo.ts nem em arquivo de registro."
+  ],
+  "itens": [
+    {
+      "numero": 91,
+      "nome": "Vaso com pia de aço",
+      "categoria": "objeto",
+      "versaoDe": "vasoSanitarioModerno",
+      "tipoSugerido": "vasoComPiaDeAco",
+      "grupoSugerido": "banheiro",
+      "tamanhoEmCasas": [
+        0.6,
+        0.7
+      ],
+      "redonda": false,
+      "arquivo": "client/src/texturas/meioTermo/moveis/vasoComPiaDeAco.ts",
+      "exportacao": "montarVasoComPiaDeAco",
+      "exportacoesExtras": null,
+      "folha": "docs/design/objetos/vaso-com-pia-de-aco.png",
+      "lugaresDeMaterial": [],
+      "coresFixas": "Inox escovado de cela numa peça só (os tons e o escovado da geladeira.ts), o reflexo do banheiro moderno e a água da bacia em cinza-azulado (#586669). Pia redonda em cima da torre, botões de pressão e a placa parafusada.",
+      "perfil3x4": "DERIVADO com o perfil padrão (beirada de 0,06 casa): a torre da pia é coluna, a bacia sobe menos",
+      "comportamento": {
+        "ehMovelDoChao": false,
+        "barra": true,
+        "tapa": false
+      },
+      "luzSugerida": null,
+      "portao": "saturação p95 0,040, contorno 0,234, luz mínima 0,045, 99 ms de 5000",
+      "icone": "vaso de aço visto de cima com a pia redonda na torre de trás",
+      "palavrasDeBusca": [
+        "privada de aço",
+        "vaso de presídio",
+        "sanitário de cela",
+        "pia de aço",
+        "inox",
+        "cela",
+        "presídio"
+      ],
+      "paraOIntegrador": "Versão do vaso sanitário moderno, para a cela: a torre com a pia fica na beira de cima (a parede) no giro 0. A frente que só a 3/4 vê sai por soNaTresQuartos (apoioDoBanheiroModerno.ts) e só vale SEM GIRO; girado, o objeto fica com a 3/4 derivada pura (o corpo e o tampo sobem, a frente fica lisa). Nada lê c.giro. Importa geladeira.ts e apoioDoBanheiroModerno.ts."
+    },
+    {
+      "numero": 92,
+      "nome": "Mesinha de cela",
+      "categoria": "objeto",
+      "versaoDe": null,
+      "tipoSugerido": "mesinhaDeCela",
+      "grupoSugerido": "temploEMasmorra",
+      "tamanhoEmCasas": [
+        0.7,
+        0.7
+      ],
+      "redonda": false,
+      "arquivo": "client/src/texturas/meioTermo/moveis/mesinhaDeCela.ts",
+      "exportacao": "montarMesinhaDeCela",
+      "exportacoesExtras": [
+        "ESPESSURA_DO_TAMPO_DA_MESINHA"
+      ],
+      "folha": "docs/design/objetos/mesinha-de-cela.png",
+      "lugaresDeMaterial": [],
+      "coresFixas": "Inox escovado no tampo e no banquinho; em cima, as folhas de uma carta (papel do necrotério) com a tinta cinza-azulada (#555c6e), o lápis amarelo apagado (#b59a58), o livro de bolso de capa verde-cinza (#5f6e64) e a caneca de ágata branca de beira azul com o café (#4c3629).",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_MESINHA } (0,04 casa)",
+      "comportamento": {
+        "ehMovelDoChao": false,
+        "barra": true,
+        "tapa": false
+      },
+      "luzSugerida": null,
+      "portao": "saturação p95 0,135, contorno 0,234, luz mínima 0,045, 37 ms de 5000",
+      "icone": "tampo retangular encostado na parede com uma roda pequena (o banquinho) na frente",
+      "palavrasDeBusca": [
+        "mesa de cela",
+        "mesa de presídio",
+        "banquinho",
+        "mesa de aço",
+        "carta",
+        "caneca",
+        "cela",
+        "presídio"
+      ],
+      "paraOIntegrador": "Objeto novo. O tampo encosta na beira de cima (a parede) no giro 0, preso por dois montantes rentes à parede, e o banquinho redondo num poste fica na frente: escala pelos dois lados sem problema. A caneca sobe em dois tampos empilhados com a base da caixa passada da beira do tampo, para sair depois dele na 3/4. Nada lê c.giro. Importa andaimeDaTresQuartos.ts, geladeira.ts e apoioDoNecroterio.ts."
+    },
+    {
+      "numero": 93,
+      "nome": "Mesa de pátio",
+      "categoria": "objeto",
+      "versaoDe": null,
+      "tipoSugerido": "mesaDePatio",
+      "grupoSugerido": "ruaEJardim",
+      "tamanhoEmCasas": [
+        1.4,
+        1
+      ],
+      "redonda": false,
+      "arquivo": "client/src/texturas/meioTermo/moveis/mesaDePatio.ts",
+      "exportacao": "montarMesaDePatio",
+      "exportacoesExtras": null,
+      "folha": "docs/design/objetos/mesa-de-patio.png",
+      "lugaresDeMaterial": [],
+      "coresFixas": "Ripas de madeira tratada desbotada (#9e8a6e, classe madeira, com os riscos e os parafusos) na armação de tubo galvanizado (#929796); as frestas entre as ripas em #4a3d30.",
+      "perfil3x4": "DERIVADO com o perfil padrão (beirada de 0,06 casa): o tampo e os dois bancos são tampos soltos; os pés de tubo, colunas",
+      "comportamento": {
+        "ehMovelDoChao": false,
+        "barra": true,
+        "tapa": false
+      },
+      "luzSugerida": null,
+      "portao": "saturação p95 0,321, contorno 0,231, luz mínima 0,044, 72 ms de 5000",
+      "icone": "tampo de ripas entre dois bancos de ripas",
+      "palavrasDeBusca": [
+        "mesa de piquenique",
+        "mesa com bancos",
+        "pátio",
+        "refeitório",
+        "banho de sol",
+        "presídio",
+        "parque"
+      ],
+      "paraOIntegrador": "Objeto novo: a mesa com os dois bancos presos na mesma armação, como no pátio de presídio e no parque. Ao comprido no giro 0. Só importa formas, motor e contexto. Nada lê c.giro."
+    },
+    {
+      "numero": 94,
+      "nome": "Chuveiro coletivo",
+      "categoria": "objeto",
+      "versaoDe": null,
+      "tipoSugerido": "chuveiroColetivo",
+      "grupoSugerido": "banheiro",
+      "tamanhoEmCasas": [
+        0.6,
+        0.7
+      ],
+      "redonda": false,
+      "arquivo": "client/src/texturas/meioTermo/moveis/chuveiroColetivo.ts",
+      "exportacao": "montarChuveiroColetivo",
+      "exportacoesExtras": [
+        "ESPESSURA_DAS_PECAS_DO_CHUVEIRO_COLETIVO"
+      ],
+      "folha": "docs/design/objetos/chuveiro-coletivo.png",
+      "lugaresDeMaterial": [],
+      "coresFixas": "O piso do box em azulejo verde-cinza (#b4bcb2) com o rejunte e as manchas de molhado (#55605c), as duas muretas de azulejo creme (#cccac0), o cano, o registro e o chuveiro em cromo e inox, a saboneteira com o sabão (#c2c6a4) e o ralo redondo.",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DAS_PECAS_DO_CHUVEIRO_COLETIVO } (0,03 casa)",
+      "comportamento": {
+        "ehMovelDoChao": false,
+        "barra": false,
+        "tapa": false
+      },
+      "luzSugerida": null,
+      "portao": "saturação p95 0,063, contorno 0,234, luz mínima 0,044, 161 ms de 5000",
+      "icone": "quadrado de azulejo com o ralo redondo e o chuveiro na beira de cima",
+      "palavrasDeBusca": [
+        "chuveiro",
+        "ducha",
+        "box",
+        "banho coletivo",
+        "vestiário",
+        "azulejo",
+        "ralo",
+        "presídio"
+      ],
+      "paraOIntegrador": "Objeto novo: UM box do chuveiro coletivo (o banheirão se monta pondo vários lado a lado; as muretas das pontas encostam). O cano e o chuveiro ficam na beira de cima (a parede) no giro 0. As muretas têm 1,2 casa de altura (as de box), mas o box é aberto na frente: sugestão, não barra (a ficha entra no box) e não tapa. Nada lê c.giro. Importa andaimeDaTresQuartos.ts, apoioDoBanheiroModerno.ts e geladeira.ts."
+    },
+    {
+      "numero": 95,
+      "nome": "Armário de vestiário",
+      "categoria": "objeto",
+      "versaoDe": "armarioDeFerro",
+      "tipoSugerido": "armarioDeVestiario",
+      "grupoSugerido": "esporteELazer",
+      "tamanhoEmCasas": [
+        1,
+        0.4
+      ],
+      "redonda": false,
+      "arquivo": "client/src/texturas/meioTermo/moveis/armarioDeVestiario.ts",
+      "exportacao": "montarArmarioDeVestiario",
+      "exportacoesExtras": null,
+      "folha": "docs/design/objetos/armario-de-vestiario.png",
+      "lugaresDeMaterial": [],
+      "coresFixas": "Chapa pintada de azul-cinza (#6c7a83, metal) com as venezianas, as plaquinhas de número (cartão #dcd7c8, tinta #3b3d40), os puxadores de cromo, os cadeados de latão (#a38b57), a toalha dobrada em cima e a caixa de papelão (#a68c66).",
+      "perfil3x4": "DERIVADO com o perfil padrão: o corpo é coluna; a toalha e a caixa de papelão sobem soltas em cima (a caixa com a base passada da frente, para sair depois do tampo)",
+      "comportamento": {
+        "ehMovelDoChao": false,
+        "barra": true,
+        "tapa": false
+      },
+      "luzSugerida": null,
+      "portao": "saturação p95 0,185, contorno 0,235, luz mínima 0,045, 209 ms de 5000",
+      "icone": "quatro portas estreitas lado a lado com venezianas",
+      "palavrasDeBusca": [
+        "armário",
+        "escaninho",
+        "locker",
+        "vestiário",
+        "armário de aço",
+        "cadeado",
+        "presídio",
+        "academia"
+      ],
+      "paraOIntegrador": "Versão do armário de ferro: a fileira de quatro portas estreitas, a frente para baixo no giro 0. Os números e as venezianas são desenhados na frente, que é da 3/4. A frente que só a 3/4 vê sai por soNaTresQuartos (apoioDoBanheiroModerno.ts) e só vale SEM GIRO; girado, o objeto fica com a 3/4 derivada pura (o corpo e o tampo sobem, a frente fica lisa). Nada lê c.giro. Importa andaimeDaTresQuartos.ts e apoioDoBanheiroModerno.ts. Grupo sugerido: esporteELazer (vestiário); a outra casa possível é baseMilitar, ao lado do armário de ferro."
+    },
+    {
+      "numero": 96,
+      "nome": "Cadeira de plástico",
+      "categoria": "objeto",
+      "versaoDe": "cadeira",
+      "tipoSugerido": "cadeiraDePlastico",
+      "grupoSugerido": "salaEQuarto",
+      "tamanhoEmCasas": [
+        0.55,
+        0.55
+      ],
+      "redonda": false,
+      "arquivo": "client/src/texturas/meioTermo/moveis/cadeiraDePlastico.ts",
+      "exportacao": "montarCadeiraDePlastico",
+      "exportacoesExtras": null,
+      "folha": "docs/design/objetos/cadeira-de-plastico.png",
+      "lugaresDeMaterial": [],
+      "coresFixas": "Plástico injetado azul apagado (#67829b), com o azul escuro (#3a4856) nas fendas e nas costuras, o brilho mole do plástico e o furo de dreno no meio do assento.",
+      "perfil3x4": "DERIVADO com o perfil padrão: o assento é tampo solto, o encosto sobe solto e as pernas são colunas",
+      "comportamento": {
+        "ehMovelDoChao": false,
+        "barra": false,
+        "tapa": false
+      },
+      "luzSugerida": null,
+      "portao": "saturação p95 0,340, contorno 0,232, luz mínima 0,044, 73 ms de 5000",
+      "icone": "assento quadrado com o encosto em arco",
+      "palavrasDeBusca": [
+        "cadeira",
+        "cadeira de plástico",
+        "cadeira empilhável",
+        "sala de espera",
+        "refeitório",
+        "visita",
+        "presídio"
+      ],
+      "paraOIntegrador": "Versão da cadeira: o encosto fica na beira de cima no giro 0 (a cadeira olha para baixo). Como a cadeira, sugestão: não barra nem tapa. A frente que só a 3/4 vê sai por soNaTresQuartos (apoioDoBanheiroModerno.ts) e só vale SEM GIRO; girado, o objeto fica com a 3/4 derivada pura (o corpo e o tampo sobem, a frente fica lisa). Nada lê c.giro. Importa apoioDoBanheiroModerno.ts."
+    },
+    {
+      "numero": 97,
+      "nome": "Máquina de lavar",
+      "categoria": "objeto",
+      "versaoDe": null,
+      "tipoSugerido": "maquinaDeLavar",
+      "grupoSugerido": "banheiro",
+      "tamanhoEmCasas": [
+        0.85,
+        0.85
+      ],
+      "redonda": false,
+      "arquivo": "client/src/texturas/meioTermo/moveis/maquinaDeLavar.ts",
+      "exportacao": "montarMaquinaDeLavar",
+      "exportacoesExtras": null,
+      "folha": "docs/design/objetos/maquina-de-lavar.png",
+      "lugaresDeMaterial": [],
+      "coresFixas": "Inox escovado da geladeira.ts no tampo e no corpo, o painel grafite (#585d61) com o visor verde-cinza (#78886f) e o 40 de temperatura, o botão vermelho (#a3554b) de parar, a porta redonda de vidro no aro de cromo com a roupa no tambor e a etiqueta (#d2c99e) colada.",
+      "perfil3x4": "DERIVADO com o perfil padrão: o corpo é coluna e o tampo sobe com ele",
+      "comportamento": {
+        "ehMovelDoChao": false,
+        "barra": true,
+        "tapa": false
+      },
+      "luzSugerida": null,
+      "portao": "saturação p95 0,157, contorno 0,234, luz mínima 0,044, 156 ms de 5000",
+      "icone": "quadrado com a porta redonda de vidro",
+      "palavrasDeBusca": [
+        "máquina de lavar",
+        "lavadora",
+        "lavanderia",
+        "roupa",
+        "industrial",
+        "presídio",
+        "hotel"
+      ],
+      "paraOIntegrador": "Objeto novo: a lavadora de frente (porta redonda), de lavanderia coletiva. A frente para baixo no giro 0. A frente que só a 3/4 vê sai por soNaTresQuartos (apoioDoBanheiroModerno.ts) e só vale SEM GIRO; girado, o objeto fica com a 3/4 derivada pura (o corpo e o tampo sobem, a frente fica lisa). Nada lê c.giro. Importa andaimeDaTresQuartos.ts, geladeira.ts e apoioDoBanheiroModerno.ts. Grupo sugerido: banheiro, onde já está o cesto de roupa."
+    },
+    {
+      "numero": 98,
+      "nome": "Leito hospitalar",
+      "categoria": "objeto",
+      "versaoDe": "macaComLencol",
+      "tipoSugerido": "leitoHospitalar",
+      "grupoSugerido": "necroterioELaboratorio",
+      "tamanhoEmCasas": [
+        0.7,
+        1.4
+      ],
+      "redonda": false,
+      "arquivo": "client/src/texturas/meioTermo/moveis/leitoHospitalar.ts",
+      "exportacao": "montarLeitoHospitalar",
+      "exportacoesExtras": [
+        "ESPESSURA_DO_COLCHAO_DO_LEITO"
+      ],
+      "folha": "docs/design/objetos/leito-hospitalar.png",
+      "lugaresDeMaterial": [],
+      "coresFixas": "Colchão de napa azul (#5c788e) com a costura (#384a59) e o cobertor dobrado no pé com as listras (#4f5356), travesseiro branco, a armação de tubo esmaltado branco com as juntas de níquel, as rodinhas de borracha e a prancheta do prontuário (#7d6b52) pendurada no pé.",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_COLCHAO_DO_LEITO } (0,09 casa)",
+      "comportamento": {
+        "ehMovelDoChao": false,
+        "barra": true,
+        "tapa": false
+      },
+      "luzSugerida": null,
+      "portao": "saturação p95 0,355, contorno 0,234, luz mínima 0,045, 78 ms de 5000",
+      "icone": "cama comprida com o travesseiro em cima e a grade no pé",
+      "palavrasDeBusca": [
+        "leito",
+        "cama de hospital",
+        "enfermaria",
+        "hospital",
+        "maca",
+        "prontuário",
+        "presídio"
+      ],
+      "paraOIntegrador": "Versão da maca com lençol, para a enfermaria do presídio: a cabeceira fica na beira de cima no giro 0. Com giro ficam os postes, os tubos e as grades; as barras da cabeceira e do pé, a prancheta e as rodinhas são da 3/4 sem giro (soNaTresQuartos). Nada lê c.giro. Importa andaimeDaTresQuartos.ts, apoioDoNecroterio.ts e apoioDoBanheiroModerno.ts."
+    },
+    {
+      "numero": 99,
+      "nome": "Mesa com computador",
+      "categoria": "objeto",
+      "versaoDe": "escrivaninha",
+      "tipoSugerido": "mesaComComputador",
+      "grupoSugerido": "salaEQuarto",
+      "tamanhoEmCasas": [
+        1,
+        0.5
+      ],
+      "redonda": false,
+      "arquivo": "client/src/texturas/meioTermo/moveis/mesaComComputador.ts",
+      "exportacao": "montarMesaComComputador",
+      "exportacoesExtras": [
+        "ESPESSURA_DO_TAMPO_DA_MESA_COM_COMPUTADOR"
+      ],
+      "folha": "docs/design/objetos/mesa-com-computador.png",
+      "lugaresDeMaterial": [],
+      "coresFixas": "Tampo de fórmica bege (#bcb6a8) com a borda escura (#605c57), o gaveteiro de metal, o monitor e o teclado de plástico grafite (#35383b e #46494d), o mouse no tapete (#404851), a pasta de papel (#c0a87a) com as folhas, o carimbo de madeira e a tela azul apagada do sistema.",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_MESA_COM_COMPUTADOR } (0,045 casa)",
+      "comportamento": {
+        "ehMovelDoChao": false,
+        "barra": true,
+        "tapa": false
+      },
+      "luzSugerida": "opcional: { alcanceEmCasas: 0.8, cor: 0x9fc4e0, forca: 0.15, fumacaEBrasas: false } (a tela do monitor; sem luz o desenho já funciona)",
+      "portao": "saturação p95 0,286, contorno 0,235, luz mínima 0,045, 62 ms de 5000",
+      "icone": "mesa com o monitor na beira de cima e o teclado na frente",
+      "palavrasDeBusca": [
+        "computador",
+        "mesa de escritório",
+        "monitor",
+        "teclado",
+        "recepção",
+        "guarita",
+        "delegacia",
+        "presídio"
+      ],
+      "paraOIntegrador": "Versão da escrivaninha: o monitor fica na beira de cima no giro 0 e o gaveteiro à direita. O monitor sobe em fatias empilhadas (cada uma um pouco mais rasa), então o corpo dele fica em pé em todos os giros; a tela acesa e a frente do gaveteiro são da 3/4 sem giro (soNaTresQuartos). Nada lê c.giro. Importa andaimeDaTresQuartos.ts, apoioDoNecroterio.ts e apoioDoBanheiroModerno.ts."
+    },
+    {
+      "numero": 100,
+      "nome": "Cerca de alambrado",
+      "categoria": "objeto",
+      "versaoDe": "cercaDeFerro",
+      "tipoSugerido": "cercaDeAlambrado",
+      "grupoSugerido": "ruaEJardim",
+      "tamanhoEmCasas": [
+        2,
+        0.3
+      ],
+      "redonda": false,
+      "arquivo": "client/src/texturas/meioTermo/moveis/cercaDeAlambrado.ts",
+      "exportacao": "montarCercaDeAlambrado",
+      "exportacoesExtras": null,
+      "folha": "docs/design/objetos/cerca-de-alambrado.png",
+      "lugaresDeMaterial": [],
+      "coresFixas": "Arame galvanizado (#8d9293) e tubo de zinco (#9ca1a2): a tela em losango, os mourões com tampa, o travessão de cima, as amarras e a ourela torcida. Quase sem cor (saturação p95 0,04): é a cerca que some no mapa e deixa ver o outro lado.",
+      "perfil3x4": "DERIVADO com o perfil padrão; as tiras da tela e o travessão sobem em estruturas de ponto exato (sem beirada pintada), então a tela fica vazada na 3/4",
+      "comportamento": {
+        "ehMovelDoChao": false,
+        "barra": true,
+        "tapa": false
+      },
+      "luzSugerida": null,
+      "portao": "saturação p95 0,042, contorno 0,235, luz mínima 0,045, 115 ms de 5000",
+      "icone": "faixa de losangos entre dois mourões",
+      "palavrasDeBusca": [
+        "alambrado",
+        "cerca de arame",
+        "tela",
+        "grade",
+        "quadra",
+        "pátio",
+        "presídio",
+        "cerca"
+      ],
+      "paraOIntegrador": "Versão da cerca de ferro. BARRA A PASSAGEM E NÃO TAPA A VISÃO (pedido do lote): entra em ehMovelQueBarra e fica fora do que tapa. LÊ c.giro (paraCima): entra na lista dos que recebem o giro, como a cerca de ferro. Esticada, reparte os vãos pelo comprimento (um mourão a cada PASSO_DOS_MOUROES casa); o mourão de cada ponta tem o meio na ponta da pegada, então dois trechos encostados dividem o mourão. De cima a tela é a sombra em losango arrastada na direção da luz. Importa andaimeDaTresQuartos.ts e apoioDoBanheiroModerno.ts. Grupo sugerido: ruaEJardim, ao lado da cerca; a outra casa possível é baseMilitar, ao lado da cancela."
+    }
+  ]
+}
