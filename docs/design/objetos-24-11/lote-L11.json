@@ -1,4 +1,5 @@
 {
+  "modeloDoDesenhista": {"modelo":"Fable 5.2","esforco":"não registrado","fonte":"Co-Authored-By: Claude Fable 5.2 nos commits bfcd02f3 (lote) e a1121202 (revisão do diretor de arte). O desenhista trocou de propósito a assinatura padrão, então ela marca o modelo de fato.","registradoEm":"2026-11-24, conserto da auditoria"},
   "lote": "L11",
   "titulo": "Arena e cortiço: peças grandes e orgânicas",
   "data": "2026-11-24",

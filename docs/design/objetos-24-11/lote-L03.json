@@ -1,4 +1,5 @@
 {
+  "modeloDoDesenhista": {"modelo":"Fable 5.2","esforco":"não registrado","fonte":"Co-Authored-By: Claude Fable 5.2 nos commits 32dd1064 (lote) e e8a965e3 (revisão do diretor de arte). O desenhista trocou de propósito a assinatura padrão, então ela marca o modelo de fato.","registradoEm":"2026-11-24, conserto da auditoria"},
   "lote": "L03",
   "titulo": "Tortura e fogo",
   "data": "2026-11-24",

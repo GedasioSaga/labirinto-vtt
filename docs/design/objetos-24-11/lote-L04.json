@@ -1,4 +1,5 @@
 {
+  "modeloDoDesenhista": {"modelo":"Fable 5.2","esforco":"não registrado","fonte":"Co-Authored-By: Claude Fable 5.2 nos commits 2e1891c2 (lote) e d3e76a71 (revisão do diretor de arte). O desenhista trocou de propósito a assinatura padrão, então ela marca o modelo de fato.","registradoEm":"2026-11-24, conserto da auditoria"},
   "lote": "L04",
   "titulo": "Fortaleza do ritual",
   "data": "2026-11-24",

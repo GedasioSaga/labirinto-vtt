@@ -1,4 +1,5 @@
 {
+  "modeloDoDesenhista": {"modelo":"Fable 5.2","esforco":"não registrado","fonte":"Co-Authored-By: Claude Fable 5.2 nos commits 68671d28 (lote) e aa7280e6 (revisão do diretor de arte). O desenhista trocou de propósito a assinatura padrão, então ela marca o modelo de fato.","registradoEm":"2026-11-24, conserto da auditoria"},
   "lote": "L06",
   "titulo": "Cripta: cristal e chama fria",
   "data": "2026-11-24",
