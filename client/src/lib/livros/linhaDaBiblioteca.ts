@@ -64,11 +64,14 @@ function ehIconeDoGolpe(tipo: string): tipo is IconeDaLinha {
   return ICONES_DO_GOLPE.has(tipo)
 }
 
+/** O traço que a ficha usa para "nada" ("-", "—"): na linha vale como campo vazio. */
+const SO_UM_TRACO = /^[-–—]+$/u
+
 /** O que só tem texto (o mestre escreveu): o Efeito, senão o texto da entrada; o da coisa do Acervo é a descrição. */
 function fraseEscrita(entrada: EntradaDaBiblioteca): string {
   if (ehDoAcervo(entrada)) return entrada.acervo.descricao.trim()
   const efeito = (entrada.campos.efeito ?? '').trim()
-  return efeito !== '' ? efeito : entrada.texto.trim()
+  return efeito !== '' && !SO_UM_TRACO.test(efeito) ? efeito : entrada.texto.trim()
 }
 
 /** As fichas da habilidade sem peças, lidas dos campos escritos (Ação, Custo, Tempo). */

@@ -95,6 +95,8 @@ interface MenuDeFerramentasProps {
 export function MenuDeFerramentas({ pagina, sistema, podeGravar, ocupado, onEscolher }: MenuDeFerramentasProps) {
   const menuId = useId()
   const [aberto, setAberto] = useState(false)
+  /** Aberto pela seta (teclado): aparece na hora, sem animar. */
+  const [peloTeclado, setPeloTeclado] = useState(false)
   const botaoRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const pendencias = usePendencias(sistema, podeGravar)
@@ -161,11 +163,14 @@ export function MenuDeFerramentas({ pagina, sistema, podeGravar, ocupado, onEsco
         aria-label={comTrabalho > 0 ? `Ferramentas: ${formatarNumero(comTrabalho)} com coisa a fazer` : 'Ferramentas'}
         title={podeGravar ? undefined : 'Parado até o livro ser lido'}
         onClick={() => {
-          if (!parado) setAberto((antes) => !antes)
+          if (parado) return
+          setPeloTeclado(false)
+          setAberto((antes) => !antes)
         }}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' && !parado) {
             event.preventDefault()
+            setPeloTeclado(true)
             setAberto(true)
           }
         }}
@@ -180,7 +185,7 @@ export function MenuDeFerramentas({ pagina, sistema, podeGravar, ocupado, onEsco
         <IconeDaBiblioteca nome="seta" />
       </button>
       {aberto && (
-        <div className="mu-bib-pop" id={menuId} role="menu" aria-label="Ferramentas" ref={menuRef} onKeyDown={teclarNoMenu}>
+        <div className="mu-bib-pop" data-instantaneo={peloTeclado ? '' : undefined} id={menuId} role="menu" aria-label="Ferramentas" ref={menuRef} onKeyDown={teclarNoMenu}>
           {daPagina.map((ferramenta) => {
             const n = pendencias === null ? null : pendencias[ferramenta.id]
             const emDia = n === 0

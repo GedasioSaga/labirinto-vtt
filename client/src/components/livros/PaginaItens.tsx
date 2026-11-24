@@ -71,9 +71,9 @@ import './biblioteca/biblioteca.css'
 
 /** A entrada recém-criada e a ficha que acabou de receber ficam com o latão por este tempo. */
 const DESTAQUE_MS = 1600
-/** Linhas no primeiro quadro; o resto entra nos quadros seguintes (a lista longa nunca vira tarefa longa ao abrir). */
-const LINHAS_NO_PRIMEIRO_QUADRO = 40
-const LINHAS_POR_QUADRO = 60
+/** Linhas no primeiro quadro (uma tela de 1080 px); o resto entra nos quadros seguintes (a lista longa nunca vira tarefa longa ao abrir). */
+const LINHAS_NO_PRIMEIRO_QUADRO = 14
+const LINHAS_POR_QUADRO = 30
 
 const NADA_NA_PAGINA: Readonly<Record<PaginaDaBiblioteca, { titulo: string; frase: string }>> = {
   itens: { titulo: 'O livro desta pasta ainda não tem itens', frase: 'Junte o que as fichas da pasta já têm, crie um item, ou ponha coisas no Acervo.' },
@@ -270,7 +270,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   const [sobre, setSobre] = useState<{ fichaId: string; alvo: AlvoDoArrasto } | null>(null)
   const [recebeu, setRecebeu] = useState<string | null>(null)
   const [novos, setNovos] = useState<ReadonlySet<string>>(() => new Set())
-  const [darAberto, setDarAberto] = useState(false)
+  const [darAberto, setDarAberto] = useState<false | 'clique' | 'tecla'>(false)
   const [confirmandoApagar, setConfirmandoApagar] = useState(false)
   /** O Testar aberto (o cartão feito da entrada uma vez, para o id não mudar a cada render). */
   const [ensaio, setEnsaio] = useState<{ entradaId: string; cartao: CartaoDaFicha; quemUsa: Personagem; item?: Pick<EfeitoDoItem, 'gasta' | 'onde'> & { quantos: number } } | null>(null)
@@ -348,15 +348,42 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   const grupoPorId = useMemo(() => new Map(todas.map((entrada) => [entrada.id, grupoNaBiblioteca(entrada, categoriaPorCoisa)] as const)), [todas, categoriaPorCoisa])
   const gruposDeFichas = useMemo(() => gruposQueRecebem(personagens), [personagens])
   const fichas = useMemo(() => gruposDeFichas.flatMap((grupoDeFichas) => grupoDeFichas.fichas), [gruposDeFichas])
-  const donos = useMemo(() => donosDasEntradas(todas, fichas, sistema), [todas, fichas, sistema])
+  /*
+   * As linhas são `memo`: dar, juntar ou salvar uma entrada muda o catálogo
+   * inteiro (lista nova), mas só a linha mexida pode re-renderizar. Por isso os
+   * donos e os dados de cada linha mantêm o MESMO objeto quando não mudaram
+   * (senão as 171 linhas se refazem a cada gravação, uma tarefa longa).
+   */
+  const donosAntes = useRef(new Map<string, Personagem[]>())
+  const donos = useMemo(() => {
+    const novos = donosDasEntradas(todas, fichas, sistema)
+    for (const [id, quem] of novos) {
+      const antes = donosAntes.current.get(id)
+      if (antes !== undefined && antes.length === quem.length && antes.every((ficha, indice) => ficha === quem[indice])) novos.set(id, antes)
+    }
+    donosAntes.current = novos
+    return novos
+  }, [todas, fichas, sistema])
   const donosDe = useCallback((entrada: EntradaDaBiblioteca): readonly Personagem[] => donos.get(entrada.id) ?? [], [donos])
   const fichaDaPrevia = useMemo(() => ({ personagem: quemUsaDeTreino(sistema), sistema, soNomes: true as const }), [sistema])
   const nomesDosAtributos = useMemo(() => new Map(sistema.atributos.map((atributo) => [atributo.id, atributo.nome])), [sistema])
+  /** Os dados da linha por entrada (o objeto da entrada é a chave: entrada salva = objeto novo = conta de novo). */
+  const dadosGuardados = useMemo(() => new WeakMap<EntradaDaBiblioteca, { grupo: GrupoDaBiblioteca; dados: DadosDaLinha }>(), [fichaDaPrevia, nomesDosAtributos])
   const dadosPorId = useMemo(() => {
     const mapa = new Map<string, DadosDaLinha>()
-    for (const entrada of todas) mapa.set(entrada.id, dadosDaLinha(entrada, grupoPorId.get(entrada.id) ?? 'outro', fichaDaPrevia, sistema, nomesDosAtributos))
+    for (const entrada of todas) {
+      const grupo = grupoPorId.get(entrada.id) ?? 'outro'
+      const guardado = dadosGuardados.get(entrada)
+      if (guardado !== undefined && guardado.grupo === grupo) {
+        mapa.set(entrada.id, guardado.dados)
+        continue
+      }
+      const dados = dadosDaLinha(entrada, grupo, fichaDaPrevia, sistema, nomesDosAtributos)
+      dadosGuardados.set(entrada, { grupo, dados })
+      mapa.set(entrada.id, dados)
+    }
     return mapa
-  }, [todas, grupoPorId, fichaDaPrevia, sistema, nomesDosAtributos])
+  }, [todas, grupoPorId, dadosGuardados, fichaDaPrevia, sistema, nomesDosAtributos])
   const dadosDe = useCallback((entrada: EntradaDaBiblioteca): DadosDaLinha => dadosPorId.get(entrada.id) ?? { icone: 'caixa', frase: '', fraseDoTexto: true, fichas: [], alcance: null }, [dadosPorId])
 
   // A busca única do Acervo (nome, categoria, descrição e pasta), a mesma do painel, da mochila e da loja.
@@ -726,8 +753,13 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
     if (qual === 'juntar') void juntar()
     else if (qual === 'ligar') void ligar()
     else {
-      setFerramenta(qual)
-      requestAnimationFrame(() => ferramentaRef.current?.scrollIntoView({ block: 'nearest' }))
+      // O menu fecha neste quadro; a lista da ferramenta (até 136 linhas com a forma desenhada) monta no seguinte, noutra tarefa.
+      requestAnimationFrame(() =>
+        window.setTimeout(() => {
+          setFerramenta(qual)
+          requestAnimationFrame(() => ferramentaRef.current?.scrollIntoView({ block: 'nearest' }))
+        }, 0),
+      )
     }
   }
 
@@ -776,6 +808,8 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   }
   const editar = (entrada: EntradaDaBiblioteca) => {
     if (motivoDoEditar(entrada) !== null) return
+    // O teste aberto fecha: ele mostraria a versão de antes, e o Esc dele (na janela) roubaria o Esc da janela de edição.
+    setEnsaio(null)
     if (ehDoAcervo(entrada)) setAcervoAberto(entrada.acervo.id)
     else if (!ehDoLivro(entrada)) setDialogo({ tipo: 'editar', item: entrada })
   }
@@ -786,7 +820,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
     const tecla = event.key.toLowerCase()
     if (tecla === 'd' && podeGravar) {
       event.preventDefault()
-      setDarAberto(true)
+      setDarAberto('tecla')
     } else if (tecla === 't') {
       event.preventDefault()
       testar(escolhida)
@@ -886,7 +920,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
         estadoParaDar={(ficha) => estadoParaDar(entrada, ficha)}
         darAberto={darAberto}
         confirmandoApagar={confirmandoApagar}
-        onAbrirDar={setDarAberto}
+        onAbrirDar={(abrir) => setDarAberto(abrir ? 'clique' : false)}
         onDar={(ficha) => darPeloMenu(entrada, ficha)}
         onTestar={() => testar(entrada)}
         onEditar={() => editar(entrada)}

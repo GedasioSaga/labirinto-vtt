@@ -36,6 +36,8 @@ interface DarAProps {
   botaoRef: RefObject<HTMLButtonElement | null>
   onDar: (ficha: Personagem) => void
   onFechar: () => void
+  /** Aberto pela tecla D: aparece na hora. */
+  instantaneo: boolean
 }
 
 /**
@@ -43,7 +45,7 @@ interface DarAProps {
  * marcada (dar várias coisas à mesma pessoa é D e Enter). Setas andam, Enter
  * dá, Esc fecha e devolve o foco ao botão.
  */
-function DarA({ grupos, ultimaFicha, estadoDe, botaoRef, onDar, onFechar }: DarAProps) {
+function DarA({ grupos, ultimaFicha, estadoDe, botaoRef, onDar, onFechar, instantaneo }: DarAProps) {
   const listaId = useId()
   const [filtro, setFiltro] = useState('')
   const todas = grupos.flatMap((grupo) => grupo.fichas)
@@ -98,7 +100,7 @@ function DarA({ grupos, ultimaFicha, estadoDe, botaoRef, onDar, onFechar }: DarA
   }
 
   return (
-    <div className="mu-bib-pop mu-bib-dar" data-lado="esq" ref={caixaRef}>
+    <div className="mu-bib-pop mu-bib-dar" data-lado="esq" data-instantaneo={instantaneo ? '' : undefined} ref={caixaRef}>
       <label className="mu-it-sr" htmlFor={`${listaId}-busca`}>
         Buscar ficha
       </label>
@@ -212,7 +214,8 @@ export interface LadoDaEscolhidaProps {
   gruposParaDar: readonly GrupoDeFichas[]
   ultimaFicha: string | null
   estadoParaDar: (ficha: Personagem) => EstadoParaDar
-  darAberto: boolean
+  /** O "Dar a…" aberto, e por onde: pela tecla D abre sem animar (atalho de teclado não anima). */
+  darAberto: false | 'clique' | 'tecla'
   confirmandoApagar: boolean
   onAbrirDar: (aberto: boolean) => void
   onDar: (ficha: Personagem) => void
@@ -271,17 +274,17 @@ export function LadoDaEscolhida(props: LadoDaEscolhidaProps) {
             type="button"
             className="mu-bt mu-bt--latao"
             aria-haspopup="listbox"
-            aria-expanded={props.darAberto}
+            aria-expanded={props.darAberto !== false}
             aria-keyshortcuts="D"
             aria-disabled={!podeGravar}
             onClick={() => {
-              if (podeGravar) props.onAbrirDar(!props.darAberto)
+              if (podeGravar) props.onAbrirDar(props.darAberto === false)
             }}
           >
             <IconeDaBiblioteca nome="dar" />
             Dar a…
           </button>
-          {props.darAberto && podeGravar && <DarA grupos={props.gruposParaDar} ultimaFicha={props.ultimaFicha} estadoDe={props.estadoParaDar} botaoRef={darRef} onDar={props.onDar} onFechar={() => props.onAbrirDar(false)} />}
+          {props.darAberto !== false && podeGravar && <DarA instantaneo={props.darAberto === 'tecla'} grupos={props.gruposParaDar} ultimaFicha={props.ultimaFicha} estadoDe={props.estadoParaDar} botaoRef={darRef} onDar={props.onDar} onFechar={() => props.onAbrirDar(false)} />}
         </span>
         <button type="button" className="mu-bt" aria-keyshortcuts="T" aria-disabled={motivoDoTeste !== null} aria-describedby={motivoDoTeste === null ? undefined : motivoId} onClick={() => motivoDoTeste === null && props.onTestar()}>
           <IconeDaBiblioteca nome="play" />

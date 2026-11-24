@@ -41,11 +41,11 @@
 
 /* a lista: barra + grupos + linhas */
 .mu-bib-col { min-width: 0; }
-.mu-bib-barra { position: sticky; top: 0; z-index: 3; display: grid; gap: 10px; padding: 10px 0 12px; background: var(--lb-color-ink); box-shadow: 0 1px 0 var(--lb-gr-filete); }
-.mu-bib-barra__l1 { display: flex; align-items: center; gap: 8px; }
-.mu-bib-barra .mu-busca { flex: 1 1 auto; }
+.mu-bib-barra { position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 10px 0 12px; background: var(--lb-color-ink); box-shadow: 0 1px 0 var(--lb-gr-filete); }
+.mu-bib-barra__l1 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mu-bib-barra .mu-busca { flex: 1 1 220px; min-width: 180px; }
 .mu-bib-ordem { display: inline-flex; align-items: center; gap: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); white-space: nowrap; }
-.mu-bib-ordem select { width: auto; }
+.mu-bib-ordem select { width: auto; min-width: 0; max-width: 220px; }
 .mu-bib-quem-select { display: none; }
 .mu-bib-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .mu-bib-chips__sep { width: 1px; height: 18px; margin: 0 4px; background: var(--lb-gr-filete-forte); }
@@ -53,7 +53,7 @@
 
 .mu-bib-grupo { margin-top: 6px; }
 .mu-bib-grupo__cab { position: sticky; top: var(--bib-barra); z-index: 2; display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 12px 6px 6px; border: 0; background: var(--lb-color-ink); color: var(--lb-color-parchment); font: inherit; text-align: left; cursor: pointer; }
-.mu-bib-grupo__cab .mu-bib-ic { align-self: center; width: 12px; height: 12px; color: var(--lb-color-parchment-faint); transition: transform var(--lb-motion-fast) ease; }
+.mu-bib-grupo__cab .mu-bib-ic { align-self: center; width: 12px; height: 12px; color: var(--lb-color-parchment-faint); transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out); }
 .mu-bib-grupo__cab[aria-expanded='false'] .mu-bib-ic { transform: rotate(-90deg); }
 .mu-bib-grupo__nome { font-family: var(--lb-font-display); font-size: 17px; line-height: 1.2; }
 .mu-bib-grupo__n { font: 500 var(--lb-font-size-sm) / 1 var(--lb-font-utility); font-variant-numeric: tabular-nums; color: var(--lb-color-parchment-faint); }
@@ -62,6 +62,8 @@
 .mu-bib-livro-sep::after { content: ''; flex: 1; height: 1px; background: var(--lb-gr-filete); }
 
 .mu-bib-linhas { display: grid; gap: 1px; }
+/* Fora da tela a linha não é medida nem pintada (a lista tem 171 linhas): abrir a página fica abaixo de uma tarefa longa. */
+.mu-bib-linhas > .mu-bib-linha { content-visibility: auto; contain-intrinsic-size: auto 54px; }
 .mu-bib-linha { position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr) 40px 56px; align-items: center; column-gap: 12px; min-height: 54px; padding: 7px 10px 7px 12px; border-radius: 8px; cursor: default; transition: background-color var(--lb-motion-fast) ease; }
 .mu-bib-linha__ic { display: grid; place-items: center; color: var(--cor, var(--lb-color-parchment-dim)); }
 .mu-bib-linha__ic .mu-bib-ic { width: 17px; height: 17px; }
@@ -125,6 +127,9 @@
 .mu-bib-link { padding: 0; border: 0; border-radius: 3px; background: none; color: var(--lb-color-brass-bright); font: inherit; text-decoration: underline; text-decoration-color: var(--lb-gr-filete-latao); text-underline-offset: 3px; cursor: pointer; }
 .mu-bib-acoes { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 6px; }
 .mu-bib-acoes .mu-bt { justify-content: center; min-height: 38px; }
+/* Desligado com o porquê escrito embaixo: fica focável (o leitor de tela lê o motivo), mas sem cara de botão que age. */
+.lb-mundo .mu-bib-acoes .mu-bt[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
+.lb-mundo .mu-bib-acoes .mu-bt[aria-disabled='true']:active { transform: none; }
 .mu-bib-motivo { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
 .mu-bib-sec { display: grid; gap: 8px; }
 .mu-bib-sec__tit { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
@@ -147,6 +152,8 @@
 .mu-bib-bt__n { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--lb-radius-full); background: var(--lb-color-brass-soft); font: 600 10.5px / 1 var(--lb-font-utility); color: var(--lb-color-brass-bright); }
 .mu-bib-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; min-width: 240px; padding: 6px; border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); box-shadow: var(--lb-shadow-float); transform-origin: top right; animation: mu-bib-pop 150ms var(--lb-gr-ease-out); }
 .mu-bib-pop[data-lado='esq'] { right: auto; left: 0; transform-origin: top left; }
+/* Aberto por atalho de teclado (D, seta): na hora. Atalho repetido muitas vezes por dia não anima. */
+.mu-bib-pop[data-instantaneo] { animation: none; }
 @keyframes mu-bib-pop { from { opacity: 0; transform: scale(0.97) translateY(-4px); } to { opacity: 1; transform: none; } }
 .mu-bib-menu__item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 2px 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: var(--lb-radius-sm); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .mu-bib-menu__item .mu-bib-ic { color: var(--lb-color-parchment-faint); }
