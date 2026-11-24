@@ -65,7 +65,10 @@ export function PaginaDaCaracteristica({ personagem, caracteristica, sistema, fi
       aria-labelledby={tituloId}
       onKeyDown={(event) => {
         // `Esc` volta às abas; o campo de texto e os diálogos cuidam do deles.
-        if (event.key !== 'Escape' || confirmando || event.defaultPrevented) return
+        if (event.key !== 'Escape' || confirmando) return
+        // O Esc para aqui: subindo, a janela da ficha o leria como "fechar" e fecharia inteira (prova por gestos, 23/11).
+        event.stopPropagation()
+        if (event.defaultPrevented) return
         event.preventDefault()
         onVoltar()
       }}
