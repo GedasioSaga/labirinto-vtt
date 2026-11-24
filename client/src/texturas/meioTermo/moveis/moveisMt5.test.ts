@@ -7,14 +7,15 @@ import { G } from './contexto'
 import { escalaDoNivel, montarCena, pintarMovel, type DesenhoDoMovel } from './index'
 import { ALFA_OPACO, digitalDosPixels, distanciaOklab, oklabMedio } from './medidas.testkit'
 import { CASA, desenhoDoApp, medir, peca, reprovacoes, TIPOS_MT5 } from './medidasMt5.testkit'
+import { FRANJA_EM_CASAS, geometriaDaHaste, MOLDURA_EM_CASAS } from './tapeteComHaste'
 
 /**
  * As 5 PEÇAS NOVAS do lote 2 (MT5) com a SEMENTE DO APP (`chaveDoMovel`), nos
  * níveis 1, 2 e 3, pelos limites que não se afrouxam (cobertura, saturação
  * p95 por peça, brilho, contorno, luz linear, opacidade e miolo translúcido);
  * mais o que cada peça precisa provar: a peça pequena não some no chão padrão,
- * a sebe segue o ARCO (no editor e no jogador, pela mesma chave), e a borda do
- * tapete longo é igual POR CASA em 3 comprimentos. A varredura das 1000
+ * a sebe segue o ARCO (no editor e no jogador, pela mesma chave), e o tapete
+ * longo só estica a haste (o centro sai igual em 7 e 14 casas). A varredura das 1000
  * sementes está em `pixi/rasterDosMoveis.sementesMt5.test.ts`.
  */
 
@@ -237,97 +238,50 @@ describe('MT5: a sebe segue o arco, no editor e no jogador', () => {
 })
 
 /**
- * Perfil de luz da borda comprida do tapete longo em pé, POR CASA: a média da
- * luminância na faixa da borda da esquerda, em `BINS` fatias de cada casa (a
- * casa contada da ponta de cima), menos a média da casa. As casas das pontas
- * ficam de fora (a borda dobra e a franja entra).
+ * O TAPETE GRANDE "Medalhão com haste" (`tapeteComHaste.ts`, 24/11/2026), o
+ * mesmo no tapete longo e no retangular: a moldura, a franja, o medalhão e as
+ * pontas nascem da largura e só a haste estica, então o centro de uma
+ * passadeira é o mesmo em qualquer comprimento; no tapete curto a haste e as
+ * pontas somem.
  */
-const BINS = 20
-
-function perfisPorCasa(casas: number, nivel: number): number[][] {
-  const prop = peca('tapeteLongo', 1, casas, 'vinho', null)
-  const d = desenhoDoApp(prop, nivel)
-  const S = escalaDoNivel(nivel)
-  const { limites, pixels } = pintarMovel(d, S)
-  const hw = G / 2
-  const topo = -(casas * G) / 2
-  // A faixa da borda da esquerda: de 0,05 a 0,11 casa da beira (a borda tem 0,14 casa).
-  const x0 = -hw + 0.05 * G
-  const x1 = -hw + 0.11 * G
-  const perfis: number[][] = []
-  for (let k = 1; k < casas - 1; k += 1) {
-    const soma = new Array<number>(BINS).fill(0)
-    const n = new Array<number>(BINS).fill(0)
-    for (let j = 0; j < limites.H; j += 1) {
-      const y = limites.y0 + (j + 0.5) / S
-      const f = (y - topo) / G - k
-      if (f < 0 || f >= 1) continue
-      const b = Math.floor(f * BINS)
-      for (let i = 0; i < limites.W; i += 1) {
-        const x = limites.x0 + (i + 0.5) / S
-        if (x < x0 || x > x1) continue
-        const o = (j * limites.W + i) * 4
-        soma[b] += 0.2126 * pixels[o] + 0.7152 * pixels[o + 1] + 0.0722 * pixels[o + 2]
-        n[b] += 1
-      }
-    }
-    const perfil = soma.map((s, b) => s / n[b])
-    const media = perfil.reduce((a, v) => a + v, 0) / BINS
-    perfis.push(perfil.map((v) => v - media))
-  }
-  return perfis
-}
-
-describe('MT5: a borda do tapete longo é igual por casa, em 3 comprimentos', () => {
-  it('3, 4 e 7 casas: o perfil de cada casa do meio é o mesmo (diferença ≤ 14 de 255) e tem desenho (amplitude ≥ 40)', () => {
-    for (const nivel of [1, 3]) {
-      const todos = [3, 4, 7].flatMap((casas) => perfisPorCasa(casas, nivel))
-      expect(todos.length, `nível ${nivel}`).toBe(1 + 2 + 5)
-      const ref = todos[0]
-      const amplitude = Math.max(...ref) - Math.min(...ref)
-      expect(amplitude, `nível ${nivel}: a borda tem motivo`).toBeGreaterThanOrEqual(40)
-      for (const perfil of todos) {
-        const diferenca = Math.max(...perfil.map((v, b) => Math.abs(v - ref[b])))
-        expect(diferenca, `nível ${nivel}`).toBeLessThanOrEqual(14)
-      }
-    }
+describe('MT5: o tapete grande "Medalhão com haste"', () => {
+  it('a haste só aparece com espaço (some no 3 x 3, liga as pontas no 4 x 6 e no 2 x 14); moldura, franja e medalhão não esticam', () => {
+    expect(geometriaDaHaste(3, 3).temHaste).toBe(false)
+    expect(geometriaDaHaste(6, 4).temHaste).toBe(true)
+    const curto = geometriaDaHaste(7, 2)
+    const longo = geometriaDaHaste(14, 2)
+    expect(longo.temHaste).toBe(true)
+    for (const medida of ['B', 'Pv', 'Rc', 'Rcap', 'Lc'] as const) expect(longo[medida], medida).toBeCloseTo(curto[medida], 9)
+    expect(longo.B).toBeCloseTo(MOLDURA_EM_CASAS, 9)
+    expect(longo.L / 2 - longo.hu).toBeCloseTo(FRANJA_EM_CASAS, 9)
   })
 
-  it('na divisa de cada casa, 2 fios claros atravessam o campo (1 px cada, 2 px de vão): mais claros que o campo dos dois lados', () => {
-    const nivel = 3
-    const S = escalaDoNivel(nivel)
-    const casas = 4
-    const { limites, pixels } = pintarMovel(desenhoDoApp(peca('tapeteLongo', 1, casas, 'vinho', null), nivel), S)
-    // Luminância média numa linha atravessada (y em px do protótipo), no meio do campo (|x| até 0,1 casa).
-    const linha = (y: number): number => {
-      const j = Math.floor((y - limites.y0) * S)
-      let soma = 0
-      let n = 0
-      for (let i = 0; i < limites.W; i += 1) {
-        const x = limites.x0 + (i + 0.5) / S
-        if (Math.abs(x) > 0.1 * G) continue
-        const o = (j * limites.W + i) * 4
-        soma += 0.2126 * pixels[o] + 0.7152 * pixels[o + 1] + 0.0722 * pixels[o + 2]
-        n += 1
+  it('nos pixels: o centro do corredor de 7 e de 14 casas sai igual (o medalhão não estica nem se repete)', () => {
+    const S = escalaDoNivel(2)
+    const centro = (casas: number): number[] => {
+      const { limites, pixels } = pintarMovel({ tipo: 'tapeteLongo', lado: 'frente', materiais: ['vinho'], casasW: 2, casasH: casas, semente: 7 }, S)
+      const tons: number[] = []
+      for (let y = -0.7 * G; y < 0.7 * G; y += 1 / S) {
+        for (let x = -0.9 * G; x < 0.9 * G; x += 1 / S) {
+          const o = (Math.floor((y - limites.y0) * S) * limites.W + Math.floor((x - limites.x0) * S)) * 4
+          tons.push(pixels[o], pixels[o + 1], pixels[o + 2])
+        }
       }
-      return soma / n
+      return tons
     }
-    const topo = -(casas * G) / 2
-    for (let k = 1; k < casas; k += 1) {
-      const divisa = topo + k * G
-      for (const lado of [-1, 1]) {
-        const fio = linha(divisa + lado * 1.5)
-        expect(fio - linha(divisa + lado * 6), `divisa ${k}, lado ${lado}: fio contra o campo`).toBeGreaterThan(15)
-        expect(fio - linha(divisa), `divisa ${k}, lado ${lado}: fio contra o vão`).toBeGreaterThan(15)
-      }
-    }
+    const a = centro(7)
+    const b = centro(14)
+    let maior = 0
+    for (let i = 0; i < a.length; i += 1) maior = Math.max(maior, Math.abs(a[i] - b[i]))
+    // Até 1 tom de diferença: o meio tom sorteado por pixel no arredondamento (`pintarCena`).
+    expect(maior).toBeLessThanOrEqual(2)
   })
 
   it('LIMITE da grade: numa grade de 70 o tapete longo 1 x 4 (70 x 280 px) é desenhado como 1,4 x 5,6 casas de 50 px', () => {
     const chave = chaveDoMovel({ ...peca('tapeteLongo', 1, 4, 'vinho', null), width: 70, height: 280 }, 1, 1)
     expect(chave?.desenho.casasW).toBeCloseTo(1.4, 9)
     expect(chave?.desenho.casasH).toBeCloseTo(5.6, 9)
-    // Na grade de 50 o mesmo tapete é 1 x 4: a borda se repete por casa da grade de REFERÊNCIA.
+    // Na grade de 50 o mesmo tapete é 1 x 4: o desenho é medido em casas da grade de REFERÊNCIA.
     const deReferencia = chaveDoMovel(peca('tapeteLongo', 1, 4, 'vinho', null), 1, 1)
     expect([deReferencia?.desenho.casasW, deReferencia?.desenho.casasH]).toEqual([1, 4])
     expect(CASA).toBe(50)

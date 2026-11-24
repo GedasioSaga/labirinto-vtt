@@ -3,8 +3,7 @@ import type { Prop } from '../../../types/map'
 import { chaveDoMovel } from '../../../pixi/rasterDosMoveis'
 import type { OpcaoDeMaterial } from '../materiais'
 import { G } from './contexto'
-import { escalaDoNivel, GRADE_DE_REFERENCIA, pintarMovel, type DesenhoDoMovel } from './index'
-import { PERIODO_DO_MOTIVO } from './tapete'
+import { escalaDoNivel, pintarMovel, type DesenhoDoMovel } from './index'
 
 /**
  * Revisão da MT3: o tapete redondo deixa de ler como alvo, o nicho do armário
@@ -115,14 +114,11 @@ describe('A8: nicho do armário cinza na madeira velha; veio das portas do apara
   }
 })
 
-describe('B13: a borda do tapete se repete por casa da grade de REFERÊNCIA (50 px), medido em outra grade', () => {
-  it('na grade 70, o tapete 3 x 2 (210 x 140 px) é desenhado como 4,2 x 2,8 casas e leva 2,8 losangos por casa do mapa', () => {
+describe('B13: o tapete é desenhado em casas da grade de REFERÊNCIA (50 px), medido em outra grade', () => {
+  it('na grade 70, o tapete 3 x 2 (210 x 140 px) é desenhado como 4,2 x 2,8 casas', () => {
     const prop: Prop = { id: 't', src: '', x: 0, y: 0, width: 210, height: 140, linkedMapPath: null, mobilia: 'tapete' }
     const chave = chaveDoMovel(prop, 1, 1)
     expect(chave?.desenho.casasW).toBeCloseTo(4.2, 9)
     expect(chave?.desenho.casasH).toBeCloseTo(2.8, 9)
-    const motivoNoMundo = (PERIODO_DO_MOTIVO * GRADE_DE_REFERENCIA) / G
-    expect(70 / motivoNoMundo).toBeCloseTo(2.8, 9)
-    expect(GRADE_DE_REFERENCIA / motivoNoMundo).toBeCloseTo(2, 9)
   })
 })

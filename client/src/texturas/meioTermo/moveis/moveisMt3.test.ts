@@ -6,7 +6,6 @@ import type { OpcaoDeMaterial } from '../materiais'
 import { CINZA, G, type LadoDoMovel } from './contexto'
 import { escalaDoNivel, montarCena, pintarMovel, type DesenhoDoMovel, type TipoComTextura } from './index'
 import { ALFA_DE_PECA, ALFA_OPACO, digitalDosPixels, medirImagem } from './medidas.testkit'
-import { distanciaAoMotivo, PERIODO_DO_MOTIVO } from './tapete'
 
 /**
  * Os 5 móveis da fatia MT3 (cerca reta e curva, armário, aparador, fogueira e
@@ -15,8 +14,8 @@ import { distanciaAoMotivo, PERIODO_DO_MOTIVO } from './tapete'
  * (`moveis.test.ts`): a imagem cobre a pegada, a cor é contida, nada some de
  * tão escuro, o contorno nunca é preto, o preto é levantado e a peça é opaca.
  * Mais o que é de cada tipo: a cerca acompanha o comprimento e a curva sem
- * esticar o padrão, a fogueira parada não tem chama, e a borda do tapete se
- * repete por casa.
+ * esticar o padrão e a fogueira parada não tem chama. O desenho do tapete
+ * retangular ("Medalhão com haste") é medido em `moveisMt5.test.ts`.
  *
  * A semente aqui é fixa (7); a do app e a varredura das 1000 estão em
  * `pixi/rasterDosMoveis.sementesMt3.test.ts`.
@@ -195,54 +194,6 @@ describe('fogueira parada: sem chama na imagem', () => {
     for (const lado of ['frente', 'lado'] as const) {
       const cena = montarCena({ tipo: 'fogueira', lado, materiais: ['granito', 'lenhaCarvalho'], casasW: 1, casasH: lado === 'lado' ? 1.25 : 1, semente: 7 })
       for (const p of cena.partes) expect(p.mat === CINZA || p.mat.classe === 'pedra' || p.mat.classe === 'casca', `${lado}: ${p.mat.classe}`).toBe(true)
-    }
-  })
-})
-
-describe('tapete: a borda se repete por casa', () => {
-  it('o motivo é periódico em meia casa (logo, em uma casa) e simétrico em volta do centro', () => {
-    for (const borda of [6.7, 13.4]) {
-      for (let s = -3 * G; s <= 3 * G; s += 0.37) {
-        for (const v of [-borda / 3, 0, borda / 4]) {
-          expect(distanciaAoMotivo(s + G, v, borda)).toBeCloseTo(distanciaAoMotivo(s, v, borda), 9)
-          expect(distanciaAoMotivo(s + PERIODO_DO_MOTIVO, v, borda)).toBeCloseTo(distanciaAoMotivo(s, v, borda), 9)
-          expect(distanciaAoMotivo(-s, v, borda)).toBeCloseTo(distanciaAoMotivo(s, v, borda), 9)
-        }
-      }
-    }
-  })
-
-  it('nos pixels: no meio da faixa de cima de tapetes de 3 e 4 casas, cada casa de borda repete a anterior (correlação ≥ 0,9)', () => {
-    const S = escalaDoNivel(3)
-    const umaCasa = Math.round(G * S)
-    for (const casasW of [3, 4]) {
-      const d: DesenhoDoMovel = { tipo: 'tapete', lado: 'frente', materiais: ['vinho'], casasW, casasH: 2, semente: 7 }
-      const { limites, pixels } = pintarMovel(d, S)
-      const borda = 0.12 * 2 * G
-      const linha = Math.floor((-G + borda / 2 - limites.y0) * S)
-      const brilho = (i: number): number => {
-        const o = (linha * limites.W + i) * 4
-        return 0.2126 * pixels[o] + 0.7152 * pixels[o + 1] + 0.0722 * pixels[o + 2]
-      }
-      const centro = Math.floor((0 - limites.x0) * S)
-      const a: number[] = []
-      const b: number[] = []
-      for (let k = -umaCasa; k < 0; k += 1) {
-        a.push(brilho(centro + k))
-        b.push(brilho(centro + k + umaCasa))
-      }
-      const media = (xs: number[]): number => xs.reduce((s, x) => s + x, 0) / xs.length
-      const ma = media(a)
-      const mb = media(b)
-      let cov = 0
-      let va = 0
-      let vb = 0
-      for (let i = 0; i < a.length; i += 1) {
-        cov += (a[i] - ma) * (b[i] - mb)
-        va += (a[i] - ma) ** 2
-        vb += (b[i] - mb) ** 2
-      }
-      expect(cov / Math.sqrt(va * vb), `${casasW} casas`).toBeGreaterThanOrEqual(0.9)
     }
   })
 })
