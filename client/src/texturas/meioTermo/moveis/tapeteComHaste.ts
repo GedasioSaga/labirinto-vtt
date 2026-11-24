@@ -91,10 +91,25 @@ function molduraDoTecido(base: Rgb): Moldura {
   return MOLDURA_DO_VINHO
 }
 
+/**
+ * VINHO MAIS PROFUNDO (24/11/2026, escolha do Claude): no chão escuro do dono
+ * (região preta com basalto, tema Tocha) o vinho cheio lia como faixa clara.
+ * O campo, a faixa e a guarda do Vinho descem 20%; o fio creme e o acento
+ * ficam como estão, para o desenho continuar legível e não virar mancha
+ * escura no chão claro.
+ */
+const PROFUNDIDADE_DO_VINHO = 0.8
+
+function escalar(c: Rgb, k: number): Rgb {
+  return [c[0] * k, c[1] * k, c[2] * k]
+}
+
 /** O campo é o tecido escolhido no painel; a moldura e o acento saem da família dele. */
 export function coresDaHaste(base: Rgb): CoresDaHaste {
   const m = molduraDoTecido(base)
-  return { campo: base, fundo: [base[0] * FUNDO_DO_PAINEL, base[1] * FUNDO_DO_PAINEL, base[2] * FUNDO_DO_PAINEL], ...m }
+  const k = m === MOLDURA_DO_VINHO ? PROFUNDIDADE_DO_VINHO : 1
+  const campo = escalar(base, k)
+  return { campo, fundo: escalar(campo, FUNDO_DO_PAINEL), faixa: escalar(m.faixa, k), guarda: escalar(m.guarda, k), fio: m.fio, acento: m.acento }
 }
 
 // ---------- geometria, em casas ----------
