@@ -10,7 +10,8 @@
     "Grupos existentes usados: 'temploEMasmorra' (Templo e masmorra) e 'salaDeTortura' (Sala de tortura), de gruposDoObjeto.ts.",
     "Nenhum item emite luz (luzDoFogo.ts fica igual).",
     "Tempos medidos no Chromium headless, uma geração por imagem, com outros agentes rodando ao lado (o relógio oscilou até 2x entre rodadas). De cima, a S=4, tudo ficou em até 40 ms. Na 3/4 a S=4, o pior é a grade de corredor (180 ms) e depois a jaula (91 ms): são as colunas altas da 3/4 (varrer) e o custo é da 3/4 derivada, não da sombra. Com S=2: grade 3/4 65 ms, jaula 3/4 37 ms.",
-    "Jaula e grade já declaram a sombra de cada barra já arrastada (cápsula com z = 0) mais uma coluna de força 0 só para a altura da 3/4: o motor pula a passada de força 0. Isso cortou a geração de cima da jaula de 99 para 40 ms e a da grade de 96 para 27 ms (S=4), sem mudar o desenho."
+    "Jaula e grade já declaram a sombra de cada barra já arrastada (cápsula com z = 0) mais uma coluna de força 0 só para a altura da 3/4: o motor pula a passada de força 0. Isso cortou a geração de cima da jaula de 99 para 40 ms e a da grade de 96 para 27 ms (S=4), sem mudar o desenho.",
+    "Rodada do diretor de arte (24/11/2026, tarde): os 10 itens refeitos pelas notas dele (livro em tabela e vela na mesa; chaves maiores em leque; jaula sem tigela, com ninho de palha e travessas finas; ralo de barras iguais e 16 furos; baú com a tampa no tom das cintas e frente lisa na 3/4; pregos em grade e cavaletes só debaixo da prancha; cepo com o entalhe em U, cesto de vime e machado de cabo comprido; corda fina e desfiada, sombra comprida e açoite em S; grade com barras quadradas, luvas, 2 travessas rebitadas e cabeças redondas; sangue sem flor, sem mão e com halo seco). Tempos depois da rodada (S=4): grade 3/4 ~195 ms, jaula 3/4 ~80 ms, o resto até 50 ms; S=2: grade 3/4 ~65 ms."
   ],
   "itens": [
     {
@@ -26,9 +27,9 @@
         { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "carvalho" },
         { "lugar": "ferragens", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "Livro aberto com capa de couro, folhas de pergaminho com linhas de escrita e fita vinho; tinteiro de barro escuro com pena e pingo de tinta; molho de 3 chaves (uma de latão fixa).",
+      "coresFixas": "Livro de registro aberto com capa de couro, folhas de pergaminho riscadas em tabela (a coluna da data separada da do nome por um risco vinho apagado #6d3337 a 0,5; na folha da direita, 3 grupos de riscos de contagem) e fita vinho; tinteiro de barro escuro com um borrão comprido de tinta (0,45); toco de vela de sebo (#cfc3a6) apagado num pires de lata com alça; 2 nós discretos no tampo; cintas a 0,72; molho de 3 chaves (uma de latão fixa).",
       "perfil3x4": "DERIVADO (o tampo é sombra solta a 0,5 G e as 4 pernas, colunas)",
-      "paraOIntegrador": "Mesa de trabalho do carcereiro: o livro de registro, o tinteiro e o molho de chaves ficam em cima do tampo e sobem com ele na 3/4. Escala pelo menor lado (k = min(w, h) / 0,8 G): esticada, o tampo cresce e os objetos de cima ficam do mesmo tamanho. Ícone sugerido: mesa com livro aberto."
+      "paraOIntegrador": "Mesa de trabalho do carcereiro: o livro de registro, o tinteiro, a vela no pires e o molho de chaves ficam em cima do tampo e sobem com ele na 3/4. Escala pelo menor lado (k = min(w, h) / 0,8 G): esticada, o tampo cresce e os objetos de cima ficam do mesmo tamanho. Ícone sugerido: mesa com livro aberto."
     },
     {
       "numero": 12,
@@ -43,9 +44,9 @@
         { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "carvalho" },
         { "lugar": "chaves", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "Plaquinhas de latão com o número de cada gancho; uma chave de latão no último gancho; um gancho vazio de propósito (chave levada).",
+      "coresFixas": "Tábua de 2 pranchas com a luz na beira de cima; plaquinhas de latão com o número de cada gancho; chaves grandes (anel de 2,8 px com furo de 1,5, haste de 1, palhetão de 3 dentes), no máximo 2 por argola, abertas em leque (±0,25); uma chave de latão (tom 0,85) no último molho; um gancho vazio de propósito (chave levada).",
       "perfil3x4": "DERIVADO sem estrutura: é desenho DE FRENTE, de parede, sem sombra com altura; a 3/4 sai igual à vista de cima",
-      "paraOIntegrador": "Objeto de parede, encostado no lado de cima da pegada (a tábua vai de -0,88 hh a -0,26 hh). A sombra na parede é feita com peças translúcidas, não com cena.sombras. Se o teste da 3/4 exigir que todo móvel suba, ponha este tipo na lista dos rentes/de parede de tresQuartos.test.ts. Ícone sugerido: chave."
+      "paraOIntegrador": "Objeto de parede, encostado no lado de cima da pegada (a tábua vai de -0,92 hh a -0,12 hh). A sombra na parede é feita com peças translúcidas (força 0,42, deslocada [2,4; 2,2]), não com cena.sombras. Se o teste da 3/4 exigir que todo móvel suba, ponha este tipo na lista dos rentes/de parede de tresQuartos.test.ts. Ícone sugerido: chave."
     },
     {
       "numero": 13,
@@ -60,9 +61,9 @@
       "lugaresDeMaterial": [
         { "lugar": "grade", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "Dentro: palha nos cantos, tigela de mingau, um preso agachado (trapo, pele, cabelo) e a corrente do tornozelo até o canto. Porta com 2 dobradiças e cadeado no lado de baixo.",
-      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_JAULA_DE_CHAO } (altura 0,58 G; barras e postes são colunas, o teto é tampo solto)",
-      "paraOIntegrador": "As peças do chão (preso, palha, tigela, corrente) usam comMeioEm no meio de um vão entre barras, para ficarem no chão na 3/4. cena.corDoPiso é cinza-ferro, para a beirada das barras na 3/4 não sair marrom. Bloqueia a passagem mas não a visão: se houver ehMovelQueBarra, a jaula entra nele. Ícone sugerido: gaiola quadrada."
+      "coresFixas": "Dentro: um ninho só de palha (fiapos curtos quase paralelos, tom 0,7, 0,75) embaixo e atrás do preso, sem tigela; o preso agachado (ombros e nuca claros a 1,1, cabelo mais escuro) e a corrente do tornozelo até o canto. Porta com 2 dobradiças e cadeado no lado de baixo.",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_JAULA_DE_CHAO } (altura 0,58 G; barras e postes são colunas, o quadro e as barras do teto são tampos soltos; as 2 travessas do teto, com metade da grossura e tom 0,75, não são estrutura: sobem com a segunda barra do teto por comMeioEm, sem beirada, e a sombra delas vai pronta no chão)",
+      "paraOIntegrador": "As peças do chão (preso, palha, corrente) usam comMeioEm no meio de um vão entre barras, para ficarem no chão na 3/4. cena.corDoPiso é cinza-ferro, para a beirada das barras na 3/4 não sair marrom. Bloqueia a passagem mas não a visão: se houver ehMovelQueBarra, a jaula entra nele. Ícone sugerido: gaiola quadrada."
     },
     {
       "numero": 14,
@@ -76,7 +77,7 @@
       "lugaresDeMaterial": [
         { "lugar": "grade", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "Buraco escuro com água parada e reflexo; mancha úmida da pedra em volta; rastro molhado com sangue velho diluído vindo do canto de cima à esquerda; ferrugem no quadro.",
+      "coresFixas": "Buraco escuro com água parada e reflexo; grade de 3+3 barras iguais (meia barra 1,3, tom 0,95) abrindo 16 furos quadrados, cada um com o canto de cima à esquerda no escuro e um fio de luz embaixo à direita; junta escura de 0,8 px em volta do quadro e por dentro dele (o quadro não projeta); mancha úmida justa e irregular (até 0,75 R, suave 1,6, 0,28) com um pouco de sangue velho diluído; um só fio de escorrido chegando pela esquerda; riscos curtos de ferrugem (0,35) saindo de 3 parafusos.",
       "perfil3x4": "DERIVADO, rente ao chão (nenhuma sombra com altura): a 3/4 sai igual à vista de cima, como o bueiro",
       "paraOIntegrador": "Objeto de chão: entra na mesma exceção de rente do bueiro (ehMovelDoChao ou equivalente), não bloqueia passagem nem visão. Esticado, a grade fica quadrada no meio, do tamanho do menor lado; só a mancha úmida estica. Ícone sugerido: quadrado quadriculado."
     },
@@ -93,9 +94,9 @@
         { "lugar": "chapa", "opcoes": "METAIS", "padrao": "ferro" },
         { "lugar": "ferragens", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "Ferrugem em 4 manchas pequenas; cadeado e argolas seguem o material das ferragens.",
+      "coresFixas": "Ferrugem em escorridos curtos de pé embaixo de alguns rebites (#7c523a, 0,3); cadeado, alças (1,6x, presas numa chapinha rebitada) e argolas seguem o material das ferragens.",
       "perfil3x4": "DERIVADO (o corpo é coluna de 0,46 G; a beira da tampa, as cintas e as cantoneiras da frente são estruturas de força 0 só para a 3/4)",
-      "paraOIntegrador": "Tampa de chapa batida com marteladas, cintas rebitadas, cantoneiras, alças de argola nos lados e cadeado na frente. Na 3/4 a frente mostra a beira da tampa e as cintas descendo até o chão. cena.corDoPiso é cinza-ferro. Ícone sugerido: baú com cintas."
+      "paraOIntegrador": "Tampa de chapa batida quase no tom das cintas (0,85 contra 0,76), o arco lido pela luz (faixa clara a 1/3 do alto, escurecendo para a frente e para trás, força 0,5) e um fio claro na beira de cima; cintas rebitadas, cantoneiras, alças de argola nos lados e cadeado na frente. Na 3/4 a frente é chapa lisa (a tampa usa um ferro de classe lisa com a textura própria; a frente herda só o material) e mostra a beira da tampa, mais clara, e as cintas descendo até o chão: o claro de cima para baixo é só esse degrau, porque a face da 3/4 é pintada lisa pelo motor. cena.corDoPiso é cinza-ferro. Ícone sugerido: baú com cintas."
     },
     {
       "numero": 16,
@@ -111,8 +112,8 @@
         { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "nogueira" },
         { "lugar": "ferragens", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "Pregos em fileiras desencontradas (5% faltando, alguns enferrujados); manchas de sangue velho na prancha e pingos no chão.",
-      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_TABUA_DE_PREGOS } (prancha solta a 0,34 G sobre 2 cavaletes, que são colunas)",
+      "coresFixas": "Pregos numa grade de verdade (mesmo passo, uma fileira sim, uma não deslocada meio passo; brilho de 0,6 px no meio de cada ponta; 2,5% faltando, alguns enferrujados), com a cabeceira e os pés livres (~15% de cada ponta) para as argolas; sangue seco de borda firme em volta dos pregos do meio, com as pontas deles mais escuras; pingos de tamanhos, espaços e formas desiguais (dois compridos) no chão, rentes à beira, embaixo da mancha.",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_TABUA_DE_PREGOS } (prancha solta a 0,34 G sobre 2 cavaletes; cada cavalete é coluna só dentro da pegada da prancha, com uma peça de madeira escondida debaixo dela que dá o material da frente, e os 2 pés de cada um ficam rentes no chão, passando da beira; os parafusos sobem com a prancha por comMeioEm)",
       "paraOIntegrador": "Prancha deitada sobre cavaletes, com 4 argolas de prender pulsos e tornozelos nas pontas. Esticada, ganha fileiras de pregos, não pregos maiores. Ícone sugerido: prancha com pontos."
     },
     {
@@ -127,9 +128,9 @@
       "lugaresDeMaterial": [
         { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "nogueira" }
       ],
-      "coresFixas": "Machado deitado no chão: cabo de madeira com empunhadura de couro, lâmina de barba com ferrugem e fio polido; talhos e manchas de sangue no bloco e no chão; serragem.",
-      "perfil3x4": "DERIVADO (o bloco é coluna de 0,42 G; o machado fica no chão com comMeioEm)",
-      "paraOIntegrador": "Bloco baixo com a cava do pescoço no meio do lado comprido. O machado é fixo (não segue o material). Ícone sugerido: bloco com machado."
+      "coresFixas": "Machado encostado na ponta da direita: cabo comprido (~63% do comprimento do bloco) com empunhadura de couro apoiada no cepo, cabeça de barba de ferro escuro (tom 0,75) deitada no chão, com o brilho só na faixa do fio e um pouco de ferrugem perto do olho; cesto raso de vime na frente do entalhe (no lugar da serragem); talhos; sangue velho no entalhe escorrendo em 2 fios até a beira da frente; mancha seca no chão.",
+      "perfil3x4": "DERIVADO (o bloco é coluna de 0,42 G de frente inteira; o U da beira da frente aparece como um dente escuro no alto da frente; o machado e o cesto ficam no chão com comMeioEm)",
+      "paraOIntegrador": "Bloco baixo e escuro, de quinas pouco arredondadas (1,2 px), com o entalhe do pescoço: um U em cada beira comprida (sombra dentro do U, a parede da direita na luz) ligados por um sulco raso. O escuro do bloco é a madeira escurecida a 0,9 com o alto a 0,86 (efetivo ~0,77), e não o tom 0,6-0,65 pedido: abaixo disso o piso de luz do motor (PISO_DE_LUZ 0,045) levanta o pixel até o marrom do piso e o bloco vira uma chapa lisa, sem veio nem entalhe (visto na prova). O machado e o cesto são fixos (não seguem o material). Ícone sugerido: bloco com machado."
     },
     {
       "numero": 18,
@@ -144,8 +145,8 @@
         { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "carvalho" },
         { "lugar": "ferragens", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "Corda clara com nó e fiapos; sangue escorrido no tronco; terra pisada com pedras e pingos; açoite de couro no chão.",
-      "perfil3x4": "EM_PE ({ modo: 'em-pe' }): é desenho DE FRENTE; a 3/4 só soma a elipse de sombra embaixo",
+      "coresFixas": "Corda velha de sisal (35% mais fina, tom 0,8 da corda) com o nó justo (1,3x a corda) e as 2 pontas desfiadas em 6 fios finos que somem; madeira gasta e clara em volta da argola; 2 fios de sangue velho (#552723, 0,45) escorrendo de debaixo da argola; terra pisada com pedras e pingos; açoite à esquerda do pé, de cabo curto e grosso com a ponta clara e a tira numa curva em S afinando até a ponta.",
+      "perfil3x4": "EM_PE ({ modo: 'em-pe' }): é desenho DE FRENTE; a 3/4 só soma a elipse de sombra embaixo. A sombra comprida do tronco é uma sombra z = 0 desenhada no rumo da luz (~0,6 da altura, afinando na ponta): a arrastada pelo motor não cabia na casa",
       "paraOIntegrador": "Tronco torto de pé, com grampo e argola de ferro e a corda pendurada. Ícone sugerido: poste com argola."
     },
     {
@@ -161,9 +162,9 @@
       "lugaresDeMaterial": [
         { "lugar": "grade", "opcoes": "METAIS", "padrao": "ferro" }
       ],
-      "coresFixas": "Sulco escuro no chão onde as barras assentam.",
-      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_GRADE_DE_CORREDOR } (altura 1,45 G; barras e batentes são colunas, a travessa é tampo solto)",
-      "paraOIntegrador": "Barra a passagem mas não tapa a visão: entra em ehMovelQueBarra (ou equivalente), nunca no que bloqueia a linha de visão. De cima, o que diz 'grade' é a travessa com as pontas de lança e a sombra em faixas no chão. Esticada, ganha barras (uma a cada 7 px), nunca barras mais grossas. É o item mais caro na 3/4 (65 ms a S=2, 180 ms a S=4). Ícone sugerido: barras verticais."
+      "coresFixas": "Sulco escuro no chão onde as barras assentam; furo escuro no pé de cada barra; chapas de ancoragem rebitadas no chão, no pé dos batentes.",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_GRADE_DE_CORREDOR (5 px, beirada grossa) } (altura 1,45 G de propósito: vai do chão ao teto do corredor e passa do alto da casa na prova; cada barra é quadrada vista pela quina, 2 colunas finas com a face da esquerda clara e a da direita escura; luva escura no pé de cada barra (coluna baixa); 2 travessas rebitadas a 1/3 e 2/3 da altura, tampos soltos de força 0 que passam por cima das barras, cada uma com um pino escondido atrás do batente onde mora o meio dos rebites; a travessa do alto é tampo solto, com as cabeças redondas das barras em cima; as peças que só dão o material de uma estrutura ficam escondidas debaixo da travessa do alto na vista de cima)",
+      "paraOIntegrador": "Barra a passagem mas não tapa a visão: entra em ehMovelQueBarra (ou equivalente), nunca no que bloqueia a linha de visão. De cima, o que diz 'grade' é a travessa com as cabeças redondas (bola com brilho, no lugar das pontas de lança, que liam como serra), os batentes grossos e a sombra em faixas no chão. Esticada, ganha barras (uma a cada 7 px), nunca barras mais grossas. É o item mais caro na 3/4 (~65 ms a S=2, ~195 ms a S=4). Ícone sugerido: barras verticais."
     },
     {
       "numero": 20,
@@ -177,9 +178,9 @@
       "idDoCarimbo": "respingos-de-sangue",
       "tamanhoDoCarimbo": 10,
       "sombra": "nenhuma",
-      "cores": "Vinho velho, nunca vermelho vivo: seco [118,72,60], beira [110,52,46], miolo [84,34,32], coágulo [64,27,27], gota [96,40,37], reflexo [212,194,188].",
-      "variacoes": "A semente escolhe: s % 4 = 0 poça com respingos em volta, 1 rastro arrastado, 2 respingos com o baque, 3 trilha de gotas; s >= 4 soma um extra (trilha, respingos, poça ou rastro).",
-      "paraOIntegrador": "Registrar em carimbos/novos/index.ts (import de carimbo e paleta, CARIMBOS_NOVOS e PALETA_DOS_NOVOS). Se o pacote-animacoes.cjs tiver a lista de ids reservados dos carimbos embutidos, somar 'respingos-de-sangue'. Desenho de chão achatado (ACHATA 0,55), tudo preso dentro do raio 0,5 em qualquer giro."
+      "cores": "Vinho velho, nunca vermelho vivo: seco [118,72,60], halo [110,64,52], beira [110,52,46], miolo [84,34,32], coágulo [64,27,27], gota [96,40,37], reflexo [212,194,188].",
+      "variacoes": "A semente escolhe: s % 4 = 0 poça (película seca fina + uma poça molhada só, de beira ondulada e degradê da beira ao miolo, com um risco curto de reflexo, menos de 30% dela, na beira do lado da luz) com respingos em volta; 1 rastro arrastado (faixa contínua, larga na poça e afinando até o fim redondo, com riscos ao comprido contínuos e finos no começo); 2 respingos com o baque; 3 trilha de pingos (tamanhos de 0,4 a 1,5, espaços de 0,6 a 1,8, metade com a cauda no rumo da caminhada); s >= 4 soma um extra (trilha, pingos soltos em roda em volta da poça, poça ou rastro). Em volta das peças grandes, o halo seco marrom (#6e4034, 0,35), um pouco mais claro que a pedra escura.",
+      "paraOIntegrador": "Registrar em carimbos/novos/index.ts (import de carimbo e paleta, CARIMBOS_NOVOS e PALETA_DOS_NOVOS); a paleta agora tem 7 cores (somou o halo). Se o pacote-animacoes.cjs tiver a lista de ids reservados dos carimbos embutidos, somar 'respingos-de-sangue'. Desenho de chão achatado (ACHATA 0,55), tudo preso dentro do raio 0,5 em qualquer giro."
     }
   ]
 }
