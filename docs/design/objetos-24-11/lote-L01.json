@@ -3,7 +3,25 @@
   "titulo": "Prisão: ferro e cela",
   "data": "2026-11-24",
   "prova": "docs/design/objetos-24-11/provas/lote-L01.png",
-  "comoFoiFeitaAProva": "Folha montada com o mesmo código do app pelas ferramentas de prova do repo: folhaDeObjetosNovos.test.ts (montar do móvel, cenaEmTresQuartos, pintarCena) para os 9 objetos e folhaDeCarimbosNovos.test.ts (o desenho assado como no app) para o carimbo. Cada objeto aparece de cima e em 3/4 a 4x sobre terra (escura) e lajotas claras, mais os dois no tamanho de mesa; o carimbo, grande na grama e em mesa e grupo sobre grama, terra e areia, ao lado das folhas secas do catálogo para comparar. Painéis por item em docs/design/objetos/<arquivo>.png. Todos dentro do portão da folha: saturação p95 de 0,07 a 0,58 (teto 0,62), contorno 0,23 (mínimo 0,06), 3/4 até 178 ms de 5000; o carimbo com saturação p95 0,41 (teto 0,82), 183 comandos por desenho (teto 600), 8 giros diferentes de 8.",
+  "comoFoiFeitaAProva": "Folha montada com o mesmo código do app pelas ferramentas de prova do repo: folhaDeObjetosNovos.test.ts (montar do móvel, cenaEmTresQuartos, pintarCena) para os 9 objetos e folhaDeCarimbosNovos.test.ts (o desenho assado como no app) para o carimbo. Cada objeto aparece de cima e em 3/4 a 4x sobre terra (escura) e lajotas claras, mais os dois no tamanho de mesa; o carimbo, grande na grama e em mesa e grupo sobre grama, terra e areia, ao lado das folhas secas do catálogo para comparar. Painéis por item em docs/design/objetos/<arquivo>.png. Prova refeita na revisão de 24/11/2026, tarde. Todos dentro do portão da folha: saturação p95 de 0,06 a 0,42 (teto 0,62; o balde caiu de 0,58 para 0,31), contorno 0,23 (mínimo 0,06), 3/4 até 191 ms de 5000; o carimbo com saturação p95 0,47 (teto 0,82), 278 comandos por desenho (teto 600), 8 giros diferentes de 8, sem corte na borda da arte.",
+  "revisao": {
+    "data": "2026-11-24",
+    "origem": "18 mudanças do diretor de arte sobre a primeira prova",
+    "aplicadas": 18,
+    "resumo": [
+      "Cadeira: espaldar virou coluna entre os postes (a 3/4 pinta a chapa de ferro); de cima, postes 0,6 para fora do assento, pontas dos pés da frente em quadradinhos escuros, vão escuro de 0,8 entre assento e espaldar, espaldar 0,85 e ripas 1,06; ferrugem de raio 6 só nas quinas dos postes e nas pontas das ripas.",
+      "Mesa: recuo do tampo 0,03 casa (a cantoneira em L vira um fio escuro de 1 a 1,5 px, tom 0,55); 4 riscos curtos quase paralelos ao comprimento (alfa até 0,2); tampo 10% mais perto do escuro do ferro; rebites da beira a cada 0,22 casa.",
+      "Catre: barras do estrado 0,95 com contorno 0,3 e só o chão entre elas escurecido (a grossura do quadro passou para antes do estrado, porque cobria as barras do pé); uma só depressão (alfa 0,3) e mancha a 0,08; trama da lona mansa, sem o listrado de chapa ondulada; cobertor cinza quente, de 40 a 14 px da ponta, quinas moles, beira de cima clara e uma só lista atravessada.",
+      "Esteira: enxergão de quinas redondas sem contorno (a beira são os fios), cabeceira mais alta e clara numa ponta, 110 fios com 70% a até 15 graus do comprimento, claro 20% mais manso, manchas castanhas [140,126,98] e sombra pousada embaixo à direita.",
+      "Balde: madeira com 60% de cinza (saturação da cor 0,30) e o escuro de levantamento castanho acinzentado (era o castanho quente da nogueira, que avermelhava a sombra); altura 0,28 casa, boca maior que o pé, dois aros de ferro que aparecem na 3/4; tampa da mesma madeira um tom mais clara, deslocada (-0,3; -0,3) para a meia-lua escura ficar em cerca de 30% da boca.",
+      "Grilhões: tudo cerca de 1,5x; algema de braçadeira chata (beira de fora clara, de dentro escura, dobradiça, lingueta e encaixe); chapa retangular de meia largura 5 com dois parafusos; mancha de ferrugem a 42%.",
+      "Bola: corrente de elo grosso (passo 6,5) em arco aberto saindo do flanco da bola; tornozeleira é a mesma braçadeira dos grilhões, no chão, longe da bola; sem o C fino.",
+      "Latrina: buraco oval comprido (5 x 7) de boca irregular com canaleta rasa e estreita até a beira da frente; pisantes ovais um pouco mais altos com 2 sulcos finos (alfa 0,26).",
+      "Banco: blocos inteiros debaixo da laje (não aparecem de cima); a sombra diz 'dois apoios' (laje 0,15, blocos 0,44 saindo um fio na frente de cada um); a 3/4 mostra uma face só na espessura inteira, sem linha no meio, com a lasca da frente como entalhe.",
+      "Palha espalhada: fios com o dobro do comprimento, largura 0,012, 80% com curva mansa, 50% mais fios; o feno velho saiu da mistura, feno [184,156,98]; poeira de baixo a 0,26 para o tufo se juntar também na terra."
+    ],
+    "foraDoArtefato": "A face da frente da 3/4 sai no tom padrão da derivação (TOM_DA_FRENTE 0,74 em tresQuartos.ts), e não 0,7: mudar esse número mexe em todos os móveis derivados, fora do lote."
+  },
   "notasGerais": [
     "Nada foi registrado: tipos.ts, pecasNovas.ts, gruposDoObjeto.ts, mobilia.ts, moveis/index.ts, tresQuartos.ts, materiais.ts, icons.tsx, types/map.ts, carimbos/novos/index.ts, pacote-animacoes.cjs e afins ficam para o integrador.",
     "Os ids de tipo sugeridos são o nome do arquivo (camelCase). Confira se não colidem com tipos já registrados.",
@@ -29,8 +47,8 @@
       "tipoSugerido": "cadeiraDeFerro",
       "imagem": "docs/design/objetos/cadeira-de-ferro.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Ferro da tabela no tom do Meio-Termo (materialDaPeca('ferro')), fosco, com brilho só no chanfro; ferrugem castanha apagada [126,94,74] só nas quinas de cada chapa e barra; vão escuro [47,44,42] entre a chapa do espaldar e a barra de cima. Assento: U de barra chata com 3 ripas de chapa atravessadas, rebitadas nas pontas.",
-      "perfil3x4": "DERIVADO (assento e espaldar são sombras soltas a 0,3 G e 0,7 G; cada pé uma coluna, os de trás até o espaldar)",
+      "coresFixas": "Ferro da tabela no tom do Meio-Termo (materialDaPeca('ferro')), fosco, com brilho só no chanfro; ferrugem castanha apagada [126,94,74] só nas quinas dos postes e nas pontas das ripas (as beiras compridas limpas); chapa do espaldar no tom 0,85 e ripas no 1,06; vão escuro de 0,8 entre o assento e o espaldar; pontas dos pés da frente em quadradinhos escuros (tom 0,6). Assento: U de barra chata com 3 ripas de chapa atravessadas, rebitadas nas pontas; postes 0,6 para fora da largura do assento.",
+      "perfil3x4": "DERIVADO (o assento é sombra solta a 0,3 G; o espaldar é COLUNA a 0,7 G entre os postes, e a frente dela pinta a chapa de ferro; cada pé uma coluna, os de trás até o espaldar)",
       "sinonimos": ["cadeira", "assento", "cadeira de metal", "interrogatório", "guarda", "prisão"],
       "paraOIntegrador": "A frente é o lado de baixo (o espaldar fica em cima). Escala pelo menor lado (k = min(w, h) / 0,6 G); a prova foi feita a 0,6 x 0,6 (a 0,5 x 0,5 da cadeira de madeira não foi olhada). cena.corDoPiso é o cinza do ferro. Ícone sugerido: cadeira de espaldar reto."
     },
@@ -46,7 +64,7 @@
       "tipoSugerido": "mesaDeFerro",
       "imagem": "docs/design/objetos/mesa-de-ferro.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Tampo de chapa de ferro (uma chapa por casa, tira de emenda rebitada entre elas), quina gasta mais clara, rebites na beira, 7 riscos claros [156,154,148] de prato arrastado; pés de cantoneira em L nas 4 quinas; ferrugem nas quinas e umas manchas fracas na chapa.",
+      "coresFixas": "Tampo de chapa de ferro 10% mais perto do escuro do ferro (uma chapa por casa, tira de emenda rebitada entre elas), quina gasta mais clara, rebites na beira a cada 0,22 casa, 4 riscos claros [156,154,148] curtos e quase paralelos ao comprimento (alfa 0,13 a 0,2); pés de cantoneira em L nas 4 quinas, que de cima aparecem como um fio escuro de 1 a 1,5 px (tom 0,55, recuo do tampo 0,03 casa); ferrugem nas quinas e umas manchas fracas na chapa.",
       "perfil3x4": "DERIVADO (as sombras da mesaComPernas: o tampo solto a 0,5 G e cada L uma coluna)",
       "sinonimos": ["mesa", "mesa de metal", "refeitório", "guarita", "sala da guarda", "prisão"],
       "paraOIntegrador": "Mesa chumbada no chão da guarda e do refeitório. Medidas por casa: a 3 x 1 ganha uma chapa e uma emenda a mais, não rebites maiores. Ícone sugerido: mesa com rebites."
@@ -63,7 +81,7 @@
       "tipoSugerido": "catreDeFerro",
       "imagem": "docs/design/objetos/catre-de-ferro.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Quadro de barra de ferro preso na parede por 2 dobradiças e seguro por 2 correntes até as quinas da frente; estrado de barras com 2 cintas; colchão fino de lona [155,145,119] com debrum, fundo do corpo e uma mancha [107,91,69]; cobertor cinza [124,128,130] dobrado em três nos pés, um pouco torto, com 2 listas escuras [79,83,87].",
+      "coresFixas": "Quadro de barra de ferro preso na parede por 2 dobradiças e seguro por 2 correntes até as quinas da frente; estrado de barras claras (tom 0,95, contorno 0,3) com 2 cintas e o chão escuro entre elas (a 85%); colchão fino de lona [155,145,119] de trama mansa, com debrum, uma só depressão (alfa 0,3) e a mancha [107,91,69] quase apagada (alfa 0,08); cobertor de lã cinza quente [128,124,116] dobrado nos pés (de 40 a 14 px da ponta do quadro), um pouco torto, quinas moles, beira de cima mais clara e uma só lista escura [85,80,74] atravessada.",
       "perfil3x4": "DERIVADO (o quadro com as correntes é sombra solta a 0,42 G; sem pés: preso na parede)",
       "sinonimos": ["catre", "cama", "beliche", "leito", "cama de cela", "cama de parede"],
       "paraOIntegrador": "Deitado (2 x 1), com a parede na beira de CIMA no giro 0: é o contrário do catre de madeira (1 x 2). As correntes vão da parede às quinas da frente. Ícone sugerido: cama de parede com corrente."
@@ -80,7 +98,7 @@
       "tipoSugerido": "esteiraDePalha",
       "imagem": "docs/design/objetos/esteira-de-palha.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Feno apagado: a palha do Meio-Termo com 36% de cinza quente [138,132,116]; manchas de palha velha [134,130,108]; ~170 fios em cima da palha pisada (mais escura), quase todos ao comprido, o fundo onde o corpo afunda e ~22 fios soltos no chão em volta.",
+      "coresFixas": "Feno apagado: a palha do Meio-Termo com 36% de cinza quente [138,132,116]; manchas castanhas de palha velha [140,126,98]; enxergão de quinas redondas sem contorno (a beira são os fios que passam dela); 110 fios em cima da palha pisada (mais escura), 70% a até 15 graus do comprimento, o claro 20% mais manso; a cabeceira mais alta e mais clara na ponta de cima; o fundo onde o corpo afunda; 18 fios soltos no chão; sombra pousada estreita embaixo à direita (contato 0,32).",
       "perfil3x4": "{ modo: 'derivado', alturaSolta: 0.03 * G } e ehMovelDoChao (só sombras de chão: a 3/4 sai igual à de cima)",
       "sinonimos": ["esteira", "palha", "monte de palha", "enxergão", "cama de palha", "feno", "leito"],
       "paraOIntegrador": "Junta o monte de palha e o enxergão num item só. Objeto de chão como o tapete: entra em ehMovelDoChao e na lista dos rentes de tresQuartos.test.ts. Medidas por pegada: esticada, o monte estica e os fios ficam do mesmo tamanho. Ícone sugerido: monte de palha."
@@ -95,13 +113,14 @@
       "redondo": true,
       "arquivo": "client/src/texturas/meioTermo/moveis/baldeDeDejetos.ts",
       "exportacao": "montarBaldeDeDejetos",
+      "exportacoesExtras": ["ESPESSURA_DO_ARO_DO_BALDE"],
       "tipoSugerido": "baldeDeDejetos",
       "imagem": "docs/design/objetos/balde-de-dejetos.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Aduelas de madeira escura (nogueira x0,86 com 38% de cinza [86,81,75]); aro de ferro com ferrugem em manchas; conteúdo castanho-oliva escuro e fosco [74,66,48]; tampa torta de madeira velha e cinzenta (tom do granito x0,84) com travessa e 2 pregos, caída para um lado e fazendo sombra.",
-      "perfil3x4": "DERIVADO (o corpo é uma coluna de 0,42 G, como o balde de água)",
+      "coresFixas": "Aduelas de madeira escura (nogueira x0,86 com 60% de cinza [86,81,75], saturação da cor 0,30); escuro de levantamento castanho acinzentado [76,70,63]; aro de ferro na boca com ferrugem em manchas e dois aros no corpo (perto da boca e perto do pé); conteúdo castanho-oliva escuro e fosco [72,65,50]; tampa da mesma madeira um tom mais clara (x1,22) com travessa e 2 pregos, deslocada e inclinada, deixando a meia-lua escura do conteúdo em cerca de 30% da boca.",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_ARO_DO_BALDE } (0,025 G). O corpo é uma coluna do tamanho do PÉ a 0,28 G (a boca, de cima, é mais larga); cada aro é uma estrutura solta em meia-lua, sem sombra (força 0), cuja beirada é a faixa de ferro.",
       "sinonimos": ["balde", "penico", "urinol", "dejetos", "latrina", "balde da cela"],
-      "paraOIntegrador": "Faz o papel do penico. Pegada redonda (só ele no lote). O que o separa do balde de água a 25%: anel escuro, tampa clara torta e a meia-lua escura do conteúdo. Ícone sugerido: balde com tampa torta."
+      "paraOIntegrador": "Faz o papel do penico. Pegada redonda (só ele no lote). O que o separa do balde de água a 25%: anel escuro, tampa de madeira torta e a meia-lua escura do conteúdo. O perfil da 3/4 PRECISA da espessura exportada: com a beirada padrão dos tampos, os aros saem grossos como tábuas. Cada aro tem um rebite escondido debaixo das aduelas só para a frente da estrutura dele pegar o ferro; não remover. Ícone sugerido: balde com tampa torta."
     },
     {
       "numero": 6,
@@ -116,7 +135,7 @@
       "tipoSugerido": "grilhoesDeParede",
       "imagem": "docs/design/objetos/grilhoes-de-parede.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Dois conjuntos de ferro: chapa com 2 rebites e olhal na parede, argola achatada, corrente curta e algema aberta caída no chão; mancha de ferrugem no chão [110,82,64] a 20% debaixo de cada algema; furo [46,42,39].",
+      "coresFixas": "Dois conjuntos de ferro, cerca de 1,5x o primeiro desenho: chapa retangular com 2 parafusos e olhal na parede, argola achatada, corrente curta e algema aberta caída no chão, de braçadeira chata (beira de fora clara, de dentro escura, dobradiça, lingueta do fecho e encaixe); mancha de ferrugem no chão [110,82,64] a 42% debaixo de cada corrente; furo [46,42,39].",
       "perfil3x4": "{ modo: 'derivado', alturaSolta: 0.03 * G } (só sombras de chão, como a corrente)",
       "sinonimos": ["grilhões", "algema", "algemas", "corrente", "argola", "masmorra", "tortura"],
       "paraOIntegrador": "Objeto de parede: a parede é a beira de CIMA da pegada no giro 0; as algemas caem para a frente. Ícone sugerido: algema aberta."
@@ -133,7 +152,7 @@
       "tipoSugerido": "bolaDeFerroComCorrente",
       "imagem": "docs/design/objetos/bola-de-ferro-com-corrente.png",
       "lugaresDeMaterial": [],
-      "coresFixas": "Bola fosca de ferro (tom 0,84, brilho 0,12) com a costura do molde, ferrugem mais forte embaixo e poros; realce fosco [180,178,172] a 13%; olhal, corrente de elo grosso e tornozeleira aberta.",
+      "coresFixas": "Bola fosca de ferro (tom 0,84, brilho 0,12) com a costura do molde, ferrugem mais forte embaixo e poros; realce fosco [180,178,172] a 13%; olhal fundido no flanco, corrente de elo grosso (passo 6,5, arame mais grosso) em arco aberto pelo chão, para longe da bola, e a tornozeleira aberta: a mesma braçadeira chata dos grilhões, maior.",
       "perfil3x4": "{ modo: 'derivado', alturaSolta: 0.03 * G } (só sombras de chão: a bola não vira cilindro na 3/4)",
       "sinonimos": ["bola de ferro", "bola e corrente", "peso", "grilheta", "tornozeleira", "prisioneiro"],
       "paraOIntegrador": "A bola fica no quadrante de baixo à direita e a tornozeleira em cima à esquerda; a sombra da bola é uma elipse no chão deslocada mais o contato. Ícone sugerido: bola com corrente."
@@ -150,10 +169,10 @@
       "tipoSugerido": "latrinaDeCela",
       "imagem": "docs/design/objetos/latrina-de-cela.png",
       "lugaresDeMaterial": [{ "lugar": "pedra", "opcoes": "PEDRAS", "padrao": "granito" }],
-      "coresFixas": "Laje de pedra lascada nas quinas com o buraco em fechadura (boca redonda e fenda), beira gasta e polida, dois pisantes com sulcos, zona úmida [58,56,51] e 2 rachaduras; o fundo do buraco [38,35,32].",
+      "coresFixas": "Laje de pedra lascada nas quinas com o buraco oval comprido de boca irregular, beira gasta e polida, canaleta rasa e estreita do buraco até a beira da frente, dois pisantes ovais um pouco mais altos com 2 sulcos finos (alfa 0,26), zona úmida [58,56,51] em volta do buraco e ao longo da canaleta e 2 rachaduras; o fundo do buraco [38,35,32].",
       "perfil3x4": "DERIVADO e ehMovelDoChao (só sombra de contato: a 3/4 sai igual à de cima)",
       "sinonimos": ["latrina", "privada", "buraco", "fossa", "patente", "sanitário"],
-      "paraOIntegrador": "Objeto de chão: entra em ehMovelDoChao e na lista dos rentes de tresQuartos.test.ts. O buraco em fechadura e os pisantes com sulcos evitam a cara de rosto que dois pisantes redondos fazem. Ícone sugerido: laje com buraco."
+      "paraOIntegrador": "Objeto de chão: entra em ehMovelDoChao e na lista dos rentes de tresQuartos.test.ts. O buraco oval com a canaleta substitui a fechadura (que lia como fechadura); os pisantes são compridos e ficam mais para a frente que o buraco, o que tira a cara de rosto. Ícone sugerido: laje com buraco."
     },
     {
       "numero": 9,
@@ -171,7 +190,7 @@
       "coresFixas": "Laje maciça com a quina gasta, 2 lascas, rachadura fina e o lugar de sentar polido; riscos de contar os dias (2 feixes de 4 cortados); os riscos e a rachadura são a pedra com 72% de [44,41,38].",
       "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_BANCO_DE_PEDRA } (laje solta a 0,44 G, blocos colunas)",
       "sinonimos": ["banco", "banco de pedra", "assento", "laje", "cela", "cripta"],
-      "paraOIntegrador": "O padrão da lajeDeSacrificio: a laje é tampo solto e os 2 blocos são colunas. Os blocos ficam recuados debaixo da laje na frente e saem um pouco atrás (de cima, as abas de trás dizem 'dois blocos'): se saíssem na frente, a 3/4 desenharia o bloco por cima da laje. Nada pode ficar na beira do bloco fora da laje, senão a frente da coluna na 3/4 pega o material dessa peça. Ícone sugerido: banco de laje."
+      "paraOIntegrador": "O padrão da lajeDeSacrificio: a laje é tampo solto e os 2 blocos são colunas, inteiros debaixo da laje (0,6 px além da beira de trás dela e 1 px recuados da beira da frente): se saíssem na frente, a 3/4 desenharia o bloco por cima da laje. De cima só a sombra diz 'dois apoios': a da laje é mansa (0,15) e a dos blocos (0,44, beira curta) sai um fio da beira da frente debaixo de cada um. Nenhuma peça desenha a grossura da laje de cima: ela subia com a laje e riscava a face da 3/4 no meio; a face é a beirada da derivação, na espessura inteira, com a lasca da frente como entalhe. Os blocos não têm peça: a frente da coluna pega a pedra da laje (a maior peça). Ícone sugerido: banco de laje."
     },
     {
       "numero": 10,
@@ -185,8 +204,8 @@
       "idDoCarimbo": "palha-espalhada",
       "tamanhoDoCarimbo": 9,
       "sombra": "nenhuma",
-      "cores": "Feno apagado, sem amarelo vivo: feno [178,158,108], claro [204,186,134], escuro [136,118,80], velho [158,152,118], realce [222,208,162], sombra do fio [84,72,52] e poeira [124,108,80].",
-      "variacoes": "A semente escolhe quantos fios soltos (26 a 33, numa espiral), 3 ou 4 tufos de 7 a 10 fios cada, onde caem, as curvas e as cores; o giro gira o arranjo e cada fio, a sombra fica sempre embaixo à direita. Ocupa cerca de 1,2 x 0,7 casa.",
+      "cores": "Feno sem amarelo vivo: feno [184,156,98], claro [204,186,134], escuro [136,118,80] (o velho acinzentado saiu da mistura), realce [222,208,162], sombra do fio [84,72,52] e poeira [124,108,80] a 0,26.",
+      "variacoes": "A semente escolhe quantos fios soltos (39 a 50, numa espiral), 3 ou 4 tufos de 10 a 15 fios cada, onde caem, as curvas (80% com curva mansa) e as cores; os fios têm o dobro do comprimento do primeiro desenho e largura 0,012. O giro gira o arranjo e cada fio, a sombra fica sempre embaixo à direita. Ocupa cerca de 1,5 x 0,9 casa.",
       "paraOIntegrador": "Registrar em carimbos/novos/index.ts (import de carimbo e paleta, CARIMBOS_NOVOS e PALETA_DOS_NOVOS). Se o pacote-animacoes.cjs tiver a lista de ids reservados dos carimbos embutidos, somar 'palha-espalhada'. Rente ao chão, sem sombra própria, como as folhas secas. Busca: palha, feno, palha solta, chão de cela, estábulo."
     }
   ]

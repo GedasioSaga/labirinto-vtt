@@ -2,21 +2,21 @@ import { css, type DefinicaoDeCarimbo, type Rgb } from '../embutidos'
 
 /**
  * Palha espalhada (lote L01 dos objetos de 24/11/2026, "Prisão: ferro e cela"): a palha que se espalha pelo chão da
- * cela e do estábulo, fina e rente. Três ou quatro TUFOS pequenos, cada um um feixe de fios que sai junto de uma ponta
- * e abre um pouco, e em volta os FIOS SOLTOS, deitados em todas as direções, uns retos, outros levemente curvos. Cor de
- * feno apagado: o feno, o claro, o escuro e o velho (acinzentado), sem amarelo vivo.
+ * cela e do estábulo, fina e rente. Três ou quatro TUFOS pequenos, cada um um feixe de fios compridos que sai junto de
+ * uma ponta e abre um pouco, e em volta os FIOS SOLTOS, deitados em todas as direções, quase todos com uma curva mansa
+ * (uns poucos retos). Cor de feno: o feno quente, o claro e o escuro, sem amarelo vivo (o velho, acinzentado, saiu: a
+ * mistura com ele virava cinza na areia).
  *
  * Cada fio é um traço fino com a sombra dele embaixo à direita (a luz vem de cima à esquerda e não gira) e, em alguns,
- * o fio de luz do lado de cima: é o que dá relevo sem contorno. Por baixo, uma mancha de poeira bem transparente junta
- * os fios numa coisa só (sem ela, viravam riscos soltos na mesa). Rente ao chão, sem sombra própria, como as folhas
- * secas: fica por baixo das sombras dos outros. O giro gira o arranjo e cada fio; a semente escolhe quantos, onde
- * caem e as cores.
+ * o fio de luz do lado de cima: é o que dá relevo sem contorno. Por baixo, uma mancha de poeira que junta os fios num
+ * tufo só, também na terra (fraca demais, eles viravam riscos soltos na mesa). Rente ao chão, sem sombra própria, como
+ * as folhas secas: fica por baixo das sombras dos outros. O giro gira o arranjo e cada fio; a semente escolhe quantos,
+ * onde caem e as cores.
  */
 
-const FENO: Rgb = [178, 158, 108]
+const FENO: Rgb = [184, 156, 98]
 const FENO_CLARO: Rgb = [204, 186, 134]
 const FENO_ESCURO: Rgb = [136, 118, 80]
-const FENO_VELHO: Rgb = [158, 152, 118]
 /** O fio de luz do lado de cima dos fios mais claros. */
 const REALCE: Rgb = [222, 208, 162]
 /** A sombra de cada fio e a poeira de baixo (as duas transparentes: o chão do mapa aparece). */
@@ -25,10 +25,9 @@ const POEIRA: Rgb = [124, 108, 80]
 
 /** Quantos de cada cor (a soma é 1), sorteando de cima para baixo. */
 const MISTURA: ReadonlyArray<readonly [Rgb, number]> = [
-  [FENO, 0.36],
-  [FENO_CLARO, 0.24],
-  [FENO_ESCURO, 0.22],
-  [FENO_VELHO, 0.18],
+  [FENO, 0.44],
+  [FENO_CLARO, 0.3],
+  [FENO_ESCURO, 0.26],
 ]
 
 function sorteio(semente: number, i: number): number {
@@ -44,11 +43,20 @@ const ACHATA = 0.6
 const CENTRO_Y = -0.1
 const RAIO = 0.4
 /**
- * A largura do fio (unidades do quadro) e a sombra dele: para onde cai e quanto escurece. Com 0,0135 o fio dava 1 px
- * no mapa a 100% e a palha virava rabisco cinza na areia; com 0,019 a cor do feno ganha da sombra.
+ * A largura do fio (unidades do quadro) e a sombra dele: para onde cai e quanto escurece. Fino como palha: com 0,019 e
+ * curtos, os fios liam como gravetos. Na areia, quem segura a cor é o feno quente e a poeira de baixo, que junta os
+ * fios num tufo. A sombra anda com a largura (cerca de um terço dela).
  */
-const LARGURA_DO_FIO = 0.019
-const SOMBRA = { dx: 0.007, dy: 0.006, alfa: 0.34 } as const
+const LARGURA_DO_FIO = 0.012
+const SOMBRA = { dx: 0.0045, dy: 0.004, alfa: 0.34 } as const
+/** O comprimento dos fios soltos e dos fios dos tufos (de, mais até): o dobro do primeiro desenho. */
+const FIO_SOLTO = { de: 0.18, aMais: 0.3 } as const
+const FIO_DO_TUFO = { de: 0.24, aMais: 0.2 } as const
+/** A curva mansa: a parte dos fios que curva e quanto o meio sai para o lado, em frações do comprimento. */
+const CURVA = { parte: 0.8, de: 0.05, aMais: 0.07, reta: 0.015 } as const
+/** A poeira que junta os fios e o pé de cada tufo (o alfa de cada um). */
+const ALFA_DA_POEIRA = 0.26
+const ALFA_DO_PE = 0.24
 
 /** Do chão (x para a direita, z para quem vê) para o quadro. */
 function noChao(x: number, z: number): Ponto {
@@ -105,20 +113,29 @@ function desenharFio(g: CanvasRenderingContext2D, f: Fio): void {
   tracar(g, f, -f.largura * 0.22, -f.largura * 0.26)
 }
 
+/** A curva do fio: quase todos com o meio saindo um pouco para um lado (o fio de palha seco enverga); uns poucos retos. */
+function curvaMansa(semente: number, i: number, comprimento: number): number {
+  const quanto = sorteio(semente, i + 8000)
+  if (sorteio(semente, i + 6000) >= CURVA.parte) return (quanto - 0.5) * 2 * CURVA.reta * comprimento
+  const lado = sorteio(semente, i + 7000) < 0.5 ? -1 : 1
+  return lado * comprimento * (CURVA.de + CURVA.aMais * quanto)
+}
+
 /** Os fios soltos, numa espiral sorteada: cobre a mancha sem buraco nem bolo, mais ralos na beira. */
 function fiosSoltos(giro: number, semente: number): Fio[] {
-  const n = 26 + Math.floor(sorteio(semente, 0) * 8)
+  const n = 39 + Math.floor(sorteio(semente, 0) * 12)
   const lista: Fio[] = []
   for (let i = 0; i < n; i++) {
     const a = giro + i * 2.39996 + sorteio(semente, 1 + i) * 0.6
     const d = RAIO * Math.min(1, Math.pow((i + 0.5) / n, 0.55) * (0.82 + 0.28 * sorteio(semente, 40 + i)))
     const cor = corSorteada(sorteio(semente, 80 + i))
+    const comprimento = FIO_SOLTO.de + FIO_SOLTO.aMais * sorteio(semente, 160 + i)
     lista.push({
       x: Math.cos(a) * d,
       z: Math.sin(a) * d,
       rumo: giro + sorteio(semente, 120 + i) * Math.PI * 2,
-      comprimento: 0.09 + 0.15 * sorteio(semente, 160 + i),
-      curva: (sorteio(semente, 200 + i) - 0.5) * 0.04,
+      comprimento,
+      curva: curvaMansa(semente, 200 + i, comprimento),
       largura: LARGURA_DO_FIO * (0.85 + 0.3 * sorteio(semente, 240 + i)),
       cor,
       realce: cor === FENO_CLARO || cor === FENO,
@@ -140,15 +157,16 @@ function tufos(giro: number, semente: number): Tufo[] {
   const lista: Tufo[] = []
   for (let t = 0; t < n; t++) {
     const a = giro + (t / n) * Math.PI * 2 + (sorteio(semente, 310 + t) - 0.5) * 0.9
-    const d = RAIO * (0.22 + 0.42 * sorteio(semente, 320 + t))
+    // A raiz fica mais perto do meio que antes: os fios, o dobro mais compridos, não podem sair do quadro.
+    const d = RAIO * (0.15 + 0.35 * sorteio(semente, 320 + t))
     const [tx, tz] = [Math.cos(a) * d, Math.sin(a) * d]
     const rumo = giro + sorteio(semente, 330 + t) * Math.PI * 2
-    const quantos = 7 + Math.floor(sorteio(semente, 340 + t) * 4)
+    const quantos = 10 + Math.floor(sorteio(semente, 340 + t) * 6)
     const fios: Fio[] = []
     for (let i = 0; i < quantos; i++) {
       const j = 400 + t * 40 + i
       const r = rumo + (sorteio(semente, j) - 0.5) * 0.55
-      const comprimento = 0.12 + 0.11 * sorteio(semente, j + 1000)
+      const comprimento = FIO_DO_TUFO.de + FIO_DO_TUFO.aMais * sorteio(semente, j + 1000)
       // A raiz fica junto (um pouco espalhada de través); o fio abre a partir dela.
       const lado = (sorteio(semente, j + 2000) - 0.5) * 0.03
       const [rx, rz] = [tx - Math.sin(rumo) * lado, tz + Math.cos(rumo) * lado]
@@ -158,7 +176,7 @@ function tufos(giro: number, semente: number): Tufo[] {
         z: rz + (Math.sin(r) * comprimento) / 2,
         rumo: r,
         comprimento,
-        curva: (sorteio(semente, j + 4000) - 0.5) * 0.024,
+        curva: curvaMansa(semente, j + 4000, comprimento),
         largura: LARGURA_DO_FIO * (0.9 + 0.25 * sorteio(semente, j + 5000)),
         cor,
         realce: cor !== FENO_ESCURO,
@@ -171,7 +189,7 @@ function tufos(giro: number, semente: number): Tufo[] {
 
 /** A poeira de baixo: uma mancha mansa e torta que amarra os fios numa coisa só. */
 function desenharPoeira(g: CanvasRenderingContext2D, giro: number, semente: number): void {
-  g.fillStyle = css(POEIRA, 0.15)
+  g.fillStyle = css(POEIRA, ALFA_DA_POEIRA)
   g.beginPath()
   for (let i = 0; i < 6; i++) {
     const a = giro + (i * Math.PI * 2) / 6 + (sorteio(semente, 500 + i) - 0.5) * 0.7
@@ -195,9 +213,9 @@ function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): v
   for (const t of tufos(giro, semente)) {
     // O pé do tufo, um pouco mais escuro: a palha junta faz sombra nela mesma.
     const [x, y] = noChao(t.x, t.z)
-    g.fillStyle = css(SOMBRA_DO_FIO, 0.2)
+    g.fillStyle = css(SOMBRA_DO_FIO, ALFA_DO_PE)
     g.beginPath()
-    g.ellipse(x, y, 0.085, 0.085 * ACHATA, 0, 0, Math.PI * 2)
+    g.ellipse(x, y, 0.1, 0.1 * ACHATA, 0, 0, Math.PI * 2)
     g.fill()
     for (const f of t.fios) desenharFio(g, f)
   }
@@ -207,4 +225,4 @@ function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): v
 
 export const carimbo: DefinicaoDeCarimbo = { id: 'palha-espalhada', nome: 'Palha espalhada', tamanho: 9, sombra: 'nenhuma', desenhar }
 
-export const paleta: readonly Rgb[] = [FENO, FENO_CLARO, FENO_ESCURO, FENO_VELHO, REALCE, SOMBRA_DO_FIO, POEIRA]
+export const paleta: readonly Rgb[] = [FENO, FENO_CLARO, FENO_ESCURO, REALCE, SOMBRA_DO_FIO, POEIRA]

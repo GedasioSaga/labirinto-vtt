@@ -3,13 +3,15 @@
  * Uma LAJE maciça e grossa pousada sobre dois BLOCOS de pedra. A laje tem a quina gasta e redonda, duas lascas (uma na
  * quina de trás à direita, outra na beira da frente), uma RACHADURA fina que entra pela beira de trás e, na metade da
  * frente, o lugar onde se senta, mais claro e liso de anos de uso. Perto da ponta esquerda, os RISCOS de quem contou
- * os dias: dois feixes de cinco, cavados de leve. Os blocos ficam recuados debaixo da laje na frente e saem um pouco
- * atrás, onde aparecem de cima. Desenho original: só a ideia do banco de pedra.
+ * os dias: dois feixes de cinco, cavados de leve. Os blocos ficam inteiros debaixo da laje, recuados de todos os
+ * lados: de cima, quem diz que são dois apoios é a SOMBRA (a da laje, alta, é mansa; a dos blocos, mais escura, sai um
+ * fio na frente de cada um). Desenho original: só a ideia do banco de pedra.
  *
- * Como a laje de sacrifício: de cima aparecem a laje, a beira dos blocos e a sombra comprida; na 3/4 (DERIVADO, com a
- * beirada da grossura dela, `ESPESSURA_DO_BANCO_DE_PEDRA`, que o perfil da 3/4 usa) a laje é um tampo solto e os dois
- * blocos são colunas, com o vão escuro entre eles. A frente é o lado de baixo. Material: `pedra`; os riscos e a
- * rachadura saem do tom dela.
+ * Como a laje de sacrifício: de cima aparecem a laje e a sombra comprida; na 3/4 (DERIVADO, com a beirada da grossura
+ * dela, `ESPESSURA_DO_BANCO_DE_PEDRA`, que o perfil da 3/4 usa) a laje é um tampo solto com UMA face da frente na
+ * grossura inteira (a lasca da beira da frente vira um entalhe nela) e os dois blocos são colunas, com o vão entre
+ * eles. Nenhuma peça desenha a grossura de cima: ela subia junto com a laje e riscava a face da 3/4 no meio. A frente é
+ * o lado de baixo. Material: `pedra`; os riscos e a rachadura saem do tom dela.
  */
 import { limitar01, misturar, type Rgb } from '../../ruido'
 import { cadeia, caixa, capsula, elipse, menos, type Ponto } from './formas'
@@ -25,13 +27,20 @@ const FUNDO_DE_PARTIDA = 0.7 * G
 /** A laje: quanto recua das pontas e das beiras compridas da pegada (px). Os blocos: da ponta da laje e o comprimento. */
 const LAJE = { daPonta: 1.4, daBeira: 3.4 } as const
 /**
- * Os blocos saem ATRÁS da laje (de cima, as abas deles na beira de trás dizem "dois blocos") e ficam recuados na
- * FRENTE, debaixo dela: na 3/4 a estrutura de base mais ao sul é desenhada por último, e o bloco que saía na frente
- * cobria a laje inteira como se estivesse na frente dela.
+ * Os blocos ficam inteiros debaixo da laje: atrás, um pouco além da beira dela (de cima as abas que saíam atrás liam
+ * como dois tocos soltos); na frente, recuados (na 3/4 a estrutura de base mais ao sul é desenhada por último, e o
+ * bloco que saía na frente cobria a laje inteira como se estivesse na frente dela).
  */
-const BLOCO = { daPonta: 4.6, comprimento: 20, atras: 0.4, frente: 6 } as const
-/** A grossura da laje que aparece embaixo (a frente dela, de cima e um pouco de frente). */
-const FRENTE_DA_LAJE = 2.4
+const BLOCO = { daPonta: 4.6, comprimento: 20, atras: LAJE.daBeira + 0.6, frente: LAJE.daBeira + 1 } as const
+/**
+ * As sombras: a da laje, alta, é mansa e larga; a dos blocos, mais escura e de beira curta, sai um pouco da beira da
+ * frente debaixo de cada um (é ela que diz, de cima, "dois apoios"); a do chão debaixo da laje fica só entre os blocos e
+ * longe da beira da frente (na 3/4 é o vão escuro; de cima, escondida).
+ */
+const FORCA_DA_LAJE = 0.15
+const FORCA_DOS_BLOCOS = 0.44
+const BORDA_DOS_BLOCOS = 1.3
+const FORCA_DEBAIXO = 0.3
 /** O escuro dos riscos e da rachadura, e o escuro em que o pixel escuro demais é levantado. */
 const ESCURO: Rgb = [0x2c, 0x29, 0x26]
 const ESCURO_DA_PEDRA: Rgb = [0x45, 0x43, 0x40]
@@ -65,21 +74,16 @@ export const montarBancoDePedra: MontarMovel = (c, cena) => {
   const laje = menos(menos(caixa(lx0, ly0, lx1, ly1, 2.2 * k), elipse(lx1 - 0.8 * k, ly0 + 0.4 * k, 3.4 * k, 2.4 * k)), elipse(lx0 + 14 * k, ly1 + 0.5 * k, 2.6 * k, 1.5 * k))
   const escuro: MaterialDaPeca = { classe: 'liso', rgb: misturar(pedra.rgb, ESCURO, 0.72) }
 
-  // As sombras: o chão escuro debaixo da laje, a laje solta e os blocos (colunas, com o contato).
-  cena.sombras.push({ forma: caixa(lx0 + 3 * k, ly0, lx1 - 3 * k, ly1, 2 * k), z: 0, suave: 2.6 * k, forca: 0.3 }, { forma: laje, z: zTopo, solta: true, forca: 0.3 })
-
-  // Os BLOCOS: duas colunas debaixo das pontas, recuadas na frente e saindo atrás da laje.
-  for (const lado of [-1, 1]) {
+  // As sombras: a laje solta, os dois blocos (colunas, com o contato) e o chão escuro entre eles, debaixo da laje.
+  cena.sombras.push({ forma: laje, z: zTopo, solta: true, forca: FORCA_DA_LAJE })
+  const blocos = [-1, 1].map((lado) => {
     const xa = lado < 0 ? lx0 + BLOCO.daPonta * k : lx1 - (BLOCO.daPonta + BLOCO.comprimento) * k
-    const bloco = caixa(xa, -hh + BLOCO.atras * k, xa + BLOCO.comprimento * k, hh - BLOCO.frente * k, 1.3 * k)
-    cena.sombras.push({ forma: bloco, z: zBloco }, contato(bloco, 0.32))
-    // Nada mais vai na beira do bloco: na 3/4 a frente da coluna toma o material da maior peça dela, e o bloco em si
-    // (o meio dele está debaixo da laje) sobe com a laje. Um tufo de musgo ali pintava a face inteira de verde.
-    L.push(P(bloco, pedra, { tabua: 0, bisel: 1.2 * k, tom: 0.84, contorno: 0.26, semente: 26201 + lado }))
-  }
+    return caixa(xa, -hh + BLOCO.atras * k, xa + BLOCO.comprimento * k, hh - BLOCO.frente * k, 1.3 * k)
+  })
+  for (const bloco of blocos) cena.sombras.push({ forma: bloco, z: zBloco, forca: FORCA_DOS_BLOCOS, suave: BORDA_DOS_BLOCOS * k }, contato(bloco, 0.34))
+  cena.sombras.push({ forma: caixa(blocos[0].b[2] - 1 * k, ly0 + 1 * k, blocos[1].b[0] + 1 * k, ly1 - 2.4 * k, 1.5 * k), z: 0, suave: 1.6 * k, forca: FORCA_DEBAIXO })
 
-  // A LAJE: a frente dela (a grossura, embaixo e um fio à direita), o tampo e o lugar de sentar polido.
-  L.push(P(laje, pedra, { dx: 0.4 * k, dy: FRENTE_DA_LAJE * k, tabua: 0, bisel: 0.8 * k, tom: 0.7, contorno: 0.3, semente: 26220 }))
+  // A LAJE: o tampo e o lugar de sentar polido.
   L.push(P(laje, pedra, { tabua: 0, bisel: 2.4 * k, tom: 1, contorno: 0.28, textura: texDoTampo(0, ly1 - 8 * k, (lx1 - lx0) * 0.42, 9 * k), semente: 26221 }))
 
   // A RACHADURA fina que entra pela beira de trás.
