@@ -1,5 +1,8 @@
 import { useId, useState, type ReactNode } from 'react'
 import type { Ajuste } from '../lib/ajusteDaFicha'
+import type { Caracteristica } from '../lib/caracteristicas/tipos'
+import { CaracteristicasDaFicha } from './caracteristicas/CaracteristicasDaFicha'
+import { PaginaDaCaracteristica } from './caracteristicas/PaginaDaCaracteristica'
 import type { Personagem, TipoDePersonagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { CarriedItem } from '../types/map'
@@ -69,6 +72,12 @@ export interface FichaDePersonagemProps {
    * das Habilidades em edição. Só o app do mestre passa. Ausente = sem o botão.
    */
   outrasFichas?: readonly Personagem[]
+  /**
+   * CARACTERÍSTICAS ESPECIAIS (Companion, Cegueira): só a janela do mestre
+   * passa. Grava a lista nova na hora, fora da edição; o "+ Característica" e a
+   * página de cada uma só existem com ele. Ausente = os chips só leem.
+   */
+  onCaracteristicas?: (lista: Caracteristica[]) => void
 }
 
 export function FichaDePersonagem({
@@ -88,10 +97,21 @@ export function FichaDePersonagem({
   quemEditaAMecanica,
   onRevelar,
   outrasFichas,
+  onCaracteristicas,
 }: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
   // Fase 5 (um inventário só): com a aba Itens no sistema, a mochila mora DENTRO dela; sem a aba, fica sob o bloco, como antes.
   const mochilaNaAba = sistema.abas.some((aba) => aba.id === ABA_DOS_ITENS)
+  // A característica aberta no lugar das abas (só o mestre abre; na edição, as abas voltam).
+  const [aberta, setAberta] = useState<string | null>(null)
+  const mudarCaracteristicas = editando ? undefined : onCaracteristicas
+  const caracteristicaAberta = mudarCaracteristicas === undefined ? undefined : personagem.caracteristicas?.find((caracteristica) => caracteristica.id === aberta)
+  const voltarAsAbas = () => {
+    const id = aberta
+    setAberta(null)
+    // O foco volta ao chip que abriu a página (NOTAS: "Esc volta às abas, com o foco no chip").
+    if (id !== null) requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-caracteristica="${CSS.escape(id)}"]`)?.focus())
+  }
   return (
     <div className="lb-ficha">
       <div className="lb-ficha__lado">
@@ -101,9 +121,21 @@ export function FichaDePersonagem({
         ) : (
           <BlocoLido personagem={personagem} sistema={sistema} tituloId={tituloId} onAjustar={ajustar} />
         )}
+        <CaracteristicasDaFicha personagem={personagem} aberta={caracteristicaAberta === undefined ? null : aberta} onAbrir={setAberta} onMudar={mudarCaracteristicas} />
         {!editando && !mochilaNaAba && inventario}
       </div>
       <div className="lb-ficha__principal">
+        {caracteristicaAberta !== undefined && mudarCaracteristicas !== undefined ? (
+          <PaginaDaCaracteristica
+            key={caracteristicaAberta.id}
+            personagem={personagem}
+            caracteristica={caracteristicaAberta}
+            sistema={sistema}
+            fichas={outrasFichas ?? []}
+            onMudar={mudarCaracteristicas}
+            onVoltar={voltarAsAbas}
+          />
+        ) : (
         <FichaAbas
           personagem={personagem}
           sistema={sistema}
@@ -120,6 +152,7 @@ export function FichaDePersonagem({
           mochilaDaEdicao={mochilaDaEdicao}
           podePassarParaAMochila={podePassarParaAMochila}
         />
+        )}
       </div>
     </div>
   )

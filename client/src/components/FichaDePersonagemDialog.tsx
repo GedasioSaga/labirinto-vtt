@@ -6,6 +6,7 @@ import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { CarriedItem } from '../types/map'
 import { comBase, marcaDaBase, salvarPelaBase } from '../net/nuvem/emissor'
 import { revelarCartao } from '../lib/habilidadeOculta'
+import { comCaracteristicas } from '../lib/caracteristicas/companions'
 import { gravarArmasDaFicha } from '../stores/armasNaFonte'
 import { useToastStore } from '../stores/toastStore'
 import { FichaDoSistema } from './dbt/registroDeFichas'
@@ -314,6 +315,7 @@ export function FichaDePersonagemDialog({
               mochilaDaEdicao={mochilaDaEdicao}
               onRevelar={(cartaoId) => onSalvar(revelarCartao(personagem, cartaoId))}
               outrasFichas={outrasFichas}
+              onCaracteristicas={(lista) => onSalvar(comCaracteristicas(personagem, lista))}
             />
             </FonteDaArmaContexto.Provider>
           )}
