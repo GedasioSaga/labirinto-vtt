@@ -1,31 +1,35 @@
 /**
  * MONTE DE ENTULHO de cima com volume (lote L11 dos objetos de 24/11/2026, "Arena e cortiço"; objeto novo). O lixo
  * que se junta em volta de toda casa do cortiço, num monte só. A silhueta vem antes do detalhe: o MONTE baixo e mole
- * de caliça e terra, o SACO de estopa rasgado e tombado em cima dele (a boca amarrada, o rasgo escuro na barriga e o
- * que vazou escorrendo pelo monte), a TÁBUA quebrada atravessada, que passa da beira do monte com a ponta lascada,
- * um SARRAFO meio enterrado, o TRAPO azul desbotado caído na encosta, os CACOS de barro (a beira de um pote e os
- * pedaços), três tijolos partidos, um aro de barril amassado e umas pedras soltas no chão em volta.
+ * de caliça e terra, de beira TORTA (línguas de caliça e pedaços escorrem para fora dela: sem isso a beira era uma
+ * bandeja oval), sombreado em domo (claro no alto, escurecendo até a beira); em cima dele o SACO de estopa rasgado e
+ * tombado, murcho e enrugado (a boca amarrada franzindo o pano, um vinco fundo de lado a lado, o rasgo escuro na
+ * barriga e o que vazou escorrendo pelo monte); a TÁBUA quebrada atravessada, que passa da beira do monte com a ponta
+ * lascada, um SARRAFO meio enterrado, o TRAPO azul desbotado caído na encosta, os CACOS de barro (a beira de um pote
+ * e os pedaços), três tijolos partidos, um aro de barril amassado e umas pedras soltas no chão em volta.
  *
- * A 25% de zoom sobram a mancha parda do monte, o bolo claro do saco, o risco da tábua para fora e o ponto azul do
+ * A 25% de zoom sobram a mancha parda e torta do monte, o saco murcho, o risco da tábua para fora e o ponto azul do
  * trapo: é um monte de lixo, não um móvel.
  *
- * Na 3/4 (`{ modo: 'derivado', espessura: 0,16 casa }`) o monte é uma coluna baixa e o saco, um tampo grosso em cima
- * dele (a caixa da sombra do saco desce até a frente do monte, para ele ser pintado depois). Material: `madeira` (a
- * tábua e o sarrafo; sugestão: madeira velha). O resto é fixo, em cores apagadas. Medidas de 1,5 x 1,25 casa.
+ * Na 3/4 (`{ modo: 'derivado', espessura: 0,1 casa }`) o monte quase não sobe (0,04 casa: extrudado, virava um
+ * tambor de parede reta) e o volume dele é o do sombreado; o saco, murcho, é um tampo de 0,1 casa em cima dele (a
+ * caixa da sombra do saco desce até a frente do monte, para ele ser pintado depois). Material: `madeira` (a tábua e o sarrafo;
+ * sugestão: madeira velha). O resto é fixo, em cores apagadas. Medidas de 1,5 x 1,25 casa.
  */
 import { hash } from '../../ruido'
-import { caixa, capsula, elipseGirada, poligono, type Forma, type Ponto } from './formas'
-import { contato, ruido, type MaterialDaPeca, type Textura } from './motor'
+import { cadeia, caixa, capsula, elipseGirada, poligono, type Forma, type Ponto } from './formas'
+import { contato, ruido, type CriarPeca, type MaterialDaPeca, type Peca, type Textura } from './motor'
 import { BURACO, PREGO, materialDaPeca, type MontarMovel } from './contexto'
-import { bolha, comMeioEm, girada, setorDeAnel } from './fossoDeArena'
+import { quartosDoGiro } from './pipaDeitada'
+import { bolha, comMeioEm, girada, passo, setorDeAnel, viradaParaALuz } from './fossoDeArena'
 
-/** Alturas (casas): o monte e o alto do saco. */
-const ALTURA_DO_MONTE = 0.14
-const ALTURA_DO_SACO = 0.3
-/** A caliça do monte, a estopa do saco, o que vazou dele, o trapo, o tijolo e o barro dos cacos. */
+/** Alturas (casas): o monte (quase rente: o volume é o do sombreado) e o alto do saco (murcho: 0,1 casa de grosso em cima do monte). */
+const ALTURA_DO_MONTE = 0.04
+const ALTURA_DO_SACO = 0.14
+/** A caliça do monte, a estopa do saco (velha e suja: não é o ponto mais claro do monte), o que vazou dele, o trapo, o tijolo e o barro dos cacos. */
 const CALICA: MaterialDaPeca = { classe: 'liso', rgb: [0x74, 0x6a, 0x5e] }
-const ESTOPA: MaterialDaPeca = { classe: 'tecido', fio: 'linho', rgb: [0xa9, 0x97, 0x74] }
-const VAZADO: MaterialDaPeca = { classe: 'liso', rgb: [0xc2, 0xb4, 0x94] }
+const ESTOPA: MaterialDaPeca = { classe: 'tecido', fio: 'linho', rgb: [0x8a, 0x7b, 0x5e] }
+const VAZADO: MaterialDaPeca = { classe: 'liso', rgb: [0xb0, 0xa4, 0x88] }
 const TRAPO: MaterialDaPeca = { classe: 'tecido', fio: 'la', rgb: [0x5f, 0x6e, 0x7a] }
 const TIJOLO: MaterialDaPeca = { classe: 'pedra', pedra: 'arenito', rgb: [0x90, 0x66, 0x55] }
 
@@ -35,6 +39,27 @@ const texDaCalica: Textura = (_u, _v, x, y, p, s) => {
   const grao = ruido(x * 1.6 + p.sv, y * 1.6 + 11)
   if (grao > 0.3) s[6] = 0.16
   else if (grao < -0.32) s[6] = -0.16
+}
+
+/**
+ * A caliça do MONTE, sombreada em DOMO: clara no alto, escurecendo até a beira, e um nada mais clara na encosta que
+ * olha para a luz. (cx, cy) é o alto do monte e (rx, ry), os meios lados dele; `q`, o quarto de volta do objeto.
+ */
+function texDoMonte(cx: number, cy: number, rx: number, ry: number, q: number): Textura {
+  return (u, v, x, y, p, s, escala) => {
+    texDaCalica(u, v, x, y, p, s, escala)
+    const [px, py] = [(x - cx) / rx, (y - cy) / ry]
+    const longe = Math.hypot(px, py)
+    s[3] += 0.13 * (1 - passo(0, 0.8, longe)) - 0.15 * passo(0.5, 1.1, longe) + 0.05 * viradaParaALuz(px, py, q)
+  }
+}
+
+/** Um VINCO na cor do próprio pano: o vale largo e macio da dobra, o risco fundo no meio dele e a crista clara ao lado, do lado da luz. */
+function vinco(P: CriarPeca, L: Peca[], mat: MaterialDaPeca, pontos: readonly Ponto[], r: number, forca: number, semente: number, meio: readonly [number, number]): void {
+  const noLugar = (f: Forma): Forma => comMeioEm(f, meio[0], meio[1])
+  L.push(P(noLugar(cadeia(pontos, r * 3)), mat, { tabua: 0, bisel: 0, contorno: 0, tom: 0.66, alfa: 0.3 * forca, suave: r * 2.6, semente }))
+  L.push(P(noLugar(cadeia(pontos.map(([x, y]): Ponto => [x - r * 1.5, y - r * 1.2]), r * 0.8)), mat, { tabua: 0, bisel: 0, contorno: 0, tom: 1.24, alfa: 0.34 * forca, suave: r * 0.8, semente }))
+  L.push(P(noLugar(cadeia(pontos, r)), mat, { tabua: 0, bisel: 0, contorno: 0, tom: 0.5, alfa: 0.62 * forca, suave: r * 0.7, semente }))
 }
 
 /** Um PEDAÇO de caliça: a pedra de quinas, de raio `r` em volta de (x, y), cada quina a uma distância sorteada. */
@@ -73,6 +98,7 @@ export const montarMonteDeEntulho: MontarMovel = (c, cena) => {
   const k = Math.min(w / (1.5 * g), h / (1.25 * g))
   const barro = materialDaPeca('barro')
   const ferro = materialDaPeca('ferro')
+  const q = quartosDoGiro(c.giro)
 
   // ---------- no chão, em volta: as pedras soltas, um caco e a ponta do sarrafo ----------
   const soltas: readonly (readonly [number, number, number, number])[] = [
@@ -87,20 +113,36 @@ export const montarMonteDeEntulho: MontarMovel = (c, cena) => {
   cena.sombras.push(contato(cacoNoChao, 0.24))
   L.push(P(cacoNoChao, barro, { tabua: 0, bisel: 0.8, tom: 0.96, contorno: 0.28, semente: 7210 }))
 
-  // ---------- o MONTE: a volta mole, com a caliça por cima ----------
-  const monte = bolha(-1 * k, 2 * k, 33 * k, 25 * k, 7220, 0.13, 0.12)
+  // ---------- o MONTE: a volta torta, sombreada em domo, com as línguas de caliça que escorrem para fora da beira ----------
+  const [mx, my, mrx, mry] = [-1 * k, 2 * k, 30 * k, 22 * k]
+  const monte = bolha(mx, my, mrx, mry, 7220, 0.28, 0.12, 34)
   cena.sombras.push({ forma: monte, z: g * ALTURA_DO_MONTE, forca: 0.3 }, contato(monte, 0.34))
   // O meio da caixa das peças do monte fica fora do saco: na 3/4 elas sobem com o monte, não com o saco.
   const noMonte: readonly [number, number] = [14 * k, 12 * k]
-  L.push(P(comMeioEm(monte, noMonte[0], noMonte[1]), CALICA, { tabua: 0, bisel: 8 * k, ruga: 1.5, contorno: 0.26, textura: texDaCalica, semente: 7221 }))
-  L.push(P(comMeioEm(bolha(4 * k, 5 * k, 20 * k, 13 * k, 7222, 0.2, -0.3), noMonte[0], noMonte[1]), CALICA, { tabua: 0, bisel: 5 * k, ruga: 1.2, tom: 1.1, contorno: 0.08, textura: texDaCalica, semente: 7223 }))
-  // Os PEDAÇOS de caliça por cima do monte: é o que faz dele um monte de entulho e não um montinho de terra.
+  const domo = texDoMonte(mx + 2 * k, my - 1 * k, mrx * 1.1, mry * 1.1, q)
+  // As LÍNGUAS: caliça que desceu a encosta e passou da beira, cada uma num rumo (a beira deixa de ser um oval limpo).
+  const linguas: readonly (readonly [number, number, number, number, number])[] = [
+    [0.5, 0.98, 8.5, 4.6, 7204], [2.05, 1, 7.5, 4, 7205], [3.5, 0.97, 9, 4.4, 7206], [4.5, 1.02, 6.5, 3.8, 7207], [5.55, 0.96, 8, 4.2, 7208],
+  ]
+  for (const [a, longe, comprida, larga, sal] of linguas) {
+    const lingua = bolha(mx + Math.cos(a) * mrx * longe, my + Math.sin(a) * mry * longe, comprida * k, larga * k, sal, 0.26, Math.atan2(Math.sin(a) * mry, Math.cos(a) * mrx) + (hash(sal, 1, 7203) - 0.5) * 0.7, 14)
+    cena.sombras.push(contato(lingua, 0.3))
+    L.push(P(comMeioEm(lingua, noMonte[0], noMonte[1]), CALICA, { tabua: 0, bisel: 2.4 * k, ruga: 1.2, tom: 0.92, contorno: 0.12, textura: texDaCalica, semente: sal }))
+  }
+  L.push(P(comMeioEm(monte, noMonte[0], noMonte[1]), CALICA, { tabua: 0, bisel: 3.4 * k, ruga: 1.5, contorno: 0.12, textura: domo, semente: 7221 }))
+  L.push(P(comMeioEm(bolha(4 * k, 4 * k, 18 * k, 12 * k, 7222, 0.24, -0.3), noMonte[0], noMonte[1]), CALICA, { tabua: 0, bisel: 5 * k, ruga: 1.2, tom: 1.06, contorno: 0.05, textura: domo, semente: 7223 }))
+  // Os PEDAÇOS de caliça por cima do monte e na beira dele (os de fora rolaram até o chão): é o que faz dele um
+  // monte de entulho e não um montinho de terra.
   const pedacos: readonly (readonly [number, number, number, number])[] = [
     [-25, 5, 2.3, 1.22], [-18, -14, 1.9, 0.82], [-4, 9, 2.5, 1.26], [6, -15, 2.1, 1.16], [12, 13, 1.8, 0.86], [23, -12, 2.2, 1.2],
     [1, 17, 1.6, 1.3], [-10, 12, 1.5, 0.8], [14, -17, 1.4, 1.28], [25, 10, 1.7, 1.12], [-28, -6, 1.6, 1.18], [-2, -19, 1.7, 0.84], [8, 2, 1.5, 1.24],
+    [-33, 13, 2.2, 1.14], [-24, 22, 1.9, 0.9], [30, 17, 2.1, 1.2], [20, -22, 1.8, 1.1], [-12, -22, 2, 1.16], [33, 2, 1.7, 0.92], [-6, 27, 1.8, 1.22],
   ]
   pedacos.forEach(([x, y, r, tom], i) => {
-    L.push(P(pedaco(x * k, y * k, r * k, 7224 + i * 3), CALICA, { tabua: 0, bisel: r * k * 0.6, tom, contorno: 0.28, semente: 7224 + i, projeta: { dist: 0.9 * k, forca: 0.26 } }))
+    const forma = pedaco(x * k, y * k, r * k, 7224 + i * 3)
+    // Os da beira (os últimos da lista) pousam no chão: ganham a sombra de contato.
+    if (i >= 13) cena.sombras.push(contato(forma, 0.26))
+    L.push(P(forma, CALICA, { tabua: 0, bisel: r * k * 0.6, tom, contorno: 0.28, semente: 7224 + i, projeta: { dist: 0.9 * k, forca: 0.26 } }))
   })
 
   // Os TIJOLOS partidos, meio enterrados na encosta de baixo.
@@ -149,9 +191,9 @@ export const montarMonteDeEntulho: MontarMovel = (c, cena) => {
     L.push(P(elipseGirada(tax + Math.cos(eixo) * ao * k + Math.sin(eixo) * 0.8 * k, tay + Math.sin(eixo) * ao * k - Math.cos(eixo) * 0.8 * k, 0.75 * k, 0.75 * k, 0), PREGO, { tabua: 0, bisel: 0.4, contorno: 0.2, semente: 7282 }))
   }
 
-  // ---------- o SACO de estopa rasgado, tombado em cima do monte ----------
+  // ---------- o SACO de estopa rasgado, tombado em cima do monte: murcho, de volta torta ----------
   const [sx, sy, volta] = [-9 * k, -5 * k, -0.34]
-  const saco = bolha(sx, sy, 15.5 * k, 10.6 * k, 7290, 0.13, volta)
+  const saco = bolha(sx, sy, 15 * k, 9.8 * k, 7290, 0.24, volta, 30)
   // A caixa da sombra desce até a frente do monte: na 3/4 o saco é pintado depois dele, por cima.
   const naFrente: Forma = { b: [saco.b[0], saco.b[1], saco.b[2], monte.b[3] + 0.5], d: saco.d }
   cena.sombras.push({ forma: naFrente, z: g * ALTURA_DO_SACO, solta: true, forca: 0.26 })
@@ -161,12 +203,20 @@ export const montarMonteDeEntulho: MontarMovel = (c, cena) => {
   const [vx, vy] = noSaco(3.4, 12)
   L.push(P(bolha(vx, vy, 5.4 * k, 4 * k, 7291, 0.26, 0.4), VAZADO, { tabua: 0, bisel: 1.6 * k, ruga: 0.8, contorno: 0.2, alfa: 0.9, textura: texDaCalica, semente: 7292 }))
   L.push(P(bolha(vx + 3 * k, vy + 5 * k, 2.6 * k, 2 * k, 7293, 0.3), VAZADO, { tabua: 0, bisel: 0.9 * k, contorno: 0.16, alfa: 0.8, textura: texDaCalica, semente: 7294 }))
-  L.push(P(saco, ESTOPA, { tabua: 0, eixo: volta, bisel: 5.4 * k, ruga: 1.5, contorno: 0.26, semente: 7295, projeta: { dist: 2.6 * k, forca: 0.38, suave: 1.4 } }))
-  // A costura do lado, as dobras e o RASGO na barriga, com a estopa virada na beira dele.
-  for (const [i, [a0, d0, a1, d1, r]] of ([[-11, -6.6, 9, -7.4, 0.45], [-9, 2.4, -2, 4.6, 0.5], [-6, -2.6, 2, -3.2, 0.45]] as const).entries()) {
-    const [p0, p1] = [noSaco(a0, d0), noSaco(a1, d1)]
-    L.push(P(comMeioEm(capsula(p0[0], p0[1], p1[0], p1[1], r * k), sx, sy), ESTOPA, { tabua: 0, bisel: 0, contorno: 0, tom: 0.68, alfa: 0.5, semente: 7296 + i }))
-  }
+  L.push(P(saco, ESTOPA, { tabua: 0, eixo: volta, bisel: 3.8 * k, ruga: 2.6, contorno: 0.26, semente: 7295, projeta: { dist: 2.6 * k, forca: 0.38, suave: 1.4 } }))
+  // O VINCO fundo, de lado a lado (o saco murchou e dobrou sobre si), as rugas que a boca amarrada franze e as da
+  // barriga, cada uma num rumo: o saco liso com riscos paralelos lia como pão.
+  const noPano = (pontos: readonly (readonly [number, number])[]): Ponto[] => pontos.map(([ao, de]) => noSaco(ao, de))
+  vinco(P, L, ESTOPA, noPano([[-12.4, 4.6], [-6.5, 1.2], [-0.5, -1.4], [5.5, -1], [11.6, -4.6]]), 0.62 * k, 1, 7296, [sx, sy])
+  const rugas: readonly (readonly (readonly [number, number])[])[] = [
+    [[-14.2, -1.4], [-10.6, -4.2], [-6.4, -5.2]],
+    [[-14, -0.2], [-10.8, 0.2], [-8, -0.6]],
+    [[-13.6, 1], [-11.2, 4], [-8.4, 6.2]],
+    [[-4, -7.4], [0.6, -5.6], [5.6, -6.6]],
+    [[8.6, 1.6], [10.6, 4.4], [9.4, 7]],
+    [[-5.4, 5], [-2.4, 7.4], [1, 7]],
+  ]
+  rugas.forEach((ruga, i) => vinco(P, L, ESTOPA, noPano(ruga), 0.4 * k, 0.75, 7310 + i, [sx, sy]))
   const rasgo = poligono([noSaco(1.4, 2.2), noSaco(4.2, 3.4), noSaco(6.4, 6), noSaco(5.4, 9.4), noSaco(3.4, 8), noSaco(2.6, 5.4)])
   L.push(P(comMeioEm(poligono([noSaco(0.6, 1.4), noSaco(4.8, 2.4), noSaco(7.6, 6), noSaco(6, 10.4), noSaco(2.4, 8.6), noSaco(1.4, 5.2)]), sx, sy), ESTOPA, { tabua: 0, bisel: 0.9 * k, tom: 1.12, contorno: 0.24, semente: 7300 }))
   L.push(P(comMeioEm(rasgo, sx, sy), BURACO, { tabua: 0, bisel: 0, contorno: 0, tom: 1.15, semente: 7301 }))

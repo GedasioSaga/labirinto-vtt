@@ -2,13 +2,15 @@ import { css, type DefinicaoDeCarimbo, type Rgb } from '../embutidos'
 
 /**
  * Poça de esgoto (lote L11 de 24/11/2026, "Arena e cortiço"; versão da Poça, carimbo novo: a Poça de sempre não
- * muda). A água parada e suja do beco, vista de cima: a forma é torta, de lóbulos (a semente muda o contorno, o
- * giro vira os lóbulos), com a terra encharcada e escura em volta, meio transparente, e uns respingos fora da
- * beira. A água é escura, parda esverdeada: mais funda no alto (a margem de cima faz sombra nela), mais clara
- * embaixo, com a beira de baixo pegando luz. Por cima dela, a NATA de lodo verde-oliva encostada num lado, a
- * mancha de gordura comprida e apagada, um reflexo de céu pequeno e a ESPUMA SUJA: uma jangada de bolhas
- * amareladas encostada na beira para onde a água escorre, outra menor do lado oposto e bolhas soltas no meio,
- * cada bolha com o anel sujo e o miolo claro. Dois ciscos boiando.
+ * muda). A água parada e suja do beco, vista de cima: a forma é COMPRIDA e torta, de cinco ou seis lóbulos largos
+ * (a semente muda o contorno, o giro vira os lóbulos; a Lama é redonda, de muitos lóbulos pequenos: na mesa as duas
+ * não se confundem), com a terra encharcada e escura em volta, meio transparente, e uns respingos fora da beira. A
+ * água é escura, parda esverdeada: mais funda no alto (a margem de cima faz sombra nela), mais clara embaixo, com a
+ * beira de baixo pegando luz. O que diz "água" é o REFLEXO do céu: uma faixa comprida e fraca atravessada nela, com
+ * um risco menor embaixo. Por cima, a NATA de lodo verde-oliva encostada num lado, a mancha de gordura comprida e
+ * apagada e a ESPUMA SUJA: bolhas pequenas e encardidas, enfileiradas numa faixa colada à margem para onde a água
+ * escorre (e um resto delas do lado oposto), cada uma com o anel sujo e o miolo um nada mais claro. Em jangada
+ * redonda e quase branca, lia como pipoca. Dois ciscos boiando.
  *
  * Fica rente ao chão: sem sombra, por baixo das sombras dos outros. A luz não gira.
  */
@@ -20,8 +22,8 @@ const AGUA_RASA: Rgb = [98, 104, 78]
 const LODO: Rgb = [70, 82, 50]
 const GORDURA: Rgb = [116, 108, 118]
 const REFLEXO: Rgb = [150, 160, 148]
-const ESPUMA_SUJA: Rgb = [136, 128, 104]
-const ESPUMA: Rgb = [188, 182, 160]
+const ESPUMA_SUJA: Rgb = [116, 108, 86]
+const ESPUMA: Rgb = [158, 150, 124]
 const CISCO: Rgb = [98, 80, 58]
 
 /** O chão visto de cima e um pouco de frente. */
@@ -29,6 +31,10 @@ const ACHATA = 0.55
 /** O meio da poça no quadro. */
 const MEIO_Y = -0.02
 const VOLTA = Math.PI * 2
+/** O quanto a poça é mais comprida que larga: os lóbulos se afastam do meio este tanto a mais no eixo x. */
+const ALONGA = 1.6
+/** O reflexo do céu: o alfa, o meio comprimento e a meia altura da faixa (no quadro). */
+const CEU = { alfa: 0.5, comprido: 0.16, alto: 0.02 } as const
 
 type Mancha = readonly [number, number, number]
 
@@ -53,31 +59,56 @@ function manchas(g: CanvasRenderingContext2D, lista: readonly Mancha[], encolhe:
   g.fill()
 }
 
-/** Uma jangada de espuma: bolhas grudadas em volta de (x, y) no chão, as maiores no meio. */
-function jangada(semente: number, sal: number, x: number, y: number, raio: number, quantas: number): Mancha[] {
-  return Array.from({ length: quantas }, (_, i) => {
-    const a = sorteio(semente, sal + i) * VOLTA
-    const d = raio * Math.sqrt(sorteio(semente, sal + 20 + i)) * 0.9
-    return [x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8, raio * (0.2 + 0.3 * sorteio(semente, sal + 40 + i)) * (1 - (0.5 * d) / raio)] as const
-  })
+/** Até onde vai a água a partir do meio, no rumo `a` do chão: a beira mais longe entre os lóbulos que o raio corta. */
+function beiraNoRumo(lobos: readonly Mancha[], a: number): number {
+  const [ux, uy] = [Math.cos(a), Math.sin(a)]
+  let longe = 0
+  for (const [x, y, r] of lobos) {
+    const ao = x * ux + y * uy
+    const fora = x * x + y * y - ao * ao
+    if (fora < r * r) longe = Math.max(longe, ao + Math.sqrt(r * r - fora))
+  }
+  return longe
+}
+
+/**
+ * Uma FAIXA de espuma colada à margem: `quantas` bolhas pequenas enfileiradas na beira, no arco de `abre` radianos
+ * em volta do rumo `rumo`, e umas poucas logo atrás delas (a segunda fila, falhada).
+ */
+function faixaDeEspuma(lobos: readonly Mancha[], semente: number, sal: number, rumo: number, abre: number, quantas: number): Mancha[] {
+  const bolhas: Mancha[] = []
+  for (let i = 0; i < quantas; i += 1) {
+    const a = rumo + ((i + 0.5) / quantas - 0.5) * abre + (sorteio(semente, sal + i) - 0.5) * 0.05
+    const r = 0.012 + 0.012 * sorteio(semente, sal + 30 + i)
+    const d = beiraNoRumo(lobos, a) - r * 1.15 - 0.006 * sorteio(semente, sal + 60 + i)
+    bolhas.push([Math.cos(a) * d, Math.sin(a) * d, r])
+    // A segunda fila: uma bolha menor atrás de uma em cada três, mais ou menos.
+    if (sorteio(semente, sal + 90 + i) < 0.36) {
+      const r2 = 0.008 + 0.008 * sorteio(semente, sal + 120 + i)
+      const d2 = d - r - r2 * (1 + sorteio(semente, sal + 150 + i))
+      const a2 = a + (sorteio(semente, sal + 180 + i) - 0.5) * 0.08
+      bolhas.push([Math.cos(a2) * d2, Math.sin(a2) * d2, r2])
+    }
+  }
+  return bolhas
 }
 
 function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): void {
-  // Os lóbulos, no chão (antes de achatar): de oito a dez em volta de um miolo grande, cada um do seu tamanho. São
-  // muitos e pequenos perto do miolo: a beira sai torta sem virar nuvem.
-  const quantos = 8 + (semente % 3)
+  // Os lóbulos, no chão (antes de achatar): cinco ou seis, largos e afastados no eixo x, em volta de um miolo
+  // comprido. Poucos e compridos: a poça sai torta e deitada, sem a beira miúda da Lama.
+  const quantos = 5 + (semente % 2)
   const lobos: Mancha[] = Array.from({ length: quantos }, (_, i) => {
-    const a = giro + (i * VOLTA) / quantos + (sorteio(semente, i) - 0.5) * 0.6
-    const d = 0.22 * (0.72 + 0.5 * sorteio(semente, 10 + i))
-    return [Math.cos(a) * d * 1.3, Math.sin(a) * d, 0.125 * (0.75 + 0.5 * sorteio(semente, 20 + i))] as const
+    const a = giro + (i * VOLTA) / quantos + (sorteio(semente, i) - 0.5) * 0.7
+    const d = 0.235 * (0.72 + 0.5 * sorteio(semente, 10 + i))
+    return [Math.cos(a) * d * ALONGA, Math.sin(a) * d, 0.15 * (0.78 + 0.44 * sorteio(semente, 20 + i))] as const
   })
-  lobos.push([0, 0, 0.3], [0.1 * Math.cos(giro), 0.06 * Math.sin(giro), 0.27])
+  lobos.push([-0.15, 0, 0.25], [0.15, 0, 0.25], [0.19 * Math.cos(giro), 0.06 * Math.sin(giro), 0.22])
 
   // Os respingos fora da beira (só terra molhada, sem água), sem passar do pé do quadro.
   const respingos: Mancha[] = Array.from({ length: 4 }, (_, i) => {
     const a = giro + 0.9 + (i * VOLTA) / 4 + (sorteio(semente, 30 + i) - 0.5) * 0.9
-    const d = Math.min(0.52 + 0.07 * sorteio(semente, 40 + i), 0.48 / Math.max(0.6, Math.abs(Math.sin(a))))
-    return [Math.cos(a) * d, Math.sin(a) * d, 0.014 + 0.014 * sorteio(semente, 50 + i)] as const
+    const d = beiraNoRumo(lobos, a) + 0.05 + 0.05 * sorteio(semente, 40 + i)
+    return [Math.cos(a) * d, Math.min(0.5, Math.sin(a) * d), 0.014 + 0.014 * sorteio(semente, 50 + i)] as const
   })
 
   // A terra encharcada em volta, a beira que pega luz e a água por cima (subida um nada: a beira de baixo fica acesa).
@@ -106,26 +137,32 @@ function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): v
   manchas(g, nata, 1, 0.003, -0.004, LODO, 0.5)
   manchas(g, nata, 0.62, -0.004, -0.008, LODO, 0.45)
 
-  // A gordura (uma nódoa larga e apagada, deitada, na maioria) e o reflexo pequeno do céu.
+  // A gordura (uma nódoa larga e apagada, deitada, na maioria).
   if (sorteio(semente, 61) < 0.75) {
     g.fillStyle = css(GORDURA, 0.26)
     g.beginPath()
-    g.ellipse(-ex * 0.1 + 0.02, MEIO_Y - ey * 0.05 + 0.03, 0.15, 0.034, 0.06, 0, VOLTA)
+    g.ellipse(-ex * 0.1 + 0.02, MEIO_Y - ey * 0.05 + 0.05, 0.15, 0.034, 0.06, 0, VOLTA)
     g.fill()
   }
-  g.fillStyle = css(REFLEXO, 0.3)
+  // O REFLEXO do céu: a faixa comprida e fraca atravessada na água (é o que diz "água") e um risco menor embaixo.
+  g.fillStyle = css(REFLEXO, CEU.alfa)
   g.beginPath()
-  g.ellipse(-0.14, MEIO_Y - 0.05, 0.075, 0.016, -0.08, 0, VOLTA)
+  g.ellipse(-0.07, MEIO_Y - 0.05, CEU.comprido, CEU.alto, -0.06, 0, VOLTA)
+  g.fill()
+  g.fillStyle = css(REFLEXO, CEU.alfa * 0.6)
+  g.beginPath()
+  g.ellipse(0.11, MEIO_Y + 0.012, CEU.comprido * 0.42, CEU.alto * 0.6, -0.04, 0, VOLTA)
   g.fill()
   g.restore()
 
-  // A ESPUMA SUJA: a jangada maior na beira para onde a água escorre, a menor do outro lado e as bolhas soltas.
-  const maior = jangada(semente, 70, ex * 0.27, ey * 0.2, 0.15, 17)
-  const menor = jangada(semente, 140, -ex * 0.2 + ey * 0.1, -ey * 0.16 - ex * 0.06, 0.085, 8)
-  const soltasNoMeio: Mancha[] = Array.from({ length: 4 }, (_, i) => {
+  // A ESPUMA SUJA: a faixa de bolhas pequenas colada à margem para onde a água escorre, o resto dela do outro lado
+  // e duas bolhas soltas no meio.
+  const maior = faixaDeEspuma(lobos, semente, 70, escorre, 1.7, 15)
+  const menor = faixaDeEspuma(lobos, semente, 300, escorre + Math.PI + 0.5, 0.6, 5)
+  const soltasNoMeio: Mancha[] = Array.from({ length: 2 }, (_, i) => {
     const a = escorre + 0.8 + i * 1.9 + sorteio(semente, 200 + i)
-    const d = 0.06 + 0.12 * sorteio(semente, 204 + i)
-    return [Math.cos(a) * d, Math.sin(a) * d, 0.016 + 0.014 * sorteio(semente, 208 + i)] as const
+    const d = 0.06 + 0.1 * sorteio(semente, 204 + i)
+    return [Math.cos(a) * d * ALONGA, Math.sin(a) * d, 0.009 + 0.006 * sorteio(semente, 208 + i)] as const
   })
   const bolhas = [...maior, ...menor, ...soltasNoMeio]
   // O anel sujo de cada bolha (a união delas é a mancha da jangada) e o miolo claro, puxado para a luz.

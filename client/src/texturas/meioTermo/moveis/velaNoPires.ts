@@ -1,13 +1,15 @@
 /**
  * VELA NO PIRES de cima com volume (lote L11 dos objetos de 24/11/2026, "Arena e cortiço"; objeto novo). A luz de
  * quem mora no cortiço: um TOCO de vela quase no fim, aceso, grudado com a própria cera num PIRES de lata amassado.
- * O pires tem a beira virada (o aro claro em volta), o fundo afundado, uma ALÇA de argola de um lado para levar a
- * vela pela casa e dois pontos de ferrugem; no fundo, a POÇA de cera que escorreu e endureceu, com uma língua até a
- * beira. O toco é torto no alto, com o beiço de cera de um lado, a cova derretida, o pavio queimado, a CHAMA em gota
- * (só emissão, sem animação) e um halo pequeno e quente.
+ * O pires é de lata FOSCA e escura (sem brilho de cromo: quem manda é a chama), com a beira virada, o fundo afundado,
+ * uma ALÇA grossa de argola de um lado para levar a vela pela casa e dois pontos de ferrugem; no fundo, a POÇA de
+ * cera que escorreu e endureceu, com uma língua até a beira. O toco é torto no alto, com o beiço de cera de um lado,
+ * a cova derretida, o pavio queimado, a CHAMA em gota (só emissão, sem animação) e um HALO quente, largo, que passa
+ * da beira do pires.
  *
  * A chama aponta para cima NA TELA (o desenho lê `c.giro`, a conta do candelabro). A LUZ é do integrador: curta e
- * quente, a sugestão está no registro do lote. A 25% de zoom sobram o disco claro de lata, o ponto creme e a chama.
+ * quente, a sugestão está no registro do lote. A 25% de zoom sobram o halo quente com a chama no meio, o ponto creme
+ * do toco e o disco escuro de lata por baixo.
  *
  * Na 3/4 (DERIVADO) o pires é uma coluna de um fio e o toco, uma coluna de cera com a chama no alto. Vai em cima da
  * mesa. Material: `metal` (o pires; sugestão: inox, que lê como lata; o latão faz uma palmatória). A cera é fixa.
@@ -36,7 +38,12 @@ const CHAMA: MaterialDaPeca = { classe: 'liso', rgb: PE_DA_CHAMA }
 const GOTA: readonly (readonly [number, number])[] = [[-1, 0.35], [-0.7, 0.8], [-0.3, 1], [0.15, 0.85], [0.6, 0.45], [1, 0]]
 /** O halo: a cor do brilho do lampião e o alfa no meio. */
 const COR_DO_HALO: Rgb = [226, 170, 96]
-const ALFA_DO_HALO = 0.36
+const ALFA_DO_HALO = 0.5
+/** O raio do halo, em raios do toco, e o tamanho da chama (1 = a do candelabro). No tamanho de mesa são eles que têm de mandar. */
+const HALO_EM_TOCOS = 3.4
+const CHAMA_MAIOR = 1.25
+/** A lata do pires: o tom da beira e o do fundo, e o brilho (fosca: com o brilho do metal e a beira clara, de longe era uma moeda). */
+const LATA = { beira: 0.82, fundo: 0.7, brilho: 0.08 } as const
 
 /** O deslocamento no desenho que cai em (dx, dy) NA TELA depois do quarto de volta que a 3/4 pinta. */
 function desgirado(dx: number, dy: number, giro: number): [number, number] {
@@ -94,17 +101,17 @@ export const montarVelaNoPires: MontarMovel = (c, cena) => {
   const escorre = 0.55
 
   // A ALÇA de argola, à direita, um pouco para baixo (a caixa fora do pires: fica no chão na 3/4).
-  const alca = anelExato(rPires + 1.3 * k, 2.2 * k, 1.5 * k, 2.9 * k)
+  const alca = anelExato(rPires + 1.3 * k, 2.2 * k, 1.4 * k, 3.3 * k)
   cena.sombras.push(contato(alca, 0.26))
-  L.push(P(alca, metal, { tabua: 0, bisel: 0.9 * k, tom: 0.94, contorno: 0.28, semente: 7001 }))
+  L.push(P(alca, metal, { tabua: 0, bisel: 0.9 * k, tom: LATA.beira * 0.94, contorno: 0.28, metal: LATA.brilho, semente: 7001 }))
 
   // O PIRES: a beira virada, o fundo afundado e a ferrugem.
   const pires = elipse(0, 0, rPires, rPires)
   cena.sombras.push({ forma: pires, z: g * ALTURA_DO_PIRES, forca: 0.26 }, contato(pires, 0.3))
   // O meio da caixa das peças do pires fica fora do toco: na 3/4 elas sobem com o pires, não com a vela.
   const [fx, fy] = [7 * k, -5.5 * k]
-  L.push(P(comMeioEm(pires, fx, fy), metal, { tabua: 0, bisel: 1.5 * k, tom: 1.04, contorno: 0.28, semente: 7002 }))
-  L.push(P(comMeioEm(elipse(0, 0, rPires - 2 * k, rPires - 2 * k), fx, fy), metal, { tabua: 0, bisel: 0, tom: 0.86, contorno: 0.1, recesso: { k: 1.4 * k, forca: 0.3 }, metal: 0.2, semente: 7003 }))
+  L.push(P(comMeioEm(pires, fx, fy), metal, { tabua: 0, bisel: 1.1 * k, tom: LATA.beira, contorno: 0.28, metal: LATA.brilho, semente: 7002 }))
+  L.push(P(comMeioEm(elipse(0, 0, rPires - 2 * k, rPires - 2 * k), fx, fy), metal, { tabua: 0, bisel: 0, tom: LATA.fundo, contorno: 0.1, recesso: { k: 1.4 * k, forca: 0.3 }, metal: LATA.brilho, semente: 7003 }))
   for (const [i, [a, longe, raio]] of ([[2.5, 0.84, 0.9], [4.4, 0.66, 0.6]] as const).entries()) {
     L.push(P(bolha(Math.cos(a) * rPires * longe, Math.sin(a) * rPires * longe, raio * k * 1.3, raio * k, 7010 + i, 0.25, a), FERRUGEM, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.45, suave: 0.5 * k, semente: 7011 + i }))
   }
@@ -124,9 +131,9 @@ export const montarVelaNoPires: MontarMovel = (c, cena) => {
 
   // O HALO e a CHAMA ficam acima do pavio, mas a caixa de cada um é centrada no toco: sobem com o alto dele.
   const [ux, uy] = desgirado(0, -1, c.giro)
-  const comprida = 0.66 * rToco + 0.5 * k
-  const larga = 0.4 * rToco + 0.15 * k
-  const rHalo = 2.5 * rToco + 1.2 * k
+  const comprida = (0.66 * rToco + 0.5 * k) * CHAMA_MAIOR
+  const larga = (0.4 * rToco + 0.15 * k) * CHAMA_MAIOR
+  const rHalo = HALO_EM_TOCOS * rToco + 1.2 * k
   const [cx, cy] = [vx + ux * 0.75 * comprida, vy + uy * 0.75 * comprida]
   L.push(P(comMeioEm(elipse(cx, cy, rHalo, rHalo), vx, vy), CERA_DO_CORPO, { tabua: 0, bisel: 0, contorno: 0, textura: texHalo(cx, cy, rHalo), semente: 7041 }))
   L.push(P(comMeioEm(gotaDaChama(cx, cy, ux, uy, comprida, larga), vx, vy), CHAMA, { tabua: 0, bisel: 0, contorno: 0, suave: 0.6, textura: texChama(cx - ux * comprida, cy - uy * comprida, ux, uy, 2 * comprida), semente: 7042 }))
