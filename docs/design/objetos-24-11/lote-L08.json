@@ -3,11 +3,13 @@
   "titulo": "Selva: templo e mata",
   "data": "2026-11-24",
   "prova": "docs/design/objetos-24-11/provas/lote-L08.png",
-  "comoFoiFeitaAProva": "Página HTML montada com o mesmo código do app (esbuild dos arquivos de client/src, aberta no Chromium headless do Playwright): cada objeto sai do próprio montador, de girarCena, de cenaEmTresQuartos e de pintarCena; cada carimbo, do assarDesenho do palco, com a sombra deitada na transparência do app. Cada objeto aparece de cima e em 3/4 sobre pedra escura (#3c3b39), grama (#7ea671) ou água (#4b87a8 e #45a09c) e pedra clara (#b4ac9e), com a grade de 1 casa, mais o tamanho de mesa (50 px por casa, a pirâmide a 25). A pirâmide sai nas duas formas, girada na 3/4 (90, 180 e 270 graus), em granito e em ardósia, e de cima com o Topo do templo posto no patamar. O topo, a cascata e a ponte também saem girados na 3/4. Cada carimbo, nos 8 desenhos (um a cada 45 graus, sementes 0 a 7) sobre grama, pedra escura, pedra clara e terra (a espuma sobre as duas águas), mais três no tamanho de mesa. Painéis por item em docs/design/objetos/<arquivo>.png, feitos com folhaDeObjetosNovos.test.ts (de cima e 3/4 sobre terra e lajotas claras, com as medidas do portão); os três maiores (pirâmide, ponte e topo) foram gravados com paleta de 256 cores para pesar menos. Os carimbos passaram por folhaDeCarimbosNovos.test.ts ao lado da Palmeira do catálogo (a folha dessa ferramenta não foi commitada; as medidas estão em cada item).",
+  "comoFoiFeitaAProva": "Página HTML montada com o mesmo código do app (esbuild dos arquivos de client/src, aberta no Chromium headless do Playwright): cada objeto sai do próprio montador chamado como o montarCena do app chama (com c.vista e c.giro), de girarCena, de cenaEmTresQuartos (com o perfil sugerido) e de pintarCena; cada carimbo, do assarDesenho do palco, com a sombra na transparência do app. Cada objeto aparece de cima e em 3/4 sobre pedra escura (#3c3b39), grama (#7ea671) ou água (#4b87a8 e #45a09c) e pedra clara (#b4ac9e), com a grade de 1 casa, mais o tamanho de mesa (50 px por casa, a pirâmide a 25). A pirâmide sai nas duas formas, girada (3/4 a 90, 180 e 270 graus e de cima a 90), em granito e em ardósia, e de cima com o Topo do templo posto no patamar. O topo, a cabeça, a cascata e a ponte também saem girados. Cada carimbo, nos 8 desenhos (um a cada 45 graus, sementes 0 a 7) sobre grama, pedra escura, pedra clara e terra (a espuma sobre as duas águas), mais três no tamanho de mesa. AS MEDIDAS do portão (debaixo do nome de cada objeto na folha) foram tiradas na própria página com o medirImagem de medidas.testkit.ts, na 3/4 sem giro a 50 e a 150 px por casa (os níveis 1 e 3 do teste). Os painéis por item em docs/design/objetos/<arquivo>.png saíram da mesma página (de cima e 3/4 sobre terra e pedra clara, e o tamanho de mesa): a ferramenta folhaDeObjetosNovos.test.ts chama o montador sem c.vista e não desenha a 3/4 de um perfil 'propria'. Os quatro carimbos passaram por folhaDeCarimbosNovos.test.ts (as medidas estão em cada item; a folha dessa ferramenta não foi commitada).",
   "oQueNaoFoiFeito": [
     "Nada foi registrado, então nenhum dos 10 foi aberto no editor de verdade: a prova é a folha (o mesmo código de pintura, fora do app). Ficam para o integrador: tipos.ts, pecasNovas.ts, gruposDoObjeto.ts, construcoes.ts, mobilia.ts, materiais.ts, moveis/index.ts, tresQuartos.ts, icons.tsx, luzDoFogo.ts, types/map.ts, rasterDosMoveis.ts, MobiliaControls.tsx, mapFactory.ts, carimbos/novos/index.ts, scripts/pacote-animacoes.cjs e os testes de contagem.",
-    "Não rodei a suíte de testes do projeto (regra do dono: teste só quando pedir). Rodei o tsc do client inteiro, as duas ferramentas de folha do repo e a página de prova.",
-    "A água da cascata não é animada nem tem desnível de verdade: é desenho parado, como a LISTA pede (a correnteza é a proposta 4)."
+    "Não rodei a suíte de testes do projeto (regra do dono: teste só quando pedir). Rodei o tsc do client inteiro (rtk proxy npx tsc --noEmit, zero erro), a página de prova e a ferramenta de folha dos carimbos.",
+    "O portão do vitest (tresQuartos.test.ts) não foi rodado para os cinco objetos de perfil 'propria': a ferramenta de folha dos objetos não os desenha na 3/4. As medidas de cor, contorno e piso de luz são as da página (o mesmo medirImagem); o TEMPO é o do navegador (as quatro pinturas do portão: 0,85 s na pirâmide, 0,3 s na cascata, 0,25 s na ponte), não o do software do vitest. Sem a frente varrida do motor (varrer), a pirâmide deve ficar bem abaixo dos 3,2 a 3,9 s de antes, mas isso não foi medido.",
+    "A água da cascata não é animada nem tem desnível de verdade: é desenho parado, como a LISTA pede (a correnteza é a proposta 4).",
+    "A cabeça colossal de lado e de costas na 3/4 (giro de 90, 180 e 270 graus) é um desenho mais simples que o de frente: o perfil e a nuca, com o mesmo elmo, musgo e pé."
   ],
   "ajustesDepoisDaPrimeiraFolha": [
     "Pirâmide: a textura de arenito da classe riscava as lajes como veio de madeira (as camadas saem deitadas na tela). A pedra do lote ganhou base própria (manchas mansas e grão, DA_PEDRA).",
@@ -22,17 +24,21 @@
   ],
   "notasGerais": [
     "Os ids de tipo sugeridos são o nome do arquivo (camelCase), os mesmos da LISTA.md. Os ids dos carimbos seguem a forma do pacote (kebab-case).",
-    "DEPENDÊNCIA ENTRE OS ARQUIVOS DO LOTE: piramideEmDegraus.ts guarda o que as peças de pedra dividem (a pedra do templo com o musgo, a roseta, a moita, o cipó, a conta do giro e o emOrdemNaTela). topoDoTemplo.ts, cabecaColossal.ts, idoloDourado.ts, cascataEmDegraus.ts e ponteSobrePilares.ts importam dele. Nenhum importa de outro lote. Todos importam do andaime que já existia (moveis/andaimeDaTresQuartos.ts).",
-    "QUEM LÊ c.giro (entra na nota do contexto.ts): a pirâmide (a luz das faces do talude e a sombra pintada no terraço), o topo do templo (a ordem de pintura do que está em cima da laje, e a porta só sem giro) e a ponte sobre pilares (a ordem do tabuleiro e a luz das duas águas de cada bico). Os três são derivados: o quarto de volta é pintado nas duas vistas, e as quatro posições foram conferidas na folha.",
-    "Teste da 3/4 (tresQuartos.test.ts): a pirâmide e a ponte entram em LENTOS. O portão da folha mediu 3,2 a 3,9 s na pirâmide e 1,7 a 2,0 s na ponte, com a máquina ocupada por outros agentes (teto 5 s). A pirâmide tem 36 casas de área; na página de prova, a 64 px por casa, ela pinta em 0,11 s de cima e 0,17 s em 3/4.",
+    "DEPENDÊNCIA ENTRE OS ARQUIVOS DO LOTE: piramideEmDegraus.ts guarda o que as peças de pedra dividem: a vista em 3D (vistaDoTemplo, pontoNaTela, retNaTela, polNaTela, frenteNaTela, entregarNaTela, texNoObjeto), a pedra do templo e o musgo (DA_PEDRA, texDasLajesDoTemplo, texDaParedeDoTemplo, musgoDaJunta, tufoDeMusgo), a pedra do sol, a rocha facetada e as plantas (roseta, moita, cipo, samambaia, capim). topoDoTemplo.ts, cabecaColossal.ts, idoloDourado.ts, cascataEmDegraus.ts e ponteSobrePilares.ts importam dele. Ele importa desgirarCena de pipaDeitada.ts. Nenhum importa de outro lote.",
+    "PERFIL DA 3/4: pirâmide, topo, cabeça, cascata e ponte são { modo: 'derivado', propria: true }, como a montanha. O integrador põe os cinco em PERFIS assim; sem isso a 3/4 sai igual à de cima. O ídolo continua EM_PE. As constantes ESPESSURA_DO_MURO_DO_TOPO_DO_TEMPLO e ESPESSURA_DA_PONTE_SOBRE_PILARES não existem mais.",
+    "QUEM LÊ c.giro E c.vista (entra na nota do contexto.ts): a pirâmide, o topo do templo, a cabeça colossal, a cascata e a ponte sobre pilares. Os cinco montam a cena NA TELA e a devolvem ao objeto (entregarNaTela, a conta do tonel): a luz das faces, a sombra pintada e a ordem de pintura ficam certas em qualquer giro.",
+    "Teste da 3/4 (tresQuartos.test.ts): o corpo do teste mede se o tampo sobe e se a 3/4 difere da de cima; nos cinco de perfil 'propria' as duas coisas acontecem (a página mediu '3/4 difere: sim' em todos), mas o teste não foi rodado. Se o tempo do vitest ainda pedir, a pirâmide fica em LENTOS.",
     "Nenhum objeto tem vista de frente e de lado (TIPOS_COM_VISTA fica igual). Nenhum é de chão (ehMovelDoChao fica igual).",
-    "Desenhados de frente nas duas vistas (perfil EM_PE, como a lápide): a cabeça colossal e o ídolo. De cima, um rosto e uma estatueta não se leem.",
-    "Sem gesto, controle ou tela nova da minha parte. O único controle novo é o seletor 'Forma' da pirâmide (Seca | Alagada), que o integrador liga no MobiliaControls.tsx como o do nicho funerário e o da cova. O módulo que grava a forma já existe (lib/mobilia/piramideEmDegraus.ts)."
+    "Desenhado de frente nas duas vistas (perfil EM_PE, como a lápide): só o ídolo. A cabeça colossal tem agora uma vista de cima própria.",
+    "Sem gesto, controle ou tela nova da minha parte. O único controle novo é o seletor 'Forma' da pirâmide (Seca | Alagada), que o integrador liga no MobiliaControls.tsx como o do nicho funerário e o da cova. O módulo que grava a forma já existe (lib/mobilia/piramideEmDegraus.ts, sem mudança nesta revisão)."
   ],
   "foraDoArtefato": [
     "PONTE: a LISTA põe a ponte sobre pilares como CONSTRUÇÃO, mas construcoes.ts diz que ponte, píer, palco e ringue ficam no Objeto, porque se anda em cima deles (a ponte de hoje é Objeto). Recomendação do Claude: registrar como Objeto, ao lado da ponte, sem barrar. A outra saída é Construção com { barra: false }. Decisão do orquestrador.",
     "PIRÂMIDE COM COISA EM CIMA: de cima, o Topo do templo (2 x 2) cabe certinho no patamar (2,4 x 2,4 casas), e está na folha. Na 3/4 o app não empilha objetos: o patamar sobe 1,2 casa e o que o mestre pôs em cima dele (o topo, o ídolo, uma ficha) continua desenhado no chão. Vale para toda construção alta de hoje; não é coisa deste lote resolver.",
-    "COR DA ÁGUA DA CASCATA: é fixa, o azul de rio da ferramenta Água. No rio azul ela some na água; na água turquesa e na de pântano ela contrasta. Se o dono quiser, a cascata pode ganhar uma 'Forma' com as cores prontas da água (não fiz: seria controle novo)."
+    "COR DA ÁGUA DA CASCATA: é fixa, o azul de rio da ferramenta Água. No rio azul ela some na água; na água turquesa e na de pântano ela contrasta. Se o dono quiser, a cascata pode ganhar uma 'Forma' com as cores prontas da água (não fiz: seria controle novo).",
+    "FERRAMENTA DE FOLHA DOS OBJETOS: folhaDeObjetosNovos.test.ts monta a cena sem c.vista e não aceita o perfil 'propria' no pedido. Para os cinco objetos deste lote ela mostraria a 3/4 igual à de cima. Não mexi nela (não é arquivo do lote). Recomendação do Claude: aceitar \"PROPRIA\" no pedido e passar a vista ao montador.",
+    "DOIS PEDIDOS DO DIRETOR BATEM EM REGRA DO PROJETO: o vão quase preto (28, 22, 18) contra o piso de luz de 0,045 do motor, e o ouro (176, 128, 48), de saturação 0,73, contra o teto de 0,62 do portão dos objetos. Segui a regra do projeto nos dois e cheguei o mais perto que ela deixa (detalhe na revisão, itens 9 e 14). Se o dono preferir a cor pedida, é mudar a regra, não o desenho.",
+    "SOMBRA DE DOIS CARIMBOS: a palmeira de selva passou de 'em-pe' para 'baixa' e os cipós de 'deitada' para 'nenhuma' (a sombra deles é pintada no desenho, mais curta que o ramo, como o diretor pediu). Com 'nenhuma' o carimbo vai por baixo das sombras e dos outros objetos, como a poça. Se isso atrapalhar no mapa, a volta é 'deitada' e tirar a sombra pintada."
   ],
   "itens": [
     {
@@ -44,21 +50,40 @@
       "tipoSugerido": "piramideEmDegraus",
       "grupoSugerido": "monumentosEColunas (grupo de Construção; se o L07 abrir um grupo de templo, ela vai na frente dele)",
       "regraDeFabrica": "{ barra: true } (não tapa a visão)",
-      "tamanhoEmCasas": [6, 6],
+      "tamanhoEmCasas": [
+        6,
+        6
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/piramideEmDegraus.ts",
       "exportacao": "montarPiramideEmDegraus",
-      "exportacoesExtras": ["montarPiramideEmDegrausSeca", "montarPiramideEmDegrausAlagada", "ALTURA_DO_DEGRAU_DA_PIRAMIDE", "e os ajudantes do lote (texDaPedraDoTemplo, roseta, moita, cipo, emOrdemNaTela...)"],
+      "exportacoesExtras": [
+        "montarPiramideEmDegrausSeca",
+        "montarPiramideEmDegrausAlagada",
+        "ALTURA_DO_DEGRAU_DA_PIRAMIDE",
+        "e os ajudantes do lote (vistaDoTemplo, pontoNaTela, texDasLajesDoTemplo, pedraDoSol, rochaFacetada, tufoDeMusgo, roseta, moita, cipo, samambaia, capim...)"
+      ],
       "moduloDaForma": "client/src/lib/mobilia/piramideEmDegraus.ts",
       "imagem": "docs/design/objetos/piramide-em-degraus.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Pedra', PEDRAS, 'arenito')]",
-      "coresFixas": "Musgo: o musgo do Meio-Termo x 0,84 (#5d693f). Folhagem em três tons: #3c6045, #547c55 e #6f925c. Água parada da forma alagada: #477269, com limo #5f7f55. Folha seca #9c8052. cena.corDoPiso é o escuro da pedra do templo [0x45,0x44,0x3c].",
-      "perfil3x4": "DERIVADO ({ modo: 'derivado' }). Tudo é coluna do chão até a altura, sem pegada em cima de pegada: cada degrau em três colunas (a faixa do norte e dois L em volta da escada), o patamar, cada pisada e cada bloco das alfardas. Assim a ordem do norte para o sul vale com o objeto em qualquer giro.",
-      "comportamento": "Barra a passagem, não tapa a visão. Não é de chão. Lê c.giro.",
-      "sinonimos": ["pirâmide", "templo", "zigurate", "degraus", "escadaria", "maia", "asteca", "ruína", "selva", "alagada"],
+      "coresFixas": "Musgo: o do Meio-Termo x 0,84 nas juntas (#5d693f) e os tufos em dois tons, x 0,66 (#495332) e x 1,0 (#6f7d4b). Folhagem em três tons: #3c6045, #547c55 e #6f925c; capim #557448 e #869c5c. Água parada da forma alagada: #477269 no meio, #2c504e no fundo, #5e8e80 no raso, o fio #b6ccc0 onde toca a pedra e o limo #5f7f55. Folha seca #9c8052. A ardósia e o granito do painel entram um nada mais quentes (pedraDoTemplo). cena.corDoPiso é o escuro da pedra do templo [0x45,0x44,0x3c].",
+      "perfil3x4": "{ modo: 'derivado', propria: true } (o perfil da montanha em tresQuartos.ts: a 3/4 é desenhada pelo próprio montador, que lê c.vista e c.giro; a cena passa por cenaEmTresQuartos sem mudança). Cada degrau é pintado de baixo para cima (o de cima tapa o de baixo), com o lance da escada que o corta; de cima a altura não sobe e sobra o talude.",
+      "comportamento": "Barra a passagem, não tapa a visão. Não é de chão. Lê c.giro e c.vista.",
+      "sinonimos": [
+        "pirâmide",
+        "templo",
+        "zigurate",
+        "degraus",
+        "escadaria",
+        "maia",
+        "asteca",
+        "ruína",
+        "selva",
+        "alagada"
+      ],
       "icone": "Três quadrados um dentro do outro com a escada descendo do meio para baixo.",
-      "medidas": "seca: saturação p95 0,368, contorno 0,232, luz mínima 0,044, portão da 3/4 3172 ms, o tampo sobe: sim | alagada: saturação p95 0,388, contorno 0,232, luz mínima 0,044, portão 3888 ms, o tampo sobe: sim (teto 5000 ms; máquina ocupada)",
-      "paraOIntegrador": "Registre montarPiramideEmDegraus em MONTADORES. Ele lê c.variante pelo lerVarianteDaPiramideEmDegraus: 0 é seca, 1 é alagada. As outras duas exportações servem só para a folha. As duas formas são ligadas como a do nicho funerário e a da cova: (1) types/map.ts: FormaGravadaDaPiramideEmDegraus ('alagada') entra na união de Prop.mobiliaForma. (2) lib/mobilia.ts: normalizarFormaDaPiramideEmDegraus(tipo, valor) entra na cadeia do normalizar e gravarFormaDaPiramideEmDegraus onde a cova grava. (3) pixi/rasterDosMoveis.ts: variante: varianteDaPiramideEmDegraus(prop.mobiliaForma) quando prop.mobilia === 'piramideEmDegraus'. (4) components/MobiliaControls.tsx: o seletor 'Forma' com FORMAS_DA_PIRAMIDE_EM_DEGRAUS e ROTULO_DA_FORMA_DA_PIRAMIDE_EM_DEGRAUS (Seca | Alagada). (5) lib/mapFactory.ts: o que a cova faz lá. O mapa grava só 'alagada'; sem campo é seca. Trocar a forma não mexe no tamanho. Esticada, os degraus são frações da pegada e o talude, a mureta, a laje e a pisada ficam na régua da casa. A escada fica no lado de baixo da pegada. Entra em LENTOS de tresQuartos.test.ts."
+      "medidas": "seca: saturação p95 0,366, contorno 0,232, luz mínima 0,045, 3/4 diferente da de cima: sim | alagada: saturação p95 0,382, contorno 0,231, luz mínima 0,044, 3/4 diferente: sim | tempo das quatro pinturas do portão no navegador: 0,9 s (o do vitest não foi medido)",
+      "paraOIntegrador": "Registre montarPiramideEmDegraus em MONTADORES e o perfil { modo: 'derivado', propria: true } em PERFIS. Ele lê c.variante pelo lerVarianteDaPiramideEmDegraus: 0 é seca, 1 é alagada. As outras duas exportações servem só para a folha. As duas formas são ligadas como a do nicho funerário e a da cova: (1) types/map.ts: FormaGravadaDaPiramideEmDegraus ('alagada') entra na união de Prop.mobiliaForma. (2) lib/mobilia.ts: normalizarFormaDaPiramideEmDegraus(tipo, valor) entra na cadeia do normalizar e gravarFormaDaPiramideEmDegraus onde a cova grava. (3) pixi/rasterDosMoveis.ts: variante: varianteDaPiramideEmDegraus(prop.mobiliaForma) quando prop.mobilia === 'piramideEmDegraus'. (4) components/MobiliaControls.tsx: o seletor 'Forma' com FORMAS_DA_PIRAMIDE_EM_DEGRAUS e ROTULO_DA_FORMA_DA_PIRAMIDE_EM_DEGRAUS (Seca | Alagada). (5) lib/mapFactory.ts: o que a cova faz lá. O mapa grava só 'alagada'; sem campo é seca. Trocar a forma não mexe no tamanho. Esticada, os degraus são frações da pegada e o talude, a capa, a laje e o pisante ficam na régua da casa. A escada fica no lado de baixo da pegada: três lances numa vala entre as alfardas, que sobem 0,4 casa cada uma (os degraus, 0,3). A cena não declara mais colunas (nenhuma sombra com altura): quem lia a altura pelas sombras não acha nada."
     },
     {
       "numero": 72,
@@ -69,20 +94,34 @@
       "tipoSugerido": "topoDoTemplo",
       "grupoSugerido": "monumentosEColunas (logo depois da pirâmide)",
       "regraDeFabrica": "{ barra: false } (anda-se na laje; não tapa a visão)",
-      "tamanhoEmCasas": [2, 2],
+      "tamanhoEmCasas": [
+        2,
+        2
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/topoDoTemplo.ts",
       "exportacao": "montarTopoDoTemplo",
-      "exportacoesExtras": ["ESPESSURA_DO_MURO_DO_TOPO_DO_TEMPLO"],
+      "exportacoesExtras": [],
       "imagem": "docs/design/objetos/topo-do-templo.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Pedra', PEDRAS, 'arenito')]",
-      "coresFixas": "O escuro do vão [0x2c,0x2a,0x27] (o motor o levanta até o piso de luz), a cinza das piras #635e56, o carvão #3a3632, a folha seca #9c8052, o musgo e as plantas do lote. cena.corDoPiso é o escuro da pedra do templo.",
-      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_MURO_DO_TOPO_DO_TEMPLO } (0,3 G). A laje é a coluna baixa; os parapeitos, os marcos, as piras e o muro do fundo são tampos soltos de um andar; a cresta, de dois andares. Saem depois da laje pela base medida na tela (emOrdemNaTela).",
-      "comportamento": "Não barra, não tapa. Não é de chão. Lê c.giro.",
-      "sinonimos": ["topo", "templo", "santuário", "entrada", "escada", "vão", "porta", "alçapão", "descida", "pirâmide"],
-      "icone": "Quadrado com o retângulo escuro da escada no meio (três riscos) e a cresta de três dentes em cima.",
-      "medidas": "saturação p95 0,348 | contorno 0,234 | luz mínima 0,045 | portão da 3/4 627 ms | o tampo sobe: sim",
-      "paraOIntegrador": "A escada desce do lado de baixo da pegada para o norte e some no vão debaixo do muro do fundo. Na 3/4 sem giro o muro do fundo ganha a porta escura na face da frente (um tampo fino da cor do vão); girado, a porta não entra. As duas piras são apagadas: não registre luz. Tem 2 x 2 casas para caber no patamar da pirâmide (2,4 x 2,4)."
+      "coresFixas": "O escuro do vão (28, 22, 18), que o motor levanta até o piso de luz: sai em #483a2f com arenito (cena.corDoPiso) e no escuro da pedra do templo [0x45,0x44,0x3c] com as outras pedras. A cinza do braseiro #a6a196, o carvão #5a544c, a folha seca #9c8052, o musgo e as plantas do lote.",
+      "perfil3x4": "{ modo: 'derivado', propria: true } (o perfil da montanha em tresQuartos.ts: a 3/4 é desenhada pelo próprio montador, que lê c.vista e c.giro; a cena passa por cenaEmTresQuartos sem mudança). Cada bloco é o tampo e a face de pé virada para quem olha; o que está em cima da laje é pintado do fundo para a frente na tela.",
+      "comportamento": "Não barra, não tapa. Não é de chão. Lê c.giro e c.vista.",
+      "sinonimos": [
+        "topo",
+        "templo",
+        "santuário",
+        "entrada",
+        "escada",
+        "vão",
+        "porta",
+        "alçapão",
+        "descida",
+        "pirâmide"
+      ],
+      "icone": "Quadrado com o retângulo escuro da escada no meio (três riscos) e, em cima, a crista em três andares com o disco do sol.",
+      "medidas": "saturação p95 0,364 | contorno 0,233 | luz mínima 0,045 | 3/4 diferente da de cima: sim | quatro pinturas do portão no navegador: 0,12 s",
+      "paraOIntegrador": "Perfil { modo: 'derivado', propria: true } em PERFIS. A escada desce do lado de baixo da pegada para o norte e some no vão debaixo do muro do fundo. Na 3/4 sem giro o muro do fundo mostra a porta com a verga; girado, a porta não entra. Os dois braseiros são apagados: não registre luz. Tem 2 x 2 casas para caber no patamar da pirâmide (2,4 x 2,4). A crista leva a mesma pedra do sol do patamar da pirâmide (pedraDoSol)."
     },
     {
       "numero": 73,
@@ -92,20 +131,34 @@
       "categoria": "objeto",
       "tipoSugerido": "cabecaColossal",
       "grupoSugerido": "temploEMasmorra",
-      "tamanhoEmCasas": [2, 2],
+      "tamanhoEmCasas": [
+        2,
+        2
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/cabecaColossal.ts",
       "exportacao": "montarCabecaColossal",
       "exportacoesExtras": [],
       "imagem": "docs/design/objetos/cabeca-colossal.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Pedra', PEDRAS, 'granito')]",
-      "coresFixas": "O vão dos sulcos [0x3a,0x3b,0x34] (a fenda do olho, a boca, a trinca), o musgo e as plantas do lote. cena.corDoPiso é o escuro da pedra do templo.",
-      "perfil3x4": "EM_PE (desenhada de frente nas duas vistas, como a lápide).",
-      "comportamento": "Sugestão: entra em ehMovelQueBarra (uma pedra de duas casas é obstáculo, como as pedras e rochas). Não é de chão.",
-      "sinonimos": ["cabeça", "colossal", "rosto", "estátua", "olmeca", "ídolo de pedra", "ruína", "templo", "selva", "moai"],
+      "coresFixas": "O vão dos sulcos [0x33,0x34,0x2c] (a fenda do olho, a boca, o vinco do nariz, a trinca), o musgo em dois tons e as plantas do lote. O granito e a ardósia do painel entram puxados para o basalto (x 0,90, 0,93 e 0,80); o arenito fica como está. cena.corDoPiso é o escuro da pedra do templo.",
+      "perfil3x4": "{ modo: 'derivado', propria: true } (o perfil da montanha em tresQuartos.ts: a 3/4 é desenhada pelo próprio montador, que lê c.vista e c.giro; a cena passa por cenaEmTresQuartos sem mudança). De cima, o alto do elmo com o rosto em escorço na borda; na 3/4, a cabeça de pé (de frente sem giro, de costas com meia volta, de perfil com um quarto).",
+      "comportamento": "Sugestão: entra em ehMovelQueBarra (uma pedra de duas casas é obstáculo, como as pedras e rochas). Não é de chão. Lê c.giro e c.vista.",
+      "sinonimos": [
+        "cabeça",
+        "colossal",
+        "rosto",
+        "estátua",
+        "olmeca",
+        "ídolo de pedra",
+        "ruína",
+        "templo",
+        "selva",
+        "moai"
+      ],
       "icone": "Quadrado de cantos redondos com a faixa da testa, dois riscos de olho fechado e a boca.",
-      "medidas": "saturação p95 0,398 | contorno 0,233 | luz mínima 0,044 | portão da 3/4 370 ms | sombra de baixo: sim",
-      "paraOIntegrador": "Feições próprias: o elmo com a crista e a faixa de três botões, os olhos fechados, dois riscos gravados descendo de cada olho, a boca de cantos caídos. O giro gira a imagem inteira (o rosto olha para onde o mestre virar). Desenhada numa meia pegada de 56 px; escala com o menor lado."
+      "medidas": "saturação p95 0,400 | contorno 0,233 | luz mínima 0,045 | 3/4 diferente da de cima: sim | quatro pinturas do portão no navegador: 0,2 s",
+      "paraOIntegrador": "Perfil { modo: 'derivado', propria: true } em PERFIS (antes a sugestão era EM_PE). Feições próprias: o elmo com a crista e a faixa de três botões, os olhos fechados, dois riscos gravados descendo de cada olho, a boca de cantos caídos. A cabeça olha para o lado de baixo da pegada; o giro em quartos de volta a vira nas duas vistas, com a luz e a sombra no lugar. Desenhada numa meia pegada de 56 px; escala com o menor lado. A sombra de cima é uma coluna de 46 px (0,8 casa) declarada na cena: com o perfil 'propria' ninguém a lê como altura."
     },
     {
       "numero": 74,
@@ -115,21 +168,34 @@
       "categoria": "objeto",
       "tipoSugerido": "idoloDourado",
       "grupoSugerido": "temploEMasmorra (a outra casa possível é 'tesouro')",
-      "tamanhoEmCasas": [1, 1],
+      "tamanhoEmCasas": [
+        1,
+        1
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/idoloDourado.ts",
       "exportacao": "montarIdoloDourado",
       "exportacoesExtras": [],
       "imagem": "docs/design/objetos/idolo-dourado.png",
-      "lugaresDeMaterial": "[lugar('pedra', 'Pedestal', PEDRAS, 'granito')]",
-      "coresFixas": "O ouro do tesouro do app (os valores de tesouroDeOuro.ts, copiados, sem import): metal #bc9856, vão #5c472e, cintilo #f2e0a8. Halo morno #e8cb86 a 16 a 20% de alfa (emite). Folha seca #9c8052 e o musgo do lote. cena.corDoPiso é o escuro da pedra do templo.",
+      "lugaresDeMaterial": "[lugar('pedra', 'Pedestal', PEDRAS, 'arenito')]",
+      "coresFixas": "Ouro antigo: a base #b08848 (176, 136, 72), o vinco #70542e (112, 84, 46) e a obsidiana dos olhos #2e2926. A luz derramada #e6c484 a 18% de alfa (emite). Folha seca #9c8052 e o musgo do lote. cena.corDoPiso é o escuro da pedra do templo.",
       "perfil3x4": "EM_PE (desenhado de frente nas duas vistas).",
       "comportamento": "Não barra. Não é de chão. ACENDE: luz sugerida abaixo.",
       "luzSugerida": "LUZ_DOS_OBJETOS: idoloDourado: { alcanceEmCasas: 1.5, cor: 0xffe9c0, forca: 0.5, fumacaEBrasas: false }. Quente, fraca e parada (é reflexo de ouro, não fogo). A estatueta fica no meio da pegada, de onde a luz nasce.",
-      "sinonimos": ["ídolo", "ouro", "dourado", "estatueta", "tesouro", "relíquia", "artefato", "templo", "pedestal"],
-      "icone": "Bonequinho de cabeça grande com a coroa em degraus, em cima de um pedestal.",
-      "medidas": "saturação p95 0,544 (o ouro; teto 0,62) | contorno 0,231 | luz mínima 0,044 | portão da 3/4 65 ms | sombra de baixo: sim",
-      "paraOIntegrador": "O brilho do desenho é contido: o halo e os dois cintilos são pintados e não animam. Quem ilumina é a entrada em LUZ_DOS_OBJETOS. Se o dono quiser acender e apagar, é o ehMovelQueAcende (não fiz a variante apagada). O brilho do metal é 0,3 (o padrão do motor, 0,42, estourava a 3x)."
+      "sinonimos": [
+        "ídolo",
+        "ouro",
+        "dourado",
+        "estatueta",
+        "tesouro",
+        "relíquia",
+        "artefato",
+        "templo",
+        "pedestal"
+      ],
+      "icone": "Bonequinho de cabeça grande com dois olhos amendoados e a coroa em degraus, em cima de um pedestal.",
+      "medidas": "saturação p95 0,592 (o ouro; teto 0,62) | contorno 0,230 | luz mínima 0,045 | sombra de baixo: sim | quatro pinturas do portão no navegador: 0,03 s",
+      "paraOIntegrador": "Perfil EM_PE, como antes. O pedestal passou a ser de arenito de partida (o do templo). O brilho do desenho é contido: não há mais halo nem estrela; a luz derramada (dois poços a 18%) é pintada e não anima. Quem ilumina é a entrada em LUZ_DOS_OBJETOS. Se o dono quiser acender e apagar, é o ehMovelQueAcende (não fiz a variante apagada). O brilho do metal é 0,2 (o padrão do motor, 0,42, estourava)."
     },
     {
       "numero": 75,
@@ -140,20 +206,34 @@
       "tipoSugerido": "cascataEmDegraus",
       "grupoSugerido": "naturezaERelevo",
       "regraDeFabrica": "{ barra: false } (não tapa)",
-      "tamanhoEmCasas": [2, 3],
+      "tamanhoEmCasas": [
+        2,
+        3
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/cascataEmDegraus.ts",
       "exportacao": "montarCascataEmDegraus",
-      "exportacoesExtras": ["ESPUMA_DA_CASCATA"],
+      "exportacoesExtras": [
+        "ESPUMA_DA_CASCATA"
+      ],
       "imagem": "docs/design/objetos/cascata-em-degraus.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Pedras', PEDRAS, 'granito')]",
-      "coresFixas": "Água do rio #4e85a0 (a cor de partida do rio da ferramenta Água, #4b87a8, um nada mais calma), o claro de quando acelera #8cb6c4 e a espuma branco-gelo #e2ebe7 (nunca branco puro). Plantas do lote. cena.corDoPiso é o escuro da pedra do templo.",
-      "perfil3x4": "DERIVADO. A água NÃO sobe (fica como de cima); só as pedras têm altura, cada uma a sua coluna.",
-      "comportamento": "Não barra, não tapa. Não é de chão (as pedras têm altura). A beira de cima e o pé são transparentes: é para pôr em cima de um rio da ferramenta Água.",
-      "sinonimos": ["cascata", "cachoeira", "queda d'água", "corredeira", "espuma", "rio", "degraus", "salto"],
-      "icone": "Três faixas onduladas de espuma entre duas fileiras de pedrinhas.",
-      "medidas": "saturação p95 0,516 (a água) | contorno 0,235 | luz mínima 0,044 | portão da 3/4 731 ms | o tampo sobe: sim (as pedras)",
-      "paraOIntegrador": "A água corre do lado de cima para o de baixo da pegada. Esticada no comprimento, ganha degraus (um a cada 0,76 casa, mais o pé de 0,74); na largura, ganha água (as margens ficam com 0,27 casa). Junta a 'cachoeira' do mapa 2 e a cascata do mapa 6. A primeira peça da cena é vazia (não pinta nada) e do tamanho da pegada: garante que a frente das pedras na 3/4 saia de pedra, e não de água."
+      "coresFixas": "A poça #447a96 e a poça funda #34627e, a cortina #a4ccd8 com riscas #d2e6e8 e #74a8c0, o lábio #c6e0e4 e a espuma branco-gelo #e2eef0 (nunca branco puro). Plantas e musgo do lote. cena.corDoPiso é o escuro da pedra do templo.",
+      "perfil3x4": "{ modo: 'derivado', propria: true } (o perfil da montanha em tresQuartos.ts: a 3/4 é desenhada pelo próprio montador, que lê c.vista e c.giro; a cena passa por cenaEmTresQuartos sem mudança). A água é chata nas duas vistas; na 3/4 só as rochas sobem (o topo de cada bloco sobe a altura dele e as faces da frente crescem).",
+      "comportamento": "Não barra, não tapa. Não é de chão (as rochas têm altura). Lê c.giro e c.vista. A água acaba em corte limpo: reto em cima, na borda de espuma embaixo. É para pôr em cima de um rio da ferramenta Água.",
+      "sinonimos": [
+        "cascata",
+        "cachoeira",
+        "queda d'água",
+        "corredeira",
+        "espuma",
+        "rio",
+        "degraus",
+        "salto"
+      ],
+      "icone": "Três faixas claras riscadas de pé (as quedas, a de baixo maior) entre duas fileiras de pedras de cantos vivos.",
+      "medidas": "saturação p95 0,552 (a água) | contorno 0,235 | luz mínima 0,044 | 3/4 diferente da de cima: sim | quatro pinturas do portão no navegador: 0,35 s",
+      "paraOIntegrador": "Perfil { modo: 'derivado', propria: true } em PERFIS. A água corre do lado de cima para o de baixo da pegada. Esticada no comprimento, ganha quedas (uma a cada 0,9 casa, mais o pé de 1,25 casa com a última queda, a maior); na largura, ganha água (as margens ficam com 0,3 casa). Junta a 'cachoeira' do mapa 2 e a cascata do mapa 6. A rocha das margens é o material do painel (granito de partida)."
     },
     {
       "numero": 76,
@@ -164,20 +244,32 @@
       "tipoSugerido": "ponteSobrePilares",
       "grupoSugerido": "o grupo da ponte de hoje, logo depois dela",
       "regraDeFabrica": "{ barra: false } se for Construção",
-      "tamanhoEmCasas": [5, 2],
+      "tamanhoEmCasas": [
+        5,
+        2
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/ponteSobrePilares.ts",
       "exportacao": "montarPonteSobrePilares",
-      "exportacoesExtras": ["ESPESSURA_DA_PONTE_SOBRE_PILARES"],
+      "exportacoesExtras": [],
       "imagem": "docs/design/objetos/ponte-sobre-pilares.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Pedra', PEDRAS, 'granito')]",
-      "coresFixas": "Espuma branco-gelo #e2ebe7 em volta dos bicos, o musgo e as plantas do lote. cena.corDoPiso é o escuro da pedra do templo.",
-      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_PONTE_SOBRE_PILARES } (0,2 G). Os pilares são colunas até debaixo do tabuleiro (0,32 G); o tabuleiro é um tampo solto; a mureta, outro em cima dele; os pilaretes, mais um. O tabuleiro sai depois dos pilares (emOrdemNaTela).",
-      "comportamento": "Anda-se em cima: não barra, não tapa. Não é de chão. Lê c.giro.",
-      "sinonimos": ["ponte", "pilares", "pedra", "talha-mar", "viaduto", "ponte larga", "rio", "travessia"],
-      "icone": "Retângulo comprido com dois bicos em triângulo saindo de cada lado.",
-      "medidas": "saturação p95 0,139 | contorno 0,235 | luz mínima 0,044 | portão da 3/4 1707 ms | o tampo sobe: sim",
-      "paraOIntegrador": "Corre ao longo do lado MAIOR da pegada, como a ponte e o arco do portão (esticada mais alta que larga, fica em pé). O tabuleiro é a pegada menos o bico dos pilares de cada lado (0,29 casa): na de partida, a pista tem 1,2 casa. Esticada, ganha lajes, blocos de mureta e pilares (um vão a cada 1,6 casa). A sombra do tabuleiro cai solta, entre os pilares. Entra em LENTOS de tresQuartos.test.ts."
+      "coresFixas": "Espuma branco-gelo #e2eef0 em volta dos bicos, o escuro debaixo dos arcos #2a3034 (meio transparente embaixo: a água aparece), o musgo do lote. cena.corDoPiso é o escuro da pedra do templo.",
+      "perfil3x4": "{ modo: 'derivado', propria: true } (o perfil da montanha em tresQuartos.ts: a 3/4 é desenhada pelo próprio montador, que lê c.vista e c.giro; a cena passa por cenaEmTresQuartos sem mudança). Com a ponte atravessada na tela, a face de frente tem os arcos, as aduelas, o fuste dos pilares e o reflexo; de pé na tela, a ponta do tabuleiro e os bicos de lado.",
+      "comportamento": "Anda-se em cima: não barra, não tapa. Não é de chão. Lê c.giro e c.vista.",
+      "sinonimos": [
+        "ponte",
+        "pilares",
+        "pedra",
+        "talha-mar",
+        "viaduto",
+        "ponte larga",
+        "rio",
+        "travessia"
+      ],
+      "icone": "Retângulo comprido com dois bicos de barco saindo de cada lado.",
+      "medidas": "saturação p95 0,165 | contorno 0,235 | luz mínima 0,045 | 3/4 diferente da de cima: sim | quatro pinturas do portão no navegador: 0,27 s",
+      "paraOIntegrador": "Perfil { modo: 'derivado', propria: true } em PERFIS. Corre ao longo do lado MAIOR da pegada, como a ponte e o arco do portão (esticada mais alta que larga, fica em pé). O tabuleiro é a pegada menos o bico dos pilares de cada lado (0,36 casa): na de partida ele tem 1,28 casa de largura e a pista entre as muretas, 0,87 casa (antes 1,2: os talha-mares cresceram e as muretas engrossaram, a pedido do diretor). Esticada, ganha lajes e pilares (um vão a cada 1,6 casa). A correnteza é desenhada vindo do lado de cima da pegada (a espuma no bico de cima, a esteira atrás do de baixo); o mestre gira a ponte para o rumo do rio. Os arcos da 3/4 são vazados de verdade: o chão do mapa (a água) aparece por eles."
     },
     {
       "numero": 77,
@@ -187,15 +279,25 @@
       "grupoSugerido": "carimbo (ao lado da Palmeira)",
       "arquivo": "client/src/carimbos/novos/palmeiraDeSelva.ts",
       "exportacao": "carimbo",
-      "exportacoesExtras": ["paleta"],
+      "exportacoesExtras": [
+        "paleta"
+      ],
       "idDoCarimbo": "palmeira-de-selva",
       "tamanhoDoCarimbo": 14,
-      "tamanhoEmCasas": "2,3 x 2,7 no mapa de 200 x 200 casas (a Palmeira ocupa 1,8 x 2,0)",
-      "sombra": "em-pe",
-      "cores": "Tronco #806646 e #5c4832, anel #4a3a2a, raiz #745c40 e #503e2c, folha #5e9656, #3a7a48 e #1e5a3e, nervura #8eb26e, broto #80aa60.",
-      "medidas": "8 desenhos em 158 ms no software (teto 500) | 47 comandos (teto 600) | 961 vértices | saturação p95 0,667 (teto 0,82) | contorno 0,253 | canal mais claro 178 | saturação HSL até 0,50 | 8 giros diferentes de 8 | no quadro: sim",
-      "sinonimos": ["palmeira", "selva", "coqueiro", "árvore", "raízes", "mata", "tropical"],
-      "paraOIntegrador": "Registrar em carimbos/novos/index.ts (import de carimbo e paleta, CARIMBOS_NOVOS e PALETA_DOS_NOVOS) e, se o pacote-animacoes.cjs tem a lista de ids reservados, somar o id. Copa cheia de dez folhas largas e serrilhadas em duas voltas, sem coco. As raízes à mostra saem nas sementes 1, 4 e 7 (semente % 3 === 1): são as 'palmeiras com raízes' do alto do templo."
+      "tamanhoEmCasas": "1,98 x 2,59 no mapa de 200 x 200 casas (a Palmeira ocupa 1,8 x 2,0)",
+      "sombra": "baixa",
+      "cores": "Tronco #806646 e #5c4832, anel #4a3a2a, raiz #745c40 e #503e2c, folha #5e9656, #3a7a48 e #1e5a3e, nervura #8eb26e, broto #80aa60, folha seca #9c7a4e e #705436, a mancha do pé no chão #24342a a 34%.",
+      "medidas": "8 desenhos em 204 ms no software (teto 500) | 48 comandos (teto 600) | 1097 vértices | saturação p95 0,667 (teto 0,82) | contorno 0,252 | canal mais claro 178 | saturação HSL até 0,50 | 8 giros diferentes de 8 | no quadro: sim | cortado na borda: não",
+      "sinonimos": [
+        "palmeira",
+        "selva",
+        "coqueiro",
+        "árvore",
+        "raízes",
+        "mata",
+        "tropical"
+      ],
+      "paraOIntegrador": "Registrar em carimbos/novos/index.ts (import de carimbo e paleta, CARIMBOS_NOVOS e PALETA_DOS_NOVOS) e, se o pacote-animacoes.cjs tem a lista de ids reservados, somar o id. Copa de seis a nove folhas pinadas (os folíolos em pente, a ponta caída), sem coco, mais uma ou duas folhas secas penduradas. Por semente mudam a altura, a inclinação do tronco e o giro da copa. As raízes à mostra saem nas sementes 1, 4 e 7 (semente % 3 === 1). A sombra é 'baixa' (antes 'em-pe')."
     },
     {
       "numero": 78,
@@ -205,15 +307,25 @@
       "grupoSugerido": "carimbo",
       "arquivo": "client/src/carimbos/novos/moitaTropical.ts",
       "exportacao": "carimbo",
-      "exportacoesExtras": ["paleta"],
+      "exportacoesExtras": [
+        "paleta"
+      ],
       "idDoCarimbo": "moita-tropical",
       "tamanhoDoCarimbo": 8,
-      "tamanhoEmCasas": "1,1 x 0,8 no mapa de 200 x 200 casas",
+      "tamanhoEmCasas": "0,95 x 0,63 no mapa de 200 x 200 casas",
       "sombra": "baixa",
-      "cores": "Massa #184634, folha #266642, #3c824c e #66a05a, folha nova #8ab668, nervura #9cc07c, talo #466e3e.",
-      "medidas": "8 desenhos em 51 ms | 37 comandos | 584 vértices | saturação p95 0,657 | contorno 0,231 | canal mais claro 192 | saturação HSL até 0,49 | 8 giros diferentes de 8 | no quadro: sim",
-      "sinonimos": ["moita", "tropical", "folhagem", "costela-de-adão", "planta", "selva", "arbusto"],
-      "paraOIntegrador": "Sete folhas largas em coração, com os rasgos da beira até perto da nervura, e duas folhas novas inteiras no meio."
+      "cores": "Massa #184634, folha #266642, #3c824c e #66a05a, folha nova #8ab668, nervura #9cc07c, folha amarelada #9caa58 e #768c48.",
+      "medidas": "8 desenhos em 122 ms | 42 comandos | 1078 vértices | saturação p95 0,629 | contorno 0,257 | canal mais claro 192 | saturação HSL até 0,49 | 8 giros diferentes de 8 | no quadro: sim | cortado na borda: não",
+      "sinonimos": [
+        "moita",
+        "tropical",
+        "folhagem",
+        "costela-de-adão",
+        "planta",
+        "selva",
+        "arbusto"
+      ],
+      "paraOIntegrador": "De cinco a oito folhas largas em coração, deitadas, cada uma com duas a quatro fendas fundas de cada lado; uma delas amarelada; uma folha nova enrolada no meio."
     },
     {
       "numero": 79,
@@ -223,15 +335,26 @@
       "grupoSugerido": "carimbo",
       "arquivo": "client/src/carimbos/novos/ciposPendurados.ts",
       "exportacao": "carimbo",
-      "exportacoesExtras": ["paleta"],
+      "exportacoesExtras": [
+        "paleta"
+      ],
       "idDoCarimbo": "cipos-pendurados",
       "tamanhoDoCarimbo": 9,
-      "tamanhoEmCasas": "1,7 x 1,7 no mapa de 200 x 200 casas",
-      "sombra": "deitada",
-      "cores": "Ramo #2e5436, massa #1c4c36, folha #2c6c44, #46884e e #70a65c, flor creme #e2d2a0 e #baa678.",
-      "medidas": "8 desenhos em 85 ms | 17 comandos | 2650 vértices (teto 12000) | saturação p95 0,632 | contorno 0,252 | canal mais claro 226 | saturação HSL até 0,53 | 8 giros diferentes de 8 | no quadro: sim",
-      "sinonimos": ["cipó", "trepadeira", "hera", "liana", "pendurado", "muro", "borda", "selva"],
-      "paraOIntegrador": "O GIRO ESCOLHE PARA ONDE OS RAMOS CAEM: sem giro, para baixo na tela, com a moita da borda em cima; a cada 45 graus a borda e a queda giram juntas. O desenho gira em volta do meio do quadro, então o ponto do clique fica perto do meio dos ramos, e não na borda. Sombra 'deitada' (a silhueta deslizada um tanto curto), que só a biblioteca tem."
+      "tamanhoEmCasas": "1,27 x 1,33 no mapa de 200 x 200 casas",
+      "sombra": "nenhuma (a sombra é pintada no desenho)",
+      "cores": "Ramo #2e5436, massa #1c4c36, folha #2c6c44, #46884e e #70a65c, flor creme #e2d2a0 e #baa678, a sombra pintada #0a1c28 a 26% (a cor e a força da sombra única do mapa).",
+      "medidas": "8 desenhos em 96 ms | 18 comandos | 2775 vértices (teto 12000) | saturação p95 0,632 | contorno 0,245 | canal mais claro 226 | saturação HSL até 0,60 | 8 giros diferentes de 8 | no quadro: sim | cortado na borda: não",
+      "sinonimos": [
+        "cipó",
+        "trepadeira",
+        "hera",
+        "liana",
+        "pendurado",
+        "muro",
+        "borda",
+        "selva"
+      ],
+      "paraOIntegrador": "O GIRO ESCOLHE PARA ONDE OS RAMOS CAEM: sem giro, para baixo na tela, com a massa da borda em cima; a cada 45 graus a borda e a queda giram juntas. O desenho gira em volta do meio do quadro, então o ponto do clique fica perto do meio dos ramos, e não na borda. Sombra 'nenhuma' (antes 'deitada'): a sombra de cada ramo é pintada no desenho, deslocada e mais curta que ele. Com 'nenhuma' o carimbo vai por baixo das sombras e dos outros objetos, como a poça."
     },
     {
       "numero": 80,
@@ -241,15 +364,54 @@
       "grupoSugerido": "carimbo",
       "arquivo": "client/src/carimbos/novos/espumaDagua.ts",
       "exportacao": "carimbo",
-      "exportacoesExtras": ["paleta"],
+      "exportacoesExtras": [
+        "paleta"
+      ],
       "idDoCarimbo": "espuma-dagua",
       "tamanhoDoCarimbo": 9,
-      "tamanhoEmCasas": "1,2 x 0,75 no mapa de 200 x 200 casas",
+      "tamanhoEmCasas": "0,95 x 0,60 no mapa de 200 x 200 casas",
       "sombra": "nenhuma",
-      "cores": "Véu #cee0e0 (a 20 a 26% de alfa), espuma #e2ebe7, sombra da bolha #b0ccd2, brilho #f0f4f2. Nenhum canal passa de 244.",
-      "medidas": "8 desenhos em 45 ms | 9 comandos | 2310 vértices | saturação p95 0,162 | contorno 0,778 | canal mais claro 244 (teto 245) | saturação HSL até 0,27 | 8 giros diferentes de 8 | no quadro: sim | cortado na borda: não",
-      "sinonimos": ["espuma", "água", "cachoeira", "queda", "correnteza", "bolhas", "rio"],
-      "paraOIntegrador": "O GIRO ESCOLHE PARA ONDE A CORRENTE LEVA O RASTRO (sem giro, para a direita). Rente à água, sem sombra: vai por baixo das sombras e dos outros objetos, como a poça. É o mesmo branco-gelo da espuma da cascata (item 75) e da ponte (item 76)."
+      "cores": "Espuma branco-gelo azulado #e2eef0 (226, 238, 240), de 42% a 85% de alfa, e a camada de fora, mais fria, #cce0e8, de 40% a 49%. Nenhum canal passa de 240.",
+      "medidas": "8 desenhos em 27 ms | 31 comandos | 1671 vértices | saturação p95 0,067 | contorno 0,907 | canal mais claro 240 (teto 245) | saturação HSL até 0,38 | 8 giros diferentes de 8 | no quadro: sim | cortado na borda: não",
+      "sinonimos": [
+        "espuma",
+        "água",
+        "cachoeira",
+        "queda",
+        "correnteza",
+        "bolhas",
+        "rio"
+      ],
+      "paraOIntegrador": "O GIRO ESCOLHE PARA ONDE A CORRENTE LEVA OS FIAPOS (sem giro, para a direita). Rente à água, sem sombra: vai por baixo das sombras e dos outros objetos, como a poça. É o mesmo branco-gelo da espuma da cascata (item 75) e da ponte (item 76)."
     }
-  ]
+  ],
+  "revisaoDoDiretorDeArte": {
+    "data": "2026-11-24",
+    "pedidos": 22,
+    "oQueMudouNoGeral": "Os cinco objetos de pedra altos (pirâmide, topo, cabeça, cascata e ponte) deixaram a 3/4 derivada do motor e passaram a desenhar as duas vistas do mesmo modelo (perfil 'propria'): cada face é um polígono com os cantos em 3D posto na tela por pontoNaTela (piramideEmDegraus.ts). A frente varrida do motor pintava a face de pé com a textura da classe do material, e as camadas do arenito, deitadas, liam como tábua: era a 'madeira' dos espelhos.",
+    "itens": [
+      "1 (pirâmide, volume): cada face do talude tem a luz do lado para onde olha na tela (luzDaFaceNaTela, com LUZ_NO_PLANO -0,6 -0,8): norte e oeste +12%, sul e leste -22%. A mureta de chanfro igual nos quatro lados saiu; ficou a capa fina com a luz do lado. Cada degrau deita no de baixo a sombra do sul e do leste, 0,5 colada à parede, sumindo em 8,2 px no rumo da sombra (5 px ao sul, 6,5 px a leste).",
+      "2 (pirâmide, sombra no chão): faixa de contato do sul e do leste com 0,45 na base, caindo a zero em 10 a 10,6 px. É a sombra do motor (quase preta, quente) a menos de metade: escurece o piso que estiver embaixo e nunca chega a preto.",
+      "3 (pirâmide, escadaria): os pisantes são da pedra das plataformas (um nada mais claros), em blocos de juntas desencontradas (2,5 blocos por pisante), com o fio claro de 1 px na borda da frente e o espelho escuro. As alfardas são três blocos de pedra de cada lado, 18% mais escuros que o degrau e sempre mais altos que a escada: ela sobe numa vala entre eles e as paredes da vala fazem sombra nos pisantes. Os marcos de quadrado entalhado saíram.",
+      "4 (pirâmide girada): a escada de lado é a mesma vala, em três lances que acompanham os degraus; os pisantes são paralelos à face, cada um com o espelho. Na 3/4 o contorno de cada lance é um retângulo reto: a parede do fundo da vala aparece em cima e o pisante só encurta no eixo da vista.",
+      "5 (pirâmide, musgo): o musgo em manchas por igual saiu. Agora só nas juntas (em trechos, perto de metade delas), no pé da parede do norte e nos cantos de dentro, mais os tufos de dois tons (escuro embaixo, claro em cima, de beira roída). Medido na folha (a pirâmide seca de cima, a 64 px por casa): 9,1% dos pixels puxam para o verde, contando o musgo com pelo menos um quarto de força e as plantas. Fica um nada abaixo da faixa de 10 a 15% pedida.",
+      "6 (alagada): a água tem fundura (escura junto da parede de dentro, clara para fora), o fio claro de 1 px onde toca a pedra, o reflexo curto da parede e da capa, e cada degrau tem o seu tom (o de baixo mais fundo e mais verde). As 53 moitas viraram 19, em grupos de uma a três; entraram 10 samambaias debruçadas na borda, 8 tufos de capim e 11 cipós caindo pela face; as folhas redondas boiam em 9 grupos, e sobram trechos de borda vazios.",
+      "7 (ardósia e granito): a ardósia e o granito ficam um nada mais quentes (pedraDoTemplo); na pedra escura (a ardósia) o pisante fica 12% mais claro que o degrau (4% nas outras) e o patamar ganha mais 10%. O espelho do pisante é 34% mais escuro que ele (36% o que olha para o leste).",
+      "8 (topo, crista): os três tabletes saíram. Em cima do muro do fundo há a crista escalonada (três andares, cada um mais estreito e mais claro, cada um fazendo sombra no de baixo) e, no do meio, a pedra do sol, o mesmo medalhão do patamar da pirâmide (a mesma função, pedraDoSol).",
+      "9 (topo, vão): os pisantes são de pedra em blocos, cada um mais escuro, com a luz só na borda; os três últimos afundam até o escuro, e as beiras do oeste e do norte da boca deitam a sombra interna de 7 px. LIMITE: o marrom quase preto pedido (28, 22, 18) tem luminância linear 0,008, e o motor levanta todo pixel de peça abaixo de 0,045 (o piso de luz, regra do estilo e do portão). O vão sai em (72, 58, 47), o mesmo marrom, o mais escuro que cabe. Com pedra que não é arenito o escuro é o da pedra do templo (cinza).",
+      "10 (topo, acabamento): os potes viraram braseiros de pedra (a base quadrada, a bacia de borda grossa, a cinza clara e uns carvões miúdos amontoados de um lado), apagados: sem brasa e sem luz. O musgo oval da laje saiu: agora nas juntas e em quatro tufos de dois tons.",
+      "11 (cabeça, vista de cima): desenho próprio. O alto do elmo domina (62 x 88 de 91 x 88 px do desenho, perto de dois terços, com a capa de musgo) e o rosto é a faixa em escorço na borda para onde ela olha. O giro vira a cabeça (o perfil passou de EM_PE para 'propria'); a sombra pousada cai sempre para baixo à direita.",
+      "12 (cabeça, material): o musgo é em tufos de beira roída e dois tons, grosso no alto, escorrendo pela têmpora, pelo canto dos olhos e pela ruga do nariz. O granito e a ardósia do painel são puxados para um basalto cinza-esverdeado quente (x 0,90, 0,93 e 0,80). Os vincos da boca, do nariz e da pálpebra ficaram mais grossos e quase opacos.",
+      "13 (ídolo, brilho): as estrelas e o halo saíram. Há dois poços de luz morna a 18%: em cima do pedestal e no chão à frente.",
+      "14 (ídolo, figura): ouro antigo escuro, olhos amendoados de obsidiana com o contorno no marrom do ouro, o peitoral no lugar das três contas, vincos escuros entre as massas. O pedestal é do arenito do templo de partida. LIMITE: o ouro pedido (176, 128, 48) tem saturação 0,73 e o teto do portão dos objetos é 0,62. Ficou (176, 136, 72) na base e (112, 84, 46) nos vincos: o mesmo tom e a mesma luz, com a saturação p95 da imagem em 0,592. Conferido na folha a 50 px por casa (as três janelas pequenas da linha do ídolo).",
+      "15 (cascata, quedas): refeita. Cada degrau tem a poça escura, o lábio (o fio claro e liso) e a cortina riscada de pé, mais clara no meio. A última queda é a maior (0,46 casa contra 0,19 e 0,25) e só ela tem o véu de espuma no pé, que se desfaz em renda.",
+      "16 (cascata, margens): os seixos viraram blocos de rocha facetada de tamanhos variados (rochaFacetada, feita com as peças do motor na família de _rochaFacetada.ts), com musgo em tufos, samambaia e capim nas frestas. Os paredões dobram para dentro nos quatro cantos; a água acaba em corte limpo (reto em cima, na borda de espuma embaixo). Girada é o mesmo desenho virado, com as mesmas quedas.",
+      "17 (ponte, tabuleiro): três fiadas de lajes longas (0,92 casa) no sentido da travessia (quatro quando a pista passa de 1,1 casa), junta de 1,3 px escura, o meio gasto mais claro. A mureta tem um sexto da largura (11,6 px de 71,7), com a capa clara e a face escura do lado da sombra.",
+      "18 (ponte, pilares e água): na 3/4 a face de frente tem os arcos (o vão escuro, meio transparente embaixo: a água aparece por ele), a aduela clara, o fuste de cada pilar e o reflexo de cada arco na água. O talha-mar virou bico de barco (reto e depois em ponta) e ficou mais comprido (0,36 casa, antes 0,29): o tabuleiro estreitou de 1,42 para 1,28 casa. De cima, a espuma em manchas no bico de cima e a esteira em V atrás do de baixo. A sombra na água é uma faixa colada ao tabuleiro que some em 5,6 px.",
+      "19 (palmeira): folhas pinadas, com os folíolos em pente e a ponta caída, de seis a nove por semente, mais uma ou duas folhas secas marrons penduradas. Por semente mudam a altura (15% para mais ou para menos), a inclinação do tronco (até 8 graus) e o giro da copa. A sombra passou de 'em-pe' para 'baixa' (a copa cai a pouco mais de meia casa do pé, e não a mais de uma) e há a mancha escura do pé no chão.",
+      "20 (moita): de cinco a oito folhas largas em coração, com duas a quatro fendas fundas de cada lado, de tamanhos bem diferentes, deitadas (cada uma num tom só, com a nervura e a sombra dela no chão). Por semente mudam o número de folhas, o giro e a folha amarelada.",
+      "21 (cipós): a borda é uma massa de contorno irregular com 34 folhas miúdas; os ramos têm de 30% a 100% do comprimento, sem ordem, afinam para a ponta, puxam para um lado (alguns se cruzam) e têm folhas alternadas, menores no fim. A sombra é pintada no próprio carimbo, deslocada para baixo à direita e com 70% do comprimento do ramo; por isso a sombra do carimbo passou de 'deitada' para 'nenhuma' (ele fica por baixo das sombras e dos outros objetos).",
+      "22 (espuma): renda de manchas de beira recortada em três tamanhos (três grandes, seis médias, seis miúdas e fiapos), em duas camadas de 40% a 85%, branco-gelo azulado (226, 238, 240), com vãos entre elas, e cinco bolhas desiguais. Sem véu em elipse e sem riscos."
+    ]
+  }
 }
