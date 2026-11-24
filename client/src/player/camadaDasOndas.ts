@@ -29,6 +29,13 @@ const MIOLO_ALFA_DO_DISCO = 0.14
 const MIOLO_ALFA = 0.7
 const MIOLO_ALFA_PARADO = 0.6
 
+/**
+ * O nome do container das ondas. Ele mora DENTRO da camada do último avistamento (`LAST_SEEN_LAYER_LABEL`):
+ * mesma faixa da camada Tokens (ordem e opacidade dela), por baixo dos contornos, escondido na foto do telhado.
+ * Quem conta os contornos dessa camada pula este filho.
+ */
+export const ONDAS_DA_CEGUEIRA_LABEL = 'ondas-da-cegueira'
+
 interface VistaDaOnda {
   raiz: Container
   aneis: Graphics[]
@@ -65,7 +72,7 @@ function desenharOnda(casa: number): VistaDaOnda {
 export function criarCamadaDasOndas(opcoes: { ticker: Ticker; reducedMotion: () => boolean; agora?: () => number }): CamadaDasOndas {
   const agora = opcoes.agora ?? (() => performance.now())
   const container = new Container()
-  container.label = 'ondas-da-cegueira'
+  container.label = ONDAS_DA_CEGUEIRA_LABEL
   container.eventMode = 'none'
   let vivas: OndaViva[] = []
   let casaDesenhada = 0

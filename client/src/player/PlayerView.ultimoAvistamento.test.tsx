@@ -6,6 +6,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, RegionPoint, Token } from '../types/map'
 import { DEFAULT_PLAYER_SETTINGS } from './PlayerPanel'
 import { PlayerView } from './PlayerView'
+import { ONDAS_DA_CEGUEIRA_LABEL } from './camadaDasOndas'
 import { LAST_SEEN_LAYER_LABEL, LAST_SEEN_TTL_MS } from './lastSeen'
 
 /**
@@ -89,8 +90,11 @@ function camadaDosFantasmas(): Container {
   return camada
 }
 
+/** A camada também guarda as ondas da CEGUEIRA (`camadaDasOndas.ts`), por baixo dos contornos: não são fantasmas. */
 function fantasmasVisiveis(): Container[] {
-  return camadaDosFantasmas().children.filter((c): c is Container => c instanceof Container && c.visible)
+  return camadaDosFantasmas().children.filter(
+    (c): c is Container => c instanceof Container && c.visible && c.label !== ONDAS_DA_CEGUEIRA_LABEL,
+  )
 }
 
 function rotuloDe(fantasma: Container): string {
