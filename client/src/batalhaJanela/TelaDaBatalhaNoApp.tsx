@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { VezDoNpcNoCentro } from '../components/batalha/BatalhaDoMestre'
+import { EscolhendoCompanions } from '../components/caracteristicas/EscolhendoCompanions'
 import { Botao } from '../components/grimorio/Botao'
 import { chaveDaVez } from '../lib/batalha/combate'
 import { cartaDaVez } from '../lib/batalha/turnos'
@@ -69,9 +70,11 @@ export function TelaDaBatalhaNoApp({ emBatalha }: { emBatalha: boolean }) {
       </div>
     )
   }
+  // COMPANION: o "Aira escolhendo…" com o "Escolher por Aira" mora na página Batalha do livro, que a doca cobre.
+  const doApp = espelho === null ? null : <EscolhendoCompanions sceneKey={espelho.sceneKey} />
   return (
     <aside className="mb-doca" aria-label="Mesa da batalha">
-      <MesaDaBatalha espelho={espelho} enviar={enviarAqui} lugar="doca" itensDoLugar={ITENS_DA_DOCA} />
+      <MesaDaBatalha espelho={espelho} enviar={enviarAqui} lugar="doca" itensDoLugar={ITENS_DA_DOCA} doApp={doApp} />
     </aside>
   )
 }

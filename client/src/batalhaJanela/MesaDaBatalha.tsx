@@ -35,6 +35,11 @@ export interface MesaDaBatalhaProps {
   semFonte?: string | null
   /** Ctrl+Z vale na página inteira (a janela à parte); sem isto, só com o foco dentro da mesa. */
   teclasNaPagina?: boolean
+  /**
+   * O que é do app e não vem no espelho, no alto do corpo. Na doca: o "Aira escolhendo…" do Companion,
+   * que mora na página Batalha do livro, coberta pela doca (prova por gestos, 23/11). A janela à parte não tem.
+   */
+  doApp?: ReactNode
 }
 
 const NOME_DO_SISTEMA = { op: 'One Piece', dbt: 'Dragon Ball' } as const
@@ -790,7 +795,7 @@ function CartaoDaVez({ carta, vez, emEspera, menu, children }: CartaoProps) {
   )
 }
 
-export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFonte = null, teclasNaPagina = false }: MesaDaBatalhaProps) {
+export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFonte = null, teclasNaPagina = false, doApp = null }: MesaDaBatalhaProps) {
   const [ocupado, setOcupado] = useState<string | null>(null)
   const [status, setStatus] = useState<{ texto: string; erro: boolean } | null>(null)
   const [confirmando, setConfirmando] = useState(false)
@@ -1133,6 +1138,7 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
         </ul>
       )}
       <div className="mb-corpo">
+        {doApp}
         {espelho.fase === 'iniciativa' && (
           <div className="mb-cartao mb-cartao--solto">
             <span className="mb-fita">Antes do combate</span>
