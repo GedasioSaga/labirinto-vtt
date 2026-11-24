@@ -88,13 +88,15 @@ describe('biblioteca inicial de texturas', () => {
     // militar (14/11/2026) no fim, depois do Chão de metal; as Pedras com lama (15/11/2026) no fim dos Pisos de pedra.
     // O lote das referências (15/11/2026): a Grama escura no fim do Campo, o Mármore negro e a Moldura entalhada no fim
     // dos Pisos de pedra, e os Pisos de cerâmica, o Linóleo verde e a Rua de tijolos no fim da lista.
+    // A leva de 24/11/2026: a Terra rachada depois da Terra, as Lajotas de masmorra, as Tábuas com frestas e o Ladrilho
+    // azulado no fim dos cartões deles, e o Tijolo de cela, o Granito salpicado e o Lajeado poligonal no fim da lista.
     expect(ids).toEqual([
-      'areia', 'duna', 'grama', 'grama-amarela', 'grama-morta', 'grama-escura', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras', 'calcamento', 'chao-de-metal', 'chao-de-metal-xadrez', 'chao-de-metal-grade', 'chao-de-metal-paineis',
-      'assoalho-claro', 'tabua-envernizada', 'taco-espinha', 'parque-cesta', 'madeira-gasta', 'troncos',
-      'paralelepipedo', 'marmore', 'pedra-musgo', 'laje-de-templo', 'rocha-de-caverna', 'basalto-hexagonal', 'pedras-com-lama', 'marmore-negro', 'moldura-entalhada',
+      'areia', 'duna', 'grama', 'grama-amarela', 'grama-morta', 'grama-escura', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'terra-rachada', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras', 'piso-de-masmorra', 'calcamento', 'chao-de-metal', 'chao-de-metal-xadrez', 'chao-de-metal-grade', 'chao-de-metal-paineis',
+      'assoalho-claro', 'tabua-envernizada', 'taco-espinha', 'parque-cesta', 'madeira-gasta', 'troncos', 'tabuas-com-frestas',
+      'paralelepipedo', 'marmore', 'pedra-musgo', 'laje-de-templo', 'rocha-de-caverna', 'basalto-hexagonal', 'pedras-com-lama', 'marmore-negro', 'moldura-entalhada', 'ladrilho-azulado',
       'concreto', 'asfalto-faixa', 'lona-camuflagem', 'piso-de-borracha', 'chapa-de-pouso',
       'azulejo-verde', 'azulejo-branco', 'losangos-bege', 'losangos-amarelos', 'escamas-cinza', 'estrelinhas', 'bolinhas-pretas',
-      'linoleo-verde', 'rua-de-tijolos',
+      'linoleo-verde', 'rua-de-tijolos', 'tijolo-de-cela', 'granito-salpicado', 'lajeado-poligonal',
     ])
     // As formas de um grupo dividem o nome do cartão; o nome da forma as separa.
     expect(new Set(TEXTURAS_EMBUTIDAS.map(rotulo)).size).toBe(ids.length)

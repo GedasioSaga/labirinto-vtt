@@ -24,6 +24,13 @@ import { texturaPedrasComLama } from './chaos/pedrasComLama'
 import { texturaPisoDeBorracha } from './chaos/pisoDeBorracha'
 import { texturaRochaDeCaverna } from './chaos/rochaDeCaverna'
 import { texturaRuaDeTijolos } from './chaos/ruaDeTijolos'
+import { texturaTerraRachada } from './chaos/terraRachada'
+import { texturaPisoDeMasmorra } from './chaos/pisoDeMasmorra'
+import { texturaTijoloDeCela } from './chaos/tijoloDeCela'
+import { texturaGranitoSalpicado } from './chaos/granitoSalpicado'
+import { texturaLajeadoPoligonal } from './chaos/lajeadoPoligonal'
+import { texturaTabuasComFrestas } from './chaos/tabuasComFrestas'
+import { texturaLadrilhoAzulado } from './chaos/ladrilhoAzulado'
 import { texturaTabuaEnvernizada } from './chaos/tabuaEnvernizada'
 import { texturaTacoEspinha } from './chaos/tacoEspinha'
 import { texturaTroncos } from './chaos/troncos'
@@ -1418,6 +1425,8 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'chao-de-floresta', nome: 'Chão de floresta', escala: CHAO_ESCALA, lado: LADO_GRANDE, cor: chaoDaFloresta },
   { id: 'pantano', nome: 'Pântano', escala: PANTANO_ESCALA, lado: LADO_GRANDE, cor: pantano },
   { id: 'terra', nome: 'Terra', escala: TERRA_ESCALA, lado: LADO_GRANDE, cor: terra },
+  // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md). A terra rachada, solta, ao lado da Terra.
+  { id: 'terra-rachada', nome: 'Terra rachada', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaTerraRachada },
   // Cascalho (pedido CHÃO E CAMINHO de 12/11/2026, `cascalho.ts`): medido em casas, a pedrinha tem o tamanho certo contra a casa.
   // Ladrilho de 1024 (256 px por casa): no de 512 a pedrinha miúda ficava com 3 px de raio e virava listra fina.
   { id: 'cascalho', nome: 'Cascalho', escala: 64, casas: CASCALHO_CASAS, lado: LADO_MAIOR, cor: cascalho },
@@ -1427,6 +1436,7 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'conves', nome: 'Convés', escala: 64, casas: CONVES_CASAS, lado: LADO_MAIOR, cor: conves },
   { id: 'lajotas', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, forma: { grupo: 'lajotas', nome: 'Clara' }, cor: lajotasNoTom(LAJOTAS_CLARAS) },
   { id: 'lajotas-escuras', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, forma: { grupo: 'lajotas', nome: 'Escura' }, cor: lajotasNoTom(LAJOTAS_ESCURAS) },
+  { id: 'piso-de-masmorra', nome: 'Lajotas de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'lajotas', nome: 'Masmorra' }, cor: texturaPisoDeMasmorra },
   { id: 'calcamento', nome: 'Calçamento', escala: 64, casas: CALCAMENTO_CASAS, lado: LADO_MAIOR, cor: calcamento },
   // Chão de metal (pedido de 02/11/2026, `chaoDeMetal.ts`): quatro formas, Placas é a padrão.
   { id: 'chao-de-metal', nome: 'Chão de metal', escala: 64, casas: METAL_CASAS, lado: LADO_MAIOR, forma: { grupo: 'chao-de-metal', nome: 'Placas' }, cor: metalEmPlacas },
@@ -1440,6 +1450,7 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'parque-cesta', nome: 'Pisos de madeira', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-madeira', nome: 'Parquê em cesta' }, cor: texturaParqueCesta },
   { id: 'madeira-gasta', nome: 'Pisos de madeira', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-madeira', nome: 'Madeira velha' }, cor: texturaMadeiraGasta },
   { id: 'troncos', nome: 'Pisos de madeira', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-madeira', nome: 'Troncos' }, cor: texturaTroncos },
+  { id: 'tabuas-com-frestas', nome: 'Pisos de madeira', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-madeira', nome: 'Tábuas com frestas' }, cor: texturaTabuasComFrestas },
   // Pisos de pedra (pedido de 14/11/2026, `chaos/`): seis formas, o Paralelepípedo é a padrão. O grupo não se chama
   // `pedra` porque esse já é o id da Serra.
   { id: 'paralelepipedo', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Paralelepípedo' }, cor: texturaParalelepipedo },
@@ -1454,6 +1465,7 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   // A Moldura cai na grade (um bloco por casa): pintada numa faixa de uma casa, é a borda lavrada em volta de outro chão.
   { id: 'marmore-negro', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Mármore negro' }, cor: texturaMarmoreNegro },
   { id: 'moldura-entalhada', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Moldura entalhada' }, cor: texturaMolduraEntalhada },
+  { id: 'ladrilho-azulado', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Ladrilho azulado' }, cor: texturaLadrilhoAzulado },
   // Base militar (pedido de 14/11/2026, `chaos/`): cinco formas, o Concreto é a padrão.
   { id: 'concreto', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Concreto' }, cor: texturaConcreto },
   { id: 'asfalto-faixa', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Asfalto com faixa' }, cor: texturaAsfaltoFaixa },
@@ -1471,6 +1483,10 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   // Linóleo verde e Rua de tijolos (lote das referências, 15/11/2026, `chaos/`): cartões de uma forma (nem cerâmica nem pedra).
   { id: 'linoleo-verde', nome: 'Linóleo verde', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaLinoleoVerde },
   { id: 'rua-de-tijolos', nome: 'Rua de tijolos', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaRuaDeTijolos },
+  // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md). As soltas.
+  { id: 'tijolo-de-cela', nome: 'Tijolo de cela', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaTijoloDeCela },
+  { id: 'granito-salpicado', nome: 'Granito salpicado', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaGranitoSalpicado },
+  { id: 'lajeado-poligonal', nome: 'Lajeado poligonal', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaLajeadoPoligonal },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */

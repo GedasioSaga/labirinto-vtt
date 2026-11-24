@@ -211,6 +211,25 @@ export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
     descricao: 'Azulejos verde-claros e gastos, com rejunte branco.',
     receita: { fiadasAte: [9, 17, 26, 35], passo: { porFundura: 2, min: 12, max: 22 }, varia: 0.03, funde: 0, junta: 1, tremor: 0, bisel: 0.9, luz: 0.5, sombra: 0.3, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
   },
+  // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md). Os três no fim, na ordem da lista.
+  {
+    id: 'tijolo-com-chapas',
+    nome: 'Tijolo com chapas',
+    descricao: 'Tijolo cor de vinho encardido, com chapa de ferro aparafusada nas quinas e nas pontas e cinta de ferro atravessando a parede.',
+    receita: { fiadasAte: [15, 27, 44], passo: { porFundura: 2.05, min: 14, max: 26 }, varia: 0.16, funde: 0, junta: 1.2, tremor: 0, bisel: 1.4, luz: 0.3, sombra: 0.36, face: 'reta', tampaComBisel: true, detalhe: 'amarras' },
+  },
+  {
+    id: 'tabuas-remendadas',
+    nome: 'Tábuas remendadas',
+    descricao: 'Tábuas de reaproveitamento, cada uma de uma cor e largura, com remendos e pregos à vista.',
+    receita: { fiadasAte: [15, 27], passo: { porFundura: 0, min: 64, max: 64 }, varia: 0.4, funde: 0.2, junta: 1.1, tremor: 0, bisel: 1.2, luz: 0.28, sombra: 0.32, face: 'reta', tampaComBisel: true, detalhe: 'pregos' },
+  },
+  {
+    id: 'pedra-de-fortaleza',
+    nome: 'Pedra de fortaleza',
+    descricao: 'Blocos de basalto quase preto, aparelhados, de junta fina.',
+    receita: { fiadasAte: [15, 44], passo: { porFundura: 7, min: 40, max: 70 }, varia: 0.4, funde: 0, junta: 1, tremor: 0, bisel: 2, luz: 0.48, sombra: 0.34, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
 ]
 
 /** O material que a ferramenta lembra antes de qualquer escolha. */

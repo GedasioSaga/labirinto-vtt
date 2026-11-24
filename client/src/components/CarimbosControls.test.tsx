@@ -127,6 +127,21 @@ describe('CarimbosControls', () => {
       'Fenda em brasa',
       'Pedras de passo',
       'Sebe aparada',
+      // A leva de 24/11/2026.
+      'Palha espalhada',
+      'Sangue espalhado',
+      'Brasas espalhadas',
+      'Ratos',
+      'Cristais ciano',
+      'Blocos de cantaria',
+      'Palmeira de selva',
+      'Moita tropical',
+      'Cipós pendurados',
+      "Espuma d'água",
+      'Lixo espalhado',
+      'Mato na fresta',
+      'Poça de esgoto',
+      'Rachadura no chão',
     ])
     expect(objetos[0].getAttribute('aria-checked')).toBe('true')
     // Um só ponto de parada do Tab no grupo.
@@ -144,7 +159,7 @@ describe('CarimbosControls', () => {
     tecla('ArrowRight')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-morta')
     tecla('End')
-    expect(useMapStore.getState().carimboEscolhido).toBe('sebe-aparada')
+    expect(useMapStore.getState().carimboEscolhido).toBe('rachadura-no-chao')
     tecla('Home')
     expect(useMapStore.getState().carimboEscolhido).toBe('pinheiro')
   })

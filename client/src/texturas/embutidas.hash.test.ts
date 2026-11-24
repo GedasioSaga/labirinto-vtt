@@ -73,6 +73,14 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   'bolinhas-pretas': 'e08b89cdfb64a56af870e62f6495ea17fb9c005370aa700a104cce1618716982',
   'linoleo-verde': '6b738cc88316303b23bc140db5a40f591c96094a9e03de438d1d055306a602e2',
   'rua-de-tijolos': '7f33a718cb7e4858dd6c09e0273a7dd454b9bee2543baa6658a67a3e508786ed',
+  // A leva de 24/11/2026 (chãos novos: o hash é o da textura como ficou aprovada).
+  'terra-rachada': '64f65b8282ae0e82535d24ad75eef4531202ea04b0b6750c0697d656feb6bd95',
+  'piso-de-masmorra': 'ff29a3d02ea29686e981172b5da559f3894f5819eaec9e376ae54b58a1a1e531',
+  'tabuas-com-frestas': '797000eb3169fd3b13fb4dd7caf4d305f988245b0ff6660306502972188b40c9',
+  'ladrilho-azulado': '414034049c047b2472b7356012045290ba81855c663840c11513aa17407b4c9d',
+  'tijolo-de-cela': 'b93ad9054339711f619ed7d12091f55243fe8fc45d2a734783a8e81f643822f2',
+  'granito-salpicado': '7a184c20e963bcb2eaa0297febbe90527f01386ffb1b8ecba782479b851c86c4',
+  'lajeado-poligonal': '4f946117740148445602b93cfe647cd5c532d547140889d721e28c0e9ef0aa1c',
 }
 
 async function sha256(bytes: Uint8ClampedArray): Promise<string> {

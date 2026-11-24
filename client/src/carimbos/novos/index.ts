@@ -48,6 +48,20 @@ import { carimbo as cristaisVerdes, paleta as paletaDosCristaisVerdes } from './
 import { carimbo as fendaEmBrasa, brilho as brilhoDaFendaEmBrasa, paleta as paletaDaFendaEmBrasa } from './fendaEmBrasa'
 import { carimbo as pedrasDePasso, paleta as paletaDasPedrasDePasso } from './pedrasDePasso'
 import { carimbo as sebeAparada, paleta as paletaDaSebeAparada } from './sebeAparada'
+import { carimbo as palhaEspalhada, paleta as paletaDePalhaEspalhada } from './palhaEspalhada'
+import { carimbo as respingosDeSangue, paleta as paletaDeRespingosDeSangue } from './respingosDeSangue'
+import { carimbo as brasasEspalhadas, brilho as brilhoDeBrasasEspalhadas, paleta as paletaDeBrasasEspalhadas } from './brasasEspalhadas'
+import { carimbo as ratos, paleta as paletaDeRatos } from './ratos'
+import { carimbo as cristaisCiano, paleta as paletaDeCristaisCiano } from './cristaisCiano'
+import { carimbo as blocosDeCantaria, paleta as paletaDeBlocosDeCantaria } from './blocosDeCantaria'
+import { carimbo as palmeiraDeSelva, paleta as paletaDePalmeiraDeSelva } from './palmeiraDeSelva'
+import { carimbo as moitaTropical, paleta as paletaDeMoitaTropical } from './moitaTropical'
+import { carimbo as ciposPendurados, paleta as paletaDeCiposPendurados } from './ciposPendurados'
+import { carimbo as espumaDagua, paleta as paletaDeEspumaDagua } from './espumaDagua'
+import { carimbo as lixoEspalhado, paleta as paletaDeLixoEspalhado } from './lixoEspalhado'
+import { carimbo as matoNaFresta, paleta as paletaDeMatoNaFresta } from './matoNaFresta'
+import { carimbo as pocaDeEsgoto, paleta as paletaDePocaDeEsgoto } from './pocaDeEsgoto'
+import { carimbo as rachaduraNoChao, paleta as paletaDeRachaduraNoChao } from './rachaduraNoChao'
 
 /**
  * OS CARIMBOS NOVOS de 14/11/2026 (itens 111 a 152 da lista do mestre,
@@ -154,6 +168,21 @@ export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
   pedrasDePasso,
   // A natureza que saiu do Objeto na Fase 6.
   sebeAparada,
+  // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md). As brasas espalhadas acendem como a fenda em brasa.
+  palhaEspalhada,
+  respingosDeSangue,
+  { ...brasasEspalhadas, brilho: brilhoDeBrasasEspalhadas },
+  ratos,
+  cristaisCiano,
+  blocosDeCantaria,
+  palmeiraDeSelva,
+  moitaTropical,
+  ciposPendurados,
+  espumaDagua,
+  lixoEspalhado,
+  matoNaFresta,
+  pocaDeEsgoto,
+  rachaduraNoChao,
 ]
 
 /** Todas as cores chapadas dos novos, para o teste de "não estoura" (`embutidos.test.ts`). */
@@ -209,4 +238,19 @@ export const PALETA_DOS_NOVOS: readonly Rgb[] = [
   ...paletaDaFendaEmBrasa,
   ...paletaDasPedrasDePasso,
   ...paletaDaSebeAparada,
+  // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md). Das brasas, só o corpo, sem as cores do `brilho`.
+  ...paletaDePalhaEspalhada,
+  ...paletaDeRespingosDeSangue,
+  ...paletaDeBrasasEspalhadas,
+  ...paletaDeRatos,
+  ...paletaDeCristaisCiano,
+  ...paletaDeBlocosDeCantaria,
+  ...paletaDePalmeiraDeSelva,
+  ...paletaDeMoitaTropical,
+  ...paletaDeCiposPendurados,
+  ...paletaDeEspumaDagua,
+  ...paletaDeLixoEspalhado,
+  ...paletaDeMatoNaFresta,
+  ...paletaDePocaDeEsgoto,
+  ...paletaDeRachaduraNoChao,
 ]

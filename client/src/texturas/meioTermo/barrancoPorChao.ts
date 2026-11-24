@@ -175,6 +175,10 @@ export const MATERIAL_DO_CHAO: Readonly<Record<string, MaterialDoBarranco>> = {
   'pedras-com-lama': 'pedra',
   'marmore-negro': 'pedra',
   'moldura-entalhada': 'pedra',
+  // A leva de 24/11/2026: o ladrilho azulado (Pisos de pedra) e os dois chãos de pedra soltos.
+  'ladrilho-azulado': 'pedra',
+  'granito-salpicado': 'pedra',
+  'lajeado-poligonal': 'pedra',
   areia: 'areia',
   duna: 'areia',
   neve: 'neve',

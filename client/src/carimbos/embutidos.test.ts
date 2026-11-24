@@ -148,6 +148,21 @@ describe('biblioteca de carimbos', () => {
       'pedras-de-passo',
       // A natureza que saiu do Objeto na Fase 6 (16/11/2026).
       'sebe-aparada',
+      // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md).
+      'palha-espalhada',
+      'respingos-de-sangue',
+      'brasas-espalhadas',
+      'ratos',
+      'cristais-ciano',
+      'blocos-de-cantaria',
+      'palmeira-de-selva',
+      'moita-tropical',
+      'cipos-pendurados',
+      'espuma-dagua',
+      'lixo-espalhado',
+      'mato-na-fresta',
+      'poca-de-esgoto',
+      'rachadura-no-chao',
     ])
     for (const id of IDS_DA_BIBLIOTECA) expect(id).toMatch(/^[a-z0-9-]{1,40}$/)
     expect(new Set(IDS_DA_BIBLIOTECA).size).toBe(IDS_DA_BIBLIOTECA.length)

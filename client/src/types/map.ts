@@ -126,6 +126,9 @@ export type MaterialDaParede =
   | 'marmore-preto'
   | 'rocha-de-caverna'
   | 'azulejo-de-hospital'
+  | 'tijolo-com-chapas'
+  | 'tabuas-remendadas'
+  | 'pedra-de-fortaleza'
 
 /** Preferência da PRÓXIMA parede na ferramenta: o traço de hoje ou a textura do material escolhido. Não vai para o mapa. */
 export type AcabamentoDaParede = 'linhas' | 'textura'

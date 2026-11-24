@@ -11,11 +11,11 @@ function textura(id: string, forma?: { grupo: string; nome: string }): TexturaDo
 }
 
 describe('agruparPorForma', () => {
-  it('a biblioteca embutida: as Lajotas viram cartão de duas formas, o Campo de quatro, o Chão de metal de quatro, a Base militar de cinco, os Pisos de madeira de seis, os de cerâmica de sete, os de pedra de nove, o resto fica de uma', () => {
+  it('a biblioteca embutida: as Lajotas viram cartão de três formas, o Campo de quatro, o Chão de metal de quatro, a Base militar de cinco, os Pisos de madeira de sete, os de cerâmica de sete, os de pedra de dez, o resto fica de uma', () => {
     const grupos = agruparPorForma(listarTexturas())
     const lajotas = grupos.find((g) => g.grupo === 'lajotas')
     expect(lajotas?.nome).toBe('Lajotas de pedra')
-    expect(lajotas?.formas.map((t) => t.id)).toEqual(['lajotas', 'lajotas-escuras'])
+    expect(lajotas?.formas.map((t) => t.id)).toEqual(['lajotas', 'lajotas-escuras', 'piso-de-masmorra'])
     const campo = grupos.find((g) => g.grupo === 'grama')
     expect(campo?.nome).toBe('Campo')
     expect(campo?.formas.map((t) => t.id)).toEqual(['grama', 'grama-amarela', 'grama-morta', 'grama-escura'])
@@ -25,11 +25,11 @@ describe('agruparPorForma', () => {
     // Os três cartões de 14/11/2026 ("texturas novas de madeira, pedra, base militar").
     const madeira = grupos.find((g) => g.grupo === 'pisos-de-madeira')
     expect(madeira?.nome).toBe('Pisos de madeira')
-    expect(madeira?.formas.map((t) => t.forma?.nome)).toEqual(['Assoalho claro', 'Tábua envernizada', 'Taco em espinha', 'Parquê em cesta', 'Madeira velha', 'Troncos'])
+    expect(madeira?.formas.map((t) => t.forma?.nome)).toEqual(['Assoalho claro', 'Tábua envernizada', 'Taco em espinha', 'Parquê em cesta', 'Madeira velha', 'Troncos', 'Tábuas com frestas'])
     const pedra = grupos.find((g) => g.grupo === 'pisos-de-pedra')
     expect(pedra?.nome).toBe('Pisos de pedra')
     // As Pedras com lama (15/11/2026) entraram no fim do cartão; o Mármore negro e a Moldura entalhada (lote das referências) depois delas.
-    expect(pedra?.formas.map((t) => t.forma?.nome)).toEqual(['Paralelepípedo', 'Mármore', 'Pedra com musgo', 'Laje de templo', 'Rocha de caverna', 'Basalto em colunas', 'Pedras com lama', 'Mármore negro', 'Moldura entalhada'])
+    expect(pedra?.formas.map((t) => t.forma?.nome)).toEqual(['Paralelepípedo', 'Mármore', 'Pedra com musgo', 'Laje de templo', 'Rocha de caverna', 'Basalto em colunas', 'Pedras com lama', 'Mármore negro', 'Moldura entalhada', 'Ladrilho azulado'])
     const militar = grupos.find((g) => g.grupo === 'base-militar')
     expect(militar?.nome).toBe('Base militar')
     expect(militar?.formas.map((t) => t.forma?.nome)).toEqual(['Concreto', 'Asfalto com faixa', 'Lona camuflada', 'Piso de borracha', 'Chapa de pouso'])
@@ -40,7 +40,7 @@ describe('agruparPorForma', () => {
     expect(grupos.filter((g) => g.formas.length > 1)).toHaveLength(7)
     // O Cascalho (CHÃO E CAMINHO, 12/11/2026) é cartão de uma forma, depois da Terra; os três de 14/11/2026 no fim;
     // depois deles, os do lote das referências: os Pisos de cerâmica, o Linóleo verde e a Rua de tijolos.
-    expect(grupos.map((g) => g.formas[0].id)).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'calcamento', 'chao-de-metal', 'assoalho-claro', 'paralelepipedo', 'concreto', 'azulejo-verde', 'linoleo-verde', 'rua-de-tijolos'])
+    expect(grupos.map((g) => g.formas[0].id)).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'terra-rachada', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'calcamento', 'chao-de-metal', 'assoalho-claro', 'paralelepipedo', 'concreto', 'azulejo-verde', 'linoleo-verde', 'rua-de-tijolos', 'tijolo-de-cela', 'granito-salpicado', 'lajeado-poligonal'])
   })
 
   it('mantém a ordem da lista: o grupo fica onde a sua primeira forma aparece', () => {
