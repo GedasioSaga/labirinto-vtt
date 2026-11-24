@@ -1,19 +1,23 @@
 /**
  * PONTE DE PEDRA QUEBRADA (lote L07 "Selva: ruína e água", 24/11/2026; versão da `ponte` de pedra, só a ideia).
  * O tabuleiro de LAJES grandes de arenito, de mureta a mureta, com um BURACO irregular no meio: as lajes em volta
- * dele partidas (a beira da quebra mais clara, rachaduras correndo do buraco para fora) e, pelo buraco, o que está
- * embaixo da ponte (a água do mapa), com a sombra do tabuleiro caindo nele. A MURETA de blocos dos dois lados, com o
- * pilar maior em cada ponta; do lado da frente, dois blocos caíram junto com o tabuleiro: um ficou tombado em cima
- * das lajes, entre lascas. Musgo verde-escuro nas juntas perto das muretas e no alto dos blocos.
+ * dele partidas (a beira de baixo da quebra acesa, rachaduras correndo do buraco para fora), a FACE CORTADA do
+ * tabuleiro à mostra na beira de cima do buraco (a laje é grossa) e, pelo buraco, o que está embaixo da ponte (a
+ * água do mapa), com a sombra do tabuleiro caindo nele. A MURETA de blocos dos dois lados, mais alta e mais escura
+ * que o tabuleiro, de juntas escuras, com o pilar maior em cada ponta; do lado da frente, dois blocos caíram junto
+ * com o tabuleiro: um ficou tombado em cima das lajes, e as lascas caem pela beira do buraco. Musgo verde-escuro nas
+ * juntas, mais do lado da sombra.
  *
  * Corre ao longo do lado MAIOR da pegada, como a ponte (4 x 1 de partida). O buraco não barra só ele: a ponte é uma
  * peça só, então NÃO BARRA, e o mestre decide quem passa. Perfil da 3/4: o da ponte (`EM_PE`). Material: `pedra`.
  */
 import { hash } from '../../ruido'
 import { menos, poligono, type Forma, type Ponto } from './formas'
-import { contato, texturaDaClasse, type Textura } from './motor'
+import { contato, type Textura } from './motor'
 import type { ContextoDoMovel, MontarMovel } from './contexto'
-import { lascar, manchaDeMusgo, musgar } from './muroEmRuina'
+import { noObjeto } from './pilhaDeFatias'
+import { quartosDoGiro } from './pipaDeitada'
+import { ladoMaior, lascar, manchaDeMusgo, musgar, musgoDoAlto, pedraDeLaje, rumoUnitario, sombraDaBeira } from './muroEmRuina'
 
 /** Alturas em casas (a sombra): o tabuleiro sobre a água, a mureta acima dele e o pilar das pontas. */
 const ALTURA_DO_TABULEIRO = 0.42
@@ -22,18 +26,29 @@ const ALTURA_DO_PILAR = 0.32
 /** A força da sombra do tabuleiro na água. */
 const FORCA_DA_SOMBRA = 0.26
 /** A mureta (px, no máximo, e fração da meia largura), o pilar das pontas (px) e o bloco da mureta (casas). */
-const MURETA = 8
-const MURETA_NA_LARGURA = 0.3
+const MURETA = 11
+const MURETA_NA_LARGURA = 0.36
 const PILAR = 12
 const BLOCO = 0.42
+/** O bloco da mureta: o tom (abaixo do tabuleiro claro, para saltar dele), a junta entre dois (px) e a projeção. */
+const TOM_DA_MURETA = 0.98
+const JUNTA_DA_MURETA = 1.6
+const PROJECAO_DA_MURETA = { dist: 3.4, forca: 0.4 } as const
 /** A laje do tabuleiro: o comprimento ao longo (casas) e a meia folga entre duas (px). */
 const LAJE = 0.42
 const FOLGA = 0.35
 /** O buraco: onde fica ao longo (fração do meio comprimento), o meio comprimento (casas) e a meia largura (fração do vão entre as muretas). */
 const BURACO = { onde: 0.1, comprido: 0.34, largo: 0.62, pontas: 15 } as const
+/** A face cortada do tabuleiro na beira de cima do buraco (px e tom) e o fio aceso da beira de baixo (px e luz). */
+const FACE_CORTADA = { alto: 3, tom: 0.5 } as const
+const BEIRA_ACESA = { largura: 1, luz: 0.15 } as const
 /** As rachaduras que saem do buraco: quantas e o comprimento (px, de partida e quanto varia). */
 const RACHAS = 6
 const RACHA = { comprimento: 9, varia: 10 } as const
+/** As lascas: o raio (px, de partida e quanto varia); as primeiras `CAINDO` caem pela beira para dentro do buraco. */
+const LASCA = { raio: 2.2, varia: 1.3 } as const
+const LASCAS = 6
+const CAINDO = 3
 
 /** A régua da ponte: `u` ao longo, `v` de través, centro na origem (deitada, u é x; em pé, u é y). */
 interface Regua {
@@ -64,14 +79,34 @@ function aoSegmento(x: number, y: number, s: readonly [number, number, number, n
   return Math.hypot(x - ax - dx * h, y - ay - dy * h)
 }
 
+/**
+ * Um caco de pedra em volta de (cx, cy): cinco pontas em ângulos e raios desencontrados, mais comprido num sentido
+ * (com seis pontas iguais, o caco lia como porca de parafuso).
+ */
+function caco(cx: number, cy: number, raio: number, k: number): Ponto[] {
+  const pontos: Ponto[] = []
+  const giro = hash(k, 9, 6293) * Math.PI
+  const comprido = 1.15 + 0.3 * hash(k, 8, 6293)
+  for (let j = 0; j < 5; j += 1) {
+    const b = ((j + (hash(k, j, 6290) - 0.5) * 0.55) / 5) * 2 * Math.PI
+    const r = raio * (0.55 + 0.5 * hash(k, j, 6291))
+    const [px, py] = [Math.cos(b) * r * comprido, Math.sin(b) * r / comprido]
+    pontos.push([cx + px * Math.cos(giro) - py * Math.sin(giro), cy + px * Math.sin(giro) + py * Math.cos(giro)])
+  }
+  return pontos
+}
+
 export const montarPonteDePedraQuebrada: MontarMovel = (c, cena) => {
   const r = reguaDa(c)
   if (!(r.C > 0) || !(r.A > 0)) return
   const { g, peca: P } = c
   const pedra = c.m.pedra
-  const daPedra = texturaDaClasse(pedra.classe)
   const L = cena.partes
   const { C, A } = r
+  const q = quartosDoGiro(c.giro)
+  const rumo = rumoUnitario(q)
+  // O "para baixo" da tela no objeto: a beira de perto de quem olha.
+  const [bx0, by0] = noObjeto(0, 1, q)
   const mureta = Math.min(MURETA, A * MURETA_NA_LARGURA)
   const dentro = A - mureta
 
@@ -108,15 +143,30 @@ export const montarPonteDePedraQuebrada: MontarMovel = (c, cena) => {
   const tudo = poligono(r.quadra(-C, -A, C, A))
   cena.sombras.push({ forma: menos(tudo, buraco), z: g * ALTURA_DO_TABULEIRO, forca: FORCA_DA_SOMBRA, solta: true })
 
+  // A FACE CORTADA do tabuleiro: dentro do buraco, a faixa de baixo da beira de cima (o buraco menos ele mesmo
+  // descido FACE_CORTADA.alto px na tela). Escura, um nada mais clara junto da beira: a laje é grossa, não é papel.
+  const descido = poligono(contornoDoBuraco.map(([x, y]): Ponto => [x + bx0 * FACE_CORTADA.alto, y + by0 * FACE_CORTADA.alto]))
+  const faceCortada = menos(buraco, descido)
+  const pedraDaFace = pedraDeLaje(pedra, 6205, ladoMaior(buraco))
+  const texDaFace: Textura = (u, v, x, y, p, s, escala) => {
+    pedraDaFace(u, v, x, y, p, s, escala)
+    // Quanto mais funda (longe da beira de cima), mais escura.
+    const fundo = Math.min(1, Math.max(0, -buraco.d(x, y)) / FACE_CORTADA.alto)
+    s[3] += 0.05 - 0.1 * fundo
+  }
+  L.push(P(faceCortada, pedra, { tabua: 0, bisel: 0, tom: FACE_CORTADA.tom, contorno: 0.18, textura: texDaFace, semente: 6206 }))
+
   // O leito das juntas (escuro) e as LAJES de mureta a mureta, uma ou duas por fileira.
   L.push(P(menos(poligono(r.quadra(-C + 0.4, -dentro - 0.5, C - 0.4, dentro + 0.5)), buraco), pedra, { tabua: 0, bisel: 0.5, tom: 0.56, contorno: 0.22, semente: 6210 }))
   const laje = (forma: Forma, tom: number, semente: number): void => {
+    const daPedra = pedraDeLaje(pedra, semente, ladoMaior(forma))
     const textura: Textura = (u, v, x, y, p, s, escala) => {
-      if (daPedra !== null) daPedra(u, v, x, y, p, s, escala)
+      daPedra(u, v, x, y, p, s, escala)
       let luz = 0
-      // A beira da quebra, mais clara (a pedra nova), e as rachaduras.
+      // A beira da quebra: a de baixo (a de perto) pega a luz num fio de 1 px; nas outras, a pedra nova um nada clara.
       const aoBuraco = buraco.d(x, y)
-      if (aoBuraco < 1.8) luz += 0.1 * (1 - aoBuraco / 1.8)
+      if (aoBuraco < BEIRA_ACESA.largura && buraco.d(x - bx0 * 1.8, y - by0 * 1.8) < 0) luz += BEIRA_ACESA.luz
+      else if (aoBuraco < 1.8) luz += 0.06 * (1 - aoBuraco / 1.8)
       if (aoBuraco < RACHA.comprimento + RACHA.varia + 2) {
         let perto = Infinity
         for (const s2 of rachas) perto = Math.min(perto, aoSegmento(x, y, s2))
@@ -124,9 +174,9 @@ export const montarPonteDePedraQuebrada: MontarMovel = (c, cena) => {
         else if (perto < 0.95) luz -= 0.07
       }
       s[3] += luz
-      // O musgo nas juntas perto das muretas.
-      const beira = -forma.d(x, y)
-      if (beira < 2.2) musgar(s, (1 - beira / 2.2) * manchaDeMusgo(x, y, 6211, -0.05), x, y)
+      // O musgo nas juntas, mais do lado da sombra; no alto da laje, só uns pontos.
+      const m = manchaDeMusgo(x, y, 6211, -0.05)
+      if (m > 0) musgar(s, musgoDoAlto(m, -forma.d(x, y), sombraDaBeira(forma, x, y, rumo), x, y, semente), x, y)
     }
     L.push(P(forma, pedra, { tabua: 0, bisel: 1.4, tom, contorno: 0.24, textura, semente }))
   }
@@ -149,7 +199,8 @@ export const montarPonteDePedraQuebrada: MontarMovel = (c, cena) => {
     }
   }
 
-  // A MURETA dos dois lados; na da frente faltam os blocos de perto do buraco.
+  // A MURETA dos dois lados; na da frente faltam os blocos de perto do buraco. Cada bloco assenta numa junta escura
+  // um nada mais comprida que ele: entre dois blocos ela aparece, e na ponta do que sobrou fica o resto da argamassa.
   const zMureta = g * (ALTURA_DO_TABULEIRO + ALTURA_DA_MURETA)
   const blocos = Math.max(2, Math.round((2 * C - 2 * PILAR) / (g * BLOCO)))
   const comprimento = (2 * C - 2 * PILAR) / blocos
@@ -157,29 +208,34 @@ export const montarPonteDePedraQuebrada: MontarMovel = (c, cena) => {
     const v0 = lado < 0 ? -A + 0.5 : A - mureta
     const v1 = lado < 0 ? -A + mureta : A - 0.5
     for (let j = 0; j < blocos; j += 1) {
-      const u0 = -C + PILAR + j * comprimento + 0.5
-      const u1 = u0 + comprimento - 1
+      const u0 = -C + PILAR + j * comprimento + JUNTA_DA_MURETA / 2
+      const u1 = u0 + comprimento - JUNTA_DA_MURETA
       const meio = (u0 + u1) / 2
       if (lado > 0 && meio > uB - g * 0.62 && meio < uB + g * 0.4) continue
       const forma = poligono(r.quadra(u0, v0, u1, v1))
       cena.sombras.push({ forma, z: zMureta })
+      L.push(P(poligono(r.quadra(u0 - JUNTA_DA_MURETA * 0.6, v0 + 0.3, u1 + JUNTA_DA_MURETA * 0.6, v1 - 0.3)), pedra, { tabua: 0, bisel: 0.3, tom: 0.42, contorno: 0.2, semente: 6245 + j * 2 + (lado + 1) / 2 }))
+      const semente = 6250 + j * 2 + (lado + 1) / 2
+      const daPedra = pedraDeLaje(pedra, semente, ladoMaior(forma))
       const doAlto: Textura = (u, v, x, y, p, s, escala) => {
-        if (daPedra !== null) daPedra(u, v, x, y, p, s, escala)
-        musgar(s, manchaDeMusgo(x, y, 6240, 0.06), x, y)
+        daPedra(u, v, x, y, p, s, escala)
+        const m = manchaDeMusgo(x, y, 6240, 0.02)
+        if (m > 0) musgar(s, musgoDoAlto(m, -forma.d(x, y), sombraDaBeira(forma, x, y, rumo), x, y, semente), x, y)
       }
-      L.push(P(forma, pedra, { tabua: 0, bisel: 2, tom: 1.08 + 0.1 * hash(j, lado + 2, 6241), contorno: 0.28, textura: doAlto, semente: 6250 + j * 2 + (lado + 1) / 2, projeta: { dist: 2.6, forca: 0.34 } }))
+      L.push(P(forma, pedra, { tabua: 0, bisel: 2, tom: TOM_DA_MURETA + 0.08 * hash(j, lado + 2, 6241), contorno: 0.3, textura: doAlto, semente, projeta: PROJECAO_DA_MURETA }))
     }
     // O pilar de cada ponta, mais largo que a mureta.
     for (const ponta of [-1, 1]) {
       const u0 = ponta < 0 ? -C + 0.5 : C - PILAR
       const u1 = ponta < 0 ? -C + PILAR : C - 0.5
       const pilar = poligono(r.quadra(u0, lado < 0 ? -A + 0.5 : A - mureta - 2, u1, lado < 0 ? -A + mureta + 2 : A - 0.5))
+      const semente = 6270 + ponta + lado * 3
       cena.sombras.push({ forma: pilar, z: g * (ALTURA_DO_TABULEIRO + ALTURA_DO_PILAR) }, contato(pilar, 0.24))
-      L.push(P(pilar, pedra, { tabua: 0, bisel: 2.2, tom: 1.06, contorno: 0.28, semente: 6270 + ponta + lado * 3, projeta: { dist: 2.6, forca: 0.3 } }))
+      L.push(P(pilar, pedra, { tabua: 0, bisel: 2.2, tom: 1.02, contorno: 0.3, textura: pedraDeLaje(pedra, semente, ladoMaior(pilar)), semente, projeta: { dist: 3.4, forca: 0.36 } }))
     }
   }
 
-  // O bloco da mureta que tombou em cima das lajes, e as lascas em volta do buraco.
+  // O bloco da mureta que tombou em cima das lajes.
   const [bx, by] = r.ponto(uB - g * 0.5, dentro - mureta * 0.9)
   const deLado = c.w >= c.h ? 0 : Math.PI / 2
   const tombado = poligono(lascar([[-comprimento * 0.42, -mureta * 0.55], [comprimento * 0.42, -mureta * 0.55], [comprimento * 0.42, mureta * 0.55], [-comprimento * 0.42, mureta * 0.55]].map(([px, py]): Ponto => {
@@ -187,16 +243,18 @@ export const montarPonteDePedraQuebrada: MontarMovel = (c, cena) => {
     return [bx + px * Math.cos(a) - py * Math.sin(a), by + px * Math.sin(a) + py * Math.cos(a)]
   }), 1, 2.4))
   cena.sombras.push({ forma: tombado, z: g * (ALTURA_DO_TABULEIRO + 0.12) })
-  L.push(P(tombado, pedra, { tabua: 0, bisel: 1.8, tom: 1.04, contorno: 0.28, semente: 6280, projeta: { dist: 2, forca: 0.34 } }))
-  for (let k = 0; k < 5; k += 1) {
-    const a = (k / 5) * 2 * Math.PI + 1.1
-    const raio = 1.4 + 1.3 * hash(k, 1, 6290)
-    const [cx, cy] = r.ponto(uB + Math.cos(a) * (ru + 3 + 4 * hash(k, 2, 6290)), Math.sin(a) * Math.min(rv + 3, dentro - 3))
-    const pontos: Ponto[] = []
-    for (let j = 0; j < 6; j += 1) {
-      const b2 = (j / 6) * 2 * Math.PI + k
-      pontos.push([cx + Math.cos(b2) * raio * (0.7 + 0.4 * hash(k, j, 6291)), cy + Math.sin(b2) * raio * (0.7 + 0.4 * hash(k, j, 6292))])
-    }
-    L.push(P(poligono(pontos), pedra, { tabua: 0, bisel: 0.8, tom: 1 + 0.08 * hash(k, 3, 6290), contorno: 0.26, semente: 6293 + k, projeta: { dist: 1, forca: 0.3 } }))
+  L.push(P(tombado, pedra, { tabua: 0, bisel: 1.8, tom: 0.98, contorno: 0.3, textura: pedraDeLaje(pedra, 6280, ladoMaior(tombado)), semente: 6280, projeta: { dist: 2.4, forca: 0.38 } }))
+
+  // As LASCAS: as primeiras caem pela beira para dentro do buraco (no escuro, a sombra longe); as outras ficam no
+  // tabuleiro, em volta da quebra.
+  for (let k = 0; k < LASCAS; k += 1) {
+    const raio = LASCA.raio + LASCA.varia * hash(k, 1, 6290)
+    const caindo = k < CAINDO
+    const a = caindo ? -2.3 + k * 0.75 + hash(k, 4, 6290) * 0.3 : (k / LASCAS) * 2 * Math.PI + 1.1
+    const longe = caindo ? 0.8 : 1 + (3 + 4 * hash(k, 2, 6290)) / ru
+    const [cx, cy] = r.ponto(uB + Math.cos(a) * ru * longe, Math.sin(a) * Math.min(rv * longe, dentro - 3))
+    const forma = poligono(caco(cx, cy, raio, k))
+    const semente = 6293 + k
+    L.push(P(forma, pedra, { tabua: 0, bisel: 0.9, tom: caindo ? 0.84 : 1 + 0.08 * hash(k, 3, 6290), contorno: 0.3, textura: pedraDeLaje(pedra, semente, ladoMaior(forma)), semente, projeta: caindo ? { dist: 2.6, forca: 0.34 } : { dist: 1.2, forca: 0.32 } }))
   }
 }

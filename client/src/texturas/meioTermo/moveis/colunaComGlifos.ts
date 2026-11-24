@@ -12,11 +12,11 @@
  */
 import { hash } from '../../ruido'
 import { caixa, type Forma, type Ponto } from './formas'
-import { contato, ruido, texturaDaClasse, type Textura } from './motor'
+import { contato, ruido, type Textura } from './motor'
 import type { MontarMovel } from './contexto'
 import { alturas, novoFatiador, sombraDoCilindro } from './pilhaDeFatias'
 import { disco, ESCURO_DA_PEDRA, lisa, luzDaNormal, sombraVarrida } from './apoioDasReferencias'
-import { blocoEmFatias, GRAO_POR_ALTURA, lascar, manchaDeMusgo, musgar, PASSO_DAS_FATIAS, retanguloGirado } from './muroEmRuina'
+import { blocoEmFatias, GRAO_POR_ALTURA, lascar, manchaDeMusgo, musgar, musgoDoAlto, PASSO_DAS_FATIAS, pedraDeLaje, pesoDaFace, retanguloGirado, rumoUnitario } from './muroEmRuina'
 import { luzDoGlifo } from './estelaMaia'
 
 /** O plinto (meio lado em fração do menor meio lado da pegada e alto em casas) e a quina lascada (px). */
@@ -26,28 +26,37 @@ const LASCA_DO_PLINTO = 5
 /** O fuste: o raio (fração do menor meio lado) e a moldura do pé (alto em casas, quanto passa do raio em px). */
 const RAIO_DO_FUSTE = 0.46
 const MOLDURA = { alto: 0.06, sobra: 1.4 } as const
-/** A quebra: a altura média (casas, a partir do chão), o bisel e o serrilhado (px). Sobe para trás à esquerda. */
-const QUEBRA = { media: 1.12, bisel: 7.5, serra: 3 } as const
+/**
+ * A quebra: a altura média (casas, a partir do chão), o bisel e o serrilhado (px). Sobe para trás à esquerda. Na
+ * faixa da `colunaQuebrada`: com 1,12 casa o fuste subia ~2,5 casas na 3/4 e lia como chaminé.
+ */
+const QUEBRA = { media: 0.64, bisel: 7.5, serra: 3 } as const
 const RUMO_DA_QUEBRA = -Math.PI * 0.72
 /** Os glifos: quantos por volta, a altura de uma linha (casas) e a do friso entre duas (px). */
 const GLIFOS_POR_VOLTA = 7
-const LINHA = 0.2
+const LINHA = 0.17
 const FRISO = 1.6
-/** A luz do áspero da quebra. */
-const ASPERO = 0.1
+/** A face da quebra: o áspero (luz), o miolo mais escuro (luz), o grão e a beira serrilhada clara (px e luz). */
+const ASPERO = 0.13
+const MIOLO_DA_QUEBRA = -0.1
+const GRAO_DA_QUEBRA = { fracao: 0.07, luz: -0.14 } as const
+const BEIRA_DA_QUEBRA = { largura: 1.6, luz: 0.13 } as const
+/** As marcas dos glifos vistas de cima, no aro: até onde entram (px), a luz e o meio traço de 1 px (px). */
+const MARCAS = { fundo: 2.3, luz: -0.26, meio: 0.5 } as const
 
 export const montarColunaComGlifos: MontarMovel = (c, cena) => {
   const { hw, hh, g, peca: P } = c
   const pedra = c.m.pedra
   const f = novoFatiador(P, cena, c.giro)
   const q = f.q
-  const daPedra = texturaDaClasse(pedra.classe)
   cena.corDoPiso = ESCURO_DA_PEDRA
   const R = Math.min(hw, hh)
   const p = R * PLINTO
   const zPlinto = g * ALTURA_DO_PLINTO
   const zMoldura = zPlinto + g * MOLDURA.alto
   const rF = R * RAIO_DO_FUSTE
+  const [rx, ry] = rumoUnitario(q)
+  const daPedra = pedraDeLaje(pedra, 7330, 2 * rF)
 
   // O PLINTO, com a quina da frente à direita lascada e musgo no alto.
   const plinto = lascar(retanguloGirado(0, 0, p, p, 0), 2, LASCA_DO_PLINTO)
@@ -55,7 +64,7 @@ export const montarColunaComGlifos: MontarMovel = (c, cena) => {
 
   // A MOLDURA DO PÉ: o anel bojudo entre o plinto e o fuste.
   const doRolo = (z: number, nz: number): Textura => (u, v, x, y, pc, s, escala) => {
-    if (daPedra !== null) daPedra(u, v + z * GRAO_POR_ALTURA, x, y + z * GRAO_POR_ALTURA, pc, s, escala)
+    daPedra(u, v + z * GRAO_POR_ALTURA, x, y + z * GRAO_POR_ALTURA, pc, s, escala)
     const a = Math.atan2(y, x)
     s[3] += luzDaNormal(Math.cos(a), Math.sin(a), nz, q)
     musgar(s, manchaDeMusgo(x * 1.4, y * 1.4 + z, 29, -0.18), x, y)
@@ -94,18 +103,40 @@ export const montarColunaComGlifos: MontarMovel = (c, cena) => {
     const pe = z < zMoldura + 10 ? (1 - (z - zMoldura) / 10) * manchaDeMusgo(x * 1.3, y * 1.3 + z * 1.2, 31, -0.1) : 0
     return Math.max(pe, 0.85 * manchaDeMusgo(x + z * 0.5, y + z * 1.7, 33, 0.2))
   }
+  /** As marcas dos glifos no aro da quebra, vistas de cima: as juntas dos cartuchos e um traço de 1 px em cada um. */
+  const marcaDoGlifo = (a: number, fundo: number): number => {
+    if (fundo > MARCAS.fundo) return 0
+    const casa = ((a + Math.PI) / (2 * Math.PI)) * GLIFOS_POR_VOLTA
+    const k = Math.floor(casa)
+    const meioDaCasa = (casa - k - 0.5) * ((2 * Math.PI * rF) / GLIFOS_POR_VOLTA)
+    const largura = (Math.PI * rF) / GLIFOS_POR_VOLTA
+    // A junta do cartucho: um risco de través de 1 px, da beira para dentro.
+    if (largura - Math.abs(meioDaCasa) < MARCAS.meio) return MARCAS.luz
+    // O traço do glifo: deitado (ao longo do aro) ou de pé, um por casa, a 1 px da beira.
+    const deitado = hash(k, 1, 7335) < 0.5
+    if (deitado) return Math.abs(fundo - 1.1) < MARCAS.meio && Math.abs(meioDaCasa) < largura * 0.45 ? MARCAS.luz : 0
+    return Math.abs(meioDaCasa - (hash(k, 2, 7335) - 0.5) * largura * 0.5) < MARCAS.meio && fundo < MARCAS.fundo - 0.4 ? MARCAS.luz : 0
+  }
   const fatiaDoFuste = (z: number): Textura => (u, v, x, y, pc, s, escala) => {
     const a = Math.atan2(y, x)
-    if (Math.hypot(x, y) > rF - 1.4) {
-      if (daPedra !== null) daPedra(u, v + z * GRAO_POR_ALTURA, x, y + z * GRAO_POR_ALTURA, pc, s, escala)
+    const rr = Math.hypot(x, y)
+    const sombra = rr > 0 ? (x * rx + y * ry) / rr : 0
+    if (rr > rF - 1.4) {
+      daPedra(u, v + z * GRAO_POR_ALTURA, x, y + z * GRAO_POR_ALTURA, pc, s, escala)
       s[3] += luzDaNormal(Math.cos(a), Math.sin(a), 0, q) + glifo(a, z)
-      musgar(s, musgoDoFuste(x, y, z), x, y)
+      musgar(s, musgoDoFuste(x, y, z) * pesoDaFace(z - zMoldura, sombra), x, y)
       return
     }
-    // A face da quebra: a luz do plano (virado para onde ele desce), o áspero em grão graúdo e o musgo. Sem o
-    // estrato do arenito: cada fatia o repetia um nada acima da outra e a quebra lia como pano, e não como pedra.
-    s[3] += luzDaNormal(-ux * 0.45, -uy * 0.45, 0.9, q) + ASPERO * (ruido(x * 0.6, y * 0.6) + 0.5 * ruido(x * 1.5, y * 1.5)) - 0.02
-    musgar(s, manchaDeMusgo(x * 1.2, y * 1.2, 35, 0.02), x, y)
+    // A face da quebra: a luz do plano (virado para onde ele desce), o miolo áspero e mais escuro, com grão, e a
+    // beira serrilhada clara só no aro, com as marcas dos glifos cortados. Sem o estrato do arenito: cada fatia o
+    // repetia um nada acima da outra e a quebra lia como pano, e não como pedra.
+    const fundo = rF - 1.4 - rr
+    let luz = luzDaNormal(-ux * 0.45, -uy * 0.45, 0.9, q) + ASPERO * (ruido(x * 0.6, y * 0.6) + 0.5 * ruido(x * 1.5, y * 1.5)) + MIOLO_DA_QUEBRA
+    if (hash(Math.floor(x * 1.4), Math.floor(y * 1.4), 7333) < GRAO_DA_QUEBRA.fracao) luz += GRAO_DA_QUEBRA.luz
+    if (fundo < BEIRA_DA_QUEBRA.largura) luz += BEIRA_DA_QUEBRA.luz * (1 - fundo / BEIRA_DA_QUEBRA.largura)
+    luz += marcaDoGlifo(a, fundo)
+    s[3] += luz
+    musgar(s, musgoDoAlto(manchaDeMusgo(x * 1.2, y * 1.2, 35, -0.02), fundo, sombra, x, y, 7330), x, y)
   }
   alturas(zMoldura, zMaximo, PASSO_DAS_FATIAS).slice(1).forEach((z, k) => {
     const opcoes = k === 0 ? { tabua: 0, bisel: 0, contorno: 0.24, tom: 0.97, textura: fatiaDoFuste(z), semente: 7330 } : lisa(0.97, fatiaDoFuste(z), 7330)

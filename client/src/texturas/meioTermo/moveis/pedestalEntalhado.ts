@@ -12,11 +12,11 @@
  * Material: `pedra`. Sem luz.
  */
 import { hash } from '../../ruido'
-import { contato, ruido, texturaDaClasse, type Textura } from './motor'
+import { contato, ruido, type Textura } from './motor'
 import type { MontarMovel } from './contexto'
 import { alturas, noObjeto, novoFatiador, sombraDoCilindro } from './pilhaDeFatias'
 import { disco, ESCURO_DA_PEDRA, lisa, luzDaNormal } from './apoioDasReferencias'
-import { GRAO_POR_ALTURA, manchaDeMusgo, musgar, PASSO_DAS_FATIAS } from './muroEmRuina'
+import { GRAO_POR_ALTURA, manchaDeMusgo, musgar, PASSO_DAS_FATIAS, pedraDeLaje } from './muroEmRuina'
 
 /** Os raios, em fração do menor meio lado: o degrau, o tambor e o lábio de cima. */
 const RAIO_DO_DEGRAU = 0.97
@@ -31,9 +31,13 @@ const GRECAS = 10
 const ESPELHO = 0.045
 /** O entalhe de cima (frações do raio do lábio): o sulco redondo, a faixa hexagonal (de fora e de dentro) e o botão. */
 const ENTALHE = { sulco: 0.86, faixaFora: 0.62, faixaDentro: 0.45, botao: 0.17 } as const
-/** A largura dos traços do entalhe (px) e a profundidade da sombra dentro da faixa (px, para o lado da luz). */
+/**
+ * A largura dos traços do entalhe (px), o fundo da faixa rebaixada (luz) e a profundidade da sombra dentro dela (px,
+ * para o lado da luz): fundos o bastante para o hexágono ler a 1x na mesa.
+ */
 const TRACO = 0.65
-const SOMBRA_DO_REBAIXO = 1.8
+const FUNDO_DA_FAIXA = -0.14
+const SOMBRA_DO_REBAIXO = 2.4
 
 /** A distância com sinal ao hexágono de raio (até a quina) `r`, com as quinas nos ângulos de 30° + k·60°. */
 function hexagono(x: number, y: number, r: number): number {
@@ -58,15 +62,19 @@ export const montarPedestalEntalhado: MontarMovel = (c, cena) => {
   const pedra = c.m.pedra
   const f = novoFatiador(P, cena, c.giro)
   const q = f.q
-  const daPedra = texturaDaClasse(pedra.classe)
   cena.corDoPiso = ESCURO_DA_PEDRA
   const R = Math.min(hw, hh)
   const [zDegrau, zTambor, zLabio] = [g * Z.degrau, g * Z.tambor, g * Z.labio]
   const rDegrau = R * RAIO_DO_DEGRAU
   const rTambor = R * RAIO_DO_TAMBOR
   const rLabio = R * RAIO_DO_LABIO
-  const comPedra = (z: number, luz: (x: number, y: number) => number, musgo: (x: number, y: number) => number): Textura => (u, v, x, y, p, s, escala) => {
-    if (daPedra !== null) daPedra(u, v + z * GRAO_POR_ALTURA, x, y + z * GRAO_POR_ALTURA, p, s, escala)
+  // A pedra de laje do lote, uma por parte (o degrau, o tambor e a laje de cima): o estrato de cada uma corre para
+  // um lado e, na laje grande, pela metade (a laje com o estrato inteiro lia como tampa de barril).
+  const pedraDoDegrau = pedraDeLaje(pedra, 7502, 2 * rDegrau)
+  const pedraDoTambor = pedraDeLaje(pedra, 7510, 2 * rTambor)
+  const pedraDaLaje = pedraDeLaje(pedra, 7520, 2 * rLabio)
+  const comPedra = (daPedra: Textura, z: number, luz: (x: number, y: number) => number, musgo: (x: number, y: number) => number): Textura => (u, v, x, y, p, s, escala) => {
+    daPedra(u, v + z * GRAO_POR_ALTURA, x, y + z * GRAO_POR_ALTURA, p, s, escala)
     s[3] += luz(x, y)
     musgar(s, musgo(x, y), x, y)
   }
@@ -85,8 +93,8 @@ export const montarPedestalEntalhado: MontarMovel = (c, cena) => {
     }
     const musgo = (x: number, y: number): number => manchaDeMusgo(x * 1.1, y * 1.1 + z, 41, -0.02)
     f.fatia(0, z, disco(0, 0, rDegrau), pedra, topo
-      ? { tabua: 0, bisel: 1.1, tom: 0.86, contorno: 0.26, textura: comPedra(z, juntas, musgo), semente: 7502 }
-      : lisa(0.8, comPedra(z, (x, y) => ladoDoDisco(x, y) - (z < 1 ? 0.15 : 0), musgo), 7503))
+      ? { tabua: 0, bisel: 1.1, tom: 0.86, contorno: 0.26, textura: comPedra(pedraDoDegrau, z, juntas, musgo), semente: 7502 }
+      : lisa(0.8, comPedra(pedraDoDegrau, z, (x, y) => ladoDoDisco(x, y) - (z < 1 ? 0.15 : 0), musgo), 7503))
   }
 
   // O TAMBOR com a GRECA: em cada fatia, o friso de degraus naquela altura (o sulco e o rebaixo debaixo da linha).
@@ -115,7 +123,7 @@ export const montarPedestalEntalhado: MontarMovel = (c, cena) => {
       return luz
     }
     const musgo = (x: number, y: number): number => (z < zDegrau + 4 ? (1 - (z - zDegrau) / 4) * manchaDeMusgo(x * 1.3, y * 1.3 + z, 43, -0.12) : 0)
-    f.fatia(0, z, disco(0, 0, rTambor), pedra, lisa(0.93, comPedra(z, friso, musgo), 7510))
+    f.fatia(0, z, disco(0, 0, rTambor), pedra, lisa(0.93, comPedra(pedraDoTambor, z, friso, musgo), 7510))
   }
 
   // O LÁBIO e a LAJE DE CIMA com o entalhe hexagonal.
@@ -130,7 +138,7 @@ export const montarPedestalEntalhado: MontarMovel = (c, cena) => {
     if (Math.abs(hFora) < TRACO * 0.8 || Math.abs(hDentro) < TRACO * 0.8) return luz - 0.22
     if (naFaixa(x, y)) {
       // O fundo da faixa, rebaixado; a parede do lado da luz faz sombra dentro dela.
-      luz -= 0.1
+      luz += FUNDO_DA_FAIXA
       if (!naFaixa(x + lx, y + ly)) luz -= 0.12
       return luz
     }
@@ -152,9 +160,9 @@ export const montarPedestalEntalhado: MontarMovel = (c, cena) => {
     const t = (z - zTambor) / (zLabio - zTambor)
     const r = rTambor + (rLabio - rTambor) * Math.sin(Math.min(1, t * 1.6) * Math.PI * 0.5)
     if (z >= zLabio - 1e-6) {
-      f.fatia(0, z, disco(0, 0, rLabio), pedra, { tabua: 0, bisel: 1.4, tom: 1.02, contorno: 0.27, textura: comPedra(0, entalhe, musgoDoLabio), semente: 7520 })
+      f.fatia(0, z, disco(0, 0, rLabio), pedra, { tabua: 0, bisel: 1.4, tom: 1.02, contorno: 0.27, textura: comPedra(pedraDaLaje, 0, entalhe, musgoDoLabio), semente: 7520 })
     } else {
-      f.fatia(0, z, disco(0, 0, r), pedra, lisa(0.96, comPedra(z, (x, y) => ladoDoDisco(x, y) + 0.03, () => 0), 7521))
+      f.fatia(0, z, disco(0, 0, r), pedra, lisa(0.96, comPedra(pedraDaLaje, z, (x, y) => ladoDoDisco(x, y) + 0.03, () => 0), 7521))
     }
   }
   f.fechar()
