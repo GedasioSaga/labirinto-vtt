@@ -17,8 +17,11 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   // perto: o hash é o do código que os redesenhou. Antes: b8ba828c…600145 (verde) e 2c5c66aa…38b7da (amarelo).
   grama: 'ff6a417be41c0fe6499dc480df150a86462e6b2ce9465d6390ab2183dcd94c5b',
   'grama-amarela': 'dac9ac7c8515e7cf93f8d3ef22ac87c6214a501870389a7f5557f7123e3d6218',
-  // O Campo morto nasceu depois da F5 (03/11/2026): o hash é o do código que o criou.
-  'grama-morta': '89d65339098d4a091ee3b79160c87fc3f6a6db14be322ed30085437826c664f6',
+  // O Campo morto nasceu depois da F5 (03/11/2026) e mudou DE PROPÓSITO em 07/11/2026 (`c7d40a5b`, arte aprovada do
+  // estúdio: mais escuro e sem repetir, período de 19 para 39 casas). Aquele commit não trocou o hash e a suíte ficou
+  // vermelha até 24/11. Conferido rodando: `c7d40a5b^` dá o antigo 89d65339…c664f6; `c7d40a5b` e o código atual dão
+  // o de baixo, byte a byte.
+  'grama-morta': '032da1ab64fbeca5a99813632a7d7e1269fd23ec11a1f1c4939c98434f054324',
   // As texturas do lote das referências nasceram depois da F5 (16/11/2026): o hash é o do código que as criou.
   'grama-escura': 'e32e84d8b1de7c2902a7d8ed8f569efccbe76e7387c92409f1e2e90096a71247',
   floresta: 'd3e6a04ed6ab39fb5d086bd9973bc369503cdbbc4fd011e3e8d594abbf35a9da',
