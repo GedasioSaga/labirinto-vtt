@@ -662,7 +662,7 @@ export function CartaoDaProposta({ guardada, velha, porId, sistema, onAplicar, o
         <button type="button" className="mu-bt mu-bt--fantasma" onClick={onDescartar}>
           Descartar
         </button>
-        <p className="bl-proposta__nota">{motivo ?? 'A ficha original não muda: a proposta vira uma variação nova, e a luta passa a usá-la.'}</p>
+        <p className="bl-proposta__nota">{motivo ?? 'A ficha original não muda: a proposta vira uma ficha nova, só dela, e a luta passa a usá-la.'}</p>
       </div>
     </section>
   )

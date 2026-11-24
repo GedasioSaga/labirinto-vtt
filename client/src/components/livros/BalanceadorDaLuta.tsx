@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react'
-import { ehVariacao, entraNaBatalha, novaVariacao } from '../../lib/livros/combate'
+import { ehVariacao, entraNaBatalha, novaVariacao, soltarDoModelo } from '../../lib/livros/combate'
 import { colunaDaComparacao, FATOR_DA_REACAO, melhorGolpe } from '../../lib/livros/encontro'
 import { forcaDe, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -214,8 +214,10 @@ export function BalanceadorDaLuta({ personagens, sistema }: BalanceadorDaLutaPro
       if (modelo === undefined) continue
       const nome = nomeLivre(`${modelo.nome} (${sufixo})`, usados)
       usados.add(nome)
-      const crua = novaVariacao(modelo, nome)
-      // A variação nasce com força 1; a proposta foi medida com a força do modelo, então ela parte da mesma.
+      // Ficha PRÓPRIA, sem `modeloId`: a variação de verdade é rematerializada do modelo a cada gravação
+      // (`sincronizarVariacoes` copia máximos e atributos), e o HP achado voltaria ao do modelo.
+      const crua = soltarDoModelo(novaVariacao(modelo, nome))
+      // A cópia nasce com força 1; a proposta foi medida com a força do modelo, então ela parte da mesma.
       const comForca: Personagem = { ...crua, combate: { ...crua.combate, forca: forcaDe(modelo) } }
       trocas.push({ de: id, para: ajustarFicha(comForca, achada.ajuste, sistema) })
     }
@@ -237,7 +239,7 @@ export function BalanceadorDaLuta({ personagens, sistema }: BalanceadorDaLutaPro
       useBalanceadorStore.getState().trocarAba('comparar')
     }
     const nomes = trocas.map((troca) => `"${troca.para.nome}"`).join(', ')
-    useToastStore.getState().push('info', `Criei ${nomes} e pus na luta no lugar do original. A ficha original não mudou.`, null, {
+    useToastStore.getState().push('info', `Criei ${nomes} (ficha nova, com os números achados) e pus na luta no lugar do original. A ficha original não mudou.`, null, {
       actions: [
         { label: 'Desfazer', run: desfazer },
         { label: 'Comparar com o original', run: compararComOriginal },
@@ -254,11 +256,17 @@ export function BalanceadorDaLuta({ personagens, sistema }: BalanceadorDaLutaPro
   })
 
   // Atalhos num lugar só: Ctrl+Enter testa, Esc cancela. Fora de campo de texto longo.
+  // Na captura do documento: o mundo do livro (MundoDoLivro) corta a bolha de toda tecla de dentro dele,
+  // então um ouvinte na bolha nunca ouve. Só vale com o foco aqui dentro ou no corpo (não atrás de outra janela);
+  // o Esc que cancela fica com preventDefault, e o mundo não fecha por causa dele.
+  const raizRef = useRef<HTMLDivElement>(null)
   const testarRef = useRef(testar)
   testarRef.current = testar
   useEffect(() => {
     const aoTeclar = (evento: KeyboardEvent) => {
       const alvoDoEvento = evento.target
+      if (!(alvoDoEvento instanceof Node)) return
+      if (alvoDoEvento !== document.body && raizRef.current?.contains(alvoDoEvento) !== true) return
       if (alvoDoEvento instanceof HTMLElement && (alvoDoEvento.isContentEditable || alvoDoEvento.tagName === 'TEXTAREA')) return
       if (evento.key === 'Enter' && (evento.ctrlKey || evento.metaKey)) {
         evento.preventDefault()
@@ -268,8 +276,8 @@ export function BalanceadorDaLuta({ personagens, sistema }: BalanceadorDaLutaPro
         rodandoRef.current.cancelar()
       }
     }
-    document.addEventListener('keydown', aoTeclar)
-    return () => document.removeEventListener('keydown', aoTeclar)
+    document.addEventListener('keydown', aoTeclar, true)
+    return () => document.removeEventListener('keydown', aoTeclar, true)
   }, [])
 
   const enviarMeta = (evento: FormEvent) => {
@@ -328,7 +336,7 @@ export function BalanceadorDaLuta({ personagens, sistema }: BalanceadorDaLutaPro
       : null
 
   return (
-    <div className="bl-testar">
+    <div className="bl-testar" ref={raizRef}>
       <div className="bl-montagem">
         <Acervo
           lutaveis={lutaveis}

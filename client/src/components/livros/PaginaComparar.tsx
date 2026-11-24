@@ -282,7 +282,7 @@ export function PaginaComparar({ personagens, sistema }: PaginaCompararProps) {
         <div className="mu-pg-cab__txt">
           <h2 className="mu-pg-titulo">Comparar e balancear</h2>
           <p className="mu-pg-sub">
-            Monte os dois lados e deixe o robô jogar a luta muitas vezes: o app conta quem vence, quanto dura e quem carrega cada lado, e diz o que mudar. Ajuste nunca mexe na ficha original: vira uma variação.
+            Monte os dois lados e deixe o robô jogar a luta muitas vezes: o app conta quem vence, quanto dura e quem carrega cada lado, e diz o que mudar. Ajuste nunca mexe na ficha original: vira uma ficha nova.
           </p>
         </div>
       </header>
