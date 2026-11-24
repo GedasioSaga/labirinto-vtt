@@ -2443,8 +2443,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onCarregar={(tokenId, cartaoId) => connection.ganharContadorNaBatalha(tokenId, cartaoId)}
           />
         )}
-        {/*
-          BATALHA DBT: a faixa da ordem Dragon Ball no mesmo lugar, com PV e Ki só dele e dos aliados.
         {/* COMPANION: "Quem vai com a Aira?" enquanto o host diz que a escolha espera este jogador. */}
         {state.batalhaEstado?.companions?.[0] !== undefined && (
           <EscolhaDosCompanions
@@ -2458,6 +2456,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             }}
           />
         )}
+        {/*
+          BATALHA DBT: a faixa da ordem Dragon Ball no mesmo lugar, com PV e Ki só dele e dos aliados.
           A recusa do host aparece num lugar só: no menu da batalha quando ele está na tela; olhando
           outro andar (sem o menu), aqui na faixa.
         */}

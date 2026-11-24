@@ -1714,13 +1714,13 @@ export interface PlayerConnection {
   ajustarNaBatalha(pedido: PedidoDeAjusteNaBatalha): boolean
   /** R5 (lote de 01/11): ganhar 1 nível do contador (a polaridade) gastando a reação. `false` = não saiu. */
   ganharContadorNaBatalha(tokenId: string, cartaoId: string): boolean
+  /** COMPANION: quem vai com o personagem dele (`[]` = sozinho). O host confere grupo, limite e vida. */
+  escolherCompanionsNaBatalha(donoPersonagemId: string, escolhidos: readonly string[]): boolean
   /** REQUISITOS E: responder ao pedido de ajuda (Aceitar/Recusar) ou cancelar o dele. Quem pode, o host confere. `false` = não saiu. */
   ajudaNaBatalha(pedido: RespostaDaAjuda | CancelamentoDaAjuda): boolean
   /**
    * BATALHA DBT — "transformar antes do 1º turno?" de um combatente dele
    * (`batalhaDBTEstado.declaracoes`); `null` = não se transforma. `false` = não saiu.
-  /** COMPANION: quem vai com o personagem dele (`[]` = sozinho). O host confere grupo, limite e vida. */
-  escolherCompanionsNaBatalha(donoPersonagemId: string, escolhidos: readonly string[]): boolean
    */
   declararNaBatalhaDBT(combatenteId: string, transformacaoId: string | null): boolean
   /**
@@ -7661,6 +7661,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (mensagem === null) return false
       return pedirNaBatalha(`ajuda:${mensagem.pedido.tipo}:${mensagem.pedido.ajudaId}`, mensagem)
     },
+    escolherCompanionsNaBatalha(donoPersonagemId, escolhidos) {
+      if (state.status !== 'playing' || state.batalhaEstado === undefined) return false
+      const mensagem = parseBatalhaCompanions({ type: 'batalha.companions', reqId: `b${nextReqId++}`, donoPersonagemId, escolhidos: [...escolhidos] })
+      if (mensagem === null) return false
+      return pedirNaBatalha(`companions:${donoPersonagemId}`, mensagem)
+    },
     ganharContadorNaBatalha(tokenId, cartaoId) {
       if (state.status !== 'playing' || state.batalhaEstado === undefined || !(state.ownTokens ?? []).includes(tokenId)) return false
       const mensagem = parseBatalhaContador({ type: 'batalha.contador', reqId: `b${nextReqId++}`, pedido: { tipo: 'ganhar', tokenId, cartaoId } })
@@ -7689,12 +7695,6 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || pendencia === undefined || !pendencia.ativa) return false
       const escolhida = pendencia.opcoes.find((candidata) => candidata.chave === opcao)
       if (escolhida === undefined || escolhida.bloqueio !== null) return false
-    escolherCompanionsNaBatalha(donoPersonagemId, escolhidos) {
-      if (state.status !== 'playing' || state.batalhaEstado === undefined) return false
-      const mensagem = parseBatalhaCompanions({ type: 'batalha.companions', reqId: `b${nextReqId++}`, donoPersonagemId, escolhidos: [...escolhidos] })
-      if (mensagem === null) return false
-      return pedirNaBatalha(`companions:${donoPersonagemId}`, mensagem)
-    },
       const pedido = {
         type: 'batalhaDBT.responder',
         reqId: `d${nextReqId++}`,
