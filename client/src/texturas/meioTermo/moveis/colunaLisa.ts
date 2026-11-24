@@ -1,8 +1,13 @@
 /**
  * COLUNA LISA (lote L05 de 24/11/2026, item 46: a versão do pilar do grande salão da cripta do mapa 8; desenho
  * próprio, só a ideia do objeto). O TAMBOR grosso e redondo, sem caneluras nem capitel, sobre a BASE redonda e baixa.
- * De cima: o disco do topo com a aresta arredondada pegando a luz, o anel da base em volta, uma lasca na beira, uma
- * trinca fina, o musgo no pé e a SOMBRA comprida, que é o que diz "coluna" (e não mesa redonda).
+ * De cima: o disco do topo com a aresta arredondada pegando a luz, o anel largo da base em volta, com o DEGRAU de
+ * sombra que o tambor deixa nele embaixo à direita, duas lascas na beira, o musgo no pé e a SOMBRA comprida, que é o
+ * que diz "coluna" (e não mesa redonda nem tampa de bueiro).
+ *
+ * Revisão do diretor de arte (24/11): as 15 faixas da 3/4 saíam como caneluras (cada faixa com o grão e o tom
+ * sorteados dela); a frente era quase 25% mais escura que o topo; de cima, o disco dentro do anel fino com a trinca
+ * em Y lia como tampa de bueiro.
  *
  * Na 3/4 (`tresQuartos.ts`: cada sombra com altura é uma estrutura, pintada do norte para o sul; cada peça sobe com a
  * estrutura mais alta que contém o meio da caixa dela):
@@ -10,7 +15,8 @@
  *   lado dela (clara à esquerda, de onde vem a luz, escura à direita), e o conjunto lê como cilindro. A distância de
  *   cada faixa é a do disco inteiro dentro da faixa e "longe" fora dela: as frentes e as fatias do topo se encaixam
  *   sem emenda, sem chanfro nem contorno no corte. O tom da frente vai numa peça VAZIA (não pinta nada), a maior da
- *   faixa, que é de onde a 3/4 tira o material da frente;
+ *   faixa, que é de onde a 3/4 tira o material da frente. O material é LISO: com o grão da pedra, cada faixa saía com
+ *   o sorteio dela (a 3/4 dá uma semente a cada frente) e o tambor ficava canelado;
  * - a faixa do meio é a última, e os detalhes do topo (a trinca, a lasca) têm o meio da caixa nela: saem por cima de
  *   todas as fatias;
  * - a BASE vai em duas metades, a do norte e a do sul NA TELA (inteira, seria pintada por último e cobriria o
@@ -20,25 +26,34 @@
  */
 import { luz, rgb, type Rgb } from '../../ruido'
 import { tomDoMeio } from '../materiais'
-import { cadeia, caixa, dentroDe, elipse, menos, poligono, type Forma, type Ponto } from './formas'
+import { caixa, dentroDe, elipse, menos, poligono, type Forma, type Ponto } from './formas'
 import { contato, type MaterialDaPeca } from './motor'
 import type { MontarMovel } from './contexto'
 
 /** Altura da coluna e da base, em casas. */
 const ALTURA = 1.85
 const ALTURA_DA_BASE = 0.1
-/** Os raios, em fração do menor meio lado. */
-const RAIO_DA_BASE = 0.92
-const RAIO_DO_TAMBOR = 0.7
-/** As faixas do tambor na 3/4 (ímpar: a do meio fica no meio) e as fatias do tampo da base (múltiplo de 4). */
-const FAIXAS = 15
+/** Os raios, em fração do menor meio lado: o anel da base tem uns 7,5 px de largura. */
+const RAIO_DA_BASE = 0.94
+const RAIO_DO_TAMBOR = 0.67
+/**
+ * As faixas do tambor na 3/4 (ímpar: a do meio fica no meio; com 25, o degrau de luz de uma faixa à outra fica
+ * abaixo de 3%) e as fatias do tampo da base (múltiplo de 4).
+ */
+const FAIXAS = 25
 const FATIAS_DA_BASE = 16
 const PASSO_DA_BASE = (2 * Math.PI) / FATIAS_DA_BASE
-/** A luz da frente do tambor: o mais claro (um pouco à esquerda do meio), a borda da esquerda e a da direita. */
-const LUZ_DO_TAMBOR = 0.14
-const LUZ_NA_BORDA_ESQUERDA = 0.06
-const SOMBRA_NA_DIREITA = 0.32
+/**
+ * A luz da frente do tambor: o mais claro (um pouco à esquerda do meio), a borda da esquerda e a da direita. Com o
+ * tom da frente da 3/4 (0,74), o meio da frente sai uns 17% mais escuro que o topo na imagem (com 0,26 eram 20%).
+ */
+const LUZ_DO_TAMBOR = 0.32
+const LUZ_NA_BORDA_ESQUERDA = 0.22
+const SOMBRA_NA_DIREITA = 0.3
 const ONDE_A_LUZ_BATE = -0.45
+/** O degrau de sombra que o tambor deixa no anel da base: o quanto ela anda (px, para baixo à direita na tela). */
+const DEGRAU_DE_SOMBRA: Ponto = [1.6, 1.25]
+const SOMBRA: MaterialDaPeca = { classe: 'liso', rgb: [0x2e, 0x2c, 0x2a] }
 /** A distância "longe" fora da faixa: nada é pintado, a sombra não escurece. */
 const FORA = 1000
 /** O musgo: o verde-oliva da lápide, um pouco mais escuro (o do túmulo de pedra). */
@@ -132,6 +147,16 @@ export const montarColunaLisa: MontarMovel = (c, cena) => {
   cena.sombras.push(contato(fundo, 0.32))
   for (const metade of metades(anelDaBase, quartos % 2 === 1)) cena.sombras.push({ forma: metade, z: zBase })
   for (const fatia of emFatias(anelDaBase, rTambor, rBase)) L.push(P(fatia, pedra, { tabua: 0, bisel: 2, tom: 0.86, contorno: 0.28, semente: 4600 }))
+  // O DEGRAU de sombra do tambor no anel: a lua crescente embaixo à direita (na tela), em duas metades com o meio da
+  // caixa no anel, fora do tambor (sobem com a base, e não com o tambor).
+  const deLado = quartos % 2 === 1
+  const [sx, sy] = desgirado(DEGRAU_DE_SOMBRA[0], DEGRAU_DE_SOMBRA[1], quartos)
+  const crescente = dentroDe(menos(elipse(sx, sy, rTambor, rTambor), disco), anelDaBase)
+  const rMeio = (rTambor + rBase) / 2
+  metades(crescente, deLado).forEach((metade, k) => {
+    const lado = k === 0 ? -1 : 1
+    L.push(P(comMeioEm(metade, deLado ? lado * rMeio : 0, deLado ? 0 : lado * rMeio), SOMBRA, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.5, suave: 1.2, semente: 4601 }))
+  })
 
   // O TAMBOR em faixas de pé na tela: a estrutura, a peça vazia com o tom da frente e a fatia do topo. A faixa do
   // meio é a última (estruturas empatadas saem na ordem em que entram), para os detalhes do topo ficarem por cima.
@@ -145,7 +170,7 @@ export const montarColunaLisa: MontarMovel = (c, cena) => {
     const c1 = Math.min(s1, rTambor)
     cena.sombras.push({ forma: naFaixa(disco, s0, s1, caixaDaFaixa(c0, c1, rTambor, quartos), quartos), z: alto })
     // A peça vazia é a maior da faixa (na do meio, maior que a caixa esticada dos detalhes): o meio dela fica na faixa.
-    const tom: MaterialDaPeca = { ...pedra, rgb: luz(pedra.rgb, luzDaFaixa((c0 + c1) / 2 / rTambor)) }
+    const tom: MaterialDaPeca = { classe: 'liso', rgb: luz(pedra.rgb, luzDaFaixa((c0 + c1) / 2 / rTambor)) }
     const caixaVazia = i === meio ? caixaDaFaixa(-rBase - 2, rBase + 2, rBase + 2, quartos) : caixaDaFaixa(c0, c1, rTambor + 1, quartos)
     L.push(P({ b: caixaVazia, d: () => FORA }, tom, { tabua: 0, semente: 4610 }))
   }
@@ -155,12 +180,14 @@ export const montarColunaLisa: MontarMovel = (c, cena) => {
   const [mx, my] = desgirado(0, 0, quartos)
   L.push(P(comMeioEm(disco, mx, my), pedra, { tabua: 0, bisel: 2.6, tom: 1, contorno: 0.3, semente: 4611 }))
 
-  // Os DETALHES do topo, com o meio da caixa na faixa do meio: a lasca da beira, a trinca e a mancha de umidade.
-  const a = -0.6
-  const lasca = dentroDe(disco, poligono([[Math.cos(a) * rTambor * 0.8, Math.sin(a) * rTambor * 0.8], [Math.cos(a - 0.2) * rTambor * 1.1, Math.sin(a - 0.2) * rTambor * 1.1], [Math.cos(a + 0.24) * rTambor * 1.1, Math.sin(a + 0.24) * rTambor * 1.1]]))
-  L.push(P(comMeioEm(lasca, mx, my), pedra, { tabua: 0, bisel: 0.8, tom: 0.72, contorno: 0.2, recesso: { k: 1, forca: 0.3 }, semente: 4620 }))
-  const trinca: Ponto[] = [[-rTambor * 0.92, rTambor * 0.18], [-rTambor * 0.6, rTambor * 0.1], [-rTambor * 0.38, rTambor * 0.26], [-rTambor * 0.1, rTambor * 0.2]]
-  L.push(P(comMeioEm(cadeia(trinca, 0.32), mx, my), pedra, { tabua: 0, bisel: 0, tom: 0.46, contorno: 0, semente: 4621 }))
-  L.push(P(comMeioEm(cadeia([[-rTambor * 0.6, rTambor * 0.1], [-rTambor * 0.52, -rTambor * 0.14]], 0.24), mx, my), pedra, { tabua: 0, bisel: 0, tom: 0.5, contorno: 0, semente: 4622 }))
+  // Os DETALHES do topo, com o meio da caixa na faixa do meio: as duas lascas da beira (a grande em cima à direita, a
+  // pequena embaixo à esquerda, onde antes corria a trinca) e a mancha de umidade.
+  const lascaNaBeira = (a: number, abre: number, fundo: number): Forma => {
+    const [cos0, sin0, cos1, sin1] = [Math.cos(a - abre), Math.sin(a - abre), Math.cos(a + abre * 1.2), Math.sin(a + abre * 1.2)]
+    return dentroDe(disco, poligono([[Math.cos(a) * rTambor * fundo, Math.sin(a) * rTambor * fundo], [cos0 * rTambor * 1.1, sin0 * rTambor * 1.1], [cos1 * rTambor * 1.1, sin1 * rTambor * 1.1]]))
+  }
+  const lasca = { tabua: 0, bisel: 0.8, tom: 0.72, contorno: 0.2, recesso: { k: 1, forca: 0.3 } }
+  L.push(P(comMeioEm(lascaNaBeira(-0.6, 0.2, 0.8), mx, my), pedra, { ...lasca, semente: 4620 }))
+  L.push(P(comMeioEm(lascaNaBeira(2.7, 0.13, 0.87), mx, my), pedra, { ...lasca, tom: 0.76, semente: 4621 }))
   L.push(P(comMeioEm(elipse(rTambor * 0.32, rTambor * 0.36, rTambor * 0.34, rTambor * 0.26), mx, my), pedra, { tabua: 0, bisel: 0, contorno: 0, tom: 0.9, alfa: 0.35, suave: 3, semente: 4623 }))
 }

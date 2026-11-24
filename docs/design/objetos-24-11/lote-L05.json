@@ -9,6 +9,20 @@
     "Urna e caixão de ferro: o contorno saía marrom-avermelhado, porque o piso de luz padrão é a nogueira. Agora a urna usa o escuro da pedra e o caixão o escuro do ferro da cadeira do L01. A saturação p95 do caixão caiu de 0,37 para 0,08.",
     "Estrado: de cima, os três degraus pareciam um piso plano em leque. Agora o tom sobe de degrau em degrau (0,86, 0,97 e 1,08) e cada degrau faz no de baixo uma sombra mais marcada (dist 2,3, força 0,42)."
   ],
+  "revisaoDoDiretorDeArte": [
+    "Geral (trinca em Y): a trinca agora tem tom 0,58 a 0,62 e alfa 0,7, com traço próprio em cada item. Saiu da coluna (virou lasca na beira do tampo) e da pilastra (virou lasca no capitel); ficou só no sarcófago (no fundo do oco), na laje (a um terço da largura, a partir da quina quebrada) e no nicho fechado (perto do pé, longe da roseta da direita).",
+    "#41 Sarcófago entreaberto: tampa girada -0,15 rad e deslizada [4; 11,6] px, com a fresta em cunha (8,8 px à esquerda, 4,0 px à direita, medidos na folha); o fundo do oco vai de 0x2e2b29 a 0x4a4642 perto da tampa, com o filete claro de 1 px na aresta de dentro da esquerda; duas lascas maiores no chão (tom 0,9, contorno 0,3, sombra de contato); o musgo ficou só na quina do pé.",
+    "#42 Sarcófago de bronze: tampa abaulada com a lombada clara (tom 1,25, alfa 0,35, 5,6 px de largura) a um terço da esquerda e o véu que escurece a metade da direita (cerca de 12%); um friso só; o anel com 6 entalhes na beira de fora no lugar das folhas de louro; duas alças em argola de cada lado comprido, fora da arca, com sombra; a pátina (alfa 0,65) só nos rebaixos.",
+    "#43 Caixão de ferro: a água da direita 15 a 18% mais escura, o filete claro de 1 px no cume, a ferrugem só no pé, na base das cintas e em um rebite a cada três (alfa 0,26), o contorno no escuro neutro e os rebites da beira reduzidos a cerca de dois terços.",
+    "#44 Laje tumular: embutida no piso (junta de 1,8 px, alfa 0,9) com rebaixo de 1,5 px em cima e à esquerda; poeira do piso (alfa 0,3) entrando pela quina quebrada; a trinca a um terço da largura a partir da quina; o epitáfio com palavras de tamanhos variados e 2 linhas apagadas (alfa 0,35); as asas em 3 cunhas de cada lado, a 1 px do crânio. O musgo da quina saiu (escondia a poeira).",
+    "#45 Nicho fechado: a laje rebaixada (tom 0,82) com a junta escura de 1 px e o rebaixo em cima e à esquerda; a trinca desvia da roseta da direita; as rosetas em tom 0,85 com a pátina em cima; a rosácea de 5 px.",
+    "#45 Nicho aberto: a ombreira da esquerda em trapézio por dentro (tom 0,55); a faixa de poeira no chão do oco (alfa 0,4); o fundo mais claro em cima, à esquerda; três costelas compridas e curvas deitadas no chão (tom 0,8); a laje caída com a beira de cima clara (tom 1,1) e a faixa escura de 1,5 px atrás dela.",
+    "#46 Coluna lisa: o tambor contínuo, sem caneluras (25 faixas lisas na 3/4); a frente no meio fica 17% mais escura que o tampo (163 contra 135, limite 20%); o anel da base mais grosso, com o degrau de sombra de 2 px; a trinca em Y virou lasca na beira do tampo.",
+    "#47 Pilastra quadrada: o fuste com 0,72 x 0,36 casa, colado na parede; a face na 3/4 em tom 0,8, com o filete claro de 1 px à esquerda e a parte da direita 10% mais escura; o capitel com aba de 3 px e a sombra projetada embaixo (faixa de tom 0,6, sem listras). NÃO FEITO: o degradê vertical da face (mais clara em cima). A 3/4 pinta a frente de cada estrutura num tom só, e um degradê pediria mudar tresQuartos.ts, que é do integrador.",
+    "#48 Urna funerária: o bojo de ovo invertido (o ombro largo a um terço do alto), o pé baixo e largo em dois degraus, as volutas coladas no ombro (sem furo), a tampa em cúpula baixa com a pinha, a pedra polida sem grão (sem os quadradinhos) com um veio macio na diagonal e a sombra contínua de baixo, sem listras.",
+    "#49 Columbário: as rosetas saíram (ficaram 2 pinos de ferro foscos, tom 0,6, por placa); 8 lóculos de cerca de 1,25:1 com o rebaixo forte de 2 px em cima e à esquerda; a meia-pilastra do meio com 6 px; a cornija 1,5 px mais funda, com sombra; os vasos de bronze numa prateleira de pedra saliente embaixo da placa, com sombra; o frontão reto em degraus, sem arco nem estrela.",
+    "#50 Estrado em meia-lua: as juntas desencontradas (10 blocos embaixo, 9 no meio, com o bloco do meio cortado em x = 0 sem chanfro); o patamar em 3 lajes com as juntas paralelas à parede, a faixa embutida e a roseta embutida no meio do lado reto; os espelhos dos degraus na 3/4 em faixa escura (tom 0,6 medido: 122 a 131 contra 211 no tampo do patamar). O fundo de juntas passou a ser a maior peça de cada estrutura (a caixa justa de cada bloco), e é dele que a 3/4 tira o material do espelho."
+  ],
   "notasGerais": [
     "Nada foi registrado. Ficam para o integrador: tipos.ts, pecasNovas.ts, gruposDoObjeto.ts, construcoes.ts, mobilia.ts, moveis/index.ts, tresQuartos.ts, materiais.ts, icons.tsx, types/map.ts, rasterDosMoveis.ts, MobiliaControls.tsx e os testes de contagem.",
     "Os ids de tipo sugeridos são o nome do arquivo (camelCase), os mesmos da LISTA.md. Nenhum colide com tipo registrado hoje.",
@@ -29,19 +43,32 @@
       "categoria": "objeto",
       "tipoSugerido": "sarcofagoEntreaberto",
       "grupoSugerido": "cemiterio",
-      "tamanhoEmCasas": [1, 2],
+      "tamanhoEmCasas": [
+        1,
+        2
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/sarcofagoEntreaberto.ts",
       "exportacao": "montarSarcofagoEntreaberto",
-      "exportacoesExtras": ["ESPESSURA_DA_TAMPA_DO_SARCOFAGO"],
+      "exportacoesExtras": [
+        "ESPESSURA_DA_TAMPA_DO_SARCOFAGO"
+      ],
       "imagem": "docs/design/objetos/sarcofago-entreaberto.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Pedra', PEDRAS, 'granito')]",
       "coresFixas": "Pedra do material escolhido. Fixos: o fundo da fresta [0x3a,0x36,0x33], dois fios de teia [0xd6,0xd2,0xc8] e o musgo (tomDoMeio('musgo', 0.82)). cena.corDoPiso é o escuro da pedra [0x45,0x43,0x40].",
       "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_TAMPA_DO_SARCOFAGO } (0,1 G). A arca é a coluna e a tampa é um tampo solto.",
       "comportamento": "Não barra (como o túmulo de pedra). Não é de chão.",
-      "sinonimos": ["sarcófago", "túmulo aberto", "tampa aberta", "jazigo", "tumba", "cripta", "violado"],
+      "sinonimos": [
+        "sarcófago",
+        "túmulo aberto",
+        "tampa aberta",
+        "jazigo",
+        "tumba",
+        "cripta",
+        "violado"
+      ],
       "icone": "Retângulo da arca com a tampa um pouco girada e descida, e a fresta escura no alto.",
-      "medidas": "saturação p95 0,103 | contorno 0,235 | luz mínima 0,045 | 3/4 202 ms | tampo sobe: sim",
+      "medidas": "saturação p95 0,103 | contorno 0,235 | luz mínima 0,045 | 3/4 239 ms (223 ms na folha do lote) | tampo sobe: sim | fresta 8,8 px à esquerda e 4,0 px à direita",
       "paraOIntegrador": "A tampa deslizou para o pé e girou um pouco. Na cabeceira, que é o lado de cima, abre a fresta em cunha. No pé e à direita, a tampa passa da arca. Não tem o basamento do túmulo de pedra, de propósito: a tampa cairia em cima dele."
     },
     {
@@ -52,20 +79,33 @@
       "categoria": "objeto",
       "tipoSugerido": "sarcofagoDeBronze",
       "grupoSugerido": "cemiterio",
-      "tamanhoEmCasas": [1, 2],
+      "tamanhoEmCasas": [
+        1,
+        2
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/sarcofagoDeBronze.ts",
       "exportacao": "montarSarcofagoDeBronze",
-      "exportacoesExtras": ["ESPESSURA_DA_TAMPA_DO_SARCOFAGO_DE_BRONZE"],
+      "exportacoesExtras": [
+        "ESPESSURA_DA_TAMPA_DO_SARCOFAGO_DE_BRONZE"
+      ],
       "imagem": "docs/design/objetos/sarcofago-de-bronze.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Base', PEDRAS, 'granito')] (só o basamento; o rótulo 'Base' é sugestão, para não confundir com o corpo de bronze)",
-      "coresFixas": "Bronze fixo { classe: 'metal', rgb: #8d6e47 }, pátina verde contida #6b8a77 nos cantos do campo, no pé do medalhão e da placa e na beira da direita. Musgo no basamento. cena.corDoPiso é o escuro da pedra.",
+      "coresFixas": "Bronze fixo { classe: 'metal', rgb: #8d6e47 }, pátina verde contida #6b8a77 (alfa 0,65) só nos rebaixos: no pé do medalhão, da placa e dos cravos. Musgo no basamento. cena.corDoPiso é o escuro da pedra.",
       "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_TAMPA_DO_SARCOFAGO_DE_BRONZE } (0,14 G). Como o túmulo de pedra: o basamento em quatro estruturas baixas, a arca como coluna e a tampa como tampo solto.",
       "comportamento": "Não barra. Não é de chão.",
-      "sinonimos": ["sarcófago", "bronze", "metal", "túmulo de metal", "jazigo", "tumba", "cripta"],
+      "sinonimos": [
+        "sarcófago",
+        "bronze",
+        "metal",
+        "túmulo de metal",
+        "jazigo",
+        "tumba",
+        "cripta"
+      ],
       "icone": "Retângulo de tampa com medalhão redondo no alto e placa pequena embaixo.",
-      "medidas": "saturação p95 0,490 (o bronze; o lote todo fica abaixo do teto 0,62) | contorno 0,231 | luz mínima 0,045 | 3/4 207 ms | tampo sobe: sim",
-      "paraOIntegrador": "É a 'versão de metal' que o dono pediu. A forma é a do tumuloDePedra: basamento, arca e tampa grossa. Na tampa vão a moldura, o medalhão com a coroa de louro, quatro cravos e a placa do epitáfio. A cabeceira é o lado de cima."
+      "medidas": "saturação p95 0,490 (o bronze; o lote todo fica abaixo do teto 0,62) | contorno 0,231 | luz mínima 0,045 | 3/4 265 ms (202 ms na folha do lote) | tampo sobe: sim",
+      "paraOIntegrador": "É a 'versão de metal' que o dono pediu. A forma é a do tumuloDePedra: basamento, arca e tampa grossa. A tampa é abaulada, com a lombada clara a um terço da esquerda e a metade da direita mais escura. Na tampa vão um friso, o medalhão em anel com 6 entalhes na beira, quatro cravos e a placa do epitáfio; fora da arca, duas alças em argola de cada lado comprido. A cabeceira é o lado de cima."
     },
     {
       "numero": 43,
@@ -75,7 +115,10 @@
       "categoria": "objeto",
       "tipoSugerido": "caixaoDeFerro",
       "grupoSugerido": "cemiterio",
-      "tamanhoEmCasas": [1, 2],
+      "tamanhoEmCasas": [
+        1,
+        2
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/caixaoDeFerro.ts",
       "exportacao": "montarCaixaoDeFerro",
@@ -85,9 +128,17 @@
       "coresFixas": "Ferrugem apagada [0x85,0x60,0x4a] em manchas, a alfa 0,24 a 0,34. Vão da argola [0x39,0x2a,0x1f]. cena.corDoPiso é o escuro do ferro [0x4a,0x45,0x41] (o valor do ESCURO_DO_FERRO da cadeira do L01, copiado; sem import).",
       "perfil3x4": "DERIVADO, como o caixão de madeira: o caixão inteiro é a coluna.",
       "comportamento": "Não barra (como o caixão). Não é de chão.",
-      "sinonimos": ["caixão", "esquife", "ataúde", "féretro", "ferro", "metal", "cripta"],
+      "sinonimos": [
+        "caixão",
+        "esquife",
+        "ataúde",
+        "féretro",
+        "ferro",
+        "metal",
+        "cripta"
+      ],
       "icone": "Hexágono de caixão com duas cintas atravessadas.",
-      "medidas": "saturação p95 0,083 | contorno 0,234 | luz mínima 0,044 | 3/4 175 ms | tampo sobe: sim",
+      "medidas": "saturação p95 0,074 | contorno 0,234 | luz mínima 0,045 | 3/4 253 ms (180 ms na folha do lote) | tampo sobe: sim",
       "paraOIntegrador": "Hexágono do caixão de madeira (cabeça estreita, ombro a 26%, pé estreito), de chapa rebitada. Tampa de duas águas com cumeeira, duas cintas rebitadas, quatro alças de argola e a plaquinha do nome. Esticado na horizontal, deita (o comprimento segue o maior lado). Na folha de comparação, ficou mais escuro que o caixão de madeira de carvalho."
     },
     {
@@ -98,7 +149,10 @@
       "categoria": "objeto",
       "tipoSugerido": "lajeTumular",
       "grupoSugerido": "cemiterio",
-      "tamanhoEmCasas": [1, 2],
+      "tamanhoEmCasas": [
+        1,
+        2
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/lajeTumular.ts",
       "exportacao": "montarLajeTumular",
@@ -108,9 +162,17 @@
       "coresFixas": "Fundo da junta [0x40,0x3c,0x38] e musgo. cena.corDoPiso é o escuro da pedra.",
       "perfil3x4": "DERIVADO. Nenhuma sombra tem altura, então a 3/4 sai igual à vista de cima.",
       "comportamento": "ehMovelDoChao: SIM (rente ao chão, como o tapete). Entra também em RENTES de tresQuartos.test.ts. A folha mostrou 'o tampo sobe: não' e '3/4 difere: não', que é o certo para objeto rente.",
-      "sinonimos": ["lápide", "laje", "túmulo no chão", "sepultura", "campa", "epitáfio", "cripta"],
+      "sinonimos": [
+        "lápide",
+        "laje",
+        "túmulo no chão",
+        "sepultura",
+        "campa",
+        "epitáfio",
+        "cripta"
+      ],
       "icone": "Retângulo rente com uma caveira pequena no alto e três linhas de texto.",
-      "medidas": "saturação p95 0,103 | contorno 0,235 | luz mínima 0,045 | 3/4 61 ms",
+      "medidas": "saturação p95 0,105 | contorno 0,234 | luz mínima 0,045 | 3/4 136 ms (89 ms na folha do lote)",
       "paraOIntegrador": "Lápide deitada, embutida no piso. Leva o friso gravado, a caveira alada em relevo baixo (sem símbolo de religião de verdade), o epitáfio gasto e ilegível, a linha das datas, uma trinca e a quina do pé partida. Não faz sombra, só a junta escura em volta. A cabeceira é o lado de cima."
     },
     {
@@ -121,20 +183,36 @@
       "categoria": "objeto",
       "tipoSugerido": "nichoFunerario",
       "grupoSugerido": "cemiterio",
-      "tamanhoEmCasas": [2, 1],
+      "tamanhoEmCasas": [
+        2,
+        1
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/nichoFunerario.ts",
       "exportacao": "montarNichoFunerario",
-      "exportacoesExtras": ["montarNichoFunerarioFechado", "montarNichoFunerarioAberto"],
+      "exportacoesExtras": [
+        "montarNichoFunerarioFechado",
+        "montarNichoFunerarioAberto"
+      ],
       "moduloDaForma": "client/src/lib/mobilia/nichoFunerario.ts",
       "imagem": "docs/design/objetos/nicho-funerario.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Pedra', PEDRAS, 'granito')]",
       "coresFixas": "Rosetas de bronze #8d6e47 com pátina #6b8a77. Osso [0xd2,0xc6,0xaa] (o marfim do ossos.ts). Fundo do lóculo [0x3a,0x36,0x33], teia [0xd6,0xd2,0xc8] e musgo. cena.corDoPiso é o escuro da pedra.",
       "perfil3x4": "EM_PE (desenhado de frente nas duas vistas, como a lápide).",
       "comportamento": "Não barra. Não é de chão. A parede fica no lado de cima da pegada.",
-      "sinonimos": ["nicho", "lóculo", "gaveta", "jazigo", "ossário", "ossos", "crânio", "catacumba", "cripta"],
+      "sinonimos": [
+        "nicho",
+        "lóculo",
+        "gaveta",
+        "jazigo",
+        "ossário",
+        "ossos",
+        "crânio",
+        "catacumba",
+        "cripta"
+      ],
       "icone": "Moldura de arco abatido com a laje e as quatro rosetas.",
-      "medidas": "fechado: saturação p95 0,104, contorno 0,235, luz mínima 0,045, 3/4 130 ms, sombra de baixo: sim | aberto: saturação p95 0,125, contorno 0,235, luz mínima 0,045, 3/4 140 ms, sombra de baixo: sim",
+      "medidas": "fechado: saturação p95 0,104, contorno 0,235, luz mínima 0,045, 3/4 196 ms, sombra de baixo: sim | aberto: saturação p95 0,143, contorno 0,235, luz mínima 0,045, 3/4 253 ms, sombra de baixo: sim",
       "paraOIntegrador": "Registre montarNichoFunerario em MONTADORES. Ele lê c.variante pelo lerVarianteDoNichoFunerario: 0 é fechado, 1 é aberto. As duas outras exportações servem só para a folha. As duas formas são ligadas como a da cova (cova.ts). (1) types/map.ts: FormaGravadaDoNichoFunerario ('aberto') entra na união de Prop.mobiliaForma. (2) lib/mobilia.ts:~306: normalizarFormaDoNichoFunerario(tipo, valor) entra na cadeia do normalizar e gravarFormaDoNichoFunerario entra onde a cova grava. (3) pixi/rasterDosMoveis.ts:266: variante: varianteDoNichoFunerario(prop.mobiliaForma) quando prop.mobilia === 'nichoFunerario'. (4) components/MobiliaControls.tsx:~617: o seletor 'Forma' com FORMAS_DO_NICHO_FUNERARIO e ROTULO_DA_FORMA_DO_NICHO_FUNERARIO (Fechado | Aberto). (5) lib/mapFactory.ts: o que a cova faz lá. O mapa grava só 'aberto'; sem campo é fechado, também no nicho já salvo. Trocar a forma não mexe no tamanho."
     },
     {
@@ -145,7 +223,10 @@
       "categoria": "objeto",
       "tipoSugerido": "colunaLisa",
       "grupoSugerido": "temploEMasmorra",
-      "tamanhoEmCasas": [1, 1],
+      "tamanhoEmCasas": [
+        1,
+        1
+      ],
       "redonda": true,
       "arquivo": "client/src/texturas/meioTermo/moveis/colunaLisa.ts",
       "exportacao": "montarColunaLisa",
@@ -155,10 +236,16 @@
       "coresFixas": "Musgo no pé. cena.corDoPiso é o escuro da pedra.",
       "perfil3x4": "DERIVADO (o padrão). O próprio desenho monta as estruturas: o tambor em 15 faixas de pé na tela e a base em metades. O corte acompanha c.giro.",
       "comportamento": "Ver a decisão em aberto nas notas gerais: como objeto, só barra se entrar em ehMovelQueBarra (recomendado). Não é de chão.",
-      "sinonimos": ["coluna", "pilar", "tambor", "salão", "cripta"],
+      "sinonimos": [
+        "coluna",
+        "pilar",
+        "tambor",
+        "salão",
+        "cripta"
+      ],
       "icone": "Dois círculos concêntricos: o anel da base e o disco do topo.",
-      "medidas": "saturação p95 0,104 | contorno 0,235 | luz mínima 0,045 | 3/4 693 ms (3068 ms com a máquina ocupada) | tampo sobe: sim",
-      "paraOIntegrador": "Tambor grosso, sem caneluras nem capitel, sobre a base redonda e baixa. Altura de 1,85 casa. Limite visto na folha: na 3/4 o tambor é sombreado em 15 faixas de tom (a técnica dos gomos do pilar). A 4x as faixas aparecem como degraus de tom bem leves; no tamanho de mesa não aparecem. Mais faixas deixariam a 3/4 mais lenta (cada faixa é uma estrutura), por isso ficaram 15. Entra em LENTOS de tresQuartos.test.ts."
+      "medidas": "saturação p95 0,103 | contorno 0,236 | luz mínima 0,045 | 3/4 1157 a 1624 ms (1223 ms na folha do lote) | tampo sobe: sim | frente 17% mais escura que o tampo",
+      "paraOIntegrador": "Tambor grosso e contínuo, sem caneluras nem capitel, sobre a base redonda e baixa (o anel da base com um degrau de sombra de 2 px). Altura de 1,85 casa. Na 3/4 o tambor é sombreado em 25 faixas lisas (sem o grão, que nas faixas saía em costuras); a 4x não aparecem degraus de tom. A frente no meio fica 17% mais escura que o tampo. Cada faixa é uma estrutura: a 3/4 leva de 1,2 a 1,6 s na folha, abaixo do portão de 5 s. Entra em LENTOS de tresQuartos.test.ts."
     },
     {
       "numero": 47,
@@ -168,20 +255,31 @@
       "categoria": "objeto",
       "tipoSugerido": "pilastraQuadrada",
       "grupoSugerido": "temploEMasmorra",
-      "tamanhoEmCasas": [1, 1],
+      "tamanhoEmCasas": [
+        1,
+        1
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/pilastraQuadrada.ts",
       "exportacao": "montarPilastraQuadrada",
-      "exportacoesExtras": ["ESPESSURA_DO_CAPITEL_DA_PILASTRA"],
+      "exportacoesExtras": [
+        "ESPESSURA_DO_CAPITEL_DA_PILASTRA"
+      ],
       "imagem": "docs/design/objetos/pilastra-quadrada.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Pedra', PEDRAS, 'granito')]",
       "coresFixas": "Musgo no canto junto da parede. cena.corDoPiso é o escuro da pedra.",
       "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DO_CAPITEL_DA_PILASTRA } (0,13 G). O fuste é a coluna, o capitel é um tampo solto e o plinto vai em três estruturas baixas.",
       "comportamento": "Ver a decisão em aberto nas notas gerais (ehMovelQueBarra recomendado). A parede fica no lado de cima da pegada, no giro 0.",
-      "sinonimos": ["pilastra", "pilar", "coluna quadrada", "parede", "cripta"],
+      "sinonimos": [
+        "pilastra",
+        "pilar",
+        "coluna quadrada",
+        "parede",
+        "cripta"
+      ],
       "icone": "Quadrado com o plinto em U nos lados e embaixo.",
-      "medidas": "saturação p95 0,103 | contorno 0,235 | luz mínima 0,045 | 3/4 274 ms | tampo sobe: sim",
-      "paraOIntegrador": "Bloco quadrado colado na parede, que fica no lado de cima. O plinto em blocos contorna os outros três lados, e o capitel é de laje simples com filete, uma quina partida e uma trinca. Altura de 1,85 casa."
+      "medidas": "saturação p95 0,103 | contorno 0,235 | luz mínima 0,045 | 3/4 397 a 701 ms | tampo sobe: sim",
+      "paraOIntegrador": "Fuste de 0,72 x 0,36 casa colado na parede, que fica no lado de cima. O plinto em blocos contorna os outros três lados, e o capitel é de laje simples com filete, uma aba de 3 px e uma lasca na quina. Na 3/4 a face fica em tom 0,8, com o filete claro de 1 px à esquerda, a parte da direita 10% mais escura e a sombra do capitel (tom 0,6) embaixo da aba. Altura de 1,85 casa. Limite: a face não tem o degradê vertical que o diretor de arte pediu, porque a 3/4 pinta a frente de cada estrutura num tom só."
     },
     {
       "numero": 48,
@@ -191,20 +289,30 @@
       "categoria": "objeto",
       "tipoSugerido": "urnaFuneraria",
       "grupoSugerido": "cemiterio",
-      "tamanhoEmCasas": [0.5, 0.5],
+      "tamanhoEmCasas": [
+        0.5,
+        0.5
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/urnaFuneraria.ts",
       "exportacao": "montarUrnaFuneraria",
       "exportacoesExtras": [],
       "imagem": "docs/design/objetos/urna-funeraria.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Pedra', PEDRAS, 'marmore')] (pedra polida; a prova foi feita em mármore)",
-      "coresFixas": "Só a pedra. cena.corDoPiso é o escuro da pedra (mudado nesta rodada; com a nogueira, a beira saía avermelhada).",
+      "coresFixas": "Só a pedra, polida (classe lisa, sem o grão). cena.corDoPiso é o escuro da pedra.",
       "perfil3x4": "EM_PE (de frente nas duas vistas, como o crânio).",
       "comportamento": "Não barra. Não é de chão. A LISTA diz que é 'pequena o bastante para ir em cima de um nicho'. ehMovelDeCimaDaMesa a poria por cima de todo objeto, mas essa lista é da mesa posta (contêiner e clique). Não recomendo sem o mestre pedir.",
-      "sinonimos": ["urna", "cinzas", "vaso", "jarro", "funerária", "cripta"],
-      "icone": "Silhueta de vaso com tampa em cúpula, botão e duas asas.",
-      "medidas": "saturação p95 0,082 | contorno 0,236 | luz mínima 0,046 | 3/4 11 ms | sombra de baixo: sim",
-      "paraOIntegrador": "O desenho é feito em 28 x 28 px (meia casa) e cresce pelo menor lado, centrado: esticada, a urna continua redonda. A sombra comprida agora sai de uma cápsula no pé, não mais do oval fino que saía em listras."
+      "sinonimos": [
+        "urna",
+        "cinzas",
+        "vaso",
+        "jarro",
+        "funerária",
+        "cripta"
+      ],
+      "icone": "Silhueta de vaso em ovo invertido, com pé largo, tampa em cúpula baixa, pinha e duas volutas.",
+      "medidas": "saturação p95 0,082 | contorno 0,236 | luz mínima 0,046 | 3/4 31 a 51 ms | sombra de baixo: sim",
+      "paraOIntegrador": "O desenho é feito em 28 x 28 px (meia casa) e cresce pelo menor lado, centrado: esticada, a urna continua redonda. A sombra comprida sai do pé inteiro (cápsula de 3,6 px), contínua, sem listras."
     },
     {
       "numero": 49,
@@ -215,20 +323,32 @@
       "tipoSugerido": "columbario",
       "grupoSugerido": "monumentosEColunas (GRUPO_DA_CONSTRUCAO)",
       "regraDeFabrica": "{ barra: true, tapa: true }",
-      "tamanhoEmCasas": [2, 1],
+      "tamanhoEmCasas": [
+        2,
+        1
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/columbario.ts",
       "exportacao": "montarColumbario",
       "exportacoesExtras": [],
       "imagem": "docs/design/objetos/columbario.png",
       "lugaresDeMaterial": "[lugar('pedra', 'Pedra', PEDRAS, 'granito')]",
-      "coresFixas": "Rosetas e vasinhos de bronze #8d6e47 com pátina #6b8a77, flores secas [0x8a,0x7b,0x60] e musgo. cena.corDoPiso é o escuro da pedra.",
+      "coresFixas": "Pinos de ferro foscos (tom 0,6) nas placas, vasinhos de bronze #8d6e47 com pátina #6b8a77, flores secas [0x8a,0x7b,0x60] e musgo. cena.corDoPiso é o escuro da pedra.",
       "perfil3x4": "EM_PE (de frente nas duas vistas, como o nicho).",
       "comportamento": "Barra a passagem e tapa a visão, como pede a LISTA. É fechado de alvenaria e tem 1,2 casa de altura, mais que uma pessoa. A parede fica no lado de cima da pegada. Sem peloMenorLado: o muro estica na largura.",
-      "sinonimos": ["columbário", "gavetas", "lóculos", "nichos", "jazigo", "catacumba", "parede funerária", "cripta"],
-      "icone": "Retângulo com quatro gavetas em 2 x 2 e o frontão em arco no alto.",
-      "medidas": "saturação p95 0,111 | contorno 0,235 | luz mínima 0,045 | 3/4 122 ms | sombra de baixo: sim",
-      "paraOIntegrador": "Trecho de parede com quatro lóculos selados numa peça só: dois em cima, dois embaixo e a pilastra no meio, com frontão em arco abatido, cornija e rodapé. Uma laje é trincada, uma tem a quina partida, uma tem musgo e uma perdeu o nome. Dois lóculos têm vasinho de bronze com flores secas. Por ser construção, sai do menu do Objeto sozinho (ehConstrucao)."
+      "sinonimos": [
+        "columbário",
+        "gavetas",
+        "lóculos",
+        "nichos",
+        "jazigo",
+        "catacumba",
+        "parede funerária",
+        "cripta"
+      ],
+      "icone": "Retângulo com oito gavetas em 2 x 4 e o frontão reto em degraus no alto.",
+      "medidas": "saturação p95 0,104 | contorno 0,235 | luz mínima 0,045 | 3/4 157 a 233 ms | sombra de baixo: sim",
+      "paraOIntegrador": "Trecho de parede com oito lóculos selados numa peça só (cerca de 1,25 : 1, com o rebaixo forte de 2 px em cima e à esquerda): quatro em cima, quatro embaixo, em dois pares de cada lado da meia-pilastra do meio, com frontão reto em degraus, cornija com sombra e rodapé. Cada placa tem dois pinos de ferro. Uma laje é trincada, uma tem a quina partida, uma tem musgo e uma perdeu o nome. Dois lóculos têm vasinho de bronze com flores secas numa prateleira de pedra embaixo da placa. Por ser construção, sai do menu do Objeto sozinho (ehConstrucao)."
     },
     {
       "numero": 50,
@@ -239,7 +359,10 @@
       "tipoSugerido": "estradoEmMeiaLua",
       "grupoSugerido": "monumentosEColunas (GRUPO_DA_CONSTRUCAO)",
       "regraDeFabrica": "{ barra: false }",
-      "tamanhoEmCasas": [3, 1.5],
+      "tamanhoEmCasas": [
+        3,
+        1.5
+      ],
       "redonda": false,
       "arquivo": "client/src/texturas/meioTermo/moveis/estradoEmMeiaLua.ts",
       "exportacao": "montarEstradoEmMeiaLua",
@@ -249,10 +372,20 @@
       "coresFixas": "Musgo nos cantos da parede e no patamar. cena.corDoPiso é o escuro da pedra.",
       "perfil3x4": "DERIVADO. Cada degrau é uma estrutura da altura dele (0,1, 0,2 e 0,3 casa). Os anéis vão em duas metades, e cada bloco tem o meio da caixa no próprio bloco (comMeioEm).",
       "comportamento": "Não barra (pisa-se nele), não tapa. Não é de chão: os degraus sobem na 3/4. O lado reto fica encostado na parede, no lado de cima da pegada.",
-      "sinonimos": ["estrado", "degraus", "meia-lua", "altar", "púlpito", "plataforma", "capela", "nave", "cripta"],
-      "icone": "Meia-lua com três arcos concêntricos (os degraus).",
-      "medidas": "saturação p95 0,082 | contorno 0,235 | luz mínima 0,045 | 3/4 836 a 919 ms (2983 ms com a máquina ocupada) | tampo sobe: sim",
-      "paraOIntegrador": "Três degraus semicirculares: dois anéis de blocos em leque (10 e 8) e o patamar de quatro lajes em cunha, com a faixa embutida. O raio é min(hw, 2·hh): esticado fora de 2 : 1, a meia-lua fica centrada no lado da parede e não estica. Entra em LENTOS de tresQuartos.test.ts."
+      "sinonimos": [
+        "estrado",
+        "degraus",
+        "meia-lua",
+        "altar",
+        "púlpito",
+        "plataforma",
+        "capela",
+        "nave",
+        "cripta"
+      ],
+      "icone": "Meia-lua com três arcos concêntricos (os degraus) e a roseta no meio do lado reto.",
+      "medidas": "saturação p95 0,082 | contorno 0,235 | luz mínima 0,045 | 3/4 558 a 779 ms | tampo sobe: sim | espelho na 3/4 em tom 0,6",
+      "paraOIntegrador": "Três degraus semicirculares: dois anéis de blocos em leque com as juntas desencontradas (10 embaixo, 9 no meio) e o patamar de três lajes com as juntas paralelas à parede, a faixa embutida e a roseta embutida no meio do lado reto. Na 3/4 o espelho de cada degrau sai em faixa escura (tom 0,6). O raio é min(hw, 2·hh): esticado fora de 2 : 1, a meia-lua fica centrada no lado da parede e não estica. Entra em LENTOS de tresQuartos.test.ts."
     }
   ],
   "testesQueMudamNoRegistro": [
@@ -263,8 +396,9 @@
     "lib/mobilia.test.ts: a lista do ehMovelDoChao (laje) e do ehMovelQueBarra (coluna e pilastra, se a decisão for barrar)."
   ],
   "verificacao": {
-    "tsc": "rtk proxy npx tsc --noEmit em client/: exit 0, 0 erros no projeto inteiro (24/11/2026, depois dos ajustes).",
-    "folha": "FOLHA_DE_OBJETOS=<pedido do lote> rtk proxy npx vitest run src/texturas/meioTermo/moveis/folhaDeObjetosNovos.test.ts: 1 passed; 11 itens dentro do portão.",
-    "naoVisto": "Não abri no app nem no navegador: o tipo ainda não está registrado. O que vi é a pintura do motor do app na folha de contato. O seletor de forma do nicho só existe depois da integração."
+    "tsc": "rtk proxy npx tsc --noEmit em client/: exit 0, 0 erros no projeto inteiro (24/11/2026, depois da revisão do diretor de arte).",
+    "folha": "FOLHA_DE_OBJETOS=<pedido do lote> npx vitest run src/texturas/meioTermo/moveis/folhaDeObjetosNovos.test.ts: passou; 11 itens dentro do portão, depois da revisão do diretor de arte. Os 10 painéis por item foram refeitos, todos dentro do portão.",
+    "naoVisto": "Não abri no app nem no navegador: o tipo ainda não está registrado. O que vi é a pintura do motor do app na folha de contato. O seletor de forma do nicho só existe depois da integração.",
+    "revisaoVista": "Depois da revisão, olhei a folha de cada item e recortes ampliados: a fresta e o filete do sarcófago, o capitel da pilastra (a beirada saía verde e a faixa de sombra saía riscada; consertados), os lóculos do columbário, a urna, e o estrado de cima e na 3/4 (os espelhos saíam claros; consertado)."
   }
 }

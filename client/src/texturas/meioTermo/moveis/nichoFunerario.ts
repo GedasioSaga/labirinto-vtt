@@ -8,18 +8,24 @@
  * escura; a sombra sai do pé, para baixo à direita.
  *
  * Duas FORMAS (`lib/mobilia/nichoFunerario.ts`, gravadas em `Prop.mobiliaForma`, lidas na `variante`):
- * - FECHADO (o padrão): a LAJE inteira tapando o lóculo, com a placa do epitáfio gasto, a rosácea gravada no arco,
- *   as quatro ROSETAS de bronze dos cantos (com a pátina), uma trinca e o musgo no canto;
- * - ABERTO: a laje PARTIDA, o pedaço grande caído e encostado na frente, à esquerda (ainda com a placa e duas
- *   rosetas), e os cacos no chão; dentro, o escuro do lóculo com o CRÂNIO virado para fora, os OSSOS compridos no
- *   chão dele, as costelas e a TEIA no canto do arco.
+ * - FECHADO (o padrão): a LAJE RECUADA tapando o lóculo, um degrau mais escura que a moldura, com a junta escura em
+ *   volta e a sombra da beira de cima e da esquerda; nela a placa do epitáfio gasto, a ROSÁCEA gravada no arco, as
+ *   quatro ROSETAS de bronze dos cantos apagadas pela pátina, um fio de trinca curto no pé e o musgo no canto;
+ * - ABERTO: a laje PARTIDA, o pedaço grande caído e inclinado na frente, à esquerda (a aresta de cima clara, a
+ *   sombra atrás dela, ainda com a placa e duas rosetas), e os cacos no chão; dentro, o LÓCULO com fundo: o plano da
+ *   ombreira da esquerda, o chão com pó, o alto da esquerda um pouco mais claro; o CRÂNIO virado para fora, os OSSOS
+ *   compridos e três costelas deitadas no chão dele e a TEIA no canto do arco.
  *
- * Materiais: `pedra`; o bronze, o osso, o fundo, a teia e o musgo são fixos.
+ * Revisão do diretor de arte (24/11): laje e moldura tinham o mesmo tom e o fechado lia como forno ou lareira; a
+ * trinca em zigue-zague terminava na roseta e parecia fio; o bronze laranja das rosetas roubava o foco; a rosácea
+ * era pequena demais; o aberto era um buraco preto chapado, com costelas em arcos repetidos que pareciam mola.
+ *
+ * Materiais: `pedra`; o bronze, o osso, o fundo, o pó, a teia e o musgo são fixos.
  */
 import { hash, rgb, type Rgb } from '../../ruido'
 import { tomDoMeio } from '../materiais'
 import { lerVarianteDoNichoFunerario } from '../../../lib/mobilia/nichoFunerario'
-import { cadeia, capsula, caixa, dentroDe, elipse, elipseGirada, menos, poligono, uniao, type Forma, type Ponto } from './formas'
+import { anel, cadeia, capsula, caixa, dentroDe, elipse, elipseGirada, menos, poligono, uniao, type Forma, type Ponto } from './formas'
 import { contato, type Cena, type MaterialDaPeca } from './motor'
 import type { ContextoDoMovel, MontarMovel } from './contexto'
 
@@ -36,9 +42,21 @@ const SOLEIRA = 8.2
 const MOLDURA = 3.2
 /** O lóculo dentro da moldura: a sobra dos lados e de cima (px). */
 const LADO_DO_LOCULO = 15
-/** O bronze das rosetas (o do sarcófago de bronze) e a pátina verde contida. */
+/** A laje do fechado: a junta em volta dela (px) e o tom, um degrau abaixo da moldura do lóculo (0,98). */
+const JUNTA_DA_LAJE = 1
+const TOM_DA_LAJE = 0.82
+/** A rosácea gravada no arco do fechado: o raio de fora (px) e as pétalas. */
+const RAIO_DA_ROSACEA = 4.8
+const PETALAS = 8
+/**
+ * O bronze das rosetas (o do sarcófago de bronze), apagado (`TOM_DO_BRONZE`: no tom 1,08 ele era o ponto mais
+ * saturado da peça) e com a pátina verde contida por cima.
+ */
 const BRONZE: MaterialDaPeca = { classe: 'metal', rgb: rgb('#8d6e47') }
+const TOM_DO_BRONZE = 0.85
 const PATINA: MaterialDaPeca = { classe: 'liso', rgb: rgb('#6b8a77') }
+/** O pó no chão do lóculo aberto: um cinza-terra neutro, meio transparente. */
+const PO: MaterialDaPeca = { classe: 'liso', rgb: [0x9a, 0x8e, 0x7c] }
 /** O osso: o marfim velho dos ossos e do crânio (`ossos.ts`). */
 const OSSO: MaterialDaPeca = { classe: 'liso', rgb: [0xd2, 0xc6, 0xaa] }
 /** O fundo do lóculo: o escuro frio da pedra, que o piso de luz segura. */
@@ -101,12 +119,12 @@ function montarMolduraDoLoculo(c: ContextoDoMovel, cena: Cena, m: Moldura): void
   cena.partes.push(c.peca(menos(loculo(m, -MOLDURA), loculo(m, 0)), c.m.pedra, { tabua: 0, bisel: 1, tom: 0.98, contorno: 0.26, projeta: { dist: 1.2, forca: 0.32 }, semente: 4505 }))
 }
 
-/** Uma roseta de bronze: o botão, o furo e a pátina em volta. */
+/** Uma roseta de bronze apagada: o botão, o furo e a pátina por cima, escorrendo para baixo à direita. */
 function roseta(c: ContextoDoMovel, cena: Cena, x: number, y: number, r: number, semente: number): void {
   const P = c.peca
-  cena.partes.push(P(elipse(x + r * 0.3, y + r * 0.4, r * 1.25, r * 1.1), PATINA, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.36, suave: r * 0.8, semente }))
-  cena.partes.push(P(elipse(x, y, r, r), BRONZE, { tabua: 0, bisel: r * 0.6, tom: 1.08, contorno: 0.26, projeta: { dist: 0.6, forca: 0.26 }, semente: semente + 1 }))
+  cena.partes.push(P(elipse(x, y, r, r), BRONZE, { tabua: 0, bisel: r * 0.6, tom: TOM_DO_BRONZE, contorno: 0.26, projeta: { dist: 0.6, forca: 0.26 }, semente: semente + 1 }))
   cena.partes.push(P(elipse(x, y, r * 0.32, r * 0.32), BRONZE, { tabua: 0, bisel: 0, tom: 0.5, contorno: 0, semente: semente + 2 }))
+  cena.partes.push(P(elipse(x + r * 0.25, y + r * 0.3, r * 0.95, r * 0.9), PATINA, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.4, suave: r * 0.6, semente }))
 }
 
 /** O epitáfio gasto: as linhas em palavras rebaixadas, de comprimentos diferentes, algumas quase sumidas. */
@@ -133,29 +151,34 @@ export const montarNichoFunerarioFechado: MontarMovel = (c, cena) => {
   const L = cena.partes
   montarMoldura(c, cena, m)
 
-  // O vão (a junta escura) e a LAJE dentro dele.
-  L.push(P(loculo(m, 0), pedra, { tabua: 0, bisel: 0, tom: 0.46, contorno: 0.2, recesso: { k: 1.6, forca: 0.4 }, semente: 4510 }))
-  const laje = loculo(m, 1.3)
-  L.push(P(laje, pedra, { tabua: 0, bisel: 1.3, tom: 1, contorno: 0.28, semente: 4511 }))
+  // O vão (a junta escura de 1 px) e a LAJE recuada dentro dele: um degrau mais escura que a moldura, sem chanfro
+  // claro, com a sombra da beira de cima e da esquerda caindo nela.
+  L.push(P(loculo(m, 0), pedra, { tabua: 0, bisel: 0, tom: 0.36, contorno: 0.2, recesso: { k: 1.6, forca: 0.4 }, semente: 4510 }))
+  const laje = loculo(m, JUNTA_DA_LAJE)
+  L.push(P(laje, pedra, { tabua: 0, bisel: 0.4, tom: TOM_DA_LAJE, contorno: 0.26, recesso: { k: 1.6, forca: 0.4 }, semente: 4511 }))
 
-  // A PLACA do epitáfio e a ROSÁCEA gravada no arco.
+  // A PLACA do epitáfio e a ROSÁCEA gravada no arco: o círculo gravado, as pétalas rebaixadas e o botão do meio.
   const yMeio = (m.yLoculo + m.yFundoDoLoculo) / 2 + 1
-  L.push(P(caixa(-17, yMeio - 8.4, 17, yMeio + 8, 0.8), pedra, { tabua: 0, bisel: 0.9, tom: 1.08, contorno: 0.22, projeta: { dist: 0.7, forca: 0.24 }, semente: 4512 }))
+  L.push(P(caixa(-17, yMeio - 8.4, 17, yMeio + 8, 0.8), pedra, { tabua: 0, bisel: 0.9, tom: 1.04, contorno: 0.22, projeta: { dist: 0.7, forca: 0.24 }, semente: 4512 }))
   epitafio(c, cena, -14, 14, [yMeio - 4.4, yMeio - 0.2, yMeio + 4], 4520)
-  const yRosa = m.yLoculo - 1.6
-  L.push(P(elipse(0, yRosa, 2.6, 2.6), pedra, { tabua: 0, bisel: 0.6, tom: 1.08, contorno: 0.2, semente: 4513 }))
-  for (let k = 0; k < 6; k += 1) {
-    const a = (k / 6) * 2 * Math.PI
-    L.push(P(elipseGirada(Math.cos(a) * 2.9, yRosa + Math.sin(a) * 2.9, 1.5, 0.75, a), pedra, { tabua: 0, bisel: 0, contorno: 0, tom: 0.66, recesso: { k: 0.4, forca: 0.26 }, semente: 4514 + k }))
+  const yRosa = m.yLoculo + 0.6
+  const gravada = { tabua: 0, bisel: 0, contorno: 0, tom: 0.62, recesso: { k: 0.4, forca: 0.28 } }
+  L.push(P(anel(0, yRosa, RAIO_DA_ROSACEA, RAIO_DA_ROSACEA, RAIO_DA_ROSACEA - 0.6, RAIO_DA_ROSACEA - 0.6), pedra, { ...gravada, alfa: 0.75, semente: 4513 }))
+  for (let k = 0; k < PETALAS; k += 1) {
+    const a = (k / PETALAS) * 2 * Math.PI
+    const rMeio = RAIO_DA_ROSACEA * 0.58
+    L.push(P(elipseGirada(Math.cos(a) * rMeio, yRosa + Math.sin(a) * rMeio, RAIO_DA_ROSACEA * 0.34, 0.8, a), pedra, { ...gravada, semente: 4514 + k }))
   }
+  L.push(P(elipse(0, yRosa, 1.5, 1.5), pedra, { tabua: 0, bisel: 0.6, tom: 1.02, contorno: 0.2, semente: 4523 }))
 
   // As quatro ROSETAS de bronze nos cantos da laje.
   const xr = m.xLoculo - 5.6
   for (const [x, y] of [[-xr, m.yLoculo + 1.6], [xr, m.yLoculo + 1.6], [-xr, m.yFundoDoLoculo - 5.2], [xr, m.yFundoDoLoculo - 5.2]] as const) roseta(c, cena, x, y, 2.1, 4530)
 
-  // A TRINCA da direita e o MUSGO no canto de baixo à esquerda e na soleira.
-  const trinca: Ponto[] = [[xr + 4, m.yFundoDoLoculo - 2.4], [xr - 4.5, m.yFundoDoLoculo - 8], [xr - 2.6, m.yFundoDoLoculo - 13.4], [xr - 9.4, m.yFundoDoLoculo - 19]]
-  L.push(P(dentroDe(cadeia(trinca, 0.34), laje), pedra, { tabua: 0, bisel: 0, tom: 0.44, contorno: 0, semente: 4540 }))
+  // O fio de TRINCA curto no pé, longe da placa e das rosetas, e o MUSGO no canto de baixo à esquerda e na soleira.
+  const yPeDaLaje = m.yFundoDoLoculo - JUNTA_DA_LAJE
+  const trinca: Ponto[] = [[xr - 9, yPeDaLaje + 0.4], [xr - 10.8, yPeDaLaje - 2.8], [xr - 10, yPeDaLaje - 4], [xr - 13.2, yPeDaLaje - 6.8]]
+  L.push(P(dentroDe(cadeia(trinca, 0.3), laje), pedra, { tabua: 0, bisel: 0, tom: 0.6, alfa: 0.7, contorno: 0, semente: 4540 }))
   const musgo = { tabua: 0, bisel: 0.4, contorno: 0.1, alfa: 0.55, suave: 0.9 }
   L.push(P(dentroDe(elipse(-m.xLoculo + 2, m.yFundoDoLoculo - 1.6, 5, 2.6), laje), MUSGO, { ...musgo, semente: 4541 }))
   montarMolduraDoLoculo(c, cena, m)
@@ -168,6 +191,14 @@ export const montarNichoFunerarioFechado: MontarMovel = (c, cena) => {
     [[m.x - 9.6, m.yPe + 0.6], [m.x - 8, m.yPe - 0.2], [m.x - 7.2, m.yPe + 1.4]],
   ]
   lascas.forEach((pontos, k) => L.push(P(poligono(pontos), pedra, { tabua: 0, bisel: 0.5, tom: 0.98 - k * 0.06, contorno: 0.3, semente: 4544 + k })))
+}
+
+/** Uma costela deitada: a curva suave de `a` a `b`, puxada para `m` (a bezier de segundo grau, em 6 pontos). */
+function costela(a: Ponto, m: Ponto, b: Ponto): Ponto[] {
+  return [0, 0.2, 0.4, 0.6, 0.8, 1].map((t): Ponto => {
+    const [u, v, w] = [(1 - t) * (1 - t), 2 * (1 - t) * t, t * t]
+    return [u * a[0] + v * m[0] + w * b[0], u * a[1] + v * m[1] + w * b[1]]
+  })
 }
 
 /** Um osso comprido (a capsula com os dois nós de cada ponta), de (ax, ay) a (bx, by). */
@@ -185,10 +216,13 @@ export const montarNichoFunerarioAberto: MontarMovel = (c, cena) => {
   const L = cena.partes
   montarMoldura(c, cena, m)
 
-  // O LÓCULO aberto: o fundo escuro e o chão dele, mais claro (visto um pouco de cima).
+  // O LÓCULO aberto: o fundo escuro, o alto da esquerda um pouco mais claro (a luz que bate na boca e volta) e o chão
+  // dele, mais claro (visto um pouco de cima).
   const vao = loculo(m, 0)
   L.push(P(vao, FUNDO, { tabua: 0, bisel: 0, contorno: 0.2, recesso: { k: 3.2, forca: 0.5 }, semente: 4550 }))
-  L.push(P(dentroDe(vao, caixa(-m.xLoculo, m.yFundoDoLoculo - 5.6, m.xLoculo, m.yFundoDoLoculo)), pedra, { tabua: 0, bisel: 0, contorno: 0, tom: 0.5, alfa: 0.75, suave: 1.6, semente: 4551 }))
+  L.push(P(dentroDe(elipse(-m.xLoculo + 16, m.yLoculo + 5, 16, 8), loculo(m, 4)), pedra, { tabua: 0, bisel: 0, contorno: 0, tom: 0.5, alfa: 0.32, suave: 8, semente: 4549 }))
+  const yFundoDoChao = m.yFundoDoLoculo - 5.6
+  L.push(P(dentroDe(vao, caixa(-m.xLoculo, yFundoDoChao, m.xLoculo, m.yFundoDoLoculo)), pedra, { tabua: 0, bisel: 0, contorno: 0, tom: 0.5, alfa: 0.75, suave: 1.6, semente: 4551 }))
   // As fiadas da parede do fundo, quase apagadas no escuro: duas juntas deitadas e as de pé, desencontradas.
   const junta = { tabua: 0, bisel: 0, contorno: 0, tom: 0.52, alfa: 0.4 }
   const fiadas = [m.yLoculo + 2.4, m.yLoculo + 11, m.yLoculo + 19.6]
@@ -199,6 +233,12 @@ export const montarNichoFunerarioAberto: MontarMovel = (c, cena) => {
     }
   })
 
+  // A face de dentro da OMBREIRA da esquerda: o trapézio estreito que desce da boca até o fundo do chão; e o PÓ no
+  // chão do lóculo, mais grosso na frente.
+  const ombreira = poligono([[-m.xLoculo, m.yLoculo - ARCO_DO_LOCULO], [-m.xLoculo + 4.2, m.yLoculo - ARCO_DO_LOCULO], [-m.xLoculo + 4.2, yFundoDoChao], [-m.xLoculo, m.yFundoDoLoculo]])
+  L.push(P(dentroDe(ombreira, vao), pedra, { tabua: 0, bisel: 0, contorno: 0, tom: 0.55, semente: 4548 }))
+  L.push(P(dentroDe(caixa(-m.xLoculo + 2, m.yFundoDoLoculo - 3.6, m.xLoculo - 1, m.yFundoDoLoculo), loculo(m, 1.2)), PO, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.4, suave: 1.8, semente: 4547 }))
+
   // A TEIA no canto do arco, à esquerda: os fios que saem do canto e os dois laços.
   const [tx, ty] = [-m.xLoculo + 0.6, m.yLoculo - 1]
   const teia = { tabua: 0, bisel: 0, contorno: 0, alfa: 0.42, semente: 4552 }
@@ -206,15 +246,18 @@ export const montarNichoFunerarioAberto: MontarMovel = (c, cena) => {
   L.push(P(cadeia([[tx + 5.6, ty - 0.8], [tx + 5.2, ty + 2], [tx + 3.6, ty + 4.2], [tx + 1.2, ty + 5]], 0.16), TEIA, teia))
   L.push(P(cadeia([[tx + 10, ty - 1.6], [tx + 9.2, ty + 3.2], [tx + 6.2, ty + 7.2], [tx + 2, ty + 8.8]], 0.16), TEIA, { ...teia, alfa: 0.34 }))
 
-  // Os OSSOS no chão do lóculo: dois compridos cruzados, as costelas e a sombra deles.
+  // Os OSSOS no chão do lóculo: a sombra deles, três costelas compridas deitadas atrás e dois ossos longos cruzados.
   const yChao = m.yFundoDoLoculo - 1.8
   L.push(P(elipse(4, yChao + 0.8, 26, 1.6), FUNDO, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.5, suave: 1.2, semente: 4553 }))
+  // Deitadas no chão, vistas um pouco de cima, as costelas são curvas rasas: arcos altos liam como mola de pé.
+  const costelas: readonly (readonly [Ponto, Ponto, Ponto])[] = [
+    [[-20, yChao - 2.2], [-12, yChao - 4.6], [-4, yChao - 2.8]],
+    [[-3, yChao - 3.6], [5, yChao - 2], [13, yChao - 3.8]],
+    [[10, yChao - 1.6], [15, yChao - 3.6], [20, yChao - 2]],
+  ]
+  costelas.forEach(([a, meio, b], k) => L.push(P(cadeia(costela(a, meio, b), 0.62), OSSO, { tabua: 0, bisel: 0.4, tom: 0.8, contorno: 0.26, semente: 4556 + k })))
   L.push(P(ossoComprido(-24, yChao - 0.4, 4, yChao - 2.2, 1.2), OSSO, { tabua: 0, bisel: 1, tom: 0.92, contorno: 0.3, semente: 4554 }))
   L.push(P(ossoComprido(-12, yChao + 0.2, 13, yChao - 0.8, 1.1), OSSO, { tabua: 0, bisel: 1, tom: 0.84, contorno: 0.3, semente: 4555 }))
-  for (let k = 0; k < 4; k += 1) {
-    const x = -2 + k * 3.6
-    L.push(P(cadeia([[x - 3, yChao - 3.2], [x - 1.6, yChao - 6.4], [x + 0.6, yChao - 7.4], [x + 2.4, yChao - 6.2]], 0.55), OSSO, { tabua: 0, bisel: 0.4, tom: 0.82 + k * 0.03, contorno: 0.26, semente: 4556 + k }))
-  }
 
   // O CRÂNIO virado para fora, à direita: a cúpula, as maçãs, as órbitas, o nariz e os dentes.
   const cx = m.xLoculo - 13
@@ -229,11 +272,12 @@ export const montarNichoFunerarioAberto: MontarMovel = (c, cena) => {
 
   montarMolduraDoLoculo(c, cena, m)
 
-  // A LAJE PARTIDA caída e encostada na frente, à esquerda: a beira de cima clara, a face, o resto da placa, duas
-  // rosetas e o contato no chão. A beira de cima de quebra é dentada.
+  // A LAJE PARTIDA caída e encostada na frente, à esquerda: a faixa escura atrás dela (a sombra no que fica atrás), a
+  // beira de cima clara, a face, o resto da placa, duas rosetas e o contato no chão. A beira de cima de quebra é dentada.
   const quebra: Ponto[] = [[-m.x + 1, c.hh - 0.6], [-14, c.hh - 0.6], [-15.6, c.hh - 13], [-19.4, c.hh - 15.6], [-23.6, c.hh - 13.8], [-28.4, c.hh - 18.6], [-34, c.hh - 17.2], [-m.x + 3.6, c.hh - 20.2]]
   cena.sombras.push(contato(caixa(-m.x, c.hh - 2.4, -13, c.hh + 0.6, 1), 0.36))
-  L.push(P(poligono(quebra.map(([x, y]): Ponto => [x - 0.6, y - 2.2])), pedra, { tabua: 0, bisel: 0.6, tom: 1.12, contorno: 0.24, semente: 4570 }))
+  L.push(P(poligono(quebra.map(([x, y]): Ponto => [x - 0.3, y - 3.7])), FUNDO, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.7, suave: 0.7, semente: 4569 }))
+  L.push(P(poligono(quebra.map(([x, y]): Ponto => [x - 0.6, y - 2.2])), pedra, { tabua: 0, bisel: 0.6, tom: 1.1, contorno: 0.24, semente: 4570 }))
   const lajeCaida = poligono(quebra)
   L.push(P(lajeCaida, pedra, { tabua: 0, bisel: 1.2, tom: 0.9, contorno: 0.3, projeta: { dist: 1.6, forca: 0.36 }, semente: 4571 }))
   L.push(P(dentroDe(caixa(-40, c.hh - 13.4, -22, c.hh - 4.6, 0.6), lajeCaida), pedra, { tabua: 0, bisel: 0.8, tom: 0.98, contorno: 0.2, projeta: { dist: 0.6, forca: 0.22 }, semente: 4572 }))
