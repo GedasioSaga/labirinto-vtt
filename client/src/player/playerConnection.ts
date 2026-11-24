@@ -528,6 +528,11 @@ export interface PlayerState {
    */
   olhares?: OlharDaVisao[]
   /**
+   * CEGUEIRA (`snapshot.ondas`): o centro de quem um olho cego dele sente e não
+   * vê — só x/y. Ausente = nenhuma onda (host antigo, ninguém cego, pacote torto).
+   */
+  ondas?: RegionPoint[]
+  /**
    * TERRENO ALTO (`snapshot.alto`, `lib/terrenoAlto.ts`): o piso de baixo visto
    * de cima (borrado pela altura do piso dele) e as fichas do piso de cima que
    * ele vê daqui. Cada snapshot substitui, e o patch muda só o que mudou
@@ -2532,6 +2537,23 @@ function lerOlhares(valor: unknown, aneisNaVisao: number): OlharDaVisao[] | unde
     olhares.push({ x, y, raio, aneis: indices })
   }
   return olhares
+}
+
+/** Teto das ondas aceitas do host: muito acima de qualquer mesa. */
+const ONDAS_MAX = 200
+
+/**
+ * CEGUEIRA: as ondas do recorte (`snapshot.ondas`), só x/y. Ausente, vazio ou
+ * torto = `undefined`: a tela fica sem onda e o resto da mensagem vale.
+ */
+function lerOndas(valor: unknown): RegionPoint[] | undefined {
+  if (!Array.isArray(valor) || valor.length === 0 || valor.length > ONDAS_MAX) return undefined
+  const ondas: RegionPoint[] = []
+  for (const item of valor) {
+    if (!isRecord(item) || !isFiniteNumber(item.x) || !isFiniteNumber(item.y)) return undefined
+    ondas.push({ x: item.x, y: item.y })
+  }
+  return ondas
 }
 
 /** Nome de cena que o selo pode mostrar: texto não vazio, no teto do mestre. */
@@ -4560,6 +4582,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     porAtravessar: readonly string[],
     olhares: OlharDaVisao[] | undefined,
     alto: TerrenoAlto | undefined,
+    ondas: RegionPoint[] | undefined,
     exploredWire?: ExploredWire,
   ): void {
     if (rev <= state.rev) return
@@ -4630,6 +4653,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       luz,
       porAtravessar: doorsToCross,
       olhares,
+      ondas,
       alto,
       batalha: batalha ? true : undefined,
       // MODO BATALHA (B6): fora da batalha não há caminho; o aviso do zerar só dentro da mesma batalha.
@@ -4724,6 +4748,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (porAtravessar === null) return askResync()
     // QUEDA DO ALCANCE no patch: ausente = os mesmos de antes (conferidos de novo contra a visão nova); `[]` = nenhum.
     const olhares = lerOlhares(data.olhares === undefined ? state.olhares : data.olhares, vision.length)
+    // CEGUEIRA no patch: ausente = as mesmas de antes; `[]` = nenhuma.
+    const ondas = lerOndas(data.ondas === undefined ? state.ondas : data.ondas)
     // TERRENO ALTO no patch: ausente = o mesmo de antes; torto ou de outra tela = pede a inteira.
     const alto = data.alto === undefined ? received.alto : aplicarPatchDoAlto(received.alto, data.alto)
     if (alto === null) return askResync()
@@ -4754,6 +4780,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       porAtravessar,
       olhares,
       alto,
+      ondas,
       exploredWire,
     )
   }
@@ -5108,6 +5135,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           luz: undefined,
           porAtravessar: undefined,
           olhares: undefined,
+          ondas: undefined,
           batalha: undefined,
           caminhos: undefined,
           batalhaIniciada: undefined,
@@ -5976,7 +6004,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // TERRENO ALTO: ausente = nada de outro piso; malformado derruba a mensagem.
         const alto = data.alto === undefined ? undefined : lerTerrenoAlto(data.alto)
         if (alto === null) return recusarTela('alto')
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.batalha === true, caminhos, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, olhares, alto, explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.batalha === true, caminhos, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, olhares, alto, lerOndas(data.ondas), explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
         // TRANSIÇÃO ESPECIAL: o mapa da travessia chegou (e o `sceneName` dele); a cena que esperava por ele pode tocar.
         soltarMapaDaTransicao?.(true)
         return
@@ -6386,7 +6414,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, olhares: undefined, alto: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, objetosLembrados: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, caminhos: undefined, caminhosZerados: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, olhares: undefined, ondas: undefined, alto: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, objetosLembrados: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, caminhos: undefined, caminhosZerados: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 

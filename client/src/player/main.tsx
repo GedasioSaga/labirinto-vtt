@@ -2128,6 +2128,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             porAtravessar={state.porAtravessar}
             // QUEDA DO ALCANCE (peça D das sombras): o andar de memória acima fica sem (não há visão lá).
             olhares={state.olhares}
+            // CEGUEIRA: onde está quem a ficha cega dele sente (só a posição).
+            ondas={state.ondas}
             ownTokens={ownTokens}
             // A tinta do período da cena dele (Luz L4b); o andar de memória acima fica sem.
             luz={state.luz}

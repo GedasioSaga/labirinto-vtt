@@ -151,6 +151,7 @@ import { criarCampoNoJogador, type CampoNoJogador } from './campoNoJogador'
 import { criarFiosDaBatalha, type FiosDaBatalha } from '../pixi/fiosDaBatalha'
 import { criarAlcanceDaBatalha, type AlcanceDaBatalha } from '../pixi/alcanceDaBatalha'
 import { criarAlcanceDoGolpe, type AlcanceDoGolpe } from '../pixi/alcanceDoGolpe'
+import { criarCamadaDasOndas, type CamadaDasOndas } from './camadaDasOndas'
 import { mirasParaDesenhar, useMiraNoMapa } from '../stores/batalha/miraNoMapa'
 import { criarCalculoDoAlcance, type CalculoDoAlcance } from '../lib/batalha/alcanceNoCampo'
 import {
@@ -305,6 +306,11 @@ interface PlayerViewProps {
    * Ausente = sem a queda (o escuro fica o de antes).
    */
   olhares?: readonly OlharDaVisao[]
+  /**
+   * CEGUEIRA (`snapshot.ondas`): onde está quem um olho cego dele sente e não vê — só a posição.
+   * Ausente = nenhuma onda.
+   */
+  ondas?: readonly RegionPoint[]
   ownTokens: string[]
   /**
    * LUZ (Luz L4b): o período da cena DESTE jogador e a tinta dele
@@ -1629,6 +1635,8 @@ interface Scene {
   paredesDaPenumbra: { fonte: readonly Wall[]; hidden: MapData['hiddenLayers']; grid: number; paredes: ParedeDaPenumbra[] } | null
   /** QUEDA DO ALCANCE: os olhos e as luzes da penumbra, refeitos só quando a visão ou os olhares mudam (`separarOlhares`). */
   olharesDaPenumbra: { vision: RegionPoint[][]; olhares: readonly OlharDaVisao[] | undefined; separados: OlhosEluzes } | null
+  /** CEGUEIRA: as ondas no chão, abaixo dos contornos lembrados e das fichas (`camadaDasOndas.ts`). */
+  ondas: CamadaDasOndas
   exploredCells: number
   /** Pinos de ponto de interesse, acima da névoa: o jogador toca para ler o cartão. */
   pins: Container
@@ -2583,6 +2591,7 @@ function PlayerViewDoCanvas({
   peek,
   porAtravessar = NO_DOORS_TO_CROSS,
   olhares,
+  ondas,
   ownTokens,
   luz = null,
   batalha = false,
@@ -2674,6 +2683,7 @@ function PlayerViewDoCanvas({
     peek,
     porAtravessar,
     olhares,
+    ondas,
     ownTokens,
     luz,
     batalha,
@@ -4607,6 +4617,9 @@ function PlayerViewDoCanvas({
       const lastSeen = new Container()
       lastSeen.label = LAST_SEEN_LAYER_LABEL
       lastSeen.eventMode = 'none'
+      // CEGUEIRA: a onda é do chão de quem é sentido — por baixo do contorno lembrado e das fichas, acima da névoa.
+      const camadaDasOndas = criarCamadaDasOndas({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      lastSeen.addChild(camadaDasOndas.container)
       const tokens = new Container()
       prepareTokenLayer(tokens)
       // A ORDEM DO MUNDO sai de FAIXAS_JOGADOR (`lib/camadas/ordem.ts`), a MESMA
@@ -5000,6 +5013,7 @@ function PlayerViewDoCanvas({
         revisaoDaNevoa: 0,
         paredesDaPenumbra: null,
         olharesDaPenumbra: null,
+        ondas: camadaDasOndas,
         exploredCells: 0,
         pins,
         pinsRenderer: pinosPorNo.de(pins),
@@ -5103,6 +5117,8 @@ function PlayerViewDoCanvas({
         reportZoomLimits(scene.camera.scale)
       }
       sceneRef.current = scene
+      // CEGUEIRA: as ondas que já chegaram antes do Pixi ficar pronto.
+      camadaDasOndas.mostrar(latestRef.current.ondas, latestRef.current.map.grid)
       // Fase E do alcance: a mira abriu, virou ou o mouse mudou de casa: só o chão da batalha redesenha.
       pararDeOuvirAMira = useMiraNoMapa.subscribe((estado, antes) => {
         if (estado.local !== antes.local || estado.remotas !== antes.remotas || estado.foco !== antes.foco) desenharChaoDaBatalha(scene)
@@ -5924,6 +5940,7 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickPulse)
         app.ticker.remove(tickMarcadores)
         scene.auras.destruir()
+        scene.ondas.destruir()
         app.ticker.remove(tickRevisit)
         app.ticker.remove(tickMapaDeLuz)
         scene.mapaDeLuz.destruir()
@@ -6006,6 +6023,12 @@ function PlayerViewDoCanvas({
     // `arrivalKey` também: a chegada que só muda a chave (levado enquanto olhava outro andar) fica registrada já.
     // BATALHA F3: a forma que liga ou desliga e o selo que entra, conta ou sai repintam as fichas (raro: um por ação).
   }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, olhares, ownTokens, waitingTokens, settings, arrivalKey, fotoDaForma, selosNasFichas, fichasDeCima])
+
+  // CEGUEIRA: as ondas andam sozinhas (escala e alfa no ticker); aqui só entram, saem e mudam de lugar.
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (scene) scene.ondas.mostrar(ondas, map.grid)
+  }, [ondas, map.grid])
 
   // TERRENO ALTO: fundo transparente (a vista do piso de baixo por trás) ou o de sempre. O fundo do mapa se refaz na grade.
   useEffect(() => {
