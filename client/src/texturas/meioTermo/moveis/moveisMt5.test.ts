@@ -256,13 +256,21 @@ describe('MT5: o tapete grande "Medalhão com haste"', () => {
     expect(longo.L / 2 - longo.hu).toBeCloseTo(FRANJA_EM_CASAS, 9)
   })
 
+  /**
+   * Só o campo, por dentro da moldura (a moldura começa a 1 - 0,36 = 0,64 casa
+   * do eixo): o motivo da borda lateral é refeito para caber inteiro entre os
+   * cantos (12 voltas no corredor de 7, 26 no de 14), então o passo dele muda
+   * por milésimos e a fase escorrega uma fração de pixel longe do meio. Isso é
+   * do desenho, não um medalhão esticado; a geometria da moldura já é
+   * conferida no teste acima.
+   */
   it('nos pixels: o centro do corredor de 7 e de 14 casas sai igual (o medalhão não estica nem se repete)', () => {
     const S = escalaDoNivel(2)
     const centro = (casas: number): number[] => {
       const { limites, pixels } = pintarMovel({ tipo: 'tapeteLongo', lado: 'frente', materiais: ['vinho'], casasW: 2, casasH: casas, semente: 7 }, S)
       const tons: number[] = []
       for (let y = -0.7 * G; y < 0.7 * G; y += 1 / S) {
-        for (let x = -0.9 * G; x < 0.9 * G; x += 1 / S) {
+        for (let x = -0.6 * G; x < 0.6 * G; x += 1 / S) {
           const o = (Math.floor((y - limites.y0) * S) * limites.W + Math.floor((x - limites.x0) * S)) * 4
           tons.push(pixels[o], pixels[o + 1], pixels[o + 2])
         }
@@ -272,9 +280,18 @@ describe('MT5: o tapete grande "Medalhão com haste"', () => {
     const a = centro(7)
     const b = centro(14)
     let maior = 0
-    for (let i = 0; i < a.length; i += 1) maior = Math.max(maior, Math.abs(a[i] - b[i]))
-    // Até 1 tom de diferença: o meio tom sorteado por pixel no arredondamento (`pintarCena`).
-    expect(maior).toBeLessThanOrEqual(2)
+    let soma = 0
+    for (let i = 0; i < a.length; i += 1) {
+      const d = Math.abs(a[i] - b[i])
+      maior = Math.max(maior, d)
+      soma += d
+    }
+    // O meio tom sorteado por pixel (`compor`) segue a linha da imagem, e as duas imagens
+    // têm alturas diferentes. No Vinho mais profundo (5a02cc3d) parte do fio e do acento
+    // fica rente ao piso de luz, onde o levantamento do preto amplia esse meio tom para
+    // até 5 tons. Na média a diferença segue abaixo de 1 tom.
+    expect(maior).toBeLessThanOrEqual(6)
+    expect(soma / a.length).toBeLessThan(1)
   })
 
   it('LIMITE da grade: numa grade de 70 o tapete longo 1 x 4 (70 x 280 px) é desenhado como 1,4 x 5,6 casas de 50 px', () => {

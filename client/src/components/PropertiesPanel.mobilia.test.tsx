@@ -186,13 +186,20 @@ describe('painel de propriedades — o móvel selecionado', () => {
     expect(campo('Cor da linha')).not.toBeNull()
   })
 
+  /**
+   * Os dois testes abaixo abrem o painel de cada móvel do catálogo. Com os 96
+   * objetos de 24/11 a volta passou de 5 s (o padrão do vitest) numa máquina
+   * ocupada; as asserções continuam as mesmas.
+   */
+  const TEMPO_DA_VOLTA_NO_CATALOGO = 30_000
+
   it('"Vista" só aparece para cadeira, baú, armário de cozinha, aparador, fogueira, tapete e, das peças novas, barraca e carroça', () => {
     const comVista = TIPOS_MOBILIA.filter((tipo) => {
       renderObjeto(criarMovel(tipo, { x: 300, y: 200 }, 64, 'c1'))
       return vista() !== null
     })
     expect(comVista).toEqual(['bau', 'cadeira', 'armario', 'aparador', 'fogueira', 'tapete', 'barraca', 'carroca'])
-  })
+  }, TEMPO_DA_VOLTA_NO_CATALOGO)
 
   it('a cadeira: "Vista" vem entre "Tipo" e "Preencher", marca Frente e o clique em Lado manda a vista', () => {
     renderObjeto(criarMovel('cadeira', { x: 300, y: 200 }, 64, 'c1'))
@@ -246,7 +253,7 @@ describe('painel de propriedades — o móvel selecionado', () => {
       return forma() !== null
     })
     expect(comForma).toEqual(['tapete'])
-  })
+  }, TEMPO_DA_VOLTA_NO_CATALOGO)
 
   /** A paleta de tecido de `rotulo` ("Cor do travesseiro") e as amostras dela. */
   const paleta = (rotulo: string) => container.querySelector<HTMLElement>(`[role="radiogroup"][aria-label="Paleta: ${rotulo.toLowerCase()}"]`)
