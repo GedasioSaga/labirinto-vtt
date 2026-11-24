@@ -1,3 +1,26 @@
+# 24/11 ~00h30: 0.5.97 PRONTA NA MAIN, PARADA POR DISCO
+
+## Objetivo
+Publicar a 0.5.97 (todos os protótipos aprovados entram no app do dono). O dono reclamou: "nenhum protótipo veio para o programa" (estão só na main).
+
+## Estado atual
+- 0.5.96 PUBLICADA (bump c04a8c45, latest.json público 0.5.96).
+- Na main, sem push, prontos para a 0.5.97: biblioteca 0b137681 79d7f72f 4cad9efc (prova 34/34); balanceador 77f69bbf 81aa443f b59d27e2 eee5d2a2 d34842e4 (Aplicar cria ficha própria, não variação); sobras do alcance f2ca66a1 a9fefff7 b7c1b966 (o Golpe padrão da invocada não tem alcance); Companion 9b517b6f..e1f16fca + consertos 8b662d47 1df05efd ad1e893f 26c0aa14 (prova por gestos 6/6, tmp/companion-app/); Cegueira 93d4e53b cf309855 b2ba65dc d46e0ec9 7ff7d3a0 (prova por gestos ok, tmp/cegueira-app/). Protótipos novos: tapete grande dd9203fc (docs/design/tapete-grande/, esperando escolha A/B/C + cor; recomendação C).
+- Disco 7,7 GB com cargo de outra sessão (sistema-de-credito) rodando; a compilação da release usa ~7 GB no pico.
+
+## Próximos passos
+1. Disco >= 10 GB (reiniciar o PC devolve ~15 GB do pagefile) e nenhum cargo de outra sessão rodando.
+2. Golden das camadas: client/e2e/task-camadas-golden.spec.ts com LAB_NAVEGADOR=%LOCALAPPDATA%\ms-playwright\chromium-1243\chrome-win64\chrome.exe.
+3. Publicar 0.5.97 pelo automacao-devops, como na 0.5.96 (worktree limpo, publicar-versao.cjs --publicar --com-google, curl latest.json, limpeza de junções antes do worktree remove).
+4. Perguntas abertas: tapete A/B/C + cor; batalha na Visão de jogador (rec. sim); esconder contorno de último avistamento sobre a onda (rec. sim); alcance 1 no Golpe da invocada (rec. sim); Aplicar do balanceador ficha própria x variação; objetos de prisão (5 novos: grade no chão, ralo, selo circular, fosso de brasas, algemas/cavalete).
+5. Travamentos da batalha > 200 ms (golpe e reação, encerrar) medir com máquina livre.
+
+## Critério de pronto
+latest.json público responde 0.5.97 (curl) e o dono vê a biblioteca nova na página Habilidades.
+
+## Evidência
+0.5.96: curl latest.json = "0.5.96 .../v0.5.96/Labirinto_0.5.96_x64-setup.exe". tsc client 0 após 7ff7d3a0; área player 2182 testes verdes; Companion jornada 6/6.
+
 # 23/11 ~20h: sessão nova, limpeza e 5 frentes relançadas
 
 Sessão anterior caiu ~19h35 e levou os 5 agentes sem commit. Limpeza: disco 10,4 -> 12,5 GB (Temp >2 dias fora de claude, cache npm, client/dist, test-results, .wrangler/tmp); 56 specs e2e antigos commitados `94e8b401`; PEDIDOS `4f96bfa0`. Dono: "aceitei todos os protótipos". (1) aviso do NPC FEITO `8979890a` (tsc 0, vitest 26/26, prova por gestos 42/42, print tmp/npc-variacao/05-pergunta-antes-de-virar-variacao.png; limite: pergunta também quando muda descrição/etiquetas; página DBT não aberta; defeito antigo "Lob / o" com assistente aberto) -> 0.5.96 PARADA antes do cargo: disco caiu para ~1 GB às 20h25 (cargo test do sistema-de-credito de outra sessão). Bump c04a8c45 já no origin main e na main (merge fb22baea); portões ok (tsc 0/0, vite 0, guarda, gitleaks 34 commits limpo); latest.json público ainda 0.5.95. RETOMAR com >= 8 GB: em C:\dev\labirinto-release `CARGO_BUILD_JOBS=4 node scripts/publicar-versao.cjs --publicar --com-google --notas C:/dev/labirinto/tmp/rel-0.5.96/notas-da-versao-0.5.96.md`, curl do latest.json, depois apagar target, rmdir das 3 junções ANTES de git worktree remove, git branch -D release/0.5.96. EM VOO na main, caminhos separados: (2) biblioteca no app (tmp/biblioteca-app/); (3) balanceador no app (tmp/balanceador-app/, CSS próprio, sem mundo.css); (4) sobras do alcance: invocada na Arena, Mesa acoplada sem mira no mapa, Bênção "Ninguém na área" (tmp/alcance-sobras/); (5) protótipo das características (docs/design/caracteristicas/, nunca tinha sido criado) -> mostrar ao dono antes de construir. (2)-(4) saem na 0.5.97.
