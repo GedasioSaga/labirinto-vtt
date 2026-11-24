@@ -1,3 +1,7 @@
+# 24/11 ~16h: OBJETOS NO APP, 0.5.99 PUBLICANDO
+
+Workflow wf_c24ccec9-2aa TERMINOU (49 agentes): 120 itens (74 objetos, 22 construções, 14 carimbos, 7 chãos, 3 paredes) registrados 4fc1b6d5 707a9af6, prova por cliques 51a01470 1818decb, golden grama-morta 8bd77e97. Auditoria: registro dos 120 provado; pendências do dono: fila de ~149 itens da ANALISE e 11 propostas (sistema novo); cortina de passagem não tapa a visão (só construção tapa); seletor de forma do nicho funerário e da pirâmide não ligado (usa a variante 0); chama do pilar com braseiro parada; traços de linha dos 96 provisórios. EM VOO: automacao-devops com testes finais (moveisMt5 do tapete vermelho, golden camadas e2e com tapete) + publicar 0.5.99.
+
 # 24/11 tarde: 0.5.98 PUBLICADA (tapete) + objetos ainda em voo
 
 0.5.98: base e6852352 (antes do glob de paredes puxar PNGs do L12), bump f40f774c no origin main, merge 5dc0735d na main; curl latest.json = 0.5.98; tsc 0/0, vite 0, guarda ok, gitleaks limpo; logs tmp/rel-0.5.98/. Fable PARADO por ordem do dono (memória feedback-fable-em-tudo): ajustes no script já trocados para designer-opus max. Dono: "transforma essa onda de ajustes na última, depois disso já integra" = ajustes L08-L12 em voo são os últimos; depois integrador -> auditoria -> testes -> 0.5.99. Ele gostou da maioria das folhas (docs/design/objetos-24-11/provas/); pedir quais refazer depois da integração. Limpeza de disco desta manhã: Temp, npm/npx, CrashDumps, chromium-1200, cargo registry/src, graphify-out de 27/10 a 20/11.
