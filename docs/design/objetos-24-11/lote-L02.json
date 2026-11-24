@@ -1,0 +1,185 @@
+{
+  "lote": "L02",
+  "titulo": "Masmorra: carcereiro e tortura",
+  "data": "2026-11-24",
+  "prova": "docs/design/objetos-24-11/provas/lote-L02.png",
+  "comoFoiFeitaAProva": "Folha montada com o mesmo código do app (montar do móvel, cenaEmTresQuartos, pintarCena; o carimbo por assarDesenho), cada item de cima e em 3/4 sobre pedra escura (#3c3b39), chão do app (#a8776a) e pedra clara (#b4ac9e), mais a 50% sobre terra e pedra clara. Painéis por item em docs/design/objetos/<arquivo>.png.",
+  "notasGerais": [
+    "Nada foi registrado: tipos.ts, pecasNovas.ts, gruposDoObjeto.ts, moveis/index.ts, tresQuartos.ts, icons.tsx, carimbos/novos/index.ts e afins ficam para o integrador.",
+    "Os ids de tipo sugeridos são o nome do arquivo (camelCase). Confira se não colidem com tipos já registrados.",
+    "Grupos existentes usados: 'temploEMasmorra' (Templo e masmorra) e 'salaDeTortura' (Sala de tortura), de gruposDoObjeto.ts.",
+    "Nenhum item emite luz (luzDoFogo.ts fica igual).",
+    "Tempos medidos no Chromium headless, uma geração por imagem, com outros agentes rodando ao lado (o relógio oscilou até 2x entre rodadas). De cima, a S=4, tudo ficou em até 40 ms. Na 3/4 a S=4, o pior é a grade de corredor (180 ms) e depois a jaula (91 ms): são as colunas altas da 3/4 (varrer) e o custo é da 3/4 derivada, não da sombra. Com S=2: grade 3/4 65 ms, jaula 3/4 37 ms.",
+    "Jaula e grade já declaram a sombra de cada barra já arrastada (cápsula com z = 0) mais uma coluna de força 0 só para a altura da 3/4: o motor pula a passada de força 0. Isso cortou a geração de cima da jaula de 99 para 40 ms e a da grade de 96 para 27 ms (S=4), sem mudar o desenho."
+  ],
+  "itens": [
+    {
+      "numero": 11,
+      "nome": "Mesa do carcereiro",
+      "versaoDe": "escrivaninha",
+      "grupoSugerido": "temploEMasmorra",
+      "tamanhoEmCasas": [1.5, 0.8],
+      "arquivo": "client/src/texturas/meioTermo/moveis/mesaDoCarcereiro.ts",
+      "exportacao": "montarMesaDoCarcereiro",
+      "tipoSugerido": "mesaDoCarcereiro",
+      "lugaresDeMaterial": [
+        { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "carvalho" },
+        { "lugar": "ferragens", "opcoes": "METAIS", "padrao": "ferro" }
+      ],
+      "coresFixas": "Livro aberto com capa de couro, folhas de pergaminho com linhas de escrita e fita vinho; tinteiro de barro escuro com pena e pingo de tinta; molho de 3 chaves (uma de latão fixa).",
+      "perfil3x4": "DERIVADO (o tampo é sombra solta a 0,5 G e as 4 pernas, colunas)",
+      "paraOIntegrador": "Mesa de trabalho do carcereiro: o livro de registro, o tinteiro e o molho de chaves ficam em cima do tampo e sobem com ele na 3/4. Escala pelo menor lado (k = min(w, h) / 0,8 G): esticada, o tampo cresce e os objetos de cima ficam do mesmo tamanho. Ícone sugerido: mesa com livro aberto."
+    },
+    {
+      "numero": 12,
+      "nome": "Quadro de chaves",
+      "versaoDe": null,
+      "grupoSugerido": "temploEMasmorra",
+      "tamanhoEmCasas": [1, 0.6],
+      "arquivo": "client/src/texturas/meioTermo/moveis/quadroDeChaves.ts",
+      "exportacao": "montarQuadroDeChaves",
+      "tipoSugerido": "quadroDeChaves",
+      "lugaresDeMaterial": [
+        { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "carvalho" },
+        { "lugar": "chaves", "opcoes": "METAIS", "padrao": "ferro" }
+      ],
+      "coresFixas": "Plaquinhas de latão com o número de cada gancho; uma chave de latão no último gancho; um gancho vazio de propósito (chave levada).",
+      "perfil3x4": "DERIVADO sem estrutura: é desenho DE FRENTE, de parede, sem sombra com altura; a 3/4 sai igual à vista de cima",
+      "paraOIntegrador": "Objeto de parede, encostado no lado de cima da pegada (a tábua vai de -0,88 hh a -0,26 hh). A sombra na parede é feita com peças translúcidas, não com cena.sombras. Se o teste da 3/4 exigir que todo móvel suba, ponha este tipo na lista dos rentes/de parede de tresQuartos.test.ts. Ícone sugerido: chave."
+    },
+    {
+      "numero": 13,
+      "nome": "Jaula de chão",
+      "versaoDe": "gaiolaSuspensa",
+      "grupoSugerido": "temploEMasmorra",
+      "tamanhoEmCasas": [1, 1],
+      "arquivo": "client/src/texturas/meioTermo/moveis/jaulaDeChao.ts",
+      "exportacao": "montarJaulaDeChao",
+      "exportacoesExtras": ["ESPESSURA_DA_JAULA_DE_CHAO"],
+      "tipoSugerido": "jaulaDeChao",
+      "lugaresDeMaterial": [
+        { "lugar": "grade", "opcoes": "METAIS", "padrao": "ferro" }
+      ],
+      "coresFixas": "Dentro: palha nos cantos, tigela de mingau, um preso agachado (trapo, pele, cabelo) e a corrente do tornozelo até o canto. Porta com 2 dobradiças e cadeado no lado de baixo.",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_JAULA_DE_CHAO } (altura 0,58 G; barras e postes são colunas, o teto é tampo solto)",
+      "paraOIntegrador": "As peças do chão (preso, palha, tigela, corrente) usam comMeioEm no meio de um vão entre barras, para ficarem no chão na 3/4. cena.corDoPiso é cinza-ferro, para a beirada das barras na 3/4 não sair marrom. Bloqueia a passagem mas não a visão: se houver ehMovelQueBarra, a jaula entra nele. Ícone sugerido: gaiola quadrada."
+    },
+    {
+      "numero": 14,
+      "nome": "Ralo de masmorra",
+      "versaoDe": "bueiro",
+      "grupoSugerido": "salaDeTortura",
+      "tamanhoEmCasas": [1, 1],
+      "arquivo": "client/src/texturas/meioTermo/moveis/raloDeMasmorra.ts",
+      "exportacao": "montarRaloDeMasmorra",
+      "tipoSugerido": "raloDeMasmorra",
+      "lugaresDeMaterial": [
+        { "lugar": "grade", "opcoes": "METAIS", "padrao": "ferro" }
+      ],
+      "coresFixas": "Buraco escuro com água parada e reflexo; mancha úmida da pedra em volta; rastro molhado com sangue velho diluído vindo do canto de cima à esquerda; ferrugem no quadro.",
+      "perfil3x4": "DERIVADO, rente ao chão (nenhuma sombra com altura): a 3/4 sai igual à vista de cima, como o bueiro",
+      "paraOIntegrador": "Objeto de chão: entra na mesma exceção de rente do bueiro (ehMovelDoChao ou equivalente), não bloqueia passagem nem visão. Esticado, a grade fica quadrada no meio, do tamanho do menor lado; só a mancha úmida estica. Ícone sugerido: quadrado quadriculado."
+    },
+    {
+      "numero": 15,
+      "nome": "Baú de ferro",
+      "versaoDe": "bau",
+      "grupoSugerido": "temploEMasmorra",
+      "tamanhoEmCasas": [1, 0.6],
+      "arquivo": "client/src/texturas/meioTermo/moveis/bauDeFerro.ts",
+      "exportacao": "montarBauDeFerro",
+      "tipoSugerido": "bauDeFerro",
+      "lugaresDeMaterial": [
+        { "lugar": "chapa", "opcoes": "METAIS", "padrao": "ferro" },
+        { "lugar": "ferragens", "opcoes": "METAIS", "padrao": "ferro" }
+      ],
+      "coresFixas": "Ferrugem em 4 manchas pequenas; cadeado e argolas seguem o material das ferragens.",
+      "perfil3x4": "DERIVADO (o corpo é coluna de 0,46 G; a beira da tampa, as cintas e as cantoneiras da frente são estruturas de força 0 só para a 3/4)",
+      "paraOIntegrador": "Tampa de chapa batida com marteladas, cintas rebitadas, cantoneiras, alças de argola nos lados e cadeado na frente. Na 3/4 a frente mostra a beira da tampa e as cintas descendo até o chão. cena.corDoPiso é cinza-ferro. Ícone sugerido: baú com cintas."
+    },
+    {
+      "numero": 16,
+      "nome": "Tábua de pregos",
+      "versaoDe": null,
+      "grupoSugerido": "salaDeTortura",
+      "tamanhoEmCasas": [2, 0.75],
+      "arquivo": "client/src/texturas/meioTermo/moveis/tabuaDePregos.ts",
+      "exportacao": "montarTabuaDePregos",
+      "exportacoesExtras": ["ESPESSURA_DA_TABUA_DE_PREGOS"],
+      "tipoSugerido": "tabuaDePregos",
+      "lugaresDeMaterial": [
+        { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "nogueira" },
+        { "lugar": "ferragens", "opcoes": "METAIS", "padrao": "ferro" }
+      ],
+      "coresFixas": "Pregos em fileiras desencontradas (5% faltando, alguns enferrujados); manchas de sangue velho na prancha e pingos no chão.",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_TABUA_DE_PREGOS } (prancha solta a 0,34 G sobre 2 cavaletes, que são colunas)",
+      "paraOIntegrador": "Prancha deitada sobre cavaletes, com 4 argolas de prender pulsos e tornozelos nas pontas. Esticada, ganha fileiras de pregos, não pregos maiores. Ícone sugerido: prancha com pontos."
+    },
+    {
+      "numero": 17,
+      "nome": "Cepo do carrasco",
+      "versaoDe": "tocoComMachado",
+      "grupoSugerido": "salaDeTortura",
+      "tamanhoEmCasas": [1, 1],
+      "arquivo": "client/src/texturas/meioTermo/moveis/cepoDoCarrasco.ts",
+      "exportacao": "montarCepoDoCarrasco",
+      "tipoSugerido": "cepoDoCarrasco",
+      "lugaresDeMaterial": [
+        { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "nogueira" }
+      ],
+      "coresFixas": "Machado deitado no chão: cabo de madeira com empunhadura de couro, lâmina de barba com ferrugem e fio polido; talhos e manchas de sangue no bloco e no chão; serragem.",
+      "perfil3x4": "DERIVADO (o bloco é coluna de 0,42 G; o machado fica no chão com comMeioEm)",
+      "paraOIntegrador": "Bloco baixo com a cava do pescoço no meio do lado comprido. O machado é fixo (não segue o material). Ícone sugerido: bloco com machado."
+    },
+    {
+      "numero": 18,
+      "nome": "Poste de açoite",
+      "versaoDe": null,
+      "grupoSugerido": "salaDeTortura",
+      "tamanhoEmCasas": [1, 1],
+      "arquivo": "client/src/texturas/meioTermo/moveis/posteDeAcoite.ts",
+      "exportacao": "montarPosteDeAcoite",
+      "tipoSugerido": "posteDeAcoite",
+      "lugaresDeMaterial": [
+        { "lugar": "madeira", "opcoes": "MADEIRAS", "padrao": "carvalho" },
+        { "lugar": "ferragens", "opcoes": "METAIS", "padrao": "ferro" }
+      ],
+      "coresFixas": "Corda clara com nó e fiapos; sangue escorrido no tronco; terra pisada com pedras e pingos; açoite de couro no chão.",
+      "perfil3x4": "EM_PE ({ modo: 'em-pe' }): é desenho DE FRENTE; a 3/4 só soma a elipse de sombra embaixo",
+      "paraOIntegrador": "Tronco torto de pé, com grampo e argola de ferro e a corda pendurada. Ícone sugerido: poste com argola."
+    },
+    {
+      "numero": 19,
+      "nome": "Grade de corredor",
+      "versaoDe": "portaoComGradeLevadica (só as barras, sem torre)",
+      "grupoSugerido": "temploEMasmorra",
+      "tamanhoEmCasas": [2, 0.25],
+      "arquivo": "client/src/texturas/meioTermo/moveis/gradeDeCorredor.ts",
+      "exportacao": "montarGradeDeCorredor",
+      "exportacoesExtras": ["ESPESSURA_DA_GRADE_DE_CORREDOR"],
+      "tipoSugerido": "gradeDeCorredor",
+      "lugaresDeMaterial": [
+        { "lugar": "grade", "opcoes": "METAIS", "padrao": "ferro" }
+      ],
+      "coresFixas": "Sulco escuro no chão onde as barras assentam.",
+      "perfil3x4": "{ modo: 'derivado', espessura: ESPESSURA_DA_GRADE_DE_CORREDOR } (altura 1,45 G; barras e batentes são colunas, a travessa é tampo solto)",
+      "paraOIntegrador": "Barra a passagem mas não tapa a visão: entra em ehMovelQueBarra (ou equivalente), nunca no que bloqueia a linha de visão. De cima, o que diz 'grade' é a travessa com as pontas de lança e a sombra em faixas no chão. Esticada, ganha barras (uma a cada 7 px), nunca barras mais grossas. É o item mais caro na 3/4 (65 ms a S=2, 180 ms a S=4). Ícone sugerido: barras verticais."
+    },
+    {
+      "numero": 20,
+      "nome": "Sangue espalhado",
+      "versaoDe": "sangueNoChao (carimbo)",
+      "grupoSugerido": "carimbo",
+      "tamanhoEmCasas": null,
+      "arquivo": "client/src/carimbos/novos/respingosDeSangue.ts",
+      "exportacao": "carimbo",
+      "exportacoesExtras": ["paleta"],
+      "idDoCarimbo": "respingos-de-sangue",
+      "tamanhoDoCarimbo": 10,
+      "sombra": "nenhuma",
+      "cores": "Vinho velho, nunca vermelho vivo: seco [118,72,60], beira [110,52,46], miolo [84,34,32], coágulo [64,27,27], gota [96,40,37], reflexo [212,194,188].",
+      "variacoes": "A semente escolhe: s % 4 = 0 poça com respingos em volta, 1 rastro arrastado, 2 respingos com o baque, 3 trilha de gotas; s >= 4 soma um extra (trilha, respingos, poça ou rastro).",
+      "paraOIntegrador": "Registrar em carimbos/novos/index.ts (import de carimbo e paleta, CARIMBOS_NOVOS e PALETA_DOS_NOVOS). Se o pacote-animacoes.cjs tiver a lista de ids reservados dos carimbos embutidos, somar 'respingos-de-sangue'. Desenho de chão achatado (ACHATA 0,55), tudo preso dentro do raio 0,5 em qualquer giro."
+    }
+  ]
+}
