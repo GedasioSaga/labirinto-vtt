@@ -1,3 +1,7 @@
+# 24/11 ~16h40: 0.5.99 PUBLICADA (120 peças dos mapas)
+
+Bump d79e30a8 (origin main = main); curl latest.json = 0.5.99; tsc 0/0, vite 0, guarda ok, gitleaks limpo; testes 1686 (2 timeouts do PropertiesPanel com o catálogo maior -> 30 s; moveisMt5 do tapete era teste velho, ca8eb048). Golden e2e task-camadas-golden 18/19 vermelho (snapshots de 27/10; etiquetas "Sala"/"Cozinha" sumiram?) -> EM VOO debugador investigando. Logs tmp/rel-0.5.99/.
+
 # 24/11 ~16h: OBJETOS NO APP, 0.5.99 PUBLICANDO
 
 Workflow wf_c24ccec9-2aa TERMINOU (49 agentes): 120 itens (74 objetos, 22 construções, 14 carimbos, 7 chãos, 3 paredes) registrados 4fc1b6d5 707a9af6, prova por cliques 51a01470 1818decb, golden grama-morta 8bd77e97. Auditoria: registro dos 120 provado; pendências do dono: fila de ~149 itens da ANALISE e 11 propostas (sistema novo); cortina de passagem não tapa a visão (só construção tapa); seletor de forma do nicho funerário e da pirâmide não ligado (usa a variante 0); chama do pilar com braseiro parada; traços de linha dos 96 provisórios. EM VOO: automacao-devops com testes finais (moveisMt5 do tapete vermelho, golden camadas e2e com tapete) + publicar 0.5.99.
