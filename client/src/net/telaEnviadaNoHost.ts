@@ -124,6 +124,8 @@ export function contentOf(msg: SnapshotMessage): PlayerViewContent {
   // Caça 12/11 (O2): as portas por atravessar mudam a cada passo na cidade; nos extras, cada passo ia inteiro (~300 kB).
   // QUEDA DO ALCANCE (peça D das sombras): os olhares mudam a cada passo, como a visão; vão no patch junto dela.
   const tela: PlayerViewContent = { map: msg.map, vision: msg.vision, explored: msg.explored, ownTokens: msg.ownTokens, concealed: msg.concealed, porAtravessar: msg.porAtravessar ?? [], olhares: msg.olhares ?? [] }
+  // CEGUEIRA: as ondas andam com quem é sentido, a cada passo; vão no patch como os olhares. Sem onda, a tela é a de antes.
+  if (msg.ondas !== undefined) tela.ondas = msg.ondas
   // TERRENO ALTO: no patch, não nos extras — o passo de uma ficha do piso de baixo ia como a tela inteira, com as fotos.
   if (msg.alto !== undefined) tela.alto = msg.alto
   // MODO BATALHA (análise 18/11, 2.2): o caminho andado muda a cada passo em batalha; nos extras, cada passo ia como a tela inteira.
@@ -147,6 +149,7 @@ export function extrasOf(msg: SnapshotMessage): string {
   delete rest.concealed
   delete rest.porAtravessar
   delete rest.olhares
+  delete rest.ondas
   delete rest.alto
   delete rest.caminhos
   return JSON.stringify(rest)

@@ -88,6 +88,11 @@ export interface PlayerViewContent {
    */
   olhares?: OlharDaVisao[]
   /**
+   * CEGUEIRA (`snapshot.ondas`), ausente = nenhuma. Muda a cada passo de quem é sentido: viaja no patch, como os
+   * olhares. Só x/y; nunca id nem nome.
+   */
+  ondas?: RegionPoint[]
+  /**
    * TERRENO ALTO (`snapshot.alto`), ausente = nada de outro piso. Antes ia nos "extras": cada passo de uma ficha
    * do piso de baixo mandava a tela inteira, com as fotos das fichas. Agora viaja no patch (`PatchDoAlto`).
    */
@@ -128,6 +133,8 @@ export interface ViewPatch {
   porAtravessar?: string[]
   /** A lista inteira de agora; `[]` = nenhum olhar (vazia viaja, ausente = a mesma de antes). */
   olhares?: OlharDaVisao[]
+  /** A lista inteira de agora; `[]` = nenhuma onda (vazia viaja, ausente = a mesma de antes). */
+  ondas?: RegionPoint[]
   /** Ausente = o mesmo terreno alto de antes. */
   alto?: PatchDoAlto
   /** O caminho andado inteiro de agora; `null` = nenhum (ausente = o mesmo de antes). */
@@ -552,6 +559,8 @@ export function diffView(prev: PlayerViewContent, next: PlayerViewContent): View
   if (!sameValue(prev.porAtravessar ?? [], porAtravessar)) patch.porAtravessar = porAtravessar
   const olhares = next.olhares ?? []
   if (!sameValue(prev.olhares ?? [], olhares)) patch.olhares = olhares
+  const ondas = next.ondas ?? []
+  if (!sameValue(prev.ondas ?? [], ondas)) patch.ondas = ondas
   const alto = diffAlto(prev.alto, next.alto)
   if (alto !== undefined) patch.alto = alto
   const caminhos = next.caminhos ?? null
@@ -641,6 +650,8 @@ export function applyViewPatch(prev: PlayerViewContent, patch: ViewPatch): Playe
   if (porAtravessar !== undefined) tela.porAtravessar = porAtravessar
   const olhares = patch.olhares ?? prev.olhares
   if (olhares !== undefined) tela.olhares = olhares
+  const ondas = patch.ondas ?? prev.ondas
+  if (ondas !== undefined) tela.ondas = ondas
   const alto = patch.alto === undefined ? prev.alto : applyAltoPatch(prev.alto, patch.alto)
   if (alto === null) return null
   if (alto !== undefined) tela.alto = alto
@@ -659,6 +670,7 @@ export function isEmptyViewPatch(patch: ViewPatch): boolean {
     patch.concealed === undefined &&
     patch.porAtravessar === undefined &&
     patch.olhares === undefined &&
+    patch.ondas === undefined &&
     patch.alto === undefined &&
     patch.caminhos === undefined
   )

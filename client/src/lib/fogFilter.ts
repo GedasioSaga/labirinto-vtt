@@ -165,6 +165,31 @@ function periodoDoRaio(raio: VisionRadius): Periodo | undefined {
 }
 
 /**
+ * CEGUEIRA (característica da ficha, protótipo aprovado em 23/11/2026): as
+ * fichas cegas viajam no raio, como o período, porque todo recorte do host já
+ * o recebe (`tokenRadiusIn`). O recorte divide o raio delas por 2 (`radiusOf`)
+ * e manda como onda quem está até o raio normal e não saiu (`PlayerMapView.ondas`).
+ */
+export interface MarcaDaCegueira {
+  readonly cegas: ReadonlySet<string>
+}
+
+/** Marca no raio as fichas cegas. Muda e devolve a própria função: só para o raio recém-montado. */
+export function comCegueira<F extends (tokenId: string) => number>(raio: F, cegas: ReadonlySet<string>): F & MarcaDaCegueira {
+  return Object.assign(raio, { cegas })
+}
+
+/** As fichas cegas marcadas no raio; sem marca (ou marca torta), nenhuma. */
+const NENHUMA_CEGA: ReadonlySet<string> = new Set()
+
+function cegasDoRaio(raio: VisionRadius): ReadonlySet<string> {
+  if (typeof raio !== 'function' || !('cegas' in raio) || !(raio.cegas instanceof Set)) return NENHUMA_CEGA
+  const cegas = new Set<string>()
+  for (const id of raio.cegas.values()) if (typeof id === 'string') cegas.add(id)
+  return cegas
+}
+
+/**
  * LUZ QUE ACENDE SOZINHA (Luz L3): o mapa só com as luzes acesas no período
  * da cena do grupo (`luzAcesaNoPeriodo`). Vai ANTES de toda regra: a luz
  * apagada no período não ilumina, não revela ficha, não sai nem como ponto
@@ -351,6 +376,14 @@ export interface PlayerMapView {
    * ficha dele com anel de olho. SAI pela rede (`snapshot.olhares`).
    */
   olhares?: OlharDaVisao[]
+  /**
+   * CEGUEIRA (característica da ficha): o centro de cada ficha que um olho
+   * cego dele SENTE e não vê — até o raio normal do olho, de centro a centro,
+   * atrás de parede inclusive. Só a posição, arredondada, em ordem de posição
+   * e sem repetida: nunca id, nome, retrato, tamanho ou cor. Ausente = nenhum
+   * olho cego, ou ninguém na faixa. SAI pela rede (`snapshot.ondas`).
+   */
+  ondas?: RegionPoint[]
   /**
    * QUEM PODE OUVIR (auditoria de 16/11/2026): ids dos "?" com lista própria
    * que passaram por TODA regra do pino ("Quem vê", oculto, secreto, camada,
@@ -2883,6 +2916,12 @@ function recorteDoGrupo(
     }
   }
   const owned: ReadonlySet<string> = new Set(radiusByToken.keys())
+  // CEGUEIRA: as fichas cegas deste recorte (marca no raio de quem as segura; `comCegueira`).
+  const cegas = new Set<string>()
+  for (const viewer of viewers) {
+    const marcadas = cegasDoRaio(viewer.visionRadius)
+    for (const id of viewer.tokenIds) if (marcadas.has(id)) cegas.add(id)
+  }
   // NOITE NA CENA: o grupo é de uma cena só, então um raio da noite vale para todos.
   const noite = viewers.some((viewer) => ehRaioDaNoite(viewer.visionRadius))
   // Acordo só vale para ficha que este recorte segura: acordo de outro nunca entra nele.
@@ -2998,9 +3037,12 @@ function recorteDoGrupo(
   // está lá, o 0 nunca é usado), trocado pelo da Sala mais de dentro com "Raio
   // de visão aqui" (`roomVisionRadiusAt`) e, por cima, a ZONA DE PERIGO: dentro
   // da fumaça o raio cai para o teto dela (`visionRadiusAt`, nunca aumenta).
+  // CEGUEIRA: o raio NORMAL (o do dono ou o da Sala) é até onde a ficha cega sente;
+  // ela vê a metade dele, e a fumaça ainda corta por cima.
+  const raioNormalDe = (token: Token): number => roomVisionRadiusAt({ x: token.x, y: token.y }, radiusRooms, radiusByToken.get(token.id) ?? 0)
   const radiusOf = (token: Token): number => {
-    const at = { x: token.x, y: token.y }
-    return visionRadiusAt(map, at, roomVisionRadiusAt(at, radiusRooms, radiusByToken.get(token.id) ?? 0))
+    const normal = raioNormalDe(token)
+    return visionRadiusAt(map, { x: token.x, y: token.y }, cegas.has(token.id) ? normal / 2 : normal)
   }
   /**
    * PORTA SECRETA vira parede comum ANTES de qualquer outra regra: segura a
@@ -4712,6 +4754,23 @@ function recorteDoGrupo(
   // que este recorte entrega.
   const mapTokenIds = new Set(map.tokens.map((t) => t.id))
   const deliveredTokenIds = new Set(playerTokens.map((t) => t.id))
+  // Sem olho cego (o caso de quase toda mesa) nada mais é calculado.
+  const olhosCegos = olhoDeCima || cegas.size === 0 ? [] : ownTokens.filter((t) => cegas.has(t.id))
+  const ondas =
+    olhosCegos.length === 0
+      ? []
+      : ondasDosOlhosCegos(
+          olhosCegos,
+          raioNormalDe,
+          // Fora da onda: o que o mestre esconde (escondida, oculta, levada por outro piso,
+          // sala secreta, zona oculta) e quem já saiu no recorte. Parede e teto não param a onda.
+          layerTokens.filter((t) => {
+            if (t.hidden || owned.has(t.id) || deliveredTokenIds.has(t.id)) return false
+            if (secretFromPlayer(t) || levadaPorOutroPiso(t)) return false
+            const centro = { x: t.x, y: t.y }
+            return !inSecretRoom(centro) && !hiddenByZone(centro)
+          }),
+        )
   const watchable = watchTargets ?? owned
   const seenTargets = new Set(playerTokens.filter((t) => watchable.has(t.id)).map((t) => t.id))
   const alerts =
@@ -5624,8 +5683,31 @@ function recorteDoGrupo(
     plan,
     portasPorAtravessar,
     ...(olhares.length > 0 ? { olhares } : {}),
+    ...(ondas.length > 0 ? { ondas } : {}),
     ...(perguntasCaladas.length > 0 ? { perguntasCaladas } : {}),
   }
+}
+
+/**
+ * CEGUEIRA: as ondas que os olhos cegos sentem — o centro de cada candidata
+ * até o raio normal de algum olho, de centro a centro (a parede não para a
+ * onda). Só a posição arredondada, sem repetida, em ordem de posição (y, depois
+ * x): a ordem das fichas no mapa não pode ir junto.
+ */
+function ondasDosOlhosCegos(olhos: readonly Token[], raioNormalDe: (olho: Token) => number, candidatas: readonly Token[]): RegionPoint[] {
+  if (olhos.length === 0) return []
+  const alcances = olhos.map((olho) => ({ x: olho.x, y: olho.y, r2: raioNormalDe(olho) ** 2 }))
+  const vistas = new Set<string>()
+  const ondas: RegionPoint[] = []
+  for (const ficha of candidatas) {
+    if (!alcances.some((o) => (o.x - ficha.x) ** 2 + (o.y - ficha.y) ** 2 <= o.r2)) continue
+    const onda = { x: Math.round(ficha.x), y: Math.round(ficha.y) }
+    const chave = `${onda.x},${onda.y}`
+    if (vistas.has(chave)) continue
+    vistas.add(chave)
+    ondas.push(onda)
+  }
+  return ondas.sort((a, b) => a.y - b.y || a.x - b.x)
 }
 
 /**

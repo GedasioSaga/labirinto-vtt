@@ -81,6 +81,7 @@ import {
   pisoDoGrupo,
   pisoDoJogador,
   playerEyeTokens,
+  comCegueira,
   raioDoPeriodo,
   roomClueForPlayer,
   salasSecretasPara,
@@ -305,6 +306,7 @@ import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, CHAT_MASTER_NAME, CHAT_TEXT_MAX_
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 import { personagensDoNome } from '../lib/livros/jogadores'
+import { fichasCegasDoMapa, personagensCegos } from '../lib/cegueira/fichasCegas'
 import { novoPersonagem, paraOFio, type Personagem } from '../lib/personagem'
 import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
 import { formasVisiveisDoMapa, type FormasVisiveis } from '../lib/mudarFicha'
@@ -2937,8 +2939,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const tokenRadiusIn = (playerId: string, map: MapData): ((tokenId: string) => number) => {
     const raio = (tokenId: string): number => radiusIn(loans.get(tokenId)?.ownerId ?? playerId, map)
     const periodo = sessionPeriod()
-    return periodo === null ? raio : raioDoPeriodo(raio, periodoDaCena(map, periodo))
+    const comPeriodo = periodo === null ? raio : raioDoPeriodo(raio, periodoDaCena(map, periodo))
+    // CEGUEIRA: as fichas cegas vão marcadas no raio; o recorte vê a metade e manda as ondas (`comCegueira`).
+    const cegas = fichasCegasDoMapa(map, cegosDoMundo)
+    return cegas.size === 0 ? comPeriodo : comCegueira(comPeriodo, cegas)
   }
+  /**
+   * CEGUEIRA: os personagens cegos do último mundo recortado. Atualiza a cada
+   * snapshot (`snapshotFor`), que é por onde a mudança da ficha chega à mesa;
+   * os recortes de porta e item entre dois snapshots usam o mesmo mundo.
+   */
+  let cegosDoMundo: ReadonlySet<string> = new Set()
 
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
@@ -3649,6 +3660,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A cena dona deste mapa (para "Revelar planta para…", o espiar de porta e a
     // cabine); sem cena correspondente no mundo (não deveria acontecer), uma sem segredos.
     const scene = allScenes(world).find((s) => s.map.id === map.id) ?? { sceneId: null, name: map.name, map }
+    // CEGUEIRA: quem é cego vem da ficha DESTE mundo, antes de qualquer recorte (`tokenRadiusIn`).
+    cegosDoMundo = personagensCegos(world.rpg?.personagens ?? [])
     const memory = memoryFor(playerId, map, world)
     const exp = memory.exp
     // FORA DO CHÃO (N6): de "Livre" para "Bloqueado", o que ele lembra fora do Chão sai antes do recorte.
@@ -3858,6 +3871,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (view.glimpses.length > 0) base.glimpses = view.glimpses
     // QUEDA DO ALCANCE (peça D das sombras): o olhar das fichas DELE; sem ficha com anel de olho, o campo nem sai.
     if (view.olhares !== undefined) base.olhares = view.olhares
+    // CEGUEIRA: só a posição de quem o olho cego sente; sem onda, o campo nem sai.
+    if (view.ondas !== undefined) base.ondas = view.ondas
     // ENCONTRO MARCADO: sem ficha esperando, o campo nem vai: o snapshot sai idêntico ao de antes da feature.
     if (waiting.length > 0) base.waiting = waiting
     // Sem ficha em outra cena o campo nem sai: o snapshot fica igual ao de sempre.
