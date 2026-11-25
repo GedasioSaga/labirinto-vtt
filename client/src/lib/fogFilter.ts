@@ -550,9 +550,15 @@ interface ActiveZone extends BoxedRing {
   unveiled: ReadonlySet<string>
 }
 
-/** Sala "Oculta para jogadores": região secret que é Sala. */
+/**
+ * Área "Oculta para jogadores": TODA região secret, Sala ou região comum
+ * (levantamento de 25/11/2026, Nº 7). A região comum marcada escondia só o
+ * desenho, e as fichas, objetos, chão e luzes de dentro iam ao jogador; agora
+ * segue o caminho da Sala secreta inteiro (some com o que tem dentro e abre
+ * para quem entra ou já descobriu).
+ */
 function secretRoomsOf(map: MapData): MapData['regions'] {
-  return map.regions.filter((r) => r.secret && r.room !== undefined)
+  return map.regions.filter((r) => r.secret === true)
 }
 
 /** Todo vértice com coordenada finita e polígono com área: sem isso não dá para decidir nada. */
