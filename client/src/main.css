@@ -6802,6 +6802,26 @@ html.lb-arrastando-cena * {
   border-color: rgba(224, 164, 74, 0.28);
 }
 
+/* ----------------------------------------------- visão dos jogadores */
+
+/* "Visão dos jogadores" na barra de cima, com a mesa online aberta. Fora do
+   fluxo do `.lb-editor__top`, como o "Pausar NPCs", mas do lado do livro do
+   mestre: o chip da cena segue centrado e os dois botões nunca se encontram. */
+.lb-visao-jogadores {
+  position: absolute;
+  top: 0;
+  left: calc(var(--lb-layout-edge-gap) + var(--lb-livroesq-espaco, var(--lb-layout-livro-do-mestre)));
+  pointer-events: auto;
+  box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
+}
+
+/* Ligado: o mesmo latão do botão ligado da barra. */
+.lb-visao-jogadores[aria-pressed='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+  border-color: rgba(224, 164, 74, 0.28);
+}
+
 /* ------------------------------------------- macro por ponto da patrulha */
 
 /* "Esperando você no ponto N" + Seguir: o latão do que pede a mão do mestre. */

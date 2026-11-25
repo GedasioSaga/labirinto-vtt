@@ -53,6 +53,8 @@ import { useSignalStore } from './stores/signalStore'
 import { goToPointAction } from './stores/pointActionGo'
 import { useAwayTokensStore } from './stores/awayTokensStore'
 import { useDonosDasFichasStore } from './stores/donosDasFichasStore'
+import { useVisaoDosJogadoresStore } from './stores/visaoDosJogadoresStore'
+import { BotaoDaVisaoDosJogadores } from './components/BotaoDaVisaoDosJogadores'
 import { isContinente } from './lib/marcadorDeContinente'
 import { relevoLigado } from './lib/relevo'
 import { nomesDosLugaresLigados } from './lib/nomesDosLugares'
@@ -989,6 +991,10 @@ function App() {
   const hostBridgeRef = useRef<HostBridge | null>(null)
   // "Enviar para cena ›" (clique direito no token): a ficha de jogador viaja pela sala aberta.
   useEffect(() => ligarSalaAoEnvio(() => hostBridgeRef.current), [])
+  // VISÃO DOS JOGADORES: o anel do editor usa o raio que a sessão aplica a cada ficha; sem sala, nenhum.
+  useEffect(() => {
+    useVisaoDosJogadoresStore.getState().definirRaiosDaSessao((alvo) => hostBridgeRef.current?.tokenVisionRadii(alvo) ?? NO_OWNER_RADII)
+  }, [])
   // Fase 8 (o "Usar" fora da batalha): o aviso do uso vai ao chat Global pela sala aberta; sem sala, nada sai.
   useEffect(() => {
     ligarFalaNoChat((texto) => hostBridgeRef.current?.masterChatSend(texto) ?? false)
@@ -1085,6 +1091,8 @@ function App() {
           useAwayTokensStore.getState().setFromPlayers(players)
           // MAPA DE CONTINENTE: o canvas desenha a ficha de jogador como pino, na cor do dono.
           useDonosDasFichasStore.getState().setFromPlayers(players)
+          // VISÃO DOS JOGADORES: o ajudante "sem visão" não ganha anel no editor.
+          useVisaoDosJogadoresStore.getState().setFromPlayers(players)
         },
         onPinAudiencesChange: setPinAudiences,
         // SONS: linha nova no diário é ficha que trocou de cena na sessão, e toca a passagem.
@@ -1393,6 +1401,7 @@ function App() {
     setPausedScenes(new Set())
     useAwayTokensStore.getState().clear()
     useDonosDasFichasStore.getState().clear()
+    useVisaoDosJogadoresStore.getState().clear()
     useSignalStore.getState().clear()
     usePlayerLaserStore.getState().clear()
     useMedidasDosJogadoresStore.getState().clear()
@@ -3952,6 +3961,8 @@ function App() {
         {/* Com o livro da mesa aberto ele mora no alto da página Grupo (e no "Mais da sala"). No
             navegador puro, sem sala nem página Grupo, fica aqui também com o livro aberto. */}
         {(!rightOpen || sala === undefined) && npcsPauseButton()}
+        {/* VISÃO DOS JOGADORES: só com a mesa online aberta (fora dela ninguém é dono de ficha). */}
+        {room !== null && <BotaoDaVisaoDosJogadores />}
       </div>
 
       {/* BARRA DE FERRAMENTAS (fatia 6 do design consolidado): no pé do mapa, entre os dois livros. */}

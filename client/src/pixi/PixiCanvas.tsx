@@ -11,7 +11,7 @@ import { registrarNaSonda } from '../lib/sondaDeDesempenho'
 import { criarDesenhoSobPedido, type DesenhoSobPedido } from './desenhoSobPedido'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
-import type { Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
+import type { Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, TokenContract, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { ligarSinalDeGesto, SEM_ESCOLHA, useMapStore } from '../stores/mapStore'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
@@ -180,6 +180,10 @@ import { isLaserArmed, useLaserStore } from '../stores/laserStore'
 import { usePlayerLaserStore } from '../stores/playerLaserStore'
 import { useMedidasDosJogadoresStore } from '../stores/medidasDosJogadoresStore'
 import { createMedidasDosJogadoresRenderer } from './drawMedidasDosJogadores'
+import { useVisaoDosJogadoresStore, type RaiosDaSessao } from '../stores/visaoDosJogadoresStore'
+import { aneisDaVisao, type AnelDaVisao } from '../lib/visaoDosJogadores'
+import { personagensCegos } from '../lib/cegueira/fichasCegas'
+import { criarCamadaDaVisaoDosJogadores } from './drawVisaoDosJogadores'
 import { useNoiseStore } from '../stores/noiseStore'
 import { createNoiseGesture } from './noiseGesture'
 import { useContaGotasStore } from '../stores/contaGotasStore'
@@ -1951,6 +1955,67 @@ function PixiCanvasDoContexto({
         medidasDrawn = drawn
       }
       app.ticker.add(tickMedidasDosJogadores)
+
+      // VISÃO DOS JOGADORES (pedido do mestre de 25/11/2026): o anel do alcance de
+      // visão de cada ficha de jogador, abaixo das medidas e sem receber toque. O
+      // anel lê a posição da store, que o arrasto da ficha já atualiza no mesmo
+      // pointermove (`moveTokenLive`): acompanha sem um quadro de atraso. A conta
+      // refaz quando muda o mapa, o piso, a posse, os acordos ou os personagens,
+      // e de meio em meio segundo (hora da sessão, fator e raio do jogador mudam
+      // sem mexer no mapa); o desenho só refaz o que mudou
+      // (`drawVisaoDosJogadores.ts`). Desligada e apagada, o tique sai na hora.
+      const visaoDosJogadores = criarCamadaDaVisaoDosJogadores(app.stage, app.stage.getChildIndex(medidasLayer))
+      const RECONTA_DA_VISAO_MS = 500
+      let aneisDosJogadores: AnelDaVisao[] = []
+      let contaDaVisao: {
+        mapa: MapData
+        piso: number
+        posse: Readonly<Record<string, readonly string[]>>
+        acordos: ReadonlyMap<string, TokenContract>
+        personagens: ReturnType<typeof personagensAtivos>
+        raiosDaSessao: RaiosDaSessao
+        em: number
+      } | null = null
+      let visaoLigadaAntes: boolean | null = null
+      el.dataset.visaoDosJogadores = '0'
+      const tickVisaoDosJogadores = () => {
+        const agora = performance.now()
+        const visao = useVisaoDosJogadoresStore.getState()
+        if (visao.ligada !== visaoLigadaAntes) {
+          // A primeira vez (abertura do editor) e com movimento reduzido: sem fade.
+          visaoDosJogadores.ligar(visao.ligada, agora, visaoLigadaAntes === null || prefersReducedMotion())
+          visaoLigadaAntes = visao.ligada
+        }
+        if (!visaoDosJogadores.passo(agora)) return
+        const { map, pisoAtivo } = useMapStore.getState()
+        const posse = useDonosDasFichasStore.getState().posse
+        const personagens = personagensAtivos(useAdventureStore.getState())
+        const conta = contaDaVisao
+        if (
+          conta === null ||
+          conta.mapa !== map ||
+          conta.piso !== pisoAtivo ||
+          conta.posse !== posse ||
+          conta.acordos !== visao.acordos ||
+          conta.personagens !== personagens ||
+          conta.raiosDaSessao !== visao.raiosDaSessao ||
+          agora - conta.em >= RECONTA_DA_VISAO_MS
+        ) {
+          contaDaVisao = { mapa: map, piso: pisoAtivo, posse, acordos: visao.acordos, personagens, raiosDaSessao: visao.raiosDaSessao, em: agora }
+          aneisDosJogadores = aneisDaVisao({
+            mapa: map,
+            mapaDoPiso: mapaDoPiso(map, pisoAtivo),
+            posse,
+            acordos: visao.acordos,
+            raios: visao.raiosDaSessao(map),
+            cegos: personagensCegos(personagens),
+          })
+        }
+        visaoDosJogadores.acompanhar(world)
+        const aparecem = visaoDosJogadores.desenhar(aneisDosJogadores, map.grid, vistaDaCamera(camera, app.screen), camera.scale)
+        if (el.dataset.visaoDosJogadores !== String(aparecem)) el.dataset.visaoDosJogadores = String(aparecem)
+      }
+      app.ticker.add(tickVisaoDosJogadores)
       /** Último ponto do ponteiro sobre o canvas (px de mundo); `null` com o ponteiro fora dele. */
       let laserPointer: Point | null = null
       /** L apertado há menos de `LASER_KEY_TAP_MS`, ainda sem decidir entre atalho da Linha e laser. */
@@ -3547,6 +3612,8 @@ function PixiCanvasDoContexto({
           ...nosCriadosDasFaixas(pilha, ['telhadosContainer']),
           signalsLayer,
           laserLayer,
+          // VISÃO DOS JOGADORES: é a sessão de agora, não o mapa.
+          visaoDosJogadores.camada,
           // O relevo e as texturas do palco são os do mestre: na imagem entram os gerados à parte.
           texturas.camada,
           terreno.camada,

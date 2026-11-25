@@ -2153,6 +2153,30 @@ function roomVisionRadiusAt(point: RegionPoint, rooms: readonly RadiusRoom[], pl
 }
 
 /**
+ * VISÃO DOS JOGADORES no editor do mestre (pedido de 25/11/2026): o raio que a
+ * ficha olho enxerga AGORA, com as regras do `radiusOf` do recorte — a Sala
+ * mais de dentro com "Raio de visão aqui" troca o raio, a CEGUEIRA vê a metade
+ * e a ZONA DE PERIGO corta por cima (`visionRadiusAt`). `raioDoDono` é o que a
+ * sessão aplica à ficha (`HostSession.tokenVisionRadii`: cena, fator, período,
+ * a emprestada com o raio do dono). A Sala conta como para o jogador: a
+ * escondida pelo mestre, ou dentro de uma escondida, não muda o raio; a
+ * secreta só conta com a ficha dentro dela, que é quando ela abre para ele.
+ */
+export function raioDaFichaParaOMestre(map: MapData, token: Pick<Token, 'x' | 'y'>, raioDoDono: number, cega: boolean): number {
+  const ponto = { x: token.x, y: token.y }
+  const fechada = (r: Region): boolean => r.hidden === true || (r.secret === true && !strictlyInside(r.points, ponto))
+  const salas: RadiusRoom[] = []
+  for (const r of map.regions) {
+    const raio = roomVisionRadiusOf(r)
+    if (raio === null || !isUsablePolygon(r.points) || fechada(r)) continue
+    if (r.parentId !== undefined && ancestorsOf(map.regions, r.id).some(fechada)) continue
+    salas.push({ points: r.points, radius: raio, area: Math.abs(signedArea(r.points)) })
+  }
+  const normal = roomVisionRadiusAt(ponto, salas, raioDoDono)
+  return visionRadiusAt(map, ponto, cega ? normal / 2 : normal)
+}
+
+/**
  * Porta explorada que o jogador nunca viu: aparece fechada e destrancada, já
  * com a cor dela (COR DA PORTA) — a cor é aparência, igual de longe e de perto.
  */
