@@ -1,3 +1,15 @@
+# 25/11 ~12h20: 3 consertos prontos SEM push, esperando ok do dono para publicar 0.5.102
+
+## Estado atual
+- a22c9788 Tocha (lib/nuvem/caminho.ts; Worker lobby/nuvem TEM de sair junto). 26f963a7 anel de visão dos jogadores (botão "Visão dos jogadores", só mesa online). 312e4916 alcance da técnica segue a ficha (espelhoOP.ts, miraDaMesa.ts, MiraDoGolpe.tsx).
+- Abertos com o dono: publicar 0.5.102?; Mesa marcar sozinha quem está na área?; quadrado dourado (provável seleção do mestre, drawSelectionMarquee.ts:93); batedor explicando balas/munição em voo.
+
+## Critério de pronto
+latest.json = 0.5.102 com Worker publicado; Tocha acende no jogador sem aviso; anel aparece; grade azul segue o Hector.
+
+## Evidência
+tsc exit 0 em cada agente; nada rodado no app (regra do dono).
+
 # 25/11 11:45: 2 agentes EM VOO (Tocha barrada pelo Lobby + anel de visão dos jogadores)
 
 ## Objetivo
