@@ -898,6 +898,11 @@ function lerItemNovo(vagaId: string, valor: Json | undefined): Leitura {
 }
 
 function lerCampoDoItem(vagaId: string, campo: CampoDoItem, valor: Json | undefined): Leitura {
+  // ITEM QUE ILUMINA (25/11/2026): o leitor só guarda o "aceso" na vaga que tem luz (`readCarriedItem`),
+  // e a luz está na ficha, não na op — a vaga de teste abaixo não a tem e apagava o `true`, então o
+  // Acender do jogador era sempre recusado. Aqui só a forma (`true` ou nada); a vaga inteira, com a
+  // luz, o `aplicar` confere contra a ficha (`mudarCampoDoItem`): aceso em vaga sem luz continua fora.
+  if (campo === 'acesa') return valor === undefined || valor === true ? aceita({ regra: 'campoDoItem', vagaId, campo, valor }) : recusa('fora-do-esquema', FORA_DO_FORMATO)
   const lido = itemPeloLeitor({ id: 'leitura', nome: 'leitura', [campo]: valor })
   if (lido === null || !jsonIgual(lido[campo], valor)) return recusa('fora-do-esquema', FORA_DO_FORMATO)
   if (bytesDoJson(valor) > TETOS_DO_CAMINHO.itemBytes) return recusa('acima-do-teto', 'Item grande demais: máximo 4 KiB')
