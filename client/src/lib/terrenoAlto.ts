@@ -175,10 +175,11 @@ function cobreUmaOuOutra(
 /**
  * O TETO de quem está embaixo: o chão do piso de cima — peça de Chão, Sala,
  * região com fundo, desenho cheio (`coberturaDoPiso`) ou textura pintada
- * (`chaoPintadoDoPiso`). Sem a
- * textura, quem estava no 1º andar de um castelo pintado a Balde via as
- * fichas do 2º andar através do teto e da parede (bug de 25/11/2026).
- * Pergunta só pelo ponto de cada olho: a regra exata, sem meia casa.
+ * (`chaoPintadoDoPiso`). Sem a textura, quem estava no 1º andar de um
+ * castelo pintado a Balde via as fichas do 2º andar através do teto e da
+ * parede (bug de 25/11/2026). Pergunta só pelo ponto de cada olho: a regra
+ * exata, sem meia casa. Também é o teto que tira a chuva de baixo
+ * (`cobertasDoPisoDeCima`, `lib/abrigoDoAmbiente.ts`).
  */
 export function tetoDoPiso(map: Pick<MapData, 'floor' | 'regions' | 'texturas' | 'drawings'>): ((p: RegionPoint) => boolean) | null {
   return cobreUmaOuOutra(coberturaDoPiso(map), chaoPintadoDoPiso(map))
