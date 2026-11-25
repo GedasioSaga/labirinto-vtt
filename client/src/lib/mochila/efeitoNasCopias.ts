@@ -1,6 +1,6 @@
 import type { CarriedItem } from '../../types/map'
 import { efeitoParaDar, itemParaDar, requisitosParaDar, type ItemDoCatalogo } from '../acervoDeItens'
-import type { Personagem } from '../personagem'
+import type { CartaoDaFicha, Personagem } from '../personagem'
 
 /**
  * O EFEITO DO ITEM NUMA FONTE SÓ (F6 de docs/design/habilidades/ARMAS-FONTE-UNICA.md,
@@ -189,12 +189,41 @@ export function itensComOsDadosMudados(antes: readonly ItemDoCatalogo[], depois:
 export function fichaComOsDadosMudados(personagem: Personagem, mudados: readonly DadosMudados[]): Personagem {
   if (mudados.length === 0) return personagem
   const porId = new Map(mudados.map((mudado) => [mudado.itemId, mudado]))
-  return fichaComAsVagas(personagem, (vaga) => {
+  const comAsVagas = fichaComAsVagas(personagem, (vaga) => {
     const mudado = vaga.itemId === undefined ? undefined : porId.get(vaga.itemId)
     if (mudado === undefined) return vaga
     const intacta = (campo: DadoQueSegue): boolean => mesmoValor(vaga[campo], mudado.antes[campo]) && !mesmoValor(mudado.antes[campo], mudado.depois[campo])
     return vagaComOsDados(vaga, mudado.depois, (campo) => intacta(campo) || segueSempre(vaga, campo, mudado.depois))
   })
+  return fichaComAsFotosDosCartoes(comAsVagas, porId)
+}
+
+/** A foto nova do cartão ligado à coisa; `null` = fica a dele (escolhida à mão, ou a coisa não trocou de foto). */
+function fotoQueOCartaoSegue(cartao: CartaoDaFicha, porId: ReadonlyMap<string, DadosMudados>): string | null {
+  const mudado = cartao.itemId === undefined ? undefined : porId.get(cartao.itemId)
+  if (mudado === undefined || mudado.depois.imagem === undefined || mesmoValor(mudado.antes.imagem, mudado.depois.imagem)) return null
+  return (cartao.imagem ?? undefined) === mudado.antes.imagem ? mudado.depois.imagem : null
+}
+
+/**
+ * A FOTO DA ARMA (levantamento de 25/11/2026, nº 24): o cartão ligado à coisa (`itemId`, o da aba Armas) com a
+ * foto que o Acervo tinha (a cópia intacta) ou sem foto segue a foto nova, como a vaga. A foto que o mestre ou o
+ * jogador escolheu para o cartão fica, e a coisa que perdeu a foto não apaga a do cartão.
+ */
+function fichaComAsFotosDosCartoes(personagem: Personagem, porId: ReadonlyMap<string, DadosMudados>): Personagem {
+  let mudou = false
+  const abas = Object.fromEntries(
+    Object.entries(personagem.abas).map(([abaId, cartoes]) => [
+      abaId,
+      cartoes.map((cartao) => {
+        const foto = fotoQueOCartaoSegue(cartao, porId)
+        if (foto === null) return cartao
+        mudou = true
+        return { ...cartao, imagem: foto }
+      }),
+    ]),
+  )
+  return mudou ? { ...personagem, abas } : personagem
 }
 
 /** ABRIR A PASTA e COMEÇAR A BATALHA: as cópias com o efeito (`comAsCopiasQueSeguem`) e com foto, luz e munições do Acervo de agora. */
