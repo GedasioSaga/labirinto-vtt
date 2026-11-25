@@ -1,3 +1,20 @@
+# 25/11 ~13h: levantamento de mecânicas duplicadas PRONTO; consertos na main SEM push
+
+## Estado atual
+- docs/levantamento-mecanicas-duplicadas.md (15e97061): 33 achados + balas (Alta 7, Média 17, Baixa 9), 5 frentes A-E; fontes em tmp/levantamento-duplicadas/.
+- Commits sem push: a22c9788 Tocha (Worker junto), 26f963a7 anel de visão, 312e4916 alcance segue a ficha, f83e9951 imagem da arma na Biblioteca.
+- Decidido (PEDIDOS): balas = item na mochila, converter sozinho, dano automático + efeito lembrete, "Balas" = Munição. NÃO começado: espera o dono escolher a ordem das frentes.
+- Dono: publicar SÓ quando ele disser (memória publicar-so-quando-ele-disser). Aberto: Mesa marcar sozinha quem está na área?
+
+## Próximos passos
+Dono escolhe frentes do levantamento; construir a frente A (posse na mochila: balas, Kit Médico, arma) com plano e grilling.
+
+## Critério de pronto
+Cada frente: a fonte única decidida é a única lida e escrita; o sintoma da tabela some na mesa.
+
+## Evidência
+tsc exit 0 em cada agente; nada rodado no app (regra do dono).
+
 # 25/11 ~12h20: 3 consertos prontos SEM push, esperando ok do dono para publicar 0.5.102
 
 ## Estado atual
