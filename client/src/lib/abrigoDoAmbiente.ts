@@ -64,9 +64,15 @@ function faixa(x0: number, y0: number, x1: number, y1: number): RegionPoint[] {
  * alto (`tetoDoPiso`: peça de Chão, Sala, região com fundo, desenho cheio e
  * textura pintada). Chovia dentro do castelo feito de paredes e Balde, com o
  * andar de cima por cima. O centro de cada casa decide, e as casas seguidas de
- * uma linha viram uma faixa só. Sem chão em cima: nenhuma.
+ * uma linha viram uma faixa só. Sem chão em cima: nenhuma. `conhecida`: no
+ * recorte do jogador, só a casa que ele conhece entra (a forma do andar de cima
+ * que ele não viu não sai); o mestre vê tudo.
  */
-export function cobertasDoPisoDeCima(deCima: Pick<MapData, 'floor' | 'regions' | 'drawings' | 'texturas'>, cena: Pick<MapData, 'width' | 'height' | 'grid'>): RegionPoint[][] {
+export function cobertasDoPisoDeCima(
+  deCima: Pick<MapData, 'floor' | 'regions' | 'drawings' | 'texturas'>,
+  cena: Pick<MapData, 'width' | 'height' | 'grid'>,
+  conhecida: (ponto: RegionPoint) => boolean = () => true,
+): RegionPoint[][] {
   const teto = tetoDoPiso(deCima)
   const { width, height, grid } = cena
   if (teto === null || !(grid > 0)) return []
@@ -74,7 +80,8 @@ export function cobertasDoPisoDeCima(deCima: Pick<MapData, 'floor' | 'regions' |
   for (let row = 0; row < height; row += 1) {
     let inicio = -1
     for (let col = 0; col <= width; col += 1) {
-      const coberta = col < width && teto({ x: (col + 0.5) * grid, y: (row + 0.5) * grid })
+      const centro = { x: (col + 0.5) * grid, y: (row + 0.5) * grid }
+      const coberta = col < width && teto(centro) && conhecida(centro)
       if (coberta && inicio < 0) inicio = col
       if (!coberta && inicio >= 0) {
         faixas.push(faixa(inicio * grid, row * grid, col * grid, (row + 1) * grid))
@@ -91,23 +98,26 @@ export function cobertasDoPisoDeCima(deCima: Pick<MapData, 'floor' | 'regions' |
  * de `cobertasDoPisoDeCima`).
  */
 export function abrigoDoMestre(map: Pick<MapData, 'regions' | 'walls' | 'grid'>, cobertas: RegionPoint[][] = []): AbrigoDoAmbiente {
-  const secas = map.regions.filter(salaSecaDoMestre).map((r) => r.points)
-  const comCobertas = cobertas.length === 0 ? {} : { cobertas }
-  if (secas.length === 0) return cobertas.length === 0 ? SEM_ABRIGO : { ...SEM_ABRIGO, ...comCobertas }
-  return { secas, portas: portasAbertasDasSalas(map.walls, secas, map.grid), ...comCobertas }
+  return abrigoDasSalas(map.regions.filter(salaSecaDoMestre).map((r) => r.points), map, cobertas)
 }
 
 /**
  * O abrigo na tela do jogador, a partir do RECORTE: só as salas que o host pôs
  * em `ambienteSeco` (a casa de teto aberta para ele, o cômodo que ele já viu).
- * As portas são as que ele recebeu.
+ * As portas são as que ele recebeu. As faixas do piso de cima vêm prontas e
+ * já cortadas pelo host (`ambienteCoberto`), como no mestre.
  */
-export function abrigoDoJogador(recorte: Pick<MapData, 'regions' | 'walls' | 'grid' | 'ambienteSeco'>): AbrigoDoAmbiente {
+export function abrigoDoJogador(recorte: Pick<MapData, 'regions' | 'walls' | 'grid' | 'ambienteSeco' | 'ambienteCoberto'>): AbrigoDoAmbiente {
   const ids = new Set(recorte.ambienteSeco ?? [])
-  if (ids.size === 0) return SEM_ABRIGO
   const secas = recorte.regions.filter((r) => ids.has(r.id) && r.points.length >= 3).map((r) => r.points)
-  if (secas.length === 0) return SEM_ABRIGO
-  return { secas, portas: portasAbertasDasSalas(recorte.walls, secas, recorte.grid) }
+  return abrigoDasSalas(secas, recorte, recorte.ambienteCoberto ?? [])
+}
+
+/** O abrigo das salas secas (com as portas abertas delas) e das faixas cobertas; nada = `SEM_ABRIGO`. */
+function abrigoDasSalas(secas: RegionPoint[][], map: Pick<MapData, 'walls' | 'grid'>, cobertas: RegionPoint[][]): AbrigoDoAmbiente {
+  const comCobertas = cobertas.length === 0 ? {} : { cobertas }
+  if (secas.length === 0) return cobertas.length === 0 ? SEM_ABRIGO : { ...SEM_ABRIGO, ...comCobertas }
+  return { secas, portas: portasAbertasDasSalas(map.walls, secas, map.grid), ...comCobertas }
 }
 
 /** Uma chave curta do abrigo: igual = a máscara não precisa ser refeita. */

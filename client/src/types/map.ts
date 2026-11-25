@@ -3139,6 +3139,13 @@ export interface MapData {
    */
   ambienteSeco?: string[]
   /**
+   * SÓ NO RECORTE DO JOGADOR (`lib/fogFilter.ts`), nunca no arquivo: as faixas
+   * cobertas pelo chão do piso de cima (`cobertasDoPisoDeCima`), só nas casas
+   * que ele conhece: a forma do andar de cima que ele não viu não sai. Só o que
+   * cai (chuva, neve, folhas, cinzas) para nelas. Ausente = nenhuma.
+   */
+  ambienteCoberto?: RegionPoint[][]
+  /**
    * CLICAR PARA ANDAR (`lib/cliqueParaAndar.ts`): a chave do mestre nesta cena.
    * Ausente = LIGADA (mapa de antes abre e salva igual, sem linha de migração);
    * só `false` desliga, e aí o host recusa todo trecho de caminhada

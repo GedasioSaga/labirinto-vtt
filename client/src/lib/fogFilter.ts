@@ -77,7 +77,8 @@ import { DOOR_REACH_CELLS, distanceToWall, tokenRadiusOf, tokenReachesDoor } fro
 import { DARK_SIGHT_CELLS, darkVision, type Darkness } from './darkness'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof, roomIsComodo } from './roomOps'
-import { comPiso, ehPiso, mapaDoPiso, pisoDe } from './pisos'
+import { comPiso, editandoUmPiso, ehPiso, mapaDoPiso, pisoDe } from './pisos'
+import { cobertasDoPisoDeCima } from './abrigoDoAmbiente'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
 import { hazardRooms, hazardsOf, obscuringRoomRings, visionRadiusAt, type PlayerHazard } from './hazards'
@@ -2645,6 +2646,7 @@ const CHAVES_DO_RECORTE: Readonly<Record<keyof MapData, 'vai' | 'fica'>> = {
   ambientePintado: 'vai',
   aguas: 'vai',
   ambienteSeco: 'vai',
+  ambienteCoberto: 'vai',
   cliqueParaAndar: 'vai',
   alturaDosPisos: 'fica',
   ceuDasNuvens: 'vai',
@@ -5545,7 +5547,12 @@ function recorteDoGrupo(
   // aberta para ele, o cômodo que ele já viu). Sala que ele não recebeu nunca entra: o
   // seco dela desenharia a forma. Só com Ambiente ou neblina ligados; sempre presente,
   // para nunca vir pelo `...map`.
-  const recorte: MapData = { ...comCamadas, ambienteSeco: temAmbiente(map) || temNeblina(map) ? salasSecasDoRecorte(map.regions, comCamadas.regions, closedRoofIds) : undefined }
+  // Nº 26 do levantamento: o teto do piso de cima tapa a chuva também para ele, só nas casas que conhece.
+  const recorte: MapData = {
+    ...comCamadas,
+    ambienteSeco: temAmbiente(map) || temNeblina(map) ? salasSecasDoRecorte(map.regions, comCamadas.regions, closedRoofIds) : undefined,
+    ambienteCoberto: temAmbiente(map) && editandoUmPiso(mapaInteiro, 0) ? cobertasDoPisoDeCima(mapaDoPiso(mapaInteiro, pisoDoGrupo(mapaInteiro, viewers, loans) + 1), map, conhecidoSemASalaSecreta) : undefined,
+  }
 
   /**
    * O mesmo pedaço entra na VISÃO enviada. Sem isto o buraco no preto

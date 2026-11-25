@@ -34,14 +34,18 @@ export function juntarNeblinaEAmbiente(neblina: NeblinaRenderer, ambiente: Ambie
 }
 
 /** O último abrigo calculado: o recorte chega a cada passo de ficha, e salas e paredes quase nunca mudam. */
-const abrigoLembrado = new WeakMap<AmbienteRenderer, { regions: MapData['regions']; walls: MapData['walls']; seco: string; abrigo: AbrigoDoAmbiente }>()
+const abrigoLembrado = new WeakMap<
+  AmbienteRenderer,
+  { regions: MapData['regions']; walls: MapData['walls']; seco: string; coberto: MapData['ambienteCoberto']; abrigo: AbrigoDoAmbiente }
+>()
 
 function abrigoDoRecorte(ambiente: AmbienteRenderer, recorte: MapData): AbrigoDoAmbiente {
   const seco = (recorte.ambienteSeco ?? []).join(',')
+  const coberto = recorte.ambienteCoberto
   const lembrado = abrigoLembrado.get(ambiente)
-  if (lembrado !== undefined && lembrado.regions === recorte.regions && lembrado.walls === recorte.walls && lembrado.seco === seco) return lembrado.abrigo
+  if (lembrado !== undefined && lembrado.regions === recorte.regions && lembrado.walls === recorte.walls && lembrado.seco === seco && lembrado.coberto === coberto) return lembrado.abrigo
   const abrigo = abrigoDoJogador(recorte)
-  abrigoLembrado.set(ambiente, { regions: recorte.regions, walls: recorte.walls, seco, abrigo })
+  abrigoLembrado.set(ambiente, { regions: recorte.regions, walls: recorte.walls, seco, coberto, abrigo })
   return abrigo
 }
 
