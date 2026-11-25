@@ -1900,8 +1900,9 @@ export interface Token extends PlayerSecret, NoPiso, NaCamada {
   /**
    * MUDAR FICHA (`lib/mudarFicha.ts`): o id do cartão de transformação da
    * ficha de personagem ligada cuja imagem o token mostra FORA da batalha (na
-   * batalha, a forma ligada dela vence). Ausente = a imagem base. Id que a
-   * ficha ligada não tem mais (cartão apagado, outra ficha ligada) = a base.
+   * batalha, a forma ligada dela vence). Ausente, desligado ou id que a ficha
+   * ligada não tem mais (cartão apagado, outra ficha ligada) = a forma Ativa
+   * na ficha, se ela tem imagem, senão a base (`imagemDaFormaNoToken`).
    * NÃO atravessa para o jogador: ele recebe a imagem pronta em `fotoDaForma`.
    */
   formaVisivel?: string
