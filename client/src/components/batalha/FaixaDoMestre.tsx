@@ -44,9 +44,13 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
   const dialogo = useAbertoPelaCarta((state) => abertoNaCena(state, sceneKey, 'dialogo')?.dialogo ?? null)
 
   // Ficha apagada do mapa sai da ordem (e a vez que estava nela anda).
+  // Nº 3 do levantamento: a pastilha acesa (ou apagada) à mão no mapa vale como selo na hora: o Atordoado já trava a reação, sem esperar a vez andar.
   const ligada = cena !== undefined
   useEffect(() => {
-    if (ligada) useBatalhaStore.getState().normalizarCena(sceneKey, new Set(fichas.map((ficha) => ficha.id)))
+    if (!ligada) return
+    const batalha = useBatalhaStore.getState()
+    batalha.normalizarCena(sceneKey, new Set(fichas.map((ficha) => ficha.id)))
+    batalha.espelharPastilhas(sceneKey)
   }, [ligada, sceneKey, fichas])
 
   const turnos = cena?.turnos

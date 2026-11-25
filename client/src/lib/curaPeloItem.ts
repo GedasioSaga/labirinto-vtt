@@ -22,9 +22,11 @@ import { lerPrazo, tirarCondicaoDaFicha } from './prazoDaCondicao'
  *  - O livro do Dragon Ball fica como está: as condições da batalha dele
  *    (`CondicaoAtiva`) têm a regra própria do livro, e a cura daqui só mexe na
  *    pastilha e no prazo da ficha do mapa (`Token`).
- *  - O selo da batalha One Piece com o mesmo nome (`seguradas`) não sai: a
- *    Medicina "só cura" e deixa os debuffs. O prazo sai, a pastilha fica
- *    acesa enquanto o selo a segurar (como em `contarFimDaVez`).
+ *  - Na batalha One Piece o selo de mesmo nome sai JUNTO (levantamento das
+ *    mecânicas duplicadas, Nº 3, decisão do dono "a cura que tira Envenenado
+ *    tira o selo também"; `stores/batalha/golpe.ts`), e a pastilha com ele. O
+ *    `seguradas` (sai só o prazo, a pastilha fica enquanto o selo a segurar)
+ *    ficou de antes dessa decisão; a batalha não o passa mais.
  *
  * Puro: sem store, sem rede, sem Pixi.
  */

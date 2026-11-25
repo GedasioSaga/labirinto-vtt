@@ -207,7 +207,8 @@ export function contarSelos(selos: readonly SeloDaBatalha[], tokenIdQueSai: stri
   const ficam: SeloDaBatalha[] = []
   const marca = (selo: SeloDaBatalha, turnos: number): SeloDaBatalha => (cartaIdQueSai === undefined ? { ...selo, turnos, contadoNaRodada: rodada } : { ...selo, turnos, contadoNaRodada: rodada, contadoNaCarta: cartaIdQueSai })
   for (const selo of selos) {
-    if (selo.tokenId !== tokenIdQueSai || selo.turnos === null || jaContouNestaVez(selo, rodada, cartaIdQueSai)) {
+    // Nº 3 do levantamento: o espelho da pastilha não desconta; o prazo da ficha é o relógio dele (`espelhosDasPastilhas`).
+    if (selo.tokenId !== tokenIdQueSai || selo.turnos === null || selo.daPastilha === true || jaContouNestaVez(selo, rodada, cartaIdQueSai)) {
       ficam.push(selo)
       continue
     }
@@ -352,6 +353,8 @@ export function seloEditado(antes: SeloDaBatalha, pedido: SeloPedido): SeloDaBat
   const depois: SeloDaBatalha = { ...antes, nome: pedido.nome, turnos: pedido.turnos, total: pedido.turnos }
   delete depois.mods
   delete depois.natureza
+  // Nº 3 do levantamento: o espelho da pastilha editado na batalha passa a ser selo dela (os turnos digitados descontam como os de todo selo).
+  delete depois.daPastilha
   if (pedido.mods !== undefined && pedido.mods.length > 0) depois.mods = pedido.mods
   const natureza = antes.cartaoId !== undefined ? antes.natureza : naturezaDosMods(pedido.mods)
   if (natureza !== undefined && natureza !== 'condicao') depois.natureza = natureza

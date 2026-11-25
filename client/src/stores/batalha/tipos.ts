@@ -113,6 +113,12 @@ export interface BatalhaState {
   /** "Passar a vez" (pula carta caída, Q3). Com `esperado`, só passa se a vez ainda é aquela: clique duplo não passa duas. */
   passarVez: (sceneKey: string, autor?: AutorDaAcao, esperado?: VezEsperada) => boolean
   /**
+   * Nº 3 do levantamento das mecânicas duplicadas: põe em dia os selos espelho das pastilhas das fichas da
+   * ordem (`espelhosDasPastilhas`), sem linha no registro. A vez já chama sozinha (antes de andar e depois do
+   * prazo); quem vê a pastilha mudar no mapa pode chamar na hora. Cena sem batalha ou sem mapa: nada.
+   */
+  espelharPastilhas: (sceneKey: string) => void
+  /**
    * Conserto das fichas F1 (bug 1): por que o `agir` deste pedido seria
    * recusado agora (o texto curto da regra, `podeAgir`), ou `null`. Só lê.
    */

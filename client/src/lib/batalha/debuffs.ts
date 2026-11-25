@@ -56,7 +56,8 @@ export function debuffsDoToken(selos: readonly SeloDaBatalha[] | undefined, toke
  */
 export function debuffsDobrados(selos: readonly SeloDaBatalha[] | undefined, tokenId: string): { antes: SeloDaBatalha; depois: SeloDaBatalha }[] {
   return debuffsDoToken(selos, tokenId).flatMap((antes) => {
-    if (antes.turnos === null || antes.turnos <= 0) return []
+    // Nº 3 do levantamento: os turnos do espelho da pastilha são os do prazo da ficha (o espelho não conta): dobrar aqui não pegaria.
+    if (antes.turnos === null || antes.turnos <= 0 || antes.daPastilha === true) return []
     const turnos = antes.turnos * 2
     const depois: SeloDaBatalha = { ...antes, turnos, total: Math.max(antes.total ?? 0, turnos) }
     return [{ antes, depois }]

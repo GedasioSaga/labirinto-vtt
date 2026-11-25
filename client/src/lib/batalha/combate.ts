@@ -913,6 +913,13 @@ export interface SeloDaBatalha {
   contador?: number
   /** R4 (lote de 01/11): o modificador de atributo do "Ajustar...". Na carta de NPC, nunca sai ao jogador. */
   ajuste?: true
+  /**
+   * Levantamento das mecânicas duplicadas (Nº 3): o selo é o ESPELHO da pastilha de mesmo nome que o
+   * mestre acendeu à mão na ficha do mapa (ou a armadilha, com prazo): nasce e sai com ela
+   * (`espelhosDasPastilhas`). O prazo da ficha é o relógio (o selo não desconta) e a pastilha é do
+   * mestre: a batalha que acaba não a apaga. Ausente = selo da batalha. Só do host.
+   */
+  daPastilha?: true
   /** F2 (fatia A): quanto o selo que tira por vez (Queimando N) tira; ausente = o da tabela (`danoPorVezDoSelo`). Só do host. */
   porVez?: number
   /** Construtor C5: o selo sai quando o próximo golpe chega em quem o tem (`selosQueSaemNoGolpe`; a técnica de ajuda não conta), além do da tabela (a redoma). Só do host. */

@@ -6,7 +6,7 @@
 import { chaveDaVez, type SeloDaBatalha } from '../../lib/batalha/combate'
 import { combatesNoComecoDaVez } from '../../lib/batalha/acumuladorNaBatalha'
 import { comBandosEmDia, semBandosVazios } from '../../lib/batalha/invocacao'
-import { textoDosQueAcabaram } from '../../lib/batalha/selos'
+import { novoIdDeSelo, textoDosQueAcabaram } from '../../lib/batalha/selos'
 import { formaDaFicha } from '../../lib/batalha/transformacao'
 import { ajusteDoRecurso, ajusteDoSpDaVez, ganhaSpNaVez, maximoDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import { chavesDoDono, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo } from '../../lib/batalha/mecanicasAMao'
@@ -29,7 +29,7 @@ import {
 } from '../../lib/batalha/turnos'
 import { nomeNaBatalha } from '../../lib/habilidadeOculta'
 import type { Personagem } from '../../lib/personagem'
-import { chavesDosSelos } from '../../lib/ponteDasCondicoes'
+import { chavesDosSelos, espelhosDasPastilhas, semAVidaQueOSeloPede } from '../../lib/ponteDasCondicoes'
 import { comecoDoPrazoNaVez, fimDoPrazoNaVez, motivoDoPrazo, textoDosPrazosQueAcabaram } from '../../lib/prazoNaVez'
 import { comCondicoes, condicoesDaFicha } from '../../lib/turnoForaDaBatalha'
 import type { BatalhaDaCena, BatalhaState } from './tipos'
@@ -242,7 +242,9 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
    * para `para`. A ficha de `de` desconta 1 turno de cada prazo (o que a
    * batalha ainda segura por selo de mesmo nome fica aceso); a de `para`
    * perde a vida por turno, direto no HP (sem Escudo, sem redução: Envenenado
-   * 3 x 4 tira 12, como fora da batalha). Uma linha própria com Desfazer
+   * 3 x 4 tira 12, como fora da batalha), menos a do prazo que um selo de mesmo
+   * nome já pede (o espelho da pastilha, Nº 3 do levantamento: vai pelo "Aplicar /
+   * pular" do mestre, como o selo). Uma linha própria com Desfazer
    * (o prazo volta pela mesa, o HP pela ficha), gravada depois da linha da
    * vez. A mesa sem mapa (arena) não tem prazo; nada a fazer: nada muda.
    */
@@ -270,7 +272,8 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     }
     // Começo da vez de quem entra: lida DEPOIS do desconto (a mesma ficha pode ter a vez de novo).
     const entrando = para === null || para.bando !== undefined || para.personagemId === null ? null : fichaDaCena(sceneKey, para.tokenId)
-    const comeco = entrando === null ? null : comecoDoPrazoNaVez(entrando)
+    // Nº 3 do levantamento: a vida do prazo que um selo de mesmo nome já pede ("Aplicar / pular") não sai sozinha por cima.
+    const comeco = entrando === null ? null : comecoDoPrazoNaVez(semAVidaQueOSeloPede(entrando, cena.turnos.selos))
     if (para !== null && para.personagemId !== null && comeco !== null) {
       const feito = mexerNaFicha(mesa, para.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, comeco.dano, true), quemNaFicha(autor))
       if (feito !== null && feito !== 'recusada' && feito.length > 0) {
@@ -384,10 +387,31 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     prazosDaVez(sceneKey, sai, vez.entra, autor)
     // 18/11/2026: na virada, o prazo de quem está fora da ordem também anda (um turno por rodada).
     if (vez.virou) prazosForaDaOrdem(sceneKey, autor)
+    // Nº 3 do levantamento: o prazo andou (ou acabou e a pastilha apagou): o espelho acompanha.
+    espelharPastilhas(sceneKey)
   }
 
-  const acoes: Pick<BatalhaState, 'passarVez' | 'darVez'> = {
+  /**
+   * Nº 3 do levantamento (a pastilha vale como o selo): os espelhos das pastilhas das fichas da ordem em dia
+   * (`espelhosDasPastilhas`), sem linha no registro: o espelho só repete o que está na ficha do mapa. Roda antes
+   * de a vez andar (a trava e o "Aplicar / pular" de quem entra já o leem) e depois do prazo da vez. A mesa sem
+   * mapa (arena) não tem pastilha: nada muda.
+   */
+  const espelharPastilhas = (sceneKey: string): void => {
+    const { fichaDaCena } = mesa
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined || fichaDaCena === undefined) return
+    const fichas = [...new Set(cena.turnos.cartas.map((carta) => carta.tokenId))].flatMap((tokenId) => fichaDaCena(sceneKey, tokenId) ?? [])
+    const selos = espelhosDasPastilhas(cena.turnos.selos, fichas, cena.turnos.rodada, novoIdDeSelo)
+    if (selos !== null) gravarCena(sceneKey, { ...cena, turnos: { ...cena.turnos, selos }, turnosRev: cena.turnosRev + 1 })
+  }
+
+  const acoes: Pick<BatalhaState, 'passarVez' | 'darVez' | 'espelharPastilhas'> = {
+    espelharPastilhas,
+
     passarVez: (sceneKey, autor = MESTRE, esperado) => {
+      // Nº 3 do levantamento: a pastilha que o mestre acendeu à mão desde a última vez já vale como selo nesta.
+      espelharPastilhas(sceneKey)
       const inicio = cenaDe(sceneKey)
       if (inicio === undefined) return false
       if (esperado !== undefined && (inicio.turnos.vez !== esperado.cartaId || inicio.turnos.rodada !== esperado.rodada)) return false
@@ -446,6 +470,7 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     },
 
     darVez: (sceneKey, cartaId) => {
+      espelharPastilhas(sceneKey)
       const cena = cenaDe(sceneKey)
       if (cena === undefined) return false
       const antes = cena.turnos

@@ -23,6 +23,8 @@ import { tirarDaMochilaDaFicha } from '../../lib/mochila/darNaFicha'
 import { partesDoAjuste, type ParteDaFicha, type Reversao } from '../../lib/batalha/registro'
 import type { TurnosDaCena } from '../../lib/batalha/turnos'
 import { aplicarAjustes, NUMERO_DA_FICHA_MAX, type Ajuste } from '../../lib/ajusteDaFicha'
+import { tirarCondicaoDaFicha } from '../../lib/prazoDaCondicao'
+import { comCondicoes, condicoesDaFicha } from '../../lib/turnoForaDaBatalha'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 
@@ -99,6 +101,21 @@ export interface CuraDoItemNoAlvo {
   antes: Token
   depois: Token
   curou: string[]
+}
+
+/**
+ * Nº 3 do levantamento (a limpeza tira os dois): tira da ficha `tokenId` no mapa as pastilhas destes nomes e o
+ * prazo delas (`tirarCondicaoDaFicha`), como o "Usar" de fora da batalha faz. Devolve a parte do Desfazer (as
+ * condições voltam como estavam); `null` = nada a tirar, ou a mesa sem mapa (arena).
+ */
+export function tirarPastilhasNaMesa(mesa: MesaDaBatalha, sceneKey: string, tokenId: string, nomes: readonly string[]): Reversao | null {
+  const antes = mesa.fichaDaCena?.(sceneKey, tokenId) ?? null
+  if (antes === null || mesa.mudarFichaDaCena === undefined) return null
+  const depois = nomes.reduce(tirarCondicaoDaFicha, antes)
+  if (depois === antes) return null
+  const campos = condicoesDaFicha(depois)
+  mesa.mudarFichaDaCena(sceneKey, tokenId, (token) => comCondicoes(token, campos))
+  return { tipo: 'prazo', tokenId, antes: condicoesDaFicha(antes) }
 }
 
 /** O miolo de `mexerNaFicha` e `trocarFicha`: `mudar` devolve `null` = não deu (a ficha fica). */

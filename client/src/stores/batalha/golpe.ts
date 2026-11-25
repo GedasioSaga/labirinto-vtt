@@ -59,9 +59,9 @@ import { ajustesDaCura, ajustesDoDano, curaQueCabe, notaDaCura, perfuracaoValida
 import { escudoMaisAlto, nomeDoAutor, novoIdDeLinha, type Reversao, type TipoDaLinha } from '../../lib/batalha/registro'
 import { cartaDaVez, contraGanhoAgora, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
 import { revelacaoAoUsar } from '../../lib/habilidadeOculta'
-import { chavesDosSelos } from '../../lib/ponteDasCondicoes'
+import { tirarCondicaoDaFicha } from '../../lib/prazoDaCondicao'
 import type { TelaDoPedido, VezEsperada } from '../../lib/batalha/ponte'
-import { condicoesQueACuraTirou, curarPeloItem } from '../../lib/curaPeloItem'
+import { CONDICOES_QUE_A_CURA_TIRA, condicoesQueACuraTirou, curarPeloItem } from '../../lib/curaPeloItem'
 import { comCondicoes, condicoesDaFicha } from '../../lib/turnoForaDaBatalha'
 import type { BatalhaDaCena, BatalhaState } from './tipos'
 import {
@@ -199,15 +199,17 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
   const { seloNoAcerto, aliadosNaLutaDe } = fatiaDosSelos
 
   /**
-   * A CURA TIRA O VENENO (`lib/curaPeloItem.ts`): o que a cura pelo item tira
-   * da ficha `tokenId` no mapa, só lido (nada gravado). O selo de mesmo nome
-   * segura a pastilha (a Medicina só cura e deixa os debuffs). `null` = nada a
-   * tirar, ou a mesa sem mapa (arena).
+   * O que sai da ficha `tokenId` no mapa, só lido (nada gravado): as pastilhas
+   * (e o prazo) de `nomes`, os selos que a limpeza tirou (Nº 3 do levantamento:
+   * a limpeza tira os dois, dentro e fora da batalha) e, com `curaPeloItem`, o
+   * veneno (`lib/curaPeloItem.ts`; o selo dele já saiu da cena, então a pastilha
+   * sai também). `null` = nada a tirar, ou a mesa sem mapa (arena).
    */
-  const curaDoItemNoAlvo = (sceneKey: string, tokenId: string, selos: TurnosDaCena['selos']): CuraDoItemNoAlvo | null => {
+  const condicoesQueSaemNoAlvo = (sceneKey: string, tokenId: string, nomes: readonly string[], curaPeloItem: boolean): CuraDoItemNoAlvo | null => {
     const antes = mesa.fichaDaCena?.(sceneKey, tokenId) ?? null
     if (antes === null || mesa.mudarFichaDaCena === undefined) return null
-    const depois = curarPeloItem(antes, chavesDosSelos(selos).get(tokenId))
+    const semOsTirados = nomes.reduce(tirarCondicaoDaFicha, antes)
+    const depois = curaPeloItem ? curarPeloItem(semOsTirados) : semOsTirados
     if (depois === antes) return null
     return { tokenId, antes, depois, curou: condicoesQueACuraTirou(antes, depois) }
   }
@@ -890,9 +892,15 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           // Fase 5: pelo cartão (a montada tem o item nas peças, não na tabela pelo id).
           const item = gastoDaTecnica?.nome
           // A CURA TIRA O VENENO (`lib/curaPeloItem.ts`): o item gasto para curar tira o Envenenado do alvo ("..., tirou Envenenado").
-          const curaDoItem = item === undefined ? null : curaDoItemNoAlvo(sceneKey, alvo.tokenId, novos.selos)
+          // Nº 3 do levantamento: o selo de mesmo nome sai junto com a pastilha (antes ficava, e o veneno seguia pedindo "Aplicar").
+          const venenos = item === undefined ? [] : selosQueALimpezaTira(novos.selos, alvo.tokenId, { nomes: CONDICOES_QUE_A_CURA_TIRA })
+          for (const selo of venenos) partes.push({ tipo: 'selo', seloId: selo.id, antes: selo })
+          const semVeneno = new Set(venenos.map((selo) => selo.id))
+          if (semVeneno.size > 0) novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => !semVeneno.has(selo.id)) }
+          // Nº 3: a limpeza tira os dois, como fora da batalha: as pastilhas (e o prazo) dos selos tirados saem da ficha do mapa.
+          const curaDoItem = condicoesQueSaemNoAlvo(sceneKey, alvo.tokenId, [...tirados, ...venenos].map((selo) => selo.nome), item !== undefined)
           if (curaDoItem !== null) curasDoItem.push(curaDoItem)
-          const doVeneno = curaDoItem === null || curaDoItem.curou.length === 0 ? '' : `, tirou ${curaDoItem.curou.join(', ')}`
+          const doVeneno = item === undefined || curaDoItem === null || curaDoItem.curou.length === 0 ? '' : `, tirou ${curaDoItem.curou.join(', ')}`
           const doItem = item === undefined ? '' : `, gastou ${gastoDaTecnica?.porUso ?? 1} ${item}${doVeneno}`
           const daCura = `${recursoDaCura === 'hp' ? notaDaCura(cura, coube) : notaDoRecursoDaCura(recursoDaCura, cura, coube)}${daOutra}${doItem}`
           const nomesTirados = limpeza.tira === undefined ? '' : tirados.length === 0 ? 'não tinha o que tirar' : `tirou ${tirados.map((selo) => selo.nome).join(', ')}`

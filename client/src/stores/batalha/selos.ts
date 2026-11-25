@@ -28,6 +28,7 @@ import type { TurnosDaCena } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
 import type { BatalhaState } from './tipos'
 import { comMudanca, type EfeitoNovo, nomeDoTokenNa } from './cena'
+import { tirarPastilhasNaMesa } from './naMesa'
 import type { NucleoDaBatalha } from './nucleo'
 
 /** Um efeito "selo" por selo que acabou ("ATORDOADO ACABOU"). */
@@ -159,7 +160,10 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
     const { personagens, sistema } = mesaDoRpg()
     const nome = nomeDoTokenNa(cena.turnos, personagens)(antes.tokenId)
     const texto = depois === null ? `Mestre tirou ${textoDoSelo(antes)} de ${nome}` : `Mestre: ${textoDoSeloComMods(antes, sistema)} → ${textoDoSeloComMods(depois, sistema)} em ${nome}`
-    const reversao: Reversao = depois === null ? { tipo: 'selo', seloId, antes } : { tipo: 'selo', seloId, antes, editado: true }
+    const doSelo: Reversao = depois === null ? { tipo: 'selo', seloId, antes } : { tipo: 'selo', seloId, antes, editado: true }
+    // Nº 3 do levantamento: tirar o espelho tira a pastilha dele (e o prazo) da ficha do mapa; senão a vez seguinte o poria de volta.
+    const daFicha = depois === null && antes.daPastilha === true ? tirarPastilhasNaMesa(mesa, sceneKey, antes.tokenId, [antes.nome]) : null
+    const reversao: Reversao = daFicha === null ? doSelo : { tipo: 'composta', partes: [doSelo, daFicha] }
     gravarCena(sceneKey, comMudanca(cena, { ...cena.turnos, selos }, { tipo: 'selo', texto, tokenIds: [antes.tokenId], reversao }))
     return true
   }

@@ -1,13 +1,17 @@
-import type { CondicaoPropria, MapData } from '../types/map'
-import type { SeloDaBatalha } from './batalha/combate'
-import { comportamentoDoSelo } from './batalha/condicoes'
+import type { CondicaoPropria, MapData, PrazoDeCondicao, Token } from '../types/map'
+import type { SeloDaBatalha, SeloDoGolpe } from './batalha/combate'
+import { comportamentoDoSelo, danoPorVezDoSelo } from './batalha/condicoes'
+import { comSeloNovo, criarSelo, ehNomeDeSelo } from './batalha/selos'
 import { acenderPeloNome, apagarPeloNome, chaveDaCondicao } from './condicaoPorNome'
+import { condicoesPropriasOf } from './condicoesProprias'
 import type { CondicaoAtiva } from './dbt/batalha/tipos'
-import { prazosDaFicha } from './prazoDaCondicao'
+import { lerPrazo, prazoDaCondicao, prazosDaFicha } from './prazoDaCondicao'
+import { TOKEN_CONDITION_LABELS, tokenConditionsOf } from './tokenConditions'
 
 /**
  * A PONTE DA BATALHA PARA A PASTILHA (Fase 3 do plano de melhoria,
- * 15/11/2026; regra em `tmp/fase-3-condicoes/REGRA.md`). Mão única: quando um
+ * 15/11/2026; regra em `tmp/fase-3-condicoes/REGRA.md`). A volta (a pastilha
+ * vale como selo, `espelhosDasPastilhas`) está no fim do arquivo. Ida: quando um
  * selo do One Piece ou uma condição do Dragon Ball ENTRA numa ficha, a
  * pastilha de mesmo nome acende nela; quando SAI (acabou, foi tirado,
  * desfeito, a batalha acabou), apaga. A regra continua na batalha: a pastilha
@@ -48,11 +52,126 @@ function juntar(mapa: Map<string, Set<string>>, tokenId: string, chave: string):
   else chaves.add(chave)
 }
 
-/** One Piece: os nomes que os selos da cena seguram, por ficha. */
-export function chavesDosSelos(selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome'>[] | undefined): Map<string, Set<string>> {
+/**
+ * One Piece: os nomes que os selos da cena seguram, por ficha. O espelho de
+ * uma pastilha (`daPastilha`) não segura nada: a pastilha é do mestre, e a
+ * batalha que acaba (ou o prazo que chega a 0) não depende dele.
+ */
+export function chavesDosSelos(selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'daPastilha'>[] | undefined): Map<string, Set<string>> {
   const porFicha = new Map<string, Set<string>>()
-  for (const selo of selos ?? []) juntar(porFicha, selo.tokenId, chaveDoSelo(selo.nome))
+  for (const selo of selos ?? []) if (selo.daPastilha !== true) juntar(porFicha, selo.tokenId, chaveDoSelo(selo.nome))
   return porFicha
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// A volta da ponte: a pastilha vale como o selo
+// ───────────────────────────────────────────────────────────────────────────
+
+/** A origem que a pílula do espelho mostra. */
+const ORIGEM_DO_ESPELHO = 'Pastilha da ficha'
+
+/** As pastilhas acesas na ficha pelo nome da tela (as de fábrica pelo rótulo), uma por chave de selo. */
+function pastilhasAcesas(token: Token): string[] {
+  const nomes = [...tokenConditionsOf(token).map((condicao) => TOKEN_CONDITION_LABELS[condicao]), ...condicoesPropriasOf(token).map((propria) => propria.nome)]
+  const vistas = new Set<string>()
+  return nomes.filter((nome) => {
+    const chave = chaveDoSelo(nome)
+    if (chave === '' || vistas.has(chave)) return false
+    vistas.add(chave)
+    return true
+  })
+}
+
+/**
+ * O espelho que a pastilha pede agora: o nome, os turnos e a vida por turno
+ * do prazo. Só a pastilha com regra na tabela (Atordoado trava, Sangrando tira
+ * por vez) ou com prazo (o veneno da armadilha); nome que não cabe num selo
+ * fica de fora. `null` = a pastilha não vale como selo.
+ */
+function pedidoDoEspelho(nome: string, prazo: PrazoDeCondicao | null): SeloDoGolpe | null {
+  if (!ehNomeDeSelo(nome) || (prazo === null && comportamentoDoSelo(nome) === null)) return null
+  const pedido: SeloDoGolpe = { nome, turnos: prazo?.turnos ?? null }
+  if (prazo?.porVez !== undefined) pedido.porVez = prazo.porVez
+  return pedido
+}
+
+/** O espelho já está como a pastilha pede (os turnos e a vida por turno do prazo)? */
+function espelhoEmDia(espelho: SeloDaBatalha, pedido: SeloDoGolpe): boolean {
+  return espelho.turnos === pedido.turnos && espelho.porVez === pedido.porVez
+}
+
+/** O espelho com os turnos e a vida por turno de agora (o prazo andou). */
+function espelhoAtualizado(espelho: SeloDaBatalha, pedido: SeloDoGolpe): SeloDaBatalha {
+  const { porVez: _antes, ...sem } = espelho
+  const depois: SeloDaBatalha = { ...sem, turnos: pedido.turnos, total: pedido.turnos === null ? null : Math.max(espelho.total ?? 0, pedido.turnos) }
+  if (pedido.porVez !== undefined) depois.porVez = pedido.porVez
+  return depois
+}
+
+/** Os espelhos que as pastilhas da ficha pedem, por chave: fora os nomes que um selo da batalha já segura nela. */
+function pedidosDaFicha(selos: readonly SeloDaBatalha[], ficha: Token): Map<string, SeloDoGolpe> {
+  const daBatalha = new Set(selos.filter((selo) => selo.tokenId === ficha.id && selo.daPastilha !== true).map((selo) => chaveDoSelo(selo.nome)))
+  const pedidos = new Map<string, SeloDoGolpe>()
+  for (const nome of pastilhasAcesas(ficha)) {
+    const chave = chaveDoSelo(nome)
+    const pedido = daBatalha.has(chave) ? null : pedidoDoEspelho(nome, prazoDaCondicao(ficha, nome))
+    if (pedido !== null) pedidos.set(chave, pedido)
+  }
+  return pedidos
+}
+
+/**
+ * A VOLTA DA PONTE (levantamento das mecânicas duplicadas, Nº 3; a fonte é o
+ * selo): a pastilha acesa numa ficha da batalha One Piece vale como o selo de
+ * mesmo nome. Cada pastilha com regra ou com prazo ganha um selo ESPELHO
+ * (`daPastilha`) com os turnos e a vida por turno do prazo, e daí a batalha a
+ * trata como trata o selo: Atordoado trava a vez e a reação, Sangrando e
+ * Queimando pedem "Aplicar / pular" ao mestre. O espelho cuja pastilha apagou
+ * sai; o que o prazo mudou acompanha. A pastilha que um selo da batalha já
+ * segura não ganha espelho (o selo dela já vale). Nada muda na ficha do mapa.
+ *
+ * `fichas` = as fichas do mapa com carta na ordem (o espelho das outras fica
+ * como está); `novoId` dá o id do espelho novo; `rodada` = a de agora. Ficha
+ * no teto de selos fica sem o espelho. Nada mudou = `null`.
+ */
+export function espelhosDasPastilhas(selos: readonly SeloDaBatalha[] | undefined, fichas: readonly Token[], rodada: number, novoId: () => string): SeloDaBatalha[] | null {
+  let lista: SeloDaBatalha[] = [...(selos ?? [])]
+  let mudou = false
+  for (const ficha of fichas) {
+    const pedidos = pedidosDaFicha(lista, ficha)
+    lista = lista.flatMap((selo) => {
+      if (selo.tokenId !== ficha.id || selo.daPastilha !== true) return [selo]
+      const chave = chaveDoSelo(selo.nome)
+      const pedido = pedidos.get(chave)
+      pedidos.delete(chave)
+      if (pedido !== undefined && espelhoEmDia(selo, pedido)) return [selo]
+      mudou = true
+      return pedido === undefined ? [] : [espelhoAtualizado(selo, pedido)]
+    })
+    for (const pedido of pedidos.values()) {
+      const espelho: SeloDaBatalha = { ...criarSelo(ficha.id, pedido, { id: novoId(), rodada, tokenDaVez: null, origem: ORIGEM_DO_ESPELHO }), daPastilha: true }
+      const comEle = comSeloNovo(lista, espelho)
+      if (comEle === null) continue
+      lista = comEle
+      mudou = true
+    }
+  }
+  return mudou ? lista : null
+}
+
+/**
+ * Nº 3 do levantamento: a ficha sem os prazos cuja vida por turno um selo de
+ * mesmo nome já pede ("Aplicar / pular", o espelho ou o selo da batalha): o
+ * prazo não tira sozinho por cima. O prazo continua na ficha de verdade (o
+ * desconto do fim da vez é dele); esta cópia só serve para ler a vida do
+ * começo da vez. Nenhum a tirar = a MESMA ficha.
+ */
+export function semAVidaQueOSeloPede(token: Token, selos: readonly SeloDaBatalha[] | undefined): Token {
+  const pedem = new Set((selos ?? []).filter((selo) => selo.tokenId === token.id && danoPorVezDoSelo(selo) !== null).map((selo) => chaveDoSelo(selo.nome)))
+  const prazos = token.prazosDasCondicoes
+  if (pedem.size === 0 || !Array.isArray(prazos)) return token
+  const ficam = prazos.filter((prazo) => !pedem.has(chaveDoSelo(lerPrazo(prazo)?.nome ?? '')))
+  return ficam.length === prazos.length ? token : { ...token, prazosDasCondicoes: ficam }
 }
 
 /**
