@@ -16,7 +16,7 @@ import type { Personagem } from '../lib/personagem'
 import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from '../lib/tokenPlacement'
 import { viewportCenterWorld, type Point } from '../pixi/world'
 import type { CarriedItem, Token } from '../types/map'
-import { fichasNoAcervoAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
+import { fichasNoAcervoAtivas, mochilaMoraNaFicha, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
 import { guardarLugarDaFicha } from './fichasNoAcervo'
 import { useMapStore } from './mapStore'
 import { useToastStore } from './toastStore'
@@ -245,6 +245,7 @@ export function extrasDoTokenParaOAcervo(token: Token): ExtrasDaPeca {
     luzes: map.lights,
     grade: map.grid,
     personagens: personagensAtivos(aventura),
+    mochilaNaFicha: mochilaMoraNaFicha(aventura),
     sistemaId: sistemaAtivo(aventura),
   })
 }

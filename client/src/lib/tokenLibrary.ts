@@ -384,21 +384,29 @@ export interface MesaDaPeca {
   grade: number
   /** Os personagens em uso (`personagensAtivos`). */
   personagens: readonly Personagem[]
+  /** A aventura já passou a mochila para a ficha (`mochilaMoraNaFicha`): a dona é a ficha; falso, o boneco. */
+  mochilaNaFicha: boolean
   /** O sistema de RPG em uso (`sistemaAtivo`); ausente = mapa solto, a ficha não vai. */
   sistemaId: string | undefined
 }
 
 /**
  * O que a peça leva para a estante: a ficha ligada (se a mesa tem sistema), a
- * mochila e a bolsa que ela mostra (a da ficha, quando há ficha — é a dona) e
- * as tochas presas nela. As vagas acesas vão acesas: guardar não é dar nem
- * trocar (`CarriedItem.acesa`), e o guarda salvo com a lanterna acesa volta
- * com ela acesa. Puro: quem chama lê a mesa.
+ * mochila e a bolsa da DONA delas e as tochas presas nela. As vagas acesas vão
+ * acesas: guardar não é dar nem trocar (`CarriedItem.acesa`), e o guarda salvo
+ * com a lanterna acesa volta com ela acesa. Puro: quem chama lê a mesa.
+ *
+ * A dona (Nº 23 do levantamento de 25/11/2026): com a mochila na ficha, a
+ * ficha, também vazia — o boneco só mostra, e a cópia dele pode ser velha (a
+ * ficha esvaziada levava a mochila velha do boneco para a estante). Antes da
+ * migração fica a regra de sempre: a ficha que tem mochila ou bolsa, senão o
+ * boneco.
  */
 export function extrasDaPeca(token: Pick<Token, 'id' | 'characterId' | 'mochila' | 'moedas'>, mesa: MesaDaPeca): ExtrasDaPeca {
   const personagem = token.characterId === null ? undefined : mesa.personagens.find((candidato) => candidato.id === token.characterId)
   const ficha = personagem !== undefined && mesa.sistemaId !== undefined ? { sistemaId: mesa.sistemaId, personagem: fichaSemAMesa(personagem) } : undefined
-  const dono = personagem !== undefined && (personagem.mochila !== undefined || personagem.moedas !== undefined) ? personagem : token
+  const fichaEDona = personagem !== undefined && (mesa.mochilaNaFicha || personagem.mochila !== undefined || personagem.moedas !== undefined)
+  const dono = fichaEDona ? personagem : token
   const mochila = dono.mochila !== undefined && dono.mochila.length > 0 ? dono.mochila.map((vaga) => ({ ...vaga })) : undefined
   const moedas = readMoedas(dono.moedas)
   const grade = Number.isFinite(mesa.grade) && mesa.grade > 0 ? mesa.grade : 1
