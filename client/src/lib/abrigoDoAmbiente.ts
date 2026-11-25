@@ -1,6 +1,7 @@
 import type { MapData, Region, RegionPoint, Wall } from '../types/map'
 import { pointOnPolygonBorder } from './roomNesting'
 import { roomHasRoof, roomIsComodo } from './roomOps'
+import { tetoDoPiso } from './terrenoAlto'
 
 /**
  * ONDE O AMBIENTE NÃO ENTRA (pedido de 12/11/2026): chuva, neve, folhas e
@@ -20,6 +21,13 @@ export interface AbrigoDoAmbiente {
   secas: RegionPoint[][]
   /** O centro de cada porta aberta na beira de uma sala seca: por ela entram brasas, fumaça e neblina. */
   portas: RegionPoint[]
+  /**
+   * O TETO DO PISO DE CIMA (levantamento de 25/11/2026, Nº 26): faixas em que
+   * o piso de cima tem chão (`cobertasDoPisoDeCima`). Só o que cai (chuva,
+   * neve, folhas, cinzas) para nelas; a neblina e a fumaça passam, como
+   * debaixo de uma passarela. Ausente = nenhuma.
+   */
+  cobertas?: RegionPoint[][]
 }
 
 export const SEM_ABRIGO: AbrigoDoAmbiente = { secas: [], portas: [] }
@@ -42,11 +50,51 @@ export function portasAbertasDasSalas(walls: readonly Wall[], secas: readonly Re
   return portas
 }
 
-/** O abrigo na tela do mestre: as salas de teto e os cômodos do piso à vista (`map` já é o do piso). */
-export function abrigoDoMestre(map: Pick<MapData, 'regions' | 'walls' | 'grid'>): AbrigoDoAmbiente {
+function faixa(x0: number, y0: number, x1: number, y1: number): RegionPoint[] {
+  return [
+    { x: x0, y: y0 },
+    { x: x1, y: y0 },
+    { x: x1, y: y1 },
+    { x: x0, y: y1 },
+  ]
+}
+
+/**
+ * As faixas cobertas pelo chão do piso de cima: a regra do teto do terreno
+ * alto (`tetoDoPiso`: peça de Chão, Sala, região com fundo, desenho cheio e
+ * textura pintada). Chovia dentro do castelo feito de paredes e Balde, com o
+ * andar de cima por cima. O centro de cada casa decide, e as casas seguidas de
+ * uma linha viram uma faixa só. Sem chão em cima: nenhuma.
+ */
+export function cobertasDoPisoDeCima(deCima: Pick<MapData, 'floor' | 'regions' | 'drawings' | 'texturas'>, cena: Pick<MapData, 'width' | 'height' | 'grid'>): RegionPoint[][] {
+  const teto = tetoDoPiso(deCima)
+  const { width, height, grid } = cena
+  if (teto === null || !(grid > 0)) return []
+  const faixas: RegionPoint[][] = []
+  for (let row = 0; row < height; row += 1) {
+    let inicio = -1
+    for (let col = 0; col <= width; col += 1) {
+      const coberta = col < width && teto({ x: (col + 0.5) * grid, y: (row + 0.5) * grid })
+      if (coberta && inicio < 0) inicio = col
+      if (!coberta && inicio >= 0) {
+        faixas.push(faixa(inicio * grid, row * grid, col * grid, (row + 1) * grid))
+        inicio = -1
+      }
+    }
+  }
+  return faixas
+}
+
+/**
+ * O abrigo na tela do mestre: as salas de teto e os cômodos do piso à vista
+ * (`map` já é o do piso) e as faixas cobertas pelo piso de cima (`cobertas`,
+ * de `cobertasDoPisoDeCima`).
+ */
+export function abrigoDoMestre(map: Pick<MapData, 'regions' | 'walls' | 'grid'>, cobertas: RegionPoint[][] = []): AbrigoDoAmbiente {
   const secas = map.regions.filter(salaSecaDoMestre).map((r) => r.points)
-  if (secas.length === 0) return SEM_ABRIGO
-  return { secas, portas: portasAbertasDasSalas(map.walls, secas, map.grid) }
+  const comCobertas = cobertas.length === 0 ? {} : { cobertas }
+  if (secas.length === 0) return cobertas.length === 0 ? SEM_ABRIGO : { ...SEM_ABRIGO, ...comCobertas }
+  return { secas, portas: portasAbertasDasSalas(map.walls, secas, map.grid), ...comCobertas }
 }
 
 /**

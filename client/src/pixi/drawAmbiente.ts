@@ -455,6 +455,8 @@ function pintarAbrigo(abrigo: AbrigoDoAmbiente, largura: number, altura: number,
   ga.setTransform(escala, 0, 0, escala, 0, 0)
   preencherSalas(gs, abrigo.secas)
   preencherSalas(ga, abrigo.secas)
+  // O teto do piso de cima só tapa o que cai: o ar (neblina, fumaça) passa por baixo dele.
+  preencherSalas(gs, abrigo.cobertas ?? [])
   // Porta aberta: brasas, fumaça e neblina entram, mais fortes perto dela, e param na parede (o ar só existe dentro da sala).
   const raio = AJUSTE_DO_AMBIENTE.portaEmCasas * grid
   ga.globalCompositeOperation = 'destination-out'
@@ -1068,7 +1070,7 @@ export function createAmbienteRenderer(
       if (chave === chaveDoAbrigoAtual) return
       chaveDoAbrigoAtual = chave
       const velhos = [seco, ar]
-      temAbrigo = abrigo.secas.length > 0
+      temAbrigo = abrigo.secas.length > 0 || (abrigo.cobertas?.length ?? 0) > 0
       if (temAbrigo) {
         const telas = pintarAbrigo(abrigo, largura, altura, grid)
         seco = new CanvasSource({ resource: telas.seco, scaleMode: 'linear', addressMode: 'clamp-to-edge' })

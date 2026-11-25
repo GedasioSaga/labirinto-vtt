@@ -12,11 +12,11 @@ import {
   type EfeitoDoPainel,
 } from '../lib/ambiente'
 import { criarSomDaChuva } from '../lib/sons/somDaChuva'
-import { abrigoDoMestre } from '../lib/abrigoDoAmbiente'
+import { abrigoDoMestre, cobertasDoPisoDeCima } from '../lib/abrigoDoAmbiente'
 import { cenaTemFogo } from '../lib/particulasDaCena'
 import { aquecerAmbiente, createAmbienteRenderer, type EntradaDoAmbiente, type EstadoDoAmbiente, type TelhadosDoClima } from './drawAmbiente'
 import { densidadeDoMapaInteiro, intensidadeDoMapaInteiro, PINCELADAS_MAX, type ResultadoDaNeblina } from '../lib/neblina'
-import { mapaDoPiso } from '../lib/pisos'
+import { editandoUmPiso, mapaDoPiso } from '../lib/pisos'
 import { unidadeDoRelevo } from '../lib/relevo'
 import { raioDoPincelDeTextura } from '../lib/texturas'
 import { useMapStore } from '../stores/mapStore'
@@ -100,6 +100,7 @@ export function criarNeblinaDoEditor(dep: {
   }
   let ultimo: { map: MapData; piso: number } | null = null
   let doPisoAnterior: MapData | null = null
+  let deCimaAnterior: MapData | null = null
   return {
     renderer,
     ambiente: ambiente.camada,
@@ -111,11 +112,15 @@ export function criarNeblinaDoEditor(dep: {
       const doPiso = mapaDoPiso(map, piso)
       const antes = doPisoAnterior
       doPisoAnterior = doPiso
+      // O TETO DO PISO DE CIMA (`cobertasDoPisoDeCima`): só na cena com pisos.
+      const deCima = editandoUmPiso(map, 0) ? mapaDoPiso(map, piso + 1) : null
+      const deCimaAntes = deCimaAnterior
+      deCimaAnterior = deCima
       const largura = map.width * map.grid
       const altura = map.height * map.grid
       // O abrigo só muda com sala, parede ou porta: o resto do mapa mudou e ele não, nada a refazer.
-      if (antes === null || antes.regions !== doPiso.regions || antes.walls !== doPiso.walls || antes.grid !== doPiso.grid || antes.width !== doPiso.width || antes.height !== doPiso.height) {
-        ambiente.setAbrigo(abrigoDoMestre(doPiso), largura, altura, map.grid)
+      if (antes === null || antes.regions !== doPiso.regions || antes.walls !== doPiso.walls || antes.grid !== doPiso.grid || antes.width !== doPiso.width || antes.height !== doPiso.height || mudouOChao(deCimaAntes, deCima)) {
+        ambiente.setAbrigo(abrigoDoMestre(doPiso, deCima === null ? [] : cobertasDoPisoDeCima(deCima, doPiso)), largura, altura, map.grid)
         neblina.setAbrigo(ambiente.ar(), largura, altura)
       }
       if (antes === null || antes.ambiente !== doPiso.ambiente || antes.ambientePintado !== doPiso.ambientePintado || antes.props !== doPiso.props || antes.grid !== doPiso.grid || antes.width !== doPiso.width || antes.height !== doPiso.height) {
@@ -151,6 +156,12 @@ export function criarNeblinaDoEditor(dep: {
  * saem daqui; com fogo, elas nascem dos fogos (`particulasDoMapa.ts`). O
  * pincel vale sempre.
  */
+/** O chão de um piso mudou (peça, sala, desenho ou textura): o teto que ele faz embaixo precisa ser refeito. */
+function mudouOChao(antes: MapData | null, agora: MapData | null): boolean {
+  if (antes === null || agora === null) return antes !== agora
+  return antes.floor !== agora.floor || antes.regions !== agora.regions || antes.drawings !== agora.drawings || antes.texturas !== agora.texturas
+}
+
 export function entradaDoAmbiente(map: MapData, pintada: readonly PinceladaDeAmbiente[] | undefined, semFogo: boolean, animar: boolean): EntradaDoAmbiente | null {
   const inteira: Record<EfeitoDoAmbiente, number> = {
     chuva: intensidadeNoMapaInteiro(map, 'chuva'),
