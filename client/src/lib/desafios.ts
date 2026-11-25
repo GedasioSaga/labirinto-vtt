@@ -21,6 +21,7 @@ import { LAGO_MAX_LENGTH } from '../minigames/pesca/tipos'
 import { BARRACA_MAX_LENGTH } from '../minigames/tiro/tipos'
 import { escalaDoPino, isPinEscala, PIN_ESCALA_MAX, PIN_ESCALA_MIN } from './pins'
 import { normalizeRotation } from './roomRotation'
+import { tokenPublicNameMode } from './tokenPublicName'
 
 /** Teto do nome do desafio (o mesmo do nome do pino). */
 export const DESAFIO_NOME_MAX_LENGTH = 60
@@ -271,26 +272,41 @@ export function pontoDoDesafio(desafio: Pick<Desafio, 'lugar' | 'piso'>, props: 
  */
 export type ParaQuem = 'mestre' | 'mesa'
 
-/** O pedaço do boneco que o convite lê para saber quem chama agora. */
-export type TokenDeQuemChama = Pick<Token, 'id' | 'name'>
+/** O pedaço do boneco que o convite lê para saber quem chama agora: o nome e o "Nome para os jogadores". */
+export type TokenDeQuemChama = Pick<Token, 'id' | 'name' | 'publicName'>
 
 /** O mapa como o pino derivado o lê: os bonecos são opcionais (sem eles, vale o nome gravado no convite). */
 type MapaDosDesafios = Pick<MapData, 'desafios' | 'props'> & { tokens?: readonly TokenDeQuemChama[] }
 
 /**
+ * O nome que a mesa lê embaixo do boneco, a mesma regra do recorte para quem
+ * não é o dono (`tokenAsSeenByPlayer`): o "Nome para os jogadores" quando o
+ * mestre deu um, e o nome do boneco no "O mesmo". `''` = sem rótulo ("Nenhum",
+ * ou "Outro" ainda vazio). Nunca o nome de trabalho do mestre disfarçado.
+ */
+function nomeQueAMesaLe(boneco: TokenDeQuemChama): string {
+  if (tokenPublicNameMode(boneco.publicName) === 'same') return boneco.name
+  return typeof boneco.publicName === 'string' ? boneco.publicName : ''
+}
+
+/**
  * QUEM CHAMA SEGUE O BONECO (levantamento de 25/11/2026, achado 29): o
  * convite escolhido de um boneco desta cena (`quem.tokenId`) leva o nome que
- * ele tem AGORA, pela mesma regra do editor (`BlocoDoConvite`: o nome do
- * boneco, no teto de quem chama). Renomear o boneco muda o convite do jogador
- * sem regravar o desafio. Boneco que saiu da cena, sem nome, ou quem chama
- * escrito à mão: vale o nome gravado (`minigame.npc`), como antes.
+ * a mesa lê nele AGORA (`nomeQueAMesaLe`), no teto de quem chama. Renomear o
+ * boneco muda o convite do jogador sem regravar o desafio. O boneco disfarçado
+ * sem rótulo chama sem nome: o gravado (`minigame.npc`) é o nome dele na
+ * escolha, que pode ser o de trabalho. Boneco que saiu da cena, sem nome no
+ * "O mesmo", ou quem chama escrito à mão: vale o nome gravado, como antes.
  */
 function minigameComQuemDeAgora(desafio: Desafio, tokens: readonly TokenDeQuemChama[]): MinigameDoPino {
   const tokenId = desafio.quem?.tokenId
   if (tokenId === undefined || desafio.minigame.jogo === 'puzzle') return desafio.minigame
   const boneco = tokens.find((token) => token.id === tokenId)
-  const nome = boneco === undefined ? '' : boneco.name.trim().slice(0, QUEM_CHAMA_MAX_LENGTH)
-  return nome === '' || nome === desafio.minigame.npc ? desafio.minigame : comConvite(desafio.minigame, { npc: nome })
+  if (boneco === undefined) return desafio.minigame
+  const nome = nomeQueAMesaLe(boneco).trim().slice(0, QUEM_CHAMA_MAX_LENGTH)
+  const disfarcado = tokenPublicNameMode(boneco.publicName) !== 'same'
+  if (nome === '' && !disfarcado) return desafio.minigame
+  return nome === desafio.minigame.npc ? desafio.minigame : comConvite(desafio.minigame, { npc: nome })
 }
 
 /**
