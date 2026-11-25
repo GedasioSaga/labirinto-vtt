@@ -9,11 +9,10 @@ import { acoesDoInvocado, comunsQueSaem, membrosDoBando } from '../../lib/batalh
 import type { BatalhaEmTurnos } from '../../lib/batalha/ponte'
 import { reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { bonusDaBatalha } from '../../lib/batalha/selos'
-import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
-import { recursosDaCarta } from './dadosDaFaixa'
+import { imagemDaCartaDoMestre, recursosDaCarta } from './dadosDaFaixa'
 import { nomeDoBando } from './dadosDaInvocacao'
 import type { AlvoDoDano } from './DarDanoDialog'
 import { MOTIVO_SEM_PERSONAGEM, alvoDaMira, alvosNaOrdemDaMira, golpesDeAtaque, golpesDeHabilidade, vidaNaMira, type AlvoNaMira } from './dadosDoMenu'
@@ -32,7 +31,7 @@ import type { MembroNaVez, PendenciaNaTela } from './InvocacoesDoMestre'
 export interface MesaDoMestre {
   cena: Pick<BatalhaEmTurnos, 'turnos'> | undefined
   /** Construtor C3: `size` e `rotation` para a área montada marcar pela grade (o token grande, a frente). */
-  fichas: readonly { id: string; name: string; imageData?: string | null; x?: number; y?: number; size?: number; rotation?: number }[]
+  fichas: readonly { id: string; name: string; image?: string | null; imageData?: string | null; x?: number; y?: number; size?: number; rotation?: number }[]
   /** C4: o lado da casa (px), para a ordem dos alvos por distância. */
   tamanhoDaCasa?: number
   /** Fase C do alcance: o mapa da cena, para as paredes da conta das casas acesas (a Arena não tem: só a distância). */
@@ -117,8 +116,8 @@ export function alvosDaOrdem(mesa: MesaDoMestre, cartas: readonly CartaDaOrdem[]
         lado: carta.tokenId === quemAge.tokenId ? 'eu' : ladoDeQuem !== null && ladoDoPersonagem(mesa, carta.personagemId) === ladoDeQuem ? 'aliado' : 'outro',
         caiu: caidos.has(carta.tokenId),
         motivo: carta.personagemId === null ? MOTIVO_SEM_PERSONAGEM : null,
-        // A mesma imagem da carta na faixa (`faixaDoMestre`): a forma vence a foto do token, que vence o retrato.
-        imagem: aparenciaDaForma(forma, personagem) ?? mesa.fichas.find((ficha) => ficha.id === carta.tokenId)?.imageData ?? personagem?.retrato ?? null,
+        // A mesma imagem da carta na faixa (`faixaDoMestre`): a forma, o retrato que a ficha dá ao token, a foto dele, o retrato.
+        imagem: imagemDaCartaDoMestre(forma, personagem, mesa.fichas.find((ficha) => ficha.id === carta.tokenId)),
         cor: equipeDaCarta?.cor ?? null,
         // Pedido de 09/11 (a Bolha): a vida de cada um, para a mira da cura abrir nos feridos (lida como a regra da cura a lê).
         vida: vidaNaMira(personagem, mesa.sistema),

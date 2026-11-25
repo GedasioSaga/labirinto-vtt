@@ -1907,8 +1907,9 @@ export interface Token extends PlayerSecret, NoPiso, NaCamada {
    */
   formaVisivel?: string
   /**
-   * MUDAR FICHA, na tela do jogador: a imagem da forma que o token mostra
-   * (referência de mídia ou a embutida, `lib/midia.ts`). Campo de FIO, como
+   * MUDAR FICHA, na tela do jogador: a imagem que a ficha ligada dá ao token,
+   * a da forma ou o retrato (`formasVisiveisDoMapa`; referência de mídia ou a
+   * embutida, `lib/midia.ts`). Campo de FIO, como
    * `pino`: só o recorte o escreve, com a imagem que o host achou na ficha de
    * personagem (`formasParaJogador`); `deserializeMap` o descarta se um
    * arquivo trouxer. Ausente = a foto de sempre.

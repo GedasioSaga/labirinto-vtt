@@ -3,12 +3,13 @@ import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
 import { recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
 import { membrosDoBando } from '../../lib/batalha/invocacao'
 import { escudoMaisAlto, nomeDoAutor, podeDesfazer, type LinhaDoRegistro, type LinhaParaJogador } from '../../lib/batalha/registro'
-import type { ModDoSelo, NaturezaDoSelo } from '../../lib/batalha/combate'
+import type { FormaNaBatalha, ModDoSelo, NaturezaDoSelo } from '../../lib/batalha/combate'
 import { lembreteDoSelo } from '../../lib/batalha/condicoes'
 import { selosDoToken, textoDoSelo, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, nomeDaFormaLigada } from '../../lib/batalha/transformacao'
 import { proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { CartaParaJogador, EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
+import { retratoNoToken } from '../../lib/mudarFicha'
 import { numeroDaFicha, type Personagem } from '../../lib/personagem'
 import type { RecursoDoSistema, SistemaDeRpg, TomDoRecurso } from '../../lib/sistemaDeRpg'
 import { nomeDoBando } from './dadosDaInvocacao'
@@ -151,8 +152,23 @@ export interface DadosDaFaixa {
 export interface FichaNaFaixa {
   id: string
   name: string
+  /** O arquivo que o mestre escolheu para o token: com ele, a foto não segue o retrato da ficha (`retratoNoToken`). */
+  image?: string | null
   imageData?: string | null
+  /** Jogador: a imagem que o recorte pendurou no token (forma ou retrato da ficha), a mesma que o mapa dele mostra. */
+  fotoDaForma?: string
   characterId?: string | null
+}
+
+/**
+ * A imagem da carta para o MESTRE, na faixa e na mira (`mesaDoMestre`): a
+ * forma ligada na batalha; depois o retrato da ficha que o token mostra (a
+ * foto segue a ficha, levantamento de 25/11/2026, achado 13); a foto do token;
+ * e, sem token, o retrato.
+ */
+export function imagemDaCartaDoMestre(forma: FormaNaBatalha | undefined, personagem: Personagem | undefined, ficha: FichaNaFaixa | undefined): string | null {
+  const daFicha = ficha === undefined ? null : retratoNoToken(ficha, personagem)
+  return aparenciaDaForma(forma, personagem) ?? daFicha ?? ficha?.imageData ?? personagem?.retrato ?? null
 }
 
 /** Quantos recursos a carta mostra: HP e SP, como no protótipo. */
@@ -232,7 +248,7 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema, r
       id: carta.id,
       tokenId: carta.tokenId,
       nome: (ficha?.name.trim() ? rotulos.get(carta.tokenId) : undefined) || carta.nome?.trim() || personagem?.nome || NOME_SEM_FICHA,
-      imagem: aparenciaDaForma(forma, personagem) ?? ficha?.imageData ?? personagem?.retrato ?? null,
+      imagem: imagemDaCartaDoMestre(forma, personagem, ficha),
       forma: nomeDaFormaLigada(forma, personagem),
       selos: selosNaCarta(selosDoToken(turnos.selos, carta.tokenId), sistema),
       cor: equipe?.cor ?? null,
@@ -349,8 +365,9 @@ function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined
     id: carta.id,
     tokenId: carta.tokenId,
     nome: carta.nome.trim() || NOME_SEM_FICHA,
-    // F3: a imagem da forma (o host só manda a de cartão ligado) vence a foto e o retrato; C8/C9: por último, o retrato do colega que o host manda.
-    imagem: aparencia ?? ficha?.imageData ?? (carta.lado === 'outro' ? null : (personagem?.retrato ?? null)) ?? retrato ?? null,
+    // F3: a imagem da forma (o host só manda a de cartão ligado) vence a foto e o retrato; depois a que o mapa dele mostra
+    // (forma ou retrato da ficha, achado 13); C8/C9: por último, o retrato do colega que o host manda.
+    imagem: aparencia ?? ficha?.fotoDaForma ?? ficha?.imageData ?? (carta.lado === 'outro' ? null : (personagem?.retrato ?? null)) ?? retrato ?? null,
     forma: carta.forma ?? null,
     selos: selosNaCarta(carta.selos, sistema),
     cor: carta.equipe?.cor ?? null,

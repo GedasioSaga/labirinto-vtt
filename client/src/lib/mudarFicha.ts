@@ -92,14 +92,29 @@ export function imagemDaFormaNoToken(token: Pick<Token, 'formaVisivel'>, persona
   return imagemDaFormaVisivel(token.formaVisivel, personagem, sistema) ?? ultimaFormaAtivaComImagem(personagem, sistema)
 }
 
+/**
+ * A FOTO SEGUE A FICHA (levantamento de 25/11/2026, achado 13): o retrato da
+ * ficha ligada no lugar da foto que o token copiou dela quando nasceu, então
+ * trocar o retrato na ficha ou pelo Lobby troca o mapa e a batalha. Fica a
+ * foto do token quando o mestre escolheu um ARQUIVO para ele (`image`, a
+ * mesma exceção do "Ligar ficha", `tokenSemImagem`) ou quando a ficha não tem
+ * retrato que a mesa mostre. Retrato embutido igual à foto do token = a mesma
+ * cara: `null`, e o recorte não leva a mesma imagem duas vezes.
+ */
+export function retratoNoToken(token: { image?: string | null; imageData?: string | null }, personagem: Pick<Personagem, 'retrato'> | undefined): string | null {
+  const retrato = personagem?.retrato ?? null
+  if (!ehImagemDaMesa(retrato) || (typeof token.image === 'string' && token.image !== '')) return null
+  return retrato === token.imageData ? null : retrato
+}
+
 /** Por tokenId, a imagem da forma que o token mostra (referência de mídia ou a embutida). */
 export type FormasVisiveis = ReadonlyMap<string, string>
 
 /**
- * As imagens de forma dos tokens do mapa, pela ficha ligada a cada um
- * (`imagemDaFormaNoToken`). `undefined` = nenhum token mostra forma (o caso de
- * quase todo mapa: nada é montado). Quem resolve para `src` (mestre) ou manda
- * no recorte (host) é quem chama.
+ * As imagens que a ficha ligada dá a cada token do mapa, no lugar da foto
+ * dele: a da forma (`imagemDaFormaNoToken`) e, sem forma, o retrato
+ * (`retratoNoToken`). `undefined` = nenhum token mostra imagem da ficha (nada
+ * é montado). Quem resolve para `src` (mestre) ou manda no recorte (host) é quem chama.
  */
 export function formasVisiveisDoMapa(tokens: readonly Token[], personagens: readonly Personagem[], sistema: SistemaDeRpg | null | undefined): FormasVisiveis | undefined {
   let formas: Map<string, string> | undefined
@@ -109,7 +124,7 @@ export function formasVisiveisDoMapa(tokens: readonly Token[], personagens: read
     porId ??= new Map(personagens.map((personagem) => [personagem.id, personagem]))
     const personagem = porId.get(token.characterId)
     if (personagem === undefined) continue
-    const imagem = imagemDaFormaNoToken(token, personagem, sistema)
+    const imagem = imagemDaFormaNoToken(token, personagem, sistema) ?? retratoNoToken(token, personagem)
     if (imagem === null) continue
     formas ??= new Map()
     formas.set(token.id, imagem)
