@@ -572,6 +572,23 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
     if (area !== null) setMarcados(alvosNaAreaPelaGrade(area, alvos, lado, formaComCondicoes, ajuda).slice(0, ALVOS_MAX))
   }
 
+  // Conserto de 25/11/2026 ("me movo mas ... os inimigos não ficam marcados"): as marcas da área montada são da casa
+  // de onde quem usa mirou. Andou com a mira aberta, a área remarca quem está nela da casa nova, como virar faz
+  // (a mesma regra; o que quem usa mudou à mão sai junto: é outra mira). As casas acesas já seguem a ficha.
+  const pegadaDeQuemAge = gradeDeQuemAge?.deQuemAge
+  const casaDeQuemAge = pegadaDeQuemAge === undefined ? null : `${pegadaDeQuemAge.col},${pegadaDeQuemAge.row},${pegadaDeQuemAge.tamanho}`
+  const casaDasMarcas = useRef(casaDeQuemAge)
+  const remarcarDaCasaNova = useRef<() => void>(() => undefined)
+  remarcarDaCasaNova.current = () => {
+    const area = areaDaGrade(golpe, alvos)
+    if (area !== null) setMarcados(alvosNaAreaPelaGrade(area, alvos, direcao, formaComCondicoes, ajuda).slice(0, ALVOS_MAX))
+  }
+  useEffect(() => {
+    if (casaDeQuemAge === casaDasMarcas.current) return
+    casaDasMarcas.current = casaDeQuemAge
+    if (casaDeQuemAge !== null) remarcarDaCasaNova.current()
+  }, [casaDeQuemAge])
+
   /** Fase 6: escolher o centro da área longe marca quem está em volta dele (o que quem usa mudou à mão sai junto: é outra mira). */
   const escolherCentro = (centro: { ponto: Casa } | { tokenId: string }) => {
     const area = golpe.area

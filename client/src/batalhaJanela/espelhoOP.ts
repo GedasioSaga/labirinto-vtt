@@ -15,6 +15,7 @@ import { deixarParaDepois, deveAReacao, travasDeixadas } from '../components/bat
 import { pedidoDoGolpe } from '../components/batalha/MiraDoGolpe'
 import { ligarSomDoCombate, somDoCombateLigado } from '../lib/sons/sonsDoCombate'
 import { cameraDaBatalhaLigada, ligarCameraDaBatalha } from '../pixi/cameraDaBatalha'
+import type { MiraNoMapa } from '../stores/batalha/miraNoMapa'
 import { useBatalhaStore } from '../stores/batalhaStore'
 import { useToastStore } from '../stores/toastStore'
 import { escolherItemDaCarta, itensNoEspelho } from './menuDaCartaNoEspelho'
@@ -448,15 +449,25 @@ function escolhaDaMesa(mesa: MesaDaCena, turnos: TurnosDaCena, escolha: MiraDaMe
 /** A escolha da mesa no mapa (sobra do alcance): as casas do golpe escolhido acendem como na mira do menu da vez. */
 function miraOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'mira' }>): RespostaDaMesa {
   const escolha = pedido.mira
-  const mesa = mesaAgora(sceneKey)
-  const turnos = mesa.cena?.turnos
-  const daMesa = escolha === null || turnos === undefined ? null : escolhaDaMesa(mesa, turnos, escolha)
-  const golpe = escolha === null ? undefined : daMesa?.golpes.find((candidato) => candidato.chave === escolha.golpe)
-  if (escolha === null || daMesa === null || golpe === undefined) {
+  if (escolha === null) {
     mostrarMiraDaMesa(null)
-    return escolha === null ? OK : recusa('Esta ação não está mais na ficha.')
+    return OK
   }
-  mostrarMiraDaMesa(miraDaMesaNoChao(golpe, daMesa.alvos, escolha.alvos))
+  // A conta com a mesa de AGORA: a mesma no pedido e a cada mudança do mapa (conserto de 25/11: a ficha que anda
+  // com a mira no ar leva as casas e as marcas junto; antes a mira ficava na casa de onde a ficha saiu).
+  const montar = (): { mira: MiraNoMapa | null } | null => {
+    const mesa = mesaAgora(sceneKey)
+    const turnos = mesa.cena?.turnos
+    const daMesa = turnos === undefined ? null : escolhaDaMesa(mesa, turnos, escolha)
+    const golpe = daMesa?.golpes.find((candidato) => candidato.chave === escolha.golpe)
+    return daMesa === null || golpe === undefined ? null : { mira: miraDaMesaNoChao(golpe, daMesa.alvos, escolha.alvos) }
+  }
+  const agora = montar()
+  if (agora === null) {
+    mostrarMiraDaMesa(null)
+    return recusa('Esta ação não está mais na ficha.')
+  }
+  mostrarMiraDaMesa(agora.mira, () => montar()?.mira ?? null)
   return OK
 }
 

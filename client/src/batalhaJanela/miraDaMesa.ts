@@ -3,6 +3,7 @@ import { usaDirecao } from '../lib/batalha/alcance/forma'
 import { golpeDeAjuda, type AlvoNaMira, type GolpeNaTela } from '../components/batalha/dadosDoMenu'
 import { acaoDaMiraDoGolpe, corDoGolpe, grupoDoGolpe } from '../components/batalha/MiraDoGolpe'
 import { useMiraNoMapa, type MiraNoMapa } from '../stores/batalha/miraNoMapa'
+import { useMapStore } from '../stores/mapStore'
 
 /**
  * A MIRA DA MESA NO MAPA (sobra do alcance, 23/11/2026). O golpe e os alvos que o mestre escolhe na Mesa
@@ -46,14 +47,54 @@ export function miraDaMesaNoChao(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[
   return mira
 }
 
-/** Põe a mira da mesa no mapa; `null` apaga a que a mesa pôs (e só ela). */
-export function mostrarMiraDaMesa(mira: MiraNoMapa | null): void {
+/**
+ * Conserto de 25/11/2026 ("me movo mas os quadrados azuis não se movem"): a mesa só manda a mira de novo
+ * quando o golpe ou os alvos mudam, e a conta acima é uma foto das fichas na hora do pedido. Com a mira no
+ * ar, cada mudança do mapa (a ficha andou, a porta abriu) refaz a mira com a mesa de agora.
+ */
+let refazerDaMesa: (() => MiraNoMapa | null) | null = null
+let pararDeOuvirOMapa: (() => void) | null = null
+
+function seguirOMapa(): void {
+  if (pararDeOuvirOMapa !== null) return
+  pararDeOuvirOMapa = useMapStore.subscribe((agora, antes) => {
+    if (agora.map === antes.map || postaPelaMesa === null || refazerDaMesa === null) return
+    // Outra mira na tela (o menu da vez aberto depois): a dela manda; a da mesa não volta por cima.
+    if (useMiraNoMapa.getState().local !== postaPelaMesa) return
+    const nova = refazerDaMesa()
+    if (nova === null) {
+      mostrarMiraDaMesa(null)
+      return
+    }
+    postaPelaMesa = nova
+    useMiraNoMapa.getState().mostrar(nova)
+  })
+}
+
+function pararDeSeguirOMapa(): void {
+  pararDeOuvirOMapa?.()
+  pararDeOuvirOMapa = null
+  refazerDaMesa = null
+}
+
+/**
+ * Põe a mira da mesa no mapa; `null` apaga a que a mesa pôs (e só ela). `refazer` (a mesma conta com a mesa
+ * de agora) faz a mira seguir a ficha que anda com ela no ar; ausente = a mira fica como veio.
+ */
+export function mostrarMiraDaMesa(mira: MiraNoMapa | null, refazer?: () => MiraNoMapa | null): void {
   const { local, mostrar } = useMiraNoMapa.getState()
   if (mira !== null) {
     postaPelaMesa = mira
     mostrar(mira)
+    if (refazer === undefined) {
+      pararDeSeguirOMapa()
+      return
+    }
+    refazerDaMesa = refazer
+    seguirOMapa()
     return
   }
+  pararDeSeguirOMapa()
   if (postaPelaMesa !== null && local === postaPelaMesa) mostrar(null)
   postaPelaMesa = null
 }
