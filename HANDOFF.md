@@ -1,3 +1,20 @@
+# 25/11 tarde: workflow unificar-mecanicas-one-piece TERMINOU (35 commits, 86ca02bf..6587be76, sem push)
+
+## Estado atual
+- Auditoria (verificador-realidade, só leitura): NECESSITA TRABALHO. Linhas 0-33 do levantamento: resolvidos 1,4,6,9,10,16,19,25,29; parciais 0,2,3,7,8,11,13,14,15,23,24,26,28; não feitos 20,21,22,27,31,33; de propósito 12,18,30,32; DBT 5,17. tsc 0.
+- Riscos novos: foto do jogador pela LAN some (d16fc05b, retrato vence); qualquer cartão ligado com imagem troca a imagem do token (54b0a5ad); convite usa token.name e não publicName (a5ea9053); reação com técnica que gasta item não conta nem tira; loja: preço texto não numérico trava a venda, Caixa mostra (50)/(0); Worker do Lobby precisa sair junto (7a1f8a3c); menu Mudar ficha marca Normal errado.
+- Testes que devem quebrar: batalhaFabrica.mecanicasFatiaF, mecanicasAMao.fatiaF, curaPeloItem, ponteDasCondicoes, loja, vendaDaLoja, PinLojaControls, offFloor, fogFilter.salaSecreta, fogFilter.pisos.
+- Em voo: agente gravando a animação de começo de luta em vídeo para o pacote (sem publicar).
+
+## Próximos passos
+Dono decide: consertar os riscos novos + parciais/não feitos; permitir rodar os testes dessas áreas; passeio do Vincent (bala 12 -> 11 + Ferido por prata, Desfazer volta a 12).
+
+## Critério de pronto
+Auditoria nova sem parcial/não (menos de-propósito e DBT); testes das áreas verdes; passeio do Vincent ok.
+
+## Evidência
+Resultado do workflow em tasks/wwimfhm4f.output e journal em subagents/workflows/wf_0c218622-d9f/journal.jsonl; tsc exit 0.
+
 # 25/11 ~13h20: WORKFLOW EM VOO unificar-mecanicas-one-piece (wf_0c218622-d9f)
 
 Pedido "Resolva todos os de one piece por enquanto" (PEDIDOS): todos os achados de docs/levantamento-mecanicas-duplicadas.md menos Dragon Ball, pelo recomendado. Onda 1: batalha (3 passos em sequência: posse na mochila; condições/dano/usar; mira da Mesa) + mapa + loja; Onda 2: personagem/token + acervo/luz/lobby; auditoria (verificador-realidade); acertos + PEDIDOS + INDEX. 9 agentes Opus, sem testes, sem push, direto na main.
