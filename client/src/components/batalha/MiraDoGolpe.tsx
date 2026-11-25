@@ -21,12 +21,10 @@ import type { PerguntaNaHora, RespostasDoPedido } from '../../lib/batalha/pergun
 import { divisaoDoDano } from '../../lib/batalha/reacao'
 import { dividirDano, pegadaDaCasa, type Casa, type Direcao } from '../../lib/batalha/area'
 import { MOTIVO_FORA_DO_ALCANCE } from '../../lib/batalha/alcance/doGolpe'
-import { alcanceComCondicoes, type GrupoDoAlcance } from '../../lib/batalha/alcance/condicoes'
 import { corDoAlcance, type CorDoAlcance } from '../../lib/batalha/alcance/cor'
 import { descreverAlcance, usaDirecao } from '../../lib/batalha/alcance/forma'
 import { useMiraNoMapa, type MiraNoMapa } from '../../stores/batalha/miraNoMapa'
 import type { AcaoDaMira } from '../../lib/batalha/golpe'
-import type { AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
 import { useImagemDaMesa } from '../ImagemDaMesa'
@@ -40,15 +38,12 @@ import {
   alvosNaOrdemDaAjuda,
   distanciaNaMira,
   motivoDoAlvoNaTecnica,
-  quemSaiDoAlcanceNaMira,
   golpeDeAjuda,
   marcadosAoAbrirAMira,
   semFeridoDoLado,
   alvosNaAreaPelaGrade,
   areaComFrente,
   contaDoGolpe,
-  direcaoDaAreaAoAbrir,
-  miraComGrade,
   formatarNumero,
   lerInteiro,
   lerPerfuracao,
@@ -60,6 +55,8 @@ import {
   type GolpeNaTela,
   type OpcaoNaTela,
 } from './dadosDoMenu'
+import { LADOS_DA_AREA, NOME_DO_LADO, textoDaAreaNaMira } from './ladosDaMira'
+import { alcanceDaMira, areaDaGrade, direcaoAoAbrirAMira, formaOlhaParaUmLado, mandaOLado, marcasDaAreaVirada, quemSaiAoMandar, textoDoForaDoAlcance } from './regraDaMira'
 import './batalha.css'
 import './combate.css'
 
@@ -336,41 +333,9 @@ function textoDoDanoDividido(base: number | null, alvos: number, teto: number): 
   return alvos === 1 ? `Um alvo só: toma ${base} (o dano se divide entre até ${teto}).` : `O dano se divide: ${base} ÷ ${alvos} = ${cada} em cada.`
 }
 
-/**
- * Construtor C3: a nota da área pela grade: quantas fichas ela pega daqui, e que dá para mudar.
- * Com a área vazia, a nota não convida a marcar à mão: vale nas três entradas, e no site o servidor recusa alvo de fora da área.
- */
-function textoDaAreaNaMira(naArea: number, comFrente: boolean): string {
-  if (naArea === 0) return comFrente ? 'Ninguém na área deste lado. Vire a área para pegar alguém.' : 'Ninguém na área: todos os alvos estão fora da área.'
-  return `A área pega ${naArea} ${naArea === 1 ? 'ficha' : 'fichas'}. Clique numa ficha para tirar ou pôr.`
-}
-
-/** Construtor C3: cada lado no seletor da área (o mapa visto de cima, como na tela), na ordem das setas do teclado. */
-const LADOS_DA_AREA: readonly { direcao: Direcao; seta: string; rotulo: string }[] = [
-  { direcao: 'oeste', seta: '←', rotulo: 'Esquerda' },
-  { direcao: 'norte', seta: '↑', rotulo: 'Cima' },
-  { direcao: 'sul', seta: '↓', rotulo: 'Baixo' },
-  { direcao: 'leste', seta: '→', rotulo: 'Direita' },
-]
-
-/** Fase E do alcance: de onde vem o golpe, para as condições que valem só em armas, habilidades ou itens (a mesma regra do host). */
-export function grupoDoGolpe(golpe: GolpeNaTela): GrupoDoAlcance {
-  if (golpe.vagaId !== undefined) return 'itens'
-  return golpe.tipo === 'atacar' ? 'armas' : 'habilidades'
-}
-
 /** Fase E do alcance: a cor das casas pelo classificador único; o golpe que dá dano pinta como o Atacar. */
 export function corDoGolpe(golpe: GolpeNaTela, semDano: boolean): CorDoAlcance {
   return corDoAlcance(golpe.tipo !== 'atacar' && semDano ? { tipo: 'cartao', dano: { tipo: 'semDano' } } : { tipo: 'atacar' })
-}
-
-/** Fase E do alcance: o porquê da confirmação: quem ficou fora das casas acesas, ou a recusa do host. */
-function textoDoForaDoAlcance(quem: string | null, alvos: readonly AlvoNaMira[]): string {
-  const registro = 'As casas só mostram o alcance: o golpe sai, e o registro anota "(fora do alcance)".'
-  if (quem === 'centro') return `O centro da área está fora das casas acesas. ${registro}`
-  const nome = quem === null ? undefined : alvos.find((alvo) => alvo.tokenId === quem)?.nome
-  if (nome !== undefined) return `${nome} está fora das casas acesas. ${registro}`
-  return `O mestre conta o alcance com uma parede ou condição que esta tela não mostra. ${registro}`
 }
 
 /** Fase D do alcance: a ação que a mira manda à mesa (só o id; o host tira a forma do cartão dele), como `pedidoDoGolpe`. */
@@ -378,14 +343,6 @@ export function acaoDaMiraDoGolpe(golpe: GolpeNaTela): AcaoDaMira | null {
   if (golpe.vagaId !== undefined) return { tipo: 'item', vagaId: golpe.vagaId }
   if (golpe.tipo === 'atacar') return { tipo: 'atacar', armaId: golpe.armaId }
   return golpe.cartaoId === null ? null : { tipo: 'habilidade', cartaoId: golpe.cartaoId }
-}
-
-/** Fase E do alcance: para onde a forma olha, como a frase do protótipo diz. */
-const NOME_DO_LADO: Readonly<Record<Direcao, string>> = { norte: 'para cima', sul: 'para baixo', leste: 'para a direita', oeste: 'para a esquerda' }
-
-/** Construtor C3: a área da técnica montada marca sozinha (tem a grade); `null` = a regra de sempre. */
-function areaDaGrade(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[]): AreaAMao | null {
-  return golpe.areaPelaGrade === true && golpe.area !== undefined && miraComGrade(alvos) ? golpe.area : null
 }
 
 /** Marca ou desmarca `tokenId`; com o teto de 1 alvo, marcar outro troca (como escolher numa lista de um). */
@@ -409,20 +366,13 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
   // Fase E do alcance: a forma que vale agora, com as condições de quem usa (Ofuscado, Mira Firme): a mesma conta do host.
   const gradeDeQuemAge = alvos.find((alvo) => alvo.naGrade !== undefined)?.naGrade ?? null
   const condicoesDeQuemAge = gradeDeQuemAge?.condicoes
-  const alcanceAgora = useMemo(
-    () => (golpe.formaDoAlcance === undefined ? null : alcanceComCondicoes(golpe.formaDoAlcance, grupoDoGolpe(golpe), condicoesDeQuemAge ?? [])),
-    [golpe, condicoesDeQuemAge],
-  )
+  const alcanceAgora = useMemo(() => alcanceDaMira(golpe, condicoesDeQuemAge), [golpe, condicoesDeQuemAge])
   /** A forma com as condições, só quando elas mudam o número (sem mudança, as contas de antes seguem iguais). */
   const formaComCondicoes = alcanceAgora?.muda === true ? alcanceAgora.forma : undefined
   // Fase E: a forma olha para um lado (linha, quadrado à frente, leque): o mouse no mapa e os chips viram.
-  const areaQueVira = areaDaGrade(golpe, alvos)
-  const olhaParaUmLado = areaQueVira !== null ? areaComFrente(areaQueVira) : alcanceAgora !== null && usaDirecao(alcanceAgora.forma) && gradeDeQuemAge !== null
+  const olhaParaUmLado = formaOlhaParaUmLado(golpe, alvos)
   // Construtor C3: a área montada aponta para a frente de quem age (ou o lado que pega mais); quem usa pode virar.
-  const [direcao, setDirecao] = useState<Direcao>(() => {
-    const area = areaDaGrade(golpe, alvos)
-    return area === null ? (alvos.find((alvo) => alvo.naGrade !== undefined)?.naGrade?.frente ?? 'norte') : direcaoDaAreaAoAbrir(area, alvos)
-  })
+  const [direcao, setDirecao] = useState<Direcao>(() => direcaoAoAbrirAMira(golpe, alvos))
   // U1 (decisão 3): a regra única de quem vem marcado; sem ninguém que sirva, abre sem alvo (a nota diz por quê).
   const [marcados, setMarcados] = useState<readonly string[]>(() => {
     // Fase E: a condição que encolhe ou estica a área muda quem ela pega já ao abrir.
@@ -568,8 +518,8 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
     setErro(null)
     setDirecao(lado)
     // Fase E do alcance: a forma que olha sem área montada (o alcance do cartão de texto) só vira; não marca ninguém.
-    const area = areaDaGrade(golpe, alvos)
-    if (area !== null) setMarcados(alvosNaAreaPelaGrade(area, alvos, lado, formaComCondicoes, ajuda).slice(0, ALVOS_MAX))
+    const daArea = marcasDaAreaVirada(golpe, alvos, lado)
+    if (daArea !== null) setMarcados(daArea)
   }
 
   // Conserto de 25/11/2026 ("me movo mas ... os inimigos não ficam marcados"): as marcas da área montada são da casa
@@ -580,8 +530,8 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
   const casaDasMarcas = useRef(casaDeQuemAge)
   const remarcarDaCasaNova = useRef<() => void>(() => undefined)
   remarcarDaCasaNova.current = () => {
-    const area = areaDaGrade(golpe, alvos)
-    if (area !== null) setMarcados(alvosNaAreaPelaGrade(area, alvos, direcao, formaComCondicoes, ajuda).slice(0, ALVOS_MAX))
+    const daArea = marcasDaAreaVirada(golpe, alvos, direcao)
+    if (daArea !== null) setMarcados(daArea)
   }
   useEffect(() => {
     if (casaDeQuemAge === casaDasMarcas.current) return
@@ -681,11 +631,11 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
     }
     // Fase C do alcance: a área pela grade manda o lado escolhido (o host vira a mesma área); as outras formas não olham.
     // Fase E: a forma que olha sem área montada também manda o lado (o host confere as casas do lado que o chão mostrou).
-    const direcaoDoPedido = areaDaGrade(golpe, alvos) !== null || olhaParaUmLado ? direcao : null
+    const direcaoDoPedido = mandaOLado(golpe, alvos) ? direcao : null
     const pontoDoPedido = golpe.area?.centro === 'ponto' ? ponto : null
     const centroDoPedido = golpe.area?.centro === 'alvo' ? centroId : null
     // Fase E do alcance: a conta com as condições de quem usa, como o host.
-    const quemSai = confirmouForaDoAlcance ? null : quemSaiDoAlcanceNaMira({ formaDoAlcance: alcanceAgora?.forma }, alvos, { marcados, direcao: direcaoDoPedido, ponto: pontoDoPedido, centroId: centroDoPedido })
+    const quemSai = confirmouForaDoAlcance ? null : quemSaiAoMandar(golpe, alvos, { marcados, direcao: direcaoDoPedido, ponto: pontoDoPedido, centroId: centroDoPedido })
     if (quemSai !== null) {
       setErro(null)
       setForaQuem(quemSai)

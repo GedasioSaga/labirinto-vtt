@@ -1,7 +1,8 @@
-import { alcanceComCondicoes } from '../lib/batalha/alcance/condicoes'
+import type { Direcao } from '../lib/batalha/area'
 import { usaDirecao } from '../lib/batalha/alcance/forma'
 import { golpeDeAjuda, type AlvoNaMira, type GolpeNaTela } from '../components/batalha/dadosDoMenu'
-import { acaoDaMiraDoGolpe, corDoGolpe, grupoDoGolpe } from '../components/batalha/MiraDoGolpe'
+import { acaoDaMiraDoGolpe, corDoGolpe } from '../components/batalha/MiraDoGolpe'
+import { alcanceDaMira, direcaoAoAbrirAMira } from '../components/batalha/regraDaMira'
 import { useMiraNoMapa, type MiraNoMapa } from '../stores/batalha/miraNoMapa'
 import { useMapStore } from '../stores/mapStore'
 
@@ -18,20 +19,23 @@ let postaPelaMesa: MiraNoMapa | null = null
 
 /**
  * A mira no chão do golpe escolhido na mesa; `null` = nada a acender (o golpe sem alcance, a mesa sem a
- * conta das casas). A forma vem com as condições de quem usa; a direção é a frente dele (a mesa não vira).
+ * conta das casas). A forma vem com as condições de quem usa. Conserto de 25/11/2026 (levantamento das
+ * mecânicas duplicadas, item 16): a direção é a que a mesa virou (`direcao`) ou, sem ela, a de abrir do
+ * menu da vez (a área montada olha para o lado que pega mais quando a ficha não tem frente).
  */
-export function miraDaMesaNoChao(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], marcados: readonly string[]): MiraNoMapa | null {
+export function miraDaMesaNoChao(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], marcados: readonly string[], direcao?: Direcao): MiraNoMapa | null {
   const grade = alvos.find((alvo) => alvo.naGrade !== undefined)?.naGrade
   const quemUsaId = alvos.find((alvo) => alvo.lado === 'eu')?.tokenId
-  if (grade?.mapa === undefined || quemUsaId === undefined || golpe.formaDoAlcance === undefined) return null
-  const { forma } = alcanceComCondicoes(golpe.formaDoAlcance, grupoDoGolpe(golpe), grade.condicoes ?? [])
+  const alcance = alcanceDaMira(golpe, grade?.condicoes)
+  if (grade?.mapa === undefined || quemUsaId === undefined || alcance === null) return null
+  const { forma } = alcance
   const fichaDe = (tokenId: string) => alvos.find((alvo) => alvo.tokenId === tokenId)?.naGrade?.ficha ?? null
   const mira: MiraNoMapa = {
     tokenId: quemUsaId,
     forma,
     cor: corDoGolpe(golpe, golpe.dano.semDano),
     quemUsa: grade.deQuemAge,
-    direcao: usaDirecao(forma) ? (grade.frente ?? 'norte') : null,
+    direcao: usaDirecao(forma) ? (direcao ?? direcaoAoAbrirAMira(golpe, alvos)) : null,
     acendeQuemUsa: golpeDeAjuda(golpe),
     mapa: grade.mapa,
     centro: null,
@@ -69,6 +73,16 @@ function seguirOMapa(): void {
     postaPelaMesa = nova
     useMiraNoMapa.getState().mostrar(nova)
   })
+}
+
+/**
+ * Conserto de 25/11/2026 (item 16): o lado do mouse no mapa (a store da mira o acha em relação a quem usa)
+ * enquanto a mira no chão é a da mesa: vai no espelho, e a mesa vira a forma como o menu da vez vira.
+ * `null` = outra mira no chão, nenhuma, ou o mouse na zona morta do meio.
+ */
+export function ladoDoMouseNaMiraDaMesa(): Direcao | null {
+  const { local, lado } = useMiraNoMapa.getState()
+  return postaPelaMesa !== null && local === postaPelaMesa ? lado : null
 }
 
 function pararDeSeguirOMapa(): void {

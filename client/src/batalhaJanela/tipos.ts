@@ -13,6 +13,8 @@
  * isso o estado nunca diverge entre as janelas.
  */
 
+import type { Direcao } from '../lib/batalha/area'
+
 /** O motor da batalha da cena aberta. */
 export type SistemaDaMesa = 'op' | 'dbt'
 
@@ -95,6 +97,19 @@ export interface GolpeNoEspelho {
   perfurante: boolean
   /** O ajuste do dano (Dano base, Surpresa, Perfurante) vale nesta ação: só o One Piece, golpe com dano. */
   ajustavel: boolean
+  /**
+   * Conserto de 25/11/2026 (levantamento das mecânicas duplicadas, item 16): o lado da forma, contado pela
+   * regra do menu da vez (`regraDaMira`). `aoAbrir` = a frente de quem usa, ou o lado que a área montada pega
+   * mais; `vira` = a forma olha para um lado (a mesa mostra as setas e segue o mouse no mapa). Ausente = o
+   * pedido vai sem lado (a forma não olha, ou o motor não tem alcance: Dragon Ball).
+   */
+  lado?: { aoAbrir: Direcao; vira: boolean }
+  /**
+   * Item 16: a área montada que marca sozinha pela grade (`alvosNaAreaPelaGrade`, a regra do menu da vez):
+   * quem ela pega virada para cada lado e a casa de quem usa (andou, a mesa remarca). Ausente = os alvos
+   * são marcados à mão.
+   */
+  area?: { pega: Readonly<Record<Direcao, readonly string[]>>; casa: string }
 }
 
 /** Um alvo possível da vez. */
@@ -228,6 +243,11 @@ export interface EspelhoDaBatalha {
    * `contra:<golpe>`): a mesa soma ao que ela mesma deixou. Dragon Ball: vazio (a fila dele mora só na mesa).
    */
   deixados: readonly string[]
+  /**
+   * Item 16 do levantamento (25/11/2026): o lado do mouse no mapa do app em relação a quem usa, enquanto a
+   * mira no chão é a da mesa; a forma que olha vira com ele, como no menu da vez. `null` ou ausente = nenhum.
+   */
+  ladoNoMapa?: Direcao | null
 }
 
 /** As chaves do combate, guardadas no computador do mestre (as mesmas do painel da batalha). */
@@ -245,6 +265,16 @@ export interface AjusteDoGolpe {
   perfurante: boolean
 }
 
+/**
+ * Item 16 do levantamento (25/11/2026): o alcance do golpe que a mesa lança, como o menu da vez manda. `direcao`
+ * = o lado da forma (só no golpe com `GolpeNoEspelho.lado`); `foraDoAlcance` = o mestre confirmou o "Fora do
+ * alcance, usar mesmo assim?".
+ */
+export interface AlcanceDoPedido {
+  direcao?: Direcao
+  foraDoAlcance?: true
+}
+
 /** O que a tela pede. Lista fechada: a principal confere cada campo antes de aplicar (`protocolo.ts`). */
 export type PedidoDaMesa =
   | { acao: 'passar'; sceneKey: string; vez: string }
@@ -252,9 +282,9 @@ export type PedidoDaMesa =
   /** Um item do menu da carta (`CartaNoEspelho.menu`): a principal remonta o menu e aplica o item com este id. */
   | { acao: 'itemDaCarta'; sceneKey: string; cartaId: string; item: string }
   /** `forcar` (REQUISITOS G): o "Usar mesmo assim" do golpe cinza só pelos requisitos (`GolpeNoEspelho.forcavel`). */
-  | { acao: 'agir'; sceneKey: string; vez: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe; forcar?: true }
+  | ({ acao: 'agir'; sceneKey: string; vez: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe; forcar?: true } & AlcanceDoPedido)
   /** O contra-ataque do NPC: o golpe dele fora da vez. */
-  | { acao: 'contra'; sceneKey: string; golpeId: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe; forcar?: true }
+  | ({ acao: 'contra'; sceneKey: string; golpeId: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe; forcar?: true } & AlcanceDoPedido)
   /** O contra-ataque gasto em se mover (o jeito de abrir mão dele). */
   | { acao: 'abrirMao'; sceneKey: string; golpeId: string }
   | { acao: 'ordenar'; sceneKey: string }
@@ -283,10 +313,17 @@ export interface MiraDaMesa {
   id: string
   golpe: string
   alvos: readonly string[]
+  /** Item 16: o lado que a mesa virou; ausente = o lado de abrir do menu da vez. */
+  direcao?: Direcao
 }
 
 /** A volta de um pedido: `ok`, ou a frase do porquê não. */
 export interface RespostaDaMesa {
   ok: boolean
   motivo: string | null
+  /**
+   * Item 16: a recusa é só o alcance (alguém fora das casas acesas): o mesmo pedido com `foraDoAlcance` sai.
+   * A mesa abre o "Fora do alcance, usar mesmo assim?" do menu da vez com o `motivo`. Ausente = recusa de sempre.
+   */
+  foraDoAlcance?: true
 }

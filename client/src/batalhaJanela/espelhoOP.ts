@@ -1,4 +1,6 @@
-import { chaveDaVez, type PedidoDeAcao } from '../lib/batalha/combate'
+import type { Direcao } from '../lib/batalha/area'
+import { MOTIVO_FORA_DO_ALCANCE } from '../lib/batalha/alcance/doGolpe'
+import { ALVOS_MAX, chaveDaVez, type PedidoDeAcao } from '../lib/batalha/combate'
 import { travaDoToken } from '../lib/batalha/condicoes'
 import { acoesDaCarta, sugestaoParaNpc } from '../lib/batalha/golpe'
 import type { LinhaDoRegistro, TipoDaLinha } from '../lib/batalha/registro'
@@ -8,11 +10,12 @@ import { formasQueDesligamNoFim } from '../lib/batalha/transformacao'
 import { cartaDaVez, contrasQueSeguramAVez, tokensCaidos, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../lib/batalha/turnos'
 import { ehDoMestre, golpesDaVezDoNpc, mesaAgora, sugestaoNaTela, type MesaDaCena } from '../components/batalha/BatalhaDoMestre'
 import { faixaDoMestre, linhasDoMestre, type RecursoNaCarta } from '../components/batalha/dadosDaFaixa'
-import { armaPadraoNaBatalha, economiaEmTexto, formatarNumero, golpesDeAtaque, golpesDeHabilidade, pipsDaVez, type GolpeNaTela } from '../components/batalha/dadosDoMenu'
+import { armaPadraoNaBatalha, economiaEmTexto, formatarNumero, golpesDeAtaque, golpesDeHabilidade, pipsDaVez, type AlvoNaMira, type GolpeNaTela } from '../components/batalha/dadosDoMenu'
 import { itensDaCartaDoMestre } from '../components/batalha/menuDaCartaDoMestre'
 import { alvosDaOrdem, nomeDaFicha } from '../components/batalha/mesaDoMestre'
 import { deixarParaDepois, deveAReacao, travasDeixadas } from '../components/batalha/travaDoPassar'
 import { pedidoDoGolpe } from '../components/batalha/MiraDoGolpe'
+import { areaDaGrade, direcaoAoAbrirAMira, formaOlhaParaUmLado, mandaOLado, marcasDaAreaVirada, quemSaiAoMandar, textoDoForaDoAlcance } from '../components/batalha/regraDaMira'
 import { ligarSomDoCombate, somDoCombateLigado } from '../lib/sons/sonsDoCombate'
 import { cameraDaBatalhaLigada, ligarCameraDaBatalha } from '../pixi/cameraDaBatalha'
 import type { MiraNoMapa } from '../stores/batalha/miraNoMapa'
@@ -20,8 +23,8 @@ import { useBatalhaStore } from '../stores/batalhaStore'
 import { useToastStore } from '../stores/toastStore'
 import { escolherItemDaCarta, itensNoEspelho } from './menuDaCartaNoEspelho'
 import { ligarOMenuDoMapa, menuDoMapaAberto } from './telaDaMesa'
-import { miraDaMesaNoChao, mostrarMiraDaMesa } from './miraDaMesa'
-import type { AjusteDoGolpe, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, LinhaNoEspelho, MiraDaMesa, PedidoDaMesa,PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
+import { ladoDoMouseNaMiraDaMesa, miraDaMesaNoChao, mostrarMiraDaMesa } from './miraDaMesa'
+import type { AjusteDoGolpe, AlcanceDoPedido, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, LinhaNoEspelho, MiraDaMesa, PedidoDaMesa,PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
 
 /**
  * A MESA DA BATALHA no One Piece: o espelho lido das stores (as mesmas leituras
@@ -63,7 +66,7 @@ function chaveDe(turnos: TurnosDaCena, carta: CartaDaOrdem): string {
  * (o dano da ficha, sem Surpresa, o Perfurante da técnica, o selo sugerido), e
  * o golpe que pede uma escolha a mais não tem de onde tirar. `null` = sai daqui.
  */
-function porQueNoMapa(golpe: GolpeNaTela): string | null {
+function porQueNoMapa(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[]): string | null {
   if (golpe.invocacao === true) return 'Invocação: escolha a opção e o lugar pelo menu do mapa.'
   if (golpe.acao === 'passiva') return 'Passiva: não se lança.'
   if (golpe.custo.tipo === 'pergunta') return `Pede o custo à mão (${golpe.custo.texto}): use o menu do mapa.`
@@ -72,9 +75,37 @@ function porQueNoMapa(golpe: GolpeNaTela): string | null {
   if ((golpe.perguntas?.length ?? 0) > 0) return 'Faz perguntas na hora: use o menu do mapa.'
   if ((golpe.armas?.length ?? 0) > 1) return 'Pede a arma: use o menu do mapa.'
   if ((golpe.balas?.length ?? 0) > 0 || golpe.exigeMunicao === true) return 'Pede a bala: use o menu do mapa.'
-  if (golpe.area !== undefined || golpe.areaPelaGrade === true) return 'Marca a área no mapa: use o menu do mapa.'
+  if ((golpe.area !== undefined || golpe.areaPelaGrade === true) && !aMesaMarcaAArea(golpe, alvos)) return 'Marca a área no mapa: use o menu do mapa.'
   if (golpe.dano.valor === null && !golpe.dano.semDano && golpe.dano.pelaVida !== true) return 'O dano é à mão: use o menu do mapa.'
   return null
+}
+
+/**
+ * Conserto de 25/11/2026 (levantamento das mecânicas duplicadas, item 16): a área montada pela grade a mesa
+ * marca sozinha, pela regra do menu da vez. A área longe (o centro, escolhido no mapa) e a área sem a grade
+ * seguem pelo menu do mapa.
+ */
+function aMesaMarcaAArea(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[]): boolean {
+  return areaDaGrade(golpe, alvos) !== null && golpe.area?.centro === undefined
+}
+
+/** A casa de quem usa (coluna, linha e tamanho): mudou, a mesa remarca a área, como o menu da vez quando a ficha anda. */
+function casaDeQuemUsa(alvos: readonly AlvoNaMira[]): string | null {
+  const pegada = alvos.find((alvo) => alvo.naGrade !== undefined)?.naGrade?.deQuemAge
+  return pegada === undefined ? null : `${pegada.col},${pegada.row},${pegada.tamanho}`
+}
+
+/**
+ * Item 16: o lado e a área pela regra do menu da vez (`regraDaMira`), contados aqui porque a mesa não tem a
+ * grade: o lado ao abrir, se as setas viram e quem a área pega virada para cada lado.
+ */
+function ladoEAreaNoEspelho(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[]): Pick<GolpeNoEspelho, 'lado' | 'area'> {
+  if (!mandaOLado(golpe, alvos)) return {}
+  const lado = { aoAbrir: direcaoAoAbrirAMira(golpe, alvos), vira: formaOlhaParaUmLado(golpe, alvos) }
+  const casa = casaDeQuemUsa(alvos)
+  if (casa === null || !aMesaMarcaAArea(golpe, alvos)) return { lado }
+  const pega = (direcao: Direcao): string[] => marcasDaAreaVirada(golpe, alvos, direcao) ?? []
+  return { lado, area: { pega: { norte: pega('norte'), sul: pega('sul'), leste: pega('leste'), oeste: pega('oeste') }, casa } }
 }
 
 function detalheDoGolpe(golpe: GolpeNaTela): string {
@@ -98,8 +129,9 @@ function golpeDoPedido(golpe: GolpeNaTela, forcar: boolean): { golpe: GolpeNaTel
   return { golpe: null, motivo: golpe.motivo }
 }
 
-function golpeNoEspelho(golpe: GolpeNaTela): GolpeNoEspelho {
-  const teto = golpe.semAlvo === true ? 0 : (golpe.tetoDeAlvos ?? golpe.divide ?? 8)
+function golpeNoEspelho(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[]): GolpeNoEspelho {
+  // Item 16: sem teto da técnica, o mesmo teto do menu da vez (a área que pega muitos marca até ele).
+  const teto = golpe.semAlvo === true ? 0 : (golpe.tetoDeAlvos ?? golpe.divide ?? ALVOS_MAX)
   const comNumero = !golpe.dano.semDano && golpe.dano.valor !== null
   const forcavel = cinzaSoDosRequisitos(golpe)
   return {
@@ -108,7 +140,7 @@ function golpeNoEspelho(golpe: GolpeNaTela): GolpeNoEspelho {
     detalhe: detalheDoGolpe(golpe),
     motivo: golpe.motivo,
     // O forçável diz também se sai daqui: forçado, o cinza some e o que sobra é o de sempre.
-    noMapa: golpe.motivo === null || forcavel ? porQueNoMapa(golpe) : null,
+    noMapa: golpe.motivo === null || forcavel ? porQueNoMapa(golpe, alvos) : null,
     forcavel,
     alvo: golpe.semAlvo === true ? 'nenhum' : teto === 1 ? 'um' : 'varios',
     alvosMax: teto,
@@ -116,6 +148,7 @@ function golpeNoEspelho(golpe: GolpeNaTela): GolpeNoEspelho {
     dano: comNumero ? golpe.dano.valor : null,
     perfurante: golpe.perfurante,
     ajustavel: comNumero,
+    ...ladoEAreaNoEspelho(golpe, alvos),
   }
 }
 
@@ -208,7 +241,7 @@ function vezNoEspelho(mesa: MesaDaCena, turnos: TurnosDaCena, carta: CartaDaOrde
     ...base,
     npc: true,
     descricao: [equipe === null ? 'NPC' : `NPC · ${equipe}`, base.pips.length === 0 ? economia : ''].filter((parte) => parte !== '').join(' · '),
-    golpes: doNpc.golpes.map(golpeNoEspelho),
+    golpes: doNpc.golpes.map((golpe) => golpeNoEspelho(golpe, doNpc.alvos)),
     alvos: alvosNoEspelho(doNpc.alvos),
     sugestao: { golpe: naTela.chave, alvo: naTela.alvoTokenId },
     aviso: doNpc.trava ?? (doNpc.golpes.length === 0 ? 'Sem técnica nem arma na ficha: passe a vez ou dê dano pelo livro.' : null),
@@ -293,14 +326,15 @@ function contraNoEspelho(mesa: MesaDaCena, turnos: TurnosDaCena): ContraNoEspelh
   const doMestre = ehDoMestre(contra.personagemId, mesa.personagens)
   const carta = turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId && candidata.bando === undefined)
   const comMenu = doMestre && carta !== undefined
+  const alvos = comMenu ? alvosDaOrdem(mesa, turnos.cartas, carta) : []
   return {
     golpeId: contra.golpeId,
     quem: nomeDaFicha(mesa, contra.tokenId, carta),
     de: nomeDaFicha(mesa, contra.atacanteTokenId),
     doMestre,
     desde: contraVistoEm.get(contra.golpeId) ?? null,
-    golpes: comMenu ? golpesDoContra(mesa, turnos, carta).map(golpeNoEspelho) : [],
-    alvos: comMenu ? alvosNoEspelho(alvosDaOrdem(mesa, turnos.cartas, carta)) : [],
+    golpes: comMenu ? golpesDoContra(mesa, turnos, carta).map((golpe) => golpeNoEspelho(golpe, alvos)) : [],
+    alvos: alvosNoEspelho(alvos),
     alvoSugerido: contra.atacanteTokenId,
   }
 }
@@ -361,6 +395,7 @@ export function espelhoOP(sceneKey: string): EspelhoDaBatalha | null {
     avisoDoEncerrar: 'Encerrar desliga a batalha desta cena e tira as formas de quem lutou. As fichas ficam como estão.',
     avisos: [],
     contra: contraNoEspelho(mesa, turnos),
+    ladoNoMapa: ladoDoMouseNaMiraDaMesa(),
     temCaminhos: Object.values(cena.caminhos).some((blocos) => blocos > 0),
     podeOrdenar: turnos.cartas.length > 1,
     // Aberto pela vez do NPC ou pelo contra-ataque dele (que acontece também na vez do jogador): a chave é a da vez de agora.
@@ -382,8 +417,8 @@ function encerrarOP(sceneKey: string): RespostaDaMesa {
   return OK
 }
 
-/** O pedido do golpe com o de sempre da mira e o ajuste da mesa (Dano base, Surpresa, Perfurante). */
-function acaoDoGolpe(golpe: GolpeNaTela, alvos: readonly string[], ajuste: AjusteDoGolpe | undefined): PedidoDeAcao {
+/** O pedido do golpe com o de sempre da mira, o ajuste da mesa (Dano base, Surpresa, Perfurante) e o alcance (o lado, o "usar mesmo assim"). */
+function acaoDoGolpe(golpe: GolpeNaTela, alvos: readonly string[], ajuste: AjusteDoGolpe | undefined, alcance: AlcanceDoPedido): PedidoDeAcao {
   const comNumero = !golpe.dano.semDano && golpe.dano.valor !== null
   const danoDaFicha = golpe.dano.semDano ? null : (golpe.dano.valor ?? 0)
   const dano = comNumero && ajuste !== undefined && ajuste.dano !== null ? ajuste.dano : danoDaFicha
@@ -397,7 +432,36 @@ function acaoDoGolpe(golpe: GolpeNaTela, alvos: readonly string[], ajuste: Ajust
     custo: null,
     acao: null,
     selo,
+    ...alcance,
   })
+}
+
+/** Item 16: a recusa pelo alcance com a frase do menu da vez; o mesmo pedido com `foraDoAlcance` sai. */
+function recusaDoAlcance(quem: string | null, alvos: readonly AlvoNaMira[]): RespostaDaMesa {
+  return { ok: false, motivo: textoDoForaDoAlcance(quem, alvos), foraDoAlcance: true }
+}
+
+/**
+ * Item 16 do levantamento (25/11/2026): o alcance como o menu da vez manda e confere. O lado vai só no golpe
+ * que o manda (o que a mesa virou, ou o de abrir); sem a confirmação, quem sai das casas acesas (a conta da
+ * mira, com as paredes do mapa do mestre) pede o "usar mesmo assim?" com o nome dele.
+ */
+function alcanceDoPedido(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], pedido: { alvos: readonly string[] } & AlcanceDoPedido): { alcance: AlcanceDoPedido; fora: RespostaDaMesa | null } {
+  const direcao = mandaOLado(golpe, alvos) ? (pedido.direcao ?? direcaoAoAbrirAMira(golpe, alvos)) : null
+  const alcance: AlcanceDoPedido = {}
+  if (direcao !== null) alcance.direcao = direcao
+  if (pedido.foraDoAlcance === true) {
+    alcance.foraDoAlcance = true
+    return { alcance, fora: null }
+  }
+  const marcados = golpe.semAlvo === true ? [] : [...new Set(pedido.alvos)]
+  const quem = quemSaiAoMandar(golpe, alvos, { marcados, direcao, ponto: null, centroId: null })
+  return { alcance, fora: quem === null ? null : recusaDoAlcance(quem, alvos) }
+}
+
+/** A recusa do host; a do alcance (parede ou condição que a conta da mira não viu) abre a mesma pergunta do menu da vez. */
+function recusaDoHost(motivo: string, alvos: readonly AlvoNaMira[]): RespostaDaMesa {
+  return motivo === MOTIVO_FORA_DO_ALCANCE ? recusaDoAlcance(null, alvos) : recusa(motivo)
 }
 
 /** Confere os alvos do pedido contra os da lista; `null` = valem. */
@@ -422,15 +486,17 @@ function agirOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'agir' }
   if (naFicha === undefined) return recusa('Esta ação não está mais na ficha.')
   const { golpe, motivo: doCinza } = golpeDoPedido(naFicha, pedido.forcar === true)
   if (golpe === null) return recusa(doCinza)
-  const noMapa = porQueNoMapa(golpe)
+  const noMapa = porQueNoMapa(golpe, doNpc.alvos)
   if (noMapa !== null) return recusa(noMapa)
   const dosAlvos = motivoDosAlvos(golpe, pedido.alvos, doNpc.alvos)
   if (dosAlvos !== null) return recusa(dosAlvos)
-  const acao = acaoDoGolpe(golpe, pedido.alvos, pedido.ajuste)
+  const { alcance, fora } = alcanceDoPedido(golpe, doNpc.alvos, pedido)
+  if (fora !== null) return fora
+  const acao = acaoDoGolpe(golpe, pedido.alvos, pedido.ajuste, alcance)
   const vez = { cartaId: carta.id, rodada: turnos.rodada }
   const loja = useBatalhaStore.getState()
   const motivo = loja.motivoDoAgir(sceneKey, MESTRE, vez, acao)
-  if (motivo !== null) return recusa(motivo)
+  if (motivo !== null) return recusaDoHost(motivo, doNpc.alvos)
   return loja.agir(sceneKey, MESTRE, vez, acao) ? OK : recusa('A regra recusou: confira a ação, o custo e a recarga.')
 }
 
@@ -460,7 +526,7 @@ function miraOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'mira' }
     const turnos = mesa.cena?.turnos
     const daMesa = turnos === undefined ? null : escolhaDaMesa(mesa, turnos, escolha)
     const golpe = daMesa?.golpes.find((candidato) => candidato.chave === escolha.golpe)
-    return daMesa === null || golpe === undefined ? null : { mira: miraDaMesaNoChao(golpe, daMesa.alvos, escolha.alvos) }
+    return daMesa === null || golpe === undefined ? null : { mira: miraDaMesaNoChao(golpe, daMesa.alvos, escolha.alvos, escolha.direcao) }
   }
   const agora = montar()
   if (agora === null) {
@@ -491,15 +557,18 @@ function contraOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'contr
   if (naFicha === undefined) return recusa('Esta ação não está mais na ficha.')
   const { golpe, motivo: doCinza } = golpeDoPedido(naFicha, pedido.forcar === true)
   if (golpe === null) return recusa(doCinza)
-  const noMapa = porQueNoMapa(golpe)
+  const alvos = alvosDaOrdem(mesa, turnos.cartas, carta)
+  const noMapa = porQueNoMapa(golpe, alvos)
   if (noMapa !== null) return recusa(noMapa)
-  const dosAlvos = motivoDosAlvos(golpe, pedido.alvos, alvosDaOrdem(mesa, turnos.cartas, carta))
+  const dosAlvos = motivoDosAlvos(golpe, pedido.alvos, alvos)
   if (dosAlvos !== null) return recusa(dosAlvos)
-  const golpeDaMira = acaoDoGolpe(golpe, pedido.alvos, pedido.ajuste)
+  const { alcance, fora } = alcanceDoPedido(golpe, alvos, pedido)
+  if (fora !== null) return fora
+  const golpeDaMira = acaoDoGolpe(golpe, pedido.alvos, pedido.ajuste, alcance)
   if (golpeDaMira.tipo !== 'atacar' && golpeDaMira.tipo !== 'habilidade') return recusa('Esta ação não serve de contra-ataque.')
   const acao: PedidoDeAcao = { ...golpeDaMira, contraDe: contra.golpeId }
   const motivo = loja.motivoDoAgir(sceneKey, MESTRE, null, acao)
-  if (motivo !== null) return recusa(motivo)
+  if (motivo !== null) return recusaDoHost(motivo, alvos)
   return loja.agir(sceneKey, MESTRE, null, acao) ? OK : recusa('A regra recusou: confira a ação, o custo e a recarga.')
 }
 

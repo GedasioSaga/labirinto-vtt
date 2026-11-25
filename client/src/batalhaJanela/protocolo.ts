@@ -1,4 +1,5 @@
-import type { AjusteDoGolpe, EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa } from './tipos'
+import { DIRECOES, type Direcao } from '../lib/batalha/area'
+import type { AjusteDoGolpe, AlcanceDoPedido, EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa } from './tipos'
 
 /**
  * O FIO entre a janela principal (a MESA) e a janela da batalha, pelo
@@ -69,16 +70,35 @@ function lerAjuste(valor: unknown): AjusteDoGolpe | null {
   return { dano: o.dano, surpresa: o.surpresa, perfurante: o.perfurante }
 }
 
-/** REQUISITOS G: o "Usar mesmo assim" (`forcar`): ausente = `undefined`; `true` = forçar; outro valor = torto (`null`). */
-function lerForcar(valor: unknown): true | undefined | null {
+/**
+ * Um "usar mesmo assim" (o `forcar` dos REQUISITOS G, o `foraDoAlcance` do item 16): ausente = `undefined`;
+ * `true` = confirmado; outro valor = torto (`null`).
+ */
+function lerConfirmacao(valor: unknown): true | undefined | null {
   if (valor === undefined) return undefined
   return valor === true ? true : null
 }
 
-/** O golpe (`agir`, `contra`) com o ajuste e o `forcar` opcionais; torto = `null`. */
-function comOpcionaisDoGolpe<P extends { ajuste?: AjusteDoGolpe; forcar?: true }>(pedido: P, o: Record<string, unknown>): P | null {
-  const forcar = lerForcar(o.forcar)
-  if (forcar === null) return null
+/** Item 16 do levantamento (25/11/2026): o lado da forma: ausente = `undefined`; um dos quatro; outro valor = torto (`null`). */
+function lerLado(valor: unknown): Direcao | undefined | null {
+  if (valor === undefined) return undefined
+  return DIRECOES.find((direcao) => direcao === valor) ?? null
+}
+
+/** O lado e a confirmação do fora do alcance, opcionais, postos em `pedido`; torto = `false`. */
+function comAlcanceDoPedido(pedido: AlcanceDoPedido, o: Record<string, unknown>): boolean {
+  const direcao = lerLado(o.direcao)
+  const foraDoAlcance = lerConfirmacao(o.foraDoAlcance)
+  if (direcao === null || foraDoAlcance === null) return false
+  if (direcao !== undefined) pedido.direcao = direcao
+  if (foraDoAlcance === true) pedido.foraDoAlcance = true
+  return true
+}
+
+/** O golpe (`agir`, `contra`) com o ajuste, o `forcar` e o alcance opcionais; torto = `null`. */
+function comOpcionaisDoGolpe<P extends { ajuste?: AjusteDoGolpe; forcar?: true } & AlcanceDoPedido>(pedido: P, o: Record<string, unknown>): P | null {
+  const forcar = lerConfirmacao(o.forcar)
+  if (forcar === null || !comAlcanceDoPedido(pedido, o)) return null
   if (forcar === true) pedido.forcar = true
   if (o.ajuste === undefined) return pedido
   const ajuste = lerAjuste(o.ajuste)
@@ -159,7 +179,9 @@ export function lerPedido(dado: unknown): PedidoDaMesa | null {
       const deQuem = id(mira.id)
       const golpe = id(mira.golpe)
       const alvos = listaDeIds(mira.alvos)
-      return deQuem === null || golpe === null || alvos === null ? null : { acao: 'mira', sceneKey, mira: { tipo: mira.tipo, id: deQuem, golpe, alvos } }
+      const direcao = lerLado(mira.direcao)
+      if (deQuem === null || golpe === null || alvos === null || direcao === null) return null
+      return { acao: 'mira', sceneKey, mira: { tipo: mira.tipo, id: deQuem, golpe, alvos, ...(direcao === undefined ? {} : { direcao }) } }
     }
     default:
       return null
@@ -199,7 +221,10 @@ export function lerMensagemDaMesa(dado: unknown, sessao: string): MensagemDaMesa
     case 'resposta': {
       const resposta = objeto(o.resposta)
       if (typeof o.id !== 'number' || resposta === null || typeof resposta.ok !== 'boolean') return null
-      return { de: 'mesa', sessao, tipo: 'resposta', id: o.id, resposta: { ok: resposta.ok, motivo: typeof resposta.motivo === 'string' ? resposta.motivo : null } }
+      const lida: RespostaDaMesa = { ok: resposta.ok, motivo: typeof resposta.motivo === 'string' ? resposta.motivo : null }
+      // Item 16: a recusa só pelo alcance chega com a marca, e a mesa pergunta o "usar mesmo assim?".
+      if (resposta.foraDoAlcance === true) lida.foraDoAlcance = true
+      return { de: 'mesa', sessao, tipo: 'resposta', id: o.id, resposta: lida }
     }
     case 'pong':
     case 'saiu':

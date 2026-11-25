@@ -3,12 +3,13 @@ import { ouvirDeixadas, travasDeixadas } from '../components/batalha/travaDoPass
 import { cameraDaBatalhaLigada, ouvirCameraDaBatalha } from '../pixi/cameraDaBatalha'
 import { equipesAtivas, mochilaMoraNaFicha, personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
 import { useBatalhaDBTStore } from '../stores/batalhaDBTStore'
+import { useMiraNoMapa } from '../stores/batalha/miraNoMapa'
 import { useBatalhaStore } from '../stores/batalhaStore'
 import { useMapStore } from '../stores/mapStore'
 import { useRpgStore } from '../stores/rpgStore'
 import { aplicarPedidoDBT, espelhoDBT } from './espelhoDBT'
 import { aplicarPedidoOP, espelhoOP } from './espelhoOP'
-import { mostrarMiraDaMesa } from './miraDaMesa'
+import { ladoDoMouseNaMiraDaMesa, mostrarMiraDaMesa } from './miraDaMesa'
 import { abrirOLivroDaBatalha, useTelaDaMesa } from './telaDaMesa'
 import type { EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa } from './tipos'
 
@@ -80,6 +81,8 @@ function referencias(): readonly unknown[] {
     cameraDaBatalhaLigada(),
     somDoCombateLigado(),
     travasDeixadas(),
+    // O mouse no mapa vira a forma da mira da mesa (só o lado: a casa em foco correndo não refaz o espelho).
+    ladoDoMouseNaMiraDaMesa(),
   ]
 }
 
@@ -108,6 +111,7 @@ export function assinarEspelho(aoMudar: (espelho: EspelhoDaBatalha | null) => vo
     useAdventureStore.subscribe(conferir),
     useRpgStore.subscribe(conferir),
     useTelaDaMesa.subscribe(conferir),
+    useMiraNoMapa.subscribe(conferir),
     // As chaves do combate (câmera, som) mudam pelo painel da batalha ou pela própria mesa.
     ouvirCameraDaBatalha(conferir),
     ouvirMudoDoCombate(conferir),

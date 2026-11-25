@@ -1,7 +1,9 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as TeclaDoReact, type ReactNode, type RefObject } from 'react'
+import type { Direcao } from '../lib/batalha/area'
+import { LADOS_DA_AREA, textoDaAreaNaMira } from '../components/batalha/ladosDaMira'
 import { MenuDaCarta, type ItemDoMenuDaCarta } from '../components/batalha/MenuDaCarta'
 import { iniciais } from '../components/FichaPecas'
-import type { AjusteDoGolpe, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, ItemDaCartaNoEspelho, MiraDaMesa, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
+import type { AjusteDoGolpe, AlcanceDoPedido, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, ItemDaCartaNoEspelho, MiraDaMesa, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
 import './mesaDaBatalha.css'
 
 /**
@@ -282,6 +284,26 @@ const escolhivel = (golpe: GolpeNoEspelho) => golpe.motivo === null || golpe.for
 /** O mesmo aviso do "Usar mesmo assim" do menu do centro (a mesa é só do mestre). */
 const NOTA_DO_FORCAR = 'O registro anota o que faltava; o custo normal continua.'
 
+/** O golpe que a escolha abre marcado: a sugestão que sai daqui, ou o primeiro que dá. */
+function golpeAoAbrir(golpes: readonly GolpeNoEspelho[], sugestao: { golpe: string | null }): GolpeNoEspelho | null {
+  const sugerido = golpes.find((golpe) => golpe.chave === sugestao.golpe && lancavel(golpe))
+  // Sem sugestão (o contra-ataque), o primeiro golpe que sai daqui e faz dano; a cura e o buff ficam para a escolha.
+  return sugerido ?? golpes.find((golpe) => lancavel(golpe) && (golpe.dano ?? 0) > 0) ?? golpes.find(lancavel) ?? golpes.find(escolhivel) ?? null
+}
+
+/**
+ * Item 16 do levantamento (25/11/2026): quem a área montada pega virada para `lado`, pela regra do menu da
+ * vez (contada na principal, que tem a grade). `null` = o golpe sem área: os alvos são marcados à mão.
+ */
+function marcasDaArea(golpe: GolpeNoEspelho | null, lado: Direcao | null): readonly string[] | null {
+  return golpe === null || golpe.area === undefined || lado === null ? null : golpe.area.pega[lado]
+}
+
+/** Item 16: o lado de abrir do golpe, preso nele (trocar de golpe volta ao lado de abrir do outro). */
+function viradaAoAbrir(golpe: GolpeNoEspelho | null): { golpe: string; lado: Direcao } | null {
+  return golpe === null || golpe.lado === undefined ? null : { golpe: golpe.chave, lado: golpe.lado.aoAbrir }
+}
+
 interface EscolhaProps {
   /** A identidade da escolha (a vez, ou o contra): trocou, a escolha recomeça. */
   chave: string
@@ -291,25 +313,39 @@ interface EscolhaProps {
   verbo: 'Lançar' | 'Contra-atacar com'
   ocupado: boolean
   desligado: boolean
-  onLancar: (golpe: GolpeNoEspelho, alvos: readonly string[], ajuste: AjusteDoGolpe | undefined) => void
+  /** Manda o golpe; a resposta com `foraDoAlcance` abre o "Fora do alcance, usar mesmo assim?". */
+  onLancar: AoLancar
   /** Presente = o golpe que pede escolha a mais pode abrir o menu da vez sobre o mapa. */
   menuDoMapa?: { aberto: boolean; onAlternar: () => void }
   /** Presente = a escolha acende as casas do alcance no mapa do app; `null` = apagar (lançou, Esc, saiu). */
   onMira?: AoMirar
+  /** Item 16: o lado do mouse no mapa do app (a forma que olha vira com ele, como no menu da vez); `null` = nenhum. */
+  ladoNoMapa: Direcao | null
 }
 
-/** O golpe e os alvos escolhidos agora, para as casas no mapa do app; `null` = apagar. */
-type AoMirar = (escolha: { golpe: string; alvos: readonly string[] } | null) => void
+type AoLancar = (golpe: GolpeNoEspelho, alvos: readonly string[], ajuste: AjusteDoGolpe | undefined, alcance: AlcanceDoPedido) => Promise<RespostaDaMesa>
+
+/** O golpe, os alvos e o lado escolhidos agora, para as casas no mapa do app; `null` = apagar. */
+type AoMirar = (escolha: { golpe: string; alvos: readonly string[]; direcao?: Direcao } | null) => void
 
 /** O golpe e o alvo da vez do NPC (e do contra-ataque dele): a lista, os alvos em duas colunas, o ajuste do dano e o Lançar. */
-function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, desligado, onLancar, menuDoMapa, onMira }: EscolhaProps) {
+function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, desligado, onLancar, menuDoMapa, onMira, ladoNoMapa }: EscolhaProps) {
   const idDoAjuste = useId()
-  const [escolhido, setEscolhido] = useState<string | null>(() => {
-    const sugerido = golpes.find((golpe) => golpe.chave === sugestao.golpe && lancavel(golpe))
-    // Sem sugestão (o contra-ataque), o primeiro golpe que sai daqui e faz dano; a cura e o buff ficam para a escolha.
-    return (sugerido ?? golpes.find((golpe) => lancavel(golpe) && (golpe.dano ?? 0) > 0) ?? golpes.find(lancavel) ?? golpes.find(escolhivel))?.chave ?? null
+  const idDoFora = useId()
+  const [escolhido, setEscolhido] = useState<string | null>(() => golpeAoAbrir(golpes, sugestao)?.chave ?? null)
+  // Item 16 (25/11/2026): o lado da forma como o menu da vez (o de abrir; as setas e o mouse no mapa viram).
+  const [virada, setVirada] = useState(() => viradaAoAbrir(golpeAoAbrir(golpes, sugestao)))
+  const [marcados, setMarcados] = useState<readonly string[]>(() => {
+    // Item 16: o golpe de área abre marcando quem ela pega, como o menu da vez; o resto abre na sugestão.
+    const aberto = golpeAoAbrir(golpes, sugestao)
+    return marcasDaArea(aberto, viradaAoAbrir(aberto)?.lado ?? null) ?? (sugestao.alvo === null ? [] : [sugestao.alvo])
   })
-  const [marcados, setMarcados] = useState<readonly string[]>(() => (sugestao.alvo === null ? [] : [sugestao.alvo]))
+  /** Item 16: o "Fora do alcance, usar mesmo assim?" aberto, com o porquê; `null` = fechado. */
+  const [foraDoAlcance, setForaDoAlcance] = useState<string | null>(null)
+  const botaoDoFora = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (foraDoAlcance !== null) botaoDoFora.current?.focus({ preventScroll: true })
+  }, [foraDoAlcance])
   const [todos, setTodos] = useState(false)
   const [ajusteAberto, setAjusteAberto] = useState(false)
   const [dano, setDano] = useState<number | null>(null)
@@ -321,7 +357,10 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
   const possiveis = useMemo(() => alvosDoGolpe(golpe, alvos), [golpe, alvos])
   const doOutroLado = possiveis.filter((alvo) => alvo.lado === 'outro')
   const escondidos = possiveis.length - doOutroLado.length
-  const naLista = todos || doOutroLado.length === 0 ? possiveis : doOutroLado
+  // Item 16: com a área, todos à vista (ela pega aliado e quem usa também), como no menu da vez.
+  const naLista = todos || doOutroLado.length === 0 || golpe?.area !== undefined ? possiveis : doOutroLado
+  const direcao = golpe === null || golpe.lado === undefined ? null : virada !== null && virada.golpe === golpe.chave ? virada.lado : golpe.lado.aoAbrir
+  const naArea = marcasDaArea(golpe, direcao)
   // Trocar de ação deixa só os alvos que ainda valem (e no máximo o teto dela).
   const validos = marcados.filter((id) => possiveis.some((alvo) => alvo.id === id)).slice(0, Math.max(golpe?.alvosMax ?? 0, 0))
   const umSo = golpe?.alvo === 'um'
@@ -337,12 +376,55 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
   const golpeDaMira = golpe === null || desligado || miraApagada ? null : golpe.chave
   const assinaturaDosAlvos = alvosDaMira.current.join('|')
   useEffect(() => {
-    aoMirar.current?.(golpeDaMira === null ? null : { golpe: golpeDaMira, alvos: alvosDaMira.current })
-  }, [golpeDaMira, assinaturaDosAlvos])
+    aoMirar.current?.(golpeDaMira === null ? null : { golpe: golpeDaMira, alvos: alvosDaMira.current, ...(direcao === null ? {} : { direcao }) })
+  }, [golpeDaMira, assinaturaDosAlvos, direcao])
   useEffect(() => () => aoMirar.current?.(null), [])
+
+  /** Trocar de golpe volta ao lado de abrir dele; o golpe de área marca quem ela pega (o que foi mudado à mão sai: é outra mira). */
+  const escolherGolpe = (item: GolpeNoEspelho) => {
+    setMiraApagada(false)
+    setForaDoAlcance(null)
+    setEscolhido(item.chave)
+    const aoAbrir = viradaAoAbrir(item)
+    setVirada(aoAbrir)
+    const daArea = marcasDaArea(item, aoAbrir?.lado ?? null)
+    if (daArea !== null) setMarcados(daArea)
+  }
+
+  /** Item 16: virar a forma (as setas, ou o mouse no mapa); a área remarca quem está nela, como no menu da vez. */
+  const virar = (lado: Direcao) => {
+    if (golpe === null || golpe.lado === undefined) return
+    setMiraApagada(false)
+    setForaDoAlcance(null)
+    setVirada({ golpe: golpe.chave, lado })
+    const daArea = marcasDaArea(golpe, lado)
+    if (daArea !== null) setMarcados(daArea)
+  }
+  const virarAgora = useRef(virar)
+  virarAgora.current = virar
+  const direcaoAgora = useRef(direcao)
+  direcaoAgora.current = direcao
+  const vira = golpe?.lado?.vira === true
+  useEffect(() => {
+    if (ladoNoMapa !== null && vira && ladoNoMapa !== direcaoAgora.current) virarAgora.current(ladoNoMapa)
+  }, [ladoNoMapa, vira])
+
+  // Item 16: quem usa andou com a escolha aberta: a área remarca da casa nova, como no menu da vez (conserto de 25/11).
+  const casaDaArea = golpe?.area?.casa ?? null
+  const casaDasMarcas = useRef(casaDaArea)
+  const remarcar = useRef<() => void>(() => undefined)
+  remarcar.current = () => {
+    if (naArea !== null) setMarcados(naArea)
+  }
+  useEffect(() => {
+    if (casaDaArea === casaDasMarcas.current) return
+    casaDasMarcas.current = casaDaArea
+    if (casaDaArea !== null) remarcar.current()
+  }, [casaDaArea])
 
   const alternar = (id: string) => {
     setMiraApagada(false)
+    setForaDoAlcance(null)
     if (umSo) {
       setMarcados([id])
       return
@@ -364,14 +446,29 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
   const nomeDoAlvo = validos.length === 1 ? (alvos.find((alvo) => alvo.id === validos[0])?.nome ?? null) : validos.length > 1 ? `${validos.length} alvos` : null
   const marcasDoAjuste = [surpresa ? 'surpresa' : null, perfuranteAgora && golpe?.perfurante !== true ? 'perfurante' : null, !perfuranteAgora && golpe?.perfurante === true ? 'sem perfurar' : null].filter(Boolean).join(', ')
 
-  const lancar = () => {
+  /** `confirmouForaDoAlcance`: o "usar mesmo assim" da pergunta do alcance (o pedido vai com `foraDoAlcance`). */
+  const lancar = (confirmouForaDoAlcance = false) => {
     if (!podeLancar || golpe === null) return
-    setMiraApagada(true)
-    onLancar(golpe, golpe.alvo === 'nenhum' ? [] : validos, ajuste)
+    setForaDoAlcance(null)
+    const alcance: AlcanceDoPedido = {}
+    if (direcao !== null) alcance.direcao = direcao
+    if (confirmouForaDoAlcance) alcance.foraDoAlcance = true
+    void onLancar(golpe, golpe.alvo === 'nenhum' ? [] : validos, ajuste, alcance).then((resposta) => {
+      // Item 16: lançou, a mira apaga até a próxima troca. Alguém fora das casas acesas: a mira fica e a pergunta
+      // do menu da vez abre (antes a mesa só mostrava a recusa do host, sem como seguir).
+      if (resposta.ok) setMiraApagada(true)
+      else if (resposta.foraDoAlcance === true && !confirmouForaDoAlcance) setForaDoAlcance(resposta.motivo ?? 'Alguém está fora das casas acesas.')
+    })
   }
   // Enter numa opção (golpe ou alvo) lança: o atalho do protótipo, só com o foco na escolha. O "mesmo assim" é só no botão.
-  // O Esc na escolha cancela a mira no mapa (segue para a mesa, que fecha o que estiver aberto).
+  // O Esc na escolha cancela a mira no mapa (segue para a mesa, que fecha o que estiver aberto). Com a pergunta do
+  // alcance aberta, o Esc só fecha a pergunta (a mira continua), como no menu da vez.
   const teclas = (evento: TeclaDoReact<HTMLDivElement>) => {
+    if (evento.key === 'Escape' && foraDoAlcance !== null) {
+      evento.stopPropagation()
+      setForaDoAlcance(null)
+      return
+    }
     if (evento.key === 'Escape' && golpeDaMira !== null) setMiraApagada(true)
     if (evento.key !== 'Enter' || evento.ctrlKey || evento.metaKey || evento.altKey || evento.shiftKey || forcando) return
     const alvo = evento.target
@@ -407,10 +504,7 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
                 name={`mb-golpe-${chave}`}
                 checked={escolhido === item.chave}
                 disabled={apagado}
-                onChange={() => {
-                  setMiraApagada(false)
-                  setEscolhido(item.chave)
-                }}
+                onChange={() => escolherGolpe(item)}
               />
               <span className="mb-op__nome">
                 {item.nome}
@@ -422,6 +516,21 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
           )
         })}
       </fieldset>
+      {/* Item 16: a forma que olha para um lado vira aqui, como nos chips do menu da vez (ou pelo mouse no mapa). */}
+      {vira && (
+        <fieldset className="mb-grupo" data-escolha disabled={desligado}>
+          <legend>Para onde a forma aponta · ou aponte com o mouse no mapa</legend>
+          <div className="mb-lados">
+            {LADOS_DA_AREA.map((lado) => (
+              <label key={lado.direcao} className="mb-op mb-op--lado" title={lado.rotulo}>
+                <input type="radio" className="mb-sr" name={`mb-lado-${chave}`} checked={direcao === lado.direcao} onChange={() => virar(lado.direcao)} />
+                <span aria-hidden="true">{lado.seta}</span>
+                <span className="mb-sr">{lado.rotulo}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
       {golpe !== null && golpe.alvo !== 'nenhum' && (
         <fieldset className="mb-grupo" data-escolha disabled={desligado || golpe.noMapa !== null}>
           <legend>
@@ -448,6 +557,7 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
               ))}
             </div>
           )}
+          {naArea !== null && <p className="mb-nota">{textoDaAreaNaMira(naArea.length, vira)}</p>}
         </fieldset>
       )}
       {ajustavel && ajusteAberto && (
@@ -473,17 +583,35 @@ function EscolhaDoGolpe({ chave, golpes, alvos, sugestao, verbo, ocupado, deslig
           </label>
         </div>
       )}
+      {foraDoAlcance !== null && (
+        <div className="mb-fora" role="alertdialog" aria-labelledby={`${idDoFora}-titulo`} aria-describedby={`${idDoFora}-texto`} data-entra>
+          <p className="mb-fora__titulo" id={`${idDoFora}-titulo`}>
+            Fora do alcance, usar mesmo assim?
+          </p>
+          <p className="mb-fora__texto" id={`${idDoFora}-texto`}>
+            {foraDoAlcance}
+          </p>
+          <div className="mb-troca__acoes">
+            <button ref={botaoDoFora} type="button" className="mb-bt mb-bt--alto mb-bt--ouro" disabled={!podeLancar} onClick={() => lancar(true)}>
+              {ocupado ? 'Lançando…' : 'Usar mesmo assim'}
+            </button>
+            <button type="button" className="mb-bt mb-bt--alto" onClick={() => setForaDoAlcance(null)}>
+              Voltar <kbd aria-hidden="true">Esc</kbd>
+            </button>
+          </div>
+        </div>
+      )}
       <div className="mb-lancar">
         {golpe !== null && golpe.noMapa !== null && menuDoMapa !== undefined ? (
           <button type="button" className="mb-bt mb-bt--alto" aria-pressed={menuDoMapa.aberto} onClick={menuDoMapa.onAlternar} disabled={desligado}>
             {menuDoMapa.aberto ? 'Fechar o menu no mapa' : 'Usar pelo menu no mapa'}
           </button>
         ) : forcando && golpe !== null ? (
-          <button type="button" className="mb-bt mb-bt--alto mb-bt--ouro" disabled={!podeLancar} onClick={lancar}>
+          <button type="button" className="mb-bt mb-bt--alto mb-bt--ouro" disabled={!podeLancar} onClick={() => lancar()}>
             <span>{ocupado ? 'Lançando…' : `Usar ${golpe.nome} mesmo assim`}</span>
           </button>
         ) : (
-          <button type="button" className="mb-bt mb-bt--alto mb-bt--golpe" disabled={!podeLancar} onClick={lancar}>
+          <button type="button" className="mb-bt mb-bt--alto mb-bt--golpe" disabled={!podeLancar} onClick={() => lancar()}>
             <span>{ocupado ? 'Lançando…' : golpe === null ? verbo.replace(' com', '') : `${verbo} ${golpe.nome}${nomeDoAlvo === null || verbo !== 'Lançar' ? '' : ` em ${nomeDoAlvo}`}`}</span>
             <kbd aria-hidden="true">Enter</kbd>
           </button>
@@ -594,13 +722,14 @@ interface ContraProps {
   ocupado: boolean
   desligado: boolean
   menuDoMapa?: { aberto: boolean; onAlternar: () => void }
-  onContra: (golpe: GolpeNoEspelho, alvos: readonly string[], ajuste: AjusteDoGolpe | undefined) => void
+  onContra: AoLancar
   onAbrirMao: () => void
   onMira?: AoMirar
+  ladoNoMapa: Direcao | null
 }
 
 /** O contra-ataque: a única hora em que a ação não é de quem tem a vez. Quem tirou 20 escolhe o golpe; depois a vez volta. */
-function TrocaDoContra({ contra, agora, ocupado, desligado, menuDoMapa, onContra, onAbrirMao, onMira }: ContraProps) {
+function TrocaDoContra({ contra, agora, ocupado, desligado, menuDoMapa, onContra, onAbrirMao, onMira, ladoNoMapa }: ContraProps) {
   return (
     <div className="mb-troca" data-contra data-entra>
       <ol className="mb-trilha" aria-label="Ordem desta troca">
@@ -632,6 +761,7 @@ function TrocaDoContra({ contra, agora, ocupado, desligado, menuDoMapa, onContra
             onLancar={onContra}
             menuDoMapa={menuDoMapa}
             onMira={onMira}
+            ladoNoMapa={ladoNoMapa}
           />
           <div className="mb-troca__acoes">
             <button type="button" className="mb-bt mb-bt--fantasma" disabled={ocupado || desligado} onClick={onAbrirMao} title="O contra-ataque vira o movimento: arraste a ficha no mapa, se quiser.">
@@ -821,12 +951,14 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
   const algumRelogio = contra !== null || pendentes.some((item) => item.desde !== null) || (espelho?.vez != null && !espelho.vez.npc && espelho.vez.desde !== null)
   const agora = useAgora(algumRelogio)
 
-  const pedir = async (chave: string, pedido: PedidoDaMesa, feito: string | null) => {
+  const pedir = async (chave: string, pedido: PedidoDaMesa, feito: string | null): Promise<RespostaDaMesa> => {
     setOcupado(chave)
     try {
       const resposta = await enviar(pedido)
-      setStatus(resposta.ok ? (feito === null ? null : { texto: feito, erro: false }) : { texto: resposta.motivo ?? 'Não deu.', erro: true })
-      return resposta.ok
+      // Item 16: a recusa só pelo alcance não vai ao status: a escolha abre a pergunta "usar mesmo assim?" com o porquê.
+      const status = resposta.ok ? (feito === null ? null : { texto: feito, erro: false }) : resposta.foraDoAlcance === true ? null : { texto: resposta.motivo ?? 'Não deu.', erro: true }
+      setStatus(status)
+      return resposta
     } finally {
       setOcupado(null)
     }
@@ -991,6 +1123,8 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
   const vez = espelho.vez
   const ocupadoAgora = ocupado !== null
   const soOnePiece = espelho.sistema === 'op'
+  // Item 16: o mouse no mapa do app vira a forma da mira da mesa (ausente no Dragon Ball, que não tem alcance).
+  const ladoNoMapa = espelho.ladoNoMapa ?? null
   const reagindo = new Set(vivos.flatMap((item) => (item.golpe === null ? [] : [item.golpe.alvo])))
   // O Passar a vez trava enquanto falta reação ou contra-ataque; o mestre responde daqui ou usa o "Seguir sem esperar"
   // (o jogador que sumiu). Se o motor ainda recusar o passar com o pedido de pé, a frase dele aparece no status.
@@ -1045,7 +1179,7 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
   const mirarNoMapa = (tipo: MiraDaMesa['tipo'], id: string): AoMirar | undefined =>
     soOnePiece
       ? (escolha) => {
-          enviar({ acao: 'mira', sceneKey, mira: escolha === null ? null : { tipo, id, golpe: escolha.golpe, alvos: escolha.alvos } }).catch(() => undefined)
+          enviar({ acao: 'mira', sceneKey, mira: escolha === null ? null : { tipo, id, golpe: escolha.golpe, alvos: escolha.alvos, ...(escolha.direcao === undefined ? {} : { direcao: escolha.direcao }) } }).catch(() => undefined)
         }
       : undefined
 
@@ -1059,11 +1193,12 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
           desligado={desligado}
           menuDoMapa={menuDoMapa}
           onMira={mirarNoMapa('contra', contra.golpeId)}
-          onContra={(golpe, alvos, ajuste) =>
-            void pedir(
+          ladoNoMapa={ladoNoMapa}
+          onContra={(golpe, alvos, ajuste, alcance) =>
+            pedir(
               'contra',
-              { acao: 'contra', sceneKey, golpeId: contra.golpeId, golpe: golpe.chave, alvos, ...(ajuste === undefined ? {} : { ajuste }), ...(golpe.forcavel ? { forcar: true } : {}) },
-              `${contra.quem} contra-atacou com ${golpe.nome}${golpe.forcavel ? ' mesmo assim' : ''}.`,
+              { acao: 'contra', sceneKey, golpeId: contra.golpeId, golpe: golpe.chave, alvos, ...(ajuste === undefined ? {} : { ajuste }), ...alcance, ...(golpe.forcavel ? { forcar: true } : {}) },
+              `${contra.quem} contra-atacou com ${golpe.nome}${golpe.forcavel || alcance.foraDoAlcance === true ? ' mesmo assim' : ''}.`,
             )
           }
           onAbrirMao={() => void pedir('abrirMao', { acao: 'abrirMao', sceneKey, golpeId: contra.golpeId }, `${contra.quem} abriu mão do golpe: a vez voltou para ${contra.de}.`)}
@@ -1108,11 +1243,12 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
             desligado={desligado}
             menuDoMapa={menuDoMapa}
             onMira={mirarNoMapa('vez', atual.chave)}
-            onLancar={(golpe, alvos, ajuste) =>
-              void pedir(
+            ladoNoMapa={ladoNoMapa}
+            onLancar={(golpe, alvos, ajuste, alcance) =>
+              pedir(
                 'agir',
-                { acao: 'agir', sceneKey, vez: atual.chave, golpe: golpe.chave, alvos, ...(ajuste === undefined ? {} : { ajuste }), ...(golpe.forcavel ? { forcar: true } : {}) },
-                golpe.forcavel ? `${atual.quem} usou ${golpe.nome} mesmo assim.` : `${atual.quem} lançou ${golpe.nome}.`,
+                { acao: 'agir', sceneKey, vez: atual.chave, golpe: golpe.chave, alvos, ...(ajuste === undefined ? {} : { ajuste }), ...alcance, ...(golpe.forcavel ? { forcar: true } : {}) },
+                golpe.forcavel || alcance.foraDoAlcance === true ? `${atual.quem} usou ${golpe.nome} mesmo assim.` : `${atual.quem} lançou ${golpe.nome}.`,
               )
             }
           />
