@@ -11,7 +11,8 @@ import {
   passageOf,
 } from '../lib/pins'
 import { itemOfPin } from '../lib/items'
-import { lojaParaJogador, textoDoEstoque } from '../lib/loja'
+import { lojaParaJogador, precoEmMoedas, textoDoEstoque } from '../lib/loja'
+import { precoEmBerries } from '../components/InventarioDaFicha'
 import { compraNoticeText } from './compraNotice'
 import type { CompraNotice } from './playerConnection'
 import { stairTravelLabel } from '../lib/stairTravel'
@@ -1055,12 +1056,19 @@ interface PlayerLojaProps {
   compra?: CompraNotice
 }
 
+/** O preço que o jogador lê é o que a bolsa paga (`precoEmMoedas`); `null` = o mestre ainda confere o preço antigo. */
+function textoDoPreco(preco: number | null): string {
+  if (preco === null) return 'Preço a conferir'
+  return preco === 0 ? 'Grátis' : precoEmBerries(preco)
+}
+
 /**
  * LOJA COM PREÇOS: a banca no cartão. Uma linha por mercadoria — nome, preço,
  * estoque ("Acabou" quando não há) e "Quero". O "Quero" diz no nome acessível
  * QUAL mercadoria ("Quero Xarope de tosse"): uma lista de botões iguais não
  * diria nada a quem navega por leitor de tela. Com um pedido esperando o
- * mestre, nenhum "Quero" liga: um pedido por vez, como o host exige.
+ * mestre, nenhum "Quero" liga: um pedido por vez, como o host exige. A do
+ * preço a conferir também não: o host não a vende (`itemAVenda`).
  */
 function PlayerLoja({ mercadorias, onBuy, compra }: PlayerLojaProps) {
   const esperando = compra?.phase === 'sent'
@@ -1072,10 +1080,11 @@ function PlayerLoja({ mercadorias, onBuy, compra }: PlayerLojaProps) {
       <ul className="pp-loja__lista" aria-label="Mercadorias">
         {mercadorias.map((mercadoria) => {
           const estoque = textoDoEstoque(mercadoria)
+          const preco = precoEmMoedas(mercadoria)
           return (
             <li key={mercadoria.id} className="pp-loja__item">
               <span className="pp-loja__nome">{mercadoria.nome}</span>
-              {mercadoria.preco.trim() !== '' && <span className="pp-loja__preco">{mercadoria.preco}</span>}
+              <span className="pp-loja__preco">{textoDoPreco(preco)}</span>
               {estoque !== null && (
                 <span className={mercadoria.estoque === 0 ? 'pp-loja__estoque pp-loja__estoque--acabou' : 'pp-loja__estoque'}>{estoque}</span>
               )}
@@ -1084,7 +1093,7 @@ function PlayerLoja({ mercadorias, onBuy, compra }: PlayerLojaProps) {
                   type="button"
                   className="pp-loja__quero"
                   aria-label={`Quero ${mercadoria.nome}`}
-                  disabled={esperando || mercadoria.estoque === 0}
+                  disabled={esperando || mercadoria.estoque === 0 || preco === null}
                   onClick={() => onBuy(mercadoria.id)}
                 >
                   Quero

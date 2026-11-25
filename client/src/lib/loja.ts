@@ -1,5 +1,5 @@
 import type { LojaItem, MapData, Pin } from '../types/map'
-import { dadosDoItemLidos, ehIdDeItemDoAcervo, semAsPecasDoEfeito } from './leituraDoItem'
+import { dadosDoItemLidos, ehIdDeItemDoAcervo, ITEM_PRECO_MAX, semAsPecasDoEfeito } from './leituraDoItem'
 
 /**
  * LOJA COM PREÇOS — a banca de um pino: mercadorias com nome, preço e estoque.
@@ -18,7 +18,7 @@ export const LOJA_ITENS_MAX = 30
  * de um ciclo de imports chegaria antes de existir. `loja.test.ts` confere.
  */
 export const LOJA_NOME_MAX = 60
-/** Teto do preço, em texto livre ("3 moedas", "uma vela"). */
+/** Teto do texto do preço antigo que não virou número ("uma vela"), guardado para o mestre conferir. */
 export const LOJA_PRECO_MAX = 40
 /** Maior estoque que o painel aceita. */
 export const LOJA_ESTOQUE_MAX = 999
@@ -40,9 +40,107 @@ function coisaDaMercadoria(value: unknown): LojaItem['acervo'] {
   return { ...dados, itemId: value.itemId }
 }
 
-/** O preço da mercadoria do Acervo em moedas, que a venda cobra da bolsa; `null` = não cobra (digitada, ou a coisa sem preço). */
-export function precoEmMoedas(item: Pick<LojaItem, 'acervo'>): number | null {
-  return item.acervo?.preco ?? null
+/*
+ * O PREÇO DA BANCA NUMA FONTE SÓ (levantamento de 25/11/2026, nº 2): antes o
+ * jogador lia um texto livre e a venda cobrava o número do Acervo copiado na
+ * escolha. Agora a fonte é o número, e `LojaItem.preco` guarda só uma de três
+ * formas (o disco antigo é convertido por `precoLido`, na leitura):
+ *
+ *   ''          sem preço próprio: segue o Acervo de agora; a digitada sai grátis
+ *   só dígitos  o preço próprio desta banca, em berries (0 = grátis)
+ *   outro texto o preço antigo que não virou número ("uma vela"): o mestre
+ *               confere e, até lá, a mercadoria não se vende (nada sai de
+ *               graça em silêncio)
+ */
+
+/** O preço próprio da banca, como `precoLido` e o painel gravam. */
+const SO_DIGITOS = /^\d+$/
+/**
+ * O preço antigo que vira número: "5", "3 moedas", "1.500 berries" (o
+ * separador de milhar do Brasil, como o Acervo escrevia), "฿ 50". Número com
+ * outra palavra ("2 velas") não é moeda: fica para o mestre conferir.
+ */
+const PRECO_ANTIGO = /^(?:฿\s*)?(\d{1,3}(?:\.\d{3})+|\d+)\s*(?:moedas?|berry|berries|beli|฿)?$/i
+/** O preço antigo que já dizia grátis. */
+const GRATIS_ANTIGO = /^(?:gr[aá]tis|de gra[cç]a)$/i
+
+/** O número do preço antigo em berries; `null` = não é um preço que se leia (o mestre confere). */
+function numeroDoPrecoAntigo(texto: string): number | null {
+  if (GRATIS_ANTIGO.test(texto)) return 0
+  const achado = PRECO_ANTIGO.exec(texto)
+  if (achado === null) return null
+  const numero = Number(achado[1].replaceAll('.', ''))
+  return Number.isSafeInteger(numero) && numero <= ITEM_PRECO_MAX ? numero : null
+}
+
+/**
+ * O preço como veio do disco (ou da rede), já numa das três formas de hoje.
+ * O texto que a escolha da coisa copiava do Acervo ("50 berries" com a coisa
+ * de 50) volta a ser vazio: era a cópia, não um preço do mestre, e assim a
+ * banca passa a seguir o Acervo. Só dígitos é sempre preço próprio, mesmo
+ * igual ao do Acervo.
+ */
+function precoLido(texto: string, acervo: LojaItem['acervo']): string {
+  const limpo = texto.trim()
+  if (limpo === '') return ''
+  const numero = numeroDoPrecoAntigo(limpo)
+  if (numero === null) return limpo.slice(0, LOJA_PRECO_MAX)
+  const copiaDoAcervo = acervo !== undefined && numero === acervo.preco && !SO_DIGITOS.test(limpo)
+  return copiaDoAcervo ? '' : String(numero)
+}
+
+/*
+ * As leituras abaixo passam pelo `precoLido` de novo: a loja que chegou sem
+ * passar pelo disco (ainda com "3 moedas") dá o mesmo número que a lida.
+ */
+
+/** O preço próprio da banca, em berries; `null` = não tem (segue o Acervo) ou o texto antigo espera o mestre. */
+export function precoProprio(item: Pick<LojaItem, 'preco' | 'acervo'>): number | null {
+  const lido = precoLido(item.preco, item.acervo)
+  return SO_DIGITOS.test(lido) ? Number(lido) : null
+}
+
+/** O texto antigo que não virou número, para o mestre conferir; `null` = nada a conferir. */
+export function precoAConferir(item: Pick<LojaItem, 'preco' | 'acervo'>): string | null {
+  const lido = precoLido(item.preco, item.acervo)
+  return lido === '' || SO_DIGITOS.test(lido) ? null : lido
+}
+
+/**
+ * O PREÇO DO ACERVO DE AGORA: a mercadoria sem preço próprio cobra o que o
+ * Acervo diz hoje, e não a cópia da escolha. O Acervo mora no disco do app do
+ * MESTRE: o painel da loja (`components/PinLojaControls.tsx`) põe os preços
+ * aqui a cada mudança, no molde das munições (`lib/batalha/municoesDoAcervo.ts`).
+ * No app do jogador fica vazio: ele recebe o preço já resolvido no recorte
+ * (`lojaParaJogador`).
+ */
+let precosDoAcervo: ReadonlyMap<string, number | null> = new Map()
+
+/** Troca os preços pelos do Acervo de agora (`null` = a coisa não tem preço). */
+export function definirPrecosDoAcervo(itens: readonly { id: string; preco: number | null }[]): void {
+  precosDoAcervo = new Map(itens.map((item) => [item.id, item.preco]))
+}
+
+/** O preço da coisa: o do Acervo de agora; a coisa que saiu do Acervo (ou o Acervo ainda não lido) fica com a cópia. `null` = sem preço. */
+function precoDaCoisa(coisa: NonNullable<LojaItem['acervo']>): number | null {
+  const agora = precosDoAcervo.get(coisa.itemId)
+  if (agora !== undefined) return agora
+  return coisa.preco ?? null
+}
+
+/** O que a mercadoria cobra sem preço próprio: o da coisa do Acervo; a digitada (ou a coisa sem preço) sai grátis. */
+export function precoSemOProprio(item: Pick<LojaItem, 'acervo'>): number {
+  return item.acervo === undefined ? 0 : (precoDaCoisa(item.acervo) ?? 0)
+}
+
+/**
+ * O que a venda cobra da bolsa, em berries, e o que o jogador lê: o preço
+ * próprio da banca; sem ele, o da coisa do Acervo; sem nenhum, 0 (grátis).
+ * `null` = o preço antigo espera o mestre: a mercadoria não se vende.
+ */
+export function precoEmMoedas(item: Pick<LojaItem, 'preco' | 'acervo'>): number | null {
+  if (precoAConferir(item) !== null) return null
+  return precoProprio(item) ?? precoSemOProprio(item)
 }
 
 /** Estoque de verdade: inteiro de 0 ao teto. Qualquer outra coisa não é estoque. */
@@ -54,7 +152,8 @@ export function isEstoque(value: unknown): value is number {
  * A loja como veio de fora (disco, ou o mapa que chega pela rede). Item sem
  * `id` ou sem `nome` em texto cai (os bons ficam); id repetido fica só o
  * primeiro — o "Quero" acharia o item errado; preço que não é texto vira
- * vazio; estoque fora da forma volta ausente. Nome e preço são cortados no
+ * vazio, o texto livre antigo vira número quando dá (`precoLido`); estoque
+ * fora da forma volta ausente. Nome e preço são cortados no
  * teto, a lista no máximo de itens. LISTA DO QUE VAI: campo que o item trouxer
  * e o app não conhece nunca é copiado. Nada que preste = ausente: mapa antigo
  * não ganha o campo.
@@ -68,9 +167,9 @@ export function lerLojaDoArquivo(value: unknown): LojaItem[] | undefined {
     const { id, nome, preco, estoque } = bruto
     if (typeof id !== 'string' || id === '' || typeof nome !== 'string') continue
     if (itens.some((item) => item.id === id)) continue
-    const item: LojaItem = { id, nome: nome.slice(0, LOJA_NOME_MAX), preco: typeof preco === 'string' ? preco.slice(0, LOJA_PRECO_MAX) : '' }
-    if (isEstoque(estoque)) item.estoque = estoque
     const acervo = coisaDaMercadoria(bruto.acervo)
+    const item: LojaItem = { id, nome: nome.slice(0, LOJA_NOME_MAX), preco: typeof preco === 'string' ? precoLido(preco, acervo) : '' }
+    if (isEstoque(estoque)) item.estoque = estoque
     if (acervo !== undefined) item.acervo = acervo
     itens.push(item)
   }
@@ -90,14 +189,27 @@ export function lerLojaDoArquivo(value: unknown): LojaItem[] | undefined {
 export function lojaParaJogador(pin: Pick<Pin, 'kind' | 'loja'>): LojaItem[] | null {
   if (pin.kind === 'viagem' || pin.kind === 'alavanca' || pin.kind === 'minigame') return null
   const itens = (lerLojaDoArquivo(pin.loja) ?? []).filter((item) => item.nome.trim() !== '')
-  // EFEITO DO ITEM (Fase 7, decisão C8): a mercadoria do Acervo vai ao jogador com a frase do efeito, sem as peças.
-  return itens.length === 0 ? null : itens.map((item) => (item.acervo?.efeito === undefined ? item : { ...item, acervo: { ...semAsPecasDoEfeito(item.acervo), itemId: item.acervo.itemId } }))
+  return itens.length === 0 ? null : itens.map(mercadoriaParaJogador)
 }
 
-/** A mercadoria `itemId` que se pode pedir agora: existe no que o jogador recebe e não acabou. */
+/**
+ * Uma mercadoria como o jogador a recebe. O preço vai já resolvido, como preço
+ * próprio: o app do jogador não tem o Acervo, e assim o que ele lê é o que a
+ * venda cobra (lido de novo lá, dá o mesmo número). O texto a conferir vai
+ * como está.
+ */
+function mercadoriaParaJogador(item: LojaItem): LojaItem {
+  const preco = precoEmMoedas(item)
+  const resolvida = preco === null ? item : { ...item, preco: String(preco) }
+  // EFEITO DO ITEM (Fase 7, decisão C8): a mercadoria do Acervo vai ao jogador com a frase do efeito, sem as peças.
+  if (resolvida.acervo?.efeito === undefined) return resolvida
+  return { ...resolvida, acervo: { ...semAsPecasDoEfeito(resolvida.acervo), itemId: resolvida.acervo.itemId } }
+}
+
+/** A mercadoria `itemId` que se pode pedir agora: existe no que o jogador recebe, não acabou e tem preço em número (a do preço a conferir espera o mestre). */
 export function itemAVenda(pin: Pin, itemId: string): LojaItem | null {
   const item = (lojaParaJogador(pin) ?? []).find((i) => i.id === itemId)
-  return item === undefined || item.estoque === 0 ? null : item
+  return item === undefined || item.estoque === 0 || precoEmMoedas(item) === null ? null : item
 }
 
 /** O estoque dito ao jogador; `null` = sem conta (não se diz nada). */
@@ -142,7 +254,7 @@ export function sameLoja(a: readonly LojaItem[] | undefined, b: readonly LojaIte
   )
 }
 
-/** A mercadoria em branco que o painel acrescenta. */
+/** A mercadoria em branco que o painel acrescenta (sem preço próprio: digitada, sai grátis até o mestre escrever um). */
 export function novaMercadoria(id: string): LojaItem {
   return { id, nome: '', preco: '' }
 }

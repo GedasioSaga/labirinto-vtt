@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { LojaItem } from '../types/map'
-import { LOJA_ESTOQUE_MAX, LOJA_ITENS_MAX, LOJA_NOME_MAX, LOJA_PRECO_MAX, novaMercadoria } from '../lib/loja'
+import { definirPrecosDoAcervo, LOJA_ESTOQUE_MAX, LOJA_ITENS_MAX, LOJA_NOME_MAX, novaMercadoria, precoAConferir, precoProprio, precoSemOProprio } from '../lib/loja'
+import { ITEM_PRECO_MAX } from '../lib/leituraDoItem'
 import { Toggle } from './Toggle'
 import { itemParaDar, type ItemDoCatalogo as ItemDoAcervo, type PastaDeItens } from '../lib/acervoDeItens'
 import { gruposPorPasta, itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from './BuscaDoAcervoDeItens'
@@ -18,6 +19,19 @@ export interface PinLojaControlsProps {
 
 const HINT_ID = 'lb-pin-loja-hint'
 
+/*
+ * PREÇO QUE SEGUE O ACERVO (25/11/2026): a banca sem preço próprio cobra o que
+ * o Acervo diz agora (`lib/loja.ts`), e a cada mudança do Acervo os preços vão
+ * para lá. Fica no módulo, não no componente: o app do mestre carrega este
+ * painel desde a abertura (App → PropertiesPanel → FichaDoPino), antes de o
+ * Acervo ser lido, com o painel aberto ou não. O par natural é a munição, no
+ * store do Acervo; ir para lá é uma linha.
+ */
+definirPrecosDoAcervo(useAcervoDeItensStore.getState().itens)
+useAcervoDeItensStore.subscribe((state, antes) => {
+  if (state.itens !== antes.itens) definirPrecosDoAcervo(state.itens)
+})
+
 export const idAleatorio = (): string => `item_${crypto.randomUUID()}`
 
 /** A mercadoria sem o estoque: ausente é "sem conta", e ausente não é `undefined` gravado. A coisa do Acervo fica. */
@@ -28,16 +42,36 @@ function semEstoque(item: LojaItem): LojaItem {
 
 /**
  * Fase 5 (uma porta para criar item): a mercadoria vira a coisa do Acervo
- * escolhida: nome, preço (o texto que o jogador lê e o número que a venda
- * cobra da bolsa) e os dados da coisa. "" = volta a ser digitada (o nome fica).
+ * escolhida: nome, os dados da coisa e o preço dela, que passa a seguir o
+ * Acervo (sem preço próprio: mudar lá chega aqui). "" = volta a ser digitada:
+ * o nome fica e, se seguia o Acervo, o preço que cobrava vira o próprio (sem a
+ * coisa, ela sairia grátis sem o mestre ver).
  */
 function comCoisa(item: LojaItem, coisa: ItemDoAcervo | undefined, acervo: readonly ItemDoAcervo[]): LojaItem {
   const { acervo: _antes, ...digitada } = item
-  if (coisa === undefined) return digitada
+  if (coisa === undefined) return digitada.preco === '' ? { ...digitada, preco: String(precoSemOProprio(item)) } : digitada
   // Com as munições e a luz (18/11/2026): a arma comprada chega à mochila com as balas que aceita, e a tocha ilumina.
   const { nome, ...dados } = itemParaDar(coisa, acervo)
   const itemId = dados.itemId ?? coisa.id
-  return { ...digitada, nome: nome.slice(0, LOJA_NOME_MAX), preco: coisa.preco === null ? '' : precoEmBerries(coisa.preco).slice(0, LOJA_PRECO_MAX), acervo: { ...dados, itemId } }
+  return { ...digitada, nome: nome.slice(0, LOJA_NOME_MAX), preco: '', acervo: { ...dados, itemId } }
+}
+
+/**
+ * O preço que o campo digitado pede: vazio = sem preço próprio (''); número
+ * vira inteiro de berries dentro da faixa, em dígitos; lixo (`NaN`) = não mexe.
+ */
+function precoDigitado(texto: string): string | undefined {
+  if (texto.trim() === '') return ''
+  const numero = Number(texto)
+  if (!Number.isFinite(numero)) return undefined
+  return String(Math.min(ITEM_PRECO_MAX, Math.max(0, Math.floor(numero))))
+}
+
+/** O que o campo de preço vazio diz: o que a mercadoria cobra sem preço próprio. */
+function precoDoCampoVazio(item: LojaItem): string {
+  const preco = precoSemOProprio(item)
+  const texto = preco === 0 ? 'Grátis' : precoEmBerries(preco)
+  return item.acervo === undefined ? texto : `${texto} (do Acervo)`
 }
 
 /** O texto da opção: o nome e, com preço, o preço em berries. */
@@ -133,9 +167,10 @@ function estoqueDigitado(texto: string): number | null | undefined {
 
 /**
  * LOJA COM PREÇOS no painel do pino "!"/"?". O mestre liga a loja e escreve
- * cada mercadoria: nome, preço (texto livre, na moeda da aventura) e estoque
- * (vazio = não acaba). O jogador vê a lista no cartão e toca "Quero"; o pedido
- * chega na caixa "Pedidos" com "Vender" e "Não".
+ * cada mercadoria: nome, preço (número de berries; vazio = o do Acervo, ou
+ * grátis na digitada) e estoque (vazio = não acaba). O jogador vê a lista no
+ * cartão, com o preço que a bolsa paga, e toca "Quero"; o pedido chega na
+ * caixa "Pedidos" com "Vender" e "Não".
  */
 export function PinLojaControls({
   loja,
@@ -175,6 +210,8 @@ export function PinLojaControls({
             {loja.map((item, indice) => {
               const numero = indice + 1
               const base = `lb-loja-${item.id}`
+              const aConferir = precoAConferir(item)
+              const conferirId = `${base}-preco-conferir`
               return (
                 <li key={item.id} className="lb-loja__item">
                   <label className="lb-label" htmlFor={`${base}-nome`}>
@@ -205,11 +242,20 @@ export function PinLojaControls({
                       <input
                         id={`${base}-preco`}
                         className="lb-input"
-                        type="text"
-                        value={item.preco}
-                        maxLength={LOJA_PRECO_MAX}
-                        placeholder="1 moeda"
-                        onChange={(event) => trocar(indice, { ...item, preco: event.target.value })}
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={ITEM_PRECO_MAX}
+                        step={1}
+                        value={precoProprio(item) ?? ''}
+                        placeholder={aConferir === null ? precoDoCampoVazio(item) : 'Berries'}
+                        aria-describedby={aConferir === null ? undefined : conferirId}
+                        onChange={(event) => {
+                          // "-" ou "e" no meio da digitação chegam como vazio: não apagam o preço nem o texto antigo a conferir.
+                          if (event.target.validity.badInput) return
+                          const preco = precoDigitado(event.target.value)
+                          if (preco !== undefined) trocar(indice, { ...item, preco })
+                        }}
                       />
                     </div>
                     <div className="lb-loja__campo">
@@ -234,6 +280,11 @@ export function PinLojaControls({
                       />
                     </div>
                   </div>
+                  {aConferir !== null && (
+                    <p className="lb-field__error" id={conferirId}>
+                      {`O preço antigo “${aConferir}” não é número: escreva em berries (0 = grátis). Até lá ela não sai à venda.`}
+                    </p>
+                  )}
                   <button
                     type="button"
                     className="lb-btn lb-btn--ghost"
@@ -250,7 +301,7 @@ export function PinLojaControls({
             + Mercadoria
           </button>
           <p className="lb-label" id={HINT_ID}>
-            O jogador vê nome, preço e estoque no cartão e toca “Quero”; o pedido chega a você com Vender e Não. Vender baixa o estoque e põe a mercadoria na mochila dele. Estoque vazio não acaba. A coisa do Acervo chega com foto, empilha e o preço sai da bolsa dele.
+            O jogador vê nome, preço e estoque no cartão e toca “Quero”; o pedido chega a você com Vender e Não. Vender baixa o estoque, põe a mercadoria na mochila dele e tira o preço da bolsa dele. Preço vazio segue o Acervo (a digitada sai grátis); um número vale só nesta banca. Estoque vazio não acaba. A coisa do Acervo chega com foto e empilha.
           </p>
         </>
       )}
