@@ -1,4 +1,4 @@
-import type { AmbienteDoPeriodo, Light, MapData, Periodo } from '../types/map'
+import type { AmbienteDoPeriodo, Light, MapData, Periodo, Region } from '../types/map'
 import { SCENE_VISION_CELLS_MAX, readSceneVisionCells } from './sceneVision'
 import { ambienteComTema, temaDoPiso } from './temasDoAmbiente'
 
@@ -52,6 +52,24 @@ export function comCenaExterna(map: MapData, externa: boolean): MapData {
   if (map.externa === undefined) return map
   const { externa: _interna, ...rest } = map
   return rest
+}
+
+/**
+ * A CENA ESTÁ NO ESCURO (levantamento de 25/11/2026, Nº 18): a regra única de
+ * "escuro" que a visão do jogador (`filterMapForPlayer`, `lib/fogFilter.ts`)
+ * e o requisito "no escuro" (`lib/luzNaFicha.ts`) leem. Escuro é "Cena
+ * escura" ou o período Noite da cena (`periodoDaCena`); num ponto, também
+ * dentro de uma Sala escura (`salaEscura`). O TEMA do ambiente (Escuro,
+ * Noite) é só cor, decisão do mestre de 17/11/2026 (`lib/temasDoAmbiente.ts`):
+ * não entra aqui, e o balão do tema diz isso.
+ */
+export function cenaNoEscuro(map: Pick<MapData, 'dark'>, periodo: Periodo): boolean {
+  return map.dark === true || periodo === 'noite'
+}
+
+/** "Sala escura" que vale: marcada, não escondida pelo mestre e com polígono. */
+export function salaEscura(regiao: Pick<Region, 'room' | 'hidden' | 'points'>): boolean {
+  return regiao.room?.dark === true && regiao.hidden !== true && regiao.points.length >= 3
 }
 
 /**

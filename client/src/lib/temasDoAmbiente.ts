@@ -51,13 +51,13 @@ export interface TemaDoAmbiente {
  */
 export const TEMAS_DO_AMBIENTE: readonly TemaDoAmbiente[] = [
   { id: 'normal', rotulo: 'Normal', cor: '#ffffff', forca: 0, fatorDaLuz: 0, dica: 'Sem tema: o mapa segue o período (dia, tarde ou noite).' },
-  { id: 'escuro', rotulo: 'Escuro', cor: '#1c1f26', forca: 0.55, fatorDaLuz: 1, dica: 'Mais escuro sem mudar a cor do lugar; tochas e lareiras furam o escuro.' },
+  { id: 'escuro', rotulo: 'Escuro', cor: '#1c1f26', forca: 0.55, fatorDaLuz: 1, dica: 'Mais escuro sem mudar a cor do lugar; tochas e lareiras furam o escuro. Só cor: a visão e o "no escuro" seguem a Cena escura e o período Noite.' },
   // Luz a 0,3 (a conta da tarde, `LUZ_POR_PERIODO.tarde`), não 1: com o mapa já alaranjado, a luz inteira
   // devolve a cor de dia perto da tocha e o claro fica cinza-esverdeado no meio do laranja (visto na folha;
   // a 0,5 ainda esverdeia). A 0,3 o claro fica quente e discreto. Em aberto com o mestre.
   { id: 'tocha', rotulo: 'Tocha', cor: '#d9742c', forca: 0.65, fatorDaLuz: 0.3, dica: 'Um lugar iluminado por tochas: alaranjado e um pouco mais escuro.' },
   { id: 'frio', rotulo: 'Frio', cor: '#7f9ccb', forca: 0.5, fatorDaLuz: 1, dica: 'Azulado e frio, como pedra úmida ou gelo; o mapa continua claro.' },
-  { id: 'noite', rotulo: 'Noite', cor: '#465a92', forca: 0.85, fatorDaLuz: 1, dica: 'A noite aprovada, a qualquer hora: azul-ardósia escuro.' },
+  { id: 'noite', rotulo: 'Noite', cor: '#465a92', forca: 0.85, fatorDaLuz: 1, dica: 'A noite aprovada, a qualquer hora: azul-ardósia escuro. Só cor: para a visão curta e o "no escuro", use o período Noite ou a Cena escura.' },
 ]
 
 /** A tinta que o mapa de luz desenha: cor e força (como a do período) e o fator das luzes. */

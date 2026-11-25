@@ -2,7 +2,7 @@ import type { MapData, RegionPoint } from '../types/map'
 import { pointInRing } from './floorContour'
 import { luzDoCarimbo, luzDoObjeto, luzesDosCarimbos, raioDaLuzDoObjeto, raioDaLuzDosCarimbos } from './luzDoFogo'
 import { luzesDosItens } from './luzDoItem'
-import { luzAcesaNoPeriodo, periodoDaCena, type PeriodoLido } from './periodo'
+import { cenaNoEscuro, luzAcesaNoPeriodo, periodoDaCena, salaEscura, type PeriodoLido } from './periodo'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { hasLineOfSight, visionSegments } from './visibility'
 
@@ -12,9 +12,10 @@ import { hasLineOfSight, visionSegments } from './visibility'
  * nunca lê o mapa.
  *
  * A regra (decisão do Claude, 23/11/2026; REQUISITOS.md §5, E5):
- * - a casa só é ESCURA quando a cena pede escuro: "Cena escura" (`map.dark`), o período Noite da cena
- *   (`periodoDaCena`: cena externa à noite, ou o período fixo dela) ou o centro da ficha dentro de
- *   uma sala escura (`room.dark`). A Tarde não escurece;
+ * - a casa só é ESCURA quando a cena pede escuro (`cenaNoEscuro`, a mesma regra da visão): "Cena
+ *   escura" (`map.dark`), o período Noite da cena (`periodoDaCena`: cena externa à noite, ou o
+ *   período fixo dela) ou o centro da ficha dentro de uma sala escura (`salaEscura`). A Tarde não
+ *   escurece, e o tema do ambiente (Escuro, Noite) é só cor;
  * - mapa sem nada disso (nenhuma luz configurada) = NA LUZ;
  * - no escuro, está na luz quem fica no raio de uma luz acesa (a Luz do mapa acesa no período, o objeto
  *   que ilumina, o carimbo que ilumina, o item aceso no chão ou na mochila) com a linha da luz até o
@@ -33,7 +34,7 @@ interface PontoDeLuz {
 const guardadas = new WeakMap<MapData, Map<string, boolean | null>>()
 
 function dentroDeSalaEscura(doPiso: MapData, centro: RegionPoint): boolean {
-  return doPiso.regions.some((regiao) => regiao.room?.dark === true && regiao.hidden !== true && regiao.points.length >= 3 && pointInRing(centro, regiao.points))
+  return doPiso.regions.some((regiao) => salaEscura(regiao) && pointInRing(centro, regiao.points))
 }
 
 /** As luzes que clareiam no piso, no período da cena. */
@@ -57,7 +58,8 @@ function medir(map: MapData, tokenId: string, sessao: PeriodoLido | null | undef
   if (token === undefined) return null
   const doPiso = mapaDoPiso(map, pisoDe(token))
   const centro: RegionPoint = { x: token.x, y: token.y }
-  const escuro = map.dark === true || periodoDaCena(map, sessao) === 'noite' || dentroDeSalaEscura(doPiso, centro)
+  // A regra única de escuro (`cenaNoEscuro`): a mesma que a visão do jogador lê.
+  const escuro = cenaNoEscuro(map, periodoDaCena(map, sessao)) || dentroDeSalaEscura(doPiso, centro)
   if (!escuro) return true
   const paredes = visionSegments(doPiso)
   return pontosDeLuz(doPiso, sessao).some((luz) => Math.hypot(luz.x - centro.x, luz.y - centro.y) <= luz.raio && hasLineOfSight({ x: luz.x, y: luz.y }, centro, paredes))

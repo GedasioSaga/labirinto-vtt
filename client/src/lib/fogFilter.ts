@@ -1,5 +1,5 @@
 import type { Agua, CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
-import { PERIODO_PADRAO, lerPeriodo, luzAcesaNoPeriodo, visaoCheiaDoDia } from './periodo'
+import { PERIODO_PADRAO, cenaNoEscuro, lerPeriodo, luzAcesaNoPeriodo, salaEscura, visaoCheiaDoDia } from './periodo'
 import { TETO_DA_LUZ_EM_VISOES_DO_DIA, luzDoCarimbo, luzDoObjeto, luzesDosCarimbos, raioDaLuzDoObjeto, raioDaLuzDosCarimbos } from './luzDoFogo'
 import { luzesDosItens } from './luzDoItem'
 import { cenaTemFogo, temParticulas } from './particulasDaCena'
@@ -3416,12 +3416,13 @@ function recorteDoGrupo(
    *   o claro de ninguém (`authorityWalls`).
    */
   const darkRoomsOnLayer = regioesNaCamada.filter(
-    (r) => r.room?.dark === true && !r.hidden && !r.secret && !secretRoomIds.has(r.id) && isUsablePolygon(r.points),
+    (r) => salaEscura(r) && !r.secret && !secretRoomIds.has(r.id) && isUsablePolygon(r.points),
   )
   const isInteriorRoom = (r: Region): boolean => underRoofIds.has(r.id) || swallowedByClosedRoof(r)
   const openDarkRooms = darkRoomsOnLayer.filter((r) => !isInteriorRoom(r))
   const darknessForPlayer = (darkRooms: readonly Region[]): Darkness | null => {
-    if (map.dark !== true && darkRooms.length === 0 && !noite) return null
+    // A regra única de escuro (`cenaNoEscuro`), a mesma do requisito "no escuro" (`lib/luzNaFicha.ts`).
+    if (!cenaNoEscuro(map, noite ? 'noite' : PERIODO_PADRAO) && darkRooms.length === 0) return null
     const darkBoxes = boxRings(darkRooms.map((r) => r.points))
     const veils = boxRings(concealed).filter((v) =>
       darkBoxes.some((d) => v.maxX >= d.minX && v.minX <= d.maxX && v.maxY >= d.minY && v.minY <= d.maxY),
