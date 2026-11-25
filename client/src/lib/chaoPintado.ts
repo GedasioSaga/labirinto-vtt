@@ -27,19 +27,18 @@ interface Passo {
 
 const NADA: ConsultaDoChao = () => null
 
-/** A consulta dos passos (`MapData.texturas`); sem passos, sempre `null`. */
-export function consultaDoChaoPintado(
-  passos: readonly PinceladaDeTextura[] | undefined,
-  regioes: readonly Region[],
-  desenhos: readonly Drawing[],
-): ConsultaDoChao {
-  if (passos === undefined || passos.length === 0) return NADA
+/** Os passos que ainda têm forma, na ordem em que foram dados. */
+function passosDe(passos: readonly PinceladaDeTextura[], regioes: readonly Region[], desenhos: readonly Drawing[]): Passo[] {
   const lista: Passo[] = []
   for (const item of passos) {
     const passo = passoDe(item, regioes, desenhos)
     if (passo !== null) lista.push(passo)
   }
-  if (lista.length === 0) return NADA
+  return lista
+}
+
+/** O último passo que cobre o ponto responde. */
+function consultaDos(lista: readonly Passo[]): ConsultaDoChao {
   return (p) => {
     for (let i = lista.length - 1; i >= 0; i -= 1) {
       const { caixa, cobre, textura } = lista[i]
@@ -48,6 +47,107 @@ export function consultaDoChaoPintado(
     }
     return null
   }
+}
+
+/** A consulta dos passos (`MapData.texturas`); sem passos, sempre `null`. */
+export function consultaDoChaoPintado(
+  passos: readonly PinceladaDeTextura[] | undefined,
+  regioes: readonly Region[],
+  desenhos: readonly Drawing[],
+): ConsultaDoChao {
+  if (passos === undefined || passos.length === 0) return NADA
+  const lista = passosDe(passos, regioes, desenhos)
+  return lista.length === 0 ? NADA : consultaDos(lista)
+}
+
+/** O chão pintado como sim ou não, com a caixa de toda a tinta posta (fora dela não há tinta). */
+export interface TintaDoChao {
+  readonly tem: (p: RegionPoint) => boolean
+  readonly caixa: Caixa
+}
+
+/**
+ * A MESMA regra da consulta, como sim ou não (levantamento de 25/11/2026, Nº
+ * 25: o terreno alto lia a tinta de outro jeito, somando a força e sem os
+ * recortes do Balde). `null` = nenhum passo deixa textura.
+ */
+export function tintaDoChao(passos: readonly PinceladaDeTextura[] | undefined, regioes: readonly Region[], desenhos: readonly Drawing[]): TintaDoChao | null {
+  if (passos === undefined || passos.length === 0) return null
+  const lista = passosDe(passos, regioes, desenhos)
+  const poem = lista.filter((passo) => passo.textura !== null)
+  if (poem.length === 0) return null
+  const consulta = consultaDos(lista)
+  return { tem: (p) => consulta(p) !== null, caixa: poem.map((passo) => passo.caixa).reduce(juntaCaixas) }
+}
+
+/**
+ * As células de `lado` px (alinhadas à origem do mundo, como os blocos do
+ * Chão) cujo CENTRO tem chão pintado pela regra da consulta. Cada passo só
+ * olha as células da caixa dele, na ordem: o de depois vale por cima. É a
+ * tinta posta em blocos, para quem pensa o chão em peças ("Fora do Chão",
+ * `lib/offFloor.ts`). Sem tinta, nenhuma.
+ */
+export function celulasDoChaoPintado(
+  passos: readonly PinceladaDeTextura[],
+  regioes: readonly Region[],
+  desenhos: readonly Drawing[],
+  lado: number,
+): { col: number; row: number }[] {
+  if (passos.length === 0 || !(Number.isFinite(lado) && lado > 0)) return []
+  const celulas = new Map<string, { col: number; row: number; tem: boolean }>()
+  for (const { caixa, cobre, textura } of passosDe(passos, regioes, desenhos)) {
+    for (let col = Math.ceil(caixa.minX / lado - 0.5); (col + 0.5) * lado <= caixa.maxX; col += 1) {
+      for (let row = Math.ceil(caixa.minY / lado - 0.5); (row + 0.5) * lado <= caixa.maxY; row += 1) {
+        if (cobre({ x: (col + 0.5) * lado, y: (row + 0.5) * lado })) celulas.set(`${col},${row}`, { col, row, tem: textura !== null })
+      }
+    }
+  }
+  return [...celulas.values()].filter((c) => c.tem).map(({ col, row }) => ({ col, row }))
+}
+
+/** Uma forma cheia que é chão, com o piso dela. */
+export interface FormaDeChao {
+  readonly pontos: readonly RegionPoint[]
+  readonly piso: number | undefined
+}
+
+function finito(p: RegionPoint): boolean {
+  return Number.isFinite(p.x) && Number.isFinite(p.y)
+}
+
+/** Sala (com ou sem fundo) ou região comum com fundo; a que o mestre esconde ("Esconder") não. */
+function regiaoDeChao(r: Region): boolean {
+  return r.hidden !== true && (r.room !== undefined || r.filled !== false) && r.points.length >= 3 && r.points.every(finito)
+}
+
+const SEM_REGIOES: readonly Region[] = []
+
+/** O contorno do desenho cheio: a forma do Balde com o desenho sozinho (quem está por cima não tira chão). */
+function contornoDoDesenhoCheio(d: Drawing): RegionPoint[] | null {
+  return formaDoBalde({ tipo: 'desenho', id: d.id }, SEM_REGIOES, [d])?.contorno ?? null
+}
+
+const formasGuardadas = new WeakMap<readonly Region[], { desenhos: readonly Drawing[]; formas: FormaDeChao[] }>()
+
+/**
+ * AS FORMAS CHEIAS QUE SÃO CHÃO além das peças e da tinta (levantamento de
+ * 25/11/2026, frente D: uma definição só de chão): Sala, região com fundo e
+ * desenho cheio (polígono do Balde do Pincel, forma preenchida; a mesma
+ * mancha que o Balde de textura enche). Quem lê: o terreno alto
+ * (`lib/terrenoAlto.ts`), o "Fora do Chão: bloqueado" (`lib/offFloor.ts`) e o
+ * abrigo da chuva (`lib/abrigoDoAmbiente.ts`). As mesmas listas devolvem a
+ * MESMA lista.
+ */
+export function formasDeChao(regioes: readonly Region[], desenhos: readonly Drawing[]): FormaDeChao[] {
+  const guardada = formasGuardadas.get(regioes)
+  if (guardada !== undefined && guardada.desenhos === desenhos) return guardada.formas
+  const formas: FormaDeChao[] = regioes.filter(regiaoDeChao).map((r) => ({ pontos: r.points, piso: r.piso }))
+  for (const d of desenhos) {
+    const pontos = contornoDoDesenhoCheio(d)
+    if (pontos !== null) formas.push({ pontos, piso: d.piso })
+  }
+  formasGuardadas.set(regioes, { desenhos, formas })
+  return formas
 }
 
 function passoDe(item: PinceladaDeTextura, regioes: readonly Region[], desenhos: readonly Drawing[]): Passo | null {
@@ -82,6 +182,10 @@ function passoDe(item: PinceladaDeTextura, regioes: readonly Region[], desenhos:
 
 function recorteCobre(r: RecorteDoBalde, p: RegionPoint): boolean {
   return r.tipo === 'area' ? dentroDoPoligono(p, r.pontos) : distanciaAoCaminho(p, r.pontos, r.fechada) <= r.largura / 2
+}
+
+function juntaCaixas(a: Caixa, b: Caixa): Caixa {
+  return { minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY) }
 }
 
 function caixaDe(pontos: readonly RegionPoint[], folga: number): Caixa {

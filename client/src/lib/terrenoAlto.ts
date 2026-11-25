@@ -1,6 +1,5 @@
-import type { AlturaDoPiso, AlvoDoBalde, MapData, RegionPoint, Token, TokenContract } from '../types/map'
-import { formaDoBalde } from './baldeDeTextura'
-import { distanceToWall } from './doorReach'
+import type { AlturaDoPiso, FloorPiece, MapData, RegionPoint, Token, TokenContract } from '../types/map'
+import { formasDeChao, tintaDoChao } from './chaoPintado'
 import {
   fichasNaVisaoDeBaixo,
   playerEyeTokens,
@@ -24,12 +23,13 @@ import { visionSegments } from './visibility'
  * (chão, construções, telhados e fichas) borrado e escurecido pela "Altura"
  * do piso dele, até onde a visão dele alcança: as paredes do piso DELE seguram
  * o olhar (a torre tem parede, a mureta-janela deixa passar); as do piso de
- * baixo, não. O chão do piso dele — peça de Chão, Sala ou textura pintada
+ * baixo, não. O chão do piso dele — peça de Chão, Sala, desenho cheio ou textura pintada
  * (`chaoDeQuemOlhaDeCima`) — cobre o que está embaixo (debaixo da
  * passarela, dentro da torre), então nada de lá sai. Quem está embaixo vê as
  * fichas do piso de cima que a visão dele alcança, sem desfoque, se não
- * houver chão do piso de cima sobre a cabeça dele — peça de Chão, Sala ou
- * textura pintada (`tetoDoPiso`); dentro da torre não se vê o andar de cima.
+ * houver chão do piso de cima sobre a cabeça dele — peça de Chão, Sala,
+ * desenho cheio ou textura pintada (`tetoDoPiso`); dentro da torre não se vê
+ * o andar de cima.
  * As paredes do piso de cima seguram esse olhar: a sala fechada lá em cima
  * esconde quem está nela; a mureta-janela e a porta aberta deixam passar.
  * O chão do piso de cima continua escondido para ele.
@@ -91,101 +91,46 @@ function caixaDe(points: readonly RegionPoint[]): Bounds {
   return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }
 }
 
+/** A peça conta como chão: não está escondida e "Conta como Chão" está ligado (`chaoQueLimita` exclui a mesma). */
+function pecaContaComoChao(f: FloorPiece): boolean {
+  return f.hidden !== true && f.soPintura !== true
+}
+
 /**
- * O CHÃO de um piso, como pergunta: o ponto está sobre uma peça de Chão (a
- * última peça que o contém soma) ou dentro de uma Sala dele. É o que cobre o
- * piso de baixo para quem está em cima e o que tapa o céu de quem está
- * embaixo. Piso sem chão nem Sala: `null` (nada cobre).
+ * O CHÃO de um piso, como pergunta: o ponto está sobre uma peça de Chão que
+ * conta (a última peça que o contém soma) ou dentro de uma forma cheia que é
+ * chão — Sala, região com fundo ou desenho cheio (`formasDeChao`,
+ * `lib/chaoPintado.ts`). É o que cobre o piso de baixo para quem está em cima
+ * e o que tapa o céu de quem está embaixo. Sem o desenho cheio, o andar de
+ * cima feito a Pincel ou Balde era céu aberto (levantamento de 25/11/2026, Nº
+ * 6). Piso sem nada disso: `null` (nada cobre).
  */
-export function coberturaDoPiso(map: Pick<MapData, 'floor' | 'regions'>): ((p: RegionPoint) => boolean) | null {
-  const pecas = map.floor.map((f) => ({ f, b: pieceBounds(f) }))
-  const salas = map.regions.filter((r) => r.points.length >= 3).map((r) => ({ points: r.points, b: caixaDe(r.points) }))
-  if (pecas.length === 0 && salas.length === 0) return null
+export function coberturaDoPiso(map: Pick<MapData, 'floor' | 'regions' | 'drawings'>): ((p: RegionPoint) => boolean) | null {
+  const pecas = map.floor.filter(pecaContaComoChao).map((f) => ({ f, b: pieceBounds(f) }))
+  const formas = formasDeChao(map.regions, map.drawings).map(({ pontos }) => ({ pontos, b: caixaDe(pontos) }))
+  if (pecas.length === 0 && formas.length === 0) return null
   return (p) => {
-    if (salas.some((s) => dentroDaCaixa(s.b, p) && pointInPolygonInclusive(p, s.points))) return true
+    if (formas.some((s) => dentroDaCaixa(s.b, p) && pointInPolygonInclusive(p, s.pontos))) return true
     let chao = false
     for (const { f, b } of pecas) if (dentroDaCaixa(b, p) && pieceDistance(f, p.x, p.y) <= 0) chao = f.op === 'add'
     return chao
   }
 }
 
-/** Um passo de textura do piso já posto em forma: põe tinta ou tira, na força dele, só dentro da caixa. */
-interface PassoDaTinta {
-  readonly poe: boolean
-  readonly forca: number
-  readonly caixa: Bounds
-  readonly dentro: (p: RegionPoint) => boolean
-}
-
-/** O caminho do Pincel ou da Borracha: o ponto a até `raio` de algum trecho do traço. */
-function formaDoTraco(pontos: readonly RegionPoint[], raio: number): Pick<PassoDaTinta, 'caixa' | 'dentro'> | null {
-  if (pontos.length === 0 || !(raio > 0)) return null
-  const b = caixaDe(pontos)
-  const caixa = { minX: b.minX - raio, minY: b.minY - raio, maxX: b.maxX + raio, maxY: b.maxY + raio }
-  const dentro = (p: RegionPoint): boolean => {
-    if (pontos.length === 1) return Math.hypot(p.x - pontos[0].x, p.y - pontos[0].y) <= raio
-    for (let i = 1; i < pontos.length; i += 1) {
-      const a = pontos[i - 1]
-      const c = pontos[i]
-      if (distanceToWall(p, { x1: a.x, y1: a.y, x2: c.x, y2: c.y }) <= raio) return true
-    }
-    return false
-  }
-  return { caixa, dentro }
-}
-
-/** A forma inteira que o Balde (ou o Esvaziar) enche: área, Sala ou desenho do piso. */
-function formaDoAlvo(map: Pick<MapData, 'regions' | 'drawings'>, alvo: AlvoDoBalde): Pick<PassoDaTinta, 'caixa' | 'dentro'> | null {
-  const contorno = formaDoBalde(alvo, map.regions, map.drawings)?.contorno
-  if (contorno === undefined || contorno.length < 3) return null
-  return { caixa: caixaDe(contorno), dentro: (p) => pointInPolygonInclusive(p, contorno) }
-}
-
-/** O passo deixa tinta de verdade: Pincel ou Balde com força. */
-function poeTinta(passo: PassoDaTinta): boolean {
-  return passo.poe && passo.forca > 0
-}
-
-/** Os passos de textura do piso, na ordem, já postos em forma. O passo `sala` não entra: a Sala já cobre em `coberturaDoPiso`. */
-function passosDaTinta(map: Pick<MapData, 'texturas' | 'regions' | 'drawings'>): PassoDaTinta[] {
-  return (map.texturas ?? []).flatMap((passo): PassoDaTinta[] => {
-    if (passo.tipo === 'sala') return []
-    const forma = passo.tipo === 'pincel' || passo.tipo === 'borracha' ? formaDoTraco(passo.pontos, passo.raio) : formaDoAlvo(map, passo.alvo)
-    if (forma === null) return []
-    const forca = passo.tipo === 'esvaziar' ? 1 : Math.min(1, Math.max(0, passo.forca))
-    return [{ ...forma, poe: passo.tipo === 'pincel' || passo.tipo === 'balde', forca }]
-  })
-}
-
-/** Sobra textura no ponto depois de todos os passos, na ordem (Pincel e Balde põem, Borracha e Esvaziar tiram)? */
-function sobraTinta(passos: readonly PassoDaTinta[], p: RegionPoint): boolean {
-  let tinta = 0
-  for (const passo of passos) {
-    if (!dentroDaCaixa(passo.caixa, p) || !passo.dentro(p)) continue
-    tinta = passo.poe ? tinta + (1 - tinta) * passo.forca : tinta * (1 - passo.forca)
-  }
-  return tinta > 0
-}
-
 /**
- * O CHÃO PINTADO de um piso, como pergunta: sobra textura no ponto
- * (`sobraTinta`)? Mapa feito só com paredes e Balde não tem peça de Chão: é a
- * textura que diz onde o piso tem chão. Piso sem textura: `null`.
+ * O CHÃO PINTADO de um piso, como pergunta: a regra de `lib/chaoPintado.ts`
+ * (o último passo que cobre o ponto vale, a força não conta, os recortes do
+ * Balde ficam de fora). Mapa feito só com paredes e Balde não tem peça de
+ * Chão: é a textura que diz onde o piso tem chão. Piso sem textura: `null`.
  */
-export function chaoPintadoDoPiso(map: Pick<MapData, 'texturas' | 'regions' | 'drawings'>): ((p: RegionPoint) => boolean) | null {
-  const passos = passosDaTinta(map)
-  if (!passos.some(poeTinta)) return null
-  return (p) => sobraTinta(passos, p)
-}
-
-function juntaCaixas(a: Bounds, b: Bounds): Bounds {
-  return { minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY) }
+function chaoPintadoDoPiso(map: Pick<MapData, 'texturas' | 'regions' | 'drawings'>): ((p: RegionPoint) => boolean) | null {
+  return tintaDoChao(map.texturas, map.regions, map.drawings)?.tem ?? null
 }
 
 /**
  * O CHÃO PINTADO como pergunta de custo fixo, para o olhar PARA BAIXO: o
  * recorte pergunta o `cobre` ponto a ponto, dezenas de milhares de vezes
- * (`cobertoDeCima`, `lib/fogFilter.ts`), e `sobraTinta` anda cada passo e cada
+ * (`cobertoDeCima`, `lib/fogFilter.ts`), e a regra anda cada passo e cada
  * trecho de cada traço. Aqui cada meia casa responde pela regra no CENTRO
  * dela, contada na primeira pergunta e guardada. A meia casa segue a grade do
  * mapa: a borda pintada rente à grade cai entre duas, não no meio de uma.
@@ -193,12 +138,11 @@ function juntaCaixas(a: Bounds, b: Bounds): Bounds {
  * ponto a ponto.
  */
 function chaoPintadoPorMeiaCasa(map: Pick<MapData, 'texturas' | 'regions' | 'drawings' | 'grid' | 'gridOffset'>): ((p: RegionPoint) => boolean) | null {
-  const passos = passosDaTinta(map)
-  const poem = passos.filter(poeTinta)
-  if (poem.length === 0) return null
+  const tinta = tintaDoChao(map.texturas, map.regions, map.drawings)
+  if (tinta === null) return null
   const lado = map.grid / 2
-  if (!(Number.isFinite(lado) && lado > 0)) return (p) => sobraTinta(passos, p)
-  const caixa = poem.map((passo) => passo.caixa).reduce(juntaCaixas)
+  if (!(Number.isFinite(lado) && lado > 0)) return tinta.tem
+  const { caixa } = tinta
   const origem = map.gridOffset ?? { x: 0, y: 0 }
   const primeiraColuna = Math.floor((caixa.minX - origem.x) / lado)
   const primeiraLinha = Math.floor((caixa.minY - origem.y) / lado)
@@ -211,7 +155,7 @@ function chaoPintadoPorMeiaCasa(map: Pick<MapData, 'texturas' | 'regions' | 'dra
     const chave = (linha - primeiraLinha) * colunas + (coluna - primeiraColuna)
     let resposta = respostas.get(chave)
     if (resposta === undefined) {
-      resposta = sobraTinta(passos, { x: origem.x + (coluna + 0.5) * lado, y: origem.y + (linha + 0.5) * lado })
+      resposta = tinta.tem({ x: origem.x + (coluna + 0.5) * lado, y: origem.y + (linha + 0.5) * lado })
       respostas.set(chave, resposta)
     }
     return resposta
@@ -229,13 +173,14 @@ function cobreUmaOuOutra(
 }
 
 /**
- * O TETO de quem está embaixo: o chão do piso de cima — peça de Chão, Sala
- * (`coberturaDoPiso`) ou textura pintada (`chaoPintadoDoPiso`). Sem a
+ * O TETO de quem está embaixo: o chão do piso de cima — peça de Chão, Sala,
+ * região com fundo, desenho cheio (`coberturaDoPiso`) ou textura pintada
+ * (`chaoPintadoDoPiso`). Sem a
  * textura, quem estava no 1º andar de um castelo pintado a Balde via as
  * fichas do 2º andar através do teto e da parede (bug de 25/11/2026).
  * Pergunta só pelo ponto de cada olho: a regra exata, sem meia casa.
  */
-function tetoDoPiso(map: Pick<MapData, 'floor' | 'regions' | 'texturas' | 'drawings'>): ((p: RegionPoint) => boolean) | null {
+export function tetoDoPiso(map: Pick<MapData, 'floor' | 'regions' | 'texturas' | 'drawings'>): ((p: RegionPoint) => boolean) | null {
   return cobreUmaOuOutra(coberturaDoPiso(map), chaoPintadoDoPiso(map))
 }
 
@@ -282,7 +227,7 @@ export function terrenoAltoDoJogador({ mapaInteiro, playerId, ownership, raio, l
  * De cima: o piso de baixo pela visão dos olhos dele, com as paredes que ELE
  * recebe do piso dele segurando o olhar (sem a borda do chão: da beira da
  * muralha se olha para baixo) e o chão que ele conhece do piso dele — Chão,
- * Sala ou textura pintada (`chaoDeQuemOlhaDeCima`) — cobrindo.
+ * Sala, desenho cheio ou textura pintada (`chaoDeQuemOlhaDeCima`) — cobrindo.
  */
 function vistaDoPisoDeBaixo(
   mapaInteiro: MapData,
