@@ -227,7 +227,8 @@ function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[],
     seguramForaDaCamada.length === 0
       ? naCamadaDosJogadores
       : { ...naCamadaDosJogadores, props: naCamadaDosJogadores.props.filter((p) => !presoNaParede(p, seguramForaDaCamada) || presoNaParede(p, seguramNaCamada)) }
-  const secretRooms = map.regions.filter((r) => r.secret && r.room !== undefined)
+  // Sala secreta OU região comum oculta: o mesmo conjunto de fogFilter.secretRoomsOf.
+  const secretRooms = map.regions.filter((r) => r.secret === true)
   // Sala secreta leva junto as sub-salas e as paredes delas, como no recorte do jogador.
   const goneRegionIds = new Set([
     ...map.regions.filter((r) => r.secret).map((r) => r.id),

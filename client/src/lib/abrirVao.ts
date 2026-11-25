@@ -104,12 +104,13 @@ function mesmaLinha(map: MapData, eixo: Eixo, piso: number | undefined): Wall[] 
 /**
  * Salas que o jogador NUNCA recebe por decisão do mestre — o mesmo conjunto
  * que `fogFilter.filterMapForPlayer` chama de `secretRoomIds`: a sala secreta
- * com tudo o que há dentro dela, e o que está dentro de sala oculta.
+ * com tudo o que há dentro dela, e o que está dentro de sala oculta. Região
+ * comum oculta conta como sala secreta (fogFilter.secretRoomsOf).
  */
 function salasEscondidasIds(map: MapData): Set<string> {
   const ids = new Set<string>()
   for (const r of map.regions) {
-    if (r.secret === true && r.room !== undefined) for (const id of subtreeIds(map.regions, r.id)) ids.add(id)
+    if (r.secret === true) for (const id of subtreeIds(map.regions, r.id)) ids.add(id)
     if (r.parentId !== undefined && ancestorsOf(map.regions, r.id).some((a) => a.secret === true || a.hidden === true)) ids.add(r.id)
   }
   return ids
