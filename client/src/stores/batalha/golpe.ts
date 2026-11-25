@@ -331,6 +331,20 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       novos = gastos.turnos
       notaDosRequisitos = notaDaLinha(gastos.texto, notaDosRequisitos)
     }
+    // FRENTE A (25/11/2026): a técnica que gasta item (o Kit Médico) tira da mochila de quem reage, como no golpe
+    // (`gastarConsumivelNaMesa`): o registro diz o mesmo que a mochila, e o Desfazer da linha devolve. O
+    // `motivoDaReacaoComTecnica` já recusou sem item bastante; a mesa que recusa agora leva tudo de volta.
+    const gastoDaTecnica = itemQueATecnicaGasta(cartaoDaReacao)
+    let textoDoItem = ''
+    if (gastoDaTecnica !== null) {
+      const gastou = gastarConsumivelNaMesa(mesa, sceneKey, reageTokenId, personagemId, gastoDaTecnica)
+      partes.push(...gastou.partes)
+      if (!gastou.ok) {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+      textoDoItem = ` · gastou ${gastoDaTecnica.porUso} ${gastoDaTecnica.nome}`
+    }
     // Conserto das fichas F1 (Overload, resposta da May "nos 2 modos"): reagir com Overload também cansa.
     if (feita.combate.overload && !combateBase.overload) {
       const cansado = cansarNoOverload(personagemId, reageTokenId, novos)
@@ -439,7 +453,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     const atual = cenaDe(sceneKey) ?? cena
     const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(golpeFeito, nomeDoToken), []) }
     const quemReage = por === undefined ? textoDaReacaoComTecnica(depois, nomeDoToken) : `${nomeDoToken(por)} reage com ${depois.tecnica?.nome ?? 'técnica'} por ${nomeDoToken(depois.tokenId)}: o golpe não pega`
-    const texto = quemReage + textoDoRebate + (notaDosRequisitos === null ? '' : ` ${notaDosRequisitos}`)
+    const texto = quemReage + textoDoRebate + textoDoItem + (notaDosRequisitos === null ? '' : ` ${notaDosRequisitos}`)
     gravarCena(sceneKey, {
       ...comMudanca(comOGolpe, novos, { id: linhaId, tipo: 'reacao', texto, autor, tokenIds: [...new Set([reageTokenId, depois.tokenId, golpe.atacanteTokenId])], reversao: { tipo: 'composta', partes } }),
       efeitos: comEfeitos(atual.efeitos, efeitos),
