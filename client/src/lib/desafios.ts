@@ -9,7 +9,7 @@
  * o alcance e o "Quem vê" do jogador seguem idênticos, e o desenho do pino de
  * minigame virou o selo (`pixi/drawPins.ts`).
  */
-import type { Desafio, LugarDoDesafio, MapData, Pin, Prop, TipoDoLugarDoDesafio } from '../types/map'
+import type { Desafio, LugarDoDesafio, MapData, Pin, Prop, TipoDoLugarDoDesafio, Token } from '../types/map'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
 import { ehJogoDoRegistro, entradaDoMinigame, nomeDoJogoDoDesafio, padraoDoJogo, REGISTRO_DE_MINIGAMES, type EntradaDoDesafio } from '../minigames/registro'
 import type { ProgressoDoPuzzle } from '../puzzles/tipos'
@@ -271,13 +271,36 @@ export function pontoDoDesafio(desafio: Pick<Desafio, 'lugar' | 'piso'>, props: 
  */
 export type ParaQuem = 'mestre' | 'mesa'
 
+/** O pedaço do boneco que o convite lê para saber quem chama agora. */
+export type TokenDeQuemChama = Pick<Token, 'id' | 'name'>
+
+/** O mapa como o pino derivado o lê: os bonecos são opcionais (sem eles, vale o nome gravado no convite). */
+type MapaDosDesafios = Pick<MapData, 'desafios' | 'props'> & { tokens?: readonly TokenDeQuemChama[] }
+
+/**
+ * QUEM CHAMA SEGUE O BONECO (levantamento de 25/11/2026, achado 29): o
+ * convite escolhido de um boneco desta cena (`quem.tokenId`) leva o nome que
+ * ele tem AGORA, pela mesma regra do editor (`BlocoDoConvite`: o nome do
+ * boneco, no teto de quem chama). Renomear o boneco muda o convite do jogador
+ * sem regravar o desafio. Boneco que saiu da cena, sem nome, ou quem chama
+ * escrito à mão: vale o nome gravado (`minigame.npc`), como antes.
+ */
+function minigameComQuemDeAgora(desafio: Desafio, tokens: readonly TokenDeQuemChama[]): MinigameDoPino {
+  const tokenId = desafio.quem?.tokenId
+  if (tokenId === undefined || desafio.minigame.jogo === 'puzzle') return desafio.minigame
+  const boneco = tokens.find((token) => token.id === tokenId)
+  const nome = boneco === undefined ? '' : boneco.name.trim().slice(0, QUEM_CHAMA_MAX_LENGTH)
+  return nome === '' || nome === desafio.minigame.npc ? desafio.minigame : comConvite(desafio.minigame, { npc: nome })
+}
+
 /**
  * O PINO DE MINIGAME DERIVADO do desafio, de mesmo id: o que o recorte, o host
  * e o desenho usam. Desafio migrado sai com tudo do pino de antes (descrição,
  * só de perto, marco, segredo, camada...); desafio novo, com o mínimo de um
- * pino sem texto. `null` = o desafio não tem lugar no mapa.
+ * pino sem texto. `null` = o desafio não tem lugar no mapa. `tokens`: os
+ * bonecos da cena, para o convite ler quem chama agora (`minigameComQuemDeAgora`).
  */
-export function pinoDoDesafio(desafio: Desafio, props: readonly Prop[], paraQuem: ParaQuem): Pin | null {
+export function pinoDoDesafio(desafio: Desafio, props: readonly Prop[], paraQuem: ParaQuem, tokens: readonly TokenDeQuemChama[] = []): Pin | null {
   const ponto = pontoDoDesafio(desafio, props)
   if (ponto === null) return null
   const base: Pin = desafio.eraPino ?? { id: desafio.id, x: ponto.x, y: ponto.y, kind: 'minigame', description: '', image: null }
@@ -290,7 +313,7 @@ export function pinoDoDesafio(desafio: Desafio, props: readonly Prop[], paraQuem
     x: ponto.x,
     y: ponto.y,
     piso: ponto.piso,
-    minigame: desafio.minigame,
+    minigame: minigameComQuemDeAgora(desafio, tokens),
     portaLigada: desafio.portaLigada,
     minigameVisivel: undefined,
     // O selo não segue ficha: o lugar é o do desafio (o arrasto do selo muda o desafio, `patchDoSeloMovido`).
@@ -352,11 +375,11 @@ export function patchDoSeloMovido(x: number, y: number, piso: number): PatchDoDe
  * recorte do jogador): o desafio posto num objeto que não chega ao jogador
  * também não chega — o selo contaria que o objeto existe.
  */
-export function pinosDosDesafios(map: Pick<MapData, 'desafios' | 'props'>, paraQuem: ParaQuem, objetoChega?: (propId: string) => boolean): Pin[] {
+export function pinosDosDesafios(map: MapaDosDesafios, paraQuem: ParaQuem, objetoChega?: (propId: string) => boolean): Pin[] {
   const pinos: Pin[] = []
   for (const desafio of desafiosDo(map)) {
     if (objetoChega !== undefined && desafio.lugar.tipo === 'objeto' && !objetoChega(desafio.lugar.propId)) continue
-    const pino = pinoDoDesafio(desafio, map.props, paraQuem)
+    const pino = pinoDoDesafio(desafio, map.props, paraQuem, map.tokens)
     if (pino !== null) pinos.push(pino)
   }
   return pinos
@@ -367,9 +390,9 @@ export function pinosDosDesafios(map: Pick<MapData, 'desafios' | 'props'>, paraQ
  * desafio, ou um pino ▷ que ainda não passou pela migração (mapa montado sem
  * passar pelo disco). `undefined` = não há minigame com este id aqui.
  */
-export function pinoDeMinigameDoMapa(map: Pick<MapData, 'desafios' | 'props' | 'pins'>, id: string): Pin | undefined {
+export function pinoDeMinigameDoMapa(map: MapaDosDesafios & Pick<MapData, 'pins'>, id: string): Pin | undefined {
   const desafio = desafiosDo(map).find((d) => d.id === id)
-  if (desafio !== undefined) return pinoDoDesafio(desafio, map.props, 'mesa') ?? undefined
+  if (desafio !== undefined) return pinoDoDesafio(desafio, map.props, 'mesa', map.tokens) ?? undefined
   return map.pins.find((pin) => pin.id === id && pin.kind === 'minigame')
 }
 
@@ -378,14 +401,14 @@ export function pinoDeMinigameDoMapa(map: Pick<MapData, 'desafios' | 'props' | '
  * confere: sem lugar ele ainda começa pelo convite. Vem como pino derivado
  * (no ponto 0,0 quando não tem lugar): é o que os convites de hoje leem.
  */
-export function pinoDoConvite(map: Pick<MapData, 'desafios' | 'props' | 'pins'>, id: string): Pin | undefined {
+export function pinoDoConvite(map: MapaDosDesafios & Pick<MapData, 'pins'>, id: string): Pin | undefined {
   const desafio = desafiosDo(map).find((d) => d.id === id)
   if (desafio === undefined) return map.pins.find((pin) => pin.id === id && pin.kind === 'minigame')
-  return pinoDoDesafio(desafio, map.props, 'mesa') ?? pinoDoDesafio({ ...desafio, lugar: { tipo: 'ponto', x: 0, y: 0 } }, map.props, 'mesa') ?? undefined
+  return pinoDoDesafio(desafio, map.props, 'mesa', map.tokens) ?? pinoDoDesafio({ ...desafio, lugar: { tipo: 'ponto', x: 0, y: 0 } }, map.props, 'mesa', map.tokens) ?? undefined
 }
 
 /** `pinoDoConvite` na primeira cena que tem o desafio (os convites do mestre valem para qualquer cena aberta). */
-export function pinoDoConviteEmQualquerCena(cenas: readonly { map: Pick<MapData, 'desafios' | 'props' | 'pins'> }[], id: string): Pin | undefined {
+export function pinoDoConviteEmQualquerCena(cenas: readonly { map: MapaDosDesafios & Pick<MapData, 'pins'> }[], id: string): Pin | undefined {
   for (const cena of cenas) {
     const pino = pinoDoConvite(cena.map, id)
     if (pino !== undefined) return pino
