@@ -2,7 +2,7 @@ import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { AURAS, lerAura, type TipoDeAura } from '../lib/auras'
 import { ehImagemDaMesa } from '../lib/midia'
-import { formaNoToken, formasParaMudar, tokenNaBatalha } from '../lib/mudarFicha'
+import { formaNoToken, formasParaMudar, retratoNoToken, tokenNaBatalha } from '../lib/mudarFicha'
 import { tokenPhotoRef } from '../lib/tokenPhoto'
 import { animarMiniaturaDaAura, aquecerMiniaturasDaAura, miniaturaDaAura } from '../pixi/auras/miniatura'
 import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
@@ -58,8 +58,13 @@ function fonteDoDisco(caminho: string): string | null {
   }
 }
 
-/** A imagem BASE do token: a do disco do mestre, a da mesa, ou as iniciais do nome. */
-function FotoBase({ token }: { token: Token }) {
+/**
+ * A imagem BASE do token, a mesma que o mapa mostra no "Normal": o retrato da
+ * ficha ligada quando ele vence a foto (`retratoNoToken`, a foto segue a
+ * ficha); senão a do disco do mestre, a da mesa, ou as iniciais do nome.
+ */
+function FotoBase({ token, retrato }: { token: Token; retrato: string | null }) {
+  if (retrato !== null) return <ImagemOuIniciais imagem={retrato} nome={token.name} />
   const foto = tokenPhotoRef(token)
   const doDisco = foto !== null && !ehImagemDaMesa(foto) ? fonteDoDisco(foto) : null
   if (doDisco !== null) return <img src={doDisco} alt="" />
@@ -178,7 +183,7 @@ export function ItensDaAparenciaDaFicha({ tokenId, aberta, onAbrir, formaRef, au
   }
 
   const opcoesDeForma: MiniaturaDoSubmenu[] = [
-    { chave: 'base', nome: 'Normal', marcada: formaAtual === null, miniatura: <FotoBase token={token} />, aoEscolher: () => escolherForma(null) },
+    { chave: 'base', nome: 'Normal', marcada: formaAtual === null, miniatura: <FotoBase token={token} retrato={retratoNoToken(token, personagem)} />, aoEscolher: () => escolherForma(null) },
     ...formas.map((forma) => ({
       chave: `forma-${forma.id}`,
       nome: forma.nome,
