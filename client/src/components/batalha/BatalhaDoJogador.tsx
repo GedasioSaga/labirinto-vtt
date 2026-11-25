@@ -67,6 +67,8 @@ export interface FichaDoJogador {
   id: string
   name: string
   imageData?: string | null
+  /** A imagem que a ficha dá ao token (forma ou retrato, `formasVisiveisDoMapa`), que vence a foto dele na faixa. */
+  fotoDaForma?: string
   /** C4: a posição no mapa (px do mundo), para a ordem dos alvos por distância. */
   x?: number
   y?: number
