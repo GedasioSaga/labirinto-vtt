@@ -2,7 +2,7 @@ import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { AURAS, lerAura, type TipoDeAura } from '../lib/auras'
 import { ehImagemDaMesa } from '../lib/midia'
-import { formaAtivaNaFicha, formasParaMudar, tokenNaBatalha } from '../lib/mudarFicha'
+import { formaNoToken, formasParaMudar, tokenNaBatalha } from '../lib/mudarFicha'
 import { tokenPhotoRef } from '../lib/tokenPhoto'
 import { animarMiniaturaDaAura, aquecerMiniaturasDaAura, miniaturaDaAura } from '../pixi/auras/miniatura'
 import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
@@ -147,10 +147,9 @@ export function ItensDaAparenciaDaFicha({ tokenId, aberta, onAbrir, formaRef, au
   const formas = personagem === undefined ? [] : formasParaMudar(personagem, sistema)
   const naBatalha = tokenNaBatalha(idDaCena ?? idDoMapa, token.characterId, { onePiece: batalhasOnePiece, dragonBall: batalhasDragonBall })
   const motivoDaForma = personagem === undefined ? MOTIVO_SEM_FICHA : formas.length === 0 ? MOTIVO_SEM_FORMA : naBatalha ? MOTIVO_NA_BATALHA : null
-  // Cartão apagado, ficha trocada depois, ou forma desligada na ficha (ou no fim da batalha): vale a base,
-  // a mesma regra da imagem que o token mostra (`imagemDaFormaVisivel`).
-  const formaAtual =
-    personagem === undefined ? null : (formas.find((forma) => forma.id === token.formaVisivel && formaAtivaNaFicha(personagem, sistema, forma.id))?.id ?? null)
+  // A forma que o token mostra (`formaNoToken`): a escolhida aqui enquanto Ativa, senão a ligada pela ficha.
+  // Cartão apagado, ficha trocada depois, ou forma desligada na ficha (ou no fim da batalha): vale a base.
+  const formaAtual = personagem === undefined ? null : (formaNoToken(token, personagem, sistema)?.id ?? null)
   const auraAtual = lerAura(token.aura)?.tipo ?? null
 
   const abrir = (qual: AparenciaAberta['qual'], focar: boolean) => {

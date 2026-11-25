@@ -49,47 +49,43 @@ export function formaAtivaNaFicha(personagem: Personagem, sistema: SistemaDeRpg 
 }
 
 /**
- * A imagem do cartão `formaVisivel` da ficha ligada, ENQUANTO a transformação
- * estiver Ativa nela (o token a mostra por `imagemDaFormaNoToken`). Desligar a forma
- * por qualquer caminho (a ficha, o fim da batalha, a forma que acaba sozinha,
- * o jogador pelo site) volta o token à imagem base sem precisar mexer no
- * token. `null` = a foto de sempre.
- */
-export function imagemDaFormaVisivel(formaVisivel: string | undefined, personagem: Personagem | undefined, sistema: SistemaDeRpg | null | undefined): string | null {
-  if (formaVisivel === undefined || personagem === undefined) return null
-  if (!formaAtivaNaFicha(personagem, sistema, formaVisivel)) return null
-  return formasParaMudar(personagem, sistema).find((forma) => forma.id === formaVisivel)?.imagem ?? null
-}
-
-/**
  * A forma Ativa na ficha que tem imagem: a ligada por último (o fim de
  * `cartoesAtivos`, onde o Ativar põe o cartão); no Dragon Ball Tales há uma
  * só (`transformacaoAtiva`). `null` = nenhuma forma ligada com imagem.
  */
-function ultimaFormaAtivaComImagem(personagem: Personagem, sistema: SistemaDeRpg | null | undefined): string | null {
+function ultimaFormaAtiva(personagem: Personagem, sistema: SistemaDeRpg | null | undefined): FormaParaMudar | null {
   if (ehDragonBall(sistema)) {
     const ativa = personagem.dbt?.transformacaoAtiva ?? null
-    return ativa === null ? null : (formasParaMudar(personagem, sistema).find((forma) => forma.id === ativa)?.imagem ?? null)
+    return ativa === null ? null : (formasParaMudar(personagem, sistema).find((forma) => forma.id === ativa) ?? null)
   }
   // Ficha sem nada ligado (quase toda ficha) nem monta a lista de formas: isto roda a cada passo do arrasto.
   if (personagem.cartoesAtivos.length === 0) return null
   const formas = formasParaMudar(personagem, sistema)
   for (let i = personagem.cartoesAtivos.length - 1; i >= 0; i -= 1) {
     const forma = formas.find((uma) => uma.id === personagem.cartoesAtivos[i])
-    if (forma !== undefined) return forma.imagem
+    if (forma !== undefined) return forma
   }
   return null
 }
 
 /**
- * A imagem de forma que o token mostra fora da batalha: a que o "Mudar ficha ›"
+ * A forma que o token mostra fora da batalha: a que o "Mudar ficha ›"
  * escolheu (`formaVisivel`) enquanto ela está Ativa; senão, a forma Ativa na
  * ficha. Levantamento de 25/11/2026, achado 15: a ficha é a fonte, então ligar
  * a forma pela ficha ou pelo site troca a imagem de TODO boneco dela, e não só
- * do que passou pelo "Mudar ficha ›". `null` = a foto de sempre.
+ * do que passou pelo "Mudar ficha ›". O menu marca esta mesma forma. Desligar
+ * a forma por qualquer caminho (a ficha, o fim da batalha, a forma que acaba
+ * sozinha, o jogador pelo site) volta o token à base sem mexer no token.
+ * `null` = a foto de sempre.
  */
+export function formaNoToken(token: Pick<Token, 'formaVisivel'>, personagem: Personagem, sistema: SistemaDeRpg | null | undefined): FormaParaMudar | null {
+  const escolhida = token.formaVisivel !== undefined && formaAtivaNaFicha(personagem, sistema, token.formaVisivel) ? formasParaMudar(personagem, sistema).find((forma) => forma.id === token.formaVisivel) : undefined
+  return escolhida ?? ultimaFormaAtiva(personagem, sistema)
+}
+
+/** A imagem da forma que o token mostra (`formaNoToken`); `null` = a foto de sempre. */
 export function imagemDaFormaNoToken(token: Pick<Token, 'formaVisivel'>, personagem: Personagem, sistema: SistemaDeRpg | null | undefined): string | null {
-  return imagemDaFormaVisivel(token.formaVisivel, personagem, sistema) ?? ultimaFormaAtivaComImagem(personagem, sistema)
+  return formaNoToken(token, personagem, sistema)?.imagem ?? null
 }
 
 /**
