@@ -1,15 +1,18 @@
-import type { FloorPiece, MapData } from '../types/map'
+import type { Drawing, FloorPiece, MapData, PinceladaDeTextura, Region } from '../types/map'
 import { pecasQueLimitam } from './terrenoDoChao'
 import { comAguasComoChao } from './agua/comoChao'
+import { celulasDoChaoPintado, formasDeChao, type FormaDeChao } from './chaoPintado'
+import { pisoDe } from './pisos'
 
 /**
  * FORA DO CHÃO: LIVRE / BLOQUEADO, por cena (`MapData.offFloor`, pedido do
  * mestre de 12/11/2026: "eu quero me mover fora do chão e ver tudo").
  *
- * "Chão" é só a lista de peças da ferramenta Chão (`MapData.floor`). Sala,
- * desenho preenchido, textura e fundo do mapa parecem piso para quem olha, mas
- * não são Chão: numa cena com alguma peça de Chão, o jogador não enxergava nem
- * andava além da borda dela, mesmo com "piso" pintado lá.
+ * "Chão" são as peças da ferramenta Chão (`MapData.floor`) e, numa cena que
+ * tem alguma peça de Chão de verdade, também Sala, região com fundo, desenho
+ * cheio e textura pintada (`comFormasComoChao`, levantamento de 25/11/2026,
+ * Nº 19: o jogador não enxergava nem andava na área pintada além das peças).
+ * O fundo do mapa não é Chão.
  *
  * - BLOQUEADO (`'blocked'`, e campo AUSENTE numa cena com Chão de antes, ver
  *   `foraDoChaoLivre`): a regra de sempre. A borda do Chão barra a visão e o passo do jogador. É o que serve
@@ -69,16 +72,81 @@ export function foraDoChaoLivre(map: Pick<MapData, 'offFloor'> & Partial<Pick<Ma
   return map.floor !== undefined && !temChaoDeAntes(map.floor)
 }
 
+/** Prefixo do id das peças de mentira das formas e da tinta (nunca colide com peça de verdade, que é uuid). */
+export const PREFIXO_DA_PECA_DE_FORMA = 'chao:'
+
+/** O que a cena tem além das peças: as formas e a tinta que também são Chão. */
+type CamposDoChao = Partial<Pick<MapData, 'regions' | 'drawings' | 'texturas' | 'grid'>>
+
+const SEM_REGIOES: Region[] = []
+const SEM_DESENHOS: Drawing[] = []
+
+function comPisoDe(piso: number | undefined): { piso?: number } {
+  return piso === undefined || piso === 0 ? {} : { piso }
+}
+
+/** A forma cheia como peça de Chão de mentira (só para o limite, nunca desenhada). */
+function pecaDaForma(forma: FormaDeChao, i: number): FloorPiece {
+  const points = forma.pontos.map((p) => ({ x: p.x, y: p.y }))
+  return { id: `${PREFIXO_DA_PECA_DE_FORMA}forma:${i}`, op: 'add', modifiers: {}, shape: { kind: 'poly', points }, ...comPisoDe(forma.piso) }
+}
+
+/**
+ * A tinta como peças de blocos de meia casa, uma por piso: a célula entra
+ * quando o centro dela tem chão pintado pela regra de `lib/chaoPintado.ts`.
+ * A Borracha e o Esvaziar tiram, e o passo de depois vale por cima.
+ */
+function pecasDaTinta(texturas: readonly PinceladaDeTextura[], regioes: readonly Region[], desenhos: readonly Drawing[], grid: number): FloorPiece[] {
+  const lado = grid / 2
+  const porPiso = new Map<number, PinceladaDeTextura[]>()
+  for (const passo of texturas) {
+    const piso = pisoDe(passo)
+    const lista = porPiso.get(piso)
+    if (lista === undefined) porPiso.set(piso, [passo])
+    else lista.push(passo)
+  }
+  return [...porPiso].flatMap(([piso, passos]): FloorPiece[] => {
+    const cells = celulasDoChaoPintado(passos, regioes, desenhos, lado)
+    if (cells.length === 0) return []
+    return [{ id: `${PREFIXO_DA_PECA_DE_FORMA}tinta:${piso}`, op: 'add', modifiers: {}, shape: { kind: 'blocos', cell: lado, cells }, ...comPisoDe(piso) }]
+  })
+}
+
+const comFormasGuardadas = new WeakMap<FloorPiece[], CamposDoChao & { pecas: FloorPiece[] }>()
+
+/**
+ * As peças que limitam com as formas e a tinta da cena NA FRENTE: o buraco
+ * (Subtrair) de depois tira também delas, e a peça que soma continua somando.
+ * Só onde há Chão de verdade (`cenaTemChao`): sem nenhuma peça, a borda não
+ * existe e a cena segue como a sem Chão, como sempre foi. As mesmas listas
+ * devolvem a MESMA lista (contorno e chão compilado são guardados por ela).
+ */
+function comFormasComoChao(floor: FloorPiece[], map: CamposDoChao & Pick<MapData, 'floor'>): FloorPiece[] {
+  const guardada = comFormasGuardadas.get(floor)
+  if (guardada !== undefined && guardada.regions === map.regions && guardada.drawings === map.drawings && guardada.texturas === map.texturas && guardada.grid === map.grid) {
+    return guardada.pecas
+  }
+  const regioes = map.regions ?? SEM_REGIOES
+  const desenhos = map.drawings ?? SEM_DESENHOS
+  const daTinta = map.texturas === undefined || map.grid === undefined || !(map.grid > 0) ? [] : pecasDaTinta(map.texturas, regioes, desenhos, map.grid)
+  const extras = cenaTemChao(map) ? [...daTinta, ...formasDeChao(regioes, desenhos).map(pecaDaForma)] : []
+  const pecas = extras.length === 0 ? floor : [...extras, ...floor]
+  comFormasGuardadas.set(floor, { regions: map.regions, drawings: map.drawings, texturas: map.texturas, grid: map.grid, pecas })
+  return pecas
+}
+
 /**
  * As peças de Chão que LIMITAM a visão e o passo do jogador nesta cena: as da
  * cena menos as de "Conta como Chão" desligado (`soPintura`, CHÃO E CAMINHO
- * de 12/11/2026), ou nenhuma quando ela está livre. Na cena bloqueada sem
- * nenhuma `soPintura`, a própria `map.floor` (a mesma referência); com
- * alguma, uma lista guardada por `map.floor` (`pecasQueLimitam`).
+ * de 12/11/2026), mais Sala, região com fundo, desenho cheio e textura
+ * pintada (`comFormasComoChao`) e a água, ou nenhuma quando ela está livre.
+ * Na cena bloqueada sem nada além das peças, a própria `map.floor` (a mesma
+ * referência); com algo a mais, uma lista guardada pelas listas do mapa.
  */
-export function chaoQueLimita(map: Pick<MapData, 'floor' | 'offFloor'> & Partial<Pick<MapData, 'aguas' | 'grid'>>): FloorPiece[] {
+export function chaoQueLimita(map: Pick<MapData, 'floor' | 'offFloor'> & Partial<Pick<MapData, 'aguas' | 'grid' | 'regions' | 'drawings' | 'texturas'>>): FloorPiece[] {
+  if (foraDoChaoLivre(map)) return SEM_CHAO_QUE_LIMITE
   // ÁGUA (decisão do mestre de 12/11/2026): rio, lago e mar contam como Chão (`lib/agua/comoChao.ts`).
-  return foraDoChaoLivre(map) ? SEM_CHAO_QUE_LIMITE : comAguasComoChao(pecasQueLimitam(map.floor), map.aguas, map.grid)
+  return comAguasComoChao(comFormasComoChao(pecasQueLimitam(map.floor), map), map.aguas, map.grid)
 }
 
 /**
