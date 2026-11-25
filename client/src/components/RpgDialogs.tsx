@@ -19,16 +19,14 @@ import { partyItemChange, tokenDoPersonagem } from '../lib/party'
 import type { AppliedItems, HostWorld } from '../net/hostSession'
 import type { CarriedItem } from '../types/map'
 import { InventarioDaFicha } from './InventarioDaFicha'
-import { curarPeloItem, itemQueCura, itemQueSeUsa, usarItemNaFicha } from '../lib/curaPeloItem'
-import { motivoDeNaoUsarFora, soEmQuemUsa } from '../lib/mochila/usarItemFora'
+import { itemQueSeUsa } from '../lib/curaPeloItem'
+import { motivoDeNaoUsarFora, motivoDoItemSemEfeito, soEmQuemUsa } from '../lib/mochila/usarItemFora'
 import { falarNoChat } from '../stores/falaNoChat'
-import { mesaDaAventura } from '../stores/mesaDaAventura'
 import { candidatosAoUsoFora, usarItemForaNaMesa } from '../stores/usoDoItemFora'
 import { UsarItemFora } from './UsarItemFora'
 
 /** Quem o histórico da ficha diz que mexeu, no "Usar" do mestre. */
 const QUEM_USA_NO_HISTORICO = 'Mestre'
-import { chavesDaFichaNaBatalha } from '../stores/ponteDasCondicoes'
 import { chaveDaCenaAberta } from '../stores/turnoForaDaBatalha'
 import { useMapStore } from '../stores/mapStore'
 import { sistemaPorId, useRpgStore, type AberturaDoEditor } from '../stores/rpgStore'
@@ -316,8 +314,9 @@ function salvarComAsVagasNoBoneco(salvo: Personagem, dono: string, mochilaDoBone
 /**
  * O inventário do personagem na ficha do mestre: a mochila do token ligado,
  * com as ações que o Grupo já tem — largar no chão (vira pino pegável onde o
- * token está) e tirar — e o "Usar" do consumível (gasta 1; o que cura tira o
- * veneno). Sem token ligado nas cenas carregadas, a mochila da própria ficha.
+ * token está) e tirar — e o "Usar" pelo efeito do item (o consumível sem
+ * efeito mostra a sugestão do Acervo, sem gastar por palpite). Sem token
+ * ligado nas cenas carregadas, a mochila da própria ficha.
  * `mochilaNaFicha` = a aventura já passou a mochila para a ficha; falso = o
  * token ligado é o dono, e a cópia da ficha não vale.
  */
@@ -352,20 +351,6 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
     }
     const change = partyItemChange(world, { kind, item: { ...item, tokenId: token.id, sceneId } }, crypto.randomUUID())
     if (change !== null && aplicarItens?.(change) === true) fechar()
-  }
-  // A CURA TIRA O VENENO (`lib/curaPeloItem.ts`): o "Usar" gasta 1 da vaga e, se o item cura, tira o Envenenado da ficha.
-  // A mochila vai pelo caminho dos itens (fora do Ctrl+Z, com a ficha espelhada); as condições, como mudança de jogador
-  // (também fora do Ctrl+Z, como o "Passar turno"): o Ctrl+Z do mestre não devolve o veneno sem devolver a Poção.
-  const usar = (item: CarriedItem, fechar: () => void) => {
-    const sceneKey = sceneId ?? chaveDaCenaAberta()
-    const seguradas = chavesDaFichaNaBatalha(sceneKey, token.id)
-    const uso = usarItemNaFicha(mochilaNaFicha ? { ...token, mochila: mochilaDeAgora() } : token, item.id, seguradas)
-    if (uso === null || aplicarItens === undefined) return
-    if (!gravar(uso.mochila)) return
-    if (itemQueCura(item)) mesaDaAventura.mudarFichaDaCena?.(sceneKey, token.id, (atual) => curarPeloItem(atual, seguradas))
-    const quem = token.name || 'o token'
-    useToastStore.getState().push('info', uso.curou.length === 0 ? `${quem} usou ${item.nome}.` : `${quem} usou ${item.nome}: ${uso.curou.join(', ')} saiu.`)
-    if (!uso.mochila.some((vaga) => vaga.id === item.id)) fechar()
   }
   // Fase 8: o "Usar" do item com efeito, pela mesa do mestre (a mesma do pedido do jogador), com aviso no chat e Desfazer.
   const cenaDoUso = sceneId ?? chaveDaCenaAberta()
@@ -402,20 +387,15 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
               {item.acesa === true ? 'Apagar' : 'Acender'}
             </button>
           )}
-          {/* Fase 8 (SISTEMA.md §5.2): o item com efeito usa as peças dele (cura, condição, reviver), em si ou num colega; o sem efeito, o "Usar" de antes. */}
-          {item.efeito !== undefined ? (
+          {/* Fase 8 (SISTEMA.md §5.2): o item com efeito usa as peças dele (cura, condição, reviver), em si ou num colega.
+              Nº 9 do levantamento: o consumível sem efeito não gasta mais por palpite pelo nome; o "Usar" fica apagado com a sugestão do Acervo. */}
+          {(item.efeito !== undefined || itemQueSeUsa(item)) && (
             <UsarItemFora
               item={item}
-              motivo={motivoDeNaoUsarFora(item)}
+              motivo={motivoDoItemSemEfeito(item) ?? motivoDeNaoUsarFora(item)}
               candidatos={(soEmQuemUsa(item) ? candidatosDoUso().slice(0, 1) : candidatosDoUso()).map(({ personagem: candidato }) => ({ id: candidato.id, nome: candidato.nome }))}
               onUsar={(alvoPersonagemId) => usarComEfeito(item, alvoPersonagemId, fechar)}
             />
-          ) : (
-            itemQueSeUsa(item) && (
-              <button type="button" className="lb-btn lb-btn--primary lb-btn--compact" onClick={() => usar(item, fechar)}>
-                Usar
-              </button>
-            )
           )}
           <button type="button" className="lb-btn lb-btn--compact" onClick={() => agir('devolver', item, fechar)}>
             Largar no chão

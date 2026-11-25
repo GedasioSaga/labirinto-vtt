@@ -6,6 +6,7 @@ import { lerDano } from '../batalha/formula'
 import { textoDaSobra, sobraDoUso, vagaParaUsar, type VagaComEfeito } from '../batalha/itemNaBatalha'
 import type { Efeito, MecanicaV2, NumeroSimples } from '../batalha/mecanica/modelo'
 import { lerMecanicaParaOMotor } from '../batalha/mecanica/golpe'
+import { MODELOS_DE_ITEM, modeloSugeridoParaOItem } from '../batalha/mecanica/modelosDeItem'
 import { ajustesDaCura, curaQueCabe, notaDaCura } from '../batalha/reacao'
 import { bonusDaBatalha } from '../batalha/selos'
 import { chaveDaCondicao } from '../condicaoPorNome'
@@ -73,6 +74,19 @@ export function motivoDeNaoUsarFora(vaga: CarriedItem): string | null {
   const mecanica = mecanicaDa(achada.vaga)
   if (mecanica === null) return 'O efeito do item tem uma peça torta: abra o item no Acervo'
   return motivoDasPecas(achada.vaga.nome.trim() || 'O item', mecanica)
+}
+
+/**
+ * Levantamento das mecânicas duplicadas, Nº 9 (a fonte é o efeito do item): o consumível SEM efeito não se usa
+ * mais por palpite pelo nome (antes gastava 1 e só tirava o Envenenado: a "Poção — Cura 2d6" não curava). O
+ * "Usar" fica apagado e diz o modelo que o "Sugerir efeito" do Acervo propõe; sem modelo parecido, o mestre
+ * narra o uso. `null` = o item tem efeito (o motivo é o de `motivoDeNaoUsarFora`).
+ */
+export function motivoDoItemSemEfeito(vaga: CarriedItem): string | null {
+  if (vaga.efeito !== undefined) return null
+  const sugerido = modeloSugeridoParaOItem(vaga.nome, vaga.descricao ?? '')
+  const modelo = sugerido === null ? undefined : MODELOS_DE_ITEM.find((candidato) => candidato.id === sugerido)
+  return modelo === undefined ? 'Sem efeito no Acervo: narre o uso' : `Sem efeito no Acervo: o "Sugerir efeito" de lá propõe ${modelo.nome}; até lá, narre o uso`
 }
 
 /** O item só vale em quem usa (`alvo.quem: 'si'`)? Então não há alvo a escolher. */
