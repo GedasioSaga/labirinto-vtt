@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { quantidadeDe } from '../lib/items'
-import { ABA_DOS_ITENS, passarAbaItensParaMochila } from '../lib/livros/coisaERegra'
+import { ABA_DOS_ITENS, passarAbaItensParaMochila, vagaDoCartaoAntigo } from '../lib/livros/coisaERegra'
 import { InventarioDaFicha } from './InventarioDaFicha'
 import { camposVisiveis, cartoesDaAba, NOME_DO_TEXTO_DE_ANTES, novoCartao, paragrafosDoCartao, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } from '../lib/livroDeRegras'
@@ -93,6 +93,17 @@ export interface FichaAbasProps {
 /** Quantos itens a mochila tem, somando as pilhas. */
 function totalDaMochila(mochila: readonly CarriedItem[] | undefined): number {
   return (mochila ?? []).reduce((soma, item) => soma + quantidadeDe(item), 0)
+}
+
+/**
+ * O número da aba Itens: a mochila do dono, mais os cartões antigos (e os "???") que ainda não estão
+ * nela. O cartão cuja vaga já entrou na mochila (`vagaDoCartaoAntigo`: a passagem para o boneco dono,
+ * esperando o Salvar) não conta de novo (frente A, 25/11/2026: o contador somava os dois).
+ */
+function itensNaAba(personagem: Personagem, mochila: readonly CarriedItem[] | undefined): number {
+  const vagas = new Set((mochila ?? []).map((item) => item.id))
+  const cartoes = cartoesDaAba(personagem, ABA_DOS_ITENS).filter((cartao) => !vagas.has(vagaDoCartaoAntigo(cartao.id)))
+  return cartoes.length + ocultasDaAba(personagem, ABA_DOS_ITENS) + totalDaMochila(mochila)
 }
 
 /**
@@ -231,7 +242,7 @@ export function FichaAbas({
         {abas.map((aba) => {
           // Fatia C7: o "???" que o mestre escondeu conta na aba do jogador, como um cartão.
           // Fase 5: a aba Itens conta também a mochila (ela é a leitura da mochila) — a do dono, a mesma que a grade mostra.
-          const quantos = cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id) + (aba.id === ABA_DOS_ITENS ? totalDaMochila(mochilaContada) : 0)
+          const quantos = aba.id === ABA_DOS_ITENS ? itensNaAba(personagem, mochilaContada) : cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id)
           return (
             <button
               key={aba.id}
