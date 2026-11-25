@@ -1,9 +1,9 @@
-import { cartoesQueLigam } from './ajusteDaFicha'
+import { ABA_DAS_TECNICAS } from './batalha/leituraDaFicha'
 import { ativarForma, desfazerFormasNoFim } from './batalha/transformacao'
 import { ativarTransformacao, desativarTransformacao } from './dbt/regras/transformacoes'
 import { ehImagemDaMesa } from './midia'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from './motores'
-import type { Personagem } from './personagem'
+import type { CartaoDaFicha, Personagem } from './personagem'
 import type { SistemaDeRpg } from './sistemaDeRpg'
 import type { Token } from '../types/map'
 
@@ -30,13 +30,24 @@ export interface FormaParaMudar {
 
 const ehDragonBall = (sistema: SistemaDeRpg | null | undefined): boolean => motorDoSistema(sistema) === MOTOR_DRAGON_BALL
 
+/**
+ * Os cartões de TRANSFORMAÇÃO do sistema padrão: os das abas que ligam
+ * (`cartoesQueLigam`) menos a das técnicas, que o editor de sistema também
+ * deixa somar atributos (a mesma regra de "aba de forma" dos requisitos,
+ * `ehAbaDeForma`). Só a transformação troca a imagem do token: a técnica
+ * ligada com imagem não vira a cara do boneco.
+ */
+function transformacoesDaFicha(personagem: Personagem, sistema: SistemaDeRpg): CartaoDaFicha[] {
+  return sistema.abas.filter((aba) => aba.modificadores === true && aba.id !== ABA_DAS_TECNICAS).flatMap((aba) => personagem.abas[aba.id] ?? [])
+}
+
 /** As transformações da ficha que têm imagem, na ordem da ficha. Sem sistema, ou ficha sem transformação com imagem: lista vazia. */
 export function formasParaMudar(personagem: Personagem, sistema: SistemaDeRpg | null | undefined): FormaParaMudar[] {
   if (sistema === null || sistema === undefined) return []
   if (ehDragonBall(sistema)) {
     return (personagem.dbt?.transformacoes ?? []).flatMap((forma) => (ehImagemDaMesa(forma.imagem) ? [{ id: forma.id, nome: forma.nome, imagem: forma.imagem }] : []))
   }
-  return cartoesQueLigam(personagem, sistema).flatMap((cartao) => (ehImagemDaMesa(cartao.imagem) ? [{ id: cartao.id, nome: cartao.nome, imagem: cartao.imagem }] : []))
+  return transformacoesDaFicha(personagem, sistema).flatMap((cartao) => (ehImagemDaMesa(cartao.imagem) ? [{ id: cartao.id, nome: cartao.nome, imagem: cartao.imagem }] : []))
 }
 
 /**
