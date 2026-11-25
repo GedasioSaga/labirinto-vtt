@@ -1,3 +1,21 @@
+# 25/11 11:45: 2 agentes EM VOO (Tocha barrada pelo Lobby + anel de visão dos jogadores)
+
+## Objetivo
+PEDIDOS 25/11 11:37: (1) BUG Acender item que ilumina pelo jogador dá "O Lobby não aceita esta mudança (Valor fora do formato deste campo)" e não acende; (2) FEATURE anel do alcance de visão em volta das fichas de jogador, só na tela do mestre, botão "Visão dos jogadores" ligado por padrão, raio efetivo (decisões em PEDIDOS 00be49cb).
+
+## Estado atual
+- debugador no bug (sem teste, commit sem push; avisa se o Worker do lobby precisa sair junto).
+- programador-frontend na feature (pixi/ + barra do editor; não toca nos arquivos do Acender).
+
+## Próximos passos
+Conferir os dois retornos, publicar 0.5.102 (o dono pediu publicar consertos; Worker junto se mudar), dizer ao dono como conferir.
+
+## Critério de pronto
+Jogador aperta Acender na Tocha e a luz acende no mapa sem aviso; mestre vê o anel com o número em volta das fichas de jogador e desliga pelo botão.
+
+## Evidência
+Ainda nenhuma (agentes em voo). 0.5.101 publicada: latest.json = 0.5.101 (curl 25/11).
+
 # 25/11 11:23: 0.5.101 PUBLICADA
 
 Consertos 66c4d586 + a77930f9 (piso de cima através da parede) pushados; bump e3bee2e4 (5 arquivos, worktree limpo ../labirinto-release, main por fast-forward, push origin main). publicar-versao --publicar --com-google exit 0: assinatura confere, gitleaks ok, Worker ac3867c7, site dea2964b.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.5.101. curl latest.json: "version": "0.5.101", url Labirinto_0.5.101_x64-setup.exe. Limpeza: target do cargo apagado, 3 junções removidas uma a uma (0 reparse points no worktree), worktree remove sem --force, branch release/0.5.101 apagada; node_modules compartilhado intacto. Disco 14,8 GB. Log tmp/rel-0.5.101/publicar.log. Pendentes (a) e (b) da entrada abaixo continuam com o dono.
