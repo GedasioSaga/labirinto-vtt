@@ -1,3 +1,7 @@
+# 25/11 ~00h10: 0.5.100 PUBLICADA, nada em voo
+
+Bump d3f75679 (origin main = main); curl latest.json "version": "0.5.100"; tsc 0/0, vite 0, guarda ok, gitleaks limpo; worktree e junções limpos; logs tmp/rel-0.5.100/. Esperando do dono: quais peças dos mapas refazer (ele gostou da maioria); cortina de passagem tapar a visão?; ligar forma do nicho e da pirâmide; próxima leva (~149 itens da fila + 7 propostas de sistema novo); batalha na Visão de jogador; esconder contorno de último avistamento sobre a onda; alcance 1 no Golpe da invocada; Aplicar do balanceador ficha própria x variação; HP ao evoluir companion; 17 worktrees sujas antigas (apagar com patch?). Fable parado por ordem do dono.
+
 # 24/11 ~17h30: etiqueta do cômodo consertada, 0.5.100 publicando
 
 Defeito: no editor, o nome do cômodo ficava abaixo dos móveis (lib/camadas/ordem.ts FAIXAS_EDITOR) e sumia sob os móveis opacos desde o MT12 de 27/10. Conserto 62d92000 (+ diagrama pilha-de-camadas e INDEX), golden regravado dea7f942. Prova por gestos no editor; o jogador só pelo print do golden. Abertos: golden com 0 px de tolerância oscila (16 e 14 de 19 em duas rodadas, de 1 a 55 px longe das etiquetas); o teste "chega, some e volta" do jogador conta 65 nós em vez de 64; 9 falhas antigas em camadas/pixi (guias, desempenho, catálogo das mesas), as mesmas na HEAD. EM VOO: automacao-devops publicando 0.5.100.
