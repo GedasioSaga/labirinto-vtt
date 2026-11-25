@@ -83,19 +83,23 @@ export function tintaDoChao(passos: readonly PinceladaDeTextura[] | undefined, r
 /**
  * As células de `lado` px (alinhadas à origem do mundo, como os blocos do
  * Chão) cujo CENTRO tem chão pintado pela regra da consulta. Cada passo só
- * olha as células da caixa dele, na ordem: o de depois vale por cima. É a
- * tinta posta em blocos, para quem pensa o chão em peças ("Fora do Chão",
- * `lib/offFloor.ts`). Sem tinta, nenhuma.
+ * olha as células da caixa dele dentro da `area` (o mapa: coordenada torta
+ * do arquivo não vira um laço sem fim), na ordem: o de depois vale por cima.
+ * É a tinta posta em blocos, para quem pensa o chão em peças ("Fora do
+ * Chão", `lib/offFloor.ts`). Sem tinta, nenhuma.
  */
 export function celulasDoChaoPintado(
   passos: readonly PinceladaDeTextura[],
   regioes: readonly Region[],
   desenhos: readonly Drawing[],
   lado: number,
+  area: Caixa,
 ): { col: number; row: number }[] {
   if (passos.length === 0 || !(Number.isFinite(lado) && lado > 0)) return []
   const celulas = new Map<string, { col: number; row: number; tem: boolean }>()
-  for (const { caixa, cobre, textura } of passosDe(passos, regioes, desenhos)) {
+  for (const passo of passosDe(passos, regioes, desenhos)) {
+    const { cobre, textura } = passo
+    const caixa = { minX: Math.max(passo.caixa.minX, area.minX), minY: Math.max(passo.caixa.minY, area.minY), maxX: Math.min(passo.caixa.maxX, area.maxX), maxY: Math.min(passo.caixa.maxY, area.maxY) }
     for (let col = Math.ceil(caixa.minX / lado - 0.5); (col + 0.5) * lado <= caixa.maxX; col += 1) {
       for (let row = Math.ceil(caixa.minY / lado - 0.5); (row + 0.5) * lado <= caixa.maxY; row += 1) {
         if (cobre({ x: (col + 0.5) * lado, y: (row + 0.5) * lado })) celulas.set(`${col},${row}`, { col, row, tem: textura !== null })

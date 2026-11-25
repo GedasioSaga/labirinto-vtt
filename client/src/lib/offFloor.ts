@@ -3,6 +3,7 @@ import { pecasQueLimitam } from './terrenoDoChao'
 import { comAguasComoChao } from './agua/comoChao'
 import { celulasDoChaoPintado, formasDeChao, type FormaDeChao } from './chaoPintado'
 import { pisoDe } from './pisos'
+import type { Caixa } from './texturas'
 
 /**
  * FORA DO CHÃO: LIVRE / BLOQUEADO, por cena (`MapData.offFloor`, pedido do
@@ -76,7 +77,7 @@ export function foraDoChaoLivre(map: Pick<MapData, 'offFloor'> & Partial<Pick<Ma
 export const PREFIXO_DA_PECA_DE_FORMA = 'chao:'
 
 /** O que a cena tem além das peças: as formas e a tinta que também são Chão. */
-type CamposDoChao = Partial<Pick<MapData, 'regions' | 'drawings' | 'texturas' | 'grid'>>
+type CamposDoChao = Partial<Pick<MapData, 'regions' | 'drawings' | 'texturas' | 'grid' | 'width' | 'height'>>
 
 const SEM_REGIOES: Region[] = []
 const SEM_DESENHOS: Drawing[] = []
@@ -96,7 +97,7 @@ function pecaDaForma(forma: FormaDeChao, i: number): FloorPiece {
  * quando o centro dela tem chão pintado pela regra de `lib/chaoPintado.ts`.
  * A Borracha e o Esvaziar tiram, e o passo de depois vale por cima.
  */
-function pecasDaTinta(texturas: readonly PinceladaDeTextura[], regioes: readonly Region[], desenhos: readonly Drawing[], grid: number): FloorPiece[] {
+function pecasDaTinta(texturas: readonly PinceladaDeTextura[], regioes: readonly Region[], desenhos: readonly Drawing[], grid: number, area: Caixa): FloorPiece[] {
   const lado = grid / 2
   const porPiso = new Map<number, PinceladaDeTextura[]>()
   for (const passo of texturas) {
@@ -106,10 +107,26 @@ function pecasDaTinta(texturas: readonly PinceladaDeTextura[], regioes: readonly
     else lista.push(passo)
   }
   return [...porPiso].flatMap(([piso, passos]): FloorPiece[] => {
-    const cells = celulasDoChaoPintado(passos, regioes, desenhos, lado)
+    const cells = celulasDoChaoPintado(passos, regioes, desenhos, lado, area)
     if (cells.length === 0) return []
     return [{ id: `${PREFIXO_DA_PECA_DE_FORMA}tinta:${piso}`, op: 'add', modifiers: {}, shape: { kind: 'blocos', cell: lado, cells }, ...comPisoDe(piso) }]
   })
+}
+
+/** O retângulo do mapa em px de mundo, com o lado da casa; `null` sem grade ou tamanho que sirva. */
+function areaDaCena(map: CamposDoChao): (Caixa & { grid: number }) | null {
+  const { grid, width, height } = map
+  if (grid === undefined || width === undefined || height === undefined || !(grid > 0) || !(width > 0) || !(height > 0)) return null
+  return { minX: 0, minY: 0, maxX: width * grid, maxY: height * grid, grid }
+}
+
+/** A tinta e as formas cheias da cena como peças de mentira, a tinta primeiro. */
+function formasETintaComoPecas(map: CamposDoChao): FloorPiece[] {
+  const regioes = map.regions ?? SEM_REGIOES
+  const desenhos = map.drawings ?? SEM_DESENHOS
+  const area = areaDaCena(map)
+  const daTinta = map.texturas === undefined || area === null ? [] : pecasDaTinta(map.texturas, regioes, desenhos, area.grid, area)
+  return [...daTinta, ...formasDeChao(regioes, desenhos).map(pecaDaForma)]
 }
 
 const comFormasGuardadas = new WeakMap<FloorPiece[], CamposDoChao & { pecas: FloorPiece[] }>()
@@ -123,15 +140,18 @@ const comFormasGuardadas = new WeakMap<FloorPiece[], CamposDoChao & { pecas: Flo
  */
 function comFormasComoChao(floor: FloorPiece[], map: CamposDoChao & Pick<MapData, 'floor'>): FloorPiece[] {
   const guardada = comFormasGuardadas.get(floor)
-  if (guardada !== undefined && guardada.regions === map.regions && guardada.drawings === map.drawings && guardada.texturas === map.texturas && guardada.grid === map.grid) {
-    return guardada.pecas
-  }
-  const regioes = map.regions ?? SEM_REGIOES
-  const desenhos = map.drawings ?? SEM_DESENHOS
-  const daTinta = map.texturas === undefined || map.grid === undefined || !(map.grid > 0) ? [] : pecasDaTinta(map.texturas, regioes, desenhos, map.grid)
-  const extras = cenaTemChao(map) ? [...daTinta, ...formasDeChao(regioes, desenhos).map(pecaDaForma)] : []
+  const mesma =
+    guardada !== undefined &&
+    guardada.regions === map.regions &&
+    guardada.drawings === map.drawings &&
+    guardada.texturas === map.texturas &&
+    guardada.grid === map.grid &&
+    guardada.width === map.width &&
+    guardada.height === map.height
+  if (mesma) return guardada.pecas
+  const extras = cenaTemChao(map) ? formasETintaComoPecas(map) : []
   const pecas = extras.length === 0 ? floor : [...extras, ...floor]
-  comFormasGuardadas.set(floor, { regions: map.regions, drawings: map.drawings, texturas: map.texturas, grid: map.grid, pecas })
+  comFormasGuardadas.set(floor, { regions: map.regions, drawings: map.drawings, texturas: map.texturas, grid: map.grid, width: map.width, height: map.height, pecas })
   return pecas
 }
 
@@ -143,7 +163,7 @@ function comFormasComoChao(floor: FloorPiece[], map: CamposDoChao & Pick<MapData
  * Na cena bloqueada sem nada além das peças, a própria `map.floor` (a mesma
  * referência); com algo a mais, uma lista guardada pelas listas do mapa.
  */
-export function chaoQueLimita(map: Pick<MapData, 'floor' | 'offFloor'> & Partial<Pick<MapData, 'aguas' | 'grid' | 'regions' | 'drawings' | 'texturas'>>): FloorPiece[] {
+export function chaoQueLimita(map: Pick<MapData, 'floor' | 'offFloor'> & Partial<Pick<MapData, 'aguas' | 'grid' | 'regions' | 'drawings' | 'texturas' | 'width' | 'height'>>): FloorPiece[] {
   if (foraDoChaoLivre(map)) return SEM_CHAO_QUE_LIMITE
   // ÁGUA (decisão do mestre de 12/11/2026): rio, lago e mar contam como Chão (`lib/agua/comoChao.ts`).
   return comAguasComoChao(comFormasComoChao(pecasQueLimitam(map.floor), map), map.aguas, map.grid)
