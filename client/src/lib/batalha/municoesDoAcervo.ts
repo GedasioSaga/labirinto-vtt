@@ -32,6 +32,7 @@ export interface ItemComMunicoes {
 const NENHUMA: readonly MunicaoAceita[] = []
 let porArma: ReadonlyMap<string, readonly MunicaoAceita[]> = new Map()
 let tiros: ReadonlyMap<string, TiroDoAcervo> = new Map()
+let nomesNoAcervo: ReadonlyMap<string, string> = new Map()
 let versao = 0
 
 /** Troca a lista inteira pela do Acervo de agora. Munição que saiu do Acervo sai da arma. */
@@ -46,6 +47,7 @@ export function definirMunicoesDasArmas(itens: readonly ItemComMunicoes[]): void
     if (aceitas.length > 0) novo.set(item.id, aceitas)
   }
   porArma = novo
+  nomesNoAcervo = nomes
   const novosTiros = new Map<string, TiroDoAcervo>()
   for (const item of itens) if (item.tiro !== undefined) novosTiros.set(item.id, item.tiro)
   tiros = novosTiros
@@ -64,6 +66,14 @@ export function municoesDaArma(itemId: string | undefined): readonly MunicaoAcei
  */
 export function tiroDaMunicao(itemId: string | undefined): TiroDoAcervo | undefined {
   return itemId === undefined ? undefined : tiros.get(itemId)
+}
+
+/**
+ * O nome de AGORA do item `itemId` no Acervo (a vaga da mochila guarda o nome da hora em que foi dada).
+ * `undefined` = fora do Acervo, ou o app do jogador, que não o vê.
+ */
+export function nomeNoAcervo(itemId: string | undefined): string | undefined {
+  return itemId === undefined ? undefined : nomesNoAcervo.get(itemId)
 }
 
 /** Muda a cada `definirMunicoesDasArmas`: a leitura guardada das armas (`armasDe`) é refeita. */

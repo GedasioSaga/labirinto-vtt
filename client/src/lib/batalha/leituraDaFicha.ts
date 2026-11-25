@@ -5,7 +5,7 @@ import { recursoDeVida } from '../vidaDaFicha'
 import { PERFURACAO_MAX, PERFURACAO_MIN, type AcaoDaTecnica } from './combate'
 import { CAMPO_DO_DANO, normalizar } from './formula'
 import { municaoNaMochila, type MunicaoDaBala } from '../mochila/municao'
-import { municoesDaArma, tiroDaMunicao, versaoDasMunicoes, type MunicaoAceita } from './municoesDoAcervo'
+import { municoesDaArma, nomeNoAcervo, tiroDaMunicao, versaoDasMunicoes, type MunicaoAceita } from './municoesDoAcervo'
 
 /**
  * LEITURA DA FICHA PARA A BATALHA, F2 (seção 3.1 de
@@ -436,7 +436,10 @@ function armasSoNaMochila(cartoes: readonly CartaoDaFicha[], mochila: readonly C
   for (const item of mochila) {
     if (!ehArmaDaMochila(item)) continue
     const nome = normalizar(item.nome).trim()
-    if ((item.itemId !== undefined && ids.has(item.itemId)) || nomes.has(nome)) continue
+    // Frente A (25/11/2026): a vaga guarda o nome da hora em que foi dada; a coisa renomeada no Acervo, com o cartão do
+    // livro já no nome novo, aparecia duas vezes no Atacar. O nome de agora no Acervo também casa (só mestre e host o veem).
+    const doAcervo = nomeNoAcervo(item.itemId)
+    if ((item.itemId !== undefined && ids.has(item.itemId)) || nomes.has(nome) || (doAcervo !== undefined && nomes.has(normalizar(doAcervo).trim()))) continue
     const chave = item.itemId ?? `nome:${nome}`
     if (vistas.has(chave)) continue
     vistas.add(chave)
