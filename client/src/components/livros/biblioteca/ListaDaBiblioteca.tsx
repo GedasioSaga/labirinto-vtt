@@ -6,6 +6,7 @@ import type { DadosDoGrupo, GrupoDaBiblioteca } from '../../../lib/livros/grupos
 import { tamanhoDoAlcance, type DadosDaLinha } from '../../../lib/livros/linhaDaBiblioteca'
 import type { EntradaDaBiblioteca } from '../../../lib/livros/paginasDaBiblioteca'
 import type { Personagem } from '../../../lib/personagem'
+import { ImagemOuIniciais } from '../../FichaPecas'
 import { formatarNumero, Retrato } from '../comum'
 import { IconeDaBiblioteca } from './IconeDaBiblioteca'
 
@@ -103,6 +104,8 @@ interface LinhaDaListaProps {
   entrada: EntradaDaBiblioteca
   dados: DadosDaLinha
   donos: readonly Personagem[]
+  /** A imagem da coisa, a mesma da ficha (`imagemDaEntrada`); `null` = fica o ícone do grupo. */
+  imagem: string | null
   doAcervo: boolean
   escolhida: boolean
   /** A parada do Tab da lista (a escolhida, ou a primeira quando a escolhida saiu pelo filtro). */
@@ -115,7 +118,7 @@ interface LinhaDaListaProps {
   onFimDoArrasto: () => void
 }
 
-const LinhaDaLista = memo(function LinhaDaLista({ entrada, dados, donos, doAcervo, escolhida, parada, arrastavel, arrastada, nova, onEscolher, onArrastar, onFimDoArrasto }: LinhaDaListaProps) {
+const LinhaDaLista = memo(function LinhaDaLista({ entrada, dados, donos, imagem, doAcervo, escolhida, parada, arrastavel, arrastada, nova, onEscolher, onArrastar, onFimDoArrasto }: LinhaDaListaProps) {
   const nomes = donos.map((ficha) => ficha.nome).join(', ')
   const { alcance } = dados
   return (
@@ -139,7 +142,14 @@ const LinhaDaLista = memo(function LinhaDaLista({ entrada, dados, donos, doAcerv
       onDragEnd={onFimDoArrasto}
     >
       <span className="mu-bib-linha__ic" style={{ color: COR_DO_ICONE[dados.icone] }}>
-        <IconeDaBiblioteca nome={dados.icone} />
+        {imagem === null ? (
+          <IconeDaBiblioteca nome={dados.icone} />
+        ) : (
+          // O mesmo leitor da aba da ficha (`ImagemOuIniciais` resolve a mídia da mesa).
+          <span className="mu-bib-linha__img">
+            <ImagemOuIniciais imagem={imagem} nome={entrada.nome} />
+          </span>
+        )}
       </span>
       <span className="mu-bib-linha__main">
         <span className="mu-bib-linha__l1">
@@ -201,6 +211,7 @@ interface ListaAgrupadaProps {
   limite: number
   dadosDe: (entrada: EntradaDaBiblioteca) => DadosDaLinha
   donosDe: (entrada: EntradaDaBiblioteca) => readonly Personagem[]
+  imagemDe: (entrada: EntradaDaBiblioteca) => string | null
   ehDoAcervo: (entrada: EntradaDaBiblioteca) => boolean
   escolhidaId: string | null
   arrastavel: boolean
@@ -214,7 +225,7 @@ interface ListaAgrupadaProps {
   onTeclar: (event: KeyboardEvent<HTMLDivElement>) => void
 }
 
-export function ListaAgrupada({ rotulo, grupos, fechados, buscando, limite, dadosDe, donosDe, ehDoAcervo, escolhidaId, arrastavel, arrastadaId, novos, listaRef, onDobrar, onEscolher, onArrastar, onFimDoArrasto, onTeclar }: ListaAgrupadaProps) {
+export function ListaAgrupada({ rotulo, grupos, fechados, buscando, limite, dadosDe, donosDe, imagemDe, ehDoAcervo, escolhidaId, arrastavel, arrastadaId, novos, listaRef, onDobrar, onEscolher, onArrastar, onFimDoArrasto, onTeclar }: ListaAgrupadaProps) {
   const visivel = grupos.some((grupo) => (buscando || !fechados.has(grupo.dados.id)) && grupo.entradas.some((entrada) => entrada.id === escolhidaId))
   let resta = limite
   let jaSeparou = false
@@ -254,6 +265,7 @@ export function ListaAgrupada({ rotulo, grupos, fechados, buscando, limite, dado
                         entrada={entrada}
                         dados={dadosDe(entrada)}
                         donos={donosDe(entrada)}
+                        imagem={imagemDe(entrada)}
                         doAcervo={ehDoAcervo(entrada)}
                         escolhida={entrada.id === escolhidaId}
                         parada={parada}

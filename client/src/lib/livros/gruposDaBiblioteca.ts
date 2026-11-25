@@ -151,6 +151,31 @@ export function donosDasEntradas(entradas: readonly EntradaDaBiblioteca[], ficha
   return donos
 }
 
+/**
+ * A IMAGEM DA LINHA da lista (BUG do dono, 25/11: a Rosa Fúnebre tinha foto na
+ * aba Armas da ficha e a lista só mostrava o ícone). A entrada do catálogo não
+ * guarda imagem: quem a tem é o CARTÃO na ficha (`cartao.imagem`, o mesmo campo
+ * que a aba mostra). Vale o primeiro cartão com imagem de quem tem a entrada
+ * (`donos`, de `donosDasEntradas`), achado pela mesma regra (mesmo nome na aba
+ * de destino) ou pela ligação (`itemId` = `acervoId`); sem ele, a foto da coisa
+ * do Acervo ligada; a coisa do Acervo usa a sua. Só arma e item (a habilidade
+ * segue com o ícone do golpe). `null` = sem imagem: a linha fica com o ícone.
+ */
+export function imagemDaEntrada(entrada: EntradaDaBiblioteca, donos: readonly Personagem[], sistema: SistemaDeRpg, acervo: ReadonlyMap<string, { imagem: string | null }>): string | null {
+  if (ehDoAcervo(entrada)) return entrada.acervo.imagem
+  if (ehDoLivro(entrada) || (entrada.tipo !== 'arma' && entrada.tipo !== 'item')) return null
+  const aba = abaDeDestino(sistema, entrada.tipo)
+  if (aba !== undefined) {
+    const nome = chaveDoNomeDaEntrada(entrada.nome)
+    const ehDela = (cartao: { nome: string; itemId?: string }) => (entrada.acervoId !== undefined && cartao.itemId === entrada.acervoId) || chaveDoNomeDaEntrada(cartao.nome) === nome
+    for (const ficha of donos) {
+      const cartao = cartoesDaAba(ficha, aba.id).find((atual) => atual.imagem !== null && ehDela(atual))
+      if (cartao !== undefined) return cartao.imagem
+    }
+  }
+  return entrada.acervoId === undefined ? null : (acervo.get(entrada.acervoId)?.imagem ?? null)
+}
+
 export type OrdemDaBiblioteca = 'livro' | 'nome' | 'fichas' | 'sp'
 
 export const ORDENS_DA_BIBLIOTECA: readonly { ordem: OrdemDaBiblioteca; rotulo: string }[] = [

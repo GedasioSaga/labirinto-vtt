@@ -21,7 +21,7 @@ import {
   type TipoDoCatalogo,
 } from '../../lib/livros/catalogo'
 import { pecasDaEntrada, TIPOS_DA_PAGINA, TOPO_DA_PAGINA, type EntradaDaBiblioteca, type PaginaDaBiblioteca } from '../../lib/livros/paginasDaBiblioteca'
-import { donosDasEntradas, GRUPOS_DA_PAGINA, grupoNaBiblioteca, ORDENS_DA_BIBLIOTECA, ordenarNaBiblioteca, vagaDaEntrada, type GrupoDaBiblioteca, type GrupoDeFichas, type OrdemDaBiblioteca } from '../../lib/livros/gruposDaBiblioteca'
+import { donosDasEntradas, GRUPOS_DA_PAGINA, grupoNaBiblioteca, imagemDaEntrada, ORDENS_DA_BIBLIOTECA, ordenarNaBiblioteca, vagaDaEntrada, type GrupoDaBiblioteca, type GrupoDeFichas, type OrdemDaBiblioteca } from '../../lib/livros/gruposDaBiblioteca'
 import { dadosDaLinha, type DadosDaLinha } from '../../lib/livros/linhaDaBiblioteca'
 import type { FerramentaDaBiblioteca } from '../../lib/livros/pendenciasDasFerramentas'
 import { desfazerPosto, porCoisaNaFicha, porEntradaNaFicha, type PostoNaFicha, type ResultadoDoPor } from '../../lib/livros/coisaERegra'
@@ -365,6 +365,9 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
     return novos
   }, [todas, fichas, sistema])
   const donosDe = useCallback((entrada: EntradaDaBiblioteca): readonly Personagem[] => donos.get(entrada.id) ?? [], [donos])
+  // A imagem de cada linha, a mesma da ficha (`imagemDaEntrada`); texto igual = a linha `memo` não se refaz.
+  const imagens = useMemo(() => new Map(todas.map((entrada) => [entrada.id, imagemDaEntrada(entrada, donos.get(entrada.id) ?? [], sistema, categoriaPorCoisa)] as const)), [todas, donos, sistema, categoriaPorCoisa])
+  const imagemDe = useCallback((entrada: EntradaDaBiblioteca): string | null => imagens.get(entrada.id) ?? null, [imagens])
   const fichaDaPrevia = useMemo(() => ({ personagem: quemUsaDeTreino(sistema), sistema, soNomes: true as const }), [sistema])
   const nomesDosAtributos = useMemo(() => new Map(sistema.atributos.map((atributo) => [atributo.id, atributo.nome])), [sistema])
   /** Os dados da linha por entrada (o objeto da entrada é a chave: entrada salva = objeto novo = conta de novo). */
@@ -1012,6 +1015,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
         limite={limite}
         dadosDe={dadosDe}
         donosDe={donosDe}
+        imagemDe={imagemDe}
         ehDoAcervo={ehDoAcervo}
         escolhidaId={escolhida?.id ?? null}
         arrastavel={podeGravar && fichas.length > 0}
