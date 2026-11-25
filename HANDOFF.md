@@ -1,3 +1,7 @@
+# 25/11 11:23: 0.5.101 PUBLICADA
+
+Consertos 66c4d586 + a77930f9 (piso de cima através da parede) pushados; bump e3bee2e4 (5 arquivos, worktree limpo ../labirinto-release, main por fast-forward, push origin main). publicar-versao --publicar --com-google exit 0: assinatura confere, gitleaks ok, Worker ac3867c7, site dea2964b.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.5.101. curl latest.json: "version": "0.5.101", url Labirinto_0.5.101_x64-setup.exe. Limpeza: target do cargo apagado, 3 junções removidas uma a uma (0 reparse points no worktree), worktree remove sem --force, branch release/0.5.101 apagada; node_modules compartilhado intacto. Disco 14,8 GB. Log tmp/rel-0.5.101/publicar.log. Pendentes (a) e (b) da entrada abaixo continuam com o dono.
+
 # 25/11 ~11h: ficha do piso de cima vista através da parede, CONSERTADO local, 0.5.101 NÃO publicada
 
 ## Objetivo
