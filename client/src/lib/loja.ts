@@ -49,8 +49,8 @@ function coisaDaMercadoria(value: unknown): LojaItem['acervo'] {
  *   ''          sem preço próprio: segue o Acervo de agora; a digitada sai grátis
  *   só dígitos  o preço próprio desta banca, em berries (0 = grátis)
  *   outro texto o preço antigo que não virou número ("uma vela"): o mestre
- *               confere e, até lá, a mercadoria não se vende (nada sai de
- *               graça em silêncio)
+ *               confere e, até lá, a coisa do Acervo com preço vende por
+ *               ele, e a outra não se vende (nada sai de graça em silêncio)
  */
 
 /** O preço próprio da banca, como `precoLido` e o painel gravam. */
@@ -145,10 +145,13 @@ export function precoSemOProprio(item: Pick<LojaItem, 'acervo'>): number {
 /**
  * O que a venda cobra da bolsa, em berries, e o que o jogador lê: o preço
  * próprio da banca; sem ele, o da coisa do Acervo; sem nenhum, 0 (grátis).
- * `null` = o preço antigo espera o mestre: a mercadoria não se vende.
+ * Com o preço antigo esperando o mestre (`precoAConferir`, a marca dele fica),
+ * a coisa do Acervo com preço segue vendendo por ele, como vendia antes do
+ * preço da banca virar número; `null` = a digitada ou a coisa sem preço: não
+ * se vende até ele conferir (nada sai de graça em silêncio).
  */
 export function precoEmMoedas(item: Pick<LojaItem, 'preco' | 'acervo'>): number | null {
-  if (precoAConferir(item) !== null) return null
+  if (precoAConferir(item) !== null) return item.acervo === undefined ? null : precoDaCoisa(item.acervo)
   return precoProprio(item) ?? precoSemOProprio(item)
 }
 

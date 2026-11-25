@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { LojaItem } from '../types/map'
-import { LOJA_ESTOQUE_MAX, LOJA_ITENS_MAX, LOJA_NOME_MAX, novaMercadoria, precoAConferir, precoEmBerries, precoProprio, precoSemOProprio } from '../lib/loja'
+import { LOJA_ESTOQUE_MAX, LOJA_ITENS_MAX, LOJA_NOME_MAX, novaMercadoria, precoAConferir, precoEmBerries, precoEmMoedas, precoProprio, precoSemOProprio, textoDoPrecoDaBanca } from '../lib/loja'
 import { ITEM_PRECO_MAX } from '../lib/leituraDoItem'
 import { Toggle } from './Toggle'
 import { itemParaDar, type ItemDoCatalogo as ItemDoAcervo, type PastaDeItens } from '../lib/acervoDeItens'
@@ -58,6 +58,12 @@ function precoDoCampoVazio(item: LojaItem): string {
   const preco = precoSemOProprio(item)
   const texto = preco === 0 ? 'Grátis' : precoEmBerries(preco)
   return item.acervo === undefined ? texto : `${texto} (do Acervo)`
+}
+
+/** O que a banca faz enquanto o preço antigo espera o mestre: a coisa do Acervo com preço vende por ele (`precoEmMoedas`); a outra não sai. */
+function vendaAteConferir(item: LojaItem): string {
+  const doAcervo = precoEmMoedas(item)
+  return doAcervo === null ? 'Até lá ela não sai à venda.' : `Até lá ela sai pelo preço do Acervo (${textoDoPrecoDaBanca(doAcervo)}).`
 }
 
 /** O texto da opção: o nome e, com preço, o preço em berries. */
@@ -268,7 +274,7 @@ export function PinLojaControls({
                   </div>
                   {aConferir !== null && (
                     <p className="lb-field__error" id={conferirId}>
-                      {`O preço antigo “${aConferir}” não é número: escreva em berries (0 = grátis). Até lá ela não sai à venda.`}
+                      {`O preço antigo “${aConferir}” não é número: escreva em berries (0 = grátis). ${vendaAteConferir(item)}`}
                     </p>
                   )}
                   <button

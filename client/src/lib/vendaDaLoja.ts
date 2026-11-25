@@ -22,7 +22,7 @@ export interface VendaNaFicha {
 /**
  * A ficha depois de comprar 1 da mercadoria. `semMoedas` = o preço passa da
  * bolsa (nada muda); `null` = nada a vender (nome vazio, a pilha já no teto,
- * ou o preço antigo que o mestre ainda não conferiu). `freshId` é o id da vaga
+ * ou o preço antigo que o mestre ainda não conferiu, sem preço do Acervo). `freshId` é o id da vaga
  * nova, se abrir uma.
  */
 export function vendaNaFicha(mochila: readonly CarriedItem[], moedas: number, item: LojaItem, freshId: string): VendaNaFicha | 'semMoedas' | null {
@@ -37,7 +37,7 @@ export function vendaNaFicha(mochila: readonly CarriedItem[], moedas: number, it
   return { mochila: recebeu.mochila, moedas: pago }
 }
 
-/** A bolsa paga a mercadoria? A do preço a conferir não se vende: nunca. */
+/** A bolsa paga a mercadoria? A do preço a conferir paga o do Acervo; sem ele, não se vende (`precoEmMoedas`). */
 export function bolsaPaga(moedas: number, item: Pick<LojaItem, 'preco' | 'acervo'>): boolean {
   const preco = precoEmMoedas(item)
   return preco !== null && preco <= moedas
