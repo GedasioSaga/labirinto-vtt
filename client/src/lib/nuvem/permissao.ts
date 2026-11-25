@@ -16,6 +16,7 @@ import type { FichaGuardada, Identidade, Membro, MotivoNegado, Mudanca, OpGravad
  *   caminho do mestre, nunca cria nem apaga ficha. Ficha sem dono: só o mestre.
  *   Na vaga com efeito, só baixa a quantidade (`sobeItemComEfeito`).
  *   Na arma ligada ao livro, não muda o que ela faz (`mexeNaArmaDoLivro`).
+ *   Na vaga ligada ao Acervo, não muda os dados da coisa (`mexeNaCoisaDoAcervo`).
  * - `autorDeclarado` (mesa LAN): só com a identidade do app e com um membro
  *   ativo; a permissão é a do app (o mestre), que já conferiu a edição na sala.
  */
@@ -74,7 +75,23 @@ export function permissaoDaMudanca(membro: Membro | undefined, ficha: FichaGuard
   }
   if (ficha !== undefined && sobeItemComEfeito(ficha.doc, mudanca)) return negar('Item com efeito: o jogador só gasta, quem dá mais é o mestre')
   if (ficha !== undefined && mexeNaArmaDoLivro(ficha.doc, mudanca)) return negar(ARMA_DO_LIVRO)
+  if (ficha !== undefined && mexeNaCoisaDoAcervo(ficha.doc, mudanca)) return negar('Item do Acervo: só o mestre muda os dados dele')
   return PERMITIDO
+}
+
+/**
+ * OS DADOS DA COISA NUMA FONTE SÓ (Nº 11 e 14 do levantamento de 25/11/2026,
+ * `lib/mochila/efeitoNasCopias.ts`): a vaga ligada ao Acervo (`itemId`, no doc
+ * do servidor) é cópia da coisa; o nome, a foto, a descrição, o preço, a luz e
+ * as munições dela só o mestre muda. O dono acende e apaga (`acesa`), gasta e
+ * tira. É a regra da mesa LAN, onde o jogador não tem como mudar uma vaga (só
+ * acender, usar, dar e largar); no Lobby o dono podia, e a foto, a luz e as
+ * munições voltavam ao Acervo na abertura seguinte da pasta no app do mestre.
+ */
+function mexeNaCoisaDoAcervo(doc: Personagem, mudanca: Pick<Mudanca, 'caminho'>): boolean {
+  const alvo = alvoDoCaminho(mudanca.caminho)
+  if (alvo?.regra !== 'campoDoItem' || alvo.campo === 'acesa') return false
+  return (doc.mochila ?? []).some((vaga) => vaga.id === alvo.vagaId && vaga.itemId !== undefined)
 }
 
 /** O cartão (ou um subcartão dele) traz `itemId`: a ligação com o Acervo, que escolhe a regra do livro. */

@@ -155,7 +155,10 @@ const EFEITO_FICA_NO_APP = 'O efeito do item fica no app do mestre'
  * para ele, então só o mestre grava, também dentro de um cartão novo (como a vaga).
  */
 // Fase B2 dos requisitos: o bloco, as marcas (dizem quem pode ajudar, G2) e o acumulador são regra, como o `alcance`.
-const CAMPOS_DO_CARTAO_DO_MESTRE: ReadonlySet<CampoSimplesDoCartao> = new Set<CampoSimplesDoCartao>(['itemId', 'requisitos', 'marcas', 'acumulador'])
+// Nº 14 do levantamento de 25/11/2026 (um juiz só): a marca da bala que gasta pelo nome (`municaoPeloNome`) também. Na
+// mesa LAN o Salvar do jogador nunca a cria, troca nem apaga (`aplicarPartes` em net/edicaoDoPersonagem.ts); só o tiro
+// no host e a conversão das balas, no app do mestre, a gravam. No Lobby o dono podia soltar a bala zerada da vaga.
+const CAMPOS_DO_CARTAO_DO_MESTRE: ReadonlySet<CampoSimplesDoCartao> = new Set<CampoSimplesDoCartao>(['itemId', 'requisitos', 'marcas', 'acumulador', 'municaoPeloNome'])
 
 /** Só do mestre e nunca difundidos ao jogador (§6.4). */
 export type CampoDoMestre = 'dono' | 'combate' | 'soCenario' | 'nomeDoJogador' | 'notaDoMestre'
