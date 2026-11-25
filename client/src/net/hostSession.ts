@@ -309,6 +309,7 @@ import { personagensDoNome } from '../lib/livros/jogadores'
 import { fichasCegasDoMapa, personagensCegos } from '../lib/cegueira/fichasCegas'
 import { novoPersonagem, paraOFio, type Personagem } from '../lib/personagem'
 import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
+import { danoDoAjusteNaVida } from '../lib/batalha/danoPelaFicha'
 import { formasVisiveisDoMapa, type FormasVisiveis } from '../lib/mudarFicha'
 import { lerAura } from '../lib/auras'
 import { mochilaComAVagaAcesa } from '../lib/luzDoItem'
@@ -7396,6 +7397,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const sistema = alvo.rpg.sistema
     if (nome === undefined || sistema === null) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
     const quem = nomeDoJogadorNoHistorico(nome)
+    // DANO PELA FICHA (Nº 4 do levantamento): com o personagem na batalha da cena dele, o "-50" da vida é o dano livre
+    // dela (Escudo, redução, Desfazer, queda). O recorte sai como no `handleBatalha`: só sem o broadcast que a store já pediu.
+    const dano = danoDoAjusteNaVida(alvo.atual, msg.ajustes, sistema)
+    const broadcastsAntes = broadcastsFeitos
+    if (dano !== null && batalhaNoHost.danoPelaFicha(conexaoNaBatalha(clientId, alvo.playerId, world), alvo.atual.id, dano)) {
+      const recortes = broadcastsFeitos === broadcastsAntes ? batalhaNoHost.sync(conexoesNaBatalha(world), world.rpg) : []
+      return { outbound: [...recortes, resultadoDePersonagem(clientId, msg.reqId, true)] }
+    }
     const personagem = aplicarAjustes(alvo.atual, sistema, msg.ajustes, quem, now())
     if (personagem === alvo.atual) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, true)] }
     // LOBBY (§5.1, §5.6): o valor novo sai da ficha de AGORA, então a base também (sem a marca da conexão). Antes do registro da batalha: a recusa não deixa linha.

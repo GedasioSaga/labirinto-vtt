@@ -154,6 +154,13 @@ export interface BatalhaNoHost {
   reagir(conexao: ConexaoNaBatalha, msg: BatalhaReagirMessage): RespostaDaBatalha
   /** F2: dano livre só numa ficha dele com personagem. */
   dano(conexao: ConexaoNaBatalha, msg: BatalhaDanoMessage): RespostaDaBatalha
+  /**
+   * DANO PELA FICHA (Nº 4 do levantamento): o "-50" da vida que o jogador deu no ajuste rápido da ficha, com o
+   * personagem na batalha da cena dele, vai pelo dano livre (Escudo, redução, registro, Desfazer, queda). Mesma
+   * posse do `dano`: ficha DELE de verdade, com o personagem, na ordem. `false` = fora de batalha (ou recusado):
+   * o host segue o ajuste de sempre. Sem `reqId`: quem responde é o pedido da ficha.
+   */
+  danoPelaFicha(conexao: ConexaoNaBatalha, personagemId: string, valor: number): boolean
   /** F2: as armas levadas, só de personagem dele com carta na ordem; troca quando quiser (Q8). */
   armas(conexao: ConexaoNaBatalha, msg: BatalhaArmasMessage): RespostaDaBatalha
   /** Zerar a concentração: só de personagem dele com carta na ordem, a qualquer hora (não só na vez). */
@@ -734,6 +741,15 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         if (!lugar.meusTokens.has(msg.tokenId) || !lugar.personagemDaFicha.has(msg.tokenId) || !naOrdem(cena, msg.tokenId)) return false
         return ponte.darDano(lugar.sceneKey, autorDe(conexao), msg.tokenId, msg.valor)
       })
+    },
+
+    danoPelaFicha(conexao, personagemId, valor) {
+      const daCena = cenaDa(conexao)
+      if (daCena === null) return false
+      const { ponte, lugar, cena } = daCena
+      // A mesma posse do `dano`: a ficha DELE de verdade, deste personagem, na ordem.
+      const tokenId = [...lugar.meusTokens].find((meu) => lugar.personagemDaFicha.get(meu) === personagemId && naOrdem(cena, meu))
+      return tokenId !== undefined && ponte.darDano(lugar.sceneKey, autorDe(conexao), tokenId, valor)
     },
 
     armas(conexao, msg) {

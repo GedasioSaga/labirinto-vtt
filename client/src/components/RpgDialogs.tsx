@@ -36,6 +36,8 @@ import { temLivro } from '../lib/livroDeRegras'
 import { aplicarAjustes, NOME_DO_MESTRE } from '../lib/ajusteDaFicha'
 import type { Personagem } from '../lib/personagem'
 import { useBatalhaStore } from '../stores/batalhaStore'
+import { darDanoPelaFicha, MESTRE } from '../stores/batalha/cena'
+import { danoDoAjusteNaVida } from '../lib/batalha/danoPelaFicha'
 import { useBatalhaDBTStore } from '../stores/batalhaDBTStore'
 import { FichaDePersonagemDialog, type TokenParaLigar } from './FichaDePersonagemDialog'
 import { EditorDeSistemaDialog } from './EditorDeSistemaDialog'
@@ -180,6 +182,10 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
             sistema === undefined
               ? undefined
               : (ajuste) => {
+                  // DANO PELA FICHA (Nº 4 do levantamento): com batalha ativa, o "-50" da vida é o "Dar dano" dela (Escudo, redução, Desfazer, queda).
+                  const agora = personagensAtivos(useAdventureStore.getState()).find((candidato) => candidato.id === personagem.id)
+                  const dano = agora === undefined ? null : danoDoAjusteNaVida(agora, [ajuste], sistema)
+                  if (dano !== null && darDanoPelaFicha(useBatalhaStore.getState(), personagem.id, dano, MESTRE)) return true
                   const feito: { antes?: Personagem; depois?: Personagem } = {}
                   const ok = useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => {
                     feito.antes = atual

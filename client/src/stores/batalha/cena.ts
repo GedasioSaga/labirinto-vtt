@@ -21,7 +21,7 @@ import type { RegrasDaBatalha } from '../../lib/batalha/regrasDoCampo'
 import { turnosVazios, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
-import type { BatalhaDaCena } from './tipos'
+import type { BatalhaDaCena, BatalhaState } from './tipos'
 
 export const SEM_CAMINHOS: Readonly<Record<string, number>> = {}
 
@@ -113,6 +113,16 @@ export function cenasComOPersonagem(cenas: Readonly<Record<string, BatalhaDaCena
     if (tokenIds.length > 0) achadas.push({ chave, cena, tokenIds })
   }
   return achadas
+}
+
+/**
+ * DANO PELA FICHA (levantamento das mecânicas duplicadas, Nº 4): o "-50" da vida no ajuste rápido do mestre,
+ * com o personagem numa batalha, vai pelo "Dar dano" dela (Escudo, redução, registro com Desfazer, lembrete de
+ * vida baixa, queda), na primeira cena que o aceita. `false` = fora de batalha (ou recusado): quem chama segue
+ * o caminho de sempre. O jogador vem pelo host (`batalhaNoHost`, `danoPelaFicha`).
+ */
+export function darDanoPelaFicha(batalha: Pick<BatalhaState, 'cenas' | 'darDano'>, personagemId: string, dano: number, autor: AutorDaAcao): boolean {
+  return cenasComOPersonagem(batalha.cenas, personagemId).some(({ chave, tokenIds }) => tokenIds.some((tokenId) => batalha.darDano(chave, autor, tokenId, dano)))
 }
 
 // ───────────────────────────────────────────────────────────────────────────
