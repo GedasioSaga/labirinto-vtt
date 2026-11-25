@@ -1,4 +1,4 @@
-import { itemParaDar, novoItemDoCatalogo, type ItemDoCatalogo } from '../../lib/acervoDeItens'
+import { itemDoCatalogoLido, itemParaDar, novoItemDoCatalogo, type ItemDoCatalogo } from '../../lib/acervoDeItens'
 import { pinImageFromBlob } from '../../lib/imageImport'
 import { imagemDoItemDoBlob } from '../../lib/imagemDoItem'
 import { itemDoAcervoNoMapa } from '../../lib/itemNoMapa'
@@ -25,8 +25,9 @@ import type { ComoVaiAoMapa, VerbeteParaOMapa } from './protocolo'
  *
  * - Lugar: o texto (`textoDoLugar`, segredo nunca) e a imagem da forma em
  *   data URL no tamanho do cartão do pino (`pinImageFromBlob`).
- * - Item: o item do Acervo de MESMO nome, ou um novo com nome, descrição e
- *   imagem (`novoItemDoCatalogo` + `salvarItem`), como pino de item pegável.
+ * - Item: o item do Acervo ligado ao verbete pelo id (`idDoItemDoVerbete`) ou
+ *   de MESMO nome, ou um novo com nome, descrição e imagem
+ *   (`novoItemDoCatalogo` + `salvarItem`), como pino de item pegável.
  * - Personagem: a ficha ligada tem de estar na pasta do mapa aberto (é dela
  *   que o token lê HP e técnicas); sem ficha, o token só com o retrato.
  */
@@ -58,6 +59,21 @@ async function talvez<T>(fazer: () => Promise<T>): Promise<T | null> {
   } catch {
     return null
   }
+}
+
+/**
+ * O ITEM DO VERBETE LIGADO PELO ID (levantamento de 25/11/2026, achado 28): o
+ * item do Acervo que nasce de um verbete ganha um id fixo, tirado do verbete,
+ * como o das peças desenhadas (`idDoItemDaPeca`). Renomear o item no Acervo
+ * ou o verbete no Grimório não cria mais um item repetido: o verbete o acha
+ * pelo id. O nome continua valendo para o item que nasceu antes disto (id
+ * sorteado) e para o que o mestre fez à mão com o mesmo nome. `null` = o id
+ * do verbete não cabe num id de item (a regra do Acervo, `itemDoCatalogoLido`):
+ * fica só o nome, como antes.
+ */
+function idDoItemDoVerbete(verbeteId: string): string | null {
+  const id = `item_verbete_${verbeteId}`
+  return itemDoCatalogoLido({ ...novoItemDoCatalogo(), id }) === null ? null : id
 }
 
 export type VerbetePreparado = { readonly ok: true; readonly nome: string; readonly coisa: CoisaDoVerbete } | { readonly ok: false; readonly motivo: string }
@@ -100,14 +116,16 @@ export async function prepararVerbeteNaMesa(fonte: VerbeteParaOMapa, como: ComoV
     const acervo = useAcervoDeItensStore.getState()
     if (!acervo.podeGravar) await acervo.recarregar()
     const { itens, podeGravar, salvarItem } = useAcervoDeItensStore.getState()
-    const existente = itemComOMesmoNome(itens, nome)
+    const idLigado = idDoItemDoVerbete(verbete.id)
+    const existente = itens.find((um) => um.id === idLigado) ?? itemComOMesmoNome(itens, nome)
     let item: ItemDoCatalogo
     if (existente !== null) item = existente
     else {
       if (!podeGravar) return { ok: false, motivo: 'O Acervo de itens não está disponível aqui (só no aplicativo, com o acervo lido).' }
       const blob = await blobDaMidia(imagem)
       const midiaDoItem = blob === null ? null : await talvez(() => imagemDoItemDoBlob(blob))
-      item = { ...novoItemDoCatalogo(), nome: nome || 'Item sem nome', descricao: textoDoLugar(verbete, forma, verbetes), imagem: midiaDoItem }
+      const novo = novoItemDoCatalogo()
+      item = { ...novo, id: idLigado ?? novo.id, nome: nome || 'Item sem nome', descricao: textoDoLugar(verbete, forma, verbetes), imagem: midiaDoItem }
       try {
         await salvarItem(item)
       } catch (erro) {
