@@ -36,10 +36,18 @@ function quantidadeDaBala(bala: CartaoDaFicha): number | null {
   return numero >= 1 && numero <= ITEM_QUANTIDADE_MAX ? numero : null
 }
 
-/** O tipo de bala ainda de texto que a conversão leva: sem item, com nome, e com número ou já na mochila pelo nome. */
+/**
+ * O tipo de bala ainda sem item que a conversão leva: com nome, e com número, ou já contando da mochila
+ * pelo nome (a vaga de mesmo nome, ou a marca do tiro que já gastou dela, `municaoPeloNome`).
+ */
 function balaQueConverte(bala: CartaoDaFicha, personagem: Personagem): boolean {
   if (bala.itemId !== undefined || bala.nome.trim() === '') return false
-  return quantidadeDaBala(bala) !== null || municaoNaMochila(personagem.mochila ?? [], bala.nome.trim(), undefined) !== undefined
+  return jaContaDaMochila(bala, personagem) || quantidadeDaBala(bala) !== null
+}
+
+/** A bala já conta da mochila pelo nome: a Quantidade de texto dela não vale há tempo, e não entra (seriam balas de graça). */
+function jaContaDaMochila(bala: CartaoDaFicha, personagem: Personagem): boolean {
+  return bala.municaoPeloNome === true || municaoNaMochila(personagem.mochila ?? [], bala.nome.trim(), undefined) !== undefined
 }
 
 function balasQueConvertem(personagem: Personagem): CartaoDaFicha[] {
@@ -108,7 +116,7 @@ export function fichaComAsBalasNaMochila(personagem: Personagem, acervo: readonl
       if (item === undefined) return bala
       // A mochila que já tem esta munição (pelo item ou pelo nome) manda: a Quantidade de texto, que o tiro já não lia, fica como está.
       const naMochila = municaoNaMochila(ficha.mochila ?? [], bala.nome.trim(), item.id)
-      if (naMochila !== undefined && naMochila.vagaId !== null) {
+      if (jaContaDaMochila(bala, ficha) || (naMochila !== undefined && naMochila.vagaId !== null)) {
         convertidas.push({ nome: bala.nome.trim(), quantos: 0 })
         return balaLigada(bala, item.id, false)
       }
