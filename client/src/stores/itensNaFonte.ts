@@ -43,19 +43,41 @@ const juntos = (nomes: readonly string[]): string => [...new Set(nomes)].join(',
 
 /** SALVAR A COISA: as cópias de cada item cujo efeito ou dados mudaram seguem a fonte na hora. Nunca lança: a falha vira aviso. */
 async function seguirOAcervo(itens: readonly ItemDoCatalogo[], dados: readonly DadosMudados[], nomes: readonly string[]): Promise<void> {
-  const { aberto, daPasta } = useMundoDoLivroStore.getState()
-  if (aberto === null || daPasta === null) return
   const aplicar = (lista: Personagem[]): Personagem[] =>
     itens.reduce((atuais, item) => atuais.map((ficha) => fichaComOEfeitoDoItem(ficha, item)), lista).map((ficha) => fichaComOsDadosMudados(ficha, dados))
-  const mudam = fichasQueMudam(daPasta, aplicar(daPasta))
-  if (mudam.length === 0) return
   try {
-    await guardarRpgAntesDosItens(aberto.pastaId)
-    await useMundoDoLivroStore.getState().mudar(aplicar)
-    useToastStore.getState().push('info', `${juntos(nomes)}: a mochila de ${juntos(mudam)} segue o Acervo.`)
+    const mudam = [...(await seguirNoLivro(aplicar)), ...(await seguirNaAventura(aplicar))]
+    if (mudam.length > 0) useToastStore.getState().push('info', `${juntos(nomes)}: a mochila de ${juntos(mudam)} segue o Acervo.`)
   } catch (erro) {
     useToastStore.getState().push('error', `As cópias nas mochilas não seguiram o Acervo: ${erro instanceof Error ? erro.message : String(erro)}`)
   }
+}
+
+/** As fichas do mundo do livro aberto seguem o Acervo. Devolve os nomes das que mudaram. */
+async function seguirNoLivro(aplicar: (lista: Personagem[]) => Personagem[]): Promise<string[]> {
+  const { aberto, daPasta } = useMundoDoLivroStore.getState()
+  if (aberto === null || daPasta === null) return []
+  const mudam = fichasQueMudam(daPasta, aplicar(daPasta))
+  if (mudam.length === 0) return []
+  await guardarRpgAntesDosItens(aberto.pastaId)
+  await useMundoDoLivroStore.getState().mudar(aplicar)
+  return mudam
+}
+
+/**
+ * As fichas da aventura aberta na mesa seguem o Acervo na hora (levantamento de 25/11/2026, nº 11): antes só
+ * ao abrir a pasta ou ao começar a batalha, e a vaga dada no meio da sessão ficava com a foto e a luz velhas.
+ * Pelo funil da ficha, como o começo da batalha. Devolve os nomes das que mudaram.
+ */
+async function seguirNaAventura(aplicar: (lista: Personagem[]) => Personagem[]): Promise<string[]> {
+  const aventura = useAdventureStore.getState()
+  const fichas = [...personagensAtivos(aventura)]
+  const depois = aplicar(fichas)
+  const mudam = fichas.filter((ficha, indice) => ficha !== depois[indice])
+  if (mudam.length === 0) return []
+  if (aventura.pasta !== null) await guardarRpgAntesDosItens(aventura.pasta.pastaId)
+  for (const ficha of mudam) useAdventureStore.getState().ajustarPersonagem(ficha.id, (atual) => aplicar([atual])[0] ?? atual)
+  return mudam.map((ficha) => ficha.nome)
 }
 
 // Qualquer gravação do Acervo (a janela do item, o painel, a página Itens) passa por aqui: não há caminho que esqueça as cópias.
