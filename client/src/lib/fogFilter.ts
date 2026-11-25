@@ -2871,8 +2871,8 @@ function recorteDoGrupo(
   ceuDoMundi: boolean,
   /**
    * TERRENO ALTO (`vistaDeCimaDoPiso`): as fichas do recorte são OLHOS DE
-   * OUTRO PISO. Nada DESTE piso barra o olhar: só `obstaculos` (as paredes do
-   * piso de quem olha), o raio e o escuro; e o que `cobre` esconde (o chão do
+   * OUTRO PISO. Só barram o olhar `obstaculos` (as paredes que `OlharDeCima`
+   * diz), o raio e o escuro; e o que `cobre` esconde (o chão do
    * piso de quem olha, por cima) não está à vista. A posição dos olhos não
    * conta como "estar dentro": não abre teto, sala secreta, cômodo nem
    * fumaça, não espia porta nem olha por vão. O resto da regra (névoa, zona
@@ -3493,7 +3493,7 @@ function recorteDoGrupo(
   /** Olhar de UMA ficha: um anel sem escuro; com escuro, vários (`darkVision`), a luz dos objetos só até o teto dela. */
   const sightFrom = (token: Token, segments: Segment[], dark: Darkness | null): RegionPoint[][] => {
     const origin = { x: token.x, y: token.y }
-    // TERRENO ALTO: de outro piso, parede e borda do chão DESTE piso não seguram o olhar; as do piso de quem olha, sim.
+    // TERRENO ALTO: de outro piso, só seguram o olhar as paredes de `deCima.obstaculos` (`OlharDeCima`), nunca a borda do chão.
     const obstaculos = deCima === null ? segments : deCima.obstaculos
     return dark === null ? [computeVisibility(origin, obstaculos, radiusOf(token))] : darkVision(origin, obstaculos, radiusOf(token), dark, tetoDaLuzDe(token))
   }
@@ -5859,8 +5859,9 @@ export function filterFloorMemory(
 
 /**
  * TERRENO ALTO — como olham os olhos de OUTRO piso (`vistaDeOutroPiso`):
- * `obstaculos` são as paredes do piso de quem olha (as do piso olhado não
- * contam), e `cobre` diz o que o chão do piso de quem olha esconde por cima.
+ * `obstaculos` são as paredes que seguram o olhar (de cima para baixo, as do
+ * piso de quem olha; de baixo para cima, as do piso de cima), e `cobre` diz o
+ * que o chão do piso de quem olha esconde por cima.
  */
 export interface OlharDeCima {
   readonly obstaculos: Segment[]
@@ -5933,13 +5934,6 @@ export function vistaDeOutroPiso(
 }
 
 /**
- * TERRENO ALTO — o olhar de quem está EMBAIXO para o piso de cima: nada do
- * piso de cima segura (quem segura é a visão dele, aqui embaixo, em
- * `fichasNaVisaoDeBaixo`), e nada cobre.
- */
-export const OLHAR_PARA_CIMA: OlharDeCima = { obstaculos: [], cobre: null }
-
-/**
  * Folga, em casas, de "a ficha lá em cima está na visão de quem está
  * embaixo": a visão dele para na face da muralha, e quem está em cima pisa
  * no meio dela, até uma casa além da face.
@@ -5948,8 +5942,8 @@ const FOLGA_DE_CIMA_CASAS = 1
 
 /**
  * TERRENO ALTO: as fichas do recorte do piso de cima (`vistaDeOutroPiso` com
- * `OLHAR_PARA_CIMA`) que a visão `visao` do jogador, no piso dele, alcança —
- * com a folga de uma casa além do raio da ficha.
+ * as paredes do piso de cima segurando o olhar) que a visão `visao` do
+ * jogador, no piso dele, alcança — com a folga de uma casa além do raio da ficha.
  */
 export function fichasNaVisaoDeBaixo(tokens: readonly Token[], visao: readonly RegionPoint[][], grid: number): Token[] {
   return tokens.filter((t) => {
