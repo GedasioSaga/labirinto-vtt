@@ -172,6 +172,7 @@ import {
   bonecoVaiSerGuardado,
   hasUnsavedWork,
   hostWorldOf,
+  mochilaMoraNaFicha,
   ouvirBonecosSeparados,
   personagensAtivos,
   temRpgNoMapa,
@@ -331,6 +332,9 @@ import { selectionSecretState } from './lib/batchSecret'
 import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
 import { lightsOnToken } from './lib/selectionHitTest'
 import { carriedItemsOf } from './lib/items'
+import { fichaComMochila } from './lib/mochila/juncao'
+import type { Personagem } from './lib/personagem'
+import { moedasDe } from './lib/troca'
 import { mochilaComAVagaAcesa } from './lib/luzDoItem'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
@@ -1233,17 +1237,47 @@ function App() {
     return true
   }
   /**
+   * A ficha dona da mochila do boneco, ou `undefined` quando a dona é o boneco
+   * (NPC sem ficha, aventura antes da migração). UM CAMINHO SÓ para o "Acender"
+   * (Nº 14 do levantamento de 25/11/2026): é a mesma escolha do "Acender" da
+   * ficha do personagem (`inventarioDoMestre` em `components/RpgDialogs.tsx`).
+   * O cartão Luzes lia o boneco, a ficha lia a ficha, e dois bonecos da mesma
+   * ficha podiam acender vagas de mochilas diferentes.
+   */
+  const fichaQueGuardaAMochila = (token: Token): Personagem | undefined => {
+    const aventura = useAdventureStore.getState()
+    if (token.characterId === null || !mochilaMoraNaFicha(aventura)) return undefined
+    return personagensAtivos(aventura).find((personagem) => personagem.id === token.characterId)
+  }
+  /** A mochila que o cartão Luzes mostra: a da dona (ficha vazia = nada, nunca a cópia velha do boneco). */
+  const mochilaQueAcende = (token: Token) => {
+    const ficha = fichaQueGuardaAMochila(token)
+    return ficha === undefined ? carriedItemsOf(token) : (ficha.mochila ?? [])
+  }
+  /**
    * ITEM QUE ILUMINA: "Acender"/"Apagar" um item da mochila de uma ficha do
    * mapa aberto, pelo cartão Luzes do painel dela — o NPC sem ficha de
-   * personagem não tinha onde. Pelo caminho dos itens, como o "Acender" da
-   * ficha do personagem: fora do Ctrl+Z, e a luz chega aos jogadores na hora.
+   * personagem não tinha onde. Fora do Ctrl+Z, e a luz chega aos jogadores na
+   * hora: com a mochila na ficha, pelo funil da aventura (`ajustarPersonagem`,
+   * que espelha em todo boneco dela), como a ficha do personagem; sem, pelo
+   * caminho dos itens do boneco.
    */
   const acenderItemDaFicha = (tokenId: string, itemId: string, acesa: boolean) => {
     const token = useMapStore.getState().map.tokens.find((t) => t.id === tokenId)
-    const mochila = token === undefined ? null : mochilaComAVagaAcesa(carriedItemsOf(token), itemId, acesa)
+    if (token === undefined) return
+    const ficha = fichaQueGuardaAMochila(token)
     // Nada a gravar: a vaga saiu, já não ilumina, ou já está como pedido.
+    const mochila = mochilaComAVagaAcesa(mochilaQueAcende(token), itemId, acesa)
     if (mochila === null) return
-    if (!aplicarItensDoMestre({ mochilas: [{ tokenId, mochila }] })) useToastStore.getState().push('error', `Não deu para ${acesa ? 'acender' : 'apagar'} o item.`)
+    const gravou =
+      ficha === undefined
+        ? aplicarItensDoMestre({ mochilas: [{ tokenId, mochila }] })
+        : useAdventureStore.getState().ajustarPersonagem(ficha.id, (atual) => {
+            // Lida de novo na ficha de agora: o que mudou desde a leitura acima fica.
+            const nova = mochilaComAVagaAcesa(atual.mochila ?? [], itemId, acesa)
+            return nova === null ? atual : fichaComMochila(atual, nova, moedasDe(atual))
+          })
+    if (!gravou) useToastStore.getState().push('error', `Não deu para ${acesa ? 'acender' : 'apagar'} o item.`)
   }
   // Desfazer/refazer avisa como tal: a caravana do mapa-mundi não o lê como arrasto.
   useEffect(
@@ -4505,7 +4539,7 @@ function App() {
               lights: selectedToken ? lightsOnToken(map, selectedToken.id) : [],
               onSelectLight: (lightId) => setSelection(selectionOfItem({ kind: 'light', id: lightId })),
               onDetach: (lightId) => setLightAttachment(lightId, null),
-              itensQueIluminam: selectedToken ? carriedItemsOf(selectedToken).filter((item) => item.luz !== undefined) : [],
+              itensQueIluminam: selectedToken ? mochilaQueAcende(selectedToken).filter((item) => item.luz !== undefined) : [],
               onAcenderItem: (itemId, acesa) => selectedToken && acenderItemDaFicha(selectedToken.id, itemId, acesa),
             }}
             tokenCondition={{
