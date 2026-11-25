@@ -1321,8 +1321,10 @@ export interface Pin extends PlayerSecret, NoPiso, NaCamada {
 }
 
 /**
- * Uma mercadoria da banca. `preco` é texto livre, com a moeda da aventura
- * ("1 moeda", "uma vela"). `estoque`: quantas restam; ausente = sem conta
+ * Uma mercadoria da banca. `preco` tem três formas (`lib/loja.ts`, que converte
+ * o texto livre antigo na leitura): '' segue o Acervo (a digitada sai grátis),
+ * só dígitos = preço próprio em berries, outro texto = preço antigo que o mestre
+ * confere ("uma vela"). `estoque`: quantas restam; ausente = sem conta
  * (não acaba), 0 = acabou. "Vender" tira um (`lib/loja.ts`).
  */
 export interface LojaItem {

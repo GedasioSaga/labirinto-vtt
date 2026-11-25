@@ -1,6 +1,7 @@
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { descricaoDizOEfeito } from '../lib/descricaoDoEfeito'
 import { quantidadeDe } from '../lib/items'
+import { precoEmBerries } from '../lib/loja'
 import type { CarriedItem } from '../types/map'
 import { ImagemOuIniciais } from './FichaPecas'
 import './InventarioDaFicha.css'
@@ -25,11 +26,6 @@ export interface InventarioDaFichaProps {
 }
 
 const VAZIO_PADRAO = 'Nada no inventário.'
-
-/** "120 berries" com o separador de milhar do Brasil. */
-export function precoEmBerries(preco: number): string {
-  return `${preco.toLocaleString('pt-BR')} ${preco === 1 ? 'berry' : 'berries'}`
-}
 
 /** O nome que o leitor de tela ouve na vaga: "Poção, 3". */
 function rotuloDaVaga(item: CarriedItem): string {

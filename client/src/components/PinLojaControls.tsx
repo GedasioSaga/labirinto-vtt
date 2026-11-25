@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { LojaItem } from '../types/map'
-import { definirPrecosDoAcervo, LOJA_ESTOQUE_MAX, LOJA_ITENS_MAX, LOJA_NOME_MAX, novaMercadoria, precoAConferir, precoProprio, precoSemOProprio } from '../lib/loja'
+import { LOJA_ESTOQUE_MAX, LOJA_ITENS_MAX, LOJA_NOME_MAX, novaMercadoria, precoAConferir, precoEmBerries, precoProprio, precoSemOProprio } from '../lib/loja'
 import { ITEM_PRECO_MAX } from '../lib/leituraDoItem'
 import { Toggle } from './Toggle'
 import { itemParaDar, type ItemDoCatalogo as ItemDoAcervo, type PastaDeItens } from '../lib/acervoDeItens'
 import { gruposPorPasta, itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from './BuscaDoAcervoDeItens'
 import { lerOAcervoSeFaltar, useAcervoDeItensStore } from '../stores/acervoDeItensStore'
-import { precoEmBerries } from './InventarioDaFicha'
 
 export interface PinLojaControlsProps {
   /** As mercadorias do pino aberto no painel; `null` = sem loja. */
@@ -18,19 +17,6 @@ export interface PinLojaControlsProps {
 }
 
 const HINT_ID = 'lb-pin-loja-hint'
-
-/*
- * PREÇO QUE SEGUE O ACERVO (25/11/2026): a banca sem preço próprio cobra o que
- * o Acervo diz agora (`lib/loja.ts`), e a cada mudança do Acervo os preços vão
- * para lá. Fica no módulo, não no componente: o app do mestre carrega este
- * painel desde a abertura (App → PropertiesPanel → FichaDoPino), antes de o
- * Acervo ser lido, com o painel aberto ou não. O par natural é a munição, no
- * store do Acervo; ir para lá é uma linha.
- */
-definirPrecosDoAcervo(useAcervoDeItensStore.getState().itens)
-useAcervoDeItensStore.subscribe((state, antes) => {
-  if (state.itens !== antes.itens) definirPrecosDoAcervo(state.itens)
-})
 
 export const idAleatorio = (): string => `item_${crypto.randomUUID()}`
 

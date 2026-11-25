@@ -146,7 +146,7 @@ import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
 import { ehRefDeMidia } from '../lib/midia'
-import { itemAVenda } from '../lib/loja'
+import { itemAVenda, precoEmMoedas, textoDoPrecoDaBanca } from '../lib/loja'
 import { bolsaPaga, vendaNaFicha } from '../lib/vendaDaLoja'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, exitPassageOf, freeSeatNear, isArrivalOnly, isExitPassage, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
@@ -607,7 +607,7 @@ export interface PurchaseRequest {
   /** Como o mestre chama a banca: a descrição do pino ou, sem descrição, o resumo (`pinSummary`). */
   pinLabel: string
   itemName: string
-  /** Texto livre do mestre ("1 moeda"); vazio = sem preço escrito. */
+  /** O preço que o jogador leu, em texto ("50 berries", "Grátis"): `lib/loja.ts` textoDoPrecoDaBanca. */
   preco: string
   /** Nome da cena (o que o mestre lê), só quando a banca está numa cena de FUNDO. */
   sceneName?: string
@@ -6514,7 +6514,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (token === undefined) return 'far'
     // Fase 5: a mercadoria do Acervo cobra a bolsa; sem moedas, nem chega ao mestre.
     if (!bolsaPaga(moedasDe(token), item)) return 'no_coins'
-    return { pin, nome: item.nome, preco: item.preco, token }
+    return { pin, nome: item.nome, preco: textoDoPrecoDaBanca(precoEmMoedas(item)), token }
   }
 
   function handlePinBuy(clientId: string, msg: PinBuyMessage, world: HostWorld): HostResult {

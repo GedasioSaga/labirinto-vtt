@@ -159,6 +159,7 @@ import { useMiraNoMapa } from '../stores/batalha/miraNoMapa'
 import { ligarMirasDoMestreAoChao, miraDaTelaNoFio, useMiraNaMesa } from '../stores/batalha/miraNaMesa'
 import { useDocumentosDoMestreStore } from '../components/documentos/documentosDoMestreStore'
 import { itemParaDar } from '../lib/acervoDeItens'
+import { precosDoAcervoMudaram } from '../lib/loja'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import type { PecaDoAcervo } from '../puzzles/tipos'
 import { useDesafiosStore } from '../stores/desafiosStore'
@@ -1061,8 +1062,8 @@ export function doacaoLine(doacao: Pick<Doacao, 'de' | 'para' | 'verbo' | 'oQue'
 }
 
 /**
- * LOJA: "Ana quer Xarope (1 moeda) em Botica", mais ", Mercado" quando a banca
- * está numa cena de fundo. Sem preço escrito, sem parênteses.
+ * LOJA: "Ana quer Xarope (50 berries) em Botica" ou "(Grátis)", mais
+ * ", Mercado" quando a banca está numa cena de fundo. Sem preço, sem parênteses.
  */
 export function purchaseRequestLine(request: PurchaseRequest): string {
   const preco = request.preco.trim() === '' ? '' : ` (${request.preco.trim()})`
@@ -4753,6 +4754,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         // A lista vazia trocada por outra vazia (o `recarregar` fora do app) não muda recorte nenhum.
         useDocumentosStore.subscribe((agora, antes) => {
           if (agora.documentos !== antes.documentos && (agora.documentos.length > 0 || antes.documentos.length > 0)) scheduleBroadcast()
+        }),
+        // PREÇO DA BANCA: a mercadoria sem preço próprio vai ao jogador com o preço do Acervo de agora (lib/loja.ts).
+        // Mudou um preço lá, o recorte sai de novo: senão o jogador leria o velho e a venda cobraria o novo.
+        useAcervoDeItensStore.subscribe((agora, antes) => {
+          if (agora.itens !== antes.itens && precosDoAcervoMudaram(antes.itens, agora.itens)) scheduleBroadcast()
         }),
         // Fase D do alcance: a mira do mestre (a store local dele) vai só como casas a quem vê a ficha;
         // as dos jogadores chegam ao chão do mapa aberto dele.

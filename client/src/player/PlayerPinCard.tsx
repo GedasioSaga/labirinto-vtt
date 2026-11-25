@@ -11,8 +11,7 @@ import {
   passageOf,
 } from '../lib/pins'
 import { itemOfPin } from '../lib/items'
-import { lojaParaJogador, precoEmMoedas, textoDoEstoque } from '../lib/loja'
-import { precoEmBerries } from '../components/InventarioDaFicha'
+import { lojaParaJogador, precoEmMoedas, textoDoEstoque, textoDoPrecoDaBanca } from '../lib/loja'
 import { compraNoticeText } from './compraNotice'
 import type { CompraNotice } from './playerConnection'
 import { stairTravelLabel } from '../lib/stairTravel'
@@ -1056,12 +1055,6 @@ interface PlayerLojaProps {
   compra?: CompraNotice
 }
 
-/** O preço que o jogador lê é o que a bolsa paga (`precoEmMoedas`); `null` = o mestre ainda confere o preço antigo. */
-function textoDoPreco(preco: number | null): string {
-  if (preco === null) return 'Preço a conferir'
-  return preco === 0 ? 'Grátis' : precoEmBerries(preco)
-}
-
 /**
  * LOJA COM PREÇOS: a banca no cartão. Uma linha por mercadoria — nome, preço,
  * estoque ("Acabou" quando não há) e "Quero". O "Quero" diz no nome acessível
@@ -1084,7 +1077,7 @@ function PlayerLoja({ mercadorias, onBuy, compra }: PlayerLojaProps) {
           return (
             <li key={mercadoria.id} className="pp-loja__item">
               <span className="pp-loja__nome">{mercadoria.nome}</span>
-              <span className="pp-loja__preco">{textoDoPreco(preco)}</span>
+              <span className="pp-loja__preco">{textoDoPrecoDaBanca(preco)}</span>
               {estoque !== null && (
                 <span className={mercadoria.estoque === 0 ? 'pp-loja__estoque pp-loja__estoque--acabou' : 'pp-loja__estoque'}>{estoque}</span>
               )}

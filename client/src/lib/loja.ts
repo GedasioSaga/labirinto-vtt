@@ -109,16 +109,25 @@ export function precoAConferir(item: Pick<LojaItem, 'preco' | 'acervo'>): string
 /**
  * O PREÇO DO ACERVO DE AGORA: a mercadoria sem preço próprio cobra o que o
  * Acervo diz hoje, e não a cópia da escolha. O Acervo mora no disco do app do
- * MESTRE: o painel da loja (`components/PinLojaControls.tsx`) põe os preços
- * aqui a cada mudança, no molde das munições (`lib/batalha/municoesDoAcervo.ts`).
+ * MESTRE: o store do Acervo (`stores/acervoDeItensStore.ts`) põe os preços
+ * aqui a cada mudança, junto das munições (`lib/batalha/municoesDoAcervo.ts`).
  * No app do jogador fica vazio: ele recebe o preço já resolvido no recorte
- * (`lojaParaJogador`).
+ * (`lojaParaJogador`), que a sala reenvia quando um preço do Acervo muda.
  */
 let precosDoAcervo: ReadonlyMap<string, number | null> = new Map()
 
+type PrecoDoAcervo = { id: string; preco: number | null }
+
 /** Troca os preços pelos do Acervo de agora (`null` = a coisa não tem preço). */
-export function definirPrecosDoAcervo(itens: readonly { id: string; preco: number | null }[]): void {
+export function definirPrecosDoAcervo(itens: readonly PrecoDoAcervo[]): void {
   precosDoAcervo = new Map(itens.map((item) => [item.id, item.preco]))
+}
+
+/** Algum preço do Acervo mudou (coisa nova, apagada ou com outro preço): o recorte dos jogadores precisa sair de novo. */
+export function precosDoAcervoMudaram(antes: readonly PrecoDoAcervo[], agora: readonly PrecoDoAcervo[]): boolean {
+  if (antes.length !== agora.length) return true
+  const precoAntes = new Map(antes.map((item) => [item.id, item.preco]))
+  return agora.some((item) => precoAntes.get(item.id) !== item.preco)
 }
 
 /** O preço da coisa: o do Acervo de agora; a coisa que saiu do Acervo (ou o Acervo ainda não lido) fica com a cópia. `null` = sem preço. */
@@ -141,6 +150,17 @@ export function precoSemOProprio(item: Pick<LojaItem, 'acervo'>): number {
 export function precoEmMoedas(item: Pick<LojaItem, 'preco' | 'acervo'>): number | null {
   if (precoAConferir(item) !== null) return null
   return precoProprio(item) ?? precoSemOProprio(item)
+}
+
+/** "120 berries" com o separador de milhar do Brasil. */
+export function precoEmBerries(preco: number): string {
+  return `${preco.toLocaleString('pt-BR')} ${preco === 1 ? 'berry' : 'berries'}`
+}
+
+/** O preço da mercadoria em texto, como o jogador lê e a Caixa do mestre mostra; `null` = o mestre ainda confere o preço antigo. */
+export function textoDoPrecoDaBanca(preco: number | null): string {
+  if (preco === null) return 'Preço a conferir'
+  return preco === 0 ? 'Grátis' : precoEmBerries(preco)
 }
 
 /** Estoque de verdade: inteiro de 0 ao teto. Qualquer outra coisa não é estoque. */
