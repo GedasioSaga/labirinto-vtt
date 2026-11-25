@@ -97,9 +97,12 @@ export const FAIXAS_EDITOR: readonly Faixa[] = [
   faixa('stairsGraphics', ['escada'], ['escadas']),
   faixa('secretStairsGraphics', ['escada'], ['escadas']),
   faixa('nuvensContainer', [], ['terreno']),
-  faixa('roomNamesContainer', ['regiao'], ['salas']),
   faixa('textLabelsContainer', ['desenho'], ['anotacoes']),
   faixa('propsContainer', ['objeto'], ['objetos', 'decoracao']),
+  // NOME DA SALA POR CIMA DOS MÓVEIS (24/11/2026), como no jogador (`roomNames` depois de `props`).
+  // Abaixo dos móveis ele sumia no editor desde que os móveis viraram imagem opaca (MT12, 27/10):
+  // a mesa ou o tapete no meio da sala, onde a etiqueta mora, tapava o nome inteiro.
+  faixa('roomNamesContainer', ['regiao'], ['salas']),
   faixa('lightsContainer', ['luz'], ['iluminacao']),
   faixa('watchConesGraphics', [], FIXA),
   faixa('patrolRoutesGraphics', [], FIXA),

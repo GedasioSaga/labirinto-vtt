@@ -47,9 +47,9 @@ const EDITOR_HOJE: [string, string[]][] = [
   ['stairsGraphics', ['escadas']],
   ['secretStairsGraphics', ['escadas']],
   ['nuvensContainer', ['terreno']],
-  ['roomNamesContainer', ['salas']],
   ['textLabelsContainer', ['anotacoes']],
   ['propsContainer', ['objetos', 'decoracao']],
+  ['roomNamesContainer', ['salas']],
   ['lightsContainer', ['iluminacao']],
   ['watchConesGraphics', []],
   ['patrolRoutesGraphics', []],
@@ -280,7 +280,7 @@ describe('ordemDeRender', () => {
       ['pinsContainer', ['livre_1fbcd429']],
       ['propsContainer', ['decoracao']],
       ['wallsGraphics', ['livre_1cbccf70']],
-      ['lightsContainer', ['iluminacao']],
+      ['roomNamesContainer', ['salas']],
     ])
   })
 
@@ -314,7 +314,7 @@ describe('ordemDeRender', () => {
       ['propsContainer', ['objetos', 'decoracao']],
       ['pinsContainer', ['objetos']],
       ['wallsGraphics', ['decoracao']],
-      ['lightsContainer', ['iluminacao']],
+      ['roomNamesContainer', ['salas']],
     ])
   })
 
