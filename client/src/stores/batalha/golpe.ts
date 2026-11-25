@@ -46,7 +46,7 @@ import {
 } from '../../lib/batalha/golpe'
 import { linhaComOGasto, sobraDoUso, textoDoGasto } from '../../lib/batalha/itemNaBatalha'
 import { lerDano } from '../../lib/batalha/formula'
-import { chavesDoDono, disputaNoUso, formulaDaCura, limpezaDe, mecanicaDoCartao, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono } from '../../lib/batalha/mecanicasAMao'
+import { chavesDoDono, disputaNoUso, formulaDaCura, itemQueATecnicaGasta, limpezaDe, mecanicaDoCartao, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono } from '../../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../../lib/batalha/disputaNoUso'
 import { debuffsDobrados } from '../../lib/batalha/debuffs'
 import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOverloadDeReacao, temReacaoContraSurpresa, type PedidoDeTecnica } from '../../lib/batalha/reacaoComTecnica'
@@ -79,7 +79,7 @@ import {
   linhaAtualizada,
   partesDosLembretes,
 } from './cena'
-import { mexerNaFicha, type Recusada, type CuraDoItemNoAlvo, gastarMunicaoNaMesa, gastarItemNaMesa, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from './naMesa'
+import { mexerNaFicha, type Recusada, type CuraDoItemNoAlvo, gastarMunicaoNaMesa, gastarItemNaMesa, gastarConsumivelNaMesa, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from './naMesa'
 import { devolverFichasDaAcao } from './desfazer'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
 import { nomeDaAcaoDaAjuda, pedirAjuda, pedirAoMestre } from './ajuda'
@@ -756,6 +756,17 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       }
       partes.push(parte)
     }
+    // Frente A (25/11/2026): a técnica que gasta item (o Kit Médico da Medicina) tira da mochila de quem usa, como o "Usar";
+    // o registro diz o mesmo que a mochila, e o Desfazer da linha devolve. O `podeAgir` já recusou sem item bastante.
+    const gastoDaTecnica = cartaoDoPedido === null ? null : itemQueATecnicaGasta(cartaoDoPedido)
+    if (gastoDaTecnica !== null && carta.personagemId !== null) {
+      const gastou = gastarConsumivelNaMesa(mesa, sceneKey, carta.tokenId, carta.personagemId, gastoDaTecnica)
+      partes.push(...gastou.partes)
+      if (!gastou.ok) {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+    }
     // Conserto das fichas F1 (Overload): quem usou fica com os atributos base pela metade até o fim da batalha.
     // F2b (revisão): só a técnica Overload cansa aqui; o golpe Overload pela forma (A Caçada Começa) cansa no fim dela.
     if (lancado.gastaOOverload === true && carta.personagemId !== null) {
@@ -877,12 +888,12 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           }
           // F2 (fatia F, Medicina): a nota diz o item gasto ("curou 100, gastou 1 Kit Médico").
           // Fase 5: pelo cartão (a montada tem o item nas peças, não na tabela pelo id).
-          const item = pedido.tipo === 'habilidade' ? mecanicaDoCartao(cartaoDoPedido ?? pedido.cartaoId)?.gastaItem : undefined
+          const item = gastoDaTecnica?.nome
           // A CURA TIRA O VENENO (`lib/curaPeloItem.ts`): o item gasto para curar tira o Envenenado do alvo ("..., tirou Envenenado").
           const curaDoItem = item === undefined ? null : curaDoItemNoAlvo(sceneKey, alvo.tokenId, novos.selos)
           if (curaDoItem !== null) curasDoItem.push(curaDoItem)
           const doVeneno = curaDoItem === null || curaDoItem.curou.length === 0 ? '' : `, tirou ${curaDoItem.curou.join(', ')}`
-          const doItem = item === undefined ? '' : `, gastou 1 ${item}${doVeneno}`
+          const doItem = item === undefined ? '' : `, gastou ${gastoDaTecnica?.porUso ?? 1} ${item}${doVeneno}`
           const daCura = `${recursoDaCura === 'hp' ? notaDaCura(cura, coube) : notaDoRecursoDaCura(recursoDaCura, cura, coube)}${daOutra}${doItem}`
           const nomesTirados = limpeza.tira === undefined ? '' : tirados.length === 0 ? 'não tinha o que tirar' : `tirou ${tirados.map((selo) => selo.nome).join(', ')}`
           // Fase 8 (a Panaceia): a limpeza sem cura não diz "curou 0"; o pedaço da cura só entra com cura, como na que tira pelo nome.

@@ -18,6 +18,7 @@ import {
 import { recursoDoCusto } from '../../lib/batalha/leituraDaFicha'
 import { comABalaLigada, fichaComAMochilaDoBoneco, gastarMunicaoDaFicha, type MunicaoGasta } from '../../lib/batalha/municaoDaFicha'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
+import { vagaDoConsumivel, type ItemQueATecnicaGasta } from '../../lib/batalha/mecanicasAMao'
 import { tirarDaMochilaDaFicha } from '../../lib/mochila/darNaFicha'
 import { partesDoAjuste, type ParteDaFicha, type Reversao } from '../../lib/batalha/registro'
 import type { TurnosDaCena } from '../../lib/batalha/turnos'
@@ -167,6 +168,26 @@ export function gastarItemNaMesa(mesa: MesaDaBatalha, sceneKey: string, tokenId:
   if (vaga === null) return null
   if (!ok) return 'recusada'
   return { tipo: 'municao', personagemId, vaga, indice }
+}
+
+/**
+ * KIT MÉDICO (frente A do levantamento de mecânicas duplicadas, 25/11/2026): a técnica que gasta item
+ * tira `item.porUso` da mochila de quem usa, vaga a vaga, pela mesma mesa do "Usar" (`gastarItemNaMesa`):
+ * o registro e a mochila dizem o mesmo, e o Desfazer da linha devolve cada unidade. `ok: false` = faltou
+ * item ou a mesa recusou; as `partes` do que já saiu vão junto, para quem chama devolver.
+ */
+export function gastarConsumivelNaMesa(mesa: MesaDaBatalha, sceneKey: string, tokenId: string, personagemId: string, item: ItemQueATecnicaGasta): { partes: Reversao[]; ok: boolean } {
+  const partes: Reversao[] = []
+  for (let vez = 0; vez < item.porUso; vez++) {
+    const ficha = mesa.personagens().find((candidato) => candidato.id === personagemId)
+    // A dona da mochila: a do boneco na aventura que não migrou, senão a da ficha (a mesma regra do `gastarItemNaMesa`).
+    const mochila = mesa.mochilaDoBoneco?.(sceneKey, tokenId) ?? ficha?.mochila ?? []
+    const vaga = vagaDoConsumivel(mochila, item.nome, item.ids)
+    const parte = vaga === undefined ? null : gastarItemNaMesa(mesa, sceneKey, tokenId, personagemId, vaga.id)
+    if (parte === null || parte === 'recusada') return { partes, ok: false }
+    partes.push(parte)
+  }
+  return { partes, ok: true }
 }
 
 /**

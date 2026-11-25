@@ -673,8 +673,8 @@ export function depoisDaTecnica(combate: CombateDoPersonagem, tecnica: Pick<Tecn
   if (mantidaDe(tecnica.cartao) !== null) novo = comAMantida(novo, id)
   // P1: Tempo N bloqueia N vezes do dono; a recarga desce no começo da vez, então guarda N + 1.
   else if (tecnica.tempo.tipo === 'recarga') novo = { ...novo, recargas: { ...novo.recargas, [id]: tecnica.tempo.turnos + RECARGA_A_MAIS } }
-  // Fase 5: a técnica que gasta item conta os usos (a mochila sobra pelos usos, `itensQueSobram`), com ou sem limite de usos.
-  if (tecnica.tempo.tipo === 'usos' || mecanicaDoCartao(tecnica.cartao)?.gastaItem !== undefined) novo = { ...novo, usos: { ...novo.usos, [id]: (novo.usos[id] ?? 0) + 1 } }
+  // Frente A (25/11/2026): o item que a técnica gasta sai da mochila de verdade (`gastarConsumivelNaMesa`); os usos contam só o limite.
+  if (tecnica.tempo.tipo === 'usos') novo = { ...novo, usos: { ...novo.usos, [id]: (novo.usos[id] ?? 0) + 1 } }
   if (tecnica.overload) novo = { ...novo, overload: true }
   return novo
 }

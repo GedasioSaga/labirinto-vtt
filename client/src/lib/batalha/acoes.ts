@@ -259,8 +259,8 @@ export function motivoDaTecnica(
     const usadas = combate?.usos[cartao.id] ?? 0
     if (usadas >= tecnica.tempo.vezes) return `Já usada nesta batalha (${usadas}/${tecnica.tempo.vezes})`
   }
-  // F2 (fatia F, Medicina): cada uso gasta 1 Kit Médico da mochila; sem nenhum sobrando, apagada.
-  const item = itensQueSobram(cartao, personagem.mochila, combate?.usos[cartao.id] ?? 0)
+  // F2 (fatia F, Medicina): cada uso gasta 1 Kit Médico da mochila (tirado dela de verdade); sem nenhum sobrando, apagada.
+  const item = itensQueSobram(cartao, personagem.mochila)
   // Fase 5: a peça pode gastar mais de 1 por uso.
   if (item !== null && item.sobram < (item.porUso ?? 1)) return `Sem ${item.nome} na mochila (cada uso gasta ${item.porUso ?? 1})`
   // Conserto das fichas F1 (resposta do Jimboy): custo acima do MÁXIMO do recurso = bloqueada com o motivo, antes da ação.

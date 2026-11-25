@@ -1324,28 +1324,59 @@ export function perguntaAArma(chaves: readonly string[]): boolean {
   return chaves.some((chave) => mecanicaDoCartao(chave)?.perguntaAArma === true)
 }
 
+/** O item que a técnica gasta a cada uso (o Kit Médico da Medicina): o nome, os ids do Acervo que contam e quantos por uso. */
+export interface ItemQueATecnicaGasta {
+  nome: string
+  ids: ReadonlySet<string>
+  porUso: number
+}
+
+/** O item que a técnica gasta; `null` = não gasta item. */
+export function itemQueATecnicaGasta(cartao: ChaveDaMecanica, idsDoItem: ReadonlySet<string> = SEM_IDS_DO_ITEM): ItemQueATecnicaGasta | null {
+  const linha = mecanicaDoCartao(cartao)
+  const nome = linha?.gastaItem
+  if (linha === null || nome === undefined) return null
+  // Fase 5: a peça pode gastar mais de 1 por uso e dizer o id do item no Acervo.
+  return { nome, ids: linha.gastaItemId === undefined ? idsDoItem : new Set([...idsDoItem, linha.gastaItemId]), porUso: linha.gastaItemQuantos ?? 1 }
+}
+
 /**
- * F2 (fatia F, Medicina): quantos do item que a técnica gasta sobram (os da
- * mochila menos os usos nesta batalha); `null` = a técnica não gasta item.
- * Conta a `quantidade` de cada vaga (ausente = 1): 3 kits empilhados são 3.
+ * F2 (fatia F, Medicina): quantos do item que a técnica gasta a mochila tem;
+ * `null` = a técnica não gasta item. Conta a `quantidade` de cada vaga
+ * (ausente = 1): 3 kits empilhados são 3. FRENTE A (25/11/2026): o uso tira o
+ * item da mochila de verdade (`gastarConsumivelNaMesa`), então a sobra é a
+ * mochila, sem descontar os usos da batalha (contaria o kit gasto 2 vezes).
  */
 export function itensQueSobram(
   cartao: ChaveDaMecanica,
   mochila: readonly { nome: string; quantidade?: number; itemId?: string }[] | undefined,
-  usadas: number,
   idsDoItem: ReadonlySet<string> = SEM_IDS_DO_ITEM,
 ): { nome: string; sobram: number; porUso?: number } | null {
-  const linha = mecanicaDoCartao(cartao)
-  const nome = linha?.gastaItem
-  if (nome === undefined) return null
-  // Fase 5: a peça pode gastar mais de 1 por uso e dizer o id do item no Acervo.
-  const porUso = linha?.gastaItemQuantos ?? 1
-  const ids = linha?.gastaItemId === undefined ? idsDoItem : new Set([...idsDoItem, linha.gastaItemId])
-  const tem = quantosDoConsumivel(mochila ?? [], nome, ids)
-  return porUso === 1 ? { nome, sobram: Math.max(0, tem - usadas) } : { nome, sobram: Math.max(0, tem - usadas * porUso), porUso }
+  const item = itemQueATecnicaGasta(cartao, idsDoItem)
+  if (item === null) return null
+  const sobram = quantosDoConsumivel(mochila ?? [], item.nome, item.ids)
+  return item.porUso === 1 ? { nome: item.nome, sobram } : { nome: item.nome, sobram, porUso: item.porUso }
 }
 
 const SEM_IDS_DO_ITEM: ReadonlySet<string> = new Set()
+
+/** O que a conta do consumível lê de cada vaga. */
+type VagaDoConsumivel = { nome: string; quantidade?: number; itemId?: string }
+
+/** A vaga é do consumível `nome` (regra de `quantosDoConsumivel`)? */
+function vagaEhDoConsumivel(mochila: readonly VagaDoConsumivel[], nome: string, idsDoItem: ReadonlySet<string>): (item: VagaDoConsumivel) => boolean {
+  const procurado = normalizar(nome).trim()
+  const peloNome = (item: { nome: string }): boolean => normalizar(item.nome).trim() === procurado
+  const ids = new Set(idsDoItem)
+  for (const item of mochila) if (item.itemId !== undefined && peloNome(item)) ids.add(item.itemId)
+  return (item) => (item.itemId !== undefined && ids.has(item.itemId)) || (item.itemId === undefined && peloNome(item))
+}
+
+/** A primeira vaga do consumível com algo dentro, de onde o uso tira 1; `undefined` = acabou. */
+export function vagaDoConsumivel<T extends VagaDoConsumivel>(mochila: readonly T[], nome: string, idsDoItem: ReadonlySet<string> = SEM_IDS_DO_ITEM): T | undefined {
+  const eh = vagaEhDoConsumivel(mochila, nome, idsDoItem)
+  return mochila.find((item) => (item.quantidade ?? 1) > 0 && eh(item))
+}
 
 /**
  * COISA x REGRA (Fase 5): quantos do consumível `nome` a mochila tem, pela
@@ -1356,12 +1387,9 @@ const SEM_IDS_DO_ITEM: ReadonlySet<string> = new Set()
  * nome. Vaga sem `itemId` (pino "!", ficha de antes) conta só pelo nome.
  * Soma a `quantidade` de cada vaga (ausente = 1).
  */
-export function quantosDoConsumivel(mochila: readonly { nome: string; quantidade?: number; itemId?: string }[], nome: string, idsDoItem: ReadonlySet<string> = SEM_IDS_DO_ITEM): number {
-  const procurado = normalizar(nome).trim()
-  const peloNome = (item: { nome: string }): boolean => normalizar(item.nome).trim() === procurado
-  const ids = new Set(idsDoItem)
-  for (const item of mochila) if (item.itemId !== undefined && peloNome(item)) ids.add(item.itemId)
-  return mochila.reduce((soma, item) => ((item.itemId !== undefined && ids.has(item.itemId)) || (item.itemId === undefined && peloNome(item)) ? soma + (item.quantidade ?? 1) : soma), 0)
+export function quantosDoConsumivel(mochila: readonly VagaDoConsumivel[], nome: string, idsDoItem: ReadonlySet<string> = SEM_IDS_DO_ITEM): number {
+  const eh = vagaEhDoConsumivel(mochila, nome, idsDoItem)
+  return mochila.reduce((soma, item) => (eh(item) ? soma + (item.quantidade ?? 1) : soma), 0)
 }
 
 /**
