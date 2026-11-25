@@ -1,3 +1,9 @@
+# 25/11 ~13h20: WORKFLOW EM VOO unificar-mecanicas-one-piece (wf_0c218622-d9f)
+
+Pedido "Resolva todos os de one piece por enquanto" (PEDIDOS): todos os achados de docs/levantamento-mecanicas-duplicadas.md menos Dragon Ball, pelo recomendado. Onda 1: batalha (3 passos em sequência: posse na mochila; condições/dano/usar; mira da Mesa) + mapa + loja; Onda 2: personagem/token + acervo/luz/lobby; auditoria (verificador-realidade); acertos + PEDIDOS + INDEX. 9 agentes Opus, sem testes, sem push, direto na main.
+Retomar se cair: Workflow({scriptPath: "C:/Users/gedasio.filho/.claude/projects/C--dev-labirinto/30862928-1759-4bc5-8faa-7a34ed6b5fd5/workflows/scripts/unificar-mecanicas-one-piece-wf_0c218622-d9f.js", resumeFromRunId: "wf_0c218622-d9f"}).
+Critério de pronto: auditoria marca cada linha (menos DBT) como resolvido ou de-propósito; tsc 0. Evidência: virá no retorno do workflow.
+
 # 25/11 ~13h: levantamento de mecânicas duplicadas PRONTO; consertos na main SEM push
 
 ## Estado atual
