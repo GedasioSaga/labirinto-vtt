@@ -119,8 +119,8 @@ export function coberturaDoPiso(map: Pick<MapData, 'floor' | 'regions' | 'drawin
 
 /**
  * O CHÃO PINTADO de um piso, como pergunta: a regra de `lib/chaoPintado.ts`
- * (o último passo que cobre o ponto vale, a força não conta, os recortes do
- * Balde ficam de fora). Mapa feito só com paredes e Balde não tem peça de
+ * (`tintaDoChao`: o último passo que cobre o ponto vale, a força não conta e
+ * o traço por cima da tinta não fura o chão). Mapa feito só com paredes e Balde não tem peça de
  * Chão: é a textura que diz onde o piso tem chão. Piso sem textura: `null`.
  */
 function chaoPintadoDoPiso(map: Pick<MapData, 'texturas' | 'regions' | 'drawings'>): ((p: RegionPoint) => boolean) | null {

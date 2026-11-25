@@ -21,6 +21,13 @@ export type ConsultaDoChao = (p: RegionPoint) => string | null
 interface Passo {
   readonly caixa: Caixa
   readonly cobre: (p: RegionPoint) => boolean
+  /**
+   * O passo cobre o ponto como CHÃO: o mesmo `cobre`, menos os recortes do
+   * Balde. O traço desenhado por cima da tinta (a estrada a Pincel na grama)
+   * esconde a textura, mas não abre buraco no chão; o recorte de área é
+   * desenho cheio, que já é chão (`formasDeChao`).
+   */
+  readonly cobreOChao: (p: RegionPoint) => boolean
   /** O que fica no ponto quando este passo o cobre (`null` = a borracha, a sala). */
   readonly textura: string | null
 }
@@ -37,13 +44,14 @@ function passosDe(passos: readonly PinceladaDeTextura[], regioes: readonly Regio
   return lista
 }
 
-/** O último passo que cobre o ponto responde. */
-function consultaDos(lista: readonly Passo[]): ConsultaDoChao {
+/** O último passo que cobre o ponto responde; `comoChao` pergunta pelo chão (`cobreOChao`), não pela textura à vista. */
+function consultaDos(lista: readonly Passo[], comoChao: boolean): ConsultaDoChao {
   return (p) => {
     for (let i = lista.length - 1; i >= 0; i -= 1) {
-      const { caixa, cobre, textura } = lista[i]
+      const passo = lista[i]
+      const { caixa } = passo
       if (p.x < caixa.minX || p.x > caixa.maxX || p.y < caixa.minY || p.y > caixa.maxY) continue
-      if (cobre(p)) return textura
+      if (comoChao ? passo.cobreOChao(p) : passo.cobre(p)) return passo.textura
     }
     return null
   }
@@ -57,7 +65,7 @@ export function consultaDoChaoPintado(
 ): ConsultaDoChao {
   if (passos === undefined || passos.length === 0) return NADA
   const lista = passosDe(passos, regioes, desenhos)
-  return lista.length === 0 ? NADA : consultaDos(lista)
+  return lista.length === 0 ? NADA : consultaDos(lista, false)
 }
 
 /** O chão pintado como sim ou não, com a caixa de toda a tinta posta (fora dela não há tinta). */
@@ -68,21 +76,23 @@ export interface TintaDoChao {
 
 /**
  * A MESMA regra da consulta, como sim ou não (levantamento de 25/11/2026, Nº
- * 25: o terreno alto lia a tinta de outro jeito, somando a força e sem os
- * recortes do Balde). `null` = nenhum passo deixa textura.
+ * 25: o terreno alto lia a tinta de outro jeito, somando a força e com
+ * "Conta como Chão" desligado): os passos na ordem, o último vale e a força
+ * não conta. Só o traço por cima da tinta não fura o chão (`cobreOChao`).
+ * `null` = nenhum passo deixa textura.
  */
 export function tintaDoChao(passos: readonly PinceladaDeTextura[] | undefined, regioes: readonly Region[], desenhos: readonly Drawing[]): TintaDoChao | null {
   if (passos === undefined || passos.length === 0) return null
   const lista = passosDe(passos, regioes, desenhos)
   const poem = lista.filter((passo) => passo.textura !== null)
   if (poem.length === 0) return null
-  const consulta = consultaDos(lista)
+  const consulta = consultaDos(lista, true)
   return { tem: (p) => consulta(p) !== null, caixa: poem.map((passo) => passo.caixa).reduce(juntaCaixas) }
 }
 
 /**
  * As células de `lado` px (alinhadas à origem do mundo, como os blocos do
- * Chão) cujo CENTRO tem chão pintado pela regra da consulta. Cada passo só
+ * Chão) cujo CENTRO tem chão pintado pela regra de `tintaDoChao`. Cada passo só
  * olha as células da caixa dele dentro da `area` (o mapa: coordenada torta
  * do arquivo não vira um laço sem fim), na ordem: o de depois vale por cima.
  * É a tinta posta em blocos, para quem pensa o chão em peças ("Fora do
@@ -98,11 +108,11 @@ export function celulasDoChaoPintado(
   if (passos.length === 0 || !(Number.isFinite(lado) && lado > 0)) return []
   const celulas = new Map<string, { col: number; row: number; tem: boolean }>()
   for (const passo of passosDe(passos, regioes, desenhos)) {
-    const { cobre, textura } = passo
+    const { cobreOChao, textura } = passo
     const caixa = { minX: Math.max(passo.caixa.minX, area.minX), minY: Math.max(passo.caixa.minY, area.minY), maxX: Math.min(passo.caixa.maxX, area.maxX), maxY: Math.min(passo.caixa.maxY, area.maxY) }
     for (let col = Math.ceil(caixa.minX / lado - 0.5); (col + 0.5) * lado <= caixa.maxX; col += 1) {
       for (let row = Math.ceil(caixa.minY / lado - 0.5); (row + 0.5) * lado <= caixa.maxY; row += 1) {
-        if (cobre({ x: (col + 0.5) * lado, y: (row + 0.5) * lado })) celulas.set(`${col},${row}`, { col, row, tem: textura !== null })
+        if (cobreOChao({ x: (col + 0.5) * lado, y: (row + 0.5) * lado })) celulas.set(`${col},${row}`, { col, row, tem: textura !== null })
       }
     }
   }
@@ -160,26 +170,30 @@ function passoDe(item: PinceladaDeTextura, regioes: readonly Region[], desenhos:
     case 'borracha': {
       if (item.pontos.length === 0 || !(item.raio > 0)) return null
       const { pontos, raio } = item
-      return { caixa: caixaDe(pontos, raio), cobre: (p) => distanciaAoCaminho(p, pontos, false) <= raio, textura: item.tipo === 'pincel' ? item.textura : null }
+      const cobre = (p: RegionPoint): boolean => distanciaAoCaminho(p, pontos, false) <= raio
+      return { caixa: caixaDe(pontos, raio), cobre, cobreOChao: cobre, textura: item.tipo === 'pincel' ? item.textura : null }
     }
     case 'balde': {
       const forma = formaDoBalde(item.alvo, regioes, desenhos)
       if (forma === null) return null
       const { contorno, recortes } = forma
-      return { caixa: forma.caixa, cobre: (p) => dentroDoPoligono(p, contorno) && !recortes.some((r) => recorteCobre(r, p)), textura: item.textura }
+      const cobreOChao = (p: RegionPoint): boolean => dentroDoPoligono(p, contorno)
+      return { caixa: forma.caixa, cobre: (p) => cobreOChao(p) && !recortes.some((r) => recorteCobre(r, p)), cobreOChao, textura: item.textura }
     }
     case 'esvaziar': {
       // O Alt + clique do Balde tira a textura da forma inteira (sem recortes, como a sala).
       const forma = formaDoBalde(item.alvo, regioes, desenhos)
       if (forma === null) return null
       const { contorno } = forma
-      return { caixa: forma.caixa, cobre: (p) => dentroDoPoligono(p, contorno), textura: null }
+      const cobre = (p: RegionPoint): boolean => dentroDoPoligono(p, contorno)
+      return { caixa: forma.caixa, cobre, cobreOChao: cobre, textura: null }
     }
     case 'sala': {
       const regiao = regioes.find((r) => r.id === item.regiao)
       if (regiao === undefined || regiao.points.length < 3) return null
       const pontos = regiao.points
-      return { caixa: caixaDe(pontos, 0), cobre: (p) => dentroDoPoligono(p, pontos), textura: null }
+      const cobre = (p: RegionPoint): boolean => dentroDoPoligono(p, pontos)
+      return { caixa: caixaDe(pontos, 0), cobre, cobreOChao: cobre, textura: null }
     }
   }
 }
