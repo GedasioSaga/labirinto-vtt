@@ -310,7 +310,7 @@ import { fichasCegasDoMapa, personagensCegos } from '../lib/cegueira/fichasCegas
 import { novoPersonagem, paraOFio, type Personagem } from '../lib/personagem'
 import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
 import { danoDoAjusteNaVida } from '../lib/batalha/danoPelaFicha'
-import { formasVisiveisDoMapa, type FormasVisiveis } from '../lib/mudarFicha'
+import { formasVisiveisDoMapa, retratoNoToken, type FormasVisiveis } from '../lib/mudarFicha'
 import { lerAura } from '../lib/auras'
 import { mochilaComAVagaAcesa } from '../lib/luzDoItem'
 import type { ContaNaSala } from '../lib/contasDosJogadores'
@@ -658,6 +658,14 @@ export interface AppliedTokenEdit {
   /** AURA DA FICHA: o jogador ligou (`true`) ou desligou a aura da própria ficha (`token.aura`). */
   auraLigada?: boolean
   sceneId?: string
+  /**
+   * A FOTO SEGUE A FICHA (`retratoNoToken`): o retrato da ficha de personagem
+   * ligada vence a foto do token no mapa e na batalha, então a foto nova que o
+   * jogador deu ao próprio token vira o retrato dela. É a ficha ligada já com
+   * a foto no retrato; ausente = a foto nova já aparece (sem ficha, sem
+   * retrato, ou o mesmo). Quem grava é o integrador, fora do Ctrl+Z do mestre.
+   */
+  fichaComAFoto?: Personagem
 }
 
 /**
@@ -6969,7 +6977,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (last !== undefined && at - last < TOKEN_PHOTO_MIN_INTERVAL_MS) return resendView(clientId, playerId, world)
       lastTokenPhotoAt.set(playerId, at)
     }
-    return { outbound: [], applyTokenEdit: { tokenId: msg.tokenId, name: msg.name, image: msg.image, ...backgroundSceneId(scene, world) } }
+    const fichaComAFoto = typeof msg.image === 'string' ? fichaComAFotoNoRetrato(scene.map.tokens.find((t) => t.id === msg.tokenId), msg.image, world.rpg) : undefined
+    return {
+      outbound: [],
+      applyTokenEdit: { tokenId: msg.tokenId, name: msg.name, image: msg.image, ...backgroundSceneId(scene, world), ...(fichaComAFoto === undefined ? {} : { fichaComAFoto }) },
+    }
+  }
+
+  /**
+   * A FOTO SEGUE A FICHA, do lado do host: a ficha de personagem ligada ao
+   * token, com a foto nova no retrato, quando o retrato dela venceria a foto
+   * no mapa (`retratoNoToken` do token já com a foto). É o host que grava, e
+   * não o Salvar da ficha pelo jogador: o envio dele podia ficar para trás (a
+   * ficha ainda salvando, a lista dele sem a ficha) e, com a pasta no Lobby, a
+   * mesa recusava o retrato embutido — o retrato velho voltava por cima da foto.
+   */
+  function fichaComAFotoNoRetrato(token: Token | undefined, foto: string, rpg: RpgDoMundo | undefined): Personagem | undefined {
+    const personagemId = token?.characterId ?? null
+    if (personagemId === null) return undefined
+    const personagem = rpg?.personagens.find((candidato) => candidato.id === personagemId)
+    if (personagem === undefined || retratoNoToken({ image: null, imageData: foto }, personagem) === null) return undefined
+    return { ...personagem, retrato: foto }
   }
 
   /**

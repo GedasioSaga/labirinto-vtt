@@ -1,5 +1,6 @@
 import * as mapFactory from '../lib/mapFactory'
-import { useAdventureStore } from '../stores/adventureStore'
+import { guardarDataUrl } from '../lib/midiaNoDisco'
+import { personagensAtivos, useAdventureStore } from '../stores/adventureStore'
 import { useMapStore } from '../stores/mapStore'
 import type { MapData, MarcaNoLugar } from '../types/map'
 import { openPinLock } from '../lib/pinLock'
@@ -12,7 +13,7 @@ import { hopVehicleSeated } from '../lib/vehicleHop'
 import type { SeatHold } from '../lib/gatherParty'
 import type { Personagem } from '../lib/personagem'
 import type { AppliedLock, AppliedMark, AppliedPersonagem, AppliedPiso, AppliedTokenEdit, AppliedVehicle } from './hostSession'
-import { comAutor } from './nuvem/emissor'
+import { comAutor, problemaNaMesa } from './nuvem/emissor'
 import { mapaComObjetoAberto, type AppliedObjetoAberto } from './objetoNoHost'
 import { mapaComPuzzle, type AppliedPuzzle } from './puzzleNoHost'
 import { mapaComDocumento, type AppliedDocumento } from './documentoNoHost'
@@ -126,6 +127,35 @@ function applyToScene(sceneId: string | undefined, transform: MapTransform): voi
   else useAdventureStore.getState().applyPlayerChangeToBackgroundScene(sceneId, transform)
 }
 
+/**
+ * A FOTO SEGUE A FICHA, no jogo de verdade: a foto nova do jogador entra no
+ * retrato da ficha ligada (`AppliedTokenEdit.fichaComAFoto`). Pasta fora do
+ * Lobby: a embutida entra já, e o observador da mídia a troca pela referência
+ * depois (`stores/midiaDosPersonagens.ts`). Pasta publicada: o Lobby só aceita
+ * retrato `midia:` (`problemaNaMesa`), e a embutida seria recusada com o
+ * retrato velho vencendo a foto; então ela vai ANTES ao disco de mídia, e o
+ * retrato troca pela referência só se ninguém o trocou nesse meio-tempo.
+ */
+function salvarRetratoDaFoto(fichaComAFoto: Personagem): void {
+  const foto = fichaComAFoto.retrato
+  const antes = personagensAtivos(useAdventureStore.getState())?.find((personagem) => personagem.id === fichaComAFoto.id)
+  if (foto === null || antes === undefined) return
+  if (problemaNaMesa(antes, fichaComAFoto, undefined) === null) {
+    useAdventureStore.getState().salvarPersonagem(fichaComAFoto)
+    return
+  }
+  guardarDataUrl(foto).then(
+    (ref) => {
+      const agora = personagensAtivos(useAdventureStore.getState())?.find((personagem) => personagem.id === fichaComAFoto.id)
+      if (ref === null || agora === undefined || agora.retrato !== antes.retrato) return
+      useAdventureStore.getState().salvarPersonagem({ ...agora, retrato: ref })
+    },
+    () => {
+      // Disco recusou: o retrato fica como estava (o mesmo de quando o disco falha no observador da mídia).
+    },
+  )
+}
+
 const temMarca = (map: MapData, markId: string): boolean => (map.marcas ?? []).some((m) => m.id === markId)
 
 /**
@@ -163,6 +193,8 @@ export interface DestinoDasMudancas {
   emVoltaDoPasso?: (tokenId: string, aplicar: () => void) => void
   /** FICHA DE PERSONAGEM: grava o personagem inteiro (troca o de mesmo id, ou entra no fim). */
   salvarPersonagem(personagem: Personagem): void
+  /** A FOTO SEGUE A FICHA: grava a ficha com a foto nova do jogador no retrato. Ausente = `salvarPersonagem`. */
+  salvarRetratoDaFoto?: (fichaComAFoto: Personagem) => void
 }
 
 /** Os retornos da ponte do host (`createHostBridge`) para as mudanças do jogador, gravados em `destino`. */
@@ -176,7 +208,11 @@ export function createPlayerChanges(destino: DestinoDasMudancas) {
     applyVehicleHop: (vehicleId: string, x: number, y: number, sceneId?: string, hold?: SeatHold): void =>
       destino.aplicar(sceneId, (map) => hopVehicleSeated(map, vehicleId, x, y, hold)),
     applyDoor: (wallId: string, open: boolean, sceneId?: string): void => destino.aplicar(sceneId, setDoorOpen(wallId, open)),
-    applyTokenEdit: (edit: AppliedTokenEdit): void => destino.aplicar(edit.sceneId, editToken(edit)),
+    // A FOTO SEGUE A FICHA: a foto nova no token e, quando o retrato da ficha ligada venceria, no retrato dela também.
+    applyTokenEdit: (edit: AppliedTokenEdit): void => {
+      destino.aplicar(edit.sceneId, editToken(edit))
+      if (edit.fichaComAFoto !== undefined) (destino.salvarRetratoDaFoto ?? destino.salvarPersonagem)(edit.fichaComAFoto)
+    },
     applyLock: (lock: AppliedLock): void => destino.aplicar(lock.sceneId, openLock(lock.pinId)),
     applyMark: (mark: AppliedMark): void => destino.aplicar(mark.sceneId, placeMark(mark.marca)),
     /** Tira a marca da cena que a tem hoje. `false` quando ela já não estava em cena nenhuma. */
@@ -224,6 +260,7 @@ export const hostPlayerChanges = createPlayerChanges({
   salvarPersonagem: (personagem) => {
     useAdventureStore.getState().salvarPersonagem(personagem)
   },
+  salvarRetratoDaFoto,
   // A marca vem ANTES de aplicar: o redraw das fichas roda dentro do `set` da
   // store, e é nele que o editor decide que esta ficha desliza (lib/movimentoRemoto.ts).
   emVoltaDoPasso: comMovimentoRemoto,

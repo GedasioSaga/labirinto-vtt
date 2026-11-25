@@ -2371,13 +2371,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           onChangeTokenPhoto={async (tokenId, file) => {
             // A foto é reduzida AQUI, antes de sair da máquina do jogador: é
             // quem escolhe que paga o custo, e o que viaja já cabe no teto.
-            const foto = await buildTokenPhotoData(file)
-            connection.setOwnTokenPhoto(tokenId, foto)
-            // A FOTO SEGUE A FICHA (achado 13): o retrato da ficha ligada vence a foto do token no mapa,
-            // então a troca vai também para o retrato; senão o jogador não veria a foto nova.
-            const personagemId = state.personagens?.tokens.find((token) => token.tokenId === tokenId)?.personagemId ?? null
-            const ficha = personagemId === null ? undefined : personagensDoJogador?.find((candidato) => candidato.id === personagemId)
-            if (ficha !== undefined && (ficha.retrato ?? '') !== '' && ficha.retrato !== foto) connection.salvarPersonagem(ficha, { ...ficha, retrato: foto })
+            // A FOTO SEGUE A FICHA (achado 13): o retrato da ficha ligada vence a foto do token no mapa, então
+            // o HOST põe a foto também no retrato (`fichaComAFoto`, net/hostSession.ts), inclusive com a pasta no Lobby.
+            connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
           hide={{ hidden: ownHidden, waiting: state.hide?.phase === 'waiting', onRequest: (tokenId) => connection.requestHide(tokenId) }}
           clues={state.clues ?? NO_CLUES}
