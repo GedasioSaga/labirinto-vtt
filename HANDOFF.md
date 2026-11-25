@@ -1,3 +1,7 @@
+# 24/11 ~17h30: etiqueta do cômodo consertada, 0.5.100 publicando
+
+Defeito: no editor, o nome do cômodo ficava abaixo dos móveis (lib/camadas/ordem.ts FAIXAS_EDITOR) e sumia sob os móveis opacos desde o MT12 de 27/10. Conserto 62d92000 (+ diagrama pilha-de-camadas e INDEX), golden regravado dea7f942. Prova por gestos no editor; o jogador só pelo print do golden. Abertos: golden com 0 px de tolerância oscila (16 e 14 de 19 em duas rodadas, de 1 a 55 px longe das etiquetas); o teste "chega, some e volta" do jogador conta 65 nós em vez de 64; 9 falhas antigas em camadas/pixi (guias, desempenho, catálogo das mesas), as mesmas na HEAD. EM VOO: automacao-devops publicando 0.5.100.
+
 # 24/11 ~16h40: 0.5.99 PUBLICADA (120 peças dos mapas)
 
 Bump d79e30a8 (origin main = main); curl latest.json = 0.5.99; tsc 0/0, vite 0, guarda ok, gitleaks limpo; testes 1686 (2 timeouts do PropertiesPanel com o catálogo maior -> 30 s; moveisMt5 do tapete era teste velho, ca8eb048). Golden e2e task-camadas-golden 18/19 vermelho (snapshots de 27/10; etiquetas "Sala"/"Cozinha" sumiram?) -> EM VOO debugador investigando. Logs tmp/rel-0.5.99/.
