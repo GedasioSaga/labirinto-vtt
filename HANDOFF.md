@@ -1,3 +1,7 @@
+# 25/11 15h41: pacote de animações PUBLICADO (índice 15, "Armaduras despertam", cd9df1b6)
+
+gh release animacoes: batalha-armaduras-despertam.js 1945646 B e indice.json atualizados 18:41Z; download direto ainda servia o índice 14 em cache logo depois (normal ~1 min). App NÃO publicado: 35 commits da unificação com auditoria NECESSITA TRABALHO, sem push.
+
 # 25/11 tarde: workflow unificar-mecanicas-one-piece TERMINOU (35 commits, 86ca02bf..6587be76, sem push)
 
 ## Estado atual
