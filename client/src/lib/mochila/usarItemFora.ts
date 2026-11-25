@@ -52,6 +52,8 @@ export interface UsoForaResolvido {
   alvo: Personagem | null
   /** O token do alvo sem as condições tiradas; `null` = nada a tirar. */
   tokenDoAlvo: Token | null
+  /** Os nomes das condições que a peça tirou: com batalha na cena, o selo de mesmo nome sai junto (Nº 3 do levantamento). */
+  tirou: string[]
   /** "curou 100", "tirou Envenenado", "levantou com 50 de vida". */
   nota: string
   /** Quantos sobram na vaga; `undefined` = não acaba. */
@@ -175,6 +177,7 @@ export function resolverUsoFora(quemUsa: Personagem, vagaId: string, alvo: Ficha
   let recebe = emSi ? usou : alvo.personagem
   let token = alvo.token
   const notas: string[] = []
+  const tirou: string[] = []
   for (const efeito of mecanica.efeitos) {
     if (efeito.tipo === 'cura' && efeito.recurso !== 'escudo') {
       const emQuemUsa = efeito.em === 'quemUsa'
@@ -189,6 +192,7 @@ export function resolverUsoFora(quemUsa: Personagem, vagaId: string, alvo: Ficha
     } else if (efeito.tipo === 'tirarSelos') {
       const saem = token === null ? [] : condicoesQueSaem(token, efeito.quais)
       for (const condicao of saem) if (token !== null) token = tirarCondicaoDaFicha(token, condicao)
+      tirou.push(...saem)
       notas.push(saem.length === 0 ? 'não tinha condição a tirar' : `tirou ${saem.join(', ')}`)
     } else if (efeito.tipo === 'reviver' && vidaDoAlvo !== null) {
       const volta = Math.max(1, 'porcento' in efeito.volta ? Math.floor((vidaDoAlvo.maximo * efeito.volta.porcento) / 100) : valorDe(efeito.volta, quemUsa, sistema))
@@ -201,7 +205,7 @@ export function resolverUsoFora(quemUsa: Personagem, vagaId: string, alvo: Ficha
     }
   }
   const nota = notas.filter((parte) => parte !== '').join(', ')
-  return { vaga, quemUsa: usou, alvo: emSi ? null : recebe, tokenDoAlvo: token === alvo.token ? null : token, nota: nota === '' ? 'nada mudou' : nota, sobra: sobraDoUso(vaga) }
+  return { vaga, quemUsa: usou, alvo: emSi ? null : recebe, tokenDoAlvo: token === alvo.token ? null : token, tirou, nota: nota === '' ? 'nada mudou' : nota, sobra: sobraDoUso(vaga) }
 }
 
 /** O aviso do chat: "Lia usou Poção Grande em Bruno: curou 100 · item da mochila: sobra 1". */

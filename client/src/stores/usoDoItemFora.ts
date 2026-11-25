@@ -7,6 +7,8 @@ import { numeroDaFicha, type Personagem } from '../lib/personagem'
 import { moedasDe } from '../lib/troca'
 import type { CarriedItem, Token } from '../types/map'
 import { mesaDaAventura } from './mesaDaAventura'
+import { MESTRE } from './batalha/cena'
+import { useBatalhaStore } from './batalhaStore'
 
 /**
  * O "USAR" FORA DA BATALHA NA MESA DO MESTRE (SISTEMA.md §5.2, Fase 8): lê a
@@ -83,11 +85,14 @@ export function usarItemForaNaMesa(pedido: PedidoDeUsoFora): FeitoDoUsoFora {
   const tokenAntes = alvo.token
   const tokenDepois = uso.tokenDoAlvo
   if (tokenAntes !== null && tokenDepois !== null) mesa.mudarFichaDaCena?.(pedido.sceneKey, tokenAntes.id, (atual) => ({ ...atual, ...condicoesDo(tokenDepois) }))
+  // Nº 3 do levantamento: com batalha na cena, a limpeza tira também o selo de mesmo nome (senão o veneno seguiria pedindo "Aplicar").
+  const linhaDosSelos = tokenAntes === null ? null : useBatalhaStore.getState().tirarSelosPeloUso(pedido.sceneKey, tokenAntes.id, uso.tirou, pedido.quem)
   const texto = textoDoUsoFora(quemUsa.nome, uso.vaga.nome, uso.alvo === null ? null : uso.alvo.nome, uso)
   const desfazer = (): boolean => {
     if (!gravarMochila(mochilaSemAMudanca(mochilaDeAgora(), vagaAntes.id, vagaAntes))) return false
     for (const cura of curas) if (cura.ajustes.length > 0) mesa.ajustarPersonagem(cura.personagemId, (atual) => aplicarAjustes(atual, sistema, inversos(cura.ajustes), pedido.quem, Date.now()))
     if (tokenAntes !== null && tokenDepois !== null) mesa.mudarFichaDaCena?.(pedido.sceneKey, tokenAntes.id, (atual) => ({ ...atual, ...condicoesDo(tokenAntes) }))
+    if (linhaDosSelos !== null) useBatalhaStore.getState().desfazer(pedido.sceneKey, linhaDosSelos, MESTRE)
     return true
   }
   return { ok: true, texto, desfazer }

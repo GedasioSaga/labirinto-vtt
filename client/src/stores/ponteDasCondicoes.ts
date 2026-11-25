@@ -35,8 +35,12 @@ function fotoDoDragonBall(cenas: Readonly<Record<string, CenaDBT>>): FotoDasCena
 }
 
 /** A cena da batalha é a aberta no editor? (a chave é a de `App.tsx`: a cena da aventura, ou o mapa solto). */
+function chaveDaCenaAberta(): string {
+  return useAdventureStore.getState().activeSceneId ?? useMapStore.getState().map.id
+}
+
 function cenaAberta(sceneKey: string): boolean {
-  return (useAdventureStore.getState().activeSceneId ?? useMapStore.getState().map.id) === sceneKey
+  return chaveDaCenaAberta() === sceneKey
 }
 
 /** Grava as mudanças no mapa da cena: a aberta, ou a de fundo já carregada (a que não está à mão fica como está). */
@@ -70,6 +74,20 @@ function espelharDiferenca(antes: FotoDasCenas, depois: FotoDasCenas): void {
 export function ligarPonteDasCondicoes(): () => void {
   let fotoOnePiece = fotoDoOnePiece(useBatalhaStore.getState().cenas)
   let fotoDragonBall = fotoDoDragonBall(useBatalhaDBTStore.getState().cenas)
+  const espelhar = espelhoDasPastilhasNaFila()
+  // Nº 3 do levantamento: a pastilha mudou à mão no mapa (aberto ou de fundo), o espelho da batalha acompanha na hora.
+  const desligarMapa = useMapStore.subscribe((state, anterior) => {
+    if (state.map.tokens !== anterior.map.tokens) espelhar(chaveDaCenaAberta())
+  })
+  const desligarFundo = useAdventureStore.subscribe((state, anterior) => {
+    if (state.cache === anterior.cache) return
+    for (const sceneKey of Object.keys(useBatalhaStore.getState().cenas)) {
+      const agora = state.cache[sceneKey]
+      const antes = anterior.cache[sceneKey]
+      if (agora?.status !== 'ok' || cenaAberta(sceneKey)) continue
+      if (antes?.status !== 'ok' || antes.map.tokens !== agora.map.tokens) espelhar(sceneKey)
+    }
+  })
   const desligarOnePiece = useBatalhaStore.subscribe((state, anterior) => {
     if (state.cenas === anterior.cenas) return
     const depois = fotoDoOnePiece(state.cenas)
@@ -85,6 +103,28 @@ export function ligarPonteDasCondicoes(): () => void {
   return () => {
     desligarOnePiece()
     desligarDragonBall()
+    desligarMapa()
+    desligarFundo()
+  }
+}
+
+/**
+ * Nº 3 do levantamento: põe em dia o espelho das pastilhas (`espelharPastilhas`) da cena com batalha, também
+ * na cena de FUNDO e com a faixa do mestre fechada (antes só a FaixaDoMestre montada, na cena aberta, chamava).
+ * Numa microtarefa, fora da pilha de quem mudou o mapa: a própria ponte escreve pastilha no mapa de dentro da
+ * assinatura da batalha, e assim não reentra nela. Várias mudanças seguidas da mesma cena viram uma chamada.
+ */
+function espelhoDasPastilhasNaFila(): (sceneKey: string) => void {
+  const pendentes = new Set<string>()
+  const esvaziar = (): void => {
+    const chaves = [...pendentes]
+    pendentes.clear()
+    for (const sceneKey of chaves) useBatalhaStore.getState().espelharPastilhas(sceneKey)
+  }
+  return (sceneKey) => {
+    if (useBatalhaStore.getState().cenas[sceneKey] === undefined) return
+    if (pendentes.size === 0) queueMicrotask(esvaziar)
+    pendentes.add(sceneKey)
   }
 }
 

@@ -23,7 +23,8 @@ import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../../lib/batalha/di
 import { disputaNoAcerto, seloPegaNoAlvo } from '../../lib/batalha/mecanicasAMao'
 import { TEXTO_DO_ALVO_SEM_FICHA } from '../../lib/batalha/disputaNoUso'
 import { disputaDoTesteDoSelo } from '../../lib/batalha/mecanica/teste'
-import type { Reversao } from '../../lib/batalha/registro'
+import { novoIdDeLinha, type Reversao } from '../../lib/batalha/registro'
+import { selosQueALimpezaTira } from '../../lib/batalha/debuffs'
 import type { TurnosDaCena } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
 import type { BatalhaState } from './tipos'
@@ -168,7 +169,7 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
     return true
   }
 
-  const acoes: Pick<BatalhaState, 'porSelo' | 'editarSelo' | 'tirarSelo'> = {
+  const acoes: Pick<BatalhaState, 'porSelo' | 'editarSelo' | 'tirarSelo' | 'tirarSelosPeloUso'> = {
     porSelo: (sceneKey, tokenId, pedido) => {
       const cena = cenaDe(sceneKey)
       const { personagens, sistema } = mesaDoRpg()
@@ -194,6 +195,21 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
     },
 
     tirarSelo: (sceneKey, seloId) => mudarSelo(sceneKey, seloId, null),
+
+    tirarSelosPeloUso: (sceneKey, tokenId, nomes, quem) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined || nomes.length === 0) return null
+      const saem = selosQueALimpezaTira(cena.turnos.selos, tokenId, { nomes }).filter((selo) => selo.daPastilha !== true)
+      if (saem.length === 0) return null
+      const ids = new Set(saem.map((selo) => selo.id))
+      const selos = (cena.turnos.selos ?? []).filter((selo) => !ids.has(selo.id))
+      const nome = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)(tokenId)
+      const texto = `${quem} tirou ${saem.map((selo) => textoDoSelo(selo)).join(', ')} de ${nome} (item usado fora da batalha)`
+      const reversao: Reversao = { tipo: 'composta', partes: saem.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo })) }
+      const id = novoIdDeLinha()
+      gravarCena(sceneKey, comMudanca(cena, { ...cena.turnos, selos }, { id, tipo: 'selo', texto, tokenIds: [tokenId], reversao }))
+      return id
+    },
   }
   return { seloNoAcerto, aliadosNaLutaDe, acoes }
 }

@@ -217,6 +217,12 @@ export interface BatalhaState {
   editarSelo: (sceneKey: string, seloId: string, selo: SeloPedido) => boolean
   /** Tira o selo: linha "selo" com o de antes. */
   tirarSelo: (sceneKey: string, seloId: string) => boolean
+  /**
+   * Nº 3 do levantamento (a limpeza tira os dois): o "Usar" de fora da batalha tirou da ficha `tokenId` as
+   * pastilhas `nomes`; os selos de verdade de mesmo nome saem junto, numa linha "selo" com Desfazer. O espelho
+   * da pastilha não conta (sai sozinho). Devolve o id da linha, para o Desfazer do uso; `null` = nada a tirar.
+   */
+  tirarSelosPeloUso: (sceneKey: string, tokenId: string, nomes: readonly string[], quem: string) => string | null
 
   // ---- Tipos de habilidade F3: passivas (o mestre chama direto, por qualquer ficha; o jogador pela ponte, só as dele) ----
   /**
