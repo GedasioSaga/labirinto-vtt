@@ -1,3 +1,7 @@
+# 25/11 20:57: 0.5.102 PUBLICADA
+
+Pedido do dono ("ta publica tudo certinho"). git push origin main (3c5aaf19..d6b2b512). Bump 9dd3e074 chore(release): 0.5.102 (5 arquivos, como e3bee2e4) feito no worktree limpo ../labirinto-release (release/0.5.102 de origin/main, 3 junções de node_modules: raiz, client, lobby/nuvem); main por fast-forward e push origin main (d6b2b512..9dd3e074). publicar-versao --publicar --com-google exit 0: tsc lobby ok, assinatura do setup confere, gitleaks/guarda "nada bloqueia", Worker labirinto-nuvem bda580a2-18da-4a26-9f2f-2ff5b9b5c36c, site c177c1c4.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.5.102 (setup.exe, .sig, msi, latest.json). curl releases/latest/download/latest.json: "version": "0.5.102". Limpeza: target do cargo apagado, 3 junções removidas uma a uma com .Delete() (0 reparse points no worktree), worktree remove sem --force, branch release/0.5.102 apagada; node_modules compartilhado intacto. Disco 25,3 GB. Log tmp/rel-0.5.102/publicar.log. Nenhum teste rodado (regra do dono). protocol.ts e task4-e2e-evidencia.png (outra sessão) intocados.
+
 # 25/11 15h41: pacote de animações PUBLICADO (índice 15, "Armaduras despertam", cd9df1b6)
 
 gh release animacoes: batalha-armaduras-despertam.js 1945646 B e indice.json atualizados 18:41Z; download direto ainda servia o índice 14 em cache logo depois (normal ~1 min). App NÃO publicado: 35 commits da unificação com auditoria NECESSITA TRABALHO, sem push.
