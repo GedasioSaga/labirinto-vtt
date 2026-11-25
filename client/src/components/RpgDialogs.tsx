@@ -1,4 +1,6 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { lerOAcervoSeFaltar, useAcervoDeItensStore } from '../stores/acervoDeItensStore'
+import { converterAsFichasDeAntes } from '../stores/batalha/conversaoDasFichas'
 import { escolherImagemDaFicha, escolherTextoJson, salvarTextoJson } from '../lib/arquivosDaFicha'
 import { ehEmbutido } from '../lib/bibliotecaDeSistemas'
 import { nomeDaCopia, rascunhoDaCopia, rascunhoDoSistema, rascunhoEmBranco, type RascunhoDoSistema } from '../lib/editorDeSistema'
@@ -79,6 +81,16 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   // LOBBY: o mapa que herda troca o sistema UNIVERSAL da pasta; publicada, ele ficou fixo (o site lê as fichas pelo que foi junto, 12.21).
   const pastaQueManda = useAdventureStore((state) => (herdaDaPasta(state) ? (state.pasta?.pastaId ?? null) : null))
   const { publicada: pastaNoLobby } = usePastaPublicada(pastaQueManda)
+  const acervoLido = useAcervoDeItensStore((state) => state.podeGravar)
+
+  // FRENTE A (decisões do dono de 25/11/2026): o que a ficha de antes guardava fora da mochila passa para ela
+  // sozinho, ao abrir a aventura e a cada mudança das fichas. O Acervo é lido antes: é nele que a bala acha o item.
+  useEffect(() => {
+    if (!mochilaNaFicha) return
+    lerOAcervoSeFaltar()
+    // A conversão avisa os próprios erros (toast): nada sobe daqui.
+    void converterAsFichasDeAntes()
+  }, [personagens, mochilaNaFicha, acervoLido, sistemaId])
 
   /** Confere de novo na hora: a grade pode abrir antes de a leitura do disco dizer que a pasta está no Lobby. */
   const escolherSistema = async (id: string) => {

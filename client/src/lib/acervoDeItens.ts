@@ -67,9 +67,12 @@ export const CATEGORIAS_PADRAO: readonly string[] = ['Arma', 'Armadura', 'Consum
 // O teto mora em `lib/items.ts` porque a vaga da mochila também o aplica; daqui ele segue exportado para a tela do item.
 export { MUNICOES_POR_ARMA_MAX }
 
-/** A categoria é a Munição, sem acento e sem caixa ("municao", "MUNIÇÕES"). */
+/**
+ * A categoria é a Munição, sem acento e sem caixa ("municao", "MUNIÇÕES"). "Bala" e "Balas" também
+ * (decisão do dono de 25/11/2026): o mestre que cadastrou a Bala de Prata em "Balas" tem uma munição.
+ */
 export function ehCategoriaDeMunicao(categoria: string): boolean {
-  return /^munic(ao|oes)$/.test(
+  return /^(munic(ao|oes)|balas?)$/.test(
     categoria
       .normalize('NFD')
       .replace(/[̀-ͯ]/g, '')
@@ -102,6 +105,11 @@ export interface ItemDoCatalogo {
    */
   municoes?: string[]
   /**
+   * MUNIÇÃO COMO FONTE ÚNICA (decisão do dono de 25/11/2026): o que a bala faz no tiro, no item e não
+   * no cartão da arma. Ausente = a bala usa o dano da arma (ou o do tipo de bala da ficha, quando há).
+   */
+  tiro?: TiroDaMunicao
+  /**
    * ITEM QUE ILUMINA (pedido de 18/11/2026): a cor, o alcance em casas, a
    * força e se crepita como fogo. Vai com a cópia dada (`itemParaDar`): no
    * chão clareia, na mochila só aceso. Ausente = não ilumina.
@@ -125,6 +133,19 @@ export interface ItemDoCatalogo {
    */
   requisitos?: RequisitosNaVaga
 }
+
+/**
+ * O tiro da munição, como o subcartão "Tipos de bala" o escrevia: `dano` "+15" soma ao da arma, "40"
+ * troca, "+Percepção / 2" conta pela ficha de quem atira (`danoDoAtaque`); `efeito` é texto que a
+ * batalha mostra e, falando de prata, vira o selo "Ferido por prata" no alvo.
+ */
+export interface TiroDaMunicao {
+  dano: string
+  efeito: string
+}
+
+/** O teto do dano da bala: uma fórmula curta, como o campo Dano do cartão. */
+const DANO_DA_BALA_MAX = 120
 
 export interface AcervoDeItens {
   itens: ItemDoCatalogo[]
@@ -188,6 +209,7 @@ export function itemDoCatalogoLido(value: unknown): ItemDoCatalogo | null {
     preco: typeof preco === 'number' && Number.isSafeInteger(preco) && preco >= 0 && preco <= ITEM_PRECO_MAX ? preco : null,
     empilhavel: value.empilhavel === true,
     ...municoesLidas(value.municoes, value.id),
+    ...tiroLido(value.tiro),
     ...luzLida(value.luz),
     ...(ehIdDePasta(value.pasta) ? { pasta: value.pasta } : {}),
     ...efeitoLido(value.efeito),
@@ -205,6 +227,14 @@ function requisitosLidos(value: unknown): { requisitos?: RequisitosNaVaga } {
 function efeitoLido(value: unknown): { efeito?: EfeitoDoItem } {
   const efeito = efeitoDoItemLido(value)
   return efeito === undefined ? {} : { efeito }
+}
+
+/** O tiro da munição: textos aparados e no teto; os dois vazios (ou torto) = sem o campo. */
+export function tiroLido(value: unknown): { tiro?: TiroDaMunicao } {
+  if (!isRecord(value)) return {}
+  const dano = typeof value.dano === 'string' ? cortado(value.dano.trim(), DANO_DA_BALA_MAX) : ''
+  const efeito = typeof value.efeito === 'string' ? cortado(value.efeito.trim(), ITEM_DESCRICAO_MAX) : ''
+  return dano === '' && efeito === '' ? {} : { tiro: { dano, efeito } }
 }
 
 /** A luz do item: torta sai (o item só não ilumina). */

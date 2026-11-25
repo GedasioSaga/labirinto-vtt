@@ -96,6 +96,7 @@ import {
   motivoDoTetoDeDano,
   perfuranteDaMecanica,
   rotulosDasRespostas,
+  seloDaBala,
   seloDaMecanica,
   semSeloPelaResposta,
   somaContraOSelo,
@@ -1217,10 +1218,10 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // MUNIÇÃO: no Atacar com a arma que exige munição, sem bala escolhida vai a primeira que a mochila tem (o tiro do jogador).
   const bala = arma === null ? null : pedido.tipo === 'atacar' ? balaDoPedido(arma, pedido.balaId) : pedido.balaId !== undefined ? balaDaArma(arma, pedido.balaId) : null
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
-  // F2 (fatia E, Bala de Prata): o selo da bala na tabela ("Ferido por prata") pega em quem o tiro acerta, à parte do selo
-  // da mira, do da técnica e da marca (revisão da fatia E: no Desenhar o alvo a marca não o apaga mais).
-  const seloDaBala = bala === null ? null : seloDaMecanica(bala.id)
-  if (seloDaBala !== null) golpe.seloDaBala = seloDaBala
+  // F2 (fatia E, Bala de Prata): o selo da bala ("Ferido por prata") pega em quem o tiro acerta, à parte do selo
+  // da mira, do da técnica e da marca (revisão da fatia E: no Desenhar o alvo a marca não o apaga mais). 25/11: qualquer bala de prata.
+  const seloDoTiro = bala === null ? null : seloDaBala(bala)
+  if (seloDoTiro !== null) golpe.seloDaBala = seloDoTiro
   // F2 (fatia E, vantagem de Ogro): a resposta "sim" faz os alvos reagirem com desvantagem.
   if (deTodoGolpe.desvantagemNoAlvo) golpe.reacaoComDesvantagem = true
   // F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao usar ("+8 em reação" por 2 turnos); a store o põe nele.

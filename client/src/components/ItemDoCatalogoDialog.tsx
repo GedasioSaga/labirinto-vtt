@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { categoriaLimpa, ehCategoriaDeMunicao, ITEM_SEM_NOME, MUNICOES_POR_ARMA_MAX, type ItemDoCatalogo } from '../lib/acervoDeItens'
+import { categoriaLimpa, ehCategoriaDeMunicao, ITEM_SEM_NOME, MUNICOES_POR_ARMA_MAX, type ItemDoCatalogo, type TiroDaMunicao } from '../lib/acervoDeItens'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { chaveDoNomeDaEntrada, novoIdDeEntrada, regraDaCoisa, type ItemDoCatalogo as EntradaDoCatalogo } from '../lib/livros/catalogo'
 import { gravarRegraDaArma } from '../stores/armasNaFonte'
@@ -112,6 +112,47 @@ function MunicoesDaArma({ armaId, escolhidas, onMudar }: { armaId: string; escol
           </label>
         ))
       )}
+    </fieldset>
+  )
+}
+
+/** O item com o tiro da munição; dano e efeito vazios tiram o campo (ausente = a bala usa o dano da arma). */
+function comTiro(item: ItemDoCatalogo, tiro: TiroDaMunicao): ItemDoCatalogo {
+  const { tiro: _antes, ...semTiro } = item
+  return tiro.dano.trim() === '' && tiro.efeito.trim() === '' ? semTiro : { ...semTiro, tiro }
+}
+
+/**
+ * MUNIÇÃO COMO FONTE ÚNICA (decisão do dono de 25/11/2026): o dano e o efeito da bala moram no item,
+ * e não no cartão da arma. Os mesmos dois campos que o "Tipos de bala" da ficha tinha.
+ */
+function TiroDaMunicaoCampos({ idBase, tiro, onMudar }: { idBase: string; tiro: TiroDaMunicao | undefined; onMudar: (tiro: TiroDaMunicao) => void }) {
+  const atual = tiro ?? { dano: '', efeito: '' }
+  return (
+    <fieldset className="lb-item-janela__municoes">
+      <legend className="lb-label">No tiro</legend>
+      <label className="lb-field" htmlFor={`${idBase}-dano-da-bala`}>
+        <span className="lb-label">Dano da bala</span>
+        <input
+          id={`${idBase}-dano-da-bala`}
+          className="lb-input"
+          value={atual.dano}
+          placeholder="O da arma"
+          onChange={(event) => onMudar({ ...atual, dano: event.target.value })}
+        />
+      </label>
+      <p className="lb-field__hint">“+15” soma ao dano da arma, “40” troca, “+Percepção / 2” conta pela ficha de quem atira.</p>
+      <label className="lb-field" htmlFor={`${idBase}-efeito-da-bala`}>
+        <span className="lb-label">Efeito da bala</span>
+        <textarea
+          id={`${idBase}-efeito-da-bala`}
+          className="lb-input lb-textarea"
+          value={atual.efeito}
+          maxLength={ITEM_DESCRICAO_MAX}
+          onChange={(event) => onMudar({ ...atual, efeito: event.target.value })}
+        />
+      </label>
+      <p className="lb-field__hint">A bala de prata deixa “Ferido por prata” em quem o tiro acerta, para lembrar a cura pela metade.</p>
     </fieldset>
   )
 }
@@ -456,6 +497,9 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
             <span>Empilhável — dar de novo a quem já tem soma na quantidade</span>
           </label>
           <LuzDoItemCampos idBase={idBase} luz={rascunho.luz} onMudar={(luz) => setRascunho(comLuz(rascunho, luz))} />
+          {(ehCategoriaDeMunicao(rascunho.categoria) || rascunho.tiro !== undefined) && (
+            <TiroDaMunicaoCampos idBase={idBase} tiro={rascunho.tiro} onMudar={(tiro) => setRascunho(comTiro(rascunho, tiro))} />
+          )}
           {(ehCategoriaDeArma(rascunho.categoria) || (rascunho.municoes?.length ?? 0) > 0) && (
             <MunicoesDaArma armaId={rascunho.id} escolhidas={rascunho.municoes ?? []} onMudar={(municoes) => setRascunho(comMunicoes(rascunho, municoes))} />
           )}

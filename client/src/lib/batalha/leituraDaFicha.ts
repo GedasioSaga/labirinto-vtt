@@ -5,7 +5,7 @@ import { recursoDeVida } from '../vidaDaFicha'
 import { PERFURACAO_MAX, PERFURACAO_MIN, type AcaoDaTecnica } from './combate'
 import { CAMPO_DO_DANO, normalizar } from './formula'
 import { municaoNaMochila, type MunicaoDaBala } from '../mochila/municao'
-import { municoesDaArma, versaoDasMunicoes, type MunicaoAceita } from './municoesDoAcervo'
+import { municoesDaArma, tiroDaMunicao, versaoDasMunicoes, type MunicaoAceita } from './municoesDoAcervo'
 
 /**
  * LEITURA DA FICHA PARA A BATALHA, F2 (seção 3.1 de
@@ -308,11 +308,13 @@ function balaDoCartao(cartao: CartaoDaFicha, mochila: readonly CarriedItem[]): B
   const nome = cartao.nome.trim() || BALA_SEM_NOME
   // A bala sem nome não casa com vaga nenhuma pelo nome ("Bala sem nome" seria um item de verdade por acaso).
   const municao = cartao.nome.trim() === '' && cartao.itemId === undefined ? undefined : municaoNaMochila(mochila, nome, cartao.itemId, cartao.municaoPeloNome === true)
+  // Fonte única (25/11): o tiro do item do Acervo vence; o subcartão fica de reserva (o app do jogador, o item que não declara).
+  const tiro = tiroDaMunicao(cartao.itemId)
   return {
     id: cartao.id,
     nome,
-    dano: (cartao.campos[CAMPO_DO_DANO] ?? '').trim(),
-    efeito: (cartao.campos[CAMPO_DO_EFEITO] ?? '').trim(),
+    dano: tiro?.dano || (cartao.campos[CAMPO_DO_DANO] ?? '').trim(),
+    efeito: tiro?.efeito || (cartao.campos[CAMPO_DO_EFEITO] ?? '').trim(),
     quantidade: (cartao.campos[CAMPO_DA_QUANTIDADE] ?? '').trim(),
     ...(cartao.itemId === undefined ? {} : { itemId: cartao.itemId }),
     ...(municao === undefined ? {} : { municao }),
@@ -358,10 +360,19 @@ function municoesDaVagaDaArma(cartao: CartaoDaFicha, mochila: readonly CarriedIt
 /** O id da bala que vem da munição do Acervo: `municao:<id do item>`; nunca colide com o id de um subcartão (sem dois-pontos). */
 export const PREFIXO_DA_MUNICAO = 'municao:'
 
-/** A munição do Acervo como bala da arma: o dano é o da arma, e a quantidade é a da mochila (0 = "Sem <nome>"). */
+/** A munição do Acervo como bala da arma: o dano e o efeito são os do item (sem eles, o da arma), e a quantidade é a da mochila (0 = "Sem <nome>"). */
 function balaDaMunicaoAceita(municao: MunicaoAceita, mochila: readonly CarriedItem[]): BalaDaArma {
   const naMochila = municaoNaMochila(mochila, municao.nome, municao.itemId)
-  return { id: `${PREFIXO_DA_MUNICAO}${municao.itemId}`, nome: municao.nome, dano: '', efeito: '', quantidade: '', itemId: municao.itemId, ...(naMochila === undefined ? {} : { municao: naMochila }) }
+  const tiro = tiroDaMunicao(municao.itemId)
+  return {
+    id: `${PREFIXO_DA_MUNICAO}${municao.itemId}`,
+    nome: municao.nome,
+    dano: tiro?.dano ?? '',
+    efeito: tiro?.efeito ?? '',
+    quantidade: '',
+    itemId: municao.itemId,
+    ...(naMochila === undefined ? {} : { municao: naMochila }),
+  }
 }
 
 /** "Sem Balas de prata": por que o tiro com esta bala não sai, ou `null` (bala de texto, ou com munição na mochila). */

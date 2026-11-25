@@ -15,15 +15,23 @@ export interface MunicaoAceita {
   nome: string
 }
 
+/** O tiro que a munição do Acervo declara (`ItemDoCatalogo.tiro`): o dano e o efeito da bala. */
+export interface TiroDoAcervo {
+  dano: string
+  efeito: string
+}
+
 /** O que a lista precisa de cada item do Acervo. */
 export interface ItemComMunicoes {
   id: string
   nome: string
   municoes?: readonly string[]
+  tiro?: TiroDoAcervo
 }
 
 const NENHUMA: readonly MunicaoAceita[] = []
 let porArma: ReadonlyMap<string, readonly MunicaoAceita[]> = new Map()
+let tiros: ReadonlyMap<string, TiroDoAcervo> = new Map()
 let versao = 0
 
 /** Troca a lista inteira pela do Acervo de agora. Munição que saiu do Acervo sai da arma. */
@@ -38,12 +46,24 @@ export function definirMunicoesDasArmas(itens: readonly ItemComMunicoes[]): void
     if (aceitas.length > 0) novo.set(item.id, aceitas)
   }
   porArma = novo
+  const novosTiros = new Map<string, TiroDoAcervo>()
+  for (const item of itens) if (item.tiro !== undefined) novosTiros.set(item.id, item.tiro)
+  tiros = novosTiros
   versao += 1
 }
 
 /** As munições que a arma do Acervo `itemId` aceita; nenhuma = a arma não declara (ou não é do Acervo). */
 export function municoesDaArma(itemId: string | undefined): readonly MunicaoAceita[] {
   return itemId === undefined ? NENHUMA : (porArma.get(itemId) ?? NENHUMA)
+}
+
+/**
+ * MUNIÇÃO COMO FONTE ÚNICA (decisão do dono de 25/11/2026): o tiro que a munição `itemId` do Acervo
+ * declara. `undefined` = o item não declara (ou não é do Acervo, ou é o app do jogador, que não o vê):
+ * a bala fica com o dano e o efeito que tinha.
+ */
+export function tiroDaMunicao(itemId: string | undefined): TiroDoAcervo | undefined {
+  return itemId === undefined ? undefined : tiros.get(itemId)
 }
 
 /** Muda a cada `definirMunicoesDasArmas`: a leitura guardada das armas (`armasDe`) é refeita. */
