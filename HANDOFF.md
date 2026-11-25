@@ -1,3 +1,26 @@
+# 25/11 ~11h: ficha do piso de cima vista através da parede, CONSERTADO local, 0.5.101 NÃO publicada
+
+## Objetivo
+Pedido 25/11 10:51 (PEDIDOS.md, fim): no "Castelo: Base – 1º andar", Vincent (piso 1) via o Cavaleiro com Bazooka (piso 2) através da parede.
+
+## Estado atual
+- Causa: client/src/lib/terrenoAlto.ts fichasDoPisoDeCima: teto só contava peça de Chão e Sala do piso de cima; o castelo é pintado a Balde, então Vincent contava como céu aberto e a folga de 1 casa (fogFilter.ts fichasNaVisaoDeBaixo) mostrava o Cavaleiro atrás da parede.
+- Conserto 66c4d586: chaoPintadoDoPiso + tetoDoPiso em terrenoAlto.ts (textura pintada também é teto). PEDIDOS 5f5643c6. INDEX.md do diagrama muralha-terreno-alto com nota.
+- main local 3 commits à frente de origin (f2f79dbd, 66c4d586, 5f5643c6), NADA enviado. Publicação negada pelo classificador do modo auto (dono não pediu). Notas prontas: tmp/rel-0.5.101/notas-da-versao-0.5.101.md.
+- Não feito (perguntar ao dono): (a) espelho do bug: quem está em cima, sobre chão pintado, ainda vê o piso de baixo através do próprio chão (coberturaDoPiso no olhar para baixo só olha Chão/Sala; não mexi por escopo e por ser chamada quente no fogFilter); (b) folga de 1 casa a céu aberto continua (muralha).
+
+## Próximos passos
+1. Dono decide publicar 0.5.101 (worktree limpo ../labirinto-release, --com-google, junções fora antes do worktree remove).
+2. Dono decide (a) e (b).
+
+## Critério de pronto
+No app publicado, Vincent no piso 1 do "Castelo: Base – 1º andar" não vê nenhuma ficha do piso 2.
+
+## Evidência
+- Repro vitest (apagado) com o map.json real: acima = ["Cavaleiro com Bazooka (9845,10124)"] antes do conserto. Depois do conserto NÃO rodado (regra: teste só com pedido).
+- node no map.json: Vincent dentro da área "lajotas-escuras" do piso 2 = true; 6/6 fichas do piso 1 debaixo da textura do piso 2.
+- rtk proxy npx tsc --noEmit: exit 0.
+
 # 25/11 ~00h10: 0.5.100 PUBLICADA, nada em voo
 
 Bump d3f75679 (origin main = main); curl latest.json "version": "0.5.100"; tsc 0/0, vite 0, guarda ok, gitleaks limpo; worktree e junções limpos; logs tmp/rel-0.5.100/. Esperando do dono: quais peças dos mapas refazer (ele gostou da maioria); cortina de passagem tapar a visão?; ligar forma do nicho e da pirâmide; próxima leva (~149 itens da fila + 7 propostas de sistema novo); batalha na Visão de jogador; esconder contorno de último avistamento sobre a onda; alcance 1 no Golpe da invocada; Aplicar do balanceador ficha própria x variação; HP ao evoluir companion; 17 worktrees sujas antigas (apagar com patch?). Fable parado por ordem do dono.
