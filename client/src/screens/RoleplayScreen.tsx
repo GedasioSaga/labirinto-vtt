@@ -16,6 +16,10 @@ export function RoleplayScreen({ onBack }: RoleplayScreenProps) {
         </svg>
         <span className="lb-home__badge">Em construção</span>
         <p className="lb-wip__text">Uma mesa só de narrativa, sem mapa. Ainda estamos levantando as paredes desta sala.</p>
+        {/* O Prelúdio fica escondido de propósito (lib/features.ts, `preparo`); esta linha só diz onde está a porta. */}
+        <p className="lb-wip__dica">
+          Para preparar a campanha (roteiro, enciclopédia e segredos), o Prelúdio está em teste: na tela inicial, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>P</kbd> mostra ou esconde a porta dele neste computador.
+        </p>
       </section>
     </MenuShell>
   )
