@@ -148,6 +148,32 @@ async function trabalhar(): Promise<void> {
   }
 }
 
+/**
+ * A cena apagada, e todas as da aventura que fechou ou trocou, soltam a imagem
+ * (`revokeObjectURL`) e o mapa guardados aqui. Sem isto a memória crescia a
+ * cada aventura aberta numa sessão longa. A chave '' é a do mapa solto.
+ */
+function soltarCenasQueSairam(): void {
+  if (feitas.size === 0 && fila.size === 0) return
+  const { adventure } = useAdventureStore.getState()
+  const vivas = new Set(adventure === null ? [''] : adventure.scenes.map((cena) => cena.id))
+  let mudou = false
+  for (const [chave, feita] of feitas) {
+    if (vivas.has(chave)) continue
+    if (typeof feita.pronta.url === 'string') URL.revokeObjectURL(feita.pronta.url)
+    feitas.delete(chave)
+    mudou = true
+  }
+  for (const chave of fila.keys()) {
+    if (!vivas.has(chave)) fila.delete(chave)
+  }
+  if (mudou) avisar()
+}
+
+useAdventureStore.subscribe((agora, antes) => {
+  if (agora.adventure !== antes.adventure) soltarCenasQueSairam()
+})
+
 function por(chave: string, mapa: MapData, assinatura: string, imagem: Blob | null): void {
   const urlAntiga = feitas.get(chave)?.pronta.url
   if (typeof urlAntiga === 'string') URL.revokeObjectURL(urlAntiga)
