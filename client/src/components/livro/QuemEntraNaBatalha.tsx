@@ -23,6 +23,14 @@ import './QuemEntraNaBatalha.css'
  * Quem não é marcado fica fora da ordem dos turnos. A ficha criada fica no
  * bestiário (decisão D3): quem chama a cria.
  */
+const NINGUEM_SEM_FICHA: readonly { tokenId: string; nome: string }[] = []
+
+/** "Luffy", "Luffy e Zoro", "Luffy, Zoro e Nami". */
+function listaDeNomes(nomes: readonly string[]): string {
+  if (nomes.length <= 1) return nomes.join('')
+  return `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`
+}
+
 export interface QuemEntraNaBatalhaProps {
   /** A lista à vista. */
   aberto: boolean
@@ -30,6 +38,8 @@ export interface QuemEntraNaBatalhaProps {
   candidatos: readonly CandidatoDaBatalha[]
   /** Quantos tokens de jogador sem ficha ficaram fora da lista: a caixa diz isso numa linha, para o mestre não procurar. */
   jogadoresSemFicha: number
+  /** QoL 26/11/2026: quem são eles (o nome, e o token para o clique no mapa dizer por que não marca). Ausente = só a conta. */
+  jogadoresSemFichaNomes?: readonly { tokenId: string; nome: string }[]
   /** Os NPCs que podem servir de modelo ("Como Recruta da Marinha"): os de combate que não são variação. */
   modelos: readonly Personagem[]
   /** As fichas em uso, para o retrato e o HP de quem já tem uma. */
@@ -99,6 +109,7 @@ export function QuemEntraNaBatalha({
   aberto,
   candidatos,
   jogadoresSemFicha,
+  jogadoresSemFichaNomes = NINGUEM_SEM_FICHA,
   modelos,
   personagens,
   onConfirmar,
@@ -152,12 +163,18 @@ export function QuemEntraNaBatalha({
   alternarAgora.current = alternar
   const candidatosAgora = useRef(candidatos)
   candidatosAgora.current = candidatos
+  const semFichaAgora = useRef(jogadoresSemFichaNomes)
+  semFichaAgora.current = jogadoresSemFichaNomes
+  const [clicadoSemFicha, setClicadoSemFicha] = useState<string | null>(null)
   useEffect(() => {
     if (cliqueNoMapa === null || cliqueNoMapa.seq === ultimoSeq.current) return
     ultimoSeq.current = cliqueNoMapa.seq
     if (!aberto) return
     const clicado = candidatosAgora.current.find((candidato) => candidato.tokenId === cliqueNoMapa.tokenId)
     if (clicado !== undefined && clicado.situacao !== 'semHp') alternarAgora.current(clicado.tokenId)
+    // QoL 26/11/2026 ("clicar no Luffy não marca nada"): o jogador sem ficha clicado diz por que não entra.
+    const semFicha = semFichaAgora.current.find((jogador) => jogador.tokenId === cliqueNoMapa.tokenId)
+    setClicadoSemFicha(clicado === undefined && semFicha !== undefined ? semFicha.nome : null)
   }, [cliqueNoMapa, aberto])
 
   // Abriu: o painel fica à vista no livro e o foco entra no botão de confirmar (Enter inicia; Esc cancela).
@@ -320,9 +337,17 @@ export function QuemEntraNaBatalha({
         )}
         {jogadoresSemFicha > 0 && (
           <p className="gr-nota">
-            {jogadoresSemFicha === 1
-              ? '1 token de jogador sem ficha fica fora: ligue a ficha dele no token para ele lutar.'
-              : `${jogadoresSemFicha} tokens de jogador sem ficha ficam fora: ligue a ficha de cada um no token para eles lutarem.`}
+            {jogadoresSemFichaNomes.length === jogadoresSemFicha
+              ? // QoL 26/11/2026: quem ficou fora, pelo nome ("Luffy e Zoro"), e onde se liga a ficha.
+                `${listaDeNomes(jogadoresSemFichaNomes.map((jogador) => jogador.nome))} ${jogadoresSemFicha === 1 ? 'está sem ficha e fica fora: ligue uma ficha no token dele' : 'estão sem ficha e ficam fora: ligue uma ficha no token de cada um'} (botão direito no token, Ligar ficha) para ${jogadoresSemFicha === 1 ? 'ele lutar' : 'eles lutarem'}.`
+              : jogadoresSemFicha === 1
+                ? '1 token de jogador sem ficha fica fora: ligue a ficha dele no token para ele lutar.'
+                : `${jogadoresSemFicha} tokens de jogador sem ficha ficam fora: ligue a ficha de cada um no token para eles lutarem.`}
+          </p>
+        )}
+        {clicadoSemFicha !== null && (
+          <p className="gr-nota" role="status">
+            {clicadoSemFicha} está sem ficha: ligue uma ficha no token para marcar.
           </p>
         )}
         {extras > 0 && (

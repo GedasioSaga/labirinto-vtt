@@ -58,6 +58,7 @@ export function IncluirNaBatalha({ sceneKey }: { sceneKey: string }) {
         rotuloDoConfirmar={(quantos) => `Incluir ${quantos}`}
         candidatos={caixa.lista.candidatos}
         jogadoresSemFicha={caixa.lista.jogadoresSemFicha}
+        jogadoresSemFichaNomes={caixa.lista.jogadoresSemFichaNomes}
         modelos={caixa.lista.modelos}
         personagens={caixa.lista.personagens}
         rotulos={caixa.lista.rotulos}

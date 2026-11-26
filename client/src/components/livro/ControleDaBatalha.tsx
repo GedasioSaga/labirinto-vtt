@@ -36,7 +36,8 @@ import { AberturaDeBatalhaOverlay, type AberturaPedida } from '../../transicoes/
 import { batalhaCabeNaGrade } from '../../pixi/gradeDaBatalha'
 import type { GridShape } from '../../types/map'
 import { Balao } from '../grimorio/Balao'
-import { Botao } from '../grimorio/Botao'
+import { Acoes, Botao } from '../grimorio/Botao'
+import { Dialogo } from '../grimorio/Dialogo'
 import { CampoSel, CampoTexto, type OpcaoDoSel } from '../grimorio/CampoTexto'
 import './livro.css'
 
@@ -64,6 +65,10 @@ const OPCOES_DO_DESEMPATE: readonly OpcaoDoSeg<Desempate>[] = [
   { valor: 'manual', rotulo: 'Eu decido' },
 ]
 const SEM_REGRA: RascunhoDaRegra = { modo: 'nenhuma' }
+
+/** Explorador 26/11/2026, bug 3: o que o Encerrar apaga, dito antes (o fim de `batalhaFabrica.desligar`). */
+const AVISO_DO_ENCERRAR =
+  'Encerrar desliga a batalha desta cena: a ordem, o registro e o Desfazer se apagam, as formas de quem lutou desligam e saem as condições com prazo, os invocados e os companions.'
 
 export const MOTIVO_SEM_BATALHA_TRIANGULAR = 'Sem batalha em mapa triangular: a grade de batalha só existe em quadrado e hex'
 
@@ -105,6 +110,13 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
   const [desempate, setDesempate] = useState<Desempate>('d20')
   const [regra, setRegra] = useState<RascunhoDaRegra>(SEM_REGRA)
   const [caixa, setCaixa] = useState<CaixaDoIniciar | null>(null)
+  // Bug 3 (explorador 26/11): com gente na ordem, o Encerrar (botão ou Shift+B) só abre a confirmação.
+  const [confirmandoFim, setConfirmandoFim] = useState(false)
+  const continuarRef = useRef<HTMLButtonElement>(null)
+  const comCartas = useBatalhaStore((state) => {
+    const cena = Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey] : undefined
+    return cena !== undefined && cena.turnos.cartas.length > 0
+  })
   // Com a lista aberta, passar o mouse num nome acende a ficha e clicar numa ficha no mapa marca ou desmarca. Fechou, o clique guardado some (achado 1).
   const noMapa = useEscolhaNoMapa(caixa !== null && caixa.lista.candidatos.length > 0)
   const regrasDaBiblioteca = useRegrasDoCampoStore((state) => state.regras)
@@ -157,7 +169,10 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
   }
 
   const alternar = () => {
-    if (ligada) encerrar()
+    if (ligada) {
+      if (comCartas) setConfirmandoFim(true)
+      else encerrar()
+    }
     // Com a escolha aberta, o botão a fecha (como o Cancelar).
     else if (caixa !== null) setCaixa(null)
     else if (cabe) abrirEscolha()
@@ -206,13 +221,15 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     if (texto !== undefined) abertura.texto = texto
     gravarAberturaLembrada(guardado, aventuraId, { transicao: transicao === NENHUMA ? null : transicao, texto: nome.slice(0, NOME_DA_BATALHA_MAX) })
     setCaixa(null)
-    // Cena sem ninguém na lista: o Iniciar de sempre (a batalha liga sem cartas).
-    if (caixa.lista.candidatos.length === 0) {
+    // Cena sem ninguém para marcar: o Iniciar de sempre (a batalha liga sem cartas, e o "Incluir" põe gente depois).
+    if (caixa.lista.candidatos.length === 0 || escolhas.length === 0) {
       ligarBatalha(abertura)
       return
     }
     const entram = prepararQuemEntra(escolhas, lados)
-    if (entram !== null) ligarBatalha(abertura, new Set(entram.map((token) => token.id)))
+    // Explorador 26/11/2026, bug 1: ninguém do que foi marcado entrou (sem sistema de regras, por exemplo).
+    // `prepararQuemEntra` já avisou o motivo; a batalha não liga vazia. Quem tem a própria ficha segue entrando.
+    if (entram !== null && entram.length > 0) ligarBatalha(abertura, new Set(entram.map((token) => token.id)))
   }
 
   // Shift+B de qualquer ponto do editor; com a escolha aberta a tecla é dela (o Esc fecha).
@@ -302,6 +319,7 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
           }
           candidatos={caixa.lista.candidatos}
           jogadoresSemFicha={caixa.lista.jogadoresSemFicha}
+          jogadoresSemFichaNomes={caixa.lista.jogadoresSemFichaNomes}
           modelos={caixa.lista.modelos}
           personagens={caixa.lista.personagens}
           rotulos={caixa.lista.rotulos}
@@ -314,6 +332,23 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
           onCancelar={() => setCaixa(null)}
         />
       )}
+      <Dialogo aberto={confirmandoFim && ligada} titulo="Encerrar a batalha?" onFechar={() => setConfirmandoFim(false)} pequeno alerta focoInicial={continuarRef} descricao="Encerrar não se desfaz.">
+        <p className="gr-nota">{AVISO_DO_ENCERRAR}</p>
+        <Acoes>
+          <Botao ref={continuarRef} onClick={() => setConfirmandoFim(false)}>
+            Continuar a batalha
+          </Botao>
+          <Botao
+            variante="perigo"
+            onClick={() => {
+              setConfirmandoFim(false)
+              encerrar()
+            }}
+          >
+            Encerrar a batalha
+          </Botao>
+        </Acoes>
+      </Dialogo>
       <AberturaDeBatalhaOverlay abertura={pedido} />
     </div>
   )

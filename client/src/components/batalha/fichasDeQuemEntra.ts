@@ -26,6 +26,8 @@ const SO_AS_SELECIONADAS = 'Só as fichas selecionadas no mapa vieram marcadas'
 export interface ListaDeQuemEntra {
   candidatos: CandidatoDaBatalha[]
   jogadoresSemFicha: number
+  /** QoL 26/11/2026: os tokens de jogador sem ficha pelo nome (com o número dos repetidos), na ordem do mapa. */
+  jogadoresSemFichaNomes: { tokenId: string; nome: string }[]
   personagens: readonly Personagem[]
   modelos: Personagem[]
   /** O nome de cada token com o número dos repetidos ("Urso 1", "Urso 2"), pela ordem do mapa. */
@@ -81,9 +83,11 @@ export function lerQuemPodeEntrar(opcoes: { jaNaOrdem?: ReadonlySet<string> } = 
   const marcados = soAsSelecionadas ? new Set(incluindo ? selecionadas : [...selecionadas, ...jogadores]) : incluindo ? new Set<string>() : undefined
   const rotulos = rotulosDoMapa()
   if (incluindo) for (const candidato of candidatos) if (escondidas.has(candidato.tokenId)) rotulos.set(candidato.tokenId, `${rotulos.get(candidato.tokenId) ?? candidato.nome} (escondida)`)
+  const naListaToda = new Set(candidatos.map((candidato) => candidato.tokenId))
   return {
     candidatos,
     jogadoresSemFicha: todos.length - candidatos.length,
+    jogadoresSemFichaNomes: todos.filter((candidato) => !naListaToda.has(candidato.tokenId)).map((candidato) => ({ tokenId: candidato.tokenId, nome: rotulos.get(candidato.tokenId) ?? (candidato.nome.trim() || 'Ficha sem nome') })),
     personagens,
     modelos: modelosDeNpc(personagens),
     rotulos,
@@ -127,6 +131,7 @@ export function prepararQuemEntra(escolhas: readonly EscolhaDaBatalha[], lados: 
   const porToken = new Map(useMapStore.getState().map.tokens.map((token) => [token.id, token]))
   const personagens = personagensAtivos(aventura)
   const novas = new Map<string, Personagem>()
+  const fora: QuemFicouDeFora = { saiuDoMapa: 0, semSistema: 0, semFicha: 0 }
   for (const escolha of escolhas) {
     const token = porToken.get(escolha.tokenId)
     if (sistema === undefined || token === undefined) continue
@@ -146,12 +151,56 @@ export function prepararQuemEntra(escolhas: readonly EscolhaDaBatalha[], lados: 
   for (const escolha of escolhas) {
     const token = porToken.get(escolha.tokenId)
     const characterId = novas.get(escolha.tokenId)?.id ?? token?.characterId ?? null
-    // Token que saiu do mapa com a lista aberta, ou sem ficha: fica de fora.
-    if (token === undefined || characterId === null) continue
+    // Token que saiu do mapa com a lista aberta, ou sem ficha: fica de fora, e o aviso diz por quê.
+    if (token === undefined) {
+      fora.saiuDoMapa += 1
+      continue
+    }
+    if (characterId === null) {
+      if (escolha.como.tipo !== 'propria' && sistema === undefined) fora.semSistema += 1
+      else fora.semFicha += 1
+      continue
+    }
     const lado = lados.get(escolha.tokenId)
     if (lado !== undefined) porNpcNoLado(characterId, lado)
     // Achado 4: o nome numerado vai na carta, e dela para o registro ("Urso 2 usa Mão nua").
     entram.push({ id: token.id, characterId, name: rotulos.get(token.id) ?? token.name })
   }
+  avisarQuemFicouDeFora(escolhas.length, entram.length, fora)
   return entram
+}
+
+/** Quantas fichas marcadas não entraram, por motivo. */
+interface QuemFicouDeFora {
+  saiuDoMapa: number
+  semSistema: number
+  semFicha: number
+}
+
+/**
+ * Explorador 26/11/2026, bug 1: sem o sistema de regras ninguém ganha ficha
+ * nova (a mínima e a variação do modelo saem dele). O motivo em palavras;
+ * `null` = o sistema está carregado.
+ */
+function motivoDoSistemaQueFalta(): string | null {
+  const id = sistemaAtivo(useAdventureStore.getState())
+  if (id === undefined) return 'este mapa não tem sistema de regras (escolha um na aventura ou na pasta)'
+  if (sistemaPorId(useRpgStore.getState().biblioteca, id) === undefined) return 'a biblioteca de sistemas de regras não carregou'
+  return null
+}
+
+/** Bug 1: o "Iniciar com 3" que deixava a ordem vazia sem dizer nada. Quem ficou de fora vira um aviso com o motivo. */
+function avisarQuemFicouDeFora(marcados: number, entraram: number, fora: QuemFicouDeFora): void {
+  if (entraram >= marcados) return
+  const motivos = [
+    ...(fora.semSistema === 0 ? [] : [`${fora.semSistema} sem ficha: ${motivoDoSistemaQueFalta() ?? 'o sistema de regras não carregou'}`]),
+    ...(fora.saiuDoMapa === 0 ? [] : [fora.saiuDoMapa === 1 ? '1 saiu do mapa com a lista aberta' : `${fora.saiuDoMapa} saíram do mapa com a lista aberta`]),
+    ...(fora.semFicha === 0 ? [] : [`${fora.semFicha} sem ficha (o modelo escolhido não existe mais)`]),
+  ].join('; ')
+  if (entraram === 0) {
+    useToastStore.getState().push('error', `Ninguém entrou na batalha: ${motivos}.`)
+    return
+  }
+  const deFora = marcados - entraram
+  useToastStore.getState().push('info', `${deFora} de ${marcados} ${deFora === 1 ? 'ficou' : 'ficaram'} fora da batalha: ${motivos}.`)
 }
