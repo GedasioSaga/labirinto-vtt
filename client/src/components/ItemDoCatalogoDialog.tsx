@@ -56,6 +56,7 @@ import { CampoInteiro, Marcar } from './batalha/blocos/controles'
 import { ImagemOuIniciais } from './FichaPecas'
 import { CloseIcon } from './icons'
 import { PinImageDrop } from './PinImageDrop'
+import { DarAFichas } from './DarAFichas'
 import './ItemDoCatalogoDialog.css'
 
 /**
@@ -521,7 +522,9 @@ export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, on
   const [erro, setErro] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [confirmarApagar, setConfirmarApagar] = useState(false)
-  const [alvoEscolhido, setAlvoEscolhido] = useState(alvos[0] === undefined ? '' : chaveDoAlvo(alvos[0]))
+  // Itens refeitos (E3): a ficha recebe pelo "Dar a…" das fichas (`DarAFichas`); aqui ficam só os tokens SEM ficha (A3).
+  const semFicha = useMemo(() => alvos.filter((alvo) => alvo.personagemId === undefined), [alvos])
+  const [alvoEscolhido, setAlvoEscolhido] = useState(semFicha[0] === undefined ? '' : chaveDoAlvo(semFicha[0]))
   const [quantidade, setQuantidade] = useState(1)
   const [resultadoDoDar, setResultadoDoDar] = useState<string | null>(null)
   const condicoes = useNomesDasCondicoes()
@@ -631,7 +634,7 @@ export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, on
   }
 
   const dar = () => {
-    const alvo = alvos.find((candidato) => chaveDoAlvo(candidato) === alvoEscolhido)
+    const alvo = semFicha.find((candidato) => chaveDoAlvo(candidato) === alvoEscolhido)
     if (alvo === undefined || onDar === undefined) return
     const quantos = item.empilhavel ? quantidade : 1
     const deu = onDar(alvo, quantos)
@@ -983,14 +986,13 @@ export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, on
               {novo ? 'Criar item' : 'Salvar'}
             </button>
           </div>
-          {!novo && onDar !== undefined && (
+          {!novo && <DarAFichas item={acervo.find((salvo) => salvo.id === item.id) ?? item} bloqueado={mudou ? 'Salve antes de dar: a ficha recebe o item como ele está no acervo.' : null} />}
+          {!novo && onDar !== undefined && semFicha.length > 0 && (
             <section className="lb-item-janela__dar" aria-labelledby={`${idBase}-dar`}>
               <h3 id={`${idBase}-dar`} className="lb-item-janela__subtitulo">
-                Dar a…
+                Dar a um token sem ficha
               </h3>
-              {alvos.length === 0 ? (
-                <p className="lb-item-janela__dica">Nenhum personagem com token nas cenas abertas. Ligue um token a um personagem na ficha dele.</p>
-              ) : (
+              {
                 <div className="lb-item-janela__linha">
                   <select
                     className="lb-input"
@@ -1001,7 +1003,7 @@ export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, on
                       setResultadoDoDar(null)
                     }}
                   >
-                    {alvos.map((alvo) => (
+                    {semFicha.map((alvo) => (
                       <option key={chaveDoAlvo(alvo)} value={chaveDoAlvo(alvo)}>
                         {alvo.nome} · {alvo.cena}
                       </option>
@@ -1022,8 +1024,8 @@ export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, on
                     Dar
                   </button>
                 </div>
-              )}
-              {mudou && alvos.length > 0 && <p className="lb-item-janela__dica">Salve antes de dar: o personagem recebe o item como ele está no acervo.</p>}
+              }
+              {mudou && <p className="lb-item-janela__dica">Salve antes de dar: o token recebe o item como ele está no acervo.</p>}
               <p className="lb-item-janela__resultado" aria-live="polite">
                 {resultadoDoDar}
               </p>

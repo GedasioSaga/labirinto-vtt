@@ -1,0 +1,57 @@
+/* "Dar a…" a várias fichas (itens refeitos, E3): uma linha por ficha, marcar, o nome e a conta. */
+.lb-dar-fichas {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+}
+
+.lb-dar-fichas__linha {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 36px;
+  padding: var(--lb-space-1) var(--lb-space-2);
+  cursor: pointer;
+}
+
+.lb-dar-fichas li + li .lb-dar-fichas__linha {
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-dar-fichas__linha:has(input:checked) {
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-dar-fichas__linha:has(input:focus-visible) {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: -2px;
+}
+
+.lb-dar-fichas__nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-dar-fichas__nome small,
+.lb-dar-fichas__conta {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-dar-fichas__conta {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lb-dar-fichas__qtd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}

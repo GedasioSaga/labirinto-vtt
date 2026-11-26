@@ -240,6 +240,8 @@ export interface AlvoDoAcervo {
   nome: string
   /** O nome da cena, para o mestre distinguir dois "Luffy" de cenas diferentes. */
   cena: string
+  /** Itens refeitos (E3): a ficha ligada ao token; ausente = token sem ficha (A3: a mochila mora nele). */
+  personagemId?: string
 }
 
 /**
@@ -258,7 +260,8 @@ export function alvosDoAcervo(world: HostWorld, personagens: readonly { id: stri
       const doPersonagem = token.characterId === null ? undefined : nomePorId.get(token.characterId)
       if (doPersonagem === undefined && token.playerCharacter !== true) continue
       vistos.add(token.id)
-      alvos.push({ tokenId: token.id, sceneId: scene.sceneId, nome: doPersonagem ?? (token.name || 'Token sem nome'), cena: scene.name })
+      const ligado = doPersonagem !== undefined && token.characterId !== null ? { personagemId: token.characterId } : {}
+      alvos.push({ tokenId: token.id, sceneId: scene.sceneId, nome: doPersonagem ?? (token.name || 'Token sem nome'), cena: scene.name, ...ligado })
     }
   }
   return alvos
