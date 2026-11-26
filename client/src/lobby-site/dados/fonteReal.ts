@@ -119,18 +119,27 @@ async function buscarEu(origem: string, buscar: Buscar): Promise<Eu> {
   } catch (erro) {
     throw new ErroDoEu('rede', erro instanceof Error ? erro.message : 'Sem conexão com o Lobby')
   }
-  if (resposta.type === 'opaqueredirect' || resposta.status === 401 || resposta.status === 403) throw new ErroDoEu('sem-login', 'Entre de novo para ver suas mesas')
-  if (!resposta.ok) throw new ErroDoEu('servidor', `O Lobby respondeu ${resposta.status}`)
+  if (resposta.type === 'opaqueredirect' || resposta.status === 401 || resposta.status === 403) throw new ErroDoEu('sem-login', 'Entre de novo para ver suas mesas.')
+  if (!resposta.ok) throw new ErroDoEu('servidor', fraseDoStatusDoEu(resposta.status))
   let corpo: unknown
   try {
     corpo = lerJsonSeguro(await resposta.text())
   } catch (erro) {
     if (!(erro instanceof SyntaxError)) throw erro
-    throw new ErroDoEu('formato', 'Resposta do Lobby fora do formato')
+    throw new ErroDoEu('formato', RESPOSTA_ESTRANHA)
   }
   const eu = lerEu(corpo)
-  if (eu === null) throw new ErroDoEu('formato', 'Resposta do Lobby fora do formato')
+  if (eu === null) throw new ErroDoEu('formato', RESPOSTA_ESTRANHA)
   return eu
+}
+
+const RESPOSTA_ESTRANHA = 'O servidor do Lobby mandou uma resposta que esta página não entende (o site pode ter sido atualizado agora).'
+
+/** A frase do `/api/eu` que não deu certo: o que aconteceu, em frase inteira; o código fica no fim, para quem for ajudar. */
+function fraseDoStatusDoEu(status: number): string {
+  if (status === 404) return `O Lobby não foi achado neste endereço (código ${status}).`
+  if (status >= 500) return `O servidor do Lobby está fora do ar ou com problema (código ${status}).`
+  return `O servidor do Lobby recusou o pedido (código ${status}).`
 }
 
 /** Sem resposta do convite neste tempo, o botão volta e diz que não chegou (a aba em branco fecha). */

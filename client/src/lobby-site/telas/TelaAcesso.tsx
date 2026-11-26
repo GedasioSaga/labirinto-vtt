@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import type { CargaDoEu } from '../dados/lobbyStore'
+import { useSite } from './contexto'
 import { Carregando } from './Estados'
 import { Icone } from './Icone'
 
@@ -25,13 +26,66 @@ export function TelaAcesso({ carga }: { carga: CargaDoEu }) {
       </Entrada>
     )
   }
-  const titulo = carga.tipo === 'rede' ? 'Sem conexão com o Lobby' : 'O Lobby não respondeu direito'
-  const texto = carga.tipo === 'rede' ? 'Confira a internet e tente de novo. Nada do que você mudou se perdeu.' : `${carga.detalhe} Tente de novo em instantes.`
+  return <SemResposta carga={carga} />
+}
+
+type FalhaDoEu = Extract<CargaDoEu, { t: 'erro' }>
+
+/** A partir de quantas falhas (a da abertura conta) a tela diz o que fazer além de tentar. */
+const FALHAS_ATE_O_CONSELHO = 2
+
+/** O que fazer quando tentar de novo não resolve. */
+function conselhoDepoisDeFalhar(tipo: FalhaDoEu['tipo']): string {
+  if (tipo === 'rede') return 'Ainda sem conexão. Se outros sites abrem normalmente, o Lobby pode estar fora do ar: avise o mestre. O que você mudou continua guardado neste navegador.'
+  if (tipo === 'formato') return 'Continua igual. Recarregue a página para trazer a versão nova do site; se não resolver, avise o mestre.'
+  return 'Continua sem resposta. Avise o mestre: o servidor do Lobby pode estar fora do ar.'
+}
+
+/**
+ * O Lobby não respondeu (ou respondeu torto). "Tentar de novo" pede a lista
+ * de mesas outra vez SEM recarregar a página (recarregar piscava a tela e
+ * voltava ao mesmo erro sem sinal de que tentou); o botão mostra que está
+ * tentando, e depois da segunda falha a tela diz o que fazer.
+ */
+function SemResposta({ carga }: { carga: FalhaDoEu }) {
+  const site = useSite()
+  const [tentando, setTentando] = useState(false)
+  // A abertura do site já foi a primeira falha.
+  const [falhas, setFalhas] = useState(1)
+
+  function tentar() {
+    setTentando(true)
+    void site.tentarOEuDeNovo().then(() => {
+      setTentando(false)
+      setFalhas((antes) => antes + 1)
+    })
+  }
+
+  const rede = carga.tipo === 'rede'
+  const titulo = rede ? 'Sem conexão com o Lobby' : 'O Lobby não respondeu direito'
+  const texto = rede ? 'Confira a internet e tente de novo. Nada do que você mudou se perdeu.' : `${carga.detalhe} Tente de novo daqui a pouco.`
+  const aconselhar = !tentando && falhas >= FALHAS_ATE_O_CONSELHO
   return (
     <Entrada titulo={titulo} texto={texto}>
-      <button type="button" className="lo-btn lo-btn--primario" onClick={() => window.location.reload()}>
-        Tentar de novo
-      </button>
+      <div className="lo-porta__acoes">
+        <button type="button" className="lo-btn lo-btn--primario" disabled={tentando} aria-busy={tentando} onClick={tentar}>
+          {tentando ? 'Tentando…' : 'Tentar de novo'}
+        </button>
+        {aconselhar && carga.tipo === 'formato' && (
+          <button type="button" className="lo-btn" onClick={() => window.location.reload()}>
+            Recarregar a página
+          </button>
+        )}
+      </div>
+      <p className="lo-motivo" role="status">
+        {aconselhar ? conselhoDepoisDeFalhar(carga.tipo) : ''}
+      </p>
+      {/* No servidor de teste (vite, porta 1430) não existe o `/api/eu`: tentar nunca resolve. Só aparece no dev. */}
+      {import.meta.env.DEV && !rede && (
+        <p className="lo-porta__miuda">
+          Servidor de teste: aqui não existe o Lobby de verdade. Rode com <code>wrangler pages dev</code> ou abra a <a href="?demo=1">demonstração</a>.
+        </p>
+      )}
     </Entrada>
   )
 }

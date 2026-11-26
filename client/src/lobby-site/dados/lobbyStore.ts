@@ -85,6 +85,8 @@ export interface Site {
   store: StoreApi<EstadoDoSite>
   fonte: FonteDoLobby
   irPara(rota: Rota): void
+  /** Pede de novo a lista de mesas depois de uma falha (sem recarregar a página); resolve quando a resposta chegou, boa ou não. */
+  tentarOEuDeNovo(): Promise<void>
   /** A sessão da campanha aberta, para editar, decidir, desfazer e pedir histórico. */
   sessao(): SessaoDaCampanha | null
   /** O chat da campanha aberta, para mandar, apagar, ler e baixar. */
@@ -531,28 +533,38 @@ export function iniciarSite(janela: JanelaDoSite): Site {
   janela.addEventListener('popstate', aoVoltarNaHistoria)
   janela.addEventListener('online', aoVoltarARede)
 
-  fonte
-    .buscarEu()
-    .then((eu) => {
-      // Logo depois do login, quem joga numa mesa só entra direto no lobby dela (H1); com mais de uma, escolhe
-      // primeiro em "Suas mesas". Troca o endereço sem empilhar: o Voltar do navegador não cai de novo aqui.
-      const [unica, ...outras] = eu.campanhas
-      if (store.getState().rota.tela === 'campanhas' && unica !== undefined && outras.length === 0) {
-        const lobby: Rota = { tela: 'campanha', campanhaId: unica.campanhaId }
-        janela.history.replaceState(null, '', enderecoDaRota(lobby, demo))
-        store.setState({ rota: lobby })
-      }
-      store.setState({ eu: { t: 'pronto', eu } })
-      seguirARota()
-    })
-    .catch((erro: unknown) => {
-      const tipo = erro instanceof ErroDoEu ? erro.tipo : 'rede'
-      store.setState({ eu: { t: 'erro', tipo, detalhe: textoDoErro(erro) } })
-    })
+  /** Pede o `/api/eu`; a falha vira o estado `erro` (nunca lança). A tela de entrada chama de novo pelo "Tentar de novo", sem recarregar a página. */
+  function buscarOEu(): Promise<void> {
+    return fonte
+      .buscarEu()
+      .then((eu) => {
+        // Logo depois do login, quem joga numa mesa só entra direto no lobby dela (H1); com mais de uma, escolhe
+        // primeiro em "Suas mesas". Troca o endereço sem empilhar: o Voltar do navegador não cai de novo aqui.
+        const [unica, ...outras] = eu.campanhas
+        if (store.getState().rota.tela === 'campanhas' && unica !== undefined && outras.length === 0) {
+          const lobby: Rota = { tela: 'campanha', campanhaId: unica.campanhaId }
+          janela.history.replaceState(null, '', enderecoDaRota(lobby, demo))
+          store.setState({ rota: lobby })
+        }
+        store.setState({ eu: { t: 'pronto', eu } })
+        seguirARota()
+      })
+      .catch((erro: unknown) => {
+        const tipo = erro instanceof ErroDoEu ? erro.tipo : 'rede'
+        store.setState({ eu: { t: 'erro', tipo, detalhe: textoDoErro(erro) } })
+      })
+  }
+
+  void buscarOEu()
 
   return {
     store,
     fonte,
+    tentarOEuDeNovo() {
+      // Só depois de uma falha: com as mesas já abertas, não há o que tentar.
+      if (store.getState().eu.t !== 'erro') return Promise.resolve()
+      return buscarOEu()
+    },
     irPara(rota) {
       janela.history.pushState(null, '', enderecoDaRota(rota, demo))
       store.setState({ rota })
