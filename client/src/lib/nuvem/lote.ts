@@ -4,6 +4,7 @@ import { lerMudanca, segmentoValido, type NomeDaRegra } from './caminho'
 import { conflitoDeFichaApagada, montarConflito, opConcorrente, valorNoCaminho } from './conflito'
 import { bytesDoJson, ehRegistro, proprio, type Json } from './json'
 import { cabeNaCota, chaveDaCotaDaCampanha, chaveDaCotaDaConta, comNegadaContada, comOpContada, LIMITES, tetoDaOpEmBytes, type Cota } from './limites'
+import { recusaNaMochilaDoJogador } from './mochilaDoJogador'
 import { autorDaOp, membroAtivo, permissaoDaMudanca, podeDeclararAutor, type AutorEfetivo } from './permissao'
 import type {
   Conflito,
@@ -452,8 +453,28 @@ function executarGrupo(processo: Processo, grupo: readonly Validada[]): Resposta
     if (desfecho.t !== 'ack') return recusarGrupo(processo, grupo, validada, desfecho)
     feitas.push(desfecho.resposta)
   }
+  const naMochila = recusaNaMochilaDoGrupo(processo.estado, ensaio, grupo)
+  if (naMochila !== null) return recusarGrupo(processo, grupo, naMochila.validada, { t: 'negado', motivo: 'acima-do-teto', detalhe: naMochila.detalhe })
   adotar(processo.estado, ensaio)
   return feitas
+}
+
+/**
+ * SISTEMA DE ITENS REFEITO (E5b, PLANO §2.3): a regra da mochila do jogador olha o grupo inteiro, ficha
+ * a ficha, antes (`estado`) e depois do ensaio: o "Armas por batalha" e o pente que só troca balas com a
+ * mochila (o Recarregar tudo ou nada). O mestre fica de fora, e a mesa LAN também (vem pelo app do
+ * mestre, que já conferiu). Recusa em `acima-do-teto`: dois aparelhos equipando juntos não é violação.
+ */
+function recusaNaMochilaDoGrupo(estado: Estado, ensaio: Estado, grupo: readonly Validada[]): { validada: Validada; detalhe: string } | null {
+  const vistas = new Set<string>()
+  for (const validada of grupo) {
+    const { fichaId } = validada.op
+    if (validada.remetente.papel === 'mestre' || vistas.has(fichaId)) continue
+    vistas.add(fichaId)
+    const detalhe = recusaNaMochilaDoJogador(docDe(fichaDe(estado, fichaId)), docDe(fichaDe(ensaio, fichaId)))
+    if (detalhe !== null) return { validada, detalhe }
+  }
+  return null
 }
 
 /** O grupo inteiro volta com a resposta da op que não entrou; as outras dizem que vão junto com ela. */

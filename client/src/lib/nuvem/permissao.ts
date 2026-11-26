@@ -1,7 +1,7 @@
 import { ABA_DAS_ARMAS } from '../batalha/leituraDaFicha'
 import { quantidadeDe } from '../items'
 import type { Personagem } from '../personagem'
-import { alvoDoCaminho, quemEscreveAMudanca } from './caminho'
+import { alvoDoCaminho, quemEscreveAMudanca, type CampoDoItem } from './caminho'
 import { ehRegistro, proprio } from './json'
 import type { FichaGuardada, Identidade, Membro, MotivoNegado, Mudanca, OpGravada, Papel } from './tipos'
 
@@ -16,7 +16,8 @@ import type { FichaGuardada, Identidade, Membro, MotivoNegado, Mudanca, OpGravad
  *   caminho do mestre, nunca cria nem apaga ficha. Ficha sem dono: só o mestre.
  *   Na vaga com efeito, só baixa a quantidade (`sobeItemComEfeito`).
  *   Na arma ligada ao livro, não muda o que ela faz (`mexeNaArmaDoLivro`).
- *   Na vaga ligada ao Acervo, não muda os dados da coisa (`mexeNaCoisaDoAcervo`).
+ *   Na vaga ligada ao Acervo, não muda os dados da coisa (`mexeNaCoisaDoAcervo`);
+ *   equipar e o pente passam também pela regra do grupo (`recusaNaMochilaDoJogador`, no `processarLote`).
  * - `autorDeclarado` (mesa LAN): só com a identidade do app e com um membro
  *   ativo; a permissão é a do app (o mestre), que já conferiu a edição na sala.
  */
@@ -73,24 +74,40 @@ export function permissaoDaMudanca(membro: Membro | undefined, ficha: FichaGuard
     if (ficha !== undefined && donoDaFicha(ficha) === null) return negar('Ficha sem dono: só o mestre edita')
     return negar('Esta ficha não é sua')
   }
-  if (ficha !== undefined && sobeItemComEfeito(ficha.doc, mudanca)) return negar('Item com efeito: o jogador só gasta, quem dá mais é o mestre')
-  if (ficha !== undefined && mexeNaArmaDoLivro(ficha.doc, mudanca)) return negar(ARMA_DO_LIVRO)
-  if (ficha !== undefined && mexeNaCoisaDoAcervo(ficha.doc, mudanca)) return negar('Item do Acervo: só o mestre muda os dados dele')
+  return ficha === undefined ? PERMITIDO : permissaoNaFichaDoDono(ficha.doc, mudanca)
+}
+
+/**
+ * O que o DONO (não o mestre) muda na própria ficha, olhando o doc dela: a pilha com efeito só desce, a
+ * arma do livro e a coisa do Acervo são do mestre. Separado para o site conferir o pedido da mochila
+ * antes de mandar (`lib/nuvem/mochilaDoJogador.ts`), com a mesma frase que o servidor daria.
+ */
+export function permissaoNaFichaDoDono(doc: Personagem, mudanca: Pick<Mudanca, 'caminho' | 'acao' | 'valor' | 'delta'>): Veredito {
+  if (sobeItemComEfeito(doc, mudanca)) return negar('Item com efeito: o jogador só gasta, quem dá mais é o mestre')
+  if (mexeNaArmaDoLivro(doc, mudanca)) return negar(ARMA_DO_LIVRO)
+  if (mexeNaCoisaDoAcervo(doc, mudanca)) return negar('Item do Acervo: só o mestre muda os dados dele')
   return PERMITIDO
 }
+
+/**
+ * O que o dono muda na vaga ligada ao Acervo: acender e apagar (`acesa`) e, desde a E5b dos itens
+ * (PLANO §2.3, A6), equipar, guardar e o pente. O pente e o "Armas por batalha" são conferidos no grupo
+ * inteiro (`recusaNaMochilaDoJogador`, em `processarLote`): a op sozinha não diz de onde vieram as balas.
+ */
+const CAMPOS_DO_DONO_NA_VAGA_DO_ACERVO: ReadonlySet<CampoDoItem> = new Set<CampoDoItem>(['acesa', 'equipado', 'pente'])
 
 /**
  * OS DADOS DA COISA NUMA FONTE SÓ (Nº 11 e 14 do levantamento de 25/11/2026,
  * `lib/mochila/efeitoNasCopias.ts`): a vaga ligada ao Acervo (`itemId`, no doc
  * do servidor) é cópia da coisa; o nome, a foto, a descrição, o preço, a luz e
- * as munições dela só o mestre muda. O dono acende e apaga (`acesa`), gasta e
- * tira. É a regra da mesa LAN, onde o jogador não tem como mudar uma vaga (só
- * acender, usar, dar e largar); no Lobby o dono podia, e a foto, a luz e as
+ * as munições dela só o mestre muda. O dono acende e apaga (`acesa`), equipa,
+ * guarda, mexe no pente, gasta e tira. É a regra da mesa LAN, onde o jogador não
+ * tem como mudar os dados de uma vaga; no Lobby o dono podia, e a foto, a luz e as
  * munições voltavam ao Acervo na abertura seguinte da pasta no app do mestre.
  */
 function mexeNaCoisaDoAcervo(doc: Personagem, mudanca: Pick<Mudanca, 'caminho'>): boolean {
   const alvo = alvoDoCaminho(mudanca.caminho)
-  if (alvo?.regra !== 'campoDoItem' || alvo.campo === 'acesa') return false
+  if (alvo?.regra !== 'campoDoItem' || CAMPOS_DO_DONO_NA_VAGA_DO_ACERVO.has(alvo.campo)) return false
   return (doc.mochila ?? []).some((vaga) => vaga.id === alvo.vagaId && vaga.itemId !== undefined)
 }
 
