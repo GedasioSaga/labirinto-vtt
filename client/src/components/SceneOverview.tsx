@@ -1,12 +1,14 @@
-import { memo, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { memo, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
 import { SECRET_ITEM_ALPHA } from '../pixi/constants'
 import { WALL_COLOR, WALL_INTERIOR_ALPHA } from '../pixi/drawWalls'
 import { theme } from '../theme'
+import { CampoTexto } from './grimorio/CampoTexto'
 import { Dialogo } from './grimorio/Dialogo'
 import { sceneArt, type ArtFrame, type SceneArt } from './sceneOverviewArt'
 import { sceneTree, type SceneTreeRow } from '../lib/adventure'
+import { semAcento } from '../lib/semAcento'
 
 /** Ficha "Oculta no editor": o mesmo fantasma do editor (`HIDDEN_TOKEN_GHOST_ALPHA`, tokensRenderer.ts). */
 const GHOST_TOKEN_OPACITY = 0.3
@@ -226,6 +228,11 @@ export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onCl
   const cenaDoFoco = useRef<HTMLButtonElement>(null)
   const rows = useMemo(() => sceneTree(scenes), [scenes])
   const byId = useMemo(() => new Map(rows.map((row) => [row.entry.id, row])), [rows])
+  // FILTRAR CENAS (qualidade de vida, 26/11/2026): com muitas cenas, achar uma pelo nome.
+  // Com texto, a grade vira uma lista só das que batem, sem os grupos.
+  const [filtro, setFiltro] = useState('')
+  const termo = semAcento(filtro.trim())
+  const filtradas = termo === '' ? null : rows.filter((row) => semAcento(row.entry.name).includes(termo))
   const temGrupos = rows.some((row) => row.childIds.length > 0)
   // Sem cena aberta que abra, o Dialogo foca a primeira miniatura que abre, na ordem da tela.
   const focoId = scenes.find((scene) => scene.active && scene.available)?.id
@@ -300,8 +307,19 @@ export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onCl
       classe={`lb-visao${expandida ? ' lb-visao--expandida' : ''}`}
       focoInicial={focoId === undefined ? undefined : cenaDoFoco}
     >
+        {rows.length > 1 && (
+          <div className="lb-visao__filtro">
+            <CampoTexto rotulo="Filtrar cenas" placeholder="Nome da cena" valor={filtro} onChange={setFiltro} />
+          </div>
+        )}
         <div ref={gridRef} className="lb-scroll lb-visao__corpo" role="group" aria-label="Miniaturas das cenas" onKeyDown={onGridKeyDown}>
-          {temGrupos ? (
+          {filtradas !== null ? (
+            filtradas.length === 0 ? (
+              <p className="lb-visao__falta">Nenhuma cena com “{filtro.trim()}”.</p>
+            ) : (
+              <ul className="lb-visao__grade">{filtradas.map((row) => renderCard(row.entry))}</ul>
+            )
+          ) : temGrupos ? (
             <>
               {rows
                 .filter((row) => row.depth === 0 && row.childIds.length > 0)

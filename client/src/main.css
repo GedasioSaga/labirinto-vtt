@@ -5306,6 +5306,11 @@ html.lb-arrastando-cena * {
   padding: var(--lb-space-4);
 }
 
+/* FILTRAR CENAS: o campo fica no mesmo respiro das grades, acima do corpo que rola. */
+.lb-visao__filtro {
+  padding: var(--lb-space-4) var(--lb-space-4) 0;
+}
+
 .lb-visao__grupo {
   padding: var(--lb-space-4);
   border-bottom: 1px solid var(--lb-color-line);
