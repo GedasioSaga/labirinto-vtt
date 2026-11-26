@@ -151,6 +151,11 @@ describe('biblioteca de carimbos', () => {
       // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md).
       'palha-espalhada',
       'respingos-de-sangue',
+      // Os quatro tipos de sangue de 26/11/2026 (o Sangue espalhado fica, aposentado, para os mapas que já o têm).
+      'sangue-respingos',
+      'sangue-gotas',
+      'sangue-rastro',
+      'sangue-poca',
       'brasas-espalhadas',
       'ratos',
       'cristais-ciano',

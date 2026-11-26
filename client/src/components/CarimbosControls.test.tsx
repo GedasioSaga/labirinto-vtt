@@ -129,7 +129,11 @@ describe('CarimbosControls', () => {
       'Sebe aparada',
       // A leva de 24/11/2026.
       'Palha espalhada',
-      'Sangue espalhado',
+      // O Sangue espalhado saiu da grade (aposentado em 26/11/2026); no lugar, os quatro tipos.
+      'Respingos de sangue',
+      'Gotas de sangue',
+      'Rastro de sangue',
+      'Poça de sangue',
       'Brasas espalhadas',
       'Ratos',
       'Cristais ciano',

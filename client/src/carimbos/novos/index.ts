@@ -49,7 +49,7 @@ import { carimbo as fendaEmBrasa, brilho as brilhoDaFendaEmBrasa, paleta as pale
 import { carimbo as pedrasDePasso, paleta as paletaDasPedrasDePasso } from './pedrasDePasso'
 import { carimbo as sebeAparada, paleta as paletaDaSebeAparada } from './sebeAparada'
 import { carimbo as palhaEspalhada, paleta as paletaDePalhaEspalhada } from './palhaEspalhada'
-import { carimbo as respingosDeSangue, paleta as paletaDeRespingosDeSangue } from './respingosDeSangue'
+import { carimbo as respingosDeSangue, paleta as paletaDeRespingosDeSangue, tiposDeSangue } from './respingosDeSangue'
 import { carimbo as brasasEspalhadas, brilho as brilhoDeBrasasEspalhadas, paleta as paletaDeBrasasEspalhadas } from './brasasEspalhadas'
 import { carimbo as ratos, paleta as paletaDeRatos } from './ratos'
 import { carimbo as cristaisCiano, paleta as paletaDeCristaisCiano } from './cristaisCiano'
@@ -170,7 +170,9 @@ export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
   sebeAparada,
   // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md). As brasas espalhadas acendem como a fenda em brasa.
   palhaEspalhada,
+  // O Sangue espalhado está aposentado (26/11/2026): fica para os mapas que já o têm; o painel mostra os quatro tipos.
   respingosDeSangue,
+  ...tiposDeSangue,
   { ...brasasEspalhadas, brilho: brilhoDeBrasasEspalhadas },
   ratos,
   cristaisCiano,
@@ -240,6 +242,7 @@ export const PALETA_DOS_NOVOS: readonly Rgb[] = [
   ...paletaDaSebeAparada,
   // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md). Das brasas, só o corpo, sem as cores do `brilho`.
   ...paletaDePalhaEspalhada,
+  // A mesma paleta serve aos quatro tipos de sangue.
   ...paletaDeRespingosDeSangue,
   ...paletaDeBrasasEspalhadas,
   ...paletaDeRatos,

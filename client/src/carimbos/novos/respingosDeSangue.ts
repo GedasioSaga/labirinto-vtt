@@ -1,4 +1,4 @@
-import { css, type DefinicaoDeCarimbo, type Rgb } from '../embutidos'
+import { css, type DefinicaoDeCarimbo, type DesenhoDeCarimbo, type Rgb } from '../embutidos'
 
 /**
  * Sangue espalhado (lote L02 dos objetos de 24/11/2026, Masmorra: carcereiro e tortura; a versão de carimbo do
@@ -16,6 +16,9 @@ import { css, type DefinicaoDeCarimbo, type Rgb } from '../embutidos'
  * Em volta das peças grandes, o halo seco marrom, um pouco mais claro que a pedra escura, para a mancha não sumir
  * nela. As cores são vinho velho e marrom (nenhum vermelho vivo, nenhum canal acima de 245). Fica rente ao chão:
  * sem sombra, por baixo das sombras dos outros. O giro gira a cena inteira; a luz (o reflexo) não gira.
+ *
+ * Desde 26/11/2026 o painel oferece as quatro formas como carimbos separados (`tiposDeSangue`: Respingos, Gotas,
+ * Rastro e Poça de sangue), cada uma com as duas cenas dela; o Sangue espalhado sai do painel e continua nos mapas.
  */
 
 const SECO: Rgb = [118, 72, 60]
@@ -276,23 +279,36 @@ function trilha(g: CanvasRenderingContext2D, de: Ponto, ate: Ponto, n: number, g
   }
 }
 
-function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): void {
-  const s = Math.floor(Math.abs(semente)) % 8
+/** As quatro formas, pelo resto da cena por 4 (a cena 4 a 7 é a mesma forma com o detalhe a mais). */
+const FORMA_POCA = 0
+const FORMA_RASTRO = 1
+const FORMA_RESPINGOS = 2
+const FORMA_GOTAS = 3
+/** A partir desta cena (e desta variante), o detalhe a mais da forma. */
+const CENA_COM_EXTRA = 4
+
+/** O desenho de 0 a 7 que a semente pede (o palco passa a variante do giro). */
+function variante(semente: number): number {
+  return Math.floor(Math.abs(semente)) % 8
+}
+
+/** A cena `s` (0 a 7): a forma é `s % 4`; de 4 a 7, com o detalhe a mais. */
+function desenharCena(g: CanvasRenderingContext2D, giro: number, s: number): void {
   const tipo = s % 4
-  const extra = s >= 4
+  const extra = s >= CENA_COM_EXTRA
   const a = sorteio(s, 1) * Math.PI * 2
   const c = Math.cos(a)
   const sn = Math.sin(a)
-  if (tipo === 0) {
+  if (tipo === FORMA_POCA) {
     poca(g, -0.04, 0.02, 0.2, giro, s)
     respingos(g, -0.04, 0.02, a, Math.PI * 2, 12, 0.42, giro, s)
     if (extra) trilha(g, [c * 0.27, sn * 0.27], [c * 0.47, sn * 0.47], 4, giro, s)
-  } else if (tipo === 1) {
+  } else if (tipo === FORMA_RASTRO) {
     poca(g, -c * 0.3, -sn * 0.3, 0.12, giro, s)
     rastro(g, [-c * 0.24, -sn * 0.24], [c * 0.44, sn * 0.44], 0.11, giro, s)
     // Na 5, uns pingos soltos em volta da poça, em roda: o leque de respingos ali lia como a mão no fim do braço.
     if (extra) respingos(g, -c * 0.3, -sn * 0.3, a + Math.PI, Math.PI * 2, 4, 0.15, giro, s)
-  } else if (tipo === 2) {
+  } else if (tipo === FORMA_RESPINGOS) {
     // O baque: sem a mancha de onde o leque sai, os pingos soltos sumiam na pedra escura.
     poca(g, -c * 0.22, -sn * 0.22, extra ? 0.09 : 0.055, giro, s)
     respingos(g, -c * 0.22, -sn * 0.22, a, 1.25, 18, 0.62, giro, s)
@@ -302,6 +318,36 @@ function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): v
   }
 }
 
-export const carimbo: DefinicaoDeCarimbo = { id: 'respingos-de-sangue', nome: 'Sangue espalhado', tamanho: 10, sombra: 'nenhuma', desenhar }
+/** O Sangue espalhado de 24/11/2026: a semente escolhe a forma, como sempre (os mapas que já o têm não mudam). */
+function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): void {
+  desenharCena(g, giro, variante(semente))
+}
+
+/**
+ * Uma forma só (26/11/2026, "eu vi vários tipos de sangue, mas aqui só tem um"): as variantes 0 a 3 tiram a cena
+ * simples dela e as 4 a 7 a com o detalhe a mais, cada uma no giro dela. Na variante igual à cena (a poça na 0 e na
+ * 4, o rastro na 1 e na 5...), o desenho é o mesmo do Sangue espalhado.
+ */
+function desenhoDaForma(forma: number): DesenhoDeCarimbo {
+  return (g, giro, semente) => desenharCena(g, giro, forma + (variante(semente) >= CENA_COM_EXTRA ? CENA_COM_EXTRA : 0))
+}
+
+/**
+ * Aposentado em 26/11/2026: o painel oferece os quatro tipos abaixo no lugar dele; o id continua lido e desenhado
+ * como antes nos mapas que já o têm.
+ */
+export const carimbo: DefinicaoDeCarimbo = { id: 'respingos-de-sangue', nome: 'Sangue espalhado', tamanho: 10, sombra: 'nenhuma', desenhar, aposentado: true }
+
+/**
+ * Os quatro tipos de sangue, cada um uma escolha do painel, com o tamanho e o chão do Sangue espalhado. Os nomes
+ * levam "de sangue" para não confundir com a Poça d'água da biblioteca; o rastro é o arrastado (a trilha de pingos é
+ * a das Gotas), o "rastro de sangue" dos mapas 2 e 4 da lista de 24/11.
+ */
+export const tiposDeSangue: readonly DefinicaoDeCarimbo[] = [
+  { id: 'sangue-respingos', nome: 'Respingos de sangue', tamanho: 10, sombra: 'nenhuma', desenhar: desenhoDaForma(FORMA_RESPINGOS) },
+  { id: 'sangue-gotas', nome: 'Gotas de sangue', tamanho: 10, sombra: 'nenhuma', desenhar: desenhoDaForma(FORMA_GOTAS) },
+  { id: 'sangue-rastro', nome: 'Rastro de sangue', tamanho: 10, sombra: 'nenhuma', desenhar: desenhoDaForma(FORMA_RASTRO) },
+  { id: 'sangue-poca', nome: 'Poça de sangue', tamanho: 10, sombra: 'nenhuma', desenhar: desenhoDaForma(FORMA_POCA) },
+]
 
 export const paleta: readonly Rgb[] = [SECO, HALO, BEIRA, MIOLO, COAGULO, GOTA, REFLEXO]

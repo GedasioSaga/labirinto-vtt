@@ -64,6 +64,13 @@ export interface DefinicaoDeCarimbo {
    * do pacote não muda.
    */
   traco?: TracoDoCarimbo
+  /**
+   * Fora do painel (26/11/2026, o Sangue espalhado trocado pelos quatro tipos
+   * de sangue): o mapa que já o tem continua a lê-lo e desenhá-lo, a ficha do
+   * objeto posto ainda mostra o nome dele, mas a grade da ferramenta e a troca
+   * de tipo não o oferecem mais. Ausente = oferecido. Só a biblioteca tem.
+   */
+  aposentado?: boolean
 }
 
 // ---------------------------------------------------------------------------

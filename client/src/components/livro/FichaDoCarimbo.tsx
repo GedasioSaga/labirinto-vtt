@@ -107,11 +107,14 @@ export function FichaDoCarimbo({ carimbo }: { carimbo: Carimbo }) {
           <select id={idTipo} className="lb-input" value={carimbo.tipo} disabled={travado} onChange={(event) => trocarTipo(event.target.value)}>
             {/* O tipo que este aparelho não tem (pacote que não chegou) fica escolhido, com o id. */}
             {!tiposConhecidos.has(carimbo.tipo) && <option value={carimbo.tipo}>{carimbo.tipo}</option>}
-            {catalogo.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-              </option>
-            ))}
+            {/* O aposentado só aparece no objeto que já é dele: a troca oferece o que está em uso. */}
+            {catalogo
+              .filter((c) => c.aposentado !== true || c.id === carimbo.tipo)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
             {(importados ?? []).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nome}

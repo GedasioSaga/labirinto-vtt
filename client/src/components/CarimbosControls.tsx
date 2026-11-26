@@ -150,7 +150,8 @@ export function CarimbosControls() {
   const grade = useRef<HTMLDivElement>(null)
 
   const itens: ItemDaBiblioteca[] = [
-    ...catalogo.map((c) => ({ id: c.id, nome: c.nome, catalogo: c })),
+    // O aposentado (o Sangue espalhado) continua nos mapas, mas a grade oferece só o que está em uso.
+    ...catalogo.filter((c) => c.aposentado !== true).map((c) => ({ id: c.id, nome: c.nome, catalogo: c })),
     ...importados.map((c) => ({ id: c.id, nome: c.nome, importado: c })),
   ]
   const indiceEscolhido = itens.findIndex((item) => item.id === escolhido)
