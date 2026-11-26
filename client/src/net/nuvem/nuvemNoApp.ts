@@ -2,6 +2,7 @@ import { join } from '@tauri-apps/api/path'
 import { rotuloDaParte } from '../../lib/ajusteDaFicha'
 import { lerContas } from '../../lib/contasNoDisco'
 import { subscribeToOpenings, useAdventureStore } from '../../stores/adventureStore'
+import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
 import { useNuvemStore } from '../../stores/nuvemStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { useToastStore } from '../../stores/toastStore'
@@ -64,7 +65,12 @@ const aplicadorDoApp: AplicadorNoApp = {
     // `mudarRpgDaPasta` não emite (a mudança veio da nuvem), não marca a pasta como suja e não entra no Ctrl+Z.
     if (personagens !== null) mudarRpgDaPasta(pastaId, (rpg) => ({ ...rpg, personagens }))
   },
-  gravarRpg: gravarRpgLeve,
+  async gravarRpg(pastaId, ajustar) {
+    await gravarRpgLeve(pastaId, ajustar)
+    // O mundo do livro aberto nesta pasta (porta Livros de regras) só lia a pasta ao abrir: mostrava a ficha velha
+    // e, numa gravação que troca a ficha inteira, gravava esse valor velho por cima do que o Lobby trouxe.
+    if (useMundoDoLivroStore.getState().aberto?.pastaId === pastaId) void useMundoDoLivroStore.getState().recarregar()
+  },
   aoAbrirAPasta(pastaId, aoAbrir) {
     return subscribeToOpenings(() => {
       // O aviso sai antes de o mapa novo entrar; o `open` grava a pasta no mesmo passo, sem `await`, então o acerto vem logo depois dele.
