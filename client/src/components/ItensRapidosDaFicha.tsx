@@ -24,11 +24,15 @@ export interface ItensRapidosDaFichaProps {
   onAbrir: (aberto: RapidoAberto | null) => void
   /** Os itens pais, para o menu andar neles com as setas. */
   vidaRef: RefObject<HTMLButtonElement | null>
+  abrirRef: RefObject<HTMLButtonElement | null>
+  /** O ponteiro chegou num item sem submenu: o menu pai fecha os submenus abertos (os dele também). */
+  onPassar: () => void
   /** Fecha o menu inteiro (depois de aplicar). */
   onClose: () => void
 }
 
 export const MOTIVO_SEM_FICHA_LIGADA = 'Ligue uma ficha primeiro.'
+const MOTIVO_FICHA_FORA_DA_LISTA = 'A ficha ligada não está mais na lista de Personagens.'
 const MOTIVO_SEM_VIDA_NO_SISTEMA = 'O sistema de RPG desta aventura não tem vida com máximo.'
 const MOTIVO_FICHA_SEM_VIDA = 'A ficha não tem vida com máximo.'
 
@@ -36,11 +40,13 @@ const MOTIVO_FICHA_SEM_VIDA = 'A ficha não tem vida com máximo.'
  * NPC NO BOTÃO DIREITO (pedido de 25/11/2026: "tirar dano e dar vida aos NPCs
  * sem entrar na ficha… porque eu to criando várias cópias do mesmo NPC"), no
  * TOPO do menu, o mais usado: "Vida ›" (o número de agora e o painel de Tirar
- * e Dar, `SubmenuDaVida`), para todas as fichas selecionadas. Serve ao menu
+ * e Dar, `SubmenuDaVida`), para todas as fichas selecionadas; e "Abrir ficha",
+ * a mesma janela da ficha que o mestre abre pelos Personagens (com várias
+ * fichas na seleção, a do primeiro token; o nome vai no item). Serve ao menu
  * da seleção (`MenuDaSelecao`) e ao do token de jogador (`TokenContextMenu`):
  * vale para NPC e para ficha de jogador.
  */
-export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, onClose }: ItensRapidosDaFichaProps) {
+export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirRef, onPassar, onClose }: ItensRapidosDaFichaProps) {
   const tokens = useMapStore((state) => state.map.tokens)
   const personagens = useAdventureStore(personagensAtivos)
   const idDoSistema = useAdventureStore(sistemaAtivo)
@@ -53,8 +59,26 @@ export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, onClos
   const [uma] = fichas
   const motivoDaVida = ligados.length === 0 ? MOTIVO_SEM_FICHA_LIGADA : recurso === null ? MOTIVO_SEM_VIDA_NO_SISTEMA : fichas.length === 0 ? MOTIVO_FICHA_SEM_VIDA : null
   const naBatalha = fichas.some((ficha) => cenasComOPersonagem(batalhas, ficha.personagemId).length > 0)
+  // "Abrir ficha": a do primeiro token da seleção com ficha da lista.
+  const idsLigados = [...new Set(ligados.flatMap((id) => tokens.find((token) => token.id === id)?.characterId ?? []))]
+  const daLista = idsLigados.flatMap((id) => personagens.find((personagem) => personagem.id === id) ?? [])
+  const [paraAbrir] = daLista
+  const motivoDeAbrir = ligados.length === 0 ? MOTIVO_SEM_FICHA_LIGADA : paraAbrir === undefined ? MOTIVO_FICHA_FORA_DA_LISTA : null
+  const abrirFicha = () => {
+    if (paraAbrir === undefined) return
+    useRpgStore.getState().abrirFicha(paraAbrir.id)
+    onClose()
+  }
+  /** Enter e Espaço abrem a ficha; a seta para a direita não abre nada (o item não tem submenu). */
+  const teclaNoAbrir = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.key !== 'ArrowRight') abrirFicha()
+  }
 
-  const abrirVida = (focar: boolean) => onAbrir(motivoDaVida === null ? { qual: 'vida', focar } : null)
+  // Desligada, a "Vida" não abre nada: só fecha o submenu que estava aberto.
+  const abrirVida = (focar: boolean) => (motivoDaVida === null ? onAbrir({ qual: 'vida', focar }) : onPassar())
   const fecharVida = () => {
     onAbrir(null)
     vidaRef.current?.focus()
@@ -106,6 +130,23 @@ export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, onClos
       {aberto?.qual === 'vida' && motivoDaVida === null && recurso !== null && (
         <SubmenuDaVida fichas={fichas} nomeDoRecurso={recurso.nome} naBatalha={naBatalha} ancora={vidaRef.current} onAplicar={aplicar} onFechar={fecharVida} />
       )}
+      <button
+        ref={abrirRef}
+        type="button"
+        role="menuitem"
+        tabIndex={-1}
+        className="lb-portamenu__item lb-menusel__pai"
+        aria-disabled={motivoDeAbrir !== null}
+        title={motivoDeAbrir ?? undefined}
+        onPointerEnter={(event) => {
+          event.currentTarget.focus()
+          onPassar()
+        }}
+        onClick={abrirFicha}
+        onKeyDown={teclaNoAbrir}
+      >
+        <span className="lb-menusel__nome">{daLista.length > 1 && paraAbrir !== undefined ? `Abrir ficha de ${paraAbrir.nome.trim() || 'Personagem sem nome'}` : 'Abrir ficha'}</span>
+      </button>
     </>
   )
 }
