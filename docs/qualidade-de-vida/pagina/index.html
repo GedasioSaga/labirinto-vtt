@@ -319,6 +319,9 @@ fieldset.grupo legend { float: left; margin-right: 0.375rem; padding: 0; font-fa
 .chip.nav { border: 1px dashed var(--vidro); color: var(--vidro); background: var(--vidro-fundo); }
 .chip.conf { border-color: var(--brasa); color: var(--brasa); background: var(--brasa-fundo); }
 .chip.conf.repro { border-style: dashed; background: none; }
+.chip.decidir { border-color: var(--ouro); color: var(--ouro-vivo); background: var(--ouro-fundo); }
+.chip.parado { border-style: dashed; border-color: var(--ouro); color: var(--ouro); }
+.chip.conferir { border-color: var(--vidro); color: var(--vidro); }
 .dl { margin: 0; display: grid; gap: 0.5rem; }
 .dl > div { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 0.75rem; }
 .dl dt { font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); padding-top: 0.2rem; }
@@ -326,6 +329,7 @@ fieldset.grupo legend { float: left; margin-right: 0.375rem; padding: 0; font-fa
 .dl .sug dd { color: var(--creme); font-weight: 500; }
 .dl .sug dt { color: var(--ouro); }
 .dl .noapp dt, .dl .noapp dd { color: var(--vidro); }
+.dl .ref dd { font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); overflow-wrap: anywhere; padding-top: 0.2rem; }
 .obs { margin: 0; font-size: var(--t-1); color: var(--creme-2); max-width: 62ch; }
 .cartao-pe { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem; padding-top: 0.625rem; border-top: 1px solid var(--linha); }
 .fonte { font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); }
@@ -343,6 +347,7 @@ fieldset.grupo legend { float: left; margin-right: 0.375rem; padding: 0; font-fa
   transition: transform 140ms var(--sai);
 }
 .foto:active { transform: scale(0.985); }
+.cartao-fotos { display: grid; gap: 0.75rem; align-content: start; min-width: 0; }
 .foto .moldura {
   display: block;
   aspect-ratio: 16 / 10;
@@ -372,7 +377,7 @@ fieldset.grupo legend { float: left; margin-right: 0.375rem; padding: 0; font-fa
   align-items: center;
 }
 
-/* ---------- Já consertado ou em conserto ---------- */
+/* ---------- Ficou de fora desta leva ---------- */
 .bugs { list-style: none; margin: 0; padding: 0; display: grid; }
 .bug {
   display: grid;
@@ -429,7 +434,7 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
   .top { grid-template-columns: minmax(0, 1fr); }
   .top li:nth-child(2) { border-top-color: var(--linha); }
   .cartao { grid-template-columns: minmax(0, 1fr); }
-  .cartao .foto { max-width: 26rem; }
+  .cartao .foto, .cartao-fotos { max-width: 26rem; }
 }
 @media (max-width: 520px) {
   .pagina { padding-block: 2rem 3rem; gap: 2.75rem; }
@@ -450,36 +455,46 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
 
 <main class="pagina">
   <header class="topo">
-    <p class="data">Labirinto, mesa virtual de RPG. Levantamento de 26/11/2026.</p>
+    <p class="data">Labirinto, mesa virtual de RPG. Levantamento de 26/11/2026, atualizado no fechamento da 0.6.1.</p>
     <h1>Qualidade de vida do Labirinto</h1>
-    <p class="lead">Sugestões para deixar o Labirinto mais fácil de usar, separadas para o mestre e para o jogador. Cada uma diz o que atrapalha hoje, o que mudar, quanto ajuda e quanto trabalho deve dar.</p>
-    <p class="como">Como foi feito: um agente usou o app fingindo ser um mestre de One Piece (montar uma taverna, criar cenas, rodar uma batalha, pôr som, consultar regras) e outro fingindo ser um jogador. Depois, a leitura do código de Criar Mapas, Batalhas, Prelúdio, Livros de regras e do site do Lobby completou o que não dava para ver na tela. Impacto e esforço são estimativas.</p>
+    <p class="lead">10 sugestões e 25 bugs foram feitos na 0.6.1; aqui ficam só os que precisam de você confirmar.</p>
+    <p class="como">Quatro dessas sugestões saíram em parte: o que falta delas está abaixo, junto com o que não deu tempo de fazer. Cada cartão diz por que ficou: decisão sua, bug que ainda precisa ser visto acontecendo, trabalho começado e sem commit, conserto feito que falta ver no app instalado, ou algo visto só no navegador.</p>
     <div class="aviso-nav" role="note">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2" y="3.5" width="16" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 7.5h16" stroke="currentColor" stroke-width="1.5"/><circle cx="4.75" cy="5.5" r="0.8" fill="currentColor"/><circle cx="7.25" cy="5.5" r="0.8" fill="currentColor"/></svg>
-      <p><strong>Os dois passeios usaram o app aberto pelo navegador.</strong> Ali, salvar e abrir pasta, Livros de regras, Sons e a sala de jogadores não funcionam: isso só existe no app instalado. O que dependia disso está marcado “visto no navegador” e fica separado no fim de cada parte. Não são defeitos do app instalado.</p>
+      <p><strong>Os passeios usaram o app aberto pelo navegador.</strong> Ali, salvar e abrir pasta, Livros de regras, Sons e a sala de jogadores não funcionam: isso só existe no app instalado. O que dependia disso está marcado “visto no navegador” e fica separado no fim de cada parte. Não são defeitos do app instalado.</p>
     </div>
     <p class="resumo" id="resumo"></p>
   </header>
 
   <section class="secao" aria-labelledby="t-top">
     <header>
-      <h2 id="t-top">Os 10 primeiros a fazer</h2>
-      <p>Maior impacto com menor esforço, só entre o que vale no app instalado. Clique para ver o cartão completo.</p>
+      <h2 id="t-top">Perguntas só para você</h2>
+      <p>Estes pararam numa escolha sua: o código não diz qual é o certo. Clique para ver o cartão completo.</p>
     </header>
     <ol class="top" id="top"></ol>
   </section>
 
-    <div class="filtros" role="search" aria-label="Filtrar sugestões">
+    <div class="filtros" role="search" aria-label="Filtrar a lista">
       <div class="filtros-linha">
         <div class="busca">
-          <label for="busca" class="vh">Buscar nas sugestões</label>
+          <label for="busca" class="vh">Buscar na lista</label>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.75" stroke="currentColor" stroke-width="1.5"/><path d="m10.5 10.5 3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <input id="busca" type="search" placeholder="Buscar: grade, batalha, Lobby, token…" autocomplete="off">
+          <input id="busca" type="search" placeholder="Buscar: porta, batalha, Lobby, pino…" autocomplete="off">
         </div>
         <p class="contagem" id="contagem" aria-live="polite"></p>
         <button type="button" class="botao-texto" id="limpar" hidden>Limpar filtros</button>
       </div>
       <div class="filtros-linha">
+        <fieldset class="grupo">
+          <legend>Situação</legend>
+          <div class="pilulas">
+            <label><input type="radio" name="situacao" id="sit-todos" value="todos" checked><span>Todas</span></label>
+            <label><input type="radio" name="situacao" id="sit-decidir" value="decidir"><span>Decisão sua</span></label>
+            <label><input type="radio" name="situacao" id="sit-incerto" value="incerto"><span>A reproduzir</span></label>
+            <label><input type="radio" name="situacao" id="sit-fazer" value="fazer"><span>Por fazer</span></label>
+            <label><input type="radio" name="situacao" id="sit-conferir" value="conferir"><span>Falta conferir</span></label>
+          </div>
+        </fieldset>
         <fieldset class="grupo">
           <legend>Para quem</legend>
           <div class="pilulas">
@@ -524,10 +539,10 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
     <div class="parte" id="jogador-corpo"></div>
   </section>
 
-  <section class="secao" id="conserto" aria-labelledby="t-conserto">
+  <section class="secao" id="fora" aria-labelledby="t-fora">
     <header>
-      <h2 id="t-conserto">Já consertado ou em conserto</h2>
-      <p>Estes achados dos passeios já viraram bug nas listas do explorador, por isso não aparecem como sugestão. Até a versão 0.6.0 (26/11, 12h24) nenhum deles tinha conserto publicado: estão anotados para a fase de conserto. Os marcados “a reproduzir” ainda precisam ser vistos acontecendo antes do conserto.</p>
+      <h2 id="t-fora">Ficou de fora desta leva</h2>
+      <p>Pontos técnicos que não entraram na 0.6.1 e não pedem decisão agora. Ficam aqui para não se perderem; os filtros não mexem nesta lista.</p>
     </header>
     <ul class="bugs" id="bugs"></ul>
   </section>
@@ -535,11 +550,11 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
   <footer class="rodape">
     <h2>De onde veio</h2>
     <ul>
-      <li>Passeio do mestre: <code>docs/qualidade-de-vida/relatorio-mestre.md</code> (25 achados, prints mestre-01 a 15).</li>
-      <li>Passeio do jogador: <code>docs/qualidade-de-vida/relatorio-jogador.md</code> (10 achados, prints jogador-01 a 05).</li>
-      <li>Leitura do código: <code>docs/explorador/mapas.md</code>, <code>batalhas.md</code>, <code>preludio-e-livros.md</code> e <code>site.md</code>. Daqui só entrou o que é qualidade de vida; bug técnico ficou nas listas.</li>
+      <li>Passeio do mestre: <code>docs/qualidade-de-vida/relatorio-mestre.md</code>. Passeio do jogador: <code>docs/qualidade-de-vida/relatorio-jogador.md</code>. Os dois fingiram uma mesa de One Piece no app aberto pelo navegador.</li>
+      <li>Leitura do código: <code>docs/explorador/mapas.md</code>, <code>batalhas.md</code>, <code>preludio-e-livros.md</code> e <code>site.md</code>. Daqui entraram os bugs incertos; as “coisas erradas” ficaram só nas listas.</li>
+      <li>O que foi feito: os commits da 0.6.1 de 26/11 (14h42 a 15h07) e os relatos das faixas Batalha e Prelúdio, Livros e site. A faixa de mapas parou sem relato: o estado dela saiu do git e dos arquivos sem commit.</li>
     </ul>
-    <p>Não deu para testar no navegador: rodada completa de batalha, abrir um mapa já salvo, tocar um som, o jogador dentro da sala e o Lobby de verdade (o servidor de teste respondia 404). Esses pontos pedem um passeio no app instalado.</p>
+    <p>As linhas de código citadas são as da leitura de 26/11 de manhã; os consertos da 0.6.1 podem ter mudado algumas de lugar. Impacto e tamanho do conserto são estimativas.</p>
   </footer>
 </main>
 
@@ -563,277 +578,415 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
   var NIVEL_IMPACTO = { alto: 3, medio: 2, baixo: 1 };
   var NIVEL_ESFORCO = { pequeno: 1, medio: 2, grande: 3 };
 
-  function foto(nome, legenda) { return { src: 'fotos/' + nome + '.webp', legenda: legenda }; }
+  /* Situação de cada cartão: o chip, a classe dele e a ordem dentro da área. */
+  var SITUACOES = {
+    decidir: { chip: 'Decisão sua', classe: 'chip decidir', ordem: 1 },
+    parado: { chip: 'Começado, sem commit', classe: 'chip parado', ordem: 2 },
+    falta: { chip: 'Ainda não feito', classe: 'chip', ordem: 3 },
+    conferir: { chip: 'Feito, falta conferir', classe: 'chip conferir', ordem: 4 },
+    incerto: { chip: 'A reproduzir', classe: 'chip conf repro', ordem: 5 },
+    navegador: { chip: 'Visto no navegador', classe: 'chip nav', ordem: 6 }
+  };
+  /* O filtro "Por fazer" junta o que não começou e o que parou sem commit. */
+  var FILTRO_DA_SITUACAO = { decidir: 'decidir', parado: 'fazer', falta: 'fazer', conferir: 'conferir', incerto: 'incerto', navegador: 'navegador' };
 
-  var SUGESTOES = [
+  function foto(nome, legenda, contida) { return { src: 'fotos/' + nome + '.webp', legenda: legenda, contida: !!contida }; }
+  function L(rotulo, texto) { return [rotulo, texto, '']; }
+  function S(rotulo, texto) { return [rotulo, texto, 'sug']; }
+  function R(texto) { return ['Onde', texto, 'ref']; }
+
+  var FALTA_MAPAS = 'Não entrou na 0.6.1: a faixa de mapas parou antes de chegar aqui.';
+
+  var ITENS = [
     /* ---------- MESTRE: Criar mapa ---------- */
-    { id: 'grade-sobre-chao', para: 'mestre', area: 'Criar mapa', onde: 'app',
-      titulo: 'Grade por cima do chão',
-      hoje: 'Ao pintar o chão de Tábuas, o piso cobre a grade inteira. Some a referência das casas que a batalha usa.',
-      sugestao: 'Desenhar a grade por cima do chão, com transparência.',
-      impacto: 'alto', esforco: 'pequeno', fonte: 'Passeio do mestre',
-      foto: foto('mestre-03-chao-sem-grade', 'Taverna com chão de Tábuas: a grade sumiu e as portas viraram tracinhos.') },
-    { id: 'porta-visivel', para: 'mestre', area: 'Criar mapa', onde: 'app',
-      titulo: 'Porta que se enxerga em qualquer chão',
-      hoje: 'Com o chão pintado, a porta vira um tracinho branco fino, quase invisível.',
-      sugestao: 'Desenhar a porta maior e com contraste, seja qual for o chão.',
-      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
-    { id: 'tinta-material', para: 'mestre', area: 'Criar mapa', onde: 'app',
-      titulo: 'Um seletor só para Tinta e Material',
-      hoje: 'Os blocos Tinta e Material ficam lado a lado e repetem nomes (Grama aparece nos dois). Ao escolher a forma Balde ou Blocos, o Material some da tela.',
-      sugestao: 'Um seletor só de “o que pintar”, que valha para todas as formas da ferramenta Chão.',
-      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre e código' },
-    { id: 'tres-baldes', para: 'mestre', area: 'Criar mapa', onde: 'app',
-      titulo: 'Um balde, uma regra',
-      hoje: 'Existem três baldes (Chão, Pincel e Texturas), com o mesmo ícone e resultados diferentes. O do Chão pinta a camada de tinta e ignora o material escolhido.',
-      sugestao: 'O Balde do Chão usa o material escolhido e enche a sala clicada; os outros dois explicam o que fazem na dica.',
-      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre e código' },
-    { id: 'token-lugar-livre', para: 'mestre', area: 'Criar mapa', onde: 'app',
-      titulo: 'Token novo nasce num lugar livre',
-      hoje: 'Todo token nasce no centro da vista, em cima da parede e em cima do anterior. O Luffy cobriu o Zoro.',
-      sugestao: 'Pôr o token novo numa casa livre, ao lado do último criado.',
-      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
-    { id: 'jogador-inimigo', para: 'mestre', area: 'Criar mapa', onde: 'app',
-      titulo: 'Jogador e inimigo com cara diferente',
-      hoje: 'Todo token nasce azul. Marcar “Ficha de jogador” não muda nada no mapa: aliado e inimigo ficam idênticos.',
-      sugestao: 'Na criação, escolher jogador ou inimigo, com uma cor para cada lado.',
-      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre' },
-    { id: 'duplicar-menu', para: 'mestre', area: 'Criar mapa', onde: 'app',
-      titulo: 'Duplicar no botão direito, com número',
-      hoje: 'O menu do botão direito do token não tem Duplicar; só existe o Ctrl+D, achado na tela de atalhos. As cópias saem todas com o nome Marinheiro.',
-      sugestao: 'Pôr Duplicar no menu e numerar as cópias (Marinheiro 2, Marinheiro 3).',
-      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
-    { id: 'submenu-clique', para: 'mestre', area: 'Criar mapa', onde: 'app',
+    { id: 'submenu-clique', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'parado',
       titulo: 'Submenu que abre no clique',
-      hoje: 'No menu do token, “Ligar ficha” só abre com a seta do teclado. Itens apagados trocam o nome pelo motivo (“Ligue uma ficha primeiro.”) e não dá para saber que comando é.',
-      sugestao: 'Abrir o submenu no clique e ao passar o mouse; item apagado mostra o nome e explica o motivo numa dica.',
+      linhas: [L('Hoje', 'No menu do token, “Ligar ficha” só abre com a seta do teclado. Itens apagados trocam o nome pelo motivo (“Ligue uma ficha primeiro.”).'),
+        S('No disco', 'O clique nos itens com submenu (Ligar ficha, Enviar para cena, Mover para camada, Vida, Condições, Mudar ficha, Aura) passa a sempre abrir, em vez de alternar entre abrir e fechar. A parte do item apagado com nome e motivo não aparece nas mudanças. Falta conferir e fazer o commit.'),
+        R('MenuDaSelecao.tsx, ItensRapidosDaFicha.tsx e ItensDaAparenciaDaFicha.tsx')],
       impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
-    { id: 'mapas-exemplo', para: 'mestre', area: 'Criar mapa', onde: 'app',
+    { id: 'token-lugar-livre', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'parado',
+      titulo: 'Token novo nasce num lugar livre (em parte)',
+      linhas: [L('Já feito', 'Na 0.6.1, com o encaixe de token ligado, o token novo nasce na casa livre ao lado do último, na mesma linha. Com o encaixe desligado, que é como o mapa nasce, continua a regra antiga (só não cai em cima de outro).'),
+        S('No disco', 'Um ajuste que faz a casa ao lado valer também com o encaixe desligado. Falta conferir e fazer o commit.'),
+        R('stores/criarToken.ts')],
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
+    { id: 'arrastar-movel', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'parado',
+      titulo: 'Arrastar um móvel da lista para o mapa',
+      linhas: [L('Hoje', 'Arrastar da lista de objetos não mostra fantasma e não cria nada. O Acervo de tokens já aceita arrastar. É o bug 7 da lista de mapas, o único bug certo que não entrou.'),
+        S('No disco', 'Um arquivo novo faz o arrasto, com fantasma do móvel, ligado à lista de objetos. O arquivo ainda nem está no git. Falta conferir e fazer o commit.'),
+        R('components/livro/arrastarObjetoParaOMapa.ts (novo) e EscolhaDoObjeto.tsx')],
+      conserto: 'medio', fonte: 'explorador/mapas.md, bug 7' },
+    { id: 'porta-visivel', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'falta',
+      titulo: 'Porta que se enxerga em qualquer chão',
+      linhas: [L('Hoje', 'Com o chão pintado, a porta vira um tracinho branco fino, quase invisível.'),
+        S('Sugestão', 'Desenhar a porta maior e com contraste, seja qual for o chão.')],
+      obs: FALTA_MAPAS,
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre',
+      fotos: [foto('mestre-03-chao-sem-grade', 'Antes da 0.6.1, chão de Tábuas: as portas viraram tracinhos. A grade, que também sumia, já foi consertada.')] },
+    { id: 'tinta-material', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'falta',
+      titulo: 'Um seletor só para Tinta e Material',
+      linhas: [L('Hoje', 'Os blocos Tinta e Material ficam lado a lado e repetem nomes (Grama aparece nos dois). Ao escolher a forma Balde ou Blocos, o Material some da tela.'),
+        S('Sugestão', 'Um seletor só de “o que pintar”, que valha para todas as formas da ferramenta Chão.')],
+      obs: FALTA_MAPAS,
+      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre e código' },
+    { id: 'tres-baldes', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'falta',
+      titulo: 'Um balde, uma regra',
+      linhas: [L('Hoje', 'Existem três baldes (Chão, Pincel e Texturas), com o mesmo ícone e resultados diferentes. O do Chão pinta a camada de tinta e ignora o material escolhido.'),
+        S('Sugestão', 'O Balde do Chão usa o material escolhido e enche a sala clicada; os outros dois explicam o que fazem na dica.')],
+      obs: FALTA_MAPAS,
+      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre e código' },
+    { id: 'jogador-inimigo', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'falta',
+      titulo: 'Jogador e inimigo com cara diferente',
+      linhas: [L('Hoje', 'Todo token nasce azul. Marcar “Ficha de jogador” não muda nada no mapa: aliado e inimigo ficam idênticos.'),
+        S('Sugestão', 'Na criação, escolher jogador ou inimigo, com uma cor para cada lado.')],
+      obs: FALTA_MAPAS,
+      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre' },
+    { id: 'mapas-exemplo', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'falta',
       titulo: 'Mapas de exemplo para começar',
-      hoje: 'Em Carregar Mapa não há nenhum mapa de exemplo para abrir e andar pelas cenas. Quem chega pela primeira vez não tem por onde começar.',
-      sugestao: 'Trazer 1 ou 2 aventuras de exemplo prontas, com cenas, tokens com ficha e uma batalha montada.',
-      obs: 'No navegador a lista vem sempre vazia. A tela Carregar Mapa não tem mapa de exemplo no código, então isso falta também a quem instala o app e ainda não salvou nada.',
+      linhas: [L('Hoje', 'Em Carregar Mapa não há nenhum mapa de exemplo para abrir e andar pelas cenas. Quem chega pela primeira vez não tem por onde começar.'),
+        S('Sugestão', 'Trazer 1 ou 2 aventuras de exemplo prontas, com cenas, tokens com ficha e uma batalha montada.')],
+      obs: FALTA_MAPAS + ' No navegador a lista vem sempre vazia; no código não há mapa de exemplo, então falta também no app instalado.',
       impacto: 'alto', esforco: 'medio', fonte: 'Passeio do mestre e código',
-      foto: foto('mestre-12-carregar-mapa-vazio-procurar-mudo', 'Carregar Mapa no navegador: lista vazia e nenhum exemplo.') },
+      fotos: [foto('mestre-12-carregar-mapa-vazio-procurar-mudo', 'Carregar Mapa no navegador: lista vazia e nenhum exemplo.')] },
+    { id: 'inc-mapas-1', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'incerto',
+      titulo: 'Chão em retângulo só aparece na ação seguinte',
+      linhas: [L('Suspeita', 'Com um material escolhido, o contorno aparece no arrasto, mas o piso de Tábuas só surgiu depois do gesto seguinte. O desenho do material é feito em segundo plano e pode ficar esperando um redesenho que não vem.'),
+        S('Confirmar', 'Desenhar um retângulo de Tábuas, esperar 2 segundos sem mexer e ver se o piso aparece sozinho.'),
+        R('soltar o retângulo no mapa (PixiCanvas.tsx:8418) e a camada do terreno (terrenoDoChao.ts:73, drawTexturas.ts:608)')],
+      conserto: 'medio', fonte: 'explorador/mapas.md, incerto 1' },
+    { id: 'inc-mapas-3', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'incerto',
+      titulo: 'Balde do Chão sem efeito dentro de uma sala',
+      linhas: [L('Suspeita', 'O Balde enche com a cor da camada de tinta, não com o material. Se essa cor for igual à do chão, ou se o chão da sala ficar por cima, a pintura fica escondida e nada avisa.'),
+        S('Confirmar', 'Encher dentro de uma sala com uma cor de camada bem diferente do chão.'),
+        R('clique do Balde (PixiCanvas.tsx:6024) e o encher da área (mapStore.ts:3253, camadasDoPincel.ts:193)')],
+      conserto: 'medio', fonte: 'explorador/mapas.md, incerto 3' },
+    { id: 'inc-mapas-4', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'incerto',
+      titulo: 'Ctrl+Z logo depois de pôr um objeto',
+      linhas: [L('Suspeita', 'O Ctrl+Z não desfez porque o foco ficou no campo “Procurar objeto”. Clicar no mapa deveria tirar o foco do campo; não achamos quem o segura.'),
+        S('Confirmar', 'Buscar um objeto, pôr no mapa com um clique e apertar Ctrl+Z.'),
+        R('atalho do desfazer (App.tsx:2080) e a trava de campo de texto (keymap.ts:366)')],
+      conserto: 'pequeno', fonte: 'explorador/mapas.md, incerto 4' },
+    { id: 'inc-mapas-5', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'incerto',
+      titulo: 'Esc dentro de um campo do painel também mexe no mapa',
+      linhas: [L('Suspeita', 'Um campo que não segura o Esc deixa a tecla chegar ao mapa: no mesmo toque desfaz a digitação e solta a escolha do painel. Os campos lidos seguram; nem todos foram vistos.'),
+        S('Confirmar', 'Com algo escolhido no mapa, digitar num campo do painel e apertar Esc.'),
+        R('regra do Esc (keymap.ts:388) e o Esc do mapa (PixiCanvas.tsx:10134)')],
+      conserto: 'pequeno', fonte: 'explorador/mapas.md, incerto 5' },
+    { id: 'inc-mapas-6', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'incerto',
+      titulo: '“Voltar ao início” clicado duas vezes salva duas vezes',
+      linhas: [L('Suspeita', 'Não há trava de “já salvando”. Dois salvamentos do mesmo arquivo ao mesmo tempo devem só dobrar o trabalho, mas a aventura não foi conferida.'),
+        S('Confirmar', 'Com o mapa alterado, clicar duas vezes rápido em Voltar ao início, escolher Salvar e abrir a aventura de novo.'),
+        R('App.tsx:3317 (o Voltar ao início mudou na 0.6.1; a linha pode ter andado)')],
+      conserto: 'pequeno', fonte: 'explorador/mapas.md, incerto 6' },
+    { id: 'inc-mapas-8', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'incerto',
+      titulo: 'Mover mapa de pasta pode deixar a linha presa em “ocupada”',
+      linhas: [L('Suspeita', 'Na tela Carregar Mapa, se o trabalho do mapa aberto der erro no meio da mudança de pasta, a linha não sai do estado ocupado.'),
+        S('Confirmar', 'Ler a fundo se esse trabalho pode dar erro; se puder, o conserto é uma linha.'),
+        R('LoadMapScreen.tsx:341')],
+      conserto: 'pequeno', fonte: 'explorador/mapas.md, incerto 8' },
 
     /* ---------- MESTRE: Cenas ---------- */
-    { id: 'filtro-cenas', para: 'mestre', area: 'Cenas', onde: 'app',
+    { id: 'filtro-cenas', para: 'mestre', area: 'Cenas', onde: 'app', situacao: 'parado',
       titulo: 'Achar a cena pela inicial ou por filtro',
-      hoje: 'No menu de cenas do topo, digitar a inicial não pula para a cena. A lista de Cenas e a Visão geral não têm campo de filtro; com muitas cenas, achar uma fica lento.',
-      sugestao: 'Pular pela inicial, como nas listas comuns, e um campo “filtrar cenas” na lista e na Visão geral.',
+      linhas: [L('Hoje', 'No menu de cenas do topo, digitar a inicial não pula para a cena. A Visão geral não tem campo de filtro.'),
+        S('No disco', 'A letra digitada num menu leva ao próximo item com essa inicial, e a Visão geral ganha o campo “Filtrar cenas”, sem ligar para acento. O filtro na lista de Cenas do painel não aparece nas mudanças. Falta conferir e fazer o commit.'),
+        R('grimorio/Pop.tsx, SceneOverview.tsx e lib/semAcento.ts (novo, fora do git)')],
       impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre',
-      foto: foto('mestre-15-menu-cenas-inicial-nao-salta', 'Menu de cenas aberto: a tecla B não levou ao Baratie.') },
-    { id: 'controles-cenas', para: 'mestre', area: 'Cenas', onde: 'app',
-      titulo: 'Botões da lista de Cenas no lugar',
-      hoje: 'A engrenagem e as reticências da cena de cima ficam por cima da linha de baixo; Nova cena, Visão geral e Corte da torre ficam espremidos nas bordas. Avisos flutuantes cobrem a pílula da cena e o marcador de zoom cobre token. Na batalha, o botão “Em janela” aparece cortado.',
-      sugestao: 'Revisar o espaçamento desses botões e o lugar dos avisos flutuantes.',
+      fotos: [foto('mestre-15-menu-cenas-inicial-nao-salta', 'Como está na versão com commit: a tecla B não levou ao Baratie.')] },
+    { id: 'controles-cenas', para: 'mestre', area: 'Cenas', onde: 'app', situacao: 'falta',
+      titulo: 'Botões da lista de Cenas no lugar (em parte)',
+      linhas: [L('Já feito', 'Na página Batalha, o botão “Em janela” não sai mais cortado: desce para a linha de baixo quando não cabe.'),
+        S('Falta', 'Na lista de Cenas, a engrenagem e as reticências da cena de cima ficam por cima da linha de baixo; Nova cena, Visão geral e Corte da torre ficam espremidos. Avisos flutuantes cobrem a pílula da cena e o marcador de zoom cobre token.')],
+      obs: FALTA_MAPAS,
       impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre' },
+    { id: 'inc-mapas-2', para: 'mestre', area: 'Cenas', onde: 'app', situacao: 'incerto',
+      titulo: 'Tela branca e volta ao início ao criar cena',
+      linhas: [L('Suspeita', 'Aconteceu 2 vezes em 3 no navegador, com outro agente mexendo nos arquivos ao mesmo tempo. Tem a cara de recarga do servidor de teste, não de erro do app. Se for do app, é grave; se for do servidor de teste, não é nada.'),
+        S('Confirmar', 'Criar várias cenas seguidas no app instalado, sem ninguém editando o código.'),
+        R('sem lugar certo no código. O rascunho automático que evitaria a perda está no cartão “Rascunho automático do mapa”.')],
+      fonte: 'explorador/mapas.md, incerto 2' },
 
     /* ---------- MESTRE: Batalha ---------- */
-    { id: 'jogadores-sem-ficha', para: 'mestre', area: 'Batalha', onde: 'app',
-      titulo: 'Mostrar quem ficou fora da batalha',
-      hoje: 'No Iniciar batalha, os jogadores sem ficha não aparecem na lista de quem luta, só os Marinheiros. Clicar no Luffy no mapa, como o texto manda, não marca nada.',
-      sugestao: 'Listar os jogadores sem ficha com o aviso “ligue uma ficha” e um botão de ficha rápida ali mesmo.',
-      impacto: 'alto', esforco: 'medio', fonte: 'Passeio do mestre',
-      foto: foto('mestre-07-batalha-sem-jogadores', 'Iniciar batalha: só os 3 Marinheiros na lista; Luffy e Zoro sumiram.') },
-    { id: 'criar-personagem', para: 'mestre', area: 'Batalha', onde: 'app',
+    { id: 'jogadores-sem-ficha', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'decidir', pergunta: true,
+      titulo: 'Ficha rápida para jogador sem ficha',
+      linhas: [L('Já feito', 'Iniciar e Incluir agora dizem o nome de quem está sem ficha e onde ligar a ficha. Clicar num desses tokens no mapa explica por que ele não marca.'),
+        S('Falta decidir', 'O botão de ficha rápida ali mesmo. Hoje o app não dá ficha mínima a token de jogador, de propósito, e a ficha mínima que existe é de NPC (no Dragon Ball grava como NPC). O que a ficha rápida de jogador leva: HP 300 como a mínima? Tipo jogador, com a força de combate?'),
+        R('components/batalha/fichasDeQuemEntra.ts (a regra “token de jogador sem ficha não ganha ficha mínima”)')],
+      impacto: 'alto', esforco: 'medio', fonte: 'Passeio do mestre; faixa Batalha' },
+    { id: 'nome-abertura', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'decidir', pergunta: true,
+      titulo: 'Nome da abertura vem com “Royals”',
+      linhas: [L('Já feito', 'Da mesma sugestão de textos: o título virou “Novo mapa” e o mapa novo nasce com a grade ligada.'),
+        S('Falta decidir', 'Deixar o “Nome na abertura” do Iniciar batalha vazio, com um exemplo apagado. Isso contradiz um pedido seu anterior, anotado no código (“o nome royals aparecendo”), e o teste do Iniciar espera “Royals”. Tirar ou manter?'),
+        R('lib/batalha/aberturaLembrada.ts:8')],
+      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre; faixa Batalha' },
+    { id: 'inc-bat-2', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Quem entra no meio da batalha não recebe o mesmo que no Iniciar',
+      linhas: [L('Suspeita', 'Pelo Incluir, a pessoa entra sem o Escudo cheio e sem as perguntas de início (Preparação, acumulador, companion).'),
+        S('Pergunta', 'É de propósito? Se não for, quem entra no meio passa a receber o mesmo começo de quem estava no Iniciar.'),
+        R('o Iniciar (batalhaFabrica.ts:177 e :355) contra o Incluir (stores/batalha/ordem.ts:84)')],
+      conserto: 'medio', fonte: 'explorador/batalhas.md, incerto 2' },
+    { id: 'criar-personagem', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'falta',
       titulo: 'Criar personagem direto da lista do token',
-      hoje: 'Em Ficha de jogador, a lista Personagem só tem “sem personagem”, sem dizer onde criar um. O Iniciar batalha avisa que o token sem ficha fica fora.',
-      sugestao: 'Um item “+ Criar personagem” no fim da lista e uma ficha de exemplo pronta.',
-      obs: 'No navegador a lista vem vazia porque as fichas moram na pasta do mapa. Não achamos no código um item de criar personagem nessa lista, então o atalho falta também no app instalado.',
+      linhas: [L('Hoje', 'Em Ficha de jogador, a lista Personagem só tem “sem personagem”, sem dizer onde criar um.'),
+        S('Sugestão', 'Um item “+ Criar personagem” no fim da lista e uma ficha de exemplo pronta.')],
+      obs: 'Não entrou na 0.6.1: a lista mora no painel do token (TokenPersonagemControls.tsx), da faixa de mapas, que parou antes. No navegador a lista vem vazia porque as fichas moram na pasta do mapa.',
       impacto: 'alto', esforco: 'medio', fonte: 'Passeio do jogador e código' },
+    { id: 'conf-encerrar', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'conferir',
+      titulo: 'Encerrar batalha pede confirmação',
+      linhas: [L('Feito', 'Com cartas na ordem, Encerrar (botão ou Shift+B) pergunta antes e diz o que se perde. Sem cartas, encerra direto como antes.'),
+        S('Falta ver', 'A confirmação não foi vista na tela: no navegador não deu para pôr um NPC na ordem. O teste da área passou.')],
+      fonte: 'explorador/batalhas.md, bug 3; faixa Batalha' },
+    { id: 'inc-bat-1', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'incerto',
+      titulo: '“Passar a vez” aceito com contra-ataque esperando',
+      linhas: [L('Suspeita', 'Só a tela do jogador trava o Passar a vez enquanto um contra-ataque segura a vez. Um pedido atrasado pela rede passa a vez assim mesmo, e o contra perde a vez guardada. O Dragon Ball recusa no motor.'),
+        S('Confirmar', 'Com a rede lenta, o jogador apertar Passar a vez enquanto o contra-ataque espera.'),
+        R('o recebimento no mestre (net/batalhaNoHost.ts:650) e a vez (stores/batalha/vez.ts:444)')],
+      conserto: 'pequeno', fonte: 'explorador/batalhas.md, incerto 1' },
+    { id: 'inc-bat-3', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'incerto',
+      titulo: 'A primeira vez do Iniciar pula o “começo de vez”',
+      linhas: [L('Suspeita', 'Para a primeira carta da batalha, a recarga automática do pente, o espelho das pastilhas e o que “sobe no começo da vez” não rodam.'),
+        S('Confirmar', 'Iniciar uma batalha com quem recarrega sozinho na primeira posição e ver se recarrega.'),
+        R('batalhaFabrica.ts:180 e :360; vez.ts:375 e :407')],
+      conserto: 'pequeno', fonte: 'explorador/batalhas.md, incerto 3' },
+    { id: 'inc-bat-4', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'incerto',
+      titulo: 'Recarga do começo da vez grava sobre a cena velha',
+      linhas: [L('Suspeita', 'A recarga lê a cena antes de outra parte mudá-la e não relê antes de gravar; as outras partes releem. Pode desfazer o que acabou de mudar. Encosta no rework de itens.'),
+        S('Confirmar', 'Passar a vez para quem recarrega sozinho e tem outra coisa mudando no começo da vez, e conferir a ficha.'),
+        R('stores/batalha/vez.ts:416')],
+      fonte: 'explorador/batalhas.md, incerto 4' },
+    { id: 'inc-bat-5', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'incerto',
+      titulo: 'Desfazer no Dragon Ball volta mais que a linha',
+      linhas: [L('Suspeita', 'Desfazer o ataque depois de andar 3 casas zera as casas andadas, mas o token fica onde está.'),
+        S('Confirmar', 'No Dragon Ball, andar 3 casas, atacar e desfazer o ataque.'),
+        R('stores/batalhaDBTStore.ts:357 e o motor (lib/dbt/batalha/motor.ts:156)')],
+      conserto: 'pequeno', fonte: 'explorador/batalhas.md, incerto 5' },
+    { id: 'inc-bat-6', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'incerto',
+      titulo: 'Trocar de cena pode apagar a ordem da batalha',
+      linhas: [L('Suspeita', 'A faixa do mestre junta a cena e os tokens de dois lugares diferentes. Hoje os dois mudam juntos; um caminho mais lento tiraria todas as cartas da ordem.'),
+        S('Confirmar', 'Trocar de cena várias vezes com a batalha ligada e ver se a ordem continua.'),
+        R('FaixaDoMestre.tsx:49 e a troca de cena (App.tsx:1736)')],
+      fonte: 'explorador/batalhas.md, incerto 6' },
 
     /* ---------- MESTRE: Livros e Prelúdio ---------- */
-    { id: 'livro-sem-pasta', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app',
+    { id: 'livro-sem-pasta', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'decidir', pergunta: true,
       titulo: 'Ler o livro de regras sem abrir pasta',
-      hoje: 'Para abrir One Piece ou Dragon Ball Tales, o livro exige uma pasta de mapas ligada. Não existe um jeito de só consultar uma regra ou uma criatura.',
-      sugestao: 'Um modo leitura do livro que abre sem pasta, para consulta rápida durante a sessão.',
-      obs: 'A foto é do navegador, onde o erro é outro. A exigência da pasta está no código e vale também no app instalado.',
-      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre e código',
-      foto: foto('mestre-13-livros-de-regras-travados-erro-tecnico', 'Livros de regras no navegador: cartões apagados e erro técnico embaixo.') },
-    { id: 'preludio-dica', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app',
-      titulo: 'Prelúdio escondido sem nenhuma pista',
-      hoje: 'A porta do Prelúdio só aparece com a chave ligada ou com o atalho Ctrl+Alt+P na tela inicial. Nada na tela fala disso, e Roleplay diz só “em construção”. É de propósito, pelo plano de 08/11.',
-      sugestao: 'Decisão sua: se quiser que testadores achem, uma linha em Roleplay ou nas Opções.',
-      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre e código' },
+      linhas: [L('Hoje', 'Para abrir One Piece ou Dragon Ball Tales, o livro exige uma pasta de mapas ligada. Não dá para só consultar uma regra ou uma criatura.'),
+        S('Falta decidir', 'Quais páginas abrem sem pasta. As criaturas do bestiário, os jogadores, o Comparar e a Saúde moram na pasta.'),
+        L('Proposta', 'Abrir só Itens, Habilidades e Condições do livro, sem bestiário.')],
+      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre e código; faixa Prelúdio, Livros e site' },
+    { id: 'inc-liv-2', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: '“Dar ficha de combate” apaga a mochila do NPC de cenário',
+      linhas: [L('Suspeita', 'O NPC “só no cenário” que já tinha itens, moedas ou condições fica só com retrato e nota ao ganhar ficha de combate.'),
+        S('Pergunta', 'É de propósito (“ficha nova”)? Se não for, a ficha nova leva a mochila, as moedas e as condições, ou a janela avisa o que se perde.'),
+        R('components/livros/NovoNpcDialog.tsx:105')],
+      conserto: 'medio', fonte: 'explorador/preludio-e-livros.md, I2' },
+    { id: 'inc-liv-4', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Cópia diária no Drive não roda com o Prelúdio em janela',
+      linhas: [L('Suspeita', 'A cópia de todo dia nasce no painel do Início, que a janela do Prelúdio não mostra. Quem abre o Prelúdio só em janela nunca tem cópia automática, e o texto promete que ela roda sozinha.'),
+        S('Pergunta', 'Como você abre o Prelúdio no dia a dia: só em janela (pelo Roteiro ou pelo pino) ou também pela tela principal?'),
+        R('preludio/TelaDoPreludio.tsx:159 e preludio/copia/PainelDaCopia.tsx:140')],
+      conserto: 'medio', fonte: 'explorador/preludio-e-livros.md, I4' },
+    { id: 'conf-b1', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'conferir',
+      titulo: 'Nota do mestre que sobrevive ao Esc',
+      linhas: [L('Feito', 'A nota guarda a pasta da hora em que foi digitada, e o Esc logo depois não a perde mais. Se o livro já estiver fechado, agora aparece “Não deu para guardar: o livro de regras já estava fechado.” em vez de perder calado.'),
+        S('Falta ver', 'Rodou só na lógica, porque os Livros de regras não abrem no navegador. No app instalado: digitar uma nota e apertar Esc logo depois.')],
+      fonte: 'explorador/preludio-e-livros.md, B1; faixa Prelúdio, Livros e site' },
+    { id: 'conf-b5', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'conferir',
+      titulo: 'Livro aberto relê o que o Lobby gravou',
+      linhas: [L('Feito', 'Quando o Lobby grava na pasta do livro aberto, o mundo do livro relê.'),
+        S('Falta ver', 'Não rodou: precisa do Lobby de verdade e do app instalado, com o livro aberto pela tela inicial. Mudar uma ficha pelo site e olhar o livro.')],
+      fonte: 'explorador/preludio-e-livros.md, B5; faixa Prelúdio, Livros e site' },
+    { id: 'inc-liv-1', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'incerto',
+      titulo: 'Janela de ficha que devolve uma cópia antiga',
+      linhas: [L('Suspeita', 'A gaveta da ficha e a janela de NPC novo gravam a ficha inteira como estava ao abrir. O que mudou nesse meio tempo (vida da mesa, mochila, condição da batalha, edição pelo Lobby) volta ao valor antigo. O Desfazer do bestiário faz igual.'),
+        S('Confirmar', 'Abrir a gaveta da ficha, mudar a vida pela mesa e salvar a gaveta.'),
+        R('GavetaDaFicha.tsx:23, NovoNpcDialog.tsx:100 e ArrastoDoBestiario.tsx:102')],
+      conserto: 'medio', fonte: 'explorador/preludio-e-livros.md, I1' },
+    { id: 'inc-liv-3', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'incerto',
+      titulo: 'Duas telas do Prelúdio editando ao mesmo tempo',
+      linhas: [L('Suspeita', 'Com a janela do Prelúdio aberta, se a tela principal recarregar, ela esquece que a janela existe e abre o Prelúdio também. As duas gravam os mesmos verbetes e a última gravação vence.'),
+        S('Confirmar', 'No app instalado, com a janela do Prelúdio aberta, recarregar a tela principal (se o app deixar) e abrir o Prelúdio.'),
+        R('preludio/janela/portaDaJanela.ts:24 e a porta no App.tsx:3694')],
+      conserto: 'medio', fonte: 'explorador/preludio-e-livros.md, I3' },
+    { id: 'inc-liv-5', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'incerto',
+      titulo: '“Apagar de vez” não avisa a outra janela',
+      linhas: [L('Suspeita', 'A tela principal continua com o verbete apagado na memória até reabrir o Prelúdio. Como ele já estava na Lixeira, o efeito é pequeno.'),
+        S('Confirmar', 'Com a janela aberta, apagar de vez um verbete da Lixeira e procurá-lo no Roteiro do Livro do mestre.'),
+        R('preludio/enciclopedia/lixeiraDoPreludio.ts:86 e preludio/estado/preludio.ts:807')],
+      conserto: 'pequeno', fonte: 'explorador/preludio-e-livros.md, I5' },
+    { id: 'inc-liv-6', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'incerto',
+      titulo: 'Livro não relê as perícias quando o sistema é importado de novo',
+      linhas: [L('Suspeita', 'Importar de novo o mesmo sistema com perícias novas e voltar ao livro: a página Habilidades mostra as antigas até trocar de sistema ou reiniciar.'),
+        S('Confirmar', 'Importar de novo um sistema com uma perícia nova e abrir Habilidades.'),
+        R('MundoDoLivro.tsx:123, PaginaItens.tsx:298 e stores/catalogoStore.ts:100')],
+      conserto: 'pequeno', fonte: 'explorador/preludio-e-livros.md, I6' },
+    { id: 'inc-liv-7', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'incerto',
+      titulo: 'Entrada do catálogo que falhou pode voltar',
+      linhas: [L('Suspeita', 'Dois Salvar seguidos: se o primeiro falha no disco, o segundo já tinha a entrada dele e grava as duas.'),
+        S('Confirmar', 'Difícil de ver na mão: precisa de uma falha de disco entre dois Salvar. Dá para confirmar lendo a fila de gravação.'),
+        R('stores/catalogoStore.ts:68')],
+      conserto: 'pequeno', fonte: 'explorador/preludio-e-livros.md, I7' },
 
     /* ---------- MESTRE: Geral ---------- */
-    { id: 'busca-geral', para: 'mestre', area: 'Geral', onde: 'app',
-      titulo: 'Busca geral no Ctrl+K',
-      hoje: 'O Ctrl+K só procura objetos do mapa. Buscar “grimório” responde “Nenhum objeto com grimorio”.',
-      sugestao: 'Uma busca que ache também telas, livros, regras e criaturas.',
-      impacto: 'medio', esforco: 'grande', fonte: 'Passeio do mestre' },
-    { id: 'enter-primeira-porta', para: 'mestre', area: 'Geral', onde: 'app',
+    { id: 'enter-primeira-porta', para: 'mestre', area: 'Geral', onde: 'app', situacao: 'parado',
       titulo: 'Enter já entra na primeira porta',
-      hoje: 'O rodapé da tela inicial diz “ENTER entra”, mas nenhuma porta vem destacada e o Enter sozinho não faz nada.',
-      sugestao: 'Abrir a tela inicial com a primeira porta já destacada.',
+      linhas: [L('Hoje', 'O rodapé da tela inicial diz “ENTER entra”, mas nenhuma porta vem destacada e o Enter sozinho não faz nada.'),
+        S('No disco', 'A tela inicial abre com a primeira porta em foco; a faixa já tirou foto do depois. Falta conferir e fazer o commit.'),
+        R('screens/MainMenu.tsx e o teste dele')],
       impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre',
-      foto: foto('mestre-01-inicio', 'Tela inicial: quatro portas e nenhuma destacada.') },
-    { id: 'textos-padroes', para: 'mestre', area: 'Geral', onde: 'app',
-      titulo: 'Textos em português e padrões que ajudam',
-      hoje: 'O título “Novo Dungeon Map” mistura inglês. “Mostrar grade” vem desligado e o mapa novo abre como um retângulo cinza liso. No Iniciar batalha, o campo “Nome na abertura” vem com “Royals” sem explicação.',
-      sugestao: 'Título “Novo mapa”, grade ligada por padrão e o nome da abertura vazio, com um exemplo apagado.',
-      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre',
-      foto: foto('mestre-02-editor-vazio', 'Editor logo depois de criar o mapa: retângulo liso, sem grade.') },
+      fotos: [foto('mestre-01-inicio', 'Como está na versão com commit: quatro portas e nenhuma destacada.')] },
+    { id: 'busca-geral', para: 'mestre', area: 'Geral', onde: 'app', situacao: 'falta',
+      titulo: 'Busca geral no Ctrl+K',
+      linhas: [L('Hoje', 'O Ctrl+K só procura objetos do mapa. Buscar “grimório” responde “Nenhum objeto com grimorio”.'),
+        S('Sugestão', 'Uma busca que ache também telas, livros, regras e criaturas.')],
+      obs: 'Não entrou na 0.6.1.',
+      impacto: 'medio', esforco: 'grande', fonte: 'Passeio do mestre' },
+    { id: 'inc-mapas-7', para: 'mestre', tambem: 'jogador', area: 'Geral', onde: 'app', situacao: 'incerto',
+      titulo: 'Quadradinho no lugar do contador das abas',
+      linhas: [L('Suspeita', 'Nas abas de Sons, de Jogos e no Registro da batalha, o número aparece como um quadrado vazio. O código mostra um número; o provável é o navegador do passeio não ter a fonte.'),
+        S('Confirmar', 'Abrir as abas de Sons e de Jogos no app instalado.'),
+        R('PaginaJogos.tsx:204, paginaJogos.css:19 e a fonte em theme.ts:93')],
+      conserto: 'pequeno', fonte: 'explorador/mapas.md, incerto 7',
+      fotos: [foto('mestre-10-glifo-quadrado-abas-sons', 'Aba Efeitos sonoros com o quadradinho no lugar do número.', true),
+        foto('jogador-04-abas-jogos-caractere-quebrado', 'Abas Ação, Objetos e Puzzles com o quadradinho.', true)] },
 
     /* ---------- MESTRE: visto no navegador ---------- */
-    { id: 'salvar-navegador', para: 'mestre', area: 'Geral', onde: 'navegador',
+    { id: 'salvar-navegador', para: 'mestre', area: 'Geral', onde: 'navegador', situacao: 'navegador',
       titulo: 'Avisar antes que o navegador não salva',
-      hoje: 'O app deixa montar o mapa inteiro e só no Ctrl+S avisa que salvar e exportar funcionam só no app instalado. O aviso some sozinho em uns 10 segundos e não oferece alternativa.',
-      sugestao: 'Avisar logo em Criar Mapas que salvar exige o app; se fizer sentido, oferecer “Baixar mapa”.',
-      noApp: 'O Salvar e o Exportar funcionam normalmente.',
+      linhas: [L('Hoje', 'O app deixa montar o mapa inteiro e só no Ctrl+S avisa que salvar e exportar funcionam só no app instalado. O aviso some sozinho em uns 10 segundos e não oferece alternativa.'),
+        S('Sugestão', 'Avisar logo em Criar Mapas que salvar exige o app; se fizer sentido, oferecer “Baixar mapa”.'),
+        ['No app instalado', 'O Salvar e o Exportar funcionam normalmente.', 'noapp']],
       impacto: 'alto', esforco: 'medio', fonte: 'Passeio do mestre',
-      foto: foto('mestre-04-salvar-falha-navegador', 'Ctrl+S no navegador: aviso vermelho de que salvar só funciona no app instalado.') },
-    { id: 'sons-navegador', para: 'mestre', area: 'Sons', onde: 'navegador',
+      fotos: [foto('mestre-04-salvar-falha-navegador', 'Ctrl+S no navegador: aviso vermelho de que salvar só funciona no app instalado.')] },
+    { id: 'sons-navegador', para: 'mestre', area: 'Sons', onde: 'navegador', situacao: 'navegador',
       titulo: 'Sons: dizer em português que precisa do app',
-      hoje: 'A página Sons mostra “Não foi possível abrir a pasta da biblioteca de sons (o disco recusou)”. Importar sons e Colar link aparecem apagados sem motivo, e a biblioteca não tem nenhum som de exemplo. Só o volume respondeu.',
-      sugestao: 'Frase simples dizendo que os sons moram no app instalado, botões apagados com o motivo e uma trilha de ambiente de exemplo.',
-      noApp: 'A biblioteca abre a pasta normalmente. Não conferimos se ela vem com algum som de exemplo.',
+      linhas: [L('Hoje', 'A página Sons mostra “Não foi possível abrir a pasta da biblioteca de sons (o disco recusou)”. Importar sons e Colar link aparecem apagados sem motivo, e a biblioteca não tem nenhum som de exemplo. Só o volume respondeu.'),
+        S('Sugestão', 'Frase simples dizendo que os sons moram no app instalado, botões apagados com o motivo e uma trilha de ambiente de exemplo.'),
+        ['No app instalado', 'A biblioteca abre a pasta normalmente. Não conferimos se ela vem com algum som de exemplo.', 'noapp']],
       impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre',
-      foto: foto('mestre-09-sons-vazio-erro-disco', 'Página Sons no navegador: biblioteca vazia e erro de disco.') },
-    { id: 'rascunho-navegador', para: 'mestre', area: 'Cenas', onde: 'navegador',
+      fotos: [foto('mestre-09-sons-vazio-erro-disco', 'Página Sons no navegador: biblioteca vazia e erro de disco.')] },
+    { id: 'rascunho-navegador', para: 'mestre', area: 'Cenas', onde: 'navegador', situacao: 'navegador',
       titulo: 'Rascunho automático do mapa',
-      hoje: 'Duas vezes em três, logo depois de criar uma cena, a tela ficou branca e voltou ao início; o mapa e as cenas sumiram. O provável é uma recarga do servidor de teste, mas ficou claro que uma recarga apaga tudo.',
-      sugestao: 'Guardar um rascunho automático e oferecer “Recuperar o último mapa” ao abrir.',
-      noApp: 'Existe o aviso ao fechar com trabalho não salvo. Rascunho automático não existe em nenhum dos dois.',
+      linhas: [L('Hoje', 'Duas vezes em três, logo depois de criar uma cena, a tela ficou branca e voltou ao início; o mapa e as cenas sumiram. O provável é uma recarga do servidor de teste, mas ficou claro que uma recarga apaga tudo.'),
+        S('Sugestão', 'Guardar um rascunho automático e oferecer “Recuperar o último mapa” ao abrir.'),
+        ['No app instalado', 'Existe o aviso ao fechar com trabalho não salvo. Rascunho automático não existe em nenhum dos dois.', 'noapp']],
       impacto: 'alto', esforco: 'medio', fonte: 'Passeio do mestre e código',
-      foto: foto('mestre-14-tela-branca-voltou-ao-inicio', 'Depois da tela branca: de volta à tela inicial, sem o mapa.') },
+      fotos: [foto('mestre-14-tela-branca-voltou-ao-inicio', 'Depois da tela branca: de volta à tela inicial, sem o mapa.')] },
 
     /* ---------- JOGADOR ---------- */
-    { id: 'nome-pino', para: 'jogador', tambem: 'mestre', area: 'Cenas', onde: 'app',
+    { id: 'nome-pino', para: 'jogador', tambem: 'mestre', area: 'Cenas', onde: 'app', situacao: 'parado',
       titulo: 'Nome do pino legível em qualquer zoom',
-      hoje: 'No zoom com que o mapa abre (33%), o nome do pino no chão vira um risco. Em 71% tem uns 6 pixels; só dá para ler perto de 100%.',
-      sugestao: 'Tamanho mínimo para o nome na tela (uns 11 px) e um fundo de pílula, como o nome da sala.',
+      linhas: [L('Hoje', 'No zoom com que o mapa abre (33%), o nome do pino no chão vira um risco. Em 71% tem uns 6 pixels; só dá para ler perto de 100%.'),
+        S('No disco', 'O nome cresce de longe para nunca ficar abaixo de 11 pixels na tela, em degraus para não repintar a cada passo da roda, com uma pílula escura atrás. Falta conferir e fazer o commit.'),
+        R('lib/pins.ts, pixi/drawPins.ts, PixiCanvas.tsx e shapesRedraw.ts')],
       impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador',
-      foto: foto('jogador-03-enquadrar-atras-paineis', 'Mapa em 71%: o nome do pino “Bilhete rasgado” mal aparece.') },
-    { id: 'erros-lobby', para: 'jogador', area: 'Lobby/site', onde: 'app',
-      titulo: 'Erros do Lobby em português simples',
-      hoje: 'O Lobby mostra frases técnicas: “O Lobby respondeu 404” e, na Galeria, “O Lobby recusou (500)”, “Não deu para tirar (409)” ou o “Failed to fetch” do navegador.',
-      sugestao: 'Dizer o que aconteceu e o que fazer, por exemplo: “O servidor do Lobby está fora do ar. Avise o mestre.”',
-      obs: 'O 404 da foto veio do servidor de teste local, que não tem o Lobby de verdade. As frases técnicas da Galeria estão no código e valem no site publicado.',
-      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador e código',
-      foto: foto('jogador-01-lobby-entrada', 'Lobby no servidor de teste: só o cartão de erro.') },
-    { id: 'tentar-de-novo', para: 'jogador', area: 'Lobby/site', onde: 'app',
-      titulo: '“Tentar de novo” que mostra que tentou',
-      hoje: 'O botão recarrega a página inteira (pisca uma tela preta) e volta ao mesmo erro, sem sinal de que tentou. Na Galeria, quando a lista falha, nem existe o botão.',
-      sugestao: 'Tentar sem recarregar a página, mostrar “tentando” no botão e, depois de 2 falhas, dizer o que fazer.',
-      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador e código' },
-    { id: 'lobby-rapido', para: 'jogador', area: 'Lobby/site', onde: 'app',
-      titulo: 'Lobby abrindo mais rápido',
-      hoje: 'O site baixa a ficha completa do app (uns 120 de 317 módulos) já na tela de entrada e na lista de mesas, antes de alguém abrir uma ficha.',
-      sugestao: 'Carregar a ficha só quando o jogador abre a ficha, como o treino já faz.',
-      obs: 'Ganho não medido: vem da leitura do código.',
-      impacto: 'medio', esforco: 'pequeno', fonte: 'Leitura do código' },
-    { id: 'uma-mochila', para: 'jogador', area: 'Lobby/site', onde: 'app',
+      fotos: [foto('jogador-03-enquadrar-atras-paineis', 'Como está na versão com commit: em 71%, o nome do pino “Bilhete rasgado” mal aparece.')] },
+    { id: 'uma-mochila', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'decidir', pergunta: true,
       titulo: 'Uma mochila só no site',
-      hoje: 'A mochila aparece em dois lugares: na aba Mochila e na aba “Mochila e equipamento”, dentro da Ficha. As duas mandam as mudanças com regras diferentes.',
-      sugestao: 'Decidir qual das duas fica no site e tirar a outra.',
-      obs: 'Está em obra no rework de itens.',
-      impacto: 'medio', esforco: 'medio', fonte: 'Leitura do código' },
-    { id: 'roda-touchpad', para: 'jogador', tambem: 'mestre', area: 'Geral', onde: 'app',
+      linhas: [L('Hoje', 'A mochila aparece em dois lugares do site: na aba Mochila e em “Mochila e equipamento”, dentro da Ficha. As duas mandam as mudanças com regras diferentes.'),
+        S('Falta decidir', 'Qual das duas fica no site; a outra sai.')],
+      obs: 'Está em obra no rework de itens. Anda junto com o bug incerto “Ficha salva pela metade no site”.',
+      impacto: 'medio', esforco: 'medio', fonte: 'Leitura do código; faixa Prelúdio, Livros e site' },
+    { id: 'inc-site-5', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Devolver balas com efeito é recusado no site',
+      linhas: [L('Suspeita', 'Recarregar trocando de bala ou tirar uma arma carregada devolve balas à pilha. Se a bala tiver efeito, o site recusa (“o jogador só gasta”); no app passa.'),
+        S('Pergunta', 'Existe bala com efeito nos seus livros? Se não existir, não é bug hoje.'),
+        R('lib/nuvem/permissao.ts:154')],
+      fonte: 'explorador/site.md, incertos' },
+    { id: 'conf-galeria', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'conferir',
+      titulo: 'Galeria e ficha sob demanda no site',
+      linhas: [L('Feito', 'A Galeria trata o login vencido e respostas estranhas com frases simples e tem Tentar de novo. A ficha do site virou um pedaço que só baixa quando alguém abre uma ficha.'),
+        S('Falta ver', 'Não vistas no navegador: o servidor de teste não tem o Lobby e a demo vem com a Galeria vazia. Só chegam aos jogadores quando o site for publicado.')],
+      fonte: 'explorador/site.md, bugs certos; faixa Prelúdio, Livros e site' },
+    { id: 'inc-site-3', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'incerto',
+      titulo: 'Ficha salva pela metade no site',
+      linhas: [L('Suspeita', 'A aba Mochila confere a permissão antes e manda tudo ou nada; o Salvar da aba Ficha não confere e manda as mudanças soltas. Numa vaga ligada ao Acervo, parte entra e parte volta recusada. O que é só do mestre some calado; só a imagem ganha aviso.'),
+        S('Confirmar', 'No site, mudar na aba Ficha uma vaga ligada ao Acervo junto com outra coisa e salvar.'),
+        R('lib/nuvem/mochilaDoJogador.ts:125, telas/TelaFicha.tsx:302 e lib/nuvem/diferencas.ts:53')],
+      fonte: 'explorador/site.md, incertos' },
+    { id: 'inc-site-1', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'incerto',
+      titulo: 'Laço no “Entrar com Google”',
+      linhas: [L('Suspeita', 'O portão do Lobby responde “sem acesso” também quando ele mesmo está mal configurado. O site entende tudo como “sem login” e o botão só recarrega: com o Google certo, a pessoa fica em “Entrar” para sempre, sem explicação.'),
+        S('Confirmar', 'Entrar com uma conta Google válida num portão com a configuração errada. Depende de como o Access reage.'),
+        R('lobby/site/src/portao.ts:146, dados/fonteReal.ts:122 e telas/TelaAcesso.tsx:21')],
+      fonte: 'explorador/site.md, incertos' },
+    { id: 'inc-site-2', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'incerto',
+      titulo: 'O Lobby pode recusar uma mudança certa',
+      linhas: [L('Suspeita', 'Cada campo de um item é julgado sozinho e precisa sair igual ao que o leitor devolve. Valor que o leitor ajeita (espaço nas pontas, descrição longa, quantidade 1 escrita) é recusado, e numa pasta publicada o app trava a mudança com “O Lobby não aceita esta mudança”. Foi o caso da Tocha.'),
+        S('Confirmar', 'Numa pasta publicada, dar um item novo com a quantidade 1 escrita ou uma categoria com espaço no fim.'),
+        R('lib/nuvem/caminho.ts:906 e :922; net/nuvem/emissor.ts:329')],
+      fonte: 'explorador/site.md, incertos' },
+    { id: 'inc-site-4', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'incerto',
+      titulo: 'Item antigo sem Equipar nem Recarregar no site',
+      linhas: [L('Suspeita', 'A vaga dada antes do rework de itens não tem o tipo e o pente copiados, então o site não mostra Equipar nem Recarregar; o app mostra.'),
+        S('Confirmar', 'Ver se a migração da mochila preenche as vagas antigas e abrir no site uma ficha com arma antiga.'),
+        R('lib/nuvem/mochilaDoJogador.ts:41 e net/nuvem/migracaoDaMochila.ts')],
+      fonte: 'explorador/site.md, incertos' },
+    { id: 'inc-site-6', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'incerto',
+      titulo: 'O jogador muda o tipo da vaga livre',
+      linhas: [L('Suspeita', 'O comentário diz que só o mestre grava o tipo da vaga, mas na vaga livre o dono consegue mudar. Efeito pequeno (vaga livre não tem regra de arma), mas o comentário engana.'),
+        S('Confirmar', 'Decidir se o tipo da vaga livre é só do mestre; se for, ele entra na lista de campos do mestre.'),
+        R('lib/nuvem/mochilaDoJogador.ts:29, caminho.ts:158 e permissao.ts:108')],
+      fonte: 'explorador/site.md, incertos' },
+    { id: 'inc-site-7', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'incerto',
+      titulo: '“Sem internet” quando a sessão acabou',
+      linhas: [L('Suspeita', 'Sem sessão, inclusive no “ver como”, a falha de envio diz “Sem internet”. As telas já escondem a edição no “ver como”, então só aparece numa corrida.'),
+        S('Confirmar', 'Deixar a sessão vencer e tentar salvar uma mudança no site.'),
+        R('telas/enviar.ts:31 e dados/lobbyStore.ts:562')],
+      fonte: 'explorador/site.md, incertos' },
+    { id: 'roda-touchpad', para: 'jogador', tambem: 'mestre', area: 'Geral', onde: 'app', situacao: 'parado',
       titulo: 'Olhar em volta com a roda e o touchpad',
-      hoje: 'A roda para cima e para baixo só aproxima e afasta; a roda lateral anda de lado. Nenhum gesto de roda anda na vertical, então no touchpad do notebook não dá para descer a vista.',
-      sugestao: 'Shift+roda anda na vertical; Ctrl+roda ou pinça dá zoom (um modo “touchpad”).',
+      linhas: [L('Hoje', 'A roda para cima e para baixo só aproxima e afasta; nenhum gesto de roda anda na vertical, então no touchpad do notebook não dá para descer a vista.'),
+        S('No disco', 'Shift+roda desce e sobe a vista, no editor e na tela do jogador, e a tela de atalhos ganha a linha. A roda lateral continua andando de lado. Falta conferir e fazer o commit.'),
+        R('pixi/wheelGesture.ts, player/PlayerView.tsx e shortcutSheet.ts')],
       impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador' },
 
     /* ---------- JOGADOR: visto no navegador ---------- */
-    { id: 'abrir-sala', para: 'jogador', area: 'Geral', onde: 'navegador',
+    { id: 'abrir-sala', para: 'jogador', area: 'Geral', onde: 'navegador', situacao: 'navegador',
       titulo: 'Mostrar “Abrir sala” mesmo onde não funciona',
-      hoje: 'No navegador não há botão de sala nem de convite. O pino diz “Ler agora precisa da sala aberta”, mas nada abre a sala nem explica que ela só existe no app instalado.',
-      sugestao: 'Mostrar “Abrir sala” sempre, apagado no navegador e com o motivo escrito.',
-      noApp: 'O mestre abre a sala e manda o link ao jogador.',
+      linhas: [L('Hoje', 'No navegador não há botão de sala nem de convite. O pino diz “Ler agora precisa da sala aberta”, mas nada abre a sala nem explica que ela só existe no app instalado.'),
+        S('Sugestão', 'Mostrar “Abrir sala” sempre, apagado no navegador e com o motivo escrito.'),
+        ['No app instalado', 'O mestre abre a sala e manda o link ao jogador.', 'noapp']],
       impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador',
-      foto: foto('jogador-02-mesa-sem-convite', 'Mesa no navegador: nenhum botão de sala ou convite.') },
-    { id: 'entrada-jogador', para: 'jogador', area: 'Geral', onde: 'navegador',
+      fotos: [foto('jogador-02-mesa-sem-convite', 'Mesa no navegador: nenhum botão de sala ou convite.')] },
+    { id: 'entrada-jogador', para: 'jogador', area: 'Geral', onde: 'navegador', situacao: 'navegador',
       titulo: 'Dizer na tela inicial como o jogador entra',
-      hoje: 'As quatro portas da tela inicial são de mestre. Quem chega como jogador não sabe se está no lugar certo.',
-      sugestao: 'Uma linha (ou porta) “Sou jogador” explicando que o mestre manda o link da sala.',
-      noApp: 'A tela inicial é do mestre; o jogador entra pelo link, no navegador dele.',
+      linhas: [L('Hoje', 'As quatro portas da tela inicial são de mestre. Quem chega como jogador não sabe se está no lugar certo.'),
+        S('Sugestão', 'Uma linha (ou porta) “Sou jogador” explicando que o mestre manda o link da sala.'),
+        ['No app instalado', 'A tela inicial é do mestre; o jogador entra pelo link, no navegador dele.', 'noapp']],
       impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do jogador' }
   ];
 
-  var TOP10 = ['grade-sobre-chao', 'jogadores-sem-ficha', 'criar-personagem', 'mapas-exemplo', 'token-lugar-livre',
-    'duplicar-menu', 'nome-pino', 'roda-touchpad', 'erros-lobby', 'submenu-clique'];
-
-  var BUGS = [
-    { titulo: 'Voltar ao início prende o mestre no mapa', status: 'bug',
-      texto: 'Quando salvar falha, o app mostra o erro e fica no mapa; não há “sair sem salvar”. No navegador salvar sempre falha, então só dava para sair recarregando.',
-      previsto: 'Usar a pergunta de alterações não salvas que já existe (Salvar, Descartar, Cancelar).',
-      onde: 'explorador/mapas.md, bug 1',
-      fotos: [foto('mestre-11-voltar-ao-inicio-preso', 'Voltar ao início no navegador: o erro de salvar aparece e o mapa continua aberto.'),
-              foto('jogador-05-voltar-inicio-preso', 'O mesmo no passeio do jogador: o aviso cobre o nome do pino.')] },
-    { titulo: 'Esc não larga a ferramenta', status: 'bug',
-      texto: 'Com Objeto na mão, Esc não volta para Selecionar e o próximo clique continua pondo móvel.',
-      previsto: 'O primeiro Esc cancela o gesto; o segundo volta para Selecionar.',
-      onde: 'explorador/mapas.md, bug 2', fotos: [] },
-    { titulo: 'Clicar num token com a ferramenta Objeto põe um móvel em cima dele', status: 'bug',
-      texto: 'O clique no Marinheiro criou um Balcão por cima do token.',
-      previsto: 'Clique sobre token ou pino seleciona; Ctrl+clique continua pondo por cima.',
-      onde: 'explorador/mapas.md, bug 3',
-      fotos: [foto('mestre-05-clique-no-token-pos-balcao', 'Clique no token com Objeto: um Balcão nasceu em cima do Marinheiro.')] },
-    { titulo: 'F (Enquadrar tudo) corta o mapa e ignora os painéis', status: 'bug',
-      texto: 'Com chão e um token, o zoom foi a 163% e cortou o mapa; em outro mapa, as bordas ficaram atrás dos painéis e do título da cena.',
-      previsto: 'Enquadrar na área livre entre os painéis e contar chão, pinos e carimbos. O passeio também pediu um botão Enquadrar ao lado do zoom.',
-      onde: 'explorador/mapas.md, bug 4',
-      fotos: [foto('mestre-06-enquadrar-tudo-nao-enquadra', 'Depois do F: zoom em 163%, mapa cortado.'),
-              foto('jogador-03-enquadrar-atras-paineis', 'Depois do F: a sala atrás dos painéis e do título da cena.')] },
-    { titulo: 'Nome do mapa novo gruda em “Mapa sem título”', status: 'bug',
-      texto: 'Quem digita o nome fica com “Mapa sem títuloCripta de teste”, porque o padrão é texto do campo e não exemplo.',
-      previsto: 'Campo vazio, com “Mapa sem título” como exemplo apagado.',
-      onde: 'explorador/mapas.md, bug 5', fotos: [] },
-    { titulo: '“Procurar no disco...” falha calado', status: 'bug',
-      texto: 'O botão não faz nada visível quando o seletor de arquivo falha.',
-      previsto: 'Mostrar o motivo, como as outras ações da tela Carregar Mapa.',
-      onde: 'explorador/mapas.md, bug 6', fotos: [] },
-    { titulo: 'Arrastar um móvel da lista para o mapa', status: 'bug',
-      texto: 'Arrastar da lista de objetos não mostra fantasma e não cria nada. O Acervo de tokens já aceita arrastar.',
-      previsto: 'Arrastar com fantasma do móvel, pelo mesmo caminho do Acervo.',
-      onde: 'explorador/mapas.md, bug 7', fotos: [] },
-    { titulo: 'Tela branca sem rede de segurança', status: 'bug',
-      texto: 'Um erro de desenho na tela do mestre apaga tudo e o trabalho não salvo some.',
-      previsto: 'Uma tela de erro com “Salvar uma cópia de emergência” e “Voltar”.',
-      onde: 'explorador/mapas.md, bug 8', fotos: [] },
-    { titulo: 'Chão em retângulo só aparece na ação seguinte', status: 'repro',
-      texto: 'O contorno aparece no arrasto, mas o piso de Tábuas só surgiu depois do gesto seguinte.',
-      previsto: 'Achar onde o desenho fica esperando e mostrar o piso na hora.',
-      onde: 'explorador/mapas.md, incerto 1', fotos: [] },
-    { titulo: 'Balde do Chão sem efeito visível dentro da sala', status: 'repro',
-      texto: 'O clique com o Balde dentro do Salão não mudou nada na tela.',
-      previsto: 'Testar com uma cor bem diferente do chão e avisar quando a pintura ficar escondida.',
-      onde: 'explorador/mapas.md, incerto 3', fotos: [] },
-    { titulo: 'Ctrl+Z logo depois de pôr um objeto', status: 'repro',
-      texto: 'O Ctrl+Z não desfez porque o foco continuou no campo “Procurar objeto”.',
-      previsto: 'Tirar o foco do campo quando o mestre clica no mapa.',
-      onde: 'explorador/mapas.md, incerto 4', fotos: [] },
-    { titulo: 'Quadradinho no lugar do contador das abas', status: 'repro',
-      texto: 'Nas abas de Sons, de Jogos e no Registro da batalha, o contador aparece como um quadrado vazio.',
-      previsto: 'Provável fonte que falta no navegador; trocar o símbolo por um que a fonte tenha ou por ícone.',
-      onde: 'explorador/mapas.md, incerto 7',
-      fotos: [foto('mestre-10-glifo-quadrado-abas-sons', 'Aba Efeitos sonoros com o quadradinho no lugar do número.'),
-              foto('jogador-04-abas-jogos-caractere-quebrado', 'Abas Ação, Objetos e Puzzles com o quadradinho.')] },
-    { titulo: 'Batalha começa com “Ninguém na ordem” sem aviso', status: 'bug',
-      texto: 'Iniciar com 3 e Incluir 3 deixaram a ordem vazia, sem mensagem (2 de 2 tentativas).',
-      previsto: 'Se ninguém entrou, dizer o motivo e não começar a batalha.',
-      onde: 'explorador/batalhas.md, bug 1',
-      fotos: [foto('mestre-08-batalha-ninguem-na-ordem', 'Rodada 1 com “Ordem dos turnos (0)”.')] },
-    { titulo: 'Passar a vez e Ordenar parecem ativos com a ordem vazia', status: 'bug',
-      texto: 'Os dois botões parecem clicáveis (Passar a vez em dourado) e não fazem nada.',
-      previsto: 'Apagar os botões e dizer “inclua alguém na ordem primeiro”.',
-      onde: 'explorador/batalhas.md, bug 2', fotos: [] },
-    { titulo: 'Encerrar batalha sem confirmar', status: 'bug',
-      texto: 'O botão e o Shift+B encerram na hora, apagando ordem, registro e Desfazer.',
-      previsto: 'Confirmar quando houver combatentes, com o texto que a Mesa da batalha já usa.',
-      onde: 'explorador/batalhas.md, bug 3', fotos: [] },
-    { titulo: 'Erro técnico cru nos Livros de regras', status: 'bug',
-      texto: 'Aparece “Cannot read properties of undefined (reading invoke)” e uma instrução errada (abrir pasta em Carregar Mapa).',
-      previsto: 'Usar a frase que o app já tem: “Os livros de regras só abrem no app instalado.”',
-      onde: 'explorador/preludio-e-livros.md, B4',
-      fotos: [foto('mestre-13-livros-de-regras-travados-erro-tecnico', 'Livros de regras: a mensagem técnica em inglês embaixo dos cartões.')] },
-    { titulo: 'Frase do Lobby sem ponto', status: 'bug',
-      texto: 'A mensagem sai “O Lobby respondeu 404 Tente de novo em instantes.”, com as duas frases coladas.',
-      previsto: 'Pôr o ponto entre as frases; a troca por frase humana está nas sugestões do jogador.',
-      onde: 'explorador/site.md, bugs certos',
-      fotos: [foto('jogador-01-lobby-entrada', 'Cartão de erro do Lobby com as frases coladas.')] }
+  var FORA = [
+    { titulo: 'Sete trabalhos da faixa de mapas ficaram sem commit', marca: 'Atenção',
+      texto: 'A faixa de mapas parou sem relato. O que ela começou está no disco, sem commit: os cartões marcados “Começado, sem commit”. Dois testes que já existiam também foram ajustados ali (MainMenu.test.tsx e shapesRedraw.test.ts).',
+      porque: 'Precisam ser conferidos e commitados antes de publicar a 0.6.1; senão ficam fora da versão.',
+      onde: 'git status: MainMenu.tsx, criarToken.ts, MenuDaSelecao.tsx, Pop.tsx, SceneOverview.tsx, pins.ts, drawPins.ts, wheelGesture.ts, PlayerView.tsx e os arquivos novos arrastarObjetoParaOMapa.ts e semAcento.ts' },
+    { titulo: 'Guarda de import do site sem teste', marca: 'Precisa de teste',
+      texto: 'O build do site ficou quebrado por 28 commits sem ninguém notar, porque nada confere quais arquivos o site puxa (@tauri-apps, pixi, three).',
+      porque: 'O conserto é um teste novo, e esta leva não podia criar testes.',
+      onde: 'explorador/site.md, bug certo 4' },
+    { titulo: 'Erro de disco cru em Carregar Mapa', marca: 'Fora da faixa',
+      texto: 'A frase técnica do disco, já trocada nos Livros, continua na lib das pastas de mapas.',
+      porque: 'É da faixa de mapas, que parou antes. Basta usar a mesma frase dos Livros (motivoDaFalhaDeDisco, em lib/foraDoApp.ts).',
+      onde: 'lib/pastasDeMapas.ts:450 e :501 (explorador/preludio-e-livros.md, B4)' },
+    { titulo: '18 testes antigos da batalha falham', marca: 'Teste velho',
+      texto: 'batalhaFabrica.prazoDaMesa, desfazerDoMestre, municao e mecanicasFatiaF falham. Já falhavam antes desta leva: a faixa voltou os arquivos à versão anterior e viu as mesmas 18 falhas.',
+      porque: 'Devem estar velhos desde o rework de itens e a retirada do +10 SP. Ficam para quando você pedir testes.',
+      onde: 'relato da faixa Batalha' },
+    { titulo: 'Desempenho da batalha sem medida', marca: 'Sem medida',
+      texto: 'Guardar o recorte da batalha por conexão e não refazer a mesa do mestre a cada token mexido. As outras duas ideias da lista tinham risco médio.',
+      porque: 'A primeira não acertaria (o recorte é recriado a cada envio) e a segunda pede medir antes, com uma ficha sendo arrastada.',
+      onde: 'net/batalhaNoHost.ts e a mesa do mestre (explorador/batalhas.md, Performance 1 a 4)' },
+    { titulo: 'Desempenho do editor, dos Livros e do site', marca: 'Risco ou sem medida',
+      texto: 'O editor inteiro redesenha a cada movimento do mouse num arrasto (risco médio). Nos Livros e no Prelúdio, as contagens no índice das pastas mudam o formato do índice e outros dois atalhos pedem medir antes. No site, preload da Galeria, teto da lista de modificações e cache da Galeria mudam o que se vê ou ganham pouco. O caminho da pasta preparo/, que agora é montado uma vez por pasta, entrou sem medida do ganho.',
+      porque: 'Esta leva só fazia desempenho de risco baixo que só melhora.',
+      onde: 'explorador/mapas.md, preludio-e-livros.md e site.md, seção Performance' },
+    { titulo: 'Frase “undefined” num erro vazio de arquivo', marca: 'Antigo',
+      texto: 'No app instalado, se um erro de arquivo vier vazio, a frase sai “undefined”. Na prática ninguém lança erro vazio.',
+      porque: 'Anterior a esta leva; visto pela faixa ao testar a frase nova.',
+      onde: 'lib/foraDoApp.ts:37' }
   ];
 
   /* ---------- utilidades ---------- */
@@ -868,8 +1021,17 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
     return m;
   }
 
-  function botaoFoto(f, contida) {
-    var b = el('button', 'foto' + (contida ? ' contida' : ''));
+  /* Sugestão tem impacto e esforço; bug incerto tem só o tamanho do conserto (P, M, G da lista). */
+  function medidasDe(s) {
+    var lista = [];
+    if (s.impacto) lista.push(medida('Impacto', 'imp', NIVEL_IMPACTO[s.impacto], ROTULO_IMPACTO[s.impacto]));
+    if (s.esforco) lista.push(medida('Esforço', 'esf', NIVEL_ESFORCO[s.esforco], ROTULO_ESFORCO[s.esforco]));
+    if (s.conserto) lista.push(medida('Conserto', 'esf', NIVEL_ESFORCO[s.conserto], ROTULO_ESFORCO[s.conserto]));
+    return lista;
+  }
+
+  function botaoFoto(f) {
+    var b = el('button', 'foto' + (f.contida ? ' contida' : ''));
     b.type = 'button';
     b.setAttribute('aria-label', 'Ampliar foto: ' + f.legenda);
     var moldura = el('span', 'moldura');
@@ -881,7 +1043,7 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
     moldura.appendChild(img);
     b.appendChild(moldura);
     b.appendChild(el('span', 'leg', f.legenda));
-    b.addEventListener('click', function () { abrirLupa(f, b); });
+    b.addEventListener('click', function () { abrirLupa(f); });
     return b;
   }
 
@@ -894,42 +1056,48 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
 
   /* ---------- cartões ---------- */
   function montarCartao(s) {
-    var art = el('article', 'cartao' + (s.onde === 'navegador' ? ' nav' : '') + (s.foto ? '' : ' sem-foto'));
+    var fotos = s.fotos || [];
+    var art = el('article', 'cartao' + (s.onde === 'navegador' ? ' nav' : '') + (fotos.length ? '' : ' sem-foto'));
     art.id = 's-' + s.id;
 
     var texto = el('div', 'cartao-texto');
     var topo = el('div', 'cartao-topo');
     topo.appendChild(el('h4', '', s.titulo));
-    if (s.onde === 'navegador') topo.appendChild(el('span', 'chip nav', 'Visto no navegador'));
+    var sit = SITUACOES[s.situacao];
+    topo.appendChild(el('span', sit.classe, sit.chip));
     if (s.tambem) topo.appendChild(el('span', 'chip', 'Também para o ' + s.tambem));
     texto.appendChild(topo);
 
     var dl = el('dl', 'dl');
-    dl.appendChild(linhaDl('', 'Hoje', s.hoje));
-    dl.appendChild(linhaDl('sug', 'Sugestão', s.sugestao));
-    if (s.noApp) dl.appendChild(linhaDl('noapp', 'No app instalado', s.noApp));
+    s.linhas.forEach(function (l) { dl.appendChild(linhaDl(l[2], l[0], l[1])); });
     texto.appendChild(dl);
     if (s.obs) texto.appendChild(el('p', 'obs', s.obs));
 
     var pe = el('div', 'cartao-pe');
-    pe.appendChild(medida('Impacto', 'imp', NIVEL_IMPACTO[s.impacto], ROTULO_IMPACTO[s.impacto]));
-    pe.appendChild(medida('Esforço', 'esf', NIVEL_ESFORCO[s.esforco], ROTULO_ESFORCO[s.esforco]));
+    medidasDe(s).forEach(function (m) { pe.appendChild(m); });
     pe.appendChild(el('span', 'fonte', s.fonte));
     texto.appendChild(pe);
     art.appendChild(texto);
 
-    if (s.foto) art.appendChild(botaoFoto(s.foto, false));
+    if (fotos.length === 1) art.appendChild(botaoFoto(fotos[0]));
+    if (fotos.length > 1) {
+      var coluna = el('div', 'cartao-fotos');
+      fotos.forEach(function (f) { coluna.appendChild(botaoFoto(f)); });
+      art.appendChild(coluna);
+    }
     s.no = art;
-    s.busca = semAcento([s.titulo, s.hoje, s.sugestao, s.noApp || '', s.obs || '', s.area, s.fonte].join(' '));
+    s.busca = semAcento([s.titulo, s.area, s.fonte, s.obs || '', sit.chip].concat(s.linhas.map(function (l) { return l[1]; })).join(' '));
     return art;
   }
 
+  function porSituacao(a, b) { return SITUACOES[a.situacao].ordem - SITUACOES[b.situacao].ordem; }
+
   function montarParte(quem, destino) {
     var grupos = [];
-    var doQuem = SUGESTOES.filter(function (s) { return s.para === quem; });
+    var doQuem = ITENS.filter(function (s) { return s.para === quem; });
 
     AREAS.forEach(function (area) {
-      var daArea = doQuem.filter(function (s) { return s.area === area && s.onde === 'app'; });
+      var daArea = doQuem.filter(function (s) { return s.area === area && s.onde === 'app'; }).sort(porSituacao);
       if (!daArea.length) return;
       var bloco = el('div', 'area');
       var h = el('h3', '', area);
@@ -960,7 +1128,7 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
 
     var vazio = el('p', 'vazio');
     vazio.hidden = true;
-    vazio.appendChild(el('span', '', quem === 'mestre' ? 'Nenhuma sugestão para o mestre com estes filtros.' : 'Nenhuma sugestão para o jogador com estes filtros.'));
+    vazio.appendChild(el('span', '', quem === 'mestre' ? 'Nada para o mestre com estes filtros.' : 'Nada para o jogador com estes filtros.'));
     var limpar = el('button', 'botao-texto', 'Limpar filtros');
     limpar.type = 'button';
     limpar.addEventListener('click', limparFiltros);
@@ -977,22 +1145,20 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
 
   /* ---------- resumo do topo ---------- */
   (function () {
-    var m = SUGESTOES.filter(function (s) { return s.para === 'mestre'; }).length;
-    var j = SUGESTOES.length - m;
-    var nav = SUGESTOES.filter(function (s) { return s.onde === 'navegador'; }).length;
+    function quantos(situacao) { return ITENS.filter(function (s) { return s.situacao === situacao; }).length; }
     var r = document.getElementById('resumo');
-    r.innerHTML = '';
-    function b(t) { var x = el('b', '', String(t)); return x; }
-    r.append(b(SUGESTOES.length), ' sugestões: ', b(m), ' para o mestre e ', b(j), ' para o jogador (', b(nav),
-      ' delas vistas só no navegador). Outros ', b(BUGS.length), ' achados já viraram bug e estão no fim da página.');
+    r.textContent = '';
+    function b(t) { return el('b', '', String(t)); }
+    r.append(b(ITENS.length), ' cartões: ', b(quantos('decidir')), ' decisões suas, ', b(quantos('incerto')), ' bugs a reproduzir, ',
+      b(quantos('falta') + quantos('parado')), ' por fazer (', b(quantos('parado')), ' deles começados, sem commit), ',
+      b(quantos('conferir')), ' feitos que falta conferir e ', b(quantos('navegador')), ' vistos só no navegador. Mais ',
+      b(FORA.length), ' pontos técnicos no fim da página.');
   })();
 
-  /* ---------- Top 10 ---------- */
+  /* ---------- Perguntas só para você ---------- */
   (function () {
     var ol = document.getElementById('top');
-    TOP10.forEach(function (id, i) {
-      var s = SUGESTOES.filter(function (x) { return x.id === id; })[0];
-      if (!s) return;
+    ITENS.filter(function (s) { return s.pergunta; }).forEach(function (s, i) {
       var li = el('li');
       var b = el('button', 'top-item');
       b.type = 'button';
@@ -1001,8 +1167,7 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
       corpo.appendChild(el('span', 'top-titulo', s.titulo));
       var meta = el('span', 'top-meta');
       meta.appendChild(el('span', '', (s.para === 'mestre' ? 'Mestre' : 'Jogador') + ', ' + s.area));
-      meta.appendChild(medida('Impacto', 'imp', NIVEL_IMPACTO[s.impacto], ROTULO_IMPACTO[s.impacto]));
-      meta.appendChild(medida('Esforço', 'esf', NIVEL_ESFORCO[s.esforco], ROTULO_ESFORCO[s.esforco]));
+      medidasDe(s).forEach(function (m) { meta.appendChild(m); });
       corpo.appendChild(meta);
       b.appendChild(corpo);
       b.addEventListener('click', function () { irPara(s); });
@@ -1013,7 +1178,7 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
 
   var temporizadorChegou = 0;
   function irPara(s) {
-    if (s.no.hidden) limparFiltros();
+    if (s.no.hidden || partes[s.para].secao.hidden) limparFiltros();
     s.no.scrollIntoView({ behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start' });
     document.querySelectorAll('.cartao.chegou').forEach(function (c) { c.classList.remove('chegou'); });
     clearTimeout(temporizadorChegou);
@@ -1021,29 +1186,20 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
     temporizadorChegou = setTimeout(function () { s.no.classList.remove('chegou'); }, 1600);
   }
 
-  /* ---------- Já consertado ou em conserto ---------- */
+  /* ---------- Ficou de fora desta leva ---------- */
   (function () {
     var ul = document.getElementById('bugs');
-    BUGS.forEach(function (bg) {
+    FORA.forEach(function (f) {
       var li = el('li', 'bug');
       var t = el('div', 'bug-texto');
       var topo = el('div', 'bug-topo');
-      topo.appendChild(el('h4', '', bg.titulo));
-      topo.appendChild(el('span', bg.status === 'bug' ? 'chip conf' : 'chip conf repro',
-        bg.status === 'bug' ? 'Bug confirmado no código' : 'A reproduzir'));
+      topo.appendChild(el('h4', '', f.titulo));
+      topo.appendChild(el('span', 'chip', f.marca));
       t.appendChild(topo);
-      t.appendChild(el('p', '', bg.texto));
-      t.appendChild(el('p', 'previsto', 'Conserto previsto: ' + bg.previsto));
-      t.appendChild(el('p', 'onde', 'Onde está anotado: ' + bg.onde));
+      t.appendChild(el('p', '', f.texto));
+      t.appendChild(el('p', 'previsto', 'Por que ficou: ' + f.porque));
+      t.appendChild(el('p', 'onde', 'Onde: ' + f.onde));
       li.appendChild(t);
-      if (bg.fotos.length) {
-        var fs = el('div', 'bug-fotos');
-        bg.fotos.forEach(function (f) {
-          var pequena = /glifo|abas-jogos/.test(f.src);
-          fs.appendChild(botaoFoto(f, pequena));
-        });
-        li.appendChild(fs);
-      }
       ul.appendChild(li);
     });
   })();
@@ -1059,14 +1215,16 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
   }
 
   function aplicarFiltros() {
+    var situacao = valorDe('situacao');
     var quem = valorDe('quem');
     var impacto = valorDe('impacto');
     var onde = valorDe('onde');
     var termos = semAcento(campoBusca.value.trim()).split(/\s+/).filter(Boolean);
     var visiveis = 0;
 
-    SUGESTOES.forEach(function (s) {
-      var ok = (quem === 'todos' || s.para === quem || s.tambem === quem) &&
+    ITENS.forEach(function (s) {
+      var ok = (situacao === 'todos' || FILTRO_DA_SITUACAO[s.situacao] === situacao) &&
+        (quem === 'todos' || s.para === quem || s.tambem === quem) &&
         (impacto === 'todos' || s.impacto === impacto) &&
         (onde === 'todos' || s.onde === onde) &&
         termos.every(function (t) { return s.busca.indexOf(t) !== -1; });
@@ -1088,15 +1246,15 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
       partes[k].vazio.hidden = total > 0;
     });
 
-    contagem.innerHTML = '';
-    contagem.append(el('b', '', String(visiveis)), ' de ' + SUGESTOES.length + ' sugestões');
-    var filtrando = quem !== 'todos' || impacto !== 'todos' || onde !== 'todos' || termos.length > 0;
+    contagem.textContent = '';
+    contagem.append(el('b', '', String(visiveis)), ' de ' + ITENS.length + ' cartões');
+    var filtrando = situacao !== 'todos' || quem !== 'todos' || impacto !== 'todos' || onde !== 'todos' || termos.length > 0;
     botaoLimpar.hidden = !filtrando;
   }
 
   function limparFiltros() {
     campoBusca.value = '';
-    ['quem-todos', 'imp-todos', 'onde-tudo'].forEach(function (id) { document.getElementById(id).checked = true; });
+    ['sit-todos', 'quem-todos', 'imp-todos', 'onde-tudo'].forEach(function (id) { document.getElementById(id).checked = true; });
     aplicarFiltros();
   }
 
