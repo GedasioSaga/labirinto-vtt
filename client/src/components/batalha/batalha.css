@@ -1043,6 +1043,17 @@ button.bt-carta__corpo {
   text-transform: uppercase;
   color: var(--lb-color-parchment-faint);
 }
+/*
+ * Explorador 26/11/2026, bug 2: o painel usa `aria-disabled` (o botão segue focável e o balão explica), mas
+ * `.gr-bt` só apaga com `:disabled`. Com a ordem vazia, "Passar a vez" (dourado) e "Ordenar" pareciam ativos.
+ */
+.bt-painel .gr-bt[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.bt-painel .gr-bt[aria-disabled='true']:active {
+  transform: none;
+}
 /* O "Empate na Agilidade" não estica além do que as duas opções pedem num livro mais largo. */
 .bt-painel .gr-seg {
   max-width: 320px;

@@ -84,7 +84,7 @@ export function PainelDaBatalha({
             Vez · Rodada {dados.rodada} · Turno {dados.turno.n}/{dados.turno.m}
           </h3>
           {daVez === undefined ? (
-            <p className="bt-texto">{semCartas ? 'Ninguém na ordem ainda.' : 'Ninguém na vez: "Passar a vez" começa pela primeira carta.'}</p>
+            <p className="bt-texto">{semCartas ? 'Ninguém na ordem ainda: inclua alguém na ordem primeiro ("Incluir na batalha", aqui embaixo).' : 'Ninguém na vez: "Passar a vez" começa pela primeira carta.'}</p>
           ) : (
             <div className="bt-painel-vez">
               <span className="bt-carta__retrato" style={daVez.cor === null ? undefined : ({ '--lado': daVez.cor } as CSSProperties)}>
