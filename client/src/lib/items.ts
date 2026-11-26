@@ -199,7 +199,9 @@ export function mochilaComItemDoAcervo(mochila: readonly CarriedItem[], item: It
     const soma = Math.min(antes + pedida, ITEM_QUANTIDADE_MAX)
     // A pilha acesa (as velas) continua acesa ao somar, se o item ainda ilumina.
     const acesa = existente.acesa === true && lidos.luz !== undefined ? { acesa: true as const } : {}
-    const atualizado: CarriedItem = { id: existente.id, nome, ...lidos, ...(soma > 1 ? { quantidade: soma } : {}), ...acesa }
+    // Itens refeitos (E3): a pilha equipada (as granadas na mão) segue equipada, e o pente da vaga não some ao somar.
+    const posse = { ...(existente.equipado === true ? { equipado: true as const } : {}), ...(existente.pente !== undefined ? { pente: { ...existente.pente } } : {}) }
+    const atualizado: CarriedItem = { id: existente.id, nome, ...lidos, ...(soma > 1 ? { quantidade: soma } : {}), ...acesa, ...posse }
     return { mochila: mochila.map((carried) => (carried === existente ? atualizado : carried)), vagaId: existente.id, entraram: soma - antes }
   }
   const quantos = lidos.empilhavel === true ? pedida : 1

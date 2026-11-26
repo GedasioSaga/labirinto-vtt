@@ -440,6 +440,12 @@ export interface AdventureState {
    * pasta publicada que o Lobby não aceitaria; o aviso já saiu).
    */
   ajustarPersonagem: (personagemId: string, ajustar: (atual: Personagem) => Personagem) => boolean
+  /**
+   * O AJUSTE de várias fichas numa gravação só (itens refeitos, E3: o "Dar a…" a várias fichas, e o
+   * Desfazer dele): `ajustar` recebe cada ficha de `personagemIds` como está AGORA. Grava tudo ou nada.
+   * `false` sem aventura, sem nenhuma dessas fichas ou com a gravação recusada (o aviso já saiu).
+   */
+  ajustarPersonagens: (personagemIds: readonly string[], ajustar: (atual: Personagem) => Personagem) => boolean
   /** "Importar personagens": entram no fim da lista, na ordem. `false` no mapa solto. */
   adicionarPersonagens: (personagens: readonly Personagem[]) => boolean
   /**
@@ -1922,6 +1928,21 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const gravou = dono.gravar(lista.map((personagem) => (personagem.id === personagemId ? novo : personagem)))
     if (gravou) espelharSeAMochilaMudou(atual, novo)
     return gravou
+  },
+
+  ajustarPersonagens: (personagemIds, ajustar) => {
+    const dono = donoDosPersonagens(get, set)
+    const lista = dono?.lista ?? []
+    const pedidas = new Set(personagemIds)
+    if (dono === null || !lista.some((personagem) => pedidas.has(personagem.id))) return false
+    const novos = lista.map((personagem) => (pedidas.has(personagem.id) ? ajustar(personagem) : personagem))
+    if (novos.every((novo, i) => novo === lista[i])) return true
+    const gravou = dono.gravar(novos)
+    if (!gravou) return false
+    novos.forEach((novo, i) => {
+      if (novo !== lista[i]) espelharSeAMochilaMudou(lista[i], novo)
+    })
+    return true
   },
 
   adicionarPersonagens: (novos) => {
