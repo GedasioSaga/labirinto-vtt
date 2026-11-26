@@ -568,7 +568,15 @@ html[data-mu-arrastando] * { cursor: grabbing; user-select: none; }
 .mu-bes-fantasma[data-aceita='sim'] .mu-bes-fantasma__dica { color: var(--lb-color-brass-bright); }
 .mu-mover-modelo { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: -8px; }
 .mu-bes-det { display: flex; flex-direction: column; gap: 18px; padding: 20px 22px; }
-.mu-bes-det__cab { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+/*
+ * Retrato + nome de um lado, ações do outro. Quando o cartão estreita (Assistente
+ * aberto, janela de 1024-1440 px), as ações descem para a linha de baixo em vez
+ * de espremer o nome: com a grade de 3 colunas o nome chegava a 0 px e saía uma
+ * letra por linha. O nome só divide a linha com as ações se tiver ~15rem.
+ */
+.mu-bes-det__cab { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; }
+.mu-bes-det__quem { flex: 1 1 15rem; min-width: 0; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 14px; align-items: center; }
+.mu-bes-det__cab > .mu-pg-acoes { flex: 0 1 auto; }
 .mu-bes-det__nome { margin: 0; font-family: var(--lb-font-display); font-size: 24px; font-weight: 400; line-height: 1.1; overflow-wrap: anywhere; }
 .mu-bes-det__nome:focus-visible { box-shadow: none; }
 .mu-bes-det__de { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 3px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }

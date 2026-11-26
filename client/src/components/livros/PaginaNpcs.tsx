@@ -169,22 +169,24 @@ function DetalheDoNpc({ personagem, personagens, deCombate, sistema, aoVivo, onF
   return (
     <section className="mu-cartao mu-bes-det" aria-labelledby="mu-bes-nome">
       <div className="mu-bes-det__cab">
-        <Retrato imagem={personagem.retrato} nome={nome} tamanho="g" />
-        <div>
-          <h3 className="mu-bes-det__nome" id="mu-bes-nome">
-            {nome}
-          </h3>
-          <p className="mu-bes-det__de">
-            {modeloId !== undefined ? (
-              <span className="mu-etiqueta mu-etiqueta--npc">Variação</span>
-            ) : variacoes.length > 0 ? (
-              <span className="mu-etiqueta mu-etiqueta--modelo">Modelo</span>
-            ) : (
-              <span className="mu-etiqueta mu-etiqueta--npc">NPC</span>
-            )}
-            {daBatalha(personagem) && <span className="mu-etiqueta mu-etiqueta--batalha">Da batalha</span>}
-            {escolhas}
-          </p>
+        <div className="mu-bes-det__quem">
+          <Retrato imagem={personagem.retrato} nome={nome} tamanho="g" />
+          <div>
+            <h3 className="mu-bes-det__nome" id="mu-bes-nome">
+              {nome}
+            </h3>
+            <p className="mu-bes-det__de">
+              {modeloId !== undefined ? (
+                <span className="mu-etiqueta mu-etiqueta--npc">Variação</span>
+              ) : variacoes.length > 0 ? (
+                <span className="mu-etiqueta mu-etiqueta--modelo">Modelo</span>
+              ) : (
+                <span className="mu-etiqueta mu-etiqueta--npc">NPC</span>
+              )}
+              {daBatalha(personagem) && <span className="mu-etiqueta mu-etiqueta--batalha">Da batalha</span>}
+              {escolhas}
+            </p>
+          </div>
         </div>
         <div className="mu-pg-acoes">
           <button type="button" className="mu-bt mu-bt--p" onClick={() => useMundoDoLivroStore.getState().abrirFicha(personagem.id)}>
