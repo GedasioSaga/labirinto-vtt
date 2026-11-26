@@ -7363,6 +7363,102 @@ button.pp-colecao__casa:focus-visible {
   color: var(--lb-color-ember, #e2645a);
 }
 
+/* ------------------------------------- sistema de itens refeito (E5a) */
+
+/* "5 de 16 vagas" sobre a grade, em tinta fraca: conta, não chama atenção. */
+.pp-inv__vagas {
+  margin: 0 0 var(--lb-space-2, 8px);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-faint, #858480);
+  text-align: right;
+}
+
+/* Passou das 16: nada some, o aviso pede para dar ou largar. */
+.pp-inv__cheia {
+  margin: 0 0 var(--lb-space-2, 8px);
+  font-size: 13px;
+  color: var(--lb-color-ember, #e2645a);
+}
+
+/* O "em uso" no canto de cima, à esquerda: o E do protótipo, em latão (é estado de ação). */
+.pp-inv__eq {
+  position: absolute;
+  top: 5px;
+  left: 6px;
+  min-width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  font-family: var(--lb-font-utility, 'Bahnschrift', system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--lb-color-stone, #131317);
+  background: var(--lb-color-brass, #e0a44a);
+  border-radius: 3px;
+}
+
+/* O pente no canto de cima, à direita, onde a arma (que não empilha) não tem quantidade: "3/6".
+   Arma empilhada: o pente desce para baixo da quantidade. */
+.pp-inv__pente {
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  font-family: var(--lb-font-utility, 'Bahnschrift', system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-inv__qtd ~ .pp-inv__pente {
+  top: 22px;
+}
+
+/* A vaga equipada ganha a borda de latão fraca; a escolhida continua com o quadro claro por cima. */
+.pp-inv__vaga[data-equipado]:not([aria-selected='true']) > .pp-inv__item {
+  border-color: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.45));
+}
+
+/* O cartão do item, só para ler: rótulo pequeno à esquerda, valor à direita, uma linha por campo. */
+.pp-inv__cartao {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: 13px;
+  line-height: var(--lb-font-leading-normal, 1.45);
+}
+
+.pp-inv__cartao > div {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr);
+  gap: var(--lb-space-2, 8px);
+}
+
+.pp-inv__cartao dt {
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.pp-inv__cartao dd {
+  margin: 0;
+  color: var(--lb-color-parchment, #eceae4);
+  overflow-wrap: anywhere;
+}
+
+.pp-inv__nota-da-vaga {
+  margin: 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  overflow-wrap: anywhere;
+}
+
+/* A ação principal do tipo (Equipar, Usar): a mesma do Enter, com o latão cheio. */
+.pp-inv__acao--principal:not(:disabled) {
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
 /* ----------------------------------------------------- as teclas */
 
 .pp-inv__teclas {

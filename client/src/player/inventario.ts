@@ -1,4 +1,5 @@
-import type { CondicaoPropria, MapData, Pin, Token, TokenCondition } from '../types/map'
+import type { CarriedItem, CondicaoPropria, MapData, Pin, Token, TokenCondition } from '../types/map'
+import type { TipoDoItem } from '../lib/itens/modelo'
 import { condicoesPropriasOf } from '../lib/condicoesProprias'
 import { itemOfPin, quantidadeDe, tokensTouch } from '../lib/items'
 import { healthFraction, healthState, readTokenHealth, type HealthState } from '../lib/tokenHealth'
@@ -62,9 +63,23 @@ export function itemGlyph(nome: string): ItemGlyph {
 }
 
 /**
- * Uma vaga da grade. Itens de MESMO nome viram uma vaga só com a quantidade —
- * para a porta e para o host, duas "Chave do Escudo" são a mesma chave.
- * `itemIds`: os ids na ordem em que chegaram; "Dar a…" passa o primeiro.
+ * O pente da vaga como a tela o mostra: quantas balas, de qual (o nome achado na
+ * mochila ou na lista do que a arma aceita) e, quando a vaga traz a regra, quantas cabem.
+ */
+export interface PenteNaTela {
+  balaId: string
+  n: number
+  /** O nome da bala; `null` = nem a mochila nem a lista da arma dizem (a bala acabou e a arma não a declara). */
+  bala: string | null
+}
+
+/**
+ * Uma vaga da grade. SISTEMA DE ITENS REFEITO (PLANO §1.3, E5a): uma vaga da
+ * mochila é uma vaga da grade — a pilha empilhável ocupa uma só, e duas armas
+ * iguais são duas, cada uma com o seu "em uso" e o seu pente. O pego de pino
+ * de antes, sem item do Acervo, ainda junta pelo nome: para a porta e para o
+ * host, duas "Chave do Escudo" são a mesma chave.
+ * `itemIds`: os ids das vagas na ordem em que chegaram; "Dar a…" passa o primeiro.
  */
 export interface InventorySlot {
   key: string
@@ -82,35 +97,95 @@ export interface InventorySlot {
    * uma entre as juntas, senão a primeira que ilumina. Ausente = não ilumina.
    */
   luz?: { vagaId: string; acesa: boolean }
+  /** O tipo do item (cópia de exibição do Acervo); ausente = vaga de antes da conversão. */
+  tipo?: TipoDoItem
+  /** A vaga está em uso (arma, arremesso ou equipamento). */
+  equipado: boolean
+  /** O pente carregado (De fogo e Híbrida); ausente = vazio. */
+  pente?: PenteNaTela
+  /** Quantas balas cabem no pente: só quando a vaga traz a regra do item (o jogador não vê o Acervo). */
+  capacidade?: number
+  /** As munições que a arma aceita (id do item e nome); vazia = a arma não declara (aceita qualquer munição). */
+  aceita: { itemId: string; nome: string }[]
+  /** A frase do efeito ("Cura 100 de HP. Gasta 1."): sem ela, o item não tem regra e o mestre narra. */
+  efeitoResumo?: string
+  /** O texto que o mestre escreveu só nesta vaga (A4). */
+  notaDaVaga?: string
+  /** O item do Acervo da vaga; ausente = pego de pino de antes. */
+  acervoId?: string
+}
+
+/** A vaga de um item como a grade a mostra (sem o pente, que precisa da mochila inteira para achar o nome da bala). */
+function slotDaVaga(item: CarriedItem, chave: string): InventorySlot {
+  const slot: InventorySlot = { key: chave, kind: 'item', nome: item.nome, quantidade: quantidadeDe(item), itemIds: [item.id], glyph: glyphDaVaga(item), equipado: item.equipado === true, aceita: aceitaDaVaga(item) }
+  if (item.imagem !== undefined) slot.imagem = item.imagem
+  if (item.descricao !== undefined) slot.descricao = item.descricao
+  if (item.luz !== undefined) slot.luz = { vagaId: item.id, acesa: item.acesa === true }
+  if (item.tipo !== undefined) slot.tipo = item.tipo
+  const capacidade = item.regra?.pente?.capacidade
+  if (capacidade !== undefined && capacidade >= 1) slot.capacidade = capacidade
+  if (item.efeitoResumo !== undefined) slot.efeitoResumo = item.efeitoResumo
+  if (item.notaDaVaga !== undefined) slot.notaDaVaga = item.notaDaVaga
+  if (item.itemId !== undefined) slot.acervoId = item.itemId
+  return slot
+}
+
+/** O desenho pelo tipo, quando a vaga o tem; senão, pelo nome, como sempre. */
+function glyphDaVaga(item: Pick<CarriedItem, 'nome' | 'tipo'>): ItemGlyph {
+  switch (item.tipo) {
+    case 'corpo':
+    case 'fogo':
+    case 'hibrida':
+    case 'arremesso':
+    case 'municao':
+      return 'arma'
+    case 'consumivel':
+      return itemGlyph(item.nome) === 'erva' ? 'erva' : 'frasco'
+    default:
+      return itemGlyph(item.nome)
+  }
+}
+
+/** O que a arma aceita: a lista que viaja com a vaga (com os nomes); sem ela, os ids da regra, sem nome. */
+function aceitaDaVaga(item: Pick<CarriedItem, 'municoes' | 'regra'>): { itemId: string; nome: string }[] {
+  if (item.municoes !== undefined) return item.municoes.map((m) => ({ ...m }))
+  return (item.regra?.pente?.aceita ?? []).map((itemId) => ({ itemId, nome: 'Munição' }))
+}
+
+/** O nome da bala do pente: a vaga dela na mochila, senão a lista do que a arma aceita. */
+function nomeDaBala(balaId: string, mochila: readonly CarriedItem[], aceita: readonly { itemId: string; nome: string }[]): string | null {
+  return mochila.find((vaga) => vaga.itemId === balaId)?.nome ?? aceita.find((m) => m.itemId === balaId)?.nome ?? null
 }
 
 /** A bolsa primeiro (como o dinheiro no topo da mochila), depois os itens na ordem em que foram pegos. */
 export function inventorySlots(token: Pick<Token, 'mochila' | 'moedas'>): InventorySlot[] {
   const slots: InventorySlot[] = []
   const moedas = moedasDe(token)
-  if (moedas > 0) slots.push({ key: 'moedas', kind: 'moedas', nome: 'Moedas', quantidade: moedas, itemIds: [], glyph: 'moedas' })
-  const porChave = new Map<string, InventorySlot>()
+  if (moedas > 0) slots.push({ key: 'moedas', kind: 'moedas', nome: 'Moedas', quantidade: moedas, itemIds: [], glyph: 'moedas', equipado: false, aceita: [] })
+  const porNome = new Map<string, InventorySlot>()
   // A mesma leitura de `carriedItemsOf`: mochila ausente é vazia.
-  for (const item of token.mochila ?? []) {
-    // ACERVO DE ITENS: o item do acervo junta pelo item (dois "Anel" de imagens diferentes não viram um);
-    // o pego de pino, pelo nome, como sempre. A pilha conta inteira (`quantidade`).
-    const chave = item.itemId !== undefined ? `acervo:${item.itemId}` : `item:${item.nome}`
-    const quantos = quantidadeDe(item)
-    const existente = porChave.get(chave)
-    // ITEM QUE ILUMINA: entre as vagas juntas, o interruptor fica com a acesa (o "Apagar" apaga a que está acesa).
-    const luz = item.luz === undefined ? undefined : { vagaId: item.id, acesa: item.acesa === true }
-    if (existente !== undefined) {
-      existente.quantidade += quantos
-      existente.itemIds.push(item.id)
-      if (luz !== undefined && (existente.luz === undefined || (luz.acesa && !existente.luz.acesa))) existente.luz = luz
+  const mochila = token.mochila ?? []
+  for (const item of mochila) {
+    // Item do Acervo: uma vaga da mochila, uma vaga da grade (a pilha conta inteira em `quantidade`).
+    if (item.itemId !== undefined) {
+      const slot = slotDaVaga(item, `vaga:${item.id}`)
+      if (item.pente !== undefined) slot.pente = { ...item.pente, bala: nomeDaBala(item.pente.balaId, mochila, slot.aceita) }
+      slots.push(slot)
       continue
     }
-    const slot: InventorySlot = { key: chave, kind: 'item', nome: item.nome, quantidade: quantos, itemIds: [item.id], glyph: itemGlyph(item.nome) }
-    if (item.imagem !== undefined) slot.imagem = item.imagem
-    if (item.descricao !== undefined) slot.descricao = item.descricao
-    if (luz !== undefined) slot.luz = luz
-    porChave.set(chave, slot)
-    slots.push(slot)
+    // O pego de pino de antes junta pelo nome. ITEM QUE ILUMINA: entre as juntas, o interruptor fica com a acesa.
+    const chave = `item:${item.nome}`
+    const existente = porNome.get(chave)
+    if (existente === undefined) {
+      const slot = slotDaVaga(item, chave)
+      porNome.set(chave, slot)
+      slots.push(slot)
+      continue
+    }
+    existente.quantidade += quantidadeDe(item)
+    existente.itemIds.push(item.id)
+    const luz = item.luz === undefined ? undefined : { vagaId: item.id, acesa: item.acesa === true }
+    if (luz !== undefined && (existente.luz === undefined || (luz.acesa && !existente.luz.acesa))) existente.luz = luz
   }
   return slots
 }
@@ -138,8 +213,10 @@ export function stableSlotOrder(anterior: readonly string[] | undefined, slots: 
 
 /** Colunas da grade, em qualquer largura: as setas contam com elas. */
 export const INVENTORY_COLUMNS = 4
-/** A grade nunca mostra menos que duas fileiras — o desenho da mochila do RE. */
-export const INVENTORY_MIN_SLOTS = 8
+/** As vagas da mochila do jogador (protótipo aprovado, E5a): 16, e a pilha empilhável ocupa uma. */
+export const VAGAS_DA_MOCHILA = 16
+/** A grade nunca mostra menos que as 16 vagas — o desenho da mochila do RE. */
+export const INVENTORY_MIN_SLOTS = VAGAS_DA_MOCHILA
 
 /** Vagas vazias depois das cheias: completam a fileira, e a grade tem pelo menos `INVENTORY_MIN_SLOTS`. */
 export function emptySlotCount(filled: number): number {
@@ -222,6 +299,8 @@ export interface InventoryCharacter {
   slots: InventorySlot[]
   moedas: number
   colleagues: InventoryColleague[]
+  /** O "Armas por batalha" da ficha (o limite do Equipar); `null` = sem limite, ou a ficha não chegou. */
+  limiteDeArmas: number | null
 }
 
 /**
@@ -229,7 +308,13 @@ export interface InventoryCharacter {
  * fichas de OUTROS jogadores (`partyTokenIds`) encostadas nesta — NPC do
  * mestre o host recusaria —, a mesma régua do "Dar a…" do "Comigo".
  */
-export function inventoryCharacters(map: MapData, ownTokenIds: readonly string[], partyTokenIds: readonly string[], fallbackColor: string): InventoryCharacter[] {
+export function inventoryCharacters(
+  map: MapData,
+  ownTokenIds: readonly string[],
+  partyTokenIds: readonly string[],
+  fallbackColor: string,
+  limiteDe: (token: Token) => number | null = SEM_LIMITE,
+): InventoryCharacter[] {
   const own = ownTokenIds.flatMap((id) => {
     const token = map.tokens.find((t) => t.id === id)
     return token === undefined ? [] : [token]
@@ -258,10 +343,16 @@ export function inventoryCharacters(map: MapData, ownTokenIds: readonly string[]
       slots: inventorySlots(token),
       moedas: moedasDe(token),
       colleagues: party.filter((t) => tokensTouch(token, t, map.grid)).map(colleagueOf),
+      limiteDeArmas: limiteDe(token),
     }
   })
   // A própria primeiro; ajudante e NPC emprestado depois, na ordem em que chegaram.
   return [...lista.filter((c) => c.editable), ...lista.filter((c) => !c.editable)]
+}
+
+/** Sem a ficha do personagem (o host de antes não manda), o Equipar não tem limite na tela: quem confere é o host. */
+function SEM_LIMITE(): null {
+  return null
 }
 
 /** O personagem PRÓPRIO: nem ajudante contratado nem NPC emprestado. */
@@ -331,9 +422,21 @@ const FALLBACK_BY_GLYPH: Readonly<Record<Exclude<ItemGlyph, 'moedas'>, string>> 
   item: 'Para usar, diga ao mestre o que quer fazer com ele.',
 }
 
+/** Sem o texto do mestre, o que o TIPO do item diz (o item do Acervo convertido sempre tem tipo). */
+const FALLBACK_BY_TIPO: Readonly<Record<TipoDoItem, string>> = {
+  corpo: 'Arma de corpo a corpo. Equipada, aparece no Atacar da batalha.',
+  fogo: 'Arma de fogo. Equipada e com bala no pente, aparece no Atacar da batalha.',
+  hibrida: 'Bate e atira. Equipada, aparece no Atacar da batalha; o tiro gasta do pente.',
+  municao: 'Munição: vai para o pente pelo Recarregar da arma que a aceita.',
+  arremesso: 'Arremesso: equipado, você o joga na batalha.',
+  consumivel: 'Consumível: use em você ou num colega.',
+  equipamento: 'Equipamento: vista para valer.',
+  outros: 'Um objeto que você carrega.',
+}
+
 export function slotFallbackLine(slot: InventorySlot): string {
   if (slot.kind === 'moedas' || slot.glyph === 'moedas') return `${moedasLabel(slot.quantidade)} para pagar um colega ou oferecer numa troca.`
-  const uso = FALLBACK_BY_GLYPH[slot.glyph]
+  const uso = slot.tipo !== undefined ? FALLBACK_BY_TIPO[slot.tipo] : FALLBACK_BY_GLYPH[slot.glyph]
   return slot.quantidade > 1 ? `${slot.quantidade} unidades. ${uso}` : uso
 }
 
