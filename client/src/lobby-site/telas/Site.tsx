@@ -13,7 +13,7 @@ import { TelaGaleria } from './galeria/TelaGaleria'
 import { TelaAcesso } from './TelaAcesso'
 import { TelaCampanha } from './TelaCampanha'
 import { TelaCampanhas } from './TelaCampanhas'
-import { TelaFicha } from './TelaFicha'
+import type { TelaFicha as TelaDaFicha } from './TelaFicha'
 import { TelaLobby } from './lobby/TelaLobby'
 import { resolverDoLobby } from './imagemDoLobby'
 import type { TelaTreino as TelaDoTreino } from './treino/TelaTreino'
@@ -52,6 +52,35 @@ const TelaTreino = lazy<ComponentType<PropsDoTreino>>(() =>
   import('./treino/TelaTreino').then(
     (modulo) => ({ default: modulo.TelaTreino }),
     () => ({ default: TreinoNaoAbriu }),
+  ),
+)
+
+type PropsDaFicha = Parameters<typeof TelaDaFicha>[0]
+
+/** O pedaço da ficha não chegou (a conexão caiu no meio, ou o site foi publicado de novo e o arquivo antigo saiu). */
+function FichaNaoAbriu() {
+  return (
+    <AvisoDaPagina
+      titulo="A ficha não abriu"
+      acoes={
+        <button type="button" className="lo-btn lo-btn--primario" onClick={() => window.location.reload()}>
+          Recarregar a página
+        </button>
+      }
+    >
+      <p>A parte do site com a ficha não chegou. Confira a conexão e recarregue.</p>
+    </AvisoDaPagina>
+  )
+}
+
+/**
+ * A ficha é a do app inteira (`PlayerFicha`, uns 120 módulos): só baixa quando
+ * alguém abre uma ficha. A entrada, a lista de mesas e o lobby não pagam por ela.
+ */
+const TelaFicha = lazy<ComponentType<PropsDaFicha>>(() =>
+  import('./TelaFicha').then(
+    (modulo) => ({ default: modulo.TelaFicha }),
+    () => ({ default: FichaNaoAbriu }),
   ),
 )
 
@@ -107,7 +136,12 @@ export function Site() {
         <TelaTreino rota={rota} />
       </Suspense>
     )
-  else if (rota.tela === 'ficha') pagina = <TelaFicha rota={rota} />
+  else if (rota.tela === 'ficha')
+    pagina = (
+      <Suspense fallback={<Carregando texto="Abrindo a ficha…" />}>
+        <TelaFicha rota={rota} />
+      </Suspense>
+    )
   else if (rota.tela === 'chat') pagina = <TelaChat rota={rota} />
   else if (rota.tela === 'mural') pagina = <TelaMural rota={rota} />
   else if (rota.tela === 'galeria') pagina = <TelaGaleria campanhaId={rota.campanhaId} />
