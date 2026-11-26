@@ -490,6 +490,53 @@ export async function migrarMochilaDoMapa(caminhoDoMapa: string, disco: DiscoDaM
   return migrarAventura(disco, caminhoDoMapa, recuperado, agoraMs)
 }
 
+/** O arquivo que guarda as fichas que o mapa usa, como veio do disco (o sistema de itens refeito o converte, `stores/conversaoDosItens.ts`). */
+export interface ArquivoDasFichas {
+  arquivo: string
+  texto: string
+  bruto: Bruto
+  personagens: Personagem[]
+  /** A pasta publicável (`rpg.json`); `null` = as fichas do `adventure.json`. */
+  pastaId: string | null
+}
+
+/**
+ * Onde moram as fichas do mapa, pela MESMA regra da migração (`migrarMochilaDoMapa`): a pasta com
+ * sistema universal manda; senão, o `adventure.json` da aventura. `null` = mapa solto, sem fichas,
+ * ou arquivo ilegível (o app tem a própria recuperação, e gravar por cima seria pior).
+ */
+export async function arquivoDasFichasDoMapa(caminhoDoMapa: string, disco: DiscoDaMigracao): Promise<ArquivoDasFichas | null> {
+  const pastaDoApp = await disco.pastaDoApp()
+  const pastaDosMapas = await disco.juntar(pastaDoApp, PASTA_DOS_MAPAS)
+  const chave = chaveDoMapa(caminhoDoMapa, pastaDosMapas)
+  if (chave !== null) {
+    const pastaDasPastas = await disco.juntar(pastaDoApp, PASTA_DAS_PASTAS)
+    const indice = await lerIndice(disco, pastaDasPastas)
+    if (indice === null) return null
+    const lugar = lugarDoMapa(indice, chave)
+    if (lugar !== null && !lugar.proprio && idDePastaValido(lugar.pasta.id)) {
+      const arquivo = await disco.juntar(await disco.juntar(pastaDasPastas, lugar.pasta.id), ARQUIVO_DO_RPG)
+      const texto = await disco.ler(arquivo)
+      if (texto !== null) {
+        const bruto = objetoDoTexto(texto)
+        if (bruto === null) return null
+        const rpg = rpgDoArquivo(bruto)
+        if (rpg.sistemaDeRpg !== undefined) return { arquivo, texto, bruto, personagens: rpg.personagens, pastaId: lugar.pasta.id }
+      }
+    }
+  }
+  const achada = await aventuraDoMapa(disco, caminhoDoMapa)
+  if (achada === null) return null
+  return { arquivo: achada.caminho, texto: achada.texto, bruto: achada.bruto, personagens: achada.aventura.personagens ?? [], pastaId: null }
+}
+
+/** As fichas mudadas pela conversão ao Lobby, pelo mesmo funil da migração (bug B1). Pasta não publicada: nada. */
+export function levarFichasAoLobby(pastaId: string, antes: readonly Personagem[], depois: readonly Personagem[], oQue: string): void {
+  const emissao = prepararEmissao(pastaId, antes, depois)
+  if (emissao.ok) emissao.entregar()
+  else useToastStore.getState().push('error', `${oQue}, mas o Lobby não aceitou (${emissao.problema}): no site e ao abrir o mapa pode sumir.`)
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // No app
 // ───────────────────────────────────────────────────────────────────────────

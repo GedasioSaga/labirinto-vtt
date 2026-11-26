@@ -39,6 +39,11 @@ interface AcervoDeItensState extends AcervoDeItens {
    * de mesmo id, numa gravação só; o id que sumiu do Acervo no meio não volta.
    */
   trocarItens: (trocados: readonly ItemDoCatalogo[]) => Promise<void>
+  /**
+   * SISTEMA DE ITENS REFEITO (E1): a conversão das fichas cria e completa itens numa gravação só.
+   * O de mesmo id troca; o novo entra no fim. Lista vazia: nada se grava.
+   */
+  juntarItens: (itens: readonly ItemDoCatalogo[]) => Promise<void>
 }
 
 /** O item na pasta (`undefined` = Sem pasta, sem o campo). Já está lá: o mesmo objeto. */
@@ -106,6 +111,15 @@ export const useAcervoDeItensStore = create<AcervoDeItensState>()((set, get) => 
       const { itens, categorias, pastas } = get()
       const porId = new Map(trocados.map((item) => [item.id, item]))
       return gravar({ itens: itens.map((atual) => porId.get(atual.id) ?? atual), categorias, pastas })
+    },
+
+    juntarItens: async (novos) => {
+      if (novos.length === 0) return
+      const { itens, categorias, pastas } = get()
+      const porId = new Map(novos.map((item) => [item.id, item]))
+      const ja = new Set(itens.map((item) => item.id))
+      const proximos = [...itens.map((atual) => porId.get(atual.id) ?? atual), ...novos.filter((item) => !ja.has(item.id))]
+      await gravar({ itens: proximos, categorias, pastas })
     },
   }
 })

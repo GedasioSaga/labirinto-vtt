@@ -265,6 +265,7 @@ import { comandosDaR1 } from './net/nuvem/comandosDaR1'
 import { criarSalaNoLobby, type SalaNoLobby } from './net/nuvem/salaNoLobby'
 import { useNuvemStore, type CampanhaNoApp } from './stores/nuvemStore'
 import { migrarMochilaAoAbrir } from './net/nuvem/migracaoDaMochila'
+import { converterItensAoAbrir } from './stores/conversaoDosItens'
 import { conferirMochilaAoAbrir, marcarMapaImportado } from './net/nuvem/mochilaPendenteNoApp'
 import { avisarJogadoresDosBonecosSeparados } from './net/mochilaNaSala'
 import { gravarPastaDoMapa } from './stores/rpgDaPasta'
@@ -3349,6 +3350,8 @@ function App() {
   const openMapFileWithFolder = async (path: string) => {
     // MOCHILA NA FICHA: a migração grava nas fichas ANTES de o editor lê-las (nunca lança).
     await migrarMochilaAoAbrir(path)
+    // SISTEMA DE ITENS REFEITO (E1): os cartões das abas Armas e Itens passam para a mochila, antes de o editor ler as fichas (nunca lança).
+    await converterItensAoAbrir(path)
     // O mapa que entrou numa pasta convertida: o que só os bonecos dele têm vira pendente antes do espelho (nunca lança).
     await conferirMochilaAoAbrir(path)
     const opened = await openMapFileFirst(path, true)
@@ -3564,6 +3567,7 @@ function App() {
         // MOCHILA NA FICHA: o trabalho recuperado entra na migração com a hora da cópia.
         if (copy.mapPath !== null) {
           await migrarMochilaAoAbrir(copy.mapPath, copy)
+          await converterItensAoAbrir(copy.mapPath)
           await conferirMochilaAoAbrir(copy.mapPath, copy)
         }
         // Com a pasta do mapa, como na abertura normal: o mapa que herda volta com as fichas (e a mochila) da pasta.
