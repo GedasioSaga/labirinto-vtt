@@ -6,9 +6,11 @@ import { WALL_COLOR, WALL_INTERIOR_ALPHA } from '../pixi/drawWalls'
 import { theme } from '../theme'
 import { CampoTexto } from './grimorio/CampoTexto'
 import { Dialogo } from './grimorio/Dialogo'
-import { sceneArt, type ArtFrame, type SceneArt } from './sceneOverviewArt'
+import { sceneArt, type ArtFrame, type ArtToken, type SceneArt } from './sceneOverviewArt'
 import { sceneTree, type SceneTreeRow } from '../lib/adventure'
+import { planoDaMiniatura, type QuadroDaMiniatura } from '../lib/miniaturaDaCena'
 import { semAcento } from '../lib/semAcento'
+import { useMiniaturaDaCena } from './MiniaturaDaCena'
 
 /** Ficha "Oculta no editor": o mesmo fantasma do editor (`HIDDEN_TOKEN_GHOST_ALPHA`, tokensRenderer.ts). */
 const GHOST_TOKEN_OPACITY = 0.3
@@ -145,7 +147,16 @@ export const SceneThumbnail = memo(function SceneThumbnail({
           <path key={doors.key} d={doors.d} fill="none" stroke={doors.color} strokeWidth={1} vectorEffect="non-scaling-stroke" />
         ),
       )}
-      {art.tokens.map((token) => (
+      <DiscosDasFichas tokens={art.tokens} semNomes={semNomes} />
+    </svg>
+  )
+})
+
+/** As fichas da cena em disco, em px de mundo: no desenho chapado e por cima da miniatura nova. */
+function DiscosDasFichas({ tokens, semNomes }: { tokens: readonly ArtToken[]; semNomes: boolean }) {
+  return (
+    <>
+      {tokens.map((token) => (
         <circle
           key={token.id}
           cx={token.cx}
@@ -160,9 +171,78 @@ export const SceneThumbnail = memo(function SceneThumbnail({
           {!semNomes && <title>{token.name}</title>}
         </circle>
       ))}
+    </>
+  )
+}
+
+/** O que a miniatura nova enquadra (piso e quadro de `planoDaMiniatura`), uma vez por mapa. */
+const enquadramentosGuardados = new WeakMap<MapData, { piso: number; quadro: QuadroDaMiniatura } | null>()
+
+function enquadramentoDaMiniatura(map: MapData): { piso: number; quadro: QuadroDaMiniatura } | null {
+  let guardado = enquadramentosGuardados.get(map)
+  if (guardado === undefined) {
+    const plano = planoDaMiniatura(map)
+    guardado = plano === null ? null : { piso: plano.piso, quadro: plano.quadro }
+    enquadramentosGuardados.set(map, guardado)
+  }
+  return guardado
+}
+
+/**
+ * As fichas por cima da miniatura nova, que vem sem elas (na lista de 40 px a
+ * ficha era só um ponto). Mesmo quadro da imagem: o disco cai onde a ficha está
+ * no chão pintado. As fichas são as de agora; a imagem da cena aberta, a do
+ * último Salvar.
+ */
+function FichasSobreAMiniatura({ map }: { map: MapData }) {
+  const enquadramento = enquadramentoDaMiniatura(map)
+  if (enquadramento === null) return null
+  const tokens = arteDaCena(map, enquadramento.piso)?.tokens ?? []
+  if (tokens.length === 0) return null
+  const { quadro } = enquadramento
+  return (
+    <svg
+      className="lb-visao__fichas"
+      viewBox={`${quadro.x} ${quadro.y} ${quadro.width} ${quadro.height}`}
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <DiscosDasFichas tokens={tokens} semNomes={false} />
     </svg>
   )
-})
+}
+
+/**
+ * O poço do mapa no cartão da Visão geral. A imagem é a MESMA da lista de Cenas
+ * (`stores/miniaturasDasCenas.ts`: o canvas do editor pinta chão com textura,
+ * carimbos, paredes e objetos; sem fichas), pedida enquanto o cartão está à
+ * vista. Enquanto ela não existe — ou na cena vazia, ou quando a cena aberta
+ * está num piso que não é o térreo (a imagem mostra o térreo, ou o primeiro
+ * piso com algo desenhado) — fica o desenho
+ * chapado de antes (`SceneThumbnail`), que não espera a fila.
+ */
+function MapaDoCartao({ scene, map, piso }: { scene: SceneListItem; map: MapData | undefined; piso: number }) {
+  const outroPiso = piso !== 0
+  const { caixaRef, pronta, nasceuSemImagem } = useMiniaturaDaCena(scene.id, scene.available && !outroPiso ? map : undefined, scene.active)
+  const imagem = !outroPiso && typeof pronta?.url === 'string' ? pronta.url : null
+  return (
+    <span ref={caixaRef} className="lb-visao__mapa" data-chegou={nasceuSemImagem && imagem !== null ? 'true' : undefined}>
+      {!scene.available ? (
+        <span className="lb-visao__falta">Arquivo não encontrado</span>
+      ) : imagem !== null ? (
+        <>
+          <img src={imagem} alt="" draggable={false} decoding="async" />
+          {map && <FichasSobreAMiniatura map={map} />}
+        </>
+      ) : map ? (
+        <SceneThumbnail map={map} piso={piso} />
+      ) : (
+        <span className="lb-visao__falta">Sem prévia</span>
+      )}
+    </span>
+  )
+}
 
 /** Quantas miniaturas cabem numa linha da grade (as da primeira linha dividem o mesmo topo). */
 function columnsOf(cards: readonly HTMLElement[]): number {
@@ -214,8 +294,8 @@ export interface SceneOverviewDialogProps {
 type Row = SceneTreeRow<SceneListItem>
 
 /**
- * VISÃO GERAL DAS CENAS (G14): uma miniatura por cena da aventura, com o chão
- * e as fichas onde estão, e o nome da cena como legenda. A cena aberta vem
+ * VISÃO GERAL DAS CENAS (G14): uma miniatura por cena da aventura (a imagem da
+ * lista de Cenas, `MapaDoCartao`), e o nome da cena como legenda. A cena aberta vem
  * destacada (`aria-current`, borda de latão, como na lista de Cenas). Clicar
  * abre a cena; Esc, o X e o clique no fundo fecham sem trocar.
  *
@@ -261,15 +341,7 @@ export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onCl
           disabled={!scene.available}
           onClick={() => onPick(scene.id)}
         >
-          <span className="lb-visao__mapa">
-            {!scene.available ? (
-              <span className="lb-visao__falta">Arquivo não encontrado</span>
-            ) : map ? (
-              <SceneThumbnail map={map} piso={scene.active ? pisoAberto : 0} />
-            ) : (
-              <span className="lb-visao__falta">Sem prévia</span>
-            )}
-          </span>
+          <MapaDoCartao scene={scene} map={map} piso={scene.active ? pisoAberto : 0} />
           <span className="lb-visao__legenda">
             <span className="lb-visao__nome">{scene.name}</span>
             <span className="lb-visao__conta">{tokenCountLabel(scene.tokenCount)}</span>

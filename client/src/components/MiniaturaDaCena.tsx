@@ -69,12 +69,12 @@ function observar(caixa: Element, aviso: Aviso): () => void {
 /* ---------------------------------------------------------- a miniatura */
 
 /**
- * A miniatura de uma linha. `chave`: o id da cena na lista ('' no mapa solto).
- * `map` ausente = a cena ainda não tem mapa para mostrar: o quadro fica vazio.
- * `aberta`: a cena do editor, cuja imagem só é refeita ao salvar. Desenho, não
- * controle: o clique atravessa até o nome, que é a linha inteira (main.css).
+ * A miniatura nova da cena `chave`, pedida só enquanto a caixa (`caixaRef`)
+ * está à vista. Serve à linha da lista de Cenas e ao cartão da Visão geral: a
+ * mesma imagem, a mesma fila. `map` ausente = nada a pedir (a caixa fica com o
+ * que já estiver pronto). `nasceuSemImagem`: a caixa apareceu antes da imagem.
  */
-export function MiniaturaDaCena({ chave, map, aberta }: { chave: string; map: MapData | undefined; aberta: boolean }) {
+export function useMiniaturaDaCena(chave: string, map: MapData | undefined, aberta: boolean) {
   const caixaRef = useRef<HTMLSpanElement>(null)
   const [visivel, setVisivel] = useState(false)
   const pronta = useSyncExternalStore(assinarMiniaturas, () => miniaturaDaCena(chave))
@@ -91,6 +91,18 @@ export function MiniaturaDaCena({ chave, map, aberta }: { chave: string; map: Ma
     pedirMiniatura(chave, map, aberta)
     return () => esquecerPedido(chave)
   }, [chave, map, aberta, visivel])
+
+  return { caixaRef, pronta, nasceuSemImagem }
+}
+
+/**
+ * A miniatura de uma linha. `chave`: o id da cena na lista ('' no mapa solto).
+ * `map` ausente = a cena ainda não tem mapa para mostrar: o quadro fica vazio.
+ * `aberta`: a cena do editor, cuja imagem só é refeita ao salvar. Desenho, não
+ * controle: o clique atravessa até o nome, que é a linha inteira (main.css).
+ */
+export function MiniaturaDaCena({ chave, map, aberta }: { chave: string; map: MapData | undefined; aberta: boolean }) {
+  const { caixaRef, pronta, nasceuSemImagem } = useMiniaturaDaCena(chave, map, aberta)
 
   return (
     <span ref={caixaRef} className="lb-cenas__mini" data-chegou={nasceuSemImagem && pronta !== undefined ? 'true' : undefined} aria-hidden="true">

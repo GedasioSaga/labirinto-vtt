@@ -5255,8 +5255,9 @@ html.lb-arrastando-cena * {
 }
 
 /* Visão geral das cenas (SceneOverview.tsx): uma miniatura por cena, a aberta
-   com a borda de latão da lista de Cenas. A miniatura é o próprio mapa — chão
-   chapado, parede em fio claro, ficha em disco — num poço rebaixado. */
+   com a borda de latão da lista de Cenas. A miniatura é a imagem da lista de
+   Cenas (chão com textura, paredes, objetos), num poço rebaixado; enquanto ela
+   não existe, o desenho chapado de antes (parede em fio claro, ficha em disco). */
 .gr-dlg.lb-visao {
   width: min(920px, 100%);
   /* Camada própria: a entrada anima a escala sem repintar o resto, e o texto
@@ -5280,9 +5281,12 @@ html.lb-arrastando-cena * {
   min-width: 0;
 }
 
+/* auto-fill, e não auto-fit: as colunas vazias ficam, e a cena sozinha na linha
+   (o filtro com 1 resultado, a cena de fora num grupo) tem a largura das outras
+   em vez de esticar até a janela toda e empurrar o nome para fora da vista. */
 .lb-visao__grade {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--lb-space-3);
   margin: 0;
   padding: var(--lb-space-4);
@@ -5320,9 +5324,7 @@ html.lb-arrastando-cena * {
   border-bottom: none;
 }
 
-/* auto-fill: a cena de fora sozinha na linha não estica até a largura toda. */
 .lb-visao__grupo .lb-visao__grade {
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   padding: 0;
 }
 
@@ -5411,6 +5413,26 @@ html.lb-arrastando-cena * {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* A miniatura nova (a mesma da lista de Cenas, 256 × 192, 4:3 como o poço):
+   enche o quadro. A que chega depois de o cartão abrir troca o desenho chapado
+   num esmaecer curto (o mesmo da lista), só de opacidade. */
+.lb-visao__mapa > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* As fichas por cima da imagem, na mesma célula do poço e no mesmo quadro. */
+.lb-visao__mapa > img,
+.lb-visao__mapa > .lb-visao__fichas {
+  grid-area: 1 / 1;
+}
+
+.lb-visao__mapa[data-chegou='true'] > * {
+  animation: lb-cenas-mini-chega var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 .lb-visao__falta {

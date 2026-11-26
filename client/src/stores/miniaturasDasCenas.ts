@@ -47,6 +47,12 @@ const ESPERA_MAXIMA_PELO_OCIOSO_MS = 2000
 
 const feitas = new Map<string, Feita>()
 const fila = new Map<string, Pedido>()
+/**
+ * Quantas caixas à vista querem a cena agora (a linha da lista de Cenas e o
+ * cartão da Visão geral): fechar a Visão geral não tira da fila o pedido da
+ * linha que continua à vista.
+ */
+const interessados = new Map<string, number>()
 const ouvintes = new Set<() => void>()
 let fabricante: FabricanteDeMiniatura | null = null
 let trabalhando = false
@@ -111,6 +117,7 @@ function depoisDeSalvar(): void {
  * id entrou no lugar): depois, só o Salvar a refaz.
  */
 export function pedirMiniatura(chave: string, mapa: MapData, aberta: boolean): void {
+  interessados.set(chave, (interessados.get(chave) ?? 0) + 1)
   const feita = feitas.get(chave)
   if (feita !== undefined && (feita.mapa === mapa || (aberta && feita.mapa.id === mapa.id))) return
   const pedido = fila.get(chave)
@@ -118,8 +125,18 @@ export function pedirMiniatura(chave: string, mapa: MapData, aberta: boolean): v
   void trabalhar()
 }
 
-/** A linha saiu da vista: o pedido dela (se ainda não começou) sai da fila. O do Salvar fica. */
+/**
+ * A caixa saiu da vista: quando era a última que queria a cena, o pedido (se
+ * ainda não começou) sai da fila. O do Salvar fica. Cada `esquecerPedido` fecha
+ * um `pedirMiniatura` (o efeito da caixa faz os dois em par).
+ */
 export function esquecerPedido(chave: string): void {
+  const restam = (interessados.get(chave) ?? 1) - 1
+  if (restam > 0) {
+    interessados.set(chave, restam)
+    return
+  }
+  interessados.delete(chave)
   if (fila.get(chave)?.daLista === true) fila.delete(chave)
 }
 
