@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { entraNaBatalha } from '../../lib/livros/combate'
 import { comNotaDoMestre, NOTA_DO_MESTRE_MAX, type Personagem } from '../../lib/personagem'
+import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
 import { formatarNumero, gravarNoMundo, Retrato, trocarFicha } from './comum'
 import './anotacoes.css'
 
@@ -62,7 +63,8 @@ export function EditorDaNota({ personagem, campoId, curto = false }: EditorDaNot
   const gravada = personagem.notaDoMestre ?? ''
   const [texto, setTexto] = useState(gravada)
   const [selo, setSelo] = useState<SeloDaNota>({ tipo: 'parado' })
-  const pendente = useRef<{ texto: string; relogio: number } | null>(null)
+  /** `pastaId` = a pasta aberta quando a letra entrou: o Esc fecha o mundo antes de desmontar, e o pendente ainda vai para ela. */
+  const pendente = useRef<{ texto: string; relogio: number; pastaId: string | undefined } | null>(null)
   const montado = useRef(true)
   const personagemId = personagem.id
 
@@ -71,7 +73,7 @@ export function EditorDaNota({ personagem, campoId, curto = false }: EditorDaNot
     if (agora === null) return
     window.clearTimeout(agora.relogio)
     pendente.current = null
-    void gravarNoMundo((lista) => trocarFicha(lista, personagemId, (atual) => comNotaDoMestre(atual, agora.texto))).then((gravou) => {
+    void gravarNoMundo((lista) => trocarFicha(lista, personagemId, (atual) => comNotaDoMestre(atual, agora.texto)), undefined, agora.pastaId).then((gravou) => {
       // Escreveu de novo enquanto gravava: o selo continua "Guardando…" até a próxima.
       if (!montado.current || pendente.current !== null) return
       setSelo(gravou ? { tipo: 'guardada', hora: horaDeAgora() } : { tipo: 'falhou' })
@@ -98,7 +100,7 @@ export function EditorDaNota({ personagem, campoId, curto = false }: EditorDaNot
     setTexto(novo)
     setSelo({ tipo: 'guardando' })
     if (pendente.current !== null) window.clearTimeout(pendente.current.relogio)
-    pendente.current = { texto: novo, relogio: window.setTimeout(guardarPendente, GUARDA_A_NOTA_DEPOIS_MS) }
+    pendente.current = { texto: novo, relogio: window.setTimeout(guardarPendente, GUARDA_A_NOTA_DEPOIS_MS), pastaId: useMundoDoLivroStore.getState().aberto?.pastaId }
   }
 
   const perto = texto.length >= NOTA_DO_MESTRE_MAX * CONTADOR_A_PARTIR_DE

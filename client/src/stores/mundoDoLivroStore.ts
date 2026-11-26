@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { motivoDaFalhaDeDisco } from '../lib/foraDoApp'
 import { sincronizarVariacoes } from '../lib/livros/combate'
 import { COMPARAR_MAX } from '../lib/livros/encontro'
 import { lerRpgDaPasta } from '../lib/pastasDeMapas'
@@ -85,8 +86,13 @@ interface MundoDoLivroState extends EncontroDoComparar {
    * sincroniza as variações com os modelos. Uma gravação por vez, na ordem
    * pedida: duas seguidas (dois atalhos da força) não leem o mesmo disco e
    * perdem a primeira. Lança com a razão.
+   *
+   * `pastaId` explícito grava naquela pasta mesmo com o mundo já fechado: o
+   * Esc fecha o mundo ANTES de a página desmontar, e a nota pendente que a
+   * desmontagem grava ia para lugar nenhum. Sem pasta (nem aberta nem dada),
+   * lança: antes devolvia "ok" sem gravar.
    */
-  mudar: (mudanca: MudancaDoMundo) => Promise<void>
+  mudar: (mudanca: MudancaDoMundo, pastaId?: string) => Promise<void>
   /** Põe ou tira a ficha das colunas; cheia (`COMPARAR_MAX`) não põe mais. */
   alternarComparar: (personagemId: string) => void
   /** Põe ou tira a ficha do grupo (sai dos inimigos se estava lá). */
@@ -118,7 +124,8 @@ export const useMundoDoLivroStore = create<MundoDoLivroState>()((set, get) => {
     if (aberto === null) return
     const lido = await lerRpgDaPasta(aberto.pastaId)
     if (!aindaAberta(aberto.pastaId)) return
-    set(lido.ok ? { daPasta: lido.rpg.personagens, erro: null } : { daPasta: null, erro: lido.motivo })
+    // A tela põe o próprio ponto ("Não deu para ler os personagens da pasta: <erro>."); fora do app, a frase do app.
+    set(lido.ok ? { daPasta: lido.rpg.personagens, erro: null } : { daPasta: null, erro: motivoDaFalhaDeDisco(lido.motivo) })
   }
 
   const gravar = async (pastaId: string, mudanca: MudancaDoMundo): Promise<void> => {
@@ -145,10 +152,9 @@ export const useMundoDoLivroStore = create<MundoDoLivroState>()((set, get) => {
     fecharFicha: () => set({ fichaAberta: null }),
     recarregar,
 
-    mudar: (mudanca) => {
-      const aberto = get().aberto
-      if (aberto === null) return Promise.resolve()
-      const vez = fila.then(() => gravar(aberto.pastaId, mudanca))
+    mudar: (mudanca, pastaId = get().aberto?.pastaId) => {
+      if (pastaId === undefined) return Promise.reject(new Error('o livro de regras já estava fechado'))
+      const vez = fila.then(() => gravar(pastaId, mudanca))
       fila = vez.then(
         () => undefined,
         () => undefined,

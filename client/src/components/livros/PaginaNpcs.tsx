@@ -8,7 +8,7 @@ import { FORCA_MAX, FORCA_MIN, FORCA_PASSO, forcaDe, forcaNoPasso, RECURSO_QUE_A
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
 import { FaixaSoltarDoModelo, LinhaDoBestiario, MoverParaOModelo, PROPS_DO_CARTAO_DA_LISTA, soltarDoModeloNoMundo, useArrastoDoBestiario, type ArrastoDoBestiario } from './ArrastoDoBestiario'
-import { escolhasDaFicha, formatarForca, formatarNumero, forcaMexida, gravarNoMundo, primeiroNome, Retrato, semCenario, trocarFicha } from './comum'
+import { apagarNoMundo, escolhasDaFicha, formatarForca, formatarNumero, forcaMexida, gravarNoMundo, primeiroNome, Retrato, semCenario, trocarFicha } from './comum'
 import { IconeDoMundo } from './icones'
 import { NovoNpcDialog, type ModoDoNovoNpc } from './NovoNpcDialog'
 import { EditorDaNota, SoVoceVe } from './PaginaAnotacoes'
@@ -157,13 +157,8 @@ function DetalheDoNpc({ personagem, personagens, deCombate, sistema, aoVivo, onF
   }
 
   const apagar = () => {
-    const indice = personagens.findIndex((candidato) => candidato.id === personagem.id)
-    const apagado = personagem
     useMundoDoLivroStore.getState().escolherNpc(modeloId ?? null)
-    void gravarNoMundo((lista) => lista.filter((candidato) => candidato.id !== apagado.id), {
-      texto: `${nome} saiu do bestiário.`,
-      desfazer: (lista) => (lista.some((candidato) => candidato.id === apagado.id) ? lista : [...lista.slice(0, indice), apagado, ...lista.slice(indice)]),
-    })
+    apagarNoMundo(personagens, personagem)
   }
 
   let de: string

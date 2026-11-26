@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { motivoDaFalhaDeDisco } from '../../lib/foraDoApp'
 import { lerIndiceDasPastas } from '../../lib/pastasDeMapas'
 import { FORCA_PADRAO, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -75,8 +76,9 @@ export function Retrato({ imagem, nome, tamanho = 'm' }: { imagem: string | null
   )
 }
 
+/** Vai no meio de "Não deu para guardar: <motivo>.": fora do app, a frase do app em vez do erro cru da ponte. */
 function mensagemDoErro(erro: unknown): string {
-  return erro instanceof Error ? erro.message : String(erro)
+  return motivoDaFalhaDeDisco(erro)
 }
 
 export interface AvisoDaMudanca {
@@ -89,14 +91,15 @@ export interface AvisoDaMudanca {
 /**
  * Grava pelo funil único do mundo (`useMundoDoLivroStore().mudar`) e conta o
  * que fez num aviso com Desfazer. Falha vira aviso de erro com a razão.
- * Devolve se gravou.
+ * Devolve se gravou. `pastaId` grava naquela pasta mesmo com o mundo já
+ * fechado (a nota pendente que a página grava ao desmontar, depois do Esc).
  */
-export async function gravarNoMundo(mudanca: MudancaDoMundo, aviso?: AvisoDaMudanca): Promise<boolean> {
+export async function gravarNoMundo(mudanca: MudancaDoMundo, aviso?: AvisoDaMudanca, pastaId?: string): Promise<boolean> {
   const toasts = useToastStore.getState()
   try {
-    await useMundoDoLivroStore.getState().mudar(mudanca)
+    await useMundoDoLivroStore.getState().mudar(mudanca, pastaId)
   } catch (erro) {
-    toasts.push('error', `Não deu para guardar: ${mensagemDoErro(erro)}`)
+    toasts.push('error', `Não deu para guardar: ${mensagemDoErro(erro)}.`)
     return false
   }
   if (aviso === undefined) return true
@@ -108,13 +111,38 @@ export async function gravarNoMundo(mudanca: MudancaDoMundo, aviso?: AvisoDaMuda
   avisarComDesfazer(aviso.texto, () => {
     useMundoDoLivroStore
       .getState()
-      .mudar(desfazer)
+      .mudar(desfazer, pastaId)
       .then(
         () => useToastStore.getState().push('info', 'Desfeito.'),
-        (erro: unknown) => useToastStore.getState().push('error', `Não deu para desfazer: ${mensagemDoErro(erro)}`),
+        (erro: unknown) => useToastStore.getState().push('error', `Não deu para desfazer: ${mensagemDoErro(erro)}.`),
       )
   })
   return true
+}
+
+/**
+ * Tira um NPC do bestiário com Desfazer. Apagar um modelo solta as variações
+ * dele na mesma gravação (`sincronizarVariacoes`: viram NPC único); o Desfazer
+ * devolve o modelo E religa as variações que ainda estão soltas. Antes só o
+ * modelo voltava, e a família se perdia para sempre.
+ */
+export function apagarNoMundo(personagens: readonly Personagem[], apagado: Personagem): void {
+  const indice = personagens.findIndex((candidato) => candidato.id === apagado.id)
+  const familia = new Set(personagens.filter((candidato) => candidato.combate?.modeloId === apagado.id).map((variacao) => variacao.id))
+  let texto = `${apagado.nome} saiu do bestiário.`
+  if (familia.size === 1) texto = `${apagado.nome} saiu do bestiário. A variação dele virou NPC único.`
+  else if (familia.size > 1) texto = `${apagado.nome} saiu do bestiário. As ${familia.size} variações dele viraram NPC único.`
+  const religar = (personagem: Personagem): Personagem =>
+    familia.has(personagem.id) && personagem.combate !== undefined && personagem.combate.modeloId === undefined
+      ? { ...personagem, combate: { ...personagem.combate, modeloId: apagado.id } }
+      : personagem
+  void gravarNoMundo((lista) => lista.filter((candidato) => candidato.id !== apagado.id), {
+    texto,
+    desfazer: (lista) => {
+      const comOModelo = lista.some((candidato) => candidato.id === apagado.id) ? lista : [...lista.slice(0, indice), apagado, ...lista.slice(indice)]
+      return familia.size === 0 ? comOModelo : comOModelo.map(religar)
+    },
+  })
 }
 
 /** O aviso com Desfazer do mundo que está na tela agora (id do toast), ou nenhum. */
