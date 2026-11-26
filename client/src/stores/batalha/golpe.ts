@@ -82,6 +82,7 @@ import {
 } from './cena'
 import { mexerNaFicha, type Recusada, type CuraDoItemNoAlvo, gastarMunicaoNaMesa, gastarItemNaMesa, gastarConsumivelNaMesa, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from './naMesa'
 import { armaNaMesa, gastarDoPenteNaMesa, recargaDepoisDoTiro } from './recargaDoPente'
+import { arremessoDepoisDoAtaque } from './arremessoNaMesa'
 import { devolverFichasDaAcao } from './desfazer'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
 import { nomeDaAcaoDaAjuda, pedirAjuda, pedirAoMestre } from './ajuda'
@@ -786,6 +787,17 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         novos = recarga.turnos
         if (recarga.texto !== null) notaDosRequisitos = notaDaLinha(notaDosRequisitos, `(${recarga.texto})`)
       }
+    }
+    // ITENS REFEITOS, E6b (decisão 7): o Arremesso jogado sai da mochila (o boomerang não) e espera o "Tempo de recarga".
+    if (pedido.tipo === 'atacar' && pedido.armaId !== null && carta.personagemId !== null) {
+      const jogado = arremessoDepoisDoAtaque(mesa, sceneKey, { carta, chaveDoGasto, regras: ctx.regras }, novos, pedido.armaId)
+      if (jogado === 'recusada') {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+      partes.push(...jogado.partes)
+      novos = jogado.turnos
+      if (jogado.texto !== null) notaDosRequisitos = notaDaLinha(notaDosRequisitos, `(${jogado.texto})`)
     }
     // Fase 8: o item que gasta tira 1 da vaga de quem usa (a ficha, ou o boneco na aventura não migrada); o Desfazer devolve.
     if (doItem !== null && doItem.uso.vaga.efeito.gasta === 'um' && carta.personagemId !== null) {

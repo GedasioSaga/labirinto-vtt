@@ -1,6 +1,6 @@
 import type { CarriedItem } from '../../types/map'
 import { cabeAcao, gastarAcao } from '../../lib/batalha/acoes'
-import { combateVazio } from '../../lib/batalha/combate'
+import { combateVazio, type AcaoDaTecnica } from '../../lib/batalha/combate'
 import { acoesDaCarta } from '../../lib/batalha/golpe'
 import { armasDe, type ArmaDaFicha } from '../../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
@@ -113,21 +113,46 @@ export interface VezDaRecarga {
   regras: RegrasDaBatalha | null
 }
 
+/** A ação `acao` cabe no que sobrou da vez de quem tem a arma (a Livre cabe sempre)? */
+export function cabeNaVez(mesa: MesaDaBatalha, vez: VezDaRecarga, turnos: TurnosDaCena, acao: AcaoDaTecnica): boolean {
+  const { carta, chaveDoGasto, regras } = vez
+  const personagemId = carta.personagemId
+  const ficha = personagemId === null ? undefined : mesa.personagens().find((candidato) => candidato.id === personagemId)
+  if (ficha === undefined) return false
+  const gasto = turnos.gastos[chaveDoGasto]
+  const acoes = acoesDaCarta({ turnos: { ...turnos, gastos: { ...turnos.gastos, [carta.id]: gasto ?? GASTO_ZERO } }, carta, personagem: ficha, sistema: mesa.sistema(), regras })
+  return cabeAcao(acoes, acao)
+}
+
+/** A ação `acao` gasta na vez (`chaveDoGasto`): os turnos e a parte do Desfazer. A Livre não gasta nada. */
+export function gastarNaVez(turnos: TurnosDaCena, chaveDoGasto: string, acao: AcaoDaTecnica): { turnos: TurnosDaCena; partes: Reversao[] } {
+  if (acao === 'livre') return { turnos, partes: [] }
+  const gasto = turnos.gastos[chaveDoGasto]
+  return { turnos: { ...turnos, gastos: { ...turnos.gastos, [chaveDoGasto]: gastarAcao(gasto ?? GASTO_ZERO, acao) } }, partes: [{ tipo: 'gasto', cartaId: chaveDoGasto, antes: gasto ?? null }] }
+}
+
+/** A espera de `rodadas` na arma `armaId` de `personagemId` (desce no começo de cada vez dele): os turnos e a parte do Desfazer. */
+export function esperaNaArma(turnos: TurnosDaCena, personagemId: string, armaId: string, rodadas: number): { turnos: TurnosDaCena; partes: Reversao[] } {
+  if (rodadas < 1) return { turnos, partes: [] }
+  const antes = turnos.combate?.[personagemId] ?? null
+  const depois = { ...(antes ?? combateVazio()), recargas: { ...(antes?.recargas ?? {}), [armaId]: rodadas } }
+  return { turnos: { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: depois } }, partes: [{ tipo: 'combate', personagemId, antes, depois }] }
+}
+
 /**
  * Recarrega a arma `armaId` agora, se a ação da recarga cabe no que sobrou da vez dela: a bala sai da
  * mochila, o pente enche, a ação é gasta e a espera do "Tempo de recarga" começa. `null` = não coube
  * (ou não havia o que recarregar); `'recusada'` = a mesa não gravou.
  */
 function recarregarSeCouber(mesa: MesaDaBatalha, sceneKey: string, vez: VezDaRecarga, turnos: TurnosDaCena, arma: ArmaDaFicha): RecargaNaMesa | null | 'recusada' {
-  const { carta, chaveDoGasto, regras } = vez
+  const { carta, chaveDoGasto } = vez
   const pente = arma.pente
   const personagemId = carta.personagemId
   const ficha = personagemId === null ? undefined : mesa.personagens().find((candidato) => candidato.id === personagemId)
   if (pente === undefined || personagemId === null || ficha === undefined) return null
   const acao = acaoDaRecarga(pente.recarga)
   const gasto = turnos.gastos[chaveDoGasto]
-  const acoes = acoesDaCarta({ turnos: { ...turnos, gastos: { ...turnos.gastos, [carta.id]: gasto ?? GASTO_ZERO } }, carta, personagem: ficha, sistema: mesa.sistema(), regras })
-  if (!cabeAcao(acoes, acao)) return null
+  if (!cabeNaVez(mesa, vez, turnos, acao)) return null
   const feita: { recarga: ReturnType<typeof recargaDoPente> } = { recarga: null }
   const mudada = mudarMochilaNaMesa(mesa, sceneKey, carta.tokenId, personagemId, (mochila) => {
     feita.recarga = recargaDoPente(mochila, pente.vagaId, pente.balaId, `vaga_${crypto.randomUUID()}`)

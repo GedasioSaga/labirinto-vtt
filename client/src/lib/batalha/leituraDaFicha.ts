@@ -292,6 +292,25 @@ export interface ArmaDaFicha extends CartaoDaFicha {
    * pente; zerado, a mesa recarrega da mochila (`stores/batalha/recargaDoPente.ts`). Ausente = sem pente.
    */
   pente?: PenteDaArmaNaBatalha
+  /**
+   * ITENS REFEITOS, E6b (decisão 7): a arma de Arremesso equipada. Sem `volta`, cada um jogado sai da
+   * vaga (o Desfazer devolve) e o "Tempo de recarga" é a espera até o próximo estar na mão; com `volta`
+   * (o boomerang), não sai e fica fora da mão até o começo da próxima vez de quem jogou
+   * (`stores/batalha/arremessoNaMesa.ts`). Ausente = não é arremesso.
+   */
+  arremesso?: ArremessoDaArmaNaBatalha
+}
+
+/** O arremesso equipado como a batalha o lê. */
+export interface ArremessoDaArmaNaBatalha {
+  /** A vaga da pilha na mochila (de onde sai o que é jogado). */
+  vagaId: string
+  /** O boomerang: volta para a mão e não se gasta. */
+  volta: boolean
+  /** A ação que pôr o próximo na mão gasta e quantas rodadas leva (para o boomerang, quando volta). */
+  recarga: RecargaDoItem
+  /** Quantos a pilha tem agora. */
+  quantos: number
 }
 
 /** O pente da arma equipada como a batalha o lê. */
@@ -505,6 +524,10 @@ export const SUFIXO_DO_GOLPE = ':golpe'
 const CATEGORIA_DO_TIPO: Readonly<Record<'corpo' | 'fogo' | 'hibrida' | 'arremesso', CategoriaDaArma>> = { corpo: 'branca', fogo: 'deFogo', hibrida: 'hibrida', arremesso: 'arremesso' }
 /** A recarga do pente que o item não diz: Ação Simples, na hora (a do protótipo). */
 export const RECARGA_PADRAO: RecargaDoItem = { acao: 'Ação Simples', rodadas: 0 }
+/** O arremesso que não diz o tempo: o próximo vai para a mão na hora, sem gastar ação (o padrão do editor). */
+const RECARGA_DO_ARREMESSO: RecargaDoItem = { acao: 'Ação Livre', rodadas: 0 }
+/** O boomerang que não diz o tempo: volta no começo da próxima vez de quem jogou (decisão 7). */
+const RECARGA_DA_VOLTA: RecargaDoItem = { acao: 'Ação Livre', rodadas: 1 }
 const MUNICAO_SEM_NOME = 'Munição do pente'
 
 /** O id da vaga da arma da mochila (`mochila:<vaga>` ou `mochila:<vaga>:golpe`); `null` = não é arma da mochila. */
@@ -600,6 +623,11 @@ function armasDaVaga(vaga: CarriedItem, mochila: readonly CarriedItem[]): ArmaDa
   const id = `${PREFIXO_DA_ARMA_DA_MOCHILA}${vaga.id}`
   const molde = penteDaArma(vaga, ACERVO_DA_BATALHA)
   const principal = armaDoBloco(id, nome, vaga, blocos.ataque, CATEGORIA_DO_TIPO[tipo], molde === null ? null : molde.capacidade)
+  if (tipo === 'arremesso') {
+    const volta = blocos.arremesso?.volta === true
+    const recarga = blocos.arremesso?.recarga ?? (volta ? RECARGA_DA_VOLTA : RECARGA_DO_ARREMESSO)
+    return [{ ...principal, arremesso: { vagaId: vaga.id, volta, recarga, quantos: quantidadeDe(vaga) } }]
+  }
   const comPente: ArmaDaFicha =
     molde === null
       ? principal
@@ -651,6 +679,29 @@ export function motivoDoPente(arma: Pick<ArmaDaFicha, 'nome' | 'pente'>, rodadas
   if (pente.n > 0) return null
   const nome = arma.nome.trim() || 'a arma'
   return pente.naMochila > 0 ? `Pente vazio: a mesa recarrega ${nome} no começo da próxima vez (${pente.recarga.acao})` : `Pente vazio e nenhuma bala que ${nome} aceita na mochila`
+}
+
+/** "na próxima vez", "daqui a 2 vezes": quando a espera de `rodadas` acaba (desce no começo de cada vez do dono). */
+export function quandoAcabaAEspera(rodadas: number): string {
+  return rodadas <= 1 ? 'no começo da próxima vez' : `daqui a ${rodadas} vezes`
+}
+
+/**
+ * ITENS REFEITOS, E6b (decisão 7): por que o arremesso não sai agora: o boomerang ainda voltando, o
+ * próximo ainda indo para a mão, ou a pilha vazia. `null` = pode jogar (ou a arma não é arremesso).
+ */
+export function motivoDoArremesso(arma: Pick<ArmaDaFicha, 'nome' | 'arremesso'>, rodadasDaEspera: number): string | null {
+  const arremesso = arma.arremesso
+  if (arremesso === undefined) return null
+  const nome = arma.nome.trim() || 'O item'
+  if (rodadasDaEspera > 0) return arremesso.volta ? `${nome} está voltando para a mão: volta ${quandoAcabaAEspera(rodadasDaEspera)}` : `${nome}: o próximo chega à mão ${quandoAcabaAEspera(rodadasDaEspera)}`
+  if (!arremesso.volta && arremesso.quantos < 1) return `Sem ${nome} na mochila`
+  return null
+}
+
+/** O que trava a arma equipada agora, fora a ação: o pente (E6a) ou o arremesso (E6b). `null` = está na mão e pronta. */
+export function motivoDaArmaNaMao(arma: Pick<ArmaDaFicha, 'nome' | 'pente' | 'arremesso'>, rodadasDaEspera: number): string | null {
+  return motivoDoPente(arma, rodadasDaEspera) ?? motivoDoArremesso(arma, rodadasDaEspera)
 }
 
 /** A bala da arma pelo id. `null` = a arma não tem essa bala. */

@@ -46,7 +46,7 @@ import {
   CATEGORIAS_DE_ARMA,
   armasDe,
   lerAcao,
-  motivoDoPente,
+  motivoDaArmaNaMao,
   perfuracaoDe,
   tecnicasDe,
   type ArmaDaFicha,
@@ -1407,7 +1407,7 @@ export function golpesDeAtaque(
       perfuracao: arma === null ? null : perfuracaoDe(arma),
       // R6: a mesma regra do host (`podeAgir`): depois do primeiro Atacar, o adicional da forma cabe sem a Simples.
       // ITENS REFEITOS, E6a: antes, o pente (vazio ou esperando a recarga), como no host.
-      motivo: (arma === null ? null : motivoDoPente(arma, combate?.recargas[arma.id] ?? 0)) ?? (acoes === null ? null : motivoDoAtacar(acoes)),
+      motivo: (arma === null ? null : motivoDaArmaNaMao(arma, combate?.recargas[arma.id] ?? 0)) ?? (acoes === null ? null : motivoDoAtacar(acoes)),
     }
   }
   // Construtor C8: a arma padrão da ficha vem primeiro na lista do Atacar.
