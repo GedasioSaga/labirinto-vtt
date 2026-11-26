@@ -628,6 +628,8 @@ dialog.janela[data-saindo]::backdrop { opacity: 0; }
 .tec__cab strong { font-weight: 600; }
 .tec__desc { color: var(--lb-creme-dim); font-size: 13.5px; }
 .tec__acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tecs__botoes { margin-top: 10px; }
+.tec__etqs { display: flex; flex-wrap: wrap; gap: 4px; }
 .pecas { display: flex; flex-wrap: wrap; gap: 6px; }
 .peca { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 10px; border-radius: var(--r-total); font-size: var(--t-xs); font-weight: 500; background: var(--lb-cura-suave); color: var(--lb-cura); }
 .peca .ic { width: 13px; height: 13px; }
@@ -1083,7 +1085,7 @@ const UI = {
   condSel: 'sangrando', novaCond: null, porCond: { quem: 'f:vincent', cid: 'encharcado', dur: '2' },
   jogVer: 'vincent', jogSel: 0, jogAberto: true,
   ator: 't-vincent', modo: null, escolhidos: [], visuais: [], contagens: {}, logNovo: false, explosao: null,
-  lojaQuem: 'vincent', lojaQtd: {},
+  lojaQuem: 'vincent', lojaQtd: {}, trazerTec: null,
   dar: null, usar: null,
 };
 function comecar() {
@@ -1169,9 +1171,17 @@ function tiraDaMochila(e, itemId, n) {
   return n - falta;
 }
 
+/** Tudo ou nada: se fn devolve false ou dá erro no meio, o estado volta inteiro ao que era. */
 function fazer(rotulo, fn) {
   const antes = clone(D);
-  if (fn() === false) { D = antes; return null; }
+  let ok = true;
+  try { ok = fn() !== false; } catch (e) {
+    D = antes;
+    console.warn(`"${rotulo}" não foi feito e nada mudou.`, e);
+    setTimeout(() => avisar(`Não deu certo (${rotulo}): nada mudou.`), 0);
+    return null;
+  }
+  if (!ok) { D = antes; return null; }
   historia.push({ id: ++seqHist, rotulo, antes });
   if (historia.length > 80) historia.shift();
   return seqHist;
@@ -1861,6 +1871,9 @@ function render() {
     b.tabIndex = sel ? 0 : -1;
   });
   marcarAbaDoEditor();
+  /* dar, largar, vender ou guardar o item da mira fecha a mira, com o motivo */
+  const fechou = conferirModo();
+  if (fechou) setTimeout(() => avisar(`Mira fechada: ${fechou}.`), 0);
   $('#tela').setAttribute('aria-labelledby', `aba-${UI.aba}`);
   comFoco(() => { $('#tela').innerHTML = TELAS[UI.aba](); });
   if (UI.aba === 'batalha') depoisDaBatalha();
@@ -2580,7 +2593,7 @@ function subHabilidades(f) {
     if (f.npc) acao = '<span class="nota">Cada cópia usa com a própria mochila, na batalha.</span>';
     else if (t.regra === 'tiroDuplo') acao = '<span class="nota">Só na batalha.</span>';
     else acao = `<button type="button" class="bt bt--p bt--latao" data-acao="usar-tecnica" data-f="${f.id}" data-v="${t.id}" data-k="ut-${t.id}" ${motivo ? `disabled title="${esc(motivo)}"` : ''}>Usar</button>${motivo ? `<span class="acao-b__sem">${ped.some((p) => !p.ok) ? 'Falta item na mochila' : esc(motivo)}</span>` : ''}`;
-    return `<li class="tec"><div class="tec__cab"><strong>${esc(t.nome)}</strong><span class="etiqueta">${esc(t.acao)}</span></div><p class="tec__desc">${esc(t.desc)}</p>
+    return `<li class="tec"><div class="tec__cab"><strong>${esc(t.nome)}</strong><span class="tec__etqs">${t.origem ? `<span class="etiqueta etiqueta--latao">cópia trazida de ${esc(t.origem)}</span>` : ''}<span class="etiqueta">${esc(t.acao)}</span></span></div><p class="tec__desc">${esc(t.desc)}</p>
       ${ped.length ? `<div class="pecas">${ped.map((p) => `<span class="peca" data-ok="${p.ok}">${glifo(p.ok ? 'visto' : 'x')}${esc(p.txt)}</span>`).join('')}</div>` : '<p class="nota">Não gasta nem exige item.</p>'}
       <div class="tec__acoes">${acao}</div></li>`;
   }).join('');
@@ -2593,8 +2606,27 @@ function subHabilidades(f) {
         <div class="campo"><label for="nt-n">Quantos</label><input id="nt-n" class="entrada entrada--num" type="number" min="1" max="20" value="${nova.n}" data-nt="n" data-k="nt-n" ${nova.itemId ? '' : 'disabled'}></div>
         <div class="campo largo"><label for="nt-desc">O que faz</label><input id="nt-desc" class="entrada" type="text" maxlength="120" value="${esc(nova.desc)}" data-nt="desc" data-k="nt-desc" placeholder="Sem regra própria: gasta o item e o mestre narra."></div>
       </div>${nova.erro ? `<p class="campo__erro" role="alert">${esc(nova.erro)}</p>` : ''}<div class="tec__acoes"><button type="button" class="bt bt--p" data-acao="cancelar-tecnica" data-k="nt-cancelar">Cancelar</button><button type="button" class="bt bt--p bt--primario" data-acao="salvar-tecnica" data-k="nt-salvar">Pôr na ficha</button></div></div>`
-    : `<button type="button" class="bt bt--p" data-acao="nova-tecnica" data-k="nova-tecnica">${glifo('mais')}Habilidade</button>`;
+    : UI.trazerTec ? formTrazer(f) : `<div class="tec__acoes tecs__botoes"><button type="button" class="bt bt--p" data-acao="nova-tecnica" data-k="nova-tecnica">${glifo('mais')}Habilidade</button><button type="button" class="bt bt--p" data-acao="trazer-tec" data-k="trazer-tec" ${opcoesDeTrazer(f).length ? '' : 'disabled title="Nenhuma outra ficha tem habilidade"'}>${glifo('dar')}Trazer de outra ficha</button></div>`;
   return `<p class="nota fm__nota">A contagem vem da mochila${f.npc ? ' de cada cópia' : ''}. Técnica sem regra própria gasta o item e o mestre narra.</p><ul class="tecs">${linhas || '<li class="vazio">Nenhuma habilidade ainda.</li>'}</ul>${form}`;
+}
+/** Habilidades das outras fichas, como "fichaId|tecId". */
+const opcoesDeTrazer = (f) => D.fichas.filter((x) => x.id !== f.id && x.tecnicas.length).flatMap((x) => x.tecnicas.map((t) => ({ v: `${x.id}|${t.id}`, ficha: x, tec: t })));
+function formTrazer(f) {
+  const k = `f:${f.id}`;
+  const ops = opcoesDeTrazer(f);
+  if (!ops.some((o) => o.v === UI.trazerTec.sel)) UI.trazerTec.sel = ops[0] ? ops[0].v : '';
+  const grupos = D.fichas.filter((x) => x.id !== f.id && x.tecnicas.length).map((x) => `<optgroup label="${esc(x.nome)}">${x.tecnicas.map((t) => `<option value="${x.id}|${t.id}"${`${x.id}|${t.id}` === UI.trazerTec.sel ? ' selected' : ''}>${esc(t.nome)} (${esc(t.acao)})</option>`).join('')}</optgroup>`).join('');
+  const esc0 = ops.find((o) => o.v === UI.trazerTec.sel);
+  const ja = esc0 && f.tecnicas.some((t) => t.nome === esc0.tec.nome);
+  const ped = esc0 ? pedidosDaTecnica(k, esc0.tec) : [];
+  const previa = esc0 ? `<p class="tec__desc">${esc(esc0.tec.desc)}</p>${ped.length ? `<div class="pecas">${ped.map((p) => `<span class="peca" data-ok="${p.ok}">${glifo(p.ok ? 'visto' : 'x')}${esc(p.txt)}</span>`).join('')}</div>` : ''}` : '';
+  return `<div class="tec tec--nova" data-entra>
+    <div class="campo"><label for="tt-tec">Habilidade de outra ficha</label><select id="tt-tec" class="entrada" data-tt data-k="tt-tec">${grupos}</select></div>
+    ${previa}
+    <p class="nota">Vira uma cópia própria de ${esc(f.nome)}: mudar aqui não muda a ficha de origem, e a contagem de itens lê a mochila de ${esc(f.nome)}.</p>
+    ${ja ? `<p class="campo__erro" role="alert">${esc(f.nome)} já tem ${esc(esc0.tec.nome)}.</p>` : ''}
+    <div class="tec__acoes"><button type="button" class="bt bt--p" data-acao="cancelar-trazer" data-k="tt-cancelar">Cancelar</button><button type="button" class="bt bt--p bt--primario" data-acao="confirmar-trazer" data-k="tt-ok" ${esc0 && !ja ? '' : 'disabled'}>Trazer para ${esc(f.nome)}</button></div>
+  </div>`;
 }
 function subPericias(f) {
   return f.pericias.length ? `<table class="tabela"><thead><tr><th>Perícia</th><th>Valor</th></tr></thead><tbody>${f.pericias.map(([n, v]) => `<tr><td>${esc(n)}</td><td class="num">${v}</td></tr>`).join('')}</tbody></table>` : '<p class="vazio">Nenhuma perícia.</p>';
@@ -3167,8 +3199,51 @@ function subirMira(k, det) {
     a.n += 1;
   });
 }
+/** Por que a mira aberta não vale mais (a arma saiu da mochila, foi guardada, o pente esvaziou...), ou null. */
+function motivoDoModo(m) {
+  const t = token(m.ator);
+  if (!t) return 'quem ia agir saiu do mapa';
+  if (!D.batalha.ativa) return 'a batalha acabou';
+  const k = chaveDoToken(t);
+  const e = est(k);
+  const custo = motivoDoCusto(t.tid, m.custo);
+  if (m.modo === 'tecnica') {
+    const tec = fichaDaChave(k).tecnicas.find((x) => x.id === m.tecId);
+    if (!tec) return 'a técnica saiu da ficha';
+    const falta = motivoTecnica(k, tec);
+    if (falta) return falta;
+    if (m.regra === 'medicina') return custo;
+  }
+  const it = item(m.itemId);
+  const v = vagaPorUid(e, m.uid);
+  if (!v || !it || v.itemId !== it.id) return `${it ? it.nome : 'o item'} não está mais com ${nomeDe(k)}`;
+  if (m.modo === 'usar') return v.qtd > 0 ? custo : `${it.nome} acabou`;
+  if (!v.equipado) return `${it.nome} não está mais equipada`;
+  if ((m.modo === 'tiro' || m.modo === 'tecnica') && (!v.pente || v.pente.n <= 0)) return `o pente de ${it.nome} está vazio`;
+  if (m.modo === 'jogar' && !pronta(v)) return it.volta ? `${it.nome} ainda está voltando para a mão` : `${it.nome} ainda está recarregando`;
+  return custo;
+}
+/** Fecha a mira que perdeu o sentido. Devolve o motivo, ou null se continua valendo. */
+function conferirModo() {
+  if (!UI.modo || !D.batalha) return null;
+  const motivo = motivoDoModo(UI.modo);
+  if (!motivo) return null;
+  UI.modo = null;
+  UI.escolhidos = [];
+  return motivo;
+}
 function executar(alvos) {
   const m = UI.modo;
+  if (!m) return null;
+  /* confere arma, munição e ação ANTES de gastar qualquer coisa */
+  const motivo = motivoDoModo(m);
+  if (motivo) {
+    UI.modo = null;
+    UI.escolhidos = [];
+    render();
+    avisar(`Não deu: ${motivo}. Nada foi gasto.`);
+    return null;
+  }
   const t = token(m.ator);
   const k = chaveDoToken(t);
   const nome = nomeDe(k);
@@ -3910,6 +3985,21 @@ function salvarTecnica() {
   render();
   avisar(`${tec.nome} entrou nas habilidades de ${f.nome}.${tec.gasta ? ` Gasta ${tec.gasta.n} ${item(tec.gasta.itemId).nome}, com a contagem da mochila.` : ''}`, { desfazer: id });
 }
+/** Copia a habilidade de outra ficha: vira uma cópia própria desta ficha (uma coisa, um lugar). */
+function trazerTecnica() {
+  const f = ficha(UI.mestreVer);
+  const [deId, tecId] = (UI.trazerTec.sel || '').split('|');
+  const de = ficha(deId);
+  const orig = de && de.tecnicas.find((t) => t.id === tecId);
+  if (!orig) return;
+  if (f.tecnicas.some((t) => t.nome === orig.nome)) { avisar(`${f.nome} já tem ${orig.nome}.`); return; }
+  const copia = { ...clone(orig), id: `${orig.id}-${Date.now().toString(36)}`, origem: de.nome };
+  const idH = fazer(`trouxe ${orig.nome} de ${de.nome}`, () => { ficha(f.id).tecnicas.push(copia); });
+  UI.trazerTec = null;
+  render();
+  focar('trazer-tec');
+  avisar(`${orig.nome} veio de ${de.nome} para ${f.nome} como cópia própria. Mudar uma não muda a outra.`, { desfazer: idH });
+}
 function porCondicao(quemFixo) {
   const p = UI.porCond;
   const k = quemFixo || p.quem;
@@ -3990,7 +4080,7 @@ document.addEventListener('click', (ev) => {
     case 'fechar-usar': fecharUsar(); break;
     case 'confirmar-usar': confirmarUsar(); break;
     /* ficha do mestre */
-    case 'mestre-ver': UI.mestreVer = v; UI.mestreSel = null; UI.novaTec = null; UI.novaEtiqueta = ''; render(); break;
+    case 'mestre-ver': UI.mestreVer = v; UI.mestreSel = null; UI.novaTec = null; UI.trazerTec = null; UI.novaEtiqueta = ''; render(); break;
     case 'mestre-aba': UI.mestreAba = v; render(); break;
     case 'mestre-sel': UI.mestreSel = v; render(); break;
     case 'armas-lim': {
@@ -4004,7 +4094,10 @@ document.addEventListener('click', (ev) => {
     }
     case 'acum': { const f = ficha(UI.mestreVer); const a = f.acumuladores[Number(t.dataset.i)]; const idH = fazer(`${a.nome} de ${f.nome}`, () => { const aa = ficha(f.id).acumuladores[Number(t.dataset.i)]; aa.n = limitar(aa.n + Number(v), 0, aa.max); }); render(); anunciar(`${a.nome}: ${ficha(f.id).acumuladores[Number(t.dataset.i)].n} de ${a.max}.`); if (!idH) avisar('Não mudou.'); break; }
     case 'tirar-etiqueta': { const f = ficha(UI.mestreVer); const nome = f.etiquetas[Number(t.dataset.i)]; const idH = fazer(`tirou a etiqueta ${nome}`, () => { ficha(f.id).etiquetas.splice(Number(t.dataset.i), 1); }); render(); focar('fm-etq'); avisar(`Etiqueta ${nome} saiu de ${f.nome}.`, { desfazer: idH }); break; }
-    case 'nova-tecnica': UI.novaTec = { nome: '', acao: 'Ação Simples', itemId: '', n: 1, desc: '', erro: '' }; render(); focar('nt-nome'); break;
+    case 'nova-tecnica': UI.trazerTec = null; UI.novaTec = { nome: '', acao: 'Ação Simples', itemId: '', n: 1, desc: '', erro: '' }; render(); focar('nt-nome'); break;
+    case 'trazer-tec': UI.novaTec = null; UI.trazerTec = { sel: '' }; render(); focar('tt-tec'); break;
+    case 'cancelar-trazer': UI.trazerTec = null; render(); focar('trazer-tec'); break;
+    case 'confirmar-trazer': trazerTecnica(); break;
     case 'cancelar-tecnica': UI.novaTec = null; render(); focar('nova-tecnica'); break;
     case 'salvar-tecnica': salvarTecnica(); break;
     case 'usar-tecnica': usarTecnicaFora(t.dataset.f, v); break;
@@ -4127,6 +4220,7 @@ document.addEventListener('change', (ev) => {
     return;
   }
   if (el.dataset.por) { UI.porCond[el.dataset.por] = el.value; return; }
+  if (el.dataset.tt != null && UI.trazerTec) { UI.trazerTec.sel = el.value; render(); return; }
   if (el.dataset.cd) { render(); return; }
   if (el.dataset.bancaPreco) {
     const itemId = el.dataset.bancaPreco;
