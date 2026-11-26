@@ -2432,7 +2432,7 @@ function cloneSelectionInto(
       }
       next = comImagemDoCarimbo(next, source, cloned.entity.tipo)
     }
-    const named = recorte ? withSourceRoomName(cloned, source, item.id) : cloned
+    const named = recorte ? withSourceRoomName(cloned, source, item.id) : comNomeNumerado(cloned, next)
     next = addClonedEntity(next, withoutMissingParent(withSourceFloorColor(named, source, next), next))
     copiaDe.set(chaveDoItem(item), { kind: cloned.kind, id: cloned.entity.id })
     if (cloned.kind === 'region') {
@@ -2489,6 +2489,24 @@ function cloneSelectionInto(
     tetoDeCarimbos,
     escadasSemLigacao,
   }
+}
+
+/** O número no fim do nome do token ("Marinheiro 3"), que a cópia troca pelo próximo livre. */
+const NUMERO_NO_FIM_DO_NOME = /\s+\d+$/
+
+/**
+ * A cópia do token ganha número: "Marinheiro" vira "Marinheiro 2", depois
+ * "Marinheiro 3" (o primeiro que nenhum token de `next` usa). Antes todas as
+ * cópias saíam com o mesmo nome, e na lista não dava para saber qual era qual.
+ */
+function comNomeNumerado(cloned: CloneableEntity, next: MapData): CloneableEntity {
+  if (cloned.kind !== 'token') return cloned
+  const base = cloned.entity.name.replace(NUMERO_NO_FIM_DO_NOME, '').trim()
+  if (base === '') return cloned
+  const usados = new Set(next.tokens.map((token) => token.name.trim()))
+  let numero = 2
+  while (usados.has(`${base} ${numero}`)) numero += 1
+  return { kind: 'token', entity: { ...cloned.entity, name: `${base} ${numero}` } }
 }
 
 /** A Sala clonada volta ao nome do original (sem o "(cópia)" de `cloneRegion`). */

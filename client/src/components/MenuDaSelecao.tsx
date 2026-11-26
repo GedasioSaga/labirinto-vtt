@@ -10,6 +10,7 @@ import { ehMovelDoChao } from '../lib/mobilia'
 import { aceitaTresQuartos, movelEmTresQuartos, tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
 import { personagensAtivos, useAdventureStore } from '../stores/adventureStore'
 import { enviarParaCena } from '../stores/enviarParaCena'
+import { comFichaPropriaNasCopias } from '../stores/fichaPropriaDoToken'
 import { desligarFichaDosTokens, ligarFichaAosTokens } from '../stores/ligarFichaNoToken'
 import { useMapStore } from '../stores/mapStore'
 import { ItensDaAparenciaDaFicha, type AparenciaAberta } from './ItensDaAparenciaDaFicha'
@@ -122,6 +123,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const [refs] = useState(() => refsDaSelecao(selection, pinoId))
   const [fichas] = useState(() => selection.filter((item) => item.kind === 'token').map((item) => item.id))
   const [objetos] = useState(() => selection.filter((item) => item.kind === 'prop').map((item) => item.id))
+  const duplicarRef = useRef<HTMLButtonElement | null>(null)
   const porCimaRef = useRef<HTMLButtonElement | null>(null)
   const porBaixoRef = useRef<HTMLButtonElement | null>(null)
   const tresQuartosRef = useRef<HTMLButtonElement | null>(null)
@@ -315,6 +317,12 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
     if (antes instanceof HTMLElement && antes.isConnected) antes.focus()
   }
 
+  /** O mesmo caminho do Ctrl+D: o NPC copiado ganha ficha própria no mesmo passo do Ctrl+Z. */
+  const duplicar = () => {
+    comFichaPropriaNasCopias(() => useMapStore.getState().duplicateSelected())
+    onClose()
+  }
+
   const escolher = (destino: (typeof opcoes)[number]) => {
     useMapStore.getState().moverParaCamada(refs, destino)
     onClose()
@@ -335,13 +343,15 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       return
     }
     if (!noSubmenu) {
-      const pais = [vidaRef.current, condicoesRef.current, abrirFichaRef.current, pertoRef.current, itemRef.current, porCimaRef.current, porBaixoRef.current, tresQuartosRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
+      const pais = [vidaRef.current, condicoesRef.current, abrirFichaRef.current, pertoRef.current, itemRef.current, duplicarRef.current, porCimaRef.current, porBaixoRef.current, tresQuartosRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
       const noPai = pais.findIndex((item) => item === document.activeElement)
       if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         if (document.activeElement === cenaRef.current) abrirCenas(true)
         else if (document.activeElement === fichaRef.current) abrirFichas(true)
-        else if (document.activeElement === porCimaRef.current || document.activeElement === porBaixoRef.current) {
+        else if (document.activeElement === duplicarRef.current) {
+          if (event.key !== 'ArrowRight') duplicar()
+        } else if (document.activeElement === porCimaRef.current || document.activeElement === porBaixoRef.current) {
           if (event.key !== 'ArrowRight') porNaPilha(document.activeElement === porCimaRef.current ? 'cima' : 'baixo')
         } else if (document.activeElement === tresQuartosRef.current) {
           if (event.key !== 'ArrowRight') alternarTresQuartos()
@@ -445,6 +455,26 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
             )
           })}
         </div>
+      )}
+      {(fichas.length > 0 || objetos.length > 0) && (
+        <button
+          ref={duplicarRef}
+          type="button"
+          role="menuitem"
+          tabIndex={-1}
+          className="lb-portamenu__item lb-menusel__pai"
+          aria-keyshortcuts="Control+D"
+          onPointerEnter={(event) => {
+            event.currentTarget.focus()
+            fecharSubmenus()
+          }}
+          onClick={duplicar}
+        >
+          <span>Duplicar</span>
+          <span className="lb-menusel__estado" aria-hidden="true">
+            Ctrl+D
+          </span>
+        </button>
       )}
       {objetos.length > 0 && (
         <>
