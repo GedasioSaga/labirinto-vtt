@@ -128,11 +128,12 @@ export function MainMenu({
   const animacoes = useProcuraDeAnimacoes(pacoteDeAnimacoes)
   const stageRef = useRef<HTMLDivElement>(null)
   const glowRef = useRef<HTMLDivElement>(null)
-  const headingRef = useRef<HTMLHeadingElement>(null)
   useLampGlow(stageRef, glowRef)
 
+  // Abre com a primeira porta em foco (qualidade de vida, 26/11/2026): o rodapé
+  // promete "Enter entra", e com o foco no título o Enter não fazia nada.
   useEffect(() => {
-    headingRef.current?.focus()
+    stageRef.current?.querySelector<HTMLButtonElement>('.lb-home__door')?.focus()
   }, [])
 
   // PRELÚDIO escondido: Ctrl+Alt+P liga e desliga a porta só neste PC. Ouvido
@@ -165,7 +166,7 @@ export function MainMenu({
         <section className="lb-home__intro">
           <header className="lb-home__brand">
             <p className="lb-home__eyebrow">Mesa de mapas</p>
-            <h1 className="lb-home__title" ref={headingRef} tabIndex={-1}>
+            <h1 className="lb-home__title">
               Labirinto
             </h1>
             <p className="lb-home__tagline">

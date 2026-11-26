@@ -100,7 +100,11 @@ describe('MainMenu: Roleplay e teclado', () => {
     const doors = Array.from(container.querySelectorAll<HTMLButtonElement>('.lb-home__door'))
     const nav = container.querySelector('h1')!
     const press = (key: string) => act(() => nav.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })))
+    // 26/11/2026: a tela abre com a primeira porta em foco, para o Enter do rodapé entrar.
+    expect(document.activeElement).toBe(doors[0])
     press('ArrowDown')
+    expect(document.activeElement).toBe(doors[1])
+    press('ArrowUp')
     expect(document.activeElement).toBe(doors[0])
     press('ArrowUp')
     expect(document.activeElement).toBe(doors[doors.length - 1])
