@@ -26,7 +26,7 @@ export type AbaDaM2 = 'comparar' | 'saude' | 'anotacoes'
  * dividida em duas páginas pela Fase 1 de docs/design/habilidades/SISTEMA.md
  * §7) e a Arena de testes (docs/planos/batalha-arena-de-testes-plano.md).
  */
-export type AbaDoMundo = 'jogadores' | 'npcs' | AbaDaM2 | 'itens' | 'habilidades' | 'arena'
+export type AbaDoMundo = 'jogadores' | 'npcs' | AbaDaM2 | 'itens' | 'habilidades' | 'condicoes' | 'arena'
 
 /**
  * O Comparar (M2): estado de SESSÃO, nada em disco. Ids de personagem da

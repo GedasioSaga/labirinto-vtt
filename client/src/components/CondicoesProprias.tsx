@@ -95,7 +95,7 @@ interface FormDaCondicaoProps {
  * abriram e ficam de fora. A conta é refeita a cada desenho do formulário: vale
  * a de agora quando o mestre clica em "Excluir".
  */
-function FormDaCondicao({ inicial, aviso, tamanhoNoMapa, onSalvar, onExcluir, onFechar }: FormDaCondicaoProps) {
+export function FormDaCondicao({ inicial, aviso, tamanhoNoMapa, onSalvar, onExcluir, onFechar }: FormDaCondicaoProps) {
   const [nome, setNome] = useState(inicial === null ? '' : inicial.nome)
   const [cor, setCor] = useState(inicial === null ? CORES_DE_CONDICAO[0].valor : inicial.cor)
   const [simbolo, setSimbolo] = useState<SimboloDeCondicao>(

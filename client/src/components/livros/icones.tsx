@@ -37,6 +37,8 @@ const TRACOS = {
   ),
   /** O raio da página Habilidades (protótipo docs/design/habilidades/prototipo.html). */
   habilidades: <path d="M13 3 6 13.5h5L10 21l8-11h-5.5z" />,
+  // Itens refeitos (E4b): a gota da condição (veneno, sangue, a cura cortada).
+  condicoes: <path d="M12 3.5c-3 4-5.5 7-5.5 10a5.5 5.5 0 0 0 11 0c0-3-2.5-6-5.5-10z" />,
   /** O "play" do botão Testar (o mesmo protótipo). */
   testar: <path d="M8 5.5v13l10.5-6.5z" />,
   nota: (
