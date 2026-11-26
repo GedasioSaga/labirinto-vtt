@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { lerJsonSeguro } from '../../../lib/nuvem/json'
 import { enderecoDaRota, type Rota } from '../../dados/rotas'
 import { aoClicarNoLink, fonteDaDemo, useDoSite, useSite } from '../contexto'
 import { AvisoDaPagina } from '../Estados'
@@ -20,7 +21,46 @@ interface VideoDaGaleria {
   quando: number
 }
 
-type Carga = { t: 'carregando' } | { t: 'pronta'; videos: VideoDaGaleria[] } | { t: 'erro'; mensagem: string }
+/** `entrar` = a entrada no Lobby venceu: o que resolve é recarregar (o Access pede o login de novo). `tentando` = o "Tentar de novo" está a caminho. */
+type Carga = { t: 'carregando' } | { t: 'pronta'; videos: VideoDaGaleria[] } | { t: 'erro'; mensagem: string; entrar: boolean; tentando: boolean }
+
+type LeituraDaGaleria = { ok: true; videos: VideoDaGaleria[] } | { ok: false; mensagem: string; entrar: boolean }
+
+const SEM_REDE = 'Sem conexão com o Lobby. Confira a internet e tente de novo.'
+const ENTRADA_VENCIDA = 'Sua entrada no Lobby venceu. Recarregue a página para entrar de novo.'
+const RESPOSTA_ESTRANHA = 'O servidor do Lobby mandou uma resposta que esta página não entende. Recarregue a página; se continuar, avise o mestre.'
+/** A partir de quantas falhas seguidas a tela diz o que fazer além de tentar. */
+const FALHAS_ATE_O_CONSELHO = 2
+
+/** Sem login (ou login vencido): o `redirect: 'manual'` devolve o redirect do Access como `opaqueredirect`. */
+function precisaEntrar(resposta: Response): boolean {
+  return resposta.type === 'opaqueredirect' || resposta.status === 401
+}
+
+/** A frase de uma resposta que não deu certo: o que aconteceu e o que fazer; o código fica no fim, para quem for ajudar. */
+function fraseDoStatus(status: number, acao: 'abrir' | 'tirar'): string {
+  if (status === 404) return acao === 'abrir' ? 'A Galeria desta mesa não foi achada no servidor. Avise o mestre.' : 'Este vídeo já tinha saído da Galeria. Recarregue a página para ver a lista de agora.'
+  if (status >= 500) return `O servidor do Lobby está com problema agora (código ${status}). Tente de novo daqui a pouco; se continuar, avise o mestre.`
+  const oQue = acao === 'abrir' ? 'abrir a Galeria' : 'tirar este vídeo'
+  return `O servidor do Lobby não deixou ${oQue} (código ${status}). Tente de novo; se continuar, avise o mestre.`
+}
+
+async function lerGaleria(campanhaId: string, sinal: AbortSignal): Promise<LeituraDaGaleria> {
+  let resposta: Response
+  try {
+    // `manual`: com a entrada vencida, o Access redireciona para outra origem; seguir dava erro de CORS ("Failed to fetch") em vez de "entre de novo" (o mesmo do `/api/eu`).
+    resposta = await fetch(enderecoDaApi(campanhaId, 'galeria'), { credentials: 'same-origin', redirect: 'manual', headers: { Accept: 'application/json' }, signal: sinal })
+  } catch {
+    return { ok: false, mensagem: SEM_REDE, entrar: false }
+  }
+  if (precisaEntrar(resposta)) return { ok: false, mensagem: ENTRADA_VENCIDA, entrar: true }
+  if (!resposta.ok) return { ok: false, mensagem: fraseDoStatus(resposta.status, 'abrir'), entrar: false }
+  try {
+    return { ok: true, videos: lerLista(lerJsonSeguro(await resposta.text())) }
+  } catch {
+    return { ok: false, mensagem: RESPOSTA_ESTRANHA, entrar: false }
+  }
+}
 
 const FORMA_DO_ID = /^[0-9a-f]{64}\.(?:mp4|webm)$/
 const MB = 1024 * 1024
@@ -100,6 +140,9 @@ export function TelaGaleria({ campanhaId }: { campanhaId: string }) {
   )
   const naDemo = fonteDaDemo(site) !== null
   const [carga, setCarga] = useState<Carga>({ t: 'carregando' })
+  /** Cada "Tentar de novo" soma um: o efeito pede a lista outra vez, sem recarregar a página. */
+  const [tentativa, setTentativa] = useState(0)
+  const [falhas, setFalhas] = useState(0)
 
   useEffect(() => {
     // A demo não tem servidor: a Galeria fica vazia.
@@ -108,34 +151,39 @@ export function TelaGaleria({ campanhaId }: { campanhaId: string }) {
       return
     }
     const controle = new AbortController()
-    setCarga({ t: 'carregando' })
-    fetch(enderecoDaApi(campanhaId, 'galeria'), { credentials: 'same-origin', signal: controle.signal })
-      .then(async (resposta) => {
-        if (!resposta.ok) throw new Error(resposta.status === 404 ? 'A Galeria desta mesa não abriu.' : `O Lobby recusou (${resposta.status}).`)
-        setCarga({ t: 'pronta', videos: lerLista(await resposta.json()) })
-      })
-      .catch((erro: unknown) => {
-        if (controle.signal.aborted) return
-        setCarga({ t: 'erro', mensagem: erro instanceof Error ? erro.message : 'Sem rede: tente de novo.' })
-      })
+    // Tentando de novo, o aviso fica na tela e o botão mostra que tentou; na primeira vez, o "Abrindo a Galeria…".
+    setCarga((atual) => (atual.t === 'erro' ? { ...atual, tentando: true } : { t: 'carregando' }))
+    void lerGaleria(campanhaId, controle.signal).then((lida) => {
+      if (controle.signal.aborted) return
+      if (lida.ok) {
+        setCarga({ t: 'pronta', videos: lida.videos })
+        setFalhas(0)
+        return
+      }
+      setCarga({ t: 'erro', mensagem: lida.mensagem, entrar: lida.entrar, tentando: false })
+      setFalhas((antes) => antes + 1)
+    })
     return () => controle.abort()
-  }, [campanhaId, naDemo])
+  }, [campanhaId, naDemo, tentativa])
 
   const tirar = useCallback(
     async (videoId: string): Promise<string | null> => {
+      let resposta: Response
       try {
-        const resposta = await fetch(enderecoDaApi(campanhaId, `galeria/${videoId}/tirar`), {
+        resposta = await fetch(enderecoDaApi(campanhaId, `galeria/${videoId}/tirar`), {
           method: 'POST',
           credentials: 'same-origin',
+          redirect: 'manual',
           headers: { 'content-type': 'application/json' },
           body: '{}',
         })
-        if (!resposta.ok) return resposta.status === 403 ? 'Só o mestre tira um vídeo da Galeria.' : `Não deu para tirar (${resposta.status}).`
-        setCarga((atual) => (atual.t === 'pronta' ? { t: 'pronta', videos: atual.videos.filter((video) => video.id !== videoId) } : atual))
-        return null
       } catch {
-        return 'Sem rede: tente de novo.'
+        return SEM_REDE
       }
+      if (precisaEntrar(resposta)) return ENTRADA_VENCIDA
+      if (!resposta.ok) return resposta.status === 403 ? 'Só o mestre tira um vídeo da Galeria.' : fraseDoStatus(resposta.status, 'tirar')
+      setCarga((atual) => (atual.t === 'pronta' ? { t: 'pronta', videos: atual.videos.filter((video) => video.id !== videoId) } : atual))
+      return null
     },
     [campanhaId],
   )
@@ -171,9 +219,27 @@ export function TelaGaleria({ campanhaId }: { campanhaId: string }) {
         </p>
       )}
       {carga.t === 'erro' && (
-        <p className="lo-galeria__erro" role="alert">
-          {carga.mensagem}
-        </p>
+        <div className="lo-galeria__falha">
+          <p className="lo-galeria__erro" role="alert">
+            {carga.mensagem}
+          </p>
+          <div className="lo-galeria__acoes">
+            {carga.entrar ? (
+              <button type="button" className="lo-btn lo-btn--primario" onClick={() => window.location.reload()}>
+                Recarregar a página
+              </button>
+            ) : (
+              <button type="button" className="lo-btn lo-btn--primario" disabled={carga.tentando} aria-busy={carga.tentando} onClick={() => setTentativa((antes) => antes + 1)}>
+                {carga.tentando ? 'Tentando…' : 'Tentar de novo'}
+              </button>
+            )}
+          </div>
+          {!carga.entrar && !carga.tentando && falhas >= FALHAS_ATE_O_CONSELHO && (
+            <p className="lo-motivo" role="status">
+              Continua sem abrir. Avise o mestre: o servidor do Lobby pode estar fora do ar.
+            </p>
+          )}
+        </div>
       )}
       {carga.t === 'pronta' && carga.videos.length === 0 && <p className="lo-galeria__vazia">Nenhuma cutscene ainda. Quando o mestre tocar uma na mesa, ela aparece aqui.</p>}
       {carga.t === 'pronta' && carga.videos.length > 0 && (
