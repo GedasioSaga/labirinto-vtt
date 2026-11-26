@@ -409,7 +409,25 @@ export function lerCondicaoPropria(value: unknown): CondicaoPropria | null {
   if (typeof id !== 'string' || !ID_VALIDO.test(id) || nome === '' || cor === null || !ehSimboloDeCondicao(simbolo)) return null
   const texto = limparSimboloDigitado(campoDe(value, 'texto'))
   const lida: CondicaoPropria = { id, nome, cor: `#${cor.toString(16).padStart(6, '0')}`, simbolo }
-  return texto === '' ? lida : { ...lida, texto }
+  if (texto !== '') lida.texto = texto
+  return comRegraLida(lida, campoDe(value, 'regra'), campoDe(value, 'n'))
+}
+
+/** Teto do número da regra `vida` (a mesma vida por turno do prazo, `PRAZO_POR_VEZ_MAX`). */
+export const N_DA_VIDA_MAX = 999
+/** Teto do número da regra `cura`: cortar mais que 100% não existe. */
+export const N_DA_CURA_MAX = 100
+
+/**
+ * A regra e o número (E4a, decisão 10). `narra`, regra torta ou ausente: nenhum
+ * dos dois campos (a condição de antes volta byte a byte). Número torto ou fora
+ * do teto da regra vira 0, que também some do arquivo.
+ */
+function comRegraLida(lida: CondicaoPropria, regra: unknown, n: unknown): CondicaoPropria {
+  if (regra !== 'vida' && regra !== 'cura') return lida
+  const teto = regra === 'vida' ? N_DA_VIDA_MAX : N_DA_CURA_MAX
+  const numero = typeof n === 'number' && Number.isInteger(n) && n > 0 && n <= teto ? n : 0
+  return numero === 0 ? { ...lida, regra } : { ...lida, regra, n: numero }
 }
 
 function lerLista(cru: unknown, teto: number): CondicaoPropria[] {
@@ -452,7 +470,7 @@ export function listaSemCondicao(lista: readonly CondicaoPropria[], id: string):
 }
 
 /** O que o formulário entrega: tudo menos o id. */
-export type RascunhoDeCondicao = Pick<CondicaoPropria, 'nome' | 'cor' | 'simbolo' | 'texto'>
+export type RascunhoDeCondicao = Pick<CondicaoPropria, 'nome' | 'cor' | 'simbolo' | 'texto' | 'regra' | 'n'>
 
 /** Condição nova a partir do formulário; `null` quando o rascunho não passa na leitura (nome vazio, cor torta). */
 export function criarCondicaoPropria(rascunho: RascunhoDeCondicao, id: string = `cond_${crypto.randomUUID()}`): CondicaoPropria | null {
@@ -498,7 +516,7 @@ function nasFichas(map: MapData, trocar: (atuais: CondicaoPropria[]) => Condicao
 }
 
 function mesmaCondicao(a: CondicaoPropria, b: CondicaoPropria): boolean {
-  return a.id === b.id && a.nome === b.nome && a.cor === b.cor && a.simbolo === b.simbolo && a.texto === b.texto
+  return a.id === b.id && a.nome === b.nome && a.cor === b.cor && a.simbolo === b.simbolo && a.texto === b.texto && a.regra === b.regra && a.n === b.n
 }
 
 /** Quantas fichas deste mapa levam a condição `condicaoId`: o número do aviso de editar e de excluir. */

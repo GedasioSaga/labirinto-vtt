@@ -1624,7 +1624,22 @@ export interface CondicaoPropria {
    * antes deste campo o ignora e mostra o desenho de reserva.
    */
   texto?: string
+  /**
+   * SISTEMA DE ITENS REFEITO (PLANO §1.5, decisão 10; E4a): o que a condição
+   * faz sozinha. Ausente = `'narra'` (sem regra: o mestre narra), como toda
+   * condição criada antes deste campo. Catálogo inteiro em `lib/condicoes/catalogo.ts`.
+   */
+  regra?: RegraDaCondicao
+  /** O número da regra: vida tirada no começo de cada vez (`vida`) ou % da cura cortada (`cura`). Ausente = 0. */
+  n?: number
 }
+
+/**
+ * O que uma condição do catálogo faz sozinha (PLANO §1.5, decisão 10):
+ * `vida` tira N de vida no começo de cada vez de quem está com ela; `cura`
+ * corta N% de toda cura que a pessoa recebe; `narra` não faz nada sozinha.
+ */
+export type RegraDaCondicao = 'vida' | 'cura' | 'narra'
 
 /**
  * OLHOS DO GUARDA — o campo de visão de uma ficha de NPC. É do MESTRE: nunca
