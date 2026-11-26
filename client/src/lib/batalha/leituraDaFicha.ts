@@ -3,9 +3,12 @@ import type { CarriedItem } from '../../types/map'
 import type { RecursoDoSistema, SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida } from '../vidaDaFicha'
 import { PERFURACAO_MAX, PERFURACAO_MIN, type AcaoDaTecnica } from './combate'
-import { CAMPO_DO_DANO, normalizar } from './formula'
+import { CAMPO_DO_ATRIBUTO_DO_ATAQUE, CAMPO_DO_DANO, normalizar } from './formula'
 import { municaoNaMochila, type MunicaoDaBala } from '../mochila/municao'
-import { municoesDaArma, nomeNoAcervo, tiroDaMunicao, versaoDasMunicoes, type MunicaoAceita } from './municoesDoAcervo'
+import { balasParaOPente, penteDaArma } from '../mochila/armaNaMochila'
+import { quantidadeDe } from '../items'
+import type { AtaqueDoItem, RecargaDoItem } from '../itens/modelo'
+import { ACERVO_DA_BATALHA, municoesDaArma, nomeNoAcervo, regraNoAcervo, tiroDaMunicao, versaoDasMunicoes, type MunicaoAceita } from './municoesDoAcervo'
 
 /**
  * LEITURA DA FICHA PARA A BATALHA, F2 (seção 3.1 de
@@ -284,6 +287,26 @@ export interface ArmaDaFicha extends CartaoDaFicha {
    * mochila tem (`balaDoPedido`); sem nenhuma, o tiro não sai.
    */
   exigeMunicao?: true
+  /**
+   * ITENS REFEITOS, E6a: a arma equipada com pente (De fogo, o tiro da Híbrida). O tiro gasta do
+   * pente; zerado, a mesa recarrega da mochila (`stores/batalha/recargaDoPente.ts`). Ausente = sem pente.
+   */
+  pente?: PenteDaArmaNaBatalha
+}
+
+/** O pente da arma equipada como a batalha o lê. */
+export interface PenteDaArmaNaBatalha {
+  /** A vaga da arma na mochila (onde mora o pente). */
+  vagaId: string
+  capacidade: number
+  /** As do pente agora; 0 = vazio. */
+  n: number
+  /** A bala do pente; ausente = vazio. */
+  balaId?: string
+  /** A ação que a recarga gasta e em quantas rodadas a arma fica pronta (decisão 3). */
+  recarga: RecargaDoItem
+  /** As balas que a arma aceita na mochila, fora do pente. */
+  naMochila: number
 }
 
 export const BALA_SEM_NOME = 'Bala sem nome'
@@ -451,13 +474,15 @@ function armasSoNaMochila(cartoes: readonly CartaoDaFicha[], mochila: readonly C
 /**
  * Os cartões da aba Armas, cada um com categoria, capacidade e balas
  * (`lerArma`), e depois as armas da MOCHILA que nenhum cartão cobre
- * (`armasSoNaMochila`): a Garrucha do Acervo dada à ficha ataca.
+ * (`armasSoNaMochila`). É a leitura de ANTES dos itens refeitos: a batalha lê
+ * `armasDe`; esta fica para a ficha que ainda mostra a aba Armas, até a E7.
  */
-export function armasDe(personagem: Personagem): ArmaDaFicha[] {
+export function armasDosCartoes(personagem: Personagem): ArmaDaFicha[] {
   const cartoes = personagem.abas[ABA_DAS_ARMAS] ?? SEM_ARMAS
   const mochila = personagem.mochila ?? SEM_MOCHILA
   if (versaoLida !== versaoDasMunicoes()) {
     armasLidas = new WeakMap()
+    armasEquipadasLidas = new WeakMap()
     versaoLida = versaoDasMunicoes()
   }
   let porMochila = armasLidas.get(cartoes)
@@ -470,6 +495,162 @@ export function armasDe(personagem: Personagem): ArmaDaFicha[] {
   const lidas = [...cartoes, ...armasSoNaMochila(cartoes, mochila)].map((cartao) => lerArma(cartao, mochila))
   porMochila.set(mochila, lidas)
   return lidas
+}
+
+/** As leituras das armas equipadas, pela mochila (a mesma mochila = as MESMAS armas, como em `armasDosCartoes`). */
+let armasEquipadasLidas = new WeakMap<readonly CarriedItem[], ArmaDaFicha[]>()
+
+/** A parte que bate da Híbrida: `mochila:<vaga>:golpe`, ao lado do tiro (`mochila:<vaga>`). */
+export const SUFIXO_DO_GOLPE = ':golpe'
+const CATEGORIA_DO_TIPO: Readonly<Record<'corpo' | 'fogo' | 'hibrida' | 'arremesso', CategoriaDaArma>> = { corpo: 'branca', fogo: 'deFogo', hibrida: 'hibrida', arremesso: 'arremesso' }
+/** A recarga do pente que o item não diz: Ação Simples, na hora (a do protótipo). */
+export const RECARGA_PADRAO: RecargaDoItem = { acao: 'Ação Simples', rodadas: 0 }
+const MUNICAO_SEM_NOME = 'Munição do pente'
+
+/** O id da vaga da arma da mochila (`mochila:<vaga>` ou `mochila:<vaga>:golpe`); `null` = não é arma da mochila. */
+export function vagaDaArma(armaId: string): string | null {
+  if (!armaId.startsWith(PREFIXO_DA_ARMA_DA_MOCHILA)) return null
+  const resto = armaId.slice(PREFIXO_DA_ARMA_DA_MOCHILA.length)
+  return resto.endsWith(SUFIXO_DO_GOLPE) ? resto.slice(0, -SUFIXO_DO_GOLPE.length) : resto
+}
+
+/** O dano da bala como o tiro o lê ("+15" soma, "40" troca, "+percepcao / 2" pelo atributo). Sem o bloco, o `tiro` de antes. */
+function danoDaBala(balaId: string): string {
+  const bala = regraNoAcervo(balaId)?.blocos.bala
+  if (bala === undefined) return tiroDaMunicao(balaId)?.dano ?? ''
+  if (bala.modo === 'troca') return String(bala.valor)
+  if (bala.modo === 'soma') return bala.valor === 0 ? '' : `+${bala.valor}`
+  const atributo = bala.atributo ?? ''
+  if (atributo.length === 0) return ''
+  return bala.divisor === undefined || bala.divisor <= 1 ? `+${atributo}` : `+${atributo} / ${bala.divisor}`
+}
+
+/** O nome da bala: o do Acervo de agora, senão o da vaga da mochila com ela. */
+function nomeDaBala(balaId: string, mochila: readonly CarriedItem[]): string {
+  return nomeNoAcervo(balaId) ?? mochila.find((vaga) => vaga.itemId === balaId)?.nome ?? MUNICAO_SEM_NOME
+}
+
+/** A bala que está no pente como bala da arma: o tiro tira 1 do pente (`municao.pente`). */
+function balaDoPente(armaVagaId: string, pente: { balaId: string; n: number }, mochila: readonly CarriedItem[]): BalaDaArma {
+  return {
+    id: `${PREFIXO_DA_MUNICAO}${pente.balaId}`,
+    nome: nomeDaBala(pente.balaId, mochila),
+    dano: danoDaBala(pente.balaId),
+    efeito: tiroDaMunicao(pente.balaId)?.efeito ?? '',
+    quantidade: '',
+    itemId: pente.balaId,
+    municao: { itemId: pente.balaId, quantos: pente.n, vagaId: armaVagaId, pente: true },
+  }
+}
+
+/** Os campos de cartão do ataque do item, como a batalha os lê (dano, ação, "Soma no ataque", categoria). */
+function camposDoAtaque(ataque: Pick<AtaqueDoItem, 'dano' | 'soma' | 'acao'>, categoria: CategoriaDaArma, vaga: CarriedItem, capacidade: number | null): Record<string, string> {
+  const rotulo = CATEGORIAS_DE_ARMA.find((candidata) => candidata.id === categoria)?.rotulo ?? ''
+  return {
+    dano: String(ataque.dano),
+    acao: ataque.acao,
+    categoria: rotulo,
+    // O item sem atributo é o cartão sem "Soma no ataque": a Força, como antes da conversão.
+    ...(ataque.soma.length === 0 ? {} : { [CAMPO_DO_ATRIBUTO_DO_ATAQUE]: ataque.soma }),
+    ...(capacidade === null ? {} : { [CAMPO_DA_CAPACIDADE]: String(capacidade) }),
+    ...(vaga.descricao === undefined ? {} : { descricao: vaga.descricao }),
+  }
+}
+
+/**
+ * A arma equipada como cartão de leitura: o ataque do item (do Acervo de agora; sem ele, a `regra`
+ * da vaga). Sem o bloco de ataque, o dano é digitado na batalha (`aMao`), como a arma de antes.
+ */
+function armaDoBloco(id: string, nome: string, vaga: CarriedItem, ataque: Pick<AtaqueDoItem, 'dano' | 'soma' | 'acao' | 'alcance'> | undefined, categoria: CategoriaDaArma, capacidade: number | null): ArmaDaFicha {
+  return {
+    id,
+    nome,
+    campos: ataque === undefined ? (vaga.descricao === undefined ? {} : { descricao: vaga.descricao }) : camposDoAtaque(ataque, categoria, vaga, capacidade),
+    extras: [],
+    atributos: [],
+    imagem: vaga.imagem ?? null,
+    modificadores: [],
+    subcartoes: [],
+    ...(ataque === undefined ? { aMao: true as const } : {}),
+    ...(ataque?.alcance === undefined ? {} : { alcance: ataque.alcance }),
+    ...(vaga.itemId === undefined ? {} : { itemId: vaga.itemId }),
+    categoria,
+    capacidade: capacidade === null ? null : String(capacidade),
+    balas: [],
+  }
+}
+
+/** As balas que a arma aceita na mochila, fora do pente. */
+function balasNaMochilaPara(mochila: readonly CarriedItem[], vagaId: string): number {
+  return balasParaOPente(mochila, vagaId, ACERVO_DA_BATALHA).reduce((soma, vaga) => soma + quantidadeDe(vaga), 0)
+}
+
+/**
+ * ITENS REFEITOS, E6a: a vaga EQUIPADA vira as armas do Atacar. De fogo: o tiro com o pente. Híbrida:
+ * o tiro com o pente e o golpe (`:golpe`). Corpo a corpo e Arremesso: o ataque. Guardada, sem tipo de
+ * arma ou fora do Acervo sem `regra`: nenhuma.
+ */
+function armasDaVaga(vaga: CarriedItem, mochila: readonly CarriedItem[]): ArmaDaFicha[] {
+  if (vaga.equipado !== true) return []
+  const doAcervo = regraNoAcervo(vaga.itemId)
+  const tipo = doAcervo?.tipo ?? vaga.tipo
+  if (tipo !== 'corpo' && tipo !== 'fogo' && tipo !== 'hibrida' && tipo !== 'arremesso') return []
+  const blocos = doAcervo?.blocos ?? vaga.regra ?? {}
+  const nome = nomeNoAcervo(vaga.itemId) ?? vaga.nome
+  const id = `${PREFIXO_DA_ARMA_DA_MOCHILA}${vaga.id}`
+  const molde = penteDaArma(vaga, ACERVO_DA_BATALHA)
+  const principal = armaDoBloco(id, nome, vaga, blocos.ataque, CATEGORIA_DO_TIPO[tipo], molde === null ? null : molde.capacidade)
+  const comPente: ArmaDaFicha =
+    molde === null
+      ? principal
+      : {
+          ...principal,
+          balas: vaga.pente === undefined ? [] : [balaDoPente(vaga.id, vaga.pente, mochila)],
+          exigeMunicao: true,
+          pente: {
+            vagaId: vaga.id,
+            capacidade: molde.capacidade,
+            n: vaga.pente?.n ?? 0,
+            ...(vaga.pente === undefined ? {} : { balaId: vaga.pente.balaId }),
+            recarga: blocos.pente?.recarga ?? RECARGA_PADRAO,
+            naMochila: balasNaMochilaPara(mochila, vaga.id),
+          },
+        }
+  if (tipo !== 'hibrida' || blocos.golpe === undefined) return [comPente]
+  return [comPente, armaDoBloco(`${id}${SUFIXO_DO_GOLPE}`, `${nome} (golpe)`, vaga, blocos.golpe, 'branca', null)]
+}
+
+/**
+ * ITENS REFEITOS, E6a (PLANO §3, decisões 5 e 6): as armas do Atacar são só as EQUIPADAS da mochila
+ * de agora; os cartões da aba Armas deixaram de valer (a conversão os pôs na mochila). Equipar e
+ * guardar mudam a mochila, e a lista muda junto, sem gastar ação. Uma vaga = uma arma (a Híbrida dá
+ * o tiro e o golpe).
+ */
+export function armasDe(personagem: Personagem): ArmaDaFicha[] {
+  const mochila = personagem.mochila ?? SEM_MOCHILA
+  if (versaoLida !== versaoDasMunicoes()) {
+    armasLidas = new WeakMap()
+    armasEquipadasLidas = new WeakMap()
+    versaoLida = versaoDasMunicoes()
+  }
+  const guardadas = armasEquipadasLidas.get(mochila)
+  if (guardadas !== undefined) return guardadas
+  const lidas = mochila.flatMap((vaga) => armasDaVaga(vaga, mochila))
+  armasEquipadasLidas.set(mochila, lidas)
+  return lidas
+}
+
+/**
+ * Por que o tiro com a arma de pente não sai agora: o pente vazio (e se a mesa ainda tem bala para
+ * recarregar) ou a recarga esperando rodadas. `null` = pode atirar (ou a arma não tem pente).
+ */
+export function motivoDoPente(arma: Pick<ArmaDaFicha, 'nome' | 'pente'>, rodadasDaRecarga: number): string | null {
+  const pente = arma.pente
+  if (pente === undefined) return null
+  if (rodadasDaRecarga > 0) return `Recarregando: pronta em ${rodadasDaRecarga} ${rodadasDaRecarga === 1 ? 'rodada' : 'rodadas'}`
+  if (pente.n > 0) return null
+  const nome = arma.nome.trim() || 'a arma'
+  return pente.naMochila > 0 ? `Pente vazio: a mesa recarrega ${nome} no começo da próxima vez (${pente.recarga.acao})` : `Pente vazio e nenhuma bala que ${nome} aceita na mochila`
 }
 
 /** A bala da arma pelo id. `null` = a arma não tem essa bala. */

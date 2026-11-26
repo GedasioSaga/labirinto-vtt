@@ -2,7 +2,7 @@ import { isTauri } from '@tauri-apps/api/core'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { itemParaDar, novoItemDoCatalogo, type ItemDoCatalogo as ItemDoAcervo } from '../../lib/acervoDeItens'
 import { escolherImagemDoItem, imagemDoItemDoBlob } from '../../lib/imagemDoItem'
-import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
+import { armasDosCartoes, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { ITEM_QUANTIDADE_MAX, quantidadeDe } from '../../lib/items'
 import { ehDoAcervo, entradaDoAcervo } from '../../lib/livros/acervoNoLivro'
 import { entraNaBatalha, variacoesDe } from '../../lib/livros/combate'
@@ -137,7 +137,7 @@ function fraseDoPor(entrada: EntradaDaBiblioteca, ficha: Personagem, aba: AbaDoS
   let frase = `${entrada.nome} entrou em ${aba.nome} de ${ficha.nome}${nas}.`
   const limite = limiteDeArmas(resultado.personagem)
   if (resultado.passaDoLimiteDeArmas && limite !== null) {
-    frase += ` Agora são ${armasDe(resultado.personagem).length} armas: na batalha ${primeiroNome(ficha.nome)} escolhe ${limite}.`
+    frase += ` Agora são ${armasDosCartoes(resultado.personagem).length} armas: na batalha ${primeiroNome(ficha.nome)} escolhe ${limite}.`
   }
   return frase
 }

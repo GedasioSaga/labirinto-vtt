@@ -1,5 +1,5 @@
 import { normalizarParaBusca } from '../buscaNoLivro'
-import { ABA_DAS_ARMAS, armasDe, limiteDeArmas } from '../batalha/leituraDaFicha'
+import { ABA_DAS_ARMAS, armasDosCartoes, limiteDeArmas } from '../batalha/leituraDaFicha'
 import { alcanceDoArquivo, cartoesDaAba, mecanicaDoArquivo, novoCartao, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type Personagem, type RequisitosGuardados } from '../personagem'
 import { marcasGuardadas, requisitosGuardados } from '../batalha/requisitos/guardados'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../sistemaDeRpg'
@@ -367,7 +367,7 @@ export function porNaFicha(personagem: Personagem, entrada: EntradaParaFicha, si
   const cartao = cartaoDaEntrada(entrada, aba, sistema)
   const proximo: Personagem = { ...personagem, abas: { ...personagem.abas, [aba.id]: [...atuais, cartao] } }
   const limite = aba.id === ABA_DAS_ARMAS ? limiteDeArmas(proximo) : null
-  return { ok: true, personagem: proximo, abaId: aba.id, cartaoId: cartao.id, passaDoLimiteDeArmas: limite !== null && armasDe(proximo).length > limite }
+  return { ok: true, personagem: proximo, abaId: aba.id, cartaoId: cartao.id, passaDoLimiteDeArmas: limite !== null && armasDosCartoes(proximo).length > limite }
 }
 
 /** O Desfazer do "Pôr": tira o cartão pelo id. Cartão que já não está lá devolve a MESMA ficha. */

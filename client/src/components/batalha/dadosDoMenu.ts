@@ -46,6 +46,7 @@ import {
   CATEGORIAS_DE_ARMA,
   armasDe,
   lerAcao,
+  motivoDoPente,
   perfuracaoDe,
   tecnicasDe,
   type ArmaDaFicha,
@@ -266,13 +267,16 @@ export interface BalaNaTela {
   quantidade: string
   /** MUNIÇÃO (pedido de 16/11/2026): quantas a mochila da ficha tem; 0 = "Sem <nome>", o tiro não sai. Ausente = bala só de texto. */
   municao?: number
+  /** ITENS REFEITOS, E6a: o número de `municao` é o do PENTE da arma (a mira diz "6 no pente"). Ausente = o da mochila. */
+  doPente?: true
   /** O dano do Atacar com esta bala ("160 Força + 20 Rosa + 15 Prata = 195"). */
   dano: DanoNaTela
 }
 
-/** A munição da bala como a mira a mostra: só o número da mochila (ausente = bala de texto). */
-function municaoNaTela(bala: BalaDaArma): { municao?: number } {
-  return bala.municao === undefined ? {} : { municao: bala.municao.quantos }
+/** A munição da bala como a mira a mostra: só o número da mochila ou do pente (ausente = bala de texto). */
+function municaoNaTela(bala: BalaDaArma): { municao?: number; doPente?: true } {
+  if (bala.municao === undefined) return {}
+  return bala.municao.pente === true ? { municao: bala.municao.quantos, doPente: true } : { municao: bala.municao.quantos }
 }
 
 /** Uma linha da leitura inteira: o rótulo do campo e o texto como a ficha diz. */
@@ -1306,12 +1310,12 @@ function idsDosCartoes(personagem: Personagem): string[] {
   return chavesDoDono(personagem)
 }
 
-export function armasNaBatalha(personagem: Personagem | null, combate: Pick<CombateDoPersonagem, 'armas'> | undefined): ArmaDaFicha[] {
-  if (personagem === null) return []
-  const todas = armasDe(personagem)
-  const levadas = combate?.armas
-  if (levadas === null || levadas === undefined) return todas
-  return todas.filter((arma) => levadas.includes(arma.id))
+/**
+ * As armas que valem nesta batalha: as EQUIPADAS da mochila de agora (itens refeitos, E6a; a escolha
+ * das levadas saiu). O 2º argumento fica só porque os testes de antes ainda o passam (a E7b os ajusta).
+ */
+export function armasNaBatalha(personagem: Personagem | null, _combateDeAntes?: Pick<CombateDoPersonagem, 'armas'>): ArmaDaFicha[] {
+  return personagem === null ? [] : armasDe(personagem)
 }
 
 /**
@@ -1402,7 +1406,8 @@ export function golpesDeAtaque(
       // A arma que diz "perfura 50%" já traz o número, para quando ligarem o Perfurante.
       perfuracao: arma === null ? null : perfuracaoDe(arma),
       // R6: a mesma regra do host (`podeAgir`): depois do primeiro Atacar, o adicional da forma cabe sem a Simples.
-      motivo: acoes === null ? null : motivoDoAtacar(acoes),
+      // ITENS REFEITOS, E6a: antes, o pente (vazio ou esperando a recarga), como no host.
+      motivo: (arma === null ? null : motivoDoPente(arma, combate?.recargas[arma.id] ?? 0)) ?? (acoes === null ? null : motivoDoAtacar(acoes)),
     }
   }
   // Construtor C8: a arma padrão da ficha vem primeiro na lista do Atacar.

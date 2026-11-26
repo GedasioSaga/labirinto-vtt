@@ -19,7 +19,7 @@ import {
 } from '../batalha/combate'
 import { comportamentoDoSelo, danoPorVezDoSelo } from '../batalha/condicoes'
 import { lerDano, type ContextoDaFormula } from '../batalha/formula'
-import { armasDe, type ArmaDaFicha } from '../batalha/leituraDaFicha'
+import { armasDe, motivoDoPente, type ArmaDaFicha } from '../batalha/leituraDaFicha'
 import { danoDaTecnicaComAVida } from '../batalha/leituraDaTecnica'
 import { lerMarca, type ComoMarca } from '../batalha/marca'
 import { formaDecididaPeloMestre } from '../batalha/mecanica/formaDoMestre'
@@ -212,10 +212,9 @@ export function danoNoTeto(valor: number): number {
   return Math.min(DANO_MAX, Math.max(0, Math.floor(valor)))
 }
 
-/** As armas que o robô pode usar: as levadas (ou todas, sem escolha) que não são de dano à mão. */
+/** As armas que o robô pode usar: as equipadas (itens refeitos, E6a) que não são de dano à mão nem estão de pente vazio. */
 function armasUtilizaveis(personagem: Personagem, combate: CombateDoPersonagem | undefined): ArmaDaFicha[] {
-  const levadas = combate?.armas ?? null
-  return armasDe(personagem).filter((arma) => arma.aMao !== true && (levadas === null || levadas.includes(arma.id)))
+  return armasDe(personagem).filter((arma) => arma.aMao !== true && motivoDoPente(arma, combate?.recargas[arma.id] ?? 0) === null)
 }
 
 /** O custo em HP que leva quem usa a 0 (ou abaixo): o robô não se derruba. */

@@ -10,6 +10,9 @@
  * host escolhe a munição do tiro dele (`balaDoPedido`, em `golpe.ts`).
  */
 
+import type { AcervoDaMochila } from '../mochila/armaNaMochila'
+import type { BlocosDoItem, TipoDoItem } from '../itens/modelo'
+
 export interface MunicaoAceita {
   itemId: string
   nome: string
@@ -21,19 +24,40 @@ export interface TiroDoAcervo {
   efeito: string
 }
 
-/** O que a lista precisa de cada item do Acervo. */
-export interface ItemComMunicoes {
+/** O que a lista precisa de cada item do Acervo (o `ItemDoCatalogo` serve: tem o tipo e os blocos da regra). */
+export interface ItemComMunicoes extends Pick<BlocosDoItem, 'ataque' | 'golpe' | 'pente' | 'bala' | 'arremesso'> {
   id: string
   nome: string
   municoes?: readonly string[]
   tiro?: TiroDoAcervo
+  tipo?: TipoDoItem
+}
+
+/**
+ * ITENS REFEITOS, E6a: o que a batalha lê do item do Acervo para montar a arma equipada (o tipo e os
+ * blocos de regra). O Worker do Lobby e o app do jogador não têm o Acervo: lá vale a `regra` da vaga.
+ */
+export interface RegraNoAcervo {
+  tipo?: TipoDoItem
+  blocos: Pick<BlocosDoItem, 'ataque' | 'golpe' | 'pente' | 'bala' | 'arremesso'>
 }
 
 const NENHUMA: readonly MunicaoAceita[] = []
 let porArma: ReadonlyMap<string, readonly MunicaoAceita[]> = new Map()
 let tiros: ReadonlyMap<string, TiroDoAcervo> = new Map()
 let nomesNoAcervo: ReadonlyMap<string, string> = new Map()
+let regras: ReadonlyMap<string, RegraNoAcervo> = new Map()
 let versao = 0
+
+function regraDoItem(item: ItemComMunicoes): RegraNoAcervo {
+  const blocos: RegraNoAcervo['blocos'] = {}
+  if (item.ataque !== undefined) blocos.ataque = item.ataque
+  if (item.golpe !== undefined) blocos.golpe = item.golpe
+  if (item.pente !== undefined) blocos.pente = item.pente
+  if (item.bala !== undefined) blocos.bala = item.bala
+  if (item.arremesso !== undefined) blocos.arremesso = item.arremesso
+  return item.tipo === undefined ? { blocos } : { tipo: item.tipo, blocos }
+}
 
 /** Troca a lista inteira pela do Acervo de agora. Munição que saiu do Acervo sai da arma. */
 export function definirMunicoesDasArmas(itens: readonly ItemComMunicoes[]): void {
@@ -51,7 +75,27 @@ export function definirMunicoesDasArmas(itens: readonly ItemComMunicoes[]): void
   const novosTiros = new Map<string, TiroDoAcervo>()
   for (const item of itens) if (item.tiro !== undefined) novosTiros.set(item.id, item.tiro)
   tiros = novosTiros
+  regras = new Map(itens.map((item) => [item.id, regraDoItem(item)]))
   versao += 1
+}
+
+/** O tipo e os blocos de regra do item `itemId` no Acervo de agora. `undefined` = fora do Acervo, ou o app sem ele (Worker, jogador). */
+export function regraNoAcervo(itemId: string | undefined): RegraNoAcervo | undefined {
+  return itemId === undefined ? undefined : regras.get(itemId)
+}
+
+/**
+ * O Acervo como a mochila o consulta na batalha (`AcervoDaMochila`), sem o disco: o tipo e o pente do
+ * item de agora. Sem o item (Worker, jogador), as regras da mochila caem no tipo e na `regra` da vaga.
+ * A recarga da batalha só põe no pente a bala da própria mochila, então ninguém volta pelo `paraDar`.
+ */
+export const ACERVO_DA_BATALHA: AcervoDaMochila = {
+  item: (itemId) => {
+    const regra = regras.get(itemId)
+    if (regra === undefined) return undefined
+    return { ...(regra.tipo === undefined ? {} : { tipo: regra.tipo }), ...(regra.blocos.pente === undefined ? {} : { pente: regra.blocos.pente }) }
+  },
+  paraDar: () => undefined,
 }
 
 /** As munições que a arma do Acervo `itemId` aceita; nenhuma = a arma não declara (ou não é do Acervo). */

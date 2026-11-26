@@ -60,6 +60,7 @@ import {
   balaDoPedido,
   categoriaAtira,
   lerTempo,
+  motivoDoPente,
   motivoSemMunicao,
   recursoDoCusto,
   recursoDoEscudo,
@@ -323,14 +324,18 @@ function combateDe(ctx: ContextoDoGolpe): CombateDoPersonagem {
   return (id === null ? undefined : ctx.turnos.combate?.[id]) ?? combateVazio()
 }
 
-/** A arma pedida, entre as da ficha e (se já escolheu) as levadas. `undefined` = arma que não vale. */
+/**
+ * A arma pedida, entre as EQUIPADAS da mochila de agora (itens refeitos, E6a: a escolha das levadas
+ * saiu; o `combate.armas` de uma batalha salva antes não vale mais). `undefined` = arma que não vale.
+ */
 function armaDoPedido(ctx: ContextoDoGolpe, armaId: string | null): ArmaDaFicha | null | undefined {
   if (armaId === null) return null
   if (ctx.personagem === null) return undefined
-  const levadas = combateDe(ctx).armas
-  if (levadas !== null && !levadas.includes(armaId)) return undefined
   return armasDe(ctx.personagem).find((arma) => arma.id === armaId)
 }
+
+/** A arma do pedido não está entre as equipadas (foi guardada, dada ou largada). */
+export const MOTIVO_ARMA_NAO_EQUIPADA = 'A arma não está equipada'
 
 /**
  * MUNIÇÃO: "Sem Balas de prata" quando a bala do pedido está ligada à mochila
@@ -566,8 +571,11 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
     }
     case 'atacar': {
       const arma = armaDoPedido(ctx, pedido.armaId)
-      if (arma === undefined) return 'Arma fora das levadas para a batalha'
+      if (arma === undefined) return MOTIVO_ARMA_NAO_EQUIPADA
       if (pedido.balaId !== undefined && (arma === null || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
+      // ITENS REFEITOS, E6a: a arma de pente atira só com bala no pente e fora da espera da recarga.
+      const doPente = arma === null ? null : motivoDoPente(arma, combate.recargas[arma.id] ?? 0)
+      if (doPente !== null) return doPente
       // MUNIÇÃO (decisão do mestre de 16/11: "Bloqueia o tiro"): a bala ligada à mochila com 0 não atira, aqui e no host.
       const semMunicao = motivoSemMunicaoDoPedido(arma, pedido.balaId)
       if (semMunicao !== null) return semMunicao
@@ -601,7 +609,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (tecnica.acao === null) return 'Escolha a ação da técnica'
       if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
       const arma = armaDoPedido(ctx, pedido.armaId)
-      if (arma === undefined) return 'Arma fora das levadas para a batalha'
+      if (arma === undefined) return MOTIVO_ARMA_NAO_EQUIPADA
       // F2 (revisão da fatia E, Desenhar o alvo com a Bala de Prata): a bala só na técnica cuja fórmula diz "Dano da Bala", e da arma dela.
       // Construtor C1: no cartão montado, a fórmula é a da peça (o campo Dano é só descrição).
       const formulaDoDano = formulaDoDanoDasPecas(tecnica.cartao) ?? tecnica.cartao.campos[CAMPO_DO_DANO] ?? ''
@@ -1530,8 +1538,7 @@ export function sugestaoParaNpc(npc: Personagem, cena: BatalhaEmTurnos, ctx: Con
   const alvoTokenId = alvoSugerido(npc, cena, ctx)
   const { sistema } = ctx
   const combate = cena.turnos.combate?.[npc.id]
-  const levadas = combate?.armas ?? null
-  const armas = armasDe(npc).filter((arma) => levadas === null || levadas.includes(arma.id))
+  const armas = armasDe(npc)
   // Construtor C8: a arma padrão, como o painel do mestre (sem marca, a primeira, como antes).
   const arma = armaPadraoEntre(armas)
   const armaId = arma?.id ?? null

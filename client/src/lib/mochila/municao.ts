@@ -21,6 +21,11 @@ export interface MunicaoDaBala {
   quantos: number
   /** A vaga de onde o próximo tiro tira 1; `null` = nenhuma (`quantos` 0). */
   vagaId: string | null
+  /**
+   * ITENS REFEITOS, E6a: a bala está no PENTE da arma (`vagaId` = a vaga da arma, `quantos` = as do
+   * pente). O tiro tira 1 do pente, nunca da vaga da munição. Ausente = a bala de antes, da mochila.
+   */
+  pente?: true
 }
 
 /** Minúsculas, sem acento, espaços juntados: "Balas  de Prata" = "balas de prata". */
