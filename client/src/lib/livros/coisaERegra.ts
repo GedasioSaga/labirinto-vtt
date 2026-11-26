@@ -1,8 +1,7 @@
 import { ABA_DAS_ARMAS } from '../batalha/leituraDaFicha'
-import { cleanItemName, ITEM_DESCRICAO_MAX, ITEM_QUANTIDADE_MAX, type ItemParaDar } from '../items'
-import { ehRefDeMidia } from '../midia'
+import { ITEM_DESCRICAO_MAX, type ItemParaDar } from '../items'
 import { darNaFicha, tirarDaMochilaDaFicha } from '../mochila/darNaFicha'
-import { cartoesDaAba, type CartaoDaFicha, type Personagem } from '../personagem'
+import { cartoesDaAba, type Personagem } from '../personagem'
 import type { AbaDoSistema, SistemaDeRpg } from '../sistemaDeRpg'
 import { chaveDoNomeDaEntrada, DADOS_DO_TIPO, ehDoLivro, podeReceber, porNaFicha, tirarDaFicha, type EntradaParaFicha, type ItemDoCatalogo } from './catalogo'
 
@@ -15,9 +14,9 @@ import { chaveDoNomeDaEntrada, DADOS_DO_TIPO, ehDoLivro, podeReceber, porNaFicha
  *   livro e aponta para a coisa (`ItemDoCatalogo.acervoId`). O cartão da aba
  *   Armas guarda o mesmo `itemId` da vaga da mochila.
  *
- * Aqui mora o "Pôr em" das duas pontas e a passagem dos cartões antigos da aba
- * Itens para a mochila (a aba Itens agora é a leitura da mochila). Puro: sem
- * store, sem disco.
+ * Aqui mora o "Pôr em" das duas pontas. A passagem dos cartões antigos das abas
+ * Armas e Itens para a mochila é a conversão ao abrir (`lib/itens/conversao/`,
+ * ITENS REFEITOS E1). Puro: sem store, sem disco.
  */
 
 /** A aba da ficha que o catálogo enchia com itens; agora a tela dela mostra a mochila. */
@@ -135,86 +134,4 @@ export function porCoisaNaFicha(personagem: Personagem, coisa: ItemParaDar, regr
 export function desfazerPosto(personagem: Personagem, posto: PostoNaFicha): Personagem {
   const semCartao = posto.cartao === null ? personagem : tirarDaFicha(personagem, posto.cartao.abaId, posto.cartao.cartaoId)
   return posto.vaga === null ? semCartao : tirarDaMochilaDaFicha(semCartao, posto.vaga.vagaId, posto.vaga.entraram)
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// Os cartões antigos da aba Itens → mochila
-// ───────────────────────────────────────────────────────────────────────────
-
-/** A vaga que o cartão antigo vira tem id fixo: a passagem feita no disco e na cópia do editor dá as MESMAS vagas. */
-export function vagaDoCartaoAntigo(cartaoId: string): string {
-  return `itens-${cartaoId}`
-}
-
-/**
- * O cartão antigo da aba Itens como vaga da mochila, SEM PERDER NADA: nome,
- * quantidade (o número; texto como "3 doses" vai para a descrição), a
- * descrição com cada campo ("Efeito: cura 50") e os extras, a imagem (só a
- * referência de mídia) e o `itemId`. `null` = o cartão tem o que a mochila não
- * guarda (modificadores, subcartões, atributos, mecânica, oculto, imagem
- * embutida, texto longo demais): ele fica na aba, intacto.
- */
-export function vagaDoCartao(cartao: CartaoDaFicha, aba: AbaDoSistema | undefined): ItemParaDar | null {
-  if (cartao.modificadores.length > 0 || cartao.subcartoes.length > 0 || cartao.atributos.length > 0) return null
-  if (cartao.mecanica !== undefined || cartao.mecanicaProposta !== undefined || cartao.oculta === true) return null
-  if (cartao.imagem !== null && !ehRefDeMidia(cartao.imagem)) return null
-  const nome = cleanItemName(cartao.nome)
-  if (nome.length === 0) return null
-  const textoDaQuantidade = (cartao.campos[CAMPO_DA_QUANTIDADE] ?? '').trim()
-  const numero = /^\d{1,4}$/.test(textoDaQuantidade) ? Number.parseInt(textoDaQuantidade, 10) : null
-  const quantidade = numero !== null && numero >= 1 && numero <= ITEM_QUANTIDADE_MAX ? numero : null
-  const linhas = [
-    // O nome que não coube inteiro na vaga fica na descrição.
-    ...(nome === cartao.nome.trim() ? [] : [cartao.nome.trim()]),
-    (cartao.campos[CAMPO_DA_DESCRICAO] ?? '').trim(),
-    ...linhasDosCampos(cartao.campos, aba, new Set([CAMPO_DA_DESCRICAO, ...(quantidade === null ? [] : [CAMPO_DA_QUANTIDADE])])),
-    ...cartao.extras.flatMap((extra) => (extra.valor.trim().length === 0 && extra.nome.trim().length === 0 ? [] : [`${extra.nome.trim()}: ${extra.valor.trim()}`])),
-    ...(cartao.aMao === true ? ['À mão'] : []),
-  ].filter((linha) => linha.length > 0)
-  const descricao = linhas.join('\n')
-  if (descricao.length > ITEM_DESCRICAO_MAX) return null
-  return {
-    nome,
-    ...(descricao.length > 0 ? { descricao } : {}),
-    ...(cartao.imagem !== null ? { imagem: cartao.imagem } : {}),
-    ...(cartao.itemId !== undefined ? { itemId: cartao.itemId } : {}),
-    ...(quantidade !== null && quantidade > 1 ? { quantidade } : {}),
-  }
-}
-
-export interface PassagemDaAbaItens {
-  personagem: Personagem
-  /** Quantos cartões viraram vaga. */
-  passados: number
-  /** Quantos ficaram na aba (têm o que a mochila não guarda). */
-  ficaram: number
-}
-
-/**
- * "PASSAR OS CARTÕES ANTIGOS PARA A MOCHILA" (decisão 2 do mestre, 15/11): cada
- * cartão da aba Itens que cabe numa vaga (`vagaDoCartao`) sai da aba e entra no
- * fim da mochila, um por vaga, com id fixo (`vagaDoCartaoAntigo`). Vaga com o
- * mesmo id já na mochila (a passagem rodou antes) não duplica. O Desfazer é
- * gravar a ficha de antes: nada aqui apaga sem pôr no outro lugar.
- */
-export function passarAbaItensParaMochila(personagem: Personagem, aba: AbaDoSistema | undefined): PassagemDaAbaItens {
-  const cartoes = cartoesDaAba(personagem, ABA_DOS_ITENS)
-  if (cartoes.length === 0) return { personagem, passados: 0, ficaram: 0 }
-  const mochila = [...(personagem.mochila ?? [])]
-  const ficam: CartaoDaFicha[] = []
-  let passados = 0
-  for (const cartao of cartoes) {
-    const dados = vagaDoCartao(cartao, aba)
-    if (dados === null) {
-      ficam.push(cartao)
-      continue
-    }
-    const id = vagaDoCartaoAntigo(cartao.id)
-    passados += 1
-    if (mochila.some((item) => item.id === id)) continue
-    mochila.push({ ...dados, id })
-  }
-  if (passados === 0) return { personagem, passados: 0, ficaram: ficam.length }
-  const abas = { ...personagem.abas, [ABA_DOS_ITENS]: ficam }
-  return { personagem: { ...personagem, abas, mochila }, passados, ficaram: ficam.length }
 }

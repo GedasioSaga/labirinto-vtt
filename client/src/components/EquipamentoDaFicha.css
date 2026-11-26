@@ -123,25 +123,6 @@
   }
 }
 
-/* Os cartões de antes das abas Armas e Itens (E4b): recolhidos, só para ler. */
-.lb-ficha__antigos {
-  margin-top: 14px;
-  border-top: 1px solid var(--lb-gr-filete, rgba(255, 255, 255, 0.1));
-  padding-top: 10px;
-}
-
-.lb-ficha__antigos > summary {
-  cursor: pointer;
-  color: var(--lb-color-parchment-dim);
-  font-size: var(--lb-font-size-sm);
-}
-
-.lb-ficha__antigos > summary:focus-visible {
-  outline: none;
-  box-shadow: var(--lb-shadow-focus);
-  border-radius: var(--lb-radius-sm, 6px);
-}
-
 /* Os itens que a habilidade gasta ou exige, com a contagem da mochila (E4b). */
 .lb-cartao__itens {
   display: flex;

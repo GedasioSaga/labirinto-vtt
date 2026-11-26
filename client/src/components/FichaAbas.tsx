@@ -1,6 +1,5 @@
 import { lazy, Suspense, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { quantidadeDe } from '../lib/items'
-import { ABA_DOS_ITENS, passarAbaItensParaMochila, vagaDoCartaoAntigo } from '../lib/livros/coisaERegra'
+import { ABA_DOS_ITENS } from '../lib/livros/coisaERegra'
 import { InventarioDaFicha } from './InventarioDaFicha'
 import { comLimiteDeArmas, EquipamentoDaFicha } from './EquipamentoDaFicha'
 import { itensDaTecnica } from '../lib/itens/itensDaTecnica'
@@ -85,12 +84,6 @@ export interface FichaAbasProps {
    */
   mochilaDaEdicao?: readonly CarriedItem[]
   /**
-   * O "Passar para a mochila" dos cartões antigos. `false` na sala LAN do
-   * jogador: o Salvar dele não leva mochila (`partesMudadas`), e os cartões
-   * sairiam da aba sem chegar a lugar nenhum. Padrão: com.
-   */
-  podePassarParaAMochila?: boolean
-  /**
    * Itens refeitos (E4b): o "Armas por batalha" da aba "Mochila e equipamento", gravado na hora
    * (fora da edição; na edição vai para o rascunho). Só o app do mestre passa. Ausente = só lê.
    */
@@ -101,70 +94,32 @@ export interface FichaAbasProps {
 const ABA_DA_MOCHILA = '__mochila-e-equipamento'
 const NOME_DA_ABA_DA_MOCHILA = 'Mochila e equipamento'
 
-/** Quantos itens a mochila tem, somando as pilhas. */
-function totalDaMochila(mochila: readonly CarriedItem[] | undefined): number {
-  return (mochila ?? []).reduce((soma, item) => soma + quantidadeDe(item), 0)
-}
-
 /**
- * O número da aba Itens: a mochila do dono, mais os cartões antigos (e os "???") que ainda não estão
- * nela. O cartão cuja vaga já entrou na mochila (`vagaDoCartaoAntigo`: a passagem para o boneco dono,
- * esperando o Salvar) não conta de novo (frente A, 25/11/2026: o contador somava os dois).
- */
-function itensNaAba(personagem: Personagem, mochila: readonly CarriedItem[] | undefined): number {
-  const vagas = new Set((mochila ?? []).map((item) => item.id))
-  const cartoes = cartoesDaAba(personagem, ABA_DOS_ITENS).filter((cartao) => !vagas.has(vagaDoCartaoAntigo(cartao.id)))
-  return cartoes.length + ocultasDaAba(personagem, ABA_DOS_ITENS) + totalDaMochila(mochila)
-}
-
-/**
- * UM INVENTÁRIO SÓ (Fase 5, decisão 2 do mestre de 15/11): a aba Itens é a
- * LEITURA DA MOCHILA. Mostra o inventário de quem olha (`inventario`, com as
- * ações do mestre ou do jogador) ou, sem ele, a mochila da ficha só para ler.
- * Os cartões antigos da aba continuam embaixo, intactos, até o "Passar para a
- * mochila" (na edição; o Cancelar e o Desfazer devolvem tudo).
+ * UM INVENTÁRIO SÓ (Fase 5, decisão 2 do mestre de 15/11): a mochila da ficha.
+ * Mostra o inventário de quem olha (`inventario`, com as ações do mestre ou do
+ * jogador) ou, sem ele, a mochila da ficha só para ler. Os cartões das abas
+ * Armas e Itens de antes não aparecem mais: a conversão ao abrir já os levou
+ * para a mochila (ITENS REFEITOS E1), e o arquivo os guarda para ela (E7).
  */
 function MochilaNaAbaItens({
   personagem,
-  aba,
   inventario,
   editando,
   donoEhOBoneco,
   mochilaDaEdicao,
-  podePassar,
-  cartoesAntigos,
-  onChange,
 }: {
   personagem: Personagem
-  aba: AbaDoSistema
   inventario: ReactNode | undefined
   editando: boolean
   /** O boneco é o dono da mochila: na edição a grade continua o `inventario`, até haver vaga esperando o Salvar. */
   donoEhOBoneco: boolean
   /** Na edição, o que o Salvar vai deixar na mochila do dono; ausente = a do rascunho (ou, com o boneco dono, a dele). */
   mochilaDaEdicao: readonly CarriedItem[] | undefined
-  podePassar: boolean
-  cartoesAntigos: number
-  onChange: (personagem: Personagem) => void
 }) {
-  // A ficha de antes da passagem: o Desfazer volta a ela (só nesta edição; o Cancelar também desfaz).
-  const [antes, setAntes] = useState<Personagem | null>(null)
-  const passar = () => {
-    const passagem = passarAbaItensParaMochila(personagem, aba)
-    if (passagem.passados === 0) return
-    setAntes(personagem)
-    onChange(passagem.personagem)
-  }
-  const desfazer = () => {
-    if (antes === null) return
-    onChange(antes)
-    setAntes(null)
-  }
-  // Na edição, com a FICHA dona da mochila, a grade é a do RASCUNHO, a mesma que a aba conta: depois do "Passar para a
-  // mochila" a aba dizia "Itens 10" e a grade (a mochila gravada, com as ações) mostrava 1 cartão até o Salvar (pedido de
-  // 16/11/2026). Com o BONECO dono, o rascunho é a cópia da ficha, que não vale: a grade continua a dele, com as ações —
-  // até o "Passar para a mochila" deixar vagas esperando o Salvar, que as leva a ele: aí ela mostra o que o Salvar deixa.
-  // A grade da edição é o que o Salvar vai deixar (`mochilaDaEdicao`): o item que chegou com a janela aberta aparece já.
+  // Na edição, com a FICHA dona da mochila, a grade é a do RASCUNHO, a mesma que a aba conta (pedido de 16/11/2026).
+  // Com o BONECO dono, o rascunho é a cópia da ficha, que não vale: a grade continua a dele, com as ações, até haver
+  // vaga esperando o Salvar. A grade da edição é o que o Salvar vai deixar (`mochilaDaEdicao`): o item que chegou com a
+  // janela aberta aparece já.
   const daEdicao = editando ? mochilaDaEdicao : undefined
   const rascunhoNaGrade = editando && (daEdicao !== undefined || !donoEhOBoneco)
   const grade = rascunhoNaGrade ? (
@@ -176,28 +131,6 @@ function MochilaNaAbaItens({
     <div className="lb-ficha__mochila-na-aba">
       {grade}
       {rascunhoNaGrade && inventario !== undefined && <p className="lb-ficha__vazio">Salve a ficha para usar, editar ou tirar itens da mochila.</p>}
-      {cartoesAntigos > 0 && (
-        <p className="lb-ficha__vazio">
-          {cartoesAntigos === 1 ? '1 cartão antigo desta aba ainda não está na mochila.' : `${cartoesAntigos} cartões antigos desta aba ainda não estão na mochila.`}{' '}
-          {!podePassar ? (
-            'O mestre passa os cartões para a mochila.'
-          ) : editando ? (
-            <button type="button" className="lb-btn lb-btn--compact" onClick={passar}>
-              Passar para a mochila
-            </button>
-          ) : (
-            'Edite a ficha para passá-los.'
-          )}
-        </p>
-      )}
-      {editando && antes !== null && (
-        <p className="lb-ficha__vazio" role="status">
-          Os cartões foram para a mochila.{' '}
-          <button type="button" className="lb-btn lb-btn--compact" onClick={desfazer}>
-            Desfazer
-          </button>
-        </p>
-      )}
     </div>
   )
 }
@@ -216,7 +149,6 @@ export function FichaAbas({
   inventario,
   mochilaDoBoneco,
   mochilaDaEdicao,
-  podePassarParaAMochila = true,
   onLimiteDeArmas,
 }: FichaAbasProps) {
   const idBase = useId()
@@ -224,7 +156,6 @@ export function FichaAbas({
   // (protótipo aprovado, tela G). As balas moravam no cartão da arma: a aba delas sai junto.
   const comMochila = sistema.abas.some((aba) => aba.id === ABA_DAS_ARMAS || aba.id === ABA_DOS_ITENS)
   const abaDosItens = sistema.abas.find((aba) => aba.id === ABA_DOS_ITENS)
-  const abasAntigas = comMochila ? sistema.abas.filter((aba) => aba.id === ABA_DAS_ARMAS || aba.id === ABA_DOS_ITENS) : []
   const abas = sistema.abas.filter((aba) =>
     comMochila ? aba.id !== ABA_DAS_ARMAS && aba.id !== ABA_DOS_ITENS && aba.id !== ABA_DAS_BALAS : aba.id !== ABA_DAS_BALAS || cartoesDaAba(personagem, aba.id).length > 0,
   )
@@ -262,12 +193,7 @@ export function FichaAbas({
         {botoes.map((aba) => {
           // Fatia C7: o "???" que o mestre escondeu conta na aba do jogador, como um cartão.
           // E4b: a aba da mochila conta as vagas da mochila do dono, a mesma que a grade mostra.
-          const quantos =
-            aba.id === ABA_DA_MOCHILA
-              ? (mochilaContada ?? []).length
-              : aba.id === ABA_DOS_ITENS
-                ? itensNaAba(personagem, mochilaContada)
-                : cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id)
+          const quantos = aba.id === ABA_DA_MOCHILA ? (mochilaContada ?? []).length : cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id)
           return (
             <button
               key={aba.id}
@@ -298,20 +224,15 @@ export function FichaAbas({
             {abaDosItens !== undefined ? (
               <MochilaNaAbaItens
                 personagem={personagem}
-                aba={abaDosItens}
                 inventario={inventario}
                 editando={editando}
                 donoEhOBoneco={mochilaDoBoneco !== undefined}
                 mochilaDaEdicao={mochilaDaEdicao}
-                podePassar={podePassarParaAMochila && cartoesDaAba(personagem, abaDosItens.id).some((cartao) => cartao.naMochila !== true)}
-                cartoesAntigos={cartoesDaAba(personagem, abaDosItens.id).length}
-                onChange={onChange}
               />
             ) : (
               // Sem a aba Itens no molde (só Armas): a mochila do dono, com as ações do mestre fora da edição, como sob o bloco antes.
               ((editando ? undefined : inventario) ?? <InventarioDaFicha itens={mochilaContada ?? []} vazio="Nada na mochila. O mestre dá itens pelo Acervo ou pelo livro." />)
             )}
-            <CartoesDeAntes abas={abasAntigas} sistema={sistema} personagem={personagem} />
           </>
         ) : (
           ativa !== undefined && (
@@ -418,32 +339,6 @@ function CartoesDaAba({ aba, sistema, personagem, editando, onChange, escolherIm
       ))}
       <CartoesOcultos quantos={ocultas} />
     </ul>
-  )
-}
-
-/**
- * Os cartões das abas Armas e Itens de antes (E4b): a conversão ao abrir já os levou para a mochila
- * (E1), e eles ficam guardados no arquivo até a limpeza (E7). Aqui, recolhidos e só para ler: nada
- * some sem o mestre poder conferir, e não há duas fontes para editar.
- */
-function CartoesDeAntes({ abas, sistema, personagem }: { abas: readonly AbaDoSistema[]; sistema: SistemaDeRpg; personagem: Personagem }) {
-  const comCartoes = abas.map((aba) => ({ aba, cartoes: cartoesDaAba(personagem, aba.id) })).filter(({ cartoes }) => cartoes.length > 0)
-  const total = comCartoes.reduce((soma, { cartoes }) => soma + cartoes.length, 0)
-  if (total === 0) return null
-  return (
-    <details className="lb-ficha__antigos">
-      <summary>
-        Cartões de antes, de {comCartoes.map(({ aba }) => aba.nome).join(' e ')} ({total}), só para ler
-      </summary>
-      <p className="lb-ficha__vazio">Já foram para a mochila ao abrir a aventura. Ficam aqui para conferir; o item se muda pela mochila.</p>
-      {comCartoes.map(({ aba, cartoes }) => (
-        <ul key={aba.id} className="lb-ficha__cartoes" aria-label={aba.nome}>
-          {cartoes.map((cartao) => (
-            <CartaoLido key={cartao.id} cartao={cartao} aba={aba} sistema={sistema} personagem={personagem} ativo={false} />
-          ))}
-        </ul>
-      ))}
-    </details>
   )
 }
 

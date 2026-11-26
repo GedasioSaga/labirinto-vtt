@@ -518,7 +518,6 @@ export function PlayerFicha({
                 }
                 // Na sala LAN a mochila é a do boneco, também na edição (o rascunho não a tem: `paraOFio`).
                 mochilaDoBoneco={mochilaNoBoneco ? (inventario?.itens ?? SEM_ITENS) : undefined}
-                podePassarParaAMochila={!mochilaNoBoneco}
               />
             </>
           )}

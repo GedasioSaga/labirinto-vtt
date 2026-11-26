@@ -1,58 +1,15 @@
 /**
- * COISA x REGRA, UM INVENTÁRIO SÓ (Fase 5): a passagem dos cartões antigos da
- * aba Itens para a mochila e o "Pôr em" da porta única. No máximo 2 testes por caso.
+ * COISA x REGRA, UM INVENTÁRIO SÓ (Fase 5): o "Pôr em" da porta única. A passagem dos
+ * cartões antigos para a mochila saiu na E7 (é a conversão ao abrir). No máximo 2 testes por caso.
  */
 import { describe, expect, it } from 'vitest'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
-import { novoCartao, novoPersonagem, personagemDoArquivo, type CartaoDaFicha, type Personagem } from '../personagem'
+import { novoPersonagem } from '../personagem'
 import { armasDe } from '../batalha/leituraDaFicha'
 import { catalogoDoArquivo, ligarPeloNome, type ItemDoCatalogo } from './catalogo'
-import { ABA_DOS_ITENS, desfazerPosto, passarAbaItensParaMochila, porCoisaNaFicha, porEntradaNaFicha } from './coisaERegra'
+import { ABA_DOS_ITENS, desfazerPosto, porCoisaNaFicha, porEntradaNaFicha } from './coisaERegra'
 
 const sistema = SISTEMA_ONE_PIECE
-const abaDosItens = sistema.abas.find((aba) => aba.id === ABA_DOS_ITENS)
-
-function cartao(nome: string, campos: Record<string, string>, extra: Partial<CartaoDaFicha> = {}): CartaoDaFicha {
-  return { ...novoCartao(nome), campos, ...extra }
-}
-
-function fichaComItens(cartoes: CartaoDaFicha[], mochila: Personagem['mochila'] = undefined): Personagem {
-  const ficha = novoPersonagem(sistema, 'jogador', 'Aira')
-  return { ...ficha, abas: { ...ficha.abas, [ABA_DOS_ITENS]: cartoes }, ...(mochila === undefined ? {} : { mochila }) }
-}
-
-describe('passar os cartões antigos da aba Itens para a mochila', () => {
-  it('3 cartões viram 3 vagas sem perder nada (quantidade, campos, extras); a aba fica vazia; rodar de novo não duplica', () => {
-    const poção = cartao('Poção', { descricao: 'Cura 50 de HP', quantidade: '3' })
-    const corda = cartao('Corda', { quantidade: '2 rolos', efeito: 'Amarra' }, { extras: [{ nome: 'Peso', valor: '1 kg' }] })
-    const mapa = cartao('Mapa do tesouro', {})
-    const antes = fichaComItens([poção, corda, mapa], [{ id: 'pin_1', nome: 'Chave de latão' }])
-    const { personagem, passados, ficaram } = passarAbaItensParaMochila(antes, abaDosItens)
-    expect([passados, ficaram]).toEqual([3, 0])
-    expect(personagem.abas[ABA_DOS_ITENS]).toEqual([])
-    const mochila = personagem.mochila ?? []
-    expect(mochila.map((item) => item.nome)).toEqual(['Chave de latão', 'Poção', 'Corda', 'Mapa do tesouro'])
-    expect(mochila[1]).toMatchObject({ quantidade: 3, descricao: 'Cura 50 de HP' })
-    // O texto que não é número vai para a descrição, com o rótulo do campo; o extra também.
-    expect(mochila[2]?.quantidade).toBeUndefined()
-    expect(mochila[2]?.descricao).toContain('2 rolos')
-    expect(mochila[2]?.descricao).toContain('Amarra')
-    expect(mochila[2]?.descricao).toContain('Peso: 1 kg')
-    // O arquivo velho abre igual: a ficha gravada e relida guarda a mochila nova.
-    expect(personagemDoArquivo(JSON.parse(JSON.stringify(personagem)))?.mochila).toEqual(mochila)
-    // A cópia do editor recebe a mesma mudança: mesmas vagas, nada repetido.
-    expect(passarAbaItensParaMochila({ ...personagem, abas: antes.abas }, abaDosItens).personagem.mochila).toEqual(mochila)
-  })
-
-  it('o cartão com o que a mochila não guarda (modificadores) fica na aba, intacto', () => {
-    const anel = cartao('Anel da força', { descricao: '+5 de Força' }, { modificadores: [{ atributo: 'forca', delta: 5 }] })
-    const pão = cartao('Pão', {})
-    const { personagem, passados, ficaram } = passarAbaItensParaMochila(fichaComItens([anel, pão]), abaDosItens)
-    expect([passados, ficaram]).toEqual([1, 1])
-    expect(personagem.abas[ABA_DOS_ITENS]).toEqual([anel])
-    expect((personagem.mochila ?? []).map((item) => item.nome)).toEqual(['Pão'])
-  })
-})
 
 const FOTO = `midia:${'a'.repeat(64)}.webp`
 const GARRUCHA_DO_ACERVO = { nome: 'Garrucha', itemId: 'item_garrucha', categoria: 'Arma', imagem: FOTO }

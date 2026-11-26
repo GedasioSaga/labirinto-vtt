@@ -58,8 +58,6 @@ export interface FichaDePersonagemProps {
   mochilaDoBoneco?: readonly CarriedItem[]
   /** Na edição: o que o Salvar vai deixar na mochila do dono, para a aba Itens contar e mostrar (`FichaAbas`). Ausente = a do rascunho. */
   mochilaDaEdicao?: readonly CarriedItem[]
-  /** O "Passar para a mochila" dos cartões antigos da aba Itens (`FichaAbas`). Padrão: com. */
-  podePassarParaAMochila?: boolean
   /** Construtor de mecânicas C2: quem monta a mecânica da técnica. O mestre grava; o dono propõe. Padrão: mestre. */
   quemEditaAMecanica?: QuemEditaAMecanica
   /**
@@ -96,7 +94,6 @@ export function FichaDePersonagem({
   inventario,
   mochilaDoBoneco,
   mochilaDaEdicao,
-  podePassarParaAMochila,
   quemEditaAMecanica,
   onRevelar,
   outrasFichas,
@@ -155,7 +152,6 @@ export function FichaDePersonagem({
           inventario={inventario}
           mochilaDoBoneco={mochilaDoBoneco}
           mochilaDaEdicao={mochilaDaEdicao}
-          podePassarParaAMochila={podePassarParaAMochila}
           onLimiteDeArmas={onLimiteDeArmas}
         />
         )}
