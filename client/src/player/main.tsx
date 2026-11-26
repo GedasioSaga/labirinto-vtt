@@ -134,6 +134,7 @@ import { tokenReachesPin } from '../lib/doorReach'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
 import { fichasComAMochilaDasLigacoes } from '../lib/batalha/municaoDaFicha'
+import { limiteDeArmas } from '../lib/batalha/leituraDaFicha'
 import { moedasDe, ownTradeToken, purseToward } from '../lib/troca'
 import { PlayerTradeCard } from './PlayerTradeCard'
 import { itemNoticeText } from './itemNotice'
@@ -1521,14 +1522,18 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // nesta sessão) e só acrescenta no fim o que é novo. Um ref, e não estado:
   // gravar a ordem não deve pedir outra renderização.
   const slotOrder = useRef(new Map<string, readonly string[]>())
-  const inventoryList = useMemo(
-    () =>
-      (map ? inventoryCharacters(map, ownTokens, partyTokens, OWN_TOKEN_CSS) : []).map((character) => ({
-        ...character,
-        slots: stableSlotOrder(slotOrder.current.get(character.tokenId), character.slots),
-      })),
-    [map, ownTokens, partyTokens],
-  )
+  // E5a: o "Armas por batalha" de cada ficha dele, lido do personagem ligado (o limite do Equipar na tela).
+  const inventoryList = useMemo(() => {
+    const limiteDe = (token: Token): number | null => {
+      const personagemId = ligacoesDaFicha?.find((ligacao) => ligacao.tokenId === token.id)?.personagemId
+      const personagem = personagemId === undefined || personagemId === null ? undefined : personagensDoJogador?.find((p) => p.id === personagemId)
+      return personagem === undefined ? null : limiteDeArmas(personagem)
+    }
+    return (map ? inventoryCharacters(map, ownTokens, partyTokens, OWN_TOKEN_CSS, limiteDe) : []).map((character) => ({
+      ...character,
+      slots: stableSlotOrder(slotOrder.current.get(character.tokenId), character.slots),
+    }))
+  }, [map, ownTokens, partyTokens, ligacoesDaFicha, personagensDoJogador])
   useEffect(() => {
     for (const character of inventoryList) slotOrder.current.set(character.tokenId, character.slots.map((slot) => slot.key))
   }, [inventoryList])
@@ -2716,6 +2721,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onGive={(itemId, toTokenId) => connection.giveItem(itemId, toTokenId)}
             onPay={(toTokenId, moedas) => connection.giveCoins(toTokenId, moedas)}
             onAcender={(tokenId, itemId, acesa) => connection.acenderItem(tokenId, itemId, acesa)}
+            onPedir={(pedido) => connection.pedirNaMochila(pedido)}
+            onUsar={(tokenId, vagaId, alvoTokenId) => connection.usarItemFora(tokenId, vagaId, alvoTokenId)}
             itemTexts={itemTexts}
           />
         )}

@@ -60,6 +60,7 @@ import {
   type TokenDoPersonagem,
 } from '../net/protocoloDoPersonagem'
 import { mensagensDoSalvar } from '../net/edicaoDoPersonagem'
+import { parseMochilaResultado, PEDIDO_DA_MOCHILA_ESPERA_MS, type MochilaPlayerMessage, type PedidoDaMochila } from '../net/protocoloDaMochila'
 import type { Ajuste } from '../lib/ajusteDaFicha'
 import { lerPacoteDoLivro, parseLivroParte, parseLivroRecusa, receberParte, type ChegadaDoLivro, type LivroPedirMessage } from '../net/protocoloDoLivro'
 import type { ResumoDoLivro } from '../lib/livroDeRegras'
@@ -1831,6 +1832,12 @@ export interface PlayerConnection {
    */
   usarItemFora(tokenId: string, vagaId: string, alvoTokenId: string): Promise<string | null>
   /**
+   * SISTEMA DE ITENS REFEITO (E5a): equipar, guardar, recarregar, dar com a quantidade ou largar uma
+   * vaga da mochila da ficha DELE (`net/protocoloDaMochila.ts`). Resolve com `null` (o host fez; a
+   * mochila nova vem no recorte seguinte) ou o motivo da recusa; sem resposta no teto, o motivo do teto.
+   */
+  pedirNaMochila(pedido: PedidoDaMochila): Promise<string | null>
+  /**
    * MOEDAS E TROCA — "Pagar a…": `moedas` à ficha `toTokenId`. `false` (e nada
    * sai) quando não joga, o valor não é inteiro positivo, as fichas dele não
    * somam tanto, ou o socket caiu. Quem confere de verdade é o host.
@@ -2867,6 +2874,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let nextNoticeId = 1
   // Fase 8: os "Usar" esperando o `item.usar.result`, pelo reqId.
   const usosPendentes = new Map<string, (motivo: string | null) => void>()
+  // E5a: os pedidos da mochila (equipar, recarregar, dar, largar) esperando o `mochila.resultado`, pelo reqId.
+  const pedidosDaMochila = new Map<string, (motivo: string | null) => void>()
   /** PUZZLES: o puzzle de onde ele acabou de sair; a vista dele que ainda estava a caminho não reabre a tela. */
   let puzzleQueSaiu: string | null = null
   /** PESCA: `performance.now()` do último `pesca.vivo` que saiu (no máximo 4 por segundo). */
@@ -4210,7 +4219,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return conferida !== null && send(conferida)
   }
 
-  function send(message: PlayerMessage | SomFalhouMessage | CutsceneProntaMessage | CutsceneCarregandoMessage | CutsceneVideoDoJogador): boolean {
+  function send(message: PlayerMessage | SomFalhouMessage | CutsceneProntaMessage | CutsceneCarregandoMessage | CutsceneVideoDoJogador | MochilaPlayerMessage): boolean {
     // Tela da mesa só olha: nenhum pedido sai dela, nem se o mestre errar e der uma ficha a ela.
     // A exceção é o `som.falhou` (a TV toca os sons, decisão de 23/10): o mestre precisa saber que ela não soou.
     // E o `cutscene.pronta` e o `cutscene.carregando` (09/11): a TV também toca a abertura, e a mesa espera por ela para largar.
@@ -5909,6 +5918,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         responder(data.ok === true ? null : typeof data.motivo === 'string' ? data.motivo.slice(0, ITEM_USAR_MOTIVO_MAX) : 'O mestre recusou')
         return
       }
+      case 'mochila.resultado': {
+        const resultado = parseMochilaResultado(data)
+        const responder = resultado === null ? undefined : pedidosDaMochila.get(resultado.reqId)
+        if (resultado === null || responder === undefined) return
+        pedidosDaMochila.delete(resultado.reqId)
+        responder(resultado.ok ? null : (resultado.motivo ?? 'O mestre recusou'))
+        return
+      }
       case 'item.give.rejected': {
         if (state.status !== 'playing') return
         const reason = ITEM_GIVE_REJECTIONS.find((r) => r === data.reason)
@@ -6800,6 +6817,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setTimeout(() => {
           if (usosPendentes.delete(reqId)) resolve('O mestre não respondeu: tente de novo')
         }, USAR_ITEM_ESPERA_MS)
+      })
+    },
+
+    pedirNaMochila(pedido) {
+      if (state.status !== 'playing') return Promise.resolve('Você ainda não está na mesa')
+      // Só a ficha DELE: o host confere de novo, mas a tela não pede pelo que não é dele.
+      if (!(state.ownTokens ?? []).includes(pedido.tokenId)) return Promise.resolve('Essa ficha não é sua')
+      const reqId = `m${nextReqId++}`
+      if (!send({ ...pedido, reqId })) return Promise.resolve('Sem conexão com o mestre')
+      return new Promise((resolve) => {
+        pedidosDaMochila.set(reqId, resolve)
+        setTimeout(() => {
+          if (pedidosDaMochila.delete(reqId)) resolve('O mestre não respondeu: tente de novo')
+        }, PEDIDO_DA_MOCHILA_ESPERA_MS)
       })
     },
 
