@@ -72,6 +72,7 @@ import {
   type BalaDaArma,
   type LeituraDoCusto,
 } from './leituraDaFicha'
+import { aoAcertarDoGolpe, juntarEfeitos } from './aoAcertarDoItem'
 import { danoDaTecnica, danoDaTecnicaComAVida, leituraDaTecnica } from './leituraDaTecnica'
 import { comOBonusDosAcumuladores } from './acumuladorNaBatalha'
 import type { ContextoDosRequisitos } from './requisitos/contexto'
@@ -1136,7 +1137,11 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const respostas = pedido.tipo === 'habilidade' ? pedido.respostas : undefined
   // F2b (Imbuir Fogo do Siegfried): o +10 da resposta soma por cima da fórmula (a da arma escolhida), em cada alvo.
   const doFogo = tecnica === null ? 0 : somaDasRespostas(tecnica.cartao, respostas)
-  const soma = somaDoAtaque + deTodoGolpe.dano + daRaca + doFogo
+  // ITENS REFEITOS, E6c: o "Ao acertar" da arma equipada e da bala do tiro; o Dano extra que conta soma em cada alvo
+  // (o igual ao dano de cima já ficou de fora, decisão 14), e as condições e o empurrão vão no golpe para a store.
+  const balaDoTiro = pedido.tipo === 'atacar' && arma !== null ? balaDoPedido(arma, pedido.balaId) : null
+  const efeitosDoItem = pedido.tipo === 'atacar' && arma !== null && !soDeEfeito ? juntarEfeitos(arma.aoAcertar, balaDoTiro?.aoAcertar) : null
+  const soma = somaDoAtaque + deTodoGolpe.dano + daRaca + doFogo + (efeitosDoItem?.danoExtra ?? 0)
   // Construtor C1 (decisão 2): na técnica montada, a base do jogador sai das peças, com a arma, a bala e o bônus dos selos de quem usa.
   const balaDaFormula = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
   const daTela = soDeEfeito
@@ -1231,8 +1236,11 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
   // F2 (fatia E, Bala de Prata): o selo da bala ("Ferido por prata") pega em quem o tiro acerta, à parte do selo
   // da mira, do da técnica e da marca (revisão da fatia E: no Desenhar o alvo a marca não o apaga mais). 25/11: qualquer bala de prata.
-  const seloDoTiro = bala === null ? null : seloDaBala(bala)
+  // E6c: a bala do pente é um item do Acervo, e o "Ao acertar" dele manda (o palpite pelo nome "prata" fica só para a bala de texto).
+  const seloDoTiro = bala === null || bala.municao?.pente === true ? null : seloDaBala(bala)
   if (seloDoTiro !== null) golpe.seloDaBala = seloDoTiro
+  const doItem = efeitosDoItem === null || arma === null ? null : aoAcertarDoGolpe(efeitosDoItem, balaDoTiro?.aoAcertar !== undefined ? balaDoTiro.nome : arma.nome)
+  if (doItem !== null) golpe.aoAcertar = doItem
   // F2 (fatia E, vantagem de Ogro): a resposta "sim" faz os alvos reagirem com desvantagem.
   if (deTodoGolpe.desvantagemNoAlvo) golpe.reacaoComDesvantagem = true
   // F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao usar ("+8 em reação" por 2 turnos); a store o põe nele.
@@ -1305,7 +1313,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const baseDaParte = montada ? pedidosDoDano : pedido.alvos
   const alvosDaParte = baseDaParte.map((alvo): PedidoDeAlvo => ({ ...alvo, dano: alvo.dano === null ? null : Math.floor(alvo.dano * parte.fracao) }))
   const segundos = alvosDoGolpe(ctx, alvosDaParte, carga, surpresaEm, overload, pecas !== null ? reacao : reacaoDoTipo(tecnica?.tipo ?? null))
-  const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, seloDaBala: _seloDaBala, selosAMais: _selosAMais, ...semExtras } = golpe
+  const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, seloDaBala: _seloDaBala, selosAMais: _selosAMais, aoAcertar: _aoAcertar, ...semExtras } = golpe
   const segundo: GolpeDaBatalha = { ...semExtras, id: ids.segundo.golpe, linhaId: ids.segundo.linha, nome: `${golpe.nome} (2º golpe)`.slice(0, NOME_DO_GOLPE_MAX), perfurante: parte.perfurante, alvos: segundos }
   return { ...lancado, segundo, resolvidosDoSegundo: segundos.filter((alvo) => alvo.danoFinal !== undefined) }
 }

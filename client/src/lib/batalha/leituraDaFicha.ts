@@ -9,6 +9,7 @@ import { balasParaOPente, penteDaArma } from '../mochila/armaNaMochila'
 import { quantidadeDe } from '../items'
 import type { AtaqueDoItem, RecargaDoItem } from '../itens/modelo'
 import { ACERVO_DA_BATALHA, municoesDaArma, nomeNoAcervo, regraNoAcervo, tiroDaMunicao, versaoDasMunicoes, type MunicaoAceita } from './municoesDoAcervo'
+import { efeitosAoAcertar, temEfeitoAoAcertar, type EfeitosAoAcertar } from './aoAcertarDoItem'
 
 /**
  * LEITURA DA FICHA PARA A BATALHA, F2 (seção 3.1 de
@@ -272,6 +273,11 @@ export interface BalaDaArma {
    * Ausente = bala só de texto, como antes.
    */
   municao?: MunicaoDaBala
+  /**
+   * ITENS REFEITOS, E6c: o "Ao acertar" da bala do pente (a Bala de Prata: Cura reduzida 50% até o fim
+   * da batalha), do Acervo de agora ou da `regra` da vaga dela. Ausente = a bala não faz nada além do dano.
+   */
+  aoAcertar?: EfeitosAoAcertar
 }
 
 /** A arma da aba Armas com o que a batalha lê dela. É o próprio cartão, mais as leituras. */
@@ -299,6 +305,11 @@ export interface ArmaDaFicha extends CartaoDaFicha {
    * (`stores/batalha/arremessoNaMesa.ts`). Ausente = não é arremesso.
    */
   arremesso?: ArremessoDaArmaNaBatalha
+  /**
+   * ITENS REFEITOS, E6c: o "Ao acertar" da arma equipada (condição, Dano extra que conta, empurrão), do
+   * Acervo de agora ou da `regra` da vaga. Ausente = só o dano.
+   */
+  aoAcertar?: EfeitosAoAcertar
 }
 
 /** O arremesso equipado como a batalha o lê. */
@@ -555,7 +566,10 @@ function nomeDaBala(balaId: string, mochila: readonly CarriedItem[]): string {
 
 /** A bala que está no pente como bala da arma: o tiro tira 1 do pente (`municao.pente`). */
 function balaDoPente(armaVagaId: string, pente: { balaId: string; n: number }, mochila: readonly CarriedItem[]): BalaDaArma {
+  // Sem o Acervo (o Worker do Lobby, o jogador), a regra da bala vem da vaga dela na mochila.
+  const aoAcertar = efeitosAoAcertar(regraNoAcervo(pente.balaId)?.blocos ?? mochila.find((vaga) => vaga.itemId === pente.balaId)?.regra)
   return {
+    ...(temEfeitoAoAcertar(aoAcertar) ? { aoAcertar } : {}),
     id: `${PREFIXO_DA_MUNICAO}${pente.balaId}`,
     nome: nomeDaBala(pente.balaId, mochila),
     dano: danoDaBala(pente.balaId),
@@ -622,7 +636,10 @@ function armasDaVaga(vaga: CarriedItem, mochila: readonly CarriedItem[]): ArmaDa
   const nome = nomeNoAcervo(vaga.itemId) ?? vaga.nome
   const id = `${PREFIXO_DA_ARMA_DA_MOCHILA}${vaga.id}`
   const molde = penteDaArma(vaga, ACERVO_DA_BATALHA)
-  const principal = armaDoBloco(id, nome, vaga, blocos.ataque, CATEGORIA_DO_TIPO[tipo], molde === null ? null : molde.capacidade)
+  const daArma = armaDoBloco(id, nome, vaga, blocos.ataque, CATEGORIA_DO_TIPO[tipo], molde === null ? null : molde.capacidade)
+  // E6c: o "Ao acertar" vale no tiro, no golpe da Híbrida e no arremesso (o mesmo item).
+  const aoAcertar = efeitosAoAcertar(blocos)
+  const principal: ArmaDaFicha = temEfeitoAoAcertar(aoAcertar) ? { ...daArma, aoAcertar } : daArma
   if (tipo === 'arremesso') {
     const volta = blocos.arremesso?.volta === true
     const recarga = blocos.arremesso?.recarga ?? (volta ? RECARGA_DA_VOLTA : RECARGA_DO_ARREMESSO)
@@ -645,7 +662,8 @@ function armasDaVaga(vaga: CarriedItem, mochila: readonly CarriedItem[]): ArmaDa
           },
         }
   if (tipo !== 'hibrida' || blocos.golpe === undefined) return [comPente]
-  return [comPente, armaDoBloco(`${id}${SUFIXO_DO_GOLPE}`, `${nome} (golpe)`, vaga, blocos.golpe, 'branca', null)]
+  const golpe = armaDoBloco(`${id}${SUFIXO_DO_GOLPE}`, `${nome} (golpe)`, vaga, blocos.golpe, 'branca', null)
+  return [comPente, temEfeitoAoAcertar(aoAcertar) ? { ...golpe, aoAcertar } : golpe]
 }
 
 /**

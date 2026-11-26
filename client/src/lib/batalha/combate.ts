@@ -1,4 +1,5 @@
 import type { Modificador } from '../personagem'
+import type { AoAcertarDoGolpe } from './aoAcertarDoItem'
 import type { Direcao } from './area'
 import type { CdDaDisputa } from './disputa'
 import type { MudancaDoAlcance } from './alcance/condicoes'
@@ -736,6 +737,11 @@ export interface GolpeDaBatalha {
    * da mira, o da técnica e a marca. Tirado pelo host. Ausente = nenhum.
    */
   seloDaBala?: SeloDoGolpe
+  /**
+   * ITENS REFEITOS, E6c: o "Ao acertar" da arma e da bala do tiro (as condições e o empurrão; o Dano extra
+   * já entrou no dano). A store o aplica em cada alvo que o golpe ACERTOU. Tirado pelo host. Ausente = nada.
+   */
+  aoAcertar?: AoAcertarDoGolpe
   /** F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao lançar (o "+8 em reação" por 2 turnos). Ausente = nenhum. */
   seloEmQuemUsa?: SeloDoGolpe
   /** Fase 5 (SISTEMA.md): os selos a mais da técnica montada (Sangrando E Enfraquecido); cada um pega como o `selo`. Tirados pelo host. Ausente = nenhum. */
