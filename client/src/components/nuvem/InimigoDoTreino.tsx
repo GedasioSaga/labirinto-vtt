@@ -1,5 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { useEffect, useId, useState } from 'react'
+import { ehVariacao } from '../../lib/livros/combate'
 import { idDaCopiaDeTreino } from '../../lib/nuvem/projecao'
 import { lerRpgDaPasta, rpgDe, type RpgDaPasta } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
@@ -118,6 +119,9 @@ function InimigoDaPasta({ npc, pastaId }: { npc: Personagem; pastaId: string }) 
   if (rpg === null || !rpg.personagens.some((personagem) => personagem.id === npc.id)) return null
 
   const liberado = estaLiberado(rpg, npc.id)
+  // UMA FICHA POR TOKEN DE NPC (25/11/2026): a cópia de token ("Zumbi 2") é o modelo de novo; o treino libera o modelo.
+  // A variação que já estava liberada mantém o botão, para poder sair do treino.
+  if (ehVariacao(npc) && !liberado) return null
   const ocupado = envio.t === 'indo'
 
   /** Manda a lista inteira ao Lobby (cria, troca e tira cópias). `null` = a pasta não está no Lobby. */
