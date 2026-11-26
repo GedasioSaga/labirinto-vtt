@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { motivoDaFalhaDeDisco } from '../../lib/foraDoApp'
 import { gravarIndiceDoPreparo, gravarRevelado, gravarTempo, gravarVerbete, lerIndiceDoPreparo, lerRevelado, lerTempo, lerVerbete, listarNoPreparo, type DocumentoLido } from '../../lib/preparo/disco'
 import { IndiceDeCitacoes, entradaDaBusca, type EntradaDaBusca } from '../../lib/preparo/enciclopedia'
 import { estaNaLixeira } from '../../lib/preparo/lixeira'
@@ -671,7 +672,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       const campanhaId = guardada !== null && campanhas.some((campanha) => campanha.id === guardada) ? guardada : null
       set({ carga: { t: 'pronta' }, campanhas, pastas, emJogo, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId, revelados, avisoDoRevelado: null, tempo, avisoDoTempo: null, salvamento: situacao() })
     } catch (erro) {
-      if (minha === geracao) set({ carga: { t: 'falhou', aviso: `Não deu para ler o Prelúdio: ${motivo(erro)}.` } })
+      if (minha === geracao) set({ carga: { t: 'falhou', aviso: `Não deu para ler o Prelúdio: ${motivoDaFalhaDeDisco(erro)}.` } })
     }
   },
 
@@ -845,18 +846,21 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
     if (get().carga.t !== 'pronta') return 'O Prelúdio ainda está abrindo.'
     if (travas.size > 0) return 'O Prelúdio está gravando uma importação ou uma cópia restaurada. Tente de novo quando terminar.'
     try {
-      const lido = await lerIndiceDoPreparo()
-      if (lido.estado === 'falhou' || lido.estado === 'somenteLeitura') return lido.aviso
-      const indice: IndiceDoPreparo = lido.estado === 'novo' ? { formato: ARQUIVO_DO_INDICE.formato, campanhas: [] } : lido.valor
-      // Parar de jogar tira o campo: o índice de quem nunca jogou fica como era.
-      const { emJogo: _antes, ...semEmJogo } = indice
-      const novo: IndiceDoPreparo = sessaoId === null ? semEmJogo : { ...semEmJogo, emJogo: sessaoId }
-      await gravarIndiceDoPreparo(novo)
-      set({ campanhas: novo.campanhas, emJogo: sessaoId })
-      avisarMudanca({ o: 'indice' })
-      return null
+      // Na fila do índice, como as pastas e a campanha: ler-mudar-gravar em paralelo com elas perdia uma das mudanças.
+      return await naVezDoIndice(async () => {
+        const lido = await lerIndiceDoPreparo()
+        if (lido.estado === 'falhou' || lido.estado === 'somenteLeitura') return lido.aviso
+        const indice: IndiceDoPreparo = lido.estado === 'novo' ? { formato: ARQUIVO_DO_INDICE.formato, campanhas: [] } : lido.valor
+        // Parar de jogar tira o campo: o índice de quem nunca jogou fica como era.
+        const { emJogo: _antes, ...semEmJogo } = indice
+        const novo: IndiceDoPreparo = sessaoId === null ? semEmJogo : { ...semEmJogo, emJogo: sessaoId }
+        await gravarIndiceDoPreparo(novo)
+        set({ campanhas: novo.campanhas, emJogo: sessaoId })
+        avisarMudanca({ o: 'indice' })
+        return null
+      })
     } catch (erro) {
-      return `Não deu para gravar a sessão em jogo: ${motivo(erro)}.`
+      return `Não deu para gravar a sessão em jogo: ${motivoDaFalhaDeDisco(erro)}.`
     }
   },
 
@@ -880,7 +884,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
         return null
       })
     } catch (erro) {
-      return `Não deu para gravar a campanha: ${motivo(erro)}.`
+      return `Não deu para gravar a campanha: ${motivoDaFalhaDeDisco(erro)}.`
     }
   },
 
