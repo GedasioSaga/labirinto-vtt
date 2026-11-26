@@ -177,6 +177,17 @@
 .mu-bib-dar__op small { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
 .mu-bib-dar__op[aria-disabled='true'] small { color: var(--lb-color-online); }
 .mu-bib-dar__vazio { padding: 12px 8px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+/* O "Quantos" da coisa que empilha: uma linha no topo, o passo (−, número, +) numa caixa só, como o campo de busca embaixo. */
+.mu-bib-dar__qtd { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; padding: 0 0 8px 4px; border-bottom: 1px solid var(--lb-gr-filete); }
+.mu-bib-dar__qtd label { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.mu-bib-dar__passo { display: inline-flex; align-items: center; border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm); background: var(--lb-gr-campo); transition: border-color var(--lb-motion-fast) ease, box-shadow var(--lb-motion-fast) ease; }
+.mu-bib-dar__passo:focus-within { border-color: var(--lb-color-brass); box-shadow: 0 0 0 3px rgba(224, 164, 74, 0.18); }
+.mu-bib-dar__passo .mu-bt { border: 0; }
+.mu-bib-dar__n { width: 52px; height: 28px; padding: 0 4px; border: 0; background: transparent; color: var(--lb-color-parchment); font-size: 14px; font-weight: 500; text-align: center; }
+.mu-bib-dar__n:focus-visible { outline: none; }
+@media (hover: hover) and (pointer: fine) {
+  .mu-bib-dar__passo .mu-bt:hover:not(:disabled) { color: var(--lb-color-parchment); }
+}
 
 /* ------------------------------------------------------------ larguras: a coluna Fichas vira a lista "Quem tem" */
 @container bib (max-width: 1240px) {

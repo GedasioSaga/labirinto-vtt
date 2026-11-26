@@ -3,7 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEven
 import { itemParaDar } from '../../lib/acervoDeItens'
 import { escolherImagemDoItem, imagemDoItemDoBlob } from '../../lib/imagemDoItem'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
-import { quantidadeDe } from '../../lib/items'
+import { ITEM_QUANTIDADE_MAX, quantidadeDe } from '../../lib/items'
 import { ehDoAcervo, entradaDoAcervo } from '../../lib/livros/acervoNoLivro'
 import { entraNaBatalha, variacoesDe } from '../../lib/livros/combate'
 import {
@@ -141,11 +141,17 @@ function fraseDoPor(entrada: EntradaDaBiblioteca, ficha: Personagem, aba: AbaDoS
   return frase
 }
 
-/** "Garrucha entrou na mochila de Aira." ou, na pilha, "Mais 1 Poção na mochila de Aira: agora são 2." */
-function fraseDoPorNaMochila(nome: string, ficha: Personagem, recebido: FichaQueRecebeu): string {
+/**
+ * "Garrucha entrou na mochila de Aira.", "40 Bala de Prata entraram na mochila
+ * de Aira." ou, na pilha, "Mais 40 Bala de Prata na mochila de Aira: agora são
+ * 52." Pedido maior que o que coube (a pilha para no teto) diz quantos couberam.
+ */
+function fraseDoPorNaMochila(nome: string, ficha: Personagem, recebido: FichaQueRecebeu, pedidos: number): string {
   const vaga = (recebido.personagem.mochila ?? []).find((item) => item.id === recebido.vagaId)
   const total = vaga === undefined ? recebido.entraram : quantidadeDe(vaga)
-  if (total > recebido.entraram) return `Mais ${formatarNumero(recebido.entraram)} ${nome} na mochila de ${ficha.nome}: agora são ${formatarNumero(total)}.`
+  const noTeto = recebido.entraram < pedidos ? ` Só couberam ${formatarNumero(recebido.entraram)} dos ${formatarNumero(pedidos)}: a pilha vai até ${formatarNumero(ITEM_QUANTIDADE_MAX)}.` : ''
+  if (total > recebido.entraram) return `Mais ${formatarNumero(recebido.entraram)} ${nome} na mochila de ${ficha.nome}: agora são ${formatarNumero(total)}.${noTeto}`
+  if (recebido.entraram > 1) return `${formatarNumero(recebido.entraram)} ${nome} entraram na mochila de ${ficha.nome}.${noTeto}`
   return `${nome} entrou na mochila de ${ficha.nome}.`
 }
 
@@ -519,8 +525,11 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
    * também); a arma vira cartão (com o `itemId`) e a coisa ligada entra na
    * mochila; o resto vira cartão. O resultado é calculado UMA vez sobre a
    * ficha de agora e aplicado igual no disco e na cópia do editor.
+   * `quantidade` (o "Quantos" do menu) vale só para a coisa que empilha: entra
+   * de uma vez na mesma vaga, com um aviso e um Desfazer só; a que não empilha
+   * vai uma (a regra da pilha é a de `darNaFicha`).
    */
-  const dar = async (entrada: EntradaDaBiblioteca, ficha: Personagem) => {
+  const dar = async (entrada: EntradaDaBiblioteca, ficha: Personagem, quantidade = 1) => {
     const toasts = useToastStore.getState()
     const vagaNova = crypto.randomUUID()
     const resultado = ehDoAcervo(entrada)
@@ -545,7 +554,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
           doDisco.achou = true
           const comOCartao = posto === null || cartao === undefined ? atual : comCartao(atual, posto.abaId, cartao)
           if (coisa === null) return comOCartao
-          const deu = darNaFicha(comOCartao, coisa, 1, vagaNova)
+          const deu = darNaFicha(comOCartao, coisa, quantidade, vagaNova)
           if (deu === null) return comOCartao
           doDisco.recebido ??= deu
           return deu.personagem
@@ -568,14 +577,21 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
     const aba = abaDe(entrada)
     const frases = [
       ...(cartao !== undefined && aba !== undefined ? [fraseDoPor(entrada, ficha, aba, variacoesDe(ficha.id, personagens).length, resultado)] : []),
-      ...(recebido !== null ? [fraseDoPorNaMochila(coisa?.nome ?? entrada.nome, ficha, recebido)] : []),
+      ...(recebido !== null ? [fraseDoPorNaMochila(coisa?.nome ?? entrada.nome, ficha, recebido, coisa?.empilhavel === true ? quantidade : 1)] : []),
     ]
     avisar(frases.join(' '), () => mudarComAviso((lista) => trocarFicha(lista, ficha.id, (atual) => desfazerPosto(atual, desfazer))))
   }
 
-  const darPeloMenu = (entrada: EntradaDaBiblioteca, ficha: Personagem) => {
+  const darPeloMenu = (entrada: EntradaDaBiblioteca, ficha: Personagem, quantidade: number) => {
     setDarAberto(false)
-    void dar(entrada, ficha)
+    void dar(entrada, ficha, quantidade)
+  }
+
+  /** A coisa que a escolhida põe na mochila empilha? Só então o "Dar a…" pergunta quantos (a arma do catálogo e o item solto vão um por vez). */
+  const empilhaAoDar = (entrada: EntradaDaBiblioteca): boolean => {
+    if (ehDoAcervo(entrada)) return entrada.acervo.empilhavel
+    if (ehDoLivro(entrada) || entrada.tipo !== 'item') return false
+    return coisaLigada(entrada)?.empilhavel === true
   }
 
   /**
@@ -922,9 +938,10 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
         ultimaFicha={ultimaFichaAntes}
         estadoParaDar={(ficha) => estadoParaDar(entrada, ficha)}
         darAberto={darAberto}
+        darComQuantidade={empilhaAoDar(entrada)}
         confirmandoApagar={confirmandoApagar}
         onAbrirDar={(abrir) => setDarAberto(abrir ? 'clique' : false)}
-        onDar={(ficha) => darPeloMenu(entrada, ficha)}
+        onDar={(ficha, quantidade) => darPeloMenu(entrada, ficha, quantidade)}
         onTestar={() => testar(entrada)}
         onEditar={() => editar(entrada)}
         onTirar={(ficha) => void tirar(entrada, ficha)}

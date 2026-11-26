@@ -8,7 +8,7 @@ import type { IconeDaLinha } from '../../../lib/livros/linhaDaBiblioteca'
  * `currentColor`; a cor do grupo vem do CSS (`data-icone`).
  */
 
-export type IconeDaBiblioteca = IconeDaLinha | 'ferramenta' | 'seta' | 'lapis' | 'play' | 'dar' | 'lixo' | 'x' | 'todas' | 'pessoas' | 'livro' | 'mais' | 'busca' | 'alerta'
+export type IconeDaBiblioteca = IconeDaLinha | 'ferramenta' | 'seta' | 'lapis' | 'play' | 'dar' | 'lixo' | 'x' | 'todas' | 'pessoas' | 'livro' | 'mais' | 'menos' | 'busca' | 'alerta'
 
 const TRACOS: Readonly<Record<IconeDaBiblioteca, ReactNode>> = {
   impacto: (
@@ -65,6 +65,7 @@ const TRACOS: Readonly<Record<IconeDaBiblioteca, ReactNode>> = {
   ),
   livro: <path d="M3 2.5h8.5a1.5 1.5 0 0 1 1.5 1.5v9.5H4.5A1.5 1.5 0 0 1 3 12ZM3 12a1.5 1.5 0 0 1 1.5-1.5H13" />,
   mais: <path d="M8 3.5v9M3.5 8h9" />,
+  menos: <path d="M3.5 8h9" />,
   busca: (
     <>
       <circle cx="7" cy="7" r="4.5" />

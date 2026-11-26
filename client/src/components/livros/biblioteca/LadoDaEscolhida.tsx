@@ -4,13 +4,14 @@ import type { MecanicaV1 } from '../../../lib/batalha/mecanica/modelo'
 import type { FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import { pedacosDoPapel } from '../../../lib/batalha/mecanica/textoGerado'
 import { normalizarParaBusca } from '../../../lib/buscaNoLivro'
+import { ITEM_QUANTIDADE_MAX } from '../../../lib/items'
 import type { GrupoDeFichas } from '../../../lib/livros/gruposDaBiblioteca'
 import type { AlcanceDaLinha } from '../../../lib/livros/linhaDaBiblioteca'
 import type { CartaoDaFicha, Personagem } from '../../../lib/personagem'
 import { GlifoDoAlcance } from '../../batalha/alcance/EscolhaDaForma'
 import { PapelDoCartao } from '../../batalha/editor/PapelDoCartao'
 import { linhaCurtaDoPapel } from '../../batalha/editor/fraseDoPapel'
-import { escolhasDaFicha, Retrato } from '../comum'
+import { escolhasDaFicha, formatarNumero, Retrato } from '../comum'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
 import { IconeDaBiblioteca } from './IconeDaBiblioteca'
 import '../../batalha/combate.css'
@@ -34,20 +35,40 @@ interface DarAProps {
   ultimaFicha: string | null
   estadoDe: (ficha: Personagem) => EstadoParaDar
   botaoRef: RefObject<HTMLButtonElement | null>
-  onDar: (ficha: Personagem) => void
+  /** `quantidade` = quantos dar de uma vez (1 quando a coisa não empilha). */
+  onDar: (ficha: Personagem, quantidade: number) => void
   onFechar: () => void
   /** Aberto pela tecla D: aparece na hora. */
   instantaneo: boolean
+  /** A coisa empilha: o menu mostra o "Quantos" no topo. */
+  comQuantidade: boolean
 }
+
+/** O texto do "Quantos" como número: vazio ou zero = 1, acima do teto da pilha = o teto. */
+function quantidadeDoTexto(texto: string): number {
+  const lido = Number.parseInt(texto, 10)
+  if (!Number.isSafeInteger(lido) || lido < 1) return 1
+  return Math.min(lido, ITEM_QUANTIDADE_MAX)
+}
+
+/** Só algarismos, no máximo os do teto (9999 = 4): colar "40 balas" deixa "40". */
+const ALGARISMOS_DO_TETO = String(ITEM_QUANTIDADE_MAX).length
+/** Shift + seta anda de 10 em 10 no "Quantos". */
+const PASSO_LARGO = 10
 
 /**
  * "DAR A…" (protótipo `.dar`): a lista das fichas com busca, a última usada já
  * marcada (dar várias coisas à mesma pessoa é D e Enter). Setas andam, Enter
- * dá, Esc fecha e devolve o foco ao botão.
+ * dá, Esc fecha e devolve o foco ao botão. Na coisa que empilha, o "Quantos"
+ * no topo (começa em 1) diz quantos vão de uma vez; o foco continua na busca,
+ * então D e Enter seguem dando 1.
  */
-function DarA({ grupos, ultimaFicha, estadoDe, botaoRef, onDar, onFechar, instantaneo }: DarAProps) {
+function DarA({ grupos, ultimaFicha, estadoDe, botaoRef, onDar, onFechar, instantaneo, comQuantidade }: DarAProps) {
   const listaId = useId()
   const [filtro, setFiltro] = useState('')
+  const [textoDaQuantidade, setTextoDaQuantidade] = useState('1')
+  const quantidade = comQuantidade ? quantidadeDoTexto(textoDaQuantidade) : 1
+  const selecionarAoSoltar = useRef(false)
   const todas = grupos.flatMap((grupo) => grupo.fichas)
   const inicial = todas.find((ficha) => ficha.id === ultimaFicha && estadoDe(ficha).pode) ?? todas.find((ficha) => estadoDe(ficha).pode)
   const [marcada, setMarcada] = useState<string | null>(inicial?.id ?? null)
@@ -59,8 +80,11 @@ function DarA({ grupos, ultimaFicha, estadoDe, botaoRef, onDar, onFechar, instan
     .filter((grupo) => grupo.fichas.length > 0)
   const ordem = visiveis.flatMap((grupo) => grupo.fichas)
 
+  // O foco vai à busca só ao abrir: o `onFechar` muda a cada render de quem abre, e refocar ali tiraria o foco do "Quantos" no meio da digitação.
   useEffect(() => {
     campoRef.current?.focus()
+  }, [])
+  useEffect(() => {
     const aoClicar = (event: PointerEvent) => {
       const alvo = event.target
       if (alvo instanceof Node && (caixaRef.current?.contains(alvo) === true || botaoRef.current?.contains(alvo) === true)) return
@@ -74,6 +98,27 @@ function DarA({ grupos, ultimaFicha, estadoDe, botaoRef, onDar, onFechar, instan
     onFechar()
     botaoRef.current?.focus()
   }
+  const mudarQuantidade = (nova: number) => setTextoDaQuantidade(String(Math.min(Math.max(nova, 1), ITEM_QUANTIDADE_MAX)))
+  /*
+   * No "Quantos": setas sobem e descem (Shift, de 10 em 10); o Enter só firma o
+   * número e leva o foco à busca, onde a ficha marcada está à vista (o Enter de
+   * lá é que dá); o Esc fecha como na busca.
+   */
+  const teclarNaQuantidade = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      fechar()
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      mudarQuantidade(quantidade)
+      campoRef.current?.focus()
+    } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault()
+      const passo = event.shiftKey ? PASSO_LARGO : 1
+      mudarQuantidade(quantidade + (event.key === 'ArrowUp' ? passo : -passo))
+    }
+  }
   const teclar = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
       event.preventDefault()
@@ -84,7 +129,7 @@ function DarA({ grupos, ultimaFicha, estadoDe, botaoRef, onDar, onFechar, instan
     if (event.key === 'Enter') {
       event.preventDefault()
       const ficha = ordem.find((atual) => atual.id === marcada)
-      if (ficha !== undefined && estadoDe(ficha).pode) onDar(ficha)
+      if (ficha !== undefined && estadoDe(ficha).pode) onDar(ficha, quantidade)
       return
     }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
@@ -101,6 +146,46 @@ function DarA({ grupos, ultimaFicha, estadoDe, botaoRef, onDar, onFechar, instan
 
   return (
     <div className="mu-bib-pop mu-bib-dar" data-lado="esq" data-instantaneo={instantaneo ? '' : undefined} ref={caixaRef}>
+      {comQuantidade && (
+        <div className="mu-bib-dar__qtd">
+          <label htmlFor={`${listaId}-qtd`}>Quantos</label>
+          <span className="mu-bib-dar__passo" role="group" aria-label="Quantos dar">
+            {/* O pointerdown sem padrão deixa o foco onde estava (a busca): o Enter depois do clique ainda dá. */}
+            <button type="button" className="mu-bt mu-bt--ic mu-bt--p" aria-label="Um a menos" disabled={quantidade <= 1} onPointerDown={(event) => event.preventDefault()} onClick={() => mudarQuantidade(quantidade - 1)}>
+              <IconeDaBiblioteca nome="menos" />
+            </button>
+            <input
+              id={`${listaId}-qtd`}
+              className="mu-bib-dar__n mu-bib-num"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              spellCheck={false}
+              aria-describedby={`${listaId}-qtd-dica`}
+              value={textoDaQuantidade}
+              onChange={(event) => setTextoDaQuantidade(event.target.value.replace(/\D/g, '').slice(0, ALGARISMOS_DO_TETO))}
+              // Entrar no campo seleciona o número: digitar 40 troca o 1, não vira 140. O clique que dá o foco não desfaz a seleção ao soltar.
+              onPointerDown={(event) => {
+                selecionarAoSoltar.current = document.activeElement !== event.currentTarget
+              }}
+              onMouseUp={(event) => {
+                if (!selecionarAoSoltar.current) return
+                selecionarAoSoltar.current = false
+                event.preventDefault()
+              }}
+              onFocus={(event) => event.target.select()}
+              onBlur={() => mudarQuantidade(quantidade)}
+              onKeyDown={teclarNaQuantidade}
+            />
+            <button type="button" className="mu-bt mu-bt--ic mu-bt--p" aria-label="Um a mais" disabled={quantidade >= ITEM_QUANTIDADE_MAX} onPointerDown={(event) => event.preventDefault()} onClick={() => mudarQuantidade(quantidade + 1)}>
+              <IconeDaBiblioteca nome="mais" />
+            </button>
+          </span>
+          <span className="mu-it-sr" id={`${listaId}-qtd-dica`}>
+            Empilha: quem já tem soma na mesma vaga, até {formatarNumero(ITEM_QUANTIDADE_MAX)}.
+          </span>
+        </div>
+      )}
       <label className="mu-it-sr" htmlFor={`${listaId}-busca`}>
         Buscar ficha
       </label>
@@ -141,14 +226,14 @@ function DarA({ grupos, ultimaFicha, estadoDe, botaoRef, onDar, onFechar, instan
                   onPointerDown={(event) => event.preventDefault()}
                   onClick={() => {
                     setMarcada(ficha.id)
-                    if (estado.pode) onDar(ficha)
+                    if (estado.pode) onDar(ficha, quantidade)
                   }}
                 >
                   <span className="mu-bib-av" aria-hidden="true">
                     <Retrato imagem={ficha.retrato} nome={ficha.nome} tamanho="p" />
                   </span>
                   <span>{ficha.nome}</span>
-                  <small>{estado.frase}</small>
+                  <small>{estado.pode && quantidade > 1 ? `+${formatarNumero(quantidade)} ${estado.frase}` : estado.frase}</small>
                 </div>
               )
             })}
@@ -216,9 +301,11 @@ export interface LadoDaEscolhidaProps {
   estadoParaDar: (ficha: Personagem) => EstadoParaDar
   /** O "Dar a…" aberto, e por onde: pela tecla D abre sem animar (atalho de teclado não anima). */
   darAberto: false | 'clique' | 'tecla'
+  /** A escolhida empilha na mochila: o "Dar a…" pergunta quantos (a que não empilha vai uma por vez). */
+  darComQuantidade: boolean
   confirmandoApagar: boolean
   onAbrirDar: (aberto: boolean) => void
-  onDar: (ficha: Personagem) => void
+  onDar: (ficha: Personagem, quantidade: number) => void
   onTestar: () => void
   onEditar: () => void
   onTirar: (ficha: Personagem) => void
@@ -284,7 +371,7 @@ export function LadoDaEscolhida(props: LadoDaEscolhidaProps) {
             <IconeDaBiblioteca nome="dar" />
             Dar a…
           </button>
-          {props.darAberto !== false && podeGravar && <DarA instantaneo={props.darAberto === 'tecla'} grupos={props.gruposParaDar} ultimaFicha={props.ultimaFicha} estadoDe={props.estadoParaDar} botaoRef={darRef} onDar={props.onDar} onFechar={() => props.onAbrirDar(false)} />}
+          {props.darAberto !== false && podeGravar && <DarA instantaneo={props.darAberto === 'tecla'} comQuantidade={props.darComQuantidade} grupos={props.gruposParaDar} ultimaFicha={props.ultimaFicha} estadoDe={props.estadoParaDar} botaoRef={darRef} onDar={props.onDar} onFechar={() => props.onAbrirDar(false)} />}
         </span>
         <button type="button" className="mu-bt" aria-keyshortcuts="T" aria-disabled={motivoDoTeste !== null} aria-describedby={motivoDoTeste === null ? undefined : motivoId} onClick={() => motivoDoTeste === null && props.onTestar()}>
           <IconeDaBiblioteca nome="play" />
