@@ -2082,7 +2082,7 @@ export function ScenesSection({
                     <span className="lb-cenas__recuo" aria-hidden="true" />
                   ))}
                 {/* A cena aberta mostra o andar que o editor mostra, como na Visão geral. */}
-                {showThumbs && <MiniaturaDaCena map={maps?.get(scene.id)} piso={scene.active ? (pisoAberto ?? 0) : 0} />}
+                {showThumbs && <MiniaturaDaCena chave={scene.id} map={maps?.get(scene.id)} aberta={scene.active} />}
                 <button
                   type="button"
                   className="lb-cenas__nome"

@@ -299,6 +299,7 @@ import { acoesDoModeloDeCamadasCom, garantirAventura, garantirAventuraParaCamada
 import { sistemaPorId, useRpgStore } from './stores/rpgStore'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
+import { registrarFabricanteDeMiniatura } from './stores/miniaturasDasCenas'
 import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, MaterialDaParede, ParedesDoDesenho, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
 import { corDoPinoParaGravar, escalaDoPino, escalaDoPinoParaGravar, passageOf, pinKindChangePatch } from './lib/pins'
@@ -3931,6 +3932,8 @@ function App() {
             imageExporterRef.current = exporter
             if (exporter !== null) for (const seguir of esperasDoMapaRef.current.splice(0)) seguir()
           }}
+          // MINIATURAS DA LISTA DE CENAS: pintadas por este canvas, guardadas e enfileiradas em `stores/miniaturasDasCenas.ts`.
+          aoMudarFabricanteDeMiniatura={registrarFabricanteDeMiniatura}
           fantasmaDeTeste={fantasmaDaVisao}
           fichaDoFantasma={fichaDoFantasma}
           // BATALHA F2 (S4): a posição das fichas para os efeitos e a mira; "Escolher no mapa" ligado na aba Batalha = o clique mira.

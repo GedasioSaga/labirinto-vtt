@@ -7,6 +7,7 @@ import { MenuDaSelecao } from '../components/MenuDaSelecao'
 import { ComSaida } from '../components/grimorio/ComSaida'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
+import { MINIATURA_LARGURA_PX, MINIATURA_SUPERAMOSTRA, planoDaMiniatura, reduzirParaMiniatura, type FabricanteDeMiniatura } from '../lib/miniaturaDaCena'
 import { registrarNaSonda } from '../lib/sondaDeDesempenho'
 import { criarDesenhoSobPedido, type DesenhoSobPedido } from './desenhoSobPedido'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -790,6 +791,12 @@ interface PixiCanvasProps {
    */
   onImageExporterChange?: (exporter: MapImageExporter | null) => void
   /**
+   * MINIATURA DA LISTA DE CENAS (25/11/2026): entrega a função que pinta a
+   * miniatura de uma cena (a aberta ou outra) pelos renderers do editor, como
+   * o "Exportar imagem", e `null` quando o canvas desmonta.
+   */
+  aoMudarFabricanteDeMiniatura?: (fabricante: FabricanteDeMiniatura | null) => void
+  /**
    * RUÍDO NO MAPA — ponto de mundo do clique com o ruído armado (botão
    * "Ruído" da aba Jogo). Um clique, um ruído: o gesto já desarmou.
    */
@@ -950,6 +957,7 @@ function PixiCanvasDoContexto({
   focusObstacles,
   onShowShortcuts,
   onImageExporterChange,
+  aoMudarFabricanteDeMiniatura,
   fantasmaDeTeste = null,
   fichaDoFantasma = null,
 }: PixiCanvasProps & { onContextoPerdido: () => void; onNaoIniciou: (motivo: string) => void }) {
@@ -958,6 +966,10 @@ function PixiCanvasDoContexto({
   useEffect(() => {
     onImageExporterChangeRef.current = onImageExporterChange
   }, [onImageExporterChange])
+  const aoMudarFabricanteDeMiniaturaRef = useRef(aoMudarFabricanteDeMiniatura)
+  useEffect(() => {
+    aoMudarFabricanteDeMiniaturaRef.current = aoMudarFabricanteDeMiniatura
+  }, [aoMudarFabricanteDeMiniatura])
   const onLaserMoveRef = useRef(onLaserMove)
   useEffect(() => {
     onLaserMoveRef.current = onLaserMove
@@ -3561,23 +3573,37 @@ function PixiCanvasDoContexto({
         redrawProps()
       }
 
+      /** O arquivo do fundo importado da cena, ou `null` sem imagem de fundo. */
+      const arquivoDoFundo = (map: MapData): string | null => (map.background.type === 'image' && map.background.src ? map.background.src : null)
+
       /**
-       * "Exportar imagem": a cena inteira (`width*grid` × `height*grid`) num PNG,
-       * desenhada pelos MESMOS renderers do editor — chão, grade, paredes,
-       * fichas saem como o mestre vê. Tudo acontece dentro desta chamada, sem
-       * `await` entre trocar a cena e devolvê-la: a tela do mestre nunca pinta
-       * a cena de exportação (o `extract` desenha num alvo próprio, e o
-       * `base64` roda o desenho de forma síncrona antes de devolver a promessa).
+       * A IMAGEM DE UMA CENA, desenhada pelos MESMOS renderers do editor — chão,
+       * grade, paredes, fichas saem como o mestre vê: o "Exportar imagem" (a cena
+       * inteira num PNG, `exportImage`) e a miniatura da lista de Cenas (o pedaço
+       * com conteúdo, `gerarMiniatura`). Da troca da cena no palco até a volta não
+       * há `await`: a tela do mestre nunca pinta a cena da imagem (o `extract`
+       * desenha num alvo próprio e de forma síncrona, antes de devolver).
        *
        * Fica de fora o que é ferramenta do editor, não mapa: alças, contorno de
        * seleção, prévia de desenho, guias, sombra fora do mapa, sinais e laser.
        */
-      const exportImage = async (options: ImageExportOptions): Promise<Uint8Array> => {
-        // Exportar logo depois de trocar de andar: a cena precisa estar inteira nesta chamada.
-        if (paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
-        // O piso em edição, como o mestre o vê: os pisos empilhados sairiam um por cima do outro.
-        const source = doPisoEmEdicao(useMapStore.getState().map)
-        const mapaDaImagem = mapForImageExport(source, options)
+      const desenharImagemDaCena = async <T,>(pedido: {
+        /** O mapa da imagem, com as opções já aplicadas e um piso só. */
+        mapa: MapData
+        /** O pedaço do mundo que sai na imagem, em px de mundo. */
+        quadro: { x: number; y: number; width: number; height: number }
+        /** px da imagem por px de mundo. */
+        scale: number
+        /** A imagem é dos jogadores (sem "Incluir objetos só do mestre"): o telhado fica, cheio (`paintTelhados`). */
+        paraJogadores: boolean
+        /** A chave do terreno pintado à parte: a exportação e a miniatura não dividem a pintura uma da outra. */
+        cenaDoTerreno: string
+        /** O que só esta imagem esconde, além das camadas de trabalho (a miniatura: os nomes, borrão numa caixa de 40 px). */
+        esconderTambem: readonly Container[]
+        /** Tira a imagem do palco já trocado (`frame` em px da imagem). Roda UMA vez, dentro da troca. */
+        extrair: (frame: Rectangle) => T
+      }): Promise<T> => {
+        const { mapa: mapaDaImagem, quadro, scale, paraJogadores } = pedido
         // RELEVO e TEXTURAS da imagem: os dois renderers são assíncronos (esperam
         // a mão parar), e o que está no palco é o do mestre — com a sala secreta
         // e a pincelada na zona oculta. Os da imagem saem do mapa DELA, gerados
@@ -3588,19 +3614,34 @@ function PixiCanvasDoContexto({
           relevoLigado(mapaDaImagem) ? relevo.gerarAParte(entradaDoRelevo(mapaDaImagem)) : Promise.resolve(null),
           mapaDaImagem.texturas === undefined ? Promise.resolve(null) : texturas.pintarAParte(entradaDasTexturas(mapaDaImagem)),
           // TERRENO DO CHÃO: o da imagem sai das peças DELA (sem as escondidas e as da zona oculta).
-          terreno.pintarAParte({ cena: `${mapaDaImagem.id}|imagem`, mapa: mapaDaImagem, floor: contextoDeCamadas(mapaDaImagem).mestreVe('chao') ? mapaDaImagem.floor : EMPTY_FLOOR, importadas: mapaDaImagem.texturasImportadas }),
+          terreno.pintarAParte({ cena: pedido.cenaDoTerreno, mapa: mapaDaImagem, floor: contextoDeCamadas(mapaDaImagem).mestreVe('chao') ? mapaDaImagem.floor : EMPTY_FLOOR, importadas: mapaDaImagem.texturasImportadas }),
         ])
         const relevoDaImagem = valorOuNada(relevoGerado, '[exportar] o relevo da imagem falhou')
         const texturasDaImagem = valorOuNada(texturasPintadas, '[exportar] as texturas da imagem falharam')
         const terrenoDaImagem = valorOuNada(terrenoPintado, '[exportar] o terreno do chão da imagem falhou')
+        // O mapa fechou durante a espera: o palco já não existe para trocar.
+        if (destroyed) {
+          for (const pintura of [texturasDaImagem, terrenoDaImagem]) {
+            if (pintura === null) continue
+            soltarPintura(pintura)
+            pintura.destroy()
+          }
+          if (relevoDaImagem !== null) {
+            const textura = relevoDaImagem.texture
+            relevoDaImagem.destroy()
+            textura.destroy(true)
+          }
+          throw new Error('o mapa fechou antes de a imagem ficar pronta')
+        }
         // A espera acima deixa a montagem da cena andar: ela termina aqui, perto da troca.
         if (paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
-        const width = source.width * source.grid
-        const height = source.height * source.grid
-        const scale = imageExportScale(width, height)
+        // OUTRA CENA (a miniatura de uma cena de fundo), conferida aqui, já perto da troca: a montagem em fatias
+        // (`montagemDaCena`) começaria a dela e, na volta, de novo a do mestre — as duas terminam na hora, sem
+        // quadro pela metade. E o fundo importado do palco é o da aberta: só fica na imagem se for o mesmo arquivo.
+        const aberta = useMapStore.getState().map
+        const outraCena = mapaDaImagem.id !== aberta.id
+        const escondeOFundo = outraCena && arquivoDoFundo(mapaDaImagem) !== arquivoDoFundo(aberta)
         const editorCamera = camera
-        // Sem "Incluir objetos só do mestre", a imagem é dos jogadores: o telhado fica, cheio (`paintTelhados`).
-        const paraJogadores = !options.masterOnly
         // Camadas de trabalho do editor: o fundo (sombra fora do mapa), a
         // prévia do alinhamento e tudo o que a montagem põe depois dos pinos.
         const overlays = [
@@ -3636,19 +3677,25 @@ function PixiCanvasDoContexto({
           // E a CHUVA, a NEVE e o resto do Ambiente, pelo mesmo motivo; e o pincel do Ambiente que mora na sala
           // secreta, na zona oculta ou na casa de teto fechado sairia desenhado na imagem dos jogadores (FX-NEVOA2-062).
           neblinaDoEditor.ambiente,
+          ...pedido.esconderTambem,
         ]
         const wasVisible = overlays.map((overlay) => overlay.visible)
+        const fundoVisivel = backgroundSprite.visible
         // O TELHADO sai seco, como o chão: a neve do pincel que mora dentro da casa cobria o telhado dela na imagem.
         const climaDosTelhados = telhadosRenderer.clima()
-        let pending: Promise<string>
         try {
-          exportScene = { map: mapaDaImagem, viewport: { left: 0, top: 0, right: width, bottom: height }, paraJogadores }
+          exportScene = {
+            map: mapaDaImagem,
+            viewport: { left: quadro.x, top: quadro.y, right: quadro.x + quadro.width, bottom: quadro.y + quadro.height },
+            paraJogadores,
+          }
           // No lugar das camadas do mestre, na mesma altura: a textura por baixo da luz do relevo.
           if (texturasDaImagem !== null) texturas.camada.parent?.addChildAt(texturasDaImagem, texturas.camada.parent.getChildIndex(texturas.camada) + 1)
           if (terrenoDaImagem !== null) terreno.camada.parent?.addChildAt(terrenoDaImagem, terreno.camada.parent.getChildIndex(terreno.camada) + 1)
           if (relevoDaImagem !== null) relevoContainer.addChild(relevoDaImagem)
-          camera = { x: 0, y: 0, scale }
-          world.position.set(0, 0)
+          // O canto do quadro vai para o canto da imagem.
+          camera = { x: -quadro.x * scale, y: -quadro.y * scale, scale }
+          world.position.set(camera.x, camera.y)
           world.scale.set(scale)
           roomNamesRenderer.setCameraScale(scale)
           tokensRenderer.setCameraScale(scale)
@@ -3656,21 +3703,18 @@ function PixiCanvasDoContexto({
           nomesDosLugares.setCameraScale(scale)
           nomesDosLugares.concluirAparicao()
           for (const overlay of overlays) overlay.visible = false
+          if (escondeOFundo) backgroundSprite.visible = false
           telhadosRenderer.setClima(null)
           redrawScene()
+          // Outra cena densa: as camadas que a montagem adiou saem agora, antes do `extract`.
+          if (outraCena && paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
           // Telhado cheio na imagem dos jogadores: a pilha (`atualizarPilha`, em `redrawTokens`) pode repor o alfa do
           // "Transparente" do editor depois de `paintTelhados`; aqui vale a opacidade da camada, como na tela deles.
           if (paraJogadores) telhadosContainer.alpha = contextoDeCamadas(mapaDaImagem).alfa('telhados')
           // A escala do mundo mudou para a do PNG: o texto é rasterizado nela
           // (sem isto o nome sairia na resolução do zoom do editor, esticado).
           syncTextResolution()
-          pending = app.renderer.extract.base64({
-            target: app.stage,
-            frame: new Rectangle(0, 0, Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale))),
-            resolution: 1,
-            clearColor: EDITOR_BACKGROUND_COLOR,
-            format: 'png',
-          })
+          return pedido.extrair(new Rectangle(0, 0, Math.max(1, Math.round(quadro.width * scale)), Math.max(1, Math.round(quadro.height * scale))))
         } finally {
           exportScene = null
           if (texturasDaImagem !== null) {
@@ -3695,14 +3739,65 @@ function PixiCanvasDoContexto({
           overlays.forEach((overlay, i) => {
             overlay.visible = wasVisible[i]
           })
+          backgroundSprite.visible = fundoVisivel
           telhadosRenderer.setClima(climaDosTelhados)
           redrawScene()
+          // A cena do mestre volta inteira no mesmo quadro (a montagem em fatias recomeçaria por ela).
+          if (outraCena) montagemDaCena.concluir()
           // E de volta à resolução do zoom do editor.
           syncTextResolution()
         }
-        return dataUrlToBytes(await pending)
+      }
+
+      /**
+       * "Exportar imagem": a cena inteira (`width*grid` × `height*grid`) num PNG,
+       * o piso em edição como o mestre o vê (ver `desenharImagemDaCena`).
+       */
+      const exportImage = async (options: ImageExportOptions): Promise<Uint8Array> => {
+        // Exportar logo depois de trocar de andar: a cena precisa estar inteira nesta chamada.
+        if (paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
+        // O piso em edição, como o mestre o vê: os pisos empilhados sairiam um por cima do outro.
+        const source = doPisoEmEdicao(useMapStore.getState().map)
+        const width = source.width * source.grid
+        const height = source.height * source.grid
+        const base64 = await desenharImagemDaCena({
+          mapa: mapForImageExport(source, options),
+          quadro: { x: 0, y: 0, width, height },
+          scale: imageExportScale(width, height),
+          // Sem "Incluir objetos só do mestre", a imagem é dos jogadores: o telhado fica, cheio (`paintTelhados`).
+          paraJogadores: !options.masterOnly,
+          cenaDoTerreno: `${source.id}|imagem`,
+          esconderTambem: [],
+          extrair: (frame) => app.renderer.extract.base64({ target: app.stage, frame, resolution: 1, clearColor: EDITOR_BACKGROUND_COLOR, format: 'png' }),
+        })
+        return dataUrlToBytes(base64)
       }
       onImageExporterChangeRef.current?.(exportImage)
+
+      /**
+       * MINIATURA DA LISTA DE CENAS (25/11/2026): o pedaço de `cena` que tem
+       * conteúdo (`planoDaMiniatura`: o térreo ou o primeiro piso com algo, como
+       * os jogadores o veem e sem fichas), sem os nomes, pintado no dobro e
+       * reduzido a 256 × 192 em WebP. `null` = cena sem nada desenhado.
+       */
+      const gerarMiniatura: FabricanteDeMiniatura = async (cena) => {
+        if (destroyed) throw new Error('o mapa fechou antes da miniatura')
+        // A cena aberta no meio de uma montagem em fatias: termina antes, como no Exportar imagem.
+        if (paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
+        const plano = planoDaMiniatura(cena)
+        if (plano === null) return null
+        const fonte = await desenharImagemDaCena({
+          mapa: plano.mapa,
+          quadro: plano.quadro,
+          scale: (MINIATURA_LARGURA_PX * MINIATURA_SUPERAMOSTRA) / plano.quadro.width,
+          paraJogadores: true,
+          cenaDoTerreno: `${plano.mapa.id}|miniatura`,
+          esconderTambem: [roomNamesContainer, nomesDosLugaresContainer, textLabelsContainer],
+          extrair: (frame) => app.renderer.extract.canvas({ target: app.stage, frame, resolution: 1, clearColor: EDITOR_BACKGROUND_COLOR }),
+        })
+        return reduzirParaMiniatura(fonte)
+      }
+      aoMudarFabricanteDeMiniaturaRef.current?.(gerarMiniatura)
       // BATALHA F2 (S4): onde a ficha da cena aberta está na tela, pela câmera de agora. A
       // posição é a da store: a ficha do jogador que ainda desliza já responde no ponto final.
       const fichaNaTela = (tokenId: string): { x: number; y: number; raio: number } | null => {
@@ -10333,6 +10428,7 @@ function PixiCanvasDoContexto({
         cameraRequestRef.current = null
         editingRoomRef.current = null
         onImageExporterChangeRef.current?.(null)
+        aoMudarFabricanteDeMiniaturaRef.current?.(null)
         consultaDaFichaRef.current = null
         onFichaNaTelaRef.current?.(() => null)
         // O10: por último, com todos fora do relógio; o app volta ao desenho de todo quadro até morrer.
