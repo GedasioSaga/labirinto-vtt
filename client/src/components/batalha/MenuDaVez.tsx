@@ -84,8 +84,6 @@ export interface MenuDaVezProps {
   /** Fase 8: os itens com efeito da mochila de quem age (`golpesDeItem` / `golpesDosItensDoJogador`). Ausente = sem a tira Itens. */
   itens?: readonly GolpeNaTela[]
   alvos: readonly AlvoNaMira[]
-  /** "Escolher armas" (limite da ficha). `pendente` = ainda não escolheu. Ausente = sem limite. */
-  escolhaDeArmas?: { pendente: boolean; onAbrir: () => void }
   /** Q6: os contra-ataques guardados. Fora da vez, o menu só oferece eles; com mais de um, ele escolhe qual. */
   contras?: readonly ContraNoMenu[]
   /** Os golpes lidos fora da vez (a ação da vez não conta no contra-ataque). Ausente = os mesmos. */
@@ -180,7 +178,7 @@ const SEM_FORMAS: readonly FormaNoMenu[] = []
 const SEM_TRANSFORMACAO = 'Nenhuma transformação na ficha'
 
 export function MenuDaVez(props: MenuDaVezProps) {
-  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir, invocacao, travado = null, formasEsperando, medidores } = props
+  const { quem, acoes, carga, motivoDoConcentrar, alvos, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir, invocacao, travado = null, formasEsperando, medidores } = props
   // REQUISITOS G: as Partes da forma no topo ("Forma Híbrida · Parte 2"), das formas que o menu já tem.
   const partes = partesDaFicha(formas)
   const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
@@ -314,8 +312,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
         carga={carga}
         golpes={golpes}
         instantaneo={porTeclado}
-        armas={tela.de === 'atacar' ? escolhaDeArmas : undefined}
-        vazio={tela.de === 'atacar' ? 'Nenhuma arma levada para esta batalha.' : tela.de === 'item' ? 'Nenhum item com efeito na mochila.' : 'Nenhuma habilidade na ficha (nem nas transformações ligadas).'}
+        vazio={tela.de === 'atacar' ? 'Nenhuma arma equipada na mochila.' : tela.de === 'item' ? 'Nenhum item com efeito na mochila.' : 'Nenhuma habilidade na ficha (nem nas transformações ligadas).'}
         evoluir={tela.de === 'habilidade' ? evoluir : undefined}
         sugerida={props.sugestao?.chave ?? null}
         memoria={`${fichaDaMemoria}:${tela.de}`}

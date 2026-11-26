@@ -7,7 +7,7 @@ import { CENA_DA_ARENA, type ContaDoPlacar, type SessaoDaArena } from '../../lib
 import type { FormaPendente } from '../../lib/batalha/combate'
 import { contadorNoMenu } from '../../lib/batalha/contadorNoMenu'
 import type { Equipe } from '../../lib/batalha/equipes'
-import { armasDe, limiteDeArmas, recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
+import { recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
 import type { BatalhaEmTurnos } from '../../lib/batalha/ponte'
 import { alvosDeMod, selosDoToken } from '../../lib/batalha/selos'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
@@ -32,7 +32,6 @@ import { DarDanoDialog } from '../batalha/DarDanoDialog'
 import { faixaDoMestre, linhasDoMestre, type DadosDaCarta } from '../batalha/dadosDaFaixa'
 import { RECUSA_SEM_MOTIVO } from '../batalha/dadosDoMenu'
 import { tremer } from '../batalha/EfeitosDaBatalha'
-import { EscolhaDeArmas } from '../batalha/EscolhaDeArmas'
 import { FaixaDaOrdem } from '../batalha/FaixaDaOrdem'
 import { FormasPendentes } from '../batalha/FormasDoMestre'
 import { InvocacoesPendentes, PainelDoBando } from '../batalha/InvocacoesDoMestre'
@@ -78,7 +77,6 @@ export interface TelaDaArenaProps {
 type DialogoDaArena =
   | { tipo: 'dano'; tokenId: string }
   | { tipo: 'extras'; cartaId: string }
-  | { tipo: 'armas'; personagemId: string }
   | { tipo: 'selo'; tokenId: string; seloId: string | null }
   // U4: o "Ajustar..." da carta, como no mapa (HP, SP, Escudo e um modificador de atributo na cópia).
   | { tipo: 'ajustar'; tokenId: string; personagemId: string }
@@ -242,25 +240,13 @@ function DialogoNaArena({ dialogo, cena, sessao, mesa, sistema, onFechar }: Dial
   }
   const personagem = sessao.copias.find((candidato) => candidato.id === dialogo.personagemId)
   if (personagem === undefined) return null
-  if (dialogo.tipo === 'ajustar') {
-    return (
-      <AjustarDialog
-        quem={nomeDoToken(sessao, dialogo.tokenId)}
-        tokenId={dialogo.tokenId}
-        personagem={personagem}
-        sistema={sistema}
-        onConfirmar={PEDIDOS.ajustar}
-        onFechar={onFechar}
-      />
-    )
-  }
   return (
-    <EscolhaDeArmas
-      quem={personagem.nome}
-      armas={armasDe(personagem).map((arma) => ({ id: arma.id, nome: arma.nome.trim() || 'Arma sem nome', detalhe: arma.campos.dano ? `Dano ${arma.campos.dano}` : undefined }))}
-      limite={limiteDeArmas(personagem)}
-      escolhidas={turnos.combate?.[personagem.id]?.armas ?? null}
-      onConfirmar={(armas) => PEDIDOS.escolherArmas(personagem.id, armas)}
+    <AjustarDialog
+      quem={nomeDoToken(sessao, dialogo.tokenId)}
+      tokenId={dialogo.tokenId}
+      personagem={personagem}
+      sistema={sistema}
+      onConfirmar={PEDIDOS.ajustar}
       onFechar={onFechar}
     />
   )
@@ -369,8 +355,6 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
       if (carta.extra !== null) itens.push({ id: 'tirar-extra', rotulo: 'Tirar esta carta extra', onEscolher: () => loja.removerCarta(CENA_DA_ARENA, carta.id) })
       itens.push({ id: 'dano', secao: 'Combate', rotulo: 'Dar dano…', detalhe: 'Gasta o Escudo primeiro; entra no registro', onEscolher: () => setDialogo({ tipo: 'dano', tokenId: carta.tokenId }) })
       itens.push({ id: 'acoes-extras', rotulo: 'Ações extras…', detalhe: 'Simples, Bônus e Movimento a mais na vez desta carta', onEscolher: () => setDialogo({ tipo: 'extras', cartaId: carta.id }) })
-      if (personagemId !== null)
-        itens.push({ id: 'armas', rotulo: 'Armas desta batalha…', detalhe: 'Trocar as armas levadas, dentro do limite da ficha', onEscolher: () => setDialogo({ tipo: 'armas', personagemId }) })
       const forma = personagemId === null ? undefined : turnos.formas?.[personagemId]
       if (forma !== undefined && carta.forma) {
         itens.push({

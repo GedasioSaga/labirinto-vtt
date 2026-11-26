@@ -366,8 +366,6 @@ export interface ListaDeTecnicasProps {
   /** Achado 6: a chave do golpe que o app sugere para a vez do NPC (a marca "sugestão" na tira). */
   sugerida?: string | null
   onVoltar: () => void
-  /** "Escolher armas" no topo (o limite da ficha, Q1/Q8). `pendente` = ainda não escolheu. */
-  armas?: { pendente: boolean; onAbrir: () => void }
   /** Aberta pelo teclado: as tiras entram na hora. */
   instantaneo?: boolean
   /** O que dizer sem golpe nenhum. */
@@ -423,29 +421,25 @@ function mesmoLugar(a: LugarDaLeitura, b: LugarDaLeitura): boolean {
   return a.largura === b.largura && a.topo === b.topo && a.altura === b.altura
 }
 
-export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, sugerida = null, onVoltar, armas, instantaneo, vazio, evoluir, memoria, forcar = false, medidores, partes }: ListaDeTecnicasProps) {
+export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, sugerida = null, onVoltar, instantaneo, vazio, evoluir, memoria, forcar = false, medidores, partes }: ListaDeTecnicasProps) {
   const raiz = useRef<HTMLDivElement>(null)
   const coluna = useRef<HTMLUListElement>(null)
   const leitura = useRef<HTMLDivElement>(null)
   const tiras = useRef<(HTMLButtonElement | null)[]>([])
   /** O último toque (não mouse) numa tira: o primeiro toque lê, o segundo escolhe. */
   const toque = useRef<{ indice: number; jaLia: boolean } | null>(null)
-  // D2: abre na última técnica escolhida (memória da ficha); senão na primeira técnica ("Escolher armas" só quando falta escolher).
+  // D2: abre na última técnica escolhida (memória da ficha); senão na primeira técnica.
   const [atual, setAtual] = useState(() => {
-    const deslocamento = armas !== undefined ? 1 : 0
     const lembrada = memoria === undefined ? undefined : ultimaTecnica.get(memoria)
-    const indiceLembrado = golpes.findIndex((golpe) => golpe.chave === lembrada)
-    if (indiceLembrado >= 0) return indiceLembrado + deslocamento
-    return armas !== undefined && (armas.pendente || golpes.length === 0) ? 0 : deslocamento
+    return Math.max(0, golpes.findIndex((golpe) => golpe.chave === lembrada))
   })
   const [comFoco, setComFoco] = useState(false)
   /** `null` = o padrão do lugar: aberta ao lado; fechada no lugar (aberta, ela empurra as tiras). */
   const [lendoEscolhido, setLendo] = useState<boolean | null>(null)
   const [lugar, setLugar] = useState<LugarDaLeitura>({ tipo: 'lugar' })
-  const temArmas = armas !== undefined
-  const total = golpes.length + (temArmas ? 1 : 0)
+  const total = golpes.length
   tiras.current.length = total
-  const golpeAtual = golpes[atual - (temArmas ? 1 : 0)]
+  const golpeAtual = golpes[atual]
   const lendo = lendoEscolhido ?? lugar.tipo === 'lado'
   const idDaLeitura = golpeAtual === undefined ? undefined : `bt-leitura-${golpeAtual.chave}`
   const chaveAtual = golpeAtual?.chave ?? null
@@ -576,29 +570,8 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
         <p className="bt-vez__aviso">{vazio}</p>
       ) : (
         <ul ref={coluna} className="bt-vez__tiras" aria-label={titulo} onScroll={semRolarDeLado}>
-          {temArmas && (
-            <li>
-              <Tira
-                indice={0}
-                chave="escolher-armas"
-                nome={armas.pendente ? 'Escolher armas' : 'Trocar armas'}
-                detalhe={armas.pendente ? 'A ficha tem limite de armas por batalha: escolha antes de atacar' : 'Troque as armas levadas, sempre dentro do limite'}
-                pequena
-                esta={atual === 0}
-                onFoco={() => setAtual(0)}
-                onApontar={() => {
-                  setAtual(0)
-                  focoSegueOMouse(tiras.current[0])
-                }}
-                onEscolher={armas.onAbrir}
-                refDaTira={(elemento) => {
-                  tiras.current[0] = elemento
-                }}
-              />
-            </li>
-          )}
           {golpes.map((golpe, i) => {
-            const indice = i + (temArmas ? 1 : 0)
+            const indice = i
             const aberta = lendo && atual === indice
             const id = `bt-leitura-${golpe.chave}`
             return (

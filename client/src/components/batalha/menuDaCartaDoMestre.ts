@@ -61,7 +61,7 @@ export function itensDaCartaDoMestre(carta: DadosDaCarta, { sceneKey, dados, tur
     onEscolher: () => store.adicionarCartaExtra(sceneKey, carta.tokenId, indice + 1, 'sempre'),
   })
   if (carta.extra !== null) itens.push({ id: 'tirar-extra', rotulo: 'Tirar esta carta extra', onEscolher: () => store.removerCarta(sceneKey, carta.id) })
-  // F2: o golpe à mão do mestre, as ações a mais e as armas levadas.
+  // F2: o golpe à mão do mestre e as ações a mais.
   itens.push({
     id: 'dano',
     secao: 'Combate',
@@ -86,14 +86,7 @@ export function itensDaCartaDoMestre(carta: DadosDaCarta, { sceneKey, dados, tur
     abreNoApp: true,
     onEscolher: () => abrirPelaCarta(sceneKey, { tipo: 'dialogo', dialogo: { tipo: 'extras', cartaId: carta.id } }),
   })
-  if (personagemId !== null)
-    itens.push({
-      id: 'armas',
-      rotulo: 'Armas desta batalha…',
-      detalhe: 'Trocar as armas levadas, dentro do limite da ficha',
-      abreNoApp: true,
-      onEscolher: () => abrirPelaCarta(sceneKey, { tipo: 'dialogo', dialogo: { tipo: 'armas', personagemId } }),
-    })
+  // ITENS REFEITOS, E6a: "Armas desta batalha…" saiu: o Atacar mostra as equipadas na mochila (equipar não gasta ação).
   // F3: a forma ativada pelo menu. Desfazer é ação livre, mas só na vez da carta (a store confere a vez).
   const forma = personagemId === null ? undefined : turnos.formas?.[personagemId]
   if (forma !== undefined && carta.forma) {

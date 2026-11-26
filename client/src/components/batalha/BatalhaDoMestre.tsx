@@ -15,7 +15,6 @@ import { medidoresDaFicha, perguntasDosRequisitos, reacoesComOsRequisitos } from
 import type { EvoluirNaTela } from './ListaDeTecnicas'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
-import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { fichasComAsMochilasDosBonecos } from '../../lib/batalha/municaoDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { lembreteDoSelo, saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
@@ -41,7 +40,6 @@ import { usePassarVezDoMestre } from './passarVezDoMestre'
 import { recursosDaCarta } from './dadosDaFaixa'
 import { invocacaoDaFicha, pedidoDeInvocacao } from './dadosDaInvocacao'
 import { RECUSA_SEM_MOTIVO, armaPadraoNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, golpesDeItem } from './dadosDoMenu'
-import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { InvocacoesPendentes, PainelDoBando, type PendenciaNaTela } from './InvocacoesDoMestre'
 import { FormasPendentes } from './FormasDoMestre'
 import { alvosDaOrdem, alvosDoDarDano, nomeDaFicha, pendenciasDeInvocacaoNaTela, vezDoBandoNaTela, type MesaDoMestre } from './mesaDoMestre'
@@ -77,7 +75,6 @@ const MESTRE = { tipo: 'mestre' } as const
 export type DialogoDoMestre =
   | { tipo: 'dano'; tokenId: string | null }
   | { tipo: 'extras'; cartaId: string }
-  | { tipo: 'armas'; personagemId: string }
   | { tipo: 'selo'; tokenId: string; seloId: string | null }
   /** R4 (lote de 01/11): o "Ajustar..." da carta. */
   | { tipo: 'ajustar'; tokenId: string; personagemId: string }
@@ -959,27 +956,13 @@ export function DialogoDoMestreNaCena({ sceneKey, dialogo, onFechar }: { sceneKe
       />
     )
   }
-  if (dialogo.tipo === 'extras') {
-    const carta = turnos.cartas.find((candidata) => candidata.id === dialogo.cartaId)
-    if (carta === undefined) return null
-    return (
-      <AcoesExtrasDialog
-        quem={nomeDaFicha(mesa, carta.tokenId, carta)}
-        inicial={turnos.extras[carta.id] ?? null}
-        onConfirmar={(extras) => pedidos.darAcoesExtras(carta.id, extras)}
-        onFechar={onFechar}
-      />
-    )
-  }
-  const personagem = mesa.personagens.find((candidato) => candidato.id === dialogo.personagemId)
-  if (personagem === undefined) return null
+  const carta = turnos.cartas.find((candidata) => candidata.id === dialogo.cartaId)
+  if (carta === undefined) return null
   return (
-    <EscolhaDeArmas
-      quem={personagem.nome}
-      armas={armasDe(personagem).map((arma) => ({ id: arma.id, nome: arma.nome.trim() || 'Arma sem nome', detalhe: arma.campos.dano ? `Dano ${arma.campos.dano}` : undefined }))}
-      limite={limiteDeArmas(personagem)}
-      escolhidas={turnos.combate?.[personagem.id]?.armas ?? null}
-      onConfirmar={(armas) => pedidos.escolherArmas(personagem.id, armas)}
+    <AcoesExtrasDialog
+      quem={nomeDaFicha(mesa, carta.tokenId, carta)}
+      inicial={turnos.extras[carta.id] ?? null}
+      onConfirmar={(extras) => pedidos.darAcoesExtras(carta.id, extras)}
       onFechar={onFechar}
     />
   )

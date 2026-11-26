@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { motivoDoEvoluirNaFicha } from '../../lib/batalha/escolhaEEvolucao'
-import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { saidasTiradas, travaDosSelos } from '../../lib/batalha/condicoes'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
@@ -21,7 +20,6 @@ import { CaixaDeReacao, type BonusDaReacaoNaTela, type ReacaoNaCaixa } from './C
 import { alvosDoRecorte, alvosNaOrdemDaMira, armaPadraoNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, golpesDosItensDoJogador, type VidaNaMira } from './dadosDoMenu'
 import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { invocacaoDaFicha, motivoNoJogador, pedidoDeInvocacao } from './dadosDaInvocacao'
-import { EscolhaDeArmas } from './EscolhaDeArmas'
 import type { EvoluirNaTela } from './ListaDeTecnicas'
 import { MenuDaVez, textoDaEspera, textoDoMestreDecidindo, type ContraNoMenu, type InvocarNoMenu } from './MenuDaVez'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
@@ -191,9 +189,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   useMirasDaMesaNoChao(mirasDaMesa, mapa)
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
-  const [armasDe_, setArmasDe] = useState<string | null>(null)
   const [palco, setPalco] = useState<PalcoDosEfeitos>(null)
-  const dispensadas = useRef(new Set<string>())
 
   const nomeDe = useMemo(() => {
     const porToken = new Map<string, string>()
@@ -492,13 +488,6 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         ? [{ golpeId: null, tokenId: minhaFicha.tokenId, atacante: '', nome: '', dano: null, ...(bonusDaLivre === undefined ? {} : { bonus: bonusDaLivre }) }]
         : []
 
-  // ---- as armas: no começo, com limite e sem escolha, a janela abre (uma vez; Cancelar não reabre)
-  const semEscolha = (estado.meus ?? []).find((meu) => meu.limiteDeArmas !== null && meu.armas === null && !dispensadas.current.has(meu.personagemId))
-  useEffect(() => {
-    if (semEscolha !== undefined && armasDe_ === null) setArmasDe(semEscolha.personagemId)
-  }, [semEscolha, armasDe_])
-  const personagemDasArmas = armasDe_ === null ? null : (meus.find((candidato) => candidato.id === armasDe_) ?? null)
-  const combateDasArmas = armasDe_ === null ? undefined : estado.meus?.find((meu) => meu.personagemId === armasDe_)
 
   // Na SUA VEZ o menu novo espera a faixa sair (tocando ou ainda na fila); nos outros palcos ele só some e volta.
   /** A vez que vai com o pedido: o contra-ataque é fora da vez (`null`); o resto, a carta e a rodada de agora. */
@@ -583,11 +572,6 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             golpesDoContra={menu.contra}
             alvos={menu.alvos}
             contras={contrasNoMenu}
-            escolhaDeArmas={
-              personagemId === undefined || meuCombate === undefined || meuCombate.limiteDeArmas === null
-                ? undefined
-                : { pendente: meuCombate.armas === null, onAbrir: () => setArmasDe(personagemId) }
-            }
             onAgir={agirOuEscolher}
             // U2: o motivo da regra para o pedido recusado na hora, lido com a mesma vez do pedido.
             motivoDaRecusa={motivoDaRecusa === undefined ? undefined : (pedido) => motivoDaRecusa(vezDoPedido(pedido), pedido)}
@@ -679,19 +663,6 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             }}
           />
         </div>
-      )}
-      {personagemDasArmas !== null && combateDasArmas !== undefined && armasDe_ !== null && (
-        <EscolhaDeArmas
-          quem={personagemDasArmas.nome}
-          armas={armasDe(personagemDasArmas).map((arma) => ({ id: arma.id, nome: arma.nome.trim() || 'Arma sem nome', detalhe: arma.campos.dano ? `Dano ${arma.campos.dano}` : undefined }))}
-          limite={combateDasArmas.limiteDeArmas}
-          escolhidas={combateDasArmas.armas}
-          onConfirmar={(armas) => conexao.escolherArmas(armasDe_, armas)}
-          onFechar={() => {
-            dispensadas.current.add(armasDe_)
-            setArmasDe(null)
-          }}
-        />
       )}
       <AvisoDaRecusa recusa={recusa} />
 
