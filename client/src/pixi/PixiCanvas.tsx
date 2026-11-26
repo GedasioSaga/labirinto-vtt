@@ -284,7 +284,7 @@ import type { LugarDoDocumento } from '../documentos/tipos'
 import { useDocumentosStore } from '../stores/documentosStore'
 import { useDocumentosDoMestreStore } from '../components/documentos/documentosDoMestreStore'
 import { findConcealZoneAt } from '../lib/concealZones'
-import { findPinAt, pinKindAfterShortcut, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
+import { findPinAt, pinKindAfterShortcut, pinNameScale, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { pinosDosDesafios } from '../lib/desafios'
 import { useDesafiosStore } from '../stores/desafiosStore'
 import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
@@ -2741,7 +2741,7 @@ function PixiCanvasDoContexto({
         const pinos = visiblePins([...map.pins, ...selosDoPiso(map)], map).filter((pin) => !pin.hidden)
         for (const { no, itens } of distribuir(pinos, pilha.nosDaFaixa('pinsContainer'), (p: Pin) => camadas.camadaDe('pino', p))) {
           // O piso do pino reduzido segue o da assinatura (`shapesRedraw`): só com pino reduzido no mapa.
-          pinosPorNo.de(no).draw(no, itens, selectedPinId ?? seloAberto(), semPar, pinSizeScale(camera.scale), pinSizeFloorFor(pinos, camera.scale))
+          pinosPorNo.de(no).draw(no, itens, selectedPinId ?? seloAberto(), semPar, pinSizeScale(camera.scale), pinSizeFloorFor(pinos, camera.scale), pinNameScale(camera.scale))
         }
         // BILHETE NO LUGAR: o mestre vê toda marca que os jogadores deixaram,
         // por baixo dos pinos (índice 0 do mesmo container).

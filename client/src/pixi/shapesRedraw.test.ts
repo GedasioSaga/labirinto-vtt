@@ -191,7 +191,8 @@ describe('createShapesRedrawer', () => {
     redraw(snapshot(map, { selection }))
     take()
     redraw(snapshot(map, { selection, cameraScale: 0.5 }))
-    expect(take()).toEqual(['regions', 'walls', 'stairs', 'lights', 'handles'])
+    // Os pinos entram desde 26/11/2026: em 50% o nome deles passa do piso de tela (`pinNameScale`).
+    expect(take()).toEqual(['regions', 'walls', 'stairs', 'lights', 'pins', 'handles'])
   })
 
   it('zoom com desenho selecionado repinta o desenho (contorno de seleção), não os rótulos', () => {

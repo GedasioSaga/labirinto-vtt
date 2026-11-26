@@ -1,7 +1,7 @@
 import type { MapData } from '../types/map'
 import type { DrawingTool, SelectionKind } from '../types/tools'
 import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
-import { pinSizeFloor, pinSizeFloorFor, pinSizeScale } from '../lib/pins'
+import { pinNameScale, pinSizeFloor, pinSizeFloorFor, pinSizeScale } from '../lib/pins'
 import { desafiosDo, tamanhoDoSelo } from '../lib/desafios'
 import { abrivelParaJogador } from '../lib/conteudoDoObjeto'
 import { resolveHighlightedRegionId } from './drawRegions'
@@ -299,6 +299,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
         hidden,
         snapshot.selectedPinId,
         pinSizeScale(cameraScale),
+        // O piso de tela do nome do pino (26/11/2026), em degraus: repinta só ao passar de um.
+        pinNameScale(cameraScale),
         // O selo reduzido (`Desafio.tamanho` < 1) também tem piso, como o pino reduzido.
         pinSizeFloorFor(map.pins, cameraScale) > 0 || desafiosDo(map).some((desafio) => tamanhoDoSelo(desafio) < 1) ? pinSizeFloor(cameraScale) : 0,
         ...snapshot.travel,

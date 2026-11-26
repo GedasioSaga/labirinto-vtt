@@ -43,6 +43,28 @@ export function pinSizeScale(cameraScale: number): number {
   return Math.max(1, PIN_MIN_SCREEN_HEIGHT / (PIN_HEIGHT * cameraScale))
 }
 
+/** A letra do nome do pino no mundo (`pixi/drawPins.ts`). */
+export const PIN_NAME_FONT_SIZE = 11
+/**
+ * O menor tamanho do nome na TELA (qualidade de vida, 26/11/2026): no zoom com
+ * que o mapa abre (33%) o nome virava um risco, e em 71% tinha uns 6 px.
+ */
+export const PIN_NAME_MIN_SCREEN_PX = 11
+/** Degrau do crescimento do nome: o pino só repinta ao passar de um degrau, não a cada passo da roda. */
+const PIN_NAME_SCALE_STEP = 0.25
+
+/**
+ * Quantas vezes o nome do pino cresce no mundo para não ficar abaixo de
+ * `PIN_NAME_MIN_SCREEN_PX` na tela: 1 de perto, maior de longe, em degraus de
+ * `PIN_NAME_SCALE_STEP` (arredonda para cima, então nunca fica abaixo do piso).
+ * Escala inválida devolve 1, como `pinSizeScale`.
+ */
+export function pinNameScale(cameraScale: number): number {
+  if (!Number.isFinite(cameraScale) || cameraScale <= 0) return 1
+  const exato = PIN_NAME_MIN_SCREEN_PX / (PIN_NAME_FONT_SIZE * cameraScale)
+  return Math.max(1, Math.ceil(exato / PIN_NAME_SCALE_STEP) * PIN_NAME_SCALE_STEP)
+}
+
 /** Tamanho do pino (`Pin.escala`, fatia 14): de metade a três vezes o de sempre. */
 export const PIN_ESCALA_MIN = 0.5
 export const PIN_ESCALA_MAX = 3

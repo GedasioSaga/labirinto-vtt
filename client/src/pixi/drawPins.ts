@@ -5,6 +5,7 @@ import {
   PIN_HEAD_OFFSET,
   PIN_HEAD_RADIUS,
   PIN_HEIGHT,
+  PIN_NAME_FONT_SIZE,
   PIN_CONTROLE_SYMBOL,
   PIN_LEVER_SYMBOL,
   PIN_SYMBOLS,
@@ -45,6 +46,8 @@ export interface PinsRenderer {
     unlinkedIds?: ReadonlySet<string>,
     sizeScale?: number,
     sizeFloor?: number,
+    /** O crescimento do NOME no zoom afastado (`pinNameScale`); ausente = o do pino. */
+    nameScale?: number,
   ) => void
 }
 
@@ -322,8 +325,29 @@ function drawArrivalHead(graphics: Graphics, pin: Pin, headY: number, k: number)
 }
 
 /** O nome do mestre: letra pequena e clara, a da parede do minimapa — rótulo, não chamariz. */
-const NAME_FONT_SIZE = 11
+const NAME_FONT_SIZE = PIN_NAME_FONT_SIZE
 const NAME_COLOR = 0xe8e2d0
+/**
+ * A pílula escura atrás do nome (qualidade de vida, 26/11/2026), como a do nome
+ * da sala: o nome lê sobre qualquer chão. Folgas em px de mundo do nome sem
+ * crescer; a largura sai da medida do texto (estimada onde não dá para medir).
+ */
+const NAME_PILL_ALPHA = 0.72
+const NAME_PILL_PAD_X = 4
+const NAME_PILL_PAD_Y = 1
+/** Largura média de uma letra, em frações da fonte, quando o texto não pode ser medido (teste sem canvas). */
+const NAME_CHAR_WIDTH = 0.55
+
+/** Largura do nome sem escala: a medida do Pixi, ou a estimada onde não há canvas para medir. */
+function larguraDoNome(label: Text): number {
+  try {
+    const largura = label.getLocalBounds().width
+    if (Number.isFinite(largura) && largura > 0) return largura
+  } catch {
+    // jsdom não tem canvas 2D: cai na estimativa abaixo.
+  }
+  return Math.max(1, label.text.length) * NAME_FONT_SIZE * NAME_CHAR_WIDTH
+}
 /** Contorno escuro do nome: legível sobre chão claro e sobre o preto da névoa. */
 const NAME_OUTLINE = { color: PIN_OUTLINE, width: 3 } as const
 /** Folga entre a cabeça do pino e o começo do nome, em px de mundo. */
@@ -341,6 +365,8 @@ export interface PinsRendererOptions {
 export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRenderer {
   const showNames = options.showNames === true
   const graphics = new Graphics()
+  /** As pílulas dos nomes: fora do `graphics` das cabeças, para a caixa do pino continuar sendo só o pino. */
+  const pilulas = new Graphics()
   const glyphs = new Map<string, Text>()
   /** Tinta com que cada glifo foi pintado por último (nasce `GLYPH_COLOR`). */
   const glyphInk = new Map<string, number>()
@@ -348,7 +374,7 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
   const names = new Map<string, Text>()
 
   /** O nome ao lado da cabeça, à direita e na altura dela; sem nome, o rótulo some. */
-  function drawName(container: Container, pin: Pin, headY: number, k: number, kp: number): void {
+  function drawName(container: Container, pin: Pin, headY: number, k: number, kp: number, escalaDoNome: number): void {
     const nome = showNames ? cleanPinName(pin.nome) : ''
     let label = names.get(pin.id)
     if (nome === '') {
@@ -364,10 +390,18 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
     label.text = nome
     // Cresce junto com o pino (`sizeScale`): senão a cabeça maior cobre o nome.
     // O tamanho do pino (`kp`, fatia 14) afasta o nome da cabeça maior, mas a
-    // letra segue a do zoom: rótulo, não chamariz.
-    label.position.set(pin.x + (PIN_HEAD_RADIUS + NAME_GAP) * kp, headY)
-    label.scale.set(k)
+    // letra segue a do zoom: rótulo, não chamariz. De longe, o piso de tela do
+    // nome (`escalaDoNome`) vence quando passa do pino.
+    const s = Math.max(k, escalaDoNome)
+    const esquerda = pin.x + (PIN_HEAD_RADIUS + NAME_GAP) * kp
+    label.position.set(esquerda, headY)
+    label.scale.set(s)
     label.visible = true
+    // A pílula num Graphics só dela (acima das cabeças, abaixo dos textos), com a folga para os dois lados do nome.
+    const altura = (NAME_FONT_SIZE + 2 * NAME_PILL_PAD_Y) * s
+    pilulas
+      .roundRect(esquerda - NAME_PILL_PAD_X * s, headY - altura / 2, (larguraDoNome(label) + 2 * NAME_PILL_PAD_X) * s, altura, altura / 2)
+      .fill({ color: PIN_OUTLINE, alpha: NAME_PILL_ALPHA })
   }
 
   function draw(
@@ -377,9 +411,14 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
     unlinkedIds?: ReadonlySet<string>,
     sizeScale = 1,
     sizeFloor = 0,
+    nameScale = 1,
   ): void {
     if (graphics.parent !== container) container.addChildAt(graphics, 0)
     graphics.clear()
+    if (showNames) {
+      if (pilulas.parent !== container) container.addChildAt(pilulas, container.getChildIndex(graphics) + 1)
+      pilulas.clear()
+    }
     // Fator inválido desenharia o pino com tamanho zero ou infinito: vale o de mundo.
     const k = Number.isFinite(sizeScale) && sizeScale > 0 ? sizeScale : 1
 
@@ -432,7 +471,7 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
       else if (alavanca) drawLeverHead(graphics, pin, headY, kp, cores)
       else if (minigame) drawSeloHead(graphics, pin, headY, kp)
       else drawMarkerHead(graphics, pin, headY, kp, cores)
-      drawName(container, pin, headY, k, kp)
+      drawName(container, pin, headY, k, kp, Number.isFinite(nameScale) && nameScale > 0 ? nameScale : 1)
 
       let glyph = glyphs.get(pin.id)
       if (!glyph) {
