@@ -74,20 +74,24 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
    * o que a prévia mostra é literalmente o que vai ser criado.
    *
    * Mapa novo nasce com "Fora do Chão" livre (`lib/offFloor.ts`).
+   *
+   * O nome fica FORA da prévia: ele não aparece no desenho, e com ele na
+   * dependência cada letra digitada trocava o objeto e a prévia redesenhava.
+   * O nome entra só no mapa entregue pelo "Criar mapa".
    */
   const draftMap = useMemo<MapData>(
     () =>
       comForaDoChaoDeCenaNova({
-        ...mapFactory.createEmptyMap(mapId, name.trim() || NOME_PADRAO_DO_MAPA, safeWidth, safeHeight, safeGrid),
+        ...mapFactory.createEmptyMap(mapId, NOME_PADRAO_DO_MAPA, safeWidth, safeHeight, safeGrid),
         gridShape,
         showGrid,
       }),
-    [mapId, name, safeWidth, safeHeight, safeGrid, gridShape, showGrid],
+    [mapId, safeWidth, safeHeight, safeGrid, gridShape, showGrid],
   )
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
-    onCreate(draftMap)
+    onCreate({ ...draftMap, name: name.trim() || NOME_PADRAO_DO_MAPA })
   }
 
   const pxWidth = safeWidth * safeGrid
