@@ -1,12 +1,16 @@
 /**
  * CARACTERÍSTICAS ESPECIAIS DA FICHA (protótipo aprovado em 23/11/2026,
  * docs/design/caracteristicas/): o bloco na coluna da esquerda da ficha, abaixo
- * dos atributos. Duas por enquanto:
+ * dos atributos. Três por enquanto:
  *  - Companion: um GRUPO de fichas (NPC ou invocação do livro) que andam com o
  *    personagem, com nome e limite próprios ("Lovecats, leva até 3"). A ficha
  *    pode ter vários grupos. Cada ligada tem ficha, vida e nível próprios.
  *  - Cegueira: a visão cai pela metade; quem fica entre a metade e o raio normal
  *    vira uma onda no chão (a frente da Cegueira lê só `temCegueira`).
+ *  - Recuperação (pedido do dono de 26/11/2026: "coloca um campo perguntando se
+ *    ele recupera vida ou SP por turno"): o campo "Recupera por turno: nada /
+ *    Vida / SP" e quanto. "Nada" = a característica ausente (a ficha antiga é
+ *    "nada"). A batalha aplica no começo da vez (`stores/batalha/vez.ts`).
  *
  * Só o mestre cria, muda ou tira (a edição do jogador parte da ficha gravada,
  * `net/edicaoDoPersonagem.ts`). Vai ao jogador junto com a ficha: ele vê os
@@ -64,7 +68,25 @@ export interface CaracteristicaCegueira {
   id: string
 }
 
-export type Caracteristica = CaracteristicaCompanion | CaracteristicaCegueira
+/** O que a ficha recupera por turno: a Vida (HP) ou o SP. */
+export type RecursoDaRecuperacao = 'hp' | 'sp'
+
+/** O teto do "quanto" (um número ou uma fórmula curta, "Vigor / 2"). */
+export const QUANTO_DA_RECUPERACAO_MAX = 80
+
+export interface CaracteristicaRecuperacao {
+  tipo: 'recuperacao'
+  id: string
+  recurso: RecursoDaRecuperacao
+  /**
+   * Um número ("10") ou uma fórmula ("Vigor / 2"), lida na vez por `lerFormula`
+   * (`lib/caracteristicas/recuperacao.ts`). Vazio, ou fora da gramática = não
+   * recupera nada (o mestre vê o aviso no campo).
+   */
+  quanto: string
+}
+
+export type Caracteristica = CaracteristicaCompanion | CaracteristicaCegueira | CaracteristicaRecuperacao
 
 export type TipoDeCaracteristica = Caracteristica['tipo']
 
@@ -89,6 +111,11 @@ export const NOME_PADRAO_DO_GRUPO = 'Companion'
 /** A ficha tem Cegueira? (a frente do mapa lê só isto). */
 export function temCegueira(caracteristicas: readonly Caracteristica[] | undefined): boolean {
   return caracteristicas?.some((caracteristica) => caracteristica.tipo === 'cegueira') === true
+}
+
+/** O "Recupera por turno" da ficha; `null` = nada (a ficha antiga também). */
+export function recuperacaoDaFicha(caracteristicas: readonly Caracteristica[] | undefined): CaracteristicaRecuperacao | null {
+  return caracteristicas?.find((caracteristica): caracteristica is CaracteristicaRecuperacao => caracteristica.tipo === 'recuperacao') ?? null
 }
 
 /** Os grupos de companion da ficha, na ordem do bloco. */
@@ -136,16 +163,24 @@ function companionDoArquivo(valor: Record<string, unknown>, id: string): Caracte
   return grupo
 }
 
+/** O "Recupera por turno" do disco; recurso torto = `null` (sai). O quanto em número vira texto. */
+function recuperacaoDoArquivo(valor: Record<string, unknown>, id: string): CaracteristicaRecuperacao | null {
+  if (valor.recurso !== 'hp' && valor.recurso !== 'sp') return null
+  const quanto = typeof valor.quanto === 'string' ? valor.quanto.trim().slice(0, QUANTO_DA_RECUPERACAO_MAX) : typeof valor.quanto === 'number' && Number.isFinite(valor.quanto) ? String(valor.quanto) : ''
+  return { tipo: 'recuperacao', id, recurso: valor.recurso, quanto }
+}
+
 /**
  * A lista do disco ou do fio, conferida: tipo desconhecido sai, id repetido
- * sai, a Cegueira entra uma vez só. Vazia, torta ou ausente = `undefined`
- * (a chave nem aparece na ficha: nada de `caracteristicas: undefined`).
+ * sai, a Cegueira e a Recuperação entram uma vez só. Vazia, torta ou ausente =
+ * `undefined` (a chave nem aparece na ficha: nada de `caracteristicas: undefined`).
  */
 export function lerCaracteristicas(valor: unknown): Caracteristica[] | undefined {
   if (!Array.isArray(valor)) return undefined
   const ids = new Set<string>()
   const lidas: Caracteristica[] = []
   let cega = false
+  let recupera = false
   for (const item of valor) {
     if (lidas.length >= CARACTERISTICAS_MAX) break
     if (!ehRegistro(item) || !idBom(item.id) || ids.has(item.id)) continue
@@ -153,6 +188,11 @@ export function lerCaracteristicas(valor: unknown): Caracteristica[] | undefined
     else if (item.tipo === 'cegueira' && !cega) {
       cega = true
       lidas.push({ tipo: 'cegueira', id: item.id })
+    } else if (item.tipo === 'recuperacao' && !recupera) {
+      const recuperacao = recuperacaoDoArquivo(item, item.id)
+      if (recuperacao === null) continue
+      recupera = true
+      lidas.push(recuperacao)
     } else continue
     ids.add(item.id)
   }

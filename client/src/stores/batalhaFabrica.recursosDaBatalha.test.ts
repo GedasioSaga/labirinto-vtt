@@ -2,7 +2,8 @@
 /**
  * CONSERTO DAS FICHAS F1, fatia S3 (docs/planos/conserto-fichas-2026-11-08.md;
  * regras do sistema em docs/auditoria-fichas/respostas-do-grilling.md):
- * recargas (Tempo N), selo com carta extra, +10 SP por vez, técnica cara,
+ * recargas (Tempo N), selo com carta extra, SP sem recuperação automática
+ * (o +10 SP por vez saiu em 26/11/2026, pedido do dono), técnica cara,
  * Overload, Escudo cheio e formas no fim da batalha. Na store do app
  * (`criarBatalhaStore`) sobre a mesa em memória do treino, com fichas
  * inventadas (o lutador e o alvo).
@@ -103,7 +104,7 @@ function passar(loja: LojaDaBatalha, vezes: number): void {
 }
 
 describe('S3: recargas e selos contam por vez do dono', () => {
-  it('P1: Tempo 1 bloqueia 1 vez (usa na rodada 1, bloqueada na 2, livre na 3); e o +10 SP chega a quem não gastou', () => {
+  it('P1: Tempo 1 bloqueia 1 vez (usa na rodada 1, bloqueada na 2, livre na 3); e o SP não sobe sozinho', () => {
     const { loja, mesa, ids } = batalha()
     const alvo = carta(loja, 'Alvo').tokenId
     expect(loja.getState().agir(CENA, MESTRE, vez(loja), usar('tec_rapida', alvo, 10))).toBe(true)
@@ -111,10 +112,10 @@ describe('S3: recargas e selos contam por vez do dono', () => {
     // Rodada 2, vez do lutador: a técnica ainda está bloqueada (hoje o app já liberava).
     expect(cena(loja).turnos.rodada).toBe(2)
     expect(loja.getState().motivoDoAgir(CENA, MESTRE, vez(loja), usar('tec_rapida', alvo, 10))).toBe('Recarga: 1 turno')
-    // +10 SP no começo da vez: o lutador não gastou SP (100 → 110); o alvo passou sem gastar (50 → 60) na vez 2 dele.
-    expect(numeroDaFicha(pessoa(mesa, ids.lutador).recursos, 'sp')).toBe(110)
+    // 26/11/2026: sem o +10 SP automático, quem não gastou SP fica onde estava (lutador 100; o alvo 50 na vez 2 dele).
+    expect(numeroDaFicha(pessoa(mesa, ids.lutador).recursos, 'sp')).toBe(100)
     passar(loja, 2)
-    expect(numeroDaFicha(pessoa(mesa, ids.alvo).recursos, 'sp')).toBe(60)
+    expect(numeroDaFicha(pessoa(mesa, ids.alvo).recursos, 'sp')).toBe(50)
     expect(loja.getState().motivoDoAgir(CENA, MESTRE, vez(loja), usar('tec_rapida', alvo, 10))).toBeNull()
   })
 
@@ -132,7 +133,7 @@ describe('S3: recargas e selos contam por vez do dono', () => {
 })
 
 describe('S3: SP na vez e técnica cara', () => {
-  it('+10 SP: quem gastou SP na vez não ganha; desfazer a Vez tira os +10', () => {
+  it('sem o +10 SP (26/11/2026): o SP gasto não volta sozinho nas vezes seguintes, e a linha da Vez não fala em recuperar', () => {
     const { loja, mesa, ids } = batalha()
     const alvo = carta(loja, 'Alvo').tokenId
     const sp = (): number => numeroDaFicha(pessoa(mesa, ids.lutador).recursos, 'sp')
@@ -141,11 +142,8 @@ describe('S3: SP na vez e técnica cara', () => {
     passar(loja, 2)
     expect(sp()).toBe(90)
     passar(loja, 2)
-    expect(sp()).toBe(100)
-    const linha = [...cena(loja).registro].reverse().find((candidata) => candidata.reversao.tipo === 'vez' && candidata.texto.includes('recupera 10 SP'))
-    expect(linha).toBeDefined()
-    expect(loja.getState().desfazer(CENA, linha?.id ?? '', MESTRE)).toBe(true)
     expect(sp()).toBe(90)
+    expect(cena(loja).registro.some((linha) => linha.reversao.tipo === 'vez' && linha.texto.includes('recupera'))).toBe(false)
   })
 
   it('técnica com custo acima do SP máximo fica bloqueada com o motivo', () => {
@@ -220,13 +218,13 @@ describe('Revisão S3: custo por turno da forma (bug 10, P6)', () => {
     expect(loja.getState().agir(CENA, MESTRE, vez(loja), transformar('parte_2'))).toBe(true)
     expect(lembrete()).toBe(false)
     passar(loja, 2)
-    // Rodada 2: o lembrete chegou; os +10 SP também (não gastou SP na vez 1): 110.
-    expect([lembrete(), sp()]).toEqual([true, 110])
+    // Rodada 2: o lembrete chegou; o SP segue 100 (o +10 automático saiu em 26/11/2026).
+    expect([lembrete(), sp()]).toEqual([true, 100])
     expect(loja.getState().passiva(CENA, MESTRE, aplicar)).toBe(true)
-    expect([lembrete(), sp(), cena(loja).turnos.combate?.[ids.lutador]?.gastouSp]).toEqual([false, 50, true])
+    expect([lembrete(), sp(), cena(loja).turnos.combate?.[ids.lutador]?.gastouSp]).toEqual([false, 40, true])
     passar(loja, 2)
-    // Rodada 3: sem os +10 (pagou a forma); 50 não paga 60: Aplicar desce para a Parte 1.
-    expect([lembrete(), sp()]).toEqual([true, 50])
+    // Rodada 3: 40 não paga 60: Aplicar desce para a Parte 1.
+    expect([lembrete(), sp()]).toEqual([true, 40])
     expect(loja.getState().passiva(CENA, MESTRE, aplicar)).toBe(true)
     expect(pessoa(mesa, ids.lutador).cartoesAtivos).toEqual(['parte_1'])
     const linha = cena(loja).registro.at(-1)
@@ -267,7 +265,7 @@ describe('Revisão S3: Overload só se defende com Overload', () => {
 })
 
 describe('Revisão S3: a Marca paga com SP conta como gastar SP', () => {
-  it('Marcar com SP marca gastouSp: a próxima vez não ganha os +10', () => {
+  it('Marcar com SP marca gastouSp e o SP pago não volta na próxima vez', () => {
     const atirador = ficha({
       id: 'pers_atirador',
       tipo: 'jogador',

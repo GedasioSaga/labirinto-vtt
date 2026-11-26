@@ -1,6 +1,6 @@
 /**
  * A fatia da VEZ da store da batalha One Piece: o "Passar a vez" e o "Dar a vez" do mestre, e o começo
- * de vez num lugar só (`comecarAVez`): +10 SP, linha "vez" com Desfazer, fim da vez das mecânicas e o
+ * de vez num lugar só (`comecarAVez`): o "Recupera por turno" da ficha, linha "vez" com Desfazer, fim da vez das mecânicas e o
  * prazo das condições (de quem joga e, na virada, de quem está fora da ordem).
  */
 import { chaveDaVez, type SeloDaBatalha } from '../../lib/batalha/combate'
@@ -8,7 +8,9 @@ import { combatesNoComecoDaVez } from '../../lib/batalha/acumuladorNaBatalha'
 import { comBandosEmDia, semBandosVazios } from '../../lib/batalha/invocacao'
 import { novoIdDeSelo, textoDosQueAcabaram } from '../../lib/batalha/selos'
 import { formaDaFicha } from '../../lib/batalha/transformacao'
-import { ajusteDoRecurso, ajusteDoSpDaVez, ganhaSpNaVez, maximoDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
+import { ajusteDaRecuperacao, ajusteDoRecurso, maximoDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
+import { siglaDaRecuperacao } from '../../lib/caracteristicas/recuperacao'
+import type { RecursoDaRecuperacao } from '../../lib/caracteristicas/tipos'
 import { chavesDoDono, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo } from '../../lib/batalha/mecanicasAMao'
 import { curaComOsSelos, notaDosSelosNaCura } from '../../lib/batalha/condicoes'
 import { comLembretesDaVez, comLembretesDoMomento } from '../../lib/batalha/passivas'
@@ -65,7 +67,7 @@ interface VezQueComeca {
   /** A carta que começa a vez (vida por turno do prazo). */
   entra: CartaDaOrdem | null
   autor: AutorDaAcao
-  /** O texto da linha sem os +10 SP (que vão no fim). */
+  /** O texto da linha sem a recuperação por turno (que vai no fim). */
   texto: string
   tokenIds: readonly string[]
   /** As cartas que a vez tirou da ordem (extras da rodada, bando vazio): o Desfazer da vez as põe de volta. */
@@ -88,7 +90,7 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
 
   /**
    * Conserto de 18/11/2026 (análise, seção 2.3): a carta que sai da ordem tinha a vez. Antes a vez só pulava
-   * para a carta seguinte, sem o começo de vez (recarga, +10 SP, prazo das condições) e sem virar a rodada
+   * para a carta seguinte, sem o começo de vez (recarga, recuperação por turno, prazo das condições) e sem virar a rodada
    * quando era a última. Agora a vez anda ANTES pelo "Passar a vez" de sempre, numa linha própria (o Desfazer
    * de cada linha segue separado), como o DBT faz (`motor.ts`, ação 'tirar'). Cai noutra carta que também
    * sai (a extra do mesmo token): passa de novo. Ninguém mais joga: a saída leva a vez como antes.
@@ -102,30 +104,35 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
   }
 
   /**
-   * Conserto das fichas F1 (resposta do Vincent): +10 SP no começo da vez de
-   * quem não gastou SP desde a vez anterior (`ganhaSpNaVez` no combate de
-   * `antes`; a primeira vez da batalha não ganha). Grava pela mesa e devolve a
-   * parte para a linha da vez e o pedaço do texto (só do jogador: o SP do NPC
-   * não aparece). Nada a ganhar, SP cheio ou gravação recusada = `null`.
+   * 26/11/2026 (pedido do dono): o "+10 SP de quem não gastou SP" saiu; no lugar, o "Recupera por turno"
+   * da ficha (a característica `recuperacao`: Vida ou SP, número ou fórmula). Vale no começo de cada vez da
+   * carta própria da ficha (a carta extra não é outro turno) depois da primeira da batalha (o combate de
+   * `antes` já tem `jaJogou`), como o SP antigo. Limitada ao máximo; o HP passa pela Cura reduzida dos selos.
+   * Grava pela mesa e devolve a parte para a linha da vez e o pedaço do texto (só do jogador: os números do
+   * NPC não aparecem a quem lê o registro). Nada a recuperar, cheio ou gravação recusada = `null`.
    */
-  const spDoComecoDaVez = (antes: TurnosDaCena, depois: TurnosDaCena, autor: AutorDaAcao): { ficha: { personagemId: string; partes: ParteDaFicha[] }; texto: string } | null => {
+  const recuperacaoDoComecoDaVez = (antes: TurnosDaCena, depois: TurnosDaCena, autor: AutorDaAcao): { ficha: { personagemId: string; partes: ParteDaFicha[] }; texto: string } | null => {
     const para = cartaDaVez(depois)
-    if (para === null || para.personagemId === null || para.id === antes.vez || !ganhaSpNaVez(antes.combate?.[para.personagemId])) return null
-    const personagemId = para.personagemId
+    if (para === null || para.personagemId === null || para.extra !== undefined || para.id === antes.vez || antes.combate?.[para.personagemId]?.jaJogou !== true) return null
+    const { personagemId, tokenId } = para
+    const personagem = mesa.personagens().find((candidato) => candidato.id === personagemId)
+    const sistema = mesa.sistema()
+    // A ficha sem "Recupera por turno" (a de sempre) nem passa pela gravação.
+    const recurso: RecursoDaRecuperacao | null = personagem === undefined || sistema === null ? null : (ajusteDaRecuperacao(personagem, sistema, (cura) => cura)?.recurso ?? null)
+    if (recurso === null) return null
     const feito = mexerNaFicha(
       mesa,
       personagemId,
       (atual, sistemaDaMesa) => {
-        const ajuste = ajusteDoSpDaVez(atual, sistemaDaMesa)
-        return ajuste === null ? [] : [ajuste]
+        const recuperacao = ajusteDaRecuperacao(atual, sistemaDaMesa, (cura) => curaComOsSelos(cura, depois.selos, tokenId))
+        return recuperacao === null ? [] : [recuperacao.ajuste]
       },
       quemNaFicha(autor),
     )
     if (feito === null || feito === 'recusada' || feito.length === 0) return null
     const ganho = feito.reduce((soma, parte) => (parte.parte === 'recurso' ? soma + parte.para - parte.de : soma), 0)
-    const personagem = mesa.personagens().find((candidato) => candidato.id === personagemId)
     const nome = personagem?.nome.trim() || 'a ficha'
-    return { ficha: { personagemId, partes: feito }, texto: personagem?.tipo === 'jogador' ? ` · ${nome} recupera ${ganho} SP` : '' }
+    return { ficha: { personagemId, partes: feito }, texto: personagem?.tipo === 'jogador' ? ` · ${nome} recupera ${ganho} ${siglaDaRecuperacao(recurso)}` : '' }
   }
 
   /**
@@ -362,8 +369,8 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
 
   /**
    * O começo de vez num lugar só: o "Passar a vez" e o "Dar a vez" do mestre andam a vez nos turnos e
-   * chegam aqui. Grava os +10 SP de quem entra, a linha "vez" com o Desfazer (só o que a vez mudou, o SP
-   * e as linhas fechadas antes dela) e os selos que acabaram; depois o fim da vez das mecânicas de quem
+   * chegam aqui. Grava o "Recupera por turno" de quem entra, a linha "vez" com o Desfazer (só o que a vez
+   * mudou, a recuperação e as linhas fechadas antes dela) e os selos que acabaram; depois o fim da vez das mecânicas de quem
    * sai e o prazo das condições (na virada, também o de quem está fora da ordem). A carta que sai da
    * ordem com a vez chega aqui pelo "Passar a vez" (`passarAVezDeQuemSai`). `cena` = a cena em que
    * `vez.antes` foi lido.
@@ -376,12 +383,12 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     const depois = combates === undefined || combates === vez.depois.combate ? vez.depois : { ...vez.depois, combate: combates }
     // Conserto das fichas F1 (bug 3): a linha guarda só o que a vez mudou (o Desfazer volta só isso).
     const mudou = mudancasDaVez(antes, depois)
-    // Conserto das fichas F1: +10 SP para quem começa a vez sem ter gastado SP na anterior.
-    const sp = spDoComecoDaVez(antes, depois, autor)
+    // 26/11/2026: o "Recupera por turno" da ficha de quem começa a vez (o +10 SP automático saiu).
+    const recuperacao = recuperacaoDoComecoDaVez(antes, depois, autor)
     const linha: LinhaNova = {
       tipo: 'vez',
       autor,
-      texto: `${vez.texto}${sp?.texto ?? ''}`,
+      texto: `${vez.texto}${recuperacao?.texto ?? ''}`,
       tokenIds: vez.tokenIds,
       // Os "Não reagiu" vieram antes da vez (fora de `mudou`); `fechados` diz ao Desfazer da vez quais linhas voltam junto.
       reversao: {
@@ -389,10 +396,10 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
         antes: { vez: antes.vez, rodada: antes.rodada, removidas: vez.removidas, gastos: antes.gastos, ...(vez.ordem === undefined ? {} : { ordem: vez.ordem }) },
         ...(mudou === undefined ? {} : { mudou }),
         ...(vez.fechados.length === 0 ? {} : { fechados: vez.fechados }),
-        ...(sp === null ? {} : { ficha: sp.ficha }),
+        ...(recuperacao === null ? {} : { ficha: recuperacao.ficha }),
       },
     }
-    // A ficha passou pela aventura (o SP): grava sobre a cena de agora.
+    // A ficha passou pela aventura (a recuperação): grava sobre a cena de agora.
     const atual = cenaDe(sceneKey) ?? cena
     gravarCena(sceneKey, { ...comMudanca(atual, depois, linha), efeitos: comEfeitos(atual.efeitos, efeitosDosSelos(vez.acabaram)) })
     // F2 (fatia F): a Doença das Trevas, as Chamas Celestes e a duração da forma de quem saiu, numa linha própria (com Desfazer).

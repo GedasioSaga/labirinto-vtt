@@ -107,7 +107,8 @@ export function FichaDePersonagem({
   // A característica aberta no lugar das abas (só o mestre abre; na edição, as abas voltam).
   const [aberta, setAberta] = useState<string | null>(null)
   const mudarCaracteristicas = editando ? undefined : onCaracteristicas
-  const caracteristicaAberta = mudarCaracteristicas === undefined ? undefined : personagem.caracteristicas?.find((caracteristica) => caracteristica.id === aberta)
+  // O "Recupera por turno" é um campo no bloco, sem página própria.
+  const caracteristicaAberta = mudarCaracteristicas === undefined ? undefined : personagem.caracteristicas?.find((caracteristica) => caracteristica.id === aberta && caracteristica.tipo !== 'recuperacao')
   const voltarAsAbas = () => {
     const id = aberta
     setAberta(null)
@@ -123,7 +124,7 @@ export function FichaDePersonagem({
         ) : (
           <BlocoLido personagem={personagem} sistema={sistema} tituloId={tituloId} onAjustar={ajustar} />
         )}
-        <CaracteristicasDaFicha personagem={personagem} aberta={caracteristicaAberta === undefined ? null : aberta} onAbrir={setAberta} onMudar={mudarCaracteristicas} />
+        <CaracteristicasDaFicha personagem={personagem} sistema={sistema} aberta={caracteristicaAberta === undefined ? null : aberta} onAbrir={setAberta} onMudar={mudarCaracteristicas} />
         {!editando && !mochilaNaAba && inventario}
       </div>
       <div className="lb-ficha__principal">

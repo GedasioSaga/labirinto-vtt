@@ -1,7 +1,9 @@
 import { maximoComposto, temMaximo, type Ajuste } from '../ajusteDaFicha'
+import { quantoDaRecuperacao } from '../caracteristicas/recuperacao'
+import type { RecursoDaRecuperacao } from '../caracteristicas/tipos'
 import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { MODS_POR_SELO_MAX, type CombateDoPersonagem, type ModDoSelo, type SeloDaBatalha } from './combate'
+import { MODS_POR_SELO_MAX, type ModDoSelo, type SeloDaBatalha } from './combate'
 import { recursoDoCusto, recursoDoEscudo } from './leituraDaFicha'
 import { comSeloNovo, criarSelo, ondeNaVez, selosDoToken } from './selos'
 import type { TurnosDaCena } from './turnos'
@@ -9,9 +11,14 @@ import type { TurnosDaCena } from './turnos'
 /**
  * RECURSOS DA BATALHA (conserto das fichas F1, fatia S3 de
  * docs/planos/conserto-fichas-2026-11-08.md; regras do sistema em
- * docs/auditoria-fichas/respostas-do-grilling.md): o SP que volta no começo
- * da vez, o Escudo cheio a cada batalha e o cansaço do Overload (os
- * atributos base pela metade até o fim da batalha). A store aplica pela mesa.
+ * docs/auditoria-fichas/respostas-do-grilling.md): o Escudo cheio a cada
+ * batalha e o cansaço do Overload (os atributos base pela metade até o fim da
+ * batalha). A store aplica pela mesa.
+ *
+ * 26/11/2026: o "+10 SP no começo da vez de quem não gastou SP" SAIU (o dono:
+ * "você colocou os usuários para recuperarem SP sem a minha permissão, tira
+ * isso"). No lugar, a ficha diz se recupera Vida ou SP por turno
+ * (`ajusteDaRecuperacao`, a característica "Recupera por turno").
  *
  * Puro: sem store, sem rede.
  */
@@ -68,16 +75,20 @@ export function comOCansaco(turnos: TurnosDaCena, tokenId: string, mods: readonl
   return novos.length === 0 ? null : { turnos: { ...turnos, selos: lista }, selos: novos }
 }
 
-/** Resposta do Vincent: "+X SP no começo da vez de quem não usou SP na vez anterior", X = 10. */
-export const SP_POR_VEZ_SEM_GASTAR = 10
-
 /**
- * O personagem ganha os +10 SP no começo desta vez? `combateAntes` = o
- * combate dele ANTES de a vez começar: já teve uma vez (a primeira da batalha
- * não ganha) e não gastou SP desde ela.
+ * O "Recupera por turno" da ficha no começo da vez dela: o ajuste do recurso, limitado ao máximo (o que
+ * falta para encher). `corte` = a regra dos selos na cura (Cura reduzida), só no HP. `null` = a ficha não
+ * recupera, o sistema não tem o recurso, ou já está cheio.
  */
-export function ganhaSpNaVez(combateAntes: CombateDoPersonagem | undefined): boolean {
-  return combateAntes?.jaJogou === true && combateAntes.gastouSp !== true
+export function ajusteDaRecuperacao(personagem: Personagem, sistema: SistemaDeRpg, corte: (cura: number) => number): { recurso: RecursoDaRecuperacao; ajuste: Ajuste } | null {
+  const lida = quantoDaRecuperacao(personagem, sistema)
+  if (lida === null) return null
+  const quanto = lida.recurso === 'hp' ? corte(lida.quanto) : lida.quanto
+  const maximo = maximoDoRecurso(personagem, sistema, lida.recurso)
+  const cabe = maximo === null ? quanto : Math.min(quanto, maximo - numeroDoRecurso(personagem, sistema, lida.recurso))
+  if (cabe <= 0) return null
+  const ajuste = ajusteDoRecurso(personagem, sistema, lida.recurso, cabe)
+  return ajuste === null ? null : { recurso: lida.recurso, ajuste }
 }
 
 /**
@@ -104,15 +115,6 @@ export function maximoDoRecurso(personagem: Personagem, sistema: SistemaDeRpg, q
   const recurso = recursoDoCusto(sistema, qual)
   if (recurso === null || !temMaximo(sistema, recurso.id)) return null
   return maximoComposto(personagem, recurso.id).total
-}
-
-/** O ajuste dos +10 SP (o `aplicarAjuste` limita no máximo); `null` = sem SP no sistema ou já cheio. */
-export function ajusteDoSpDaVez(personagem: Personagem, sistema: SistemaDeRpg): Ajuste | null {
-  const recurso = recursoDoCusto(sistema, 'sp')
-  if (recurso === null) return null
-  const atual = numeroDaFicha(personagem.recursos, recurso.id)
-  if (temMaximo(sistema, recurso.id) && atual >= maximoComposto(personagem, recurso.id).total) return null
-  return { parte: 'recurso', chave: recurso.id, valor: atual + SP_POR_VEZ_SEM_GASTAR }
 }
 
 /**

@@ -1,7 +1,18 @@
-import { useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { novoIdDeCaracteristica } from '../../lib/caracteristicas/companions'
-import { NOME_PADRAO_DO_GRUPO, temCegueira, type Caracteristica } from '../../lib/caracteristicas/tipos'
+import { numeroDaRecuperacao } from '../../lib/caracteristicas/recuperacao'
+import {
+  CARACTERISTICAS_MAX,
+  NOME_PADRAO_DO_GRUPO,
+  QUANTO_DA_RECUPERACAO_MAX,
+  recuperacaoDaFicha,
+  temCegueira,
+  type Caracteristica,
+  type CaracteristicaRecuperacao,
+  type RecursoDaRecuperacao,
+} from '../../lib/caracteristicas/tipos'
 import type { Personagem } from '../../lib/personagem'
+import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import './caracteristicas.css'
 
 /**
@@ -9,10 +20,14 @@ import './caracteristicas.css'
  * (protótipo aprovado, estado 1): os chips e, só para o mestre, o
  * "+ Característica". Clicar num chip abre a página dele no lugar das abas
  * (quem desenha a página é `PaginaDaCaracteristica`); o jogador vê os chips.
+ * Embaixo, o "Recupera por turno" (pedido do dono de 26/11/2026): o mestre
+ * escolhe Nada, Vida ou SP e quanto; o jogador lê a linha (com "nada", some).
  */
 
 export interface CaracteristicasDaFichaProps {
   personagem: Personagem
+  /** O sistema da ficha: a prévia da fórmula do "Recupera por turno" ("= 12 de Vida"). Ausente = sem prévia. */
+  sistema?: SistemaDeRpg | null
   /** O id da característica aberta no lugar das abas; `null` = as abas. */
   aberta: string | null
   onAbrir: (id: string | null) => void
@@ -20,18 +35,33 @@ export interface CaracteristicasDaFichaProps {
   onMudar?: (lista: Caracteristica[]) => void
 }
 
+/** A característica que vira chip (o "Recupera por turno" é um campo, não chip). */
+type CaracteristicaDeChip = Exclude<Caracteristica, CaracteristicaRecuperacao>
+
+function ehChip(caracteristica: Caracteristica): caracteristica is CaracteristicaDeChip {
+  return caracteristica.tipo !== 'recuperacao'
+}
+
 /** "Companion · Lovecats (3)": o número é quanto leva para a batalha (decisão 2 do NOTAS). */
 export function rotuloDoChip(caracteristica: Caracteristica): string {
+  if (caracteristica.tipo === 'recuperacao') return 'Recupera por turno'
   return caracteristica.tipo === 'cegueira' ? 'Cegueira' : `Companion · ${caracteristica.nome}`
 }
 
-function nomeAcessivel(caracteristica: Caracteristica): string {
+function nomeAcessivel(caracteristica: CaracteristicaDeChip): string {
   if (caracteristica.tipo === 'cegueira') return 'Cegueira'
   const ligadas = caracteristica.ligados.length
   return `Companion ${caracteristica.nome}, leva até ${caracteristica.limite}, ${ligadas} ${ligadas === 1 ? 'ficha ligada' : 'fichas ligadas'}`
 }
 
 export function IconeDaCaracteristica({ tipo }: { tipo: Caracteristica['tipo'] }) {
+  if (tipo === 'recuperacao') {
+    return (
+      <svg className="lb-carac__icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    )
+  }
   if (tipo === 'cegueira') {
     return (
       <svg className="lb-carac__icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -50,17 +80,22 @@ export function IconeDaCaracteristica({ tipo }: { tipo: Caracteristica['tipo'] }
   )
 }
 
-export function CaracteristicasDaFicha({ personagem, aberta, onAbrir, onMudar }: CaracteristicasDaFichaProps) {
+export function CaracteristicasDaFicha({ personagem, sistema = null, aberta, onAbrir, onMudar }: CaracteristicasDaFichaProps) {
   const tituloId = useId()
   const lista = personagem.caracteristicas ?? []
-  if (lista.length === 0 && onMudar === undefined) return null
+  const chips = lista.filter(ehChip)
+  const recuperacao = recuperacaoDaFicha(lista)
+  // O jogador lê o "Recupera por turno" só quando há quanto (vazio = nada).
+  const recuperacaoLida = recuperacao !== null && recuperacao.quanto !== '' ? recuperacao : null
+  if (onMudar === undefined && chips.length === 0 && recuperacaoLida === null) return null
   return (
     <section className="lb-carac" aria-labelledby={tituloId}>
       <h3 className="lb-eyebrow lb-ficha__subtitulo" id={tituloId}>
         Características especiais
       </h3>
+      {(chips.length > 0 || onMudar !== undefined) && (
       <ul className="lb-carac__chips">
-        {lista.map((caracteristica) => (
+        {chips.map((caracteristica) => (
           <li key={caracteristica.id}>
             {onMudar === undefined ? (
               <span className="lb-carac__chip" title={nomeAcessivel(caracteristica)}>
@@ -93,7 +128,139 @@ export function CaracteristicasDaFicha({ personagem, aberta, onAbrir, onMudar }:
           </li>
         )}
       </ul>
+      )}
+      {onMudar !== undefined ? (
+        <RecuperaPorTurno key={personagem.id} personagem={personagem} sistema={sistema} onMudar={onMudar} />
+      ) : (
+        recuperacaoLida !== null && <RecuperacaoLida recuperacao={recuperacaoLida} personagem={personagem} sistema={sistema} />
+      )}
     </section>
+  )
+}
+
+const ROTULO_DO_RECURSO: Readonly<Record<RecursoDaRecuperacao, string>> = { hp: 'Vida', sp: 'SP' }
+const OPCOES_DA_RECUPERACAO: readonly { recurso: RecursoDaRecuperacao | null; rotulo: string }[] = [
+  { recurso: null, rotulo: 'Nada' },
+  { recurso: 'hp', rotulo: ROTULO_DO_RECURSO.hp },
+  { recurso: 'sp', rotulo: ROTULO_DO_RECURSO.sp },
+]
+/** Só algarismos: o número já diz tudo (sem a prévia "= 10"). */
+const SO_NUMERO = /^\d+$/
+
+/** A linha do jogador: "Recupera por turno: 10 de SP" (a fórmula leva o número ao lado). */
+function RecuperacaoLida({ recuperacao, personagem, sistema }: { recuperacao: CaracteristicaRecuperacao; personagem: Personagem; sistema: SistemaDeRpg | null }) {
+  const numero = sistema === null || SO_NUMERO.test(recuperacao.quanto) ? null : numeroDaRecuperacao(recuperacao.quanto, personagem, sistema)
+  return (
+    <p className="lb-carac__recupera-lida">
+      Recupera por turno:{' '}
+      <b>
+        {recuperacao.quanto} de {ROTULO_DO_RECURSO[recuperacao.recurso]}
+      </b>
+      {numero !== null && <span className="lb-carac__conta"> (= {numero})</span>}
+    </p>
+  )
+}
+
+/**
+ * O campo do mestre: "Recupera por turno: Nada / Vida / SP" e quanto (número ou fórmula). Grava na hora
+ * (a escolha) e ao sair do campo ou no Enter (o quanto). Nada = a característica sai da ficha. A batalha
+ * aplica no começo da vez da ficha (`stores/batalha/vez.ts`).
+ */
+function RecuperaPorTurno({ personagem, sistema, onMudar }: { personagem: Personagem; sistema: SistemaDeRpg | null; onMudar: (lista: Caracteristica[]) => void }) {
+  const lista = personagem.caracteristicas ?? []
+  const atual = recuperacaoDaFicha(lista)
+  const [quanto, setQuanto] = useState(atual?.quanto ?? '')
+  const gravado = atual?.quanto ?? ''
+  useEffect(() => setQuanto(gravado), [gravado])
+  const quantoRef = useRef<HTMLInputElement>(null)
+  const grupo = useId()
+  const quantoId = useId()
+  const previaId = useId()
+  // O leitor corta a lista no teto: sem vaga, a recuperação nova se perderia ao reabrir a ficha.
+  const semVaga = atual === null && lista.length >= CARACTERISTICAS_MAX
+
+  function escolher(recurso: RecursoDaRecuperacao | null) {
+    if (recurso === null) {
+      if (atual !== null) onMudar(lista.filter((caracteristica) => caracteristica.tipo !== 'recuperacao'))
+      return
+    }
+    if (atual === null) {
+      onMudar([...lista, { tipo: 'recuperacao', id: novoIdDeCaracteristica(), recurso, quanto: quanto.trim().slice(0, QUANTO_DA_RECUPERACAO_MAX) }])
+      // O quanto aparece agora: o foco vai a ele depois do desenho.
+      requestAnimationFrame(() => quantoRef.current?.focus())
+      return
+    }
+    if (atual.recurso !== recurso) onMudar(lista.map((caracteristica) => (caracteristica.id === atual.id ? { ...atual, recurso } : caracteristica)))
+  }
+
+  function gravarQuanto() {
+    if (atual === null) return
+    const limpo = quanto.trim().slice(0, QUANTO_DA_RECUPERACAO_MAX)
+    setQuanto(limpo)
+    if (limpo !== atual.quanto) onMudar(lista.map((caracteristica) => (caracteristica.id === atual.id ? { ...atual, quanto: limpo } : caracteristica)))
+  }
+
+  const limpo = quanto.trim()
+  const numero = atual === null || sistema === null || limpo === '' ? null : numeroDaRecuperacao(limpo, personagem, sistema)
+  const previa =
+    atual === null
+      ? null
+      : limpo === ''
+        ? { texto: 'Digite quanto: um número ou uma conta (Vigor / 2).', erro: false }
+        : sistema !== null && numero === null
+          ? { texto: 'Não entendi a conta: use um número ou atributos (Vigor / 2). Assim não recupera nada.', erro: true }
+          : numero !== null && !SO_NUMERO.test(limpo)
+            ? { texto: `= ${numero} de ${ROTULO_DO_RECURSO[atual.recurso]} agora`, erro: false }
+            : null
+
+  return (
+    <fieldset className="lb-carac__recupera">
+      <legend className="lb-carac__recupera-tit">Recupera por turno</legend>
+      <div className="lb-carac__seg" title={semVaga ? `A ficha já tem ${CARACTERISTICAS_MAX} características.` : undefined}>
+        {OPCOES_DA_RECUPERACAO.map((opcao) => {
+          const marcada = (atual?.recurso ?? null) === opcao.recurso
+          return (
+            <label key={opcao.rotulo} className="lb-carac__seg-op" data-marcada={marcada ? 'sim' : undefined}>
+              <input type="radio" name={grupo} checked={marcada} disabled={semVaga && opcao.recurso !== null} onChange={() => escolher(opcao.recurso)} />
+              <span>{opcao.rotulo}</span>
+            </label>
+          )
+        })}
+      </div>
+      {atual !== null && (
+        <div className="lb-carac__quanto">
+          <label htmlFor={quantoId}>Quanto</label>
+          <input
+            ref={quantoRef}
+            id={quantoId}
+            className="lb-input"
+            value={quanto}
+            maxLength={QUANTO_DA_RECUPERACAO_MAX}
+            placeholder="10 ou Vigor / 2"
+            inputMode="text"
+            autoComplete="off"
+            aria-describedby={previa === null ? undefined : previaId}
+            aria-invalid={previa?.erro === true ? true : undefined}
+            onChange={(event) => setQuanto(event.target.value)}
+            onBlur={gravarQuanto}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') gravarQuanto()
+              // O Esc com algo digitado desfaz o digitado e não fecha a ficha; sem mudança, ele segue (fecha, como sempre).
+              if (event.key === 'Escape' && quanto !== gravado) {
+                event.preventDefault()
+                event.stopPropagation()
+                setQuanto(gravado)
+              }
+            }}
+          />
+          {previa !== null && (
+            <p className="lb-carac__previa" id={previaId} data-erro={previa.erro ? 'sim' : undefined} aria-live="polite">
+              {previa.texto}
+            </p>
+          )}
+        </div>
+      )}
+    </fieldset>
   )
 }
 

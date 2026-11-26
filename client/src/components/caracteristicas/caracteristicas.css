@@ -559,3 +559,127 @@ button.lb-carac__chip:focus-visible,
   color: var(--lb-color-parchment-dim);
   font-size: var(--lb-font-size-sm);
 }
+
+/* "Recupera por turno" (pedido do dono de 26/11/2026): Nada / Vida / SP e quanto, no fim do bloco. */
+.lb-carac__recupera {
+  display: grid;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  margin: var(--lb-space-3) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.lb-carac__recupera-tit {
+  padding: 0;
+  margin-bottom: var(--lb-space-2);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-carac__seg {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: 999px;
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-carac__seg-op {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px 14px;
+  border-radius: 999px;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease-out;
+}
+
+.lb-carac__seg-op input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.lb-carac__seg-op:active {
+  transform: scale(0.97);
+}
+
+.lb-carac__seg-op[data-marcada='sim'] {
+  background: color-mix(in srgb, var(--lb-color-brass) 22%, var(--lb-color-stone-raised));
+  color: var(--lb-color-parchment);
+}
+
+.lb-carac__seg-op:has(input:focus-visible) {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 1px;
+}
+
+.lb-carac__seg-op:has(input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-carac__seg-op:not([data-marcada='sim']):hover {
+    color: var(--lb-color-parchment);
+  }
+}
+
+.lb-carac__quanto {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px var(--lb-space-2);
+}
+
+.lb-carac__quanto > label {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-carac__quanto .lb-input {
+  min-height: 32px;
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-carac__previa {
+  grid-column: 2;
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.lb-carac__previa[data-erro='sim'] {
+  color: var(--lb-color-ember);
+}
+
+.lb-carac__recupera-lida {
+  margin: var(--lb-space-3) 0 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.lb-carac__recupera-lida b {
+  color: var(--lb-color-parchment);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-carac__seg-op {
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+
+  .lb-carac__seg-op:active {
+    transform: none;
+  }
+}
