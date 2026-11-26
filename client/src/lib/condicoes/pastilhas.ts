@@ -121,3 +121,16 @@ export function mesmasPastilhas(a: PastilhasDasFichas | undefined, b: PastilhasD
   }
   return true
 }
+
+/**
+ * O MAPA DO MESTRE (E4b): os tokens com as pastilhas da ficha ligada no lugar das do token, o
+ * mesmo que o recorte do jogador faz (`lib/fogFilter.ts`). Assim o Zumbi 1 envenenado na ficha
+ * dele acende no mapa do mestre igual na tela de quem joga. Sem ficha com condição = a MESMA lista.
+ */
+export function tokensComAsPastilhas(tokens: Token[], pastilhas: PastilhasDasFichas | undefined): Token[] {
+  if (pastilhas === undefined) return tokens
+  return tokens.map((token) => {
+    const daFicha = pastilhas.get(token.id)
+    return daFicha === undefined ? token : { ...token, conditions: daFicha.conditions, condicoesProprias: daFicha.condicoesProprias }
+  })
+}

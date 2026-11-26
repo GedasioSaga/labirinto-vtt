@@ -1,0 +1,164 @@
+/* CONDIÇÃO NA FICHA (itens refeitos, E4b): o chip da condição posta e o "Pôr condição".
+   As mesmas peças no menu do token, no painel do token e na tela Condições do livro. */
+
+.cd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 3px 4px 3px 6px;
+  border: 1px solid var(--lb-gr-filete-forte, rgba(255, 255, 255, 0.18));
+  border-radius: var(--lb-radius-sm, 6px);
+  background: var(--lb-gr-papel-baixo, rgba(0, 0, 0, 0.2));
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.25;
+}
+
+.cd-chip[data-apagada] .cd-chip__nome {
+  text-decoration: line-through;
+  color: var(--lb-color-parchment-dim);
+}
+
+.cd-chip__txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cd-chip__nome {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cd-chip__prazo {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-xs, 0.75rem);
+  overflow-wrap: anywhere;
+}
+
+.cd-chip__x {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm, 6px);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast, 120ms) ease,
+    color var(--lb-motion-fast, 120ms) ease,
+    transform 120ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cd-chip__x:hover {
+    background: var(--lb-gr-hover, rgba(255, 255, 255, 0.08));
+    color: var(--lb-color-parchment);
+  }
+}
+
+.cd-chip__x:active {
+  transform: scale(0.94);
+}
+
+.cd-chip__x:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.cd-nota {
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.cd-por {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 10px;
+}
+
+.cd-por[data-compacto] {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cd-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 140px;
+}
+
+.cd-por[data-compacto] .cd-campo {
+  flex: none;
+}
+
+.cd-campo--num {
+  flex: 0 1 110px;
+}
+
+.cd-campo__rot {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-xs, 0.75rem);
+}
+
+.cd-campo .lb-input[aria-invalid='true'] {
+  border-color: var(--mu-erro-texto, #e0806b);
+}
+
+.cd-por__botao {
+  flex: none;
+}
+
+.cd-por__botao:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.cd-por__regra {
+  flex-basis: 100%;
+}
+
+/* No painel do token: as condições da ficha, os chips e o formulário um embaixo do outro. */
+.cd-da-ficha {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cd-da-ficha__antigas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--lb-gr-filete, rgba(255, 255, 255, 0.1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-chip__x,
+  .cd-por__botao {
+    transition: none;
+  }
+
+  .cd-chip__x:active,
+  .cd-por__botao:active:not(:disabled) {
+    transform: none;
+  }
+}

@@ -7,6 +7,12 @@ import { readTokenPatrol } from '../../lib/npcPatrol'
 import { readTokenWatch, WATCH_DIRECTIONS } from '../../lib/npcWatch'
 import { TOKEN_CONDITION_LABELS, tokenConditionsOf } from '../../lib/tokenConditions'
 import { condicoesPropriasOf } from '../../lib/condicoesProprias'
+import { condicaoDoCatalogo } from '../../lib/condicoes/catalogo'
+import { condicoesDe } from '../../lib/condicoes/naFicha'
+import { personagensAtivos, useAdventureStore } from '../../stores/adventureStore'
+import { useCondicoesPropriasStore } from '../../stores/condicoesPropriasStore'
+import { useMapStore } from '../../stores/mapStore'
+import { CondicoesDaFicha } from '../condicoes/CondicoesDaFicha'
 import { selectedTokenColor } from '../../lib/tokenColor'
 import { tokenPhotoRef } from '../../lib/tokenPhoto'
 import { tokenPublicNameMode } from '../../lib/tokenPublicName'
@@ -305,6 +311,9 @@ export function FichaDoToken(props: FichaDoTokenProps) {
   const idAberto = subFicha !== null && subFicha.item === token.id ? subFicha.cartao : null
   const aberto = cartoes.find((cartao) => cartao.id === idAberto && cartao.desligado === undefined)
   const nome = token.name.trim() === '' ? 'Token' : token.name.trim()
+  // ITENS REFEITOS (E4b): no token com ficha, as condições moram na ficha (no NPC, na cópia deste token).
+  const fichaLigada = useAdventureStore((state) => (token.characterId === null ? undefined : personagensAtivos(state).find((personagem) => personagem.id === token.characterId)))
+  const criadas = useCondicoesPropriasStore((state) => state.catalogo)
 
   const voltar = (cartao: string) => {
     setFocarCartao(cartao)
@@ -339,7 +348,8 @@ export function FichaDoToken(props: FichaDoTokenProps) {
   const condicoes = tokenConditionsOf(token)
   // As condições que o mestre criou entram no mesmo bloco e no mesmo resumo, depois das de fábrica.
   const condicoesProprias = condicoesPropriasOf(token)
-  const nomesDasCondicoes = [...condicoes.map((condicao) => TOKEN_CONDITION_LABELS[condicao]), ...condicoesProprias.map((condicao) => condicao.nome)]
+  const nomesDaFicha = fichaLigada === undefined ? [] : condicoesDe(fichaLigada).map((condicao) => condicaoDoCatalogo(condicao.condId, criadas)?.nome ?? 'Condição apagada')
+  const nomesDasCondicoes = [...nomesDaFicha, ...condicoes.map((condicao) => TOKEN_CONDITION_LABELS[condicao]), ...condicoesProprias.map((condicao) => condicao.nome)]
   const levar = props.tokenSceneCarry
   const transformacao: ItemTransformControlsProps = {
     title: 'Trava e visibilidade',
@@ -373,7 +383,17 @@ export function FichaDoToken(props: FichaDoTokenProps) {
           padrao
           resumo={nomesDasCondicoes.length === 0 ? 'Nenhuma' : nomesDasCondicoes.join(', ')}
         >
-          <TokenConditionControls conditions={condicoes} {...props.tokenCondition} tokenId={token.id} proprias={condicoesProprias} embutido />
+          {fichaLigada !== undefined ? (
+            <CondicoesDaFicha
+              personagem={fichaLigada}
+              antigas={condicoes}
+              antigasProprias={condicoesProprias}
+              onTirarAntiga={props.tokenCondition.onToggleCondition}
+              onTirarAntigaPropria={(condicao) => useMapStore.getState().alternarCondicaoPropria(token.id, condicao)}
+            />
+          ) : (
+            <TokenConditionControls conditions={condicoes} {...props.tokenCondition} tokenId={token.id} proprias={condicoesProprias} embutido />
+          )}
         </FichaDoTokenLembrada>
         <FichaDoTokenLembrada id="no-mapa" titulo="No mapa" icone="cena" padrao={false} resumo={resumoDoTamanho(token)}>
           {props.comTrava && <ItemTransformControls key={`trava-${token.id}`} {...transformacao} parte="trava" />}

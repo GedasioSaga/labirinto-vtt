@@ -169,6 +169,8 @@ const OUTSIDE_FLOOR_GRID_ALPHA = 0.08
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
 import { drawMapBounds, mapBoundsRect } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
+import { pastilhasDasFichasDoMapa, tokensComAsPastilhas } from '../lib/condicoes/pastilhas'
+import { useCondicoesPropriasStore } from '../stores/condicoesPropriasStore'
 import type { FotosDaForma, SelosNasFichas } from './tokenPhotoSprite'
 import { createFantasmaDeTesteRenderer } from './fantasmaDeTeste'
 import { fantasmaNaCena } from './drawFantasmaDeTeste'
@@ -3106,9 +3108,11 @@ function PixiCanvasDoContexto({
         const camadasDasFichas = contextoDeCamadas(map)
         const noDaFicha = noDoItem(pilha.nosDaFaixa('tokensContainer'), (t: Token) => camadasDasFichas.camadaDe('ficha', t))
         const campo = campoDaCena()
+        // CONDIÇÕES NA FICHA (E4b): o token com ficha acende as pastilhas da ficha (no NPC, da cópia dele), como na tela do jogador.
+        const pastilhas = pastilhasDasFichasDoMapa(map.tokens, personagensAtivos(useAdventureStore.getState()), useCondicoesPropriasStore.getState().catalogo)
         const changedLabels = tokensRenderer.draw(
           tokensContainer,
-          visibleTokens(map.tokens, map),
+          tokensComAsPastilhas(visibleTokens(map.tokens, map), pastilhas),
           map.grid,
           single?.kind === 'token' ? single.id : null,
           camera.scale,
@@ -3993,6 +3997,10 @@ function PixiCanvasDoContexto({
       })
       const unsubscribeSistemas = useRpgStore.subscribe((state, previous) => {
         if (state.biblioteca !== previous.biblioteca) redrawTokens()
+      })
+      // CONDIÇÕES NA FICHA (E4b): a condição criada mudou de cor ou de símbolo — a pastilha das fichas repinta.
+      const unsubscribeCondicoesCriadas = useCondicoesPropriasStore.subscribe((state, previous) => {
+        if (state.catalogo !== previous.catalogo) redrawTokens()
       })
       const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
       const unsubscribeBackground = subscribeToBackgroundRedraw(() => {
@@ -10356,6 +10364,7 @@ function PixiCanvasDoContexto({
         unsubscribeOlharDoGuarda()
         unsubscribeVidaDasFichas()
         unsubscribeSistemas()
+        unsubscribeCondicoesCriadas()
         unsubscribeProps()
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()
