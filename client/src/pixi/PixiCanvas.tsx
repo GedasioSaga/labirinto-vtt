@@ -2200,9 +2200,14 @@ function PixiCanvasDoContexto({
        * pôr? O objeto comum, sempre. O de CHÃO (tapete, píer, palco…), só quando o objeto escolhido
        * também é de chão: píer em píer ou tapete em píer é o mestre querendo a ficha do que está
        * posto, e não outro por cima dele.
+       *
+       * Token e pino também prendem (passeio de 26/11: o clique no Marinheiro criou um Balcão em cima
+       * dele): o mestre quer ESTE, e a ferramenta Token já respeita o token embaixo. Ctrl+clique
+       * continua pondo por cima de qualquer um.
        */
       const objetoPrendeOCliqueDePor = (map: MapData, ponto: Point): boolean => {
         const alvo = findSelectableAt(clickSelectMap(map), ponto, pinosNoToque(map))
+        if (alvo?.kind === 'token' || pinAt(map, ponto)) return true
         if (alvo?.kind !== 'prop') return false
         return !ehMovelDoChao(map.props.find((p) => p.id === alvo.id)?.mobilia) || ehMovelDoChao(tipoQueOCliquePoe() ?? useMapStore.getState().mobiliaTipo)
       }
