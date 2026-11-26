@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { semAcento } from '../../lib/semAcento'
 import { Tecla } from './Botao'
 import { SAIDA_DO_POP_MS, classes, focaveisEm, movimentoReduzido } from './comum'
 import './grimorio.css'
@@ -43,6 +44,20 @@ function posicionar(lado: LadoDoPop, r: DOMRect, largura: number, altura: number
 }
 
 const itensDoMenu = (pop: HTMLElement) => Array.from(pop.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)'))
+
+/**
+ * A letra digitada no menu leva ao PRÓXIMO item que começa com ela, dando a
+ * volta no fim (qualidade de vida, 26/11/2026: no menu de cenas, o B não ia ao
+ * Baratie), como nas listas comuns. -1 = nenhum item começa com ela.
+ */
+function itemPelaInicial(itens: readonly HTMLElement[], daVez: number, letra: string): number {
+  const alvo = semAcento(letra)
+  for (let passo = 1; passo <= itens.length; passo += 1) {
+    const indice = (daVez + passo) % itens.length
+    if (semAcento((itens[indice].textContent ?? '').trim()).startsWith(alvo)) return indice
+  }
+  return -1
+}
 
 /**
  * Popover e menu (o `.pop`). Abre a partir do gatilho em 160 ms e sai em 110.
@@ -118,6 +133,14 @@ export function Pop({ aberto, gatilho, onFechar, lado = 'baixo', tipo = 'menu', 
     const itens = itensDoMenu(evento.currentTarget)
     if (itens.length === 0) return
     const daVez = itens.findIndex((item) => item === document.activeElement)
+    const letra = evento.key.length === 1 && evento.key !== ' ' && !evento.ctrlKey && !evento.metaKey && !evento.altKey
+    if (letra) {
+      const pelaInicial = itemPelaInicial(itens, daVez, evento.key)
+      if (pelaInicial < 0) return
+      evento.preventDefault()
+      itens[pelaInicial].focus()
+      return
+    }
     const ultimo = itens.length - 1
     const destinos: Record<string, number> = {
       ArrowDown: daVez < 0 || daVez === ultimo ? 0 : daVez + 1,
