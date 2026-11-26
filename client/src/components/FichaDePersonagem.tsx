@@ -12,6 +12,7 @@ import type { LivroDaFicha } from './EscolherDoLivro'
 import type { QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
 import { FichaAbas } from './FichaAbas'
 import { ABA_DOS_ITENS } from '../lib/livros/coisaERegra'
+import { ABA_DAS_ARMAS } from '../lib/batalha/leituraDaFicha'
 import { ImagemOuIniciais } from './FichaPecas'
 import { AtributosDaFicha, AtributosEditaveis, RecursosDaFicha, RecursosEditaveis } from './FichaNumeros'
 import './FichaDePersonagem.css'
@@ -104,7 +105,8 @@ export function FichaDePersonagem({
 }: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
   // Fase 5 (um inventário só): com a aba Itens no sistema, a mochila mora DENTRO dela; sem a aba, fica sob o bloco, como antes.
-  const mochilaNaAba = sistema.abas.some((aba) => aba.id === ABA_DOS_ITENS)
+  // E4b: com Armas OU Itens, a mochila mora na aba "Mochila e equipamento" (FichaAbas), que troca as duas.
+  const mochilaNaAba = sistema.abas.some((aba) => aba.id === ABA_DOS_ITENS || aba.id === ABA_DAS_ARMAS)
   // A característica aberta no lugar das abas (só o mestre abre; na edição, as abas voltam).
   const [aberta, setAberta] = useState<string | null>(null)
   const mudarCaracteristicas = editando ? undefined : onCaracteristicas

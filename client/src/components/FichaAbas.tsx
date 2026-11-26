@@ -308,7 +308,8 @@ export function FichaAbas({
                 onChange={onChange}
               />
             ) : (
-              (inventario ?? <InventarioDaFicha itens={personagem.mochila ?? []} vazio="Nada na mochila. O mestre dá itens pelo Acervo ou pelo livro." />)
+              // Sem a aba Itens no molde (só Armas): a mochila do dono, com as ações do mestre fora da edição, como sob o bloco antes.
+              ((editando ? undefined : inventario) ?? <InventarioDaFicha itens={mochilaContada ?? []} vazio="Nada na mochila. O mestre dá itens pelo Acervo ou pelo livro." />)
             )}
             <CartoesDeAntes abas={abasAntigas} sistema={sistema} personagem={personagem} />
           </>
