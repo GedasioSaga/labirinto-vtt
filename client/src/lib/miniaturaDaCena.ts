@@ -239,15 +239,41 @@ function hash53(texto: string): string {
 const assinaturas = new WeakMap<MapData, string>()
 
 /**
+ * A assinatura de cada campo-objeto do mapa, também por referência: o campo
+ * que não mudou desde o último Salvar (a lista de texturas e carimbos
+ * importados, com as imagens em base64, vários MB de texto) não vira texto de
+ * novo. Antes o mapa inteiro era serializado num passo só, logo depois de
+ * salvar: tarefa longa no mapa com imagem importada.
+ */
+const assinaturasDosCampos = new WeakMap<object, string>()
+
+function assinaturaDoCampo(valor: unknown): string {
+  if (typeof valor !== 'object' || valor === null) return JSON.stringify(valor)
+  const guardada = assinaturasDosCampos.get(valor)
+  if (guardada !== undefined) return guardada
+  const texto = JSON.stringify(valor)
+  const assinatura = `${texto.length.toString(36)}.${hash53(texto)}`
+  assinaturasDosCampos.set(valor, assinatura)
+  return assinatura
+}
+
+/**
  * A assinatura do que a miniatura desenha: o mapa inteiro sem as fichas (a
  * ficha que anda não refaz a imagem), mais a versão do desenho. Mesma
  * assinatura = mesma imagem, também de uma abertura do app para a outra.
- * Guardada por referência (a store é imutável): o texto sai uma vez por mapa.
+ * Guardada por referência (a store é imutável): o texto sai uma vez por mapa,
+ * e cada campo uma vez por valor (`assinaturaDoCampo`).
  */
 export function assinaturaDaMiniatura(map: MapData): string {
   const guardada = assinaturas.get(map)
   if (guardada !== undefined) return guardada
-  const texto = JSON.stringify({ ...map, tokens: [] })
+  // Campo a campo, na ordem das chaves (a mesma do JSON do mapa); campo ausente fica de fora, como no JSON.
+  const partes: string[] = []
+  for (const [chave, valor] of Object.entries(map)) {
+    if (chave === 'tokens' || valor === undefined) continue
+    partes.push(`${chave}=${assinaturaDoCampo(valor)}`)
+  }
+  const texto = partes.join('|')
   const assinatura = `v${VERSAO_DA_MINIATURA}-${texto.length.toString(36)}-${hash53(texto)}`
   assinaturas.set(map, assinatura)
   return assinatura
