@@ -1,3 +1,21 @@
+# 26/11 ~16h50: /goal CONCLUÍDO — 0.6.1 PUBLICADA (latest.json = 0.6.1)
+
+## Estado atual
+- 0.6.0 (rework de itens) e 0.6.1 (15 sugestões de QoL + 26 bugs do explorador) publicadas, com Worker e site.
+- 3 testes do rework verdes (client/src/stores/itensRefeitos.nucleo.test.ts); prints antes/depois em docs/qualidade-de-vida/prints e depois/.
+- Página de QoL (só o incerto e as decisões do dono): https://claude.ai/artifact/7XGCzQRJAKs63ZL45B4fJd.
+- Listas: coisas erradas e bugs incertos em docs/explorador/*.md e docs/levantamento-mecanicas-duplicadas.md.
+- Árvore: só protocol.ts e o png de outra sessão sujos (ordem.ts/vez.ts aparecem como M só por fim de linha).
+
+## Próximos passos
+Decisões do dono listadas na página (ficha rápida, "Royals", livro sem pasta, uma mochila no site, 4 perguntas de intenção); pendências: filtro de cenas no painel Cenas, performance que pede medição, limpeza do código velho do rework (regraDaArma, balasNaMochila etc. em 26 arquivos), vagas antigas sem a regra até dar de novo.
+
+## Critério de pronto
+latest.json = 0.6.1 (curl conferido 26/11 ~16h50).
+
+## Evidência
+curl releases/latest/download/latest.json -> "0.6.1"; gh release view v0.6.1; tmp/rel-0.6.1/publicar-2.log exit 0; vitest itensRefeitos.nucleo.test.ts 3/3.
+
 # 26/11 16:44: 0.6.1 PUBLICADA
 
 Bump cb3acccc chore(release): 0.6.1 (5 arquivos, como 42a16541). Publicada do worktree limpo ../labirinto-release (release/0.6.1 por ff até origin/main c981f512, 3 junções) com CARGO_BUILD_JOBS=2 publicar-versao --publicar --com-google, exit 0 (log tmp/rel-0.6.1/publicar-2.log), depois de o coordenador liberar RAM (pythons órfãos fechados com ok do dono). Assinatura do setup confere, conferir-repo-publico "nada bloqueia", Worker labirinto-nuvem df53566a-192d-4277-90d2-a66edf87d154, site 0992cdfd.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.6.1 (setup.exe, .sig, msi, latest.json; alvo c981f512). curl releases/latest/download/latest.json: "version": "0.6.1". 1ª tentativa (publicar.log) morta por RAM crítica, nada enviado. Limpeza: target apagado, 3 junções .Delete() uma a uma (0 reparse points), Cargo.toml só com diferença de fim de linha restaurado, worktree remove sem --force, branch release/0.6.1 apagada; node_modules compartilhado intacto. Disco 11,7 GB. Nenhum teste rodado.
