@@ -42,7 +42,7 @@ import { tokensDosCompanionsDe } from '../lib/caracteristicas/naBatalha'
 import { paredesQueBarramOCaminho } from '../lib/batalha/movimentoEmBatalha'
 import { aliadosDe, type Equipe } from '../lib/batalha/equipes'
 import type { MedidaCompartilharMessage } from './protocoloDaMedida'
-import type { Agua, AreaTriggerKind, CarriedItem, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, Prop, RegionPoint, Token, TokenContract, Wall } from '../types/map'
+import type { Agua, AreaTriggerKind, CarriedItem, CondicaoPropria, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, Prop, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGADOR_POR_CENA } from '../lib/marcas'
@@ -311,6 +311,7 @@ import { novoPersonagem, paraOFio, type Personagem } from '../lib/personagem'
 import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
 import { danoDoAjusteNaVida } from '../lib/batalha/danoPelaFicha'
 import { formasVisiveisDoMapa, retratoNoToken, type FormasVisiveis } from '../lib/mudarFicha'
+import { pastilhasDasFichasDoMapa, type PastilhasDasFichas } from '../lib/condicoes/pastilhas'
 import { lerAura } from '../lib/auras'
 import { mochilaComAVagaAcesa } from '../lib/luzDoItem'
 import type { ContaNaSala } from '../lib/contasDosJogadores'
@@ -386,6 +387,12 @@ export interface RpgDoMundo {
   personagens: readonly Personagem[]
   /** BATALHA F1: as equipes do dono dos personagens (aventura ou pasta). Ausente = nenhuma: todo jogador é aliado. */
   equipes?: readonly Equipe[]
+  /**
+   * CONDIÇÕES NA FICHA (E4a): as condições que o mestre criou (o catálogo da
+   * pasta, `stores/condicoesPropriasStore.ts`), para desenhar a pastilha de quem
+   * as tem na ficha. Ausente = só as de fábrica acendem.
+   */
+  condicoesCriadas?: readonly CondicaoPropria[]
 }
 
 /** De onde a sessão lê o mapa: um `MapData` (mapa solto, o de sempre) ou o mundo da aventura. */
@@ -3290,6 +3297,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     cabines: world.cabines,
     ocupadas: ocupadasKey(playerId, world),
     formas: formasDoMapa(here.map, world),
+    pastilhas: pastilhasDoMapa(here.map, world),
   })
 
   /** CABINE DE TRANSPORTE: as cabines que outro jogador ocupa, como chave de comparação. */
@@ -3629,6 +3637,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     world.rpg === undefined ? undefined : formasVisiveisDoMapa(map.tokens, world.rpg.personagens, world.rpg.sistema)
 
   /**
+   * CONDIÇÕES NA FICHA (E4a): por token deste mapa, as pastilhas que a ficha de
+   * personagem ligada acende (`lib/condicoes/pastilhas.ts`); a do NPC é a da
+   * cópia daquele token. O recorte as pendura só em ficha que o jogador já
+   * recebe. Sem ficha no mundo, ou sem ficha com condição: nada.
+   */
+  const pastilhasDoMapa = (map: MapData, world: HostWorld): PastilhasDasFichas | undefined =>
+    world.rpg === undefined ? undefined : pastilhasDasFichasDoMapa(map.tokens, world.rpg.personagens, world.rpg.condicoesCriadas ?? [])
+
+  /**
    * BATALHA F1 (seção 3.2): os personagens cuja barra este jogador vê em
    * qualquer ficha — os dele e os dos aliados da equipe (`aliadosDe`). `null` =
    * a mesa não tem equipe: vale a regra de antes (toda ficha de jogador), e
@@ -3700,6 +3717,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const mapaDoRecorte = comParedesReveladas(map, memory.paredesReveladas)
     const barras = barrasDoMapa(map, world, playerId)
     const formas = formasDoMapa(map, world)
+    const pastilhas = pastilhasDoMapa(map, world)
     const recortar = (): PlayerMapView =>
       filterMapForPlayer(
         mapaDoRecorte,
@@ -3723,6 +3741,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         formas,
         cenarios.doJogador(playerId),
         papeisDaSessao(),
+        pastilhas,
       )
     let cut = recortar()
     // SALA SECRETA QUE ABRE (N3, passo 4): o lugar dela nasce PRETO, não lembrado.
@@ -3865,7 +3884,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       raio: tokenRadiusIn(playerId, map),
       loans: loansFor(playerId),
       recorte: view,
-      only: { pinAudiences, playerId, secretReveals, discoveredSecretRooms: memory.secretRooms, oneWayExits: oneWay, barras, formas, ownership, companions: companionMarks() },
+      only: { pinAudiences, playerId, secretReveals, discoveredSecretRooms: memory.secretRooms, oneWayExits: oneWay, barras, formas, pastilhas, ownership, companions: companionMarks() },
     })
     // DIA/TARDE/NOITE: o período DESTA cena e a tinta dele. De dia (ou sem período no mestre) o campo nem sai.
     // TEMA DO AMBIENTE: a tinta é a do PISO dele (o tema do piso, senão o do mapa), até de dia.
@@ -4405,7 +4424,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // cor automática de cada um (`corDoDono: false`): na mesa ela denunciaria quem
     // é quem, como a do sinal (`SIGNAL_NEUTRAL_COLOR`). A "Cor" da ficha vale.
     const pinoOf = coresDosPinos(map, ownership, { corDoDono: false })
-    const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership), { pinAudiences, loans: loaned, pinoOf, barras: barrasDoMapa(map, world), formas: formasDoMapa(map, world) })
+    const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership), {
+      pinAudiences,
+      loans: loaned,
+      pinoOf,
+      barras: barrasDoMapa(map, world),
+      formas: formasDoMapa(map, world),
+      pastilhas: pastilhasDoMapa(map, world),
+    })
     // Mesmas regras de `snapshotFor`: a visão de agora entra na memória que
     // viaja, fora de zona oculta (a sala secreta fechada é chão vazio, N3: o
     // recorte do grupo responde "não explorado" lá dentro), e o interior de

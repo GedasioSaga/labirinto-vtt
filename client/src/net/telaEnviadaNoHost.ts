@@ -10,6 +10,7 @@ import type { PlanMemory } from '../lib/fogFilter'
 import { cacheDoRecorte } from '../lib/cacheDoRecorte'
 import type { CabineDeTransporte } from '../lib/cabine'
 import { mesmasFormasVisiveis, type FormasVisiveis } from '../lib/mudarFicha'
+import { mesmasPastilhas, type PastilhasDasFichas } from '../lib/condicoes/pastilhas'
 import { ehConstrucao } from '../lib/mobilia/construcoes'
 import type { HostMessage } from './protocol'
 import type { PlayerViewContent } from './viewPatch'
@@ -42,6 +43,12 @@ export interface ViewInputs {
    * recorte sem o mapa mudar. Comparada por conteúdo (`mesmasFormasVisiveis`).
    */
   formas: FormasVisiveis | undefined
+  /**
+   * CONDIÇÕES NA FICHA (E4a): as pastilhas de cada token cuja ficha de
+   * personagem tem condição (`pastilhasDoMapa`). Vêm da ficha, não do mapa: pôr
+   * condição muda o recorte sem o mapa mudar. Comparadas por conteúdo (`mesmasPastilhas`).
+   */
+  pastilhas: PastilhasDasFichas | undefined
 }
 
 export function sameViewInputs(a: ViewInputs, b: ViewInputs): boolean {
@@ -53,6 +60,7 @@ export function sameViewInputs(a: ViewInputs, b: ViewInputs): boolean {
     a.cabines === b.cabines &&
     a.ocupadas === b.ocupadas &&
     mesmasFormasVisiveis(a.formas, b.formas) &&
+    mesmasPastilhas(a.pastilhas, b.pastilhas) &&
     a.elsewhere.length === b.elsewhere.length &&
     a.elsewhere.every((map, i) => map === b.elsewhere[i])
   )

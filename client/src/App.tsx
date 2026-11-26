@@ -37,7 +37,7 @@ import { AbrirAMesaDaBatalha, MenuDaVezSobPedido, TelaDaBatalhaNoApp, useLugarDa
 import { useTelaDaMesa } from './batalhaJanela/telaDaMesa'
 import { iniciarMesaDaBatalha } from './batalhaJanela/controleDaJanela'
 import { mesaDaAventura } from './stores/mesaDaAventura'
-import { seguirAPastaDasCondicoes } from './stores/condicoesPropriasStore'
+import { mundoComAsCondicoesCriadas, seguirAPastaDasCondicoes } from './stores/condicoesPropriasStore'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -1051,7 +1051,7 @@ function App() {
         getMap: () => useMapStore.getState().map,
         // Cada jogador vê a cena do token dele: a sessão precisa da aventura inteira, não só da cena aberta.
         // Com a biblioteca de sistemas, a FICHA DE PERSONAGEM de cada um vai junto (`HostWorld.rpg`).
-        getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, useRpgStore.getState().biblioteca),
+        getWorld: () => mundoComAsCondicoesCriadas(hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, useRpgStore.getState().biblioteca)),
         // Movimento, porta e nome/foto da ficha que o JOGADOR mudou, já validados
         // pela sessão: entram no mapa sem virar passo do Ctrl+Z do mestre (ver
         // `net/playerChanges.ts`), na cena aberta ou numa de fundo.
@@ -1202,7 +1202,7 @@ function App() {
   const [visaoDeTeste] = useState(() =>
     criarControladorDaVisao({
       getMap: () => useMapStore.getState().map,
-      getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, useRpgStore.getState().biblioteca),
+      getWorld: () => mundoComAsCondicoesCriadas(hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, useRpgStore.getState().biblioteca)),
       getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey) || useBatalhaDBTStore.getState().ligada(sceneKey),
       getPeriodo: () => periodoDaSessao(useAdventureStore.getState()),
       avisos: PILHA_DO_EDITOR,

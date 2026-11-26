@@ -4,6 +4,7 @@ import type { CondicaoPropria } from '../types/map'
 import { lerCatalogoDeCondicoes, lerCondicaoPropria, listaComCondicao, listaSemCondicao } from '../lib/condicoesProprias'
 import { lerCondicoesDaPasta, mudarCondicoesDaPasta, type CondicoesLidas } from '../lib/condicoesNoDisco'
 import { idDePastaValido, pastaDasPastas } from '../lib/pastasDeMapas'
+import type { HostWorld } from '../net/hostSession'
 import { useAdventureStore } from './adventureStore'
 import { useToastStore } from './toastStore'
 
@@ -185,6 +186,18 @@ export const useCondicoesPropriasStore = create<CondicoesPropriasState>()((set, 
     },
   }
 })
+
+/**
+ * CONDIÇÕES NA FICHA (E4a): o mundo que o host serve leva a lista do mestre,
+ * para o recorte de cada jogador desenhar a pastilha da condição criada que
+ * está numa ficha de personagem (`lib/condicoes/pastilhas.ts`). Sem ficha no
+ * mundo, ou lista vazia: o mesmo mundo.
+ */
+export function mundoComAsCondicoesCriadas(mundo: HostWorld): HostWorld {
+  const { catalogo } = useCondicoesPropriasStore.getState()
+  if (mundo.rpg === undefined || catalogo.length === 0) return mundo
+  return { ...mundo, rpg: { ...mundo.rpg, condicoesCriadas: catalogo } }
+}
 
 /**
  * Liga a lista à pasta aberta no editor: a cada abertura (ou quando o mapa

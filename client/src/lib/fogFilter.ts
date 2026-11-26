@@ -1,4 +1,4 @@
-import type { Agua, CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
+import type { Agua, CamadaId, Carimbo, ConcealZone, CondicaoPropria, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
 import { PERIODO_PADRAO, cenaNoEscuro, lerPeriodo, luzAcesaNoPeriodo, salaEscura, visaoCheiaDoDia } from './periodo'
 import { TETO_DA_LUZ_EM_VISOES_DO_DIA, luzDoCarimbo, luzDoObjeto, luzesDosCarimbos, raioDaLuzDoObjeto, raioDaLuzDosCarimbos } from './luzDoFogo'
 import { luzesDosItens } from './luzDoItem'
@@ -32,6 +32,7 @@ import { ehImagemDaMesa } from './midia'
 import type { FormasVisiveis } from './mudarFicha'
 import { tokenConditionsOf } from './tokenConditions'
 import { condicoesPropriasOf } from './condicoesProprias'
+import type { PastilhasDasFichas, PastilhasDoToken } from './condicoes/pastilhas'
 import { parseHexColor, selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenColor'
 import { carrierIdOf } from './carry'
 import { driverOf, vehicleCarrying, vehicleOf } from './vehicle'
@@ -1958,6 +1959,8 @@ interface TokenCut {
   health?: TokenHealth
   /** MUDAR FICHA: a imagem da forma que o host achou na ficha de personagem ligada (`formas`); `undefined` = a foto de sempre. */
   fotoDaForma?: string
+  /** CONDIÇÕES NA FICHA (E4a): as pastilhas que a ficha de personagem ligada acende (`pastilhas`); `undefined` = as do próprio token. */
+  pastilhas?: PastilhasDoToken
 }
 
 /**
@@ -2012,6 +2015,11 @@ interface TokenCut {
  * fichas estão sem dono), `hidden` (ficha oculta nem chega aqui) e
  * `characterId` (vínculo do mestre; o jogador recebe `null`).
  */
+/** A condição criada como a pastilha do jogador a desenha: sem a regra e o número (E4a), que são do mestre. */
+function semARegra({ regra: _regra, n: _n, ...pastilha }: CondicaoPropria): CondicaoPropria {
+  return pastilha
+}
+
 function tokenForPlayer(token: Token, cut: TokenCut): Token {
   const forPlayer: Token = {
     id: token.id,
@@ -2025,11 +2033,14 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   if (token.imageData !== undefined) forPlayer.imageData = isTokenPhotoData(token.imageData) ? token.imageData : null
   if (token.rotation !== undefined) forPlayer.rotation = token.rotation
   if (parseHexColor(token.color) !== null) forPlayer.color = token.color
-  const conditions = tokenConditionsOf(token)
-  if (conditions.length > 0) forPlayer.conditions = conditions
+  // CONDIÇÕES NA FICHA (E4a): com ficha de personagem ligada, as pastilhas vêm dela (`cut.pastilhas`,
+  // montadas pelo host com as do token juntas); sem, as do próprio token, como sempre.
+  const conditions = cut.pastilhas?.conditions ?? tokenConditionsOf(token)
+  if (conditions.length > 0) forPlayer.conditions = [...conditions]
   // CONDIÇÃO CRIADA PELO MESTRE: vai inteira (nome, cor, desenho ou símbolo digitado) e já limpa
   // campo a campo (`condicoesPropriasOf`): só texto curto, cor `#rrggbb`, id de desenho da biblioteca e símbolo de até 2 caracteres.
-  const condicoesProprias = condicoesPropriasOf(token)
+  // As da ficha passam pelo mesmo leitor: a regra da condição (`regra`, `n`) é do mestre e não atravessa.
+  const condicoesProprias = (cut.pastilhas?.condicoesProprias ?? condicoesPropriasOf(token)).map(semARegra)
   if (condicoesProprias.length > 0) forPlayer.condicoesProprias = condicoesProprias
   if (cut.health !== undefined) forPlayer.health = { ...cut.health }
   if (cut.alert !== null) forPlayer.alerta = cut.alert
@@ -2568,6 +2579,9 @@ export function pisoDoGrupo(
  * `formas`: MUDAR FICHA — por token, a imagem da forma que ele mostra
  * (`formasVisiveisDoMapa`, montado pelo host, que tem os personagens). Ausente =
  * toda ficha sai com a foto de sempre.
+ * `pastilhas`: CONDIÇÕES NA FICHA (E4a) — por token, as pastilhas que a ficha de
+ * personagem ligada acende (`pastilhasDasFichasDoMapa`, montado pelo host, que
+ * tem os personagens). Ausente = cada ficha sai com as do próprio token.
  */
 /**
  * O QUE O RECORTE DO JOGADOR PODE LEVAR, chave a chave (análise 18/11/2026,
@@ -2708,6 +2722,7 @@ export function filterMapForPlayer(
   formas?: FormasVisiveis,
   leituras?: LeiturasDoJogador,
   papeis?: PapeisDosDocumentos,
+  pastilhas?: PastilhasDasFichas,
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
   // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
@@ -2733,6 +2748,7 @@ export function filterMapForPlayer(
     formas,
     leituras,
     papeis,
+    pastilhas,
   })
 }
 
@@ -2787,6 +2803,12 @@ export interface PlayerOnlyView {
    * (o vulto e a sem rosto, não). Ausente = a foto de sempre.
    */
   formas?: FormasVisiveis
+  /**
+   * CONDIÇÕES NA FICHA (E4a): as pastilhas de cada token com ficha de
+   * personagem que tem condição (`pastilhasDasFichasDoMapa`). Sai em toda ficha
+   * que o recorte manda, como as do token. Ausente = as do próprio token.
+   */
+  pastilhas?: PastilhasDasFichas
   /**
    * "!" CENÁRIO e "?" FALAS (P4/P5): o que a mesa já leu ou disse a ESTE
    * jogador (`filterMapForPlayer`). Ausente = nada: o "!" "só quando eu
@@ -2899,7 +2921,7 @@ function recorteDoGrupo(
   explored: Exploration | undefined,
   seenDoors: ReadonlyMap<string, DoorState> | undefined,
   watchTargets: ReadonlySet<string> | undefined,
-  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas, leituras, papeis }: PlayerOnlyView,
+  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas, leituras, papeis, pastilhas }: PlayerOnlyView,
   ceuDoMundi: boolean,
   /**
    * TERRENO ALTO (`vistaDeCimaDoPiso`): as fichas do recorte são OLHOS DE
@@ -2925,7 +2947,7 @@ function recorteDoGrupo(
   // Luz L3: a luz apagada no período da cena sai antes de tudo (`soLuzesAcesas`).
   const map = comCamadaApagadaOcultaDoJogador(mapaDoPiso(soLuzesAcesas(mapaInteiro, viewers), pisoDoGrupo(mapaInteiro, viewers, loans)))
   if (isWorldMap(map))
-    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas, papeis })
+    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas, papeis, pastilhas })
   // CAMADAS: tudo o que sai pergunta ao olho "Jogadores veem" da camada do item
   // (`lib/camadas/consulta.ts`), INCLUSIVE chão, linha e marcador — que antes
   // saíam pela rede e só a tela do jogador escondia. Nada oculto dos jogadores:
@@ -4939,6 +4961,7 @@ function recorteDoGrupo(
       // ficha disfarçada de outro saem sem ela: a barra diria que há um jogador por trás.
       health: own || !disfarcada ? barraVistaPeloJogador(barras?.get(t.id), own) : undefined,
       fotoDaForma: formas?.get(t.id),
+      pastilhas: pastilhas?.get(t.id),
     })
     return shadow ? asShadow(seen) : seen
   })
@@ -5914,7 +5937,7 @@ export interface VistaDeOutroPiso {
 }
 
 /** O que é DESTE jogador e vale no recorte de outro piso. Memória não entra: de lá, só o que ele vê agora. */
-export type SoDoJogadorNoOutroPiso = Pick<PlayerOnlyView, 'pinAudiences' | 'playerId' | 'secretReveals' | 'discoveredSecretRooms' | 'oneWayExits' | 'barras' | 'formas'> & {
+export type SoDoJogadorNoOutroPiso = Pick<PlayerOnlyView, 'pinAudiences' | 'playerId' | 'secretReveals' | 'discoveredSecretRooms' | 'oneWayExits' | 'barras' | 'formas' | 'pastilhas'> & {
   /** A posse da mesa: com `playerId`, a ficha de colega sai com a marca dele e, no Continente, com a cor do pino (como em `filterMapForPlayer`). */
   ownership?: Record<string, string[]>
   companions?: CompanionMarks
