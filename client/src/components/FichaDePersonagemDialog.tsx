@@ -48,6 +48,8 @@ export interface FichaDePersonagemDialogProps {
   onAjustar?: (ajuste: Ajuste) => void
   /** O inventário do personagem (a mochila do token ligado), já com as ações do mestre. Ausente = sem token ligado. */
   inventario?: ReactNode
+  /** Itens refeitos (E4b): o "Armas por batalha" da aba "Mochila e equipamento", gravado na hora. Ausente = só lê. */
+  onLimiteDeArmas?: (limite: number | null) => void
   /** A mochila do token quando ELE é o dono dela (antes da migração): a edição da ficha não a troca pelo rascunho. Ausente = a ficha é a dona. */
   mochilaDoBoneco?: readonly CarriedItem[]
   /** As fichas da mesma pasta, para o "Trazer de outra ficha" das Habilidades em edição. Ausente = sem o botão. */
@@ -89,6 +91,7 @@ export function FichaDePersonagemDialog({
   onLigarToken,
   onAjustar,
   inventario,
+  onLimiteDeArmas,
   mochilaDoBoneco,
   outrasFichas,
 }: FichaDePersonagemDialogProps) {
@@ -311,6 +314,7 @@ export function FichaDePersonagemDialog({
               tituloId={tituloId}
               onAjustar={onAjustar}
               inventario={inventario}
+              onLimiteDeArmas={onLimiteDeArmas}
               mochilaDoBoneco={mochilaDoBoneco}
               mochilaDaEdicao={mochilaDaEdicao}
               onRevelar={(cartaoId) => onSalvar(revelarCartao(personagem, cartaoId))}

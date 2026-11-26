@@ -78,6 +78,8 @@ export interface FichaDePersonagemProps {
    * página de cada uma só existem com ele. Ausente = os chips só leem.
    */
   onCaracteristicas?: (lista: Caracteristica[]) => void
+  /** Itens refeitos (E4b): o "Armas por batalha" da aba "Mochila e equipamento", gravado na hora. Só o mestre. Ausente = só lê. */
+  onLimiteDeArmas?: (limite: number | null) => void
 }
 
 export function FichaDePersonagem({
@@ -98,6 +100,7 @@ export function FichaDePersonagem({
   onRevelar,
   outrasFichas,
   onCaracteristicas,
+  onLimiteDeArmas,
 }: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
   // Fase 5 (um inventário só): com a aba Itens no sistema, a mochila mora DENTRO dela; sem a aba, fica sob o bloco, como antes.
@@ -151,6 +154,7 @@ export function FichaDePersonagem({
           mochilaDoBoneco={mochilaDoBoneco}
           mochilaDaEdicao={mochilaDaEdicao}
           podePassarParaAMochila={podePassarParaAMochila}
+          onLimiteDeArmas={onLimiteDeArmas}
         />
         )}
       </div>

@@ -23,6 +23,7 @@ import { partyItemChange, tokenDoPersonagem } from '../lib/party'
 import type { AppliedItems, HostWorld } from '../net/hostSession'
 import type { CarriedItem } from '../types/map'
 import { InventarioDaFicha } from './InventarioDaFicha'
+import { comLimiteDeArmas } from './EquipamentoDaFicha'
 import { itemQueSeUsa } from '../lib/curaPeloItem'
 import { motivoDeNaoUsarFora, motivoDoItemSemEfeito, soEmQuemUsa } from '../lib/mochila/usarItemFora'
 import { falarNoChat } from '../stores/falaNoChat'
@@ -187,6 +188,8 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
                 }
           }
           inventario={doMestre?.inventario}
+          // Itens refeitos (E4b): o "Armas por batalha" da aba "Mochila e equipamento", na hora, com o histórico da ficha.
+          onLimiteDeArmas={(limite) => void useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => comLimiteDeArmas(atual, limite))}
           mochilaDoBoneco={doMestre?.mochilaDoBoneco}
         />
       )}

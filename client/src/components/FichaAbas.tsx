@@ -2,6 +2,8 @@ import { lazy, Suspense, useCallback, useContext, useEffect, useId, useMemo, use
 import { quantidadeDe } from '../lib/items'
 import { ABA_DOS_ITENS, passarAbaItensParaMochila, vagaDoCartaoAntigo } from '../lib/livros/coisaERegra'
 import { InventarioDaFicha } from './InventarioDaFicha'
+import { comLimiteDeArmas, EquipamentoDaFicha } from './EquipamentoDaFicha'
+import { itensDaTecnica } from '../lib/itens/itensDaTecnica'
 import { camposVisiveis, cartoesDaAba, NOME_DO_TEXTO_DE_ANTES, novoCartao, paragrafosDoCartao, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } from '../lib/livroDeRegras'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -88,7 +90,16 @@ export interface FichaAbasProps {
    * sairiam da aba sem chegar a lugar nenhum. Padrão: com.
    */
   podePassarParaAMochila?: boolean
+  /**
+   * Itens refeitos (E4b): o "Armas por batalha" da aba "Mochila e equipamento", gravado na hora
+   * (fora da edição; na edição vai para o rascunho). Só o app do mestre passa. Ausente = só lê.
+   */
+  onLimiteDeArmas?: (limite: number | null) => void
 }
+
+/** A aba que junta Armas e Itens (E4b): não é do molde do sistema, então tem um id que nenhuma aba dele usa. */
+const ABA_DA_MOCHILA = '__mochila-e-equipamento'
+const NOME_DA_ABA_DA_MOCHILA = 'Mochila e equipamento'
 
 /** Quantos itens a mochila tem, somando as pilhas. */
 function totalDaMochila(mochila: readonly CarriedItem[] | undefined): number {
@@ -206,21 +217,31 @@ export function FichaAbas({
   mochilaDoBoneco,
   mochilaDaEdicao,
   podePassarParaAMochila = true,
+  onLimiteDeArmas,
 }: FichaAbasProps) {
   const idBase = useId()
-  // As balas moram dentro do cartão da arma ("Tipos de bala"): a aba só aparece na barra se alguma bala ficou solta nela.
-  const abas = sistema.abas.filter((aba) => aba.id !== ABA_DAS_BALAS || cartoesDaAba(personagem, aba.id).length > 0)
-  const [ativaId, setAtivaId] = useState(abas[0]?.id ?? '')
+  // SISTEMA DE ITENS REFEITO (E4b): com Armas ou Itens no molde, as duas abas saem e entra "Mochila e equipamento", no fim
+  // (protótipo aprovado, tela G). As balas moravam no cartão da arma: a aba delas sai junto.
+  const comMochila = sistema.abas.some((aba) => aba.id === ABA_DAS_ARMAS || aba.id === ABA_DOS_ITENS)
+  const abaDosItens = sistema.abas.find((aba) => aba.id === ABA_DOS_ITENS)
+  const abasAntigas = comMochila ? sistema.abas.filter((aba) => aba.id === ABA_DAS_ARMAS || aba.id === ABA_DOS_ITENS) : []
+  const abas = sistema.abas.filter((aba) =>
+    comMochila ? aba.id !== ABA_DAS_ARMAS && aba.id !== ABA_DOS_ITENS && aba.id !== ABA_DAS_BALAS : aba.id !== ABA_DAS_BALAS || cartoesDaAba(personagem, aba.id).length > 0,
+  )
+  const botoes = [...abas.map((aba) => ({ id: aba.id, nome: aba.nome })), ...(comMochila ? [{ id: ABA_DA_MOCHILA, nome: NOME_DA_ABA_DA_MOCHILA }] : [])]
+  const [ativaId, setAtivaId] = useState(botoes[0]?.id ?? '')
   const refs = useRef(new Map<string, HTMLButtonElement>())
   // ED6: o mestre editando: o "+N <acumulador>" do editor da técnica grava no cartão do acumulador, outro cartão.
   const mestreEditando = editando && quemEditaAMecanica === 'mestre'
   const fichaQueSeMexe = useMemo<FichaQueSeMexe | null>(() => (mestreEditando ? { personagem, mudar: onChange } : null), [mestreEditando, personagem, onChange])
+  const naMochila = comMochila && (ativaId === ABA_DA_MOCHILA || abas.length === 0)
   const ativa = abas.find((aba) => aba.id === ativaId) ?? abas[0]
-  if (ativa === undefined) return <p className="lb-ficha__vazio">Este sistema não tem abas.</p>
+  if (ativa === undefined && !naMochila) return <p className="lb-ficha__vazio">Este sistema não tem abas.</p>
+  const idAtivo = naMochila ? ABA_DA_MOCHILA : (ativa?.id ?? '')
 
   // Setas andam entre as abas, Home/End vão às pontas: o padrão de abas da WAI-ARIA.
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const ids = abas.map((aba) => aba.id)
+    const ids = botoes.map((aba) => aba.id)
     const at = ids.indexOf(ativaId)
     const alvo =
       event.key === 'ArrowRight' ? ids[(at + 1) % ids.length] : event.key === 'ArrowLeft' ? ids[(at - 1 + ids.length) % ids.length] : event.key === 'Home' ? ids[0] : event.key === 'End' ? ids[ids.length - 1] : undefined
@@ -230,22 +251,23 @@ export function FichaAbas({
     refs.current.get(alvo)?.focus()
   }
 
-  const cartoes = cartoesDaAba(personagem, ativa.id)
-  const ocultas = ocultasDaAba(personagem, ativa.id)
-  const trocarCartoes = (novos: CartaoDaFicha[]) => onChange({ ...personagem, abas: { ...personagem.abas, [ativa.id]: novos } })
-  // A mochila que a aba Itens conta é a mesma que a grade mostra: a do Salvar na edição, senão a do dono.
+  // A mochila que a aba conta é a mesma que a grade mostra: a do Salvar na edição, senão a do dono.
   const mochilaContada = editando && mochilaDaEdicao !== undefined ? mochilaDaEdicao : (mochilaDoBoneco ?? personagem.mochila)
-  // SISTEMA DE ITENS REFEITO (docs/design/itens-rework/PLANO.md, E1): os cartões das abas Armas e Itens ficam só para ler até a
-  // E4 (a conversão ao abrir já os levou para a mochila); editar aqui faria duas fontes divergirem.
-  const moraNaMochila = ativa.id === ABA_DAS_ARMAS || ativa.id === ABA_DOS_ITENS
+  // Na edição, o "Armas por batalha" vai para o rascunho (o Salvar grava); fora dela, quem passou grava na hora.
+  const mudarLimite = editando ? (limite: number | null) => onChange(comLimiteDeArmas(personagem, limite)) : onLimiteDeArmas
 
   return (
     <div className="lb-ficha__abas">
       <div className="lb-ficha__abas-lista" role="tablist" aria-label={`Abas da ficha de ${personagem.nome}`} onKeyDown={onKeyDown}>
-        {abas.map((aba) => {
+        {botoes.map((aba) => {
           // Fatia C7: o "???" que o mestre escondeu conta na aba do jogador, como um cartão.
-          // Fase 5: a aba Itens conta também a mochila (ela é a leitura da mochila) — a do dono, a mesma que a grade mostra.
-          const quantos = aba.id === ABA_DOS_ITENS ? itensNaAba(personagem, mochilaContada) : cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id)
+          // E4b: a aba da mochila conta as vagas da mochila do dono, a mesma que a grade mostra.
+          const quantos =
+            aba.id === ABA_DA_MOCHILA
+              ? (mochilaContada ?? []).length
+              : aba.id === ABA_DOS_ITENS
+                ? itensNaAba(personagem, mochilaContada)
+                : cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id)
           return (
             <button
               key={aba.id}
@@ -257,9 +279,9 @@ export function FichaAbas({
               role="tab"
               id={`${idBase}-aba-${aba.id}`}
               className="lb-ficha__aba"
-              aria-selected={aba.id === ativa.id}
+              aria-selected={aba.id === idAtivo}
               aria-controls={`${idBase}-painel`}
-              tabIndex={aba.id === ativa.id ? 0 : -1}
+              tabIndex={aba.id === idAtivo ? 0 : -1}
               onClick={() => setAtivaId(aba.id)}
             >
               {aba.nome}
@@ -269,60 +291,158 @@ export function FichaAbas({
         })}
       </div>
       <MexerNaFicha.Provider value={fichaQueSeMexe}>
-      <div id={`${idBase}-painel`} className="lb-ficha__painel" role="tabpanel" aria-labelledby={`${idBase}-aba-${ativa.id}`}>
-        {mestreEditando && ativa.id === ABA_DAS_TECNICAS && <AcumuladoresNaFicha personagem={personagem} sistema={sistema} onChange={onChange} />}
-        {ativa.id === ABA_DOS_ITENS && (
-          <MochilaNaAbaItens
-            personagem={personagem}
-            aba={ativa}
-            inventario={inventario}
-            editando={editando}
-            donoEhOBoneco={mochilaDoBoneco !== undefined}
-            mochilaDaEdicao={mochilaDaEdicao}
-            podePassar={podePassarParaAMochila && cartoes.some((cartao) => cartao.naMochila !== true)}
-            cartoesAntigos={cartoes.length}
-            onChange={onChange}
-          />
-        )}
-        {moraNaMochila && cartoes.length > 0 && <p className="lb-ficha__vazio">Agora mora na mochila: estes cartões ficam só para ler, e o item se muda pela mochila.</p>}
-        {ativa.id === ABA_DOS_ITENS && cartoes.length === 0 && ocultas === 0 ? null : editando && !moraNaMochila ? (
-          <ListaEditavel
-            key={ativa.id}
-            aba={ativa}
-            sistema={sistema}
-            personagem={personagem}
-            cartoes={cartoes}
-            onChange={trocarCartoes}
-            escolherImagem={escolherImagem}
-            livro={livro}
-            quemEditaAMecanica={quemEditaAMecanica}
-            podeOcultar={quemEditaAMecanica === 'mestre' && onRevelar !== undefined}
-            outrasFichas={outrasFichas}
-          />
-        ) : cartoes.length === 0 && ocultas === 0 ? (
-          <p className="lb-ficha__vazio">{ativa.vazio}</p>
+      <div id={`${idBase}-painel`} className="lb-ficha__painel" role="tabpanel" aria-labelledby={`${idBase}-aba-${idAtivo}`}>
+        {naMochila ? (
+          <>
+            <EquipamentoDaFicha personagem={personagem} itens={mochilaContada ?? []} onLimite={mudarLimite} />
+            {abaDosItens !== undefined ? (
+              <MochilaNaAbaItens
+                personagem={personagem}
+                aba={abaDosItens}
+                inventario={inventario}
+                editando={editando}
+                donoEhOBoneco={mochilaDoBoneco !== undefined}
+                mochilaDaEdicao={mochilaDaEdicao}
+                podePassar={podePassarParaAMochila && cartoesDaAba(personagem, abaDosItens.id).some((cartao) => cartao.naMochila !== true)}
+                cartoesAntigos={cartoesDaAba(personagem, abaDosItens.id).length}
+                onChange={onChange}
+              />
+            ) : (
+              (inventario ?? <InventarioDaFicha itens={personagem.mochila ?? []} vazio="Nada na mochila. O mestre dá itens pelo Acervo ou pelo livro." />)
+            )}
+            <CartoesDeAntes abas={abasAntigas} sistema={sistema} personagem={personagem} />
+          </>
         ) : (
-          <ul className="lb-ficha__cartoes">
-            {cartoes.map((cartao) => (
-              <CartaoLido
-                key={cartao.id}
-                cartao={cartao}
+          ativa !== undefined && (
+            <>
+              {mestreEditando && ativa.id === ABA_DAS_TECNICAS && <AcumuladoresNaFicha personagem={personagem} sistema={sistema} onChange={onChange} />}
+              <CartoesDaAba
                 aba={ativa}
                 sistema={sistema}
                 personagem={personagem}
-                ativo={personagem.cartoesAtivos.includes(cartao.id)}
-                onLigar={
-                  onAjustar === undefined || ativa.modificadores !== true ? undefined : (ligar) => onAjustar({ parte: 'cartao', chave: cartao.id, valor: ligar ? 1 : 0 })
-                }
+                editando={editando}
+                onChange={onChange}
+                escolherImagem={escolherImagem}
+                livro={livro}
+                onAjustar={onAjustar}
+                quemEditaAMecanica={quemEditaAMecanica}
                 onRevelar={onRevelar}
+                outrasFichas={outrasFichas}
               />
-            ))}
-            <CartoesOcultos quantos={ocultas} />
-          </ul>
+            </>
+          )
         )}
       </div>
       </MexerNaFicha.Provider>
     </div>
+  )
+}
+
+/**
+ * Os itens que a habilidade gasta ou exige (E4b), com a contagem da mochila da ficha: "Gasta 1 Kit
+ * Médico · tem 3". Falta item = a peça fica apagada, como no protótipo. Técnica sem item: nada.
+ */
+function ItensDaHabilidade({ cartao, personagem }: { cartao: CartaoDaFicha; personagem: Personagem }) {
+  const itens = itensDaTecnica(cartao, personagem)
+  if (itens.length === 0) return null
+  return (
+    <ul className="lb-cartao__itens" aria-label="Itens que a habilidade usa">
+      {itens.map((item) => {
+        const tem = item.tem >= item.n
+        return (
+          <li key={item.id} className="lb-cartao__item" data-ok={tem ? 'sim' : 'nao'}>
+            {item.ou ? 'ou ' : ''}
+            {item.gasta ? 'Gasta' : 'Exige'} {item.n} {item.nome}
+            <span className="lb-cartao__item-tem">
+              {' · '}
+              {tem ? `tem ${item.tem}` : item.tem === 0 ? 'falta na mochila' : `tem só ${item.tem}`}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+interface CartoesDaAbaProps {
+  aba: AbaDoSistema
+  sistema: SistemaDeRpg
+  personagem: Personagem
+  editando: boolean
+  onChange: (personagem: Personagem) => void
+  escolherImagem: () => Promise<string | null>
+  livro?: LivroDaFicha
+  onAjustar?: (ajuste: Ajuste) => void
+  quemEditaAMecanica: QuemEditaAMecanica
+  onRevelar?: (cartaoId: string) => void
+  outrasFichas?: readonly Personagem[]
+}
+
+/** Os cartões de uma aba do molde: a lista que edita, ou os cartões lidos com os "???" do mestre. */
+function CartoesDaAba({ aba, sistema, personagem, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica, onRevelar, outrasFichas }: CartoesDaAbaProps) {
+  const cartoes = cartoesDaAba(personagem, aba.id)
+  const ocultas = ocultasDaAba(personagem, aba.id)
+  const trocarCartoes = (novos: CartaoDaFicha[]) => onChange({ ...personagem, abas: { ...personagem.abas, [aba.id]: novos } })
+  if (editando) {
+    return (
+      <ListaEditavel
+        key={aba.id}
+        aba={aba}
+        sistema={sistema}
+        personagem={personagem}
+        cartoes={cartoes}
+        onChange={trocarCartoes}
+        escolherImagem={escolherImagem}
+        livro={livro}
+        quemEditaAMecanica={quemEditaAMecanica}
+        podeOcultar={quemEditaAMecanica === 'mestre' && onRevelar !== undefined}
+        outrasFichas={outrasFichas}
+      />
+    )
+  }
+  if (cartoes.length === 0 && ocultas === 0) return <p className="lb-ficha__vazio">{aba.vazio}</p>
+  return (
+    <ul className="lb-ficha__cartoes">
+      {cartoes.map((cartao) => (
+        <CartaoLido
+          key={cartao.id}
+          cartao={cartao}
+          aba={aba}
+          sistema={sistema}
+          personagem={personagem}
+          ativo={personagem.cartoesAtivos.includes(cartao.id)}
+          onLigar={onAjustar === undefined || aba.modificadores !== true ? undefined : (ligar) => onAjustar({ parte: 'cartao', chave: cartao.id, valor: ligar ? 1 : 0 })}
+          onRevelar={onRevelar}
+        />
+      ))}
+      <CartoesOcultos quantos={ocultas} />
+    </ul>
+  )
+}
+
+/**
+ * Os cartões das abas Armas e Itens de antes (E4b): a conversão ao abrir já os levou para a mochila
+ * (E1), e eles ficam guardados no arquivo até a limpeza (E7). Aqui, recolhidos e só para ler: nada
+ * some sem o mestre poder conferir, e não há duas fontes para editar.
+ */
+function CartoesDeAntes({ abas, sistema, personagem }: { abas: readonly AbaDoSistema[]; sistema: SistemaDeRpg; personagem: Personagem }) {
+  const comCartoes = abas.map((aba) => ({ aba, cartoes: cartoesDaAba(personagem, aba.id) })).filter(({ cartoes }) => cartoes.length > 0)
+  const total = comCartoes.reduce((soma, { cartoes }) => soma + cartoes.length, 0)
+  if (total === 0) return null
+  return (
+    <details className="lb-ficha__antigos">
+      <summary>
+        Cartões de antes, de {comCartoes.map(({ aba }) => aba.nome).join(' e ')} ({total}), só para ler
+      </summary>
+      <p className="lb-ficha__vazio">Já foram para a mochila ao abrir a aventura. Ficam aqui para conferir; o item se muda pela mochila.</p>
+      {comCartoes.map(({ aba, cartoes }) => (
+        <ul key={aba.id} className="lb-ficha__cartoes" aria-label={aba.nome}>
+          {cartoes.map((cartao) => (
+            <CartaoLido key={cartao.id} cartao={cartao} aba={aba} sistema={sistema} personagem={personagem} ativo={false} />
+          ))}
+        </ul>
+      ))}
+    </details>
   )
 }
 
@@ -446,6 +566,7 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevela
             </div>
           )}
           <LinhasDoCartao linhas={camposVisiveis(abaLida, cartao, 'linha')} />
+          {tecnica && <ItensDaHabilidade cartao={cartao} personagem={personagem} />}
           {camposVisiveis(abaLida, cartao, 'destaque').map((campo, i) => (
             <p key={`${campo.rotulo}-${i}`} className="lb-cartao__destaque">
               <span className="lb-cartao__destaque-rotulo">{campo.rotulo}: </span>

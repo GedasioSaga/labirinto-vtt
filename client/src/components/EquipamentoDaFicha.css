@@ -1,0 +1,172 @@
+/* O ALTO DA ABA "MOCHILA E EQUIPAMENTO" (itens refeitos, E4b): o "Armas por batalha" e o que está em uso. */
+.eq-ficha {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.eq-ficha__limite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.eq-ficha__rot {
+  font-weight: 600;
+}
+
+.eq-ficha__passo {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--lb-gr-filete-forte, rgba(255, 255, 255, 0.18));
+  border-radius: var(--lb-radius-sm, 6px);
+  overflow: hidden;
+}
+
+.eq-ficha__passo > button {
+  width: 32px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--lb-color-parchment);
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast, 120ms) ease,
+    transform 120ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .eq-ficha__passo > button:hover:not(:disabled) {
+    background: var(--lb-gr-hover, rgba(255, 255, 255, 0.08));
+  }
+}
+
+.eq-ficha__passo > button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.eq-ficha__passo > button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.eq-ficha__passo > button:focus-visible {
+  outline: none;
+  box-shadow: inset var(--lb-shadow-focus);
+}
+
+.eq-ficha__valor {
+  min-width: 5ch;
+  padding: 0 6px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.eq-ficha__nota {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.eq-ficha__subtit {
+  margin: 4px 0 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.eq-ficha__vagas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eq-vaga {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--lb-gr-filete-latao, var(--lb-color-brass));
+  border-radius: var(--lb-radius-sm, 6px);
+  background: var(--lb-gr-papel-alto, rgba(255, 255, 255, 0.04));
+}
+
+.eq-vaga--livre {
+  border-style: dashed;
+  border-color: var(--lb-gr-filete-forte, rgba(255, 255, 255, 0.18));
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+}
+
+.eq-vaga__parte,
+.eq-vaga__det {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-xs, 0.75rem);
+}
+
+.eq-vaga__nome {
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq-ficha__passo > button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Os cartões de antes das abas Armas e Itens (E4b): recolhidos, só para ler. */
+.lb-ficha__antigos {
+  margin-top: 14px;
+  border-top: 1px solid var(--lb-gr-filete, rgba(255, 255, 255, 0.1));
+  padding-top: 10px;
+}
+
+.lb-ficha__antigos > summary {
+  cursor: pointer;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-ficha__antigos > summary:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+  border-radius: var(--lb-radius-sm, 6px);
+}
+
+/* Os itens que a habilidade gasta ou exige, com a contagem da mochila (E4b). */
+.lb-cartao__itens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-cartao__item {
+  padding: 2px 8px;
+  border: 1px solid var(--lb-gr-filete-latao, var(--lb-color-brass));
+  border-radius: 999px;
+  font-size: var(--lb-font-size-xs, 0.75rem);
+  color: var(--lb-color-parchment);
+}
+
+.lb-cartao__item[data-ok='nao'] {
+  border-style: dashed;
+  border-color: var(--lb-gr-filete-forte, rgba(255, 255, 255, 0.2));
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-cartao__item-tem {
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
