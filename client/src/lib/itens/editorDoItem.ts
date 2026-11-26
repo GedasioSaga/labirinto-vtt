@@ -452,13 +452,22 @@ function fraseDaPeca(peca: PecaDoItem, onde: OndeDaPeca): string {
   }
 }
 
-function frasesDasPecas(item: ItemDoCatalogo, onde: OndeDaPeca): string[] {
+/**
+ * O que as frases leem do item: o nome, o tipo, a luz e os blocos. O item do Acervo serve; a vaga da
+ * mochila com a regra em instantâneo também (o cartão inteiro que o jogador vê, decisão 18).
+ */
+export type ItemDaFrase = Pick<ItemDoCatalogo, 'id' | 'nome' | 'tipo' | 'luz'> & BlocosDoItem
+
+/** A frase da munição que nenhuma arma do Acervo aceita (quem não vê o Acervo, o jogador, a tira). */
+export const SEM_ARMA_QUE_ACEITA = 'Nenhuma arma do Acervo aceita esta munição ainda.'
+
+function frasesDasPecas(item: ItemDaFrase, onde: OndeDaPeca): string[] {
   const pecas = pecasDoItemLidas(onde === 'uso' ? item.aoUsar : item.aoAcertar)
   return pecas.filter((peca) => !danoExtraDobra(item, peca)).map((peca) => fraseDaPeca(peca, onde))
 }
 
 /** "O que acontece": o item em frases curtas, pelo tipo, como o cartão de papel do protótipo. */
-export function frasesDoItem(item: ItemDoCatalogo, ctx: ContextoDaFrase): string[] {
+export function frasesDoItem(item: ItemDaFrase, ctx: ContextoDaFrase): string[] {
   const f: string[] = []
   const nome = item.nome.trim() || 'este item'
   const tiro = () => {
@@ -501,7 +510,7 @@ export function frasesDoItem(item: ItemDoCatalogo, ctx: ContextoDaFrase): string
       }
       f.push(...frasesDasPecas(item, 'acerto'))
       const armas = ctx.armasQueAceitam(item.id)
-      f.push(armas.length > 0 ? `Serve em: ${juntar(armas)}.` : 'Nenhuma arma do Acervo aceita esta munição ainda.')
+      f.push(armas.length > 0 ? `Serve em: ${juntar(armas)}.` : SEM_ARMA_QUE_ACEITA)
       break
     }
     case 'consumivel': {

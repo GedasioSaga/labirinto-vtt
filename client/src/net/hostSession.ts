@@ -7246,6 +7246,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return recusa('Só dá para dar a um colega que você vê nesta cena.')
     }
     if (!tokensTouch(giverSeen, targetSeen, map.grid)) return recusa(`Chegue perto de ${nomeOuAlguem(targetSeen.name)} para dar.`)
+    // Decisão 9: na batalha, item só vai para aliado (o colega do outro lado da luta recusa, como no "Dar a…" do mestre).
+    if (token.characterId !== null && target.characterId !== null) {
+      const naLuta = options.motivoDoDarNaLuta?.(token.characterId, target.characterId) ?? null
+      if (naLuta !== null) return recusa(naLuta)
+    }
     const mochila = carriedItemsOf(token)
     const vaga = mochila.find((item) => item.id === msg.vagaId)
     if (vaga === undefined) return recusa('O item já não está na mochila.')

@@ -1,6 +1,8 @@
 import { maximoComposto } from '../../lib/ajusteDaFicha'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
 import { recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
+import { equipamentoNoAcervo } from '../../lib/batalha/municoesDoAcervo'
+import { bonusDaRoupa } from '../../lib/mochila/bonusDaRoupa'
 import { membrosDoBando } from '../../lib/batalha/invocacao'
 import { escudoMaisAlto, nomeDoAutor, podeDesfazer, type LinhaDoRegistro, type LinhaParaJogador } from '../../lib/batalha/registro'
 import type { FormaNaBatalha, ModDoSelo, NaturezaDoSelo } from '../../lib/batalha/combate'
@@ -78,6 +80,8 @@ export interface DadosDaCarta {
   escudo?: number
   /** C10: o cheio da barra do Escudo, o maior que ele teve na batalha (`escudoMaisAlto`). Ausente = o atual (barra cheia). */
   escudoMax?: number
+  /** Itens refeitos, decisão 8: a CA da roupa vestida (o sistema não tem CA própria). Só o mestre vê; ausente (ou 0) = a linha some. */
+  ca?: number
   /** COMPANION: o nome do dono ("Companion de Aira"). Ausente = não é companion. */
   companionDe?: string
 }
@@ -206,6 +210,13 @@ export function recursosDaCarta(personagem: Personagem, sistema: SistemaDeRpg | 
   return saida
 }
 
+/** Decisão 8 dos itens: a CA que a roupa vestida dá (Acervo de agora, senão a cópia da vaga). 0 = a linha some. */
+function caDaRoupa(personagem: Personagem | undefined): { ca?: number } {
+  if (personagem === undefined) return {}
+  const { ca } = bonusDaRoupa(personagem.mochila, equipamentoNoAcervo)
+  return ca === 0 ? {} : { ca }
+}
+
 /** O Escudo que vai na carta: zerado some; o cheio só quando passa do atual (senão a barra está cheia). */
 function comEscudo(escudo: number | undefined, maximo: number | undefined): { escudo?: number; escudoMax?: number } {
   if (escudo === undefined || escudo <= 0) return {}
@@ -264,6 +275,7 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema, r
       npc: personagem?.tipo === 'npc',
       carga: carta.personagemId === null ? 0 : (turnos.combate?.[carta.personagemId]?.carga ?? 0),
       ...escudoDaFicha(personagem, sistema, registro),
+      ...caDaRoupa(personagem),
       ...companionNoMestre(turnos, carta.tokenId, personagemPorId),
     }
   })

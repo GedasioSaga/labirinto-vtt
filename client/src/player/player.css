@@ -7446,6 +7446,15 @@ button.pp-colecao__casa:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* Decisão 18 dos itens: as regras do item, uma frase por linha (o mesmo cartão do editor do mestre). */
+.pp-inv__regras {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .pp-inv__nota-da-vaga {
   margin: 0;
   font-size: 13px;

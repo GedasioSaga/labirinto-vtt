@@ -1146,6 +1146,8 @@ function App() {
           useToastStore.getState().push('info', feito.texto, undefined, { actions: [{ label: 'Desfazer', run: () => void feito.desfazer() }] })
           return { ok: true, texto: feito.texto }
         },
+        // Itens refeitos (decisão 9): o "Dar a…" do jogador pela LAN, na batalha, só vai para aliado (a mesma conferência do mestre).
+        motivoDoDarNaLuta: (deId, paraId) => useBatalhaStore.getState().motivoDoDarNaLuta(deId, paraId),
         // Regra de 27/10: esbarrar em parede invisível REVELA (só para ele) e AVISA o mestre (o nome vem do registro do host, não do jogador).
         onEsbarrouNaParede: (nome, invisivel) =>
           useToastStore.getState().push('info', invisivel ? `${nome} esbarrou na parede invisível` : `${nome} esbarrou numa parede que ainda estava na névoa`),

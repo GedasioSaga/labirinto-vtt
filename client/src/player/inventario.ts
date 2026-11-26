@@ -1,5 +1,5 @@
-import type { CarriedItem, CondicaoPropria, MapData, Pin, Token, TokenCondition } from '../types/map'
-import type { TipoDoItem } from '../lib/itens/modelo'
+import type { CarriedItem, CondicaoPropria, LuzDoItem, MapData, Pin, Token, TokenCondition } from '../types/map'
+import type { RegraDaVaga, TipoDoItem } from '../lib/itens/modelo'
 import { condicoesPropriasOf } from '../lib/condicoesProprias'
 import { itemOfPin, quantidadeDe, tokensTouch } from '../lib/items'
 import { healthFraction, healthState, readTokenHealth, type HealthState } from '../lib/tokenHealth'
@@ -113,6 +113,10 @@ export interface InventorySlot {
   notaDaVaga?: string
   /** O item do Acervo da vaga; ausente = pego de pino de antes. */
   acervoId?: string
+  /** Decisão 18: a regra do item em instantâneo (A1), de onde sai o cartão inteiro; ausente = vaga dada antes dela. */
+  regra?: RegraDaVaga
+  /** A luz do item (o alcance), para a frase do cartão; ausente = não ilumina. */
+  luzDoItem?: LuzDoItem
 }
 
 /** A vaga de um item como a grade a mostra (sem o pente, que precisa da mochila inteira para achar o nome da bala). */
@@ -127,6 +131,8 @@ function slotDaVaga(item: CarriedItem, chave: string): InventorySlot {
   if (item.efeitoResumo !== undefined) slot.efeitoResumo = item.efeitoResumo
   if (item.notaDaVaga !== undefined) slot.notaDaVaga = item.notaDaVaga
   if (item.itemId !== undefined) slot.acervoId = item.itemId
+  if (item.regra !== undefined) slot.regra = item.regra
+  if (item.luz !== undefined) slot.luzDoItem = item.luz
   return slot
 }
 

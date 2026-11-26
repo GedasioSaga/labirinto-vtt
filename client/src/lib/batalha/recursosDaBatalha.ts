@@ -124,14 +124,23 @@ export function ajusteDoSpDaVez(personagem: Personagem, sistema: SistemaDeRpg): 
  * Escudo). Devolve o máximo a gravar e o ajuste do atual, separados: o
  * máximo do Escudo não passa pelo `aplicarAjuste` (ele ignora o máximo de
  * recurso sem máximo).
+ *
+ * ITENS REFEITOS, decisão 8: `daRoupa` = o Escudo da roupa vestida (`bonusDaRoupa`). O cheio gravado
+ * continua o da ficha, sem a roupa; o Escudo enche até o cheio MAIS a roupa. "O mestre subiu" passa
+ * a ser o Escudo acima do cheio mais a roupa (o novo cheio é o de agora menos a roupa).
  */
-export function escudoNoComeco(personagem: Personagem, sistema: SistemaDeRpg): { escudoId: string; cheio: number; ajuste: Ajuste | null } | null {
+export function escudoNoComeco(personagem: Personagem, sistema: SistemaDeRpg, daRoupa = 0): { escudoId: string; cheio: number; ajuste: Ajuste | null } | null {
   const escudo = recursoDoEscudo(sistema)
   if (escudo === null || temMaximo(sistema, escudo.id)) return null
+  const roupa = Math.max(0, daRoupa)
   const atual = numeroDaFicha(personagem.recursos, escudo.id)
   const gravado = personagem.maximos[escudo.id]
-  if (gravado === undefined || atual > gravado) return atual > 0 ? { escudoId: escudo.id, cheio: atual, ajuste: null } : null
-  if (atual === gravado) return null
-  return { escudoId: escudo.id, cheio: gravado, ajuste: { parte: 'recurso', chave: escudo.id, valor: gravado } }
+  if (gravado === undefined) {
+    if (atual <= 0 && roupa === 0) return null
+    return { escudoId: escudo.id, cheio: atual, ajuste: roupa === 0 ? null : { parte: 'recurso', chave: escudo.id, valor: atual + roupa } }
+  }
+  if (atual > gravado + roupa) return { escudoId: escudo.id, cheio: atual - roupa, ajuste: null }
+  if (atual === gravado + roupa) return null
+  return { escudoId: escudo.id, cheio: gravado, ajuste: { parte: 'recurso', chave: escudo.id, valor: gravado + roupa } }
 }
 

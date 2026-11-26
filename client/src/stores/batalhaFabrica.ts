@@ -6,6 +6,8 @@ import { chaveDoGastoDoInvocado, membrosDoBando, temporariosDaCena } from '../li
 import { desfazerFormasNoFim } from '../lib/batalha/transformacao'
 import { comLembretesDaPreparacao } from '../lib/batalha/preparacao'
 import { escudoNoComeco } from '../lib/batalha/recursosDaBatalha'
+import { equipamentoNoAcervo } from '../lib/batalha/municoesDoAcervo'
+import { bonusDaRoupa } from '../lib/mochila/bonusDaRoupa'
 import { ID_DA_EQUIPE_DOS_JOGADORES, equipeDe } from '../lib/batalha/equipes'
 import { comLembretesDoMomento } from '../lib/batalha/passivas'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
@@ -122,7 +124,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const ids = new Set(cartas.flatMap((carta) => (carta.personagemId === null ? [] : [carta.personagemId])))
     for (const personagemId of ids) {
       mesa.ajustarPersonagem(personagemId, (atual) => {
-        const escudo = escudoNoComeco(atual, sistema)
+        // Itens refeitos, decisão 8: o Escudo da roupa vestida enche junto, em cima do cheio da ficha.
+        const escudo = escudoNoComeco(atual, sistema, bonusDaRoupa(atual.mochila, equipamentoNoAcervo).escudo)
         if (escudo === null) return atual
         const gravado: Personagem = { ...atual, maximos: { ...atual.maximos, [escudo.escudoId]: escudo.cheio } }
         return escudo.ajuste === null ? gravado : aplicarAjustes(gravado, sistema, [escudo.ajuste], NOME_DO_MESTRE, Date.now())

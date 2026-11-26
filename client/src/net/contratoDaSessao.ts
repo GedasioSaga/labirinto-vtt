@@ -96,6 +96,11 @@ export interface HostSessionOptions {
    */
   acervoDaMochila?: () => AcervoDaMochila
   /**
+   * Itens refeitos (decisão 9): o "Dar a…" do jogador pela LAN, na batalha, só vai para aliado. A
+   * frase da recusa (`motivoDoDarNaLuta` da batalha) ou `null` = pode dar. Ausente = sem batalha a conferir.
+   */
+  motivoDoDarNaLuta?: (dePersonagemId: string, paraPersonagemId: string) => string | null
+  /**
    * MODO BATALHA (regra de 27/10): a ficha de `nome` parou numa parede que o
    * recorte dele não tem (`invisivel`: alguma delas é parede invisível; senão
    * ainda estava na névoa dele). A parede passa a valer como explorada para

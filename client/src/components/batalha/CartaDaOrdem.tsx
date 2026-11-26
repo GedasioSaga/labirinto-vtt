@@ -1,5 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type MouseEvent } from 'react'
 import { ImagemOuIniciais } from '../FichaPecas'
+import { comSinal } from '../../lib/mochila/bonusDaRoupa'
 import { textoLongoDoSelo, type DadosDaCarta, type MembroNaCarta, type RecursoNaCarta } from './dadosDaFaixa'
 import { movimentoReduzido } from './dadosDoMenu'
 import './batalha.css'
@@ -53,6 +54,16 @@ export interface CartaDaOrdemProps {
 const numero = new Intl.NumberFormat('pt-BR')
 
 /** A linha com a barra: HP e SP da ficha, e o Escudo (tom próprio, C10). `perda` = o dano que chega, riscado no fim da barra. */
+/** Decisão 8 dos itens: a CA da roupa vestida, uma linha sem barra (não é recurso que gasta). */
+function LinhaDaCa({ ca }: { ca: number }) {
+  return (
+    <span className="bt-carta__linha" title="CA da roupa vestida">
+      <b>CA</b>
+      <span className="bt-carta__num">{comSinal(ca)}</span>
+    </span>
+  )
+}
+
 function Barra({ recurso, perda = 0 }: { recurso: Omit<RecursoNaCarta, 'tom'> & { tom: RecursoNaCarta['tom'] | 'escudo' }; perda?: number }) {
   const proporcao = recurso.maximo > 0 ? Math.max(0, Math.min(1, recurso.atual / recurso.maximo)) : 0
   const escala = { transform: `scaleX(${proporcao.toFixed(4)})` }
@@ -145,6 +156,7 @@ export function descricaoDaCarta(carta: DadosDaCarta, posicao: number, vez: bool
   if (carta.extra !== null) partes.push(carta.extra === 'rodada' ? 'carta extra só nesta rodada' : 'carta extra em todas as rodadas')
   if (carta.vida === 'numeros') for (const recurso of carta.recursos) partes.push(`${recurso.rotulo} ${recurso.atual} de ${recurso.maximo}`)
   if (carta.escudo !== undefined && carta.escudo > 0) partes.push(`Escudo ${carta.escudo} de ${Math.max(carta.escudo, carta.escudoMax ?? 0)}`)
+  if (carta.ca !== undefined) partes.push(`CA ${comSinal(carta.ca)} da roupa`)
   if (carta.vida === 'oculta') partes.push('vida oculta')
   for (const membro of carta.bando?.membros ?? []) partes.push(membro.vida === null ? membro.nome : `${membro.nome} HP ${membro.vida.atual} de ${membro.vida.maximo}`)
   if ((carta.carga ?? 0) > 0) partes.push(`concentração ${carta.carga}`)
@@ -226,6 +238,7 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
         {carta.escudo !== undefined && carta.escudo > 0 && carta.bando === undefined && (
           <Barra recurso={{ id: 'escudo', rotulo: 'Escudo', tom: 'escudo', atual: carta.escudo, maximo: Math.max(carta.escudo, carta.escudoMax ?? 0) }} />
         )}
+        {carta.ca !== undefined && carta.bando === undefined && <LinhaDaCa ca={carta.ca} />}
         {/* A vida que ele não pode ver: o trilho tracejado, sem frase (o leitor de tela ouve "vida oculta" no nome da carta). */}
         {carta.vida === 'oculta' && (
           <>
@@ -285,6 +298,7 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
       {carta.escudo !== undefined && carta.escudo > 0 && carta.bando === undefined && (
         <Barra recurso={{ id: 'escudo', rotulo: 'Escudo', tom: 'escudo', atual: carta.escudo, maximo: Math.max(carta.escudo, carta.escudoMax ?? 0) }} />
       )}
+      {carta.ca !== undefined && carta.bando === undefined && <LinhaDaCa ca={carta.ca} />}
       {carta.vida === 'oculta' && <span className="bt-carta__oculta">Vida oculta</span>}
       {carta.bando !== undefined && <MembrosDoBando membros={carta.bando.membros} />}
       {carta.vida === 'sem' && carta.bando === undefined && <span className="bt-carta__oculta">{carta.personagemId === null ? 'Sem ficha ligada' : 'Sem vida na ficha'}</span>}

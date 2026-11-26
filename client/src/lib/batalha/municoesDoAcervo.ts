@@ -11,7 +11,7 @@
  */
 
 import type { AcervoDaMochila } from '../mochila/armaNaMochila'
-import type { BlocosDoItem, TipoDoItem } from '../itens/modelo'
+import type { BlocosDoItem, EquipamentoDoItem, TipoDoItem } from '../itens/modelo'
 
 export interface MunicaoAceita {
   itemId: string
@@ -25,7 +25,7 @@ export interface TiroDoAcervo {
 }
 
 /** O que a lista precisa de cada item do Acervo (o `ItemDoCatalogo` serve: tem o tipo e os blocos da regra). */
-export interface ItemComMunicoes extends Pick<BlocosDoItem, 'ataque' | 'golpe' | 'pente' | 'bala' | 'arremesso'> {
+export interface ItemComMunicoes extends Pick<BlocosDoItem, 'ataque' | 'golpe' | 'pente' | 'bala' | 'arremesso' | 'equipamento'> {
   id: string
   nome: string
   municoes?: readonly string[]
@@ -39,7 +39,8 @@ export interface ItemComMunicoes extends Pick<BlocosDoItem, 'ataque' | 'golpe' |
  */
 export interface RegraNoAcervo {
   tipo?: TipoDoItem
-  blocos: Pick<BlocosDoItem, 'ataque' | 'golpe' | 'pente' | 'bala' | 'arremesso'>
+  /** `equipamento`: a roupa e os bônus dela (CA, Escudo), decisão 8. */
+  blocos: Pick<BlocosDoItem, 'ataque' | 'golpe' | 'pente' | 'bala' | 'arremesso' | 'equipamento'>
 }
 
 const NENHUMA: readonly MunicaoAceita[] = []
@@ -56,6 +57,7 @@ function regraDoItem(item: ItemComMunicoes): RegraNoAcervo {
   if (item.pente !== undefined) blocos.pente = item.pente
   if (item.bala !== undefined) blocos.bala = item.bala
   if (item.arremesso !== undefined) blocos.arremesso = item.arremesso
+  if (item.equipamento !== undefined) blocos.equipamento = item.equipamento
   return item.tipo === undefined ? { blocos } : { tipo: item.tipo, blocos }
 }
 
@@ -96,6 +98,11 @@ export const ACERVO_DA_BATALHA: AcervoDaMochila = {
     return { ...(regra.tipo === undefined ? {} : { tipo: regra.tipo }), ...(regra.blocos.pente === undefined ? {} : { pente: regra.blocos.pente }) }
   },
   paraDar: () => undefined,
+}
+
+/** Decisão 8 dos itens: a roupa do item do Acervo de agora (CA e Escudo), como a batalha a lê. Sem o item, vale a `regra` da vaga. */
+export function equipamentoNoAcervo(itemId: string): EquipamentoDoItem | undefined {
+  return regras.get(itemId)?.blocos.equipamento
 }
 
 /** As munições que a arma do Acervo `itemId` aceita; nenhuma = a arma não declara (ou não é do Acervo). */

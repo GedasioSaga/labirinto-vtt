@@ -9,7 +9,7 @@ import { PastilhaDeCondicao } from '../components/PastilhaDeCondicao'
 import { itemNoticeText } from './itemNotice'
 import type { ItemNotice } from './playerConnection'
 import type { PedidoDaMochila } from '../net/protocoloDaMochila'
-import { balasParaAArma, estadoDaVaga, fraseDoFeito, opcoesDaVaga, rotuloDoTipo, SEM_REGRA, semRegra, textoDoPente, type OpcaoDaVaga } from './acoesDaMochila'
+import { balasParaAArma, estadoDaVaga, fraseDoFeito, opcoesDaVaga, regrasDaVaga, rotuloDoTipo, SEM_REGRA, semRegra, textoDoPente, type OpcaoDaVaga } from './acoesDaMochila'
 import {
   CONDITION_WORDS,
   INVENTORY_COLUMNS,
@@ -1152,19 +1152,35 @@ function podeFazer(opcao: OpcaoDaVaga, acende: boolean, pede: boolean, usa: bool
   }
 }
 
-/** O cartão do item, só para ler: o tipo, o que ele faz (a frase do efeito) e o estado da vaga. */
+/**
+ * O cartão do item, só para ler: o tipo, as regras inteiras (decisão 18, quando a vaga traz a regra),
+ * o que ele faz (a frase do efeito) e o estado da vaga.
+ */
 function CartaoDaVaga({ slot }: { slot: InventorySlot }) {
   if (slot.kind === 'moedas') return null
   const tipo = rotuloDoTipo(slot)
   const estado = estadoDaVaga(slot)
   const aceita = slot.aceita.map((m) => m.nome).join(', ')
-  if (tipo === null && estado === '' && slot.efeitoResumo === undefined && aceita === '') return null
+  const regras = regrasDaVaga(slot)
+  if (tipo === null && estado === '' && slot.efeitoResumo === undefined && aceita === '' && regras.length === 0) return null
   return (
     <dl className="pp-inv__cartao">
       {tipo !== null && (
         <div>
           <dt>Tipo</dt>
           <dd>{tipo}</dd>
+        </div>
+      )}
+      {regras.length > 0 && (
+        <div>
+          <dt>Regras</dt>
+          <dd>
+            <ul className="pp-inv__regras">
+              {regras.map((frase) => (
+                <li key={frase}>{frase}</li>
+              ))}
+            </ul>
+          </dd>
         </div>
       )}
       {slot.efeitoResumo !== undefined && (

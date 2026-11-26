@@ -1,5 +1,7 @@
 import { fraseDoLimite } from '../lib/mochila/armaNaMochila'
 import { ROTULO_DO_TIPO, TIPOS_COM_PENTE, TIPOS_DE_ARMA, TIPOS_QUE_EQUIPAM } from '../lib/itens/modelo'
+import { frasesDoItem, SEM_ARMA_QUE_ACEITA, type ItemDaFrase } from '../lib/itens/editorDoItem'
+import { SISTEMAS_EMBUTIDOS } from '../lib/sistemaOnePiece'
 import type { InventoryCharacter, InventorySlot } from './inventario'
 
 /**
@@ -30,6 +32,37 @@ export const SEM_REGRA = 'Sem regra no Acervo: diga ao mestre o que quer fazer c
 /** O nome do tipo, para o cartão ("De fogo", "Consumível"); vaga de antes da conversão não diz. */
 export function rotuloDoTipo(slot: Pick<InventorySlot, 'tipo'>): string | null {
   return slot.tipo === undefined ? null : ROTULO_DO_TIPO[slot.tipo]
+}
+
+/** O nome do atributo pelo id, nos sistemas embutidos (o jogador não tem o sistema do mestre); desconhecido = o próprio id. */
+function nomeDoAtributoEmbutido(id: string): string {
+  for (const sistema of SISTEMAS_EMBUTIDOS) {
+    const achado = sistema.atributos.find((atributo) => atributo.id === id)
+    if (achado !== undefined) return achado.nome
+  }
+  return id
+}
+
+/**
+ * O CARTÃO INTEIRO DO ITEM (decisão 18): as regras em frases, as mesmas do editor do mestre
+ * (`frasesDoItem`), lidas da regra em instantâneo que a vaga leva (A1). Sem a regra (vaga dada antes
+ * dela, ou pego de pino), nada: o cartão fica no tipo e no efeito, como antes.
+ */
+export function regrasDaVaga(slot: Pick<InventorySlot, 'nome' | 'tipo' | 'regra' | 'luzDoItem' | 'acervoId' | 'key' | 'aceita'>): string[] {
+  if (slot.regra === undefined) return []
+  const item: ItemDaFrase = {
+    ...slot.regra,
+    id: slot.acervoId ?? slot.key,
+    nome: slot.nome,
+    ...(slot.tipo !== undefined ? { tipo: slot.tipo } : {}),
+    ...(slot.luzDoItem !== undefined ? { luz: slot.luzDoItem } : {}),
+  }
+  return frasesDoItem(item, {
+    nomeDoItem: (id) => slot.aceita.find((municao) => municao.itemId === id)?.nome ?? null,
+    nomeDoAtributo: nomeDoAtributoEmbutido,
+    // O jogador não vê o Acervo: as armas que aceitam a munição ficam para o mestre contar.
+    armasQueAceitam: () => [],
+  }).filter((frase) => frase !== SEM_ARMA_QUE_ACEITA)
 }
 
 /** A vaga é arma que conta no "Armas por batalha" (a roupa não conta, decisão 5). */
