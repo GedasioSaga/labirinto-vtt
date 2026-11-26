@@ -1,7 +1,7 @@
 import { readFile } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { dirname } from '@tauri-apps/api/path'
-import { MAX_TOKEN_IMAGE_BYTES, pickImageFile, pinSizedWebp, TOKEN_IMAGE_SIZE_MESSAGE } from './imageImport'
+import { pickImageFile, pinSizedWebp } from './imageImport'
 import { guardarMidia } from './midiaNoDisco'
 
 /**
@@ -18,6 +18,10 @@ const TIPOS_ACEITOS = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/g
 
 export const IMAGEM_DO_ITEM_TIPO = 'essa imagem não é PNG, JPG, WebP nem GIF — os formatos que o item aceita'
 
+/** Sistema de itens refeito (decisão 15 do protótipo): a imagem do item vai até 2 MB, antes de reduzir. */
+export const IMAGEM_DO_ITEM_MAX_BYTES = 2 * 1024 * 1024
+export const IMAGEM_DO_ITEM_GRANDE = 'essa imagem passa de 2 MB, o máximo da imagem do item'
+
 /** O que o caminho usa de fora; o teste troca por um de mentira (não há canvas no jsdom). */
 export interface CaminhoDaImagem {
   reduzir: (fonte: Blob) => Promise<Blob>
@@ -29,7 +33,7 @@ const CAMINHO_DO_APP: CaminhoDaImagem = { reduzir: pinSizedWebp, guardar: guarda
 /** Colar ou soltar: confere tipo e tamanho ANTES de decodificar (um arrasto errado pode trazer qualquer coisa). */
 export async function imagemDoItemDoBlob(fonte: Blob, caminho: CaminhoDaImagem = CAMINHO_DO_APP): Promise<string> {
   if (!TIPOS_ACEITOS.has(fonte.type)) throw new Error(IMAGEM_DO_ITEM_TIPO)
-  if (fonte.size > MAX_TOKEN_IMAGE_BYTES) throw new Error(TOKEN_IMAGE_SIZE_MESSAGE)
+  if (fonte.size > IMAGEM_DO_ITEM_MAX_BYTES) throw new Error(IMAGEM_DO_ITEM_GRANDE)
   const reduzida = await caminho.reduzir(fonte)
   return caminho.guardar(new Uint8Array(await reduzida.arrayBuffer()))
 }

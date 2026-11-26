@@ -1,33 +1,76 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { categoriaLimpa, ehCategoriaDeMunicao, ITEM_SEM_NOME, MUNICOES_POR_ARMA_MAX, type ItemDoCatalogo, type TiroDaMunicao } from '../lib/acervoDeItens'
+import { ehCategoriaDeMunicao, ITEM_SEM_NOME, MUNICOES_POR_ARMA_MAX, type ItemDoCatalogo } from '../lib/acervoDeItens'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
-import { chaveDoNomeDaEntrada, novoIdDeEntrada, regraDaCoisa, type ItemDoCatalogo as EntradaDoCatalogo } from '../lib/livros/catalogo'
+import { regraDaCoisa } from '../lib/livros/catalogo'
 import { gravarRegraDaArma } from '../stores/armasNaFonte'
-import { usePersonagensDoMundo } from '../stores/mundoDoLivroStore'
-import { entradaNovaDaCoisa } from '../lib/livros/regraDaArma'
 import { useCatalogoStore } from '../stores/catalogoStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
-import { CAMPO_DO_EFEITO } from '../lib/batalha/leituraDaFicha'
-import { camposComOEfeitoDaMecanica } from '../lib/livros/fraseDaArma'
-import { EfeitoDaArmaCampos, type RegraDaArmaNoEditor } from './EfeitoDaArmaCampos'
+import { sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
+import { useCondicoesPropriasStore } from '../stores/condicoesPropriasStore'
+import { SISTEMA_ONE_PIECE } from '../lib/sistemaOnePiece'
+import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { cleanItemName, ITEM_DESCRICAO_MAX, ITEM_NAME_MAX_LENGTH, ITEM_PRECO_MAX, ITEM_QUANTIDADE_MAX } from '../lib/items'
 import type { AlvoDoAcervo } from '../lib/party'
 import { ALCANCE_DA_LUZ_DO_ITEM_MAX, ALCANCE_DA_LUZ_DO_ITEM_MIN, CORES_SUGERIDAS_DA_LUZ_DO_ITEM, FORCA_DA_LUZ_DO_ITEM_MAX, FORCA_DA_LUZ_DO_ITEM_MIN, LUZ_DO_ITEM_PADRAO } from '../lib/luzDoItem'
-import type { LuzDoItem } from '../types/map'
-import { comEfeito, comRequisitosDoItem, EfeitoDoItemCampos } from './EfeitoDoItemCampos'
+import type { LuzDoItem, PecasDoEfeito } from '../types/map'
+import { NOME_DA_CURA_REDUZIDA } from '../lib/batalha/condicoes'
+import { resumoDoEfeitoDoItem } from '../lib/batalha/mecanica/resumoDoItem'
+import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_ORDER } from '../lib/tokenConditions'
+import { ROTULO_DO_TIPO, TIPOS_DO_ITEM, TIPOS_QUE_EMPILHAM, PARTES_DO_EQUIPAMENTO, type AtaqueDoItem, type BalaDoItem, type BonusDoEquipamento, type ConfiraDoItem, type TipoDoItem } from '../lib/itens/modelo'
+import {
+  ACOES_DA_RECARGA,
+  ACOES_DO_ITEM,
+  alcanceGuardado,
+  alcanceLido,
+  CASAS_DO_ITEM_MAX,
+  comOTipo,
+  danoExtraDobra,
+  DURACOES_NO_EDITOR,
+  EXEMPLO_DO_TIPO,
+  frasesDoItem,
+  itemComOsCamposAntigos,
+  itemParaOEditor,
+  nDePartida,
+  NUMERO_DO_ITEM_MAX,
+  pecaDePartida,
+  PECAS_DE,
+  PECAS_POR_BLOCO_MAX,
+  pecasCabemNaTela,
+  pecasDoItemGuardadas,
+  pecasDoItemLidas,
+  PENTE_MAX,
+  regraDaCondicaoPeloNome,
+  ROTULO_DA_PARTE,
+  ROTULO_DA_PECA,
+  ROTULO_DO_BONUS,
+  TEMPOS_DA_RECARGA,
+  TIPOS_QUE_ATACAM,
+  type DuracaoNoEditor,
+  type OndeDaPeca,
+  type PecaDoItem,
+} from '../lib/itens/editorDoItem'
+import { primeiroNumero } from '../lib/itens/conversao/comum'
+import { CampoDoAlcance } from './batalha/alcance/CampoDoAlcance'
+import { CampoInteiro, Marcar } from './batalha/blocos/controles'
 import { ImagemOuIniciais } from './FichaPecas'
 import { CloseIcon } from './icons'
 import { PinImageDrop } from './PinImageDrop'
+import './ItemDoCatalogoDialog.css'
 
 /**
- * A janela de UM item do acervo de itens: editar (imagem, nome, categoria,
- * descrição, preço, empilhável) e "Dar a…" um personagem. A imagem chega
- * pelos três caminhos da do token: colar, soltar arrastando ou escolher no
- * computador — todos gravam a mídia e devolvem a referência (`imagemDoItem.ts`).
+ * O EDITOR DO ITEM (docs/design/itens-rework/PLANO.md, etapa E2; protótipo aprovado
+ * docs/design/itens-rework/prototipo.html). Primeiro o mestre diz o que o item É (o tipo); só
+ * aparecem os campos daquele tipo, uma vez cada: dano, ação e alcance do ataque; o golpe da
+ * híbrida; o pente e a recarga; o dano da bala; o uso do consumível; o que a roupa dá; e o "Ao
+ * acertar" ou "Ao usar", com as mesmas peças das técnicas. Trocar de tipo esconde o que não serve
+ * e não apaga: voltando, os números estão lá. "O que acontece" é a frase do item, ao vivo.
  *
- * O "Dar" entrega o item COMO ESTÁ GRAVADO: com mudança por salvar ele espera,
- * para o personagem não receber uma poção que o acervo não tem.
+ * O Acervo é a fonte: salvar aqui atualiza as cópias nas mochilas sozinho (`stores/itensNaFonte.ts`).
+ * Até a batalha passar a ler os blocos (E6), o Salvar também põe em dia os campos de antes
+ * (`itemComOsCamposAntigos`) e o dano na regra do livro ligada, para a mesa não divergir.
+ *
+ * A imagem chega pelos três caminhos da do token (colar, soltar, escolher), até 2 MB.
  */
 
 export interface ItemDoCatalogoDialogProps {
@@ -56,9 +99,6 @@ function mensagemDe(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
 }
 
-/** A coisa sem regra neste livro cujas cópias nas fichas discordam: a entrada nova apagaria o que uma delas diz. */
-const ARMA_COM_COPIAS_DIFERENTES = 'As fichas ligadas a esta arma dizem coisas diferentes (dano, descrição ou balas). Abra o livro na página Itens e use Juntar as armas para escolher antes de salvar o que ela faz.'
-
 /** O preço digitado: vazio = sem preço; o resto, inteiro dentro do teto ou `undefined` (inválido). */
 function precoDoTexto(texto: string): number | null | undefined {
   const limpo = texto.trim()
@@ -68,99 +108,21 @@ function precoDoTexto(texto: string): number | null | undefined {
   return Number.isSafeInteger(valor) && valor <= ITEM_PRECO_MAX ? valor : undefined
 }
 
-/**
- * A REGRA da arma no livro aberto (ARMAS-FONTE-UNICA §3): a entrada de arma ligada à coisa; senão a única
- * entrada de arma solta com o mesmo nome (`ligar`: o Salvar liga as duas). `undefined` = sem regra neste livro.
- */
-function regraDaArmaNoLivro(catalogo: readonly EntradaDoCatalogo[], coisa: { id: string; nome: string }): { entrada: EntradaDoCatalogo; ligar: boolean } | undefined {
-  const ligada = regraDaCoisa(catalogo, coisa.id)
-  if (ligada !== undefined) return ligada.tipo === 'arma' ? { entrada: ligada, ligar: false } : undefined
-  const chave = chaveDoNomeDaEntrada(coisa.nome)
-  const soltas = catalogo.filter((entrada) => entrada.tipo === 'arma' && entrada.acervoId === undefined && chaveDoNomeDaEntrada(entrada.nome) === chave)
-  return soltas.length === 1 ? { entrada: soltas[0], ligar: true } : undefined
-}
-
-/** A categoria das armas do Acervo ("Arma", "armas"), a mesma que a batalha lê da mochila. */
-function ehCategoriaDeArma(categoria: string): boolean {
-  return /^armas?$/.test(categoria.trim().toLowerCase())
-}
-
-/** O item com a lista de munições; vazia tira o campo (ausente = a arma não declara). */
-function comMunicoes(item: ItemDoCatalogo, municoes: readonly string[]): ItemDoCatalogo {
-  const { municoes: _antes, ...semMunicoes } = item
-  return municoes.length === 0 ? semMunicoes : { ...semMunicoes, municoes: [...municoes] }
-}
-
-/**
- * MUNIÇÃO (pedido de 16/11/2026: "cada arma pode usar certos de munição"):
- * as munições do Acervo que esta arma aceita. Na batalha, cada marcada vira
- * uma bala da arma, com a quantidade da mochila de quem atira.
- */
-function MunicoesDaArma({ armaId, escolhidas, onMudar }: { armaId: string; escolhidas: readonly string[]; onMudar: (municoes: readonly string[]) => void }) {
-  const municoes = useAcervoDeItensStore((state) => state.itens).filter((candidato) => candidato.id !== armaId && ehCategoriaDeMunicao(candidato.categoria))
-  const marcar = (id: string, marcada: boolean) => onMudar(marcada ? [...escolhidas, id].slice(0, MUNICOES_POR_ARMA_MAX) : escolhidas.filter((escolhida) => escolhida !== id))
-  return (
-    <fieldset className="lb-item-janela__municoes">
-      <legend className="lb-label">Munições que a arma usa</legend>
-      {municoes.length === 0 ? (
-        <p className="lb-field__hint">Crie itens na categoria Munição (Balas, Balas de prata, Bala de RPG…) para escolher aqui.</p>
-      ) : (
-        municoes.map((municao) => (
-          <label key={municao.id} className="lb-item-janela__marca">
-            <input type="checkbox" checked={escolhidas.includes(municao.id)} onChange={(event) => marcar(municao.id, event.target.checked)} />
-            <span>{municao.nome}</span>
-          </label>
-        ))
-      )}
-    </fieldset>
-  )
-}
-
-/** O item com o tiro da munição; dano e efeito vazios tiram o campo (ausente = a bala usa o dano da arma). */
-function comTiro(item: ItemDoCatalogo, tiro: TiroDaMunicao): ItemDoCatalogo {
-  const { tiro: _antes, ...semTiro } = item
-  return tiro.dano.trim() === '' && tiro.efeito.trim() === '' ? semTiro : { ...semTiro, tiro }
-}
-
-/**
- * MUNIÇÃO COMO FONTE ÚNICA (decisão do dono de 25/11/2026): o dano e o efeito da bala moram no item,
- * e não no cartão da arma. Os mesmos dois campos que o "Tipos de bala" da ficha tinha.
- */
-function TiroDaMunicaoCampos({ idBase, tiro, onMudar }: { idBase: string; tiro: TiroDaMunicao | undefined; onMudar: (tiro: TiroDaMunicao) => void }) {
-  const atual = tiro ?? { dano: '', efeito: '' }
-  return (
-    <fieldset className="lb-item-janela__municoes">
-      <legend className="lb-label">No tiro</legend>
-      <label className="lb-field" htmlFor={`${idBase}-dano-da-bala`}>
-        <span className="lb-label">Dano da bala</span>
-        <input
-          id={`${idBase}-dano-da-bala`}
-          className="lb-input"
-          value={atual.dano}
-          placeholder="O da arma"
-          onChange={(event) => onMudar({ ...atual, dano: event.target.value })}
-        />
-      </label>
-      <p className="lb-field__hint">“+15” soma ao dano da arma, “40” troca, “+Percepção / 2” conta pela ficha de quem atira.</p>
-      <label className="lb-field" htmlFor={`${idBase}-efeito-da-bala`}>
-        <span className="lb-label">Efeito da bala</span>
-        <textarea
-          id={`${idBase}-efeito-da-bala`}
-          className="lb-input lb-textarea"
-          value={atual.efeito}
-          maxLength={ITEM_DESCRICAO_MAX}
-          onChange={(event) => onMudar({ ...atual, efeito: event.target.value })}
-        />
-      </label>
-      <p className="lb-field__hint">A bala de prata deixa “Cura reduzida” em quem o tiro acerta: toda cura nele já vem pela metade, até o fim da batalha.</p>
-    </fieldset>
-  )
-}
-
 /** O item com a luz; `undefined` tira o campo (ausente = não ilumina). */
 function comLuz(item: ItemDoCatalogo, luz: LuzDoItem | undefined): ItemDoCatalogo {
   const { luz: _antes, ...semLuz } = item
   return luz === undefined ? semLuz : { ...semLuz, luz }
+}
+
+/** O item com as peças de um bloco; `undefined` tira o bloco. */
+function comPecas(item: ItemDoCatalogo, onde: OndeDaPeca, pecas: PecasDoEfeito | undefined): ItemDoCatalogo {
+  if (onde === 'uso') {
+    // Tirar o último efeito do consumível tira também o efeito de antes, que o Usar de hoje ainda roda (senão ele seguiria curando).
+    const { aoUsar: _antes, efeito: _efeitoAntes, ...sem } = item
+    return pecas === undefined ? sem : { ...sem, aoUsar: pecas }
+  }
+  const { aoAcertar: _antes, ...sem } = item
+  return pecas === undefined ? sem : { ...sem, aoAcertar: pecas }
 }
 
 /** Força em porcentagem inteira, para o controle e para ler ("80%"). */
@@ -193,7 +155,7 @@ function LuzDoItemCampos({ idBase, luz, onMudar }: { idBase: string; luz: LuzDoI
       <legend className="lb-label">Luz</legend>
       <label className="lb-item-janela__marca">
         <input type="checkbox" checked={luz !== undefined} onChange={(event) => onMudar(event.target.checked ? ultima.current : undefined)} />
-        <span>Ilumina — no chão clareia em volta; na mochila, quando estiver aceso</span>
+        <span>Ilumina: aceso, clareia em volta de quem carrega. Qualquer tipo pode ter.</span>
       </label>
       {luz !== undefined && (
         <>
@@ -247,7 +209,7 @@ function LuzDoItemCampos({ idBase, luz, onMudar }: { idBase: string; luz: LuzDoI
           </div>
           <label className="lb-item-janela__marca">
             <input type="checkbox" checked={luz.crepita === true} onChange={(event) => mudar({ crepita: event.target.checked ? true : undefined })} />
-            <span>Crepita como fogo — o claro treme</span>
+            <span>Crepita como fogo: o claro treme</span>
           </label>
           <p className="lb-field__hint">Tons claros iluminam melhor: cor forte escurece o chão em volta.</p>
         </>
@@ -260,12 +222,301 @@ function chaveDoAlvo(alvo: Pick<AlvoDoAcervo, 'tokenId' | 'sceneId'>): string {
   return `${alvo.sceneId ?? ''}|${alvo.tokenId}`
 }
 
-export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, onApagar, onDar, onClose, imagemDoBlob, escolherImagem }: ItemDoCatalogoDialogProps) {
+/** Uma seção do editor: título, frase curta e os campos. */
+function Secao({ titulo, sub, children }: { titulo: string; sub?: string; children: ReactNode }) {
+  const id = useId()
+  return (
+    <section className="lb-edi-secao" aria-labelledby={id}>
+      <div className="lb-edi-secao__cab">
+        <h3 id={id} className="lb-edi-secao__tit">
+          {titulo}
+        </h3>
+        {sub !== undefined && <p className="lb-edi-secao__sub">{sub}</p>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+/** Um seletor com as opções e, se o valor guardado for outro ("Ação Padrão"), ele também (nada some). */
+function CampoEscolha({ rotulo, valor, opcoes, onMudar, ajuda }: { rotulo: string; valor: string; opcoes: readonly { valor: string; rotulo: string }[]; onMudar: (valor: string) => void; ajuda?: string }) {
+  const id = useId()
+  const todas = opcoes.some((opcao) => opcao.valor === valor) ? opcoes : [{ valor, rotulo: valor === '' ? 'Nenhuma' : valor }, ...opcoes]
+  return (
+    <label className="lb-field" htmlFor={id}>
+      <span className="lb-label">{rotulo}</span>
+      <select id={id} className="lb-input" value={valor} onChange={(event) => onMudar(event.target.value)}>
+        {todas.map((opcao) => (
+          <option key={opcao.valor} value={opcao.valor}>
+            {opcao.rotulo}
+          </option>
+        ))}
+      </select>
+      {ajuda !== undefined && <span className="lb-field__hint">{ajuda}</span>}
+    </label>
+  )
+}
+
+const comoOpcoes = (lista: readonly string[]) => lista.map((valor) => ({ valor, rotulo: valor }))
+
+const MODOS_DA_BALA: readonly { modo: BalaDoItem['modo']; rotulo: string }[] = [
+  { modo: 'soma', rotulo: 'Soma ao dano da arma' },
+  { modo: 'troca', rotulo: 'Troca o dano da arma' },
+  { modo: 'atributo', rotulo: 'Soma um atributo' },
+]
+
+const CAMPOS_FIXOS_DO_BONUS: readonly Exclude<BonusDoEquipamento['campo'], 'atributo'>[] = ['ca', 'escudo', 'vantagem', 'desvantagem']
+
+/** "O que é este item?": os 8 tipos, um grupo de rádio (setas andam, Espaço escolhe). */
+function EscolhaDoTipo({ tipo, onEscolher }: { tipo: TipoDoItem | undefined; onEscolher: (tipo: TipoDoItem) => void }) {
+  const grupoRef = useRef<HTMLDivElement>(null)
+  const tecla = (event: KeyboardEvent<HTMLDivElement>) => {
+    const passo = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0
+    if (passo === 0) return
+    event.preventDefault()
+    const atual = tipo === undefined ? -1 : TIPOS_DO_ITEM.indexOf(tipo)
+    const proximo = TIPOS_DO_ITEM[(atual + passo + TIPOS_DO_ITEM.length) % TIPOS_DO_ITEM.length]
+    onEscolher(proximo)
+    requestAnimationFrame(() => grupoRef.current?.querySelector<HTMLElement>(`[data-tipo="${proximo}"]`)?.focus())
+  }
+  return (
+    <Secao titulo="O que é este item?" sub={tipo === undefined ? 'Escolha um tipo para ver os campos.' : 'O tipo decide os campos. Trocar de tipo esconde o que não serve, sem apagar.'}>
+      <div ref={grupoRef} className="lb-edi-tipos" role="radiogroup" aria-label="Tipo do item" onKeyDown={tecla}>
+        {TIPOS_DO_ITEM.map((opcao) => (
+          <button
+            key={opcao}
+            type="button"
+            role="radio"
+            data-tipo={opcao}
+            className="lb-edi-tipo"
+            aria-checked={tipo === opcao}
+            tabIndex={tipo === opcao || (tipo === undefined && opcao === 'corpo') ? 0 : -1}
+            onClick={() => onEscolher(opcao)}
+          >
+            <span className="lb-edi-tipo__nome">{ROTULO_DO_TIPO[opcao]}</span>
+            <span className="lb-edi-tipo__ex">{EXEMPLO_DO_TIPO[opcao]}</span>
+          </button>
+        ))}
+      </div>
+    </Secao>
+  )
+}
+
+/** O ataque (Corpo a corpo, De fogo, o tiro da Híbrida, Arremesso): dano, soma, ação, alvos e alcance, uma vez. */
+function CamposDoAtaque({ tipo, ataque, atributos, onMudar }: { tipo: TipoDoItem; ataque: AtaqueDoItem; atributos: readonly { valor: string; rotulo: string }[]; onMudar: (ataque: AtaqueDoItem) => void }) {
+  const titulo = tipo === 'arremesso' ? 'Como é jogado' : tipo === 'hibrida' ? 'Como atira' : tipo === 'fogo' ? 'Como atira' : 'Como ataca'
+  const sub = tipo === 'hibrida' ? 'O tiro da híbrida. O golpe fica à parte, logo abaixo.' : 'Dano, ação, alvos e alcance ficam só aqui, uma vez.'
+  const forma = alcanceLido(ataque.alcance)
+  return (
+    <Secao titulo={titulo} sub={sub}>
+      <div className="lb-edi-grade">
+        <CampoInteiro rotulo="Dano" valor={ataque.dano} minimo={0} maximo={NUMERO_DO_ITEM_MAX} onChange={(dano) => onMudar({ ...ataque, dano })} />
+        <CampoEscolha rotulo="Soma no ataque" valor={ataque.soma} opcoes={[{ valor: '', rotulo: 'Nada' }, ...atributos]} onMudar={(soma) => onMudar({ ...ataque, soma })} />
+        <CampoEscolha rotulo="Ação" valor={ataque.acao} opcoes={comoOpcoes(ACOES_DO_ITEM)} onMudar={(acao) => onMudar({ ...ataque, acao })} />
+        <CampoInteiro rotulo="Alvos" valor={ataque.alvos} minimo={1} maximo={6} onChange={(alvos) => onMudar({ ...ataque, alvos })} />
+      </div>
+      <CampoDoAlcance
+        valor={forma}
+        torto={forma === null && ataque.alcance !== undefined}
+        cor="azul"
+        onChange={(nova) => {
+          const { alcance: _antes, ...sem } = ataque
+          onMudar(nova === null ? sem : { ...sem, alcance: alcanceGuardado(nova) })
+        }}
+      />
+    </Secao>
+  )
+}
+
+const OPCOES_DO_TEMPO = TEMPOS_DA_RECARGA.map((tempo) => ({ valor: String(tempo.rodadas), rotulo: tempo.rotulo }))
+
+function rodadasDoTexto(texto: string): 0 | 1 | 2 {
+  return texto === '1' ? 1 : texto === '2' ? 2 : 0
+}
+
+/** As munições do Acervo (pelo tipo, ou pela categoria do item ainda não convertido), menos a própria arma. */
+function useMunicoesDoAcervo(armaId: string): ItemDoCatalogo[] {
+  const itens = useAcervoDeItensStore((state) => state.itens)
+  return useMemo(() => itens.filter((candidato) => candidato.id !== armaId && (candidato.tipo === 'municao' || (candidato.tipo === undefined && ehCategoriaDeMunicao(candidato.categoria)))), [itens, armaId])
+}
+
+/** Quanto custa ter o próximo na mão: a ação da recarga e o tempo. */
+function CamposDaRecarga({ recarga, ajudaDoTempo, onMudar }: { recarga: { acao: string; rodadas: 0 | 1 | 2 } | undefined; ajudaDoTempo: string; onMudar: (recarga: { acao: string; rodadas: 0 | 1 | 2 }) => void }) {
+  const atual = recarga ?? { acao: 'Ação Simples', rodadas: 0 }
+  return (
+    <>
+      <CampoEscolha rotulo="Tipo de recarga" valor={atual.acao} opcoes={comoOpcoes(ACOES_DA_RECARGA)} onMudar={(acao) => onMudar({ ...atual, acao })} ajuda="A ação que a recarga gasta na batalha." />
+      <CampoEscolha rotulo="Tempo de recarga" valor={String(atual.rodadas)} opcoes={OPCOES_DO_TEMPO} onMudar={(texto) => onMudar({ ...atual, rodadas: rodadasDoTexto(texto) })} ajuda={ajudaDoTempo} />
+    </>
+  )
+}
+
+/** As peças de um bloco ("Ao acertar" ou "Ao usar"), a mesma linguagem das técnicas. */
+function PecasDoBloco({
+  onde,
+  guardadas,
+  item,
+  condicoes,
+  sistema,
+  onMudar,
+}: {
+  onde: OndeDaPeca
+  guardadas: PecasDoEfeito | undefined
+  item: ItemDoCatalogo
+  condicoes: readonly string[]
+  sistema: SistemaDeRpg
+  onMudar: (pecas: PecasDoEfeito | undefined) => void
+}) {
+  const titulo = onde === 'uso' ? 'Ao usar' : 'Ao acertar'
+  const sub = onde === 'uso' ? 'O que acontece com quem recebe.' : 'As mesmas peças das técnicas: condição com duração, dano extra, empurrão. Dano, ação e alcance não se repetem aqui.'
+  const cabe = pecasCabemNaTela(guardadas)
+  const pecas = pecasDoItemLidas(guardadas)
+  const trocar = (lista: readonly PecaDoItem[]) => onMudar(pecasDoItemGuardadas(lista, onde, guardadas))
+  const mudarUma = (indice: number, peca: PecaDoItem) => trocar(pecas.map((atual, i) => (i === indice ? peca : atual)))
+  if (!cabe && guardadas !== undefined) {
+    return (
+      <Secao titulo={titulo} sub={sub}>
+        <p className="lb-edi-nota">{resumoDoEfeitoDoItem({ mecanica: guardadas, gasta: 'um', onde: 'sempre' }, sistema)}</p>
+        <p className="lb-field__hint">Este efeito tem peças que esta tela ainda não mostra. Para não perder nada, ele fica como está.</p>
+      </Secao>
+    )
+  }
+  const opcoesDeCondicao = (nome: string) => (condicoes.includes(nome) ? condicoes : [nome, ...condicoes]).map((valor) => ({ valor, rotulo: valor }))
+  return (
+    <Secao titulo={titulo} sub={sub}>
+      {pecas.length === 0 ? (
+        <p className="lb-edi-nota">{onde === 'uso' ? 'Nenhum efeito: usar não gasta, e o mestre narra o que acontece.' : 'Nenhum efeito extra. O dano já está em cima.'}</p>
+      ) : (
+        <ul className="lb-edi-pecas">
+          {pecas.map((peca, indice) => {
+            const dobra = danoExtraDobra(item, peca)
+            return (
+              <li key={indice} className="lb-edi-peca" data-erro={dobra ? '' : undefined}>
+                <div className="lb-edi-peca__campos">
+                  {peca.tipo === 'condicao' && (
+                    <>
+                      <CampoEscolha
+                        rotulo={onde === 'uso' ? 'Quem recebe fica' : 'Quem é atingido fica'}
+                        valor={peca.nome}
+                        opcoes={opcoesDeCondicao(peca.nome)}
+                        onMudar={(nome) => {
+                          const n = nDePartida(nome)
+                          mudarUma(indice, { tipo: 'condicao', nome, duracao: peca.duracao, ...(n === undefined ? {} : { n }) })
+                        }}
+                      />
+                      <CampoEscolha
+                        rotulo="Quanto tempo dura"
+                        valor={String(peca.duracao)}
+                        opcoes={DURACOES_NO_EDITOR.map((opcao) => ({ valor: String(opcao.duracao), rotulo: opcao.rotulo }))}
+                        onMudar={(texto) => {
+                          const duracao: DuracaoNoEditor = texto === '1' ? 1 : texto === '2' ? 2 : texto === '3' ? 3 : 'fim'
+                          mudarUma(indice, { ...peca, duracao })
+                        }}
+                      />
+                      {regraDaCondicaoPeloNome(peca.nome) === 'cura' && <CampoInteiro rotulo="A cura cai" valor={peca.n ?? 50} minimo={1} maximo={100} depois="%" onChange={(n) => mudarUma(indice, { ...peca, n })} />}
+                      {regraDaCondicaoPeloNome(peca.nome) === 'vida' && <CampoInteiro rotulo="Perde de vida por vez" valor={peca.n ?? 1} minimo={1} maximo={99} onChange={(n) => mudarUma(indice, { ...peca, n })} />}
+                      {regraDaCondicaoPeloNome(peca.nome) === 'narra' && <span className="lb-field__hint">Sem regra: o mestre narra.</span>}
+                    </>
+                  )}
+                  {peca.tipo === 'dano' && <CampoInteiro rotulo="Mais dano extra" valor={peca.valor} minimo={1} maximo={NUMERO_DO_ITEM_MAX} onChange={(valor) => mudarUma(indice, { tipo: 'dano', valor })} />}
+                  {peca.tipo === 'empurrar' && <CampoInteiro rotulo="O alvo é empurrado" valor={peca.casas} minimo={1} maximo={CASAS_DO_ITEM_MAX} depois={peca.casas === 1 ? 'casa para trás' : 'casas para trás'} onChange={(casas) => mudarUma(indice, { tipo: 'empurrar', casas })} />}
+                  {peca.tipo === 'curar' && <CampoInteiro rotulo="Cura" valor={peca.fixo} minimo={1} maximo={NUMERO_DO_ITEM_MAX} depois="de vida" onChange={(fixo) => mudarUma(indice, { tipo: 'curar', fixo })} />}
+                  {peca.tipo === 'tirar' && (
+                    <CampoEscolha
+                      rotulo="Tira"
+                      valor={peca.nome ?? ''}
+                      opcoes={[{ valor: '', rotulo: 'as condições ruins' }, ...opcoesDeCondicao(peca.nome ?? condicoes[0] ?? NOME_DA_CURA_REDUZIDA)]}
+                      onMudar={(nome) => mudarUma(indice, { tipo: 'tirar', nome: nome === '' ? null : nome })}
+                    />
+                  )}
+                </div>
+                <button type="button" className="lb-iconbtn lb-iconbtn--sm" aria-label={`Tirar ${ROTULO_DA_PECA[peca.tipo]}`} onClick={() => trocar(pecas.filter((_, i) => i !== indice))}>
+                  <CloseIcon size={14} />
+                </button>
+                {dobra && (
+                  <p className="lb-edi-peca__erro" role="alert">
+                    Repete o dano de cima ({peca.tipo === 'dano' ? peca.valor : ''}). Assim o dano contaria duas vezes, então esta peça fica fora até você mudar o número.
+                  </p>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <div className="lb-edi-mais" role="group" aria-label="Pôr efeito">
+        <span className="lb-label">+ Efeito:</span>
+        {PECAS_DE[onde].map((tipo) => (
+          <button key={tipo} type="button" className="lb-btn lb-btn--compact" disabled={pecas.length >= PECAS_POR_BLOCO_MAX} onClick={() => trocar([...pecas, pecaDePartida(tipo, condicoes)])}>
+            {ROTULO_DA_PECA[tipo]}
+          </button>
+        ))}
+      </div>
+      {onde === 'acerto' && pecas.some((peca) => peca.tipo === 'empurrar') && <p className="lb-field__hint">O empurrão fica guardado; a mesa passa a mover o token quando a batalha ler os itens novos.</p>}
+    </Secao>
+  )
+}
+
+/** Os "Confira" da conversão: o que não virou campo com certeza, com os números lado a lado. O mestre apaga ao conferir. */
+function PainelConfira({ lista, onConferido }: { lista: readonly ConfiraDoItem[]; onConferido: (indice: number) => void }) {
+  return (
+    <section className="lb-edi-confira" aria-label="Confira">
+      <h3 className="lb-edi-confira__tit">Confira</h3>
+      <ul>
+        {lista.map((aviso, indice) => (
+          <li key={`${aviso.texto}-${indice}`}>
+            <span>
+              {aviso.texto}
+              {(aviso.antes !== undefined || aviso.depois !== undefined) && (
+                <span className="lb-edi-confira__nums">
+                  {aviso.antes !== undefined && <span>Antes: {aviso.antes}</span>}
+                  {aviso.depois !== undefined && <span>Agora: {aviso.depois}</span>}
+                </span>
+              )}
+            </span>
+            <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => onConferido(indice)}>
+              Conferido
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** O sistema das fichas: o do livro aberto, senão o da aventura, senão o One Piece (os atributos da soma e do bônus). */
+function useSistemaDoEditor(): SistemaDeRpg {
+  const doLivro = useCatalogoStore((state) => state.sistemaId)
+  const daAventura = useAdventureStore(sistemaAtivo)
+  return useRpgStore((state) => sistemaPorId(state.biblioteca, doLivro ?? daAventura) ?? sistemaPorId(state.biblioteca, daAventura)) ?? SISTEMA_ONE_PIECE
+}
+
+/** As condições que a peça Condição oferece: as de fábrica, as que a batalha conhece e as criadas pelo mestre. */
+function useNomesDasCondicoes(): string[] {
+  const proprias = useCondicoesPropriasStore((state) => state.catalogo)
+  return useMemo(() => {
+    const nomes = [NOME_DA_CURA_REDUZIDA, 'Sangrando', 'Queimando', ...TOKEN_CONDITION_ORDER.map((id) => TOKEN_CONDITION_LABELS[id]), ...proprias.map((condicao) => condicao.nome)]
+    return [...new Set(nomes)]
+  }, [proprias])
+}
+
+export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, onDar, onClose, imagemDoBlob, escolherImagem }: ItemDoCatalogoDialogProps) {
   const tituloId = useId()
   const idBase = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const apertouNoFundo = useRef(false)
-  const [rascunho, setRascunho] = useState(item)
+  const sistema = useSistemaDoEditor()
+  const livroAberto = useCatalogoStore((state) => (state.podeGravar ? state.sistemaId : null))
+  const entradasDoLivro = useCatalogoStore((state) => state.itens)
+  const regraDoLivro = useMemo(() => {
+    const entrada = regraDaCoisa(entradasDoLivro, item.id)
+    return entrada !== undefined && entrada.tipo === 'arma' ? entrada : undefined
+  }, [entradasDoLivro, item.id])
+  const [aberto] = useState(() => itemParaOEditor(item, regraDoLivro))
+  const [rascunho, setRascunho] = useState(aberto.item)
+  /** O item como está gravado (o de abrir, completado; depois, o último salvo): "mudou" compara com ele. */
+  const [gravado, setGravado] = useState(aberto.item)
+  /** O editor montou peças do texto de antes (a bala de prata): há o que salvar mesmo sem o mestre mexer. */
+  const [montouAoAbrir, setMontouAoAbrir] = useState(aberto.avisos.length > 0)
   const [precoTexto, setPrecoTexto] = useState(item.preco === null ? '' : String(item.preco))
   const [erro, setErro] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
@@ -273,30 +524,19 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
   const [alvoEscolhido, setAlvoEscolhido] = useState(alvos[0] === undefined ? '' : chaveDoAlvo(alvos[0]))
   const [quantidade, setQuantidade] = useState(1)
   const [resultadoDoDar, setResultadoDoDar] = useState<string | null>(null)
-
-  // ARMAS-FONTE-UNICA §6: a arma do Acervo mostra e edita a regra do livro aberto (a fonte); o Salvar grava a entrada e as fichas ligadas.
-  const sistemaIdDoLivro = useCatalogoStore((state) => (state.podeGravar ? state.sistemaId : null))
-  const entradasDoLivro = useCatalogoStore((state) => state.itens)
-  const sistemaDoLivro = useRpgStore((state) => (sistemaIdDoLivro === null ? undefined : sistemaPorId(state.biblioteca, sistemaIdDoLivro)))
-  const ehArma = ehCategoriaDeArma(rascunho.categoria)
-  const regraDaArma = ehArma && sistemaDoLivro !== undefined ? regraDaArmaNoLivro(entradasDoLivro, rascunho) : undefined
-  /** O que o mestre mudou no "O que ela faz"; `null` = nada (o Salvar não toca no livro). */
-  // ED7: o que o editor mudou na regra da arma (mecânica, Efeito em texto, requisitos e marcas); `null` = nada.
-  const [mecanicaDaArma, setMecanicaDaArma] = useState<RegraDaArmaNoEditor | null>(null)
-  const fichasDoMundo = usePersonagensDoMundo()
-  const [idDaEntradaNova] = useState(novoIdDeEntrada)
-  /** Sem regra neste livro, a entrada que o Salvar cria: nasce do cartão ligado das fichas (dano, descrição e categoria não somem calados). */
-  const entradaNova =
-    ehArma && sistemaDoLivro !== undefined && regraDaArma === undefined
-      ? entradaNovaDaCoisa({ id: idDaEntradaNova, tipo: 'arma', nome: cleanItemName(rascunho.nome) || ITEM_SEM_NOME, texto: '', campos: {}, acervoId: rascunho.id }, fichasDoMundo, sistemaDoLivro)
-      : undefined
-  const entradaDaArma = regraDaArma?.entrada ?? (entradaNova === 'conflito' ? undefined : entradaNova)
-
-  /** Os campos da regra como ficariam ao salvar: o Efeito em texto que seguiu a mecânica entra por cima. */
-  const camposDaArmaNaTela = mecanicaDaArma?.efeito === undefined ? (entradaDaArma?.campos ?? {}) : { ...(entradaDaArma?.campos ?? {}), [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }
+  const condicoes = useNomesDasCondicoes()
+  const acervo = useAcervoDeItensStore((state) => state.itens)
+  const municoes = useMunicoesDoAcervo(rascunho.id)
+  const atributos = useMemo(() => sistema.atributos.map((atributo) => ({ valor: atributo.id, rotulo: atributo.nome })), [sistema])
+  const nomeDoAtributo = useMemo(() => {
+    const porId = new Map(sistema.atributos.map((atributo) => [atributo.id, atributo.nome]))
+    return (id: string) => porId.get(id) ?? id
+  }, [sistema])
 
   const preco = precoDoTexto(precoTexto)
-  const mudou = novo || rascunho !== item || preco !== item.preco || mecanicaDaArma !== null
+  // O que o editor só completou ao abrir (os blocos de partida do tipo) não conta como mudança; o que ele montou do texto de antes, sim.
+  const mudou = novo || rascunho !== gravado || montouAoAbrir || preco !== gravado.preco
+  const tipo = rascunho.tipo
 
   useEffect(() => {
     const quemAbriu = document.activeElement
@@ -318,6 +558,16 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
     if (ativo === null || ativo === document.body || ativo.matches(':disabled')) dialogRef.current?.focus()
   }, [ocupado])
 
+  const frases = useMemo(
+    () =>
+      frasesDoItem(rascunho, {
+        nomeDoItem: (id) => acervo.find((candidato) => candidato.id === id)?.nome ?? null,
+        nomeDoAtributo,
+        armasQueAceitam: (municaoId) => acervo.filter((arma) => arma.id !== rascunho.id && (arma.pente?.aceita ?? arma.municoes ?? []).includes(municaoId)).map((arma) => arma.nome),
+      }),
+    [rascunho, acervo, nomeDoAtributo],
+  )
+
   const trocarImagem = async (pegar: () => Promise<string | null>) => {
     setErro(null)
     setOcupado(true)
@@ -331,32 +581,36 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
     }
   }
 
+  /** O dano da arma na regra do livro ligada, quando ela guarda só um número (a fórmula escrita à mão fica). */
+  const levarODanoAoLivro = async (salvo: ItemDoCatalogo) => {
+    if (regraDoLivro === undefined || livroAberto === null || salvo.ataque === undefined || salvo.tipo === undefined || !TIPOS_QUE_ATACAM.has(salvo.tipo)) return
+    const sistemaDoLivro = sistemaPorId(useRpgStore.getState().biblioteca, livroAberto)
+    if (sistemaDoLivro === undefined) return
+    const danoAntes = (regraDoLivro.campos.dano ?? '').trim()
+    if (danoAntes !== '' && !/^\d+$/.test(danoAntes)) return
+    if (primeiroNumero(danoAntes) === salvo.ataque.dano) return
+    await gravarRegraDaArma({ ...regraDoLivro, campos: { ...regraDoLivro.campos, dano: String(salvo.ataque.dano) } }, sistemaDoLivro)
+  }
+
   const salvar = async () => {
     if (preco === undefined) {
       setErro('O preço é um número inteiro de berries (ou vazio, sem preço).')
       return
     }
+    if (tipo === undefined) {
+      setErro('Escolha o que o item é (o tipo) para salvar.')
+      return
+    }
     setErro(null)
     setOcupado(true)
     try {
-      const salvo = { ...rascunho, nome: cleanItemName(rascunho.nome) || ITEM_SEM_NOME, categoria: categoriaLimpa(rascunho.categoria), preco }
-      const vaiAoLivro = mecanicaDaArma !== null && sistemaDoLivro !== undefined && ehCategoriaDeArma(salvo.categoria)
-      // Antes de gravar qualquer coisa: com cópias que discordam, a entrada nova apagaria o que uma delas diz.
-      if (vaiAoLivro && entradaNova === 'conflito') {
-        setErro(ARMA_COM_COPIAS_DIFERENTES)
-        return
-      }
+      const salvo = itemComOsCamposAntigos({ ...rascunho, nome: cleanItemName(rascunho.nome) || ITEM_SEM_NOME, preco }, nomeDoAtributo)
       await onSalvar(salvo)
-      if (vaiAoLivro && entradaDaArma !== undefined) {
-        // Sem regra neste livro, nasce a entrada de arma ligada a esta coisa (com o que o cartão ligado diz); a de mesmo nome solta ganha a ligação.
-        const { mecanica: _antes, requisitos: _requisitosAntes, marcas: _marcasAntes, ...base }: EntradaDoCatalogo = entradaDaArma
-        const { mecanica, requisitos, marcas } = mecanicaDaArma
-        const campos = camposComOEfeitoDaMecanica(mecanicaDaArma.efeito === undefined ? base.campos : { ...base.campos, [CAMPO_DO_EFEITO]: mecanicaDaArma.efeito }, mecanica, sistemaDoLivro)
-        await gravarRegraDaArma({ ...base, campos, acervoId: salvo.id, ...(mecanica === undefined ? {} : { mecanica }), ...(requisitos === undefined ? {} : { requisitos }), ...(marcas === undefined ? {} : { marcas }) }, sistemaDoLivro)
-        setMecanicaDaArma(null)
-      }
-      // A store guarda este mesmo objeto: com ele no rascunho, "nada mudou" volta a valer e o "Dar" libera.
+      await levarODanoAoLivro(salvo)
+      // Com o salvo como base, "nada mudou" volta a valer e o "Dar" libera.
       setRascunho(salvo)
+      setGravado(salvo)
+      setMontouAoAbrir(false)
       if (novo) onClose()
     } catch (falha) {
       setErro(mensagemDe(falha))
@@ -409,128 +663,300 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
     apertouNoFundo.current = false
   }
 
-  const listaId = `${idBase}-categorias`
+  const mudarAtaque = (ataque: AtaqueDoItem) => setRascunho((atual) => ({ ...atual, ataque }))
+  const empilhaSozinho = tipo !== undefined && TIPOS_QUE_EMPILHAM.has(tipo)
+  const blocoDasPecas: OndeDaPeca | null = tipo === 'consumivel' ? 'uso' : tipo !== undefined && tipo !== 'equipamento' && tipo !== 'outros' ? 'acerto' : null
+  const marcarMunicao = (id: string, marcada: boolean) =>
+    setRascunho((atual) => {
+      if (atual.pente === undefined) return atual
+      const aceita = marcada ? [...atual.pente.aceita, id].slice(0, MUNICOES_POR_ARMA_MAX) : atual.pente.aceita.filter((escolhida) => escolhida !== id)
+      return { ...atual, pente: { ...atual.pente, aceita } }
+    })
+  const mudarBonus = (indice: number, bonus: BonusDoEquipamento) =>
+    setRascunho((atual) => (atual.equipamento === undefined ? atual : { ...atual, equipamento: { ...atual.equipamento, bonus: atual.equipamento.bonus.map((antes, i) => (i === indice ? bonus : antes)) } }))
+  const confira = rascunho.confira ?? []
 
   return createPortal(
     <div className="lb-dialog-backdrop" onMouseDown={(event) => (apertouNoFundo.current = event.target === event.currentTarget)} onClick={cliqueNoFundo}>
-      <div ref={dialogRef} className="lb-panel lb-dialog lb-item-janela" role="dialog" aria-modal="true" aria-labelledby={tituloId} tabIndex={-1} onKeyDown={tecla}>
+      <div ref={dialogRef} className="lb-panel lb-dialog lb-item-janela lb-edi" role="dialog" aria-modal="true" aria-labelledby={tituloId} tabIndex={-1} onKeyDown={tecla}>
         <header className="lb-dialog__head lb-item-janela__topo">
           <h2 id={tituloId} className="lb-dialog__title">
-            {novo ? 'Novo item' : item.nome}
+            {novo ? 'Item novo' : `Editar ${item.nome}`}
           </h2>
           <button type="button" className="lb-iconbtn lb-iconbtn--sm" aria-label="Fechar" onClick={onClose}>
             <CloseIcon size={16} />
           </button>
         </header>
         <div className="lb-dialog__body lb-scroll lb-item-janela__corpo">
-          <div className="lb-item-janela__imagem-linha">
-            <div className="lb-item-janela__imagem">
-              <ImagemOuIniciais imagem={rascunho.imagem} nome={rascunho.nome} alt={`Imagem de ${rascunho.nome}`} />
-            </div>
-            <div className="lb-item-janela__imagem-acoes">
-              <PinImageDrop rotulo="Colar ou soltar imagem do item" onImage={(fonte) => void trocarImagem(() => imagemDoBlob(fonte))} />
-              <div className="lb-item-janela__botoes">
-                <button type="button" className="lb-btn lb-btn--compact" disabled={ocupado} onClick={() => void trocarImagem(escolherImagem)}>
-                  {rascunho.imagem === null ? 'Escolher imagem…' : 'Trocar imagem…'}
-                </button>
-                {rascunho.imagem !== null && (
-                  <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => setRascunho({ ...rascunho, imagem: null })}>
-                    Tirar imagem
+          {confira.length > 0 && (
+            <PainelConfira
+              lista={confira}
+              onConferido={(indice) =>
+                setRascunho((atual) => {
+                  const resto = (atual.confira ?? []).filter((_, i) => i !== indice)
+                  const { confira: _antes, ...sem } = atual
+                  return resto.length === 0 ? sem : { ...sem, confira: resto }
+                })
+              }
+            />
+          )}
+          {montouAoAbrir && aberto.avisos.map((aviso) => (
+            <p key={aviso} className="lb-edi-aviso" role="status">
+              {aviso}
+            </p>
+          ))}
+          <EscolhaDoTipo tipo={tipo} onEscolher={(novoTipo) => setRascunho((atual) => (atual.tipo === novoTipo ? atual : comOTipo(atual, novoTipo)))} />
+
+          <Secao titulo="Nome, imagem e preço">
+            <div className="lb-item-janela__imagem-linha">
+              <div className="lb-item-janela__imagem">
+                <ImagemOuIniciais imagem={rascunho.imagem} nome={rascunho.nome} alt={`Imagem de ${rascunho.nome}`} />
+              </div>
+              <div className="lb-item-janela__imagem-acoes">
+                <PinImageDrop rotulo="Colar ou soltar imagem do item" onImage={(fonte) => void trocarImagem(() => imagemDoBlob(fonte))} />
+                <div className="lb-item-janela__botoes">
+                  <button type="button" className="lb-btn lb-btn--compact" disabled={ocupado} onClick={() => void trocarImagem(escolherImagem)}>
+                    {rascunho.imagem === null ? 'Escolher imagem…' : 'Trocar imagem…'}
                   </button>
-                )}
+                  {rascunho.imagem !== null && (
+                    <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => setRascunho({ ...rascunho, imagem: null })}>
+                      Tirar imagem
+                    </button>
+                  )}
+                </div>
+                <p className="lb-field__hint">PNG, JPG, WEBP ou GIF, até 2 MB.</p>
               </div>
             </div>
-          </div>
-          <label className="lb-field" htmlFor={`${idBase}-nome`}>
-            <span className="lb-label">Nome</span>
-            <input
-              id={`${idBase}-nome`}
-              className="lb-input"
-              value={rascunho.nome}
-              maxLength={ITEM_NAME_MAX_LENGTH}
-              onChange={(event) => setRascunho({ ...rascunho, nome: event.target.value })}
-            />
-          </label>
-          <div className="lb-item-janela__linha">
-            <label className="lb-field" htmlFor={`${idBase}-categoria`}>
-              <span className="lb-label">Categoria</span>
-              <input
-                id={`${idBase}-categoria`}
-                className="lb-input"
-                list={listaId}
-                value={rascunho.categoria}
-                placeholder="Sem categoria"
-                // MUNIÇÃO: bala empilha ("Balas de prata ×12"); escolher a categoria já liga o Empilhável.
-                onChange={(event) => setRascunho({ ...rascunho, categoria: event.target.value, ...(ehCategoriaDeMunicao(event.target.value) ? { empilhavel: true } : {}) })}
+            <div className="lb-item-janela__linha">
+              <label className="lb-field" htmlFor={`${idBase}-nome`}>
+                <span className="lb-label">Nome</span>
+                <input id={`${idBase}-nome`} className="lb-input" value={rascunho.nome} maxLength={ITEM_NAME_MAX_LENGTH} placeholder="Ex.: Bala de Prata" onChange={(event) => setRascunho({ ...rascunho, nome: event.target.value })} />
+              </label>
+              <label className="lb-field" htmlFor={`${idBase}-preco`}>
+                <span className="lb-label">Preço (berries)</span>
+                <input id={`${idBase}-preco`} className="lb-input" inputMode="numeric" placeholder="Sem preço" value={precoTexto} aria-invalid={preco === undefined} onChange={(event) => setPrecoTexto(event.target.value)} />
+              </label>
+            </div>
+          </Secao>
+
+          {tipo === 'hibrida' && rascunho.golpe !== undefined && (
+            <Secao titulo="Como golpeia" sub="O golpe corpo a corpo da híbrida. Não gasta bala.">
+              <div className="lb-edi-grade">
+                <CampoInteiro rotulo="Dano do golpe" valor={rascunho.golpe.dano} minimo={0} maximo={NUMERO_DO_ITEM_MAX} onChange={(dano) => setRascunho((atual) => (atual.golpe === undefined ? atual : { ...atual, golpe: { ...atual.golpe, dano } }))} />
+                <CampoEscolha rotulo="Soma no golpe" valor={rascunho.golpe.soma} opcoes={[{ valor: '', rotulo: 'Nada' }, ...atributos]} onMudar={(soma) => setRascunho((atual) => (atual.golpe === undefined ? atual : { ...atual, golpe: { ...atual.golpe, soma } }))} />
+                <CampoEscolha rotulo="Ação" valor={rascunho.golpe.acao} opcoes={comoOpcoes(ACOES_DO_ITEM)} onMudar={(acao) => setRascunho((atual) => (atual.golpe === undefined ? atual : { ...atual, golpe: { ...atual.golpe, acao } }))} />
+              </div>
+              <CampoDoAlcance
+                valor={alcanceLido(rascunho.golpe.alcance)}
+                cor="azul"
+                onChange={(nova) =>
+                  setRascunho((atual) => {
+                    if (atual.golpe === undefined) return atual
+                    const { alcance: _antes, ...sem } = atual.golpe
+                    return { ...atual, golpe: nova === null ? sem : { ...sem, alcance: alcanceGuardado(nova) } }
+                  })
+                }
               />
-              <datalist id={listaId}>
-                {categorias.map((categoria) => (
-                  <option key={categoria} value={categoria} />
+            </Secao>
+          )}
+
+          {tipo !== undefined && TIPOS_QUE_ATACAM.has(tipo) && rascunho.ataque !== undefined && <CamposDoAtaque tipo={tipo} ataque={rascunho.ataque} atributos={atributos} onMudar={mudarAtaque} />}
+
+          {(tipo === 'fogo' || tipo === 'hibrida') && rascunho.pente !== undefined && (
+            <Secao titulo="Munição e recarga" sub="A arma só diz quais balas servem e quantas cabem no pente. As balas moram na mochila e vão para o pente na recarga.">
+              <div className="lb-edi-grade">
+                <CampoInteiro rotulo="Capacidade do pente" valor={rascunho.pente.capacidade} minimo={1} maximo={PENTE_MAX} onChange={(capacidade) => setRascunho((atual) => (atual.pente === undefined ? atual : { ...atual, pente: { ...atual.pente, capacidade } }))} />
+                <CamposDaRecarga recarga={rascunho.pente.recarga} ajudaDoTempo="Até a arma poder atirar de novo." onMudar={(recarga) => setRascunho((atual) => (atual.pente === undefined ? atual : { ...atual, pente: { ...atual.pente, recarga } }))} />
+              </div>
+              <fieldset className="lb-item-janela__municoes">
+                <legend className="lb-label">Munições que aceita</legend>
+                {municoes.length === 0 ? (
+                  <p className="lb-field__hint">Nenhuma munição no Acervo ainda. Crie uma com Novo item, tipo Munição.</p>
+                ) : (
+                  municoes.map((municao) => (
+                    <label key={municao.id} className="lb-item-janela__marca">
+                      <input type="checkbox" checked={rascunho.pente?.aceita.includes(municao.id) === true} onChange={(event) => marcarMunicao(municao.id, event.target.checked)} />
+                      <span>{municao.nome}</span>
+                    </label>
+                  ))
+                )}
+              </fieldset>
+            </Secao>
+          )}
+
+          {tipo === 'arremesso' && (
+            <Secao titulo="Recarga" sub="Quanto custa ter o próximo na mão. Fora da batalha é na hora.">
+              <div className="lb-edi-grade">
+                <CamposDaRecarga
+                  recarga={rascunho.arremesso?.recarga}
+                  ajudaDoTempo={rascunho.arremesso?.volta === true ? 'Quando volta para a mão.' : 'Até o próximo ir para a mão.'}
+                  onMudar={(recarga) => setRascunho((atual) => ({ ...atual, arremesso: { ...atual.arremesso, recarga } }))}
+                />
+              </div>
+              <Marcar
+                rotulo={rascunho.arremesso?.volta === true ? 'Volta para a mão: como um boomerang, não sai da mochila' : 'Volta para a mão (desligado: cada um que é jogado sai da mochila)'}
+                marcado={rascunho.arremesso?.volta === true}
+                onChange={(volta) =>
+                  setRascunho((atual) => {
+                    const { volta: _antes, ...sem } = atual.arremesso ?? {}
+                    return { ...atual, arremesso: volta ? { ...sem, volta: true } : sem }
+                  })
+                }
+              />
+            </Secao>
+          )}
+
+          {tipo === 'municao' && rascunho.bala !== undefined && (
+            <Secao titulo="Dano da bala" sub="Ação, alvos e alcance vêm da arma que atira. Aqui fica só o que a bala muda.">
+              <div className="lb-edi-seg" role="radiogroup" aria-label="Como a bala mexe no dano">
+                {MODOS_DA_BALA.map(({ modo, rotulo }) => (
+                  <button key={modo} type="button" role="radio" aria-checked={rascunho.bala?.modo === modo} onClick={() => setRascunho((atual) => (atual.bala === undefined ? atual : { ...atual, bala: { ...atual.bala, modo } }))}>
+                    {rotulo}
+                  </button>
                 ))}
-              </datalist>
-            </label>
-            <label className="lb-field" htmlFor={`${idBase}-preco`}>
-              <span className="lb-label">Preço (berries)</span>
-              <input
-                id={`${idBase}-preco`}
-                className="lb-input"
-                inputMode="numeric"
-                placeholder="Sem preço"
-                value={precoTexto}
-                aria-invalid={preco === undefined}
-                onChange={(event) => setPrecoTexto(event.target.value)}
+              </div>
+              <div className="lb-edi-grade">
+                {rascunho.bala.modo !== 'atributo' ? (
+                  <CampoInteiro rotulo={rascunho.bala.modo === 'soma' ? 'Quanto soma' : 'Dano novo'} valor={rascunho.bala.valor} minimo={0} maximo={NUMERO_DO_ITEM_MAX} onChange={(valor) => setRascunho((atual) => (atual.bala === undefined ? atual : { ...atual, bala: { ...atual.bala, valor } }))} />
+                ) : (
+                  <>
+                    <CampoEscolha rotulo="Atributo" valor={rascunho.bala.atributo ?? ''} opcoes={atributos} onMudar={(atributo) => setRascunho((atual) => (atual.bala === undefined ? atual : { ...atual, bala: { ...atual.bala, atributo } }))} />
+                    <CampoInteiro rotulo="Dividido por" valor={rascunho.bala.divisor ?? 1} minimo={1} maximo={10} onChange={(divisor) => setRascunho((atual) => (atual.bala === undefined ? atual : { ...atual, bala: { ...atual.bala, divisor } }))} />
+                  </>
+                )}
+              </div>
+              <p className="lb-field__hint">Para uma arma aceitar esta bala, marque-a na arma, em Munição e recarga.</p>
+            </Secao>
+          )}
+
+          {tipo === 'consumivel' && rascunho.uso !== undefined && (
+            <Secao titulo="Como usa" sub="Ação e alcance ficam só aqui. O que ele faz vai em Ao usar, logo abaixo. Sem efeito, usar não gasta e o mestre narra.">
+              <div className="lb-edi-grade">
+                <CampoEscolha rotulo="Ação na batalha" valor={rascunho.uso.acao} opcoes={comoOpcoes(ACOES_DO_ITEM)} onMudar={(acao) => setRascunho((atual) => (atual.uso === undefined ? atual : { ...atual, uso: { ...atual.uso, acao } }))} />
+                <div className="lb-field">
+                  <span className="lb-label">Onde dá para usar</span>
+                  <Marcar rotulo="Na batalha" marcado={rascunho.uso.onde.batalha} onChange={(batalha) => setRascunho((atual) => (atual.uso === undefined ? atual : { ...atual, uso: { ...atual.uso, onde: { ...atual.uso.onde, batalha } } }))} />
+                  <Marcar rotulo="Fora da batalha" marcado={rascunho.uso.onde.fora} onChange={(fora) => setRascunho((atual) => (atual.uso === undefined ? atual : { ...atual, uso: { ...atual.uso, onde: { ...atual.uso.onde, fora } } }))} />
+                </div>
+              </div>
+              <CampoDoAlcance
+                valor={alcanceLido(rascunho.uso.alcance)}
+                cor="verde"
+                onChange={(nova) =>
+                  setRascunho((atual) => {
+                    if (atual.uso === undefined) return atual
+                    const { alcance: _antes, ...sem } = atual.uso
+                    return { ...atual, uso: nova === null ? sem : { ...sem, alcance: alcanceGuardado(nova) } }
+                  })
+                }
               />
-            </label>
-          </div>
-          <label className="lb-field" htmlFor={`${idBase}-descricao`}>
-            <span className="lb-label">Descrição</span>
-            <textarea
-              id={`${idBase}-descricao`}
-              className="lb-input lb-textarea"
-              value={rascunho.descricao}
-              maxLength={ITEM_DESCRICAO_MAX}
-              onChange={(event) => setRascunho({ ...rascunho, descricao: event.target.value })}
-            />
-          </label>
-          <label className="lb-item-janela__marca">
-            <input type="checkbox" checked={rascunho.empilhavel} onChange={(event) => setRascunho({ ...rascunho, empilhavel: event.target.checked })} />
-            <span>Empilhável — dar de novo a quem já tem soma na quantidade</span>
-          </label>
-          <LuzDoItemCampos idBase={idBase} luz={rascunho.luz} onMudar={(luz) => setRascunho(comLuz(rascunho, luz))} />
-          {(ehCategoriaDeMunicao(rascunho.categoria) || rascunho.tiro !== undefined) && (
-            <TiroDaMunicaoCampos idBase={idBase} tiro={rascunho.tiro} onMudar={(tiro) => setRascunho(comTiro(rascunho, tiro))} />
+            </Secao>
           )}
-          {(ehCategoriaDeArma(rascunho.categoria) || (rascunho.municoes?.length ?? 0) > 0) && (
-            <MunicoesDaArma armaId={rascunho.id} escolhidas={rascunho.municoes ?? []} onMudar={(municoes) => setRascunho(comMunicoes(rascunho, municoes))} />
-          )}
-          {/* Arma: o "O que ela faz" é a regra do livro (um efeito de item aqui seria uma 2ª verdade). Item: Fase 7, o efeito vai com a cópia dada. */}
-          {ehArma ? (
-            sistemaDoLivro === undefined ? (
-              <p className="lb-field__hint">O que a arma faz mora no livro do sistema: abra o livro (Biblioteca, página Itens) para ver e mudar.</p>
-            ) : (
-              <EfeitoDaArmaCampos
-                entrada={{
-                  nome: entradaDaArma?.nome ?? rascunho.nome,
-                  campos: camposDaArmaNaTela,
-                  acervoId: rascunho.id,
-                  mecanica: mecanicaDaArma === null ? entradaDaArma?.mecanica : mecanicaDaArma.mecanica,
-                  requisitos: mecanicaDaArma === null ? entradaDaArma?.requisitos : mecanicaDaArma.requisitos,
-                  marcas: mecanicaDaArma === null ? entradaDaArma?.marcas : mecanicaDaArma.marcas,
+
+          {tipo === 'equipamento' && rascunho.equipamento !== undefined && (
+            <Secao titulo="Como veste" sub="Sem regra inventada: a roupa dá só o que você escrever aqui, nos campos que a ficha já tem (CA, Escudo, Vantagem, atributos).">
+              <CampoEscolha
+                rotulo="Onde veste"
+                valor={rascunho.equipamento.parte}
+                opcoes={PARTES_DO_EQUIPAMENTO.map((parte) => ({ valor: parte, rotulo: ROTULO_DA_PARTE[parte] }))}
+                onMudar={(texto) => {
+                  const parte = PARTES_DO_EQUIPAMENTO.find((candidata) => candidata === texto)
+                  if (parte !== undefined) setRascunho((atual) => (atual.equipamento === undefined ? atual : { ...atual, equipamento: { ...atual.equipamento, parte } }))
                 }}
-                sistema={sistemaDoLivro}
-                // O Efeito em texto que mudou antes fica, se esta mudança não o mexeu (só os requisitos, por exemplo).
-                onMudar={(regra) => setMecanicaDaArma((antes) => (regra.efeito === undefined && antes?.efeito !== undefined ? { ...regra, efeito: antes.efeito } : regra))}
-                {...(entradaNova === 'conflito' ? { nota: ARMA_COM_COPIAS_DIFERENTES } : regraDaArma === undefined ? { nota: 'Sem regra neste livro: salvar cria a entrada de arma ligada a esta coisa.' } : regraDaArma.ligar ? { nota: 'Salvar liga esta coisa à entrada de mesmo nome do livro.' } : {})}
               />
-            )
-          ) : (
-            <EfeitoDoItemCampos
+              {rascunho.equipamento.bonus.length === 0 ? (
+                <p className="lb-edi-nota">Nenhum bônus ainda: vestida, não muda nada na ficha.</p>
+              ) : (
+                <ul className="lb-edi-pecas">
+                  {rascunho.equipamento.bonus.map((bonus, indice) => (
+                    <li key={indice} className="lb-edi-peca">
+                      <div className="lb-edi-peca__campos">
+                        <CampoEscolha
+                          rotulo="Enquanto vestido, dá"
+                          valor={bonus.campo === 'atributo' ? `atributo:${bonus.em ?? ''}` : bonus.campo}
+                          opcoes={[...CAMPOS_FIXOS_DO_BONUS.map((campo) => ({ valor: campo, rotulo: ROTULO_DO_BONUS[campo] })), ...atributos.map((atributo) => ({ valor: `atributo:${atributo.valor}`, rotulo: atributo.rotulo }))]}
+                          onMudar={(texto) => {
+                            const campo = CAMPOS_FIXOS_DO_BONUS.find((candidato) => candidato === texto)
+                            mudarBonus(indice, campo !== undefined ? { campo, n: bonus.n } : { campo: 'atributo', n: bonus.n, em: texto.replace(/^atributo:/, '') })
+                          }}
+                        />
+                        {bonus.campo === 'vantagem' || bonus.campo === 'desvantagem' ? (
+                          <label className="lb-field">
+                            <span className="lb-label">Em</span>
+                            <input className="lb-input" maxLength={30} value={bonus.em ?? ''} placeholder="Ex.: Furtividade" onChange={(event) => mudarBonus(indice, { ...bonus, em: event.target.value })} />
+                          </label>
+                        ) : (
+                          <CampoInteiro rotulo="Quanto" valor={bonus.n} minimo={-20} maximo={99} onChange={(n) => mudarBonus(indice, { ...bonus, n })} />
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="lb-iconbtn lb-iconbtn--sm"
+                        aria-label="Tirar este bônus"
+                        onClick={() => setRascunho((atual) => (atual.equipamento === undefined ? atual : { ...atual, equipamento: { ...atual.equipamento, bonus: atual.equipamento.bonus.filter((_, i) => i !== indice) } }))}
+                      >
+                        <CloseIcon size={14} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="lb-edi-mais">
+                <button
+                  type="button"
+                  className="lb-btn lb-btn--compact"
+                  disabled={rascunho.equipamento.bonus.length >= PECAS_POR_BLOCO_MAX}
+                  onClick={() => setRascunho((atual) => (atual.equipamento === undefined ? atual : { ...atual, equipamento: { ...atual.equipamento, bonus: [...atual.equipamento.bonus, { campo: 'ca', n: 1 }] } }))}
+                >
+                  + Bônus
+                </button>
+              </div>
+            </Secao>
+          )}
+
+          {blocoDasPecas !== null && (
+            <PecasDoBloco
+              onde={blocoDasPecas}
+              guardadas={blocoDasPecas === 'uso' ? rascunho.aoUsar : rascunho.aoAcertar}
               item={rascunho}
-              onMudar={(efeito) => setRascunho((atual) => comEfeito(atual, efeito))}
-              onRequisitos={(requisitos) => setRascunho((atual) => comRequisitosDoItem(atual, requisitos))}
-              onTrocarDescricao={(descricao) => setRascunho((atual) => ({ ...atual, descricao: descricao.slice(0, ITEM_DESCRICAO_MAX) }))}
+              condicoes={condicoes}
+              sistema={sistema}
+              onMudar={(pecas) => setRascunho((atual) => comPecas(atual, blocoDasPecas, pecas))}
             />
           )}
+
+          {tipo !== undefined && (
+            <Secao titulo="Opções">
+              <LuzDoItemCampos idBase={idBase} luz={rascunho.luz} onMudar={(luz) => setRascunho((atual) => comLuz(atual, luz))} />
+              <Marcar
+                rotulo="Empilha na mochila: vários ocupam uma vaga só, com o número"
+                marcado={rascunho.empilhavel}
+                bloqueio={empilhaSozinho ? 'Liga sozinho neste tipo.' : null}
+                onChange={(empilhavel) => setRascunho((atual) => ({ ...atual, empilhavel }))}
+              />
+            </Secao>
+          )}
+
+          <Secao titulo="Descrição" sub={tipo === 'outros' ? 'Para Outros, é o que vale. Escreva como o item é.' : 'Opcional. Só para ambientar: as regras já estão nos campos.'}>
+            <label className="lb-field" htmlFor={`${idBase}-descricao`}>
+              <span className="lb-label lb-edi-sr">Descrição</span>
+              <textarea id={`${idBase}-descricao`} className="lb-input lb-textarea" value={rascunho.descricao} maxLength={ITEM_DESCRICAO_MAX} placeholder="Ex.: Pau com pano embebido em óleo." onChange={(event) => setRascunho({ ...rascunho, descricao: event.target.value })} />
+            </label>
+          </Secao>
+
+          {tipo !== undefined && (
+            <section className="lb-edi-frase" aria-label="O que acontece">
+              <p className="lb-label">O que acontece</p>
+              <p aria-live="polite">{frases.join(' ')}</p>
+              <button type="button" className="lb-btn lb-btn--compact" disabled aria-describedby={`${idBase}-testar`}>
+                Testar no boneco de treino
+              </button>
+              <span id={`${idBase}-testar`} className="lb-field__hint">
+                O teste no boneco chega com a batalha.
+              </span>
+            </section>
+          )}
+
           {erro !== null && (
             <p className="lb-field__error" role="alert">
               {erro}
