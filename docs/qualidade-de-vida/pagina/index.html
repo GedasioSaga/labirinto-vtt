@@ -455,7 +455,7 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
 
 <main class="pagina">
   <header class="topo">
-    <p class="data">Labirinto, mesa virtual de RPG. Levantamento de 26/11/2026, atualizado no fechamento da 0.6.1 e no teste do app instalado.</p>
+    <p class="data">Labirinto, mesa virtual de RPG. Levantamento de 26/11/2026, atualizado no fechamento da 0.6.1 e nos dois passeios pelo app instalado.</p>
     <h1>Qualidade de vida do Labirinto</h1>
     <p class="lead">15 sugestões e 26 bugs foram feitos na 0.6.1; aqui ficam só os que precisam de você confirmar.</p>
     <p class="como">Quatro dessas sugestões saíram em parte: o que falta delas está abaixo, junto com o que não deu tempo de fazer. Cada cartão diz por que ficou: decisão sua, bug que ainda precisa ser visto acontecendo, conserto feito que falta ver no app instalado, ou algo visto só no navegador.</p>
@@ -553,6 +553,7 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
       <li>Passeio do mestre: <code>docs/qualidade-de-vida/relatorio-mestre.md</code>. Passeio do jogador: <code>docs/qualidade-de-vida/relatorio-jogador.md</code>. Os dois fingiram uma mesa de One Piece no app aberto pelo navegador.</li>
       <li>Leitura do código: <code>docs/explorador/mapas.md</code>, <code>batalhas.md</code>, <code>preludio-e-livros.md</code> e <code>site.md</code>. Daqui entraram os bugs incertos; as “coisas erradas” ficaram só nas listas.</li>
       <li>Teste no app instalado 0.6.1: <code>docs/qualidade-de-vida/app-instalado/RESULTADO.md</code>. Os três bugs certos dele (nome do NPC uma letra por linha, miniatura antiga e cartão esticado na Visão geral das cenas) foram consertados depois, para a próxima versão; o Balde, a marca do tldraw e os incertos viraram cartões aqui.</li>
+      <li>Passeio 2 no app instalado 0.6.1 (mestre e jogador nas áreas que faltaram), na mesma <code>RESULTADO.md</code>. Os bugs certos dele foram consertados em 26/11 (nomes de teste no arquivo de jogadores vistos, Enter e foco na busca do “+ Adicionar”, selo do dado que não sumia, pino abrindo quadro e cartão juntos); os incertos, as sugestões e a mesa online, que não deu para abrir, viraram cartões aqui.</li>
       <li>O que foi feito: os commits da 0.6.1 de 26/11 e os relatos das faixas Batalha e Prelúdio, Livros e site. A faixa de mapas parou sem relato; os sete trabalhos que ela deixou no disco foram conferidos no app de desenvolvimento e commitados em 26/11.</li>
     </ul>
     <p>As linhas de código citadas são as da leitura de 26/11 de manhã; os consertos da 0.6.1 podem ter mudado algumas de lugar. Impacto e tamanho do conserto são estimativas.</p>
@@ -767,6 +768,13 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
       linhas: [L('Visto', 'O cabeçalho da batalha diz “One Piece” num mapa de teste em que nenhum sistema foi escolhido.'),
         S('Pergunta', 'One Piece é o sistema padrão de propósito? Se o mapa sem sistema não devia mostrar nome de sistema, o cabeçalho fica sem ele.')],
       conserto: 'pequeno', fonte: 'Teste no app instalado 0.6.1 (app-instalado/RESULTADO.md, item 11)' },
+    { id: 'inc-p2-visao-batalha', para: 'mestre', tambem: 'jogador', area: 'Batalha', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Visão de jogador sem a batalha do jogador',
+      linhas: [L('Visto', 'Com a batalha ligada e a Visão de jogador aberta, na vez do jogador de teste a janela dele não mostrou o menu da vez, a mira nem a reação, nem depois de fechar e reabrir. Só apareceu “Em batalha: Medir, Círculo, Cone, Visão”. O ataque do NPC saiu “0 sem reação” sem perguntar nada ao jogador.'),
+        S('Sugestão', 'A Visão de jogador mostrar a batalha como o jogador a vê: é o jeito de o mestre ensaiar sozinho a vez do jogador.'),
+        S('Pergunta', 'É de propósito que o teste fique sem a batalha? Se não for, é bug e entra na próxima leva.'),
+        R('o app liga getBatalha na visão de teste (App.tsx:1225), e a janela do jogador só mostra a batalha com state.batalhaEstado (player/main.tsx)')],
+      impacto: 'alto', esforco: 'medio', fonte: 'Passeio 2 no app instalado 0.6.1 (app-instalado/RESULTADO.md, bug 2 e sugestões)' },
 
     /* ---------- MESTRE: Livros e Prelúdio ---------- */
     { id: 'tldraw-licenca', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'decidir', pergunta: true,
@@ -860,6 +868,42 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
       conserto: 'pequeno', fonte: 'explorador/mapas.md, incerto 7',
       fotos: [foto('mestre-10-glifo-quadrado-abas-sons', 'Aba Efeitos sonoros com o quadradinho no lugar do número.', true),
         foto('jogador-04-abas-jogos-caractere-quebrado', 'Abas Ação, Objetos e Puzzles com o quadradinho.', true)] },
+    { id: 'p2-mesa-online', para: 'mestre', tambem: 'jogador', area: 'Geral', onde: 'app', situacao: 'conferir', pergunta: true,
+      titulo: 'Abrir mesa online não foi testado (precisa de você)',
+      linhas: [L('Lacuna', 'No passeio 2, o clique em “Abrir mesa online” foi barrado pelo controle de permissões da sessão. Ficaram sem teste: a sala aberta, o link local, entrar como jogador por outra aba, fechar a sala e, com isso, a mira e a reação do jogador na batalha.'),
+        S('Precisa de você', 'Abrir a mesa online à mão e entrar como jogador por outra aba ou aparelho, ou liberar essa ação para o próximo passeio.')],
+      fonte: 'Passeio 2 no app instalado 0.6.1 (app-instalado/RESULTADO.md, seção 1)' },
+    { id: 'inc-p2-itens-sumiram', para: 'mestre', area: 'Geral', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Itens da ficha que sumiram uma vez',
+      linhas: [L('Visto', 'A Garrucha (equipada) e a Porção Grande, dadas pelo “+ Adicionar”, sumiram da ficha do mestre e da do jogador. No meio houve: Editar com HP, SP e “Armas por batalha” e Salvar; 2 tokens criados e um ligado à ficha; um pino; Ctrl+S; abrir a Visão de jogador.'),
+        S('Confirmar', 'Não voltou a acontecer: Editar e Salvar sem mudar nada, com HP, com “Armas por batalha”, com a arma equipada e reabrindo a Visão, os itens ficaram. Vale um teste dirigido com a sequência inteira. Você já perdeu itens de uma ficha assim?')],
+      fonte: 'Passeio 2 no app instalado 0.6.1 (app-instalado/RESULTADO.md, bug 3)' },
+    { id: 'inc-p2-ficha-fecha', para: 'mestre', area: 'Geral', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Ficha nova que fecha sozinha',
+      linhas: [L('Visto', 'A ficha nova fechou com o nome digitado e sem salvar, e o nome se perdeu. Antes disso, o seletor de Sistema também fechou e o One Piece ficou escolhido sem um clique confirmado.'),
+        S('Confirmar', 'Pode ser efeito da automação: nas duas vezes um clique do robô esperava o botão parar de mexer. Criar uma ficha nova à mão, escolher o sistema e digitar o nome com calma. Já aconteceu com você?')],
+      fonte: 'Passeio 2 no app instalado 0.6.1 (app-instalado/RESULTADO.md, bug 4)' },
+    { id: 'inc-p2-versao', para: 'mestre', area: 'Geral', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: '“Versão mais nova” que não se renova',
+      linhas: [L('Visto', 'A tela inicial dizia “Você está na versão mais nova (0.6.1)” com a 0.6.2 já publicada. O texto vem da checagem feita quando o app abriu e não muda enquanto ele fica aberto.'),
+        S('Pergunta', 'O app deve checar de novo (ao voltar à tela inicial, por exemplo)? Ou fica só a checagem da abertura, mais o botão “Procurar atualizações”?')],
+      conserto: 'pequeno', fonte: 'Passeio 2 no app instalado 0.6.1 (app-instalado/RESULTADO.md, bug 8)' },
+    { id: 'inc-p2-chat-dado-teste', para: 'mestre', tambem: 'jogador', area: 'Geral', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Chat e dado do jogador de teste não chegam ao mestre',
+      linhas: [L('Visto', 'Na Visão de jogador, a mensagem do chat e a rolagem “Teste Jogador 1d20 = 20” ficaram só na janela de teste: o Chat e as rolagens do mestre não mostraram nada.'),
+        S('Pergunta', 'Pode ser de propósito, porque a ponte de teste é local e não grava chat. No teste, o mestre devia ver o chat e a rolagem do jogador de teste, marcados como teste?')],
+      fonte: 'Passeio 2 no app instalado 0.6.1 (app-instalado/RESULTADO.md, seção 1, Chat e Dados)' },
+    { id: 'p2-ficha-nova-nome', para: 'mestre', area: 'Geral', onde: 'app', situacao: 'decidir', pergunta: true,
+      titulo: 'Ficha nova com o Nome no topo e aviso “Ficha salva”',
+      linhas: [L('Hoje', 'Na ficha nova, Raça, Ofício, Armas e Etiquetas vêm em cima, e o Nome fica embaixo, fora da vista e sem o foco. Salvar a ficha não dá aviso nenhum.'),
+        S('Sugestão', 'O Nome no topo, com o foco nele ao abrir, e o aviso “Ficha salva” ao salvar.')],
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio 2 no app instalado 0.6.1 (app-instalado/RESULTADO.md, sugestões)' },
+    { id: 'p2-mochila-nome', para: 'mestre', area: 'Geral', onde: 'app', situacao: 'decidir', pergunta: true,
+      titulo: 'Mochila com nome e quantidade embaixo da foto (em parte)',
+      linhas: [L('Hoje', 'Na Mochila e equipamento do mestre, o item aparece só como foto, sem nome nem quantidade, e o mouse em cima não mostra nada.'),
+        S('Sugestão', 'O nome e a quantidade embaixo da foto de cada item.'),
+        L('Já feito', 'Em 26/11, a busca do “+ Adicionar” passou a abrir com o foco no campo, e o Enter dá o primeiro achado do Acervo (sem achado, o item novo pelo nome).')],
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio 2 no app instalado 0.6.1 (app-instalado/RESULTADO.md, sugestões e bugs 5 e 6)' },
 
     /* ---------- MESTRE: visto no navegador ---------- */
     { id: 'salvar-navegador', para: 'mestre', area: 'Geral', onde: 'navegador', situacao: 'navegador',
@@ -943,6 +987,12 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
         S('Confirmar', 'Deixar a sessão vencer e tentar salvar uma mudança no site.'),
         R('telas/enviar.ts:31 e dados/lobbyStore.ts:562')],
       fonte: 'explorador/site.md, incertos' },
+    { id: 'p2-historico-dados', para: 'jogador', area: 'Geral', onde: 'app', situacao: 'decidir', pergunta: true,
+      titulo: 'Histórico curto na aba Dados (em parte)',
+      linhas: [L('Hoje', 'No passeio 2, o selo da rolagem ficou no canto por minutos, e a aba Dados não mostrava as rolagens no notebook.'),
+        L('Já feito', 'Em 26/11, o selo passou a sumir sozinho depois de 4 segundos (ou com clique ou Esc), e a aba Dados passou a mostrar as últimas 4 rolagens também no notebook (antes, só no celular).'),
+        S('Falta decidir', 'Se 4 bastam ou se a aba guarda mais (o passeio sugeriu 5).')],
+      impacto: 'alto', esforco: 'pequeno', fonte: 'Passeio 2 no app instalado 0.6.1 (app-instalado/RESULTADO.md, sugestões)' },
 
     /* ---------- JOGADOR: visto no navegador ---------- */
     { id: 'abrir-sala', para: 'jogador', area: 'Geral', onde: 'navegador', situacao: 'navegador',
