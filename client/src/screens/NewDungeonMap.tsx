@@ -19,8 +19,14 @@ function tamanhoDaJanela(): { width: number; height: number } {
   return { width: window.innerWidth, height: window.innerHeight }
 }
 
+/** Nome de quem não digitou nada: aparece como exemplo apagado no campo e vira
+ *  o nome do mapa se o campo ficar vazio. */
+const NOME_PADRAO_DO_MAPA = 'Mapa sem título'
+
 export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
-  const [name, setName] = useState('Mapa sem título')
+  // Nasce vazio: com o padrão como VALOR, quem digitava ficava com
+  // "Mapa sem títuloCripta de teste".
+  const [name, setName] = useState('')
   const [width, setWidth] = useState(30)
   const [height, setHeight] = useState(20)
   const [gridSize, setGridSize] = useState(64)
@@ -72,7 +78,7 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
   const draftMap = useMemo<MapData>(
     () =>
       comForaDoChaoDeCenaNova({
-        ...mapFactory.createEmptyMap(mapId, name.trim() || 'Mapa sem título', safeWidth, safeHeight, safeGrid),
+        ...mapFactory.createEmptyMap(mapId, name.trim() || NOME_PADRAO_DO_MAPA, safeWidth, safeHeight, safeGrid),
         gridShape,
         showGrid,
       }),
@@ -106,6 +112,7 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
               id="lb-map-name"
               className="lb-input"
               value={name}
+              placeholder={NOME_PADRAO_DO_MAPA}
               onChange={(event) => setName(event.target.value)}
             />
           </div>
