@@ -14,7 +14,9 @@ import { fichaQueNasceuDaPeca, nomeDaProximaCopia } from '../lib/fichasNoAcervo'
 import { fichaDoTokenNovo } from '../lib/ligarFicha'
 import type { Personagem } from '../lib/personagem'
 import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from '../lib/tokenPlacement'
+import { snapToGridCenter } from '../pixi/tokenInteraction'
 import { viewportCenterWorld, type Point } from '../pixi/world'
+import { seatTokenCenter } from '../lib/tokenSize'
 import type { CarriedItem, Token } from '../types/map'
 import { fichasNoAcervoAtivas, mochilaMoraNaFicha, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
 import { guardarLugarDaFicha } from './fichasNoAcervo'
@@ -75,11 +77,20 @@ export function criarToken(name: string, opts: OpcoesDaFichaNova, vista: Tamanho
   // nova nasce nele — também a do acervo e a do personagem do livro. Sem padrão,
   // o tamanho pedido (o do acervo) ou uma casa.
   const size = tamanhoPadraoDaCena(currentMap) ?? opts.size ?? NEW_TOKEN_SIZE
-  const requested = opts.at ?? (vista ? viewportCenterWorld(camera, vista.width, vista.height) : { x: 0, y: 0 })
+  const pedido = opts.at ?? (vista ? viewportCenterWorld(camera, vista.width, vista.height) : { x: 0, y: 0 })
+  // Grade quadrada com encaixe de token ligado: a peça nasce no centro de uma
+  // casa, como o arrasto a assentaria, e a busca anda de casa em casa (a livre
+  // ao lado do último, na mesma linha, sem cobrir o nome dele).
+  const naGrade = currentMap.gridShape === 'square' && useMapStore.getState().snapTargets.token
+  const requested = naGrade ? seatTokenCenter(pedido, snapToGridCenter(pedido.x, pedido.y, currentMap.grid), currentMap.grid, size) : pedido
   const pisoDaFicha = opts.piso ?? 0
   const spot = findTokenSpawn(requested, currentMap.walls, {
     // Caça 12/11 (E8): dois "+ Token" seguidos não nascem um em cima do outro.
-    ocupadas: currentMap.tokens.filter((token) => (token.piso ?? 0) === pisoDaFicha),
+    // Cada uma com o disco do tamanho dela: a de 2 casas ocupa mais.
+    ocupadas: currentMap.tokens
+      .filter((token) => (token.piso ?? 0) === pisoDaFicha)
+      .map((token) => ({ x: token.x, y: token.y, raio: tokenRadiusFor(currentMap.grid, token.size) })),
+    ...(naGrade ? { casa: currentMap.grid } : {}),
     // O raio acompanha o TAMANHO da peça: o NPC de 2 células vindo do acervo
     // precisa de mais espaço livre que o disco de uma célula, e medir pelo
     // tamanho fixo o assentaria encostado na parede.

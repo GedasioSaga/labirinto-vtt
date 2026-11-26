@@ -65,18 +65,62 @@ export interface TokenSpawnOptions {
   /**
    * Fichas que já estão no mapa (caça de 12/11/2026, E8): o ponto que cairia
    * em cima de uma delas também não serve, e a busca em anéis segue até a casa
-   * livre ao lado. Ausente = só as paredes contam, como antes.
+   * livre ao lado. Ausente = só as paredes contam, como antes. `raio` = o
+   * disco DELA (a ficha de 2 casas ocupa mais); ausente = o mesmo da nova.
    */
-  ocupadas?: readonly Point[]
+  ocupadas?: readonly FichaOcupada[]
+  /**
+   * Lado da casa da grade quadrada, quando o encaixe de token está ligado. Com
+   * ele a busca anda de casa em casa (o `preferred` já vem encaixado, como o
+   * arrasto assenta), começando pelas do lado, na mesma linha: o nome que fica
+   * embaixo da ficha vizinha não é coberto. Sem casa livre por perto, cai na
+   * busca em anéis. Ausente = só os anéis, como antes.
+   */
+  casa?: number
 }
+
+/** Uma ficha já no mapa; `raio` = o disco DELA (ausente = o mesmo da ficha nova). */
+export type FichaOcupada = Point & { readonly raio?: number }
 
 /** Fração do diâmetro abaixo da qual duas fichas contam como uma em cima da outra (folga de arredondamento). */
 const FICHAS_ENCOSTADAS = 0.98
 
-/** Nenhuma ficha de `ocupadas` está a menos de um diâmetro do ponto. */
-function longeDasFichas(point: Point, ocupadas: readonly Point[], radius: number): boolean {
-  const minimo = radius * 2 * FICHAS_ENCOSTADAS
-  return ocupadas.every((ficha) => Math.hypot(ficha.x - point.x, ficha.y - point.y) >= minimo)
+/** Quantas casas em volta a busca por casa livre anda: as mesmas ~6 casas da busca em anéis. */
+const MAX_ANEIS_DE_CASAS = 6
+
+/** Nenhuma ficha de `ocupadas` encosta no disco de raio `radius` em `point`. */
+function longeDasFichas(point: Point, ocupadas: readonly FichaOcupada[], radius: number): boolean {
+  return ocupadas.every((ficha) => Math.hypot(ficha.x - point.x, ficha.y - point.y) >= (radius + (ficha.raio ?? radius)) * FICHAS_ENCOSTADAS)
+}
+
+/**
+ * As casas do anel `anel` em volta de `centro` (anel 0 = a própria casa), da
+ * mais perto para a mais longe; no empate, a da mesma linha antes (ao lado),
+ * a da direita antes da esquerda e a de cima antes da de baixo.
+ */
+function casasDoAnel(centro: Point, anel: number, casa: number): Point[] {
+  if (anel === 0) return [centro]
+  const casas: { dx: number; dy: number }[] = []
+  for (let dx = -anel; dx <= anel; dx += 1) {
+    for (let dy = -anel; dy <= anel; dy += 1) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) === anel) casas.push({ dx, dy })
+    }
+  }
+  casas.sort((a, b) => a.dx * a.dx + a.dy * a.dy - (b.dx * b.dx + b.dy * b.dy) || Math.abs(a.dy) - Math.abs(b.dy) || b.dx - a.dx || a.dy - b.dy)
+  return casas.map(({ dx, dy }) => ({ x: centro.x + dx * casa, y: centro.y + dy * casa }))
+}
+
+/** A casa livre mais perto de `preferred`, do mesmo lado das paredes; senão a livre mais perto; `null` = nenhuma. */
+function procurarCasaLivre(preferred: Point, walls: readonly Wall[], casa: number, livre: (point: Point) => boolean): Point | null {
+  let livreDoOutroLado: Point | null = null
+  for (let anel = 0; anel <= MAX_ANEIS_DE_CASAS; anel += 1) {
+    for (const candidata of casasDoAnel(preferred, anel, casa)) {
+      if (!livre(candidata)) continue
+      if (!separatedByWall(preferred, candidata, walls)) return candidata
+      if (livreDoOutroLado === null) livreDoOutroLado = candidata
+    }
+  }
+  return livreDoOutroLado
 }
 
 /** Distância do ponto ao SEGMENTO da parede (não à reta infinita dela). */
@@ -123,6 +167,10 @@ export function findTokenSpawn(preferred: Point, walls: readonly Wall[], options
   const minDistance = options.radius + clearance
   const ocupadas = options.ocupadas ?? []
   const livre = (point: Point) => fitsAt(point, walls, minDistance) && longeDasFichas(point, ocupadas, options.radius)
+  if (options.casa !== undefined && options.casa > 0) {
+    const naCasa = procurarCasaLivre(preferred, walls, options.casa, livre)
+    if (naCasa !== null) return naCasa
+  }
   if (livre(preferred)) return preferred
 
   const step = options.step ?? Math.max(MIN_SEARCH_STEP, options.radius / 2)
