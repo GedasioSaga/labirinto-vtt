@@ -20,7 +20,8 @@ describe('planejarLigacao: cada token com a própria vida', () => {
     // t3 já usava a ficha e fica: ela não está livre, então t1 e t2 ganham cópias.
     expect(plano.ligacoes.map((l) => l.tokenId)).toEqual(['t1', 't2'])
     expect(plano.copias.map((c) => [c.nome, c.combate?.modeloId, c.recursos.hp])).toEqual([
-      ['Urso', 'p-urso', 40],
+      // Cópia NUMERADA (decisão de 25/11/2026): o token com o nome da ficha liga "Urso 2"; o nome próprio fica.
+      ['Urso 2', 'p-urso', 40],
       ['Urso grande', 'p-urso', 40],
     ])
     expect(plano.ligacoes.map((l) => l.personagemId)).toEqual(plano.copias.map((c) => c.id))

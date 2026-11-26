@@ -15,6 +15,7 @@ import { currentRendererResolution, watchDevicePixelRatio } from './rendererReso
 import type { Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, TokenContract, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { ligarSinalDeGesto, SEM_ESCOLHA, useMapStore } from '../stores/mapStore'
+import { comFichaPropriaNasCopias } from '../stores/fichaPropriaDoToken'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
 import { pontosMinimos } from '../lib/agua/dados'
 import { definirEstiloDaCena, desenhadoLigado, estiloDoMapa, versaoDoEstilo } from '../lib/estiloDoMapa'
@@ -4621,7 +4622,8 @@ function PixiCanvasDoContexto({
       const cloneForAltDrag = (input: CloneableEntity): string => {
         const cloned = cloneEntity(input, { dx: 0, dy: 0 })
         // Sala: as paredes vinculadas vão junto (senão a cópia sai só com o chão).
-        useMapStore.getState().insertClonedEntityLive(cloned, input.kind === 'region' ? input.entity.id : undefined)
+        // Token de NPC: a cópia ganha ficha própria (cada um com a própria vida), sem passo, no Ctrl+Z do gesto.
+        comFichaPropriaNasCopias(() => useMapStore.getState().insertClonedEntityLive(cloned, input.kind === 'region' ? input.entity.id : undefined))
         return cloned.entity.id
       }
 
@@ -10184,7 +10186,8 @@ function PixiCanvasDoContexto({
           // (duplicateSelected já clona+insere+seleciona a cópia, com
           // histórico — ver mapStore.ts).
           case 'duplicate':
-            useMapStore.getState().duplicateSelected()
+            // Token de NPC duplicado ganha ficha própria no mesmo passo do Ctrl+Z (`comFichaPropriaNasCopias`).
+            comFichaPropriaNasCopias(() => useMapStore.getState().duplicateSelected())
             break
           // Ctrl+A: tudo das camadas visíveis e destravadas, pelas mesmas
           // regras da seleção por área (item travado e token oculto ficam de fora).

@@ -1207,6 +1207,13 @@ interface MapStoreState {
    * que não existe mais não gasta entrada de histórico.
    */
   ligarFichasAosTokens: (mudancas: readonly MudancaDaLigacao[]) => void
+  /**
+   * UMA FICHA POR TOKEN DE NPC (25/11/2026): a cópia própria de cada token
+   * que dividia a ficha, FORA do Ctrl+Z e também em cada passo guardado
+   * (`past`/`future`), para o desfazer nunca voltar ao token que divide a
+   * ficha (`stores/fichaPropriaDoToken.ts`). Nada muda = nada muda.
+   */
+  religarFichasEmTodoOHistorico: (mudancas: readonly MudancaDaLigacao[]) => void
   /** AURA DA FICHA: o mestre escolhe a aura do token (começa ligada); `null` = "Sem aura". Um passo do Ctrl+Z; a mesma aura já ligada não deixa passo. */
   setTokenAura: (id: string, tipo: TipoDeAura | null) => void
   /** MUDAR FICHA: o cartão de transformação cuja imagem o token mostra fora da batalha; `null` = a imagem base. Um passo do Ctrl+Z. */
@@ -3429,6 +3436,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       tokens: map.tokens.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     })),
     ligarFichasAosTokens: (mudancas) => passoSeMudou((map) => mapaComAsLigacoes(map, mudancas)),
+    religarFichasEmTodoOHistorico: (mudancas) => {
+      if (mudancas.length === 0) return
+      const religar = (map: MapData) => mapaComAsLigacoes(map, mudancas)
+      set((state) => ({ map: religar(state.map), past: state.past.map(religar), future: state.future.map(religar) }))
+    },
     setTokenAura: (id, tipo) => passoSeMudou((map) => mapaComAura(map, id, tipo)),
     setTokenFormaVisivel: (id, formaId) => passoSeMudou((map) => mapaComFormaVisivel(map, id, formaId)),
     toggleTokenCondition: (id, condition) => {

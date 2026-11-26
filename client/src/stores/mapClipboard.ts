@@ -4,6 +4,7 @@ import type { SelectionKind } from '../types/tools'
 import type { SelectionSet } from '../lib/selectionModel'
 import { travelDestinationOf } from '../lib/pinTravel'
 import { stairPinOf } from '../lib/stairTravel'
+import { comFichaPropriaNasCopias } from './fichaPropriaDoToken'
 import { useMapStore } from './mapStore'
 import { useToastStore } from './toastStore'
 
@@ -88,7 +89,8 @@ export function runClipboardShortcut(kind: ClipboardShortcut, target: PasteTarge
       return false
     }
     if (target === null) return false
-    return store.pasteClipboardAt(target.cursor ?? target.fallback)
+    // Token de NPC colado onde outro já usa a mesma ficha ganha ficha própria, no mesmo passo do Ctrl+Z.
+    return comFichaPropriaNasCopias(() => store.pasteClipboardAt(target.cursor ?? target.fallback))
   }
   const { map, selection } = store
   const done = kind === 'copy' ? store.copySelected() : store.cutSelected()

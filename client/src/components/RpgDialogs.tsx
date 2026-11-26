@@ -29,6 +29,7 @@ import { UsarItemFora } from './UsarItemFora'
 const QUEM_USA_NO_HISTORICO = 'Mestre'
 import { chaveDaCenaAberta } from '../stores/turnoForaDaBatalha'
 import { useMapStore } from '../stores/mapStore'
+import { ligarFichaAosTokens } from '../stores/ligarFichaNoToken'
 import { sistemaPorId, useRpgStore, type AberturaDoEditor } from '../stores/rpgStore'
 import { temLivro } from '../lib/livroDeRegras'
 import type { Personagem } from '../lib/personagem'
@@ -168,8 +169,9 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
           outrasFichas={personagens}
           onAbrirLivro={sistema !== undefined && temLivro(sistema) ? () => useRpgStore.getState().abrirLivro() : undefined}
           tokens={tokensParaLigar}
-          // Pelo histórico do mapa, como o resto do token: Ctrl+Z desliga.
-          onLigarToken={(tokenId) => useMapStore.getState().updateToken(tokenId, { characterId: personagem.id })}
+          // Pelo histórico do mapa, como o resto do token: Ctrl+Z desliga. A mesma porta do "Ligar ficha" do mapa:
+          // NPC que já está em outro token da cena liga uma CÓPIA, cada token com a própria vida (bug de 25/11/2026).
+          onLigarToken={(tokenId) => void ligarFichaAosTokens(personagem.id, [tokenId])}
           // AJUSTE RÁPIDO: o mesmo caminho da "Vida ›" do botão direito (`stores/ajusteDoMestre.ts`): o dano na
           // batalha é o "Dar dano" dela; o resto grava na ficha de AGORA e vira linha "ficha" na batalha.
           onAjustar={
