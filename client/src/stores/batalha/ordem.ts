@@ -15,6 +15,7 @@ import {
   removerCarta as removerCartaDaOrdem,
   tirarCombatente as tirarCombatenteDaOrdem,
   trocarDesempate as trocarDesempateNaOrdem,
+  type CartaDaOrdem,
 } from '../../lib/batalha/turnos'
 import type { BatalhaState } from './tipos'
 import { nomeDaCarta, type LinhaNova, comMudanca, idsDaOrdem } from './cena'
@@ -23,6 +24,17 @@ import type { VezDaBatalha } from './vez'
 
 /** Janela em que movimentos seguidos da mesma carta pelo mestre viram uma linha (Alt + seta repetido). */
 const JANELA_DO_MOVIMENTO_MS = 5_000
+
+/** As duas ordens têm as mesmas cartas, no mesmo lugar. */
+function mesmaOrdem(antes: readonly CartaDaOrdem[], depois: readonly CartaDaOrdem[]): boolean {
+  return antes.length === depois.length && antes.every((carta, indice) => carta.id === depois[indice]?.id)
+}
+
+/** Os mesmos números por carta (o d20 do desempate, o grupo do empate). */
+function mesmosNumeros(antes: Readonly<Record<string, number>>, depois: Readonly<Record<string, number>>): boolean {
+  const chaves = Object.keys(antes)
+  return chaves.length === Object.keys(depois).length && chaves.every((chave) => Object.hasOwn(depois, chave) && depois[chave] === antes[chave])
+}
 
 /** A ordem presa ao núcleo da store e à vez. */
 export function criarOrdem(nucleo: NucleoDaBatalha, fatiaDaVez: VezDaBatalha) {
@@ -65,6 +77,8 @@ export function criarOrdem(nucleo: NucleoDaBatalha, fatiaDaVez: VezDaBatalha) {
       if (cena === undefined) return false
       const { personagens, sistema } = mesaDoRpg()
       const turnos = ordenarNaOrdem(cena.turnos, agilidadesDasCartas(cena.turnos.cartas, personagens, sistema), deps.rolarD20)
+      // Explorador 26/11/2026, bug 9: nada mudou (1 carta, ou a ordem já estava pela Agilidade): sem linha e sem avisar a rede.
+      if (mesmaOrdem(cena.turnos.cartas, turnos.cartas) && mesmosNumeros(cena.turnos.d20, turnos.d20) && mesmosNumeros(cena.turnos.empates, turnos.empates)) return false
       const rolou = Object.keys(turnos.d20).length > 0
       // O número do d20 não vai no texto: o jogador lê o registro e nunca vê o d20.
       const texto = rolou ? 'Ordem pela Agilidade, empate no 1d20' : 'Ordem pela Agilidade'
