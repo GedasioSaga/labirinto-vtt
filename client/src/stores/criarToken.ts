@@ -78,10 +78,11 @@ export function criarToken(name: string, opts: OpcoesDaFichaNova, vista: Tamanho
   // o tamanho pedido (o do acervo) ou uma casa.
   const size = tamanhoPadraoDaCena(currentMap) ?? opts.size ?? NEW_TOKEN_SIZE
   const pedido = opts.at ?? (vista ? viewportCenterWorld(camera, vista.width, vista.height) : { x: 0, y: 0 })
-  // Grade quadrada com encaixe de token ligado: a peça nasce no centro de uma
-  // casa, como o arrasto a assentaria, e a busca anda de casa em casa (a livre
-  // ao lado do último, na mesma linha, sem cobrir o nome dele).
-  const naGrade = currentMap.gridShape === 'square' && useMapStore.getState().snapTargets.token
+  // Grade quadrada: a peça nasce no centro de uma casa, como o arrasto com
+  // encaixe a assentaria, e a busca anda de casa em casa (a livre ao lado do
+  // último, na mesma linha, sem cobrir o nome dele). Vale com o encaixe
+  // desligado também (ele nasce desligado): só o nascer muda, o arrasto não.
+  const naGrade = currentMap.gridShape === 'square'
   const requested = naGrade ? seatTokenCenter(pedido, snapToGridCenter(pedido.x, pedido.y, currentMap.grid), currentMap.grid, size) : pedido
   const pisoDaFicha = opts.piso ?? 0
   const spot = findTokenSpawn(requested, currentMap.walls, {
