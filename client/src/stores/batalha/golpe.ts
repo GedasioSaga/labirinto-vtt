@@ -47,7 +47,7 @@ import {
 } from '../../lib/batalha/golpe'
 import { linhaComOGasto, sobraDoUso, textoDoGasto } from '../../lib/batalha/itemNaBatalha'
 import { lerDano } from '../../lib/batalha/formula'
-import { chavesDoDono, disputaNoUso, formulaDaCura, itemQueATecnicaGasta, limpezaDe, mecanicaDoCartao, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono } from '../../lib/batalha/mecanicasAMao'
+import { chavesDoDono, disputaNoUso, formulaDaCura, itemQueATecnicaGasta, limpezaDe, mecanicaDoCartao, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, tecnicaSemRegraPropria } from '../../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../../lib/batalha/disputaNoUso'
 import { debuffsDobrados } from '../../lib/batalha/debuffs'
 import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOverloadDeReacao, temReacaoContraSurpresa, type PedidoDeTecnica } from '../../lib/batalha/reacaoComTecnica'
@@ -83,6 +83,7 @@ import {
 import { mexerNaFicha, type Recusada, type CuraDoItemNoAlvo, gastarMunicaoNaMesa, gastarItemNaMesa, gastarConsumivelNaMesa, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from './naMesa'
 import { armaNaMesa, gastarDoPenteNaMesa, recargaDepoisDoTiro } from './recargaDoPente'
 import { arremessoDepoisDoAtaque } from './arremessoNaMesa'
+import { linhaDoItemQueNarra, vagaQueNarra } from '../../lib/batalha/itemNaBatalha'
 import { devolverFichasDaAcao } from './desfazer'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
 import { nomeDaAcaoDaAjuda, pedirAjuda, pedirAoMestre } from './ajuda'
@@ -656,6 +657,13 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     const { personagens } = mesaDoRpg()
     // REQUISITOS E e J2: `aceite` = o pedido congelado rodando de novo porque o aliado aceitou (o G1, o G2 valem) ou o mestre aprovou (o J2 vale).
     const ctxSemTestes: ContextoDoGolpe = { ...contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx, tela), ...(aceite?.ajuda === true ? { ajudaAceita: true } : {}), ...(aceite?.mestre === true ? { mestreDeixou: true } : {}) }
+    // ITENS REFEITOS, E6b (decisão 12): o consumível sem efeito não se gasta e não gasta ação: a linha diz que o mestre narra.
+    const queNarra = pedidoDeQuemAge.tipo === 'item' && ctxSemTestes.personagem !== null ? vagaQueNarra(ctxSemTestes.personagem.mochila, pedidoDeQuemAge.vagaId) : null
+    if (queNarra !== null) {
+      const texto = linhaDoItemQueNarra(nomeDoTokenNa(turnos, personagens)(carta.tokenId), queNarra)
+      gravarCena(sceneKey, comMudanca(cena, turnos, { tipo: 'acao', texto, autor, tokenIds: [carta.tokenId], reversao: { tipo: 'composta', partes: [] } }))
+      return true
+    }
     // REQUISITOS D (H1, H2): o teste do requisito é rolado AQUI, no host, e só depois de o resto do pedido valer (supondo que
     // passe): pedido torto não gasta dado. Falhou: a linha diz o dado e, com "perde a ação", a ação e o custo vão.
     const antesDosTestes = portaoDoPedido(ctxSemTestes, pedidoDeQuemAge)
@@ -837,6 +845,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     // Fase 8: o golpe do item guarda quantos sobram, para a linha fechar com o gasto também ao ser reescrita alvo a alvo.
     const sobraDoItem = doItem === null ? undefined : sobraDoUso(doItem.uso.vaga)
     let golpe = lancado.golpe === null || sobraDoItem === undefined ? lancado.golpe : { ...lancado.golpe, sobraDoItem }
+    // ITENS REFEITOS, E6b (decisão 13): a técnica sem regra própria gasta o que pede (os requisitos, acima) e o mestre narra o efeito.
+    if (golpe !== null && golpe.selo === undefined && doItem === null && cartaoUsado !== null && tecnicaSemRegraPropria(cartaoUsado.cartao)) notaDosRequisitos = notaDaLinha(notaDosRequisitos, '(sem regra própria: o mestre narra)')
     // REQUISITOS C: a nota fica no golpe (a linha reescrita alvo a alvo a mantém).
     if (golpe !== null && notaDosRequisitos !== null) golpe = { ...golpe, notaDosRequisitos }
     if (golpe !== null) {

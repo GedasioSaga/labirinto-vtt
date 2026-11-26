@@ -2,7 +2,7 @@ import type { CartaoDaFicha, Personagem } from '../personagem'
 import { linhaDoCartaoMontado, pecasDoCartao, pecasUsamACarga } from './mecanica/leitura'
 import type { QuaisSelosTira } from './debuffs'
 import type { AcaoDaTecnica, NaturezaDoSelo, SaidaDaReacao, SaidaDaTecnica, SeloDaBatalha, SeloDoGolpe } from './combate'
-import { normalizar } from './formula'
+import { CAMPO_DO_DANO, normalizar } from './formula'
 import { NOME_DA_CURA_REDUZIDA } from './condicoes'
 import type { CdDaDisputa, ContraDaDisputa, QuemRola } from './disputa'
 import type { FormaDaArea, QuemEntraNaArea } from './area'
@@ -1327,6 +1327,17 @@ export function soOMestreReage(cartao: ChaveDaMecanica): string | null {
 /** F2 (fatia F): o dono pede a arma nas técnicas com "Dano da Arma" (a linha da ficha do Siegfried). */
 export function perguntaAArma(chaves: readonly string[]): boolean {
   return chaves.some((chave) => mecanicaDoCartao(chave)?.perguntaAArma === true)
+}
+
+/**
+ * ITENS REFEITOS, E6b (decisão 13): a técnica sem regra própria: não é montada (sem peças), não tem
+ * linha à mão e não tem Dano escrito. O que ela pede da mochila sai pelos requisitos, como nas outras,
+ * e o efeito o mestre narra.
+ */
+export function tecnicaSemRegraPropria(cartao: CartaoDaFicha): boolean {
+  if (pecasDoCartao(cartao) !== null || mecanicaDoCartao(cartao) !== null) return false
+  const dano = normalizar(cartao.campos[CAMPO_DO_DANO] ?? '').trim()
+  return dano === '' || dano === '-'
 }
 
 /** O item que a técnica gasta a cada uso (o Kit Médico da Medicina): o nome, os ids do Acervo que contam e quantos por uso. */

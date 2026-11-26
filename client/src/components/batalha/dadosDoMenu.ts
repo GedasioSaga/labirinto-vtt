@@ -1,5 +1,5 @@
 import { acaoDoGolpe, armaNaVez, motivoDaAcao, motivoDaArmaNaVez, motivoDoAtacar, motivoDaTecnica, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
-import { cartaoDoItem, fichaComOItem, vagasDeUsarNaBatalha, type ItemParaJogador } from '../../lib/batalha/itemNaBatalha'
+import { cartaoDoItem, fichaComOItem, itensQueNarram, vagasDeUsarNaBatalha, type ItemParaJogador } from '../../lib/batalha/itemNaBatalha'
 import { quantidadeDe } from '../../lib/items'
 import { armaPadraoEntre, comAPadraoNaFrente } from '../../lib/batalha/mecanica/arma'
 import { resumoDaMecanica } from '../../lib/batalha/mecanica/resumo'
@@ -1069,8 +1069,10 @@ function comACaraDoItem(golpe: GolpeNaTela, item: { vagaId: string; nome: string
  * jogador recebe a lista pronta do host (`golpesDosItensDoJogador`).
  */
 export function golpesDeItem(personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, acoes: AcoesDaVez | null, bonus?: BonusDaBatalha, requisitos?: ContextoDosRequisitos): GolpeNaTela[] {
+  // E6b (decisão 12): o consumível sem efeito entra na lista com "o mestre narra" (sem alvo, nada é gasto).
+  const narram = golpesDosItensDoJogador(itensQueNarram(personagem.mochila), acoes)
   const vagas = vagasDeUsarNaBatalha(personagem.mochila)
-  if (vagas.length === 0) return []
+  if (vagas.length === 0) return narram
   // Todos os cartões dos itens de uma vez na conta: o menu das técnicas é lido uma vez só.
   const cartoes = new Map(vagas.map((vaga) => [cartaoDoItem(vaga).id, vaga]))
   const ficha = [...cartoes.keys()].reduce((atual, id) => {
@@ -1079,12 +1081,13 @@ export function golpesDeItem(personagem: Personagem, sistema: SistemaDeRpg, comb
   }, personagem)
   const todas = tecnicasDe(ficha, sistema)
   // REQUISITOS G: os requisitos da vaga (a cópia do Acervo) apagam o item como apagam a técnica.
-  return tecnicasNoMenu(ficha, sistema, combate, acoes, null, bonus, requisitos).flatMap((tecnica) => {
+  const comEfeito = tecnicasNoMenu(ficha, sistema, combate, acoes, null, bonus, requisitos).flatMap((tecnica) => {
     const vaga = cartoes.get(tecnica.cartao.id)
     if (vaga === undefined) return []
     const golpe = golpeDaTecnica(tecnica, ficha, sistema, combate, null, bonus, todas, acoes, requisitos)
     return [comACaraDoItem(golpe, { vagaId: vaga.id, nome: vaga.nome.trim() || 'Item', resumo: vaga.efeitoResumo ?? '', quantos: quantidadeDe(vaga), gasta: vaga.efeito.gasta === 'um' })]
   })
+  return [...comEfeito, ...narram]
 }
 
 /**

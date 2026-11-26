@@ -6,6 +6,7 @@ import { DANO_MAX, type AcaoDaTecnica, type PedidoDeAcao, type PedidoDeAlvo } fr
 import { ABA_DAS_TECNICAS } from './leituraDaFicha'
 import { danoDaTecnica } from './leituraDaTecnica'
 import { lerMarca } from './marca'
+import { regraNoAcervo } from './municoesDoAcervo'
 import { pecasDoCartao, reacaoDasPecas } from './mecanica/leitura'
 import { lerMecanica, type QuemOAlvoPega } from './mecanica/modelo'
 import { resumoDoEfeitoDoItem } from './mecanica/resumoDoItem'
@@ -48,6 +49,35 @@ export function vagasDeUsarNaBatalha(mochila: readonly CarriedItem[] | undefined
 /** As vagas do "Usar" fora da batalha: com efeito e que não são só da batalha. */
 export function vagasDeUsarFora(mochila: readonly CarriedItem[] | undefined): VagaComEfeito[] {
   return (mochila ?? []).filter(temEfeito).filter((vaga) => vaga.efeito.onde !== 'soNaBatalha')
+}
+
+/** A frase do consumível sem efeito na lista Itens e no Usar (decisão 12). */
+export const FRASE_DO_SEM_EFEITO = 'Sem efeito: não se gasta, o mestre narra'
+
+/**
+ * ITENS REFEITOS, E6b (decisão 12): o consumível sem efeito (a Ração de Viagem) aparece no Usar da
+ * batalha, mas não se gasta: a mesa só registra que o mestre narra. O tipo vem do Acervo de agora;
+ * sem ele (o jogador, o Worker), da vaga.
+ */
+export function narraOItem(vaga: CarriedItem): boolean {
+  if (vaga.efeito !== undefined || quantidadeDe(vaga) < 1) return false
+  return (regraNoAcervo(vaga.itemId)?.tipo ?? vaga.tipo) === 'consumivel'
+}
+
+/** As vagas de consumível sem efeito da mochila (o Usar delas só narra). */
+export function vagasQueNarram(mochila: readonly CarriedItem[] | undefined): CarriedItem[] {
+  return (mochila ?? []).filter(narraOItem)
+}
+
+/** A vaga `vagaId` se for de consumível sem efeito; `null` = não é (o Usar segue o efeito, ou recusa). */
+export function vagaQueNarra(mochila: readonly CarriedItem[] | undefined, vagaId: string): CarriedItem | null {
+  const vaga = (mochila ?? []).find((candidata) => candidata.id === vagaId)
+  return vaga !== undefined && narraOItem(vaga) ? vaga : null
+}
+
+/** A linha do registro do consumível sem efeito: nada sai da mochila e nenhuma ação é gasta. */
+export function linhaDoItemQueNarra(quem: string, vaga: CarriedItem): string {
+  return `${quem} usou ${vaga.nome.trim() || 'o item'}: sem efeito, o mestre narra (nada saiu da mochila)`
 }
 
 /** Por que a vaga não serve agora, ou a vaga achada (com o lugar dela na mochila). */
@@ -160,9 +190,24 @@ export interface ItemParaJogador {
 /** Teto de itens de um personagem no fio (a mochila tem bem menos vagas com efeito). */
 export const ITENS_PARA_JOGADOR_MAX = 60
 
+/** O consumível sem efeito na lista Itens: sem alvo, Ação Livre (nada é gasto), com a frase "o mestre narra". */
+export function itensQueNarram(mochila: readonly CarriedItem[] | undefined): ItemParaJogador[] {
+  return vagasQueNarram(mochila).map((vaga) => ({
+    vagaId: vaga.id,
+    nome: vaga.nome.trim() || 'Item',
+    resumo: FRASE_DO_SEM_EFEITO,
+    quantos: quantidadeDe(vaga),
+    gasta: false,
+    acao: 'livre',
+    quem: 'si',
+    reacao: 'nunca',
+    semAlvo: true,
+  }))
+}
+
 /** Os itens da lista Itens da batalha para a tela do jogador, lidos da mochila da cópia do host. */
 export function itensParaJogador(mochila: readonly CarriedItem[] | undefined): ItemParaJogador[] {
-  return vagasDeUsarNaBatalha(mochila)
+  const comEfeito = vagasDeUsarNaBatalha(mochila)
     .slice(0, ITENS_PARA_JOGADOR_MAX)
     .flatMap((vaga): ItemParaJogador[] => {
       const cartao = cartaoDoItem(vaga)
@@ -188,6 +233,8 @@ export function itensParaJogador(mochila: readonly CarriedItem[] | undefined): I
       if (mecanica?.semAlvo === true) item.semAlvo = true
       return [item]
     })
+  // E6b (decisão 12): o consumível sem efeito vai junto, com a frase "o mestre narra".
+  return [...comEfeito, ...itensQueNarram(mochila)].slice(0, ITENS_PARA_JOGADOR_MAX)
 }
 
 /** O corte do corpo da linha do item (o mesmo "…" de `textoDaLinha`). */

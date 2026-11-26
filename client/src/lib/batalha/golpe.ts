@@ -42,7 +42,7 @@ import {
   type SeloPedido,
   type VantagemNaRolagem,
 } from './combate'
-import { idDoCartaoDoItem, linhaComOGasto, textoDaSobra, usoDoItem, type PedidoDoItem, type UsoDoItem } from './itemNaBatalha'
+import { idDoCartaoDoItem, linhaComOGasto, textoDaSobra, usoDoItem, vagaQueNarra, type PedidoDoItem, type UsoDoItem } from './itemNaBatalha'
 import type { CartaoComAlcance } from './alcanceDoCartao'
 import type { GrupoDoAlcance } from './alcance/condicoes'
 import { corDoAlcance, type CorDoAlcance } from './alcance/cor'
@@ -651,6 +651,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
     }
     // Fase 8: o item da mochila de quem age, virado técnica montada (sem custo); a regra é a da técnica, palavra por palavra.
     case 'item': {
+      // ITENS REFEITOS, E6b (decisão 12): o consumível sem efeito sempre "sai": não gasta nada, o mestre narra (a store só registra).
+      if (ctx.personagem !== null && vagaQueNarra(ctx.personagem.mochila, pedido.vagaId) !== null) return null
       const uso = ctxDoItem(ctx, pedido)
       return typeof uso === 'string' ? uso : podeAgir(uso.ctx, uso.uso.pedido)
     }
