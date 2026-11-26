@@ -82,7 +82,7 @@ describe('createEmptyMap', () => {
       height: 20,
       grid: 64,
       gridShape: 'square',
-      showGrid: false,
+      showGrid: true,
       gridSettings: { color: '#000000', opacity: 0.25, lineWidth: 1, lineStyle: 'solid' },
       background: { type: 'color', src: '#2b2b2b' },
       walls: [],

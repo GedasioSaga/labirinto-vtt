@@ -68,8 +68,11 @@ import {
 } from './objectTransform'
 
 /**
- * Minimapa do Resident Evil: mapa novo nasce sem grade. Mapa salvo continua com
- * o `showGrid` dele (arquivo sem o campo abre com grade, mapFile.ts).
+ * Mapa novo nasce COM grade (qualidade de vida 26/11: o mapa sem grade abria
+ * como um retângulo cinza liso, sem referência das casas). Antes nascia sem,
+ * no estilo minimapa do Resident Evil; desligar continua a um clique no painel
+ * Mapa. Mapa salvo continua com o `showGrid` dele (arquivo sem o campo abre
+ * com grade, mapFile.ts).
  *
  * Exportada porque a tela de criação (screens/NewDungeonMap.tsx) precisa do
  * MESMO valor para o interruptor "Mostrar grade" nascer no estado em que o mapa
@@ -77,7 +80,7 @@ import {
  * divergir sem ninguém perceber — foi exatamente assim que a prévia passou a
  * prometer uma grade que o editor não desenhava.
  */
-export const NEW_MAP_SHOW_GRID = false
+export const NEW_MAP_SHOW_GRID = true
 
 export function createEmptyMap(id: string, name: string, width: number, height: number, grid: number): MapData {
   return {
