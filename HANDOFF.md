@@ -1,3 +1,30 @@
+# 26/11 ~10h50: ESTADO CONSOLIDADO (contexto a 70%)
+
+## Objetivo
+/goal do dono (PEDIDOS "/goal do dono"): rework de itens E1..E7 + 1-3 testes; explorador por área (consertar bug certo, anotar incerto, listar coisas erradas, performance segura, 1-3 prints por área); artefato de qualidade de vida com fotos (mestre e jogador); publicar sozinho por conjunto; limpar disco sem destruir.
+
+## Estado atual
+- Workflow rework-itens-construcao (wf_e3bb1ba8-dad): E1..E6c FEITOS na main; E7 (limpeza + 1-3 testes) -> auditoria -> acertos EM VOO. Publicações do workflow falharam (classificador + build do site); latest.json = 0.5.103; bumps 0.5.104..0.5.108 na main sem release.
+- Build do site do Lobby QUEBRADO (cadeia no item abaixo, EquipamentoDaFicha.tsx). Consertar antes de publicar.
+- Listas do explorador PRONTAS em docs/explorador/ (mapas, preludio-e-livros, batalhas, site): ~28 bugs certos a consertar, ~25 incertos, 33 coisas erradas, 16 de performance.
+- QoL: docs/qualidade-de-vida/ (relatorio-mestre.md, relatorio-jogador.md, 20 prints, feitos no navegador: muitos achados "só navegador").
+
+## Próximos passos (ordem)
+1. Esperar o workflow fechar (não mexer em ficha/batalha antes).
+2. Consertar build do site (EquipamentoDaFicha recebe itens por módulo puro; itemParaDar em módulo puro).
+3. Tirar SP automático (vez.ts spDoComecoDaVez, recursosDaBatalha.ts) + característica "recuperacao" na ficha (PEDIDOS).
+4. Mesa reduzida: Concentrar sempre; Transformação/Passiva/Usar item só se tiver (PEDIDOS).
+5. Publicar UMA versão (agente fora do workflow, como 0.5.102/0.5.103) e avisar: atualizar todos os PCs.
+6. Consertos dos bugs certos por área (escritores em arquivos disjuntos, "git commit -- <caminhos>"), 1-3 prints por área, performance segura; publicar o conjunto.
+7. Passeio curto no app INSTALADO (WebView2 remote debugging + playwright connectOverCDP) e montar o artefato de QoL com fotos (Artifact).
+8. Entregar listas finais: coisas erradas + bugs incertos (já em docs/explorador/).
+
+## Critério de pronto
+latest.json na versão final com tudo; build:lobby verde; 1-3 testes do rework verdes; cada área com prints; artefato de QoL publicado com link; listas entregues.
+
+## Evidência
+git log desde 8916acb8; docs/explorador/*.md; docs/qualidade-de-vida/*; journal do workflow em subagents/workflows/wf_e3bb1ba8-dad/journal.jsonl.
+
 # 26/11 ~10h30: build do SITE quebrado (E4b 030a5d29) — consertar ANTES de publicar
 
 Cadeia: lobby-site/main.tsx:7 → telas/Site.tsx:16 → telas/TelaFicha.tsx:9 → player/PlayerFicha.tsx:4 → components/dbt/registroDeFichas.ts:4 → components/FichaDePersonagem.tsx:13 → components/FichaAbas.tsx:4 → components/EquipamentoDaFicha.tsx: (A) :8 → stores/acervoDeItensStore.ts:4 (@tauri-apps/api/core); (B) :4 → lib/mochila/acervoDaMochila.ts:1 → lib/acervoDeItens.ts:1-2 (plugin-fs, api/path). Conserto mínimo: EquipamentoDaFicha recebe os itens do Acervo por módulo puro (vazio por padrão, o app preenche); mover itemParaDar e ajudantes (lib/acervoDeItens.ts:416-454) para módulo puro com re-export. Conferir: npx vite build --config vite.lobby.config.ts em client/. Listas do explorador em docs/explorador/ (batalhas.md, site.md; mapas e preludio-e-livros em voo). Esperar o workflow do rework acabar (E7 mexe em ficha) antes de consertar.
