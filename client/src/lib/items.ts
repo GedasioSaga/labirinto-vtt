@@ -1,6 +1,7 @@
 import type { CarriedItem, DadosDoItem, MapData, Pin, PinItem, Prop, Token } from '../types/map'
 import { tokenRadiusOf } from './doorReach'
 import { cleanItemName, dadosDoItemLidos, ITEM_QUANTIDADE_MAX } from './leituraDoItem'
+import { penteDaVagaLido } from './itens/leitura'
 import { venderItem } from './loja'
 import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
 
@@ -66,6 +67,10 @@ function readCarriedItem(value: unknown): CarriedItem | null {
   const item: CarriedItem = { id: value.id, nome, ...dadosDoItemLidos(value) }
   // ITEM QUE ILUMINA: aceso só vale no item que tem luz.
   if (value.acesa === true && item.luz !== undefined) item.acesa = true
+  // SISTEMA DE ITENS REFEITO (PLANO §1.3): o "em uso" e o pente da vaga, só se vierem bons.
+  if (value.equipado === true) item.equipado = true
+  const pente = penteDaVagaLido(value.pente)
+  if (pente !== undefined) item.pente = pente
   return item
 }
 

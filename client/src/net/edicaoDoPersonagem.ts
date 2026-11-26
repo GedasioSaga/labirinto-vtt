@@ -103,14 +103,19 @@ function mecanicasDosCartoes(abas: Record<string, CartaoDaFicha[]>, campo: 'meca
   return mecanicas
 }
 
-type LigacaoDoCartao = Pick<CartaoDaFicha, 'itemId' | 'municaoPeloNome'>
+type LigacaoDoCartao = Pick<CartaoDaFicha, 'itemId' | 'municaoPeloNome' | 'naMochila'>
 
 /** A ligação com a mochila (`itemId`, `municaoPeloNome`) de cada cartão que tem uma, pelo id, subcartões juntos. */
 function ligacoesDosCartoes(abas: Record<string, CartaoDaFicha[]>): Map<string, LigacaoDoCartao> {
   const ligacoes = new Map<string, LigacaoDoCartao>()
   const visitar = (cartao: CartaoDaFicha): void => {
-    if (cartao.itemId !== undefined || cartao.municaoPeloNome === true) {
-      ligacoes.set(cartao.id, { ...(cartao.itemId === undefined ? {} : { itemId: cartao.itemId }), ...(cartao.municaoPeloNome === true ? { municaoPeloNome: true } : {}) })
+    if (cartao.itemId !== undefined || cartao.municaoPeloNome === true || cartao.naMochila === true) {
+      ligacoes.set(cartao.id, {
+        ...(cartao.itemId === undefined ? {} : { itemId: cartao.itemId }),
+        ...(cartao.municaoPeloNome === true ? { municaoPeloNome: true } : {}),
+        // Sistema de itens refeito (E1): a marca da conversão é do mestre, como a ligação.
+        ...(cartao.naMochila === true ? { naMochila: true } : {}),
+      })
     }
     cartao.subcartoes.forEach(visitar)
   }
@@ -275,7 +280,7 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, bas
     const doHost = abaId === ABA_DAS_ARMAS ? armasDoLivro.get(cartao.id) : undefined
     return doHost === undefined ? cartao : { ...cartao, campos: doHost.campos, subcartoes: doHost.subcartoes }
   }
-  const comImagem = ({ mecanica: _doJogador, mecanicaProposta: doJogador, itemId: _itemDoJogador, municaoPeloNome: _marcaDoJogador, ...cartao }: CartaoSemImagem): CartaoDaFicha => {
+  const comImagem = ({ mecanica: _doJogador, mecanicaProposta: doJogador, itemId: _itemDoJogador, municaoPeloNome: _marcaDoJogador, naMochila: _conversaoDoJogador, ...cartao }: CartaoSemImagem): CartaoDaFicha => {
     const mecanica = mecanicas.get(cartao.id)
     const tocada = propostasDaBase === null || !mesmoTexto(doJogador, propostasDaBase.get(cartao.id))
     const proposta = tocada ? doJogador : propostasDeAgora.get(cartao.id)

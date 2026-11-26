@@ -1,5 +1,6 @@
 import type { DadosDoItem, EfeitoDoItem, PecasDoEfeito } from '../types/map'
 import { requisitosGuardados } from './batalha/requisitos/guardados'
+import { notaDaVagaLida, regraDaVagaLida, tipoDoItemLido } from './itens/leitura'
 import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
 
@@ -116,6 +117,13 @@ export function dadosDoItemLidos(value: Record<string, unknown>): DadosDoItem {
   // REQUISITOS (fase B2): o bloco por toda porta do item, como veio (quem confere é `lerRequisitos`).
   const requisitos = requisitosGuardados(value.requisitos)
   if (requisitos !== undefined) dados.requisitos = requisitos
+  // SISTEMA DE ITENS REFEITO (PLANO §1.3): o tipo, o instantâneo da regra e a nota da vaga, só se vierem bons (o leitor não inventa).
+  const tipo = tipoDoItemLido(value.tipo)
+  if (tipo !== undefined) dados.tipo = tipo
+  const regra = regraDaVagaLida(value.regra)
+  if (regra !== undefined) dados.regra = regra
+  const nota = notaDaVagaLida(value.notaDaVaga)
+  if (nota !== undefined) dados.notaDaVaga = nota
   return dados
 }
 

@@ -6,6 +6,7 @@ import type { ProgressoDoPuzzle } from '../puzzles/tipos'
 import type { DocumentoNoMapa, PapelNoChao } from '../documentos/tipos'
 import type { AuraDaFicha } from '../lib/auras'
 import type { SelectionKind } from './tools'
+import type { PenteDaVaga, RegraDaVaga, TipoDoItem } from '../lib/itens/modelo'
 /**
  * Todas as coordenadas e distâncias (x, y, x1/y1/x2/y2, radius) estão em pixels
  * do mundo. `grid` define o tamanho de uma célula em pixels — é a unidade que
@@ -836,6 +837,22 @@ export interface DadosDoItem {
    * `lerRequisitos` (lib/batalha/requisitos/ler.ts). Ausente = sem requisito, sem migração.
    */
   requisitos?: RequisitosNaVaga
+  /**
+   * SISTEMA DE ITENS REFEITO (docs/design/itens-rework/PLANO.md §1.3): o tipo do item do Acervo,
+   * copiado como o nome e a foto (cópia de exibição, só derivada do Acervo). Ausente = vaga de antes
+   * da conversão (o leitor não inventa; quem preenche é `lib/itens/conversao/`).
+   */
+  tipo?: TipoDoItem
+  /**
+   * A REGRA do item em instantâneo (A1 do plano): os blocos, sem a imagem, para o Worker do Lobby,
+   * que roda a batalha do treino sem o Acervo. Só o app do mestre escreve. Ausente = sem instantâneo.
+   */
+  regra?: RegraDaVaga
+  /**
+   * O texto que o mestre editou só nesta vaga (A4 do plano): o nome ou a descrição de antes, quando
+   * diferiam do Acervo. Mostrado embaixo do item. Só o mestre escreve. Ausente = nenhum.
+   */
+  notaDaVaga?: string
 }
 
 /** O bloco de requisitos guardado no item e na vaga: JSON puro (a vaga viaja como JSON da nuvem, como as peças do efeito). */
@@ -888,6 +905,13 @@ export interface CarriedItem extends DadosDoItem {
    * trocar o item não leva o aceso. Ausente = apagada, sem migração.
    */
   acesa?: true
+  /**
+   * SISTEMA DE ITENS REFEITO (PLANO §1.3): a arma, o arremesso ou o equipamento está em uso. O limite
+   * é o "Armas por batalha" da ficha (uma pilha de granadas conta 1, decisão 5). Ausente = guardado.
+   */
+  equipado?: true
+  /** O pente carregado (só De fogo e Híbrida): que bala e quantas. As do pente não contam na vaga da munição. Ausente = vazio. */
+  pente?: PenteDaVaga
 }
 
 /**

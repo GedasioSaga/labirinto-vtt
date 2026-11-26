@@ -7,6 +7,8 @@ import { cleanPlayerName } from './chat'
 import { ATRIBUTO_INICIAL, fichaDBTVazia, lerFichaDBT, LIMITES_DBT, type FichaDBT } from './dbt/modelo'
 import { OCULTAS_POR_ABA_MAX, semOcultas } from './habilidadeOculta'
 import { readCarriedItems } from './items'
+import { condicoesDaFichaLidas } from './itens/leitura'
+import type { CondicaoNaFicha } from './itens/modelo'
 import { ehImagemDaMesa } from './midia'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from './motores'
 import type { AbaDoSistema, SistemaDeRpg } from './sistemaDeRpg'
@@ -158,6 +160,14 @@ export interface CartaoDaFicha {
    * enquanto nenhuma vaga casar pelo nome, como antes.
    */
   municaoPeloNome?: true
+  /**
+   * SISTEMA DE ITENS REFEITO (docs/design/itens-rework/PLANO.md, E1): a conversão já levou este
+   * cartão (da aba Armas ou Itens, ou o tipo de bala dele) para a mochila. É a marca que impede a
+   * conversão de pôr o item de novo depois que ele foi dado ou vendido; a conferência pela mochila
+   * (`lib/itens/conversao/ficha.ts`) fica de reserva. Só a conversão, no app do mestre, a grava.
+   * Ausente = ainda não convertido.
+   */
+  naMochila?: true
 }
 
 /** A mecânica do cartão como o disco e o fio a guardam: um objeto JSON, conferido só por quem lê (`lerMecanica`). */
@@ -317,6 +327,12 @@ export interface Personagem {
    * jogador (ele vê os chips e escolhe os companions da batalha). Ausente = nenhuma.
    */
   caracteristicas?: Caracteristica[]
+  /**
+   * SISTEMA DE ITENS REFEITO (PLANO §1.5): as condições de quem a ficha é (jogador: a ficha; NPC: a
+   * cópia). Só o mestre escreve (decisão 18). Na E1 só o formato e o leitor existem: as telas e a
+   * batalha ainda leem as do token até a E4a. Ausente = nenhuma.
+   */
+  condicoes?: CondicaoNaFicha[]
 }
 
 /** A marca de NPC de combate (`Personagem.combate`). */
@@ -615,10 +631,11 @@ const ID_DO_ITEM_NO_CARTAO = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,79}$/
  * vaga some. O fio do jogador (`net/protocoloDoPersonagem.ts`) usa o mesmo
  * leitor, para o Salvar dele trazer a ligação no mesmo formato do disco.
  */
-export function ligacaoDoCartaoDoArquivo(value: Record<string, unknown>): Pick<CartaoDaFicha, 'itemId' | 'municaoPeloNome'> {
+export function ligacaoDoCartaoDoArquivo(value: Record<string, unknown>): Pick<CartaoDaFicha, 'itemId' | 'municaoPeloNome' | 'naMochila'> {
   return {
     ...(typeof value.itemId === 'string' && ID_DO_ITEM_NO_CARTAO.test(value.itemId) ? { itemId: value.itemId } : {}),
     ...(value.municaoPeloNome === true ? { municaoPeloNome: true } : {}),
+    ...(value.naMochila === true ? { naMochila: true } : {}),
   }
 }
 
@@ -765,7 +782,14 @@ export function personagemDoArquivo(value: unknown): Personagem | null {
     ...camposDoMundoDoArquivo(value),
     ...ocultasDoArquivo(value.ocultas),
     ...caracteristicasDoArquivo(value.caracteristicas),
+    ...condicoesDoArquivo(value.condicoes),
   }
+}
+
+/** As condições da ficha (PLANO §1.5); vazias ou tortas, a chave nem aparece. */
+function condicoesDoArquivo(value: unknown): Pick<Personagem, 'condicoes'> {
+  const condicoes = condicoesDaFichaLidas(value)
+  return condicoes === undefined ? {} : { condicoes }
 }
 
 /** As características do disco ou da rede; vazias ou tortas, a chave nem aparece. */

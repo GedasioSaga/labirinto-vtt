@@ -106,6 +106,8 @@ const CAMPO_SIMPLES_DO_CARTAO: Record<CampoSimplesDoCartao, true> = {
   itemId: true,
   // D1 da auditoria de 16/11: a bala que gastou de vaga só pelo nome segue ligada com 0; sem a op, o Lobby a soltaria.
   municaoPeloNome: true,
+  // SISTEMA DE ITENS REFEITO (E1): a marca de que a conversão já levou o cartão para a mochila; só o mestre grava.
+  naMochila: true,
   // Fase B2 dos requisitos: o bloco, as marcas e a definição do acumulador (o leitor da ficha é o juiz; só o mestre grava).
   requisitos: true,
   marcas: true,
@@ -135,6 +137,13 @@ const CAMPO_DO_ITEM: Record<CampoDoItem, true> = {
   efeitoResumo: true,
   // Fase B2 dos requisitos: o bloco copiado do Acervo; o leitor da mochila o guarda como veio.
   requisitos: true,
+  // SISTEMA DE ITENS REFEITO (PLANO §2.3, E1): o tipo, o "em uso" e o pente andam com a vaga; o leitor é o juiz.
+  tipo: true,
+  equipado: true,
+  pente: true,
+  // A regra em instantâneo (A1) e a nota da vaga (A4): só o mestre grava (`CAMPOS_DO_ITEM_DO_MESTRE`).
+  regra: true,
+  notaDaVaga: true,
 }
 const ehCampoDoItem = guardaDe(CAMPO_DO_ITEM)
 export const CAMPOS_DO_ITEM = chavesDe(CAMPO_DO_ITEM, ehCampoDoItem)
@@ -146,7 +155,7 @@ export const CAMPOS_DO_ITEM = chavesDe(CAMPO_DO_ITEM, ehCampoDoItem)
  * e o "Atualizar as cópias" levariam o efeito de verdade até ela.
  */
 // Fase B2 dos requisitos: o bloco da vaga é regra do item (o host o confere): o jogador que o tirasse usaria sem cumprir.
-const CAMPOS_DO_ITEM_DO_MESTRE: ReadonlySet<CampoDoItem> = new Set<CampoDoItem>(['itemId', 'efeitoResumo', 'requisitos'])
+const CAMPOS_DO_ITEM_DO_MESTRE: ReadonlySet<CampoDoItem> = new Set<CampoDoItem>(['itemId', 'efeitoResumo', 'requisitos', 'regra', 'notaDaVaga'])
 
 const EFEITO_FICA_NO_APP = 'O efeito do item fica no app do mestre'
 
@@ -158,7 +167,7 @@ const EFEITO_FICA_NO_APP = 'O efeito do item fica no app do mestre'
 // Nº 14 do levantamento de 25/11/2026 (um juiz só): a marca da bala que gasta pelo nome (`municaoPeloNome`) também. Na
 // mesa LAN o Salvar do jogador nunca a cria, troca nem apaga (`aplicarPartes` em net/edicaoDoPersonagem.ts); só o tiro
 // no host e a conversão das balas, no app do mestre, a gravam. No Lobby o dono podia soltar a bala zerada da vaga.
-const CAMPOS_DO_CARTAO_DO_MESTRE: ReadonlySet<CampoSimplesDoCartao> = new Set<CampoSimplesDoCartao>(['itemId', 'requisitos', 'marcas', 'acumulador', 'municaoPeloNome'])
+const CAMPOS_DO_CARTAO_DO_MESTRE: ReadonlySet<CampoSimplesDoCartao> = new Set<CampoSimplesDoCartao>(['itemId', 'requisitos', 'marcas', 'acumulador', 'municaoPeloNome', 'naMochila'])
 
 /** Só do mestre e nunca difundidos ao jogador (§6.4). */
 export type CampoDoMestre = 'dono' | 'combate' | 'soCenario' | 'nomeDoJogador' | 'notaDoMestre'
@@ -253,7 +262,7 @@ export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> =
   cartao: { caminho: "['abas', aba, cartaoId]", acoes: ['criar', 'apagar'], quem: 'donoOuMestre', visivelAoJogador: true },
   ordemDosCartoes: { caminho: "['abas', aba, '#ordem']", acoes: ['ordenar'], quem: 'donoOuMestre', visivelAoJogador: true },
   campoDoCartao: {
-    caminho: "['abas', aba, cartaoId, 'nome' | 'aMao' | 'extras' | 'modificadores' | 'atributos' | 'mecanicaProposta' | 'armaPadrao' | 'itemId' | 'municaoPeloNome' | 'requisitos' | 'marcas' | 'acumulador']",
+    caminho: "['abas', aba, cartaoId, 'nome' | 'aMao' | 'extras' | 'modificadores' | 'atributos' | 'mecanicaProposta' | 'armaPadrao' | 'itemId' | 'municaoPeloNome' | 'naMochila' | 'requisitos' | 'marcas' | 'acumulador']",
     acoes: ['definir'],
     quem: 'donoOuMestre',
     visivelAoJogador: true,
@@ -484,6 +493,8 @@ export type MudancaNoCartao =
   | { campo: 'itemId'; valor: string | undefined }
   /** D1 da auditoria de 16/11: o tipo de bala ligado à mochila só pelo nome (`CartaoDaFicha.municaoPeloNome`). */
   | { campo: 'municaoPeloNome'; valor: true | undefined }
+  /** Sistema de itens refeito (E1): a conversão já levou o cartão para a mochila (`CartaoDaFicha.naMochila`). */
+  | { campo: 'naMochila'; valor: true | undefined }
   /** Fase B2 dos requisitos: o bloco (`lerRequisitos`), as marcas (`lerMarcas`) e a definição do acumulador (`lerAcumulador`). */
   | { campo: 'requisitos'; valor: RequisitosGuardados | undefined }
   | { campo: 'marcas'; valor: string[] | undefined }
@@ -848,6 +859,8 @@ function mudancaNoCartao(campo: CampoSimplesDoCartao, valor: Json | undefined): 
       return { campo, valor: lido.itemId }
     case 'municaoPeloNome':
       return { campo, valor: lido.municaoPeloNome }
+    case 'naMochila':
+      return { campo, valor: lido.naMochila }
     case 'requisitos':
       return { campo, valor: lido.requisitos }
     case 'marcas':

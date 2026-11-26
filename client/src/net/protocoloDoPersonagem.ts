@@ -99,6 +99,8 @@ export interface CartaoSemImagem {
    */
   itemId?: string
   municaoPeloNome?: true
+  /** `CartaoDaFicha.naMochila` (sistema de itens refeito, E1): a marca da conversão; o host guarda a dele, como a ligação. */
+  naMochila?: true
 }
 
 /**
@@ -503,5 +505,6 @@ export function cartaoSemImagem(cartao: CartaoDaFicha): CartaoSemImagem {
     ...(cartao.mecanicaProposta === undefined ? {} : { mecanicaProposta: cartao.mecanicaProposta }),
     ...(cartao.itemId === undefined ? {} : { itemId: cartao.itemId }),
     ...(cartao.municaoPeloNome === true ? { municaoPeloNome: true } : {}),
+    ...(cartao.naMochila === true ? { naMochila: true } : {}),
   }
 }
