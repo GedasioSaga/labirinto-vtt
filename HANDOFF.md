@@ -1,3 +1,7 @@
+# 26/11 ~11h40: rework E1..E7 TERMINADO (57 commits; 3 testes em 86c2d0f6); workflow fechar-rework-e-pedidos EM VOO (wf_ee14f9a8-31a)
+
+Disco: estava 1,5 GB; limpei Temp >3 dias, cópias velhas do graphify-out e (com ok do dono) o cache do HuggingFace (7,2 GB) -> 11 GB. Em voo, 1 dono por vez: (1) build do site + acertos da auditoria do rework; (2) SP automático fora + característica "recuperacao" + Mesa reduzida (Concentrar sempre; Transformação/Passiva/Usar item se tiver); (3) 4 tipos de sangue escolhíveis. Depois: publicar UMA versão por Agent fora de workflow (dentro do workflow o classificador bloqueia). Retomar: Workflow({scriptPath: "C:/Users/gedasio.filho/.claude/projects/C--dev-labirinto/9e501c59-c77f-4f23-bb34-525d5a1cafd3/workflows/scripts/fechar-rework-e-pedidos-wf_ee14f9a8-31a.js", resumeFromRunId: "wf_ee14f9a8-31a"}).
+
 # 26/11 ~10h50: ESTADO CONSOLIDADO (contexto a 70%)
 
 ## Objetivo
