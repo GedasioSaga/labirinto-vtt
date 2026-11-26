@@ -111,7 +111,9 @@ function focarItem(itens: readonly HTMLButtonElement[], indice: number, passo: 1
  * VIDA (pedido de 25/11/2026): com ficha na seleção, no TOPO (o mais usado,
  * com o foco ao abrir), "Vida ›" com o número de agora e o painel de Tirar e
  * Dar para todas as fichas selecionadas (`ItensRapidosDaFicha`); embaixo,
- * "Abrir ficha" (sem ficha ligada, desligado com o porquê).
+ * "Abrir ficha" (sem ficha ligada, desligado com o porquê) e "Enviar para
+ * perto de ›" (as fichas selecionadas vão para as casas livres em volta de um
+ * jogador ou NPC do mapa, no piso dele, num passo do Ctrl+Z).
  */
 export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoProps & ComSaidaFilho) {
   const map = useMapStore((state) => state.map)
@@ -139,6 +141,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const [rapidoAberto, setRapidoAberto] = useState<RapidoAberto | null>(null)
   const vidaRef = useRef<HTMLButtonElement | null>(null)
   const abrirFichaRef = useRef<HTMLButtonElement | null>(null)
+  const pertoRef = useRef<HTMLButtonElement | null>(null)
   const adventure = useAdventureStore((state) => state.adventure)
   const cenaAberta = useAdventureStore((state) => state.activeSceneId)
   const situacao = useAdventureStore((state) => state.cache)
@@ -331,7 +334,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       return
     }
     if (!noSubmenu) {
-      const pais = [vidaRef.current, abrirFichaRef.current, itemRef.current, porCimaRef.current, porBaixoRef.current, tresQuartosRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
+      const pais = [vidaRef.current, abrirFichaRef.current, pertoRef.current, itemRef.current, porCimaRef.current, porBaixoRef.current, tresQuartosRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
       const noPai = pais.findIndex((item) => item === document.activeElement)
       if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
@@ -389,7 +392,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       onContextMenu={(event) => event.preventDefault()}
     >
       {fichas.length > 0 && (
-        <ItensRapidosDaFicha tokenIds={fichas} aberto={rapidoAberto} onAbrir={abrirRapido} vidaRef={vidaRef} abrirRef={abrirFichaRef} onPassar={fecharSubmenus} onClose={onClose} />
+        <ItensRapidosDaFicha tokenIds={fichas} aberto={rapidoAberto} onAbrir={abrirRapido} vidaRef={vidaRef} abrirRef={abrirFichaRef} pertoRef={pertoRef} onPassar={fecharSubmenus} onClose={onClose} />
       )}
       <button
         ref={itemRef}

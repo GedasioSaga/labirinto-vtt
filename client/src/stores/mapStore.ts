@@ -36,7 +36,7 @@ import { MATERIAL_PADRAO } from '../texturas/paredes/catalogo'
 import { areaFechadaPorParedes, inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
-import { comAlturaDoPiso, comEscadaNosPisos, comFichaNoPiso, comListaDoPiso, comPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
+import { comAlturaDoPiso, comEscadaNosPisos, comFichaNoPiso, comListaDoPiso, comPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe, type ItemParaPiso } from '../lib/pisos'
 import { pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
 import { trocarFormaDoItem as trocarForma, type FormaDoItem } from '../lib/itemNoMapa'
 import type { TamanhoDoFogo } from '../lib/mobilia/fogo'
@@ -323,6 +323,21 @@ function noticeMoveOnce(key: string, text: string): void {
  * exige mexer nos renderers (`drawWalls.ts` e os outros), que não são desta
  * peça; enquanto isso o aviso explica, e a parede continua onde o mestre a vê.
  */
+/**
+ * As casas de `positions` que são de fichas do mapa, na ordem de assentar.
+ * LEVAR FICHA JUNTO: quem leva anda primeiro (e arrasta quem vai junto);
+ * ficha levada que TEM casa na lista assenta depois, na casa dela — senão o
+ * arrasto de quem leva a tiraria do lugar escolhido.
+ */
+function emOrdemDeQuemLeva<T extends { id: string }>(map: MapData, positions: readonly T[]): T[] {
+  const present = positions.filter((p) => map.tokens.some((t) => t.id === p.id))
+  const isCarried = (id: string): boolean => {
+    const token = map.tokens.find((t) => t.id === id)
+    return token !== undefined && carrierIdOf(token) !== null
+  }
+  return [...present.filter((p) => !isCarried(p.id)), ...present.filter((p) => isCarried(p.id))]
+}
+
 function moveTokenExplaining(map: MapData, token: Token, targetX: number, targetY: number): MapData {
   const from = { x: token.x, y: token.y }
   const to = { x: targetX, y: targetY }
@@ -1132,6 +1147,15 @@ interface MapStoreState {
    * vazia (ou só de ids que não existem) não empurra histórico.
    */
   setTokenPositions: (positions: readonly { id: string; x: number; y: number }[]) => void
+  /**
+   * "ENVIAR PARA PERTO DE ›" (pedido de 25/11/2026): as fichas vão ao piso
+   * `piso` (com o que anda com elas: a levada, a tocha, o pino preso) e
+   * assentam nas casas de `positions`, já escolhidas livres
+   * (`lib/enviarParaPerto.ts`), num passo só do desfazer. O editor vai ao
+   * piso delas, com a seleção. Lista vazia (ou só de ids que não existem) não
+   * empurra histórico.
+   */
+  levarFichasParaPerto: (positions: readonly { id: string; x: number; y: number }[], piso: number) => void
   /**
    * CARAVANA: as fichas que acompanham a caravana, SEM histórico. São
    * consequência da edição que as moveu (o arrasto já tem o seu passo), e o
@@ -3360,18 +3384,17 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     removeToken: (id) => withHistory((map) => mapFactory.removeToken(map, id)),
     setTokenPosition: (id, x, y) => withHistory((map) => mapFactory.setTokenPosition(map, id, x, y)),
     setTokenPositions: (positions) => {
-      const { map } = get()
-      const present = positions.filter((p) => map.tokens.some((t) => t.id === p.id))
-      if (present.length === 0) return
-      // LEVAR FICHA JUNTO: quem leva anda primeiro (e arrasta quem vai junto);
-      // ficha levada que TEM casa na lista assenta depois, na casa dela — senão
-      // o arrasto de quem leva a tiraria do lugar escolhido.
-      const isCarried = (id: string): boolean => {
-        const token = map.tokens.find((t) => t.id === id)
-        return token !== undefined && carrierIdOf(token) !== null
-      }
-      const ordered = [...present.filter((p) => !isCarried(p.id)), ...present.filter((p) => isCarried(p.id))]
+      const ordered = emOrdemDeQuemLeva(get().map, positions)
+      if (ordered.length === 0) return
       withHistory((m) => ordered.reduce((acc, p) => mapFactory.setTokenPosition(acc, p.id, p.x, p.y), m))
+    },
+    levarFichasParaPerto: (positions, piso) => {
+      if (!ehPiso(piso)) return
+      const ordered = emOrdemDeQuemLeva(get().map, positions)
+      if (ordered.length === 0) return
+      const fichas: ItemParaPiso[] = ordered.map((p) => ({ kind: 'token', id: p.id }))
+      withHistory((m) => ordered.reduce((acc, p) => mapFactory.setTokenPosition(acc, p.id, p.x, p.y), comSelecaoNoPiso(m, fichas, piso)), undefined, piso)
+      if (get().pisoAtivo !== piso) set({ pisoAtivo: piso, pendingParentRoomId: null })
     },
     carryToken: (carriedId, carrierId) => {
       const { map } = get()

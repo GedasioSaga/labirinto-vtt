@@ -62,8 +62,9 @@ function fonteDoDisco(caminho: string): string | null {
  * A imagem BASE do token, a mesma que o mapa mostra no "Normal": o retrato da
  * ficha ligada quando ele vence a foto (`retratoNoToken`, a foto segue a
  * ficha); senão a do disco do mestre, a da mesa, ou as iniciais do nome.
+ * Também o retrato pequeno do "Enviar para perto de ›" (`SubmenuPertoDe`).
  */
-function FotoBase({ token, retrato }: { token: Token; retrato: string | null }) {
+export function FotoBase({ token, retrato }: { token: Token; retrato: string | null }) {
   if (retrato !== null) return <ImagemOuIniciais imagem={retrato} nome={token.name} />
   const foto = tokenPhotoRef(token)
   const doDisco = foto !== null && !ehImagemDaMesa(foto) ? fonteDoDisco(foto) : null

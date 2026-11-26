@@ -1,18 +1,23 @@
 import type { KeyboardEvent, RefObject } from 'react'
+import { alvosParaPerto } from '../lib/enviarParaPerto'
+import { pisoDe } from '../lib/pisos'
 import { fichasComVidaDosTokens } from '../lib/vidaPeloMenu'
 import { recursoDeVida } from '../lib/vidaDaFicha'
 import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
 import { cenasComOPersonagem } from '../stores/batalha/cena'
 import { useBatalhaStore } from '../stores/batalhaStore'
+import { enviarParaPerto } from '../stores/enviarParaPerto'
 import { useMapStore } from '../stores/mapStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { mudarVidaDosTokens, type SentidoDaVida } from '../stores/vidaPeloMenu'
+import { nomesNumerados } from './batalha/nomesNumerados'
 import { SubmenuDaVida } from './SubmenuDaVida'
+import { SubmenuPertoDe } from './SubmenuPertoDe'
 import './MenuDaSelecao.css'
 
-/** Qual painel está aberto; `focar` = abriu pelo teclado. */
+/** Qual submenu está aberto; `focar` = abriu pelo teclado. */
 export interface RapidoAberto {
-  qual: 'vida'
+  qual: 'vida' | 'perto'
   focar: boolean
 }
 
@@ -25,6 +30,7 @@ export interface ItensRapidosDaFichaProps {
   /** Os itens pais, para o menu andar neles com as setas. */
   vidaRef: RefObject<HTMLButtonElement | null>
   abrirRef: RefObject<HTMLButtonElement | null>
+  pertoRef: RefObject<HTMLButtonElement | null>
   /** O ponteiro chegou num item sem submenu: o menu pai fecha os submenus abertos (os dele também). */
   onPassar: () => void
   /** Fecha o menu inteiro (depois de aplicar). */
@@ -33,6 +39,7 @@ export interface ItensRapidosDaFichaProps {
 
 export const MOTIVO_SEM_FICHA_LIGADA = 'Ligue uma ficha primeiro.'
 const MOTIVO_FICHA_FORA_DA_LISTA = 'A ficha ligada não está mais na lista de Personagens.'
+const MOTIVO_SEM_OUTRO_TOKEN = 'Não há outro token neste mapa.'
 const MOTIVO_SEM_VIDA_NO_SISTEMA = 'O sistema de RPG desta aventura não tem vida com máximo.'
 const MOTIVO_FICHA_SEM_VIDA = 'A ficha não tem vida com máximo.'
 
@@ -42,12 +49,18 @@ const MOTIVO_FICHA_SEM_VIDA = 'A ficha não tem vida com máximo.'
  * TOPO do menu, o mais usado: "Vida ›" (o número de agora e o painel de Tirar
  * e Dar, `SubmenuDaVida`), para todas as fichas selecionadas; e "Abrir ficha",
  * a mesma janela da ficha que o mestre abre pelos Personagens (com várias
- * fichas na seleção, a do primeiro token; o nome vai no item). Serve ao menu
+ * fichas na seleção, a do primeiro token; o nome vai no item); e "Enviar para
+ * perto de ›" (`SubmenuPertoDe`): os jogadores e depois os NPCs do mapa, e a
+ * seleção vai para as casas livres em volta do escolhido, no piso dele
+ * (`stores/enviarParaPerto.ts`), num passo do Ctrl+Z. Serve ao menu
  * da seleção (`MenuDaSelecao`) e ao do token de jogador (`TokenContextMenu`):
  * vale para NPC e para ficha de jogador.
  */
-export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirRef, onPassar, onClose }: ItensRapidosDaFichaProps) {
+export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirRef, pertoRef, onPassar, onClose }: ItensRapidosDaFichaProps) {
   const tokens = useMapStore((state) => state.map.tokens)
+  const pisoAtivo = useMapStore((state) => state.pisoAtivo)
+  // O piso ao lado do nome só importa quando há ficha fora do térreo (ou o editor está em outro piso).
+  const comPisos = pisoAtivo !== 0 || tokens.some((token) => pisoDe(token) !== 0)
   const personagens = useAdventureStore(personagensAtivos)
   const idDoSistema = useAdventureStore(sistemaAtivo)
   const sistema = useRpgStore((state) => sistemaPorId(state.biblioteca, idDoSistema))
@@ -75,6 +88,30 @@ export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirR
     event.preventDefault()
     event.stopPropagation()
     if (event.key !== 'ArrowRight') abrirFicha()
+  }
+
+  // "Enviar para perto de ›": os outros tokens do mapa, cópias do mesmo nome numeradas como na batalha.
+  const alvos = alvosParaPerto(
+    tokens,
+    personagens,
+    nomesNumerados(tokens.map((token) => ({ id: token.id, nome: token.name }))),
+    tokenIds,
+  )
+  const motivoDoPerto = alvos.length === 0 ? MOTIVO_SEM_OUTRO_TOKEN : null
+  const abrirPerto = (focar: boolean) => (motivoDoPerto === null ? onAbrir({ qual: 'perto', focar }) : onPassar())
+  const fecharPerto = () => {
+    onAbrir(null)
+    pertoRef.current?.focus()
+  }
+  const teclaNoPerto = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    event.stopPropagation()
+    abrirPerto(true)
+  }
+  const mandarParaPerto = (alvoId: string) => {
+    enviarParaPerto(tokenIds, alvoId)
+    onClose()
   }
 
   // Desligada, a "Vida" não abre nada: só fecha o submenu que estava aberto.
@@ -147,6 +184,31 @@ export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirR
       >
         <span className="lb-menusel__nome">{daLista.length > 1 && paraAbrir !== undefined ? `Abrir ficha de ${paraAbrir.nome.trim() || 'Personagem sem nome'}` : 'Abrir ficha'}</span>
       </button>
+      <button
+        ref={pertoRef}
+        type="button"
+        role="menuitem"
+        tabIndex={-1}
+        className="lb-portamenu__item lb-menusel__pai"
+        aria-haspopup="menu"
+        aria-expanded={aberto?.qual === 'perto'}
+        aria-disabled={motivoDoPerto !== null}
+        title={motivoDoPerto ?? undefined}
+        onPointerEnter={(event) => {
+          event.currentTarget.focus()
+          if (aberto?.qual !== 'perto') abrirPerto(false)
+        }}
+        onClick={() => (aberto?.qual === 'perto' ? fecharPerto() : abrirPerto(true))}
+        onKeyDown={teclaNoPerto}
+      >
+        <span>Enviar para perto de</span>
+        <span className="lb-menusel__seta" aria-hidden="true">
+          ›
+        </span>
+      </button>
+      {aberto?.qual === 'perto' && motivoDoPerto === null && (
+        <SubmenuPertoDe alvos={alvos} pisoAtivo={pisoAtivo} comPisos={comPisos} ancora={pertoRef.current} onEscolher={mandarParaPerto} onFechar={fecharPerto} onSair={onClose} />
+      )}
     </>
   )
 }

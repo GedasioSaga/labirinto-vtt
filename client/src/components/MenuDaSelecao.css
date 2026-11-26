@@ -160,6 +160,16 @@
   font-size: var(--lb-font-size-xs);
 }
 
+/* ENVIAR PARA PERTO DE › (25/11): o título de cada grupo da lista, Jogadores e depois NPCs. */
+.lb-perto__grupo {
+  margin: 0;
+  padding: 4px var(--lb-space-2) 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .lb-ligar__vazio {
   margin: 0;
   padding: 4px var(--lb-space-2) 6px;
