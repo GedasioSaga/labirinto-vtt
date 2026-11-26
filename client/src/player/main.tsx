@@ -2281,6 +2281,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onMirando={setMirandoNaBatalha}
             onTremor={() => tremer(mapaQueTreme.current)}
             recusa={state.recusaDaBatalha}
+            onEquiparArma={(tokenId, vagaId, equipado) => connection.pedirNaMochila({ type: 'mochila.equipar', tokenId, vagaId, equipado })}
           />
         )}
         {/*

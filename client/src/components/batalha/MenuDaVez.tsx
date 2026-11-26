@@ -5,7 +5,7 @@ import type { OpcaoDaInvocacao } from '../../lib/batalha/invocacao'
 import type { MotivoDaOpcao } from './dadosDaInvocacao'
 import type { FormaNoMenu } from '../../lib/batalha/transformacao'
 import { partesDaFicha, type MedidorNaTela } from './requisitosNoMenu'
-import { CHAVE_DA_MAO_NUA, pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
+import { CHAVE_DA_MAO_NUA, pipsDaVez, textoDaCarga, type AlvoNaMira, type ArmaDaMochilaNoMenu, type GolpeNaTela } from './dadosDoMenu'
 import { tocarSomDoCombate } from '../../lib/sons/sonsDoCombate'
 import { BotaoDoSomDoCombate } from './ChavesDoCombate'
 import { ListaDeFormas, nomeDaForma } from './ListaDeFormas'
@@ -80,6 +80,11 @@ export interface MenuDaVezProps {
   /** Por que o Concentrar está apagado; `null` = pode. */
   motivoDoConcentrar: string | null
   armas: readonly GolpeNaTela[]
+  /**
+   * Pendência do rework de itens (26/11/2026): as armas da mochila embaixo do Atacar, "Guardar" nas
+   * equipadas e "Equipar" nas guardadas, sem gastar ação. Ausente = sem o bloco.
+   */
+  armasDaMochila?: { armas: readonly ArmaDaMochilaNoMenu[]; onEquipar: (vagaId: string, equipar: boolean) => void }
   habilidades: readonly GolpeNaTela[]
   /** Fase 8: os itens com efeito da mochila de quem age (`golpesDeItem` / `golpesDosItensDoJogador`). Ausente = sem a tira Itens. */
   itens?: readonly GolpeNaTela[]
@@ -156,6 +161,25 @@ type Tela =
   | { tipo: 'passivas' }
 
 const SEM_MOTIVO = null
+
+/**
+ * Pendência do rework de itens (26/11/2026): o pé da lista do Atacar. Cada arma equipada com "Guardar",
+ * cada guardada com "Equipar"; não gasta ação (o limite de "Armas por batalha" quem recusa é a mochila).
+ */
+function ArmasDaMochila({ armas, onEquipar }: { armas: readonly ArmaDaMochilaNoMenu[]; onEquipar: (vagaId: string, equipar: boolean) => void }) {
+  return (
+    <ul className="bt-vez__mochila" aria-label="Armas da mochila (não gasta ação)">
+      {armas.map((arma) => (
+        <li key={arma.vagaId}>
+          <span className="bt-vez__mochila-nome">{arma.nome}</span>
+          <button type="button" className="bt-vez__mochila-bt" onClick={() => onEquipar(arma.vagaId, !arma.equipada)}>
+            {arma.equipada ? 'Guardar' : 'Equipar'}
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 /**
  * D2: a última tira escolhida por ficha (a próxima vez dela pousa ali, e a
@@ -334,6 +358,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
         forcar={props.doMestre === true}
         medidores={medidores}
         partes={partes}
+        rodape={tela.de === 'atacar' && props.armasDaMochila !== undefined && props.armasDaMochila.armas.length > 0 ? <ArmasDaMochila {...props.armasDaMochila} /> : undefined}
         onVoltar={() => abrir({ tipo: 'menu' }, true)}
         onEscolher={(golpe, teclado) => abrir(golpe.invocacao === true && tela.de === 'habilidade' ? { tipo: 'invocacao', golpe } : { tipo: 'mira', golpe, de: tela.de }, teclado)}
       />

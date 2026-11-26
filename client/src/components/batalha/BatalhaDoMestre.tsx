@@ -44,6 +44,7 @@ import { InvocacoesPendentes, PainelDoBando, type PendenciaNaTela } from './Invo
 import { FormasPendentes } from './FormasDoMestre'
 import { alvosDaOrdem, alvosDoDarDano, nomeDaFicha, pendenciasDeInvocacaoNaTela, vezDoBandoNaTela, type MesaDoMestre } from './mesaDoMestre'
 import { MenuDaVez, type InvocarNoMenu, type TelaInicialDoMenu } from './MenuDaVez'
+import { useArmasDaMochilaDoMestre } from './armasDaMochilaDoMestre'
 import { nomesNumerados } from './nomesNumerados'
 import { pedidosDaVez, type PedidosDaVez } from './pedidosDaVez'
 import { deixarParaDepois, useTravasDeixadas } from './travaDoPassar'
@@ -428,9 +429,11 @@ function MenuDaVezDoNpc({
   const cena = mesa.cena
   // REQUISITOS E: a técnica do NPC que pede ajuda abre a escolha do aliado antes de ir (o mesmo do jogador). Antes do `return`: é hook.
   const [escolhendo, setEscolhendo] = useState<EscolhendoAjuda | null>(null)
-  if (cena === undefined) return null
   const { personagemId, tokenId } = carta
   const personagem = personagemId === null ? null : (personagens.find((candidato) => candidato.id === personagemId) ?? null)
+  // Pendência do rework de itens (26/11/2026): Guardar / Equipar no pé do Atacar. Hook: antes do `return`.
+  const armasDaMochila = useArmasDaMochilaDoMestre(personagem)
+  if (cena === undefined) return null
   const acoes = acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena.regras })
   const combate = personagemId === null ? undefined : turnos.combate?.[personagemId]
   const carga = combate?.carga ?? 0
@@ -481,6 +484,7 @@ function MenuDaVezDoNpc({
         carga={carga}
         motivoDoConcentrar={trava ?? motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id))}
         armas={armas}
+        armasDaMochila={armasDaMochila}
         habilidades={habilidades}
         itens={itens}
         contras={guardados.length === 0 ? undefined : guardados.map((contra) => ({ golpeId: contra.golpeId, rotulo: `contra ${nomeDaFicha(mesa, contra.atacanteTokenId)}` }))}

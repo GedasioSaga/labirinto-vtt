@@ -379,6 +379,8 @@ export interface ListaDeTecnicasProps {
   /** REQUISITOS G: os medidores e as Partes no topo (os mesmos do menu). */
   medidores?: readonly MedidorNaTela[]
   partes?: PartesNaTela | null
+  /** Embaixo das tiras (o Guardar/Equipar das armas no Atacar). Ausente = nada. */
+  rodape?: ReactNode
 }
 
 /** D2: a última técnica escolhida em cada lista de cada ficha (enquanto o app está aberto). */
@@ -421,7 +423,7 @@ function mesmoLugar(a: LugarDaLeitura, b: LugarDaLeitura): boolean {
   return a.largura === b.largura && a.topo === b.topo && a.altura === b.altura
 }
 
-export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, sugerida = null, onVoltar, instantaneo, vazio, evoluir, memoria, forcar = false, medidores, partes }: ListaDeTecnicasProps) {
+export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, sugerida = null, onVoltar, instantaneo, vazio, evoluir, memoria, forcar = false, medidores, partes, rodape }: ListaDeTecnicasProps) {
   const raiz = useRef<HTMLDivElement>(null)
   const coluna = useRef<HTMLUListElement>(null)
   const leitura = useRef<HTMLDivElement>(null)
@@ -620,6 +622,17 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
             )
           })}
         </ul>
+      )}
+      {/* Enter e Espaço são do botão do rodapé, não do "usa a técnica" da lista. */}
+      {rodape !== undefined && (
+        <div
+          className="bt-vez__rodape"
+          onKeyDown={(evento) => {
+            if (evento.key === 'Enter' || evento.key === ' ') evento.stopPropagation()
+          }}
+        >
+          {rodape}
+        </div>
       )}
       {lendo && lugar.tipo === 'lado' && golpeAtual !== undefined && (
         <DetalheDoGolpe

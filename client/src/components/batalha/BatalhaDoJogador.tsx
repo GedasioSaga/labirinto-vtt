@@ -17,7 +17,7 @@ import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { BotaoDeReacao } from './BotaoDeReacao'
 import { CaixaDeReacao, type BonusDaReacaoNaTela, type ReacaoNaCaixa } from './CaixaDeReacao'
-import { alvosDoRecorte, alvosNaOrdemDaMira, armaPadraoNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, golpesDosItensDoJogador, type VidaNaMira } from './dadosDoMenu'
+import { alvosDoRecorte, alvosNaOrdemDaMira, armaPadraoNaBatalha, armasDaMochilaNoMenu, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, golpesDosItensDoJogador, type VidaNaMira } from './dadosDoMenu'
 import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { invocacaoDaFicha, motivoNoJogador, pedidoDeInvocacao } from './dadosDaInvocacao'
 import type { EvoluirNaTela } from './ListaDeTecnicas'
@@ -141,6 +141,11 @@ export interface BatalhaDoJogadorProps {
    * no chão com as fichas e as paredes de `mapa`. Ausente = só a mira desta tela acende (a Arena, o Lobby).
    */
   mirasDaMesa?: readonly MiraNaMesaNoFio[]
+  /**
+   * Pendência do rework de itens (26/11/2026): o "Guardar"/"Equipar" no pé do Atacar manda o
+   * `mochila.equipar` de sempre (o host aplica as regras da mochila). Ausente = sem o bloco (a Arena, o Lobby).
+   */
+  onEquiparArma?: (tokenId: string, vagaId: string, equipar: boolean) => Promise<string | null>
 }
 
 /** Conserto das fichas F1 (bug 1): quanto o aviso da recusa fica na tela. */
@@ -181,7 +186,7 @@ function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusD
   return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
 }
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, noTreino = false, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, mapa, gradeSemMapa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica, mirasDaMesa }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, noTreino = false, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, mapa, gradeSemMapa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica, mirasDaMesa, onEquiparArma }: BatalhaDoJogadorProps) {
   // Fase D do alcance: a mira desta tela vai à mesa (quando a conexão sabe mandar) e as dos outros chegam ao chão.
   const mirar = useRef(conexao.mirar)
   mirar.current = conexao.mirar
@@ -189,6 +194,17 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   useMirasDaMesaNoChao(mirasDaMesa, mapa)
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
+  // Pendência do rework de itens: a recusa do Equipar (o limite de "Armas por batalha") no mesmo aviso da recusa da mesa.
+  const [recusaDaMochila, setRecusaDaMochila] = useState<{ id: number; texto: string } | null>(null)
+  const equiparArma = (tokenId: string, vagaId: string, equipar: boolean): void => {
+    if (onEquiparArma === undefined) return
+    void onEquiparArma(tokenId, vagaId, equipar).then((motivo) => {
+      if (motivo !== null) setRecusaDaMochila({ id: Date.now(), texto: motivo })
+    })
+  }
+  // Recusa nova da mesa: ela é a mais nova, e o aviso volta a ser dela.
+  const idDaRecusa = recusa?.id
+  useEffect(() => setRecusaDaMochila(null), [idDaRecusa])
   const [palco, setPalco] = useState<PalcoDosEfeitos>(null)
 
   const nomeDe = useMemo(() => {
@@ -567,6 +583,11 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             medidores={menu.medidores}
             motivoDoConcentrar={acoes === null ? 'Fora da vez' : motivoDoConcentrar(combate, acoes, chave ?? '')}
             armas={menu.armas}
+            armasDaMochila={
+              onEquiparArma === undefined || !estado.minhaVez
+                ? undefined
+                : { armas: armasDaMochilaNoMenu(personagem), onEquipar: (vagaId, equipar) => equiparArma(cartaQueAge.tokenId, vagaId, equipar) }
+            }
             habilidades={menu.habilidades}
             itens={menu.itens}
             golpesDoContra={menu.contra}
@@ -664,7 +685,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
           />
         </div>
       )}
-      <AvisoDaRecusa recusa={recusa} />
+      <AvisoDaRecusa recusa={recusaDaMochila ?? recusa} />
 
     </>
   )

@@ -62,6 +62,8 @@ import { NOME_DO_TEXTO_DE_ANTES, type CartaoDaFicha, type Personagem } from '../
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
 import type { ContextoDosRequisitos } from '../../lib/batalha/requisitos/contexto'
+import { TIPOS_DE_ARMA } from '../../lib/itens/modelo'
+import { tipoDaVaga, type AcervoDaMochila } from '../../lib/mochila/armaNaMochila'
 
 /**
  * O ADAPTADOR DO MENU DA VEZ (F2 da batalha One Piece, seção 5.2 do plano):
@@ -1319,6 +1321,29 @@ function idsDosCartoes(personagem: Personagem): string[] {
  */
 export function armasNaBatalha(personagem: Personagem | null, _combateDeAntes?: Pick<CombateDoPersonagem, 'armas'>): ArmaDaFicha[] {
   return personagem === null ? [] : armasDe(personagem)
+}
+
+/** O jogador não tem o Acervo: vale o tipo que a vaga traz. */
+const SEM_ACERVO: Pick<AcervoDaMochila, 'item'> = { item: () => undefined }
+
+/** Uma arma da mochila no pé do Atacar: equipada ("Guardar") ou guardada ("Equipar"). */
+export interface ArmaDaMochilaNoMenu {
+  vagaId: string
+  nome: string
+  equipada: boolean
+}
+
+/**
+ * Pendência do rework de itens (26/11/2026): equipar e guardar sem sair da batalha. As vagas de arma
+ * (`TIPOS_DE_ARMA`; a roupa fica na mochila) de quem age, as equipadas primeiro. Sem acervo (o jogador),
+ * o tipo que a vaga traz.
+ */
+export function armasDaMochilaNoMenu(personagem: Personagem | null, acervo: Pick<AcervoDaMochila, 'item'> = SEM_ACERVO): ArmaDaMochilaNoMenu[] {
+  const armas = (personagem?.mochila ?? []).flatMap((vaga) => {
+    const tipo = tipoDaVaga(vaga, acervo)
+    return tipo === undefined || !TIPOS_DE_ARMA.has(tipo) ? [] : [{ vagaId: vaga.id, nome: vaga.nome.trim() || 'Arma sem nome', equipada: vaga.equipado === true }]
+  })
+  return [...armas.filter((arma) => arma.equipada), ...armas.filter((arma) => !arma.equipada)]
 }
 
 /**
