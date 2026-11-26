@@ -1,3 +1,21 @@
+# 26/11 ~01h: /goal do dono em andamento (ver PEDIDOS, entrada "/goal do dono")
+
+## Objetivo
+1) Terminar tudo: rework de itens E1..E7 (docs/design/itens-rework/PLANO.md, protótipo aprovado bca88f9f), publicando por grupo (regra: publicar sozinho). 2) 1-3 testes precisos no fim. 3) Explorador por área (Criar Mapas, Carregar Mapa, Prelúdio, Livros de Regras, Batalhas, Site): consertar bug certo, anotar incerto, listar coisas erradas, melhorar performance sem quebrar; 1-3 prints por área. 4) Em paralelo: passeio humano de qualidade de vida (mestre e jogador) -> artefato com fotos. Limpar disco sem destruir quando apertar.
+
+## Estado atual
+- 0.5.103 publicando (automacao-devops). E1 começa depois (o publicar faz fast-forward da main).
+- passeador-ux mestre e jogador rodando, prints em docs/qualidade-de-vida/prints/ (fora das telas de itens/ficha/inventário).
+
+## Próximos passos
+Workflow do rework (E1 -> E2+E4a -> E3 -> E4b -> E5a+E5b -> E6a -> E6b -> E6c -> E7), publicar ao fim de cada grupo; depois explorador; artefato de QoL.
+
+## Critério de pronto
+PLANO.md etapas com o critério de pronto de cada uma; testes 1-3 verdes; lista de coisas erradas + artefato de QoL entregues; latest.json na última versão.
+
+## Evidência
+Por etapa, no retorno de cada agente (tsc, hash, gesto).
+
 # 25/11 20:57: 0.5.102 PUBLICADA
 
 Pedido do dono ("ta publica tudo certinho"). git push origin main (3c5aaf19..d6b2b512). Bump 9dd3e074 chore(release): 0.5.102 (5 arquivos, como e3bee2e4) feito no worktree limpo ../labirinto-release (release/0.5.102 de origin/main, 3 junções de node_modules: raiz, client, lobby/nuvem); main por fast-forward e push origin main (d6b2b512..9dd3e074). publicar-versao --publicar --com-google exit 0: tsc lobby ok, assinatura do setup confere, gitleaks/guarda "nada bloqueia", Worker labirinto-nuvem bda580a2-18da-4a26-9f2f-2ff5b9b5c36c, site c177c1c4.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.5.102 (setup.exe, .sig, msi, latest.json). curl releases/latest/download/latest.json: "version": "0.5.102". Limpeza: target do cargo apagado, 3 junções removidas uma a uma com .Delete() (0 reparse points no worktree), worktree remove sem --force, branch release/0.5.102 apagada; node_modules compartilhado intacto. Disco 25,3 GB. Log tmp/rel-0.5.102/publicar.log. Nenhum teste rodado (regra do dono). protocol.ts e task4-e2e-evidencia.png (outra sessão) intocados.
