@@ -232,6 +232,14 @@
   overflow-wrap: anywhere;
 }
 
+/* E6c: o resultado do "Testar no boneco", uma frase por linha. */
+.lb-edi-teste {
+  margin: 0;
+  padding-left: var(--lb-space-3);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
 .lb-edi-sr {
   position: absolute;
   width: 1px;

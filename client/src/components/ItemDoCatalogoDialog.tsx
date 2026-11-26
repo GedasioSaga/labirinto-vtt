@@ -16,6 +16,8 @@ import { ALCANCE_DA_LUZ_DO_ITEM_MAX, ALCANCE_DA_LUZ_DO_ITEM_MIN, CORES_SUGERIDAS
 import type { LuzDoItem, PecasDoEfeito } from '../types/map'
 import { NOME_DA_CURA_REDUZIDA } from '../lib/batalha/condicoes'
 import { resumoDoEfeitoDoItem } from '../lib/batalha/mecanica/resumoDoItem'
+import { testeNoBoneco } from '../lib/batalha/aoAcertarDoItem'
+import { novoPersonagem } from '../lib/personagem'
 import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_ORDER } from '../lib/tokenConditions'
 import { ROTULO_DO_TIPO, TIPOS_DO_ITEM, TIPOS_QUE_EMPILHAM, PARTES_DO_EQUIPAMENTO, type AtaqueDoItem, type BalaDoItem, type BonusDoEquipamento, type ConfiraDoItem, type TipoDoItem } from '../lib/itens/modelo'
 import {
@@ -514,6 +516,9 @@ export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, on
   }, [entradasDoLivro, item.id])
   const [aberto] = useState(() => itemParaOEditor(item, regraDoLivro))
   const [rascunho, setRascunho] = useState(aberto.item)
+  /** ITENS REFEITOS, E6c: o último "Testar no boneco", preso ao rascunho que testou (mexeu no item, o resultado some). */
+  const [teste, setTeste] = useState<{ de: typeof rascunho; linhas: string[] } | null>(null)
+  const criadas = useCondicoesPropriasStore((state) => state.catalogo)
   /** O item como está gravado (o de abrir, completado; depois, o último salvo): "mudou" compara com ele. */
   const [gravado, setGravado] = useState(aberto.item)
   /** O editor montou peças do texto de antes (a bala de prata): há o que salvar mesmo sem o mestre mexer. */
@@ -953,12 +958,25 @@ export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, on
             <section className="lb-edi-frase" aria-label="O que acontece">
               <p className="lb-label">O que acontece</p>
               <p aria-live="polite">{frases.join(' ')}</p>
-              <button type="button" className="lb-btn lb-btn--compact" disabled aria-describedby={`${idBase}-testar`}>
+              <button
+                type="button"
+                className="lb-btn lb-btn--compact"
+                disabled={blocoDasPecas !== 'acerto'}
+                aria-describedby={`${idBase}-testar`}
+                onClick={() => setTeste({ de: rascunho, linhas: testeNoBoneco(novoPersonagem(sistema, 'npc', 'Boneco de treino'), rascunho.nome, rascunho, criadas).linhas })}
+              >
                 Testar no boneco de treino
               </button>
               <span id={`${idBase}-testar`} className="lb-field__hint">
-                O teste no boneco chega com a batalha.
+                {blocoDasPecas === 'acerto' ? 'O boneco tem 100 de vida e não reage: o acerto passa pelas mesmas regras da batalha.' : 'O teste no boneco é para o que acerta: armas, arremesso e munição.'}
               </span>
+              {teste !== null && teste.de === rascunho && (
+                <ul className="lb-edi-teste" role="status" aria-label="Resultado do teste">
+                  {teste.linhas.map((linha) => (
+                    <li key={linha}>{linha}</li>
+                  ))}
+                </ul>
+              )}
             </section>
           )}
 
