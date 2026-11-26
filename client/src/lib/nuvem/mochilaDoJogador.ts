@@ -49,7 +49,7 @@ function ehArma(vaga: CarriedItem): boolean {
 }
 
 /** Por bala: as da pilha (vagas com esse `itemId`) mais as dos pentes carregados com ela. */
-function balasNaMochila(mochila: readonly CarriedItem[], balaId: string): number {
+function totalDaBala(mochila: readonly CarriedItem[], balaId: string): number {
   return mochila.reduce((soma, vaga) => soma + (vaga.itemId === balaId ? quantidadeDe(vaga) : 0) + (vaga.pente?.balaId === balaId ? vaga.pente.n : 0), 0)
 }
 
@@ -107,7 +107,7 @@ function recusaNoPente(mochilaAntes: readonly CarriedItem[], porIdAntes: Readonl
   }
   const balas = new Set(mudaram.flatMap((vaga) => [vaga.pente?.balaId, porIdAntes.get(vaga.id)?.pente?.balaId]).filter((balaId): balaId is string => balaId !== undefined))
   for (const balaId of balas) {
-    if (balasNaMochila(mochilaAntes, balaId) !== balasNaMochila(mochila, balaId)) return BALA_SEM_ORIGEM
+    if (totalDaBala(mochilaAntes, balaId) !== totalDaBala(mochila, balaId)) return BALA_SEM_ORIGEM
   }
   return null
 }

@@ -618,7 +618,7 @@ function armaDoBloco(id: string, nome: string, vaga: CarriedItem, ataque: Pick<A
 }
 
 /** As balas que a arma aceita na mochila, fora do pente. */
-function balasNaMochilaPara(mochila: readonly CarriedItem[], vagaId: string): number {
+function balasForaDoPente(mochila: readonly CarriedItem[], vagaId: string): number {
   return balasParaOPente(mochila, vagaId, ACERVO_DA_BATALHA).reduce((soma, vaga) => soma + quantidadeDe(vaga), 0)
 }
 
@@ -658,7 +658,7 @@ function armasDaVaga(vaga: CarriedItem, mochila: readonly CarriedItem[]): ArmaDa
             n: vaga.pente?.n ?? 0,
             ...(vaga.pente === undefined ? {} : { balaId: vaga.pente.balaId }),
             recarga: blocos.pente?.recarga ?? RECARGA_PADRAO,
-            naMochila: balasNaMochilaPara(mochila, vaga.id),
+            naMochila: balasForaDoPente(mochila, vaga.id),
           },
         }
   if (tipo !== 'hibrida' || blocos.golpe === undefined) return [comPente]
