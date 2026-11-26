@@ -1,7 +1,9 @@
 import type { CondicaoPropria, MapData } from '../types/map'
 import { fichasComCondicao, tirarCondicaoPropriaDasFichas, trocarCondicaoPropriaNasFichas } from '../lib/condicoesProprias'
+import { condicoesDe, tirarCondicao } from '../lib/condicoes/naFicha'
 import { useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
+import { mesaDaAventura } from './mesaDaAventura'
 
 /**
  * CONDIÇÃO CRIADA EM TODAS AS CENAS. Editar ou excluir uma condição da lista
@@ -37,10 +39,21 @@ function cenasDeFundo(): string[] {
   return adventure.scenes.filter((cena) => cena.id !== activeSceneId).map((cena) => cena.id)
 }
 
-/** Quantas fichas levam a condição, em quantas cenas, e quantas cenas não dá para alcançar. */
+/** CONDIÇÕES NA FICHA (E4a): as fichas de personagem da aventura (ou da pasta) que levam a condição no `Personagem.condicoes`. */
+function personagensComCondicao(condicaoId: string): string[] {
+  return mesaDaAventura
+    .personagens()
+    .filter((personagem) => condicoesDe(personagem).some((condicao) => condicao.condId === condicaoId))
+    .map((personagem) => personagem.id)
+}
+
+/**
+ * Quantas fichas levam a condição, em quantas cenas, e quantas cenas não dá para alcançar. As
+ * fichas de personagem que a levam (E4a) entram na conta de fichas: elas não moram em cena.
+ */
 export function alcanceDaCondicao(condicaoId: string): AlcanceDaCondicao {
   const { cache } = useAdventureStore.getState()
-  const alcance: AlcanceDaCondicao = { fichas: 0, cenas: 0, cenasFechadas: 0 }
+  const alcance: AlcanceDaCondicao = { fichas: personagensComCondicao(condicaoId).length, cenas: 0, cenasFechadas: 0 }
   const contar = (map: MapData): void => {
     const fichas = fichasComCondicao(map, condicaoId)
     if (fichas === 0) return
@@ -71,10 +84,15 @@ export function trocarCondicaoEmTodasAsCenas(condicao: CondicaoPropria): void {
   )
 }
 
-/** O mestre excluiu a condição: ela sai de toda ficha, em toda cena da aventura. */
+/**
+ * O mestre excluiu a condição: ela sai de toda ficha, em toda cena da aventura, e (E4a) de toda
+ * ficha de personagem que a leva. Editar não precisa disto: a ficha de personagem guarda só o id,
+ * e o nome e a cor novos valem sozinhos.
+ */
 export function tirarCondicaoDeTodasAsCenas(condicaoId: string): void {
   emTodasAsCenas(
     () => useMapStore.getState().tirarCondicaoPropriaDasFichas(condicaoId),
     (map) => tirarCondicaoPropriaDasFichas(map, condicaoId),
   )
+  for (const personagemId of personagensComCondicao(condicaoId)) mesaDaAventura.ajustarPersonagem(personagemId, (atual) => tirarCondicao(atual, condicaoId))
 }
