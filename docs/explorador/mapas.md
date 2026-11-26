@@ -123,3 +123,35 @@ Não repeti o que já está em docs/levantamento-mecanicas-duplicadas.md (itens 
 8. Duas portas de "pôr da lista no mapa" (P). Acervo de tokens tem arrasto para o mapa (App.tsx:4924); lista de objetos só clique (bug certo 7).
 9. O nome padrão do mapa novo está escrito duas vezes (P). NewDungeonMap.tsx:23 e :75.
 10. "Voltar ao início" não usa a pergunta de trabalho não salvo que já existe (M). O UnsavedChangesDialog (App.tsx:528) atende "Abrir outro mapa"; o "Voltar ao início" tem caminho próprio que salva calado (bug certo 1).
+
+---
+
+## Performance
+
+1. O App inteiro redesenha a cada movimento do mouse num arrasto (G no ganho, M no risco).
+   - Onde: client/src/App.tsx:683 (o App assina state.map inteiro na mapStore). Os arrastos gravam o mapa a cada pointermove (moveFloorPieceLive, updateWallPointLive etc., mapStore.ts:1047-1080), então o App de 5.213 linhas refaz o JSX inteiro e as contas do render: hostWorldOf em roomPanelWorld (chamado em 12 lugares), amarradosPorEstado sobre sceneMaps (App.tsx:4121), alvosDoAcervo (:4937), leverDoorOptions etc. Só uma linha de painel tem memo (LayersPanel.tsx:218).
+   - Ganho esperado: arrasto mais liso em mapa grande e em aventura com muitas cenas; menos tarefas longas.
+   - Conserto: ler map só nos filhos que precisam (seletores finos), ou usar useDeferredValue no map para os painéis, e memo nos painéis pesados (PropertiesPanel, ScenesSection).
+   - Risco: médio. Muitos painéis leem o map na hora do clique; trocar por seletor pode deixar um painel um passo atrasado.
+
+2. A miniatura da cena transforma o mapa inteiro em texto para saber se mudou (M).
+   - Onde: client/src/lib/miniaturaDaCena.ts:247-253 (JSON.stringify do mapa inteiro, só sem os tokens, mais hash). Roda depois de cada Salvar (1,5 s depois) e para cada cena de fundo com mapa novo.
+   - Texturas e carimbos importados vão embutidos no mapa como imagem em base64 (types/map.ts:3624 e :3674); um mapa com eles vira vários MB de texto num passo só. O requestIdleCallback só escolhe a hora, não divide o trabalho: pode virar tarefa longa de mais de 200 ms logo depois de salvar.
+   - Conserto: assinatura pelas partes que mudam o desenho, ou reaproveitar as referências (o mapa é imutável: comparar a referência de cada lista antes de serializar).
+   - Risco: baixo; o pior caso é uma miniatura velha.
+
+3. Prévia do mapa novo é refeita a cada letra do nome (P).
+   - Onde: client/src/screens/NewDungeonMap.tsx:72-80 (draftMap depende de name). O nome não aparece na prévia, mas troca o objeto e a prévia redesenha.
+   - Conserto: tirar o name da dependência da prévia e montar o mapa final só no submit. Risco baixo.
+
+4. Ouvintes de quadro sempre ligados (P, já bem cuidados).
+   - client/src/pixi/PixiCanvas.tsx:1905-2033: sinais, destinos, laser, lasers dos jogadores, medidas e visão dos jogadores rodam todo quadro no app.ticker, mas cada um sai cedo quando não tem nada (ex.: linha 1900). A visão dos jogadores refaz a conta a cada 500 ms mesmo parada (linha 2017), por desenho. Ganho pequeno; não mexeria.
+
+---
+
+## O que este relatório NÃO cobriu
+- Portas, escadas, paredes tortas, salas (gestos de giro, alças) e a ferramenta Texturas a fundo: só li os pontos que os passeios citaram.
+- Exportar e importar (lib/mapExport.ts) só por cima: o reapontamento de imagens (mapFileIO.ts:193) cobre fundo, token e objeto; pino usa imagem embutida, então parece certo, mas não conferi documentos, cutscenes e sons ligados ao mapa.
+- A cadeia completa do desenho sob pedido com a vitrine das texturas (incerto 1).
+- Os listeners de janela e teclado do PixiCanvas (8 addEventListener) têm todos o removeEventListener na limpeza (PixiCanvas.tsx:10328-10433); as assinaturas de store conferidas por nome também. Não achei vazamento ali.
+- Nenhum teste foi rodado; nada foi reproduzido no app.
