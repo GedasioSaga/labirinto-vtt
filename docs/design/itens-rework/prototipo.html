@@ -1,0 +1,2462 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Itens refeitos (protótipo)</title>
+<style>
+/* Tokens: os do app (--lb-*), no tom quente pedido para este protótipo (fundo #1b1510 a #2a2119,
+   latão #e0a84b, texto creme), mais as tintas do papel que o app já usa nos cartões. */
+:root {
+  --lb-fundo: #1b1510;
+  --lb-fundo-painel: #211a13;
+  --lb-fundo-alto: #2a2119;
+  --lb-fundo-hover: #33281c;
+  --lb-campo: #15100b;
+  --lb-filete: rgba(239, 230, 212, 0.09);
+  --lb-filete-forte: rgba(239, 230, 212, 0.17);
+  --lb-creme: #efe6d4;
+  --lb-creme-dim: #bfb39e;
+  --lb-creme-tenue: #978c79;
+  --lb-latao: #e0a84b;
+  --lb-latao-claro: #f4c477;
+  --lb-latao-suave: rgba(224, 168, 75, 0.13);
+  --lb-latao-filete: rgba(224, 168, 75, 0.34);
+  --lb-latao-contraste: #1f1606;
+  --lb-dano: #ec7a68;
+  --lb-dano-suave: rgba(236, 122, 104, 0.15);
+  --lb-cura: #8cc095;
+  --lb-cura-suave: rgba(140, 192, 149, 0.15);
+  --lb-selo: #b8a0de;
+  --lb-selo-suave: rgba(184, 160, 222, 0.16);
+  --lb-agua: #86b6d6;
+  --lb-agua-suave: rgba(134, 182, 214, 0.15);
+  --papel: #ede3cd;
+  --papel-tinta: #2a2119;
+  --papel-tenue: #665b4b;
+  --papel-dano: #8f2e22;
+  --papel-cura: #2b6a3c;
+  --papel-selo: #5a3f8c;
+  --papel-gasto: #2c5578;
+  --papel-filete: rgba(42, 33, 25, 0.16);
+  --rasgo: polygon(0 3px, 6% 0, 13% 4px, 21% 1px, 28% 3px, 37% 0, 45% 4px, 52% 1px, 60% 3px, 68% 0, 76% 4px, 84% 1px, 92% 3px, 100% 0, calc(100% - 3px) 30%, 100% 60%, calc(100% - 2px) 100%, 92% calc(100% - 3px), 84% 100%, 76% calc(100% - 4px), 68% calc(100% - 1px), 60% calc(100% - 3px), 52% 100%, 45% calc(100% - 4px), 37% calc(100% - 1px), 28% calc(100% - 3px), 21% 100%, 13% calc(100% - 4px), 6% calc(100% - 1px), 0 calc(100% - 3px), 2px 60%, 0 30%);
+  --f-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, serif;
+  --f-texto: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --f-num: Bahnschrift, 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --t-xs: 11.5px;
+  --t-sm: 12.5px;
+  --t-md: 14px;
+  --t-lg: 16px;
+  --t-xl: 21px;
+  --t-titulo: 30px;
+  --r-p: 6px;
+  --r-m: 10px;
+  --r-g: 14px;
+  --r-total: 999px;
+  --sombra-flutua: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.42), 0 22px 48px rgba(0, 0, 0, 0.55);
+  --sombra-foco: 0 0 0 2px var(--lb-fundo), 0 0 0 4px var(--lb-latao);
+  --bisel: inset 0 1px 0 rgba(255, 240, 210, 0.07);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --rapido: 120ms;
+  --casa: 62px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { min-height: 100vh; font-family: var(--f-texto); font-size: var(--t-md); line-height: 1.5; color: var(--lb-creme); background: var(--lb-fundo); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; text-align: inherit; }
+button:disabled, [aria-disabled='true'] { cursor: not-allowed; }
+h1, h2, h3, h4, p, ul, ol, dl, dd, figure { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+:focus-visible { outline: none; box-shadow: var(--sombra-foco); }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.num { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.ic { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ------------------------------------------------ faixa do protótipo (não é do app) */
+.proto { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 40px; padding: 6px 20px; background: #110d09; border-bottom: 1px dashed var(--lb-filete-forte); font-size: var(--t-sm); color: var(--lb-creme-tenue); }
+.proto strong { color: var(--lb-creme-dim); font-weight: 600; }
+.proto__sobra { margin-left: auto; }
+
+/* ------------------------------------------------ cabeçalho do app com as abas */
+.topo { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 22px; padding: 0 20px; background: linear-gradient(180deg, #221a12, #1d1610); border-bottom: 1px solid var(--lb-filete); }
+.marca { display: flex; align-items: center; gap: 9px; font-family: var(--f-display); font-size: 19px; color: var(--lb-creme); white-space: nowrap; }
+.marca svg { width: 22px; height: 22px; color: var(--lb-latao); }
+.abas { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.aba { position: relative; display: inline-flex; align-items: center; gap: 7px; min-height: 52px; padding: 0 14px; color: var(--lb-creme-tenue); font-weight: 500; white-space: nowrap; transition: color var(--rapido) ease; }
+.aba::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--lb-latao); transform: scaleX(0); }
+.aba[aria-selected='true'] { color: var(--lb-creme); }
+.aba[aria-selected='true']::after { transform: scaleX(1); }
+.aba:focus-visible { box-shadow: inset 0 0 0 2px var(--lb-latao); border-radius: var(--r-p); }
+.aba__ponto { width: 7px; height: 7px; border-radius: 50%; background: var(--lb-latao); }
+@media (hover: hover) and (pointer: fine) { .aba:hover { color: var(--lb-creme); } }
+
+/* ------------------------------------------------ página */
+.pg { max-width: 1480px; margin: 0 auto; padding: 26px 24px 120px; }
+.pg-cab { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; margin-bottom: 20px; }
+.pg-cab__txt { flex: 1 1 420px; min-width: 0; }
+.pg-titulo { font-family: var(--f-display); font-size: var(--t-titulo); font-weight: 400; line-height: 1.1; }
+.pg-sub { margin-top: 6px; max-width: 92ch; color: var(--lb-creme-dim); font-size: 15px; }
+.pg-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ------------------------------------------------ primitivos */
+.bt { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 14px; border-radius: var(--r-p); background: var(--lb-fundo-alto); border: 1px solid var(--lb-filete-forte); color: var(--lb-creme); font-weight: 500; white-space: nowrap; box-shadow: var(--bisel); transition: transform var(--rapido) var(--ease-out), background-color var(--rapido) ease, border-color var(--rapido) ease; }
+.bt:active:not(:disabled) { transform: scale(0.97); }
+.bt:disabled { opacity: 0.45; }
+.bt--primario { background: linear-gradient(180deg, var(--lb-latao-claro), var(--lb-latao)); border-color: rgba(0, 0, 0, 0.35); color: var(--lb-latao-contraste); font-weight: 650; }
+.bt--latao { background: var(--lb-latao-suave); border-color: var(--lb-latao-filete); color: var(--lb-latao-claro); font-weight: 600; }
+.bt--fantasma { background: transparent; border-color: transparent; box-shadow: none; color: var(--lb-creme-dim); }
+.bt--p { min-height: 30px; padding: 0 10px; font-size: var(--t-sm); }
+.bt--ic { width: 34px; padding: 0; }
+.bt .ic { width: 15px; height: 15px; }
+.bt kbd { font: 500 10.5px / 1 var(--f-num); padding: 2px 5px; border-radius: 3px; border: 1px solid currentColor; opacity: 0.55; }
+@media (hover: hover) and (pointer: fine) {
+  .bt:hover:not(:disabled) { border-color: var(--lb-latao-filete); background-color: var(--lb-fundo-hover); }
+  .bt--primario:hover:not(:disabled) { background: linear-gradient(180deg, #f8cf8a, #e6b05a); }
+  .bt--fantasma:hover:not(:disabled) { background: rgba(255, 236, 200, 0.06); border-color: transparent; color: var(--lb-creme); }
+}
+
+.entrada { width: 100%; min-height: 36px; padding: 6px 10px; border-radius: var(--r-p); background: var(--lb-campo); border: 1px solid var(--lb-filete-forte); color: var(--lb-creme); transition: border-color var(--rapido) ease; }
+.entrada:focus-visible { border-color: var(--lb-latao); box-shadow: 0 0 0 3px var(--lb-latao-suave); }
+.entrada[aria-invalid='true'] { border-color: var(--lb-dano); }
+select.entrada { padding-right: 28px; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--lb-creme-tenue) 50%), linear-gradient(135deg, var(--lb-creme-tenue) 50%, transparent 50%); background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
+select.entrada option { background: var(--lb-fundo-painel); }
+textarea.entrada { min-height: 70px; resize: vertical; line-height: 1.45; }
+.entrada--num { width: 76px; text-align: center; font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.entrada--pequena { width: 64px; }
+
+.campo { display: grid; gap: 5px; align-content: start; min-width: 0; }
+.campo > label, .campo__rot { font-size: var(--t-sm); color: var(--lb-creme-dim); }
+.campo__ajuda { font-size: var(--t-xs); color: var(--lb-creme-tenue); }
+.campo__erro { font-size: var(--t-xs); color: var(--lb-dano); }
+
+.passo { justify-self: start; display: inline-flex; align-items: stretch; border-radius: var(--r-p); border: 1px solid var(--lb-filete-forte); background: var(--lb-campo); overflow: hidden; }
+.passo button { width: 34px; display: grid; place-items: center; color: var(--lb-creme-dim); transition: background-color var(--rapido) ease; }
+.passo button:active:not(:disabled) { background: var(--lb-latao-suave); }
+.passo button:disabled { opacity: 0.35; }
+.passo input { width: 64px; min-height: 34px; border: 0; border-inline: 1px solid var(--lb-filete); background: transparent; text-align: center; font-family: var(--f-num); font-size: 16px; font-variant-numeric: tabular-nums; }
+.passo input:focus-visible { box-shadow: inset 0 0 0 2px var(--lb-latao); }
+.passo input::-webkit-inner-spin-button { display: none; }
+@media (hover: hover) and (pointer: fine) { .passo button:hover:not(:disabled) { background: rgba(255, 236, 200, 0.06); color: var(--lb-creme); } }
+
+.seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: var(--r-m); background: var(--lb-campo); border: 1px solid var(--lb-filete); }
+.seg button { min-height: 30px; padding: 0 12px; border-radius: 7px; color: var(--lb-creme-dim); font-size: var(--t-sm); font-weight: 500; transition: background-color var(--rapido) ease, color var(--rapido) ease; }
+.seg button[aria-pressed='true'], .seg button[aria-checked='true'] { background: var(--lb-fundo-alto); color: var(--lb-creme); box-shadow: inset 0 0 0 1px var(--lb-latao-filete), var(--bisel); }
+@media (hover: hover) and (pointer: fine) { .seg button:hover:not([aria-pressed='true']):not([aria-checked='true']) { color: var(--lb-creme); } }
+
+.chave { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; color: var(--lb-creme); }
+.chave input { position: absolute; opacity: 0; pointer-events: none; }
+.chave__trilho { position: relative; width: 38px; height: 22px; flex: none; border-radius: var(--r-total); background: var(--lb-campo); border: 1px solid var(--lb-filete-forte); transition: background-color 160ms ease, border-color 160ms ease; }
+.chave__trilho::after { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--lb-creme-tenue); transition: transform 180ms var(--ease-in-out), background-color 160ms ease; }
+.chave input:checked + .chave__trilho { background: var(--lb-latao-suave); border-color: var(--lb-latao-filete); }
+.chave input:checked + .chave__trilho::after { transform: translateX(16px); background: var(--lb-latao); }
+.chave input:focus-visible + .chave__trilho { box-shadow: var(--sombra-foco); }
+.chave input:disabled + .chave__trilho { opacity: 0.55; }
+.chave--travada { cursor: default; }
+
+.marca-caixa { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; }
+.marca-caixa input { width: 17px; height: 17px; margin: 0; accent-color: var(--lb-latao); }
+
+.etiqueta { display: inline-flex; align-items: center; gap: 5px; min-height: 22px; padding: 0 8px; border-radius: var(--r-total); font-size: var(--t-xs); font-weight: 500; background: rgba(255, 236, 200, 0.06); color: var(--lb-creme-dim); white-space: nowrap; }
+.etiqueta--latao { background: var(--lb-latao-suave); color: var(--lb-latao-claro); }
+.etiqueta--selo { background: var(--lb-selo-suave); color: var(--lb-selo); }
+.etiqueta--dano { background: var(--lb-dano-suave); color: var(--lb-dano); }
+.etiqueta--cura { background: var(--lb-cura-suave); color: var(--lb-cura); }
+
+.medalhao { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #3b2f20, #241b12 70%); border: 1px solid var(--lb-latao-filete); color: var(--lb-latao-claro); box-shadow: var(--bisel); }
+.medalhao .ic { width: 21px; height: 21px; stroke-width: 1.5; }
+.medalhao--g { width: 52px; height: 52px; }
+.medalhao--g .ic { width: 27px; height: 27px; }
+.medalhao--p { width: 30px; height: 30px; }
+.medalhao--p .ic { width: 16px; height: 16px; }
+
+.painel { border-radius: var(--r-g); background: var(--lb-fundo-painel); border: 1px solid var(--lb-filete); }
+.painel__cab { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 14px 16px 0; }
+.painel__tit { font-family: var(--f-display); font-size: 19px; font-weight: 400; }
+.painel__sub { font-size: var(--t-sm); color: var(--lb-creme-tenue); }
+.painel__corpo { padding: 12px 16px 16px; }
+
+/* ------------------------------------------------ o cartão de papel (a mesma peça no Acervo, no editor e na ficha) */
+.papel { position: relative; padding: 20px 20px 18px; background: var(--papel); color: var(--papel-tinta); clip-path: var(--rasgo); }
+.papel__topo { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.papel__foto { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; border: 1.5px solid var(--papel-filete); color: var(--papel-tinta); background: rgba(255, 255, 255, 0.35); }
+.papel__foto .ic { width: 26px; height: 26px; stroke-width: 1.5; }
+.papel__nome { font-family: var(--f-display); font-size: 24px; font-weight: 400; line-height: 1.1; overflow-wrap: anywhere; }
+.papel__tipo { margin-top: 2px; font: 500 var(--t-sm) / 1.3 var(--f-num); color: var(--papel-tenue); letter-spacing: 0.02em; }
+.papel__preco { align-self: start; font: 500 var(--t-sm) / 1.3 var(--f-num); color: var(--papel-tenue); white-space: nowrap; }
+.papel__rot { margin-top: 14px; font-size: var(--t-xs); font-weight: 600; color: var(--papel-tenue); }
+.papel__frase { margin-top: 3px; font-size: 14.5px; line-height: 1.55; }
+.papel__numeros { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px 12px; padding-top: 10px; border-top: 1px dashed var(--papel-filete); }
+.papel__numeros div { min-width: 0; }
+.papel__numeros dt { font-size: var(--t-xs); color: var(--papel-tenue); }
+.papel__numeros dd { font: 600 14px / 1.3 var(--f-num); overflow-wrap: anywhere; }
+.papel__grade { margin-top: 12px; display: flex; gap: 12px; align-items: center; }
+.papel__grade svg { width: 92px; height: 92px; flex: none; }
+.papel__grade p { font-size: var(--t-sm); color: var(--papel-tenue); }
+.papel__selos { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.papel__selo { padding: 1px 7px; border: 1.5px solid currentColor; border-radius: 4px; font: 600 var(--t-xs) / 1.5 var(--f-num); color: var(--papel-gasto); }
+.papel__selo[data-c='luz'] { color: #8a5a12; }
+.papel__desc { margin-top: 10px; font-size: 13px; line-height: 1.5; font-style: italic; color: var(--papel-tenue); }
+.tinta-dano { color: var(--papel-dano); font-weight: 650; }
+.tinta-cura { color: var(--papel-cura); font-weight: 650; }
+.tinta-selo { color: var(--papel-selo); font-weight: 650; }
+.tinta-gasto { color: var(--papel-gasto); font-weight: 650; }
+
+/* ------------------------------------------------ Acervo */
+.acervo { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 22px; align-items: start; }
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.busca { position: relative; flex: 1 1 240px; max-width: 360px; }
+.busca .ic { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--lb-creme-tenue); pointer-events: none; }
+.busca .entrada { padding-left: 34px; padding-right: 36px; }
+.busca kbd { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); font: 500 11px / 1 var(--f-num); padding: 3px 6px; border-radius: 4px; border: 1px solid var(--lb-filete-forte); color: var(--lb-creme-tenue); }
+.filtros { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.filtro { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 11px; border-radius: var(--r-total); border: 1px solid var(--lb-filete-forte); color: var(--lb-creme-dim); font-size: var(--t-sm); transition: background-color var(--rapido) ease, border-color var(--rapido) ease, color var(--rapido) ease; }
+.filtro b { font: 500 var(--t-xs) / 1 var(--f-num); color: var(--lb-creme-tenue); }
+.filtro[aria-pressed='true'] { background: var(--lb-latao-suave); border-color: var(--lb-latao-filete); color: var(--lb-creme); }
+.filtro[aria-pressed='true'] b { color: var(--lb-latao-claro); }
+.filtro .ic { width: 14px; height: 14px; }
+@media (hover: hover) and (pointer: fine) { .filtro:hover:not([aria-pressed='true']) { color: var(--lb-creme); border-color: var(--lb-latao-filete); } }
+
+.lista { display: grid; gap: 4px; }
+.linha { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding-right: 10px; border-radius: var(--r-m); border: 1px solid transparent; transition: background-color var(--rapido) ease, border-color var(--rapido) ease; }
+.linha[data-sel='true'] { background: var(--lb-fundo-alto); border-color: var(--lb-latao-filete); }
+.linha__abrir { display: grid; grid-template-columns: 40px minmax(150px, 210px) minmax(0, 1fr) 92px; gap: 14px; align-items: center; min-height: 60px; padding: 8px 4px 8px 12px; border-radius: var(--r-m); }
+.linha__abrir:focus-visible { box-shadow: inset 0 0 0 2px var(--lb-latao); }
+.linha__nome { display: grid; gap: 3px; min-width: 0; }
+.linha__nome strong { font-family: var(--f-display); font-size: 18px; font-weight: 400; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linha__nome .etiqueta { justify-self: start; }
+.linha__resumo { min-width: 0; color: var(--lb-creme-dim); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.linha__qtd { text-align: right; font-size: var(--t-xs); color: var(--lb-creme-tenue); line-height: 1.25; }
+.linha__qtd b { display: block; font: 500 18px / 1.1 var(--f-num); color: var(--lb-creme); }
+.linha__acoes { display: flex; gap: 6px; }
+@media (hover: hover) and (pointer: fine) { .linha:hover:not([data-sel='true']) { background: rgba(255, 236, 200, 0.035); } }
+
+.vazio { display: grid; justify-items: start; gap: 10px; padding: 28px 18px; border-radius: var(--r-m); border: 1px dashed var(--lb-filete-forte); color: var(--lb-creme-dim); }
+
+.lado { position: sticky; top: 76px; display: grid; gap: 14px; }
+.lado__acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.quem-tem { display: grid; gap: 2px; }
+.quem-tem li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--lb-filete); font-size: 13.5px; }
+.quem-tem li:last-child { border-bottom: 0; }
+.quem-tem b { font: 500 15px / 1.2 var(--f-num); }
+.quem-tem small { color: var(--lb-creme-tenue); }
+.nota { font-size: var(--t-sm); color: var(--lb-creme-tenue); }
+
+/* ------------------------------------------------ Editor */
+.editor { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; }
+.editor__form { display: grid; gap: 16px; }
+.secao { padding: 18px 20px 20px; border-radius: var(--r-g); background: var(--lb-fundo-painel); border: 1px solid var(--lb-filete); }
+.secao__cab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 14px; }
+.secao__tit { font-family: var(--f-display); font-size: 20px; font-weight: 400; }
+.secao__sub { font-size: var(--t-sm); color: var(--lb-creme-tenue); max-width: 60ch; }
+.secao[data-entra] { animation: entra 200ms var(--ease-out); }
+@keyframes entra { from { opacity: 0; transform: translateY(6px); } }
+.grade-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px 16px; }
+.grade-campos .largo { grid-column: 1 / -1; }
+
+.tipos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+@media (min-width: 1180px) { .tipos { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; } .tipos .tipo { padding: 12px 10px; } }
+.tipo { position: relative; display: grid; gap: 8px; align-content: start; min-height: 118px; padding: 14px; border-radius: var(--r-m); background: var(--lb-fundo-alto); border: 1px solid var(--lb-filete-forte); box-shadow: var(--bisel); transition: transform var(--rapido) var(--ease-out), border-color var(--rapido) ease, background-color var(--rapido) ease; }
+.tipo:active { transform: scale(0.98); }
+.tipo[aria-checked='true'] { background: linear-gradient(180deg, #3a2d1b, #2c2216); border-color: var(--lb-latao); box-shadow: inset 0 0 0 1px var(--lb-latao), var(--bisel); }
+.tipo__nome { font-weight: 650; font-size: 15px; }
+.tipo__ex { font-size: var(--t-xs); color: var(--lb-creme-tenue); line-height: 1.35; }
+.tipo .medalhao { width: 40px; height: 40px; }
+.tipo__visto { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--lb-latao); color: var(--lb-latao-contraste); opacity: 0; transform: scale(0.9); transition: opacity 150ms ease, transform 150ms var(--ease-out); }
+.tipo__visto .ic { width: 13px; height: 13px; stroke-width: 2.4; }
+.tipo[aria-checked='true'] .tipo__visto { opacity: 1; transform: none; }
+@media (hover: hover) and (pointer: fine) { .tipo:hover:not([aria-checked='true']) { border-color: var(--lb-latao-filete); background: var(--lb-fundo-hover); } }
+
+.fotos { display: flex; flex-wrap: wrap; gap: 6px; }
+.foto-op { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--lb-filete-forte); color: var(--lb-creme-dim); background: var(--lb-campo); transition: border-color var(--rapido) ease, color var(--rapido) ease; }
+.foto-op[aria-checked='true'] { border-color: var(--lb-latao); color: var(--lb-latao-claro); box-shadow: inset 0 0 0 1px var(--lb-latao); }
+.foto-op .ic { width: 20px; height: 20px; stroke-width: 1.5; }
+
+.alcance { display: grid; grid-template-columns: minmax(0, 1fr) 264px; gap: 18px; align-items: start; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--lb-filete-forte); }
+.formas { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; margin-top: 8px; }
+.forma { display: grid; justify-items: center; gap: 6px; padding: 10px 6px 9px; border-radius: var(--r-m); border: 1px solid var(--lb-filete-forte); background: var(--lb-campo); font-size: var(--t-xs); color: var(--lb-creme-dim); text-align: center; line-height: 1.25; transition: border-color var(--rapido) ease, color var(--rapido) ease; }
+.forma svg { width: 40px; height: 40px; }
+.forma[aria-checked='true'] { border-color: var(--lb-latao); color: var(--lb-creme); box-shadow: inset 0 0 0 1px var(--lb-latao); }
+@media (hover: hover) and (pointer: fine) { .forma:hover:not([aria-checked='true']) { border-color: var(--lb-latao-filete); color: var(--lb-creme); } }
+.alcance__nums { display: flex; flex-wrap: wrap; gap: 12px 16px; margin-top: 14px; }
+.grade-alc { display: grid; gap: 2px; padding: 8px; border-radius: var(--r-m); background: var(--lb-campo); border: 1px solid var(--lb-filete); }
+.grade-alc__c { aspect-ratio: 1; border-radius: 2px; background: rgba(239, 230, 212, 0.05); transition: background-color 120ms ease; }
+.grade-alc__c[data-c='alc'] { background: rgba(224, 168, 75, 0.3); }
+.grade-alc__c[data-c='area'] { background: var(--lb-latao); }
+.grade-alc__c[data-c='voce'] { background: var(--lb-agua); border-radius: 50%; }
+button.grade-alc__c { cursor: pointer; }
+button.grade-alc__c:focus-visible { box-shadow: 0 0 0 2px var(--lb-creme); }
+.grade-alc__leg { margin-top: 8px; font-size: var(--t-xs); color: var(--lb-creme-tenue); }
+.grade-alc__leg i { display: inline-block; width: 10px; height: 10px; margin: 0 4px -1px 0; border-radius: 2px; }
+
+.efeitos { display: grid; gap: 8px; }
+.efeito { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 10px 10px 14px; border-radius: var(--r-m); background: var(--lb-fundo-alto); border: 1px solid var(--lb-filete-forte); border-left: 3px solid var(--lb-selo); }
+.efeito[data-k2='empurrar'] { border-left-color: var(--lb-agua); }
+.efeito[data-k2='curar'] { border-left-color: var(--lb-cura); }
+.efeito[data-k2='tirar'] { border-left-color: var(--lb-cura); }
+.efeito[data-entra] { animation: entra 180ms var(--ease-out); }
+.efeito__txt { color: var(--lb-creme-dim); }
+.efeito .entrada { width: auto; min-height: 32px; }
+.efeito__tirar { margin-left: auto; }
+.mais-efeito { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }
+.mais-efeito__rot { font-size: var(--t-sm); color: var(--lb-creme-tenue); margin-right: 2px; }
+
+.opcoes { display: grid; gap: 14px; }
+.opcao { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.opcao__txt { display: grid; gap: 1px; }
+.opcao__txt small { font-size: var(--t-xs); color: var(--lb-creme-tenue); }
+
+.previa { position: sticky; top: 76px; display: grid; gap: 12px; }
+.previa__rot { font-size: var(--t-sm); color: var(--lb-creme-tenue); }
+.editor__barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+/* ------------------------------------------------ Ficha */
+.ficha { display: grid; grid-template-columns: 280px minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+.retrato { display: grid; gap: 14px; padding: 18px; }
+.retrato__cab { display: flex; gap: 12px; align-items: center; }
+.retrato__nome { font-family: var(--f-display); font-size: 23px; font-weight: 400; line-height: 1.1; }
+.ficha-op { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.vida { display: grid; gap: 5px; }
+.vida__rot { display: flex; justify-content: space-between; font-size: var(--t-sm); color: var(--lb-creme-dim); }
+.vida__rot b { font: 600 14px / 1.2 var(--f-num); color: var(--lb-creme); }
+.vida__barra { height: 8px; border-radius: var(--r-total); background: var(--lb-campo); border: 1px solid var(--lb-filete); overflow: hidden; }
+.vida__barra i { display: block; height: 100%; width: 100%; border-radius: inherit; background: linear-gradient(90deg, #6aa575, var(--lb-cura)); transform-origin: left; transition: transform 260ms var(--ease-out); }
+.vida__barra[data-inimigo] i { background: linear-gradient(90deg, #c3584a, var(--lb-dano)); }
+.atribs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+.atribs div { display: flex; justify-content: space-between; font-size: 13px; color: var(--lb-creme-dim); }
+.atribs b { font: 600 14px / 1.2 var(--f-num); color: var(--lb-creme); }
+.berries { display: flex; justify-content: space-between; font-size: 13px; color: var(--lb-creme-dim); padding-top: 10px; border-top: 1px solid var(--lb-filete); }
+.berries b { font: 600 14px / 1.2 var(--f-num); color: var(--lb-latao-claro); }
+.vestido { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.vaga { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 8px 12px; border-radius: var(--r-m); background: var(--lb-fundo-alto); border: 1px solid var(--lb-filete-forte); }
+.vaga--vazia { border-style: dashed; background: transparent; color: var(--lb-creme-tenue); }
+.vaga__txt { display: grid; min-width: 0; }
+.vaga__txt small { font-size: var(--t-xs); color: var(--lb-creme-tenue); }
+.vaga__txt strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mochila { display: grid; gap: 4px; }
+.coisa { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding-right: 10px; border-radius: var(--r-m); border: 1px solid transparent; }
+.coisa[data-sel='true'] { background: var(--lb-fundo-alto); border-color: var(--lb-latao-filete); }
+.coisa__abrir { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 56px; padding: 7px 4px 7px 10px; border-radius: var(--r-m); }
+.coisa__abrir:focus-visible { box-shadow: inset 0 0 0 2px var(--lb-latao); }
+.coisa__nome { display: grid; min-width: 0; }
+.coisa__nome strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coisa__nome small { font-size: var(--t-xs); color: var(--lb-creme-tenue); }
+.coisa__qtd { font: 500 18px / 1 var(--f-num); color: var(--lb-creme); }
+.coisa__qtd small { font-size: var(--t-xs); color: var(--lb-creme-tenue); }
+.coisa__acoes { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (hover: hover) and (pointer: fine) { .coisa:hover:not([data-sel='true']) { background: rgba(255, 236, 200, 0.035); } }
+.subtit { margin: 22px 0 10px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.subtit h3 { font-family: var(--f-display); font-size: 19px; font-weight: 400; }
+.subtit:first-child { margin-top: 0; }
+
+/* ------------------------------------------------ Batalha */
+.batalha { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 22px; align-items: start; }
+.mesa { display: grid; gap: 12px; justify-items: start; }
+.mesa__aviso { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 8px 10px 8px 14px; border-radius: var(--r-m); background: var(--lb-latao-suave); border: 1px solid var(--lb-latao-filete); color: var(--lb-creme); }
+.mesa__aviso p { flex: 1 1 260px; }
+.mesa__aviso--quieto { background: transparent; border-color: var(--lb-filete); color: var(--lb-creme-tenue); }
+.tabuleiro { position: relative; display: grid; grid-template-columns: repeat(10, var(--casa)); grid-auto-rows: var(--casa); padding: 10px; border-radius: var(--r-g); background: radial-gradient(ellipse at 50% 40%, #2c2318, #1a140e 80%); border: 1px solid var(--lb-filete-forte); touch-action: none; user-select: none; overflow: hidden; }
+.casa { position: relative; display: grid; place-items: center; border: 1px solid rgba(239, 230, 212, 0.045); transition: background-color 120ms ease; }
+button.casa { cursor: pointer; }
+.casa[data-c='alc'] { background: rgba(224, 168, 75, 0.16); }
+.casa[data-c='alvo'] { background: rgba(224, 168, 75, 0.16); }
+.casa[data-c='ponto'] { background: rgba(224, 168, 75, 0.2); }
+.casa[data-area] { background: rgba(236, 122, 104, 0.36); }
+.casa[data-arrasto] { background: rgba(134, 182, 214, 0.28); box-shadow: inset 0 0 0 2px var(--lb-agua); }
+.casa[data-explodiu] { animation: explode 520ms var(--ease-out); }
+@keyframes explode { 0% { background: rgba(255, 214, 140, 0.85); } 100% { background: transparent; } }
+button.casa:focus-visible { box-shadow: inset 0 0 0 2px var(--lb-creme); z-index: 2; }
+.luz-tocha { position: absolute; pointer-events: none; border-radius: 50%; background: radial-gradient(circle, rgba(255, 190, 100, 0.2), rgba(255, 190, 100, 0.08) 55%, transparent 72%); }
+.ficha-t { position: relative; z-index: 3; display: grid; place-items: center; width: min(46px, calc(var(--casa) - 8px)); height: min(46px, calc(var(--casa) - 8px)); border-radius: 50%; font-family: var(--f-display); font-size: 19px; color: var(--lb-creme); background: radial-gradient(circle at 35% 30%, #3e5c70, #1f3442 75%); border: 2px solid var(--lb-agua); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5); cursor: grab; transition: transform var(--rapido) var(--ease-out); }
+.ficha-t[data-inimigo] { background: radial-gradient(circle at 35% 30%, #6b3a30, #3b1f19 75%); border-color: var(--lb-dano); }
+.ficha-t[data-age] { box-shadow: 0 0 0 3px rgba(224, 168, 75, 0.55), 0 3px 8px rgba(0, 0, 0, 0.5); }
+.ficha-t[data-arrastando] { opacity: 0.35; }
+.ficha-t[data-atingivel] { box-shadow: 0 0 0 3px var(--lb-latao), 0 3px 8px rgba(0, 0, 0, 0.5); }
+.ficha-t[data-na-area] { box-shadow: 0 0 0 3px var(--lb-dano), 0 3px 8px rgba(0, 0, 0, 0.5); }
+.ficha-t[data-escolhido] { box-shadow: 0 0 0 3px var(--lb-creme), 0 3px 8px rgba(0, 0, 0, 0.5); }
+.ficha-t[data-tomou] { animation: tomou 380ms var(--ease-out); }
+@keyframes tomou { 0% { filter: brightness(2.2) saturate(0.4); transform: translateX(-3px); } 40% { transform: translateX(3px); } 100% { filter: none; transform: none; } }
+.ficha-t[data-curou] { animation: curou 420ms var(--ease-out); }
+@keyframes curou { 0% { box-shadow: 0 0 0 8px rgba(140, 192, 149, 0.6); } 100% { box-shadow: 0 0 0 0 rgba(140, 192, 149, 0); } }
+.ficha-t__vida { position: absolute; left: 4px; right: 4px; bottom: -7px; height: 4px; border-radius: 2px; background: rgba(0, 0, 0, 0.6); overflow: hidden; }
+.ficha-t__vida i { display: block; height: 100%; background: var(--lb-cura); transform-origin: left; }
+.ficha-t[data-inimigo] .ficha-t__vida i { background: var(--lb-dano); }
+.fantasma-t { position: fixed; z-index: 70; pointer-events: none; width: 40px; height: 40px; margin: -20px 0 0 -20px; opacity: 0.9; }
+.numero-voa { position: absolute; z-index: 5; pointer-events: none; font: 700 19px / 1 var(--f-num); color: var(--lb-dano); text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8); animation: voa 900ms var(--ease-out) forwards; }
+.numero-voa[data-cura] { color: var(--lb-cura); }
+@keyframes voa { 0% { opacity: 0; transform: translateY(4px) scale(0.9); } 15% { opacity: 1; transform: translateY(-6px) scale(1); } 100% { opacity: 0; transform: translateY(-30px); } }
+
+.combatentes { display: grid; gap: 10px; }
+.combatente { display: grid; gap: 7px; padding: 12px 14px; border-radius: var(--r-m); background: var(--lb-fundo-alto); border: 1px solid var(--lb-filete); }
+.combatente__cab { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.combatente__cab strong { font-weight: 600; }
+.combatente__conds { display: flex; flex-wrap: wrap; gap: 5px; min-height: 0; }
+.acoes-b { display: grid; gap: 6px; }
+.acoes-b__grupo { margin-top: 10px; font-size: var(--t-sm); color: var(--lb-creme-tenue); }
+.acao-b { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; min-height: 54px; padding: 8px 12px 8px 8px; border-radius: var(--r-m); background: var(--lb-fundo-alto); border: 1px solid var(--lb-filete-forte); text-align: left; transition: border-color var(--rapido) ease, background-color var(--rapido) ease, transform var(--rapido) var(--ease-out); }
+.acao-b:active:not(:disabled) { transform: scale(0.98); }
+.acao-b[aria-pressed='true'] { border-color: var(--lb-latao); background: linear-gradient(180deg, #392c1a, #2b2116); }
+.acao-b:disabled { opacity: 0.55; }
+.acao-b .medalhao { width: 36px; height: 36px; }
+.acao-b__txt { display: grid; min-width: 0; }
+.acao-b__txt strong { font-weight: 600; }
+.acao-b__txt small { font-size: var(--t-xs); color: var(--lb-creme-tenue); }
+.acao-b__n { font: 600 18px / 1 var(--f-num); text-align: right; overflow: hidden; }
+.acao-b__n small { display: block; font: 400 var(--t-xs) / 1.2 var(--f-texto); color: var(--lb-creme-tenue); }
+.acao-b__n span { display: inline-block; }
+.acao-b__n span[data-tick] { animation: tick 220ms var(--ease-out); }
+@keyframes tick { from { opacity: 0; transform: translateY(70%); } }
+.acao-b__sem { font-size: var(--t-xs); font-weight: 600; color: var(--lb-dano); }
+@media (hover: hover) and (pointer: fine) { .acao-b:hover:not(:disabled):not([aria-pressed='true']) { border-color: var(--lb-latao-filete); background: var(--lb-fundo-hover); } }
+.balas { display: grid; gap: 4px; margin: 2px 0 6px 46px; }
+.bala-op { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 9px; align-items: center; min-height: 40px; padding: 4px 12px 4px 10px; border-radius: var(--r-p); border: 1px solid var(--lb-filete); }
+.bala-op[aria-checked='true'] { border-color: var(--lb-latao-filete); background: var(--lb-latao-suave); }
+.bala-op[aria-disabled='true'] { opacity: 0.75; }
+.bala-op__marca { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--lb-creme-tenue); }
+.bala-op[aria-checked='true'] .bala-op__marca { border-color: var(--lb-latao); background: radial-gradient(circle, var(--lb-latao) 45%, transparent 50%); }
+.bala-op small { font-size: var(--t-xs); color: var(--lb-creme-tenue); }
+.pente { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 6px 46px; font-size: var(--t-sm); color: var(--lb-creme-dim); }
+.registro { width: 100%; }
+.registro ol { display: grid; gap: 2px; max-height: 280px; overflow: auto; }
+.registro li { padding: 8px 12px; border-radius: var(--r-p); font-size: 13.5px; color: var(--lb-creme-dim); }
+.registro li:first-child { background: var(--lb-fundo-alto); color: var(--lb-creme); }
+.registro li small { display: block; margin-top: 2px; font-size: var(--t-sm); line-height: 1.45; color: var(--lb-creme-tenue); }
+.registro li[data-entra] { animation: entra 200ms var(--ease-out); }
+
+/* ------------------------------------------------ Como era x como fica */
+.casos { display: grid; gap: 18px; }
+.caso { display: grid; gap: 14px; padding: 20px; border-radius: var(--r-g); background: var(--lb-fundo-painel); border: 1px solid var(--lb-filete); }
+.caso__tit { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.caso__tit h3 { font-family: var(--f-display); font-size: 21px; font-weight: 400; }
+.caso__tit p { color: var(--lb-creme-tenue); font-size: var(--t-sm); }
+.caso__lados { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.caso__lado { display: grid; gap: 8px; align-content: start; }
+.caso__rot { font-size: var(--t-sm); font-weight: 600; }
+.caso__rot[data-c='antes'] { color: var(--lb-dano); }
+.caso__rot[data-c='agora'] { color: var(--lb-cura); }
+.antes { display: grid; gap: 6px; padding: 12px; border-radius: var(--r-m); background: #18130e; border: 1px solid var(--lb-filete); font-size: var(--t-sm); color: var(--lb-creme-tenue); }
+.antes__caixa { padding: 8px 10px; border-radius: var(--r-p); border: 1px solid var(--lb-filete-forte); }
+.antes__caixa b { display: block; margin-bottom: 3px; color: var(--lb-creme-dim); font-weight: 600; }
+.antes__linha { display: flex; flex-wrap: wrap; gap: 5px; }
+.antes__campo { padding: 1px 7px; border-radius: 4px; background: rgba(239, 230, 212, 0.05); }
+.antes__campo[data-repete] { color: var(--lb-dano); background: var(--lb-dano-suave); outline: 1.5px dashed var(--lb-dano); outline-offset: 1px; }
+.caso__solucao { color: var(--lb-creme-dim); }
+.caso__solucao strong { color: var(--lb-creme); font-weight: 600; }
+.caso .papel { padding: 14px 16px 13px; }
+.caso .papel__nome { font-size: 19px; }
+.caso .papel__frase { font-size: 13.5px; }
+.tabela { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tabela th, .tabela td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--lb-filete); }
+.tabela th { font-size: var(--t-sm); font-weight: 600; color: var(--lb-creme-tenue); }
+.tabela td:first-child { color: var(--lb-creme-dim); width: 40%; }
+
+/* ------------------------------------------------ Dar a... (janela) */
+dialog.janela { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border-radius: var(--r-g); background: var(--lb-fundo-painel); border: 1px solid var(--lb-filete-forte); color: var(--lb-creme); box-shadow: var(--sombra-flutua); opacity: 1; transform: none; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out), overlay 200ms allow-discrete, display 200ms allow-discrete; }
+dialog.janela::backdrop { background: rgba(10, 7, 4, 0.66); opacity: 1; transition: opacity 200ms ease, overlay 200ms allow-discrete, display 200ms allow-discrete; }
+@starting-style { dialog.janela[open] { opacity: 0; transform: scale(0.96); } dialog.janela[open]::backdrop { opacity: 0; } }
+dialog.janela[data-saindo] { opacity: 0; transform: scale(0.98); transition-duration: 140ms; }
+dialog.janela[data-saindo]::backdrop { opacity: 0; }
+.janela__cab { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px; border-bottom: 1px solid var(--lb-filete); }
+.janela__cab h2 { font-family: var(--f-display); font-size: 22px; font-weight: 400; line-height: 1.15; }
+.janela__cab p { font-size: var(--t-sm); color: var(--lb-creme-tenue); }
+.janela__cab .bt--ic { margin-left: auto; align-self: start; }
+.janela__corpo { display: grid; gap: 18px; padding: 16px 20px; overflow: auto; max-height: calc(100vh - 220px); }
+.janela__pe { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 20px 18px; border-top: 1px solid var(--lb-filete); }
+.janela__pe p { flex: 1 1 220px; font-size: 13.5px; color: var(--lb-creme-dim); }
+.janela__pe p[data-erro] { color: var(--lb-dano); }
+.quem { display: grid; gap: 6px; }
+.quem__op { display: grid; grid-template-columns: 20px 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 54px; padding: 6px 14px 6px 12px; border-radius: var(--r-m); border: 1px solid var(--lb-filete-forte); background: var(--lb-fundo-alto); cursor: pointer; transition: border-color var(--rapido) ease, background-color var(--rapido) ease; }
+.quem__op:has(input:checked) { border-color: var(--lb-latao); background: linear-gradient(180deg, #392c1a, #2b2116); }
+.quem__op:has(input:focus-visible) { box-shadow: var(--sombra-foco); }
+.quem__op input { width: 17px; height: 17px; margin: 0; accent-color: var(--lb-latao); }
+.quem__av { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; font-family: var(--f-display); font-size: 17px; background: radial-gradient(circle at 35% 30%, #3e5c70, #1f3442 75%); border: 1.5px solid var(--lb-agua); }
+.quem__av[data-npc] { background: radial-gradient(circle at 35% 30%, #6b3a30, #3b1f19 75%); border-color: var(--lb-dano); }
+.quem__txt { display: grid; }
+.quem__txt small { font-size: var(--t-xs); color: var(--lb-creme-tenue); }
+.quem__tem { font: 500 var(--t-sm) / 1.2 var(--f-num); color: var(--lb-creme-tenue); text-align: right; }
+.quem__tem b { color: var(--lb-creme); font-size: 15px; }
+.quem__tem b[data-vai] { color: var(--lb-latao-claro); }
+
+/* ------------------------------------------------ avisos (com Desfazer) */
+.avisos { position: fixed; right: 22px; bottom: 22px; z-index: 80; display: grid; gap: 8px; justify-items: end; pointer-events: none; }
+.aviso { pointer-events: auto; display: flex; align-items: center; gap: 12px; max-width: min(480px, calc(100vw - 32px)); min-height: 48px; padding: 8px 8px 8px 14px; border-radius: var(--r-m); background: #30261a; border: 1px solid var(--lb-filete-forte); box-shadow: var(--sombra-flutua); transform: translateY(0); opacity: 1; transition: transform 220ms var(--ease-out), opacity 220ms var(--ease-out); }
+.aviso[data-entrando] { transform: translateY(110%); opacity: 0; }
+.aviso[data-saindo] { transform: translateY(40%); opacity: 0; transition-duration: 140ms; }
+.aviso p { flex: 1; font-size: 13.5px; }
+.aviso > .ic { color: var(--lb-cura); }
+
+@media (max-width: 1280px) {
+  :root { --casa: 54px; }
+  .ficha { grid-template-columns: 260px minmax(0, 1fr); }
+  .ficha__lado { grid-column: 1 / -1; }
+  .linha__abrir { grid-template-columns: 40px minmax(130px, 180px) minmax(0, 1fr) 80px; }
+}
+@media (max-width: 1100px) {
+  .acervo, .editor, .batalha { grid-template-columns: minmax(0, 1fr); }
+  .lado, .previa { position: static; }
+  .alcance { grid-template-columns: minmax(0, 1fr); }
+  .caso__lados { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .ficha { grid-template-columns: minmax(0, 1fr); }
+  .linha { grid-template-columns: minmax(0, 1fr); padding: 0 0 10px; }
+  .linha__abrir { grid-template-columns: 40px minmax(0, 1fr) 64px; }
+  .linha__resumo { grid-column: 2 / -1; }
+  .linha__acoes { padding-left: 66px; }
+  :root { --casa: 34px; }
+  .pg { padding: 20px 16px 120px; }
+  .marca span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .secao[data-entra], .efeito[data-entra], .registro li[data-entra] { animation: aparece 160ms ease; }
+  @keyframes aparece { from { opacity: 0; } }
+  .ficha-t[data-tomou], .ficha-t[data-curou] { animation: aparece 200ms ease; }
+  .numero-voa { animation: aparece-some 900ms ease forwards; }
+  @keyframes aparece-some { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
+  .acao-b__n span[data-tick] { animation: aparece 160ms ease; }
+  .aviso, .aviso[data-entrando], .aviso[data-saindo], dialog.janela, dialog.janela[data-saindo] { transform: none !important; }
+  .chave__trilho::after, .vida__barra i, .aba::after { transition: none; }
+  .bt:active:not(:disabled), .tipo:active, .acao-b:active:not(:disabled) { transform: none; }
+}
+</style>
+</head>
+<body>
+<div class="proto" role="region" aria-label="Sobre este protótipo">
+  <strong>Protótipo do novo sistema de itens</strong>
+  <span>Tudo funciona com dados de exemplo, só nesta página. Recarregar volta tudo ao começo.</span>
+  <button type="button" class="bt bt--p bt--fantasma proto__sobra" data-acao="recomecar">Voltar ao começo</button>
+</div>
+<header class="topo">
+  <div class="marca"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 3.5h17v17h-13v-9h9v5h-5"/></svg><span>Labirinto</span></div>
+  <nav class="abas" role="tablist" aria-label="Telas do protótipo">
+    <button type="button" role="tab" class="aba" id="aba-acervo" data-aba="acervo" aria-controls="tela">Acervo</button>
+    <button type="button" role="tab" class="aba" id="aba-editor" data-aba="editor" aria-controls="tela">Editor do item</button>
+    <button type="button" role="tab" class="aba" id="aba-ficha" data-aba="ficha" aria-controls="tela">Ficha</button>
+    <button type="button" role="tab" class="aba" id="aba-batalha" data-aba="batalha" aria-controls="tela">Batalha</button>
+    <button type="button" role="tab" class="aba" id="aba-comoera" data-aba="comoera" aria-controls="tela">Como era x como fica</button>
+  </nav>
+</header>
+<main class="pg" id="tela" role="tabpanel" tabindex="-1"></main>
+<dialog class="janela" id="janela-dar" aria-labelledby="dar-tit"></dialog>
+<div class="avisos" id="avisos" role="region" aria-label="Avisos (F8 leva até eles)"></div>
+<div class="sr" id="anuncio" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+/* =============================================================== utilidades */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const fmt = (n) => Number(n).toLocaleString('pt-BR');
+const pl = (n, um, varios) => (Number(n) === 1 ? um : varios);
+const limitar = (n, min, max) => Math.min(max, Math.max(min, n));
+const inteiro = (v, padrao = 0) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : padrao; };
+const semMovimento = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const cheb = (ax, ay, bx, by) => Math.max(Math.abs(ax - bx), Math.abs(ay - by));
+function juntar(lista) {
+  if (lista.length <= 1) return lista.join('');
+  return `${lista.slice(0, -1).join(', ')} e ${lista[lista.length - 1]}`;
+}
+
+const GLIFOS = {
+  pistola: '<path d="M2.5 8.5h14l1.5-1.5h3.5v3.5h-4l-1.2 1.4h-3.1l-1 2.6H9.3l-1.4 5H4.2l1.6-6.5H2.5z"/><circle cx="12.2" cy="11" r="1.1"/>',
+  bala: '<path d="M9 21V10c0-3.5 1.5-6 3-7.5 1.5 1.5 3 4 3 7.5v11z"/><path d="M9 16h6"/>',
+  foguete: '<path d="M12 2.5c3 2.5 4 6 4 9.5v6H8v-6c0-3.5 1-7 4-9.5z"/><path d="M8 14l-3 3v3l3-2M16 14l3 3v3l-3-2M10 21.5h4"/>',
+  granada: '<circle cx="12" cy="14" r="6.5"/><path d="M10 7.8V5.5h4v2.3M14 5.5l3-2.5M9 14h6M12 11v6"/>',
+  boomerang: '<path d="M3.5 7.5C7 4 10.5 5 12 9c1.5-4 5-5 8.5-1.5-3-.5-6 1-8.5 6.5C9.5 8.5 6.5 7 3.5 7.5z"/>',
+  clava: '<path d="M5 20l7-7"/><path d="M11 11.5c-1.5-3 0-7 3.5-8 3.5-.5 6.5 2.5 6 6-1 3.5-5 5-8 3.5z"/><path d="M15 6.5h.01M17.5 9h.01"/>',
+  espada: '<path d="M19.5 4.5h-3l-9.5 9.5 3 3 9.5-9.5z"/><path d="M5.5 13.5l5 5M4 20l3-3"/>',
+  pocao: '<path d="M9.5 3h5M10.5 3v5L5.8 16.2A3 3 0 0 0 8.4 21h7.2a3 3 0 0 0 2.6-4.8L13.5 8V3"/><path d="M7.5 14.5h9"/>',
+  kit: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M12 10.5v6M9 13.5h6"/>',
+  tocha: '<path d="M10 11h4l-1 10h-2z"/><path d="M12 2.5c2 2 3.5 3.8 3.5 5.5a3.5 3.5 0 0 1-7 0c0-1.2.6-2.2 1.5-3 .2 1.2.8 2 1.6 2.2C11.4 5.8 11.5 4 12 2.5z"/>',
+  armadura: '<path d="M8 3.5 4 6v5l2 1v8.5h12V12l2-1V6l-4-2.5c-.5 1.8-2 3-4 3s-3.5-1.2-4-3z"/><path d="M12 8v12"/>',
+  saco: '<path d="M9 4.5h6l-1.5 3c3.5 1.5 6 5 6 8.5 0 3-2 4.5-7.5 4.5S4.5 19 4.5 16c0-3.5 2.5-7 6-8.5z"/><path d="M10 7.5h4"/>',
+  mais: '<path d="M12 5v14M5 12h14"/>',
+  menos: '<path d="M5 12h14"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  voltar: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  desfazer: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  dar: '<rect x="3.5" y="9" width="17" height="11.5" rx="1.5"/><path d="M12 9v11.5M3.5 13h17M12 9C10 5 6.5 4.5 6.5 6.8 6.5 8.5 9.5 9 12 9zm0 0c2-4 5.5-4.5 5.5-2.2C17.5 8.5 14.5 9 12 9z"/>',
+  lapis: '<path d="M15 4.5 19.5 9 9 19.5H4.5V15z"/><path d="M13 6.5l4.5 4.5"/>',
+  busca: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
+  visto: '<path d="m5 12.5 4.5 4.5L19 7"/>',
+  luz: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>',
+  pilha: '<path d="M12 3 3 7.5 12 12l9-4.5zM3 12l9 4.5 9-4.5M3 16.5 12 21l9-4.5"/>',
+  mao: '<path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4a1.5 1.5 0 0 1 3 0v6M14 10V5.5a1.5 1.5 0 0 1 3 0V13c0 4-2.5 7.5-6.5 7.5-3 0-4.5-1.5-6-4L3 13.5a1.5 1.5 0 0 1 2.5-1.6L8 14"/>',
+};
+function glifo(nome, cls = 'ic') { return `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${GLIFOS[nome] || GLIFOS.saco}</svg>`; }
+const FOTOS = ['pistola', 'bala', 'foguete', 'granada', 'boomerang', 'clava', 'espada', 'pocao', 'kit', 'tocha', 'armadura', 'saco'];
+
+/* =============================================================== o vocabulário do sistema */
+const ATRIBUTOS = ['Força', 'Destreza', 'Agilidade', 'Percepção', 'Constituição', 'Inteligência'];
+const ACOES = ['Ação Simples', 'Ação Completa', 'Ação Livre'];
+const CONDICOES = ['Cura reduzida', 'Sangrando', 'Queimando', 'Atordoado', 'Envenenado', 'Lento'];
+const PARTES = ['Corpo', 'Cabeça', 'Mãos', 'Pés', 'Acessório'];
+const TIPOS = {
+  corpo: { nome: 'Corpo a corpo', ex: 'Espada, clava, soco-inglês', glifo: 'espada' },
+  fogo: { nome: 'De fogo', ex: 'Pistola, rifle, bazuca; também as híbridas', glifo: 'pistola' },
+  municao: { nome: 'Munição', ex: 'Balas, flechas, foguetes', glifo: 'bala' },
+  arremesso: { nome: 'Arremesso', ex: 'Granada, faca, bomba, boomerang', glifo: 'granada' },
+  consumivel: { nome: 'Consumível', ex: 'Poção, kit médico, comida', glifo: 'pocao' },
+  equipamento: { nome: 'Equipamento', ex: 'Armadura, capa, anel', glifo: 'armadura' },
+  outros: { nome: 'Outros', ex: 'Tocha, chave, mapa, lembrança', glifo: 'saco' },
+};
+const ORDEM_TIPOS = Object.keys(TIPOS);
+const EMPILHA_SOZINHO = ['municao', 'arremesso', 'consumivel'];
+const ATACA = ['corpo', 'fogo', 'arremesso'];
+const COM_ALCANCE = ['corpo', 'fogo', 'arremesso', 'consumivel'];
+const COM_ACERTO = ['corpo', 'fogo', 'municao', 'arremesso'];
+const FORMAS = {
+  alvo: { nome: 'Alvo até X casas' },
+  anel: { nome: 'Anel de X a Y' },
+  linha: { nome: 'Linha reta' },
+  cruz: { nome: 'Cruz' },
+  volta: { nome: 'Tudo em volta' },
+  explosao: { nome: 'Ponto que explode' },
+};
+const ehArea = (forma) => ['linha', 'cruz', 'volta', 'explosao'].includes(forma);
+const tamArea = (r) => `${2 * r + 1}x${2 * r + 1}`;
+
+/* =============================================================== dados de exemplo */
+function completarItem(i) {
+  return {
+    descricao: '', preco: 0, foto: TIPOS[i.tipo] ? TIPOS[i.tipo].glifo : 'saco',
+    dano: 10, soma: '', acao: 'Ação Simples', alvos: 1, capacidade: 6, aceita: [], volta: false,
+    bala: { modo: 'soma', valor: 10, atributo: 'Percepção', divisor: 2 },
+    efeitos: [], onde: { batalha: true, fora: true }, parte: 'Corpo', defesa: 2,
+    luz: { ligada: false, raio: 4 }, empilhavel: EMPILHA_SOZINHO.includes(i.tipo),
+    ...i,
+    alcance: { forma: 'alvo', a: 1, b: 1, raio: 1, ...(i.alcance || {}) },
+  };
+}
+function itensIniciais() {
+  return [
+    { id: 'rosa', nome: 'Rosa Fúnebre', tipo: 'fogo', foto: 'pistola', preco: 4800, descricao: 'Revólver de cano longo com uma rosa gravada no cabo.',
+      dano: 20, soma: 'Percepção', acao: 'Ação Simples', alvos: 1, alcance: { forma: 'alvo', a: 1, b: 6 }, capacidade: 10, aceita: ['prata', 'borracha'] },
+    { id: 'prata', nome: 'Bala de Prata', tipo: 'municao', foto: 'bala', preco: 60,
+      bala: { modo: 'atributo', valor: 15, atributo: 'Percepção', divisor: 2 },
+      efeitos: [{ tipo: 'condicao', cond: 'Cura reduzida', pct: 50, dur: 'fim' }] },
+    { id: 'borracha', nome: 'Bala de Borracha', tipo: 'municao', foto: 'bala', preco: 10,
+      bala: { modo: 'troca', valor: 5, atributo: 'Percepção', divisor: 2 }, efeitos: [{ tipo: 'empurrar', n: 1 }] },
+    { id: 'bazuca', nome: 'Bala de Bazuca', tipo: 'municao', foto: 'foguete', preco: 900,
+      bala: { modo: 'troca', valor: 40, atributo: 'Percepção', divisor: 2 }, efeitos: [{ tipo: 'empurrar', n: 2 }] },
+    { id: 'granada', nome: 'Granada', tipo: 'arremesso', foto: 'granada', preco: 300,
+      dano: 150, soma: '', acao: 'Ação Simples', alcance: { forma: 'explosao', a: 2, b: 3, raio: 1 } },
+    { id: 'boomerang', nome: 'Boomerang', tipo: 'arremesso', foto: 'boomerang', preco: 250, volta: true,
+      dano: 25, soma: 'Agilidade', acao: 'Ação Simples', alvos: 1, alcance: { forma: 'alvo', a: 1, b: 5 },
+      efeitos: [{ tipo: 'condicao', cond: 'Atordoado', pct: 50, dur: 1 }] },
+    { id: 'kit', nome: 'Kit Médico', tipo: 'consumivel', foto: 'kit', preco: 400, acao: 'Ação Completa', alcance: { forma: 'alvo', a: 0, b: 1 },
+      efeitos: [{ tipo: 'curar', modo: 'fixo', fixo: 20, dados: 2, faces: 6 }, { tipo: 'tirar', cond: 'Sangrando' }] },
+    { id: 'pocao', nome: 'Poção Pequena', tipo: 'consumivel', foto: 'pocao', preco: 150, acao: 'Ação Simples', alcance: { forma: 'alvo', a: 0, b: 1 },
+      efeitos: [{ tipo: 'curar', modo: 'dados', dados: 2, faces: 6, fixo: 10 }] },
+    { id: 'tocha', nome: 'Tocha', tipo: 'outros', foto: 'tocha', preco: 20, descricao: 'Pau com pano embebido em óleo. Dura a noite toda.', luz: { ligada: true, raio: 4 } },
+    { id: 'clava', nome: 'Clava', tipo: 'corpo', foto: 'clava', preco: 120, dano: 30, soma: 'Força', acao: 'Ação Simples', alvos: 1, alcance: { forma: 'alvo', a: 1, b: 1 },
+      efeitos: [{ tipo: 'condicao', cond: 'Atordoado', pct: 50, dur: 1 }] },
+    { id: 'couro', nome: 'Armadura de Couro', tipo: 'equipamento', foto: 'armadura', preco: 700, parte: 'Corpo', defesa: 4 },
+  ].map(completarItem);
+}
+const vaga = (itemId, qtd, extra = {}) => ({ itemId, qtd, equipado: false, aceso: false, ...extra });
+function fichasIniciais() {
+  const base = { Força: 4, Destreza: 5, Agilidade: 5, Percepção: 5, Constituição: 5, Inteligência: 5 };
+  return [
+    { id: 'vincent', nome: 'Vincent G.', npc: false, vida: 72, vidaMax: 110, berries: 1250, atrib: { ...base, Destreza: 6, Agilidade: 6, Percepção: 8 },
+      mochila: [vaga('rosa', 1, { equipado: true }), vaga('prata', 12), vaga('granada', 2), vaga('pocao', 3), vaga('kit', 1), vaga('tocha', 1), vaga('boomerang', 1)] },
+    { id: 'hector', nome: 'Hector', npc: false, vida: 98, vidaMax: 120, berries: 640, atrib: { ...base, Força: 7 },
+      mochila: [vaga('prata', 4), vaga('pocao', 2), vaga('kit', 2)] },
+    { id: 'tree', nome: 'Tree', npc: false, vida: 80, vidaMax: 90, berries: 300, atrib: { ...base, Inteligência: 8 },
+      mochila: [vaga('granada', 1), vaga('tocha', 1)] },
+    { id: 'nay', nome: 'Nay', npc: false, vida: 64, vidaMax: 85, berries: 920, atrib: { ...base, Agilidade: 8 },
+      mochila: [vaga('pocao', 1)] },
+    { id: 'cavaleiro', nome: 'Cavaleiro com Clava', npc: true, vida: 240, vidaMax: 240, berries: 0, atrib: { ...base, Força: 6, Constituição: 8 },
+      mochila: [vaga('clava', 1, { equipado: true }), vaga('couro', 1, { equipado: true }), vaga('pocao', 1)] },
+  ];
+}
+const NA_BATALHA = ['vincent', 'cavaleiro'];
+const POS_INICIAL = { vincent: [2, 3], cavaleiro: [6, 3] };
+const VIDA_INICIAL = { vincent: 72, cavaleiro: 240 };
+const COLS = 10;
+const LINHAS = 7;
+function batalhaInicial() {
+  return { pos: clone(POS_INICIAL), cond: { vincent: [], cavaleiro: [] }, pente: {}, log: [] };
+}
+
+/* =============================================================== estado e Desfazer */
+let D = null;
+let historia = [];
+let seqHist = 0;
+const UI = {
+  aba: 'acervo', sel: 'prata', filtro: 'todos', busca: '',
+  rascunho: null, sujo: false, erroNome: false, secoesAntes: null, efeitoNovo: -1, amostra: null,
+  fichaVer: 'vincent', fichaSel: 'rosa',
+  ator: 'vincent', modo: null, balaDe: {}, escolhidos: [], hoverCasa: null, visuais: [], contagens: {}, logNovo: false,
+  dar: null,
+};
+function comecar() {
+  D = { itens: itensIniciais(), fichas: fichasIniciais(), batalha: batalhaInicial() };
+  D.fichas.forEach(arrumarMochila);
+  historia = [];
+}
+const item = (id) => D.itens.find((i) => i.id === id);
+const ficha = (id) => D.fichas.find((f) => f.id === id);
+const quantos = (f, id) => f.mochila.filter((v) => v.itemId === id).reduce((a, v) => a + v.qtd, 0);
+const totalNasMochilas = (id) => D.fichas.reduce((a, f) => a + quantos(f, id), 0);
+const atrib = (f, nome) => (nome && f.atrib[nome]) || 0;
+
+/** Empilhável vira uma vaga só com a soma; o resto ocupa uma vaga por unidade. */
+function arrumarMochila(f) {
+  const nova = [];
+  for (const v of f.mochila) {
+    const it = item(v.itemId);
+    if (!it || v.qtd <= 0) continue;
+    if (it.empilhavel) {
+      const ja = nova.find((x) => x.itemId === v.itemId);
+      if (ja) { ja.qtd += v.qtd; ja.equipado = ja.equipado || v.equipado; ja.aceso = ja.aceso || v.aceso; }
+      else nova.push({ ...v });
+    } else {
+      for (let k = 0; k < v.qtd; k++) nova.push({ ...v, qtd: 1, equipado: k === 0 && v.equipado, aceso: k === 0 && v.aceso });
+    }
+  }
+  f.mochila = nova;
+}
+function poeNaMochila(f, itemId, qtd) {
+  f.mochila.push(vaga(itemId, qtd));
+  arrumarMochila(f);
+}
+/** Tira n da mochila; prefere as vagas que não estão em uso. Devolve quantos tirou. */
+function tiraDaMochila(f, itemId, n) {
+  let falta = n;
+  const vagas = f.mochila.filter((v) => v.itemId === itemId).sort((a, b) => Number(a.equipado) - Number(b.equipado));
+  for (const v of vagas) {
+    if (falta <= 0) break;
+    const sai = Math.min(v.qtd, falta);
+    v.qtd -= sai;
+    falta -= sai;
+  }
+  f.mochila = f.mochila.filter((v) => v.qtd > 0);
+  return n - falta;
+}
+
+function fazer(rotulo, fn) {
+  const antes = clone(D);
+  if (fn() === false) return null;
+  historia.push({ id: ++seqHist, rotulo, antes });
+  if (historia.length > 80) historia.shift();
+  return seqHist;
+}
+function desfazer(id) {
+  if (!historia.length) return;
+  if (id && historia[historia.length - 1].id !== id) {
+    avisar('Depois disso você fez outra coisa. Use Desfazer de novo para voltar um passo de cada vez.');
+    return;
+  }
+  const h = historia.pop();
+  D = h.antes;
+  UI.modo = null;
+  UI.escolhidos = [];
+  render();
+  avisar(`Desfeito: ${h.rotulo}.`);
+}
+
+/* =============================================================== frases (o "O que acontece") */
+const tinta = (c, t) => `<span class="tinta-${c}">${t}</span>`;
+function txtDur(d) { return d === 'fim' ? 'até o fim da batalha' : `por ${d} ${pl(d, 'turno', 'turnos')}`; }
+function txtCond(e) { return e.cond === 'Cura reduzida' ? `com Cura reduzida ${e.pct}% ${txtDur(e.dur)}` : `${e.cond} ${txtDur(e.dur)}`; }
+function txtCura(e) { return e.modo === 'dados' ? `${e.dados}d${e.faces}` : `${e.fixo}`; }
+function txtAlcance(al, consumivel) {
+  const b = al.b;
+  switch (al.forma) {
+    case 'alvo':
+      if (b <= 0) return 'só em você';
+      if (consumivel) return b === 1 ? 'em você ou em quem está a 1 casa' : `em você ou em alguém até ${b} casas`;
+      return b === 1 ? 'a 1 casa' : `até ${b} casas`;
+    case 'anel': return `de ${al.a} a ${b} casas`;
+    case 'linha': return `numa linha reta de ${b} ${pl(b, 'casa', 'casas')}`;
+    case 'cruz': return `em cruz, ${b} ${pl(b, 'casa', 'casas')} para cada lado`;
+    case 'volta': return `em tudo em volta, até ${b} ${pl(b, 'casa', 'casas')}`;
+    case 'explosao': return `num ponto ${al.a === b ? `a ${b}` : `de ${al.a} a ${b}`} casas, que explode em ${tamArea(al.raio)}`;
+    default: return '';
+  }
+}
+function txtAlcanceCurto(al, consumivel) {
+  const b = al.b;
+  switch (al.forma) {
+    case 'alvo': return b <= 0 ? 'Só você' : consumivel ? `Você ou até ${b}` : `Até ${b} ${pl(b, 'casa', 'casas')}`;
+    case 'anel': return `${al.a} a ${b} casas`;
+    case 'linha': return `Linha de ${b}`;
+    case 'cruz': return `Cruz de ${b}`;
+    case 'volta': return `Em volta, ${b}`;
+    case 'explosao': return `${al.a === b ? b : `${al.a} a ${b}`} casas, área ${tamArea(al.raio)}`;
+    default: return '';
+  }
+}
+function txtAlvos(it) { return ehArea(it.alcance.forma) ? 'todos na área' : it.alvos === 1 ? 'um alvo' : `até ${it.alvos} alvos`; }
+function ondeAcerta(it) {
+  if (ehArea(it.alcance.forma)) return `${txtAlcance(it.alcance)}; acerta todos na área`;
+  return `em ${txtAlvos(it)} ${txtAlcance(it.alcance)}`;
+}
+function txtBala(it) {
+  const b = it.bala;
+  if (b.modo === 'soma') return `Dano da arma ${tinta('dano', `+ ${b.valor}`)}`;
+  if (b.modo === 'troca') return `Troca o dano da arma para ${tinta('dano', b.valor)} (a soma da arma continua)`;
+  return `Dano da arma ${tinta('dano', `+ ${esc(b.atributo)}/${b.divisor}`)}`;
+}
+function txtBalaCurto(it) {
+  const b = it.bala;
+  if (b.modo === 'soma') return `+${b.valor}`;
+  if (b.modo === 'troca') return `Troca para ${b.valor}`;
+  return `+${b.atributo}/${b.divisor}`;
+}
+function frasesEfeitos(it, ctx) {
+  return it.efeitos.map((e) => {
+    if (e.tipo === 'condicao') return `${ctx === 'uso' ? 'Quem recebe' : 'Quem é atingido'} fica ${tinta('selo', esc(txtCond(e)))}.`;
+    if (e.tipo === 'empurrar') return `O alvo é empurrado ${tinta('selo', `${e.n} ${pl(e.n, 'casa', 'casas')}`)} para trás.`;
+    if (e.tipo === 'curar') return `Cura ${tinta('cura', `${txtCura(e)} de vida`)}.`;
+    if (e.tipo === 'tirar') return `Tira ${tinta('cura', e.cond === 'todas' ? 'todas as condições' : esc(e.cond))}.`;
+    return '';
+  });
+}
+const armasQueAceitam = (balaId) => D.itens.filter((i) => i.tipo === 'fogo' && i.aceita.includes(balaId));
+const LUGAR = { Corpo: 'no corpo', Cabeça: 'na cabeça', Mãos: 'nas mãos', Pés: 'nos pés', Acessório: 'como acessório' };
+
+/** O resumo em português claro. Sai de um item só, então é igual em todas as telas. */
+function oQueAcontece(it) {
+  const f = [];
+  const soma = it.soma ? ` + ${esc(it.soma)}` : '';
+  const nome = esc(it.nome || 'este item');
+  switch (it.tipo) {
+    case 'fogo': {
+      const balas = it.aceita.map(item).filter(Boolean).map((b) => esc(b.nome));
+      f.push(`Atira ${ondeAcerta(it)} (${esc(it.acao)}).`);
+      f.push(`Dano ${tinta('dano', `${it.dano}${soma}`)}.`);
+      f.push(`Cada tiro gasta ${tinta('gasto', '1 bala da mochila')}: ${balas.length ? `aceita ${juntar(balas)}, e o efeito da bala vale junto` : 'nenhuma munição marcada ainda'}.`);
+      f.push(`Cabem ${it.capacidade} ${pl(it.capacidade, 'tiro', 'tiros')}; depois, Recarregar.`);
+      f.push(...frasesEfeitos(it, 'acerto'));
+      break;
+    }
+    case 'corpo':
+      f.push(`Ataca ${ondeAcerta(it)} (${esc(it.acao)}).`);
+      f.push(`Dano ${tinta('dano', `${it.dano}${soma}`)}.`);
+      f.push(...frasesEfeitos(it, 'acerto'));
+      break;
+    case 'arremesso':
+      f.push(`É jogado ${ondeAcerta(it)} (${esc(it.acao)}).`);
+      f.push(`Dano ${tinta('dano', `${it.dano}${soma}`)}${ehArea(it.alcance.forma) ? ' em cada um' : ''}.`);
+      f.push(it.volta ? `Volta para a mão: ${tinta('gasto', 'não se gasta')}.` : `Gasta ${tinta('gasto', `1 ${nome}`)} da mochila a cada vez.`);
+      f.push(...frasesEfeitos(it, 'acerto'));
+      break;
+    case 'municao': {
+      f.push(`Cada tiro gasta ${tinta('gasto', `1 ${nome}`)}.`);
+      f.push(`${txtBala(it)}.`);
+      f.push(...frasesEfeitos(it, 'acerto'));
+      const armas = armasQueAceitam(it.id).map((a) => esc(a.nome));
+      f.push(armas.length ? `Serve em: ${juntar(armas)}.` : 'Nenhuma arma do Acervo aceita esta munição ainda.');
+      break;
+    }
+    case 'consumivel': {
+      f.push(`Usa-se ${txtAlcance(it.alcance, true)} (${esc(it.acao)}).`);
+      const ef = frasesEfeitos(it, 'uso');
+      f.push(...(ef.length ? ef : ['Ainda não faz nada: acrescente um efeito.']));
+      f.push(`Gasta ${tinta('gasto', `1 ${nome}`)}.`);
+      const o = it.onde;
+      f.push(o.batalha && o.fora ? 'Dá para usar dentro e fora da batalha.' : o.batalha ? 'Só dá para usar na batalha.' : o.fora ? 'Só dá para usar fora da batalha.' : 'Marque onde dá para usar.');
+      break;
+    }
+    case 'equipamento':
+      f.push(`Vestido ${LUGAR[it.parte] || 'no corpo'}: Defesa ${tinta('dano', `+${it.defesa}`)}, tira ${it.defesa} de cada dano recebido.`);
+      break;
+    default:
+      f.push('Sem regra de batalha: vale a descrição.');
+  }
+  if (it.luz.ligada) f.push(`Aceso, ilumina ${tinta('gasto', `${it.luz.raio} ${pl(it.luz.raio, 'casa', 'casas')}`)} em volta de quem carrega.`);
+  return f.filter(Boolean).join(' ');
+}
+const semTags = (html) => html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
+/* =============================================================== alcance: quais casas acendem */
+function raioDaGrade(al) {
+  const alcance = al.forma === 'explosao' ? al.b + al.raio : al.b;
+  return limitar(alcance, 2, 7);
+}
+function amostraPadrao(al) {
+  if (al.forma === 'explosao') return [al.b, 0];
+  if (al.forma === 'linha') return [1, 0];
+  return null;
+}
+/** Casas em volta de quem usa: 'alc' = dá para escolher, 'area' = é atingida, 'voce' = quem usa. */
+function casasDoAlcance(al, R, amostra, incluiVoce) {
+  const m = new Map();
+  for (let y = -R; y <= R; y++) {
+    for (let x = -R; x <= R; x++) {
+      const d = Math.max(Math.abs(x), Math.abs(y));
+      let c = null;
+      if (al.forma === 'alvo' && d <= al.b && d >= (incluiVoce ? 0 : 1)) c = 'alc';
+      if (al.forma === 'anel' && d >= al.a && d <= al.b) c = 'alc';
+      if (al.forma === 'linha' && (x === 0 || y === 0) && d >= 1 && d <= al.b) c = 'alc';
+      if (al.forma === 'cruz' && (x === 0 || y === 0) && d >= 1 && d <= al.b) c = 'area';
+      if (al.forma === 'volta' && d >= 1 && d <= al.b) c = 'area';
+      if (al.forma === 'explosao' && d >= al.a && d <= al.b) c = 'alc';
+      if (c) m.set(`${x},${y}`, c);
+    }
+  }
+  const am = amostra || amostraPadrao(al);
+  if (am && al.forma === 'explosao') {
+    for (let y = am[1] - al.raio; y <= am[1] + al.raio; y++) for (let x = am[0] - al.raio; x <= am[0] + al.raio; x++) if (Math.abs(x) <= R && Math.abs(y) <= R) m.set(`${x},${y}`, 'area');
+  }
+  if (am && al.forma === 'linha') {
+    const sx = Math.sign(am[0]);
+    const sy = Math.sign(am[1]);
+    for (let k = 1; k <= al.b; k++) if (Math.abs(sx * k) <= R && Math.abs(sy * k) <= R) m.set(`${sx * k},${sy * k}`, 'area');
+  }
+  m.set('0,0', 'voce');
+  return m;
+}
+/** A grade pequena desenhada no cartão de papel. */
+function svgAlcance(it) {
+  const al = it.alcance;
+  const R = raioDaGrade(al);
+  const n = 2 * R + 1;
+  const t = 100 / n;
+  const m = casasDoAlcance(al, R, null, it.tipo === 'consumivel');
+  const cores = { alc: '#d9c08d', area: '#b5802c', voce: '#2c5578' };
+  let r = '';
+  for (let y = -R; y <= R; y++) {
+    for (let x = -R; x <= R; x++) {
+      const c = m.get(`${x},${y}`);
+      const px = (x + R) * t + 0.6;
+      const py = (y + R) * t + 0.6;
+      const w = t - 1.2;
+      if (c === 'voce') r += `<circle cx="${px + w / 2}" cy="${py + w / 2}" r="${w / 2.4}" fill="${cores.voce}"/>`;
+      else r += `<rect x="${px}" y="${py}" width="${w}" height="${w}" rx="0.8" fill="${c ? cores[c] : 'rgba(42,33,25,0.08)'}"/>`;
+    }
+  }
+  return `<svg viewBox="0 0 100 100" role="img" aria-label="Grade do alcance: ${esc(txtAlcanceCurto(al, it.tipo === 'consumivel'))}">${r}</svg>`;
+}
+/** Ícone de cada forma no editor (grade 7x7 com o exemplo aceso). */
+function svgForma(forma) {
+  const exemplos = { alvo: { a: 1, b: 2 }, anel: { a: 2, b: 3 }, linha: { a: 1, b: 3 }, cruz: { a: 1, b: 2 }, volta: { a: 1, b: 1 }, explosao: { a: 2, b: 2, raio: 1 } };
+  const al = { forma, raio: 1, ...exemplos[forma] };
+  const R = 3;
+  const m = casasDoAlcance(al, R, forma === 'explosao' ? [2, -1] : null, false);
+  let r = '';
+  for (let y = -R; y <= R; y++) {
+    for (let x = -R; x <= R; x++) {
+      const c = m.get(`${x},${y}`);
+      const fill = c === 'voce' ? 'var(--lb-agua)' : c === 'area' ? 'var(--lb-latao)' : c === 'alc' ? 'rgba(224,168,75,0.38)' : 'rgba(239,230,212,0.07)';
+      r += `<rect x="${(x + R) * 14 + 1}" y="${(y + R) * 14 + 1}" width="12" height="12" rx="2" fill="${fill}"/>`;
+    }
+  }
+  return `<svg viewBox="0 0 98 98" aria-hidden="true">${r}</svg>`;
+}
+
+/* =============================================================== desenho geral */
+const capitalizar = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+const EFEITOS_DE = { acerto: ['condicao', 'empurrar'], uso: ['curar', 'tirar', 'condicao'] };
+const ctxDoTipo = (t) => (COM_ACERTO.includes(t) ? 'acerto' : t === 'consumivel' ? 'uso' : null);
+function efeitosValidos(it) {
+  const ctx = ctxDoTipo(it.tipo);
+  return ctx ? it.efeitos.filter((e) => EFEITOS_DE[ctx].includes(e.tipo)) : [];
+}
+
+function comFoco(fn) {
+  const a = document.activeElement;
+  const k = a && a.dataset ? a.dataset.k : null;
+  let ss = null;
+  let se = null;
+  try { ss = a.selectionStart; se = a.selectionEnd; } catch (e) { ss = null; }
+  fn();
+  if (!k) return;
+  const n = document.querySelector(`[data-k="${CSS.escape(k)}"]`);
+  if (!n) return;
+  n.focus({ preventScroll: true });
+  if (ss != null) { try { n.setSelectionRange(ss, se); } catch (e) { /* campo de número não tem seleção */ } }
+}
+
+function render() {
+  $$('.aba').forEach((b) => {
+    const sel = b.dataset.aba === UI.aba;
+    b.setAttribute('aria-selected', String(sel));
+    b.tabIndex = sel ? 0 : -1;
+  });
+  marcarAbaDoEditor();
+  $('#tela').setAttribute('aria-labelledby', `aba-${UI.aba}`);
+  const telas = { acervo: telaAcervo, editor: telaEditor, ficha: telaFicha, batalha: telaBatalha, comoera: telaComoEra };
+  comFoco(() => { $('#tela').innerHTML = telas[UI.aba](); });
+  if (UI.aba === 'batalha') depoisDaBatalha();
+  if (UI.dar) renderDar();
+}
+function marcarAbaDoEditor() {
+  $('#aba-editor').innerHTML = `Editor do item${UI.sujo ? '<span class="aba__ponto" aria-hidden="true"></span><span class="sr"> (mudanças não salvas)</span>' : ''}`;
+}
+function irPara(aba) {
+  UI.aba = aba;
+  UI.modo = null;
+  UI.escolhidos = [];
+  render();
+  window.scrollTo({ top: 0 });
+}
+
+/* =============================================================== o cartão de papel */
+function numerosDoCartao(it) {
+  const cons = it.tipo === 'consumivel';
+  if (ATACA.includes(it.tipo)) {
+    const n = [
+      ['Dano', `${it.dano}${it.soma ? ` + ${esc(it.soma)}` : ''}`],
+      ['Ação', esc(it.acao)],
+      ['Alvos', ehArea(it.alcance.forma) ? 'Todos na área' : String(it.alvos)],
+      ['Alcance', esc(txtAlcanceCurto(it.alcance))],
+    ];
+    if (it.tipo === 'fogo') n.push(['Pente', `${it.capacidade} ${pl(it.capacidade, 'tiro', 'tiros')}`]);
+    return n;
+  }
+  if (it.tipo === 'municao') return [['Dano da bala', esc(txtBalaCurto(it))]];
+  if (cons) return [['Ação', esc(it.acao)], ['Alcance', esc(txtAlcanceCurto(it.alcance, true))]];
+  if (it.tipo === 'equipamento') return [['Veste', esc(it.parte)], ['Defesa', `+${it.defesa}`]];
+  return [];
+}
+function cartao(it) {
+  if (!it.tipo) return '<div class="vazio">O cartão aparece quando você escolher o tipo.</div>';
+  const cons = it.tipo === 'consumivel';
+  const nums = numerosDoCartao(it);
+  const selos = [];
+  if (it.empilhavel) selos.push('<span class="papel__selo">Empilha</span>');
+  if ((it.tipo === 'arremesso' && !it.volta) || EMPILHA_SOZINHO.includes(it.tipo) && it.tipo !== 'arremesso') selos.push('<span class="papel__selo">Se gasta</span>');
+  if (it.luz.ligada) selos.push(`<span class="papel__selo" data-c="luz">Ilumina ${it.luz.raio} ${pl(it.luz.raio, 'casa', 'casas')}</span>`);
+  return `<article class="papel" aria-label="Cartão de ${esc(it.nome || 'item sem nome')}">
+    <div class="papel__topo"><span class="papel__foto">${glifo(it.foto)}</span><div><h3 class="papel__nome">${esc(it.nome || 'Sem nome')}</h3><p class="papel__tipo">${TIPOS[it.tipo].nome}</p></div><span class="papel__preco num">${fmt(it.preco)} berries</span></div>
+    <p class="papel__rot">O que acontece</p>
+    <p class="papel__frase">${oQueAcontece(it)}</p>
+    ${nums.length ? `<dl class="papel__numeros">${nums.map(([t, v]) => `<div><dt>${t}</dt><dd>${v}</dd></div>`).join('')}</dl>` : ''}
+    ${COM_ALCANCE.includes(it.tipo) ? `<div class="papel__grade">${svgAlcance(it)}<p>${esc(capitalizar(txtAlcance(it.alcance, cons)))}. Azul é quem usa; dourado, onde alcança.</p></div>` : ''}
+    ${selos.length ? `<div class="papel__selos">${selos.join('')}</div>` : ''}
+    ${it.descricao ? `<p class="papel__desc">${esc(it.descricao)}</p>` : ''}
+  </article>`;
+}
+
+/* =============================================================== A) Acervo */
+function telaAcervo() {
+  const busca = UI.busca.trim().toLowerCase();
+  const doTipo = (t) => D.itens.filter((i) => t === 'todos' || i.tipo === t);
+  const lista = doTipo(UI.filtro).filter((i) => !busca || i.nome.toLowerCase().includes(busca) || semTags(oQueAcontece(i)).toLowerCase().includes(busca));
+  if (!item(UI.sel)) UI.sel = D.itens[0] ? D.itens[0].id : null;
+  const sel = item(UI.sel);
+  const filtros = ['todos', ...ORDEM_TIPOS].map((t) => `<button type="button" class="filtro" data-acao="filtro" data-v="${t}" data-k="filtro-${t}" aria-pressed="${UI.filtro === t}">${t === 'todos' ? 'Todos' : `${glifo(TIPOS[t].glifo)}${TIPOS[t].nome}`} <b>${doTipo(t).length}</b></button>`).join('');
+  let corpo = lista.map(linhaAcervo).join('');
+  if (!lista.length) {
+    corpo = busca
+      ? `<li class="vazio"><p>Nenhum item com “${esc(UI.busca.trim())}”${UI.filtro !== 'todos' ? ` em ${TIPOS[UI.filtro].nome}` : ''}.</p><button type="button" class="bt bt--p" data-acao="limpar-busca" data-k="limpar">Limpar a busca</button></li>`
+      : `<li class="vazio"><p>Ainda não há ${TIPOS[UI.filtro].nome} no Acervo.</p><button type="button" class="bt bt--p bt--latao" data-acao="novo" data-v="${UI.filtro}" data-k="novo-vazio">${glifo('mais')}Criar ${TIPOS[UI.filtro].nome}</button></li>`;
+  }
+  return `
+  <div class="pg-cab">
+    <div class="pg-cab__txt"><h1 class="pg-titulo">Acervo do mestre</h1><p class="pg-sub">Cada item do jogo existe uma vez só, aqui. Daqui você cria, edita e dá para as fichas.</p></div>
+    <div class="pg-acoes"><button type="button" class="bt bt--primario" data-acao="novo" data-k="novo">${glifo('mais')}Novo item</button></div>
+  </div>
+  <div class="acervo">
+    <section aria-label="Itens do Acervo">
+      <div class="barra">
+        <div class="busca">${glifo('busca')}<label class="sr" for="busca">Buscar no Acervo</label><input id="busca" class="entrada" type="search" placeholder="Buscar pelo nome ou pelo que faz" value="${esc(UI.busca)}" data-k="busca" autocomplete="off"><kbd aria-hidden="true">/</kbd></div>
+        <span class="nota">${lista.length} de ${D.itens.length} ${pl(D.itens.length, 'item', 'itens')}</span>
+      </div>
+      <div class="filtros" role="group" aria-label="Mostrar só um tipo">${filtros}</div>
+      <ul class="lista">${corpo}</ul>
+    </section>
+    <aside class="lado" aria-label="Item escolhido">${sel ? ladoAcervo(sel) : ''}</aside>
+  </div>`;
+}
+function linhaAcervo(i) {
+  const n = totalNasMochilas(i.id);
+  const s = i.id === UI.sel;
+  return `<li class="linha" data-sel="${s}">
+    <button type="button" class="linha__abrir" data-acao="selecionar" data-id="${i.id}" data-k="sel-${i.id}" aria-pressed="${s}">
+      <span class="medalhao">${glifo(i.foto)}</span>
+      <span class="linha__nome"><strong>${esc(i.nome)}</strong><span class="etiqueta">${TIPOS[i.tipo].nome}</span></span>
+      <span class="linha__resumo">${esc(semTags(oQueAcontece(i)))}</span>
+      <span class="linha__qtd"><b class="num">${n}</b>nas mochilas</span>
+    </button>
+    <div class="linha__acoes">
+      <button type="button" class="bt bt--p" data-acao="editar" data-id="${i.id}" data-k="ed-${i.id}" aria-label="Editar ${esc(i.nome)}">${glifo('lapis')}Editar</button>
+      <button type="button" class="bt bt--p bt--latao" data-acao="dar" data-id="${i.id}" data-k="dar-${i.id}" aria-label="Dar ${esc(i.nome)} a...">${glifo('dar')}Dar a...</button>
+    </div>
+  </li>`;
+}
+function ladoAcervo(it) {
+  const donos = D.fichas.filter((f) => quantos(f, it.id) > 0);
+  const quem = donos.length
+    ? `<ul class="quem-tem">${donos.map((f) => `<li><span>${esc(f.nome)} <small>${f.npc ? 'NPC' : 'Jogador'}</small></span><b class="num">${quantos(f, it.id)}</b></li>`).join('')}</ul>`
+    : '<p class="nota">Ninguém tem ainda. Use Dar a... para pôr nas mochilas.</p>';
+  return `${cartao(it)}
+    <div class="lado__acoes">
+      <button type="button" class="bt" data-acao="editar" data-id="${it.id}" data-k="lado-ed">${glifo('lapis')}Editar</button>
+      <button type="button" class="bt bt--primario" data-acao="dar" data-id="${it.id}" data-k="lado-dar">${glifo('dar')}Dar a...</button>
+    </div>
+    <div class="painel"><div class="painel__cab"><h2 class="painel__tit">Nas mochilas</h2><span class="painel__sub num">${totalNasMochilas(it.id)} no total</span></div><div class="painel__corpo">${quem}</div></div>`;
+}
+
+/* =============================================================== B) Editor do item */
+function abrirEditor(id, tipoNovo) {
+  const antes = UI.sujo && UI.rascunho ? { rascunho: clone(UI.rascunho), editId: UI.editId } : null;
+  if (id) {
+    UI.rascunho = clone(item(id));
+    UI.editId = id;
+    UI.sel = id;
+  } else {
+    UI.rascunho = completarItem({ id: null, nome: '', tipo: tipoNovo || null, preco: 0 });
+    if (tipoNovo) aplicarTipo(UI.rascunho, tipoNovo, null);
+    UI.editId = null;
+  }
+  UI.sujo = false;
+  UI.erroNome = false;
+  UI.secoesAntes = null;
+  UI.amostra = null;
+  irPara('editor');
+  if (antes && (antes.editId !== UI.editId || !id)) {
+    const nome = antes.rascunho.nome || 'item novo';
+    avisar(`Mudanças em ${nome} ficaram de fora.`, { rotulo: 'Voltar a elas', acao: () => { UI.rascunho = antes.rascunho; UI.editId = antes.editId; UI.sujo = true; irPara('editor'); } });
+  }
+  const alvo = id ? '#ed-nome' : '.tipo[aria-checked="true"], .tipo';
+  const n = $(alvo);
+  if (n) n.focus({ preventScroll: true });
+}
+function aplicarTipo(r, t, anterior) {
+  r.tipo = t;
+  if (EMPILHA_SOZINHO.includes(t)) r.empilhavel = true;
+  else if (anterior && EMPILHA_SOZINHO.includes(anterior)) r.empilhavel = false;
+  if (!anterior || r.foto === TIPOS[anterior].glifo) r.foto = TIPOS[t].glifo;
+  if (t === 'consumivel' && r.alcance.forma === 'alvo' && anterior !== 'consumivel') r.alcance.a = 0;
+}
+const SECOES_DO_TIPO = {
+  corpo: ['tipo', 'nome', 'regra', 'efeitos', 'opcoes', 'descricao'],
+  fogo: ['tipo', 'nome', 'regra', 'municao', 'efeitos', 'opcoes', 'descricao'],
+  arremesso: ['tipo', 'nome', 'regra', 'efeitos', 'opcoes', 'descricao'],
+  municao: ['tipo', 'nome', 'regra', 'efeitos', 'opcoes', 'descricao'],
+  consumivel: ['tipo', 'nome', 'regra', 'efeitos', 'opcoes', 'descricao'],
+  equipamento: ['tipo', 'nome', 'regra', 'opcoes', 'descricao'],
+  outros: ['tipo', 'nome', 'descricao', 'opcoes'],
+};
+function telaEditor() {
+  if (!UI.rascunho) {
+    UI.rascunho = clone(item(UI.sel) || D.itens[0]);
+    UI.editId = UI.rascunho.id;
+  }
+  const r = UI.rascunho;
+  const novo = !UI.editId;
+  const secoes = r.tipo ? SECOES_DO_TIPO[r.tipo] : ['tipo'];
+  const chaves = secoes.map((s) => (s === 'regra' || s === 'efeitos' ? `${s}-${r.tipo}` : s));
+  const antes = UI.secoesAntes;
+  UI.secoesAntes = new Set(chaves);
+  const entra = (k) => (antes && !antes.has(k) ? ' data-entra' : '');
+  const partes = {
+    tipo: secaoTipo,
+    nome: secaoNome,
+    regra: secaoRegra,
+    municao: secaoMunicao,
+    efeitos: secaoEfeitos,
+    opcoes: secaoOpcoes,
+    descricao: secaoDescricao,
+  };
+  const form = secoes.map((s, i) => partes[s](r, entra(chaves[i]))).join('');
+  const titulo = novo ? 'Item novo' : `Editar ${esc(item(UI.editId) ? item(UI.editId).nome : r.nome)}`;
+  return `
+  <div class="pg-cab">
+    <div class="pg-cab__txt">
+      <button type="button" class="bt bt--fantasma bt--p" data-acao="aba" data-v="acervo" data-k="voltar-acervo">${glifo('voltar')}Acervo</button>
+      <h1 class="pg-titulo" style="margin-top:6px">${titulo}</h1>
+      <p class="pg-sub">Escolha o que o item é: só aparecem os campos daquele tipo. O cartão ao lado mostra como ele vai ficar.</p>
+    </div>
+    <div class="pg-acoes">
+      <span class="nota" id="ed-estado" ${UI.sujo ? '' : 'hidden'}>Mudanças não salvas</span>
+      <button type="button" class="bt" id="ed-descartar" data-acao="descartar" data-k="descartar" ${UI.sujo ? '' : 'hidden'}>Descartar mudanças</button>
+      ${novo ? '' : `<button type="button" class="bt bt--latao" data-acao="dar" data-id="${UI.editId}" data-k="ed-dar">${glifo('dar')}Dar a...</button>`}
+      <button type="button" class="bt bt--primario" data-acao="salvar" data-k="salvar">${glifo('visto')}Salvar</button>
+    </div>
+  </div>
+  <div class="editor">
+    <form class="editor__form" id="form-item" novalidate onsubmit="return false">${form}</form>
+    <aside class="previa" aria-label="Prévia do cartão">
+      <p class="previa__rot">Prévia do cartão, ao vivo</p>
+      <div id="previa-cartao">${cartao(r)}</div>
+      <p class="nota">É este mesmo cartão que aparece no Acervo, na ficha e na batalha. Não existe outra cópia.</p>
+    </aside>
+  </div>`;
+}
+function secao(id, tit, sub, corpo, entra) {
+  return `<section class="secao" data-secao="${id}"${entra} aria-labelledby="sec-${id}"><div class="secao__cab"><h2 class="secao__tit" id="sec-${id}">${tit}</h2>${sub ? `<p class="secao__sub">${sub}</p>` : ''}</div>${corpo}</section>`;
+}
+function secaoTipo(r, entra) {
+  const cartoes = ORDEM_TIPOS.map((t) => `<button type="button" role="radio" class="tipo" aria-checked="${r.tipo === t}" tabindex="${r.tipo === t || (!r.tipo && t === 'corpo') ? 0 : -1}" data-acao="tipo" data-v="${t}" data-k="tipo-${t}"><span class="tipo__visto">${glifo('visto')}</span><span class="medalhao">${glifo(TIPOS[t].glifo)}</span><span class="tipo__nome">${TIPOS[t].nome}</span><span class="tipo__ex">${TIPOS[t].ex}</span></button>`).join('');
+  const sub = r.tipo ? 'O tipo decide os campos. Trocar de tipo esconde o que não serve, sem apagar.' : 'Escolha um tipo para ver os campos.';
+  return secao('tipo', 'O que é este item?', sub, `<div class="tipos" role="radiogroup" aria-labelledby="sec-tipo">${cartoes}</div>`, entra);
+}
+function campoNum(rot, campo, valor, { min = 0, max = 999, passo = 1, ajuda = '' } = {}) {
+  const id = `ed-${campo.replace(/\./g, '-')}`;
+  return `<div class="campo"><label for="${id}">${rot}</label><input id="${id}" class="entrada entrada--num" type="number" inputmode="numeric" min="${min}" max="${max}" step="${passo}" value="${valor}" data-campo="${campo}" data-num data-k="${id}">${ajuda ? `<span class="campo__ajuda">${ajuda}</span>` : ''}</div>`;
+}
+function campoEscolha(rot, campo, valor, opcoes, ajuda = '') {
+  const id = `ed-${campo.replace(/\./g, '-')}`;
+  const ops = opcoes.map((o) => (Array.isArray(o) ? o : [o, o])).map(([v, t]) => `<option value="${esc(v)}"${String(v) === String(valor) ? ' selected' : ''}>${esc(t)}</option>`).join('');
+  return `<div class="campo"><label for="${id}">${rot}</label><select id="${id}" class="entrada" data-campo="${campo}" data-k="${id}">${ops}</select>${ajuda ? `<span class="campo__ajuda">${ajuda}</span>` : ''}</div>`;
+}
+function secaoNome(r, entra) {
+  const fotos = FOTOS.map((f) => `<button type="button" role="radio" class="foto-op" aria-checked="${r.foto === f}" tabindex="${r.foto === f ? 0 : -1}" aria-label="Foto: ${f}" data-acao="foto" data-v="${f}" data-k="foto-${f}">${glifo(f)}</button>`).join('');
+  const erro = UI.erroNome ? '<span class="campo__erro" id="ed-nome-erro">Dê um nome ao item para salvar.</span>' : '';
+  return secao('nome', 'Nome, foto e preço', '', `<div class="grade-campos">
+    <div class="campo" style="grid-column: span 2"><label for="ed-nome">Nome</label><input id="ed-nome" class="entrada" type="text" maxlength="40" value="${esc(r.nome)}" placeholder="Ex.: Bala de Prata" data-campo="nome" data-k="ed-nome" ${UI.erroNome ? 'aria-invalid="true" aria-describedby="ed-nome-erro"' : ''}>${erro}</div>
+    ${campoNum('Preço (berries)', 'preco', r.preco, { max: 999999, passo: 10 })}
+    <div class="campo largo"><span class="campo__rot" id="rot-foto">Foto</span><div class="fotos" role="radiogroup" aria-labelledby="rot-foto">${fotos}</div></div>
+  </div>`, entra);
+}
+function secaoRegra(r, entra) {
+  const somaOps = [['', 'Nada'], ...ATRIBUTOS.map((a) => [a, a])];
+  if (ATACA.includes(r.tipo)) {
+    const area = ehArea(r.alcance.forma);
+    const alvos = area
+      ? '<div class="campo"><span class="campo__rot">Alvos</span><p style="min-height:36px;display:flex;align-items:center">Todos na área</p><span class="campo__ajuda">Vem da forma do alcance.</span></div>'
+      : campoNum('Alvos', 'alvos', r.alvos, { min: 1, max: 6 });
+    const volta = r.tipo === 'arremesso' ? `<div class="opcao" style="margin-top:16px">${chave('volta', r.volta, 'Volta para a mão', r.volta ? 'Como um boomerang: não sai da mochila.' : 'Desligado: cada um que é jogado sai da mochila.')}</div>` : '';
+    const tit = r.tipo === 'arremesso' ? 'Como é jogado' : 'Como ataca';
+    return secao('regra', tit, 'Dano, ação, alvos e alcance ficam só aqui, uma vez.', `<div class="grade-campos">
+      ${campoNum('Dano', 'dano', r.dano, { max: 9999 })}
+      ${campoEscolha('Soma no ataque', 'soma', r.soma, somaOps)}
+      ${campoEscolha('Ação', 'acao', r.acao, ACOES)}
+      ${alvos}
+    </div>${editorAlcance(r)}${volta}`, entra);
+  }
+  if (r.tipo === 'municao') {
+    const b = r.bala;
+    const modos = [['soma', 'Soma ao dano da arma'], ['troca', 'Troca o dano da arma'], ['atributo', 'Soma um atributo']];
+    const seg = `<div class="seg" role="radiogroup" aria-label="Como a bala mexe no dano">${modos.map(([v, t]) => `<button type="button" role="radio" aria-checked="${b.modo === v}" tabindex="${b.modo === v ? 0 : -1}" data-acao="bala-modo" data-v="${v}" data-k="bala-${v}">${t}</button>`).join('')}</div>`;
+    let campos = '';
+    if (b.modo === 'soma') campos = campoNum('Quanto soma', 'bala.valor', b.valor, { max: 9999, ajuda: 'Ex.: +15 em cima do dano da arma.' });
+    if (b.modo === 'troca') campos = campoNum('Dano novo', 'bala.valor', b.valor, { max: 9999, ajuda: 'Ex.: 40. O dano da arma é trocado por este.' });
+    if (b.modo === 'atributo') campos = `${campoEscolha('Atributo', 'bala.atributo', b.atributo, ATRIBUTOS)}${campoNum('Dividido por', 'bala.divisor', b.divisor, { min: 1, max: 10, ajuda: 'Ex.: Percepção / 2.' })}`;
+    const armas = armasQueAceitam(r.id).map((a) => esc(a.nome));
+    const serve = armas.length ? `Serve em: ${juntar(armas)}.` : 'Nenhuma arma aceita esta munição ainda.';
+    return secao('regra', 'Dano da bala', 'Ação, alvos e alcance vêm da arma que atira. Aqui fica só o que a bala muda.', `${seg}<div class="grade-campos" style="margin-top:14px">${campos}</div><p class="nota" style="margin-top:12px">${serve} Para uma arma aceitar, marque a bala no cartão da arma.</p>`, entra);
+  }
+  if (r.tipo === 'consumivel') {
+    return secao('regra', 'Como usa', 'Ação e alcance ficam só aqui. O que ele faz vai em Ao usar, logo abaixo.', `<div class="grade-campos">
+      ${campoEscolha('Ação na batalha', 'acao', r.acao, ACOES)}
+      <div class="campo"><span class="campo__rot">Onde dá para usar</span>
+        <label class="marca-caixa"><input type="checkbox" data-ch="onde.batalha" data-k="onde-b" ${r.onde.batalha ? 'checked' : ''}> Na batalha</label>
+        <label class="marca-caixa"><input type="checkbox" data-ch="onde.fora" data-k="onde-f" ${r.onde.fora ? 'checked' : ''}> Fora da batalha</label>
+      </div>
+    </div>${editorAlcance(r)}`, entra);
+  }
+  if (r.tipo === 'equipamento') {
+    return secao('regra', 'Como veste', 'Só vale enquanto está equipado na ficha.', `<div class="grade-campos">
+      ${campoEscolha('Onde veste', 'parte', r.parte, PARTES)}
+      ${campoNum('Defesa', 'defesa', r.defesa, { max: 99, ajuda: 'Tira isso de cada dano recebido.' })}
+    </div>`, entra);
+  }
+  return '';
+}
+function editorAlcance(r) {
+  const al = r.alcance;
+  const cons = r.tipo === 'consumivel';
+  const formas = Object.keys(FORMAS).map((f) => `<button type="button" role="radio" class="forma" aria-checked="${al.forma === f}" tabindex="${al.forma === f ? 0 : -1}" data-acao="forma" data-v="${f}" data-k="forma-${f}">${svgForma(f)}<span>${FORMAS[f].nome}</span></button>`).join('');
+  let nums = '';
+  const minB = cons ? 0 : 1;
+  if (al.forma === 'alvo') nums = campoNum('Até quantas casas', 'alcance.b', al.b, { min: minB, max: 12, ajuda: cons ? '0 = só em você.' : '' });
+  if (al.forma === 'anel') nums = `${campoNum('De', 'alcance.a', al.a, { min: 1, max: 12 })}${campoNum('Até', 'alcance.b', al.b, { min: 1, max: 12 })}`;
+  if (['linha', 'cruz', 'volta'].includes(al.forma)) nums = campoNum('Casas', 'alcance.b', al.b, { min: 1, max: 12 });
+  if (al.forma === 'explosao') nums = `${campoNum('Ponto de', 'alcance.a', al.a, { min: 0, max: 12 })}${campoNum('Até', 'alcance.b', al.b, { min: 0, max: 12 })}${campoEscolha('Área', 'alcance.raio', al.raio, [[1, '3x3'], [2, '5x5']])}`;
+  return `<div class="alcance">
+    <div><span class="campo__rot" id="rot-forma">Alcance</span>
+      <div class="formas" role="radiogroup" aria-labelledby="rot-forma">${formas}</div>
+      <div class="alcance__nums">${nums}</div>
+    </div>
+    <div id="grade-alc">${gradeAlcance(r)}</div>
+  </div>`;
+}
+function amostraValida(al) {
+  const a = UI.amostra;
+  if (!a) return null;
+  const d = Math.max(Math.abs(a[0]), Math.abs(a[1]));
+  if (al.forma === 'explosao' && d >= al.a && d <= al.b) return a;
+  if (al.forma === 'linha' && (a[0] === 0 || a[1] === 0) && d >= 1 && d <= al.b) return a;
+  return null;
+}
+function gradeAlcance(r) {
+  const al = { ...r.alcance, a: Math.max(0, r.alcance.a), b: Math.max(0, r.alcance.b) };
+  if (al.forma === 'anel' || al.forma === 'explosao') al.a = Math.min(al.a, al.b);
+  const R = raioDaGrade(al);
+  const n = 2 * R + 1;
+  const cons = r.tipo === 'consumivel';
+  const m = casasDoAlcance(al, R, amostraValida(al), cons);
+  const escolhe = al.forma === 'explosao' || al.forma === 'linha';
+  let celulas = '';
+  for (let y = -R; y <= R; y++) {
+    for (let x = -R; x <= R; x++) {
+      const c = m.get(`${x},${y}`) || '';
+      const podeClicar = escolhe && (c === 'alc' || (c === 'area' && Math.max(Math.abs(x), Math.abs(y)) >= (al.forma === 'linha' ? 1 : al.a) && Math.max(Math.abs(x), Math.abs(y)) <= al.b && (al.forma !== 'linha' || x === 0 || y === 0)));
+      celulas += podeClicar
+        ? `<button type="button" class="grade-alc__c" data-c="${c}" data-acao="amostra" data-x="${x}" data-y="${y}" aria-label="Ver ${al.forma === 'linha' ? 'a linha' : 'a explosão'} nesta casa"></button>`
+        : `<span class="grade-alc__c" data-c="${c}"></span>`;
+    }
+  }
+  const dica = al.forma === 'explosao' ? 'Toque numa casa clara para ver a explosão ali.' : al.forma === 'linha' ? 'Toque numa casa clara para ver a linha daquele lado.' : ehArea(al.forma) ? 'Tudo o que está aceso é atingido.' : 'Dá para escolher qualquer casa acesa.';
+  return `<div class="grade-alc" style="grid-template-columns:repeat(${n},1fr)" role="group" aria-label="Grade do alcance">${celulas}</div>
+    <p class="grade-alc__leg"><i style="background:var(--lb-agua)"></i>Quem usa <i style="background:rgba(224,168,75,0.3);margin-left:8px"></i>Alcança <i style="background:var(--lb-latao);margin-left:8px"></i>É atingido</p>
+    <p class="grade-alc__leg">${dica}</p>`;
+}
+function secaoMunicao(r, entra) {
+  const balas = D.itens.filter((i) => i.tipo === 'municao');
+  const lista = balas.length
+    ? balas.map((b) => `<label class="marca-caixa" style="padding:6px 0"><input type="checkbox" data-ch="aceita" value="${b.id}" data-k="aceita-${b.id}" ${r.aceita.includes(b.id) ? 'checked' : ''}><span>${esc(b.nome)} <small class="nota">${esc(txtBalaCurto(b))}</small></span></label>`).join('')
+    : '<p class="nota">Nenhuma munição no Acervo ainda. Crie uma com Novo item, tipo Munição.</p>';
+  return secao('municao', 'Munição', 'Só diz quais balas servem. A quantidade de balas mora na mochila de quem tem a arma.', `<div class="grade-campos">
+    ${campoNum('Capacidade', 'capacidade', r.capacidade, { min: 1, max: 99, ajuda: 'Tiros antes de Recarregar.' })}
+    <div class="campo largo"><span class="campo__rot">Munições que aceita</span><div style="display:grid">${lista}</div></div>
+  </div>`, entra);
+}
+function linhaEfeito(e, i, ctx, entra) {
+  const tirar = `<button type="button" class="bt bt--fantasma bt--ic efeito__tirar" data-acao="tirar-efeito" data-i="${i}" data-k="ef-x-${i}" aria-label="Tirar este efeito">${glifo('x')}</button>`;
+  const sel = (p, valor, ops, rot) => `<select class="entrada" data-ef="${i}" data-p="${p}" data-k="ef-${i}-${p}" aria-label="${rot}">${ops.map((o) => (Array.isArray(o) ? o : [o, o])).map(([v, t]) => `<option value="${esc(v)}"${String(v) === String(valor) ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+  const num = (p, valor, rot, min, max) => `<input class="entrada entrada--num entrada--pequena" type="number" min="${min}" max="${max}" value="${valor}" data-ef="${i}" data-p="${p}" data-num data-k="ef-${i}-${p}" aria-label="${rot}">`;
+  let corpo = '';
+  if (e.tipo === 'condicao') {
+    const durs = [['fim', 'até o fim da batalha'], ['1', 'por 1 turno'], ['2', 'por 2 turnos'], ['3', 'por 3 turnos']];
+    corpo = `<span class="efeito__txt">${ctx === 'uso' ? 'Quem recebe' : 'Quem é atingido'} fica${e.cond === 'Cura reduzida' ? ' com' : ''}</span>${sel('cond', e.cond, CONDICOES, 'Condição')}${e.cond === 'Cura reduzida' ? sel('pct', e.pct, [[25, '25%'], [50, '50%'], [75, '75%'], [100, '100%']], 'Quanto a cura cai') : ''}${sel('dur', e.dur, durs, 'Quanto tempo dura')}`;
+  }
+  if (e.tipo === 'empurrar') corpo = `<span class="efeito__txt">O alvo é empurrado</span>${num('n', e.n, 'Casas', 1, 6)}<span class="efeito__txt">${pl(e.n, 'casa', 'casas')} para trás</span>`;
+  if (e.tipo === 'curar') {
+    const seg = `<div class="seg" role="radiogroup" aria-label="Como a cura é contada"><button type="button" role="radio" aria-checked="${e.modo === 'dados'}" tabindex="${e.modo === 'dados' ? 0 : -1}" data-acao="cura-modo" data-i="${i}" data-v="dados" data-k="ef-${i}-md">Dados</button><button type="button" role="radio" aria-checked="${e.modo === 'fixo'}" tabindex="${e.modo === 'fixo' ? 0 : -1}" data-acao="cura-modo" data-i="${i}" data-v="fixo" data-k="ef-${i}-mf">Número fixo</button></div>`;
+    const quanto = e.modo === 'dados' ? `${num('dados', e.dados, 'Quantos dados', 1, 10)}<span class="efeito__txt">d</span>${num('faces', e.faces, 'Lados do dado', 2, 20)}` : num('fixo', e.fixo, 'Quanto cura', 1, 999);
+    corpo = `<span class="efeito__txt">Cura</span>${seg}${quanto}<span class="efeito__txt">de vida</span>`;
+  }
+  if (e.tipo === 'tirar') corpo = `<span class="efeito__txt">Tira</span>${sel('cond', e.cond, [...CONDICOES, ['todas', 'todas as condições']], 'Condição que sai')}`;
+  return `<li class="efeito" data-k2="${e.tipo}"${entra}>${corpo}${tirar}</li>`;
+}
+function secaoEfeitos(r, entra) {
+  const ctx = ctxDoTipo(r.tipo);
+  const nomes = { condicao: 'Condição', empurrar: 'Empurrar', curar: 'Curar', tirar: 'Tirar condição' };
+  const lista = r.efeitos.map((e, i) => (EFEITOS_DE[ctx].includes(e.tipo) ? linhaEfeito(e, i, ctx, i === UI.efeitoNovo ? ' data-entra' : '') : '')).join('');
+  UI.efeitoNovo = -1;
+  const vazio = ctx === 'uso' ? 'Nenhum efeito ainda: sem efeito, usar não faz nada.' : 'Nenhum efeito extra. O dano já está em Como ataca.';
+  const botoes = EFEITOS_DE[ctx].map((t) => `<button type="button" class="bt bt--p" data-acao="mais-efeito" data-v="${t}" data-k="mais-${t}">${glifo('mais')}${nomes[t]}</button>`).join('');
+  const tit = ctx === 'uso' ? 'Ao usar' : 'Ao acertar';
+  const sub = ctx === 'uso' ? 'O que acontece com quem recebe.' : 'Só o que acontece além do dano: condição, empurrão. Dano, ação e alcance não se repetem aqui.';
+  return secao('efeitos', tit, sub, `<ul class="efeitos">${lista || `<li class="nota">${vazio}</li>`}</ul><div class="mais-efeito"><span class="mais-efeito__rot">+ Efeito:</span>${botoes}</div>`, entra);
+}
+function chave(ch, ligada, rot, ajuda, travada) {
+  return `<label class="chave${travada ? ' chave--travada' : ''}"><input type="checkbox" role="switch" data-ch="${ch}" data-k="ch-${ch}" ${ligada ? 'checked' : ''} ${travada ? 'disabled' : ''}><span class="chave__trilho" aria-hidden="true"></span><span class="opcao__txt"><span>${rot}</span>${ajuda ? `<small>${ajuda}</small>` : ''}</span></label>`;
+}
+function secaoOpcoes(r, entra) {
+  const auto = EMPILHA_SOZINHO.includes(r.tipo);
+  const raio = r.luz.ligada ? campoNum('Ilumina quantas casas', 'luz.raio', r.luz.raio, { min: 1, max: 12 }) : '';
+  return secao('opcoes', 'Opções', '', `<div class="opcoes">
+    <div class="opcao">${chave('luz.ligada', r.luz.ligada, 'Ilumina', 'Aceso, clareia em volta de quem carrega. Qualquer tipo pode ter.')}${raio}</div>
+    <div class="opcao">${chave('empilhavel', r.empilhavel, 'Empilha na mochila', auto ? `Liga sozinho em ${TIPOS[r.tipo].nome}.` : 'Ligado, vários ocupam uma vaga só, com o número.', auto)}</div>
+  </div>`, entra);
+}
+function secaoDescricao(r, entra) {
+  const outros = r.tipo === 'outros';
+  return secao('descricao', 'Descrição', outros ? 'Para Outros, é o que vale. Escreva como o item é.' : 'Opcional. Só para ambientar: as regras já estão nos campos.', `<div class="campo"><label class="sr" for="ed-desc">Descrição</label><textarea id="ed-desc" class="entrada" maxlength="280" data-campo="descricao" data-k="ed-desc" placeholder="Ex.: Pau com pano embebido em óleo.">${esc(r.descricao)}</textarea></div>`, entra);
+}
+
+/* ------------------------------------------------ editor: mudanças */
+function definir(obj, caminho, valor) {
+  const p = caminho.split('.');
+  let o = obj;
+  for (let i = 0; i < p.length - 1; i++) o = o[p[i]];
+  o[p[p.length - 1]] = valor;
+}
+function marcarSujo() {
+  UI.sujo = true;
+  const e = $('#ed-estado');
+  if (e) e.hidden = false;
+  const d = $('#ed-descartar');
+  if (d) d.hidden = false;
+  marcarAbaDoEditor();
+}
+function atualizarPrevia() {
+  const r = UI.rascunho;
+  if (!r || !r.tipo) return;
+  const p = $('#previa-cartao');
+  if (p) p.innerHTML = cartao(r);
+  const g = $('#grade-alc');
+  if (g) g.innerHTML = gradeAlcance(r);
+  marcarSujo();
+}
+function aoDigitarNoEditor(el) {
+  const r = UI.rascunho;
+  if (el.dataset.campo) {
+    const v = el.hasAttribute('data-num') ? inteiro(el.value, 0) : el.value;
+    definir(r, el.dataset.campo, v);
+    if (el.dataset.campo === 'nome' && UI.erroNome && el.value.trim()) {
+      UI.erroNome = false;
+      el.removeAttribute('aria-invalid');
+      const m = $('#ed-nome-erro');
+      if (m) m.remove();
+    }
+  } else if (el.dataset.ef != null) {
+    const e = r.efeitos[Number(el.dataset.ef)];
+    e[el.dataset.p] = el.hasAttribute('data-num') ? inteiro(el.value, 0) : el.value;
+  }
+  atualizarPrevia();
+}
+function aoMudarNoEditor(el) {
+  const r = UI.rascunho;
+  if (el.tagName === 'SELECT' && el.dataset.campo) {
+    const v = el.dataset.campo === 'alcance.raio' ? inteiro(el.value, 1) : el.value;
+    definir(r, el.dataset.campo, v);
+  } else if (el.tagName === 'SELECT' && el.dataset.ef != null) {
+    const e = r.efeitos[Number(el.dataset.ef)];
+    const v = el.dataset.p === 'pct' ? inteiro(el.value, 50) : el.dataset.p === 'dur' && el.value !== 'fim' ? inteiro(el.value, 1) : el.value;
+    e[el.dataset.p] = v;
+  } else if (el.dataset.ch === 'aceita') {
+    r.aceita = el.checked ? [...r.aceita, el.value] : r.aceita.filter((x) => x !== el.value);
+  } else if (el.dataset.ch) {
+    definir(r, el.dataset.ch, el.checked);
+  } else {
+    return;
+  }
+  UI.sujo = true;
+  render();
+}
+function normalizarItem(r) {
+  const al = r.alcance;
+  al.b = Math.max(r.tipo === 'consumivel' ? 0 : 1, al.b);
+  al.a = Math.max(al.forma === 'explosao' ? 0 : 1, Math.min(al.a, al.b));
+  r.alvos = limitar(r.alvos, 1, 6);
+  r.capacidade = Math.max(1, r.capacidade);
+  r.bala.divisor = Math.max(1, r.bala.divisor);
+  r.luz.raio = Math.max(1, r.luz.raio);
+  if (EMPILHA_SOZINHO.includes(r.tipo)) r.empilhavel = true;
+  r.efeitos = efeitosValidos(r).map((e) => ({ ...e, n: Math.max(1, e.n || 1), dados: Math.max(1, e.dados || 1), faces: Math.max(2, e.faces || 2), fixo: Math.max(1, e.fixo || 1) }));
+  if (r.tipo !== 'fogo') r.aceita = [];
+}
+function salvarRascunho() {
+  const r = UI.rascunho;
+  if (!r.tipo) {
+    avisar('Escolha o tipo do item antes de salvar.');
+    const t = $('.tipo');
+    if (t) t.focus();
+    return;
+  }
+  if (!r.nome.trim()) {
+    UI.erroNome = true;
+    render();
+    const n = $('#ed-nome');
+    if (n) { n.focus(); n.scrollIntoView({ block: 'center' }); }
+    return;
+  }
+  r.nome = r.nome.trim();
+  normalizarItem(r);
+  const novo = !UI.editId;
+  const copia = clone(r);
+  if (novo) copia.id = `it-${Date.now().toString(36)}`;
+  const id = fazer(novo ? `criou ${copia.nome}` : `salvou ${copia.nome}`, () => {
+    if (novo) D.itens.push(copia);
+    else D.itens[D.itens.findIndex((x) => x.id === UI.editId)] = copia;
+    D.fichas.forEach(arrumarMochila);
+  });
+  UI.sel = copia.id;
+  UI.rascunho = null;
+  UI.editId = null;
+  UI.sujo = false;
+  UI.filtro = UI.filtro === 'todos' || UI.filtro === copia.tipo ? UI.filtro : 'todos';
+  irPara('acervo');
+  avisar(novo ? `${copia.nome} entrou no Acervo.` : `Mudanças em ${copia.nome} salvas. Já valem nas mochilas e na batalha.`, { desfazer: id });
+  const linha = $(`[data-k="sel-${copia.id}"]`);
+  if (linha) { linha.focus({ preventScroll: true }); linha.scrollIntoView({ block: 'nearest' }); }
+}
+
+/* =============================================================== regras que a ficha e a batalha usam */
+const lugarDe = (it) => (it.tipo === 'corpo' || it.tipo === 'fogo' ? 'Mão' : it.tipo === 'equipamento' ? it.parte : null);
+const condsDe = (id) => (D.batalha.cond[id] || []);
+function defesaDe(f) {
+  const vest = f.mochila.filter((v) => v.equipado).map((v) => item(v.itemId)).filter((it) => it && it.tipo === 'equipamento' && it.defesa > 0);
+  if (!vest.length) return null;
+  return { defesa: vest.reduce((s, it) => s + it.defesa, 0), nome: juntar(vest.map((it) => it.nome)) };
+}
+function poeCondicao(id, e) {
+  if (!D.batalha.cond[id]) D.batalha.cond[id] = [];
+  D.batalha.cond[id] = D.batalha.cond[id].filter((c) => c.nome !== e.cond).concat({ nome: e.cond, pct: e.pct, dur: e.dur });
+}
+function rolar(e) {
+  if (e.modo !== 'dados') return { valor: e.fixo, conta: `${e.fixo}` };
+  const d = Array.from({ length: e.dados }, () => 1 + Math.floor(Math.random() * e.faces));
+  const valor = d.reduce((s, n) => s + n, 0);
+  return { valor, conta: `${e.dados}d${e.faces}: ${d.join(' + ')}` };
+}
+/** Os efeitos de "Ao usar" em quem recebe. Devolve as frases para o registro e o aviso. */
+function aplicarUso(it, alvoId, det, vis) {
+  const alvo = ficha(alvoId);
+  for (const e of efeitosValidos(it)) {
+    if (e.tipo === 'curar') {
+      const r = rolar(e);
+      const cr = condsDe(alvoId).find((c) => c.nome === 'Cura reduzida');
+      const recebe = cr ? Math.floor((r.valor * (100 - cr.pct)) / 100) : r.valor;
+      const antes = alvo.vida;
+      alvo.vida = Math.min(alvo.vidaMax, alvo.vida + recebe);
+      const corte = cr ? ` A Cura reduzida ${cr.pct}% corta: recupera só ${recebe}.` : ` Recupera ${recebe}.`;
+      det.push(`Cura ${r.valor} (${r.conta}).${corte} Vida de ${alvo.nome}: ${antes} → ${alvo.vida}.`);
+      vis.push({ tipo: 'cura', id: alvoId, n: alvo.vida - antes });
+    }
+    if (e.tipo === 'tirar') {
+      const antes = condsDe(alvoId).length;
+      if (D.batalha.cond[alvoId]) D.batalha.cond[alvoId] = e.cond === 'todas' ? [] : D.batalha.cond[alvoId].filter((c) => c.nome !== e.cond);
+      const saiu = antes - condsDe(alvoId).length;
+      det.push(saiu ? `Tirou ${e.cond === 'todas' ? 'as condições' : e.cond} de ${alvo.nome}.` : `${alvo.nome} não estava com ${e.cond === 'todas' ? 'nenhuma condição' : e.cond}.`);
+    }
+    if (e.tipo === 'condicao') {
+      poeCondicao(alvoId, e);
+      det.push(`${alvo.nome} fica ${txtCond(e)}.`);
+    }
+  }
+}
+function empurrar(deId, alvoId, n) {
+  const p = D.batalha.pos;
+  const [ax, ay] = p[deId];
+  let [x, y] = p[alvoId];
+  const sx = Math.sign(x - ax);
+  const sy = Math.sign(y - ay);
+  let andou = 0;
+  for (let k = 0; k < n; k++) {
+    const nx = x + sx;
+    const ny = y + sy;
+    const ocupada = Object.entries(p).some(([id, q]) => id !== alvoId && q[0] === nx && q[1] === ny);
+    if ((sx === 0 && sy === 0) || nx < 0 || ny < 0 || nx >= COLS || ny >= LINHAS || ocupada) break;
+    x = nx;
+    y = ny;
+    andou++;
+  }
+  p[alvoId] = [x, y];
+  return andou;
+}
+function aplicarAoAcertar(efs, deId, alvo, det) {
+  for (const e of efs) {
+    if (e.tipo === 'condicao') {
+      poeCondicao(alvo.id, e);
+      det.push(`${alvo.nome} fica ${txtCond(e)}.`);
+    }
+    if (e.tipo === 'empurrar') {
+      const n = empurrar(deId, alvo.id, e.n);
+      det.push(n ? `${alvo.nome} foi empurrado ${n} ${pl(n, 'casa', 'casas')}.` : `${alvo.nome} não tinha para onde ser empurrado.`);
+    }
+  }
+}
+function calcularDano(a, it, bala, alvo) {
+  const p = [];
+  if (bala && bala.bala.modo === 'troca') p.push([bala.bala.valor, `${bala.nome} troca o dano`]);
+  else p.push([it.dano, it.nome]);
+  if (it.soma) p.push([atrib(a, it.soma), it.soma]);
+  if (bala && bala.bala.modo === 'soma') p.push([bala.bala.valor, bala.nome]);
+  if (bala && bala.bala.modo === 'atributo') p.push([Math.floor(atrib(a, bala.bala.atributo) / bala.bala.divisor), `${bala.bala.atributo}/${bala.bala.divisor}, da bala`]);
+  const def = defesaDe(alvo);
+  if (def) p.push([-def.defesa, def.nome]);
+  const total = Math.max(0, p.reduce((s, [v]) => s + v, 0));
+  const conta = p.map(([v, t], i) => `${i === 0 ? '' : v < 0 ? ' − ' : ' + '}${Math.abs(v)} (${t})`).join('');
+  return { total, conta };
+}
+
+/* =============================================================== D) Ficha */
+function telaFicha() {
+  const f = ficha(UI.fichaVer) || ficha('vincent');
+  const qual = D.fichas.map((x) => `<button type="button" class="filtro" data-acao="ver-ficha" data-v="${x.id}" data-k="vf-${x.id}" aria-pressed="${x.id === f.id}">${esc(x.nome)}</button>`).join('');
+  const lugares = ['Mão', 'Corpo'];
+  f.mochila.forEach((v) => { const l = v.equipado && lugarDe(item(v.itemId)); if (l && !lugares.includes(l)) lugares.push(l); });
+  const vestido = lugares.map((l) => {
+    const v = f.mochila.find((x) => x.equipado && lugarDe(item(x.itemId)) === l);
+    if (!v) return `<div class="vaga vaga--vazia"><span class="medalhao medalhao--p">${glifo(l === 'Mão' ? 'mao' : 'armadura')}</span><span class="vaga__txt"><small>${l}</small><span>Nada equipado</span></span></div>`;
+    const it = item(v.itemId);
+    return `<div class="vaga"><span class="medalhao medalhao--p">${glifo(it.foto)}</span><span class="vaga__txt"><small>${l}</small><strong>${esc(it.nome)}</strong></span></div>`;
+  }).join('');
+  if (!f.mochila.some((v) => v.itemId === UI.fichaSel)) UI.fichaSel = f.mochila[0] ? f.mochila[0].itemId : null;
+  const linhas = f.mochila.map((v, i) => linhaMochila(f, v, i)).join('');
+  const vazia = '<li class="vazio"><p>Mochila vazia. O mestre dá itens pelo Acervo, com Dar a...</p><button type="button" class="bt bt--p" data-acao="aba" data-v="acervo" data-k="mochila-vazia">Ir ao Acervo</button></li>';
+  const sel = UI.fichaSel ? item(UI.fichaSel) : null;
+  const conds = condsDe(f.id);
+  return `
+  <div class="pg-cab"><div class="pg-cab__txt"><h1 class="pg-titulo">Ficha de ${esc(f.nome)}</h1><p class="pg-sub">A ficha não guarda cópia de item: só a mochila, com as quantidades, e o que está equipado. O Atacar da batalha lê daqui.</p></div></div>
+  <div class="ficha-op" role="group" aria-label="Ver a ficha de">${qual}</div>
+  <div class="ficha">
+    <section class="painel retrato" aria-label="Quem é">
+      <div class="retrato__cab"><span class="quem__av" style="width:52px;height:52px;font-size:24px" ${f.npc ? 'data-npc' : ''} aria-hidden="true">${esc(f.nome[0])}</span><div><h2 class="retrato__nome">${esc(f.nome)}</h2><p class="nota">${f.npc ? 'NPC do mestre' : 'Jogador'}</p></div></div>
+      ${barraDeVida(f)}
+      ${conds.length ? `<div class="combatente__conds">${conds.map(etiquetaCond).join('')}</div>` : ''}
+      <div class="atribs">${Object.entries(f.atrib).map(([k, n]) => `<div><span>${k}</span><b>${n}</b></div>`).join('')}</div>
+      <div class="berries"><span>Berries</span><b>${fmt(f.berries)}</b></div>
+    </section>
+    <section aria-label="Equipado e mochila">
+      <div class="subtit"><h3>Equipado</h3><span class="nota">Uma coisa por lugar</span></div>
+      <div class="vestido">${vestido}</div>
+      <div class="subtit"><h3>Mochila</h3><span class="nota num">${f.mochila.reduce((s, v) => s + v.qtd, 0)} coisas em ${f.mochila.length} ${pl(f.mochila.length, 'vaga', 'vagas')}</span></div>
+      <ul class="mochila">${linhas || vazia}</ul>
+    </section>
+    <aside class="ficha__lado lado" aria-label="Cartão do item">
+      ${sel ? `${cartao(sel)}<button type="button" class="bt" data-acao="ver-no-acervo" data-id="${sel.id}" data-k="ver-acervo">Abrir no Acervo</button><p class="nota">O cartão vem do Acervo. Mudou lá, muda aqui.</p>` : ''}
+    </aside>
+  </div>`;
+}
+function barraDeVida(f) {
+  const pct = f.vidaMax ? f.vida / f.vidaMax : 0;
+  return `<div class="vida"><div class="vida__rot"><span>Vida</span><b>${f.vida} / ${f.vidaMax}</b></div><div class="vida__barra" ${f.npc ? 'data-inimigo' : ''} role="img" aria-label="Vida ${f.vida} de ${f.vidaMax}"><i style="transform:scaleX(${pct})"></i></div></div>`;
+}
+function etiquetaCond(c) {
+  const t = c.nome === 'Cura reduzida' ? `Cura reduzida ${c.pct}%` : c.nome;
+  return `<span class="etiqueta etiqueta--selo" title="${esc(txtDur(c.dur))}">${esc(t)} <small>${c.dur === 'fim' ? 'até o fim' : `${c.dur} ${pl(c.dur, 'turno', 'turnos')}`}</small></span>`;
+}
+function linhaMochila(f, v, i) {
+  const it = item(v.itemId);
+  const acoes = [];
+  if (it.tipo === 'consumivel') {
+    acoes.push(it.onde.fora
+      ? `<button type="button" class="bt bt--p bt--latao" data-acao="usar-fora" data-f="${f.id}" data-id="${it.id}" data-k="uf-${it.id}">Usar</button>`
+      : '<span class="nota">Só na batalha</span><button type="button" class="bt bt--p" disabled>Usar</button>');
+  }
+  if (lugarDe(it)) acoes.push(`<button type="button" class="bt bt--p" data-acao="equipar" data-f="${f.id}" data-i="${i}" data-k="eq-${i}">${v.equipado ? 'Guardar' : 'Equipar'}</button>`);
+  if (it.luz.ligada) acoes.push(`<button type="button" class="bt bt--p" data-acao="acender" data-f="${f.id}" data-i="${i}" data-k="ac-${i}" aria-pressed="${v.aceso}">${glifo('luz')}${v.aceso ? 'Apagar' : 'Acender'}</button>`);
+  const extra = [v.equipado ? `Equipado: ${lugarDe(it)}` : '', v.aceso ? 'Aceso' : ''].filter(Boolean).join('. ');
+  const s = it.id === UI.fichaSel;
+  return `<li class="coisa" data-sel="${s}">
+    <button type="button" class="coisa__abrir" data-acao="ver-coisa" data-id="${it.id}" data-k="vc-${i}" aria-pressed="${s}">
+      <span class="medalhao">${glifo(it.foto)}</span>
+      <span class="coisa__nome"><strong>${esc(it.nome)}</strong><small>${TIPOS[it.tipo].nome}${extra ? `. ${extra}` : ''}</small></span>
+      <span class="coisa__qtd">${it.empilhavel ? `<small>x</small>${v.qtd}` : ''}</span>
+    </button>
+    <div class="coisa__acoes">${acoes.join('')}</div>
+  </li>`;
+}
+function usarFora(f, it) {
+  const det = [];
+  const vis = [];
+  const antes = quantos(f, it.id);
+  const id = fazer(`${f.nome} usou ${it.nome}`, () => {
+    tiraDaMochila(f, it.id, 1);
+    aplicarUso(it, f.id, det, vis);
+  });
+  render();
+  avisar(`${f.nome} usou ${it.nome}. ${det.join(' ')} ${it.nome}: ${antes} → ${antes - 1}.`, { desfazer: id });
+}
+function equipar(f, i) {
+  const v = f.mochila[i];
+  const it = item(v.itemId);
+  const lugar = lugarDe(it);
+  const ia = v.equipado;
+  const id = fazer(ia ? `guardou ${it.nome}` : `equipou ${it.nome}`, () => {
+    if (ia) { v.equipado = false; return; }
+    f.mochila.forEach((o) => { if (o.equipado && lugarDe(item(o.itemId)) === lugar) o.equipado = false; });
+    v.equipado = true;
+  });
+  render();
+  avisar(ia ? `${it.nome} voltou para a mochila.` : `${f.nome} equipou ${it.nome} (${lugar}).`, { desfazer: id });
+}
+
+/* =============================================================== E) Batalha */
+const posDe = (id) => D.batalha.pos[id];
+const fichaNaCasa = (x, y) => NA_BATALHA.find((id) => posDe(id)[0] === x && posDe(id)[1] === y) || null;
+const chavePente = (fid, itId) => `${fid}:${itId}`;
+function penteDe(fid, arma) {
+  const v = D.batalha.pente[chavePente(fid, arma.id)];
+  return v == null ? arma.capacidade : Math.min(v, arma.capacidade);
+}
+function conhecidos(f) {
+  if (!UI.conhecidos) UI.conhecidos = {};
+  if (!UI.conhecidos[f.id]) UI.conhecidos[f.id] = [];
+  const lista = UI.conhecidos[f.id];
+  const equip = f.mochila.filter((v) => v.equipado).map((v) => v.itemId);
+  f.mochila.forEach((v) => { if (!lista.includes(v.itemId)) lista.push(v.itemId); });
+  return lista.filter((id) => item(id)).sort((a, b) => Number(equip.includes(b)) - Number(equip.includes(a)));
+}
+function efeitoCurto(it) {
+  const e = efeitosValidos(it)[0];
+  if (!e) return '';
+  if (e.tipo === 'condicao') return e.cond === 'Cura reduzida' ? `Cura reduzida ${e.pct}%` : e.cond;
+  if (e.tipo === 'empurrar') return `empurra ${e.n} ${pl(e.n, 'casa', 'casas')}`;
+  return '';
+}
+function balaEscolhida(f, arma) {
+  const k = chavePente(f.id, arma.id);
+  const quer = UI.balaDe[k];
+  if (quer && arma.aceita.includes(quer) && quantos(f, quer) > 0) return quer;
+  return arma.aceita.find((b) => item(b) && quantos(f, b) > 0) || null;
+}
+/** O que o modo atual acende: casas que dá para escolher e fichas atingíveis. */
+function leituraDoModo() {
+  const m = UI.modo;
+  if (!m) return null;
+  const it = item(m.itemId);
+  const al = it.alcance;
+  const [ax, ay] = posDe(m.ator);
+  const usar = it.tipo === 'consumivel';
+  const casas = new Map();
+  for (let y = 0; y < LINHAS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const dx = x - ax;
+      const dy = y - ay;
+      const d = Math.max(Math.abs(dx), Math.abs(dy));
+      let c = null;
+      if (al.forma === 'alvo' && d <= al.b && d >= (usar ? 0 : 1)) c = 'alvo';
+      if (al.forma === 'anel' && d >= al.a && d <= al.b) c = 'alvo';
+      if (al.forma === 'explosao' && d >= al.a && d <= al.b) c = 'ponto';
+      if (al.forma === 'linha' && (dx === 0 || dy === 0) && d >= 1 && d <= al.b) c = 'ponto';
+      if ((al.forma === 'cruz' && (dx === 0 || dy === 0) && d >= 1 && d <= al.b) || (al.forma === 'volta' && d >= 1 && d <= al.b)) c = 'ponto';
+      if (c) casas.set(`${x},${y}`, c);
+    }
+  }
+  const atingiveis = NA_BATALHA.filter((id) => casas.get(posDe(id).join(',')) === 'alvo' && (usar || id !== m.ator));
+  return { it, al, casas, atingiveis, ehArea: ehArea(al.forma) };
+}
+function areaEm(x, y) {
+  const m = UI.modo;
+  const it = item(m.itemId);
+  const al = it.alcance;
+  const [ax, ay] = posDe(m.ator);
+  const r = [];
+  if (al.forma === 'explosao') {
+    for (let j = y - al.raio; j <= y + al.raio; j++) for (let i = x - al.raio; i <= x + al.raio; i++) if (i >= 0 && j >= 0 && i < COLS && j < LINHAS) r.push([i, j]);
+  } else if (al.forma === 'linha') {
+    const sx = Math.sign(x - ax);
+    const sy = Math.sign(y - ay);
+    for (let k = 1; k <= al.b; k++) { const i = ax + sx * k; const j = ay + sy * k; if (i >= 0 && j >= 0 && i < COLS && j < LINHAS) r.push([i, j]); }
+  } else if (al.forma === 'cruz' || al.forma === 'volta') {
+    const l = leituraDoModo();
+    l.casas.forEach((_, k) => r.push(k.split(',').map(Number)));
+  }
+  return r;
+}
+function telaBatalha() {
+  const l = leituraDoModo();
+  const ult = historia[historia.length - 1];
+  const luzes = [];
+  NA_BATALHA.forEach((id) => {
+    const raio = ficha(id).mochila.filter((v) => v.aceso && item(v.itemId).luz.ligada).reduce((mx, v) => Math.max(mx, item(v.itemId).luz.raio), 0);
+    if (raio) luzes.push(`<span class="luz-tocha" style="left:calc(10px + ${posDe(id)[0] - raio} * var(--casa));top:calc(10px + ${posDe(id)[1] - raio} * var(--casa));width:calc(${2 * raio + 1} * var(--casa));height:calc(${2 * raio + 1} * var(--casa))"></span>`);
+  });
+  let casas = '';
+  for (let y = 0; y < LINHAS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const quem = fichaNaCasa(x, y);
+      const c = l ? l.casas.get(`${x},${y}`) : null;
+      const clicavel = l && (c === 'ponto' || (c === 'alvo' && quem && l.atingiveis.includes(quem)));
+      const fichaHtml = quem ? fichaNoTabuleiro(quem, l) : '';
+      const rot = quem ? `${ficha(quem).nome}, vida ${ficha(quem).vida} de ${ficha(quem).vidaMax}` : `Casa ${x + 1}, ${y + 1}`;
+      casas += clicavel
+        ? `<button type="button" class="casa" data-acao="casa" data-x="${x}" data-y="${y}" data-c="${c}" aria-label="${esc(rot)}">${fichaHtml}</button>`
+        : `<div class="casa" data-x="${x}" data-y="${y}" ${c ? `data-c="${c}"` : ''}>${fichaHtml}</div>`;
+    }
+  }
+  const log = D.batalha.log.length
+    ? D.batalha.log.map((e, i) => `<li${i === 0 && UI.logNovo ? ' data-entra' : ''}>${esc(e.titulo)}${e.detalhes ? `<small>${esc(e.detalhes)}</small>` : ''}</li>`).join('')
+    : '<li class="nota" style="background:none">Nada aconteceu ainda nesta batalha.</li>';
+  UI.logNovo = false;
+  return `
+  <div class="pg-cab">
+    <div class="pg-cab__txt"><h1 class="pg-titulo">Batalha</h1><p class="pg-sub">A batalha lê a mochila: cada tiro, granada ou poção sai dela, e Desfazer devolve tudo.</p></div>
+    <div class="pg-acoes">
+      <button type="button" class="bt" data-acao="desfazer" data-k="b-desfazer" ${ult ? '' : 'disabled'}>${glifo('desfazer')}${ult ? `Desfazer: ${esc(ult.rotulo)}` : 'Nada para desfazer'}</button>
+      <button type="button" class="bt bt--fantasma" data-acao="encerrar" data-k="b-encerrar">Encerrar batalha</button>
+    </div>
+  </div>
+  <div class="batalha">
+    <div class="mesa">
+      ${avisoDoModo(l)}
+      <div class="tabuleiro" id="tabuleiro" aria-label="Mapa da batalha">${luzes.join('')}${casas}</div>
+      <section class="painel registro" aria-label="Registro da batalha"><div class="painel__cab"><h2 class="painel__tit">Registro</h2><span class="painel__sub">O mais novo em cima</span></div><div class="painel__corpo"><ol>${log}</ol></div></section>
+    </div>
+    <aside class="combatentes" aria-label="Quem luta e o que dá para fazer">${painelDeAcoes()}</aside>
+  </div>`;
+}
+function fichaNoTabuleiro(id, l) {
+  const f = ficha(id);
+  const attrs = [
+    f.npc ? 'data-inimigo' : '',
+    UI.ator === id ? 'data-age' : '',
+    l && l.atingiveis.includes(id) && !l.ehArea ? 'data-atingivel' : '',
+    UI.escolhidos.includes(id) ? 'data-escolhido' : '',
+  ].join(' ');
+  return `<span class="ficha-t" data-id="${id}" ${attrs} title="${esc(f.nome)}"><span aria-hidden="true">${esc(f.nome[0])}</span><span class="ficha-t__vida"><i style="transform:scaleX(${f.vida / f.vidaMax})"></i></span></span>`;
+}
+function avisoDoModo(l) {
+  if (!l) {
+    return `<div class="mesa__aviso mesa__aviso--quieto"><p>Escolha uma ação ao lado. Arraste uma ficha para andar; toque numa ficha para ela agir.</p></div>`;
+  }
+  const m = UI.modo;
+  const it = l.it;
+  const cancelar = '<button type="button" class="bt bt--p" data-acao="cancelar-modo" data-k="cancelar-modo">Cancelar <kbd>Esc</kbd></button>';
+  let txt = '';
+  if (it.tipo === 'fogo') txt = `Atirar com ${it.nome} (${item(m.balaId).nome}): toque num alvo aceso.`;
+  else if (it.tipo === 'corpo') txt = `Bater com ${it.nome}: toque num alvo aceso.`;
+  else if (it.tipo === 'consumivel') txt = `Usar ${it.nome}: toque em quem vai receber.`;
+  else txt = `Jogar ${it.nome}: toque num alvo aceso.`;
+  if (l.al.forma === 'explosao') txt = `${it.tipo === 'arremesso' ? 'Jogar' : 'Usar'} ${it.nome}: passe por uma casa acesa para ver a área ${tamArea(l.al.raio)}; toque para ${it.tipo === 'arremesso' ? 'jogar' : 'usar'}.`;
+  if (l.al.forma === 'linha') txt = `${it.nome}: passe por uma casa acesa para escolher a direção; toque para confirmar.`;
+  if (l.al.forma === 'cruz' || l.al.forma === 'volta') txt = `${it.nome}: tudo o que está aceso é atingido. Toque em qualquer casa acesa para confirmar.`;
+  if (!l.ehArea && !l.atingiveis.length) txt = `${it.nome}: ninguém ao alcance (${txtAlcance(l.al, it.tipo === 'consumivel')}). Arraste a ficha para chegar perto, depois tente de novo.`;
+  let confirmar = '';
+  if (!l.ehArea && it.alvos > 1 && it.tipo !== 'consumivel') {
+    txt += ` Escolha até ${it.alvos} alvos (${UI.escolhidos.length} de ${it.alvos}).`;
+    confirmar = `<button type="button" class="bt bt--p bt--primario" data-acao="confirmar-alvos" data-k="confirmar-alvos" ${UI.escolhidos.length ? '' : 'disabled'}>Confirmar</button>`;
+  }
+  return `<div class="mesa__aviso" role="status"><p>${esc(txt)}</p>${confirmar}${cancelar}</div>`;
+}
+function painelDeAcoes() {
+  const a = ficha(UI.ator);
+  const quemAge = `<div><p class="acoes-b__grupo" style="margin-top:0" id="rot-ator">Quem age</p><div class="seg" role="radiogroup" aria-labelledby="rot-ator">${NA_BATALHA.map((id) => `<button type="button" role="radio" aria-checked="${UI.ator === id}" tabindex="${UI.ator === id ? 0 : -1}" data-acao="ator" data-v="${id}" data-k="ator-${id}">${esc(ficha(id).nome)}</button>`).join('')}</div></div>`;
+  const lutadores = NA_BATALHA.map((id) => {
+    const f = ficha(id);
+    const conds = condsDe(id);
+    const def = defesaDe(f);
+    return `<div class="combatente"><div class="combatente__cab"><strong>${esc(f.nome)}</strong><span class="nota">${def ? `Defesa ${def.defesa} (${esc(def.nome)})` : 'Sem armadura'}</span></div>${barraDeVida(f)}${conds.length ? `<div class="combatente__conds">${conds.map(etiquetaCond).join('')}</div>` : ''}</div>`;
+  }).join('');
+  const ids = conhecidos(a);
+  const armas = ids.map(item).filter((it) => ATACA.includes(it.tipo));
+  const usaveis = ids.map(item).filter((it) => it.tipo === 'consumivel' && it.onde.batalha);
+  const m = UI.modo;
+  const ativo = (itId) => m && m.ator === a.id && m.itemId === itId;
+  const linhasArmas = armas.map((it) => {
+    const tem = quantos(a, it.id);
+    const equip = a.mochila.some((v) => v.itemId === it.id && v.equipado);
+    if (it.tipo === 'fogo') {
+      const bala = balaEscolhida(a, it);
+      const pente = penteDe(a.id, it);
+      const semBala = it.aceita.length ? `Sem ${item(it.aceita[0]) ? item(it.aceita[0]).nome : 'bala'}` : 'Nenhuma bala marcada na arma';
+      const motivo = !tem ? `Sem ${it.nome}` : !bala ? semBala : pente <= 0 ? 'Pente vazio: recarregue' : '';
+      const balas = it.aceita.map(item).filter(Boolean).map((b) => {
+        const n = quantos(a, b.id);
+        const escolhida = bala === b.id;
+        return `<button type="button" class="bala-op" role="radio" aria-checked="${escolhida}" ${n ? '' : 'aria-disabled="true"'} tabindex="${escolhida || (!bala && b.id === it.aceita[0]) ? 0 : -1}" data-acao="bala" data-arma="${it.id}" data-v="${b.id}" data-k="bala-${it.id}-${b.id}"><span class="bala-op__marca"></span><span>${esc(b.nome)}<br><small>${esc(txtBalaCurto(b))}${efeitoCurto(b) ? `, ${esc(efeitoCurto(b))}` : ''}</small></span>${n ? `<span class="acao-b__n"><span data-cont="${a.id}:${b.id}">${n}</span><small>na mochila</small></span>` : `<span class="acao-b__sem">Sem ${esc(b.nome)}</span>`}</button>`;
+      }).join('');
+      return `<button type="button" class="acao-b" data-acao="arma" data-id="${it.id}" data-k="arma-${it.id}" aria-pressed="${ativo(it.id)}" ${motivo ? 'disabled' : ''}><span class="medalhao">${glifo(it.foto)}</span><span class="acao-b__txt"><strong>Atirar com ${esc(it.nome)}</strong><small>${equip ? 'Na mão. ' : ''}${esc(capitalizar(txtAlcanceCurto(it.alcance)))}</small>${motivo ? `<span class="acao-b__sem">${esc(motivo)}</span>` : ''}</span><span class="acao-b__n"><span data-cont="pente:${a.id}:${it.id}">${pente}</span><small>de ${it.capacidade} no pente</small></span></button>
+        <div class="pente">${pente < it.capacidade ? `<span>Pente com ${pente} de ${it.capacidade}.</span><button type="button" class="bt bt--p" data-acao="recarregar" data-id="${it.id}" data-k="rec-${it.id}">Recarregar (Ação Simples)</button>` : '<span>Pente cheio.</span>'}</div>
+        <div class="balas" role="radiogroup" aria-label="Com qual bala">${balas}</div>`;
+    }
+    const verbo = it.tipo === 'corpo' ? 'Bater com' : 'Jogar';
+    const gasta = it.tipo === 'arremesso' && !it.volta;
+    const motivo = !tem ? `Sem ${it.nome}` : '';
+    const direita = gasta && !tem ? '' : gasta ? `<span class="acao-b__n"><span data-cont="${a.id}:${it.id}">${tem}</span><small>na mochila</small></span>` : `<span class="acao-b__n"><small>${it.volta ? 'volta para a mão' : equip ? 'na mão' : ''}</small></span>`;
+    return `<button type="button" class="acao-b" data-acao="arma" data-id="${it.id}" data-k="arma-${it.id}" aria-pressed="${ativo(it.id)}" ${motivo ? 'disabled' : ''}><span class="medalhao">${glifo(it.foto)}</span><span class="acao-b__txt"><strong>${verbo} ${esc(it.nome)}</strong><small>${esc(capitalizar(txtAlcanceCurto(it.alcance)))}. Dano ${it.dano}${it.soma ? ` + ${esc(it.soma)}` : ''}</small>${motivo ? `<span class="acao-b__sem">${esc(motivo)}</span>` : ''}</span>${direita}</button>`;
+  }).join('');
+  const linhasUsar = usaveis.map((it) => {
+    const tem = quantos(a, it.id);
+    const resumo = semTags(frasesEfeitos(it, 'uso').join(' '));
+    return `<button type="button" class="acao-b" data-acao="usar" data-id="${it.id}" data-k="usar-${it.id}" aria-pressed="${ativo(it.id)}" ${tem ? '' : 'disabled'}><span class="medalhao">${glifo(it.foto)}</span><span class="acao-b__txt"><strong>Usar ${esc(it.nome)}</strong><small>${esc(resumo)} ${esc(it.acao)}.</small>${tem ? '' : `<span class="acao-b__sem">Sem ${esc(it.nome)}</span>`}</span>${tem ? `<span class="acao-b__n"><span data-cont="${a.id}:${it.id}">${tem}</span><small>na mochila</small></span>` : ''}</button>`;
+  }).join('');
+  return `${quemAge}${lutadores}
+    <div class="acoes-b"><p class="acoes-b__grupo">Atacar, com o que ${esc(a.nome)} tem na mochila</p>${linhasArmas || '<p class="nota">Nenhuma arma na mochila.</p>'}</div>
+    <div class="acoes-b"><p class="acoes-b__grupo">Usar</p>${linhasUsar || '<p class="nota">Nada para usar na batalha.</p>'}</div>`;
+}
+function comecarModo(itemId) {
+  const a = ficha(UI.ator);
+  const it = item(itemId);
+  if (ativoMesmo(itemId)) { UI.modo = null; UI.escolhidos = []; render(); return; }
+  const m = { ator: a.id, itemId };
+  if (it.tipo === 'fogo') m.balaId = balaEscolhida(a, it);
+  UI.modo = m;
+  UI.escolhidos = [];
+  render();
+}
+const ativoMesmo = (itemId) => UI.modo && UI.modo.itemId === itemId && UI.modo.ator === UI.ator;
+function executar(alvosIds) {
+  const m = UI.modo;
+  const a = ficha(m.ator);
+  const it = item(m.itemId);
+  const bala = m.balaId ? item(m.balaId) : null;
+  const det = [];
+  const vis = [];
+  const nomes = juntar(alvosIds.map((id) => (id === a.id ? 'si mesmo' : ficha(id).nome)));
+  let titulo = '';
+  let rotulo = '';
+  if (it.tipo === 'consumivel') {
+    titulo = `${a.nome} usou ${it.nome} em ${nomes || 'ninguém'}.`;
+    rotulo = `${it.nome} em ${nomes}`;
+  } else if (it.tipo === 'fogo') {
+    titulo = `${a.nome} atirou com ${it.nome} (${bala.nome}) ${alvosIds.length ? `em ${nomes}` : 'e não acertou ninguém'}.`;
+    rotulo = `tiro de ${it.nome}`;
+  } else if (it.tipo === 'corpo') {
+    titulo = `${a.nome} bateu com ${it.nome} em ${nomes}.`;
+    rotulo = `golpe de ${it.nome}`;
+  } else {
+    titulo = `${a.nome} jogou ${it.nome}${alvosIds.length ? `: acertou ${nomes}` : ': não acertou ninguém'}.`;
+    rotulo = `${it.nome} jogada`;
+  }
+  const id = fazer(rotulo, () => {
+    if (it.tipo === 'consumivel') {
+      const antes = quantos(a, it.id);
+      tiraDaMochila(a, it.id, 1);
+      alvosIds.forEach((alvoId) => aplicarUso(it, alvoId, det, vis));
+      det.push(`${it.nome} na mochila de ${a.nome}: ${antes} → ${antes - 1}.`);
+    } else {
+      alvosIds.forEach((alvoId) => {
+        const alvo = ficha(alvoId);
+        const c = calcularDano(a, it, bala, alvo);
+        const antes = alvo.vida;
+        alvo.vida = Math.max(0, alvo.vida - c.total);
+        det.push(`${alvo.nome}: ${c.conta} = ${c.total} de dano (vida ${antes} → ${alvo.vida}).`);
+        vis.push({ tipo: 'dano', id: alvoId, n: c.total });
+        aplicarAoAcertar([...efeitosValidos(it), ...(bala ? efeitosValidos(bala) : [])], a.id, alvo, det);
+      });
+      if (it.tipo === 'fogo') {
+        const antes = quantos(a, bala.id);
+        tiraDaMochila(a, bala.id, 1);
+        D.batalha.pente[chavePente(a.id, it.id)] = penteDe(a.id, it) - 1;
+        det.push(`${bala.nome} na mochila: ${antes} → ${antes - 1}.`);
+      }
+      if (it.tipo === 'arremesso' && !it.volta) {
+        const antes = quantos(a, it.id);
+        tiraDaMochila(a, it.id, 1);
+        det.push(`${it.nome} na mochila: ${antes} → ${antes - 1}.`);
+      }
+    }
+    D.batalha.log.unshift({ titulo, detalhes: det.join(' ') });
+  });
+  UI.visuais = vis;
+  UI.modo = null;
+  UI.escolhidos = [];
+  UI.logNovo = true;
+  render();
+  anunciar(`${titulo} ${det.join(' ')}`);
+  return id;
+}
+function clicarCasa(x, y) {
+  const l = leituraDoModo();
+  if (!l) return;
+  const c = l.casas.get(`${x},${y}`);
+  if (c === 'ponto') {
+    const area = areaEm(x, y);
+    const atingidos = NA_BATALHA.filter((id) => area.some(([i, j]) => posDe(id)[0] === i && posDe(id)[1] === j));
+    UI.explosao = l.al.forma === 'explosao' ? area : null;
+    executar(atingidos);
+    return;
+  }
+  const quem = fichaNaCasa(x, y);
+  if (!quem || !l.atingiveis.includes(quem)) return;
+  if (l.it.alvos > 1 && l.it.tipo !== 'consumivel') {
+    UI.escolhidos = UI.escolhidos.includes(quem) ? UI.escolhidos.filter((q) => q !== quem) : UI.escolhidos.length < l.it.alvos ? [...UI.escolhidos, quem] : UI.escolhidos;
+    render();
+    return;
+  }
+  executar([quem]);
+}
+function mostrarArea(x, y) {
+  limparArea();
+  const l = leituraDoModo();
+  if (!l || l.casas.get(`${x},${y}`) !== 'ponto') return;
+  const area = areaEm(x, y);
+  area.forEach(([i, j]) => { const c = $(`#tabuleiro .casa[data-x="${i}"][data-y="${j}"]`); if (c) c.setAttribute('data-area', ''); });
+  NA_BATALHA.forEach((id) => {
+    if (area.some(([i, j]) => posDe(id)[0] === i && posDe(id)[1] === j)) {
+      const t = $(`#tabuleiro .ficha-t[data-id="${id}"]`);
+      if (t) t.setAttribute('data-na-area', '');
+    }
+  });
+}
+function limparArea() {
+  $$('#tabuleiro [data-area]').forEach((c) => c.removeAttribute('data-area'));
+  $$('#tabuleiro [data-na-area]').forEach((c) => c.removeAttribute('data-na-area'));
+}
+function recarregar(itemId) {
+  const a = ficha(UI.ator);
+  const it = item(itemId);
+  const antes = penteDe(a.id, it);
+  fazer(`recarregou ${it.nome}`, () => {
+    D.batalha.pente[chavePente(a.id, it.id)] = it.capacidade;
+    D.batalha.log.unshift({ titulo: `${a.nome} recarregou ${it.nome} (Ação Simples).`, detalhes: `Pente: ${antes} → ${it.capacidade}. As balas continuam na mochila até cada tiro.` });
+  });
+  UI.logNovo = true;
+  render();
+}
+function encerrarBatalha() {
+  const com = NA_BATALHA.filter((id) => condsDe(id).length);
+  const id = fazer('encerrou a batalha', () => {
+    const fim = com.map((fid) => `${ficha(fid).nome}: ${condsDe(fid).map((c) => c.nome).join(', ')}`);
+    NA_BATALHA.forEach((fid) => { D.batalha.cond[fid] = []; });
+    D.batalha.pente = {};
+    D.batalha.log.unshift({ titulo: 'Batalha encerrada.', detalhes: fim.length ? `Acabaram as condições (${fim.join('; ')}). Os pentes voltam cheios.` : 'Ninguém tinha condição. Os pentes voltam cheios.' });
+  });
+  UI.modo = null;
+  UI.logNovo = true;
+  render();
+  avisar('Batalha encerrada: as condições acabaram. O que foi gasto continua gasto.', { desfazer: id });
+}
+function depoisDaBatalha() {
+  const tab = $('#tabuleiro');
+  if (!tab) return;
+  $$('[data-cont]').forEach((s) => {
+    const k = s.dataset.cont;
+    const n = s.textContent;
+    if (UI.contagens[k] != null && UI.contagens[k] !== n) s.setAttribute('data-tick', '');
+    UI.contagens[k] = n;
+  });
+  if (UI.explosao) {
+    UI.explosao.forEach(([i, j]) => { const c = $(`#tabuleiro .casa[data-x="${i}"][data-y="${j}"]`); if (c) c.setAttribute('data-explodiu', ''); });
+    UI.explosao = null;
+  }
+  for (const v of UI.visuais) {
+    const t = $(`#tabuleiro .ficha-t[data-id="${v.id}"]`);
+    if (!t) continue;
+    t.setAttribute(v.tipo === 'dano' ? 'data-tomou' : 'data-curou', '');
+    const casa = t.closest('.casa');
+    const n = document.createElement('span');
+    n.className = 'numero-voa';
+    if (v.tipo === 'cura') n.setAttribute('data-cura', '');
+    n.textContent = v.tipo === 'dano' ? `−${v.n}` : `+${v.n}`;
+    n.style.left = `${casa.offsetLeft + 8}px`;
+    n.style.top = `${casa.offsetTop - 4}px`;
+    tab.appendChild(n);
+    setTimeout(() => n.remove(), 950);
+  }
+  UI.visuais = [];
+}
+
+/* ------------------------------------------------ andar: arrastar a ficha no mapa */
+let arrasto = null;
+function casaSob(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const c = el && el.closest('#tabuleiro .casa');
+  return c ? [Number(c.dataset.x), Number(c.dataset.y)] : null;
+}
+document.addEventListener('pointerdown', (ev) => {
+  const t = ev.target.closest('#tabuleiro .ficha-t');
+  if (!t || UI.modo || ev.button !== 0) return;
+  arrasto = { id: t.dataset.id, x0: ev.clientX, y0: ev.clientY, andando: false, el: t, fantasma: null, alvo: null };
+});
+document.addEventListener('pointermove', (ev) => {
+  if (!arrasto) return;
+  if (!arrasto.andando && Math.hypot(ev.clientX - arrasto.x0, ev.clientY - arrasto.y0) < 5) return;
+  if (!arrasto.andando) {
+    arrasto.andando = true;
+    arrasto.fantasma = arrasto.el.cloneNode(true);
+    arrasto.fantasma.classList.add('fantasma-t');
+    document.body.appendChild(arrasto.fantasma);
+    arrasto.el.setAttribute('data-arrastando', '');
+  }
+  arrasto.fantasma.style.transform = `translate(${ev.clientX}px, ${ev.clientY}px)`;
+  arrasto.fantasma.style.left = '0';
+  arrasto.fantasma.style.top = '0';
+  const c = casaSob(ev.clientX, ev.clientY);
+  $$('#tabuleiro [data-arrasto]').forEach((n) => n.removeAttribute('data-arrasto'));
+  arrasto.alvo = null;
+  if (c && !fichaNaCasa(c[0], c[1])) {
+    arrasto.alvo = c;
+    const n = $(`#tabuleiro .casa[data-x="${c[0]}"][data-y="${c[1]}"]`);
+    if (n) n.setAttribute('data-arrasto', '');
+  }
+});
+function terminarArrasto(cancelou) {
+  if (!arrasto) return;
+  const a = arrasto;
+  arrasto = null;
+  if (a.fantasma) a.fantasma.remove();
+  if (!a.andando) {
+    if (!cancelou && NA_BATALHA.includes(a.id)) { UI.ator = a.id; render(); }
+    return;
+  }
+  if (cancelou || !a.alvo) { render(); return; }
+  fazer(`moveu ${ficha(a.id).nome}`, () => { D.batalha.pos[a.id] = a.alvo; });
+  render();
+}
+document.addEventListener('pointerup', () => terminarArrasto(false));
+document.addEventListener('pointercancel', () => terminarArrasto(true));
+
+/* =============================================================== C) Dar a... */
+function abrirDar(itemId, qtd) {
+  const origem = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.k : null;
+  UI.dar = { itemId, qtd: qtd || 1, para: [], origem };
+  const dlg = $('#janela-dar');
+  dlg.removeAttribute('data-saindo');
+  renderDar();
+  if (!dlg.open) dlg.showModal();
+  const q = $('#dar-qtd');
+  if (q) { q.focus(); q.select(); }
+}
+function fecharDar() {
+  const dlg = $('#janela-dar');
+  if (!dlg.open) return;
+  const origem = UI.dar ? UI.dar.origem : null;
+  UI.dar = null;
+  const fim = () => {
+    dlg.close();
+    dlg.removeAttribute('data-saindo');
+    const n = origem ? document.querySelector(`[data-k="${CSS.escape(origem)}"]`) : null;
+    if (n) n.focus({ preventScroll: true });
+  };
+  if (semMovimento()) { fim(); return; }
+  dlg.setAttribute('data-saindo', '');
+  setTimeout(fim, 140);
+}
+function partesDoDar() {
+  const d = UI.dar;
+  const it = item(d.itemId);
+  const lista = D.fichas.map((f) => {
+    const vai = d.para.includes(f.id);
+    const tem = quantos(f, it.id);
+    return `<label class="quem__op"><input type="checkbox" data-dar-para="${f.id}" data-k="dp-${f.id}" ${vai ? 'checked' : ''}><span class="quem__av" ${f.npc ? 'data-npc' : ''} aria-hidden="true">${esc(f.nome[0])}</span><span class="quem__txt"><span>${esc(f.nome)}</span><small>${f.npc ? 'NPC do mestre' : 'Jogador'}</small></span><span class="quem__tem">tem <b>${tem}</b>${vai ? ` → <b data-vai>${tem + d.qtd}</b>` : ''}</span></label>`;
+  }).join('');
+  const nomes = d.para.map((id) => ficha(id).nome);
+  const resumo = d.para.length
+    ? `Dá ${d.qtd} ${it.nome} a ${juntar(nomes)}${d.para.length > 1 ? ` (${d.qtd * d.para.length} no total)` : ''}.`
+    : 'Escolha pelo menos uma ficha para poder dar.';
+  return { lista, resumo };
+}
+function renderDar() {
+  const d = UI.dar;
+  if (!d) return;
+  const it = item(d.itemId);
+  const { lista, resumo } = partesDoDar();
+  const dlg = $('#janela-dar');
+  comFoco(() => {
+    dlg.innerHTML = `
+    <div class="janela__cab"><span class="medalhao medalhao--g">${glifo(it.foto)}</span><div><h2 id="dar-tit">Dar ${esc(it.nome)} a...</h2><p>Escolha quantos e para quem. Dá para várias fichas de uma vez.</p></div><button type="button" class="bt bt--fantasma bt--ic" data-acao="fechar-dar" data-k="dar-x" aria-label="Fechar">${glifo('x')}</button></div>
+    <div class="janela__corpo">
+      <div class="campo"><label for="dar-qtd">Quantos para cada ficha</label>
+        <div class="passo"><button type="button" id="dar-menos" data-acao="dar-menos" data-k="dar-menos" aria-label="Um a menos" ${d.qtd <= 1 ? 'disabled' : ''}>${glifo('menos')}</button><input id="dar-qtd" type="number" min="1" max="999" inputmode="numeric" value="${d.qtd}" data-k="dar-qtd"><button type="button" data-acao="dar-mais" data-k="dar-mais" aria-label="Um a mais">${glifo('mais')}</button></div>
+        <span class="campo__ajuda" id="dar-ajuda">${it.empilhavel ? 'Empilha: entra na mesma vaga da mochila.' : `${esc(it.nome)} não empilha: cada um ocupa uma vaga na mochila.`}</span>
+      </div>
+      <fieldset class="campo" style="border:0;margin:0;padding:0"><legend class="campo__rot" style="margin-bottom:6px">Para quem</legend>
+        <div class="quem" id="dar-quem">${lista}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"><button type="button" class="bt bt--p bt--fantasma" data-acao="dar-jogadores" data-k="dar-jog">Marcar os jogadores</button><button type="button" class="bt bt--p bt--fantasma" data-acao="dar-nenhum" data-k="dar-nen">Desmarcar todos</button></div>
+      </fieldset>
+    </div>
+    <div class="janela__pe"><p id="dar-resumo" ${d.para.length ? '' : 'data-erro'}>${esc(resumo)}</p><button type="button" class="bt" data-acao="fechar-dar" data-k="dar-cancelar">Cancelar</button><button type="button" class="bt bt--primario" id="dar-ok" data-acao="confirmar-dar" data-k="dar-ok" ${d.para.length ? '' : 'disabled'}>${glifo('dar')}Dar</button></div>`;
+  });
+}
+function atualizarDarSemMexerNoCampo() {
+  const { lista, resumo } = partesDoDar();
+  $('#dar-quem').innerHTML = lista;
+  const r = $('#dar-resumo');
+  r.textContent = resumo;
+  r.toggleAttribute('data-erro', !UI.dar.para.length);
+  $('#dar-menos').disabled = UI.dar.qtd <= 1;
+}
+function confirmarDar() {
+  const d = UI.dar;
+  if (!d || !d.para.length) return;
+  const it = item(d.itemId);
+  const nomes = d.para.map((id) => ficha(id).nome);
+  const id = fazer(`deu ${d.qtd} ${it.nome}`, () => { d.para.forEach((fid) => poeNaMochila(ficha(fid), it.id, d.qtd)); });
+  fecharDar();
+  render();
+  avisar(`Deu ${d.qtd} ${it.nome} a ${juntar(nomes)}.`, { desfazer: id });
+}
+
+/* =============================================================== F) Como era x como fica */
+function campoAntes(t, repete) { return `<span class="antes__campo"${repete ? ' data-repete' : ''}>${t}</span>`; }
+function telaComoEra() {
+  const v = ficha('vincent');
+  const prata = quantos(v, 'prata');
+  const casos = [
+    {
+      tit: 'Dois formulários para a mesma Granada',
+      dor: 'O print do editor de hoje: campos em cima e o bloco “O que ela faz” embaixo, os dois com dano, ação e alcance.',
+      antes: `<div class="antes__caixa"><b>Campos da arma, em cima</b><div class="antes__linha">${campoAntes('Categoria: Arma')}${campoAntes('Dano 150', 1)}${campoAntes('Soma no ataque')}${campoAntes('Ação Simples', 1)}${campoAntes('Modificador')}${campoAntes('Capacidade')}${campoAntes('Tipos de bala')}</div></div>
+        <div class="antes__caixa"><b>O que ela faz, do editor de mecânicas, embaixo</b><div class="antes__linha">${campoAntes('Dano 150', 1)}${campoAntes('Ação Simples', 1)}${campoAntes('Alvos: área', 1)}${campoAntes('Alcance 3', 1)}</div></div>
+        <div class="antes__linha"><div class="antes__caixa"><b>Alcance, à parte</b>${campoAntes('3 casas', 1)}</div><div class="antes__caixa"><b>Coisa do Acervo</b>${campoAntes('Granada', 1)}</div></div>`,
+      agora: cartao(item('granada')),
+      solucao: '<strong>Um conjunto de campos só.</strong> Dano, ação, alvos e alcance aparecem uma vez, em “Como é jogado”. “Ao acertar” só acrescenta extras (condição, empurrão) e nunca repete dano, ação ou alcance. Não existe mais “Coisa do Acervo”: o item é o Acervo.',
+      bt: ['abrir-editor', 'granada', 'Abrir a Granada no editor'],
+    },
+    {
+      tit: 'A Granada aparecia duas vezes na Biblioteca',
+      dor: 'Uma linha era o item do Acervo (foto, preço, pilha); a outra, a regra da arma no livro (dano, alcance, “O que ela faz”).',
+      antes: `<div class="antes__caixa"><b>Linha 1: item do Acervo</b><div class="antes__linha">${campoAntes('Granada', 1)}${campoAntes('foto')}${campoAntes('preço')}${campoAntes('pilha')}</div></div><div class="antes__caixa"><b>Linha 2: regra no livro</b><div class="antes__linha">${campoAntes('Granada', 1)}${campoAntes('dano')}${campoAntes('alcance')}${campoAntes('O que ela faz')}</div></div>`,
+      agora: `<div class="vaga"><span class="medalhao">${glifo('granada')}</span><span class="vaga__txt"><strong>Granada</strong><small>Arremesso. ${esc(semTags(oQueAcontece(item('granada'))))}</small></span></div>`,
+      solucao: '<strong>Uma linha por item.</strong> Foto, preço, pilha, dano e alcance moram no mesmo cartão. Não existe regra separada no livro.',
+      bt: ['ver-no-acervo', 'granada', 'Ver a Granada no Acervo'],
+    },
+    {
+      tit: '“Tipos de bala” dentro da arma e o item Bala de Prata',
+      dor: 'A arma guardava uma contagem de balas que não descontava, e a Bala de Prata existia de novo como item na mochila.',
+      antes: `<div class="antes__caixa"><b>Cartão da Rosa Fúnebre na ficha</b><div class="antes__linha">${campoAntes('Tipos de bala: Prata 12', 1)}${campoAntes('não desconta')}</div></div><div class="antes__caixa"><b>Mochila</b><div class="antes__linha">${campoAntes('Bala de Prata 12', 1)}</div></div>`,
+      agora: `<div class="vaga"><span class="medalhao">${glifo('pistola')}</span><span class="vaga__txt"><strong>Rosa Fúnebre</strong><small>Aceita Bala de Prata e Bala de Borracha. Não guarda quantidade.</small></span></div><div class="vaga"><span class="medalhao">${glifo('bala')}</span><span class="vaga__txt"><strong>Bala de Prata: ${prata} na mochila do Vincent G.</strong><small>Cada tiro tira 1 daqui.</small></span></div>`,
+      solucao: '<strong>A bala é um item de Munição.</strong> A arma só diz quais balas aceita; a quantidade mora só na mochila e cai a cada tiro.',
+      bt: ['ir', 'batalha', 'Atirar na Batalha'],
+    },
+    {
+      tit: '“Munições que a arma usa” aparecendo na Granada',
+      dor: 'Todo item “Arma” ganhava os mesmos campos, servissem ou não.',
+      antes: `<div class="antes__caixa"><b>Editor da Granada</b><div class="antes__linha">${campoAntes('Munições que a arma usa: (nenhuma)', 1)}${campoAntes('Capacidade', 1)}</div></div>`,
+      agora: `<div class="vaga"><span class="medalhao">${glifo('granada')}</span><span class="vaga__txt"><strong>Granada é Arremesso</strong><small>Sem campo de munição. Cada uma que é jogada sai da mochila.</small></span></div>`,
+      solucao: '<strong>O tipo decide os campos.</strong> Munição e Capacidade só aparecem em arma De fogo. Arremesso se gasta ao usar (menos o que volta para a mão, como o boomerang).',
+      bt: ['novo', 'arremesso', 'Ver os campos de Arremesso'],
+    },
+    {
+      tit: '“O que ele faz” sugerindo Poção Pequena numa bala',
+      dor: 'O bloco de texto livre oferecia qualquer coisa em qualquer item.',
+      antes: `<div class="antes__caixa"><b>Bala de Prata, bloco O que ele faz</b><div class="antes__linha">${campoAntes('Sugestão: Poção Pequena?', 1)}</div></div>`,
+      agora: `<div class="vaga"><span class="medalhao">${glifo('bala')}</span><span class="vaga__txt"><strong>Bala de Prata: + Efeito</strong><small>Só oferece Condição e Empurrar. Curar fica nos Consumíveis, em “Ao usar”.</small></span></div>`,
+      solucao: '<strong>Efeitos por peças, filtradas pelo tipo.</strong> Cada peça vira uma frase simples no “O que acontece”. Nada de texto solto adivinhado.',
+      bt: ['abrir-editor', 'prata', 'Abrir a Bala de Prata no editor'],
+    },
+    {
+      tit: '“Dar a...” dava 1 por vez',
+      dor: 'Para dar 40 balas a dois jogadores eram 80 cliques.',
+      antes: `<div class="antes__caixa"><b>Dar a...</b><div class="antes__linha">${campoAntes('Vincent G.: +1', 1)}${campoAntes('Vincent G.: +1', 1)}${campoAntes('Vincent G.: +1', 1)}${campoAntes('... 40 vezes')}</div></div>`,
+      agora: '<div class="vaga"><span class="medalhao">' + glifo('dar') + '</span><span class="vaga__txt"><strong>Quantos: 40. Para: Vincent G. e Hector.</strong><small>Um clique, e o aviso “Deu 40 Bala de Prata a Vincent G. e Hector.” com Desfazer.</small></span></div>',
+      solucao: '<strong>Quantidade e várias fichas de uma vez.</strong> Mostra quanto cada um tem e com quanto fica antes de confirmar.',
+      bt: ['dar40', 'prata', 'Dar 40 Bala de Prata'],
+    },
+    {
+      tit: 'Cartões nas abas Armas e Itens da ficha, além da mochila',
+      dor: 'A mesma arma vivia no cartão da ficha e na mochila; vendida ou dada, continuava no Atacar.',
+      antes: `<div class="antes__caixa"><b>Ficha</b><div class="antes__linha">${campoAntes('Aba Armas: Rosa Fúnebre', 1)}${campoAntes('Aba Itens: Kit Médico', 1)}${campoAntes('Mochila: Rosa Fúnebre, Kit Médico', 1)}</div></div>`,
+      agora: `<div class="vaga"><span class="medalhao">${glifo('saco')}</span><span class="vaga__txt"><strong>Mochila e Equipado</strong><small>A ficha guarda só quantidades e o que está em uso. O Atacar lista o que está na mochila.</small></span></div>`,
+      solucao: '<strong>A mochila é a fonte.</strong> Saiu da mochila, sai do Atacar. O cartão que a ficha mostra vem do Acervo.',
+      bt: ['ir', 'ficha', 'Ver a ficha do Vincent G.'],
+    },
+  ];
+  const blocos = casos.map((c) => `<article class="caso">
+    <div class="caso__tit"><h3>${c.tit}</h3><p>${c.dor}</p></div>
+    <div class="caso__lados">
+      <div class="caso__lado"><p class="caso__rot" data-c="antes">Como era</p><div class="antes">${c.antes}</div></div>
+      <div class="caso__lado"><p class="caso__rot" data-c="agora">Como fica</p>${c.agora}</div>
+    </div>
+    <p class="caso__solucao">${c.solucao}</p>
+    <div><button type="button" class="bt bt--p bt--latao" data-acao="${c.bt[0]}" data-id="${c.bt[1]}" data-v="${c.bt[1]}" data-k="ce-${c.bt[0]}-${c.bt[1]}">${c.bt[2]}</button></div>
+  </article>`).join('');
+  const conversao = [
+    ['Coisa do Acervo e regra da arma no livro com o mesmo nome', 'Viram um item só. Foto, preço e pilha vêm do Acervo; dano, ação, alvos e alcance vêm da regra.'],
+    ['Campos de cima e bloco “O que ela faz” com números diferentes', 'O item fica marcado “Confira” no Acervo, com os dois números lado a lado para você escolher. Nada é apagado.'],
+    ['“Tipos de bala” no cartão da arma (ex.: Prata 12)', 'Vira item de Munição no Acervo, se ainda não existe, e as 12 vão para a mochila do dono da ficha. A arma passa a aceitar essa bala.'],
+    ['Granada e bombas cadastradas como Arma', 'Viram Arremesso. A quantidade da mochila continua a mesma.'],
+    ['“O que ela faz” com dano, ação e alcance', 'Esses números entram nos campos do cartão; o que sobra (condição, empurrão, cura) vira peça de efeito.'],
+    ['Cartões das abas Armas e Itens da ficha', 'Vão para a mochila. O que estava em uso fica equipado.'],
+    ['Texto livre que não vira peça', 'Fica na Descrição do item, com o aviso “Confira”.'],
+  ].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('');
+  return `
+  <div class="pg-cab"><div class="pg-cab__txt"><h1 class="pg-titulo">Como era x como fica</h1><p class="pg-sub">O que confundia antes, como o sistema novo resolve e o que acontece com o que você já criou.</p></div></div>
+  <div class="casos">${blocos}
+    <section class="caso" aria-labelledby="tit-conv">
+      <div class="caso__tit"><h3 id="tit-conv">O que você já criou passa sozinho</h3><p>Na primeira vez que a aventura abrir na versão nova. Nada se perde.</p></div>
+      <table class="tabela"><thead><tr><th>Hoje</th><th>Depois</th></tr></thead><tbody>${conversao}</tbody></table>
+    </section>
+  </div>`;
+}
+
+/* =============================================================== avisos */
+function anunciar(t) { $('#anuncio').textContent = t; }
+function avisar(texto, opcoes = {}) {
+  const { desfazer: idH = null, rotulo = 'Desfazer', acao = null } = opcoes;
+  const box = $('#avisos');
+  while (box.children.length >= 3) box.firstElementChild.remove();
+  const el = document.createElement('div');
+  el.className = 'aviso';
+  el.setAttribute('role', 'status');
+  el.setAttribute('data-entrando', '');
+  const temAcao = idH || acao;
+  el.innerHTML = `${glifo('visto')}<p>${esc(texto)}</p>${temAcao ? `<button type="button" class="bt bt--p bt--latao" data-av="acao">${glifo('desfazer')}${esc(rotulo)}</button>` : ''}<button type="button" class="bt bt--fantasma bt--ic" data-av="fechar" aria-label="Fechar aviso">${glifo('x')}</button>`;
+  box.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => el.removeAttribute('data-entrando')));
+  let restante = temAcao ? 7000 : 4500;
+  let inicio = Date.now();
+  let t = setTimeout(sair, restante);
+  const pausar = () => { clearTimeout(t); restante -= Date.now() - inicio; };
+  const seguir = () => { inicio = Date.now(); clearTimeout(t); t = setTimeout(sair, Math.max(1500, restante)); };
+  el.addEventListener('pointerenter', pausar);
+  el.addEventListener('pointerleave', seguir);
+  el.addEventListener('focusin', pausar);
+  el.addEventListener('focusout', seguir);
+  function sair() {
+    clearTimeout(t);
+    if (!el.isConnected) return;
+    el.setAttribute('data-saindo', '');
+    setTimeout(() => el.remove(), 160);
+  }
+  el.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-av]');
+    if (!b) return;
+    sair();
+    if (b.dataset.av === 'acao') { if (idH) desfazer(idH); else acao(); }
+  });
+}
+
+/* =============================================================== eventos */
+document.addEventListener('click', (ev) => {
+  const aba = ev.target.closest('.aba');
+  if (aba) { irPara(aba.dataset.aba); return; }
+  const t = ev.target.closest('[data-acao]');
+  if (!t || t.disabled || t.getAttribute('aria-disabled') === 'true') return;
+  const { acao } = t.dataset;
+  const v = t.dataset.v;
+  const id = t.dataset.id;
+  switch (acao) {
+    case 'recomecar':
+      comecar();
+      Object.assign(UI, { aba: 'acervo', sel: 'prata', filtro: 'todos', busca: '', rascunho: null, editId: null, sujo: false, modo: null, escolhidos: [], conhecidos: {}, contagens: {}, fichaVer: 'vincent', ator: 'vincent', balaDe: {} });
+      if ($('#janela-dar').open) fecharDar();
+      render();
+      avisar('Tudo voltou ao começo.');
+      break;
+    case 'aba': irPara(v); break;
+    case 'ir': irPara(v); break;
+    case 'filtro': UI.filtro = v; render(); break;
+    case 'limpar-busca': UI.busca = ''; render(); $('#busca').focus(); break;
+    case 'selecionar': UI.sel = id; render(); break;
+    case 'novo': abrirEditor(null, v && TIPOS[v] ? v : null); break;
+    case 'editar': case 'abrir-editor': abrirEditor(id); break;
+    case 'dar': abrirDar(id); break;
+    case 'dar40': abrirDar(id, 40); break;
+    case 'ver-no-acervo': UI.sel = id; UI.filtro = 'todos'; UI.busca = ''; irPara('acervo'); { const n = $(`[data-k="sel-${id}"]`); if (n) { n.focus({ preventScroll: true }); n.scrollIntoView({ block: 'center' }); } } break;
+    /* editor */
+    case 'tipo': { const r = UI.rascunho; const ant = r.tipo; if (ant === v) break; aplicarTipo(r, v, ant); UI.sujo = true; UI.amostra = null; render(); break; }
+    case 'foto': UI.rascunho.foto = v; UI.sujo = true; render(); break;
+    case 'forma': { const al = UI.rascunho.alcance; al.forma = v; if (v === 'explosao') { al.a = Math.max(0, Math.min(al.a, 2)); al.b = Math.max(al.b, 3); } UI.amostra = null; UI.sujo = true; render(); break; }
+    case 'amostra': UI.amostra = [Number(t.dataset.x), Number(t.dataset.y)]; { const g = $('#grade-alc'); if (g) g.innerHTML = gradeAlcance(UI.rascunho); } break;
+    case 'bala-modo': UI.rascunho.bala.modo = v; UI.sujo = true; render(); break;
+    case 'cura-modo': UI.rascunho.efeitos[Number(t.dataset.i)].modo = v; UI.sujo = true; render(); break;
+    case 'mais-efeito': {
+      const base = { condicao: { tipo: 'condicao', cond: 'Cura reduzida', pct: 50, dur: 'fim' }, empurrar: { tipo: 'empurrar', n: 1 }, curar: { tipo: 'curar', modo: 'dados', dados: 2, faces: 6, fixo: 10 }, tirar: { tipo: 'tirar', cond: 'Envenenado' } };
+      UI.rascunho.efeitos.push({ ...base[v] });
+      UI.efeitoNovo = UI.rascunho.efeitos.length - 1;
+      UI.sujo = true;
+      render();
+      const n = $(`[data-k="ef-${UI.rascunho.efeitos.length - 1}-${v === 'empurrar' ? 'n' : v === 'curar' ? 'md' : 'cond'}"]`);
+      if (n) n.focus();
+      break;
+    }
+    case 'tirar-efeito': UI.rascunho.efeitos.splice(Number(t.dataset.i), 1); UI.sujo = true; render(); { const n = $('[data-k^="mais-"]'); if (n) n.focus(); } break;
+    case 'descartar': {
+      const antes = { rascunho: clone(UI.rascunho), editId: UI.editId };
+      UI.rascunho = UI.editId ? clone(item(UI.editId)) : null;
+      UI.sujo = false;
+      UI.erroNome = false;
+      if (!UI.rascunho) { irPara('acervo'); } else render();
+      avisar('Mudanças descartadas.', { rotulo: 'Voltar a elas', acao: () => { UI.rascunho = antes.rascunho; UI.editId = antes.editId; UI.sujo = true; irPara('editor'); } });
+      break;
+    }
+    case 'salvar': salvarRascunho(); break;
+    /* dar */
+    case 'fechar-dar': fecharDar(); break;
+    case 'dar-menos': UI.dar.qtd = Math.max(1, UI.dar.qtd - (ev.shiftKey ? 10 : 1)); renderDar(); break;
+    case 'dar-mais': UI.dar.qtd = Math.min(999, UI.dar.qtd + (ev.shiftKey ? 10 : 1)); renderDar(); break;
+    case 'dar-jogadores': UI.dar.para = D.fichas.filter((f) => !f.npc).map((f) => f.id); renderDar(); break;
+    case 'dar-nenhum': UI.dar.para = []; renderDar(); break;
+    case 'confirmar-dar': confirmarDar(); break;
+    /* ficha */
+    case 'ver-ficha': UI.fichaVer = v; UI.fichaSel = null; render(); break;
+    case 'ver-coisa': UI.fichaSel = id; render(); break;
+    case 'usar-fora': usarFora(ficha(t.dataset.f), item(id)); break;
+    case 'equipar': equipar(ficha(t.dataset.f), Number(t.dataset.i)); break;
+    case 'acender': {
+      const f = ficha(t.dataset.f);
+      const vg = f.mochila[Number(t.dataset.i)];
+      const it = item(vg.itemId);
+      const liga = !vg.aceso;
+      const idH = fazer(liga ? `acendeu ${it.nome}` : `apagou ${it.nome}`, () => { vg.aceso = liga; });
+      render();
+      avisar(liga ? `${it.nome} acesa: ilumina ${it.luz.raio} casas em volta de ${f.nome}${NA_BATALHA.includes(f.id) ? ', também na Batalha' : ''}.` : `${it.nome} apagada.`, { desfazer: idH });
+      break;
+    }
+    /* batalha */
+    case 'ator': UI.ator = v; UI.modo = null; UI.escolhidos = []; render(); break;
+    case 'arma': case 'usar': comecarModo(id); break;
+    case 'bala': {
+      const a = ficha(UI.ator);
+      UI.balaDe[chavePente(a.id, t.dataset.arma)] = v;
+      const arma = item(t.dataset.arma);
+      if (quantos(a, arma.id) && penteDe(a.id, arma) > 0) { UI.modo = { ator: a.id, itemId: arma.id, balaId: v }; UI.escolhidos = []; }
+      render();
+      break;
+    }
+    case 'recarregar': recarregar(id); break;
+    case 'casa': clicarCasa(Number(t.dataset.x), Number(t.dataset.y)); break;
+    case 'confirmar-alvos': executar(UI.escolhidos.slice()); break;
+    case 'cancelar-modo': UI.modo = null; UI.escolhidos = []; render(); break;
+    case 'desfazer': desfazer(); break;
+    case 'encerrar': encerrarBatalha(); break;
+    default: break;
+  }
+});
+
+document.addEventListener('input', (ev) => {
+  const el = ev.target;
+  if (el.id === 'busca') { UI.busca = el.value; render(); return; }
+  if (el.id === 'dar-qtd') {
+    if (el.value === '') return;
+    UI.dar.qtd = limitar(inteiro(el.value, 1), 1, 999);
+    atualizarDarSemMexerNoCampo();
+    return;
+  }
+  if (UI.aba === 'editor' && el.closest('#form-item') && el.tagName !== 'SELECT' && el.type !== 'checkbox' && (el.dataset.campo || el.dataset.ef != null)) aoDigitarNoEditor(el);
+});
+document.addEventListener('change', (ev) => {
+  const el = ev.target;
+  if (el.dataset.darPara) {
+    const fid = el.dataset.darPara;
+    UI.dar.para = el.checked ? [...UI.dar.para, fid] : UI.dar.para.filter((x) => x !== fid);
+    renderDar();
+    return;
+  }
+  if (el.id === 'dar-qtd') { el.value = UI.dar.qtd; return; }
+  if (UI.aba === 'editor' && el.closest('#form-item') && (el.tagName === 'SELECT' || el.type === 'checkbox')) aoMudarNoEditor(el);
+});
+
+const tab = $('#tela');
+tab.addEventListener('pointerover', (ev) => {
+  const c = ev.target.closest('#tabuleiro button.casa[data-c="ponto"]');
+  if (c) mostrarArea(Number(c.dataset.x), Number(c.dataset.y));
+});
+tab.addEventListener('focusin', (ev) => {
+  const c = ev.target.closest('#tabuleiro button.casa[data-c="ponto"]');
+  if (c) mostrarArea(Number(c.dataset.x), Number(c.dataset.y));
+});
+tab.addEventListener('pointerout', (ev) => {
+  if (ev.target.closest('#tabuleiro') && !(ev.relatedTarget && ev.relatedTarget.closest && ev.relatedTarget.closest('#tabuleiro'))) limparArea();
+});
+
+const dlg = $('#janela-dar');
+dlg.addEventListener('cancel', (ev) => { ev.preventDefault(); fecharDar(); });
+dlg.addEventListener('click', (ev) => { if (ev.target === dlg) fecharDar(); });
+dlg.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter' && ev.target.id === 'dar-qtd') { ev.preventDefault(); confirmarDar(); }
+});
+
+function digitando(el) {
+  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable) && el.type !== 'checkbox';
+}
+document.addEventListener('keydown', (ev) => {
+  const el = document.activeElement;
+  /* abas: setas trocam, Home e End vão às pontas */
+  if (el && el.classList.contains('aba') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(ev.key)) {
+    const abas = $$('.aba');
+    const i = abas.indexOf(el);
+    const j = ev.key === 'Home' ? 0 : ev.key === 'End' ? abas.length - 1 : (i + (ev.key === 'ArrowRight' ? 1 : -1) + abas.length) % abas.length;
+    ev.preventDefault();
+    irPara(abas[j].dataset.aba);
+    $(`#aba-${abas[j].dataset.aba}`).focus();
+    return;
+  }
+  /* grupos de escolha (tipo, foto, forma, bala...): setas andam e escolhem */
+  if (el && el.getAttribute('role') === 'radio' && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key)) {
+    const grupo = el.closest('[role="radiogroup"]');
+    const ops = $$('[role="radio"]', grupo).filter((o) => o.getAttribute('aria-disabled') !== 'true');
+    const i = ops.indexOf(el);
+    const passo = ev.key === 'ArrowRight' || ev.key === 'ArrowDown' ? 1 : -1;
+    const prox = ops[(i + passo + ops.length) % ops.length];
+    if (!prox) return;
+    ev.preventDefault();
+    const k = prox.dataset.k;
+    prox.click();
+    const n = k && $(`[data-k="${CSS.escape(k)}"]`);
+    if (n) n.focus();
+    return;
+  }
+  if (ev.key === 'Escape') {
+    if ($('#janela-dar').open) return;
+    if (arrasto) { terminarArrasto(true); return; }
+    if (UI.modo) { UI.modo = null; UI.escolhidos = []; render(); return; }
+    if (el && el.id === 'busca' && UI.busca) { UI.busca = ''; render(); return; }
+  }
+  if (ev.key === 'F8') {
+    const b = $('#avisos .aviso:last-child button');
+    if (b) { ev.preventDefault(); b.focus(); }
+    return;
+  }
+  if (digitando(el)) return;
+  if (ev.key === '/' && UI.aba === 'acervo') { ev.preventDefault(); $('#busca').focus(); return; }
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z' && !$('#janela-dar').open) { ev.preventDefault(); desfazer(); }
+});
+
+comecar();
+render();
+</script>
+</body>
+</html>
