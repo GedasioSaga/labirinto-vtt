@@ -169,7 +169,7 @@ export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirR
           event.currentTarget.focus()
           if (aberto?.qual !== 'vida') abrirVida(false)
         }}
-        onClick={() => (aberto?.qual === 'vida' ? fecharVida() : abrirVida(true))}
+        onClick={() => abrirVida(true)}
         onKeyDown={teclaNaVida}
       >
         <span className="lb-menusel__rotulo">
@@ -202,7 +202,7 @@ export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirR
           event.currentTarget.focus()
           if (aberto?.qual !== 'condicoes') abrirCondicoes(false)
         }}
-        onClick={() => (aberto?.qual === 'condicoes' ? fecharCondicoes() : abrirCondicoes(true))}
+        onClick={() => abrirCondicoes(true)}
         onKeyDown={teclaNasCondicoes}
       >
         <span className="lb-menusel__rotulo">
@@ -245,7 +245,7 @@ export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirR
           event.currentTarget.focus()
           if (aberto?.qual !== 'perto') abrirPerto(false)
         }}
-        onClick={() => (aberto?.qual === 'perto' ? fecharPerto() : abrirPerto(true))}
+        onClick={() => abrirPerto(true)}
         onKeyDown={teclaNoPerto}
       >
         <span>Enviar para perto de</span>

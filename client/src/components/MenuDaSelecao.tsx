@@ -419,7 +419,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
           event.currentTarget.focus()
           abrirSubmenu(false)
         }}
-        onClick={() => (submenuAberto ? fecharSubmenu() : abrirSubmenu(true))}
+        onClick={() => abrirSubmenu(true)}
       >
         <span>Mover para camada</span>
         <span className="lb-menusel__seta" aria-hidden="true">
@@ -549,7 +549,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
               event.currentTarget.focus()
               abrirCenas(false)
             }}
-            onClick={() => (cenasAbertas !== null ? fecharCenas() : abrirCenas(true))}
+            onClick={() => abrirCenas(true)}
           >
             <span>Enviar para cena</span>
             <span className="lb-menusel__seta" aria-hidden="true">
@@ -579,7 +579,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
               event.currentTarget.focus()
               if (fichasAbertas === null) abrirFichas(false)
             }}
-            onClick={() => (fichasAbertas !== null ? fecharFichas() : abrirFichas(true))}
+            onClick={() => abrirFichas(true)}
           >
             <span>{fichas.length > 1 ? `Ligar ficha aos ${fichas.length}` : 'Ligar ficha'}</span>
             <span className="lb-menusel__seta" aria-hidden="true">

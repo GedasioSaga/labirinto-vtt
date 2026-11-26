@@ -220,7 +220,7 @@ export function ItensDaAparenciaDaFicha({ tokenId, aberta, onAbrir, formaRef, au
           event.currentTarget.focus()
           if (aberta?.qual !== 'forma') abrir('forma', false)
         }}
-        onClick={() => (aberta?.qual === 'forma' ? fechar('forma') : abrir('forma', true))}
+        onClick={() => abrir('forma', true)}
         onKeyDown={teclaNoPai('forma')}
       >
         <span>Mudar ficha</span>
@@ -244,7 +244,7 @@ export function ItensDaAparenciaDaFicha({ tokenId, aberta, onAbrir, formaRef, au
           event.currentTarget.focus()
           if (aberta?.qual !== 'aura') abrir('aura', false)
         }}
-        onClick={() => (aberta?.qual === 'aura' ? fechar('aura') : abrir('aura', true))}
+        onClick={() => abrir('aura', true)}
         onKeyDown={teclaNoPai('aura')}
       >
         <span>Aura</span>
