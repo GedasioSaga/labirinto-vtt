@@ -1835,17 +1835,13 @@ function PixiCanvasDoContexto({
       const FIT_MARGIN = 40
       const fitToContent = (origin: CameraOrigin) => {
         const mapa = useMapStore.getState().map
-        const bounds = contentBounds(mapa)
-        if (bounds) {
-          applyCamera(fitCamera(bounds, { width: app.screen.width, height: app.screen.height }, FIT_MARGIN), origin)
-          return
-        }
-        // Mapa vazio (caça 12/11, E14): enquadra o RETÂNGULO do mapa na parte que os
-        // painéis deixam livre, na abertura e no F — o mapa novo abre com os 4 lados à vista.
-        const retangulo = mapBoundsRect(mapa)
-        if (retangulo === null) return
+        // Com conteúdo, enquadra o conteúdo; mapa vazio (caça 12/11, E14), o RETÂNGULO
+        // do mapa — o mapa novo abre com os 4 lados à vista. Nos dois casos, na parte
+        // que os painéis deixam livre: antes o conteúdo ia para trás deles.
+        const alvo = contentBounds(mapa) ?? mapBoundsRect(mapa)
+        if (alvo === null) return
         const livre = freeArea({ width: app.screen.width, height: app.screen.height }, focusObstaclesRef.current?.() ?? [])
-        const enquadrada = fitCamera(retangulo, { width: livre.maxX - livre.minX, height: livre.maxY - livre.minY }, FIT_MARGIN)
+        const enquadrada = fitCamera(alvo, { width: livre.maxX - livre.minX, height: livre.maxY - livre.minY }, FIT_MARGIN)
         applyCamera({ ...enquadrada, x: enquadrada.x + livre.minX, y: enquadrada.y + livre.minY }, origin)
       }
       // Fit automático ao ABRIR o mapa (item #9): PixiCanvas monta de novo

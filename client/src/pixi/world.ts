@@ -1,4 +1,8 @@
 import type { MapData, Drawing } from '../types/map'
+import { pieceBounds } from '../lib/floorSdf'
+import { caixaDoCarimbo } from '../lib/carimbos'
+import { caixaDaAgua } from '../lib/agua/forma'
+import { caixaDoAbismo } from '../lib/abismo'
 
 export interface Camera {
   x: number
@@ -251,8 +255,46 @@ export function contentBounds(map: MapData): Bounds | null {
   for (const drawing of map.drawings) {
     bounds = extendDrawing(bounds, drawing)
   }
+  // O que o mestre pinta e marca no chão também é conteúdo: um mapa feito só
+  // de Chão + 1 token enquadrava só o token (zoom a 163%, mapa cortado).
+  for (const piece of map.floor) bounds = extendBox(bounds, pieceBounds(piece))
+  for (const line of map.lines) {
+    for (const p of line.points) bounds = extend(bounds, p.x, p.y)
+  }
+  for (const marker of map.markers) {
+    // Caixa do marcador girado: a diagonal cobre qualquer giro.
+    const half = Math.hypot(marker.w, marker.h) / 2
+    bounds = extendBox(bounds, { minX: marker.cx - half, minY: marker.cy - half, maxX: marker.cx + half, maxY: marker.cy + half })
+  }
+  for (const pin of map.pins) {
+    const half = map.grid / 2
+    bounds = extendBox(bounds, { minX: pin.x - half, minY: pin.y - half, maxX: pin.x + half, maxY: pin.y + half })
+  }
+  for (const carimbo of map.carimbos ?? []) bounds = extendBox(bounds, caixaDoCarimbo(carimbo))
+  for (const agua of map.aguas ?? []) {
+    const caixa = caixaDaAgua(agua, map.grid)
+    // Água sem pontos devolve a caixa infinita invertida: não conta.
+    if (Number.isFinite(caixa.x0) && Number.isFinite(caixa.x1)) bounds = extendBox(bounds, { minX: caixa.x0, minY: caixa.y0, maxX: caixa.x1, maxY: caixa.y1 })
+  }
+  for (const abismo of map.abismos ?? []) {
+    const caixa = caixaDoAbismo(abismo)
+    if (caixa) bounds = extendBox(bounds, caixa)
+  }
+  for (const traco of map.penhascos ?? []) {
+    for (const p of traco.pontos) bounds = extendBox(bounds, { minX: p.x - traco.raio, minY: p.y - traco.raio, maxX: p.x + traco.raio, maxY: p.y + traco.raio })
+  }
+  for (const passo of map.texturas ?? []) {
+    // Só o pincel tem traço próprio; balde e sala pintam formas que já contam acima.
+    if (passo.tipo !== 'pincel') continue
+    for (const p of passo.pontos) bounds = extendBox(bounds, { minX: p.x - passo.raio, minY: p.y - passo.raio, maxX: p.x + passo.raio, maxY: p.y + passo.raio })
+  }
 
   return bounds
+}
+
+function extendBox(bounds: Bounds | null, box: Bounds): Bounds {
+  const withMin = extend(bounds, box.minX, box.minY)
+  return extend(withMin, box.maxX, box.maxY)
 }
 
 // Evita a divisão 0/0 (NaN) quando `bounds` é degenerado num eixo — parede
