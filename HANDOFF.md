@@ -1,3 +1,10 @@
+# 26/11 ~17h: 0.6.1 PUBLICANDO (automacao-devops); página QoL v2 publicada
+
+- Faixa mapas fechada: 8 commits (ea6e7c01..106a8508): Enter na 1ª porta, token em casa livre, submenu no clique, letra pula no menu, Filtrar cenas, nome do pino legível, Shift+roda, arrastar objeto da lista. Página: "15 sugestões e 26 bugs feitos na 0.6.1".
+- Artifact QoL v2: https://claude.ai/artifact/7XGCzQRJAKs63ZL45B4fJd (só o incerto/decisões).
+- Listas de "coisas erradas" e bugs incertos: docs/explorador/*.md + docs/levantamento-mecanicas-duplicadas.md.
+- Falta para o /goal: confirmar 0.6.1 publicada (latest.json) e entregar o resumo final ao dono.
+
 # 26/11 ~16h: 0.6.0 PUBLICADA; 0.6.1 quase pronta
 
 - 0.6.1: workflow (wf_6036abee-6ef) fez 27 itens (17 commits): batalha (aviso de quem fica fora, Encerrar confirma, botões apagados, Desfazer da vez completo, sem voltas fantasmas, Equipar/Guardar no Atacar), Livros/Prelúdio (nota não perde letras, desfazer modelo religa variações, erro fora do app em português, Prelúdio sem perder mudanças, dica do Ctrl+Alt+P), site (erros em português, Tentar de novo sem recarregar, Galeria trata login vencido, ficha carregada sob demanda). tsc 0, build do site ok, 3 testes do rework verdes. Página QoL refeita só com o incerto.
