@@ -1,7 +1,17 @@
 import { create } from 'zustand'
-import { passarTurnoForaDaBatalha, personagemComAPerda, trocarCondicoesNoMapa, type CondicoesDaFicha, type PerdaDeVida } from '../lib/turnoForaDaBatalha'
+import { comCondicoesNaFicha } from '../lib/condicoes/naFicha'
+import type { CondicaoNaFicha } from '../lib/itens/modelo'
+import {
+  passarTurnoForaDaBatalha,
+  personagemComAPerda,
+  trocarCondicoesNoMapa,
+  type CondicoesDaFicha,
+  type CondicoesDoPersonagemNoTurno,
+  type PerdaDeVida,
+} from '../lib/turnoForaDaBatalha'
 import type { MapData } from '../types/map'
 import { useAdventureStore } from './adventureStore'
+import { useCondicoesPropriasStore } from './condicoesPropriasStore'
 import { useMapStore } from './mapStore'
 import { mesaDaAventura } from './mesaDaAventura'
 import { chavesDaFichaNaBatalha } from './ponteDasCondicoes'
@@ -36,6 +46,8 @@ export interface PasseDoTurno {
   depois: TurnoDaCena
   /** As condições de cada ficha que mudou, como estavam ANTES do passe. */
   tokens: ReadonlyMap<string, CondicoesDaFicha>
+  /** CONDIÇÕES NA FICHA (E4a): as condições de cada ficha de personagem que contou o turno, antes e depois. */
+  personagens: readonly CondicoesDoPersonagemNoTurno[]
   perdas: readonly PerdaDeVida[]
   /** Uma frase por ficha com prazo (o aviso as mostra). */
   partes: readonly string[]
@@ -68,6 +80,17 @@ function mudarACena(sceneKey: string, mudar: (map: MapData) => MapData): void {
   else useAdventureStore.getState().applyPlayerChangeToBackgroundScene(sceneKey, mudar)
 }
 
+/**
+ * CONDIÇÕES NA FICHA (E4a): grava em cada ficha de personagem as condições `qual` (as de depois no
+ * passe, as de antes no Desfazer). Ficha em que nada mudou (só tirou vida) não é regravada.
+ */
+function gravarCondicoesDasFichas(fichas: readonly CondicoesDoPersonagemNoTurno[], qual: (ficha: CondicoesDoPersonagemNoTurno) => readonly CondicaoNaFicha[]): void {
+  for (const ficha of fichas) {
+    if (ficha.antes === ficha.depois) continue
+    mesaDaAventura.ajustarPersonagem(ficha.personagemId, (atual) => comCondicoesNaFicha(atual, qual(ficha)))
+  }
+}
+
 let ultimoId = 0
 
 export const useTurnoForaDaBatalhaStore = create<TurnoForaDaBatalhaState>()((set, get) => ({
@@ -77,17 +100,24 @@ export const useTurnoForaDaBatalhaStore = create<TurnoForaDaBatalhaState>()((set
   passar: (sceneKey) => {
     if (chaveDaCenaAberta() !== sceneKey) return null
     const sistema = mesaDaAventura.sistema()
-    const feito = passarTurnoForaDaBatalha(useMapStore.getState().map, mesaDaAventura.personagens(), sistema, (tokenId) => chavesDaFichaNaBatalha(sceneKey, tokenId))
+    const feito = passarTurnoForaDaBatalha(
+      useMapStore.getState().map,
+      mesaDaAventura.personagens(),
+      sistema,
+      (tokenId) => chavesDaFichaNaBatalha(sceneKey, tokenId),
+      useCondicoesPropriasStore.getState().catalogo,
+    )
     if (feito === null) return null
     // O mapa num passo só; as condições de depois valem também nos passos guardados do Ctrl+Z.
     mudarACena(sceneKey, (map) => trocarCondicoesNoMapa(map, feito.depois))
+    gravarCondicoesDasFichas(feito.personagens, (ficha) => ficha.depois)
     const quando = Date.now()
     if (sistema !== null) for (const perda of feito.perdas) mesaDaAventura.ajustarPersonagem(perda.personagemId, (atual) => personagemComAPerda(atual, sistema, perda, quando))
     const antes = turnoDaCena(get().cenas, sceneKey)
     const numero = antes.numero + 1
     const depois: TurnoDaCena = { numero, resumo: `Turno ${antes.numero} para ${numero}: ${feito.partes.join('; ')}.` }
     ultimoId += 1
-    const passe: PasseDoTurno = { id: ultimoId, sceneKey, antes, depois, tokens: feito.antes, perdas: feito.perdas, partes: feito.partes }
+    const passe: PasseDoTurno = { id: ultimoId, sceneKey, antes, depois, tokens: feito.antes, personagens: feito.personagens, perdas: feito.perdas, partes: feito.partes }
     set({ cenas: { ...get().cenas, [sceneKey]: depois }, ultimo: { ...get().ultimo, [sceneKey]: passe.id } })
     return passe
   },
@@ -96,6 +126,7 @@ export const useTurnoForaDaBatalhaStore = create<TurnoForaDaBatalhaState>()((set
     const { sceneKey } = passe
     if (get().ultimo[sceneKey] !== passe.id) return false
     mudarACena(sceneKey, (map) => trocarCondicoesNoMapa(map, passe.tokens))
+    gravarCondicoesDasFichas(passe.personagens, (ficha) => ficha.antes)
     const sistema = mesaDaAventura.sistema()
     const quando = Date.now()
     if (sistema !== null) {

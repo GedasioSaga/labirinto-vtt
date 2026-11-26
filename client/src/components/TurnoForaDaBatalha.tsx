@@ -1,11 +1,13 @@
 import { useId } from 'react'
-import { prazosDaFicha } from '../lib/prazoDaCondicao'
+import { contarQuemPassaTurno } from '../lib/turnoForaDaBatalha'
+import { useAdventureStore } from '../stores/adventureStore'
 import { useBatalhaDBTStore } from '../stores/batalhaDBTStore'
 import { useBatalhaStore } from '../stores/batalhaStore'
+import { useCondicoesPropriasStore } from '../stores/condicoesPropriasStore'
+import { personagensAtivos } from '../stores/donoDasFichas'
 import { useMapStore } from '../stores/mapStore'
 import { useToastStore } from '../stores/toastStore'
 import { turnoDaCena, useTurnoForaDaBatalhaStore, type PasseDoTurno } from '../stores/turnoForaDaBatalha'
-import type { Token } from '../types/map'
 import { Botao } from './grimorio/Botao'
 import { IconeDoLivro } from './livro/icones'
 import './TurnoForaDaBatalha.css'
@@ -17,11 +19,6 @@ export const PASSAR_TURNO_LABEL = 'Passar turno'
 export const NINGUEM_COM_PRAZO = 'Ninguém com condição que conta turno agora.'
 export const NOTA_DO_TURNO = 'Cada turno passado tira a vida de quem perde por turno e desconta 1 turno de cada condição.'
 export const SO_O_ULTIMO_SE_DESFAZ = 'Só o último turno passado se desfaz.'
-
-/** Quantas fichas da cena aberta têm prazo aceso (a de pastilha apagada não conta). */
-function contarComPrazo(tokens: readonly Token[]): number {
-  return tokens.reduce((soma, token) => (prazosDaFicha(token).length > 0 ? soma + 1 : soma), 0)
-}
 
 function avisarOPasse(passe: PasseDoTurno): void {
   const toasts = useToastStore.getState()
@@ -52,7 +49,11 @@ export function TurnoForaDaBatalha({ sceneKey }: { sceneKey: string }) {
   const motivoId = useId()
   const emBatalha = useBatalhaStore((state) => Object.hasOwn(state.cenas, sceneKey))
   const emBatalhaDBT = useBatalhaDBTStore((state) => Object.hasOwn(state.cenas, sceneKey))
-  const comPrazo = useMapStore((state) => contarComPrazo(state.map.tokens))
+  // Quem passa turno: o prazo aceso no token e, CONDIÇÕES NA FICHA (E4a), a ficha de personagem com condição que conta.
+  const tokens = useMapStore((state) => state.map.tokens)
+  const personagens = useAdventureStore(personagensAtivos)
+  const criadas = useCondicoesPropriasStore((state) => state.catalogo)
+  const comPrazo = contarQuemPassaTurno(tokens, personagens, criadas)
   const turno = useTurnoForaDaBatalhaStore((state) => turnoDaCena(state.cenas, sceneKey))
   if (emBatalha || emBatalhaDBT) return null
   const parado = comPrazo === 0

@@ -1,6 +1,9 @@
-import type { MapData, PrazoDeCondicao, Token } from '../types/map'
+import type { CondicaoPropria, MapData, PrazoDeCondicao, Token } from '../types/map'
 import { NOME_DO_MESTRE, aplicarAjustes } from './ajusteDaFicha'
 import { chaveDaCondicao } from './condicaoPorNome'
+import { condicaoDoCatalogo } from './condicoes/catalogo'
+import { condicoesDe, contarFimDaVez, danoDosPendentes, duracaoDe, pendentesDoComecoDaVez, type PendenteDaVez } from './condicoes/naFicha'
+import type { CondicaoNaFicha } from './itens/modelo'
 import { condicoesPropriasOf, simboloDaCondicaoPropria } from './condicoesProprias'
 import type { Personagem } from './personagem'
 import { passarTurnoNoMapa, prazosDaFicha } from './prazoDaCondicao'
@@ -69,14 +72,115 @@ export interface PerdaDeVida {
   para: number
 }
 
+/** As condições de uma ficha de personagem antes e depois do turno (E4a): o Desfazer volta as de antes. */
+export interface CondicoesDoPersonagemNoTurno {
+  personagemId: string
+  antes: readonly CondicaoNaFicha[]
+  depois: readonly CondicaoNaFicha[]
+}
+
 /** Um turno passado: o mapa novo, as condições de antes e de depois de cada ficha que mudou, a vida perdida e o resumo. */
 export interface TurnoPassado {
   map: MapData
   antes: ReadonlyMap<string, CondicoesDaFicha>
   depois: ReadonlyMap<string, CondicoesDaFicha>
+  /** CONDIÇÕES NA FICHA (E4a): as fichas de personagem da cena cujas condições contaram o turno. */
+  personagens: CondicoesDoPersonagemNoTurno[]
   perdas: PerdaDeVida[]
   /** Uma frase por ficha com prazo, na ordem do mapa ("Tomás: Lento faltam 1"). */
   partes: string[]
+}
+
+/** O turno de uma ficha de personagem: as condições de antes e de depois, o que tirou vida e quanto. */
+interface TiqueDoPersonagem extends CondicoesDoPersonagemNoTurno {
+  personagem: Personagem
+  /** O nome no resumo (o do primeiro token dela na cena). */
+  nome: string
+  pendentes: PendenteDaVez[]
+  dano: number
+}
+
+/** A ficha de personagem tem condição que conta turno (por N turnos) ou que tira vida no começo da vez. */
+function fichaContaTurno(personagem: Personagem, criadas: readonly CondicaoPropria[]): boolean {
+  return condicoesDe(personagem).some((condicao) => condicao.turnos !== null) || pendentesDoComecoDaVez(personagem, criadas).length > 0
+}
+
+/** As fichas de personagem ligadas aos tokens da cena, uma vez cada (dois tokens da mesma ficha de jogador contam um turno só), na ordem do mapa. */
+function fichasDaCena(tokens: readonly Token[], personagens: readonly Personagem[]): { personagem: Personagem; token: Token }[] {
+  const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
+  const vistas = new Set<string>()
+  const fichas: { personagem: Personagem; token: Token }[] = []
+  for (const token of tokens) {
+    if (token.characterId === null || vistas.has(token.characterId)) continue
+    const personagem = porId.get(token.characterId)
+    if (personagem === undefined) continue
+    vistas.add(personagem.id)
+    fichas.push({ personagem, token })
+  }
+  return fichas
+}
+
+/**
+ * CONDIÇÕES NA FICHA (E4a): o turno de cada ficha de personagem da cena, pelas regras de
+ * `lib/condicoes/naFicha.ts`: a vida do começo da vez (fora da batalha, todas aplicadas) e o
+ * desconto do fim. Ficha sem nada que conte não entra.
+ */
+function tiquesDasFichas(tokens: readonly Token[], personagens: readonly Personagem[], criadas: readonly CondicaoPropria[]): TiqueDoPersonagem[] {
+  return fichasDaCena(tokens, personagens).flatMap(({ personagem, token }) => {
+    if (!fichaContaTurno(personagem, criadas)) return []
+    const pendentes = pendentesDoComecoDaVez(personagem, criadas)
+    const fim = contarFimDaVez(personagem)
+    return [
+      {
+        personagemId: personagem.id,
+        personagem,
+        nome: nomeNoResumo(token, personagens),
+        antes: condicoesDe(personagem),
+        depois: condicoesDe(fim.personagem),
+        pendentes,
+        dano: danoDosPendentes(pendentes),
+      },
+    ]
+  })
+}
+
+/** Quantas fichas da cena passam turno: as de prazo aceso no token e as de personagem com condição que conta (o botão "Passar turno"). */
+export function contarQuemPassaTurno(tokens: readonly Token[], personagens: readonly Personagem[], criadas: readonly CondicaoPropria[]): number {
+  const noToken = tokens.reduce((soma, token) => (prazosDaFicha(token).length > 0 ? soma + 1 : soma), 0)
+  return noToken + fichasDaCena(tokens, personagens).filter(({ personagem }) => fichaContaTurno(personagem, criadas)).length
+}
+
+/** "faltam 2", "acabou", ou a duração que não conta, pela condição de mesmo id DEPOIS do turno. */
+function estadoDaCondicaoDepois(condicao: CondicaoNaFicha, depois: readonly CondicaoNaFicha[]): string {
+  const ficou = depois.find((candidata) => candidata.id === condicao.id)
+  if (ficou === undefined) return 'acabou'
+  const duracao = duracaoDe(ficou)
+  if (typeof duracao === 'number') return `faltam ${duracao}`
+  return duracao === 'fim' ? 'até o fim da batalha' : 'até alguém tirar'
+}
+
+/**
+ * A frase de uma ficha de personagem, no molde de `fraseDaFicha`: "Vincent perdeu 3 PV
+ * (Envenenado, faltam 1), Lento acabou". `perdeu` = PV que saíram de verdade; `null` = a ficha não
+ * tem onde a vida cair (sistema sem vida): só as condições.
+ */
+export function fraseDasCondicoesDaFicha(
+  nome: string,
+  antes: readonly CondicaoNaFicha[],
+  depois: readonly CondicaoNaFicha[],
+  pendentes: readonly PendenteDaVez[],
+  perdeu: number | null,
+  criadas: readonly CondicaoPropria[],
+): string {
+  // A criada que o mestre apagou do catálogo fica na ficha sem nome de catálogo.
+  const nomeDe = (condicao: CondicaoNaFicha): string => condicaoDoCatalogo(condicao.condId, criadas)?.nome ?? 'Condição apagada'
+  const tiram = new Set(pendentes.map((pendente) => pendente.condicaoId))
+  const contam = antes.filter((condicao) => condicao.turnos !== null || tiram.has(condicao.id))
+  const parte = (condicao: CondicaoNaFicha, separador: string): string => `${nomeDe(condicao)}${separador}${estadoDaCondicaoDepois(condicao, depois)}`
+  if (perdeu === null || tiram.size === 0) return `${nome}: ${contam.map((condicao) => parte(condicao, ' ')).join(', ')}`
+  const cabeca = `${nome} perdeu ${perdeu} PV (${contam.filter((condicao) => tiram.has(condicao.id)).map((condicao) => parte(condicao, ', ')).join('; ')})`
+  const outros = contam.filter((condicao) => !tiram.has(condicao.id)).map((condicao) => parte(condicao, ' '))
+  return outros.length === 0 ? cabeca : `${cabeca}, ${outros.join(', ')}`
 }
 
 /** O nome da ficha no resumo: o do token, ou o do personagem ligado. */
@@ -111,15 +215,22 @@ export function fraseDaFicha(nome: string, antes: readonly PrazoDeCondicao[], de
  * a passar). A vida sai em ordem de ficha: dois tokens do mesmo personagem
  * somam, e o piso 0 vale para a soma. `seguradas`: as chaves que uma batalha
  * ainda segura acesas na ficha (`chavesDaFichaNaBatalha`).
+ *
+ * CONDIÇÕES NA FICHA (E4a): além do prazo gravado no token (a passagem até a
+ * E7), conta o turno das condições da ficha de personagem de cada token da
+ * cena (`Personagem.condicoes`), uma vez por ficha. `criadas`: as condições
+ * que o mestre criou (o nome e a regra delas).
  */
 export function passarTurnoForaDaBatalha(
   map: MapData,
   personagens: readonly Personagem[],
   sistema: SistemaDeRpg | null,
   seguradas?: (tokenId: string) => ReadonlySet<string>,
+  criadas: readonly CondicaoPropria[] = [],
 ): TurnoPassado | null {
   const { map: novo, fichas } = passarTurnoNoMapa(map, seguradas)
-  if (novo === map) return null
+  const tiques = tiquesDasFichas(map.tokens, personagens, criadas)
+  if (novo === map && tiques.length === 0) return null
   const recurso = recursoDeVida(sistema)
   const danoPorToken = new Map(fichas.map((ficha) => [ficha.tokenId, ficha.dano]))
   const depoisPorId = new Map(novo.tokens.map((token) => [token.id, token]))
@@ -147,9 +258,21 @@ export function passarTurnoForaDaBatalha(
     }
     partes.push(fraseDaFicha(nomeNoResumo(token, personagens), prazosAntes, prazosDaFicha(tokenDepois), perdeu))
   }
+  for (const tique of tiques) {
+    const vida = recurso === null ? null : vidaDoPersonagem(tique.personagem, recurso)
+    let perdeu: number | null = null
+    if (vida !== null) {
+      const conta = atualPorPersonagem.get(tique.personagemId) ?? { de: vida.atual, para: vida.atual }
+      const para = Math.max(0, conta.para - tique.dano)
+      perdeu = conta.para - para
+      atualPorPersonagem.set(tique.personagemId, { de: conta.de, para })
+    }
+    partes.push(fraseDasCondicoesDaFicha(tique.nome, tique.antes, tique.depois, tique.pendentes, perdeu, criadas))
+  }
   const perdas: PerdaDeVida[] =
     recurso === null ? [] : [...atualPorPersonagem].flatMap(([personagemId, { de, para }]) => (de === para ? [] : [{ personagemId, recursoId: recurso.id, de, para }]))
-  return { map: novo, antes, depois, perdas, partes }
+  const personagensDoTurno = tiques.map(({ personagemId, antes: antesDaFicha, depois: depoisDaFicha }) => ({ personagemId, antes: antesDaFicha, depois: depoisDaFicha }))
+  return { map: novo, antes, depois, personagens: personagensDoTurno, perdas, partes }
 }
 
 /**
