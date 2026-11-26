@@ -114,6 +114,19 @@ export type Reversao =
        * Ausente = ninguém ganhou.
        */
       ficha?: { personagemId: string; partes: readonly ParteDaFicha[] }
+      /**
+       * Explorador 26/11/2026, bug 6: as linhas automáticas que o começo desta
+       * vez escreveu depois dela (Fim da vez, Condições, Condições fora da
+       * ordem, Recarga), da mais velha para a mais nova. O Desfazer da vez as
+       * desfaz antes dela (a store); sem isso, passar de novo aplicava em dobro.
+       */
+      juntas?: readonly string[]
+      /**
+       * Bug 5 (explorador 26/11): o desconto do prazo das condições que não
+       * rendeu linha (nada acabou, ninguém tomou dano). O Desfazer da vez o
+       * devolve junto ("3 turnos" que virou 2 volta a 3).
+       */
+      prazos?: readonly Reversao[]
     }
   /** Mover, Ordenar, desempate: os ids na ordem de antes. Desfazer reaplica às cartas que ainda existem. */
   | { tipo: 'ordem'; antes: readonly string[] }

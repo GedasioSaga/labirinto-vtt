@@ -16,12 +16,13 @@ import { curaComOsSelos, notaDosSelosNaCura } from '../../lib/batalha/condicoes'
 import { comLembretesDaVez, comLembretesDoMomento } from '../../lib/batalha/passivas'
 import { ehOverload } from '../../lib/batalha/leituraDaFicha'
 import { ajustesDoDano } from '../../lib/batalha/reacao'
-import { mudancasDaVez, type ParteDaFicha, type Reversao } from '../../lib/batalha/registro'
+import { mudancasDaVez, novoIdDeLinha, type ParteDaFicha, type Reversao } from '../../lib/batalha/registro'
 import {
   agilidadesDasCartas,
   cartaDaVez,
   darVez as darVezNaOrdem,
   passarVez as passarVezNaOrdem,
+  proximaCarta,
   selosQueSairam,
   tokensCaidos,
   type AutorDaAcao,
@@ -96,10 +97,17 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
    * sai (a extra do mesmo token): passa de novo. Ninguém mais joga: a saída leva a vez como antes.
    */
   const passarAVezDeQuemSai = (sceneKey: string, sai: (carta: CartaDaOrdem) => boolean): void => {
+    const jaPassadas = new Set<string>()
     for (let voltas = cenaDe(sceneKey)?.turnos.cartas.length ?? 0; voltas > 0; voltas -= 1) {
       const turnos = cenaDe(sceneKey)?.turnos
       const daVez = turnos === undefined ? null : cartaDaVez(turnos)
-      if (daVez === null || !sai(daVez) || !get().passarVez(sceneKey)) return
+      if (turnos === undefined || daVez === null || !sai(daVez) || jaPassadas.has(daVez.id)) return
+      // Explorador 26/11/2026, bug 8: só passa se alguém que fica ainda joga. Sem isso a vez voltava à própria
+      // carta (rodada +1) e o laço repetia "Vez: A → A", com veneno, prazos e recargas descontando a cada volta.
+      const { personagens, sistema } = mesaDoRpg()
+      if (proximaCarta(turnos, tokensCaidos(turnos.cartas, personagens, sistema), (carta) => !sai(carta)) === null) return
+      jaPassadas.add(daVez.id)
+      if (!get().passarVez(sceneKey)) return
     }
   }
 
@@ -243,7 +251,8 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     partes.push(...partesDosLembretes(lembrados))
     novos = lembrados.turnos
     const atual = cenaDe(sceneKey) ?? cena
-    const linha = comMudanca(atual, novos, { tipo: 'acao', texto: `Fim da vez: ${textos.join(' · ')}`, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
+    // Explorador 26/11/2026, bug 4: a linha automática é do mestre, não de quem passou a vez (o jogador desfazia a própria penalidade).
+    const linha = comMudanca(atual, novos, { tipo: 'acao', texto: `Fim da vez: ${textos.join(' · ')}`, autor: MESTRE, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
     gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
     avisarQuemCaiu(sceneKey, autor)
   }
@@ -258,11 +267,12 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
    * pular" do mestre, como o selo). Uma linha própria com Desfazer
    * (o prazo volta pela mesa, o HP pela ficha), gravada depois da linha da
    * vez. A mesa sem mapa (arena) não tem prazo; nada a fazer: nada muda.
+   * Devolve o desconto que não rendeu linha (bug 5 do explorador, 26/11): vai na linha da vez.
    */
-  const prazosDaVez = (sceneKey: string, de: CartaDaOrdem | null, para: CartaDaOrdem | null, autor: AutorDaAcao): void => {
+  const prazosDaVez = (sceneKey: string, de: CartaDaOrdem | null, para: CartaDaOrdem | null, autor: AutorDaAcao): Reversao[] => {
     const { fichaDaCena, mudarFichaDaCena } = mesa
     const cena = cenaDe(sceneKey)
-    if (cena === undefined || fichaDaCena === undefined || mudarFichaDaCena === undefined) return
+    if (cena === undefined || fichaDaCena === undefined || mudarFichaDaCena === undefined) return []
     const { personagens } = mesaDoRpg()
     const nomeDe = nomeDoTokenNa(cena.turnos, personagens)
     const partes: Reversao[] = []
@@ -305,7 +315,8 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     }
     // Só o desconto, sem nada que acabou nem dano: não há o que dizer ao mestre (o número que falta está na pastilha).
     // E6c: o desconto da ficha sem notícia também fica sem linha, mas ainda assim gravado (como o do prazo do mapa).
-    if (textos.length === 0) return
+    // Bug 5: sem linha, o desconto volta pelo Desfazer da vez (quem chama o põe na linha dela).
+    if (textos.length === 0) return partes
     const atual = cenaDe(sceneKey) ?? cena
     // REQUISITOS B3: o dano do prazo no começo da vez também é "apanhou" (e pode derrubar).
     const rastreado = rastrear(atual.turnos, efeitos, partes)
@@ -316,9 +327,11 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     const lembrados = lembrarDepoisDoDano(semCaidos)
     partes.push(...partesDosLembretes(lembrados))
     const texto = `Condições: ${textos.join(' · ')}${textoDosQueSairam(caidos.nomes)}`
-    const linha = comMudanca(atual, lembrados.turnos, { tipo: efeitos.length > 0 ? 'dano' : 'acao', texto, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
+    // Bug 4 (explorador 26/11): linha automática, autor mestre (o jogador não desfaz o veneno que tomou).
+    const linha = comMudanca(atual, lembrados.turnos, { tipo: efeitos.length > 0 ? 'dano' : 'acao', texto, autor: MESTRE, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
     gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
     if (efeitos.length > 0) avisarQuemCaiu(sceneKey, autor)
+    return []
   }
 
   /**
@@ -327,10 +340,10 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
    * inteira. Na virada da rodada cada uma passa um turno, como `prazosDaVez` faz com quem tem a vez: a vida
    * por turno e o desconto. Uma linha própria com Desfazer; só o desconto, sem notícia, fica sem linha (igual).
    */
-  const prazosForaDaOrdem = (sceneKey: string, autor: AutorDaAcao): void => {
+  const prazosForaDaOrdem = (sceneKey: string, autor: AutorDaAcao): Reversao[] => {
     const { fichasDaCena, mudarFichaDaCena } = mesa
     const cena = cenaDe(sceneKey)
-    if (cena === undefined || fichasDaCena === undefined || mudarFichaDaCena === undefined) return
+    if (cena === undefined || fichasDaCena === undefined || mudarFichaDaCena === undefined) return []
     const naOrdem = new Set(cena.turnos.cartas.map((carta) => carta.tokenId))
     const seguradas = chavesDosSelos(cena.turnos.selos)
     const partes: Reversao[] = []
@@ -361,10 +374,32 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
         }
       }
     }
-    if (textos.length === 0) return
+    // Bug 5 (explorador 26/11): o desconto sem notícia volta pelo Desfazer da vez da virada.
+    if (textos.length === 0) return partes
     const atual = cenaDe(sceneKey) ?? cena
-    const linha = comMudanca(atual, atual.turnos, { tipo: efeitos.length > 0 ? 'dano' : 'acao', texto: `Condições fora da ordem: ${textos.join(' · ')}`, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
+    // Bug 4 (explorador 26/11): linha automática, autor mestre.
+    const linha = comMudanca(atual, atual.turnos, { tipo: efeitos.length > 0 ? 'dano' : 'acao', texto: `Condições fora da ordem: ${textos.join(' · ')}`, autor: MESTRE, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
     gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
+    return []
+  }
+
+  /**
+   * Explorador 26/11/2026, bugs 5 e 6: a linha "vez" `idDaVez` passa a levar as linhas automáticas escritas
+   * depois dela (o Desfazer da vez as desfaz junto) e o desconto de prazo que não rendeu linha. Sem nada a
+   * juntar, ou a linha já fora do registro: nada muda (sem subir revisão: a reversão não vai para a rede).
+   */
+  const juntarNaLinhaDaVez = (sceneKey: string, idDaVez: string, prazos: readonly Reversao[]): void => {
+    const cena = cenaDe(sceneKey)
+    const indice = cena === undefined ? -1 : cena.registro.findIndex((linha) => linha.id === idDaVez)
+    if (cena === undefined || indice < 0) return
+    const juntas = cena.registro.slice(indice + 1).map((linha) => linha.id)
+    if (juntas.length === 0 && prazos.length === 0) return
+    const registro = cena.registro.map((linha) =>
+      linha.id !== idDaVez || linha.reversao.tipo !== 'vez'
+        ? linha
+        : { ...linha, reversao: { ...linha.reversao, ...(juntas.length === 0 ? {} : { juntas }), ...(prazos.length === 0 ? {} : { prazos: [...prazos] }) } },
+    )
+    gravarCena(sceneKey, { ...cena, registro })
   }
 
   /**
@@ -385,7 +420,9 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     const mudou = mudancasDaVez(antes, depois)
     // 26/11/2026: o "Recupera por turno" da ficha de quem começa a vez (o +10 SP automático saiu).
     const recuperacao = recuperacaoDoComecoDaVez(antes, depois, autor)
+    const idDaVez = novoIdDeLinha()
     const linha: LinhaNova = {
+      id: idDaVez,
       tipo: 'vez',
       autor,
       texto: `${vez.texto}${recuperacao?.texto ?? ''}`,
@@ -405,13 +442,15 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     // F2 (fatia F): a Doença das Trevas, as Chamas Celestes e a duração da forma de quem saiu, numa linha própria (com Desfazer).
     fimDaVezDasMecanicas(sceneKey, sai, sai === null ? undefined : antes.gastos[sai.id], antes.rodada, autor)
     // Fase C: o prazo das condições (o desconto de quem saiu, a vida por turno de quem entra).
-    prazosDaVez(sceneKey, sai, vez.entra, autor)
+    const prazos = prazosDaVez(sceneKey, sai, vez.entra, autor)
     // 18/11/2026: na virada, o prazo de quem está fora da ordem também anda (um turno por rodada).
-    if (vez.virou) prazosForaDaOrdem(sceneKey, autor)
+    if (vez.virou) prazos.push(...prazosForaDaOrdem(sceneKey, autor))
     // Nº 3 do levantamento: o prazo andou (ou acabou e a pastilha apagou): o espelho acompanha.
     espelharPastilhas(sceneKey)
     // ITENS REFEITOS, E6a (decisão 3): o pente vazio de quem entra recarrega sozinho, gastando a ação desta vez.
-    recargasDaVez(sceneKey, vez.entra, autor)
+    recargasDaVez(sceneKey, vez.entra)
+    // Bugs 5 e 6 (explorador 26/11): o Desfazer desta vez leva junto as linhas automáticas e o desconto sem linha.
+    juntarNaLinhaDaVez(sceneKey, idDaVez, prazos)
   }
 
   /**
@@ -419,13 +458,14 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
    * vazio e bala na mochila recarrega sozinha, gastando a ação da recarga desta vez. Linha própria, com
    * Desfazer; a do NPC só o mestre vê (as armas dele são segredo, como a escolha das armas era).
    */
-  const recargasDaVez = (sceneKey: string, para: CartaDaOrdem | null, autor: AutorDaAcao): void => {
+  const recargasDaVez = (sceneKey: string, para: CartaDaOrdem | null): void => {
     const cena = cenaDe(sceneKey)
     if (cena === undefined || para === null || para.personagemId === null) return
     const feita = recargasNoComecoDaVez(mesa, sceneKey, { carta: para, chaveDoGasto: para.id, regras: cena.regras }, cena.turnos)
     if (feita === 'recusada' || feita.texto === null) return
     const nome = nomeDaCarta(para, mesaDoRpg().personagens)
-    const linha: LinhaNova = { tipo: 'acao', texto: `Recarga de ${nome}: ${feita.texto}`, autor, tokenIds: [para.tokenId], personagemIds: [para.personagemId], reversao: { tipo: 'composta', partes: feita.partes } }
+    // Bug 4 (explorador 26/11): a recarga automática é linha do mestre, como as outras do começo da vez.
+    const linha: LinhaNova = { tipo: 'acao', texto: `Recarga de ${nome}: ${feita.texto}`, autor: MESTRE, tokenIds: [para.tokenId], personagemIds: [para.personagemId], reversao: { tipo: 'composta', partes: feita.partes } }
     gravarCena(sceneKey, comMudanca(cena, feita.turnos, linha))
   }
 

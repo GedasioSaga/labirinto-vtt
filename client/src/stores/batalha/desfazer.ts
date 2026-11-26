@@ -105,12 +105,17 @@ export function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: Ba
       // por último, depois que a ficha desligou a forma (ela só volta a esperar o mestre com a forma desligada).
       const deTrasParaFrente = [...reversao.partes].reverse()
       const naOrdem = [...deTrasParaFrente.filter((parte) => parte.tipo !== 'formaDecidida'), ...deTrasParaFrente.filter((parte) => parte.tipo === 'formaDecidida')]
+      let algumaVoltou = false
       for (const parte of naOrdem) {
         const feito = desfazerReversao(mesa, sceneKey, atual, parte, autor)
         atual = feito.cena
         emParte = emParte || feito.emParte
         ok = ok && feito.ok
+        algumaVoltou = algumaVoltou || feito.ok
       }
+      // Explorador 26/11/2026, bug 7: uma ficha recusou, mas outras partes já voltaram. A linha fica riscada "(em parte)":
+      // de pé, o Desfazer seguinte devolvia de novo o HP e o SP que já tinham voltado (a volta é por diferença).
+      if (!ok && algumaVoltou) return { cena: atual, emParte: true, ok: true }
       return { cena: atual, emParte, ok }
     }
     case 'invocacaoPedida': {
@@ -253,8 +258,13 @@ export function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: Ba
     case 'vez': {
       // Bug 3: o selo que acabou na vez e cuja linha foi desfeita depois não volta com ela.
       const volta = { ...cena, turnos: reverterTurnos(cena.turnos, vezSemOsSelosDesfeitos(cena.registro, reversao)) }
-      // Conserto das fichas F1: os +10 SP do começo da vez saem junto.
-      return reversao.ficha === undefined ? { cena: volta, emParte: false, ok: true } : desfazerReversao(mesa, sceneKey, volta, { tipo: 'ficha', ...reversao.ficha }, autor)
+      // Conserto das fichas F1: os +10 SP do começo da vez saem junto. Bug 5 (explorador 26/11): o desconto do prazo sem linha também.
+      const daFicha: Reversao[] = reversao.ficha === undefined ? [] : [{ tipo: 'ficha', personagemId: reversao.ficha.personagemId, partes: reversao.ficha.partes }]
+      const partes = [...daFicha, ...(reversao.prazos ?? [])]
+      if (partes.length === 0) return { cena: volta, emParte: false, ok: true }
+      const dasFichas = desfazerReversao(mesa, sceneKey, volta, { tipo: 'composta', partes }, autor)
+      // A ordem volta mesmo com a ficha recusando (apagada da aventura): a linha fica riscada "(em parte)", como no bug 7.
+      return dasFichas.ok ? dasFichas : { cena: volta, emParte: true, ok: true }
     }
     case 'ordem':
     case 'cartaNova':

@@ -305,6 +305,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       for (const junta of [...juntas].reverse()) desfazerLinha(sceneKey, junta.id, autor)
       // Construtor C6: desfazer o pedido da forma desfaz antes a decisão do mestre que veio dele (o Desfazer volta tudo).
       for (const decisao of linhasDaDecisaoDe(cena.registro, linha.reversao)) desfazerLinha(sceneKey, decisao, autor)
+      // Explorador 26/11/2026, bug 6: as linhas automáticas do começo da vez (Fim da vez, Condições, Recarga) saem antes
+      // dela, da mais nova para a mais velha; ficavam de pé e o "Passar a vez" seguinte aplicava tudo de novo.
+      if (linha.reversao.tipo === 'vez') {
+        for (const junta of [...(linha.reversao.juntas ?? [])].reverse()) desfazerLinha(sceneKey, junta, autor)
+      }
       if (!desfazerLinha(sceneKey, linhaId, autor)) return false
       // Conserto das fichas F1 (bug 2): o Desfazer da vez desfaz junto os "Não reagiu" que a virada dela escreveu,
       // do mais novo para o mais velho. O já desfeito fica como está. (Bug 3: a vez guarda só o que ela mudou, então
