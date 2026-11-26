@@ -10131,7 +10131,19 @@ function PixiCanvasDoContexto({
 
       const runShortcut = (action: NonNullable<ReturnType<typeof resolveShortcut>>) => {
         switch (action.kind) {
-          case 'cancel':
+          case 'cancel': {
+            // Convenção dos editores (Figma, Excalidraw): o primeiro Esc
+            // cancela o gesto, a escolha ou o rascunho; o Esc sem nada disso
+            // larga a ferramenta. Sem isto, com o Objeto na mão o próximo
+            // clique continuava pondo móvel. Medido ANTES de limpar.
+            const estadoNoEsc = useMapStore.getState()
+            const nadaParaCancelar =
+              estadoNoEsc.activeTool !== 'select' &&
+              mode === 'idle' &&
+              !hasPointDraft() &&
+              estadoNoEsc.selection.length === 0 &&
+              estadoNoEsc.selectedPinId === null &&
+              estadoNoEsc.barrancoEscolhido === null
             clearDrafts()
             // O risco do Barranco e a água escolhidos soltam.
             escolhaNoCanvas.soltarTerrenoNoEsc()
@@ -10146,7 +10158,9 @@ function PixiCanvasDoContexto({
             }
             // O conjunto e o pino aberto soltam; a zona aberta fica.
             escolhaNoCanvas.soltarPainelNoEsc()
+            if (nadaParaCancelar) estadoNoEsc.setActiveTool('select')
             break
+          }
           // Apagar é o gesto mais barato de fazer e o mais caro de errar:
           // Ctrl+A seguido de Delete varria o mapa inteiro em silêncio, sem
           // dizer o que sumiu nem que dá para voltar (passeio cego de
