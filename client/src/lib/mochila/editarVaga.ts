@@ -56,6 +56,13 @@ export function mochilaComAVagaEditada(mochila: readonly CarriedItem[], vagaId: 
     // Nem na luz: o Lampião renomeado continua iluminando, e aceso se estava.
     ...(vaga.luz === undefined ? {} : { luz: vaga.luz }),
     ...(vaga.acesa === true && vaga.luz !== undefined ? { acesa: true as const } : {}),
+    // Itens refeitos (E3): nem na posse nem no que veio do Acervo. A arma renomeada segue equipada e com
+    // as balas no pente (senão as balas sumiriam), e o tipo, a regra e a nota da vaga ficam.
+    ...(vaga.equipado === true ? { equipado: true as const } : {}),
+    ...(vaga.pente === undefined ? {} : { pente: { ...vaga.pente } }),
+    ...(vaga.tipo === undefined ? {} : { tipo: vaga.tipo }),
+    ...(vaga.regra === undefined ? {} : { regra: vaga.regra }),
+    ...(vaga.notaDaVaga === undefined ? {} : { notaDaVaga: vaga.notaDaVaga }),
   }
   return mochila.map((item) => (item === vaga ? editada : item))
 }

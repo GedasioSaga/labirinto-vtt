@@ -6,7 +6,7 @@ import { regraDaCoisa } from '../lib/livros/catalogo'
 import { gravarRegraDaArma } from '../stores/armasNaFonte'
 import { useCatalogoStore } from '../stores/catalogoStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
-import { sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
+import { mochilaMoraNaFicha, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
 import { useCondicoesPropriasStore } from '../stores/condicoesPropriasStore'
 import { SISTEMA_ONE_PIECE } from '../lib/sistemaOnePiece'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -523,7 +523,9 @@ export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, on
   const [ocupado, setOcupado] = useState(false)
   const [confirmarApagar, setConfirmarApagar] = useState(false)
   // Itens refeitos (E3): a ficha recebe pelo "Dar a…" das fichas (`DarAFichas`); aqui ficam só os tokens SEM ficha (A3).
-  const semFicha = useMemo(() => alvos.filter((alvo) => alvo.personagemId === undefined), [alvos])
+  // Antes da migração (a mochila ainda mora no boneco), a ficha não é a dona: tudo vai pelo token, como antes.
+  const mochilaNaFicha = useAdventureStore(mochilaMoraNaFicha)
+  const semFicha = useMemo(() => (mochilaNaFicha ? alvos.filter((alvo) => alvo.personagemId === undefined) : alvos), [alvos, mochilaNaFicha])
   const [alvoEscolhido, setAlvoEscolhido] = useState(semFicha[0] === undefined ? '' : chaveDoAlvo(semFicha[0]))
   const [quantidade, setQuantidade] = useState(1)
   const [resultadoDoDar, setResultadoDoDar] = useState<string | null>(null)
@@ -986,45 +988,43 @@ export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, on
               {novo ? 'Criar item' : 'Salvar'}
             </button>
           </div>
-          {!novo && <DarAFichas item={acervo.find((salvo) => salvo.id === item.id) ?? item} bloqueado={mudou ? 'Salve antes de dar: a ficha recebe o item como ele está no acervo.' : null} />}
+          {!novo && mochilaNaFicha && <DarAFichas item={acervo.find((salvo) => salvo.id === item.id) ?? item} bloqueado={mudou ? 'Salve antes de dar: a ficha recebe o item como ele está no acervo.' : null} />}
           {!novo && onDar !== undefined && semFicha.length > 0 && (
             <section className="lb-item-janela__dar" aria-labelledby={`${idBase}-dar`}>
               <h3 id={`${idBase}-dar`} className="lb-item-janela__subtitulo">
-                Dar a um token sem ficha
+                {mochilaNaFicha ? 'Dar a um token sem ficha' : 'Dar a…'}
               </h3>
-              {
-                <div className="lb-item-janela__linha">
-                  <select
-                    className="lb-input"
-                    aria-label="Personagem que recebe o item"
-                    value={alvoEscolhido}
-                    onChange={(event) => {
-                      setAlvoEscolhido(event.target.value)
-                      setResultadoDoDar(null)
-                    }}
-                  >
-                    {semFicha.map((alvo) => (
-                      <option key={chaveDoAlvo(alvo)} value={chaveDoAlvo(alvo)}>
-                        {alvo.nome} · {alvo.cena}
-                      </option>
-                    ))}
-                  </select>
-                  {item.empilhavel && (
-                    <input
-                      className="lb-input lb-item-janela__qtd"
-                      type="number"
-                      min={1}
-                      max={ITEM_QUANTIDADE_MAX}
-                      aria-label="Quantidade"
-                      value={quantidade}
-                      onChange={(event) => setQuantidade(Math.min(Math.max(Math.trunc(Number(event.target.value)) || 1, 1), ITEM_QUANTIDADE_MAX))}
-                    />
-                  )}
-                  <button type="button" className="lb-btn" disabled={mudou} title={mudou ? 'Salve antes de dar.' : undefined} onClick={dar}>
-                    Dar
-                  </button>
-                </div>
-              }
+              <div className="lb-item-janela__linha">
+                <select
+                  className="lb-input"
+                  aria-label="Personagem que recebe o item"
+                  value={alvoEscolhido}
+                  onChange={(event) => {
+                    setAlvoEscolhido(event.target.value)
+                    setResultadoDoDar(null)
+                  }}
+                >
+                  {semFicha.map((alvo) => (
+                    <option key={chaveDoAlvo(alvo)} value={chaveDoAlvo(alvo)}>
+                      {alvo.nome} · {alvo.cena}
+                    </option>
+                  ))}
+                </select>
+                {item.empilhavel && (
+                  <input
+                    className="lb-input lb-item-janela__qtd"
+                    type="number"
+                    min={1}
+                    max={ITEM_QUANTIDADE_MAX}
+                    aria-label="Quantidade"
+                    value={quantidade}
+                    onChange={(event) => setQuantidade(Math.min(Math.max(Math.trunc(Number(event.target.value)) || 1, 1), ITEM_QUANTIDADE_MAX))}
+                  />
+                )}
+                <button type="button" className="lb-btn" disabled={mudou} title={mudou ? 'Salve antes de dar.' : undefined} onClick={dar}>
+                  Dar
+                </button>
+              </div>
               {mudou && <p className="lb-item-janela__dica">Salve antes de dar: o token recebe o item como ele está no acervo.</p>}
               <p className="lb-item-janela__resultado" aria-live="polite">
                 {resultadoDoDar}
