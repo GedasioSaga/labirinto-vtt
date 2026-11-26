@@ -339,7 +339,7 @@ export function QuemEntraNaBatalha({
           <p className="gr-nota">
             {jogadoresSemFichaNomes.length === jogadoresSemFicha
               ? // QoL 26/11/2026: quem ficou fora, pelo nome ("Luffy e Zoro"), e onde se liga a ficha.
-                `${listaDeNomes(jogadoresSemFichaNomes.map((jogador) => jogador.nome))} ${jogadoresSemFicha === 1 ? 'está sem ficha e fica fora: ligue uma ficha no token dele' : 'estão sem ficha e ficam fora: ligue uma ficha no token de cada um'} (botão direito no token, Ligar ficha) para ${jogadoresSemFicha === 1 ? 'ele lutar' : 'eles lutarem'}.`
+                `${listaDeNomes(jogadoresSemFichaNomes.map((jogador) => jogador.nome))} ${jogadoresSemFicha === 1 ? 'está sem ficha e fica fora: ligue uma ficha no token dele' : 'estão sem ficha e ficam fora: ligue uma ficha no token de cada um'} (clique no token e escolha o Personagem na página Ficha) para ${jogadoresSemFicha === 1 ? 'ele lutar' : 'eles lutarem'}.`
               : jogadoresSemFicha === 1
                 ? '1 token de jogador sem ficha fica fora: ligue a ficha dele no token para ele lutar.'
                 : `${jogadoresSemFicha} tokens de jogador sem ficha ficam fora: ligue a ficha de cada um no token para eles lutarem.`}
@@ -347,7 +347,7 @@ export function QuemEntraNaBatalha({
         )}
         {clicadoSemFicha !== null && (
           <p className="gr-nota" role="status">
-            {clicadoSemFicha} está sem ficha: ligue uma ficha no token para marcar.
+            {clicadoSemFicha} está sem ficha: escolha o Personagem dele na página Ficha para marcar.
           </p>
         )}
         {extras > 0 && (

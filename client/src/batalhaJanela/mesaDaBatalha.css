@@ -612,5 +612,9 @@ button.mb-linha__quem:focus-visible,
 .mb-janela { height: 100vh; background: var(--lb-color-stone-solid); }
 
 /* ------------------------------------------------------------- abrir (página Batalha do livro) */
-.mb-abrir { display: flex; gap: var(--lb-space-2); margin-bottom: var(--lb-space-3); }
-.mb-abrir > :first-child { flex: 1; }
+/*
+ * QoL 26/11/2026 ("na batalha, o botão Em janela aparece cortado"): o `--largo` (width 100%) do primeiro
+ * empurrava o "Em janela" para fora do livro estreito. Sem caber lado a lado, o segundo desce para a linha de baixo.
+ */
+.mb-abrir { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); margin-bottom: var(--lb-space-3); }
+.mb-abrir > .gr-bt { flex: 1 1 auto; width: auto; max-width: 100%; white-space: normal; text-align: center; }
