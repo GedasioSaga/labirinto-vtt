@@ -279,6 +279,7 @@ import { MapSettingsButton } from './components/MapSettingsDialog'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { BotaoDoLivroDeRegras, PersonagensDaAventura } from './components/PersonagensSection'
 import { useFichasDoAcervo, useMigracaoDasFichasNoAcervo } from './components/useFichasDoAcervo'
+import { useFichaPropriaPorToken } from './components/useFichaPropriaPorToken'
 import { levarFichasDaPastaApagada } from './stores/fichasNoAcervo'
 import { ContasDosJogadoresDoApp } from './components/ContasDosJogadores'
 import { dancaNoPainel } from './components/dancaNoPainel'
@@ -2010,6 +2011,8 @@ function App() {
   }
   // AS FICHAS DE NPC NO ACERVO (item 6 de 21/11/2026): a migração de uma vez só e o que o painel mostra.
   useMigracaoDasFichasNoAcervo()
+  // UMA FICHA POR TOKEN DE NPC (25/11/2026): a cena com tokens de NPC que dividem a ficha dá a cópia a cada um, fora da batalha.
+  useFichaPropriaPorToken()
   const fichasDoAcervo = useFichasDoAcervo({ host: () => canvasHostRef.current, vista: vistaDoCanvas })
 
   /**
