@@ -74,7 +74,9 @@ function porQueNoMapa(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[]): string 
   if ((golpe.opcoes?.length ?? 0) > 0) return 'Tem opções para escolher: use o menu do mapa.'
   if ((golpe.perguntas?.length ?? 0) > 0) return 'Faz perguntas na hora: use o menu do mapa.'
   if ((golpe.armas?.length ?? 0) > 1) return 'Pede a arma: use o menu do mapa.'
-  if ((golpe.balas?.length ?? 0) > 0 || golpe.exigeMunicao === true) return 'Pede a bala: use o menu do mapa.'
+  // ITENS REFEITOS, E6a: a arma de pente atira a bala que está no pente, sem escolha (o host a acha pelo `balaDoPedido`).
+  const soOPente = golpe.balas?.length === 1 && golpe.balas[0]?.doPente === true
+  if (!soOPente && ((golpe.balas?.length ?? 0) > 0 || golpe.exigeMunicao === true)) return 'Pede a bala: use o menu do mapa.'
   if ((golpe.area !== undefined || golpe.areaPelaGrade === true) && !aMesaMarcaAArea(golpe, alvos)) return 'Marca a área no mapa: use o menu do mapa.'
   if (golpe.dano.valor === null && !golpe.dano.semDano && golpe.dano.pelaVida !== true) return 'O dano é à mão: use o menu do mapa.'
   return null

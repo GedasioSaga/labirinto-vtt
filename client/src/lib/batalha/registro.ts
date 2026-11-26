@@ -265,6 +265,18 @@ export type Reversao =
    */
   | { tipo: 'municao'; personagemId: string; vaga: CarriedItem; indice: number; tokenId?: string }
   /**
+   * ITENS REFEITOS, E6a: o tiro tirou `n` balas `balaId` do pente da arma `armaVagaId`. Desfazer = elas
+   * voltam ao pente (`mochilaComBalasNoPente`), sobre a mochila de agora. `tokenId`: a mochila era a do
+   * boneco (aventura não migrada), como na `municao`.
+   */
+  | { tipo: 'pente'; personagemId: string; armaVagaId: string; balaId: string; n: number; tokenId?: string }
+  /**
+   * ITENS REFEITOS, E6a: a mesa mudou várias vagas de uma vez (a recarga: a bala sai da mochila e o
+   * pente enche). Desfazer = cada vaga que mudou volta à de `antes` (`mochilaDesfeita`), sobre a mochila
+   * de agora. `tokenId`: a mochila era a do boneco.
+   */
+  | { tipo: 'mochila'; personagemId: string; antes: readonly CarriedItem[]; depois: readonly CarriedItem[]; tokenId?: string }
+  /**
    * REQUISITOS, fase B3: a linha levou a ficha `tokenId` a 0 e a queda entrou em
    * `TurnosDaCena.jaCairam`. Desfazer = sai UMA entrada dela (a outra queda fica).
    */
@@ -1058,6 +1070,9 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     case 'cartaoDaForma':
     // A munição mora na mochila da ficha e volta pela mesa (a store).
     case 'municao':
+    // E6a: o pente e a recarga moram na mochila (a store as volta pela mesa).
+    case 'pente':
+    case 'mochila':
     // A linha que nasceu junto volta pelo Desfazer dela (a store).
     case 'linhaJunto':
       return turnos

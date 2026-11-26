@@ -47,6 +47,7 @@ import {
   partesDosLembretes,
 } from './cena'
 import { mexerNaFicha, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from './naMesa'
+import { recargasNoComecoDaVez } from './recargaDoPente'
 import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
 import { efeitosDosSelos } from './selos'
@@ -391,6 +392,23 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     if (vez.virou) prazosForaDaOrdem(sceneKey, autor)
     // Nº 3 do levantamento: o prazo andou (ou acabou e a pastilha apagou): o espelho acompanha.
     espelharPastilhas(sceneKey)
+    // ITENS REFEITOS, E6a (decisão 3): o pente vazio de quem entra recarrega sozinho, gastando a ação desta vez.
+    recargasDaVez(sceneKey, vez.entra, autor)
+  }
+
+  /**
+   * ITENS REFEITOS, E6a (decisão 3): no começo da vez, cada arma equipada de quem entra com o pente
+   * vazio e bala na mochila recarrega sozinha, gastando a ação da recarga desta vez. Linha própria, com
+   * Desfazer; a do NPC só o mestre vê (as armas dele são segredo, como a escolha das armas era).
+   */
+  const recargasDaVez = (sceneKey: string, para: CartaDaOrdem | null, autor: AutorDaAcao): void => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined || para === null || para.personagemId === null) return
+    const feita = recargasNoComecoDaVez(mesa, sceneKey, { carta: para, chaveDoGasto: para.id, regras: cena.regras }, cena.turnos)
+    if (feita === 'recusada' || feita.texto === null) return
+    const nome = nomeDaCarta(para, mesaDoRpg().personagens)
+    const linha: LinhaNova = { tipo: 'acao', texto: `Recarga de ${nome}: ${feita.texto}`, autor, tokenIds: [para.tokenId], personagemIds: [para.personagemId], reversao: { tipo: 'composta', partes: feita.partes } }
+    gravarCena(sceneKey, comMudanca(cena, feita.turnos, linha))
   }
 
   /**

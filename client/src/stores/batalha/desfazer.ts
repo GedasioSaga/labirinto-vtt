@@ -8,6 +8,7 @@ import { marcaDoToken } from '../../lib/batalha/marca'
 import { cartaoAindaComADecisao, cartaoPorId, comCartaoTrocado } from '../../lib/batalha/mecanica/formaDoMestre'
 import { tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
 import { devolverMunicaoNaFicha, fichaComAMochilaDoBoneco } from '../../lib/batalha/municaoDaFicha'
+import { desfazerMochilaNaMesa, devolverAoPenteNaMesa } from './recargaDoPente'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
 import {
   desfazerFicha,
@@ -195,6 +196,14 @@ export function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: Ba
       // A ficha é a dona (ou a aventura migrou entre o tiro e o Desfazer, e a mochila do boneco já é a da ficha).
       const ok = mesa.ajustarPersonagem(reversao.personagemId, (atual) => devolverMunicaoNaFicha(atual, vaga, indice))
       return { cena, emParte: !ok, ok: true }
+    }
+    case 'pente': {
+      // ITENS REFEITOS, E6a: as balas do tiro voltam ao pente, sobre a mochila de agora (a do boneco na aventura não migrada).
+      return { cena, emParte: !devolverAoPenteNaMesa(mesa, sceneKey, reversao), ok: true }
+    }
+    case 'mochila': {
+      // ITENS REFEITOS, E6a: a recarga da mesa desfeita: a bala volta à mochila e o pente fica como estava.
+      return { cena, emParte: !desfazerMochilaNaMesa(mesa, sceneKey, reversao), ok: true }
     }
     case 'invocadoSaiu': {
       // Só volta quem foi posto por linhas ainda de pé (desfazer fora de ordem não ressuscita) e não está em campo.

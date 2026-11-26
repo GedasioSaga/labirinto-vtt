@@ -81,6 +81,7 @@ import {
   partesDosLembretes,
 } from './cena'
 import { mexerNaFicha, type Recusada, type CuraDoItemNoAlvo, gastarMunicaoNaMesa, gastarItemNaMesa, gastarConsumivelNaMesa, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from './naMesa'
+import { armaNaMesa, gastarDoPenteNaMesa, recargaDepoisDoTiro } from './recargaDoPente'
 import { devolverFichasDaAcao } from './desfazer'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
 import { nomeDaAcaoDaAjuda, pedirAjuda, pedirAoMestre } from './ajuda'
@@ -765,12 +766,26 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     // MUNIÇÃO (pedido de 16/11/2026): o tiro com a bala ligada tira 1 da mochila da ficha (o boneco espelha). No host, o
     // tiro do jogador chega aqui pelo mesmo `agir`: o `podeAgir` acima já recusou a bala com 0.
     if (lancado.municao !== undefined && carta.personagemId !== null) {
-      const parte = gastarMunicaoNaMesa(mesa, sceneKey, carta.tokenId, carta.personagemId, lancado.municao.armaId, lancado.municao.balaId)
+      const { armaId, balaId } = lancado.municao
+      // ITENS REFEITOS, E6a: a bala do pente sai do pente (nunca da vaga da munição); a de antes, da mochila.
+      const doPente = armaNaMesa(mesa, sceneKey, carta.tokenId, carta.personagemId, armaId)?.pente !== undefined
+      const parte = doPente ? gastarDoPenteNaMesa(mesa, sceneKey, carta.tokenId, carta.personagemId, armaId) : gastarMunicaoNaMesa(mesa, sceneKey, carta.tokenId, carta.personagemId, armaId, balaId)
       if (parte === 'recusada') {
         devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
         return false
       }
       if (parte !== null) partes.push(parte)
+      // Decisão 3: o pente zerou? A mesa recarrega da mochila, agora se a ação da recarga cabe, senão no começo da próxima vez.
+      if (doPente) {
+        const recarga = recargaDepoisDoTiro(mesa, sceneKey, { carta, chaveDoGasto, regras: ctx.regras }, novos, armaId)
+        if (recarga === 'recusada') {
+          devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+          return false
+        }
+        partes.push(...recarga.partes)
+        novos = recarga.turnos
+        if (recarga.texto !== null) notaDosRequisitos = notaDaLinha(notaDosRequisitos, `(${recarga.texto})`)
+      }
     }
     // Fase 8: o item que gasta tira 1 da vaga de quem usa (a ficha, ou o boneco na aventura não migrada); o Desfazer devolve.
     if (doItem !== null && doItem.uso.vaga.efeito.gasta === 'um' && carta.personagemId !== null) {

@@ -60,7 +60,8 @@ export function gastarMunicaoDaFicha(personagem: Personagem, armaId: string, bal
   const arma = armasDe(personagem).find((candidata) => candidata.id === armaId)
   const bala = arma === undefined ? null : balaDaArma(arma, balaId)
   const municao = bala?.municao
-  if (municao === undefined || municao.vagaId === null || municao.quantos < 1) return null
+  // E6a: a bala do pente sai do pente (`stores/batalha/recargaDoPente.ts`), nunca da vaga: aqui `vagaId` é a da ARMA.
+  if (municao === undefined || municao.pente === true || municao.vagaId === null || municao.quantos < 1) return null
   const mochila = personagem.mochila ?? []
   const indice = mochila.findIndex((vaga) => vaga.id === municao.vagaId)
   const vaga = mochila[indice]

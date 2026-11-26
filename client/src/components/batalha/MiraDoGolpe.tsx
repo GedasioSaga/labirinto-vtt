@@ -211,9 +211,9 @@ function textoDosTurnos(turnos: number | null): string {
 const SEM_BALAS: readonly BalaNaTela[] = []
 
 /** "3 na mochila" (bala ligada à munição da mochila) ou "Qtd. 6" (o texto da ficha, só mostra); vazio = nada a dizer. */
-function quantidadeDaBala(bala: Pick<BalaNaTela, 'municao' | 'quantidade'>): string {
+function quantidadeDaBala(bala: Pick<BalaNaTela, 'municao' | 'quantidade' | 'doPente'>): string {
   // "0", não "nenhuma": a mira estreita cortava a frase longa, e o zero é o que o mestre procura.
-  if (bala.municao !== undefined) return `${bala.municao} na mochila`
+  if (bala.municao !== undefined) return `${bala.municao} ${bala.doPente === true ? 'no pente' : 'na mochila'}`
   return bala.quantidade === '' ? '' : `Qtd. ${bala.quantidade}`
 }
 
