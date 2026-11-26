@@ -10,7 +10,7 @@ import { novoIdDeSelo, textoDosQueAcabaram } from '../../lib/batalha/selos'
 import { formaDaFicha } from '../../lib/batalha/transformacao'
 import { ajusteDoRecurso, ajusteDoSpDaVez, ganhaSpNaVez, maximoDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import { chavesDoDono, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo } from '../../lib/batalha/mecanicasAMao'
-import { curaComOsSelos } from '../../lib/batalha/condicoes'
+import { curaComOsSelos, notaDosSelosNaCura } from '../../lib/batalha/condicoes'
 import { comLembretesDaVez, comLembretesDoMomento } from '../../lib/batalha/passivas'
 import { ehOverload } from '../../lib/batalha/leituraDaFicha'
 import { ajustesDoDano } from '../../lib/batalha/reacao'
@@ -183,7 +183,9 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
         // A cura cortada pela regra do selo (`curaRecebida`) vale também aqui; o máximo da ficha é o teto.
         const cabe = maximo === null ? quanto : Math.max(0, Math.min(recurso === 'hp' ? curaComOsSelos(quanto, cena.turnos.selos, saindo.tokenId) : quanto, maximo - atual))
         const ganhou = cabe === 0 ? 0 : mexer(saindo.personagemId, recurso, cabe)
-        textos.push(`${selo.nome} em ${nomeDe(saindo.personagemId)}: ${ganhou === 0 ? 'já cheio' : `+${ganhou} ${recurso === 'hp' ? 'HP' : 'SP'}`}`)
+        // CURA REDUZIDA (25/11/2026): a linha diz o corte ("+10 HP (Cura reduzida −50%)").
+        const corte = recurso === 'hp' && ganhou !== 0 ? notaDosSelosNaCura(cena.turnos.selos, saindo.tokenId) : ''
+        textos.push(`${selo.nome} em ${nomeDe(saindo.personagemId)}: ${ganhou === 0 ? 'já cheio' : `+${ganhou} ${recurso === 'hp' ? 'HP' : 'SP'}${corte}`}`)
       }
       const dreno = selo.tokenId !== saindo.tokenId ? undefined : selo.drenaSp !== undefined ? { alvoSp: selo.drenaSp.quanto, donoSp: selo.drenaSp.paraQuemUsa, donoHpPorcento: 0 } : selo.cartaoId !== undefined ? mecanicaDoCartao(selo.cartaoId)?.drenoNoFimDaVez : undefined
       const cartaoDoSelo = selo.cartaoId

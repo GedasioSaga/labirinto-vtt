@@ -148,6 +148,16 @@ const CURA_RECEBIDA_DE_PARTIDA = -50
 /** Teto da regra do selo (+200% = toma o triplo), o mesmo da leitura. */
 const REGRA_MAX = 200
 
+/**
+ * CURA REDUZIDA (decisão do dono de 25/11/2026): escolher a condição já liga o "Muda a cura" no corte
+ * dela (−50), para o % ficar à vista e mudável aqui. A que já tem o próprio % fica como está.
+ */
+function comOCorteDaCura(selo: SeloDaPeca): SeloDaPeca {
+  const corte = comportamentoDoSelo(selo.nome)?.curaRecebida
+  if (corte === undefined || selo.regra?.curaRecebida !== undefined) return selo
+  return { ...selo, regra: { ...selo.regra, curaRecebida: corte } }
+}
+
 function RegraDaPeca({ selo, onChange }: { selo: SeloDaPeca; onChange: (selo: SeloDaPeca) => void }) {
   const regra = selo.regra ?? {}
   const trocar = (nova: RegraDoSelo) => onChange(nova.danoRecebido === undefined && nova.curaRecebida === undefined ? semChave(selo, 'regra') : { ...selo, regra: nova })
@@ -212,7 +222,7 @@ export function PecasDoSelo({ selo, ajuda, emQuemPode, bloqueioEmQuemUsa, listaI
           legenda="Selo pronto"
           opcoes={[...SELOS_COM_REGRA.map((nome) => ({ valor: nome, rotulo: nome })), { valor: 'outro' as const, rotulo: 'Outro' }]}
           valor={pronto ?? 'outro'}
-          onChange={(nome) => onChange(semChave({ ...selo, nome: nome === 'outro' ? '' : nome }, 'porTurno'))}
+          onChange={(nome) => onChange(comOCorteDaCura(semChave({ ...selo, nome: nome === 'outro' ? '' : nome }, 'porTurno')))}
         />
       )}
       <div className="lb-mec__linha">

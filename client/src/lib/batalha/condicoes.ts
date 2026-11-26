@@ -21,7 +21,7 @@ import type { AlcanceDoSelo } from './mecanica/modelo'
  * O que o selo FAZ, pelo nome (conserto das fichas F2, fatia A; seção 6 de
  * docs/planos/construtor-de-mecanicas-2026-11-08.md: "tabela nome →
  * comportamento", que a peça `selo` do construtor reusa). Respostas do
- * grilling: Aéreo (May), Cego (Harvey), Ferido por prata (Vincent),
+ * grilling: Aéreo (May), Cego (Harvey), Ferido por prata (Vincent; hoje Cura reduzida),
  * Queimando (Aira), Sangrando (Alexei e Siegfried), Atordoado (Jimboy).
  */
 export interface ComportamentoDoSelo {
@@ -44,6 +44,11 @@ export interface ComportamentoDoSelo {
   lembrete?: string
   /** F2 (fatia C): quem tem o selo recupera esta porcentagem do dano que causa, em vida (Bênção de uma Raposa: 10). */
   curaDoDano?: number
+  /**
+   * CURA REDUZIDA (decisão do dono de 25/11/2026): quanto muda a cura que quem tem o selo recebe, em %
+   * (−50 = metade), quando o selo não traz a própria regra (`regra.curaRecebida`, o % escolhido no editor).
+   */
+  curaRecebida?: number
   /** F2 (revisão da fatia D): quem tem o selo rola a reação com desvantagem (2 d20, fica o menor), sem precisar marcar (Preso no Campo de Contenção). */
   reageComDesvantagem?: true
   /**
@@ -66,6 +71,10 @@ export interface ComportamentoDoSelo {
 export const DANO_DO_SANGRAMENTO = 10
 const NOME_DO_SANGRAMENTO = 'Sangrando'
 
+/** CURA REDUZIDA (decisão do dono de 25/11/2026): o nome da condição e o corte de partida, em % (a bala de prata: metade). */
+export const NOME_DA_CURA_REDUZIDA = 'Cura reduzida'
+export const CURA_REDUZIDA_PADRAO = 50
+
 /** A tabela, na ordem em que o nome é procurado. */
 const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
   { nome: 'Atordoado', sinal: /^atordoad/, trava: true },
@@ -74,7 +83,9 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
   { nome: 'Cego', sinal: /^ceg[oa]/, zera: 'percepcao' },
   // Vincent (Olhar artístico, resposta do mestre): "deixa o Dano Dobrado e coloca que o alvo tem desvantagem em desviar". O dobro mora em `marca.ts`.
   { nome: 'Marcado', sinal: /^marcad[oa]/, esquivaComDesvantagem: true },
-  { nome: 'Ferido por prata', sinal: /^ferid[oa] por prata/, lembrete: 'a cura que recebe cai pela metade (o mestre corta à mão)' },
+  // CURA REDUZIDA (decisão do dono de 25/11/2026): condição de verdade no lugar do lembrete "Ferido por prata" do Vincent; toda
+  // cura que chega já vem cortada (`curaComOsSelos`) e a linha do registro diz o corte. O nome velho continua achado (batalha salva).
+  { nome: NOME_DA_CURA_REDUZIDA, sinal: /^(cura reduzida|ferid[oa] por prata)/, curaRecebida: -CURA_REDUZIDA_PADRAO },
   { nome: NOME_DO_SANGRAMENTO, sinal: /^sangr/, porVez: DANO_DO_SANGRAMENTO, verbo: 'sangra' },
   { nome: 'Queimando', sinal: /^queima/, porVez: 10, verbo: 'queima', renova: true },
   // Aira (texto novo do mestre): "toda vez que um aliado com esse buff causar dano ele vai recuperar na vida 10% do dano que ele causou".
@@ -112,7 +123,7 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
  * ordem da tela. Só os gerais: os de uma ficha só (a redoma do Siegfried, o
  * campo do Vagn) ficam de fora. Todos estão na tabela acima.
  */
-export const SELOS_COM_REGRA = ['Atordoado', 'Paralisado', 'Aéreo', 'Cego', 'Marcado', 'Sangrando', 'Queimando'] as const
+export const SELOS_COM_REGRA = ['Atordoado', 'Paralisado', 'Aéreo', 'Cego', 'Marcado', 'Sangrando', 'Queimando', NOME_DA_CURA_REDUZIDA] as const
 
 /**
  * F2 (fatia F, redoma da Orquídea): os selos que saem porque um golpe novo
@@ -157,18 +168,39 @@ export function curaDoDanoDosSelos(selos: readonly Pick<SeloDaBatalha, 'tokenId'
   return (selos ?? []).reduce((maior, selo) => (selo.tokenId === tokenId ? Math.max(maior, comportamentoDoSelo(selo.nome)?.curaDoDano ?? 0) : maior), 0)
 }
 
+type SeloQueMexeNaCura = Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'regra'>
+
+/**
+ * Os selos de `tokenId` que mudam a cura que ele recebe, com o % de cada: o da regra do selo montado
+ * (`regra.curaRecebida`), senão o da condição pelo nome (Cura reduzida: −50). 0 não muda nada.
+ */
+function selosQueMexemNaCura(selos: readonly SeloQueMexeNaCura[] | undefined, tokenId: string): { nome: string; porcento: number }[] {
+  return (selos ?? []).flatMap((selo) => {
+    if (selo.tokenId !== tokenId) return []
+    const porcento = selo.regra?.curaRecebida ?? comportamentoDoSelo(selo.nome)?.curaRecebida
+    return porcento === undefined || porcento === 0 ? [] : [{ nome: selo.nome, porcento }]
+  })
+}
+
 /**
  * Fase 5 (SISTEMA.md, `regra.curaRecebida` do selo montado; antes só
  * lembrete): a cura que chega em quem tem o selo, para baixo (−50 = metade,
  * +50 = 1,5 vez). Vários selos: um depois do outro. Sem selo com a regra: a
- * MESMA cura.
+ * MESMA cura. 25/11/2026: também a Cura reduzida pelo nome (a posta à mão, a da bala de prata).
  */
-export function curaComOsSelos(cura: number, selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'regra'>[] | undefined, tokenId: string): number {
-  const fator = (selos ?? []).reduce((produto, selo) => {
-    const recebida = selo.tokenId === tokenId ? selo.regra?.curaRecebida : undefined
-    return recebida === undefined ? produto : (produto * Math.max(0, 100 + recebida)) / 100
-  }, 1)
+export function curaComOsSelos(cura: number, selos: readonly SeloQueMexeNaCura[] | undefined, tokenId: string): number {
+  const fator = selosQueMexemNaCura(selos, tokenId).reduce((produto, { porcento }) => (produto * Math.max(0, 100 + porcento)) / 100, 1)
   return fator === 1 ? cura : Math.max(0, Math.floor(cura * fator))
+}
+
+/**
+ * CURA REDUZIDA (decisão do dono de 25/11/2026): o pedaço da linha do registro que diz por que a cura
+ * veio cortada (" (Cura reduzida −50%)"), para ir logo depois do "curou N". '' = nenhum selo mexeu nela.
+ */
+export function notaDosSelosNaCura(selos: readonly SeloQueMexeNaCura[] | undefined, tokenId: string): string {
+  const mexem = selosQueMexemNaCura(selos, tokenId)
+  if (mexem.length === 0) return ''
+  return ` (${mexem.map(({ nome, porcento }) => `${nome} ${porcento < 0 ? `−${-porcento}` : `+${porcento}`}%`).join(', ')})`
 }
 
 /** F2 (fatia C): quanto volta em vida de um dano causado, para baixo. */
@@ -182,7 +214,7 @@ export function comportamentoDoSelo(nomeDoSelo: string): ComportamentoDoSelo | n
   return COMPORTAMENTOS_DOS_SELOS.find((comportamento) => comportamento.sinal.test(normal)) ?? null
 }
 
-/** O que o selo só lembra ao mestre (Ferido por prata: a cura cai pela metade), para o título da pílula; `null` = nada a lembrar. */
+/** O que o selo só lembra ao mestre (Enraizado: não anda), para o título da pílula; `null` = nada a lembrar. */
 export function lembreteDoSelo(nomeDoSelo: string): string | null {
   return comportamentoDoSelo(nomeDoSelo)?.lembrete ?? null
 }

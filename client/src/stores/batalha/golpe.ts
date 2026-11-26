@@ -18,12 +18,13 @@ import {
   type GolpeDaBatalha,
   type PedidoDeAcao,
   type SaidaDaReacao,
+  type SeloDaBatalha,
   type UltimaAcaoDoRastro,
 } from '../../lib/batalha/combate'
 import { comBandosEmDia, invocadoDoToken } from '../../lib/batalha/invocacao'
 import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, passivaDaMarca, type AcertoNaMarca } from '../../lib/batalha/marca'
 import { bonusDaBatalha, comSeloNovo, criarSelo, ondeNaVez, novoIdDeSelo, selosDoToken } from '../../lib/batalha/selos'
-import { curaComOsSelos, curaDoDano, esquivaComDesvantagem, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao } from '../../lib/batalha/condicoes'
+import { curaComOsSelos, curaDoDano, esquivaComDesvantagem, notaDosSelosNaCura, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao } from '../../lib/batalha/condicoes'
 import { selosQueALimpezaTira } from '../../lib/batalha/debuffs'
 import { ajustesDoRecursoDaCura, curaPelaParteDoMaximo, notaDoRecursoDaCura, quantoCabeNoRecurso } from '../../lib/batalha/curaDoRecurso'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano, reducoesDosSelos } from '../../lib/batalha/reducaoDoDano'
@@ -114,7 +115,13 @@ function comGolpe(golpes: readonly GolpeDaBatalha[] | undefined, golpe: GolpeDaB
  * O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo; com `perfuracao`, só
  * aquela porcentagem pula o Escudo. `'recusada'` (bug 11): a mesa não gravou o dano; quem chama para sem linha e sem animação.
  */
-function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaBatalha, 'perfurante' | 'perfuracao'> & Partial<Pick<GolpeDaBatalha, 'curaDoDano' | 'atacantePersonagemId'>>, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } | Recusada {
+function danoNoAlvo(
+  mesa: MesaDaBatalha,
+  alvo: AlvoDoGolpe,
+  golpe: Pick<GolpeDaBatalha, 'perfurante' | 'perfuracao'> & Partial<Pick<GolpeDaBatalha, 'curaDoDano' | 'atacantePersonagemId' | 'atacanteTokenId'>>,
+  autor: AutorDaAcao,
+  selos?: readonly SeloDaBatalha[],
+): { partes: Reversao[]; efeito: EfeitoNovo | null } | Recusada {
   if (alvo.danoFinal === undefined || alvo.saida === undefined) return { partes: [], efeito: null }
   const valor = alvo.danoFinal
   const partes = alvo.personagemId === null || valor <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, golpe.perfurante, golpe.perfuracao), quemNaFicha(autor))
@@ -123,7 +130,8 @@ function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaB
   // F2 (fatia C, Bênção de uma Raposa): quem bateu recupera a porcentagem do dano que causou, na mesma linha (o Desfazer tira junto).
   // A cura recusada (a ficha de quem bateu não grava) não derruba o golpe: o dano já valeu.
   const quemBateu = golpe.atacantePersonagemId ?? null
-  const cura = partes === null || quemBateu === null ? 0 : curaDoDano(valor, golpe.curaDoDano ?? 0)
+  // CURA REDUZIDA (25/11/2026): a vida que volta para quem bateu também vem cortada pelos selos dele.
+  const cura = partes === null || quemBateu === null ? 0 : curaComOsSelos(curaDoDano(valor, golpe.curaDoDano ?? 0), selos, golpe.atacanteTokenId ?? '')
   const curou = cura === 0 || quemBateu === null ? null : mexerNaFicha(mesa, quemBateu, (atual, sistema) => ajustesDaCura(atual, sistema, cura), quemNaFicha(autor))
   if (curou !== null && curou !== 'recusada' && quemBateu !== null) reversao.push(...reversaoDaFicha(quemBateu, curou))
   // A animação toca sempre (esquiva também: "ESQUIVOU" sobre a ficha).
@@ -359,7 +367,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     if (depois.rolagem !== undefined && depois.danoFinal === undefined) {
       efeitos.push({ tipo: 'reacao', golpeId: golpe.id, tokenId: depois.tokenId, d20: depois.rolagem.d20, modificador: depois.rolagem.modificador, total: depois.rolagem.total })
     } else {
-      const dano = danoNoAlvo(mesa, depois, golpe, autor)
+      const dano = danoNoAlvo(mesa, depois, golpe, autor, novos.selos)
       // Bug 11: o dano recusado leva o custo junto de volta; a reação não sai.
       if (dano === 'recusada') {
         devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
@@ -412,7 +420,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         novos = { ...novos, contras: [...(novos.contras ?? []), ganho] }
       }
       // F2 (fatia E, Recuperação de forças): 20% do dano que chegava volta em vida (até o máximo); só o mestre usa (ele confirmou o fogo ou a explosão).
-      const cura = feita.cura ?? 0
+      // CURA REDUZIDA (25/11/2026): cortada pelos selos de quem reage, e a linha diz o corte.
+      const cura = curaComOsSelos(feita.cura ?? 0, novos.selos, reageTokenId)
       const curou = cura <= 0 ? null : mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDaCura(atual, sistemaDaMesa, cura), quem)
       if (curou === 'recusada') {
         devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
@@ -420,7 +429,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       }
       if (curou !== null) {
         partes.push(...reversaoDaFicha(personagemId, curou))
-        textoDoRebate += ` · come o golpe e cura ${cura} (o mestre confirmou: fogo ou explosão)`
+        textoDoRebate += ` · come o golpe e cura ${cura}${notaDosSelosNaCura(novos.selos, reageTokenId)} (o mestre confirmou: fogo ou explosão)`
       }
     }
     // O selo da técnica em QUEM ATACOU ("Marcado"), se marcado na caixa e o atacante segue na ordem.
@@ -827,7 +836,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         novos = acerto.turnos
         golpe = golpeComOAlvo(golpe, acerto.alvo)
         const alvo = acerto.alvo
-        const feito = danoNoAlvo(mesa, alvo, golpe, autor)
+        const feito = danoNoAlvo(mesa, alvo, golpe, autor, novos.selos)
         // Bug 11: o dano recusado leva de volta o custo e o dano dos alvos anteriores; o golpe não sai.
         if (feito === 'recusada') {
           devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
@@ -900,7 +909,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
               return false
             }
             if (curouOutra !== null) partes.push(...reversaoDaFicha(alvo.personagemId, curouOutra))
-            daOutra = `, ${recursoDaOutra === 'hp' ? notaDaCura(outra, coubeOutra) : notaDoRecursoDaCura(recursoDaOutra, outra, coubeOutra)}`
+            daOutra = `, ${recursoDaOutra === 'hp' ? `${notaDaCura(outra, coubeOutra)}${notaDosSelosNaCura(novos.selos, alvo.tokenId)}` : notaDoRecursoDaCura(recursoDaOutra, outra, coubeOutra)}`
           }
           // F2 (fatia F, Medicina): a nota diz o item gasto ("curou 100, gastou 1 Kit Médico").
           // Fase 5: pelo cartão (a montada tem o item nas peças, não na tabela pelo id).
@@ -916,7 +925,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           if (curaDoItem !== null) curasDoItem.push(curaDoItem)
           const doVeneno = item === undefined || curaDoItem === null || curaDoItem.curou.length === 0 ? '' : `, tirou ${curaDoItem.curou.join(', ')}`
           const doItem = item === undefined ? '' : `, gastou ${gastoDaTecnica?.porUso ?? 1} ${item}${doVeneno}`
-          const daCura = `${recursoDaCura === 'hp' ? notaDaCura(cura, coube) : notaDoRecursoDaCura(recursoDaCura, cura, coube)}${daOutra}${doItem}`
+          // CURA REDUZIDA (25/11/2026): a linha diz por que a cura veio cortada ("curou 25 (Cura reduzida −50%)").
+          const daCura = `${recursoDaCura === 'hp' ? `${notaDaCura(cura, coube)}${cura > 0 ? notaDosSelosNaCura(novos.selos, alvo.tokenId) : ''}` : notaDoRecursoDaCura(recursoDaCura, cura, coube)}${daOutra}${doItem}`
           const nomesTirados = limpeza.tira === undefined ? '' : tirados.length === 0 ? 'não tinha o que tirar' : `tirou ${tirados.map((selo) => selo.nome).join(', ')}`
           // Fase 8 (a Panaceia): a limpeza sem cura não diz "curou 0"; o pedaço da cura só entra com cura, como na que tira pelo nome.
           const tirouDebuffs = `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}`
@@ -971,7 +981,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       const daParte: Reversao[] = [{ tipo: 'golpe', golpeId: parte.golpe.id }]
       let golpeDaParte = parte.golpe
       for (const resolvido of parte.resolvidos) {
-        const feito = danoNoAlvo(mesa, resolvido, golpeDaParte, autor)
+        const feito = danoNoAlvo(mesa, resolvido, golpeDaParte, autor, novos.selos)
         if (feito === 'recusada') {
           devolverFichasDaAcao(mesa, sceneKey, cena, [...partes, ...seguintes.flatMap((anterior) => anterior.partes), ...daParte], autor)
           return false
@@ -1083,7 +1093,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         const acerto = acertoComMarca(mesa, novos, semResposta, semMarca)
         novos = acerto.turnos
         golpe = golpeComOAlvo(semResposta, acerto.alvo)
-        const feito = danoNoAlvo(mesa, acerto.alvo, golpe, MESTRE)
+        const feito = danoNoAlvo(mesa, acerto.alvo, golpe, MESTRE, novos.selos)
         // Bug 11: dano recusado = este golpe segue esperando (o dano dos outros alvos dele volta); a próxima virada tenta de novo.
         if (feito === 'recusada') {
           devolverFichasDaAcao(mesa, sceneKey, cena, partes, MESTRE)
@@ -1259,7 +1269,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           selos = marcados.selos
           novo = golpeComOAlvo(novo, acerto.alvo)
           const resolvido = acerto.alvo
-          const feito = danoNoAlvo(mesa, resolvido, golpe, autor)
+          const feito = danoNoAlvo(mesa, resolvido, golpe, autor, marcados.selos)
           // Bug 11: dano recusado = o alvo segue esperando (sem linha nova nem animação).
           if (feito === 'recusada') return false
           partes.push(...feito.partes, ...acerto.partes)

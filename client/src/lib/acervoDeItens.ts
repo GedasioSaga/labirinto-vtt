@@ -137,7 +137,7 @@ export interface ItemDoCatalogo {
 /**
  * O tiro da munição, como o subcartão "Tipos de bala" o escrevia: `dano` "+15" soma ao da arma, "40"
  * troca, "+Percepção / 2" conta pela ficha de quem atira (`danoDoAtaque`); `efeito` é texto que a
- * batalha mostra e, falando de prata, vira o selo "Ferido por prata" no alvo.
+ * batalha mostra e, falando de prata, vira o selo "Cura reduzida" no alvo (25/11/2026; antes "Ferido por prata").
  */
 export interface TiroDaMunicao {
   dano: string

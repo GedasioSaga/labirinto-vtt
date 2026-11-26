@@ -152,7 +152,7 @@ function TiroDaMunicaoCampos({ idBase, tiro, onMudar }: { idBase: string; tiro: 
           onChange={(event) => onMudar({ ...atual, efeito: event.target.value })}
         />
       </label>
-      <p className="lb-field__hint">A bala de prata deixa “Ferido por prata” em quem o tiro acerta, para lembrar a cura pela metade.</p>
+      <p className="lb-field__hint">A bala de prata deixa “Cura reduzida” em quem o tiro acerta: toda cura nele já vem pela metade, até o fim da batalha.</p>
     </fieldset>
   )
 }

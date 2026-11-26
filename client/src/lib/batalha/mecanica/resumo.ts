@@ -376,7 +376,8 @@ export function frasesDoSelo(selo: Pick<Extract<Efeito, { tipo: 'selo' }>, 'nome
   for (const mod of selo.mods ?? []) frases.push(`${nomeDoAlvoDoMod(mod.alvo, ficha)} ${'fixo' in mod.delta ? (mod.delta.fixo < 0 ? `${mod.delta.fixo}` : `+${mod.delta.fixo}`) : `+ (${formulaNaFrase(mod.delta.formula, ficha)})`}`)
   const recebido = selo.regra?.danoRecebido
   if (recebido !== undefined && recebido !== 0) frases.push(recebido < 0 ? `toma ${-recebido}% a menos de dano` : `toma ${recebido}% a mais de dano`)
-  const curaRecebida = selo.regra?.curaRecebida
+  // CURA REDUZIDA (25/11/2026): sem a regra no selo, vale o corte da condição pelo nome (−50).
+  const curaRecebida = selo.regra?.curaRecebida ?? regra?.curaRecebida
   if (curaRecebida !== undefined && curaRecebida !== 0) frases.push(curaRecebida < 0 ? `recebe ${-curaRecebida}% a menos de cura` : `recebe ${curaRecebida}% a mais de cura`)
   if (regra?.trava === true) frases.push('na vez dele só passa a vez, e não reage')
   if (regra?.tiraSaidas !== undefined && regra.tiraSaidas.length > 0) frases.push(`não pode ${regra.tiraSaidas.map((saida) => SAIDA_EM_VERBO[saida]).join(' nem ')}`)

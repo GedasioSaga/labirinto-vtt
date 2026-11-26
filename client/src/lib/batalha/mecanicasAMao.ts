@@ -3,6 +3,7 @@ import { linhaDoCartaoMontado, pecasDoCartao, pecasUsamACarga } from './mecanica
 import type { QuaisSelosTira } from './debuffs'
 import type { AcaoDaTecnica, NaturezaDoSelo, SaidaDaReacao, SaidaDaTecnica, SeloDaBatalha, SeloDoGolpe } from './combate'
 import { normalizar } from './formula'
+import { NOME_DA_CURA_REDUZIDA } from './condicoes'
 import type { CdDaDisputa, ContraDaDisputa, QuemRola } from './disputa'
 import type { FormaDaArea, QuemEntraNaArea } from './area'
 import { motivoDasRespostas, type OpcaoDaPergunta, type PerguntaNaHora, type RespostasDoPedido } from './perguntaNaHora'
@@ -412,8 +413,12 @@ export interface MecanicaAMao {
 }
 
 const ATORDOADO_1: SeloDoGolpe = { nome: 'Atordoado', turnos: 1, natureza: 'debuff' }
-/** O selo da bala de prata (o Vincent e qualquer bala que fale de prata, `seloDaBala`): fica até o mestre tirar. */
-const SELO_DA_PRATA: SeloDoGolpe = { nome: 'Ferido por prata', turnos: null, natureza: 'debuff' }
+/**
+ * O selo da bala de prata (o Vincent e qualquer bala que fale de prata, `seloDaBala`): a Cura reduzida
+ * (25/11/2026, no lugar do lembrete "Ferido por prata"), com o corte da condição (metade). Sem turnos:
+ * até o fim da batalha (os selos somem com ela) ou até o mestre tirar.
+ */
+const SELO_DA_PRATA: SeloDoGolpe = { nome: NOME_DA_CURA_REDUZIDA, turnos: null, natureza: 'debuff' }
 const SIM_OU_NAO: readonly OpcaoDaPergunta[] = [
   { valor: 'nao', rotulo: 'Não' },
   { valor: 'sim', rotulo: 'Sim' },
@@ -540,8 +545,8 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
   'cart_5ef11e05-c73e-4972-a432-9fc23a6641ef': { nome: 'Passo de Valsa (Vincent)', reacao: { saidas: [{ saida: 'esquiva', rotulo: 'esquiva e marca', noAlvo: 'esquiva', fator: 0 }] } },
   // Vincent: 1 alvo; "Dano Perfurante" vai direto no HP (o perfurante já sai do texto).
   'cart_206aa17a-dc52-472b-adab-8cd4c71638b0': { nome: 'Desenhar o alvo (Vincent)', tetoDeAlvosComDano: 1 },
-  // Vincent: a Bala de Prata (tipo de bala da Rosa Fúnebre: + metade da Percepção, 55 + 17 = 72) deixa "Ferido por prata" em quem
-  // ela acerta; o selo só lembra o mestre de cortar a cura pela metade.
+  // Vincent: a Bala de Prata (tipo de bala da Rosa Fúnebre: + metade da Percepção, 55 + 17 = 72) deixa a Cura reduzida em quem
+  // ela acerta (25/11/2026: antes o lembrete "Ferido por prata"); toda cura nele já vem pela metade.
   'cart_e41ee968-7a05-4591-a003-6900a6482e91': { nome: 'Bala de Prata (Vincent)', selo: SELO_DA_PRATA },
   // Jimboy: depois do acerto, d20 + FOR (vantagem da Força Superior) contra d20 + RES do alvo; só atordoa se vencer.
   'cart_8d2a46e7-afa7-4b7a-bbaf-53ef36cb1669': {
@@ -936,8 +941,8 @@ export function formulaDaMecanica(cartao: ChaveDaMecanica, respostas?: Respostas
 /**
  * MUNIÇÃO COMO FONTE ÚNICA (decisão do dono de 25/11/2026): o selo que a bala deixa em quem o tiro
  * acerta pelo que ela É, e não pelo cartão do Vincent: a bala que fala de prata (no nome ou no efeito,
- * do item do Acervo ou do tipo de bala da ficha) deixa "Ferido por prata", que só lembra o mestre de
- * cortar a cura pela metade (`condicoes.ts`). `null` = a bala não deixa selo.
+ * do item do Acervo ou do tipo de bala da ficha) deixa a Cura reduzida (25/11/2026, no lugar do lembrete
+ * "Ferido por prata"): a cura que o alvo recebe já vem pela metade (`condicoes.ts`). `null` = a bala não deixa selo.
  */
 export function seloDaBala(bala: { id: string; nome: string; efeito: string }): SeloDoGolpe | null {
   return seloDaMecanica(bala.id) ?? (/prata/.test(normalizar(`${bala.nome} ${bala.efeito}`)) ? SELO_DA_PRATA : null)
