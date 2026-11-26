@@ -1,3 +1,7 @@
+# 26/11 ~15h: disco 1,5 GB -> limpo Temp >2d (ok do dono) -> 8,2 GB; workflow da 0.6.1 PARADO (TaskStop) até a 0.6.0 sair
+
+A main tem edições SEM COMMIT das faixas da 0.6.1 (batalha, livros, App.tsx...). Ao retomar: Workflow({scriptPath: "C:/Users/gedasio.filho/.claude/projects/C--dev-labirinto/9e501c59-c77f-4f23-bb34-525d5a1cafd3/workflows/scripts/qualidade-e-consertos-0-6-1-wf_a4b225bf-048.js"}) (o prompt já tem a instrução de RETOMADA). 0.6.0 publicando do worktree C:devlabirinto-release (log tmp/rel-0.6.0/publicar-4.log).
+
 # 26/11 ~14h: 0.6.0 publicando de novo (login Cloudflare refeito); 0.6.1 em construção
 
 - 0.6.0: 1ª tentativa caiu no deploy do Worker (login do wrangler vencido); dono refez "npx wrangler login"; automacao-devops reroda de C:devlabirinto-release.
