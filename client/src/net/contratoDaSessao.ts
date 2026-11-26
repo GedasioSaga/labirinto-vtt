@@ -5,6 +5,7 @@
  * reexporta estes dois (quem importa de lá não muda).
  */
 import type { AbaloOrigem, AbaloTextos } from '../lib/abalo'
+import type { AcervoDaMochila } from '../lib/mochila/armaNaMochila'
 import type { BolhaAoVivo, BolhaConviteResultado } from './bolhaNoHost'
 import type { AlavancaAoVivo, AlavancaConviteResultado, AlavancaDesfechoSinal, AlavancaVivoNoMestre } from './alavancaNoHost'
 import type { CaminhosNoMestre } from '../lib/batalha/caminhoAndado'
@@ -88,6 +89,12 @@ export interface HostSessionOptions {
    * Devolve a linha do chat, ou o motivo da recusa. Ausente = o host recusa.
    */
   usarItemFora?: (pedido: { sceneKey: string; tokenId: string; personagemId: string; vagaId: string; alvoPersonagemId: string; quem: string }) => { ok: true; texto: string } | { ok: false; motivo: string }
+  /**
+   * Itens refeitos (E5b): o Acervo de itens do mestre como a mochila o lê
+   * (`lib/mochila/acervoDaMochila.ts`), para os pedidos da mochila do jogador
+   * na LAN (equipar, recarregar, dar, largar). Ausente = o que a vaga traz.
+   */
+  acervoDaMochila?: () => AcervoDaMochila
   /**
    * MODO BATALHA (regra de 27/10): a ficha de `nome` parou numa parede que o
    * recorte dele não tem (`invisivel`: alguma delas é parede invisível; senão

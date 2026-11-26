@@ -143,8 +143,8 @@ import type { BatalhaDBTPlayerMessage } from './protocoloDaBatalhaDBT'
 import { metrosPorCasa } from '../lib/dbt/batalha/contas'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../lib/motores'
 import { tokenHasPass } from '../lib/pinPass'
-import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
-import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
+import { carriedItemsOf, cleanItemName, mochilaComItemDoAcervo, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
+import { acharItemNoMapa, dropItemChange, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
 import { ehRefDeMidia } from '../lib/midia'
 import { itemAVenda, precoEmMoedas, textoDoPrecoDaBanca } from '../lib/loja'
 import { bolsaPaga, vendaNaFicha } from '../lib/vendaDaLoja'
@@ -321,6 +321,10 @@ import { aplicarImagem, aplicarPartesPelaBase } from './edicaoDoPersonagem'
 import { marcaDaBase, problemaNaMesa, type AutoriaDaMesa, type MarcaDaBase, type VistaDaConexao } from './nuvem/emissor'
 import { aplicarAjustes, nomeDoJogadorNoHistorico } from '../lib/ajusteDaFicha'
 import { partesDoLivro, type LivroPedirMessage } from './protocoloDoLivro'
+import { MOCHILA_MOTIVO_MAX, parseMochilaPlayerMessage, type MochilaDarMessage, type MochilaLargarMessage, type MochilaPlayerMessage, type MochilaResultadoMessage } from './protocoloDaMochila'
+import { limiteDeArmas } from '../lib/batalha/leituraDaFicha'
+import { ehRecusa, equiparNaMochila, guardarNaMochila, mochilaComOPenteDevolvido, recarregarForaDaBatalha, vagaQueSai, type AcervoDaMochila } from '../lib/mochila/armaNaMochila'
+import { ACERVO_DA_VAGA } from '../lib/nuvem/mochilaDoJogador'
 import type { PersonagemAjustarMessage, PersonagemCriarMessage, PersonagemEditarMessage, PersonagemImagemMessage, TokenDoPersonagem } from './protocoloDoPersonagem'
 
 /** Como a ficha livre de nome em branco aparece na lista de quem chega. */
@@ -837,6 +841,22 @@ function vagaApagada(item: CarriedItem): CarriedItem {
   return apagada
 }
 
+/** A vaga com `n` na pilha; 1 é o ausente (a mochila gravada continua igual à de antes do campo). */
+function pilhaCom(vaga: CarriedItem, n: number): CarriedItem {
+  const { quantidade: _antes, ...semPilha } = vaga
+  return n > 1 ? { ...semPilha, quantidade: n } : semPilha
+}
+
+/** O que veio do fio como valor: o texto JSON lido (torto = `null`) ou o objeto já desserializado. */
+function valorDoFio(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
 /** O nome da ficha no aviso do "Dar a…" e do "Pagar a…"; ficha sem nome (ou o vulto) é "Alguém". */
 function nomeOuAlguem(nome: string): string {
   const limpo = nome.trim()
@@ -1281,6 +1301,11 @@ export interface PartesDoBroadcast {
 
 export interface HostResult {
   outbound: Outbound[]
+  /**
+   * E5b dos itens: a resposta do pedido da mochila do jogador. Mora em `protocoloDaMochila.ts`, fora do
+   * `HostMessage` do `protocol.ts`; o integrador a manda junto com o `outbound`, só a quem pediu.
+   */
+  respostaDaMochila?: { clientId: string; msg: MochilaResultadoMessage }
   /** Broadcast com `primeiro` (`PartesDoBroadcast`): as conexões cuja tela ficou para depois, uma tarefa cada. */
   recortesAdiados?: string[]
   /** Chamado NOVO na fila: o integrador mostra a linha e toca o bipe. Repetição do mesmo chamado não vem. */
@@ -7120,6 +7145,126 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * A MOCHILA DO JOGADOR NA LAN (itens refeitos, E5b; o contrato com a tela é `protocoloDaMochila.ts`):
+   * equipar, guardar, recarregar fora da batalha, dar e largar com quantidade, na ficha DELE de verdade
+   * (`fichasDoPersonagem`: sem empréstimo nem NPC do mestre). As regras são as da mochila do mestre
+   * (`lib/mochila/armaNaMochila.ts`) com o Acervo do app (`options.acervoDaMochila`; sem ele, o que a
+   * vaga traz). Valeu: grava pelo caminho dos itens (o do "Dar a…", que leva à ficha) e responde
+   * `mochila.resultado` só a quem pediu; a mochila nova chega no recorte seguinte.
+   */
+  function handleMochila(clientId: string, msg: MochilaPlayerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const recusa = (motivo: string): HostResult => ({ outbound: [], respostaDaMochila: { clientId, msg: { type: 'mochila.resultado', reqId: msg.reqId, ok: false, motivo: motivo.slice(0, MOCHILA_MOTIVO_MAX) } } })
+    if (statusOf(playerId) !== 'playing') return recusa('Você ainda não está na mesa')
+    const ficha = fichasDoPersonagem(playerId, world).find(({ token }) => token.id === msg.tokenId)
+    if (ficha === undefined) return recusa('Esta ficha não é sua')
+    const { scene, token } = ficha
+    const acervo = options.acervoDaMochila?.() ?? ACERVO_DA_VAGA
+    const mochila = carriedItemsOf(token)
+    const ok: HostResult = { outbound: [], respostaDaMochila: { clientId, msg: { type: 'mochila.resultado', reqId: msg.reqId, ok: true } } }
+    const feito = (change: ItemChange): HostResult => ({ ...ok, applyItems: { ...backgroundSceneId(scene, world), ...change, ...autoriaDosItens(playerId) } })
+    switch (msg.type) {
+      case 'mochila.equipar': {
+        const personagem = token.characterId === null ? undefined : world.rpg?.personagens.find((candidato) => candidato.id === token.characterId)
+        const limite = personagem === undefined ? null : limiteDeArmas(personagem)
+        const nova = msg.equipado ? equiparNaMochila(mochila, msg.vagaId, limite, personagem?.nome ?? token.name, acervo) : guardarNaMochila(mochila, msg.vagaId)
+        if (ehRecusa(nova)) return recusa(nova.recusa)
+        // Já estava como ele pediu: nada a gravar.
+        if (nova.length === mochila.length && nova.every((vaga, i) => vaga === mochila[i])) return ok
+        return feito({ mochilas: [{ tokenId: token.id, mochila: nova }] })
+      }
+      case 'mochila.recarregar': {
+        // Na batalha a recarga gasta a ação da vez (decisão 3): é da batalha, não daqui.
+        if (emBatalha(scene)) return recusa('Na batalha, recarregue pela sua vez.')
+        const feita = recarregarForaDaBatalha(mochila, msg.armaVagaId, msg.balaVagaId, acervo, randomId())
+        return ehRecusa(feita) ? recusa(feita.recusa) : feito({ mochilas: [{ tokenId: token.id, mochila: feita.mochila }] })
+      }
+      case 'mochila.dar':
+        return darDaMochila(playerId, msg, ficha, acervo, recusa, feito, world)
+      case 'mochila.largar':
+        return largarDaMochila(msg, ficha, acervo, recusa, feito)
+    }
+  }
+
+  /**
+   * "Largar no chão" COM QUANTIDADE (E5b): `quantidade` da vaga cai ao lado da ficha, no piso dela, pela
+   * regra do largar de sempre (`dropItemChange`: imagem no chão ou estrela, todos os dados). A arma vai
+   * vazia e guardada (A8): as balas do pente voltam antes para a mochila; o aceso fica.
+   */
+  function largarDaMochila(
+    msg: MochilaLargarMessage,
+    ficha: { token: Token; scene: HostScene },
+    acervo: AcervoDaMochila,
+    recusa: (motivo: string) => HostResult,
+    feito: (change: ItemChange) => HostResult,
+  ): HostResult {
+    const { scene, token } = ficha
+    const mochila = carriedItemsOf(token)
+    const vaga = mochila.find((item) => item.id === msg.vagaId)
+    if (vaga === undefined) return recusa('O item já não está na mochila.')
+    const tem = quantidadeDe(vaga)
+    if (msg.quantidade > tem) return recusa(`Você só tem ${tem} ${vaga.nome}.`)
+    const resta = tem - msg.quantidade
+    const queCai = pilhaCom(vagaQueSai(vagaApagada(vaga)), msg.quantidade)
+    // O largar de sempre sobre uma mochila só com o que cai: a mochila de verdade é a de baixo.
+    const noChao = dropItemChange(scene.map, { ...token, mochila: [queCai] }, vaga.id, randomId())
+    if (noChao === null) return recusa(`Não deu para largar ${vaga.nome}.`)
+    const fica = resta > 0 ? mochila.map((item) => (item === vaga ? pilhaCom(item, resta) : item)) : semAVaga(mochila, vaga.id, acervo)
+    return feito({ ...noChao, mochilas: [{ tokenId: token.id, mochila: fica }] })
+  }
+
+  /** A mochila sem a vaga que saiu inteira; a arma devolve antes as balas do pente à mochila (A8). */
+  function semAVaga(mochila: readonly CarriedItem[], vagaId: string, acervo: AcervoDaMochila): CarriedItem[] {
+    return mochilaComOPenteDevolvido(mochila, vagaId, acervo, randomId()).mochila.filter((item) => item.id !== vagaId)
+  }
+
+  /**
+   * "Dar a…" COM QUANTIDADE (E5b): `quantidade` da vaga a um COLEGA (ficha de outro jogador) que ele vê
+   * agora e que está encostado, como o `item.give`. A pilha do mesmo item do Acervo soma na dele
+   * (`mochilaComItemDoAcervo`, a regra do "Dar a…" do mestre); o que não coube fica com quem deu. A
+   * vaga que sai inteira devolve antes as balas do pente à mochila de quem deu (A8) e vai guardada.
+   */
+  function darDaMochila(
+    playerId: string,
+    msg: MochilaDarMessage,
+    ficha: { token: Token; scene: HostScene },
+    acervo: AcervoDaMochila,
+    recusa: (motivo: string) => HostResult,
+    feito: (change: ItemChange) => HostResult,
+    world: HostWorld,
+  ): HostResult {
+    const { scene, token } = ficha
+    const map = scene.map
+    const owned = new Set(ownership[playerId] ?? [])
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, undefined, undefined, loansFor(playerId))
+    const giverSeen = view.map.tokens.find((t) => t.id === token.id)
+    const targetSeen = view.map.tokens.find((t) => t.id === msg.paraTokenId && !owned.has(t.id))
+    const target = map.tokens.find((t) => t.id === msg.paraTokenId)
+    if (giverSeen === undefined || targetSeen === undefined || target === undefined || !isOtherPlayersToken(playerId, msg.paraTokenId)) {
+      return recusa('Só dá para dar a um colega que você vê nesta cena.')
+    }
+    if (!tokensTouch(giverSeen, targetSeen, map.grid)) return recusa(`Chegue perto de ${nomeOuAlguem(targetSeen.name)} para dar.`)
+    const mochila = carriedItemsOf(token)
+    const vaga = mochila.find((item) => item.id === msg.vagaId)
+    if (vaga === undefined) return recusa('O item já não está na mochila.')
+    const tem = quantidadeDe(vaga)
+    if (msg.quantidade > tem) return recusa(`Você só tem ${tem} ${vaga.nome}.`)
+    // Só os dados da coisa vão: o aceso, o equipado e o pente são de quem tinha (`vagaQueSai`, como no `passarAoAliado`).
+    const recebeu = mochilaComItemDoAcervo(carriedItemsOf(target), vagaQueSai(vagaApagada(vaga)), msg.quantidade, randomId())
+    if (recebeu === null || recebeu.entraram < 1) return recusa(`A mochila de ${nomeOuAlguem(targetSeen.name)} não cabe mais ${vaga.nome}.`)
+    const resta = tem - recebeu.entraram
+    const doador = resta > 0 ? mochila.map((item) => (item === vaga ? pilhaCom(item, resta) : item)) : semAVaga(mochila, vaga.id, acervo)
+    return feito({
+      mochilas: [
+        { tokenId: token.id, mochila: doador },
+        { tokenId: target.id, mochila: recebeu.mochila },
+      ],
+    })
+  }
+
+  /**
    * FICHA DE PERSONAGEM — as fichas (tokens) do jogador que podem ter a ficha
    * de personagem DELE: as que ele tem de verdade, em qualquer cena. Ficam de
    * fora as mesmas que o `token.edit` recusa: a emprestada (ajudante
@@ -10083,7 +10228,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     handleMessage(clientId, raw, source) {
       const msg = parsePlayerMessage(raw)
-      if (msg === null) return refuseMalformed(clientId, raw)
+      if (msg === null) {
+        // E5b dos itens: os pedidos da mochila têm o próprio leitor (`protocoloDaMochila.ts`), fora do `protocol.ts`.
+        const daMochila = parseMochilaPlayerMessage(valorDoFio(raw))
+        return daMochila === null ? refuseMalformed(clientId, raw) : handleMochila(clientId, daMochila, toWorld(source))
+      }
       const world = toWorld(source)
       // Prazo vencido vale ANTES do pedido: o ajudante que já voltou ao mestre não anda mais.
       const expired = expireDue(world)

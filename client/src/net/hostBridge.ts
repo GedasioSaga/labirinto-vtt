@@ -161,6 +161,7 @@ import { useDocumentosDoMestreStore } from '../components/documentos/documentosD
 import { itemParaDar } from '../lib/acervoDeItens'
 import { precosDoAcervoMudaram } from '../lib/loja'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
+import { acervoDaMochila } from '../lib/mochila/acervoDaMochila'
 import type { PecaDoAcervo } from '../puzzles/tipos'
 import { useDesafiosStore } from '../stores/desafiosStore'
 import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
@@ -2187,7 +2188,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // Todo recorte e toda leitura passam por aqui: o painel Pistas acompanha
     // o que SAI (recebeu) e o que o jogador abriu (leu), sem esperar nada.
     notifyPinCluesIfChanged()
-    return Promise.all(result.outbound.map(({ clientId, msg }) => sendToClient(clientId, msg, gzipClients.has(clientId)))).then(() => undefined)
+    const envios = result.outbound.map(({ clientId, msg }) => sendToClient(clientId, msg, gzipClients.has(clientId)))
+    // E5b dos itens: a resposta da mochila (fora do `HostMessage`) vai na mesma fila da conexão, depois do resto.
+    const daMochila = result.respostaDaMochila
+    if (daMochila !== undefined) envios.push(sendToClient(daMochila.clientId, daMochila.msg, gzipClients.has(daMochila.clientId)))
+    return Promise.all(envios).then(() => undefined)
   }
 
   /** A conexão acabou (caiu ou foi expulsa): a tela dela sai do espelho. */
@@ -4734,6 +4739,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         ponteDaBatalha: deps.ponteDaBatalha,
         ponteDaBatalhaDBT: deps.ponteDaBatalhaDBT,
         usarItemFora: deps.usarItemFora,
+        // Itens refeitos (E5b): os pedidos da mochila do jogador leem o tipo e o pente do Acervo de agora.
+        acervoDaMochila: () => acervoDaMochila(useAcervoDeItensStore.getState().itens),
         onEsbarrouNaParede: deps.onEsbarrouNaParede,
         getPeriodo: deps.getPeriodo,
         restoreSeats,
