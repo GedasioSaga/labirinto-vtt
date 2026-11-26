@@ -1,6 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
-import { itemParaDar } from '../../lib/acervoDeItens'
+import { itemParaDar, novoItemDoCatalogo, type ItemDoCatalogo as ItemDoAcervo } from '../../lib/acervoDeItens'
 import { escolherImagemDoItem, imagemDoItemDoBlob } from '../../lib/imagemDoItem'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { ITEM_QUANTIDADE_MAX, quantidadeDe } from '../../lib/items'
@@ -21,7 +21,7 @@ import {
   type TipoDoCatalogo,
 } from '../../lib/livros/catalogo'
 import { pecasDaEntrada, TIPOS_DA_PAGINA, TOPO_DA_PAGINA, type EntradaDaBiblioteca, type PaginaDaBiblioteca } from '../../lib/livros/paginasDaBiblioteca'
-import { donosDasEntradas, GRUPOS_DA_PAGINA, grupoNaBiblioteca, imagemDaEntrada, ORDENS_DA_BIBLIOTECA, ordenarNaBiblioteca, vagaDaEntrada, type GrupoDaBiblioteca, type GrupoDeFichas, type OrdemDaBiblioteca } from '../../lib/livros/gruposDaBiblioteca'
+import { donosDasEntradas, GRUPOS_DA_PAGINA, GRUPOS_DE_ARMA, grupoNaBiblioteca, semARegraRepetida, imagemDaEntrada, ORDENS_DA_BIBLIOTECA, ordenarNaBiblioteca, vagaDaEntrada, type GrupoDaBiblioteca, type GrupoDeFichas, type OrdemDaBiblioteca } from '../../lib/livros/gruposDaBiblioteca'
 import { dadosDaLinha, type DadosDaLinha } from '../../lib/livros/linhaDaBiblioteca'
 import type { FerramentaDaBiblioteca } from '../../lib/livros/pendenciasDasFerramentas'
 import { desfazerPosto, porCoisaNaFicha, porEntradaNaFicha, type PostoNaFicha, type ResultadoDoPor } from '../../lib/livros/coisaERegra'
@@ -37,6 +37,7 @@ import { useToastStore } from '../../stores/toastStore'
 import { itensPorCategoria } from '../AcervoDeItensPanel'
 import { itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from '../BuscaDoAcervoDeItens'
 import { ItemDoCatalogoDialog } from '../ItemDoCatalogoDialog'
+import { rotuloDoTipoDoItem } from '../../lib/itens/editorDoItem'
 import { precoEmBerries } from '../../lib/loja'
 import { avisarComDesfazer, formatarNumero, primeiroNome, trocarFicha } from './comum'
 import { PainelDeEnsaio } from '../ensaio/PainelDeEnsaio'
@@ -271,6 +272,9 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   /** A coisa do Acervo aberta na janela do Acervo (o id; o item vem do store, para a janela ver o que foi salvo). */
   const [acervoAberto, setAcervoAberto] = useState<string | null>(null)
   const itemDoAcervoAberto = acervoAberto === null ? undefined : doAcervo.find((item) => item.id === acervoAberto)
+  /** Itens refeitos (E2): o "Novo item" da página Itens cria a coisa no Acervo, pelo editor do item (não mais uma entrada solta do livro). */
+  const [itemNovo, setItemNovo] = useState<ItemDoAcervo | null>(null)
+  const acervoPodeGravar = useAcervoDeItensStore((state) => state.podeGravar)
   const [juntando, setJuntando] = useState(false)
   const [arrastandoId, setArrastandoId] = useState<string | null>(null)
   const [sobre, setSobre] = useState<{ fichaId: string; alvo: AlvoDoArrasto } | null>(null)
@@ -350,7 +354,12 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   // Na ordem das categorias do Acervo, como o painel do mestre as mostra. Só a página Itens lista o Acervo.
   const entradasDoAcervo = useMemo(() => (pagina === 'itens' ? itensPorCategoria(doAcervo, categoriasDoAcervo).flatMap((grupoDoAcervo) => grupoDoAcervo.itens.map(entradaDoAcervo)) : []), [pagina, doAcervo, categoriasDoAcervo])
   /** "Como no livro": as do mestre, as do Acervo e, no fim, as do livro de regras do sistema. */
-  const todas = useMemo<EntradaDaBiblioteca[]>(() => [...entradas.filter((entrada) => !ehDoLivro(entrada)), ...entradasDoAcervo, ...entradas.filter(ehDoLivro)], [entradas, entradasDoAcervo])
+  // Itens refeitos (E2): a entrada ligada a uma coisa do Acervo é a mesma coisa; só a do Acervo aparece (a Granada não se repete).
+  const idsDoAcervo = useMemo(() => new Set(doAcervo.map((coisa) => coisa.id)), [doAcervo])
+  const todas = useMemo<EntradaDaBiblioteca[]>(
+    () => [...semARegraRepetida(entradas.filter((entrada) => !ehDoLivro(entrada)), idsDoAcervo), ...entradasDoAcervo, ...entradas.filter(ehDoLivro)],
+    [entradas, entradasDoAcervo, idsDoAcervo],
+  )
   const grupoPorId = useMemo(() => new Map(todas.map((entrada) => [entrada.id, grupoNaBiblioteca(entrada, categoriaPorCoisa)] as const)), [todas, categoriaPorCoisa])
   const gruposDeFichas = useMemo(() => gruposQueRecebem(personagens), [personagens])
   const fichas = useMemo(() => gruposDeFichas.flatMap((grupoDeFichas) => grupoDeFichas.fichas), [gruposDeFichas])
@@ -685,7 +694,13 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   }
 
   // ---- o catálogo: criar, editar, apagar, juntar, ligar ----
-  const tipoSugerido: TipoDoCatalogo = pagina === 'habilidades' ? 'habilidade' : grupoAtivo === 'arma' ? 'arma' : 'item'
+  const tipoSugerido: TipoDoCatalogo = pagina === 'habilidades' ? 'habilidade' : grupoAtivo !== 'todos' && GRUPOS_DE_ARMA.has(grupoAtivo) ? 'arma' : 'item'
+  /** O "Novo": na página Itens, o item nasce no Acervo (o editor pede o tipo); nas Habilidades, a entrada do livro. */
+  const criarNovo = () => {
+    if (pagina === 'itens') setItemNovo(novoItemDoCatalogo())
+    else setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })
+  }
+  const podeCriar = pagina === 'itens' ? acervoPodeGravar : podeGravar
 
   const aoSalvar = (item: ItemDoCatalogo, nova: boolean) => {
     const naOutraPagina = !tiposDaPagina.includes(item.tipo)
@@ -790,7 +805,8 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   }
 
   const motivoDoTeste = (entrada: EntradaDaBiblioteca): string | null => {
-    if (ehDoAcervo(entrada)) return entrada.acervo.efeito === undefined ? 'Este item não faz nada na batalha (é só texto): não há o que testar.' : null
+    // Itens refeitos (E2): o teste do item no boneco usa a batalha nova (E6c); até lá fica desligado.
+    if (ehDoAcervo(entrada) || entrada.tipo === 'item' || entrada.tipo === 'arma') return 'O teste no boneco chega com a batalha.'
     if (ehDoLivro(entrada)) return 'Perícias, vantagens e desvantagens viram vantagem ou desvantagem em testes: não há o que testar no boneco.'
     if (entrada.tipo !== 'habilidade') return 'O teste no boneco é das habilidades e do efeito dos itens do Acervo; a arma se testa pelo Atacar, na Arena de testes.'
     if (grupoPorId.get(entrada.id) === 'passiva') return 'Passiva ainda não tem peças: o app lê a descrição. Não dá para testar.'
@@ -866,6 +882,33 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
     alvo.focus()
   }
 
+  /** "Nas mochilas": quantos de cada ficha (as balas no pente contam à parte) e o total. */
+  const quantosNasMochilas = (itemId: string, quem: readonly Personagem[]) => {
+    const porFicha = new Map<string, { n: number; pente: number }>()
+    let total = 0
+    for (const ficha of quem) {
+      let n = 0
+      let pente = 0
+      for (const vaga of ficha.mochila ?? []) {
+        if (vaga.itemId === itemId) n += quantidadeDe(vaga)
+        if (vaga.pente?.balaId === itemId) pente += vaga.pente.n
+      }
+      porFicha.set(ficha.id, { n, pente })
+      total += n + pente
+    }
+    return { total, porFicha }
+  }
+  /** O mestre conferiu um aviso "Confira": ele sai do item (o Acervo grava). */
+  const conferir = async (coisa: ItemDoAcervo, indice: number) => {
+    const resto = (coisa.confira ?? []).filter((_, i) => i !== indice)
+    const { confira: _antes, ...sem } = coisa
+    try {
+      await useAcervoDeItensStore.getState().salvarItem(resto.length === 0 ? sem : { ...sem, confira: resto })
+    } catch (erro) {
+      useToastStore.getState().push('error', `Não deu para guardar: ${mensagemDoErro(erro)}`)
+    }
+  }
+
   // ---- a coluna da direita ----
   let lado
   if (lendo) {
@@ -892,7 +935,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
     if (ehDoAcervo(entrada)) {
       const { acervo } = entrada
       cartao = { ...novoCartao(acervo.nome), id: `bib-${acervo.id}`, campos: { descricao: acervo.descricao } }
-      linhaCurta = [acervo.categoria === '' ? 'Item' : acervo.categoria, ...(acervo.preco === null ? [] : [precoEmBerries(acervo.preco)]), ...(acervo.empilhavel ? ['empilhável'] : [])].join(' · ')
+      linhaCurta = [acervo.tipo === undefined ? (acervo.categoria === '' ? 'Item' : acervo.categoria) : rotuloDoTipoDoItem(acervo.tipo), ...(acervo.preco === null ? [] : [precoEmBerries(acervo.preco)]), ...(acervo.empilhavel ? ['empilhável'] : [])].join(' · ')
       selo = { texto: 'Do Acervo', cor: 'acervo' }
     } else {
       cartao = aba === undefined ? { ...novoCartao(entrada.nome), campos: { descricao: entrada.texto } } : cartaoDaEntrada(entrada, aba, sistema)
@@ -950,6 +993,8 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
           if (!ehDoAcervo(entrada) && !ehDoLivro(entrada)) void apagar(entrada)
         }}
         onDarAlcance={podeGravar ? () => abrirFerramenta('alcance') : null}
+        {...(ehDoAcervo(entrada) ? { quantos: quantosNasMochilas(entrada.acervo.id, donosDe(entrada)) } : {})}
+        {...(ehDoAcervo(entrada) && (entrada.acervo.confira?.length ?? 0) > 0 && acervoPodeGravar ? { confira: { lista: entrada.acervo.confira ?? [], onConferido: (indice: number) => void conferir(entrada.acervo, indice) } } : {})}
       />
     )
   }
@@ -983,7 +1028,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
             <button type="button" className="mu-bt" disabled={juntando} onClick={() => void juntar()}>
               {juntando ? 'Juntando…' : 'Juntar das fichas da pasta'}
             </button>
-            <button type="button" className="mu-bt mu-bt--primario" onClick={() => setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })}>
+            <button type="button" className="mu-bt mu-bt--primario" disabled={!podeCriar} onClick={criarNovo}>
               <IconeDoMundo nome="mais" />
               {NOVA_DO_TIPO[tipoSugerido]}
             </button>
@@ -1066,7 +1111,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
         </div>
         <div className="mu-pg-acoes">
           <MenuDeFerramentas pagina={pagina} sistema={sistema} podeGravar={podeGravar} ocupado={juntando} onEscolher={abrirFerramenta} />
-          <button type="button" className="mu-bt mu-bt--primario" disabled={!podeGravar} onClick={() => setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })}>
+          <button type="button" className="mu-bt mu-bt--primario" disabled={!podeCriar} onClick={criarNovo}>
             <IconeDoMundo nome="mais" />
             {NOVA_DO_TIPO[tipoSugerido]}
           </button>
@@ -1223,7 +1268,30 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
       </div>
 
       {dialogo !== null && <EntradaDoCatalogoDialog modo={dialogo} sistema={sistema} onClose={() => setDialogo(null)} onSalvou={aoSalvar} />}
-      {/* A mesma janela do Acervo (nome, foto, "O que ele faz"); o Acervo continua o dono do item. */}
+      {/* O editor do item (itens-rework E2), o mesmo do painel do Acervo; o Acervo continua o dono do item. */}
+      {itemNovo !== null && (
+        <ItemDoCatalogoDialog
+          key={itemNovo.id}
+          item={itemNovo}
+          novo
+          categorias={categoriasDoAcervo}
+          alvos={[]}
+          onSalvar={async (item) => {
+            await useAcervoDeItensStore.getState().salvarItem(item)
+            setGrupo('todos')
+            setOnde('todas')
+            setBusca('')
+            escolhidaAntes[pagina] = item.id
+            setEscolhidaId(item.id)
+            setNovos(new Set([item.id]))
+            requestAnimationFrame(() => focarLinha(item.id))
+          }}
+          onApagar={async () => undefined}
+          onClose={() => setItemNovo(null)}
+          imagemDoBlob={imagemDoItemDoBlob}
+          escolherImagem={escolherImagemDoItem}
+        />
+      )}
       {itemDoAcervoAberto !== undefined && (
         <ItemDoCatalogoDialog
           key={itemDoAcervoAberto.id}

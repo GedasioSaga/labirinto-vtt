@@ -8,6 +8,7 @@ import { ITEM_QUANTIDADE_MAX } from '../../../lib/items'
 import type { GrupoDeFichas } from '../../../lib/livros/gruposDaBiblioteca'
 import type { AlcanceDaLinha } from '../../../lib/livros/linhaDaBiblioteca'
 import type { CartaoDaFicha, Personagem } from '../../../lib/personagem'
+import type { ConfiraDoItem } from '../../../lib/itens/modelo'
 import { GlifoDoAlcance } from '../../batalha/alcance/EscolhaDaForma'
 import { PapelDoCartao } from '../../batalha/editor/PapelDoCartao'
 import { linhaCurtaDoPapel } from '../../batalha/editor/fraseDoPapel'
@@ -312,6 +313,24 @@ export interface LadoDaEscolhidaProps {
   onPedirApagar: (pedir: boolean) => void
   onApagar: () => void
   onDarAlcance: (() => void) | null
+  /**
+   * Itens refeitos (E2): "Nas mochilas", quantos cada ficha tem (as balas no pente à parte) e o
+   * total. Ausente = o "Quem tem" de sempre (a habilidade, a entrada do livro).
+   */
+  quantos?: { total: number; porFicha: ReadonlyMap<string, { n: number; pente: number }> }
+  /** Os avisos "Confira" da conversão, com os números lado a lado; o mestre apaga ao conferir. Ausente = nenhum. */
+  confira?: { lista: readonly ConfiraDoItem[]; onConferido: (indice: number) => void }
+}
+
+/** Quantos a ficha tem na mochila, e as balas no pente à parte ("46 + 6 no pente"). */
+function QuantosDaFicha({ conta }: { conta: { n: number; pente: number } | undefined }) {
+  if (conta === undefined) return null
+  return (
+    <b className="mu-bib-quem__qtd">
+      {conta.n}
+      {conta.pente > 0 && <small> + {conta.pente} no pente</small>}
+    </b>
+  )
 }
 
 export function LadoDaEscolhida(props: LadoDaEscolhidaProps) {
@@ -326,8 +345,32 @@ export function LadoDaEscolhida(props: LadoDaEscolhidaProps) {
     if (props.confirmandoApagar) cancelarRef.current?.focus()
   }, [props.confirmandoApagar])
 
+  const { quantos, confira } = props
   return (
     <>
+      {confira !== undefined && (
+        <section className="mu-bib-confira" aria-label="Confira">
+          <h3>Confira</h3>
+          <ul>
+            {confira.lista.map((aviso, indice) => (
+              <li key={`${aviso.texto}-${indice}`}>
+                <span>
+                  {aviso.texto}
+                  {(aviso.antes !== undefined || aviso.depois !== undefined) && (
+                    <span className="mu-bib-confira__nums">
+                      {aviso.antes !== undefined && <span>Antes: {aviso.antes}</span>}
+                      {aviso.depois !== undefined && <span>Agora: {aviso.depois}</span>}
+                    </span>
+                  )}
+                </span>
+                <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={() => confira.onConferido(indice)}>
+                  Conferido
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <PapelDaEscolhida cartao={cartao} pecas={pecas} frase={frase} linhaCurta={linhaCurta} ficha={ficha} selo={selo} />
       {alcance !== null &&
         (alcance === 'falta' ? (
@@ -391,8 +434,10 @@ export function LadoDaEscolhida(props: LadoDaEscolhidaProps) {
       {extra}
       <section className="mu-bib-sec" aria-labelledby={quemId}>
         <div className="mu-bib-sec__tit">
-          <h3 id={quemId}>Quem tem</h3>
-          <span className="mu-bib-dica">{donos.length > 0 ? `${donos.length} ${donos.length === 1 ? 'ficha' : 'fichas'}, ${ondeEntra}` : 'só no livro'}</span>
+          <h3 id={quemId}>{quantos === undefined ? 'Quem tem' : 'Nas mochilas'}</h3>
+          <span className="mu-bib-dica">
+            {quantos !== undefined ? `${quantos.total} no total` : donos.length > 0 ? `${donos.length} ${donos.length === 1 ? 'ficha' : 'fichas'}, ${ondeEntra}` : 'só no livro'}
+          </span>
         </div>
         {donos.length > 0 ? (
           <ul className="mu-bib-quem">
@@ -405,6 +450,7 @@ export function LadoDaEscolhida(props: LadoDaEscolhidaProps) {
                   {dono.nome}
                   <span className="mu-bib-quem__onde">{escolhasDaFicha(dono, sistema) || (dono.tipo === 'jogador' ? 'Jogador' : 'NPC')}</span>
                 </span>
+                {quantos !== undefined && <QuantosDaFicha conta={quantos.porFicha.get(dono.id)} />}
                 <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" aria-disabled={!podeGravar} aria-label={`Tirar ${cartao.nome} da ficha de ${dono.nome}`} onClick={() => podeGravar && props.onTirar(dono)}>
                   Tirar da ficha
                 </button>

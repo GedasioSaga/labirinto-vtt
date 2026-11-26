@@ -9,8 +9,9 @@ import { normalizarParaBusca } from '../buscaNoLivro'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { ehDoAcervo } from './acervoNoLivro'
 import { ehDoLivro } from './catalogo'
-import { spDaEntrada, type GrupoDaBiblioteca } from './gruposDaBiblioteca'
+import { GRUPOS_DE_ARMA, spDaEntrada, type GrupoDaBiblioteca } from './gruposDaBiblioteca'
 import { pecasDaEntrada, type EntradaDaBiblioteca } from './paginasDaBiblioteca'
+import { alcanceLido, frasesDoItem, TIPOS_QUE_ATACAM } from '../itens/editorDoItem'
 
 /**
  * A LINHA DA LISTA da biblioteca organizada (protótipo `.linha`): o ícone, a
@@ -47,7 +48,7 @@ export interface DadosDaLinha {
 
 const ICONE_DO_GRUPO: Readonly<Record<GrupoDaBiblioteca, IconeDaLinha>> = {
   ataque: 'ataque', apoio: 'apoio', reacao: 'reacao', passiva: 'passiva', pericia: 'pericia', vantagem: 'vantagem', desvantagem: 'desvantagem',
-  arma: 'espada', consumivel: 'frasco', municao: 'balas', outro: 'caixa',
+  corpo: 'espada', fogo: 'fogo', hibrida: 'fogo', arremesso: 'impacto', consumivel: 'frasco', municao: 'balas', equipamento: 'apoio', outro: 'caixa',
 }
 const ICONES_DO_GOLPE: ReadonlySet<string> = new Set(['impacto', 'cortante', 'perfurante', 'queimadura', 'veneno', 'choque', 'cegueira'])
 const NOME_DA_ACAO: Readonly<Record<string, string>> = { simples: 'Simples', completa: 'Completa', bonus: 'Bônus', livre: 'Livre', perguntar: 'Na hora' }
@@ -90,7 +91,7 @@ function fichasDoTexto(entrada: EntradaDaBiblioteca, grupo: GrupoDaBiblioteca): 
 
 /** O grupo pede alcance (o golpe e a ajuda; a arma e o consumível): sem ele aparece o "?". */
 function pedeAlcance(grupo: GrupoDaBiblioteca): boolean {
-  return grupo === 'ataque' || grupo === 'apoio' || grupo === 'arma' || grupo === 'consumivel'
+  return grupo === 'ataque' || grupo === 'apoio' || GRUPOS_DE_ARMA.has(grupo) || grupo === 'consumivel'
 }
 
 /**
@@ -119,6 +120,9 @@ export function dadosDaLinha(entrada: EntradaDaBiblioteca, grupo: GrupoDaBibliot
     else if (categoria !== 'overload' && recarga !== undefined && recarga > 0) fichas.push({ texto: `espera ${recarga}`, cor: 'fraco' })
   } else if (ehDoAcervo(entrada) && entrada.acervo.efeito !== undefined) {
     frase = resumoDoEfeitoDoItem(entrada.acervo.efeito, sistema)
+  } else if (ehDoAcervo(entrada) && entrada.acervo.tipo !== undefined && entrada.acervo.tipo !== 'outros') {
+    // Itens refeitos (E2): a 1ª frase do "O que acontece" (o ataque, a bala, o uso), sem os nomes de outros itens.
+    frase = frasesDoItem(entrada.acervo, { nomeDoItem: () => null, nomeDoAtributo: (id) => sistema.atributos.find((atributo) => atributo.id === id)?.nome ?? id, armasQueAceitam: () => [] })[0] ?? fraseEscrita(entrada)
   } else {
     frase = fraseEscrita(entrada)
     fraseDoTexto = true
@@ -137,6 +141,11 @@ export function dadosDaLinha(entrada: EntradaDaBiblioteca, grupo: GrupoDaBibliot
   if (pedeAlcance(grupo) && !ehDoAcervo(entrada) && !ehDoLivro(entrada)) {
     const lido = alcanceDoCartao(entrada)
     alcance = lido === null ? 'falta' : { forma: lido.forma, cor: grupo === 'apoio' ? 'verde' : 'azul' }
+  } else if (ehDoAcervo(entrada)) {
+    const { ataque, uso, tipo } = entrada.acervo
+    if (ataque !== undefined && tipo !== undefined && TIPOS_QUE_ATACAM.has(tipo)) fichas.unshift({ texto: `Dano ${ataque.dano}`, cor: 'dano' })
+    const forma = alcanceLido(tipo !== undefined && TIPOS_QUE_ATACAM.has(tipo) ? ataque?.alcance : tipo === 'consumivel' ? uso?.alcance : undefined)
+    if (forma !== null) alcance = { forma, cor: tipo === 'consumivel' ? 'verde' : 'azul' }
   }
   return { icone, frase, fraseDoTexto, fichas, alcance }
 }

@@ -5,6 +5,9 @@ import { cartoesDaAba, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { ehDoAcervo } from './acervoNoLivro'
 import { abaDeDestino, chaveDoNomeDaEntrada, ehDoLivro, type TipoDeEntrada } from './catalogo'
+import { CAMPO_DA_CATEGORIA } from '../batalha/leituraDaFicha'
+import { ehNomeDeArremesso } from '../itens/conversao/comum'
+import type { TipoDoItem } from '../itens/modelo'
 import { filtrosDoItem, grupoDaHabilidade, pecasDaEntrada, type EntradaDaBiblioteca, type PaginaDaBiblioteca } from './paginasDaBiblioteca'
 
 /**
@@ -17,7 +20,11 @@ import { filtrosDoItem, grupoDaHabilidade, pecasDaEntrada, type EntradaDaBibliot
  * Puro: sem store, sem disco.
  */
 
-export type GrupoDaBiblioteca = 'ataque' | 'apoio' | 'reacao' | 'passiva' | 'pericia' | 'vantagem' | 'desvantagem' | 'arma' | 'consumivel' | 'municao' | 'outro'
+/** Nos Itens, um grupo por tipo do item (itens-rework E2: Corpo a corpo, De fogo, Híbrida, Arremesso, Munição, Consumível, Equipamento, Outros). */
+export type GrupoDaBiblioteca = 'ataque' | 'apoio' | 'reacao' | 'passiva' | 'pericia' | 'vantagem' | 'desvantagem' | 'corpo' | 'fogo' | 'hibrida' | 'arremesso' | 'consumivel' | 'municao' | 'equipamento' | 'outro'
+
+/** Os grupos de arma (o Atacar usa): o "Nova arma" e o alcance da linha valem neles. */
+export const GRUPOS_DE_ARMA: ReadonlySet<GrupoDaBiblioteca> = new Set<GrupoDaBiblioteca>(['corpo', 'fogo', 'hibrida', 'arremesso'])
 
 export interface DadosDoGrupo {
   id: GrupoDaBiblioteca
@@ -40,14 +47,37 @@ export const GRUPOS_DA_PAGINA: Readonly<Record<PaginaDaBiblioteca, readonly Dado
     { id: 'desvantagem', nome: 'Desvantagens', dica: 'desvantagem ou interpretação', doLivro: true },
   ],
   itens: [
-    { id: 'arma', nome: 'Armas', dica: 'o Atacar da ficha usa', doLivro: false },
-    { id: 'consumivel', nome: 'Consumíveis', dica: 'gastam ao usar', doLivro: false },
+    { id: 'corpo', nome: 'Corpo a corpo', dica: 'espada, clava, soco', doLivro: false },
+    { id: 'fogo', nome: 'De fogo', dica: 'atiram com o pente', doLivro: false },
+    { id: 'hibrida', nome: 'Híbridas', dica: 'golpeiam e atiram', doLivro: false },
+    { id: 'arremesso', nome: 'Arremesso', dica: 'granada, faca, boomerang', doLivro: false },
     { id: 'municao', nome: 'Munição', dica: 'a arma de fogo gasta', doLivro: false },
+    { id: 'consumivel', nome: 'Consumíveis', dica: 'gastam ao usar', doLivro: false },
+    { id: 'equipamento', nome: 'Equipamento', dica: 'roupa e acessório', doLivro: false },
     { id: 'outro', nome: 'Outros', dica: 'ferramentas, chaves, mapas', doLivro: false },
   ],
 }
 
 const GRUPO_DO_LIVRO: Readonly<Partial<Record<TipoDeEntrada, GrupoDaBiblioteca>>> = { pericia: 'pericia', vantagem: 'vantagem', desvantagem: 'desvantagem' }
+
+/** A arma do livro sem coisa no Acervo: o grupo pela categoria escrita no cartão (Branca, De fogo, Híbrida, Arremesso, Natural) e, sem ela, pelo nome. */
+function grupoDaArmaPelaCategoria(nome: string, categoria: string): GrupoDaBiblioteca {
+  const chave = normalizarParaBusca(categoria)
+  if (chave.startsWith('de fogo') || chave === 'fogo') return 'fogo'
+  if (chave.startsWith('hibrid')) return 'hibrida'
+  if (chave.startsWith('arremesso')) return 'arremesso'
+  if (chave !== '') return 'corpo'
+  return ehNomeDeArremesso(nome) ? 'arremesso' : 'corpo'
+}
+
+/**
+ * A BIBLIOTECA SEM COISA E REGRA SEPARADAS (itens-rework E2): a entrada de arma ou item do catálogo
+ * ligada a uma coisa do Acervo (`acervoId`) é a mesma coisa, e a lista mostra só a do Acervo (a
+ * Granada aparecia duas vezes). A regra continua no catálogo, que o Dar a e a batalha de hoje leem.
+ */
+export function semARegraRepetida<T extends EntradaDaBiblioteca>(entradas: readonly T[], idsDoAcervo: ReadonlySet<string>): T[] {
+  return entradas.filter((entrada) => ehDoAcervo(entrada) || ehDoLivro(entrada) || (entrada.tipo !== 'arma' && entrada.tipo !== 'item') || entrada.acervoId === undefined || !idsDoAcervo.has(entrada.acervoId))
+}
 
 /**
  * Em que grupo da lista a entrada cai. Habilidade com peças: a reação (só nela
@@ -55,10 +85,13 @@ const GRUPO_DO_LIVRO: Readonly<Partial<Record<TipoDeEntrada, GrupoDaBiblioteca>>
  * condição sem dano também é golpe contra inimigo). Sem peças: o Tipo da ficha
  * (Passiva, Reação, Buff) e, sem ele, o que o texto diz.
  */
-export function grupoNaBiblioteca(entrada: EntradaDaBiblioteca, acervo: ReadonlyMap<string, { categoria: string }>): GrupoDaBiblioteca {
+export function grupoNaBiblioteca(entrada: EntradaDaBiblioteca, acervo: ReadonlyMap<string, { categoria: string; tipo?: TipoDoItem }>): GrupoDaBiblioteca {
   if (entrada.tipo === 'arma' || entrada.tipo === 'item' || ehDoAcervo(entrada)) {
+    // A coisa do Acervo (ou a ligada à entrada) já diz o tipo: ele é o grupo.
+    const tipo = ehDoAcervo(entrada) ? entrada.acervo.tipo : !ehDoLivro(entrada) && entrada.acervoId !== undefined ? acervo.get(entrada.acervoId)?.tipo : undefined
+    if (tipo !== undefined) return tipo === 'outros' ? 'outro' : tipo
     const filtros = filtrosDoItem(entrada, acervo)
-    if (filtros.has('armas')) return 'arma'
+    if (filtros.has('armas')) return ehDoAcervo(entrada) || ehDoLivro(entrada) ? 'corpo' : grupoDaArmaPelaCategoria(entrada.nome, entrada.campos[CAMPO_DA_CATEGORIA] ?? '')
     if (filtros.has('municao')) return 'municao'
     if (filtros.has('consumiveis')) return 'consumivel'
     return 'outro'

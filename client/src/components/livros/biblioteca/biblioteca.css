@@ -210,3 +210,13 @@
   .mu-bib-grupo__cab .mu-bib-ic { transition: none; }
 }
 @keyframes mu-bib-pop-opacidade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Itens refeitos (E2): "Nas mochilas" com a quantidade de cada ficha, e o painel "Confira" da conversão. */
+.mu-bib-quem li:has(.mu-bib-quem__qtd) { grid-template-columns: 22px minmax(0, 1fr) auto auto; }
+.mu-bib-quem__qtd { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.mu-bib-quem__qtd small { font-weight: 400; color: var(--lb-color-parchment-faint); }
+.mu-bib-confira { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--lb-color-ember); border-radius: var(--lb-radius-sm); background: var(--lb-color-ember-soft); }
+.mu-bib-confira h3 { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-ember); }
+.mu-bib-confira ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mu-bib-confira li { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; font-size: var(--lb-font-size-sm); overflow-wrap: anywhere; }
+.mu-bib-confira__nums { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
