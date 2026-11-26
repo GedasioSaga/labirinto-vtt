@@ -1,3 +1,7 @@
+# 26/11 ~01h20: WORKFLOW rework-itens-construcao EM VOO (wf_e3bb1ba8-dad)
+
+E1 -> publicar -> E2||E4a -> publicar -> E3 -> E4b -> publicar -> E5a||E5b -> publicar -> E6a -> E6b -> E6c -> publicar -> E7 (limpeza + 1-3 testes) -> auditoria -> acertos -> publicar. Retomar se cair: Workflow({scriptPath: "C:/Users/gedasio.filho/.claude/projects/C--dev-labirinto/9e501c59-c77f-4f23-bb34-525d5a1cafd3/workflows/scripts/rework-itens-construcao-wf_e3bb1ba8-dad.js", resumeFromRunId: "wf_e3bb1ba8-dad"}). Em paralelo: 0.5.103 publicando (automacao-devops, worktree ../labirinto-release), passeios de QoL (passeador-ux mestre e jogador; app dev em http://localhost:1420/, lobby em http://localhost:1430/). Depois do workflow: fase explorador por área + artefato de QoL.
+
 # 26/11 ~01h: /goal do dono em andamento (ver PEDIDOS, entrada "/goal do dono")
 
 ## Objetivo
