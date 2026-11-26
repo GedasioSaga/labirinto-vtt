@@ -514,7 +514,21 @@ interface UnsavedChangesDialogProps {
   onSaveAndContinue: () => void
   onDiscardAndContinue: () => void
   onCancel: () => void
+  /** O que vem depois da resposta: abrir outro mapa (padrão) ou voltar à tela inicial. */
+  destino?: 'abrir' | 'inicio'
 }
+
+/** A pergunta de trabalho não salvo aberta pelo Voltar ao início. */
+interface SaidaParaOInicio {
+  /** Roda antes da gravação do "Salvar e sair" (as rotinas sujariam o mapa no meio dela). */
+  antesDeSalvar: () => void
+}
+
+/** Texto e rótulos da pergunta, pelo que o mestre pediu. */
+const TEXTOS_DA_PERGUNTA = {
+  abrir: { acao: 'Abrir outro mapa agora', descartar: 'Descartar e abrir', salvar: 'Salvar e abrir' },
+  inicio: { acao: 'Voltar ao início sem salvar', descartar: 'Descartar e sair', salvar: 'Salvar e sair' },
+} as const
 
 /**
  * Pergunta antes de jogar fora o que o mestre desenhou.
@@ -525,7 +539,8 @@ interface UnsavedChangesDialogProps {
  * regra do Alert Dialog do Radix. Mora em `App.tsx` junto com quem decide
  * QUANDO perguntar; o layout reusa as classes de `MapSettingsDialog`.
  */
-function UnsavedChangesDialog({ onSaveAndContinue, onDiscardAndContinue, onCancel }: UnsavedChangesDialogProps) {
+function UnsavedChangesDialog({ onSaveAndContinue, onDiscardAndContinue, onCancel, destino = 'abrir' }: UnsavedChangesDialogProps) {
+  const textos = TEXTOS_DA_PERGUNTA[destino]
   const titleId = useId()
   const textId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -585,8 +600,8 @@ function UnsavedChangesDialog({ onSaveAndContinue, onDiscardAndContinue, onCance
         </header>
         <div className="lb-dialog__body" style={{ padding: 'var(--lb-space-4)' }}>
           <p id={textId} style={{ margin: 0, lineHeight: 'var(--lb-font-leading-normal)' }}>
-            Você tem alterações não salvas neste mapa. Abrir outro mapa agora joga fora o que você desenhou desde o
-            último Salvar.
+            Você tem alterações não salvas neste mapa. {textos.acao} joga fora o que você desenhou desde o último
+            Salvar.
           </p>
         </div>
         <div
@@ -603,10 +618,10 @@ function UnsavedChangesDialog({ onSaveAndContinue, onDiscardAndContinue, onCance
             Continuar editando
           </button>
           <button type="button" className="lb-btn lb-btn--danger" onClick={onDiscardAndContinue}>
-            Descartar e abrir
+            {textos.descartar}
           </button>
           <button type="button" className="lb-btn lb-btn--primary" onClick={onSaveAndContinue}>
-            Salvar e abrir
+            {textos.salvar}
           </button>
         </div>
       </div>
@@ -1947,7 +1962,8 @@ function App() {
    * só existia ao FECHAR a janela (`onCloseRequested`); quem abria outro mapa
    * pela porta da frente perdia tudo calado.
    */
-  const [pendingOpen, setPendingOpen] = useState<{ run: () => Promise<void> } | null>(null)
+  /** `saida`: a pergunta veio do Voltar ao início; `antesDeSalvar` para o que sujaria o mapa durante a gravação (as rotinas). */
+  const [pendingOpen, setPendingOpen] = useState<{ run: () => Promise<void>; saida?: SaidaParaOInicio } | null>(null)
   /** Quem abriu a pergunta, para devolver o foco ao cancelar (convenção de modal). */
   const unsavedOpenerRef = useRef<HTMLElement | null>(null)
   /**
@@ -3315,20 +3331,32 @@ function App() {
     }
   }
 
-  /** Roda o mesmo salvamento de `handleSave` e só depois troca para o menu — sem diálogo. */
-  const handleGoHome = async () => {
-    // Sair para o menu encerra a sessão de jogo: as rotinas param ANTES de
-    // salvar, senão um passo depois da gravação sujava o mapa (o "Abrir" do
-    // menu avisava trabalho não salvo) e os jogadores seguiam vendo o NPC andar.
+  /**
+   * Sair para o menu encerra a sessão de jogo: as rotinas e patrulhas param,
+   * senão os jogadores seguiam vendo o NPC andar.
+   */
+  const pararAndancasDaSessao = () => {
     useRotinaAndandoStore.getState().reset()
     usePatrulhaAndandoStore.getState().reset()
-    try {
-      await persistMap()
-      useToastStore.getState().push('info', MAP_SAVED_TEXT)
-      setScreen('menu')
-    } catch (err) {
-      reportFileError('salvar o mapa', err)
-    }
+  }
+
+  /**
+   * Voltar ao início passa pela mesma pergunta do "Abrir": sem trabalho
+   * pendente sai direto; com trabalho, Salvar e continuar / Descartar /
+   * Cancelar. Antes salvava calado e, se salvar falhava (sempre, no
+   * navegador), prendia o mestre no mapa. As rotinas só param depois que o
+   * mestre decide sair; no "Salvar e continuar" param ANTES de gravar, senão
+   * um passo depois da gravação sujava o mapa e o "Abrir" do menu avisava
+   * trabalho não salvo.
+   */
+  const handleGoHome = () => {
+    askBeforeReplacingMap(
+      async () => {
+        pararAndancasDaSessao()
+        setScreen('menu')
+      },
+      { antesDeSalvar: pararAndancasDaSessao },
+    )
   }
 
   /**
@@ -3389,13 +3417,13 @@ function App() {
    * e o seletor de arquivo só abre depois da resposta; sem trabalho pendente,
    * abre direto — abrir um mapa logo depois de salvar não pergunta nada.
    */
-  const askBeforeReplacingMap = (run: () => Promise<void>): void => {
+  const askBeforeReplacingMap = (run: () => Promise<void>, saida?: SaidaParaOInicio): void => {
     if (!hasUnsavedWork()) {
       void run()
       return
     }
     unsavedOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    setPendingOpen({ run })
+    setPendingOpen({ run, saida })
   }
 
   /**
@@ -3444,6 +3472,8 @@ function App() {
 
   const saveAndOpen = async () => {
     const pending = pendingOpen
+    // Quem pediu (Voltar ao início) para o que sujaria o mapa durante a gravação.
+    if (pending?.saida) pending.saida.antesDeSalvar()
     try {
       await persistMap()
       useToastStore.getState().push('info', MAP_SAVED_TEXT)
@@ -3463,6 +3493,7 @@ function App() {
       onSaveAndContinue={() => void saveAndOpen()}
       onDiscardAndContinue={discardAndOpen}
       onCancel={closeUnsavedDialog}
+      destino={pendingOpen.saida ? 'inicio' : 'abrir'}
     />
   ) : null
 
