@@ -8,6 +8,9 @@ import { resumoDoEfeitoDoItem } from './batalha/mecanica/resumoDoItem'
 import { requisitosGuardados } from './batalha/requisitos/guardados'
 import { efeitoDoItemLido } from './leituraDoItem'
 import { ensureDir, writeTextFileSafely } from './mapFileIO'
+import { converterItensDoAcervo } from './itens/conversao/acervo'
+import { blocosDoItemLidos, confiraLido, tipoDoItemLido } from './itens/leitura'
+import type { BlocosDoItem, ConfiraDoItem, TipoDoItem } from './itens/modelo'
 import { ehIdDePasta, pastasDasCategorias, pastasLidas, pastasPorPai, PASTAS_MAX, type PastaDeItens } from './pastasDosItens'
 import { PECAS_DESENHADAS } from '../puzzles/padroes'
 import { CATEGORIA_DA_PECA_DE_PUZZLE, type IdDaPecaDesenhada } from '../puzzles/tipos'
@@ -50,8 +53,15 @@ const ARQUIVO_ANTES_DO_ALCANCE = 'itens.json.antes-do-alcance'
  * 3 (18/11/2026): as pastas entraram; o índice de antes ganha uma pasta por categoria mostrada (`pastasDasCategorias`).
  * 4 (19/11/2026): as peças de puzzle entraram; o índice de antes ganha a categoria e a pasta "Peça de puzzle" uma vez (`comAPecaDePuzzle`).
  * 5 (21/11/2026): o efeito do item entrou (`ItemDoCatalogo.efeito`, opcional); nada se transforma, o de antes fica guardado.
+ * 6 (26/11/2026): o sistema de itens refeito (docs/design/itens-rework/PLANO.md, E1): o `tipo` e os blocos de regra, preenchidos
+ *   na leitura (`converterItensDoAcervo`); o índice de antes fica guardado UMA vez (`.antes-itens-v2`). Índice de versão MAIOR que
+ *   esta abre só para leitura: o app de antes apagaria ao regravar o que não conhece (R2 do plano).
  */
-const VERSAO_DO_INDICE = 5
+const VERSAO_DO_INDICE = 6
+/** A versão do sistema de itens refeito: o índice de antes dela é guardado ao lado antes da 1ª gravação. */
+const VERSAO_DOS_ITENS_V2 = 6
+/** A cópia do índice de antes do sistema de itens refeito (PLANO §2.1, regra 5), guardada UMA vez, nunca por cima. */
+const ARQUIVO_ANTES_DOS_ITENS_V2 = 'itens.json.antes-itens-v2'
 /** A versão que trouxe o efeito do item: o índice de antes dela é guardado ao lado antes da 1ª gravação. */
 const VERSAO_DOS_EFEITOS = 5
 /** A versão que trouxe a categoria Munição. */
@@ -84,8 +94,13 @@ export function ehCategoriaDeMunicao(categoria: string): boolean {
 export const CATEGORIAS_MAX = 40
 export const ITEM_SEM_NOME = 'Item sem nome'
 
-/** Um item do acervo, como fica GRAVADO. */
-export interface ItemDoCatalogo {
+/**
+ * Um item do acervo, como fica GRAVADO. SISTEMA DE ITENS REFEITO (docs/design/itens-rework/PLANO.md
+ * §1.2, E1): ganha o `tipo` e os blocos de regra (`BlocosDoItem`), preenchidos pela conversão na
+ * leitura (`lib/itens/conversao/acervo.ts`); os campos antigos (`categoria`, `municoes`, `tiro`,
+ * `efeito`) continuam no arquivo até a E7, e as telas de hoje ainda os leem.
+ */
+export interface ItemDoCatalogo extends BlocosDoItem {
   id: string
   nome: string
   /** Referência de mídia (`midia:<id>`); `null` = sem imagem (a vaga mostra as iniciais). */
@@ -132,6 +147,12 @@ export interface ItemDoCatalogo {
    * `lerRequisitos`. Ausente = sem requisito.
    */
   requisitos?: RequisitosNaVaga
+  /** O tipo (PLANO §1.2). Ausente só no item que ainda não passou pela conversão (o app de antes não o grava). */
+  tipo?: TipoDoItem
+  /** Os avisos "Confira" da conversão, com os números lado a lado. O mestre apaga ao conferir. Ausente = nenhum. */
+  confira?: ConfiraDoItem[]
+  /** A categoria de antes ("Fruta", "Tesouro") do item que virou Outros, guardada para não perder. */
+  categoriaAntiga?: string
 }
 
 /**
@@ -163,6 +184,7 @@ export interface AcervoDeItensLido {
 }
 
 const AVISO = 'Não foi possível ler o acervo de itens'
+const AVISO_DE_VERSAO_NOVA = 'O acervo de itens foi gravado por uma versão mais nova do app: ele abre só para ler, e nada é gravado para não apagar o que esta versão não conhece. Atualize o app.'
 export const ACERVO_DE_ITENS_NAO_LIDO = `${AVISO}, então nada foi gravado para não apagar o que está lá. Feche e abra o app de novo.`
 
 export function acervoVazio(): AcervoDeItens {
@@ -214,6 +236,21 @@ export function itemDoCatalogoLido(value: unknown): ItemDoCatalogo | null {
     ...(ehIdDePasta(value.pasta) ? { pasta: value.pasta } : {}),
     ...efeitoLido(value.efeito),
     ...requisitosLidos(value.requisitos),
+    // SISTEMA DE ITENS REFEITO (E1): o tipo, os blocos, os Confira e a categoria de antes, só se vierem bons.
+    ...novoModeloLido(value),
+  }
+}
+
+/** O que o modelo novo acrescenta ao item (PLANO §1.2): o leitor só guarda o que veio bom; quem preenche o que falta é a conversão. */
+function novoModeloLido(value: Record<string, unknown>): Pick<ItemDoCatalogo, 'tipo' | 'confira' | 'categoriaAntiga'> & BlocosDoItem {
+  const tipo = tipoDoItemLido(value.tipo)
+  const confira = confiraLido(value.confira)
+  const antiga = typeof value.categoriaAntiga === 'string' ? categoriaLimpa(value.categoriaAntiga) : ''
+  return {
+    ...(tipo === undefined ? {} : { tipo }),
+    ...blocosDoItemLidos(value),
+    ...(confira === undefined ? {} : { confira }),
+    ...(antiga === '' ? {} : { categoriaAntiga: antiga }),
   }
 }
 
@@ -383,6 +420,8 @@ export function itemParaDar(item: ItemDoCatalogo, acervo: readonly Pick<ItemDoCa
     ...(item.imagem !== null ? { imagem: item.imagem } : {}),
     ...(item.descricao.trim() !== '' ? { descricao: item.descricao } : {}),
     ...(item.categoria !== '' ? { categoria: item.categoria } : {}),
+    // Sistema de itens refeito (E1): o tipo vai na cópia de exibição, como a categoria.
+    ...(item.tipo !== undefined ? { tipo: item.tipo } : {}),
     ...(item.preco !== null ? { preco: item.preco } : {}),
     ...(item.empilhavel ? { empilhavel: true as const } : {}),
     ...municoesParaDar(item, acervo),
@@ -435,8 +474,16 @@ export async function lerAcervoDeItens(): Promise<AcervoDeItensLido> {
     return { acervo: acervoVazio(), aviso: `${AVISO}: ${motivo(erro)}.`, lido: false }
   }
   const indice = indiceDoTexto(texto)
+  // Sistema de itens refeito (E1, R2): o índice gravado por um app mais novo abre só para leitura; gravar por cima apagaria o que este não conhece.
+  if (indice !== null && indice.versao > VERSAO_DO_INDICE) {
+    return { acervo: { ...indice.acervo, itens: converterItensDoAcervo(indice.acervo.itens) }, aviso: `${AVISO_DE_VERSAO_NOVA}`, lido: false }
+  }
   // A peça de puzzle entra aqui, na leitura do disco, e não em `acervoDoTexto`: aquela segue devolvendo o índice com as migrações das versões 2 e 3 só.
-  if (indice !== null) return { acervo: indice.versao < VERSAO_DA_PECA_DE_PUZZLE ? comAPecaDePuzzle(indice.acervo) : indice.acervo, aviso: null, lido: true }
+  if (indice !== null) {
+    const acervo = indice.versao < VERSAO_DA_PECA_DE_PUZZLE ? comAPecaDePuzzle(indice.acervo) : indice.acervo
+    // Sistema de itens refeito (E1): a conversão na leitura, idempotente; o arquivo só muda quando o app grava de novo.
+    return { acervo: { ...acervo, itens: converterItensDoAcervo(acervo.itens) }, aviso: null, lido: true }
+  }
   try {
     await writeTextFile(await join(await pastaDoAcervo(), ARQUIVO_INVALIDO), texto)
   } catch {
@@ -470,6 +517,14 @@ async function guardarAntesDosEfeitos(pasta: string, antes: string): Promise<voi
   const indice = indiceDoTexto(antes)
   if (indice === null || indice.versao >= VERSAO_DOS_EFEITOS) return
   const copia = await join(pasta, ARQUIVO_ANTES_DOS_EFEITOS)
+  if (!(await exists(copia))) await writeTextFile(copia, antes)
+}
+
+/** Sistema de itens refeito (PLANO §2.1, regra 5): o índice de antes do modelo novo fica ao lado, UMA vez. */
+async function guardarAntesDosItensV2(pasta: string, antes: string): Promise<void> {
+  const indice = indiceDoTexto(antes)
+  if (indice === null || indice.versao >= VERSAO_DOS_ITENS_V2) return
+  const copia = await join(pasta, ARQUIVO_ANTES_DOS_ITENS_V2)
   if (!(await exists(copia))) await writeTextFile(copia, antes)
 }
 
@@ -520,6 +575,8 @@ export function gravarAcervoDeItens(acervo: AcervoDeItens): Promise<void> {
       }
       // Fase 7: esta não é melhor esforço — sem a cópia de antes do efeito, nada se grava.
       if (antes !== null) await guardarAntesDosEfeitos(pasta, antes)
+      // Sistema de itens refeito (E1): também não é melhor esforço — sem a cópia de antes do modelo novo, nada se grava.
+      if (antes !== null) await guardarAntesDosItensV2(pasta, antes)
       await writeTextFileSafely(caminho, serializarAcervo(acervo))
     } catch (erro) {
       throw new Error(`Não foi possível gravar o acervo de itens: ${motivo(erro)}.`)
