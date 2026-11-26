@@ -1,7 +1,7 @@
 import type { CondicaoPropria } from '../../types/map'
 import { condicaoDoCatalogoPeloNome } from '../condicoes/catalogo'
 import { curaComAsCondicoes, porCondicao, type DuracaoDaCondicao } from '../condicoes/naFicha'
-import { danoExtraDobra, pecasDoItemLidas, type PecaDoItem } from '../itens/editorDoItem'
+import { danoExtraDobra, pecasDoItemLidas, type PecaDoItem } from '../itens/pecasDoItem'
 import type { BlocosDoItem } from '../itens/modelo'
 import type { Personagem } from '../personagem'
 import type { Casa } from './area'
