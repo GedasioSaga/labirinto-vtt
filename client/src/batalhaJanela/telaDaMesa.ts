@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { TelaDoMenuDoMapa } from './tipos'
 
 /**
  * O que a MESA DA BATALHA pede à tela da janela principal e não é da batalha
@@ -8,8 +9,12 @@ import { create } from 'zustand'
  */
 
 export interface TelaDaMesa {
-  /** O menu da vez aberto sobre o mapa, para esta cena e esta vez; a vez andou, ele some sozinho. */
-  menuDoMapa: { sceneKey: string; vez: string } | null
+  /**
+   * O menu da vez aberto sobre o mapa, para esta cena e esta vez; a vez andou, ele some sozinho. `tela` = a
+   * tela em que ele abre (26/11/2026: Transformação, Passivas, Itens da mesa reduzida); `pedido` sobe a cada
+   * pedido com tela, para o menu já aberto ir a ela de novo.
+   */
+  menuDoMapa: { sceneKey: string; vez: string; tela?: TelaDoMenuDoMapa; pedido: number } | null
   /** Sobe a cada pedido de abrir a página Batalha do livro (o App abre o livro e a página). */
   pedidosDoLivro: number
 }
@@ -20,8 +25,8 @@ export function abrirOLivroDaBatalha(): void {
   useTelaDaMesa.setState((antes) => ({ pedidosDoLivro: antes.pedidosDoLivro + 1 }))
 }
 
-export function ligarOMenuDoMapa(sceneKey: string, vez: string | null): void {
-  useTelaDaMesa.setState({ menuDoMapa: vez === null ? null : { sceneKey, vez } })
+export function ligarOMenuDoMapa(sceneKey: string, vez: string | null, tela?: TelaDoMenuDoMapa): void {
+  useTelaDaMesa.setState((antes) => ({ menuDoMapa: vez === null ? null : { sceneKey, vez, ...(tela === undefined ? {} : { tela }), pedido: (antes.menuDoMapa?.pedido ?? 0) + 1 } }))
 }
 
 /** O menu da vez está aberto sobre o mapa nesta cena e nesta vez. */

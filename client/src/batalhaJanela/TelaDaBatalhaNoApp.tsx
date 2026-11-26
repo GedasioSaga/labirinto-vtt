@@ -92,8 +92,12 @@ export function MenuDaVezSobPedido({ sceneKey, mesaAVista }: { sceneKey: string;
     const carta = cena === undefined ? null : cartaDaVez(cena.turnos)
     return cena === undefined || carta === null ? null : chaveDaVez(cena.turnos.rodada, carta.id)
   })
-  const aberto = !mesaAVista || (pedido !== null && pedido.sceneKey === sceneKey && pedido.vez === chave)
-  return aberto ? <VezDoNpcNoCentro sceneKey={sceneKey} /> : null
+  const pedidoDaVez = pedido !== null && pedido.sceneKey === sceneKey && pedido.vez === chave ? pedido : null
+  const aberto = !mesaAVista || pedidoDaVez !== null
+  if (!aberto) return null
+  // 26/11/2026: a mesa reduzida abre o menu já na Transformação, nas Passivas ou nos Itens; cada pedido assim remonta nele.
+  const tela = pedidoDaVez?.tela
+  return <VezDoNpcNoCentro key={tela === undefined || pedidoDaVez === null ? 'menu' : `${tela}:${pedidoDaVez.pedido}`} sceneKey={sceneKey} telaInicial={tela} />
 }
 
 /** Os botões da página Batalha do livro (One Piece e Dragon Ball): onde a mesa está e como trazê-la. */

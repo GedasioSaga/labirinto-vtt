@@ -170,6 +170,8 @@ function vezNoEspelho(cena: CenaDBT, fichas: Fichas, cartas: readonly CartaDBT[]
     ...oQueAVezFez(cena.registro),
     pips: [],
     menuDoMapa: false,
+    // O Concentrar, a Transformação e os itens do Dragon Ball são opções da própria vez (`golpes`).
+    outras: null,
   }
 }
 
@@ -302,6 +304,8 @@ export function aplicarPedidoDBT(pedido: PedidoDaMesa): RespostaDaMesa {
       return OK
     case 'menuDoMapa':
       return recusa('No Dragon Ball a vez inteira mora aqui e no painel do livro.')
+    case 'concentrar':
+      return recusa('No Dragon Ball as ações da vez estão na lista de golpes.')
     case 'chave':
       return recusa('No Dragon Ball não há câmera que segue a vez nem som do combate.')
     case 'seguir':

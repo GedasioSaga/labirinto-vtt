@@ -130,6 +130,21 @@ export interface MenuDaVezProps {
   atras?: boolean
   /** REQUISITOS G: os acumuladores da ficha que age, no topo ("POLARIDADE 1/3"). Ausente = nenhum. */
   medidores?: readonly MedidorNaTela[]
+  /**
+   * 26/11/2026 (a mesa reduzida): abre já na Transformação, nas Passivas ou nos Itens; o Voltar delas leva às
+   * tiras de sempre. Vale só na montagem (quem monta troca a `key` para abrir de novo). Ausente = as tiras.
+   */
+  telaInicial?: TelaInicialDoMenu
+}
+
+/** As telas em que o menu pode abrir direto (a mesa da batalha reduzida pede). */
+export type TelaInicialDoMenu = 'formas' | 'passivas' | 'itens'
+
+function telaDeAbrir(telaInicial: TelaInicialDoMenu | undefined): Tela {
+  if (telaInicial === 'formas') return { tipo: 'formas' }
+  if (telaInicial === 'passivas') return { tipo: 'passivas' }
+  if (telaInicial === 'itens') return { tipo: 'lista', de: 'item' }
+  return { tipo: 'menu' }
 }
 
 type Tela =
@@ -181,7 +196,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
   const { quem, acoes, carga, motivoDoConcentrar, alvos, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir, invocacao, travado = null, formasEsperando, medidores } = props
   // REQUISITOS G: as Partes da forma no topo ("Forma Híbrida · Parte 2"), das formas que o menu já tem.
   const partes = partesDaFicha(formas)
-  const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
+  const [tela, setTela] = useState<Tela>(() => telaDeAbrir(props.telaInicial))
   const [contraId, setContraId] = useState<string | null>(null)
   const foraDaVez = props.acoes === null
   // C2: zerar na mesma vez do Concentrar desfaz o Concentrar (a ação volta); depois, a ação gasta não volta.

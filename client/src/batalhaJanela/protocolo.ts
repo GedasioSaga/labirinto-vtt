@@ -1,5 +1,8 @@
 import { DIRECOES, type Direcao } from '../lib/batalha/area'
-import type { AjusteDoGolpe, AlcanceDoPedido, EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa } from './tipos'
+import type { AjusteDoGolpe, AlcanceDoPedido, EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa, TelaDoMenuDoMapa } from './tipos'
+
+/** As telas do menu da vez que a mesa pode pedir (26/11/2026). */
+const TELAS_DO_MENU_DO_MAPA: readonly TelaDoMenuDoMapa[] = ['formas', 'passivas', 'itens']
 
 /**
  * O FIO entre a janela principal (a MESA) e a janela da batalha, pelo
@@ -151,8 +154,16 @@ export function lerPedido(dado: unknown): PedidoDaMesa | null {
     case 'zerarCaminhos':
     case 'abrirLivro':
       return { acao: o.acao, sceneKey }
-    case 'menuDoMapa':
-      return typeof o.ligar === 'boolean' ? { acao: 'menuDoMapa', sceneKey, ligar: o.ligar } : null
+    case 'menuDoMapa': {
+      if (typeof o.ligar !== 'boolean') return null
+      if (o.tela === undefined) return { acao: 'menuDoMapa', sceneKey, ligar: o.ligar }
+      const tela = TELAS_DO_MENU_DO_MAPA.find((candidata) => candidata === o.tela)
+      return tela === undefined ? null : { acao: 'menuDoMapa', sceneKey, ligar: o.ligar, tela }
+    }
+    case 'concentrar': {
+      const vez = id(o.vez)
+      return vez === null ? null : { acao: 'concentrar', sceneKey, vez }
+    }
     case 'chave':
       return (o.chave === 'camera' || o.chave === 'som') && typeof o.ligar === 'boolean' ? { acao: 'chave', sceneKey, chave: o.chave, ligar: o.ligar } : null
     case 'seguir': {

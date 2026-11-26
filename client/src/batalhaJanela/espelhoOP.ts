@@ -1,12 +1,16 @@
 import type { Direcao } from '../lib/batalha/area'
 import { MOTIVO_FORA_DO_ALCANCE } from '../lib/batalha/alcance/doGolpe'
+import { motivoDoConcentrar } from '../lib/batalha/acoes'
 import { ALVOS_MAX, chaveDaVez, type PedidoDeAcao } from '../lib/batalha/combate'
 import { travaDoToken } from '../lib/batalha/condicoes'
 import { acoesDaCarta, sugestaoParaNpc } from '../lib/batalha/golpe'
 import type { LinhaDoRegistro, TipoDaLinha } from '../lib/batalha/registro'
 import { danoFinal } from '../lib/batalha/reacao'
 import { bonusDaBatalha } from '../lib/batalha/selos'
-import { formasQueDesligamNoFim } from '../lib/batalha/transformacao'
+import { formasQueDesligamNoFim, type FormaNoMenu } from '../lib/batalha/transformacao'
+import type { Personagem } from '../lib/personagem'
+import { nomeDaForma } from '../components/batalha/ListaDeFormas'
+import { passivasNaCena } from '../components/batalha/PassivasDaBatalha'
 import { cartaDaVez, contrasQueSeguramAVez, tokensCaidos, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../lib/batalha/turnos'
 import { ehDoMestre, golpesDaVezDoNpc, mesaAgora, sugestaoNaTela, type MesaDaCena } from '../components/batalha/BatalhaDoMestre'
 import { faixaDoMestre, linhasDoMestre, type RecursoNaCarta } from '../components/batalha/dadosDaFaixa'
@@ -24,7 +28,7 @@ import { useToastStore } from '../stores/toastStore'
 import { escolherItemDaCarta, itensNoEspelho } from './menuDaCartaNoEspelho'
 import { ligarOMenuDoMapa, menuDoMapaAberto } from './telaDaMesa'
 import { ladoDoMouseNaMiraDaMesa, miraDaMesaNoChao, mostrarMiraDaMesa } from './miraDaMesa'
-import type { AjusteDoGolpe, AlcanceDoPedido, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, LinhaNoEspelho, MiraDaMesa, PedidoDaMesa,PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
+import type { AjusteDoGolpe, AlcanceDoPedido, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, LinhaNoEspelho, MiraDaMesa, OutrasAcoesNoEspelho, PedidoDaMesa,PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
 
 /**
  * A MESA DA BATALHA no One Piece: o espelho lido das stores (as mesmas leituras
@@ -187,6 +191,8 @@ interface VezDoNpc {
   alvos: ReturnType<typeof alvosDaOrdem>
   /** Atordoado, Paralisado: tudo apaga com esta frase, menos o Passar. */
   trava: string | null
+  /** 26/11/2026: o Concentrar e, só quando a ficha tem, a Transformação, as Passivas e os itens (a mesa reduzida). */
+  outras: OutrasAcoesNoEspelho
 }
 
 /** Os golpes e os alvos da vez do NPC, lidos como o menu do centro os lê; `null` = a vez não é de NPC. */
@@ -195,8 +201,33 @@ function vezDoNpc(mesa: MesaDaCena, turnos: TurnosDaCena, carta: CartaDaOrdem): 
   if (cena === undefined || carta.bando !== undefined || !ehDoMestre(carta.personagemId, personagens)) return null
   const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
   const acoes = acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena.regras })
-  const { trava, habilidades, armas } = golpesDaVezDoNpc(mesa, turnos, carta, personagem, acoes)
-  return { carta, golpes: [...habilidades, ...armas], alvos: alvosDaOrdem(mesa, turnos.cartas, carta), trava }
+  const { trava, habilidades, armas, formas, itens } = golpesDaVezDoNpc(mesa, turnos, carta, personagem, acoes)
+  return { carta, golpes: [...habilidades, ...armas], alvos: alvosDaOrdem(mesa, turnos.cartas, carta), trava, outras: outrasAcoes(mesa, turnos, carta, personagem, acoes, { trava, formas, itens }) }
+}
+
+/**
+ * Pedido do dono de 26/11/2026: o que o menu da vez do NPC (`MenuDaVezDoNpc`) tem além do golpe, lido com as
+ * mesmas leituras dele. O Concentrar sempre (o motivo é o mesmo da tira); a Transformação, as Passivas e os itens
+ * só quando a ficha tem, apagados com a trava (Atordoado), como as tiras do menu.
+ */
+function outrasAcoes(
+  mesa: MesaDaCena,
+  turnos: TurnosDaCena,
+  carta: CartaDaOrdem,
+  personagem: Personagem | null,
+  acoes: ReturnType<typeof acoesDaCarta>,
+  daVez: { trava: string | null; formas: readonly FormaNoMenu[]; itens: readonly GolpeNaTela[] },
+): OutrasAcoesNoEspelho {
+  const { trava, formas, itens } = daVez
+  const combate = carta.personagemId === null ? undefined : turnos.combate?.[carta.personagemId]
+  const passivas = passivasNaCena(personagem, mesa.sistema, turnos, carta.tokenId)
+  const ligada = formas.find((forma) => forma.ligada)
+  return {
+    concentrar: { motivo: trava ?? motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id)), carga: combate?.carga ?? 0 },
+    transformacao: formas.length === 0 ? null : { quantas: formas.length, ativa: ligada === undefined ? null : nomeDaForma(ligada), motivo: trava },
+    passivas: passivas.length === 0 ? null : { quantas: passivas.length, ativas: passivas.filter((passiva) => passiva.estado === 'ativa').length, motivo: trava },
+    itens: itens.length === 0 ? null : { quantos: itens.length, motivo: trava },
+  }
 }
 
 /** As ações do NPC que contra-ataca, como o menu do contra no centro as lê: fora da vez (sem a ação da vez), com a trava dele. */
@@ -230,11 +261,11 @@ function vezNoEspelho(mesa: MesaDaCena, turnos: TurnosDaCena, carta: CartaDaOrde
     menuDoMapa: false,
   }
   if (carta.bando !== undefined) {
-    return { ...base, npc: true, descricao: 'Bando de invocados', golpes: [], alvos: [], aviso: 'A vez do bando (cada invocado age) fica na página Batalha do livro. Daqui dá para passar a vez.' }
+    return { ...base, npc: true, descricao: 'Bando de invocados', golpes: [], alvos: [], aviso: 'A vez do bando (cada invocado age) fica na página Batalha do livro. Daqui dá para passar a vez.', outras: null }
   }
   const doNpc = vezDoNpc(mesa, turnos, carta)
   if (doNpc === null) {
-    return { ...base, npc: false, descricao: equipe === null ? 'Jogador' : `Jogador · ${equipe}`, golpes: [], alvos: [], aviso: `${quem} joga na tela própria. Daqui você passa a vez, desfaz e responde às reações.` }
+    return { ...base, npc: false, descricao: equipe === null ? 'Jogador' : `Jogador · ${equipe}`, golpes: [], alvos: [], aviso: `${quem} joga na tela própria. Daqui você passa a vez, desfaz e responde às reações.`, outras: null }
   }
   const sugestao = personagem === null || cena === undefined ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos: tokensCaidos(turnos.cartas, personagens, sistema) })
   const naTela = sugestaoNaTela(sugestao)
@@ -248,6 +279,7 @@ function vezNoEspelho(mesa: MesaDaCena, turnos: TurnosDaCena, carta: CartaDaOrde
     sugestao: { golpe: naTela.chave, alvo: naTela.alvoTokenId },
     aviso: doNpc.trava ?? (doNpc.golpes.length === 0 ? 'Sem técnica nem arma na ficha: passe a vez ou dê dano pelo livro.' : null),
     menuDoMapa: true,
+    outras: doNpc.outras,
   }
 }
 
@@ -502,6 +534,21 @@ function agirOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'agir' }
   return loja.agir(sceneKey, MESTRE, vez, acao) ? OK : recusa('A regra recusou: confira a ação, o custo e a recarga.')
 }
 
+/** 26/11/2026: o Concentrar do NPC da vez pela mesa reduzida: o mesmo `{ tipo: 'concentrar' }` da tira do menu da vez. */
+function concentrarOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'concentrar' }>): RespostaDaMesa {
+  const mesa = mesaAgora(sceneKey)
+  const turnos = mesa.cena?.turnos
+  const carta = turnos === undefined ? null : cartaDaVez(turnos)
+  if (turnos === undefined || carta === null || chaveDe(turnos, carta) !== pedido.vez) return recusa('A vez já mudou: confira a ordem.')
+  if (vezDoNpc(mesa, turnos, carta) === null) return recusa('A vez não é de um NPC: o jogador concentra na tela dele.')
+  const vez = { cartaId: carta.id, rodada: turnos.rodada }
+  const acao: PedidoDeAcao = { tipo: 'concentrar' }
+  const loja = useBatalhaStore.getState()
+  const motivo = loja.motivoDoAgir(sceneKey, MESTRE, vez, acao)
+  if (motivo !== null) return recusa(motivo)
+  return loja.agir(sceneKey, MESTRE, vez, acao) ? OK : recusa('Não concentrou: a ação já foi gasta.')
+}
+
 /** Os golpes e os alvos da escolha da mesa: a vez do NPC (pela chave da vez) ou o contra-ataque dele; `null` = já passou. */
 function escolhaDaMesa(mesa: MesaDaCena, turnos: TurnosDaCena, escolha: MiraDaMesa): { golpes: readonly GolpeNaTela[]; alvos: ReturnType<typeof alvosDaOrdem> } | null {
   if (escolha.tipo === 'vez') {
@@ -639,9 +686,12 @@ export function aplicarPedidoOP(pedido: PedidoDaMesa): RespostaDaMesa {
     case 'menuDoMapa': {
       const carta = cartaDaVez(turnos)
       if (pedido.ligar && carta === null) return recusa('Sem vez agora.')
-      ligarOMenuDoMapa(sceneKey, pedido.ligar && carta !== null ? chaveDe(turnos, carta) : null)
+      // 26/11/2026: com `tela`, o menu abre já na Transformação, nas Passivas ou nos Itens (a mesa reduzida).
+      ligarOMenuDoMapa(sceneKey, pedido.ligar && carta !== null ? chaveDe(turnos, carta) : null, pedido.tela)
       return OK
     }
+    case 'concentrar':
+      return concentrarOP(sceneKey, pedido)
     case 'abrirLivro':
       return recusa('O livro abre pela janela principal.')
     case 'chave':

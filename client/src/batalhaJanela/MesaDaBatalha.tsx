@@ -3,7 +3,7 @@ import type { Direcao } from '../lib/batalha/area'
 import { LADOS_DA_AREA, textoDaAreaNaMira } from '../components/batalha/ladosDaMira'
 import { MenuDaCarta, type ItemDoMenuDaCarta } from '../components/batalha/MenuDaCarta'
 import { iniciais } from '../components/FichaPecas'
-import type { AjusteDoGolpe, AlcanceDoPedido, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, ItemDaCartaNoEspelho, MiraDaMesa, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
+import type { AjusteDoGolpe, AlcanceDoPedido, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, ItemDaCartaNoEspelho, MiraDaMesa, OutrasAcoesNoEspelho, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, TelaDoMenuDoMapa, VezNoEspelho } from './tipos'
 import './mesaDaBatalha.css'
 
 /**
@@ -862,6 +862,94 @@ function feitoDoItem(item: ItemDaCartaNoEspelho, nome: string, lugar: 'doca' | '
   return `${nome}: ${rotulo}.`
 }
 
+/** "1 forma", "3 passivas". */
+function contagem(quantos: number, um: string, varios: string): string {
+  return `${quantos} ${quantos === 1 ? um : varios}`
+}
+
+interface BotaoDaOutraProps {
+  nome: string
+  /** A segunda linha: o estado (carga, forma ativa, quantos) ou o motivo de estar apagado. */
+  detalhe: string
+  motivo: string | null
+  parado: boolean
+  onEscolher: () => void
+}
+
+function BotaoDaOutra({ nome, detalhe, motivo, parado, onEscolher }: BotaoDaOutraProps) {
+  return (
+    <button type="button" className="mb-bt mb-outras__bt" disabled={parado || motivo !== null} onClick={onEscolher}>
+      <span className="mb-outras__nome">{nome}</span>
+      <small>{detalhe}</small>
+    </button>
+  )
+}
+
+interface OutrasAcoesProps {
+  outras: OutrasAcoesNoEspelho
+  ocupado: boolean
+  desligado: boolean
+  onConcentrar: () => void
+  /** Abre o menu da vez sobre o mapa já na tela; `rotulo` vai na frase do status. */
+  onAbrir: (tela: TelaDoMenuDoMapa, rotulo: string) => void
+}
+
+/**
+ * Pedido do dono de 26/11/2026 (a mesa reduzida "sentindo falta do concentração, transformação e usar item"):
+ * o Concentrar SEMPRE, com o mesmo pedido da tira do menu da vez; a Transformação, as Passivas e o Usar item só
+ * quando a ficha tem, e abrem o menu da vez sobre o mapa já na tela deles (as mesmas telas e regras do menu
+ * completo: a ação que a forma gasta, a troca da imagem, o custo da passiva, a mira do item).
+ */
+function OutrasAcoesDaVez({ outras, ocupado, desligado, onConcentrar, onAbrir }: OutrasAcoesProps) {
+  const tituloId = useId()
+  const { concentrar, transformacao, passivas, itens } = outras
+  const parado = ocupado || desligado
+  const noMapa = (texto: string) => `${texto} · abre no mapa`
+  return (
+    <section className="mb-outras" aria-labelledby={tituloId}>
+      <h3 className="mb-outras__tit" id={tituloId}>
+        Outras ações
+      </h3>
+      <div className="mb-outras__lista">
+        <BotaoDaOutra
+          nome="Concentrar"
+          detalhe={concentrar.motivo ?? (concentrar.carga > 0 ? `Carga ${concentrar.carga}` : 'Gasta a Simples: o próximo golpe sai ×1,5')}
+          motivo={concentrar.motivo}
+          parado={parado}
+          onEscolher={onConcentrar}
+        />
+        {transformacao !== null && (
+          <BotaoDaOutra
+            nome="Transformação"
+            detalhe={transformacao.motivo ?? noMapa(transformacao.ativa !== null ? `Ativa: ${transformacao.ativa}` : contagem(transformacao.quantas, 'forma', 'formas'))}
+            motivo={transformacao.motivo}
+            parado={parado}
+            onEscolher={() => onAbrir('formas', 'A Transformação')}
+          />
+        )}
+        {passivas !== null && (
+          <BotaoDaOutra
+            nome="Passivas"
+            detalhe={passivas.motivo ?? noMapa(passivas.ativas > 0 ? contagem(passivas.ativas, 'ativa', 'ativas') : contagem(passivas.quantas, 'passiva', 'passivas'))}
+            motivo={passivas.motivo}
+            parado={parado}
+            onEscolher={() => onAbrir('passivas', 'As Passivas')}
+          />
+        )}
+        {itens !== null && (
+          <BotaoDaOutra
+            nome="Usar item"
+            detalhe={itens.motivo ?? noMapa(contagem(itens.quantos, 'item', 'itens'))}
+            motivo={itens.motivo}
+            parado={parado}
+            onEscolher={() => onAbrir('itens', 'Os itens')}
+          />
+        )}
+      </div>
+    </section>
+  )
+}
+
 /** A etiqueta da linha da ordem: quem reage, quem contra-ataca, quem vem a seguir. */
 function etiquetaDe(carta: CartaNoEspelho, reagindo: ReadonlySet<string>, contraQuem: string | null): { texto: string; tom: 'neutro' | 'reage' | 'contra' } | null {
   if (contraQuem !== null && carta.nome === contraQuem) return { texto: 'contra-ataca agora', tom: 'contra' }
@@ -1251,6 +1339,15 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
                 golpe.forcavel || alcance.foraDoAlcance === true ? `${atual.quem} usou ${golpe.nome} mesmo assim.` : `${atual.quem} lançou ${golpe.nome}.`,
               )
             }
+          />
+        )}
+        {atual.outras !== null && (
+          <OutrasAcoesDaVez
+            outras={atual.outras}
+            ocupado={ocupadoAgora}
+            desligado={desligado}
+            onConcentrar={() => void pedir('concentrar', { acao: 'concentrar', sceneKey, vez: atual.chave }, `${atual.quem} concentrou.`)}
+            onAbrir={(tela, rotulo) => void pedir('menu', { acao: 'menuDoMapa', sceneKey, ligar: true, tela }, `${rotulo} abriu no menu da vez, no meio do mapa${lugar === 'doca' ? '' : ' do app'}.`)}
           />
         )}
         <AindaEsperando titulo="Ainda esperando" itens={deixados} agora={agora} ocupado={ocupadoAgora} desligado={desligado} onResponder={responder} />

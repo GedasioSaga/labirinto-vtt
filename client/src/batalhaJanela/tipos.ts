@@ -148,6 +148,31 @@ export interface VezNoEspelho {
   feitos: readonly string[]
   /** One Piece, vez de NPC: o menu da vez pode abrir sobre o mapa (para o golpe que pede escolha a mais). */
   menuDoMapa: boolean
+  /**
+   * Pedido do dono de 26/11/2026 ("na versão reduzida to sentindo falta do concentração, transformação e
+   * usar item"): as ações da vez do NPC além do golpe. `null` = a vez não é de NPC (jogador, bando) ou o motor
+   * não tem (Dragon Ball).
+   */
+  outras: OutrasAcoesNoEspelho | null
+}
+
+/** As telas do menu da vez sobre o mapa que a mesa abre direto (as mesmas do menu completo, sem regra duplicada). */
+export type TelaDoMenuDoMapa = 'formas' | 'passivas' | 'itens'
+
+/**
+ * As ações da vez do NPC que não são golpe. O Concentrar sai daqui mesmo (o mesmo pedido do menu da vez);
+ * Transformação, Passivas e Usar item abrem o menu da vez sobre o mapa já na tela delas, e só existem quando
+ * a ficha tem (`null` = não tem).
+ */
+export interface OutrasAcoesNoEspelho {
+  /** Sempre na vez do NPC: `motivo` = por que está apagado (ação gasta, já concentrou, travado); `carga` = a de agora. */
+  concentrar: { motivo: string | null; carga: number }
+  /** As formas da ficha; `ativa` = o nome da forma ligada. */
+  transformacao: { quantas: number; ativa: string | null; motivo: string | null } | null
+  /** As passivas da ficha; `ativas` = quantas estão ligadas. */
+  passivas: { quantas: number; ativas: number; motivo: string | null } | null
+  /** Os itens com efeito da mochila. */
+  itens: { quantos: number; motivo: string | null } | null
 }
 
 /** Uma resposta que o mestre dá daqui a um pedido que espera. */
@@ -291,8 +316,10 @@ export type PedidoDaMesa =
   | { acao: 'zerarCaminhos'; sceneKey: string }
   /** Abre a página Batalha do livro no app (dano, selos, extras, regras, formas). */
   | { acao: 'abrirLivro'; sceneKey: string }
-  /** Liga ou desliga o menu da vez sobre o mapa do app. */
-  | { acao: 'menuDoMapa'; sceneKey: string; ligar: boolean }
+  /** Liga ou desliga o menu da vez sobre o mapa do app; `tela` = abre já nela (Transformação, Passivas, Itens). */
+  | { acao: 'menuDoMapa'; sceneKey: string; ligar: boolean; tela?: TelaDoMenuDoMapa }
+  /** O Concentrar do NPC da vez (o mesmo `{ tipo: 'concentrar' }` do menu da vez). */
+  | { acao: 'concentrar'; sceneKey: string; vez: string }
   /** Liga ou desliga uma chave do combate (a câmera que segue a vez, o som). */
   | { acao: 'chave'; sceneKey: string; chave: keyof ChavesNoEspelho; ligar: boolean }
   /** O "Seguir sem esperar" da mesa: as chaves dos pendentes (e `contra:<golpe>`) ficam para depois nas telas do app também. */

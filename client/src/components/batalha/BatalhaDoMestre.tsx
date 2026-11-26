@@ -43,7 +43,7 @@ import { RECUSA_SEM_MOTIVO, armaPadraoNaBatalha, economiaEmTexto, golpesDeAtaque
 import { InvocacoesPendentes, PainelDoBando, type PendenciaNaTela } from './InvocacoesDoMestre'
 import { FormasPendentes } from './FormasDoMestre'
 import { alvosDaOrdem, alvosDoDarDano, nomeDaFicha, pendenciasDeInvocacaoNaTela, vezDoBandoNaTela, type MesaDoMestre } from './mesaDoMestre'
-import { MenuDaVez, type InvocarNoMenu } from './MenuDaVez'
+import { MenuDaVez, type InvocarNoMenu, type TelaInicialDoMenu } from './MenuDaVez'
 import { nomesNumerados } from './nomesNumerados'
 import { pedidosDaVez, type PedidosDaVez } from './pedidosDaVez'
 import { deixarParaDepois, useTravasDeixadas } from './travaDoPassar'
@@ -311,7 +311,7 @@ export function sugestaoNaTela(sugestao: ReturnType<typeof sugestaoParaNpc> | nu
  * aba Batalha fica com o que é só do mestre: ordem, selos, lembretes, Dar
  * dano, Ações extras, Encerrar. A vez do bando (os invocados) segue na aba.
  */
-export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
+export function VezDoNpcNoCentro({ sceneKey, telaInicial }: { sceneKey: string; telaInicial?: TelaInicialDoMenu }) {
   const mesa = useMesa(sceneKey)
   const pedidos = usePedidosDoMestre(sceneKey)
   const alvoDoMapa = useMiraDoMestre((state) => state.alvo)
@@ -337,7 +337,7 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   return (
     <>
       {vezDoNpc && carta !== null && (
-        <MenuDaVezDoNpc mesa={mesa} pedidos={pedidos} turnos={turnos} carta={carta} alvoDoMapa={alvoDoMapa} passarAVez={passarAVez} atras={atrasDaReacao || atrasDoContra} />
+        <MenuDaVezDoNpc mesa={mesa} pedidos={pedidos} turnos={turnos} carta={carta} alvoDoMapa={alvoDoMapa} passarAVez={passarAVez} atras={atrasDaReacao || atrasDoContra} telaInicial={telaInicial} />
       )}
       {contraDoNpc !== undefined && <ContraDoNpcNoCentro mesa={mesa} pedidos={pedidos} turnos={turnos} contra={contraDoNpc} alvoDoMapa={alvoDoMapa} atras={atrasDaReacao} />}
       {vezDoNpc && contraDoNpc === undefined && contraDeJogador !== undefined && (
@@ -412,6 +412,7 @@ function MenuDaVezDoNpc({
   alvoDoMapa,
   passarAVez,
   atras,
+  telaInicial,
 }: {
   mesa: Mesa
   pedidos: PedidosDaVez
@@ -420,6 +421,8 @@ function MenuDaVezDoNpc({
   alvoDoMapa: { tokenId: string; seq: number } | null
   passarAVez: () => boolean
   atras: boolean
+  /** 26/11/2026: a mesa reduzida abre o menu já na Transformação, nas Passivas ou nos Itens. Ausente = as tiras. */
+  telaInicial?: TelaInicialDoMenu
 }) {
   const { personagens, sistema, equipes } = mesa
   const cena = mesa.cena
@@ -502,6 +505,7 @@ function MenuDaVezDoNpc({
         medidores={medidoresDoMestre(mesa, turnos, carta, personagem)}
         invocacao={personagem === null || pedidos.invocar === undefined ? undefined : invocarDoNpc(pedidos.invocar, personagem, sistema, turnos, carta, acoes)}
         travado={trava}
+        telaInicial={telaInicial}
       />
     </div>
   )
