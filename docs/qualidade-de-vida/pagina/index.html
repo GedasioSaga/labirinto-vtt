@@ -1,0 +1,1148 @@
+<meta charset="utf-8">
+<title>Qualidade de vida do Labirinto</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: uma coluna de leitura (68rem), Top 10 como ranking com numerais grandes, cartões horizontais (texto à esquerda, foto à direita) agrupados por área. Escuro quente por padrão. */
+:root {
+  color-scheme: dark;
+  --chao: #1b1510;
+  --mesa: #2a2119;
+  --mesa-funda: #221a13;
+  --linha: #3e3226;
+  --linha-forte: #5a4935;
+  --ouro: #e0a84b;
+  --ouro-vivo: #f0be66;
+  --ouro-fundo: rgba(224, 168, 75, 0.12);
+  --creme: #f1e4cc;
+  --creme-2: #c3b296;
+  --vidro: #93b7cc;
+  --vidro-fundo: rgba(147, 183, 204, 0.1);
+  --brasa: #e58f6c;
+  --brasa-fundo: rgba(229, 143, 108, 0.12);
+  --sombra-lupa: rgba(8, 6, 4, 0.78);
+
+  --f-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --f-texto: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --f-util: Bahnschrift, 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+
+  --t-0: 0.8125rem;
+  --t-1: 0.9375rem;
+  --t-2: 1rem;
+  --t-3: 1.125rem;
+  --t-4: 1.375rem;
+  --t-5: 1.875rem;
+  --t-6: clamp(2.375rem, 6vw, 3.625rem);
+
+  --raio: 10px;
+  --sai: cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --chao: #f3eadb;
+    --mesa: #fffaf2;
+    --mesa-funda: #ede2cf;
+    --linha: #dccab0;
+    --linha-forte: #b9a283;
+    --ouro: #8a5a12;
+    --ouro-vivo: #6f470b;
+    --ouro-fundo: rgba(138, 90, 18, 0.1);
+    --creme: #2b2017;
+    --creme-2: #67563f;
+    --vidro: #2c5f80;
+    --vidro-fundo: rgba(44, 95, 128, 0.08);
+    --brasa: #a5462a;
+    --brasa-fundo: rgba(165, 70, 42, 0.09);
+    --sombra-lupa: rgba(43, 32, 23, 0.7);
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --chao: #f3eadb;
+  --mesa: #fffaf2;
+  --mesa-funda: #ede2cf;
+  --linha: #dccab0;
+  --linha-forte: #b9a283;
+  --ouro: #8a5a12;
+  --ouro-vivo: #6f470b;
+  --ouro-fundo: rgba(138, 90, 18, 0.1);
+  --creme: #2b2017;
+  --creme-2: #67563f;
+  --vidro: #2c5f80;
+  --vidro-fundo: rgba(44, 95, 128, 0.08);
+  --brasa: #a5462a;
+  --brasa-fundo: rgba(165, 70, 42, 0.09);
+  --sombra-lupa: rgba(43, 32, 23, 0.7);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--chao);
+  color: var(--creme);
+  font-family: var(--f-texto);
+  font-size: var(--t-2);
+  line-height: 1.55;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: var(--chao);
+}
+[hidden] { display: none !important; }
+img { max-width: 100%; display: block; }
+a { color: var(--ouro); text-underline-offset: 3px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ouro); outline-offset: 2px; border-radius: 4px; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.pagina {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 3rem 4rem;
+  display: grid;
+  gap: 3.5rem;
+}
+
+/* ---------- Topo ---------- */
+.topo { display: grid; gap: 1.25rem; max-width: 46rem; }
+.topo h1 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: var(--t-6);
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.topo .lead { margin: 0; font-size: var(--t-3); color: var(--creme); }
+.topo p { margin: 0; }
+.topo .como { color: var(--creme-2); }
+.data { font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); letter-spacing: 0.02em; }
+.aviso-nav {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.875rem 1rem;
+  border: 1px dashed var(--vidro);
+  border-radius: var(--raio);
+  background: var(--vidro-fundo);
+}
+.aviso-nav svg { color: var(--vidro); margin-top: 0.2rem; }
+.aviso-nav p { margin: 0; }
+.aviso-nav strong { color: var(--vidro); font-weight: 600; }
+.resumo { font-family: var(--f-util); color: var(--creme-2); font-size: var(--t-1); }
+.resumo b { color: var(--creme); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------- Títulos de seção ---------- */
+.secao { display: grid; gap: 1.5rem; }
+.secao > header { display: grid; gap: 0.375rem; max-width: 46rem; }
+.secao h2 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: var(--t-5);
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.secao > header p { margin: 0; color: var(--creme-2); }
+
+/* ---------- Top 10 ---------- */
+.top { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 2.5rem; }
+.top li { border-top: 1px solid var(--linha); }
+.top li:nth-child(-n+2) { border-top-color: var(--linha-forte); }
+.top-item {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: baseline;
+  width: 100%;
+  padding: 0.875rem 0.25rem;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background-color 160ms ease;
+}
+.top-num {
+  font-family: var(--f-display);
+  font-size: 2.25rem;
+  line-height: 1;
+  color: var(--ouro);
+  font-variant-numeric: lining-nums tabular-nums;
+  text-align: right;
+}
+.top-corpo { display: grid; gap: 0.3rem; min-width: 0; }
+.top-titulo { font-weight: 600; font-size: var(--t-3); line-height: 1.3; }
+.top-meta { display: flex; flex-wrap: wrap; gap: 0.375rem 0.875rem; align-items: center; font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); }
+@media (hover: hover) and (pointer: fine) {
+  .top-item:hover { background: var(--ouro-fundo); }
+  .top-item:hover .top-titulo { color: var(--ouro-vivo); }
+}
+
+/* ---------- Medidas (bolinhas de ficha de RPG) ---------- */
+.medida { display: inline-flex; align-items: center; gap: 0.375rem; white-space: nowrap; font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); }
+.pips { display: inline-flex; gap: 3px; }
+.pips i { width: 9px; height: 9px; border: 1.5px solid currentColor; border-radius: 50%; }
+.pips i.on { background: currentColor; }
+.pips.imp { color: var(--ouro); }
+.pips.esf { color: var(--creme-2); }
+.pips.esf i { border-radius: 2px; }
+.medida .val { color: var(--creme); }
+
+/* ---------- Filtros ---------- */
+.filtros {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--mesa-funda);
+}
+.filtros-linha { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: center; }
+.busca { flex: 1 1 16rem; min-width: 0; position: relative; }
+.busca input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  border: 1px solid var(--linha-forte);
+  border-radius: 8px;
+  background: var(--mesa);
+  color: var(--creme);
+  font: inherit;
+}
+.busca input::placeholder { color: var(--creme-2); opacity: 0.85; }
+.busca input:focus-visible { outline: 2px solid var(--ouro); outline-offset: 1px; }
+.busca svg { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--creme-2); pointer-events: none; }
+fieldset.grupo { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; min-width: 0; }
+fieldset.grupo legend { float: left; margin-right: 0.375rem; padding: 0; font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); }
+.pilulas { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; border: 1px solid var(--linha); border-radius: 999px; background: var(--mesa); }
+.pilulas label { position: relative; }
+.pilulas input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.pilulas span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  font-size: var(--t-0);
+  font-family: var(--f-util);
+  color: var(--creme-2);
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.pilulas input:checked + span { background: var(--ouro); color: var(--chao); }
+.pilulas input:focus-visible + span { outline: 2px solid var(--ouro); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .pilulas input:not(:checked):hover + span { color: var(--creme); background: var(--ouro-fundo); }
+}
+.contagem { margin: 0; font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); font-variant-numeric: tabular-nums; }
+.contagem b { color: var(--creme); font-weight: 600; }
+.botao-texto {
+  background: none;
+  border: 1px solid var(--linha-forte);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 0 0.9rem;
+  font-family: var(--f-util);
+  font-size: var(--t-0);
+  color: var(--creme);
+  cursor: pointer;
+  transition: transform 140ms var(--sai), border-color 160ms ease;
+}
+.botao-texto:active { transform: scale(0.97); }
+.botao-texto[hidden] { display: none; }
+@media (hover: hover) and (pointer: fine) { .botao-texto:hover { border-color: var(--ouro); } }
+@media (min-width: 760px) {
+  .filtros { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; }
+  .cartao { scroll-margin-top: 11rem; }
+}
+
+/* ---------- Áreas e cartões ---------- */
+.parte { display: grid; gap: 2rem; }
+.area { display: grid; gap: 0.875rem; }
+.area h3 {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: var(--t-4);
+  line-height: 1.2;
+}
+.area h3 .n { font-family: var(--f-util); font-weight: 400; font-size: var(--t-0); color: var(--creme-2); font-variant-numeric: tabular-nums; }
+.area-nav { padding-top: 1.25rem; border-top: 1px dashed var(--vidro); }
+.area-nav h3 { color: var(--vidro); }
+.area-nav > p { margin: 0; max-width: 46rem; color: var(--creme-2); }
+.lista { display: grid; gap: 0.75rem; }
+
+.cartao {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 17rem;
+  gap: 1.25rem;
+  padding: 1.125rem 1.25rem;
+  background: var(--mesa);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+  transition: outline-color 700ms ease;
+}
+.cartao.sem-foto { grid-template-columns: minmax(0, 1fr); }
+.cartao.nav { border-style: dashed; border-color: var(--vidro); }
+.cartao.chegou { outline-color: var(--ouro); transition: none; }
+.cartao-texto { display: grid; gap: 0.75rem; align-content: start; min-width: 0; }
+.cartao-topo { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.375rem 0.75rem; }
+.cartao h4 { margin: 0; font-size: var(--t-3); font-weight: 600; line-height: 1.3; text-wrap: balance; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-family: var(--f-util);
+  font-size: var(--t-0);
+  line-height: 1.5;
+  white-space: nowrap;
+  border: 1px solid var(--linha-forte);
+  color: var(--creme-2);
+}
+.chip.nav { border: 1px dashed var(--vidro); color: var(--vidro); background: var(--vidro-fundo); }
+.chip.conf { border-color: var(--brasa); color: var(--brasa); background: var(--brasa-fundo); }
+.chip.conf.repro { border-style: dashed; background: none; }
+.dl { margin: 0; display: grid; gap: 0.5rem; }
+.dl > div { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 0.75rem; }
+.dl dt { font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); padding-top: 0.2rem; }
+.dl dd { margin: 0; max-width: 62ch; }
+.dl .sug dd { color: var(--creme); font-weight: 500; }
+.dl .sug dt { color: var(--ouro); }
+.dl .noapp dt, .dl .noapp dd { color: var(--vidro); }
+.obs { margin: 0; font-size: var(--t-1); color: var(--creme-2); max-width: 62ch; }
+.cartao-pe { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem; padding-top: 0.625rem; border-top: 1px solid var(--linha); }
+.fonte { font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); }
+
+.foto {
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  text-align: left;
+  min-width: 0;
+  transition: transform 140ms var(--sai);
+}
+.foto:active { transform: scale(0.985); }
+.foto .moldura {
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--linha-forte);
+  background: var(--mesa-funda);
+  box-shadow: 0 0 0 3px var(--ouro-fundo);
+  transition: border-color 160ms ease;
+}
+.foto img { width: 100%; height: 100%; object-fit: cover; object-position: left top; }
+.foto.contida img { object-fit: contain; object-position: center; image-rendering: pixelated; padding: 0.5rem; }
+.foto .leg { font-size: var(--t-0); color: var(--creme-2); line-height: 1.4; }
+@media (hover: hover) and (pointer: fine) {
+  .foto:hover .moldura { border-color: var(--ouro); }
+}
+
+.vazio {
+  margin: 0;
+  padding: 1.25rem;
+  border: 1px dashed var(--linha-forte);
+  border-radius: var(--raio);
+  color: var(--creme-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* ---------- Já consertado ou em conserto ---------- */
+.bugs { list-style: none; margin: 0; padding: 0; display: grid; }
+.bug {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem 1.5rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--linha);
+}
+.bug:last-child { border-bottom: 1px solid var(--linha); }
+.bug-texto { display: grid; gap: 0.35rem; min-width: 0; }
+.bug-topo { display: flex; flex-wrap: wrap; gap: 0.375rem 0.75rem; align-items: baseline; }
+.bug h4 { margin: 0; font-size: var(--t-2); font-weight: 600; line-height: 1.35; }
+.bug p { margin: 0; max-width: 64ch; }
+.bug .previsto { color: var(--creme-2); font-size: var(--t-1); }
+.bug .onde { font-family: var(--f-util); font-size: var(--t-0); color: var(--creme-2); }
+.bug-fotos { display: flex; gap: 0.5rem; align-items: start; }
+.bug-fotos .foto { width: 8.5rem; }
+.bug-fotos .foto .leg { display: none; }
+
+/* ---------- Rodapé ---------- */
+.rodape { display: grid; gap: 0.75rem; max-width: 46rem; color: var(--creme-2); font-size: var(--t-1); border-top: 1px solid var(--linha); padding-top: 1.5rem; }
+.rodape h2 { margin: 0; font-family: var(--f-display); font-size: var(--t-4); color: var(--creme); font-weight: 600; }
+.rodape p, .rodape ul { margin: 0; }
+.rodape ul { padding-left: 1.1rem; display: grid; gap: 0.25rem; }
+.rodape code { font-family: var(--f-util); font-size: 0.95em; color: var(--creme); overflow-wrap: anywhere; }
+
+/* ---------- Lupa (foto ampliada) ---------- */
+dialog.lupa {
+  width: min(96vw, 1500px);
+  max-height: 94vh;
+  padding: 0;
+  border: 1px solid var(--linha-forte);
+  border-radius: 12px;
+  background: var(--mesa);
+  color: var(--creme);
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 200ms var(--sai), transform 200ms var(--sai);
+}
+dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: opacity 200ms ease; }
+@starting-style {
+  dialog.lupa[open] { opacity: 0; transform: scale(0.97); }
+  dialog.lupa[open]::backdrop { opacity: 0; }
+}
+.lupa figure { margin: 0; display: grid; gap: 0.5rem; padding: 0.75rem; }
+.lupa-img-caixa { overflow: auto; max-height: calc(94vh - 6rem); border-radius: 8px; background: var(--mesa-funda); display: grid; place-items: center; }
+.lupa img { max-width: 100%; height: auto; }
+.lupa img.pequena { image-rendering: pixelated; }
+.lupa-pe { display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 0 0.25rem 0.25rem; }
+.lupa figcaption { font-size: var(--t-1); color: var(--creme-2); min-width: 0; flex: 1 1 20rem; }
+
+/* ---------- Telas estreitas ---------- */
+@media (max-width: 820px) {
+  .top { grid-template-columns: minmax(0, 1fr); }
+  .top li:nth-child(2) { border-top-color: var(--linha); }
+  .cartao { grid-template-columns: minmax(0, 1fr); }
+  .cartao .foto { max-width: 26rem; }
+}
+@media (max-width: 520px) {
+  .pagina { padding-block: 2rem 3rem; gap: 2.75rem; }
+  .dl > div { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; }
+  .cartao { padding: 1rem; }
+  .bug { grid-template-columns: minmax(0, 1fr); }
+  .top-num { font-size: 1.875rem; }
+  .top-item { grid-template-columns: 2.5rem minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.lupa { transform: none; transition: opacity 150ms ease; }
+  @starting-style { dialog.lupa[open] { transform: none; } }
+  .foto, .botao-texto { transition: none; }
+  .foto:active, .botao-texto:active { transform: none; }
+}
+</style>
+
+<main class="pagina">
+  <header class="topo">
+    <p class="data">Labirinto, mesa virtual de RPG. Levantamento de 26/11/2026.</p>
+    <h1>Qualidade de vida do Labirinto</h1>
+    <p class="lead">Sugestões para deixar o Labirinto mais fácil de usar, separadas para o mestre e para o jogador. Cada uma diz o que atrapalha hoje, o que mudar, quanto ajuda e quanto trabalho deve dar.</p>
+    <p class="como">Como foi feito: um agente usou o app fingindo ser um mestre de One Piece (montar uma taverna, criar cenas, rodar uma batalha, pôr som, consultar regras) e outro fingindo ser um jogador. Depois, a leitura do código de Criar Mapas, Batalhas, Prelúdio, Livros de regras e do site do Lobby completou o que não dava para ver na tela. Impacto e esforço são estimativas.</p>
+    <div class="aviso-nav" role="note">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2" y="3.5" width="16" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 7.5h16" stroke="currentColor" stroke-width="1.5"/><circle cx="4.75" cy="5.5" r="0.8" fill="currentColor"/><circle cx="7.25" cy="5.5" r="0.8" fill="currentColor"/></svg>
+      <p><strong>Os dois passeios usaram o app aberto pelo navegador.</strong> Ali, salvar e abrir pasta, Livros de regras, Sons e a sala de jogadores não funcionam: isso só existe no app instalado. O que dependia disso está marcado “visto no navegador” e fica separado no fim de cada parte. Não são defeitos do app instalado.</p>
+    </div>
+    <p class="resumo" id="resumo"></p>
+  </header>
+
+  <section class="secao" aria-labelledby="t-top">
+    <header>
+      <h2 id="t-top">Os 10 primeiros a fazer</h2>
+      <p>Maior impacto com menor esforço, só entre o que vale no app instalado. Clique para ver o cartão completo.</p>
+    </header>
+    <ol class="top" id="top"></ol>
+  </section>
+
+    <div class="filtros" role="search" aria-label="Filtrar sugestões">
+      <div class="filtros-linha">
+        <div class="busca">
+          <label for="busca" class="vh">Buscar nas sugestões</label>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.75" stroke="currentColor" stroke-width="1.5"/><path d="m10.5 10.5 3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <input id="busca" type="search" placeholder="Buscar: grade, batalha, Lobby, token…" autocomplete="off">
+        </div>
+        <p class="contagem" id="contagem" aria-live="polite"></p>
+        <button type="button" class="botao-texto" id="limpar" hidden>Limpar filtros</button>
+      </div>
+      <div class="filtros-linha">
+        <fieldset class="grupo">
+          <legend>Para quem</legend>
+          <div class="pilulas">
+            <label><input type="radio" name="quem" id="quem-todos" value="todos" checked><span>Todos</span></label>
+            <label><input type="radio" name="quem" id="quem-mestre" value="mestre"><span>Mestre</span></label>
+            <label><input type="radio" name="quem" id="quem-jogador" value="jogador"><span>Jogador</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="grupo">
+          <legend>Impacto</legend>
+          <div class="pilulas">
+            <label><input type="radio" name="impacto" id="imp-todos" value="todos" checked><span>Todos</span></label>
+            <label><input type="radio" name="impacto" id="imp-alto" value="alto"><span>Alto</span></label>
+            <label><input type="radio" name="impacto" id="imp-medio" value="medio"><span>Médio</span></label>
+            <label><input type="radio" name="impacto" id="imp-baixo" value="baixo"><span>Baixo</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="grupo">
+          <legend>Onde vale</legend>
+          <div class="pilulas">
+            <label><input type="radio" name="onde" id="onde-tudo" value="todos" checked><span>Tudo</span></label>
+            <label><input type="radio" name="onde" id="onde-app" value="app"><span>App instalado</span></label>
+            <label><input type="radio" name="onde" id="onde-nav" value="navegador"><span>Visto no navegador</span></label>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+
+  <section class="secao parte" id="mestre" aria-labelledby="t-mestre">
+    <header>
+      <h2 id="t-mestre">Para o mestre</h2>
+      <p>Quem monta o mapa, conduz a cena e roda a batalha.</p>
+    </header>
+    <div class="parte" id="mestre-corpo"></div>
+  </section>
+
+  <section class="secao parte" id="jogador" aria-labelledby="t-jogador">
+    <header>
+      <h2 id="t-jogador">Para o jogador</h2>
+      <p>Quem entra pela sala ou pelo Lobby, anda no mapa e cuida da própria ficha.</p>
+    </header>
+    <div class="parte" id="jogador-corpo"></div>
+  </section>
+
+  <section class="secao" id="conserto" aria-labelledby="t-conserto">
+    <header>
+      <h2 id="t-conserto">Já consertado ou em conserto</h2>
+      <p>Estes achados dos passeios já viraram bug nas listas do explorador, por isso não aparecem como sugestão. Até a versão 0.6.0 (26/11, 12h24) nenhum deles tinha conserto publicado: estão anotados para a fase de conserto. Os marcados “a reproduzir” ainda precisam ser vistos acontecendo antes do conserto.</p>
+    </header>
+    <ul class="bugs" id="bugs"></ul>
+  </section>
+
+  <footer class="rodape">
+    <h2>De onde veio</h2>
+    <ul>
+      <li>Passeio do mestre: <code>docs/qualidade-de-vida/relatorio-mestre.md</code> (25 achados, prints mestre-01 a 15).</li>
+      <li>Passeio do jogador: <code>docs/qualidade-de-vida/relatorio-jogador.md</code> (10 achados, prints jogador-01 a 05).</li>
+      <li>Leitura do código: <code>docs/explorador/mapas.md</code>, <code>batalhas.md</code>, <code>preludio-e-livros.md</code> e <code>site.md</code>. Daqui só entrou o que é qualidade de vida; bug técnico ficou nas listas.</li>
+    </ul>
+    <p>Não deu para testar no navegador: rodada completa de batalha, abrir um mapa já salvo, tocar um som, o jogador dentro da sala e o Lobby de verdade (o servidor de teste respondia 404). Esses pontos pedem um passeio no app instalado.</p>
+  </footer>
+</main>
+
+<dialog class="lupa" id="lupa" aria-labelledby="lupa-leg">
+  <figure>
+    <div class="lupa-img-caixa"><img id="lupa-img" alt=""></div>
+    <div class="lupa-pe">
+      <figcaption id="lupa-leg"></figcaption>
+      <button type="button" class="botao-texto" id="lupa-fechar">Fechar</button>
+    </div>
+  </figure>
+</dialog>
+
+<script>
+(function () {
+  'use strict';
+
+  var AREAS = ['Criar mapa', 'Cenas', 'Batalha', 'Sons', 'Livros e Prelúdio', 'Lobby/site', 'Geral'];
+  var ROTULO_IMPACTO = { alto: 'alto', medio: 'médio', baixo: 'baixo' };
+  var ROTULO_ESFORCO = { pequeno: 'pequeno', medio: 'médio', grande: 'grande' };
+  var NIVEL_IMPACTO = { alto: 3, medio: 2, baixo: 1 };
+  var NIVEL_ESFORCO = { pequeno: 1, medio: 2, grande: 3 };
+
+  function foto(nome, legenda) { return { src: 'fotos/' + nome + '.webp', legenda: legenda }; }
+
+  var SUGESTOES = [
+    /* ---------- MESTRE: Criar mapa ---------- */
+    { id: 'grade-sobre-chao', para: 'mestre', area: 'Criar mapa', onde: 'app',
+      titulo: 'Grade por cima do chão',
+      hoje: 'Ao pintar o chão de Tábuas, o piso cobre a grade inteira. Some a referência das casas que a batalha usa.',
+      sugestao: 'Desenhar a grade por cima do chão, com transparência.',
+      impacto: 'alto', esforco: 'pequeno', fonte: 'Passeio do mestre',
+      foto: foto('mestre-03-chao-sem-grade', 'Taverna com chão de Tábuas: a grade sumiu e as portas viraram tracinhos.') },
+    { id: 'porta-visivel', para: 'mestre', area: 'Criar mapa', onde: 'app',
+      titulo: 'Porta que se enxerga em qualquer chão',
+      hoje: 'Com o chão pintado, a porta vira um tracinho branco fino, quase invisível.',
+      sugestao: 'Desenhar a porta maior e com contraste, seja qual for o chão.',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
+    { id: 'tinta-material', para: 'mestre', area: 'Criar mapa', onde: 'app',
+      titulo: 'Um seletor só para Tinta e Material',
+      hoje: 'Os blocos Tinta e Material ficam lado a lado e repetem nomes (Grama aparece nos dois). Ao escolher a forma Balde ou Blocos, o Material some da tela.',
+      sugestao: 'Um seletor só de “o que pintar”, que valha para todas as formas da ferramenta Chão.',
+      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre e código' },
+    { id: 'tres-baldes', para: 'mestre', area: 'Criar mapa', onde: 'app',
+      titulo: 'Um balde, uma regra',
+      hoje: 'Existem três baldes (Chão, Pincel e Texturas), com o mesmo ícone e resultados diferentes. O do Chão pinta a camada de tinta e ignora o material escolhido.',
+      sugestao: 'O Balde do Chão usa o material escolhido e enche a sala clicada; os outros dois explicam o que fazem na dica.',
+      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre e código' },
+    { id: 'token-lugar-livre', para: 'mestre', area: 'Criar mapa', onde: 'app',
+      titulo: 'Token novo nasce num lugar livre',
+      hoje: 'Todo token nasce no centro da vista, em cima da parede e em cima do anterior. O Luffy cobriu o Zoro.',
+      sugestao: 'Pôr o token novo numa casa livre, ao lado do último criado.',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
+    { id: 'jogador-inimigo', para: 'mestre', area: 'Criar mapa', onde: 'app',
+      titulo: 'Jogador e inimigo com cara diferente',
+      hoje: 'Todo token nasce azul. Marcar “Ficha de jogador” não muda nada no mapa: aliado e inimigo ficam idênticos.',
+      sugestao: 'Na criação, escolher jogador ou inimigo, com uma cor para cada lado.',
+      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre' },
+    { id: 'duplicar-menu', para: 'mestre', area: 'Criar mapa', onde: 'app',
+      titulo: 'Duplicar no botão direito, com número',
+      hoje: 'O menu do botão direito do token não tem Duplicar; só existe o Ctrl+D, achado na tela de atalhos. As cópias saem todas com o nome Marinheiro.',
+      sugestao: 'Pôr Duplicar no menu e numerar as cópias (Marinheiro 2, Marinheiro 3).',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
+    { id: 'submenu-clique', para: 'mestre', area: 'Criar mapa', onde: 'app',
+      titulo: 'Submenu que abre no clique',
+      hoje: 'No menu do token, “Ligar ficha” só abre com a seta do teclado. Itens apagados trocam o nome pelo motivo (“Ligue uma ficha primeiro.”) e não dá para saber que comando é.',
+      sugestao: 'Abrir o submenu no clique e ao passar o mouse; item apagado mostra o nome e explica o motivo numa dica.',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
+    { id: 'mapas-exemplo', para: 'mestre', area: 'Criar mapa', onde: 'app',
+      titulo: 'Mapas de exemplo para começar',
+      hoje: 'Em Carregar Mapa não há nenhum mapa de exemplo para abrir e andar pelas cenas. Quem chega pela primeira vez não tem por onde começar.',
+      sugestao: 'Trazer 1 ou 2 aventuras de exemplo prontas, com cenas, tokens com ficha e uma batalha montada.',
+      obs: 'No navegador a lista vem sempre vazia. A tela Carregar Mapa não tem mapa de exemplo no código, então isso falta também a quem instala o app e ainda não salvou nada.',
+      impacto: 'alto', esforco: 'medio', fonte: 'Passeio do mestre e código',
+      foto: foto('mestre-12-carregar-mapa-vazio-procurar-mudo', 'Carregar Mapa no navegador: lista vazia e nenhum exemplo.') },
+
+    /* ---------- MESTRE: Cenas ---------- */
+    { id: 'filtro-cenas', para: 'mestre', area: 'Cenas', onde: 'app',
+      titulo: 'Achar a cena pela inicial ou por filtro',
+      hoje: 'No menu de cenas do topo, digitar a inicial não pula para a cena. A lista de Cenas e a Visão geral não têm campo de filtro; com muitas cenas, achar uma fica lento.',
+      sugestao: 'Pular pela inicial, como nas listas comuns, e um campo “filtrar cenas” na lista e na Visão geral.',
+      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre',
+      foto: foto('mestre-15-menu-cenas-inicial-nao-salta', 'Menu de cenas aberto: a tecla B não levou ao Baratie.') },
+    { id: 'controles-cenas', para: 'mestre', area: 'Cenas', onde: 'app',
+      titulo: 'Botões da lista de Cenas no lugar',
+      hoje: 'A engrenagem e as reticências da cena de cima ficam por cima da linha de baixo; Nova cena, Visão geral e Corte da torre ficam espremidos nas bordas. Avisos flutuantes cobrem a pílula da cena e o marcador de zoom cobre token. Na batalha, o botão “Em janela” aparece cortado.',
+      sugestao: 'Revisar o espaçamento desses botões e o lugar dos avisos flutuantes.',
+      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre' },
+
+    /* ---------- MESTRE: Batalha ---------- */
+    { id: 'jogadores-sem-ficha', para: 'mestre', area: 'Batalha', onde: 'app',
+      titulo: 'Mostrar quem ficou fora da batalha',
+      hoje: 'No Iniciar batalha, os jogadores sem ficha não aparecem na lista de quem luta, só os Marinheiros. Clicar no Luffy no mapa, como o texto manda, não marca nada.',
+      sugestao: 'Listar os jogadores sem ficha com o aviso “ligue uma ficha” e um botão de ficha rápida ali mesmo.',
+      impacto: 'alto', esforco: 'medio', fonte: 'Passeio do mestre',
+      foto: foto('mestre-07-batalha-sem-jogadores', 'Iniciar batalha: só os 3 Marinheiros na lista; Luffy e Zoro sumiram.') },
+    { id: 'criar-personagem', para: 'mestre', area: 'Batalha', onde: 'app',
+      titulo: 'Criar personagem direto da lista do token',
+      hoje: 'Em Ficha de jogador, a lista Personagem só tem “sem personagem”, sem dizer onde criar um. O Iniciar batalha avisa que o token sem ficha fica fora.',
+      sugestao: 'Um item “+ Criar personagem” no fim da lista e uma ficha de exemplo pronta.',
+      obs: 'No navegador a lista vem vazia porque as fichas moram na pasta do mapa. Não achamos no código um item de criar personagem nessa lista, então o atalho falta também no app instalado.',
+      impacto: 'alto', esforco: 'medio', fonte: 'Passeio do jogador e código' },
+
+    /* ---------- MESTRE: Livros e Prelúdio ---------- */
+    { id: 'livro-sem-pasta', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app',
+      titulo: 'Ler o livro de regras sem abrir pasta',
+      hoje: 'Para abrir One Piece ou Dragon Ball Tales, o livro exige uma pasta de mapas ligada. Não existe um jeito de só consultar uma regra ou uma criatura.',
+      sugestao: 'Um modo leitura do livro que abre sem pasta, para consulta rápida durante a sessão.',
+      obs: 'A foto é do navegador, onde o erro é outro. A exigência da pasta está no código e vale também no app instalado.',
+      impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre e código',
+      foto: foto('mestre-13-livros-de-regras-travados-erro-tecnico', 'Livros de regras no navegador: cartões apagados e erro técnico embaixo.') },
+    { id: 'preludio-dica', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app',
+      titulo: 'Prelúdio escondido sem nenhuma pista',
+      hoje: 'A porta do Prelúdio só aparece com a chave ligada ou com o atalho Ctrl+Alt+P na tela inicial. Nada na tela fala disso, e Roleplay diz só “em construção”. É de propósito, pelo plano de 08/11.',
+      sugestao: 'Decisão sua: se quiser que testadores achem, uma linha em Roleplay ou nas Opções.',
+      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre e código' },
+
+    /* ---------- MESTRE: Geral ---------- */
+    { id: 'busca-geral', para: 'mestre', area: 'Geral', onde: 'app',
+      titulo: 'Busca geral no Ctrl+K',
+      hoje: 'O Ctrl+K só procura objetos do mapa. Buscar “grimório” responde “Nenhum objeto com grimorio”.',
+      sugestao: 'Uma busca que ache também telas, livros, regras e criaturas.',
+      impacto: 'medio', esforco: 'grande', fonte: 'Passeio do mestre' },
+    { id: 'enter-primeira-porta', para: 'mestre', area: 'Geral', onde: 'app',
+      titulo: 'Enter já entra na primeira porta',
+      hoje: 'O rodapé da tela inicial diz “ENTER entra”, mas nenhuma porta vem destacada e o Enter sozinho não faz nada.',
+      sugestao: 'Abrir a tela inicial com a primeira porta já destacada.',
+      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre',
+      foto: foto('mestre-01-inicio', 'Tela inicial: quatro portas e nenhuma destacada.') },
+    { id: 'textos-padroes', para: 'mestre', area: 'Geral', onde: 'app',
+      titulo: 'Textos em português e padrões que ajudam',
+      hoje: 'O título “Novo Dungeon Map” mistura inglês. “Mostrar grade” vem desligado e o mapa novo abre como um retângulo cinza liso. No Iniciar batalha, o campo “Nome na abertura” vem com “Royals” sem explicação.',
+      sugestao: 'Título “Novo mapa”, grade ligada por padrão e o nome da abertura vazio, com um exemplo apagado.',
+      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre',
+      foto: foto('mestre-02-editor-vazio', 'Editor logo depois de criar o mapa: retângulo liso, sem grade.') },
+
+    /* ---------- MESTRE: visto no navegador ---------- */
+    { id: 'salvar-navegador', para: 'mestre', area: 'Geral', onde: 'navegador',
+      titulo: 'Avisar antes que o navegador não salva',
+      hoje: 'O app deixa montar o mapa inteiro e só no Ctrl+S avisa que salvar e exportar funcionam só no app instalado. O aviso some sozinho em uns 10 segundos e não oferece alternativa.',
+      sugestao: 'Avisar logo em Criar Mapas que salvar exige o app; se fizer sentido, oferecer “Baixar mapa”.',
+      noApp: 'O Salvar e o Exportar funcionam normalmente.',
+      impacto: 'alto', esforco: 'medio', fonte: 'Passeio do mestre',
+      foto: foto('mestre-04-salvar-falha-navegador', 'Ctrl+S no navegador: aviso vermelho de que salvar só funciona no app instalado.') },
+    { id: 'sons-navegador', para: 'mestre', area: 'Sons', onde: 'navegador',
+      titulo: 'Sons: dizer em português que precisa do app',
+      hoje: 'A página Sons mostra “Não foi possível abrir a pasta da biblioteca de sons (o disco recusou)”. Importar sons e Colar link aparecem apagados sem motivo, e a biblioteca não tem nenhum som de exemplo. Só o volume respondeu.',
+      sugestao: 'Frase simples dizendo que os sons moram no app instalado, botões apagados com o motivo e uma trilha de ambiente de exemplo.',
+      noApp: 'A biblioteca abre a pasta normalmente. Não conferimos se ela vem com algum som de exemplo.',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre',
+      foto: foto('mestre-09-sons-vazio-erro-disco', 'Página Sons no navegador: biblioteca vazia e erro de disco.') },
+    { id: 'rascunho-navegador', para: 'mestre', area: 'Cenas', onde: 'navegador',
+      titulo: 'Rascunho automático do mapa',
+      hoje: 'Duas vezes em três, logo depois de criar uma cena, a tela ficou branca e voltou ao início; o mapa e as cenas sumiram. O provável é uma recarga do servidor de teste, mas ficou claro que uma recarga apaga tudo.',
+      sugestao: 'Guardar um rascunho automático e oferecer “Recuperar o último mapa” ao abrir.',
+      noApp: 'Existe o aviso ao fechar com trabalho não salvo. Rascunho automático não existe em nenhum dos dois.',
+      impacto: 'alto', esforco: 'medio', fonte: 'Passeio do mestre e código',
+      foto: foto('mestre-14-tela-branca-voltou-ao-inicio', 'Depois da tela branca: de volta à tela inicial, sem o mapa.') },
+
+    /* ---------- JOGADOR ---------- */
+    { id: 'nome-pino', para: 'jogador', tambem: 'mestre', area: 'Cenas', onde: 'app',
+      titulo: 'Nome do pino legível em qualquer zoom',
+      hoje: 'No zoom com que o mapa abre (33%), o nome do pino no chão vira um risco. Em 71% tem uns 6 pixels; só dá para ler perto de 100%.',
+      sugestao: 'Tamanho mínimo para o nome na tela (uns 11 px) e um fundo de pílula, como o nome da sala.',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador',
+      foto: foto('jogador-03-enquadrar-atras-paineis', 'Mapa em 71%: o nome do pino “Bilhete rasgado” mal aparece.') },
+    { id: 'erros-lobby', para: 'jogador', area: 'Lobby/site', onde: 'app',
+      titulo: 'Erros do Lobby em português simples',
+      hoje: 'O Lobby mostra frases técnicas: “O Lobby respondeu 404” e, na Galeria, “O Lobby recusou (500)”, “Não deu para tirar (409)” ou o “Failed to fetch” do navegador.',
+      sugestao: 'Dizer o que aconteceu e o que fazer, por exemplo: “O servidor do Lobby está fora do ar. Avise o mestre.”',
+      obs: 'O 404 da foto veio do servidor de teste local, que não tem o Lobby de verdade. As frases técnicas da Galeria estão no código e valem no site publicado.',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador e código',
+      foto: foto('jogador-01-lobby-entrada', 'Lobby no servidor de teste: só o cartão de erro.') },
+    { id: 'tentar-de-novo', para: 'jogador', area: 'Lobby/site', onde: 'app',
+      titulo: '“Tentar de novo” que mostra que tentou',
+      hoje: 'O botão recarrega a página inteira (pisca uma tela preta) e volta ao mesmo erro, sem sinal de que tentou. Na Galeria, quando a lista falha, nem existe o botão.',
+      sugestao: 'Tentar sem recarregar a página, mostrar “tentando” no botão e, depois de 2 falhas, dizer o que fazer.',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador e código' },
+    { id: 'lobby-rapido', para: 'jogador', area: 'Lobby/site', onde: 'app',
+      titulo: 'Lobby abrindo mais rápido',
+      hoje: 'O site baixa a ficha completa do app (uns 120 de 317 módulos) já na tela de entrada e na lista de mesas, antes de alguém abrir uma ficha.',
+      sugestao: 'Carregar a ficha só quando o jogador abre a ficha, como o treino já faz.',
+      obs: 'Ganho não medido: vem da leitura do código.',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Leitura do código' },
+    { id: 'uma-mochila', para: 'jogador', area: 'Lobby/site', onde: 'app',
+      titulo: 'Uma mochila só no site',
+      hoje: 'A mochila aparece em dois lugares: na aba Mochila e na aba “Mochila e equipamento”, dentro da Ficha. As duas mandam as mudanças com regras diferentes.',
+      sugestao: 'Decidir qual das duas fica no site e tirar a outra.',
+      obs: 'Está em obra no rework de itens.',
+      impacto: 'medio', esforco: 'medio', fonte: 'Leitura do código' },
+    { id: 'roda-touchpad', para: 'jogador', tambem: 'mestre', area: 'Geral', onde: 'app',
+      titulo: 'Olhar em volta com a roda e o touchpad',
+      hoje: 'A roda para cima e para baixo só aproxima e afasta; a roda lateral anda de lado. Nenhum gesto de roda anda na vertical, então no touchpad do notebook não dá para descer a vista.',
+      sugestao: 'Shift+roda anda na vertical; Ctrl+roda ou pinça dá zoom (um modo “touchpad”).',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador' },
+
+    /* ---------- JOGADOR: visto no navegador ---------- */
+    { id: 'abrir-sala', para: 'jogador', area: 'Geral', onde: 'navegador',
+      titulo: 'Mostrar “Abrir sala” mesmo onde não funciona',
+      hoje: 'No navegador não há botão de sala nem de convite. O pino diz “Ler agora precisa da sala aberta”, mas nada abre a sala nem explica que ela só existe no app instalado.',
+      sugestao: 'Mostrar “Abrir sala” sempre, apagado no navegador e com o motivo escrito.',
+      noApp: 'O mestre abre a sala e manda o link ao jogador.',
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador',
+      foto: foto('jogador-02-mesa-sem-convite', 'Mesa no navegador: nenhum botão de sala ou convite.') },
+    { id: 'entrada-jogador', para: 'jogador', area: 'Geral', onde: 'navegador',
+      titulo: 'Dizer na tela inicial como o jogador entra',
+      hoje: 'As quatro portas da tela inicial são de mestre. Quem chega como jogador não sabe se está no lugar certo.',
+      sugestao: 'Uma linha (ou porta) “Sou jogador” explicando que o mestre manda o link da sala.',
+      noApp: 'A tela inicial é do mestre; o jogador entra pelo link, no navegador dele.',
+      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do jogador' }
+  ];
+
+  var TOP10 = ['grade-sobre-chao', 'jogadores-sem-ficha', 'criar-personagem', 'mapas-exemplo', 'token-lugar-livre',
+    'duplicar-menu', 'nome-pino', 'roda-touchpad', 'erros-lobby', 'submenu-clique'];
+
+  var BUGS = [
+    { titulo: 'Voltar ao início prende o mestre no mapa', status: 'bug',
+      texto: 'Quando salvar falha, o app mostra o erro e fica no mapa; não há “sair sem salvar”. No navegador salvar sempre falha, então só dava para sair recarregando.',
+      previsto: 'Usar a pergunta de alterações não salvas que já existe (Salvar, Descartar, Cancelar).',
+      onde: 'explorador/mapas.md, bug 1',
+      fotos: [foto('mestre-11-voltar-ao-inicio-preso', 'Voltar ao início no navegador: o erro de salvar aparece e o mapa continua aberto.'),
+              foto('jogador-05-voltar-inicio-preso', 'O mesmo no passeio do jogador: o aviso cobre o nome do pino.')] },
+    { titulo: 'Esc não larga a ferramenta', status: 'bug',
+      texto: 'Com Objeto na mão, Esc não volta para Selecionar e o próximo clique continua pondo móvel.',
+      previsto: 'O primeiro Esc cancela o gesto; o segundo volta para Selecionar.',
+      onde: 'explorador/mapas.md, bug 2', fotos: [] },
+    { titulo: 'Clicar num token com a ferramenta Objeto põe um móvel em cima dele', status: 'bug',
+      texto: 'O clique no Marinheiro criou um Balcão por cima do token.',
+      previsto: 'Clique sobre token ou pino seleciona; Ctrl+clique continua pondo por cima.',
+      onde: 'explorador/mapas.md, bug 3',
+      fotos: [foto('mestre-05-clique-no-token-pos-balcao', 'Clique no token com Objeto: um Balcão nasceu em cima do Marinheiro.')] },
+    { titulo: 'F (Enquadrar tudo) corta o mapa e ignora os painéis', status: 'bug',
+      texto: 'Com chão e um token, o zoom foi a 163% e cortou o mapa; em outro mapa, as bordas ficaram atrás dos painéis e do título da cena.',
+      previsto: 'Enquadrar na área livre entre os painéis e contar chão, pinos e carimbos. O passeio também pediu um botão Enquadrar ao lado do zoom.',
+      onde: 'explorador/mapas.md, bug 4',
+      fotos: [foto('mestre-06-enquadrar-tudo-nao-enquadra', 'Depois do F: zoom em 163%, mapa cortado.'),
+              foto('jogador-03-enquadrar-atras-paineis', 'Depois do F: a sala atrás dos painéis e do título da cena.')] },
+    { titulo: 'Nome do mapa novo gruda em “Mapa sem título”', status: 'bug',
+      texto: 'Quem digita o nome fica com “Mapa sem títuloCripta de teste”, porque o padrão é texto do campo e não exemplo.',
+      previsto: 'Campo vazio, com “Mapa sem título” como exemplo apagado.',
+      onde: 'explorador/mapas.md, bug 5', fotos: [] },
+    { titulo: '“Procurar no disco...” falha calado', status: 'bug',
+      texto: 'O botão não faz nada visível quando o seletor de arquivo falha.',
+      previsto: 'Mostrar o motivo, como as outras ações da tela Carregar Mapa.',
+      onde: 'explorador/mapas.md, bug 6', fotos: [] },
+    { titulo: 'Arrastar um móvel da lista para o mapa', status: 'bug',
+      texto: 'Arrastar da lista de objetos não mostra fantasma e não cria nada. O Acervo de tokens já aceita arrastar.',
+      previsto: 'Arrastar com fantasma do móvel, pelo mesmo caminho do Acervo.',
+      onde: 'explorador/mapas.md, bug 7', fotos: [] },
+    { titulo: 'Tela branca sem rede de segurança', status: 'bug',
+      texto: 'Um erro de desenho na tela do mestre apaga tudo e o trabalho não salvo some.',
+      previsto: 'Uma tela de erro com “Salvar uma cópia de emergência” e “Voltar”.',
+      onde: 'explorador/mapas.md, bug 8', fotos: [] },
+    { titulo: 'Chão em retângulo só aparece na ação seguinte', status: 'repro',
+      texto: 'O contorno aparece no arrasto, mas o piso de Tábuas só surgiu depois do gesto seguinte.',
+      previsto: 'Achar onde o desenho fica esperando e mostrar o piso na hora.',
+      onde: 'explorador/mapas.md, incerto 1', fotos: [] },
+    { titulo: 'Balde do Chão sem efeito visível dentro da sala', status: 'repro',
+      texto: 'O clique com o Balde dentro do Salão não mudou nada na tela.',
+      previsto: 'Testar com uma cor bem diferente do chão e avisar quando a pintura ficar escondida.',
+      onde: 'explorador/mapas.md, incerto 3', fotos: [] },
+    { titulo: 'Ctrl+Z logo depois de pôr um objeto', status: 'repro',
+      texto: 'O Ctrl+Z não desfez porque o foco continuou no campo “Procurar objeto”.',
+      previsto: 'Tirar o foco do campo quando o mestre clica no mapa.',
+      onde: 'explorador/mapas.md, incerto 4', fotos: [] },
+    { titulo: 'Quadradinho no lugar do contador das abas', status: 'repro',
+      texto: 'Nas abas de Sons, de Jogos e no Registro da batalha, o contador aparece como um quadrado vazio.',
+      previsto: 'Provável fonte que falta no navegador; trocar o símbolo por um que a fonte tenha ou por ícone.',
+      onde: 'explorador/mapas.md, incerto 7',
+      fotos: [foto('mestre-10-glifo-quadrado-abas-sons', 'Aba Efeitos sonoros com o quadradinho no lugar do número.'),
+              foto('jogador-04-abas-jogos-caractere-quebrado', 'Abas Ação, Objetos e Puzzles com o quadradinho.')] },
+    { titulo: 'Batalha começa com “Ninguém na ordem” sem aviso', status: 'bug',
+      texto: 'Iniciar com 3 e Incluir 3 deixaram a ordem vazia, sem mensagem (2 de 2 tentativas).',
+      previsto: 'Se ninguém entrou, dizer o motivo e não começar a batalha.',
+      onde: 'explorador/batalhas.md, bug 1',
+      fotos: [foto('mestre-08-batalha-ninguem-na-ordem', 'Rodada 1 com “Ordem dos turnos (0)”.')] },
+    { titulo: 'Passar a vez e Ordenar parecem ativos com a ordem vazia', status: 'bug',
+      texto: 'Os dois botões parecem clicáveis (Passar a vez em dourado) e não fazem nada.',
+      previsto: 'Apagar os botões e dizer “inclua alguém na ordem primeiro”.',
+      onde: 'explorador/batalhas.md, bug 2', fotos: [] },
+    { titulo: 'Encerrar batalha sem confirmar', status: 'bug',
+      texto: 'O botão e o Shift+B encerram na hora, apagando ordem, registro e Desfazer.',
+      previsto: 'Confirmar quando houver combatentes, com o texto que a Mesa da batalha já usa.',
+      onde: 'explorador/batalhas.md, bug 3', fotos: [] },
+    { titulo: 'Erro técnico cru nos Livros de regras', status: 'bug',
+      texto: 'Aparece “Cannot read properties of undefined (reading invoke)” e uma instrução errada (abrir pasta em Carregar Mapa).',
+      previsto: 'Usar a frase que o app já tem: “Os livros de regras só abrem no app instalado.”',
+      onde: 'explorador/preludio-e-livros.md, B4',
+      fotos: [foto('mestre-13-livros-de-regras-travados-erro-tecnico', 'Livros de regras: a mensagem técnica em inglês embaixo dos cartões.')] },
+    { titulo: 'Frase do Lobby sem ponto', status: 'bug',
+      texto: 'A mensagem sai “O Lobby respondeu 404 Tente de novo em instantes.”, com as duas frases coladas.',
+      previsto: 'Pôr o ponto entre as frases; a troca por frase humana está nas sugestões do jogador.',
+      onde: 'explorador/site.md, bugs certos',
+      fotos: [foto('jogador-01-lobby-entrada', 'Cartão de erro do Lobby com as frases coladas.')] }
+  ];
+
+  /* ---------- utilidades ---------- */
+  var reduzMovimento = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function el(tag, classe, texto) {
+    var n = document.createElement(tag);
+    if (classe) n.className = classe;
+    if (texto != null) n.textContent = texto;
+    return n;
+  }
+
+  /* Faixa dos acentos combinantes (U+0300 a U+036F), montada sem barra invertida. */
+  var MARCAS_DE_ACENTO = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g');
+
+  function semAcento(s) {
+    return String(s).normalize('NFD').replace(MARCAS_DE_ACENTO, '').toLowerCase();
+  }
+
+  function pips(tipo, nivel) {
+    var caixa = el('span', 'pips ' + tipo);
+    caixa.setAttribute('aria-hidden', 'true');
+    for (var i = 1; i <= 3; i++) caixa.appendChild(el('i', i <= nivel ? 'on' : ''));
+    return caixa;
+  }
+
+  function medida(nome, tipo, nivel, valor) {
+    var m = el('span', 'medida');
+    m.appendChild(el('span', '', nome));
+    m.appendChild(pips(tipo, nivel));
+    m.appendChild(el('span', 'val', valor));
+    return m;
+  }
+
+  function botaoFoto(f, contida) {
+    var b = el('button', 'foto' + (contida ? ' contida' : ''));
+    b.type = 'button';
+    b.setAttribute('aria-label', 'Ampliar foto: ' + f.legenda);
+    var moldura = el('span', 'moldura');
+    var img = el('img');
+    img.src = f.src;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    moldura.appendChild(img);
+    b.appendChild(moldura);
+    b.appendChild(el('span', 'leg', f.legenda));
+    b.addEventListener('click', function () { abrirLupa(f, b); });
+    return b;
+  }
+
+  function linhaDl(classe, rotulo, texto) {
+    var d = el('div', classe);
+    d.appendChild(el('dt', '', rotulo));
+    d.appendChild(el('dd', '', texto));
+    return d;
+  }
+
+  /* ---------- cartões ---------- */
+  function montarCartao(s) {
+    var art = el('article', 'cartao' + (s.onde === 'navegador' ? ' nav' : '') + (s.foto ? '' : ' sem-foto'));
+    art.id = 's-' + s.id;
+
+    var texto = el('div', 'cartao-texto');
+    var topo = el('div', 'cartao-topo');
+    topo.appendChild(el('h4', '', s.titulo));
+    if (s.onde === 'navegador') topo.appendChild(el('span', 'chip nav', 'Visto no navegador'));
+    if (s.tambem) topo.appendChild(el('span', 'chip', 'Também para o ' + s.tambem));
+    texto.appendChild(topo);
+
+    var dl = el('dl', 'dl');
+    dl.appendChild(linhaDl('', 'Hoje', s.hoje));
+    dl.appendChild(linhaDl('sug', 'Sugestão', s.sugestao));
+    if (s.noApp) dl.appendChild(linhaDl('noapp', 'No app instalado', s.noApp));
+    texto.appendChild(dl);
+    if (s.obs) texto.appendChild(el('p', 'obs', s.obs));
+
+    var pe = el('div', 'cartao-pe');
+    pe.appendChild(medida('Impacto', 'imp', NIVEL_IMPACTO[s.impacto], ROTULO_IMPACTO[s.impacto]));
+    pe.appendChild(medida('Esforço', 'esf', NIVEL_ESFORCO[s.esforco], ROTULO_ESFORCO[s.esforco]));
+    pe.appendChild(el('span', 'fonte', s.fonte));
+    texto.appendChild(pe);
+    art.appendChild(texto);
+
+    if (s.foto) art.appendChild(botaoFoto(s.foto, false));
+    s.no = art;
+    s.busca = semAcento([s.titulo, s.hoje, s.sugestao, s.noApp || '', s.obs || '', s.area, s.fonte].join(' '));
+    return art;
+  }
+
+  function montarParte(quem, destino) {
+    var grupos = [];
+    var doQuem = SUGESTOES.filter(function (s) { return s.para === quem; });
+
+    AREAS.forEach(function (area) {
+      var daArea = doQuem.filter(function (s) { return s.area === area && s.onde === 'app'; });
+      if (!daArea.length) return;
+      var bloco = el('div', 'area');
+      var h = el('h3', '', area);
+      var n = el('span', 'n');
+      h.appendChild(n);
+      bloco.appendChild(h);
+      var lista = el('div', 'lista');
+      daArea.forEach(function (s) { lista.appendChild(montarCartao(s)); });
+      bloco.appendChild(lista);
+      destino.appendChild(bloco);
+      grupos.push({ bloco: bloco, contador: n, itens: daArea });
+    });
+
+    var nav = doQuem.filter(function (s) { return s.onde === 'navegador'; });
+    if (nav.length) {
+      var blocoNav = el('div', 'area area-nav');
+      var hn = el('h3', '', 'Visto só no navegador');
+      var nn = el('span', 'n');
+      hn.appendChild(nn);
+      blocoNav.appendChild(hn);
+      blocoNav.appendChild(el('p', '', 'Dependem de salvar, abrir pasta, Sons, Livros ou sala, que só funcionam no app instalado. Ficam aqui caso o navegador vire um caminho de uso.'));
+      var listaNav = el('div', 'lista');
+      nav.forEach(function (s) { listaNav.appendChild(montarCartao(s)); });
+      blocoNav.appendChild(listaNav);
+      destino.appendChild(blocoNav);
+      grupos.push({ bloco: blocoNav, contador: nn, itens: nav });
+    }
+
+    var vazio = el('p', 'vazio');
+    vazio.hidden = true;
+    vazio.appendChild(el('span', '', quem === 'mestre' ? 'Nenhuma sugestão para o mestre com estes filtros.' : 'Nenhuma sugestão para o jogador com estes filtros.'));
+    var limpar = el('button', 'botao-texto', 'Limpar filtros');
+    limpar.type = 'button';
+    limpar.addEventListener('click', limparFiltros);
+    vazio.appendChild(limpar);
+    destino.appendChild(vazio);
+
+    return { grupos: grupos, vazio: vazio, secao: document.getElementById(quem) };
+  }
+
+  var partes = {
+    mestre: montarParte('mestre', document.getElementById('mestre-corpo')),
+    jogador: montarParte('jogador', document.getElementById('jogador-corpo'))
+  };
+
+  /* ---------- resumo do topo ---------- */
+  (function () {
+    var m = SUGESTOES.filter(function (s) { return s.para === 'mestre'; }).length;
+    var j = SUGESTOES.length - m;
+    var nav = SUGESTOES.filter(function (s) { return s.onde === 'navegador'; }).length;
+    var r = document.getElementById('resumo');
+    r.innerHTML = '';
+    function b(t) { var x = el('b', '', String(t)); return x; }
+    r.append(b(SUGESTOES.length), ' sugestões: ', b(m), ' para o mestre e ', b(j), ' para o jogador (', b(nav),
+      ' delas vistas só no navegador). Outros ', b(BUGS.length), ' achados já viraram bug e estão no fim da página.');
+  })();
+
+  /* ---------- Top 10 ---------- */
+  (function () {
+    var ol = document.getElementById('top');
+    TOP10.forEach(function (id, i) {
+      var s = SUGESTOES.filter(function (x) { return x.id === id; })[0];
+      if (!s) return;
+      var li = el('li');
+      var b = el('button', 'top-item');
+      b.type = 'button';
+      b.appendChild(el('span', 'top-num', String(i + 1)));
+      var corpo = el('span', 'top-corpo');
+      corpo.appendChild(el('span', 'top-titulo', s.titulo));
+      var meta = el('span', 'top-meta');
+      meta.appendChild(el('span', '', (s.para === 'mestre' ? 'Mestre' : 'Jogador') + ', ' + s.area));
+      meta.appendChild(medida('Impacto', 'imp', NIVEL_IMPACTO[s.impacto], ROTULO_IMPACTO[s.impacto]));
+      meta.appendChild(medida('Esforço', 'esf', NIVEL_ESFORCO[s.esforco], ROTULO_ESFORCO[s.esforco]));
+      corpo.appendChild(meta);
+      b.appendChild(corpo);
+      b.addEventListener('click', function () { irPara(s); });
+      li.appendChild(b);
+      ol.appendChild(li);
+    });
+  })();
+
+  var temporizadorChegou = 0;
+  function irPara(s) {
+    if (s.no.hidden) limparFiltros();
+    s.no.scrollIntoView({ behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start' });
+    document.querySelectorAll('.cartao.chegou').forEach(function (c) { c.classList.remove('chegou'); });
+    clearTimeout(temporizadorChegou);
+    s.no.classList.add('chegou');
+    temporizadorChegou = setTimeout(function () { s.no.classList.remove('chegou'); }, 1600);
+  }
+
+  /* ---------- Já consertado ou em conserto ---------- */
+  (function () {
+    var ul = document.getElementById('bugs');
+    BUGS.forEach(function (bg) {
+      var li = el('li', 'bug');
+      var t = el('div', 'bug-texto');
+      var topo = el('div', 'bug-topo');
+      topo.appendChild(el('h4', '', bg.titulo));
+      topo.appendChild(el('span', bg.status === 'bug' ? 'chip conf' : 'chip conf repro',
+        bg.status === 'bug' ? 'Bug confirmado no código' : 'A reproduzir'));
+      t.appendChild(topo);
+      t.appendChild(el('p', '', bg.texto));
+      t.appendChild(el('p', 'previsto', 'Conserto previsto: ' + bg.previsto));
+      t.appendChild(el('p', 'onde', 'Onde está anotado: ' + bg.onde));
+      li.appendChild(t);
+      if (bg.fotos.length) {
+        var fs = el('div', 'bug-fotos');
+        bg.fotos.forEach(function (f) {
+          var pequena = /glifo|abas-jogos/.test(f.src);
+          fs.appendChild(botaoFoto(f, pequena));
+        });
+        li.appendChild(fs);
+      }
+      ul.appendChild(li);
+    });
+  })();
+
+  /* ---------- filtros ---------- */
+  var campoBusca = document.getElementById('busca');
+  var contagem = document.getElementById('contagem');
+  var botaoLimpar = document.getElementById('limpar');
+
+  function valorDe(nome) {
+    var marcado = document.querySelector('input[name="' + nome + '"]:checked');
+    return marcado ? marcado.value : 'todos';
+  }
+
+  function aplicarFiltros() {
+    var quem = valorDe('quem');
+    var impacto = valorDe('impacto');
+    var onde = valorDe('onde');
+    var termos = semAcento(campoBusca.value.trim()).split(/\s+/).filter(Boolean);
+    var visiveis = 0;
+
+    SUGESTOES.forEach(function (s) {
+      var ok = (quem === 'todos' || s.para === quem || s.tambem === quem) &&
+        (impacto === 'todos' || s.impacto === impacto) &&
+        (onde === 'todos' || s.onde === onde) &&
+        termos.every(function (t) { return s.busca.indexOf(t) !== -1; });
+      s.no.hidden = !ok;
+      if (ok) visiveis++;
+    });
+
+    Object.keys(partes).forEach(function (k) {
+      var total = 0;
+      partes[k].grupos.forEach(function (g) {
+        var n = g.itens.filter(function (s) { return !s.no.hidden; }).length;
+        g.bloco.hidden = n === 0;
+        g.contador.textContent = n === g.itens.length ? String(n) : n + ' de ' + g.itens.length;
+        total += n;
+      });
+      // Com "Para quem" apontando para o outro lado, a parte inteira some em vez de mostrar o aviso de vazio.
+      var foraDoFiltro = total === 0 && quem !== 'todos' && quem !== k;
+      partes[k].secao.hidden = foraDoFiltro;
+      partes[k].vazio.hidden = total > 0;
+    });
+
+    contagem.innerHTML = '';
+    contagem.append(el('b', '', String(visiveis)), ' de ' + SUGESTOES.length + ' sugestões');
+    var filtrando = quem !== 'todos' || impacto !== 'todos' || onde !== 'todos' || termos.length > 0;
+    botaoLimpar.hidden = !filtrando;
+  }
+
+  function limparFiltros() {
+    campoBusca.value = '';
+    ['quem-todos', 'imp-todos', 'onde-tudo'].forEach(function (id) { document.getElementById(id).checked = true; });
+    aplicarFiltros();
+  }
+
+  campoBusca.addEventListener('input', aplicarFiltros);
+  document.querySelectorAll('.filtros input[type="radio"]').forEach(function (r) { r.addEventListener('change', aplicarFiltros); });
+  botaoLimpar.addEventListener('click', function () { limparFiltros(); campoBusca.focus(); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+    var alvo = e.target;
+    if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
+    if (lupa.open) return;
+    e.preventDefault();
+    campoBusca.focus();
+  });
+
+  /* ---------- lupa (foto ampliada) ---------- */
+  var lupa = document.getElementById('lupa');
+  var lupaImg = document.getElementById('lupa-img');
+  var lupaLeg = document.getElementById('lupa-leg');
+  var LARGURA_PEQUENA = 400;
+
+  function abrirLupa(f) {
+    lupaImg.classList.remove('pequena');
+    lupaImg.style.width = '';
+    lupaImg.onload = function () {
+      if (lupaImg.naturalWidth && lupaImg.naturalWidth < LARGURA_PEQUENA) {
+        lupaImg.classList.add('pequena');
+        lupaImg.style.width = Math.min(lupaImg.naturalWidth * 3, 900) + 'px';
+      }
+    };
+    lupaImg.src = f.src;
+    lupaImg.alt = f.legenda;
+    lupaLeg.textContent = f.legenda;
+    if (typeof lupa.showModal === 'function') lupa.showModal();
+    else lupa.setAttribute('open', '');
+  }
+
+  function fecharLupa() {
+    if (typeof lupa.close === 'function') lupa.close();
+    else lupa.removeAttribute('open');
+  }
+
+  document.getElementById('lupa-fechar').addEventListener('click', fecharLupa);
+  lupa.addEventListener('click', function (e) { if (e.target === lupa) fecharLupa(); });
+
+  aplicarFiltros();
+})();
+</script>
