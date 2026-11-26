@@ -32,7 +32,6 @@ const FERRAMENTAS: readonly DadosDaFerramenta[] = [
   { id: 'alcance', nome: 'Dar alcance aos antigos', faz: 'Propõe o alcance de cada um pelo texto', un: ['pendente', 'pendentes'], paginas: ['habilidades', 'itens'] },
   { id: 'requisitos', nome: 'Dar requisitos aos antigos', faz: 'Propõe o que cada um pede para ser usado', un: ['pendente', 'pendentes'], paginas: ['habilidades', 'itens'] },
   { id: 'ligar', nome: 'Ligar ao Acervo pelo nome', faz: 'Liga cada item do livro à coisa do Acervo de mesmo nome', un: ['sem ligação', 'sem ligação'], paginas: ['itens'] },
-  { id: 'armas', nome: 'Juntar as armas', faz: 'Faz cada arma dizer o mesmo no livro, no Acervo e nas fichas', un: ['com diferença', 'com diferença'], paginas: ['itens'] },
 ]
 
 /** Espera depois da última mudança antes de recontar: as contas não rodam no meio de uma digitação nem no quadro que abre a página. */
@@ -198,7 +197,7 @@ export function MenuDeFerramentas({ pagina, sistema, podeGravar, ocupado, onEsco
               </button>
             )
           })}
-          <p className="mu-bib-menu__nota">Dar alcance, Dar requisitos e Juntar as armas mostram a lista antes de gravar. Juntar das fichas e Ligar ao Acervo gravam na hora.</p>
+          <p className="mu-bib-menu__nota">Dar alcance e Dar requisitos mostram a lista antes de gravar. Juntar das fichas e Ligar ao Acervo gravam na hora.</p>
         </div>
       )}
     </span>

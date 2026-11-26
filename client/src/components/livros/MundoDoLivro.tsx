@@ -3,7 +3,6 @@ import { entraNaBatalha } from '../../lib/livros/combate'
 import { lerSaude } from '../../lib/livros/saude'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
-import { consertarArmasAoAbrir } from '../../stores/armasNaFonte'
 import { consertarItensAoAbrir } from '../../stores/itensNaFonte'
 import { useCatalogoStore } from '../../stores/catalogoStore'
 import { useIaStore } from '../../stores/iaStore'
@@ -130,12 +129,8 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     if (!useAcervoDeItensStore.getState().podeGravar) void useAcervoDeItensStore.getState().recarregar()
   }, [])
 
-  // Armas numa fonte só (ARMAS-FONTE-UNICA §2): com a pasta e o catálogo lidos, a cópia de arma ligada que divergiu volta ao livro (uma vez por abertura).
+  // A cópia da arma no cartão da aba Armas não é mais consertada ao abrir: o Atacar lê a mochila (ITENS REFEITOS E6a, E7).
   const pastaLida = useMundoDoLivroStore((state) => state.daPasta !== null)
-  const catalogoLido = useCatalogoStore((state) => sistema !== undefined && state.sistemaId === sistema.id && state.podeGravar)
-  useEffect(() => {
-    if (sistema !== undefined && pastaLida && catalogoLido) void consertarArmasAoAbrir(sistema)
-  }, [sistema, pastaLida, catalogoLido])
 
   // Itens numa fonte só (F6): com a pasta e o Acervo lidos, a cópia de item ligada que divergiu volta ao Acervo (uma vez por abertura).
   const acervoLido = useAcervoDeItensStore((state) => state.podeGravar)

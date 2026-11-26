@@ -92,6 +92,6 @@ describe('pendenciasDasFerramentas', () => {
     const coisa = { ...novoItemDoCatalogo('Arma'), id: 'item_garrucha', nome: 'Garrucha de Teste' }
     const dados = { sistema, catalogo: [garrucha], acervo: [coisa], pastasDoAcervo: [], pastaId: null, personagens: [aira], propostasDoAlcance: SEM_ALCANCE, propostasDosRequisitos: SEM_REQUISITOS }
     const pendencias = pendenciasDasFerramentas(dados)
-    expect([pendencias.juntar, pendencias.ligar, pendencias.armas, pendencias.requisitos]).toEqual([1, 1, 0, 0])
+    expect([pendencias.juntar, pendencias.ligar, pendencias.requisitos]).toEqual([1, 1, 0])
   })
 })

@@ -1,6 +1,4 @@
 import { ABA_DAS_ARMAS } from '../batalha/leituraDaFicha'
-import { descreverAlcance } from '../batalha/alcance/forma'
-import { formaDoAlcanceGuardada } from '../batalha/alcanceDoCartao'
 import { requisitosGuardados } from '../batalha/requisitos/guardados'
 import { alcanceDoArquivo, cartoesDaAba, mecanicaDoArquivo, novoCartao, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type Personagem, type RequisitosGuardados } from '../personagem'
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../sistemaDeRpg'
@@ -20,9 +18,8 @@ import { chaveDoNomeDaEntrada, podeReceber, type BalaDoCatalogo, type ItemDoCata
  * `mecanicaProposta`, a imagem, o nome, e nas balas o `id` e a ligação de cada
  * subcartão (casado pelo nome).
  *
- * Aqui também o "Juntar as armas" (§4): parear cartões e entradas, classificar
- * cada par (iguais, livro vai à ficha, ficha vai ao livro, conflito) e aplicar
- * só o que é certo ou o que o mestre escolheu. Conflito nunca é decidido aqui.
+ * O "Juntar as armas" (§4) saiu na limpeza dos itens refeitos (E7): o Atacar lê
+ * a arma equipada da mochila, e os cartões já foram para ela na conversão.
  *
  * Puro: sem store, sem disco, sem rede.
  */
@@ -213,297 +210,19 @@ export function entradaSemTrechoVelho(entrada: ItemDoCatalogo): ItemDoCatalogo {
   return JSON.stringify(nova) === JSON.stringify(entrada) ? entrada : nova
 }
 
-// ─── O "Juntar as armas" (§4) ───────────────────────────────────────────────
-
-/** Como o cartão achou a entrada: (a) pelo `itemId`, (b) pela vaga da mochila com a coisa da entrada e o mesmo nome, (c) pelo nome (uma entrada só). */
-export type ComoPareou = 'itemId' | 'mochila' | 'nome'
-
-export interface CartaoPareado {
-  personagemId: string
-  personagemNome: string
-  cartaoId: string
-  cartaoNome: string
-  como: ComoPareou
-}
-
-/** Uma versão do que a arma faz, para o mestre escolher: a do livro ou a de uma (ou mais) fichas iguais entre si. */
-export interface VersaoDaArma {
-  /** `livro`, ou `<personagemId>/<cartaoId>` do primeiro cartão desta versão. */
-  id: string
-  /** "Livro", "Ficha do Vincent G." */
-  rotulo: string
-  /** Os campos e a mecânica em frase curta. */
-  resumo: string
-  /** Os cartões que dizem esta versão (vazio na do livro). */
-  cartoes: CartaoPareado[]
-}
-
-export type CasoDaArma =
-  /** Caso 1: cartões e entrada iguais. Liga; entrada sem coisa ganha a coisa. */
-  | 'iguais'
-  /** Caso 2: entrada montada, cartões sem mecânica e o resto igual. A entrada vai aos cartões. */
-  | 'livroVaiAFicha'
-  /** Caso 3: um cartão só, montado, e a entrada sem mecânica com o resto igual. O cartão vai à entrada. */
-  | 'fichaVaiAoLivro'
-  /** Cartões já ligados (pelo `itemId`) que divergiram: a fonte ganha (app velho ou Lobby mexeram na cópia). */
-  | 'fonteGanha'
-  /** Casos 4 e 5: duas ou mais versões (texto diferente também conta). Só com a escolha do mestre. */
-  | 'conflito'
-
-export interface ArmaNoEnsaio {
-  caso: CasoDaArma
-  entradaId: string
-  nome: string
-  cartoes: CartaoPareado[]
-  /** A entrada não tem coisa no Acervo: ligar cria (ou acha) uma. */
-  precisaDeCoisa: boolean
-  /** Só no conflito: a do livro primeiro, depois as das fichas. */
-  versoes: VersaoDaArma[]
-}
-
-export interface EnsaioDasArmas {
-  /** Só as entradas que têm cartões pareados; as já iguais e ligadas não aparecem (nada a fazer). */
-  armas: ArmaNoEnsaio[]
-  /** Caso 6: duas entradas de arma com o mesmo nome; o cartão desse nome não liga sozinho. */
-  nomeRepetido: { nome: string; entradaIds: string[]; cartoes: CartaoPareado[] }[]
-  /** Caso 7: a entrada aponta para coisa que o Acervo não tem mais (só com o Acervo informado). */
-  coisaApagada: { entradaId: string; nome: string; acervoId: string }[]
-  /** Entradas montadas que ainda dizem a frase velha (sai ao confirmar). */
-  textoVelho: string[]
-  /** Mesmo nome em 2 fichas ou mais, sem entrada: não junta sozinho (podem ser armas diferentes). */
-  soNasFichas: { nome: string; cartoes: CartaoPareado[] }[]
-}
-
-export type EscolhaDaArma =
-  /** A versão que vale (`VersaoDaArma.id`). */
-  | { entradaId: string; vale: string }
-  /** Os cartões do conflito ficam "Só nesta ficha" (o ligado pelo `itemId` perde a ligação). */
-  | { entradaId: string; separar: true }
-  /** Caso 7: recria a coisa com o mesmo id. */
-  | { entradaId: string; recriarCoisa: true }
-
-export interface EntradaDoJuntar {
-  catalogo: readonly ItemDoCatalogo[]
-  personagens: readonly Personagem[]
-  sistema: SistemaDeRpg
-  /** As coisas do Acervo (para achar a de mesmo nome e ver a apagada). `undefined` = não confere. */
-  acervo?: readonly { id: string; nome: string }[]
-}
-
-function armasDoCatalogo(catalogo: readonly ItemDoCatalogo[]): ItemDoCatalogo[] {
-  return catalogo.filter((entrada) => entrada.tipo === 'arma')
-}
-
-/** Os pares cartão x entrada (a, b, c), o nome repetido e o que só existe nas fichas. */
-function parear(catalogo: readonly ItemDoCatalogo[], personagens: readonly Personagem[]): { pares: Map<string, CartaoPareado[]>; nomeRepetido: EnsaioDasArmas['nomeRepetido']; soNasFichas: EnsaioDasArmas['soNasFichas'] } {
-  const armas = armasDoCatalogo(catalogo)
-  const porNome = new Map<string, ItemDoCatalogo[]>()
-  for (const entrada of armas) porNome.set(chaveDoNomeDaEntrada(entrada.nome), [...(porNome.get(chaveDoNomeDaEntrada(entrada.nome)) ?? []), entrada])
-  const pares = new Map<string, CartaoPareado[]>()
-  const repetidos = new Map<string, CartaoPareado[]>()
-  const soltos = new Map<string, CartaoPareado[]>()
-  const juntar = (mapa: Map<string, CartaoPareado[]>, chave: string, par: CartaoPareado): void => void mapa.set(chave, [...(mapa.get(chave) ?? []), par])
-  for (const personagem of personagens) {
-    // A variação herda a ficha do modelo (`sincronizarVariacoes`): quem decide é o modelo.
-    if (!podeReceber(personagem)) continue
-    for (const cartao of cartoesDaAba(personagem, ABA_DAS_ARMAS)) {
-      const par = (como: ComoPareou): CartaoPareado => ({ personagemId: personagem.id, personagemNome: personagem.nome, cartaoId: cartao.id, cartaoNome: cartao.nome, como })
-      if (cartao.itemId !== undefined) {
-        // (a) Ligado a uma coisa: só a entrada dessa coisa é a regra dele (a de mesmo nome pode ser outra arma).
-        const ligada = armas.find((entrada) => entrada.acervoId === cartao.itemId)
-        if (ligada !== undefined) juntar(pares, ligada.id, par('itemId'))
-        continue
-      }
-      const chave = chaveDoNomeDaEntrada(cartao.nome)
-      const mesmas = porNome.get(chave) ?? []
-      // (b) O Vincent: a mochila tem o Boomerang com a coisa da entrada e o cartão tem o nome dela.
-      const pelaMochila = mesmas.find((entrada) => entrada.acervoId !== undefined && (personagem.mochila ?? []).some((vaga) => vaga.itemId === entrada.acervoId))
-      if (pelaMochila !== undefined) juntar(pares, pelaMochila.id, par('mochila'))
-      else if (mesmas.length === 1) juntar(pares, mesmas[0].id, par('nome'))
-      else if (mesmas.length > 1) juntar(repetidos, chave, par('nome'))
-      else juntar(soltos, chave, par('nome'))
-    }
-  }
-  const nomeRepetido = [...repetidos].map(([chave, cartoes]) => ({ nome: cartoes[0].cartaoNome, entradaIds: (porNome.get(chave) ?? []).map((entrada) => entrada.id), cartoes }))
-  const soNasFichas = [...soltos.values()].filter((cartoes) => new Set(cartoes.map((par) => par.personagemId)).size > 1).map((cartoes) => ({ nome: cartoes[0].cartaoNome, cartoes }))
-  return { pares, nomeRepetido, soNasFichas }
-}
-
-function cartaoDoPar(personagens: readonly Personagem[], par: CartaoPareado): CartaoDaFicha | undefined {
-  const personagem = personagens.find((atual) => atual.id === par.personagemId)
-  return personagem === undefined ? undefined : cartoesDaAba(personagem, ABA_DAS_ARMAS).find((cartao) => cartao.id === par.cartaoId)
-}
-
-/** A regra em frase curta, para a lista lado a lado do conflito. */
-export function resumoDaRegra(regra: RegraDaArma, sistema: SistemaDeRpg): string {
-  const rotulos = new Map((abaDasArmas(sistema)?.campos ?? []).map((campo) => [campo.id, campo.rotulo]))
-  const partes = Object.entries(regra.campos).map(([chave, valor]) => `${rotulos.get(chave) ?? chave}: ${valor}`)
-  if (regra.balas !== undefined && regra.balas.length > 0) partes.push(`Balas: ${regra.balas.map((bala) => bala.nome).join(', ')}`)
-  partes.push(regra.mecanica === undefined ? 'O que ela faz: só o texto' : 'O que ela faz: montada')
-  if (regra.alcance !== undefined) {
-    const forma = formaDoAlcanceGuardada(regra.alcance)
-    partes.push(`Alcance: ${forma === null ? 'que este app não lê' : descreverAlcance(forma)}`)
-  }
-  return partes.join(' · ')
-}
-
-/** Caso de cada entrada com cartões; `null` = já ligada e igual (nada a fazer). */
-function casoDaArma(entrada: ItemDoCatalogo, pares: readonly CartaoPareado[], regras: readonly RegraDaArma[], sistema: SistemaDeRpg): CasoDaArma | null {
-  const fonte = regraDaEntrada(entrada, sistema)
-  const todosIguais = regras.every((regra) => mesmaRegra(fonte, regra))
-  const todosLigados = pares.every((par) => par.como === 'itemId')
-  if (todosIguais) return todosLigados && entrada.acervoId !== undefined ? null : 'iguais'
-  // "O que ela faz" = a mecânica, (fase B do alcance) o alcance e (fase B2 dos requisitos) os requisitos: os dois casos certos olham os três juntos.
-  const semMecanica = (regra: RegraDaArma): RegraDaArma => ({ campos: regra.campos, ...(regra.balas === undefined ? {} : { balas: regra.balas }) })
-  const faz = (regra: RegraDaArma): boolean => regra.mecanica !== undefined || regra.alcance !== undefined || regra.requisitos !== undefined
-  const fonteSemMecanica = semMecanica(fonte)
-  const restoIgual = regras.every((regra) => mesmaRegra(fonteSemMecanica, semMecanica(regra)))
-  if (restoIgual && faz(fonte) && regras.every((regra) => !faz(regra))) return 'livroVaiAFicha'
-  if (restoIgual && !faz(fonte) && regras.length === 1 && faz(regras[0])) return 'fichaVaiAoLivro'
-  return todosLigados ? 'fonteGanha' : 'conflito'
-}
-
-/** As versões do conflito: a do livro e uma por regra diferente entre os cartões. */
-function versoesDaArma(entrada: ItemDoCatalogo, pares: readonly CartaoPareado[], regras: readonly RegraDaArma[], sistema: SistemaDeRpg): VersaoDaArma[] {
-  const fonte = regraDaEntrada(entrada, sistema)
-  const versoes: (VersaoDaArma & { regra: RegraDaArma })[] = [{ id: 'livro', rotulo: 'Livro', resumo: resumoDaRegra(fonte, sistema), cartoes: [], regra: fonte }]
-  pares.forEach((par, indice) => {
-    const regra = regras[indice]
-    const igual = versoes.find((versao) => versao.id !== 'livro' && mesmaRegra(versao.regra, regra))
-    if (igual !== undefined) igual.cartoes.push(par)
-    else versoes.push({ id: `${par.personagemId}/${par.cartaoId}`, rotulo: `Ficha do ${par.personagemNome}`, resumo: resumoDaRegra(regra, sistema), cartoes: [par], regra })
-  })
-  return versoes.map(({ regra: _regra, ...versao }) => versao)
-}
-
-/** O ENSAIO do "Juntar as armas": a lista do que mudaria, sem mudar nada. */
-export function ensaiarArmas({ catalogo, personagens, sistema, acervo }: EntradaDoJuntar): EnsaioDasArmas {
-  const { pares, nomeRepetido, soNasFichas } = parear(catalogo, personagens)
-  const armas: ArmaNoEnsaio[] = []
-  for (const entrada of armasDoCatalogo(catalogo)) {
-    const doPar = pares.get(entrada.id) ?? []
-    const comCartao = doPar.flatMap((par) => {
-      const cartao = cartaoDoPar(personagens, par)
-      return cartao === undefined ? [] : [{ par, regra: regraDoCartao(cartao, sistema) }]
-    })
-    if (comCartao.length === 0) continue
-    const regras = comCartao.map((item) => item.regra)
-    const cartoes = comCartao.map((item) => item.par)
-    const caso = casoDaArma(entrada, cartoes, regras, sistema)
-    if (caso === null) continue
-    armas.push({ caso, entradaId: entrada.id, nome: entrada.nome, cartoes, precisaDeCoisa: entrada.acervoId === undefined, versoes: caso === 'conflito' ? versoesDaArma(entrada, cartoes, regras, sistema) : [] })
-  }
-  const idsDoAcervo = acervo === undefined ? null : new Set(acervo.map((coisa) => coisa.id))
-  const coisaApagada = armasDoCatalogo(catalogo).flatMap((entrada) =>
-    idsDoAcervo === null || entrada.acervoId === undefined || idsDoAcervo.has(entrada.acervoId) ? [] : [{ entradaId: entrada.id, nome: entrada.nome, acervoId: entrada.acervoId }],
-  )
-  const textoVelho = armasDoCatalogo(catalogo)
-    .filter((entrada) => entradaSemTrechoVelho(entrada) !== entrada)
-    .map((entrada) => entrada.id)
-  return { armas, nomeRepetido, coisaApagada, textoVelho, soNasFichas }
-}
-
-export interface ArmasJuntadas {
-  catalogo: ItemDoCatalogo[]
-  personagens: Personagem[]
-  /** As coisas que o Acervo precisa ganhar (categoria Arma), com o id que as entradas já apontam. */
-  coisasNovas: { id: string; nome: string }[]
-  /** Entradas, cartões e coisas que mudaram; 0 = nada a gravar (a 2ª rodada). */
-  mudancas: number
-}
-
-export interface OpcoesDoJuntar {
-  escolhas?: readonly EscolhaDaArma[]
-  /** Pode ligar entrada sem coisa (achar a de mesmo nome ou criar)? O conserto ao abrir não cria nada no Acervo. */
-  criarCoisas: boolean
-  /** O id da coisa nova (o Acervo usa `item_<uuid>`). */
-  novoIdDeCoisa: () => string
-}
-
-/** A coisa para a entrada sem ligação: a vaga de mesmo nome na mochila de quem tem o cartão, a coisa de mesmo nome no Acervo, ou uma nova. */
-function coisaParaAEntrada(entrada: ItemDoCatalogo, cartoes: readonly CartaoPareado[], dados: EntradaDoJuntar, usadas: Set<string>, novoId: () => string): { id: string; nova: boolean } {
-  const chave = chaveDoNomeDaEntrada(entrada.nome)
-  const livre = (id: string | undefined): id is string => id !== undefined && !usadas.has(id)
-  const daMochila = cartoes
-    .flatMap((par) => dados.personagens.find((personagem) => personagem.id === par.personagemId)?.mochila ?? [])
-    .find((vaga) => chaveDoNomeDaEntrada(vaga.nome) === chave && livre(vaga.itemId))?.itemId
-  const doAcervo = (dados.acervo ?? []).find((coisa) => chaveDoNomeDaEntrada(coisa.nome) === chave && livre(coisa.id))?.id
-  const achada = daMochila ?? doAcervo
-  return achada === undefined ? { id: novoId(), nova: true } : { id: achada, nova: false }
-}
-
-/** A fonte que vale para esta arma do ensaio; `null` = espera o mestre (conflito sem escolha, ou "Separar"). */
-function fonteEscolhida(arma: ArmaNoEnsaio, entrada: ItemDoCatalogo, dados: EntradaDoJuntar, escolha: EscolhaDaArma | undefined): ItemDoCatalogo | null {
-  if (arma.caso === 'fichaVaiAoLivro') {
-    const cartao = cartaoDoPar(dados.personagens, arma.cartoes[0])
-    return cartao === undefined ? null : { ...entrada, mecanica: mecanicaDoArquivo(cartao.mecanica).mecanica, alcance: alcanceDoArquivo(cartao.alcance).alcance, requisitos: requisitosDaRegra(cartao.requisitos).requisitos }
-  }
-  if (arma.caso !== 'conflito') return entrada
-  if (escolha === undefined || !('vale' in escolha)) return null
-  if (escolha.vale === 'livro') return entrada
-  const versao = arma.versoes.find((atual) => atual.id === escolha.vale)
-  const cartao = versao === undefined || versao.cartoes.length === 0 ? undefined : cartaoDoPar(dados.personagens, versao.cartoes[0])
-  return cartao === undefined ? null : entradaComARegraDoCartao(entrada, cartao, dados.sistema)
-}
-
-/** Troca os cartões dos pares na lista de fichas (a ficha sem mudança fica a MESMA). */
-function comOsCartoes(personagens: readonly Personagem[], pares: readonly CartaoPareado[], trocar: (cartao: CartaoDaFicha) => CartaoDaFicha): Personagem[] {
-  return personagens.map((personagem) => {
-    const ids = new Set(pares.filter((par) => par.personagemId === personagem.id).map((par) => par.cartaoId))
-    const armas = cartoesDaAba(personagem, ABA_DAS_ARMAS)
-    if (ids.size === 0 || armas.length === 0) return personagem
-    const novas = armas.map((cartao) => (ids.has(cartao.id) ? trocar(cartao) : cartao))
-    return novas.every((cartao, indice) => cartao === armas[indice]) ? personagem : { ...personagem, abas: { ...personagem.abas, [ABA_DAS_ARMAS]: novas } }
-  })
-}
-
-const contarMudancas = (antes: readonly unknown[], depois: readonly unknown[]): number => depois.filter((item, indice) => item !== antes[indice]).length
-
-/**
- * APLICA o ensaio: o certo (casos 1 a 3, a fonte que ganha) e o que o mestre
- * escolheu. Conflito sem escolha fica como está. A frase velha sai da fonte.
- * Roda de novo sobre o resultado = 0 mudanças.
- */
-export function juntarAsArmas(dados: EntradaDoJuntar, ensaio: EnsaioDasArmas, opcoes: OpcoesDoJuntar): ArmasJuntadas {
-  const escolhaDe = (entradaId: string): EscolhaDaArma | undefined => (opcoes.escolhas ?? []).find((escolha) => escolha.entradaId === entradaId)
-  const usadas = new Set(dados.catalogo.flatMap((entrada) => (entrada.acervoId === undefined ? [] : [entrada.acervoId])))
-  const coisasNovas: { id: string; nome: string }[] = []
-  let personagens: Personagem[] = [...dados.personagens]
-  const catalogo = dados.catalogo.map((original) => {
-    let entrada = entradaSemTrechoVelho(original)
-    const escolha = escolhaDe(original.id)
-    const apagada = ensaio.coisaApagada.find((item) => item.entradaId === original.id)
-    if (apagada !== undefined && escolha !== undefined && 'recriarCoisa' in escolha) coisasNovas.push({ id: apagada.acervoId, nome: original.nome })
-    const arma = ensaio.armas.find((item) => item.entradaId === original.id)
-    if (arma === undefined) return entrada
-    if (arma.caso === 'conflito' && escolha !== undefined && 'separar' in escolha) {
-      personagens = comOsCartoes(personagens, arma.cartoes.filter((par) => par.como === 'itemId'), ({ itemId: _ligacao, ...solto }) => solto)
-      return entrada
-    }
-    const fonte = fonteEscolhida(arma, entrada, { ...dados, personagens }, escolha)
-    if (fonte === null) return entrada
-    if (fonte.acervoId === undefined) {
-      if (!opcoes.criarCoisas) return entrada
-      const coisa = coisaParaAEntrada(fonte, arma.cartoes, { ...dados, personagens }, usadas, opcoes.novoIdDeCoisa)
-      usadas.add(coisa.id)
-      if (coisa.nova) coisasNovas.push({ id: coisa.id, nome: fonte.nome })
-      entrada = entradaSemTrechoVelho({ ...fonte, acervoId: coisa.id })
-    } else entrada = entradaSemTrechoVelho(fonte)
-    const fonteFinal = entrada
-    personagens = comOsCartoes(personagens, arma.cartoes, (cartao) => comARegraDaArma(cartao, fonteFinal, dados.sistema))
-    return jsonEstavel(entrada) === jsonEstavel(original) ? original : entrada
-  })
-  const mudancas = contarMudancas(dados.catalogo, catalogo) + contarMudancas(dados.personagens, personagens) + coisasNovas.length
-  return { catalogo, personagens, coisasNovas, mudancas }
-}
-
 /**
  * Propagar ao SALVAR a fonte (§2): cada cartão de arma ligado à entrada
  * (`itemId` = `acervoId`) recebe o que ela diz. Entrada sem coisa não tem
  * cópia. Nada a mudar = a MESMA lista.
  */
 export function fichasComARegraDaArma(personagens: readonly Personagem[], entrada: ItemDoCatalogo, sistema: SistemaDeRpg): Personagem[] {
-  const pares = entrada.tipo !== 'arma' || entrada.acervoId === undefined ? [] : parear([entrada], personagens).pares.get(entrada.id) ?? []
-  const ligados = pares.filter((par) => par.como === 'itemId')
-  return ligados.length === 0 ? [...personagens] : comOsCartoes(personagens, ligados, (cartao) => comARegraDaArma(cartao, entrada, sistema))
+  const acervoId = entrada.tipo === 'arma' ? entrada.acervoId : undefined
+  if (acervoId === undefined) return [...personagens]
+  return personagens.map((personagem) => {
+    // A variação herda a ficha do modelo (`sincronizarVariacoes`): quem recebe é o modelo.
+    if (!podeReceber(personagem)) return personagem
+    const armas = cartoesDaAba(personagem, ABA_DAS_ARMAS)
+    const novas = armas.map((cartao) => (cartao.itemId === acervoId ? comARegraDaArma(cartao, entrada, sistema) : cartao))
+    return novas.every((cartao, indice) => cartao === armas[indice]) ? personagem : { ...personagem, abas: { ...personagem.abas, [ABA_DAS_ARMAS]: novas } }
+  })
 }

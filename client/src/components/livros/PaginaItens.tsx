@@ -47,7 +47,6 @@ import type { EfeitoDoItem } from '../../types/map'
 import { EntradaDoCatalogoDialog, type ModoDaEntrada } from './EntradaDoCatalogoDialog'
 import { DarAlcanceAosAntigos } from './DarAlcanceAosAntigos'
 import { DarRequisitosAosAntigos } from './DarRequisitosAosAntigos'
-import { JuntarAsArmas } from './JuntarAsArmas'
 import { ColunaDasFichas, type AlvoDoArrasto, type OndeNaBiblioteca } from './biblioteca/ColunaDasFichas'
 import { LadoDaEscolhida, type EstadoParaDar } from './biblioteca/LadoDaEscolhida'
 import { ListaAgrupada, type GrupoNaLista } from './biblioteca/ListaDaBiblioteca'
@@ -1138,7 +1137,6 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
       {/* A ferramenta aberta pelo menu: a lista de propostas de sempre, com Confirmar e Desfazer. */}
       {ferramenta !== null && podeGravar && (
         <div ref={ferramentaRef}>
-          {ferramenta === 'armas' && <JuntarAsArmas sistema={sistema} onFechar={() => setFerramenta(null)} />}
           {ferramenta === 'alcance' && <DarAlcanceAosAntigos sistema={sistema} onFechar={() => setFerramenta(null)} />}
           {ferramenta === 'requisitos' && <DarRequisitosAosAntigos sistema={sistema} onFechar={() => setFerramenta(null)} />}
         </div>

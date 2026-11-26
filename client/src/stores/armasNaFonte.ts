@@ -1,16 +1,12 @@
-import { guardarAcervoAntesDasArmas, novoIdDeItem, novoItemDoCatalogo } from '../lib/acervoDeItens'
 import type { ItemDoCatalogo } from '../lib/livros/catalogo'
-import { guardarCatalogoAntesDasArmas, lerCatalogo } from '../lib/livros/catalogoNoDisco'
+import { guardarCatalogoAntesDasArmas } from '../lib/livros/catalogoNoDisco'
 import { ABA_DAS_ARMAS } from '../lib/batalha/leituraDaFicha'
-import { ensaiarArmas, entradaComARegraDoCartao, fichasComARegraDaArma, juntarAsArmas, mesmaRegra, regraDaEntrada, regraDoCartao, type EnsaioDasArmas, type EntradaDoJuntar, type EscolhaDaArma } from '../lib/livros/regraDaArma'
+import { entradaComARegraDoCartao, fichasComARegraDaArma, mesmaRegra, regraDaEntrada, regraDoCartao } from '../lib/livros/regraDaArma'
 import { guardarRpgAntesDasArmas } from '../lib/pastasDeMapas'
 import { cartoesDaAba, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
-import { useAcervoDeItensStore } from './acervoDeItensStore'
-import { personagensAtivos, useAdventureStore } from './adventureStore'
 import { useCatalogoStore } from './catalogoStore'
-import { useMundoDoLivroStore, type MundoAberto } from './mundoDoLivroStore'
-import { useToastStore } from './toastStore'
+import { useMundoDoLivroStore } from './mundoDoLivroStore'
 
 /**
  * A ARMA NUMA FONTE SÓ, no disco (docs/design/habilidades/ARMAS-FONTE-UNICA.md
@@ -22,56 +18,12 @@ import { useToastStore } from './toastStore'
  *   -> coisas novas no Acervo -> catálogo -> fichas (`mundo.mudar`)
  *
  * Conflito nunca é decidido aqui: sem a escolha do mestre ele fica como está.
+ *
+ * ITENS REFEITOS (E7): o "Juntar as armas" e os consertos ao abrir e ao começar a batalha saíram. O
+ * Atacar lê a arma EQUIPADA da mochila, e a conversão ao abrir já levou os cartões para ela.
  */
 
 const SEM_CATALOGO = 'O catálogo deste livro não foi lido do disco; nada foi gravado.'
-const SEM_PASTA = 'As fichas da pasta não foram lidas; nada foi gravado.'
-
-/** O catálogo, as fichas e o Acervo de agora. Lança se o catálogo ou as fichas não foram lidos (gravar seria por cima do que não se viu). */
-function dadosDeAgora(sistema: SistemaDeRpg): EntradaDoJuntar & { pastaId: string } {
-  const catalogo = useCatalogoStore.getState()
-  if (catalogo.sistemaId !== sistema.id || !catalogo.podeGravar) throw new Error(SEM_CATALOGO)
-  const { aberto, daPasta } = useMundoDoLivroStore.getState()
-  if (aberto === null || daPasta === null) throw new Error(SEM_PASTA)
-  const acervo = useAcervoDeItensStore.getState()
-  return { catalogo: catalogo.itens, personagens: daPasta, sistema, ...(acervo.podeGravar ? { acervo: acervo.itens } : {}), pastaId: aberto.pastaId }
-}
-
-const algumMudou = <T,>(antes: readonly T[], depois: readonly T[]): boolean => depois.length !== antes.length || depois.some((item, indice) => item !== antes[indice])
-
-/** O ENSAIO do "Juntar as armas": a lista do que mudaria, sem gravar nada. Lança como `dadosDeAgora`. */
-export function ensaiarJuntarAsArmas(sistema: SistemaDeRpg): EnsaioDasArmas {
-  return ensaiarArmas(dadosDeAgora(sistema))
-}
-
-/**
- * O CONFIRMAR do "Juntar as armas": grava o certo (casos 1 a 3) e o que o
- * mestre escolheu. Devolve quantas entradas, fichas e coisas mudaram (0 = nada
- * gravado). Lança com a frase pronta.
- */
-export async function confirmarJuntarAsArmas(sistema: SistemaDeRpg, escolhas: readonly EscolhaDaArma[]): Promise<number> {
-  const { pastaId, ...dados } = dadosDeAgora(sistema)
-  const acervoLido = useAcervoDeItensStore.getState().podeGravar
-  const juntadas = juntarAsArmas(dados, ensaiarArmas(dados), { escolhas, criarCoisas: acervoLido, novoIdDeCoisa: novoIdDeItem })
-  if (juntadas.mudancas === 0) return 0
-  const catalogoMuda = algumMudou(dados.catalogo, juntadas.catalogo)
-  const fichasMudam = algumMudou(dados.personagens, juntadas.personagens)
-  // As cópias primeiro, todas: se uma falhar, nada foi gravado ainda.
-  if (juntadas.coisasNovas.length > 0) await guardarAcervoAntesDasArmas()
-  if (catalogoMuda) await guardarCatalogoAntesDasArmas(sistema.id)
-  if (fichasMudam) await guardarRpgAntesDasArmas(pastaId)
-  for (const coisa of juntadas.coisasNovas) await useAcervoDeItensStore.getState().salvarItem({ ...novoItemDoCatalogo('Arma'), id: coisa.id, nome: coisa.nome })
-  if (catalogoMuda) await useCatalogoStore.getState().gravarArmas(juntadas.catalogo)
-  if (fichasMudam) {
-    // A versão escolhida já é a do livro agora: a mesma escolha, de novo sobre as fichas do disco, vira "vale o livro".
-    const depois = escolhas.map((escolha): EscolhaDaArma => ('vale' in escolha ? { entradaId: escolha.entradaId, vale: 'livro' } : escolha))
-    await useMundoDoLivroStore.getState().mudar((personagens) => {
-      const sobreODisco = { catalogo: juntadas.catalogo, personagens, sistema }
-      return juntarAsArmas(sobreODisco, ensaiarArmas(sobreODisco), { escolhas: depois, criarCoisas: false, novoIdDeCoisa: novoIdDeItem }).personagens
-    })
-  }
-  return juntadas.mudancas
-}
 
 /** As fichas com a regra das entradas (cada cartão ligado recebe o que a sua diz). */
 function comAsRegras(personagens: Personagem[], entradas: readonly ItemDoCatalogo[], sistema: SistemaDeRpg): Personagem[] {
@@ -81,7 +33,7 @@ function comAsRegras(personagens: Personagem[], entradas: readonly ItemDoCatalog
 /**
  * SALVAR A ARMA em qualquer dos 3 lugares (§2): grava a entrada (a fonte) e
  * reescreve na hora toda cópia ligada nas fichas da pasta aberta. Pasta
- * fechada: a cópia é consertada quando ela abrir. Devolve quantas fichas
+ * fechada: a cópia fica como está (a mochila é quem vale). Devolve quantas fichas
  * mudaram. Lança com a frase pronta.
  */
 export async function gravarRegraDaArma(entrada: ItemDoCatalogo, sistema: SistemaDeRpg): Promise<number> {
@@ -104,7 +56,7 @@ export async function gravarRegraDaArma(entrada: ItemDoCatalogo, sistema: Sistem
  * mudou na regra do cartão (mecânica, campos, balas) vai à fonte, que reescreve
  * as outras cópias. Só o cartão cuja regra mudou nesta edição (`antes` x
  * `depois`): a cópia que já vinha diferente não sobe ao livro por acaso (o
- * conserto ao abrir cuida dela). Livro deste sistema fechado = nada (a ficha
+ * mochila é quem vale). Livro deste sistema fechado = nada (a ficha
  * não sabe a fonte). Devolve os nomes das armas gravadas. Lança com a frase pronta.
  */
 export async function gravarArmasDaFicha(antes: Personagem, depois: Personagem, sistema: SistemaDeRpg): Promise<string[]> {
@@ -123,64 +75,4 @@ export async function gravarArmasDaFicha(antes: Personagem, depois: Personagem, 
     gravadas.push(entrada.nome)
   }
   return gravadas
-}
-
-/** A abertura da pasta já conferida (o `abrir` do mundo cria um objeto novo a cada vez). */
-let jaConferido: MundoAberto | null = null
-
-/**
- * ABRIR A PASTA conserta a cópia ligada que divergiu (§2: app velho ou Lobby
- * mexeram nela): a fonte ganha, com a cópia de antes das armas e o aviso ao
- * mestre. Só o cartão já ligado (`itemId`): ligar o que ainda não está ligado
- * é o "Juntar as armas", com o ensaio na frente do mestre. Uma vez por
- * abertura. Nunca lança: a falha vira aviso.
- */
-export async function consertarArmasAoAbrir(sistema: SistemaDeRpg): Promise<void> {
-  const { aberto } = useMundoDoLivroStore.getState()
-  if (aberto === null || aberto === jaConferido) return
-  jaConferido = aberto
-  try {
-    const { pastaId, ...dados } = dadosDeAgora(sistema)
-    const divergiram = ensaiarArmas(dados).armas.filter((arma) => arma.caso === 'fonteGanha')
-    const entradas = dados.catalogo.filter((entrada) => divergiram.some((arma) => arma.entradaId === entrada.id))
-    if (entradas.length === 0) return
-    await guardarRpgAntesDasArmas(pastaId)
-    await useMundoDoLivroStore.getState().mudar((personagens) => comAsRegras(personagens, entradas, sistema))
-    const quais = divergiram.map((arma) => `${arma.nome} (${arma.cartoes.map((par) => par.personagemNome).join(', ')})`).join('; ')
-    useToastStore.getState().push('info', `Voltei ao que diz o livro: ${quais}.`)
-  } catch (erro) {
-    useToastStore.getState().push('error', `Não deu para conferir as armas das fichas: ${erro instanceof Error ? erro.message : String(erro)}`)
-  }
-}
-
-/** O catálogo do sistema para a batalha: o do livro aberto, senão o do disco; `null` = não deu para ler (nada se conserta). */
-async function entradasDoSistema(sistema: SistemaDeRpg): Promise<ItemDoCatalogo[] | null> {
-  const catalogo = useCatalogoStore.getState()
-  if (catalogo.sistemaId === sistema.id && catalogo.podeGravar) return catalogo.itens
-  const lido = await lerCatalogo(sistema.id)
-  return lido.lido ? lido.itens : null
-}
-
-/**
- * COMEÇAR A BATALHA (§2, "Na batalha, o host"): antes da 1ª jogada, a cópia de
- * arma ligada nas fichas da aventura que divergiu (app velho, Lobby) volta ao
- * livro, para o host ler a mesma regra que o livro diz. Só o cartão já ligado;
- * o `id` do cartão fica (os usos são por ele). Pede Salvar como os ajustes do
- * mestre, com a cópia de antes das armas. Nunca lança: a falha vira aviso.
- */
-export async function consertarArmasAoComecarABatalha(sistema: SistemaDeRpg): Promise<void> {
-  try {
-    const entradas = await entradasDoSistema(sistema)
-    const ligadas = (entradas ?? []).filter((entrada) => entrada.tipo === 'arma' && entrada.acervoId !== undefined)
-    if (ligadas.length === 0) return
-    const aventura = useAdventureStore.getState()
-    const fichas = personagensAtivos(aventura)
-    const mudam = comAsRegras([...fichas], ligadas, sistema).filter((personagem, indice) => personagem !== fichas[indice])
-    if (mudam.length === 0) return
-    if (aventura.pasta !== null) await guardarRpgAntesDasArmas(aventura.pasta.pastaId)
-    for (const ficha of mudam) useAdventureStore.getState().ajustarPersonagem(ficha.id, (atual) => comAsRegras([atual], ligadas, sistema)[0] ?? atual)
-    useToastStore.getState().push('info', `Começo da batalha: voltei ao que diz o livro as armas de ${mudam.map((ficha) => ficha.nome).join(', ')}.`)
-  } catch (erro) {
-    useToastStore.getState().push('error', `Não deu para conferir as armas da batalha: ${erro instanceof Error ? erro.message : String(erro)}`)
-  }
 }
