@@ -1,3 +1,7 @@
+# 26/11 15:53: 0.6.1 NÃO publicada: o Claude Code matou o publicar por falta de RAM
+
+Bump cb3acccc chore(release): 0.6.1 (5 arquivos, como 42a16541) na main e `git push origin main` (06087a81..cb3acccc). Worktree ../labirinto-release (release/0.6.1 de origin/main = cb3acccc, 3 junções: raiz, client, lobby/nuvem). publicar-versao --publicar --com-google (CARGO_BUILD_JOBS=4) passou tsc de lobby/site e foi morto no tsc de lobby/nuvem: o Claude Code encerra comando em segundo plano quando a RAM do sistema fica crítica (2,4 GB livres de 31,7; javaw PID 36032 com 6,9 GB, vários python ~600 MB cada). Nada saiu: sem release v0.6.1, latest.json = 0.6.0, Worker e site não enviados, cargo nem começou (target vazio). Log tmp/rel-0.6.1/publicar.log. Para retomar: liberar RAM (fechar o javaw/pythons se não forem necessários) e, dentro de C:\dev\labirinto-release (se a origin andou: git merge --ff-only origin/main), CARGO_BUILD_JOBS=4 node scripts/publicar-versao.cjs --publicar --com-google --notas C:/dev/labirinto/tmp/rel-0.6.1/notas-da-versao-0.6.1.md. Worktree mantido; limpar depois (target, junções uma a uma com .Delete(), worktree remove sem --force, branch -D release/0.6.1). Disco 8,6 GB. Nenhum teste rodado.
+
 # 26/11 ~17h: 0.6.1 PUBLICANDO (automacao-devops); página QoL v2 publicada
 
 - Faixa mapas fechada: 8 commits (ea6e7c01..106a8508): Enter na 1ª porta, token em casa livre, submenu no clique, letra pula no menu, Filtrar cenas, nome do pino legível, Shift+roda, arrastar objeto da lista. Página: "15 sugestões e 26 bugs feitos na 0.6.1".
