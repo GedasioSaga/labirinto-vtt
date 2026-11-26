@@ -65,11 +65,6 @@ export const FAIXAS_EDITOR: readonly Faixa[] = [
   faixa('mapLinesGraphics', ['linha', 'marcador'], ['paredes', 'portas']),
   faixa('regionsContainer', ['regiao'], ['salas']),
   faixa('perigosGraphics', [], ['salas']),
-  faixa('gridFloorMask', [], FIXA),
-  faixa('gridOutsideMask', [], FIXA),
-  faixa('gridOutsideGraphics', [], FIXA),
-  faixa('gridGraphics', [], FIXA),
-  faixa('gridAlignOverlayGraphics', [], FIXA),
   faixa('hazardsGraphics', [], ['salas']),
   faixa('areaTriggersGraphics', [], ['salas']),
   faixa('faccoesGraphics', [], FIXA),
@@ -87,6 +82,14 @@ export const FAIXAS_EDITOR: readonly Faixa[] = [
   // terreno e do chão molhado (a grama pintada não cobre a água), abaixo da luz do relevo. Conta como Chão.
   faixa('aguaDoMapa', [], ['chao']),
   faixa('relevoContainer', [], ['terreno']),
+  // GRADE POR CIMA DO CHÃO (qualidade de vida, 26/11/2026): antes ficava logo acima das salas e
+  // o chão com material (Tábuas), as Texturas e a água cobriam a grade que a batalha usa. Agora
+  // passa por cima de todo o chão e fica abaixo da borda da sala, das paredes e das portas.
+  faixa('gridFloorMask', [], FIXA),
+  faixa('gridOutsideMask', [], FIXA),
+  faixa('gridOutsideGraphics', [], FIXA),
+  faixa('gridGraphics', [], FIXA),
+  faixa('gridAlignOverlayGraphics', [], FIXA),
   faixa('regionStrokesContainer', ['regiao'], ['salas']),
   faixa('pathsGraphics', ['desenho'], ['anotacoes']),
   faixa('secretPathsGraphics', ['desenho'], ['anotacoes']),
@@ -150,8 +153,6 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   faixa('mapLines', ['linha', 'marcador'], ['paredes', 'portas'], SOB),
   faixa('regions', ['regiao'], ['salas'], SOB),
   faixa('perigos', [], ['salas'], SOB),
-  faixa('gridMask', [], FIXA, SOB),
-  faixa('grid', [], FIXA, SOB),
   faixa('drawings', ['desenho'], ['desenhos'], SOB),
   faixa('texturasMask', [], ['terreno'], SOB),
   faixa('texturasContainer', [], ['terreno'], SOB),
@@ -172,6 +173,9 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   // BARRANCO: em Terreno, logo acima do relevo, com a máscara do conhecido (no editor mora dentro do relevoContainer).
   faixa('barrancoMask', [], ['terreno'], SOB),
   faixa('barrancoContainer', [], ['terreno'], SOB),
+  // GRADE POR CIMA DO CHÃO (26/11/2026), como no editor: o chão com material não a cobre mais.
+  faixa('gridMask', [], FIXA, SOB),
+  faixa('grid', [], FIXA, SOB),
   faixa('regionStrokes', ['regiao'], ['salas'], SOB),
   faixa('paths', ['desenho'], ['anotacoes'], SOB),
   faixa('carimbosMask', [], ['terreno'], SOB),
