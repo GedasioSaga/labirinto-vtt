@@ -1,5 +1,6 @@
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { FEATURES, type FeatureFlags } from '../features'
+import { motivoDaFalhaDeDisco } from '../foraDoApp'
 // Na janela do Prelúdio, o disco passa pelos comandos dela (só preparo/); na principal, é o plugin fs.
 import { exists, readDir, readTextFile, remove, writeTextFile } from '../fsDaJanela'
 import { ensureDir, writeTextFileSafely } from '../mapFileIO'
@@ -82,17 +83,36 @@ function rotuloDe(partes: readonly string[]): string {
   return [PASTA_DO_PREPARO, ...partes].join('/')
 }
 
+/**
+ * As pastas de preparo/ já montadas, por caminho relativo. No Tauri 2 o
+ * `appDataDir` e cada `join` vão ao Rust: abrir o Prelúdio montava a mesma
+ * pasta de novo para cada verbete. A pasta do app não muda com ele aberto; a
+ * falha (fora do app, ponte caída) não fica guardada.
+ */
+const pastasMontadas = new Map<string, Promise<string>>()
+
+function pastaMontada(dirs: readonly string[]): Promise<string> {
+  const chave = dirs.join('/')
+  const guardada = pastasMontadas.get(chave)
+  if (guardada !== undefined) return guardada
+  const montando = appDataDir().then((base) => join(base, PASTA_DO_PREPARO, ...dirs))
+  pastasMontadas.set(chave, montando)
+  montando.catch(() => pastasMontadas.delete(chave))
+  return montando
+}
+
 async function caminhoNoPreparo(partes: readonly string[]): Promise<{ pasta: string; arquivo: string }> {
   const nome = partes[partes.length - 1]
   if (nome === undefined || !partes.every(parteValida)) throw new Error(`"${rotuloDe(partes)}" não serve de caminho dentro do Prelúdio`)
-  const pasta = await join(await appDataDir(), PASTA_DO_PREPARO, ...partes.slice(0, -1))
+  const pasta = await pastaMontada(partes.slice(0, -1))
   return { pasta, arquivo: await join(pasta, nome) }
 }
 
 // ─── Leitura ─────────────────────────────────────────────────────────────────
 
+/** Vai no meio de "Não deu para ler X: <motivo>.": fora do app, a frase do app em vez do erro cru da ponte. */
 function motivo(erro: unknown): string {
-  return erro instanceof Error ? erro.message : String(erro)
+  return motivoDaFalhaDeDisco(erro)
 }
 
 async function lerSeExiste(caminho: string): Promise<string | null> {
