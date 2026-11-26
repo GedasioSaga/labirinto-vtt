@@ -455,7 +455,7 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
 
 <main class="pagina">
   <header class="topo">
-    <p class="data">Labirinto, mesa virtual de RPG. Levantamento de 26/11/2026, atualizado no fechamento da 0.6.1.</p>
+    <p class="data">Labirinto, mesa virtual de RPG. Levantamento de 26/11/2026, atualizado no fechamento da 0.6.1 e no teste do app instalado.</p>
     <h1>Qualidade de vida do Labirinto</h1>
     <p class="lead">15 sugestões e 26 bugs foram feitos na 0.6.1; aqui ficam só os que precisam de você confirmar.</p>
     <p class="como">Quatro dessas sugestões saíram em parte: o que falta delas está abaixo, junto com o que não deu tempo de fazer. Cada cartão diz por que ficou: decisão sua, bug que ainda precisa ser visto acontecendo, conserto feito que falta ver no app instalado, ou algo visto só no navegador.</p>
@@ -552,6 +552,7 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
     <ul>
       <li>Passeio do mestre: <code>docs/qualidade-de-vida/relatorio-mestre.md</code>. Passeio do jogador: <code>docs/qualidade-de-vida/relatorio-jogador.md</code>. Os dois fingiram uma mesa de One Piece no app aberto pelo navegador.</li>
       <li>Leitura do código: <code>docs/explorador/mapas.md</code>, <code>batalhas.md</code>, <code>preludio-e-livros.md</code> e <code>site.md</code>. Daqui entraram os bugs incertos; as “coisas erradas” ficaram só nas listas.</li>
+      <li>Teste no app instalado 0.6.1: <code>docs/qualidade-de-vida/app-instalado/RESULTADO.md</code>. Os três bugs certos dele (nome do NPC uma letra por linha, miniatura antiga e cartão esticado na Visão geral das cenas) foram consertados depois, para a próxima versão; o Balde, a marca do tldraw e os incertos viraram cartões aqui.</li>
       <li>O que foi feito: os commits da 0.6.1 de 26/11 e os relatos das faixas Batalha e Prelúdio, Livros e site. A faixa de mapas parou sem relato; os sete trabalhos que ela deixou no disco foram conferidos no app de desenvolvimento e commitados em 26/11.</li>
     </ul>
     <p>As linhas de código citadas são as da leitura de 26/11 de manhã; os consertos da 0.6.1 podem ter mudado algumas de lugar. Impacto e tamanho do conserto são estimativas.</p>
@@ -618,6 +619,13 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
         S('Sugestão', 'O Balde do Chão usa o material escolhido e enche a sala clicada; os outros dois explicam o que fazem na dica.')],
       obs: FALTA_MAPAS,
       impacto: 'medio', esforco: 'medio', fonte: 'Passeio do mestre e código' },
+    { id: 'balde-cor-da-camada', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'decidir', pergunta: true,
+      titulo: 'Balde pinta na cor da camada, não na tinta escolhida',
+      linhas: [L('Hoje', 'No app instalado, com a tinta Grama destacada, o Balde do Chão pintou marrom. Ele pinta na camada ativa (“Pintando em Camada 1”, que nasceu Terra); a tinta escolhida só vale para camada nova. Com “+ Nova camada” antes, pintou verde.'),
+        S('Falta decidir', 'Deve mudar? Ou o Balde passa a usar a tinta destacada (trocando a cor da camada ou abrindo uma camada nova sozinho), ou fica como está e a tela deixa claro que a cor vem da camada. Foi feito assim de propósito no código, por isso não mexemos.'),
+        R('lib/camadasDoPincel.ts')],
+      impacto: 'medio', esforco: 'pequeno', fonte: 'Teste no app instalado 0.6.1 (app-instalado/RESULTADO.md, item 5)',
+      fotos: [foto('app-instalado-balde-pinta-marrom', 'App instalado: tinta Grama destacada, “Pintando em Camada 1” e o chão saiu marrom.')] },
     { id: 'jogador-inimigo', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'falta',
       titulo: 'Jogador e inimigo com cara diferente',
       linhas: [L('Hoje', 'Todo token nasce azul. Marcar “Ficha de jogador” não muda nada no mapa: aliado e inimigo ficam idênticos.'),
@@ -749,7 +757,24 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
         R('FaixaDoMestre.tsx:49 e a troca de cena (App.tsx:1736)')],
       fonte: 'explorador/batalhas.md, incerto 6' },
 
+    { id: 'inc-app-selecao-sala', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Seleção pula do token para a Sala ao iniciar a batalha',
+      linhas: [L('Visto', 'No app instalado, com o token “Teste Guerreiro” selecionado, depois de Iniciar batalha a seleção passou para a “Sala 1” sem nenhum clique.'),
+        S('Confirmar', 'Aconteceu uma vez e não foi reproduzido. Selecionar um token, iniciar a batalha e ver o que fica selecionado. Você já viu isso acontecer?')],
+      conserto: 'pequeno', fonte: 'Teste no app instalado 0.6.1 (app-instalado/RESULTADO.md, item 9)' },
+    { id: 'inc-app-one-piece', para: 'mestre', area: 'Batalha', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Cabeçalho “One Piece” num mapa sem sistema',
+      linhas: [L('Visto', 'O cabeçalho da batalha diz “One Piece” num mapa de teste em que nenhum sistema foi escolhido.'),
+        S('Pergunta', 'One Piece é o sistema padrão de propósito? Se o mapa sem sistema não devia mostrar nome de sistema, o cabeçalho fica sem ele.')],
+      conserto: 'pequeno', fonte: 'Teste no app instalado 0.6.1 (app-instalado/RESULTADO.md, item 11)' },
+
     /* ---------- MESTRE: Livros e Prelúdio ---------- */
+    { id: 'tldraw-licenca', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'decidir', pergunta: true,
+      titulo: 'Marca “Get a license for production” no quadro do Prelúdio',
+      linhas: [L('Hoje', 'O quadro da sessão do Prelúdio mostra, no canto de baixo à direita, a marca d’água “Get a license for production”. Ela vem do tldraw, a biblioteca que desenha o quadro, quando roda sem licença.'),
+        S('Falta decidir', 'Conseguir uma licença do tldraw (veja as condições no site deles) ou trocar o quadro por outra ferramenta. Sem licença, o código não tira a marca.'),
+        R('client/package.json: tldraw 4.5.12')],
+      impacto: 'baixo', esforco: 'pequeno', fonte: 'Teste no app instalado 0.6.1 (app-instalado/RESULTADO.md, item 6)' },
     { id: 'livro-sem-pasta', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'decidir', pergunta: true,
       titulo: 'Ler o livro de regras sem abrir pasta',
       linhas: [L('Hoje', 'Para abrir One Piece ou Dragon Ball Tales, o livro exige uma pasta de mapas ligada. Não dá para só consultar uma regra ou uma criatura.'),
@@ -809,6 +834,17 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
         R('stores/catalogoStore.ts:68')],
       conserto: 'pequeno', fonte: 'explorador/preludio-e-livros.md, I7' },
 
+    { id: 'inc-app-contagens', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Contagens que não batem entre Carregar Mapa e o livro',
+      linhas: [L('Visto', 'Carregar Mapa diz “One Piece · 23 jogadores” e “Dragon Ball · 1 jogador”; o livro de regras diz 11 e 0 jogadores. No livro One Piece, a aba Itens diz 41 e o filtro “Todos” mostra 39.'),
+        S('Pergunta', 'Os números contam coisas diferentes de propósito? Se deviam ser iguais, é bug e entra na próxima leva.')],
+      conserto: 'pequeno', fonte: 'Teste no app instalado 0.6.1 (app-instalado/RESULTADO.md, item 7)' },
+    { id: 'inc-app-zumbi-hp', para: 'mestre', area: 'Livros e Prelúdio', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Zumbi do livro com HP 78/300',
+      linhas: [L('Visto', 'Em NPCs de combate do livro One Piece, a ficha do Zumbi está com HP 78/300: o modelo do livro aparece machucado.'),
+        S('Pergunta', 'É resto de uma batalha antiga, de antes de os zumbis terem ficha própria? Se o modelo do livro devia estar com a vida cheia, ela volta a 300.')],
+      conserto: 'pequeno', fonte: 'Teste no app instalado 0.6.1 (app-instalado/RESULTADO.md, item 8)' },
+
     /* ---------- MESTRE: Geral ---------- */
     { id: 'busca-geral', para: 'mestre', area: 'Geral', onde: 'app', situacao: 'falta',
       titulo: 'Busca geral no Ctrl+K',
@@ -861,6 +897,11 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
         S('Pergunta', 'Existe bala com efeito nos seus livros? Se não existir, não é bug hoje.'),
         R('lib/nuvem/permissao.ts:154')],
       fonte: 'explorador/site.md, incertos' },
+    { id: 'inc-app-login-google', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'incerto', pergunta: true,
+      titulo: 'Login do site sem a opção do Google',
+      linhas: [L('Visto', 'labirintolobby.pages.dev abre a tela do Cloudflare Access “Log in to labirintolobby - Cloudflare Pages” só com e-mail e “Send login code”. O pedido do Lobby fala em entrar com o Google.'),
+        S('Pergunta', 'A tela de login mudou de propósito? Se o Google devia aparecer, o provável é ser configuração do Cloudflare Access, e não código do app.')],
+      conserto: 'pequeno', fonte: 'Teste no app instalado 0.6.1 (app-instalado/RESULTADO.md, item 4)' },
     { id: 'conf-galeria', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'conferir',
       titulo: 'Galeria e ficha sob demanda no site',
       linhas: [L('Feito', 'A Galeria trata o login vencido e respostas estranhas com frases simples e tem Tentar de novo. A ficha do site virou um pedaço que só baixa quando alguém abre uma ficha.'),
