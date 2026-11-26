@@ -1,0 +1,37 @@
+/*
+ * JANELA DOS SONS (sons.html): a página Sons do livro sozinha numa janela.
+ * O papel é o mesmo da página do livro (o degradê de `.gr-pagina`), sem a
+ * lombada nem a moldura: a janela do Windows já é a moldura. Só tokens do tema.
+ */
+
+.lb-sons-janela {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  color: var(--lb-color-parchment);
+}
+
+/* Rola só a página: o topo dela (Parar tudo, volume, abas) é sticky dentro deste rolo. */
+.lb-sons-janela__rolo {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.lb-sons-janela__rolo[inert] {
+  opacity: 0.5;
+}
+
+/* Ligando, ou o app sumiu: uma faixa no alto, sem cobrir a página (ela fica à vista, apagada). */
+.lb-sons-janela__faixa {
+  flex: none;
+  margin: 0;
+  padding: 10px 16px;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+  background: var(--lb-gr-cartao);
+  border-bottom: 1px solid var(--lb-gr-filete);
+}

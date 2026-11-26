@@ -19,7 +19,7 @@ export const CHAVE_DA_PREFERENCIA_DE_SOM = 'lb-som'
 /** O pedaço de `Storage` usado: o `localStorage` real ou um dublê nos testes. */
 export type ArmazemDeSom = Pick<Storage, 'getItem' | 'setItem'>
 
-function limitarVolume(volume: number): number {
+export function limitarVolume(volume: number): number {
   return Math.min(1, Math.max(0, volume))
 }
 

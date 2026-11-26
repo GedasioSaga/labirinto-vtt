@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "sons",
+  "description": "Janela dos sons (src/janela_sons.rs): só mostra o espelho que a main manda pelo BroadcastChannel e devolve pedidos; quem toca é a main. Só ouvir evento; sem fs, dialog, emitir evento, updater, process nem comando do app.",
+  "windows": ["sons"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}

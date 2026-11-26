@@ -72,8 +72,11 @@ interface BibliotecaDeSonsState {
   carregar: () => Promise<void>
   /** Traz o `sons.json` da aventura de `pastaDaAventura`, se ela ainda não migrou. Nunca rejeita. */
   migrarAventura: (pastaDaAventura: string) => Promise<void>
-  /** Efeito novo no fim; `null` = recusado (dado inválido, 200 efeitos, lendo, sem poder gravar). */
-  adicionarEfeito: (novo: EfeitoNovo) => EfeitoDeSom | null
+  /**
+   * Efeito novo no fim; `null` = recusado (dado inválido, 200 efeitos, lendo, sem poder gravar).
+   * `id`: o da janela dos sons, que já mostra o efeito com ele (`sonsJanela/`); sem ele, sorteado.
+   */
+  adicionarEfeito: (novo: EfeitoNovo, id?: string) => EfeitoDeSom | null
   /**
    * O arquivo de áudio escolhido vira efeito: gravado direto em
    * `<appData>/sons/midia` (fora do `/media` sem chave da sala). Lança com a
@@ -83,8 +86,8 @@ interface BibliotecaDeSonsState {
   /** `false` = recusado (efeito que não existe ou campo inválido). Atalho dado a outro sai de quem tinha. */
   editarEfeito: (id: string, mudanca: MudancaNoEfeito) => boolean
   apagarEfeito: (id: string) => boolean
-  /** Categoria nova no fim da `parte` (padrão: Efeitos sonoros). */
-  criarPasta: (nome: string, parte?: ParteDosSons) => PastaDeSons | null
+  /** Categoria nova no fim da `parte` (padrão: Efeitos sonoros). `id`: como no `adicionarEfeito`. */
+  criarPasta: (nome: string, parte?: ParteDosSons, id?: string) => PastaDeSons | null
   renomearPasta: (id: string, nome: string) => boolean
   /** Os efeitos da pasta vão para a raiz. */
   apagarPasta: (id: string) => boolean
@@ -251,9 +254,9 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
       }
     },
 
-    adicionarEfeito: (novo) => {
+    adicionarEfeito: (novo, id) => {
       if (impedimento() !== null) return null
-      const resultado = comEfeitoNovo(get().biblioteca, novo)
+      const resultado = comEfeitoNovo(get().biblioteca, novo, id)
       if (resultado === null) return null
       aplicar(resultado.biblioteca)
       return resultado.efeito
@@ -273,9 +276,9 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
     editarEfeito: (id, mudanca) => mudar(comEfeitoMudado(get().biblioteca, id, mudanca)),
     apagarEfeito: (id) => mudar(semEfeito(get().biblioteca, id)),
 
-    criarPasta: (nome, parte) => {
+    criarPasta: (nome, parte, id) => {
       if (impedimento() !== null) return null
-      const resultado = comPastaNova(get().biblioteca, nome, undefined, parte)
+      const resultado = comPastaNova(get().biblioteca, nome, id, parte)
       if (resultado === null) return null
       aplicar(resultado.biblioteca)
       return resultado.pasta

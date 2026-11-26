@@ -22,6 +22,7 @@ import {
 import { arquivosDaMidiaDaPasta, carregarBytesDoMestre, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
 import { MAX_LOOPS, PRE_CARGA_MAX_ARQUIVOS, type CarregadorDeBytes, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
 import { tocarAmostra } from '../../lib/sons/tocarSom'
+import { abrirSonsEmJanela, ligarSonsEmJanela, podeAbrirSonsEmJanela, trazerSonsParaOApp, useSonsEmJanela, type FiosDosSons } from '../../sonsJanela/controleDaJanela'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { ligarBibliotecaGlobal, SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, useBibliotecaDeSonsStore } from '../../stores/bibliotecaDeSonsStore'
 import { estaCalado, percentualDoVolume, useSomStore } from '../../stores/somStore'
@@ -222,7 +223,7 @@ function pararAoSairOuTrocarDeAventura(sons: Pick<PonteDosSons, 'pararTudo'>): (
 }
 
 /** O aviso de um som que não tocou; com chave, dez recusas seguidas são um aviso só, trocado no lugar. */
-function avisarRecusaDoSom(motivo: MotivoDaRecusa, nome: string): void {
+export function avisarRecusaDoSom(motivo: MotivoDaRecusa, nome: string): void {
   const { tipo, frase } = FRASE_DA_RECUSA[motivo]
   useToastStore.getState().push(tipo, frase(nome), undefined, { chave: `sons:${motivo}` })
 }
@@ -248,12 +249,14 @@ export function midiasParaPreCarregar(biblioteca: BibliotecaDeSons): string[] {
  * Os toques que estão soando, pelo id do efeito (a instância do motor é o próprio id).
  * `aoRecusar`: o motor daqui recusou (na hora ou depois do clique, quando o arquivo não abre).
  */
-function useToquesDoMotor(motor: MotorAoVivo, nomeDe: (id: string) => string, aoRecusar: (id: string) => void): ReadonlyMap<string, Toque> {
+function useToquesDoMotor(motor: MotorDaPagina, nomeDe: (id: string) => string, aoRecusar: (id: string) => void, avisarRecusa: boolean): ReadonlyMap<string, Toque> {
   const [toques, setToques] = useState<ReadonlyMap<string, Toque>>(() => new Map())
   const nome = useRef(nomeDe)
   nome.current = nomeDe
   const recusou = useRef(aoRecusar)
   recusou.current = aoRecusar
+  const avisar = useRef(avisarRecusa)
+  avisar.current = avisarRecusa
   useEffect(() => {
     let vez = 0
     const tirar = (id: string) =>
@@ -274,7 +277,7 @@ function useToquesDoMotor(motor: MotorAoVivo, nomeDe: (id: string) => string, ao
       } else if (evento.tipo === 'recusado') {
         tirar(evento.instancia)
         recusou.current(evento.instancia)
-        avisarRecusaDoSom(evento.motivo, nome.current(evento.instancia))
+        if (avisar.current) avisarRecusaDoSom(evento.motivo, nome.current(evento.instancia))
       }
     })
   }, [motor])
@@ -298,6 +301,29 @@ function pulsar(selo: HTMLElement | undefined): void {
   )
 }
 
+/** O que a página usa do motor: os eventos (o que soa) e o "Ouvir" do lápis e do link. */
+export type MotorDaPagina = Pick<MotorAoVivo, 'assinar' | 'tocar' | 'parar'>
+/** O que a página usa da ponte (aqui e na mesa). */
+export type PonteDaPagina = Pick<PonteDosSons, 'tocar' | 'parar' | 'pararTudo' | 'mudarVolume'>
+
+/**
+ * A página na JANELA DOS SONS (`sonsJanela/`): quem toca, importa, mede e lê
+ * o disco é o app, pelo fio; a página não liga a biblioteca, a sala nem o
+ * "para tudo ao sair" (fechar a janela não cala nada).
+ */
+export interface SonsNaJanela {
+  motor: MotorDaPagina
+  ponte: PonteDaPagina
+  /** A amostra que confirma o volume, tocada pelo app. */
+  tocarAmostra: () => void
+  /** Importa no app; devolve o nome do som que entrou ou lança a frase pronta. */
+  importar: (nomeDoArquivo: string, bytes: Uint8Array, parte: ParteDosSons) => Promise<string>
+  medirMidia: (pastaDaBiblioteca: string) => Promise<ArquivosDaMidia>
+  carregarAudio: CarregadorDeBytes
+  /** Fecha a janela e devolve a página ao livro. */
+  onVoltar: () => void
+}
+
 export interface PaginaSonsProps {
   /** Quem toca; o padrão é o motor do mestre (bytes do disco). O teste passa um com o áudio de mentira. */
   motor?: MotorAoVivo
@@ -305,10 +331,72 @@ export interface PaginaSonsProps {
   medirMidia?: (pastaDaBiblioteca: string) => Promise<ArquivosDaMidia>
   /** Quem traz os bytes para a onda do trecho no lápis; o padrão lê a pasta da biblioteca. */
   carregarAudio?: CarregadorDeBytes
+  /** Só na janela dos sons: tudo o que toca ou lê o disco vai ao app. */
+  naJanela?: SonsNaJanela
 }
 
-export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaPasta, carregarAudio = carregarBytesDoMestre }: PaginaSonsProps) {
-  const [motor] = useState(() => motorDado ?? obterMotorDoMestre())
+/** Os fios da página, fixos na montagem: no app, o motor e a ponte de verdade; na janela, os do fio. */
+interface FiosDaPagina {
+  /** `null` na janela dos sons. */
+  doApp: FiosDosSons | null
+  motor: MotorDaPagina
+  ponte: PonteDaPagina
+}
+
+function fiosDaPagina(motorDado: MotorAoVivo | undefined, naJanela: SonsNaJanela | undefined): FiosDaPagina {
+  if (naJanela !== undefined) return { doApp: null, motor: naJanela.motor, ponte: naJanela.ponte }
+  const motor = motorDado ?? obterMotorDoMestre()
+  // SONS AO VIVO (F5): o que toca aqui vai também à mesa pela ponte, quando há sala.
+  const ponte = criarPonteDosSons({ motor, rede: redeDosSons })
+  return { doApp: { motor, ponte }, motor, ponte }
+}
+
+async function importarNaLoja(nomeDoArquivo: string, bytes: Uint8Array, parte: ParteDosSons): Promise<string> {
+  return (await useBibliotecaDeSonsStore.getState().importarArquivoDeSom(nomeDoArquivo, bytes, parte)).nome
+}
+
+function avisarDaJanela(texto: string): void {
+  useToastStore.getState().push('info', texto)
+}
+
+function tocarAmostraAqui(): void {
+  tocarAmostra(SOM_DE_AMOSTRA)
+}
+
+/**
+ * O que fica no livro com a página na janela dos sons: onde ela está e como
+ * trazê-la (o molde da pílula da mesa da batalha). O tracejado é o lugar vazio
+ * da página: ela não sumiu, só está na outra janela.
+ */
+function SonsNaOutraJanela() {
+  return (
+    <div className="lb-sons" role="region" aria-label="Sons">
+      <TituloDaPagina titulo="Sons" sub="Músicas e efeitos de todas as aventuras" />
+      <div className="lb-sons__na-janela" role="status">
+        <p className="lb-sons__na-janela-titulo">
+          <IconeDestacar />
+          Sons abertos em janela
+        </p>
+        <p className="lb-sons__nota">O som continua saindo deste computador, e as teclas 1 a 9 seguem valendo aqui no mapa.</p>
+        <div className="lb-sons__linha">
+          <Botao tamanho="p" variante="latao" onClick={() => void trazerSonsParaOApp()}>
+            Trazer de volta
+          </Botao>
+          <Botao tamanho="p" variante="fantasma" onClick={() => void abrirSonsEmJanela()}>
+            Mostrar a janela
+          </Botao>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function PaginaSons({ motor: motorDado, medirMidia: medirNoDisco = arquivosDaMidiaDaPasta, carregarAudio: carregarDoDisco = carregarBytesDoMestre, naJanela }: PaginaSonsProps) {
+  const [{ doApp, motor, ponte }] = useState(() => fiosDaPagina(motorDado, naJanela))
+  const medirMidia = naJanela === undefined ? medirNoDisco : naJanela.medirMidia
+  const carregarAudio = naJanela === undefined ? carregarDoDisco : naJanela.carregarAudio
+  const importarSom = naJanela === undefined ? importarNaLoja : naJanela.importar
+  const emJanela = useSonsEmJanela((estado) => estado.emJanela)
   const biblioteca = useBibliotecaDeSonsStore((estado) => estado.biblioteca)
   const pasta = useBibliotecaDeSonsStore((estado) => estado.pasta)
   const carregando = useBibliotecaDeSonsStore((estado) => estado.carregando)
@@ -330,27 +418,36 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaPas
   const botaoImportar = useRef<HTMLButtonElement>(null)
   const selos = useRef(new Map<string, HTMLElement>())
 
-  // SONS AO VIVO (F5): o que toca aqui vai também à mesa pela ponte, quando há sala.
-  const [ponte] = useState(() => criarPonteDosSons({ motor, rede: redeDosSons }))
   const rede = useSyncExternalStore(assinarRedeDosSons, redeDosSons)
 
-  useEffect(() => ligarBibliotecaGlobal(), [])
-  useEffect(() => pararAoSairOuTrocarDeAventura(ponte), [ponte])
+  // Na janela dos sons nada disto liga: a biblioteca, a sala e o "para tudo ao sair" são da página do app.
+  useEffect(() => (doApp === null ? undefined : ligarBibliotecaGlobal()), [doApp])
+  useEffect(() => (doApp === null ? undefined : pararAoSairOuTrocarDeAventura(doApp.ponte)), [doApp])
   // A sala só serve áudio de dentro da pasta da biblioteca de sons: a ponte conta qual é ao servidor dela.
-  useEffect(() => informarPastaDosSons(pasta), [pasta])
-  useEffect(() => () => informarPastaDosSons(null), [])
+  useEffect(() => {
+    if (doApp !== null) informarPastaDosSons(pasta)
+  }, [doApp, pasta])
+  useEffect(
+    () => () => {
+      if (doApp !== null) informarPastaDosSons(null)
+    },
+    [doApp],
+  )
+  // A janela dos sons (só no app): o fio liga aqui, com o motor e a ponte desta página, que segue montada.
+  useEffect(() => (doApp === null || !podeAbrirSonsEmJanela() ? undefined : ligarSonsEmJanela(doApp, avisarDaJanela)), [doApp])
 
   // Os favoritos leves descem para a mesa antes do clique: ao abrir a sala e quando a lista deles muda.
   const preCarga = useMemo(() => midiasParaPreCarregar(biblioteca).join(' '), [biblioteca])
   useEffect(() => {
-    if (rede === null || carregando || preCarga === '') return
+    if (doApp === null || rede === null || carregando || preCarga === '') return
     rede.precarregarSonsAoVivo(preCarga.split(' '), ALVO_TODOS)
-  }, [rede, carregando, preCarga])
+  }, [doApp, rede, carregando, preCarga])
 
   // O motor daqui recusou depois do clique (o arquivo não abre neste computador): a mesa já recebeu o toque, e um
   // loop lá seguiria sem botão aceso para pará-lo. O mestre ouve o que a mesa ouve: para lá também (sem apelido, nada sai).
   const pararNaMesa = (id: string) => ponte.parar(id)
-  const toques = useToquesDoMotor(motor, (id) => useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === id)?.nome ?? 'O som', pararNaMesa)
+  // Com a página na janela dos sons, quem avisa da recusa é a janela (o mestre está olhando para ela).
+  const toques = useToquesDoMotor(motor, (id) => useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === id)?.nome ?? 'O som', pararNaMesa, !emJanela)
   const toquesAgora = useRef(toques)
   toquesAgora.current = toques
 
@@ -452,8 +549,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaPas
         continue
       }
       try {
-        const efeito = await useBibliotecaDeSonsStore.getState().importarArquivoDeSom(escolhido.name, new Uint8Array(await escolhido.arrayBuffer()), destino)
-        ultimo = efeito.nome
+        ultimo = await importarSom(escolhido.name, new Uint8Array(await escolhido.arrayBuffer()), destino)
       } catch (erro) {
         falhas.push(fraseDaRecusaDoArquivo(escolhido.name, erro))
       }
@@ -477,11 +573,36 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaPas
     if (escolhidos.length > 0) void importar(escolhidos)
   }
 
+  // O lápis e o link abertos aqui não voltam sozinhos quando a página volta da janela dos sons.
+  useEffect(() => {
+    if (!emJanela) return
+    setEditando(null)
+    setColandoLink(false)
+  }, [emJanela])
+
   const efeitoEditado = editando === null ? undefined : biblioteca.efeitos.find((efeito) => efeito.id === editando)
+
+  // A página foi para a janela dos sons: aqui sobra o aviso (tudo acima segue ligado: o motor, a sala e as teclas 1 a 9).
+  if (doApp !== null && emJanela) return <SonsNaOutraJanela />
 
   return (
     <div className="lb-sons" role="region" aria-label="Sons">
-      <TituloDaPagina titulo="Sons" sub="Músicas e efeitos de todas as aventuras" />
+      <div className="lb-sons__cabeca">
+        <div className="lb-sons__cabeca-texto">
+          <TituloDaPagina titulo="Sons" sub="Músicas e efeitos de todas as aventuras" />
+        </div>
+        {naJanela !== undefined ? (
+          <Botao tamanho="p" soIcone aria-label="Trazer de volta ao livro" title="Trazer de volta ao livro: fecha esta janela e os sons voltam para a página do app" className="lb-sons__destacar" onClick={naJanela.onVoltar}>
+            <IconeTrazerDeVolta />
+          </Botao>
+        ) : (
+          podeAbrirSonsEmJanela() && (
+            <Botao tamanho="p" soIcone aria-label="Abrir em janela" title="Abrir em janela: os sons vão para uma janela à parte, que pode ir para o outro monitor" className="lb-sons__destacar" onClick={() => void abrirSonsEmJanela()}>
+              <IconeDestacar />
+            </Botao>
+          )
+        )}
+      </div>
       <div className="lb-sons__topo">
         {/* Hierarquia: parar (o pânico, largo) antes de tocar (a grade) antes de importar (preparo, discreto). */}
         <div className="lb-sons__linha">
@@ -503,7 +624,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaPas
         <p className="lb-sons__soando" aria-live="polite">
           {toques.size === 0 ? 'Nada tocando' : toques.size === 1 ? '1 tocando' : `${toques.size} tocando`}
         </p>
-        <VolumeDoAparelho tocandoAlgo={toques.size > 0} />
+        <VolumeDoAparelho tocandoAlgo={toques.size > 0} tocarAmostra={naJanela === undefined ? tocarAmostraAqui : naJanela.tocarAmostra} />
         {importando !== null && (
           <p className="lb-sons__nota" role="status">
             Importando {importando}…
@@ -1154,8 +1275,8 @@ function EditorDoSom({
 }: {
   efeito: EfeitoDeSom
   biblioteca: BibliotecaDeSons
-  motor: MotorAoVivo
-  ponte: PonteDosSons
+  motor: MotorDaPagina
+  ponte: PonteDaPagina
   carregarAudio: CarregadorDeBytes
   tocando: boolean
   onFechar: () => void
@@ -1377,7 +1498,7 @@ const ICONE_DO_MUDO = { size: 16, strokeWidth: 1.6 }
  * clique), e nada disso vai pela rede: cada jogador ouve no volume do próprio
  * aparelho, e o volume de cada som continua o mesmo.
  */
-function VolumeDoAparelho({ tocandoAlgo }: { tocandoAlgo: boolean }) {
+function VolumeDoAparelho({ tocandoAlgo, tocarAmostra }: { tocandoAlgo: boolean; tocarAmostra: () => void }) {
   const volume = useSomStore((estado) => estado.volume)
   const mudo = useSomStore((estado) => estado.mudo)
   const faixaId = useId()
@@ -1396,7 +1517,7 @@ function VolumeDoAparelho({ tocandoAlgo }: { tocandoAlgo: boolean }) {
   function alternarMudo(): void {
     useSomStore.getState().alternarMudo()
     // Sem nada tocando, a amostra confirma que o som voltou; com música tocando, a própria música confirma.
-    if (!useSomStore.getState().mudo && !tocandoAlgo) tocarAmostra(SOM_DE_AMOSTRA)
+    if (!useSomStore.getState().mudo && !tocandoAlgo) tocarAmostra()
   }
 
   return (
@@ -1468,6 +1589,16 @@ function IconeNota() {
 /** Efeito sonoro: a onda curta. */
 function IconeOnda() {
   return <IconeSvg d="M3.5 12h1.5 M7.5 9v6 M11 5.5v13 M14.5 8.5v7 M18 10.5v3 M20.5 12h0" />
+}
+
+/** Abrir em janela: o quadro com a seta saindo pelo canto. */
+function IconeDestacar() {
+  return <IconeSvg d="M13 4.5h6.5V11 M19.5 4.5L11.5 12.5 M17 14v4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 5 18V9a1.5 1.5 0 0 1 1.5-1.5h4" />
+}
+
+/** Trazer de volta: a seta entrando no quadro. */
+function IconeTrazerDeVolta() {
+  return <IconeSvg d="M19.5 4.5L12.5 11.5 M12.5 6v5.5H18 M17 14v4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 5 18V9a1.5 1.5 0 0 1 1.5-1.5h4" />
 }
 
 function IconeRepetir() {

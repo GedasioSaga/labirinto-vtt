@@ -4,6 +4,7 @@ use tauri_plugin_fs::FsExt;
 pub mod ia;
 pub mod janela_batalha;
 pub mod janela_preludio;
+pub mod janela_sons;
 pub mod net;
 pub mod nuvem;
 pub mod preludio;
@@ -81,6 +82,9 @@ pub fn run() {
             // Mesa da batalha em janela própria: abrir/fechar só da main; a janela só mostra e pede pelo canal.
             janela_batalha::abrir_janela_batalha,
             janela_batalha::fechar_janela_batalha,
+            // Página Sons em janela própria: o mesmo molde da mesa da batalha (quem toca segue sendo a main).
+            janela_sons::abrir_janela_sons,
+            janela_sons::fechar_janela_sons,
             preludio::disco_da_janela::preludio_disco_existe,
             preludio::disco_da_janela::preludio_disco_ler,
             preludio::disco_da_janela::preludio_disco_listar,
@@ -126,6 +130,7 @@ pub fn run() {
             visao_jogador::ao_evento_de_janela(handle, &label, &event);
             janela_preludio::ao_evento_de_janela(handle, &label, &event);
             janela_batalha::ao_evento_de_janela(handle, &label, &event);
+            janela_sons::ao_evento_de_janela(handle, &label, &event);
         }
         _ => {}
     });

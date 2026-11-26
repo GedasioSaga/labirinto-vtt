@@ -11,6 +11,33 @@
 
 .lb-sons { display: flex; flex-direction: column; min-width: 0; padding-bottom: 18px; }
 
+/* ---------------------------------------------------------------- cabeça: título e o destacar */
+/* O botão de ícone fica na altura da linha do título, encostado à direita: discreto (sem fundo) até o hover. */
+.lb-sons__cabeca { display: flex; align-items: flex-start; min-width: 0; }
+.lb-sons__cabeca-texto { flex: 1 1 auto; min-width: 0; }
+.lb-sons__destacar { flex: none; margin: 9px 10px 0 0; }
+
+/* ---------------------------------------------------------------- a página na janela dos sons */
+/* O tracejado é o lugar vazio da página: ela não sumiu, está na outra janela. */
+.lb-sons__na-janela {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 16px 0;
+  padding: 12px;
+  border: 1px dashed var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-md);
+}
+.lb-sons__na-janela-titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font: 500 var(--lb-font-size-md)/1.25 var(--lb-font-sans);
+  color: var(--lb-color-parchment);
+}
+.lb-sons__na-janela-titulo > .gr-ic { flex: none; width: 16px; height: 16px; color: var(--lb-color-brass-bright); }
+
 /* ---------------------------------------------------------------- topo fixo */
 .lb-sons__topo {
   position: sticky;

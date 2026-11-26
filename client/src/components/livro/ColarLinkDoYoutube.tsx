@@ -35,7 +35,8 @@ function nomePadrao(video: string): string {
 }
 
 export interface ColarLinkDoYoutubeProps {
-  motor: MotorAoVivo
+  /** Só a prova: tocar, parar e os eventos (na janela dos sons, o motor do app pelo fio). */
+  motor: Pick<MotorAoVivo, 'assinar' | 'tocar' | 'parar'>
   /** Guarda na biblioteca; devolve a frase da recusa (`null` = entrou). */
   onGuardar: (novo: EfeitoNovo) => string | null
   onFechar: () => void

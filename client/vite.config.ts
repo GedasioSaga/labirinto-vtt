@@ -136,6 +136,8 @@ export default defineConfig({
         preludio: 'preludio.html',
         // A mesa da batalha numa janela à parte (desktop/src-tauri/src/janela_batalha.rs).
         batalha: 'batalha.html',
+        // A página Sons do livro numa janela à parte (desktop/src-tauri/src/janela_sons.rs).
+        sons: 'sons.html',
       },
     },
   },
