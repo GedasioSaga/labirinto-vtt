@@ -51,6 +51,7 @@ export function CampoSeg<V extends string>({ rotulo, nomeAcessivel, opcoes, valo
             key={opcao.valor}
             type="button"
             role="radio"
+            data-valor={opcao.valor}
             className={classes('gr-seg__op', opcao.soIcone && 'gr-seg__op--ic')}
             aria-checked={opcao.valor === valor}
             tabIndex={indice === focavel ? 0 : -1}

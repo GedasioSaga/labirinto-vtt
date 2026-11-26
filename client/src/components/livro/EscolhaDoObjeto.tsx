@@ -7,6 +7,7 @@ import { Botao } from '../grimorio/Botao'
 import { CampoSeg } from '../grimorio/CampoSeg'
 import { classes } from '../grimorio/comum'
 import type { OpcaoDoEixo } from '../ToolVariantMenu'
+import { useArrastarObjetoParaOMapa } from './arrastarObjetoParaOMapa'
 import { IconeDoLivro } from './icones'
 import './escolhaDoObjeto.css'
 
@@ -110,6 +111,8 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher, daOutraFerr
   const ids = useId()
   const entradaRef = useRef<HTMLInputElement | null>(null)
   const listaRef = useRef<HTMLDivElement | null>(null)
+  // Arrastar um objeto da lista para o mapa, como no Acervo de tokens (`arrastarObjetoParaOMapa.ts`).
+  useArrastarObjetoParaOMapa(listaRef, escolher)
   const [busca, setBuscaNaTela] = useState(buscaGuardada)
   /** Toda mudança da busca passa por aqui: a tela e a cópia que sobrevive ao desmonte andam juntas. */
   const mudarBusca = (texto: string) => {
