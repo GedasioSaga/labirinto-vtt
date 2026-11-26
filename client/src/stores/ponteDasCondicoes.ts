@@ -1,6 +1,6 @@
 import { chavesDoDragonBall, chavesDosSelos, espelharNoMapa, mudancasDaPonte, type ChavesPorFicha, type MudancaDaPonte } from '../lib/ponteDasCondicoes'
 import type { MapData } from '../types/map'
-import { useAdventureStore } from './adventureStore'
+import { personagensAtivos, useAdventureStore } from './adventureStore'
 import { useBatalhaDBTStore, type CenaDBT } from './batalhaDBTStore'
 import { useBatalhaStore, type BatalhaDaCena } from './batalhaStore'
 import { useCondicoesPropriasStore } from './condicoesPropriasStore'
@@ -80,6 +80,8 @@ export function ligarPonteDasCondicoes(): () => void {
     if (state.map.tokens !== anterior.map.tokens) espelhar(chaveDaCenaAberta())
   })
   const desligarFundo = useAdventureStore.subscribe((state, anterior) => {
+    // ITENS REFEITOS, E6c: a condição posta ou tirada na FICHA (o menu do token, o painel) entra no espelho da batalha na hora.
+    if (personagensAtivos(state) !== personagensAtivos(anterior)) for (const sceneKey of Object.keys(useBatalhaStore.getState().cenas)) espelhar(sceneKey)
     if (state.cache === anterior.cache) return
     for (const sceneKey of Object.keys(useBatalhaStore.getState().cenas)) {
       const agora = state.cache[sceneKey]
