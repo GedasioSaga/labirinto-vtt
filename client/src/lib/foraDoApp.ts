@@ -38,3 +38,13 @@ export function motivoDaFalhaDeArquivo(err: unknown, temPonte: boolean): string 
   if (!ensinaOQueFazer(err) && !temPonte) return ARQUIVO_SO_NO_APP_MESSAGE
   return err instanceof Error ? err.message : String(err)
 }
+
+/**
+ * O motivo de uma falha de disco para ir no meio de uma frase ("Não deu para
+ * ler X: <motivo>."): fora do app, a frase do app em vez do `TypeError` cru da
+ * ponte; sem o ponto final do próprio erro, porque quem monta a frase põe o seu
+ * (sem isso saía "..").
+ */
+export function motivoDaFalhaDeDisco(err: unknown): string {
+  return motivoDaFalhaDeArquivo(err, temPonteDoApp()).replace(/[.\s]+$/, '')
+}

@@ -1,5 +1,6 @@
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
+import { motivoDaFalhaDeDisco } from '../foraDoApp'
 import { ensureDir, writeTextFileSafely } from '../mapFileIO'
 import { idValido } from '../sistemaDeRpg'
 import { catalogoDoArquivo, serializarCatalogo, type ItemDoCatalogo } from './catalogo'
@@ -25,8 +26,9 @@ export interface CatalogoLido {
   lido: boolean
 }
 
+/** Vai no meio de "Não foi possível ler X: <motivo>.": fora do app, a frase do app em vez do erro cru da ponte. */
 function mensagemDoErro(erro: unknown): string {
-  return erro instanceof Error ? erro.message : String(erro)
+  return motivoDaFalhaDeDisco(erro)
 }
 
 /** O id do sistema vira nome de pasta: só o formato de `idValido` (sem `..`, sem barra). */

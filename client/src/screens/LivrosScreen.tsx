@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { IconeDoMundo } from '../components/livros/icones'
 import { MundoDoLivro } from '../components/livros/MundoDoLivro'
 import { ehEmbutido } from '../lib/bibliotecaDeSistemas'
+import { temPonteDoApp } from '../lib/foraDoApp'
 import { entraNaBatalha } from '../lib/livros/combate'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../lib/motores'
 import { lerIndiceDasPastas, lerRpgDaPasta } from '../lib/pastasDeMapas'
@@ -73,8 +74,13 @@ function gravarUltima(sistemaId: string, pastaId: string): void {
   }
 }
 
+/** No navegador não há ponte para o disco, e os livros moram nas pastas de mapas: sem o app não há o que ler. */
+const LIVROS_SO_NO_APP = 'Os livros de regras só abrem no aplicativo instalado do Labirinto: no navegador a página não tem acesso às pastas de mapas do computador.'
+
 /** As pastas que têm "Sistema universal", com as contagens. Nunca lança: o que não leu vira aviso. */
 async function lerPastasComSistema(): Promise<{ pastas: PastaComSistema[]; aviso: string | null }> {
+  // Fora do app, ler dava o erro cru da ponte ("Cannot read properties of undefined") e a instrução de Carregar Mapa, que não resolve.
+  if (!temPonteDoApp()) return { pastas: [], aviso: LIVROS_SO_NO_APP }
   const { indice, aviso } = await lerIndiceDasPastas()
   let ilegiveis = 0
   const lidas = await Promise.all(
@@ -128,6 +134,7 @@ function CartaoDoSistema({ sistema, pastas, onEscolher }: { sistema: SistemaDeRp
   const temMundo = temMundoDoLivro(sistema)
   let motivo: string | null = null
   if (!temMundo) motivo = 'Ainda sem mundo do livro: por enquanto só o One Piece e o Dragon Ball Tales têm NPCs de combate e Comparar.'
+  else if (!temPonteDoApp()) motivo = 'Abre só no aplicativo instalado.'
   else if (pastas.length === 0) motivo = `Nenhuma pasta de mapas usa o ${sistema.nome}. Em Carregar Mapa, abra a configuração de uma pasta e escolha ${sistema.nome} em Sistema universal.`
   const unica = pastas.length === 1 ? pastas[0] : undefined
   const soma = (campo: 'jogadores' | 'npcs') => pastas.reduce((total, pasta) => total + pasta[campo], 0)

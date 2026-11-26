@@ -2,6 +2,7 @@ import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { nomeDoJogadorLimpo } from '../personagem'
 import { chaveDoNome } from '../contasDosJogadores'
+import { motivoDaFalhaDeDisco } from '../foraDoApp'
 import { ensureDir, writeTextFileSafely } from '../mapFileIO'
 
 /**
@@ -102,7 +103,7 @@ export async function lerJogadoresVistos(): Promise<{ vistos: JogadorVisto[]; av
     if (!(await exists(arquivo))) return { vistos: [], aviso: null }
     return { vistos: jogadoresVistosDoArquivo(JSON.parse(await readTextFile(arquivo))), aviso: null }
   } catch (erro) {
-    return { vistos: [], aviso: `${AVISO}: ${erro instanceof Error ? erro.message : String(erro)}.` }
+    return { vistos: [], aviso: `${AVISO}: ${motivoDaFalhaDeDisco(erro)}.` }
   }
 }
 
@@ -116,7 +117,7 @@ export function gravarJogadoresVistos(vistos: readonly JogadorVisto[]): Promise<
       await ensureDir(pasta)
       await writeTextFileSafely(arquivo, serializarJogadoresVistos(vistos))
     } catch (erro) {
-      throw new Error(`Não foi possível gravar os jogadores vistos na mesa: ${erro instanceof Error ? erro.message : String(erro)}.`)
+      throw new Error(`Não foi possível gravar os jogadores vistos na mesa: ${motivoDaFalhaDeDisco(erro)}.`)
     }
   })
   filaDosVistos = resultado.then(

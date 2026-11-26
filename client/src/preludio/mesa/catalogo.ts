@@ -3,6 +3,7 @@ import { exists, readTextFile } from '../../lib/fsDaJanela'
 import { useMemo } from 'react'
 import { create } from 'zustand'
 import { ADVENTURE_FILE, parseAdventure, type SceneEntry } from '../../lib/adventure'
+import { motivoDaFalhaDeArquivo, temPonteDoApp } from '../../lib/foraDoApp'
 import { defaultMapsDir, listSavedMaps, loadMapFromDisk } from '../../lib/mapFileIO'
 import { lerIndiceDasPastas, lerRpgDaPasta } from '../../lib/pastasDeMapas'
 import type { AlvoNaMesa } from '../../lib/preparo/sessoes'
@@ -74,8 +75,9 @@ interface EstadoDoCatalogo {
   esquecer: () => void
 }
 
+/** Fora do app, a frase do app em vez do erro cru da ponte ("Cannot read properties of undefined"). */
 function motivo(erro: unknown): string {
-  return erro instanceof Error ? erro.message : String(erro)
+  return motivoDaFalhaDeArquivo(erro, temPonteDoApp())
 }
 
 export function chaveDosPinos(chave: string, sceneId: string): string {
