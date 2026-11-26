@@ -291,12 +291,34 @@ function AdicionarAMochila({ onAdicionar, onFechar }: { onAdicionar: (item: Item
     if (motivo === null) setBusca('')
   }
 
+  // O que o Enter da busca dá: o primeiro achado do Acervo; sem achado, o item novo pelo nome.
+  // Com a busca vazia, nada: a lista é só sugestão, e o Enter não pode dar um item ao acaso.
+  const primeiroAchado = termo === '' ? undefined : achados.at(0)
+  const itemNovoPeloEnter = termo !== '' && primeiroAchado === undefined && nomeNovo !== '' && !jaNoAcervo
+  const escolherPeloEnter = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+    event.preventDefault()
+    if (primeiroAchado !== undefined) adicionar(itemParaDar(primeiroAchado, itens))
+    else if (itemNovoPeloEnter) adicionar({ nome: nomeNovo })
+  }
+
   return (
     <div className="lb-inv-mestre__form" role="group" aria-label="Adicionar à mochila" onKeyDown={escFechaSo(onFechar)}>
       <div className="lb-inv-mestre__linha">
         <label className="lb-field" htmlFor={`${idBase}-busca`}>
           <span className="lb-label">Buscar no Acervo ou nome do item novo</span>
-          <input id={`${idBase}-busca`} className="lb-input" type="search" value={busca} maxLength={ITEM_NAME_MAX_LENGTH} placeholder="Balas de prata, Poção…" onChange={(event) => setBusca(event.target.value)} />
+          {/* Foco na busca ao abrir: o "+ Adicionar" sai da tela no clique, e o foco caía no corpo da página. */}
+          <input
+            id={`${idBase}-busca`}
+            className="lb-input"
+            type="search"
+            value={busca}
+            maxLength={ITEM_NAME_MAX_LENGTH}
+            placeholder="Balas de prata, Poção…"
+            autoFocus
+            onChange={(event) => setBusca(event.target.value)}
+            onKeyDown={escolherPeloEnter}
+          />
         </label>
         <label className="lb-field" htmlFor={`${idBase}-qtd`}>
           <span className="lb-label">Quantidade</span>
@@ -307,7 +329,8 @@ function AdicionarAMochila({ onAdicionar, onFechar }: { onAdicionar: (item: Item
         <ul className="lb-inv-mestre__achados" aria-label="Itens do Acervo">
           {achados.map((item) => (
             <li key={item.id}>
-              <button type="button" className="lb-btn lb-btn--compact" onClick={() => adicionar(itemParaDar(item, itens))}>
+              {/* O destaque marca o que o Enter da busca dá. */}
+              <button type="button" className={item === primeiroAchado ? 'lb-btn lb-btn--primary lb-btn--compact' : 'lb-btn lb-btn--compact'} onClick={() => adicionar(itemParaDar(item, itens))}>
                 {item.nome}
                 {item.categoria !== '' && <small className="lb-inv-mestre__cat"> · {item.categoria}</small>}
               </button>
@@ -324,7 +347,7 @@ function AdicionarAMochila({ onAdicionar, onFechar }: { onAdicionar: (item: Item
       )}
       <div className="lb-inv__acoes">
         {nomeNovo !== '' && !jaNoAcervo && (
-          <button type="button" className="lb-btn lb-btn--primary lb-btn--compact" onClick={() => adicionar({ nome: nomeNovo })}>
+          <button type="button" className={itemNovoPeloEnter ? 'lb-btn lb-btn--primary lb-btn--compact' : 'lb-btn lb-btn--compact'} onClick={() => adicionar({ nome: nomeNovo })}>
             Item novo: {nomeNovo}
           </button>
         )}

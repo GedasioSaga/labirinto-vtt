@@ -125,14 +125,15 @@ import { revelacaoDoPino } from '../cenario/revelacao/doPino'
 import { atenderReleitura, cenarioQueAbreAoChegar, chaveDaRevelacao, revelacaoAoChegar, revelacaoDoLerAgora, useRelerCenario, type RevelacaoAberta, type RevelacaoNaTela } from './cenarioNaTela'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { PERIODO_PADRAO } from '../lib/periodo'
-import { DiceFeed } from '../components/DiceControls'
+import { RolagensDoCanto } from './RolagensDoCanto'
 import type { DiceRollEntry } from '../lib/dice'
 import type { DestinationMark, SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { tokenReachesPin } from '../lib/doorReach'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
-import { carriedItemsOf, giveTargets } from '../lib/items'
+import { carriedItemsOf, giveTargets, itemOfPin } from '../lib/items'
+import { lojaParaJogador } from '../lib/loja'
 import { fichasComAMochilaDasLigacoes } from '../lib/batalha/municaoDaFicha'
 import { limiteDeArmas } from '../lib/batalha/leituraDaFicha'
 import { moedasDe, ownTradeToken, purseToward } from '../lib/troca'
@@ -199,6 +200,11 @@ const NO_VISION: RegionPoint[][] = []
 const IGNORE_MOVE = (): void => {}
 /** TERRENO ALTO: sem fichas do piso de cima (referência estável). */
 const SEM_FICHAS_DE_CIMA: readonly Token[] = []
+
+/** O cartão do pino tem o que a revelação do local não tem: o "Pegar" do item ou a banca da loja. */
+function cartaoTemOQueFazer(pino: Pin): boolean {
+  return itemOfPin(pino) !== null || lojaParaJogador(pino) !== null
+}
 
 /** TERRENO ALTO: o filtro CSS da vista do piso de baixo — mais alto, mais borrado, mais escuro e com menos cor. */
 function filtroDaVistaDeBaixo(altura: AlturaDoPiso): string {
@@ -1849,11 +1855,21 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // "!" CENÁRIO (P4): fechar a revelação de um pino é ter lido — o host conta ao mestre ("leu às").
   const revelacaoPinoRef = useRef<string | undefined>(undefined)
   revelacaoPinoRef.current = revelacao?.pinId
+  /** O pino cujo cartão abre quando a revelação dele fechar (`openPinCard`); `null` = nenhum. */
+  const cartaoDepoisDaRevelacaoRef = useRef<string | null>(null)
   const fecharRevelacao = useCallback(() => {
     const pinId = revelacaoPinoRef.current
     revelacaoPinoRef.current = undefined
     setRevelacao(null)
     if (pinId !== undefined) connection.cenarioLido(pinId)
+    const cartao = cartaoDepoisDaRevelacaoRef.current
+    cartaoDepoisDaRevelacaoRef.current = null
+    // Só o cartão da revelação que fechou: a que foi trocada por outra (o "Ler agora" por cima) não o abre.
+    if (cartao !== null && cartao === pinId) {
+      setOpenTokenId(null)
+      setOpenItemNoChaoId(null)
+      setOpenPinId(cartao)
+    }
   }, [connection])
   // Toda revelação abre por aqui. Cada abertura é uma LEITURA nova: o overlay
   // remonta pelo `key` (`chaveDaRevelacao`) e recomeça com o título e o texto
@@ -1918,19 +1934,28 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     (pinId: string) => {
       setOpenTokenId(null)
       setOpenItemNoChaoId(null)
-      setOpenPinId(pinId)
       connection.readClue(pinId)
-      // REVELAÇÃO DO LOCAL: o pino "!" abre por cima do cartão — com imagem,
-      // sempre ou só da primeira vez, como o mestre escolheu na animação;
-      // sem imagem, o painel sozinho da primeira vez (`revelacaoDoPino`).
+      // REVELAÇÃO DO LOCAL: o pino "!" com imagem toca sempre ou só da
+      // primeira vez, como o mestre escolheu na animação; sem imagem, o painel
+      // sozinho da primeira vez (`revelacaoDoPino`).
+      // UM TOQUE, UMA CAMADA (passeio de 26/11/2026): com a revelação tocando,
+      // o cartão NÃO abre junto por baixo. Desde 09/10 os dois abriam no mesmo
+      // toque, com o mesmo texto (o Enter fechava o quadro e o Esc, o cartão);
+      // antes da revelação o toque abria só o cartão. O cartão vem depois, ao
+      // fechar a revelação, só quando tem o que ela não tem (`cartaoTemOQueFazer`);
+      // senão, o próximo toque (revelação já vista) abre o cartão.
       const estado = connection.getState()
       const pino = estado.map?.pins.find((p) => p.id === pinId)
       const mapaId = estado.map?.id
       const dados = pino === undefined ? null : revelacaoDoPino(pino)
-      if (dados !== null && mapaId !== undefined && deveTocarCenario(dados, mapaId, pinId)) {
+      if (pino !== undefined && dados !== null && mapaId !== undefined && deveTocarCenario(dados, mapaId, pinId)) {
         marcarCenarioVisto(mapaId, pinId)
+        setOpenPinId(null)
+        cartaoDepoisDaRevelacaoRef.current = cartaoTemOQueFazer(pino) ? pinId : null
         abrirRevelacao({ ...dados, pinId })
+        return
       }
+      setOpenPinId(pinId)
     },
     [connection, abrirRevelacao],
   )
@@ -2509,11 +2534,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             DADO ROLADO NA SALA: as últimas rolagens da mesa, no pé da coluna,
             logo acima do alto-falante. A caixa em volta ocupa o que sobra da
             coluna e diz à lista quantas rolagens cabem inteiras (player.css).
-            Não é controle: fora da ordem do Tab.
+            Não é controle: fora da ordem do Tab. Cada rolagem sai sozinha
+            depois de uns segundos, com o clique ou com o Escape (`RolagensDoCanto`).
           */}
-          <div className="pp-rolagens">
-            <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
-          </div>
+          <RolagensDoCanto rolls={state.diceRolls ?? NO_DICE_ROLLS} />
         </div>
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         {/* SOM DA MESA: volume e mudo dos sons de clima, na pilha do canto (`.pp-som`); logo depois do zoom na ordem do Tab. */}

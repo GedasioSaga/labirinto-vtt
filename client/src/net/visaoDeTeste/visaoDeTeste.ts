@@ -533,6 +533,8 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       redeDosSons: false,
       // CUTSCENE EM VÍDEO, MODO TREINO: com o teste aberto, "Tocar para todos" toca aqui, sem contar como exibida.
       lugarDaCutscene: 'teste',
+      // JOGADORES VISTOS: o nome do jogador de teste não entra na lista do app inteiro (Livros > Jogadores).
+      registrarJogadoresVistos: false,
     })
     s.ponte = ponte
     s.transporte = transporte

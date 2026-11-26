@@ -550,6 +550,14 @@ export interface HostBridgeDeps {
    * registra junto com os sons (`redeDosSons`).
    */
   lugarDaCutscene?: LugarDaCutscene
+  /**
+   * JOGADORES VISTOS (Livros de regras > Jogadores): `false` = os nomes desta
+   * ponte NÃO vão para `<appData>/livros/jogadores-vistos.json`, que vale para
+   * o app inteiro. É a Visão de jogador: o "Teste Jogador" de um teste não
+   * pode virar nome visto na mesa de verdade. Ausente = registra (só no app
+   * instalado, `registrarNomesVistos`).
+   */
+  registrarJogadoresVistos?: boolean
 }
 
 /** SONS AO VIVO: um loop tocando na mesa e quem o ouve agora (a reconciliação mantém). */
@@ -3035,12 +3043,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * MUNDO DO LIVRO: os nomes que entraram na mesa vão para a lista do app
    * (`<appData>/livros/jogadores-vistos.json`), para o seletor da página
    * Jogadores. Junta as mudanças por `VISTOS_DEBOUNCE_MS`, fora do caminho da
-   * mensagem; só no app instalado (no teste e no navegador não há disco).
+   * mensagem; só no app instalado (no teste e no navegador não há disco) e
+   * nunca na ponte da Visão de jogador (`registrarJogadoresVistos: false`).
    */
   let vistos: readonly JogadorVisto[] | null = null
   let vistosTimer: ReturnType<typeof setTimeout> | null = null
   const registrarNomesVistos = (nomes: readonly string[]) => {
-    if (!isTauri() || nomes.length === 0) return
+    if (deps.registrarJogadoresVistos === false || !isTauri() || nomes.length === 0) return
     if (vistosTimer !== null) clearTimeout(vistosTimer)
     vistosTimer = setTimeout(() => {
       vistosTimer = null

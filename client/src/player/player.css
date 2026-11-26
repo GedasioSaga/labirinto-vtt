@@ -5879,7 +5879,7 @@ button.pp-colecao__casa:focus-visible {
  * que sobra até o pé. Ela é um contêiner de altura: a lista mostra só as
  * rolagens que cabem INTEIRAS nela (fim do arquivo) — as mais novas, embaixo,
  * perto dos controles. Antes a lista tinha lugar fixo e caía sobre o pé do
- * combate no celular deitado. Só texto: o toque atravessa para o mapa.
+ * combate no celular deitado. Fora das linhas, o toque atravessa para o mapa.
  */
 .pp-rolagens {
   flex: 1 1 0;
@@ -5925,6 +5925,12 @@ button.pp-colecao__casa:focus-visible {
 
 .pp-dice-feed .lb-dice-feed__item > * {
   flex: none;
+}
+
+/* O clique na rolagem a tira da tela (`RolagensDoCanto.tsx`): só as linhas pegam o toque; o resto da caixa segue deixando o toque atravessar para o mapa. */
+.pp-dice-feed .lb-dice-feed__item {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .pp-dice-feed .lb-dice-feed__who {
@@ -7800,9 +7806,15 @@ button.pp-colecao__casa:focus-visible {
   }
 }
 
-/* As rolagens na aba Dados só existem na gaveta: na coluna do notebook a lista do mapa continua à vista. */
+/*
+ * As rolagens na aba Dados, também na coluna do notebook: desde 26/11/2026 a
+ * lista do mapa sai sozinha depois de uns segundos (`RolagensDoCanto.tsx`), e
+ * a aba é onde o jogador relê as últimas. Antes ela só existia na gaveta,
+ * porque a do mapa ficava à vista para sempre.
+ */
 .pp-dados-rolagens {
-  display: none;
+  display: grid;
+  margin-top: 12px;
 }
 
 /*
@@ -7819,11 +7831,6 @@ button.pp-colecao__casa:focus-visible {
   body:has(.pp-panel:not([hidden])) .pp-call,
   body:has(.pp-panel:not([hidden])) .pp-lugar {
     display: none;
-  }
-
-  .pp-dados-rolagens {
-    display: grid;
-    margin-top: 12px;
   }
 }
 

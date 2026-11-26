@@ -1273,7 +1273,7 @@ export function PlayerPanel({
           {/* Montada mesmo escondida, como a aba Jogo: o dado e a quantidade escolhidos ficam para a próxima rolagem.
               O resultado vem do host, na lista de rolagens sobre o mapa, igual para a mesa inteira. Na GAVETA essa
               lista sai de cena junto com o resto do mapa, e a mesma lista aparece aqui embaixo (player.css,
-              `.pp-dados-rolagens`): na coluna do notebook ela fica escondida, porque a do mapa continua à vista. */}
+              `.pp-dados-rolagens`). Na coluna do notebook também: a do mapa sai sozinha depois de uns segundos. */}
           {onRollDice !== undefined && (
             <div role="tabpanel" id={`${panelId}-panel-dados`} aria-labelledby={`${panelId}-tab-dados`} className="pp-tabpanel" hidden={tab !== 'dados'}>
               <section className="pp-section">

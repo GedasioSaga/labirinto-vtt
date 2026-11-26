@@ -264,6 +264,12 @@
   color: var(--lb-color-parchment-dim);
 }
 
+/* No achado destacado (o que o Enter da busca dá), a categoria segue a tinta do botão de latão. */
+.lb-btn--primary .lb-inv-mestre__cat {
+  color: inherit;
+  opacity: 0.75;
+}
+
 /* Itens refeitos (E3): "Pente 4 de 6 · Bala de Prata", a bala e o Recarregar numa linha que quebra. */
 .lb-inv-mestre__pente {
   display: inline-flex;
