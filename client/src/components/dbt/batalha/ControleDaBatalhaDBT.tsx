@@ -16,6 +16,7 @@ import { useBatalhaStore } from '../../../stores/batalhaStore'
 import { useBatalhaDBTStore, type AberturaDaBatalhaDBT } from '../../../stores/batalhaDBTStore'
 import { useLivroDaMesaStore } from '../../../stores/livroDaMesaStore'
 import { useMapStore } from '../../../stores/mapStore'
+import { separarFichasRepetidasDaCena } from '../../../stores/fichaPropriaDoToken'
 import { useToastStore } from '../../../stores/toastStore'
 import { AberturaDeBatalhaOverlay, type AberturaPedida } from '../../../transicoes/AberturaDeBatalhaOverlay'
 import { assinarAberturasDeBatalha, listarAberturasDeBatalha } from '../../../transicoes/aberturasDeBatalha'
@@ -137,6 +138,8 @@ export function ControleDaBatalhaDBT({ sceneKey, gridShape, aventuraId }: Contro
     const texto = nomeParaOFio(nome)
     if (texto !== undefined) abertura.texto = texto
     gravarAberturaLembrada(guardado, aventuraId, { transicao: transicao === NENHUMA ? null : transicao, texto: nome.slice(0, NOME_DA_BATALHA_MAX) })
+    // UMA FICHA POR TOKEN DE NPC (25/11/2026): os monstros com a mesma ficha ganham cada um a sua ANTES das cartas.
+    separarFichasRepetidasDaCena()
     const aventura = useAdventureStore.getState()
     const lista = candidatosDaBatalhaDBT(useMapStore.getState().map.tokens, personagensAtivos(aventura), equipesAtivas(aventura))
     setEscolhendo(false)

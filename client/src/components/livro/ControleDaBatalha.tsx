@@ -20,6 +20,7 @@ import { QuemEntraNaBatalha } from './QuemEntraNaBatalha'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore, type AberturaDaBatalha } from '../../stores/batalhaStore'
 import { useMapStore } from '../../stores/mapStore'
+import { separarFichasRepetidasDaCena } from '../../stores/fichaPropriaDoToken'
 import { useRegrasDoCampoStore } from '../../stores/regrasDoCampoStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { useEscolhaNoMapa } from '../batalha/escolhaNoMapa'
@@ -131,6 +132,8 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     setRegra(SEM_REGRA)
     // A biblioteca global de regras do campo (lida uma vez; as chamadas seguintes devolvem a mesma promessa).
     void useRegrasDoCampoStore.getState().carregar()
+    // UMA FICHA POR TOKEN DE NPC (25/11/2026): os zumbis com a mesma ficha ganham cada um a sua ANTES das cartas.
+    separarFichasRepetidasDaCena()
     // Lida AGORA, antes de a lista tomar a seleção do mapa: as fichas que o mestre selecionou já vêm marcadas (com os jogadores).
     const lista = lerQuemPodeEntrar()
     // A lista mora na página Batalha do livro (sem janela por cima do mapa); o livro vai até ela.

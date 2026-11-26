@@ -3,6 +3,7 @@ import type { LadoDoNpc } from '../../lib/batalha/equipes'
 import type { EscolhaDaBatalha } from '../../lib/livros/combate'
 import { personagensAtivos, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore } from '../../stores/batalhaStore'
+import { separarFichasRepetidasDaCena } from '../../stores/fichaPropriaDoToken'
 import { useMapStore } from '../../stores/mapStore'
 import { Acoes, Botao } from '../grimorio/Botao'
 import { QuemEntraNaBatalha } from '../livro/QuemEntraNaBatalha'
@@ -75,7 +76,15 @@ export function IncluirNaBatalha({ sceneKey }: { sceneKey: string }) {
       <p className="bt-texto">{aviso}</p>
       <Acoes>
         {/* Lida no clique, antes de a lista tomar a seleção do mapa: as fichas selecionadas já vêm marcadas. */}
-        <Botao onClick={() => setCaixa((antes) => ({ chave: (antes?.chave ?? 0) + 1, lista: lerQuemPodeEntrar({ jaNaOrdem }) }))}>Incluir na batalha…</Botao>
+        <Botao
+          onClick={() => {
+            // UMA FICHA POR TOKEN DE NPC (25/11/2026): quem divide a ficha ganha a sua; quem já está na ordem fica com a dele.
+            separarFichasRepetidasDaCena(jaNaOrdem)
+            setCaixa((antes) => ({ chave: (antes?.chave ?? 0) + 1, lista: lerQuemPodeEntrar({ jaNaOrdem }) }))
+          }}
+        >
+          Incluir na batalha…
+        </Botao>
       </Acoes>
     </>
   )
