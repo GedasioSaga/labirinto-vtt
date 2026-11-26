@@ -66,7 +66,11 @@ export function resolveWheel(evt: WheelInput): WheelResult {
  * Os desvios continuam existindo, pelos mesmos motivos de antes:
  *  - Ctrl+roda: zoom (é também o que o navegador emite na pinça de trackpad,
  *    então a pinça cai de graça no mesmo caminho);
- *  - Shift+roda: pan horizontal explícito;
+ *  - Shift+roda: anda na VERTICAL (qualidade de vida, 26/11/2026: no
+ *    touchpad do notebook os dois dedos só davam zoom e nada descia a vista).
+ *    Alguns navegadores já viram o Shift+roda para o lado (chega em
+ *    `deltaX`): aqui ele volta para cima e para baixo. O lado fica com a roda
+ *    lateral, o deslizar de lado no touchpad e o Espaço+arrastar;
  *  - dispositivo que manda `deltaX` PRÓPRIO (trackpad rolando na diagonal):
  *    pan nos dois eixos — ali o gesto é mesmo de rolagem, não de girar roda.
  *
@@ -77,7 +81,8 @@ export function resolveWheel(evt: WheelInput): WheelResult {
 export function resolveMapWheel(evt: WheelInput): WheelResult {
   const gesture = resolveWheel(evt)
   if (gesture.kind === 'zoom') return gesture
-  if (evt.shiftKey) return gesture
+  // `resolveWheel` manda o Shift+roda de um eixo só para o lado (`dy` zero): no mapa ele desce.
+  if (evt.shiftKey) return gesture.dy === 0 ? { kind: 'pan', dx: 0, dy: gesture.dx } : gesture
   if (gesture.dx !== 0) return gesture
   return { kind: 'zoom', deltaY: gesture.dy }
 }

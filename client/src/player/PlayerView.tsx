@@ -45,6 +45,7 @@ import { drawMarcas } from '../pixi/drawMarcas'
 import { drawDocumentos } from '../pixi/drawDocumentos'
 import { acharBilheteEm } from '../lib/marcas'
 import { panBy, zoomAt } from '../pixi/world'
+import { resolveMapWheel } from '../pixi/wheelGesture'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Bounds, Camera, Point, Viewport } from '../pixi/world'
 import { arrivalCamera, cameraOnResize, centeredCamera, firstOwnToken, type OwnDisc } from './playerCamera'
@@ -5893,7 +5894,19 @@ function PlayerViewDoCanvas({
         scene.zoomAnimation = null
         scene.cameraGlide = null
         const rect = app.canvas.getBoundingClientRect()
-        scene.camera = zoomAt(scene.camera, { x: event.clientX - rect.left, y: event.clientY - rect.top }, event.deltaY)
+        // A mesma regra do editor (`resolveMapWheel`): roda aproxima, Ctrl+roda e pinça também;
+        // Shift+roda desce e sobe a vista e a roda lateral anda de lado (o touchpad do notebook).
+        const gesture = resolveMapWheel({
+          deltaX: event.deltaX,
+          deltaY: event.deltaY,
+          deltaMode: event.deltaMode,
+          ctrlKey: event.ctrlKey,
+          shiftKey: event.shiftKey,
+        })
+        scene.camera =
+          gesture.kind === 'zoom'
+            ? zoomAt(scene.camera, { x: event.clientX - rect.left, y: event.clientY - rect.top }, gesture.deltaY)
+            : panBy(scene.camera, -gesture.dx, -gesture.dy)
         // O trackpad manda vários eventos por quadro: o mundo escala já, e paredes,
         // portas e nomes refazem a largura de tela uma vez, no quadro (`tickZoomLayers`).
         applyCamera(scene, 'noQuadro')
