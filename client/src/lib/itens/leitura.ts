@@ -239,6 +239,8 @@ export function condicoesDaFichaLidas(value: unknown): CondicaoNaFicha[] | undef
     if (n !== null) condicao.n = n
     if (typeof bruta.origem === 'string' && bruta.origem.trim() !== '') condicao.origem = cortado(bruta.origem.trim(), CONFIRA_ORIGEM_MAX)
     if (bruta.contadoNaCarta === true) condicao.contadoNaCarta = true
+    // "Até o fim da batalha" só existe sem turnos contados: com número, vale o número.
+    if (bruta.ateOFimDaBatalha === true && turnos === null) condicao.ateOFimDaBatalha = true
     vistas.add(bruta.id)
     lidas.push(condicao)
     if (lidas.length >= CONDICOES_NA_FICHA_MAX) break

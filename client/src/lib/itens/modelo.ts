@@ -174,4 +174,10 @@ export type CondicaoNaFicha = {
   n?: number
   origem?: string
   contadoNaCarta?: true
+  /**
+   * E4a: "até o fim da batalha" (a Cura reduzida da Bala de Prata). Vai sempre com `turnos: null`:
+   * não conta turno e sai quando a batalha acaba (`lib/condicoes/naFicha.ts`). O app de antes deste
+   * campo o ignora e a lê como "até alguém tirar", sem perder a condição.
+   */
+  ateOFimDaBatalha?: true
 }
