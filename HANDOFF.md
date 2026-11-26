@@ -1,3 +1,7 @@
+# 26/11 18:31: 0.6.2 NÃO publicada: o Claude Code matou o publicar por falta de RAM
+
+Bump 4d7d42d6 chore(release): 0.6.2 (5 arquivos, como cb3acccc) na main e `git push origin main` (12015675..4d7d42d6). Worktree ../labirinto-release (release/0.6.2 de origin/main = 4d7d42d6, 3 junções: raiz, client, lobby/nuvem). CARGO_BUILD_JOBS=2 publicar-versao --publicar --com-google: tsc lobby ok, build assinado 0.6.2 pronto (setup.exe, .sig, msi, latest.json em target/release/bundle; "assinatura do setup confere") e morto no build do site do Lobby (RAM física chegou a 0,8 GB: javaw PID 36032 ~6,9 GB, 3 python ~0,9-1,2 GB, tsc do client ~3,7 GB). Nada saiu: sem release v0.6.2, latest.json = 0.6.1, Worker e site não enviados. Log tmp/rel-0.6.2/publicar.log. Para retomar (o target fica, o cargo deve ser rápido): liberar RAM e, dentro de C:\dev\labirinto-release, CARGO_BUILD_JOBS=2 node scripts/publicar-versao.cjs --publicar --com-google --notas C:/dev/labirinto/tmp/rel-0.6.2/notas-da-versao-0.6.2.md (se a origin andou: git merge --ff-only origin/main antes). Worktree mantido; limpar depois (target, junções uma a uma com .Delete(), worktree remove sem --force, branch -D release/0.6.2). App do dono (0.6.1) intocado. Disco 8,8 GB. Nenhum teste rodado.
+
 # 26/11 ~16h50: /goal CONCLUÍDO — 0.6.1 PUBLICADA (latest.json = 0.6.1)
 
 ## Estado atual
