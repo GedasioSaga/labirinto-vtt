@@ -167,6 +167,106 @@
   font-size: var(--lb-font-size-sm);
 }
 
+/* VIDA › (25/11): o rótulo com o número de agora ao lado ("Vida 48/60"). */
+.lb-menusel__rotulo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-menusel__numero {
+  font-variant-numeric: tabular-nums;
+}
+
+/* O painel da vida: o número no alto, o campo com Tirar e Dar, e os atalhos.
+   Abre sem animação, como os outros submenus: o mestre o usa dezenas de vezes por sessão. */
+.lb-panel.lb-portamenu.lb-vida {
+  width: 15rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lb-vida__titulo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 2px var(--lb-space-2) 4px;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-vida__nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-vida__valor {
+  flex: none;
+  color: var(--lb-color-parchment);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-vida__lista {
+  max-height: 6.5rem;
+  margin: 0;
+  padding: 0 var(--lb-space-2) 4px;
+  overflow-y: auto;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+  list-style: none;
+}
+
+.lb-vida__lista li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+}
+
+.lb-vida__lista .lb-vida__valor {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-vida__linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 4px;
+  padding: 2px;
+}
+
+.lb-vida__campo.lb-input {
+  min-height: 30px;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-btn.lb-vida__botao {
+  min-height: 30px;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-vida__atalhos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 2px 2px 4px;
+}
+
+.lb-vida__atalho {
+  font-variant-numeric: tabular-nums;
+}
+
+/* O sinal já diz o sentido; a cor de brasa só reforça o "tira". */
+.lb-vida__atalho[data-sentido='tirar']:not(:disabled) {
+  color: var(--lb-color-ember);
+}
+
 /* MUDAR FICHA e AURA: o submenu em grade de miniaturas (SubmenuDeMiniaturas).
    Três colunas: a mesma conta de COLUNAS no componente, que anda nelas com as setas. */
 .lb-panel.lb-portamenu.lb-minis {

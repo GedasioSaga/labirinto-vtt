@@ -5,6 +5,7 @@ import { useAdventureStore } from '../stores/adventureStore'
 import { enviarParaCena } from '../stores/enviarParaCena'
 import { useToastStore } from '../stores/toastStore'
 import { ItensDaAparenciaDaFicha, type AparenciaAberta } from './ItensDaAparenciaDaFicha'
+import { ItensRapidosDaFicha, type RapidoAberto } from './ItensRapidosDaFicha'
 import { NoteForm } from './ScenesSection'
 import { SubmenuDeCenas } from './SubmenuDeCenas'
 import { classes } from './grimorio/comum'
@@ -72,6 +73,9 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
   const [aparenciaAberta, setAparenciaAberta] = useState<AparenciaAberta | null>(null)
   const formaRef = useRef<HTMLButtonElement | null>(null)
   const auraRef = useRef<HTMLButtonElement | null>(null)
+  // "Vida ›" (pedido de 25/11/2026): o mesmo do menu da seleção, também na ficha de jogador.
+  const [rapidoAberto, setRapidoAberto] = useState<RapidoAberto | null>(null)
+  const vidaRef = useRef<HTMLButtonElement | null>(null)
   const adventure = useAdventureStore((state) => state.adventure)
   const cenaAberta = useAdventureStore((state) => state.activeSceneId)
   const situacao = useAdventureStore((state) => state.cache)
@@ -115,13 +119,26 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
 
   const abrirCenas = (focar: boolean) => {
     setAparenciaAberta(null)
+    setRapidoAberto(null)
     if (envio.motivo === null) setCenasAbertas({ focar })
   }
 
-  /** "Mudar ficha ›" e "Aura ›": abrir um fecha o "Enviar para cena ›". */
+  /** "Mudar ficha ›" e "Aura ›": abrir um fecha os outros submenus. */
   const abrirAparencia = (aberta: AparenciaAberta | null) => {
-    if (aberta !== null) setCenasAbertas(null)
+    if (aberta !== null) {
+      setCenasAbertas(null)
+      setRapidoAberto(null)
+    }
     setAparenciaAberta(aberta)
+  }
+
+  /** "Vida ›": abrir fecha os outros submenus. */
+  const abrirRapido = (aberto: RapidoAberto | null) => {
+    if (aberto !== null) {
+      setCenasAbertas(null)
+      setAparenciaAberta(null)
+    }
+    setRapidoAberto(aberto)
   }
 
   const fecharCenas = () => {
@@ -149,7 +166,7 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
     // Nenhuma tecla do menu vale como atalho do editor (Esc largaria a seleção, setas moveriam o token).
     event.stopPropagation()
     if (escrevendoPara !== null) return
-    const list = [...itemRefs.current, formaRef.current, auraRef.current].filter((el): el is HTMLButtonElement => el !== null)
+    const list = [...itemRefs.current.slice(0, items.length), vidaRef.current, cenaRef.current, formaRef.current, auraRef.current].filter((el): el is HTMLButtonElement => el !== null)
     const current = list.findIndex((el) => el === document.activeElement)
     const focusAt = (index: number) => {
       event.preventDefault()
@@ -216,6 +233,7 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
               event.currentTarget.focus()
               setCenasAbertas(null)
               setAparenciaAberta(null)
+              setRapidoAberto(null)
             }}
             onClick={item.onSelect}
           >
@@ -227,6 +245,7 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
       )}
       {escrevendoPara === null && (
         <>
+          <ItensRapidosDaFicha tokenIds={[tokenId]} aberto={rapidoAberto} onAbrir={abrirRapido} vidaRef={vidaRef} onClose={onClose} />
           <button
             ref={(node) => {
               cenaRef.current = node

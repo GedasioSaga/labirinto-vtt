@@ -13,6 +13,7 @@ import { enviarParaCena } from '../stores/enviarParaCena'
 import { desligarFichaDosTokens, ligarFichaAosTokens } from '../stores/ligarFichaNoToken'
 import { useMapStore } from '../stores/mapStore'
 import { ItensDaAparenciaDaFicha, type AparenciaAberta } from './ItensDaAparenciaDaFicha'
+import { ItensRapidosDaFicha, type RapidoAberto } from './ItensRapidosDaFicha'
 import { SubmenuDeCenas } from './SubmenuDeCenas'
 import { SubmenuLigarFicha } from './SubmenuLigarFicha'
 import type { ComSaidaFilho } from './grimorio/ComSaida'
@@ -106,6 +107,10 @@ function focarItem(itens: readonly HTMLButtonElement[], indice: number, passo: 1
  * MUDAR FICHA e AURA (pedido de 14/11/2026): com UM token só na seleção, no
  * fim do menu, "Mudar ficha ›" e "Aura ›" com as miniaturas ao lado
  * (`ItensDaAparenciaDaFicha`).
+ *
+ * VIDA (pedido de 25/11/2026): com ficha na seleção, no TOPO (o mais usado,
+ * com o foco ao abrir), "Vida ›" com o número de agora e o painel de Tirar e
+ * Dar para todas as fichas selecionadas (`ItensRapidosDaFicha`).
  */
 export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoProps & ComSaidaFilho) {
   const map = useMapStore((state) => state.map)
@@ -129,6 +134,9 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const [aparenciaAberta, setAparenciaAberta] = useState<AparenciaAberta | null>(null)
   const formaRef = useRef<HTMLButtonElement | null>(null)
   const auraRef = useRef<HTMLButtonElement | null>(null)
+  // "Vida ›" no topo (pedido de 25/11/2026), com ficha na seleção.
+  const [rapidoAberto, setRapidoAberto] = useState<RapidoAberto | null>(null)
+  const vidaRef = useRef<HTMLButtonElement | null>(null)
   const adventure = useAdventureStore((state) => state.adventure)
   const cenaAberta = useAdventureStore((state) => state.activeSceneId)
   const situacao = useAdventureStore((state) => state.cache)
@@ -150,7 +158,8 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   }, [atual, soItemDesligado, onClose, saindo])
 
   useEffect(() => {
-    if (!saindo) itemRef.current?.focus()
+    // Com ficha na seleção, o primeiro item é a "Vida ›" (o mais usado).
+    if (!saindo) (vidaRef.current ?? itemRef.current)?.focus()
   }, [saindo])
 
   // Clique rente à borda: o menu recua para caber no canvas.
@@ -215,6 +224,13 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
     setCenasAbertas(null)
     setFichasAbertas(null)
     setAparenciaAberta(null)
+    setRapidoAberto(null)
+  }
+
+  /** "Vida ›": abrir fecha os outros submenus; `null` fecha só ele. */
+  const abrirRapido = (aberto: RapidoAberto | null) => {
+    if (aberto !== null) fecharSubmenus()
+    setRapidoAberto(aberto)
   }
 
   /** "Mudar ficha ›" e "Aura ›": abrir um fecha os outros submenus; `null` fecha só os dois. */
@@ -227,6 +243,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
     setCenasAbertas(null)
     setFichasAbertas(null)
     setAparenciaAberta(null)
+    setRapidoAberto(null)
     if (motivo !== null) return
     setSubmenuAberto(true)
     if (!focar) return
@@ -248,6 +265,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
     setSubmenuAberto(false)
     setFichasAbertas(null)
     setAparenciaAberta(null)
+    setRapidoAberto(null)
     setCenasAbertas({ focar })
   }
 
@@ -255,6 +273,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
     setSubmenuAberto(false)
     setCenasAbertas(null)
     setAparenciaAberta(null)
+    setRapidoAberto(null)
     setFichasAbertas({ focar })
   }
 
@@ -310,7 +329,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       return
     }
     if (!noSubmenu) {
-      const pais = [itemRef.current, porCimaRef.current, porBaixoRef.current, tresQuartosRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
+      const pais = [vidaRef.current, itemRef.current, porCimaRef.current, porBaixoRef.current, tresQuartosRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
       const noPai = pais.findIndex((item) => item === document.activeElement)
       if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
@@ -367,6 +386,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       onKeyDown={onKeyDown}
       onContextMenu={(event) => event.preventDefault()}
     >
+      {fichas.length > 0 && <ItensRapidosDaFicha tokenIds={fichas} aberto={rapidoAberto} onAbrir={abrirRapido} vidaRef={vidaRef} onClose={onClose} />}
       <button
         ref={itemRef}
         type="button"

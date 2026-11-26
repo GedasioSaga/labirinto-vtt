@@ -31,12 +31,8 @@ import { chaveDaCenaAberta } from '../stores/turnoForaDaBatalha'
 import { useMapStore } from '../stores/mapStore'
 import { sistemaPorId, useRpgStore, type AberturaDoEditor } from '../stores/rpgStore'
 import { temLivro } from '../lib/livroDeRegras'
-import { aplicarAjustes, NOME_DO_MESTRE } from '../lib/ajusteDaFicha'
 import type { Personagem } from '../lib/personagem'
-import { useBatalhaStore } from '../stores/batalhaStore'
-import { darDanoPelaFicha, MESTRE } from '../stores/batalha/cena'
-import { danoDoAjusteNaVida } from '../lib/batalha/danoPelaFicha'
-import { useBatalhaDBTStore } from '../stores/batalhaDBTStore'
+import { ajustarFichaComoMestre } from '../stores/ajusteDoMestre'
 import { FichaDePersonagemDialog, type TokenParaLigar } from './FichaDePersonagemDialog'
 import { EditorDeSistemaDialog } from './EditorDeSistemaDialog'
 import { LivroDeRegrasDialog } from './LivroDeRegrasDialog'
@@ -174,28 +170,14 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
           tokens={tokensParaLigar}
           // Pelo histórico do mapa, como o resto do token: Ctrl+Z desliga.
           onLigarToken={(tokenId) => useMapStore.getState().updateToken(tokenId, { characterId: personagem.id })}
-          // AJUSTE RÁPIDO: sobre o personagem de AGORA da aventura (o jogador pode ter mexido um instante antes), com o histórico.
-          // BATALHA F1: o que mudou vira linha no registro da batalha (autor mestre), em toda cena com ele na ordem.
+          // AJUSTE RÁPIDO: o mesmo caminho da "Vida ›" do botão direito (`stores/ajusteDoMestre.ts`): o dano na
+          // batalha é o "Dar dano" dela; o resto grava na ficha de AGORA e vira linha "ficha" na batalha.
           onAjustar={
             sistema === undefined
               ? undefined
               : (ajuste) => {
-                  // DANO PELA FICHA (Nº 4 do levantamento): com batalha ativa, o "-50" da vida é o "Dar dano" dela (Escudo, redução, Desfazer, queda).
-                  const agora = personagensAtivos(useAdventureStore.getState()).find((candidato) => candidato.id === personagem.id)
-                  const dano = agora === undefined ? null : danoDoAjusteNaVida(agora, [ajuste], sistema)
-                  if (dano !== null && darDanoPelaFicha(useBatalhaStore.getState(), personagem.id, dano, MESTRE)) return true
-                  const feito: { antes?: Personagem; depois?: Personagem } = {}
-                  const ok = useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => {
-                    feito.antes = atual
-                    feito.depois = aplicarAjustes(atual, sistema, [ajuste], NOME_DO_MESTRE, Date.now())
-                    return feito.depois
-                  })
-                  if (feito.antes !== undefined && feito.depois !== undefined && feito.antes !== feito.depois) {
-                    useBatalhaStore.getState().registrarAjuste(personagem.id, feito.antes, feito.depois, { tipo: 'mestre' })
-                    // BATALHA DBT: PV e Ki mudados à mão viram linha "ficha" na batalha Dragon Ball com ele.
-                    useBatalhaDBTStore.getState().registrarAjuste(personagem.id, feito.antes, feito.depois, { tipo: 'mestre' })
-                  }
-                  return ok
+                  const feito = ajustarFichaComoMestre(personagem.id, sistema, ajuste)
+                  return feito === 'batalha' || feito.gravou
                 }
           }
           inventario={doMestre?.inventario}
