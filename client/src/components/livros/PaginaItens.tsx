@@ -43,6 +43,7 @@ import { avisarComDesfazer, formatarNumero, primeiroNome, trocarFicha } from './
 import { PainelDeEnsaio } from '../ensaio/PainelDeEnsaio'
 import { ensaiarCopias, type EscolhaDaCopia } from '../../lib/mochila/efeitoNasCopias'
 import { decidirCopias } from '../../stores/itensNaFonte'
+import { avisoDaLigacao, ligarOLivroAoAcervo } from '../../stores/ligacaoDoCatalogo'
 import type { EfeitoDoItem } from '../../types/map'
 import { EntradaDoCatalogoDialog, type ModoDaEntrada } from './EntradaDoCatalogoDialog'
 import { DarAlcanceAosAntigos } from './DarAlcanceAosAntigos'
@@ -297,6 +298,24 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   useEffect(() => {
     if (useCatalogoStore.getState().sistemaId !== sistema.id) void useCatalogoStore.getState().abrir(sistema)
   }, [sistema])
+
+  // UMA COISA, UM LUGAR (itens refeitos): toda arma e item do livro tem a sua coisa no Acervo, e a lista mostra uma linha
+  // só. Idempotente: com tudo ligado, não grava nada; cada mudança do livro ou do Acervo confere de novo.
+  // Falhou (disco): não tenta de novo nesta abertura; a falha relê o disco, e tentar a cada releitura daria um aviso atrás do outro.
+  const ligacaoFalhou = useRef(false)
+  useEffect(() => {
+    if (pagina !== 'itens' || !doSistema || !podeGravar || !acervoPodeGravar || ligacaoFalhou.current) return
+    ligarOLivroAoAcervo(sistema).then(
+      (feita) => {
+        const frase = feita === null ? null : avisoDaLigacao(feita)
+        if (frase !== null) useToastStore.getState().push('info', frase)
+      },
+      (erro: unknown) => {
+        ligacaoFalhou.current = true
+        useToastStore.getState().push('error', `Não deu para ligar o livro ao Acervo: ${mensagemDoErro(erro)}`)
+      },
+    )
+  }, [pagina, doSistema, podeGravar, acervoPodeGravar, sistema, itens, doAcervo])
 
   /** Guarda um Desfazer para o aviso e para o Ctrl+Z (um por vez: o da última mudança). */
   const avisar = useCallback((texto: string, desfazer: () => void) => {
@@ -838,14 +857,40 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
 
   const motivoDoEditar = (entrada: EntradaDaBiblioteca): string | null => {
     if (!podeGravar) return 'Parado até o livro ser lido.'
-    return !ehDoAcervo(entrada) && ehDoLivro(entrada) ? 'Vem do livro de regras do sistema: não se edita aqui.' : null
+    if (ehDoAcervo(entrada)) return null
+    if (ehDoLivro(entrada)) return 'Vem do livro de regras do sistema: não se edita aqui.'
+    // Arma e item se editam só no editor do item, na coisa do Acervo: sem o Acervo lido, não há onde abrir.
+    return entrada.tipo !== 'habilidade' && !acervoPodeGravar ? 'Parado até o Acervo ser lido.' : null
+  }
+  /**
+   * UMA COISA, UM LUGAR: a arma e o item do livro abrem o editor do item na coisa do Acervo. A que ainda está solta ganha a
+   * coisa agora (a mesma conversão da lista, `ligarOLivroAoAcervo`) e abre nela. Só a habilidade segue na janela do livro.
+   */
+  const abrirNoEditorDoItem = async (entrada: ItemDoCatalogo) => {
+    if (entrada.acervoId !== undefined && doAcervo.some((coisa) => coisa.id === entrada.acervoId)) {
+      setAcervoAberto(entrada.acervoId)
+      return
+    }
+    try {
+      const feita = await ligarOLivroAoAcervo(sistema, entrada.id)
+      const acervoId = feita?.ligacoes.get(entrada.id) ?? useCatalogoStore.getState().itens.find((atual) => atual.id === entrada.id)?.acervoId
+      if (acervoId === undefined || !useAcervoDeItensStore.getState().itens.some((coisa) => coisa.id === acervoId)) {
+        useToastStore.getState().push('error', `Não deu para abrir ${entrada.nome} no editor do item: o livro ou o Acervo ainda não foram lidos.`)
+        return
+      }
+      setAcervoAberto(acervoId)
+    } catch (erro) {
+      useToastStore.getState().push('error', `Não deu para abrir ${entrada.nome} no editor do item: ${mensagemDoErro(erro)}`)
+    }
   }
   const editar = (entrada: EntradaDaBiblioteca) => {
     if (motivoDoEditar(entrada) !== null) return
     // O teste aberto fecha: ele mostraria a versão de antes, e o Esc dele (na janela) roubaria o Esc da janela de edição.
     setEnsaio(null)
     if (ehDoAcervo(entrada)) setAcervoAberto(entrada.acervo.id)
-    else if (!ehDoLivro(entrada)) setDialogo({ tipo: 'editar', item: entrada })
+    else if (ehDoLivro(entrada)) return
+    else if (entrada.tipo === 'habilidade') setDialogo({ tipo: 'editar', item: entrada })
+    else void abrirNoEditorDoItem(entrada)
   }
 
   // ---- as teclas da escolhida: D dá, T testa, E edita; setas, Home e End andam na lista ----

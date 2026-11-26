@@ -11,7 +11,7 @@ import {
   type ItemDoCatalogo,
 } from '../lib/livros/catalogo'
 import { entradasDoLivro } from '../lib/livros/catalogoDoLivro'
-import { gravarCatalogo, guardarCatalogoAntesDasArmas, guardarCatalogoAntesDoAlcance, lerCatalogo } from '../lib/livros/catalogoNoDisco'
+import { gravarCatalogo, guardarCatalogoAntesDasArmas, guardarCatalogoAntesDoAlcance, guardarCatalogoAntesDosItensV2, lerCatalogo } from '../lib/livros/catalogoNoDisco'
 import type { Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 
@@ -51,6 +51,12 @@ interface CatalogoState {
    * antes das armas (uma vez; sem ela, nada se grava). Lança com a frase pronta.
    */
   gravarArmas: (itens: readonly ItemDoCatalogo[]) => Promise<void>
+  /**
+   * UMA COISA, UM LUGAR (itens refeitos): põe o `acervoId` que cada entrada ganhou na ligação com o
+   * Acervo (`lib/itens/conversao/catalogo.ts`), sobre o catálogo de AGORA (o que mudou no meio fica),
+   * e só nas que ainda estão soltas. Guarda antes a cópia `.antes-itens-v2` (uma vez). Nada a pôr: não grava.
+   */
+  gravarLigacoes: (ligacoes: ReadonlyMap<string, string>) => Promise<void>
   /**
    * Alcance dos antigos (docs/design/habilidades/ALCANCE.md §9): grava o catálogo inteiro com os
    * alcances que o mestre confirmou, depois de guardar a cópia de antes do alcance (uma vez; sem
@@ -146,6 +152,19 @@ export const useCatalogoStore = create<CatalogoState>()((set, get) => {
       if (!podeGravar) throw new Error(NAO_LIDO)
       await guardarCatalogoAntesDasArmas(sistemaId)
       await gravar([...itens])
+    },
+    gravarLigacoes: async (ligacoes) => {
+      const { sistemaId, podeGravar, itens } = get()
+      if (sistemaId === null) throw new Error(SEM_SISTEMA)
+      if (!podeGravar) throw new Error(NAO_LIDO)
+      if (!itens.some((item) => item.acervoId === undefined && ligacoes.has(item.id))) return
+      await guardarCatalogoAntesDosItensV2(sistemaId)
+      // Relido depois da cópia: o que o mestre gravou enquanto ela era feita não se perde.
+      const proximos = get().itens.map((item) => {
+        const acervoId = item.acervoId === undefined ? ligacoes.get(item.id) : undefined
+        return acervoId === undefined ? item : { ...item, acervoId }
+      })
+      await gravar(proximos)
     },
     gravarAlcances: async (itens) => {
       const { sistemaId, podeGravar } = get()

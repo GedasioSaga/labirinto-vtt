@@ -11,7 +11,6 @@ import {
   ENTRADA_TEXTO_MAX,
   itemLimpo,
   novoIdDeEntrada,
-  TIPOS_DO_CATALOGO,
   type BalaDoCatalogo,
   type ItemDoCatalogo,
   type TipoDoCatalogo,
@@ -42,7 +41,9 @@ import './itens.css'
 
 /**
  * "+ Nova entrada" e "Editar" do catálogo do livro (M3, docs/planos/
- * livros-de-regras-plano.md, seção M3): arma, habilidade ou item, com nome,
+ * livros-de-regras-plano.md, seção M3): só a HABILIDADE desde os itens
+ * refeitos (UMA COISA, UM LUGAR: arma e item se editam no editor do item, na
+ * coisa do Acervo; `stores/ligacaoDoCatalogo.ts`), com nome,
  * os campos da aba que recebe (Dano, Ação, Custo...) e a descrição. Grava
  * pelo `catalogoStore` (a tela muda na hora, o disco atrás); a falha do disco
  * fica escrita aqui dentro, sem fechar e sem perder o que foi digitado.
@@ -110,7 +111,8 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
   const apertouNoFundo = useRef(false)
   const editando = modo.tipo === 'editar' ? modo.item : null
 
-  const [tipo, setTipo] = useState<TipoDoCatalogo>(editando?.tipo ?? (modo.tipo === 'nova' ? modo.tipoDaEntrada : 'arma'))
+  // Sem a escolha de tipo: a janela abre no tipo da entrada (quem a abre só manda habilidade).
+  const tipo: TipoDoCatalogo = editando?.tipo ?? (modo.tipo === 'nova' ? modo.tipoDaEntrada : 'habilidade')
   const [nome, setNome] = useState(editando?.nome ?? '')
   const [texto, setTexto] = useState(editando?.texto ?? '')
   // Fase 5 (coisa x regra): a coisa do Acervo de que esta entrada é a regra; '' = solta.
@@ -369,34 +371,11 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
           </p>
         </div>
         <div className="mu-modal__corpo">
-          <fieldset className="mu-ent-tipos">
-            <legend className="mu-campo__rot">Tipo</legend>
-            <div className="mu-chips">
-              {TIPOS_DO_CATALOGO.map((opcao) => (
-                <label key={opcao} className="mu-chip mu-chip--sem-ret mu-ent-tipo">
-                  <input
-                    type="radio"
-                    className="mu-it-sr"
-                    name={`${campoIdBase}-tipo`}
-                    value={opcao}
-                    checked={tipo === opcao}
-                    aria-describedby={semAba ? dicaDoTipoId : undefined}
-                    onChange={() => {
-                      setTipo(opcao)
-                      setErroDoNome(null)
-                      mexer()
-                    }}
-                  />
-                  {DADOS_DO_TIPO[opcao].um}
-                </label>
-              ))}
-            </div>
-            {semAba && (
-              <span className="mu-campo__dica" id={dicaDoTipoId}>
-                A ficha deste sistema não tem a aba {DADOS_DO_TIPO[tipo].nome}: a entrada fica no catálogo, mas não vai para as fichas.
-              </span>
-            )}
-          </fieldset>
+          {semAba && (
+            <p className="mu-campo__dica" id={dicaDoTipoId}>
+              A ficha deste sistema não tem a aba {DADOS_DO_TIPO[tipo].nome}: a entrada fica no catálogo, mas não vai para as fichas.
+            </p>
+          )}
 
           <div className="mu-campo">
             <label htmlFor={nomeId}>Nome</label>

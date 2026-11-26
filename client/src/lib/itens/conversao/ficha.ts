@@ -89,7 +89,7 @@ function cortado(valor: string, max: number): string {
 }
 
 /** A Descrição do item novo: a do cartão, mais o texto que não virou campo (Efeito, Modificador). Nada se perde (regra 4). */
-function descricaoDoCartao(cartao: CartaoDaFicha): { descricao: string; sobrou: boolean } {
+export function descricaoDoCartao(cartao: CartaoDaFicha): { descricao: string; sobrou: boolean } {
   const partes = [texto(cartao, CAMPO_DA_DESCRICAO)]
   const efeito = texto(cartao, CAMPO_DO_EFEITO)
   const modificador = texto(cartao, CAMPO_DO_MODIFICADOR)
@@ -100,7 +100,7 @@ function descricaoDoCartao(cartao: CartaoDaFicha): { descricao: string; sobrou: 
 }
 
 /** A categoria da arma (Branca, De fogo...) -> o tipo. Sem categoria: com balas, De fogo; sem, Corpo a corpo (palpite). */
-function tipoDaArma(categoria: CategoriaDaArma | null, temBalas: boolean): { tipo: TipoDoItem; palpite: boolean } {
+export function tipoDaArma(categoria: CategoriaDaArma | null, temBalas: boolean): { tipo: TipoDoItem; palpite: boolean } {
   switch (categoria) {
     case 'branca':
     case 'natural':
@@ -117,7 +117,7 @@ function tipoDaArma(categoria: CategoriaDaArma | null, temBalas: boolean): { tip
 }
 
 /** Os blocos de regra que o cartão da arma diz, com os "Confira" do que não virou número. */
-function blocosDaArma(cartao: CartaoDaFicha, tipo: TipoDoItem, balas: readonly string[], origem: string): { blocos: BlocosDoItem; confira: ConfiraDoItem[] } {
+export function blocosDaArma(cartao: CartaoDaFicha, tipo: TipoDoItem, balas: readonly string[], origem: string): { blocos: BlocosDoItem; confira: ConfiraDoItem[] } {
   const confira: ConfiraDoItem[] = []
   const danoTexto = texto(cartao, CAMPO_DO_DANO)
   const dano = /^\d{1,7}$/.test(danoTexto) ? Number.parseInt(danoTexto, 10) : primeiroNumero(danoTexto)
@@ -137,7 +137,8 @@ function blocosDaArma(cartao: CartaoDaFicha, tipo: TipoDoItem, balas: readonly s
     const capacidadeTexto = texto(cartao, CAMPO_DA_CAPACIDADE) || (naDescricao === null ? '' : naDescricao[1])
     const capacidade = primeiroNumero(capacidadeTexto)
     if (capacidade !== null && capacidade >= 1) blocos.pente = { capacidade: Math.min(capacidade, 1000), aceita: [...balas] }
-    else confira.push({ texto: 'Sem a capacidade do pente: diga quantas balas cabem', antes: capacidadeTexto, origem })
+    // Sem nada escrito, sem o "Antes:" vazio no aviso.
+    else confira.push({ texto: 'Sem a capacidade do pente: diga quantas balas cabem', ...(capacidadeTexto === '' ? {} : { antes: capacidadeTexto }), origem })
   }
   if (tipo === 'arremesso') blocos.arremesso = { recarga: { ...RECARGA_NA_HORA }, ...(ehNomeQueVolta(cartao.nome) ? { volta: true as const } : {}) }
   if (cartao.mecanica !== undefined) confira.push({ texto: 'O cartão tinha "O que ela faz" montado: confira o Ao acertar (o dano não pode dobrar)', origem })

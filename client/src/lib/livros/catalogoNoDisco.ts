@@ -90,6 +90,14 @@ export function guardarCatalogoAntesDoAlcance(sistemaId: string): Promise<void> 
   return guardarCatalogoUmaVez(sistemaId, SUFIXO_ANTES_DO_ALCANCE, 'do alcance')
 }
 
+/** Itens refeitos (PLANO §2.1, regra 5): o catálogo de antes da 1ª gravação da ligação com o Acervo, guardado UMA vez. */
+const SUFIXO_ANTES_DOS_ITENS_V2 = '.antes-itens-v2'
+
+/** Itens refeitos: a mesma cópia de antes, UMA vez, nunca por cima. Lança: sem a cópia, quem chamou não grava. */
+export function guardarCatalogoAntesDosItensV2(sistemaId: string): Promise<void> {
+  return guardarCatalogoUmaVez(sistemaId, SUFIXO_ANTES_DOS_ITENS_V2, 'dos itens refeitos')
+}
+
 function guardarCatalogoUmaVez(sistemaId: string, sufixo: string, deQue: string): Promise<void> {
   const resultado = filaDoCatalogo.then(async () => {
     try {

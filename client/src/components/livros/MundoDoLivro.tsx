@@ -91,14 +91,24 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
    * testes têm versão própria).
    */
   const marcadores = dragonBall ? MARCADORES.filter((marcador) => !ABAS_SO_DO_MOTOR_PADRAO.includes(marcador.aba)) : MARCADORES
-  /** As entradas do catálogo deste livro que são da página Itens (armas e itens do mestre), para o número do marcador. */
-  const itensNoCatalogo = useCatalogoStore((state) => (aberto !== null && state.sistemaId === aberto.sistemaId ? state.itens.filter((item) => TIPOS_DA_PAGINA.itens.includes(item.tipo)).length : null))
+  /** As entradas do catálogo deste livro (para o número do marcador Itens); `null` = o catálogo deste livro ainda não abriu. */
+  const catalogoDoLivro = useCatalogoStore((state) => (aberto !== null && state.sistemaId === aberto.sistemaId ? state.itens : null))
   /** As habilidades do mestre e as do livro (perícias, vantagens, desvantagens): o número do marcador Habilidades. */
   const habilidadesNoCatalogo = useCatalogoStore((state) =>
     aberto !== null && state.sistemaId === aberto.sistemaId ? state.itens.filter((item) => TIPOS_DA_PAGINA.habilidades.includes(item.tipo)).length + state.doLivro.length : null,
   )
   /** As coisas do Acervo do app, que a página Itens lista junto (Fase 1). */
-  const noAcervo = useAcervoDeItensStore((state) => state.itens.length)
+  const doAcervo = useAcervoDeItensStore((state) => state.itens)
+  /**
+   * O número do marcador Itens: o mesmo da lista. A arma ou o item do livro ligado a uma coisa do Acervo é a
+   * mesma coisa (`semARegraRepetida`): conta uma vez, pela do Acervo.
+   */
+  const itensNaPagina = useMemo(() => {
+    if (catalogoDoLivro === null) return null
+    const idsDoAcervo = new Set(doAcervo.map((coisa) => coisa.id))
+    const soltas = catalogoDoLivro.filter((entrada) => TIPOS_DA_PAGINA.itens.includes(entrada.tipo) && (entrada.acervoId === undefined || !idsDoAcervo.has(entrada.acervoId)))
+    return soltas.length + doAcervo.length
+  }, [catalogoDoLivro, doAcervo])
   /** Quantos campos a batalha não lê (o número do marcador Saúde da ficha, em latão quando há). */
   const naoLidos = useMemo(
     () => (personagens === null || sistema === undefined || dragonBall ? null : lerSaude(personagens, sistema).achados.filter((achado) => achado.leitura.estado === 'naoLe').length),
@@ -183,7 +193,7 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     // As fichas escolhidas para comparar; nenhuma = sem número.
     comparar: comparando === 0 ? null : comparando,
     saude: naoLidos,
-    itens: itensNoCatalogo === null ? null : itensNoCatalogo + noAcervo,
+    itens: itensNaPagina,
     habilidades: habilidadesNoCatalogo,
     // As fichas com alguma condição agora.
     condicoes: personagens === null ? null : personagens.filter((personagem) => (personagem.condicoes?.length ?? 0) > 0).length,
