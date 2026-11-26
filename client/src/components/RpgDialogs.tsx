@@ -7,6 +7,7 @@ import { nomeDaCopia, rascunhoDaCopia, rascunhoDoSistema, rascunhoEmBranco, type
 import { serializarSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { herdaDaPasta, hostWorldOf, mochilaMoraNaFicha, personagensAtivos, sistemaAtivo, temRpgNoMapa, useAdventureStore } from '../stores/adventureStore'
 import { useToastStore } from '../stores/toastStore'
+import { useBatalhaStore } from '../stores/batalhaStore'
 import { campanhaDaPasta } from './nuvem/ponteDoLobby'
 import { SISTEMA_FIXO_NO_LOBBY, usePastaPublicada } from './nuvem/usePastaPublicada'
 import { carriedItemsOf, quantidadeDe } from '../lib/items'
@@ -294,6 +295,9 @@ function darAAliadoDe(personagemId: string): DarAAliado {
     const de = agora.find((candidato) => candidato.id === personagemId)
     const para = agora.find((candidato) => candidato.id === alvoId)
     if (de === undefined || para === undefined) return { ok: false, motivo: 'A ficha já não está na aventura.' }
+    // ITENS REFEITOS, E6b (decisão 9): na batalha, item só vai para aliado (dar não gasta ação).
+    const naLuta = useBatalhaStore.getState().motivoDoDarNaLuta(de.id, para.id)
+    if (naLuta !== null) return { ok: false, motivo: naLuta }
     const passado = passarAoAliado(de, para, vaga.id, quantos, acervoDaMochila(useAcervoDeItensStore.getState().itens), () => `item_${crypto.randomUUID()}`)
     if (ehRecusa(passado)) return { ok: false, motivo: passado.recusa }
     const antes = new Map([[de.id, de.mochila ?? []], [para.id, para.mochila ?? []]])
@@ -306,6 +310,8 @@ function darAAliadoDe(personagemId: string): DarAAliado {
       })
     const balas = passado.devolvidas > 0 ? ` As ${passado.devolvidas} balas do pente ficaram com ${de.nome}.` : ''
     const quantosForam = passado.entraram > 1 ? `${passado.entraram} ${vaga.nome}` : vaga.nome
+    // E6b: na batalha, a linha do registro; a munição recebida recarrega o pente vazio de quem recebeu.
+    useBatalhaStore.getState().recebeuNaLuta({ personagemIds: [para.id] }, { tipo: 'mestre' }, `${de.nome} deu ${quantosForam} a ${para.nome}`)
     useToastStore.getState().push('info', `${de.nome} deu ${quantosForam} a ${para.nome}.${balas}`, undefined, { actions: [{ label: 'Desfazer', run: () => void desfazer() }] })
     return { ok: true }
   }

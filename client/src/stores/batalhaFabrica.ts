@@ -39,6 +39,7 @@ import { criarCompanions } from './batalha/companions'
 import { donosQueEscolhem } from '../lib/caracteristicas/naBatalha'
 import { criarPassivas } from './batalha/passivas'
 import { criarAjuda } from './batalha/ajuda'
+import { criarDarNaBatalha } from './batalha/darNaBatalha'
 
 /**
  * MODO BATALHA (fatia B4 de docs/planos/modo-batalha-2026-10-24.md): quais
@@ -105,6 +106,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   const fatiaDosCompanions = criarCompanions(nucleo)
   const fatiaDasPassivas = criarPassivas(nucleo, fatiaDasFormas)
   const fatiaDaAjuda = criarAjuda(nucleo, fatiaDoGolpe, fatiaDasPassivas)
+  // Itens refeitos, E6b: dar item na batalha (só a aliado; a munição recebida recarrega o pente vazio).
+  const fatiaDoDar = criarDarNaBatalha(nucleo)
 
   /**
    * Conserto das fichas F1 (resposta do Vincent, "o Escudo volta cheio a cada
@@ -324,6 +327,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     ...fatiaDosCompanions.acoes,
     ...fatiaDasPassivas.acoes,
     ...fatiaDaAjuda.acoes,
+    ...fatiaDoDar.acoes,
   }
 }
 

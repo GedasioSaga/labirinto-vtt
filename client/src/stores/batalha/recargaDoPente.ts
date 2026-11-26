@@ -204,6 +204,31 @@ export function recargaDepoisDoTiro(mesa: MesaDaBatalha, sceneKey: string, vez: 
  * (Ação Bônus sem bônus) fica de pente vazio, com o motivo no Atacar.
  */
 export function recargasNoComecoDaVez(mesa: MesaDaBatalha, sceneKey: string, vez: VezDaRecarga, turnos: TurnosDaCena): RecargaNaMesa | 'recusada' {
+  return recarregarAsVazias(mesa, sceneKey, vez, turnos, () => true, () => null)
+}
+
+/**
+ * DAR NA BATALHA (itens refeitos, E6b; decisão 9): chegou bala na mochila de quem tem a carta. Cada arma
+ * equipada dele com o pente vazio, bala que sirva e fora da espera recarrega agora se a ação da recarga
+ * cabe (a Livre a qualquer hora; as outras só na vez dele). A que não cabe fica para o começo da
+ * próxima vez dele (`recargasNoComecoDaVez`); `comAEspera` = a frase diz isso.
+ */
+export function recargaAoReceber(mesa: MesaDaBatalha, sceneKey: string, vez: VezDaRecarga, turnos: TurnosDaCena, comAEspera: boolean): RecargaNaMesa | 'recusada' {
+  return recarregarAsVazias(
+    mesa,
+    sceneKey,
+    vez,
+    turnos,
+    (arma) => turnos.vez === vez.carta.id || (arma.pente !== undefined && acaoDaRecarga(arma.pente.recarga) === 'livre'),
+    (arma) => (comAEspera && arma.pente !== undefined ? `pente de ${arma.nome} vazio: a mesa recarrega no começo da próxima vez (${arma.pente.recarga.acao})` : null),
+  )
+}
+
+/**
+ * O miolo das duas: cada arma equipada de quem tem a carta com o pente vazio, bala que sirva na mochila
+ * e fora da espera recarrega se `agora` deixa e a ação cabe; a que não recarrega diz `senao`.
+ */
+function recarregarAsVazias(mesa: MesaDaBatalha, sceneKey: string, vez: VezDaRecarga, turnos: TurnosDaCena, agora: (arma: ArmaDaFicha) => boolean, senao: (arma: ArmaDaFicha) => string | null): RecargaNaMesa | 'recusada' {
   const { carta } = vez
   const personagemId = carta.personagemId
   const nada: RecargaNaMesa = { turnos, partes: [], texto: null }
@@ -219,9 +244,13 @@ export function recargasNoComecoDaVez(mesa: MesaDaBatalha, sceneKey: string, vez
     // A arma lida de novo: a recarga de antes pode ter levado a bala que esta também aceita.
     const arma = armaNaMesa(mesa, sceneKey, carta.tokenId, personagemId, vazia.id)
     if (arma?.pente === undefined || arma.pente.naMochila < 1) continue
-    const feita = recarregarSeCouber(mesa, sceneKey, vez, atual.turnos, arma)
+    const feita = agora(arma) ? recarregarSeCouber(mesa, sceneKey, vez, atual.turnos, arma) : null
     if (feita === 'recusada') return 'recusada'
-    if (feita === null) continue
+    if (feita === null) {
+      const frase = senao(arma)
+      if (frase !== null) textos.push(frase)
+      continue
+    }
     atual = { turnos: feita.turnos, partes: [...atual.partes, ...feita.partes], texto: null }
     if (feita.texto !== null) textos.push(feita.texto)
   }

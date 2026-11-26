@@ -1073,6 +1073,8 @@ function App() {
         // chão com ela ainda na mochila de alguém.
         applyItems: (change) => {
           applyItemsInScene(change)
+          // ITENS REFEITOS, E6b (decisão 9): o "Dar" do jogador na batalha recarrega o pente vazio de quem recebeu munição.
+          useBatalhaStore.getState().recebeuNaLuta({ tokenIds: change.mochilas.map((mudanca) => mudanca.tokenId) }, { tipo: 'mestre' }, null)
         },
         // "Deixar ir": o token troca de cena fora do desfazer das duas (ver `transferToken`).
         // `tamanho`: o Desfazer de uma viagem devolve a ficha com o lado de antes.

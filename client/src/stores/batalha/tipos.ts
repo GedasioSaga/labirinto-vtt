@@ -191,6 +191,18 @@ export interface BatalhaState {
    */
   zerarCarga: (sceneKey: string, autor: AutorDaAcao, personagemId: string) => boolean
   /**
+   * ITENS REFEITOS, E6b (decisão 9): por que `deId`, numa batalha ligada, não pode dar item a `paraId`
+   * (item só vai para aliado na luta). `null` = pode (ou `deId` não está em batalha nenhuma).
+   */
+  motivoDoDarNaLuta: (deId: string, paraId: string) => string | null
+  /**
+   * ITENS REFEITOS, E6b (decisão 9): a mochila de quem tem carta numa batalha ligada recebeu item (dar não
+   * gasta ação). A arma equipada com o pente vazio recarrega da munição recebida (agora, se a ação cabe;
+   * senão no começo da próxima vez dele). `texto` = a frase do dar ("Kaya deu 10 Bala de Prata a
+   * Vincent"), que vira a linha do registro; `null` = só a recarga feita entra (a mudança pela LAN).
+   */
+  recebeuNaLuta: (quem: { personagemIds?: readonly string[]; tokenIds?: readonly string[] }, autor: AutorDaAcao, texto: string | null) => void
+  /**
    * Q4: o mestre liga ou desliga o Perfurante de um golpe que ainda tem alvo
    * esperando (o mestre decide no fim). `perfuracao` (1 a 100) troca também a
    * porcentagem; ausente = fica a do golpe. Porcentagem torta: `false`.
