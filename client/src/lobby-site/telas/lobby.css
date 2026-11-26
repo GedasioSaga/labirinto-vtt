@@ -1423,6 +1423,18 @@ textarea.lo-texto { min-height: 84px; resize: vertical; }
 .lo-item__nome { font-size: var(--lb-font-size-lg); font-weight: var(--lb-font-weight-medium); overflow-wrap: anywhere; }
 .lo-item__desc { color: var(--lb-color-parchment-dim); overflow-wrap: anywhere; }
 
+/* Sistema de itens refeito (E5b): o tipo e o "Em uso" em etiquetas, a linha do pente, a nota da vaga
+   e os botões Equipar/Guardar/Recarregar embaixo do texto (quebram linha no celular). */
+.lo-item__marcas { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0; }
+.lo-item__pente {
+  color: var(--lb-color-parchment-dim);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+.lo-item__nota { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); font-style: italic; overflow-wrap: anywhere; }
+.lo-item__acoes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-control-gap); margin-top: var(--lb-space-2); }
+
 .lo-qtd {
   display: grid;
   grid-template-columns: var(--lo-alvo) 44px var(--lo-alvo);

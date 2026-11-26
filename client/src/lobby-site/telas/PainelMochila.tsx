@@ -1,6 +1,9 @@
 import { useId, useState, type FormEvent } from 'react'
 import { quantidadeDe } from '../../lib/items'
+import { ROTULO_DO_TIPO } from '../../lib/itens/modelo'
+import { balasParaOPente, ehRecusa, penteDaArma, seEquipa, tipoDaVaga } from '../../lib/mochila/armaNaMochila'
 import { paraJson } from '../../lib/nuvem/json'
+import { ACERVO_DA_VAGA, pedidoDeEquipar, pedidoDeGuardar, pedidoDeRecarregar, pedidoDeTirar, type PedidoNaMochila } from '../../lib/nuvem/mochilaDoJogador'
 import type { Mudanca } from '../../lib/nuvem/tipos'
 import { MOEDAS_MAX } from '../../lib/troca'
 import type { CarriedItem } from '../../types/map'
@@ -16,6 +19,11 @@ import { useSoLeitura } from './VerComo'
  * carrega, a mesma em todos os mapas da campanha. Cada toque é UMA mudança:
  * "+1 Poção" vira um `somar` em `['mochila', vaga, 'quantidade']`, nunca a
  * mochila inteira. Na ficha de um colega, só lê.
+ *
+ * Sistema de itens refeito (E5b, A6): a vaga mostra o tipo, o "Em uso" e o pente, e o dono equipa,
+ * guarda e recarrega fora da batalha (`lib/nuvem/mochilaDoJogador.ts`, as regras da mochila do mestre).
+ * O Recarregar e o Tirar de uma arma carregada vão tudo ou nada: a pilha e o pente mudam juntos.
+ * Usar e Dar a outra ficha ficam na mesa (precisam do app do mestre).
  */
 
 const NOME_DO_ITEM_MAX = 80
@@ -49,17 +57,36 @@ export function PainelMochila({ campanha, ficha }: PainelProps) {
   const moedas = ficha.doc.moedas ?? 0
   const fichaId = ficha.doc.id
 
-  function mandar(mudanca: Mudanca) {
+  function mandarJuntas(mudancas: readonly Mudanca[]) {
     const baseRev = revDeAgora(site)
     if (baseRev === null) return
     setErro(null)
-    void enviarMudancas(site, [mudanca], baseRev).then((resultado) => {
+    void enviarMudancas(site, mudancas, baseRev).then((resultado) => {
       if (!resultado.ok) setErro(textoDaFalha(resultado))
     })
   }
 
-  const somarItem = (item: CarriedItem, delta: number) => mandar({ fichaId, caminho: ['mochila', item.id, 'quantidade'], acao: 'somar', delta })
-  const tirarItem = (item: CarriedItem) => mandar({ fichaId, caminho: ['mochila', item.id], acao: 'apagar' })
+  const mandar = (mudanca: Mudanca) => mandarJuntas([mudanca])
+
+  /** Equipar, guardar, recarregar e tirar: as mudanças do pedido juntas, ou a frase de por que não dá. */
+  function pedir(pedido: PedidoNaMochila) {
+    if (ehRecusa(pedido)) {
+      setErro(pedido.recusa)
+      return
+    }
+    mandarJuntas(pedido.mudancas)
+  }
+
+  // Sem base ainda (`eu` nulo), vale a regra do dono, a mais estreita.
+  const papel = campanha.eu?.papel ?? 'jogador'
+  const acoes: AcoesDaVaga = {
+    somar: (item, delta) => mandar({ fichaId, caminho: ['mochila', item.id, 'quantidade'], acao: 'somar', delta }),
+    // A arma carregada devolve as balas do pente à pilha delas antes de sair (A8).
+    tirar: (item) => pedir(pedidoDeTirar(ficha.doc, papel, item.id, novaVaga())),
+    equipar: (item) => pedir(pedidoDeEquipar(ficha.doc, papel, item.id)),
+    guardar: (item) => pedir(pedidoDeGuardar(ficha.doc, papel, item.id)),
+    recarregar: (arma, bala) => pedir(pedidoDeRecarregar(ficha.doc, papel, arma.id, bala.id, novaVaga())),
+  }
   const somarMoedas = (delta: number) => mandar({ fichaId, caminho: ['moedas'], acao: 'somar', delta })
 
   return (
@@ -86,7 +113,7 @@ export function PainelMochila({ campanha, ficha }: PainelProps) {
         {itens.length === 0 ? (
           <li className="lo-vazio">{pode ? 'A mochila está vazia. Use Pôr item para guardar a primeira coisa.' : 'A mochila está vazia.'}</li>
         ) : (
-          itens.map((item) => <LinhaDoItem key={item.id} item={item} pode={pode} travado={travado} aoSomar={somarItem} aoTirar={tirarItem} />)
+          itens.map((item) => <LinhaDoItem key={item.id} item={item} mochila={itens} pode={pode} travado={travado} acoes={acoes} />)
         )}
       </ul>
       {erro !== null && (
@@ -117,20 +144,28 @@ export function PainelMochila({ campanha, ficha }: PainelProps) {
   )
 }
 
-function LinhaDoItem({
-  item,
-  pode,
-  travado,
-  aoSomar,
-  aoTirar,
-}: {
-  item: CarriedItem
-  pode: boolean
-  travado: boolean
-  aoSomar: (item: CarriedItem, delta: number) => void
-  aoTirar: (item: CarriedItem) => void
-}) {
+/** O que o dono faz numa vaga pelo site. */
+interface AcoesDaVaga {
+  somar: (item: CarriedItem, delta: number) => void
+  tirar: (item: CarriedItem) => void
+  equipar: (item: CarriedItem) => void
+  guardar: (item: CarriedItem) => void
+  recarregar: (arma: CarriedItem, bala: CarriedItem) => void
+}
+
+/** "Pente: 4 de 6 · Bala de Prata", ou "Pente vazio (cabem 6)". A bala sem pilha na mochila fica sem nome. */
+function textoDoPente(arma: CarriedItem, capacidade: number, mochila: readonly CarriedItem[]): string {
+  const carregado = arma.pente
+  if (carregado === undefined) return `Pente vazio (cabem ${capacidade})`
+  const bala = mochila.find((vaga) => vaga.itemId === carregado.balaId)
+  return `Pente: ${carregado.n} de ${capacidade}${bala === undefined ? '' : ` · ${bala.nome}`}`
+}
+
+function LinhaDoItem({ item, mochila, pode, travado, acoes }: { item: CarriedItem; mochila: readonly CarriedItem[]; pode: boolean; travado: boolean; acoes: AcoesDaVaga }) {
   const quantidade = quantidadeDe(item)
+  const tipo = tipoDaVaga(item, ACERVO_DA_VAGA)
+  const pente = penteDaArma(item, ACERVO_DA_VAGA)
+  const equipa = seEquipa(item, ACERVO_DA_VAGA)
   return (
     <li className="lo-item">
       <span className="lo-vaga" data-tom={tomDe(item.itemId ?? item.nome)} aria-hidden="true">
@@ -139,21 +174,44 @@ function LinhaDoItem({
       </span>
       <div className="lo-item__texto">
         <p className="lo-item__nome">{item.nome}</p>
+        {(tipo !== undefined || item.equipado === true) && (
+          <p className="lo-item__marcas">
+            {tipo !== undefined && <span className="lo-tag">{ROTULO_DO_TIPO[tipo]}</span>}
+            {item.equipado === true && <span className="lo-tag lo-tag--latao">Em uso</span>}
+          </p>
+        )}
+        {pente !== null && <p className="lo-item__pente">{textoDoPente(item, pente.capacidade, mochila)}</p>}
+        {item.notaDaVaga !== undefined && item.notaDaVaga !== '' && <p className="lo-item__nota">{item.notaDaVaga}</p>}
         {item.descricao !== undefined && item.descricao !== '' && <p className="lo-item__desc">{item.descricao}</p>}
+        {pode && (equipa || pente !== null) && (
+          <div className="lo-item__acoes">
+            {equipa &&
+              (item.equipado === true ? (
+                <button type="button" className="lo-btn" aria-label={`Guardar ${item.nome}`} disabled={travado} onClick={() => acoes.guardar(item)}>
+                  Guardar
+                </button>
+              ) : (
+                <button type="button" className="lo-btn" aria-label={`Equipar ${item.nome}`} disabled={travado} onClick={() => acoes.equipar(item)}>
+                  Equipar
+                </button>
+              ))}
+            {pente !== null && <Recarregar arma={item} capacidade={pente.capacidade} mochila={mochila} travado={travado} aoRecarregar={acoes.recarregar} />}
+          </div>
+        )}
       </div>
       {pode ? (
         <div className="lo-qtd">
           {quantidade <= 1 ? (
-            <button type="button" className="lo-btn lo-btn--icone lo-btn--tirar" aria-label={`Tirar ${item.nome} da mochila`} title="Tirar da mochila" disabled={travado} onClick={() => aoTirar(item)}>
+            <button type="button" className="lo-btn lo-btn--icone lo-btn--tirar" aria-label={`Tirar ${item.nome} da mochila`} title="Tirar da mochila" disabled={travado} onClick={() => acoes.tirar(item)}>
               <Icone nome="tirar" />
             </button>
           ) : (
-            <button type="button" className="lo-btn lo-btn--icone" aria-label={`Tirar 1 ${item.nome}`} disabled={travado} onClick={() => aoSomar(item, -1)}>
+            <button type="button" className="lo-btn lo-btn--icone" aria-label={`Tirar 1 ${item.nome}`} disabled={travado} onClick={() => acoes.somar(item, -1)}>
               <Icone nome="menos" />
             </button>
           )}
           <output aria-label={`Quantidade de ${item.nome}`}>{quantidade}</output>
-          <button type="button" className="lo-btn lo-btn--icone" aria-label={`Pôr 1 ${item.nome}`} disabled={travado || quantidade >= QUANTIDADE_MAX} onClick={() => aoSomar(item, 1)}>
+          <button type="button" className="lo-btn lo-btn--icone" aria-label={`Pôr 1 ${item.nome}`} disabled={travado || quantidade >= QUANTIDADE_MAX} onClick={() => acoes.somar(item, 1)}>
             <Icone nome="mais" />
           </button>
         </div>
@@ -161,6 +219,48 @@ function LinhaDoItem({
         <span className="lo-moedas__nome">x{quantidade}</span>
       )}
     </li>
+  )
+}
+
+/**
+ * Recarregar fora da batalha: um botão por munição que a arma aceita e que está na mochila (o nome vai
+ * no botão quando há mais de uma). Pente cheio com aquela bala: o botão dela fica apagado.
+ */
+function Recarregar({
+  arma,
+  capacidade,
+  mochila,
+  travado,
+  aoRecarregar,
+}: {
+  arma: CarriedItem
+  capacidade: number
+  mochila: readonly CarriedItem[]
+  travado: boolean
+  aoRecarregar: (arma: CarriedItem, bala: CarriedItem) => void
+}) {
+  const balas = balasParaOPente(mochila, arma.id, ACERVO_DA_VAGA)
+  if (balas.length === 0) return <span className="lo-motivo">Sem munição que ela aceite na mochila.</span>
+  return (
+    <>
+      {balas.map((bala) => {
+        const cheio = arma.pente !== undefined && arma.pente.balaId === bala.itemId && arma.pente.n >= capacidade
+        const texto = balas.length === 1 ? 'Recarregar' : `Recarregar com ${bala.nome}`
+        return (
+          <button
+            key={bala.id}
+            type="button"
+            className="lo-btn"
+            aria-label={`${texto} (${arma.nome})`}
+            title={cheio ? 'O pente já está cheio' : undefined}
+            disabled={travado || cheio}
+            onClick={() => aoRecarregar(arma, bala)}
+          >
+            {texto}
+          </button>
+        )
+      })}
+    </>
   )
 }
 
