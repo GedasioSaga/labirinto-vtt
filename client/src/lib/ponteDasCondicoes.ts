@@ -7,6 +7,9 @@ import { condicoesPropriasOf } from './condicoesProprias'
 import type { CondicaoAtiva } from './dbt/batalha/tipos'
 import { lerPrazo, prazoDaCondicao, prazosDaFicha } from './prazoDaCondicao'
 import { TOKEN_CONDITION_LABELS, tokenConditionsOf } from './tokenConditions'
+import { condicaoDoCatalogo } from './condicoes/catalogo'
+import { condicoesDe } from './condicoes/naFicha'
+import type { Personagem } from './personagem'
 
 /**
  * A PONTE DA BATALHA PARA A PASTILHA (Fase 3 do plano de melhoria,
@@ -95,26 +98,59 @@ function pedidoDoEspelho(nome: string, prazo: PrazoDeCondicao | null): SeloDoGol
   return pedido
 }
 
-/** O espelho já está como a pastilha pede (os turnos e a vida por turno do prazo)? */
+/** O espelho já está como a pastilha pede (os turnos, a vida por turno e o corte da cura)? */
 function espelhoEmDia(espelho: SeloDaBatalha, pedido: SeloDoGolpe): boolean {
-  return espelho.turnos === pedido.turnos && espelho.porVez === pedido.porVez
+  return espelho.turnos === pedido.turnos && espelho.porVez === pedido.porVez && espelho.regra?.curaRecebida === pedido.regra?.curaRecebida
 }
 
-/** O espelho com os turnos e a vida por turno de agora (o prazo andou). */
+/** O espelho com os turnos, a vida por turno e o corte da cura de agora (o prazo andou, a condição renovou). */
 function espelhoAtualizado(espelho: SeloDaBatalha, pedido: SeloDoGolpe): SeloDaBatalha {
-  const { porVez: _antes, ...sem } = espelho
+  const { porVez: _antes, regra: _regraAntes, ...sem } = espelho
   const depois: SeloDaBatalha = { ...sem, turnos: pedido.turnos, total: pedido.turnos === null ? null : Math.max(espelho.total ?? 0, pedido.turnos) }
   if (pedido.porVez !== undefined) depois.porVez = pedido.porVez
+  if (pedido.regra !== undefined) depois.regra = pedido.regra
   return depois
 }
 
-/** Os espelhos que as pastilhas da ficha pedem, por chave: fora os nomes que um selo da batalha já segura nela. */
-function pedidosDaFicha(selos: readonly SeloDaBatalha[], ficha: Token): Map<string, SeloDoGolpe> {
+/** Por ficha da cena (o token), os espelhos que as condições da FICHA DE PERSONAGEM dela pedem, por chave do nome. */
+export type CondicoesDasFichas = (ficha: Token) => ReadonlyMap<string, SeloDoGolpe>
+
+/**
+ * ITENS REFEITOS, E6c (PLANO §1.5: a condição mora na ficha, e a batalha a lê): o espelho que cada
+ * condição posta em `Personagem.condicoes` pede, pelo nome do catálogo. A de regra `vida` tira o número
+ * dela por vez (o "Aplicar / pular" do mestre, como o Sangrando de sempre); a de regra `cura` corta a cura
+ * recebida no % dela; a `narra` vale pelo nome (Atordoado trava). O prazo é da ficha: o espelho não desconta
+ * (`daPastilha`), quem desconta é o fim da vez (`contarFimDaVez`). A criada que o mestre apagou não espelha.
+ */
+export function pedidosDasCondicoesDaFicha(personagem: Pick<Personagem, 'condicoes'> | null | undefined, criadas: readonly CondicaoPropria[]): Map<string, SeloDoGolpe> {
+  const pedidos = new Map<string, SeloDoGolpe>()
+  if (personagem === null || personagem === undefined) return pedidos
+  for (const condicao of condicoesDe(personagem)) {
+    const doCatalogo = condicaoDoCatalogo(condicao.condId, criadas)
+    if (doCatalogo === null || !ehNomeDeSelo(doCatalogo.nome)) continue
+    const chave = chaveDoSelo(doCatalogo.nome)
+    if (chave === '' || pedidos.has(chave)) continue
+    const pedido: SeloDoGolpe = { nome: doCatalogo.nome, turnos: condicao.turnos }
+    const n = condicao.n ?? doCatalogo.n
+    if (doCatalogo.regra === 'vida' && n > 0) pedido.porVez = n
+    if (doCatalogo.regra === 'cura' && n > 0) pedido.regra = { curaRecebida: -n }
+    pedidos.set(chave, pedido)
+  }
+  return pedidos
+}
+
+/**
+ * Os espelhos que a ficha pede, por chave: fora os nomes que um selo da batalha já segura nela.
+ * E6c: primeiro as condições da ficha de personagem (`daFicha`); a pastilha antiga gravada no próprio
+ * token só entra com nome que a ficha não tem.
+ */
+function pedidosDaFicha(selos: readonly SeloDaBatalha[], ficha: Token, daFicha?: CondicoesDasFichas): Map<string, SeloDoGolpe> {
   const daBatalha = new Set(selos.filter((selo) => selo.tokenId === ficha.id && selo.daPastilha !== true).map((selo) => chaveDoSelo(selo.nome)))
   const pedidos = new Map<string, SeloDoGolpe>()
+  for (const [chave, pedido] of daFicha?.(ficha) ?? []) if (!daBatalha.has(chave)) pedidos.set(chave, pedido)
   for (const nome of pastilhasAcesas(ficha)) {
     const chave = chaveDoSelo(nome)
-    const pedido = daBatalha.has(chave) ? null : pedidoDoEspelho(nome, prazoDaCondicao(ficha, nome))
+    const pedido = daBatalha.has(chave) || pedidos.has(chave) ? null : pedidoDoEspelho(nome, prazoDaCondicao(ficha, nome))
     if (pedido !== null) pedidos.set(chave, pedido)
   }
   return pedidos
@@ -134,11 +170,11 @@ function pedidosDaFicha(selos: readonly SeloDaBatalha[], ficha: Token): Map<stri
  * como está); `novoId` dá o id do espelho novo; `rodada` = a de agora. Ficha
  * no teto de selos fica sem o espelho. Nada mudou = `null`.
  */
-export function espelhosDasPastilhas(selos: readonly SeloDaBatalha[] | undefined, fichas: readonly Token[], rodada: number, novoId: () => string): SeloDaBatalha[] | null {
+export function espelhosDasPastilhas(selos: readonly SeloDaBatalha[] | undefined, fichas: readonly Token[], rodada: number, novoId: () => string, daFicha?: CondicoesDasFichas): SeloDaBatalha[] | null {
   let lista: SeloDaBatalha[] = [...(selos ?? [])]
   let mudou = false
   for (const ficha of fichas) {
-    const pedidos = pedidosDaFicha(lista, ficha)
+    const pedidos = pedidosDaFicha(lista, ficha, daFicha)
     lista = lista.flatMap((selo) => {
       if (selo.tokenId !== ficha.id || selo.daPastilha !== true) return [selo]
       const chave = chaveDoSelo(selo.nome)

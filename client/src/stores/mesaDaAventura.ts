@@ -11,6 +11,10 @@ import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import type { MapData, Token } from '../types/map'
 import { applyItemsInScene, equipesAtivas, mochilaMoraNaFicha, periodoDaSessao, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
+import { useCondicoesPropriasStore } from './condicoesPropriasStore'
+import { casasDoEmpurrao } from '../lib/batalha/aoAcertarDoItem'
+import { hasLineOfSight } from '../lib/linhaDeVisao'
+import { findOccupant } from '../lib/movementRules'
 import { sistemaPorId, useRpgStore } from './rpgStore'
 
 /**
@@ -206,6 +210,44 @@ export const mesaDaAventura: MesaDaBatalha = {
     const map = mapaDaCena(sceneKey)
     const token = map?.tokens.find((candidato) => candidato.id === tokenId)
     return map === null || token === undefined || !(map.grid > 0) ? null : mapaDoAlcance(map, pisoDe(token))
+  },
+
+  // ITENS REFEITOS, E6c: a mesa da aventura guarda as condições na ficha (o catálogo das criadas é o do mestre).
+  condicoesCriadas: () => useCondicoesPropriasStore.getState().catalogo,
+
+  // E6c (A5): o empurrão anda casa por casa para longe de quem bateu, sem sair do mapa, sem cair em cima de outra
+  // ficha do mesmo piso e sem atravessar parede (a mesma parede da visão e do alcance). Fora do Ctrl+Z do mestre.
+  empurrarToken: (sceneKey, tokenId, deQuemTokenId, casas) => {
+    const map = mapaDaCena(sceneKey)
+    const alvo = map?.tokens.find((candidato) => candidato.id === tokenId)
+    const deQuem = map?.tokens.find((candidato) => candidato.id === deQuemTokenId)
+    if (map === null || map === undefined || alvo === undefined || deQuem === undefined || !(map.grid > 0)) return null
+    const grid = map.grid
+    const piso = pisoDe(alvo)
+    const { segmentos } = mapaDoAlcance(map, piso)
+    const doPiso = map.tokens.filter((token) => pisoDe(token) === piso)
+    const casaDoAlvo = casaDoToken(alvo, alvo.size, grid)
+    const pontoDa = (casa: { col: number; row: number }) => ({ x: alvo.x + (casa.col - casaDoAlvo.col) * grid, y: alvo.y + (casa.row - casaDoAlvo.row) * grid })
+    const passa = (de: { col: number; row: number }, para: { col: number; row: number }): boolean => {
+      if (para.col < 0 || para.row < 0 || para.col >= Math.ceil(map.width) || para.row >= Math.ceil(map.height)) return false
+      const ponto = pontoDa(para)
+      return findOccupant(doPiso, tokenId, ponto, grid) === undefined && hasLineOfSight(pontoDa(de), ponto, segmentos)
+    }
+    const caminho = casasDoEmpurrao(casaDoToken(deQuem, deQuem.size, grid), casaDoAlvo, casas, passa)
+    const ultima = caminho[caminho.length - 1]
+    const de = { x: alvo.x, y: alvo.y }
+    if (ultima === undefined) return { de, para: de, casas: 0 }
+    const para = pontoDa(ultima)
+    const mover = (mapa: MapData): MapData => mapFactory.setTokenPosition(mapa, tokenId, para.x, para.y)
+    const andou = mudarACena(sceneKey, () => useMapStore.getState().applyPlayerChange(mover), mover)
+    return andou ? { de, para, casas: caminho.length } : null
+  },
+
+  voltarEmpurrao: (sceneKey, tokenId, empurrao) => {
+    const token = tokensDaCena(sceneKey).find((candidato) => candidato.id === tokenId)
+    if (token === undefined || token.x !== empurrao.para.x || token.y !== empurrao.para.y) return false
+    const voltar = (mapa: MapData): MapData => mapFactory.setTokenPosition(mapa, tokenId, empurrao.de.x, empurrao.de.y)
+    return mudarACena(sceneKey, () => useMapStore.getState().applyPlayerChange(voltar), voltar)
   },
 
   // REQUISITOS E5: a luz pelo mapa inteiro da cena e o período da sessão (o mestre vê toda luz).

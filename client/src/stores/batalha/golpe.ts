@@ -97,6 +97,7 @@ import type { Personagem } from '../../lib/personagem'
 import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
 import type { SelosDaBatalha } from './selos'
+import { tirarDaFichaPeloEspelho } from './condicoesNaFicha'
 
 function novoIdDeGolpe(): string {
   return `golpe_${crypto.randomUUID()}`
@@ -379,7 +380,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       partes.push(...dano.partes)
       if (dano.efeito !== null) efeitos.push(dano.efeito)
       // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo (Metade, Receber). F2 (fatia B): com a disputa da mecânica à mão.
-      const noAcerto = seloNoAcerto(novos, golpe, depois)
+      const noAcerto = seloNoAcerto(sceneKey, novos, golpe, depois)
       if (noAcerto.alvo !== depois) {
         golpeFeito = golpeComOAlvo(golpeFeito, noAcerto.alvo)
         novos = { ...novos, golpes: comGolpe(turnos.golpes, golpeFeito) }
@@ -882,7 +883,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         partes.push(...feito.partes, ...acerto.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
         // F3 (Q6): o selo do golpe pega no alvo que ele acertou (F2, fatia B: com a disputa da mecânica à mão).
-        const noAcerto = seloNoAcerto(novos, golpe, alvo)
+        const noAcerto = seloNoAcerto(sceneKey, novos, golpe, alvo)
         golpe = golpeComOAlvo(golpe, noAcerto.alvo)
         const selado = noAcerto.selado
         if (selado !== null) {
@@ -959,6 +960,14 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           if (semVeneno.size > 0) novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => !semVeneno.has(selo.id)) }
           // Nº 3: a limpeza tira os dois, como fora da batalha: as pastilhas (e o prazo) dos selos tirados saem da ficha do mapa.
           const curaDoItem = condicoesQueSaemNoAlvo(sceneKey, alvo.tokenId, [...tirados, ...venenos].map((selo) => selo.nome), item !== undefined)
+          // ITENS REFEITOS, E6c: o espelho tirado de uma condição da FICHA de personagem: ela sai da ficha também (o antídoto, o "Tirar condição").
+          if (alvo.personagemId !== null) {
+            for (const selo of [...tirados, ...venenos]) {
+              if (selo.daPastilha !== true) continue
+              const saiu = tirarDaFichaPeloEspelho(mesa, alvo.personagemId, selo.nome)
+              if (saiu !== null) partes.push(saiu.parte)
+            }
+          }
           if (curaDoItem !== null) curasDoItem.push(curaDoItem)
           const doVeneno = item === undefined || curaDoItem === null || curaDoItem.curou.length === 0 ? '' : `, tirou ${curaDoItem.curou.join(', ')}`
           const doItem = item === undefined ? '' : `, gastou ${gastoDaTecnica?.porUso ?? 1} ${item}${doVeneno}`
@@ -1025,7 +1034,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         }
         daParte.push(...feito.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
-        const noAcerto = seloNoAcerto(novos, golpeDaParte, resolvido)
+        const noAcerto = seloNoAcerto(sceneKey, novos, golpeDaParte, resolvido)
         golpeDaParte = golpeComOAlvo(golpeDaParte, noAcerto.alvo)
         if (noAcerto.selado !== null) {
           daParte.push(noAcerto.selado.parte)
@@ -1139,7 +1148,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         }
         partes.push({ tipo: 'reacaoComTecnica', golpe, tokenId: esperando.tokenId, alvoAntes: esperando }, ...acerto.partes, ...feito.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
-        const noAcerto = seloNoAcerto(novos, golpe, acerto.alvo)
+        const noAcerto = seloNoAcerto(sceneKey, novos, golpe, acerto.alvo)
         golpe = golpeComOAlvo(golpe, noAcerto.alvo)
         const selado = noAcerto.selado
         if (selado !== null) {
@@ -1312,7 +1321,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           partes.push(...feito.partes, ...acerto.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
           // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo.
-          const noAcerto = seloNoAcerto(marcados, golpe, resolvido)
+          const noAcerto = seloNoAcerto(sceneKey, marcados, golpe, resolvido)
           novo = golpeComOAlvo(novo, noAcerto.alvo)
           const selado = noAcerto.selado
           if (selado !== null) {

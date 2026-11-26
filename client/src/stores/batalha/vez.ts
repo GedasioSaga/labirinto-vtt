@@ -51,6 +51,7 @@ import { recargasNoComecoDaVez } from './recargaDoPente'
 import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
 import { efeitosDosSelos } from './selos'
+import { contarFimDaVezNaMesa, daFichaNaMesa } from './condicoesNaFicha'
 import { golpesDaVezQueAcaba, type GolpeNaStore } from './golpe'
 
 /** O que o começo de vez (`comecarAVez`) recebe de quem andou a vez: os turnos de antes e de depois e o que vai na linha "vez". */
@@ -273,6 +274,15 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
         tokenIds.add(saindo.id)
       }
     }
+    // ITENS REFEITOS, E6c: as condições da FICHA de quem sai descontam no fim da vez dele (a "por N turnos").
+    const daFicha = de === null || de.personagemId === null ? null : contarFimDaVezNaMesa(mesa, de.personagemId)
+    if (de !== null && daFicha !== null) {
+      partes.push(daFicha.parte)
+      if (daFicha.acabaram.length > 0) {
+        textos.push(`${daFicha.acabaram.join(', ')} ${daFicha.acabaram.length === 1 ? 'acabou' : 'acabaram'} em ${nomeDe(de.tokenId)}`)
+        tokenIds.add(de.tokenId)
+      }
+    }
     // Começo da vez de quem entra: lida DEPOIS do desconto (a mesma ficha pode ter a vez de novo).
     const entrando = para === null || para.bando !== undefined || para.personagemId === null ? null : fichaDaCena(sceneKey, para.tokenId)
     // Nº 3 do levantamento: a vida do prazo que um selo de mesmo nome já pede ("Aplicar / pular") não sai sozinha por cima.
@@ -287,6 +297,7 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
       }
     }
     // Só o desconto, sem nada que acabou nem dano: não há o que dizer ao mestre (o número que falta está na pastilha).
+    // E6c: o desconto da ficha sem notícia também fica sem linha, mas ainda assim gravado (como o do prazo do mapa).
     if (textos.length === 0) return
     const atual = cenaDe(sceneKey) ?? cena
     // REQUISITOS B3: o dano do prazo no começo da vez também é "apanhou" (e pode derrubar).
@@ -422,7 +433,8 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     const cena = cenaDe(sceneKey)
     if (cena === undefined || fichaDaCena === undefined) return
     const fichas = [...new Set(cena.turnos.cartas.map((carta) => carta.tokenId))].flatMap((tokenId) => fichaDaCena(sceneKey, tokenId) ?? [])
-    const selos = espelhosDasPastilhas(cena.turnos.selos, fichas, cena.turnos.rodada, novoIdDeSelo)
+    // ITENS REFEITOS, E6c: também as condições da ficha de personagem de cada token (a cópia, no NPC).
+    const selos = espelhosDasPastilhas(cena.turnos.selos, fichas, cena.turnos.rodada, novoIdDeSelo, daFichaNaMesa(mesa, cena.turnos.cartas))
     if (selos !== null) gravarCena(sceneKey, { ...cena, turnos: { ...cena.turnos, selos }, turnosRev: cena.turnosRev + 1 })
   }
 

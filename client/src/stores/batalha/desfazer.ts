@@ -9,6 +9,7 @@ import { cartaoAindaComADecisao, cartaoPorId, comCartaoTrocado } from '../../lib
 import { tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
 import { devolverMunicaoNaFicha, fichaComAMochilaDoBoneco } from '../../lib/batalha/municaoDaFicha'
 import { desfazerMochilaNaMesa, devolverAoPenteNaMesa } from './recargaDoPente'
+import { comCondicoesNaFicha, condicoesDe } from '../../lib/condicoes/naFicha'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
 import {
   desfazerFicha,
@@ -204,6 +205,21 @@ export function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: Ba
     case 'mochila': {
       // ITENS REFEITOS, E6a: a recarga da mesa desfeita: a bala volta à mochila e o pente fica como estava.
       return { cena, emParte: !desfazerMochilaNaMesa(mesa, sceneKey, reversao), ok: true }
+    }
+    case 'condicoes': {
+      // ITENS REFEITOS, E6c: as condições da ficha voltam às de antes, só se ninguém mexeu nelas depois.
+      const { personagemId, antes, depois } = reversao
+      let voltou = false
+      const gravou = mesa.ajustarPersonagem(personagemId, (atual) => {
+        if (JSON.stringify(condicoesDe(atual)) !== JSON.stringify(depois)) return atual
+        voltou = true
+        return comCondicoesNaFicha(atual, antes)
+      })
+      return { cena, emParte: !gravou || !voltou, ok: true }
+    }
+    case 'empurrao': {
+      // E6c (A5): o empurrado volta à casa de antes, se ainda está onde o golpe o deixou.
+      return { cena, emParte: mesa.voltarEmpurrao?.(sceneKey, reversao.tokenId, reversao.empurrao) !== true, ok: true }
     }
     case 'invocadoSaiu': {
       // Só volta quem foi posto por linhas ainda de pé (desfazer fora de ordem não ressuscita) e não está em campo.

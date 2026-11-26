@@ -1,4 +1,4 @@
-import type { CarriedItem, Token } from '../../types/map'
+import type { CarriedItem, CondicaoPropria, Token } from '../../types/map'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { Casa, Direcao } from './area'
@@ -108,6 +108,35 @@ export interface MesaDaBatalha {
   mochilaDoBoneco?(sceneKey: string, tokenId: string): readonly CarriedItem[] | null
   /** Grava a mochila do boneco dono (aventura não migrada), pelo mesmo caminho dos itens do mapa. `false` = não gravou. */
   gravarMochilaDoBoneco?(sceneKey: string, tokenId: string, mochila: CarriedItem[]): boolean
+  /**
+   * ITENS REFEITOS, E6c (PLANO §1.5): as condições criadas pelo mestre (as de fábrica valem sempre).
+   * PRESENTE = esta mesa guarda as condições na FICHA (o jogador: a ficha; o NPC: a cópia daquele token):
+   * o acerto as põe lá, a batalha as lê pelo espelho e o fim da vez e da batalha as descontam. AUSENTE (o
+   * treino do Lobby, a Arena; A10: o treino não deixa marca) = a condição do acerto vira selo da batalha.
+   */
+  condicoesCriadas?(): readonly CondicaoPropria[]
+  /**
+   * E6c (A5): empurra o token `tokenId` até `casas` casas para longe de `deQuemTokenId`, uma por vez, pela
+   * casa livre e sem atravessar parede, FORA do Ctrl+Z do mestre (o Desfazer da batalha o volta). `null` =
+   * ficha ou cena fora de alcance; `casas: 0` = não tinha para onde ser empurrado (nada mudou). Opcional:
+   * a mesa sem mapa (a Arena, o duelo) não move ninguém.
+   */
+  empurrarToken?(sceneKey: string, tokenId: string, deQuemTokenId: string, casas: number): EmpurraoNaMesa | null
+  /** E6c: o Desfazer do empurrão: o token volta a `de`, só se ainda está em `para` (o mestre o arrastou depois: fica). `false` = não voltou. */
+  voltarEmpurrao?(sceneKey: string, tokenId: string, empurrao: EmpurraoNaMesa): boolean
+}
+
+/** Um ponto do mapa (px de mundo, o centro do token). */
+export interface PontoNoMapa {
+  x: number
+  y: number
+}
+
+/** O que o empurrão fez: de onde, para onde e quantas casas andou (0 = ficou). */
+export interface EmpurraoNaMesa {
+  de: PontoNoMapa
+  para: PontoNoMapa
+  casas: number
 }
 
 /** F2 (fatia B): onde o token está na grade e para onde olha. */

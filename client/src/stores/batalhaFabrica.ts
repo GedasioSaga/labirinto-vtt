@@ -40,6 +40,7 @@ import { donosQueEscolhem } from '../lib/caracteristicas/naBatalha'
 import { criarPassivas } from './batalha/passivas'
 import { criarAjuda } from './batalha/ajuda'
 import { criarDarNaBatalha } from './batalha/darNaBatalha'
+import { tirarNoFimDaBatalhaNaMesa } from './batalha/condicoesNaFicha'
 
 /**
  * MODO BATALHA (fatia B4 de docs/planos/modo-batalha-2026-10-24.md): quais
@@ -140,6 +141,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     if (sistema === null) return
     const ids = new Set([...turnos.cartas.flatMap((carta) => (carta.personagemId === null ? [] : [carta.personagemId])), ...Object.keys(turnos.combate ?? {})])
     for (const personagemId of ids) mesa.ajustarPersonagem(personagemId, (atual) => desfazerFormasNoFim(atual, sistema, NOME_DO_MESTRE, Date.now()) ?? atual)
+    // ITENS REFEITOS, E6c (decisão 11): saem da ficha as condições com duração; a "até alguém tirar" fica.
+    tirarNoFimDaBatalhaNaMesa(mesa, ids)
   }
 
   /** COMPANION, fim da batalha: os tokens que nasceram para ela saem do mapa (o que já estava fica). */
