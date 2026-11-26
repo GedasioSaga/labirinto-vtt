@@ -1,3 +1,19 @@
+# 26/11 ~20h: 0.6.3 em construção; /goal fecha quando a 0.6.3 sair (dono: "você foi bem")
+
+## Estado atual
+- latest.json = 0.6.2. Em voo (2 agentes, arquivos disjuntos): (A) bugs do Passeio 2: Visão de jogador de teste gravando no disco (hostBridge registrarVistos), Enter na busca do +Adicionar, selo do dado que não some, pino abrindo quadro e cartão; página QoL ganha os incertos. (B) editor antigo "Editar <arma>" do livro -> editor novo do item; ligar TODAS as armas/itens do catálogo à coisa do Acervo de mesmo nome (Rosa Fúnebre e Rifle duplicados na Biblioteca, "sem alcance definido"), contagem de ligados/novos/Confira.
+- jogadores-vistos.json: 2 nomes de teste tirados com ok do dono (cópia .antes-limpeza-26-11).
+- Sala LAN não testada (classificador barrou "Abrir mesa online"); fica na página como precisa do dono.
+
+## Próximos passos
+Quando A e B voltarem: tsc, publicar 0.6.3 (Agent automacao-devops, CARGO_BUILD_JOBS=2, RAM/disco como na 0.6.2), republicar a página QoL (artifact 7XGCzQRJAKs63ZL45B4fJd, file_path docs/qualidade-de-vida/pagina/index.html, root pagina, fotos novas em files), aceite: node ~/.claude/scripts/aceite.js sim "goal 26/11", e encerrar o /goal.
+
+## Critério de pronto
+latest.json = 0.6.3; Biblioteca sem duplicata de arma; editor antigo só para habilidade.
+
+## Evidência
+(a preencher com o retorno dos agentes e o curl do latest.json)
+
 # 26/11 19:03: 0.6.2 PUBLICADA
 
 Retomada (RAM de volta a 7 GB) do worktree ../labirinto-release (release/0.6.2 = origin/main 4d7d42d6) com CARGO_BUILD_JOBS=2 publicar-versao --publicar --com-google, exit 0 (log tmp/rel-0.6.2/publicar-2.log): tsc lobby ok, assinatura do setup confere, conferir-repo-publico "nada bloqueia", Worker labirinto-nuvem 4d5542c1-e526-47ca-a0ab-a912fb4cc77f, site 09351d98.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.6.2 (setup.exe, .sig, msi, latest.json; alvo 4d7d42d6). curl releases/latest/download/latest.json: "version": "0.6.2". Limpeza: target apagado, 3 junções .Delete() uma a uma (0 reparse points), Cargo.toml só com diferença de fim de linha restaurado, worktree remove sem --force, branch release/0.6.2 apagada; node_modules compartilhado intacto. App do dono (0.6.1) não tocado. Disco 11,4 GB. Nenhum teste rodado.
