@@ -32,6 +32,7 @@ import { PinIconControls, type PinIconControlsProps } from '../PinIconControls'
 import { PinImageDrop } from '../PinImageDrop'
 import { PinLockControls } from '../PinLockControls'
 import { PinLojaControls, idAleatorio } from '../PinLojaControls'
+import { BancaDoMestre } from '../BancaDoMestre'
 import { PinTravelControls } from '../PinTravelControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from '../PlayerSecretControls'
 import { Toggle } from '../Toggle'
@@ -259,7 +260,13 @@ function ConteudoDoRecurso({ id, props }: { id: Recurso; props: FichaDoPinoProps
     case 'colecao':
       return props.colecao ? <PinColecaoControls {...props.colecao} embutido /> : null
     case 'loja':
-      return props.loja ? <PinLojaControls {...semPinId(props.loja)} embutido /> : null
+      // Itens refeitos (E3): a banca do mestre (comprar e vender pela ficha) logo abaixo das mercadorias.
+      return props.loja ? (
+        <>
+          <PinLojaControls {...semPinId(props.loja)} embutido />
+          {props.loja.loja !== null && <BancaDoMestre pinId={props.loja.pinId} />}
+        </>
+      ) : null
     case 'cabine':
       return props.cabin ? <PinCabinControls {...props.cabin} /> : null
   }

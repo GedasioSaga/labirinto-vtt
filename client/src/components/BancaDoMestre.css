@@ -1,0 +1,84 @@
+/* A banca do mestre (itens refeitos, E3): quem compra, o que a banca vende e o vender à banca. */
+.lb-banca {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin-top: var(--lb-space-3);
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-banca__dica {
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-banca__quem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+}
+
+.lb-banca__num {
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-banca__lista {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-banca__linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) 0;
+}
+
+.lb-banca__linha + .lb-banca__linha {
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-banca__linha--venda {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.lb-banca__nome {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-banca__nome strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-banca__nome small {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-banca__comprar {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
+/* Painel estreito: o "quantos" e o Comprar descem para baixo do nome. */
+@media (max-width: 420px) {
+  .lb-banca__linha {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .lb-banca__comprar {
+    grid-column: 1 / -1;
+    justify-items: start;
+    text-align: left;
+  }
+}
