@@ -264,6 +264,20 @@
   color: var(--lb-color-parchment-dim);
 }
 
+/* Itens refeitos (E3): "Pente 4 de 6 · Bala de Prata", a bala e o Recarregar numa linha que quebra. */
+.lb-inv-mestre__pente {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-inv-mestre__pente .lb-input {
+  width: auto;
+  max-width: 100%;
+}
+
 .lb-inv-mestre__mais {
   align-self: flex-start;
   margin: 0 var(--lb-space-2);

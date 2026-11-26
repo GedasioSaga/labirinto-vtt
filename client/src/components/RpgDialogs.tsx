@@ -14,7 +14,11 @@ import { tirarDaMochilaDaFicha } from '../lib/mochila/darNaFicha'
 import { fichaComMochila } from '../lib/mochila/juncao'
 import { mochilaComAVagaAcesa } from '../lib/luzDoItem'
 import { moedasDe } from '../lib/troca'
-import { MochilaDoMestre } from './MochilaDoMestre'
+import { MochilaDoMestre, type DarAAliado } from './MochilaDoMestre'
+import { acervoDaMochila } from '../lib/mochila/acervoDaMochila'
+import { ehRecusa, mochilaComBalasDeVolta, mochilaComOPenteDevolvido, mochilaDesfeita, vagaQueSai } from '../lib/mochila/armaNaMochila'
+import { passarAoAliado } from '../lib/mochila/darAVarias'
+import { limiteDeArmas } from '../lib/batalha/leituraDaFicha'
 import { partyItemChange, tokenDoPersonagem } from '../lib/party'
 import type { AppliedItems, HostWorld } from '../net/hostSession'
 import type { CarriedItem } from '../types/map'
@@ -231,7 +235,7 @@ function EditorDaBiblioteca({ abertura, biblioteca }: { abertura: AberturaDoEdit
  */
 function mochilaDaFichaSemBoneco(personagem: Personagem) {
   const tirar = (item: CarriedItem, fechar: () => void) => {
-    const ok = useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => tirarDaMochilaDaFicha(atual, item.id, quantidadeDe(item)))
+    const ok = useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => fichaSemAVaga(atual, item))
     if (ok) fechar()
     else useToastStore.getState().push('error', `Não deu para tirar ${item.nome} de ${personagem.nome}.`)
   }
@@ -245,6 +249,8 @@ function mochilaDaFichaSemBoneco(personagem: Personagem) {
       gravar={gravar}
       mochilaDeAgora={mochilaDeAgora}
       vazio={`Nada com ${personagem.nome || 'o personagem'}. Dê um item pelo acervo de itens ou pelo livro.`}
+      limiteDeArmas={limiteDeArmas(personagem)}
+      darA={darAAliadoDe(personagem.id)}
       acoes={(item, fechar) => (
         <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={() => tirar(item, fechar)}>
           Tirar
@@ -252,6 +258,55 @@ function mochilaDaFichaSemBoneco(personagem: Personagem) {
       )}
     />
   )
+}
+
+/** A8: a vaga inteira sai da ficha, com as balas do pente de volta à mochila antes (nada se perde). */
+function fichaSemAVaga(atual: Personagem, item: CarriedItem): Personagem {
+  const acervo = acervoDaMochila(useAcervoDeItensStore.getState().itens)
+  const devolvido = mochilaComOPenteDevolvido(atual.mochila ?? [], item.id, acervo, `item_${crypto.randomUUID()}`)
+  return tirarDaMochilaDaFicha(fichaComMochila(atual, devolvido.mochila, moedasDe(atual)), item.id, quantidadeDe(item))
+}
+
+/** A8 no caminho dos itens do boneco (largar no chão, tirar): a mochila que fica recebe as balas que estavam no pente. */
+function comOPenteDeVolta(change: AppliedItems | null, tokenId: string, item: CarriedItem): AppliedItems | null {
+  const pente = item.pente
+  if (change === null || pente === undefined || pente.n < 1) return change
+  const acervo = acervoDaMochila(useAcervoDeItensStore.getState().itens)
+  const freshId = `item_${crypto.randomUUID()}`
+  return { ...change, mochilas: change.mochilas.map((mudanca) => (mudanca.tokenId === tokenId ? { ...mudanca, mochila: mochilaComBalasDeVolta(mudanca.mochila, pente.balaId, pente.n, acervo, freshId) } : mudanca)) }
+}
+
+/**
+ * O "DAR A…" DA VAGA (itens refeitos, E3): de uma mochila para um aliado (jogador ou cópia de NPC), as
+ * duas fichas numa gravação só (`ajustarPersonagens`), com o Desfazer que volta as duas. A arma vai
+ * vazia e guardada (A8, `passarAoAliado`).
+ */
+function darAAliadoDe(personagemId: string): DarAAliado {
+  const alvos = personagensAtivos(useAdventureStore.getState())
+    .filter((candidato) => candidato.id !== personagemId)
+    .map((candidato) => ({ id: candidato.id, nome: candidato.nome || 'Sem nome' }))
+  const dar: DarAAliado['dar'] = (vaga, alvoId, quantos) => {
+    const aventura = useAdventureStore.getState()
+    const agora = personagensAtivos(aventura)
+    const de = agora.find((candidato) => candidato.id === personagemId)
+    const para = agora.find((candidato) => candidato.id === alvoId)
+    if (de === undefined || para === undefined) return { ok: false, motivo: 'A ficha já não está na aventura.' }
+    const passado = passarAoAliado(de, para, vaga.id, quantos, acervoDaMochila(useAcervoDeItensStore.getState().itens), () => `item_${crypto.randomUUID()}`)
+    if (ehRecusa(passado)) return { ok: false, motivo: passado.recusa }
+    const antes = new Map([[de.id, de.mochila ?? []], [para.id, para.mochila ?? []]])
+    const depois = new Map([[de.id, passado.de], [para.id, passado.para]])
+    if (!aventura.ajustarPersonagens([de.id, para.id], (atual) => depois.get(atual.id) ?? atual)) return { ok: false, motivo: 'Não deu para gravar as fichas.' }
+    const desfazer = () =>
+      useAdventureStore.getState().ajustarPersonagens([de.id, para.id], (atual) => {
+        const mochilaDepois = depois.get(atual.id)?.mochila ?? []
+        return fichaComMochila(atual, mochilaDesfeita(atual.mochila ?? [], antes.get(atual.id) ?? [], mochilaDepois), moedasDe(atual))
+      })
+    const balas = passado.devolvidas > 0 ? ` As ${passado.devolvidas} balas do pente ficaram com ${de.nome}.` : ''
+    const quantosForam = passado.entraram > 1 ? `${passado.entraram} ${vaga.nome}` : vaga.nome
+    useToastStore.getState().push('info', `${de.nome} deu ${quantosForam} a ${para.nome}.${balas}`, undefined, { actions: [{ label: 'Desfazer', run: () => void desfazer() }] })
+    return { ok: true }
+  }
+  return { alvos, dar }
 }
 
 /** O que a ficha do mestre mostra na aba Itens: o inventário com as ações e, com o BONECO dono da mochila, a mochila dele. */
@@ -330,10 +385,11 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
     : { mochilaDoBoneco: carriedItemsOf(token), salvar: (salvo) => salvarComAsVagasNoBoneco(salvo, dono, mochilaDeAgora, gravar) }
   const agir = (kind: 'tirar' | 'devolver', item: CarriedItem, fechar: () => void) => {
     if (kind === 'tirar' && mochilaNaFicha) {
-      if (useAdventureStore.getState().ajustarPersonagem(personagemId, (atual) => tirarDaMochilaDaFicha(atual, item.id, quantidadeDe(item)))) fechar()
+      if (useAdventureStore.getState().ajustarPersonagem(personagemId, (atual) => fichaSemAVaga(atual, item))) fechar()
       return
     }
-    const change = partyItemChange(world, { kind, item: { ...item, tokenId: token.id, sceneId } }, crypto.randomUUID())
+    // A8: a arma sai vazia e guardada; as balas do pente voltam para a mochila de quem tinha, na MESMA mudança.
+    const change = comOPenteDeVolta(partyItemChange(world, { kind, item: { ...vagaQueSai(item), tokenId: token.id, sceneId } }, crypto.randomUUID()), token.id, item)
     if (change !== null && aplicarItens?.(change) === true) fechar()
   }
   // Fase 8: o "Usar" do item com efeito, pela mesa do mestre (a mesma do pedido do jogador), com aviso no chat e Desfazer.
@@ -355,6 +411,8 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
       gravar={gravar}
       mochilaDeAgora={mochilaDeAgora}
       vazio={`Nada com ${dono}. Dê um item pelo acervo de itens.`}
+      limiteDeArmas={limiteDeArmas(personagem)}
+      darA={mochilaNaFicha ? darAAliadoDe(personagemId) : undefined}
       acoes={(item, fechar) => (
         <>
           {/* ITEM QUE ILUMINA: aceso, a luz anda com a ficha (`lib/luzDoItem.ts`); pelo caminho dos itens, como o "Usar". */}
