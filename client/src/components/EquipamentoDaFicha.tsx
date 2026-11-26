@@ -3,9 +3,10 @@ import { ESCOLHA_DAS_ARMAS, LIMITE_DE_ARMAS_MAX, limiteDeArmas } from '../lib/ba
 import { quantidadeDe } from '../lib/items'
 import { acervoDaMochila } from '../lib/mochila/acervoDaMochila'
 import { armasEquipadas, penteDaArma, tipoDaVaga } from '../lib/mochila/armaNaMochila'
+import { bonusDaRoupa, bonusDoEquipamento, equipamentoDaVaga, textoDoBonusDaRoupa, type EquipamentoNoAcervo } from '../lib/mochila/bonusDaRoupa'
 import type { TipoDoItem } from '../lib/itens/modelo'
 import type { Personagem } from '../lib/personagem'
-import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
+import { useAcervoDaFichaStore } from '../stores/acervoDaFichaStore'
 import type { CarriedItem } from '../types/map'
 import './EquipamentoDaFicha.css'
 
@@ -38,8 +39,15 @@ export interface EquipamentoDaFichaProps {
  * com o Equipar, o Guardar e o Recarregar de cada vaga (`MochilaDoMestre`).
  */
 export function EquipamentoDaFicha({ personagem, itens, onLimite }: EquipamentoDaFichaProps) {
-  const doAcervo = useAcervoDeItensStore((state) => state.itens)
+  // O Acervo por um módulo puro (o site do Lobby, fora do Tauri, fica com a lista vazia).
+  const doAcervo = useAcervoDaFichaStore((state) => state.itens)
   const acervo = useMemo(() => acervoDaMochila(doAcervo), [doAcervo])
+  // Decisão 8: a roupa de cada item pelo Acervo de agora (sem ele, a cópia da vaga).
+  const roupaNoAcervo = useMemo<EquipamentoNoAcervo>(() => {
+    const porId = new Map(doAcervo.map((item) => [item.id, item.equipamento]))
+    return (itemId) => porId.get(itemId)
+  }, [doAcervo])
+  const daRoupa = textoDoBonusDaRoupa(bonusDaRoupa(itens, roupaNoAcervo))
   const limite = limiteDeArmas(personagem)
   const equipadas = armasEquipadas(itens, acervo)
   const emUso = itens.filter((vaga) => vaga.equipado === true)
@@ -97,6 +105,7 @@ export function EquipamentoDaFicha({ personagem, itens, onLimite }: EquipamentoD
           <li key={vaga.id} className="eq-vaga">
             <span className="eq-vaga__parte">Equipamento</span>
             <strong className="eq-vaga__nome">{vaga.nome}</strong>
+            <span className="eq-vaga__det">{detalheDaRoupa(vaga, roupaNoAcervo)}</span>
           </li>
         ))}
         {roupa.length === 0 && (
@@ -106,8 +115,19 @@ export function EquipamentoDaFicha({ personagem, itens, onLimite }: EquipamentoD
           </li>
         )}
       </ul>
+      {daRoupa !== '' && (
+        <p className="eq-ficha__nota">
+          A roupa vestida dá {daRoupa}. O Escudo da roupa enche no começo da batalha, antes da vida.
+        </p>
+      )}
     </div>
   )
+}
+
+/** "CA +2 · Escudo +5" da roupa da vaga; nada = vazio. */
+function detalheDaRoupa(vaga: CarriedItem, roupaNoAcervo: EquipamentoNoAcervo): string {
+  const equipamento = equipamentoDaVaga(vaga, roupaNoAcervo)
+  return equipamento === undefined ? '' : textoDoBonusDaRoupa(bonusDoEquipamento(equipamento))
 }
 
 /** "Pente 4 de 6", "x2" (a pilha de granadas) ou nada. */

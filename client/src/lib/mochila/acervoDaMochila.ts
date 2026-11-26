@@ -1,4 +1,5 @@
-import { itemParaDar, type ItemDoCatalogo } from '../acervoDeItens'
+import type { ItemDoCatalogo } from '../acervoDeItens'
+import { itemParaDar } from '../itemParaDar'
 import type { AcervoDaMochila } from './armaNaMochila'
 
 /**

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { definirAcervoDaFicha } from './acervoDaFichaStore'
 import { definirMunicoesDasArmas } from '../lib/batalha/municoesDoAcervo'
 import { definirPrecosDoAcervo } from '../lib/loja'
 import { isTauri } from '@tauri-apps/api/core'
@@ -126,10 +127,12 @@ export const useAcervoDeItensStore = create<AcervoDeItensState>()((set, get) => 
 
 // MUNIÇÃO (pedido de 16/11/2026): a batalha lê as munições que cada arma do Acervo aceita; a lista segue o Acervo a cada mudança.
 // PREÇO DA BANCA (25/11/2026): a mercadoria sem preço próprio cobra o preço do Acervo de agora (lib/loja.ts).
+// FICHA (26/11/2026): a aba "Mochila e equipamento" lê o Acervo por um módulo puro, que o site do Lobby também importa.
 useAcervoDeItensStore.subscribe((state, antes) => {
   if (state.itens === antes.itens) return
   definirMunicoesDasArmas(state.itens)
   definirPrecosDoAcervo(state.itens)
+  definirAcervoDaFicha(state.itens)
 })
 
 /**

@@ -1,10 +1,9 @@
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
-import { cleanItemName, ITEM_CATEGORIA_MAX, ITEM_DESCRICAO_MAX, ITEM_PRECO_MAX, MUNICOES_POR_ARMA_MAX, type ItemParaDar, type MunicaoDaVaga } from './items'
+import { cleanItemName, ITEM_CATEGORIA_MAX, ITEM_DESCRICAO_MAX, ITEM_PRECO_MAX, MUNICOES_POR_ARMA_MAX } from './items'
 import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
 import type { EfeitoDoItem, LuzDoItem, RequisitosNaVaga } from '../types/map'
-import { resumoDoEfeitoDoItem } from './batalha/mecanica/resumoDoItem'
 import { requisitosGuardados } from './batalha/requisitos/guardados'
 import { efeitoDoItemLido } from './leituraDoItem'
 import { ensureDir, writeTextFileSafely } from './mapFileIO'
@@ -407,51 +406,8 @@ export function serializarAcervo(acervo: AcervoDeItens): string {
   return `${JSON.stringify({ version: VERSAO_DO_INDICE, categorias: acervo.categorias, pastas: acervo.pastas, itens: acervo.itens }, null, 2)}\n`
 }
 
-/**
- * O que vai para a mochila quando o item é dado (`darDoAcervoChange`).
- * `acervo` = a lista de agora, de onde sai o nome de cada munição que a arma
- * aceita: a vaga leva `{ itemId, nome }` porque o app do jogador não vê o
- * Acervo. Munição que já saiu do Acervo não vai (não há nome a mostrar).
- */
-export function itemParaDar(item: ItemDoCatalogo, acervo: readonly Pick<ItemDoCatalogo, 'id' | 'nome'>[]): ItemParaDar {
-  return {
-    nome: item.nome,
-    itemId: item.id,
-    ...(item.imagem !== null ? { imagem: item.imagem } : {}),
-    ...(item.descricao.trim() !== '' ? { descricao: item.descricao } : {}),
-    ...(item.categoria !== '' ? { categoria: item.categoria } : {}),
-    // Sistema de itens refeito (E1): o tipo vai na cópia de exibição, como a categoria.
-    ...(item.tipo !== undefined ? { tipo: item.tipo } : {}),
-    ...(item.preco !== null ? { preco: item.preco } : {}),
-    ...(item.empilhavel ? { empilhavel: true as const } : {}),
-    ...municoesParaDar(item, acervo),
-    ...(item.luz !== undefined ? { luz: { ...item.luz } } : {}),
-    ...efeitoParaDar(item),
-    ...requisitosParaDar(item),
-  }
-}
-
-/** REQUISITOS (fase B2): a vaga leva o bloco do item em cópia, como o efeito (o host lê da cópia dele). */
-export function requisitosParaDar(item: Pick<ItemDoCatalogo, 'requisitos'>): Pick<ItemParaDar, 'requisitos'> {
-  return item.requisitos === undefined ? {} : { requisitos: structuredClone(item.requisitos) }
-}
-
-/** Fase 7: a vaga leva as peças (o host as lê) e a frase (o que o jogador recebe, decisão C8). */
-export function efeitoParaDar(item: Pick<ItemDoCatalogo, 'efeito'>): Pick<ItemParaDar, 'efeito' | 'efeitoResumo'> {
-  if (item.efeito === undefined) return {}
-  const efeitoResumo = resumoDoEfeitoDoItem(item.efeito)
-  return { efeito: { ...item.efeito, mecanica: structuredClone(item.efeito.mecanica) }, ...(efeitoResumo !== '' ? { efeitoResumo } : {}) }
-}
-
-function municoesParaDar(item: ItemDoCatalogo, acervo: readonly Pick<ItemDoCatalogo, 'id' | 'nome'>[]): { municoes?: MunicaoDaVaga[] } {
-  if (item.municoes === undefined) return {}
-  const nomes = new Map(acervo.map((outro) => [outro.id, outro.nome]))
-  const municoes = item.municoes.flatMap((itemId) => {
-    const nome = nomes.get(itemId)
-    return nome === undefined ? [] : [{ itemId, nome }]
-  })
-  return municoes.length === 0 ? {} : { municoes }
-}
+// O que vai para a mochila quando o item é dado mora em `./itemParaDar` (puro, sem o disco): o site do Lobby usa sem puxar o Tauri.
+export { efeitoParaDar, itemParaDar, requisitosParaDar } from './itemParaDar'
 
 async function pastaDoAcervo(): Promise<string> {
   return join(await appDataDir(), PASTA_DO_ACERVO)
