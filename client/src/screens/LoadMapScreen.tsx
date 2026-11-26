@@ -274,8 +274,14 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
   }
 
   const handleBrowse = async () => {
-    const path = await pickMapJsonToOpen()
-    if (path) onOpenPath(path)
+    // O seletor do sistema lança fora do app instalado (e pode falhar dentro
+    // dele): sem o catch a falha virava rejeição solta e o botão parecia morto.
+    try {
+      const path = await pickMapJsonToOpen()
+      if (path) onOpenPath(path)
+    } catch (err) {
+      reportMapFileError('abrir o seletor de arquivo', err)
+    }
   }
 
   const cancelRowMode = () => setRowMode(null)
