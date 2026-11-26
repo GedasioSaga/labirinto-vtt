@@ -457,8 +457,8 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
   <header class="topo">
     <p class="data">Labirinto, mesa virtual de RPG. Levantamento de 26/11/2026, atualizado no fechamento da 0.6.1.</p>
     <h1>Qualidade de vida do Labirinto</h1>
-    <p class="lead">10 sugestões e 25 bugs foram feitos na 0.6.1; aqui ficam só os que precisam de você confirmar.</p>
-    <p class="como">Quatro dessas sugestões saíram em parte: o que falta delas está abaixo, junto com o que não deu tempo de fazer. Cada cartão diz por que ficou: decisão sua, bug que ainda precisa ser visto acontecendo, trabalho começado e sem commit, conserto feito que falta ver no app instalado, ou algo visto só no navegador.</p>
+    <p class="lead">15 sugestões e 26 bugs foram feitos na 0.6.1; aqui ficam só os que precisam de você confirmar.</p>
+    <p class="como">Quatro dessas sugestões saíram em parte: o que falta delas está abaixo, junto com o que não deu tempo de fazer. Cada cartão diz por que ficou: decisão sua, bug que ainda precisa ser visto acontecendo, conserto feito que falta ver no app instalado, ou algo visto só no navegador.</p>
     <div class="aviso-nav" role="note">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2" y="3.5" width="16" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 7.5h16" stroke="currentColor" stroke-width="1.5"/><circle cx="4.75" cy="5.5" r="0.8" fill="currentColor"/><circle cx="7.25" cy="5.5" r="0.8" fill="currentColor"/></svg>
       <p><strong>Os passeios usaram o app aberto pelo navegador.</strong> Ali, salvar e abrir pasta, Livros de regras, Sons e a sala de jogadores não funcionam: isso só existe no app instalado. O que dependia disso está marcado “visto no navegador” e fica separado no fim de cada parte. Não são defeitos do app instalado.</p>
@@ -552,7 +552,7 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
     <ul>
       <li>Passeio do mestre: <code>docs/qualidade-de-vida/relatorio-mestre.md</code>. Passeio do jogador: <code>docs/qualidade-de-vida/relatorio-jogador.md</code>. Os dois fingiram uma mesa de One Piece no app aberto pelo navegador.</li>
       <li>Leitura do código: <code>docs/explorador/mapas.md</code>, <code>batalhas.md</code>, <code>preludio-e-livros.md</code> e <code>site.md</code>. Daqui entraram os bugs incertos; as “coisas erradas” ficaram só nas listas.</li>
-      <li>O que foi feito: os commits da 0.6.1 de 26/11 (14h42 a 15h07) e os relatos das faixas Batalha e Prelúdio, Livros e site. A faixa de mapas parou sem relato: o estado dela saiu do git e dos arquivos sem commit.</li>
+      <li>O que foi feito: os commits da 0.6.1 de 26/11 e os relatos das faixas Batalha e Prelúdio, Livros e site. A faixa de mapas parou sem relato; os sete trabalhos que ela deixou no disco foram conferidos no app de desenvolvimento e commitados em 26/11.</li>
     </ul>
     <p>As linhas de código citadas são as da leitura de 26/11 de manhã; os consertos da 0.6.1 podem ter mudado algumas de lugar. Impacto e tamanho do conserto são estimativas.</p>
   </footer>
@@ -599,24 +599,6 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
 
   var ITENS = [
     /* ---------- MESTRE: Criar mapa ---------- */
-    { id: 'submenu-clique', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'parado',
-      titulo: 'Submenu que abre no clique',
-      linhas: [L('Hoje', 'No menu do token, “Ligar ficha” só abre com a seta do teclado. Itens apagados trocam o nome pelo motivo (“Ligue uma ficha primeiro.”).'),
-        S('No disco', 'O clique nos itens com submenu (Ligar ficha, Enviar para cena, Mover para camada, Vida, Condições, Mudar ficha, Aura) passa a sempre abrir, em vez de alternar entre abrir e fechar. A parte do item apagado com nome e motivo não aparece nas mudanças. Falta conferir e fazer o commit.'),
-        R('MenuDaSelecao.tsx, ItensRapidosDaFicha.tsx e ItensDaAparenciaDaFicha.tsx')],
-      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
-    { id: 'token-lugar-livre', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'parado',
-      titulo: 'Token novo nasce num lugar livre (em parte)',
-      linhas: [L('Já feito', 'Na 0.6.1, com o encaixe de token ligado, o token novo nasce na casa livre ao lado do último, na mesma linha. Com o encaixe desligado, que é como o mapa nasce, continua a regra antiga (só não cai em cima de outro).'),
-        S('No disco', 'Um ajuste que faz a casa ao lado valer também com o encaixe desligado. Falta conferir e fazer o commit.'),
-        R('stores/criarToken.ts')],
-      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do mestre' },
-    { id: 'arrastar-movel', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'parado',
-      titulo: 'Arrastar um móvel da lista para o mapa',
-      linhas: [L('Hoje', 'Arrastar da lista de objetos não mostra fantasma e não cria nada. O Acervo de tokens já aceita arrastar. É o bug 7 da lista de mapas, o único bug certo que não entrou.'),
-        S('No disco', 'Um arquivo novo faz o arrasto, com fantasma do móvel, ligado à lista de objetos. O arquivo ainda nem está no git. Falta conferir e fazer o commit.'),
-        R('components/livro/arrastarObjetoParaOMapa.ts (novo) e EscolhaDoObjeto.tsx')],
-      conserto: 'medio', fonte: 'explorador/mapas.md, bug 7' },
     { id: 'porta-visivel', para: 'mestre', area: 'Criar mapa', onde: 'app', situacao: 'falta',
       titulo: 'Porta que se enxerga em qualquer chão',
       linhas: [L('Hoje', 'Com o chão pintado, a porta vira um tracinho branco fino, quase invisível.'),
@@ -687,13 +669,12 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
       conserto: 'pequeno', fonte: 'explorador/mapas.md, incerto 8' },
 
     /* ---------- MESTRE: Cenas ---------- */
-    { id: 'filtro-cenas', para: 'mestre', area: 'Cenas', onde: 'app', situacao: 'parado',
-      titulo: 'Achar a cena pela inicial ou por filtro',
-      linhas: [L('Hoje', 'No menu de cenas do topo, digitar a inicial não pula para a cena. A Visão geral não tem campo de filtro.'),
-        S('No disco', 'A letra digitada num menu leva ao próximo item com essa inicial, e a Visão geral ganha o campo “Filtrar cenas”, sem ligar para acento. O filtro na lista de Cenas do painel não aparece nas mudanças. Falta conferir e fazer o commit.'),
-        R('grimorio/Pop.tsx, SceneOverview.tsx e lib/semAcento.ts (novo, fora do git)')],
-      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre',
-      fotos: [foto('mestre-15-menu-cenas-inicial-nao-salta', 'Como está na versão com commit: a tecla B não levou ao Baratie.')] },
+    { id: 'filtro-cenas', para: 'mestre', area: 'Cenas', onde: 'app', situacao: 'falta',
+      titulo: 'Filtrar cenas também na lista do painel (em parte)',
+      linhas: [L('Já feito', 'Na 0.6.1, a letra digitada num menu (como o de cenas do topo) leva ao próximo item com essa inicial, e a Visão geral ganhou o campo “Filtrar cenas”, sem ligar para acento.'),
+        S('Sugestão', 'O mesmo campo de filtro na lista de Cenas do painel.')],
+      obs: FALTA_MAPAS,
+      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre' },
     { id: 'controles-cenas', para: 'mestre', area: 'Cenas', onde: 'app', situacao: 'falta',
       titulo: 'Botões da lista de Cenas no lugar (em parte)',
       linhas: [L('Já feito', 'Na página Batalha, o botão “Em janela” não sai mais cortado: desce para a linha de baixo quando não cabe.'),
@@ -829,13 +810,6 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
       conserto: 'pequeno', fonte: 'explorador/preludio-e-livros.md, I7' },
 
     /* ---------- MESTRE: Geral ---------- */
-    { id: 'enter-primeira-porta', para: 'mestre', area: 'Geral', onde: 'app', situacao: 'parado',
-      titulo: 'Enter já entra na primeira porta',
-      linhas: [L('Hoje', 'O rodapé da tela inicial diz “ENTER entra”, mas nenhuma porta vem destacada e o Enter sozinho não faz nada.'),
-        S('No disco', 'A tela inicial abre com a primeira porta em foco; a faixa já tirou foto do depois. Falta conferir e fazer o commit.'),
-        R('screens/MainMenu.tsx e o teste dele')],
-      impacto: 'baixo', esforco: 'pequeno', fonte: 'Passeio do mestre',
-      fotos: [foto('mestre-01-inicio', 'Como está na versão com commit: quatro portas e nenhuma destacada.')] },
     { id: 'busca-geral', para: 'mestre', area: 'Geral', onde: 'app', situacao: 'falta',
       titulo: 'Busca geral no Ctrl+K',
       linhas: [L('Hoje', 'O Ctrl+K só procura objetos do mapa. Buscar “grimório” responde “Nenhum objeto com grimorio”.'),
@@ -875,13 +849,6 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
       fotos: [foto('mestre-14-tela-branca-voltou-ao-inicio', 'Depois da tela branca: de volta à tela inicial, sem o mapa.')] },
 
     /* ---------- JOGADOR ---------- */
-    { id: 'nome-pino', para: 'jogador', tambem: 'mestre', area: 'Cenas', onde: 'app', situacao: 'parado',
-      titulo: 'Nome do pino legível em qualquer zoom',
-      linhas: [L('Hoje', 'No zoom com que o mapa abre (33%), o nome do pino no chão vira um risco. Em 71% tem uns 6 pixels; só dá para ler perto de 100%.'),
-        S('No disco', 'O nome cresce de longe para nunca ficar abaixo de 11 pixels na tela, em degraus para não repintar a cada passo da roda, com uma pílula escura atrás. Falta conferir e fazer o commit.'),
-        R('lib/pins.ts, pixi/drawPins.ts, PixiCanvas.tsx e shapesRedraw.ts')],
-      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador',
-      fotos: [foto('jogador-03-enquadrar-atras-paineis', 'Como está na versão com commit: em 71%, o nome do pino “Bilhete rasgado” mal aparece.')] },
     { id: 'uma-mochila', para: 'jogador', area: 'Lobby/site', onde: 'app', situacao: 'decidir', pergunta: true,
       titulo: 'Uma mochila só no site',
       linhas: [L('Hoje', 'A mochila aparece em dois lugares do site: na aba Mochila e em “Mochila e equipamento”, dentro da Ficha. As duas mandam as mudanças com regras diferentes.'),
@@ -935,12 +902,6 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
         S('Confirmar', 'Deixar a sessão vencer e tentar salvar uma mudança no site.'),
         R('telas/enviar.ts:31 e dados/lobbyStore.ts:562')],
       fonte: 'explorador/site.md, incertos' },
-    { id: 'roda-touchpad', para: 'jogador', tambem: 'mestre', area: 'Geral', onde: 'app', situacao: 'parado',
-      titulo: 'Olhar em volta com a roda e o touchpad',
-      linhas: [L('Hoje', 'A roda para cima e para baixo só aproxima e afasta; nenhum gesto de roda anda na vertical, então no touchpad do notebook não dá para descer a vista.'),
-        S('No disco', 'Shift+roda desce e sobe a vista, no editor e na tela do jogador, e a tela de atalhos ganha a linha. A roda lateral continua andando de lado. Falta conferir e fazer o commit.'),
-        R('pixi/wheelGesture.ts, player/PlayerView.tsx e shortcutSheet.ts')],
-      impacto: 'medio', esforco: 'pequeno', fonte: 'Passeio do jogador' },
 
     /* ---------- JOGADOR: visto no navegador ---------- */
     { id: 'abrir-sala', para: 'jogador', area: 'Geral', onde: 'navegador', situacao: 'navegador',
@@ -959,10 +920,6 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
   ];
 
   var FORA = [
-    { titulo: 'Sete trabalhos da faixa de mapas ficaram sem commit', marca: 'Atenção',
-      texto: 'A faixa de mapas parou sem relato. O que ela começou está no disco, sem commit: os cartões marcados “Começado, sem commit”. Dois testes que já existiam também foram ajustados ali (MainMenu.test.tsx e shapesRedraw.test.ts).',
-      porque: 'Precisam ser conferidos e commitados antes de publicar a 0.6.1; senão ficam fora da versão.',
-      onde: 'git status: MainMenu.tsx, criarToken.ts, MenuDaSelecao.tsx, Pop.tsx, SceneOverview.tsx, pins.ts, drawPins.ts, wheelGesture.ts, PlayerView.tsx e os arquivos novos arrastarObjetoParaOMapa.ts e semAcento.ts' },
     { titulo: 'Guarda de import do site sem teste', marca: 'Precisa de teste',
       texto: 'O build do site ficou quebrado por 28 commits sem ninguém notar, porque nada confere quais arquivos o site puxa (@tauri-apps, pixi, three).',
       porque: 'O conserto é um teste novo, e esta leva não podia criar testes.',
@@ -1149,9 +1106,12 @@ dialog.lupa::backdrop { background: var(--sombra-lupa); opacity: 1; transition: 
     var r = document.getElementById('resumo');
     r.textContent = '';
     function b(t) { return el('b', '', String(t)); }
+    var parados = quantos('parado');
     r.append(b(ITENS.length), ' cartões: ', b(quantos('decidir')), ' decisões suas, ', b(quantos('incerto')), ' bugs a reproduzir, ',
-      b(quantos('falta') + quantos('parado')), ' por fazer (', b(quantos('parado')), ' deles começados, sem commit), ',
-      b(quantos('conferir')), ' feitos que falta conferir e ', b(quantos('navegador')), ' vistos só no navegador. Mais ',
+      b(quantos('falta') + parados), ' por fazer');
+    /* Só fala dos começados sem commit quando houver algum. */
+    if (parados > 0) r.append(' (', b(parados), ' deles começados, sem commit)');
+    r.append(', ', b(quantos('conferir')), ' feitos que falta conferir e ', b(quantos('navegador')), ' vistos só no navegador. Mais ',
       b(FORA.length), ' pontos técnicos no fim da página.');
   })();
 
