@@ -235,6 +235,9 @@ export function FichaAbas({
   const trocarCartoes = (novos: CartaoDaFicha[]) => onChange({ ...personagem, abas: { ...personagem.abas, [ativa.id]: novos } })
   // A mochila que a aba Itens conta é a mesma que a grade mostra: a do Salvar na edição, senão a do dono.
   const mochilaContada = editando && mochilaDaEdicao !== undefined ? mochilaDaEdicao : (mochilaDoBoneco ?? personagem.mochila)
+  // SISTEMA DE ITENS REFEITO (docs/design/itens-rework/PLANO.md, E1): os cartões das abas Armas e Itens ficam só para ler até a
+  // E4 (a conversão ao abrir já os levou para a mochila); editar aqui faria duas fontes divergirem.
+  const moraNaMochila = ativa.id === ABA_DAS_ARMAS || ativa.id === ABA_DOS_ITENS
 
   return (
     <div className="lb-ficha__abas">
@@ -276,12 +279,13 @@ export function FichaAbas({
             editando={editando}
             donoEhOBoneco={mochilaDoBoneco !== undefined}
             mochilaDaEdicao={mochilaDaEdicao}
-            podePassar={podePassarParaAMochila}
+            podePassar={podePassarParaAMochila && cartoes.some((cartao) => cartao.naMochila !== true)}
             cartoesAntigos={cartoes.length}
             onChange={onChange}
           />
         )}
-        {ativa.id === ABA_DOS_ITENS && cartoes.length === 0 && ocultas === 0 ? null : editando ? (
+        {moraNaMochila && cartoes.length > 0 && <p className="lb-ficha__vazio">Agora mora na mochila: estes cartões ficam só para ler, e o item se muda pela mochila.</p>}
+        {ativa.id === ABA_DOS_ITENS && cartoes.length === 0 && ocultas === 0 ? null : editando && !moraNaMochila ? (
           <ListaEditavel
             key={ativa.id}
             aba={ativa}
