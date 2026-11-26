@@ -76,6 +76,7 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
   // "Vida ›" (pedido de 25/11/2026): o mesmo do menu da seleção, também na ficha de jogador.
   const [rapidoAberto, setRapidoAberto] = useState<RapidoAberto | null>(null)
   const vidaRef = useRef<HTMLButtonElement | null>(null)
+  const condicoesRef = useRef<HTMLButtonElement | null>(null)
   const abrirFichaRef = useRef<HTMLButtonElement | null>(null)
   const pertoRef = useRef<HTMLButtonElement | null>(null)
   const adventure = useAdventureStore((state) => state.adventure)
@@ -175,7 +176,7 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
     // Nenhuma tecla do menu vale como atalho do editor (Esc largaria a seleção, setas moveriam o token).
     event.stopPropagation()
     if (escrevendoPara !== null) return
-    const list = [...itemRefs.current.slice(0, items.length), vidaRef.current, abrirFichaRef.current, pertoRef.current, cenaRef.current, formaRef.current, auraRef.current].filter((el): el is HTMLButtonElement => el !== null)
+    const list = [...itemRefs.current.slice(0, items.length), vidaRef.current, condicoesRef.current, abrirFichaRef.current, pertoRef.current, cenaRef.current, formaRef.current, auraRef.current].filter((el): el is HTMLButtonElement => el !== null)
     const current = list.findIndex((el) => el === document.activeElement)
     const focusAt = (index: number) => {
       event.preventDefault()
@@ -252,7 +253,7 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
       )}
       {escrevendoPara === null && (
         <>
-          <ItensRapidosDaFicha tokenIds={[tokenId]} aberto={rapidoAberto} onAbrir={abrirRapido} vidaRef={vidaRef} abrirRef={abrirFichaRef} pertoRef={pertoRef} onPassar={fecharSubmenus} onClose={onClose} />
+          <ItensRapidosDaFicha tokenIds={[tokenId]} aberto={rapidoAberto} onAbrir={abrirRapido} vidaRef={vidaRef} abrirRef={abrirFichaRef} pertoRef={pertoRef} condicoesRef={condicoesRef} onPassar={fecharSubmenus} onClose={onClose} />
           <button
             ref={(node) => {
               cenaRef.current = node

@@ -1,4 +1,4 @@
-import type { KeyboardEvent, RefObject } from 'react'
+import { useRef, type KeyboardEvent, type RefObject } from 'react'
 import { alvosParaPerto } from '../lib/enviarParaPerto'
 import { pisoDe } from '../lib/pisos'
 import { fichasComVidaDosTokens } from '../lib/vidaPeloMenu'
@@ -12,12 +12,14 @@ import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { mudarVidaDosTokens, type SentidoDaVida } from '../stores/vidaPeloMenu'
 import { nomesNumerados } from './batalha/nomesNumerados'
 import { SubmenuDaVida } from './SubmenuDaVida'
+import { SubmenuDeCondicoes } from './SubmenuDeCondicoes'
+import { condicoesDe } from '../lib/condicoes/naFicha'
 import { SubmenuPertoDe } from './SubmenuPertoDe'
 import './MenuDaSelecao.css'
 
 /** Qual submenu está aberto; `focar` = abriu pelo teclado. */
 export interface RapidoAberto {
-  qual: 'vida' | 'perto'
+  qual: 'vida' | 'perto' | 'condicoes'
   focar: boolean
 }
 
@@ -31,6 +33,8 @@ export interface ItensRapidosDaFichaProps {
   vidaRef: RefObject<HTMLButtonElement | null>
   abrirRef: RefObject<HTMLButtonElement | null>
   pertoRef: RefObject<HTMLButtonElement | null>
+  /** O item "Condições ›" (itens refeitos, E4b). Ausente = o menu pai não anda nele com as setas (ele continua no menu). */
+  condicoesRef?: RefObject<HTMLButtonElement | null>
   /** O ponteiro chegou num item sem submenu: o menu pai fecha os submenus abertos (os dele também). */
   onPassar: () => void
   /** Fecha o menu inteiro (depois de aplicar). */
@@ -56,7 +60,9 @@ const MOTIVO_FICHA_SEM_VIDA = 'A ficha não tem vida com máximo.'
  * da seleção (`MenuDaSelecao`) e ao do token de jogador (`TokenContextMenu`):
  * vale para NPC e para ficha de jogador.
  */
-export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirRef, pertoRef, onPassar, onClose }: ItensRapidosDaFichaProps) {
+export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirRef, pertoRef, condicoesRef, onPassar, onClose }: ItensRapidosDaFichaProps) {
+  const refPropria = useRef<HTMLButtonElement | null>(null)
+  const condRef = condicoesRef ?? refPropria
   const tokens = useMapStore((state) => state.map.tokens)
   const pisoAtivo = useMapStore((state) => state.pisoAtivo)
   // O piso ao lado do nome só importa quando há ficha fora do térreo (ou o editor está em outro piso).
@@ -114,6 +120,21 @@ export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirR
     onClose()
   }
 
+  // "Condições ›" (itens refeitos, E4b): as fichas ligadas da lista, cada uma uma vez (no NPC, a cópia de cada token).
+  const motivoDasCondicoes = ligados.length === 0 ? MOTIVO_SEM_FICHA_LIGADA : daLista.length === 0 ? MOTIVO_FICHA_FORA_DA_LISTA : null
+  const quantasCondicoes = daLista.reduce((soma, ficha) => soma + condicoesDe(ficha).length, 0)
+  const abrirCondicoes = (focar: boolean) => (motivoDasCondicoes === null ? onAbrir({ qual: 'condicoes', focar }) : onPassar())
+  const fecharCondicoes = () => {
+    onAbrir(null)
+    condRef.current?.focus()
+  }
+  const teclaNasCondicoes = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    event.stopPropagation()
+    abrirCondicoes(true)
+  }
+
   // Desligada, a "Vida" não abre nada: só fecha o submenu que estava aberto.
   const abrirVida = (focar: boolean) => (motivoDaVida === null ? onAbrir({ qual: 'vida', focar }) : onPassar())
   const fecharVida = () => {
@@ -167,6 +188,32 @@ export function ItensRapidosDaFicha({ tokenIds, aberto, onAbrir, vidaRef, abrirR
       {aberto?.qual === 'vida' && motivoDaVida === null && recurso !== null && (
         <SubmenuDaVida fichas={fichas} nomeDoRecurso={recurso.nome} naBatalha={naBatalha} ancora={vidaRef.current} onAplicar={aplicar} onFechar={fecharVida} />
       )}
+      <button
+        ref={condRef}
+        type="button"
+        role="menuitem"
+        tabIndex={-1}
+        className="lb-portamenu__item lb-menusel__pai"
+        aria-haspopup="dialog"
+        aria-expanded={aberto?.qual === 'condicoes'}
+        aria-disabled={motivoDasCondicoes !== null}
+        title={motivoDasCondicoes ?? undefined}
+        onPointerEnter={(event) => {
+          event.currentTarget.focus()
+          if (aberto?.qual !== 'condicoes') abrirCondicoes(false)
+        }}
+        onClick={() => (aberto?.qual === 'condicoes' ? fecharCondicoes() : abrirCondicoes(true))}
+        onKeyDown={teclaNasCondicoes}
+      >
+        <span className="lb-menusel__rotulo">
+          <span>Condições</span>
+          {quantasCondicoes > 0 && <span className="lb-menusel__estado lb-menusel__numero">{quantasCondicoes}</span>}
+        </span>
+        <span className="lb-menusel__seta" aria-hidden="true">
+          ›
+        </span>
+      </button>
+      {aberto?.qual === 'condicoes' && motivoDasCondicoes === null && <SubmenuDeCondicoes fichas={daLista} ancora={condRef.current} onFechar={fecharCondicoes} onPos={onClose} />}
       <button
         ref={abrirRef}
         type="button"

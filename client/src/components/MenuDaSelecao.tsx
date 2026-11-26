@@ -140,6 +140,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   // "Vida ›" no topo (pedido de 25/11/2026), com ficha na seleção.
   const [rapidoAberto, setRapidoAberto] = useState<RapidoAberto | null>(null)
   const vidaRef = useRef<HTMLButtonElement | null>(null)
+  const condicoesRef = useRef<HTMLButtonElement | null>(null)
   const abrirFichaRef = useRef<HTMLButtonElement | null>(null)
   const pertoRef = useRef<HTMLButtonElement | null>(null)
   const adventure = useAdventureStore((state) => state.adventure)
@@ -334,7 +335,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       return
     }
     if (!noSubmenu) {
-      const pais = [vidaRef.current, abrirFichaRef.current, pertoRef.current, itemRef.current, porCimaRef.current, porBaixoRef.current, tresQuartosRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
+      const pais = [vidaRef.current, condicoesRef.current, abrirFichaRef.current, pertoRef.current, itemRef.current, porCimaRef.current, porBaixoRef.current, tresQuartosRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
       const noPai = pais.findIndex((item) => item === document.activeElement)
       if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
@@ -392,7 +393,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       onContextMenu={(event) => event.preventDefault()}
     >
       {fichas.length > 0 && (
-        <ItensRapidosDaFicha tokenIds={fichas} aberto={rapidoAberto} onAbrir={abrirRapido} vidaRef={vidaRef} abrirRef={abrirFichaRef} pertoRef={pertoRef} onPassar={fecharSubmenus} onClose={onClose} />
+        <ItensRapidosDaFicha tokenIds={fichas} aberto={rapidoAberto} onAbrir={abrirRapido} vidaRef={vidaRef} abrirRef={abrirFichaRef} pertoRef={pertoRef} condicoesRef={condicoesRef} onPassar={fecharSubmenus} onClose={onClose} />
       )}
       <button
         ref={itemRef}
