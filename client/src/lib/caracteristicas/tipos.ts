@@ -39,16 +39,9 @@ export interface CompanionLigado {
   /** O id da ficha ligada (NPC ou invocação do livro, `Personagem.id`). */
   personagemId: string
   modo: ModoDoCompanion
-  /**
-   * O nível que o mestre deu ("Evoluir"), de 1 a `NIVEL_MAX`. Só o número: a
-   * vida e o resto vêm da ficha do NPC como o mestre a editar (decisão do dono,
-   * 23/11 21h59: nada de "+20 HP por nível").
-   */
-  nivel: number
+  // 27/11/2026 (o dono: "tira esse nível do companion, serve para nada"): o `nivel` e o "Evoluir" saíram.
+  // A ficha antiga com `nivel` é lida sem ele (`ligadosDoArquivo`), sem recusar nada.
 }
-
-/** O maior nível de um companion. */
-export const NIVEL_MAX = 99
 
 export interface CaracteristicaCompanion {
   tipo: 'companion'
@@ -189,8 +182,8 @@ function ligadosDoArquivo(valor: unknown): CompanionLigado[] {
   for (const item of valor) {
     if (!ehRegistro(item) || !idBom(item.personagemId) || vistos.has(item.personagemId)) continue
     vistos.add(item.personagemId)
-    const nivel = typeof item.nivel === 'number' && Number.isFinite(item.nivel) ? Math.min(NIVEL_MAX, Math.max(1, Math.round(item.nivel))) : 1
-    ligados.push({ personagemId: item.personagemId, modo: item.modo === 'efeito' ? 'efeito' : 'luta', nivel })
+    // O `nivel` da ficha antiga fica para trás (o objeto é montado campo a campo).
+    ligados.push({ personagemId: item.personagemId, modo: item.modo === 'efeito' ? 'efeito' : 'luta' })
     if (ligados.length >= LIGADOS_MAX) break
   }
   return ligados

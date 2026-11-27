@@ -320,12 +320,6 @@ button.lb-carac__chip:focus-visible,
   color: var(--lb-color-ember);
 }
 
-.lb-carac-ligada__nivel {
-  color: var(--lb-color-parchment-dim);
-  font-size: var(--lb-font-size-sm);
-  font-variant-numeric: tabular-nums;
-}
-
 .lb-carac-modo {
   display: inline-flex;
   border: 1px solid var(--lb-color-line-strong);

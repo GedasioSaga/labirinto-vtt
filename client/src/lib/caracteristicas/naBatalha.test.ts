@@ -21,7 +21,7 @@ function mesaDoZe(hpDaMimi: number) {
   const base = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: ze(60), lado: 'a' }, { ficha: MARINHEIRO, lado: 'b' }]))
   const mimi: Personagem = { ...MARINHEIRO, id: 'pers_mimi', nome: 'Mimi', recursos: { ...MARINHEIRO.recursos, hp: hpDaMimi } }
   const zeId = base.personagens().find((personagem) => personagem.nome === 'Zé')?.id ?? ''
-  base.ajustarPersonagem(zeId, (atual) => ({ ...atual, caracteristicas: [{ tipo: 'companion', id: 'g1', nome: 'Gatos', limite: 1, ligados: [{ personagemId: 'pers_mimi', modo: 'luta', nivel: 2 }] }] }))
+  base.ajustarPersonagem(zeId, (atual) => ({ ...atual, caracteristicas: [{ tipo: 'companion', id: 'g1', nome: 'Gatos', limite: 1, ligados: [{ personagemId: 'pers_mimi', modo: 'luta' }] }] }))
   const mesa: MesaDaBatalha = {
     ...base,
     personagens: () => [...base.personagens(), mimi],

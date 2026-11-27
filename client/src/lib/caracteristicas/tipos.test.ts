@@ -14,7 +14,8 @@ describe('características da ficha no disco', () => {
       ],
     })
     expect(ficha?.caracteristicas).toEqual([
-      { tipo: 'companion', id: 'c1', nome: 'Lovecats', limite: 3, ligados: [{ personagemId: 'pers_mimi', modo: 'luta', nivel: 3 }, { personagemId: 'pers_bolota', modo: 'luta', nivel: 1 }], ultimaEscolha: ['pers_mimi'] },
+      // A ficha antiga com `nivel` (o nível saiu em 27/11/2026) é lida sem ele.
+      { tipo: 'companion', id: 'c1', nome: 'Lovecats', limite: 3, ligados: [{ personagemId: 'pers_mimi', modo: 'luta' }, { personagemId: 'pers_bolota', modo: 'luta' }], ultimaEscolha: ['pers_mimi'] },
       { tipo: 'cegueira', id: 'c2' },
     ])
     expect(temCegueira(ficha?.caracteristicas)).toBe(true)

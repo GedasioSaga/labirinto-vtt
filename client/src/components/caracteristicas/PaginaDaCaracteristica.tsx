@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { fichasQuePodemSerLigadas, opcaoDoLigado, type OpcaoDeCompanion } from '../../lib/caracteristicas/companions'
-import { LIGADOS_MAX, LIMITE_DO_GRUPO_MAX, NIVEL_MAX, NOME_DO_GRUPO_MAX, NOME_PADRAO_DO_GRUPO, type Caracteristica, type CaracteristicaCompanion, type ModoDoCompanion } from '../../lib/caracteristicas/tipos'
+import { LIGADOS_MAX, LIMITE_DO_GRUPO_MAX, NOME_DO_GRUPO_MAX, NOME_PADRAO_DO_GRUPO, type Caracteristica, type CaracteristicaCompanion, type ModoDoCompanion } from '../../lib/caracteristicas/tipos'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { ImagemOuIniciais } from '../FichaPecas'
@@ -11,7 +11,7 @@ import './caracteristicas.css'
 /**
  * A página de uma característica, no lugar das abas da ficha (protótipo,
  * estado 2). Companion: nome do grupo, "Leva para a batalha até", as fichas
- * ligadas (nível com Evoluir, Luta no campo / Dá efeito, tirar) e o "Ligar
+ * ligadas (Luta no campo / Dá efeito, tirar) e o "Ligar
  * ficha". Cegueira: o que ela faz. As duas: "Tirar característica". `Esc` volta
  * às abas. Só o mestre chega aqui (o jogador vê os chips).
  */
@@ -187,9 +187,7 @@ function CorpoDoCompanion({ grupo, dono, sistema, fichas, onTrocar }: { grupo: C
               key={ligado.personagemId}
               opcao={opcao}
               personagemId={ligado.personagemId}
-              nivel={ligado.nivel}
               modo={ligado.modo}
-              onEvoluir={() => mudarLigado(ligado.personagemId, (atual) => ({ ...atual, nivel: Math.min(NIVEL_MAX, atual.nivel + 1) }))}
               onModo={(modo) => mudarLigado(ligado.personagemId, (atual) => ({ ...atual, modo }))}
               onTirar={() => {
                 onTrocar({ ...grupo, ligados: grupo.ligados.filter((candidato) => candidato.personagemId !== ligado.personagemId), ...(grupo.ultimaEscolha === undefined ? {} : { ultimaEscolha: grupo.ultimaEscolha.filter((id) => id !== ligado.personagemId) }) })
@@ -205,7 +203,7 @@ function CorpoDoCompanion({ grupo, dono, sistema, fichas, onTrocar }: { grupo: C
           vagas={LIGADOS_MAX - grupo.ligados.length}
           onLigar={(ids) => {
             setLigando(false)
-            onTrocar({ ...grupo, ligados: [...grupo.ligados, ...ids.map((personagemId): CaracteristicaCompanion['ligados'][number] => ({ personagemId, modo: 'luta', nivel: 1 }))] })
+            onTrocar({ ...grupo, ligados: [...grupo.ligados, ...ids.map((personagemId): CaracteristicaCompanion['ligados'][number] => ({ personagemId, modo: 'luta' }))] })
             ligarRef.current?.focus()
           }}
           onFechar={() => {
@@ -218,7 +216,7 @@ function CorpoDoCompanion({ grupo, dono, sistema, fichas, onTrocar }: { grupo: C
   )
 }
 
-function LinhaDoLigado({ opcao, personagemId, nivel, modo, onEvoluir, onModo, onTirar }: { opcao: OpcaoDeCompanion | null; personagemId: string; nivel: number; modo: ModoDoCompanion; onEvoluir: () => void; onModo: (modo: ModoDoCompanion) => void; onTirar: () => void }) {
+function LinhaDoLigado({ opcao, personagemId, modo, onModo, onTirar }: { opcao: OpcaoDeCompanion | null; personagemId: string; modo: ModoDoCompanion; onModo: (modo: ModoDoCompanion) => void; onTirar: () => void }) {
   const nome = opcao?.nome ?? 'Ficha apagada'
   const radioNome = useId()
   const modos: { valor: ModoDoCompanion; rotulo: string }[] = [
@@ -237,10 +235,6 @@ function LinhaDoLigado({ opcao, personagemId, nivel, modo, onEvoluir, onModo, on
           {opcao?.desmaiada === true && <span className="lb-carac-ligada__desmaiada"> · desmaiada</span>}
         </span>
       </div>
-      <span className="lb-carac-ligada__nivel">Nível {nivel}</span>
-      <button type="button" className="lb-btn lb-btn--compact" disabled={nivel >= NIVEL_MAX} aria-label={`Evoluir ${nome} para o nível ${nivel + 1}`} onClick={onEvoluir}>
-        ↑ Evoluir
-      </button>
       <div className="lb-carac-modo" role="radiogroup" aria-label={`O que ${nome} faz na vez`}>
         {modos.map((item) => (
           <label key={item.valor} className="lb-carac-modo__op" data-marcado={modo === item.valor ? 'sim' : undefined}>

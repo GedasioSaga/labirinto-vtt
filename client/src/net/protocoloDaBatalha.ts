@@ -1067,18 +1067,18 @@ function lerCarta(value: unknown): CartaParaJogador | null {
 const NOME_DO_DONO_MAX = 80
 const GRUPOS_NA_ESCOLHA_MAX = 12
 const OPCOES_DO_GRUPO_MAX = 40
-const NIVEL_NO_FIO_MAX = 99
 const LIMITE_NO_FIO_MAX = 20
 
+/** 27/11/2026: o nível do companion saiu ("serve para nada"); o `nivel` de um host antigo é ignorado, sem recusar a opção. */
 function lerOpcaoDeCompanion(value: unknown): OpcaoDeCompanion | null {
   if (!isRecord(value)) return null
-  const { personagemId, nome, retrato, nivel, modo, vida, agilidade, desmaiada } = value
-  if (!textoAte(personagemId, 1, ID_DA_BATALHA_MAX) || !textoAte(nome, 1, NOME_DO_DONO_MAX) || !inteiroAte(nivel, 1, NIVEL_NO_FIO_MAX)) return null
+  const { personagemId, nome, retrato, modo, vida, agilidade, desmaiada } = value
+  if (!textoAte(personagemId, 1, ID_DA_BATALHA_MAX) || !textoAte(nome, 1, NOME_DO_DONO_MAX)) return null
   if ((modo !== 'luta' && modo !== 'efeito') || typeof desmaiada !== 'boolean' || typeof agilidade !== 'number' || !Number.isFinite(agilidade)) return null
   if (retrato !== null && !ehRefDeMidia(retrato)) return null
   const vidaLida = vida === null ? null : lerVidaNaCarta(vida)
   if (vida !== null && vidaLida === null) return null
-  return { personagemId, nome, retrato, nivel, modo, vida: vidaLida, agilidade, desmaiada }
+  return { personagemId, nome, retrato, modo, vida: vidaLida, agilidade, desmaiada }
 }
 
 function lerGrupoNaEscolha(value: unknown): GrupoNaEscolha | null {

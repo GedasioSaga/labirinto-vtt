@@ -16,7 +16,6 @@ export interface OpcaoDeCompanion {
   personagemId: string
   nome: string
   retrato: string | null
-  nivel: number
   modo: ModoDoCompanion
   /** `null` = o sistema não tem vida (ou a ficha não tem máximo). */
   vida: { atual: number; maximo: number } | null
@@ -64,7 +63,6 @@ export function opcaoDoLigado(ligado: CaracteristicaCompanion['ligados'][number]
     personagemId: personagem.id,
     nome: personagem.nome,
     retrato: personagem.retrato,
-    nivel: ligado.nivel,
     modo: ligado.modo,
     vida,
     agilidade: agilidadeDe(personagem, sistema),

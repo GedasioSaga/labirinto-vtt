@@ -115,10 +115,11 @@ export function EscolhaDosCompanions({ donoNome, grupos, quem, onEntrar, onFecha
                       </span>
                       <span className="lb-carac-escolha__texto">
                         <strong>{opcao.nome}</strong>
-                        <span>
-                          Nível {opcao.nivel}
-                          {opcao.vida === null ? '' : ` · HP ${opcao.vida.atual}/${opcao.vida.maximo}`}
-                        </span>
+                        {opcao.vida !== null && (
+                          <span>
+                            HP {opcao.vida.atual}/{opcao.vida.maximo}
+                          </span>
+                        )}
                         <span className={motivo === null ? undefined : 'lb-carac-ligada__desmaiada'}>{motivo ?? (opcao.modo === 'efeito' ? 'Dá efeito' : 'Luta no campo')}</span>
                       </span>
                       <input type="checkbox" checked={marcada} disabled={travada} onChange={(event) => alternar(grupo, opcao.personagemId, event.target.checked)} aria-describedby={cheio && !marcada && !opcao.desmaiada ? `${tituloId}-${grupo.id}-cheio` : undefined} />
