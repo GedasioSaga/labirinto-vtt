@@ -267,6 +267,7 @@ import { useNuvemStore, type CampanhaNoApp } from './stores/nuvemStore'
 import { migrarMochilaAoAbrir } from './net/nuvem/migracaoDaMochila'
 import { converterItensAoAbrir } from './stores/conversaoDosItens'
 import { guardarCopiaDasHabilidadesAoAbrir } from './stores/conversaoDasHabilidades'
+import { guardarCopiaDasCondicoesAoAbrir } from './stores/conversaoDasCondicoes'
 import { conferirMochilaAoAbrir, marcarMapaImportado } from './net/nuvem/mochilaPendenteNoApp'
 import { avisarJogadoresDosBonecosSeparados } from './net/mochilaNaSala'
 import { gravarPastaDoMapa } from './stores/rpgDaPasta'
@@ -3383,6 +3384,8 @@ function App() {
   const openMapFileWithFolder = async (path: string) => {
     // REWORK DAS HABILIDADES (E2): a cópia das fichas como estavam, UMA vez, antes de qualquer gravação; a conversão é só na leitura (nunca lança).
     await guardarCopiaDasHabilidadesAoAbrir(path)
+    // REWORK DAS CONDIÇÕES (E2): a cópia das fichas que tocam em condição, UMA vez, antes de qualquer gravação; a condição de antes ganha as peças só na leitura (nunca lança).
+    await guardarCopiaDasCondicoesAoAbrir(path)
     // MOCHILA NA FICHA: a migração grava nas fichas ANTES de o editor lê-las (nunca lança).
     await migrarMochilaAoAbrir(path)
     // SISTEMA DE ITENS REFEITO (E1): os cartões das abas Armas e Itens passam para a mochila, antes de o editor ler as fichas (nunca lança).
@@ -3605,6 +3608,7 @@ function App() {
         // MOCHILA NA FICHA: o trabalho recuperado entra na migração com a hora da cópia.
         if (copy.mapPath !== null) {
           await guardarCopiaDasHabilidadesAoAbrir(copy.mapPath)
+          await guardarCopiaDasCondicoesAoAbrir(copy.mapPath)
           await migrarMochilaAoAbrir(copy.mapPath, copy)
           await converterItensAoAbrir(copy.mapPath)
           await conferirMochilaAoAbrir(copy.mapPath, copy)

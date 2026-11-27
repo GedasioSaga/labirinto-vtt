@@ -55,9 +55,17 @@ let filaDoCatalogo: Promise<void> = Promise.resolve()
 const SUFIXO_ANTES_DAS_HABILIDADES_V2 = '.antes-habilidades-v2'
 
 /**
+ * Rework das condições (docs/design/condicoes-rework/PLANO.md, E2): o catálogo de antes da 1ª gravação da
+ * versão das condições montadas com peças (renomear uma condição troca o nome nas habilidades e itens do
+ * livro), guardado UMA vez. O mesmo sufixo das fichas e da lista das criadas (`stores/conversaoDasCondicoes.ts`).
+ */
+const SUFIXO_ANTES_DAS_CONDICOES_V2 = '.antes-condicoes-v2'
+
+/**
  * Grava o catálogo INTEIRO do sistema, uma gravação depois da outra. Lança com a frase pronta.
- * Rework das habilidades (PLANO.md D11): antes da 1ª gravação nesta versão, o catálogo como era fica
- * ao lado (`catalogo.json.antes-habilidades-v2`), UMA vez; sem a cópia, não grava.
+ * Rework das habilidades (PLANO.md D11) e das condições (E2): antes da 1ª gravação em cada versão, o
+ * catálogo como era fica ao lado (`catalogo.json.antes-habilidades-v2`, `catalogo.json.antes-condicoes-v2`),
+ * UMA vez cada; sem a cópia, não grava.
  */
 export function gravarCatalogo(sistemaId: string, itens: readonly ItemDoCatalogo[]): Promise<void> {
   const resultado = filaDoCatalogo.then(async () => {
@@ -65,6 +73,7 @@ export function gravarCatalogo(sistemaId: string, itens: readonly ItemDoCatalogo
       const { pasta, arquivo } = await caminhoDoCatalogo(sistemaId)
       await ensureDir(pasta)
       await copiarUmaVez(arquivo, SUFIXO_ANTES_DAS_HABILIDADES_V2)
+      await copiarUmaVez(arquivo, SUFIXO_ANTES_DAS_CONDICOES_V2)
       await writeTextFileSafely(arquivo, serializarCatalogo(itens))
     } catch (erro) {
       throw new Error(`Não foi possível gravar o catálogo do livro: ${mensagemDoErro(erro)}.`)

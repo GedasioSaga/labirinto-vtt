@@ -6,6 +6,7 @@ import { lerCondicoesDaPasta, mudarCondicoesDaPasta, type CondicoesLidas } from 
 import { idDePastaValido, pastaDasPastas } from '../lib/pastasDeMapas'
 import type { HostWorld } from '../net/hostSession'
 import { useAdventureStore } from './adventureStore'
+import { guardarCopiaDaListaDeCondicoes } from './conversaoDasCondicoes'
 import { useToastStore } from './toastStore'
 
 /**
@@ -26,6 +27,12 @@ import { useToastStore } from './toastStore'
  *
  * A marca posta numa ficha não depende desta lista — ela vai inteira dentro do
  * mapa (`Token.condicoesProprias`).
+ *
+ * REWORK DAS CONDIÇÕES (E2, docs/design/condicoes-rework/PLANO.md): a lista grava os campos novos (tipo,
+ * desenho, peças, prazo e saídas; o arquivo sai na versão 2 quando algum aparece). Antes da 1ª gravação
+ * numa pasta, a lista como era fica ao lado (`condicoes.json.antes-condicoes-v2`, uma vez,
+ * `stores/conversaoDasCondicoes.ts`); sem a cópia, não grava. A condição que a leitura acharia torta
+ * (o `confira` que ela acrescenta) não é gravada: nenhum campo sai do disco calado.
  */
 
 const CHAVE = 'lb-condicoes-proprias'
@@ -73,8 +80,17 @@ interface CondicoesPropriasState {
   catalogo: readonly CondicaoPropria[]
   /** Onde a lista mora agora (`LugarDasCondicoes.chave`). */
   lugar: string
-  /** Cria, ou troca a que tem o mesmo id. `false` quando não gravou: condição que não passa na leitura, ou lista cheia. */
+  /**
+   * Cria, ou troca a que tem o mesmo id. `false` quando não gravou: condição que não passa na leitura (ou
+   * que a leitura deixaria sem algum campo do rework, `lidaSemPerder`), ou lista cheia.
+   */
   salvar: (condicao: CondicaoPropria) => boolean
+  /**
+   * Rework das condições (E2): grava várias numa ida só (renomear nas outras criadas, o Desfazer disso),
+   * todas ou nenhuma. `false` = alguma não passa na leitura sem perder campo, ou as novas não cabem; aí
+   * nada muda.
+   */
+  salvarVarias: (condicoes: readonly CondicaoPropria[]) => boolean
   excluir: (id: string) => void
   /**
    * A pasta aberta mudou: a lista passa a ser a do lugar novo. Resolve quando
@@ -97,6 +113,47 @@ function textoDoErro(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
 }
 
+/**
+ * A condição pela leitura sem perder campo do rework: se a leitura achou campo torto (peças, prazo,
+ * saídas ou tipo fora do formato), ela o deixaria de fora com um `confira` novo; essa não é gravada.
+ * O `confira` que já vinha (a condição lida torta antes) passa igual.
+ */
+function lidaSemPerder(condicao: CondicaoPropria): CondicaoPropria | null {
+  const limpa = lerCondicaoPropria(condicao)
+  if (limpa === null) return null
+  return limpa.confira !== undefined && limpa.confira !== condicao.confira ? null : limpa
+}
+
+/** A lista com todas estas gravadas (`listaComCondicao` uma a uma); `null` = alguma não coube. */
+function listaComTodas(lista: readonly CondicaoPropria[], condicoes: readonly CondicaoPropria[]): CondicaoPropria[] | null {
+  let atual: CondicaoPropria[] = [...lista]
+  for (const condicao of condicoes) {
+    const proxima = listaComCondicao(atual, condicao)
+    if (proxima === null) return null
+    atual = proxima
+  }
+  return atual
+}
+
+/** A cópia da lista como era, por pasta: pedida uma vez, e toda gravação da pasta espera por ela. */
+const copiasDaLista = new Map<string, Promise<unknown>>()
+
+/**
+ * Rework das condições (E2): antes da 1ª gravação da lista numa pasta, a cópia `.antes-condicoes-v2`,
+ * UMA vez (`guardarCopiaDaListaDeCondicoes`, que nunca grava por cima da que já existe). Falhou: a
+ * gravação não sai (lança com a frase pronta) e a próxima tenta a cópia de novo.
+ */
+function copiaDaListaAntes(caminho: string): Promise<unknown> {
+  const ja = copiasDaLista.get(caminho)
+  if (ja !== undefined) return ja
+  const copia = guardarCopiaDaListaDeCondicoes(caminho).catch((erro: unknown) => {
+    copiasDaLista.delete(caminho)
+    throw new Error(`Não foi possível guardar a cópia da lista de condições de antes das condições novas: ${textoDoErro(erro)}.`)
+  })
+  copiasDaLista.set(caminho, copia)
+  return copia
+}
+
 export const useCondicoesPropriasStore = create<CondicoesPropriasState>()((set, get) => {
   /**
    * Grava a mudança onde a lista mora. Na pasta, `mudar` vale sobre o que está
@@ -112,7 +169,10 @@ export const useCondicoesPropriasStore = create<CondicoesPropriasState>()((set, 
     }
     const minha = geracao
     void pasta
-      .then((caminho) => mudarCondicoesDaPasta(caminho, mudar))
+      .then(async (caminho) => {
+        await copiaDaListaAntes(caminho)
+        return mudarCondicoesDaPasta(caminho, mudar)
+      })
       .then(
         (gravadas) => {
           if (minha === geracao) set({ catalogo: gravadas.condicoes })
@@ -126,13 +186,29 @@ export const useCondicoesPropriasStore = create<CondicoesPropriasState>()((set, 
     lugar: NO_COMPUTADOR,
 
     salvar: (condicao) => {
-      const limpa = lerCondicaoPropria(condicao)
+      const limpa = lidaSemPerder(condicao)
       if (limpa === null) return false
       const catalogo = listaComCondicao(get().catalogo, limpa)
       if (catalogo === null) return false
       set({ catalogo })
       // No disco a lista pode estar cheia sem a tela saber (outra janela): aí ela fica como está.
       persistir((lista) => listaComCondicao(lista, limpa) ?? lista)
+      return true
+    },
+
+    salvarVarias: (condicoes) => {
+      const limpas: CondicaoPropria[] = []
+      for (const condicao of condicoes) {
+        const limpa = lidaSemPerder(condicao)
+        if (limpa === null) return false
+        limpas.push(limpa)
+      }
+      if (limpas.length === 0) return true
+      const catalogo = listaComTodas(get().catalogo, limpas)
+      if (catalogo === null) return false
+      set({ catalogo })
+      // Como no `salvar`: o que não couber no disco agora fica como está lá.
+      persistir((lista) => listaComTodas(lista, limpas) ?? lista)
       return true
     },
 
