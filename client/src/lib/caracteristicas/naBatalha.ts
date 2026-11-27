@@ -24,16 +24,40 @@ export function fichaComOsCompanions(dono: Personagem, personagens: readonly Per
   return doModelo.length === 0 ? dono : { ...dono, caracteristicas: [...(dono.caracteristicas ?? []), ...doModelo] }
 }
 
+/** Os personagens com carta própria na ordem (sem carta extra nem bando), sem repetir, na ordem das cartas. */
+function personagensComCartaPropria(cartas: readonly CartaDaOrdem[], personagens: readonly Personagem[]): Personagem[] {
+  const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
+  const vistos: Personagem[] = []
+  for (const carta of cartas) {
+    if (carta.personagemId === null || carta.extra !== undefined || carta.bando !== undefined) continue
+    const personagem = porId.get(carta.personagemId)
+    if (personagem !== undefined && !vistos.includes(personagem)) vistos.push(personagem)
+  }
+  return vistos
+}
+
 /** Os donos que escolhem quem vai: personagem com carta própria na ordem e algum companion que exista. Sem repetir, na ordem das cartas. */
 export function donosQueEscolhem(cartas: readonly CartaDaOrdem[], personagens: readonly Personagem[]): string[] {
-  const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
-  const donos: string[] = []
-  for (const carta of cartas) {
-    if (carta.personagemId === null || carta.extra !== undefined || carta.bando !== undefined || donos.includes(carta.personagemId)) continue
-    const dono = porId.get(carta.personagemId)
-    if (dono !== undefined && temCompanionsParaEscolher(fichaComOsCompanions(dono, personagens), personagens)) donos.push(dono.id)
-  }
-  return donos
+  return personagensComCartaPropria(cartas, personagens)
+    .filter((dono) => temCompanionsParaEscolher(fichaComOsCompanions(dono, personagens), personagens))
+    .map((dono) => dono.id)
+}
+
+/** "Os companions de Rei Lazaro não têm ficha: ligue de novo na ficha." */
+export function motivoSemFichaDosCompanions(nome: string): string {
+  return `Os companions de ${nome} não têm ficha: ligue de novo na ficha.`
+}
+
+/**
+ * Os donos da ordem com um grupo de companion cujas fichas ligadas foram
+ * TODAS apagadas do livro (conserto de 27/11/2026): esse grupo não entra na
+ * escolha, e a mesa mostra o motivo em vez de nada.
+ */
+export function donosSemFichaDosCompanions(cartas: readonly CartaDaOrdem[], personagens: readonly Personagem[]): Personagem[] {
+  const ids = new Set(personagens.map((personagem) => personagem.id))
+  return personagensComCartaPropria(cartas, personagens).filter((dono) =>
+    gruposDeCompanion(fichaComOsCompanions(dono, personagens).caracteristicas).some((grupo) => grupo.ligados.length > 0 && !grupo.ligados.some((ligado) => ids.has(ligado.personagemId))),
+  )
 }
 
 /**

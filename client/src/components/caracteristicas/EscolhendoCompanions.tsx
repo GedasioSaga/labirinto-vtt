@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { gruposParaEscolha } from '../../lib/caracteristicas/companions'
-import { fichaComOsCompanions } from '../../lib/caracteristicas/naBatalha'
+import type { CartaDaOrdem } from '../../lib/batalha/turnos'
+import { donosSemFichaDosCompanions, fichaComOsCompanions, motivoSemFichaDosCompanions } from '../../lib/caracteristicas/naBatalha'
 import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore } from '../../stores/batalhaStore'
 import { MESTRE } from '../../stores/batalha/cena'
@@ -10,6 +11,7 @@ import { EscolhaDosCompanions } from './EscolhaDosCompanions'
 import './caracteristicas.css'
 
 const SEM_DONOS: readonly string[] = []
+const SEM_CARTAS: readonly CartaDaOrdem[] = []
 
 /**
  * No painel do mestre: "Aira escolhendo…" para cada dono que ainda não disse
@@ -17,17 +19,19 @@ const SEM_DONOS: readonly string[] = []
  * mesmo diálogo do jogador e decide no lugar dele. Dono NPC (conserto de
  * 27/11/2026, "cadê os companions do Rei Lazaro?"): ninguém mais escolhe, então
  * a linha diz que é o mestre quem escolhe; antes dizia "escolhendo…" e esperava
- * para sempre.
+ * para sempre. Grupo com todas as fichas ligadas apagadas: a linha diz o motivo.
  */
 export function EscolhendoCompanions({ sceneKey }: { sceneKey: string }) {
   const escolhendo = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? (state.cenas[sceneKey]?.turnos.escolhendoCompanions ?? SEM_DONOS) : SEM_DONOS))
+  const cartas = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? (state.cenas[sceneKey]?.turnos.cartas ?? SEM_CARTAS) : SEM_CARTAS))
   const personagens = useAdventureStore(personagensAtivos)
   const sistemaId = useAdventureStore(sistemaAtivo)
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const sistema = useMemo(() => sistemaPorId(biblioteca, sistemaId) ?? null, [biblioteca, sistemaId])
+  const semFicha = useMemo(() => donosSemFichaDosCompanions(cartas, personagens), [cartas, personagens])
   const [aberto, setAberto] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
-  if (escolhendo.length === 0) return null
+  if (escolhendo.length === 0 && semFicha.length === 0) return null
   const donoAberto = aberto === null ? undefined : personagens.find((personagem) => personagem.id === aberto)
 
   function entrar(donoId: string, escolhidos: string[]) {
@@ -56,8 +60,14 @@ export function EscolhendoCompanions({ sceneKey }: { sceneKey: string }) {
           </div>
         )
       })}
+      {semFicha.map((dono) => (
+        <div key={`sem-ficha-${dono.id}`} className="lb-carac-esperando" role="status">
+          <span>{motivoSemFichaDosCompanions(dono.nome)}</span>
+        </div>
+      ))}
       {donoAberto !== undefined && (
         <EscolhaDosCompanions
+          donoNpc={donoAberto.tipo === 'npc'}
           donoNome={donoAberto.nome}
           grupos={gruposParaEscolha(fichaComOsCompanions(donoAberto, personagens), personagens, sistema)}
           quem="mestre"

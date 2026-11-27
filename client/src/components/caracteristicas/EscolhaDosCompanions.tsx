@@ -22,6 +22,8 @@ export interface EscolhaDosCompanionsProps {
   onFechar?: () => void
   /** A recusa do host, se houve ("Já são 3…"). */
   erro?: string | null
+  /** O dono é NPC (conserto de 27/11/2026): não há jogador, o mestre escolhe e joga por eles. */
+  donoNpc?: boolean
 }
 
 const FOCAVEIS = 'button:not([disabled]), input:not([disabled])'
@@ -30,7 +32,7 @@ function padraoDe(grupos: readonly GrupoNaEscolha[]): Set<string> {
   return new Set(grupos.flatMap((grupo) => grupo.padrao))
 }
 
-export function EscolhaDosCompanions({ donoNome, grupos, quem, onEntrar, onFechar, erro = null }: EscolhaDosCompanionsProps) {
+export function EscolhaDosCompanions({ donoNome, grupos, quem, onEntrar, onFechar, erro = null, donoNpc = false }: EscolhaDosCompanionsProps) {
   const [marcados, setMarcados] = useState<ReadonlySet<string>>(() => padraoDe(grupos))
   const caixaRef = useRef<HTMLDivElement>(null)
   const tituloId = useId()
@@ -87,7 +89,7 @@ export function EscolhaDosCompanions({ donoNome, grupos, quem, onEntrar, onFecha
             {donoNome}?
           </h2>
           <p className="lb-carac-modal__sub">
-            Cada um entra do lado de {donoNome}, colado no mapa, com vez própria na ordem. {quem === 'jogador' ? 'Você joga por eles.' : 'Quem joga por eles é o dono.'}
+            Cada um entra do lado de {donoNome}, colado no mapa, com vez própria na ordem. {quem === 'jogador' ? 'Você joga por eles.' : donoNpc ? 'Quem joga por eles é você (o mestre).' : 'Quem joga por eles é o dono.'}
           </p>
         </div>
         {grupos.map((grupo) => {
@@ -141,7 +143,7 @@ export function EscolhaDosCompanions({ donoNome, grupos, quem, onEntrar, onFecha
           </p>
         )}
         <div className="lb-carac-escolha__rodape">
-          <p className="lb-carac-modal__sub">{quem === 'jogador' ? `O mestre vê "${donoNome} escolhendo…" até você entrar.` : `Você decide no lugar do jogador de ${donoNome}.`}</p>
+          <p className="lb-carac-modal__sub">{quem === 'jogador' ? `O mestre vê "${donoNome} escolhendo…" até você entrar.` : donoNpc ? `${donoNome} é NPC: você escolhe e joga por eles.` : `Você decide no lugar do jogador de ${donoNome}.`}</p>
           <div className="lb-carac-modal__acoes">
             {onFechar !== undefined && (
               <button type="button" className="lb-btn lb-btn--ghost" onClick={onFechar}>

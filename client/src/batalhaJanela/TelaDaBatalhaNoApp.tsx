@@ -5,7 +5,9 @@ import { Botao } from '../components/grimorio/Botao'
 import { CampoSeg, type OpcaoDoSeg } from '../components/grimorio/CampoSeg'
 import { chaveDaVez } from '../lib/batalha/combate'
 import { cartaDaVez } from '../lib/batalha/turnos'
+import { useAdventureStore } from '../stores/adventureStore'
 import { useBatalhaStore } from '../stores/batalhaStore'
+import { useMapStore } from '../stores/mapStore'
 import { abrirMesaEmJanela, escolherModoDaBatalha, garantirAJanelaDaBatalha, trazerMesaParaOApp, useMesaDaBatalha, type ModoDaBatalha } from './controleDaJanela'
 import { aplicarPedido, assinarEspelho } from './mesa'
 import { MesaDaBatalha, type ItemDoMenuDaMesa } from './MesaDaBatalha'
@@ -53,7 +55,12 @@ export function TelaDaBatalhaNoApp({ emBatalha }: { emBatalha: boolean }) {
   useEffect(() => {
     if (lugar === 'janela') void garantirAJanelaDaBatalha()
   }, [lugar])
+  // A chave de `cenaAberta()` (a do App), lida pelas lojas para a pílula seguir a cena.
+  const cenaAtiva = useAdventureStore((state) => state.activeSceneId)
+  const cenaDoMapa = useMapStore((state) => state.map.id)
   if (lugar === null) return null
+  // COMPANION (conserto de 27/11/2026): sem a doca (janela à parte ou menu do jogador), a escolha dos companions fica na pílula.
+  const escolha = <EscolhendoCompanions sceneKey={cenaAtiva ?? cenaDoMapa} />
   if (lugar === 'janela') {
     return (
       <div className="mb-pilula-da-mesa" role="status">
@@ -64,6 +71,7 @@ export function TelaDaBatalhaNoApp({ emBatalha }: { emBatalha: boolean }) {
         <Botao tamanho="p" variante="fantasma" onClick={() => void trazerMesaParaOApp()}>
           Trazer para o app
         </Botao>
+        {escolha}
       </div>
     )
   }
@@ -74,6 +82,7 @@ export function TelaDaBatalhaNoApp({ emBatalha }: { emBatalha: boolean }) {
         <Botao tamanho="p" variante="latao" onClick={() => void escolherModoDaBatalha('minimalista')}>
           Mesa minimalista
         </Botao>
+        {escolha}
       </div>
     )
   }
