@@ -159,6 +159,12 @@ export interface EditorDaHabilidadeProps {
   guardarNoCatalogo?: (cartao: CartaoDaFicha) => void
   /** Rework D8: a peça grava a ligação no requisito de outro cartão da ficha (a técnica da forma, a que o acumulador libera). */
   aoMudarOutroCartao?: (cartao: CartaoDaFicha) => void
+  /**
+   * A proposta da IA (pedido de 27/11): o cartão ainda não está na ficha, então o Salvar na ficha grava
+   * por aqui (com o cartão de agora) em vez de só fechar. O Fechar continua só fechando. Ausente = o
+   * Salvar da ficha grava, como sempre.
+   */
+  onSalvar?: (cartao: CartaoDaFicha) => void
 }
 
 /**
@@ -171,7 +177,7 @@ export interface EditorDaHabilidadeProps {
  * (`cartaoComTextoGerado`, o ponto único); o dono grava a `mecanicaProposta`. Requisitos, evolução,
  * esconder e campos extras gravam no cartão, fora da mecânica.
  */
-export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFechar, tecnicas, podeOcultar, doQue = 'tecnica', foraDaFicha = false, trilha, gastoDoItem, onModelo, aoAbrir, abaDoCartao, relatorio, guardarNoCatalogo, aoMudarOutroCartao }: EditorDaHabilidadeProps) {
+export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFechar, tecnicas, podeOcultar, doQue = 'tecnica', foraDaFicha = false, trilha, gastoDoItem, onModelo, aoAbrir, abaDoCartao, relatorio, guardarNoCatalogo, aoMudarOutroCartao, onSalvar }: EditorDaHabilidadeProps) {
   const naTecnica = doQue === 'tecnica'
   const textos = doQue === 'tecnica' ? null : TEXTOS[doQue]
   const prefixo = useId()
@@ -281,7 +287,8 @@ export function EditorDaHabilidade({ cartao, ficha, quemEdita, onChange, onFecha
       return
     }
     if (tambemNoCatalogo && guardarNoCatalogo !== undefined) guardarNoCatalogo(cartao)
-    onFechar()
+    if (onSalvar !== undefined) onSalvar(cartao)
+    else onFechar()
   }
   /** ED7: a arma e o item não têm texto de antes; tirar é voltar ao dano da arma (ou ao item só de descrição). */
   const tirar = () => {

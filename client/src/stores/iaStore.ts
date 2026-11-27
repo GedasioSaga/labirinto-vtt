@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { esquemaDaHabilidade, habilidadeDaIa, pedidoDaHabilidade, resumoDaProposta, type PropostaDeHabilidade, type TipoDaHabilidadeDaIa } from '../lib/ia/criarHabilidade'
 import { esquemaDoNpc, pedidoDoNpc, personagemDaIa, type NivelDoNpc } from '../lib/ia/gerarNpc'
 import { gravarModeloDaIa, lerModeloDaIa } from '../lib/ia/iaNoDisco'
 import {
@@ -24,7 +25,7 @@ import {
 } from '../lib/ia/prompts'
 import { retratoParaIa } from '../lib/ia/retratos'
 import type { EntradaDoLivro, ItemDoCatalogo } from '../lib/livros/catalogo'
-import type { Personagem } from '../lib/personagem'
+import type { CartaoDaFicha, Personagem, TipoDePersonagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { useToastStore } from './toastStore'
 
@@ -36,7 +37,8 @@ import { useToastStore } from './toastStore'
  * por aqui (só a contagem que o cofre devolve).
  */
 
-export type AutorDaMensagem = 'mestre' | 'ia' | 'erro'
+/** `proposta`: a habilidade que a IA propôs, como cartão na conversa (o `texto` é o resumo que vai no histórico). */
+export type AutorDaMensagem = 'mestre' | 'ia' | 'erro' | 'proposta'
 
 export interface MensagemDaConversa {
   id: string
@@ -44,6 +46,19 @@ export interface MensagemDaConversa {
   texto: string
   /** No erro: o código da porta, que decide o botão ("Pôr a chave", "Trocar o modelo"). */
   codigo?: CodigoDoErroDaIa
+  /** Na proposta: o cartão montado e a ficha que o recebe. */
+  proposta?: PropostaDeHabilidade
+}
+
+/** O que os atalhos da conversa criam: habilidade e transformação (cartão na ficha) ou o boneco (a ficha inteira, pelo caminho do Gerar NPC). */
+export type CriacaoDaIa = TipoDaHabilidadeDaIa | 'boneco'
+
+/** O formulário de criar aberto na conversa, com o que o texto livre já disse. */
+export interface PedidoDeCriacao {
+  tipo: CriacaoDaIa
+  descricao: string
+  /** A ficha que recebe a habilidade (o boneco não tem); `null` = o mestre escolhe no formulário. */
+  alvoId: string | null
 }
 
 /** O que a pergunta precisa do mundo aberto (quem chama lê das stores do mundo e do catálogo). */
@@ -80,6 +95,10 @@ interface IaState {
   gerando: boolean
   /** A ficha que a IA gerou, esperando revisão. */
   gerado: Personagem | null
+  /** As técnicas do `gerado` que ficaram só no texto (a mecânica não passou no validador), com o motivo. */
+  avisosDoGerado: readonly string[]
+  /** O formulário do Criar habilidade, transformação ou boneco aberto na conversa. */
+  criando: PedidoDeCriacao | null
   /** Quantas chaves o cofre guarda; `null` = ainda não lido (ou fora do app). */
   chaves: number | null
   modelo: ModeloGemini
@@ -97,6 +116,13 @@ interface IaState {
   abrirConfig: (aberta: boolean) => void
   abrirGerar: (aberto: boolean) => void
   descartarGerado: () => void
+  /** Abre (ou fecha, com `null`) o formulário de criar; fecha o do Gerar NPC. */
+  abrirCriacao: (pedido: PedidoDeCriacao | null) => void
+  /** O editor gravou uma versão completa do cartão da proposta (nada vai ao disco aqui). */
+  trocarCartaoDaProposta: (mensagemId: string, cartao: CartaoDaFicha) => void
+  /** O Salvar na ficha gravou (ou o Desfazer tirou): o cartão da conversa diz onde ela está. */
+  marcarPropostaSalva: (mensagemId: string, salva: boolean) => void
+  descartarProposta: (mensagemId: string) => void
   /** Lê do cofre quantas chaves há e do disco o modelo. Nunca lança. */
   lerConfig: () => Promise<void>
   definirChaves: (quantas: number) => void
@@ -108,8 +134,14 @@ interface IaState {
    * tela devolve o texto à caixa.
    */
   perguntar: (pergunta: string, mundo: DadosDoMundoParaIa) => Promise<boolean>
-  /** Gera um NPC a partir da descrição. O resultado vira `gerado` (ou uma mensagem de erro). */
-  gerarNpc: (descricao: string, nivel: NivelDoNpc, mundo: DadosDoMundoParaIa) => Promise<void>
+  /** Gera um NPC (ou, no Criar boneco, a ficha do `tipo`) a partir da descrição. O resultado vira `gerado` (ou uma mensagem de erro). */
+  gerarNpc: (descricao: string, nivel: NivelDoNpc, mundo: DadosDoMundoParaIa, tipo?: TipoDePersonagem) => Promise<void>
+  /**
+   * A IA propõe uma habilidade (ou transformação) para a ficha `alvoId`. A proposta conferida vira um
+   * cartão na conversa; a recusada, a mensagem de erro com o motivo. Com `pedidoNoTexto` (o pedido
+   * veio da caixa), ele entra antes na conversa como fala do mestre.
+   */
+  criarHabilidade: (descricao: string, tipo: TipoDaHabilidadeDaIa, alvoId: string, mundo: DadosDoMundoParaIa, pedidoNoTexto?: string) => Promise<void>
 }
 
 function novoId(): string {
@@ -125,10 +157,15 @@ function historicoDaConversa(conversa: readonly MensagemDaConversa[]): MensagemD
   return historicoParaIa(conversa.flatMap((mensagem) => (mensagem.de === 'erro' ? [] : [{ papel: mensagem.de === 'mestre' ? 'user' : 'model', texto: mensagem.texto }])))
 }
 
-type ConversaDaIa = Pick<IaState, 'fixas' | 'conversa' | 'retratosEnviados' | 'pensando' | 'gerando' | 'gerado'>
+type ConversaDaIa = Pick<IaState, 'fixas' | 'conversa' | 'retratosEnviados' | 'pensando' | 'gerando' | 'gerado' | 'avisosDoGerado' | 'criando'>
 
 function conversaVazia(): ConversaDaIa {
-  return { fixas: [], conversa: [], retratosEnviados: [], pensando: false, gerando: false, gerado: null }
+  return { fixas: [], conversa: [], retratosEnviados: [], pensando: false, gerando: false, gerado: null, avisosDoGerado: [], criando: null }
+}
+
+/** A conversa com a proposta `mensagemId` trocada (as outras mensagens ficam iguais). */
+function comAProposta(conversa: readonly MensagemDaConversa[], mensagemId: string, trocar: (proposta: PropostaDeHabilidade) => PropostaDeHabilidade): MensagemDaConversa[] {
+  return conversa.map((mensagem) => (mensagem.id === mensagemId && mensagem.proposta !== undefined ? { ...mensagem, proposta: trocar(mensagem.proposta) } : mensagem))
 }
 
 export const useIaStore = create<IaState>()((set, get) => {
@@ -168,8 +205,13 @@ export const useIaStore = create<IaState>()((set, get) => {
     tirarFicha: (personagemId) => set(({ fixas }) => ({ fixas: fixas.filter((id) => id !== personagemId) })),
     novaConversa: () => set(({ rodada }) => ({ ...conversaVazia(), rodada: rodada + 1 })),
     abrirConfig: (aberta) => set({ configAberta: aberta }),
-    abrirGerar: (aberto) => set(aberto ? { gerando: true, gerado: null } : { gerando: false }),
-    descartarGerado: () => set({ gerado: null }),
+    abrirGerar: (aberto) => set(aberto ? { gerando: true, gerado: null, avisosDoGerado: [], criando: null } : { gerando: false }),
+    descartarGerado: () => set({ gerado: null, avisosDoGerado: [] }),
+    // O boneco revisa no lugar do NPC gerado: abrir o formulário dele tira a ficha de antes da conversa, como o Gerar NPC.
+    abrirCriacao: (pedido) => set(pedido === null ? { criando: null } : { criando: pedido, gerando: false, ...(pedido.tipo === 'boneco' ? { gerado: null, avisosDoGerado: [] } : {}) }),
+    trocarCartaoDaProposta: (mensagemId, cartao) => set(({ conversa }) => ({ conversa: comAProposta(conversa, mensagemId, (proposta) => ({ ...proposta, cartao })) })),
+    marcarPropostaSalva: (mensagemId, salva) => set(({ conversa }) => ({ conversa: comAProposta(conversa, mensagemId, (proposta) => ({ ...proposta, salva })) })),
+    descartarProposta: (mensagemId) => set(({ conversa }) => ({ conversa: conversa.filter((mensagem) => mensagem.id !== mensagemId) })),
 
     lerConfig: async () => {
       const modelo = await lerModeloDaIa()
@@ -238,24 +280,57 @@ export const useIaStore = create<IaState>()((set, get) => {
       }
     },
 
-    gerarNpc: async (descricao, nivel, mundo) => {
+    gerarNpc: async (descricao, nivel, mundo, tipo = 'npc') => {
       if (get().pensando) return
       const rodada = get().rodada
-      set({ gerando: false, gerado: null, pensando: true })
+      set({ gerando: false, criando: null, gerado: null, avisosDoGerado: [], pensando: true })
       try {
-        const pedido = pedidoDoNpc(descricao, nivel, mundo.sistema, mundo.personagens, mundo.encontro.grupo)
-        const resposta = await gerarNaIa({ modelo: get().modelo, systemPrompt: pedido.systemPrompt, texto: pedido.texto, esquemaResposta: esquemaDoNpc(mundo.sistema) })
+        const pedido = pedidoDoNpc(descricao, nivel, mundo.sistema, mundo.personagens, mundo.encontro.grupo, tipo)
+        const resposta = await gerarNaIa({ modelo: get().modelo, systemPrompt: pedido.systemPrompt, texto: pedido.texto, esquemaResposta: esquemaDoNpc(mundo.sistema, tipo) })
         if (get().rodada !== rodada) return
         avisarTroca(resposta.trocouPara)
-        const npc = personagemDaIa(resposta.texto, mundo.sistema)
+        const npc = personagemDaIa(resposta.texto, mundo.sistema, tipo)
         if (npc.ok) {
-          set({ gerado: npc.personagem, pensando: false })
+          set({ gerado: npc.personagem, avisosDoGerado: npc.avisos, pensando: false })
         } else {
           set(({ conversa }) => ({ pensando: false, conversa: [...conversa, { id: novoId(), de: 'erro', texto: npc.erro, codigo: 'resposta_invalida' }] }))
         }
       } catch (erro) {
         if (get().rodada !== rodada) return
         set({ pensando: false })
+        registrarErro(erro)
+      }
+    },
+
+    criarHabilidade: async (descricao, tipo, alvoId, mundo, pedidoNoTexto) => {
+      const alvo = mundo.personagens.find((personagem) => personagem.id === alvoId)
+      if (get().pensando || alvo === undefined) return
+      const rodada = get().rodada
+      set(({ conversa }) => ({
+        criando: null,
+        pensando: true,
+        conversa: pedidoNoTexto === undefined ? conversa : [...conversa, { id: novoId(), de: 'mestre', texto: pedidoNoTexto }],
+      }))
+      // Não deu (recusa ou erro da porta): o formulário volta com o pedido, como a pergunta volta à caixa,
+      // a menos que o mestre já tenha aberto outro enquanto esperava.
+      const devolverOPedido = (): Partial<Pick<IaState, 'criando'>> => (get().criando === null && !get().gerando ? { criando: { tipo, descricao, alvoId } } : {})
+      try {
+        const pedido = pedidoDaHabilidade({ descricao, tipo, alvo, sistema: mundo.sistema, personagens: mundo.personagens })
+        const resposta = await gerarNaIa({ modelo: get().modelo, systemPrompt: pedido.systemPrompt, texto: pedido.texto, esquemaResposta: esquemaDaHabilidade() })
+        if (get().rodada !== rodada) return
+        avisarTroca(resposta.trocouPara)
+        const ficha = { personagem: alvo, sistema: mundo.sistema }
+        const lida = habilidadeDaIa(resposta.texto, tipo, ficha)
+        if (lida.ok) {
+          const proposta: MensagemDaConversa = { id: novoId(), de: 'proposta', texto: resumoDaProposta(lida.cartao, lida.mecanica, ficha), proposta: { tipo, alvoId, cartao: lida.cartao, salva: false } }
+          set(({ conversa }) => ({ pensando: false, conversa: [...conversa, proposta] }))
+        } else {
+          const recusa: MensagemDaConversa = { id: novoId(), de: 'erro', texto: lida.erro, codigo: 'resposta_invalida' }
+          set(({ conversa }) => ({ pensando: false, conversa: [...conversa, recusa], ...devolverOPedido() }))
+        }
+      } catch (erro) {
+        if (get().rodada !== rodada) return
+        set({ pensando: false, ...devolverOPedido() })
         registrarErro(erro)
       }
     },
