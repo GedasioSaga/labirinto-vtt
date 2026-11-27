@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portão de madeira</title>
+<meta name="description" content="Rascunho da transição: atravessar um portão grande de madeira, 7 s, com som.">
+<style>
+  :root {
+    color-scheme: dark;
+    --fundo: #0b0b0c;
+    --superficie: #141416;
+    --borda: #26262a;
+    --texto: #ebe6de;
+    --texto-2: #a49e95;
+    --acento: #e0a458;
+    --acento-texto: #1c1307;
+    --ok: #a3c99f;
+    --raio: 10px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --fundo: #0b0b0c; --superficie: #141416; --texto: #ebe6de; }
+  }
+  :root[data-theme="dark"] { --fundo: #0b0b0c; --superficie: #141416; --texto: #ebe6de; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--texto); font: 16px/1.6 system-ui, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 40px 16px 72px; }
+  h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 6px; font-weight: 650; }
+  h2 { font-size: 20px; margin: 48px 0 12px; font-weight: 620; letter-spacing: -0.01em; }
+  p { margin: 0 0 12px; }
+  .sub { color: var(--texto-2); margin-bottom: 24px; }
+  .tela { margin: 0; border-radius: var(--raio); overflow: hidden; background: #000; border: 1px solid var(--borda); aspect-ratio: 16 / 9; }
+  .tela video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  .controles { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; margin: 16px 0 6px; }
+  button.principal {
+    font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 12px 20px; min-height: 44px; cursor: pointer;
+    background: var(--acento); color: var(--acento-texto);
+    transition: transform 160ms var(--ease-out), background-color 160ms ease;
+  }
+  button.principal:active { transform: scale(0.97); }
+  button.principal[aria-pressed="true"] { background: #c9c2b6; }
+  button.principal:focus-visible, a:focus-visible, audio:focus-visible { outline: 2px solid var(--acento); outline-offset: 3px; }
+  @media (hover: hover) and (pointer: fine) { button.principal:hover { background: #ebb36c; } button.principal[aria-pressed="true"]:hover { background: #d8d1c5; } }
+  .aviso { color: var(--texto-2); font-size: 14px; min-height: 1.6em; margin: 0; }
+  a { color: var(--acento); }
+  .so-som { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; color: var(--texto-2); font-size: 14px; }
+  .so-som audio { height: 36px; max-width: 100%; }
+  ul { padding-left: 20px; margin: 0; }
+  li { margin: 0 0 8px; }
+  li strong { color: var(--texto); font-weight: 600; }
+  .lista { color: var(--texto-2); }
+  figure.prova { margin: 0; }
+  figure.prova img { display: block; width: 100%; height: auto; border-radius: var(--raio); border: 1px solid var(--borda); }
+  figcaption { color: var(--texto-2); font-size: 14px; margin-top: 8px; }
+  .tabela { width: 100%; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 520px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+  th { color: var(--texto-2); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ok { color: var(--ok); }
+  .nota { background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); padding: 14px 16px; color: var(--texto-2); font-size: 14px; margin-top: 12px; }
+  footer { margin-top: 56px; color: var(--texto-2); font-size: 13px; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 0.92em; color: var(--texto); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Portão de madeira</h1>
+  <p class="sub">Rascunho da transição para aprovar · 7,0 s · 1280×720 · 30 fps · EEVEE · com som</p>
+
+  <figure class="tela">
+    <video id="video" poster="poster.jpg" muted loop playsinline preload="auto" aria-label="Transição: o portão de madeira abre devagar e a câmera atravessa para o escuro">
+      <source src="video-com-som.webm" type="video/webm">
+      <source src="video-com-som.mp4" type="video/mp4">
+    </video>
+  </figure>
+  <div class="controles">
+    <button id="tocar" class="principal" type="button" aria-pressed="false">Tocar com som</button>
+    <p id="aviso" class="aviso" role="status" aria-live="polite">Em loop, sem som. O botão toca uma vez do começo, com som.</p>
+  </div>
+  <div class="so-som">
+    <span>Só o som:</span>
+    <audio controls preload="none" src="som.wav"></audio>
+    <a href="som.wav" download>baixar o .wav</a>
+  </div>
+
+  <h2>Como o peso foi feito</h2>
+  <ul class="lista">
+    <li><strong>Não arranca de uma vez.</strong> Depois do trinco cair (1,40 s), cada folha cede três vezes um fio (0,25 a 0,9 grau), para e cede de novo. Só em 2,3 s começa a andar.</li>
+    <li><strong>Inércia.</strong> Acelera devagar até ~40 graus por segundo e engasga duas vezes por folha: a dobradiça prende (a velocidade cai a 15% em ~30 ms), solta e escapa um pouco mais rápido.</li>
+    <li><strong>Chega batendo.</strong> A folha bate no batente ainda andando, volta 1 grau e assenta. A direita vem 0,13 s atrás e abre menos (71 contra 76 graus), então são dois baques.</li>
+    <li><strong>O corpo sente.</strong> A câmera treme no trinco e nas batidas (senóide amortecida de 8 Hz), as argolas de ferro balançam e batem de volta na madeira, cai pó da verga (482 grãos e uma nuvem), e depois a câmera atravessa com o balanço de cada passo.</li>
+    <li><strong>Som na mesma linha do tempo.</strong> O rangido grave é o atrito gruda-solta da dobradiça excitando os modos da folha, guiado pela velocidade de cada folha quadro a quadro; trinco, trancos, baques, argolas e passos caem no instante exato dos eventos.</li>
+  </ul>
+
+  <h2>Folha de contato</h2>
+  <figure class="prova">
+    <img src="folha-de-contato.png" width="1650" height="1086" loading="lazy" alt="16 quadros da transição, de 0,30 s a 6,70 s, com o tempo e o evento embaixo de cada um">
+    <figcaption>16 quadros com o instante embaixo. O destrave (0,9 a 1,6 s) quase não mexe a imagem de propósito: o peso ali está no som, no tremor e no pó.</figcaption>
+  </figure>
+
+  <h2>Movimento e som na mesma linha do tempo</h2>
+  <figure class="prova">
+    <img src="som-e-movimento.png" width="1430" height="990" loading="lazy" alt="Gráfico: abertura das folhas, posição da câmera, velocidade, poeira e tremor em cima; envoltória do som por camada embaixo, no mesmo eixo de tempo">
+    <figcaption>Em cima, a abertura de cada folha, a câmera e o fade; no meio, a velocidade, a poeira e o tremor; embaixo, o volume de cada camada do som e da mixagem final.</figcaption>
+  </figure>
+  <div class="tabela">
+    <table>
+      <thead><tr><th>Medida do som</th><th>Valor</th><th>Meta</th></tr></thead>
+      <tbody>
+        <tr><td>Volume integrado (LUFS, ffmpeg ebur128)</td><td class="num">-20,0</td><td>-23 a -18 <span class="ok">ok</span></td></tr>
+        <tr><td>Pico verdadeiro (dBTP)</td><td class="num">-1,9</td><td>até -1 <span class="ok">ok</span></td></tr>
+        <tr><td>Cliques e amostras cortadas (medidas da casa)</td><td class="num">0 e 0</td><td>0 <span class="ok">ok</span></td></tr>
+        <tr><td>Eventos achados no som a ±1 quadro (trinco, trancos, batidas, passos)</td><td class="num">12 de 12</td><td>todos <span class="ok">ok</span></td></tr>
+        <tr><td>Trecho mais alto (janela de 0,1 s)</td><td class="num">4,95 s</td><td>nas batidas <span class="ok">ok</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="nota">Medir não é ouvir. Os números conferem volume, pico, cliques e o casamento com a imagem; se o rangido convence, se o baque pesa e se os passos soam bem, só o ouvido decide.</p>
+
+  <h2>Licenças</h2>
+  <div class="tabela">
+    <table>
+      <thead><tr><th>Item</th><th>Origem</th><th>Licença</th></tr></thead>
+      <tbody>
+        <tr><td>Madeira das folhas</td><td><code>medieval_wood</code>, Rob Tuytel, Poly Haven</td><td>CC0</td></tr>
+        <tr><td>Batentes e verga</td><td><code>dark_wooden_planks</code>, Amal Kumar, Poly Haven</td><td>CC0</td></tr>
+        <tr><td>Ferro das faixas, rebites e argolas</td><td><code>rust_coarse_01</code>, Dimitrios Savva e Rico Cilliers, Poly Haven</td><td>CC0</td></tr>
+        <tr><td>Pedra da parede e do chão</td><td><code>medieval_blocks_03</code>, Rob Tuytel, Poly Haven</td><td>CC0</td></tr>
+        <tr><td>Portão, luz, poeira, câmera</td><td>modelados por script nesta pasta</td><td>nosso</td></tr>
+        <tr><td>Som</td><td>sintetizado do zero, sem amostra gravada</td><td>nosso (CC0 por construção)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>O que ainda está fraco</h2>
+  <ul class="lista">
+    <li>A abertura é quase toda no escuro do lado esquerdo: a folha esquerda vira para longe do lampião e fica em sombra.</li>
+    <li>A travessia é rápida (3,2 m/s, mais trote que passo) para caber em 1,4 s.</li>
+    <li>O som é todo sintetizado; o rangido pode soar "eletrônico" para quem conhece porta de verdade. Ninguém ouviu ainda.</li>
+  </ul>
+
+  <footer>
+    Arquivos: <code>video.webm</code> (VP9 mudo, o formato do pacote de animações) · <code>video-com-som.webm</code> · <code>video-com-som.mp4</code> · <code>som.wav</code> (48 kHz, 16 bits, estéreo) · scripts em <code>docs/design/portao-madeira/</code>. Não empacotado nem publicado: espera aprovação.
+  </footer>
+</main>
+<script>
+  (function () {
+    var video = document.getElementById('video');
+    var botao = document.getElementById('tocar');
+    var aviso = document.getElementById('aviso');
+    var reduzir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function voltarAoLoopMudo() {
+      video.muted = true;
+      video.loop = true;
+      botao.textContent = 'Tocar com som';
+      botao.setAttribute('aria-pressed', 'false');
+      if (!reduzir) video.play().catch(function () {});
+    }
+
+    if (reduzir) {
+      aviso.textContent = 'Movimento reduzido: o vídeo só toca pelo botão.';
+    } else {
+      video.play().catch(function () {
+        aviso.textContent = 'O navegador não deixou o vídeo começar sozinho. Use o botão.';
+      });
+    }
+
+    botao.addEventListener('click', function () {
+      if (!video.muted && !video.paused) {
+        video.pause();
+        video.currentTime = 0;
+        aviso.textContent = 'Som parado. De volta ao loop sem som.';
+        voltarAoLoopMudo();
+        return;
+      }
+      video.loop = false;
+      video.muted = false;
+      video.currentTime = 0;
+      video.play().then(function () {
+        botao.textContent = 'Parar o som';
+        botao.setAttribute('aria-pressed', 'true');
+        aviso.textContent = 'Tocando com som, uma vez (7 s).';
+      }).catch(function (erro) {
+        aviso.textContent = 'Não consegui tocar com som (' + erro.name + '). Tente de novo ou use o player só do som.';
+        voltarAoLoopMudo();
+      });
+    });
+
+    video.addEventListener('ended', function () {
+      aviso.textContent = 'Terminou. Voltou ao loop sem som.';
+      video.currentTime = 0;
+      voltarAoLoopMudo();
+    });
+
+    video.addEventListener('error', function () {
+      aviso.textContent = 'O vídeo não carregou. Os arquivos video-com-som.webm e .mp4 precisam estar ao lado desta página.';
+    }, true);
+  })();
+</script>
+</body>
+</html>
