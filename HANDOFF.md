@@ -1,3 +1,8 @@
+# 27/11 noite: condições construídas (workflow wf_95008717-b39 ok: 3 testes 14/14, jornada, prints rework-cond-01..03). Agora:
+- Workflow wf_23252a5b-ce3 (task wch1fla7w): em sequência recuperação na vez + pendências das condições (Aura etc.), anular dano/Intangível/raça 100%, atributos nos itens, e verificador. Notas em tmp/rel-0.6.8. Se cair: resumir com scriptPath + resumeFromRunId.
+- URGENTE em paralelo: agente do alcance (ad0b95d4) consertando "jogador não acerta com a Rosa Fúnebre a 2 casas e o forçar é recusado" (sessão ao vivo). Quando pronto: VERSÃO DE CONSERTO 0.6.7 a partir da tag v0.6.6 (8bc660af) + cherry-pick só do conserto (main tem as condições, não publicar a main como 0.6.7). As condições e o resto saem como 0.6.8.
+- Aguardando o dono: aprovar a folha da Pintura (https://claude.ai/artifact/6Q6p9txhvytkFjSWryK9L8) e a Máscara em chamas (https://claude.ai/artifact/Qv7NeRiDBBh1SD84igXJ1S).
+
 # 27/11 ~14h: REWORK DAS CONDIÇÕES em construção (workflow wf_95008717-b39, task wsmp5mbjb)
 
 - 0.6.6 publicada (ed0a0ca7). Protótipo das condições: docs/design/condicoes-rework/prototipo.html (artifact https://claude.ai/artifact/TG37ewTXpD8sApor2wT5oV); PLANO.md 55030f77.
