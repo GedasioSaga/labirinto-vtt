@@ -4,24 +4,30 @@
  */
 import type { StoreApi } from 'zustand/vanilla'
 import { acumuladoresDoPersonagem, comOEventoNosAcumuladores, type EventoDoAcumulador } from '../../lib/batalha/acumuladorNaBatalha'
-import { combateVazio, type CombateDoPersonagem, type GolpeDaBatalha, type UltimaAcaoDoRastro } from '../../lib/batalha/combate'
+import { combateVazio, NOME_DO_SELO_MAX, type CombateDoPersonagem, type GolpeDaBatalha, type SeloDaBatalha, type SeloDoGolpe, type UltimaAcaoDoRastro } from '../../lib/batalha/combate'
 import { acertouOAlvo, alvosResolvidosAgora, chaveDaVezDe, comAcaoNoRastro, comDanoNoRastro, comGolpeNoRastro, comQueda, comReacaoNoRastro } from '../../lib/batalha/rastro'
 import type { AcumuladorDaFicha } from '../../lib/batalha/requisitos/modelo'
 import { comBandosEmDia } from '../../lib/batalha/invocacao'
 import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
-import { recursoDoCusto } from '../../lib/batalha/leituraDaFicha'
+import { recursoDoCusto, recursoDoEscudo, tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
 import { textoDoGolpe } from '../../lib/batalha/golpe'
-import { avisoAoCairDe } from '../../lib/batalha/mecanicasAMao'
-import { comLembretesDoMomento, type TurnosComLembretes } from '../../lib/batalha/passivas'
+import { avisoAoCairDe, mecanicaDoCartao } from '../../lib/batalha/mecanicasAMao'
+import { pecasDoCartao } from '../../lib/batalha/mecanica/leitura'
+import { comLembrada, comLembreteDoGatilho, comLembretesDoMomento, disparosDosGatilhos, lembreteDoDisparo, quandoDoGatilho, semLembretes, type DisparoDoGatilho, type EventoDoGatilho, type TurnosComLembretes } from '../../lib/batalha/passivas'
+import { comSeloNovo, criarSelo, novoIdDeSelo, ondeNaVez, textoDoSeloComMods } from '../../lib/batalha/selos'
+import { ajusteDoRecurso } from '../../lib/batalha/recursosDaBatalha'
+import { curaComOsSelos } from '../../lib/batalha/condicoes'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
 import { marcarDesfeita, nomeDoAutor, semOContraGasto, semARecargaNasVezes, semOGastoNaFotoDaVez, type Reversao } from '../../lib/batalha/registro'
 import type { AutorDaAcao, TurnosDaCena } from '../../lib/batalha/turnos'
-import { motivoDoOcultoParaJogador, revelacaoAoUsar } from '../../lib/habilidadeOculta'
-import type { Personagem } from '../../lib/personagem'
+import { motivoDoOcultoParaJogador, nomeNaBatalha, revelacaoAoUsar } from '../../lib/habilidadeOculta'
+import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../../lib/personagem'
+import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import type { DependenciasDaBatalha, BatalhaDaCena, BatalhaState } from './tipos'
 import { comAVezDeAgora } from '../../lib/batalha/requisitos/ajuda'
-import { type EfeitoNovo, type FichasDaMesa, fichasDaMesa, type LinhaNova, comMudanca, comEfeitos, nomeDoTokenNa, nomeDoBandoNa, linhaAtualizada, personagemDoTokenNa } from './cena'
+import { type EfeitoNovo, type FichasDaMesa, fichasDaMesa, type LinhaNova, comMudanca, comEfeitos, nomeDoTokenNa, nomeDoBandoNa, linhaAtualizada, personagemDoTokenNa, MESTRE, quemNaFicha } from './cena'
 import { desfazerReversao, reacoesComTecnicaDe, contrasDaReversao } from './desfazer'
+import { mexerNaFicha, reversaoDaFicha } from './naMesa'
 
 /** REQUISITOS B3: um golpe que a linha lançou (`antes` `null`) ou resolveu (alvo a alvo), para o rastro de quem atacou. */
 export interface GolpeNaLinha {
@@ -32,6 +38,30 @@ export interface GolpeNaLinha {
 /** As partes soltas da reversão (a composta aberta). */
 function partesSoltas(reversao: Reversao): Reversao[] {
   return reversao.tipo === 'composta' ? reversao.partes.flatMap(partesSoltas) : [reversao]
+}
+
+/** A primeira ficha do personagem na ordem (a original antes da extra). */
+function tokenDoPersonagem(turnos: TurnosDaCena, personagemId: string): string | null {
+  const dele = turnos.cartas.filter((carta) => carta.personagemId === personagemId)
+  return (dele.find((carta) => carta.extra === undefined) ?? dele[0])?.tokenId ?? null
+}
+
+/**
+ * Rework das habilidades (PLANO.md D7, E5): a técnica "Ligar e manter" que ligou põe no dono o selo
+ * `ligada` (natureza "passiva", `donoId` + `cartaoId`): aparece nas passivas ativas e sai quando ela
+ * para (`custoDaMantidaNaVez` tira os selos do cartão). Já tem, ou não é "manter": `null`.
+ */
+function comOSeloDaLigada(turnos: TurnosDaCena, personagem: Personagem, sistema: SistemaDeRpg, cartaoId: string): { turnos: TurnosDaCena; parte: Reversao } | null {
+  const achada = tecnicaPorId(personagem, sistema, cartaoId)
+  if (achada === null || pecasDoCartao(achada.cartao)?.uso !== 'manter') return null
+  if ((turnos.selos ?? []).some((selo) => selo.ligada === true && selo.donoId === personagem.id && selo.cartaoId === cartaoId)) return null
+  const tokenId = tokenDoPersonagem(turnos, personagem.id)
+  if (tokenId === null) return null
+  const nome = nomeNaBatalha(personagem, achada.cartao, 'a técnica')
+  const pedido: SeloDoGolpe = { nome: nome.slice(0, NOME_DO_SELO_MAX), turnos: null, natureza: 'passiva', cartaoId }
+  const selo: SeloDaBatalha = { ...criarSelo(tokenId, pedido, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: nome }), donoId: personagem.id, ligada: true }
+  const selos = comSeloNovo(turnos.selos, selo)
+  return selos === null ? null : { turnos: { ...turnos, selos }, parte: { tipo: 'selo', seloId: selo.id, antes: null } }
 }
 
 /**
@@ -68,7 +98,16 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
    * vez por batalha (chave em `lembradas`). Linha própria "acao", cujo
    * Desfazer tira a chave. Nada a avisar: a cena fica como está.
    */
+  /** E5 (D6): os eventos dos gatilhos das passivas montadas que o `rastrear` viu, esperando a linha gravar (`avisarQuemCaiu`). */
+  let filaDosGatilhos: EventoDoGatilho[] = []
+
   const avisarQuemCaiu = (sceneKey: string, autor: AutorDaAcao): void => {
+    avisarDosCaidos(sceneKey, autor)
+    dispararAFila(sceneKey)
+  }
+
+  /** O aviso de quem caiu de antes; a passiva montada com o "avisa ao cair" (`avisoAoCair` da peça) também avisa. */
+  const avisarDosCaidos = (sceneKey: string, autor: AutorDaAcao): void => {
     const cena = cenaDe(sceneKey)
     const { personagens, sistema } = mesaDoRpg()
     const recurso = sistema === null ? null : recursoDeVida(sistema)
@@ -81,7 +120,8 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
       const personagem = personagens.find((candidato) => candidato.id === personagemId)
       const vida = personagem === undefined ? null : vidaDoPersonagem(personagem, recurso)
       if (personagem === undefined || vida === null || vida.atual > 0) continue
-      const aviso = avisoAoCairDe(Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id)))
+      const cartoes = Object.values(personagem.abas).flat()
+      const aviso = avisoAoCairDe(cartoes.map((cartao) => cartao.id)) ?? avisoMontadoAoCair(cartoes)
       const chave = aviso === null ? null : `${aviso.cartaoId}:caiu`
       const antes = novos.combate?.[personagemId]
       if (aviso === null || chave === null || (antes?.lembradas ?? []).includes(chave)) continue
@@ -92,6 +132,130 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
     }
     if (textos.length === 0) return
     gravarCena(sceneKey, comMudanca(cena, novos, { tipo: 'acao', texto: textos.join(' · '), autor, reversao: { tipo: 'composta', partes } }))
+  }
+
+  /** O "avisa ao cair" do cartão montado (a tabela à mão acha pelo id; o montado, pelo cartão). */
+  const avisoMontadoAoCair = (cartoes: readonly CartaoDaFicha[]): { cartaoId: string; texto: string } | null => {
+    for (const cartao of cartoes) {
+      const texto = cartao.mecanica === undefined ? undefined : mecanicaDoCartao(cartao)?.avisoAoCair
+      if (texto !== undefined) return { cartaoId: cartao.id, texto }
+    }
+    return null
+  }
+
+  /** E5 (D6): a fila de eventos dos gatilhos, disparada depois que a linha que os causou gravou. */
+  const dispararAFila = (sceneKey: string): void => {
+    const fila = filaDosGatilhos
+    filaDosGatilhos = []
+    if (fila.length > 0) dispararGatilhos(sceneKey, fila)
+  }
+
+  /**
+   * E5 (mecânica 3, D6): os gatilhos que os eventos disparam. O que pergunta antes vira o lembrete
+   * "Ativar / Agora não" de hoje (sem linha, como os lembretes de sempre); o que não pergunta dispara
+   * sozinho, numa linha do mestre com Desfazer (`aplicarDisparo`).
+   */
+  const dispararGatilhos = (sceneKey: string, eventos: readonly EventoDoGatilho[]): void => {
+    for (const evento of eventos) {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return
+      for (const disparo of disparosDosGatilhos(evento, cena.turnos, mesaDoRpg())) {
+        if (disparo.gatilho.pergunta === true) lembrarDoDisparo(sceneKey, disparo)
+        else aplicarDisparo(sceneKey, disparo, MESTRE)
+      }
+    }
+  }
+
+  /** O lembrete do gatilho que pergunta antes; na "uma por batalha", a chave entra em `lembradas` já (pergunta uma vez só, como hoje). */
+  const lembrarDoDisparo = (sceneKey: string, disparo: DisparoDoGatilho): void => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined) return
+    const { turnos } = cena
+    const lembrado = comLembreteDoGatilho(turnos.combate?.[disparo.personagemId] ?? combateVazio(), lembreteDoDisparo(disparo, turnos.rodada))
+    const depois = disparo.gatilho.umaPorBatalha === true ? comLembrada(lembrado, disparo.chave) : lembrado
+    gravarCena(sceneKey, comMudanca(cena, { ...turnos, combate: { ...(turnos.combate ?? {}), [disparo.personagemId]: depois } }, null))
+  }
+
+  /**
+   * E5 (mecânica 3, D6): os efeitos do gatilho, numa linha "habilidade" com Desfazer: o selo no dono ou
+   * em quem disparou, o "recupera" (de uma vez, ou por N vezes num selo que regenera), o Escudo, o aviso
+   * e, no "Ao cair" com "fica com N", a vida em N. O lembrete sai; a "uma por batalha" fica em
+   * `lembradas`. O Ativar do lembrete (a tira) e o disparo sozinho passam por aqui. `false` = nada feito.
+   */
+  const aplicarDisparo = (sceneKey: string, disparo: DisparoDoGatilho, autor: AutorDaAcao): boolean => {
+    const cena = cenaDe(sceneKey)
+    const { personagens, sistema } = mesaDoRpg()
+    const personagem = personagens.find((candidato) => candidato.id === disparo.personagemId)
+    const achada = personagem === undefined || sistema === null ? null : tecnicaPorId(personagem, sistema, disparo.cartaoId)
+    if (cena === undefined || personagem === undefined || sistema === null || achada === null) return false
+    const { turnos } = cena
+    const { personagemId, tokenId } = disparo
+    const quem = quemNaFicha(autor)
+    const nomeDoToken = nomeDoTokenNa(turnos, personagens)
+    const nome = nomeNaBatalha(personagem, achada.cartao, 'a passiva')
+    const partes: Reversao[] = []
+    const textos: string[] = []
+    const tokenIds = new Set<string>([tokenId])
+    const combateAntes = turnos.combate?.[personagemId] ?? null
+    const base = combateAntes ?? combateVazio()
+    const semOLembrete = semLembretes(base, disparo.cartaoId)
+    const combate = disparo.gatilho.umaPorBatalha === true ? comLembrada(semOLembrete, disparo.chave) : semOLembrete
+    let novos: TurnosDaCena = combate === base ? turnos : { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
+    if (combate !== base) partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate })
+    const naFicha = (mudar: Parameters<typeof mexerNaFicha>[2]): boolean => {
+      const feito = mexerNaFicha(mesa, personagemId, mudar, quem)
+      if (feito === null || feito === 'recusada' || feito.length === 0) return false
+      partes.push(...reversaoDaFicha(personagemId, feito))
+      return true
+    }
+    const porSelo = (em: string, pedido: Parameters<typeof criarSelo>[1]): string | null => {
+      const selo: SeloDaBatalha = { ...criarSelo(em, { ...pedido, cartaoId: disparo.cartaoId }, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: nome }), donoId: personagemId }
+      const selos = comSeloNovo(novos.selos, selo)
+      if (selos === null) return null
+      partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
+      novos = { ...novos, selos }
+      tokenIds.add(em)
+      return textoDoSeloComMods(selo, sistema)
+    }
+    for (const efeito of disparo.gatilho.efeitos) {
+      if (efeito.tipo === 'selo') {
+        const em = efeito.em === 'dono' ? tokenId : disparo.alvoTokenId
+        const naLuta = em !== undefined && novos.cartas.some((carta) => carta.tokenId === em)
+        const posto = naLuta ? porSelo(em, efeito.selo) : null
+        textos.push(posto === null ? `${efeito.selo.nome}: sem alvo ou sem lugar para o selo` : em === tokenId ? posto : `${posto} em ${nomeDoToken(em ?? tokenId)}`)
+      } else if (efeito.tipo === 'recupera' && efeito.turnos > 1) {
+        const posto = porSelo(tokenId, { nome: nome.slice(0, NOME_DO_SELO_MAX), turnos: efeito.turnos, natureza: 'buff', regenera: { recurso: efeito.recurso, quanto: efeito.valor } })
+        textos.push(posto === null ? `${nome}: sem lugar para o selo` : `+${efeito.valor} ${efeito.recurso === 'hp' ? 'HP' : 'SP'} por vez, ${efeito.turnos} vezes`)
+      } else if (efeito.tipo === 'recupera') {
+        const quanto = efeito.recurso === 'hp' ? curaComOsSelos(efeito.valor, novos.selos, tokenId) : efeito.valor
+        const deu = naFicha((atual, sistemaDaMesa) => {
+          const ajuste = ajusteDoRecurso(atual, sistemaDaMesa, efeito.recurso, quanto)
+          return ajuste === null ? [] : [ajuste]
+        })
+        textos.push(deu ? `+${quanto} ${efeito.recurso === 'hp' ? 'HP' : 'SP'}` : `${efeito.recurso === 'hp' ? 'HP' : 'SP'} já cheio`)
+      } else if (efeito.tipo === 'escudo') {
+        const escudo = recursoDoEscudo(sistema)
+        const deu = escudo !== null && naFicha((atual) => [{ parte: 'recurso', chave: escudo.id, valor: numeroDaFicha(atual.recursos, escudo.id) + efeito.valor }])
+        textos.push(deu ? `+${efeito.valor} de Escudo` : 'Escudo: o sistema não tem')
+      } else {
+        textos.push(efeito.texto)
+      }
+    }
+    const ficaCom = disparo.gatilho.quando === 'aoCair' ? disparo.gatilho.ficaCom : undefined
+    if (ficaCom !== undefined) {
+      const voltou = naFicha((_, sistemaDaMesa) => {
+        const vida = recursoDeVida(sistemaDaMesa)
+        return vida === null ? [] : [{ parte: 'recurso', chave: vida.id, valor: ficaCom }]
+      })
+      if (voltou) textos.push(`fica com ${ficaCom} de vida`)
+    }
+    if (partes.length === 0 && textos.length === 0) return false
+    const texto = `${nomeDoToken(tokenId)}: ${nome} (${quandoDoGatilho(disparo.gatilho)})${textos.length === 0 ? '' : ` · ${textos.join(' · ')}`}`
+    // A ficha passou pela aventura no meio: grava sobre a cena de agora. `personagemIds` = o dono: a linha da passiva de NPC não sai ao jogador.
+    const atual = cenaDe(sceneKey) ?? cena
+    gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'habilidade', texto, autor, tokenIds: [...tokenIds], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+    revelarAoUsar(personagemId, disparo.cartaoId)
+    return true
   }
 
   /** F2 (fatia B): o pedido que saiu e pode ter tirado HP (o Aplicar do Sangramento ou do Queimando, o "a cada turno", o Ajustar) passa pelo aviso de quem caiu. */
@@ -196,6 +360,25 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
       const jaAcertara = antes !== null && alvosResolvidosAgora(null, antes).some((alvo) => acertouOAlvo(alvo) === true)
       if (tecnicaId !== undefined && !jaAcertara && agora.some((alvo) => acertouOAlvo(alvo) === true)) noAcumulador(quem, { quando: 'acertaComTecnica', tecnica: { id: tecnicaId, nome: depois.nome } })
     }
+    // Rework das habilidades (D6, E5): o que dispara os gatilhos das passivas montadas fica na fila até a linha gravar
+    // (`avisarQuemCaiu`): quem acertou ("Ao acertar", com o alvo), quem apanhou ("Ao receber dano", com quem bateu, e
+    // "Vida abaixo de N%") e quem caiu ("Ao cair").
+    if (sistema !== null) {
+      const quemBateu = new Map<string, string>()
+      for (const { antes, depois } of golpes) {
+        const quem = depois.atacantePersonagemId
+        for (const alvo of alvosResolvidosAgora(antes, depois)) {
+          if (acertouOAlvo(alvo) !== true) continue
+          if (alvo.personagemId !== null && !quemBateu.has(alvo.personagemId)) quemBateu.set(alvo.personagemId, depois.atacanteTokenId)
+          if (quem !== null) filaDosGatilhos.push({ momento: 'aoAcertar', personagemId: quem, alvoTokenId: alvo.tokenId })
+        }
+      }
+      for (const personagemId of apanharam.keys()) {
+        const atacante = quemBateu.get(personagemId)
+        filaDosGatilhos.push(atacante === undefined ? { momento: 'aoReceber', personagemId } : { momento: 'aoReceber', personagemId, alvoTokenId: atacante })
+        filaDosGatilhos.push({ momento: cairam.has(personagemId) ? 'aoCair' : 'vidaAbaixo', personagemId })
+      }
+    }
     let novos = turnos
     const novas: Reversao[] = []
     for (const [personagemId, depois] of mudados) {
@@ -208,6 +391,20 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
       if (comEla === null || tokenId === undefined) continue
       novos = comEla
       novas.push({ tipo: 'caiu', tokenId })
+    }
+    // D7: a técnica "Ligar e manter" que a linha ligou (nova em `mantidas`) põe o selo `ligada` no dono.
+    if (sistema !== null) {
+      for (const parte of partes.flatMap(partesSoltas)) {
+        if (parte.tipo !== 'combate') continue
+        const personagem = personagens.find((candidato) => candidato.id === parte.personagemId)
+        const jaEram = new Set(parte.antes?.mantidas ?? [])
+        for (const cartaoId of parte.depois.mantidas ?? []) {
+          const ligada = personagem === undefined || jaEram.has(cartaoId) ? null : comOSeloDaLigada(novos, personagem, sistema, cartaoId)
+          if (ligada === null) continue
+          novos = ligada.turnos
+          novas.push(ligada.parte)
+        }
+      }
     }
     return { turnos: novos, partes: novas }
   }
@@ -262,7 +459,7 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
     gravarCena(sceneKey, { ...atual, turnos, regras: feito.cena.regras, registro, efeitos, turnosRev: atual.turnosRev + 1 })
     return true
   }
-  return { mesa, deps, set, get, mesaDoRpg, cenaDe, gravarCena, mudarTurnos, avisarQuemCaiu, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, rastrear, anotarAcao, desfazerLinha }
+  return { mesa, deps, set, get, mesaDoRpg, cenaDe, gravarCena, mudarTurnos, avisarQuemCaiu, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, rastrear, anotarAcao, desfazerLinha, dispararGatilhos, aplicarDisparo }
 }
 
 /** O que `criarNucleo` devolve. */

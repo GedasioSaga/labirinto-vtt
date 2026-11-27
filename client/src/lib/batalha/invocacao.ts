@@ -21,6 +21,7 @@ import { normalizar } from './formula'
 import { ajustesDoCusto, depoisDaTecnica } from './golpe'
 import { CAMPO_DO_EFEITO, tecnicaPorId, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { leituraDaTecnica } from './leituraDaTecnica'
+import { mecanicaDoCartao, type InvocacaoAMao } from './mecanicasAMao'
 import { lerTipo } from './tiposDaHabilidade'
 import { cartaDaVez, inserirCarta, removerCarta, type AutorDaAcao, type CartaDaOrdem, type CartaNoLugar, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -204,8 +205,38 @@ export function sugestaoDoUltra(comum: NumerosDoInvocado, quantos: number): Nume
 }
 
 /** A técnica é de Tipo Invocação. */
-export function ehInvocacao(cartao: Pick<CartaoDaFicha, 'campos'>): boolean {
-  return lerTipo(cartao).tipo === 'invocacao'
+export function ehInvocacao(cartao: Pick<CartaoDaFicha, 'campos'> & Partial<Pick<CartaoDaFicha, 'id' | 'mecanica'>>): boolean {
+  // Rework das habilidades (PLANO.md D3, E5): a técnica montada com a peça Invocação também é invocação.
+  return invocacaoDaPeca(cartao) !== null || lerTipo(cartao).tipo === 'invocacao'
+}
+
+/** E5: a peça Invocação do cartão montado (a linha das peças, D3); `null` = cartão de texto ou sem a peça. */
+function invocacaoDaPeca(cartao: Partial<Pick<CartaoDaFicha, 'id' | 'mecanica'>>): InvocacaoAMao | null {
+  if (cartao.id === undefined || cartao.mecanica === undefined) return null
+  return mecanicaDoCartao({ id: cartao.id, mecanica: cartao.mecanica })?.invocacao ?? null
+}
+
+/** A chave da opção Ultra da peça Invocação. */
+const CHAVE_DO_ULTRA_DA_PECA = 'ultra'
+
+/**
+ * E5 ("Invocação lida da peça antes do texto"): as opções que a peça dá. A comum, com a vida, o dano, as
+ * casas, o teto de quantas e a Concentração; com Ultra, a opção forte (1 só, com a sugestão de números do
+ * Ultra, decisão 10) e a carga dela.
+ */
+function leituraDaPeca(cartao: CartaoDaFicha, peca: InvocacaoAMao): LeituraDaInvocacao {
+  const nomeDaTecnica = cartao.nome.trim()
+  const texto = (cartao.campos.descricao ?? '').trim()
+  const nome = noTetoDoNome(peca.nome.trim(), nomeDaTecnica)
+  const numeros = numerosValidos({ hp: peca.vida, dano: peca.dano, blocos: peca.casas })
+  const maximo = peca.max > 0 ? peca.max : null
+  const comum: OpcaoDaInvocacao = { chave: OPCAO_PRINCIPAL, rotulo: nomeDaTecnica || 'Invocação', nome, ultra: false, numeros, sugeridos: false, maximo, carga: Math.min(CARGA_MAX, Math.max(0, peca.concentracao)), texto }
+  const opcoes: OpcaoDaInvocacao[] = [comum]
+  if (peca.ultra !== undefined) {
+    const doUltra = numeros === null ? null : numerosValidos(sugestaoDoUltra(numeros, maximo ?? 1))
+    opcoes.push({ chave: CHAVE_DO_ULTRA_DA_PECA, rotulo: `Ultra ${nome}`, nome: noTetoDoNome(`Ultra ${nome}`, nomeDaTecnica), ultra: true, numeros: doUltra, sugeridos: doUltra !== null, maximo: 1, carga: Math.min(CARGA_MAX, Math.max(0, peca.ultra.carga)), texto })
+  }
+  return { cartaoId: cartao.id, nome: nomeDaTecnica, imagem: cartao.imagem, opcoes }
 }
 
 interface Candidata {
@@ -224,6 +255,9 @@ interface Candidata {
  * 121 HP e 91 de dano)].
  */
 export function lerInvocacao(cartao: CartaoDaFicha): LeituraDaInvocacao | null {
+  // E5: a peça Invocação vale antes do texto (os números vêm dela, não da leitura do Efeito).
+  const daPeca = invocacaoDaPeca(cartao)
+  if (daPeca !== null) return leituraDaPeca(cartao, daPeca)
   if (!ehInvocacao(cartao)) return null
   const descricao = cartao.campos.descricao ?? ''
   const candidatas: Candidata[] = []

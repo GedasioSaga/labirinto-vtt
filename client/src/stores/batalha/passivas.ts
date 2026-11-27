@@ -42,8 +42,11 @@ import {
   chaveDoGatilho,
   comLembrada,
   custoDaPassiva,
+  disparoDoLembrete,
   efeitoPorTurno,
+  ehPassivaMontada,
   gatilhoDaPassiva,
+  lembreteDe,
   modsSomados,
   motivoDaPassiva,
   seloDaPassiva,
@@ -73,7 +76,7 @@ import { novoIdDaMarca } from './golpe'
 
 /** As passivas presas ao núcleo da store e às formas. */
 export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalha) {
-  const { mesa, deps, mesaDoRpg, cenaDe, gravarCena, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, rastrear } = nucleo
+  const { mesa, deps, mesaDoRpg, cenaDe, gravarCena, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, rastrear, aplicarDisparo } = nucleo
   const { custoDaFormaNaVez, custoDaMantidaNaVez } = fatiaDasFormas
 
   /**
@@ -192,6 +195,14 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     if (pedido.tipo === 'lembrete' && !pedido.aplicar) {
       gravarCena(sceneKey, comMudanca(cena, comCombate(turnos, semOLembrete), null))
       return true
+    }
+    // Rework das habilidades (D6, E5): o Ativar da passiva montada é o do lembrete do gatilho que perguntou: os efeitos das
+    // peças, pelo mesmo caminho do disparo sozinho (`aplicarDisparo`, linha com Desfazer). O alvo escolhido na tela vence.
+    if (pedido.tipo === 'passiva' && pedido.ligar && ehPassivaMontada(cartao)) {
+      const lembrete = lembreteDe(combateBase, cartao.id)
+      const disparo = lembrete === null ? null : disparoDoLembrete(lembrete, personagemId, cartao)
+      if (disparo === null) return false
+      return aplicarDisparo(sceneKey, pedido.alvoTokenId === undefined ? disparo : { ...disparo, alvoTokenId: pedido.alvoTokenId }, autor)
     }
     const nomeDoToken = nomeDoTokenNa(turnos, personagens)
     const dono = nomeDoToken(carta.tokenId)

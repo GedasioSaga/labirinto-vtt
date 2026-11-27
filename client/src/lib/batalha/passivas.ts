@@ -24,6 +24,9 @@ import { chaveDoCustoDaForma, custoPorTurno, formasComCustoPorTurno, mantidasCom
 import { varianteDoPedido } from './escolhaEEvolucao'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO, ehOverload, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, tecnicasComForma, vezesDeRecarga, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
+import { pecasDoCartao } from './mecanica/leitura'
+import type { QuandoOGatilhoDispara } from './mecanica/pecas'
+import { mecanicaDoCartao, type GatilhoAMao } from './mecanicasAMao'
 import { ehNomeDeSelo, lerDuracao, lerMods, seloPedidoValido, selosDoToken, textoDoMod } from './selos'
 import { lerTipo } from './tiposDaHabilidade'
 import { cartaDaVez, type TurnosDaCena } from './turnos'
@@ -393,9 +396,9 @@ export interface PassivaNaTira {
 /** O nome do botão quando o cartão não tem nome. */
 const PASSIVA_SEM_NOME = 'Passiva sem nome'
 
-/** É passiva: o Tipo (campo, ou deduzido da Ação "Passiva..."). */
-export function ehPassiva(cartao: Pick<CartaoDaFicha, 'campos'>): boolean {
-  return lerTipo(cartao).tipo === 'passiva'
+/** É passiva: o Tipo (campo, ou deduzido da Ação "Passiva..."), ou a passiva montada (D6, `uso: 'passiva'`). */
+export function ehPassiva(cartao: Pick<CartaoDaFicha, 'campos'> & Partial<Pick<CartaoDaFicha, 'mecanica'>>): boolean {
+  return lerTipo(cartao).tipo === 'passiva' || ehPassivaMontada(cartao)
 }
 
 /** A vida do personagem está abaixo de `porcento`% do máximo. Sem vida no sistema: não. */
@@ -485,6 +488,8 @@ export function passivasDe(personagem: Personagem, sistema: SistemaDeRpg, cena: 
   return tecnicasComForma(personagem, sistema)
     .filter(({ cartao }) => ehPassiva(cartao))
     .map(({ cartao, forma }) => {
+      // Rework das habilidades (D6, E5): a montada mostra os gatilhos das peças; a de texto segue abaixo, como antes.
+      if (ehPassivaMontada(cartao)) return passivaMontadaNaTira(cartao, forma, cena)
       const gatilho = gatilhoDaPassiva(cartao)
       const ativa = cena.ativas.has(cartao.id)
       const nome = cartao.nome.trim() || PASSIVA_SEM_NOME
@@ -625,7 +630,8 @@ export function passivasQueDisparam(momento: MomentoDaPassiva, turnos: TurnosDaC
     const combate = turnos.combate?.[personagemId]
     const ligadas = passivasLigadas(turnos.selos, personagemId)
     for (const { cartao } of tecnicasComForma(personagem, sistema)) {
-      if (!ehPassiva(cartao) || ligadas.has(cartao.id) || lembreteDe(combate, cartao.id) !== null) continue
+      // A montada (D6) dispara pelos gatilhos das peças (`disparosDosGatilhos`), nunca pelo texto.
+      if (!ehPassiva(cartao) || ehPassivaMontada(cartao) || ligadas.has(cartao.id) || lembreteDe(combate, cartao.id) !== null) continue
       const gatilho = gatilhoDaPassiva(cartao)
       const chave = chaveDoGatilho(cartao.id, gatilho)
       if (chave === null || !momentoOlha(momento, gatilho) || (combate?.lembradas ?? []).includes(chave)) continue
@@ -733,6 +739,14 @@ export function motivoDaPassiva(ctx: ContextoDaPassiva, pedido: PedidoDePassiva)
     // Conserto das fichas F1 (P6): o custo por turno da técnica mantida precisa caber no recurso de agora.
     return custo === null ? null : motivoDoCustoPorTurno(personagem, sistema, custo)
   }
+  // Rework das habilidades (D6, E5): a montada só ativa pelo lembrete do gatilho que pergunta antes (o alvo vem dele ou da tela).
+  if (ehPassivaMontada(cartao)) {
+    if (!pedido.ligar) return ligada ? null : 'A passiva não está ativa'
+    const lembrete = lembreteDe(combate, cartao.id)
+    if (lembrete === null || disparoDoLembrete(lembrete, personagem.id, cartao) === null) return MOTIVO_DA_PASSIVA_MONTADA
+    const alvoDoPedido = pedido.alvoTokenId
+    return alvoDoPedido === undefined || turnos.cartas.some((candidata) => candidata.tokenId === alvoDoPedido) ? null : 'O alvo precisa estar na luta'
+  }
   if (!pedido.ligar) return ligada ? null : 'A passiva não está ativa'
   if (ligada) return 'A passiva já está ativa'
   // Tipos de habilidade F4 (mudança mínima na F3): a opção do Ativar (Melodia) tem de ser opção desta passiva.
@@ -746,4 +760,186 @@ export function motivoDaPassiva(ctx: ContextoDaPassiva, pedido: PedidoDePassiva)
   const nome = cartao.nome.trim() || PASSIVA_SEM_NOME
   const uso = motivoDoUso({ cartao, custo, tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''), overload: ehOverload(cartao) }, personagem, sistema, combate)
   return uso ?? motivoDoTeto(nome, selosDoToken(turnos.selos, alvoTokenId).length, turnos.selos?.length ?? 0)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Rework das habilidades (PLANO.md D6, E5): a passiva montada e os gatilhos dela
+// ───────────────────────────────────────────────────────────────────────────
+
+/** D6: a passiva montada (`uso: 'passiva'`): o gatilho e o efeito vêm das peças (a linha, D3), nunca do texto. */
+export function ehPassivaMontada(cartao: Partial<Pick<CartaoDaFicha, 'mecanica'>>): boolean {
+  return cartao.mecanica !== undefined && pecasDoCartao(cartao)?.uso === 'passiva'
+}
+
+/** D6: os gatilhos ("Dispara sozinha") da passiva montada, na ordem do cartão; passiva de texto = []. */
+export function gatilhosDaPassiva(cartao: Pick<CartaoDaFicha, 'id' | 'nome' | 'mecanica'>): readonly GatilhoAMao[] {
+  if (!ehPassivaMontada(cartao)) return []
+  return mecanicaDoCartao(cartao)?.gatilhos ?? []
+}
+
+/** A chave do gatilho `indice` (de 0) da passiva: vai em `lembradas` na "uma por batalha". */
+export function chaveDoGatilhoDaPeca(cartaoId: string, indice: number): string {
+  return `${cartaoId}:gatilho${indice + 1}`
+}
+
+/** O que separa, na chave do lembrete do gatilho, o gatilho de quem o disparou (o selo "no alvo" vai nele). */
+const SEPARADOR_DO_ALVO = '@'
+
+const QUANDO_NA_TIRA: Readonly<Record<QuandoOGatilhoDispara, string>> = {
+  inicio: 'No início da batalha',
+  comeco: 'No começo da vez',
+  rodada: 'Na rodada',
+  vidaAbaixo: 'Vida abaixo de',
+  aoReceber: 'Ao receber dano',
+  aoAcertar: 'Ao acertar',
+  aoCair: 'Ao cair',
+}
+
+/** "Ao receber dano", "Na rodada 3", "Vida abaixo de 50%": quando o gatilho dispara. */
+export function quandoDoGatilho(gatilho: Pick<GatilhoAMao, 'quando' | 'n'>): string {
+  if (gatilho.quando === 'rodada') return `Na rodada ${gatilho.n}`
+  if (gatilho.quando === 'vidaAbaixo') return `Vida abaixo de ${gatilho.n}%`
+  return QUANDO_NA_TIRA[gatilho.quando]
+}
+
+/** A linha do gatilho na tira: quando, quantas vezes e se pergunta antes. */
+export function textoDoGatilhoDaPeca(gatilho: GatilhoAMao): string {
+  const vezes = gatilho.umaPorBatalha === true ? ', 1 vez por batalha' : ''
+  return `${quandoDoGatilho(gatilho)}${vezes} (${gatilho.pergunta === true ? 'pergunta antes' : 'dispara sozinha'})`
+}
+
+/** Por que o Ativar da tira está apagado na passiva montada: ela não liga à mão (dispara pelo gatilho, ou vale sempre). */
+const MOTIVO_DA_PASSIVA_MONTADA = 'Dispara sozinha quando o gatilho acontece'
+const MOTIVO_DA_PASSIVA_SEMPRE = 'Sempre ligada: não precisa ativar'
+
+/**
+ * D6: a passiva montada como a tira a mostra: "sempre" (a raça, o Muda atributo e a marca valem sem
+ * ligar; o gatilho que não pergunta dispara sozinho), ou "pronta" com o lembrete do gatilho que
+ * pergunta antes esperando. O Ativar só vale pelo lembrete; o custo e o selo são os do gatilho.
+ */
+function passivaMontadaNaTira(cartao: CartaoDaFicha, forma: string | undefined, cena: CenaDaPassiva): PassivaNaTira {
+  const gatilhos = gatilhosDaPassiva(cartao)
+  const nome = cartao.nome.trim() || PASSIVA_SEM_NOME
+  const lembrete = lembreteDe(cena.combate, cartao.id)
+  const sempre: GatilhoDaPassiva = { tipo: 'sempre' }
+  const passiva: PassivaNaTira = {
+    cartao,
+    nome,
+    gatilho: sempre,
+    textoDoGatilho: gatilhos.length === 0 ? textoDoGatilho(sempre) : gatilhos.map(textoDoGatilhoDaPeca).join(' · '),
+    estado: lembrete !== null ? 'pronta' : cena.ativas.has(cartao.id) ? 'ativa' : 'sempre',
+    custo: { tipo: 'nada' },
+    tempo: lerTempo(''),
+    overload: false,
+    alvo: 'dono',
+    selo: { nome: nome.slice(0, NOME_DO_SELO_MAX), turnos: null },
+    porTurno: null,
+    motivo: lembrete !== null ? null : gatilhos.length === 0 ? MOTIVO_DA_PASSIVA_SEMPRE : MOTIVO_DA_PASSIVA_MONTADA,
+    lembrete,
+  }
+  if (forma !== undefined) passiva.forma = forma
+  return passiva
+}
+
+/** E5: o que acabou de acontecer na luta, para os gatilhos das passivas montadas. */
+export interface EventoDoGatilho {
+  momento: QuandoOGatilhoDispara
+  /** Só os gatilhos deste personagem (quem apanhou, caiu ou acertou; o dono da vez); ausente = todos na luta. */
+  personagemId?: string
+  /** Quem disparou: quem bateu no dono ("Ao receber dano") ou quem o dono acertou ("Ao acertar"). */
+  alvoTokenId?: string
+}
+
+/** Um gatilho que disparou agora. */
+export interface DisparoDoGatilho {
+  personagemId: string
+  /** A primeira ficha do dono na ordem (onde o selo "em si" e o lembrete vão). */
+  tokenId: string
+  cartaoId: string
+  indice: number
+  gatilho: GatilhoAMao
+  /** `chaveDoGatilhoDaPeca`: em `lembradas` na "uma por batalha". */
+  chave: string
+  /** Onde vai o selo "no alvo" (quem bateu, quem o dono acertou); ausente = o selo no alvo não pega. */
+  alvoTokenId?: string
+}
+
+/** A vida acima de 0 e abaixo de `porcento`% (o "Vida abaixo de N%": quem caiu é o "Ao cair"). */
+function vivoAbaixoDe(personagem: Personagem, sistema: SistemaDeRpg, porcento: number): boolean {
+  const recurso = recursoDeVida(sistema)
+  const vida = recurso === null ? null : vidaDoPersonagem(personagem, recurso)
+  return vida !== null && vida.atual > 0 && vidaAbaixoDe(personagem, sistema, porcento)
+}
+
+/** O gatilho bate no evento: o "Na rodada N" no Iniciar (N = 1) e na virada para N; o resto, o mesmo momento. */
+function gatilhoBateNoEvento(gatilho: GatilhoAMao, momento: QuandoOGatilhoDispara, rodada: number, personagem: Personagem, sistema: SistemaDeRpg): boolean {
+  switch (gatilho.quando) {
+    case 'rodada':
+      return (momento === 'rodada' || momento === 'inicio') && rodada === gatilho.n
+    case 'vidaAbaixo':
+      return momento === 'vidaAbaixo' && vivoAbaixoDe(personagem, sistema, gatilho.n)
+    default:
+      return gatilho.quando === momento
+  }
+}
+
+/**
+ * E5 (mecânica 3): os gatilhos das passivas montadas que o evento dispara. A "uma por batalha" que já
+ * disparou (chave em `lembradas`) fica de fora, e o gatilho com lembrete esperando também (um lembrete
+ * por passiva). A passiva de texto nunca entra aqui (segue `passivasQueDisparam`).
+ */
+export function disparosDosGatilhos(evento: EventoDoGatilho, turnos: TurnosDaCena, mesa: FichasDaPassiva): DisparoDoGatilho[] {
+  const { sistema } = mesa
+  if (sistema === null) return []
+  const disparos: DisparoDoGatilho[] = []
+  for (const { personagemId, tokenId } of combatentes(turnos)) {
+    if (evento.personagemId !== undefined && evento.personagemId !== personagemId) continue
+    const personagem = mesa.personagens.find((candidato) => candidato.id === personagemId)
+    if (personagem === undefined) continue
+    const combate = turnos.combate?.[personagemId]
+    const lembradas = combate?.lembradas ?? []
+    for (const { cartao } of tecnicasComForma(personagem, sistema)) {
+      if (!ehPassivaMontada(cartao)) continue
+      gatilhosDaPassiva(cartao).forEach((gatilho, indice) => {
+        const chave = chaveDoGatilhoDaPeca(cartao.id, indice)
+        if (gatilho.umaPorBatalha === true && lembradas.includes(chave)) return
+        if (gatilho.pergunta === true && lembreteDe(combate, cartao.id) !== null) return
+        if (!gatilhoBateNoEvento(gatilho, evento.momento, turnos.rodada, personagem, sistema)) return
+        const disparo: DisparoDoGatilho = { personagemId, tokenId, cartaoId: cartao.id, indice, gatilho, chave }
+        if (evento.alvoTokenId !== undefined) disparo.alvoTokenId = evento.alvoTokenId
+        disparos.push(disparo)
+      })
+    }
+  }
+  return disparos
+}
+
+/** O lembrete "Ativar / Agora não" do gatilho que pergunta antes: a chave leva o gatilho e quem o disparou. */
+export function lembreteDoDisparo(disparo: DisparoDoGatilho, rodada: number): LembreteDaPassiva {
+  const chave = disparo.alvoTokenId === undefined ? disparo.chave : `${disparo.chave}${SEPARADOR_DO_ALVO}${disparo.alvoTokenId}`
+  return { cartaoId: disparo.cartaoId, tokenId: disparo.tokenId, tipo: 'ativar', chave, rodada }
+}
+
+/**
+ * O combate com o lembrete do gatilho esperando (um por passiva: o novo troca o velho). Ao contrário de
+ * `comLembrete`, nunca põe a chave do lembrete em `lembradas` (ela leva o alvo): a "uma por batalha"
+ * entra lá por quem chama, com `comLembrada` e a chave do gatilho.
+ */
+export function comLembreteDoGatilho(combate: CombateDoPersonagem, lembrete: LembreteDaPassiva): CombateDoPersonagem {
+  const lembretes = [...(combate.lembretes ?? []).filter((outro) => outro.cartaoId !== lembrete.cartaoId), lembrete].slice(-LEMBRETES_MAX)
+  return { ...combate, lembretes }
+}
+
+/** O gatilho que o lembrete da passiva montada lembra (o Ativar dele); `null` = o lembrete não é de um gatilho desta passiva. */
+export function disparoDoLembrete(lembrete: LembreteDaPassiva, personagemId: string, cartao: Pick<CartaoDaFicha, 'id' | 'nome' | 'mecanica'>): DisparoDoGatilho | null {
+  const corte = lembrete.chave.indexOf(SEPARADOR_DO_ALVO)
+  const chave = corte < 0 ? lembrete.chave : lembrete.chave.slice(0, corte)
+  const alvoTokenId = corte < 0 ? '' : lembrete.chave.slice(corte + 1)
+  const gatilhos = gatilhosDaPassiva(cartao)
+  const indice = gatilhos.findIndex((_, i) => chaveDoGatilhoDaPeca(cartao.id, i) === chave)
+  const gatilho = gatilhos[indice]
+  if (lembrete.cartaoId !== cartao.id || gatilho === undefined) return null
+  const disparo: DisparoDoGatilho = { personagemId, tokenId: lembrete.tokenId, cartaoId: cartao.id, indice, gatilho, chave }
+  if (alvoTokenId !== '') disparo.alvoTokenId = alvoTokenId
+  return disparo
 }

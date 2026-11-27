@@ -7,13 +7,13 @@ import { chaveDaVez, type SeloDaBatalha } from '../../lib/batalha/combate'
 import { combatesNoComecoDaVez } from '../../lib/batalha/acumuladorNaBatalha'
 import { comBandosEmDia, semBandosVazios } from '../../lib/batalha/invocacao'
 import { novoIdDeSelo, textoDosQueAcabaram } from '../../lib/batalha/selos'
-import { formaDaFicha } from '../../lib/batalha/transformacao'
+import { formaDaFicha, formaMontada } from '../../lib/batalha/transformacao'
 import { ajusteDaRecuperacao, ajusteDoRecurso, maximoDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import { siglaDaRecuperacao } from '../../lib/caracteristicas/recuperacao'
 import type { RecursoDaRecuperacao } from '../../lib/caracteristicas/tipos'
 import { chavesDoDono, idDaChave, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo } from '../../lib/batalha/mecanicasAMao'
 import { curaComOsSelos, notaDosSelosNaCura } from '../../lib/batalha/condicoes'
-import { comLembretesDaVez, comLembretesDoMomento } from '../../lib/batalha/passivas'
+import { comLembretesDaVez, comLembretesDoMomento, type EventoDoGatilho } from '../../lib/batalha/passivas'
 import { ehOverload } from '../../lib/batalha/leituraDaFicha'
 import { ajustesDoDano } from '../../lib/batalha/reacao'
 import { mudancasDaVez, novoIdDeLinha, type ParteDaFicha, type Reversao } from '../../lib/batalha/registro'
@@ -86,7 +86,7 @@ interface VezQueComeca {
 
 /** A vez presa ao núcleo da store, às formas e ao golpe. */
 export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalha, fatiaDoGolpe: GolpeNaStore) {
-  const { mesa, get, mesaDoRpg, cenaDe, gravarCena, avisarQuemCaiu, lembrarDepoisDoDano, rastrear } = nucleo
+  const { mesa, get, mesaDoRpg, cenaDe, gravarCena, avisarQuemCaiu, lembrarDepoisDoDano, rastrear, dispararGatilhos } = nucleo
   const { desligarAForma } = fatiaDasFormas
   const { fecharGolpesSemResposta } = fatiaDoGolpe
 
@@ -237,13 +237,15 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
         novos = { ...novos, formas: { ...(novos.formas ?? {}), [saindo.personagemId]: { ...forma, duracao: { ...forma.duracao, faltam } } } }
         textos.push(`${nomeDaForma}: ${faltam === 1 ? 'falta 1 vez' : `faltam ${faltam} vezes`}`)
       } else {
-        const overload = cartao !== null && ehOverload(cartao)
+        // Rework das habilidades (D10, E5): a forma montada acaba com a Fadiga da peça (`nota`), nunca com o cansaço de antes.
+        const montada = cartao !== null && formaMontada(cartao) !== null
+        const overload = cartao !== null && !montada && ehOverload(cartao)
         const desligada = desligarAForma(saindo.personagemId, saindo.tokenId, forma.cartaoId, overload, novos, quem)
         if (desligada !== null) {
           partes.push(...desligada.partes)
           novos = desligada.turnos
           efeitos.push({ tipo: 'forma', tokenId: saindo.tokenId, forma: nomeDaForma, ligou: false })
-          textos.push(`${nomeDaForma} acabou${overload ? ': atributos pela metade até o fim da batalha (Cansaço do Overload)' : ''}`)
+          textos.push(`${nomeDaForma} acabou${desligada.nota ?? (overload ? ': atributos pela metade até o fim da batalha (Cansaço do Overload)' : '')}`)
         }
       }
     }
@@ -490,6 +492,14 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     espelharPastilhas(sceneKey)
     // ITENS REFEITOS, E6a (decisão 3): o pente vazio de quem entra recarrega sozinho, gastando a ação desta vez.
     recargasDaVez(sceneKey, vez.entra)
+    // Rework das habilidades (D6, E5): os gatilhos das passivas montadas: "No início da batalha" na primeira vez, "Na rodada N"
+    // na virada (e a rodada 1 no início) e "No começo da vez" de quem entra. Cada disparo sozinho tem a linha dele, com Desfazer.
+    const eventos: EventoDoGatilho[] = []
+    if (antes.vez === null) eventos.push({ momento: 'inicio' })
+    else if (vez.virou) eventos.push({ momento: 'rodada' })
+    const quemEntra = vez.entra?.personagemId ?? null
+    if (quemEntra !== null) eventos.push({ momento: 'comeco', personagemId: quemEntra })
+    dispararGatilhos(sceneKey, eventos)
     // Bugs 5 e 6 (explorador 26/11): o Desfazer desta vez leva junto as linhas automáticas e o desconto sem linha.
     juntarNaLinhaDaVez(sceneKey, idDaVez, prazos)
   }

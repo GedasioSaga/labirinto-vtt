@@ -2,10 +2,11 @@ import { aplicarAjustes, atributoComposto, cartoesQueLigam, maximoComposto, temM
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { MOTIVO_DO_OVERLOAD_USADO, motivoDaAcao, motivoDoCustoAcimaDoMaximo, type AcoesDaVez, type MovimentoDaForma } from './acoes'
-import { NUMEROS_DA_FORMA_MAX, type AcaoDaForma, type CombateDoPersonagem, type FormaNaBatalha, type NumeroDaForma } from './combate'
+import { NUMEROS_DA_FORMA_MAX, type AcaoDaForma, type CombateDoPersonagem, type FormaNaBatalha, type NumeroDaForma, type SeloDoGolpe } from './combate'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, ehOverload, lerAcao, lerCusto, tecnicaPorId } from './leituraDaFicha'
-import { partesEmOrdem, sobeDeParte, usosContamOAdicional, vezesDaForma } from './mecanicasAMao'
+import { pecasDoCartao } from './mecanica/leitura'
+import { mecanicaDoCartao, partesEmOrdem, sobeDeParte, usosContamOAdicional, vezesDaForma, type FormaAMao } from './mecanicasAMao'
 import { mesmaReferencia } from './requisitos/contexto'
 import type { Referencia } from './requisitos/modelo'
 import { blocoDoCartao, motivoDaOrdem, motivoDoSoLigaPor, subidaDaParte, MOTIVO_FORMA_DESLIGADA, MOTIVO_ULTIMA_PARTE } from './requisitos/partes'
@@ -50,17 +51,72 @@ function inteiroDoCampo(cartao: Pick<CartaoDaFicha, 'campos'>, campo: string): n
   return Number.isInteger(numero) && numero >= 1 && numero <= NUMERO_DO_CAMPO_MAX ? numero : null
 }
 
-/** R6: a forma liga e desliga sem gastar ação (Ação "Livre"). */
-export function formaLivre(cartao: Pick<CartaoDaFicha, 'campos'>): boolean {
+// ─── Rework das habilidades (PLANO.md D5 e D10, E5): a forma montada (a peça Transformação) ───
+
+/** O cartão que as leituras da forma recebem: o de texto basta; com `id` e `mecanica`, a forma montada vale antes. */
+type CartaoDaForma = Pick<CartaoDaFicha, 'campos'> & Partial<Pick<CartaoDaFicha, 'id' | 'mecanica'>>
+
+/**
+ * A forma montada: o que a peça Transformação dá (`MecanicaAMao.forma`, traduzida em `mecanica/leitura.ts`)
+ * e o que a mecânica diz da forma. `acao`: a Overload de transformação liga como Livre, no começo da vez, e
+ * já age na mesma vez (decisão do protótipo); as outras ligam com a Ação da mecânica ("perguntar" =
+ * Completa, como o campo vazio). `null` = forma de texto: segue pelo ramo de hoje.
+ */
+export interface FormaMontada {
+  forma: FormaAMao
+  overload: boolean
+  usosPorBatalha: number | null
+  acao: AcaoDaForma
+}
+
+export function formaMontada(cartao: CartaoDaForma): FormaMontada | null {
+  if (cartao.id === undefined || cartao.mecanica === undefined) return null
+  const chave = { id: cartao.id, mecanica: cartao.mecanica }
+  const pecas = pecasDoCartao(chave)
+  const forma = pecas === null ? undefined : mecanicaDoCartao(chave)?.forma
+  if (pecas === null || forma === undefined) return null
+  const overload = pecas.limite.overload === true
+  const { acao } = pecas
+  return {
+    forma,
+    overload,
+    usosPorBatalha: pecas.limite.usosPorBatalha ?? null,
+    acao: overload ? 'livre' : acao === 'simples' || acao === 'bonus' || acao === 'livre' ? acao : 'completa',
+  }
+}
+
+/** A forma é Overload (1 por batalha): a montada pela mecânica; a de texto pelo Ação, Tempo ou extra "Overload" (`ehOverload`). */
+export function formaEhOverload(cartao: CartaoDaFicha): boolean {
+  const montada = formaMontada(cartao)
+  return montada === null ? ehOverload(cartao) : montada.overload
+}
+
+/** D10: as ações Simples a mais em cada vez do dono com a forma ligada (`AcoesExtras.daForma`); 0 = nenhuma (a de texto: o "Ataques extras" de sempre). */
+export function acoesAMaisDaForma(cartao: CartaoDaForma): number {
+  return formaMontada(cartao)?.forma.acoesAMais ?? 0
+}
+
+/** D10: a Fadiga que a forma montada deixa no dono quando acaba; `null` = nenhuma. A forma montada nunca deixa o cansaço antigo do Overload. */
+export function fadigaDaForma(cartao: CartaoDaForma): SeloDoGolpe | null {
+  return formaMontada(cartao)?.forma.fadiga ?? null
+}
+
+/** R6: a forma liga e desliga sem gastar ação (Ação "Livre"). E5: a montada, pela ação da forma (a Overload de transformação é Livre). */
+export function formaLivre(cartao: CartaoDaForma): boolean {
+  const montada = formaMontada(cartao)
+  if (montada !== null) return montada.acao === 'livre'
   return normalizar(cartao.campos[CAMPO_DA_ACAO] ?? '').trim().startsWith('livre')
 }
 
 /**
  * R6: quantas vezes a forma liga numa batalha; `null` = sem limite. F2
  * (fatia D, Ignição): na forma da tabela os Usos são dos ataques adicionais
- * (`adicionaisPorBatalha`), e ela liga quantas vezes quiser.
+ * (`adicionaisPorBatalha`), e ela liga quantas vezes quiser. E5: a montada
+ * pelos usos por batalha da mecânica (`limite.usosPorBatalha`).
  */
-export function usosDaForma(cartao: Pick<CartaoDaFicha, 'id' | 'campos'>): number | null {
+export function usosDaForma(cartao: Pick<CartaoDaFicha, 'id' | 'campos'> & Partial<Pick<CartaoDaFicha, 'mecanica'>>): number | null {
+  const montada = formaMontada(cartao)
+  if (montada !== null) return montada.usosPorBatalha
   return usosContamOAdicional(cartao) ? null : inteiroDoCampo(cartao, CAMPO_DOS_USOS)
 }
 
@@ -114,14 +170,30 @@ export function efeitosDasFormasLigadas(personagem: Personagem, sistema: Sistema
   return efeitos
 }
 
-/** R6: o Dano recebido de UMA forma ("-20%" = 20), no teto de 100; `null` = a ficha não diz. */
-export function reducaoDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): number | null {
+/**
+ * R6: o Dano recebido de UMA forma ("-20%" = 20), no teto de 100; `null` = a ficha não diz. E5: a montada
+ * pela peça (-10 = leva 10% a menos) quando ela corta; sem corte na peça, o campo de texto de antes vale.
+ */
+export function reducaoDaForma(cartao: CartaoDaForma): number | null {
+  const daPeca = formaMontada(cartao)?.forma.danoRecebido ?? 0
+  if (daPeca < 0) return Math.min(100, -daPeca)
   const reducao = /-\s*(\d+)\s*%/.exec(cartao.campos[CAMPO_DO_DANO_RECEBIDO] ?? '')
   return reducao === null ? null : Math.min(100, Number.parseInt(reducao[1] ?? '0', 10))
 }
 
-/** R6: o campo Deslocamento de UMA forma ("+2", "máx 6"), no teto do campo; cada parte `null` = a ficha não diz. */
-export function deslocamentoDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): { aMais: number | null; max: number | null } {
+/** R6: o campo Deslocamento de UMA forma ("+2", "máx 6"), no teto do campo; cada parte `null` = a ficha não diz. E5: a peça vale onde diz um número. */
+export function deslocamentoDaForma(cartao: CartaoDaForma): { aMais: number | null; max: number | null } {
+  const montada = formaMontada(cartao)
+  const doTexto = deslocamentoDoTexto(cartao)
+  if (montada === null) return doTexto
+  const { deslocamento, deslocamentoMax } = montada.forma
+  return {
+    aMais: deslocamento > 0 ? Math.min(NUMERO_DO_CAMPO_MAX, deslocamento) : doTexto.aMais,
+    max: deslocamentoMax > 0 ? Math.min(NUMERO_DO_CAMPO_MAX, deslocamentoMax) : doTexto.max,
+  }
+}
+
+function deslocamentoDoTexto(cartao: Pick<CartaoDaFicha, 'campos'>): { aMais: number | null; max: number | null } {
   const deslocamento = normalizar(cartao.campos[CAMPO_DO_DESLOCAMENTO] ?? '')
   const aMais = /\+\s*(\d+)/.exec(deslocamento)
   const teto = /max\w*\s*(\d+)/.exec(deslocamento)
@@ -144,9 +216,13 @@ export function ataquesExtrasDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): num
  */
 export const CAMPO_DA_DURACAO = 'duracao'
 
-/** As vezes que a forma dura: o campo Duração; sem ele, a tabela à mão (`vezesDaForma`); `null` = até alguém desfazer. */
-export function duracaoDaForma(cartao: Pick<CartaoDaFicha, 'id' | 'campos'>): number | null {
-  return inteiroDoCampo(cartao, CAMPO_DA_DURACAO) ?? vezesDaForma(cartao.id)
+/**
+ * As vezes que a forma dura: o campo Duração; sem ele, a linha do cartão (`vezesDaForma`: a tabela à mão,
+ * ou o "dura N vezes" da peça Transformação, D4: pelo cartão); `null` = até alguém desfazer.
+ */
+export function duracaoDaForma(cartao: Pick<CartaoDaFicha, 'id' | 'campos'> & Partial<Pick<CartaoDaFicha, 'mecanica'>>): number | null {
+  const chave = cartao.mecanica === undefined ? cartao.id : { id: cartao.id, mecanica: cartao.mecanica }
+  return inteiroDoCampo(cartao, CAMPO_DA_DURACAO) ?? vezesDaForma(chave)
 }
 
 /** R6: o dano que chega com a redução das formas (Resiliente: -20%), arredondado. */
@@ -185,8 +261,10 @@ export function comAtaqueExtra(combate: CombateDoPersonagem, rodada: number, for
 /** C6 (lote de 01/11): o que é preciso para transformar ("Vida abaixo de 50%"). Só mostra: o app não confere. */
 export const CAMPO_DO_REQUISITO = 'requisito'
 
-/** O grupo como a ficha o escreve, aparado; vazio ou "-" = sem grupo (`null`). */
-export function grupoDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): string | null {
+/** O grupo como a ficha o escreve, aparado; vazio ou "-" = sem grupo (`null`). E5: o da peça Transformação vence. */
+export function grupoDaForma(cartao: CartaoDaForma): string | null {
+  const daPeca = formaMontada(cartao)?.forma.grupo
+  if (daPeca !== undefined) return daPeca
   const texto = (cartao.campos[CAMPO_DO_GRUPO] ?? '').trim()
   return texto.length === 0 || texto === '-' ? null : texto
 }
@@ -238,6 +316,9 @@ export interface FormaNoMenu {
  * diz, para o duelo do Lobby (onde o cliente não escolhe) e para a dica.
  */
 export function acaoDaForma(cartao: CartaoDaFicha): AcaoDaForma {
+  // E5: a forma montada liga com a ação dela (a Overload de transformação, Livre).
+  const montada = formaMontada(cartao)
+  if (montada !== null) return montada.acao
   if (formaLivre(cartao)) return 'livre'
   const { acao } = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
   return acao === 'simples' || acao === 'bonus' ? acao : 'completa'
@@ -281,7 +362,7 @@ export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoe
     // REQUISITOS D (I2): a forma que só liga por uma técnica fica cinza no Ativar ("Só liga com o Grito").
     const motivoDaFicha = ligada
       ? null
-      : ehOverload(cartao) && combate?.overload === true
+      : formaEhOverload(cartao) && combate?.overload === true
         ? MOTIVO_DO_OVERLOAD_USADO
         : (motivoDoSoLigaPor(blocoDoCartao(cartao)) ?? motivoDaOrdemDasPartes(personagem, sistema, cartao) ?? motivoDoCustoDaForma(cartao, personagem, sistema))
     const acaoDaFicha = acaoDaForma(cartao)

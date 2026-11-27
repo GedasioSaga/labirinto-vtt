@@ -3,7 +3,7 @@ import { ALVO_DO_DANO, combateVazio, type BonusDaBatalha, type CombateDoPersonag
 import type { TurnosDaCena } from './turnos'
 import { mesmaReferencia } from './requisitos/contexto'
 import { lerAcumulador } from './requisitos/ler'
-import type { AcumuladorDaFicha, GanhoDoAcumulador, Referencia } from './requisitos/modelo'
+import type { AcumuladorDaFicha, DescidaAoDesligar, GanhoDoAcumulador, Referencia } from './requisitos/modelo'
 
 /**
  * REQUISITOS, fases B3 e C: o NÍVEL de cada acumulador genérico na batalha (Polaridade, Fúria, Cargas).
@@ -267,4 +267,52 @@ export function comOBonusDosAcumuladores(bonus: BonusDaBatalha | undefined, pers
   const somado: Record<string, readonly ParteDoBonus[]> = { ...(bonus ?? {}) }
   for (const alvo of alvos) somado[alvo] = [...(somado[alvo] ?? []), ...(dos[alvo] ?? [])]
   return somado
+}
+
+// ─── Rework das habilidades (PLANO.md D9, E5): "zera quando a técnica desliga" ───
+
+const QUANDO_DESLIGA: DescidaAoDesligar['quando'] = 'desliga'
+
+/** O `bruto` guardado é a descida `{ quando: 'desliga' }`. */
+function brutoQueDesliga(bruto: unknown): boolean {
+  return typeof bruto === 'object' && bruto !== null && !Array.isArray(bruto) && 'quando' in bruto && bruto.quando === QUANDO_DESLIGA
+}
+
+/**
+ * D9: o acumulador tem a descida "zera quando a técnica desliga" (`DescidaAoDesligar`). Enquanto ela não
+ * entra na união `DescidaDoAcumulador` (pede `requisitos/modelo.ts` e `requisitos/frases.ts`, fora da E5),
+ * o leitor a guarda como regra não lida com o `bruto` do disco, e é por ele que o motor a reconhece.
+ */
+export function zeraAoDesligar(acumulador: Pick<AcumuladorDaFicha, 'desce'>): boolean {
+  return acumulador.desce.some((regra) => regra.quando === 'naoLida' && brutoQueDesliga(regra.bruto))
+}
+
+/** O cartão `cartaoId` da ficha (abas e subcartões); `null` = não está nela. */
+function cartaoNaFicha(personagem: Pick<Personagem, 'abas'>, cartaoId: string): CartaoDaFicha | null {
+  const achar = (cartoes: readonly CartaoDaFicha[]): CartaoDaFicha | null => {
+    for (const cartao of cartoes) {
+      if (cartao.id === cartaoId) return cartao
+      const noSub = achar(cartao.subcartoes)
+      if (noSub !== null) return noSub
+    }
+    return null
+  }
+  for (const cartoes of Object.values(personagem.abas)) {
+    const achado = achar(cartoes)
+    if (achado !== null) return achado
+  }
+  return null
+}
+
+/**
+ * D9 (mecânica 7): a técnica dona `cartaoId` (a "Ligar e manter" que parou ou a forma que desligou)
+ * desligou, e o acumulador dela com "zera quando a técnica desliga" volta a 0. Sem acumulador, sem a
+ * descida ou já em 0 = o MESMO combate.
+ */
+export function comADonaDesligada(combate: CombateDoPersonagem, personagem: Pick<Personagem, 'abas'>, cartaoId: string): CombateDoPersonagem {
+  const dona = cartaoNaFicha(personagem, cartaoId)
+  if (dona === null || dona.acumulador === undefined) return combate
+  const lido = lerAcumulador(dona.acumulador).acumulador
+  if (lido === null || !zeraAoDesligar(lido)) return combate
+  return comNivelSomado(combate, lido, -nivelDoAcumulador(combate, lido.id))
 }

@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent 
 import type { AcoesDaVez } from '../../lib/batalha/acoes'
 import { ACOES_DA_FORMA, type AcaoDaForma, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { armazemDoAparelho, gravarEscolhaDaImagem, lerEscolhaDaImagem } from '../../lib/batalha/escolhaDaImagem'
-import { ataquesExtrasDaForma, deslocamentoDaForma, formaLivre, motivoDaForma, reducaoDaForma, usosDaForma, type FormaNoMenu } from '../../lib/batalha/transformacao'
+import { acoesAMaisDaForma, ataquesExtrasDaForma, deslocamentoDaForma, fadigaDaForma, formaLivre, formaMontada, motivoDaForma, reducaoDaForma, usosDaForma, type FormaNoMenu } from '../../lib/batalha/transformacao'
 import { formaDecididaPeloMestre } from '../../lib/batalha/mecanica/formaDoMestre'
 import { formatarNumero, textoDaAcao, type PipDaVez } from './dadosDoMenu'
 import { CabecaDaVez, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
@@ -66,6 +66,20 @@ function textoDosAtaquesExtras(forma: FormaNoMenu): string | null {
   return `+${formatarNumero(quantos)} ${quantos === 1 ? 'ataque' : 'ataques'} por rodada ao usar Atacar`
 }
 
+/** E5 (D10): as ações a mais da forma montada ("+1 Simples em cada vez enquanto durar"); `null` = não dá. */
+function textoDasAcoesAMais(forma: FormaNoMenu): string | null {
+  const quantas = acoesAMaisDaForma(forma.cartao)
+  return quantas > 0 ? `+${formatarNumero(quantas)} Simples em cada vez enquanto durar` : null
+}
+
+/** E5 (D10): a Fadiga que a forma montada deixa ao acabar ("Fadiga por 2 turnos, ao acabar"); `null` = nenhuma. */
+function textoDaFadiga(forma: FormaNoMenu): string | null {
+  const fadiga = fadigaDaForma(forma.cartao)
+  if (fadiga === null) return null
+  const tempo = fadiga.turnos === null ? 'até tirar' : fadiga.turnos === 1 ? 'por 1 turno' : `por ${fadiga.turnos} turnos`
+  return `${fadiga.nome} ${tempo}, ao acabar`
+}
+
 /** R6: o que Ativar gasta, na tira e no botão: "sem gastar ação" na Livre, senão a ação; `null` = ainda não escolheu. */
 function textoDaAtivacao(acao: AcaoDaForma | null): string {
   if (acao === null) return 'escolha a ação'
@@ -105,6 +119,9 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
   const deslocamento = textoDoDeslocamento(forma)
   const ataquesExtras = textoDosAtaquesExtras(forma)
   const reducao = reducaoDaForma(forma.cartao)
+  const acoesAMais = textoDasAcoesAMais(forma)
+  const fadiga = textoDaFadiga(forma)
+  const overloadMontado = formaMontada(forma.cartao)?.overload === true
 
   const ativar = (evento?: FormEvent) => {
     evento?.preventDefault()
@@ -137,7 +154,7 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
         {nome}
       </h3>
       {descricao !== '' && <p className="bt-forma__texto">{descricao}</p>}
-      {(forma.requisito !== null || (!forma.ligada && forma.troca.length > 0) || usos !== null || reducao !== null || deslocamento !== null || ataquesExtras !== null) && (
+      {(forma.requisito !== null || (!forma.ligada && forma.troca.length > 0) || usos !== null || reducao !== null || deslocamento !== null || ataquesExtras !== null || acoesAMais !== null || fadiga !== null || overloadMontado) && (
         <dl className="bt-passiva__leitura bt-forma__leitura">
           {forma.requisito !== null && (
             <div>
@@ -179,6 +196,27 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
             <div>
               <dt>Ataques extras</dt>
               <dd>{ataquesExtras}</dd>
+            </div>
+          )}
+          {acoesAMais !== null && (
+            <div>
+              <dt>Ações a mais</dt>
+              <dd>{acoesAMais}</dd>
+            </div>
+          )}
+          {overloadMontado && (
+            <div>
+              <dt>Overload</dt>
+              <dd>
+                liga sem gastar ação e você age na mesma vez
+                <small> · 1 vez por batalha</small>
+              </dd>
+            </div>
+          )}
+          {fadiga !== null && (
+            <div>
+              <dt>Fadiga</dt>
+              <dd>{fadiga}</dd>
             </div>
           )}
         </dl>

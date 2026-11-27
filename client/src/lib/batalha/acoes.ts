@@ -431,3 +431,21 @@ export function acaoDoConcentrar(acoes: AcoesDaVez, carga: number): AcaoDoConcen
   if (concentrarEhLivre(carga)) return 'livre'
   return sobra(acoes.simples) ? 'simples' : 'bonus'
 }
+
+/**
+ * Rework das habilidades (PLANO.md D10, E5): as ações a mais da forma montada (a Transformação com
+ * "ações a mais") na carta que ligou: Simples a mais em toda vez enquanto a forma durar (`sempre`,
+ * marcadas com `daForma`). As extras que o mestre já deu somam (e passam a valer enquanto a forma durar).
+ */
+export function comAcoesDaForma(antes: AcoesExtras | null, acoesAMais: number, cartaoId: string, rodada: number): AcoesExtras {
+  if (antes === null) return { simples: acoesAMais, bonus: 0, mov: 0, duracao: 'sempre', rodada, daForma: cartaoId }
+  return { ...antes, simples: antes.simples + acoesAMais, duracao: 'sempre', daForma: cartaoId }
+}
+
+/** E5: as extras sem as ações a mais da forma `cartaoId` que desligou; `null` = não sobra nenhuma. As que não são dela: as MESMAS. */
+export function semAcoesDaForma(extras: AcoesExtras, cartaoId: string, acoesAMais: number): AcoesExtras | null {
+  if (extras.daForma !== cartaoId) return extras
+  const { daForma: _daForma, ...semAForma } = extras
+  const simples = Math.max(0, extras.simples - acoesAMais)
+  return simples + semAForma.bonus + semAForma.mov > 0 ? { ...semAForma, simples } : null
+}

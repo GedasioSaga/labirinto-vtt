@@ -1,5 +1,6 @@
 import type { CondicaoPropria, RegraDaCondicao, TokenCondition } from '../../types/map'
 import { CURA_REDUZIDA_PADRAO, DANO_DO_SANGRAMENTO, NOME_DA_CURA_REDUZIDA } from '../batalha/condicoes'
+import { NOME_DA_FADIGA } from '../batalha/mecanica/pecas'
 import { chaveDaCondicao } from '../condicaoPorNome'
 import { CORES_DE_CONDICAO, lerCondicaoPropria } from '../condicoesProprias'
 import type { GatilhoDaCondicao } from '../itens/modelo'
@@ -86,6 +87,16 @@ const NOVAS_DE_FABRICA: readonly CondicaoDoCatalogo[] = [
     regra: 'cura',
     n: CURA_REDUZIDA_PADRAO,
     pastilha: { tipo: 'propria', condicao: { id: 'cura-reduzida', nome: NOME_DA_CURA_REDUZIDA, cor: corDaPaleta('Rosa'), simbolo: 'cruz' } },
+    criada: false,
+  },
+  // Rework das habilidades (PLANO.md D10, E5): o cansaço que a forma da versão 5 deixa no dono quando acaba. A regra é
+  // narrar: os números (padrão −10 de Agilidade por 2 turnos) moram na peça Transformação e vão no selo da batalha.
+  {
+    id: 'fadiga',
+    nome: NOME_DA_FADIGA,
+    regra: 'narra',
+    n: 0,
+    pastilha: { tipo: 'propria', condicao: { id: 'fadiga', nome: NOME_DA_FADIGA, cor: corDaPaleta('Terra'), simbolo: 'desce' } },
     criada: false,
   },
 ]

@@ -15,9 +15,10 @@ import {
   type FormaNaBatalha,
   type NumeroDaForma,
 } from '../../lib/batalha/combate'
-import { gastarAcao } from '../../lib/batalha/acoes'
-import { novoIdDeSelo } from '../../lib/batalha/selos'
-import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, duracaoDaForma, formaDaFicha, formaQueATecnicaLiga, subidaDeParte, usosDaForma } from '../../lib/batalha/transformacao'
+import { comAcoesDaForma, gastarAcao, semAcoesDaForma } from '../../lib/batalha/acoes'
+import { comADonaDesligada } from '../../lib/batalha/acumuladorNaBatalha'
+import { comSeloNovo, criarSelo, novoIdDeSelo, ondeNaVez, textoDoSeloComMods } from '../../lib/batalha/selos'
+import { acaoDaForma, acoesAMaisDaForma, ativarForma, descerUmaParte, desfazerForma, duracaoDaForma, formaDaFicha, formaEhOverload, formaMontada, formaQueATecnicaLiga, subidaDeParte, usosDaForma } from '../../lib/batalha/transformacao'
 import {
   cartaoComADecisao,
   cartaoPorId,
@@ -36,7 +37,7 @@ import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
 import { devolverFichasDaAcao } from './desfazer'
 import { cartoesLigados, fatorDaVelocidade } from '../../lib/batalha/mecanicasAMao'
 import { semLembretes } from '../../lib/batalha/passivas'
-import { ehOverload, recursoDoCusto, tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
+import { recursoDoCusto, tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import { novoIdDeLinha, type Reversao } from '../../lib/batalha/registro'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
@@ -78,12 +79,47 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
    * forma). O Desfazer da forma (ação livre) e o fim sozinho da forma com
    * duração (F2b, A Caçada Começa) passam por aqui. `null` = a ficha recusou.
    */
-  const desligarAForma = (personagemId: string, tokenId: string, cartaoId: string, overload: boolean, turnos: TurnosDaCena, quem: string): { turnos: TurnosDaCena; partes: Reversao[] } | null => {
+  const desligarAForma = (personagemId: string, tokenId: string, cartaoId: string, overload: boolean, turnos: TurnosDaCena, quem: string): { turnos: TurnosDaCena; partes: Reversao[]; nota?: string } | null => {
+    // Rework das habilidades (D10, E5): a forma montada, lida antes de desligar (o cartão fica na ficha).
+    const { personagens, sistema } = mesaDoRpg()
+    const dona = personagens.find((candidato) => candidato.id === personagemId)
+    const cartaoDaForma = dona === undefined || sistema === null ? null : formaDaFicha(dona, sistema, cartaoId)
+    const montada = cartaoDaForma === null ? null : formaMontada(cartaoDaForma)
     const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, cartaoId, quem, Date.now()))
     if (fichaMudou === null || fichaMudou === 'recusada') return null
     const partes: Reversao[] = [...reversaoDaFicha(personagemId, fichaMudou)]
     let novos = turnos
-    if (overload) {
+    let nota: string | undefined
+    if (montada !== null) {
+      // D10: a forma montada deixa a Fadiga da peça no dono (no lugar do cansaço de antes) e leva as ações a mais que deu.
+      const fadiga = montada.forma.fadiga
+      if (fadiga !== undefined && sistema !== null) {
+        const selo = criarSelo(tokenId, { ...fadiga, cartaoId }, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: fadiga.nome })
+        const selos = comSeloNovo(novos.selos, selo)
+        if (selos !== null) {
+          partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
+          novos = { ...novos, selos }
+          nota = `: ${textoDoSeloComMods(selo, sistema)}`
+        }
+      }
+      const extras = { ...novos.extras }
+      for (const [cartaId, extra] of Object.entries(novos.extras)) {
+        const sobra = semAcoesDaForma(extra, cartaoId, montada.forma.acoesAMais)
+        if (sobra === extra) continue
+        partes.push({ tipo: 'acoesExtras', cartaId, antes: extra })
+        if (sobra === null) delete extras[cartaId]
+        else extras[cartaId] = sobra
+      }
+      novos = { ...novos, extras }
+    }
+    // Mecânica 7 (E5): o acumulador do cartão da forma com a descida "desliga" zera agora.
+    const combateDaDona = novos.combate?.[personagemId]
+    const zerado = combateDaDona === undefined || dona === undefined ? undefined : comADonaDesligada(combateDaDona, dona, cartaoId)
+    if (combateDaDona !== undefined && zerado !== undefined && zerado !== combateDaDona) {
+      partes.push({ tipo: 'combate', personagemId, antes: combateDaDona, depois: zerado })
+      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: zerado } }
+    }
+    if (overload && montada === null) {
       const cansado = cansarNoOverload(personagemId, tokenId, novos)
       if (cansado !== null) {
         partes.push(...cansado.partes)
@@ -97,7 +133,7 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       delete formas[personagemId]
       novos = { ...novos, formas }
     }
-    return { turnos: novos, partes }
+    return nota === undefined ? { turnos: novos, partes } : { turnos: novos, partes, nota }
   }
 
   /**
@@ -152,8 +188,8 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
       novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
     }
-    // Conserto das fichas F1: a forma Overload (A Caçada Começa) gasta o Overload da batalha (1 por batalha).
-    if (cartao !== null && ehOverload(cartao)) {
+    // Conserto das fichas F1: a forma Overload (A Caçada Começa) gasta o Overload da batalha (1 por batalha). E5: e a montada com Overload.
+    if (cartao !== null && formaEhOverload(cartao)) {
       const combateAntes = novos.combate?.[personagemId]
       const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), overload: true }
       partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
@@ -218,6 +254,13 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       const gastos = gastosDoAtivar(novos, carta.id, personagemId, cartao, pedido.acao, false)
       partes.push(...gastos.partes)
       novos = gastos.turnos
+      // Rework das habilidades (D10, E5): as ações a mais da forma montada, na carta que ligou (saem quando a forma desliga).
+      const acoesAMais = cartao === null ? 0 : acoesAMaisDaForma(cartao)
+      if (acoesAMais > 0) {
+        const extrasAntes = novos.extras[carta.id] ?? null
+        partes.push({ tipo: 'acoesExtras', cartaId: carta.id, antes: extrasAntes })
+        novos = { ...novos, extras: { ...novos.extras, [carta.id]: comAcoesDaForma(extrasAntes, acoesAMais, pedido.cartaoId, novos.rodada) } }
+      }
       // O Desfazer volta as partes de trás para a frente: o cartão vem PRIMEIRO aqui para o ganho voltar antes de
       // desligar (1.500/1.800 → 900/1.800 → 900/1.200). Na ordem de `partesDoAjuste`, o corte do desligar viria antes
       // e o delta tiraria o ganho de novo (1.200 − 600 = 600).
@@ -253,14 +296,15 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       if (numeros.length > 0 && (cartao === null || !ocultoNaBatalha(personagem, cartao))) efeito.numeros = numeros
       efeitos.push(efeito)
       const comoAtiva = pedido.acao === 'livre' ? 'sem gastar ação' : ROTULO_DA_ACAO_DA_FORMA[pedido.acao]
-      texto = `${quemAge} ativa ${nomeDaForma} (${comoAtiva})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}${notaDosRequisitos === null ? '' : ` ${notaDosRequisitos}`}`
+      const aMais = acoesAMais === 0 ? '' : ` · ${acoesAMais === 1 ? '+1 ação' : `+${acoesAMais} ações`} a mais por vez`
+      texto = `${quemAge} ativa ${nomeDaForma} (${comoAtiva})${aMais}${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}${notaDosRequisitos === null ? '' : ` ${notaDosRequisitos}`}`
     } else {
-      const desligada = desligarAForma(personagemId, carta.tokenId, pedido.cartaoId, cartao !== null && ehOverload(cartao), novos, quem)
+      const desligada = desligarAForma(personagemId, carta.tokenId, pedido.cartaoId, cartao !== null && formaEhOverload(cartao), novos, quem)
       if (desligada === null) return false
       partes.push(...desligada.partes)
       novos = desligada.turnos
       efeitos.push({ tipo: 'forma', tokenId: carta.tokenId, forma: nomeDaForma, ligou: false })
-      texto = `${quemAge} desfaz ${nomeDaForma} (ação livre)`
+      texto = `${quemAge} desfaz ${nomeDaForma} (ação livre)${desligada.nota ?? ''}`
     }
     // F2b (revisão, Ignição): a troca que muda a Velocidade marca a carta; ela vai ao lugar novo na virada (`passarVez`),
     // nunca no meio da rodada. O Desfazer desta linha tira a marca (parte "combate").
@@ -403,7 +447,8 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       const daCarga = combate.carga === semOLembrete.carga ? '' : `; Concentração ${combate.carga}`
       texto = `${dono} mantém ${nome} (paga ${textoDoCustoPorTurno(custo, sistema)}${daCarga})`
     } else {
-      const parado = pararAMantida(semOLembrete, cartao)
+      // Mecânica 7 (E5): o acumulador da técnica com a descida "desliga" zera quando ela para.
+      const parado = comADonaDesligada(pararAMantida(semOLembrete, cartao), personagem, cartao.id)
       const tirados = (turnos.selos ?? []).filter((selo) => selo.cartaoId === cartao.id)
       partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: parado }, ...tirados.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo })))
       novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: parado }, selos: (turnos.selos ?? []).filter((selo) => selo.cartaoId !== cartao.id) }

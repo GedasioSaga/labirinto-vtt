@@ -5,7 +5,7 @@ import { ehLembreteDoCustoDaForma, type CustoDaFormaNaTela } from '../../lib/bat
 import { BONUS_DA_PREPARACAO, NOME_DA_PREPARACAO, ehLembreteDaPreparacao } from '../../lib/batalha/preparacao'
 import { cartaoDaVariante, temEscolha, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_EFEITO, type LeituraDoCusto } from '../../lib/batalha/leituraDaFicha'
-import { passivasDe, passivasLigadas, seloDaPassiva, textoDoPorTurno, type EstadoDaPassiva, type PassivaNaTira } from '../../lib/batalha/passivas'
+import { gatilhosDaPassiva, passivasDe, passivasLigadas, seloDaPassiva, textoDoPorTurno, type EstadoDaPassiva, type PassivaNaTira } from '../../lib/batalha/passivas'
 import { alvosDeMod, ehNomeDeSelo, selosDoToken } from '../../lib/batalha/selos'
 import type { CartaDaOrdem, TurnosDaCena } from '../../lib/batalha/turnos'
 import type { CombateParaJogador } from '../../lib/batalha/vistaDoJogador'
@@ -120,7 +120,8 @@ function detalheDaPassiva(passiva: PassivaNaTira): string {
     case 'ativa':
       return passiva.porTurno === null ? 'Ativa · desligue quando quiser' : 'Ativa · o efeito a cada turno lembra no começo da vez'
     case 'sempre':
-      return 'Vale sempre · não lembra'
+      // E5 (D6): a passiva montada com gatilho dispara sozinha (ou pergunta antes) quando ele acontece.
+      return gatilhosDaPassiva(passiva.cartao).length > 0 ? `Dispara sozinha · ${passiva.textoDoGatilho}` : 'Vale sempre · não lembra'
     case 'pronta':
     case 'espera':
       return `${ROTULO_DO_ESTADO[passiva.estado]} · ${passiva.textoDoGatilho}`
@@ -230,6 +231,8 @@ function quandoDispara(passiva: PassivaNaTira, naTela: string): { texto: string;
     case 'requisito':
       return { texto: mesmoComeco(passiva.gatilho.texto, naTela) ? 'Na condição do texto' : passiva.gatilho.texto, nota: 'o app não confere: veja na mesa' }
     case 'sempre':
+      // E5 (D6): a montada com gatilho diz quando dispara; o disparo sai no registro, com Desfazer.
+      if (gatilhosDaPassiva(passiva.cartao).length > 0) return { texto: passiva.textoDoGatilho, nota: 'sai no registro, com Desfazer' }
       return { texto: 'Vale sempre', nota: passiva.estado === 'ativa' ? null : 'sem lembrete: ative quando quiser' }
   }
 }
