@@ -1083,7 +1083,7 @@ export interface LembretesDaPassivaProps {
  */
 function textoDoAplicarDoCusto(custo: CustoDaFormaNaTela): string {
   const sem = custo.semRecurso
-  if (custo.mantida === true) return sem === undefined ? `Manter · ${custo.custo}` : 'Parar'
+  if (custo.mantida === true) return sem === undefined ? (custo.custo === '' ? 'Manter' : `Manter · ${custo.custo}`) : 'Parar'
   if (sem === undefined) return `Aplicar · ${custo.custo}`
   return sem.voltaPara === null ? 'Sair da forma' : `Voltar para ${sem.voltaPara}`
 }

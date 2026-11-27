@@ -4,6 +4,7 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { CARGA_MAX, type CombateDoPersonagem, type LembreteDaPassiva, type PedidoDePassiva } from './combate'
 import { normalizar } from './formula'
 import { CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, tecnicasComForma, type LeituraDoCusto } from './leituraDaFicha'
+import { pecasDoCartao } from './mecanica/leitura'
 import { mantidaDe } from './mecanicasAMao'
 import { CAMPO_DO_REQUISITO, parteAnterior } from './transformacao'
 import type { TurnosDaCena } from './turnos'
@@ -72,9 +73,15 @@ export function custoDaMantida(cartao: Pick<CartaoDaFicha, 'id' | 'campos' | 'me
   const mantida = mantidaDe(cartao)
   if (mantida === null) return null
   const daTabela = mantida.custoPorVez
-  if (daTabela === undefined) return custoPorTurno(cartao, personagem)
-  return daTabela.valor > 0 ? { tipo: 'valor', recurso: daTabela.recurso, valor: daTabela.valor, porTurno: true } : null
+  if (daTabela !== undefined && daTabela.valor > 0) return { tipo: 'valor', recurso: daTabela.recurso, valor: daTabela.valor, porTurno: true }
+  // Rework das habilidades (D7): o "Ligar e manter" montado sem custo também ganha o lembrete (Manter / Parar), custando 0;
+  // sem ele, a técnica e o selo "ligada" só saíam pelo Desfazer ou pela mão do mestre.
+  if (pecasDoCartao(cartao)?.uso === 'manter') return { ...CUSTO_ZERO_DA_MANTIDA }
+  return daTabela === undefined ? custoPorTurno(cartao, personagem) : null
 }
+
+/** O custo da mantida montada que não custa nada a cada vez: o lembrete aparece, e "Manter" não cobra. */
+const CUSTO_ZERO_DA_MANTIDA: CustoPorTurno = { tipo: 'valor', recurso: 'sp', valor: 0, porTurno: true }
 
 /** F2 (revisão da fatia D): as técnicas mantidas agora, com o custo de cada vez, na ordem em que ligaram. A que saiu da ficha fica de fora. */
 export function mantidasComCusto(personagem: Personagem, sistema: SistemaDeRpg, combate: Pick<CombateDoPersonagem, 'mantidas'> | undefined): { cartao: CartaoDaFicha; custo: CustoPorTurno }[] {
@@ -119,8 +126,9 @@ export function motivoDoCustoPorTurno(personagem: Personagem, sistema: SistemaDe
   return tem < custo.valor ? `${recurso.nome} insuficiente: custa ${custo.valor}, você tem ${tem}` : null
 }
 
-/** "20 SP" (o nome do recurso no sistema). */
+/** "20 SP" (o nome do recurso no sistema); o custo 0 da mantida sem custo = vazio. */
 export function textoDoCustoPorTurno(custo: CustoPorTurno, sistema: SistemaDeRpg | null): string {
+  if (custo.valor === 0) return ''
   const recurso = sistema === null ? null : recursoDoCusto(sistema, custo.recurso)
   return `${custo.valor} ${recurso?.nome ?? custo.recurso.toUpperCase()}`
 }

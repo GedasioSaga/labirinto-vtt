@@ -437,15 +437,17 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
     let novos: TurnosDaCena
     let texto: string
     if (pedido.aplicar && motivoDoCustoPorTurno(personagem, sistema, custo) === null) {
-      const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quemNaFicha(autor))
+      // Rework (D7): a "Ligar e manter" sem custo só mantém (nada a cobrar na ficha).
+      const semCusto = custo.valor === 0
+      const doCusto = semCusto ? [] : mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quemNaFicha(autor))
       // Bug 11: o custo recusado não aplica (o lembrete fica esperando).
       if (doCusto === 'recusada') return false
       const mantido = manterNaVez(semOLembrete, cartao.id)
-      const combate: CombateDoPersonagem = custoEmSp(custo) && mantido.gastouSp !== true ? { ...mantido, gastouSp: true } : mantido
+      const combate: CombateDoPersonagem = !semCusto && custoEmSp(custo) && mantido.gastouSp !== true ? { ...mantido, gastouSp: true } : mantido
       partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate }, ...reversaoDaFicha(personagemId, doCusto))
       novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
       const daCarga = combate.carga === semOLembrete.carga ? '' : `; Concentração ${combate.carga}`
-      texto = `${dono} mantém ${nome} (paga ${textoDoCustoPorTurno(custo, sistema)}${daCarga})`
+      texto = semCusto ? `${dono} mantém ${nome}${daCarga === '' ? '' : ` (${daCarga.slice(2)})`}` : `${dono} mantém ${nome} (paga ${textoDoCustoPorTurno(custo, sistema)}${daCarga})`
     } else {
       // Mecânica 7 (E5): o acumulador da técnica com a descida "desliga" zera quando ela para.
       const parado = comADonaDesligada(pararAMantida(semOLembrete, cartao), personagem, cartao.id)
@@ -512,11 +514,19 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       if (vezes !== null) forma.duracao = { faltam: vezes, ligouNa: chaveDaVez(pendente.rodada, pendente.cartaId) }
       partes.push({ tipo: 'forma', personagemId, antes: turnos.formas?.[personagemId] ?? null })
       let novos: TurnosDaCena = { ...turnos, formas: { ...(turnos.formas ?? {}), [personagemId]: forma } }
+      // Rework das habilidades (D10): as ações a mais da forma montada, na carta do pedido, como no Ativar de sempre (`mudarForma`).
+      const acoesAMais = acoesAMaisDaForma(cartao)
+      if (acoesAMais > 0) {
+        const extrasAntes = novos.extras[pendente.cartaId] ?? null
+        partes.push({ tipo: 'acoesExtras', cartaId: pendente.cartaId, antes: extrasAntes })
+        novos = { ...novos, extras: { ...novos.extras, [pendente.cartaId]: comAcoesDaForma(extrasAntes, acoesAMais, cartao.id, novos.rodada) } }
+      }
       const quemAge = nomeDoTokenNa(turnos, personagens)(pendente.tokenId)
       // Fatia C7 (revisão): os números que o mestre decidiu para a forma oculta são do segredo (a linha e o efeito chegam a todos).
       const oculta = ocultoNaBatalha(personagem, cartao)
       const decidiu = oculta ? 'o mestre decidiu' : `o mestre decidiu: ${textoDaDecisao(decisao, sistema)}`
-      let texto = `${quemAge} ativa ${pendente.nome} · ${decidiu}${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
+      const aMais = acoesAMais === 0 ? '' : ` · ${acoesAMais === 1 ? '+1 ação' : `+${acoesAMais} ações`} a mais por vez`
+      let texto = `${quemAge} ativa ${pendente.nome} · ${decidiu}${aMais}${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
       // F2b (Ignição): a troca que muda a Velocidade marca a carta para a virada, como no Ativar de sempre.
       const depoisDaTroca = mesa.personagens().find((candidato) => candidato.id === personagemId)
       if (depoisDaTroca !== undefined && fatorDaVelocidade(cartoesLigados(depoisDaTroca)) !== fatorDaVelocidade(cartoesLigados(personagem))) {
