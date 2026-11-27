@@ -1,7 +1,12 @@
 import { useId, useState, type FormEvent } from 'react'
 import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type NaturezaDoSelo, type SeloPedido } from '../../lib/batalha/combate'
-import { SELOS_PRONTOS, ehNomeDeSelo, naturezaDosMods, textoDoSelo, type AlvoDeMod } from '../../lib/batalha/selos'
+import { ehNomeDeSelo, naturezaDosMods, textoDoSelo, type AlvoDeMod } from '../../lib/batalha/selos'
+import { prazoCurto } from '../../lib/condicoes/frasesDaCondicao'
 import { lerInteiro } from './dadosDoMenu'
+// Só o app abre esta janela: registra as criadas da pasta nos seletores (o site não a carrega).
+import './editor/pecas/condicoesDoApp'
+import { condicaoDoSeletor, turnosDaCondicao, useCatalogoDoSeletor } from './editor/pecas/condicoesNoSeletor'
+import { OpcoesDeCondicao } from './editor/pecas/controlesDaPeca'
 import { JanelaDaBatalha } from './JanelaDaBatalha'
 import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
 import './batalha.css'
@@ -47,8 +52,30 @@ export function SeloDialog({ quem, selo, alvosDeMod, corFixa, onConfirmar, onTir
   const [ateTirar, setAteTirar] = useState(selo !== null && selo.turnos === null)
   const [turnosTexto, setTurnosTexto] = useState(selo === null || selo.turnos === null ? TURNOS_PADRAO : String(selo.turnos))
   const [linhas, setLinhas] = useState<LinhaDeMod[]>(() => linhasDosMods(selo?.mods))
+  /** Rework das condições (D4): os números próprios só aparecem no selo que já os trazia, como "de antes". */
+  const [comNumerosDeAntes] = useState(() => (selo?.mods?.length ?? 0) > 0)
   const [erro, setErro] = useState<string | null>(null)
+  const catalogo = useCatalogoDoSeletor()
   const limpo = nome.trim()
+  const naLista = catalogo.opcoes.find((opcao) => opcao.nome === limpo)
+  const condicao = limpo === '' ? null : condicaoDoSeletor(catalogo, limpo)
+  const frase = condicao === null ? null : (catalogo.opcoes.find((opcao) => opcao.condicao.id === condicao.id)?.frase ?? '')
+  /** D6: escolher a condição traz o prazo dela; os turnos ainda mudam à mão. */
+  const escolher = (escolhido: string) => {
+    setErro(null)
+    const opcao = catalogo.opcoes.find((candidata) => candidata.nome === escolhido)
+    if (opcao === undefined) return
+    setNome(opcao.nome)
+    const prazo = opcao.condicao.montada.prazo
+    if (prazo.modo === 'ateTirar' || prazo.modo === 'batalha') {
+      setAteTirar(true)
+      return
+    }
+    const turnosDela = turnosDaCondicao(prazo, TURNOS_DO_SELO_MAX)
+    if (turnosDela === null) return
+    setAteTirar(false)
+    setTurnosTexto(String(turnosDela))
+  }
   const turnos = ateTirar ? null : lerInteiro(turnosTexto, TURNOS_DO_SELO_MAX)
   const nomeValido = ehNomeDeSelo(limpo)
   const turnosValidos = ateTirar || (turnos !== null && turnos >= 1)
@@ -93,23 +120,22 @@ export function SeloDialog({ quem, selo, alvosDeMod, corFixa, onConfirmar, onTir
       onFechar={onFechar}
     >
       <form className="bt-form bt-selo-form" onSubmit={confirmar} noValidate>
-        <fieldset className="bt-selo-form__prontos">
-          <legend>Prontos</legend>
-          {SELOS_PRONTOS.map((pronto) => (
-            <button
-              key={pronto}
-              type="button"
-              className="bt-botao bt-botao--p"
-              aria-pressed={limpo === pronto}
-              onClick={() => {
-                setErro(null)
-                setNome(pronto)
-              }}
-            >
-              {pronto}
-            </button>
-          ))}
-        </fieldset>
+        <label className="bt-form__linha" htmlFor={`${idBase}-condicao`}>
+          <span>Condição</span>
+          <select id={`${idBase}-condicao`} className="bt-num bt-num--texto" value={naLista === undefined ? '' : naLista.nome} aria-describedby={`${idBase}-frase`} onChange={(evento) => escolher(evento.target.value)}>
+            <option value="" disabled>
+              {limpo === '' ? 'Escolha uma condição…' : 'Nome seu, fora da lista'}
+            </option>
+            <OpcoesDeCondicao catalogo={catalogo} />
+          </select>
+        </label>
+        <p id={`${idBase}-frase`} className="bt-selo-form__conta">
+          {condicao === null
+            ? limpo === ''
+              ? 'A regra vem da condição: escolha uma da lista ou dê um nome seu (sem regra).'
+              : 'Nome fora do catálogo: o selo só marca a carta.'
+            : `${naLista === undefined ? `Vale como ${condicao.nome}: ` : ''}${frase === null || frase === '' ? 'sem peça, o mestre narra' : frase}. O prazo dela: ${prazoCurto(condicao.montada.prazo)}.`}
+        </p>
         <label className="bt-form__linha" htmlFor={`${idBase}-nome`}>
           <span>Nome</span>
           <span className="bt-selo-form__campo">
@@ -156,16 +182,34 @@ export function SeloDialog({ quem, selo, alvosDeMod, corFixa, onConfirmar, onTir
             Até tirar <small>não desconta; sai quando você tirar</small>
           </label>
         </fieldset>
-        <LinhasDeMods
-          idBase={idBase}
-          linhas={linhas}
-          alvos={alvosDeMod}
-          dica="somam na conta enquanto o selo existir"
-          onMudar={(novas) => {
-            setErro(null)
-            setLinhas(novas)
-          }}
-        />
+        {comNumerosDeAntes && (
+          <fieldset className="bt-selo-form__duracao">
+            <legend>Regra própria (de antes)</legend>
+            <small>Estes números vêm de antes das condições novas e valem por cima dos da condição.</small>
+            <LinhasDeMods
+              idBase={idBase}
+              linhas={linhas}
+              alvos={alvosDeMod}
+              dica="somam na conta enquanto o selo existir"
+              onMudar={(novas) => {
+                setErro(null)
+                setLinhas(novas)
+              }}
+            />
+            {linhas.length > 0 && (
+              <button
+                type="button"
+                className="bt-botao bt-botao--p"
+                onClick={() => {
+                  setErro(null)
+                  setLinhas([])
+                }}
+              >
+                Usar só a condição
+              </button>
+            )}
+          </fieldset>
+        )}
         <p className="bt-selo-form__previa">
           <span className="bt-selo-form__previa-rot">Na carta</span>
           <span className="bt-selo bt-selo--previa" data-natureza={natureza === 'condicao' ? undefined : natureza}>

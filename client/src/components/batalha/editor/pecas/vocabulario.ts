@@ -22,25 +22,8 @@ export const ATRIBUTOS_DAS_PECAS: readonly OpcaoDaPeca<string>[] = ['forca', 'ag
 /** O que dá para subir ou descer: os 8 atributos e os números da batalha (a Velocidade é a Agilidade da vez). */
 export const STATUS_DAS_PECAS: readonly OpcaoDaPeca<string>[] = [...ATRIBUTOS_DAS_PECAS, ...[ATRIBUTO_DA_VELOCIDADE, 'ca', 'escudo', 'sp', 'vida', 'dano', 'alcance'].map(comNome)]
 
-/** As condições que o protótipo oferece (o comportamento vem do nome, como no selo dos Efeitos). */
-export const CONDICOES_DAS_PECAS: readonly { nome: string; faz: string }[] = [
-  { nome: 'Atordoado', faz: 'perde a próxima ação' },
-  { nome: 'Paralisado', faz: 'não anda' },
-  { nome: 'Aéreo', faz: 'no ar' },
-  { nome: 'Marcado', faz: 'o próximo golpe dá o dobro' },
-  { nome: 'Cura reduzida', faz: 'cura pela metade' },
-  { nome: 'Sangrando', faz: 'perde vida no começo da vez' },
-  { nome: 'Queimando', faz: 'perde vida no começo da vez' },
-  { nome: 'Envenenado', faz: 'perde vida por vez e a cura cai pela metade' },
-  { nome: 'Congelado', faz: 'alcance cai 2 casas e reage com desvantagem' },
-  { nome: 'Eletrizado', faz: 'perde 10 de SP no fim da vez' },
-  { nome: 'Cego', faz: 'Percepção fica em 0' },
-  { nome: 'Enfraquecido', faz: '−20 de Força e −10 de dano' },
-  { nome: 'Lento', faz: 'perde Velocidade' },
-  { nome: 'Fortalecido', faz: '+10 de dano' },
-  { nome: 'Fadiga', faz: 'cansaço depois da transformação' },
-  { nome: 'Protegido', faz: 'leva menos dano' },
-]
+// As condições que as peças põem vêm do catálogo (`condicoesNoSeletor.ts`, rework das condições E7): a
+// lista fixa de 16 nomes que morava aqui saiu, e a regra de cada uma mora na própria condição.
 
 export const BATIDAS_NA_TELA: readonly OpcaoDaPeca<TipoQueBate>[] = [
   { valor: 'impacto', rotulo: 'Impacto' },

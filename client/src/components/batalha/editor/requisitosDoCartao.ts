@@ -1,5 +1,6 @@
-import { SELOS_COM_REGRA } from '../../../lib/batalha/condicoes'
 import { CONDICAO_DO_TIPO } from '../../../lib/batalha/mecanica/golpe'
+import { catalogoDeCondicoes } from '../../../lib/condicoes/catalogo'
+import type { CondicaoPropria } from '../../../types/map'
 import { ABA_DAS_TECNICAS } from '../../../lib/batalha/leituraDaFicha'
 import type { ContextoDosRequisitos } from '../../../lib/batalha/requisitos/contexto'
 import { comoJson, lerMarcas, mesmaMarca, requisitosParaGuardar } from '../../../lib/batalha/requisitos/ler'
@@ -86,9 +87,12 @@ export function fontesDaFicha(personagem: Personagem, sistema: SistemaDeRpg, tec
   }
 }
 
-/** As sugestões dos campos de texto: os selos que o app conhece (com os do tipo do golpe) e as marcas das fichas. */
-export function listasDaFicha(personagem: Personagem): ListasDosRequisitos {
-  const selos = [...SELOS_COM_REGRA, ...Object.values(CONDICAO_DO_TIPO)].filter((nome, indice, todos) => todos.findIndex((outro) => mesmaMarca(outro, nome)) === indice)
+/**
+ * As sugestões dos campos de texto: as condições do catálogo (rework das condições, E7: as de fábrica e,
+ * com `criadas`, as do mestre), as do tipo do golpe e as marcas das fichas.
+ */
+export function listasDaFicha(personagem: Personagem, criadas: readonly CondicaoPropria[] = []): ListasDosRequisitos {
+  const selos = [...catalogoDeCondicoes(criadas).map((condicao) => condicao.nome), ...Object.values(CONDICAO_DO_TIPO)].filter((nome, indice, todos) => todos.findIndex((outro) => mesmaMarca(outro, nome)) === indice)
   const marcas: string[] = []
   for (const cartoes of Object.values(personagem.abas)) for (const cartao of cartoes) for (const marca of lerMarcas(cartao.marcas)) if (!marcas.some((outra) => mesmaMarca(outra, marca))) marcas.push(marca)
   return { selos, marcas }

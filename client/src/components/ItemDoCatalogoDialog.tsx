@@ -18,7 +18,14 @@ import { NOME_DA_CURA_REDUZIDA } from '../lib/batalha/condicoes'
 import { resumoDoEfeitoDoItem } from '../lib/batalha/mecanica/resumoDoItem'
 import { testeNoBoneco } from '../lib/batalha/aoAcertarDoItem'
 import { novoPersonagem } from '../lib/personagem'
-import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_ORDER } from '../lib/tokenConditions'
+import { fraseCurta, prazoCurto } from '../lib/condicoes/frasesDaCondicao'
+import { legadoDaPecaDoItem, pecaDoItemSoComACondicao, type PecaDoItemQuePoe } from '../lib/condicoes/legado'
+import type { PrazoDaCondicao } from '../lib/condicoes/modelo'
+// Rework das condições (E7): registra as criadas da pasta nos seletores; só o app abre este editor.
+import './batalha/editor/pecas/condicoesDoApp'
+import { condicaoDoSeletor, turnosDaCondicao, useCatalogoDoSeletor, type CatalogoDoSeletor } from './batalha/editor/pecas/condicoesNoSeletor'
+import { OpcoesDeCondicao } from './batalha/editor/pecas/controlesDaPeca'
+import { RegraDeAntes } from './batalha/editor/pecas/RegraDeAntes'
 import { ROTULO_DO_TIPO, TIPOS_DO_ITEM, TIPOS_QUE_EMPILHAM, PARTES_DO_EQUIPAMENTO, type AtaqueDoItem, type BalaDoItem, type BonusDoEquipamento, type ConfiraDoItem, type TipoDoItem } from '../lib/itens/modelo'
 import {
   ACOES_DA_RECARGA,
@@ -33,7 +40,6 @@ import {
   frasesDoItem,
   itemComOsCamposAntigos,
   itemParaOEditor,
-  nDePartida,
   NUMERO_DO_ITEM_MAX,
   pecaDePartida,
   PECAS_DE,
@@ -42,7 +48,6 @@ import {
   pecasDoItemGuardadas,
   pecasDoItemLidas,
   PENTE_MAX,
-  regraDaCondicaoPeloNome,
   ROTULO_DA_PARTE,
   ROTULO_DA_PECA,
   ROTULO_DO_BONUS,
@@ -57,7 +62,6 @@ import { CampoDoAlcance } from './batalha/alcance/CampoDoAlcance'
 import { CampoInteiro, Marcar } from './batalha/blocos/controles'
 import { ImagemOuIniciais } from './FichaPecas'
 import { CloseIcon } from './icons'
-import { LinhaDoGatilho } from './condicoes/LinhaDoGatilho'
 import { PinImageDrop } from './PinImageDrop'
 import { DarAFichas } from './DarAFichas'
 import './ItemDoCatalogoDialog.css'
@@ -386,6 +390,7 @@ function PecasDoBloco({
     )
   }
   const opcoesDeCondicao = (nome: string) => (condicoes.includes(nome) ? condicoes : [nome, ...condicoes]).map((valor) => ({ valor, rotulo: valor }))
+  const catalogo = useCatalogoDoSeletor()
   return (
     <Secao titulo={titulo} sub={sub}>
       {pecas.length === 0 ? (
@@ -397,41 +402,7 @@ function PecasDoBloco({
             return (
               <li key={indice} className="lb-edi-peca" data-erro={dobra ? '' : undefined}>
                 <div className="lb-edi-peca__campos">
-                  {peca.tipo === 'condicao' && (
-                    <>
-                      <CampoEscolha
-                        rotulo={onde === 'uso' ? 'Quem recebe fica' : 'Quem é atingido fica'}
-                        valor={peca.nome}
-                        opcoes={opcoesDeCondicao(peca.nome)}
-                        onMudar={(nome) => {
-                          const n = nDePartida(nome)
-                          mudarUma(indice, { tipo: 'condicao', nome, duracao: peca.duracao, ...(n === undefined ? {} : { n }), ...(peca.gatilho === undefined ? {} : { gatilho: peca.gatilho }) })
-                        }}
-                      />
-                      <CampoEscolha
-                        rotulo="Quanto tempo dura"
-                        valor={String(peca.duracao)}
-                        opcoes={DURACOES_NO_EDITOR.map((opcao) => ({ valor: String(opcao.duracao), rotulo: opcao.rotulo }))}
-                        onMudar={(texto) => {
-                          const duracao: DuracaoNoEditor = texto === '1' ? 1 : texto === '2' ? 2 : texto === '3' ? 3 : 'fim'
-                          mudarUma(indice, { ...peca, duracao })
-                        }}
-                      />
-                      {regraDaCondicaoPeloNome(peca.nome) === 'cura' && <CampoInteiro rotulo="A cura cai" valor={peca.n ?? 50} minimo={1} maximo={100} depois="%" onChange={(n) => mudarUma(indice, { ...peca, n })} />}
-                      {regraDaCondicaoPeloNome(peca.nome) === 'vida' && <CampoInteiro rotulo="Perde de vida por vez" valor={peca.n ?? 1} minimo={1} maximo={99} onChange={(n) => mudarUma(indice, { ...peca, n })} />}
-                      {regraDaCondicaoPeloNome(peca.nome) === 'narra' && <span className="lb-field__hint">Sem regra: o mestre narra.</span>}
-                      {onde === 'acerto' && (
-                        <LinhaDoGatilho
-                          gatilho={peca.gatilho}
-                          condicoes={condicoes}
-                          onMudar={(gatilho) => {
-                            const { gatilho: _antes, ...semGatilho } = peca
-                            mudarUma(indice, gatilho === undefined ? semGatilho : { ...semGatilho, gatilho })
-                          }}
-                        />
-                      )}
-                    </>
-                  )}
+                  {peca.tipo === 'condicao' && <PecaCondicaoDoItem peca={peca} onde={onde} catalogo={catalogo} onMudar={(nova) => mudarUma(indice, nova)} />}
                   {peca.tipo === 'dano' && <CampoInteiro rotulo="Mais dano extra" valor={peca.valor} minimo={1} maximo={NUMERO_DO_ITEM_MAX} onChange={(valor) => mudarUma(indice, { tipo: 'dano', valor })} />}
                   {peca.tipo === 'empurrar' && <CampoInteiro rotulo="O alvo é empurrado" valor={peca.casas} minimo={1} maximo={CASAS_DO_ITEM_MAX} depois={peca.casas === 1 ? 'casa para trás' : 'casas para trás'} onChange={(casas) => mudarUma(indice, { tipo: 'empurrar', casas })} />}
                   {peca.tipo === 'curar' && <CampoInteiro rotulo="Cura" valor={peca.fixo} minimo={1} maximo={NUMERO_DO_ITEM_MAX} depois="de vida" onChange={(fixo) => mudarUma(indice, { tipo: 'curar', fixo })} />}
@@ -504,13 +475,69 @@ function useSistemaDoEditor(): SistemaDeRpg {
   return useRpgStore((state) => sistemaPorId(state.biblioteca, doLivro ?? daAventura) ?? sistemaPorId(state.biblioteca, daAventura)) ?? SISTEMA_ONE_PIECE
 }
 
-/** As condições que a peça Condição oferece: as de fábrica, as que a batalha conhece e as criadas pelo mestre. */
+/** As condições que as peças do item oferecem: as do catálogo (de fábrica e as criadas), a mesma lista das técnicas (rework das condições, E7). */
 function useNomesDasCondicoes(): string[] {
-  const proprias = useCondicoesPropriasStore((state) => state.catalogo)
-  return useMemo(() => {
-    const nomes = [NOME_DA_CURA_REDUZIDA, 'Sangrando', 'Queimando', ...TOKEN_CONDITION_ORDER.map((id) => TOKEN_CONDITION_LABELS[id]), ...proprias.map((condicao) => condicao.nome)]
-    return [...new Set(nomes)]
-  }, [proprias])
+  const catalogo = useCatalogoDoSeletor()
+  return useMemo(() => catalogo.opcoes.map((opcao) => opcao.nome), [catalogo])
+}
+
+/** O prazo da condição no "Quanto tempo dura" do item (D6: o padrão é o dela); o item guarda até 3 turnos ou o fim da batalha. */
+function duracaoDoItem(prazo: PrazoDaCondicao, antes: DuracaoNoEditor): DuracaoNoEditor {
+  if (prazo.modo === 'ateTirar' || prazo.modo === 'batalha') return 'fim'
+  const turnos = turnosDaCondicao(prazo, DURACAO_DO_ITEM_NA_TELA_MAX)
+  return turnos === 1 ? 1 : turnos === 2 ? 2 : turnos === 3 ? 3 : antes
+}
+
+/** O teto do "Quanto tempo dura" do item hoje (`DURACOES_NO_EDITOR`). */
+const DURACAO_DO_ITEM_NA_TELA_MAX = 3
+
+/**
+ * A peça Condição do item (rework das condições, E7, D4 e D6): escolhe QUAL condição, do catálogo, e por
+ * quanto tempo; a regra é da condição, com a frase curta dela. O `n` e o gatilho próprios de antes
+ * continuam valendo e ficam à vista em "Regra própria (de antes)"; número novo se põe na condição.
+ */
+function PecaCondicaoDoItem({ peca, onde, catalogo, onMudar }: { peca: PecaDoItemQuePoe; onde: OndeDaPeca; catalogo: CatalogoDoSeletor; onMudar: (peca: PecaDoItemQuePoe) => void }) {
+  const id = useId()
+  const condicao = peca.nome.trim() === '' ? null : condicaoDoSeletor(catalogo, peca.nome)
+  const frase = condicao === null ? '' : fraseCurta(condicao.montada, catalogo.contexto)
+  const legado = legadoDaPecaDoItem(peca, condicao === null ? null : condicao.regra)
+  const naLista = catalogo.opcoes.some((opcao) => opcao.nome === peca.nome)
+  return (
+    <>
+      <label className="lb-field" htmlFor={id}>
+        <span className="lb-label">{onde === 'uso' ? 'Quem recebe fica' : 'Quem é atingido fica'}</span>
+        <select
+          id={id}
+          className="lb-input"
+          value={peca.nome}
+          onChange={(evento) => {
+            const opcao = catalogo.opcoes.find((candidata) => candidata.nome === evento.target.value)
+            if (opcao === undefined) return
+            // A condição nova traz o prazo dela; o número de antes era da outra condição e sai; o gatilho de antes fica.
+            onMudar({ tipo: 'condicao', nome: opcao.nome, duracao: duracaoDoItem(opcao.condicao.montada.prazo, peca.duracao), ...(peca.gatilho === undefined ? {} : { gatilho: peca.gatilho }) })
+          }}
+        >
+          {!naLista && <option value={peca.nome}>{peca.nome === '' ? 'Nenhuma' : peca.nome}</option>}
+          <OpcoesDeCondicao catalogo={catalogo} />
+        </select>
+      </label>
+      <CampoEscolha
+        rotulo="Quanto tempo dura"
+        valor={String(peca.duracao)}
+        opcoes={DURACOES_NO_EDITOR.map((opcao) => ({ valor: String(opcao.duracao), rotulo: opcao.rotulo }))}
+        onMudar={(texto) => {
+          const duracao: DuracaoNoEditor = texto === '1' ? 1 : texto === '2' ? 2 : texto === '3' ? 3 : 'fim'
+          onMudar({ ...peca, duracao })
+        }}
+      />
+      <span className="lb-field__hint">
+        {condicao === null ? 'Fora do catálogo: o mestre narra.' : `${frase === '' ? 'Sem peça: o mestre narra' : frase}. O prazo dela: ${prazoCurto(condicao.montada.prazo)}.`}
+      </span>
+      {legado !== null && (
+        <RegraDeAntes legado={legado} nome={peca.nome} catalogo={catalogo} onUsarSoACondicao={() => onMudar(pecaDoItemSoComACondicao(peca))} onVirou={(nome) => onMudar({ ...pecaDoItemSoComACondicao(peca), nome })} />
+      )}
+    </>
+  )
 }
 
 export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, onDar, onClose, imagemDoBlob, escolherImagem }: ItemDoCatalogoDialogProps) {

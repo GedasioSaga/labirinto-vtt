@@ -1,275 +1,139 @@
 import { useId } from 'react'
-import { DANO_MAX, MODS_POR_SELO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX } from '../../../lib/batalha/combate'
-import { comportamentoDoSelo, SELOS_COM_REGRA } from '../../../lib/batalha/condicoes'
-import { ATRIBUTO_MAX, CASAS_MAX, FORMULA_MAX, VALES_DO_ALCANCE, type AlcanceDoSelo, type Efeito, type ModDaPeca, type NumeroSimples, type RegraDoSelo, type ValeParaOAlcance } from '../../../lib/batalha/mecanica/modelo'
-import { frasesDoSelo, type FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
-import { SELOS_PRONTOS } from '../../../lib/batalha/selos'
-import { CampoInteiro, Escolha, Marcar, Texto, type Opcao } from './controles'
+import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX } from '../../../lib/batalha/combate'
+import type { DuracaoDoSelo, Efeito } from '../../../lib/batalha/mecanica/modelo'
+import type { FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
+import { prazoCurto, fraseCurta } from '../../../lib/condicoes/frasesDaCondicao'
+import { legadoDoSelo, seloSoComACondicao } from '../../../lib/condicoes/legado'
+import { condicaoDoSeletor, duracaoDoPrazo, useCatalogoDoSeletor, type OpcaoDeCondicao } from '../editor/pecas/condicoesNoSeletor'
+import { OpcoesDeCondicao } from '../editor/pecas/controlesDaPeca'
+import { RegraDeAntes } from '../editor/pecas/RegraDeAntes'
+import { CampoInteiro, Escolha, Texto } from './controles'
 
 /**
- * O SELO DA PEÇA (construtor C5; fase 5 de SISTEMA.md): o nome (pronto com
- * regra ou livre), em quem cai, os números que soma ("Força +20"), a regra
- * própria (dano e cura recebidos), o que mexe por vez (tira HP pelo lembrete,
- * tira SP no fim da vez com o dreno, ou regenera) e por quanto tempo. A regra
- * do nome (`condicoes.ts`) continua valendo, então a frase muda enquanto o
- * mestre digita.
+ * O SELO DA PEÇA (construtor C5; rework das condições, E7, D4 e D6): quem põe escolhe QUAL condição, do
+ * catálogo (as 35 de fábrica e, no app, as criadas), em quem cai e por quanto tempo. A regra é da
+ * condição: a frase curta dela aparece logo abaixo. O nome livre (fora do catálogo) continua valendo, sem
+ * regra, como antes.
+ *
+ * Os números próprios de antes (`mods`, `regra`, `porTurno`, `alcance`, `gatilho`) continuam guardados e
+ * valendo por cima dos da condição (D4); a tela os mostra em "Regra própria (de antes)", sem campo para
+ * mudar, com "Usar só a condição" e "Virar condição nova". Número novo se põe na condição (Livros ›
+ * Condições), não aqui.
+ *
+ * O selo é o mesmo nas técnicas, nas armas e nos itens do editor de habilidades: o formato guardado não
+ * muda.
  */
 
 export type SeloDaPeca = Extract<Efeito, { tipo: 'selo' }>
 type ComoDura = 'vezes' | 'proximoGolpe' | 'ateTirar'
 type EmQuemDoSelo = 'alvo' | 'quemUsa' | 'atacante'
-type PorVez = 'nada' | 'tiraHp' | 'tiraSp' | 'daHp' | 'daSp'
 
-/** O selo sem uma das chaves opcionais. */
-function semChave<K extends 'porTurno' | 'em' | 'mods' | 'regra' | 'alcance'>(selo: SeloDaPeca, chave: K): Omit<SeloDaPeca, K> {
-  const { [chave]: _fora, ...resto } = selo
+/** O valor do `<select>` para o nome fora do catálogo (um nome de condição nunca começa com "_"). */
+const NOME_LIVRE = '__nome_livre__'
+
+/** O selo sem o "em quem" (o padrão é o alvo). */
+function semEmQuem(selo: SeloDaPeca): SeloDaPeca {
+  const { em: _fora, ...resto } = selo
   return resto
 }
 
-function porVezDo(selo: SeloDaPeca): PorVez {
-  const porTurno = selo.porTurno
-  if (porTurno === undefined) return 'nada'
-  if (porTurno.sinal === 'da') return porTurno.recurso === 'hp' ? 'daHp' : 'daSp'
-  return porTurno.recurso === 'hp' ? 'tiraHp' : 'tiraSp'
+/** A condição escolhida: o nome, a natureza pelo tipo dela e o prazo dela (D6: o padrão é o prazo da condição). */
+function comACondicao(selo: SeloDaPeca, opcao: OpcaoDeCondicao): SeloDaPeca {
+  return { ...selo, nome: opcao.nome, natureza: opcao.tipo === 'positiva' ? 'buff' : 'debuff', duracao: duracaoDoPrazo(opcao.condicao.montada.prazo) }
 }
 
-const POR_VEZ: readonly Opcao<PorVez>[] = [
-  { valor: 'nada', rotulo: 'Nada' },
-  { valor: 'tiraHp', rotulo: 'Tira HP' },
-  { valor: 'tiraSp', rotulo: 'Tira SP' },
-  { valor: 'daHp', rotulo: 'Regenera HP' },
-  { valor: 'daSp', rotulo: 'Regenera SP' },
-]
-
-/** O "por vez" novo, com o número que já havia (ou 10). */
-function porTurnoNovo(como: Exclude<PorVez, 'nada'>, fixo: number): NonNullable<SeloDaPeca['porTurno']> {
-  const recurso = como === 'tiraHp' || como === 'daHp' ? 'hp' : 'sp'
-  return como === 'daHp' || como === 'daSp' ? { recurso, quanto: { fixo }, direto: true, sinal: 'da' } : { recurso, quanto: { fixo }, direto: true }
-}
-
-const FRASE_DO_POR_VEZ: Readonly<Record<Exclude<PorVez, 'nada'>, string>> = {
-  tiraHp: 'de HP no começo de cada vez dele, direto (o mestre clica Aplicar)',
-  tiraSp: 'de SP no fim de cada vez dele',
-  daHp: 'de HP no fim de cada vez dele',
-  daSp: 'de SP no fim de cada vez dele',
-}
-
-/** "20", "-20" = número fixo; outro texto = fórmula na ficha de quem usa ("Força * 0,1"). */
-export function deltaDoTexto(texto: string): NumeroSimples {
-  const limpo = texto.trim()
-  if (/^[-+]?\d+$/.test(limpo)) {
-    const valor = Number(limpo)
-    if (Math.abs(valor) <= DANO_MAX) return { fixo: valor }
-  }
-  return { formula: texto }
-}
-
-export function textoDoDelta(delta: NumeroSimples): string {
-  return 'fixo' in delta ? (delta.fixo > 0 ? `+${delta.fixo}` : String(delta.fixo)) : delta.formula
-}
-
-/** Um número do selo: o que muda (atributo da ficha, o dano ou a reação) e quanto. */
-function NumeroDoSelo({ mod, indice, ficha, onChange, onTirar }: { mod: ModDaPeca; indice: number; ficha: FichaDaPrevia; onChange: (mod: ModDaPeca) => void; onTirar: () => void }) {
-  const id = useId()
-  const opcoes = [...ficha.sistema.atributos.map((atributo) => ({ valor: atributo.id, rotulo: atributo.nome })), { valor: 'dano', rotulo: 'Dano' }, { valor: 'reacao', rotulo: 'Reação' }]
-  return (
-    <div className="lb-mec__linha lb-mec__linha--recuo">
-      <span className="lb-mec__texto">
-        <label className="lb-mec__numero-rotulo" htmlFor={id}>
-          {`Número ${indice + 1}`}
-        </label>
-        <select id={id} className="lb-input" value={mod.alvo} onChange={(event) => onChange({ ...mod, alvo: event.target.value.slice(0, ATRIBUTO_MAX) })}>
-          {opcoes.map((opcao) => (
-            <option key={opcao.valor} value={opcao.valor}>
-              {opcao.rotulo}
-            </option>
-          ))}
-        </select>
-      </span>
-      <Texto rotulo="Quanto" valor={textoDoDelta(mod.delta)} maximo={FORMULA_MAX} placeholder="Ex.: +20 ou -10" onChange={(texto) => onChange({ ...mod, delta: deltaDoTexto(texto) })} />
-      <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" aria-label={`Tirar o número ${indice + 1} do selo`} onClick={onTirar}>
-        ×
-      </button>
-    </div>
-  )
-}
-
-/** Fase F do alcance: o selo de partida que muda o alcance (o Ofuscado do protótipo: -2 em tudo). */
-const ALCANCE_DO_SELO_DE_PARTIDA: AlcanceDoSelo = { mexe: 'soma', n: -2, vale: 'tudo' }
-
-const NOMES_DOS_VALES: Record<ValeParaOAlcance, string> = { tudo: 'Tudo', armas: 'Só armas', habilidades: 'Só habilidades', itens: 'Só itens' }
-
-/**
- * Fase F do alcance (ALCANCE.md §8, "Selo"): quem tem o selo ganha ou perde casas de alcance
- * (+N ou -N, nunca abaixo de 1) ou fica com no máximo N, valendo para tudo ou só armas,
- * habilidades ou itens. A batalha aplica as somas, depois o menor máximo (`alcanceComCondicoes`).
- */
-function AlcanceDaPeca({ selo, onChange }: { selo: SeloDaPeca; onChange: (selo: SeloDaPeca) => void }) {
-  const alcance = selo.alcance
-  const trocar = (novo: AlcanceDoSelo) => onChange({ ...selo, alcance: novo })
-  return (
-    <>
-      <Marcar rotulo="Muda o alcance de quem tem o selo" marcado={alcance !== undefined} onChange={(sim) => onChange(sim ? { ...selo, alcance: ALCANCE_DO_SELO_DE_PARTIDA } : semChave(selo, 'alcance'))} />
-      {alcance !== undefined && (
-        <div className="lb-mec__linha lb-mec__linha--recuo">
-          <Escolha
-            legenda="Como"
-            opcoes={[
-              { valor: 'soma', rotulo: 'Soma ou tira' },
-              { valor: 'teto', rotulo: 'No máximo' },
-            ]}
-            valor={alcance.mexe}
-            onChange={(mexe) => trocar({ ...alcance, mexe, n: mexe === 'teto' ? Math.max(1, Math.abs(alcance.n)) : alcance.n })}
-          />
-          {alcance.mexe === 'teto' ? (
-            <CampoInteiro rotulo="No máximo" valor={alcance.n} minimo={1} maximo={CASAS_MAX} depois={alcance.n === 1 ? 'casa' : 'casas'} onChange={(n) => trocar({ ...alcance, n })} />
-          ) : (
-            <CampoInteiro
-              rotulo="Casas"
-              valor={alcance.n}
-              minimo={-CASAS_MAX}
-              maximo={CASAS_MAX}
-              depois="(−2 = 2 a menos; +2 = 2 a mais)"
-              // O 0 não muda nada e o disco não aceita: passa direto para o outro lado de quem vinha.
-              onChange={(n) => trocar({ ...alcance, n: n === 0 ? (alcance.n > 0 ? -1 : 1) : n })}
-            />
-          )}
-          <Escolha legenda="Vale para" opcoes={VALES_DO_ALCANCE.map((vale) => ({ valor: vale, rotulo: NOMES_DOS_VALES[vale] }))} valor={alcance.vale} onChange={(vale) => trocar({ ...alcance, vale })} />
-        </div>
-      )}
-      {alcance !== undefined && <p className="lb-field__hint lb-mec__regra">Na mira aparece o porquê: "Alcance 6 → 4 ({selo.nome.trim().length > 0 ? selo.nome.trim() : 'o selo'})". Primeiro as somas, depois o máximo; nunca abaixo de 1.</p>}
-    </>
-  )
-}
-
-/** A regra de partida: toma 20% a menos de dano; a cura recebida cai pela metade. */
-const DANO_RECEBIDO_DE_PARTIDA = -20
-const CURA_RECEBIDA_DE_PARTIDA = -50
-/** Teto da regra do selo (+200% = toma o triplo), o mesmo da leitura. */
-const REGRA_MAX = 200
-
-/**
- * CURA REDUZIDA (decisão do dono de 25/11/2026): escolher a condição já liga o "Muda a cura" no corte
- * dela (−50), para o % ficar à vista e mudável aqui. A que já tem o próprio % fica como está.
- */
-function comOCorteDaCura(selo: SeloDaPeca): SeloDaPeca {
-  const corte = comportamentoDoSelo(selo.nome)?.curaRecebida
-  if (corte === undefined || selo.regra?.curaRecebida !== undefined) return selo
-  return { ...selo, regra: { ...selo.regra, curaRecebida: corte } }
-}
-
-function RegraDaPeca({ selo, onChange }: { selo: SeloDaPeca; onChange: (selo: SeloDaPeca) => void }) {
-  const regra = selo.regra ?? {}
-  const trocar = (nova: RegraDoSelo) => onChange(nova.danoRecebido === undefined && nova.curaRecebida === undefined ? semChave(selo, 'regra') : { ...selo, regra: nova })
-  const semUma = (chave: 'danoRecebido' | 'curaRecebida'): RegraDoSelo => {
-    const { [chave]: _fora, ...resto } = regra
-    return resto
-  }
-  return (
-    <>
-      <Marcar rotulo="Muda o dano que quem tem o selo recebe" marcado={regra.danoRecebido !== undefined} onChange={(sim) => trocar(sim ? { ...regra, danoRecebido: DANO_RECEBIDO_DE_PARTIDA } : semUma('danoRecebido'))} />
-      {regra.danoRecebido !== undefined && (
-        <div className="lb-mec__linha lb-mec__linha--recuo">
-          <CampoInteiro rotulo="Dano recebido" valor={regra.danoRecebido} minimo={-100} maximo={REGRA_MAX} depois="% (−20 = toma 20% a menos; +50 = 50% a mais)" onChange={(danoRecebido) => trocar({ ...regra, danoRecebido })} />
-        </div>
-      )}
-      <Marcar rotulo="Muda a cura que quem tem o selo recebe" marcado={regra.curaRecebida !== undefined} onChange={(sim) => trocar(sim ? { ...regra, curaRecebida: CURA_RECEBIDA_DE_PARTIDA } : semUma('curaRecebida'))} />
-      {regra.curaRecebida !== undefined && (
-        <div className="lb-mec__linha lb-mec__linha--recuo">
-          <CampoInteiro rotulo="Cura recebida" valor={regra.curaRecebida} minimo={-100} maximo={REGRA_MAX} depois="% (−50 = metade)" onChange={(curaRecebida) => trocar({ ...regra, curaRecebida })} />
-        </div>
-      )}
-    </>
-  )
+/** "3 vezes", "até o próximo golpe", "até tirarem": a duração do selo em palavras. */
+function duracaoEmPalavras(duracao: DuracaoDoSelo): string {
+  if (typeof duracao === 'number') return `${duracao} ${duracao === 1 ? 'vez' : 'vezes'}`
+  return duracao === 'proximoGolpe' ? 'até o próximo golpe' : 'até tirarem'
 }
 
 interface PecasDoSeloProps {
   selo: SeloDaPeca
-  /** O golpe é de ajuda (aliado ou em si): o selo pronto com regra (Atordoado...) não aparece. */
+  /** O golpe é de ajuda (aliado ou em si): o "em quem cai" diz "em quem recebe". */
   ajuda: boolean
   /** Fase 4: em quem o selo pode cair, pelo "Quando usa" (só na reação = só em quem atacou). */
   emQuemPode: readonly EmQuemDoSelo[]
   /** Por que "em quem usa" não pode agora (já há outro selo nele); `null` = pode. */
   bloqueioEmQuemUsa: string | null
   listaId: string
+  /** A ficha de quem usa (as frases da prévia); a regra da condição não depende dela. */
   ficha: FichaDaPrevia
   onChange: (selo: SeloDaPeca) => void
 }
 
 const ROTULO_DE_EM_QUEM: Readonly<Record<EmQuemDoSelo, string>> = { alvo: 'No alvo', quemUsa: 'Em quem usa', atacante: 'Em quem atacou (só quando reage)' }
 
-export function PecasDoSelo({ selo, ajuda, emQuemPode, bloqueioEmQuemUsa, listaId, ficha, onChange }: PecasDoSeloProps) {
-  const regra = comportamentoDoSelo(selo.nome)
-  const pronto = regra === null ? undefined : SELOS_COM_REGRA.find((nome) => comportamentoDoSelo(nome) === regra)
-  const frases = frasesDoSelo(selo, ficha)
-  const daRegra = regra?.porVez
-  const porVez = porVezDo(selo)
+export function PecasDoSelo({ selo, ajuda, emQuemPode, bloqueioEmQuemUsa, listaId, onChange }: PecasDoSeloProps) {
+  const idDaCondicao = useId()
+  const catalogo = useCatalogoDoSeletor()
+  const naLista = catalogo.opcoes.find((opcao) => opcao.nome === selo.nome)
+  // Pelo nome, como a batalha acha (D5: o apelido e o "Atordoado 2" também acham a de fábrica).
+  const condicao = selo.nome.trim() === '' ? null : condicaoDoSeletor(catalogo, selo.nome.trim())
+  const frase = condicao === null ? '' : fraseCurta(condicao.montada, catalogo.contexto)
+  const legado = legadoDoSelo(selo)
   const como: ComoDura = typeof selo.duracao === 'number' ? 'vezes' : selo.duracao
-  const mods = selo.mods ?? []
   const em: EmQuemDoSelo = selo.em ?? 'alvo'
-  const trocarMods = (novos: readonly ModDaPeca[]) => onChange(novos.length === 0 ? semChave(selo, 'mods') : { ...selo, mods: novos })
-  const primeiroAtributo = ficha.sistema.atributos.at(0)?.id ?? 'dano'
-  const tira = selo.porTurno
+  const prazoDela = condicao === null ? null : duracaoDoPrazo(condicao.montada.prazo)
   return (
     <div className="lb-mec__selo">
       <datalist id={listaId}>
-        {[...SELOS_COM_REGRA, ...SELOS_PRONTOS.filter((nome) => comportamentoDoSelo(nome) === null)].map((nome) => (
-          <option key={nome} value={nome} />
+        {catalogo.opcoes.map((opcao) => (
+          <option key={opcao.condicao.id} value={opcao.nome} />
         ))}
       </datalist>
-      {!ajuda && (
-        <Escolha
-          legenda="Selo pronto"
-          opcoes={[...SELOS_COM_REGRA.map((nome) => ({ valor: nome, rotulo: nome })), { valor: 'outro' as const, rotulo: 'Outro' }]}
-          valor={pronto ?? 'outro'}
-          onChange={(nome) => onChange(comOCorteDaCura(semChave({ ...selo, nome: nome === 'outro' ? '' : nome }, 'porTurno')))}
-        />
-      )}
       <div className="lb-mec__linha">
-        <Texto rotulo="Nome do selo" valor={selo.nome} maximo={NOME_DO_SELO_MAX} lista={listaId} placeholder="Ex.: Envenenado" onChange={(nome) => onChange({ ...selo, nome })} />
+        <span className="lb-mec__texto">
+          <label className="lb-mec__numero-rotulo" htmlFor={idDaCondicao}>
+            Condição
+          </label>
+          <select
+            id={idDaCondicao}
+            className="lb-input"
+            value={naLista === undefined ? NOME_LIVRE : naLista.nome}
+            onChange={(evento) => {
+              const valor = evento.target.value
+              if (valor === NOME_LIVRE) {
+                if (naLista !== undefined) onChange({ ...selo, nome: '' })
+                return
+              }
+              const opcao = catalogo.opcoes.find((candidata) => candidata.nome === valor)
+              if (opcao !== undefined) onChange(comACondicao(selo, opcao))
+            }}
+          >
+            <OpcoesDeCondicao catalogo={catalogo} />
+            <option value={NOME_LIVRE}>Outro nome (sem regra)</option>
+          </select>
+        </span>
       </div>
-      <p className="lb-field__hint lb-mec__regra">{frases.length === 0 ? 'Sem regra própria: o app só mostra o selo na carta.' : `O que faz: ${frases.join('; ')}.`}</p>
+      {naLista === undefined && (
+        <div className="lb-mec__linha lb-mec__linha--recuo">
+          <Texto rotulo="Nome do selo" valor={selo.nome} maximo={NOME_DO_SELO_MAX} lista={listaId} placeholder="Ex.: Selo da Lua" onChange={(nome) => onChange({ ...selo, nome })} />
+        </div>
+      )}
+      <p className="lb-field__hint lb-mec__regra">
+        {condicao === null
+          ? 'Nome fora do catálogo: o app só mostra o selo na carta (crie a condição em Livros › Condições para ela ter regra).'
+          : frase === ''
+            ? `${condicao.nome}: sem peça, o mestre narra.`
+            : `${naLista === undefined ? `Vale como ${condicao.nome}: ` : 'O que faz: '}${frase}`}
+      </p>
       {emQuemPode.length > 1 && (
         <Escolha<EmQuemDoSelo>
           legenda="Em quem cai"
           opcoes={emQuemPode.map((valor) => ({ valor, rotulo: valor === 'alvo' && ajuda ? 'Em quem recebe' : ROTULO_DE_EM_QUEM[valor], bloqueio: valor === 'quemUsa' && em !== 'quemUsa' ? bloqueioEmQuemUsa : null }))}
           valor={em}
-          onChange={(novo) => onChange(novo === 'alvo' ? semChave(selo, 'em') : { ...selo, em: novo })}
+          onChange={(novo) => onChange(novo === 'alvo' ? semEmQuem(selo) : { ...selo, em: novo })}
         />
       )}
-      {mods.map((mod, indice) => (
-        <NumeroDoSelo key={`${indice}-${mods.length}`} mod={mod} indice={indice} ficha={ficha} onChange={(novo) => trocarMods(mods.map((atual, j) => (j === indice ? novo : atual)))} onTirar={() => trocarMods(mods.filter((_, j) => j !== indice))} />
-      ))}
-      {mods.length < MODS_POR_SELO_MAX && (
-        <button type="button" className="lb-btn lb-btn--compact lb-mec__mais" onClick={() => trocarMods([...mods, { alvo: primeiroAtributo, delta: { fixo: 20 } }])}>
-          + Número (Força +20, Dano -10)
-        </button>
-      )}
-      {mods.length > 0 && <p className="lb-field__hint lb-mec__regra">O número entra na conta de quem tem o selo enquanto ele durar; negativo tira.</p>}
-      <RegraDaPeca selo={selo} onChange={onChange} />
-      <AlcanceDaPeca selo={selo} onChange={onChange} />
-      {daRegra !== undefined && regra !== null ? (
-        <p className="lb-field__hint lb-mec__regra">{`${regra.nome} sempre tira ${daRegra} de HP por vez, pelo nome.`}</p>
-      ) : (
-        <div className="lb-mec__linha">
-          <Escolha<PorVez> legenda="A cada vez" opcoes={POR_VEZ} valor={porVez} onChange={(novo) => onChange(novo === 'nada' ? semChave(selo, 'porTurno') : { ...selo, porTurno: porTurnoNovo(novo, tira?.quanto.fixo ?? 10) })} />
-          {tira !== undefined && porVez !== 'nada' && (
-            <CampoInteiro rotulo={porVez === 'daHp' || porVez === 'daSp' ? 'Ganha' : 'Tira'} valor={tira.quanto.fixo} minimo={1} maximo={DANO_MAX} depois={FRASE_DO_POR_VEZ[porVez]} onChange={(fixo) => onChange({ ...selo, porTurno: { ...tira, quanto: { fixo } } })} />
-          )}
-          {tira !== undefined && porVez === 'tiraSp' && (
-            <CampoInteiro
-              rotulo="Quem usou ganha"
-              valor={tira.paraQuemUsa ?? 0}
-              minimo={0}
-              maximo={DANO_MAX}
-              depois="de SP por vez (0 = nada)"
-              onChange={(paraQuemUsa) => {
-                const { paraQuemUsa: _antes, ...semDreno } = tira
-                onChange({ ...selo, porTurno: paraQuemUsa === 0 ? semDreno : { ...semDreno, paraQuemUsa } })
-              }}
-            />
-          )}
-        </div>
+      {legado !== null && (
+        <RegraDeAntes
+          legado={legado}
+          nome={selo.nome}
+          catalogo={catalogo}
+          onUsarSoACondicao={() => onChange(seloSoComACondicao(selo))}
+          onVirou={(nome) => onChange({ ...seloSoComACondicao(selo), nome })}
+        />
       )}
       <div className="lb-mec__linha">
         <Escolha
@@ -280,10 +144,20 @@ export function PecasDoSelo({ selo, ajuda, emQuemPode, bloqueioEmQuemUsa, listaI
             { valor: 'ateTirar', rotulo: 'Até tirarem' },
           ]}
           valor={como}
-          onChange={(novo) => onChange({ ...selo, duracao: novo === 'vezes' ? 1 : novo })}
+          onChange={(novo) => onChange({ ...selo, duracao: novo === 'vezes' ? (typeof prazoDela === 'number' ? prazoDela : 1) : novo })}
         />
         {typeof selo.duracao === 'number' && <CampoInteiro rotulo="Dura" valor={selo.duracao} minimo={1} maximo={TURNOS_DO_SELO_MAX} depois={selo.duracao === 1 ? 'vez' : 'vezes'} onChange={(duracao) => onChange({ ...selo, duracao })} />}
       </div>
+      {condicao !== null && prazoDela !== null && (
+        <p className="lb-field__hint lb-mec__regra lb-cs-prazo">
+          <span>{`O prazo de ${condicao.nome}: ${prazoCurto(condicao.montada.prazo)}.`}</span>
+          {prazoDela !== selo.duracao && (
+            <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => onChange({ ...selo, duracao: prazoDela })}>
+              {`Usar o prazo dela (${duracaoEmPalavras(prazoDela)})`}
+            </button>
+          )}
+        </p>
+      )}
       <p className="lb-field__hint lb-mec__regra">
         {typeof selo.duracao === 'number'
           ? 'Conta na vez de quem tem o selo: desce 1 no fim de cada vez dele (1 = até o fim da próxima vez dele).'

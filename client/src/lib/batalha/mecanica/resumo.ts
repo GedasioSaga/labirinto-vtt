@@ -3,6 +3,7 @@ import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import type { SaidaDaReacao } from '../combate'
 import { pedidoDaMarca, textoDoPedidoDaMarca } from '../comoMarca'
 import { comportamentoDoSelo } from '../condicoes'
+import { legadoDaFadiga } from '../../condicoes/legado'
 import { cdDaExpressao } from '../disputa'
 import { lerDano, normalizar } from '../formula'
 import { ADJETIVO_DO_TIPO, ATRIBUTO_DO_ENFRAQUECER, fraseDoEmpurrao, NOME_DO_TIPO } from './golpe'
@@ -536,7 +537,9 @@ function fraseDaTransformacao(peca: PecaTransformacao, mecanica: MecanicaV1, fic
     peca.grupo.trim() === '' ? '' : `troca com as formas do grupo ${peca.grupo.trim()}`,
     peca.marca ? 'cada ataque deixa uma marca; o próximo golpe na marca dá o dobro e ela some' : '',
   ].filter((parte) => parte !== '')
-  const fadiga = peca.fadiga ? ` Quando acaba: ${NOME_DA_FADIGA} por ${turnosNaFrase(peca.fadigaTurnos)}${peca.fadigaMods.length === 0 ? '' : ` (${peca.fadigaMods.map((mod) => `${comSinal(mod.valor)} de ${nomeDoAtributoNaFrase(mod.atributo, ficha)}`).join(', ')})`}.` : ''
+  // Rework das condições (E7): com os números da Fadiga de fábrica, a frase diz só o nome e os turnos (a regra é da condição); os números próprios de antes continuam escritos.
+  const fadigaPropria = peca.fadigaMods.length > 0 && legadoDaFadiga(peca) !== null
+  const fadiga = peca.fadiga ? ` Quando acaba: ${NOME_DA_FADIGA} por ${turnosNaFrase(peca.fadigaTurnos)}${fadigaPropria ? ` (${peca.fadigaMods.map((mod) => `${comSinal(mod.valor)} de ${nomeDoAtributoNaFrase(mod.atributo, ficha)}`).join(', ')})` : ''}.` : ''
   return `${abre}${primeiraMaiuscula(partes.join('; '))}.${fadiga}`
 }
 

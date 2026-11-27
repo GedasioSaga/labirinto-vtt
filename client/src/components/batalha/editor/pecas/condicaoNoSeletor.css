@@ -1,0 +1,64 @@
+/* O catálogo de condições nos seletores (rework das condições, E7): a frase curta da escolhida e o
+   bloco "Regra própria (de antes)". Sem animação: a escolha muda a frase na hora. */
+
+.lb-cs-frase {
+  display: block;
+  margin: 2px 0 0;
+  font-size: var(--lb-font-size-xs);
+  line-height: 1.4;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-cs-prazo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-cs-antes {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border: 1px dashed var(--lb-color-brass);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass-soft);
+}
+
+.lb-cs-antes__tit {
+  margin: 0 0 2px;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+  color: var(--lb-color-parchment);
+}
+
+.lb-cs-antes__nota {
+  margin: 0 0 4px;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-cs-antes__lista {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.4;
+  color: var(--lb-color-parchment);
+}
+
+.lb-cs-antes__lista--confira {
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-cs-antes__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lb-cs-antes__erro {
+  margin: 6px 0 0;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-ember);
+}

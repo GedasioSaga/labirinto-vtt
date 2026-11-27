@@ -1,8 +1,10 @@
 import { useCallback, useId, useState, type ReactNode } from 'react'
 import { NOME_DO_SELO_MAX } from '../../../../lib/batalha/combate'
 import { TURNOS_DA_PECA_MAX, type CondicaoDaPeca } from '../../../../lib/batalha/mecanica/pecas'
+import { opcaoDoNome, turnosDaCondicao, useCatalogoDoSeletor, type CatalogoDoSeletor, type OpcaoDeCondicao } from './condicoesNoSeletor'
 import { Glifo } from './glifos'
-import { CONDICOES_DAS_PECAS, turnos, type OpcaoDaPeca } from './vocabulario'
+import { turnos, type OpcaoDaPeca } from './vocabulario'
+import './condicaoNoSeletor.css'
 
 /**
  * OS CONTROLES DAS PEÇAS (rework do editor de habilidades, E4; `num`, `txt`, `sel`, `caixa` e `seg` do
@@ -230,42 +232,80 @@ export function PorDaLista<T extends string>({ rotulo, opcoes, onPor }: { rotulo
 const SEM_CONDICAO = ''
 
 /**
- * A condição que a peça põe: o nome (da lista do protótipo, ou o que já estava guardado) e, com
- * condição, por quantos turnos. `nenhuma` = dá para escolher "nenhuma condição" (fica ausente).
+ * As condições do catálogo como `<option>`, em grupos (negativas, positivas, as suas), com a frase curta
+ * no `title`. Vai dentro de um `<select>` de quem põe (D6: escolhe qual; a regra é da condição).
+ */
+export function OpcoesDeCondicao({ catalogo }: { catalogo: CatalogoDoSeletor }) {
+  const grupos: readonly { rotulo: string; opcoes: readonly OpcaoDeCondicao[] }[] = [
+    { rotulo: 'Negativas', opcoes: catalogo.opcoes.filter((opcao) => !opcao.criada && opcao.tipo === 'negativa') },
+    { rotulo: 'Positivas', opcoes: catalogo.opcoes.filter((opcao) => !opcao.criada && opcao.tipo === 'positiva') },
+    { rotulo: 'Criadas por você', opcoes: catalogo.opcoes.filter((opcao) => opcao.criada) },
+  ]
+  return (
+    <>
+      {grupos
+        .filter((grupo) => grupo.opcoes.length > 0)
+        .map((grupo) => (
+          <optgroup key={grupo.rotulo} label={grupo.rotulo}>
+            {grupo.opcoes.map((opcao) => (
+              <option key={opcao.condicao.id} value={opcao.nome} title={opcao.frase === '' ? undefined : opcao.frase}>
+                {opcao.nome}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+    </>
+  )
+}
+
+/**
+ * A condição que a peça põe (rework das condições, E7 e D6): qual, da lista do catálogo (de fábrica e,
+ * no app, as criadas), e por quantos turnos. Escolher já traz o prazo dela; o número muda só os turnos.
+ * A frase curta da escolhida aparece ao lado. O nome guardado fora do catálogo fica como estava.
+ * `nenhuma` = dá para escolher "nenhuma condição" (fica ausente).
  */
 export function EscolherCondicao({ rotulo, valor, nenhuma, onChange }: { rotulo: string; valor: CondicaoDaPeca | undefined; nenhuma: boolean; onChange: (valor: CondicaoDaPeca | undefined) => void }) {
+  const catalogo = useCatalogoDoSeletor()
   const nomeAtual = valor?.nome ?? SEM_CONDICAO
-  const conhecida = CONDICOES_DAS_PECAS.some((condicao) => condicao.nome === nomeAtual)
+  const escolhida = nomeAtual === SEM_CONDICAO ? undefined : opcaoDoNome(catalogo, nomeAtual)
+  const naLista = escolhida !== undefined && escolhida.nome === nomeAtual
+  const prazoDela = escolhida === undefined ? null : turnosDaCondicao(escolhida.condicao.montada.prazo, TURNOS_DA_PECA_MAX)
   return (
     <>
       <select
         className="lb-pc__sel"
         aria-label={rotulo}
         value={nomeAtual}
+        title={escolhida === undefined || escolhida.frase === '' ? undefined : escolhida.frase}
         onChange={(evento) => {
           const nome = evento.target.value
           if (nome === SEM_CONDICAO) {
             if (nenhuma) onChange(undefined)
             return
           }
-          if (nome.length <= NOME_DO_SELO_MAX) onChange({ nome, turnos: valor?.turnos ?? 1 })
+          if (nome.length > NOME_DO_SELO_MAX) return
+          const nova = opcaoDoNome(catalogo, nome)
+          const turnosDela = nova === undefined ? null : turnosDaCondicao(nova.condicao.montada.prazo, TURNOS_DA_PECA_MAX)
+          onChange({ nome, turnos: turnosDela ?? valor?.turnos ?? 1 })
         }}
       >
         {nenhuma && <option value={SEM_CONDICAO}>nenhuma condição</option>}
-        {!conhecida && nomeAtual !== SEM_CONDICAO && <option value={nomeAtual}>{nomeAtual}</option>}
-        {CONDICOES_DAS_PECAS.map((condicao) => (
-          <option key={condicao.nome} value={condicao.nome} title={condicao.faz}>
-            {condicao.nome}
-          </option>
-        ))}
+        {!naLista && nomeAtual !== SEM_CONDICAO && <option value={nomeAtual}>{nomeAtual}</option>}
+        <OpcoesDeCondicao catalogo={catalogo} />
       </select>
       {valor !== undefined && (
         <>
           <Texto>por</Texto>
           <Numero rotulo={`${rotulo}: turnos`} valor={valor.turnos} minimo={1} maximo={TURNOS_DA_PECA_MAX} onChange={(n) => onChange({ ...valor, turnos: n })} />
           <Texto>{turnos(valor.turnos)}</Texto>
+          {prazoDela !== null && prazoDela !== valor.turnos && (
+            <button type="button" className="lb-ed__bt lb-ed__bt--fantasma lb-ed__bt--p" title={`Volta aos ${prazoDela} ${turnos(prazoDela)} do prazo de ${escolhida?.nome ?? nomeAtual}`} onClick={() => onChange({ ...valor, turnos: prazoDela })}>
+              {`o prazo dela (${prazoDela})`}
+            </button>
+          )}
         </>
       )}
+      {escolhida !== undefined && escolhida.frase !== '' && <span className="lb-cs-frase">{escolhida.frase}</span>}
     </>
   )
 }

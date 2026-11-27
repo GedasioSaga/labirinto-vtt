@@ -1,3 +1,5 @@
+import { condicaoDoCatalogoPeloNome } from '../../condicoes/catalogo'
+import { fraseCurta } from '../../condicoes/frasesDaCondicao'
 import { ABA_DAS_TRANSFORMACOES } from '../../livros/catalogo'
 import { NOME_DO_TEXTO_DE_ANTES, type CampoExtra, type CartaoDaFicha, type MecanicaGuardada } from '../../personagem'
 import { abaDoSistema, type SistemaDeRpg } from '../../sistemaDeRpg'
@@ -43,6 +45,25 @@ export interface PedacoDoPapel {
   /** Ausente = só ligação (": ", ". "), sem parte. */
   linha?: ParteDoPapel
   cor?: CorDoPedaco
+  /**
+   * Rework das condições (E7): o que a condição do pedaço faz ("Queimando: perde 10 de vida…"), para o
+   * `title` do papel. O texto diz só o nome; a regra é da condição. Ausente = pedaço sem condição, ou
+   * nome fora do catálogo de fábrica (a criada mora na pasta do app, que o texto puro não vê).
+   */
+  titulo?: string
+}
+
+/** "Queimando: perde 10 de vida no começo de cada vez dele": a condição de fábrica do nome, com a frase curta; `null` = fora da fábrica, ou sem peça. */
+export function tituloDaCondicao(nome: string): string | null {
+  const condicao = condicaoDoCatalogoPeloNome(nome, [])
+  if (condicao === null) return null
+  const frase = fraseCurta(condicao.montada)
+  return frase === '' ? null : `${condicao.nome}: ${frase}`
+}
+
+/** Os pedaços com o `titulo` da condição (vazio ou `null` = como estão). */
+function comTitulo(pedacos: PedacoDoPapel[], titulo: string | null): PedacoDoPapel[] {
+  return titulo === null ? pedacos : pedacos.map((umPedaco) => ({ ...umPedaco, titulo }))
 }
 
 const COR_DO_EFEITO: Readonly<Record<Efeito['tipo'], CorDoPedaco | null>> = {
@@ -107,7 +128,7 @@ function pedacosDoCorpo(mecanica: MecanicaV1, ficha: FichaDaPrevia): PedacoDoPap
   const reacao = frasesDaReacao(mecanica, ficha)
   reacao.forEach((frase, indice) => corpo.push(...pedaco(frase, 'acerto', indice > 0 && frase.startsWith('Devolve') ? 'dano' : null)))
   const efeitos = mecanica.efeitos.filter((efeito) => daVez || efeito.tipo === 'aMao' || (efeito.tipo === 'selo' && efeito.em === 'atacante'))
-  for (const efeito of efeitos) corpo.push(...pedaco(fraseDoEfeito(efeito, mecanica, ficha), 'efeitos', COR_DO_EFEITO[efeito.tipo]))
+  for (const efeito of efeitos) corpo.push(...comTitulo(pedaco(fraseDoEfeito(efeito, mecanica, ficha), 'efeitos', COR_DO_EFEITO[efeito.tipo]), efeito.tipo === 'selo' ? tituloDaCondicao(efeito.nome) : null))
   // Versão 5 (PLANO.md decisão 2): as peças novas se escrevem sozinhas, na ordem do cartão.
   for (const frase of frasesDasPecas(mecanica, ficha)) corpo.push(...pedaco(frase, 'pecas'))
   const item = mecanica.custoEmItem

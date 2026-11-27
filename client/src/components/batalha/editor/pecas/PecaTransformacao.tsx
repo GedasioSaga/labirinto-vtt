@@ -1,6 +1,11 @@
 import type { Limite } from '../../../../lib/batalha/mecanica/modelo'
-import { MODS_DA_FORMA_MAX, NOME_CURTO_MAX, NOME_DA_FADIGA, type ModDaForma } from '../../../../lib/batalha/mecanica/pecas'
+import { MODS_DA_FORMA_MAX, NOME_CURTO_MAX, NOME_DA_FADIGA, type ModDaForma, type PecaTransformacao } from '../../../../lib/batalha/mecanica/pecas'
+import { condicaoDaFabrica } from '../../../../lib/condicoes/fabrica'
+import { fraseCurta } from '../../../../lib/condicoes/frasesDaCondicao'
+import { legadoDaFadiga } from '../../../../lib/condicoes/legado'
+import { useCatalogoDoSeletor } from './condicoesNoSeletor'
 import { Caixa, Campo, Escolher, Frase, Mais, Nota, Numero, PorDaLista, Segmentos, Texto, TextoCurto, Tirar } from './controlesDaPeca'
+import { RegraDeAntes } from './RegraDeAntes'
 import { Glifo } from './glifos'
 import { comATecnicaNaForma, pedeAForma, tecnicasDaFicha } from './ligacoes'
 import type { ArredoresDaPeca, PropsDaPeca } from './registro'
@@ -185,13 +190,36 @@ export function PecaTransformacao({ peca, mecanica, aoMudar, aoMudarAMecanica, a
           </>
         )}
       </Frase>
-      {peca.fadiga && (
-        <div className="lb-pc__frase--sub">
-          <Campo rotulo={`A ${NOME_DA_FADIGA} tira`}>
-            <ListaDeMods rotulo={NOME_DA_FADIGA} mods={peca.fadigaMods} sinal={-1} aoMudar={(fadigaMods) => aoMudar({ ...peca, fadigaMods })} />
-          </Campo>
-        </div>
-      )}
+      {peca.fadiga && <FadigaDaForma peca={peca} aoMudar={aoMudar} />}
     </>
+  )
+}
+
+/** Os números da Fadiga de fábrica no formato da forma (`fadigaMods`): o que a peça guarda quando vale só a condição. */
+function modsDaFadigaDeFabrica(): ModDaForma[] {
+  const deFabrica = condicaoDaFabrica('fadiga')
+  if (deFabrica === null) return []
+  return deFabrica.pecas.flatMap((condicao) => (condicao.tipo === 'atributo' && condicao.conta === 'fixo' && condicao.ritmo === 'umaVez' && (condicao.faz === 'tira' || condicao.faz === 'soma') ? [{ atributo: condicao.atr, valor: condicao.faz === 'tira' ? -condicao.v : condicao.v }] : []))
+}
+
+/**
+ * A Fadiga do fim da forma (rework das condições, E7; "Peça Transformação" no "onde fica" do protótipo):
+ * é a Fadiga de fábrica, e a forma escolhe só os turnos. Os números próprios de antes (`fadigaMods`
+ * diferentes dos da de fábrica) continuam valendo e ficam à vista, com "Usar só a condição".
+ */
+function FadigaDaForma({ peca, aoMudar }: { peca: PecaTransformacao; aoMudar: (peca: PecaTransformacao) => void }) {
+  const catalogo = useCatalogoDoSeletor()
+  const legado = legadoDaFadiga(peca)
+  const deFabrica = condicaoDaFabrica('fadiga')
+  const frase = deFabrica === null ? '' : fraseCurta(deFabrica, catalogo.contexto)
+  return (
+    <div className="lb-pc__frase--sub">
+      {legado === null ? (
+        <Nota>{frase === '' ? `A ${NOME_DA_FADIGA} de fábrica.` : `A ${NOME_DA_FADIGA} de fábrica: ${frase}.`}</Nota>
+      ) : (
+        // Sem "Virar condição nova": a forma põe a Fadiga pelo nome, e não guarda outro.
+        <RegraDeAntes legado={legado} nome={NOME_DA_FADIGA} catalogo={catalogo} onUsarSoACondicao={() => aoMudar({ ...peca, fadigaMods: modsDaFadigaDeFabrica() })} />
+      )}
+    </div>
   )
 }
