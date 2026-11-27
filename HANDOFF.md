@@ -1,3 +1,7 @@
+# 27/11 07:10: 0.6.5 PUBLICADA (rework do editor de habilidades)
+
+Bump a08ad97b chore(release): 0.6.5 (5 arquivos, como 8044c93f) na main e `git push origin main` (6d22a0d2..a08ad97b). Worktree ../labirinto-release (release/0.6.5 de origin/main = a08ad97b, 3 junções: raiz, client, lobby/nuvem). RAM 9,1 GB livre, disco 17,7 GB antes. CARGO_BUILD_JOBS=2 publicar-versao --publicar --com-google --notas tmp/rel-0.6.5/notas-da-versao-0.6.5.md, exit 0 na 1ª tentativa (log tmp/rel-0.6.5/publicar.log; cargo 21m45s): tsc lobby ok, assinatura do setup confere, conferir-repo-publico "nada bloqueia", Worker labirinto-nuvem 7fbc1664-8f20-48f9-868f-792620007187 (motor da batalha novo), site 0769ab5c.labirintolobby.pages.dev (200), https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.6.5 (setup.exe, .sig, msi, latest.json; alvo a08ad97b). curl releases/latest/download/latest.json: "version": "0.6.5". Limpeza: target apagado, Cargo.toml só com diferença de fim de linha restaurado, 3 junções .Delete() uma a uma (0 reparse points), worktree remove sem --force, branch release/0.6.5 apagada; node_modules compartilhado intacto. App do dono não estava aberto (nenhum processo labirinto). Mudanças de outra sessão (protocol.ts, ordem.ts, docs/verification/*.png) intocadas. Disco 17,0 GB. Nenhum teste rodado.
+
 # 26/11 ~23h30: REWORK DO EDITOR DE HABILIDADES APROVADO, construção começando
 
 ## Objetivo
