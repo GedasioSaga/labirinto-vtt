@@ -1,3 +1,18 @@
+# 26/11 ~23h30: REWORK DO EDITOR DE HABILIDADES APROVADO, construção começando
+
+## Objetivo
+Editor de habilidades único (página Habilidades e ficha), com tudo o que já existe + 8 mecânicas novas (PEDIDOS 26/11 22:40-23h), regra "uma coisa, um lugar" (texto da carta gerado das peças), transformações e acumuladores dentro do mesmo editor; conversão na leitura das antigas.
+## Estado atual
+- Protótipo em voo (designer-opus): docs/design/habilidades-rework/prototipo.html.
+- Mapa do código em voo (arquiteto-solucoes, max): docs/design/habilidades-rework/MAPA.md; depois, por SendMessage, o PLANO.md em etapas.
+- Conserto "Nova habilidade" pronto (01e21fbc), vai na 0.6.5.
+## Próximos passos
+1. Protótipo pronto: publicar artifact para o dono VER (sem esperar aprovação: ele já aprovou). 2. Mandar o arquiteto fazer o PLANO.md. 3. Workflow de construção na main (sem worktree; faixas disjuntas; commit só dos caminhos; Opus xhigh, núcleo em max; sem testes até o fim). 4. 1-3 testes certeiros + prints. 5. Publicar 0.6.5 por Agent fora do workflow.
+## Critério de pronto
+Dono cria uma habilidade nova (ex.: Overload de transformação com 2 ataques, marca que dobra dano, +20 Agilidade, fadiga) só pelo editor, ela funciona na batalha, e as fichas antigas abrem sem perda; tsc exit 0; 1-3 testes passando; latest.json 0.6.5.
+## Evidência
+(preencher na construção)
+
 # 26/11 ~23h: rework do editor de habilidades (protótipo) + conserto "Nova habilidade"
 
 ## Objetivo
