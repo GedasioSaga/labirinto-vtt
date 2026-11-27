@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
+import type { RelatorioDoCartao } from '../../../lib/batalha/mecanica/conversao/comum'
 import { lerMecanica } from '../../../lib/batalha/mecanica/modelo'
 import type { FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import { frasesDosRequisitos } from '../../../lib/batalha/requisitos/frases'
@@ -35,33 +36,33 @@ interface HabilidadeNaFichaProps {
   onModelo?: (modelo: ModeloNoEditor) => void
   /** A habilidade que acabou de nascer em branco ("+ Habilidade"): o editor abre sozinho, com o foco no Nome. */
   abrirAoNascer?: boolean
+  /** Rework D14: a aba do cartão (a conversão de leitura lê a forma pela aba); ausente = Habilidades. */
+  abaDoCartao?: string
+  /** Rework D14: o relatório da conversão da ficha (o porquê de a habilidade de antes ter ficado no texto). */
+  relatorio?: readonly RelatorioDoCartao[]
+  /** Rework D14: com ele, o Salvar do editor oferece "Guardar também no catálogo do livro". */
+  guardarNoCatalogo?: (cartao: CartaoDaFicha) => void
+  /** Rework D8: a peça grava a ligação no requisito de outro cartão da ficha. */
+  aoMudarOutroCartao?: (cartao: CartaoDaFicha) => void
 }
 
-/** Aberto: só abrir, ou abrir já fazendo algo (montar, escolher o modelo, escrever o nome). */
+/** Aberto: só abrir, ou abrir já fazendo algo (escolher o modelo, escrever o nome). */
 type Aberto = AoAbrirOEditor | 'so'
 
-/**
- * A técnica que, para quem edita, ainda é só texto: sem mecânica e (o dono) sem proposta dele. Ela
- * abre pelo papel e pelo "Montar no editor"; o texto antigo fica embaixo, recolhido.
- */
-function abreComoTexto(cartao: CartaoDaFicha, quemEdita: QuemEditaNoEditor): boolean {
-  if (lerMecanica(cartao.mecanica).tipo !== 'nenhuma') return false
-  return quemEdita !== 'dono' || lerMecanica(cartao.mecanicaProposta).tipo === 'nenhuma'
-}
-
-/** O título e a frase sem peças de cada coisa (a técnica de texto, a arma só com o dano, o item só de descrição). */
+/** O título e a frase sem peças de cada coisa (a técnica de antes, a arma só com o dano, o item só de descrição). */
 const NA_TELA: Readonly<Record<DoQueNoEditor, { titulo: string; semPecas: string; aria: string }>> = {
-  tecnica: { titulo: 'Mecânica', semPecas: 'Só texto: o app lê o Custo, a Ação e o Dano escritos.', aria: 'Mecânica e requisitos' },
+  tecnica: { titulo: 'Mecânica', semPecas: 'Ainda sem peças: a batalha lê a Ação, o Custo e o Dano escritos.', aria: 'Mecânica e requisitos' },
   arma: { titulo: 'O que ela faz', semPecas: 'Sem mecânica, o Atacar usa só o dano da arma.', aria: 'O que a arma faz e requisitos' },
   item: { titulo: 'O que ele faz', semPecas: 'Sem efeito, o item é só descrição (o mestre narra).', aria: 'O que o item faz e requisitos' },
 }
 
 /**
- * A HABILIDADE NO CARTÃO (ED5; ED7 também a arma e o item): o resumo do que ela faz e pede, e o
- * botão que abre o editor da habilidade (EDITOR.md §5). O editor carrega só ao abrir. Na ficha, no
- * livro (a entrada de habilidade e de arma) e no Acervo (o efeito do item), pela mesma porta.
+ * A HABILIDADE NO CARTÃO (ED5; ED7 também a arma e o item; rework D14): o resumo do que ela faz e
+ * pede, e o botão que abre o editor da habilidade, o único (EDITOR.md §5). O editor carrega só ao
+ * abrir. A técnica de antes, sem peças, mostra o papel do texto e abre já convertida (D11). Na ficha,
+ * no livro (a entrada de habilidade e de arma) e no Acervo (o efeito do item), pela mesma porta.
  */
-export function HabilidadeNaFicha({ cartao, ficha, quemEdita, tecnicas, podeOcultar, onChange, doQue = 'tecnica', foraDaFicha = false, trilha, gastoDoItem, onModelo, abrirAoNascer = false }: HabilidadeNaFichaProps) {
+export function HabilidadeNaFicha({ cartao, ficha, quemEdita, tecnicas, podeOcultar, onChange, doQue = 'tecnica', foraDaFicha = false, trilha, gastoDoItem, onModelo, abrirAoNascer = false, abaDoCartao, relatorio, guardarNoCatalogo, aoMudarOutroCartao }: HabilidadeNaFichaProps) {
   const [aberto, setAberto] = useState<Aberto | null>(() => (abrirAoNascer ? 'nome' : null))
   const fechar = useCallback(() => setAberto(null), [])
   const valendo = lerMecanica(cartao.mecanica)
@@ -72,6 +73,8 @@ export function HabilidadeNaFicha({ cartao, ficha, quemEdita, tecnicas, podeOcul
   }, [cartao.requisitos])
   const futura = valendo.tipo === 'futura' || (quemEdita === 'dono' && proposta?.tipo === 'futura')
   const montada = valendo.tipo === 'pecas'
+  // A técnica de antes: sem mecânica que vale e, para o dono, sem proposta dele.
+  const deAntes = doQue === 'tecnica' && valendo.tipo === 'nenhuma' && (quemEdita !== 'dono' || proposta === null || proposta.tipo === 'nenhuma')
   const textos = NA_TELA[doQue]
   const editor = aberto !== null && (
     <Suspense fallback={null}>
@@ -89,6 +92,10 @@ export function HabilidadeNaFicha({ cartao, ficha, quemEdita, tecnicas, podeOcul
         {...(trilha === undefined ? {} : { trilha })}
         {...(gastoDoItem === undefined ? {} : { gastoDoItem })}
         {...(onModelo === undefined ? {} : { onModelo })}
+        {...(abaDoCartao === undefined ? {} : { abaDoCartao })}
+        {...(relatorio === undefined ? {} : { relatorio })}
+        {...(guardarNoCatalogo === undefined ? {} : { guardarNoCatalogo })}
+        {...(aoMudarOutroCartao === undefined ? {} : { aoMudarOutroCartao })}
       />
     </Suspense>
   )
@@ -97,72 +104,45 @@ export function HabilidadeNaFicha({ cartao, ficha, quemEdita, tecnicas, podeOcul
       <b>{secao.titulo}:</b> {secao.linhas.join('; ')}.
     </p>
   ))
-  // O mestre vê a proposta do dono antes de montar por cima dela.
-  const vemDoDono = proposta !== null && quemEdita === 'mestre'
-  const conteudo =
-    doQue === 'tecnica' && abreComoTexto(cartao, quemEdita) ? (
-      <section className="lb-edf" aria-label="Habilidade só de texto">
-        <div className="lb-edf__cab">
-          <span className="lb-edf__selo">Só texto</span>
-          <span className="lb-edf__dica">a batalha lê a Ação, o Custo e o Dano escritos</span>
-        </div>
-        <PapelDoCartao cartao={cartao} linhaCurta={linhaDoTexto(cartao)} frase={fraseDoTexto(cartao)} nomeComoTitulo={false} />
-        {vemDoDono && (
-          <p className="lb-mec__aviso" role="status">
-            O dono da ficha propôs uma mecânica: veja no editor para aceitar ou recusar.
-          </p>
-        )}
-        <div className="lb-edf__acoes">
-          {vemDoDono && (
-            <button type="button" className="lb-ed__bt lb-ed__bt--primario" onClick={() => setAberto('so')}>
-              Ver a proposta
-            </button>
-          )}
-          <button type="button" className={`lb-ed__bt ${vemDoDono ? 'lb-ed__bt--latao' : 'lb-ed__bt--primario'}`} onClick={() => setAberto('montar')}>
-            Montar no editor
-          </button>
-          <button type="button" className="lb-ed__bt lb-ed__bt--latao" onClick={() => setAberto('modelo')}>
+  const conteudo = (
+    <section className="lb-mec" aria-label={textos.aria}>
+      <div className="lb-mec__cab">
+        <h5 className="lb-label lb-mec__titulo">{textos.titulo}</h5>
+        {!montada && <span className="lb-mec__cab-dica">{textos.semPecas}</span>}
+      </div>
+      {valendo.tipo === 'pecas' && <ResumoDaMecanica mecanica={valendo.mecanica} ficha={ficha} titulo={proposta !== null ? 'Vale agora' : undefined} />}
+      {deAntes && <PapelDoCartao cartao={cartao} linhaCurta={linhaDoTexto(cartao)} frase={fraseDoTexto(cartao)} nomeComoTitulo={false} />}
+      {(valendo.tipo === 'invalida' || valendo.tipo === 'futura') && (
+        <p className="lb-mec__aviso" role="note">
+          {valendo.tipo === 'futura' ? 'Mecânica de um app mais novo: atualize o app para editar.' : `Mecânica que não se lê: ${valendo.motivo}. O editor troca por um modelo.`}
+        </p>
+      )}
+      {proposta !== null && (
+        <p className="lb-mec__aviso" role="status">
+          {quemEdita === 'mestre' ? 'O dono da ficha propôs uma mecânica: abra o editor para aceitar ou recusar.' : 'Sua proposta espera o mestre. Até ele aceitar, vale o que está acima.'}
+        </p>
+      )}
+      {requisitosNaTela}
+      <div className="lb-mec__acoes">
+        <button type="button" className="lb-btn lb-btn--compact" disabled={futura} title={futura ? 'Feita num app mais novo: atualize o app para editar' : undefined} onClick={() => setAberto('so')}>
+          {quemEdita === 'dono' ? 'Abrir o editor (vai ao mestre)' : 'Abrir o editor'}
+        </button>
+        {deAntes && (
+          <button type="button" className="lb-btn lb-btn--compact lb-btn--ghost" onClick={() => setAberto('modelo')}>
             Começar de um modelo
           </button>
-          {!vemDoDono && (
-            <button type="button" className="lb-ed__bt lb-ed__bt--fantasma" onClick={() => setAberto('so')}>
-              Abrir sem montar
-            </button>
-          )}
-        </div>
-        <p className="lb-edf__dica">
+        )}
+      </div>
+      {deAntes && (
+        <p className="lb-field__hint">
           {quemEdita === 'dono'
-            ? 'Montar vira uma proposta: vai ao mestre quando você salvar a ficha, e o texto vale até ele aceitar.'
-            : 'Montar lê o que está escrito e monta as peças. O texto de agora fica guardado; o Desmontar o devolve.'}
+            ? 'O que você montar no editor vira uma proposta: vai ao mestre quando você salvar a ficha, e o texto vale até ele aceitar.'
+            : 'O editor abre com as peças que ele entende do texto; o texto de antes fica guardado em Campos extras.'}
         </p>
-        {requisitosNaTela}
-      </section>
-    ) : (
-      <section className="lb-mec" aria-label={textos.aria}>
-        <div className="lb-mec__cab">
-          <h5 className="lb-label lb-mec__titulo">{textos.titulo}</h5>
-          {!montada && <span className="lb-mec__cab-dica">{textos.semPecas}</span>}
-        </div>
-        {valendo.tipo === 'pecas' && <ResumoDaMecanica mecanica={valendo.mecanica} ficha={ficha} titulo={proposta !== null ? 'Vale agora' : undefined} />}
-        {(valendo.tipo === 'invalida' || valendo.tipo === 'futura') && (
-          <p className="lb-mec__aviso" role="note">
-            {valendo.tipo === 'futura' ? 'Mecânica de um app mais novo: atualize o app para editar.' : `Mecânica que não se lê: ${valendo.motivo}. O editor troca por um modelo.`}
-          </p>
-        )}
-        {proposta !== null && (
-          <p className="lb-mec__aviso" role="status">
-            {quemEdita === 'mestre' ? 'O dono da ficha propôs uma mecânica: abra o editor para aceitar ou recusar.' : 'Sua proposta espera o mestre. Até ele aceitar, vale o que está acima.'}
-          </p>
-        )}
-        {requisitosNaTela}
-        <div className="lb-mec__acoes">
-          <button type="button" className="lb-btn lb-btn--compact" disabled={futura} title={futura ? 'Feita num app mais novo: atualize o app para editar' : undefined} onClick={() => setAberto('so')}>
-            {quemEdita === 'dono' ? 'Abrir o editor (vai ao mestre)' : 'Abrir o editor'}
-          </button>
-        </div>
-      </section>
-    )
-  // O editor fica fora do bloco, num lugar fixo: montar troca o bloco (de texto para peças) e a janela segue aberta.
+      )}
+    </section>
+  )
+  // O editor fica fora do bloco, num lugar fixo: a conversão troca o bloco (de texto para peças) e a janela segue aberta.
   return (
     <>
       {conteudo}

@@ -3,6 +3,7 @@ import type { FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import { linhaCurtaDoPapel } from './fraseDoPapel'
 import type { DoQueNoEditor } from './gravarNoCartao'
 import { modelosDoEditor, type ModeloNoEditor } from './modelosDoEditor'
+import { MedalhaoDaPeca } from './PecasDaHabilidade'
 
 interface ComecarDeUmModeloProps {
   ficha: FichaDaPrevia
@@ -15,13 +16,13 @@ interface ComecarDeUmModeloProps {
 /**
  * "COMEÇAR DE UM MODELO" (ED3; EDITOR.md §5, protótipo `abrirModelos`): os
  * modelos de hoje como pontos de partida, nos grupos de sempre (ED7: os 22 da
- * técnica, os 20 da arma ou os 25 do item). A janela é o
+ * técnica, mais os 10 com as mecânicas novas, os 20 da arma ou os 25 do item). A janela é o
  * `<dialog>` do sistema por cima do editor: o Tab fica dentro, o Esc fecha e
  * o foco volta a quem abriu. Quem aplica (com o aviso e o Ctrl+Z) é o editor.
  */
 /** O que o modelo preenche, na frase do topo: a arma e o item não têm a ação, o custo e o dano do cartão de texto. */
 const O_QUE_PREENCHE: Readonly<Record<DoQueNoEditor, string>> = {
-  tecnica: 'O modelo preenche a ação, o alcance, o dano, o acerto, os efeitos e o custo (o custo, a ação e o dano escritos no cartão entram quando dá). O nome, a descrição e os requisitos ficam. Dá para desfazer.',
+  tecnica: 'Os modelos novos trazem as peças do exemplo, com os números dele. Os de hoje preenchem a ação, o alcance, o dano, o acerto, os efeitos e o custo (o custo, a ação e o dano escritos no cartão entram quando dá). O nome, a descrição e os requisitos ficam. Dá para desfazer.',
   arma: 'O modelo preenche o que a arma faz no Atacar: o alcance, o dano, o acerto, os efeitos e os usos. O dano soma o que a arma já soma. Os requisitos ficam. Dá para desfazer.',
   item: 'O modelo preenche o que o item faz ao ser usado: o alcance, os efeitos e onde vale. Os requisitos ficam. Dá para desfazer.',
 }
@@ -83,7 +84,8 @@ export function ComecarDeUmModelo({ ficha, doQue, onEscolher, onFechar }: Comeca
                 </p>
                 <div className="lb-ed__modelos">
                   {doGrupo.map((modelo) => (
-                    <button key={modelo.id} type="button" className="lb-ed__modelo" onClick={() => onEscolher(modelo)}>
+                    <button key={modelo.id} type="button" className="lb-ed__modelo" data-novo={modelo.familia === undefined ? undefined : ''} onClick={() => onEscolher(modelo)}>
+                      {modelo.familia !== undefined && <MedalhaoDaPeca familia={modelo.familia} />}
                       <b>{modelo.nome}</b>
                       <span>{modelo.dica}</span>
                       <span className="lb-ed__modelo-linha">{linhas.get(modelo.id)}</span>

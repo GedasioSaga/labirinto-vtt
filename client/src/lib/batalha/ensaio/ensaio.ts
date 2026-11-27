@@ -17,7 +17,8 @@ import { ABA_DAS_ARMAS, ABA_DAS_TECNICAS, armasDe, recursoDoCusto, type LeituraD
 import { armaPadraoEntre } from '../mecanica/arma'
 import { danoDaTecnica, danoDaTecnicaComAVida } from '../leituraDaTecnica'
 import { pecasDoCartao } from '../mecanica/leitura'
-import { mecanicaDoCartao } from '../mecanicasAMao'
+import { mecanicaDoCartao, perguntasDoCartao, respostasPadrao } from '../mecanicasAMao'
+import type { PerguntaNaHora, RespostasDoPedido } from '../perguntaNaHora'
 import { reacoesParaOAlvo, type ReacaoComTecnica } from '../reacaoComTecnica'
 import { bonusDaBatalha, selosDoToken, textoDoSeloComMods } from '../selos'
 import { lerTipo } from '../tiposDaHabilidade'
@@ -65,6 +66,40 @@ export interface PedidoDeEnsaio {
   naReacao?: boolean
   /** ARMAS-FONTE-UNICA §7: o cartão é uma ARMA montada; o teste vai pelo Atacar com ela (`ensaiarArma`). */
   naArma?: boolean
+  /**
+   * Rework das habilidades D16: sem sorte, todo d20 da mesa rola `D20_SEM_SORTE` (o `d20Fixo` fica de
+   * fora). Com 10, a defesa do boneco nunca esquiva (a esquiva pede 15): todo golpe acerta, e o mesmo
+   * cartão dá sempre o mesmo número.
+   */
+  semSorte?: boolean
+  /** D16: as respostas das perguntas na hora; valem para todos os ataques da rodada. A que falta vai no padrão (a 1ª opção, o mínimo). */
+  respostas?: RespostasDoPedido
+}
+
+/** D16: o d20 do teste sem sorte (a defesa do boneco fica em "defende (metade)"). */
+export const D20_SEM_SORTE = 10
+
+/** A resposta é uma das que a pergunta aceita (a opção que existe; o número inteiro entre o mínimo e o máximo). */
+function respostaCabe(pergunta: PerguntaNaHora, resposta: string | number): boolean {
+  if (pergunta.tipo === 'opcoes') return pergunta.opcoes.some((opcao) => opcao.valor === resposta)
+  return typeof resposta === 'number' && Number.isInteger(resposta) && resposta >= pergunta.minimo && resposta <= pergunta.maximo
+}
+
+/**
+ * D16: as respostas do golpe do teste. Só as das perguntas que a técnica faz agora (a técnica sem
+ * pergunta não aceita resposta, e a pergunta tirada no editor não fica no pedido), com o padrão no
+ * que o painel não escolheu. `undefined` = a técnica não pergunta.
+ */
+export function respostasDoEnsaio(cartao: CartaoDaFicha, escolhidas: RespostasDoPedido | undefined): RespostasDoPedido | undefined {
+  const padrao = respostasPadrao(cartao)
+  if (padrao === undefined) return undefined
+  const valendo: Record<string, string | number> = { ...padrao }
+  for (const pergunta of perguntasDoCartao(cartao)) {
+    // O painel pode não ter escolhido nada ainda: ausência é o caso de abrir.
+    const escolhida = escolhidas?.[pergunta.chave]
+    if (escolhida !== undefined && respostaCabe(pergunta, escolhida)) valendo[pergunta.chave] = escolhida
+  }
+  return valendo
 }
 
 /** `gasto` (Fase 7): o último passo do Testar do item, com o que a pilha tinha e com quanto fica. */
@@ -335,7 +370,7 @@ function montarMesa(pedido: PedidoDeEnsaio, arrumacao: Arrumacao, vezDe: 'quemUs
   let reagindo = false
   let dadoDaReacao: number | null = null
   const rolarD20 = (): number => {
-    const dado = reagindo && pedido.d20Fixo !== undefined ? pedido.d20Fixo : sorteio.d20()
+    const dado = pedido.semSorte === true ? D20_SEM_SORTE : reagindo && pedido.d20Fixo !== undefined ? pedido.d20Fixo : sorteio.d20()
     if (reagindo) dadoDaReacao = dado
     return dado
   }
@@ -589,10 +624,14 @@ export function ensaiar(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   if (turnos.vez === null) return naoSaiu('A mesa do teste não chegou à vez de quem usa.')
 
   const alvosTokens = arrumacao.emSi ? [vagaDeQuemUsa.tokenId] : vagasDosBonecos.map((vaga) => vaga.tokenId)
+  // D16: a resposta muda a fórmula (a Pergunta da peça): o dano do pedido é o da resposta, como a mira faz.
+  const respostas = respostasDoEnsaio(tecnica.cartao, pedido.respostas)
+  const contexto = { personagem: naMesa, sistema, arma }
+  const danoDaVez = respostas === undefined ? tecnica.dano : danoDaTecnica(tecnica.cartao, contexto, respostas)
   const lidos = alvosTokens.map((tokenId) => {
     const alvo = mesa.personagens().find((personagem) => mesa.vagas().some((vaga) => vaga.tokenId === tokenId && vaga.personagemId === personagem.id))
     const vidaDoAlvo = alvo === undefined || vida === null ? null : vidaDoPersonagem(alvo, vida)
-    return { tokenId, lido: tecnica.dano.tipo === 'precisaAlvo' && vidaDoAlvo !== null ? danoDaTecnicaComAVida(tecnica.cartao, { personagem: naMesa, sistema, arma }, vidaDoAlvo) : tecnica.dano }
+    return { tokenId, lido: danoDaVez.tipo === 'precisaAlvo' && vidaDoAlvo !== null ? danoDaTecnicaComAVida(tecnica.cartao, contexto, vidaDoAlvo, respostas) : danoDaVez }
   })
   const alvos: PedidoDeAlvo[] = lidos.map(({ tokenId, lido }) => ({ tokenId, dano: lido.tipo === 'valor' ? danoNoTeto(lido.valor) : null }))
   const selo = seloDaMira(tecnica.cartao, sistema)
@@ -606,6 +645,7 @@ export function ensaiar(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
     custo: null,
     acao: tecnica.acao === 'passiva' ? null : tecnica.acao,
     ...(selo === null ? {} : { selo }),
+    ...(respostas === undefined ? {} : { respostas }),
     // Fase 6: a área longe pede o centro; sem mapa no teste, a casa é a de referência e a ficha é o 1º boneco (todos em volta dele).
     ...(arrumacao.centro === 'ponto' ? { ponto: { col: 0, row: 0 } } : {}),
     ...(arrumacao.centro === 'alvo' && vagasDosBonecos[0] !== undefined ? { centroId: vagasDosBonecos[0].tokenId } : {}),

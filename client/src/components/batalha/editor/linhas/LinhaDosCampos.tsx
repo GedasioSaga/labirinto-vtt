@@ -11,8 +11,8 @@ function temLugarProprio(extra: Extra): boolean {
 
 /**
  * LINHA CAMPOS EXTRAS (EDITOR.md §3.6; protótipo `htmlCampos`): as anotações do cartão, menos as da
- * Evolução (linha própria). O "Texto de antes" aparece só para ler: é o texto que o mestre escreveu
- * antes de montar, e o Desmontar o põe de volta.
+ * Evolução (linha própria). O "Texto de antes" aparece só para ler: é o texto que estava escrito
+ * antes das peças (a conversão de leitura o guarda, D11), para conferir o que virou peça.
  */
 export function LinhaDosCampos({ cartao, onChange }: { cartao: CartaoDaFicha; onChange: (cartao: CartaoDaFicha) => void }) {
   const visiveis = cartao.extras.map((extra, indice) => ({ extra, indice })).filter(({ extra }) => !temLugarProprio(extra))
@@ -48,7 +48,7 @@ export function LinhaDosCampos({ cartao, onChange }: { cartao: CartaoDaFicha; on
       </div>
       {textoDeAntes !== undefined && (
         <details className="lb-ed__textos">
-          <summary>{NOME_DO_TEXTO_DE_ANTES} (o que estava escrito antes de montar)</summary>
+          <summary>{NOME_DO_TEXTO_DE_ANTES} (o que estava escrito antes das peças)</summary>
           <pre className="lb-ed__texto-antes">{textoDeAntes.valor}</pre>
         </details>
       )}

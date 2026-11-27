@@ -14,7 +14,7 @@ export function linhaDoTexto(cartao: CartaoDaFicha): string {
   const ler = (campo: string) => (cartao.campos[campo] ?? '').trim()
   const dano = ler(CAMPO_DO_DANO)
   const partes = [ler(CAMPO_DA_ACAO), ler(CAMPO_DO_CUSTO), dano === '' ? '' : `Dano ${dano}`].filter((parte) => parte !== '')
-  return partes.length === 0 ? 'Só texto: a batalha lê os campos escritos' : partes.join(' · ')
+  return partes.length === 0 ? 'Ainda sem peças: a batalha lê os campos escritos' : partes.join(' · ')
 }
 
 interface PapelDoCartaoProps {
@@ -31,7 +31,7 @@ interface PapelDoCartaoProps {
  * editor e no topo do cartão de texto da ficha, para os dois dizerem igual.
  */
 export function PapelDoCartao({ cartao, linhaCurta, frase, nomeComoTitulo = true }: PapelDoCartaoProps) {
-  // O "Texto de antes" é o guardado do Desmontar: não é anotação do cartão para ler no papel.
+  // O "Texto de antes" é o que estava escrito antes das peças: não é anotação do cartão para ler no papel.
   const extrasDoPapel = cartao.extras.filter((extra) => extra.nome !== NOME_DO_TEXTO_DE_ANTES)
   const descricao = (cartao.campos.descricao ?? '').trim()
   const nome = cartao.nome.trim() || 'Sem nome'

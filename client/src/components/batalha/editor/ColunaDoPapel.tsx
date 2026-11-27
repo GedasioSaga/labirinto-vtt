@@ -60,7 +60,7 @@ interface ColunaDoPapelProps {
 export function ColunaDoPapel({ cartao, mecanica, ficha, prefixo, onIr, doQue, gastoDoItem }: ColunaDoPapelProps) {
   const tituloId = useId()
   const pedacos = useMemo(() => (mecanica === null ? null : pedacosDoPapel(mecanica, ficha)), [mecanica, ficha])
-  const linhaCurta = useMemo(() => (mecanica === null ? 'Só texto: a batalha lê os campos escritos' : linhaCurtaDoPapel(mecanica, ficha)), [mecanica, ficha])
+  const linhaCurta = useMemo(() => (mecanica === null ? 'Ainda sem peças: a batalha lê o texto de antes' : linhaCurtaDoPapel(mecanica, ficha)), [mecanica, ficha])
   // Os valores vêm de uma fonte só (`textoDoCartao`): o mesmo que o Salvar grava nos campos da técnica montada.
   const gerado = useMemo<Readonly<Record<string, string>> | null>(() => (mecanica === null ? null : textoDoCartao(mecanica, ficha.sistema)), [mecanica, ficha.sistema])
   const campos = camposQueOAppEscreve(doQue, ficha.sistema)
@@ -120,7 +120,7 @@ export function ColunaDoPapel({ cartao, mecanica, ficha, prefixo, onIr, doQue, g
 
       <div className="lb-ed__ver-bloco">
         <Suspense fallback={<p className="lb-ed__dica">Preparando o boneco de treino…</p>}>
-          <PainelDeEnsaio cartao={cartao} quemUsa={ficha.personagem} sistema={ficha.sistema} embutido semAlcance naArma={doQue === 'arma'} {...(noItem === undefined ? {} : { item: noItem })} />
+          <PainelDeEnsaio cartao={cartao} quemUsa={ficha.personagem} sistema={ficha.sistema} embutido semAlcance semSorte={doQue === 'tecnica'} naArma={doQue === 'arma'} {...(noItem === undefined ? {} : { item: noItem })} />
         </Suspense>
       </div>
     </>

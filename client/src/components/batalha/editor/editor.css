@@ -6,9 +6,9 @@
  * Movimento: só opacity e transform; com movimento reduzido, o que se mexe só aparece.
  */
 
-/* .lb-edf: a técnica de texto no cartão da ficha, com o papel e os botões do editor. */
+/* .lb-mec: o bloco da habilidade no cartão da ficha, que mostra o papel da técnica de antes (rework D14). */
 .lb-ed,
-.lb-edf {
+.lb-mec {
   /* as tintas sobre o papel (combate.css e o protótipo aprovado) */
   --ed-tinta: #26221c;
   --ed-dano: #8a2c22;
@@ -128,49 +128,16 @@
     color: var(--lb-color-parchment);
   }
 }
-.lb-ed :focus-visible,
-.lb-edf :focus-visible {
+.lb-ed :focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
 }
 
-/* ---------------------------------------------------------------- a técnica de texto no cartão da ficha */
-.lb-edf {
-  display: grid;
-  gap: 10px;
-  padding-top: var(--lb-space-2);
-  border-top: 1px solid var(--lb-color-line);
-}
+/* ---------------------------------------------------------------- a habilidade no cartão da ficha */
 /* No topo do cartão, logo abaixo do título: sem o filete de cima (o título já separa). */
-.lb-cartao__form > .lb-edf:first-child,
 .lb-cartao__form > .lb-mec:first-child {
   padding-top: 0;
   border-top: 0;
-}
-.lb-edf__cab {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-}
-.lb-edf__selo {
-  padding: 1px 8px;
-  border: 1px solid var(--lb-gr-filete-latao);
-  border-radius: 999px;
-  font: 500 var(--lb-font-size-sm) / 1.4 var(--lb-font-utility);
-  letter-spacing: 0.02em;
-  color: var(--lb-color-brass-bright);
-}
-.lb-edf__dica {
-  margin: 0;
-  font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment-faint);
-}
-.lb-edf__acoes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
 }
 .lb-ed__dica {
   font-size: var(--lb-font-size-sm);
@@ -423,7 +390,8 @@ textarea.lb-ed__entrada {
 /* Ação: os cartões em dois grupos */
 .lb-ed__opcs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Rework D6/D7: sete cartões (3 de ataque, 4 sem ser ataque); a coluna se ajusta à largura. */
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 6px;
 }
 .lb-ed__opcs-grupo {
@@ -1316,5 +1284,207 @@ textarea.lb-ed__entrada {
     .lb-req__busca {
       transform: none;
     }
+  }
+}
+
+/* ================================================================ Rework das habilidades (E6, D14): o editor único */
+/* O topo: nome e imagem lado a lado; marcas e a descrição para ambientar embaixo, na largura toda. */
+.lb-ed__topo-hab {
+  display: grid;
+  gap: 10px;
+}
+.lb-ed__campo--marcas {
+  grid-column: 1 / -1;
+}
+.lb-ed__topo:not(:has(.lb-ed__campo--imagem)) .lb-ed__campo--nome {
+  grid-column: 1 / -1;
+}
+.lb-ed__campo--imagem {
+  justify-items: center;
+}
+.lb-ed__imagem {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border-radius: var(--lb-radius-md);
+  border: 1px dashed var(--lb-gr-filete-latao);
+  background: var(--lb-gr-campo);
+  color: var(--lb-color-parchment-dim);
+  font-family: var(--lb-font-display);
+  cursor: pointer;
+}
+.lb-ed__imagem img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lb-ed__erro {
+  font-size: var(--lb-font-size-sm);
+  color: var(--ed-erro);
+}
+.lb-ed__entrada[aria-invalid='true'] {
+  border-color: var(--ed-erro);
+}
+
+/* A faixa "Confira" (D11): o que a conversão de leitura não entendeu, à vista, com o botão "Conferida". */
+.lb-ed__confira {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: var(--lb-radius-md);
+  border: 1px solid var(--lb-gr-filete-latao);
+  background: var(--lb-color-brass-soft);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.5;
+}
+.lb-ed__confira > div,
+.lb-ed__confira > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lb-ed__confira q {
+  font-family: var(--lb-font-utility);
+  color: var(--lb-color-brass-bright);
+}
+.lb-ed__confira q + q::before {
+  content: ' · ';
+  color: var(--lb-color-parchment-faint);
+}
+.lb-ed__confira--texto {
+  border-color: var(--lb-gr-filete-forte);
+  background: var(--lb-gr-hover);
+}
+
+/* O cabeçalho: "Guardar também no catálogo do livro" e o atalho do Salvar. */
+.lb-ed__tambem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+}
+.lb-ed__kbd {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: var(--lb-radius-sm);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  font: 500 var(--lb-font-size-xs) / 1.5 var(--lb-font-utility);
+  opacity: 0.75;
+}
+
+/* As peças (D3): a lista das molduras e o catálogo "Pôr peça". */
+.lb-ed__pecas {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.lb-ed__por-peca {
+  display: grid;
+  gap: 6px;
+}
+.lb-ed__por-peca-tit {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-ed__tipos-peca {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px;
+}
+.lb-ed__tipo-peca {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1px 9px;
+  align-items: center;
+  padding: 7px 10px;
+  text-align: left;
+  border-radius: var(--lb-radius-md);
+  border: 1px solid var(--lb-color-line);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) ease,
+    transform 160ms var(--lb-gr-ease-out);
+}
+.lb-ed__tipo-peca > .lb-pc__med {
+  grid-row: span 2;
+}
+.lb-ed__tipo-peca b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: var(--lb-font-size-sm);
+}
+.lb-ed__tipo-peca small {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+  line-height: 1.35;
+}
+.lb-ed__tipo-peca:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.lb-ed__tipo-peca:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+@media (hover: hover) and (pointer: fine) {
+  .lb-ed__tipo-peca:hover:not(:disabled) {
+    border-color: var(--cor-peca, var(--lb-gr-filete-latao));
+  }
+}
+.lb-ed__selo-novo {
+  padding: 0 6px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font: 500 var(--lb-font-size-xs) / 1.6 var(--lb-font-utility);
+  letter-spacing: var(--lb-font-tracking-wide);
+}
+
+/* Os modelos novos (D15): o medalhão da peça que o modelo traz, ao lado do nome. */
+.lb-ed__modelo[data-novo] {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 9px;
+}
+.lb-ed__modelo[data-novo] > .lb-pc__med {
+  grid-row: span 3;
+  align-self: start;
+}
+
+/* O tamanho da mecânica (D12): passou do teto = o Salvar trava e o número fica em brasa. */
+.lb-ed__tamanho {
+  margin: 12px 0 0;
+  font: var(--lb-font-size-xs) / 1.5 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-faint);
+}
+.lb-ed__tamanho[data-passou] {
+  color: var(--ed-erro);
+}
+
+@media (max-width: 640px) {
+  .lb-ed__topo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lb-ed__campo--imagem {
+    justify-items: start;
+  }
+  .lb-ed__confira {
+    flex-direction: column;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lb-ed__tipo-peca:active:not(:disabled) {
+    transform: none;
   }
 }

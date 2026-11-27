@@ -21,6 +21,18 @@ export type DoQueNoEditor = 'tecnica' | 'arma' | 'item'
 
 type CampoDaMecanica = 'mecanica' | 'mecanicaProposta'
 
+/**
+ * D12 (rework das habilidades): o editor não grava mecânica acima disto. O leitor do cartão descarta,
+ * em silêncio, a mecânica acima de 16.000 letras (`MECANICA_GUARDADA_MAX`, personagem.ts), no disco,
+ * no fio e no Worker; a folga deixa as peças crescerem sem chegar lá.
+ */
+export const TAMANHO_DA_MECANICA_MAX = 12_000
+
+/** Quantas letras a mecânica ocupa no cartão (o JSON que o disco guarda). */
+export function tamanhoDaMecanica(mecanica: MecanicaV1): number {
+  return JSON.stringify(guardarMecanica(mecanica)).length
+}
+
 export function campoDeQuemEdita(quemEdita: QuemEditaNoEditor): CampoDaMecanica {
   return quemEdita === 'mestre' ? 'mecanica' : 'mecanicaProposta'
 }
@@ -38,6 +50,8 @@ function semCampo(cartao: CartaoDaFicha, campo: CampoDaMecanica): CartaoDaFicha 
 export function problemaNoEditor(mecanica: MecanicaV1, ficha: FichaDaPrevia, doQue: DoQueNoEditor): string | null {
   const daTecnica = problemaDaMecanica(mecanica, ficha)
   if (daTecnica !== null) return daTecnica
+  const tamanho = tamanhoDaMecanica(mecanica)
+  if (tamanho > TAMANHO_DA_MECANICA_MAX) return `a mecânica tem ${tamanho.toLocaleString('pt-BR')} letras e o teto é ${TAMANHO_DA_MECANICA_MAX.toLocaleString('pt-BR')}: tire uma peça ou uma resposta`
   if (doQue === 'arma') return motivoDaArmaNasPecas(mecanica)
   if (doQue === 'item' && pecasDoEfeito(guardarMecanica(mecanica)) === null) return 'no item, o efeito passou do tamanho que a mochila guarda'
   return null

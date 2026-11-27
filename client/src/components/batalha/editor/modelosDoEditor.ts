@@ -1,6 +1,7 @@
 import { GRUPOS_DOS_MODELOS_DA_ARMA, MODELOS_DA_ARMA, mecanicaDoModeloDaArma } from '../../../lib/batalha/mecanica/arma'
 import type { MecanicaV1 } from '../../../lib/batalha/mecanica/modelo'
-import { GRUPOS_DOS_MODELOS, MODELOS_PRONTOS, mecanicaDoModelo, mecanicaDoModeloNoCartao } from '../../../lib/batalha/mecanica/modelos'
+import { GRUPOS_DOS_MODELOS, MODELOS_NOVOS, MODELOS_PRONTOS, mecanicaDoModelo, mecanicaDoModeloNoCartao, mecanicaDoModeloNovo } from '../../../lib/batalha/mecanica/modelos'
+import type { FamiliaDaPeca } from '../../../lib/batalha/mecanica/pecas'
 import { GRUPOS_DOS_MODELOS_DE_ITEM, MODELOS_DE_ITEM, mecanicaDoModeloDeItem, ondeDoModeloDeItem } from '../../../lib/batalha/mecanica/modelosDeItem'
 import type { FichaDaPrevia } from '../../../lib/batalha/mecanica/resumo'
 import type { CartaoDaFicha } from '../../../lib/personagem'
@@ -24,6 +25,8 @@ export interface ModeloNoEditor {
   previa: (ficha: FichaDaPrevia) => MecanicaV1
   /** Só no item: onde o modelo vale (a granada, só na batalha). */
   onde?: EfeitoDoItem['onde']
+  /** D15: o modelo novo mostra o ícone e a cor da peça que ele monta. */
+  familia?: FamiliaDaPeca
 }
 
 export interface ModelosDoEditor {
@@ -31,13 +34,28 @@ export interface ModelosDoEditor {
   modelos: readonly ModeloNoEditor[]
 }
 
+/** D15: o grupo dos 10 modelos com as mecânicas novas, antes dos 22 de hoje. */
+const GRUPO_DAS_NOVAS = 'novas'
+
 const DA_TECNICA: ModelosDoEditor = {
-  grupos: GRUPOS_DOS_MODELOS,
-  modelos: MODELOS_PRONTOS.map((modelo) => ({
-    ...modelo,
-    montar: (ficha, cartao) => mecanicaDoModeloNoCartao(modelo.id, ficha, cartao),
-    previa: (ficha) => mecanicaDoModelo(modelo.id, ficha.sistema),
-  })),
+  grupos: [{ grupo: GRUPO_DAS_NOVAS, nome: 'Com as mecânicas novas' }, ...GRUPOS_DOS_MODELOS],
+  modelos: [
+    // Os novos não leem o texto do cartão: os números são os do exemplo (o nome e a descrição ficam).
+    ...MODELOS_NOVOS.map((modelo) => ({
+      id: modelo.id,
+      nome: modelo.nome,
+      dica: modelo.dica,
+      grupo: GRUPO_DAS_NOVAS,
+      familia: modelo.familia,
+      montar: (ficha: FichaDaPrevia) => mecanicaDoModeloNovo(modelo.id, ficha.sistema),
+      previa: (ficha: FichaDaPrevia) => mecanicaDoModeloNovo(modelo.id, ficha.sistema),
+    })),
+    ...MODELOS_PRONTOS.map((modelo) => ({
+      ...modelo,
+      montar: (ficha: FichaDaPrevia, cartao: CartaoDaFicha) => mecanicaDoModeloNoCartao(modelo.id, ficha, cartao),
+      previa: (ficha: FichaDaPrevia) => mecanicaDoModelo(modelo.id, ficha.sistema),
+    })),
+  ],
 }
 
 const DA_ARMA: ModelosDoEditor = {

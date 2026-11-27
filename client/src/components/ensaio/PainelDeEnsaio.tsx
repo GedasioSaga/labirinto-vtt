@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useState } from 'react'
-import { ensaiar, ensaioNaReacao, type PassoDoEnsaio } from '../../lib/batalha/ensaio/ensaio'
+import { D20_SEM_SORTE, ensaiar, ensaioNaReacao, respostasDoEnsaio, type PassoDoEnsaio } from '../../lib/batalha/ensaio/ensaio'
 import { ensaiarItem } from '../../lib/batalha/ensaio/ensaioDoItem'
+import { perguntasDoCartao } from '../../lib/batalha/mecanicasAMao'
+import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
 import { lerTipo } from '../../lib/batalha/tiposDaHabilidade'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -42,13 +44,26 @@ interface PainelDeEnsaioProps {
   item?: Pick<EfeitoDoItem, 'gasta' | 'onde'> & { quantos: number }
   /** ARMAS-FONTE-UNICA §7: o cartão é uma arma montada; o teste vai pelo Atacar com ela (sem a escolha da reação). */
   naArma?: boolean
+  /**
+   * Rework das habilidades D16: o teste abre sem sorte (todo d20 rola 10, todo golpe acerta) e o
+   * Ajustar deixa voltar ao d20 sorteado. Ausente = com sorte, como antes (a biblioteca, o item).
+   */
+  semSorte?: boolean
 }
 
-export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = false, semAlcance = false, item, naArma = false }: PainelDeEnsaioProps) {
+/** O valor de uma resposta escolhida no painel (o número da pergunta de número; o texto da opção). */
+function valorDaResposta(pergunta: PerguntaNaHora, texto: string): string | number {
+  return pergunta.tipo === 'numero' ? Number(texto) : texto
+}
+
+export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = false, semAlcance = false, item, naArma = false, semSorte: abreSemSorte = false }: PainelDeEnsaioProps) {
   const tituloId = useId()
   const d20Id = useId()
+  const perguntaId = useId()
   const [semente, setSemente] = useState(novaSemente)
   const [d20Fixo, setD20Fixo] = useState<number | null>(null)
+  const [semSorte, setSemSorte] = useState(abreSemSorte)
+  const [escolhidas, setEscolhidas] = useState<Readonly<Record<string, string | number>>>({})
   const [depois, setDepois] = useState<PassoDoEnsaio[]>([])
   const [recursosCheios, setRecursosCheios] = useState(false)
   // Fase 4: a técnica que vale na vez e na reação escolhe por onde testar; a só de reação vai sempre pela reação.
@@ -59,15 +74,18 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
   const gasta = item?.gasta
   const onde = item?.onde
   const quantos = item?.quantos
+  // D16: as perguntas na hora da técnica (a Pergunta da peça); a resposta vale para todos os ataques da rodada.
+  const perguntas = useMemo(() => (item === undefined && !naArma && !reagindo ? perguntasDoCartao(cartao) : []), [cartao, item, naArma, reagindo])
+  const respostas = useMemo(() => respostasDoEnsaio(cartao, escolhidas), [cartao, escolhidas])
 
   const resultado = useMemo(() => {
-    const d20 = d20Fixo === null ? {} : { d20Fixo }
+    const d20 = d20Fixo === null || semSorte ? {} : { d20Fixo }
     // O item: o mesmo motor, sem custo, e o passo do gasto no fim (a mochila de verdade não muda).
     if (gasta !== undefined && onde !== undefined && quantos !== undefined) {
       return ensaiarItem({ nome: cartao.nome, efeito: { mecanica: cartao.mecanica ?? {}, gasta, onde }, quemUsa, sistema, semente, quantos, ...d20 })
     }
-    return ensaiar({ cartao, quemUsa, sistema, semente, recursosCheios, naReacao, naArma, ...d20 })
-  }, [cartao, quemUsa, sistema, semente, d20Fixo, recursosCheios, naReacao, naArma, gasta, onde, quantos])
+    return ensaiar({ cartao, quemUsa, sistema, semente, recursosCheios, naReacao, naArma, semSorte, ...(respostas === undefined ? {} : { respostas }), ...d20 })
+  }, [cartao, quemUsa, sistema, semente, d20Fixo, semSorte, respostas, recursosCheios, naReacao, naArma, gasta, onde, quantos])
   // O conserto de um clique só aparece na recusa que ele conserta (SP ou HP que faltam na cópia).
   const consertaRecursos = resultado.passos.some((passo) => passo.conserto === 'encherRecursos')
   // O "Passar 1 vez" vale para o golpe que está na tela: outro golpe, outra conta.
@@ -104,7 +122,36 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
       </header>
       <p className="ens-quem">
         {reagindo ? `O boneco de treino bate em ${quemUsa.nome}, que reage com a técnica.` : `${quemUsa.nome} usa num boneco de treino.`} {item === undefined ? 'A ficha e o mapa não mudam.' : 'A ficha, a mochila e o mapa não mudam.'}
+        {semSorte && item === undefined && ` Sem sorte: todo d20 rola ${D20_SEM_SORTE} e todo golpe acerta.`}
       </p>
+      {perguntas.length > 0 && respostas !== undefined && (
+        <div className="ens-ajustes" role="group" aria-labelledby={`${perguntaId}-tit`}>
+          <span id={`${perguntaId}-tit`}>
+            <span className="ens-passo__tit">Na hora:</span> a escolha vale para todos os ataques da rodada.
+          </span>
+          {perguntas.map((pergunta, indice) => {
+            const id = `${perguntaId}-${indice}`
+            const valor = String(respostas[pergunta.chave] ?? '')
+            const responder = (texto: string) => setEscolhidas((antes) => ({ ...antes, [pergunta.chave]: valorDaResposta(pergunta, texto) }))
+            return (
+              <label key={pergunta.chave} htmlFor={id} className="ens-ajuste">
+                {pergunta.texto}
+                {pergunta.tipo === 'opcoes' ? (
+                  <select id={id} value={valor} onChange={(event) => responder(event.target.value)}>
+                    {pergunta.opcoes.map((opcao) => (
+                      <option key={opcao.valor} value={opcao.valor}>
+                        {opcao.rotulo}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input id={id} type="number" inputMode="numeric" min={pergunta.minimo} max={pergunta.maximo} step={1} value={valor} onChange={(event) => responder(event.target.value)} />
+                )}
+              </label>
+            )
+          })}
+        </div>
+      )}
       {/* Fase F do alcance: as casas que acendem na mesa, pela mesma conta da batalha; a reação não mira. */}
       {!reagindo && !semAlcance && <TestarDoAlcance cartao={cartao} quemUsa={quemUsa} sistema={sistema} grupo={item !== undefined ? 'itens' : naArma ? 'armas' : 'habilidades'} />}
       {escolheOnde && (
@@ -150,9 +197,12 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
             Testar com SP e HP cheios
           </button>
         )}
-        <button type="button" className="mu-bt mu-bt--p" onClick={() => setSemente(novaSemente())}>
-          Testar de novo
-        </button>
+        {/* Sem sorte o dado não muda: testar de novo daria o mesmo. */}
+        {!semSorte && (
+          <button type="button" className="mu-bt mu-bt--p" onClick={() => setSemente(novaSemente())}>
+            Testar de novo
+          </button>
+        )}
         {passarUmaVez !== null && (
           <button
             type="button"
@@ -170,9 +220,15 @@ export function PainelDeEnsaio({ cartao, quemUsa, sistema, onFechar, embutido = 
 
       <details className="ens-ajustes">
         <summary>Ajustar o boneco e a cópia</summary>
+        {item === undefined && (
+          <label className="ens-ajuste">
+            <input type="checkbox" checked={semSorte} onChange={(event) => setSemSorte(event.target.checked)} />
+            Sem sorte (todo d20 rola {D20_SEM_SORTE}, todo golpe acerta)
+          </label>
+        )}
         <label htmlFor={d20Id} className="ens-ajuste">
           {reagindo ? `d20 de ${quemUsa.nome}` : 'd20 do boneco'}
-          <select id={d20Id} value={d20Fixo === null ? '' : String(d20Fixo)} onChange={(event) => setD20Fixo(event.target.value === '' ? null : Number(event.target.value))}>
+          <select id={d20Id} disabled={semSorte} title={semSorte ? 'Desligue o "Sem sorte" para escolher o dado' : undefined} value={d20Fixo === null ? '' : String(d20Fixo)} onChange={(event) => setD20Fixo(event.target.value === '' ? null : Number(event.target.value))}>
             <option value="">Sorteado</option>
             {FACES_DO_D20.map((face) => (
               <option key={face} value={face}>

@@ -7,7 +7,8 @@ import { formaDoAlcanceGuardada } from '../alcanceDoCartao'
 import { CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, type LeituraDaAcao, type LeituraDoCusto, type LeituraDoTempo } from '../leituraDaFicha'
 import { leituraDaTecnica } from '../leituraDaTecnica'
 import { formulaDaMecanica } from '../mecanicasAMao'
-import { CD_MAX, FORMULA_MAX, LIMITE_MAX, golpeQueVale, lerMecanica, migrarV1ParaV2, precisaDaVersao2, precisaDaVersao3, precisaDaVersao4, testeRolado, VERSAO_GRAVADA, type AlvoDaMecanica, centroDaArea, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
+import { CD_MAX, FORMULA_MAX, LIMITE_MAX, golpeQueVale, lerMecanica, migrarV1ParaV2, precisaDaVersao2, precisaDaVersao3, precisaDaVersao4, precisaDaVersao5, REGRA_DE_PARTIDA, testeRolado, VERSAO_GRAVADA, type AlvoDaMecanica, centroDaArea, type CdDoTeste, type Custo, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega, type ReacaoDaMecanica, type Teste, type UsoDaMecanica, type Efeito } from './modelo'
+import { ELEMENTOS_DE_FABRICA, PECA_DE_PARTIDA, pecasParaGuardar, type FamiliaDaPeca, type PecaDaMecanica, type PecaTransformacao } from './pecas'
 import type { FichaDaPrevia } from './resumo'
 
 /**
@@ -339,6 +340,150 @@ function daReacao(sp: number, recarga: number, reacao: ReacaoDaMecanica): Mecani
   }
 }
 
+// ─── Os 10 modelos com as mecânicas novas (rework das habilidades, D15) ─────
+// Os exemplos montados do protótipo aprovado (`catalogoDeExemplo`, `MODELOS_NOVOS`), um por mecânica
+// do pedido do dono. Ficam numa lista própria, ao lado dos 22 de hoje: estes saem da versão 5 (o app
+// de antes os lê como "atualize o app") e não leem o texto do cartão (os números são os do exemplo).
+
+export type IdDoModeloNovo = 'grandeChifre' | 'imbuirElementos' | 'folegoDeBatalha' | 'sangueDeOgro' | 'aCacadaComeca' | 'focoDoAtirador' | 'formaHibrida' | 'furiaDoDragao' | 'corteGelado' | 'armaduraHumana'
+
+export interface ModeloNovo {
+  id: IdDoModeloNovo
+  nome: string
+  dica: string
+  /** A peça que dá a cara do modelo (o ícone e a cor no "Começar de um modelo"). */
+  familia: FamiliaDaPeca
+}
+
+export const MODELOS_NOVOS: readonly ModeloNovo[] = [
+  { id: 'grandeChifre', nome: 'Grande Chifre', dica: 'Pergunta na hora como pega: Impacto, Perfurante ou Cortante', familia: 'pergunta' },
+  { id: 'imbuirElementos', nome: 'Imbuir Elementos', dica: 'Liga e mantém; cada golpe pode levar Fogo, Gelo ou Eletricidade', familia: 'imbuir' },
+  { id: 'folegoDeBatalha', nome: 'Fôlego de Batalha', dica: 'Passiva: recupera na vez, endurece abaixo de 50% e não cai de primeira', familia: 'gatilho' },
+  { id: 'sangueDeOgro', nome: 'Sangue de Ogro', dica: 'Raça: corta 30% do dano, +20 nos golpes físicos, não desvia', familia: 'raca' },
+  { id: 'aCacadaComeca', nome: 'A Caçada Começa', dica: 'Overload de forma: 3 vezes, +1 ação, +20 de Agilidade, marca a cada acerto, Fadiga no fim', familia: 'transformacao' },
+  { id: 'focoDoAtirador', nome: 'Foco do Atirador', dica: 'Em si: +10 de Percepção por 3 turnos e metade da Determinação na Força', familia: 'status' },
+  { id: 'formaHibrida', nome: 'Forma Híbrida', dica: 'Forma do grupo Dragão: +10 de Força e Resistência, 2 usos por batalha', familia: 'transformacao' },
+  { id: 'furiaDoDragao', nome: 'Fúria do Dragão', dica: 'Forma do grupo Dragão: +20 de Força e 10% a menos de dano recebido', familia: 'transformacao' },
+  { id: 'corteGelado', nome: 'Corte Gelado', dica: 'Corta; a partir da 1ª vez o alvo perde 5 de Velocidade por vez, até 15', familia: 'diminui' },
+  { id: 'armaduraHumana', nome: 'Armadura Humana', dica: 'Reação: segura 90% e devolve o dano ÷ 7 + Força', familia: 'devolve' },
+]
+
+/** Em quem usa, sem teste: o alvo da passiva, do "Ligar e manter" e da forma. */
+const ALVO_EM_SI: AlvoDaMecanica = { quem: 'si', forma: { tipo: 'um' } }
+
+/** O custo dos exemplos do protótipo (`custo.v` do `habEmBranco` e de cada um). */
+function custoEmSp(sp: number): readonly Custo[] {
+  return sp === 0 ? [] : [{ recurso: 'sp', quanto: { fixo: sp }, quando: 'aoUsar' }]
+}
+
+/** A base sem golpe (passiva, "Ligar e manter", forma): em quem usa, não erra, sem efeito. */
+function semGolpeEmSi(uso: UsoDaMecanica | undefined, sp: number, pecas: readonly PecaDaMecanica[]): MecanicaV1 {
+  return { versao: 5, ...(uso === undefined ? {} : { uso }), acao: 'livre', custos: custoEmSp(sp), limite: {}, alvo: ALVO_EM_SI, teste: { tipo: 'naoErra' }, efeitos: [], pecas }
+}
+
+/** A forma do grupo Dragão do protótipo (Híbrida e Fúria): dura até desligar, sem ação a mais, sem Fadiga. */
+function formaDoDragao(mudar: Partial<Omit<PecaTransformacao, 'tipo'>>): PecaTransformacao {
+  return { ...PECA_DE_PARTIDA.transformacao, dura: 0, acoes: 0, fadiga: false, naoErra: false, grupo: 'Dragão', ...mudar }
+}
+
+/** A mecânica de um dos 10 modelos novos (os números do exemplo do protótipo). */
+export function mecanicaDoModeloNovo(id: IdDoModeloNovo, sistema: SistemaDeRpg): MecanicaV1 {
+  const golpe = mecanicaDoModelo('golpe', sistema)
+  const custo10 = custoEmSp(10)
+  switch (id) {
+    case 'grandeChifre': {
+      const pergunta = PECA_DE_PARTIDA.pergunta
+      return {
+        ...golpe,
+        versao: 5,
+        custos: custo10,
+        dano: danoDe(formulaComAtributos(sistema, ['forca'], 35)),
+        golpe: { bate: { tipo: 'impacto', regra: REGRA_DE_PARTIDA.impacto } },
+        pecas: [{ ...pergunta, perguntas: pergunta.perguntas.map((uma) => ({ ...uma, texto: 'Como o chifre pega?' })) }],
+      }
+    }
+    case 'imbuirElementos':
+      return { ...semGolpeEmSi('manter', 10, [{ tipo: 'imbuir', elementos: ELEMENTOS_DE_FABRICA.filter((elemento) => ['fogo', 'gelo', 'eletricidade'].includes(elemento.id)) }]), acao: 'bonus' }
+    case 'folegoDeBatalha':
+      return semGolpeEmSi('passiva', 0, [
+        { tipo: 'gatilho', quando: 'comeco', n: 2, vezes: 'sempre', pergunta: false, efeitos: [{ tipo: 'recuperar', recurso: 'hp', valor: 10, turnos: 1 }] },
+        {
+          tipo: 'gatilho',
+          quando: 'vidaAbaixo',
+          n: 50,
+          vezes: 'umaPorBatalha',
+          pergunta: false,
+          efeitos: [
+            { tipo: 'escudo', valor: 40 },
+            { tipo: 'atributo', atributo: 'resistencia', valor: 15, turnos: 2 },
+          ],
+        },
+        { tipo: 'gatilho', quando: 'aoCair', n: 2, vezes: 'umaPorBatalha', pergunta: false, ficaCom: 1, efeitos: [{ tipo: 'aviso', texto: 'Recuperação Espantosa: ficou de pé com 1 de vida.' }] },
+      ])
+    case 'sangueDeOgro':
+      return semGolpeEmSi('passiva', 0, [{ ...PECA_DE_PARTIDA.raca, naoDesvia: true, naoDesviaQuem: 'dono' }])
+    case 'aCacadaComeca':
+      return {
+        ...semGolpeEmSi(undefined, 30, [
+          {
+            ...PECA_DE_PARTIDA.transformacao,
+            dura: 3,
+            acoes: 1,
+            marca: true,
+            mods: [{ atributo: 'agilidade', valor: 20 }],
+            fadigaTurnos: 2,
+            fadigaMods: [
+              { atributo: 'agilidade', valor: -10 },
+              { atributo: 'forca', valor: -10 },
+            ],
+          },
+        ]),
+        acao: 'completa',
+        limite: { overload: true },
+      }
+    case 'focoDoAtirador':
+      return {
+        ...semGolpeEmSi(undefined, 10, [
+          {
+            tipo: 'status',
+            quem: 'si',
+            itens: [
+              { atributo: 'percepcao', modo: 'fixo', valor: 10, porcento: 50, de: 'determinacao', dura: 'turnos', turnos: 3 },
+              { atributo: 'forca', modo: 'formula', valor: 0, porcento: 50, de: 'determinacao', dura: 'batalha', turnos: 3 },
+            ],
+          },
+        ]),
+        acao: 'simples',
+      }
+    case 'formaHibrida':
+      return {
+        ...semGolpeEmSi('manter', 15, [
+          formaDoDragao({
+            deslocamento: 1,
+            mods: [
+              { atributo: 'forca', valor: 10 },
+              { atributo: 'resistencia', valor: 10 },
+            ],
+          }),
+        ]),
+        limite: { usosPorBatalha: 2 },
+      }
+    case 'furiaDoDragao':
+      return { ...semGolpeEmSi('manter', 20, [formaDoDragao({ danoRecebido: -10, mods: [{ atributo: 'forca', valor: 20 }] })]), limite: { usosPorBatalha: 1 } }
+    case 'corteGelado':
+      return {
+        ...golpe,
+        versao: 5,
+        custos: custo10,
+        dano: danoDe(formulaComAtributos(sistema, ['agilidade'], 25)),
+        golpe: { bate: { tipo: 'cortante', regra: REGRA_DE_PARTIDA.cortante } },
+        pecas: [{ ...PECA_DE_PARTIDA.diminui, valor: 5, ritmo: 'depois', depoisDe: 1, depoisVezes: 'cada', teto: true, tetoValor: 15, volta: 'turnos', voltaEm: 4 }],
+      }
+    case 'armaduraHumana':
+      return { ...daReacao(15, 0, { defesa: { tipo: 'fica', porcento: 10 } }), versao: 5, limite: {}, pecas: [PECA_DE_PARTIDA.devolve] }
+  }
+}
+
 /** O cartão como o texto o lê: sem as peças (a leitura do cartão montado não olha o texto). */
 function soOTexto(cartao: CartaoDaFicha): CartaoDaFicha {
   const { mecanica: _pecas, mecanicaProposta: _proposta, ...texto } = cartao
@@ -490,6 +635,14 @@ export function mecanicaDoModeloNoCartao(id: IdDoModelo, ficha: FichaDaPrevia, c
 export function trocarUso(mecanica: MecanicaV1, uso: UsoDaMecanica): MecanicaV1 {
   const { uso: _uso, reacao: _reacao, dano: _dano, ...base } = mecanica
   if (uso === 'ativa') return { ...base, ...(mecanica.dano === undefined ? {} : { dano: mecanica.dano }), efeitos: mecanica.efeitos.map(semAtacante) }
+  if (uso === 'passiva' || uso === 'manter') {
+    // Versão 5 (D6, D7): a passiva e o "Ligar e manter" não batem. Saem o dano, o tipo do golpe e a reação;
+    // o alvo vira quem usa (a tela não mostra o Alcance nelas). Sai a Overload: a forma Overload é a
+    // Overload com a peça Transformação, não esta.
+    const { golpe: _golpe, ...semGolpe } = base
+    const { overload: _overload, ...limite } = mecanica.limite
+    return { ...semGolpe, uso, limite, alvo: ALVO_EM_SI, teste: { tipo: 'naoErra' }, efeitos: mecanica.efeitos.map(semAtacante) }
+  }
   const reacao: ReacaoDaMecanica = mecanica.reacao ?? { defesa: { tipo: 'anula' } }
   if (uso === 'ativaOuReacao') return { ...base, ...(mecanica.dano === undefined ? {} : { dano: mecanica.dano }), uso, reacao }
   const efeitos = mecanica.efeitos.filter((efeito) => efeito.tipo === 'aMao' || (efeito.tipo === 'selo' && efeito.em === 'atacante'))
@@ -511,10 +664,21 @@ export function guardarMecanica(mecanica: MecanicaV1): MecanicaGuardada {
   // "Na vez" é o padrão: sem a chave, a mecânica volta a caber na versão 1.
   // Fase B do alcance: a cruz, o leque, o anel e o selo do alcance gravam 3; sem eles, a de antes (a 3 lida que perdeu a peça volta a 2 ou 1).
   // Fase ED1: o tipo do golpe grava 4 (a ESCOLHA, nunca as peças montadas); sem tipo, a chave sai e vale a de antes.
-  const { golpe: _golpe, ...semGolpe } = mecanica
+  // Rework das habilidades (D1): a peça nova ou o uso novo gravam 5, com as peças só no que difere do
+  // padrão (`pecasParaGuardar`); sem elas, a lista sai e vale a de antes (1 a 4, o app de antes lê).
+  const { golpe: _golpe, pecas, ...semGolpe } = mecanica
   const golpe = golpeQueVale(mecanica.golpe)
   const { uso: _uso, ...semUso } = semGolpe
-  const versionada = precisaDaVersao4(mecanica) ? { ...semGolpe, ...(golpe === undefined ? {} : { golpe }), versao: 4 } : precisaDaVersao3(semGolpe) ? { ...semGolpe, versao: 3 } : precisaDaVersao2(semGolpe) ? migrarV1ParaV2(semGolpe) : { ...semUso, versao: VERSAO_GRAVADA }
+  const comGolpe = { ...semGolpe, ...(golpe === undefined ? {} : { golpe }) }
+  const versionada = precisaDaVersao5(mecanica)
+    ? { ...comGolpe, ...(pecas === undefined || pecas.length === 0 ? {} : { pecas: pecasParaGuardar(pecas) }), versao: 5 }
+    : precisaDaVersao4(mecanica)
+      ? { ...comGolpe, versao: 4 }
+      : precisaDaVersao3(semGolpe)
+        ? { ...semGolpe, versao: 3 }
+        : precisaDaVersao2(semGolpe)
+          ? migrarV1ParaV2(semGolpe)
+          : { ...semUso, versao: VERSAO_GRAVADA }
   const copia: unknown = JSON.parse(JSON.stringify(versionada))
   return typeof copia === 'object' && copia !== null && !Array.isArray(copia) ? { ...copia } : {}
 }
