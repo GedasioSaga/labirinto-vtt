@@ -1,6 +1,7 @@
 import type { Personagem } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import type { SaidaDaReacao } from '../combate'
+import { pedidoDaMarca, textoDoPedidoDaMarca } from '../comoMarca'
 import { comportamentoDoSelo } from '../condicoes'
 import { cdDaExpressao } from '../disputa'
 import { lerDano, normalizar } from '../formula'
@@ -590,7 +591,9 @@ function fraseDaPeca(peca: PecaDaMecanica, mecanica: MecanicaV1, ficha?: FichaDa
     case 'diminui':
       return fraseDoDiminui(peca, ficha)
     case 'marca': {
-      const abre = peca.quando === 'aoAcertar' ? 'Ao acertar' : peca.quando === 'tiro' ? 'Ao acertar à distância' : `Ao acertar, a batalha pergunta "Marcar?" (paga ${peca.paga} SP${peca.teste === '' ? '' : ` e testa ${nomeDoAtributoNaFrase(peca.teste, ficha)}`}) e`
+      // Pedido de 27/11/2026: "paga e testa", "paga ou testa", só um dos dois (`pedidoDaMarca`).
+      const pede = textoDoPedidoDaMarca(pedidoDaMarca(peca.paga, peca.teste, peca.como), `paga ${peca.paga} SP`, `testa ${nomeDoAtributoNaFrase(peca.teste, ficha)}`)
+      const abre = peca.quando === 'aoAcertar' ? 'Ao acertar' : peca.quando === 'tiro' ? 'Ao acertar à distância' : `Ao acertar, a batalha pergunta "Marcar?"${pede === '' ? '' : ` (${pede})`} e`
       return `${abre} deixa ${peca.nome} no alvo (até ${turnosNaFrase(peca.turnos)}); o próximo golpe ${peca.quem === 'dono' ? 'do dono' : 'de qualquer um do grupo'} nela dá ${peca.vezes}× o dano${peca.some ? ' e a marca some' : ''}.`
     }
     case 'invocacao':

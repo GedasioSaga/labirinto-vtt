@@ -1,5 +1,6 @@
 import type { Modificador } from '../../personagem'
 import { NOME_DO_SELO_MAX } from '../combate'
+import type { ComoPagaAMarca } from '../comoMarca'
 import type { TipoQueBate } from './modelo'
 
 /**
@@ -278,6 +279,11 @@ export interface PecaMarca {
   /** Só no "pergunta": o SP para marcar e o teste ('' = sem teste). */
   paga: number
   teste: string
+  /**
+   * Pedido de 27/11/2026 ("paga x e/ou passa num teste"): com os dois, 'e' = paga E passa; 'ou' = quem marca
+   * escolhe na hora (pagar OU fazer o teste). Ausente = 'e', como antes (`lib/batalha/comoMarca.ts`).
+   */
+  como?: ComoPagaAMarca
   nome: string
   /** O próximo golpe na marca dá `vezes` × o dano. */
   vezes: number
@@ -676,13 +682,15 @@ function lerDiminui(peca: Cru, onde: string): PecaDiminui {
 }
 
 function lerMarca(peca: Cru, onde: string): PecaMarca {
-  soChaves(peca, ['tipo', 'quando', 'paga', 'teste', 'nome', 'vezes', 'quem', 'some', 'turnos'], onde)
+  soChaves(peca, ['tipo', 'quando', 'paga', 'teste', 'como', 'nome', 'vezes', 'quem', 'some', 'turnos'], onde)
   const partida = PECA_DE_PARTIDA.marca
   return {
     tipo: 'marca',
     quando: umDe(peca.quando ?? partida.quando, ['aoAcertar', 'pergunta', 'tiro'] as const, `${onde} (quando marca)`),
     paga: inteiro(peca.paga ?? partida.paga, 0, 200, `${onde} (SP para marcar)`),
     teste: texto(peca.teste ?? partida.teste, ATRIBUTO_DA_PECA_MAX, `${onde} (teste)`, true),
+    // Aditivo: a peça de antes, sem o campo, continua 'e' (lida sem ele, gravada sem ele).
+    ...(peca.como === undefined ? {} : { como: umDe(peca.como, ['e', 'ou'] as const, `${onde} (paga e/ou testa)`) }),
     nome: texto(peca.nome ?? partida.nome, NOME_DO_SELO_MAX, `${onde} (nome)`),
     vezes: inteiro(peca.vezes ?? partida.vezes, 2, 5, `${onde} (vezes o dano)`),
     quem: umDe(peca.quem ?? partida.quem, ['dono', 'todos'] as const, `${onde} (quem aproveita)`),
@@ -766,8 +774,9 @@ export interface UsoParaAsPecas {
  * Por que as peças não combinam com o jeito de usar, ou `null` (combinam). A peça que não teria como
  * rodar vira o motivo (tudo ou nada): Imbuir só na "Ligar e manter" (pergunta com ela ligada, D7);
  * Dispara sozinha e Passiva de raça só na passiva; Transformação na "Ligar e manter" ou na Overload;
- * Devolve só no lugar da reação; as peças do golpe (Pergunta, Diminui, Marca) e as de uso (Muda
- * atributo, Invocação) nunca na passiva nem na técnica só de reação.
+ * Devolve só no lugar da reação; as peças do golpe (Pergunta, Diminui) e as de uso (Muda atributo,
+ * Invocação) nunca na passiva nem na técnica só de reação; a Marca vale na passiva (marca quem o dono
+ * acerta, pela pergunta "Marcar?") e só fica de fora da técnica só de reação.
  */
 export function motivoDasPecasComOUso(pecas: readonly PecaDaMecanica[], { uso, overload }: UsoParaAsPecas): string | null {
   const passiva = uso === 'passiva'
@@ -788,9 +797,13 @@ export function motivoDasPecasComOUso(pecas: readonly PecaDaMecanica[], { uso, o
       case 'devolve':
         if (!deReacao) return `${nome} só vale no lugar da reação`
         break
+      case 'marca':
+        // Pedido de 27/11/2026 (o Olhar Artístico): a passiva marca quem o dono ACERTA (a pergunta "Marcar?" sai depois
+        // do acerto, como a passiva de marca de texto); só a técnica de reação pura não tem acerto do dono para marcar.
+        if (uso === 'reacao') return `${nome} não vale na técnica só de reação`
+        break
       case 'pergunta':
       case 'diminui':
-      case 'marca':
       case 'status':
       case 'invocacao':
         if (passiva || uso === 'reacao') return `${nome} não vale na passiva nem na técnica só de reação`

@@ -1,6 +1,7 @@
 import type { CartaoDaFicha, Personagem } from '../../personagem'
 import { numeroDaFicha } from '../../personagem'
 import { NOME_DO_SELO_MAX, type SeloDoGolpe, type SeloPedido } from '../combate'
+import { pedidoDaMarca, textoDoPedidoDaMarca } from '../comoMarca'
 import type { FormaDaArea } from '../area'
 import type { LeituraDaAcao, LeituraDoCusto, LeituraDoTempo } from '../leituraDaFicha'
 import type { DevolveAMao, DiminuiAMao, EfeitoDoGatilhoAMao, ElementoAMao, FormaAMao, GatilhoAMao, InvocacaoAMao, LimpezaAMao, MarcaAMao, MecanicaAMao, MudancaDaResposta, RacaAMao, ReacaoAMao, SaidaDaReacaoAMao } from '../mecanicasAMao'
@@ -409,6 +410,9 @@ export function chaveDaPerguntaDaPeca(indice: number): string {
   return `pecaPergunta${indice + 1}`
 }
 export const CHAVE_DA_MARCA = 'pecaMarca'
+/** As respostas do "Marcar?" que marcam: o "Sim" (paga o SP; a 1ª, a que o NPC e o robô dão) e, na 'ou', o "Sim, pelo teste" (não paga). */
+export const RESPOSTA_DE_MARCAR_PAGANDO = 'sim'
+export const RESPOSTA_DE_MARCAR_PELO_TESTE = 'teste'
 const SIM_E_NAO: readonly OpcaoDaPergunta[] = [
   { valor: 'sim', rotulo: 'Sim' },
   { valor: 'nao', rotulo: 'Não' },
@@ -425,13 +429,33 @@ function seloDeAtributos(nome: string, turnos: number | null, mods: readonly { a
   return { nome: nome.slice(0, NOME_DO_SELO_MAX).trim() || 'Selo', turnos, natureza, mods: mods.map((mod) => ({ alvo: atributoNoMotor(mod.atributo), delta: mod.valor })) }
 }
 
+/**
+ * As respostas do "Marcar?" pelo que a peça pede (`pedidoDaMarca`, pedido de 27/11/2026, "e/ou"): o "Sim" de
+ * quem paga (o SP sai com a técnica; na 'e' é pagar E ter passado no teste), o "Sim, pelo teste" da 'ou' (não
+ * paga) e o "Não". Sem SP nem teste, o Sim e o Não de sempre.
+ */
+function opcoesDoMarcar(peca: PecaMarca): readonly OpcaoDaPergunta[] {
+  const pedido = pedidoDaMarca(peca.paga, peca.teste, peca.como)
+  const teste = `passou no teste de ${nomeDoAtributoDaPeca(peca.teste)}`
+  const sp = `paga ${peca.paga} SP`
+  switch (pedido) {
+    case 'nada':
+      return SIM_E_NAO
+    case 'ou':
+      return [{ valor: RESPOSTA_DE_MARCAR_PAGANDO, rotulo: `Sim, ${sp}` }, { valor: RESPOSTA_DE_MARCAR_PELO_TESTE, rotulo: `Sim, ${teste}` }, { valor: 'nao', rotulo: 'Não' }]
+    default:
+      return [{ valor: RESPOSTA_DE_MARCAR_PAGANDO, rotulo: `Sim, ${textoDoPedidoDaMarca(pedido, sp, teste)}` }, { valor: 'nao', rotulo: 'Não' }]
+  }
+}
+
 function marcaDaPeca(peca: PecaMarca): MarcaAMao {
   const marca: MarcaAMao = { selo: { nome: peca.nome, turnos: peca.turnos, natureza: 'debuff' }, vezes: peca.vezes, soDoDono: peca.quem === 'dono', some: peca.some, quando: peca.quando }
-  if (peca.quando === 'pergunta') {
-    marca.pergunta = { chave: CHAVE_DA_MARCA, texto: 'Marcar?', para: 'quemUsa', tipo: 'opcoes', opcoes: SIM_E_NAO }
-    if (peca.paga > 0) marca.custoEmSp = peca.paga
-    if (peca.teste !== '') marca.teste = peca.teste
-  }
+  if (peca.quando === 'pergunta') marca.pergunta = { chave: CHAVE_DA_MARCA, texto: 'Marcar?', para: 'quemUsa', tipo: 'opcoes', opcoes: opcoesDoMarcar(peca) }
+  // O SP e o teste vão sempre: na técnica só o "Marcar?" os cobra (`custoDaMarca`); na passiva (pedido de 27/11/2026)
+  // a pergunta "Marcar?" depois do acerto pede os dois em qualquer "quando" (`passivaDaMarca`).
+  if (peca.paga > 0) marca.custoEmSp = peca.paga
+  if (peca.teste !== '') marca.teste = peca.teste
+  if (peca.como !== undefined) marca.como = peca.como
   return marca
 }
 

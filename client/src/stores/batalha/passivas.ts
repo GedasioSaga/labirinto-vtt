@@ -18,7 +18,8 @@ import {
 } from '../../lib/batalha/combate'
 import { contadorDoPersonagem, motivoDoContador, nivelDoContador, seloDoContador, selosComONivel, temGolpeEsperando } from '../../lib/batalha/contador'
 import { comBandosEmDia } from '../../lib/batalha/invocacao'
-import { comLembreteDaMarca, criarMarca, marcaDoToken, modificadorDoTeste, motivoDaMarca, passivaDaMarca } from '../../lib/batalha/marca'
+import { pagaNaResposta } from '../../lib/batalha/comoMarca'
+import { comLembreteDaMarca, criarMarca, marcaDoToken, moldeDaMarca, modificadorDoTeste, motivoDaMarca, passivaDaMarca, pedidoDaPassivaDeMarca } from '../../lib/batalha/marca'
 import {
   bonusDaBatalha,
   comSeloNovo,
@@ -197,6 +198,18 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       gravarCena(sceneKey, comMudanca(cena, comCombate(turnos, semOLembrete), null))
       return true
     }
+    // Conserto de 27/11/2026 (Olhar Artístico pela tira, "não dá o mesmo efeito de dobrar o dano e sumir"): o Ativar da
+    // passiva de marca abre a MESMA pergunta "Marcar o alvo?" que o tiro deixa (`comLembreteDaMarca`), e a resposta passa
+    // pelo mesmo `marcarOAlvo` (paga o SP ou rola o teste, põe a marca; o próximo golpe dobra e ela some). Sem linha,
+    // como o lembrete das outras passivas: a linha sai quando ele responde. Também a montada com a peça Marca (pedido do
+    // mesmo dia), menos quando um lembrete de gatilho dela espera (esse Ativar é o do gatilho, abaixo).
+    const marcaSemGatilhoEsperando = !(ehPassivaMontada(cartao) && lembreteDe(combateBase, cartao.id) !== null)
+    if (pedido.tipo === 'passiva' && pedido.ligar && pedido.alvoTokenId !== undefined && marcaSemGatilhoEsperando && passivaDaMarca(personagem, sistema)?.cartao.id === cartao.id) {
+      const idDaPergunta = novoIdDaMarca()
+      const lembrete: LembreteDaMarca = { id: idDaPergunta, linhaId: novoIdDeLinha(), golpeId: idDaPergunta, cartaoId: cartao.id, tokenId: carta.tokenId, personagemId, alvoTokenId: pedido.alvoTokenId, rodada: turnos.rodada }
+      gravarCena(sceneKey, comMudanca(cena, comLembreteDaMarca(turnos, lembrete), null))
+      return true
+    }
     // Rework das habilidades (D6, E5): o Ativar da passiva montada é o do lembrete do gatilho que perguntou: os efeitos das
     // peças, pelo mesmo caminho do disparo sozinho (`aplicarDisparo`, linha com Desfazer). O alvo escolhido na tela vence.
     if (pedido.tipo === 'passiva' && pedido.ligar && ehPassivaMontada(cartao)) {
@@ -204,16 +217,6 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       const disparo = lembrete === null ? null : disparoDoLembrete(lembrete, personagemId, cartao)
       if (disparo === null) return false
       return aplicarDisparo(sceneKey, pedido.alvoTokenId === undefined ? disparo : { ...disparo, alvoTokenId: pedido.alvoTokenId }, autor)
-    }
-    // Conserto de 27/11/2026 (Olhar Artístico pela tira, "não dá o mesmo efeito de dobrar o dano e sumir"): o Ativar da
-    // passiva de marca abre a MESMA pergunta "Marcar o alvo?" que o tiro deixa (`comLembreteDaMarca`), e a resposta passa
-    // pelo mesmo `marcarOAlvo` (paga o SP ou rola o teste, põe a marca; o próximo golpe dobra e ela some). Sem linha,
-    // como o lembrete das outras passivas: a linha sai quando ele responde.
-    if (pedido.tipo === 'passiva' && pedido.ligar && pedido.alvoTokenId !== undefined && passivaDaMarca(personagem, sistema)?.cartao.id === cartao.id) {
-      const idDaPergunta = novoIdDaMarca()
-      const lembrete: LembreteDaMarca = { id: idDaPergunta, linhaId: novoIdDeLinha(), golpeId: idDaPergunta, cartaoId: cartao.id, tokenId: carta.tokenId, personagemId, alvoTokenId: pedido.alvoTokenId, rodada: turnos.rodada }
-      gravarCena(sceneKey, comMudanca(cena, comLembreteDaMarca(turnos, lembrete), null))
-      return true
     }
     const nomeDoToken = nomeDoTokenNa(turnos, personagens)
     const dono = nomeDoToken(carta.tokenId)
@@ -475,16 +478,22 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       detalhe = personagem.tipo === 'jogador' ? `${leitura.sp ?? 0} ${recursoDoSp?.nome ?? 'SP'}` : 'pagou'
     } else {
       passou = pedido.como === 'passou'
-      detalhe = 'teste rolado fora'
+      // Sem SP nem teste, o "Passou" é o "Marcar" sem custo.
+      detalhe = pedidoDaPassivaDeMarca(leitura) === 'nada' ? 'sem custo' : 'teste rolado fora'
     }
     let novos = semOLembrete
     const partes: Reversao[] = [{ tipo: 'lembreteDaMarcaRespondido', lembrete }]
+    // Pedido de 27/11/2026 ("e/ou", `comoMarca.ts`): o SP sai no "Pagar" e, na 'e', também no teste que passou.
+    const pagaOSp = leitura.sp !== null && pagaNaResposta(pedidoDaPassivaDeMarca(leitura), pedido.como === 'sp' ? 'sp' : 'teste')
+    if (pagaOSp && pedido.como !== 'sp' && passou) detalhe = `${detalhe} · ${leitura.sp ?? 0} ${recursoDoSp?.nome ?? 'SP'}`
     if (passou) {
       // A marca é calculada ANTES de cobrar: selo que não cabe no teto recusa sem mexer no SP.
-      const marca = criarMarca(novos, lembrete.alvoTokenId, { selo: novoIdDaMarca(), linha: linhaId }, ocultoNaBatalha(personagem, achada.cartao) ? { id: achada.cartao.id, nome: NOME_DO_OCULTO } : achada.cartao)
+      // A passiva montada com a peça Marca põe a marca do molde dela (nome, turnos, quem aproveita, as vezes, se some).
+      const molde = leitura.peca === undefined ? undefined : moldeDaMarca(leitura.peca, personagem.id)
+      const marca = criarMarca(novos, lembrete.alvoTokenId, { selo: novoIdDaMarca(), linha: linhaId }, ocultoNaBatalha(personagem, achada.cartao) ? { id: achada.cartao.id, nome: NOME_DO_OCULTO } : achada.cartao, molde)
       const selos = comSeloNovo(novos.selos, marca)
       if (selos === null) return false
-      if (pedido.como === 'sp' && leitura.sp !== null) {
+      if (pagaOSp && leitura.sp !== null) {
         const custo = leitura.sp
         const doCusto = mexerNaFicha(mesa, personagem.id, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, { tipo: 'valor', recurso: 'sp', valor: custo, porTurno: false }), quemNaFicha(autor))
         // Bug 11: o SP recusado não marca (o lembrete fica esperando).

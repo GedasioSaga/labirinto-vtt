@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import type { BonusDaBatalha, PedidoDeMarca } from '../../lib/batalha/combate'
-import { modificadorDoTeste, motivoDaMarca, passivaDaMarca, type ComoMarca } from '../../lib/batalha/marca'
+import type { PedidoDaMarca } from '../../lib/batalha/comoMarca'
+import { modificadorDoTeste, motivoDaMarca, passivaDaMarca, pedidoDaPassivaDeMarca, type ComoMarca } from '../../lib/batalha/marca'
 import { numeroDaFicha, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { formatarNumero, lerModificadorDaReacao } from './dadosDoMenu'
@@ -28,6 +29,8 @@ export interface MarcaNaTela {
   /** O SP de agora de quem marca (o "SP insuficiente" apaga o botão). */
   spAtual: number
   teste: { nome: string; cd: number | null; modificador: number } | null
+  /** Pedido de 27/11/2026 ("e/ou", `comoMarca.ts`): os dois juntos, um dos dois, só o SP, só o teste, ou nada. */
+  pedido: PedidoDaMarca
 }
 
 /**
@@ -56,6 +59,7 @@ export function marcaNaTela(
     sp: leitura.sp,
     spAtual: sp === undefined ? 0 : Math.max(0, numeroDaFicha(personagem.recursos, sp.id)),
     teste,
+    pedido: pedidoDaPassivaDeMarca(leitura),
   }
   if (quem !== undefined) item.quem = quem
   return item
@@ -74,15 +78,19 @@ function UmaMarca({ item, esperando, onResponder }: { item: MarcaNaTela; esperan
   const automatico = item.teste?.modificador ?? 0
   const [modTexto, setModTexto] = useState(() => String(automatico))
   const modificador = lerModificadorDaReacao(modTexto)
-  const leitura = { tipo: 'passiva' as const, sp: item.sp, teste: item.teste === null ? null : { atributoId: '', nome: item.teste.nome, cd: item.teste.cd } }
+  // A regra do "e/ou" é a do host (`motivoDaMarca`): o `como` da tela sai do pedido já lido.
+  const leitura = { sp: item.sp, teste: item.teste === null ? null : { atributoId: item.teste.nome, nome: item.teste.nome, cd: item.teste.cd }, como: item.pedido === 'e' ? ('e' as const) : ('ou' as const) }
   const motivo = (como: ComoMarca) => motivoDaMarca(leitura, como, item.spAtual)
+  const comPagar = item.sp !== null && (item.pedido === 'ou' || item.pedido === 'soPaga')
+  // Na 'e', o teste também paga (se passar): o botão diz.
+  const pagaNoTeste = item.pedido === 'e' && item.sp !== null ? ` · paga ${formatarNumero(item.sp)} SP se passar` : ''
   const responder = (como: ComoMarca) => {
     if (esperando) return
     const pedido: PedidoDeMarca = como === 'teste' && modificador !== automatico ? { tipo: 'marcar', lembreteId: item.id, como, modificador } : { tipo: 'marcar', lembreteId: item.id, como }
     const saiu = onResponder(pedido)
     setErro(saiu ? null : 'Não saiu: sem conexão com o mestre, ou o alvo já está marcado.')
   }
-  const motivoDoSp = item.sp === null ? null : motivo('sp')
+  const motivoDoSp = !comPagar ? (item.pedido === 'e' ? motivo('passou') : null) : motivo('sp')
   const comTesteNoApp = item.teste !== null && item.teste.cd !== null
 
   return (
@@ -97,14 +105,19 @@ function UmaMarca({ item, esperando, onResponder }: { item: MarcaNaTela; esperan
         </span>
       </p>
       <div className="bt-lembrete__acoes" role="group" aria-labelledby={`${id}-texto`}>
-        {item.sp !== null && (
+        {comPagar && item.sp !== null && (
           <button type="button" className="bt-botao bt-botao--passiva" disabled={esperando || motivoDoSp !== null} aria-describedby={motivoDoSp === null ? undefined : `${id}-motivo`} onClick={() => responder('sp')}>
             Pagar {formatarNumero(item.sp)} SP
           </button>
         )}
         {item.teste !== null && comTesteNoApp && (
-          <button type="button" className={item.sp === null ? 'bt-botao bt-botao--passiva' : 'bt-botao'} disabled={esperando} title={`O app rola ${textoDoTeste(item.teste, modificador)}`} onClick={() => responder('teste')}>
-            Teste de {item.teste.nome} <small>{textoDoTeste(item.teste, modificador)}</small>
+          <button type="button" className={comPagar ? 'bt-botao' : 'bt-botao bt-botao--passiva'} disabled={esperando || (item.pedido === 'e' && motivoDoSp !== null)} title={`O app rola ${textoDoTeste(item.teste, modificador)}`} onClick={() => responder('teste')}>
+            Teste de {item.teste.nome} <small>{textoDoTeste(item.teste, modificador)}{pagaNoTeste}</small>
+          </button>
+        )}
+        {item.pedido === 'nada' && (
+          <button type="button" className="bt-botao bt-botao--passiva" disabled={esperando} onClick={() => responder('passou')}>
+            Marcar
           </button>
         )}
         {item.teste !== null && comTesteNoApp && (
@@ -120,8 +133,8 @@ function UmaMarca({ item, esperando, onResponder }: { item: MarcaNaTela; esperan
       {item.teste !== null && (
         <div className="bt-lembrete__fora" role="group" aria-label={`Rolei o teste de ${item.teste.nome} fora`}>
           <span>Rolei fora:</span>
-          <button type="button" className="bt-botao bt-botao--p" disabled={esperando} onClick={() => responder('passou')}>
-            Passou
+          <button type="button" className="bt-botao bt-botao--p" disabled={esperando || (item.pedido === 'e' && motivoDoSp !== null)} onClick={() => responder('passou')}>
+            Passou{pagaNoTeste === '' ? '' : ` (paga ${formatarNumero(item.sp ?? 0)} SP)`}
           </button>
           <button type="button" className="bt-botao bt-botao--p" disabled={esperando} onClick={() => responder('falhou')}>
             Falhou

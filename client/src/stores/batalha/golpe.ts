@@ -170,10 +170,14 @@ function marcasDasPecas(atacante: Personagem | undefined, marcaDaTecnica: string
 function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): AcertoNaMarca {
   const sistema = mesa.sistema()
   const atacante = golpe.atacantePersonagemId === null ? undefined : mesa.personagens().find((personagem) => personagem.id === golpe.atacantePersonagemId)
-  const passiva = sistema === null || atacante === undefined ? null : (passivaDaMarca(atacante, sistema)?.cartao ?? null)
+  const daPassiva = sistema === null || atacante === undefined ? null : passivaDaMarca(atacante, sistema)
+  const passiva = daPassiva?.cartao ?? null
+  // Pedido de 27/11/2026: a passiva montada com a peça Marca "quando o dono acerta" pergunta em todo acerto (a de texto e a "à distância", só no tiro).
+  const pecaDaPassiva = daPassiva?.leitura.peca
+  const passivaEmTodoAcerto = pecaDaPassiva !== undefined && pecaDaPassiva.quando !== 'tiro'
   const tecnicaQueMarca = golpe.marca === undefined ? null : { id: golpe.marca, nome: golpe.nome }
   // Rework das habilidades (PLANO.md D10): a peça Marca da técnica (o molde dela) e a forma ligada de quem atacou que marca a cada acerto.
-  const acerto = acertoNaMarca(turnos, golpe, alvo, { linhaId: golpe.linhaId, novoId: novoIdDaMarca, passiva, tecnicaQueMarca, ...marcasDasPecas(atacante, golpe.marca) })
+  const acerto = acertoNaMarca(turnos, golpe, alvo, { linhaId: golpe.linhaId, novoId: novoIdDaMarca, passiva, passivaEmTodoAcerto, tecnicaQueMarca, ...marcasDasPecas(atacante, golpe.marca) })
   // R6: a forma ligada do alvo que reduz o dano recebido (Resiliente: -20%), depois do dobro da marca.
   // S4: e a Determinação (rank 4+, HP abaixo da metade), uma depois da outra.
   const dele = alvo.personagemId === null || sistema === null ? undefined : mesa.personagens().find((personagem) => personagem.id === alvo.personagemId)
@@ -279,7 +283,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         : {
             pegadaDoToken: (tokenId: string) => {
               const posicao = posicaoDoToken(sceneKey, tokenId)
-              return posicao === null ? null : pegadaDaFicha(posicao.casa, mesa.fichaDaCena?.(sceneKey, tokenId)?.size)
+              return posicao === null ? null : (posicao.pegada ?? pegadaDaFicha(posicao.casa, mesa.fichaDaCena?.(sceneKey, tokenId)?.size))
             },
           }),
       visao: 'tudo',
@@ -594,7 +598,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         : {
             pegadaDoToken: (tokenId: string) => {
               const posicao = mesa.posicaoDoToken?.(sceneKey, tokenId) ?? null
-              return posicao === null ? null : pegadaDaFicha(posicao.casa, mesa.fichaDaCena?.(sceneKey, tokenId)?.size)
+              return posicao === null ? null : (posicao.pegada ?? pegadaDaFicha(posicao.casa, mesa.fichaDaCena?.(sceneKey, tokenId)?.size))
             },
             // Fase C do alcance: o pedido do jogador mede com as paredes que ELE vê (a tela dele); o do mestre, com o mapa inteiro.
             mapaDoAlcance: () => (tela === undefined ? (mesa.mapaDoAlcance?.(sceneKey, carta.tokenId) ?? null) : tela.mapaDoAlcance(carta.tokenId)),

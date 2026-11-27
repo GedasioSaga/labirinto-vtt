@@ -1,5 +1,6 @@
 import type { CartaoDaFicha, Personagem } from '../personagem'
-import { linhaDoCartaoMontado, pecasDoCartao, pecasUsamACarga, RESPOSTA_SEM_IMBUIR } from './mecanica/leitura'
+import { linhaDoCartaoMontado, pecasDoCartao, pecasUsamACarga, RESPOSTA_DE_MARCAR_PAGANDO, RESPOSTA_DE_MARCAR_PELO_TESTE, RESPOSTA_SEM_IMBUIR } from './mecanica/leitura'
+import type { ComoPagaAMarca } from './comoMarca'
 import { CONDICAO_DO_TIPO } from './mecanica/golpe'
 import { lerMecanica, REGRA_DE_PARTIDA, TESTE_DO_TIPO_DE_PARTIDA, type RegraQuePoeCondicao, type TipoQueBate } from './mecanica/modelo'
 import { cdDoTeste } from './mecanica/teste'
@@ -372,6 +373,8 @@ export interface MarcaAMao {
   pergunta?: PerguntaNaHora
   custoEmSp?: number
   teste?: string
+  /** Pedido de 27/11/2026: com o SP e o teste, 'e' (os dois) ou 'ou' (um dos dois, na hora). Ausente = 'e'. */
+  como?: ComoPagaAMarca
 }
 
 /**
@@ -1897,20 +1900,22 @@ export function marcaDoCartao(cartao: ChaveDaMecanica): MarcaAMao | null {
   return mecanicaDoCartao(cartao)?.marca ?? null
 }
 
-/** A resposta do "Marcar?" que marca (a 1ª opção, a que o NPC e o robô dão). */
-const RESPOSTA_DE_MARCAR = 'sim'
-
-/** D10 (a peça Marca): o golpe deixa a marca? "Ao acertar" sempre; "à distância" só com a arma que atira (`atira`); "perguntando" só com o "Sim". */
+/**
+ * D10 (a peça Marca): o golpe deixa a marca? "Ao acertar" sempre; "à distância" só com a arma que atira (`atira`);
+ * "perguntando" com o "Sim" (paga) ou, na 'ou' (pedido de 27/11/2026), com o "Sim, pelo teste".
+ */
 export function marcaVaiNoGolpe(marca: MarcaAMao, respostas: RespostasDoPedido | undefined, atira: boolean): boolean {
   if (marca.quando === 'aoAcertar') return true
   if (marca.quando === 'tiro') return atira
-  return marca.pergunta !== undefined && respostas?.[marca.pergunta.chave] === RESPOSTA_DE_MARCAR
+  const resposta = marca.pergunta === undefined ? undefined : respostas?.[marca.pergunta.chave]
+  return resposta === RESPOSTA_DE_MARCAR_PAGANDO || resposta === RESPOSTA_DE_MARCAR_PELO_TESTE
 }
 
-/** D10: o SP que o "Sim" do "Marcar?" da técnica cobra no golpe, junto com o custo dela (0 = nada a cobrar). */
+/** D10: o SP que o "Sim" do "Marcar?" da técnica cobra no golpe, junto com o custo dela (0 = nada a cobrar). O "Sim, pelo teste" da 'ou' não paga. */
 export function custoDaMarca(cartao: ChaveDaMecanica | null, respostas: RespostasDoPedido | undefined): number {
   const marca = cartao === null ? null : marcaDoCartao(cartao)
-  return marca !== null && marca.quando === 'pergunta' && marcaVaiNoGolpe(marca, respostas, false) ? (marca.custoEmSp ?? 0) : 0
+  if (marca === null || marca.quando !== 'pergunta' || marca.pergunta === undefined) return 0
+  return respostas?.[marca.pergunta.chave] === RESPOSTA_DE_MARCAR_PAGANDO ? (marca.custoEmSp ?? 0) : 0
 }
 
 /** D10: a forma ligada (`cartoesLigados`) que marca a cada acerto do dono, a primeira, com o id e o nome dela; `null` = nenhuma. */

@@ -496,7 +496,7 @@ export function passivasDe(personagem: Personagem, sistema: SistemaDeRpg, cena: 
     .filter(({ cartao }) => ehPassiva(cartao))
     .map(({ cartao, forma }) => {
       // Rework das habilidades (D6, E5): a montada mostra os gatilhos das peças; a de texto segue abaixo, como antes.
-      if (ehPassivaMontada(cartao)) return passivaMontadaNaTira(cartao, forma, cena)
+      if (ehPassivaMontada(cartao)) return comAMarcaNaTira(passivaMontadaNaTira(cartao, forma, cena), daMarca)
       const gatilho = gatilhoDaPassiva(cartao)
       const ativa = cena.ativas.has(cartao.id)
       const nome = cartao.nome.trim() || PASSIVA_SEM_NOME
@@ -521,18 +521,20 @@ export function passivasDe(personagem: Personagem, sistema: SistemaDeRpg, cena: 
         lembrete: (cena.combate?.lembretes ?? []).find((lembrete) => lembrete.cartaoId === cartao.id) ?? null,
       }
       if (forma !== undefined) passiva.forma = forma
-      // Conserto de 27/11/2026 (Olhar Artístico): a de marca escolhe o alvo, e o custo é o da marca (SP ou teste), não o "? SP".
-      if (daMarca !== null && daMarca.cartao.id === cartao.id) {
-        passiva.marca = textoDoCustoDaMarca(daMarca.leitura)
-        passiva.custo = { tipo: 'nada' }
-        passiva.alvo = 'oponente'
-        passiva.motivo = null
-      }
       const porTurno = ativa ? custoPorTurno(cartao, personagem) : null
       const semRecurso = porTurno === null ? null : motivoDoCustoPorTurno(personagem, sistema, porTurno)
       if (semRecurso !== null) passiva.motivoDoAplicar = semRecurso
-      return passiva
+      return comAMarcaNaTira(passiva, daMarca)
     })
+}
+
+/**
+ * Conserto de 27/11/2026 (Olhar Artístico): a passiva de marca (a de texto e, pedido do mesmo dia, a montada com a
+ * peça Marca) escolhe o alvo, e o custo é o da marca ("30 SP ou teste de Percepção"), não o "? SP" do campo Custo.
+ */
+function comAMarcaNaTira(passiva: PassivaNaTira, daMarca: ReturnType<typeof passivaDaMarca>): PassivaNaTira {
+  if (daMarca === null || daMarca.cartao.id !== passiva.cartao.id) return passiva
+  return { ...passiva, marca: textoDoCustoDaMarca(daMarca.leitura), custo: { tipo: 'nada' }, alvo: 'oponente', motivo: null }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -753,6 +755,12 @@ export function motivoDaPassiva(ctx: ContextoDaPassiva, pedido: PedidoDePassiva)
     // Conserto das fichas F1 (P6): o custo por turno da técnica mantida precisa caber no recurso de agora.
     return custo === null ? null : motivoDoCustoPorTurno(personagem, sistema, custo)
   }
+  // Conserto de 27/11/2026: a passiva de marca (também a montada com a peça Marca) ativa abrindo a MESMA pergunta "Marcar?"
+  // do tiro no alvo escolhido; o SP ou o teste se escolhem e se cobram nela (`marcar` da store), não aqui. A montada com
+  // um lembrete de gatilho esperando segue pelo lembrete, abaixo.
+  if (pedido.ligar && !ligada && passivaDaMarca(personagem, sistema)?.cartao.id === cartao.id && !(ehPassivaMontada(cartao) && lembreteDe(combate, cartao.id) !== null)) {
+    return motivoDoAtivarDaMarca(turnos, pedido.tokenId, pedido.alvoTokenId)
+  }
   // Rework das habilidades (D6, E5): a montada só ativa pelo lembrete do gatilho que pergunta antes (o alvo vem dele ou da tela).
   if (ehPassivaMontada(cartao)) {
     if (!pedido.ligar) return ligada ? null : 'A passiva não está ativa'
@@ -763,9 +771,6 @@ export function motivoDaPassiva(ctx: ContextoDaPassiva, pedido: PedidoDePassiva)
   }
   if (!pedido.ligar) return ligada ? null : 'A passiva não está ativa'
   if (ligada) return 'A passiva já está ativa'
-  // Conserto de 27/11/2026 (Olhar Artístico): a passiva de marca ativa abrindo a MESMA pergunta "Marcar?" do tiro no alvo
-  // escolhido; o SP ou o teste se escolhem e se cobram nela (`marcar` da store), não aqui.
-  if (passivaDaMarca(personagem, sistema)?.cartao.id === cartao.id) return motivoDoAtivarDaMarca(turnos, pedido.tokenId, pedido.alvoTokenId)
   // Tipos de habilidade F4 (mudança mínima na F3): a opção do Ativar (Melodia) tem de ser opção desta passiva.
   if (pedido.variante !== undefined && varianteDoPedido(cartao, pedido.variante) === null) return 'Opção não encontrada na passiva'
   if (pedido.custo !== null && (!Number.isInteger(pedido.custo) || pedido.custo < 0 || pedido.custo > CUSTO_MAX)) return 'Custo inválido'

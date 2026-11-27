@@ -11,10 +11,13 @@ import {
   type LembreteDaMarca,
   type SeloDaBatalha,
 } from './combate'
+import { pedidoDaMarca, textoDoPedidoDaMarca, type ComoPagaAMarca, type PedidoDaMarca } from './comoMarca'
 import { normalizar } from './formula'
 import { CAMPO_DO_CUSTO, tecnicasDe } from './leituraDaFicha'
 import type { Reversao } from './registro'
-import type { MarcaAMao } from './mecanicasAMao'
+import { pecasDoCartao } from './mecanica/leitura'
+import { atributoNoMotor, nomeDoAtributoDaPeca } from './mecanica/pecas'
+import { marcaDoCartao, type MarcaAMao } from './mecanicasAMao'
 import { comSeloNovo, criarSelo, ondeNaVez, pegaOSelo } from './selos'
 import { lerTipo } from './tiposDaHabilidade'
 import type { TurnosDaCena } from './turnos'
@@ -59,10 +62,36 @@ export interface TesteDaMarca {
 }
 
 export type LeituraDaMarca =
-  /** A passiva: o SP que paga (`null` = não diz) e o teste (`null` = não diz). Pelo menos um dos dois existe. */
-  | { tipo: 'passiva'; sp: number | null; teste: TesteDaMarca | null }
+  /**
+   * A passiva: o SP que paga (`null` = não diz) e o teste (`null` = não diz). Na de texto, pelo menos um dos
+   * dois existe. Pedido de 27/11/2026: `como` = com os dois, 'e' (paga E passa) ou 'ou' (um dos dois; ausente =
+   * 'ou', a passiva de texto de sempre); `peca` = a passiva montada com a peça Marca (o molde da marca, e o
+   * "só à distância" do `quando`); ausente = a de texto, que só pergunta no acerto com arma que atira.
+   */
+  | { tipo: 'passiva'; sp: number | null; teste: TesteDaMarca | null; como?: ComoPagaAMarca; peca?: MarcaAMao }
   /** A técnica que marca quem ela acerta. */
   | { tipo: 'aoAcertar' }
+
+type LeituraDaPassivaDeMarca = Extract<LeituraDaMarca, { tipo: 'passiva' }>
+
+/** O que a passiva de marca pede ao marcar (`comoMarca.ts`): os dois, um dos dois, só o SP, só o teste ou nada. A de texto, sem `como`, é 'ou'. */
+export function pedidoDaPassivaDeMarca(leitura: Pick<LeituraDaPassivaDeMarca, 'sp' | 'teste' | 'como' | 'peca'>): PedidoDaMarca {
+  return pedidoDaMarca(leitura.sp, leitura.teste === null ? null : leitura.teste.atributoId, leitura.como ?? (leitura.peca === undefined ? 'ou' : undefined))
+}
+
+/**
+ * Pedido de 27/11/2026: a passiva MONTADA com a peça Marca (o Olhar Artístico pelo editor) lida como a passiva
+ * de marca: o SP e o teste da peça (o teste sem CD: só o "rolei fora"), o "e/ou" e a peça (o molde, o `quando`).
+ */
+function marcaDaPassivaMontada(cartao: Partial<Pick<CartaoDaFicha, 'mecanica'>> & Pick<CartaoDaFicha, 'id'>, sistema: SistemaDeRpg): LeituraDaPassivaDeMarca | null {
+  if (cartao.mecanica === undefined || pecasDoCartao(cartao)?.uso !== 'passiva') return null
+  const peca = marcaDoCartao(cartao)
+  if (peca === null) return null
+  const atributoId = peca.teste === undefined ? null : atributoNoMotor(peca.teste)
+  const atributo = atributoId === null ? undefined : sistema.atributos.find((candidato) => candidato.id === atributoId)
+  const teste = atributoId === null || peca.teste === undefined ? null : { atributoId, nome: atributo?.nome ?? nomeDoAtributoDaPeca(peca.teste), cd: null }
+  return { tipo: 'passiva', sp: peca.custoEmSp ?? null, teste, ...(peca.como === undefined ? {} : { como: peca.como }), peca }
+}
 
 function extraDaMarca(cartao: Pick<CartaoDaFicha, 'extras'>): string | null {
   const extra = cartao.extras.find((candidato) => normalizar(candidato.nome) === EXTRA_DA_MARCA)
@@ -92,7 +121,12 @@ function textoDoCartao(cartao: Pick<CartaoDaFicha, 'campos' | 'extras'>): string
 }
 
 /** O que o cartão faz com a marca; `null` = nada. */
-export function lerMarca(cartao: Pick<CartaoDaFicha, 'campos' | 'extras'>, sistema: SistemaDeRpg): LeituraDaMarca | null {
+export function lerMarca(cartao: Pick<CartaoDaFicha, 'campos' | 'extras'> & Partial<Pick<CartaoDaFicha, 'id' | 'mecanica'>>, sistema: SistemaDeRpg): LeituraDaMarca | null {
+  // Pedido de 27/11/2026: a passiva montada com a peça Marca vale pela peça, não pelo texto.
+  if (cartao.mecanica !== undefined && cartao.id !== undefined) {
+    const montada = marcaDaPassivaMontada({ id: cartao.id, mecanica: cartao.mecanica }, sistema)
+    if (montada !== null) return montada
+  }
   const passiva = lerTipo(cartao).tipo === 'passiva'
   const explicito = extraDaMarca(cartao)
   if (explicito !== null) {
@@ -181,6 +215,11 @@ export interface ContextoDoAcerto {
   novoId: () => string
   /** A passiva de marca de quem atacou; `null` = não tem. */
   passiva: Pick<CartaoDaFicha, 'id'> | null
+  /**
+   * A passiva só pergunta no acerto com arma que atira (a de texto, e a montada com a peça "à distância"). Pedido
+   * de 27/11/2026: a montada com a peça Marca "quando o dono acerta" pergunta em todo acerto dele. Ausente = só no tiro.
+   */
+  passivaEmTodoAcerto?: boolean
   /** A técnica do golpe, quando ela marca ao acertar (o id e o nome que vão no selo). */
   tecnicaQueMarca: Pick<CartaoDaFicha, 'id' | 'nome'> | null
   /** D10: o molde da marca da técnica (a peça Marca); ausente = a do R1 ("Marcado", sem turnos, o dobro, qualquer um aproveita). */
@@ -232,7 +271,7 @@ export function acertoNaMarca(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo:
       novos = { ...novos, selos }
       partes.push({ tipo: 'selo', seloId: nova.id, antes: null })
     }
-  } else if (quemMarca === null && ctx.passiva !== null && golpe.armaQueAtira === true && !jaMarcado && alvo.tokenId !== golpe.atacanteTokenId && golpe.atacantePersonagemId !== null) {
+  } else if (quemMarca === null && ctx.passiva !== null && (golpe.armaQueAtira === true || ctx.passivaEmTodoAcerto === true) && !jaMarcado && alvo.tokenId !== golpe.atacanteTokenId && golpe.atacantePersonagemId !== null) {
     const lembrete: LembreteDaMarca = {
       id: ctx.novoId(),
       linhaId: ctx.linhaId,
@@ -272,11 +311,11 @@ export function motivoDoAtivarDaMarca(turnos: Pick<TurnosDaCena, 'cartas' | 'sel
   return null
 }
 
-/** "30 SP ou teste de Percepção (CD 15)": o que a passiva de marca pede, como a tira e a pergunta mostram. */
-export function textoDoCustoDaMarca(leitura: Extract<LeituraDaMarca, { tipo: 'passiva' }>): string {
-  const teste = leitura.teste === null ? null : `teste de ${leitura.teste.nome}${leitura.teste.cd === null ? '' : ` (CD ${leitura.teste.cd})`}`
-  const sp = leitura.sp === null ? null : `${leitura.sp} SP`
-  return [sp, teste].filter((parte): parte is string => parte !== null).join(' ou ')
+/** "30 SP ou teste de Percepção (CD 15)", "30 SP e teste de Percepção": o que a passiva de marca pede, como a tira e a pergunta mostram. */
+export function textoDoCustoDaMarca(leitura: LeituraDaPassivaDeMarca): string {
+  const teste = leitura.teste === null ? '' : `teste de ${leitura.teste.nome}${leitura.teste.cd === null ? '' : ` (CD ${leitura.teste.cd})`}`
+  const sp = leitura.sp === null ? '' : `${leitura.sp} SP`
+  return textoDoPedidoDaMarca(pedidoDaPassivaDeMarca(leitura), sp, teste) || 'sem custo'
 }
 
 /** O golpe com o alvo trocado (mesmo lugar). */
@@ -292,12 +331,20 @@ export type ComoMarca = 'sp' | 'teste' | 'passou' | 'falhou' | 'agoraNao'
 export const COMO_MARCA: readonly ComoMarca[] = ['sp', 'teste', 'passou', 'falhou', 'agoraNao']
 
 /** Por que a resposta não vale, ou `null`. `sp` = o SP de agora de quem marca. */
-export function motivoDaMarca(leitura: Extract<LeituraDaMarca, { tipo: 'passiva' }>, como: ComoMarca, sp: number): string | null {
+export function motivoDaMarca(leitura: Pick<LeituraDaPassivaDeMarca, 'sp' | 'teste' | 'como' | 'peca'>, como: ComoMarca, sp: number): string | null {
+  if (como === 'agoraNao') return null
+  // Pedido de 27/11/2026: a regra única do "e/ou" (`comoMarca.ts`).
+  const pedido = pedidoDaPassivaDeMarca(leitura)
   if (como === 'sp') {
     if (leitura.sp === null) return 'A passiva não diz quanto de SP'
+    if (pedido === 'e') return `A marca pede ${leitura.sp} SP e o teste: faça o teste (paga se passar)`
     if (sp < leitura.sp) return `SP insuficiente: custa ${leitura.sp}, você tem ${sp}`
+    return null
   }
-  if (como === 'teste' && (leitura.teste === null || leitura.teste.cd === null)) return 'A passiva não diz a CD do teste'
-  if ((como === 'passou' || como === 'falhou') && leitura.teste === null) return 'A passiva não pede teste'
+  // Sem SP nem teste, "Passou" é o "Marcar" sem custo.
+  if (pedido === 'nada') return como === 'passou' ? null : 'A passiva não pede teste'
+  if (leitura.teste === null) return 'A passiva não pede teste'
+  if (como === 'teste' && leitura.teste.cd === null) return 'A passiva não diz a CD do teste'
+  if (pedido === 'e' && como !== 'falhou' && leitura.sp !== null && sp < leitura.sp) return `SP insuficiente: custa ${leitura.sp}, você tem ${sp}`
   return null
 }
