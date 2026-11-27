@@ -175,8 +175,9 @@ export function efeitosDasFormasLigadas(personagem: Personagem, sistema: Sistema
  * pela peça (-10 = leva 10% a menos) quando ela corta; sem corte na peça, o campo de texto de antes vale.
  */
 export function reducaoDaForma(cartao: CartaoDaForma): number | null {
-  const daPeca = formaMontada(cartao)?.forma.danoRecebido ?? 0
-  if (daPeca < 0) return Math.min(100, -daPeca)
+  // Uma coisa, um lugar: na forma montada vale só a peça (o campo de texto sai dela ao gravar, D5).
+  const montada = formaMontada(cartao)
+  if (montada !== null) return montada.forma.danoRecebido < 0 ? Math.min(100, -montada.forma.danoRecebido) : null
   const reducao = /-\s*(\d+)\s*%/.exec(cartao.campos[CAMPO_DO_DANO_RECEBIDO] ?? '')
   return reducao === null ? null : Math.min(100, Number.parseInt(reducao[1] ?? '0', 10))
 }
@@ -184,12 +185,12 @@ export function reducaoDaForma(cartao: CartaoDaForma): number | null {
 /** R6: o campo Deslocamento de UMA forma ("+2", "máx 6"), no teto do campo; cada parte `null` = a ficha não diz. E5: a peça vale onde diz um número. */
 export function deslocamentoDaForma(cartao: CartaoDaForma): { aMais: number | null; max: number | null } {
   const montada = formaMontada(cartao)
-  const doTexto = deslocamentoDoTexto(cartao)
-  if (montada === null) return doTexto
+  if (montada === null) return deslocamentoDoTexto(cartao)
+  // Na forma montada vale só a peça (o campo de texto sai dela ao gravar, D5).
   const { deslocamento, deslocamentoMax } = montada.forma
   return {
-    aMais: deslocamento > 0 ? Math.min(NUMERO_DO_CAMPO_MAX, deslocamento) : doTexto.aMais,
-    max: deslocamentoMax > 0 ? Math.min(NUMERO_DO_CAMPO_MAX, deslocamentoMax) : doTexto.max,
+    aMais: deslocamento > 0 ? Math.min(NUMERO_DO_CAMPO_MAX, deslocamento) : null,
+    max: deslocamentoMax > 0 ? Math.min(NUMERO_DO_CAMPO_MAX, deslocamentoMax) : null,
   }
 }
 
@@ -204,7 +205,9 @@ function deslocamentoDoTexto(cartao: Pick<CartaoDaFicha, 'campos'>): { aMais: nu
 }
 
 /** R6: os ataques a mais por rodada ao usar Atacar de UMA forma (Ignição: 1); `null` = a ficha não diz. */
-export function ataquesExtrasDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): number | null {
+export function ataquesExtrasDaForma(cartao: CartaoDaForma): number | null {
+  // A forma montada dá as ações a mais pela peça (`acoesAMaisDaForma`); o campo de texto (escrito dela) somaria de novo.
+  if (formaMontada(cartao) !== null) return null
   return inteiroDoCampo(cartao, CAMPO_DOS_ATAQUES_EXTRAS)
 }
 
@@ -222,6 +225,8 @@ export const CAMPO_DA_DURACAO = 'duracao'
  */
 export function duracaoDaForma(cartao: Pick<CartaoDaFicha, 'id' | 'campos'> & Partial<Pick<CartaoDaFicha, 'mecanica'>>): number | null {
   const chave = cartao.mecanica === undefined ? cartao.id : { id: cartao.id, mecanica: cartao.mecanica }
+  // Na forma montada vale só a peça: o campo Duração sai dela ao gravar (D5), e o de antes não manda mais.
+  if (formaMontada(cartao) !== null) return vezesDaForma(chave)
   return inteiroDoCampo(cartao, CAMPO_DA_DURACAO) ?? vezesDaForma(chave)
 }
 

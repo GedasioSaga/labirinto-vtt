@@ -36,6 +36,8 @@ export function mecanicaNaCategoria(mecanica: MecanicaV1, categoria: CategoriaDa
     case 'apoio':
       return trocarQuem({ ...naVez, limite: limiteSemOverload, teste }, 'aliados')
     case 'overload': {
+      // A Overload de transformação (D5) não bate: fica em quem usa e liga como Livre (`formaMontada`, transformacao.ts).
+      if ((naVez.pecas ?? []).some((peca) => peca.tipo === 'transformacao')) return { ...naVez, acao: 'livre', limite: { overload: true }, teste: { tipo: 'naoErra' } }
       const contra = ehAjuda(naVez.alvo.quem) ? trocarQuem(naVez, 'inimigos') : naVez
       return { ...contra, acao: 'completa', limite: { overload: true }, teste: { tipo: 'naoErra' } }
     }

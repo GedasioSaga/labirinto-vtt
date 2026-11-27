@@ -1,3 +1,4 @@
+import type { Modificador } from '../../personagem'
 import { NOME_DO_SELO_MAX } from '../combate'
 import type { TipoQueBate } from './modelo'
 
@@ -388,6 +389,17 @@ export function pecaNova<F extends FamiliaDaPeca>(familia: F): PecaDa<F> {
 /** As peças de uma família, na ordem da lista. */
 export function pecasDo<F extends FamiliaDaPeca>(pecas: readonly PecaDaMecanica[] | undefined, familia: F): PecaDa<F>[] {
   return (pecas ?? []).filter((peca): peca is PecaDa<F> => peca.tipo === familia)
+}
+
+/**
+ * D5: os `modificadores` que a peça Transformação dá ao cartão (a Velocidade é a Agilidade); a última
+ * peça vale, como no motor. `null` = a mecânica não tem a peça. Gravados pelo texto gerado (o Salvar do
+ * editor), pelo "+ Transformação" e pelo "Pôr em" do catálogo: a forma ligada os aplica, e o app de antes,
+ * o site e a Arena já os leem.
+ */
+export function modificadoresDaPecaDaForma(mecanica: { readonly pecas?: readonly PecaDaMecanica[] }): Modificador[] | null {
+  const forma = pecasDo(mecanica.pecas, 'transformacao').at(-1)
+  return forma === undefined ? null : forma.mods.map((mod) => ({ atributo: atributoNoMotor(mod.atributo), delta: mod.valor }))
 }
 
 // ─── A leitura ──────────────────────────────────────────────────────────────

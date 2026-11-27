@@ -17,6 +17,7 @@ import { ABA_DAS_ARMAS, ABA_DAS_TECNICAS, armasDe, recursoDoCusto, type LeituraD
 import { armaPadraoEntre } from '../mecanica/arma'
 import { danoDaTecnica, danoDaTecnicaComAVida } from '../leituraDaTecnica'
 import { pecasDoCartao } from '../mecanica/leitura'
+import { pecasDo } from '../mecanica/pecas'
 import { mecanicaDoCartao, perguntasDoCartao, respostasPadrao } from '../mecanicasAMao'
 import type { PerguntaNaHora, RespostasDoPedido } from '../perguntaNaHora'
 import { reacoesParaOAlvo, type ReacaoComTecnica } from '../reacaoComTecnica'
@@ -595,6 +596,9 @@ function ensaiarAReacao(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   return { passos, barras: barrasDosAlvos(mesa, sistema, [vagaDeQuemUsa.tokenId, boneco.tokenId], vidaAntes), passarUmaVez: null }
 }
 
+/** Por que o Testar não roda a forma: ela muda quem usa (atributos, ações, duração) e liga pela lista de formas. */
+export const MOTIVO_DA_FORMA_NO_TESTE = 'A forma liga pelo Ativar da lista de formas, não pelo menu das técnicas: o Testar roda golpes. O que ela muda (atributos, ações a mais, duração, Fadiga) está no papel; para vê-la agir, ligue-a numa batalha ou na Arena.'
+
 /**
  * Roda o cartão uma vez no boneco. Nunca lança por causa da ficha: o que o
  * motor recusa vira o passo "Não saiu" com o motivo dele.
@@ -606,6 +610,8 @@ export function ensaiar(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   const arrumacao = arrumacaoDoBoneco(cartao)
   const arrumou: PassoDoEnsaio = { tipo: 'arrumou', titulo: 'Boneco', texto: arrumacao.frase }
   const naoSaiu = (texto: string): ResultadoDoEnsaio => ({ passos: [arrumou, recusa(texto)], barras: [], passarUmaVez: null })
+  // D5: a forma (a peça Transformação) liga pelo Ativar da lista de formas, não pelo menu das técnicas que o Testar roda.
+  if (pecasDo(pecasDoCartao(cartao)?.pecas, 'transformacao').length > 0) return naoSaiu(MOTIVO_DA_FORMA_NO_TESTE)
   const montada = montarMesa(pedido, arrumacao)
   if (typeof montada === 'string') return naoSaiu(montada)
   const { mesa, loja, vagaDeQuemUsa, vagasDosBonecos } = montada
@@ -695,6 +701,8 @@ function ensaiarArma(pedido: PedidoDeEnsaio): ResultadoDoEnsaio {
   const arrumacao = arrumacaoDoBoneco(cartao)
   const arrumou: PassoDoEnsaio = { tipo: 'arrumou', titulo: 'Boneco', texto: arrumacao.frase }
   const naoSaiu = (texto: string): ResultadoDoEnsaio => ({ passos: [arrumou, recusa(texto)], barras: [], passarUmaVez: null })
+  // D5: a forma (a peça Transformação) liga pelo Ativar da lista de formas, não pelo menu das técnicas que o Testar roda.
+  if (pecasDo(pecasDoCartao(cartao)?.pecas, 'transformacao').length > 0) return naoSaiu(MOTIVO_DA_FORMA_NO_TESTE)
   const montada = montarMesa({ ...pedido, quemUsa: comAArma(pedido.quemUsa, cartao) }, arrumacao)
   if (typeof montada === 'string') return naoSaiu(montada)
   const { mesa, loja, vagaDeQuemUsa, vagasDosBonecos } = montada

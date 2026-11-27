@@ -4,7 +4,7 @@ import { alcanceDoArquivo, cartoesDaAba, mecanicaDoArquivo, novoCartao, type Alc
 import { marcasGuardadas, requisitosGuardados } from '../batalha/requisitos/guardados'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../sistemaDeRpg'
 import { lerMecanica } from '../batalha/mecanica/modelo'
-import { pecasDo } from '../batalha/mecanica/pecas'
+import { modificadoresDaPecaDaForma, pecasDo } from '../batalha/mecanica/pecas'
 
 /**
  * CATÁLOGO DO LIVRO (M3 do mundo do livro de regras, docs/planos/livros-de-regras-plano.md,
@@ -356,7 +356,10 @@ export function cartaoDaEntrada(entrada: EntradaParaFicha, aba: AbaDoSistema, si
   const alcance = ehDoLivro(entrada) ? {} : alcanceDoArquivo(entrada.alcance)
   // Fase B2 dos requisitos: o bloco e as marcas também, em cópia.
   const requisitos = ehDoLivro(entrada) ? {} : requisitosEMarcas(entrada.requisitos, entrada.marcas)
-  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema), ...(itemId === undefined ? {} : { itemId }), ...mecanica, ...alcance, ...requisitos }
+  // D5: a forma chega com os modificadores da peça Transformação (o catálogo não os guarda; a forma ligada os aplica).
+  const lida = ehDoLivro(entrada) ? null : lerMecanica(entrada.mecanica)
+  const modificadores = lida?.tipo === 'pecas' ? modificadoresDaPecaDaForma(lida.mecanica) : null
+  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema), ...(itemId === undefined ? {} : { itemId }), ...mecanica, ...alcance, ...requisitos, ...(modificadores === null ? {} : { modificadores }) }
 }
 
 /** As balas da arma do catálogo como subcartões da aba de destino; o campo que a aba das balas não tem fica de fora. */

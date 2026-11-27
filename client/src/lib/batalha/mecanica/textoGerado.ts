@@ -1,15 +1,19 @@
-import { NOME_DO_TEXTO_DE_ANTES, type CampoExtra, type CartaoDaFicha, type MecanicaGuardada, type Modificador } from '../../personagem'
+import { ABA_DAS_TRANSFORMACOES } from '../../livros/catalogo'
+import { NOME_DO_TEXTO_DE_ANTES, type CampoExtra, type CartaoDaFicha, type MecanicaGuardada } from '../../personagem'
 import { abaDoSistema, type SistemaDeRpg } from '../../sistemaDeRpg'
 import { quemUsaDeTreino } from '../ensaio/ensaioDoItem'
 import { CAMPO_DO_DANO } from '../formula'
 import { ABA_DAS_ARMAS, ABA_DAS_TECNICAS, CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO } from '../leituraDaFicha'
 import { CAMPO_DO_TIPO, rotuloDoTipo, tipoDoTexto, type TipoDaHabilidade } from '../tiposDaHabilidade'
+import { CAMPO_DA_DURACAO, CAMPO_DO_DANO_RECEBIDO, CAMPO_DO_DESLOCAMENTO, CAMPO_DO_GRUPO, CAMPO_DOS_ATAQUES_EXTRAS, CAMPO_DOS_USOS } from '../transformacao'
 import { categoriaDaMecanica, nomeDaAcao, tipoDasPecas } from './categoria'
 import { ADJETIVO_DO_TIPO } from './golpe'
 import { formulaDoNumero } from './leitura'
 import { lerMecanica, type AcaoDaMecanica, type Efeito, type MecanicaV1, type TipoComRegra, type TipoDoGolpe } from './modelo'
-import { atributoNoMotor, type PecaTransformacao } from './pecas'
+import { modificadoresDaPecaDaForma, pecasDo, type PecaTransformacao } from './pecas'
 import { ehAjudaNaFrase, fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, fraseDoTeste, frasesDaReacao, frasesDoDano, frasesDoGolpe, frasesDasPecas, frasesDosOutrosCustos, quantoCusta, resumoDaMecanica, type FichaDaPrevia } from './resumo'
+
+export { modificadoresDaPecaDaForma }
 
 /**
  * O TEXTO GERADO (fase ED2 do editor novo; EDITOR.md §3.4). Regra do dono: "não posso ter nada
@@ -65,12 +69,30 @@ function pedaco(texto: string, linha: ParteDoPapel, cor: CorDoPedaco | null = nu
   return [cor === null ? { texto: limpo, linha } : { texto: limpo, linha, cor }]
 }
 
+/** A peça Transformação da mecânica (a última vale, como no motor); `null` = não é forma. */
+function pecaDaForma(mecanica: MecanicaV1): PecaTransformacao | null {
+  return pecasDo(mecanica.pecas, 'transformacao').at(-1) ?? null
+}
+
+/**
+ * D5: a mecânica com a peça Transformação é uma FORMA. Ela liga em quem usa e não bate: o papel não
+ * diz alvo, dano nem acerto (a forma Overload dizia "acerta 1 inimigo. Não dá dano", e "Gasta a vez
+ * inteira", e liga como Livre). Os usos e a Overload já estão na frase da peça.
+ */
+function ehForma(mecanica: MecanicaV1): boolean {
+  return pecaDaForma(mecanica) !== null
+}
+
+/** A Overload de transformação: liga sem gastar ação, no começo da vez, e já age (`formaMontada`, transformacao.ts). */
+const FRASE_DA_OVERLOAD_DA_FORMA = 'Liga como ação Livre no começo da vez e já age'
+
 /** Os pedaços depois do nome da ação, sem as ligações. */
 function pedacosDoCorpo(mecanica: MecanicaV1, ficha: FichaDaPrevia): PedacoDoPapel[] {
+  const forma = ehForma(mecanica)
   const daVez = mecanica.uso !== 'reacao' && mecanica.uso !== 'passiva'
   const exige = mecanica.alvo.exigeSelo === undefined ? '' : ` Só vale em quem tem ${mecanica.alvo.exigeSelo}.`
   const corpo: PedacoDoPapel[] = []
-  if (daVez) {
+  if (daVez && !forma) {
     const ajuda = ehAjudaNaFrase(mecanica)
     // "Apoio: 1 aliado." (o "Pega" sobra depois do nome); o ataque continua "acerta 1 inimigo".
     const alvo = ajuda ? fraseDoAlvo(mecanica).replace(/^Pega /, '') : fraseDoAlvo(mecanica)
@@ -89,10 +111,12 @@ function pedacosDoCorpo(mecanica: MecanicaV1, ficha: FichaDaPrevia): PedacoDoPap
   // Versão 5 (PLANO.md decisão 2): as peças novas se escrevem sozinhas, na ordem do cartão.
   for (const frase of frasesDasPecas(mecanica, ficha)) corpo.push(...pedaco(frase, 'pecas'))
   const item = mecanica.custoEmItem
-  const custo = [fraseDoCusto(mecanica, ficha), ...frasesDosOutrosCustos(mecanica, ficha), item === undefined ? '' : `Cada uso gasta ${item.quantos} ${item.nome} da mochila.`, fraseDoLimite(mecanica) ?? '']
+  // Na forma, os usos e a Overload estão na frase da peça: o limite só diz a recarga.
+  const limite = forma ? fraseDoLimite({ ...mecanica, limite: mecanica.limite.recarga === undefined ? {} : { recarga: mecanica.limite.recarga } }) : fraseDoLimite(mecanica)
+  const custo = [fraseDoCusto(mecanica, ficha), ...frasesDosOutrosCustos(mecanica, ficha), item === undefined ? '' : `Cada uso gasta ${item.quantos} ${item.nome} da mochila.`, limite ?? '']
   for (const frase of custo) corpo.push(...pedaco(frase, 'custo', 'custo'))
-  // Overload: a trava aparece no fim, mas é a Ação que a muda.
-  if (categoriaDaMecanica(mecanica) === 'overload') corpo.push({ texto: 'Gasta a vez inteira', linha: 'acao' })
+  // Overload: a trava aparece no fim, mas é a Ação que a muda. A de transformação liga como Livre.
+  if (categoriaDaMecanica(mecanica) === 'overload') corpo.push({ texto: forma ? FRASE_DA_OVERLOAD_DA_FORMA : 'Gasta a vez inteira', linha: 'acao' })
   return corpo
 }
 
@@ -104,8 +128,9 @@ function adjetivosDoGolpe(mecanica: MecanicaV1): string[] {
   return tipos.map((escolha) => (escolha.tipo === 'outro' ? `de ${escolha.regra.nome}` : ADJETIVO_DO_TIPO[escolha.tipo]))
 }
 
-/** O nome que abre a frase do papel ("Apoio", "Ataque Completo de fogo"). */
+/** O nome que abre a frase do papel ("Apoio", "Ataque Completo de fogo"; a forma, "Transformação"). */
 function nomeNoPapel(mecanica: MecanicaV1): string {
+  if (ehForma(mecanica)) return 'Transformação'
   const adjetivos = adjetivosDoGolpe(mecanica)
   return adjetivos.length === 0 ? nomeDaAcao(mecanica) : `${nomeDaAcao(mecanica)} ${adjetivos.join(' e ')}`
 }
@@ -113,8 +138,8 @@ function nomeNoPapel(mecanica: MecanicaV1): string {
 /** A frase do papel em pedaços: "Ataque Completo: acerta 1 inimigo… . Dano: … . Custa 35 SP." */
 export function pedacosDoPapel(mecanica: MecanicaV1, ficha: FichaDaPrevia): PedacoDoPapel[] {
   const corpo = pedacosDoCorpo(mecanica, ficha)
-  // Com tipo, o nome leva ao Golpe (protótipo): é ele que dá o "de fogo".
-  const frase: PedacoDoPapel[] = [{ texto: nomeNoPapel(mecanica), linha: adjetivosDoGolpe(mecanica).length === 0 ? 'acao' : 'golpe' }]
+  // Com tipo, o nome leva ao Golpe (protótipo): é ele que dá o "de fogo". A forma não bate: o nome leva à Ação.
+  const frase: PedacoDoPapel[] = [{ texto: nomeNoPapel(mecanica), linha: ehForma(mecanica) || adjetivosDoGolpe(mecanica).length === 0 ? 'acao' : 'golpe' }]
   corpo.forEach((parte, indice) => {
     frase.push({ texto: indice === 0 ? ': ' : '. ' })
     frase.push(indice === 0 ? { ...parte, texto: comMinuscula(parte.texto) } : parte)
@@ -135,7 +160,18 @@ export function fraseDoPapel(mecanica: MecanicaV1, ficha: FichaDaPrevia): string
 /** Os campos que o app escreve na técnica montada, na ordem da aba Habilidades. */
 export const CAMPOS_GERADOS = [CAMPO_DA_ACAO, CAMPO_DO_TIPO, CAMPO_DO_EFEITO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, CAMPO_DO_DANO] as const
 
-export type CampoGerado = (typeof CAMPOS_GERADOS)[number]
+/**
+ * D5: os campos de texto da forma (aba Transformações) que o app escreve das peças, além da Ação, do
+ * Efeito e do Custo. O app de antes, o site e o Worker leem a forma por eles; o motor novo, pela peça.
+ */
+export const CAMPOS_GERADOS_DA_FORMA = [CAMPO_DA_DURACAO, CAMPO_DOS_USOS, CAMPO_DOS_ATAQUES_EXTRAS, CAMPO_DO_DANO_RECEBIDO, CAMPO_DO_DESLOCAMENTO, CAMPO_DO_GRUPO] as const
+
+type CampoGeradoDaForma = (typeof CAMPOS_GERADOS_DA_FORMA)[number]
+
+export type CampoGerado = (typeof CAMPOS_GERADOS)[number] | CampoGeradoDaForma
+
+/** Todos os campos que o app pode escrever, para ler o "Texto de antes". */
+const TODOS_OS_CAMPOS_GERADOS: readonly CampoGerado[] = [...CAMPOS_GERADOS, ...CAMPOS_GERADOS_DA_FORMA]
 
 export type TextoDoCartao = Readonly<Record<CampoGerado, string>>
 
@@ -158,7 +194,24 @@ function acaoNoTexto(mecanica: MecanicaV1): string {
   if (mecanica.uso === 'passiva') return 'Passiva'
   if (mecanica.uso === 'manter') return `${ACAO_NO_TEXTO[mecanica.acao]} (liga e mantém)`
   const acao = mecanica.uso === 'reacao' ? 'Reação' : `${mecanica.uso === 'ativaOuReacao' ? 'Reação/' : ''}${ACAO_NO_TEXTO[mecanica.acao]}`
-  return mecanica.limite.overload === true ? `${acao} | OVERLOAD` : acao
+  if (mecanica.limite.overload !== true) return acao
+  // A Overload de transformação liga como Livre (`formaMontada`), qualquer que seja a ação guardada.
+  return ehForma(mecanica) ? `${ACAO_NO_TEXTO.livre} | OVERLOAD` : `${acao} | OVERLOAD`
+}
+
+/** D5: os campos da forma como os leitores de texto da aba Transformações entendem ("3 turnos", "-10%", "+2, máx 6"). */
+function textoDosCamposDaForma(mecanica: MecanicaV1): Readonly<Record<CampoGeradoDaForma, string>> {
+  const peca = pecaDaForma(mecanica)
+  const usos = mecanica.limite.usosPorBatalha
+  const deslocamento = peca === null ? [] : [peca.deslocamento === 0 ? '' : `${peca.deslocamento > 0 ? '+' : ''}${peca.deslocamento}`, peca.deslocamentoMax > 0 ? `máx ${peca.deslocamentoMax}` : '']
+  return {
+    [CAMPO_DA_DURACAO]: peca === null || peca.dura === 0 ? '' : `${peca.dura} ${peca.dura === 1 ? 'turno' : 'turnos'}`,
+    [CAMPO_DOS_USOS]: usos === undefined ? '' : String(usos),
+    [CAMPO_DOS_ATAQUES_EXTRAS]: peca === null || peca.acoes === 0 ? '' : String(peca.acoes),
+    [CAMPO_DO_DANO_RECEBIDO]: peca === null || peca.danoRecebido === 0 ? '' : `${peca.danoRecebido > 0 ? '+' : ''}${peca.danoRecebido}%`,
+    [CAMPO_DO_DESLOCAMENTO]: deslocamento.filter((parte) => parte !== '').join(', '),
+    [CAMPO_DO_GRUPO]: peca === null ? '' : peca.grupo.trim(),
+  }
 }
 
 /** O custo que bloqueia, como `custoDasPecas`: o "ao usar" ou, sem ele, o "por vez" ("15 SP (por turno)"); sem os dois, vazio (= nada). */
@@ -191,6 +244,7 @@ export function textoDoCartao(mecanica: MecanicaV1, sistema: SistemaDeRpg): Text
     [CAMPO_DO_CUSTO]: custoNoTexto(mecanica),
     [CAMPO_DO_TEMPO]: tempoNoTexto(mecanica),
     [CAMPO_DO_DANO]: danoNoTexto(mecanica),
+    ...textoDosCamposDaForma(mecanica),
   }
 }
 
@@ -198,6 +252,20 @@ export function textoDoCartao(mecanica: MecanicaV1, sistema: SistemaDeRpg): Text
 export function camposGeradosDaAba(sistema: SistemaDeRpg): CampoGerado[] {
   const ids = new Set((abaDoSistema(sistema, ABA_DAS_TECNICAS)?.campos ?? []).map((campo) => campo.id))
   return CAMPOS_GERADOS.filter((id) => ids.has(id))
+}
+
+/** D5: os campos da aba Transformações deste sistema que o app escreve na forma (sem a aba, nenhum). */
+function camposGeradosDaFormaNoSistema(sistema: SistemaDeRpg): CampoGerado[] {
+  const ids = new Set((abaDoSistema(sistema, ABA_DAS_TRANSFORMACOES)?.campos ?? []).map((campo) => campo.id))
+  const daForma: readonly CampoGerado[] = [CAMPO_DA_ACAO, CAMPO_DO_EFEITO, CAMPO_DO_CUSTO, ...CAMPOS_GERADOS_DA_FORMA]
+  return daForma.filter((id) => ids.has(id))
+}
+
+/** Os campos que o app escreve NESTE cartão: os da aba Habilidades e, na forma (D5), os da aba Transformações. */
+export function camposGeradosDoCartao(mecanica: MecanicaV1, sistema: SistemaDeRpg): CampoGerado[] {
+  const daTecnica = camposGeradosDaAba(sistema)
+  if (!ehForma(mecanica)) return daTecnica
+  return [...daTecnica, ...camposGeradosDaFormaNoSistema(sistema).filter((id) => !daTecnica.includes(id))]
 }
 
 /** Os Tipos que as peças não dizem (Passiva, Evolução, Escolha, Invocação): o escrito fica, senão a técnica deixaria de evoluir ou de invocar. */
@@ -211,7 +279,7 @@ function valoresGerados(campos: Readonly<Record<string, string>>, mecanica: Meca
   const passivaDasPecas = tipoEscrito === 'passiva' && antes?.uso === 'passiva'
   const ficaOTipo = tipoEscrito !== null && TIPOS_FORA_DAS_PECAS.has(tipoEscrito) && !passivaDasPecas
   const valores: Partial<Record<CampoGerado, string>> = {}
-  for (const id of camposGeradosDaAba(sistema)) valores[id] = id === CAMPO_DO_TIPO && ficaOTipo ? (campos[id] ?? '') : texto[id]
+  for (const id of camposGeradosDoCartao(mecanica, sistema)) valores[id] = id === CAMPO_DO_TIPO && ficaOTipo ? (campos[id] ?? '') : texto[id]
   return valores
 }
 
@@ -279,7 +347,7 @@ function tecnicaComTexto(antes: CartaoDaFicha, depois: CartaoDaFicha, sistema: S
   if (lida.tipo !== 'pecas') return depois
   const lidaAntes = lerMecanica(antes.mecanica)
   const valores = valoresGerados(depois.campos, lida.mecanica, sistema, lidaAntes.tipo === 'pecas' ? lidaAntes.mecanica : undefined)
-  const ids = camposGeradosDaAba(sistema)
+  const ids = camposGeradosDoCartao(lida.mecanica, sistema)
   const comMods = comOsModsDaForma(depois, lida.mecanica)
   if (ids.every((id) => comMods.campos[id] === valores[id])) return comMods
   const comAntes = comOTextoDeAntes(antes, comMods, ids, valores, sistema)
@@ -296,13 +364,6 @@ function comOsModsDaForma(cartao: CartaoDaFicha, mecanica: MecanicaV1): CartaoDa
   if (mods === null) return cartao
   const iguais = mods.length === cartao.modificadores.length && mods.every((mod, indice) => cartao.modificadores[indice]?.atributo === mod.atributo && cartao.modificadores[indice]?.delta === mod.delta)
   return iguais ? cartao : { ...cartao, modificadores: mods }
-}
-
-/** Os `modificadores` que a peça Transformação dá ao cartão (a Velocidade é a Agilidade); `null` = a mecânica não tem a peça. */
-export function modificadoresDaPecaDaForma(mecanica: MecanicaV1): Modificador[] | null {
-  let forma: PecaTransformacao | undefined
-  for (const peca of mecanica.pecas ?? []) if (peca.tipo === 'transformacao') forma = peca
-  return forma === undefined ? null : forma.mods.map((mod) => ({ atributo: atributoNoMotor(mod.atributo), delta: mod.valor }))
 }
 
 /**
@@ -328,6 +389,12 @@ const ROTULO_NO_TEXTO_DE_ANTES: Readonly<Record<CampoGerado, string>> = {
   [CAMPO_DO_CUSTO]: 'Custo',
   [CAMPO_DO_TEMPO]: 'Tempo',
   [CAMPO_DO_DANO]: 'Dano',
+  [CAMPO_DA_DURACAO]: 'Duração',
+  [CAMPO_DOS_USOS]: 'Usos por batalha',
+  [CAMPO_DOS_ATAQUES_EXTRAS]: 'Ataques extras',
+  [CAMPO_DO_DANO_RECEBIDO]: 'Dano recebido',
+  [CAMPO_DO_DESLOCAMENTO]: 'Deslocamento',
+  [CAMPO_DO_GRUPO]: 'Grupo',
 }
 
 /** O cartão de texto que não tinha nenhum dos campos: a volta apaga os que o app escreveu. */
@@ -356,7 +423,7 @@ export function camposDoTextoDeAntes(valor: string): Map<string, string> | null 
   const guardados = new Map<string, string>()
   if (valor === NENHUM_TEXTO) return guardados
   for (const linha of valor.split('\n')) {
-    const id = CAMPOS_GERADOS.find((campo) => linha.startsWith(`${ROTULO_NO_TEXTO_DE_ANTES[campo]}:`))
+    const id = TODOS_OS_CAMPOS_GERADOS.find((campo) => linha.startsWith(`${ROTULO_NO_TEXTO_DE_ANTES[campo]}:`))
     if (id === undefined || guardados.has(id)) return null
     guardados.set(id, desescaparDaLinha(linha.slice(ROTULO_NO_TEXTO_DE_ANTES[id].length + 1).replace(/^ /, '')))
   }
@@ -395,7 +462,9 @@ function comOTextoDeAntesDeVolta(cartao: CartaoDaFicha, sistema: SistemaDeRpg): 
   const extra = cartao.extras[indice]
   const guardados = extra === undefined ? null : camposDoTextoDeAntes(extra.valor)
   if (guardados === null) return cartao
-  const ids: ReadonlySet<string> = new Set(camposGeradosDaAba(sistema))
+  // Os campos da forma só voltam se o extra os guardou: o "Texto de antes" de uma versão anterior não os tinha (e eles ficam).
+  const daForma = camposGeradosDaFormaNoSistema(sistema).filter((id) => guardados.has(id))
+  const ids: ReadonlySet<string> = new Set([...camposGeradosDaAba(sistema), ...daForma])
   const campos: Record<string, string> = {}
   for (const [id, valor] of Object.entries(cartao.campos)) {
     const guardado = guardados.get(id)
