@@ -12,8 +12,12 @@
 /** Respostas no pedido: a chave da pergunta → a opção escolhida (texto) ou o número digitado. */
 export type RespostasDoPedido = Readonly<Record<string, string | number>>
 
-/** Quantas respostas um pedido leva, no máximo (o fio recusa acima). */
-export const RESPOSTAS_MAX = 8
+/**
+ * Quantas respostas um pedido leva, no máximo (o fio recusa acima). Rework das habilidades (PLANO.md
+ * D13): 12, para caberem as 3 perguntas da técnica, o "Marcar?", o "Imbuir?", a raça e os requisitos
+ * no mesmo pedido (o host e o Worker saem juntos com o teto novo).
+ */
+export const RESPOSTAS_MAX = 12
 /** O tamanho máximo da chave e da opção no fio. */
 export const RESPOSTA_TEXTO_MAX = 40
 /** O maior número que uma resposta numérica aceita (turnos, quantos alvos). */

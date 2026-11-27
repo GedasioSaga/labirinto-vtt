@@ -24,7 +24,7 @@ import { danoDaTecnicaComAVida } from '../batalha/leituraDaTecnica'
 import { lerMarca, type ComoMarca } from '../batalha/marca'
 import { formaDecididaPeloMestre } from '../batalha/mecanica/formaDoMestre'
 import { cartaoMontado, pecasDoCartao, seloDasPecas } from '../batalha/mecanica/leitura'
-import { formulaDaCura, limpezaDe, seloDaMecanica } from '../batalha/mecanicasAMao'
+import { formulaDaCura, limpezaDe, respostasPadrao, seloDaMecanica } from '../batalha/mecanicasAMao'
 import { passivasDe, passivasLigadas, type PassivaNaTira } from '../batalha/passivas'
 import type { VezEsperada } from '../batalha/ponte'
 import { ehLembreteDaPreparacao } from '../batalha/preparacao'
@@ -347,6 +347,9 @@ export function seloDaMira(cartao: TecnicaNoMenu['cartao'], sistema: SistemaDeRp
 /** O pedido da técnica como a mira manda: o custo e a ação da ficha (`null`) e o selo que ela sugere. */
 function pedidoDaTecnica(tecnica: TecnicaNoMenu, sistema: SistemaDeRpg, armaId: string | null, alvos: readonly PedidoDeAlvo[], perfurante: boolean): PedidoDeAcao {
   const selo = seloDaMira(tecnica.cartao, sistema)
+  // Rework das habilidades (PLANO.md E3): a técnica montada com perguntas vai com a 1ª opção de cada uma (a Pergunta na hora, o
+  // "Marcar?"); o robô não imbui (o "Imbuir?" é do dono e, sem resposta, vale o "Não"). A da tabela e a de texto seguem sem respostas.
+  const respostas = cartaoMontado(tecnica.cartao) ? respostasPadrao(tecnica.cartao) : undefined
   return {
     tipo: 'habilidade',
     cartaoId: tecnica.cartao.id,
@@ -359,6 +362,7 @@ function pedidoDaTecnica(tecnica: TecnicaNoMenu, sistema: SistemaDeRpg, armaId: 
     custo: null,
     acao: null,
     ...(selo === null ? {} : { selo }),
+    ...(respostas === undefined ? {} : { respostas }),
   }
 }
 

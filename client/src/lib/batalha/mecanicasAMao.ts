@@ -1,5 +1,8 @@
 import type { CartaoDaFicha, Personagem } from '../personagem'
-import { linhaDoCartaoMontado, pecasDoCartao, pecasUsamACarga } from './mecanica/leitura'
+import { linhaDoCartaoMontado, pecasDoCartao, pecasUsamACarga, RESPOSTA_SEM_IMBUIR } from './mecanica/leitura'
+import { CONDICAO_DO_TIPO } from './mecanica/golpe'
+import { lerMecanica, REGRA_DE_PARTIDA, TESTE_DO_TIPO_DE_PARTIDA, type RegraQuePoeCondicao, type TipoQueBate } from './mecanica/modelo'
+import { cdDoTeste } from './mecanica/teste'
 import type { QuaisSelosTira } from './debuffs'
 import type { AcaoDaTecnica, NaturezaDoSelo, SaidaDaReacao, SaidaDaTecnica, SeloDaBatalha, SeloDoGolpe } from './combate'
 import { CAMPO_DO_DANO, normalizar } from './formula'
@@ -8,7 +11,6 @@ import type { CdDaDisputa, ContraDaDisputa, QuemRola } from './disputa'
 import type { FormaDaArea, QuemEntraNaArea } from './area'
 import { motivoDasRespostas, type OpcaoDaPergunta, type PerguntaNaHora, type RespostasDoPedido } from './perguntaNaHora'
 import { PREFIXO_DA_RESPOSTA } from './requisitos/modelo'
-import type { TipoQueBate } from './mecanica/modelo'
 import type { QuandoOGatilhoDispara } from './mecanica/pecas'
 
 /**
@@ -58,6 +60,12 @@ export interface SaidaDaReacaoAMao {
    * vida, para baixo, até o máximo.
    */
   curaDoQueChega?: number
+  /**
+   * Rework das habilidades (PLANO.md D3, a peça Devolve o golpe): o atributo de quem reage (o nome,
+   * lido como fórmula na ficha dele, "Força") que soma no que volta em quem atacou, junto com o
+   * `devolveDividido`. Ausente = só a divisão, como na Armadura Humana.
+   */
+  devolveSoma?: string
 }
 
 /**
@@ -1028,9 +1036,15 @@ export function mecanicaDoCartao(chave: ChaveDaMecanica): MecanicaAMao | null {
   return linhaPeloId(chave)
 }
 
-/** As perguntas na hora da técnica (vazio = nenhuma). */
+/**
+ * As perguntas na hora da técnica (vazio = nenhuma). Rework das habilidades (PLANO.md D10): a Marca
+ * "perguntando" entra no fim ("Marcar?"), como as outras da técnica (a resposta viaja no `respostas`).
+ */
 export function perguntasDoCartao(cartao: ChaveDaMecanica): readonly PerguntaNaHora[] {
-  return mecanicaDoCartao(cartao)?.perguntas ?? []
+  const mecanica = mecanicaDoCartao(cartao)
+  const daMarca = mecanica?.marca?.pergunta
+  const perguntas = mecanica?.perguntas ?? []
+  return daMarca === undefined ? perguntas : [...perguntas, daMarca]
 }
 
 /** Por que as respostas do pedido não valem para a técnica, ou `null`. Técnica sem pergunta não aceita resposta. */
@@ -1194,11 +1208,16 @@ function emTodoGolpeDo(cartoesDoDono: readonly ChaveDaMecanica[], cartaoId?: Cha
   })
 }
 
-/** F2 (fatia C): as perguntas do golpe: as da técnica (`cartaoId`; `null` = Atacar) e as de todo golpe do dono, sem chave repetida. */
-export function perguntasDoGolpe(cartaoId: ChaveDaMecanica | null, cartoesDoDono: readonly ChaveDaMecanica[]): PerguntaNaHora[] {
+/**
+ * F2 (fatia C): as perguntas do golpe: as da técnica (`cartaoId`; `null` = Atacar) e as de todo golpe do dono, sem chave repetida.
+ * Rework das habilidades (D7): com `ligadas`, também o "Imbuir?" da técnica "Ligar e manter" ligada (sem `ligadas`, como antes).
+ */
+export function perguntasDoGolpe(cartaoId: ChaveDaMecanica | null, cartoesDoDono: readonly ChaveDaMecanica[], ligadas: LigadasDoDono = NADA_LIGADO): PerguntaNaHora[] {
   const daTecnica = cartaoId === null ? [] : perguntasDoCartao(cartaoId)
   const chaves = new Set(daTecnica.map((pergunta) => pergunta.chave))
-  return [...daTecnica, ...emTodoGolpeDo(cartoesDoDono, cartaoId).map((emTodo) => emTodo.pergunta).filter((pergunta) => !chaves.has(pergunta.chave))]
+  const imbuir = imbuirLigado(cartoesDoDono, ligadas)
+  const doDono = [...emTodoGolpeDo(cartoesDoDono, cartaoId).map((emTodo) => emTodo.pergunta), ...(imbuir === null ? [] : [imbuir.pergunta])]
+  return [...daTecnica, ...doDono.filter((pergunta) => !chaves.has(pergunta.chave))]
 }
 
 /**
@@ -1207,12 +1226,13 @@ export function perguntasDoGolpe(cartaoId: ChaveDaMecanica | null, cartoesDoDono
  * as de todo golpe do dono, só quando vêm (sem resposta = "Não": o pedido
  * de antes, ou de quem não tocou, segue valendo).
  */
-export function motivoDasRespostasDoGolpe(cartaoId: ChaveDaMecanica | null, cartoesDoDono: readonly ChaveDaMecanica[], todas: RespostasDoPedido | undefined): string | null {
+export function motivoDasRespostasDoGolpe(cartaoId: ChaveDaMecanica | null, cartoesDoDono: readonly ChaveDaMecanica[], todas: RespostasDoPedido | undefined, ligadas: LigadasDoDono = NADA_LIGADO): string | null {
   // REQUISITOS C: as respostas dos requisitos (`req.*`, a caixa e o "Um destes") são do portão dos requisitos, não da mecânica.
   const daMecanica = todas === undefined ? [] : Object.entries(todas).filter(([chave]) => !chave.startsWith(PREFIXO_DA_RESPOSTA))
   const respostas: RespostasDoPedido | undefined = todas === undefined || daMecanica.length === 0 ? undefined : Object.fromEntries(daMecanica)
   const daTecnica = new Set((cartaoId === null ? [] : perguntasDoCartao(cartaoId)).map((pergunta) => pergunta.chave))
-  const conferidas = perguntasDoGolpe(cartaoId, cartoesDoDono).filter((pergunta) => daTecnica.has(pergunta.chave) || respostas?.[pergunta.chave] !== undefined)
+  // D7: o "Imbuir?" é do dono, como o Electro: só conferido quando vem (sem resposta = "Não"); sem a técnica ligada, a resposta é recusada.
+  const conferidas = perguntasDoGolpe(cartaoId, cartoesDoDono, ligadas).filter((pergunta) => daTecnica.has(pergunta.chave) || respostas?.[pergunta.chave] !== undefined)
   return motivoDasRespostas(conferidas, respostas)
 }
 
@@ -1224,12 +1244,26 @@ export interface ExtraDeTodoGolpe {
   desvantagemNoAlvo: boolean
   /** F2b (Aparência Inofensiva): o rótulo da Surpresa em quem não viu o dono lutar, com a resposta "Sim"; `null` = não vale. */
   surpresaEmQuemNaoViu: string | null
+  /** Rework das habilidades (D3, o Imbuir): a condição do elemento escolhido, que pega no acerto como os selos a mais do golpe. */
+  selos: SeloDoGolpe[]
 }
 
-export function extraDeTodoGolpe(cartoesDoDono: readonly ChaveDaMecanica[], respostas: RespostasDoPedido | undefined): ExtraDeTodoGolpe {
+/**
+ * F2 (fatia C): o que vale em todo golpe do dono (`emTodoGolpe`). Rework das habilidades (D7): com
+ * `ligadas`, também o elemento do Imbuir escolhido (o "Não" não soma nem cobra nada).
+ */
+export function extraDeTodoGolpe(cartoesDoDono: readonly ChaveDaMecanica[], respostas: RespostasDoPedido | undefined, ligadas: LigadasDoDono = NADA_LIGADO): ExtraDeTodoGolpe {
   const rotulos: string[] = []
-  const extra: ExtraDeTodoGolpe = { dano: 0, custoEmSp: 0, rotulos, desvantagemNoAlvo: false, surpresaEmQuemNaoViu: null }
+  const extra: ExtraDeTodoGolpe = { dano: 0, custoEmSp: 0, rotulos, desvantagemNoAlvo: false, surpresaEmQuemNaoViu: null, selos: [] }
   if (respostas === undefined) return extra
+  const elemento = elementoEscolhido(imbuirLigado(cartoesDoDono, ligadas), respostas)
+  if (elemento !== null) {
+    extra.dano += elemento.dano
+    extra.custoEmSp += elemento.custoEmSp
+    extra.rotulos.push(elemento.rotulo)
+    if (elemento.desvantagemNoAlvo === true) extra.desvantagemNoAlvo = true
+    if (elemento.selo !== undefined) extra.selos.push(elemento.selo)
+  }
   for (const emTodo of emTodoGolpeDo(cartoesDoDono)) {
     if (respostas[emTodo.pergunta.chave] !== emTodo.valor) continue
     extra.dano += emTodo.dano
@@ -1277,10 +1311,29 @@ export function perfuranteDaMecanica(cartao: ChaveDaMecanica, respostas: Respost
   if (mecanica === null) return null
   let pelaResposta: boolean | null = null
   for (const regra of mecanica.respostasMudam ?? []) {
-    if (regra.perfurante !== undefined && respostas?.[regra.chave] === regra.valor) pelaResposta = regra.perfurante
+    if (respostas?.[regra.chave] !== regra.valor) continue
+    if (regra.perfurante !== undefined) pelaResposta = regra.perfurante
+    // Rework das habilidades (D3): a resposta com perfuração em % deixa o golpe perfurante (só aquela parte direto no HP).
+    else if (regra.perfuracao !== undefined) pelaResposta = true
   }
   return pelaResposta ?? mecanica.perfurante ?? null
 }
+
+/** Rework das habilidades (D3, a Pergunta na hora): a perfuração em % da resposta (a última que casa vence); `null` = nenhuma resposta muda a perfuração. */
+export function perfuracaoDasRespostas(cartao: ChaveDaMecanica, respostas: RespostasDoPedido | undefined): number | null {
+  if (respostas === undefined) return null
+  let perfuracao: number | null = null
+  for (const regra of mecanicaDoCartao(cartao)?.respostasMudam ?? []) {
+    if (respostas[regra.chave] !== regra.valor) continue
+    if (regra.perfuracao !== undefined) perfuracao = regra.perfuracao
+    // "Todo o dano direto no HP" (o perfurante da resposta) vence a perfuração parcial da técnica.
+    else if (regra.perfurante === true) perfuracao = PERFURACAO_TOTAL
+  }
+  return perfuracao
+}
+
+/** A perfuração inteira: todo o dano passa do Escudo (o golpe perfurante sem porcentagem). */
+const PERFURACAO_TOTAL = 100
 
 /**
  * F2 (fatia D, Explosão): a disputa que o app rola LOGO AO USAR, antes do
@@ -1292,9 +1345,32 @@ export function disputaNoUso(cartao: ChaveDaMecanica): DisputaAMao | null {
   return disputa !== undefined && disputa.quando === 'uso' ? disputa : null
 }
 
-/** F2 (fatia D): a reação da tabela (Armadura Humana, Giro da Lança); `null` = a de sempre, lida do texto. */
+/**
+ * F2 (fatia D): a reação da tabela (Armadura Humana, Giro da Lança); `null` = a de sempre, lida do texto.
+ * Rework das habilidades (D3): com a peça Devolve o golpe, as saídas já levam o que volta em quem bateu.
+ */
 export function reacaoAMaoDe(cartao: ChaveDaMecanica): ReacaoAMao | null {
-  return mecanicaDoCartao(cartao)?.reacao ?? null
+  const mecanica = mecanicaDoCartao(cartao)
+  const reacao = mecanica?.reacao ?? null
+  return reacao === null || mecanica?.devolve === undefined ? reacao : reacaoComODevolve(reacao, mecanica.devolve)
+}
+
+/**
+ * D3 (a peça Devolve o golpe): a defesa de sempre (`reacao.saidas`) e o que volta em quem bateu (o
+ * dano que ficou ÷ `divididoPor`, mais o atributo `soma` de quem reage). Sem escolha, a defesa também
+ * devolve; com escolha, a pessoa escolhe entre defender (só a defesa) e devolver (toma o golpe inteiro
+ * e devolve), como "Atacar e devolver" da Armadura Humana. A reação que rola o d20 fica como era.
+ */
+function reacaoComODevolve(reacao: ReacaoAMao, devolve: DevolveAMao): ReacaoAMao {
+  const defesas = reacao.saidas
+  if (defesas === undefined || defesas.length === 0) return reacao
+  const volta: Pick<SaidaDaReacaoAMao, 'devolveDividido' | 'devolveSoma'> = { devolveDividido: devolve.divididoPor, ...(devolve.soma === undefined ? {} : { devolveSoma: devolve.soma }) }
+  if (!devolve.escolha) return { ...reacao, saidas: defesas.map((saida) => ({ ...saida, ...volta })) }
+  const comSoma = devolve.soma === undefined ? '' : ` + ${devolve.soma}`
+  // A saída do fio precisa ser outra que a da defesa: "contra", como na Armadura Humana; a defesa já em "contra" devolve por "cheio".
+  const saida: SaidaDaTecnica = defesas.some((defesa) => defesa.saida === 'contra') ? 'cheio' : 'contra'
+  const devolver: SaidaDaReacaoAMao = { saida, rotulo: `Devolver ÷ ${devolve.divididoPor}${comSoma}`, noAlvo: 'cheio', fator: 1, ...volta }
+  return { ...reacao, saidas: [...defesas, devolver] }
 }
 
 /** F2 (fatia D, Imbuir Fogo com a Ignição): por que a resposta não vale com as formas ligadas (`ativos` = os `cartoesAtivos` da ficha), ou `null`. */
@@ -1642,6 +1718,209 @@ export function perdaNoFimDaVez(chaves: readonly ChaveDaMecanica[]): { cartaoId:
   for (const chave of chaves) {
     const perde = mecanicaDoCartao(chave)?.perdeNoFimDaVez
     if (perde !== undefined) return { cartaoId: idDaChave(chave), hpPorcento: perde.hpPorcento }
+  }
+  return null
+}
+
+// ─── Rework das habilidades (PLANO.md E3): o motor do golpe lê as peças novas pela linha ───
+// Tudo aqui lê só campos de `MecanicaAMao` (a tradução da E1, `mecanica/leitura.ts`): a linha da tabela
+// à mão e o cartão de texto não têm esses campos, e por isso seguem como antes.
+
+/**
+ * D7: o que está ligado no dono agora. `tecnicas` = os cartões "Ligar e manter" ligados (o selo
+ * `ligada` dele, `ligadasDoDono`); `formas` = os `cartoesAtivos` (o veto da forma no Imbuir).
+ */
+export interface LigadasDoDono {
+  tecnicas: ReadonlySet<string>
+  formas: readonly string[]
+}
+
+/** Nada ligado: quem chama sem o estado da batalha (o Imbuir não pergunta). */
+export const NADA_LIGADO: LigadasDoDono = { tecnicas: new Set<string>(), formas: [] }
+
+/** D7: as técnicas "Ligar e manter" ligadas de `personagemId` (o selo `ligada` posto nele ao ligar) e as formas ligadas dele. */
+export function ligadasDoDono(selos: readonly Pick<SeloDaBatalha, 'ligada' | 'donoId' | 'cartaoId'>[] | undefined, personagemId: string | null, formas: readonly string[]): LigadasDoDono {
+  const tecnicas = new Set<string>()
+  if (personagemId === null) return { tecnicas, formas }
+  for (const selo of selos ?? []) {
+    if (selo.ligada === true && selo.donoId === personagemId && selo.cartaoId !== undefined) tecnicas.add(selo.cartaoId)
+  }
+  return { tecnicas, formas }
+}
+
+/**
+ * O veto da forma no Imbuir (F2, Ignição): a forma ligada que veta o "sim" de uma pergunta da tabela
+ * (o "Imbuir fogo?" com a Ignição) veta também o elemento do Imbuir com o mesmo nome (o Fogo).
+ */
+function elementosVetados(cartoesDoDono: readonly ChaveDaMecanica[], formas: readonly string[]): Set<string> {
+  const vetados = new Set<string>()
+  if (formas.length === 0) return vetados
+  for (const chave of cartoesDoDono) {
+    const veto = mecanicaDoCartao(chave)?.respostaVetada
+    if (veto !== undefined && veto.valor === 'sim' && formas.includes(veto.formaId)) vetados.add(normalizar(veto.chave).trim())
+  }
+  return vetados
+}
+
+/**
+ * D7 (a peça Imbuir): o Imbuir que vale agora, o da primeira técnica ligada do dono que imbui, sem os
+ * elementos que a forma ligada veta. `null` = nenhuma técnica que imbui está ligada.
+ */
+function imbuirLigado(cartoesDoDono: readonly ChaveDaMecanica[], ligadas: LigadasDoDono): (ImbuirAMao & { cartaoId: string }) | null {
+  if (ligadas.tecnicas.size === 0) return null
+  for (const chave of cartoesDoDono) {
+    const cartaoId = idDaChave(chave)
+    const imbuir = ligadas.tecnicas.has(cartaoId) ? mecanicaDoCartao(chave)?.imbuir : undefined
+    if (imbuir === undefined) continue
+    const vetados = elementosVetados(cartoesDoDono, ligadas.formas)
+    if (vetados.size === 0) return { ...imbuir, cartaoId }
+    const elementos = imbuir.elementos.filter((elemento) => !vetados.has(elemento.valor))
+    const pergunta: PerguntaNaHora = imbuir.pergunta.tipo === 'opcoes' ? { ...imbuir.pergunta, opcoes: imbuir.pergunta.opcoes.filter((opcao) => !vetados.has(opcao.valor)) } : imbuir.pergunta
+    return { pergunta, elementos, cartaoId }
+  }
+  return null
+}
+
+/**
+ * D3: o elemento que a resposta do "Imbuir?" escolheu, com a condição dele já com o cartão do Imbuir
+ * (`cartaoId`); o "Não", sem resposta ou sem Imbuir ligado = `null` (não muda nem cobra nada).
+ */
+function elementoEscolhido(imbuir: (ImbuirAMao & { cartaoId: string }) | null, respostas: RespostasDoPedido): ElementoAMao | null {
+  if (imbuir === null) return null
+  const escolha = respostas[imbuir.pergunta.chave]
+  if (escolha === undefined || escolha === RESPOSTA_SEM_IMBUIR) return null
+  const elemento = imbuir.elementos.find((candidato) => candidato.valor === escolha)
+  if (elemento === undefined) return null
+  return elemento.selo === undefined ? elemento : { ...elemento, selo: { ...elemento.selo, cartaoId: imbuir.cartaoId } }
+}
+
+/** O selo de uma regra que põe condição (a do tipo do golpe), com o teste do "com teste"; o "só o tipo" não põe nada. */
+function seloDaRegra(nome: string, regra: RegraQuePoeCondicao, porVez: number): SeloDoGolpe | null {
+  if (regra.quando === 'soTipo') return null
+  const selo: SeloDoGolpe = { nome, turnos: regra.vezes, natureza: 'debuff' }
+  if (porVez > 0) selo.porVez = porVez
+  if (regra.quando === 'teste') {
+    const teste = regra.teste ?? TESTE_DO_TIPO_DE_PARTIDA
+    selo.pega = { atributoId: teste.atributo, cd: cdDoTeste(teste.cd) }
+  }
+  return selo
+}
+
+/**
+ * D3 (a Pergunta na hora "bate como"): o selo do tipo que a resposta dá ao golpe, pela tabela do tipo
+ * do golpe (`CONDICAO_DO_TIPO`, `REGRA_DE_PARTIDA`): Impacto deixa Atordoado (com o teste de
+ * partida), Cortante deixa Sangrando; o Perfurante não põe selo (a perfuração vem da resposta).
+ */
+function seloDoTipoQueBate(tipo: TipoQueBate): SeloDoGolpe | null {
+  switch (tipo) {
+    case 'impacto':
+      return seloDaRegra(CONDICAO_DO_TIPO.impacto, REGRA_DE_PARTIDA.impacto, 0)
+    case 'cortante':
+      return seloDaRegra(CONDICAO_DO_TIPO.cortante, REGRA_DE_PARTIDA.cortante, REGRA_DE_PARTIDA.cortante.porVez)
+    case 'perfurante':
+      return null
+  }
+}
+
+/**
+ * D3: como a técnica montada bate pela escolha gravada (`golpe.bate`); `null` = sem tipo, cartão de texto ou linha da tabela.
+ * A linha (`MecanicaAMao`) não guarda o tipo de partida (`pecasParaOMotor` o desmancha em selos e no
+ * perfurante), e a resposta que troca o tipo precisa dele para tirar o selo do tipo de antes e para o
+ * "+N nos golpes físicos" da raça: por isso aqui se lê a ESCOLHA do tipo (versão 4), nunca uma peça.
+ */
+export function bateDoCartao(cartao: ChaveDaMecanica | null): TipoQueBate | null {
+  if (cartao === null || typeof cartao === 'string' || cartao.mecanica === undefined) return null
+  const lida = lerMecanica(cartao.mecanica)
+  return lida.tipo === 'pecas' ? (lida.mecanica.golpe?.bate?.tipo ?? null) : null
+}
+
+/** D3: o tipo que as respostas dão ao golpe (a última que casa vence); `null` = nenhuma resposta troca o tipo. */
+export function bateDasRespostas(cartao: ChaveDaMecanica, respostas: RespostasDoPedido | undefined): TipoQueBate | null {
+  if (respostas === undefined) return null
+  let bate: TipoQueBate | null = null
+  for (const regra of mecanicaDoCartao(cartao)?.respostasMudam ?? []) {
+    if (regra.bate !== undefined && respostas[regra.chave] === regra.valor) bate = regra.bate
+  }
+  return bate
+}
+
+/** D3: o que as respostas põem no alvo (`poe`, sem nome repetido) e o selo do tipo de antes que sai (`tira`, o nome), quando a resposta troca o tipo. */
+export interface SelosDasRespostas {
+  poe: SeloDoGolpe[]
+  tira: string | null
+}
+
+/**
+ * D3 (a Pergunta na hora): a condição de cada resposta escolhida e o selo do tipo que ela dá ao golpe.
+ * A resposta que troca o tipo tira o selo do tipo de antes (Impacto que vira Cortante deixa Sangrando,
+ * e não Atordoado). Mesmo tipo de antes = nada muda nele (o selo da técnica, com a regra dela, fica).
+ */
+export function selosDasRespostas(cartao: ChaveDaMecanica, respostas: RespostasDoPedido | undefined): SelosDasRespostas {
+  const poe: SeloDoGolpe[] = []
+  const nomes = new Set<string>()
+  const comSelo = (selo: SeloDoGolpe | null | undefined): void => {
+    const nome = selo === null || selo === undefined ? '' : normalizar(selo.nome).trim()
+    if (selo === null || selo === undefined || nome === '' || nomes.has(nome)) return
+    nomes.add(nome)
+    poe.push(selo)
+  }
+  if (respostas === undefined) return { poe, tira: null }
+  const antes = bateDoCartao(cartao)
+  const agora = bateDasRespostas(cartao, respostas)
+  const trocou = agora !== null && agora !== antes
+  // O selo do tipo novo, pela tabela (com o teste e o "por vez" dela), vence a condição de mesmo nome escrita na resposta.
+  if (agora !== null && agora !== antes) comSelo(seloDoTipoQueBate(agora))
+  for (const regra of mecanicaDoCartao(cartao)?.respostasMudam ?? []) {
+    if (respostas[regra.chave] === regra.valor) comSelo(regra.selo)
+  }
+  return { poe, tira: !trocou || antes === null || antes === 'perfurante' ? null : CONDICAO_DO_TIPO[antes] }
+}
+
+/**
+ * D3 (a Passiva de raça "nos golpes físicos"): o dano a mais que a raça do dono soma neste golpe. Vale
+ * no Atacar (`tecnica` `null`), na técnica que bate Impacto, Cortante ou Perfurante (`bate`, já com a
+ * resposta) e na técnica corpo a corpo da tabela. 0 = a raça não soma nos físicos.
+ */
+export function somaNosFisicos(chaves: readonly ChaveDaMecanica[], tecnica: ChaveDaMecanica | null, bate: TipoQueBate | null): number {
+  const soma = racaDoDono(chaves)?.somaNosFisicos ?? 0
+  if (soma <= 0) return 0
+  return tecnica === null || bate !== null || corpoACorpoDe(tecnica) !== null ? soma : 0
+}
+
+/** D3 (a Passiva de raça "quem o dono acerta não pode desviar"): as saídas que a raça de quem ATACOU tira de quem reage. Vazio = nenhuma. */
+export function saidasTiradasPeloAtacante(chavesDoAtacante: readonly ChaveDaMecanica[]): SaidaDaReacao[] {
+  return racaDoDono(chavesDoAtacante)?.alvoNaoDesvia === true ? ['esquiva'] : []
+}
+
+/** D10 (a peça Marca): a marca que a técnica deixa; `null` = a técnica não tem a peça (a de texto segue por `lerMarca`). */
+export function marcaDoCartao(cartao: ChaveDaMecanica): MarcaAMao | null {
+  return mecanicaDoCartao(cartao)?.marca ?? null
+}
+
+/** A resposta do "Marcar?" que marca (a 1ª opção, a que o NPC e o robô dão). */
+const RESPOSTA_DE_MARCAR = 'sim'
+
+/** D10 (a peça Marca): o golpe deixa a marca? "Ao acertar" sempre; "à distância" só com a arma que atira (`atira`); "perguntando" só com o "Sim". */
+export function marcaVaiNoGolpe(marca: MarcaAMao, respostas: RespostasDoPedido | undefined, atira: boolean): boolean {
+  if (marca.quando === 'aoAcertar') return true
+  if (marca.quando === 'tiro') return atira
+  return marca.pergunta !== undefined && respostas?.[marca.pergunta.chave] === RESPOSTA_DE_MARCAR
+}
+
+/** D10: o SP que o "Sim" do "Marcar?" da técnica cobra no golpe, junto com o custo dela (0 = nada a cobrar). */
+export function custoDaMarca(cartao: ChaveDaMecanica | null, respostas: RespostasDoPedido | undefined): number {
+  const marca = cartao === null ? null : marcaDoCartao(cartao)
+  return marca !== null && marca.quando === 'pergunta' && marcaVaiNoGolpe(marca, respostas, false) ? (marca.custoEmSp ?? 0) : 0
+}
+
+/** D10: a forma ligada (`cartoesLigados`) que marca a cada acerto do dono, a primeira, com o id e o nome dela; `null` = nenhuma. */
+export function formaQueMarca(ligados: readonly ChaveDaMecanica[]): { cartaoId: string; nome: string; marca: MarcaAMao } | null {
+  for (const chave of ligados) {
+    const mecanica = mecanicaDoCartao(chave)
+    const marca = mecanica?.forma?.marca
+    if (mecanica === null || marca === undefined) continue
+    const nome = typeof chave === 'string' ? undefined : chave.nome
+    return { cartaoId: idDaChave(chave), nome: nome ?? mecanica.nome, marca }
   }
   return null
 }

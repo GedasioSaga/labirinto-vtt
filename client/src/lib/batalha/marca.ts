@@ -14,6 +14,7 @@ import {
 import { normalizar } from './formula'
 import { CAMPO_DO_CUSTO, tecnicasDe } from './leituraDaFicha'
 import type { Reversao } from './registro'
+import type { MarcaAMao } from './mecanicasAMao'
 import { comSeloNovo, criarSelo, ondeNaVez, pegaOSelo } from './selos'
 import { lerTipo } from './tiposDaHabilidade'
 import type { TurnosDaCena } from './turnos'
@@ -141,10 +142,36 @@ export function modificadorDoTeste(personagem: Personagem, sistema: SistemaDeRpg
   return Math.floor(rank / RANKS_POR_PONTO)
 }
 
-/** A marca nova no alvo: "Marcado", sem turnos, debuff. `linhaId` = a linha que a pôs (o Desfazer de quem a usou só a devolve com ela de pé). */
-export function criarMarca(turnos: TurnosDaCena, alvoTokenId: string, ids: { selo: string; linha: string }, origem: Pick<CartaoDaFicha, 'id' | 'nome'>): SeloDaBatalha {
-  const selo = criarSelo(alvoTokenId, { nome: NOME_DA_MARCA, turnos: null, natureza: 'debuff', cartaoId: origem.id }, { id: ids.selo, rodada: turnos.rodada, ...ondeNaVez(turnos), origem: origem.nome })
-  return { ...selo, marca: true, linhaDaMarca: ids.linha }
+/**
+ * Rework das habilidades (PLANO.md D10, a peça Marca e a marca da forma): como a marca nova nasce e
+ * como o golpe nela a usa. `soDe` = o personagem que aproveita (`SeloDaBatalha.marcaDe`; `null` =
+ * qualquer um); `vezes` = o multiplicador do dano; `some` = sai no golpe que a aproveita.
+ */
+export interface MoldeDaMarca {
+  nome: string
+  turnos: number | null
+  vezes: number
+  soDe: string | null
+  some: boolean
+}
+
+/** D10: o molde da marca da peça (da técnica ou da forma), para o dono `donoPersonagemId`. */
+export function moldeDaMarca(marca: MarcaAMao, donoPersonagemId: string | null): MoldeDaMarca {
+  return { nome: marca.selo.nome, turnos: marca.selo.turnos, vezes: marca.vezes, soDe: marca.soDoDono ? donoPersonagemId : null, some: marca.some }
+}
+
+/**
+ * A marca nova no alvo: "Marcado", sem turnos, debuff. `linhaId` = a linha que a pôs (o Desfazer de quem a usou só a devolve com ela de pé).
+ * D10: com `molde`, o nome, os turnos, quem aproveita, as vezes e se fica vêm da peça.
+ */
+export function criarMarca(turnos: TurnosDaCena, alvoTokenId: string, ids: { selo: string; linha: string }, origem: Pick<CartaoDaFicha, 'id' | 'nome'>, molde?: MoldeDaMarca): SeloDaBatalha {
+  const selo = criarSelo(alvoTokenId, { nome: molde?.nome ?? NOME_DA_MARCA, turnos: molde?.turnos ?? null, natureza: 'debuff', cartaoId: origem.id }, { id: ids.selo, rodada: turnos.rodada, ...ondeNaVez(turnos), origem: origem.nome })
+  const nova: SeloDaBatalha = { ...selo, marca: true, linhaDaMarca: ids.linha }
+  if (molde === undefined) return nova
+  if (molde.soDe !== null) nova.marcaDe = molde.soDe
+  if (molde.vezes !== MULTIPLICADOR_DA_MARCA) nova.marcaVezes = molde.vezes
+  if (!molde.some) nova.marcaFica = true
+  return nova
 }
 
 /** O que precisa para o acerto achar a passiva de quem atacou. */
@@ -156,6 +183,10 @@ export interface ContextoDoAcerto {
   passiva: Pick<CartaoDaFicha, 'id'> | null
   /** A técnica do golpe, quando ela marca ao acertar (o id e o nome que vão no selo). */
   tecnicaQueMarca: Pick<CartaoDaFicha, 'id' | 'nome'> | null
+  /** D10: o molde da marca da técnica (a peça Marca); ausente = a do R1 ("Marcado", sem turnos, o dobro, qualquer um aproveita). */
+  moldeDaTecnica?: MoldeDaMarca
+  /** D10: a forma ligada de quem atacou que deixa a marca a cada acerto (a Transformação com marca); ausente = nenhuma. */
+  formaQueMarca?: { origem: Pick<CartaoDaFicha, 'id' | 'nome'>; molde: MoldeDaMarca }
 }
 
 /** O alvo depois do acerto, os turnos novos e as partes da reversão. Nada a fazer = os MESMOS objetos e nenhuma parte. */
@@ -179,20 +210,27 @@ export function acertoNaMarca(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo:
   let novos = turnos
   const partes: Reversao[] = []
   const marca = marcaDoToken(turnos.selos, alvo.tokenId)
-  if (marca !== undefined && alvo.dano !== null) {
-    novoAlvo = { ...alvo, danoFinal: Math.min(DANO_MAX, alvo.danoFinal * MULTIPLICADOR_DA_MARCA), marcado: true }
-    novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => selo.id !== marca.id) }
-    partes.push({ tipo: 'marcaUsada', selo: marca })
+  // D10: a marca "só do dono" vale só no golpe dele (a dos outros passa sem dobrar nem sair).
+  const vale = marca !== undefined && (marca.marcaDe === undefined || marca.marcaDe === golpe.atacantePersonagemId)
+  if (marca !== undefined && vale && alvo.dano !== null) {
+    novoAlvo = { ...alvo, danoFinal: Math.min(DANO_MAX, alvo.danoFinal * (marca.marcaVezes ?? MULTIPLICADOR_DA_MARCA)), marcado: true }
+    // D10: a marca que fica (não "some") continua até acabar os turnos.
+    if (marca.marcaFica !== true) {
+      novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => selo.id !== marca.id) }
+      partes.push({ tipo: 'marcaUsada', selo: marca })
+    }
   }
   const jaMarcado = marcaDoToken(novos.selos, alvo.tokenId) !== undefined
-  if (ctx.tecnicaQueMarca !== null && !jaMarcado) {
-    const nova = criarMarca(novos, alvo.tokenId, { selo: ctx.novoId(), linha: ctx.linhaId }, ctx.tecnicaQueMarca)
+  // D10: a técnica que marca vence; sem ela, a forma ligada de quem atacou deixa a marca a cada acerto.
+  const quemMarca = ctx.tecnicaQueMarca !== null ? { origem: ctx.tecnicaQueMarca, molde: ctx.moldeDaTecnica } : ctx.formaQueMarca === undefined ? null : ctx.formaQueMarca
+  if (quemMarca !== null && !jaMarcado) {
+    const nova = criarMarca(novos, alvo.tokenId, { selo: ctx.novoId(), linha: ctx.linhaId }, quemMarca.origem, quemMarca.molde)
     const selos = comSeloNovo(novos.selos, nova)
     if (selos !== null) {
       novos = { ...novos, selos }
       partes.push({ tipo: 'selo', seloId: nova.id, antes: null })
     }
-  } else if (ctx.tecnicaQueMarca === null && ctx.passiva !== null && golpe.armaQueAtira === true && !jaMarcado && alvo.tokenId !== golpe.atacanteTokenId && golpe.atacantePersonagemId !== null) {
+  } else if (quemMarca === null && ctx.passiva !== null && golpe.armaQueAtira === true && !jaMarcado && alvo.tokenId !== golpe.atacanteTokenId && golpe.atacantePersonagemId !== null) {
     const lembrete: LembreteDaMarca = {
       id: ctx.novoId(),
       linhaId: ctx.linhaId,
@@ -206,7 +244,8 @@ export function acertoNaMarca(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo:
     novos = { ...novos, lembretesDaMarca: [...(novos.lembretesDaMarca ?? []), lembrete].slice(-LEMBRETES_DA_MARCA_MAX) }
     partes.push({ tipo: 'lembreteDaMarca', lembrete })
   }
-  return partes.length === 0 ? nada : { alvo: novoAlvo, turnos: novos, partes }
+  // D10: a marca que fica multiplica sem parte nenhuma a desfazer (o dano vem no alvo novo).
+  return partes.length === 0 && novoAlvo === alvo ? nada : { alvo: novoAlvo, turnos: novos, partes }
 }
 
 /** O golpe com o alvo trocado (mesmo lugar). */

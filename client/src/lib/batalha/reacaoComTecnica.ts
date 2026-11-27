@@ -300,6 +300,11 @@ export interface ReacaoFeita {
   seloNoAtacante: SeloPedido | null
   /** F2 (fatia D, Armadura Humana "Atacar"): o dano que ficou no alvo (depois das reduções dele), dividido por este número, volta em quem atacou. */
   devolveDividido?: number
+  /**
+   * Rework das habilidades (PLANO.md D3, a peça Devolve o golpe): o atributo de quem reagiu ("Força"),
+   * lido na ficha dele pela store como a soma do rebate, que soma no que volta junto com a divisão.
+   */
+  devolveSoma?: string
   /** F2 (fatia E, Recuperação de forças): a vida que volta para quem reagiu (a parte do dano que chegava, antes das reduções dele). */
   cura?: number
 }
@@ -362,6 +367,7 @@ export function reagirComTecnica(
   const selo = lido === null || !oculta ? lido : { ...lido, nome: nomeDoSeloNaBatalha(personagem, tecnica.cartao, lido.nome) }
   const feita: ReacaoFeita = { golpe: novo, alvo, combate: depoisDaTecnica(combate, tecnica), custo: ajustesDoCusto(personagem, sistema, tecnica.custo), seloNoAtacante: selo }
   if (saidaDaTabela?.devolveDividido !== undefined) feita.devolveDividido = saidaDaTabela.devolveDividido
+  if (saidaDaTabela?.devolveDividido !== undefined && saidaDaTabela.devolveSoma !== undefined) feita.devolveSoma = saidaDaTabela.devolveSoma
   // F2 (fatia E): "20% do dano que tomaria se torna vida", do dano que chegava (antes do −30% do Ogro), para baixo.
   const chegava = golpe.alvos.find((candidato) => candidato.tokenId === tokenId)?.dano ?? null
   const cura = saidaDaTabela?.curaDoQueChega === undefined || chegava === null ? 0 : Math.floor((chegava * saidaDaTabela.curaDoQueChega) / 100)

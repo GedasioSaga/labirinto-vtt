@@ -13,11 +13,14 @@ import {
   naturezaDosMods,
   novoIdDeSelo,
   pegaOSelo,
+  quedaEmNumeros,
+  seloComQuedaNoToken,
   seloEditado,
   seloPedidoValido,
   textoDoSelo,
   textoDoSeloComMods,
 } from '../../lib/batalha/selos'
+import { valorDoRank } from '../../lib/ajusteDaFicha'
 import { comportamentoDoSelo } from '../../lib/batalha/condicoes'
 import type { AoAcertarDoGolpe } from '../../lib/batalha/aoAcertarDoItem'
 import { condicaoDoCatalogoPeloNome } from '../../lib/condicoes/catalogo'
@@ -46,6 +49,12 @@ function seloDoGolpe(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGo
   // Fase 5 (B16): quem passou no teste da Explosão toma metade, mas o selo não pega.
   if (golpe.selo === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida) || alvo.passouNoTeste === true) return null
   const pedido = golpe.selo
+  // Rework das habilidades (PLANO.md D10, decisão 12): o Diminui atributo que o alvo já tem desta técnica só recomeça o prazo (não soma outra queda).
+  const comQueda = seloComQuedaNoToken(turnos.selos, alvo.tokenId, pedido)
+  if (comQueda !== undefined) {
+    const depois: SeloDaBatalha = { ...comQueda, turnos: pedido.turnos, total: pedido.turnos }
+    return { selos: (turnos.selos ?? []).map((selo) => (selo.id === comQueda.id ? depois : selo)), parte: { tipo: 'selo', seloId: comQueda.id, antes: comQueda, editado: true } }
+  }
   // F2 (fatia A): o selo que renova (Queimando) volta aos turnos cheios em vez de pôr outro.
   const renovado = seloRenovado(turnos, alvo.tokenId, pedido)
   if (renovado !== null) return renovado
@@ -150,11 +159,13 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
 
   /** Os selos do golpe (o da mira ou da técnica, o da bala de texto e os a mais) no alvo acertado. */
   const selosNoAcerto = (turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selado: ReturnType<typeof seloDoGolpe>; alvo: AlvoDoGolpe } => {
-    const feito = seloDoGolpeNoAcerto(turnos, golpe, alvo)
+    // Rework das habilidades (D10): o selo principal com a queda em % também já vai em números (o mesmo golpe nos outros campos).
+    const feito = seloDoGolpeNoAcerto(turnos, golpe.selo?.queda?.emPorcento === true ? { ...golpe, selo: quedaFixadaNoAlvo(golpe.selo, alvo) } : golpe, alvo)
     // F2 (revisão da fatia E, Bala de Prata): o selo da bala pega junto, por cima do da mira, do da técnica e da marca.
     // Fase 5: os selos a mais da técnica montada pegam do mesmo jeito, um depois do outro (cada um com o seu Desfazer).
     // Fase ED4: cada um com o seu teste (`pega`), rolado na ordem dos selos.
-    const extras = [...(golpe.seloDaBala === undefined ? [] : [golpe.seloDaBala]), ...(golpe.selosAMais ?? [])]
+    // Rework das habilidades (D10): a queda em % do Diminui atributo vira números com o atributo do alvo agora ("fixado no acerto").
+    const extras = [...(golpe.seloDaBala === undefined ? [] : [golpe.seloDaBala]), ...(golpe.selosAMais ?? [])].map((extra) => quedaFixadaNoAlvo(extra, alvo))
     return extras.reduce((ate, extra) => {
       const teste = testeDoSelo(turnos, golpe, extra, ate.alvo)
       if (!teste.pega) return { ...ate, alvo: teste.alvo }
@@ -162,6 +173,13 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
       if (mais === null) return { ...ate, alvo: teste.alvo }
       return { alvo: teste.alvo, selado: ate.selado === null ? mais : { selos: mais.selos, parte: { tipo: 'composta', partes: [ate.selado.parte, mais.parte] } } }
     }, feito)
+  }
+
+  /** D10: o selo com queda em % já em números, pelo atributo do alvo (o token sem ficha perde 0). Sem queda em %: o MESMO pedido. */
+  const quedaFixadaNoAlvo = (pedido: SeloDoGolpe, alvo: AlvoDoGolpe): SeloDoGolpe => {
+    if (pedido.queda?.emPorcento !== true) return pedido
+    const dele = alvo.personagemId === null ? undefined : mesaDoRpg().personagens.find((candidato) => candidato.id === alvo.personagemId)
+    return quedaEmNumeros(pedido, (atributo) => (dele === undefined ? 0 : valorDoRank(dele, atributo)))
   }
 
   /**

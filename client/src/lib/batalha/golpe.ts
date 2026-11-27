@@ -53,7 +53,7 @@ import { comAMantida } from './custoPorTurno'
 import { debuffsDoToken } from './debuffs'
 import { equipeDe, type Equipe } from './equipes'
 import { usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
-import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type ContextoDaFormula } from './formula'
+import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, normalizar, type ContextoDaFormula } from './formula'
 import {
   armasDe,
   balaDaArma,
@@ -81,12 +81,22 @@ import { motivoDoPortao, portaoDosRequisitos, spPagoPeloAliado, type ResultadoDo
 import { blocoDoCartao, motivoDoSoLigaPor } from './requisitos/partes'
 import {
   ataqueComOSelo,
+  bateDasRespostas,
+  bateDoCartao,
   chavesDoDono,
   contaQuemOViuLutar,
+  custoDaMarca,
   extraDeTodoGolpe,
   cartoesLigados,
   golpesSaoOverload,
+  ligadasDoDono,
+  marcaDoCartao,
+  marcaVaiNoGolpe,
+  perfuracaoDasRespostas,
+  selosDasRespostas,
+  somaNosFisicos,
   type ChaveDaMecanica,
+  type LigadasDoDono,
   somaCorpoACorpo,
   somaDasRespostas,
   formulaDaCura,
@@ -608,7 +618,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       // F2 (fatia A): com respostas, as perguntas na hora da mecânica à mão (`mecanicasAMao.ts`) todas respondidas, e só elas.
       // Sem respostas a técnica segue como antes, até a mira de cada ficha perguntar (fatias seguintes da F2).
       // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira) e o SP que o "sim" cobra, somado ao da técnica.
-      const respostas = motivoDasRespostasDoPedido(ctx, tecnica.cartao.id, pedido.respostas, tecnica.custo)
+      // Rework das habilidades (PLANO.md D4): pelo cartão, a técnica montada pergunta as dela (a Pergunta na hora, o "Marcar?").
+      const respostas = motivoDasRespostasDoPedido(ctx, tecnica.cartao, pedido.respostas, tecnica.custo)
       if (respostas !== null) return respostas
       if (tecnica.acao === null) return 'Escolha a ação da técnica'
       if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
@@ -1122,6 +1133,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // Construtor C1: na técnica montada, quem reage sai das peças (o teste e o selo), não do Tipo escrito.
   // F2 (fatia C): o Atacar melhorado (Aira com um aliado abençoado): a soma no dano de cada alvo, o selo no acerto e os golpes a mais. O contra-ataque fica de fora.
   const cartoes = cartoesDoDono(personagem)
+  // Rework das habilidades (D7): a técnica "Ligar e manter" ligada do dono (o Imbuir pergunta em todo golpe dele).
+  const ligadas = ligadasDoGolpe(ctx)
   const melhorado = pedido.tipo === 'atacar' && contra === null ? ataqueComOSelo(cartoes, ctx.turnos.selos, ctx.carta.tokenId) : null
   // Construtor C8: a arma de texto com "Nada" no Soma no ataque (só de efeito) não dá dano, venha o número que vier;
   // o alvo reage só quando o golpe leva selo (o da mira ou o do Atacar melhorado). A arma montada segue as peças.
@@ -1131,12 +1144,17 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const reacaoDoTexto: ReacaoDoTipo = soDeEfeito && comSelo ? 'sempre' : reacaoDoTipo(tecnica?.tipo ?? null)
   const reacao: ReacaoDoTipo = mecanica?.semReacao === true ? 'nunca' : pecas !== null ? reacaoDasPecas(pecas) : reacaoDoTexto
   // F2 (fatia C): o que vale em todo golpe do dono (o Electro da Aira: +20 de dano, -10 SP), pela resposta.
-  const deTodoGolpe = extraDeTodoGolpe(cartoes, pedido.respostas)
+  // Rework das habilidades (D3 e D7): mais o elemento do Imbuir escolhido (dano, SP, desvantagem e a condição no acerto).
+  const deTodoGolpe = extraDeTodoGolpe(cartoes, pedido.respostas, ligadas)
   const somaDoAtaque = melhorado === null || personagem === null || sistema === null ? 0 : Math.max(0, Math.floor(valorNaFichaDe(personagem, sistema)(melhorado.soma) ?? 0))
+  const respostas = pedido.tipo === 'habilidade' ? pedido.respostas : undefined
   // F2 (fatia E, Força Aumentada do Ogro): +20 no Atacar corpo a corpo e nas técnicas corpo a corpo que não escrevem o +20.
   // Construtor C8: o Atacar com a arma montada continua Atacar (a regra da raça olha a arma, não a técnica).
-  const daRaca = pedido.tipo === 'atacar' || tecnica !== null ? somaCorpoACorpo(cartoes, pedido.tipo === 'atacar' ? null : (tecnica?.cartao.id ?? null), atacarCorpoACorpo(arma)) : 0
-  const respostas = pedido.tipo === 'habilidade' ? pedido.respostas : undefined
+  // Rework das habilidades (D3 e D4): a raça montada (pelo cartão) e o "+N nos golpes físicos": o Atacar e a técnica que bate Impacto,
+  // Cortante ou Perfurante (o tipo que a resposta der vence o gravado).
+  const daTecnicaNaRaca = pedido.tipo === 'atacar' ? null : (tecnica?.cartao ?? null)
+  const bate = daTecnicaNaRaca === null ? null : (bateDasRespostas(daTecnicaNaRaca, respostas) ?? bateDoCartao(daTecnicaNaRaca))
+  const daRaca = pedido.tipo === 'atacar' || tecnica !== null ? somaCorpoACorpo(cartoes, daTecnicaNaRaca, atacarCorpoACorpo(arma)) + somaNosFisicos(cartoes, daTecnicaNaRaca, bate) : 0
   // F2b (Imbuir Fogo do Siegfried): o +10 da resposta soma por cima da fórmula (a da arma escolhida), em cada alvo.
   const doFogo = tecnica === null ? 0 : somaDasRespostas(tecnica.cartao, respostas)
   // ITENS REFEITOS, E6c: o "Ao acertar" da arma equipada e da bala do tiro; o Dano extra que conta soma em cada alvo
@@ -1190,7 +1208,9 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   }
   // A porcentagem só vai quando é parcial: 100 é o Perfurante de sempre (golpe sem o campo).
   // Construtor C1: na técnica montada a perfuração do texto da ficha não vale; fase 5 (B13): vale a das peças.
-  const perfuracao = montada ? (mecanica?.perfuracao ?? null) : perfuracaoValida(pedido.perfuracao)
+  // Rework das habilidades (D3): a perfuração em % da resposta da Pergunta na hora vence a das peças.
+  const perfuracaoDaResposta = tecnica === null ? null : perfuracaoDasRespostas(tecnica.cartao, respostas)
+  const perfuracao = montada ? (perfuracaoDaResposta ?? mecanica?.perfuracao ?? null) : perfuracaoValida(pedido.perfuracao)
   if (perfuracao !== null && perfuracao < PERFURACAO_MAX) golpe.perfuracao = perfuracao
   if (pedido.contraDe !== undefined) golpe.contraDe = pedido.contraDe
   // Fase C do alcance: confirmado e de fato fora das casas acesas, a linha do registro diz "(fora do alcance)".
@@ -1223,6 +1243,14 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
       if (selosDaPeca.emQuemUsa !== null) golpe.seloEmQuemUsa = seloDaPecaNoGolpe(selosDaPeca.emQuemUsa, tecnica)
     }
   }
+  // Rework das habilidades (PLANO.md E3): as peças novas da técnica montada, lidas da linha (`MecanicaAMao`): a condição de cada
+  // resposta da Pergunta na hora e o tipo que ela dá ao golpe (sai o selo do tipo de antes), e o Diminui atributo.
+  if (tecnica !== null && montada) {
+    const dasRespostas = selosDasRespostas(tecnica.cartao, respostas)
+    const doDiminui = mecanica?.diminui === undefined ? [] : [seloDoDiminui(mecanica.diminui.selo)]
+    const novos = [...dasRespostas.poe, ...doDiminui].map((selo) => seloDaPecaNoGolpe(selo, tecnica))
+    if (novos.length > 0 || dasRespostas.tira !== null) comOsSelosNovos(golpe, novos, dasRespostas.tira)
+  }
   // F2 (fatia C): quem bate com a Bênção de uma Raposa recupera parte do dano (o selo de agora); a carga vai junto para a CD da disputa.
   // Fase 5: o roubo de vida da peça (`dreno`) soma na mesma conta; vale o maior, como os selos.
   const cura = Math.max(curaDoDanoDosSelos(ctx.turnos.selos, ctx.carta.tokenId), mecanica?.curaDoDano ?? 0)
@@ -1232,6 +1260,9 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     golpe.selo = melhorado.selo
     golpe.variante = 'com a Bênção'
   }
+  // Rework das habilidades (D3, o Imbuir): a condição do elemento escolhido pega no acerto, no Atacar também (depois do selo
+  // da Bênção, para não sumir debaixo dele); o cartão do Imbuir já vai no selo.
+  if (deTodoGolpe.selos.length > 0) comOsSelosNovos(golpe, deTodoGolpe.selos, null)
   // F2 (revisão da fatia E): a bala vem também na técnica que diz "Dano da Bala" (Desenhar o alvo).
   // MUNIÇÃO: no Atacar com a arma que exige munição, sem bala escolhida vai a primeira que a mochila tem (o tiro do jogador).
   const bala = arma === null ? null : pedido.tipo === 'atacar' ? balaDoPedido(arma, pedido.balaId) : pedido.balaId !== undefined ? balaDaArma(arma, pedido.balaId) : null
@@ -1255,11 +1286,16 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   }
   // R1: a arma que atira (o acerto lembra a passiva de marca).
   if (arma !== null && categoriaAtira(arma.categoria)) golpe.armaQueAtira = true
+  // Rework das habilidades (D10, a peça Marca): a técnica montada marca pelo "quando" da peça (sempre, só no tiro, ou com o "Sim"
+  // do "Marcar?"); depois dos selos, para os da técnica irem juntos (a marca de texto, a do R1, é que tira o da mira).
+  const marcaDaPeca = tecnica === null || !montada ? null : marcaDoCartao(tecnica.cartao)
+  if (tecnica !== null && marcaDaPeca !== null && marcaVaiNoGolpe(marcaDaPeca, respostas, golpe.armaQueAtira === true)) golpe.marca = tecnica.cartao.id
   // Tipos de habilidade F4: a opção escolhida e o uso evoluído vão para o registro ("Medicina (Cirugia)").
   if (tecnica !== null && pedido.tipo === 'habilidade') {
     const variante = pedido.variante === undefined ? null : varianteDoPedido(tecnica.cartao, pedido.variante)
     // F2 (fatia B): as respostas de opção também vão ao registro ("Grande Chifre (3 quadrados, Bateu na parede? Sim)").
-    const marcas = [variante?.rotulo ?? null, ...rotulosDasRespostas(tecnica.cartao.id, pedido.respostas)].filter((marca): marca is string => marca !== null)
+    // Rework das habilidades (D4): pelo cartão, as respostas da técnica montada (a Pergunta na hora, o "Marcar?") também vão ao registro.
+    const marcas = [variante?.rotulo ?? null, ...rotulosDasRespostas(tecnica.cartao, pedido.respostas)].filter((marca): marca is string => marca !== null)
     // Fatia C7: a opção escolhida também é do segredo.
     if (marcas.length > 0 && golpe.nome !== NOME_DO_OCULTO) golpe.variante = marcas.join(', ').slice(0, NOME_DO_GOLPE_MAX)
     if (tecnica.evoluida) golpe.evoluida = true
@@ -1273,8 +1309,10 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const novosQueViram = contaQuemOViuLutar(cartoes) ? [...new Set([...pedido.alvos.map((alvo) => alvo.tokenId), ...presentes])].filter((tokenId) => !viram.has(tokenId)) : []
   if (novosQueViram.length > 0) combateNovo = { ...combateNovo, viramLutar: [...viram, ...novosQueViram] }
   if (gasta && combateNovo.carga !== 0) combateNovo = { ...combateNovo, carga: 0 }
+  // Rework das habilidades (D10): o SP do "Sim" do "Marcar?" da técnica soma no de todo golpe (o Electro, o elemento do Imbuir).
+  const custoEmSp = deTodoGolpe.custoEmSp + (pedido.tipo === 'habilidade' && tecnica !== null ? custoDaMarca(tecnica.cartao, respostas) : 0)
   // Conserto das fichas F1 (+10 SP por vez): o SP do Electro também conta como gasto.
-  if (deTodoGolpe.custoEmSp > 0 && combateNovo.gastouSp !== true) combateNovo = { ...combateNovo, gastouSp: true }
+  if (custoEmSp > 0 && combateNovo.gastouSp !== true) combateNovo = { ...combateNovo, gastouSp: true }
   // R6: o Atacar da vez marca o gasto (libera o ataque adicional da forma); o adicional não gasta a Simples e conta na rodada.
   const naVez = contra === null && pedido.tipo === 'atacar' ? acoesDaCarta(ctx) : null
   const extra = naVez !== null && usaOAtaqueExtra(naVez)
@@ -1283,7 +1321,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const gasto = contra !== null || acao === null || extra ? null : gastarAcao(gastoAtual, acao)
   // F2 (revisão da fatia F): todo golpe da vez marca que golpeou (a técnica livre devolve o gasto igual; a Doença das Trevas lê isto).
   const gastoDoGolpe: GastoDaVez | null = gasto === null ? null : pedido.tipo === 'atacar' ? { ...gasto, atacou: true, golpeou: true } : { ...gasto, golpeou: true }
-  const custo = personagem === null || sistema === null ? [] : [...custosDoGolpe(tecnica?.custo ?? null, deTodoGolpe.custoEmSp).flatMap((parte) => ajustesDoCusto(personagem, sistema, parte)), ...ajustesDoHpQueCusta(personagem, sistema, mecanica)]
+  const custo = personagem === null || sistema === null ? [] : [...custosDoGolpe(tecnica?.custo ?? null, custoEmSp).flatMap((parte) => ajustesDoCusto(personagem, sistema, parte)), ...ajustesDoHpQueCusta(personagem, sistema, mecanica)]
   const lancado: GolpeLancado = {
     golpe,
     resolvidos: alvos.filter((alvo) => alvo.danoFinal !== undefined),
@@ -1335,6 +1373,44 @@ function comDanoDividido(alvos: readonly PedidoDeAlvo[], teto: number): readonly
 /** F2 (fatia C): os ids dos cartões da ficha (todas as abas), e (fatia E) as chaves da raça e da ficha; sem ficha, nenhum. */
 function cartoesDoDono(personagem: Personagem | null): ChaveDaMecanica[] {
   return personagem === null ? [] : chavesDoDono(personagem)
+}
+
+/** Rework das habilidades (D7): as técnicas "Ligar e manter" ligadas de quem age (o selo `ligada` dele) e as formas ligadas dele. */
+function ligadasDoGolpe(ctx: ContextoDoGolpe): LigadasDoDono {
+  return ligadasDoDono(ctx.turnos.selos, ctx.carta.personagemId, ctx.personagem?.cartoesAtivos ?? [])
+}
+
+/**
+ * D10 (o Diminui atributo): o selo da peça pronto para o golpe. O "de uma vez" fixo (só os mods) vira
+ * a queda de um passo só no acerto, para o golpe novo no mesmo alvo só recomeçar o prazo (decisão 12),
+ * sem pôr outro selo por cima.
+ */
+function seloDoDiminui(selo: SeloDoGolpe): SeloDoGolpe {
+  if (selo.queda !== undefined || selo.mods === undefined || selo.mods.length === 0) return selo
+  const { mods, ...semMods } = selo
+  return { ...semMods, queda: { passo: mods, desde: 0, vezes: 1 } }
+}
+
+/**
+ * Rework das habilidades (E3): os selos novos das peças no golpe, depois dos de sempre: sai o selo do
+ * tipo de antes (`tira`, o nome, quando a resposta trocou o tipo) e entram os `novos`, sem nome repetido.
+ * O primeiro vira `golpe.selo` e os outros `selosAMais` (a store põe cada um com o seu teste).
+ */
+function comOsSelosNovos(golpe: GolpeDaBatalha, novos: readonly SeloDoGolpe[], tira: string | null): void {
+  const nomeDe = (selo: Pick<SeloDoGolpe, 'nome'>): string => normalizar(selo.nome).trim()
+  const saiDoTipo = tira === null ? '' : normalizar(tira).trim()
+  const todos = [...(golpe.selo === undefined ? [] : [golpe.selo]), ...(golpe.selosAMais ?? [])].filter((selo) => saiDoTipo === '' || nomeDe(selo) !== saiDoTipo)
+  const vistos = new Set(todos.map(nomeDe))
+  for (const selo of novos) {
+    if (vistos.has(nomeDe(selo))) continue
+    vistos.add(nomeDe(selo))
+    todos.push(selo)
+  }
+  const [primeiro, ...outros] = todos
+  if (primeiro === undefined) delete golpe.selo
+  else golpe.selo = primeiro
+  if (outros.length > 0) golpe.selosAMais = outros
+  else delete golpe.selosAMais
 }
 
 /** F2 (fatia E, Força Aumentada do Ogro): o Atacar é corpo a corpo sem arma ou com arma que não atira nem é de arremesso. */
@@ -1406,12 +1482,15 @@ function comDanoPelaVida(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formula: O
  * como a cobrança junta os dois (`custosDoGolpe`): Electro (10) na Luz do Sol
  * (25) com 30 de SP recusa, em vez de passar e cobrar só os 30.
  */
-function motivoDasRespostasDoPedido(ctx: ContextoDoGolpe, cartaoId: string | null, respostas: RespostasDoPedido | undefined, custoDaTecnica: LeituraDoCusto | null): string | null {
+function motivoDasRespostasDoPedido(ctx: ContextoDoGolpe, cartao: ChaveDaMecanica | null, respostas: RespostasDoPedido | undefined, custoDaTecnica: LeituraDoCusto | null): string | null {
   if (respostas === undefined) return null
   const cartoes = cartoesDoDono(ctx.personagem)
-  const motivo = motivoDasRespostasDoGolpe(cartaoId, cartoes, respostas)
+  // Rework das habilidades (D7): o "Imbuir?" da técnica ligada do dono também é conferido (e o SP do elemento entra na conta).
+  const ligadas = ligadasDoGolpe(ctx)
+  const motivo = motivoDasRespostasDoGolpe(cartao, cartoes, respostas, ligadas)
   if (motivo !== null || ctx.personagem === null || ctx.sistema === null) return motivo
-  const { custoEmSp } = extraDeTodoGolpe(cartoes, respostas)
+  // D10: o SP do "Sim" do "Marcar?" soma no do extra.
+  const custoEmSp = extraDeTodoGolpe(cartoes, respostas, ligadas).custoEmSp + custoDaMarca(cartao, respostas)
   const sp = custoEmSp > 0 ? recursoDoCusto(ctx.sistema, 'sp') : null
   if (sp === null) return null
   const custa = custosDoGolpe(custoDaTecnica, custoEmSp).reduce((soma, parte) => (parte.tipo === 'valor' && parte.recurso === 'sp' ? soma + parte.valor : soma), 0)

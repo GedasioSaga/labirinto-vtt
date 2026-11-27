@@ -22,7 +22,7 @@ import {
   type UltimaAcaoDoRastro,
 } from '../../lib/batalha/combate'
 import { comBandosEmDia, invocadoDoToken } from '../../lib/batalha/invocacao'
-import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, passivaDaMarca, type AcertoNaMarca } from '../../lib/batalha/marca'
+import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, moldeDaMarca, passivaDaMarca, type AcertoNaMarca, type ContextoDoAcerto } from '../../lib/batalha/marca'
 import { bonusDaBatalha, comSeloNovo, criarSelo, ondeNaVez, novoIdDeSelo, selosDoToken } from '../../lib/batalha/selos'
 import { curaComOsSelos, curaDoDano, esquivaComDesvantagem, notaDosSelosNaCura, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao } from '../../lib/batalha/condicoes'
 import { selosQueALimpezaTira } from '../../lib/batalha/debuffs'
@@ -47,7 +47,7 @@ import {
 } from '../../lib/batalha/golpe'
 import { linhaComOGasto, sobraDoUso, textoDoGasto } from '../../lib/batalha/itemNaBatalha'
 import { lerDano } from '../../lib/batalha/formula'
-import { chavesDoDono, disputaNoUso, formulaDaCura, itemQueATecnicaGasta, limpezaDe, mecanicaDoCartao, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, tecnicaSemRegraPropria } from '../../lib/batalha/mecanicasAMao'
+import { cartoesLigados, chavesDoDono, disputaNoUso, formaQueMarca, formulaDaCura, idDaChave, itemQueATecnicaGasta, limpezaDe, marcaDoCartao, mecanicaDoCartao, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, saidasTiradasPeloAtacante, tecnicaSemRegraPropria } from '../../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../../lib/batalha/disputaNoUso'
 import { debuffsDobrados } from '../../lib/batalha/debuffs'
 import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOverloadDeReacao, temReacaoContraSurpresa, type PedidoDeTecnica } from '../../lib/batalha/reacaoComTecnica'
@@ -147,6 +147,22 @@ export function novoIdDaMarca(): string {
 }
 
 /**
+ * Rework das habilidades (PLANO.md D10): o que as peças de quem atacou dizem da marca deste acerto. A
+ * técnica do golpe (`marcaDaTecnica`, o `golpe.marca`) com a peça Marca dá o molde (nome, turnos, quem
+ * aproveita, as vezes, se some); a forma ligada com marca marca a cada acerto. Sem ficha, nada.
+ */
+function marcasDasPecas(atacante: Personagem | undefined, marcaDaTecnica: string | undefined): Pick<ContextoDoAcerto, 'moldeDaTecnica' | 'formaQueMarca'> {
+  if (atacante === undefined) return {}
+  const daTecnica = marcaDaTecnica === undefined ? undefined : chavesDoDono(atacante).find((chave) => idDaChave(chave) === marcaDaTecnica)
+  const pecaDaTecnica = daTecnica === undefined ? null : marcaDoCartao(daTecnica)
+  const daForma = formaQueMarca(cartoesLigados(atacante))
+  const marcas: Pick<ContextoDoAcerto, 'moldeDaTecnica' | 'formaQueMarca'> = {}
+  if (pecaDaTecnica !== null) marcas.moldeDaTecnica = moldeDaMarca(pecaDaTecnica, atacante.id)
+  if (daForma !== null) marcas.formaQueMarca = { origem: { id: daForma.cartaoId, nome: daForma.nome }, molde: moldeDaMarca(daForma.marca, atacante.id) }
+  return marcas
+}
+
+/**
  * R1 (lote de 01/11): o alvo resolvido passa pela marca ANTES do dano na
  * ficha (o dobro sai no número do dano e no texto). A passiva de marca é a do
  * personagem de quem atacou; a técnica que marca é a do golpe (`golpe.marca`).
@@ -156,7 +172,8 @@ function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeD
   const atacante = golpe.atacantePersonagemId === null ? undefined : mesa.personagens().find((personagem) => personagem.id === golpe.atacantePersonagemId)
   const passiva = sistema === null || atacante === undefined ? null : (passivaDaMarca(atacante, sistema)?.cartao ?? null)
   const tecnicaQueMarca = golpe.marca === undefined ? null : { id: golpe.marca, nome: golpe.nome }
-  const acerto = acertoNaMarca(turnos, golpe, alvo, { linhaId: golpe.linhaId, novoId: novoIdDaMarca, passiva, tecnicaQueMarca })
+  // Rework das habilidades (PLANO.md D10): a peça Marca da técnica (o molde dela) e a forma ligada de quem atacou que marca a cada acerto.
+  const acerto = acertoNaMarca(turnos, golpe, alvo, { linhaId: golpe.linhaId, novoId: novoIdDaMarca, passiva, tecnicaQueMarca, ...marcasDasPecas(atacante, golpe.marca) })
   // R6: a forma ligada do alvo que reduz o dano recebido (Resiliente: -20%), depois do dobro da marca.
   // S4: e a Determinação (rank 4+, HP abaixo da metade), uma depois da outra.
   const dele = alvo.personagemId === null || sistema === null ? undefined : mesa.personagens().find((personagem) => personagem.id === alvo.personagemId)
@@ -393,7 +410,12 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       // F2 (fatia B, Aplauso da May): a técnica que REBATE devolve o dano que chegou + a Força dela em quem atacou, na hora (no lugar do contra-ataque).
       const rebate = depois.saida === 'contra' && depois.tecnica !== undefined ? mecanicaDoCartao(depois.tecnica.cartaoId)?.rebate : undefined
       // F2 (fatia D, Armadura Humana "Atacar"): toma o golpe inteiro e devolve o que tomou ÷ 7 (para baixo) em quem atacou, sem reação.
-      const devolve = feita.devolveDividido === undefined || feita.devolveDividido <= 0 ? 0 : Math.floor((depois.danoFinal ?? 0) / feita.devolveDividido)
+      const dividido = feita.devolveDividido === undefined || feita.devolveDividido <= 0 ? 0 : Math.floor((depois.danoFinal ?? 0) / feita.devolveDividido)
+      // Rework das habilidades (D3, a peça Devolve o golpe): mais o atributo de quem reagiu, lido como a soma do rebate (antes do cansaço),
+      // só quando o golpe ficou nele (a defesa que zerou o dano não devolve).
+      const lidaDoDevolve = feita.devolveSoma === undefined || (depois.danoFinal ?? 0) <= 0 ? null : lerDano(feita.devolveSoma, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(turnos.selos, reageTokenId) })
+      const somaDoDevolve = lidaDoDevolve?.tipo === 'valor' ? Math.max(0, Math.floor(lidaDoDevolve.valor)) : 0
+      const devolve = Math.min(DANO_MAX, dividido + somaDoDevolve)
       if (devolve > 0) {
         const noAtacante: AlvoDoGolpe = { tokenId: golpe.atacanteTokenId, personagemId: golpe.atacantePersonagemId, dano: devolve, podeReagir: false, saida: 'semReacao', danoFinal: devolve }
         const devolvido = danoNoAlvo(mesa, noAtacante, { perfurante: false }, autor)
@@ -403,7 +425,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         }
         partes.push(...devolvido.partes)
         if (devolvido.efeito !== null) efeitos.push(devolvido.efeito)
-        textoDoRebate = ` · devolveu ${devolve} em ${nomeDoTokenNa(turnos, personagens)(golpe.atacanteTokenId)} (${depois.danoFinal ?? 0} ÷ ${feita.devolveDividido ?? 1})`
+        const comASoma = somaDoDevolve > 0 ? ` + ${somaDoDevolve}` : ''
+        textoDoRebate = ` · devolveu ${devolve} em ${nomeDoTokenNa(turnos, personagens)(golpe.atacanteTokenId)} (${depois.danoFinal ?? 0} ÷ ${feita.devolveDividido ?? 1}${comASoma})`
       } else if (rebate !== undefined) {
         // A Força de antes da reação: o cansaço do Overload dela vem DEPOIS de rebater.
         const lida = lerDano(rebate.soma, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(turnos.selos, reageTokenId) })
@@ -1297,7 +1320,9 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
             // F2 (fatia A): Aéreo tira a Esquiva e o Contra-ataque de quem reage.
             // F2 (fatia E, Orgulho dos Ogros): o ogro (menos a Ryoko) só Defende ou Recebe.
             const doAlvo = personagens.find((candidato) => candidato.id === alvo.personagemId)
-            const daRaca = doAlvo === undefined ? [] : saidasTiradasDoDono(chavesDoDono(doAlvo))
+            // Rework das habilidades (D3, a Passiva de raça): e a raça de quem atacou que não deixa desviar ("quem ele acerta não esquiva").
+            const doAtacante = personagens.find((candidato) => candidato.id === golpe.atacantePersonagemId)
+            const daRaca = [...(doAlvo === undefined ? [] : saidasTiradasDoDono(chavesDoDono(doAlvo))), ...(doAtacante === undefined ? [] : saidasTiradasPeloAtacante(chavesDoDono(doAtacante)))]
             if (alvo.rolagem === undefined || daRaca.includes(pedido.saida) || !saidasComOsSelos(saidasDaRolagem(alvo.rolagem), selosDoToken(turnos.selos, alvo.tokenId)).includes(pedido.saida)) return false
             saida = pedido.saida
           }
