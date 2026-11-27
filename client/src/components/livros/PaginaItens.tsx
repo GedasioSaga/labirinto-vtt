@@ -716,7 +716,7 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   /** O "Novo": na página Itens, o item nasce no Acervo (o editor pede o tipo); nas Habilidades, a entrada do livro. */
   const criarNovo = () => {
     if (pagina === 'itens') setItemNovo(novoItemDoCatalogo())
-    else setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })
+    else setDialogo({ tipo: 'nova' })
   }
   const podeCriar = pagina === 'itens' ? acervoPodeGravar : podeGravar
 

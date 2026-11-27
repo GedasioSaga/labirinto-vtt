@@ -49,7 +49,8 @@ import './itens.css'
  * fica escrita aqui dentro, sem fechar e sem perder o que foi digitado.
  */
 
-export type ModoDaEntrada = { tipo: 'nova'; tipoDaEntrada: TipoDoCatalogo } | { tipo: 'editar'; item: ItemDoCatalogo }
+/** A "nova" é sempre habilidade (a página Habilidades a abre); arma e item nascem no editor do item, na página Itens. */
+export type ModoDaEntrada = { tipo: 'nova' } | { tipo: 'editar'; item: ItemDoCatalogo }
 
 export interface EntradaDoCatalogoDialogProps {
   modo: ModoDaEntrada
@@ -111,8 +112,8 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
   const apertouNoFundo = useRef(false)
   const editando = modo.tipo === 'editar' ? modo.item : null
 
-  // Sem a escolha de tipo: a janela abre no tipo da entrada (quem a abre só manda habilidade).
-  const tipo: TipoDoCatalogo = editando?.tipo ?? (modo.tipo === 'nova' ? modo.tipoDaEntrada : 'habilidade')
+  // Sem a escolha de tipo: a nova é habilidade; a editada fica no tipo que já tem.
+  const tipo: TipoDoCatalogo = editando?.tipo ?? 'habilidade'
   const [nome, setNome] = useState(editando?.nome ?? '')
   const [texto, setTexto] = useState(editando?.texto ?? '')
   // Fase 5 (coisa x regra): a coisa do Acervo de que esta entrada é a regra; '' = solta.
@@ -360,7 +361,7 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
       >
         <div className="mu-modal__cab">
           <h2 className="mu-modal__tit" id={tituloId}>
-            {editando === null ? 'Nova entrada do catálogo' : `Editar ${editando.nome}`}
+            {editando === null ? 'Nova habilidade' : `Editar ${editando.nome}`}
           </h2>
           <p className="mu-modal__sub" id={subId}>
             {editando === null
