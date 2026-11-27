@@ -9,6 +9,8 @@ Editor de habilidades único (página Habilidades e ficha), com tudo o que já e
 - MAPA.md (217a827) e PLANO.md (223b03e) prontos. WORKFLOW de construção rodando: run wf_755452d0-652 (task w9b4zce4h), script em ~/.claude/projects/C--dev-labirinto/9e501c59-.../workflows/scripts/rework-editor-habilidades-wf_755452d0-652.js; ondas E1 / E2-E4 / E5-E7 / E8 (testes, prints, notas em tmp/rel-0.6.5). Se cair: resumir com scriptPath + resumeFromRunId.
 - Depois do workflow: verificador-realidade item por item contra os PEDIDOS; publicar 0.6.5 por Agent automacao-devops (roteiro da 0.6.4, Worker junto, CARGO_BUILD_JOBS=2, RAM>=5 GB, disco>=8 GB); commits agora só com a linha Co-Authored-By; SÓ ENTÃO falar com o dono.
 
+- 27/11 madrugada: o serviço avisou "artifact not found" para as 3 páginas (qualidade de vida, mecânicas, protótipo das habilidades). Os arquivos continuam no disco (docs/qualidade-de-vida/pagina, docs/explorador/mecanicas-pagina, docs/design/habilidades-rework/prototipo.html). Contar ao dono no relatório final e republicar se ele quiser.
+
 ## Próximos passos
 1-2. FEITO: artifact publicado; arquiteto (ae0e9d0e) recebeu ordem de escrever PLANO.md após MAPA.md. 3. Workflow de construção na main (sem worktree; faixas disjuntas; commit só dos caminhos; Opus xhigh, núcleo em max; sem testes até o fim). 4. 1-3 testes certeiros + prints. 5. Publicar 0.6.5 por Agent fora do workflow.
 ## Critério de pronto
