@@ -559,7 +559,7 @@ export interface AcumuladorLido {
 }
 
 const QUANDO_SOBE: readonly QuandoSobe['quando'][] = ['gastaReacao', 'acerta', 'apanha', 'usaTecnica', 'comecoDaVez', 'derruba', 'esquiva', 'gastaSp']
-const QUANDO_DESCE: readonly DescidaDoAcumulador['quando'][] = ['fimDaBatalha', 'rodadaSemUso', 'apanha']
+const QUANDO_DESCE: readonly DescidaDoAcumulador['quando'][] = ['fimDaBatalha', 'rodadaSemUso', 'apanha', 'desliga']
 const GANHOS: readonly GanhoDoAcumulador['ganho'][] = ['nada', 'dano', 'atributo']
 
 interface LeituraDoAcumulador {
@@ -608,6 +608,7 @@ function descidaLida(valor: unknown): DescidaDoAcumulador {
   const onde = `regra de cair "${quando}"`
   switch (quando) {
     case 'fimDaBatalha':
+    case 'desliga':
       soChaves(peca, ['quando'], onde)
       return { quando }
     case 'rodadaSemUso':

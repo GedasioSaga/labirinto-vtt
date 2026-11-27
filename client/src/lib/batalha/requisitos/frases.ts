@@ -438,6 +438,8 @@ function fraseDaDescida(regra: DescidaDoAcumulador): string {
       return `−${regra.quanto} por rodada sem usar`
     case 'apanha':
       return regra.quanto === 'tudo' ? 'zera ao receber dano' : `−${regra.quanto} ao receber dano`
+    case 'desliga':
+      return 'zera quando a técnica desliga'
   }
 }
 

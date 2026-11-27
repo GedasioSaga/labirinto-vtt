@@ -3,7 +3,7 @@ import { ALVO_DO_DANO, combateVazio, type BonusDaBatalha, type CombateDoPersonag
 import type { TurnosDaCena } from './turnos'
 import { mesmaReferencia } from './requisitos/contexto'
 import { lerAcumulador } from './requisitos/ler'
-import type { AcumuladorDaFicha, DescidaAoDesligar, GanhoDoAcumulador, Referencia } from './requisitos/modelo'
+import type { AcumuladorDaFicha, GanhoDoAcumulador, Referencia } from './requisitos/modelo'
 
 /**
  * REQUISITOS, fases B3 e C: o NÍVEL de cada acumulador genérico na batalha (Polaridade, Fúria, Cargas).
@@ -271,20 +271,9 @@ export function comOBonusDosAcumuladores(bonus: BonusDaBatalha | undefined, pers
 
 // ─── Rework das habilidades (PLANO.md D9, E5): "zera quando a técnica desliga" ───
 
-const QUANDO_DESLIGA: DescidaAoDesligar['quando'] = 'desliga'
-
-/** O `bruto` guardado é a descida `{ quando: 'desliga' }`. */
-function brutoQueDesliga(bruto: unknown): boolean {
-  return typeof bruto === 'object' && bruto !== null && !Array.isArray(bruto) && 'quando' in bruto && bruto.quando === QUANDO_DESLIGA
-}
-
-/**
- * D9: o acumulador tem a descida "zera quando a técnica desliga" (`DescidaAoDesligar`). Enquanto ela não
- * entra na união `DescidaDoAcumulador` (pede `requisitos/modelo.ts` e `requisitos/frases.ts`, fora da E5),
- * o leitor a guarda como regra não lida com o `bruto` do disco, e é por ele que o motor a reconhece.
- */
+/** D9: o acumulador tem a descida "zera quando a técnica desliga" (`DescidaAoDesligar`). */
 export function zeraAoDesligar(acumulador: Pick<AcumuladorDaFicha, 'desce'>): boolean {
-  return acumulador.desce.some((regra) => regra.quando === 'naoLida' && brutoQueDesliga(regra.bruto))
+  return acumulador.desce.some((regra) => regra.quando === 'desliga')
 }
 
 /** O cartão `cartaoId` da ficha (abas e subcartões); `null` = não está nela. */

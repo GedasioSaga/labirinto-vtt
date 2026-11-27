@@ -43,25 +43,14 @@ const JEITOS_DE_SUBIR: readonly OpcaoDaPeca<QuandoSobe['quando']>[] = [
   { valor: 'gastaSp', rotulo: 'A cada tanto de SP gasto' },
 ]
 
-/**
- * D9: "zera quando a técnica desliga". O tipo da regra nova (`DescidaAoDesligar`) ainda não está na
- * união que o leitor devolve (a E5 a põe lá): até lá ela chega como regra não lida, guardada como veio,
- * e é assim que esta peça a grava (o disco recebe `{ quando: 'desliga' }` do mesmo jeito,
- * `acumuladorParaGuardar`). A conferência olha os dois jeitos, então segue valendo depois da E5.
- */
-const QUANDO_DESLIGA = 'desliga'
 type DescidaGuardada = AcumuladorDaFicha['desce'][number]
 
+/** D9: "zera quando a técnica desliga" (`DescidaAoDesligar`, na união que o leitor devolve). */
 function ehDescidaDesliga(regra: DescidaGuardada): boolean {
-  // A comparação passa por `string` porque o 'desliga' ainda não é um valor da união (ver acima).
-  const quando: string = regra.quando
-  if (quando === QUANDO_DESLIGA) return true
-  if (regra.quando !== 'naoLida') return false
-  const bruto = regra.bruto
-  return typeof bruto === 'object' && bruto !== null && !Array.isArray(bruto) && bruto.quando === QUANDO_DESLIGA && Object.keys(bruto).length === 1
+  return regra.quando === 'desliga'
 }
 
-const DESCIDA_DESLIGA: DescidaGuardada = { quando: 'naoLida', porque: 'appNovo', motivo: 'Zera quando a técnica desliga', bruto: { quando: QUANDO_DESLIGA } }
+const DESCIDA_DESLIGA: DescidaGuardada = { quando: 'desliga' }
 /** Até quantos níveis a tira mostra um por um (como no editor dos Acumuladores). */
 const MAXIMO_NA_TIRA = 10
 
