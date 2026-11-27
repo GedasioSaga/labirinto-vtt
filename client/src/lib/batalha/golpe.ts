@@ -66,7 +66,6 @@ import {
   recursoDoEscudo,
   tecnicaPorId,
   tecnicasDe,
-  ehOverload,
   RECARGA_A_MAIS,
   type ArmaDaFicha,
   type BalaDaArma,
@@ -128,7 +127,7 @@ import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, nomeDoSeloNaBatalha, seloPedidoValido } from './selos'
 import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
 import { curaDoDanoDosSelos, travaDoToken } from './condicoes'
-import { comAtaqueExtra, efeitosDasFormasLigadas, formaDaFicha, formaNaVez, motivoDaForma, motivoDaOrdemDasPartes, motivoDoCustoDaForma, motivoDosUsosDaForma, subidaDeParte } from './transformacao'
+import { comAtaqueExtra, efeitosDasFormasLigadas, formaDaFicha, formaEhOverload, formaNaVez, motivoDaForma, motivoDaOrdemDasPartes, motivoDoCustoDaForma, motivoDosUsosDaForma, subidaDeParte } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
@@ -567,7 +566,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const paraLigar = motivoDoPortao(portaoDoPedido(ctx, pedido))
       if (paraLigar !== null) return paraLigar
       // Conserto das fichas F1: Overload (técnica ou forma) é UMA vez por batalha.
-      if (ehOverload(cartao) && combate.overload) return MOTIVO_DO_OVERLOAD_USADO
+      // A forma montada é Overload pela peça Transformação, não pelo campo de texto (formaEhOverload cai no texto sem peça).
+      if (formaEhOverload(cartao) && combate.overload) return MOTIVO_DO_OVERLOAD_USADO
       // R6: "Usos por batalha" (Ignição: 2) e a Ação "Livre" (liga sem gastar ação).
       const esgotada = motivoDosUsosDaForma(cartao, ctx.turnos.combate?.[personagem.id]?.usos)
       if (esgotada !== null) return esgotada

@@ -38,6 +38,7 @@ import {
   type FiltroDaLista,
   type LinhaDaLista,
 } from './listaDaFicha'
+import { guardarNoCatalogoRegistrado } from './ponteDoCatalogo'
 import './habilidades.css'
 
 const EditorDaHabilidade = lazy(() => import('../batalha/editor/EditorDaHabilidade').then((modulo) => ({ default: modulo.EditorDaHabilidade })))
@@ -142,12 +143,12 @@ export function ListaDeHabilidades({ filtro, personagem, sistema, onChange, quem
   }
 
   // "Guardar também no catálogo do livro" (D14): só no app do mestre, onde o catálogo mora no disco.
+  // Quem grava vem registrado pela entrada do app (`ponteDoCatalogo.ts`): o site não pode importá-lo.
+  const guardarRegistrado = guardarNoCatalogoRegistrado()
   const guardarNoCatalogo =
-    quemEdita === 'mestre' && temPonteDoApp()
+    quemEdita === 'mestre' && temPonteDoApp() && guardarRegistrado !== null
       ? (cartao: CartaoDaFicha) => {
-          void import('./guardarNoCatalogo')
-            .then((modulo) => modulo.guardarHabilidadeNoCatalogo(cartao, sistema))
-            .then(setAviso, (erro: unknown) => setAviso(erro instanceof Error ? erro.message : String(erro)))
+          guardarRegistrado(cartao, sistema).then(setAviso, (erro: unknown) => setAviso(erro instanceof Error ? erro.message : String(erro)))
         }
       : undefined
   const relatorioDoAberto = aberto === null || convertida === null ? [] : convertida.relatorio.cartoes.filter((linha) => linha.cartaoId === aberto.id)

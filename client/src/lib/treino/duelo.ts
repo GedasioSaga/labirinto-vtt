@@ -13,7 +13,7 @@ import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, recursoDoCusto, tecnic
 import { danoDaTecnica } from '../batalha/leituraDaTecnica'
 import { cartaoMontado } from '../batalha/mecanica/leitura'
 import { COMO_MARCA, marcaDoToken, motivoDaMarca, passivaDaMarca } from '../batalha/marca'
-import { chavesDoDono, mecanicaDoCartao, motivoDasRespostasDoGolpe, reacaoAMaoDe, type ChaveDaMecanica } from '../batalha/mecanicasAMao'
+import { chavesDoDono, ligadasDoDono, mecanicaDoCartao, motivoDasRespostasDoGolpe, reacaoAMaoDe, type ChaveDaMecanica } from '../batalha/mecanicasAMao'
 import { motivoDaReacaoComTecnica, saidasDaTecnica } from '../batalha/reacaoComTecnica'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
 import { motivoDaPassiva } from '../batalha/passivas'
@@ -474,7 +474,7 @@ function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }
   // A opção que não é a principal pode trazer o dano e o selo dela (`preenchimentoDaVariante`, como a mira).
   const daOpcao = variante === null || variante.principal ? null : preenchimentoDaVariante(tecnica.cartao, variante, { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus })
   // F2 (fatias B e C): as respostas da mira (ponto vital, quadrados empurrados, o Electro da Aira) mudam o dano; a resposta torta não entra na conta e a batalha a recusa.
-  if (respostas !== undefined && motivoDasRespostasDoGolpe(pedido.cartaoId, idsDosCartoes(personagem), respostas) !== null) return { ok: true, pedido: semNumero }
+  if (respostas !== undefined && motivoDasRespostasDoGolpe(tecnica.cartao, idsDosCartoes(personagem), respostas, ligadasDoDono(turnos.selos, personagem.id, personagem.cartoesAtivos)) !== null) return { ok: true, pedido: semNumero }
   const leitura = daOpcao?.dano ?? (respostas === undefined ? tecnica.dano : danoDaTecnica(tecnica.cartao, { personagem, sistema, arma, bonusDaBatalha: bonus }, respostas))
   // De propósito: no site ninguém digita dano (o que a ficha não lê). O `precisaAlvo` passa: a batalha fecha a conta pela vida de cada alvo.
   if (leitura.tipo !== 'valor' && leitura.tipo !== 'semDano' && leitura.tipo !== 'precisaAlvo') return recusa('danoAMao')

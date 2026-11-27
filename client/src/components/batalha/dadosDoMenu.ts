@@ -24,7 +24,7 @@ import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/sel
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
-import { cartoesLigados, chavesDoDono, golpesSaoOverload, type ChaveDaMecanica, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
+import { cartoesLigados, chavesDoDono, golpesSaoOverload, type ChaveDaMecanica, type LigadasDoDono, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao, reacaoDasPecas, seloDasPecas } from '../../lib/batalha/mecanica/leitura'
 import { direcaoDaRotacao, DIRECOES, distanciaEntreFichas, pegadaDaCasa, pegadaDaFicha, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
 import { alcanceDaTabela, alcanceDoCartao } from '../../lib/batalha/alcanceDoCartao'
@@ -987,11 +987,12 @@ function golpeDaTecnica(
   }
   // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
   // F2 (fatia D, Imbuir Fogo): a opção que a forma ligada não deixa some (a Ignição ligada deixa só "Não" no fogo).
-  const perguntas = perguntasComAsFormas(perguntasDoGolpe(id, idsDosCartoes(personagem)), id, personagem.cartoesAtivos)
+  // Rework das habilidades (D4): o cartão, não o id, para a técnica montada trazer as perguntas dela; e as ligadas, para o Imbuir.
+  const perguntas = perguntasComAsFormas(perguntasDoGolpe(tecnica.cartao, idsDosCartoes(personagem), ligadasNoMenu(personagem, requisitos)), id, personagem.cartoesAtivos)
   if (perguntas.length > 0) {
     golpe.perguntas = perguntas
     const ctxDaFormula = { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }
-    golpe.respostasMudam = (mecanicaDoCartao(id)?.respostasMudam ?? []).map((regra) => ({
+    golpe.respostasMudam = (mecanicaDoCartao(tecnica.cartao)?.respostasMudam ?? []).map((regra) => ({
       chave: regra.chave,
       valor: regra.valor,
       dano: regra.dano === undefined ? null : danoNaTela(lerDano(regra.dano, ctxDaFormula)),
@@ -1319,6 +1320,17 @@ function idsDosCartoes(personagem: Personagem): ChaveDaMecanica[] {
 }
 
 /**
+ * D7: o que o dono tem ligado, para o "Imbuir?" aparecer no menu. O contexto dos requisitos já junta as
+ * mantidas e os selos que ele pôs (`ligadasDe`, requisitos/montar.ts); quem confere de verdade é o host,
+ * pelo selo `ligada` (`ligadasDoDono`). Sem contexto, nada ligado: o Imbuir não pergunta.
+ */
+function ligadasNoMenu(personagem: Personagem, requisitos: ContextoDosRequisitos | undefined): LigadasDoDono {
+  const tecnicas = new Set<string>()
+  for (const ligada of requisitos?.quemUsa.ligadas ?? []) if (ligada.id !== undefined) tecnicas.add(ligada.id)
+  return { tecnicas, formas: personagem.cartoesAtivos }
+}
+
+/**
  * As armas que valem nesta batalha: as EQUIPADAS da mochila de agora (itens refeitos, E6a; a escolha
  * das levadas saiu). O 2º argumento fica só porque os testes de antes ainda o passam (a E7b os ajusta).
  */
@@ -1391,7 +1403,7 @@ export function golpesDeAtaque(
   const carga = combate?.carga ?? 0
   const danoCom = (arma: ArmaDaFicha | null, bala: BalaDaArma | null): DanoNaTela =>
     personagem === null || sistema === null ? danoNaTela({ tipo: 'naoEntende', texto: '' }) : danoNaTela(danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }, bala))
-  const perguntasDoAtaque = personagem === null ? [] : perguntasDoGolpe(null, idsDosCartoes(personagem))
+  const perguntasDoAtaque = personagem === null ? [] : perguntasDoGolpe(null, idsDosCartoes(personagem), ligadasNoMenu(personagem, requisitos))
   const golpeDe = (arma: ArmaDaFicha | null): GolpeNaTela => {
     const lida = arma === null ? null : lerAcao(arma.campos[CAMPO_DA_ACAO] ?? '').acao
     const acaoDaFicha: AcaoDaTecnica = lida === null || lida === 'passiva' ? 'simples' : lida

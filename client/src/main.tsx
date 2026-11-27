@@ -5,6 +5,8 @@ import { createRoot } from 'react-dom/client'
 import './lib/dbt/livroDoApp'
 import App from './App'
 import { EditorErrorBoundary } from './components/EditorErrorBoundary'
+import { guardarHabilidadeNoCatalogo } from './components/habilidades/guardarNoCatalogo'
+import { registrarGuardarNoCatalogo } from './components/habilidades/ponteDoCatalogo'
 import { MidiaDoMestre } from './components/MidiaDoMestre'
 import { instalarDicasDoPainel } from './lib/dicaDoPainel'
 import { instalarEndireitarComAlt } from './lib/endireitarComAlt'
@@ -57,6 +59,10 @@ instalarEndireitarComAlt(window)
 // CONDIÇÃO ÚNICA (Fase 3): o selo do One Piece e a condição do Dragon Ball
 // acendem e apagam a pastilha de mesmo nome no token (`stores/ponteDasCondicoes.ts`).
 ligarPonteDasCondicoes()
+
+// "Guardar também no catálogo do livro" (rework das habilidades): só o app grava no catálogo do disco;
+// a lista da ficha é a mesma do site, que não pode importar o Tauri (`components/habilidades/ponteDoCatalogo.ts`).
+registrarGuardarNoCatalogo(guardarHabilidadeNoCatalogo)
 
 // Arquivo solto fora de uma área que o aceite (hoje só a imagem do pino) não
 // pode abrir na janela no lugar do app. O Tauri entrega o arrastar ao DOM

@@ -5,7 +5,7 @@ import { formaDecididaPeloMestre } from '../../lib/batalha/mecanica/formaDoMestr
 import { lerMecanica, type MecanicaLida, type MecanicaV2 } from '../../lib/batalha/mecanica/modelo'
 import { PECA_DE_PARTIDA } from '../../lib/batalha/mecanica/pecas'
 import type { FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
-import { fraseDoPapel } from '../../lib/batalha/mecanica/textoGerado'
+import { fraseDoPapel, modificadoresDaPecaDaForma } from '../../lib/batalha/mecanica/textoGerado'
 import { ocultasDaAba } from '../../lib/habilidadeOculta'
 import { ABA_DAS_TRANSFORMACOES, ehMecanicaDeForma } from '../../lib/livros/catalogo'
 import { cartoesDaAba, novoCartao, type CartaoDaFicha, type Personagem } from '../../lib/personagem'
@@ -225,7 +225,9 @@ export function formaNova(nome: string, quemEdita: QuemEditaNoEditor): CartaoDaF
   const cartao = novoCartao(nome)
   const mecanica = guardarConvertida(MECANICA_DA_FORMA_NOVA)
   if (mecanica === null) return cartao
-  return quemEdita === 'mestre' ? { ...cartao, mecanica } : { ...cartao, mecanicaProposta: mecanica }
+  // D5: os atributos da peça são os modificadores do cartão (o mesmo que o Salvar do editor grava).
+  const modificadores = modificadoresDaPecaDaForma(MECANICA_DA_FORMA_NOVA) ?? []
+  return quemEdita === 'mestre' ? { ...cartao, modificadores, mecanica } : { ...cartao, mecanicaProposta: mecanica }
 }
 
 /** As técnicas da ficha (as habilidades e as de dentro das formas): o "Evolui para" e os requisitos do editor. */

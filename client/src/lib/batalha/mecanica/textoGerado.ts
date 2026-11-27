@@ -1,4 +1,4 @@
-import { NOME_DO_TEXTO_DE_ANTES, type CampoExtra, type CartaoDaFicha, type MecanicaGuardada } from '../../personagem'
+import { NOME_DO_TEXTO_DE_ANTES, type CampoExtra, type CartaoDaFicha, type MecanicaGuardada, type Modificador } from '../../personagem'
 import { abaDoSistema, type SistemaDeRpg } from '../../sistemaDeRpg'
 import { quemUsaDeTreino } from '../ensaio/ensaioDoItem'
 import { CAMPO_DO_DANO } from '../formula'
@@ -8,6 +8,7 @@ import { categoriaDaMecanica, nomeDaAcao, tipoDasPecas } from './categoria'
 import { ADJETIVO_DO_TIPO } from './golpe'
 import { formulaDoNumero } from './leitura'
 import { lerMecanica, type AcaoDaMecanica, type Efeito, type MecanicaV1, type TipoComRegra, type TipoDoGolpe } from './modelo'
+import { atributoNoMotor, type PecaTransformacao } from './pecas'
 import { ehAjudaNaFrase, fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, fraseDoTeste, frasesDaReacao, frasesDoDano, frasesDoGolpe, frasesDasPecas, frasesDosOutrosCustos, quantoCusta, resumoDaMecanica, type FichaDaPrevia } from './resumo'
 
 /**
@@ -279,9 +280,29 @@ function tecnicaComTexto(antes: CartaoDaFicha, depois: CartaoDaFicha, sistema: S
   const lidaAntes = lerMecanica(antes.mecanica)
   const valores = valoresGerados(depois.campos, lida.mecanica, sistema, lidaAntes.tipo === 'pecas' ? lidaAntes.mecanica : undefined)
   const ids = camposGeradosDaAba(sistema)
-  if (ids.every((id) => depois.campos[id] === valores[id])) return depois
-  const comAntes = comOTextoDeAntes(antes, depois, ids, valores, sistema)
+  const comMods = comOsModsDaForma(depois, lida.mecanica)
+  if (ids.every((id) => comMods.campos[id] === valores[id])) return comMods
+  const comAntes = comOTextoDeAntes(antes, comMods, ids, valores, sistema)
   return { ...comAntes, campos: { ...comAntes.campos, ...valores } }
+}
+
+/**
+ * D5: os atributos da peça Transformação ("Muda: Agilidade +20") são os `modificadores` do cartão, que a
+ * forma ligada aplica (e que o app de antes, o site e a Arena já leem). Gravados aqui, no ponto único,
+ * para a peça e o cartão nunca dizerem números diferentes. Sem a peça, os modificadores ficam como estão.
+ */
+function comOsModsDaForma(cartao: CartaoDaFicha, mecanica: MecanicaV1): CartaoDaFicha {
+  const mods = modificadoresDaPecaDaForma(mecanica)
+  if (mods === null) return cartao
+  const iguais = mods.length === cartao.modificadores.length && mods.every((mod, indice) => cartao.modificadores[indice]?.atributo === mod.atributo && cartao.modificadores[indice]?.delta === mod.delta)
+  return iguais ? cartao : { ...cartao, modificadores: mods }
+}
+
+/** Os `modificadores` que a peça Transformação dá ao cartão (a Velocidade é a Agilidade); `null` = a mecânica não tem a peça. */
+export function modificadoresDaPecaDaForma(mecanica: MecanicaV1): Modificador[] | null {
+  let forma: PecaTransformacao | undefined
+  for (const peca of mecanica.pecas ?? []) if (peca.tipo === 'transformacao') forma = peca
+  return forma === undefined ? null : forma.mods.map((mod) => ({ atributo: atributoNoMotor(mod.atributo), delta: mod.valor }))
 }
 
 /**

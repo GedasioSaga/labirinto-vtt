@@ -848,7 +848,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, abri
   const gerados: ReadonlySet<string> = montada ? new Set(camposGeradosDaAba(sistema)) : new Set()
   const camposDaFrente = aba.campos.filter((campo) => !gerados.has(campo.id))
   const camposGerados = aba.campos.filter((campo) => gerados.has(campo.id))
-  // A técnica sem mecânica abre pelo editor novo: no topo, o papel e o "Montar no editor" (ou a proposta do dono); o texto
+  // A técnica sem mecânica abre pelo editor novo: no topo, o papel e o "Abrir o editor" (ou a proposta do dono); o texto
   // antigo fica embaixo, recolhido e editável. Sem quem edite a mecânica (o site do Lobby), o cartão segue como sempre.
   const textoEmBaixo = aba.id === ABA_DAS_TECNICAS && quemEditaAMecanica !== 'ninguem' && !montada
   // Sem nome a ficha não salva: o texto já abre, com o erro à vista. Decidido uma vez, ao aparecer (senão fecharia no meio da digitação).
@@ -977,7 +977,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, abri
         {!textoEmBaixo && camposGerados.length > 0 && (
           <details className="lb-cartao__grupo lb-cartao__texto-antigo">
             <summary className="lb-label">Texto do cartão (sai da mecânica)</summary>
-            <p className="lb-field__hint">Com a mecânica montada, estes campos saem dela: para mudar, abra o editor. O Desmontar devolve o texto de antes.</p>
+            <p className="lb-field__hint">Com a mecânica montada, estes campos saem dela: para mudar, abra o editor.</p>
             <dl className="lb-cartao__gerados">
               {camposGerados.map((campo) => (
                 <div key={campo.id}>
