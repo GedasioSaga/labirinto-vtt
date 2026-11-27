@@ -7,7 +7,7 @@ import { ITEM_QUANTIDADE_MAX, quantidadeDe } from '../../lib/items'
 import { ehDoAcervo, entradaDoAcervo } from '../../lib/livros/acervoNoLivro'
 import { entraNaBatalha, variacoesDe } from '../../lib/livros/combate'
 import {
-  abaDeDestino,
+  abaDaEntrada,
   buscarNoCatalogo,
   cartaoDaEntrada,
   chaveDoNomeDaEntrada,
@@ -526,7 +526,8 @@ export function PaginaItens({ personagens, sistema, pagina }: PaginaItensProps) 
   }
 
   // ---- dar ----
-  const abaDe = (entrada: EntradaDaBiblioteca): AbaDoSistema | undefined => (ehDoAcervo(entrada) ? undefined : abaDeDestino(sistema, entrada.tipo))
+  // Rework das habilidades (D5): a habilidade com a peça Transformação vai para a aba Transformações da ficha.
+  const abaDe = (entrada: EntradaDaBiblioteca): AbaDoSistema | undefined => (ehDoAcervo(entrada) ? undefined : abaDaEntrada(sistema, entrada))
   const vaiParaAMochila = (entrada: EntradaDaBiblioteca) => ehDoAcervo(entrada) || entrada.tipo === 'item'
 
   const estadoParaDar = (entrada: EntradaDaBiblioteca, ficha: Personagem): EstadoParaDar & { motivo: 'pode' | 'jaTem' | 'semAba' } => {

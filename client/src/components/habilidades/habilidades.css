@@ -1,0 +1,233 @@
+/* A lista de habilidades da ficha (rework das habilidades, E7; protótipo aprovado, `.lista` e `.linha`). */
+
+.lb-habs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-habs__nota {
+  margin: 0;
+}
+
+.lb-habs__botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+}
+
+.lb-habs__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-habs__linha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+/* Só a linha que acabou de chegar entra com movimento (as outras já estavam lá). */
+.lb-habs__linha[data-nova] {
+  transition:
+    opacity 200ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 200ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@starting-style {
+  .lb-habs__linha[data-nova] {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.lb-habs__topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+}
+
+.lb-habs__abrir {
+  display: flex;
+  flex: 1 1 260px;
+  min-width: 0;
+  gap: var(--lb-space-3);
+  align-items: flex-start;
+  padding: var(--lb-space-1);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-habs__abrir:disabled {
+  cursor: default;
+}
+
+.lb-habs__abrir:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-habs__abrir:not(:disabled):hover {
+    background: var(--lb-color-stone-raised);
+  }
+}
+
+.lb-habs__imagem {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  font-size: 9px;
+}
+
+.lb-habs__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lb-habs__nome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.lb-habs__nome strong {
+  overflow-wrap: anywhere;
+}
+
+.lb-habs__nome strong[data-sem-nome] {
+  color: var(--lb-color-parchment-faint);
+  font-style: italic;
+}
+
+/* A frase das peças pode ser longa: duas linhas na lista, inteira no editor. */
+.lb-habs__resumo {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+
+.lb-habs__chip-forma {
+  border-color: var(--lb-color-arcane);
+  background: var(--lb-color-arcane-soft);
+}
+
+.lb-habs__chip-confira {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-habs__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.lb-habs__confirma {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-habs__subs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-left: var(--lb-space-1);
+}
+
+.lb-habs__subs-rotulo {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-habs__sub {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-habs__sub-abrir,
+.lb-habs__sub-tirar {
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: var(--lb-radius-full);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+  transition: transform 120ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.lb-habs__sub-tirar {
+  padding: 2px 8px;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-habs__sub-abrir:active:not(:disabled),
+.lb-habs__sub-tirar:active {
+  transform: scale(0.97);
+}
+
+.lb-habs__sub-abrir:focus-visible,
+.lb-habs__sub-tirar:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-habs__sub-tirar:hover {
+    color: var(--lb-color-danger);
+  }
+}
+
+/* A faixa dos acumuladores só abre a dona; a dona fora da lista fica só para ler. */
+.lb-habs .lb-acu-faixa__chip:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-habs__linha[data-nova] {
+    transition: opacity 200ms ease;
+  }
+
+  @starting-style {
+    .lb-habs__linha[data-nova] {
+      transform: none;
+    }
+  }
+}

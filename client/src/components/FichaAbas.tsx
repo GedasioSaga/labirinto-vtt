@@ -28,8 +28,9 @@ import type { CarriedItem } from '../types/map'
 import { PecaDoMestreNaForma } from './batalha/FormasDoMestre'
 import { CartoesOcultos, OcultaNoCartao, SeloDeOculta } from './batalha/HabilidadeOculta'
 import { ocultasDaAba } from '../lib/habilidadeOculta'
-import { AcumuladoresNaFicha } from './batalha/acumulador/AcumuladoresNaFicha'
 import { MexerNaFicha, type FichaQueSeMexe } from './batalha/acumulador/mexerNaFicha'
+import { ListaDeHabilidades } from './habilidades/ListaDeHabilidades'
+import { abasDaLista, filtroDaAba, linhasDaLista, ocultasDaLista, quantosNaLista } from './habilidades/listaDaFicha'
 
 /** Fase 3: o Testar pesa o motor da batalha inteiro; só carrega quando alguém abre. */
 const PainelDeEnsaio = lazy(() => import('./ensaio/PainelDeEnsaio').then((modulo) => ({ default: modulo.PainelDeEnsaio })))
@@ -200,7 +201,14 @@ export function FichaAbas({
         {botoes.map((aba) => {
           // Fatia C7: o "???" que o mestre escondeu conta na aba do jogador, como um cartão.
           // E4b: a aba da mochila conta as vagas da mochila do dono, a mesma que a grade mostra.
-          const quantos = aba.id === ABA_DA_MOCHILA ? (mochilaContada ?? []).length : cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id)
+          // Rework das habilidades (E7): Habilidades conta a lista única (as formas também); Transformações, o filtro das formas.
+          const filtro = filtroDaAba(sistema, aba.id)
+          const quantos =
+            aba.id === ABA_DA_MOCHILA
+              ? (mochilaContada ?? []).length
+              : filtro === null
+                ? cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id)
+                : quantosNaLista(personagem, filtro) + ocultasDaLista(personagem, filtro)
           return (
             <button
               key={aba.id}
@@ -244,7 +252,6 @@ export function FichaAbas({
         ) : (
           ativa !== undefined && (
             <>
-              {mestreEditando && ativa.id === ABA_DAS_TECNICAS && <AcumuladoresNaFicha personagem={personagem} sistema={sistema} onChange={onChange} />}
               <CartoesDaAba
                 aba={ativa}
                 sistema={sistema}
@@ -309,6 +316,49 @@ interface CartoesDaAbaProps {
 
 /** Os cartões de uma aba do molde: a lista que edita, ou os cartões lidos com os "???" do mestre. */
 function CartoesDaAba({ aba, sistema, personagem, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica, onRevelar, outrasFichas }: CartoesDaAbaProps) {
+  // Rework das habilidades (E7): Habilidades e Transformações são UMA lista (Transformações é o filtro das formas).
+  const filtro = filtroDaAba(sistema, aba.id)
+  const abasJuntas = abasDaLista(sistema)
+  if (filtro !== null && abasJuntas !== null) {
+    if (editando) {
+      return (
+        <ListaDeHabilidades
+          key={aba.id}
+          filtro={filtro}
+          personagem={personagem}
+          sistema={sistema}
+          onChange={onChange}
+          quemEdita={quemEditaAMecanica}
+          podeOcultar={quemEditaAMecanica === 'mestre' && onRevelar !== undefined}
+          outrasFichas={outrasFichas}
+          livro={livro}
+        />
+      )
+    }
+    const linhas = linhasDaLista(personagem, filtro)
+    const ocultasJuntas = ocultasDaLista(personagem, filtro)
+    if (linhas.length === 0 && ocultasJuntas === 0) return <p className="lb-ficha__vazio">{aba.vazio}</p>
+    return (
+      <ul className="lb-ficha__cartoes">
+        {linhas.map(({ cartao, abaId }) => {
+          const daLinha = abaId === abasJuntas.formas.id ? abasJuntas.formas : abasJuntas.habilidades
+          return (
+            <CartaoLido
+              key={cartao.id}
+              cartao={cartao}
+              aba={daLinha}
+              sistema={sistema}
+              personagem={personagem}
+              ativo={personagem.cartoesAtivos.includes(cartao.id)}
+              onLigar={onAjustar === undefined || daLinha.modificadores !== true ? undefined : (ligar) => onAjustar({ parte: 'cartao', chave: cartao.id, valor: ligar ? 1 : 0 })}
+              onRevelar={onRevelar}
+            />
+          )
+        })}
+        <CartoesOcultos quantos={ocultasJuntas} />
+      </ul>
+    )
+  }
   const cartoes = cartoesDaAba(personagem, aba.id)
   const ocultas = ocultasDaAba(personagem, aba.id)
   const trocarCartoes = (novos: CartaoDaFicha[]) => onChange({ ...personagem, abas: { ...personagem.abas, [aba.id]: novos } })

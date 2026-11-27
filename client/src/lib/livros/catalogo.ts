@@ -3,6 +3,8 @@ import { ABA_DAS_ARMAS, armasDosCartoes, limiteDeArmas } from '../batalha/leitur
 import { alcanceDoArquivo, cartoesDaAba, mecanicaDoArquivo, novoCartao, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type Personagem, type RequisitosGuardados } from '../personagem'
 import { marcasGuardadas, requisitosGuardados } from '../batalha/requisitos/guardados'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../sistemaDeRpg'
+import { lerMecanica } from '../batalha/mecanica/modelo'
+import { pecasDo } from '../batalha/mecanica/pecas'
 
 /**
  * CATÁLOGO DO LIVRO (M3 do mundo do livro de regras, docs/planos/livros-de-regras-plano.md,
@@ -291,6 +293,27 @@ export function abaDeDestino(sistema: SistemaDeRpg, tipo: TipoDeEntrada): AbaDoS
   return abaDoSistema(sistema, DADOS_DO_TIPO[tipo].aba)
 }
 
+/** A aba das formas da ficha (rework das habilidades, D5): a habilidade com a peça Transformação mora nela. */
+export const ABA_DAS_TRANSFORMACOES = 'transformacoes'
+
+/** A mecânica traz a peça Transformação (versão 5)? Mecânica torta, futura ou sem peças: não. */
+export function ehMecanicaDeForma(mecanica: MecanicaGuardada | undefined): boolean {
+  const lida = lerMecanica(mecanica)
+  return lida.tipo === 'pecas' && pecasDo(lida.mecanica.pecas, 'transformacao').length > 0
+}
+
+/**
+ * A aba que recebe ESTA entrada (rework das habilidades, D5): a habilidade com a peça Transformação vai
+ * para a aba das formas, quando o sistema a tem; o resto segue `abaDeDestino` pelo tipo.
+ */
+export function abaDaEntrada(sistema: SistemaDeRpg, entrada: EntradaParaFicha): AbaDoSistema | undefined {
+  if (!ehDoLivro(entrada) && entrada.tipo === 'habilidade' && ehMecanicaDeForma(entrada.mecanica)) {
+    const formas = abaDoSistema(sistema, ABA_DAS_TRANSFORMACOES)
+    if (formas !== undefined) return formas
+  }
+  return abaDeDestino(sistema, entrada.tipo)
+}
+
 /** Os campos que a janela de entrada mostra para o tipo: os da aba de destino, sem a Descrição (é o `texto`). */
 export function camposDoTipo(sistema: SistemaDeRpg, tipo: TipoDeEntrada): CampoDoCartao[] {
   return (abaDeDestino(sistema, tipo)?.campos ?? []).filter((campo) => campo.id !== CAMPO_DA_DESCRICAO)
@@ -359,7 +382,7 @@ function balasDaEntrada(entrada: EntradaParaFicha, aba: AbaDoSistema, sistema: S
  */
 export function porNaFicha(personagem: Personagem, entrada: EntradaParaFicha, sistema: SistemaDeRpg): ResultadoDePorNaFicha {
   if (!podeReceber(personagem)) return { ok: false, motivo: 'variacao' }
-  const aba = abaDeDestino(sistema, entrada.tipo)
+  const aba = abaDaEntrada(sistema, entrada)
   if (aba === undefined) return { ok: false, motivo: 'semAba' }
   const atuais = cartoesDaAba(personagem, aba.id)
   const chave = chaveDoNomeDaEntrada(entrada.nome)
@@ -383,6 +406,20 @@ function itemDoCartao(cartao: CartaoDaFicha, tipo: TipoDoCatalogo): ItemDoCatalo
   const item = itemLimpo({ id: novoIdDeEntrada(), tipo, nome: cartao.nome, texto: cartao.campos[CAMPO_DA_DESCRICAO] ?? '', campos: cartao.campos, balas, mecanica: cartao.mecanica, alcance: cartao.alcance, requisitos: cartao.requisitos, marcas: cartao.marcas })
   if (item === null || chaveDoNomeDaEntrada(item.nome) === chaveDoNomeDaEntrada(DADOS_DO_TIPO[tipo].um)) return null
   return item
+}
+
+/**
+ * "GUARDAR TAMBÉM NO CATÁLOGO DO LIVRO" (rework das habilidades, D14): a habilidade da ficha como
+ * entrada de habilidade. A de mesmo nome já no catálogo é trocada (o mesmo id); sem ela, nasce uma.
+ * `null` = sem nome, ou com o nome de fábrica. O catálogo não guarda acumulador, imagem, modificadores
+ * nem subcartões (MAPA §1.2): a peça Transformação vai, porque mora na `mecanica`.
+ */
+export function entradaDaHabilidade(cartao: CartaoDaFicha, catalogo: readonly ItemDoCatalogo[]): ItemDoCatalogo | null {
+  const nova = itemDoCartao(cartao, 'habilidade')
+  if (nova === null) return null
+  const chave = chaveDoNomeDaEntrada(nova.nome)
+  const mesma = catalogo.find((item) => item.tipo === 'habilidade' && chaveDoNomeDaEntrada(item.nome) === chave)
+  return mesma === undefined ? nova : { ...nova, id: mesma.id }
 }
 
 /**
