@@ -4,6 +4,10 @@
 - Página das 27 mecânicas: https://claude.ai/artifact/Jmj5eYnUWgnkeKcpHhGbf7. Dono escolheu 7 (PEDIDOS, última entrada longa): pergunta que muda o golpe; Imbuir com vários tipos; passiva que dispara sozinha; passiva de raça; Overload tipo transformação (ações extras, marca que dobra dano, +Agilidade, fadiga ao acabar); habilidade que soma/modifica status; formas ligadas a técnicas + acumuladores no editor. Também: "Nova entrada do catálogo" na página Habilidades oferece Arma/Item e tem visual antigo.
 - Em voo: designer-opus fazendo docs/design/habilidades-rework/prototipo.html. Próximo: mostrar ao dono; aprovado -> plano (arquiteto) -> construir em etapas (regra: aplicar sem perguntar) -> publicar 0.6.5+.
 
+# 26/11 22:42: 0.6.4 PUBLICADA
+
+Bump 8044c93f chore(release): 0.6.4 (5 arquivos, como 93c3f27c) na main e `git push origin main` (0374d90a..8044c93f). Worktree ../labirinto-release (release/0.6.4 de origin/main = 8044c93f, 3 junções: raiz, client, lobby/nuvem). RAM 8,7 GB livre, disco 10,5 GB antes. CARGO_BUILD_JOBS=2 publicar-versao --publicar --com-google --notas tmp/rel-0.6.4/notas-da-versao-0.6.4.md, exit 0 na 1ª tentativa (log tmp/rel-0.6.4/publicar.log; cargo 20m14s): tsc lobby ok, assinatura do setup confere, conferir-repo-publico "nada bloqueia", Worker labirinto-nuvem 185b6c18-b288-4c10-a105-3c5aab7fc099 (campos novos de condição/munição), site b98b36d7.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.6.4 (setup.exe, .sig, msi, latest.json; alvo 8044c93f). curl releases/latest/download/latest.json: "version": "0.6.4". Limpeza: target apagado, Cargo.toml só com diferença de fim de linha restaurado, 3 junções .Delete() uma a uma (0 reparse points), worktree remove sem --force, branch release/0.6.4 apagada; node_modules compartilhado intacto. App do dono não tocado (PID 23880 reporta 0.6.2). Disco 11,4 GB. Nenhum teste rodado.
+
 # 26/11 ~21h40: /goal ENCERRADO (0.6.3 publicada, aceite gravado); 0.6.4 em construção
 
 - Pronto p/ 0.6.4: 8db7efa9 gatilho "depois de X turnos" nas condições (peça de condição do Ao acertar + condições criadas) e munição Perfurante. WORKER PRECISA SAIR JUNTO.
