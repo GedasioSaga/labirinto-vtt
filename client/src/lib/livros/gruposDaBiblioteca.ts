@@ -1,10 +1,10 @@
-import { categoriaDaMecanica } from '../batalha/mecanica/categoria'
+import { categoriaDaHabilidade } from '../batalha/mecanica/categoria'
 import { lerTipo } from '../batalha/tiposDaHabilidade'
 import { normalizarParaBusca } from '../buscaNoLivro'
 import { cartoesDaAba, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { ehDoAcervo } from './acervoNoLivro'
-import { abaDeDestino, chaveDoNomeDaEntrada, ehDoLivro, type TipoDeEntrada } from './catalogo'
+import { abaDaEntrada, chaveDoNomeDaEntrada, ehDoLivro, type TipoDeEntrada } from './catalogo'
 import { CAMPO_DA_CATEGORIA } from '../batalha/leituraDaFicha'
 import { ehNomeDeArremesso } from '../itens/conversao/comum'
 import type { TipoDoItem } from '../itens/modelo'
@@ -100,7 +100,10 @@ export function grupoNaBiblioteca(entrada: EntradaDaBiblioteca, acervo: Readonly
   if (doLivro !== undefined) return doLivro
   const pecas = pecasDaEntrada(entrada)
   if (pecas !== null) {
-    if (categoriaDaMecanica(pecas) === 'reacao') return 'reacao'
+    // Versão 5 (D6): a passiva montada é do grupo Passiva (o "Ligar e manter" segue pelo que faz: ataque ou apoio).
+    const categoria = categoriaDaHabilidade(pecas)
+    if (categoria === 'reacao') return 'reacao'
+    if (categoria === 'passiva') return 'passiva'
     return grupoDaHabilidade(entrada) === 'apoio' ? 'apoio' : 'ataque'
   }
   if (!ehDoLivro(entrada) && lerTipo({ campos: entrada.campos, mecanica: entrada.mecanica }).tipo === 'passiva') return 'passiva'
@@ -162,17 +165,18 @@ function lerFicha(personagem: Personagem, abas: readonly string[]): OQueAFichaTe
  * recebida.
  */
 export function donosDasEntradas(entradas: readonly EntradaDaBiblioteca[], fichas: readonly Personagem[], sistema: SistemaDeRpg): Map<string, Personagem[]> {
-  const abaPorTipo = new Map<TipoDeEntrada, string>()
+  // D5: a aba de CADA entrada (a habilidade com a peça Transformação mora na aba das formas, `abaDaEntrada`).
+  const abaPorEntrada = new Map<string, string>()
   for (const entrada of entradas) {
-    if (ehDoAcervo(entrada) || abaPorTipo.has(entrada.tipo)) continue
-    const aba = abaDeDestino(sistema, entrada.tipo)
-    if (aba !== undefined) abaPorTipo.set(entrada.tipo, aba.id)
+    if (ehDoAcervo(entrada)) continue
+    const aba = abaDaEntrada(sistema, entrada)
+    if (aba !== undefined) abaPorEntrada.set(entrada.id, aba.id)
   }
-  const lidas = fichas.map((ficha) => ({ ficha, tem: lerFicha(ficha, [...abaPorTipo.values()]) }))
+  const lidas = fichas.map((ficha) => ({ ficha, tem: lerFicha(ficha, [...new Set(abaPorEntrada.values())]) }))
   const donos = new Map<string, Personagem[]>()
   for (const entrada of entradas) {
     const naMochila = chaveDaVagaDaEntrada(entrada)
-    const abaId = ehDoAcervo(entrada) ? undefined : abaPorTipo.get(entrada.tipo)
+    const abaId = ehDoAcervo(entrada) ? undefined : abaPorEntrada.get(entrada.id)
     const nome = chaveDoNomeDaEntrada(entrada.nome)
     const quem: Personagem[] = []
     for (const { ficha, tem } of lidas) {
@@ -197,7 +201,7 @@ export function donosDasEntradas(entradas: readonly EntradaDaBiblioteca[], ficha
 export function imagemDaEntrada(entrada: EntradaDaBiblioteca, donos: readonly Personagem[], sistema: SistemaDeRpg, acervo: ReadonlyMap<string, { imagem: string | null }>): string | null {
   if (ehDoAcervo(entrada)) return entrada.acervo.imagem
   if (ehDoLivro(entrada) || (entrada.tipo !== 'arma' && entrada.tipo !== 'item')) return null
-  const aba = abaDeDestino(sistema, entrada.tipo)
+  const aba = abaDaEntrada(sistema, entrada)
   if (aba !== undefined) {
     const nome = chaveDoNomeDaEntrada(entrada.nome)
     const ehDela = (cartao: { nome: string; itemId?: string }) => (entrada.acervoId !== undefined && cartao.itemId === entrada.acervoId) || chaveDoNomeDaEntrada(cartao.nome) === nome

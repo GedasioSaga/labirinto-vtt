@@ -1,7 +1,7 @@
 import { alcanceDoCartao } from '../batalha/alcanceDoCartao'
 import type { CorDoAlcance } from '../batalha/alcance/cor'
 import type { FormaDoAlcance } from '../batalha/alcance/forma'
-import { categoriaDaMecanica } from '../batalha/mecanica/categoria'
+import { categoriaDaHabilidade } from '../batalha/mecanica/categoria'
 import type { FichaDaPrevia } from '../batalha/mecanica/resumo'
 import { resumoDoEfeitoDoItem } from '../batalha/mecanica/resumoDoItem'
 import { fraseDoPapel } from '../batalha/mecanica/textoGerado'
@@ -110,9 +110,12 @@ export function dadosDaLinha(entrada: EntradaDaBiblioteca, grupo: GrupoDaBibliot
     frase = fraseDoPapel(pecas, ficha)
     const bate = pecas.golpe?.bate?.tipo
     if (bate !== undefined && ehIconeDoGolpe(bate)) icone = bate
-    const categoria = categoriaDaMecanica(pecas)
+    // Versão 5 (D6, D7): a passiva não gasta ação; o "Ligar e manter" diz a ação que liga e que fica ligado.
+    const categoria = categoriaDaHabilidade(pecas)
     if (categoria === 'overload') fichas.push({ texto: 'Overload', cor: 'over' })
+    else if (categoria === 'passiva') fichas.push({ texto: 'Passiva' })
     else if (categoria !== 'reacao') fichas.push({ texto: NOME_DA_ACAO[pecas.acao] ?? pecas.acao })
+    if (categoria === 'manter') fichas.push({ texto: 'liga e mantém', cor: 'fraco' })
     const sp = spDaEntrada(entrada)
     if (sp !== null && sp > 0) fichas.push({ texto: `${sp} SP`, cor: 'sp' })
     const { recarga, usosPorBatalha } = pecas.limite
