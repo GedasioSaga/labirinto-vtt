@@ -1,3 +1,7 @@
+# 26/11 21:07: 0.6.3 PUBLICADA
+
+Bump 93c3f27c chore(release): 0.6.3 (5 arquivos, como 4d7d42d6) na main e `git push origin main` (3666a105..93c3f27c). Worktree ../labirinto-release (release/0.6.3 de origin/main = 93c3f27c, 3 junções: raiz, client, lobby/nuvem). RAM 10,6 GB livre, disco 21,4 GB antes. CARGO_BUILD_JOBS=2 publicar-versao --publicar --com-google --notas tmp/rel-0.6.3/notas-da-versao-0.6.3.md, exit 0 na 1ª tentativa (log tmp/rel-0.6.3/publicar.log): tsc lobby ok, assinatura do setup confere, conferir-repo-publico "nada bloqueia", Worker labirinto-nuvem c134bb63-e5fc-4367-b69c-8d7b457d5a84, site 47bfc1c1.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.6.3 (setup.exe, .sig, msi, latest.json; alvo 93c3f27c). curl releases/latest/download/latest.json: "version": "0.6.3". Limpeza: target apagado, Cargo.toml só com diferença de fim de linha restaurado, 3 junções .Delete() uma a uma (0 reparse points), worktree remove sem --force, branch release/0.6.3 apagada; node_modules compartilhado intacto. App do dono não tocado (processo labirinto PID 23880 reporta 0.6.2). Disco 22,6 GB. Nenhum teste rodado.
+
 # 26/11 ~20h: 0.6.3 em construção; /goal fecha quando a 0.6.3 sair (dono: "você foi bem")
 
 ## Estado atual
