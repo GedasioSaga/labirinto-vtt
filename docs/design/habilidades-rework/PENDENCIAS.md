@@ -4,6 +4,8 @@ Ordem do journal (rótulo aproximado; confira pelo conteúdo e pelo git log). Al
 
 Fechamento de 27/11 (agente das pendências): cada item tem o estado no começo, [feito], [não precisa] ou [aberto: motivo].
 
+Auditoria antes de publicar (27/11, 3 itens): [feito] o catálogo guarda o acumulador (Agente 6); [feito] o Esquivar some na tela do jogador contra "alvo não desvia" (Agente 4); [feito] a jornada e2e/task-jornada-overload-do-editor.spec.ts passou de novo no Edge (LAB_NAVEGADOR=msedge, sem mudar o spec) e regravou os prints rework-hab-01 a 03 com o texto novo da forma.
+
 ## Agente 1
 
 - [feito: duracaoDaForma passa o cartão com a mecânica para vezesDaForma] E5, client/src/lib/batalha/transformacao.ts:149: ainda chama vezesDaForma(cartao.id). Precisa passar o cartão, vezesDaForma(cartao). Sem isso, a forma montada que dura N vezes não desliga sozinha. É a única chamada da lista do critério de pronto que ainda passa só o id.
@@ -41,7 +43,7 @@ Fechamento de 27/11 (agente das pendências): cada item tem o estado no começo,
 
 - [feito: passa o cartão e ligadasNoMenu] dadosDoMenu.ts:990 e :1394 (nenhuma etapa é dona) passam o id e não passam `ligadas`. Com isso, o menu não mostra as perguntas da técnica montada ('Pergunta', 'Marcar?') nem o 'Imbuir?'. Conserto: passar o cartão e ligadasDoDono(turnos.selos, personagem.id, personagem.cartoesAtivos).
 - [feito: passa o cartão e ligadasDoDono] duelo.ts:477 (Worker) passa o id para motivoDasRespostasDoGolpe. O duelo recusa as respostas da técnica montada com 'Resposta que a técnica não pergunta'. É preciso passar o cartão e `ligadas`.
-- [aberto: feito na tela do mestre (BatalhaDoMestre); a do jogador precisa de campo novo no fio (net/protocoloDaBatalha.ts e vistaDoJogador.ts); o host já recusa] A tela de reação deve esconder o Esquivar quando saidasTiradasPeloAtacante(chavesDoDono(atacante)) tiver 'esquiva'. O host já recusa.
+- [feito: o mestre já escondia; agora a reação do jogador leva semSaidas (vistaDoJogador.ts, lido em protocoloDaBatalha.ts) e a BatalhaDoJogador (app e treino do site) esconde o Esquivar; campo aditivo, o host de antes não manda e segue recusando] A tela de reação deve esconder o Esquivar quando saidasTiradasPeloAtacante(chavesDoDono(atacante)) tiver 'esquiva'. O host já recusa.
 - [feito: marcaVezes no AlvoDoGolpe, o registro diz o multiplicador certo] O texto do registro diz '(marca ×2)' fixo (golpe.ts:1729), porque AlvoDoGolpe.marcado é `true` em combate.ts (E1). A marca x3 dá o dano certo, mas o texto mostra ×2. Precisa de um campo do tipo marcadoVezes no AlvoDoGolpe (E1/E8).
 - [feito pela E5: SeloDaBatalha.ligada e ligadasDoDono] E5 precisa criar o selo `ligada` da D7 (ligada, donoId, cartaoId). Sem ele, o Imbuir nunca pergunta. Testei só com um selo feito à mão.
 - [não precisa: sugestão opcional] Sugestão para E1/E8: expor o tipo de partida na MecanicaAMao, para o motor não ler `golpe`. O comentário em modelo.ts:322 diz que o motor nunca lê esse campo.
@@ -65,7 +67,7 @@ Fechamento de 27/11 (agente das pendências): cada item tem o estado no começo,
 - [feito: abaDaEntrada no lugar de abaDeDestino] client/src/lib/livros/gruposDaBiblioteca.ts, linhas 168 e 200, ainda usa abaDeDestino. A forma vinda do catálogo pode aparecer agrupada na aba Habilidades da Biblioteca. Isso não está em nenhuma etapa.
 - [feito: a lista única vale também sem a aba Transformações; o "Editar como texto" saiu] Nos sistemas sem a aba Transformações, a lista antiga continua, com 'Editar como texto' (FichaAbas.tsx:1004, condição textoEmBaixo).
 - [não precisa: o catálogo do livro é do mestre no app] O site e o jogador não têm 'Guardar também no catálogo'. Só o mestre no app tem.
-- [aberto: os modificadores já vão (cartaoDaEntrada); acumulador, imagem e subcartões pedem mudar o formato do catalogo.json (D2)] O catálogo não guarda acumulador, imagem, modificadores nem subcartões (MAPA §1.2). A peça Transformação vai, porque mora na mecanica.
+- [acumulador feito: o catalogo.json guarda "acumulador" (aditivo, segue formato 1; entrada antiga = sem acumulador; mesmo leitor do cartão) e o Pôr em, o Juntar e o Guardar também no catálogo o levam; os modificadores já vão (cartaoDaEntrada); aberto: imagem e subcartões ainda pedem mudar o formato (D2)] O catálogo não guarda acumulador, imagem, modificadores nem subcartões (MAPA §1.2). A peça Transformação vai, porque mora na mecanica.
 - [não precisa: é do host] Gravar no disco a ficha inteira convertida é papel do host (store da aventura), não destes arquivos.
 - [aberto: recurso novo de tela, fica para depois] O selo 'também no catálogo' nas linhas da ficha ficou de fora.
 - [aberto: ux-driver medir não rodou; a tela foi vista pela jornada da E8] UI não testada no browser nem no app instalado, e o ux-driver medir não rodou: não há números de longtask, frame p95 nem INP. A renderização foi conferida só por SSR (renderToStaticMarkup).
