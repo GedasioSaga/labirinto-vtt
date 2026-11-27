@@ -42,6 +42,7 @@ import {
   type SeloDaBatalha,
 } from './combate'
 import { mudancaDoSelo } from './alcance/doGolpe'
+import { chavesDoDono, saidasTiradasPeloAtacante } from './mecanicasAMao'
 import { NIVEL_DO_ACUMULADOR_MAX } from './requisitos/modelo'
 import { corDaEquipe, equipeDe, equipesNaLeitura, ladoNaBatalha, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, quemLutaPeloDono, type Equipe, type LadosDaBatalha } from './equipes'
 import type { JudgeNaCena } from './judge'
@@ -368,6 +369,12 @@ export interface ReacaoParaJogador {
   /** F2 (revisão da fatia E): golpe Surpresa que espera a técnica que vale contra ela (o d20 não defende). Ausente = golpe comum. */
   surpresa?: true
   rolagem?: RolagemDaReacao
+  /**
+   * Rework das habilidades (D3): as saídas que a raça de quem ATACOU tira de quem reage ("quem o dono
+   * acerta não pode desviar" tira a Esquiva). A tela dele esconde o botão; o host já recusa. Ausente =
+   * o atacante não tira nada (ou host de antes, que não manda: o botão aparece e o host recusa).
+   */
+  semSaidas?: SaidaDaReacao[]
   /**
    * F2 (fatia B, o "perto" do Aplauso): a ficha DELE que pode rebater no
    * lugar do alvo `tokenId` (que pode ser de outro). Ausente = a ficha que
@@ -845,6 +852,7 @@ function nomeDoGolpe(golpe: GolpeDaBatalha): string {
 function reacoesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJogador, personagemDoToken: (tokenId: string) => string | null): ReacaoParaJogador[] {
   const reacoes: ReacaoParaJogador[] = []
   for (const golpe of golpes) {
+    const tiradas = saidasTiradasPorQuemAtacou(golpe, ctx)
     for (const alvo of golpe.alvos) {
       if (alvo.danoFinal !== undefined || !alvo.podeReagir) continue
       const quem = fichaMinha(alvo.tokenId, alvo.personagemId, ctx) ? [undefined] : []
@@ -863,12 +871,20 @@ function reacoesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJo
         if (golpe.overload) reacao.overload = true
         if (golpe.surpresa) reacao.surpresa = true
         if (alvo.rolagem !== undefined) reacao.rolagem = { ...alvo.rolagem }
+        if (tiradas.length > 0) reacao.semSaidas = [...tiradas]
         if (por !== undefined) reacao.por = por
         reacoes.push(reacao)
       }
     }
   }
   return reacoes
+}
+
+/** D3: as saídas que a raça de quem atacou tira (a mesma conta da tela do mestre e do host); sem ficha de quem atacou, nenhuma. */
+function saidasTiradasPorQuemAtacou(golpe: GolpeDaBatalha, ctx: ContextoDoJogador): SaidaDaReacao[] {
+  if (golpe.atacantePersonagemId === null) return []
+  const atacante = ctx.personagens.find((candidato) => candidato.id === golpe.atacantePersonagemId)
+  return atacante === undefined ? [] : saidasTiradasPeloAtacante(chavesDoDono(atacante))
 }
 
 /** Os golpes pendentes que a tela dele mostra inteiros: atacante e TODOS os alvos no recorte. Sem números de vida nem dano. */

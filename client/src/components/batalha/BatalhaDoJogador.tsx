@@ -458,8 +458,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       if (reacao.rolagem !== undefined) item.rolagem = reacao.rolagem
       const bonus = bonusDaReacaoDe(selosQueSomam, reacao.tokenId)
       if (bonus !== undefined) item.bonus = bonus
-      // F2 (fatia A): Aéreo tira a Esquiva e o Contra-ataque dos botões.
-      const semSaidas = saidasTiradas(selosQueSomam.filter((selo) => selo.tokenId === reacao.tokenId))
+      // F2 (fatia A): Aéreo tira a Esquiva e o Contra-ataque dos botões. Rework (D3): e a raça de quem atacou
+      // que não deixa desviar (o host manda em `semSaidas`; o de antes não manda, e recusa a Esquiva igual).
+      const semSaidas = [...new Set([...saidasTiradas(selosQueSomam.filter((selo) => selo.tokenId === reacao.tokenId)), ...(reacao.semSaidas ?? [])])]
       if (semSaidas.length > 0) item.semSaidas = semSaidas
       // Tipos de habilidade F1: as técnicas de reação da ficha dele que reage (o recorte só traz alvo que reage).
       const personagemDoAlvo = estado.cartas.find((carta) => carta.tokenId === reacao.tokenId && carta.lado === 'eu')?.personagemId

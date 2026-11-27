@@ -436,6 +436,9 @@ function lerAcaoDaTecnica(value: unknown): AcaoDaTecnica | null {
   return value === 'simples' || value === 'completa' || value === 'bonus' || value === 'livre' ? value : null
 }
 
+/** Teto das saídas tiradas de uma reação: cada saída da reação uma vez (são 8). */
+const SAIDAS_TIRADAS_MAX = 8
+
 function lerSaida(value: unknown): SaidaDaReacao | null {
   return value === 'critico' || value === 'cheio' || value === 'metade' || value === 'esquiva' || value === 'contra' || value === 'naoReagiu' || value === 'passou' || value === 'semReacao'
     ? value
@@ -1451,7 +1454,7 @@ function lerVantagemNaRolagem(value: unknown, d20: number): VantagemNaRolagem | 
 
 function lerReacao(value: unknown): ReacaoParaJogador | null {
   if (!isRecord(value)) return null
-  const { golpeId, tokenId, atacante, nome, dano, perfurante, perfuracao, overload, surpresa, rolagem, por } = value
+  const { golpeId, tokenId, atacante, nome, dano, perfurante, perfuracao, overload, surpresa, rolagem, por, semSaidas } = value
   if (!textoAte(golpeId, 1, ID_DA_BATALHA_MAX) || !textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(atacante, 1, NOME_NA_CARTA_MAX)) return null
   if (!textoAte(nome, 0, NOME_DO_GOLPE_MAX) || (dano !== null && !inteiroAte(dano, 0, DANO_MAX))) return null
   const reacao: ReacaoParaJogador = { golpeId, tokenId, atacante, nome, dano }
@@ -1483,6 +1486,12 @@ function lerReacao(value: unknown): ReacaoParaJogador | null {
     const lida = lerRolagem(rolagem)
     if (lida === null) return null
     reacao.rolagem = lida
+  }
+  // Rework das habilidades (D3): as saídas que a raça de quem atacou tira (ausente = nenhuma; o host de antes não manda).
+  if (semSaidas !== undefined) {
+    const lidas = lerLista(semSaidas, SAIDAS_TIRADAS_MAX, lerSaida)
+    if (lidas === null || lidas.length === 0) return null
+    reacao.semSaidas = [...new Set(lidas)]
   }
   return reacao
 }
