@@ -2015,8 +2015,16 @@ interface TokenCut {
  * fichas estão sem dono), `hidden` (ficha oculta nem chega aqui) e
  * `characterId` (vínculo do mestre; o jogador recebe `null`).
  */
-/** A condição criada como a pastilha do jogador a desenha: sem a regra e o número (E4a), que são do mestre. */
-function semARegra({ regra: _regra, n: _n, ...pastilha }: CondicaoPropria): CondicaoPropria {
+/**
+ * A condição criada como a pastilha do jogador a desenha: só o que se desenha (o id, o nome, a cor, o
+ * desenho de reserva, o símbolo digitado e o desenho novo). Rework das condições (E1): lista do que PASSA,
+ * não do que fica de fora, para campo novo do mestre (a regra, o número, o gatilho, as peças, o prazo,
+ * as saídas, o tipo, o "Confira") nunca atravessar por esquecimento.
+ */
+function semARegra({ id, nome, cor, simbolo, texto, desenho }: CondicaoPropria): CondicaoPropria {
+  const pastilha: CondicaoPropria = { id, nome, cor, simbolo }
+  if (texto !== undefined) pastilha.texto = texto
+  if (desenho !== undefined) pastilha.desenho = desenho
   return pastilha
 }
 

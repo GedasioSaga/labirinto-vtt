@@ -1,7 +1,9 @@
 import type { CondicaoPropria, MapData, Token } from '../types/map'
+import { lerPecasDaCondicao, lerPrazoDaCondicao, lerSaidasDaCondicao, lerTipoDaCondicao } from './condicoes/leitura'
+import { CONFIRA_DA_CONDICAO_MAX, ehIdDeCondicao } from './condicoes/modelo'
 import { gatilhoLido } from './itens/pecasDoItem'
 import { parseHexColor } from './tokenColor'
-import { CONDITION_INK, type ConditionSymbol, type ConditionSymbolPoint } from './tokenConditions'
+import { CONDITION_INK, TOKEN_CONDITION_SYMBOLS, type ConditionSymbol, type ConditionSymbolPoint } from './tokenConditions'
 
 /**
  * CONDIÇÃO CRIADA PELO MESTRE (pedido de 09/11/2026): além das cinco de
@@ -58,6 +60,78 @@ export const SIMBOLO_NOMES: Record<SimboloDeCondicao, string> = {
 
 export function ehSimboloDeCondicao(value: unknown): value is SimboloDeCondicao {
   return typeof value === 'string' && SIMBOLO_ORDEM.some((simbolo) => simbolo === value)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// OS 10 DESENHOS NOVOS (rework das condições, PLANO.md §2, E1; decisão 11 do protótipo)
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Os desenhos que entraram no rework das condições. Moram no campo `desenho` da condição, e o
+ * `simbolo` guarda um dos 14 de antes como RESERVA (`RESERVA_DO_DESENHO`): o app de antes, o mapa aberto
+ * noutro computador e a tela de quem joga ainda sem a versão nova desenham a reserva, e a pastilha não
+ * some (o leitor de antes recusa símbolo fora da biblioteca dele).
+ */
+export type DesenhoNovoDeCondicao = 'caveira' | 'raiz' | 'ampulheta' | 'calado' | 'espiral' | 'olhoRiscado' | 'lua' | 'bomba' | 'onda' | 'fantasma'
+
+/** A ordem dos desenhos novos no formulário (depois dos 14 de antes). */
+export const DESENHO_NOVO_ORDEM: readonly DesenhoNovoDeCondicao[] = ['caveira', 'raiz', 'ampulheta', 'calado', 'espiral', 'olhoRiscado', 'lua', 'bomba', 'onda', 'fantasma']
+
+/** O nome que o leitor de tela diz e a dica mostra em cada desenho novo. */
+export const DESENHO_NOVO_NOMES: Record<DesenhoNovoDeCondicao, string> = {
+  caveira: 'Caveira',
+  raiz: 'Raiz',
+  ampulheta: 'Ampulheta',
+  calado: 'Boca calada',
+  espiral: 'Espiral',
+  olhoRiscado: 'Olho riscado',
+  lua: 'Lua',
+  bomba: 'Bomba',
+  onda: 'Onda',
+  fantasma: 'Fantasma',
+}
+
+/** O desenho de antes que vai no `simbolo` de cada desenho novo: o mais parecido na biblioteca dos 14. */
+export const RESERVA_DO_DESENHO: Record<DesenhoNovoDeCondicao, SimboloDeCondicao> = {
+  caveira: 'xis',
+  raiz: 'rede',
+  ampulheta: 'desce',
+  calado: 'xis',
+  espiral: 'estrela',
+  olhoRiscado: 'olho',
+  lua: 'estrela',
+  bomba: 'chama',
+  onda: 'gota',
+  fantasma: 'olho',
+}
+
+export function ehDesenhoNovoDeCondicao(value: unknown): value is DesenhoNovoDeCondicao {
+  return typeof value === 'string' && DESENHO_NOVO_ORDEM.some((desenho) => desenho === value)
+}
+
+/** Qualquer desenho da pastilha: os 14 de antes e os 10 novos. */
+export type DesenhoDeCondicao = SimboloDeCondicao | DesenhoNovoDeCondicao
+
+/** Os 24 na ordem do formulário (`DESENHOS` do protótipo). */
+export const DESENHO_ORDEM: readonly DesenhoDeCondicao[] = [...SIMBOLO_ORDEM, ...DESENHO_NOVO_ORDEM]
+
+/** O nome de qualquer desenho. */
+export function nomeDoDesenho(desenho: DesenhoDeCondicao): string {
+  return ehDesenhoNovoDeCondicao(desenho) ? DESENHO_NOVO_NOMES[desenho] : SIMBOLO_NOMES[desenho]
+}
+
+/** O desenho que a condição mostra: o novo, se o app o conhece; senão o `simbolo`; senão o alvo (o mesmo de `simboloDaCondicaoPropria`). */
+export function desenhoDaCondicao(condicao: Pick<CondicaoPropria, 'simbolo' | 'desenho'>): DesenhoDeCondicao {
+  if (ehDesenhoNovoDeCondicao(condicao.desenho)) return condicao.desenho
+  return ehSimboloDeCondicao(condicao.simbolo) ? condicao.simbolo : 'alvo'
+}
+
+/**
+ * Os campos que gravam um desenho: o novo vai no `desenho`, com a reserva no `simbolo`; o de antes vai
+ * só no `simbolo` (sem `desenho`). Uma regra só para o editor, a fábrica e "Usar como modelo".
+ */
+export function camposDoDesenho(desenho: DesenhoDeCondicao): { simbolo: SimboloDeCondicao; desenho?: DesenhoNovoDeCondicao } {
+  return ehDesenhoNovoDeCondicao(desenho) ? { simbolo: RESERVA_DO_DESENHO[desenho], desenho } : { simbolo: desenho }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -298,11 +372,106 @@ const DESENHOS: Record<SimboloDeCondicao, Desenho> = {
   },
 }
 
+/** Pontos num arco de círculo, de `de` a `ate` graus (0 = leste, 90 = para baixo, como o y da tela), inclusive. */
+function arco(cx: number, cy: number, raio: number, de: number, ate: number, passos: number): ConditionSymbolPoint[] {
+  return Array.from({ length: passos + 1 }, (_, indice) => {
+    const angulo = ((de + ((ate - de) * indice) / passos) * Math.PI) / 180
+    return { x: Number((cx + raio * Math.cos(angulo)).toFixed(3)), y: Number((cy + raio * Math.sin(angulo)).toFixed(3)) }
+  })
+}
+
+/** A espiral que abre do centro: `voltas` voltas, do raio `de` ao `ate`. */
+function espiral(voltas: number, de: number, ate: number, passos: number): ConditionSymbolPoint[] {
+  return Array.from({ length: passos + 1 }, (_, indice) => {
+    const parte = indice / passos
+    const angulo = parte * voltas * 2 * Math.PI
+    const raio = de + (ate - de) * parte
+    return { x: Number((raio * Math.cos(angulo)).toFixed(3)), y: Number((raio * Math.sin(angulo)).toFixed(3)) }
+  })
+}
+
+/** Uma onda deitada na altura `y`, de ponta a ponta do quadrado, com uma volta e meia. */
+function linhaDeOnda(y: number): ConditionSymbolPoint[] {
+  const passos = 12
+  return Array.from({ length: passos + 1 }, (_, indice) => ({
+    x: Number((-0.9 + (1.8 * indice) / passos).toFixed(3)),
+    y: Number((y - 0.15 * Math.sin((indice * Math.PI) / 4)).toFixed(3)),
+  }))
+}
+
+/** O desenho de uma pastilha de fábrica, sem a cor nem a tinta (o fantasma e a ampulheta já existem lá). */
+function soODesenho(simbolo: ConditionSymbol): Desenho {
+  return { strokes: simbolo.strokes, ...(simbolo.solids === undefined ? {} : { solids: simbolo.solids }), ...(simbolo.dots === undefined ? {} : { dots: simbolo.dots }) }
+}
+
+/**
+ * Os 10 desenhos novos, no mesmo quadrado e no mesmo idioma dos 14 (forma cheia ou traço grosso). O
+ * fantasma e a ampulheta são os das pastilhas de fábrica do Invisível e do Lento: um desenho só.
+ */
+const DESENHOS_NOVOS: Record<DesenhoNovoDeCondicao, Desenho> = {
+  // Crânio cheio com os olhos vazados (sem os dentes: viravam borrão em 18 px).
+  caveira: {
+    strokes: [],
+    solids: [[...arco(0, -0.16, 0.74, 140, 400, 14), { x: 0.45, y: 0.42 }, { x: 0.45, y: 0.8 }, { x: -0.45, y: 0.8 }, { x: -0.45, y: 0.42 }]],
+    dots: [
+      { x: -0.27, y: -0.1, r: 0.2, hole: true },
+      { x: 0.27, y: -0.1, r: 0.2, hole: true },
+    ],
+  },
+  // O caule que se abre em três raízes, com as duas folhas no alto.
+  raiz: {
+    strokes: [
+      { points: [{ x: 0, y: -0.9 }, { x: 0, y: 0 }] },
+      { points: [{ x: 0, y: 0 }, { x: -0.12, y: 0.35 }, { x: -0.38, y: 0.6 }, { x: -0.68, y: 0.84 }] },
+      { points: [{ x: 0, y: 0 }, { x: 0.12, y: 0.35 }, { x: 0.38, y: 0.6 }, { x: 0.68, y: 0.84 }] },
+      { points: [{ x: 0, y: 0 }, { x: 0, y: 0.9 }] },
+      { points: [{ x: -0.42, y: -0.58 }, { x: -0.15, y: -0.47 }, { x: 0, y: -0.32 }, { x: 0.15, y: -0.47 }, { x: 0.42, y: -0.58 }] },
+    ],
+  },
+  ampulheta: soODesenho(TOKEN_CONDITION_SYMBOLS.lento),
+  // A boca fechada (o contorno e a linha dos lábios), riscada.
+  calado: {
+    strokes: [
+      {
+        points: [
+          { x: -0.74, y: 0.05 },
+          { x: -0.42, y: -0.2 },
+          { x: 0, y: -0.3 },
+          { x: 0.42, y: -0.2 },
+          { x: 0.74, y: 0.05 },
+          { x: 0.42, y: 0.3 },
+          { x: 0, y: 0.4 },
+          { x: -0.42, y: 0.3 },
+        ],
+        closed: true,
+      },
+      { points: [{ x: -0.55, y: 0.05 }, { x: 0.55, y: 0.05 }] },
+      { points: [{ x: -0.8, y: -0.8 }, { x: 0.8, y: 0.8 }] },
+    ],
+  },
+  espiral: { strokes: [{ points: espiral(2.25, 0.06, 0.86, 30) }] },
+  // O mesmo olho do "olho", sem a pupila e riscado.
+  olhoRiscado: { strokes: [...DESENHOS.olho.strokes, { points: [{ x: -0.8, y: -0.75 }, { x: 0.8, y: 0.75 }] }] },
+  // Lua crescente cheia: o disco menos o disco deslocado para o alto e a direita.
+  lua: { strokes: [], solids: [[...arco(0, 0, 0.85, 270, 0, 18), ...arco(0.32, -0.32, 0.62, 31, 239, 12)]] },
+  // A bomba redonda, com o brilho vazado e o pavio.
+  bomba: {
+    strokes: [{ points: [{ x: 0.3, y: -0.28 }, { x: 0.5, y: -0.55 }, { x: 0.78, y: -0.72 }] }],
+    dots: [
+      { x: -0.14, y: 0.24, r: 0.66 },
+      { x: -0.36, y: 0.04, r: 0.13, hole: true },
+      { x: 0.84, y: -0.78, r: 0.09 },
+    ],
+  },
+  onda: { strokes: [{ points: linhaDeOnda(-0.3) }, { points: linhaDeOnda(0.3) }] },
+  fantasma: soODesenho(TOKEN_CONDITION_SYMBOLS.invisivel),
+}
+
 /**
  * A paleta do formulário. Tons claros e chapados, na família das pastilhas de
  * fábrica, para o desenho escuro ler por cima; "Outra cor" aceita qualquer uma.
  */
-export const CORES_DE_CONDICAO: readonly { valor: string; nome: string }[] = [
+export const CORES_DE_CONDICAO: readonly { valor: string; nome: NomeDaCorDeCondicao }[] = [
   { valor: '#ff8a5c', nome: 'Laranja' },
   { valor: '#ef6f6c', nome: 'Vermelho' },
   { valor: '#f29ac2', nome: 'Rosa' },
@@ -311,7 +480,18 @@ export const CORES_DE_CONDICAO: readonly { valor: string; nome: string }[] = [
   { valor: '#5fd0c5', nome: 'Turquesa' },
   { valor: '#8fd28a', nome: 'Verde' },
   { valor: '#c9a27a', nome: 'Terra' },
+  // Rework das condições (decisão 11 do protótipo): as duas que faltavam ao Eletrocutado, ao Aéreo e ao Cego.
+  { valor: '#f0d35c', nome: 'Amarelo' },
+  { valor: '#b9b1a3', nome: 'Cinza' },
 ]
+
+/** O nome de uma cor da paleta. */
+export type NomeDaCorDeCondicao = 'Laranja' | 'Vermelho' | 'Rosa' | 'Roxo' | 'Azul' | 'Turquesa' | 'Verde' | 'Terra' | 'Amarelo' | 'Cinza'
+
+/** O `#rrggbb` de uma cor da paleta pelo nome (a fábrica escreve "Verde", não o número). */
+export function corDaPaleta(nome: NomeDaCorDeCondicao): string {
+  return CORES_DE_CONDICAO.find((cor) => cor.nome === nome)?.valor ?? CORES_DE_CONDICAO[0].valor
+}
 
 /** Desenho claro por cima de cor escura ("Outra cor" deixa o mestre escolher preto). */
 const TINTA_CLARA = '#f4f1e8'
@@ -333,9 +513,11 @@ const SEM_DESENHO: Desenho = { strokes: [] }
  * (`ConditionSymbol`). Com símbolo digitado, ele vai no lugar do desenho; a
  * tinta é a mesma nos dois casos, escolhida contra a cor da pastilha.
  */
-export function simboloDaCondicaoPropria(condicao: Pick<CondicaoPropria, 'cor' | 'simbolo' | 'texto'>): ConditionSymbol {
+export function simboloDaCondicaoPropria(condicao: Pick<CondicaoPropria, 'cor' | 'simbolo' | 'texto' | 'desenho'>): ConditionSymbol {
   const digitado = typeof condicao.texto === 'string' && condicao.texto !== '' ? condicao.texto : null
-  const desenho = digitado !== null ? SEM_DESENHO : ehSimboloDeCondicao(condicao.simbolo) ? DESENHOS[condicao.simbolo] : DESENHOS.alvo
+  // Rework das condições: o desenho novo vence a reserva do `simbolo` (`desenhoDaCondicao`).
+  const qual = desenhoDaCondicao(condicao)
+  const desenho = digitado !== null ? SEM_DESENHO : ehDesenhoNovoDeCondicao(qual) ? DESENHOS_NOVOS[qual] : DESENHOS[qual]
   const marca = digitado === null ? desenho : { ...desenho, texto: digitado }
   const cor = parseHexColor(condicao.cor)
   if (cor === null) return { ...marca, fill: CORES_DE_CONDICAO[0].valor }
@@ -348,8 +530,6 @@ export const CONDICAO_NOME_MAX = 20
 export const CONDICOES_POR_FICHA_MAX = 6
 /** Teto da lista do mestre. */
 export const CATALOGO_MAX = 40
-
-const ID_VALIDO = /^[\w-]{1,64}$/
 
 /** Metade solta de par (arquivo editado à mão): não é texto, e chega torta a quem joga. */
 const METADE_SOLTA = /\p{Cs}/gu
@@ -407,14 +587,83 @@ export function lerCondicaoPropria(value: unknown): CondicaoPropria | null {
   const nome = limparNomeDeCondicao(campoDe(value, 'nome'))
   const cor = parseHexColor(campoDe(value, 'cor'))
   const simbolo = campoDe(value, 'simbolo')
-  if (typeof id !== 'string' || !ID_VALIDO.test(id) || nome === '' || cor === null || !ehSimboloDeCondicao(simbolo)) return null
+  if (!ehIdDeCondicao(id) || nome === '' || cor === null || !ehSimboloDeCondicao(simbolo)) return null
   const texto = limparSimboloDigitado(campoDe(value, 'texto'))
   const lida: CondicaoPropria = { id, nome, cor: `#${cor.toString(16).padStart(6, '0')}`, simbolo }
   if (texto !== '') lida.texto = texto
   const comRegra = comRegraLida(lida, campoDe(value, 'regra'), campoDe(value, 'n'))
   // Pedido de 26/11: o gatilho "depois de X turnos". Ausente ou torto = sem gatilho.
   const gatilho = gatilhoLido(campoDe(value, 'gatilho'))
-  return gatilho === undefined ? comRegra : { ...comRegra, gatilho }
+  return comCamposDoRework(gatilho === undefined ? comRegra : { ...comRegra, gatilho }, value)
+}
+
+/**
+ * Rework das condições (E1): o tipo, o desenho novo, as peças, o prazo, as saídas e o "Confira", cada um
+ * pelo leitor estrito (`lib/condicoes/leitura.ts`). Ausente fica ausente (a condição de antes volta byte
+ * a byte; as peças dela a leitura monta depois, em `montadaDaAntiga`, sem gravar). Torto: a condição
+ * fica com o nome e a pastilha; as peças e as saídas ficam vazias (não remontam da `regra`), o prazo e o
+ * tipo voltam ao padrão, e o `confira` diz o que ficou de fora.
+ */
+function comCamposDoRework(lida: CondicaoPropria, cru: object): CondicaoPropria {
+  const comCampos: CondicaoPropria = { ...lida }
+  const deFora: string[] = []
+  const tipo = campoDe(cru, 'tipo')
+  if (tipo !== undefined) {
+    const tipoLido = lerTipoDaCondicao(tipo)
+    if (tipoLido === null) deFora.push('o tipo')
+    else comCampos.tipo = tipoLido
+  }
+  const desenho = campoDe(cru, 'desenho')
+  // Desenho que este app não conhece só some: a pastilha fica com a reserva do `simbolo`.
+  if (ehDesenhoNovoDeCondicao(desenho)) comCampos.desenho = desenho
+  const pecas = campoDe(cru, 'pecas')
+  if (pecas !== undefined) {
+    const pecasLidas = lerPecasDaCondicao(pecas)
+    if (pecasLidas === null) deFora.push('as peças')
+    comCampos.pecas = pecasLidas ?? []
+  }
+  const prazo = campoDe(cru, 'prazo')
+  if (prazo !== undefined) {
+    const prazoLido = lerPrazoDaCondicao(prazo)
+    if (prazoLido === null) deFora.push('o prazo')
+    else comCampos.prazo = prazoLido
+  }
+  const saidas = campoDe(cru, 'saidas')
+  if (saidas !== undefined) {
+    const saidasLidas = lerSaidasDaCondicao(saidas)
+    if (saidasLidas === null) deFora.push('as saídas')
+    comCampos.saidas = saidasLidas ?? []
+  }
+  const confira = deFora.length > 0 ? `Ficou de fora na leitura: ${juntarComE(deFora)}. Confira e monte de novo.` : confiraLido(campoDe(cru, 'confira'))
+  if (confira !== null) comCampos.confira = confira
+  return comCampos
+}
+
+function juntarComE(partes: readonly string[]): string {
+  return partes.length <= 1 ? partes.join('') : `${partes.slice(0, -1).join(', ')} e ${partes[partes.length - 1]}`
+}
+
+/** O "Confira" gravado: texto aparado, no teto; vazio ou torto = nenhum. */
+function confiraLido(valor: unknown): string | null {
+  if (typeof valor !== 'string') return null
+  const texto = valor.replace(METADE_SOLTA, '').trim().slice(0, CONFIRA_DA_CONDICAO_MAX).trim()
+  return texto === '' ? null : texto
+}
+
+/**
+ * A condição traz algum campo do rework (o tipo, o desenho novo, as peças, o prazo, as saídas, o
+ * "Confira")? É o que faz o `condicoes.json` sair na versão 2, que o app de antes recusa ler e gravar
+ * (sem ela, ele regravaria a lista sem esses campos).
+ */
+export function temCampoDoRework(condicao: CondicaoPropria): boolean {
+  return (
+    condicao.tipo !== undefined ||
+    condicao.desenho !== undefined ||
+    condicao.pecas !== undefined ||
+    condicao.prazo !== undefined ||
+    condicao.saidas !== undefined ||
+    condicao.confira !== undefined
+  )
 }
 
 /** Teto do número da regra `vida` (a mesma vida por turno do prazo, `PRAZO_POR_VEZ_MAX`). */
@@ -473,8 +722,8 @@ export function listaSemCondicao(lista: readonly CondicaoPropria[], id: string):
   return lista.some((c) => c.id === id) ? lista.filter((c) => c.id !== id) : lista
 }
 
-/** O que o formulário entrega: tudo menos o id. */
-export type RascunhoDeCondicao = Pick<CondicaoPropria, 'nome' | 'cor' | 'simbolo' | 'texto' | 'regra' | 'n'>
+/** O que o formulário entrega: tudo menos o id. Rework das condições: também o tipo, o desenho novo, as peças, o prazo e as saídas. */
+export type RascunhoDeCondicao = Pick<CondicaoPropria, 'nome' | 'cor' | 'simbolo' | 'texto' | 'regra' | 'n' | 'gatilho' | 'tipo' | 'desenho' | 'pecas' | 'prazo' | 'saidas'>
 
 /** Condição nova a partir do formulário; `null` quando o rascunho não passa na leitura (nome vazio, cor torta). */
 export function criarCondicaoPropria(rascunho: RascunhoDeCondicao, id: string = `cond_${crypto.randomUUID()}`): CondicaoPropria | null {
@@ -519,8 +768,13 @@ function nasFichas(map: MapData, trocar: (atuais: CondicaoPropria[]) => Condicao
   return mudou ? { ...map, tokens } : map
 }
 
+/**
+ * As duas, já lidas (`lerCondicaoPropria` monta as chaves sempre na mesma ordem), são iguais campo a
+ * campo? Rework das condições: compara tudo (o gatilho, as peças, o prazo e as saídas inclusive), para a
+ * cópia que vai na ficha acompanhar a condição editada.
+ */
 function mesmaCondicao(a: CondicaoPropria, b: CondicaoPropria): boolean {
-  return a.id === b.id && a.nome === b.nome && a.cor === b.cor && a.simbolo === b.simbolo && a.texto === b.texto && a.regra === b.regra && a.n === b.n
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 /** Quantas fichas deste mapa levam a condição `condicaoId`: o número do aviso de editar e de excluir. */

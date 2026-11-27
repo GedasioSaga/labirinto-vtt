@@ -1,6 +1,15 @@
 import type { CondicaoPropria, Token, TokenCondition } from '../types/map'
+import { condicaoDaFabricaPeloNome, ehDeHoje, pastilhaDaFabrica, pastilhaDeFabricaDoMapa, type CondicaoDeFabrica } from './condicoes/fabrica'
+import { chaveDaCondicao } from './condicoes/modelo'
 import { CONDICOES_POR_FICHA_MAX, condicoesPropriasOf } from './condicoesProprias'
 import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_ORDER, tokenConditionsOf } from './tokenConditions'
+
+/**
+ * A chave de um nome: sem acento, sem caixa, espaços enxugados. "Caído", " caido " e "CAIDO" são a
+ * mesma condição. Chave de chave é ela mesma. Rework das condições (E1): mora em `lib/condicoes/modelo.ts`
+ * (a fábrica acha pelo nome sem ciclo de import) e segue exportada daqui, para quem já a importa.
+ */
+export { chaveDaCondicao }
 
 /**
  * UMA CONDIÇÃO SÓ, PELO NOME (Fase 3 do plano de melhoria, 15/11/2026; regra
@@ -17,14 +26,6 @@ import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_ORDER, tokenConditionsOf } from
  * Puro: sem store, sem rede, sem Pixi.
  */
 
-/**
- * A chave de um nome: sem acento, sem caixa, espaços enxugados. "Caído",
- * " caido " e "CAIDO" são a mesma condição. Chave de chave é ela mesma.
- */
-export function chaveDaCondicao(nome: string): string {
-  return nome.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim()
-}
-
 /** A pastilha que um nome acende: uma das de fábrica, ou uma criada pelo mestre. */
 export type MarcaDoNome = { tipo: 'fabrica'; condicao: TokenCondition } | { tipo: 'propria'; condicao: CondicaoPropria }
 
@@ -34,19 +35,33 @@ export function condicaoDeFabricaPeloNome(nome: string): TokenCondition | null {
   return TOKEN_CONDITION_ORDER.find((condicao) => chaveDaCondicao(TOKEN_CONDITION_LABELS[condicao]) === chave) ?? null
 }
 
+/** A pastilha de uma de fábrica do rework: as seis de sempre pelo desenho do mapa; as outras no molde das criadas (só o que se desenha). */
+function marcaDaFabrica(condicao: CondicaoDeFabrica): MarcaDoNome {
+  const doMapa = pastilhaDeFabricaDoMapa(condicao.id)
+  return doMapa === null ? { tipo: 'propria', condicao: pastilhaDaFabrica(condicao) } : { tipo: 'fabrica', condicao: doMapa }
+}
+
 /**
- * A pastilha que o nome acende. A de FÁBRICA vence: "Envenenado" é sempre a
- * gota verde, mesmo que o mestre tenha criado uma "Envenenado" (assim a regra
- * do Lento, presa à pastilha de fábrica, vale para qualquer "Lento" que chegue).
- * Sem a de fábrica, a primeira criada do catálogo com o mesmo nome. `null` =
- * nome sem pastilha ("Aéreo", se o mestre não criou uma).
+ * A pastilha que o nome acende, pelo NOME exato (a chave). A de FÁBRICA vence:
+ * "Envenenado" é sempre a pastilha verde, mesmo que o mestre tenha criado uma
+ * "Envenenado" (assim a regra do Lento, presa à pastilha de fábrica, vale para
+ * qualquer "Lento" que chegue). Rework das condições (D5, E1), a mesma ordem do
+ * catálogo (`condicaoDoCatalogoPeloNome`): as seis de sempre; as outras quatro de
+ * antes (Sangrando, Queimando, Cura reduzida, Fadiga), no molde das criadas; a
+ * primeira criada do catálogo com o mesmo nome; por fim uma das 25 de fábrica
+ * novas ("Congelado"). Os apelidos ("Atordoada") não acendem: o apagar é pelo
+ * mesmo nome (`apagarPeloNome`), e a pastilha acesa por apelido ficaria presa.
+ * `null` = nome sem pastilha.
  */
 export function marcaDoNome(nome: string, catalogo: readonly CondicaoPropria[]): MarcaDoNome | null {
   const deFabrica = condicaoDeFabricaPeloNome(nome)
   if (deFabrica !== null) return { tipo: 'fabrica', condicao: deFabrica }
+  const daFabrica = condicaoDaFabricaPeloNome(nome)
+  if (daFabrica !== null && ehDeHoje(daFabrica.id)) return marcaDaFabrica(daFabrica)
   const chave = chaveDaCondicao(nome)
   const propria = catalogo.find((candidata) => chaveDaCondicao(candidata.nome) === chave)
-  return propria === undefined ? null : { tipo: 'propria', condicao: propria }
+  if (propria !== undefined) return { tipo: 'propria', condicao: propria }
+  return daFabrica === null ? null : marcaDaFabrica(daFabrica)
 }
 
 /** As chaves das pastilhas acesas na ficha: as de fábrica pelo rótulo, as criadas pelo nome. */

@@ -1,7 +1,7 @@
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import type { CondicaoPropria } from '../types/map'
-import { lerCatalogoDeCondicoes } from './condicoesProprias'
+import { lerCatalogoDeCondicoes, temCampoDoRework } from './condicoesProprias'
 import { ensureDir, writeTextFileSafely } from './mapFileIO'
 
 /**
@@ -26,7 +26,14 @@ import { ensureDir, writeTextFileSafely } from './mapFileIO'
 export const ARQUIVO_DAS_CONDICOES = 'condicoes.json'
 const SUFIXO_ANTERIOR = '.anterior'
 const SUFIXO_INVALIDO = '.invalido'
-const VERSAO = 1
+/** A versão de antes do rework das condições: a lista sem peças, que o app de antes lê e grava. */
+const VERSAO_SEM_PECAS = 1
+/**
+ * Rework das condições (docs/design/condicoes-rework/PLANO.md §2, E1): a lista com algum campo novo
+ * (`temCampoDoRework`: tipo, desenho, peças, prazo, saídas, confira). O app de antes recusa ler e gravar
+ * a versão maior que a dele (`versao-mais-nova`), e assim não regrava a lista sem as peças.
+ */
+const VERSAO = 2
 
 const NAO_LEU = 'Não foi possível ler a lista de condições desta pasta'
 
@@ -53,8 +60,13 @@ export function condicoesDoTexto(texto: string): CondicoesDoTexto {
   return { ok: true, condicoes: lerCatalogoDeCondicoes(bruto.condicoes) }
 }
 
+/** A versão em que a lista se grava: a 2 só quando alguma condição traz campo novo; sem nenhum, a 1 de antes (o app de antes segue lendo). */
+export function versaoDasCondicoes(condicoes: readonly CondicaoPropria[]): number {
+  return condicoes.some(temCampoDoRework) ? VERSAO : VERSAO_SEM_PECAS
+}
+
 export function serializarCondicoes(condicoes: readonly CondicaoPropria[]): string {
-  return `${JSON.stringify({ versao: VERSAO, condicoes }, null, 2)}\n`
+  return `${JSON.stringify({ versao: versaoDasCondicoes(condicoes), condicoes }, null, 2)}\n`
 }
 
 export interface CondicoesLidas {

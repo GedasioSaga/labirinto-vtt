@@ -7,6 +7,8 @@ import type { DocumentoNoMapa, PapelNoChao } from '../documentos/tipos'
 import type { AuraDaFicha } from '../lib/auras'
 import type { SelectionKind } from './tools'
 import type { GatilhoDaCondicao, PenteDaVaga, RegraDaVaga, TipoDoItem } from '../lib/itens/modelo'
+import type { PecaDaCondicao, PrazoDaCondicao, SaidaDaCondicao, TipoDaCondicao } from '../lib/condicoes/modelo'
+import type { DesenhoNovoDeCondicao } from '../lib/condicoesProprias'
 /**
  * Todas as coordenadas e distâncias (x, y, x1/y1/x2/y2, radius) estão em pixels
  * do mundo. `grid` define o tamanho de uma célula em pixels — é a unidade que
@@ -1637,6 +1639,26 @@ export interface CondicaoPropria {
    * (`lib/condicoes/gatilho.ts`). Ausente = sem gatilho, como toda condição de antes.
    */
   gatilho?: GatilhoDaCondicao
+  /*
+   * REWORK DAS CONDIÇÕES (docs/design/condicoes-rework/PLANO.md §2, E1): a condição se monta com peças.
+   * Todos opcionais e aditivos: a condição de antes continua válida, e a leitura monta as peças dela da
+   * `regra`, do `n` e do `gatilho` (`lib/condicoes/montadaDaAntiga.ts`), sem gravar. Com `pecas`, valem
+   * as peças, e `regra`, `n` e `gatilho` ficam só para o app de antes. Modelo em `lib/condicoes/modelo.ts`;
+   * leitura em `lib/condicoesProprias.ts` (`lerCondicaoPropria`). Qualquer um deles faz o `condicoes.json`
+   * sair na versão 2 (`temCampoDoRework`), que o app de antes recusa ler e gravar.
+   */
+  /** Negativa ou positiva; ausente = negativa. */
+  tipo?: TipoDaCondicao
+  /** Um dos 10 desenhos novos (`DesenhoNovoDeCondicao`); o `simbolo` guarda o de reserva, que o app de antes desenha. Ausente = vale o `simbolo`. */
+  desenho?: DesenhoNovoDeCondicao
+  /** As peças (até 10). Lista vazia = a condição só narra. Ausente = montadas da `regra` de antes na leitura. */
+  pecas?: readonly PecaDaCondicao[]
+  /** Prazo, pilhas e saída; ausente = 3 turnos e "o prazo recomeça" (`PRAZO_PADRAO`). */
+  prazo?: PrazoDaCondicao
+  /** Os jeitos de sair antes do prazo (até 4); ausente = nenhum. */
+  saidas?: readonly SaidaDaCondicao[]
+  /** A leitura achou campo torto e o deixou de fora: a frase para o mestre conferir. O editor a apaga ao salvar. */
+  confira?: string
 }
 
 /**

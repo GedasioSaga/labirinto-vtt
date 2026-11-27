@@ -165,8 +165,21 @@ export type PenteDaVaga = {
   n: number
 }
 
-/** "Até o fim da batalha" ou por N turnos (contados na vez de quem está com a condição). */
-export type DuracaoDaPeca = 'fim' | 1 | 2 | 3
+/**
+ * "Até o fim da batalha" ou por N turnos (contados na vez de quem está com a condição). Rework das
+ * condições (PLANO.md §2, E1): vai até 10 turnos (antes, 3). O leitor da peça (`duracaoLida`,
+ * lib/itens/pecasDoItem.ts) ainda aceita só até 3: o juiz novo é o `ehDuracaoDaPeca` (pendência anotada
+ * no PENDENCIAS.md do rework, fora dos arquivos da E1).
+ */
+export type DuracaoDaPeca = 'fim' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
+
+/** O teto dos turnos da peça. */
+export const DURACAO_DA_PECA_MAX = 10
+
+/** Um valor de `DuracaoDaPeca`: "fim" ou um inteiro de 1 ao teto. */
+export function ehDuracaoDaPeca(valor: unknown): valor is DuracaoDaPeca {
+  return valor === 'fim' || (typeof valor === 'number' && Number.isInteger(valor) && valor >= 1 && valor <= DURACAO_DA_PECA_MAX)
+}
 
 /**
  * Uma peça do GATILHO da condição (pedido de 26/11: "depois de X turnos, dá esse efeito ou
@@ -215,4 +228,14 @@ export type CondicaoNaFicha = {
   gatilhoConta?: number
   /** O gatilho de "uma vez" já disparou e a condição continuou: não dispara de novo. */
   gatilhoFeito?: true
+  /**
+   * Rework das condições (D7): as pilhas, de 2 ao teto do prazo da condição ("se ganhar de novo, soma
+   * uma pilha"). Multiplicam os números do Efeito na vez e do Muda atributo. Ausente = 1.
+   */
+  pilhas?: number
+  /**
+   * Rework das condições (o ritmo do Muda atributo fora da batalha): quantas vezes de quem está com ela
+   * já passaram desde que entrou ("a cada turno", "a partir do turno N"). Ausente = 0.
+   */
+  vezes?: number
 }

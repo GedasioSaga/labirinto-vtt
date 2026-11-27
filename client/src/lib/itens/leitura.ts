@@ -19,6 +19,7 @@ import {
   type UsoDoItem,
 } from './modelo'
 import { gatilhoLido, TURNOS_DO_GATILHO_MAX } from './pecasDoItem'
+import { lerPilhas } from '../condicoes/leitura'
 
 /**
  * Os LEITORES do modelo novo do item (PLANO §1.3: são o juiz do disco, do fio e do Worker). Cada um
@@ -248,6 +249,11 @@ export function condicoesDaFichaLidas(value: unknown): CondicaoNaFicha[] | undef
     const conta = inteiroEntre(bruta.gatilhoConta, 1, TURNOS_DO_GATILHO_MAX)
     if (conta !== null) condicao.gatilhoConta = conta
     if (bruta.gatilhoFeito === true) condicao.gatilhoFeito = true
+    // Rework das condições (D7): as pilhas (de 2 ao teto; 1 é a ausência) e as vezes contadas do ritmo do Muda atributo.
+    const pilhas = lerPilhas(bruta.pilhas)
+    if (pilhas !== null) condicao.pilhas = pilhas
+    const vezes = inteiroEntre(bruta.vezes, 1, TURNOS_MAX)
+    if (vezes !== null) condicao.vezes = vezes
     vistas.add(bruta.id)
     lidas.push(condicao)
     if (lidas.length >= CONDICOES_NA_FICHA_MAX) break

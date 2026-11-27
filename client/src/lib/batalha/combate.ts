@@ -1,4 +1,6 @@
 import type { Modificador } from '../personagem'
+import type { BloqueioDaCondicao, DeNovoDaCondicao, EfeitoNaVez, SaidaDaCondicao, TipoDaCondicao, TipoDoGolpe } from '../condicoes/modelo'
+import type { GatilhoDaCondicao } from '../itens/modelo'
 import type { AoAcertarDoGolpe } from './aoAcertarDoItem'
 import type { Direcao } from './area'
 import type { CdDaDisputa } from './disputa'
@@ -708,6 +710,12 @@ export interface GolpeDaBatalha {
   perfurante: boolean
   /** Quanto do dano perfura, de 1 a 100; ausente = 100. Só vale com `perfurante`. */
   perfuracao?: number
+  /**
+   * Rework das condições (PLANO.md risco 3): os tipos do dano do golpe (impacto, cortante, perfurante e o
+   * elemento), postos em TODA criação de golpe (arma, Pergunta, Imbuir). O "dano de um tipo" e o "sai com
+   * Fogo" das condições leem daqui. Ausente ou vazio = qualquer tipo. Tirado pelo host, nunca do fio.
+   */
+  tipos?: readonly TipoDoGolpe[]
   /** O golpe é um contra-ataque ganho no golpe com este id. */
   contraDe?: string
   alvos: readonly AlvoDoGolpe[]
@@ -959,6 +967,90 @@ export interface SeloDaBatalha {
    * armas"). Ausente = o da tabela de condições pelo nome (`alcanceDaCondicao`), ou nada.
    */
   alcance?: MudancaDoAlcance
+  /**
+   * Rework das condições (PLANO.md D1 e D2): a regra da condição, traduzida e congelada quando o selo
+   * nasceu (`criarSelo`). Ausente = selo de antes, nome digitado ou Worker antes do deploy: a de fábrica é
+   * achada pelo nome na hora. Só do host.
+   */
+  regras?: RegrasDoSelo
+  /** Rework das condições (D7): as pilhas, de 2 ao `regras.tetoDePilhas`. Ausente = 1. Só do host. */
+  pilhas?: number
+  /** Rework das condições: os turnos que o gatilho (`regras.gatilho`) já contou, a mesma conta da ficha (`lib/condicoes/gatilho.ts`). Ausente = 0. Só do host. */
+  gatilhoConta?: number
+  /** O gatilho de "uma vez" já disparou e o selo continuou: não dispara de novo. Só do host. */
+  gatilhoFeito?: true
+  /** Rework das condições (D9): o selo veio da aura do selo com este id; sai fora do raio ou quando a fonte acaba. Só do host. */
+  daAura?: string
+}
+
+/**
+ * REWORK DAS CONDIÇÕES (PLANO.md D1 e D2, E1): a regra da condição traduzida e CONGELADA no selo quando
+ * ele nasce (`traduzirCondicao`, lib/condicoes/traducao.ts). Aqui fica só o que o motor de hoje não lê
+ * nos campos do selo (`mods`, `queda`, `porVez`, `regra`, `regenera`, `drenaSp`, os da marca,
+ * `saiNoProximoGolpe`, `alcance`): o motor nunca lê a peça crua. Os números já vêm vezes as pilhas e com
+ * os atributos no id do motor (a Velocidade é a Agilidade, a CA é a reação). Só do host: nunca sai ao jogador.
+ */
+export interface RegrasDoSelo {
+  /** O id da condição do catálogo que o pôs (`queimando`, `cond_<uuid>`): o resolvedor da store a acha de novo pelas pilhas. */
+  condId: string
+  /** Negativa ou positiva: o "só as negativas" do Tira condições lê daqui (a positiva fica). */
+  tipo: TipoDaCondicao
+  /** Ganhar a mesma de novo: recomeça o prazo, soma uma pilha (até `tetoDePilhas`) ou nada muda. */
+  deNovo: DeNovoDaCondicao
+  /** O teto de pilhas, só com `deNovo: 'pilha'`. */
+  tetoDePilhas?: number
+  /** Os bloqueios ligados, fora o "reage com desvantagem" (esse vai em `regra.reageComDesvantagem`, que o motor de hoje lê). */
+  bloqueios?: readonly BloqueioDaCondicao[]
+  /** Os atributos presos num valor enquanto durar (Cego: Percepção 0). */
+  ficaEm?: readonly ValorNoAtributo[]
+  /** Os atributos que não passam de um valor enquanto durar. */
+  noMaximo?: readonly ValorNoAtributo[]
+  /** As quedas por turno que não couberam na `queda` do selo (ritmo, teto ou % diferentes da primeira). */
+  quedasAMais?: readonly QuedaDoSelo[]
+  /** Dano recebido de um tipo só, em % (Congelado: Impacto +50). O de qualquer tipo vai em `regra.danoRecebido`. */
+  danoPorTipo?: readonly DanoDeUmTipo[]
+  /** Dano que quem tem causa, em %: −20 = 20% a menos. */
+  danoCausado?: number
+  /** O % do dano que quem tem causa que volta em vida para ele (Abençoado: 10). */
+  curaDoDano?: number
+  /** Quem tem desvia (Esquiva e Contra-ataque) com desvantagem: o da peça Marca. */
+  esquivaComDesvantagem?: true
+  /** Os Efeitos na vez que o motor de hoje não faz (ao entrar; SP e Escudo no começo; vida no fim; em %; a vida que passa pelo Escudo). */
+  vez?: readonly EfeitoNaVez[]
+  /** O "Depois de X turnos" (a conta em `SeloDaBatalha.gatilhoConta`). Os nomes das condições dele já são nomes. */
+  gatilho?: GatilhoDaCondicao
+  /** Os jeitos de sair antes do prazo. */
+  saidas?: readonly SaidaDaCondicao[]
+  /** As auras, com o nome da condição que dão já resolvido (a "esta mesma" = o nome deste selo). */
+  auras?: readonly AuraDoSelo[]
+  /** A Contra-condição, com os ids do catálogo já resolvidos em nomes (D5). */
+  contra?: ContraDoSelo
+}
+
+/** Um atributo (no id do motor) e o valor em que ele fica, ou o teto dele. */
+export interface ValorNoAtributo {
+  alvo: string
+  v: number
+}
+
+/** O dano recebido de um tipo, em %. */
+export interface DanoDeUmTipo {
+  tipo: TipoDoGolpe
+  porcento: number
+}
+
+/** Uma aura do selo (D9): quem está a até `casas` casas pega a condição `nome` enquanto ficar perto; `espalha` = passa adiante. */
+export interface AuraDoSelo {
+  casas: number
+  quem: 'aliados' | 'inimigos' | 'todos'
+  nome: string
+  espalha?: true
+}
+
+/** A Contra-condição do selo: ao entrar, apaga os selos `apaga`; enquanto durar, os `impede` não pegam. Nomes, não ids. */
+export interface ContraDoSelo {
+  apaga: readonly string[]
+  impede: readonly string[]
 }
 
 /** Fase 5: a regra do selo montado, em %: -20 = toma 20% a menos; +50 = toma 50% a mais. */
@@ -1020,6 +1112,21 @@ export interface SeloDoGolpe extends SeloPedido {
   pega?: TesteDoSeloNoGolpe
   /** D10 (Diminui atributo): a queda do selo, copiada para o selo da batalha. Só do host, nunca do fio. */
   queda?: QuedaDoSelo
+  /** Rework das condições (D1): a regra congelada da condição (`traduzirCondicao`), copiada para o selo da batalha. Só do host, nunca do fio. */
+  regras?: RegrasDoSelo
+  /** Rework das condições (D7): com quantas pilhas o selo nasce (ausente = 1). Só do host. */
+  pilhas?: number
+  /** Rework das condições: a conta do gatilho que o selo traz (o espelho da condição da ficha, que já contou). Só do host. */
+  gatilhoConta?: number
+  /** O gatilho de "uma vez" já disparou (o espelho da ficha). Só do host. */
+  gatilhoFeito?: true
+  /** Rework das condições (D9): o selo nasce da aura do selo com este id. Só do host. */
+  daAura?: string
+  /** Rework das condições (D1, a peça Marca): os campos da marca, que `criarSelo` copia para o selo da batalha (`SeloDaBatalha.marca` e os três seguintes). Só do host. */
+  marca?: true
+  marcaVezes?: number
+  marcaFica?: true
+  marcaDe?: string
 }
 
 /**
