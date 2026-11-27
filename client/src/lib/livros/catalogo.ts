@@ -1,7 +1,7 @@
 import { normalizarParaBusca } from '../buscaNoLivro'
 import { ABA_DAS_ARMAS, armasDosCartoes, limiteDeArmas } from '../batalha/leituraDaFicha'
-import { alcanceDoArquivo, cartoesDaAba, mecanicaDoArquivo, novoCartao, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type Personagem, type RequisitosGuardados } from '../personagem'
-import { marcasGuardadas, requisitosGuardados } from '../batalha/requisitos/guardados'
+import { alcanceDoArquivo, cartoesDaAba, mecanicaDoArquivo, novoCartao, type AcumuladorGuardado, type AlcanceGuardado, type CartaoDaFicha, type MecanicaGuardada, type Personagem, type RequisitosGuardados } from '../personagem'
+import { acumuladorGuardado, marcasGuardadas, requisitosGuardados } from '../batalha/requisitos/guardados'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../sistemaDeRpg'
 import { lerMecanica } from '../batalha/mecanica/modelo'
 import { modificadoresDaPecaDaForma, pecasDo } from '../batalha/mecanica/pecas'
@@ -106,6 +106,15 @@ export interface ItemDoCatalogo {
    * Ausente = sem marca.
    */
   marcas?: string[]
+  /**
+   * ACUMULADOR (rework das habilidades, pedido do dono "criar acumuladores nas habilidades do livro"):
+   * a definição do medidor da habilidade ou da arma (Fúria, Cargas), como no cartão (opaca; quem lê é
+   * `lerAcumulador`). Formato aditivo do `catalogo.json` (segue `formato: 1`): a entrada antiga não tem
+   * o campo e fica sem acumulador; o app de antes o ignora ao ler. "Pôr em", "Juntar das fichas" e o
+   * "Guardar também no catálogo" o levam e o trazem junto, com o mesmo `id` (a peça "+N" e o requisito
+   * A4 da mecânica o apontam por ele). Ausente = sem acumulador.
+   */
+  acumulador?: AcumuladorGuardado
 }
 
 /** Um tipo de bala da arma do catálogo: nome e os campos da aba das balas (`dano`, `efeito`, `quantidade`). */
@@ -197,7 +206,7 @@ function camposLimpos(value: unknown): Record<string, string> {
  * campos limpos. `null` = sem nome (não entra). Funil único da leitura do
  * arquivo e do "Salvar" da janela de entrada.
  */
-export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; texto: unknown; campos: unknown; balas?: unknown; acervoId?: unknown; mecanica?: unknown; alcance?: unknown; requisitos?: unknown; marcas?: unknown }): ItemDoCatalogo | null {
+export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; texto: unknown; campos: unknown; balas?: unknown; acervoId?: unknown; mecanica?: unknown; alcance?: unknown; requisitos?: unknown; marcas?: unknown; acumulador?: unknown }): ItemDoCatalogo | null {
   if (typeof item.id !== 'string' || !ID_DE_ENTRADA.test(item.id) || !ehTipoDoCatalogo(item.tipo) || typeof item.nome !== 'string') return null
   const nome = cortar(item.nome.trim(), ENTRADA_NOME_MAX).trim()
   if (nome.length === 0) return null
@@ -213,7 +222,15 @@ export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; tex
   if (item.tipo !== 'item') Object.assign(limpo, alcanceDoArquivo(item.alcance))
   // Fase B2 dos requisitos: o bloco e as marcas como vieram, nos mesmos tipos (o item os tem no Acervo).
   if (item.tipo !== 'item') Object.assign(limpo, requisitosEMarcas(item.requisitos, item.marcas))
+  // O acumulador pelo mesmo leitor (e teto) do cartão, nos mesmos tipos; o torto sem `id` sai.
+  if (item.tipo !== 'item') Object.assign(limpo, acumuladorDaEntrada(item.acumulador))
   return limpo
+}
+
+/** O acumulador pelo leitor do cartão (`acumuladorGuardado`), em cópia; o que não vale sai. */
+function acumuladorDaEntrada(acumulador: unknown): Pick<ItemDoCatalogo, 'acumulador'> {
+  const lido = acumuladorGuardado(acumulador)
+  return lido === undefined ? {} : { acumulador: lido }
 }
 
 /** Fase B2 dos requisitos: o bloco e as marcas pelos leitores do cartão (`lib/batalha/requisitos/guardados.ts`); o que não vale sai. */
@@ -276,7 +293,7 @@ export function catalogoDoArquivo(value: unknown): ItemDoCatalogo[] {
   for (const bruto of brutos) {
     if (itens.length === CATALOGO_MAX) break
     if (!isRecord(bruto)) continue
-    const item = itemLimpo({ id: bruto.id, tipo: bruto.tipo, nome: bruto.nome, texto: bruto.texto, campos: bruto.campos, balas: bruto.balas, acervoId: bruto.acervoId, mecanica: bruto.mecanica, alcance: bruto.alcance, requisitos: bruto.requisitos, marcas: bruto.marcas })
+    const item = itemLimpo({ id: bruto.id, tipo: bruto.tipo, nome: bruto.nome, texto: bruto.texto, campos: bruto.campos, balas: bruto.balas, acervoId: bruto.acervoId, mecanica: bruto.mecanica, alcance: bruto.alcance, requisitos: bruto.requisitos, marcas: bruto.marcas, acumulador: bruto.acumulador })
     if (item === null || ids.has(item.id)) continue
     ids.add(item.id)
     itens.push(item)
@@ -356,10 +373,12 @@ export function cartaoDaEntrada(entrada: EntradaParaFicha, aba: AbaDoSistema, si
   const alcance = ehDoLivro(entrada) ? {} : alcanceDoArquivo(entrada.alcance)
   // Fase B2 dos requisitos: o bloco e as marcas também, em cópia.
   const requisitos = ehDoLivro(entrada) ? {} : requisitosEMarcas(entrada.requisitos, entrada.marcas)
+  // O acumulador também, em cópia e com o mesmo id (a ficha que já tem um de mesmo id fica com o primeiro, `acumuladoresNaFicha`).
+  const acumulador = ehDoLivro(entrada) ? {} : acumuladorDaEntrada(entrada.acumulador)
   // D5: a forma chega com os modificadores da peça Transformação (o catálogo não os guarda; a forma ligada os aplica).
   const lida = ehDoLivro(entrada) ? null : lerMecanica(entrada.mecanica)
   const modificadores = lida?.tipo === 'pecas' ? modificadoresDaPecaDaForma(lida.mecanica) : null
-  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema), ...(itemId === undefined ? {} : { itemId }), ...mecanica, ...alcance, ...requisitos, ...(modificadores === null ? {} : { modificadores }) }
+  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema), ...(itemId === undefined ? {} : { itemId }), ...mecanica, ...alcance, ...requisitos, ...acumulador, ...(modificadores === null ? {} : { modificadores }) }
 }
 
 /** As balas da arma do catálogo como subcartões da aba de destino; o campo que a aba das balas não tem fica de fora. */
@@ -406,7 +425,7 @@ export function tirarDaFicha(personagem: Personagem, abaId: string, cartaoId: st
 /** O cartão da ficha como entrada do catálogo. `null` = sem nome, ou com o nome de fábrica ("Arma"). */
 function itemDoCartao(cartao: CartaoDaFicha, tipo: TipoDoCatalogo): ItemDoCatalogo | null {
   const balas = tipo === 'arma' && cartao.subcartoes.length > 0 ? cartao.subcartoes.map((sub) => ({ nome: sub.nome, campos: sub.campos })) : undefined
-  const item = itemLimpo({ id: novoIdDeEntrada(), tipo, nome: cartao.nome, texto: cartao.campos[CAMPO_DA_DESCRICAO] ?? '', campos: cartao.campos, balas, mecanica: cartao.mecanica, alcance: cartao.alcance, requisitos: cartao.requisitos, marcas: cartao.marcas })
+  const item = itemLimpo({ id: novoIdDeEntrada(), tipo, nome: cartao.nome, texto: cartao.campos[CAMPO_DA_DESCRICAO] ?? '', campos: cartao.campos, balas, mecanica: cartao.mecanica, alcance: cartao.alcance, requisitos: cartao.requisitos, marcas: cartao.marcas, acumulador: cartao.acumulador })
   if (item === null || chaveDoNomeDaEntrada(item.nome) === chaveDoNomeDaEntrada(DADOS_DO_TIPO[tipo].um)) return null
   return item
 }
@@ -414,8 +433,8 @@ function itemDoCartao(cartao: CartaoDaFicha, tipo: TipoDoCatalogo): ItemDoCatalo
 /**
  * "GUARDAR TAMBÉM NO CATÁLOGO DO LIVRO" (rework das habilidades, D14): a habilidade da ficha como
  * entrada de habilidade. A de mesmo nome já no catálogo é trocada (o mesmo id); sem ela, nasce uma.
- * `null` = sem nome, ou com o nome de fábrica. O catálogo não guarda acumulador, imagem, modificadores
- * nem subcartões (MAPA §1.2): a peça Transformação vai, porque mora na `mecanica`.
+ * `null` = sem nome, ou com o nome de fábrica. O acumulador vai junto; o catálogo não guarda imagem,
+ * modificadores nem subcartões (MAPA §1.2): a peça Transformação vai, porque mora na `mecanica`.
  */
 export function entradaDaHabilidade(cartao: CartaoDaFicha, catalogo: readonly ItemDoCatalogo[]): ItemDoCatalogo | null {
   const nova = itemDoCartao(cartao, 'habilidade')

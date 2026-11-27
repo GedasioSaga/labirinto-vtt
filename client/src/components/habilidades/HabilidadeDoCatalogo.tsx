@@ -40,6 +40,7 @@ function cartaoDaEntrada(item: ItemDoCatalogo | null, sistema: SistemaDeRpg): Ca
     ...(lida.alcance === undefined ? {} : { alcance: lida.alcance }),
     ...(lida.requisitos === undefined ? {} : { requisitos: lida.requisitos }),
     ...(lida.marcas === undefined ? {} : { marcas: lida.marcas }),
+    ...(lida.acumulador === undefined ? {} : { acumulador: lida.acumulador }),
   }
 }
 
@@ -57,6 +58,7 @@ function entradaDoCartao(cartao: CartaoDaFicha, item: ItemDoCatalogo | null, sis
     alcance: cartao.alcance,
     requisitos: cartao.requisitos,
     marcas: cartao.marcas,
+    acumulador: cartao.acumulador,
   })
   if (limpo === null) return { erro: 'Dê um nome à habilidade para guardar no catálogo.' }
   const chave = chaveDoNomeDaEntrada(limpo.nome)
