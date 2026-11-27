@@ -18,12 +18,13 @@ import {
   type NaturezaDoSelo,
   type ParteDoBonus,
   type QuedaDoSelo,
+  type RegrasDoSelo,
   type SaidaDaReacao,
   type SeloDaBatalha,
   type SeloDoGolpe,
   type SeloPedido,
 } from './combate'
-import { comportamentoDoSelo } from './condicoes'
+import { comportamentoDoSelo, nomeDaCondicaoDoSelo, regrasDoSelo } from './condicoes'
 import { normalizar } from './formula'
 import type { TurnosDaCena } from './turnos'
 
@@ -178,6 +179,18 @@ export function criarSelo(tokenId: string, pedido: SeloDoGolpe, onde: OndeNasceO
   if (pedido.drenaSp !== undefined) selo.drenaSp = pedido.drenaSp
   // Fase C do alcance: o que o selo da peça faz no alcance de quem o tem (a carta do jogador o leva para o aviso da mira).
   if (pedido.alcance !== undefined) selo.alcance = pedido.alcance
+  // Rework das condições (D1, D2): a regra congelada da condição, as pilhas, a conta do gatilho, a aura e a marca da peça (só do host).
+  if (pedido.regras !== undefined) selo.regras = pedido.regras
+  if (pedido.pilhas !== undefined && pedido.pilhas > 1) selo.pilhas = pedido.pilhas
+  if (pedido.gatilhoConta !== undefined && pedido.gatilhoConta > 0) selo.gatilhoConta = pedido.gatilhoConta
+  if (pedido.gatilhoFeito === true) selo.gatilhoFeito = true
+  if (pedido.daAura !== undefined) selo.daAura = pedido.daAura
+  if (pedido.marca === true) {
+    selo.marca = true
+    if (pedido.marcaVezes !== undefined) selo.marcaVezes = pedido.marcaVezes
+    if (pedido.marcaFica === true) selo.marcaFica = true
+    if (pedido.marcaDe !== undefined) selo.marcaDe = pedido.marcaDe
+  }
   if (onde.tokenDaVez === tokenId) {
     selo.contadoNaRodada = onde.rodada
     if (onde.cartaIdDaVez !== undefined) selo.contadoNaCarta = onde.cartaIdDaVez
@@ -260,6 +273,152 @@ export function comSeloNovo(selos: readonly SeloDaBatalha[] | undefined, selo: S
   return [...lista, selo]
 }
 
+// ─── Rework das condições (PLANO.md D2, D4, E3): o selo que nasce de uma condição ───
+
+/**
+ * D4 ("o de antes roda como hoje"): o pedido de quem põe com a tradução da condição (`traduzirCondicao`).
+ * Por campo, o número próprio do pedido (os mods e a regra da técnica, o `porVez` do item, a queda do
+ * Diminui, a marca da peça) vence o da condição; o que o pedido não traz vem dela. O nome, os turnos, a
+ * natureza, o cartão e o teste são sempre do pedido; a regra congelada (`regras`) e as pilhas, da condição.
+ */
+export function seloComACondicao(pedido: SeloDoGolpe, traduzido: SeloDoGolpe): SeloDoGolpe {
+  const selo: SeloDoGolpe = { ...pedido }
+  // O Muda atributo é um campo só (os mods e a queda): o do pedido (a técnica com "AGI -10") vence o da condição inteiro, sem somar.
+  const atributoProprio = (pedido.mods?.length ?? 0) > 0 || pedido.queda !== undefined
+  if (!atributoProprio && traduzido.mods !== undefined && traduzido.mods.length > 0) selo.mods = traduzido.mods
+  if (!atributoProprio && traduzido.queda !== undefined) selo.queda = traduzido.queda
+  if (selo.porVez === undefined && traduzido.porVez !== undefined) selo.porVez = traduzido.porVez
+  // A regra em % é campo a campo (o corte de cura próprio do item vence; o dano recebido da condição fica).
+  if (traduzido.regra !== undefined) selo.regra = { ...traduzido.regra, ...pedido.regra }
+  if (selo.regenera === undefined && traduzido.regenera !== undefined) selo.regenera = traduzido.regenera
+  if (selo.drenaSp === undefined && traduzido.drenaSp !== undefined) selo.drenaSp = traduzido.drenaSp
+  if (selo.alcance === undefined && traduzido.alcance !== undefined) selo.alcance = traduzido.alcance
+  if (selo.saiNoProximoGolpe === undefined && traduzido.saiNoProximoGolpe === true) selo.saiNoProximoGolpe = true
+  if (traduzido.regras !== undefined) {
+    // A vida por vez própria (o `n` do item, o "tira X por vez" da peça) vence a da condição: a dela sai da regra congelada.
+    const vez = pedido.porVez === undefined ? traduzido.regras.vez : traduzido.regras.vez?.filter((efeito) => !(efeito.quando === 'comeco' && efeito.faz === 'tira' && efeito.recurso === 'vida'))
+    const { vez: _vez, quedasAMais, ...semVez } = traduzido.regras
+    const regras: RegrasDoSelo = { ...semVez }
+    if (vez !== undefined && vez.length > 0) regras.vez = vez
+    if (!atributoProprio && quedasAMais !== undefined) regras.quedasAMais = quedasAMais
+    selo.regras = regras
+  }
+  if (selo.marca === undefined && traduzido.marca === true) {
+    selo.marca = true
+    if (traduzido.marcaVezes !== undefined) selo.marcaVezes = traduzido.marcaVezes
+    if (traduzido.marcaFica === true) selo.marcaFica = true
+    if (traduzido.marcaDe !== undefined) selo.marcaDe = traduzido.marcaDe
+  }
+  if (traduzido.pilhas !== undefined) selo.pilhas = traduzido.pilhas
+  return selo
+}
+
+/**
+ * D7 (pilhas): o selo de antes com os números da condição traduzidos com `pilhas` pilhas. `antigo` e `novo`
+ * = a mesma condição traduzida com as pilhas de antes e com as novas; o número que o selo traz igual ao
+ * `antigo` veio da condição e passa ao `novo`; o que difere é próprio (D4) e fica. O prazo não recomeça.
+ */
+export function seloComPilhas(antes: SeloDaBatalha, pilhas: number, antigo: SeloDoGolpe, novo: SeloDoGolpe): SeloDaBatalha {
+  const igual = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
+  const depois: SeloDaBatalha = { ...antes, pilhas }
+  if (igual(antes.mods, antigo.mods)) {
+    if (novo.mods === undefined) delete depois.mods
+    else depois.mods = novo.mods
+  }
+  if (igual(antes.porVez, antigo.porVez)) {
+    if (novo.porVez === undefined) delete depois.porVez
+    else depois.porVez = novo.porVez
+  }
+  if (novo.regenera !== undefined && igual(antes.regenera, antigo.regenera)) depois.regenera = novo.regenera
+  if (novo.drenaSp !== undefined && igual(antes.drenaSp, antigo.drenaSp)) depois.drenaSp = novo.drenaSp
+  if (antes.regras !== undefined && novo.regras !== undefined) {
+    const regras: RegrasDoSelo = { ...antes.regras }
+    if (igual(antes.regras.vez, antigo.regras?.vez) && novo.regras.vez !== undefined) regras.vez = novo.regras.vez
+    depois.regras = regras
+  }
+  return depois
+}
+
+/** Como o selo novo entrou ("ao entrar": a Contra-condição, o "se ganhar de novo" e as pilhas). */
+export type EntradaDoSelo =
+  /** Entrou como selo novo; `apagados` = os que a Contra-condição dele tirou do token. */
+  | { tipo: 'entrou'; selos: SeloDaBatalha[]; selo: SeloDaBatalha; apagados: SeloDaBatalha[] }
+  /** A mesma condição já estava: o prazo recomeçou ("renova") ou ela ganhou uma pilha. */
+  | { tipo: 'renovou' | 'pilha'; selos: SeloDaBatalha[]; antes: SeloDaBatalha; depois: SeloDaBatalha }
+  /** A mesma condição já estava e nada muda (o "nada muda", ou já no teto de pilhas). */
+  | { tipo: 'igual'; antes: SeloDaBatalha }
+  /** Uma condição que o token tem impede esta (Molhado barra o Queimando). */
+  | { tipo: 'barrado'; por: SeloDaBatalha }
+  /** O token ou a cena já estão no teto de selos. */
+  | { tipo: 'cheio' }
+
+export interface OpcoesDaEntrada {
+  /** O selo de antes com `pilhas` pilhas e os números traduzidos de novo (a store tem o catálogo). Ausente = só a conta das pilhas muda. */
+  comPilhas?: (antes: SeloDaBatalha, pilhas: number) => SeloDaBatalha
+}
+
+/** O selo é da mesma condição: o mesmo `condId` quando os dois a conhecem, senão o mesmo nome de condição (sem acento nem caixa). */
+function mesmaCondicao(a: SeloDaBatalha, b: SeloDaBatalha): boolean {
+  const [ra, rb] = [regrasDoSelo(a), regrasDoSelo(b)]
+  if (ra !== null && rb !== null) return ra.condId === rb.condId
+  return normalizar(nomeDaCondicaoDoSelo(a)).trim() === normalizar(nomeDaCondicaoDoSelo(b)).trim()
+}
+
+function nomesNaChave(nomes: readonly string[]): Set<string> {
+  return new Set(nomes.map((nome) => normalizar(nome).trim()))
+}
+
+/**
+ * Rework das condições (E3, "ao entrar"): o selo novo `novo` entra nos selos da cena. Na ordem:
+ *  1. uma condição do token que o impede (a Contra-condição com "impede") barra a entrada;
+ *  2. a mesma condição já no token (fora o espelho da ficha): o "se ganhar de novo" dela decide entre
+ *     recomeçar o prazo (os turnos do pedido novo), somar uma pilha até o teto (sem recomeçar o prazo,
+ *     decisão 3) ou nada mudar; selo sem condição entra de novo, como sempre;
+ *  3. entra, e a Contra-condição dele apaga do token as que ela lista (fora o espelho da ficha, que mora nela).
+ * Puro: a reversão é de quem chama.
+ */
+export function entradaDoSelo(selos: readonly SeloDaBatalha[] | undefined, novo: SeloDaBatalha, opcoes: OpcoesDaEntrada = {}): EntradaDoSelo {
+  const lista = selos ?? []
+  const doToken = lista.filter((selo) => selo.tokenId === novo.tokenId)
+  const nomeDoNovo = normalizar(nomeDaCondicaoDoSelo(novo)).trim()
+  const barrador = doToken.find((selo) => selo.id !== novo.id && nomesNaChave(regrasDoSelo(selo)?.contra?.impede ?? []).has(nomeDoNovo))
+  if (barrador !== undefined) return { tipo: 'barrado', por: barrador }
+  const regras = regrasDoSelo(novo)
+  const antes = regras === null ? undefined : doToken.find((selo) => selo.daPastilha !== true && mesmaCondicao(selo, novo))
+  if (regras !== null && antes !== undefined) {
+    if (regras.deNovo === 'nada') return { tipo: 'igual', antes }
+    if (regras.deNovo === 'pilha') {
+      const teto = regras.tetoDePilhas ?? 1
+      const pilhas = Math.min(teto, (antes.pilhas ?? 1) + (novo.pilhas ?? 1))
+      if (pilhas <= (antes.pilhas ?? 1)) return { tipo: 'igual', antes }
+      const depois = opcoes.comPilhas?.(antes, pilhas) ?? { ...antes, pilhas }
+      return { tipo: 'pilha', selos: lista.map((selo) => (selo.id === antes.id ? depois : selo)), antes, depois }
+    }
+    // Construtor C5 (revisão): a duração vem toda do pedido novo, o "até o próximo golpe" junto com os turnos.
+    const { saiNoProximoGolpe: _anterior, ...semADuracao } = antes
+    const depois: SeloDaBatalha = { ...semADuracao, turnos: novo.turnos, total: novo.turnos }
+    if (novo.porVez !== undefined) depois.porVez = novo.porVez
+    if (novo.saiNoProximoGolpe === true) depois.saiNoProximoGolpe = true
+    return { tipo: 'renovou', selos: lista.map((selo) => (selo.id === antes.id ? depois : selo)), antes, depois }
+  }
+  const apaga = nomesNaChave(regras?.contra?.apaga ?? [])
+  const apagados = apaga.size === 0 ? [] : doToken.filter((selo) => selo.daPastilha !== true && apaga.has(normalizar(nomeDaCondicaoDoSelo(selo)).trim()))
+  const ficam = apagados.length === 0 ? lista : lista.filter((selo) => !apagados.includes(selo))
+  const comEle = comSeloNovo(ficam, novo)
+  return comEle === null ? { tipo: 'cheio' } : { tipo: 'entrou', selos: comEle, selo: novo, apagados }
+}
+
+/**
+ * O espelho de uma condição da ficha que já passou `vezes` vezes com quem a tem (`CondicaoNaFicha.vezes`):
+ * a queda dele desce o mesmo que desceria na batalha (o espelho não desconta sozinho). Sem queda ou sem
+ * vezes: o MESMO selo.
+ */
+export function seloDepoisDasVezes(selo: SeloDaBatalha, vezes: number): SeloDaBatalha {
+  let depois = selo
+  for (let vez = 0; vez < vezes && depois.queda !== undefined; vez += 1) depois = quedaNaVez(depois)
+  return depois
+}
+
 /**
  * A carta de `tokenIdQueSai` passou a vez na `rodada`: os selos dela
  * descontam 1; os que chegam a 0 saem e vêm em `acabaram`. Selo sem turnos
@@ -330,7 +489,7 @@ export function ehAlvoDeMod(value: unknown): value is string {
 }
 
 /** O que um selo precisa ter para somar: de quem é, o nome (que a conta mostra) e os mods. */
-export type SeloQueSoma = Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'mods'>
+export type SeloQueSoma = Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'mods'> & Partial<Pick<SeloDaBatalha, 'regras'>>
 
 /**
  * O bônus dos selos da ficha `tokenId`: por alvo, as partes "+20 (Fúria)" na
@@ -352,9 +511,12 @@ export function bonusDaBatalha(selos: readonly SeloQueSoma[] | undefined, tokenI
     }
   }
   // F2 (fatia A): o selo que zera um atributo (Cego: Percepção) entra por último, e quem lê (`valorComAsPartes`) deixa em 0 enquanto ele existe.
+  // Rework das condições: o "fica em 0" da condição (Cego: Percepção), da regra congelada ou da de fábrica pelo nome; a redoma, pela tabela.
   for (const selo of doToken) {
-    const zera = comportamentoDoSelo(selo.nome)?.zera
-    if (zera !== undefined) comParte(zera, { nome: selo.nome, delta: 0, zera: true })
+    const zeram = new Set((regrasDoSelo(selo)?.ficaEm ?? []).filter((fica) => fica.v === 0).map((fica) => fica.alvo))
+    const daTabela = selo.regras === undefined ? comportamentoDoSelo(selo.nome)?.zera : undefined
+    if (daTabela !== undefined) zeram.add(daTabela)
+    for (const zera of zeram) comParte(zera, { nome: selo.nome, delta: 0, zera: true })
   }
   return Object.fromEntries(porAlvo)
 }
@@ -432,6 +594,15 @@ export function seloEditado(antes: SeloDaBatalha, pedido: SeloPedido): SeloDaBat
   if (pedido.mods !== undefined && pedido.mods.length > 0) depois.mods = pedido.mods
   const natureza = antes.cartaoId !== undefined ? antes.natureza : naturezaDosMods(pedido.mods)
   if (natureza !== undefined && natureza !== 'condicao') depois.natureza = natureza
+  // Rework das condições (D2): outro nome é outra condição. A regra congelada da de antes sai (com as pilhas, a conta do gatilho
+  // e a aura dela): o selo passa a valer pelo nome novo, como o selo sem regra ("Atordoado" virou "Fúria": não trava mais).
+  if (normalizar(nomeDaCondicaoDoSelo(antes)).trim() !== normalizar(nomeDaCondicaoDoSelo(depois)).trim()) {
+    delete depois.regras
+    delete depois.pilhas
+    delete depois.gatilhoConta
+    delete depois.gatilhoFeito
+    delete depois.daAura
+  }
   return depois
 }
 

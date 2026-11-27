@@ -118,7 +118,8 @@ import {
 import { dividirDano, pegadaDaCasa, type PegadaNaGrade } from './area'
 import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoCartao, reacaoDasPecas, divisaoDasPecas, selosDasPecas, type MultiplicadoresDasPecas } from './mecanica/leitura'
 import { armaPadraoEntre } from './mecanica/arma'
-import { danoUsaArma } from './mecanica/modelo'
+import { danoUsaArma, type TipoQueBate, type TipoQueCausa } from './mecanica/modelo'
+import { chaveDaCondicao, NOMES_DOS_TIPOS_DE_DANO, TIPOS_DE_DANO, type TipoDoGolpe as TipoDoDanoDoGolpe } from '../condicoes/modelo'
 import type { RespostasDoPedido } from './perguntaNaHora'
 import { lerMarca, MULTIPLICADOR_DA_MARCA } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
@@ -126,7 +127,7 @@ import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, nomeDoSeloNaBatalha, seloPedidoValido } from './selos'
 import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
-import { curaDoDanoDosSelos, travaDoToken } from './condicoes'
+import { curaDoDanoDosSelos, motivoDoBloqueio, travaDoToken } from './condicoes'
 import { comAtaqueExtra, efeitosDasFormasLigadas, formaDaFicha, formaEhOverload, formaNaVez, motivoDaForma, motivoDaOrdemDasPartes, motivoDoCustoDaForma, motivoDosUsosDaForma, subidaDeParte } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -374,6 +375,19 @@ function motivoDosAlvos(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], mi
   return null
 }
 
+/**
+ * Rework das condições (D10, "Não pode ser alvo"): o golpe de alvo escolhido (sem centro de área) não pega quem tem
+ * o bloqueio (o Invisível); a área pega e a ajuda (cura, buff) pode. Quem age em si mesmo também pode. `null` = pode.
+ */
+function motivoDoAlvoProibido(ctx: ContextoDoGolpe, pedido: { alvos: readonly PedidoDeAlvo[]; ponto?: { col: number; row: number }; centroId?: string }, ajuda: boolean): string | null {
+  if (ajuda || pedido.ponto !== undefined || pedido.centroId !== undefined) return null
+  for (const alvo of pedido.alvos) {
+    const motivo = alvo.tokenId === ctx.carta.tokenId ? null : motivoDoBloqueio(ctx.turnos.selos, alvo.tokenId, 'naoAlvo')
+    if (motivo !== null) return motivo
+  }
+  return null
+}
+
 /** A leitura da técnica com o que a tela confirmou (custo e ação). */
 interface TecnicaPedida {
   cartao: CartaoDaFicha
@@ -547,7 +561,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (ctx.carta.personagemId === null || acoes === null) return 'Só um personagem concentra na vez dele'
       return motivoDoConcentrar(combate, acoes, chaveDaVez(ctx.turnos.rodada, ctx.carta.id))
     case 'mover':
-      return null
+      // Rework das condições (D10): "Não pode se mover" (o Enraizado) tira o Mover do contra-ataque; o mestre ainda arrasta a ficha no mapa.
+      return motivoDoBloqueio(ctx.turnos.selos, ctx.carta.tokenId, 'naoMove')
     // F3 (fatia T): Ativar gasta a ação escolhida; Desfazer é ação livre (só precisa estar ligada).
     case 'transformar': {
       const { personagem, sistema } = ctx
@@ -574,6 +589,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       // Conserto das fichas F1: forma que custa mais que o máximo (A Caçada Começa: 200 SP com máximo 120) fica bloqueada.
       const cara = motivoDoCustoDaForma(cartao, personagem, sistema)
       if (cara !== null) return cara
+      // Rework das condições (D10): "Só ação simples" (o Confuso) não liga forma com a Completa nem com a Bônus.
+      const soSimplesNaForma = pedido.acao === 'completa' || pedido.acao === 'bonus' ? motivoDoBloqueio(ctx.turnos.selos, ctx.carta.tokenId, 'soSimples') : null
+      if (soSimplesNaForma !== null) return soSimplesNaForma
       // S4: a ação é a que quem se transforma escolheu na hora; "livre" não gasta.
       return pedido.acao === 'livre' ? null : motivoDaForma({ ligada: false }, pedido.acao, acoes)
     }
@@ -593,7 +611,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       // MUNIÇÃO (decisão do mestre de 16/11: "Bloqueia o tiro"): a bala ligada à mochila com 0 não atira, aqui e no host.
       const semMunicao = motivoSemMunicaoDoPedido(arma, pedido.balaId)
       if (semMunicao !== null) return semMunicao
-      const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas, null)
+      const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDoAlvoProibido(ctx, pedido, false) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas, null)
       if (motivo !== null) return motivo
       // REQUISITOS C: os requisitos da arma (cinza com motivo; o mestre força), antes dos usos, do custo e da ação.
       const daArma = arma === null ? null : motivoDoPortao(portaoDoPedido(ctx, pedido))
@@ -608,6 +626,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
     case 'habilidade': {
       const { personagem, sistema } = ctx
       if (personagem === null || sistema === null) return 'Ficha sem personagem não usa habilidade'
+      // Rework das condições (D10): "Não pode usar técnica" (o Silenciado) deixa só o golpe comum e o item (o item virado técnica passa).
+      const semTecnica = pedido.cartaoId.startsWith(idDoCartaoDoItem('')) ? null : motivoDoBloqueio(ctx.turnos.selos, ctx.carta.tokenId, 'naoTecnica')
+      if (semTecnica !== null) return semTecnica
       const lida = tecnicaPedida(personagem, sistema, pedido, combate.evoluidas)
       if (lida === null) return 'Técnica não encontrada na ficha'
       // REQUISITOS E: o portão uma vez só; o SP que o aliado paga sai do custo de quem pede.
@@ -622,6 +643,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const respostas = motivoDasRespostasDoPedido(ctx, tecnica.cartao, pedido.respostas, tecnica.custo)
       if (respostas !== null) return respostas
       if (tecnica.acao === null) return 'Escolha a ação da técnica'
+      // Rework das condições (D10): "Só ação simples" (o Confuso): sem a técnica de Completa nem de Bônus.
+      const soSimples = tecnica.acao === 'completa' || tecnica.acao === 'bonus' ? motivoDoBloqueio(ctx.turnos.selos, ctx.carta.tokenId, 'soSimples') : null
+      if (soSimples !== null) return soSimples
       if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
       const arma = armaDoPedido(ctx, pedido.armaId)
       if (arma === undefined) return MOTIVO_ARMA_NAO_EQUIPADA
@@ -649,6 +673,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
         vetada ??
         (subida !== null && 'motivo' in subida ? subida.motivo : null) ??
         motivoDosAlvos(ctx, pedido.alvos, 0) ??
+        motivoDoAlvoProibido(ctx, pedido, cartaoDeAjuda(tecnica.cartao)) ??
         semConta ??
         motivoDaCuraSemConta(ctx, tecnica.cartao, personagem, sistema, gastaACarga(tecnica.cartao) ? combate.carga : 0) ??
         motivoDaLimpeza(ctx, tecnica.cartao, pedido.alvos) ??
@@ -1085,6 +1110,37 @@ function tecnicaDeAjuda(tecnica: TecnicaPedida | null, pecas: ReturnType<typeof 
   return tecnica.tipo === 'buff'
 }
 
+/** O tipo do dano de cada condição que o golpe montado causa (as que não são dano de um elemento ficam sem tipo). */
+const TIPO_DO_DANO_DA_CAUSA: Readonly<Partial<Record<TipoQueCausa, TipoDoDanoDoGolpe>>> = { queimadura: 'fogo', veneno: 'veneno', congelamento: 'gelo', choque: 'eletricidade' }
+
+/** Os tipos de dano que um golpe pode ter (o "qualquer" é a ausência). */
+const TIPOS_DO_DANO_DO_GOLPE: readonly TipoDoDanoDoGolpe[] = TIPOS_DE_DANO.filter((tipo): tipo is TipoDoDanoDoGolpe => tipo !== 'qualquer')
+
+/** O tipo de dano de um nome ("Fogo", o rótulo do elemento do Imbuir); `null` = não é tipo de dano. */
+function tipoDoDanoPeloNome(nome: string): TipoDoDanoDoGolpe | null {
+  const chave = chaveDaCondicao(nome)
+  return TIPOS_DO_DANO_DO_GOLPE.find((tipo) => tipo === chave || chaveDaCondicao(NOMES_DOS_TIPOS_DE_DANO[tipo]) === chave) ?? null
+}
+
+/**
+ * Rework das condições (PLANO.md risco 3, E3): os tipos do dano do golpe, cada um uma vez: como ele bate (a resposta
+ * vence o gravado), o que as peças causam (Queimadura = Fogo) e o elemento escolhido do Imbuir (o rótulo dele é o
+ * nome do tipo). Vazio = qualquer tipo.
+ */
+function tiposDoGolpe(bate: TipoQueBate | null, pecas: ReturnType<typeof pecasDoCartao>, rotulos: readonly string[]): TipoDoDanoDoGolpe[] {
+  const tipos = new Set<TipoDoDanoDoGolpe>()
+  if (bate !== null) tipos.add(bate)
+  for (const causa of pecas?.golpe?.causa ?? []) {
+    const tipo = TIPO_DO_DANO_DA_CAUSA[causa.tipo]
+    if (tipo !== undefined) tipos.add(tipo)
+  }
+  for (const rotulo of rotulos) {
+    const tipo = tipoDoDanoPeloNome(rotulo)
+    if (tipo !== null) tipos.add(tipo)
+  }
+  return [...tipos]
+}
+
 /** Os ids de uma parte do golpe (o golpe e a linha dela no registro). */
 interface IdsDaParte {
   golpe: string
@@ -1206,6 +1262,11 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     perfurante: (tecnica === null ? null : perfuranteDaMecanica(tecnica.cartao, respostas)) ?? pedido.perfurante,
     alvos,
   }
+  // Rework das condições (risco 3, E3): os tipos do dano (como bate, o que causa, o elemento do Imbuir); sem tipo = qualquer.
+  // O Atacar lê a arma montada (como ela bate e o que causa); a técnica, as peças dela e a resposta da Pergunta na hora.
+  const pecasDosTipos = pedido.tipo === 'atacar' ? (arma === null ? null : pecasDoCartao(arma)) : pecas
+  const tipos = tiposDoGolpe(pedido.tipo === 'atacar' ? (arma === null ? null : bateDoCartao(arma)) : bate, pecasDosTipos, deTodoGolpe.rotulos)
+  if (tipos.length > 0) golpe.tipos = tipos
   // A porcentagem só vai quando é parcial: 100 é o Perfurante de sempre (golpe sem o campo).
   // Construtor C1: na técnica montada a perfuração do texto da ficha não vale; fase 5 (B13): vale a das peças.
   // Rework das habilidades (D3): a perfuração em % da resposta da Pergunta na hora vence a das peças.

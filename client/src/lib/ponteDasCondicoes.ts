@@ -1,7 +1,10 @@
 import type { CondicaoPropria, MapData, PrazoDeCondicao, Token } from '../types/map'
 import type { SeloDaBatalha, SeloDoGolpe } from './batalha/combate'
 import { comportamentoDoSelo, danoPorVezDoSelo } from './batalha/condicoes'
-import { comSeloNovo, criarSelo, ehNomeDeSelo } from './batalha/selos'
+import { comSeloNovo, criarSelo, ehNomeDeSelo, seloComACondicao, seloDepoisDasVezes } from './batalha/selos'
+import { traduzirCondicao } from './condicoes/traducao'
+import { ehDaFabrica } from './condicoes/fabrica'
+import { montarCondicao } from './condicoes/montadaDaAntiga'
 import { acenderPeloNome, apagarPeloNome, chaveDaCondicao } from './condicaoPorNome'
 import { condicoesPropriasOf } from './condicoesProprias'
 import type { CondicaoAtiva } from './dbt/batalha/tipos'
@@ -91,25 +94,66 @@ function pastilhasAcesas(token: Token): string[] {
  * por vez) ou com prazo (o veneno da armadilha); nome que não cabe num selo
  * fica de fora. `null` = a pastilha não vale como selo.
  */
-function pedidoDoEspelho(nome: string, prazo: PrazoDeCondicao | null): SeloDoGolpe | null {
-  if (!ehNomeDeSelo(nome) || (prazo === null && comportamentoDoSelo(nome) === null)) return null
+function pedidoDoEspelho(nome: string, prazo: PrazoDeCondicao | null, comPecas: CondicaoPropria | null): SeloDoGolpe | null {
+  if (!ehNomeDeSelo(nome) || (prazo === null && comPecas === null && comportamentoDoSelo(nome) === null)) return null
   const pedido: SeloDoGolpe = { nome, turnos: prazo?.turnos ?? null }
   if (prazo?.porVez !== undefined) pedido.porVez = prazo.porVez
-  return pedido
+  // Rework das condições (D2): a pastilha criada pelas peças vale com a regra dela (a cópia que mora no token), congelada no espelho;
+  // a vida por turno do prazo vence a dela (D4). A criada de antes (sem peças) continua só pelo prazo, como era.
+  if (comPecas === null) return pedido
+  return seloComACondicao(pedido, traduzirCondicao(montarCondicao(comPecas), { turnos: pedido.turnos, nome }))
 }
 
-/** O espelho já está como a pastilha pede (os turnos, a vida por turno e o corte da cura)? */
+/** A pastilha criada pelas PEÇAS (o rework das condições) acesa no token com o nome `nome`; `null` = de fábrica, de antes ou nenhuma. */
+function pastilhaComPecas(ficha: Token, nome: string): CondicaoPropria | null {
+  const chave = chaveDoSelo(nome)
+  return condicoesPropriasOf(ficha).find((propria) => propria.pecas !== undefined && !ehDaFabrica(propria.id) && chaveDoSelo(propria.nome) === chave) ?? null
+}
+
+/** Os dois valores dão o mesmo JSON (ausente e vazio contam como nada). */
+function mesmoValor(a: unknown, b: unknown): boolean {
+  const semVazio = (valor: unknown): unknown => (valor === undefined || (Array.isArray(valor) && valor.length === 0) ? null : valor)
+  return JSON.stringify(semVazio(a)) === JSON.stringify(semVazio(b))
+}
+
+/**
+ * O espelho já está como a condição pede? Os turnos, a vida por turno e o corte da cura, como antes; rework das
+ * condições (E3): mais as pilhas, os atributos (o ritmo já descido) e a regra congelada da condição.
+ */
 function espelhoEmDia(espelho: SeloDaBatalha, pedido: SeloDoGolpe): boolean {
-  return espelho.turnos === pedido.turnos && espelho.porVez === pedido.porVez && espelho.regra?.curaRecebida === pedido.regra?.curaRecebida
+  const pilhas = (n: number | undefined): number => (n !== undefined && n > 1 ? n : 1)
+  return (
+    espelho.turnos === pedido.turnos &&
+    espelho.porVez === pedido.porVez &&
+    mesmoValor(espelho.regra, pedido.regra) &&
+    pilhas(espelho.pilhas) === pilhas(pedido.pilhas) &&
+    mesmoValor(espelho.mods, pedido.mods) &&
+    mesmoValor(espelho.regras, pedido.regras)
+  )
 }
 
-/** O espelho com os turnos, a vida por turno e o corte da cura de agora (o prazo andou, a condição renovou). */
+/**
+ * O espelho com o que a condição pede agora (o prazo andou, ela renovou, ganhou pilha, o ritmo desceu), refeito pelo
+ * mesmo `criarSelo` do espelho novo: o id, a origem, o "já contado" e o maior total de antes ficam.
+ */
 function espelhoAtualizado(espelho: SeloDaBatalha, pedido: SeloDoGolpe): SeloDaBatalha {
-  const { porVez: _antes, regra: _regraAntes, ...sem } = espelho
-  const depois: SeloDaBatalha = { ...sem, turnos: pedido.turnos, total: pedido.turnos === null ? null : Math.max(espelho.total ?? 0, pedido.turnos) }
-  if (pedido.porVez !== undefined) depois.porVez = pedido.porVez
-  if (pedido.regra !== undefined) depois.regra = pedido.regra
+  const novo = criarSelo(espelho.tokenId, pedido, { id: espelho.id, rodada: espelho.contadoNaRodada ?? 0, tokenDaVez: null, ...(espelho.origem === undefined ? {} : { origem: espelho.origem }) })
+  const depois: SeloDaBatalha = { ...novo, daPastilha: true, total: pedido.turnos === null ? null : Math.max(espelho.total ?? 0, pedido.turnos) }
+  if (espelho.contadoNaRodada !== undefined) depois.contadoNaRodada = espelho.contadoNaRodada
+  if (espelho.contadoNaCarta !== undefined) depois.contadoNaCarta = espelho.contadoNaCarta
   return depois
+}
+
+/**
+ * Rework das condições (o ritmo do Muda atributo na ficha): o pedido do espelho com a queda já descida as `vezes`
+ * que a condição passou com quem a tem (o 1º passo "de uma vez" junto). O espelho não desce sozinho (ele não conta
+ * a vez): leva os atributos de agora, sem a queda; a próxima vez da ficha o refaz. Sem queda: o MESMO pedido.
+ */
+function pedidoDepoisDasVezes(pedido: SeloDoGolpe, vezes: number): SeloDoGolpe {
+  if (pedido.queda === undefined) return pedido
+  const descido = seloDepoisDasVezes(criarSelo('', pedido, { id: '', rodada: 0, tokenDaVez: null }), vezes)
+  const { queda: _queda, mods: _mods, ...sem } = pedido
+  return descido.mods === undefined || descido.mods.length === 0 ? sem : { ...sem, mods: descido.mods }
 }
 
 /** Por ficha da cena (o token), os espelhos que as condições da FICHA DE PERSONAGEM dela pedem, por chave do nome. */
@@ -130,11 +174,19 @@ export function pedidosDasCondicoesDaFicha(personagem: Pick<Personagem, 'condico
     if (doCatalogo === null || !ehNomeDeSelo(doCatalogo.nome)) continue
     const chave = chaveDoSelo(doCatalogo.nome)
     if (chave === '' || pedidos.has(chave)) continue
-    const pedido: SeloDoGolpe = { nome: doCatalogo.nome, turnos: condicao.turnos }
-    const n = condicao.n ?? doCatalogo.n
-    if (doCatalogo.regra === 'vida' && n > 0) pedido.porVez = n
-    if (doCatalogo.regra === 'cura' && n > 0) pedido.regra = { curaRecebida: -n }
-    pedidos.set(chave, pedido)
+    // Rework das condições (D4): só o número próprio da condição posta (o `n` da peça do item) vence; o resto vem da condição.
+    const proprio: SeloDoGolpe = { nome: doCatalogo.nome, turnos: condicao.turnos }
+    const n = condicao.n ?? 0
+    if (doCatalogo.regra === 'vida' && n > 0) proprio.porVez = n
+    if (doCatalogo.regra === 'cura' && n > 0) proprio.regra = { curaRecebida: -n }
+    // E3: a condição traduzida, com as pilhas da ficha (os bloqueios, o dano por tipo, as saídas...), e o ritmo descido as vezes dela.
+    const traduzido = traduzirCondicao(doCatalogo.montada, {
+      turnos: condicao.turnos,
+      nome: doCatalogo.nome,
+      nomeDoId: (id) => condicaoDoCatalogo(id, criadas)?.nome ?? null,
+      ...(condicao.pilhas === undefined ? {} : { pilhas: condicao.pilhas }),
+    })
+    pedidos.set(chave, pedidoDepoisDasVezes(seloComACondicao(proprio, traduzido), condicao.vezes ?? 0))
   }
   return pedidos
 }
@@ -150,7 +202,7 @@ function pedidosDaFicha(selos: readonly SeloDaBatalha[], ficha: Token, daFicha?:
   for (const [chave, pedido] of daFicha?.(ficha) ?? []) if (!daBatalha.has(chave)) pedidos.set(chave, pedido)
   for (const nome of pastilhasAcesas(ficha)) {
     const chave = chaveDoSelo(nome)
-    const pedido = daBatalha.has(chave) || pedidos.has(chave) ? null : pedidoDoEspelho(nome, prazoDaCondicao(ficha, nome))
+    const pedido = daBatalha.has(chave) || pedidos.has(chave) ? null : pedidoDoEspelho(nome, prazoDaCondicao(ficha, nome), pastilhaComPecas(ficha, nome))
     if (pedido !== null) pedidos.set(chave, pedido)
   }
   return pedidos

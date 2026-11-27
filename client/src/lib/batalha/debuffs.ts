@@ -1,4 +1,5 @@
 import type { SeloDaBatalha } from './combate'
+import { tipoDoSelo } from './condicoes'
 import { ehSeloDoCansaco } from './recursosDaBatalha'
 import { normalizar } from './formula'
 
@@ -12,14 +13,30 @@ import { normalizar } from './formula'
  * cansaço do Overload. Nunca: Buff, passiva, o contador (Polaridade), a marca
  * nem o "Ajustar..." do mestre (que pode ser bônus).
  *
+ * Rework das condições (E3, "só as negativas"): o selo de uma condição é negativo
+ * ou positivo pelo TIPO dela (a congelada, ou a de fábrica pelo nome), não pela
+ * cor: a positiva (Abençoado, Protegido) nunca sai na limpeza das negativas.
+ * Selo sem condição: a natureza decide, como antes.
+ *
  * Puro: sem store, sem rede.
  */
 
+/** O selo como a limpeza o lê: os campos de sempre e, no host, a regra congelada da condição. */
+type SeloDaLimpeza = Pick<SeloDaBatalha, 'nome' | 'origem' | 'natureza' | 'contador' | 'marca' | 'ajuste'> & Partial<Pick<SeloDaBatalha, 'regras'>>
+
 /** O selo é negativo. */
-export function seloNegativo(selo: Pick<SeloDaBatalha, 'nome' | 'origem' | 'natureza' | 'contador' | 'marca' | 'ajuste'>): boolean {
+export function seloNegativo(selo: SeloDaLimpeza): boolean {
   if (ehSeloDoCansaco(selo)) return true
   if (selo.contador !== undefined || selo.marca === true || selo.ajuste === true) return false
+  const tipo = tipoDoSelo(selo)
+  if (tipo !== null) return tipo === 'negativa'
   return selo.natureza === undefined || selo.natureza === 'debuff' || selo.natureza === 'condicao'
+}
+
+/** O selo é positivo (o que a limpeza "positivos" tira): o da condição positiva, senão o Buff. */
+function seloPositivo(selo: SeloDaLimpeza): boolean {
+  const tipo = tipoDoSelo(selo)
+  return tipo === null ? selo.natureza === 'buff' : tipo === 'positiva'
 }
 
 /** Fase 5: quais selos a limpeza tira (ausente = os negativos, como a Revigorar). */
@@ -33,13 +50,13 @@ function seloDeRegra(selo: Pick<SeloDaBatalha, 'contador' | 'marca' | 'ajuste' |
 /**
  * Fase 5 (SISTEMA.md, `tirarSelos`): os selos do token que a limpeza tira. O
  * antídoto tira só os de nome igual (sem acento nem caixa: "Tira Envenenado"
- * deixa o Sangrando); "positivos" = os Buffs; "todos" = negativos e Buffs.
+ * deixa o Sangrando); "positivos" = os Buffs e as condições positivas; "todos" = negativos e positivos.
  */
 export function selosQueALimpezaTira(selos: readonly SeloDaBatalha[] | undefined, tokenId: string, quais: QuaisSelosTira | undefined): SeloDaBatalha[] {
   if (quais === undefined) return debuffsDoToken(selos, tokenId)
   const doToken = (selos ?? []).filter((selo) => selo.tokenId === tokenId)
-  if (quais === 'positivos') return doToken.filter((selo) => !seloDeRegra(selo) && selo.natureza === 'buff')
-  if (quais === 'todos') return doToken.filter((selo) => seloNegativo(selo) || (!seloDeRegra(selo) && selo.natureza === 'buff'))
+  if (quais === 'positivos') return doToken.filter((selo) => !seloDeRegra(selo) && seloPositivo(selo))
+  if (quais === 'todos') return doToken.filter((selo) => seloNegativo(selo) || (!seloDeRegra(selo) && seloPositivo(selo)))
   const nomes = new Set(quais.nomes.map((nome) => normalizar(nome).trim()))
   return doToken.filter((selo) => !seloDeRegra(selo) && nomes.has(normalizar(selo.nome).trim()))
 }

@@ -12,6 +12,7 @@ import {
   type SeloDaBatalha,
 } from './combate'
 import { pedidoDaMarca, textoDoPedidoDaMarca, type ComoPagaAMarca, type PedidoDaMarca } from './comoMarca'
+import { comportamentoDoSelo } from './condicoes'
 import { normalizar } from './formula'
 import { CAMPO_DO_CUSTO, tecnicasDe } from './leituraDaFicha'
 import type { Reversao } from './registro'
@@ -154,9 +155,27 @@ export function passivaDaMarca(personagem: Personagem, sistema: SistemaDeRpg): {
   return null
 }
 
-/** A marca na ficha, ou `undefined`. */
+/**
+ * Rework das condições (E3, a marca pela condição): a Marca da de fábrica pelo nome (o "Marcado" posto à mão,
+ * a batalha salva antes, o Worker antes do deploy), só no selo sem o campo e sem a regra congelada (D2).
+ */
+function marcaPeloNome(selo: SeloDaBatalha): { vezes?: number; fica?: true } | undefined {
+  return selo.marca === undefined && selo.regras === undefined ? comportamentoDoSelo(selo.nome)?.marca : undefined
+}
+
+/** O multiplicador do dano da marca: o do selo, o da de fábrica pelo nome, senão o dobro. */
+function vezesDaMarca(marca: SeloDaBatalha): number {
+  return marca.marcaVezes ?? marcaPeloNome(marca)?.vezes ?? MULTIPLICADOR_DA_MARCA
+}
+
+/** A marca continua depois do golpe que a aproveita (não "some"). */
+function marcaQueFica(marca: SeloDaBatalha): boolean {
+  return marca.marcaFica === true || marcaPeloNome(marca)?.fica === true
+}
+
+/** A marca na ficha, ou `undefined`. E3: também o selo da condição que marca, pelo nome (`marcaPeloNome`). */
 export function marcaDoToken(selos: readonly SeloDaBatalha[] | undefined, tokenId: string): SeloDaBatalha | undefined {
-  return (selos ?? []).find((selo) => selo.tokenId === tokenId && selo.marca === true)
+  return (selos ?? []).find((selo) => selo.tokenId === tokenId && (selo.marca === true || marcaPeloNome(selo) !== undefined))
 }
 
 /** Regra do usuário (01/11): +1 no teste a cada 2 ranks do atributo, arredondando para baixo (R1 = 0, R2-R3 = +1, R4-R5 = +2). */
@@ -252,11 +271,11 @@ export function acertoNaMarca(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo:
   // D10: a marca "só do dono" vale só no golpe dele (a dos outros passa sem dobrar nem sair).
   const vale = marca !== undefined && (marca.marcaDe === undefined || marca.marcaDe === golpe.atacantePersonagemId)
   if (marca !== undefined && vale && alvo.dano !== null) {
-    const vezes = marca.marcaVezes ?? MULTIPLICADOR_DA_MARCA
+    const vezes = vezesDaMarca(marca)
     // O registro diz o multiplicador certo ("marca ×3"): `marcaVezes` só quando não é o ×2 de sempre.
     novoAlvo = { ...alvo, danoFinal: Math.min(DANO_MAX, alvo.danoFinal * vezes), marcado: true, ...(vezes === MULTIPLICADOR_DA_MARCA ? {} : { marcaVezes: vezes }) }
     // D10: a marca que fica (não "some") continua até acabar os turnos.
-    if (marca.marcaFica !== true) {
+    if (!marcaQueFica(marca)) {
       novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => selo.id !== marca.id) }
       partes.push({ tipo: 'marcaUsada', selo: marca })
     }

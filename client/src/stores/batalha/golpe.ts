@@ -23,11 +23,11 @@ import {
 } from '../../lib/batalha/combate'
 import { comBandosEmDia, invocadoDoToken } from '../../lib/batalha/invocacao'
 import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, moldeDaMarca, passivaDaMarca, type AcertoNaMarca, type ContextoDoAcerto } from '../../lib/batalha/marca'
-import { bonusDaBatalha, comSeloNovo, criarSelo, ondeNaVez, novoIdDeSelo, selosDoToken } from '../../lib/batalha/selos'
-import { curaComOsSelos, curaDoDano, esquivaComDesvantagem, notaDosSelosNaCura, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao } from '../../lib/batalha/condicoes'
+import { bonusDaBatalha, comSeloNovo, selosDoToken } from '../../lib/batalha/selos'
+import { curaComOsSelos, curaDoDano, esquivaComDesvantagem, motivoDoBloqueio, naoReageDoToken, notaDosSelosNaCura, saidasComOsSelos, selosQueSaemNoGolpe, selosSemOsQueSaem, vantagemDaReacao, type AcontecimentoDaSaida } from '../../lib/batalha/condicoes'
 import { selosQueALimpezaTira } from '../../lib/batalha/debuffs'
 import { ajustesDoRecursoDaCura, curaPelaParteDoMaximo, notaDoRecursoDaCura, quantoCabeNoRecurso } from '../../lib/batalha/curaDoRecurso'
-import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano, reducoesDosSelos } from '../../lib/batalha/reducaoDoDano'
+import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano, reducoesDoDanoCausado, reducoesDosSelos } from '../../lib/batalha/reducaoDoDano'
 import {
   golpePendente,
   lancarGolpe,
@@ -142,6 +142,32 @@ function danoNoAlvo(
   return { partes: reversao, efeito: { tipo: 'dano', tokenId: alvo.tokenId, valor, saida: alvo.saida } }
 }
 
+/**
+ * Rework das condições (E3, as saídas): os selos de `tokenId` que saem com o acontecimento (`selosQueSaemCom`) fora
+ * da cena, com o Desfazer (cada um volta) e o texto da linha. Nada sai = os MESMOS turnos, nenhuma parte e texto vazio.
+ */
+function saidasNoToken(turnos: TurnosDaCena, tokenId: string, acontecimento: AcontecimentoDaSaida, nomeDoToken: (tokenId: string) => string): { turnos: TurnosDaCena; partes: Reversao[]; texto: string } {
+  const saida = selosSemOsQueSaem(turnos.selos, tokenId, acontecimento, nomeDoToken(tokenId))
+  if (saida.sairam.length === 0) return { turnos, partes: [], texto: '' }
+  return { turnos: { ...turnos, selos: saida.selos }, partes: saida.sairam.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo })), texto: saida.texto }
+}
+
+/** O texto a mais no alvo (o pedaço dele na linha do golpe), depois do que ele já tinha. Vazio = o MESMO alvo. */
+function comNotaNoAlvo(alvo: AlvoDoGolpe, texto: string): AlvoDoGolpe {
+  return texto === '' ? alvo : { ...alvo, disputa: alvo.disputa === undefined || alvo.disputa === '' ? texto : `${alvo.disputa}; ${texto}` }
+}
+
+/**
+ * E3 (sair ao tomar dano): o golpe deixou dano em `alvo`; os selos dele que saem com o dano dos tipos do golpe (o
+ * Confuso com qualquer dano, o Molhado com Fogo) saem ANTES do selo novo do golpe (o Confuso que o golpe põe não sai
+ * com o próprio dano), e o texto vai no alvo. Sem dano, ou nada sai: os MESMOS objetos.
+ */
+function saidasDoDano(turnos: TurnosDaCena, golpe: Pick<GolpeDaBatalha, 'tipos'>, alvo: AlvoDoGolpe, nomeDoToken: (tokenId: string) => string): { turnos: TurnosDaCena; alvo: AlvoDoGolpe; partes: Reversao[] } {
+  if ((alvo.danoFinal ?? 0) <= 0) return { turnos, alvo, partes: [] }
+  const saida = saidasNoToken(turnos, alvo.tokenId, { tipo: 'dano', tipos: golpe.tipos ?? [] }, nomeDoToken)
+  return { turnos: saida.turnos, alvo: comNotaNoAlvo(alvo, saida.texto), partes: saida.partes }
+}
+
 export function novoIdDaMarca(): string {
   return `marca_${crypto.randomUUID()}`
 }
@@ -184,7 +210,8 @@ function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeD
   const { danoFinal } = acerto.alvo
   if (dele === undefined || sistema === null || danoFinal === undefined || danoFinal <= 0) return acerto
   // Fase 5: e o selo montado com regra de dano recebido (−20% a menos, +50% a mais), por último.
-  const dosSelos = reducoesDosSelos(acerto.turnos.selos, alvo.tokenId)
+  // Rework das condições (E3): o dano de um tipo só pelos tipos do golpe (Congelado: Impacto +50%) e o dano causado de quem bate (Amedrontado −20%).
+  const dosSelos = [...reducoesDosSelos(acerto.turnos.selos, alvo.tokenId, golpe.tipos), ...reducoesDoDanoCausado(acerto.turnos.selos, golpe.atacanteTokenId)]
   const reducoes = [...reducoesDoDano(dele, sistema), ...dosSelos]
   if (reducoes.length === 0) return acerto
   const reduzido: AlvoDoGolpe = { ...acerto.alvo, danoFinal: danoComAsReducoes(danoFinal, reducoes), reducao: porcentoDasReducoes(reducoes) }
@@ -229,7 +256,7 @@ function contadorDeExtra(valor: number): number {
 export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalha, fatiaDosSelos: SelosDaBatalha) {
   const { mesa, deps, mesaDoRpg, cenaDe, gravarCena, avisarQuemCaiu, revelarAoUsar, lembrarDepoisDoDano, rastrear, anotarAcao } = nucleo
   const { cansarNoOverload, subidaDoPedido, mudarForma } = fatiaDasFormas
-  const { seloNoAcerto, aliadosNaLutaDe } = fatiaDosSelos
+  const { seloNoAcerto, seloPostoNaFicha, aliadosNaLutaDe } = fatiaDosSelos
 
   /**
    * O que sai da ficha `tokenId` no mapa, só lido (nada gravado): as pastilhas
@@ -321,8 +348,10 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     // Conserto das fichas F1: contra golpe Overload, só técnica Overload. F2 (revisão da fatia E): contra Surpresa, só a que vale contra
     // ela; a técnica que o mestre confirma (Recuperação de forças) só ele usa.
     if (motivoDaReacaoComTecnica({ personagem, sistema, combate: combateAntes, quemPede: autor.tipo, requisitos: motivoDoPortao(doPortao) }, alvo, pedido, golpe.overload, golpe.surpresa) !== null || personagem === null || sistema === null) return false
-    // S4: Atordoado ou Paralisado não reage, nem com técnica.
-    if (travaDoToken(turnos.selos, reageTokenId) !== null) return false
+    // S4: Atordoado ou Paralisado não reage, nem com técnica. Rework das condições (D3): o bloqueio "Não pode reagir".
+    if (naoReageDoToken(turnos.selos, reageTokenId) !== null) return false
+    // Rework das condições (D10): "Não pode usar técnica" (o Silenciado) vale também na reação com técnica.
+    if (motivoDoBloqueio(turnos.selos, reageTokenId, 'naoTecnica') !== null) return false
     // F2 (revisão da fatia D): quem está preso no Campo de Contenção rola com desvantagem, sem marcar.
     const selosDeQuemReage = selosDoToken(turnos.selos, reageTokenId)
     const rolado = pedido.saida === 'rolar' ? rolarComVantagem(deps.rolarD20, vantagemDaReacao(pedido.vantagem, selosDeQuemReage, golpe)) : null
@@ -400,8 +429,12 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       }
       partes.push(...dano.partes)
       if (dano.efeito !== null) efeitos.push(dano.efeito)
+      // Rework das condições (E3): o que sai com o dano (o Confuso, o Molhado com Fogo), antes do selo novo do golpe.
+      const saiuComODano = saidasDoDano(novos, golpe, depois, nomeDoTokenNa(novos, personagens))
+      novos = saiuComODano.turnos
+      partes.push(...saiuComODano.partes)
       // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo (Metade, Receber). F2 (fatia B): com a disputa da mecânica à mão.
-      const noAcerto = seloNoAcerto(sceneKey, novos, golpe, depois)
+      const noAcerto = seloNoAcerto(sceneKey, novos, golpe, saiuComODano.alvo)
       if (noAcerto.alvo !== depois) {
         golpeFeito = golpeComOAlvo(golpeFeito, noAcerto.alvo)
         novos = { ...novos, golpes: comGolpe(turnos.golpes, golpeFeito) }
@@ -461,6 +494,11 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       if (curou !== null) {
         partes.push(...reversaoDaFicha(personagemId, curou))
         textoDoRebate += ` · come o golpe e cura ${cura}${notaDosSelosNaCura(novos.selos, reageTokenId)} (o mestre confirmou: fogo ou explosão)`
+        // Rework das condições (E3, sair ao receber cura): a vida que voltou tira o que sai com cura.
+        const saiuComACura = saidasNoToken(novos, reageTokenId, { tipo: 'cura' }, nomeDoTokenNa(novos, personagens))
+        novos = saiuComACura.turnos
+        partes.push(...saiuComACura.partes)
+        if (saiuComACura.texto !== '') textoDoRebate += ` · ${saiuComACura.texto}`
       }
     }
     // O selo da técnica em QUEM ATACOU ("Marcado"), se marcado na caixa e o atacante segue na ordem.
@@ -469,14 +507,24 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     const marcaNoAtacante = feita.seloNoAtacante?.nome === NOME_DA_MARCA && depois.tecnica !== undefined
     const atacanteJaMarcado = marcaNoAtacante && marcaDoToken(novos.selos, golpe.atacanteTokenId) !== undefined
     if (feita.seloNoAtacante !== null && !atacanteJaMarcado && turnos.cartas.some((carta) => carta.tokenId === golpe.atacanteTokenId)) {
-      const selo =
-        marcaNoAtacante && depois.tecnica !== undefined
-          ? criarMarca(novos, golpe.atacanteTokenId, { selo: novoIdDaMarca(), linha: linhaId }, { id: depois.tecnica.cartaoId, nome: depois.tecnica.nome })
-          : criarSelo(golpe.atacanteTokenId, feita.seloNoAtacante, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: depois.tecnica?.nome })
-      const selos = comSeloNovo(novos.selos, selo)
-      if (selos !== null) {
-        partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
-        novos = { ...novos, selos }
+      if (marcaNoAtacante && depois.tecnica !== undefined) {
+        const marca = criarMarca(novos, golpe.atacanteTokenId, { selo: novoIdDaMarca(), linha: linhaId }, { id: depois.tecnica.cartaoId, nome: depois.tecnica.nome })
+        const selos = comSeloNovo(novos.selos, marca)
+        if (selos !== null) {
+          partes.push({ tipo: 'selo', seloId: marca.id, antes: null })
+          novos = { ...novos, selos }
+        }
+      } else {
+        // Rework das condições (D2): o selo da reação em quem atacou congela a condição do nome, como o do golpe.
+        const posto = seloPostoNaFicha(novos, { tokenId: golpe.atacanteTokenId, personagemId: golpe.atacantePersonagemId }, feita.seloNoAtacante, {
+          autor,
+          quemPos: personagemId,
+          ...(depois.tecnica === undefined ? {} : { origem: depois.tecnica.nome }),
+        })
+        if (posto !== null) {
+          partes.push(posto.parte)
+          novos = { ...novos, selos: posto.selos }
+        }
       }
     }
     // REQUISITOS B3: a técnica da reação entra nas usadas de quem reagiu; o golpe resolvido e o dano, no rastro.
@@ -546,7 +594,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     for (const carta of turnos.cartas) {
       const { tokenId, personagemId } = carta
       // Como o alvo: quem gastou a reação no contador (R5) ou está travado (S4) não reage.
-      if (personagemId === null || tokenId === alvoTokenId || tokenId === atacanteTokenId || tokens.has(tokenId) || gastouAReacao(turnos, tokenId) || travaDoToken(turnos.selos, tokenId) !== null) continue
+      if (personagemId === null || tokenId === alvoTokenId || tokenId === atacanteTokenId || tokens.has(tokenId) || gastouAReacao(turnos, tokenId) || naoReageDoToken(turnos.selos, tokenId) !== null) continue
       const personagem = personagens.find((candidato) => candidato.id === personagemId)
       if (personagem === undefined) continue
       const areas = reacoesDisponiveis(personagem, sistema, turnos.combate?.[personagemId]).flatMap((reacao) => {
@@ -578,7 +626,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       // Invocação (decisão 8): o invocado não reage; o dano nele resolve na hora.
       // R5: quem gastou a reação no contador também não reage (até a vez dele).
       // Conserto das fichas F1 (S4): Atordoado ou Paralisado não reage (o golpe nele resolve na hora).
-      semReacao: (tokenId) => invocadoDoToken(turnos, tokenId) !== null || gastouAReacao(turnos, tokenId) || travaDoToken(turnos.selos, tokenId) !== null,
+      semReacao: (tokenId) => invocadoDoToken(turnos, tokenId) !== null || gastouAReacao(turnos, tokenId) || naoReageDoToken(turnos.selos, tokenId) !== null,
       // Conserto das fichas F1: o golpe Overload espera só quem tem outra Overload de reação disponível.
       reageAOverload: (tokenId) => {
         const personagemId = personagemDoTokenNa(turnos)(tokenId)
@@ -884,13 +932,23 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         partes.push({ tipo: 'selo', seloId: saiu.id, antes: saiu })
         novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => selo.id !== saiu.id) }
       }
+      // Rework das condições (E3, sair ao agir): quem age perde o que sai quando ele age (o Invisível), com nota na linha do golpe.
+      const agiu = saidasNoToken(novos, carta.tokenId, { tipo: 'agir' }, nomeDoTokenNa(novos, mesa.personagens()))
+      if (agiu.partes.length > 0) {
+        novos = agiu.turnos
+        partes.push(...agiu.partes)
+        const nota = notaDaLinha(golpe.notaDosRequisitos ?? null, agiu.texto)
+        if (nota !== null) golpe = { ...golpe, notaDosRequisitos: nota }
+      }
       // F2 (fatia F, Golpe Baixo): quem usa ganha o selo da técnica ("+8 em reação" por 2 turnos dele).
+      // Rework das condições (D2): pelo mesmo caminho do selo do golpe (a condição do nome congelada, o "ao entrar").
       if (golpe.seloEmQuemUsa !== undefined) {
-        const proprio = criarSelo(carta.tokenId, golpe.seloEmQuemUsa, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: golpe.nome })
-        const comOProprio = comSeloNovo(novos.selos, proprio)
-        if (comOProprio !== null) {
-          partes.push({ tipo: 'selo', seloId: proprio.id, antes: null })
-          novos = { ...novos, selos: comOProprio }
+        const proprio = seloPostoNaFicha(novos, carta, golpe.seloEmQuemUsa, { autor: golpe.autor, quemPos: carta.personagemId, origem: golpe.nome })
+        if (proprio !== null) {
+          partes.push(proprio.parte)
+          novos = { ...novos, selos: proprio.selos }
+          const nota = notaDaLinha(golpe.notaDosRequisitos ?? null, proprio.notas.length === 0 ? null : proprio.notas.join('; '))
+          if (nota !== null) golpe = { ...golpe, notaDosRequisitos: nota }
         }
       }
       partes.push({ tipo: 'golpe', golpeId: golpe.id })
@@ -909,8 +967,12 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         }
         partes.push(...feito.partes, ...acerto.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
+        // Rework das condições (E3): o que sai com o dano, antes do selo novo do golpe.
+        const saiuComODano = saidasDoDano(novos, golpe, alvo, nomeDoTokenNa(novos, mesa.personagens()))
+        novos = saiuComODano.turnos
+        partes.push(...saiuComODano.partes)
         // F3 (Q6): o selo do golpe pega no alvo que ele acertou (F2, fatia B: com a disputa da mecânica à mão).
-        const noAcerto = seloNoAcerto(sceneKey, novos, golpe, alvo)
+        const noAcerto = seloNoAcerto(sceneKey, novos, golpe, saiuComODano.alvo)
         golpe = golpeComOAlvo(golpe, noAcerto.alvo)
         const selado = noAcerto.selado
         if (selado !== null) {
@@ -957,6 +1019,12 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
             return false
           }
           if (curou !== null && alvo.personagemId !== null) partes.push(...reversaoDaFicha(alvo.personagemId, curou))
+          // Rework das condições (E3, sair ao receber cura): a vida curada tira o que sai com cura (o Sangrando).
+          const saiuComACura = curou !== null && recursoDaCura === 'hp' && cura > 0 ? saidasNoToken(novos, alvo.tokenId, { tipo: 'cura' }, nomeDoTokenNa(novos, mesa.personagens())) : null
+          if (saiuComACura !== null) {
+            novos = saiuComACura.turnos
+            partes.push(...saiuComACura.partes)
+          }
           // Fase 7 (o Elixir): a segunda cura no mesmo alvo, de outro recurso, lida na ficha já curada; recusada, nada sai.
           const tambem = limpeza.tambem
           let daOutra = ''
@@ -1003,7 +1071,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           const nomesTirados = limpeza.tira === undefined ? '' : tirados.length === 0 ? 'não tinha o que tirar' : `tirou ${tirados.map((selo) => selo.nome).join(', ')}`
           // Fase 8 (a Panaceia): a limpeza sem cura não diz "curou 0"; o pedaço da cura só entra com cura, como na que tira pelo nome.
           const tirouDebuffs = `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}`
-          const nota = limpeza.soCura === true ? daCura : limpeza.tira !== undefined ? (cura > 0 ? `${nomesTirados}, ${daCura}` : nomesTirados) : cura > 0 ? `${tirouDebuffs}, ${daCura}` : tirouDebuffs
+          const notaDaLimpeza = limpeza.soCura === true ? daCura : limpeza.tira !== undefined ? (cura > 0 ? `${nomesTirados}, ${daCura}` : nomesTirados) : cura > 0 ? `${tirouDebuffs}, ${daCura}` : tirouDebuffs
+          const nota = saiuComACura === null || saiuComACura.texto === '' ? notaDaLimpeza : `${notaDaLimpeza}; ${saiuComACura.texto}`
           golpe = golpeComOAlvo(golpe, { ...alvo, nota })
         }
         // Só depois de todo alvo aceito: o pedido recusado no meio (acima) não deixa o veneno tirado de ninguém.
@@ -1042,6 +1111,14 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           return false
         }
         if (curou !== null) partes.push(...reversaoDaFicha(carta.personagemId, curou))
+        // Rework das condições (E3, sair ao receber cura): a vida curada em quem usa tira o que sai com cura, com nota na linha.
+        const saiuComACura = curou !== null && emQuemUsa.recurso === 'hp' ? saidasNoToken(novos, carta.tokenId, { tipo: 'cura' }, nomeDoTokenNa(novos, mesa.personagens())) : null
+        if (saiuComACura !== null && saiuComACura.partes.length > 0) {
+          novos = saiuComACura.turnos
+          partes.push(...saiuComACura.partes)
+          const nota = notaDaLinha(golpe.notaDosRequisitos ?? null, saiuComACura.texto)
+          if (nota !== null) golpe = { ...golpe, notaDosRequisitos: nota }
+        }
       }
       novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
     }
@@ -1061,7 +1138,11 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         }
         daParte.push(...feito.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
-        const noAcerto = seloNoAcerto(sceneKey, novos, golpeDaParte, resolvido)
+        // Rework das condições (E3): o que sai com o dano da parte, antes do selo dela.
+        const saiuComODano = saidasDoDano(novos, golpeDaParte, resolvido, nomeDoTokenNa(novos, mesa.personagens()))
+        novos = saiuComODano.turnos
+        daParte.push(...saiuComODano.partes)
+        const noAcerto = seloNoAcerto(sceneKey, novos, golpeDaParte, saiuComODano.alvo)
         golpeDaParte = golpeComOAlvo(golpeDaParte, noAcerto.alvo)
         if (noAcerto.selado !== null) {
           daParte.push(noAcerto.selado.parte)
@@ -1175,7 +1256,11 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         }
         partes.push({ tipo: 'reacaoComTecnica', golpe, tokenId: esperando.tokenId, alvoAntes: esperando }, ...acerto.partes, ...feito.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
-        const noAcerto = seloNoAcerto(sceneKey, novos, golpe, acerto.alvo)
+        // Rework das condições (E3): o que sai com o dano, antes do selo novo do golpe.
+        const saiuComODano = saidasDoDano(novos, golpe, acerto.alvo, nomeDoTokenNa(novos, mesa.personagens()))
+        novos = saiuComODano.turnos
+        partes.push(...saiuComODano.partes)
+        const noAcerto = seloNoAcerto(sceneKey, novos, golpe, saiuComODano.alvo)
         golpe = golpeComOAlvo(golpe, noAcerto.alvo)
         const selado = noAcerto.selado
         if (selado !== null) {
@@ -1303,8 +1388,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           // Conserto das fichas F1: Overload não erra; o d20 não defende dele (só outra Overload, pela técnica).
           // F2 (revisão da fatia E): Surpresa também não rola (quem espera nela só reage com a técnica que vale contra ela).
           if (!alvo.podeReagir || golpe.overload || golpe.surpresa || (pedido.tipo === 'rolar') !== (alvo.rolagem === undefined)) return false
-          // S4: Atordoado ou Paralisado não reage (o golpe que já esperava também não).
-          if (travaDoToken(turnos.selos, alvo.tokenId) !== null) return false
+          // S4: Atordoado ou Paralisado não reage (o golpe que já esperava também não). D3: o bloqueio "Não pode reagir".
+          if (naoReageDoToken(turnos.selos, alvo.tokenId) !== null) return false
           // F2 (revisão da fatia D): quem está preso no Campo de Contenção rola com desvantagem, sem marcar.
           const selosDoAlvo = selosDoToken(turnos.selos, alvo.tokenId)
           const { d20, vantagem } = rolarComVantagem(deps.rolarD20, vantagemDaReacao(pedido.vantagem, selosDoAlvo, golpe))
@@ -1349,8 +1434,13 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           if (feito === 'recusada') return false
           partes.push(...feito.partes, ...acerto.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
+          // Rework das condições (E3): o que sai com o dano, antes do selo novo do golpe.
+          const saiuComODano = saidasDoDano(marcados, golpe, resolvido, nomeDoTokenNa(marcados, personagens))
+          marcados = saiuComODano.turnos
+          selos = marcados.selos
+          partes.push(...saiuComODano.partes)
           // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo.
-          const noAcerto = seloNoAcerto(sceneKey, marcados, golpe, resolvido)
+          const noAcerto = seloNoAcerto(sceneKey, marcados, golpe, saiuComODano.alvo)
           novo = golpeComOAlvo(novo, noAcerto.alvo)
           const selado = noAcerto.selado
           if (selado !== null) {

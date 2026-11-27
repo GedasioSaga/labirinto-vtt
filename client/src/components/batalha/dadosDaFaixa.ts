@@ -7,6 +7,8 @@ import { membrosDoBando } from '../../lib/batalha/invocacao'
 import { escudoMaisAlto, nomeDoAutor, podeDesfazer, type LinhaDoRegistro, type LinhaParaJogador } from '../../lib/batalha/registro'
 import type { FormaNaBatalha, ModDoSelo, NaturezaDoSelo } from '../../lib/batalha/combate'
 import { lembreteDoSelo } from '../../lib/batalha/condicoes'
+import { condicaoDaFabricaDoSelo } from '../../lib/condicoes/fabrica'
+import { fraseCurta } from '../../lib/condicoes/frasesDaCondicao'
 import { selosDoToken, textoDoSelo, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, nomeDaFormaLigada } from '../../lib/batalha/transformacao'
 import { proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from '../../lib/batalha/turnos'
@@ -105,6 +107,10 @@ export interface SeloNaCarta {
   natureza?: Exclude<NaturezaDoSelo, 'condicao'>
   /** Tipos de habilidade F2: o que o selo soma ("FOR +20, Dano +30"); vazio = nada. */
   mods: string
+  /** Rework das condições (E3): as pilhas, de 2 em diante ("Envenenado ×2"); ausente = 1. */
+  pilhas?: number
+  /** Rework das condições (E3): a frase da condição de fábrica do nome ("Na vez dele, só Passar a vez..."); ausente = selo comum. */
+  frase?: string
 }
 
 /** Um selo como a store (mestre) ou o recorte (jogador) o guardam: só o que a pílula lê. */
@@ -114,13 +120,33 @@ interface SeloLido {
   turnos: number | null
   mods?: readonly ModDoSelo[]
   natureza?: NaturezaDoSelo
+  pilhas?: number
+}
+
+/** Quantas frases de condição a memória da pílula guarda (o nome do selo é digitado à vontade). */
+const FRASES_NA_MEMORIA_MAX = 256
+const FRASE_DO_NOME = new Map<string, string | null>()
+
+/** A frase curta da condição de fábrica do nome do selo (a mesma dos seletores), com memória; `null` = selo comum. */
+function fraseDoSelo(nome: string): string | null {
+  const lembrada = FRASE_DO_NOME.get(nome)
+  if (lembrada !== undefined) return lembrada
+  const condicao = condicaoDaFabricaDoSelo(nome)
+  const frase = condicao === null ? null : fraseCurta(condicao) || null
+  if (FRASE_DO_NOME.size >= FRASES_NA_MEMORIA_MAX) FRASE_DO_NOME.clear()
+  FRASE_DO_NOME.set(nome, frase)
+  return frase
 }
 
 /** As cartas do mesmo token mostram os mesmos selos (a extra também). */
 function selosNaCarta(selos: readonly SeloLido[] | undefined, sistema: SistemaDeRpg | null): SeloNaCarta[] {
   return (selos ?? []).map((selo) => {
-    const naCarta: SeloNaCarta = { id: selo.id ?? null, nome: selo.nome, turnos: selo.turnos, texto: textoDoSelo(selo), mods: textoDosMods(selo.mods, sistema) }
+    const pilhas = selo.pilhas !== undefined && selo.pilhas > 1 ? selo.pilhas : null
+    const naCarta: SeloNaCarta = { id: selo.id ?? null, nome: selo.nome, turnos: selo.turnos, texto: pilhas === null ? textoDoSelo(selo) : `${textoDoSelo(selo)} ×${pilhas}`, mods: textoDosMods(selo.mods, sistema) }
     if (selo.natureza !== undefined && selo.natureza !== 'condicao') naCarta.natureza = selo.natureza
+    if (pilhas !== null) naCarta.pilhas = pilhas
+    const frase = fraseDoSelo(selo.nome)
+    if (frase !== null) naCarta.frase = frase
     return naCarta
   })
 }
@@ -132,11 +158,13 @@ export function textoLongoDoSelo(selo: SeloNaCarta): string {
   // Tipos de habilidade F3: a pílula dourada sem turnos fica até o dono desligar a passiva.
   const ateTirar = selo.natureza === 'passiva' ? 'até desligar' : 'até o mestre tirar'
   const duracao = selo.turnos === null ? ateTirar : `${selo.turnos} ${selo.turnos === 1 ? 'turno' : 'turnos'}`
-  const corpo = `${selo.nome}: ${selo.mods === '' ? duracao : `${selo.mods}, ${duracao}`}`
+  const corpo = `${selo.nome}${selo.pilhas === undefined ? '' : ` (${selo.pilhas} pilhas)`}: ${selo.mods === '' ? duracao : `${selo.mods}, ${duracao}`}`
   const comNatureza = selo.natureza === undefined ? corpo : `${NOME_DA_NATUREZA[selo.natureza]} · ${corpo}`
+  // Rework das condições (E3): a frase da condição (o que ela faz), depois do prazo.
+  const comFrase = selo.frase === undefined ? comNatureza : `${comNatureza} · ${selo.frase}`
   // F2 (fatia A): o selo que só lembra o mestre (Ferido por prata) diz o quê.
   const lembrete = lembreteDoSelo(selo.nome)
-  return lembrete === null ? comNatureza : `${comNatureza} · ${lembrete}`
+  return lembrete === null ? comFrase : `${comFrase} · ${lembrete}`
 }
 
 export interface DadosDaFaixa {

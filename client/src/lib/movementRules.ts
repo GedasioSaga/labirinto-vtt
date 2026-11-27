@@ -12,7 +12,10 @@
 import type { MapData, MovementRules, Token } from '../types/map'
 import type { Point } from '../pixi/world'
 import { measureCells } from './measurement'
-import { tokenConditionsOf } from './tokenConditions'
+import { TOKEN_CONDITION_LABELS, tokenConditionsOf } from './tokenConditions'
+import { condicoesPropriasOf } from './condicoesProprias'
+import { condicaoDaFabrica, condicaoDaFabricaPeloNome } from './condicoes/fabrica'
+import type { PecaDaCondicao } from './condicoes/modelo'
 
 /** Teto do passo máximo: acima disto a regra não limita nada numa mesa real. */
 export const MAX_STEP_CELLS_LIMIT = 99
@@ -70,10 +73,28 @@ export function maxStepOf(map: Pick<MapData, 'movement'>): number | null {
  * armadilha (com prazo, `lib/prazoDaCondicao.ts`) ou de um selo/condição
  * "Lento" da batalha (`lib/ponteDasCondicoes.ts`).
  */
-export function passoMaximoDaFicha(map: Pick<MapData, 'movement'>, token: { conditions?: unknown }): number | null {
+export function passoMaximoDaFicha(map: Pick<MapData, 'movement'>, token: { conditions?: unknown; condicoesProprias?: unknown }): number | null {
   const passo = maxStepOf(map)
+  // Rework das condições (D10): a pastilha de uma condição com "Não pode se mover" (o Enraizado) dá passo 0, como o Lento corta;
+  // a cena sem passo máximo continua livre. O mestre ainda move a ficha (ele não passa por aqui).
+  if (passo !== null && fichaPresa(token)) return 0
   if (passo === null || !tokenConditionsOf(token).includes('lento')) return passo
   return Math.max(1, Math.floor(passo / 2))
+}
+
+/** As peças têm o bloqueio "Não pode se mover". */
+function pecasQuePrendem(pecas: readonly PecaDaCondicao[] | undefined): boolean {
+  return (pecas ?? []).some((peca) => peca.tipo === 'bloqueio' && peca.itens.naoMove === true)
+}
+
+/**
+ * D10: a ficha tem a pastilha de uma condição que não deixa andar: a criada pelas peças dela; a de fábrica (a
+ * pastilha no molde das criadas e as seis de sempre) pelas peças da fábrica. Do jogador a regra não chega
+ * (`semARegra`): o host confere.
+ */
+export function fichaPresa(token: { conditions?: unknown; condicoesProprias?: unknown }): boolean {
+  if (condicoesPropriasOf(token).some((propria) => pecasQuePrendem(propria.pecas ?? condicaoDaFabrica(propria.id)?.pecas))) return true
+  return tokenConditionsOf(token).some((condicao) => pecasQuePrendem(condicaoDaFabricaPeloNome(TOKEN_CONDITION_LABELS[condicao])?.pecas))
 }
 
 /** A cena liga "Fichas ocupam espaço"? */

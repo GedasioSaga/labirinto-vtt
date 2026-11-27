@@ -5,6 +5,8 @@ import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { reducaoDaRaca } from './mecanicasAMao'
 import { efeitosDasFormasLigadas } from './transformacao'
 import type { SeloDaBatalha } from './combate'
+import { comportamentoDoSelo, regrasDoSelo } from './condicoes'
+import { NOMES_DOS_TIPOS_DE_DANO, type TipoDoGolpe } from '../condicoes/modelo'
 
 /**
  * O DANO RECEBIDO QUE CAI, conserto das fichas F1 (fatia S4): o que tira
@@ -65,16 +67,38 @@ export function reducoesDoDano(personagem: Personagem, sistema: SistemaDeRpg): R
   return reducoes
 }
 
+/** O selo como o dano o lê: de quem é, o nome, a regra própria e, no host, a congelada da condição. */
+export type SeloQueMexeNoDano = Pick<SeloDaBatalha, 'tokenId' | 'nome'> & Partial<Pick<SeloDaBatalha, 'regra' | 'regras'>>
+
 /**
  * Fase 5 (SISTEMA.md, `regra.danoRecebido` do selo montado): o selo de quem
  * toma o golpe que corta ou aumenta o dano (−20 = toma 20% a menos, +50 = 50%
  * a mais). Vira uma redução com o nome do selo (o aumento é a redução
- * negativa), na mesma conta da forma e da raça.
+ * negativa), na mesma conta da forma e da raça. Rework das condições (E3):
+ * com `tipos` (os do golpe), também o dano de um tipo só da condição.
  */
-export function reducoesDosSelos(selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'regra'>[] | undefined, tokenId: string): ReducaoDoDano[] {
+export function reducoesDosSelos(selos: readonly SeloQueMexeNoDano[] | undefined, tokenId: string, tipos?: readonly TipoDoGolpe[]): ReducaoDoDano[] {
   return (selos ?? []).flatMap((selo) => {
-    const recebido = selo.tokenId === tokenId ? selo.regra?.danoRecebido : undefined
-    return recebido === undefined || recebido === 0 ? [] : [{ nome: selo.nome, porcento: -recebido }]
+    if (selo.tokenId !== tokenId) return []
+    // Rework das condições (D2, D3): a regra própria do selo; sem ela e sem a congelada, a da de fábrica pelo nome (Vulnerável: +25%).
+    const recebido = selo.regra?.danoRecebido ?? (selo.regra === undefined && selo.regras === undefined ? comportamentoDoSelo(selo.nome)?.danoRecebido : undefined) ?? 0
+    // E3: o dano de um tipo só (Congelado: Impacto +50%), quando o golpe é daquele tipo (o golpe sem tipo é "qualquer": não pega).
+    const doTipo = (regrasDoSelo(selo)?.danoPorTipo ?? []).filter((porTipo) => (tipos ?? []).includes(porTipo.tipo))
+    const reducoes: ReducaoDoDano[] = recebido === 0 ? [] : [{ nome: selo.nome, porcento: -recebido }]
+    for (const porTipo of doTipo) reducoes.push({ nome: `${selo.nome} (${NOMES_DOS_TIPOS_DE_DANO[porTipo.tipo]})`, porcento: -porTipo.porcento })
+    return reducoes
+  })
+}
+
+/**
+ * Rework das condições (E3, o Dano e cura "dano causado"): o que os selos de QUEM BATE fazem no dano que
+ * ele causa (Amedrontado: −20% = causa 20% a menos; Fortalecido: +10%), como uma redução com o nome do selo
+ * (o aumento é a redução negativa), na mesma conta das do alvo. Nenhum: lista vazia.
+ */
+export function reducoesDoDanoCausado(selos: readonly SeloQueMexeNoDano[] | undefined, atacanteTokenId: string): ReducaoDoDano[] {
+  return (selos ?? []).flatMap((selo) => {
+    const causado = selo.tokenId === atacanteTokenId ? (regrasDoSelo(selo)?.danoCausado ?? 0) : 0
+    return causado === 0 ? [] : [{ nome: `${selo.nome} (de quem bate)`, porcento: -causado }]
   })
 }
 

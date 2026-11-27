@@ -1,6 +1,9 @@
-import type { GolpeDaBatalha, LembreteDaPassiva, PorVezDoSelo, SaidaDaReacao, SeloDaBatalha, VantagemDoDado } from './combate'
+import type { GolpeDaBatalha, LembreteDaPassiva, PorVezDoSelo, RegrasDoSelo, SaidaDaReacao, SeloDaBatalha, VantagemDoDado } from './combate'
 import { normalizar } from './formula'
 import type { AlcanceDoSelo } from './mecanica/modelo'
+import { condicaoDaFabricaDoSelo, type CondicaoDeFabrica } from '../condicoes/fabrica'
+import { chaveDaCondicao, type BloqueioDaCondicao, type TipoDaCondicao, type TipoDoGolpe } from '../condicoes/modelo'
+import { traduzirCondicao } from '../condicoes/traducao'
 
 /**
  * CONDIÇÕES QUE A REGRA APLICA, conserto das fichas F1 (fatia S4; regras do
@@ -13,6 +16,14 @@ import type { AlcanceDoSelo } from './mecanica/modelo'
  *
  * O selo é achado pelo NOME ("Atordoado 2", "Sangrando"), sem acento nem
  * caixa: vale o posto à mão e o que o golpe sugeriu.
+ *
+ * Rework das condições (docs/design/condicoes-rework/PLANO.md D2 e D3, E3): a tabela pelo nome virou a
+ * FÁBRICA (`lib/condicoes/fabrica.ts`). O selo que nasceu de uma condição do catálogo traz a regra dela
+ * congelada (`SeloDaBatalha.regras`, `criarSelo`); o que não traz (batalha salva antes, nome digitado,
+ * Worker antes do deploy, a carta do jogador) acha a de fábrica pelo nome na hora, pela tradução dela
+ * (`traduzirCondicao`). Na tabela ficam só as de uma ficha (Imã-Gumelo, Campo de Contenção, Atração,
+ * Redoma, Chamas Celestes e a Bênção de uma Raposa). "Perde a vez" e "não reage" são dois bloqueios:
+ * `travaDosSelos` é o primeiro (só "Passar a vez"), `naoReageDosSelos` o segundo.
  *
  * Puro: sem store, sem rede.
  */
@@ -28,8 +39,12 @@ export interface ComportamentoDoSelo {
   /** O nome que a tela mostra ("Aéreo"). */
   nome: string
   sinal: RegExp
-  /** Na vez do dono só "Passar a vez", e ele não reage. */
+  /** Na vez do dono só "Passar a vez", e ele não reage (os dois bloqueios juntos, como o Atordoado de sempre). */
   trava?: true
+  /** Rework das condições (D3): na vez do dono só "Passar a vez" (o bloqueio "Perde a vez"). */
+  perdeVez?: true
+  /** Rework das condições (D3): o golpe nele resolve sem caixa de reação (o bloqueio "Não pode reagir"). */
+  naoReage?: true
   /** As saídas da reação que o selo tira (Aéreo: Esquiva e Contra-ataque; Defender e Receber ficam). */
   tiraSaidas?: readonly SaidaDaReacao[]
   /** O atributo que fica em 0 enquanto o selo existe (Cego: Percepção). Lido na hora (`bonusDaBatalha` põe a parte que zera), nunca congelado quando o selo nasce. */
@@ -65,33 +80,33 @@ export interface ComportamentoDoSelo {
    * Ofuscado...) é o lote SEGUINTE, com perguntas e protótipo próprios.
    */
   alcance?: AlcanceDoSelo
+  /** Rework das condições (D3): o dano que quem tem o selo recebe, em % (Vulnerável: +25), quando o selo não traz a própria regra (`regra.danoRecebido`). */
+  danoRecebido?: number
+  /** Rework das condições (E3, a marca pela condição): a Marca da de fábrica (Marcado: o dobro, sai no golpe que a usa), para o selo sem a regra congelada. */
+  marca?: { vezes?: number; fica?: true }
+  /** Rework das condições (D3): o id da de fábrica ("queimando"). Ausente = da tabela das de uma ficha. */
+  condId?: string
+  /** Rework das condições (D1): a regra da de fábrica, traduzida (os bloqueios, o tipo, as saídas, o contra...). Ausente = da tabela. */
+  regras?: RegrasDoSelo
 }
 
 /** Regra do sistema (respostas do Alexei e do Siegfried): o Sangramento tira 10 por vez, direto no HP. */
 export const DANO_DO_SANGRAMENTO = 10
 const NOME_DO_SANGRAMENTO = 'Sangrando'
+const ID_DO_SANGRAMENTO = 'sangrando'
 
 /** CURA REDUZIDA (decisão do dono de 25/11/2026): o nome da condição e o corte de partida, em % (a bala de prata: metade). */
 export const NOME_DA_CURA_REDUZIDA = 'Cura reduzida'
 export const CURA_REDUZIDA_PADRAO = 50
 
-/** A tabela, na ordem em que o nome é procurado. */
+/**
+ * A tabela das de UMA FICHA, na ordem em que o nome é procurado (antes da fábrica). As gerais (Atordoado,
+ * Paralisado, Aéreo, Cego, Marcado, Cura reduzida, Sangrando, Queimando, Enraizado) moraram aqui até a
+ * 0.6.6; agora são de fábrica (D3) e fazem o mesmo pela tradução.
+ */
 const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
-  { nome: 'Atordoado', sinal: /^atordoad/, trava: true },
-  { nome: 'Paralisado', sinal: /^paralisad/, trava: true },
-  { nome: 'Aéreo', sinal: /^aere[oa]/, tiraSaidas: ['esquiva', 'contra'] },
-  { nome: 'Cego', sinal: /^ceg[oa]/, zera: 'percepcao' },
-  // Vincent (Olhar artístico, resposta do mestre): "deixa o Dano Dobrado e coloca que o alvo tem desvantagem em desviar". O dobro mora em `marca.ts`.
-  { nome: 'Marcado', sinal: /^marcad[oa]/, esquivaComDesvantagem: true },
-  // CURA REDUZIDA (decisão do dono de 25/11/2026): condição de verdade no lugar do lembrete "Ferido por prata" do Vincent; toda
-  // cura que chega já vem cortada (`curaComOsSelos`) e a linha do registro diz o corte. O nome velho continua achado (batalha salva).
-  { nome: NOME_DA_CURA_REDUZIDA, sinal: /^(cura reduzida|ferid[oa] por prata)/, curaRecebida: -CURA_REDUZIDA_PADRAO },
-  { nome: NOME_DO_SANGRAMENTO, sinal: /^sangr/, porVez: DANO_DO_SANGRAMENTO, verbo: 'sangra' },
-  { nome: 'Queimando', sinal: /^queima/, porVez: 10, verbo: 'queima', renova: true },
   // Aira (texto novo do mestre): "toda vez que um aliado com esse buff causar dano ele vai recuperar na vida 10% do dano que ele causou".
   { nome: 'Bênção de uma Raposa', sinal: /^bencao de uma raposa/, curaDoDano: 10 },
-  // Alexei (armadilhas; o mestre põe o selo em quem pisou, pelo "Pôr selo…"): o app só lembra a regra, a armadilha no mapa é do construtor.
-  { nome: 'Enraizado', sinal: /^enraizad/, lembrete: 'não anda: sai destruindo a planta, ou com técnica de movimento e d20 15 ou mais' },
   { nome: 'Preso pelo Imã-Gumelo', sinal: /^preso pelo ima/, lembrete: 'para se mover ou arremessar, d20 12 ou mais (senão fica no lugar)' },
   // Vagn (Campo de Contenção; o golpe põe nos marcados, e sai quando ele para de manter): "se alguém que foi pego no campo usar
   // reação de algum golpe vai jogar com desvantagem". O teste para se aproximar ou atacar o Vagn é do mestre (o app não sabe quem
@@ -121,9 +136,172 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
 /**
  * Construtor C5: os selos com regra que a tela de montar oferece em botões, na
  * ordem da tela. Só os gerais: os de uma ficha só (a redoma do Siegfried, o
- * campo do Vagn) ficam de fora. Todos estão na tabela acima.
+ * campo do Vagn) ficam de fora. Rework das condições (D3): Envenenado, Lento e Confuso ganharam regra
+ * (são de fábrica) e entram no fim, para os botões da tela seguirem os mesmos, na mesma ordem.
  */
-export const SELOS_COM_REGRA = ['Atordoado', 'Paralisado', 'Aéreo', 'Cego', 'Marcado', 'Sangrando', 'Queimando', NOME_DA_CURA_REDUZIDA] as const
+export const SELOS_COM_REGRA = ['Atordoado', 'Paralisado', 'Aéreo', 'Cego', 'Marcado', 'Sangrando', 'Queimando', NOME_DA_CURA_REDUZIDA, 'Envenenado', 'Lento', 'Confuso'] as const // as const: só estreita os literais (o tipo dos botões da tela), não converte valor
+
+// ─── A de fábrica pelo nome (D3) ─────────────────────────────────────────────
+
+/** As saídas da reação que quem "não pode desviar" perde (o Aéreo de sempre: Defender e Receber ficam). */
+const SAIDAS_DE_QUEM_NAO_DESVIA: readonly SaidaDaReacao[] = ['esquiva', 'contra']
+
+/** O verbo da linha do "Aplicar" das de fábrica que tiram vida por vez; as outras dizem "sofre com X". */
+const VERBOS_DO_POR_VEZ: Readonly<Record<string, string>> = { sangrando: 'sangra', queimando: 'queima' }
+
+/** Quantos nomes de selo a memória de nome → de fábrica guarda (a mesa digita nomes à vontade). */
+const NOMES_NA_MEMORIA_MAX = 512
+
+const FABRICA_DO_NOME = new Map<string, CondicaoDeFabrica | null>()
+const COMPORTAMENTO_DA_FABRICA = new Map<string, ComportamentoDoSelo>()
+
+function escaparRegex(texto: string): string {
+  return texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** A de fábrica pelo nome do selo (o exato, o apelido, o começo de nome de antes), com memória. */
+function fabricaDoSelo(nomeDoSelo: string): CondicaoDeFabrica | null {
+  const lembrada = FABRICA_DO_NOME.get(nomeDoSelo)
+  if (lembrada !== undefined) return lembrada
+  const achada = condicaoDaFabricaDoSelo(nomeDoSelo)
+  if (FABRICA_DO_NOME.size >= NOMES_NA_MEMORIA_MAX) FABRICA_DO_NOME.clear()
+  FABRICA_DO_NOME.set(nomeDoSelo, achada)
+  return achada
+}
+
+/**
+ * A vida fixa que a condição tira no começo de cada vez (a 1ª peça assim): o "Aplicar / pular" do mestre.
+ * A tradução põe em `porVez` só a que é direto na vida; a que passa pelo Escudo (Queimando, Envenenado)
+ * fica em `regras.vez`, e o lembrete a tira do mesmo jeito (E5 faz o Escudo valer). `undefined` = nenhuma.
+ */
+function vidaNoComecoDaVez(regras: RegrasDoSelo | undefined): number | undefined {
+  const efeito = regras?.vez?.find((vez) => vez.quando === 'comeco' && vez.faz === 'tira' && vez.recurso === 'vida' && vez.conta === 'fixo' && vez.rouba !== true && vez.v > 0)
+  return efeito?.v
+}
+
+/** O comportamento da de fábrica, da tradução dela com o pedido vazio (1 pilha, o prazo dela). Um objeto por condição. */
+function comportamentoDaFabrica(condicao: CondicaoDeFabrica): ComportamentoDoSelo {
+  const lembrado = COMPORTAMENTO_DA_FABRICA.get(condicao.id)
+  if (lembrado !== undefined) return lembrado
+  const traduzido = traduzirCondicao(condicao)
+  const regras = traduzido.regras
+  const bloqueios = new Set(regras?.bloqueios ?? [])
+  const comportamento: ComportamentoDoSelo = { nome: condicao.nome, sinal: new RegExp(`^${escaparRegex(chaveDaCondicao(condicao.nome))}`), condId: condicao.id }
+  if (regras !== undefined) comportamento.regras = regras
+  if (bloqueios.has('perdeVez')) comportamento.perdeVez = true
+  if (bloqueios.has('naoReage')) comportamento.naoReage = true
+  if (bloqueios.has('perdeVez') && bloqueios.has('naoReage')) comportamento.trava = true
+  if (bloqueios.has('naoDesvia')) comportamento.tiraSaidas = SAIDAS_DE_QUEM_NAO_DESVIA
+  const zera = regras?.ficaEm?.find((fica) => fica.v === 0)
+  if (zera !== undefined) comportamento.zera = zera.alvo
+  const porVez = traduzido.porVez ?? vidaNoComecoDaVez(regras)
+  if (porVez !== undefined) comportamento.porVez = porVez
+  const verbo = VERBOS_DO_POR_VEZ[condicao.id]
+  if (verbo !== undefined) comportamento.verbo = verbo
+  if (regras?.deNovo === 'renova') comportamento.renova = true
+  if (regras?.curaDoDano !== undefined) comportamento.curaDoDano = regras.curaDoDano
+  if (traduzido.regra?.curaRecebida !== undefined) comportamento.curaRecebida = traduzido.regra.curaRecebida
+  if (traduzido.regra?.danoRecebido !== undefined && traduzido.regra.danoRecebido !== 0) comportamento.danoRecebido = traduzido.regra.danoRecebido
+  if (traduzido.regra?.reageComDesvantagem === true) comportamento.reageComDesvantagem = true
+  if (traduzido.marca === true) {
+    const marca: NonNullable<ComportamentoDoSelo['marca']> = {}
+    if (traduzido.marcaVezes !== undefined) marca.vezes = traduzido.marcaVezes
+    if (traduzido.marcaFica === true) marca.fica = true
+    comportamento.marca = marca
+  }
+  if (regras?.esquivaComDesvantagem === true) comportamento.esquivaComDesvantagem = true
+  if (traduzido.saiNoProximoGolpe === true) comportamento.saiNoProximoGolpe = true
+  if (traduzido.alcance !== undefined) comportamento.alcance = traduzido.alcance
+  COMPORTAMENTO_DA_FABRICA.set(condicao.id, comportamento)
+  return comportamento
+}
+
+/**
+ * O comportamento do selo pelo nome (sem acento nem caixa): a tabela das de uma ficha, depois a de fábrica
+ * (o nome, o apelido e o começo de nome de antes: "Atordoado 2", "Ferida por prata"); `null` = selo comum.
+ * O mesmo nome dá sempre o MESMO objeto ("Atordoado" e "Atordoado 2" também).
+ */
+export function comportamentoDoSelo(nomeDoSelo: string): ComportamentoDoSelo | null {
+  const normal = normalizar(nomeDoSelo).trim()
+  const daTabela = COMPORTAMENTOS_DOS_SELOS.find((comportamento) => comportamento.sinal.test(normal))
+  if (daTabela !== undefined) return daTabela
+  const daFabrica = fabricaDoSelo(nomeDoSelo)
+  return daFabrica === null ? null : comportamentoDaFabrica(daFabrica)
+}
+
+// ─── O selo como as regras o leem (D2) ───────────────────────────────────────
+
+/** O selo para as regras: o nome e, no host, a regra congelada e a própria (o jogador só tem o nome). */
+export type SeloComARegra = Pick<SeloDaBatalha, 'nome'> & Partial<Pick<SeloDaBatalha, 'regras' | 'regra'>>
+
+/**
+ * A regra da condição do selo: a congelada quando ele nasceu (D2) ou, sem ela, a da de fábrica pelo nome
+ * (D3). `null` = selo comum ou da tabela das de uma ficha.
+ */
+export function regrasDoSelo(selo: Pick<SeloDaBatalha, 'nome'> & Partial<Pick<SeloDaBatalha, 'regras'>>): RegrasDoSelo | null {
+  return selo.regras ?? comportamentoDoSelo(selo.nome)?.regras ?? null
+}
+
+/** O que vale pelo nome: só no selo sem regra congelada (o congelado de uma criada não volta para a de fábrica). */
+function peloNome(selo: Pick<SeloDaBatalha, 'nome'> & Partial<Pick<SeloDaBatalha, 'regras'>>): ComportamentoDoSelo | null {
+  return selo.regras === undefined ? comportamentoDoSelo(selo.nome) : null
+}
+
+/** Negativa ou positiva, pela condição do selo; `null` = selo comum (vale a natureza, como antes). */
+export function tipoDoSelo(selo: Pick<SeloDaBatalha, 'nome'> & Partial<Pick<SeloDaBatalha, 'regras'>>): TipoDaCondicao | null {
+  return regrasDoSelo(selo)?.tipo ?? null
+}
+
+/** O selo tem o bloqueio (pela condição dele)? */
+export function seloComBloqueio(selo: SeloComARegra, bloqueio: BloqueioDaCondicao): boolean {
+  return regrasDoSelo(selo)?.bloqueios?.includes(bloqueio) === true
+}
+
+/** O nome da condição do selo: o da de fábrica ("Atordoado 2" é o "Atordoado"), senão o do selo. É o que o contra e a frase do motivo comparam. */
+export function nomeDaCondicaoDoSelo(selo: Pick<SeloDaBatalha, 'nome'>): string {
+  return comportamentoDoSelo(selo.nome)?.nome ?? selo.nome
+}
+
+function nomeNoMotivo(selo: Pick<SeloDaBatalha, 'nome'>): string {
+  return nomeDaCondicaoDoSelo(selo)
+}
+
+/** A condição (o nome) com o bloqueio entre os selos; `null` = nenhuma. */
+function condicaoComBloqueio(selos: readonly SeloComARegra[] | undefined, bloqueio: BloqueioDaCondicao): string | null {
+  for (const selo of selos ?? []) if (seloComBloqueio(selo, bloqueio)) return nomeNoMotivo(selo)
+  return null
+}
+
+/** O pedaço do motivo de cada bloqueio ("Silenciado: não pode usar técnica"). */
+const MOTIVO_DO_BLOQUEIO: Readonly<Record<BloqueioDaCondicao, string>> = {
+  perdeVez: 'nesta vez só dá para passar a vez',
+  naoReage: 'não reage',
+  reageDesv: 'reage com desvantagem',
+  naoDesvia: 'não pode desviar',
+  naoMove: 'não pode se mover',
+  naoTecnica: 'não pode usar técnica',
+  soSimples: 'só usa ação simples (sem Completa nem Bônus)',
+  naoAlvo: 'não pode ser alvo de golpe',
+}
+
+/**
+ * D10: por que a ficha `tokenId` não pode o que o bloqueio proíbe ("Silenciado: não pode usar técnica",
+ * "Invisível: não pode ser alvo de golpe"), pelos selos dela; `null` = pode. O host e o menu leem daqui.
+ */
+export function motivoDoBloqueio(selos: readonly (SeloComARegra & Pick<SeloDaBatalha, 'tokenId'>)[] | undefined, tokenId: string, bloqueio: BloqueioDaCondicao): string | null {
+  return motivoDoBloqueioNosSelos(
+    (selos ?? []).filter((selo) => selo.tokenId === tokenId),
+    bloqueio,
+  )
+}
+
+/** O mesmo motivo, com os selos de UMA ficha (a carta do jogador traz só os dela, sem o token). `null` = pode. */
+export function motivoDoBloqueioNosSelos(selos: readonly SeloComARegra[] | undefined, bloqueio: BloqueioDaCondicao): string | null {
+  const condicao = condicaoComBloqueio(selos, bloqueio)
+  return condicao === null ? null : `${condicao}: ${MOTIVO_DO_BLOQUEIO[bloqueio]}`
+}
+
+// ─── As regras de sempre, agora pela condição ─────────────────────────────────
 
 /**
  * F2 (fatia F, redoma da Orquídea): os selos que saem porque um golpe novo
@@ -135,7 +313,7 @@ export const SELOS_COM_REGRA = ['Atordoado', 'Paralisado', 'Aéreo', 'Cego', 'Ma
  */
 export function selosQueSaemNoGolpe(selos: readonly SeloDaBatalha[] | undefined, alvosTokenIds: readonly string[], ajuda = false): SeloDaBatalha[] {
   const alvos = new Set(alvosTokenIds)
-  return (selos ?? []).filter((selo) => alvos.has(selo.tokenId) && (comportamentoDoSelo(selo.nome)?.saiNoProximoGolpe === true || (!ajuda && selo.saiNoProximoGolpe === true)))
+  return (selos ?? []).filter((selo) => alvos.has(selo.tokenId) && (peloNome(selo)?.saiNoProximoGolpe === true || (!ajuda && selo.saiNoProximoGolpe === true)))
 }
 
 /**
@@ -143,11 +321,12 @@ export function selosQueSaemNoGolpe(selos: readonly SeloDaBatalha[] | undefined,
  * reage que pede desvantagem (Preso no Campo de Contenção) vence o que veio no
  * pedido, como o mestre disse ("vai jogar com desvantagem"); sem ele, vale o pedido.
  */
-export function vantagemDaReacao(pedida: VantagemDoDado | undefined, selos: readonly Pick<SeloDaBatalha, 'nome' | 'regra'>[] | undefined, golpe?: Pick<GolpeDaBatalha, 'reacaoComDesvantagem'>): VantagemDoDado | undefined {
+export function vantagemDaReacao(pedida: VantagemDoDado | undefined, selos: readonly SeloComARegra[] | undefined, golpe?: Pick<GolpeDaBatalha, 'reacaoComDesvantagem'>): VantagemDoDado | undefined {
   // F2 (fatia E): o golpe com a vantagem de Ogro (a Ryoko respondeu "sim") também faz o alvo rolar com desvantagem.
   if (golpe?.reacaoComDesvantagem === true) return 'desvantagem'
   // Fase ED4: também o selo montado com a regra (o Congelado do tipo do golpe), além da tabela pelo nome.
-  return (selos ?? []).some((selo) => selo.regra?.reageComDesvantagem === true || comportamentoDoSelo(selo.nome)?.reageComDesvantagem === true) ? 'desvantagem' : pedida
+  // Rework das condições: o "reage com desvantagem" da condição vai em `regra` (a congelada) ou vem da de fábrica pelo nome.
+  return (selos ?? []).some((selo) => selo.regra?.reageComDesvantagem === true || peloNome(selo)?.reageComDesvantagem === true) ? 'desvantagem' : pedida
 }
 
 /**
@@ -155,20 +334,21 @@ export function vantagemDaReacao(pedida: VantagemDoDado | undefined, selos: read
  * desvantagem? Não quando a reação inteira já rola com desvantagem (o dado que
  * ficou já é o menor). `vantagem` = a com que a reação rolou.
  */
-export function esquivaComDesvantagem(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined, vantagem: VantagemDoDado | undefined): boolean {
+export function esquivaComDesvantagem(selos: readonly SeloComARegra[] | undefined, vantagem: VantagemDoDado | undefined): boolean {
   if (vantagem === 'desvantagem') return false
-  return (selos ?? []).some((selo) => comportamentoDoSelo(selo.nome)?.esquivaComDesvantagem === true)
+  return (selos ?? []).some((selo) => regrasDoSelo(selo)?.esquivaComDesvantagem === true || peloNome(selo)?.esquivaComDesvantagem === true)
 }
 
 /**
  * F2 (fatia C): a porcentagem do dano que volta em vida para quem bate, pelos
- * selos dele agora (a maior vale; não somam). 0 = nenhum.
+ * selos dele agora (a maior vale; não somam). 0 = nenhum. Rework das condições: também a da condição
+ * (Abençoado: 10).
  */
-export function curaDoDanoDosSelos(selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome'>[] | undefined, tokenId: string): number {
-  return (selos ?? []).reduce((maior, selo) => (selo.tokenId === tokenId ? Math.max(maior, comportamentoDoSelo(selo.nome)?.curaDoDano ?? 0) : maior), 0)
+export function curaDoDanoDosSelos(selos: readonly (Pick<SeloDaBatalha, 'tokenId' | 'nome'> & Partial<Pick<SeloDaBatalha, 'regras'>>)[] | undefined, tokenId: string): number {
+  return (selos ?? []).reduce((maior, selo) => (selo.tokenId === tokenId ? Math.max(maior, regrasDoSelo(selo)?.curaDoDano ?? 0, peloNome(selo)?.curaDoDano ?? 0) : maior), 0)
 }
 
-type SeloQueMexeNaCura = Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'regra'>
+type SeloQueMexeNaCura = Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'regra'> & Partial<Pick<SeloDaBatalha, 'regras'>>
 
 /**
  * Os selos de `tokenId` que mudam a cura que ele recebe, com o % de cada: o da regra do selo montado
@@ -177,7 +357,7 @@ type SeloQueMexeNaCura = Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'regra'>
 function selosQueMexemNaCura(selos: readonly SeloQueMexeNaCura[] | undefined, tokenId: string): { nome: string; porcento: number }[] {
   return (selos ?? []).flatMap((selo) => {
     if (selo.tokenId !== tokenId) return []
-    const porcento = selo.regra?.curaRecebida ?? comportamentoDoSelo(selo.nome)?.curaRecebida
+    const porcento = selo.regra?.curaRecebida ?? peloNome(selo)?.curaRecebida
     return porcento === undefined || porcento === 0 ? [] : [{ nome: selo.nome, porcento }]
   })
 }
@@ -208,100 +388,135 @@ export function curaDoDano(dano: number, porcento: number): number {
   return dano > 0 && porcento > 0 ? Math.floor((dano * porcento) / 100) : 0
 }
 
-/** O comportamento do selo pelo nome (sem acento nem caixa); `null` = selo comum. */
-export function comportamentoDoSelo(nomeDoSelo: string): ComportamentoDoSelo | null {
-  const normal = normalizar(nomeDoSelo).trim()
-  return COMPORTAMENTOS_DOS_SELOS.find((comportamento) => comportamento.sinal.test(normal)) ?? null
-}
-
-/** O que o selo só lembra ao mestre (Enraizado: não anda), para o título da pílula; `null` = nada a lembrar. */
+/** O que o selo só lembra ao mestre (Preso no Campo de Contenção), para o título da pílula; `null` = nada a lembrar. */
 export function lembreteDoSelo(nomeDoSelo: string): string | null {
   return comportamentoDoSelo(nomeDoSelo)?.lembrete ?? null
 }
 
-/** Fase B do alcance: o que a condição, pelo nome, faz no alcance de quem a tem; `null` = não mexe (hoje, nenhuma da tabela). */
+/** Fase B do alcance: o que a condição, pelo nome, faz no alcance de quem a tem; `null` = não mexe. */
 export function alcanceDaCondicao(nomeDoSelo: string): AlcanceDoSelo | null {
   return comportamentoDoSelo(nomeDoSelo)?.alcance ?? null
-}
-
-/** O nome da condição que trava ("Atordoado"), se o selo é uma; `null` = não trava. */
-function condicaoQueTrava(nomeDoSelo: string): string | null {
-  const comportamento = comportamentoDoSelo(nomeDoSelo)
-  return comportamento?.trava === true ? comportamento.nome : null
 }
 
 /**
  * As saídas da reação que o d20 liberou, sem as que os selos de quem reage
  * tiram (Aéreo: só Defender e Receber). A melhor que sobra fica primeiro.
  */
-export function saidasComOsSelos(saidas: readonly SaidaDaReacao[], selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): SaidaDaReacao[] {
+export function saidasComOsSelos(saidas: readonly SaidaDaReacao[], selos: readonly SeloComARegra[] | undefined): SaidaDaReacao[] {
   const tiradas = new Set(saidasTiradas(selos))
   return saidas.filter((saida) => !tiradas.has(saida))
 }
 
-/** As saídas que os selos de quem reage tiram (Aéreo: Esquiva e Contra-ataque); nenhuma = vazio. */
-export function saidasTiradas(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): SaidaDaReacao[] {
-  return [...new Set((selos ?? []).flatMap((selo) => comportamentoDoSelo(selo.nome)?.tiraSaidas ?? []))]
+/** As saídas que os selos de quem reage tiram (Aéreo, Caído: Esquiva e Contra-ataque); nenhuma = vazio. */
+export function saidasTiradas(selos: readonly SeloComARegra[] | undefined): SaidaDaReacao[] {
+  return [...new Set((selos ?? []).flatMap((selo) => (seloComBloqueio(selo, 'naoDesvia') ? SAIDAS_DE_QUEM_NAO_DESVIA : (peloNome(selo)?.tiraSaidas ?? []))))]
 }
 
 /**
- * Quanto o selo tira por vez (o dele, ou o da tabela); `null` = não tira.
+ * Quanto o selo tira por vez (o dele, ou o da condição); `null` = não tira.
  * Construtor C5: o selo montado com "tira X por vez" tira mesmo com nome fora
  * da tabela (um veneno de NPC). O `porVez` do selo só nasce no host, da peça
- * ou da tabela à mão (o Queimando da Aira), então nenhum selo de hoje muda.
+ * ou da condição (o Queimando da Aira). Rework das condições: o da condição é a 1ª vida fixa que ela tira
+ * no começo da vez (a congelada no selo, já vezes as pilhas; ou a da de fábrica pelo nome).
  */
-export function danoPorVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'>): number | null {
+export function danoPorVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'> & Partial<Pick<SeloDaBatalha, 'regras'>>): number | null {
   const doSelo = selo.porVez !== undefined && Number.isInteger(selo.porVez) && selo.porVez > 0 ? selo.porVez : null
-  return doSelo ?? comportamentoDoSelo(selo.nome)?.porVez ?? null
+  const daCondicao = selo.regras !== undefined ? vidaNoComecoDaVez(selo.regras) : comportamentoDoSelo(selo.nome)?.porVez
+  return doSelo ?? daCondicao ?? null
 }
 
-/** O nome da tabela ("Queimando"), ou o do selo fora dela, e quanto tira por vez; `null` = não tira. */
-export function porVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'>): PorVezDoSelo | null {
+/** O nome da condição ("Queimando"), ou o do selo fora dela, e quanto tira por vez; `null` = não tira. */
+export function porVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'> & Partial<Pick<SeloDaBatalha, 'regras'>>): PorVezDoSelo | null {
   const dano = danoPorVezDoSelo(selo)
   return dano === null ? null : { nome: comportamentoDoSelo(selo.nome)?.nome ?? selo.nome, dano }
 }
 
-/** O verbo da linha do Aplicar ("sangra", "queima"); fora da tabela, "sofre com Veneno". */
+/** O verbo da linha do Aplicar ("sangra", "queima"); fora delas, "sofre com Veneno". */
 export function verboDoPorVez(nomeDoSelo: string): string {
   return comportamentoDoSelo(nomeDoSelo)?.verbo ?? `sofre com ${nomeDoSelo}`
 }
 
 /** "Atordoado: nesta vez só dá para passar a vez". */
 export function motivoDaTrava(condicao: string): string {
-  return `${condicao}: nesta vez só dá para passar a vez`
-}
-
-/** A condição que trava ("Atordoado") entre os selos da ficha; `null` = livre. */
-function condicaoDosSelos(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): string | null {
-  for (const selo of selos ?? []) {
-    const condicao = condicaoQueTrava(selo.nome)
-    if (condicao !== null) return condicao
-  }
-  return null
+  return `${condicao}: ${MOTIVO_DO_BLOQUEIO.perdeVez}`
 }
 
 /**
- * Por que a ficha não age nem reage agora (Atordoado ou Paralisado), ou
- * `null`. `selos` = os da ficha (o jogador passa os da carta dele).
+ * Por que a ficha não age agora (Atordoado, Paralisado, Dormindo: o bloqueio "Perde a vez"), ou `null`.
+ * `selos` = os da ficha (o jogador passa os da carta dele, só com o nome: vale a de fábrica).
  */
-export function travaDosSelos(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): string | null {
-  const condicao = condicaoDosSelos(selos)
+export function travaDosSelos(selos: readonly SeloComARegra[] | undefined): string | null {
+  const condicao = condicaoComBloqueio(selos, 'perdeVez')
   return condicao === null ? null : motivoDaTrava(condicao)
 }
 
 /**
+ * Rework das condições (D3): por que a ficha não reage agora (o bloqueio "Não pode reagir": o golpe nela
+ * resolve sem caixa de reação), ou `null`. As de fábrica que travam (Atordoado, Paralisado, Dormindo) têm
+ * os dois bloqueios: travam a vez e a reação, como antes.
+ */
+export function naoReageDosSelos(selos: readonly SeloComARegra[] | undefined): string | null {
+  const condicao = condicaoComBloqueio(selos, 'naoReage')
+  return condicao === null ? null : `${condicao}: ${MOTIVO_DO_BLOQUEIO.naoReage}`
+}
+
+/** A ficha `tokenId` não reage agora (o motivo); `null` = reage. */
+export function naoReageDoToken(selos: readonly (SeloComARegra & Pick<SeloDaBatalha, 'tokenId'>)[] | undefined, tokenId: string): string | null {
+  return naoReageDosSelos((selos ?? []).filter((selo) => selo.tokenId === tokenId))
+}
+
+/**
  * Por que a ficha não carrega o contador (a Polaridade) agora: carregar gasta
- * a reação, e quem está Atordoado ou Paralisado não reage. `null` = livre.
+ * a reação, e quem não reage (Atordoado, Paralisado) não carrega. `null` = livre.
  * `selos` = os da ficha, como em `travaDosSelos`.
  */
-export function travaDoContador(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): string | null {
-  const condicao = condicaoDosSelos(selos)
+export function travaDoContador(selos: readonly SeloComARegra[] | undefined): string | null {
+  const condicao = condicaoComBloqueio(selos, 'naoReage')
   return condicao === null ? null : `${condicao}: não reage, então não dá para carregar`
 }
 
 /** A trava da ficha `tokenId` entre os selos da cena; `null` = livre. */
-export function travaDoToken(selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome'>[] | undefined, tokenId: string): string | null {
+export function travaDoToken(selos: readonly (SeloComARegra & Pick<SeloDaBatalha, 'tokenId'>)[] | undefined, tokenId: string): string | null {
   return travaDosSelos((selos ?? []).filter((selo) => selo.tokenId === tokenId))
+}
+
+// ─── As saídas que a batalha vê acontecer (D8, E3) ───────────────────────────
+
+/** O que aconteceu com quem tem o selo: recebeu cura, tomou dano (dos tipos do golpe; vazio = sem tipo), ou agiu (atacou, usou técnica). */
+export type AcontecimentoDaSaida = { tipo: 'cura' } | { tipo: 'dano'; tipos: readonly TipoDoGolpe[] } | { tipo: 'agir' }
+
+/**
+ * Os selos de `tokenId` que saem com o acontecimento, pelas saídas da condição deles (Sangrando sai com
+ * cura; Congelado e Molhado com dano de Fogo; Confuso e Dormindo com qualquer dano; Invisível ao agir). O
+ * golpe sem tipo só tira o "qualquer dano". O espelho de uma condição da ficha não sai aqui: ela mora na
+ * ficha (a vez e a ficha são da E5). Nenhum = vazio.
+ */
+export function selosQueSaemCom(selos: readonly SeloDaBatalha[] | undefined, tokenId: string, acontecimento: AcontecimentoDaSaida): SeloDaBatalha[] {
+  return (selos ?? []).filter((selo) => {
+    if (selo.tokenId !== tokenId || selo.daPastilha === true) return false
+    return (regrasDoSelo(selo)?.saidas ?? []).some((saida) => {
+      if (saida.tipo !== acontecimento.tipo) return false
+      if (saida.tipo !== 'dano' || acontecimento.tipo !== 'dano') return true
+      return saida.dano === 'qualquer' || acontecimento.tipos.some((tipo) => tipo === saida.dano)
+    })
+  })
+}
+
+/** "Sangrando saiu de Ilo (recebeu cura)": o pedaço da linha; nenhum = ''. */
+export function textoDasSaidasDoSelo(saem: readonly Pick<SeloDaBatalha, 'nome'>[], acontecimento: AcontecimentoDaSaida, nomeDoToken: string): string {
+  if (saem.length === 0) return ''
+  const porque = acontecimento.tipo === 'cura' ? 'recebeu cura' : acontecimento.tipo === 'agir' ? 'agiu' : 'tomou dano'
+  return `${saem.map((selo) => selo.nome).join(', ')} ${saem.length === 1 ? 'saiu' : 'saíram'} de ${nomeDoToken} (${porque})`
+}
+
+/**
+ * Rework das condições (E3): os que saem de `tokenId` com o acontecimento, os selos da cena sem eles e o
+ * texto da linha. Nada sai = `sairam` vazio (quem chama não mexe na cena).
+ */
+export function selosSemOsQueSaem(selos: readonly SeloDaBatalha[] | undefined, tokenId: string, acontecimento: AcontecimentoDaSaida, nomeDoToken: string): { selos: SeloDaBatalha[]; sairam: SeloDaBatalha[]; texto: string } {
+  const sairam = selosQueSaemCom(selos, tokenId, acontecimento)
+  const ids = new Set(sairam.map((selo) => selo.id))
+  return { selos: (selos ?? []).filter((selo) => !ids.has(selo.id)), sairam, texto: textoDasSaidasDoSelo(sairam, acontecimento, nomeDoToken) }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -310,7 +525,7 @@ export function travaDoToken(selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'no
 
 /** O selo é de sangramento ("Sangrando", "Sangramento 3"). */
 export function ehSeloDeSangramento(selo: Pick<SeloDaBatalha, 'nome'>): boolean {
-  return comportamentoDoSelo(selo.nome)?.nome === NOME_DO_SANGRAMENTO
+  return comportamentoDoSelo(selo.nome)?.condId === ID_DO_SANGRAMENTO
 }
 
 /**

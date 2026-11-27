@@ -21,6 +21,7 @@ import {
   type SeloDoGolpe,
 } from '../../lib/batalha/combate'
 import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/selos'
+import { motivoDoBloqueioNosSelos, type SeloComARegra } from '../../lib/batalha/condicoes'
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
@@ -83,6 +84,25 @@ export interface DanoNaTela {
   semDano: boolean
   /** F2 (fatia D, Explosão): o dano sai da vida de cada alvo e o app calcula ao lançar; nada a digitar. */
   pelaVida?: true
+}
+
+/** Os selos de quem age como o menu os conhece: os nomes do retrato dos requisitos (as regras vêm da de fábrica pelo nome). */
+function selosDeQuemUsa(requisitos: ContextoDosRequisitos | undefined): SeloComARegra[] {
+  return (requisitos?.quemUsa.selos ?? []).map((nome) => ({ nome }))
+}
+
+/**
+ * Rework das condições (D10, os bloqueios no menu): a técnica cinza pelos selos de quem age, a mesma regra do host
+ * (`podeAgir`): "Não pode usar técnica" (o Silenciado; o item virado técnica passa) e, na de Completa ou Bônus, "Só
+ * ação simples" (o Confuso). O que o menu sabe dos selos é o nome (o retrato dos requisitos): a condição criada pela
+ * peça o host recusa com o motivo. O motivo de antes (a ação gasta, a recarga) vem primeiro.
+ */
+function comOBloqueioDaTecnica(golpe: GolpeNaTela, requisitos: ContextoDosRequisitos | undefined, doItem: boolean): GolpeNaTela {
+  if (golpe.motivo !== null) return golpe
+  const selos = selosDeQuemUsa(requisitos)
+  const semTecnica = doItem ? null : motivoDoBloqueioNosSelos(selos, 'naoTecnica')
+  const motivo = semTecnica ?? (golpe.acao === 'completa' || golpe.acao === 'bonus' ? motivoDoBloqueioNosSelos(selos, 'soSimples') : null)
+  return motivo === null ? golpe : { ...golpe, motivo }
 }
 
 /** Fatia C7: o sufixo do nome da técnica oculta no menu do mestre ("Garra Lunar (os jogadores veem ???)"). */
@@ -356,6 +376,11 @@ export interface AlvoNaMira {
   ferido?: boolean
   /** Presente = não pode ser alvo (ficha sem personagem), com a frase. */
   motivo?: string | null
+  /**
+   * Rework das condições (D10): o motivo do bloqueio "Não pode ser alvo" (o Invisível), que só vale no golpe de alvo
+   * escolhido (a área e a ajuda pegam; `motivoDoAlvoNaTecnica`). Ausente = pode, ou quem monta não sabe os selos dele.
+   */
+  bloqueioDeAlvo?: string
   /** A miniatura: a imagem da forma, a foto do token ou o retrato (referência ou embutida, como na faixa); ausente = as iniciais. */
   imagem?: string | null
   /** A cor da equipe, no anel da miniatura; ausente = o anel neutro. */
@@ -402,6 +427,8 @@ export interface DadosDoAlvo {
   cor?: string | null
   /** Só quando quem olha pode ver. */
   vida?: VidaNaMira
+  /** Rework das condições (D10): os selos do alvo (o nome basta: vale a de fábrica), para o "Não pode ser alvo". Ausente = não sei. */
+  selos?: readonly SeloComARegra[]
 }
 
 /**
@@ -416,6 +443,8 @@ export function alvoDaMira(dados: DadosDoAlvo): AlvoNaMira {
     alvo.vida = vida
     alvo.ferido = vida.atual < vida.maximo
   }
+  const bloqueioDeAlvo = motivoDoBloqueioNosSelos(dados.selos, 'naoAlvo')
+  if (bloqueioDeAlvo !== null) alvo.bloqueioDeAlvo = bloqueioDeAlvo
   return alvo
 }
 
@@ -516,6 +545,8 @@ export function alvosDoRecorte(mira: MiraDoRecorte): AlvoNaMira[] {
         cor: carta.equipe?.cor ?? null,
         // A ficha inteira (a dele, a do aliado); sem ela, a vida que o host pôs na carta (o NPC que luta do lado dele); sem as duas, a pública (o site).
         vida: vidaNaMira(ficha, sistema) ?? carta.vida ?? vidaPublica(carta.tokenId),
+        // Rework das condições (D10): os selos da carta (o nome), para o "Não pode ser alvo" do Invisível.
+        ...(carta.selos === undefined ? {} : { selos: carta.selos }),
       }),
     )
   }
@@ -1050,7 +1081,8 @@ export function golpesDeHabilidade(
 ): GolpeNaTela[] {
   const todas = tecnicasDe(personagem, sistema)
   // REQUISITOS C: `requisitos` = o retrato de quem age (o mestre vê tudo; o jogador, o recorte): o que FALTA apaga com o motivo.
-  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus, requisitos).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas, acoes, requisitos))
+  // Rework das condições (D10): o bloqueio de quem age (Silenciado, Confuso) apaga a técnica com o motivo, como o host recusa.
+  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus, requisitos).map((tecnica) => comOBloqueioDaTecnica(golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas, acoes, requisitos), requisitos, false))
 }
 
 /** Fase 8: o golpe da técnica do item com a cara do item: a chave, o nome, a frase e quantos tem. */
@@ -1093,7 +1125,8 @@ export function golpesDeItem(personagem: Personagem, sistema: SistemaDeRpg, comb
   const comEfeito = tecnicasNoMenu(ficha, sistema, combate, acoes, null, bonus, requisitos).flatMap((tecnica) => {
     const vaga = cartoes.get(tecnica.cartao.id)
     if (vaga === undefined) return []
-    const golpe = golpeDaTecnica(tecnica, ficha, sistema, combate, null, bonus, todas, acoes, requisitos)
+    // Rework das condições (D10): o item passa pelo "Não pode usar técnica"; o "Só ação simples" vale nele também.
+    const golpe = comOBloqueioDaTecnica(golpeDaTecnica(tecnica, ficha, sistema, combate, null, bonus, todas, acoes, requisitos), requisitos, true)
     return [comACaraDoItem(golpe, { vagaId: vaga.id, nome: vaga.nome.trim() || 'Item', resumo: vaga.efeitoResumo ?? '', quantos: quantidadeDe(vaga), gasta: vaga.efeito.gasta === 'um' })]
   })
   return [...comEfeito, ...narram]
@@ -1232,10 +1265,14 @@ export function distanciaNaMira(alvo: AlvoNaMira): number | null {
 /**
  * Fase 6: por que a mira não deixa marcar `alvo` nesta técnica: o reviver em quem está de pé (a
  * mesma frase do host). `null` = pode. Fase C do alcance: o alvo longe é marcável (as casas só
- * mostram); ao mandar, a mira pede a confirmação (`foraDoAlcanceNaMira`).
+ * mostram); ao mandar, a mira pede a confirmação (`foraDoAlcanceNaMira`). Rework das condições
+ * (D10): o "Não pode ser alvo" (o Invisível) no golpe de alvo escolhido; a área, a ajuda (cura,
+ * buff) e quem age em si mesmo pegam, como no host.
  */
-export function motivoDoAlvoNaTecnica(golpe: Pick<GolpeNaTela, 'reviver'>, alvo: AlvoNaMira): string | null {
-  return golpe.reviver === true && !alvo.caiu ? motivoDoAlvoDePe(alvo.nome) : null
+export function motivoDoAlvoNaTecnica(golpe: Pick<GolpeNaTela, 'reviver' | 'area' | 'cura' | 'reacao' | 'contraInimigos'>, alvo: AlvoNaMira): string | null {
+  if (golpe.reviver === true && !alvo.caiu) return motivoDoAlvoDePe(alvo.nome)
+  if (alvo.bloqueioDeAlvo === undefined || alvo.lado === 'eu' || golpe.area !== undefined || golpeDeAjuda(golpe)) return null
+  return alvo.bloqueioDeAlvo
 }
 
 /** O que a mira escolheu, para a conferência do alcance. `direcao` `null` = a forma não olha para um lado escolhido. */
