@@ -1,3 +1,18 @@
+# 26/11 ~23h: rework do editor de habilidades (protótipo) + conserto "Nova habilidade"
+
+## Objetivo
+Editor de habilidades refeito com as 8 mecânicas do dono (PEDIDOS, entradas de 26/11 22:40 e 22:42) e a janela "Nova entrada" da página Habilidades criando só habilidade.
+## Estado atual
+- 0.6.4 publicada (latest.json 0.6.4, release v0.6.4).
+- Em voo: designer-opus fazendo docs/design/habilidades-rework/prototipo.html (8 mecânicas, incluindo "Diminui atributo do alvo").
+- Em voo: programador-frontend com o conserto pequeno: janela aberta da página Habilidades sem chips Arma/Item, título "Nova habilidade".
+## Próximos passos
+1. Publicar o protótipo como artifact e mostrar ao dono. 2. Aprovado: plano (arquiteto) e construção em etapas, sem perguntar. 3. Publicar 0.6.5 com o conserto + etapas prontas.
+## Critério de pronto
+Dono abre o protótipo e aprova; no app, "+ Nova habilidade" na página Habilidades abre sem Arma/Item (print fix-nova-habilidade-01.png); tsc exit 0.
+## Evidência
+gh release view v0.6.4 (alvo 8044c93f); log tmp/rel-0.6.4/publicar.log.
+
 # 26/11 ~22h: 0.6.4 publicando; protótipo do REWORK DO EDITOR DE HABILIDADES em construção
 
 - 0.6.4 (gatilho nas condições, bala Perfurante, Recarregar fora da batalha) publicando por automacao-devops; Worker junto.
