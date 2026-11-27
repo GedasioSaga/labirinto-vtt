@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
+import { criacaoNoTexto, sistemaMontaHabilidade, type TipoDaHabilidadeDaIa } from '../../lib/ia/criarHabilidade'
 import { IMAGENS_MAX, ERROS_DA_CHAVE, ERROS_DO_MODELO, erroDaIa } from '../../lib/ia/portaDaIa'
 import {
   DADOS_DO_MODO,
@@ -15,16 +16,17 @@ import {
 import type { NivelDoNpc } from '../../lib/ia/gerarNpc'
 import type { NpcDBTGerado } from '../../lib/ia/gerarNpcDBT'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
-import type { Personagem } from '../../lib/personagem'
+import type { Personagem, TipoDePersonagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useCatalogoStore } from '../../stores/catalogoStore'
-import { CONSULTA_DA_GAVETA_DA_IA, useIaStore, type DadosDoMundoParaIa, type MensagemDaConversa } from '../../stores/iaStore'
+import { CONSULTA_DA_GAVETA_DA_IA, useIaStore, type CriacaoDaIa, type DadosDoMundoParaIa, type MensagemDaConversa } from '../../stores/iaStore'
 import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
 import { useToastStore } from '../../stores/toastStore'
 import { MarcacaoLeve } from '../MarcacaoLeve'
 import { Retrato } from '../livros/comum'
 import { IconeDoMundo } from '../livros/icones'
 import { ChaveDaIaDialog, type FocoDaConfig } from './ChaveDaIaDialog'
+import { CriarHabilidadeForm, PropostaNaConversa } from './CriarHabilidade'
 import { GerarNpcForm, NpcGerado, NpcGeradoDBT } from './GerarNpc'
 import { IconeDaIa } from './icones'
 import './ia.css'
@@ -36,6 +38,11 @@ import './ia.css'
  * "+ Pôr ficha"), a linha "Lendo:" com tudo o que sai, a conversa e a caixa
  * (Enter envia, Shift+Enter quebra a linha), o Gerar NPC e a engrenagem.
  * A resposta da IA é texto não confiável: vira marcação leve, nunca HTML.
+ *
+ * Pedido de 27/11/2026: ao lado do Gerar NPC, Criar habilidade, Criar
+ * transformação e Criar boneco (também pelo texto livre, "cria uma técnica de
+ * gelo para o Hector"). A IA propõe; a proposta vira um cartão na conversa e
+ * só vai à ficha pelo Salvar do editor (ou da ficha, no boneco).
  */
 
 export const ID_DO_TEXTO_DA_IA = 'ia-texto'
@@ -95,6 +102,8 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
   const pensando = useIaStore((state) => state.pensando)
   const gerando = useIaStore((state) => state.gerando)
   const gerado = useIaStore((state) => state.gerado)
+  const avisosDoGerado = useIaStore((state) => state.avisosDoGerado)
+  const criando = useIaStore((state) => state.criando)
   const chaves = useIaStore((state) => state.chaves)
   const configAberta = useIaStore((state) => state.configAberta)
   const comparar = useMundoDoLivroStore((state) => state.comparar)
@@ -114,6 +123,8 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
   const foraDoApp = !isTauri()
   // O Gerar NPC do motor padrão monta abas e campos do One Piece; o Dragon Ball tem o seu (ficha em `Personagem.dbt`).
   const ehDragonBall = motorDoSistema(sistema) === MOTOR_DRAGON_BALL
+  // Criar habilidade e transformação: só no sistema que monta habilidade em peças (o Dragon Ball fica fora, como no rework).
+  const montaHabilidade = sistemaMontaHabilidade(sistema)
 
   // A conversa é da pasta aberta; o cofre e o modelo, do computador. O catálogo do sistema quem abre é o mundo (MundoDoLivro).
   useEffect(() => {
@@ -145,7 +156,7 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
   useLayoutEffect(() => {
     const caixa = conversaRef.current
     if (caixa !== null) caixa.scrollTop = caixa.scrollHeight
-  }, [conversa.length, pensando, gerando, gerado])
+  }, [conversa.length, pensando, gerando, gerado, criando])
 
   const dadosDoMundo = (): DadosDoMundoParaIa => ({ sistema, personagens, itens, doLivro, encontro })
 
@@ -170,9 +181,50 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
     }
     setTexto('')
     if (caixaRef.current !== null) caixaRef.current.style.height = ''
+    if (criarPeloTexto(pedido)) return
     const respondeu = await useIaStore.getState().perguntar(pedido, dadosDoMundo())
     // Deu erro: a pergunta volta à caixa, se o mestre não começou outra enquanto esperava.
     if (!respondeu) setTexto((atual) => (atual.trim().length === 0 ? pedido : atual))
+  }
+
+  /**
+   * "Cria uma técnica de gelo para o Hector": o pedido de criar vai pelo Criar, não pela conversa.
+   * Com a ficha clara (citada no texto, ou a única na conversa), a IA já propõe; sem ela, o
+   * formulário abre com o pedido escrito para o mestre escolher. O boneco sempre abre o formulário
+   * (jogador ou NPC, e a força). Devolve se tratou o pedido.
+   */
+  const criarPeloTexto = (pedido: string): boolean => {
+    const criacao = criacaoNoTexto(pedido)
+    if (criacao === null || ehDragonBall || (criacao !== 'boneco' && !montaHabilidade)) return false
+    if (criacao === 'boneco') {
+      useIaStore.getState().abrirCriacao({ tipo: 'boneco', descricao: pedido, alvoId: null })
+      return true
+    }
+    const doPedido = fichasDaConversa(modo, fixas, pedido, personagens, encontro)
+    const alvoId = doPedido.citadas.at(0) ?? (doPedido.fixas.length === 1 ? doPedido.fixas.at(0) : undefined)
+    if (alvoId === undefined) useIaStore.getState().abrirCriacao({ tipo: criacao, descricao: pedido, alvoId: null })
+    else void useIaStore.getState().criarHabilidade(pedido, criacao, alvoId, dadosDoMundo(), pedido)
+    return true
+  }
+
+  /** O formulário de criar: sem chave, a engrenagem (como o Gerar NPC). */
+  const abrirCriacao = (tipo: CriacaoDaIa) => {
+    if (chaves === 0) {
+      abrirConfig('chave')
+      return
+    }
+    useIaStore.getState().abrirCriacao(criando?.tipo === tipo ? null : { tipo, descricao: '', alvoId: null })
+  }
+
+  const criarHabilidade = (descricao: string, tipo: TipoDaHabilidadeDaIa, alvoId: string) => {
+    if (chaves === 0) {
+      abrirConfig('chave')
+      return
+    }
+    // O pedido entra na conversa como fala do mestre, como o do texto livre: ele vê o que pediu, e a IA o lê no histórico.
+    const alvo = personagens.find((personagem) => personagem.id === alvoId)
+    const fala = `${tipo === 'transformacao' ? 'Criar transformação' : 'Criar habilidade'}${alvo === undefined ? '' : ` para ${alvo.nome}`}: ${descricao.trim()}`
+    void useIaStore.getState().criarHabilidade(descricao, tipo, alvoId, dadosDoMundo(), fala)
   }
 
   /**
@@ -209,7 +261,8 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
     }
   }
 
-  const gerarNpc = (descricao: string, nivel: NivelDoNpc) => {
+  /** `tipo`: 'npc' no Gerar NPC; no Criar boneco, o que o mestre escolheu (o mesmo caminho e a mesma revisão). */
+  const gerarNpc = (descricao: string, nivel: NivelDoNpc, tipo: TipoDePersonagem) => {
     if (chaves === 0) {
       abrirConfig('chave')
       return
@@ -218,7 +271,7 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
       void gerarNpcDoDragonBall(descricao, nivel)
       return
     }
-    void useIaStore.getState().gerarNpc(descricao, nivel, dadosDoMundo())
+    void useIaStore.getState().gerarNpc(descricao, nivel, dadosDoMundo(), tipo)
   }
 
   const abrirGerar = () => useIaStore.getState().abrirGerar(true)
@@ -270,7 +323,7 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
   const cheio = usadas.size >= MAX_FICHAS_CONTEXTO
   const foraDaConversa = personagens.filter((personagem) => !usadas.has(personagem.id))
   const dadosDoModo = DADOS_DO_MODO[modo]
-  const vazia = conversa.length === 0 && !gerando && gerado === null && !pensando
+  const vazia = conversa.length === 0 && !gerando && criando === null && gerado === null && !pensando
 
   const chip = (personagemId: string, como: 'fixa' | 'citada' | 'comparar') => {
     const personagem = porId.get(personagemId)
@@ -455,6 +508,8 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
             <div key={mensagem.id} className="ia-msg ia-msg--ia">
               <MarcacaoLeve texto={mensagem.texto} />
             </div>
+          ) : mensagem.de === 'proposta' && mensagem.proposta !== undefined ? (
+            <PropostaNaConversa key={mensagem.id} mensagemId={mensagem.id} proposta={mensagem.proposta} sistema={sistema} personagens={personagens} />
           ) : (
             <div key={mensagem.id} className="ia-msg ia-msg--erro">
               <span>{mensagem.texto}</span>
@@ -463,7 +518,22 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
           ),
         )}
         {gerando && <GerarNpcForm onGerar={gerarNpc} onCancelar={() => useIaStore.getState().abrirGerar(false)} />}
-        {gerado !== null && !ehDragonBall && <NpcGerado npc={gerado} sistema={sistema} personagens={personagens} onGerarOutro={abrirGerar} />}
+        {criando !== null && criando.tipo === 'boneco' && (
+          <GerarNpcForm key="boneco" boneco descricaoInicial={criando.descricao} onGerar={gerarNpc} onCancelar={() => useIaStore.getState().abrirCriacao(null)} />
+        )}
+        {criando !== null && criando.tipo !== 'boneco' && (
+          <CriarHabilidadeForm
+            key={criando.tipo}
+            tipo={criando.tipo}
+            personagens={personagens}
+            daConversa={fichas.usadas}
+            descricaoInicial={criando.descricao}
+            alvoInicial={criando.alvoId}
+            onCriar={(descricao, alvoId) => criarHabilidade(descricao, criando.tipo === 'transformacao' ? 'transformacao' : 'habilidade', alvoId)}
+            onCancelar={() => useIaStore.getState().abrirCriacao(null)}
+          />
+        )}
+        {gerado !== null && !ehDragonBall && <NpcGerado npc={gerado} sistema={sistema} personagens={personagens} avisos={avisosDoGerado} onGerarOutro={abrirGerar} />}
         {gerado !== null && ehDragonBall && (
           <NpcGeradoDBT
             npc={gerado}
@@ -526,11 +596,28 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
             <IconeDaIa nome="enviar" />
           </button>
         </div>
-        <div className="ia-compor__pe">
+        <div className="ia-criar" role="group" aria-label="Criar com a IA">
           <button type="button" className="mu-bt mu-bt--p mu-bt--latao" onClick={abrirGerar} aria-expanded={gerando} disabled={pensando || foraDoApp}>
             <IconeDaIa nome="ia" />
             Gerar NPC
           </button>
+          {montaHabilidade && (
+            <button type="button" className="mu-bt mu-bt--p mu-bt--latao" onClick={() => abrirCriacao('habilidade')} aria-expanded={criando?.tipo === 'habilidade'} disabled={pensando || foraDoApp}>
+              Criar habilidade
+            </button>
+          )}
+          {montaHabilidade && (
+            <button type="button" className="mu-bt mu-bt--p mu-bt--latao" onClick={() => abrirCriacao('transformacao')} aria-expanded={criando?.tipo === 'transformacao'} disabled={pensando || foraDoApp}>
+              Criar transformação
+            </button>
+          )}
+          {!ehDragonBall && (
+            <button type="button" className="mu-bt mu-bt--p mu-bt--latao" onClick={() => abrirCriacao('boneco')} aria-expanded={criando?.tipo === 'boneco'} disabled={pensando || foraDoApp}>
+              Criar boneco
+            </button>
+          )}
+        </div>
+        <div className="ia-compor__pe">
           <span>
             <kbd className="ia-kbd">Enter</kbd> envia · <kbd className="ia-kbd">Shift</kbd>+<kbd className="ia-kbd">Enter</kbd> quebra a linha
           </span>

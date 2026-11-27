@@ -388,6 +388,33 @@
 .ia-npc__tec b { display: block; font-size: var(--lb-font-size-md); font-weight: 500; color: var(--lb-color-parchment); }
 .ia-npc__tec span { color: var(--lb-color-parchment-dim); }
 .ia-npc__acoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.ia-npc__avisos { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+
+/* Criar com a IA (pedido de 27/11): os atalhos ao lado do Gerar NPC e a proposta de habilidade na conversa. */
+.ia-criar { display: flex; flex-wrap: wrap; gap: 6px; }
+.ia-prop__tipo {
+  margin: 0 0 4px;
+  font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-brass-bright);
+}
+.ia-prop__frase {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo);
+  border: 1px solid var(--lb-gr-filete);
+}
+.ia-prop__rotulo {
+  font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.ia-prop__frase p { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.5; color: var(--lb-color-parchment); overflow-wrap: anywhere; }
 
 /* Janela estreita: a coluna vira gaveta por cima da página (mesmo corte de `CONSULTA_DA_GAVETA_DA_IA`). */
 @media (max-width: 1240px) {

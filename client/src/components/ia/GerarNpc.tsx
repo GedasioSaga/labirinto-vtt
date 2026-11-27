@@ -1,16 +1,22 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { escolherImagemDaFicha } from '../../lib/arquivosDaFicha'
+import { tipoDoBonecoNoTexto } from '../../lib/ia/criarHabilidade'
 import { DESCRICAO_DO_NPC_MAX, NIVEIS_DO_NPC, nomeJaUsado, type NivelDoNpc } from '../../lib/ia/gerarNpc'
 import { colunaDaComparacao } from '../../lib/livros/encontro'
 import { CAMPOS_DA_SAUDE, lerSaude } from '../../lib/livros/saude'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
-import { camposVisiveis, cartoesDaAba, type Personagem } from '../../lib/personagem'
+import { camposVisiveis, cartoesDaAba, type Personagem, type TipoDePersonagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { PERSONAGEM_NOME_MAX } from '../../net/protocoloDoPersonagem'
 import { useIaStore } from '../../stores/iaStore'
 import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
+import { useToastStore } from '../../stores/toastStore'
 import { escolhasDaFicha, formatarNumero, gravarNoMundo, Retrato } from '../livros/comum'
 import { IconeDaIa } from './icones'
+
+/** A ficha inteira, para o "Abrir na ficha" do boneco gerado: só baixa quando o mestre abre. */
+const FichaDePersonagemDialog = lazy(() => import('../FichaDePersonagemDialog').then((modulo) => ({ default: modulo.FichaDePersonagemDialog })))
 
 /**
  * GERAR NPC na conversa do assistente (M4, porte do protótipo): o formulário
@@ -25,23 +31,36 @@ import { IconeDaIa } from './icones'
  */
 
 export interface GerarNpcFormProps {
-  onGerar: (descricao: string, nivel: NivelDoNpc) => void
+  /** `tipo`: no Gerar NPC, sempre 'npc'; no Criar boneco, o que o mestre escolheu. */
+  onGerar: (descricao: string, nivel: NivelDoNpc, tipo: TipoDePersonagem) => void
   onCancelar: () => void
+  /** Criar boneco (pedido de 27/11): o mesmo formulário, com a escolha entre ficha de jogador e NPC. */
+  boneco?: boolean
+  /** O que o texto livre já disse ("cria um boneco de pirata"). */
+  descricaoInicial?: string
 }
 
 const EXEMPLO_PADRAO = 'Ex.: tenente da Marinha que luta com correntes'
 const EXEMPLO_DRAGON_BALL = 'Ex.: soldado do Freeza que dispara rajadas de Ki'
+const EXEMPLO_DO_BONECO = 'Ex.: atiradora do bando que cura com ervas'
+
+const TIPOS_DO_BONECO: readonly { valor: TipoDePersonagem; rotulo: string }[] = [
+  { valor: 'jogador', rotulo: 'Jogador (ficha nova da mesa)' },
+  { valor: 'npc', rotulo: 'NPC (bestiário)' },
+]
 
 /** O formulário é o mesmo nos dois motores; o exemplo da caixa acompanha o sistema aberto. */
 export function GerarNpcForm(props: GerarNpcFormProps) {
   const sistemaId = useMundoDoLivroStore((state) => state.aberto?.sistemaId)
   const sistema = useRpgStore((state) => (sistemaId === undefined ? undefined : sistemaPorId(state.biblioteca, sistemaId)))
-  return <GerarNpcFormPadrao {...props} exemplo={motorDoSistema(sistema) === MOTOR_DRAGON_BALL ? EXEMPLO_DRAGON_BALL : EXEMPLO_PADRAO} />
+  const exemplo = props.boneco === true ? EXEMPLO_DO_BONECO : motorDoSistema(sistema) === MOTOR_DRAGON_BALL ? EXEMPLO_DRAGON_BALL : EXEMPLO_PADRAO
+  return <GerarNpcFormPadrao {...props} exemplo={exemplo} />
 }
 
-function GerarNpcFormPadrao({ onGerar, onCancelar, exemplo }: GerarNpcFormProps & { exemplo: string }) {
-  const [descricao, setDescricao] = useState('')
+function GerarNpcFormPadrao({ onGerar, onCancelar, boneco = false, descricaoInicial = '', exemplo }: GerarNpcFormProps & { exemplo: string }) {
+  const [descricao, setDescricao] = useState(descricaoInicial)
   const [nivel, setNivel] = useState<NivelDoNpc>('nivel')
+  const [tipo, setTipo] = useState<TipoDePersonagem>(() => (boneco ? tipoDoBonecoNoTexto(descricaoInicial) : 'npc'))
   const [erro, setErro] = useState<string | null>(null)
   const descricaoRef = useRef<HTMLTextAreaElement>(null)
   const id = useId()
@@ -53,11 +72,11 @@ function GerarNpcFormPadrao({ onGerar, onCancelar, exemplo }: GerarNpcFormProps 
   const enviar = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (descricao.trim().length === 0) {
-      setErro('Descreva o NPC em uma frase.')
+      setErro(boneco ? 'Descreva o boneco em uma frase.' : 'Descreva o NPC em uma frase.')
       descricaoRef.current?.focus()
       return
     }
-    onGerar(descricao, nivel)
+    onGerar(descricao, nivel, boneco ? tipo : 'npc')
   }
 
   return (
@@ -75,10 +94,22 @@ function GerarNpcFormPadrao({ onGerar, onCancelar, exemplo }: GerarNpcFormProps 
       }}
     >
       <h3 className="ia-gerar__tit" id={`${id}-tit`}>
-        Gerar NPC
+        {boneco ? 'Criar boneco' : 'Gerar NPC'}
       </h3>
+      {boneco && (
+        <div className="mu-campo">
+          <label htmlFor={`${id}-tipo`}>A ficha é de</label>
+          <select className="mu-seletor" id={`${id}-tipo`} value={tipo} onChange={(event) => setTipo(TIPOS_DO_BONECO.find((opcao) => opcao.valor === event.target.value)?.valor ?? 'jogador')}>
+            {TIPOS_DO_BONECO.map((opcao) => (
+              <option key={opcao.valor} value={opcao.valor}>
+                {opcao.rotulo}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="mu-campo">
-        <label htmlFor={`${id}-desc`}>Como é o NPC?</label>
+        <label htmlFor={`${id}-desc`}>{boneco ? 'Como é o boneco?' : 'Como é o NPC?'}</label>
         <textarea
           ref={descricaoRef}
           className="mu-entrada ia-area"
@@ -109,12 +140,14 @@ function GerarNpcFormPadrao({ onGerar, onCancelar, exemplo }: GerarNpcFormProps 
             </option>
           ))}
         </select>
-        <span className="mu-campo__dica">O grupo é o de Comparar; sem grupo lá, os jogadores da campanha.</span>
+        <span className="mu-campo__dica">
+          O grupo é o de Comparar; sem grupo lá, os jogadores da campanha.{boneco && ' As técnicas vêm montadas em peças; você confere na ficha antes de salvar.'}
+        </span>
       </div>
       <div className="mu-pg-acoes">
         <button type="submit" className="mu-bt mu-bt--p mu-bt--primario">
           <IconeDaIa nome="ia" />
-          Gerar ficha
+          {boneco ? 'Propor ficha' : 'Gerar ficha'}
         </button>
         <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={onCancelar}>
           Cancelar
@@ -128,6 +161,8 @@ export interface NpcGeradoProps {
   npc: Personagem
   sistema: SistemaDeRpg
   personagens: readonly Personagem[]
+  /** As técnicas cuja mecânica não passou no validador e ficaram só no texto, com o motivo. */
+  avisos: readonly string[]
   /** "Gerar outro": abre o formulário de novo. */
   onGerarOutro: () => void
 }
@@ -145,41 +180,60 @@ function contagemDaLeitura(npc: Personagem, sistema: SistemaDeRpg): { lidos: num
   return { lidos, total }
 }
 
-export function NpcGerado({ npc, sistema, personagens, onGerarOutro }: NpcGeradoProps) {
+export function NpcGerado({ npc, sistema, personagens, avisos, onGerarOutro }: NpcGeradoProps) {
   const [nome, setNome] = useState(npc.nome)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
+  // A ficha aberta no "Abrir na ficha": a cópia do momento em que abriu (o rascunho da janela não volta a cada desenho daqui).
+  const [naFicha, setNaFicha] = useState<Personagem | null>(null)
   const nomeRef = useRef<HTMLInputElement>(null)
   const id = useId()
+  const sistemaId = useMundoDoLivroStore((state) => state.aberto?.sistemaId)
   const coluna = useMemo(() => colunaDaComparacao(npc, sistema), [npc, sistema])
   const leitura = useMemo(() => contagemDaLeitura(npc, sistema), [npc, sistema])
   const danoPorCartao = useMemo(() => new Map(coluna.golpes.flatMap((golpe) => (golpe.cartao === null || golpe.valor === null ? [] : [[golpe.cartao.id, golpe.valor] as const]))), [coluna]) // as const: tupla [id, dano] para o Map, não é cast
   const abasComCartoes = sistema.abas.filter((aba) => cartoesDaAba(npc, aba.id).length > 0)
   const escolhas = escolhasDaFicha(npc, sistema)
+  const ehJogador = npc.tipo === 'jogador'
 
   // A ficha chegou: o foco vai para o nome, o primeiro campo da revisão.
   useEffect(() => {
     nomeRef.current?.focus()
   }, [npc.id])
 
-  const salvar = async () => {
+  /** Grava a ficha nova pelo funil do mundo, com Desfazer. `daFicha`: veio do Salvar da ficha aberta, que reabre já gravada. */
+  const gravarNova = async (ficha: Personagem, daFicha: boolean): Promise<void> => {
+    setSalvando(true)
+    const gravou = await gravarNoMundo((lista) => [...lista, ficha], {
+      texto: ficha.tipo === 'jogador' ? `${ficha.nome} entrou nos jogadores da campanha.` : `${ficha.nome} foi salvo no bestiário.`,
+      desfazer: (lista) => lista.filter((personagem) => personagem.id !== ficha.id),
+    })
+    setSalvando(false)
+    if (!gravou) return
+    // A página NPCs de combate abre já nele; o jogador (e quem conferiu na ficha) abre a ficha gravada.
+    if (ficha.tipo === 'npc') useMundoDoLivroStore.getState().escolherNpc(ficha.id)
+    if (daFicha || ficha.tipo === 'jogador') useMundoDoLivroStore.getState().abrirFicha(ficha.id)
+    useIaStore.getState().descartarGerado()
+  }
+
+  const salvar = () => {
     const escolhido = nome.trim() || npc.nome
     if (nomeJaUsado(escolhido, personagens)) {
       setErro(`Já existe “${escolhido}” na campanha. Troque o nome antes de salvar.`)
       nomeRef.current?.focus()
       return
     }
-    const ficha: Personagem = { ...npc, nome: escolhido }
-    setSalvando(true)
-    const gravou = await gravarNoMundo((lista) => [...lista, ficha], {
-      texto: `${escolhido} foi salvo no bestiário.`,
-      desfazer: (lista) => lista.filter((personagem) => personagem.id !== ficha.id),
-    })
-    setSalvando(false)
-    if (!gravou) return
-    // A página NPCs de combate abre já nele.
-    useMundoDoLivroStore.getState().escolherNpc(ficha.id)
-    useIaStore.getState().descartarGerado()
+    void gravarNova({ ...npc, nome: escolhido }, false)
+  }
+
+  /** O Salvar da ficha aberta: nome repetido segura a janela na edição (`false`), como o Salvar daqui. */
+  const salvarDaFicha = (salvo: Personagem): boolean | void => {
+    const escolhido = salvo.nome.trim() || npc.nome
+    if (nomeJaUsado(escolhido, personagens)) {
+      useToastStore.getState().push('error', `Já existe “${escolhido}” na campanha. Troque o nome antes de salvar.`)
+      return false
+    }
+    void gravarNova({ ...salvo, nome: escolhido }, true)
   }
 
   const titulo = nome.trim() || npc.nome
@@ -191,7 +245,7 @@ export function NpcGerado({ npc, sistema, personagens, onGerarOutro }: NpcGerado
           <h3 className="ia-npc__nome" id={`${id}-nome`}>
             {titulo}
           </h3>
-          <p className="ia-npc__sub">{[escolhas, 'NPC único'].filter((parte) => parte.length > 0).join(' · ')}</p>
+          <p className="ia-npc__sub">{[escolhas, ehJogador ? 'Jogador' : 'NPC único'].filter((parte) => parte.length > 0).join(' · ')}</p>
         </div>
       </div>
       {npc.descricao.length > 0 && <p className="ia-npc__desc">{npc.descricao}</p>}
@@ -272,9 +326,22 @@ export function NpcGerado({ npc, sistema, personagens, onGerarOutro }: NpcGerado
           O app lê {leitura.lidos} de {leitura.total} campos de batalha desta ficha{leitura.lidos === leitura.total ? '.' : ': o resto aparece na Saúde da ficha depois de salvar.'}
         </p>
       )}
+      {avisos.length > 0 && (
+        <div className="ia-npc__aba">
+          <h4 className="ia-npc__aba-tit">Ficaram só no texto (a mecânica não passou na conferência)</h4>
+          <ul className="ia-npc__avisos">
+            {avisos.map((aviso, i) => (
+              <li key={i}>{aviso}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="ia-npc__acoes">
-        <button type="button" className="mu-bt mu-bt--p mu-bt--primario" onClick={() => void salvar()} disabled={salvando} aria-busy={salvando || undefined}>
-          Salvar no bestiário
+        <button type="button" className="mu-bt mu-bt--p mu-bt--primario" onClick={() => setNaFicha({ ...npc, nome: titulo })} disabled={salvando} aria-haspopup="dialog">
+          Abrir na ficha
+        </button>
+        <button type="button" className="mu-bt mu-bt--p" onClick={salvar} disabled={salvando} aria-busy={salvando || undefined}>
+          {ehJogador ? 'Salvar nos jogadores' : 'Salvar no bestiário'}
         </button>
         <button type="button" className="mu-bt mu-bt--p" onClick={onGerarOutro} disabled={salvando}>
           Gerar outro
@@ -283,6 +350,22 @@ export function NpcGerado({ npc, sistema, personagens, onGerarOutro }: NpcGerado
           Descartar
         </button>
       </div>
+      {naFicha !== null && (
+        <Suspense fallback={null}>
+          <FichaDePersonagemDialog
+            personagem={naFicha}
+            sistema={sistema}
+            sistemaId={sistemaId}
+            editandoNoInicio
+            onSalvar={salvarDaFicha}
+            onClose={() => setNaFicha(null)}
+            escolherImagem={escolherImagemDaFicha}
+            outrasFichas={personagens}
+            tokens={[]}
+            onLigarToken={() => undefined}
+          />
+        </Suspense>
+      )}
     </section>
   )
 }
