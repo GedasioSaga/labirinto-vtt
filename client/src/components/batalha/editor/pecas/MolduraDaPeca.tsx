@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from 'react'
 import type { MecanicaV1 } from '../../../../lib/batalha/mecanica/modelo'
-import { motivoDasPecasComOUso, type PecaDaMecanica } from '../../../../lib/batalha/mecanica/pecas'
+import { motivoDasPecasComOUso, type PecaDa, type PecaDaMecanica } from '../../../../lib/batalha/mecanica/pecas'
 import { useVariavelCss } from './controlesDaPeca'
 import { Glifo } from './glifos'
 import '../editor.css'
@@ -87,7 +87,19 @@ function BotaoDaMoldura({ rotulo, icone, onClick }: { rotulo: string; icone: str
  * `null`. A mesma regra que o leitor aplica (`motivoDasPecasComOUso`): mostrar na peça evita que o
  * mestre descubra só ao salvar.
  */
-export function avisoDaPeca(peca: PecaDaMecanica, mecanica: Pick<MecanicaV1, 'uso' | 'limite'>): string | null {
+export function avisoDaPeca(peca: PecaDaMecanica, mecanica: Pick<MecanicaV1, 'uso' | 'limite' | 'alvo'>): string | null {
   const motivo = motivoDasPecasComOUso([peca], { uso: mecanica.uso, overload: mecanica.limite.overload === true })
-  return motivo === null ? null : `${motivo.charAt(0).toLocaleUpperCase('pt-BR')}${motivo.slice(1)}: troque a Ação no topo.`
+  if (motivo !== null) return `${motivo.charAt(0).toLocaleUpperCase('pt-BR')}${motivo.slice(1)}: troque a Ação no topo.`
+  return peca.tipo === 'status' ? avisoDoStatusNoDono(peca, mecanica) : null
+}
+
+/**
+ * Decisão do rework (pendência da E4/E6, do Claude): no dono, numa técnica que mira outro, o "Muda atributo" vira UM
+ * selo em quem usa (o motor guarda um só, `seloEmQuemUsa`); dois tempos diferentes dariam dois e a mecânica não salva
+ * ("mais de um selo em quem usa"). O editor limita a um tempo e diz antes do Salvar. "Para sempre" não conta (é lembrete).
+ */
+function avisoDoStatusNoDono(peca: PecaDa<'status'>, mecanica: Pick<MecanicaV1, 'alvo'>): string | null {
+  if (peca.quem !== 'si' || mecanica.alvo.quem === 'si') return null
+  const tempos = new Set(peca.itens.filter((item) => item.dura !== 'permanente').map((item) => (item.dura === 'batalha' ? 'batalha' : `turnos:${item.turnos}`)))
+  return tempos.size > 1 ? 'No dono, numa técnica que mira outro, todas as linhas precisam do mesmo tempo (a batalha guarda um selo só em quem usa): iguale os tempos para salvar.' : null
 }
