@@ -141,7 +141,7 @@ function ehCodigoDoErro(valor: unknown): valor is CodigoDoErroDaIa {
 }
 
 /** Erros que se resolvem na engrenagem (pôr ou trocar a chave). */
-export const ERROS_DA_CHAVE: readonly CodigoDoErroDaIa[] = ['sem_chave', 'chave_recusada', 'chaves_invalidas']
+export const ERROS_DA_CHAVE: readonly CodigoDoErroDaIa[] = ['sem_chave', 'chave_recusada', 'chaves_invalidas', 'credito']
 /** Erros que se resolvem escolhendo outro modelo na engrenagem. */
 export const ERROS_DO_MODELO: readonly CodigoDoErroDaIa[] = ['modelo_invalido', 'modelo_indisponivel']
 
