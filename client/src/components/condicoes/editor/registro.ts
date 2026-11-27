@@ -1,6 +1,15 @@
 import type { ComponentType } from 'react'
 import type { ContextoDasFrases, FraseDaCondicao } from '../../../lib/condicoes/frasesDaCondicao'
-import type { CondicaoMontada, FamiliaDaPecaDaCondicao, PecaDaCondicaoDa, TipoDeDano } from '../../../lib/condicoes/modelo'
+import { AURA_DESTA_MESMA, type CondicaoMontada, type FamiliaDaPecaDaCondicao, type PecaDaCondicaoDa, type TipoDeDano } from '../../../lib/condicoes/modelo'
+import type { ConditionSymbol } from '../../../lib/tokenConditions'
+import { PecaAtributo } from './pecas/PecaAtributo'
+import { PecaAura } from './pecas/PecaAura'
+import { PecaBloqueio } from './pecas/PecaBloqueio'
+import { PecaContra } from './pecas/PecaContra'
+import { PecaDanoCura } from './pecas/PecaDanoCura'
+import { PecaGatilho } from './pecas/PecaGatilho'
+import { PecaMarca } from './pecas/PecaMarca'
+import { PecaVez } from './pecas/PecaVez'
 
 /**
  * O REGISTRO DAS PEÇAS DA CONDIÇÃO NA TELA e o CONTRATO DO BONECO (rework das condições, PLANO.md E1 o
@@ -17,10 +26,14 @@ import type { CondicaoMontada, FamiliaDaPecaDaCondicao, PecaDaCondicaoDa, TipoDe
  * motor é `ensaiarCondicao` (E5, lib/condicoes/ensaio.ts), do tipo `MotorDoBoneco`; a tela (E6) mostra os
  * ajustes que contam (`ajustesQueContam`) e as rodadas.
  *
- * Na E1 o registro nasce vazio; a E4 o preenche.
+ * Na E1 o registro nasceu vazio; a E4 o preencheu com as 8 famílias (os componentes em `pecas/`, o nome e a
+ * pastilha em `NomeEPastilha.tsx`, o prazo e as saídas em `PrazoESaida.tsx`). Toda peça que um componente
+ * entrega passa no leitor (`lerPecaDaCondicao`) do jeito que está: o número cabe no teto, a marca que
+ * deixou de valer sai, e o gatilho nunca fica sem efeito.
  *
  * API pública (estável para E4, E5 e E6): `AtributoDaPeca`, `PropsDaPecaDaCondicao`, `PecaDaCondicaoNaTela`,
- * `RegistroDasPecasDaCondicao`, `REGISTRO_DAS_PECAS_DA_CONDICAO`, `AjustesDoBoneco`, `AJUSTES_DO_BONECO_PADRAO`,
+ * `RegistroDasPecasDaCondicao`, `EntradasDasPecasDaCondicao`, `REGISTRO_DAS_PECAS_DA_CONDICAO`,
+ * `entradaDaPecaDaCondicao`, `AjustesDoBoneco`, `AJUSTES_DO_BONECO_PADRAO`,
  * `BonecoBase`, `BONECO_BASE`, `AjustesQueContam`, `ajustesQueContam`, `TipoDaLinhaDoBoneco`, `LinhaDoBoneco`,
  * `AtributoNaRodada`, `RodadaDoBoneco`, `ResultadoDoBoneco`, `MotorDoBoneco`.
  */
@@ -44,6 +57,11 @@ export interface PropsDaPecaDaCondicao<F extends FamiliaDaPecaDaCondicao> {
   contexto: ContextoDasFrases
   /** Os atributos do sistema da mesa; ausente = os 8 da ficha de One Piece mais Velocidade, CA, Dano e Alcance. */
   atributos?: readonly AtributoDaPeca[]
+  /**
+   * E4, opcional: a pastilha de uma condição do catálogo pelo id (os chips da Contra-condição). Ausente = só
+   * as de fábrica ganham pastilha (`simboloDaFabricaPeloId`, pecas/vocabulario.ts); a criada fica com o ponto.
+   */
+  pastilhaDe?: (id: string) => ConditionSymbol | null
 }
 
 /** A entrada de uma família no registro (o `PECAS` e o `pecaNova` do protótipo, prototipo.html:546-588). */
@@ -67,8 +85,107 @@ export interface PecaDaCondicaoNaTela<F extends FamiliaDaPecaDaCondicao> {
 /** Uma entrada por família, cada uma com o tipo da própria peça. */
 export type RegistroDasPecasDaCondicao = { readonly [F in FamiliaDaPecaDaCondicao]?: PecaDaCondicaoNaTela<F> }
 
-/** O registro (vazio na E1; a E4 põe as 8 famílias). */
-export const REGISTRO_DAS_PECAS_DA_CONDICAO: RegistroDasPecasDaCondicao = {}
+/** O registro completo: toda família tem entrada (o tipo cobra, não só o leitor). */
+export type EntradasDasPecasDaCondicao = { readonly [F in FamiliaDaPecaDaCondicao]: PecaDaCondicaoNaTela<F> }
+
+/**
+ * O registro: as 8 famílias (E4), com o nome, a frase, o ícone e a cor do `PECAS` do protótipo e a peça
+ * como nasce do `pecaNova` dele, já no formato do modelo (só o que difere do padrão: sem `direto`, `rouba`
+ * e `espalha` desligados, sem as linhas desligadas do Dano e cura). O ícone se desenha com
+ * `GlifoDaCondicao` (pecas/glifos.tsx); a cor é a das peças das habilidades, mais `--lb-peca-gelo`
+ * (pecas/pecas.css). "novo" fica na Aura e na Contra-condição, as duas que a batalha de antes não tinha.
+ */
+export const REGISTRO_DAS_PECAS_DA_CONDICAO: EntradasDasPecasDaCondicao = {
+  vez: {
+    familia: 'vez',
+    nome: 'Efeito na vez',
+    faz: 'Ao entrar, no começo ou no fim da vez: tira ou dá vida, SP ou Escudo, fixo ou em % da vida.',
+    icone: 'vez',
+    cor: 'var(--lb-peca-dano)',
+    novo: false,
+    nova: () => ({ tipo: 'vez', quando: 'comeco', faz: 'tira', v: 10, conta: 'fixo', recurso: 'vida' }),
+    Componente: PecaVez,
+  },
+  atributo: {
+    familia: 'atributo',
+    nome: 'Muda atributo',
+    faz: 'Tira, soma ou prende um atributo: de uma vez, a cada turno com teto, ou a partir do turno N.',
+    icone: 'status',
+    cor: 'var(--lb-peca-agua)',
+    novo: false,
+    nova: () => ({ tipo: 'atributo', atr: 'velocidade', faz: 'tira', v: 10, conta: 'fixo', ritmo: 'umaVez' }),
+    Componente: PecaAtributo,
+  },
+  bloqueio: {
+    familia: 'bloqueio',
+    nome: 'Bloqueio',
+    faz: 'O que quem está com ela não pode fazer: desviar, reagir, andar, usar técnica, agir.',
+    icone: 'trava',
+    cor: 'var(--lb-peca-couro)',
+    novo: false,
+    nova: () => ({ tipo: 'bloqueio', itens: { naoMove: true } }),
+    Componente: PecaBloqueio,
+  },
+  danoCura: {
+    familia: 'danoCura',
+    nome: 'Dano e cura',
+    faz: 'Muda em % o dano que recebe ou causa e a cura que recebe; ou cura parte do dano que causa.',
+    icone: 'balanca',
+    cor: 'var(--lb-peca-ameixa)',
+    novo: false,
+    nova: () => ({ tipo: 'danoCura', recV: 25 }),
+    Componente: PecaDanoCura,
+  },
+  gatilho: {
+    familia: 'gatilho',
+    nome: 'Depois de X turnos',
+    faz: 'Conta os turnos e, ao chegar, dá dano, cura, põe ou tira condição. Uma vez ou a cada X.',
+    icone: 'gatilho',
+    cor: 'var(--lb-peca-cura)',
+    novo: false,
+    nova: () => ({ tipo: 'gatilho', gatilho: { turnos: 3, vezes: 'uma', aoDisparar: 'some', pecas: [{ tipo: 'dano', valor: 30 }] } }),
+    Componente: PecaGatilho,
+  },
+  marca: {
+    familia: 'marca',
+    nome: 'Marca',
+    faz: 'O próximo golpe nele dá mais dano; quem tem desvia com desvantagem.',
+    icone: 'marca',
+    cor: 'var(--lb-peca-selo)',
+    novo: false,
+    nova: () => ({ tipo: 'marca', mult: 2, quem: 'todos', sai: true, desvDesv: true }),
+    Componente: PecaMarca,
+  },
+  aura: {
+    familia: 'aura',
+    nome: 'Aura',
+    faz: 'Quem estiver perto de quem tem pega uma condição enquanto ficar perto.',
+    icone: 'aura',
+    cor: 'var(--lb-peca-latao)',
+    novo: true,
+    nova: () => ({ tipo: 'aura', casas: 1, quem: 'aliados', cond: AURA_DESTA_MESMA }),
+    Componente: PecaAura,
+  },
+  contra: {
+    familia: 'contra',
+    nome: 'Contra-condição',
+    faz: 'Ao entrar, apaga outras condições; enquanto durar, elas não pegam nele.',
+    icone: 'contra',
+    cor: 'var(--lb-peca-gelo)',
+    novo: true,
+    nova: () => ({ tipo: 'contra', apaga: ['queimando'], impede: true }),
+    Componente: PecaContra,
+  },
+}
+
+/**
+ * A entrada de uma família, sempre presente (o registro está completo). Com a família de uma peça da lista
+ * (`entradaDaPecaDaCondicao(peca.tipo)`), o `Componente` aceita a peça como está, como no editor de
+ * habilidades (`entradaDaPeca`, components/batalha/editor/pecas/registro.ts).
+ */
+export function entradaDaPecaDaCondicao<F extends FamiliaDaPecaDaCondicao>(familia: F): PecaDaCondicaoNaTela<F> {
+  return REGISTRO_DAS_PECAS_DA_CONDICAO[familia]
+}
 
 // ─── O boneco ──────────────────────────────────────────────────────────────
 

@@ -1,0 +1,363 @@
+/*
+ * AS PEÇAS DA CONDIÇÃO, O NOME E A PASTILHA, O PRAZO E A SAÍDA (rework das condições, PLANO.md E4).
+ * Porte do protótipo (docs/design/condicoes-rework/prototipo.html: `.bloqs`, `.chip-cond`, `.identidade`,
+ * `.cor-op`, `.desenho-op`, `.item-peca--lido`) com os tokens do app. A peça em si (a frase, os campos,
+ * os segmentos, a lista) é a mesma do editor de habilidades (`lb-pc__*`,
+ * components/batalha/editor/pecas/pecas.css); aqui fica só o que é da condição.
+ * Movimento: só o aperto (transform) e as cores; com movimento reduzido, nem o aperto.
+ */
+
+/* A cor da Contra-condição (o `--lb-gelo` do protótipo); as outras sete famílias usam as das habilidades. */
+:root {
+  --lb-peca-gelo: #9cc7e6;
+}
+
+/* ---------------------------------------------------------------- Bloqueio: um cartão por bloqueio */
+.lb-cd-bloqs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.lb-cd-bloq {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 1px 10px;
+  align-items: center;
+  min-height: 52px;
+  padding: 8px 10px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo);
+  border: 1px solid var(--lb-gr-filete);
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast, 120ms) ease,
+    background-color var(--lb-motion-fast, 120ms) ease;
+}
+.lb-cd-bloq input {
+  grid-row: span 2;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--lb-peca-couro);
+}
+.lb-cd-bloq b {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--lb-color-parchment);
+}
+.lb-cd-bloq small {
+  font-size: var(--lb-font-size-xs);
+  line-height: 1.3;
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cd-bloq:has(input:checked) {
+  border-color: color-mix(in srgb, var(--lb-peca-couro) 60%, transparent);
+  background: color-mix(in srgb, var(--lb-peca-couro) 9%, var(--lb-gr-campo));
+}
+.lb-cd-bloq:has(input:focus-visible) {
+  box-shadow: 0 0 0 2px var(--lb-color-brass);
+}
+
+/* ---------------------------------------------------------------- Contra-condição: as que ela apaga */
+.lb-cd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lb-cd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 2px 0 4px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-gr-campo);
+  border: 1px solid var(--lb-gr-filete-forte);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+}
+.lb-cd-chip .lb-ed__bt--ic {
+  width: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 50%;
+}
+.lb-cd-chip__sem {
+  width: 8px;
+  height: 8px;
+  margin: 0 4px;
+  border-radius: 50%;
+  background: var(--lb-color-parchment-faint);
+}
+
+/* ---------------------------------------------------------------- linhas de lista */
+/* A linha que vem de outra condição (a Contra-condição de outra): só leitura, tracejada. */
+.lb-cd-lido {
+  background: transparent;
+  border-style: dashed;
+}
+/* Quebra a frase da linha (o "pagar e/ou teste" em duas linhas). */
+.lb-cd-quebra {
+  flex-basis: 100%;
+  height: 0;
+}
+
+/* ---------------------------------------------------------------- Nome e pastilha */
+.lb-cd-id {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px 22px;
+  align-items: start;
+}
+.lb-cd-id__previa {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 132px;
+  padding: 14px 18px;
+  border-radius: var(--lb-radius-md, 10px);
+  background: var(--lb-gr-campo);
+  border: 1px solid var(--lb-gr-filete);
+}
+.lb-cd-id__previa small {
+  max-width: 14ch;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.lb-cd-id__campos {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.lb-cd-id__linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+.lb-cd-campo {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.lb-cd-rot {
+  font-size: var(--lb-font-size-xs);
+  font-weight: 600;
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cd-entrada {
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 10px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo);
+  border: 1px solid var(--lb-gr-filete-forte);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  transition: border-color var(--lb-motion-fast, 120ms) ease;
+}
+.lb-cd-entrada::placeholder {
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cd-entrada:focus-visible {
+  outline: none;
+  border-color: var(--lb-color-brass);
+  box-shadow: 0 0 0 3px var(--lb-color-brass-soft);
+}
+.lb-cd-entrada[aria-invalid='true'] {
+  border-color: var(--lb-color-ember);
+}
+/* O símbolo digitado: 1 ou 2 caracteres, centrado, maior para o emoji ler. Com algo digitado, leva a marca de escolhido. */
+.lb-cd-entrada--curta {
+  width: 64px;
+  text-align: center;
+  font-size: 16px;
+}
+.lb-cd-entrada--curta[data-ativo] {
+  background: var(--lb-color-brass-soft);
+  border-color: var(--lb-gr-filete-latao);
+}
+.lb-cd-erro {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-ember);
+}
+.lb-cd-erro--nota {
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cd-digitar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 4px;
+}
+.lb-cd-digitar label {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* as cores: bolinhas de 34 px (alvo de toque), o anel creme na escolhida */
+.lb-cd-cores,
+.lb-cd-desenhos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.lb-cd-cor {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: transform var(--lb-motion-fast, 120ms) var(--lb-gr-ease-out);
+}
+.lb-cd-cor:active {
+  transform: scale(0.95);
+}
+.lb-cd-cor[aria-checked='true'] {
+  box-shadow:
+    0 0 0 2px var(--lb-gr-cartao),
+    0 0 0 4px var(--lb-color-parchment);
+}
+.lb-cd-cor:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--lb-gr-cartao),
+    0 0 0 4px var(--lb-color-brass);
+}
+/* "Outra cor…": o seletor do sistema, do mesmo tamanho; marcado quando a cor está fora da paleta. */
+.lb-cd-cor--outra {
+  appearance: none;
+  background: conic-gradient(#ef6f6c, #f0d35c, #8fd28a, #7fb8f0, #b39ddb, #ef6f6c);
+}
+.lb-cd-cor--outra::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.lb-cd-cor--outra::-webkit-color-swatch {
+  border: 0;
+  border-radius: 50%;
+  opacity: 0;
+}
+.lb-cd-cor--outra[data-marcada]::-webkit-color-swatch {
+  opacity: 1;
+}
+.lb-cd-cor--outra[data-marcada] {
+  box-shadow:
+    0 0 0 2px var(--lb-gr-cartao),
+    0 0 0 4px var(--lb-color-parchment);
+}
+/* o ponto dourado: a cor e o desenho que entraram nesta versão */
+.lb-cd-novo {
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--lb-color-brass-bright);
+  box-shadow: 0 0 0 2px var(--lb-gr-cartao);
+  pointer-events: none;
+}
+
+/* os desenhos: a pastilha de verdade, na cor escolhida (a mesma que o mapa desenha) */
+.lb-cd-desenho {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: var(--lb-radius-sm);
+  border: 1px solid var(--lb-gr-filete-forte);
+  background: var(--lb-gr-campo);
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast, 120ms) ease,
+    transform var(--lb-motion-fast, 120ms) var(--lb-gr-ease-out);
+}
+.lb-cd-desenho:active {
+  transform: scale(0.95);
+}
+.lb-cd-desenho[aria-checked='true'] {
+  border-color: var(--lb-color-brass);
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass);
+}
+.lb-cd-desenho:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+.lb-cd-desenho .lb-cd-novo {
+  right: 2px;
+  top: 2px;
+  width: 6px;
+  height: 6px;
+  box-shadow: none;
+}
+.lb-cd-legenda {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cd-legenda i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lb-color-brass-bright);
+}
+
+/* ---------------------------------------------------------------- Prazo, pilhas e saída */
+.lb-cd-prazo {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-cd-desenho:hover:not([aria-checked='true']) {
+    border-color: var(--lb-gr-filete-latao);
+  }
+  .lb-cd-bloq:hover:not(:has(input:checked)) {
+    border-color: var(--lb-gr-filete-forte);
+  }
+}
+
+@media (max-width: 760px) {
+  .lb-cd-id,
+  .lb-cd-id__linha {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lb-cd-id__previa {
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cd-cor,
+  .lb-cd-desenho {
+    transition: border-color 120ms ease;
+  }
+  .lb-cd-cor:active,
+  .lb-cd-desenho:active {
+    transform: none;
+  }
+}
