@@ -10,10 +10,10 @@ import type { AcumuladorDaFicha } from '../../lib/batalha/requisitos/modelo'
 import { comBandosEmDia } from '../../lib/batalha/invocacao'
 import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
 import { recursoDoCusto, recursoDoEscudo, tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
-import { textoDoGolpe } from '../../lib/batalha/golpe'
+import { ajustesDoCusto, textoDoGolpe } from '../../lib/batalha/golpe'
 import { avisoAoCairDe, mecanicaDoCartao } from '../../lib/batalha/mecanicasAMao'
 import { pecasDoCartao } from '../../lib/batalha/mecanica/leitura'
-import { comLembrada, comLembreteDoGatilho, comLembretesDoMomento, disparosDosGatilhos, lembreteDoDisparo, quandoDoGatilho, semLembretes, type DisparoDoGatilho, type EventoDoGatilho, type TurnosComLembretes } from '../../lib/batalha/passivas'
+import { comLembrada, comLembreteDoGatilho, comLembretesDoMomento, custoDaPassiva, disparosDosGatilhos, lembreteDoDisparo, quandoDoGatilho, semLembretes, type DisparoDoGatilho, type EventoDoGatilho, type TurnosComLembretes } from '../../lib/batalha/passivas'
 import { comSeloNovo, criarSelo, novoIdDeSelo, ondeNaVez, textoDoSeloComMods } from '../../lib/batalha/selos'
 import { ajusteDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import { curaComOsSelos } from '../../lib/batalha/condicoes'
@@ -196,6 +196,16 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
     const partes: Reversao[] = []
     const textos: string[] = []
     const tokenIds = new Set<string>([tokenId])
+    // O custo da passiva, o mesmo do Ativar de antes (a conversão da E2 guarda o custo igual no texto): sem o recurso, não dispara.
+    const custo = custoDaPassiva(achada.cartao, personagem, null)
+    const recursoDoGasto = custo.tipo === 'valor' && custo.valor > 0 ? recursoDoCusto(sistema, custo.recurso) : null
+    if (custo.tipo === 'valor' && recursoDoGasto !== null && numeroDaFicha(personagem.recursos, recursoDoGasto.id) < custo.valor) return false
+    if (custo.tipo === 'valor' && recursoDoGasto !== null) {
+      const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quem)
+      if (doCusto === 'recusada') return false
+      partes.push(...reversaoDaFicha(personagemId, doCusto))
+      textos.push(`paga ${custo.valor} ${recursoDoGasto.nome}`)
+    }
     const combateAntes = turnos.combate?.[personagemId] ?? null
     const base = combateAntes ?? combateVazio()
     const semOLembrete = semLembretes(base, disparo.cartaoId)
