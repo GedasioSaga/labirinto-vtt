@@ -4,6 +4,7 @@ import { condicoesDe } from '../lib/condicoes/naFicha'
 import type { Personagem } from '../lib/personagem'
 import { porCondicaoNasFichas, tirarCondicaoDasFichas } from '../stores/condicoesDoMestre'
 import { useCondicoesPropriasStore } from '../stores/condicoesPropriasStore'
+import { abrirEditorDaCondicao } from './condicoes/editor/EditorDaCondicao'
 import { ChipsDaFicha, FormDePorCondicao } from './condicoes/PorCondicao'
 import './MenuDaSelecao.css'
 
@@ -23,7 +24,8 @@ const FOLGA_DA_BORDA = 8
 /**
  * "CONDIÇÕES ›" DO BOTÃO DIREITO (itens refeitos, E4b; o gesto do critério de pronto: "pôr
  * Envenenado 2 turnos, 3 de vida no Zumbi 1 pelo menu do token"). As condições de cada ficha, com
- * o ✕ que tira, e o "Pôr condição" (duração e número da regra). Grava na FICHA: no NPC, na cópia
+ * o ✕ que tira, e o "Pôr condição" (qual e a duração; a regra mora na condição). "Criar condição…" fecha o
+ * menu e abre o editor único (rework das condições, D13). Grava na FICHA: no NPC, na cópia
  * daquele token, então o Zumbi 2 não acende. Mesmo molde do "Vida ›" (`SubmenuDaVida`): abre ao
  * lado do pai, à esquerda quando não cabe, com o foco dentro; Tab e as setas andam sem sair; Esc fecha.
  */
@@ -94,6 +96,11 @@ export function SubmenuDeCondicoes({ fichas, ancora, onFechar, onPos }: SubmenuD
           const pos = porCondicaoNasFichas(ids, pedido)
           if (pos) onPos()
           return pos
+        }}
+        onCriar={() => {
+          // O menu fecha no clique fora; o editor vive numa raiz própria (abrirEditorDaCondicao), não dentro dele.
+          onPos()
+          abrirEditorDaCondicao({ abertura: { tipo: 'nova' } })
         }}
       />
     </div>

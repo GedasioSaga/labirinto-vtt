@@ -1,0 +1,615 @@
+/*
+ * O EDITOR ÚNICO DA CONDIÇÃO, O CARTÃO E O BONECO (rework das condições, PLANO.md E6).
+ * Porte do protótipo (docs/design/condicoes-rework/prototipo.html: `.editor`, `.secao`, `.papel`,
+ * `.acontece`, `.boneco`, `.tempo`, `.rodada`, `.medidor`, `.registro`) com os tokens do app. A janela,
+ * os botões e o aviso com Desfazer são os do editor de habilidades (`lb-ed*`, components/batalha/editor/
+ * editor.css); a peça é a dele (`lb-pc*`). Aqui fica só o que é da condição (`lb-cde-*`).
+ * Movimento: só opacity e transform, e o brilho de "você chegou aqui" (só opacidade); com movimento
+ * reduzido, as barras do boneco e a peça nova só aparecem.
+ */
+
+/* ---------------------------------------------------------------- a cor de cada família (o fio, o chip, o filtro) */
+[data-familia='vez'] {
+  --cor-peca: var(--lb-peca-dano);
+}
+[data-familia='atributo'] {
+  --cor-peca: var(--lb-peca-agua);
+}
+[data-familia='bloqueio'] {
+  --cor-peca: var(--lb-peca-couro);
+}
+[data-familia='danoCura'] {
+  --cor-peca: var(--lb-peca-ameixa);
+}
+[data-familia='gatilho'] {
+  --cor-peca: var(--lb-peca-cura);
+}
+[data-familia='marca'] {
+  --cor-peca: var(--lb-peca-selo);
+}
+[data-familia='aura'] {
+  --cor-peca: var(--lb-peca-latao);
+}
+[data-familia='contra'] {
+  --cor-peca: var(--lb-peca-gelo);
+}
+
+/* ---------------------------------------------------------------- primitivos */
+.lb-cde-rot {
+  margin: 0;
+  font-size: var(--lb-font-size-xs);
+  font-weight: 600;
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cde-nota {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cde-nota--erro {
+  color: var(--lb-color-ember);
+}
+.lb-cde-ic {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lb-cde-novo {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font: 600 10px / 16px var(--lb-font-sans);
+  vertical-align: 2px;
+}
+.lb-cde-frase {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.lb-cde-etiquetas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lb-cde-etiqueta {
+  padding: 2px 9px;
+  border-radius: var(--lb-radius-full);
+  border: 1px solid var(--lb-gr-filete-forte);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* ---------------------------------------------------------------- a janela */
+.lb-cde-tit {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.lb-cde-tit span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lb-cde-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+  white-space: nowrap;
+}
+.lb-cde-estado i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lb-color-online);
+}
+.lb-cde-estado[data-sujo] i {
+  background: var(--lb-color-brass-bright);
+}
+.lb-cde .lb-ed__bt--primario[aria-disabled='true'] {
+  opacity: 0.55;
+}
+.lb-cde-renomear {
+  display: grid;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--lb-gr-filete);
+  background: var(--lb-color-brass-soft);
+}
+.lb-cde-renomear p {
+  margin: 0;
+  max-width: 78ch;
+}
+/* com o aviso de renomear aberto, o corpo cabe embaixo dele */
+.lb-cde:has(.lb-cde-renomear) {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+/* ---------------------------------------------------------------- as seções da esquerda */
+.lb-cde-secao {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  padding: 16px 0 20px;
+  border-top: 1px solid var(--lb-gr-filete);
+  scroll-margin-top: 8px;
+}
+.lb-cde-secao:first-of-type {
+  border-top: 0;
+  padding-top: 4px;
+}
+.lb-cde-secao__cab {
+  display: grid;
+  gap: 2px;
+}
+.lb-cde-secao__tit {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+.lb-cde-secao__sub {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cde-pecas {
+  display: grid;
+  gap: 10px;
+}
+.lb-cde-peca {
+  scroll-margin-top: 8px;
+}
+
+/* "Pôr peça": as oito famílias, cada uma com a cor, o ícone e o que faz */
+.lb-cde-por {
+  display: grid;
+  gap: 8px;
+}
+.lb-cde-tipos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 6px;
+}
+.lb-cde-tipo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1px 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--lb-radius-sm);
+  border: 1px solid var(--lb-gr-filete);
+  border-left: 3px solid var(--cor-peca);
+  background: var(--lb-gr-campo);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast, 120ms) ease,
+    transform 160ms var(--lb-gr-ease-out);
+}
+.lb-cde-tipo .lb-pc__med {
+  grid-row: span 2;
+}
+.lb-cde-tipo b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.lb-cde-tipo small {
+  font-size: var(--lb-font-size-xs);
+  line-height: 1.3;
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cde-tipo:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.lb-cde-tipo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.lb-cde-tipo:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- Onde ela aparece */
+.lb-cde-onde {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.lb-cde-usos {
+  display: grid;
+  gap: 6px;
+}
+
+/* ---------------------------------------------------------------- a coluna da direita */
+.lb-cde-ver {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+.lb-cde-ver__rot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* ---------------------------------------------------------------- o cartão (o papel) */
+.lb-cde-papel {
+  --ed-tinta: #26221c;
+  --ed-dano: #8a2c22;
+  --ed-cura: #2d6a3e;
+  --ed-selo: #5a3f8c;
+  --ed-custo: #2c5578;
+  --ed-tenue: #5d5a54;
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px 15px;
+  background: var(--bt-papel, var(--lb-color-parchment));
+  color: var(--ed-tinta);
+  clip-path: var(--bt-rasgo-caixa, none);
+}
+.lb-cde-papel__topo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lb-cde-papel__nomes {
+  min-width: 0;
+}
+.lb-cde-papel__nome {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.lb-cde-papel__tipo,
+.lb-cde-papel__rot {
+  margin: 0;
+  font-size: var(--lb-font-size-xs);
+  color: var(--ed-tenue);
+}
+.lb-cde-papel__rot {
+  margin-top: 2px;
+  font-weight: 600;
+}
+.lb-cde-papel__confira {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--ed-dano);
+}
+.lb-cde-acontece {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lb-cde-acontece__item {
+  --cor-peca: var(--ed-tenue);
+}
+.lb-cde-acontece__linha {
+  display: block;
+  width: 100%;
+  padding: 4px 8px 4px 10px;
+  border: 0;
+  border-left: 3px solid var(--cor-peca);
+  border-radius: 0 4px 4px 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  text-align: left;
+}
+button.lb-cde-acontece__linha {
+  cursor: pointer;
+  transition: background-color var(--lb-motion-fast, 120ms) ease;
+}
+button.lb-cde-acontece__linha:focus-visible {
+  outline: 2px solid var(--ed-custo);
+  outline-offset: 1px;
+}
+.lb-cde-tinta {
+  font-weight: 600;
+}
+.lb-cde-tinta[data-tinta='dano'] {
+  color: var(--ed-dano);
+}
+.lb-cde-tinta[data-tinta='cura'] {
+  color: var(--ed-cura);
+}
+.lb-cde-tinta[data-tinta='gasto'] {
+  color: var(--ed-custo);
+}
+.lb-cde-tinta[data-tinta='selo'] {
+  color: var(--ed-selo);
+}
+.lb-cde-nota-lista {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 0 0;
+  border-top: 1px dashed rgba(38, 34, 28, 0.25);
+  list-style: none;
+  font-size: var(--lb-font-size-xs);
+  color: var(--ed-tenue);
+}
+.lb-cde-nota-lista li {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+.lb-cde-nota-lista--aviso {
+  color: #7a4a12;
+}
+.lb-cde-nota-lista--aviso li[data-impede] {
+  color: var(--ed-dano);
+  font-weight: 600;
+}
+.lb-cde-papel__numeros {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(38, 34, 28, 0.2);
+}
+.lb-cde-papel__numeros dt {
+  font-size: 10.5px;
+  color: var(--ed-tenue);
+}
+.lb-cde-papel__numeros dd {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- o boneco */
+.lb-cde-boneco {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--lb-radius-md, 10px);
+  border: 1px solid var(--lb-gr-filete);
+  background: var(--lb-color-stone-solid);
+}
+.lb-cde-boneco__cab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.lb-cde-boneco__cab small {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+  text-align: right;
+}
+.lb-cde-ajustes {
+  display: grid;
+  gap: 6px;
+}
+.lb-cde-ajuste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.lb-cde-ajuste__rot {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.lb-cde-tempo {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lb-cde-tempo li {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo);
+  font-size: var(--lb-font-size-xs);
+}
+.lb-cde-tempo__r {
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cde-tempo__p {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 28px;
+}
+.lb-cde-tempo__p em {
+  position: absolute;
+  right: -8px;
+  bottom: -2px;
+  min-width: 16px;
+  padding: 0 3px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-raised);
+  font: 600 10px / 14px var(--lb-font-sans);
+  font-style: normal;
+  text-align: center;
+}
+.lb-cde-tempo__fora {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px dashed var(--lb-gr-filete-forte);
+}
+.lb-cde-tempo li[data-saiu] .lb-cde-tempo__p {
+  opacity: 0.35;
+}
+.lb-cde-tempo__v {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.lb-cde-tempo__e {
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cde-rodadas {
+  display: grid;
+  gap: 8px;
+}
+.lb-cde-rodada {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--lb-radius-sm);
+  border: 1px solid var(--lb-gr-filete);
+}
+.lb-cde-rodada[data-fora] {
+  opacity: 0.6;
+}
+.lb-cde-rodada__cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.lb-cde-rodada__cab h4 {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+}
+.lb-cde-rodada__cab span {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cde-medidores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px 10px;
+}
+.lb-cde-medidor__rot {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+}
+.lb-cde-medidor__rot b {
+  font-variant-numeric: tabular-nums;
+}
+.lb-cde-medidor__rot small {
+  font-weight: 400;
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cde-medidor__barra {
+  position: relative;
+  height: 5px;
+  margin-top: 3px;
+  border-radius: 3px;
+  background: var(--lb-gr-campo);
+  overflow: hidden;
+}
+.lb-cde-medidor__barra i {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: var(--lb-peca-agua);
+  transition: transform 200ms var(--lb-gr-ease-out);
+}
+.lb-cde-medidor__barra[data-recurso='vida'] i {
+  background: var(--lb-peca-dano);
+}
+.lb-cde-medidor__barra[data-recurso='sp'] i {
+  background: var(--lb-peca-latao);
+}
+.lb-cde-medidor__barra s {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--lb-color-parchment);
+}
+.lb-cde-registro {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--lb-font-size-xs);
+}
+.lb-cde-registro li {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 6px;
+}
+.lb-cde-registro li > span:first-child {
+  color: var(--lb-color-parchment-faint);
+}
+.lb-cde-registro li[data-tipo='dano'] > span:first-child {
+  color: var(--lb-peca-dano);
+}
+.lb-cde-registro li[data-tipo='cura'] > span:first-child {
+  color: var(--lb-peca-cura);
+}
+.lb-cde-registro li[data-tipo='cond'] > span:first-child {
+  color: var(--lb-peca-selo);
+}
+.lb-cde-registro .lb-cde-tinta {
+  color: inherit;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.lb-cde-acontece__linha:hover {
+    background: rgba(38, 34, 28, 0.07);
+  }
+  .lb-cde-tipo:hover:not(:disabled) {
+    border-color: var(--lb-gr-filete-forte);
+  }
+}
+
+@media (max-width: 760px) {
+  .lb-cde-papel__numeros {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cde-medidor__barra i {
+    transition: none;
+  }
+  .lb-cde-tipo {
+    transition: border-color 120ms ease;
+  }
+  .lb-cde-tipo:active:not(:disabled) {
+    transform: none;
+  }
+}

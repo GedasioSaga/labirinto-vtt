@@ -8,6 +8,7 @@ import { porCondicaoNasFichas, tirarCondicaoDasFichas } from '../../stores/condi
 import { useCondicoesPropriasStore } from '../../stores/condicoesPropriasStore'
 import type { CondicaoPropria, TokenCondition } from '../../types/map'
 import { PastilhaDeCondicao } from '../PastilhaDeCondicao'
+import { abrirEditorDaCondicao } from './editor/EditorDaCondicao'
 import { ChipsDaFicha, FormDePorCondicao } from './PorCondicao'
 import './condicoes.css'
 
@@ -23,8 +24,8 @@ export interface CondicoesDaFichaProps {
 
 /**
  * AS CONDIÇÕES DO TOKEN COM FICHA (itens refeitos, PLANO §1.5; etapa E4b): moram na FICHA, não no
- * token. O painel mostra as postas (com o prazo e o ✕) e o "Pôr condição" com a duração e o número
- * da regra; grava pela ficha (`stores/condicoesDoMestre.ts`), com Desfazer no aviso. O que ainda
+ * token. O painel mostra as postas (com o prazo e o ✕) e o "Pôr condição" com o catálogo inteiro (as 35
+ * de fábrica e as criadas) e a duração; "Criar condição…" abre o editor único (rework, D13). Grava pela ficha (`stores/condicoesDoMestre.ts`), com Desfazer no aviso. O que ainda
  * estava no token, de antes, aparece embaixo só para tirar: nada some sem o mestre ver.
  */
 export function CondicoesDaFicha({ personagem, antigas = [], antigasProprias = [], onTirarAntiga, onTirarAntigaPropria }: CondicoesDaFichaProps) {
@@ -39,7 +40,7 @@ export function CondicoesDaFicha({ personagem, antigas = [], antigasProprias = [
         criadas={criadas}
         onTirar={(condicao, nomeDaCondicao) => tirarCondicaoDasFichas([personagem.id], condicao.id, nomeDaCondicao)}
       />
-      <FormDePorCondicao alvos={[{ id: personagem.id, nome }]} catalogo={catalogo} onPor={porCondicaoNasFichas} />
+      <FormDePorCondicao alvos={[{ id: personagem.id, nome }]} catalogo={catalogo} onPor={porCondicaoNasFichas} onCriar={() => abrirEditorDaCondicao({ abertura: { tipo: 'nova' } })} />
       <p className="cd-nota">Mora na ficha de {nome}: aparece igual no mapa, na batalha e na tela do jogador.</p>
       {temAntigas && (
         <div className="cd-da-ficha__antigas">
