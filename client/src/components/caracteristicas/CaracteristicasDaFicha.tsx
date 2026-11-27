@@ -1,18 +1,24 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { novoIdDeCaracteristica } from '../../lib/caracteristicas/companions'
-import { numeroDaRecuperacao } from '../../lib/caracteristicas/recuperacao'
+import { numeroDaRecuperacao, ROTULO_DA_RECUPERACAO } from '../../lib/caracteristicas/recuperacao'
 import {
   CARACTERISTICAS_MAX,
+  linhasDaRecuperacao,
   NOME_PADRAO_DO_GRUPO,
+  novaRecuperacao,
   QUANTO_DA_RECUPERACAO_MAX,
+  RECURSOS_DA_RECUPERACAO,
+  recuperacaoComLinha,
   recuperacaoDaFicha,
   temCegueira,
   type Caracteristica,
   type CaracteristicaRecuperacao,
+  type LinhaDaRecuperacao,
   type RecursoDaRecuperacao,
 } from '../../lib/caracteristicas/tipos'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { Toggle } from '../Toggle'
 import './caracteristicas.css'
 
 /**
@@ -20,8 +26,9 @@ import './caracteristicas.css'
  * (protótipo aprovado, estado 1): os chips e, só para o mestre, o
  * "+ Característica". Clicar num chip abre a página dele no lugar das abas
  * (quem desenha a página é `PaginaDaCaracteristica`); o jogador vê os chips.
- * Embaixo, o "Recupera por turno" (pedido do dono de 26/11/2026): o mestre
- * escolhe Nada, Vida ou SP e quanto; o jogador lê a linha (com "nada", some).
+ * Embaixo, o "Recupera por turno" (pedido do dono de 26/11/2026; em 27/11,
+ * duas linhas independentes): o mestre liga "Vida por turno" e/ou "SP por
+ * turno", cada uma com o quanto dela; o jogador lê as linhas com quanto.
  */
 
 export interface CaracteristicasDaFichaProps {
@@ -85,9 +92,9 @@ export function CaracteristicasDaFicha({ personagem, sistema = null, aberta, onA
   const lista = personagem.caracteristicas ?? []
   const chips = lista.filter(ehChip)
   const recuperacao = recuperacaoDaFicha(lista)
-  // O jogador lê o "Recupera por turno" só quando há quanto (vazio = nada).
-  const recuperacaoLida = recuperacao !== null && recuperacao.quanto !== '' ? recuperacao : null
-  if (onMudar === undefined && chips.length === 0 && recuperacaoLida === null) return null
+  // O jogador lê só as linhas com quanto (vazio = nada).
+  const linhasLidas = recuperacao === null ? [] : linhasDaRecuperacao(recuperacao).filter(({ linha }) => linha.quanto !== '')
+  if (onMudar === undefined && chips.length === 0 && linhasLidas.length === 0) return null
   return (
     <section className="lb-carac" aria-labelledby={tituloId}>
       <h3 className="lb-eyebrow lb-ficha__subtitulo" id={tituloId}>
@@ -132,102 +139,143 @@ export function CaracteristicasDaFicha({ personagem, sistema = null, aberta, onA
       {onMudar !== undefined ? (
         <RecuperaPorTurno key={personagem.id} personagem={personagem} sistema={sistema} onMudar={onMudar} />
       ) : (
-        recuperacaoLida !== null && <RecuperacaoLida recuperacao={recuperacaoLida} personagem={personagem} sistema={sistema} />
+        linhasLidas.map(({ recurso, linha }) => <RecuperacaoLida key={recurso} recurso={recurso} linha={linha} personagem={personagem} sistema={sistema} />)
       )}
     </section>
   )
 }
 
-const ROTULO_DO_RECURSO: Readonly<Record<RecursoDaRecuperacao, string>> = { hp: 'Vida', sp: 'SP' }
-const OPCOES_DA_RECUPERACAO: readonly { recurso: RecursoDaRecuperacao | null; rotulo: string }[] = [
-  { recurso: null, rotulo: 'Nada' },
-  { recurso: 'hp', rotulo: ROTULO_DO_RECURSO.hp },
-  { recurso: 'sp', rotulo: ROTULO_DO_RECURSO.sp },
-]
 /** Só algarismos: o número já diz tudo (sem a prévia "= 10"). */
 const SO_NUMERO = /^\d+$/
 
-/** A linha do jogador: "Recupera por turno: 10 de SP" (a fórmula leva o número ao lado). */
-function RecuperacaoLida({ recuperacao, personagem, sistema }: { recuperacao: CaracteristicaRecuperacao; personagem: Personagem; sistema: SistemaDeRpg | null }) {
-  const numero = sistema === null || SO_NUMERO.test(recuperacao.quanto) ? null : numeroDaRecuperacao(recuperacao.quanto, personagem, sistema)
+/** Uma linha do jogador: "Vida por turno: Vigor / 2 (= 12)" (a fórmula leva o número ao lado). */
+function RecuperacaoLida({ recurso, linha, personagem, sistema }: { recurso: RecursoDaRecuperacao; linha: LinhaDaRecuperacao; personagem: Personagem; sistema: SistemaDeRpg | null }) {
+  const numero = sistema === null || SO_NUMERO.test(linha.quanto) ? null : numeroDaRecuperacao(linha.quanto, personagem, sistema)
   return (
     <p className="lb-carac__recupera-lida">
-      Recupera por turno:{' '}
-      <b>
-        {recuperacao.quanto} de {ROTULO_DO_RECURSO[recuperacao.recurso]}
-      </b>
+      {ROTULO_DA_RECUPERACAO[recurso]} por turno: <b>{linha.quanto}</b>
       {numero !== null && <span className="lb-carac__conta"> (= {numero})</span>}
     </p>
   )
 }
 
 /**
- * O campo do mestre: "Recupera por turno: Nada / Vida / SP" e quanto (número ou fórmula). Grava na hora
- * (a escolha) e ao sair do campo ou no Enter (o quanto). Nada = a característica sai da ficha. A batalha
- * aplica no começo da vez da ficha (`stores/batalha/vez.ts`).
+ * O campo do mestre (27/11/2026): "Vida por turno" e "SP por turno", cada uma ligada ou não, com o quanto
+ * dela (número ou fórmula). Ligar e desligar grava na hora; o quanto, ao sair do campo ou no Enter. As duas
+ * desligadas = a característica sai da ficha. A batalha aplica no começo da vez da ficha (`stores/batalha/vez.ts`).
  */
 function RecuperaPorTurno({ personagem, sistema, onMudar }: { personagem: Personagem; sistema: SistemaDeRpg | null; onMudar: (lista: Caracteristica[]) => void }) {
   const lista = personagem.caracteristicas ?? []
   const atual = recuperacaoDaFicha(lista)
-  const [quanto, setQuanto] = useState(atual?.quanto ?? '')
-  const gravado = atual?.quanto ?? ''
-  useEffect(() => setQuanto(gravado), [gravado])
-  const quantoRef = useRef<HTMLInputElement>(null)
-  const grupo = useId()
-  const quantoId = useId()
-  const previaId = useId()
+  const avisoId = useId()
   // O leitor corta a lista no teto: sem vaga, a recuperação nova se perderia ao reabrir a ficha.
   const semVaga = atual === null && lista.length >= CARACTERISTICAS_MAX
 
-  function escolher(recurso: RecursoDaRecuperacao | null) {
-    if (recurso === null) {
+  /** A recuperação nova no lugar da de agora; `null` = sai da ficha. */
+  function trocar(nova: CaracteristicaRecuperacao | null) {
+    if (nova === null) {
       if (atual !== null) onMudar(lista.filter((caracteristica) => caracteristica.tipo !== 'recuperacao'))
       return
     }
-    if (atual === null) {
-      onMudar([...lista, { tipo: 'recuperacao', id: novoIdDeCaracteristica(), recurso, quanto: quanto.trim().slice(0, QUANTO_DA_RECUPERACAO_MAX) }])
-      // O quanto aparece agora: o foco vai a ele depois do desenho.
-      requestAnimationFrame(() => quantoRef.current?.focus())
+    onMudar(atual === null ? [...lista, nova] : lista.map((caracteristica) => (caracteristica.id === atual.id ? nova : caracteristica)))
+  }
+
+  function mudarLinha(recurso: RecursoDaRecuperacao, linha: LinhaDaRecuperacao | null) {
+    if (atual !== null) trocar(recuperacaoComLinha(atual, recurso, linha))
+    else if (linha !== null) trocar(novaRecuperacao(novoIdDeCaracteristica(), recurso, linha))
+  }
+
+  return (
+    <fieldset className="lb-carac__recupera">
+      <legend className="lb-carac__recupera-tit">Recupera por turno</legend>
+      {RECURSOS_DA_RECUPERACAO.map((recurso) => (
+        <LinhaDoRecuperaPorTurno
+          key={recurso}
+          recurso={recurso}
+          // Linha ausente = desligada (o domínio): `null` para o campo.
+          linha={atual === null ? null : (atual[recurso] ?? null)}
+          personagem={personagem}
+          sistema={sistema}
+          semVagaId={semVaga ? avisoId : null}
+          onMudar={(linha) => mudarLinha(recurso, linha)}
+        />
+      ))}
+      {semVaga && (
+        <p className="lb-carac__recupera-aviso" id={avisoId}>
+          A ficha já tem {CARACTERISTICAS_MAX} características.
+        </p>
+      )}
+    </fieldset>
+  )
+}
+
+/**
+ * Uma linha do campo do mestre: o interruptor "Vida por turno" (ou "SP por turno") e, ligada, o quanto com a
+ * prévia da conta. `semVagaId` = a ficha sem vaga para a característica nova: a linha desligada não liga.
+ */
+function LinhaDoRecuperaPorTurno({
+  recurso,
+  linha,
+  personagem,
+  sistema,
+  semVagaId,
+  onMudar,
+}: {
+  recurso: RecursoDaRecuperacao
+  linha: LinhaDaRecuperacao | null
+  personagem: Personagem
+  sistema: SistemaDeRpg | null
+  semVagaId: string | null
+  onMudar: (linha: LinhaDaRecuperacao | null) => void
+}) {
+  const gravado = linha === null ? '' : linha.quanto
+  const [quanto, setQuanto] = useState(gravado)
+  useEffect(() => setQuanto(gravado), [gravado])
+  const quantoRef = useRef<HTMLInputElement>(null)
+  const quantoId = useId()
+  const previaId = useId()
+  const rotulo = ROTULO_DA_RECUPERACAO[recurso]
+
+  function ligar(sim: boolean) {
+    if (!sim) {
+      onMudar(null)
       return
     }
-    if (atual.recurso !== recurso) onMudar(lista.map((caracteristica) => (caracteristica.id === atual.id ? { ...atual, recurso } : caracteristica)))
+    onMudar({ quanto: quanto.trim().slice(0, QUANTO_DA_RECUPERACAO_MAX) })
+    // O quanto aparece agora: o foco vai a ele depois do desenho.
+    requestAnimationFrame(() => quantoRef.current?.focus())
   }
 
   function gravarQuanto() {
-    if (atual === null) return
+    if (linha === null) return
     const limpo = quanto.trim().slice(0, QUANTO_DA_RECUPERACAO_MAX)
     setQuanto(limpo)
-    if (limpo !== atual.quanto) onMudar(lista.map((caracteristica) => (caracteristica.id === atual.id ? { ...atual, quanto: limpo } : caracteristica)))
+    if (limpo !== linha.quanto) onMudar({ quanto: limpo })
   }
 
   const limpo = quanto.trim()
-  const numero = atual === null || sistema === null || limpo === '' ? null : numeroDaRecuperacao(limpo, personagem, sistema)
+  const numero = linha === null || sistema === null || limpo === '' ? null : numeroDaRecuperacao(limpo, personagem, sistema)
   const previa =
-    atual === null
+    linha === null
       ? null
       : limpo === ''
         ? { texto: 'Digite quanto: um número ou uma conta (Vigor / 2).', erro: false }
         : sistema !== null && numero === null
           ? { texto: 'Não entendi a conta: use um número ou atributos (Vigor / 2). Assim não recupera nada.', erro: true }
           : numero !== null && !SO_NUMERO.test(limpo)
-            ? { texto: `= ${numero} de ${ROTULO_DO_RECURSO[atual.recurso]} agora`, erro: false }
+            ? { texto: `= ${numero} de ${rotulo} agora`, erro: false }
             : null
 
   return (
-    <fieldset className="lb-carac__recupera">
-      <legend className="lb-carac__recupera-tit">Recupera por turno</legend>
-      <div className="lb-carac__seg" title={semVaga ? `A ficha já tem ${CARACTERISTICAS_MAX} características.` : undefined}>
-        {OPCOES_DA_RECUPERACAO.map((opcao) => {
-          const marcada = (atual?.recurso ?? null) === opcao.recurso
-          return (
-            <label key={opcao.rotulo} className="lb-carac__seg-op" data-marcada={marcada ? 'sim' : undefined}>
-              <input type="radio" name={grupo} checked={marcada} disabled={semVaga && opcao.recurso !== null} onChange={() => escolher(opcao.recurso)} />
-              <span>{opcao.rotulo}</span>
-            </label>
-          )
-        })}
-      </div>
-      {atual !== null && (
+    <div className="lb-carac__linha">
+      <Toggle
+        label={`${rotulo} por turno`}
+        checked={linha !== null}
+        disabled={semVagaId !== null && linha === null}
+        describedBy={linha === null && semVagaId !== null ? semVagaId : undefined}
+        onChange={ligar}
+      />
+      {linha !== null && (
         <div className="lb-carac__quanto">
           <label htmlFor={quantoId}>Quanto</label>
           <input
@@ -239,6 +287,8 @@ function RecuperaPorTurno({ personagem, sistema, onMudar }: { personagem: Person
             placeholder="10 ou Vigor / 2"
             inputMode="text"
             autoComplete="off"
+            // Duas linhas, dois "Quanto": o nome diz de qual (e contém o texto visível).
+            aria-label={`Quanto de ${rotulo} por turno`}
             aria-describedby={previa === null ? undefined : previaId}
             aria-invalid={previa?.erro === true ? true : undefined}
             onChange={(event) => setQuanto(event.target.value)}
@@ -260,7 +310,7 @@ function RecuperaPorTurno({ personagem, sistema, onMudar }: { personagem: Person
           )}
         </div>
       )}
-    </fieldset>
+    </div>
   )
 }
 

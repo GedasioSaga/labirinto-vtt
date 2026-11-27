@@ -560,7 +560,8 @@ button.lb-carac__chip:focus-visible,
   font-size: var(--lb-font-size-sm);
 }
 
-/* "Recupera por turno" (pedido do dono de 26/11/2026): Nada / Vida / SP e quanto, no fim do bloco. */
+/* "Recupera por turno" (pedido do dono de 26/11/2026; em 27/11, duas linhas independentes): o
+   interruptor "Vida por turno" e o "SP por turno", cada um com o quanto dele, no fim do bloco. */
 .lb-carac__recupera {
   display: grid;
   gap: var(--lb-space-2);
@@ -577,60 +578,22 @@ button.lb-carac__chip:focus-visible,
   font-size: var(--lb-font-size-sm);
 }
 
-.lb-carac__seg {
-  display: inline-flex;
-  width: fit-content;
-  max-width: 100%;
-  padding: 3px;
-  border: 1px solid var(--lb-color-line-strong);
-  border-radius: 999px;
-  background: var(--lb-color-stone-sunken);
+/* Uma linha: o interruptor e, ligada, o quanto logo abaixo. */
+.lb-carac__linha {
+  display: grid;
+  gap: var(--lb-space-1);
+  min-width: 0;
 }
 
-.lb-carac__seg-op {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
+.lb-carac__linha .lb-switch {
   min-height: 28px;
-  padding: 2px 14px;
-  border-radius: 999px;
-  color: var(--lb-color-parchment-dim);
   font-size: var(--lb-font-size-sm);
-  cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease-out;
 }
 
-.lb-carac__seg-op input {
-  position: absolute;
-  inset: 0;
+.lb-carac__recupera-aviso {
   margin: 0;
-  opacity: 0;
-  cursor: inherit;
-}
-
-.lb-carac__seg-op:active {
-  transform: scale(0.97);
-}
-
-.lb-carac__seg-op[data-marcada='sim'] {
-  background: color-mix(in srgb, var(--lb-color-brass) 22%, var(--lb-color-stone-raised));
-  color: var(--lb-color-parchment);
-}
-
-.lb-carac__seg-op:has(input:focus-visible) {
-  outline: 2px solid var(--lb-color-brass-bright);
-  outline-offset: 1px;
-}
-
-.lb-carac__seg-op:has(input:disabled) {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .lb-carac__seg-op:not([data-marcada='sim']):hover {
-    color: var(--lb-color-parchment);
-  }
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-xs);
 }
 
 .lb-carac__quanto {
@@ -669,17 +632,12 @@ button.lb-carac__chip:focus-visible,
   overflow-wrap: anywhere;
 }
 
+/* A segunda linha do jogador ("SP por turno") cola na primeira. */
+.lb-carac__recupera-lida + .lb-carac__recupera-lida {
+  margin-top: var(--lb-space-1);
+}
+
 .lb-carac__recupera-lida b {
   color: var(--lb-color-parchment);
   font-weight: 600;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lb-carac__seg-op {
-    transition: background-color 140ms ease, color 140ms ease;
-  }
-
-  .lb-carac__seg-op:active {
-    transform: none;
-  }
 }

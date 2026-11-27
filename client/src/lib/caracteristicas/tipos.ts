@@ -8,9 +8,11 @@
  *  - Cegueira: a visão cai pela metade; quem fica entre a metade e o raio normal
  *    vira uma onda no chão (a frente da Cegueira lê só `temCegueira`).
  *  - Recuperação (pedido do dono de 26/11/2026: "coloca um campo perguntando se
- *    ele recupera vida ou SP por turno"): o campo "Recupera por turno: nada /
- *    Vida / SP" e quanto. "Nada" = a característica ausente (a ficha antiga é
- *    "nada"). A batalha aplica no começo da vez (`stores/batalha/vez.ts`).
+ *    ele recupera vida ou SP por turno"; em 27/11: "eu quero poder colocar ou em
+ *    um ou em outro ou nos dois ou em nenhum"): duas linhas independentes, "Vida
+ *    por turno" e "SP por turno", cada uma ligada ou não, com o quanto dela.
+ *    Nenhuma ligada = a característica ausente (a ficha antiga é "nada"). A
+ *    batalha aplica no começo da vez (`stores/batalha/vez.ts`).
  *
  * Só o mestre cria, muda ou tira (a edição do jogador parte da ficha gravada,
  * `net/edicaoDoPersonagem.ts`). Vai ao jogador junto com a ficha: ele vê os
@@ -68,22 +70,36 @@ export interface CaracteristicaCegueira {
   id: string
 }
 
-/** O que a ficha recupera por turno: a Vida (HP) ou o SP. */
+/** O que uma linha do "Recupera por turno" recupera: a Vida (HP) ou o SP. */
 export type RecursoDaRecuperacao = 'hp' | 'sp'
+
+/** As linhas do "Recupera por turno", na ordem da tela e do registro da batalha. */
+export const RECURSOS_DA_RECUPERACAO: readonly RecursoDaRecuperacao[] = ['hp', 'sp']
 
 /** O teto do "quanto" (um número ou uma fórmula curta, "Vigor / 2"). */
 export const QUANTO_DA_RECUPERACAO_MAX = 80
 
+/** Uma linha ligada: "Vida por turno" ou "SP por turno". */
+export interface LinhaDaRecuperacao {
+  /**
+   * Um número ("10") ou uma fórmula ("Vigor / 2"), lida na vez por `lerFormula`
+   * (`lib/caracteristicas/recuperacao.ts`). Vazio, ou fora da gramática = a
+   * linha não recupera nada (o mestre vê o aviso no campo).
+   */
+  quanto: string
+}
+
+/**
+ * O "Recupera por turno" (27/11/2026): cada linha é independente. Linha
+ * ausente = desligada; as duas desligadas = a característica sai da ficha (o
+ * leitor tira a que chegar sem nenhuma). A ficha de 26/11 (`{ recurso, quanto }`,
+ * uma linha só) é lida como a linha dela ligada (`lerCaracteristicas`).
+ */
 export interface CaracteristicaRecuperacao {
   tipo: 'recuperacao'
   id: string
-  recurso: RecursoDaRecuperacao
-  /**
-   * Um número ("10") ou uma fórmula ("Vigor / 2"), lida na vez por `lerFormula`
-   * (`lib/caracteristicas/recuperacao.ts`). Vazio, ou fora da gramática = não
-   * recupera nada (o mestre vê o aviso no campo).
-   */
-  quanto: string
+  hp?: LinhaDaRecuperacao
+  sp?: LinhaDaRecuperacao
 }
 
 export type Caracteristica = CaracteristicaCompanion | CaracteristicaCegueira | CaracteristicaRecuperacao
@@ -116,6 +132,35 @@ export function temCegueira(caracteristicas: readonly Caracteristica[] | undefin
 /** O "Recupera por turno" da ficha; `null` = nada (a ficha antiga também). */
 export function recuperacaoDaFicha(caracteristicas: readonly Caracteristica[] | undefined): CaracteristicaRecuperacao | null {
   return caracteristicas?.find((caracteristica): caracteristica is CaracteristicaRecuperacao => caracteristica.tipo === 'recuperacao') ?? null
+}
+
+/** As linhas ligadas, na ordem da tela (Vida antes do SP). */
+export function linhasDaRecuperacao(recuperacao: CaracteristicaRecuperacao): { recurso: RecursoDaRecuperacao; linha: LinhaDaRecuperacao }[] {
+  const ligadas: { recurso: RecursoDaRecuperacao; linha: LinhaDaRecuperacao }[] = []
+  for (const recurso of RECURSOS_DA_RECUPERACAO) {
+    const linha = recuperacao[recurso]
+    if (linha !== undefined) ligadas.push({ recurso, linha })
+  }
+  return ligadas
+}
+
+/** A recuperação com as linhas dadas (`null` = desligada); nenhuma ligada = `null` (a característica sai). Sem chave `undefined`. */
+function recuperacaoComAsLinhas(id: string, hp: LinhaDaRecuperacao | null, sp: LinhaDaRecuperacao | null): CaracteristicaRecuperacao | null {
+  if (hp === null && sp === null) return null
+  return { tipo: 'recuperacao', id, ...(hp === null ? {} : { hp }), ...(sp === null ? {} : { sp }) }
+}
+
+/** A recuperação com a linha `recurso` trocada (`null` = desligar); a outra fica como está. As duas desligadas = `null`. */
+export function recuperacaoComLinha(atual: CaracteristicaRecuperacao, recurso: RecursoDaRecuperacao, linha: LinhaDaRecuperacao | null): CaracteristicaRecuperacao | null {
+  // `?? null`: linha ausente é a desligada (o domínio), não um defeito a esconder.
+  const hp = recurso === 'hp' ? linha : (atual.hp ?? null)
+  const sp = recurso === 'sp' ? linha : (atual.sp ?? null)
+  return recuperacaoComAsLinhas(atual.id, hp, sp)
+}
+
+/** Uma recuperação nova com só a linha `recurso` ligada. */
+export function novaRecuperacao(id: string, recurso: RecursoDaRecuperacao, linha: LinhaDaRecuperacao): CaracteristicaRecuperacao {
+  return recurso === 'hp' ? { tipo: 'recuperacao', id, hp: linha } : { tipo: 'recuperacao', id, sp: linha }
 }
 
 /** Os grupos de companion da ficha, na ordem do bloco. */
@@ -163,11 +208,27 @@ function companionDoArquivo(valor: Record<string, unknown>, id: string): Caracte
   return grupo
 }
 
-/** O "Recupera por turno" do disco; recurso torto = `null` (sai). O quanto em número vira texto. */
+/** O quanto do disco: texto aparado no teto; número vira texto; o resto, vazio (a linha fica, sem recuperar). */
+function quantoDoArquivo(valor: unknown): string {
+  if (typeof valor === 'string') return valor.trim().slice(0, QUANTO_DA_RECUPERACAO_MAX)
+  return typeof valor === 'number' && Number.isFinite(valor) ? String(valor).slice(0, QUANTO_DA_RECUPERACAO_MAX) : ''
+}
+
+/** Uma linha do disco: só um registro conta como ligada. */
+function linhaDoArquivo(valor: unknown): LinhaDaRecuperacao | null {
+  return ehRegistro(valor) ? { quanto: quantoDoArquivo(valor.quanto) } : null
+}
+
+/**
+ * O "Recupera por turno" do disco ou do fio. As linhas de 27/11 (`hp`, `sp`)
+ * mandam; sem nenhuma delas, a ficha de 26/11 (`recurso` + `quanto`) vira a
+ * linha do recurso dela, ligada. Nada disso = `null` (sai).
+ */
 function recuperacaoDoArquivo(valor: Record<string, unknown>, id: string): CaracteristicaRecuperacao | null {
+  const nova = recuperacaoComAsLinhas(id, linhaDoArquivo(valor.hp), linhaDoArquivo(valor.sp))
+  if (nova !== null) return nova
   if (valor.recurso !== 'hp' && valor.recurso !== 'sp') return null
-  const quanto = typeof valor.quanto === 'string' ? valor.quanto.trim().slice(0, QUANTO_DA_RECUPERACAO_MAX) : typeof valor.quanto === 'number' && Number.isFinite(valor.quanto) ? String(valor.quanto) : ''
-  return { tipo: 'recuperacao', id, recurso: valor.recurso, quanto }
+  return novaRecuperacao(id, valor.recurso, { quanto: quantoDoArquivo(valor.quanto) })
 }
 
 /**
