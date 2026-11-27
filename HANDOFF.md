@@ -6,6 +6,9 @@ Editor de habilidades único (página Habilidades e ficha), com tudo o que já e
 - Protótipo PRONTO (6cc7a401), artifact https://claude.ai/artifact/5CcvZhwm59FeFtrw5oS8hD. Dono: "deixo nas suas mãos, só volte a falar comigo quando terminar tudo" (23h40) — sem perguntas nem relatórios até publicar 0.6.5.
 - Mapa do código em voo (arquiteto-solucoes, max): docs/design/habilidades-rework/MAPA.md; depois, por SendMessage, o PLANO.md em etapas.
 - Conserto "Nova habilidade" pronto (01e21fbc), vai na 0.6.5.
+- MAPA.md (217a827) e PLANO.md (223b03e) prontos. WORKFLOW de construção rodando: run wf_755452d0-652 (task w9b4zce4h), script em ~/.claude/projects/C--dev-labirinto/9e501c59-.../workflows/scripts/rework-editor-habilidades-wf_755452d0-652.js; ondas E1 / E2-E4 / E5-E7 / E8 (testes, prints, notas em tmp/rel-0.6.5). Se cair: resumir com scriptPath + resumeFromRunId.
+- Depois do workflow: verificador-realidade item por item contra os PEDIDOS; publicar 0.6.5 por Agent automacao-devops (roteiro da 0.6.4, Worker junto, CARGO_BUILD_JOBS=2, RAM>=5 GB, disco>=8 GB); commits agora só com a linha Co-Authored-By; SÓ ENTÃO falar com o dono.
+
 ## Próximos passos
 1-2. FEITO: artifact publicado; arquiteto (ae0e9d0e) recebeu ordem de escrever PLANO.md após MAPA.md. 3. Workflow de construção na main (sem worktree; faixas disjuntas; commit só dos caminhos; Opus xhigh, núcleo em max; sem testes até o fim). 4. 1-3 testes certeiros + prints. 5. Publicar 0.6.5 por Agent fora do workflow.
 ## Critério de pronto
