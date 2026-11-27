@@ -1,3 +1,10 @@
+# 26/11 ~21h40: /goal ENCERRADO (0.6.3 publicada, aceite gravado); 0.6.4 em construção
+
+- Pronto p/ 0.6.4: 8db7efa9 gatilho "depois de X turnos" nas condições (peça de condição do Ao acertar + condições criadas) e munição Perfurante. WORKER PRECISA SAIR JUNTO.
+- Em voo: agente "Recarregar fora da batalha + ajuste do pente pelo mestre + Editar arma" no cartão da arma (a111d322...).
+- Depois dele: publicar 0.6.4 (Agent automacao-devops, roteiro da 0.6.3, CARGO_BUILD_JOBS=2, RAM >= 5 GB, Worker junto) com notas em tmp/rel-0.6.4/.
+- Pergunta aberta ao dono: fazer no editor as 27 mecânicas que só existem à mão/texto (docs/explorador/editor-x-leitura.md); proposta: começar pelas 5 primeiras (pergunta que muda o golpe, botão em todo golpe, passiva com gatilho, raça, forma Overload).
+
 # 26/11 21:07: 0.6.3 PUBLICADA
 
 Bump 93c3f27c chore(release): 0.6.3 (5 arquivos, como 4d7d42d6) na main e `git push origin main` (3666a105..93c3f27c). Worktree ../labirinto-release (release/0.6.3 de origin/main = 93c3f27c, 3 junções: raiz, client, lobby/nuvem). RAM 10,6 GB livre, disco 21,4 GB antes. CARGO_BUILD_JOBS=2 publicar-versao --publicar --com-google --notas tmp/rel-0.6.3/notas-da-versao-0.6.3.md, exit 0 na 1ª tentativa (log tmp/rel-0.6.3/publicar.log): tsc lobby ok, assinatura do setup confere, conferir-repo-publico "nada bloqueia", Worker labirinto-nuvem c134bb63-e5fc-4367-b69c-8d7b457d5a84, site 47bfc1c1.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.6.3 (setup.exe, .sig, msi, latest.json; alvo 93c3f27c). curl releases/latest/download/latest.json: "version": "0.6.3". Limpeza: target apagado, Cargo.toml só com diferença de fim de linha restaurado, 3 junções .Delete() uma a uma (0 reparse points), worktree remove sem --force, branch release/0.6.3 apagada; node_modules compartilhado intacto. App do dono não tocado (processo labirinto PID 23880 reporta 0.6.2). Disco 22,6 GB. Nenhum teste rodado.
