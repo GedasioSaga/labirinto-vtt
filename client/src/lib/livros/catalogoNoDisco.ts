@@ -51,12 +51,20 @@ export async function lerCatalogo(sistemaId: string): Promise<CatalogoLido> {
 
 let filaDoCatalogo: Promise<void> = Promise.resolve()
 
-/** Grava o catálogo INTEIRO do sistema, uma gravação depois da outra. Lança com a frase pronta. */
+/** Rework das habilidades (PLANO.md D11): o catálogo de antes da 1ª gravação da versão das habilidades refeitas, guardado UMA vez. */
+const SUFIXO_ANTES_DAS_HABILIDADES_V2 = '.antes-habilidades-v2'
+
+/**
+ * Grava o catálogo INTEIRO do sistema, uma gravação depois da outra. Lança com a frase pronta.
+ * Rework das habilidades (PLANO.md D11): antes da 1ª gravação nesta versão, o catálogo como era fica
+ * ao lado (`catalogo.json.antes-habilidades-v2`), UMA vez; sem a cópia, não grava.
+ */
 export function gravarCatalogo(sistemaId: string, itens: readonly ItemDoCatalogo[]): Promise<void> {
   const resultado = filaDoCatalogo.then(async () => {
     try {
       const { pasta, arquivo } = await caminhoDoCatalogo(sistemaId)
       await ensureDir(pasta)
+      await copiarUmaVez(arquivo, SUFIXO_ANTES_DAS_HABILIDADES_V2)
       await writeTextFileSafely(arquivo, serializarCatalogo(itens))
     } catch (erro) {
       throw new Error(`Não foi possível gravar o catálogo do livro: ${mensagemDoErro(erro)}.`)
@@ -98,12 +106,17 @@ export function guardarCatalogoAntesDosItensV2(sistemaId: string): Promise<void>
   return guardarCatalogoUmaVez(sistemaId, SUFIXO_ANTES_DOS_ITENS_V2, 'dos itens refeitos')
 }
 
+/** A cópia do arquivo como está, ao lado dele com o sufixo, só se o arquivo existe e a cópia ainda não: nunca por cima. */
+async function copiarUmaVez(arquivo: string, sufixo: string): Promise<void> {
+  const copia = `${arquivo}${sufixo}`
+  if ((await exists(arquivo)) && !(await exists(copia))) await writeTextFile(copia, await readTextFile(arquivo))
+}
+
 function guardarCatalogoUmaVez(sistemaId: string, sufixo: string, deQue: string): Promise<void> {
   const resultado = filaDoCatalogo.then(async () => {
     try {
       const { arquivo } = await caminhoDoCatalogo(sistemaId)
-      const copia = `${arquivo}${sufixo}`
-      if ((await exists(arquivo)) && !(await exists(copia))) await writeTextFile(copia, await readTextFile(arquivo))
+      await copiarUmaVez(arquivo, sufixo)
     } catch (erro) {
       throw new Error(`Não foi possível guardar a cópia do catálogo de antes ${deQue}: ${mensagemDoErro(erro)}.`)
     }
