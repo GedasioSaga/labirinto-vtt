@@ -13,6 +13,8 @@ Editor de habilidades único (página Habilidades e ficha), com tudo o que já e
 
 - 27/11: WORKFLOW TERMINOU (e69686f1..b25fc1b8, 8 agentes, 0 erro): tsc client e Worker exit 0, build do site ok, 2 arquivos de teste 4/4 passando, jornada só por cliques (e2e/task-jornada-overload-do-editor.spec.ts), prints rework-hab-01..03, notas em tmp/rel-0.6.5. Pendências de junção em docs/design/habilidades-rework/PENDENCIAS.md; um agente (programador-frontend, max) está fechando todas. Depois: verificador-realidade contra os PEDIDOS, publicar 0.6.5, falar com o dono.
 
+- 27/11: pendências fechadas (6651ab21..dfdb03b8). verificador-realidade: NECESSITA TRABALHO por 1 bloqueante (acumulador não grava no catálogo do livro) + Esquivar do jogador + jornada e2e a rodar de novo com Edge (Chromium do Playwright não baixado; não instalar) e prints 01/02 velhos. Agente programador-frontend (xhigh) cuidando. Disco 14,1 GB livre. Depois: publicar 0.6.5 (Worker junto) e falar com o dono.
+
 ## Próximos passos
 1-2. FEITO: artifact publicado; arquiteto (ae0e9d0e) recebeu ordem de escrever PLANO.md após MAPA.md. 3. Workflow de construção na main (sem worktree; faixas disjuntas; commit só dos caminhos; Opus xhigh, núcleo em max; sem testes até o fim). 4. 1-3 testes certeiros + prints. 5. Publicar 0.6.5 por Agent fora do workflow.
 ## Critério de pronto
