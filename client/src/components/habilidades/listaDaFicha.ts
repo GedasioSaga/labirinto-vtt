@@ -45,17 +45,18 @@ export interface CartaoTirado {
 }
 
 /** As duas abas da lista única; sem uma delas no molde, a lista única não vale (cada aba segue sozinha, como antes). */
-export function abasDaLista(sistema: SistemaDeRpg): { habilidades: AbaDoSistema; formas: AbaDoSistema } | null {
+export function abasDaLista(sistema: SistemaDeRpg): { habilidades: AbaDoSistema; formas: AbaDoSistema | null } | null {
   const habilidades = abaDoSistema(sistema, ABA_DAS_TECNICAS)
-  const formas = abaDoSistema(sistema, ABA_DAS_TRANSFORMACOES)
-  return habilidades === undefined || formas === undefined ? null : { habilidades, formas }
+  // D14: o sistema sem a aba Transformações também usa a lista única (sem o filtro das formas e sem o "Editar como texto").
+  return habilidades === undefined ? null : { habilidades, formas: abaDoSistema(sistema, ABA_DAS_TRANSFORMACOES) ?? null }
 }
 
 /** A aba é uma das duas da lista única? Então a tela dela é a lista, com o filtro desta aba. */
 export function filtroDaAba(sistema: SistemaDeRpg, abaId: string): FiltroDaLista | null {
-  if (abasDaLista(sistema) === null) return null
+  const abas = abasDaLista(sistema)
+  if (abas === null) return null
   if (abaId === ABA_DAS_TECNICAS) return 'todas'
-  return abaId === ABA_DAS_TRANSFORMACOES ? 'formas' : null
+  return abaId === ABA_DAS_TRANSFORMACOES && abas.formas !== null ? 'formas' : null
 }
 
 /** A mecânica que vale tem a peça Transformação (a proposta do dono só conta quando o mestre aceitar). */
@@ -93,10 +94,11 @@ export function ocultasDaLista(personagem: Pick<Personagem, 'ocultas'>, filtro: 
  * perdeu a peça, volta às habilidades. Sem mudança na peça, fica onde está (a forma de texto, que nunca
  * teve a peça, segue nas Transformações).
  */
-export function abaAoGravar(antes: Pick<CartaoDaFicha, 'mecanica'>, depois: Pick<CartaoDaFicha, 'mecanica'>, abaAtual: string): string {
+export function abaAoGravar(antes: Pick<CartaoDaFicha, 'mecanica'>, depois: Pick<CartaoDaFicha, 'mecanica'>, abaAtual: string, comAbaDasFormas = true): string {
   const tinha = temPecaDeForma(antes)
   const tem = temPecaDeForma(depois)
-  if (tem && !tinha) return ABA_DAS_TRANSFORMACOES
+  // Sem a aba das formas no sistema, a forma fica nas Habilidades (D5: "quando o sistema a tem").
+  if (tem && !tinha) return comAbaDasFormas ? ABA_DAS_TRANSFORMACOES : abaAtual
   if (!tem && tinha) return ABA_DAS_TECNICAS
   return abaAtual
 }
@@ -129,7 +131,7 @@ export function cartaoNoLugar(personagem: Personagem, lugar: LugarNaLista, id: s
  * estava e entra no fim da outra, com o mesmo id. O subcartão fica dentro da forma. Cartão que já não
  * está lá: a MESMA ficha (nada some, nada aparece em dobro).
  */
-export function comOCartaoGravado(personagem: Personagem, lugar: LugarNaLista, novo: CartaoDaFicha): Personagem {
+export function comOCartaoGravado(personagem: Personagem, lugar: LugarNaLista, novo: CartaoDaFicha, comAbaDasFormas = true): Personagem {
   const cartoes = cartoesDaAba(personagem, lugar.abaId)
   if (lugar.paiId !== null) {
     const paiId = lugar.paiId
@@ -140,7 +142,7 @@ export function comOCartaoGravado(personagem: Personagem, lugar: LugarNaLista, n
   }
   const antes = cartoes.find((cartao) => cartao.id === novo.id)
   if (antes === undefined) return personagem
-  const destino = abaAoGravar(antes, novo, lugar.abaId)
+  const destino = abaAoGravar(antes, novo, lugar.abaId, comAbaDasFormas)
   if (destino === lugar.abaId) return comAba(personagem, lugar.abaId, cartoes.map((cartao) => (cartao.id === novo.id ? novo : cartao)))
   const semEle = comAba(personagem, lugar.abaId, cartoes.filter((cartao) => cartao.id !== novo.id))
   return comAba(semEle, destino, [...cartoesDaAba(semEle, destino), novo])
@@ -199,8 +201,8 @@ export function comCartoesNovos(personagem: Personagem, abaId: string, novos: re
 }
 
 /** A aba de um cartão que acabou de chegar: com a peça Transformação, a das formas (D5); senão a pedida. */
-export function abaDoCartaoNovo(cartao: Pick<CartaoDaFicha, 'mecanica'>, pedida: string): string {
-  return temPecaDeForma(cartao) ? ABA_DAS_TRANSFORMACOES : pedida
+export function abaDoCartaoNovo(cartao: Pick<CartaoDaFicha, 'mecanica'>, pedida: string, comAbaDasFormas = true): string {
+  return temPecaDeForma(cartao) && comAbaDasFormas ? ABA_DAS_TRANSFORMACOES : pedida
 }
 
 /** Em quem usa, sem teste: a forma liga em si (o mesmo alvo dos modelos de forma). */

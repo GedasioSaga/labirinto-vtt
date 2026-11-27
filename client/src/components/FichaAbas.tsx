@@ -341,7 +341,7 @@ function CartoesDaAba({ aba, sistema, personagem, editando, onChange, escolherIm
     return (
       <ul className="lb-ficha__cartoes">
         {linhas.map(({ cartao, abaId }) => {
-          const daLinha = abaId === abasJuntas.formas.id ? abasJuntas.formas : abasJuntas.habilidades
+          const daLinha = abasJuntas.formas !== null && abaId === abasJuntas.formas.id ? abasJuntas.formas : abasJuntas.habilidades
           return (
             <CartaoLido
               key={cartao.id}
@@ -848,11 +848,9 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, abri
   const gerados: ReadonlySet<string> = montada ? new Set(camposGeradosDaAba(sistema)) : new Set()
   const camposDaFrente = aba.campos.filter((campo) => !gerados.has(campo.id))
   const camposGerados = aba.campos.filter((campo) => gerados.has(campo.id))
-  // A técnica sem mecânica abre pelo editor novo: no topo, o papel e o "Abrir o editor" (ou a proposta do dono); o texto
-  // antigo fica embaixo, recolhido e editável. Sem quem edite a mecânica (o site do Lobby), o cartão segue como sempre.
-  const textoEmBaixo = aba.id === ABA_DAS_TECNICAS && quemEditaAMecanica !== 'ninguem' && !montada
-  // Sem nome a ficha não salva: o texto já abre, com o erro à vista. Decidido uma vez, ao aparecer (senão fecharia no meio da digitação).
-  const [textoAbertoDeInicio] = useState(semNome)
+  // D14 (uma coisa, um lugar): a técnica sem mecânica abre pelo editor novo (o papel e o "Abrir o editor", ou a proposta do
+  // dono); o nome e o texto dela mudam lá, não aqui. Sem quem edite a mecânica (o site do Lobby), o cartão segue como sempre.
+  const textoNoEditor = aba.id === ABA_DAS_TECNICAS && quemEditaAMecanica !== 'ninguem' && !montada
   // Tipos de habilidade F4: "+ Evolução" e "+ Opção" só nas técnicas; criam os extras com o nome que a batalha lê.
   const ehTecnica = aba.id === ABA_DAS_TECNICAS && aba.extras === true
   const jaEvolui = ehTecnica && temExtrasDaEvolucao(cartao)
@@ -972,9 +970,9 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, abri
         {fonte !== null && <SeloDaFonteDaArma fonte={fonte} />}
       </summary>
       <div className="lb-cartao__form">
-        {!textoEmBaixo && campoDoNome}
-        {!textoEmBaixo && camposDaFrente.map(campoNaTela)}
-        {!textoEmBaixo && camposGerados.length > 0 && (
+        {!textoNoEditor && campoDoNome}
+        {!textoNoEditor && camposDaFrente.map(campoNaTela)}
+        {!textoNoEditor && camposGerados.length > 0 && (
           <details className="lb-cartao__grupo lb-cartao__texto-antigo">
             <summary className="lb-label">Texto do cartão (sai da mecânica)</summary>
             <p className="lb-field__hint">Com a mecânica montada, estes campos saem dela: para mudar, abra o editor.</p>
@@ -999,15 +997,6 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, abri
           ) : (
             <HabilidadeNaFicha cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} podeOcultar={podeOcultar} onChange={onChange} abrirAoNascer={abrirNoEditor} />
           ))}
-        {textoEmBaixo && (
-          <details className="lb-cartao__grupo lb-cartao__texto-antigo" open={textoAbertoDeInicio}>
-            <summary className="lb-label">Editar como texto</summary>
-            <p className="lb-field__hint">O nome e os campos escritos à mão. A batalha lê este texto até a habilidade ser montada.</p>
-            {campoDoNome}
-            {camposDaFrente.map(campoNaTela)}
-            {alcanceDeTexto}
-          </details>
-        )}
         {ehArma && onMarcarPadrao !== undefined && (
           <div className="lb-field">
             <label className="lb-mec__marcar">
@@ -1037,7 +1026,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, abri
             <HabilidadeNaFicha cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} podeOcultar={false} onChange={onChange} doQue="arma" />
           ))}
         {/* Fase F do alcance: o cartão sem mecânica montada (técnica de texto, arma só com o dano) guarda o alcance no campo dele. */}
-        {!textoEmBaixo && alcanceDeTexto}
+        {!textoNoEditor && alcanceDeTexto}
         {aba.modificadores === true && <PecaDoMestreNaForma cartao={cartao} podeMudar={quemEditaAMecanica === 'mestre'} onChange={onChange} />}
         {podeOcultar && <OcultaNoCartao cartao={cartao} onChange={onChange} />}
         {aba.atributos === true && <EscolhaDeAtributos sistema={sistema} escolhidos={cartao.atributos} onChange={(atributos) => onChange({ ...cartao, atributos })} />}

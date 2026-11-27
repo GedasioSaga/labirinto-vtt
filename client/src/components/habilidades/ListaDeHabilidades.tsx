@@ -114,7 +114,8 @@ export function ListaDeHabilidades({ filtro, personagem, sistema, onChange, quem
   ultimaFicha.current = personagem
 
   if (abas === null) return null
-  const abaDoFiltro: AbaDoSistema = filtro === 'formas' ? abas.formas : abas.habilidades
+  const abaDoFiltro: AbaDoSistema = filtro === 'formas' && abas.formas !== null ? abas.formas : abas.habilidades
+  const comAbaDasFormas = abas.formas !== null
 
   const lugarAberto = aberto === null ? null : lugarDoCartao(vista, aberto.id)
   const cartaoAberto = aberto === null || lugarAberto === null ? null : cartaoNoLugar(vista, lugarAberto, aberto.id)
@@ -137,7 +138,7 @@ export function ListaDeHabilidades({ filtro, personagem, sistema, onChange, quem
     const base = ultimaFicha.current
     const lugar = lugarDoCartao(base, novo.id)
     if (lugar === null) return
-    const proxima = comOCartaoGravado(base, lugar, novo)
+    const proxima = comOCartaoGravado(base, lugar, novo, comAbaDasFormas)
     ultimaFicha.current = proxima
     onChange(proxima)
   }
@@ -172,7 +173,7 @@ export function ListaDeHabilidades({ filtro, personagem, sistema, onChange, quem
 
   const adicionar = () => {
     let cartao: CartaoDaFicha
-    if (filtro === 'formas') cartao = formaNova(abas.formas.item, editor ?? 'mestre')
+    if (filtro === 'formas' && abas.formas !== null) cartao = formaNova(abas.formas.item, editor ?? 'mestre')
     else {
       const vazio = novoCartao(abas.habilidades.item)
       cartao = editor === null ? vazio : cartaoNovoNoEditor(vazio, editor, fichaDaPrevia)
@@ -197,7 +198,7 @@ export function ListaDeHabilidades({ filtro, personagem, sistema, onChange, quem
   const escolher = (item: ItemEscolhivel) => {
     const cartao = cartaoDoCatalogo(abaDoFiltro, sistema, item)
     nasceram([cartao.id])
-    onChange(comCartoesNovos(personagem, abaDoCartaoNovo(cartao, abaDoFiltro.id), [cartao]))
+    onChange(comCartoesNovos(personagem, abaDoCartaoNovo(cartao, abaDoFiltro.id, comAbaDasFormas), [cartao]))
     setEscolhendo(false)
     abrir(cartao.id)
   }
@@ -210,7 +211,7 @@ export function ListaDeHabilidades({ filtro, personagem, sistema, onChange, quem
   /** As cópias entram no rascunho; uma só abre no editor (protótipo: "ela abre no editor e entra na ficha quando você salvar"). */
   const trazer = (novos: CartaoDaFicha[], deQuem: string) => {
     let proximo = personagem
-    for (const cartao of novos) proximo = comCartoesNovos(proximo, abaDoCartaoNovo(cartao, abaDoFiltro.id), [cartao])
+    for (const cartao of novos) proximo = comCartoesNovos(proximo, abaDoCartaoNovo(cartao, abaDoFiltro.id, comAbaDasFormas), [cartao])
     onChange(proximo)
     nasceram(novos.map((cartao) => cartao.id))
     setTrazendo(false)
@@ -297,7 +298,7 @@ export function ListaDeHabilidades({ filtro, personagem, sistema, onChange, quem
               vista={vista}
               sistema={sistema}
               ficha={fichaDaPrevia}
-              aba={linha.abaId === abas.formas.id ? abas.formas : abas.habilidades}
+              aba={abas.formas !== null && linha.abaId === abas.formas.id ? abas.formas : abas.habilidades}
               filtro={filtro}
               quemEdita={quemEdita}
               nova={novas.has(linha.cartao.id)}
