@@ -2,6 +2,7 @@
 
 - 0.6.6 publicada (ed0a0ca7). Protótipo das condições: docs/design/condicoes-rework/prototipo.html (artifact https://claude.ai/artifact/TG37ewTXpD8sApor2wT5oV); PLANO.md 55030f77.
 - Workflow: E1 / E2-E4 / E5-E7 / E8 (testes, prints, jornada com Edge, PENDENCIAS.md, notas tmp/rel-0.6.7). Se cair: Workflow({scriptPath: ~/.claude/projects/C--dev-labirinto/9e501c59-.../workflows/scripts/rework-condicoes-wf_95008717-b39.js, resumeFromRunId: "wf_95008717-b39"}).
+- FILA PÓS-WORKFLOW (1 agente max, em sequência, antes de publicar 0.6.7): (a) stores/batalha/vez.ts:151-165 trocar ajusteDaRecuperacao por ajustesDaRecuperacao + textoDaRecuperacaoGravada (lib/caracteristicas/recuperacaoNaBatalha.ts; d29fcd5f) e apagar ajusteDaRecuperacao/quantoDaRecuperacao/siglaDaRecuperacao sem uso; (b) gatilho "Ao ser atingido (antes do dano)" + efeito "Anula o dano (toma 0)" com limite, custo e/ou teste e exceção (Haki); peça e condição Intangível; corte da raça até 100%; (c) peças Muda atributo / Diminui atributo no Ao usar e Ao acertar dos itens. RAM: máx. ~5 agentes, 5 tsc juntos derrubou a RAM a 0,2 GB.
 - Depois: fechar pendências (1 agente max), verificador-realidade contra o pedido, publicar 0.6.7 (Worker junto, RAM >= 6 GB, nenhum agente rodando), avisar o dono.
 
 # 27/11 13:37: 0.6.6 PUBLICADA (IA cria habilidades/bonecos; 402; alcance vermelho; Bala de Prata; Olhar Artístico; marca e/ou)
