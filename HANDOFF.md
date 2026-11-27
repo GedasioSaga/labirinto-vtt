@@ -1,3 +1,9 @@
+# 26/11 ~22h: 0.6.4 publicando; protótipo do REWORK DO EDITOR DE HABILIDADES em construção
+
+- 0.6.4 (gatilho nas condições, bala Perfurante, Recarregar fora da batalha) publicando por automacao-devops; Worker junto.
+- Página das 27 mecânicas: https://claude.ai/artifact/Jmj5eYnUWgnkeKcpHhGbf7. Dono escolheu 7 (PEDIDOS, última entrada longa): pergunta que muda o golpe; Imbuir com vários tipos; passiva que dispara sozinha; passiva de raça; Overload tipo transformação (ações extras, marca que dobra dano, +Agilidade, fadiga ao acabar); habilidade que soma/modifica status; formas ligadas a técnicas + acumuladores no editor. Também: "Nova entrada do catálogo" na página Habilidades oferece Arma/Item e tem visual antigo.
+- Em voo: designer-opus fazendo docs/design/habilidades-rework/prototipo.html. Próximo: mostrar ao dono; aprovado -> plano (arquiteto) -> construir em etapas (regra: aplicar sem perguntar) -> publicar 0.6.5+.
+
 # 26/11 ~21h40: /goal ENCERRADO (0.6.3 publicada, aceite gravado); 0.6.4 em construção
 
 - Pronto p/ 0.6.4: 8db7efa9 gatilho "depois de X turnos" nas condições (peça de condição do Ao acertar + condições criadas) e munição Perfurante. WORKER PRECISA SAIR JUNTO.
