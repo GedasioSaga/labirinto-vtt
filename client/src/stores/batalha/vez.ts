@@ -3,19 +3,40 @@
  * de vez num lugar só (`comecarAVez`): o "Recupera por turno" da ficha, linha "vez" com Desfazer, fim da vez das mecânicas e o
  * prazo das condições (de quem joga e, na virada, de quem está fora da ordem).
  */
-import { chaveDaVez, type SeloDaBatalha } from '../../lib/batalha/combate'
+import { chaveDaVez, combateVazio, type SeloDaBatalha, type SeloDoGolpe } from '../../lib/batalha/combate'
 import { combatesNoComecoDaVez } from '../../lib/batalha/acumuladorNaBatalha'
 import { comBandosEmDia, semBandosVazios } from '../../lib/batalha/invocacao'
-import { novoIdDeSelo, textoDosQueAcabaram } from '../../lib/batalha/selos'
+import { bonusDaBatalha, criarSelo, entradaDoSelo, novoIdDeSelo, ondeNaVez, quedaEmNumeros, textoDosQueAcabaram } from '../../lib/batalha/selos'
+import {
+  efeitosDaVez,
+  ehLembreteDaSaida,
+  gatilhosDaVez,
+  lembreteDaSaida,
+  quantoDoEfeito,
+  saidasPagandoDe,
+  testesDoFimDaVez,
+  chaveDaSaida,
+  type DisparoDoSelo,
+  type EfeitoDoSelo,
+} from '../../lib/batalha/condicoesNaVez'
+import { selosQueALimpezaTira } from '../../lib/batalha/debuffs'
+import { modificadorDoTeste } from '../../lib/batalha/marca'
+import { ajustesDoRecursoDaCura } from '../../lib/batalha/curaDoRecurso'
+import { recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
+import { valorDoRank, type Ajuste } from '../../lib/ajusteDaFicha'
+import { numeroDaFicha } from '../../lib/personagem'
+import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import type { PecaDoGatilho } from '../../lib/itens/modelo'
+import { fraseDaPecaDoGatilho } from '../../lib/condicoes/gatilho'
 import { formaDaFicha, formaMontada } from '../../lib/batalha/transformacao'
 import { ajusteDaRecuperacao, ajusteDoRecurso, maximoDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import { siglaDaRecuperacao } from '../../lib/caracteristicas/recuperacao'
 import type { RecursoDaRecuperacao } from '../../lib/caracteristicas/tipos'
 import { chavesDoDono, idDaChave, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo } from '../../lib/batalha/mecanicasAMao'
-import { curaComOsSelos, notaDosSelosNaCura } from '../../lib/batalha/condicoes'
+import { curaComOsSelos, notaDosSelosNaCura, selosQueSaemCom, textoDasSaidasDoSelo, type AcontecimentoDaSaida } from '../../lib/batalha/condicoes'
 import { comLembretesDaVez, comLembretesDoMomento, type EventoDoGatilho } from '../../lib/batalha/passivas'
 import { ehOverload } from '../../lib/batalha/leituraDaFicha'
-import { ajustesDoDano } from '../../lib/batalha/reacao'
+import { ajustesDaCura, ajustesDoDano } from '../../lib/batalha/reacao'
 import { mudancasDaVez, novoIdDeLinha, type ParteDaFicha, type Reversao } from '../../lib/batalha/registro'
 import {
   agilidadesDasCartas,
@@ -53,7 +74,7 @@ import { mexerNaFicha, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from '.
 import { recargasNoComecoDaVez } from './recargaDoPente'
 import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
-import { efeitosDosSelos } from './selos'
+import { efeitosDosSelos, pedidoComACondicao } from './selos'
 import { contarFimDaVezNaMesa, daFichaNaMesa } from './condicoesNaFicha'
 import { textoDoDisparo } from '../../lib/condicoes/gatilho'
 import { golpesDaVezQueAcaba, type GolpeNaStore } from './golpe'
@@ -86,7 +107,7 @@ interface VezQueComeca {
 
 /** A vez presa ao núcleo da store, às formas e ao golpe. */
 export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalha, fatiaDoGolpe: GolpeNaStore) {
-  const { mesa, get, mesaDoRpg, cenaDe, gravarCena, avisarQuemCaiu, lembrarDepoisDoDano, rastrear, dispararGatilhos } = nucleo
+  const { mesa, deps, get, mesaDoRpg, cenaDe, gravarCena, avisarQuemCaiu, lembrarDepoisDoDano, rastrear, dispararGatilhos } = nucleo
   const { desligarAForma } = fatiaDasFormas
   const { fecharGolpesSemResposta } = fatiaDoGolpe
 
@@ -446,6 +467,268 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
   }
 
   /**
+   * REWORK DAS CONDIÇÕES (PLANO.md E5): o que a condição de cada selo faz sozinha na vez, numa linha do mestre
+   * com Desfazer, depois do prazo (`lib/batalha/condicoesNaVez.ts` diz o quê; aqui se grava):
+   *  - fim da vez de quem saiu: os Efeitos na vez do fim, o gatilho "Depois de X turnos" (a conta da ficha;
+   *    os selos que o prazo acabou de tirar contam esta última vez), o teste para sair (d20 + o modificador
+   *    do rank, como a marca) e o lembrete "Tentar sair" que ele não respondeu sai;
+   *  - começo da vez de quem entra: os Efeitos na vez do começo (a 1ª vida fixa tirada fica no "Aplicar /
+   *    pular" de sempre) e o lembrete "Tentar sair" de cada selo que sai pagando.
+   * A vida tirada dispara as saídas "ao tomar dano" e a vida dada, as "ao receber cura" (não do próprio selo).
+   * Devolve o que mudou sem linha (a conta do gatilho, o lembrete): vai no Desfazer da vez.
+   */
+  const condicoesDaVez = (sceneKey: string, sai: CartaDaOrdem | null, entra: CartaDaOrdem | null, acabaram: readonly SeloDaBatalha[], autor: AutorDaAcao): Reversao[] => {
+    const cena = cenaDe(sceneKey)
+    const { personagens, sistema } = mesaDoRpg()
+    if (cena === undefined || sistema === null) return []
+    const quem = quemNaFicha(autor)
+    const nomeDe = nomeDoTokenNa(cena.turnos, personagens)
+    const criadas = mesa.condicoesCriadas?.() ?? []
+    const partes: Reversao[] = []
+    const textos: string[] = []
+    const tokenIds = new Set<string>()
+    const efeitos: EfeitoNovo[] = []
+    let novos = cena.turnos
+    const fichaDe = (personagemId: string): Personagem | undefined => mesa.personagens().find((candidato) => candidato.id === personagemId)
+    const hpDe = (personagemId: string): number => {
+      const ficha = fichaDe(personagemId)
+      return ficha === undefined ? 0 : numeroDoRecurso(ficha, sistema, 'hp')
+    }
+    const escudoDe = (personagemId: string): number => {
+      const ficha = fichaDe(personagemId)
+      const escudo = recursoDoEscudo(sistema)
+      return ficha === undefined || escudo === null ? 0 : numeroDaFicha(ficha.recursos, escudo.id)
+    }
+    /** Grava os ajustes na ficha (com o Desfazer); `false` = nada mudou ou a ficha recusou. */
+    const naFicha = (personagemId: string, ajustes: (atual: Personagem, sistemaDaMesa: SistemaDeRpg) => readonly Ajuste[]): boolean => {
+      const feito = mexerNaFicha(mesa, personagemId, ajustes, quem)
+      if (feito === null || feito === 'recusada' || feito.length === 0) return false
+      partes.push(...reversaoDaFicha(personagemId, feito))
+      return true
+    }
+    const tirarSelos = (saem: readonly SeloDaBatalha[]): void => {
+      if (saem.length === 0) return
+      const ids = new Set(saem.map((selo) => selo.id))
+      novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => !ids.has(selo.id)) }
+      partes.push(...saem.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo })))
+    }
+    /** As saídas "ao tomar dano" e "ao receber cura" dos selos de `tokenId` (fora o selo que causou). */
+    const sairCom = (tokenId: string, acontecimento: AcontecimentoDaSaida, fonteId: string | null): void => {
+      const saem = selosQueSaemCom(novos.selos, tokenId, acontecimento).filter((selo) => selo.id !== fonteId)
+      if (saem.length === 0) return
+      tirarSelos(saem)
+      textos.push(textoDasSaidasDoSelo(saem, acontecimento, nomeDe(tokenId)))
+      tokenIds.add(tokenId)
+    }
+    /** Quem pôs o selo (o "quem pôs ganha"): o dono da passiva, o da marca, ou o dono do cartão que o pôs. */
+    const quemPos = (selo: SeloDaBatalha): CartaDaOrdem | undefined => {
+      const cartaoId = selo.cartaoId
+      const donoId = selo.donoId ?? selo.marcaDe ?? (cartaoId === undefined ? undefined : personagens.find((candidato) => chavesDoDono(candidato).some((chave) => idDaChave(chave) === cartaoId))?.id)
+      return donoId === undefined ? undefined : novos.cartas.find((carta) => carta.personagemId === donoId && carta.extra === undefined)
+    }
+    /** Vida tirada de quem tem o selo: o dano na tela, a linha e as saídas "ao tomar dano". Devolve o que saiu da vida. */
+    const tirarVida = (personagemId: string, tokenId: string, quanto: number, direto: boolean, fonteId: string | null): { perdeu: number; segurou: number } => {
+      const [vidaAntes, escudoAntes] = [hpDe(personagemId), escudoDe(personagemId)]
+      if (!naFicha(personagemId, (atual, sistemaDaMesa) => ajustesDoDano(atual, sistemaDaMesa, quanto, direto))) return { perdeu: 0, segurou: 0 }
+      const perdeu = Math.max(0, vidaAntes - hpDe(personagemId))
+      const segurou = Math.max(0, escudoAntes - escudoDe(personagemId))
+      if (perdeu > 0) efeitos.push({ tipo: 'dano', tokenId, valor: perdeu, saida: 'direto' })
+      if (perdeu + segurou > 0) sairCom(tokenId, { tipo: 'dano', tipos: [] }, fonteId)
+      return { perdeu, segurou }
+    }
+    /** Vida dada a quem tem o selo, cortada pela Cura reduzida dos selos dele; devolve o que entrou e a nota do corte. */
+    const darVida = (personagemId: string, tokenId: string, quanto: number, fonteId: string | null): { ganhou: number; corte: string } => {
+      const antes = hpDe(personagemId)
+      const cura = curaComOsSelos(quanto, novos.selos, tokenId)
+      if (cura <= 0 || !naFicha(personagemId, (atual, sistemaDaMesa) => ajustesDaCura(atual, sistemaDaMesa, cura))) return { ganhou: 0, corte: '' }
+      const ganhou = Math.max(0, hpDe(personagemId) - antes)
+      const corte = ganhou > 0 ? notaDosSelosNaCura(novos.selos, tokenId) : ''
+      if (ganhou > 0) sairCom(tokenId, { tipo: 'cura' }, fonteId)
+      return { ganhou, corte }
+    }
+    /** Um Efeito na vez em quem tem o selo, com o pedaço da linha. */
+    const aplicarEfeito = (carta: CartaDaOrdem, personagemId: string, { selo, efeito }: EfeitoDoSelo): void => {
+      const ficha = fichaDe(personagemId)
+      if (ficha === undefined) return
+      const { tokenId } = carta
+      const atual = efeito.recurso === 'vida' ? hpDe(personagemId) : efeito.recurso === 'sp' ? numeroDoRecurso(ficha, sistema, 'sp') : escudoDe(personagemId)
+      // O Escudo não tem máximo: a % do máximo dele é a da vida máxima, como no boneco do protótipo.
+      const maximo = maximoDoRecurso(ficha, sistema, efeito.recurso === 'sp' ? 'sp' : 'hp')
+      const quanto = quantoDoEfeito(efeito, maximo, atual)
+      if (quanto <= 0) return
+      const deQuem = `${selo.nome} em ${nomeDe(tokenId)}`
+      const pilhas = (selo.pilhas ?? 1) > 1 ? ` (${selo.pilhas ?? 1} pilhas)` : ''
+      tokenIds.add(tokenId)
+      if (efeito.faz === 'da') {
+        if (efeito.recurso === 'vida') {
+          const { ganhou, corte } = darVida(personagemId, tokenId, quanto, selo.id)
+          textos.push(`${deQuem}: ${ganhou === 0 ? 'vida já cheia' : `+${ganhou} HP${corte}`}${pilhas}`)
+          return
+        }
+        const recurso = efeito.recurso === 'sp' ? 'sp' : 'escudo'
+        const antes = recurso === 'sp' ? numeroDoRecurso(ficha, sistema, 'sp') : escudoDe(personagemId)
+        naFicha(personagemId, (agora, sistemaDaMesa) => ajustesDoRecursoDaCura(agora, sistemaDaMesa, recurso, quanto))
+        const depois = fichaDe(personagemId)
+        const ganhou = depois === undefined ? 0 : (recurso === 'sp' ? numeroDoRecurso(depois, sistema, 'sp') : escudoDe(personagemId)) - antes
+        textos.push(`${deQuem}: ${ganhou <= 0 ? `${recurso === 'sp' ? 'SP já cheio' : 'sem Escudo para dar'}` : `+${ganhou} ${recurso === 'sp' ? 'SP' : 'de Escudo'}`}${pilhas}`)
+        return
+      }
+      let tirado = 0
+      if (efeito.recurso === 'vida') {
+        const { perdeu, segurou } = tirarVida(personagemId, tokenId, quanto, efeito.direto === true, selo.id)
+        tirado = perdeu + segurou
+        textos.push(`${deQuem}: ${tirado === 0 ? 'nada a tirar' : `-${perdeu} HP${segurou > 0 ? ` (o Escudo segura ${segurou})` : ''}`}${pilhas}`)
+      } else if (efeito.recurso === 'sp') {
+        const antes = numeroDoRecurso(ficha, sistema, 'sp')
+        naFicha(personagemId, (agora, sistemaDaMesa) => {
+          const ajuste = ajusteDoRecurso(agora, sistemaDaMesa, 'sp', -quanto)
+          return ajuste === null ? [] : [ajuste]
+        })
+        const depois = fichaDe(personagemId)
+        tirado = Math.max(0, antes - (depois === undefined ? antes : numeroDoRecurso(depois, sistema, 'sp')))
+        textos.push(`${deQuem}: ${tirado === 0 ? 'sem SP para tirar' : `-${tirado} SP`}${pilhas}`)
+      } else {
+        const escudo = recursoDoEscudo(sistema)
+        const antes = escudoDe(personagemId)
+        if (escudo !== null && antes > 0) naFicha(personagemId, () => [{ parte: 'recurso', chave: escudo.id, valor: Math.max(0, antes - quanto) }])
+        tirado = Math.max(0, antes - escudoDe(personagemId))
+        textos.push(`${deQuem}: ${tirado === 0 ? 'sem Escudo para tirar' : `-${tirado} de Escudo`}${pilhas}`)
+      }
+      // "Quem pôs ganha" (o roubo): o que saiu de verdade, na vida ou no SP de quem pôs a condição.
+      const dono = efeito.rouba === true && efeito.recurso !== 'escudo' && tirado > 0 ? quemPos(selo) : undefined
+      if (dono === undefined || dono.personagemId === null) return
+      const donoId = dono.personagemId
+      tokenIds.add(dono.tokenId)
+      if (efeito.recurso === 'vida') {
+        const { ganhou, corte } = darVida(donoId, dono.tokenId, tirado, null)
+        textos.push(`${nomeDe(dono.tokenId)} ganha ${ganhou} HP${corte} (${selo.nome})`)
+      } else {
+        const fichaAntes = fichaDe(donoId)
+        const spAntes = fichaAntes === undefined ? 0 : numeroDoRecurso(fichaAntes, sistema, 'sp')
+        naFicha(donoId, (agora, sistemaDaMesa) => ajustesDoRecursoDaCura(agora, sistemaDaMesa, 'sp', tirado))
+        const fichaDoDono = fichaDe(donoId)
+        const ganhou = fichaDoDono === undefined ? 0 : numeroDoRecurso(fichaDoDono, sistema, 'sp') - spAntes
+        textos.push(`${nomeDe(dono.tokenId)} ganha ${Math.max(0, ganhou)} SP (${selo.nome})`)
+      }
+    }
+    /** A condição que o gatilho põe em quem o tem, pelo caminho do "Pôr selo" (a condição do nome congelada, contra, pilhas). */
+    const porDoGatilho = (carta: CartaDaOrdem, personagemId: string, peca: Extract<PecaDoGatilho, { tipo: 'condicao' }>, origem: string): string => {
+      const dele = fichaDe(personagemId)
+      const pedido: SeloDoGolpe = { nome: peca.nome, turnos: peca.duracao === 'fim' ? null : peca.duracao }
+      const resolvido = quedaEmNumeros(pedidoComACondicao(pedido, criadas, null), (atributo) => (dele === undefined ? 0 : valorDoRank(dele, atributo)))
+      const selo = criarSelo(carta.tokenId, resolvido, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem })
+      const entrada = entradaDoSelo(novos.selos, selo)
+      switch (entrada.tipo) {
+        case 'entrou':
+          novos = { ...novos, selos: entrada.selos }
+          partes.push({ tipo: 'selo', seloId: selo.id, antes: null }, ...entrada.apagados.map((apagado): Reversao => ({ tipo: 'selo', seloId: apagado.id, antes: apagado })))
+          return ''
+        case 'renovou':
+        case 'pilha':
+          novos = { ...novos, selos: entrada.selos }
+          partes.push({ tipo: 'selo', seloId: entrada.antes.id, antes: entrada.antes, editado: true })
+          return ''
+        case 'barrado':
+          return ` (${peca.nome} não pega: ${entrada.por.nome})`
+        default:
+          return ` (${peca.nome} não coube)`
+      }
+    }
+    /** As peças do gatilho que disparou, em quem tem o selo (a vida direto, como o gatilho da ficha). */
+    const aplicarDisparoDoSelo = (carta: CartaDaOrdem, personagemId: string, disparo: DisparoDoSelo): void => {
+      const notas: string[] = []
+      for (const peca of disparo.pecas) {
+        if (peca.tipo === 'dano' && peca.valor > 0) tirarVida(personagemId, carta.tokenId, peca.valor, true, null)
+        else if (peca.tipo === 'curar' && peca.fixo > 0) {
+          const { corte } = darVida(personagemId, carta.tokenId, peca.fixo, null)
+          if (corte !== '') notas.push(corte.trim())
+        } else if (peca.tipo === 'condicao') {
+          const nota = porDoGatilho(carta, personagemId, peca, disparo.selo.nome)
+          if (nota !== '') notas.push(nota.trim())
+        } else if (peca.tipo === 'tirar') {
+          const quais = peca.nome === null ? undefined : { nomes: [peca.nome] }
+          tirarSelos(selosQueALimpezaTira(novos.selos, carta.tokenId, quais).filter((selo) => selo.id !== disparo.selo.id))
+        }
+      }
+      textos.push(`${disparo.selo.nome} de ${nomeDe(carta.tokenId)} disparou: ${disparo.pecas.map(fraseDaPecaDoGatilho).join(', ')}${disparo.saiu ? `; ${disparo.selo.nome} saiu` : ''}${notas.length === 0 ? '' : ` ${notas.join(' ')}`}`)
+      tokenIds.add(carta.tokenId)
+    }
+    /** O lembrete "Tentar sair" fora do combate de `personagemId` (a vez dele acabou); só tira, sem linha. */
+    const semOsLembretesDeSair = (personagemId: string): void => {
+      const antes = novos.combate?.[personagemId]
+      const ficam = (antes?.lembretes ?? []).filter((lembrete) => !ehLembreteDaSaida(lembrete))
+      if (antes === undefined || ficam.length === (antes.lembretes ?? []).length) return
+      const depois = { ...antes, lembretes: ficam }
+      partes.push({ tipo: 'combate', personagemId, antes, depois })
+      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
+    }
+
+    // ── Fim da vez de quem saiu ──
+    if (sai !== null && sai.personagemId !== null) {
+      const personagemId = sai.personagemId
+      for (const efeito of efeitosDaVez(novos.selos, sai.tokenId, 'fim')) aplicarEfeito(sai, personagemId, efeito)
+      const contados = gatilhosDaVez(novos.selos, acabaram, sai.tokenId)
+      if (contados.contados.length + contados.sairam.length > 0) {
+        novos = { ...novos, selos: contados.selos }
+        partes.push(...contados.contados.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo, editado: true })))
+        partes.push(...contados.sairam.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo })))
+      }
+      for (const disparo of contados.disparos) aplicarDisparoDoSelo(sai, personagemId, disparo)
+      for (const teste of testesDoFimDaVez(novos.selos, sai.tokenId)) {
+        const ficha = fichaDe(personagemId)
+        if (ficha === undefined || !(novos.selos ?? []).some((selo) => selo.id === teste.selo.id)) continue
+        const d20 = deps.rolarD20()
+        const modificador = modificadorDoTeste(ficha, sistema, teste.atributo, bonusDaBatalha(novos.selos, sai.tokenId))
+        const total = d20 + modificador
+        const passou = total >= teste.cd
+        efeitos.push({ tipo: 'reacao', golpeId: null, tokenId: sai.tokenId, d20, modificador, total })
+        const atributo = sistema.atributos.find((candidato) => candidato.id === teste.atributo)?.nome ?? teste.atributo
+        textos.push(`${teste.selo.nome} em ${nomeDe(sai.tokenId)}: teste de ${atributo} ${d20} ${modificador < 0 ? '-' : '+'} ${Math.abs(modificador)} = ${total} contra CD ${teste.cd}, ${passou ? 'passou e saiu' : 'não passou'}`)
+        tokenIds.add(sai.tokenId)
+        if (passou) tirarSelos([teste.selo])
+      }
+      semOsLembretesDeSair(personagemId)
+    }
+
+    // ── Começo da vez de quem entra ──
+    if (entra !== null && entra.personagemId !== null) {
+      const personagemId = entra.personagemId
+      for (const efeito of efeitosDaVez(novos.selos, entra.tokenId, 'comeco')) aplicarEfeito(entra, personagemId, efeito)
+      // D8: "Tentar sair" de cada selo que sai pagando, na vez dele (o jogador dono o vê na tira, o mestre na faixa).
+      const antes = novos.combate?.[personagemId] ?? null
+      const base = antes ?? combateVazio()
+      const jaTem = new Set((base.lembretes ?? []).map((lembrete) => lembrete.chave))
+      const lembretes = (novos.selos ?? [])
+        .filter((selo) => selo.tokenId === entra.tokenId && selo.daPastilha !== true && saidasPagandoDe(selo).length > 0 && !jaTem.has(chaveDaSaida(selo.id)))
+        .map((selo) => lembreteDaSaida(selo, novos.rodada))
+      if (lembretes.length > 0) {
+        const depois = { ...base, lembretes: [...(base.lembretes ?? []), ...lembretes] }
+        partes.push({ tipo: 'combate', personagemId, antes, depois })
+        novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
+      }
+    }
+
+    if (partes.length === 0 && textos.length === 0) return []
+    const atual = cenaDe(sceneKey) ?? cena
+    if (textos.length === 0) {
+      gravarCena(sceneKey, comMudanca(atual, novos, null))
+      return partes
+    }
+    const danos = efeitos.filter((efeito) => efeito.tipo === 'dano')
+    const rastreado = rastrear(novos, danos, partes)
+    partes.push(...rastreado.partes)
+    const caidos = semOsCaidos(mesa, sceneKey, rastreado.turnos)
+    partes.push(...caidos.partes)
+    const semCaidos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
+    const lembrados = lembrarDepoisDoDano(semCaidos)
+    partes.push(...partesDosLembretes(lembrados))
+    const linha = comMudanca(atual, lembrados.turnos, { tipo: danos.length > 0 ? 'dano' : 'acao', texto: `Condições na vez: ${textos.join(' · ')}${textoDosQueSairam(caidos.nomes)}`, autor: MESTRE, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
+    gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
+    if (danos.length > 0) avisarQuemCaiu(sceneKey, autor)
+    return []
+  }
+
+  /**
    * O começo de vez num lugar só: o "Passar a vez" e o "Dar a vez" do mestre andam a vez nos turnos e
    * chegam aqui. Grava o "Recupera por turno" de quem entra, a linha "vez" com o Desfazer (só o que a vez
    * mudou, a recuperação e as linhas fechadas antes dela) e os selos que acabaram; depois o fim da vez das mecânicas de quem
@@ -490,6 +773,8 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     if (vez.virou) prazos.push(...prazosForaDaOrdem(sceneKey, autor))
     // Nº 3 do levantamento: o prazo andou (ou acabou e a pastilha apagou): o espelho acompanha.
     espelharPastilhas(sceneKey)
+    // Rework das condições (E5): o Efeito na vez, o gatilho, o teste para sair e o "Tentar sair" dos selos.
+    prazos.push(...condicoesDaVez(sceneKey, sai, vez.entra, vez.acabaram, autor))
     // ITENS REFEITOS, E6a (decisão 3): o pente vazio de quem entra recarrega sozinho, gastando a ação desta vez.
     recargasDaVez(sceneKey, vez.entra)
     // Rework das habilidades (D6, E5): os gatilhos das passivas montadas: "No início da batalha" na primeira vez, "Na rodada N"

@@ -28,6 +28,7 @@ import { formulaDaCura, limpezaDe, respostasPadrao, seloDaMecanica } from '../ba
 import { passivasDe, passivasLigadas, type PassivaNaTira } from '../batalha/passivas'
 import type { VezEsperada } from '../batalha/ponte'
 import { ehLembreteDaPreparacao } from '../batalha/preparacao'
+import { ehLembreteDaSaida } from '../batalha/condicoesNaVez'
 import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
 import { bonusDaBatalha, bonusDaReacao, seloPedidoValido, selosDoToken } from '../batalha/selos'
 import { seloSugeridoDaTecnica } from '../batalha/tiposDaHabilidade'
@@ -689,6 +690,8 @@ function respostasDoLembrete(lembrete: LembreteDaPassiva, lutador: Lutador, turn
     return atributoId === null ? [pular] : [{ tipo: 'lembrete', tokenId, cartaoId, aplicar: true, atributoId }, pular]
   }
   if (lembrete.tipo === 'porTurno') return [{ tipo: 'lembrete', tokenId, cartaoId, aplicar: true }, pular]
+  // Rework das condições (D8, E5): o robô sempre tenta sair (o host paga se puder, senão rola, como o NPC).
+  if (ehLembreteDaSaida(lembrete)) return [{ tipo: 'lembrete', tokenId, cartaoId, aplicar: true }, pular]
   const passiva = passivasDoLutador(turnos, sistema, lutador).find((candidata) => candidata.cartao.id === cartaoId)
   const ativar = passiva === undefined ? null : ativarPassiva(passiva, tokenId, inimigo)
   return ativar === null ? [pular] : [ativar, pular]

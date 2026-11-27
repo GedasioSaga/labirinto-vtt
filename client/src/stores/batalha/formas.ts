@@ -17,7 +17,9 @@ import {
 } from '../../lib/batalha/combate'
 import { comAcoesDaForma, gastarAcao, semAcoesDaForma } from '../../lib/batalha/acoes'
 import { comADonaDesligada } from '../../lib/batalha/acumuladorNaBatalha'
-import { comSeloNovo, criarSelo, novoIdDeSelo, ondeNaVez, textoDoSeloComMods } from '../../lib/batalha/selos'
+import { comSeloNovo, criarSelo, novoIdDeSelo, ondeNaVez, quedaEmNumeros, textoDoSeloComMods } from '../../lib/batalha/selos'
+import { condicaoDaFabricaDoSelo } from '../../lib/condicoes/fabrica'
+import { pedidoComACondicao } from './selos'
 import { acaoDaForma, acoesAMaisDaForma, ativarForma, descerUmaParte, desfazerForma, duracaoDaForma, formaDaFicha, formaEhOverload, formaMontada, formaQueATecnicaLiga, subidaDeParte, usosDaForma } from '../../lib/batalha/transformacao'
 import {
   cartaoComADecisao,
@@ -41,7 +43,7 @@ import { recursoDoCusto, tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import { novoIdDeLinha, type Reversao } from '../../lib/batalha/registro'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
-import { NOME_DO_MESTRE } from '../../lib/ajusteDaFicha'
+import { NOME_DO_MESTRE, valorDoRank } from '../../lib/ajusteDaFicha'
 import { nomeNaBatalha, ocultoNaBatalha, revelacaoAoUsar } from '../../lib/habilidadeOculta'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -94,7 +96,11 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       // D10: a forma montada deixa a Fadiga da peça no dono (no lugar do cansaço de antes) e leva as ações a mais que deu.
       const fadiga = montada.forma.fadiga
       if (fadiga !== undefined && sistema !== null) {
-        const selo = criarSelo(tokenId, { ...fadiga, cartaoId }, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: fadiga.nome })
+        // Rework das condições (E5): a Fadiga é a de fábrica (a peça só dá os turnos); sem ela no catálogo, a da peça, como antes.
+        const daFabrica = condicaoDaFabricaDoSelo(fadiga.nome) !== null
+        const pedido = daFabrica ? { nome: fadiga.nome, turnos: fadiga.turnos, cartaoId } : { ...fadiga, cartaoId }
+        const resolvido = quedaEmNumeros(pedidoComACondicao(pedido, mesa.condicoesCriadas?.() ?? [], personagemId), (atributo) => (dona === undefined ? 0 : valorDoRank(dona, atributo)))
+        const selo = criarSelo(tokenId, resolvido, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: fadiga.nome })
         const selos = comSeloNovo(novos.selos, selo)
         if (selos !== null) {
           partes.push({ tipo: 'selo', seloId: selo.id, antes: null })

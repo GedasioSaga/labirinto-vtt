@@ -32,7 +32,9 @@ import {
   textoDosMods,
 } from '../../lib/batalha/selos'
 import { formaDaFicha } from '../../lib/batalha/transformacao'
-import { ehLembreteDoSangramento, porVezDoLembrete, travaDoToken, verboDoPorVez } from '../../lib/batalha/condicoes'
+import { ehLembreteDoSangramento, porVezDoLembrete, selosQueSaemCom, textoDasSaidasDoSelo, travaDoToken, verboDoPorVez } from '../../lib/batalha/condicoes'
+import { aplicarPassaPeloEscudo, ehLembreteDaSaida, saidasPagandoDe, tentarSair } from '../../lib/batalha/condicoesNaVez'
+import { ajusteDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import { ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../../lib/batalha/preparacao'
 import { danoComAsReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { custoPorTurno, textoDoCustoPorTurno } from '../../lib/batalha/custoPorTurno'
@@ -56,7 +58,7 @@ import {
   semLembretes,
   textoDoPorTurno,
 } from '../../lib/batalha/passivas'
-import { CAMPO_DO_TEMPO, ehOverload, lerTempo, recursoDoCusto, tecnicaPorId, tecnicasDe } from '../../lib/batalha/leituraDaFicha'
+import { CAMPO_DO_TEMPO, ehOverload, lerTempo, recursoDoCusto, recursoDoEscudo, tecnicaPorId, tecnicasDe } from '../../lib/batalha/leituraDaFicha'
 import { ajustesDoDano } from '../../lib/batalha/reacao'
 import { nomeDoAutor, novoIdDeLinha, semOLigarDeGraca, type ParteDaFicha, type Reversao } from '../../lib/batalha/registro'
 import type { AutorDaAcao, CartaDaOrdem, TurnosDaCena } from '../../lib/batalha/turnos'
@@ -113,9 +115,14 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     }
     const quem = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
     const partes: Reversao[] = [{ tipo: 'combate', personagemId, antes: combateAntes, depois: semOLembrete }]
+    // Rework das condições (D8, E5): o "Tentar sair" de um selo, pagando e/ou com teste; o jogador dono também responde.
+    if (ehLembreteDaSaida(lembrete)) return tentarSairDoSelo(sceneKey, cena, autor, carta, personagemId, lembrete, partes, comCombate)
     if (sangramento) {
       // F2 (fatia A): quanto tira (Sangrando 10, Queimando N) e o verbo da linha vêm do selo, ou do lembrete se o selo já saiu no fim da vez.
       const { nome, dano: porVez } = porVezDoLembrete(lembrete, turnos.selos)
+      // Rework das condições (E5): a vida da condição sem "direto" (Queimando, Envenenado) passa pelo Escudo; o número próprio, direto como sempre.
+      const seloDoLembrete = (turnos.selos ?? []).find((selo) => selo.id === lembrete.cartaoId)
+      const peloEscudo = aplicarPassaPeloEscudo(seloDoLembrete)
       // F2 (revisão da fatia E): o dano por vez também passa pelas reduções de quem sangra ("na Ryoko os −30% valem contra TUDO": 10 vira 7).
       let dado = porVez
       let reducao = ''
@@ -126,15 +133,22 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
           const reducoes = reducoesDoDano(atual, sistemaDaMesa)
           dado = danoComAsReducoes(porVez, reducoes)
           reducao = reducoes.length === 0 ? '' : `; ${reducoes.map((parte) => `${parte.nome} -${parte.porcento}%`).join(', ')}: de ${porVez}`
-          return ajustesDoDano(atual, sistemaDaMesa, dado, true)
+          return ajustesDoDano(atual, sistemaDaMesa, dado, !peloEscudo)
         },
         quemNaFicha(autor),
       )
       if (feito === 'recusada') return false
       partes.push(...reversaoDaFicha(personagemId, feito))
+      const escudoId = recursoDoEscudo(sistema)?.id
+      const segurou = (feito ?? []).reduce((soma, parte) => (parte.parte === 'recurso' && parte.chave === escudoId ? soma + parte.de - parte.para : soma), 0)
       const atual = cenaDe(sceneKey) ?? cena
+      // E5: o dano da vez tira os selos que saem "ao tomar dano" (Confuso, Dormindo), fora o próprio.
+      const saem = selosQueSaemCom(atual.turnos.selos, carta.tokenId, { tipo: 'dano', tipos: [] }).filter((selo) => selo.id !== lembrete.cartaoId)
+      partes.push(...saem.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo })))
+      const semOsQueSaem = saem.length === 0 ? atual.turnos : { ...atual.turnos, selos: (atual.turnos.selos ?? []).filter((selo) => !saem.includes(selo)) }
+      const textoDasSaidas = saem.length === 0 ? '' : ` · ${textoDasSaidasDoSelo(saem, { tipo: 'dano', tipos: [] }, quem)}`
       // REQUISITOS B3: o dano do selo por vez também é "apanhou" (e pode derrubar).
-      const rastreado = rastrear(comCombate(atual.turnos), [{ tipo: 'dano', tokenId: carta.tokenId, valor: dado, saida: 'direto' }], partes)
+      const rastreado = rastrear(comCombate(semOsQueSaem), [{ tipo: 'dano', tokenId: carta.tokenId, valor: dado - segurou, saida: 'direto' }], partes)
       partes.push(...rastreado.partes)
       const caidos = semOsCaidos(mesa, sceneKey, rastreado.turnos)
       partes.push(...caidos.partes)
@@ -142,10 +156,11 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       const lembrados = lembrarDepoisDoDano(semCaidos)
       partes.push(...partesDosLembretes(lembrados))
       // Construtor C5: o selo montado fora da tabela ("Veneno") diz "sofre com Veneno".
-      const texto = `${quem} ${verboDoPorVez(nome)}: -${dado} HP (direto, sem o Escudo${reducao})${textoDosQueSairam(caidos.nomes)}`
+      const comoTirou = peloEscudo ? `pelo Escudo${segurou > 0 ? `, que segura ${segurou}` : ''}${reducao}` : `direto, sem o Escudo${reducao}`
+      const texto = `${quem} ${verboDoPorVez(nome)}: -${dado - segurou} HP (${comoTirou})${textoDasSaidas}${textoDosQueSairam(caidos.nomes)}`
       gravarCena(sceneKey, {
         ...comMudanca(atual, lembrados.turnos, { tipo: 'dano', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }),
-        efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId: carta.tokenId, valor: dado, saida: 'direto' }]),
+        efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId: carta.tokenId, valor: dado - segurou, saida: 'direto' }]),
       })
       return true
     }
@@ -160,6 +175,61 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     return true
   }
 
+  /**
+   * Rework das condições (D8, E5): o "Tentar sair" do selo `lembrete.cartaoId`, pela 1ª saída pagando dele
+   * (`tentarSair`: "pagar", "teste", "e", "ou"). Paga o SP ou a vida pela ficha e rola d20 + o modificador do
+   * rank (como a marca); passou ou pagou = o selo sai. Uma linha com Desfazer (o lembrete volta, o recurso e o
+   * selo também). O selo que já saiu: só tira o lembrete.
+   */
+  const tentarSairDoSelo = (
+    sceneKey: string,
+    cena: BatalhaDaCena,
+    autor: AutorDaAcao,
+    carta: CartaDaOrdem,
+    personagemId: string,
+    lembrete: LembreteDaPassiva,
+    partes: Reversao[],
+    comCombate: (base: TurnosDaCena) => TurnosDaCena,
+  ): boolean => {
+    const { turnos } = cena
+    const { personagens, sistema } = mesaDoRpg()
+    const selo = (turnos.selos ?? []).find((candidato) => candidato.id === lembrete.cartaoId)
+    const saida = selo === undefined ? undefined : saidasPagandoDe(selo)[0]
+    const personagem = personagens.find((candidato) => candidato.id === personagemId)
+    if (sistema === null || selo === undefined || saida === undefined || personagem === undefined) {
+      gravarCena(sceneKey, comMudanca(cena, comCombate(turnos), null))
+      return true
+    }
+    const recursos = { sp: numeroDoRecurso(personagem, sistema, 'sp'), vida: numeroDoRecurso(personagem, sistema, 'hp') }
+    const tentativa = tentarSair(saida, recursos, (atributo) => ({ d20: deps.rolarD20(), modificador: modificadorDoTeste(personagem, sistema, atributo, bonusDaBatalha(turnos.selos, carta.tokenId)) }))
+    const paga = tentativa.paga
+    if (paga !== null && paga.recurso !== 'acao' && paga.quanto > 0) {
+      const qual = paga.recurso === 'sp' ? 'sp' : 'hp'
+      const feito = mexerNaFicha(
+        mesa,
+        personagemId,
+        (atual, sistemaDaMesa) => {
+          const ajuste = ajusteDoRecurso(atual, sistemaDaMesa, qual, -paga.quanto)
+          return ajuste === null ? [] : [ajuste]
+        },
+        quemNaFicha(autor),
+      )
+      if (feito === 'recusada') return false
+      partes.push(...reversaoDaFicha(personagemId, feito))
+    }
+    let novos = comCombate(turnos)
+    if (tentativa.sai) {
+      novos = { ...novos, selos: (novos.selos ?? []).filter((candidato) => candidato.id !== selo.id) }
+      partes.push({ tipo: 'selo', seloId: selo.id, antes: selo })
+    }
+    const quem = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
+    const texto = `${quem} tenta sair de ${selo.nome}: ${tentativa.texto}${tentativa.sai ? `; ${selo.nome} saiu` : ''}`
+    const linha = comMudanca(cena, novos, { tipo: 'acao', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } })
+    const teste = tentativa.teste
+    gravarCena(sceneKey, teste === null ? linha : { ...linha, efeitos: comEfeitos(cena.efeitos, [{ tipo: 'reacao', golpeId: null, tokenId: carta.tokenId, d20: teste.d20, modificador: teste.modificador, total: teste.total }]) })
+    return true
+  }
+
   const mudarPassiva = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDePassiva): boolean => {
     const cena = cenaDe(sceneKey)
     if (cena === undefined) return false
@@ -169,7 +239,7 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     const personagemId = carta.personagemId
     // S4: o lembrete do Sangramento e o da Preparação têm caminho próprio (não são passiva da ficha).
     if (pedido.tipo === 'lembrete') {
-      const daRegra = (turnos.combate?.[personagemId]?.lembretes ?? []).find((lembrete) => lembrete.cartaoId === pedido.cartaoId && (ehLembreteDoSangramento(lembrete) || ehLembreteDaPreparacao(lembrete)))
+      const daRegra = (turnos.combate?.[personagemId]?.lembretes ?? []).find((lembrete) => lembrete.cartaoId === pedido.cartaoId && (ehLembreteDoSangramento(lembrete) || ehLembreteDaPreparacao(lembrete) || ehLembreteDaSaida(lembrete)))
       if (daRegra !== undefined) return lembreteDaRegra(sceneKey, cena, autor, carta, personagemId, daRegra, pedido)
     }
     const { personagens, sistema } = mesaDoRpg()

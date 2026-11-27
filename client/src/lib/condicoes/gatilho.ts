@@ -52,13 +52,31 @@ export function temGatilhoQueConta(personagem: Pick<Personagem, 'condicoes'>, cr
   return condicoesDe(personagem).some((condicao) => condicao.gatilhoFeito !== true && gatilhoDe(condicao, criadas) !== null)
 }
 
+/** O que guarda a conta do gatilho: a condição da ficha e o selo da batalha (`SeloDaBatalha.gatilhoConta`). */
+export interface ContaDoGatilho {
+  gatilhoConta?: number
+  gatilhoFeito?: true
+}
+
+/**
+ * Um turno a mais na conta do gatilho, a MESMA conta para a condição da ficha e para o selo da batalha
+ * (rework das condições, E5). `item: null` = ele sai (disparou e some); "uma vez" que continua fica com
+ * `gatilhoFeito`; "a cada X" volta a conta a 0.
+ */
+export function contarUmTurnoDoGatilho<T extends ContaDoGatilho>(item: T, gatilho: Pick<GatilhoDaCondicao, 'turnos' | 'vezes' | 'aoDisparar'>): { item: T | null; dispara: boolean } {
+  const conta = (item.gatilhoConta ?? 0) + 1
+  if (conta < gatilho.turnos) return { item: { ...item, gatilhoConta: conta }, dispara: false }
+  if (gatilho.aoDisparar === 'some') return { item: null, dispara: true }
+  // Sem a conta (a chave é opcional em T: sem ela ainda é um T).
+  const zerado: T = { ...item }
+  delete zerado.gatilhoConta
+  return { item: gatilho.vezes === 'cada' ? zerado : { ...zerado, gatilhoFeito: true }, dispara: true }
+}
+
 /** Um turno a mais na conta do gatilho. `condicao: null` = ela sai (disparou e some). */
 function contarUmTurno(condicao: CondicaoNaFicha, gatilho: GatilhoDaCondicao): { condicao: CondicaoNaFicha | null; dispara: boolean } {
-  const conta = (condicao.gatilhoConta ?? 0) + 1
-  const { gatilhoConta: _antes, ...semConta } = condicao
-  if (conta < gatilho.turnos) return { condicao: { ...semConta, gatilhoConta: conta }, dispara: false }
-  if (gatilho.aoDisparar === 'some') return { condicao: null, dispara: true }
-  return { condicao: gatilho.vezes === 'cada' ? semConta : { ...semConta, gatilhoFeito: true }, dispara: true }
+  const contado = contarUmTurnoDoGatilho(condicao, gatilho)
+  return { condicao: contado.item, dispara: contado.dispara }
 }
 
 /** Tira pelo nome do catálogo; "as condições ruins" (`null`) tira todas menos a que disparou. */

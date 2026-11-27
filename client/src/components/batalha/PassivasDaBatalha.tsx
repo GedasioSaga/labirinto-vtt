@@ -1,6 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react'
 import { CUSTO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type LembreteDaPassiva, type PedidoDePassiva, type SeloDaBatalha, type SeloPedido } from '../../lib/batalha/combate'
 import { DANO_DO_SANGRAMENTO, ehLembreteDoSangramento, porVezDoLembrete } from '../../lib/batalha/condicoes'
+import { aplicarPassaPeloEscudo, ehLembreteDaSaida, saidasPagandoDe, textoDaPaga, type SaidaPagando } from '../../lib/batalha/condicoesNaVez'
+import { alvoNoMotor } from '../../lib/condicoes/traducao'
 import { ehLembreteDoCustoDaForma, type CustoDaFormaNaTela } from '../../lib/batalha/custoPorTurno'
 import { BONUS_DA_PREPARACAO, NOME_DA_PREPARACAO, ehLembreteDaPreparacao } from '../../lib/batalha/preparacao'
 import { cartaoDaVariante, temEscolha, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
@@ -1035,21 +1037,42 @@ export interface LembreteDoCustoNaTela {
 /** Conserto das fichas F1 (S4): o lembrete de uma regra da mesa (Sangramento, Preparação para a Batalha). */
 export interface LembreteDaRegraNaTela {
   lembrete: LembreteDaPassiva
-  regra: 'sangramento' | 'preparacao'
+  /** Rework das condições (D8, E5): "saida" = o "Tentar sair" de um selo, na vez de quem o tem. */
+  regra: 'sangramento' | 'preparacao' | 'saida'
   quem?: string
   /** F2 (fatia A): o selo que tira por vez (Sangrando 10, Queimando N), com o nome e quanto tira. Ausente = Sangrando, 10. */
   porVez?: { nome: string; dano: number }
+  /** E5: o Aplicar passa pelo Escudo (a vida da condição sem "direto"); ausente = a tela não recebeu os selos. */
+  peloEscudo?: boolean
+  /** E5: o selo do "Tentar sair" e a saída dele (pagar e/ou teste). Ausente = a tela não recebeu os selos (o texto fica geral). */
+  saida?: { nome: string; saida: SaidaPagando }
+}
+
+/** "paga 20 SP ou rola Espírito (CD 13)": o "Tentar sair" na tira, com os nomes do sistema. */
+function textoDaSaidaPagando(saida: SaidaPagando, sistema: SistemaDeRpg | null): string {
+  const atributo = saida.atr === undefined ? null : (sistema?.atributos.find((candidato) => candidato.id === alvoNoMotor(saida.atr ?? ''))?.nome ?? saida.atr)
+  const teste = atributo === null || saida.cd === undefined ? null : `rola ${atributo} (CD ${saida.cd})`
+  const paga = `paga ${textoDaPaga(saida)}`
+  if (saida.como === 'pagar' || teste === null) return paga
+  if (saida.como === 'teste') return teste
+  return `${paga} ${saida.como === 'e' ? 'e' : 'ou'} ${teste}`
 }
 
 export type LembreteNaTela = LembreteDaPassivaNaTela | LembreteDoCustoNaTela | LembreteDaRegraNaTela
 
 /** S4: o lembrete do Sangramento ou da Preparação na tela; `null` = é de passiva ou de forma. */
 export function lembreteDaRegraNaTela(lembrete: LembreteDaPassiva, quem?: string, selos?: readonly SeloDaBatalha[]): LembreteDaRegraNaTela | null {
-  const regra = ehLembreteDoSangramento(lembrete) ? 'sangramento' : ehLembreteDaPreparacao(lembrete) ? 'preparacao' : null
+  const regra = ehLembreteDoSangramento(lembrete) ? 'sangramento' : ehLembreteDaPreparacao(lembrete) ? 'preparacao' : ehLembreteDaSaida(lembrete) ? 'saida' : null
   if (regra === null) return null
   const item: LembreteDaRegraNaTela = quem === undefined ? { lembrete, regra } : { lembrete, regra, quem }
   // F2 (fatia A): o nome e quanto tira vêm do selo (o `cartaoId` do lembrete é o id dele) ou, se ele já saiu no fim da vez, do próprio lembrete; é o mesmo que o Aplicar tira.
   if (regra === 'sangramento') item.porVez = porVezDoLembrete(lembrete, selos)
+  // E5: a vida da condição sem "direto" (Queimando, Envenenado) passa pelo Escudo; só se sabe com os selos.
+  if (regra === 'sangramento' && selos !== undefined) item.peloEscudo = aplicarPassaPeloEscudo(selos.find((candidato) => candidato.id === lembrete.cartaoId))
+  // E5: o selo do "Tentar sair" (o `cartaoId` também é o id dele) e a 1ª saída pagando, a mesma que o host usa.
+  const selo = regra === 'saida' ? selos?.find((candidato) => candidato.id === lembrete.cartaoId) : undefined
+  const saida = selo === undefined ? undefined : saidasPagandoDe(selo)[0]
+  if (selo !== undefined && saida !== undefined) item.saida = { nome: selo.nome, saida }
   return item
 }
 
@@ -1064,10 +1087,12 @@ export function lembretesNaTela(
   alvos: readonly AlvoDaPassiva[],
   quem?: string,
   custos?: readonly CustoDaFormaNaTela[],
+  /** E5: os selos da cena, para o "Tentar sair" dizer qual selo e como sai. Ausente = o texto geral. */
+  selos?: readonly SeloDaBatalha[],
 ): LembreteNaTela[] {
   const itens: LembreteNaTela[] = []
   for (const lembrete of lembretes ?? []) {
-    const daRegra = lembreteDaRegraNaTela(lembrete, quem)
+    const daRegra = lembreteDaRegraNaTela(lembrete, quem, selos)
     if (daRegra !== null) {
       itens.push(daRegra)
       continue
@@ -1165,8 +1190,10 @@ function UmLembreteDaRegra({ item, sistema, aplicarLivre, esperando, onPedir }: 
   const [erro, setErro] = useState<string | null>(null)
   const id = useId()
   const sangra = regra === 'sangramento'
+  // E5 (D8): o "Tentar sair" o próprio dono responde (jogador ou mestre), como a marca.
+  const sair = regra === 'saida'
   const decide = !sangra || aplicarLivre === true
-  const motivo = sangra || atributoId !== '' ? null : 'Escolha o atributo que ganha +20'
+  const motivo = sangra || sair || atributoId !== '' ? null : 'Escolha o atributo que ganha +20'
   const pedir = (aplicar: boolean) => {
     if (esperando) return
     if (aplicar && motivo !== null) {
@@ -1174,7 +1201,7 @@ function UmLembreteDaRegra({ item, sistema, aplicarLivre, esperando, onPedir }: 
       return
     }
     const pedido: PedidoDePassiva = { tipo: 'lembrete', tokenId: lembrete.tokenId, cartaoId: lembrete.cartaoId, aplicar }
-    if (aplicar && !sangra) pedido.atributoId = atributoId
+    if (aplicar && !sangra && !sair) pedido.atributoId = atributoId
     const saiu = onPedir(pedido)
     setErro(saiu ? null : 'Não saiu: sem conexão com o mestre, ou o lembrete já foi respondido.')
   }
@@ -1188,8 +1215,13 @@ function UmLembreteDaRegra({ item, sistema, aplicarLivre, esperando, onPedir }: 
             <b>{item.porVez?.nome ?? 'Sangrando'}</b>
             <span className="bt-lembrete__det">
               {' '}
-              · tira {item.porVez?.dano ?? DANO_DO_SANGRAMENTO} de HP direto, sem o Escudo{decide ? '' : ' · o mestre aplica'}
+              · tira {item.porVez?.dano ?? DANO_DO_SANGRAMENTO} de HP {item.peloEscudo === undefined ? 'no começo da vez' : item.peloEscudo ? 'pelo Escudo' : 'direto, sem o Escudo'}{decide ? '' : ' · o mestre aplica'}
             </span>
+          </>
+        ) : sair ? (
+          <>
+            <b>{item.saida?.nome ?? 'Condição'}</b>
+            <span className="bt-lembrete__det"> · tentar sair nesta vez{item.saida === undefined ? ' (pagando ou com teste)' : `: ${textoDaSaidaPagando(item.saida.saida, sistema)}`}</span>
           </>
         ) : (
           <>
@@ -1198,7 +1230,7 @@ function UmLembreteDaRegra({ item, sistema, aplicarLivre, esperando, onPedir }: 
           </>
         )}
       </p>
-      {!sangra && (
+      {!sangra && !sair && (
         <label className="bt-lembrete__det">
           Atributo{' '}
           <select value={atributoId} disabled={esperando} onChange={(evento) => {
@@ -1218,7 +1250,7 @@ function UmLembreteDaRegra({ item, sistema, aplicarLivre, esperando, onPedir }: 
       {decide && (
         <div className="bt-lembrete__acoes" role="group" aria-labelledby={`${id}-texto`}>
           <button type="button" className="bt-botao bt-botao--passiva" disabled={esperando || motivo !== null} aria-describedby={motivo === null ? undefined : `${id}-motivo`} onClick={() => pedir(true)}>
-            {sangra ? `Aplicar · -${item.porVez?.dano ?? DANO_DO_SANGRAMENTO} HP` : `Fazer (+${BONUS_DA_PREPARACAO})`}
+            {sangra ? `Aplicar · -${item.porVez?.dano ?? DANO_DO_SANGRAMENTO} HP` : sair ? 'Tentar sair' : `Fazer (+${BONUS_DA_PREPARACAO})`}
           </button>
           <button type="button" className="bt-botao" disabled={esperando} onClick={() => pedir(false)}>
             {sangra ? 'Pular' : 'Agora não'}

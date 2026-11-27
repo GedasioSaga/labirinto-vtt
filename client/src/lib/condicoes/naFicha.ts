@@ -16,7 +16,7 @@ import { condicaoDoCatalogo, type CondicaoDoCatalogo } from './catalogo'
  *    fim da batalha" e a "até alguém tirar" não contam;
  *  - COMEÇO DA VEZ: a de regra `vida` vira um PENDENTE (quanto tira); quem chama aplica ou pula
  *    (decisão 10: "Aplicar ou Pular"). Fora da batalha, o "Passar turno" aplica todos;
- *  - CURA: a de regra `cura` corta a cura recebida (vale o maior corte, não somam);
+ *  - CURA: a de regra `cura` corta a cura recebida (D7: dois cortes multiplicam, como na batalha);
  *  - FIM DA BATALHA: saem as que têm prazo e as "até o fim da batalha"; a "até alguém tirar" fica
  *    (decisão 11).
  *
@@ -172,20 +172,29 @@ export interface CuraCortada {
   nome: string | null
 }
 
-/** A cura `cura` que chega em quem tem a ficha: vale o MAIOR corte entre as de regra `cura` (não somam). Arredonda para baixo. */
+/**
+ * A cura `cura` que chega em quem tem a ficha, depois das de regra `cura`. Rework das condições (D7): dois cortes
+ * de condições diferentes MULTIPLICAM, como a batalha (`curaComOsSelos`); cada corte arredonda para baixo, um
+ * depois do outro (um corte só dá o mesmo de antes). `corte` = o corte junto, em %; `nome` = o da que mais cortou.
+ */
 export function curaComAsCondicoes(cura: number, personagem: Pick<Personagem, 'condicoes'>, criadas: readonly CondicaoPropria[]): CuraCortada {
-  let corte = 0
+  let maior = 0
   let nome: string | null = null
+  let chega = cura
+  let fica = 1
   for (const condicao of condicoesDe(personagem)) {
     const doCatalogo = condicaoDoCatalogo(condicao.condId, criadas)
     if (doCatalogo === null || doCatalogo.regra !== 'cura') continue
     const n = Math.min(N_DA_CURA_MAX, condicao.n ?? doCatalogo.n)
-    if (n > corte) {
-      corte = n
+    if (!(n > 0)) continue
+    chega = Math.floor((chega * (100 - n)) / 100)
+    fica = (fica * (100 - n)) / 100
+    if (n > maior) {
+      maior = n
       nome = doCatalogo.nome
     }
   }
-  return { cura: corte === 0 ? cura : Math.floor((cura * (100 - corte)) / 100), corte, nome }
+  return { cura: maior === 0 ? cura : chega, corte: maior === 0 ? 0 : Math.round(100 * (1 - fica)), nome }
 }
 
 /** FIM DA BATALHA (decisão 11): saem as que têm prazo e as "até o fim da batalha"; a "até alguém tirar" fica. */
