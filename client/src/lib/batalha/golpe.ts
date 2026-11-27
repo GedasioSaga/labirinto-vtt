@@ -84,7 +84,9 @@ import {
   chavesDoDono,
   contaQuemOViuLutar,
   extraDeTodoGolpe,
+  cartoesLigados,
   golpesSaoOverload,
+  type ChaveDaMecanica,
   somaCorpoACorpo,
   somaDasRespostas,
   formulaDaCura,
@@ -1110,7 +1112,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const acaoBase = pedido.tipo === 'atacar' ? (daArma?.acao ?? 'simples') : tecnica?.acao
   const acao = acaoBase === undefined || acaoBase === null || acaoBase === 'passiva' ? null : acaoDoGolpe(acaoBase, combate.carga)
   // F2b (A Caçada Começa): com a forma ligada, todo golpe do dono é Overload (não dá para desviar; só outra Overload defende).
-  const overload = (tecnica?.overload ?? false) || (personagem !== null && golpesSaoOverload(personagem.cartoesAtivos))
+  const overload = (tecnica?.overload ?? false) || (personagem !== null && golpesSaoOverload(cartoesLigados(personagem)))
   // F2 (fatia B): a mecânica à mão da técnica (`mecanicasAMao.ts`): o perfurante, o selo, as respostas, a 2ª parte, o HP que custa.
   // Construtor C1: o cartão montado dá a linha das peças no lugar da da tabela (tudo ou nada).
   const mecanica = tecnica === null ? null : mecanicaDoCartao(tecnica.cartao)
@@ -1331,7 +1333,7 @@ function comDanoDividido(alvos: readonly PedidoDeAlvo[], teto: number): readonly
 }
 
 /** F2 (fatia C): os ids dos cartões da ficha (todas as abas), e (fatia E) as chaves da raça e da ficha; sem ficha, nenhum. */
-function cartoesDoDono(personagem: Personagem | null): string[] {
+function cartoesDoDono(personagem: Personagem | null): ChaveDaMecanica[] {
   return personagem === null ? [] : chavesDoDono(personagem)
 }
 

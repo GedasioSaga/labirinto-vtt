@@ -6,6 +6,7 @@ import { cdDaExpressao } from '../disputa'
 import { lerDano, normalizar } from '../formula'
 import { ADJETIVO_DO_TIPO, ATRIBUTO_DO_ENFRAQUECER, fraseDoEmpurrao, NOME_DO_TIPO } from './golpe'
 import { formulaDoNumero } from './leitura'
+import { atributoNoMotor, NOME_DA_FADIGA, nomeDoAtributoDaPeca, type CondicaoDaPeca, type EfeitoDoGatilho, type PecaDaMecanica, type PecaDiminui, type PecaTransformacao, type QuandoOGatilhoDispara, type RespostaDaPeca } from './pecas'
 import { TESTE_DO_TIPO_DE_PARTIDA, type CdDoTeste, type Custo, type DuracaoDoSelo, type Efeito, type MecanicaV1, type Numero, type NumeroDaCd, type NumeroSimples, type QuemOAlvoPega, type QuemRolaNoTeste, type TipoComRegra, type TipoDoGolpe } from './modelo'
 
 /**
@@ -461,10 +462,156 @@ export function etiquetaDaMecanica(mecanica: MecanicaV1): string {
   return quantas === 1 ? '1 peça à mão' : `${quantas} peças à mão`
 }
 
+// ─── Versão 5: as frases das peças novas (o `frasePeca` do protótipo, sem o HTML) ───
+
+/** O nome do atributo na frase: o do sistema da ficha, senão o da peça. */
+function nomeDoAtributoNaFrase(id: string, ficha?: FichaDaPrevia): string {
+  return ficha?.sistema.atributos.find((atributo) => atributo.id === id)?.nome ?? nomeDoAtributoDaPeca(id)
+}
+
+function comSinal(valor: number): string {
+  return valor > 0 ? `+${valor}` : String(valor)
+}
+
+function turnosNaFrase(turnos: number): string {
+  return `${turnos} ${turnos === 1 ? 'turno' : 'turnos'}`
+}
+
+function primeiraMaiuscula(texto: string): string {
+  return `${texto.charAt(0).toLocaleUpperCase('pt-BR')}${texto.slice(1)}`
+}
+
+function condicaoNaFrase(condicao: CondicaoDaPeca): string {
+  return `${condicao.nome} por ${turnosNaFrase(condicao.turnos)}`
+}
+
+const QUANDO_O_GATILHO: Readonly<Record<QuandoOGatilhoDispara, (n: number) => string>> = {
+  inicio: () => 'no início da batalha',
+  comeco: () => 'no começo de cada vez do dono',
+  rodada: (n) => `na rodada ${n}`,
+  vidaAbaixo: (n) => `quando a vida do dono cair abaixo de ${n}%`,
+  aoReceber: () => 'quando o dono recebe dano',
+  aoAcertar: () => 'quando o dono acerta um golpe',
+  aoCair: () => 'quando o dono cai a 0 de vida',
+}
+
+function fraseDoEfeitoDoGatilho(efeito: EfeitoDoGatilho, ficha?: FichaDaPrevia): string {
+  switch (efeito.tipo) {
+    case 'atributo':
+      return `${comSinal(efeito.valor)} de ${nomeDoAtributoNaFrase(efeito.atributo, ficha)} por ${turnosNaFrase(efeito.turnos)}`
+    case 'recuperar':
+      return `recupera ${efeito.valor} de ${efeito.recurso === 'hp' ? 'vida' : 'SP'} por turno${efeito.turnos > 1 ? ` durante ${turnosNaFrase(efeito.turnos)}` : ''}`
+    case 'escudo':
+      return `ganha ${efeito.valor} de Escudo`
+    case 'condSi':
+      return `fica ${condicaoNaFrase(efeito.condicao)}`
+    case 'condAlvo':
+      return `o alvo fica ${condicaoNaFrase(efeito.condicao)}`
+    case 'aviso':
+      return `avisa o mestre ("${efeito.texto}")`
+  }
+}
+
+function fraseDaResposta(resposta: RespostaDaPeca): string {
+  const muda = [
+    resposta.bate === undefined ? '' : `bate como ${NOME_DO_TIPO[resposta.bate]}`,
+    resposta.dano === 0 ? '' : `${comSinal(resposta.dano)} de dano`,
+    resposta.condicao === undefined ? '' : `deixa ${condicaoNaFrase(resposta.condicao)}`,
+    resposta.perfuracao === 0 ? '' : `${resposta.perfuracao}% passa do Escudo`,
+  ].filter((parte) => parte !== '')
+  return `${resposta.nome} ${muda.length === 0 ? 'não muda nada' : muda.join(', ')}`
+}
+
+function fraseDaTransformacao(peca: PecaTransformacao, mecanica: MecanicaV1, ficha?: FichaDaPrevia): string {
+  const usos = mecanica.limite.usosPorBatalha
+  const abre = mecanica.limite.overload === true ? 'Overload de transformação, 1 por batalha; ligar não erra e ninguém desvia. ' : usos === undefined ? '' : `Liga até ${usos} ${usos === 1 ? 'vez' : 'vezes'} por batalha. `
+  const partes = [
+    peca.dura === 0 ? 'fica até desligar' : `dura ${turnosNaFrase(peca.dura)}`,
+    peca.acoes === 0 ? '' : `ataca ${peca.acoes + 1} vezes em cada vez`,
+    peca.mods.map((mod) => `${comSinal(mod.valor)} de ${nomeDoAtributoNaFrase(mod.atributo, ficha)}`).join(', '),
+    peca.danoRecebido === 0 ? '' : `leva ${Math.abs(peca.danoRecebido)}% ${peca.danoRecebido < 0 ? 'menos' : 'mais'} de dano`,
+    peca.deslocamento === 0 ? '' : `anda ${comSinal(peca.deslocamento)} casas${peca.deslocamentoMax > 0 ? ` (no máximo ${peca.deslocamentoMax})` : ''}`,
+    mecanica.limite.overload === true && peca.naoErra ? 'os golpes também não erram' : '',
+    peca.grupo.trim() === '' ? '' : `troca com as formas do grupo ${peca.grupo.trim()}`,
+    peca.marca ? 'cada ataque deixa uma marca; o próximo golpe na marca dá o dobro e ela some' : '',
+  ].filter((parte) => parte !== '')
+  const fadiga = peca.fadiga ? ` Quando acaba: ${NOME_DA_FADIGA} por ${turnosNaFrase(peca.fadigaTurnos)}${peca.fadigaMods.length === 0 ? '' : ` (${peca.fadigaMods.map((mod) => `${comSinal(mod.valor)} de ${nomeDoAtributoNaFrase(mod.atributo, ficha)}`).join(', ')})`}.` : ''
+  return `${abre}${primeiraMaiuscula(partes.join('; '))}.${fadiga}`
+}
+
+function fraseDoDiminui(peca: PecaDiminui, ficha?: FichaDaPrevia): string {
+  const unidade = peca.modo === 'porcento' ? '%' : ''
+  const q = `${peca.valor}${unidade} de ${nomeDoAtributoNaFrase(atributoNoMotor(peca.atributo), ficha)}`
+  const teto = peca.teto ? `, até no máximo ${peca.tetoValor}${unidade}` : ''
+  const ritmo =
+    peca.ritmo === 'umaVez'
+      ? `perde ${q} de uma vez, por ${turnosNaFrase(peca.dura)}`
+      : peca.ritmo === 'cadaTurno'
+        ? `perde ${q} a cada turno, somando${teto}`
+        : `começa a perder do ${peca.depoisDe + 1}º turno em diante: ${q} ${peca.depoisVezes === 'cada' ? `a cada turno, somando${teto}` : 'uma vez só'}`
+  const volta = peca.volta === 'batalha' ? 'Volta ao normal no fim da batalha.' : peca.volta === 'curar' ? 'Volta ao normal quando tirarem a condição.' : peca.ritmo === 'umaVez' ? 'Depois volta ao normal.' : `Volta ao normal ${turnosNaFrase(peca.voltaEm)} depois do golpe.`
+  return `Ao acertar, o alvo ${ritmo}. ${volta} No alvo aparece como ${peca.nome}.`
+}
+
+function fraseDaPeca(peca: PecaDaMecanica, mecanica: MecanicaV1, ficha?: FichaDaPrevia): string {
+  switch (peca.tipo) {
+    case 'pergunta':
+      return peca.perguntas.map((pergunta) => `Antes de bater, a batalha pergunta "${pergunta.texto}": ${pergunta.respostas.map(fraseDaResposta).join('; ')}.`).join(' ') + (peca.npc === 'primeira' ? ' Para NPC vale a primeira resposta.' : ' Para NPC, o mestre responde.')
+    case 'imbuir': {
+      if (peca.elementos.length === 0) return 'Imbuir sem elemento: não pergunta nada.'
+      const elementos = peca.elementos.map((elemento) => `${elemento.nome} (${[`${comSinal(elemento.dano)} de dano`, elemento.condicao === undefined ? '' : condicaoNaFrase(elemento.condicao), elemento.desvantagem ? 'o alvo reage com desvantagem' : '', `${elemento.sp} SP`].filter((parte) => parte !== '').join(', ')})`)
+      return `Enquanto ligada, a cada golpe do dono a batalha pergunta "Imbuir?": ${elementos.join('; ')}. Ou "Não", que não gasta nada.`
+    }
+    case 'gatilho': {
+      const vezes = peca.vezes === 'umaPorBatalha' ? ' (uma vez por batalha)' : ''
+      const fica = peca.ficaCom === undefined ? '' : `, em vez de cair fica com ${peca.ficaCom} de vida`
+      const pergunta = peca.pergunta ? ' Pergunta antes de disparar.' : ''
+      return `Sozinha, sem gastar ação: ${QUANDO_O_GATILHO[peca.quando](peca.n)}${vezes}${fica}, ${peca.efeitos.map((efeito) => fraseDoEfeitoDoGatilho(efeito, ficha)).join(' e ')}.${pergunta}`
+    }
+    case 'raca': {
+      const partes = [
+        peca.corta ? `corta ${peca.cortaPorcento}% de todo dano que o dono recebe` : '',
+        peca.soma ? `soma +${peca.somaValor} no dano dos golpes ${peca.somaEm === 'fisico' ? 'físicos' : 'corpo a corpo'}` : '',
+        peca.naoDesvia ? (peca.naoDesviaQuem === 'dono' ? 'o dono não pode desviar' : 'quem o dono acerta não pode desviar') : '',
+      ].filter((parte) => parte !== '')
+      return partes.length === 0 ? 'Passiva de raça vazia: ligue pelo menos uma das três.' : `Sempre ligada, sem botão: ${partes.join('; ')}.`
+    }
+    case 'transformacao':
+      return fraseDaTransformacao(peca, mecanica, ficha)
+    case 'status': {
+      const onde = peca.quem === 'si' ? 'No dono' : peca.quem === 'aliado' ? 'Num aliado' : 'Em todos os aliados'
+      const itens = peca.itens.map((item) => {
+        const quanto = item.modo === 'fixo' ? comSinal(item.valor) : `${comSinal(item.porcento)}% da ${nomeDoAtributoNaFrase(item.de, ficha)}`
+        const tempo = item.dura === 'turnos' ? `por ${turnosNaFrase(item.turnos)}` : item.dura === 'batalha' ? 'até o fim da batalha' : 'para sempre (grava na ficha)'
+        return `${nomeDoAtributoNaFrase(atributoNoMotor(item.atributo), ficha)} ${quanto} ${tempo}`
+      })
+      return `${onde}, ao usar: ${itens.join('; ')}.`
+    }
+    case 'diminui':
+      return fraseDoDiminui(peca, ficha)
+    case 'marca': {
+      const abre = peca.quando === 'aoAcertar' ? 'Ao acertar' : peca.quando === 'tiro' ? 'Ao acertar à distância' : `Ao acertar, a batalha pergunta "Marcar?" (paga ${peca.paga} SP${peca.teste === '' ? '' : ` e testa ${nomeDoAtributoNaFrase(peca.teste, ficha)}`}) e`
+      return `${abre} deixa ${peca.nome} no alvo (até ${turnosNaFrase(peca.turnos)}); o próximo golpe ${peca.quem === 'dono' ? 'do dono' : 'de qualquer um do grupo'} nela dá ${peca.vezes}× o dano${peca.some ? ' e a marca some' : ''}.`
+    }
+    case 'invocacao':
+      return `Chama ${peca.nome}: ${peca.vida} de vida, ${peca.dano} de dano, ocupa ${peca.casas} ${peca.casas === 1 ? 'bloco' : 'blocos'}; no máximo ${peca.max} ao mesmo tempo${peca.ultra ? `, Ultra com carga ${peca.carga}` : ''}.`
+    case 'devolve': {
+      const soma = peca.soma === '' ? '' : ` + ${nomeDoAtributoNaFrase(peca.soma, ficha)}`
+      return `${peca.escolha ? 'Na reação, o jogador escolhe: defender o golpe ou devolver' : 'Na reação, defende e devolve'} o dano recebido ÷ ${peca.divide}${soma} em quem bateu.`
+    }
+  }
+}
+
+/** Versão 5 (PLANO.md decisão 2): as frases das peças novas, na ordem do cartão (o cartão se escreve sozinho). */
+export function frasesDasPecas(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string[] {
+  return (mecanica.pecas ?? []).map((peca) => fraseDaPeca(peca, mecanica, ficha))
+}
+
 /** O resumo inteiro, na ordem dos blocos do editor. */
 export function resumoDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string[] {
   const limite = fraseDoLimite(mecanica)
-  const daVez = mecanica.uso !== 'reacao'
+  // Versão 5 (D6): a passiva não tem alvo, dano nem teste da vez.
+  const daVez = mecanica.uso !== 'reacao' && mecanica.uso !== 'passiva'
   // Fase 5: "Só vale em quem tem Redoma" (`alvo.exigeSelo`) e o item da mochila.
   const exige = mecanica.alvo.exigeSelo === undefined ? '' : ` Só vale em quem tem ${mecanica.alvo.exigeSelo}.`
   const item = mecanica.custoEmItem
@@ -479,6 +626,7 @@ export function resumoDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): s
     ...(daVez ? [alvoETeste, ...frasesDoDano(mecanica, ficha), ...frasesDoGolpe(mecanica, ficha)] : []),
     ...frasesDaReacao(mecanica, ficha),
     ...mecanica.efeitos.filter((efeito) => daVez || (efeito.tipo === 'selo' && efeito.em === 'atacante')).map((efeito) => fraseDoEfeito(efeito, mecanica, ficha)),
+    ...frasesDasPecas(mecanica, ficha),
     ...(limite === null ? [] : [limite]),
   ]
 }

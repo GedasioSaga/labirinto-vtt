@@ -1,9 +1,11 @@
 import type { CartaoDaFicha, Personagem } from '../../personagem'
 import { numeroDaFicha } from '../../personagem'
-import type { SeloDoGolpe, SeloPedido } from '../combate'
+import { NOME_DO_SELO_MAX, type SeloDoGolpe, type SeloPedido } from '../combate'
 import type { FormaDaArea } from '../area'
 import type { LeituraDaAcao, LeituraDoCusto, LeituraDoTempo } from '../leituraDaFicha'
-import type { LimpezaAMao, MecanicaAMao, ReacaoAMao, SaidaDaReacaoAMao } from '../mecanicasAMao'
+import type { DevolveAMao, DiminuiAMao, EfeitoDoGatilhoAMao, ElementoAMao, FormaAMao, GatilhoAMao, InvocacaoAMao, LimpezaAMao, MarcaAMao, MecanicaAMao, MudancaDaResposta, RacaAMao, ReacaoAMao, SaidaDaReacaoAMao } from '../mecanicasAMao'
+import type { OpcaoDaPergunta, PerguntaNaHora } from '../perguntaNaHora'
+import { atributoNoMotor, NOME_DA_FADIGA, nomeDoAtributoDaPeca, PECA_DE_PARTIDA, type CondicaoDaPeca, type PecaDaMecanica, type PecaDiminui, type PecaGatilho, type PecaMarca } from './pecas'
 import type { ReacaoDoTipo } from '../tiposDaHabilidade'
 import { lerMecanicaParaOMotor } from './golpe'
 import { avisoDaMecanica, centroDaArea, testeRolado, VIDA_DO_PORCENTO, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type Porcento, type ReacaoDaMecanica } from './modelo'
@@ -30,13 +32,15 @@ const lidas = new WeakMap<object, MecanicaLida>()
 /**
  * As peças do cartão para o MOTOR, lidas e conferidas: com o tipo do golpe já montado em peças
  * (`lerMecanicaParaOMotor`, fase ED1). Quem edita e grava lê a escolha por `lerMecanica`.
+ * Versão 5: o `nome` do cartão dá o nome do selo do "Muda atributo" (a memória é por objeto de
+ * mecânica: vale o nome da primeira leitura, e editar o cartão troca o objeto).
  */
-export function mecanicaLidaDoCartao(cartao: Pick<CartaoDaFicha, 'mecanica'>): MecanicaLida {
+export function mecanicaLidaDoCartao(cartao: Pick<CartaoDaFicha, 'mecanica'> & { nome?: string }): MecanicaLida {
   const guardada = cartao.mecanica
   if (guardada === undefined) return { tipo: 'nenhuma' }
   const memoria = lidas.get(guardada)
   if (memoria !== undefined) return memoria
-  const lida = lerMecanicaParaOMotor(guardada)
+  const lida = lerMecanicaParaOMotor(guardada, cartao.nome)
   lidas.set(guardada, lida)
   return lida
 }
@@ -389,7 +393,178 @@ export function linhaDasPecas(nome: string, mecanica: MecanicaV1): MecanicaAMao 
   const lembrete = lembretesDasPecas(mecanica)
   if (lembrete !== null) linha.lembreteNaMira = lembrete
   if (mecanica.reacao !== undefined) linha.reacao = reacaoNaTabela(mecanica.reacao)
+  // Versão 5 (PLANO.md D3): as peças novas e o "Ligar e manter". Sem elas (versões 1 a 4) nada muda aqui.
+  if (mecanica.uso === 'manter' && linha.mantida === undefined) linha.mantida = { custoPorVez: { recurso: 'sp', valor: 0 } }
+  for (const peca of mecanica.pecas ?? []) comAPeca(linha, peca, mecanica)
   return linha
+}
+
+// ─── Versão 5: cada peça nova vira campos da linha (D3) ────────────────────
+
+/** A chave da pergunta do Imbuir e a resposta que não imbui (o "Não", sempre grátis). */
+export const CHAVE_DO_IMBUIR = 'pecaImbuir'
+export const RESPOSTA_SEM_IMBUIR = 'nao'
+/** A chave da pergunta N (de 1) da Pergunta na hora, e a da pergunta "Marcar?". */
+export function chaveDaPerguntaDaPeca(indice: number): string {
+  return `pecaPergunta${indice + 1}`
+}
+export const CHAVE_DA_MARCA = 'pecaMarca'
+const SIM_E_NAO: readonly OpcaoDaPergunta[] = [
+  { valor: 'sim', rotulo: 'Sim' },
+  { valor: 'nao', rotulo: 'Não' },
+]
+
+/** A condição posta por peça, como o golpe a guarda (o nome dá o comportamento, como no selo dos Efeitos). */
+function seloDaCondicao(condicao: CondicaoDaPeca, natureza: 'buff' | 'debuff' = 'debuff'): SeloDoGolpe {
+  return { nome: condicao.nome, turnos: condicao.turnos, natureza }
+}
+
+/** O selo de atributos do cartão (o nome do cartão, até o teto do nome do selo), com a natureza pelo sinal. */
+function seloDeAtributos(nome: string, turnos: number | null, mods: readonly { atributo: string; valor: number }[]): SeloDoGolpe {
+  const natureza = mods.every((mod) => mod.valor > 0) ? 'buff' : 'debuff'
+  return { nome: nome.slice(0, NOME_DO_SELO_MAX).trim() || 'Selo', turnos, natureza, mods: mods.map((mod) => ({ alvo: atributoNoMotor(mod.atributo), delta: mod.valor })) }
+}
+
+function marcaDaPeca(peca: PecaMarca): MarcaAMao {
+  const marca: MarcaAMao = { selo: { nome: peca.nome, turnos: peca.turnos, natureza: 'debuff' }, vezes: peca.vezes, soDoDono: peca.quem === 'dono', some: peca.some, quando: peca.quando }
+  if (peca.quando === 'pergunta') {
+    marca.pergunta = { chave: CHAVE_DA_MARCA, texto: 'Marcar?', para: 'quemUsa', tipo: 'opcoes', opcoes: SIM_E_NAO }
+    if (peca.paga > 0) marca.custoEmSp = peca.paga
+    if (peca.teste !== '') marca.teste = peca.teste
+  }
+  return marca
+}
+
+function diminuiDaPeca(peca: PecaDiminui): DiminuiAMao {
+  const alvo = atributoNoMotor(peca.atributo)
+  const passo = [{ alvo, delta: -peca.valor }]
+  const emPorcento: { emPorcento?: true } = peca.modo === 'porcento' ? { emPorcento: true } : {}
+  const teto = peca.teto ? { teto: peca.tetoValor } : {}
+  const turnos = peca.volta !== 'turnos' ? null : peca.ritmo === 'umaVez' ? peca.dura : peca.voltaEm
+  const selo: SeloDoGolpe = { nome: peca.nome, turnos, natureza: 'debuff' }
+  // O protótipo (`perdaNaRodada`): de uma vez perde no acerto; a cada turno perde no acerto e de novo em cada vez do alvo; "depois de N" começa na vez N+1.
+  if (peca.ritmo === 'umaVez' && peca.modo === 'fixo') selo.mods = passo
+  else if (peca.ritmo === 'umaVez') selo.queda = { passo, desde: 0, vezes: 1, ...emPorcento }
+  else if (peca.ritmo === 'cadaTurno') selo.queda = { passo, desde: 0, ...teto, ...emPorcento }
+  else selo.queda = { passo, desde: peca.depoisDe, ...(peca.depoisVezes === 'uma' ? { vezes: 1 } : teto), ...emPorcento }
+  return { selo, volta: peca.volta }
+}
+
+function gatilhoDaPeca(peca: PecaGatilho, nomeDoCartao: string): GatilhoAMao {
+  const efeitos = peca.efeitos.map((efeito): EfeitoDoGatilhoAMao => {
+    switch (efeito.tipo) {
+      case 'atributo':
+        return { tipo: 'selo', em: 'dono', selo: seloDeAtributos(nomeDoCartao, efeito.turnos, [{ atributo: efeito.atributo, valor: efeito.valor }]) }
+      case 'recuperar':
+        return { tipo: 'recupera', recurso: efeito.recurso, valor: efeito.valor, turnos: efeito.turnos }
+      case 'escudo':
+        return { tipo: 'escudo', valor: efeito.valor }
+      case 'condSi':
+        return { tipo: 'selo', em: 'dono', selo: seloDaCondicao(efeito.condicao) }
+      case 'condAlvo':
+        return { tipo: 'selo', em: 'alvo', selo: seloDaCondicao(efeito.condicao) }
+      case 'aviso':
+        return { tipo: 'aviso', texto: efeito.texto }
+    }
+  })
+  const gatilho: GatilhoAMao = { quando: peca.quando, n: peca.n, efeitos }
+  if (peca.vezes === 'umaPorBatalha') gatilho.umaPorBatalha = true
+  if (peca.pergunta) gatilho.pergunta = true
+  if (peca.ficaCom !== undefined) gatilho.ficaCom = peca.ficaCom
+  return gatilho
+}
+
+/** O gatilho que é o "avisa o mestre quando o dono cai, uma vez por batalha" de sempre (`avisoAoCair`). */
+function avisoAoCairDe(peca: PecaGatilho): string | null {
+  const [efeito, ...outros] = peca.efeitos
+  const soAviso = efeito !== undefined && efeito.tipo === 'aviso' && outros.length === 0
+  return soAviso && peca.quando === 'aoCair' && peca.vezes === 'umaPorBatalha' && !peca.pergunta && peca.ficaCom === undefined ? efeito.texto : null
+}
+
+/** A peça vira os campos da linha (D3): os de sempre quando já existem, os novos quando não. */
+function comAPeca(linha: MecanicaAMao, peca: PecaDaMecanica, mecanica: MecanicaV1): void {
+  switch (peca.tipo) {
+    case 'pergunta': {
+      const perguntas = peca.perguntas.map((pergunta, i): PerguntaNaHora => ({ chave: chaveDaPerguntaDaPeca(i), texto: pergunta.texto, para: 'quemUsa', tipo: 'opcoes', opcoes: pergunta.respostas.map((resposta) => ({ valor: resposta.nome, rotulo: resposta.nome })) }))
+      const mudam = peca.perguntas.flatMap((pergunta, i) =>
+        pergunta.respostas.flatMap((resposta): MudancaDaResposta[] => {
+          const muda: MudancaDaResposta = { chave: chaveDaPerguntaDaPeca(i), valor: resposta.nome }
+          if (resposta.dano !== 0) muda.soma = resposta.dano
+          if (resposta.condicao !== undefined) muda.selo = seloDaCondicao(resposta.condicao)
+          if (resposta.perfuracao === 100) muda.perfurante = true
+          else if (resposta.perfuracao > 0) muda.perfuracao = resposta.perfuracao
+          if (resposta.bate !== undefined) muda.bate = resposta.bate
+          return Object.keys(muda).length > 2 ? [muda] : []
+        }),
+      )
+      linha.perguntas = [...(linha.perguntas ?? []), ...perguntas]
+      if (mudam.length > 0) linha.respostasMudam = [...(linha.respostasMudam ?? []), ...mudam]
+      if (peca.npc === 'primeira') linha.npcRespondeAPrimeira = true
+      return
+    }
+    case 'imbuir': {
+      const elementos = peca.elementos.map((elemento, i): ElementoAMao => {
+        const lido: ElementoAMao = { valor: elemento.id === 'proprio' ? `proprio${i + 1}` : elemento.id, rotulo: elemento.nome, dano: elemento.dano, custoEmSp: elemento.sp }
+        if (elemento.condicao !== undefined) lido.selo = seloDaCondicao(elemento.condicao)
+        if (elemento.desvantagem) lido.desvantagemNoAlvo = true
+        return lido
+      })
+      // Sem elemento ligado, não pergunta nada (o resumo diz).
+      if (elementos.length === 0) return
+      const opcoes: OpcaoDaPergunta[] = [{ valor: RESPOSTA_SEM_IMBUIR, rotulo: 'Não' }, ...elementos.map((elemento) => ({ valor: elemento.valor, rotulo: elemento.rotulo }))]
+      linha.imbuir = { pergunta: { chave: CHAVE_DO_IMBUIR, texto: 'Imbuir?', para: 'quemUsa', tipo: 'opcoes', opcoes }, elementos }
+      return
+    }
+    case 'gatilho': {
+      const aviso = avisoAoCairDe(peca)
+      if (aviso !== null && linha.avisoAoCair === undefined) linha.avisoAoCair = aviso
+      else linha.gatilhos = [...(linha.gatilhos ?? []), gatilhoDaPeca(peca, linha.nome)]
+      return
+    }
+    case 'raca': {
+      const raca: RacaAMao = {}
+      if (peca.corta) raca.reducao = { nome: linha.nome, porcento: peca.cortaPorcento }
+      if (peca.soma && peca.somaEm === 'corpo') raca.somaCorpoACorpo = peca.somaValor
+      if (peca.soma && peca.somaEm === 'fisico') raca.somaNosFisicos = peca.somaValor
+      if (peca.naoDesvia && peca.naoDesviaQuem === 'dono') raca.soDefende = true
+      if (peca.naoDesvia && peca.naoDesviaQuem === 'alvo') raca.alvoNaoDesvia = true
+      linha.raca = raca
+      return
+    }
+    case 'transformacao': {
+      const forma: FormaAMao = { acoesAMais: peca.acoes, danoRecebido: peca.danoRecebido, deslocamento: peca.deslocamento, deslocamentoMax: peca.deslocamentoMax }
+      if (peca.grupo.trim() !== '') forma.grupo = peca.grupo.trim()
+      // D10: a marca da forma é a da peça Marca de partida (só o dono aproveita, o dobro, some no golpe).
+      if (peca.marca) forma.marca = marcaDaPeca(PECA_DE_PARTIDA.marca)
+      if (peca.fadiga && peca.fadigaMods.length > 0) forma.fadiga = seloDeAtributos(NOME_DA_FADIGA, peca.fadigaTurnos, peca.fadigaMods)
+      else if (peca.fadiga) forma.fadiga = { nome: NOME_DA_FADIGA, turnos: peca.fadigaTurnos, natureza: 'debuff' }
+      linha.forma = forma
+      if (peca.dura > 0) linha.duraVezesDoDono = peca.dura
+      if (mecanica.limite.overload === true && peca.naoErra) linha.golpesSaoOverload = true
+      return
+    }
+    case 'diminui':
+      linha.diminui = diminuiDaPeca(peca)
+      return
+    case 'marca':
+      linha.marca = marcaDaPeca(peca)
+      return
+    case 'invocacao': {
+      const invocacao: InvocacaoAMao = { nome: peca.nome, vida: peca.vida, dano: peca.dano, casas: peca.casas, max: peca.max, concentracao: peca.concentracao }
+      if (peca.ultra) invocacao.ultra = { carga: peca.carga }
+      linha.invocacao = invocacao
+      return
+    }
+    case 'devolve': {
+      const devolve: DevolveAMao = { escolha: peca.escolha, divididoPor: peca.divide }
+      if (peca.soma !== '') devolve.soma = nomeDoAtributoDaPeca(peca.soma)
+      linha.devolve = devolve
+      return
+    }
+    // O "Muda atributo" já virou selo dos Efeitos na leitura do motor (`pecasParaOMotor`, golpe.ts).
+    case 'status':
+      return
+  }
 }
 
 /** As linhas já traduzidas, pela mesma chave da leitura. */

@@ -2,6 +2,7 @@ import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX, MODS_POR_SEL
 import type { EscopoDoAlcance, MudancaDoAlcance } from '../alcance/condicoes'
 import type { GatilhoDaCondicao } from '../../itens/modelo'
 import { gatilhoLido } from '../../itens/pecasDoItem'
+import { lerPecas, motivoDasPecasComOUso, type PecaDaMecanica } from './pecas'
 
 /**
  * AS PEÇAS DA TÉCNICA MONTADA (construtor de mecânicas, fatia C1; seção 1 de
@@ -30,12 +31,15 @@ import { gatilhoLido } from '../../itens/pecasDoItem'
  * leque, o anel (`alcanceMinimo`) e o selo que muda o alcance. Fase ED1 do
  * editor novo (docs/design/habilidades/EDITOR.md §3.1): a 4 é a 3 com o tipo do
  * golpe (`golpe`), guardado como escolha e virado peças só na leitura do motor
- * (`pecasParaOMotor`, golpe.ts).
+ * (`pecasParaOMotor`, golpe.ts). Rework do editor de habilidades
+ * (docs/design/habilidades-rework/PLANO.md D1): a 5 é a 4 com as peças novas
+ * (`pecas`, lidas em pecas.ts) e os usos "passiva" e "manter"; quem grava usa a
+ * 5 só com `precisaDaVersao5`.
  */
-export const VERSAO_DA_MECANICA = 4
+export const VERSAO_DA_MECANICA = 5
 
 /** As versões que este app lê. A peça lida guarda a versão com que veio. */
-export type VersaoDaMecanica = 1 | 2 | 3 | 4
+export type VersaoDaMecanica = 1 | 2 | 3 | 4 | 5
 
 /**
  * A versão que este app GRAVA numa mecânica nova (modelos, arma montada).
@@ -319,6 +323,13 @@ export interface MecanicaV2 {
    * este campo: lê as peças que `pecasParaOMotor` (golpe.ts) monta com ele. Ausente = sem tipo.
    */
   golpe?: GolpeDaMecanica
+  /**
+   * Versão 5 (PLANO.md D1): as peças novas (Pergunta na hora, Imbuir, Dispara sozinha, Passiva de raça,
+   * Transformação, Muda atributo, Diminui, Marca, Invocação, Devolve), cada uma só com o que difere do
+   * padrão no disco (`pecaParaGuardar`, pecas.ts). O motor nunca lê a peça crua: lê a linha da tabela
+   * (`linhaDasPecas`, leitura.ts). Ausente = sem peça nova (a lista vazia é lida como ausente).
+   */
+  pecas?: readonly PecaDaMecanica[]
 }
 
 // ─── Versão 4: o tipo do golpe (EDITOR.md §3.1 e §3.2) ─────────────────────
@@ -425,6 +436,15 @@ export function precisaDaVersao4(mecanica: Pick<MecanicaV2, 'golpe' | 'efeitos'>
   return golpeQueVale(mecanica.golpe) !== undefined || mecanica.efeitos.some(seloDaVersao4)
 }
 
+/**
+ * Versão 5 (PLANO.md D1): a mecânica tem peça nova (`pecas`) ou uso novo ('passiva', 'manter'). Quem
+ * grava usa a 5 só nesse caso: o app de antes (que lê até a 4) lê a 5 como "atualize o app" e o cartão
+ * fica à mão sem perder nada; toda outra mecânica continua 1 a 4.
+ */
+export function precisaDaVersao5(mecanica: Pick<MecanicaV2, 'uso' | 'pecas'>): boolean {
+  return (mecanica.pecas !== undefined && mecanica.pecas.length > 0) || mecanica.uso === 'passiva' || mecanica.uso === 'manter'
+}
+
 /** O nome da fatia C1, mantido para quem já o usa: são as mesmas peças lidas (`MecanicaV2`). */
 export type MecanicaV1 = MecanicaV2
 
@@ -502,8 +522,13 @@ export interface PorcentoDaCura {
 }
 /** O máximo que a cura pela parte lê, pelo recurso que ela recupera (o Escudo não tem máximo). */
 export const MAXIMO_DA_CURA: Readonly<Record<'hp' | 'sp', PorcentoDaCura['de']>> = { hp: 'hpMaximo', sp: 'spMaximo' }
-/** COMO entra em jogo (fase 4). Ausente = 'ativa' (toda mecânica da versão 1). */
-export type UsoDaMecanica = 'ativa' | 'reacao' | 'ativaOuReacao'
+/**
+ * COMO entra em jogo (fase 4). Ausente = 'ativa' (toda mecânica da versão 1). Versão 5 (PLANO.md D6 e
+ * D7): 'passiva' = a passiva montada (dispara sozinha ou fica sempre ligada, sem botão de usar);
+ * 'manter' = "Ligar e manter" (a técnica mantida de hoje: liga, fica ligada, cobra o custo "por turno"
+ * a cada vez do dono, se tiver, e enquanto ligada põe um selo no dono).
+ */
+export type UsoDaMecanica = 'ativa' | 'reacao' | 'ativaOuReacao' | 'passiva' | 'manter'
 /** Gastar coisa da mochila além do SP e do HP (fase 5). */
 export interface CustoEmItem {
   nome: string
@@ -1240,7 +1265,7 @@ function golpeDaPeca(valor: unknown, mecanica: Pick<MecanicaV2, 'alvo' | 'uso' |
 }
 
 function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): MecanicaV2 {
-  soChaves(peca, ['versao', 'acao', 'custos', 'limite', 'alvo', 'teste', 'dano', 'efeitos', 'uso', 'reacao', 'custoEmItem', 'golpe'], 'mecânica', 'mecânica')
+  soChaves(peca, ['versao', 'acao', 'custos', 'limite', 'alvo', 'teste', 'dano', 'efeitos', 'uso', 'reacao', 'custoEmItem', 'golpe', 'pecas'], 'mecânica', 'mecânica')
   // Fase ED1: o tipo do golpe só existe na 4 (o app de antes lê a 4 como "atualize o app"; quem grava usa a 4 só com `precisaDaVersao4`).
   if (versao < 4 && peca.golpe !== undefined) torta(`o tipo do golpe só existe na versão 4 da mecânica, e esta é a ${versao}`)
   const custos = lista(peca.custos ?? [], CUSTOS_MAX, 'custos').map(custo)
@@ -1263,7 +1288,13 @@ function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): 
   if (peca.dano !== undefined) mecanica.dano = dano(peca.dano)
   // A versão 1 é o que o app de antes lê: peça que só a 2 diz, nela, é arquivo torto (quem grava usa a 2, `precisaDaVersao2`).
   if (versao === 1 && (peca.uso !== undefined || peca.reacao !== undefined)) torta('"Quando usa" e a reação só existem na versão 2 da mecânica')
-  if (peca.uso !== undefined) mecanica.uso = umDe(peca.uso, ['ativa', 'reacao', 'ativaOuReacao'] as const, 'quando usa')
+  if (peca.uso !== undefined) mecanica.uso = umDe(peca.uso, ['ativa', 'reacao', 'ativaOuReacao', 'passiva', 'manter'] as const, 'quando usa')
+  // Versão 5 (PLANO.md D1): as peças novas, tudo ou nada (família ou chave desconhecida = mecânica inválida).
+  if (peca.pecas !== undefined) {
+    const lidas = lerPecas(peca.pecas)
+    if (!lidas.ok) torta(lidas.motivo)
+    if (lidas.pecas.length > 0) mecanica.pecas = lidas.pecas
+  }
   if (peca.reacao !== undefined) mecanica.reacao = reacaoDaPeca(peca.reacao)
   if (peca.custoEmItem !== undefined) mecanica.custoEmItem = custoEmItemDaPeca(peca.custoEmItem)
   if (peca.golpe !== undefined) {
@@ -1278,6 +1309,14 @@ function mecanicaLida(peca: Record<string, unknown>, versao: VersaoDaMecanica): 
   if (versao < 3 && precisaDaVersao3(mecanica)) torta(`peça da versão 3 numa mecânica da versão ${versao}`)
   // Fase ED4: o teste do selo e o "reage com desvantagem" só existem na 4 (o app de antes lê a 4 como "atualize o app").
   if (versao < 4 && efeitos.some(seloDaVersao4)) torta(`o teste da condição e o "reage com desvantagem" só existem na versão 4 da mecânica, e esta é a ${versao}`)
+  // Versão 5: as peças novas e os usos "passiva" e "manter" só existem na 5 (o app de antes lê a 5 como "atualize o app").
+  if (versao < 5 && precisaDaVersao5(mecanica)) torta(`as peças novas, a passiva e o "Ligar e manter" só existem na versão 5 da mecânica, e esta é a ${versao}`)
+  if (mecanica.pecas !== undefined) {
+    const motivo = motivoDasPecasComOUso(mecanica.pecas, { ...(mecanica.uso === undefined ? {} : { uso: mecanica.uso }), overload: mecanica.limite.overload === true })
+    if (motivo !== null) torta(motivo)
+    // Uma coisa, um lugar: o que a reação devolve mora na peça Devolve OU no "devolve" da reação, nunca nos dois.
+    if (mecanica.reacao?.devolve !== undefined && mecanica.pecas.some((item) => item.tipo === 'devolve')) torta('o Devolve o golpe e o "devolve" da reação dizem a mesma coisa: fica só a peça')
+  }
   return mecanica
 }
 
@@ -1293,7 +1332,7 @@ export function lerMecanica(valor: unknown): MecanicaLida {
     const versao = inteiro(peca.versao, 1, Number.MAX_SAFE_INTEGER, 'versão')
     if (versao > VERSAO_DA_MECANICA) return { tipo: 'futura', versao }
     // A 1, a 2, a 3 e a 4 pelo mesmo leitor (cada uma é superconjunto da anterior); a peça guarda a versão com que veio.
-    return { tipo: 'pecas', mecanica: mecanicaLida(peca, versao === 1 ? 1 : versao === 2 ? 2 : versao === 3 ? 3 : 4) }
+    return { tipo: 'pecas', mecanica: mecanicaLida(peca, versao === 1 ? 1 : versao === 2 ? 2 : versao === 3 ? 3 : versao === 4 ? 4 : 5) }
   } catch (erro) {
     if (erro instanceof PecaTorta) return { tipo: 'invalida', motivo: erro.message }
     throw erro

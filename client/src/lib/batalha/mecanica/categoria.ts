@@ -5,7 +5,7 @@ import type { AcaoDaMecanica, MecanicaV1 } from './modelo'
 /**
  * A CATEGORIA DA AÇÃO E O TIPO NA BATALHA (fase ED2 do editor novo; EDITOR.md §3.3).
  * A categoria não tem campo: sai das peças (Simples, Completo, Overload, Apoio,
- * Reação). Passiva não está aqui: é o cartão sem mecânica (decisão de 23/11).
+ * Reação). Versão 5 (PLANO.md D6): a passiva pode ter peças (`uso: 'passiva'`); a de texto segue sem mecânica.
  * O editor (a linha Ação, o papel) e o texto gerado (`textoGerado.ts`) leem
  * daqui, para a tela e o campo Tipo nunca dizerem coisas diferentes.
  *
@@ -14,7 +14,19 @@ import type { AcaoDaMecanica, MecanicaV1 } from './modelo'
 
 export type CategoriaDaAcao = 'simples' | 'completo' | 'overload' | 'apoio' | 'reacao'
 
-/** A categoria das peças: a reação (só nela ou também na vez) vem antes; depois a Overload; depois a ajuda. */
+/**
+ * Rework das habilidades (PLANO.md D6 e D7): a categoria com os usos da versão 5. A passiva montada e o
+ * "Ligar e manter" vêm antes de tudo (o jeito de usar manda). `CategoriaDaAcao` fica como era: quem
+ * tem tabela por ela (`LinhaDaAcao.tsx`) segue igual até passar a usar esta.
+ */
+export type CategoriaDaHabilidade = CategoriaDaAcao | 'passiva' | 'manter'
+
+export function categoriaDaHabilidade(mecanica: MecanicaV1): CategoriaDaHabilidade {
+  if (mecanica.uso === 'passiva' || mecanica.uso === 'manter') return mecanica.uso
+  return categoriaDaMecanica(mecanica)
+}
+
+/** A categoria das peças: a reação (só nela ou também na vez) vem antes; depois a Overload; depois a ajuda. A passiva e o "Ligar e manter" (versão 5) caem pelo resto: veja `categoriaDaHabilidade`. */
 export function categoriaDaMecanica(mecanica: MecanicaV1): CategoriaDaAcao {
   if (mecanica.uso === 'reacao' || mecanica.uso === 'ativaOuReacao') return 'reacao'
   if (mecanica.limite.overload === true) return 'overload'
@@ -33,14 +45,16 @@ const NOME_DO_ATAQUE: Readonly<Record<AcaoDaMecanica, string>> = {
 
 /** O nome que abre a frase do papel e a linha curta ("Ataque Completo", "Reação (ou na vez)"). */
 export function nomeDaAcao(mecanica: MecanicaV1): string {
+  if (mecanica.uso === 'passiva') return 'Passiva'
+  if (mecanica.uso === 'manter') return 'Ligar e manter'
   const categoria = categoriaDaMecanica(mecanica)
   if (categoria === 'simples' || categoria === 'completo') return NOME_DO_ATAQUE[mecanica.acao]
   if (categoria === 'reacao') return mecanica.uso === 'ativaOuReacao' ? 'Reação (ou na vez)' : 'Reação'
   return categoria === 'overload' ? 'Overload' : 'Apoio'
 }
 
-/** Os tipos que as peças dizem; Passiva, Evolução, Escolha e Invocação as peças não dizem. */
-export type TipoDasPecas = Extract<TipoDaHabilidade, 'ativa' | 'buff' | 'debuff' | 'reacao'>
+/** Os tipos que as peças dizem; Evolução, Escolha e Invocação as peças não dizem. Versão 5 (D6): a passiva montada diz Passiva. */
+export type TipoDasPecas = Extract<TipoDaHabilidade, 'ativa' | 'buff' | 'debuff' | 'reacao' | 'passiva'>
 
 /**
  * A técnica não dá dano e o que ela põe no alvo é só condição: os Efeitos e o tipo do golpe (o
@@ -66,6 +80,7 @@ function condicoesDoGolpe(mecanica: MecanicaV1): number {
  * REAÇÃO o acha pelas peças (`usoDeReacao`) ou pela Ação "Reação/Ação ...".
  */
 export function tipoDasPecas(mecanica: MecanicaV1): TipoDasPecas {
+  if (mecanica.uso === 'passiva') return 'passiva'
   if (mecanica.uso === 'reacao') return 'reacao'
   if (ehAjuda(mecanica.alvo.quem)) return 'buff'
   return soPoeCondicao(mecanica) ? 'debuff' : 'ativa'

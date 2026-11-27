@@ -913,6 +913,22 @@ export interface SeloDaBatalha {
   opcao?: string
   /** R1 (lote de 01/11): é a MARCA (`marca.ts`): o próximo golpe que acerta dá o dobro e a tira. Ausente = selo comum. */
   marca?: true
+  /**
+   * Rework das habilidades (PLANO.md D10): só o golpe deste personagem aproveita a marca (a da forma
+   * e a da peça Marca com "só o dono"). Ausente = qualquer golpe, como no R1. Só do host.
+   */
+  marcaDe?: string
+  /** D10: o golpe na marca dá este tanto de vezes o dano (de 2 a 5). Ausente = o dobro, como no R1. Só do host. */
+  marcaVezes?: number
+  /** D10: a marca não some no golpe que a aproveita (fica até acabar os turnos). Ausente = some, como no R1. Só do host. */
+  marcaFica?: true
+  /**
+   * D7: é o selo da técnica "Ligar e manter" ligada, no dono (`donoId` + `cartaoId`): nasce ao ligar e
+   * sai ao desligar; aparece nas passivas ativas como o de toda passiva. Só do host.
+   */
+  ligada?: true
+  /** D10: o selo que desce com o tempo (Diminui atributo). Ausente = os `mods` ficam iguais até sair. Só do host. */
+  queda?: QuedaDoSelo
   /** R1: a linha que pôs a marca. Desfeita, o Desfazer de quem usou a marca não a devolve. Só do host. */
   linhaDaMarca?: string
   /** R5 (lote de 01/11): o nível do contador do cartão `cartaoId` (`contador.ts`). Ausente = selo comum. */
@@ -1000,6 +1016,24 @@ export interface SeloDoGolpe extends SeloPedido {
   alcance?: MudancaDoAlcance
   /** Fase ED4: o teste do selo; ausente = pega em todo acerto. Só do host, nunca do fio, e não vai para o selo da batalha. */
   pega?: TesteDoSeloNoGolpe
+  /** D10 (Diminui atributo): a queda do selo, copiada para o selo da batalha. Só do host, nunca do fio. */
+  queda?: QuedaDoSelo
+}
+
+/**
+ * Rework das habilidades (PLANO.md D10, a peça Diminui atributo): como o selo desce com o tempo. Na vez
+ * de quem o tem, a partir da `desde`-ésima (0 = já no acerto; 1 = a primeira vez dele depois do golpe),
+ * cada `passo` soma no mod do mesmo `alvo` (negativo: perde mais), no máximo `vezes` passos (ausente =
+ * a cada vez, enquanto o selo durar), sem passar do `teto` (o total perdido, em módulo; ausente = sem
+ * teto). `emPorcento`: os números são % do valor do atributo de quem tem o selo, para baixo. Um acerto
+ * novo do mesmo selo só recomeça o tempo (não soma outra queda).
+ */
+export interface QuedaDoSelo {
+  passo: readonly ModDoSelo[]
+  desde: number
+  teto?: number
+  vezes?: number
+  emPorcento?: true
 }
 
 /**

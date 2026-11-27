@@ -8,7 +8,7 @@ import { categoriaDaMecanica, nomeDaAcao, tipoDasPecas } from './categoria'
 import { ADJETIVO_DO_TIPO } from './golpe'
 import { formulaDoNumero } from './leitura'
 import { lerMecanica, type AcaoDaMecanica, type Efeito, type MecanicaV1, type TipoComRegra, type TipoDoGolpe } from './modelo'
-import { ehAjudaNaFrase, fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, fraseDoTeste, frasesDaReacao, frasesDoDano, frasesDoGolpe, frasesDosOutrosCustos, quantoCusta, resumoDaMecanica, type FichaDaPrevia } from './resumo'
+import { ehAjudaNaFrase, fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, fraseDoTeste, frasesDaReacao, frasesDoDano, frasesDoGolpe, frasesDasPecas, frasesDosOutrosCustos, quantoCusta, resumoDaMecanica, type FichaDaPrevia } from './resumo'
 
 /**
  * O TEXTO GERADO (fase ED2 do editor novo; EDITOR.md §3.4). Regra do dono: "não posso ter nada
@@ -28,7 +28,7 @@ import { ehAjudaNaFrase, fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite
 // ─── A frase do papel ──────────────────────────────────────────────────────
 
 /** A parte da mecânica que o pedaço da frase descreve (no editor, a linha que o muda). */
-export type ParteDoPapel = 'acao' | 'golpe' | 'alcance' | 'dano' | 'acerto' | 'efeitos' | 'custo'
+export type ParteDoPapel = 'acao' | 'golpe' | 'alcance' | 'dano' | 'acerto' | 'efeitos' | 'custo' | 'pecas'
 
 /** A tinta do pedaço no papel (as do protótipo aprovado). */
 export type CorDoPedaco = 'dano' | 'cura' | 'selo' | 'custo'
@@ -66,7 +66,7 @@ function pedaco(texto: string, linha: ParteDoPapel, cor: CorDoPedaco | null = nu
 
 /** Os pedaços depois do nome da ação, sem as ligações. */
 function pedacosDoCorpo(mecanica: MecanicaV1, ficha: FichaDaPrevia): PedacoDoPapel[] {
-  const daVez = mecanica.uso !== 'reacao'
+  const daVez = mecanica.uso !== 'reacao' && mecanica.uso !== 'passiva'
   const exige = mecanica.alvo.exigeSelo === undefined ? '' : ` Só vale em quem tem ${mecanica.alvo.exigeSelo}.`
   const corpo: PedacoDoPapel[] = []
   if (daVez) {
@@ -85,6 +85,8 @@ function pedacosDoCorpo(mecanica: MecanicaV1, ficha: FichaDaPrevia): PedacoDoPap
   reacao.forEach((frase, indice) => corpo.push(...pedaco(frase, 'acerto', indice > 0 && frase.startsWith('Devolve') ? 'dano' : null)))
   const efeitos = mecanica.efeitos.filter((efeito) => daVez || efeito.tipo === 'aMao' || (efeito.tipo === 'selo' && efeito.em === 'atacante'))
   for (const efeito of efeitos) corpo.push(...pedaco(fraseDoEfeito(efeito, mecanica, ficha), 'efeitos', COR_DO_EFEITO[efeito.tipo]))
+  // Versão 5 (PLANO.md decisão 2): as peças novas se escrevem sozinhas, na ordem do cartão.
+  for (const frase of frasesDasPecas(mecanica, ficha)) corpo.push(...pedaco(frase, 'pecas'))
   const item = mecanica.custoEmItem
   const custo = [fraseDoCusto(mecanica, ficha), ...frasesDosOutrosCustos(mecanica, ficha), item === undefined ? '' : `Cada uso gasta ${item.quantos} ${item.nome} da mochila.`, fraseDoLimite(mecanica) ?? '']
   for (const frase of custo) corpo.push(...pedaco(frase, 'custo', 'custo'))
@@ -151,6 +153,9 @@ const ACAO_NO_TEXTO: Readonly<Record<AcaoDaMecanica, string>> = {
  * de todo jeito (`acaoComOverload`), então "Na hora | OVERLOAD" dá a mesma ação que as peças.
  */
 function acaoNoTexto(mecanica: MecanicaV1): string {
+  // Versão 5 (D6 e D7): a passiva não tem ação; o "Ligar e manter" liga com a ação dele e diz que fica ligado.
+  if (mecanica.uso === 'passiva') return 'Passiva'
+  if (mecanica.uso === 'manter') return `${ACAO_NO_TEXTO[mecanica.acao]} (liga e mantém)`
   const acao = mecanica.uso === 'reacao' ? 'Reação' : `${mecanica.uso === 'ativaOuReacao' ? 'Reação/' : ''}${ACAO_NO_TEXTO[mecanica.acao]}`
   return mecanica.limite.overload === true ? `${acao} | OVERLOAD` : acao
 }
@@ -198,10 +203,12 @@ export function camposGeradosDaAba(sistema: SistemaDeRpg): CampoGerado[] {
 const TIPOS_FORA_DAS_PECAS: ReadonlySet<TipoDaHabilidade> = new Set<TipoDaHabilidade>(['passiva', 'evolucao', 'escolha', 'invocacao'])
 
 /** O valor que o app escreve em cada campo gerado da aba, para estes campos de agora. */
-function valoresGerados(campos: Readonly<Record<string, string>>, mecanica: MecanicaV1, sistema: SistemaDeRpg): Partial<Record<CampoGerado, string>> {
+function valoresGerados(campos: Readonly<Record<string, string>>, mecanica: MecanicaV1, sistema: SistemaDeRpg, antes?: MecanicaV1): Partial<Record<CampoGerado, string>> {
   const texto = textoDoCartao(mecanica, sistema)
   const tipoEscrito = tipoDoTexto(campos[CAMPO_DO_TIPO] ?? '')
-  const ficaOTipo = tipoEscrito !== null && TIPOS_FORA_DAS_PECAS.has(tipoEscrito)
+  // Versão 5 (D6): o "Passiva" que as peças de antes escreveram (`uso: 'passiva'`) não fica quando a categoria muda.
+  const passivaDasPecas = tipoEscrito === 'passiva' && antes?.uso === 'passiva'
+  const ficaOTipo = tipoEscrito !== null && TIPOS_FORA_DAS_PECAS.has(tipoEscrito) && !passivaDasPecas
   const valores: Partial<Record<CampoGerado, string>> = {}
   for (const id of camposGeradosDaAba(sistema)) valores[id] = id === CAMPO_DO_TIPO && ficaOTipo ? (campos[id] ?? '') : texto[id]
   return valores
@@ -269,7 +276,8 @@ function tecnicaComTexto(antes: CartaoDaFicha, depois: CartaoDaFicha, sistema: S
   const lida = lerMecanica(depois.mecanica)
   if (lida.tipo === 'nenhuma') return comOTextoDeAntesDeVolta(depois, sistema)
   if (lida.tipo !== 'pecas') return depois
-  const valores = valoresGerados(depois.campos, lida.mecanica, sistema)
+  const lidaAntes = lerMecanica(antes.mecanica)
+  const valores = valoresGerados(depois.campos, lida.mecanica, sistema, lidaAntes.tipo === 'pecas' ? lidaAntes.mecanica : undefined)
   const ids = camposGeradosDaAba(sistema)
   if (ids.every((id) => depois.campos[id] === valores[id])) return depois
   const comAntes = comOTextoDeAntes(antes, depois, ids, valores, sistema)

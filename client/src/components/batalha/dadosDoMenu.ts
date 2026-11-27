@@ -24,7 +24,7 @@ import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/sel
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
-import { chavesDoDono, golpesSaoOverload, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
+import { cartoesLigados, chavesDoDono, golpesSaoOverload, type ChaveDaMecanica, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao, reacaoDasPecas, seloDasPecas } from '../../lib/batalha/mecanica/leitura'
 import { direcaoDaRotacao, DIRECOES, distanciaEntreFichas, pegadaDaCasa, pegadaDaFicha, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
 import { alcanceDaTabela, alcanceDoCartao } from '../../lib/batalha/alcanceDoCartao'
@@ -916,7 +916,7 @@ function golpeDaTecnica(
     tempoTexto: textoDoTempo(tecnica.tempo, combate, tecnica.cartao.id),
     dano,
     // F2b (A Caçada Começa): com a forma ligada, todo golpe dele é Overload (a mira diz que o alvo não reage).
-    overload: tecnica.overload || golpesSaoOverload(personagem.cartoesAtivos),
+    overload: tecnica.overload || golpesSaoOverload(cartoesLigados(personagem)),
     perfurante: tecnica.perfurante,
     perfuracao: tecnica.perfuracao ?? null,
     motivo: tecnica.motivo,
@@ -1314,7 +1314,7 @@ export function direcaoDaAreaAoAbrir(area: AreaAMao, alvos: readonly AlvoNaMira[
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */
 /** F2 (fatia C): os ids dos cartões da ficha (todas as abas), e (fatia E) as chaves da raça e da ficha, para as perguntas de todo golpe do dono. */
-function idsDosCartoes(personagem: Personagem): string[] {
+function idsDosCartoes(personagem: Personagem): ChaveDaMecanica[] {
   return chavesDoDono(personagem)
 }
 
@@ -1432,7 +1432,7 @@ export function golpesDeAtaque(
       tempoTexto: textoDoAtaqueExtra(acoes),
       dano,
       // F2b (A Caçada Começa): com a forma ligada, os tiros dele são Overload (a mira diz que o alvo não reage).
-      overload: personagem !== null && golpesSaoOverload(personagem.cartoesAtivos),
+      overload: personagem !== null && golpesSaoOverload(cartoesLigados(personagem)),
       perfurante: false,
       // A arma que diz "perfura 50%" já traz o número, para quando ligarem o Perfurante.
       perfuracao: arma === null ? null : perfuracaoDe(arma),

@@ -34,7 +34,7 @@ import { custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, mo
 import { ajustesDoCusto, custoEmSp, podeAgir, portaoDoPedido, type ContextoDoGolpe } from '../../lib/batalha/golpe'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
 import { devolverFichasDaAcao } from './desfazer'
-import { fatorDaVelocidade } from '../../lib/batalha/mecanicasAMao'
+import { cartoesLigados, fatorDaVelocidade } from '../../lib/batalha/mecanicasAMao'
 import { semLembretes } from '../../lib/batalha/passivas'
 import { ehOverload, recursoDoCusto, tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
 import type { VezEsperada } from '../../lib/batalha/ponte'
@@ -265,7 +265,7 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
     // F2b (revisão, Ignição): a troca que muda a Velocidade marca a carta; ela vai ao lugar novo na virada (`passarVez`),
     // nunca no meio da rodada. O Desfazer desta linha tira a marca (parte "combate").
     const depoisDaTroca = mesaDoRpg().personagens.find((candidato) => candidato.id === personagemId)
-    if (depoisDaTroca !== undefined && fatorDaVelocidade(depoisDaTroca.cartoesAtivos) !== fatorDaVelocidade(personagem.cartoesAtivos)) {
+    if (depoisDaTroca !== undefined && fatorDaVelocidade(cartoesLigados(depoisDaTroca)) !== fatorDaVelocidade(cartoesLigados(personagem))) {
       const combateAntes = novos.combate?.[personagemId]
       const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), reordenarNaVirada: true }
       partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
@@ -474,7 +474,7 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       let texto = `${quemAge} ativa ${pendente.nome} · ${decidiu}${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
       // F2b (Ignição): a troca que muda a Velocidade marca a carta para a virada, como no Ativar de sempre.
       const depoisDaTroca = mesa.personagens().find((candidato) => candidato.id === personagemId)
-      if (depoisDaTroca !== undefined && fatorDaVelocidade(depoisDaTroca.cartoesAtivos) !== fatorDaVelocidade(personagem.cartoesAtivos)) {
+      if (depoisDaTroca !== undefined && fatorDaVelocidade(cartoesLigados(depoisDaTroca)) !== fatorDaVelocidade(cartoesLigados(personagem))) {
         const combateAntes = novos.combate?.[personagemId]
         const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), reordenarNaVirada: true }
         partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })

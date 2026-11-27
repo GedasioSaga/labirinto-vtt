@@ -11,7 +11,7 @@ import { formaDaFicha } from '../../lib/batalha/transformacao'
 import { ajusteDaRecuperacao, ajusteDoRecurso, maximoDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import { siglaDaRecuperacao } from '../../lib/caracteristicas/recuperacao'
 import type { RecursoDaRecuperacao } from '../../lib/caracteristicas/tipos'
-import { chavesDoDono, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo } from '../../lib/batalha/mecanicasAMao'
+import { chavesDoDono, idDaChave, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo } from '../../lib/batalha/mecanicasAMao'
 import { curaComOsSelos, notaDosSelosNaCura } from '../../lib/batalha/condicoes'
 import { comLembretesDaVez, comLembretesDoMomento } from '../../lib/batalha/passivas'
 import { ehOverload } from '../../lib/batalha/leituraDaFicha'
@@ -208,7 +208,7 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
       const dreno = selo.tokenId !== saindo.tokenId ? undefined : selo.drenaSp !== undefined ? { alvoSp: selo.drenaSp.quanto, donoSp: selo.drenaSp.paraQuemUsa, donoHpPorcento: 0 } : selo.cartaoId !== undefined ? mecanicaDoCartao(selo.cartaoId)?.drenoNoFimDaVez : undefined
       const cartaoDoSelo = selo.cartaoId
       if (dreno === undefined || cartaoDoSelo === undefined) continue
-      const dono = personagens.find((candidato) => chavesDoDono(candidato).includes(cartaoDoSelo))
+      const dono = personagens.find((candidato) => chavesDoDono(candidato).some((chave) => idDaChave(chave) === cartaoDoSelo))
       const tirou = mexer(saindo.personagemId, 'sp', -dreno.alvoSp)
       const partesDoDono: string[] = []
       if (dono !== undefined) {

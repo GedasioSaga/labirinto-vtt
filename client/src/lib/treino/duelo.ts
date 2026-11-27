@@ -13,7 +13,7 @@ import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, recursoDoCusto, tecnic
 import { danoDaTecnica } from '../batalha/leituraDaTecnica'
 import { cartaoMontado } from '../batalha/mecanica/leitura'
 import { COMO_MARCA, marcaDoToken, motivoDaMarca, passivaDaMarca } from '../batalha/marca'
-import { chavesDoDono, mecanicaDoCartao, motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
+import { chavesDoDono, mecanicaDoCartao, motivoDasRespostasDoGolpe, reacaoAMaoDe, type ChaveDaMecanica } from '../batalha/mecanicasAMao'
 import { motivoDaReacaoComTecnica, saidasDaTecnica } from '../batalha/reacaoComTecnica'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
 import { motivoDaPassiva } from '../batalha/passivas'
@@ -388,7 +388,7 @@ function comODano(alvos: readonly PedidoDeAlvo[], dano: number | null): PedidoDe
 }
 
 /** F2 (fatia C): os ids dos cartões da cópia (todas as abas), e (fatia E) as chaves da raça e da ficha, para as perguntas de todo golpe do dono (o Electro da Aira). */
-function idsDosCartoes(personagem: Personagem): string[] {
+function idsDosCartoes(personagem: Personagem): ChaveDaMecanica[] {
   return chavesDoDono(personagem)
 }
 

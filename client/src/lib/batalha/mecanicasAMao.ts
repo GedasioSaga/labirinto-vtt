@@ -8,6 +8,8 @@ import type { CdDaDisputa, ContraDaDisputa, QuemRola } from './disputa'
 import type { FormaDaArea, QuemEntraNaArea } from './area'
 import { motivoDasRespostas, type OpcaoDaPergunta, type PerguntaNaHora, type RespostasDoPedido } from './perguntaNaHora'
 import { PREFIXO_DA_RESPOSTA } from './requisitos/modelo'
+import type { TipoQueBate } from './mecanica/modelo'
+import type { QuandoOGatilhoDispara } from './mecanica/pecas'
 
 /**
  * AS MECÂNICAS DAS FICHAS DE HOJE, PROGRAMADAS À MÃO (conserto das fichas F2;
@@ -99,6 +101,10 @@ export interface RacaAMao {
   reducao?: { nome: string; porcento: number }
   somaCorpoACorpo?: number
   soDefende?: true
+  /** Rework das habilidades (PLANO.md D3, a Passiva de raça "nos golpes físicos"): o dano a mais nos golpes Impacto, Cortante e Perfurante, além do Atacar. */
+  somaNosFisicos?: number
+  /** D3 (Passiva de raça "quem o dono acerta não pode desviar"): a reação de quem o dono acerta não esquiva. */
+  alvoNaoDesvia?: true
 }
 
 /** F2 (fatia E): a técnica corpo a corpo. `somaDaRaca`: soma o dano corpo a corpo da raça (o Chute já escreve o +20 de Ogro: `false`). */
@@ -222,6 +228,10 @@ export interface MudancaDaResposta {
    * por cima da fórmula (a da ficha ou a da arma escolhida), como o Electro.
    */
   soma?: number
+  /** Rework das habilidades (PLANO.md D3, a Pergunta na hora): como o golpe bate com a resposta (o tipo do golpe). */
+  bate?: TipoQueBate
+  /** D3: de 1 a 99, a parte do dano que passa do Escudo com a resposta (100 = `perfurante`). */
+  perfuracao?: number
 }
 
 /** F2 (fatia B): a parte do golpe que vem depois (Rapid Dash): uma fração do dano base do primeiro, com o próprio perfurante e a própria reação. */
@@ -290,9 +300,142 @@ export interface EmTodoGolpeAMao {
   surpresaEmQuemNaoViu?: true
 }
 
+// ─── Rework das habilidades (PLANO.md D3): as peças novas na linha ─────────
+// O motor nunca lê a peça crua (mecanica/pecas.ts): `linhaDasPecas` (mecanica/leitura.ts) traduz cada
+// uma para estes campos. As peças que já tinham campo (a resposta que muda o golpe, a raça, o aviso ao
+// cair, a forma que dura e que deixa todo golpe Overload) usam o de sempre.
+
+/** Um elemento do Imbuir: a resposta `valor` soma `dano` em cada alvo, põe o `selo` no acerto e cobra `custoEmSp`. */
+export interface ElementoAMao {
+  valor: string
+  rotulo: string
+  dano: number
+  custoEmSp: number
+  selo?: SeloDoGolpe
+  /** O alvo reage com desvantagem (2 d20, fica o menor). */
+  desvantagemNoAlvo?: true
+}
+
+/**
+ * D3 e D7 (a peça Imbuir, só na "Ligar e manter"): com a técnica ligada, a cada golpe do dono a
+ * batalha faz a `pergunta` ("Imbuir?"): "Não" (`RESPOSTA_SEM_IMBUIR`) não muda nem cobra nada; cada
+ * elemento muda o golpe como diz.
+ */
+export interface ImbuirAMao {
+  pergunta: PerguntaNaHora
+  elementos: readonly ElementoAMao[]
+}
+
+/** D3 (a peça Dispara sozinha): o que o gatilho faz, pronto para o motor. O selo `em: 'alvo'` vai em quem disparou o gatilho (quem bateu, quem o dono acertou). */
+export type EfeitoDoGatilhoAMao =
+  | { tipo: 'selo'; em: 'dono' | 'alvo'; selo: SeloDoGolpe }
+  | { tipo: 'recupera'; recurso: 'hp' | 'sp'; valor: number; turnos: number }
+  | { tipo: 'escudo'; valor: number }
+  | { tipo: 'aviso'; texto: string }
+
+/**
+ * D3 e D6 (a peça Dispara sozinha, só na passiva): quando `quando` acontece (`n` = a rodada do
+ * "rodada" ou a % da vida do "vidaAbaixo"), faz os `efeitos` sem gastar ação. `umaPorBatalha` = só a
+ * primeira vez; `pergunta` = pergunta antes ("Ativar / Agora não"), senão dispara sozinha (com
+ * Desfazer); `ficaCom` (só no "aoCair") = em vez de cair, o dono fica com esta vida.
+ */
+export interface GatilhoAMao {
+  quando: QuandoOGatilhoDispara
+  n: number
+  umaPorBatalha?: true
+  pergunta?: true
+  ficaCom?: number
+  efeitos: readonly EfeitoDoGatilhoAMao[]
+}
+
+/**
+ * D10 (a peça Marca, e a marca da forma): o acerto deixa o `selo` (a marca) no alvo; o próximo golpe
+ * nela dá `vezes` × o dano e, com `some`, ela sai. `soDoDono` = só o golpe do dono aproveita
+ * (`SeloDaBatalha.marcaDe`). `quando`: em todo acerto, só no golpe à distância (`tiro`), ou
+ * perguntando ("Marcar?", `pergunta`), que cobra `custoEmSp` e pede o teste do atributo `teste`
+ * (ausente = sem teste).
+ */
+export interface MarcaAMao {
+  selo: SeloDoGolpe
+  vezes: number
+  soDoDono: boolean
+  some: boolean
+  quando: 'aoAcertar' | 'pergunta' | 'tiro'
+  pergunta?: PerguntaNaHora
+  custoEmSp?: number
+  teste?: string
+}
+
+/**
+ * D5 e D10 (a peça Transformação): o que a forma ligada faz além dos `modificadores` do cartão (os
+ * atributos, gravados no cartão ao salvar). `acoesAMais` = ações Simples a mais em cada vez do dono
+ * (`AcoesExtras.daForma`); `danoRecebido` em % (-10 = leva 10% a menos); `deslocamento` soma casas,
+ * até `deslocamentoMax` (0 = sem teto); `grupo` = troca com as formas do mesmo grupo; `marca` = cada
+ * acerto do dono deixa a marca; `fadiga` = o selo comum que fica no dono quando a forma acaba (a forma
+ * da versão 5 não põe o cansaço do Overload). O "dura N vezes" e o "todo golpe é Overload" usam os
+ * campos de sempre (`duraVezesDoDono`, `golpesSaoOverload`).
+ */
+export interface FormaAMao {
+  acoesAMais: number
+  danoRecebido: number
+  deslocamento: number
+  deslocamentoMax: number
+  grupo?: string
+  marca?: MarcaAMao
+  fadiga?: SeloDoGolpe
+}
+
+/**
+ * D10 (a peça Diminui atributo): o selo que o acerto põe no alvo, já com a queda (`SeloDoGolpe.queda`;
+ * `turnos` `null` = até a `volta`). `volta`: N turnos depois do último acerto, no fim da batalha, ou
+ * quando tirarem a condição.
+ */
+export interface DiminuiAMao {
+  selo: SeloDoGolpe
+  volta: 'turnos' | 'batalha' | 'curar'
+}
+
+/** D3 (a peça Invocação): a criatura que a técnica chama. `ultra` = a versão Ultra com a carga. */
+export interface InvocacaoAMao {
+  nome: string
+  vida: number
+  dano: number
+  casas: number
+  max: number
+  concentracao: number
+  ultra?: { carga: number }
+}
+
+/**
+ * D3 (a peça Devolve o golpe, só no lugar da reação): devolve em quem bateu o dano recebido ÷
+ * `divididoPor`, mais o atributo `soma` de quem reage (ausente = nada). A parte que a reação segura é
+ * a de sempre (`reacao`); `escolha` = o jogador escolhe na hora entre defender e devolver.
+ */
+export interface DevolveAMao {
+  escolha: boolean
+  divididoPor: number
+  soma?: string
+}
+
 export interface MecanicaAMao {
   /** Para quem lê a tabela: "Corta Cenoura (Jimboy)". */
   nome: string
+  /** D3 (Pergunta na hora): para NPC vale a primeira resposta de cada pergunta (ausente = o mestre responde). */
+  npcRespondeAPrimeira?: true
+  /** D3 e D7: o Imbuir da técnica "Ligar e manter" ligada. */
+  imbuir?: ImbuirAMao
+  /** D3 e D6: os gatilhos da passiva montada ("Dispara sozinha"), na ordem do cartão. */
+  gatilhos?: readonly GatilhoAMao[]
+  /** D5 e D10: a forma (a peça Transformação). */
+  forma?: FormaAMao
+  /** D10: o selo que desce com o tempo no alvo acertado (a peça Diminui atributo). */
+  diminui?: DiminuiAMao
+  /** D10: a marca que o golpe deixa (a peça Marca). */
+  marca?: MarcaAMao
+  /** D3: a criatura que a técnica chama (a peça Invocação). */
+  invocacao?: InvocacaoAMao
+  /** D3: o dano que a reação devolve (a peça Devolve o golpe). */
+  devolve?: DevolveAMao
   perguntas?: readonly PerguntaNaHora[]
   /** F2 (fatia C): o alvo não reage; a defesa é o teste da disputa (dança da Aira: Espírito contra a CD). */
   semReacao?: true
@@ -1026,8 +1169,8 @@ export function rotulosDasRespostas(cartao: ChaveDaMecanica, respostas: Resposta
  * abençoado), ou `null`. `cartoesIds` = os cartões da ficha dele; vale o selo
  * `enquanto` (sem acento nem caixa) que um desses cartões pôs em OUTRO token.
  */
-export function ataqueComOSelo(cartoesIds: readonly string[], selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'cartaoId'>[] | undefined, tokenIdDoDono: string): AtaqueBasicoAMao | null {
-  const dele = new Set(cartoesIds)
+export function ataqueComOSelo(cartoesIds: readonly ChaveDaMecanica[], selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'cartaoId'>[] | undefined, tokenIdDoDono: string): AtaqueBasicoAMao | null {
+  const dele = new Set(cartoesIds.map(idDaChave))
   for (const cartaoId of cartoesIds) {
     const ataque = mecanicaDoCartao(cartaoId)?.ataqueBasico
     if (ataque === undefined) continue
@@ -1043,7 +1186,7 @@ export function ataqueComOSelo(cartoesIds: readonly string[], selos: readonly Pi
  * (o Electro da Aira). F2 (fatia E): com `cartaoId` (`null` = Atacar), o que é
  * só de golpe corpo a corpo (vantagem de Ogro) fica de fora da técnica que não é.
  */
-function emTodoGolpeDo(cartoesDoDono: readonly string[], cartaoId?: string | null): EmTodoGolpeAMao[] {
+function emTodoGolpeDo(cartoesDoDono: readonly ChaveDaMecanica[], cartaoId?: ChaveDaMecanica | null): EmTodoGolpeAMao[] {
   return cartoesDoDono.flatMap((chave) => {
     const emTodo = mecanicaDoCartao(chave)?.emTodoGolpe
     if (emTodo === undefined) return []
@@ -1052,7 +1195,7 @@ function emTodoGolpeDo(cartoesDoDono: readonly string[], cartaoId?: string | nul
 }
 
 /** F2 (fatia C): as perguntas do golpe: as da técnica (`cartaoId`; `null` = Atacar) e as de todo golpe do dono, sem chave repetida. */
-export function perguntasDoGolpe(cartaoId: string | null, cartoesDoDono: readonly string[]): PerguntaNaHora[] {
+export function perguntasDoGolpe(cartaoId: ChaveDaMecanica | null, cartoesDoDono: readonly ChaveDaMecanica[]): PerguntaNaHora[] {
   const daTecnica = cartaoId === null ? [] : perguntasDoCartao(cartaoId)
   const chaves = new Set(daTecnica.map((pergunta) => pergunta.chave))
   return [...daTecnica, ...emTodoGolpeDo(cartoesDoDono, cartaoId).map((emTodo) => emTodo.pergunta).filter((pergunta) => !chaves.has(pergunta.chave))]
@@ -1064,7 +1207,7 @@ export function perguntasDoGolpe(cartaoId: string | null, cartoesDoDono: readonl
  * as de todo golpe do dono, só quando vêm (sem resposta = "Não": o pedido
  * de antes, ou de quem não tocou, segue valendo).
  */
-export function motivoDasRespostasDoGolpe(cartaoId: string | null, cartoesDoDono: readonly string[], todas: RespostasDoPedido | undefined): string | null {
+export function motivoDasRespostasDoGolpe(cartaoId: ChaveDaMecanica | null, cartoesDoDono: readonly ChaveDaMecanica[], todas: RespostasDoPedido | undefined): string | null {
   // REQUISITOS C: as respostas dos requisitos (`req.*`, a caixa e o "Um destes") são do portão dos requisitos, não da mecânica.
   const daMecanica = todas === undefined ? [] : Object.entries(todas).filter(([chave]) => !chave.startsWith(PREFIXO_DA_RESPOSTA))
   const respostas: RespostasDoPedido | undefined = todas === undefined || daMecanica.length === 0 ? undefined : Object.fromEntries(daMecanica)
@@ -1083,7 +1226,7 @@ export interface ExtraDeTodoGolpe {
   surpresaEmQuemNaoViu: string | null
 }
 
-export function extraDeTodoGolpe(cartoesDoDono: readonly string[], respostas: RespostasDoPedido | undefined): ExtraDeTodoGolpe {
+export function extraDeTodoGolpe(cartoesDoDono: readonly ChaveDaMecanica[], respostas: RespostasDoPedido | undefined): ExtraDeTodoGolpe {
   const rotulos: string[] = []
   const extra: ExtraDeTodoGolpe = { dano: 0, custoEmSp: 0, rotulos, desvantagemNoAlvo: false, surpresaEmQuemNaoViu: null }
   if (respostas === undefined) return extra
@@ -1104,7 +1247,7 @@ export function extraDeTodoGolpe(cartoesDoDono: readonly string[], respostas: Re
  * viu lutar? Com ele, todo alvo dos golpes dele passa a tê-lo visto
  * (`CombateDoPersonagem.viramLutar`), com a resposta "Sim" ou não.
  */
-export function contaQuemOViuLutar(cartoesDoDono: readonly string[]): boolean {
+export function contaQuemOViuLutar(cartoesDoDono: readonly ChaveDaMecanica[]): boolean {
   return emTodoGolpeDo(cartoesDoDono).some((emTodo) => emTodo.surpresaEmQuemNaoViu === true)
 }
 
@@ -1250,15 +1393,33 @@ export function origemDaFicha(personagemId: string): string {
  * da ficha (`ficha:<id>`). Quem lê "os cartões do dono" (as perguntas de todo
  * golpe, o Atacar melhorado) passa por aqui. U5: a chave da ficha usa o id da
  * ficha de ORIGEM (`origemDaFicha`), para valer nas cópias da Arena e do treino.
+ *
+ * Rework das habilidades (PLANO.md D4): os cartões vão como CARTÃO, não como id: o montado (com
+ * `mecanica`) dá a linha das peças (`mecanicaDoCartao`), o de texto cai na tabela pelo id como antes.
+ * As chaves da raça e da ficha seguem texto. O id de cada uma: `idDaChave`.
  */
-export function chavesDoDono(personagem: Pick<Personagem, 'id' | 'abas' | 'escolhas'>): string[] {
-  const cartoes = Object.values(personagem.abas).flatMap((lista) => lista.map((cartao) => cartao.id))
+export function chavesDoDono(personagem: Pick<Personagem, 'id' | 'abas' | 'escolhas'>): ChaveDaMecanica[] {
+  const cartoes: ChaveDaMecanica[] = Object.values(personagem.abas).flat()
   const raca = normalizar(personagem.escolhas.raca ?? '').trim()
   return [...cartoes, ...(raca.length === 0 ? [] : [`${CHAVE_DA_RACA}${raca}`]), `${CHAVE_DA_FICHA}${origemDaFicha(personagem.id)}`]
 }
 
+/** D4: o id da chave (o do cartão, ou a chave de texto da raça e da ficha como veio). */
+export function idDaChave(chave: ChaveDaMecanica): string {
+  return typeof chave === 'string' ? chave : chave.id
+}
+
+/**
+ * D4: os cartões ligados agora (`cartoesAtivos`, as formas) como CARTÃO (o montado dá a linha das
+ * peças). O id que não acha cartão na ficha segue como id (a tabela por id, como antes).
+ */
+export function cartoesLigados(personagem: Pick<Personagem, 'abas' | 'cartoesAtivos'>): ChaveDaMecanica[] {
+  const porId = new Map(Object.values(personagem.abas).flatMap((lista) => lista.map((cartao): [string, CartaoDaFicha] => [cartao.id, cartao])))
+  return personagem.cartoesAtivos.map((id) => porId.get(id) ?? id)
+}
+
 /** F2 (fatia E): a raça do dono na tabela (a primeira chave com `raca`); `null` = a raça não faz nada no app. */
-export function racaDoDono(chaves: readonly string[]): RacaAMao | null {
+export function racaDoDono(chaves: readonly ChaveDaMecanica[]): RacaAMao | null {
   for (const chave of chaves) {
     const raca = mecanicaDoCartao(chave)?.raca
     if (raca !== undefined) return raca
@@ -1276,7 +1437,7 @@ export function reducaoDaRaca(personagem: Pick<Personagem, 'id' | 'abas' | 'esco
  * Defender e Receber), menos na ficha com `esquivaNormal` (a Ryoko). Vazio =
  * nenhuma.
  */
-export function saidasTiradasDoDono(chaves: readonly string[]): SaidaDaReacao[] {
+export function saidasTiradasDoDono(chaves: readonly ChaveDaMecanica[]): SaidaDaReacao[] {
   if (racaDoDono(chaves)?.soDefende !== true) return []
   return chaves.some((chave) => mecanicaDoCartao(chave)?.esquivaNormal === true) ? [] : ['esquiva', 'contra']
 }
@@ -1292,7 +1453,7 @@ export function corpoACorpoDe(cartao: ChaveDaMecanica): CorpoACorpoAMao | null {
  * (sem arma, ou arma que não atira nem é de arremesso); a técnica soma só
  * com `corpoACorpo.somaDaRaca`.
  */
-export function somaCorpoACorpo(chaves: readonly string[], cartaoId: string | null, atacarCorpoACorpo: boolean): number {
+export function somaCorpoACorpo(chaves: readonly ChaveDaMecanica[], cartaoId: ChaveDaMecanica | null, atacarCorpoACorpo: boolean): number {
   const soma = racaDoDono(chaves)?.somaCorpoACorpo ?? 0
   if (soma <= 0) return 0
   if (cartaoId === null) return atacarCorpoACorpo ? soma : 0
@@ -1325,7 +1486,7 @@ export function soOMestreReage(cartao: ChaveDaMecanica): string | null {
 }
 
 /** F2 (fatia F): o dono pede a arma nas técnicas com "Dano da Arma" (a linha da ficha do Siegfried). */
-export function perguntaAArma(chaves: readonly string[]): boolean {
+export function perguntaAArma(chaves: readonly ChaveDaMecanica[]): boolean {
   return chaves.some((chave) => mecanicaDoCartao(chave)?.perguntaAArma === true)
 }
 
@@ -1461,26 +1622,26 @@ export function somaDasRespostas(cartao: ChaveDaMecanica, respostas: RespostasDo
   return (mecanicaDoCartao(cartao)?.respostasMudam ?? []).reduce((soma, regra) => (regra.soma !== undefined && respostas[regra.chave] === regra.valor ? soma + regra.soma : soma), 0)
 }
 
-/** F2b (Ignição): o fator da Velocidade pelas formas ligadas (`cartoesAtivos`); 1 = nenhuma muda. */
-export function fatorDaVelocidade(ativos: readonly string[]): number {
-  return ativos.reduce((fator, cartaoId) => fator * (mecanicaDoCartao(cartaoId)?.velocidade ?? 1), 1)
+/** F2b (Ignição): o fator da Velocidade pelas formas ligadas (D4: `cartoesLigados`); 1 = nenhuma muda. */
+export function fatorDaVelocidade(ativos: readonly ChaveDaMecanica[]): number {
+  return ativos.reduce((fator, cartao) => fator * (mecanicaDoCartao(cartao)?.velocidade ?? 1), 1)
 }
 
-/** F2b (A Caçada Começa): quantas vezes do dono a forma dura depois da vez em que ligou; `null` = até alguém desfazer. */
-export function vezesDaForma(cartaoId: string): number | null {
-  return mecanicaDoCartao(cartaoId)?.duraVezesDoDono ?? null
+/** F2b (A Caçada Começa): quantas vezes do dono a forma dura depois da vez em que ligou; `null` = até alguém desfazer. D4: passe o cartão. */
+export function vezesDaForma(cartao: ChaveDaMecanica): number | null {
+  return mecanicaDoCartao(cartao)?.duraVezesDoDono ?? null
 }
 
-/** F2b (A Caçada Começa): alguma forma ligada (`cartoesAtivos`) faz todo golpe do dono ser Overload. */
-export function golpesSaoOverload(ativos: readonly string[]): boolean {
-  return ativos.some((cartaoId) => mecanicaDoCartao(cartaoId)?.golpesSaoOverload === true)
+/** F2b (A Caçada Começa): alguma forma ligada (D4: `cartoesLigados`) faz todo golpe do dono ser Overload. */
+export function golpesSaoOverload(ativos: readonly ChaveDaMecanica[]): boolean {
+  return ativos.some((cartao) => mecanicaDoCartao(cartao)?.golpesSaoOverload === true)
 }
 
 /** F2 (fatia F, Doença das Trevas): a porcentagem do HP máximo que o dono perde no fim da vez em que agiu; `null` = nenhuma. */
-export function perdaNoFimDaVez(chaves: readonly string[]): { cartaoId: string; hpPorcento: number } | null {
+export function perdaNoFimDaVez(chaves: readonly ChaveDaMecanica[]): { cartaoId: string; hpPorcento: number } | null {
   for (const chave of chaves) {
     const perde = mecanicaDoCartao(chave)?.perdeNoFimDaVez
-    if (perde !== undefined) return { cartaoId: chave, hpPorcento: perde.hpPorcento }
+    if (perde !== undefined) return { cartaoId: idDaChave(chave), hpPorcento: perde.hpPorcento }
   }
   return null
 }

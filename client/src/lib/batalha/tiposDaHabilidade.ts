@@ -80,7 +80,8 @@ export function lerTipo(cartao: Pick<CartaoDaFicha, 'campos' | 'mecanica'>): Lei
   // Fase 4: no cartão montado, "Quando usa" diz: só no lugar da reação = Reação; os dois = ativa que também reage.
   const pecas = cartao.mecanica === undefined ? null : pecasDoCartao(cartao)
   const soReacao = pecas === null ? acao.soReacao === true : pecas.uso === 'reacao'
-  const tipo: TipoDaHabilidade = escrito ?? (acao.acao === 'passiva' ? 'passiva' : soReacao ? 'reacao' : 'ativa')
+  // Rework das habilidades (PLANO.md D6): a passiva montada (`uso: 'passiva'`) é passiva pelas peças, venha o Tipo escrito que vier.
+  const tipo: TipoDaHabilidade = pecas !== null && pecas.uso === 'passiva' ? 'passiva' : (escrito ?? (acao.acao === 'passiva' ? 'passiva' : soReacao ? 'reacao' : 'ativa'))
   const tambem = pecas === null ? acao.tambemReacao : usoDeReacao(pecas)
   const leitura: LeituraDoTipo = { tipo, inferido: escrito === null, tambemReacao: tipo === 'reacao' || tambem }
   if (escrito === null && texto.length > 0) leitura.foraDaLista = texto

@@ -8,7 +8,7 @@ import { combateVazio, type AjudaPendente, type CombateDoPersonagem, type Contra
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { contarSelos } from './selos'
 import { semODanoDaVez } from './rastro'
-import { fatorDaVelocidade } from './mecanicasAMao'
+import { cartoesLigados, fatorDaVelocidade } from './mecanicasAMao'
 
 /**
  * ORDEM DOS TURNOS DA BATALHA ONE PIECE (F1 de
@@ -63,6 +63,11 @@ export interface AcoesExtras {
   duracao: DuracaoDaExtra
   /** F2: a rodada em que foi dada. As "rodada" somem quando a carta passa a vez e quando a rodada vira. */
   rodada?: number
+  /**
+   * Rework das habilidades (PLANO.md D10): o cartão da forma que deu as ações a mais (a Transformação
+   * com "ações a mais"). Somem quando a forma desliga ou acaba. Ausente = dadas pelo mestre.
+   */
+  daForma?: string
 }
 
 /**
@@ -289,7 +294,7 @@ export function agilidadeDe(personagem: Personagem, sistema: SistemaDeRpg | null
     sistema.atributos.find((candidato) => candidato.id === 'agilidade') ??
     sistema.atributos.find((candidato) => candidato.nome.trim().toLocaleLowerCase('pt-BR') === 'agilidade')
   if (atributo === undefined) return 0
-  const valor = valorDoRank(personagem, atributo.id) * fatorDaVelocidade(personagem.cartoesAtivos)
+  const valor = valorDoRank(personagem, atributo.id) * fatorDaVelocidade(cartoesLigados(personagem))
   return Number.isFinite(valor) ? Math.floor(valor) : 0
 }
 

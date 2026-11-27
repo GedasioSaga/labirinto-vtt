@@ -346,6 +346,15 @@ export type DescidaDoAcumulador =
   | { quando: 'rodadaSemUso'; quanto: number }
   | { quando: 'apanha'; quanto: number | 'tudo' }
 
+/**
+ * Rework das habilidades (docs/design/habilidades-rework/PLANO.md D9 e regra 9): a descida nova, "zera
+ * quando a técnica desliga" (a dona do acumulador, na "Ligar e manter" ou na forma). O app de antes a
+ * guarda como regra não lida. Ainda fora de `DescidaDoAcumulador`: entrar na união pede o caso no leitor
+ * (`requisitos/ler.ts`, E5), na frase (`requisitos/frases.ts`) e no motor (`acumuladorNaBatalha.ts`, E5)
+ * no mesmo passo, senão o tsc para nos `switch` de lá.
+ */
+export type DescidaAoDesligar = { quando: 'desliga' }
+
 /** O valor de cada nível: `cada` x o nível, ou o total de cada nível (`niveis[0]` é o do nível 1; o tamanho é o máximo). */
 export type ValorPorNivel = { cada: number; niveis?: undefined } | { niveis: readonly number[]; cada?: undefined }
 
