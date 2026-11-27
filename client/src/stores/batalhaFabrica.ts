@@ -334,6 +334,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     ...fatiaDoGolpe.acoes,
     ...fatiaDaVez.acoes,
     ...fatiaDaOrdem.acoes,
+    // COMPANION (conserto de 27/11/2026): quem entra no meio da batalha com companion também escolhe quem vai.
+    incluirCombatente: (sceneKey, token, indice) => {
+      const entrou = fatiaDaOrdem.acoes.incluirCombatente(sceneKey, token, indice)
+      if (entrou) fatiaDosCompanions.pedirAEscolhaDe(sceneKey, token.id)
+      return entrou
+    },
     ...fatiaDaInvocacao.acoes,
     ...fatiaDosCompanions.acoes,
     ...fatiaDasPassivas.acoes,

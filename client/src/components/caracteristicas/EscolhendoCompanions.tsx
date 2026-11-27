@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { gruposParaEscolha } from '../../lib/caracteristicas/companions'
+import { fichaComOsCompanions } from '../../lib/caracteristicas/naBatalha'
 import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore } from '../../stores/batalhaStore'
 import { MESTRE } from '../../stores/batalha/cena'
@@ -13,7 +14,10 @@ const SEM_DONOS: readonly string[] = []
 /**
  * No painel do mestre: "Aira escolhendo…" para cada dono que ainda não disse
  * quem vai, com o "Escolher por ela" (decisão do dono, 23/11 21h59): abre o
- * mesmo diálogo do jogador e decide no lugar dele.
+ * mesmo diálogo do jogador e decide no lugar dele. Dono NPC (conserto de
+ * 27/11/2026, "cadê os companions do Rei Lazaro?"): ninguém mais escolhe, então
+ * a linha diz que é o mestre quem escolhe; antes dizia "escolhendo…" e esperava
+ * para sempre.
  */
 export function EscolhendoCompanions({ sceneKey }: { sceneKey: string }) {
   const escolhendo = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? (state.cenas[sceneKey]?.turnos.escolhendoCompanions ?? SEM_DONOS) : SEM_DONOS))
@@ -42,11 +46,12 @@ export function EscolhendoCompanions({ sceneKey }: { sceneKey: string }) {
       {escolhendo.map((donoId) => {
         const dono = personagens.find((personagem) => personagem.id === donoId)
         if (dono === undefined) return null
+        const doMestre = dono.tipo === 'npc'
         return (
           <div key={donoId} className="lb-carac-esperando" role="status">
-            <span>{dono.nome} escolhendo os companions…</span>
+            <span>{doMestre ? `Companions de ${dono.nome}: você escolhe quem entra.` : `${dono.nome} escolhendo os companions…`}</span>
             <button type="button" className="lb-btn lb-btn--compact" onClick={() => setAberto(donoId)}>
-              Escolher por {dono.nome}
+              {doMestre ? 'Escolher os companions' : `Escolher por ${dono.nome}`}
             </button>
           </div>
         )
@@ -54,7 +59,7 @@ export function EscolhendoCompanions({ sceneKey }: { sceneKey: string }) {
       {donoAberto !== undefined && (
         <EscolhaDosCompanions
           donoNome={donoAberto.nome}
-          grupos={gruposParaEscolha(donoAberto, personagens, sistema)}
+          grupos={gruposParaEscolha(fichaComOsCompanions(donoAberto, personagens), personagens, sistema)}
           quem="mestre"
           erro={erro}
           onEntrar={(escolhidos) => entrar(donoAberto.id, escolhidos)}

@@ -5,7 +5,7 @@
  * escolha fica na ficha como o padrão da próxima vez.
  */
 import { comUltimaEscolha, gruposParaEscolha, grupoDoCompanion, motivoDaEscolha } from '../../lib/caracteristicas/companions'
-import { comCompanionsNaOrdem, type CompanionQueEntra } from '../../lib/caracteristicas/naBatalha'
+import { comCompanionsNaOrdem, donoQueEntrouEscolhe, fichaComOsCompanions, type CompanionQueEntra } from '../../lib/caracteristicas/naBatalha'
 import type { Reversao } from '../../lib/batalha/registro'
 import type { BatalhaState } from './tipos'
 import { comMudanca } from './cena'
@@ -32,7 +32,8 @@ export function criarCompanions(nucleo: NucleoDaBatalha) {
       if (!(turnos.escolhendoCompanions ?? []).includes(donoPersonagemId)) return MOTIVO_ESCOLHA_FEITA
       const personagens = mesa.personagens()
       const sistema = mesa.sistema()
-      const dono = personagens.find((personagem) => personagem.id === donoPersonagemId)
+      const ficha = personagens.find((personagem) => personagem.id === donoPersonagemId)
+      const dono = ficha === undefined ? undefined : fichaComOsCompanions(ficha, personagens)
       const cartaDoDono = turnos.cartas.find((carta) => carta.personagemId === donoPersonagemId && carta.extra === undefined && carta.bando === undefined)
       if (dono === undefined || cartaDoDono === undefined) return 'O dono não está na ordem.'
       const motivo = motivoDaEscolha(gruposParaEscolha(dono, personagens, sistema), escolhidos)
@@ -59,5 +60,19 @@ export function criarCompanions(nucleo: NucleoDaBatalha) {
       return null
     },
   }
-  return { acoes }
+
+  /**
+   * Conserto de 27/11/2026: quem entra pelo "Incluir combatente" com companion
+   * passa a escolher quem vai, como no Iniciar (antes só o Iniciar perguntava, e
+   * os companions nunca apareciam). Sem linha: a linha é a do "entrou na luta".
+   */
+  const pedirAEscolhaDe = (sceneKey: string, tokenId: string): void => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined || mesa.porCompanionsAoLado === undefined) return
+    const dono = donoQueEntrouEscolhe(cena.turnos, tokenId, mesa.personagens())
+    if (dono === null) return
+    const turnos = { ...cena.turnos, escolhendoCompanions: [...(cena.turnos.escolhendoCompanions ?? []), dono] }
+    gravarCena(sceneKey, { ...cena, turnos, turnosRev: cena.turnosRev + 1 })
+  }
+  return { acoes, pedirAEscolhaDe }
 }

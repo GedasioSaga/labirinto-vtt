@@ -4,12 +4,25 @@ import { ehRefDeMidia } from '../midia'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { gruposParaEscolha, temCompanionsParaEscolher } from './companions'
-import type { CompanionNaBatalha } from './tipos'
+import { gruposDeCompanion, type CompanionNaBatalha } from './tipos'
 
 /**
  * COMPANION NA ORDEM (PLANO-COMPANION.md, fatia 3): a regra pura que a store
  * usa no Iniciar e quando o dono escolhe quem vai. Sem store, sem mapa.
  */
+
+/**
+ * O dono com os grupos de companion que valem na batalha: os dele; a cópia
+ * numerada ("Rei Lazaro 2") que nasceu ANTES de o modelo ganhar companion
+ * (a variação não recebe `caracteristicas` do modelo) usa os do modelo.
+ * Conserto de 27/11/2026 ("coloquei no Rei Lazaro 3 companions, cadê eles?").
+ */
+export function fichaComOsCompanions(dono: Personagem, personagens: readonly Personagem[]): Personagem {
+  const modeloId = dono.combate?.modeloId
+  if (modeloId === undefined || gruposDeCompanion(dono.caracteristicas).length > 0) return dono
+  const doModelo = gruposDeCompanion(personagens.find((personagem) => personagem.id === modeloId)?.caracteristicas)
+  return doModelo.length === 0 ? dono : { ...dono, caracteristicas: [...(dono.caracteristicas ?? []), ...doModelo] }
+}
 
 /** Os donos que escolhem quem vai: personagem com carta própria na ordem e algum companion que exista. Sem repetir, na ordem das cartas. */
 export function donosQueEscolhem(cartas: readonly CartaDaOrdem[], personagens: readonly Personagem[]): string[] {
@@ -18,9 +31,20 @@ export function donosQueEscolhem(cartas: readonly CartaDaOrdem[], personagens: r
   for (const carta of cartas) {
     if (carta.personagemId === null || carta.extra !== undefined || carta.bando !== undefined || donos.includes(carta.personagemId)) continue
     const dono = porId.get(carta.personagemId)
-    if (dono !== undefined && temCompanionsParaEscolher(dono, personagens)) donos.push(dono.id)
+    if (dono !== undefined && temCompanionsParaEscolher(fichaComOsCompanions(dono, personagens), personagens)) donos.push(dono.id)
   }
   return donos
+}
+
+/**
+ * "Incluir combatente" no meio da batalha (conserto de 27/11/2026): o dono que
+ * acabou de entrar pelo token `tokenId` também escolhe quem vai, como no
+ * Iniciar. `null` = não tem companion, já está escolhendo, ou já levou os dele.
+ */
+export function donoQueEntrouEscolhe(turnos: Pick<TurnosDaCena, 'cartas' | 'companions' | 'escolhendoCompanions'>, tokenId: string, personagens: readonly Personagem[]): string | null {
+  const [dono] = donosQueEscolhem(turnos.cartas.filter((carta) => carta.tokenId === tokenId), personagens)
+  if (dono === undefined || (turnos.escolhendoCompanions ?? []).includes(dono)) return null
+  return (turnos.companions ?? []).some((companion) => companion.donoPersonagemId === dono) ? null : dono
 }
 
 /**
@@ -91,7 +115,7 @@ export function comCompanionsNaVista(
   for (const donoId of turnos.escolhendoCompanions ?? []) {
     const dono = porId.get(donoId)
     if (dono === undefined || !meusPersonagens.has(donoId)) continue
-    const grupos = gruposParaEscolha(dono, personagens, sistema).map((grupo) => ({ ...grupo, opcoes: grupo.opcoes.map((opcao) => ({ ...opcao, retrato: ehRefDeMidia(opcao.retrato) ? opcao.retrato : null })) }))
+    const grupos = gruposParaEscolha(fichaComOsCompanions(dono, personagens), personagens, sistema).map((grupo) => ({ ...grupo, opcoes: grupo.opcoes.map((opcao) => ({ ...opcao, retrato: ehRefDeMidia(opcao.retrato) ? opcao.retrato : null })) }))
     if (grupos.length > 0) escolhas.push({ donoPersonagemId: dono.id, donoNome: dono.nome, grupos })
   }
   const companions = turnos.companions ?? []
