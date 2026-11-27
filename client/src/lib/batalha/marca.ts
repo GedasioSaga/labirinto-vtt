@@ -243,11 +243,40 @@ export function acertoNaMarca(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo:
       alvoTokenId: alvo.tokenId,
       rodada: turnos.rodada,
     }
-    novos = { ...novos, lembretesDaMarca: [...(novos.lembretesDaMarca ?? []), lembrete].slice(-LEMBRETES_DA_MARCA_MAX) }
+    novos = comLembreteDaMarca(novos, lembrete)
     partes.push({ tipo: 'lembreteDaMarca', lembrete })
   }
   // D10: a marca que fica multiplica sem parte nenhuma a desfazer (o dano vem no alvo novo).
   return partes.length === 0 && novoAlvo === alvo ? nada : { alvo: novoAlvo, turnos: novos, partes }
+}
+
+/**
+ * O lembrete "Marcar o alvo?" nos turnos (os mais velhos saem no teto). UM lugar para os dois jeitos de abrir a
+ * pergunta: o acerto com arma que atira (`acertoNaMarca`) e o Ativar da tira Passivas (conserto de 27/11/2026,
+ * Olhar Artístico). A resposta passa pelo mesmo `marcar` da store: paga o SP ou rola o teste, põe a marca, e o
+ * próximo golpe no marcado dobra e ela some.
+ */
+export function comLembreteDaMarca(turnos: TurnosDaCena, lembrete: LembreteDaMarca): TurnosDaCena {
+  return { ...turnos, lembretesDaMarca: [...(turnos.lembretesDaMarca ?? []), lembrete].slice(-LEMBRETES_DA_MARCA_MAX) }
+}
+
+/**
+ * Conserto de 27/11/2026 (Olhar Artístico): por que o Ativar da passiva de marca pela tira não abre a pergunta, ou
+ * `null`. O alvo é outra ficha da luta, sem marca (uma por alvo) e sem a pergunta dele já esperando.
+ */
+export function motivoDoAtivarDaMarca(turnos: Pick<TurnosDaCena, 'cartas' | 'selos' | 'lembretesDaMarca'>, donoTokenId: string, alvoTokenId: string | undefined): string | null {
+  if (alvoTokenId === undefined || alvoTokenId === donoTokenId) return 'Escolha quem marcar'
+  if (!turnos.cartas.some((carta) => carta.tokenId === alvoTokenId)) return 'O alvo precisa estar na luta'
+  if (marcaDoToken(turnos.selos, alvoTokenId) !== undefined) return 'O alvo já está marcado (uma marca por alvo)'
+  if ((turnos.lembretesDaMarca ?? []).some((lembrete) => lembrete.tokenId === donoTokenId && lembrete.alvoTokenId === alvoTokenId)) return 'A pergunta "Marcar?" deste alvo já está esperando'
+  return null
+}
+
+/** "30 SP ou teste de Percepção (CD 15)": o que a passiva de marca pede, como a tira e a pergunta mostram. */
+export function textoDoCustoDaMarca(leitura: Extract<LeituraDaMarca, { tipo: 'passiva' }>): string {
+  const teste = leitura.teste === null ? null : `teste de ${leitura.teste.nome}${leitura.teste.cd === null ? '' : ` (CD ${leitura.teste.cd})`}`
+  const sp = leitura.sp === null ? null : `${leitura.sp} SP`
+  return [sp, teste].filter((parte): parte is string => parte !== null).join(' ou ')
 }
 
 /** O golpe com o alvo trocado (mesmo lugar). */

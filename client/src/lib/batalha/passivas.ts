@@ -23,6 +23,7 @@ import { lembreteDoSangramento, sangramentosDoToken } from './condicoes'
 import { chaveDoCustoDaForma, custoPorTurno, formasComCustoPorTurno, mantidasComCusto, motivoDoCustoPorTurno } from './custoPorTurno'
 import { varianteDoPedido } from './escolhaEEvolucao'
 import { normalizar } from './formula'
+import { motivoDoAtivarDaMarca, passivaDaMarca, textoDoCustoDaMarca } from './marca'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO, ehOverload, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, tecnicasComForma, vezesDeRecarga, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { pecasDoCartao } from './mecanica/leitura'
 import type { QuandoOGatilhoDispara } from './mecanica/pecas'
@@ -391,6 +392,11 @@ export interface PassivaNaTira {
   lembrete: LembreteDaPassiva | null
   /** Conserto das fichas F1 (P6): ligada, com custo por turno que o recurso não paga ("SP insuficiente..."). Ausente = Aplicar pode. */
   motivoDoAplicar?: string
+  /**
+   * Conserto de 27/11/2026 (Olhar Artístico): a passiva de MARCA, com o que ela pede ("30 SP ou teste de Percepção
+   * (CD 15)"). O Ativar escolhe o alvo e abre a mesma pergunta "Marcar?" do tiro (o custo se escolhe nela). Ausente = outra passiva.
+   */
+  marca?: string
 }
 
 /** O nome do botão quando o cartão não tem nome. */
@@ -485,6 +491,7 @@ function motivoDoTeto(nome: string, selosNaFicha: number, selosNaCena: number): 
  * Vincent = Olhar artístico ("espera", com o texto do requisito).
  */
 export function passivasDe(personagem: Personagem, sistema: SistemaDeRpg, cena: CenaDaPassiva): PassivaNaTira[] {
+  const daMarca = passivaDaMarca(personagem, sistema)
   return tecnicasComForma(personagem, sistema)
     .filter(({ cartao }) => ehPassiva(cartao))
     .map(({ cartao, forma }) => {
@@ -514,6 +521,13 @@ export function passivasDe(personagem: Personagem, sistema: SistemaDeRpg, cena: 
         lembrete: (cena.combate?.lembretes ?? []).find((lembrete) => lembrete.cartaoId === cartao.id) ?? null,
       }
       if (forma !== undefined) passiva.forma = forma
+      // Conserto de 27/11/2026 (Olhar Artístico): a de marca escolhe o alvo, e o custo é o da marca (SP ou teste), não o "? SP".
+      if (daMarca !== null && daMarca.cartao.id === cartao.id) {
+        passiva.marca = textoDoCustoDaMarca(daMarca.leitura)
+        passiva.custo = { tipo: 'nada' }
+        passiva.alvo = 'oponente'
+        passiva.motivo = null
+      }
       const porTurno = ativa ? custoPorTurno(cartao, personagem) : null
       const semRecurso = porTurno === null ? null : motivoDoCustoPorTurno(personagem, sistema, porTurno)
       if (semRecurso !== null) passiva.motivoDoAplicar = semRecurso
@@ -749,6 +763,9 @@ export function motivoDaPassiva(ctx: ContextoDaPassiva, pedido: PedidoDePassiva)
   }
   if (!pedido.ligar) return ligada ? null : 'A passiva não está ativa'
   if (ligada) return 'A passiva já está ativa'
+  // Conserto de 27/11/2026 (Olhar Artístico): a passiva de marca ativa abrindo a MESMA pergunta "Marcar?" do tiro no alvo
+  // escolhido; o SP ou o teste se escolhem e se cobram nela (`marcar` da store), não aqui.
+  if (passivaDaMarca(personagem, sistema)?.cartao.id === cartao.id) return motivoDoAtivarDaMarca(turnos, pedido.tokenId, pedido.alvoTokenId)
   // Tipos de habilidade F4 (mudança mínima na F3): a opção do Ativar (Melodia) tem de ser opção desta passiva.
   if (pedido.variante !== undefined && varianteDoPedido(cartao, pedido.variante) === null) return 'Opção não encontrada na passiva'
   if (pedido.custo !== null && (!Number.isInteger(pedido.custo) || pedido.custo < 0 || pedido.custo > CUSTO_MAX)) return 'Custo inválido'

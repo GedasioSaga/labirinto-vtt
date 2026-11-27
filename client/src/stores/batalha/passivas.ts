@@ -8,6 +8,7 @@ import {
   type PedidoDeAjusteNaBatalha,
   type PedidoDoContador,
   type PedidoDeEvolucao,
+  type LembreteDaMarca,
   type PedidoDeMarca,
   type PedidoDePassiva,
   type LembreteDaPassiva,
@@ -17,7 +18,7 @@ import {
 } from '../../lib/batalha/combate'
 import { contadorDoPersonagem, motivoDoContador, nivelDoContador, seloDoContador, selosComONivel, temGolpeEsperando } from '../../lib/batalha/contador'
 import { comBandosEmDia } from '../../lib/batalha/invocacao'
-import { criarMarca, marcaDoToken, modificadorDoTeste, motivoDaMarca, passivaDaMarca } from '../../lib/batalha/marca'
+import { comLembreteDaMarca, criarMarca, marcaDoToken, modificadorDoTeste, motivoDaMarca, passivaDaMarca } from '../../lib/batalha/marca'
 import {
   bonusDaBatalha,
   comSeloNovo,
@@ -203,6 +204,16 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       const disparo = lembrete === null ? null : disparoDoLembrete(lembrete, personagemId, cartao)
       if (disparo === null) return false
       return aplicarDisparo(sceneKey, pedido.alvoTokenId === undefined ? disparo : { ...disparo, alvoTokenId: pedido.alvoTokenId }, autor)
+    }
+    // Conserto de 27/11/2026 (Olhar Artístico pela tira, "não dá o mesmo efeito de dobrar o dano e sumir"): o Ativar da
+    // passiva de marca abre a MESMA pergunta "Marcar o alvo?" que o tiro deixa (`comLembreteDaMarca`), e a resposta passa
+    // pelo mesmo `marcarOAlvo` (paga o SP ou rola o teste, põe a marca; o próximo golpe dobra e ela some). Sem linha,
+    // como o lembrete das outras passivas: a linha sai quando ele responde.
+    if (pedido.tipo === 'passiva' && pedido.ligar && pedido.alvoTokenId !== undefined && passivaDaMarca(personagem, sistema)?.cartao.id === cartao.id) {
+      const idDaPergunta = novoIdDaMarca()
+      const lembrete: LembreteDaMarca = { id: idDaPergunta, linhaId: novoIdDeLinha(), golpeId: idDaPergunta, cartaoId: cartao.id, tokenId: carta.tokenId, personagemId, alvoTokenId: pedido.alvoTokenId, rodada: turnos.rodada }
+      gravarCena(sceneKey, comMudanca(cena, comLembreteDaMarca(turnos, lembrete), null))
+      return true
     }
     const nomeDoToken = nomeDoTokenNa(turnos, personagens)
     const dono = nomeDoToken(carta.tokenId)

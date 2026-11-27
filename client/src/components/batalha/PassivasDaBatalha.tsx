@@ -237,6 +237,11 @@ function quandoDispara(passiva: PassivaNaTira, naTela: string): { texto: string;
   }
 }
 
+/** O custo da passiva na tira e no papel: o da marca ("30 SP ou teste de Percepção (CD 15)", conserto de 27/11/2026) ou o lido do campo Custo. */
+function custoNaTira(passiva: Pick<PassivaNaTira, 'custo' | 'marca'>): string | null {
+  return passiva.marca ?? textoDoCusto(passiva.custo)
+}
+
 /** O que o Ativar cobra, com o que já foi digitado: "30 SP", "? SP" (falta dizer quanto); `null` = não gasta nada. */
 function gastoDoAtivar(custo: LeituraDoCusto, digitado: number | null): string | null {
   if (custo.tipo === 'nada') return null
@@ -393,13 +398,16 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
   const escolhendo = !ligada && opcoes !== null
   const quando = quandoDispara(passiva, escolhendo ? (opcao?.texto ?? '') : texto)
   const motivo = ligada ? null : passiva.motivo
-  const custo = textoDoCusto(passiva.custo)
+  const custo = custoNaTira(passiva)
+  // Conserto de 27/11/2026 (Olhar Artístico): a passiva de marca não põe selo dourado; Ativar abre a pergunta "Marcar?" do tiro.
+  const daMarca = passiva.marca !== undefined
   const custoDigitado = passiva.custo.tipo === 'pergunta' ? lerInteiro(custoTexto, CUSTO_MAX) : null
   const gasto = gastoDoAtivar(passiva.custo, custoDigitado)
   const faltaOCusto = passiva.custo.tipo === 'pergunta' && custoDigitado === null
   const podeAplicar = ligada && passiva.porTurno !== null && (aplicarLivre || passiva.lembrete?.tipo === 'porTurno')
   const turnosLidos = seloTurnos.trim() === '' ? null : lerInteiro(seloTurnos, TURNOS_DO_SELO_MAX)
-  const ordenados = alvosOrdenados(alvos)
+  // A marca vai em outra ficha: o dono não se marca.
+  const ordenados = alvosOrdenados(daMarca ? alvos.filter((alvo) => alvo.tokenId !== tokenId) : alvos)
   const alvoEscolhido = ordenados.find((alvo) => alvo.tokenId === alvoId)
   const estiloDoRasgo = useMemo(() => {
     const semente = sementeDe(passiva.cartao.id)
@@ -498,8 +506,13 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
       return
     }
     if (alvoId === '') {
-      setErro('Escolha o oponente que recebe o selo.')
+      setErro(daMarca ? 'Escolha quem marcar.' : 'Escolha o oponente que recebe o selo.')
       campoDoAlvo.current?.focus()
+      return
+    }
+    // A marca: o pedido só leva o alvo; o host abre a pergunta "Marcar?" (paga o SP ou faz o teste), a mesma do tiro.
+    if (daMarca) {
+      pedir({ tipo: 'passiva', tokenId, cartaoId, ligar: true, custo: null, alvoTokenId: alvoId }, 'Não abriu a pergunta: sem conexão com o mestre, ou o alvo já está marcado.')
       return
     }
     let custoPedido: number | null = null
@@ -617,7 +630,7 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
                   </option>
                 ))}
               </select>
-              {passiva.alvo === 'oponente' && <small className="bt-mira__nota">o texto diz "escolhendo um oponente"</small>}
+              {passiva.alvo === 'oponente' && <small className="bt-mira__nota">{daMarca ? 'quem a marca vai expor' : 'o texto diz "escolhendo um oponente"'}</small>}
             </label>
           )}
           {!ligada && passiva.custo.tipo === 'pergunta' && (
@@ -698,6 +711,10 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
           <p className="bt-passiva__resumo" id={`${idBase}-resumo`}>
             Está ativa. Desligar tira o selo dourado da carta.
           </p>
+        ) : daMarca ? (
+          <p className="bt-passiva__resumo" id={`${idBase}-resumo`}>
+            Ativar pergunta se marca {alvoEscolhido === undefined ? 'o alvo que você escolher' : <b>{alvoEscolhido.nome}</b>}: <b>{passiva.marca}</b>, como depois do tiro. O próximo golpe que acertar a marca dá o dobro, e ela some.
+          </p>
         ) : (
           <p className="bt-passiva__resumo" id={`${idBase}-resumo`}>
             Ativar{' '}
@@ -743,7 +760,7 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
               Aplicar {textoDoPorTurno(passiva.porTurno, sistema)}
             </button>
           )}
-          {!ligada && (
+          {!ligada && !daMarca && (
             <button
               type="button"
               className="bt-botao"
@@ -776,7 +793,7 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
 
 /** As etiquetas de uma passiva (custo, forma, "a cada turno", lembrete esperando). */
 function ChipsDaPassiva({ passiva }: { passiva: PassivaNaTira }) {
-  const custo = textoDoCusto(passiva.custo)
+  const custo = custoNaTira(passiva)
   return (
     <>
       {passiva.lembrete !== null && <span className="bt-etq bt-etq--passiva">Lembrete</span>}
@@ -948,7 +965,7 @@ export function PassivasDaFicha({ passivas, tokenId, alvos, sistema, aplicarLivr
             <div className="bt-opcao bt-opcao--passiva" data-estado={passiva.estado}>
               <span className="bt-opcao__nome">
                 {passiva.nome}
-                <small>{[detalheDaPassiva(passiva), textoDoCusto(passiva.custo), !ligada ? passiva.motivo : null].filter(Boolean).join(' · ')}</small>
+                <small>{[detalheDaPassiva(passiva), custoNaTira(passiva), !ligada ? passiva.motivo : null].filter(Boolean).join(' · ')}</small>
               </span>
               <span className="bt-opcao__lado">
                 {passiva.lembrete !== null && <span className="bt-etq bt-etq--passiva">lembrete</span>}{' '}
@@ -1231,7 +1248,7 @@ function UmLembrete({ item, sistema, aplicarLivre, esperando, onPedir }: Omit<Le
   const ativar = lembrete.tipo === 'ativar'
   // Conserto das fichas F1 (P6): o Aplicar da técnica mantida apaga quando o recurso não paga o custo por turno.
   const motivo = ativar ? (passiva.estado !== 'ativa' ? passiva.motivo : null) : (passiva.motivoDoAplicar ?? null)
-  const custo = textoDoCusto(passiva.custo)
+  const custo = custoNaTira(passiva)
   const pagaPorVez = passiva.custo.tipo === 'valor' && passiva.custo.porTurno ? `paga ${passiva.custo.valor} ${passiva.custo.recurso.toUpperCase()}` : null
   const efeito = [passiva.porTurno === null ? null : textoDoPorTurno(passiva.porTurno, sistema), pagaPorVez].filter((parte) => parte !== null).join(' · ') || 'efeito a cada turno'
   const base = { tokenId: lembrete.tokenId, cartaoId: lembrete.cartaoId }
