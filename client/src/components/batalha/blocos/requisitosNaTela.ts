@@ -9,6 +9,7 @@ import {
   RODADA_DO_REQUISITO_MAX,
   TEXTO_DO_REQUISITO_MAX,
   TIPOS_DE_REQUISITO,
+  VERSAO_DOS_REQUISITOS,
   type ComoConfere,
   type ObjetoJson,
   type TipoDeRequisito,
@@ -188,4 +189,66 @@ export function nomeDaReferencia(peca: ObjetoJson, chave: string): string {
 
 export function ehObjetoJson(valor: ValorJson | undefined): valor is ObjetoJson {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
+}
+
+// ─── As ligações da forma (D8 do rework das habilidades) ────────────────────
+
+/**
+ * As duas ligações da forma (D8): moram no bloco do cartão (`requisitos.forma`, I2 do modelo), não
+ * numa peça do grupo, e o motor já as confere (`motivoDoSoLigaPor`, `motivoDaOrdem` em `partes.ts`).
+ * Na busca aparecem no grupo C, como no protótipo aprovado.
+ */
+export type LigacaoDaForma = 'soLigaPor' | 'partesEmOrdem'
+
+export interface LigacaoNaTela {
+  ligacao: LigacaoDaForma
+  letra: string
+  nome: string
+  exemplo: string
+}
+
+export const LIGACOES_NA_TELA: readonly LigacaoNaTela[] = [
+  { ligacao: 'soLigaPor', letra: 'C5', nome: 'Só liga pela técnica', exemplo: 'Só transforma com o Grito' },
+  { ligacao: 'partesEmOrdem', letra: 'C6', nome: 'Parte da forma, em ordem', exemplo: 'Forma Híbrida: uma Parte por vez' },
+]
+
+/** As ligações como o bloco cru as guarda: as técnicas do "Só liga" ({ id?, nome } do disco) e o "em ordem". */
+export interface LigacoesDoBloco {
+  soLigaPor: readonly ObjetoJson[]
+  partesEmOrdem: boolean
+}
+
+/** As ligações do bloco cru; sem bloco ou sem `forma`, nenhuma. */
+export function ligacoesDoBloco(bloco: ObjetoJson | null): LigacoesDoBloco {
+  const forma = bloco?.forma
+  if (!ehObjetoJson(forma)) return { soLigaPor: [], partesEmOrdem: false }
+  const lista = forma.soLigaPor
+  return { soLigaPor: Array.isArray(lista) ? lista.filter(ehObjetoJson) : [], partesEmOrdem: forma.partesEmOrdem === true }
+}
+
+/** As ligações que já estão no bloco (a busca não as oferece de novo). */
+export function ligacoesAtivas(ligacoes: LigacoesDoBloco): LigacaoDaForma[] {
+  const ativas: LigacaoDaForma[] = []
+  if (ligacoes.soLigaPor.length > 0) ativas.push('soLigaPor')
+  if (ligacoes.partesEmOrdem) ativas.push('partesEmOrdem')
+  return ativas
+}
+
+/**
+ * O bloco com as ligações trocadas. Uma chave de app mais novo dentro de `forma` fica como veio; sem
+ * nenhuma ligação, a `forma` sai; sem nada além da versão, o bloco inteiro some (`null`).
+ */
+export function blocoComLigacoes(bloco: ObjetoJson | null, ligacoes: LigacoesDoBloco): ObjetoJson | null {
+  const base: ObjetoJson = bloco ?? { v: VERSAO_DOS_REQUISITOS }
+  const { forma: antes, ...semForma } = base
+  const formaAntes: ObjetoJson = ehObjetoJson(antes) ? antes : {}
+  const { soLigaPor: _lista, partesEmOrdem: _ordem, ...outras } = formaAntes
+  const forma: ObjetoJson = {
+    ...outras,
+    ...(ligacoes.partesEmOrdem ? { partesEmOrdem: true } : {}),
+    ...(ligacoes.soLigaPor.length > 0 ? { soLigaPor: [...ligacoes.soLigaPor] } : {}),
+  }
+  const novo: ObjetoJson = Object.keys(forma).length === 0 ? semForma : { ...semForma, forma }
+  const { v: _v, ...resto } = novo
+  return Object.keys(resto).length === 0 ? null : novo
 }

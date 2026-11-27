@@ -7,6 +7,7 @@ import {
   ehObjetoJson,
   GRUPOS_DOS_REQUISITOS,
   idNovo,
+  LIGACOES_NA_TELA,
   nomeDaReferencia,
   numeroDoJson,
   referenciaJson,
@@ -15,6 +16,7 @@ import {
   tipoNaTela,
   TIPOS_NA_TELA,
   type CampoDoRequisito,
+  type LigacaoDaForma,
   type OpcoesDasFontes,
   type TipoNaTela,
 } from './requisitosNaTela'
@@ -35,6 +37,14 @@ interface BlocoDosRequisitosProps {
   /** O que aparece sem nenhum requisito. */
   vazio: string
   onChange: (todos: ValorJson[]) => void
+  /** D8: as ligações da forma na busca (só na linha Requisitos; a Evolução não as tem). */
+  ligacoes?: LigacoesNaBusca
+}
+
+/** As ligações da forma oferecidas na busca: as que já estão no bloco não aparecem de novo. */
+export interface LigacoesNaBusca {
+  ativas: readonly LigacaoDaForma[]
+  onPor: (ligacao: LigacaoDaForma) => void
 }
 
 /** Um grupo na tela: os requisitos soltos em sequência ("Todos estes") ou um "Um destes" do JSON. */
@@ -75,13 +85,14 @@ const semAcento = (texto: string): string => normalizar(texto).trim()
 interface EscolhaDoTipoProps {
   onEscolher: (tipo: TipoNaTela, texto?: string) => void
   onFechar: () => void
+  ligacoes?: LigacoesNaBusca
 }
 
 /**
  * "+ Requisito": a busca nos 41 tipos, com pulo por letra, setas e Esc (protótipo, `pickerHTML`).
  * Busca sem achado oferece "Pôr como personalizado" (J1 com o texto buscado).
  */
-function EscolhaDoTipo({ onEscolher, onFechar }: EscolhaDoTipoProps) {
+function EscolhaDoTipo({ onEscolher, onFechar, ligacoes }: EscolhaDoTipoProps) {
   const listaId = useId()
   const [busca, setBusca] = useState('')
   const entrada = useRef<HTMLInputElement>(null)
@@ -89,6 +100,12 @@ function EscolhaDoTipo({ onEscolher, onFechar }: EscolhaDoTipoProps) {
   useEffect(() => entrada.current?.focus({ preventScroll: true }), [])
   const q = semAcento(busca)
   const achados = useMemo(() => TIPOS_NA_TELA.filter((t) => q === '' || semAcento(`${t.letra} ${t.nome} ${t.exemplo}`).includes(q)), [q])
+  const ativas = ligacoes?.ativas
+  const ligacoesAchadas = useMemo(
+    () => (ativas === undefined ? [] : LIGACOES_NA_TELA.filter((l) => !ativas.includes(l.ligacao) && (q === '' || semAcento(`${l.letra} ${l.nome} ${l.exemplo}`).includes(q)))),
+    [ativas, q],
+  )
+  const nadaAchado = achados.length === 0 && ligacoesAchadas.length === 0
   const personalizado = TIPOS_NA_TELA.find((t) => t.tipo === 'personalizado')
 
   const botoes = (): HTMLButtonElement[] => Array.from(lista.current?.querySelectorAll<HTMLButtonElement>('button.lb-req__op') ?? [])
@@ -125,7 +142,9 @@ function EscolhaDoTipo({ onEscolher, onFechar }: EscolhaDoTipoProps) {
           if (evento.key === 'Enter') {
             evento.preventDefault()
             const primeiro = achados[0]
+            const primeiraLigacao = ligacoesAchadas[0]
             if (primeiro !== undefined) onEscolher(primeiro)
+            else if (primeiraLigacao !== undefined && ligacoes !== undefined) ligacoes.onPor(primeiraLigacao.ligacao)
             else if (personalizado !== undefined && busca.trim() !== '') onEscolher(personalizado, busca.trim())
           }
         }}
@@ -145,7 +164,7 @@ function EscolhaDoTipo({ onEscolher, onFechar }: EscolhaDoTipoProps) {
         ))}
       </div>
       <div className="lb-req__lista" id={listaId} ref={lista}>
-        {achados.length === 0 ? (
+        {nadaAchado ? (
           <div className="lb-req__nada">
             <span>Nada com "{busca}". O que o app não confere sozinho vira personalizado:</span>
             {personalizado !== undefined && (
@@ -157,7 +176,8 @@ function EscolhaDoTipo({ onEscolher, onFechar }: EscolhaDoTipoProps) {
         ) : (
           GRUPOS_DOS_REQUISITOS.map(({ letra, nome }) => {
             const doGrupo = achados.filter((t) => t.letra.startsWith(letra))
-            if (doGrupo.length === 0) return null
+            const ligacoesDoGrupo = ligacoesAchadas.filter((l) => l.letra.startsWith(letra))
+            if (doGrupo.length === 0 && ligacoesDoGrupo.length === 0) return null
             return (
               <div key={letra} role="group" aria-label={`${letra}. ${nome}`}>
                 <p className="lb-req__grupo-nome" data-grupo={letra}>
@@ -176,6 +196,17 @@ function EscolhaDoTipo({ onEscolher, onFechar }: EscolhaDoTipoProps) {
                     </button>
                   )
                 })}
+                {ligacoes !== undefined &&
+                  ligacoesDoGrupo.map((l) => (
+                    <button key={l.ligacao} type="button" className="lb-req__op" onClick={() => ligacoes.onPor(l.ligacao)}>
+                      <span className="lb-req__cod">{l.letra}</span>
+                      <b>{l.nome}</b>
+                      <span className="lb-ed__etq" title="Ligação da forma: vale no cartão inteiro, não num grupo">
+                        novo
+                      </span>
+                      <small>{l.exemplo}</small>
+                    </button>
+                  ))}
               </div>
             )
           })
@@ -397,7 +428,7 @@ function LinhaDoRequisito({ peca, lida, fontes, listas, onChange, onTirar }: Lin
  * de quantidade (decisão do dono, 23/11). Grava sempre no campo `requisitos` do cartão, fora da
  * mecânica. Usado na linha Requisitos (para usar) e na linha Evolução (para evoluir).
  */
-export function BlocoDosRequisitos({ todos, lidos, fontes, listas, vazio, onChange }: BlocoDosRequisitosProps) {
+export function BlocoDosRequisitos({ todos, lidos, fontes, listas, vazio, onChange, ligacoes }: BlocoDosRequisitosProps) {
   /** Onde a busca está aberta: o grupo (pelo índice do primeiro requisito ou do "Um destes"), ou o fim. */
   const [buscando, setBuscando] = useState<string | null>(null)
   const grupos = gruposNaTela(todos)
@@ -446,7 +477,23 @@ export function BlocoDosRequisitos({ todos, lidos, fontes, listas, vazio, onChan
       <button type="button" className="lb-ed__bt lb-ed__bt--latao lb-ed__bt--p" aria-haspopup="dialog" aria-expanded={buscando === chave} onClick={() => setBuscando(buscando === chave ? null : chave)}>
         + {rotulo}
       </button>
-      {buscando === chave && <EscolhaDoTipo onEscolher={onEscolher} onFechar={() => setBuscando(null)} />}
+      {buscando === chave && (
+        <EscolhaDoTipo
+          onEscolher={onEscolher}
+          onFechar={() => setBuscando(null)}
+          ligacoes={
+            ligacoes === undefined
+              ? undefined
+              : {
+                  ativas: ligacoes.ativas,
+                  onPor: (ligacao) => {
+                    setBuscando(null)
+                    ligacoes.onPor(ligacao)
+                  },
+                }
+          }
+        />
+      )}
     </div>
   )
 
