@@ -590,7 +590,7 @@ button.mb-linha__quem:focus-visible,
 .lb-editor[data-batalha='mestre'] .bt-centro-do-mestre,
 .lb-editor[data-batalha='mestre'] .bt-reacao-no-centro { --bt-centro-topo: 72px; --bt-centro-base: 24px; top: 72px; bottom: 24px; }
 
-/* A mesa recolhida (ou em outra janela): uma pílula no alto, à direita do mapa. */
+/* No modo "como jogador" (ou com a mesa em outra janela): uma pílula no alto, à direita do mapa. */
 .mb-pilula-da-mesa {
   position: absolute;
   top: 12px;
@@ -613,8 +613,9 @@ button.mb-linha__quem:focus-visible,
 
 /* ------------------------------------------------------------- abrir (página Batalha do livro) */
 /*
- * QoL 26/11/2026 ("na batalha, o botão Em janela aparece cortado"): o `--largo` (width 100%) do primeiro
- * empurrava o "Em janela" para fora do livro estreito. Sem caber lado a lado, o segundo desce para a linha de baixo.
+ * Pedido de 27/11/2026: o seletor dos 3 modos (Em janela, Minimalista, Como jogador) em cima, a dica do modo
+ * escolhido embaixo e, na janela, o "Mostrar a janela". Empilhados: nada sai do livro estreito.
  */
-.mb-abrir { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); margin-bottom: var(--lb-space-3); }
-.mb-abrir > .gr-bt { flex: 1 1 auto; width: auto; max-width: 100%; white-space: normal; text-align: center; }
+/* O mesmo recuo da página Batalha logo abaixo (`.gr-livro--dir .lb-batalha-pagina`, livro.css): o seletor alinha com ela. */
+.mb-abrir { display: flex; flex-direction: column; gap: var(--lb-space-2); margin-bottom: var(--lb-space-3); padding: var(--lb-space-2) 12px 0 14px; }
+.mb-abrir > .gr-bt { align-self: flex-start; max-width: 100%; white-space: normal; }

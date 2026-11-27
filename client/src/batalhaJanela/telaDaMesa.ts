@@ -29,6 +29,11 @@ export function ligarOMenuDoMapa(sceneKey: string, vez: string | null, tela?: Te
   useTelaDaMesa.setState((antes) => ({ menuDoMapa: vez === null ? null : { sceneKey, vez, ...(tela === undefined ? {} : { tela }), pedido: (antes.menuDoMapa?.pedido ?? 0) + 1 } }))
 }
 
+/** Fecha o menu da vez que a mesa abriu sobre o mapa (a troca do modo da batalha). */
+export function fecharOMenuDoMapa(): void {
+  if (useTelaDaMesa.getState().menuDoMapa !== null) useTelaDaMesa.setState({ menuDoMapa: null })
+}
+
 /** O menu da vez está aberto sobre o mapa nesta cena e nesta vez. */
 export function menuDoMapaAberto(sceneKey: string, vez: string | null): boolean {
   const menu = useTelaDaMesa.getState().menuDoMapa

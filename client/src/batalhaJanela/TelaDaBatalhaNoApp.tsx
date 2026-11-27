@@ -2,20 +2,21 @@ import { useEffect, useState } from 'react'
 import { VezDoNpcNoCentro } from '../components/batalha/BatalhaDoMestre'
 import { EscolhendoCompanions } from '../components/caracteristicas/EscolhendoCompanions'
 import { Botao } from '../components/grimorio/Botao'
+import { CampoSeg, type OpcaoDoSeg } from '../components/grimorio/CampoSeg'
 import { chaveDaVez } from '../lib/batalha/combate'
 import { cartaDaVez } from '../lib/batalha/turnos'
 import { useBatalhaStore } from '../stores/batalhaStore'
-import { abrirMesaEmJanela, abrirMesaNoApp, fecharMesaNoApp, trazerMesaParaOApp, useMesaDaBatalha } from './controleDaJanela'
+import { abrirMesaEmJanela, escolherModoDaBatalha, garantirAJanelaDaBatalha, trazerMesaParaOApp, useMesaDaBatalha, type ModoDaBatalha } from './controleDaJanela'
 import { aplicarPedido, assinarEspelho } from './mesa'
 import { MesaDaBatalha, type ItemDoMenuDaMesa } from './MesaDaBatalha'
 import { useTelaDaMesa } from './telaDaMesa'
 import type { EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa } from './tipos'
 
 /**
- * A MESA DA BATALHA no app (protótipo aprovado em 19/11/2026): durante a
- * batalha ela fica encostada na direita do mapa, sem diálogo por cima. Com a
- * janela à parte aberta, ou recolhida pelo mestre, sobra uma pílula no alto
- * que diz onde ela está e a traz de volta. Montada uma vez no App.
+ * A MESA DA BATALHA no app (protótipo aprovado em 19/11/2026): no modo
+ * minimalista ela fica encostada na direita do mapa, sem diálogo por cima. Na
+ * janela à parte, ou no modo "como jogador" (o menu grande no meio do mapa),
+ * sobra uma pílula no alto que diz o modo e volta à mesa. Montada uma vez no App.
  */
 
 function enviarAqui(pedido: PedidoDaMesa): Promise<RespostaDaMesa> {
@@ -29,23 +30,29 @@ function useEspelhoAoVivo(ligado: boolean): EspelhoDaBatalha | null {
   return espelho
 }
 
-/** Onde a mesa está agora, com a batalha ligada na cena aberta: na doca, recolhida ou na janela à parte. */
-export function useLugarDaMesa(emBatalha: boolean): 'doca' | 'recolhida' | 'janela' | null {
-  const noApp = useMesaDaBatalha((state) => state.noApp)
-  const emJanela = useMesaDaBatalha((state) => state.emJanela)
+/**
+ * Onde a batalha do mestre está agora, com ela ligada na cena aberta: na doca (o modo minimalista), na
+ * janela à parte ou no menu do jogador. Lido do modo só: um de cada vez.
+ */
+export function useLugarDaMesa(emBatalha: boolean): 'doca' | 'janela' | 'jogador' | null {
+  const modo = useMesaDaBatalha((state) => state.modo)
   if (!emBatalha) return null
-  if (emJanela) return 'janela'
-  return noApp ? 'doca' : 'recolhida'
+  if (modo === 'janela') return 'janela'
+  return modo === 'minimalista' ? 'doca' : 'jogador'
 }
 
 const ITENS_DA_DOCA: readonly ItemDoMenuDaMesa[] = [
-  { chave: 'janela', rotulo: 'Abrir em outra janela', onEscolher: () => void abrirMesaEmJanela() },
-  { chave: 'recolher', rotulo: 'Recolher a mesa', onEscolher: fecharMesaNoApp },
+  { chave: 'janela', rotulo: 'Abrir em outra janela', onEscolher: () => void escolherModoDaBatalha('janela') },
+  { chave: 'jogador', rotulo: 'Jogar como jogador', onEscolher: () => void escolherModoDaBatalha('jogador') },
 ]
 
 export function TelaDaBatalhaNoApp({ emBatalha }: { emBatalha: boolean }) {
   const lugar = useLugarDaMesa(emBatalha)
   const espelho = useEspelhoAoVivo(lugar === 'doca')
+  // O modo janela lembrado da última sessão: a batalha à vista abre a janela (ela já aberta, nada muda).
+  useEffect(() => {
+    if (lugar === 'janela') void garantirAJanelaDaBatalha()
+  }, [lugar])
   if (lugar === null) return null
   if (lugar === 'janela') {
     return (
@@ -60,12 +67,12 @@ export function TelaDaBatalhaNoApp({ emBatalha }: { emBatalha: boolean }) {
       </div>
     )
   }
-  if (lugar === 'recolhida') {
+  if (lugar === 'jogador') {
     return (
       <div className="mb-pilula-da-mesa">
-        <span>Mesa da batalha recolhida.</span>
-        <Botao tamanho="p" variante="latao" onClick={abrirMesaNoApp}>
-          Mostrar a mesa
+        <span>Batalha pelo menu do jogador.</span>
+        <Botao tamanho="p" variante="latao" onClick={() => void escolherModoDaBatalha('minimalista')}>
+          Mesa minimalista
         </Botao>
       </div>
     )
@@ -80,10 +87,11 @@ export function TelaDaBatalhaNoApp({ emBatalha }: { emBatalha: boolean }) {
 }
 
 /**
- * O menu da vez do NPC no meio do mapa (One Piece). Com a mesa à vista (doca ou
- * janela), ele só abre quando a mesa pede (o golpe que pede escolha a mais:
- * invocação, opção, área, custo à mão) e fecha sozinho quando a vez anda. Com a
- * mesa recolhida, ele volta a abrir em toda vez de NPC, como antes da mesa.
+ * O menu da vez do NPC no meio do mapa (One Piece). No modo "como jogador" ele
+ * abre em toda vez de NPC. Com a mesa (minimalista ou na janela), ele só abre
+ * quando o mestre pede pela mesa (o golpe que pede escolha a mais: invocação,
+ * opção, área, custo à mão; Transformação, Passivas, Itens) e fecha sozinho
+ * quando a vez anda ou o modo troca (`mudarModo`).
  */
 export function MenuDaVezSobPedido({ sceneKey, mesaAVista }: { sceneKey: string; mesaAVista: boolean }) {
   const pedido = useTelaDaMesa((state) => state.menuDoMapa)
@@ -100,30 +108,35 @@ export function MenuDaVezSobPedido({ sceneKey, mesaAVista }: { sceneKey: string;
   return <VezDoNpcNoCentro key={tela === undefined || pedidoDaVez === null ? 'menu' : `${tela}:${pedidoDaVez.pedido}`} sceneKey={sceneKey} telaInicial={tela} />
 }
 
-/** Os botões da página Batalha do livro (One Piece e Dragon Ball): onde a mesa está e como trazê-la. */
-export function AbrirAMesaDaBatalha() {
-  const emJanela = useMesaDaBatalha((state) => state.emJanela)
-  const noApp = useMesaDaBatalha((state) => state.noApp)
-  if (emJanela) {
-    return (
-      <div className="mb-abrir" role="group" aria-label="Mesa da batalha">
-        <Botao variante="latao" largo onClick={() => void abrirMesaEmJanela()}>
-          Mostrar a janela da batalha
-        </Botao>
-        <Botao variante="fantasma" onClick={() => void trazerMesaParaOApp()}>
-          Trazer para o app
-        </Botao>
-      </div>
-    )
-  }
+const DICA_DO_MODO: Record<ModoDaBatalha, string> = {
+  janela: 'A mesa numa janela do Windows à parte, que pode ir para o segundo monitor.',
+  minimalista: 'A mesa compacta, encostada na direita do mapa.',
+  jogador: 'Na vez do NPC, o menu grande no meio do mapa, o mesmo do jogador.',
+}
+
+/** Dragon Ball não tem o menu do jogador para o NPC: o terceiro modo é a página inteira do livro. */
+const DICA_PELO_LIVRO = 'Sem mesa: a vez, a ordem e o registro ficam nesta página do livro.'
+
+/**
+ * O seletor da página Batalha do livro (One Piece e Dragon Ball): os 3 modos de conduzir a batalha, um de
+ * cada vez, lembrados neste aparelho. `comMenuDoJogador`: a batalha tem o menu do jogador (One Piece).
+ */
+export function AbrirAMesaDaBatalha({ comMenuDoJogador }: { comMenuDoJogador: boolean }) {
+  const modo = useMesaDaBatalha((state) => state.modo)
+  const opcoes: readonly OpcaoDoSeg<ModoDaBatalha>[] = [
+    { valor: 'janela', rotulo: 'Em janela' },
+    { valor: 'minimalista', rotulo: 'Minimalista' },
+    { valor: 'jogador', rotulo: comMenuDoJogador ? 'Como jogador' : 'Pelo livro' },
+  ]
   return (
     <div className="mb-abrir" role="group" aria-label="Mesa da batalha">
-      <Botao variante="latao" largo onClick={noApp ? fecharMesaNoApp : abrirMesaNoApp}>
-        {noApp ? 'Recolher a mesa da batalha' : 'Mostrar a mesa da batalha'}
-      </Botao>
-      <Botao variante="fantasma" title="Abre a mesa numa janela do Windows à parte, que pode ir para o segundo monitor" onClick={() => void abrirMesaEmJanela()}>
-        Em janela
-      </Botao>
+      <CampoSeg rotulo="Conduzir a batalha" opcoes={opcoes} valor={modo} onChange={(novo) => void escolherModoDaBatalha(novo)} />
+      <p className="gr-nota">{modo === 'jogador' && !comMenuDoJogador ? DICA_PELO_LIVRO : DICA_DO_MODO[modo]}</p>
+      {modo === 'janela' && (
+        <Botao variante="fantasma" tamanho="p" onClick={() => void abrirMesaEmJanela()}>
+          Mostrar a janela da batalha
+        </Botao>
+      )}
     </div>
   )
 }

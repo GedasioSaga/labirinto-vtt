@@ -18,7 +18,7 @@ import { ControleDaBatalha, type ControleDaBatalhaProps } from './ControleDaBata
  * Com a mesa da batalha à vista (encostada no mapa ou na janela à parte;
  * auditoria de 19/11), a vez, o Passar a vez, o Ordenar e o registro moram
  * nela: a página não repete, e fica com dano, selos, ações extras, regras,
- * equipes e o incluir na batalha. Mesa recolhida, a página volta inteira.
+ * equipes e o incluir na batalha. Sem a mesa (o modo "como jogador"), a página volta inteira.
  *
  * Fica sempre montada, como toda folha do livro: o Shift+B mora no
  * `ControleDaBatalha` e vale com qualquer página à vista.
@@ -26,7 +26,8 @@ import { ControleDaBatalha, type ControleDaBatalhaProps } from './ControleDaBata
 
 export function PaginaDaBatalha(props: ControleDaBatalhaProps) {
   const ligada = useBatalhaStore((state) => Object.hasOwn(state.cenas, props.sceneKey))
-  const comAMesa = useMesaDaBatalha((state) => state.noApp || state.emJanela)
+  // A mesa (minimalista ou na janela) tem a vez; no modo "como jogador" (One Piece) ou "pelo livro" (Dragon Ball), a página volta inteira.
+  const comAMesa = useMesaDaBatalha((state) => state.modo !== 'jogador')
   const [dialogo, setDialogo] = useState<DialogoDoMestre | null>(null)
   return (
     // `div` com papel de região, e não `section`: as jornadas acham seções pela tag.

@@ -5129,7 +5129,7 @@ function App() {
         batalha={
           <>
             {/* Pedido de 18/11: a mesa da batalha própria, no meio do app ou numa janela à parte. */}
-            {(batalhaNaCenaAberta || batalhaDBTNaCenaAberta) && <AbrirAMesaDaBatalha />}
+            {(batalhaNaCenaAberta || batalhaDBTNaCenaAberta) && <AbrirAMesaDaBatalha comMenuDoJogador={batalhaNaCenaAberta} />}
             {paginaDaBatalhaDBT ? (
               <PaginaDaBatalhaDBT sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />
             ) : (
