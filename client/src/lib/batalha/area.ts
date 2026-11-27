@@ -100,9 +100,21 @@ export function alvosNaArea(forma: FormaDaArea, origem: Casa, direcao: Direcao, 
 
 // ─── Construtor C3: a ficha inteira na grade (token grande) ─────────────────
 
+/** Onde o corpo da ficha está de fato, em casas (fracionário): o canto de cima e à esquerda e o lado. */
+export interface CorpoNaGrade {
+  col: number
+  row: number
+  lado: number
+}
+
 /** A ficha na grade: a casa de cima e à esquerda e quantas casas ela ocupa por lado (a grande ocupa um quadrado). */
 export interface PegadaNaGrade extends Casa {
   tamanho: number
+  /**
+   * O corpo da ficha fora do centro da casa (decisão de 27/11/2026: o app não mexe nas fichas do
+   * dono). Só `casasDaFicha` (o alcance) lê; ausente = o corpo é a própria pegada.
+   */
+  corpo?: CorpoNaGrade
 }
 
 /** Casas por lado da ficha de `size` (a pequena, 0,5, ocupa uma casa inteira). */

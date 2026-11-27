@@ -4,7 +4,7 @@ import { fichaNaLuz } from '../lib/luzNaFicha'
 import { pisoDe } from '../lib/pisos'
 import { temporariosDaCena } from '../lib/batalha/invocacao'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
-import { casaDoToken } from '../lib/batalha/movimentoEmBatalha'
+import { casaDoToken, pegadaDaFichaEm } from '../lib/batalha/movimentoEmBatalha'
 import * as mapFactory from '../lib/mapFactory'
 import { mudarFichaNoMapa } from '../lib/prazoDaCondicao'
 import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
@@ -202,7 +202,7 @@ export const mesaDaAventura: MesaDaBatalha = {
     const token = tokensDaCena(sceneKey).find((candidato) => candidato.id === tokenId)
     const grid = gradeDaCena(sceneKey)
     if (token === undefined || grid === null || !(grid > 0)) return null
-    return { casa: casaDoToken(token, token.size, grid), direcao: direcaoDaRotacao(token.rotation) }
+    return { casa: casaDoToken(token, token.size, grid), direcao: direcaoDaRotacao(token.rotation), pegada: pegadaDaFichaEm(token, token.size, grid) }
   },
 
   // Fase C do alcance: o mestre (e o NPC) mede com o mapa inteiro, no piso da ficha que usa.

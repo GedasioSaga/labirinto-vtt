@@ -1,4 +1,5 @@
 import type { Point } from '../../pixi/world'
+import { pegadaDaFicha, type PegadaNaGrade } from './area'
 import { casaDoPonto, centroDaCasa, conferirPasso, FOLGA_DA_QUINA, menorCaminhoEmBlocos, montarMapaDosBlocos, paredeBarraOPasso, type Casa, type ParedeDoPasso } from './blocos'
 
 /**
@@ -73,6 +74,19 @@ function casaDaFicha(p: Point, deslocamento: number, grid: number): Casa {
 /** F2 (fatia B): a casa de referência do token com o centro em `p` e `tamanho` casas, a mesma do passo em batalha. */
 export function casaDoToken(p: Point, tamanho: number, grid: number): Casa {
   return casaDaFicha(p, deslocamentoDaFicha(tamanho, grid), grid)
+}
+
+/**
+ * A ficha inteira na grade com o centro em `p` (px do mundo), como o alcance a confere: a pegada pela
+ * casa de referência do passo (`casaDoToken`) e onde o corpo está de fato (`corpo`, lado = `size`
+ * casas), para a ficha fora do centro da casa contar pela sobreposição (`casasDaFicha`). Um lugar só
+ * para a mira, o chão e o host montarem a ficha que o alcance confere.
+ */
+export function pegadaDaFichaEm(p: Point, size: number | undefined, grid: number): PegadaNaGrade {
+  const pegada = pegadaDaFicha(casaDoToken(p, size ?? 1, grid), size)
+  if (!(grid > 0)) return pegada
+  const lado = size === undefined || !Number.isFinite(size) || size <= 0 ? 1 : size
+  return { ...pegada, corpo: { col: p.x / grid - lado / 2, row: p.y / grid - lado / 2, lado } }
 }
 
 function limitarAoMapa(casa: Casa, colunas: number, linhas: number): Casa {

@@ -43,14 +43,40 @@ export function conjuntoDasCasas(casas: readonly Casa[]): ReadonlySet<string> {
   return new Set(casas.map(chaveDaCasa))
 }
 
+/** A casa conta quando o corpo da ficha cobre pelo menos metade dela. */
+const METADE_DA_CASA = 0.5
+/** A folga da conta em ponto flutuante (o corpo exatamente na divisa cobre 0,5 de cada lado). */
+const FOLGA_DA_CONTA = 1e-6
+
+/** Quanto do intervalo [casa, casa + 1) o corpo [inicio, inicio + lado) cobre, numa direção. */
+function coberturaNaLinha(casa: number, inicio: number, lado: number): number {
+  return Math.max(0, Math.min(casa + 1, inicio + lado) - Math.max(casa, inicio))
+}
+
 /**
- * As casas que a ficha inteira ocupa na grade (a pegada de `pegadaDaFicha`). Um lugar só para "onde
- * a ficha está": a conferência do alcance (`fichaNasCasas`) e a casa vermelha do chão (`casasPisadas`).
+ * As casas que a ficha inteira ocupa na grade. Um lugar só para "onde a ficha está": a conferência
+ * do alcance (`fichaNasCasas`) e a casa vermelha do chão (`casasPisadas`). São as da pegada (a casa
+ * de referência de `pegadaDaFicha`) e, com o `corpo`, também toda casa que o corpo cobre em pelo
+ * menos metade (decisão de 27/11/2026: a ficha fora do centro, em cima da última casa azul, entra).
+ * A pegada fica sempre: a ficha na quina de quatro casas (um quarto de cada) não some da grade.
  */
 export function casasDaFicha(ficha: PegadaNaGrade): Casa[] {
   const casas: Casa[] = []
   for (let row = ficha.row; row < ficha.row + ficha.tamanho; row += 1) {
     for (let col = ficha.col; col < ficha.col + ficha.tamanho; col += 1) casas.push({ col, row })
+  }
+  const { corpo } = ficha
+  if (corpo === undefined || !(corpo.lado > 0)) return casas
+  const vistas = new Set(casas.map(chaveDaCasa))
+  for (let row = Math.floor(corpo.row); row < corpo.row + corpo.lado; row += 1) {
+    const naRow = coberturaNaLinha(row, corpo.row, corpo.lado)
+    for (let col = Math.floor(corpo.col); col < corpo.col + corpo.lado; col += 1) {
+      const casa = { col, row }
+      if (vistas.has(chaveDaCasa(casa))) continue
+      if (naRow * coberturaNaLinha(col, corpo.col, corpo.lado) < METADE_DA_CASA - FOLGA_DA_CONTA) continue
+      vistas.add(chaveDaCasa(casa))
+      casas.push(casa)
+    }
   }
   return casas
 }

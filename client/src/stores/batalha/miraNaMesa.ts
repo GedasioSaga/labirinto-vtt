@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
-import { pegadaDaCasa, pegadaDaFicha, type PegadaNaGrade } from '../../lib/batalha/area'
+import { pegadaDaCasa, type PegadaNaGrade } from '../../lib/batalha/area'
 import { usaDirecao } from '../../lib/batalha/alcance/forma'
 import { mapaDoAlcance } from '../../lib/batalha/alcance/segmentos'
-import { casaDoToken } from '../../lib/batalha/movimentoEmBatalha'
+import { pegadaDaFichaEm } from '../../lib/batalha/movimentoEmBatalha'
 import { pisoDe } from '../../lib/pisos'
 import { criarEnvioDaMira } from '../../net/envioDaMira'
 import type { BatalhaMiraMessage, MiraNaMesaNoFio } from '../../net/protocoloDaBatalha'
@@ -39,9 +39,9 @@ export const useMiraNaMesa = create<EstadoDaMiraNaMesa>()((set, get) => ({
 /** A mesma lista vazia sempre: a camada do chão compara pela referência. */
 const NENHUMA: readonly MiraNoMapa[] = []
 
-/** A ficha inteira na grade, pela mesma casa de referência do passo em batalha (`casaDoToken`), como a mira de quem usa. */
+/** A ficha inteira na grade, com o corpo onde ele está (`pegadaDaFichaEm`), como a mira de quem usa. */
 function pegadaDoToken(token: Pick<Token, 'x' | 'y' | 'size'>, grade: number): PegadaNaGrade {
-  return pegadaDaFicha(casaDoToken({ x: token.x, y: token.y }, token.size, grade), token.size)
+  return pegadaDaFichaEm({ x: token.x, y: token.y }, token.size, grade)
 }
 
 /**

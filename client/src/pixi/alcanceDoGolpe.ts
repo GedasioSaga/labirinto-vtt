@@ -93,7 +93,10 @@ function chaveDaCasa(casa: Casa): string {
 }
 
 function chaveDaPegada(pegada: PegadaNaGrade | null): string {
-  return pegada === null ? '-' : `${pegada.col},${pegada.row},${pegada.tamanho}`
+  if (pegada === null) return '-'
+  // O corpo fora do centro muda as casas da ficha (`casasDaFicha`) sem mudar a casa de referência.
+  const { corpo } = pegada
+  return `${pegada.col},${pegada.row},${pegada.tamanho}${corpo === undefined ? '' : `@${corpo.col},${corpo.row},${corpo.lado}`}`
 }
 
 /** A distância do xadrez da casa até a borda da ficha de quem usa (a onda sai dela). */

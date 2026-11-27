@@ -1,7 +1,7 @@
 import type { CarriedItem, CondicaoPropria, Token } from '../../types/map'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import type { Casa, Direcao } from './area'
+import type { Casa, Direcao, PegadaNaGrade } from './area'
 import type { MapaDoAlcance } from './alcance/quemEntra'
 import type { Equipe } from './equipes'
 
@@ -143,4 +143,9 @@ export interface EmpurraoNaMesa {
 export interface PosicaoNaGrade {
   casa: Casa
   direcao: Direcao | null
+  /**
+   * A ficha inteira como o alcance a confere (`pegadaDaFichaEm`, com o corpo fora do centro da casa),
+   * a mesma da mira. Ausente = a mesa só sabe a casa (a Arena): vale a pegada da casa.
+   */
+  pegada?: PegadaNaGrade
 }
