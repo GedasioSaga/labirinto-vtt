@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Máscara em chamas</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --fundo: #0e0d0c;
+    --superficie: #191817;
+    --borda: #2c2a28;
+    --texto: #efeae3;
+    --texto-2: #a39b91;
+    --brasa: #e76624;
+    --brasa-forte: #ff8a3d;
+    --foco: #ffb37a;
+    --raio: 10px;
+    --espaco-1: 8px;
+    --espaco-2: 16px;
+    --espaco-3: 24px;
+    --espaco-4: 40px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  /* A página é escura de propósito (pedido: tema escuro); os dois esquemas usam os mesmos tokens. */
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { color-scheme: dark; } }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fundo);
+    color: var(--texto);
+    font: 16px/1.55 system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: var(--espaco-4) var(--espaco-2) 64px; }
+  h1 { font-size: clamp(26px, 4vw, 36px); line-height: 1.15; margin: 0 0 var(--espaco-1); letter-spacing: -0.01em; }
+  h2 { font-size: 19px; margin: var(--espaco-4) 0 var(--espaco-1); }
+  p { margin: 0 0 var(--espaco-2); color: var(--texto-2); max-width: 68ch; }
+  .tela {
+    position: relative;
+    border-radius: var(--raio);
+    overflow: hidden;
+    background: #000;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--borda);
+    margin-top: var(--espaco-3);
+  }
+  .tela video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .acoes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--espaco-2); margin-top: var(--espaco-2); }
+  button {
+    font: inherit;
+    font-weight: 600;
+    color: #1a0d05;
+    background: var(--brasa);
+    border: 0;
+    border-radius: 999px;
+    padding: 12px 22px;
+    min-height: 44px;
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), background-color 160ms ease;
+  }
+  @media (hover: hover) and (pointer: fine) { button:hover { background: var(--brasa-forte); } }
+  button:active { transform: scale(0.97); }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--foco); outline-offset: 3px; }
+  .estado { color: var(--texto-2); font-size: 14px; }
+  a { color: var(--foco); }
+  figure { margin: var(--espaco-2) 0 0; }
+  figure img { display: block; width: 100%; height: auto; border-radius: var(--raio); border: 1px solid var(--borda); }
+  figcaption { color: var(--texto-2); font-size: 14px; margin-top: var(--espaco-1); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; margin-top: var(--espaco-1); }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+  th { color: var(--texto-2); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .creditos { background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); padding: var(--espaco-2) 20px; }
+  .creditos p { margin: 0 0 var(--espaco-1); }
+  .creditos p:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Máscara em chamas</h1>
+  <p>Rascunho de abertura de batalha para aprovar. Mesmo formato da "Armaduras despertam": vídeo de 4,2 s a 30 fps,
+    1280x720, e o app fecha a cortina em 0,3 s. Fogo e fumaça de simulação no Blender, som sintetizado.</p>
+
+  <div class="tela">
+    <video id="video" src="video.webm" muted loop playsinline autoplay preload="auto"
+      aria-label="Máscara de metal no escuro: brasa nos olhos, o fogo pega, envolve a máscara e explode no clímax"></video>
+  </div>
+  <div class="acoes">
+    <button id="tocar" type="button">Tocar com som</button>
+    <span class="estado" id="estado" aria-live="polite">Em loop, sem som.</span>
+  </div>
+
+  <h2>Folha de contato</h2>
+  <p>16 quadros do vídeo final, com o tempo embaixo de cada um.</p>
+  <figure>
+    <img src="folha-de-contato.png" alt="16 quadros: a máscara escura com brasa nos olhos, o fogo crescendo, o clímax e o auge" loading="lazy">
+  </figure>
+
+  <h2>Som e movimento</h2>
+  <p>Envoltória do som em cima e as curvas da animação embaixo, no mesmo eixo de tempo. Medir não é ouvir: os números
+    conferem volume, pico e sincronia; o timbre só o ouvido decide.</p>
+  <figure>
+    <img src="som-x-movimento.png" alt="Gráfico: o rugido do som acompanha a chama medida na simulação; o impacto cai no clímax" loading="lazy">
+    <figcaption id="medidas">-19,5 LUFS integrado · pico verdadeiro -3,9 dBTP · 0 cliques e 0 amostras cortadas ·
+      impacto em 3,502 s (clímax em 3,500 s) · baque da ignição em 1,457 s (1,450 s) · silêncio no preto (4,5 s).</figcaption>
+  </figure>
+  <p><a href="som.wav" download>Baixar o som (.wav, 4,5 s)</a></p>
+
+  <h2>Créditos</h2>
+  <div class="creditos">
+    <p>Modelo 3D: “Baldwin IV's mask”, de ibuki123 (<a href="https://sketchfab.com/3d-models/baldwin-ivs-mask-6f273a51d2494a52aab1ce0bf56d10f2">Sketchfab</a>),
+      licença <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Modificado: posto em pé, reescalado,
+      cor escurecida e brasa acrescentada no material.</p>
+    <p>Fogo, fumaça, faíscas, luz e som feitos por script, sem asset de terceiros.</p>
+    <p>A máscara é a do rei Balduíno IV do filme <i>Kingdom of Heaven</i>: a licença cobre o modelo, não o figurino do filme.</p>
+  </div>
+</main>
+<script>
+  const video = document.getElementById('video')
+  const botao = document.getElementById('tocar')
+  const estado = document.getElementById('estado')
+  const LOOP = 'video.webm'
+  const COM_SOM = 'previa-com-som.mp4'
+  const reduzir = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+  function voltarAoLoop() {
+    video.src = LOOP
+    video.muted = true
+    video.loop = true
+    if (reduzir.matches) {
+      video.pause()
+      estado.textContent = 'Parado (movimento reduzido). Use o botão para ver.'
+    } else {
+      video.play().catch(() => undefined)
+      estado.textContent = 'Em loop, sem som.'
+    }
+    botao.textContent = 'Tocar com som'
+  }
+
+  botao.addEventListener('click', () => {
+    if (video.src.endsWith(COM_SOM) && !video.paused) {
+      voltarAoLoop()
+      return
+    }
+    video.src = COM_SOM
+    video.loop = false
+    video.muted = false
+    video.currentTime = 0
+    video.play().then(() => {
+      estado.textContent = 'Tocando com som (4,5 s, com a cortina do app).'
+      botao.textContent = 'Parar'
+    }).catch(() => {
+      estado.textContent = 'O navegador não deixou tocar com som. Tente de novo.'
+    })
+  })
+  video.addEventListener('ended', voltarAoLoop)
+  if (reduzir.matches) voltarAoLoop()
+</script>
+</body>
+</html>

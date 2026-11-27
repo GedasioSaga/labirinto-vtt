@@ -1,0 +1,18 @@
+{
+ "duracaoS": 4.5,
+ "canais": 2,
+ "taxa": 48000,
+ "picoDbfs": -4.02,
+ "picoVerdadeiroDbtp": -3.93,
+ "lufsIntegrado": -19.5,
+ "lufsCurtoPrazoMax": -19.31,
+ "dcPct": 0,
+ "cortes": 0,
+ "cliques": [],
+ "ataques": [],
+ "trensDePulsos": [],
+ "silenciosNoMeio": [],
+ "equilibrioLRdb": 0.02,
+ "motivos": [],
+ "passou": true
+}
