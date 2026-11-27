@@ -7,6 +7,7 @@ import { MenuItem, MenuRotulo, MenuSeparador, Pop } from '../grimorio/Pop'
 import { classes, movimentoReduzido } from '../grimorio/comum'
 import { ADICIONAR_TOKEN, ADICIONAR_TOKEN_DICA, BOTAO_NOVO_TOKEN_ID, NOVO_TOKEN_CAMPO_ID } from '../NovoTokenForm'
 import { useLivroDoMestreStore, type PaginaDoMestre } from '../../stores/livroDoMestreStore'
+import { BordaDaPagina } from './BordaDaPagina'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
 import { PAGINA_DOS_DOCUMENTOS, PaginaDocumentos } from './PaginaDocumentos'
 import '../grimorio/grimorio.css'
@@ -294,6 +295,8 @@ export function LivroDoMestre(props: LivroDoMestreProps) {
           </div>
         </div>
       </div>
+      {/* A borda de fora da página arrasta (pedido de 27/11/2026: os nomes do Acervo cortados); a largura fica neste computador. */}
+      <BordaDaPagina escondida={recolhido} lado="esq" />
       <Pop aberto={arquivoAberto} gatilho={gatilhoDoArquivo} onFechar={() => setArquivoAberto(false)} lado="dir" rotulo="Arquivo">
         <MenuItem icone={<IconeDoLivro nome="pasta" />} onClick={arquivo.onAbrir}>
           Abrir…

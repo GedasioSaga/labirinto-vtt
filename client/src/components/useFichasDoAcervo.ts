@@ -5,7 +5,8 @@ import type { Personagem } from '../lib/personagem'
 import type { Token } from '../types/map'
 import { fichasNoAcervoAtivas, personagensAtivos, sistemaAtivo, temRpgNoMapa, useAdventureStore } from '../stores/adventureStore'
 import type { TamanhoDaVista } from '../stores/criarToken'
-import { abrirFichaDaPeca, apagarFichaDoAcervo, criarFichaDaPeca, criarNpcNoAcervo, fazerCopiaDaFicha, garantirMigracao, guardarLugarDaFicha, useAvisoDaMigracaoStore } from '../stores/fichasNoAcervo'
+import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
+import { abrirFichaDaPeca, apagarCopiasDoAcervo, apagarFichaDoAcervo, criarFichaDaPeca, criarNpcNoAcervo, fazerCopiaDaFicha, garantirMigracao, guardarLugarDaFicha, useAvisoDaMigracaoStore } from '../stores/fichasNoAcervo'
 import { ligarFichaAosTokens } from '../stores/ligarFichaNoToken'
 import { useMapStore } from '../stores/mapStore'
 import { casaSobOPonteiro, porPersonagemNoMapa, tokenSobOPonteiro } from '../stores/porPersonagemNoMapa'
@@ -86,10 +87,13 @@ export function useFichasDoAcervo(mapa: MapaDoEditor): FichasDoAcervo | undefine
   const fichaPorPeca = useMemo(() => fichasDasPecas(personagens, lugares), [personagens, lugares])
   if (!temRpg || sistemaId === undefined) return undefined
   const sistema = sistemaPorId(biblioteca, sistemaId)
+  // A barra de vida das cópias no acervo: o mesmo recurso e a mesma conta da barra sob o token.
+  const recurso = recursoDeVida(sistema ?? null)
   return {
     personagens,
     lugares,
     contagem,
+    vidaDe: (personagem) => (recurso === null ? null : vidaDoPersonagem(personagem, recurso)),
     avisoDaMigracao,
     pedidosDeMostrar,
     sistemaId,
@@ -109,6 +113,7 @@ export function useFichasDoAcervo(mapa: MapaDoEditor): FichasDoAcervo | undefine
       copiar: fazerCopiaDaFicha,
       mover: (personagem, pastaId) => void guardarLugarDaFicha(personagem.id, pastaId),
       apagar: (personagemId) => void apagarFichaDoAcervo(personagemId),
+      apagarCopias: (personagemIds) => void apagarCopiasDoAcervo(personagemIds),
     },
     arrasto: {
       casaNaTela: (clientX, clientY) => casaSobOPonteiro(mapa.host(), clientX, clientY)?.tela ?? null,

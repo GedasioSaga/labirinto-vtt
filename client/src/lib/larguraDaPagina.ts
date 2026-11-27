@@ -28,6 +28,13 @@ export const PASSO_DO_TECLADO = 16
 /** A chave do localStorage. */
 export const CHAVE_DA_LARGURA = 'lb-livro-mesa-largura'
 
+/**
+ * A do LIVRO DO MESTRE, o da esquerda (pedido de 27/11/2026: "eu nem consigo
+ * ver o nome deles" no Acervo). Mesmas contas: o teto supõe o outro livro na
+ * largura de sempre, e cada um guarda a sua.
+ */
+export const CHAVE_DA_LARGURA_DO_MESTRE = 'lb-livro-mestre-largura'
+
 /** O teto nesta janela: nunca menos que o padrão, nunca mais que `LARGURA_MAXIMA`. */
 export function larguraMaximaPara(larguraDaJanela: number): number {
   if (!Number.isFinite(larguraDaJanela)) return LARGURA_PADRAO

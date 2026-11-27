@@ -17,7 +17,11 @@
   display: flex;
   pointer-events: none;
 }
-.gr-livro--esq { left: 12px; }
+/* O livro do mestre também alarga pela borda de fora (BordaDaPagina lado="esq", 27/11/2026); sem arrasto, o token. */
+.gr-livro--esq {
+  left: 12px;
+  width: calc(var(--lb-gr-largura-lombada) + var(--lb-livroesq-pagina, var(--lb-gr-largura-pagina)));
+}
 
 /* A borda de fora da página do livro da mesa (a esquerda, onde começa o mapa):
    uma faixa de 12 px com o puxador de duas ranhuras no meio (o desenho
@@ -35,6 +39,8 @@
   outline: none;
 }
 .gr-borda-da-pagina[hidden] { display: none; }
+/* No livro do mestre a borda de fora é a direita da página. */
+.gr-borda-da-pagina--esq { left: auto; right: -6px; }
 .gr-borda-da-pagina::before {
   content: '';
   position: absolute;
@@ -264,7 +270,7 @@
    e o espelho da tela do jogador andarem para o lado em vez de ficar embaixo
    dele. No `:root` porque o espelho vai para o `body` por portal. Recolhido,
    sobra a lombada. */
-:root { --lb-coldir-espaco: 0px; --lb-livroesq-espaco: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-gr-largura-pagina)); }
+:root { --lb-coldir-espaco: 0px; --lb-livroesq-espaco: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-livroesq-pagina, var(--lb-gr-largura-pagina))); }
 /* O livro do mestre recolhido tapa só a lombada: a barra do pé (main.css) usa o vão devolvido. */
 :root:has(.gr-livro--esq.gr-e-recolhido) { --lb-livroesq-espaco: calc(12px + var(--lb-gr-largura-lombada)); }
 :root:has(.lb-editor[data-coldir='aberta']) { --lb-coldir-espaco: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-livrodir-pagina, var(--lb-gr-largura-pagina))); }

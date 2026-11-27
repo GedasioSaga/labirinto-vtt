@@ -1031,7 +1031,7 @@ body {
   right: 0;
   /* A página do livro da mesa pode estar mais larga (borda que arrasta): o chip
      do alto guarda o maior dos dois, e no padrão continua igual (12 + 52 + 262 = 326). */
-  padding: 0 calc(max(var(--lb-layout-livro-do-mestre), var(--lb-coldir-espaco, 0px)) + var(--lb-layout-edge-gap));
+  padding: 0 calc(max(var(--lb-layout-livro-do-mestre), var(--lb-livroesq-espaco, 0px), var(--lb-coldir-espaco, 0px)) + var(--lb-layout-edge-gap));
   display: flex;
   /* O chip da cena (fatia 3) no alto, centrado. A barra de ferramentas mora no pé (fatia 6). */
   flex-direction: column;

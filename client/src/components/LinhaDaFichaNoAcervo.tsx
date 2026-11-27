@@ -1,8 +1,9 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { nomeDaFicha, papelDaFicha } from '../lib/fichasNoAcervo'
+import { nomeDaFicha, papelDaFicha, rotuloCurtoDaCopia } from '../lib/fichasNoAcervo'
 import type { LinhaDeFicha } from '../lib/pastasDeFichas'
 import type { Personagem } from '../lib/personagem'
+import type { VidaDaFicha } from '../lib/vidaDaFicha'
 import { ImagemOuIniciais } from './FichaPecas'
 import { ChevronDownIcon } from './icons'
 import { IconeDoLivro } from './livro/icones'
@@ -19,7 +20,13 @@ import { IconeDoLivro } from './livro/icones'
  *    mapa, a um token (liga a ficha a ele) ou a uma pasta.
  *  - AS AÇÕES num "⋯" que aparece por cima do fim do nome; Shift+F10 (ou a
  *    tecla de menu) no nome abre o mesmo menu. Esc fecha e devolve o foco.
- *  - AS CÓPIAS embaixo do modelo ("› 2 cópias"); cada uma diz se está no mapa.
+ *  - AS CÓPIAS embaixo do modelo (pedido de 27/11/2026: "ficar aparecendo
+ *    várias fichas cada uma com a sua vida fica meio poluído"): o grupo vem
+ *    FECHADO, e a linha "› 3 cópias" já mostra uma barrinha de vida por ficha
+ *    da família no mapa (os números no pairar). Aberto, cada cópia é uma linha
+ *    curta: o ponto de onde está, "#2" (o nome do modelo já está em cima), a
+ *    barra e os números. As fora do mapa ficam atrás de "Mostrar N fora do
+ *    mapa", com "Apagar as fora do mapa" (pergunta, e o aviso tem Desfazer).
  */
 
 /** Quantos tokens do mapa aberto usam cada ficha (`porFicha`) e cada família, modelo e cópias (`porFamilia`). */
@@ -42,6 +49,8 @@ export interface AcoesDaFicha {
   copiar: (personagemId: string) => string | null
   mover: (personagem: Personagem, pastaId: string | null) => void
   apagar: (personagemId: string) => void
+  /** "Apagar as fora do mapa": só cópias, já confirmado; o aviso traz o Desfazer. */
+  apagarCopias: (personagemIds: readonly string[]) => void
 }
 
 export interface LinhaDaFichaNoAcervoProps {
@@ -49,7 +58,9 @@ export interface LinhaDaFichaNoAcervoProps {
   /** O modelo, quando a linha é de uma cópia. */
   modelo?: Personagem
   contagem: ContagemNoMapa
-  /** A busca bateu numa cópia: a lista delas abre sozinha. */
+  /** A vida da ficha, para as barras das cópias; `null` = o sistema não tem vida com máximo. */
+  vidaDe: (personagem: Personagem) => VidaDaFicha | null
+  /** A busca bateu numa cópia: a lista delas abre sozinha, com as fora do mapa à vista. */
   forcarCopias: boolean
   pastaAtual: string | null
   destinos: readonly DestinoDaFicha[]
@@ -58,6 +69,8 @@ export interface LinhaDaFichaNoAcervoProps {
   onApertar: (event: ReactPointerEvent<HTMLButtonElement>, personagem: Personagem) => void
   engolirClique: () => boolean
   acoes: AcoesDaFicha
+  /** Na linha da cópia: a cópia nova pelo menu dela nasce fora do mapa, e o modelo mostra as de fora. */
+  aoFazerCopia?: () => void
 }
 
 /** O atributo que acha o nome da ficha depois de um Mover (a linha nasce de novo em outra pasta). */
@@ -81,6 +94,51 @@ export function SeloTemFicha() {
   )
 }
 
+/** Acima disto a barra é verde; acima de `VIDA_BAIXA`, latão; abaixo, brasa. Em fração do máximo. */
+const VIDA_MEIA = 0.5
+const VIDA_BAIXA = 0.25
+
+/** Mais barrinhas que isto no resumo viram "+N": vinte tokens não cabem na coluna. */
+const BARRAS_NO_RESUMO_MAX = 24
+
+type TomDaVida = 'cheia' | 'meia' | 'baixa' | 'caida'
+
+function tomDaVida(vida: VidaDaFicha): TomDaVida {
+  if (vida.atual <= 0) return 'caida'
+  const parte = vida.atual / vida.maximo
+  return parte > VIDA_MEIA ? 'cheia' : parte > VIDA_BAIXA ? 'meia' : 'baixa'
+}
+
+/** A barra fina de uma ficha: a cor diz o estado de longe, a largura o quanto sobra. */
+function BarraDeVida({ vida }: { vida: VidaDaFicha }) {
+  return (
+    <span className="lb-acervo__vida" data-tom={tomDaVida(vida)} aria-hidden="true">
+      <span className="lb-acervo__vida-cheio" style={{ width: `${Math.round((vida.atual / vida.maximo) * 100)}%` }} />
+    </span>
+  )
+}
+
+interface VidaNoResumo {
+  id: string
+  rotulo: string
+  vida: VidaDaFicha
+}
+
+/** As barrinhas da família no mapa, ao lado de "› 3 cópias"; o pairar dá os números de cada uma. */
+function ResumoDasVidas({ itens }: { itens: readonly VidaNoResumo[] }) {
+  if (itens.length === 0) return null
+  const vistas = itens.slice(0, BARRAS_NO_RESUMO_MAX)
+  const numeros = itens.map(({ rotulo, vida }) => `${rotulo} ${vida.atual}/${vida.maximo}`).join(' · ')
+  return (
+    <span className="lb-acervo__vidas" role="img" aria-label={`Vida no mapa: ${itens.map(({ rotulo, vida }) => `${rotulo} ${vida.atual} de ${vida.maximo}`).join(', ')}`} title={`Vida no mapa: ${numeros}`}>
+      {vistas.map(({ id, vida }) => (
+        <BarraDeVida key={id} vida={vida} />
+      ))}
+      {itens.length > vistas.length && <span className="lb-acervo__vidas-mais">+{itens.length - vistas.length}</span>}
+    </span>
+  )
+}
+
 /** "Mover para" do menu: as pastas, com a atual marcada; na cópia, o aviso de que ela anda com o modelo. Sem pastas, nada. */
 function itensDoMover(modelo: Personagem | undefined, destinos: readonly DestinoDaFicha[], pastaAtual: string | null, mover: (pastaId: string | null) => void): ItemDoMenu[] {
   if (modelo !== undefined) return [{ tipo: 'separador' }, { tipo: 'rotulo', texto: 'Mover para' }, { tipo: 'desligado', rotulo: 'Mover: a cópia fica com o modelo' }]
@@ -92,20 +150,11 @@ function itensDoMover(modelo: Personagem | undefined, destinos: readonly Destino
   ]
 }
 
-/** "Inimigo · 2 no mapa" (modelo) ou "no mapa" / "fora do mapa" (cópia). */
-function LinhaDeBaixo({ personagem, ehCopia, quantos }: { personagem: Personagem; ehCopia: boolean; quantos: number }) {
-  if (ehCopia) {
-    if (quantos === 0) return <span className="lb-acervo__leva">fora do mapa</span>
-    return (
-      <span className="lb-acervo__leva">
-        <b>{quantos === 1 ? 'no mapa' : `${quantos} no mapa`}</b>
-      </span>
-    )
-  }
-  const papel = papelDaFicha(personagem)
+/** "Inimigo · 2 no mapa", embaixo do nome do modelo. */
+function LinhaDeBaixo({ personagem, quantos }: { personagem: Personagem; quantos: number }) {
   return (
     <span className="lb-acervo__leva">
-      {papel}
+      {papelDaFicha(personagem)}
       {quantos > 0 && (
         <>
           {' · '}
@@ -116,18 +165,60 @@ function LinhaDeBaixo({ personagem, ehCopia, quantos }: { personagem: Personagem
   )
 }
 
+/** "no mapa", "2 no mapa" ou "fora do mapa": o texto do ponto da cópia e do nome acessível. */
+function ondeEsta(quantos: number): string {
+  if (quantos === 0) return 'fora do mapa'
+  return quantos === 1 ? 'no mapa' : `${quantos} no mapa`
+}
+
+/** O que vai dentro do botão da cópia: ponto de onde está, "#2", a barra e os números. */
+function MioloDaCopia({ nome, rotulo, quantos, vida }: { nome: string; rotulo: string; quantos: number; vida: VidaDaFicha | null }) {
+  const onde = ondeEsta(quantos)
+  return (
+    <>
+      <span className="lb-acervo__onde" data-no-mapa={quantos > 0 ? 'sim' : undefined} title={onde[0].toLocaleUpperCase('pt-BR') + onde.slice(1)} aria-hidden="true" />
+      <span className="lb-acervo__copia-nome" title={nome}>
+        {rotulo}
+      </span>
+      {vida !== null && (
+        <>
+          <BarraDeVida vida={vida} />
+          <span className="lb-acervo__vida-numeros" aria-hidden="true">
+            {vida.atual}/{vida.maximo}
+          </span>
+        </>
+      )}
+    </>
+  )
+}
+
 export function LinhaDaFichaNoAcervo(props: LinhaDaFichaNoAcervoProps) {
-  const { linha, modelo, contagem, forcarCopias, pastaAtual, destinos, podePor, onApertar, engolirClique, acoes } = props
+  const { linha, modelo, contagem, vidaDe, forcarCopias, pastaAtual, destinos, podePor, onApertar, engolirClique, acoes, aoFazerCopia } = props
   const { personagem, copias, totalDeCopias } = linha
   const ehCopia = modelo !== undefined
   const nome = nomeDaFicha(personagem)
   const quantos = (ehCopia ? contagem.porFicha.get(personagem.id) : contagem.porFamilia.get(personagem.id)) ?? 0
+  const vida = ehCopia ? vidaDe(personagem) : null
   const [menu, setMenu] = useState<{ pelaTecla: boolean } | null>(null)
   const [apagando, setApagando] = useState(false)
   const [copiasAbertas, setCopiasAbertas] = useState(false)
+  const [foraAbertas, setForaAbertas] = useState(false)
+  const [apagandoFora, setApagandoFora] = useState(false)
   const maisRef = useRef<HTMLButtonElement | null>(null)
+  const apagarForaRef = useRef<HTMLButtonElement | null>(null)
   const idDasCopias = useId()
   const mostraCopias = copias.length > 0 && (forcarCopias || copiasAbertas)
+  const noMapa = (ficha: Personagem) => (contagem.porFicha.get(ficha.id) ?? 0) > 0
+  const copiasNoMapa = copias.filter(noMapa)
+  const copiasFora = copias.filter((copia) => !noMapa(copia))
+  // Com a busca, a cópia que bate fica à vista mesmo fora do mapa: esconder o que se procurou seria pior.
+  const mostraFora = forcarCopias || foraAbertas
+  const vidasNoMapa: VidaNoResumo[] = ehCopia
+    ? []
+    : [...(noMapa(personagem) ? [personagem] : []), ...copiasNoMapa].flatMap((ficha) => {
+        const daFicha = vidaDe(ficha)
+        return daFicha === null ? [] : [{ id: ficha.id, rotulo: ficha === personagem ? nome : rotuloCurtoDaCopia(ficha, personagem), vida: daFicha }]
+      })
 
   const fecharMenu = (devolverFoco: boolean) => {
     setMenu(null)
@@ -144,24 +235,32 @@ export function LinhaDaFichaNoAcervo(props: LinhaDaFichaNoAcervoProps) {
   }
 
   const teclaNaLinha = (event: KeyboardEvent<HTMLLIElement>) => {
-    if (event.key !== 'Escape' || !apagando) return
+    if (event.key !== 'Escape' || (!apagando && !apagandoFora)) return
     event.preventDefault()
     event.stopPropagation()
-    setApagando(false)
-    maisRef.current?.focus()
+    if (apagando) {
+      setApagando(false)
+      maisRef.current?.focus()
+      return
+    }
+    setApagandoFora(false)
+    requestAnimationFrame(() => apagarForaRef.current?.focus())
   }
 
+  const rotuloDoNome = ehCopia ? `Abrir a ficha de ${nome}${vida === null ? '' : `, vida ${vida.atual} de ${vida.maximo}`}, ${ondeEsta(quantos)}` : `Abrir a ficha de ${nome}`
   const classe = ['lb-acervo__item', 'lb-acervo__item--ficha', ehCopia && 'lb-acervo__item--copia'].filter(Boolean).join(' ')
   return (
     <li className={classe} onKeyDown={teclaNaLinha}>
-      <span className="lb-acervo__foto lb-acervo__foto--ficha" data-no-mapa={quantos > 0 ? 'sim' : undefined} aria-hidden="true">
-        <ImagemOuIniciais imagem={personagem.retrato} nome={personagem.nome} />
-      </span>
+      {!ehCopia && (
+        <span className="lb-acervo__foto lb-acervo__foto--ficha" data-no-mapa={quantos > 0 ? 'sim' : undefined} aria-hidden="true">
+          <ImagemOuIniciais imagem={personagem.retrato} nome={personagem.nome} />
+        </span>
+      )}
       <button
         type="button"
-        className="lb-acervo__nome lb-acervo__nome--leva lb-acervo__nome--ficha"
+        className={ehCopia ? 'lb-acervo__nome lb-acervo__nome--copia' : 'lb-acervo__nome lb-acervo__nome--leva lb-acervo__nome--ficha'}
         {...{ [ATRIBUTO_DO_NOME_DA_FICHA]: personagem.id }}
-        aria-label={`Abrir a ficha de ${nome}`}
+        aria-label={rotuloDoNome}
         aria-keyshortcuts="Shift+F10"
         title={podePor ? 'Clique para abrir a ficha. Arraste até o mapa, até um token (liga a ficha a ele) ou até uma pasta. Shift+F10: mais ações.' : 'Clique para abrir a ficha. Shift+F10: mais ações.'}
         onPointerDown={(event) => onApertar(event, personagem)}
@@ -172,35 +271,43 @@ export function LinhaDaFichaNoAcervo(props: LinhaDaFichaNoAcervoProps) {
           if (!engolirClique()) acoes.abrir(personagem.id)
         }}
       >
-        <span className="lb-acervo__nome-linha">
-          <span className="lb-acervo__nome-texto" title={nome}>
-            {nome}
-          </span>
-          <SeloTemFicha />
-        </span>
-        <LinhaDeBaixo personagem={personagem} ehCopia={ehCopia} quantos={quantos} />
+        {ehCopia ? (
+          <MioloDaCopia nome={nome} rotulo={rotuloCurtoDaCopia(personagem, modelo)} quantos={quantos} vida={vida} />
+        ) : (
+          <>
+            {/* O nome quebra em até duas linhas antes das reticências; o nome inteiro na dica do texto. */}
+            <span className="lb-acervo__nome-linha" title={nome}>
+              <span className="lb-acervo__nome-texto">{nome}</span>
+              <SeloTemFicha />
+            </span>
+            <LinhaDeBaixo personagem={personagem} quantos={quantos} />
+          </>
+        )}
       </button>
       {!apagando && (
-        <span className="lb-acervo__acoes lb-acervo__acoes--ficha">
-          <button
-            ref={maisRef}
-            type="button"
-            className="lb-acervo__mais"
-            aria-label={`Mais ações de ${nome}`}
-            title="Mais ações"
-            aria-haspopup="menu"
-            aria-expanded={menu !== null}
-            onClick={() => setMenu(menu === null ? { pelaTecla: false } : null)}
-          >
-            <span aria-hidden="true">⋯</span>
-          </button>
+        // A ponta da linha: o "⋯" e o "+", por cima do fim do nome no pairar (ver `.lb-acervo__ponta`).
+        <span className="lb-acervo__ponta">
+          <span className="lb-acervo__acoes lb-acervo__acoes--ficha">
+            <button
+              ref={maisRef}
+              type="button"
+              className="lb-acervo__mais"
+              aria-label={`Mais ações de ${nome}`}
+              title="Mais ações"
+              aria-haspopup="menu"
+              aria-expanded={menu !== null}
+              onClick={() => setMenu(menu === null ? { pelaTecla: false } : null)}
+            >
+              <span aria-hidden="true">⋯</span>
+            </button>
+          </span>
+          {podePor && (
+            // O "+" da linha do token, fora do Tab (o menu tem o mesmo "Pôr no centro").
+            <button type="button" className="lb-acervo__por" aria-label={`Pôr ${nome} no centro do mapa`} title="Pôr no centro da vista" tabIndex={-1} onClick={() => acoes.porNoCentro(personagem)}>
+              <IconeDoLivro nome="mais" />
+            </button>
+          )}
         </span>
-      )}
-      {!apagando && podePor && (
-        // O "+" da linha do token: sempre à vista, fora do Tab (o menu tem o mesmo "Pôr no centro").
-        <button type="button" className="lb-acervo__por" aria-label={`Pôr ${nome} no centro do mapa`} title="Pôr no centro da vista" tabIndex={-1} onClick={() => acoes.porNoCentro(personagem)}>
-          <IconeDoLivro nome="mais" />
-        </button>
       )}
       {menu !== null && maisRef.current !== null && (
         <MenuDeAcoes
@@ -236,7 +343,13 @@ export function LinhaDaFichaNoAcervo(props: LinhaDaFichaNoAcervoProps) {
               acao: () => {
                 fecharMenu(true)
                 const id = acoes.copiar(modelo?.id ?? personagem.id)
-                if (id !== null && !ehCopia) setCopiasAbertas(true)
+                if (id === null) return
+                // A cópia nova nasce fora do mapa: o grupo abre com as de fora à vista, senão ela some atrás do "Mostrar".
+                if (ehCopia) aoFazerCopia?.()
+                else {
+                  setCopiasAbertas(true)
+                  setForaAbertas(true)
+                }
               },
             },
             ...itensDoMover(modelo, destinos, pastaAtual, (pastaId) => {
@@ -279,27 +392,85 @@ export function LinhaDaFichaNoAcervo(props: LinhaDaFichaNoAcervoProps) {
         </div>
       )}
       {totalDeCopias > 0 && (
-        <button
-          type="button"
-          className="lb-acervo__copias"
-          aria-expanded={mostraCopias}
-          aria-controls={idDasCopias}
-          disabled={copias.length === 0}
-          title="Cada token com a própria vida. Mudar o modelo muda todas as cópias."
-          onClick={() => setCopiasAbertas(!mostraCopias)}
-        >
-          <span className="lb-acervo__copias-seta" aria-hidden="true">
-            <ChevronDownIcon size={12} />
-          </span>
-          {totalDeCopias === 1 ? '1 cópia' : `${totalDeCopias} cópias`}
-        </button>
+        <span className="lb-acervo__copias-topo">
+          <button
+            type="button"
+            className="lb-acervo__copias"
+            aria-expanded={mostraCopias}
+            aria-controls={idDasCopias}
+            disabled={copias.length === 0}
+            title="Cada token com a própria vida. Mudar o modelo muda todas as cópias."
+            onClick={() => setCopiasAbertas(!mostraCopias)}
+          >
+            <span className="lb-acervo__copias-seta" aria-hidden="true">
+              <ChevronDownIcon size={12} />
+            </span>
+            {totalDeCopias === 1 ? '1 cópia' : `${totalDeCopias} cópias`}
+          </button>
+          <ResumoDasVidas itens={vidasNoMapa} />
+        </span>
       )}
       {mostraCopias && (
-        <ul id={idDasCopias} className="lb-acervo lb-acervo__copias-lista" aria-label={`Cópias de ${nome}`}>
-          {copias.map((copia) => (
-            <LinhaDaFichaNoAcervo key={copia.id} {...props} linha={{ personagem: copia, copias: [], totalDeCopias: 0 }} modelo={personagem} forcarCopias={false} />
-          ))}
-        </ul>
+        <div id={idDasCopias} className="lb-acervo__copias-caixa">
+          {(copiasNoMapa.length > 0 || mostraFora) && (
+            <ul className="lb-acervo lb-acervo__copias-lista" aria-label={`Cópias de ${nome}`}>
+              {[...copiasNoMapa, ...(mostraFora ? copiasFora : [])].map((copia) => (
+                <LinhaDaFichaNoAcervo
+                  key={copia.id}
+                  {...props}
+                  linha={{ personagem: copia, copias: [], totalDeCopias: 0 }}
+                  modelo={personagem}
+                  forcarCopias={false}
+                  aoFazerCopia={() => setForaAbertas(true)}
+                />
+              ))}
+            </ul>
+          )}
+          {copiasFora.length > 0 && !apagandoFora && (
+            <span className="lb-acervo__fora">
+              {!forcarCopias && (
+                <button type="button" className="lb-acervo__fora-botao" aria-expanded={foraAbertas} onClick={() => setForaAbertas(!foraAbertas)}>
+                  {foraAbertas ? `Esconder as fora do mapa (${copiasFora.length})` : `Mostrar ${copiasFora.length} fora do mapa`}
+                </button>
+              )}
+              {mostraFora && (
+                <button ref={apagarForaRef} type="button" className="lb-acervo__fora-botao lb-acervo__fora-botao--perigo" onClick={() => setApagandoFora(true)}>
+                  Apagar as fora do mapa
+                </button>
+              )}
+            </span>
+          )}
+          {apagandoFora && (
+            <div className="lb-acervo__confirma lb-acervo__confirma--ficha" role="group" aria-label={`Apagar as cópias de ${nome} fora do mapa?`}>
+              <p className="lb-acervo__vazio">
+                {copiasFora.length === 1 ? `Apagar a cópia de ${nome} que está fora do mapa?` : `Apagar as ${copiasFora.length} cópias de ${nome} que estão fora do mapa?`} Elas saem da aventura; o aviso traz Desfazer.
+              </p>
+              <button
+                type="button"
+                className="lb-btn lb-btn--ghost"
+                autoFocus
+                onClick={() => {
+                  setApagandoFora(false)
+                  requestAnimationFrame(() => apagarForaRef.current?.focus())
+                }}
+              >
+                Manter
+              </button>
+              <button
+                type="button"
+                className="lb-btn lb-btn--danger"
+                onClick={() => {
+                  setApagandoFora(false)
+                  setForaAbertas(false)
+                  acoes.apagarCopias(copiasFora.map((copia) => copia.id))
+                  focarNomeDaFicha(personagem.id)
+                }}
+              >
+                {copiasFora.length === 1 ? 'Apagar 1 cópia' : `Apagar ${copiasFora.length} cópias`}
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </li>
   )

@@ -355,6 +355,12 @@
   background: var(--lb-color-stone-hover);
 }
 
+/* A cópia mora DENTRO da linha do modelo: acesa, ela não acende o grupo
+   inteiro (senão a linha sob o ponteiro não se destaca de nada). */
+.lb-acervo__item:has(.lb-acervo__item:hover) {
+  background: transparent;
+}
+
 /* Apertar o nome afunda a linha: é o retorno do clique que põe o token no
    centro da vista. */
 .lb-acervo__item:has(> .lb-acervo__nome:active) {
@@ -408,9 +414,14 @@
   font-family: inherit;
   font-size: var(--lb-font-size-md);
   text-align: left;
+  /* O nome em coluna: ele quebra em até duas linhas (`.lb-acervo__nome-texto`)
+     e o que a peça leva vem embaixo. Pedido de 27/11/2026: "eu nem consigo
+     ver o nome deles" — reticência na primeira linha cortava "Cavaleiro c…". */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -431,11 +442,22 @@
   line-height: 1.15;
 }
 
-.lb-acervo__nome-texto,
 .lb-acervo__leva {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Duas linhas antes da reticência, e a palavra comprida sem espaço quebra
+   onde precisar: o nome inteiro mora na dica (`title`) do texto. */
+.lb-acervo__nome-texto {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 
 .lb-acervo__leva {
@@ -482,12 +504,83 @@
 /* Aparecem com o ponteiro na linha, com o foco em qualquer peça dela (o Tab
    que chega ao nome já mostra o que vem depois) e enquanto o menu Mover
    estiver aberto. Na pasta, o × aparece com o ponteiro no cabeçalho dela. */
-.lb-acervo__item:hover .lb-acervo__acoes,
-.lb-acervo__item:focus-within .lb-acervo__acoes,
+/* Só as DESTA linha: as cópias moram dentro da linha do modelo, e o pairar
+   no modelo não pode acender o "⋯" de cada cópia (nem o da cópia, o dele).
+   O foco que mostra é o do nome pelo teclado ou o de uma ação dela: o clique
+   em "› 3 cópias" também deixa o foco dentro da linha do modelo, e a ponta
+   não pode cobrir o nome por isso. */
+.lb-acervo__item:hover:not(:has(.lb-acervo__item:hover)) > .lb-acervo__acoes,
+.lb-acervo__item:hover:not(:has(.lb-acervo__item:hover)) > .lb-acervo__ponta > .lb-acervo__acoes,
+.lb-acervo__item:has(> .lb-acervo__nome:focus-visible, > .lb-acervo__acoes :focus, > .lb-acervo__ponta :focus) > .lb-acervo__acoes,
+.lb-acervo__item:has(> .lb-acervo__nome:focus-visible, > .lb-acervo__acoes :focus, > .lb-acervo__ponta :focus) > .lb-acervo__ponta > .lb-acervo__acoes,
 .lb-acervo__item--movendo .lb-acervo__acoes,
 .lb-acervo__pasta-topo:hover .lb-acervo__acoes,
 .lb-acervo__pasta-topo:focus-within .lb-acervo__acoes {
   opacity: 1;
+}
+
+/* A PONTA da linha (as ações e o "+"): no toque ela some da caixa e os dois
+   ficam na fila, à vista, como sempre (ver o bloco do mouse, abaixo). */
+.lb-acervo__ponta {
+  display: contents;
+}
+
+/* Com mouse, a ponta flutua POR CIMA do fim do nome só enquanto a linha está
+   acesa ou em foco (pedido de 27/11/2026: o retrato, o ícone e o "+" comiam a
+   coluna e os nomes viravam "He…"). Em repouso o nome tem a largura toda; no
+   pairar, um degradê apaga o fim dele embaixo da ponta. Sem transição, como
+   as ações: é gesto de toda hora. Escondida, ela não pega clique. */
+@media (hover: hover) and (pointer: fine) {
+  .lb-acervo__ponta {
+    position: absolute;
+    top: var(--lb-space-1);
+    right: var(--lb-space-1);
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--lb-radius-sm);
+    pointer-events: none;
+  }
+
+  .lb-acervo__ponta::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 100%;
+    bottom: 0;
+    width: var(--lb-space-4);
+    background: linear-gradient(to right, transparent, var(--lb-color-stone-hover));
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* A linha curta da cópia não tem respiro em cima: a ponta encosta no topo dela. */
+  .lb-acervo__item--copia > .lb-acervo__ponta {
+    top: 0;
+  }
+
+  .lb-acervo__ponta > .lb-acervo__por {
+    opacity: 0;
+  }
+
+  .lb-acervo__item:hover:not(:has(.lb-acervo__item:hover)) > .lb-acervo__ponta,
+  .lb-acervo__item:has(> .lb-acervo__nome:focus-visible, > .lb-acervo__acoes :focus, > .lb-acervo__ponta :focus) > .lb-acervo__ponta,
+  .lb-acervo__item--movendo > .lb-acervo__ponta,
+  .lb-acervo__item:has(> .lb-acervo__ponta [aria-expanded='true']) > .lb-acervo__ponta {
+    background: var(--lb-color-stone-hover);
+    pointer-events: auto;
+  }
+
+  .lb-acervo__item:hover:not(:has(.lb-acervo__item:hover)) > .lb-acervo__ponta::before,
+  .lb-acervo__item:has(> .lb-acervo__nome:focus-visible, > .lb-acervo__acoes :focus, > .lb-acervo__ponta :focus) > .lb-acervo__ponta::before,
+  .lb-acervo__item--movendo > .lb-acervo__ponta::before,
+  .lb-acervo__item:has(> .lb-acervo__ponta [aria-expanded='true']) > .lb-acervo__ponta::before,
+  .lb-acervo__item:hover:not(:has(.lb-acervo__item:hover)) > .lb-acervo__ponta > .lb-acervo__por,
+  .lb-acervo__item:has(> .lb-acervo__nome:focus-visible, > .lb-acervo__acoes :focus, > .lb-acervo__ponta :focus) > .lb-acervo__ponta > .lb-acervo__por,
+  .lb-acervo__item--movendo > .lb-acervo__ponta > .lb-acervo__por,
+  .lb-acervo__item:has(> .lb-acervo__ponta [aria-expanded='true']) > .lb-acervo__ponta > .lb-acervo__por {
+    opacity: 1;
+  }
 }
 
 /* Ícone de 14 px no alvo mínimo do tema, sem borda e sem respiro, como as
@@ -669,6 +762,12 @@
   opacity: 0;
 }
 
+/* A ponta inteira (o "⋯" e o "+" dentro dela) some no arrasto, por cima de
+   qualquer regra de pairar. */
+.lb-acervo--arrastando .lb-acervo__ponta {
+  visibility: hidden;
+}
+
 .lb-acervo--arrastando .lb-acervo__item:hover,
 .lb-acervo--arrastando .lb-acervo__pasta-topo:hover {
   background: transparent;
@@ -723,30 +822,28 @@
   box-shadow: 0 0 0 1px rgba(224, 164, 74, 0.25);
 }
 
-.lb-acervo__item--copia .lb-acervo__foto--ficha {
-  width: 20px;
-  height: 20px;
-}
-
-/* O nome e o selo "Tem ficha" na mesma linha: o nome corta com reticências,
-   o selo nunca some. */
+/* O nome e o selo "Tem ficha" na mesma linha: o nome quebra em duas linhas,
+   o selo fica na altura da primeira e nunca some. */
 .lb-acervo__nome-linha {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--lb-space-1);
   min-width: 0;
 }
 
+/* Pequeno e calado: é etiqueta, não ação (pedido de 27/11/2026 — o ícone
+   comia a largura do nome). */
 .lb-acervo__tem-ficha {
   display: inline-flex;
   flex: none;
+  margin-top: 0.2em;
   color: var(--lb-color-brass);
-  opacity: 0.85;
+  opacity: 0.7;
 }
 
 .lb-acervo__tem-ficha svg {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
 }
 
 /* O "⋯" no mesmo molde do Mover e do Apagar: ícone sem moldura no alvo mínimo. */
@@ -772,9 +869,8 @@
   color: var(--lb-color-parchment);
 }
 
-/* O menu aberto segura as ações da linha à vista. */
-.lb-acervo__item:has(.lb-acervo__mais[aria-expanded='true']) .lb-acervo__acoes,
-.lb-acervo__item:has(.lb-acervo__mais-do-token[aria-expanded='true']) .lb-acervo__acoes {
+/* O menu aberto segura as ações DA LINHA dele à vista (não as das cópias de dentro). */
+.lb-acervo__item:has(> .lb-acervo__ponta [aria-expanded='true']) > .lb-acervo__ponta > .lb-acervo__acoes {
   opacity: 1;
 }
 
@@ -785,15 +881,25 @@
   align-items: stretch;
 }
 
-/* "› 2 cópias": embaixo do nome do modelo, alinhado com o texto dele. */
-.lb-acervo__copias {
+/* "› 3 cópias ▬ ▬ ▬": embaixo do nome do modelo, alinhado com o texto dele,
+   numa linha só. As barrinhas são a família no mapa (o pairar dá os números). */
+.lb-acervo__copias-topo {
   position: relative;
   z-index: 1;
-  display: inline-flex;
+  display: flex;
   flex-basis: 100%;
   align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  margin: -2px 0 2px 32px;
+}
+
+.lb-acervo__copias {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
   gap: var(--lb-space-1);
-  margin: -2px 0 2px 30px;
+  margin: 0;
   padding: 0;
   border: 0;
   background: none;
@@ -826,11 +932,159 @@
   transform: rotate(-90deg);
 }
 
-.lb-acervo__copias-lista {
+.lb-acervo__copias:focus-visible {
+  border-radius: var(--lb-radius-sm);
+  box-shadow: var(--lb-shadow-focus);
+}
+
+/* O grupo aberto: o filete embaixo do retrato do modelo, as cópias no mapa,
+   e embaixo delas o "Mostrar N fora do mapa". */
+.lb-acervo__copias-caixa {
   flex-basis: 100%;
-  margin: 0 0 2px 19px;
+  min-width: 0;
+  margin: 0 0 2px 11px;
   padding-left: var(--lb-space-1);
   border-left: 1px solid var(--lb-color-line);
+}
+
+/* A linha curta da cópia: sem retrato (é o do modelo, logo acima), o ponto de
+   onde ela está, "#2", a barra e os números, numa linha só. */
+.lb-acervo__item--copia {
+  padding: 0 var(--lb-space-2) 0 var(--lb-space-1);
+}
+
+.lb-acervo__nome--copia {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--lb-space-2);
+}
+
+/* Latão cheio = no mapa (a mesma cor da borda do retrato no mapa); anel apagado = fora. */
+.lb-acervo__onde {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--lb-color-parchment-faint);
+  border-radius: var(--lb-radius-full);
+}
+
+.lb-acervo__onde[data-no-mapa] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass);
+}
+
+/* "#2" em algarismo de tabela: "#9" e "#10" ficam na mesma coluna. A cópia
+   renomeada mostra o nome dela, que encolhe antes da barra sumir. */
+.lb-acervo__copia-nome {
+  flex: 0 1 auto;
+  min-width: 2.2em;
+  overflow: hidden;
+  color: var(--lb-color-parchment);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A barra fina de vida: verde com folga, latão na metade, brasa no fim; caída,
+   só o trilho com contorno de brasa. Sem movimento: o número muda, a barra
+   acompanha. */
+.lb-acervo__vida {
+  display: block;
+  flex: 1 1 auto;
+  min-width: var(--lb-space-6);
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.lb-acervo__vida-cheio {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--lb-color-online);
+}
+
+.lb-acervo__vida[data-tom='meia'] .lb-acervo__vida-cheio {
+  background: var(--lb-color-brass);
+}
+
+.lb-acervo__vida[data-tom='baixa'] .lb-acervo__vida-cheio {
+  background: var(--lb-color-ember);
+}
+
+.lb-acervo__vida[data-tom='caida'] {
+  box-shadow: inset 0 0 0 1px rgba(226, 100, 90, 0.6);
+}
+
+.lb-acervo__vida-numeros {
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* O resumo ao lado de "› 3 cópias": uma barrinha de 14 px por ficha no mapa,
+   que encolhe (até 3 px) quando são muitas, em vez de vazar da coluna. */
+.lb-acervo__vidas {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lb-acervo__vidas > .lb-acervo__vida {
+  flex: 0 1 14px;
+  min-width: 3px;
+}
+
+.lb-acervo__vidas-mais {
+  flex: none;
+  margin-left: 2px;
+  color: var(--lb-color-parchment-faint);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Mostrar 2 fora do mapa" e "Apagar as fora do mapa": texto discreto, como
+   o "› cópias"; o de apagar avisa em brasa só sob o ponteiro. */
+.lb-acervo__fora {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--lb-space-3);
+  padding: 0 var(--lb-space-1) 2px;
+}
+
+.lb-acervo__fora-botao {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-acervo__fora-botao:hover {
+  color: var(--lb-color-parchment);
+}
+
+.lb-acervo__fora-botao--perigo:hover {
+  color: var(--lb-color-ember);
+}
+
+.lb-acervo__fora-botao:focus-visible {
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.lb-acervo__copias-caixa > .lb-acervo__confirma {
+  padding: var(--lb-space-1);
 }
 
 /* A subpasta: um nível só, um passo para dentro da pasta mãe. */

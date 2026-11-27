@@ -209,6 +209,43 @@ export function fichasDasPecas(personagens: readonly Personagem[], lugares: Luga
   return mapa
 }
 
+/**
+ * O nome curto da cópia na lista embaixo do modelo (pedido de 27/11/2026: "eu
+ * nem consigo ver o nome deles"): "Hector 2" vira "#2", porque o nome do
+ * modelo já está no cabeçalho do grupo. A cópia renomeada ("Hector chefe")
+ * fica com o nome dela inteiro: o número sozinho mentiria.
+ */
+export function rotuloCurtoDaCopia(copia: Personagem, modelo: Personagem): string {
+  const nome = nomeDaFicha(copia)
+  const base = nomeDaFicha(modelo)
+  if (!nome.toLocaleLowerCase('pt-BR').startsWith(base.toLocaleLowerCase('pt-BR'))) return nome
+  const resto = nome.slice(base.length).trim()
+  return /^\d+$/.test(resto) ? `#${resto}` : nome
+}
+
+/**
+ * Das cópias pedidas ao "Apagar as fora do mapa", as que podem sair: só cópia
+ * de ficha do acervo (o modelo fica), e nunca a que é o modelo de uma ficha que
+ * fica (tirá-la soltaria a outra do grupo). A volta repete até parar, porque
+ * segurar uma cópia pode segurar o modelo dela.
+ */
+export function copiasQuePodemSair(personagens: readonly Personagem[], ids: readonly string[]): Personagem[] {
+  const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
+  const pedidas = new Set(ids)
+  const saem = new Set(personagens.filter((personagem) => pedidas.has(personagem.id) && ehFichaDoAcervo(personagem) && raizDaCopia(personagem, porId) !== null).map((personagem) => personagem.id))
+  let mudou = true
+  while (mudou) {
+    mudou = false
+    for (const personagem of personagens) {
+      const modeloId = personagem.combate?.modeloId
+      if (saem.has(personagem.id) || modeloId === undefined || !saem.has(modeloId)) continue
+      saem.delete(modeloId)
+      mudou = true
+    }
+  }
+  return personagens.filter((personagem) => saem.has(personagem.id))
+}
+
 /** O nome da cópia nova: "Goblin 2", "Goblin 3"… a partir do nome do modelo-raiz, sem repetir nome da lista. */
 export function nomeDaProximaCopia(ficha: Personagem, personagens: readonly Personagem[]): string {
   const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))

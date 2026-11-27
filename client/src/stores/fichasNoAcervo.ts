@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import { buildTokenSharedPhoto } from '../lib/imageImport'
 import {
+  copiasQuePodemSair,
   ehFichaDoAcervo,
   fichaQueNasceuDaPeca,
   lugarNaPasta,
   migrarFichasParaOAcervo,
+  nomeDaFicha,
   nomeDaProximaCopia,
   pastaDaFichaNoAcervo,
   precisaMigrar,
@@ -12,6 +14,7 @@ import {
   type LugarDaFicha,
 } from '../lib/fichasNoAcervo'
 import { novaVariacao } from '../lib/livros/combate'
+import { raizDaCopia } from '../lib/pastasDeFichas'
 import { novoPersonagem, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { ACERVO_NAO_LIDO, fichaQueEntra, garantirSubpastasNoAcervo, mochilaComVagasNovas, type ExtrasDaPeca, type ItemDoAcervoNaTela } from '../lib/tokenLibrary'
@@ -179,6 +182,57 @@ export function apagarFichaDoAcervo(fichaId: string): boolean {
   for (const copia of copias) novos[copia.id] = semPeca
   useAdventureStore.getState().salvarFichasNoAcervo(novos)
   return true
+}
+
+/**
+ * "APAGAR AS FORA DO MAPA" (pedido de 27/11/2026: "ficar aparecendo várias
+ * fichas cada uma com a sua vida fica meio poluído"): as cópias que o mestre
+ * confirmou saem da aventura de uma vez, e o aviso traz UM Desfazer que as
+ * devolve com o MESMO id (o token de outra cena que apontava para uma delas
+ * volta a achar a ficha). Devolve quantas saíram; nada apaga sem o mestre pedir.
+ */
+export function apagarCopiasDoAcervo(ids: readonly string[]): number {
+  const state = useAdventureStore.getState()
+  const personagens = personagensAtivos(state)
+  const saem = copiasQuePodemSair(personagens, ids)
+  if (saem.length === 0) return 0
+  const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
+  const modelos = new Set(saem.flatMap((copia) => raizDaCopia(copia, porId)?.id ?? []))
+  const lugaresAntes = fichasNoAcervoAtivas(state)
+  const apagadas = saem.filter((copia) => useAdventureStore.getState().apagarPersonagem(copia.id))
+  if (apagadas.length === 0) return 0
+  if (lugaresAntes !== undefined && apagadas.some((copia) => lugaresAntes[copia.id] !== undefined)) {
+    const saiu = new Set(apagadas.map((copia) => copia.id))
+    useAdventureStore.getState().salvarFichasNoAcervo(Object.fromEntries(Object.entries(lugaresAntes).filter(([fichaId]) => !saiu.has(fichaId))))
+  }
+
+  const desfazer = () => {
+    const agora = useAdventureStore.getState()
+    const presentes = new Set(personagensAtivos(agora).map((personagem) => personagem.id))
+    // Sem o modelo na lista, a aventura aberta é outra: devolver aqui misturaria as duas.
+    if (![...modelos].some((modeloId) => presentes.has(modeloId))) {
+      useToastStore.getState().push('error', 'Não deu para desfazer: a aventura dessas cópias não está aberta.')
+      return
+    }
+    const voltam = apagadas.filter((copia) => !presentes.has(copia.id))
+    if (!agora.adicionarPersonagens(voltam)) {
+      useToastStore.getState().push('error', 'Não deu para desfazer: esta aventura não tem onde guardar fichas.')
+      return
+    }
+    // Só as cópias que tinham lugar próprio (a do modelo apagado antes): as outras andam com o modelo.
+    const devolvidos: Record<string, LugarDaFicha> = {}
+    for (const copia of voltam) {
+      const lugar = lugaresAntes?.[copia.id]
+      if (lugar !== undefined) devolvidos[copia.id] = lugar
+    }
+    if (Object.keys(devolvidos).length > 0) useAdventureStore.getState().salvarFichasNoAcervo({ ...(fichasNoAcervoAtivas(useAdventureStore.getState()) ?? {}), ...devolvidos })
+  }
+
+  const [unico] = modelos
+  const deQuem = modelos.size === 1 && unico !== undefined ? porId.get(unico) : undefined
+  const quantas = apagadas.length === 1 ? '1 cópia apagada' : `${apagadas.length} cópias apagadas`
+  useToastStore.getState().push('info', deQuem === undefined ? `${quantas}.` : `${nomeDaFicha(deQuem)}: ${quantas}.`, undefined, { actions: [{ label: 'Desfazer', run: desfazer }] })
+  return apagadas.length
 }
 
 /**

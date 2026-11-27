@@ -18,6 +18,7 @@ import { ehPastaPadrao, resumoDosExtras, type ItemDoAcervoNaTela, type PastaDoAc
 import { fichasNasPastas, fichasSemPecaNaEstante, ID_DA_PASTA_NPCS, nomeDaFicha, pastaDaFichaNoAcervo, type LugaresDasFichas } from '../lib/fichasNoAcervo'
 import type { LinhaDeFicha } from '../lib/pastasDeFichas'
 import type { Personagem } from '../lib/personagem'
+import type { VidaDaFicha } from '../lib/vidaDaFicha'
 import { BotaoMais } from './BotaoMais'
 import { ChevronDownIcon, CloseIcon, FolderIcon, MoveIntoIcon, SearchIcon } from './icons'
 import { LinhaDaFichaNoAcervo, MenuDeAcoes, SeloTemFicha, type AcoesDaFicha, type ContagemNoMapa, type DestinoDaFicha, type ItemDoMenu } from './LinhaDaFichaNoAcervo'
@@ -34,6 +35,8 @@ export interface FichasDoAcervo {
   personagens: readonly Personagem[]
   lugares: LugaresDasFichas
   contagem: ContagemNoMapa
+  /** A vida da ficha (atual e máximo efetivo); `null` = o sistema não tem vida com máximo. */
+  vidaDe: (personagem: Personagem) => VidaDaFicha | null
   acoes: AcoesDaFicha
   arrasto: Pick<ArrastoDaLinha, 'casaNaTela' | 'tokenNaTela' | 'onSoltarNoMapa'>
   /** "+ NPC"; ausente = o sistema da aventura não está neste computador. */
@@ -766,6 +769,7 @@ export function TokenLibraryPanel({
         key={linha.personagem.id}
         linha={linha}
         contagem={fichas.contagem}
+        vidaDe={fichas.vidaDe}
         forcarCopias={buscando}
         pastaAtual={pastaDaFicha(linha.personagem)}
         destinos={destinosDaFicha}
@@ -832,17 +836,12 @@ export function TokenLibraryPanel({
             clicarNaPeca(item)
           }}
         >
-          {leva === '' && !temFicha ? (
-            item.nome
-          ) : (
-            <>
-              <span className="lb-acervo__nome-linha">
-                <span className="lb-acervo__nome-texto">{item.nome}</span>
-                {temFicha && <SeloTemFicha />}
-              </span>
-              {leva !== '' && <span className="lb-acervo__leva">{leva}</span>}
-            </>
-          )}
+          {/* O nome quebra em até duas linhas antes das reticências; o nome inteiro na dica do texto. */}
+          <span className="lb-acervo__nome-linha" title={item.nome}>
+            <span className="lb-acervo__nome-texto">{item.nome}</span>
+            {temFicha && <SeloTemFicha />}
+          </span>
+          {leva !== '' && <span className="lb-acervo__leva">{leva}</span>}
         </button>
         {criandoFicha && (
           <span className="lb-acervo__confirma" role="group" aria-label={`${item.nome} não tem ficha`}>
@@ -910,68 +909,72 @@ export function TokenLibraryPanel({
               {`Apagar ${item.nome} para sempre`}
             </button>
           </span>
-        ) : criandoFicha ? null : (
-          // As ações da linha, juntas para aparecerem juntas (ver
-          // `.lb-acervo__acoes`). A seta que entra é a mesma do "Mover para…"
-          // de Cenas: o ícone de pasta repetido em cada linha parecia mais
-          // uma pasta.
-          <span className="lb-acervo__acoes">
-            {comFichas && (
-              // O "⋯" das fichas também na peça: abrir ou criar a ficha, pôr no centro.
-              <button
-                type="button"
-                className="lb-acervo__mover lb-acervo__mais-do-token"
-                aria-label={`Mais ações de ${item.nome}`}
-                title="Mais ações"
-                aria-haspopup="menu"
-                aria-expanded={menuAberto}
-                onClick={(event) => setMenuDoToken(menuAberto ? null : { id: item.id, ancora: event.currentTarget, pelaTecla: false })}
-              >
-                <span aria-hidden="true">⋯</span>
-              </button>
+        ) : (
+          // A ponta da linha: as ações e o "+", por cima do fim do nome no
+          // pairar (ver `.lb-acervo__ponta`), para o nome ter a largura toda.
+          <span className="lb-acervo__ponta">
+            {/* As ações da linha, juntas para aparecerem juntas (ver
+                `.lb-acervo__acoes`). A seta que entra é a mesma do "Mover para…"
+                de Cenas: o ícone de pasta repetido em cada linha parecia mais
+                uma pasta. */}
+            {!criandoFicha && (
+              <span className="lb-acervo__acoes">
+                {comFichas && (
+                  // O "⋯" das fichas também na peça: abrir ou criar a ficha, pôr no centro.
+                  <button
+                    type="button"
+                    className="lb-acervo__mover lb-acervo__mais-do-token"
+                    aria-label={`Mais ações de ${item.nome}`}
+                    title="Mais ações"
+                    aria-haspopup="menu"
+                    aria-expanded={menuAberto}
+                    onClick={(event) => setMenuDoToken(menuAberto ? null : { id: item.id, ancora: event.currentTarget, pelaTecla: false })}
+                  >
+                    <span aria-hidden="true">⋯</span>
+                  </button>
+                )}
+                {organizado && destinos.length > 0 && (
+                  <button
+                    type="button"
+                    className="lb-acervo__mover"
+                    aria-label={rotuloMover(item)}
+                    aria-expanded={movendo}
+                    title="Mover para outra pasta"
+                    onClick={() => setPergunta(movendo ? null : { tipo: 'mover-token', id: item.id })}
+                  >
+                    <MoveIntoIcon size={14} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="lb-acervo__apagar"
+                  aria-label={rotuloApagar(item)}
+                  title="Apagar do acervo"
+                  onClick={(event) => {
+                    // O Apagar sai da tela quando a pergunta abre: o foco vai para o lado seguro.
+                    focarDepois(event.currentTarget.closest('li'), MANTER_NO_ACERVO)
+                    setPergunta({ tipo: 'apagar-token', id: item.id })
+                  }}
+                >
+                  <CloseIcon size={14} />
+                </button>
+              </span>
             )}
-            {organizado && destinos.length > 0 && (
-              <button
-                type="button"
-                className="lb-acervo__mover"
-                aria-label={rotuloMover(item)}
-                aria-expanded={movendo}
-                title="Mover para outra pasta"
-                onClick={() => setPergunta(movendo ? null : { tipo: 'mover-token', id: item.id })}
-              >
-                <MoveIntoIcon size={14} />
-              </button>
-            )}
+            {/* O "+" do protótipo: pôr no centro da vista. Fora do Tab, como o
+                "Mandar ficha" de Objetos do mapa: pelo teclado, o nome é a parada
+                (Enter põe no centro; com aventura, abre a ficha, e o "Pôr no
+                centro" mora no "⋯"). */}
             <button
               type="button"
-              className="lb-acervo__apagar"
-              aria-label={rotuloApagar(item)}
-              title="Apagar do acervo"
-              onClick={(event) => {
-                // O Apagar sai da tela quando a pergunta abre: o foco vai para o lado seguro.
-                focarDepois(event.currentTarget.closest('li'), MANTER_NO_ACERVO)
-                setPergunta({ tipo: 'apagar-token', id: item.id })
-              }}
+              className="lb-acervo__por"
+              aria-label={`Pôr ${item.nome} no centro do mapa`}
+              title="Pôr no centro da vista"
+              tabIndex={-1}
+              onClick={() => onPlace(item)}
             >
-              <CloseIcon size={14} />
+              <IconeDoLivro nome="mais" />
             </button>
           </span>
-        )}
-        {!confirmando && (
-          // O "+" do protótipo, sempre à vista: pôr no centro da vista. Fora do
-          // Tab, como o "Mandar ficha" de Objetos do mapa: pelo teclado, o nome
-          // é a parada (Enter põe no centro; com aventura, abre a ficha, e o
-          // "Pôr no centro" mora no "⋯").
-          <button
-            type="button"
-            className="lb-acervo__por"
-            aria-label={`Pôr ${item.nome} no centro do mapa`}
-            title="Pôr no centro da vista"
-            tabIndex={-1}
-            onClick={() => onPlace(item)}
-          >
-            <IconeDoLivro nome="mais" />
-          </button>
         )}
         {movendo && (
           <span className="lb-acervo__destinos" role="group" aria-label={`Mover ${item.nome} para`}>
