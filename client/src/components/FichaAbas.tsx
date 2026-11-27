@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ABA_DOS_ITENS } from '../lib/livros/coisaERegra'
 import { InventarioDaFicha } from './InventarioDaFicha'
-import { comLimiteDeArmas, EquipamentoDaFicha } from './EquipamentoDaFicha'
+import { comLimiteDeArmas, EquipamentoDaFicha, type AcoesDoPente } from './EquipamentoDaFicha'
 import { itensDaTecnica } from '../lib/itens/itensDaTecnica'
 import { camposVisiveis, cartoesDaAba, NOME_DO_TEXTO_DE_ANTES, novoCartao, paragrafosDoCartao, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } from '../lib/livroDeRegras'
@@ -88,6 +88,12 @@ export interface FichaAbasProps {
    * (fora da edição; na edição vai para o rascunho). Só o app do mestre passa. Ausente = só lê.
    */
   onLimiteDeArmas?: (limite: number | null) => void
+  /**
+   * O pente da arma equipada, no cartão do alto da aba "Mochila e equipamento": o Recarregar fora da
+   * batalha (o mestre e o jogador dono) e, do mestre, o ajuste à mão e o "Editar arma". Fora da edição
+   * (na edição a mochila é a do rascunho, que o Salvar grava). Ausente = o cartão só lê.
+   */
+  penteDoEquipado?: AcoesDoPente
 }
 
 /** A aba que junta Armas e Itens (E4b): não é do molde do sistema, então tem um id que nenhuma aba dele usa. */
@@ -150,6 +156,7 @@ export function FichaAbas({
   mochilaDoBoneco,
   mochilaDaEdicao,
   onLimiteDeArmas,
+  penteDoEquipado,
 }: FichaAbasProps) {
   const idBase = useId()
   // SISTEMA DE ITENS REFEITO (E4b): com Armas ou Itens no molde, as duas abas saem e entra "Mochila e equipamento", no fim
@@ -220,7 +227,7 @@ export function FichaAbas({
       <div id={`${idBase}-painel`} className="lb-ficha__painel" role="tabpanel" aria-labelledby={`${idBase}-aba-${idAtivo}`}>
         {naMochila ? (
           <>
-            <EquipamentoDaFicha personagem={personagem} itens={mochilaContada ?? []} onLimite={mudarLimite} />
+            <EquipamentoDaFicha personagem={personagem} itens={mochilaContada ?? []} onLimite={mudarLimite} pente={editando ? undefined : penteDoEquipado} />
             {abaDosItens !== undefined ? (
               <MochilaNaAbaItens
                 personagem={personagem}

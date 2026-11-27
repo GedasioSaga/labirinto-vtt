@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { lerOAcervoSeFaltar, useAcervoDeItensStore } from '../stores/acervoDeItensStore'
+import { escolherImagemDoItem, imagemDoItemDoBlob } from '../lib/imagemDoItem'
+import { ItemDoCatalogoDialog } from './ItemDoCatalogoDialog'
+import { ajustarPentePeloMestre, recarregarPeloMestre, type MochilaQueGrava } from './penteDoMestre'
+import type { AcoesDoPente } from './EquipamentoDaFicha'
 import { escolherImagemDaFicha, escolherTextoJson, salvarTextoJson } from '../lib/arquivosDaFicha'
 import { ehEmbutido } from '../lib/bibliotecaDeSistemas'
 import { nomeDaCopia, rascunhoDaCopia, rascunhoDoSistema, rascunhoEmBranco, type RascunhoDoSistema } from '../lib/editorDeSistema'
@@ -83,6 +87,23 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   // LOBBY: o mapa que herda troca o sistema UNIVERSAL da pasta; publicada, ele ficou fixo (o site lê as fichas pelo que foi junto, 12.21).
   const pastaQueManda = useAdventureStore((state) => (herdaDaPasta(state) ? (state.pasta?.pastaId ?? null) : null))
   const { publicada: pastaNoLobby } = usePastaPublicada(pastaQueManda)
+  // O cartão da arma equipada: com a ficha numa batalha ligada, a recarga é a da vez (o tempo da arma), não a de fora.
+  const fichaNaLuta = useBatalhaStore(
+    (state) => personagemAberto !== null && Object.values(state.cenas).some((cena) => cena.turnos.cartas.some((carta) => carta.personagemId === personagemAberto && carta.bando === undefined)),
+  )
+  // O "Editar arma" do cartão: a arma do Acervo aberta no editor do item, por cima da ficha; o foco volta a quem abriu.
+  const [armaNoEditor, setArmaNoEditor] = useState<string | null>(null)
+  const quemAbriuOEditor = useRef<Element | null>(null)
+  const abrirArmaNoEditor = (itemId: string) => {
+    quemAbriuOEditor.current = document.activeElement
+    setArmaNoEditor(itemId)
+  }
+  const fecharOEditorDaArma = useCallback(() => {
+    setArmaNoEditor(null)
+    const quem = quemAbriuOEditor.current
+    quemAbriuOEditor.current = null
+    if (quem instanceof HTMLElement) requestAnimationFrame(() => quem.isConnected && quem.focus())
+  }, [])
 
   // O Acervo lido para a mochila da ficha (foto, tipo e regra de cada vaga). A passagem dos cartões e dos "Tipos de
   // bala" de antes para a mochila é a conversão na abertura (`stores/conversaoDosItens.ts`, ITENS REFEITOS E1).
@@ -148,7 +169,7 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   const doMestre =
     personagem === undefined
       ? undefined
-      : inventarioDoMestre(hostWorldOf({ adventure, activeSceneId, cache }, useMapStore.getState().map), personagem, aplicarItens, mochilaNaFicha)
+      : inventarioDoMestre(hostWorldOf({ adventure, activeSceneId, cache }, useMapStore.getState().map), personagem, aplicarItens, mochilaNaFicha, { abrirNoEditor: abrirArmaNoEditor, naLuta: fichaNaLuta })
   // Antes da migração, com o boneco dono, o Salvar leva a ele as vagas que a edição pôs na mochila (`salvarComAsVagasNoBoneco`).
   const salvarFicha = doMestre?.salvar ?? ((salvo: Personagem) => useAdventureStore.getState().salvarPersonagem(salvo))
 
@@ -186,11 +207,13 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
           inventario={doMestre?.inventario}
           // Itens refeitos (E4b): o "Armas por batalha" da aba "Mochila e equipamento", na hora, com o histórico da ficha.
           onLimiteDeArmas={(limite) => void useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => comLimiteDeArmas(atual, limite))}
+          penteDoEquipado={doMestre?.pente}
           mochilaDoBoneco={doMestre?.mochilaDoBoneco}
         />
       )}
       {/* Depois da ficha: abre por cima dela. */}
       {livroAberto && sistema !== undefined && <LivroDeRegrasDialog sistema={sistema} onClose={() => useRpgStore.getState().fecharLivro()} />}
+      {armaNoEditor !== null && <EditorDaArmaDoAcervo itemId={armaNoEditor} onClose={fecharOEditorDaArma} />}
     </>
   )
 }
@@ -232,7 +255,7 @@ function EditorDaBiblioteca({ abertura, biblioteca }: { abertura: AberturaDoEdit
  * há chão onde largar; o "Tirar" tira a vaga inteira da ficha, pelo funil da
  * aventura (`ajustarPersonagem`), o mesmo do ajuste rápido.
  */
-function mochilaDaFichaSemBoneco(personagem: Personagem) {
+function mochilaDaFichaSemBoneco(personagem: Personagem, ficha: PenteNaFichaDoMestre): InventarioDoMestre {
   const tirar = (item: CarriedItem, fechar: () => void) => {
     const ok = useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => fichaSemAVaga(atual, item))
     if (ok) fechar()
@@ -241,7 +264,8 @@ function mochilaDaFichaSemBoneco(personagem: Personagem) {
   // O "Editar" e o "+ Adicionar" do mestre (pedido de 16/11/2026): direto na ficha, a dona da mochila.
   const gravar = (mochila: CarriedItem[]) => useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => fichaComMochila(atual, mochila, moedasDe(atual)))
   const mochilaDeAgora = () => personagensAtivos(useAdventureStore.getState()).find((candidato) => candidato.id === personagem.id)?.mochila ?? []
-  return (
+  const pente = acoesDoPenteDoMestre({ dono: personagem.nome || 'o personagem', gravar, mochilaDeAgora }, ficha)
+  const inventario = (
     <MochilaDoMestre
       itens={personagem.mochila ?? []}
       dono={personagem.nome || 'o personagem'}
@@ -255,6 +279,64 @@ function mochilaDaFichaSemBoneco(personagem: Personagem) {
           Tirar
         </button>
       )}
+    />
+  )
+  return { inventario, pente }
+}
+
+/** Da janela, para o cartão da arma equipada: onde o "Editar arma" abre e se a ficha está numa batalha ligada. */
+interface PenteNaFichaDoMestre {
+  abrirNoEditor: (itemId: string) => void
+  naLuta: boolean
+}
+
+const RECARGA_NA_LUTA = 'Na batalha, a recarga é pela vez, com o tempo de recarga da arma.'
+
+/**
+ * O PENTE DA ARMA EQUIPADA NA FICHA DO MESTRE (pedido de 26/11/2026): o Recarregar fora da batalha e o
+ * ajuste à mão pelo mesmo caminho da grade da mochila (`penteDoMestre.ts`, a mesma gravação dela), e o
+ * "Editar arma" no editor do item do Acervo. O Acervo é lido na hora de cada clique.
+ */
+function acoesDoPenteDoMestre(mochila: MochilaQueGrava, ficha: PenteNaFichaDoMestre): AcoesDoPente {
+  const acervo = () => acervoDaMochila(useAcervoDeItensStore.getState().itens)
+  return {
+    recarregar: (arma, balaVagaId) => recarregarPeloMestre(mochila, acervo(), arma.id, balaVagaId),
+    motivo: ficha.naLuta ? RECARGA_NA_LUTA : null,
+    ajustar: (arma, n) => ajustarPentePeloMestre(mochila, acervo(), arma.id, n),
+    editar: (arma) => {
+      const doAcervo = useAcervoDeItensStore.getState()
+      if (!doAcervo.podeGravar) {
+        lerOAcervoSeFaltar()
+        return 'O Acervo de itens ainda está sendo lido: tente de novo em um instante.'
+      }
+      const itemId = arma.itemId
+      if (itemId === undefined || !doAcervo.itens.some((item) => item.id === itemId)) return `${arma.nome} não está no Acervo de itens: crie a arma lá para editar a regra dela.`
+      ficha.abrirNoEditor(itemId)
+      return null
+    },
+  }
+}
+
+/** O "Editar arma" da ficha do mestre: o editor do item do Acervo (o mesmo da página Itens do livro). A arma apagada fecha a janela. */
+function EditorDaArmaDoAcervo({ itemId, onClose }: { itemId: string; onClose: () => void }) {
+  const item = useAcervoDeItensStore((state) => state.itens.find((candidato) => candidato.id === itemId))
+  const categorias = useAcervoDeItensStore((state) => state.categorias)
+  useEffect(() => {
+    if (item === undefined) onClose()
+  }, [item, onClose])
+  if (item === undefined) return null
+  return (
+    <ItemDoCatalogoDialog
+      key={item.id}
+      item={item}
+      novo={false}
+      categorias={categorias}
+      alvos={[]}
+      onSalvar={(salvo) => useAcervoDeItensStore.getState().salvarItem(salvo)}
+      onApagar={() => useAcervoDeItensStore.getState().apagarItem(item.id)}
+      onClose={onClose}
+      imagemDoBlob={imagemDoItemDoBlob}
+      escolherImagem={escolherImagemDoItem}
     />
   )
 }
@@ -320,6 +402,8 @@ interface InventarioDoMestre {
   mochilaDoBoneco?: readonly CarriedItem[]
   /** Com `mochilaDoBoneco`: o Salvar da ficha que leva a ele as vagas novas da edição (`salvarComAsVagasNoBoneco`). */
   salvar?: (salvo: Personagem) => boolean
+  /** O pente da arma equipada no cartão do alto da aba (Recarregar, ajuste à mão, "Editar arma"). Ausente = só lê. */
+  pente?: AcoesDoPente
 }
 
 /**
@@ -363,10 +447,16 @@ function salvarComAsVagasNoBoneco(salvo: Personagem, dono: string, mochilaDoBone
  * `mochilaNaFicha` = a aventura já passou a mochila para a ficha; falso = o
  * token ligado é o dono, e a cópia da ficha não vale.
  */
-function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarItens: ((change: AppliedItems) => boolean) | undefined, mochilaNaFicha: boolean): InventarioDoMestre {
+function inventarioDoMestre(
+  world: HostWorld,
+  personagem: Personagem,
+  aplicarItens: ((change: AppliedItems) => boolean) | undefined,
+  mochilaNaFicha: boolean,
+  ficha: PenteNaFichaDoMestre,
+): InventarioDoMestre {
   const personagemId = personagem.id
   const achado = tokenDoPersonagem(world, personagemId)
-  if (achado === null) return { inventario: mochilaDaFichaSemBoneco(personagem) }
+  if (achado === null) return mochilaDaFichaSemBoneco(personagem, ficha)
   const { token, sceneId } = achado
   const dono = token.name || 'o token'
   // UMA MOCHILA SÓ (pedido de 21/11/2026, a Tocha do Hector): depois da migração a FICHA é a dona — a grade lê e grava
@@ -453,5 +543,7 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
       )}
     />
   )
-  return { inventario, ...doBoneco }
+  // O cartão da arma equipada grava pelo mesmo caminho da grade (a ficha, ou o boneco dono antes da migração).
+  const pente = acoesDoPenteDoMestre({ dono, gravar, mochilaDeAgora }, ficha)
+  return { inventario, pente, ...doBoneco }
 }

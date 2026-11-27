@@ -214,6 +214,10 @@ function filtroDaVistaDeBaixo(altura: AlturaDoPiso): string {
 const AWAY_KEPT_HINT = 'Ficam guardados no Caderno do Painel.'
 /** O aviso do "Me avise quando der". */
 const PASSAGE_OPENED_TEXT = 'A passagem que você marcou abriu: já dá para passar.'
+/** O Recarregar da arma equipada na ficha: na batalha a recarga é pela vez (a mesma frase da recusa do host). */
+const RECARGA_NA_BATALHA = 'Na batalha, recarregue pela sua vez.'
+/** O Recarregar da ficha cujo boneco não está neste mapa (a mochila não veio). */
+const RECARGA_SEM_A_FICHA = 'A ficha não está neste mapa: recarregue quando ela estiver.'
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código da mesa online incorreto. Confira com o mestre e tente de novo.',
@@ -2776,6 +2780,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onDarItem={(itemId, toTokenId) => void connection.giveItem(itemId, toTokenId)}
             onAcenderItem={(tokenId, itemId, acesa) => void connection.acenderItem(tokenId, itemId, acesa)}
             onUsarItem={(tokenId, vagaId, alvoTokenId) => connection.usarItemFora(tokenId, vagaId, alvoTokenId)}
+            // O Recarregar do cartão da arma equipada: o mesmo pedido do inventário (o host recusa na batalha e confere o resto).
+            onRecarregarArma={(tokenId, armaVagaId, balaVagaId) =>
+              tokenId === undefined ? Promise.resolve(RECARGA_SEM_A_FICHA) : connection.pedirNaMochila({ type: 'mochila.recarregar', tokenId, armaVagaId, balaVagaId })
+            }
+            motivoDoRecarregar={state.batalhaEstado !== undefined ? RECARGA_NA_BATALHA : null}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".

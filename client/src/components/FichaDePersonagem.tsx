@@ -11,6 +11,7 @@ import { CampoQueColaImagem } from './CampoQueColaImagem'
 import type { LivroDaFicha } from './EscolherDoLivro'
 import type { QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
 import { FichaAbas } from './FichaAbas'
+import type { AcoesDoPente } from './EquipamentoDaFicha'
 import { ABA_DOS_ITENS } from '../lib/livros/coisaERegra'
 import { ABA_DAS_ARMAS } from '../lib/batalha/leituraDaFicha'
 import { ImagemOuIniciais } from './FichaPecas'
@@ -79,6 +80,8 @@ export interface FichaDePersonagemProps {
   onCaracteristicas?: (lista: Caracteristica[]) => void
   /** Itens refeitos (E4b): o "Armas por batalha" da aba "Mochila e equipamento", gravado na hora. Só o mestre. Ausente = só lê. */
   onLimiteDeArmas?: (limite: number | null) => void
+  /** O pente da arma equipada (Recarregar fora da batalha; do mestre, o ajuste à mão e o "Editar arma"). Ausente = só lê. */
+  penteDoEquipado?: AcoesDoPente
 }
 
 export function FichaDePersonagem({
@@ -99,6 +102,7 @@ export function FichaDePersonagem({
   outrasFichas,
   onCaracteristicas,
   onLimiteDeArmas,
+  penteDoEquipado,
 }: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
   // Fase 5 (um inventário só): com a aba Itens no sistema, a mochila mora DENTRO dela; sem a aba, fica sob o bloco, como antes.
@@ -154,6 +158,7 @@ export function FichaDePersonagem({
           mochilaDoBoneco={mochilaDoBoneco}
           mochilaDaEdicao={mochilaDaEdicao}
           onLimiteDeArmas={onLimiteDeArmas}
+          penteDoEquipado={penteDoEquipado}
         />
         )}
       </div>

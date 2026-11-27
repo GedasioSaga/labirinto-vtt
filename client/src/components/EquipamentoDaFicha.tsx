@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ESCOLHA_DAS_ARMAS, LIMITE_DE_ARMAS_MAX, limiteDeArmas } from '../lib/batalha/leituraDaFicha'
 import { quantidadeDe } from '../lib/items'
 import { acervoDaMochila } from '../lib/mochila/acervoDaMochila'
-import { armasEquipadas, penteDaArma, tipoDaVaga } from '../lib/mochila/armaNaMochila'
+import { armasEquipadas, balasParaOPente, penteDaArma, tipoDaVaga, type AcervoDaMochila } from '../lib/mochila/armaNaMochila'
 import { bonusDaRoupa, bonusDoEquipamento, equipamentoDaVaga, textoDoBonusDaRoupa, type EquipamentoNoAcervo } from '../lib/mochila/bonusDaRoupa'
 import type { TipoDoItem } from '../lib/itens/modelo'
 import type { Personagem } from '../lib/personagem'
@@ -24,12 +24,31 @@ export function comLimiteDeArmas(personagem: Personagem, limite: number | null):
   return { ...personagem, escolhas: limite === null ? outras : { ...outras, [ESCOLHA_DAS_ARMAS]: textoDoLimite(limite) } }
 }
 
+/**
+ * O PENTE DA ARMA EQUIPADA, FORA DA BATALHA (pedido de 26/11/2026: "e se eu quiser editar ou o usuário
+ * quiser recarregar arma antes de uma batalha?"). Quem monta é quem grava: o mestre na ficha dele
+ * (`penteDoMestre.ts`), o jogador pelo pedido `mochila.recarregar` (o host confere), o site do Lobby pelas
+ * mudanças da mochila (`pedidoDeRecarregar`). Na batalha, a recarga é a da vez, com o tempo da arma.
+ */
+export interface AcoesDoPente {
+  /** Recarrega da pilha `balaVagaId` da mochila, na hora e sem gastar ação. O motivo de não ter recarregado, ou `null`. */
+  recarregar: (arma: CarriedItem, balaVagaId: string) => string | null | Promise<string | null>
+  /** Por que o Recarregar fica desligado agora (na batalha, sem conexão); `null` ou ausente = pode. */
+  motivo?: string | null
+  /** SÓ O MESTRE: o pente à mão, de 0 à capacidade, sem mexer na mochila. O motivo de não ter ajustado, ou `null`. */
+  ajustar?: (arma: CarriedItem, n: number) => string | null
+  /** SÓ O MESTRE: abre a arma no editor do item do Acervo. O motivo de não ter aberto, ou `null`. */
+  editar?: (arma: CarriedItem) => string | null
+}
+
 export interface EquipamentoDaFichaProps {
   personagem: Personagem
   /** A mochila do dono, a mesma que a grade embaixo mostra. */
   itens: readonly CarriedItem[]
   /** Muda o "Armas por batalha" (o mestre, na hora; na edição, o rascunho). Ausente = só lê. */
   onLimite?: (limite: number | null) => void
+  /** O Recarregar (e, do mestre, o ajuste à mão e o "Editar arma") no cartão da arma de pente. Ausente = só lê. */
+  pente?: AcoesDoPente
 }
 
 /**
@@ -38,7 +57,7 @@ export interface EquipamentoDaFichaProps {
  * equipadas, as vagas de arma livres e a roupa vestida. A grade da mochila vem embaixo (`FichaAbas`),
  * com o Equipar, o Guardar e o Recarregar de cada vaga (`MochilaDoMestre`).
  */
-export function EquipamentoDaFicha({ personagem, itens, onLimite }: EquipamentoDaFichaProps) {
+export function EquipamentoDaFicha({ personagem, itens, onLimite, pente: acoesDoPente }: EquipamentoDaFichaProps) {
   // O Acervo por um módulo puro (o site do Lobby, fora do Tauri, fica com a lista vazia).
   const doAcervo = useAcervoDaFichaStore((state) => state.itens)
   const acervo = useMemo(() => acervoDaMochila(doAcervo), [doAcervo])
@@ -88,13 +107,20 @@ export function EquipamentoDaFicha({ personagem, itens, onLimite }: EquipamentoD
       </div>
       <h4 className="eq-ficha__subtit">Equipado</h4>
       <ul className="eq-ficha__vagas" aria-label="Armas e roupa em uso">
-        {armas.map((vaga) => (
-          <li key={vaga.id} className="eq-vaga">
-            <span className="eq-vaga__parte">Arma</span>
-            <strong className="eq-vaga__nome">{vaga.nome}</strong>
-            <span className="eq-vaga__det">{detalheDaArma(vaga, acervo)}</span>
-          </li>
-        ))}
+        {armas.map((vaga) => {
+          const pente = penteDaArma(vaga, acervo)
+          return (
+            <li key={vaga.id} className="eq-vaga">
+              <span className="eq-vaga__parte">Arma</span>
+              <strong className="eq-vaga__nome">{vaga.nome}</strong>
+              {pente !== null && acoesDoPente !== undefined ? (
+                <PenteDoEquipado arma={vaga} capacidade={pente.capacidade} mochila={itens} acervo={acervo} acoes={acoesDoPente} />
+              ) : (
+                <span className="eq-vaga__det">{detalheDaArma(vaga, acervo)}</span>
+              )}
+            </li>
+          )
+        })}
         {Array.from({ length: livres }, (_, i) => (
           <li key={`livre-${i}`} className="eq-vaga eq-vaga--livre">
             <span className="eq-vaga__parte">Arma</span>
@@ -128,6 +154,217 @@ export function EquipamentoDaFicha({ personagem, itens, onLimite }: EquipamentoD
 function detalheDaRoupa(vaga: CarriedItem, roupaNoAcervo: EquipamentoNoAcervo): string {
   const equipamento = equipamentoDaVaga(vaga, roupaNoAcervo)
   return equipamento === undefined ? '' : textoDoBonusDaRoupa(bonusDoEquipamento(equipamento))
+}
+
+const FALHOU_O_PEDIDO = 'Não deu para pedir agora: confira a conexão e tente de novo.'
+
+/** "6" vira 6; vazio ou torto = `null`. */
+function inteiroDoTexto(texto: string): number | null {
+  const limpo = texto.trim()
+  return /^\d{1,6}$/.test(limpo) ? Number.parseInt(limpo, 10) : null
+}
+
+/** O Esc dentro do ajuste fecha só ele: sem isto o mesmo Esc fecharia a ficha inteira. */
+function escFechaSo(fechar: () => void): (event: KeyboardEvent<HTMLElement>) => void {
+  return (event) => {
+    if (event.key !== 'Escape') return
+    event.stopPropagation()
+    fechar()
+  }
+}
+
+/**
+ * O pente do cartão da arma equipada: "Pente 4 de 6 · Bala de Prata", a bala (com mais de uma que serve),
+ * o Recarregar e, do mestre, o número que abre o ajuste à mão e o "Editar arma". O Recarregar desligado
+ * diz o porquê na linha de baixo (sem bala na mochila, pente cheio, na batalha).
+ */
+function PenteDoEquipado({ arma, capacidade, mochila, acervo, acoes }: { arma: CarriedItem; capacidade: number; mochila: readonly CarriedItem[]; acervo: AcervoDaMochila; acoes: AcoesDoPente }) {
+  const idBase = useId()
+  const numeroRef = useRef<HTMLButtonElement>(null)
+  const [escolhida, setEscolhida] = useState<string | null>(null)
+  const [ajustando, setAjustando] = useState(false)
+  const [esperando, setEsperando] = useState(false)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const opcoes = balasParaOPente(mochila, arma.id, acervo)
+  const carregado = arma.pente
+  const noPente = carregado?.n ?? 0
+  const bala = opcoes.find((vaga) => vaga.id === escolhida) ?? opcoes.find((vaga) => vaga.itemId === carregado?.balaId) ?? opcoes[0]
+  // Bala de outro tipo com o pente carregado: o Recarregar devolve as de antes à mochila e põe esta (um tipo por vez).
+  const troca = bala !== undefined && carregado !== undefined && carregado.n > 0 && bala.itemId !== carregado.balaId
+  const cheio = bala !== undefined && !troca && noPente >= capacidade
+  const motivo = acoes.motivo ?? (bala === undefined ? `Nenhuma bala que ${arma.nome} aceita na mochila.` : cheio ? 'O pente já está cheio.' : null)
+  // A bala sem item no Acervo (o jogador, o site) tem o nome da pilha dela na mochila; sem pilha, fica sem nome.
+  const nomeNoPente = carregado === undefined || carregado.n < 1 ? null : (acervo.paraDar(carregado.balaId)?.nome ?? mochila.find((vaga) => vaga.itemId === carregado.balaId)?.nome ?? null)
+  const textoDoPente = `Pente ${noPente} de ${capacidade}`
+  const dica = aviso ?? motivo
+
+  const recarregar = () => {
+    if (bala === undefined || motivo !== null || esperando) return
+    setAviso(null)
+    const resultado = acoes.recarregar(arma, bala.id)
+    if (!(resultado instanceof Promise)) {
+      setAviso(resultado)
+      return
+    }
+    setEsperando(true)
+    resultado.then(
+      (recusa) => {
+        setAviso(recusa)
+        setEsperando(false)
+      },
+      () => {
+        setAviso(FALHOU_O_PEDIDO)
+        setEsperando(false)
+      },
+    )
+  }
+  const fecharOAjuste = () => {
+    setAjustando(false)
+    requestAnimationFrame(() => numeroRef.current?.focus())
+  }
+  const editar = acoes.editar
+  const ajustar = acoes.ajustar
+
+  return (
+    <div className="eq-vaga__pente">
+      <span className="eq-vaga__det">
+        {ajustar !== undefined ? (
+          <button
+            ref={numeroRef}
+            type="button"
+            className="eq-vaga__numero"
+            aria-expanded={ajustando}
+            aria-label={`${textoDoPente}: ajustar à mão`}
+            title="Ajustar o pente à mão (a mochila não muda)"
+            onClick={() => setAjustando((aberto) => !aberto)}
+          >
+            {textoDoPente}
+          </button>
+        ) : (
+          textoDoPente
+        )}
+        {nomeNoPente !== null && ` · ${nomeNoPente}`}
+      </span>
+      {ajustando && ajustar !== undefined && (
+        <AjusteDoPente
+          arma={arma}
+          capacidade={capacidade}
+          inicial={noPente}
+          onPor={(n) => {
+            const recusa = ajustar(arma, n)
+            if (recusa === null) fecharOAjuste()
+            return recusa
+          }}
+          onCancelar={fecharOAjuste}
+        />
+      )}
+      <div className="eq-vaga__acoes">
+        {opcoes.length > 1 && (
+          <select className="lb-input eq-vaga__bala" aria-label={`Bala para o pente de ${arma.nome}`} value={bala?.id ?? ''} onChange={(event) => setEscolhida(event.target.value)}>
+            {opcoes.map((vaga) => (
+              <option key={vaga.id} value={vaga.id}>
+                {vaga.nome} ({quantidadeDe(vaga).toLocaleString('pt-BR')})
+              </option>
+            ))}
+          </select>
+        )}
+        <button
+          type="button"
+          className="lb-btn lb-btn--compact"
+          aria-describedby={dica !== null ? `${idBase}-dica` : undefined}
+          aria-busy={esperando}
+          disabled={motivo !== null || esperando}
+          onClick={recarregar}
+        >
+          {esperando ? 'Recarregando…' : troca ? `Trocar por ${bala.nome}` : 'Recarregar'}
+        </button>
+        {editar !== undefined && (
+          <button
+            type="button"
+            className="lb-btn lb-btn--ghost lb-btn--compact"
+            onClick={() => setAviso(editar(arma))}
+          >
+            Editar arma
+          </button>
+        )}
+      </div>
+      {dica !== null && (
+        <p className="eq-vaga__dica" id={`${idBase}-dica`} aria-live="polite">
+          {dica}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** O pente à mão (só o mestre): − n +, de 0 à capacidade; Enter põe, Esc cancela. `onPor` devolve o motivo de não ter posto, ou `null`. */
+function AjusteDoPente({ arma, capacidade, inicial, onPor, onCancelar }: { arma: CarriedItem; capacidade: number; inicial: number; onPor: (n: number) => string | null; onCancelar: () => void }) {
+  const idBase = useId()
+  const [texto, setTexto] = useState(String(inicial))
+  const [erro, setErro] = useState<string | null>(null)
+  const atual = inteiroDoTexto(texto)
+  const passo = (delta: number) => {
+    setErro(null)
+    setTexto(String(Math.min(Math.max((atual ?? inicial) + delta, 0), capacidade)))
+  }
+  const por = () => {
+    if (atual === null || atual > capacidade) {
+      setErro(`Diga quantas, de 0 a ${capacidade}.`)
+      return
+    }
+    setErro(onPor(atual))
+  }
+  return (
+    <div className="eq-vaga__ajuste" role="group" aria-label={`Pente de ${arma.nome} à mão`} onKeyDown={escFechaSo(onCancelar)}>
+      <div className="eq-vaga__linha">
+        <span className="eq-ficha__passo">
+          <button type="button" aria-label="Uma bala a menos" disabled={(atual ?? inicial) <= 0} onClick={() => passo(-1)}>
+            −
+          </button>
+          <input
+            id={`${idBase}-n`}
+            className="eq-vaga__campo"
+            inputMode="numeric"
+            autoComplete="off"
+            aria-label={`Balas no pente de ${arma.nome}, de 0 a ${capacidade}`}
+            aria-invalid={erro !== null}
+            aria-describedby={erro !== null ? `${idBase}-erro` : undefined}
+            value={texto}
+            autoFocus
+            onFocus={(event) => event.currentTarget.select()}
+            onChange={(event) => {
+              setErro(null)
+              setTexto(event.target.value)
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              por()
+            }}
+          />
+          <button type="button" aria-label="Uma bala a mais" disabled={(atual ?? inicial) >= capacidade} onClick={() => passo(1)}>
+            +
+          </button>
+        </span>
+        <span className="eq-vaga__det">de {capacidade}</span>
+      </div>
+      <div className="eq-vaga__acoes">
+        <button type="button" className="lb-btn lb-btn--primary lb-btn--compact" onClick={por}>
+          Pôr no pente
+        </button>
+        <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={onCancelar}>
+          Cancelar
+        </button>
+      </div>
+      {erro !== null ? (
+        <p className="eq-vaga__dica eq-vaga__dica--erro" id={`${idBase}-erro`} role="alert">
+          {erro}
+        </p>
+      ) : (
+        <p className="eq-vaga__dica">Correção de mesa: a mochila não muda.</p>
+      )}
+    </div>
+  )
 }
 
 /** "Pente 4 de 6", "x2" (a pilha de granadas) ou nada. */

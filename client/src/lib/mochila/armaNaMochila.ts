@@ -192,6 +192,23 @@ export function recarregarForaDaBatalha(mochila: readonly CarriedItem[], armaVag
 }
 
 /**
+ * O PENTE À MÃO (correção de mesa, só o mestre): o pente da arma `armaVagaId` fica com `n` balas, de 0
+ * à capacidade, sem tirar nem pôr nada na mochila. A bala é a que o pente já tem; vazio, a primeira que
+ * a arma aceita (sem lista, a primeira munição da mochila). 0 = sem o campo, como o último tiro deixa.
+ */
+export function mochilaComPenteAjustado(mochila: readonly CarriedItem[], armaVagaId: string, n: number, acervo: Pick<AcervoDaMochila, 'item'>): CarriedItem[] | Recusa {
+  const arma = mochila.find((item) => item.id === armaVagaId)
+  if (arma === undefined) return { recusa: SAIU_DA_MOCHILA }
+  const pente = penteDaArma(arma, acervo)
+  if (pente === null) return { recusa: `${arma.nome} não tem pente: diga no Acervo quantas balas cabem.` }
+  if (!Number.isInteger(n) || n < 0 || n > pente.capacidade) return { recusa: `O pente de ${arma.nome} vai de 0 a ${pente.capacidade}.` }
+  if (n === 0) return mochila.map((item) => (item === arma ? semPente(item) : item))
+  const balaId = arma.pente?.balaId ?? pente.aceita[0] ?? balasParaOPente(mochila, armaVagaId, acervo)[0]?.itemId
+  if (balaId === undefined) return { recusa: `Diga no Acervo que bala ${arma.nome} aceita: sem ela, o pente não sabe o que leva.` }
+  return mochila.map((item) => (item === arma ? { ...item, pente: { balaId, n } } : item))
+}
+
+/**
  * O DESFAZER de uma mudança que mexeu em várias vagas (Recarregar, Equipar, Dar): cada vaga que
  * mudou entre `antes` e `depois` volta a ser a de `antes`, sobre a mochila de AGORA (o resto do que
  * mudou depois fica). Vaga que nasceu na mudança sai; a que sumiu volta no fim.

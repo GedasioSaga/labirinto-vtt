@@ -117,6 +117,106 @@
   overflow-wrap: anywhere;
 }
 
+/* O pente da arma equipada (26/11/2026): o Recarregar fora da batalha e, do mestre, o ajuste à mão e o "Editar arma". */
+.eq-vaga__pente,
+.eq-vaga__ajuste {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.eq-vaga__ajuste {
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--lb-gr-filete-forte, rgba(255, 255, 255, 0.18));
+}
+
+.eq-vaga__acoes,
+.eq-vaga__linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.eq-vaga__acoes {
+  margin-top: 2px;
+}
+
+/* O número do pente é o botão do ajuste (só o mestre): parece texto, com o sublinhado pontilhado de "toque aqui". */
+.eq-vaga__numero {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color var(--lb-motion-fast, 120ms) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .eq-vaga__numero:hover {
+    color: var(--lb-color-parchment);
+  }
+}
+
+.eq-vaga__numero:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.eq-vaga__numero[aria-expanded='true'] {
+  color: var(--lb-color-parchment);
+  text-decoration-style: solid;
+}
+
+/* A escolha da bala na altura dos botões compactos do cartão (o lb-input de 38px sobrava no cartão estreito). */
+.eq-vaga__bala {
+  max-width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+}
+
+.eq-vaga__campo {
+  width: 4ch;
+  height: 30px;
+  padding: 0 2px;
+  border: 0;
+  border-inline: 1px solid var(--lb-gr-filete-forte, rgba(255, 255, 255, 0.18));
+  background: transparent;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.eq-vaga__campo:focus-visible {
+  outline: none;
+  box-shadow: inset var(--lb-shadow-focus);
+}
+
+.eq-vaga__campo[aria-invalid='true'] {
+  color: var(--lb-color-ember);
+}
+
+.eq-vaga__dica {
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-xs, 0.75rem);
+  overflow-wrap: anywhere;
+}
+
+.eq-vaga__dica--erro {
+  color: var(--lb-color-ember);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .eq-ficha__passo > button:active:not(:disabled) {
     transform: none;

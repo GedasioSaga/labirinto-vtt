@@ -2,6 +2,8 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProper
 import { aplicarAjuste, comAjustes, type Ajuste } from '../../lib/ajusteDaFicha'
 import { alvoDoCaminho, quemEscreveAMudanca } from '../../lib/nuvem/caminho'
 import { diferencas } from '../../lib/nuvem/diferencas'
+import { ehRecusa } from '../../lib/mochila/armaNaMochila'
+import { pedidoDeRecarregar } from '../../lib/nuvem/mochilaDoJogador'
 import type { Json } from '../../lib/nuvem/json'
 import type { Mudanca } from '../../lib/nuvem/tipos'
 import type { Personagem } from '../../lib/personagem'
@@ -37,6 +39,8 @@ const ABAS: readonly { id: AbaDaFicha; nome: string }[] = [
   { id: 'historico', nome: 'Histórico' },
 ]
 const SEM_IMAGEM_PELO_LOBBY = 'Trocar a imagem pelo Lobby ainda não dá: peça ao mestre para trocar no app.'
+/** A mesma frase da aba Mochila sem conexão. */
+const SEM_INTERNET_NA_MOCHILA = 'Sem internet: volta quando a conexão voltar.'
 const IMAGEM_FICOU_DE_FORA = 'A imagem nova não foi enviada: trocar a imagem pelo Lobby ainda não dá (peça ao mestre para trocar no app). O resto foi salvo.'
 
 /** O cartão (e os subcartões dele) sem a imagem. */
@@ -317,6 +321,18 @@ function FichaNoPlayer({ campanha, ficha, aoFechar }: { campanha: EstadoDaCampan
     return { ok: true, nada: false }
   }
 
+  /**
+   * O Recarregar do cartão da arma equipada: o mesmo pedido do Recarregar da aba Mochila (`pedidoDeRecarregar`,
+   * a pilha desce e o pente sobe no mesmo grupo). O site não tem batalha: fora dela, sempre.
+   */
+  function recarregarArma(armaVagaId: string, balaVagaId: string): Promise<string | null> {
+    const pedido = pedidoDeRecarregar(ficha.doc, papel, armaVagaId, balaVagaId, `vaga_${crypto.randomUUID()}`)
+    if (ehRecusa(pedido)) return Promise.resolve(pedido.recusa)
+    const baseRev = revDeAgora(site)
+    if (baseRev === null) return Promise.resolve(SEM_INTERNET_NA_MOCHILA)
+    return enviarMudancas(site, pedido.mudancas, baseRev).then((resultado) => (resultado.ok ? null : textoDaFalha(resultado)))
+  }
+
   function ajustar(personagemId: string, ajuste: Ajuste): boolean {
     if (!emDia) return false
     const baseRev = revDeAgora(site)
@@ -358,8 +374,10 @@ function FichaNoPlayer({ campanha, ficha, aoFechar }: { campanha: EstadoDaCampan
         onClose={aoFechar}
         escolherImagem={() => Promise.reject(new Error(SEM_IMAGEM_PELO_LOBBY))}
         inventarioDe={() => inventario}
-        // No "ver como" a ficha do jogador abre como a de um colega: nada de Editar.
+        // No "ver como" a ficha do jogador abre como a de um colega: nada de Editar (nem de Recarregar).
         somenteLeitura={!ficha.ehMinha || soLeitura !== null}
+        onRecarregarArma={(_tokenId, armaVagaId, balaVagaId) => recarregarArma(armaVagaId, balaVagaId)}
+        motivoDoRecarregar={emDia ? null : SEM_INTERNET_NA_MOCHILA}
         // Decisão 1 do construtor de mecânicas: o mestre monta a mecânica que vale; o dono monta
         // a proposta, que vai ao mestre no Salvar (caminho `mecanicaProposta`, lib/nuvem/caminho.ts).
         quemEditaAMecanica={papel === 'mestre' ? 'mestre' : 'dono'}

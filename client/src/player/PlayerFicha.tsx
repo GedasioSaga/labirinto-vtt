@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import type { LivroDaFicha } from '../components/EscolherDoLivro'
 import type { QuemEditaAMecanica } from '../components/batalha/MecanicaDaTecnica'
 import { FichaDoSistema } from '../components/dbt/registroDeFichas'
+import type { AcoesDoPente } from '../components/EquipamentoDaFicha'
 import { InventarioDaFicha } from '../components/InventarioDaFicha'
 import { UsarItemFora } from '../components/UsarItemFora'
 import { LivroDeRegras } from '../components/LivroDeRegras'
@@ -62,6 +63,15 @@ export interface PlayerFichaProps {
   onAcenderItem?: (tokenId: string, itemId: string, acesa: boolean) => void
   /** Fase 8: o "Usar" fora da batalha do item com efeito, da ficha `tokenId` na ficha `alvoTokenId` (`item.usar`); o motivo da recusa, ou `null`. */
   onUsarItem?: (tokenId: string, vagaId: string, alvoTokenId: string) => Promise<string | null>
+  /**
+   * O RECARREGAR da arma equipada, fora da batalha (o cartão do alto da aba "Mochila e equipamento"): a
+   * ficha (token) dona da mochila (`InventarioDoJogador.tokenId`; o site do Lobby não tem), a arma e a
+   * pilha de bala. Na sala LAN é o pedido `mochila.recarregar`, que o host confere; no site, as mudanças
+   * da mochila. O motivo da recusa, ou `null`. Ausente = o cartão só lê.
+   */
+  onRecarregarArma?: (tokenId: string | undefined, armaVagaId: string, balaVagaId: string) => Promise<string | null>
+  /** Por que o Recarregar fica desligado agora (na batalha a recarga é pela vez; sem internet); ausente = pode. */
+  motivoDoRecarregar?: string | null
   /**
    * SÓ LER (o site do Lobby, na ficha de um colega): sem "Editar", sem o ajuste
    * rápido (−/+), sem "Criar" e sem "Dar a…". Ausente = como sempre (edita).
@@ -154,6 +164,8 @@ export function PlayerFicha({
   onDarItem,
   onUsarItem,
   onAcenderItem,
+  onRecarregarArma,
+  motivoDoRecarregar = null,
   somenteLeitura = false,
   aoAbrirEdicao,
   quemEditaAMecanica = 'ninguem',
@@ -259,6 +271,11 @@ export function PlayerFicha({
     return deste.length === 0 ? mostrado : comAjustes(mostrado, sistemaPronto, deste)
   }, [mostrado, sistemaPronto, ajustesPendentes])
   const inventario = mostrado === undefined ? undefined : inventarioDe?.(mostrado.id)
+  // O Recarregar do cartão da arma equipada: só o dono, na mochila que esta tela mostra.
+  const penteDoEquipado: AcoesDoPente | undefined =
+    onRecarregarArma === undefined || somenteLeitura || inventario === undefined
+      ? undefined
+      : { recarregar: (arma, balaVagaId) => onRecarregarArma(inventario.tokenId, arma.id, balaVagaId), motivo: motivoDoRecarregar }
   const ajustar =
     somenteLeitura || onAjustar === undefined || mostrado === undefined
       ? undefined
@@ -518,6 +535,7 @@ export function PlayerFicha({
                 }
                 // Na sala LAN a mochila é a do boneco, também na edição (o rascunho não a tem: `paraOFio`).
                 mochilaDoBoneco={mochilaNoBoneco ? (inventario?.itens ?? SEM_ITENS) : undefined}
+                penteDoEquipado={penteDoEquipado}
               />
             </>
           )}

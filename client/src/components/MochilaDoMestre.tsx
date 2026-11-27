@@ -3,18 +3,9 @@ import { itemParaDar } from '../lib/acervoDeItens'
 import { ITEM_DESCRICAO_MAX, ITEM_NAME_MAX_LENGTH, ITEM_QUANTIDADE_MAX, cleanItemName, mochilaComItemDoAcervo, quantidadeDe, type ItemParaDar } from '../lib/items'
 import { mochilaComAVagaEditada, mochilaSemAMudanca, precoValido, quantidadeValida, type MudancaNaVaga } from '../lib/mochila/editarVaga'
 import { acervoDaMochila } from '../lib/mochila/acervoDaMochila'
-import {
-  balasParaOPente,
-  ehRecusa,
-  equiparNaMochila,
-  guardarNaMochila,
-  mochilaDesfeita,
-  penteDaArma,
-  recarregarForaDaBatalha,
-  seEquipa,
-  type AcervoDaMochila,
-} from '../lib/mochila/armaNaMochila'
+import { balasParaOPente, ehRecusa, equiparNaMochila, guardarNaMochila, penteDaArma, seEquipa, type AcervoDaMochila } from '../lib/mochila/armaNaMochila'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
+import { gravarComDesfazerDasVagas, recarregarPeloMestre, type MochilaQueGrava } from './penteDoMestre'
 import { useToastStore } from '../stores/toastStore'
 import type { CarriedItem } from '../types/map'
 import { itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from './BuscaDoAcervoDeItens'
@@ -399,13 +390,9 @@ export function MochilaDoMestre({ itens, dono, vazio, gravar, mochilaDeAgora, ac
     return gravarComDesfazer(recebeu.mochila, recebeu.vagaId, antes, frase) ? null : 'Não deu para gravar a mochila.'
   }
 
+  const queGrava: MochilaQueGrava = { dono, gravar, mochilaDeAgora }
   /** Grava a mudança de várias vagas (Equipar, Recarregar) com o Desfazer que volta só as vagas que ela mexeu. */
-  const gravarMudanca = (antes: readonly CarriedItem[], nova: CarriedItem[], frase: string): void => {
-    if (!gravar(nova)) return
-    useToastStore.getState().push('info', frase, undefined, {
-      actions: [{ label: 'Desfazer', run: () => void gravar(mochilaDesfeita(mochilaDeAgora(), antes, nova)) }],
-    })
-  }
+  const gravarMudanca = (antes: readonly CarriedItem[], nova: CarriedItem[], frase: string): void => void gravarComDesfazerDasVagas(queGrava, antes, nova, frase)
 
   const alternarEquipado = (vaga: CarriedItem) => {
     const antes = mochilaDeAgora()
@@ -418,24 +405,8 @@ export function MochilaDoMestre({ itens, dono, vazio, gravar, mochilaDeAgora, ac
   }
 
   const recarregar = (arma: CarriedItem, balaVagaId: string) => {
-    const antes = mochilaDeAgora()
-    const bala = antes.find((vaga) => vaga.id === balaVagaId)
-    const feito = recarregarForaDaBatalha(antes, arma.id, balaVagaId, acervo, `item_${crypto.randomUUID()}`)
-    if (ehRecusa(feito)) {
-      useToastStore.getState().push('error', feito.recusa)
-      return
-    }
-    // Trocar de bala começa o pente do zero: as de antes voltaram para a mochila.
-    const penteAntes = antes.find((vaga) => vaga.id === arma.id)?.pente
-    const noPente = penteAntes !== undefined && penteAntes.balaId === bala?.itemId ? penteAntes.n : 0
-    const naMochila = bala === undefined ? 0 : quantidadeDe(bala)
-    const nomeDaBala = bala?.nome ?? 'bala'
-    const trocou = feito.devolvidas > 0 ? ` As ${feito.devolvidas.toLocaleString('pt-BR')} balas de antes voltaram para a mochila.` : ''
-    gravarMudanca(
-      antes,
-      feito.mochila,
-      `${arma.nome} recarregada: pente ${noPente} → ${noPente + feito.entraram}. ${nomeDaBala} na mochila: ${naMochila.toLocaleString('pt-BR')} → ${(naMochila - feito.entraram).toLocaleString('pt-BR')}.${trocou}`,
-    )
+    const motivo = recarregarPeloMestre(queGrava, acervo, arma.id, balaVagaId)
+    if (motivo !== null) useToastStore.getState().push('error', motivo)
   }
 
   return (

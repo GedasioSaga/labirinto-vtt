@@ -13,6 +13,7 @@ import { FichaDoSistema } from './dbt/registroDeFichas'
 import { useFonteDasArmas } from './EfeitoDaArmaCampos'
 import { FonteDaArmaContexto } from './fonteDaArma'
 import { CloseIcon } from './icons'
+import type { AcoesDoPente } from './EquipamentoDaFicha'
 import { InimigoDoTreino } from './nuvem/InimigoDoTreino'
 import './livros/anotacoes.css'
 
@@ -50,6 +51,8 @@ export interface FichaDePersonagemDialogProps {
   inventario?: ReactNode
   /** Itens refeitos (E4b): o "Armas por batalha" da aba "Mochila e equipamento", gravado na hora. Ausente = só lê. */
   onLimiteDeArmas?: (limite: number | null) => void
+  /** O pente da arma equipada: o Recarregar fora da batalha, o ajuste à mão e o "Editar arma" do mestre. Ausente = só lê. */
+  penteDoEquipado?: AcoesDoPente
   /** A mochila do token quando ELE é o dono dela (antes da migração): a edição da ficha não a troca pelo rascunho. Ausente = a ficha é a dona. */
   mochilaDoBoneco?: readonly CarriedItem[]
   /** As fichas da mesma pasta, para o "Trazer de outra ficha" das Habilidades em edição. Ausente = sem o botão. */
@@ -92,6 +95,7 @@ export function FichaDePersonagemDialog({
   onAjustar,
   inventario,
   onLimiteDeArmas,
+  penteDoEquipado,
   mochilaDoBoneco,
   outrasFichas,
 }: FichaDePersonagemDialogProps) {
@@ -315,6 +319,7 @@ export function FichaDePersonagemDialog({
               onAjustar={onAjustar}
               inventario={inventario}
               onLimiteDeArmas={onLimiteDeArmas}
+              penteDoEquipado={penteDoEquipado}
               mochilaDoBoneco={mochilaDoBoneco}
               mochilaDaEdicao={mochilaDaEdicao}
               onRevelar={(cartaoId) => onSalvar(revelarCartao(personagem, cartaoId))}
