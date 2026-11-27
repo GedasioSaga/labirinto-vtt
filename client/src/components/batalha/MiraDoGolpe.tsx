@@ -210,6 +210,17 @@ function textoDosTurnos(turnos: number | null): string {
 
 const SEM_BALAS: readonly BalaNaTela[] = []
 
+/**
+ * MUNIÇÃO: a bala com que a mira abre. Na arma que exige munição é a primeira que tem (não há "Sem bala
+ * especial"); `null` = sem bala especial. Conserto de 27/11/2026 (Bala de Prata, 72 que chegava 55): o Dano
+ * base, o Perfurante e a bala marcada abrem todos por ela; antes o Dano base abria com o da arma sem bala, e
+ * clicar na bala já marcada não refazia a conta.
+ */
+function balaAoAbrir(golpe: GolpeNaTela): BalaNaTela | null {
+  if (golpe.exigeMunicao !== true) return null
+  return (golpe.balas ?? SEM_BALAS).find((bala) => (bala.municao ?? 0) > 0) ?? null
+}
+
 /** "3 na mochila" (bala ligada à munição da mochila) ou "Qtd. 6" (o texto da ficha, só mostra); vazio = nada a dizer. */
 function quantidadeDaBala(bala: Pick<BalaNaTela, 'municao' | 'quantidade' | 'doPente'>): string {
   // "0", não "nenhuma": a mira estreita cortava a frase longa, e o zero é o que o mestre procura.
@@ -384,11 +395,14 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
   const [armaId, setArmaId] = useState<string | null>(golpe.armas?.[0]?.id ?? null)
   const armaEscolhida = golpe.armas?.find((arma) => arma.id === armaId) ?? null
   const [foco, setFoco] = useState<string | null>(() => marcados[0] ?? null)
-  const [baseTexto, setBaseTexto] = useState(golpe.dano.valor === null ? '' : String(golpe.dano.valor))
+  const [baseTexto, setBaseTexto] = useState(() => {
+    const dano = balaAoAbrir(golpe)?.dano ?? golpe.dano
+    return dano.valor === null ? '' : String(dano.valor)
+  })
   const [editados, setEditados] = useState<Readonly<Record<string, string>>>({})
   const [surpresa, setSurpresa] = useState(false)
   // Pedido de 26/11: a bala perfurante com que a mira abre (a primeira com munição) já liga o Perfurante.
-  const [perfurante, setPerfurante] = useState(() => golpe.perfurante || (golpe.exigeMunicao === true && (golpe.balas ?? SEM_BALAS).find((bala) => (bala.municao ?? 0) > 0)?.perfurante === true))
+  const [perfurante, setPerfurante] = useState(() => golpe.perfurante || balaAoAbrir(golpe)?.perfurante === true)
   // Quanto perfura: o número que a habilidade diz ("perfura 50%") ou 100 (tudo direto no HP).
   const [perfuracaoTexto, setPerfuracaoTexto] = useState(String(golpe.perfuracao ?? PERFURACAO_MAX))
   const [custoTexto, setCustoTexto] = useState(golpe.custo.tipo === 'pergunta' && golpe.custo.sugestao !== null ? String(golpe.custo.sugestao) : '')
@@ -425,7 +439,7 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
   // A bala da arma (Atacar com arma de fogo ou híbrida): `null` = sem bala especial, o dano da arma.
   const balas = golpe.balas ?? SEM_BALAS
   // MUNIÇÃO: a arma do Acervo que exige munição abre com a primeira que a mochila tem (não há "Sem bala especial").
-  const [balaId, setBalaId] = useState<string | null>(() => (golpe.exigeMunicao === true ? (balas.find((bala) => (bala.municao ?? 0) > 0)?.id ?? null) : null))
+  const [balaId, setBalaId] = useState<string | null>(() => balaAoAbrir(golpe)?.id ?? null)
   const balaEscolhida = balaId === null ? null : (balas.find((bala) => bala.id === balaId) ?? null)
   const danoAtual = balaEscolhida?.dano ?? danoDaOpcao
   const caixas = useRef<Map<string, HTMLInputElement>>(new Map())

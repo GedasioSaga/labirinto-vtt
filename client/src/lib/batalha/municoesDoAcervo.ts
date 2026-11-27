@@ -25,7 +25,7 @@ export interface TiroDoAcervo {
 }
 
 /** O que a lista precisa de cada item do Acervo (o `ItemDoCatalogo` serve: tem o tipo e os blocos da regra). */
-export interface ItemComMunicoes extends Pick<BlocosDoItem, 'ataque' | 'golpe' | 'pente' | 'bala' | 'arremesso' | 'equipamento'> {
+export interface ItemComMunicoes extends Pick<BlocosDoItem, 'ataque' | 'golpe' | 'pente' | 'bala' | 'arremesso' | 'equipamento' | 'aoAcertar'> {
   id: string
   nome: string
   municoes?: readonly string[]
@@ -39,8 +39,12 @@ export interface ItemComMunicoes extends Pick<BlocosDoItem, 'ataque' | 'golpe' |
  */
 export interface RegraNoAcervo {
   tipo?: TipoDoItem
-  /** `equipamento`: a roupa e os bônus dela (CA, Escudo), decisão 8. */
-  blocos: Pick<BlocosDoItem, 'ataque' | 'golpe' | 'pente' | 'bala' | 'arremesso' | 'equipamento'>
+  /**
+   * `equipamento`: a roupa e os bônus dela (CA, Escudo), decisão 8. `aoAcertar`: a condição, o Dano extra e o
+   * empurrão da arma e da bala (E6c). Conserto de 27/11/2026 (Bala de Prata): sem ele aqui, o Acervo vencia a
+   * `regra` da vaga e o "Ao acertar" sumia no mestre (a Cura reduzida não pegava).
+   */
+  blocos: Pick<BlocosDoItem, 'ataque' | 'golpe' | 'pente' | 'bala' | 'arremesso' | 'equipamento' | 'aoAcertar'>
 }
 
 const NENHUMA: readonly MunicaoAceita[] = []
@@ -58,6 +62,7 @@ function regraDoItem(item: ItemComMunicoes): RegraNoAcervo {
   if (item.bala !== undefined) blocos.bala = item.bala
   if (item.arremesso !== undefined) blocos.arremesso = item.arremesso
   if (item.equipamento !== undefined) blocos.equipamento = item.equipamento
+  if (item.aoAcertar !== undefined) blocos.aoAcertar = item.aoAcertar
   return item.tipo === undefined ? { blocos } : { tipo: item.tipo, blocos }
 }
 

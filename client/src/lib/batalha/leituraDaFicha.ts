@@ -7,7 +7,7 @@ import { CAMPO_DO_ATRIBUTO_DO_ATAQUE, CAMPO_DO_DANO, normalizar } from './formul
 import { municaoNaMochila, type MunicaoDaBala } from '../mochila/municao'
 import { balasParaOPente, penteDaArma } from '../mochila/armaNaMochila'
 import { quantidadeDe } from '../items'
-import type { AtaqueDoItem, RecargaDoItem } from '../itens/modelo'
+import type { AtaqueDoItem, BlocosDoItem, RecargaDoItem } from '../itens/modelo'
 import { ACERVO_DA_BATALHA, municoesDaArma, nomeNoAcervo, regraNoAcervo, tiroDaMunicao, versaoDasMunicoes, type MunicaoAceita } from './municoesDoAcervo'
 import { efeitosAoAcertar, temEfeitoAoAcertar, type EfeitosAoAcertar } from './aoAcertarDoItem'
 
@@ -550,9 +550,13 @@ export function vagaDaArma(armaId: string): string | null {
   return resto.endsWith(SUFIXO_DO_GOLPE) ? resto.slice(0, -SUFIXO_DO_GOLPE.length) : resto
 }
 
-/** O dano da bala como o tiro o lê ("+15" soma, "40" troca, "+percepcao / 2" pelo atributo). Sem o bloco, o `tiro` de antes. */
-function danoDaBala(balaId: string): string {
-  const bala = regraNoAcervo(balaId)?.blocos.bala
+/**
+ * O dano da bala como o tiro o lê ("+15" soma, "40" troca, "+percepcao / 2" pelo atributo). Sem o bloco, o `tiro` de antes.
+ * `blocos` = os da bala do pente (do Acervo, ou da vaga dela sem o Acervo): conserto de 27/11/2026, o jogador, que não vê o
+ * Acervo, atirava a Bala de Prata com o dano da arma sem ela.
+ */
+function danoDaBala(balaId: string, blocos: Pick<BlocosDoItem, 'bala'> | undefined): string {
+  const bala = blocos?.bala
   if (bala === undefined) return tiroDaMunicao(balaId)?.dano ?? ''
   if (bala.modo === 'troca') return String(bala.valor)
   if (bala.modo === 'soma') return bala.valor === 0 ? '' : `+${bala.valor}`
@@ -576,7 +580,7 @@ function balaDoPente(armaVagaId: string, pente: { balaId: string; n: number }, m
     ...(blocos?.bala?.perfurante === true ? { perfurante: true as const } : {}),
     id: `${PREFIXO_DA_MUNICAO}${pente.balaId}`,
     nome: nomeDaBala(pente.balaId, mochila),
-    dano: danoDaBala(pente.balaId),
+    dano: danoDaBala(pente.balaId, blocos),
     efeito: tiroDaMunicao(pente.balaId)?.efeito ?? '',
     quantidade: '',
     itemId: pente.balaId,

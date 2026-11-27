@@ -88,6 +88,22 @@ export function juntarEfeitos(...lista: readonly (EfeitosAoAcertar | undefined)[
   return juntos
 }
 
+/**
+ * A PRÉVIA do "Ao acertar" na mira (conserto de 27/11/2026, Bala de Prata: a condição não aparecia):
+ * "Ao acertar: Cura reduzida 50% por 1 turno", pelas mesmas peças que o golpe aplica. '' = nada a dizer.
+ */
+export function textoDoAoAcertar(efeitos: EfeitosAoAcertar | undefined): string {
+  if (efeitos === undefined) return ''
+  const partes = efeitos.condicoes.map((condicao) => {
+    const regra = condicaoDoCatalogoPeloNome(condicao.nome, [])?.regra
+    const numero = condicao.n === undefined ? '' : regra === 'cura' ? ` ${condicao.n}%` : regra === 'vida' ? ` (${condicao.n} por vez)` : ` (${condicao.n})`
+    return `${condicao.nome}${numero} ${textoDaDuracao(condicao.duracao)}`
+  })
+  if (efeitos.danoExtra > 0) partes.push(`+${efeitos.danoExtra} de dano extra`)
+  if (efeitos.empurrar > 0) partes.push(`empurra ${efeitos.empurrar} ${efeitos.empurrar === 1 ? 'casa' : 'casas'}`)
+  return partes.length === 0 ? '' : `Ao acertar: ${partes.join('; ')}`
+}
+
 /** O que o golpe guarda; `null` = nada além do dano. */
 export function aoAcertarDoGolpe(efeitos: EfeitosAoAcertar, origem: string): AoAcertarDoGolpe | null {
   if (efeitos.condicoes.length === 0 && efeitos.empurrar === 0) return null

@@ -24,6 +24,7 @@ import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/sel
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
+import { textoDoAoAcertar } from '../../lib/batalha/aoAcertarDoItem'
 import { cartoesLigados, chavesDoDono, golpesSaoOverload, type ChaveDaMecanica, type LigadasDoDono, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao, reacaoDasPecas, seloDasPecas } from '../../lib/batalha/mecanica/leitura'
 import { direcaoDaRotacao, DIRECOES, distanciaEntreFichas, pegadaDaCasa, pegadaDaFicha, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
@@ -1415,7 +1416,8 @@ export function golpesDeAtaque(
     const balas: BalaNaTela[] =
       arma === null
         ? []
-        : arma.balas.map((bala) => ({ id: bala.id, nome: bala.nome, danoTexto: bala.dano, efeito: bala.efeito, quantidade: bala.quantidade, ...municaoNaTela(bala), dano: danoCom(arma, bala) }))
+        : // Conserto de 27/11/2026 (Bala de Prata): a condição do "Ao acertar" da bala aparece na mira, junto do efeito escrito.
+          arma.balas.map((bala) => ({ id: bala.id, nome: bala.nome, danoTexto: bala.dano, efeito: [bala.efeito, textoDoAoAcertar(bala.aoAcertar)].filter((parte) => parte !== '').join(' · '), quantidade: bala.quantidade, ...municaoNaTela(bala), dano: danoCom(arma, bala) }))
     return {
       ...(selo === null ? {} : { selo }),
       // Construtor C8: a arma só de efeito ("Nada" no Soma no ataque) não dá dano; com selo, o alvo reage para fugir dele (a regra do host).
