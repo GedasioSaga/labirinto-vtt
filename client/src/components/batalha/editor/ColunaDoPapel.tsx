@@ -86,9 +86,9 @@ export function ColunaDoPapel({ cartao, mecanica, ficha, prefixo, onIr, doQue, g
               ? fraseDoTexto(cartao)
               : pedacos.map((pedaco, indice) =>
                   pedaco.linha === undefined ? (
-                    <span key={indice}>{pedaco.texto}</span>
+                    <span key={indice} title={pedaco.titulo}>{pedaco.texto}</span>
                   ) : (
-                    <a key={indice} className="lb-ed__pedaco" href={`#${ancoraDaLinha(prefixo, pedaco.linha)}`} data-cor={pedaco.cor} onClick={irPara(pedaco.linha)}>
+                    <a key={indice} className="lb-ed__pedaco" href={`#${ancoraDaLinha(prefixo, pedaco.linha)}`} data-cor={pedaco.cor} title={pedaco.titulo} onClick={irPara(pedaco.linha)}>
                       {pedaco.texto}
                     </a>
                   ),

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { ensaiarCondicao } from '../../../lib/condicoes/ensaio'
 import type { ContextoDasFrases } from '../../../lib/condicoes/frasesDaCondicao'
 import { NOMES_DOS_TIPOS_DE_DANO, TIPOS_DE_DANO, type CondicaoMontada, type PecaDaCondicaoDa, type TipoDeDano } from '../../../lib/condicoes/modelo'
 import type { ConditionSymbol } from '../../../lib/tokenConditions'
@@ -101,16 +102,15 @@ export interface BonecoDaCondicaoProps {
   condicao: CondicaoMontada
   pastilha: ConditionSymbol
   contexto: ContextoDasFrases
-  /** O motor da batalha numa mesa em memória (E5, `ensaiarCondicao`). Ausente = o boneco ainda não joga. */
+  /** O motor da batalha numa mesa em memória. Ausente = o da E5, `ensaiarCondicao` (os testes passam outro). */
   motor?: MotorDoBoneco
   /** Para os ids de cada boneco na mesma tela (o editor e o lado da lista). */
   onde: string
 }
 
-type Ensaio = { tipo: 'ok'; resultado: ResultadoDoBoneco } | { tipo: 'erro'; texto: string } | { tipo: 'semMotor' }
+type Ensaio = { tipo: 'ok'; resultado: ResultadoDoBoneco } | { tipo: 'erro'; texto: string }
 
-function ensaiar(motor: MotorDoBoneco | undefined, condicao: CondicaoMontada, ajustes: AjustesDoBoneco, contexto: ContextoDasFrases): Ensaio {
-  if (motor === undefined) return { tipo: 'semMotor' }
+function ensaiar(motor: MotorDoBoneco, condicao: CondicaoMontada, ajustes: AjustesDoBoneco, contexto: ContextoDasFrases): Ensaio {
   try {
     return { tipo: 'ok', resultado: motor(condicao, ajustes, contexto) }
   } catch (erro) {
@@ -118,7 +118,7 @@ function ensaiar(motor: MotorDoBoneco | undefined, condicao: CondicaoMontada, aj
   }
 }
 
-export function BonecoDaCondicao({ condicao, pastilha, contexto, motor, onde }: BonecoDaCondicaoProps) {
+export function BonecoDaCondicao({ condicao, pastilha, contexto, motor = ensaiarCondicao, onde }: BonecoDaCondicaoProps) {
   const [ajustes, setAjustes] = useState<AjustesDoBoneco>(AJUSTES_DO_BONECO_PADRAO)
   // O que o motor roda: a condição e os ajustes de 150 ms atrás (D12). Nasce com o de agora.
   const [pedido, setPedido] = useState({ condicao, ajustes })
@@ -182,7 +182,6 @@ export function BonecoDaCondicao({ condicao, pastilha, contexto, motor, onde }: 
           </div>
         )}
       </div>
-      {ensaio.tipo === 'semMotor' && <p className="lb-cde-nota">O boneco joga com o motor da batalha, que ainda não chegou nesta versão. Os ajustes acima já valem quando ele chegar.</p>}
       {ensaio.tipo === 'erro' && (
         <p className="lb-cde-nota lb-cde-nota--erro" role="status">
           O boneco não conseguiu jogar: {ensaio.texto}

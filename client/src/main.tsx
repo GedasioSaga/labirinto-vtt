@@ -7,6 +7,8 @@ import App from './App'
 import { EditorErrorBoundary } from './components/EditorErrorBoundary'
 import { guardarHabilidadeNoCatalogo } from './components/habilidades/guardarNoCatalogo'
 import { registrarGuardarNoCatalogo } from './components/habilidades/ponteDoCatalogo'
+// Rework das condições (E7/E8): as criadas da pasta chegam aos seletores; o import registra (não depende de outra tela importar).
+import './components/batalha/editor/pecas/condicoesDoApp'
 import { MidiaDoMestre } from './components/MidiaDoMestre'
 import { instalarDicasDoPainel } from './lib/dicaDoPainel'
 import { instalarEndireitarComAlt } from './lib/endireitarComAlt'

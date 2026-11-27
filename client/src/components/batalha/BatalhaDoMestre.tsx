@@ -555,7 +555,7 @@ function LembretesDosNpcs({ pedidos, mesa, turnos, exceto }: { pedidos: PedidosD
       continue
     }
     const passivas = passivasNaCena(personagem, mesa.sistema, turnos, carta.tokenId)
-    itens.push(...lembretesNaTela(combate.lembretes, passivas, alvosDaOrdem(mesa, turnos.cartas, carta), nomeDaFicha(mesa, carta.tokenId, carta), custosDasFormasNaTela(personagem, mesa.sistema)))
+    itens.push(...lembretesNaTela(combate.lembretes, passivas, alvosDaOrdem(mesa, turnos.cartas, carta), nomeDaFicha(mesa, carta.tokenId, carta), custosDasFormasNaTela(personagem, mesa.sistema), turnos.selos))
   }
   // R1 (lote de 01/11): a marca de atirador NPC. F2 (fatia E, resposta do Vincent): também a do jogador, que o mestre
   // pode responder por ele (quando o jogador não está); o jogador segue respondendo na tela dele.
@@ -810,7 +810,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo, comAMesa = false }: { sce
   // Tipos de habilidade F3: as passivas do NPC da vez e os lembretes dele (o mestre aplica o "a cada turno" quando quiser).
   const alvos = alvosDaOrdem(mesa, turnos.cartas, carta)
   const passivas = passivasNaCena(personagem, sistema, turnos, carta.tokenId)
-  const lembretes = lembretesNaTela(combate?.lembretes, passivas, alvos, undefined, custosDasFormasNaTela(personagem, sistema))
+  const lembretes = lembretesNaTela(combate?.lembretes, passivas, alvos, undefined, custosDasFormasNaTela(personagem, sistema), turnos.selos)
 
   return (
     <>

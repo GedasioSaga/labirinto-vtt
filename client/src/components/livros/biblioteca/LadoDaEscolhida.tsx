@@ -256,9 +256,9 @@ function PapelDaEscolhida({ cartao, pecas, frase, linhaCurta, ficha, selo }: { c
       ? frase || 'Sem efeito escrito.'
       : pedacos.map((pedaco, indice) =>
           pedaco.cor === undefined ? (
-            <span key={indice}>{pedaco.texto}</span>
+            <span key={indice} title={pedaco.titulo}>{pedaco.texto}</span>
           ) : (
-            <span key={indice} className="mu-bib-pd" data-cor={pedaco.cor}>
+            <span key={indice} className="mu-bib-pd" data-cor={pedaco.cor} title={pedaco.titulo}>
               {pedaco.texto}
             </span>
           ),

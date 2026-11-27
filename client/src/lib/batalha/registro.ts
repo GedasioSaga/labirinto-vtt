@@ -32,6 +32,7 @@ import {
 } from './combate'
 import { selosComONivel } from './contador'
 import { ehLembreteDoSangramento } from './condicoes'
+import { ehLembreteDaSaida } from './condicoesNaVez'
 import { ehLembreteDoCustoDaForma } from './custoPorTurno'
 import { ehLembreteDaPreparacao } from './preparacao'
 import { semEvoluida } from './escolhaEEvolucao'
@@ -646,6 +647,8 @@ function lembreteVale(lembrete: LembreteDaPassiva, lembradas: readonly string[],
   if (ehLembreteDoCustoDaForma(lembrete)) return true
   // S4: o do Sangramento e o da Preparação também voltam (não dependem de passiva ligada).
   if (ehLembreteDoSangramento(lembrete) || ehLembreteDaPreparacao(lembrete)) return true
+  // Rework das condições (E5/E8): o "Tentar sair" de um selo é da regra, como o do Sangramento; o Desfazer o devolve.
+  if (ehLembreteDaSaida(lembrete)) return true
   return lembrete.tipo === 'porTurno' ? ligadas.has(lembrete.cartaoId) : !ligadas.has(lembrete.cartaoId) && lembradas.includes(lembrete.chave)
 }
 

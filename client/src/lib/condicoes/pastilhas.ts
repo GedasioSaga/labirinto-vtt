@@ -106,7 +106,8 @@ function mesmaPastilha(a: PastilhasDoToken, b: PastilhasDoToken): boolean {
     a.condicoesProprias.length === b.condicoesProprias.length &&
     a.condicoesProprias.every((propria, i) => {
       const outra = b.condicoesProprias[i]
-      return propria.id === outra.id && propria.nome === outra.nome && propria.cor === outra.cor && propria.simbolo === outra.simbolo && propria.texto === outra.texto
+      // Rework das condições (E8): o desenho novo também conta; sem ele, trocar só o desenho não reenviava a pastilha ao jogador.
+      return propria.id === outra.id && propria.nome === outra.nome && propria.cor === outra.cor && propria.simbolo === outra.simbolo && propria.texto === outra.texto && propria.desenho === outra.desenho
     })
   )
 }
