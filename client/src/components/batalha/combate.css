@@ -2837,6 +2837,12 @@
   font-weight: 400;
   color: #5d5a54;
 }
+/* 27/11/2026: a condição que a bala põe no acerto (Cura reduzida): linha própria e inteira, para o mestre ler antes do tiro. */
+.bt-bala__acerto {
+  font-weight: 600;
+  color: #7a2418;
+  overflow-wrap: anywhere;
+}
 .bt-bala__dano {
   display: flex;
   align-items: baseline;

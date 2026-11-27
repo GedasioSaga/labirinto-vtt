@@ -27,13 +27,13 @@ import { lerMarca } from '../../lib/batalha/marca'
 import { textoDoAoAcertar } from '../../lib/batalha/aoAcertarDoItem'
 import { cartoesLigados, chavesDoDono, golpesSaoOverload, type ChaveDaMecanica, type LigadasDoDono, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao, reacaoDasPecas, seloDasPecas } from '../../lib/batalha/mecanica/leitura'
-import { direcaoDaRotacao, DIRECOES, distanciaEntreFichas, pegadaDaCasa, pegadaDaFicha, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
+import { direcaoDaRotacao, DIRECOES, distanciaEntreFichas, pegadaDaCasa, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
 import { alcanceDaTabela, alcanceDoCartao } from '../../lib/batalha/alcanceDoCartao'
 import { casasDaExplosao, casasDoAlcance } from '../../lib/batalha/alcance/casas'
 import type { FormaDoAlcance } from '../../lib/batalha/alcance/forma'
 import type { SeloQueMudaOAlcance } from '../../lib/batalha/alcance/condicoes'
 import { casasDaFormaDeQuemUsa, fichasNaForma, foraDasCasas, MAPA_SEM_PAREDES, type CandidatoNaForma, type MapaDoAlcance } from '../../lib/batalha/alcance/quemEntra'
-import { casaDoToken } from '../../lib/batalha/movimentoEmBatalha'
+import { pegadaDaFichaEm } from '../../lib/batalha/movimentoEmBatalha'
 import { motivoDoAlvoDePe } from '../../lib/batalha/golpe'
 import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
 import { formaQueATecnicaLiga, subidaDeParte } from '../../lib/batalha/transformacao'
@@ -276,6 +276,8 @@ export interface BalaNaTela {
   dano: DanoNaTela
   /** Pedido de 26/11: a bala é perfurante; escolhê-la liga o Perfurante da mira. */
   perfurante?: true
+  /** Conserto de 27/11/2026: o "Ao acertar" da bala ("Ao acertar: Cura reduzida 50% por 1 turno"); ausente = nada além do dano. */
+  aoAcertar?: string
 }
 
 /** A munição da bala como a mira a mostra: só o número da mochila ou do pente (ausente = bala de texto). */
@@ -702,10 +704,10 @@ export function alvosNaOrdemDaMira<T extends AlvoNaMira>(alvos: readonly T[], fi
   // F2 (fatia F, Giro de Pá): a casa de cada alvo em relação a quem age, para a mira marcar quem está na área.
   const casaDe = (p: { x: number; y: number }): Casa => ({ col: Math.floor(p.x / casa), row: Math.floor(p.y / casa) })
   const daOrigem = casaDe(origem)
-  // Construtor C3: a ficha inteira na grade, pela mesma casa de referência do passo em batalha (`casaDoToken`).
+  // Construtor C3: a ficha inteira na grade, pela mesma casa de referência do passo em batalha, com o corpo onde ele está (`pegadaDaFichaEm`, o mesmo do host).
   const pegadaDe = (p: { x: number; y: number }, tokenId: string): PegadaNaGrade => {
     const size = porId.get(tokenId)?.size
-    return pegadaDaFicha(casaDoToken(p, size ?? 1, casa), size)
+    return pegadaDaFichaEm(p, size, casa)
   }
   const deQuemAge = pegadaDe(origem, deTokenId)
   const frente = direcaoDaRotacao(porId.get(deTokenId)?.rotation)
@@ -1416,8 +1418,11 @@ export function golpesDeAtaque(
     const balas: BalaNaTela[] =
       arma === null
         ? []
-        : // Conserto de 27/11/2026 (Bala de Prata): a condição do "Ao acertar" da bala aparece na mira, junto do efeito escrito.
-          arma.balas.map((bala) => ({ id: bala.id, nome: bala.nome, danoTexto: bala.dano, efeito: [bala.efeito, textoDoAoAcertar(bala.aoAcertar)].filter((parte) => parte !== '').join(' · '), quantidade: bala.quantidade, ...municaoNaTela(bala), dano: danoCom(arma, bala) }))
+        : arma.balas.map((bala) => {
+            // Conserto de 27/11/2026 (Bala de Prata): a condição do "Ao acertar" da bala aparece na mira, numa linha dela (inteira).
+            const acerto = textoDoAoAcertar(bala.aoAcertar)
+            return { id: bala.id, nome: bala.nome, danoTexto: bala.dano, efeito: bala.efeito, quantidade: bala.quantidade, ...municaoNaTela(bala), dano: danoCom(arma, bala), ...(acerto === '' ? {} : { aoAcertar: acerto }) }
+          })
     return {
       ...(selo === null ? {} : { selo }),
       // Construtor C8: a arma só de efeito ("Nada" no Soma no ataque) não dá dano; com selo, o alvo reage para fugir dele (a regra do host).

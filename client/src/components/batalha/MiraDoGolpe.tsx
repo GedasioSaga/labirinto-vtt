@@ -243,6 +243,7 @@ function OpcaoDeBala({
   quantidade = '',
   onEscolher,
   semMunicao = false,
+  aoAcertar = '',
 }: {
   nome: string
   marcada: boolean
@@ -250,6 +251,8 @@ function OpcaoDeBala({
   danoTexto: string
   total: DanoNaTela
   detalhe: string
+  /** Conserto de 27/11/2026: a condição que a bala põe no acerto, numa linha própria (não corta, como o efeito). '' = nada. */
+  aoAcertar?: string
   /** "3 na mochila" / "Qtd. 6": fica fora do `detalhe` porque o efeito longo corta com reticências e a contagem não pode sumir. */
   quantidade?: string
   onEscolher: () => void
@@ -257,8 +260,9 @@ function OpcaoDeBala({
   semMunicao?: boolean
 }) {
   const dica = [detalhe, quantidade].filter(Boolean).join(' · ')
+  const dicaInteira = [dica, aoAcertar].filter(Boolean).join(' · ')
   return (
-    <label className={semMunicao ? 'bt-bala bt-bala--sem' : 'bt-bala'} title={dica === '' ? undefined : dica}>
+    <label className={semMunicao ? 'bt-bala bt-bala--sem' : 'bt-bala'} title={dicaInteira === '' ? undefined : dicaInteira}>
       <input type="radio" name={nome} checked={marcada} disabled={semMunicao} onChange={onEscolher} />
       <span className="bt-bala__nome">
         {titulo}
@@ -268,6 +272,7 @@ function OpcaoDeBala({
             {quantidade !== '' && <small className="bt-bala__qtd">{detalhe === '' ? quantidade : `· ${quantidade}`}</small>}
           </span>
         )}
+        {aoAcertar !== '' && <small className="bt-bala__acerto">{aoAcertar}</small>}
       </span>
       <span className="bt-bala__dano">
         <span className="bt-bala__fonte">{danoTexto}</span>
@@ -963,6 +968,7 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
                 danoTexto={bala.danoTexto === '' ? (golpe.tipo === 'habilidade' ? 'bala 0' : 'o da arma') : bala.danoTexto}
                 total={bala.dano}
                 detalhe={bala.efeito}
+                aoAcertar={bala.aoAcertar}
                 quantidade={quantidadeDaBala(bala)}
                 semMunicao={bala.municao === 0}
                 onEscolher={() => escolherBala(bala.id)}
