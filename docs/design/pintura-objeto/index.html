@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pintura de parede</title>
+<style>
+  :root {
+    --fundo: #1c1b19;
+    --cartao: #24221f;
+    --borda: #3a3631;
+    --texto: #ebe5d6;
+    --suave: #a39c8e;
+    --acento: #d4b26e;
+    --acento-fundo: #3a3226;
+    --raio: 10px;
+    --vao: 16px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fundo);
+    color: var(--texto);
+    font: 15px/1.55 "Segoe UI", system-ui, sans-serif;
+  }
+  .pagina { max-width: 1240px; margin: 0 auto; padding: 24px var(--vao) 64px; }
+  h1 { font-size: 28px; font-weight: 600; margin: 0 0 4px; }
+  h2 { font-size: 20px; font-weight: 600; margin: 40px 0 8px; padding-top: 20px; border-top: 1px solid var(--borda); }
+  h3 { font-size: 15px; font-weight: 600; margin: 20px 0 6px; }
+  p { margin: 0 0 10px; max-width: 78ch; }
+  .sub { color: var(--acento); margin-bottom: 12px; }
+  .suave { color: var(--suave); }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
+  nav a, .botao, .arquivo {
+    display: inline-flex; align-items: center; min-height: 34px; padding: 4px 12px;
+    border: 1px solid var(--borda); border-radius: 8px; background: var(--cartao);
+    color: var(--texto); text-decoration: none; font: inherit; font-size: 14px; cursor: pointer;
+    transition: transform 140ms ease-out, border-color 140ms ease;
+  }
+  nav a:active, .botao:active, .arquivo:active { transform: scale(0.97); }
+  @media (hover: hover) and (pointer: fine) {
+    nav a:hover, .botao:hover, .arquivo:hover { border-color: var(--acento); }
+  }
+  :focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+  .botao:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  figure { margin: 0; }
+  .imagem-da-folha { display: block; width: 100%; height: auto; border: 1px solid var(--borda); border-radius: var(--raio); }
+  figcaption { color: var(--suave); font-size: 13px; margin-top: 6px; }
+  .demo { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; margin-top: 12px; }
+  .controles { background: var(--cartao); border: 1px solid var(--borda); border-radius: var(--raio); padding: 14px; }
+  fieldset { border: 0; padding: 0; margin: 0 0 14px; }
+  legend { color: var(--suave); font-size: 13px; margin-bottom: 6px; }
+  .opcoes { display: flex; flex-wrap: wrap; gap: 6px; }
+  .opcoes label {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 10px;
+    border: 1px solid var(--borda); border-radius: 8px; cursor: pointer; font-size: 14px;
+  }
+  .opcoes input { accent-color: var(--acento); margin: 0; }
+  .opcoes label:has(input:checked) { border-color: var(--acento); background: var(--acento-fundo); color: var(--acento); }
+  .linha { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+  select { min-height: 34px; background: var(--fundo); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; font: inherit; font-size: 14px; padding: 0 8px; }
+  .arquivo input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .arquivo:has(input:focus-visible) { outline: 2px solid var(--acento); outline-offset: 2px; }
+  input[type="range"] { width: 100%; accent-color: var(--acento); }
+  .vistas { display: flex; flex-wrap: wrap; gap: 20px; }
+  /* A legenda quebra na largura da tela dela (sem isso a legenda longa empurra a outra figura para baixo). */
+  .vistas figure { max-width: 100%; }
+  .vistas figure:first-child { width: 462px; }
+  .vistas figure:last-child { width: 302px; }
+  canvas { display: block; max-width: 100%; height: auto; border: 1px solid var(--borda); border-radius: var(--raio); background: #151412; }
+  #recorte { cursor: grab; touch-action: none; }
+  #recorte.arrastando { cursor: grabbing; }
+  #recorte[aria-disabled="true"] { cursor: default; }
+  .aviso { min-height: 1.5em; color: var(--acento); font-size: 14px; margin-top: 10px; }
+  .motivo { color: var(--suave); font-size: 13px; margin: 8px 0 0; }
+  ol, ul { padding-left: 22px; max-width: 80ch; }
+  li { margin-bottom: 6px; }
+  code { background: var(--cartao); border: 1px solid var(--borda); border-radius: 5px; padding: 1px 5px; font-size: 13px; }
+  @media (max-width: 760px) { .demo { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main class="pagina">
+  <h1>Pintura · quadro de parede</h1>
+  <p class="sub">Folha para aprovar, 27/11/2026. Só o desenho: nada foi encaixado no app.</p>
+  <p>Um objeto novo para a ferramenta Objeto: o quadro pendurado na parede. São 3 tamanhos, 3 molduras e 6 pinturas de fábrica, 54 combinações numeradas, cada uma nos 3 estilos do mapa (Atual, Simples e Desenhado). E o mestre pode pôr uma imagem dele no lugar da pintura.</p>
+  <nav aria-label="Seções">
+    <a href="#folha">A folha</a>
+    <a href="#estilos">As 54 no Desenhado e no Simples</a>
+    <a href="#teste">Teste a imagem do mestre</a>
+    <a href="#decisoes">Decisões e perguntas</a>
+    <a href="#arquivos">Arquivos</a>
+  </nav>
+
+  <h2 id="folha">A folha</h2>
+  <p class="suave">Clique na imagem para abrir no tamanho real. As seções têm número (1 a 5) e cada combinação tem o seu nº, para você citar: por exemplo "o nº 26 está escuro demais".</p>
+  <figure>
+    <a href="folha.png"><img class="imagem-da-folha" src="folha.png" alt="Folha da Pintura: as 6 pinturas de fábrica, as 3 molduras nos 3 estilos, as 54 combinações numeradas, a proposta da imagem do mestre e a cena de exemplo numa parede do mapa." loading="lazy"></a>
+  </figure>
+
+  <h2 id="estilos">As 54 combinações no Desenhado e no Simples</h2>
+  <p class="suave">Os mesmos números da folha. O estilo é do mapa, não do objeto: o mestre escolhe o quadro uma vez e ele segue o estilo do mapa.</p>
+  <figure>
+    <a href="combinacoes-desenhado.png"><img class="imagem-da-folha" src="combinacoes-desenhado.png" alt="As 54 combinações da Pintura no estilo Desenhado." loading="lazy"></a>
+    <figcaption>Desenhado</figcaption>
+  </figure>
+  <figure style="margin-top: 20px">
+    <a href="combinacoes-simples.png"><img class="imagem-da-folha" src="combinacoes-simples.png" alt="As 54 combinações da Pintura no estilo Simples." loading="lazy"></a>
+    <figcaption>Simples</figcaption>
+  </figure>
+
+  <h2 id="teste">Teste: a imagem de dentro</h2>
+  <p>É a proposta da seção 5 funcionando. Escolha uma imagem sua (ela fica só no seu navegador, nada é enviado), arraste para escolher a parte que aparece e aproxime. Troque o tamanho e a moldura: o enquadramento continua o mesmo.</p>
+  <noscript><p class="aviso">O teste precisa de JavaScript ligado. A folha acima mostra a mesma proposta parada.</p></noscript>
+  <div class="demo">
+    <form class="controles" id="controles">
+      <fieldset>
+        <legend>Tamanho</legend>
+        <div class="opcoes">
+          <label><input type="radio" name="tamanho" value="P"> Pequeno</label>
+          <label><input type="radio" name="tamanho" value="M"> Médio</label>
+          <label><input type="radio" name="tamanho" value="G" checked> Grande</label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Moldura</legend>
+        <div class="opcoes">
+          <label><input type="radio" name="moldura" value="madeira"> Madeira escura</label>
+          <label><input type="radio" name="moldura" value="dourada" checked> Dourada</label>
+          <label><input type="radio" name="moldura" value="ferro"> Ferro</label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Estilo do mapa</legend>
+        <div class="opcoes">
+          <label><input type="radio" name="estilo" value="atual" checked> Atual</label>
+          <label><input type="radio" name="estilo" value="simples"> Simples</label>
+          <label><input type="radio" name="estilo" value="desenhado"> Desenhado</label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Imagem</legend>
+        <div class="opcoes">
+          <label><input type="radio" name="fonte" value="fabrica"> De fábrica</label>
+          <label><input type="radio" name="fonte" value="minha" checked> Minha imagem</label>
+        </div>
+        <div class="linha">
+          <label for="pinturaDeFabrica" class="suave" style="font-size:13px">Pintura</label>
+          <select id="pinturaDeFabrica">
+            <option value="1">1 · Paisagem</option>
+            <option value="2">2 · Retrato de nobre</option>
+            <option value="3">3 · Natureza-morta</option>
+            <option value="4">4 · Mar com navio</option>
+            <option value="5">5 · Castelo</option>
+            <option value="6">6 · Abstrato escuro</option>
+          </select>
+        </div>
+        <div class="linha">
+          <label class="arquivo">Escolher imagem…<input type="file" id="arquivo" accept="image/*"></label>
+          <span id="nomeDaImagem" class="suave" style="font-size:13px">Exemplo: mapa antigo</span>
+        </div>
+      </fieldset>
+      <fieldset id="ajuste">
+        <legend><label for="zoom">Aproximar</label></legend>
+        <input type="range" id="zoom" min="1" max="3" step="0.01" value="1">
+        <div class="linha">
+          <button type="button" class="botao" id="centralizar">Centralizar</button>
+        </div>
+        <p class="motivo" id="motivoDoAjuste" hidden>Com "De fábrica" a pintura se arruma sozinha no formato da moldura; o encaixe é só para a imagem do mestre.</p>
+      </fieldset>
+    </form>
+    <div>
+      <div class="vistas">
+        <figure>
+          <canvas id="recorte" width="460" height="320" tabindex="0" role="img" aria-label="Encaixar a imagem: a parte clara é o que aparece na moldura. Arraste, ou use as setas e as teclas mais e menos."></canvas>
+          <figcaption>Encaixar: arraste para mover · roda do mouse aproxima · setas e + / − no teclado · Enter encaixa · Esc desfaz</figcaption>
+        </figure>
+        <figure>
+          <canvas id="resultado" width="300" height="420" role="img" aria-label="O quadro no mapa, encostado na parede."></canvas>
+          <figcaption>No mapa (de cima, a parede em cima)</figcaption>
+        </figure>
+      </div>
+      <p class="aviso" id="aviso" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <h2 id="decisoes">Decisões do Claude (para você aprovar) e perguntas</h2>
+  <ol>
+    <li><strong>No mapa, o quadro fica de frente, encostado na parede</strong>, como a tapeçaria e a arandela que já estão no app; a 3/4 usa o mesmo desenho e o giro deita a imagem. A opção B (de cima de verdade, um risco de 2 a 3 px) está na seção 4 só para comparar.</li>
+    <li><strong>Tamanhos:</strong> Pequeno em pé (0,5 × 0,72 casa), Médio deitado (1 × 0,82) e Grande de corpo inteiro (1 × 1,66, a mesma altura da tapeçaria). A pegada inclui a faixa do prego e do cordão.</li>
+    <li><strong>Prego e cordão em V à mostra:</strong> é o que diz "pendurado" de relance e separa o quadro de um tapete no chão.</li>
+    <li><strong>As pinturas de fábrica se arrumam sozinhas</strong> no formato (o retrato ganha corpo inteiro no Grande; a paisagem e o mar ganham céu). Só a imagem do mestre tem encaixe.</li>
+    <li><strong>Imagem do mestre:</strong> recorte que cobre a janela inteira, com arrastar e aproximar. Guarda só o ponto do meio e a aproximação, por isso trocar tamanho ou moldura mantém o enquadramento.</li>
+    <li><strong>No Simples</strong>, a pintura de fábrica vira glifo de linhas, como os outros objetos; a imagem do mestre aparece mesmo assim (um pouco escurecida), porque pode ser pista para os jogadores.</li>
+    <li><strong>Cores:</strong> madeira escura = Nogueira do app; ferro = Ferro do app; dourada = um latão velho mais apagado que o Latão do app, para o ouro não estourar.</li>
+    <li><strong>A vista de lado</strong> fica só de referência: é uma tábua fina e não ajuda no mapa.</li>
+  </ol>
+  <h3>Perguntas</h3>
+  <ul>
+    <li>Aprova a opção A (de frente, encostado na parede) para o mapa?</li>
+    <li>Os 3 tamanhos estão bons, ou quer o Pequeno deitado também?</li>
+    <li>Alguma pintura ou moldura para refazer? Diga o número (pintura 1 a 6, combinação nº 1 a 54).</li>
+    <li>A moldura deve ter a cor trocável pelo mestre (como o material dos móveis), ou as 3 molduras fixas bastam?</li>
+  </ul>
+  <p class="suave">Fica para o plano do encaixe: onde a imagem do mestre é guardada e como ela chega à tela dos jogadores.</p>
+
+  <h2 id="arquivos">Arquivos desta pasta</h2>
+  <ul>
+    <li><code>folha.png</code>: a folha principal (seções 1 a 5).</li>
+    <li><code>combinacoes-desenhado.png</code> e <code>combinacoes-simples.png</code>: as 54 nos outros dois estilos.</li>
+    <li><code>fonte/desenho.js</code>: o desenho do quadro (pinturas, molduras, prego e cordão, chão e parede). Esta página usa ele no teste.</li>
+    <li><code>fonte/folha.js</code>, <code>fonte/gerar.html</code> e <code>fonte/gerar.cjs</code>: montam e gravam as folhas. Para gerar de novo, da raiz do repo: <code>node docs/design/pintura-objeto/fonte/gerar.cjs</code></li>
+  </ul>
+</main>
+
+<script src="fonte/desenho.js"></script>
+<script>
+(function () {
+  'use strict';
+  const P = window.Pintura;
+  const recorte = document.getElementById('recorte');
+  const resultado = document.getElementById('resultado');
+  const formulario = document.getElementById('controles');
+  const zoom = document.getElementById('zoom');
+  const aviso = document.getElementById('aviso');
+  const nomeDaImagem = document.getElementById('nomeDaImagem');
+  const motivo = document.getElementById('motivoDoAjuste');
+  const centralizar = document.getElementById('centralizar');
+  const escolhaDeFabrica = document.getElementById('pinturaDeFabrica');
+  const arquivo = document.getElementById('arquivo');
+
+  const exemplo = P.mapaAntigo(800, 600);
+  const estado = { tamanho: 'G', moldura: 'dourada', estilo: 'atual', fonte: 'minha', fabrica: 1, img: exemplo, fx: 0.64, fy: 0.5, zoom: 1.25 };
+  let guardado = null;
+  let urlAtual = null;
+
+  function tamanhoDaImagem() {
+    return { iw: estado.img.naturalWidth || estado.img.width, ih: estado.img.naturalHeight || estado.img.height };
+  }
+  /** A janela da moldura escolhida, encaixada no canvas do recorte. */
+  function janelaNoRecorte() {
+    const geo = P.geometria({ x: 0, y: 0, s: 100, tamanho: estado.tamanho, moldura: estado.moldura });
+    const a = geo.J.w / geo.J.h;
+    const maxW = recorte.width * 0.62;
+    const maxH = recorte.height * 0.8;
+    const w = Math.min(maxW, maxH * a);
+    const h = w / a;
+    return { x: (recorte.width - w) / 2, y: (recorte.height - h) / 2, w, h };
+  }
+  function prender() {
+    const { iw, ih } = tamanhoDaImagem();
+    const J = janelaNoRecorte();
+    const f = P.prenderFoco(iw, ih, J.w, J.h, estado.fx, estado.fy, estado.zoom);
+    estado.fx = f.fx;
+    estado.fy = f.fy;
+  }
+  function desenharRecorte() {
+    const g = recorte.getContext('2d');
+    g.clearRect(0, 0, recorte.width, recorte.height);
+    g.fillStyle = '#151412';
+    g.fillRect(0, 0, recorte.width, recorte.height);
+    const J = janelaNoRecorte();
+    if (estado.fonte === 'fabrica') {
+      g.drawImage(P.telaDaPintura(estado.fabrica, J.w, J.h, estado.estilo === 'desenhado' ? 'desenhado' : 'atual', 150, 1), J.x, J.y, J.w, J.h);
+      g.strokeStyle = '#3a3631';
+      g.strokeRect(J.x + 0.5, J.y + 0.5, J.w - 1, J.h - 1);
+      return;
+    }
+    const { iw, ih } = tamanhoDaImagem();
+    const R = P.recorteCobrir(iw, ih, J, estado.fx, estado.fy, estado.zoom);
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(estado.img, R.dx, R.dy, R.dw, R.dh);
+    g.fillStyle = 'rgba(0,0,0,0.58)';
+    g.beginPath();
+    g.rect(0, 0, recorte.width, recorte.height);
+    g.rect(J.x, J.y, J.w, J.h);
+    g.fill('evenodd');
+    g.strokeStyle = '#d4b26e';
+    g.lineWidth = 1.5;
+    g.strokeRect(J.x, J.y, J.w, J.h);
+  }
+  function desenharResultado() {
+    const g = resultado.getContext('2d');
+    const W = resultado.width;
+    const H = resultado.height;
+    const T = P.TAMANHOS[estado.tamanho];
+    const parede = 0.26;
+    const s = Math.min((W - 40) / T.pegada[0], (H - 30) / (T.pegada[1] + parede));
+    const chao = estado.estilo === 'atual' ? 'chaoDoApp' : estado.estilo === 'desenhado' ? 'assoalhoDesenhado' : 'simples';
+    g.clearRect(0, 0, W, H);
+    P.chao(g, 0, 0, W, H, chao, s, 31);
+    P.paredeDeCima(g, -2, 0, W + 2, parede * s, s, estado.estilo, 32, 'baixo');
+    const pintura = estado.fonte === 'fabrica' ? estado.fabrica : { img: estado.img, fx: estado.fx, fy: estado.fy, zoom: estado.zoom };
+    P.desenharQuadro(g, { x: (W - T.pegada[0] * s) / 2, y: parede * s, s, tamanho: estado.tamanho, moldura: estado.moldura, pintura, estilo: estado.estilo });
+  }
+  function atualizarAjuste() {
+    const deFabrica = estado.fonte === 'fabrica';
+    zoom.disabled = deFabrica;
+    centralizar.disabled = deFabrica;
+    motivo.hidden = !deFabrica;
+    escolhaDeFabrica.disabled = !deFabrica;
+    recorte.setAttribute('aria-disabled', String(deFabrica));
+    zoom.value = String(estado.zoom);
+  }
+  function redesenhar() {
+    prender();
+    atualizarAjuste();
+    desenharRecorte();
+    desenharResultado();
+  }
+
+  formulario.addEventListener('change', (e) => {
+    const alvo = e.target;
+    if (alvo.name === 'tamanho') estado.tamanho = alvo.value;
+    else if (alvo.name === 'moldura') estado.moldura = alvo.value;
+    else if (alvo.name === 'estilo') estado.estilo = alvo.value;
+    else if (alvo.name === 'fonte') { estado.fonte = alvo.value; aviso.textContent = ''; }
+    else if (alvo === escolhaDeFabrica) estado.fabrica = Number(alvo.value);
+    else return;
+    redesenhar();
+  });
+  zoom.addEventListener('input', () => {
+    estado.zoom = Number(zoom.value);
+    redesenhar();
+  });
+  centralizar.addEventListener('click', () => {
+    estado.fx = 0.5;
+    estado.fy = 0.5;
+    estado.zoom = 1;
+    redesenhar();
+    aviso.textContent = 'Imagem centralizada.';
+  });
+  arquivo.addEventListener('change', () => {
+    const f = arquivo.files && arquivo.files[0];
+    if (!f) return;
+    if (!f.type.startsWith('image/')) {
+      aviso.textContent = 'Esse arquivo não é uma imagem. Escolha um PNG, JPG ou WEBP.';
+      return;
+    }
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      if (urlAtual) URL.revokeObjectURL(urlAtual);
+      urlAtual = url;
+      Object.assign(estado, { img, fx: 0.5, fy: 0.5, zoom: 1, fonte: 'minha' });
+      formulario.querySelector('input[name="fonte"][value="minha"]').checked = true;
+      nomeDaImagem.textContent = f.name;
+      aviso.textContent = 'Imagem carregada. Arraste para escolher a parte que aparece.';
+      redesenhar();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      aviso.textContent = 'Não consegui abrir essa imagem. Tente outro arquivo.';
+    };
+    img.src = url;
+  });
+
+  // Arrastar com o ponteiro: o ponto do meio anda ao contrário do arrasto.
+  let arrasto = null;
+  function escalaDoCanvas() {
+    const r = recorte.getBoundingClientRect();
+    return recorte.width / r.width;
+  }
+  function mover(dxCanvas, dyCanvas) {
+    const { iw, ih } = tamanhoDaImagem();
+    const J = janelaNoRecorte();
+    const R = P.recorteCobrir(iw, ih, J, estado.fx, estado.fy, estado.zoom);
+    estado.fx -= dxCanvas / R.dw;
+    estado.fy -= dyCanvas / R.dh;
+    redesenhar();
+  }
+  recorte.addEventListener('pointerdown', (e) => {
+    if (estado.fonte !== 'minha' || arrasto) return;
+    arrasto = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    recorte.setPointerCapture(e.pointerId);
+    recorte.classList.add('arrastando');
+  });
+  recorte.addEventListener('pointermove', (e) => {
+    if (!arrasto || e.pointerId !== arrasto.id) return;
+    const k = escalaDoCanvas();
+    mover((e.clientX - arrasto.x) * k, (e.clientY - arrasto.y) * k);
+    arrasto.x = e.clientX;
+    arrasto.y = e.clientY;
+  });
+  function soltar(e) {
+    if (!arrasto || e.pointerId !== arrasto.id) return;
+    arrasto = null;
+    recorte.classList.remove('arrastando');
+  }
+  recorte.addEventListener('pointerup', soltar);
+  recorte.addEventListener('pointercancel', soltar);
+  recorte.addEventListener('wheel', (e) => {
+    if (estado.fonte !== 'minha') return;
+    e.preventDefault();
+    estado.zoom = Math.min(3, Math.max(1, estado.zoom * Math.exp(-e.deltaY * 0.0015)));
+    redesenhar();
+  }, { passive: false });
+  recorte.addEventListener('focus', () => {
+    guardado = { fx: estado.fx, fy: estado.fy, zoom: estado.zoom };
+  });
+  recorte.addEventListener('keydown', (e) => {
+    if (estado.fonte !== 'minha') return;
+    const passo = 0.03 / estado.zoom;
+    const teclas = {
+      ArrowLeft: () => { estado.fx -= passo; },
+      ArrowRight: () => { estado.fx += passo; },
+      ArrowUp: () => { estado.fy -= passo; },
+      ArrowDown: () => { estado.fy += passo; },
+      '+': () => { estado.zoom = Math.min(3, estado.zoom + 0.1); },
+      '=': () => { estado.zoom = Math.min(3, estado.zoom + 0.1); },
+      '-': () => { estado.zoom = Math.max(1, estado.zoom - 0.1); },
+      Enter: () => { guardado = { fx: estado.fx, fy: estado.fy, zoom: estado.zoom }; aviso.textContent = 'Encaixado.'; },
+      Escape: () => { if (guardado) Object.assign(estado, guardado); aviso.textContent = 'Voltou ao último encaixe.'; },
+    };
+    const acao = teclas[e.key];
+    if (!acao) return;
+    e.preventDefault();
+    acao();
+    redesenhar();
+  });
+
+  redesenhar();
+})();
+</script>
+</body>
+</html>
