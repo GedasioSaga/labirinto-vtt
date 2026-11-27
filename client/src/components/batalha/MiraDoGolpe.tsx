@@ -387,7 +387,8 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
   const [baseTexto, setBaseTexto] = useState(golpe.dano.valor === null ? '' : String(golpe.dano.valor))
   const [editados, setEditados] = useState<Readonly<Record<string, string>>>({})
   const [surpresa, setSurpresa] = useState(false)
-  const [perfurante, setPerfurante] = useState(golpe.perfurante)
+  // Pedido de 26/11: a bala perfurante com que a mira abre (a primeira com munição) já liga o Perfurante.
+  const [perfurante, setPerfurante] = useState(() => golpe.perfurante || (golpe.exigeMunicao === true && (golpe.balas ?? SEM_BALAS).find((bala) => (bala.municao ?? 0) > 0)?.perfurante === true))
   // Quanto perfura: o número que a habilidade diz ("perfura 50%") ou 100 (tudo direto no HP).
   const [perfuracaoTexto, setPerfuracaoTexto] = useState(String(golpe.perfuracao ?? PERFURACAO_MAX))
   const [custoTexto, setCustoTexto] = useState(golpe.custo.tipo === 'pergunta' && golpe.custo.sugestao !== null ? String(golpe.custo.sugestao) : '')
@@ -750,6 +751,8 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
     const dano = id === null ? danoDaOpcao : (balas.find((bala) => bala.id === id)?.dano ?? danoDaOpcao)
     setErro(null)
     setBalaId(id)
+    // Pedido de 26/11: a bala perfurante liga o Perfurante (a mesma regra do golpe perfurante); a comum volta ao do golpe.
+    setPerfurante(golpe.perfurante || (id !== null && balas.find((bala) => bala.id === id)?.perfurante === true))
     setBaseTexto(dano.valor === null ? '' : String(dano.valor))
     setEditados({})
   }

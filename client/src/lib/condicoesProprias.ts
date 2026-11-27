@@ -1,4 +1,5 @@
 import type { CondicaoPropria, MapData, Token } from '../types/map'
+import { gatilhoLido } from './itens/pecasDoItem'
 import { parseHexColor } from './tokenColor'
 import { CONDITION_INK, type ConditionSymbol, type ConditionSymbolPoint } from './tokenConditions'
 
@@ -410,7 +411,10 @@ export function lerCondicaoPropria(value: unknown): CondicaoPropria | null {
   const texto = limparSimboloDigitado(campoDe(value, 'texto'))
   const lida: CondicaoPropria = { id, nome, cor: `#${cor.toString(16).padStart(6, '0')}`, simbolo }
   if (texto !== '') lida.texto = texto
-  return comRegraLida(lida, campoDe(value, 'regra'), campoDe(value, 'n'))
+  const comRegra = comRegraLida(lida, campoDe(value, 'regra'), campoDe(value, 'n'))
+  // Pedido de 26/11: o gatilho "depois de X turnos". Ausente ou torto = sem gatilho.
+  const gatilho = gatilhoLido(campoDe(value, 'gatilho'))
+  return gatilho === undefined ? comRegra : { ...comRegra, gatilho }
 }
 
 /** Teto do número da regra `vida` (a mesma vida por turno do prazo, `PRAZO_POR_VEZ_MAX`). */

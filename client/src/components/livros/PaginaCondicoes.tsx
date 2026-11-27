@@ -3,7 +3,8 @@ import { catalogoDeCondicoes, type CondicaoDoCatalogo } from '../../lib/condicoe
 import { fraseDaRegra, NOMES_DAS_REGRAS, rotuloDoNumero, tetoDoNumero } from '../../lib/condicoes/frases'
 import { comCondicoesNaFicha, condicoesDe, porCondicao, tirarCondicao, type PedidoDeCondicao } from '../../lib/condicoes/naFicha'
 import { criarCondicaoPropria, lerCondicaoPropria, type RascunhoDeCondicao } from '../../lib/condicoesProprias'
-import type { CondicaoNaFicha } from '../../lib/itens/modelo'
+import { fraseDoGatilho } from '../../lib/condicoes/fraseDoGatilho'
+import type { CondicaoNaFicha, GatilhoDaCondicao } from '../../lib/itens/modelo'
 import { variacoesDe } from '../../lib/livros/combate'
 import type { Personagem } from '../../lib/personagem'
 import { tirarCondicaoDeTodasAsCenas, trocarCondicaoEmTodasAsCenas } from '../../stores/condicoesNasCenas'
@@ -11,6 +12,7 @@ import { useCondicoesPropriasStore } from '../../stores/condicoesPropriasStore'
 import { useToastStore } from '../../stores/toastStore'
 import type { CondicaoPropria, RegraDaCondicao } from '../../types/map'
 import { ChipDaCondicao, FormDePorCondicao, simboloDoCatalogo } from '../condicoes/PorCondicao'
+import { LinhaDoGatilho } from '../condicoes/LinhaDoGatilho'
 import { FormDaCondicao } from '../CondicoesProprias'
 import { PastilhaDeCondicao } from '../PastilhaDeCondicao'
 import { gravarNoMundo } from './comum'
@@ -111,6 +113,13 @@ export function PaginaCondicoes({ personagens }: PaginaCondicoesProps) {
     if (nova === null || !useCondicoesPropriasStore.getState().salvar(nova)) useToastStore.getState().push('error', 'Não deu para gravar a regra.')
   }
 
+  /** Pedido de 26/11: o "depois de X turnos" da criada. Sem peça = sem gatilho (o campo sai do arquivo). */
+  const mudarGatilho = (propria: CondicaoPropria, gatilho: GatilhoDaCondicao | undefined) => {
+    const { gatilho: _antes, ...semGatilho } = propria
+    const nova = lerCondicaoPropria(gatilho === undefined ? semGatilho : { ...semGatilho, gatilho })
+    if (nova === null || !useCondicoesPropriasStore.getState().salvar(nova)) useToastStore.getState().push('error', 'Não deu para gravar o gatilho.')
+  }
+
   const apagar = (condicao: CondicaoDoCatalogo) => {
     useCondicoesPropriasStore.getState().excluir(condicao.id)
     tirarCondicaoDeTodasAsCenas(condicao.id)
@@ -130,6 +139,7 @@ export function PaginaCondicoes({ personagens }: PaginaCondicoesProps) {
   }
 
   const comEla = sel === undefined ? [] : personagens.filter((personagem) => postasDe(personagem, sel.id).length > 0)
+  const nomesDoCatalogo = catalogo.map((condicao) => condicao.nome)
   const propria = sel?.criada === true && sel.pastilha.tipo === 'propria' ? sel.pastilha.condicao : null
 
   return (
@@ -171,6 +181,7 @@ export function PaginaCondicoes({ personagens }: PaginaCondicoesProps) {
                     <span className="cd-pg-linha__resumo">
                       {NOMES_DAS_REGRAS[condicao.regra]}
                       {condicao.regra === 'vida' ? `: ${condicao.n} por vez` : condicao.regra === 'cura' ? `: ${condicao.n}%` : ''}
+                      {condicao.gatilho === undefined ? '' : `. ${fraseDoGatilho(condicao.gatilho)}`}
                       {condicao.criada ? '. Criada por você' : ''}
                     </span>
                   </span>
@@ -192,6 +203,11 @@ export function PaginaCondicoes({ personagens }: PaginaCondicoesProps) {
                 <RegraDaCriada key={propria.id} propria={propria} regra={sel.regra} n={sel.n} onMudar={(regra, n) => mudarRegra(propria, regra, n)} />
               ) : (
                 <p className="cd-pg-regra">Regra: {fraseDaRegra(sel.regra, sel.n)}.</p>
+              )}
+              {propria !== null ? (
+                <LinhaDoGatilho gatilho={propria.gatilho} condicoes={nomesDoCatalogo} onMudar={(gatilho) => mudarGatilho(propria, gatilho)} />
+              ) : (
+                <p className="cd-nota">O "depois de X turnos" desta vem da peça que a põe (o "Ao acertar" do item).</p>
               )}
               {propria !== null && (
                 <div className="cd-pg-acoes">

@@ -273,12 +273,15 @@ export interface BalaNaTela {
   doPente?: true
   /** O dano do Atacar com esta bala ("160 Força + 20 Rosa + 15 Prata = 195"). */
   dano: DanoNaTela
+  /** Pedido de 26/11: a bala é perfurante; escolhê-la liga o Perfurante da mira. */
+  perfurante?: true
 }
 
 /** A munição da bala como a mira a mostra: só o número da mochila ou do pente (ausente = bala de texto). */
-function municaoNaTela(bala: BalaDaArma): { municao?: number; doPente?: true } {
-  if (bala.municao === undefined) return {}
-  return bala.municao.pente === true ? { municao: bala.municao.quantos, doPente: true } : { municao: bala.municao.quantos }
+function municaoNaTela(bala: BalaDaArma): { municao?: number; doPente?: true; perfurante?: true } {
+  const perfura = bala.perfurante === true ? { perfurante: true as const } : {}
+  if (bala.municao === undefined) return perfura
+  return bala.municao.pente === true ? { municao: bala.municao.quantos, doPente: true, ...perfura } : { municao: bala.municao.quantos, ...perfura }
 }
 
 /** Uma linha da leitura inteira: o rótulo do campo e o texto como a ficha diz. */

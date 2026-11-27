@@ -55,6 +55,7 @@ import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
 import { efeitosDosSelos } from './selos'
 import { contarFimDaVezNaMesa, daFichaNaMesa } from './condicoesNaFicha'
+import { textoDoDisparo } from '../../lib/condicoes/gatilho'
 import { golpesDaVezQueAcaba, type GolpeNaStore } from './golpe'
 
 /** O que o começo de vez (`comecarAVez`) recebe de quem andou a vez: os turnos de antes e de depois e o que vai na linha "vez". */
@@ -269,6 +270,38 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
    * vez. A mesa sem mapa (arena) não tem prazo; nada a fazer: nada muda.
    * Devolve o desconto que não rendeu linha (bug 5 do explorador, 26/11): vai na linha da vez.
    */
+  /**
+   * Pedido de 26/11: a vida que o gatilho de uma condição mexe, pela ficha (com o Desfazer de cada parte). O
+   * dano vai direto, como a condição de regra `vida`; a cura já veio cortada pelas condições da ficha e para no
+   * máximo. Devolve o dano que saiu de verdade (para o efeito na tela).
+   */
+  const vidaDoGatilho = (personagemId: string, dano: number, cura: number, autor: AutorDaAcao): { partes: Reversao[]; dano: number } => {
+    const partes: Reversao[] = []
+    let danoFeito = 0
+    if (dano > 0) {
+      const feito = mexerNaFicha(mesa, personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, dano, true), quemNaFicha(autor))
+      if (feito !== null && feito !== 'recusada' && feito.length > 0) {
+        partes.push(...reversaoDaFicha(personagemId, feito))
+        danoFeito = dano
+      }
+    }
+    if (cura > 0) {
+      const feito = mexerNaFicha(
+        mesa,
+        personagemId,
+        (atual, sistema) => {
+          const maximo = maximoDoRecurso(atual, sistema, 'hp')
+          const cabe = maximo === null ? cura : Math.min(cura, maximo - numeroDoRecurso(atual, sistema, 'hp'))
+          const ajuste = cabe > 0 ? ajusteDoRecurso(atual, sistema, 'hp', cabe) : null
+          return ajuste === null ? [] : [ajuste]
+        },
+        quemNaFicha(autor),
+      )
+      if (feito !== null && feito !== 'recusada' && feito.length > 0) partes.push(...reversaoDaFicha(personagemId, feito))
+    }
+    return { partes, dano: danoFeito }
+  }
+
   const prazosDaVez = (sceneKey: string, de: CartaDaOrdem | null, para: CartaDaOrdem | null, autor: AutorDaAcao): Reversao[] => {
     const { fichaDaCena, mudarFichaDaCena } = mesa
     const cena = cenaDe(sceneKey)
@@ -298,6 +331,14 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
       if (daFicha.acabaram.length > 0) {
         textos.push(`${daFicha.acabaram.join(', ')} ${daFicha.acabaram.length === 1 ? 'acabou' : 'acabaram'} em ${nomeDe(de.tokenId)}`)
         tokenIds.add(de.tokenId)
+      }
+      // Pedido de 26/11: o gatilho "depois de X turnos" disparou no fim da vez dele (as condições já entraram acima).
+      if (de.personagemId !== null && daFicha.disparos.length > 0) {
+        for (const disparo of daFicha.disparos) textos.push(textoDoDisparo(disparo, nomeDe(de.tokenId)))
+        tokenIds.add(de.tokenId)
+        const vida = vidaDoGatilho(de.personagemId, daFicha.dano, daFicha.cura, autor)
+        partes.push(...vida.partes)
+        if (vida.dano > 0) efeitos.push({ tipo: 'dano', tokenId: de.tokenId, valor: vida.dano, saida: 'direto' })
       }
     }
     // Começo da vez de quem entra: lida DEPOIS do desconto (a mesma ficha pode ter a vez de novo).

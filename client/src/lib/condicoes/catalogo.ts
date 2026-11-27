@@ -2,6 +2,7 @@ import type { CondicaoPropria, RegraDaCondicao, TokenCondition } from '../../typ
 import { CURA_REDUZIDA_PADRAO, DANO_DO_SANGRAMENTO, NOME_DA_CURA_REDUZIDA } from '../batalha/condicoes'
 import { chaveDaCondicao } from '../condicaoPorNome'
 import { CORES_DE_CONDICAO, lerCondicaoPropria } from '../condicoesProprias'
+import type { GatilhoDaCondicao } from '../itens/modelo'
 import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_ORDER } from '../tokenConditions'
 
 /**
@@ -35,6 +36,8 @@ export interface CondicaoDoCatalogo {
   pastilha: PastilhaDoCatalogo
   /** Criada pelo mestre (pode ser editada e apagada); `false` = de fábrica. */
   criada: boolean
+  /** Pedido de 26/11: o "depois de X turnos" da criada (`CondicaoPropria.gatilho`). As de fábrica não têm: o gatilho delas vem da peça que as põe. */
+  gatilho?: GatilhoDaCondicao
 }
 
 /** Queimando tira o mesmo que a tabela dos selos da batalha (`COMPORTAMENTOS_DOS_SELOS`, `lib/batalha/condicoes.ts`). */
@@ -105,7 +108,8 @@ const CHAVES_DE_FABRICA: ReadonlySet<string> = new Set(CONDICOES_DE_FABRICA.map(
 /** Uma condição criada no formato do catálogo. Sem regra = o mestre narra. */
 export function condicaoCriadaNoCatalogo(propria: CondicaoPropria): CondicaoDoCatalogo {
   const regra = propria.regra ?? 'narra'
-  return { id: propria.id, nome: propria.nome, regra, n: regra === 'narra' ? 0 : (propria.n ?? 0), pastilha: { tipo: 'propria', condicao: propria }, criada: true }
+  const base: CondicaoDoCatalogo = { id: propria.id, nome: propria.nome, regra, n: regra === 'narra' ? 0 : (propria.n ?? 0), pastilha: { tipo: 'propria', condicao: propria }, criada: true }
+  return propria.gatilho === undefined ? base : { ...base, gatilho: propria.gatilho }
 }
 
 /**

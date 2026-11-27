@@ -1,5 +1,7 @@
 import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX, MODS_POR_SELO_MAX, type VantagemDoDado } from '../combate'
 import type { EscopoDoAlcance, MudancaDoAlcance } from '../alcance/condicoes'
+import type { GatilhoDaCondicao } from '../../itens/modelo'
+import { gatilhoLido } from '../../itens/pecasDoItem'
 
 /**
  * AS PEÇAS DA TÉCNICA MONTADA (construtor de mecânicas, fatia C1; seção 1 de
@@ -278,7 +280,8 @@ export type Efeito =
   /** `em: 'atacante'` (fase 4): só na técnica de reação, o selo vai em quem bateu. Ausente = no alvo do golpe. */
   /** Fase 5: `em: 'quemUsa'` (a postura), `mods` (Força +20) e `regra` (dano e cura recebidos). Versão 3: `alcance` (o selo muda o alcance). */
   /** Versão 4 (fase ED4): `pega` = o teste do selo (o alvo acertado rola d20 + mod do atributo contra a CD; passou, o selo não entra). Só no selo do alvo. */
-  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: Exclude<EmQuem, 'alvo'>; mods?: readonly ModDaPeca[]; regra?: RegraDoSelo; alcance?: AlcanceDoSelo; pega?: TesteDoTipo }
+  /** Pedido de 26/11: `gatilho` = "depois de X turnos" da condição que o "Ao acertar" do item põe na ficha (lib/condicoes/gatilho.ts); o motor das técnicas não o lê. */
+  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo; em?: Exclude<EmQuem, 'alvo'>; mods?: readonly ModDaPeca[]; regra?: RegraDoSelo; alcance?: AlcanceDoSelo; pega?: TesteDoTipo; gatilho?: GatilhoDaCondicao }
   /** Fase 5: recuperar SP, dar Escudo (a Barreira) e curar quem usa (`em: 'quemUsa'`, o golpe que cura quem bate). */
   /** Fase 7: `quanto` pela parte do máximo do alvo (a Poção Suprema, 50% do HP máximo); HP e SP juntos no mesmo alvo (o Elixir). */
   | { tipo: 'cura'; recurso: Recurso; quanto: Numero | PorcentoDaCura; emQuem: 'alvo'; em?: 'quemUsa' }
@@ -950,7 +953,7 @@ function efeito(valor: unknown, indice: number): Efeito {
   const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'dreno', 'reviver', 'aMao'] as const, onde)
   switch (tipo) {
     case 'selo': {
-      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em', 'mods', 'regra', 'alcance', 'pega'], onde, 'selo')
+      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno', 'em', 'mods', 'regra', 'alcance', 'pega', 'gatilho'], onde, 'selo')
       const duracao = peca.duracao === 'ateTirar' || peca.duracao === 'proximoGolpe' ? peca.duracao : inteiro(peca.duracao, 1, TURNOS_DO_SELO_MAX, `${onde} (duração)`)
       const lido: Efeito = { tipo, nome: texto(peca.nome, NOME_DO_SELO_MAX, `${onde} (nome do selo)`), duracao }
       if (peca.natureza !== undefined) lido.natureza = umDe(peca.natureza, ['buff', 'debuff'] as const, `${onde} (natureza)`)
@@ -965,6 +968,11 @@ function efeito(valor: unknown, indice: number): Efeito {
       if (peca.pega !== undefined) {
         if (em !== 'alvo') torta(`${onde}: o teste da condição só vale no selo do alvo`)
         lido.pega = testeDoTipo(peca.pega, onde)
+      }
+      if (peca.gatilho !== undefined) {
+        const gatilho = gatilhoLido(peca.gatilho)
+        if (gatilho === undefined) torta(`${onde}: o "depois de X turnos" da condição está torto`)
+        lido.gatilho = gatilho
       }
       return lido
     }

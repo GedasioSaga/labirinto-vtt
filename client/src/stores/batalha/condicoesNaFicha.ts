@@ -19,7 +19,8 @@ import type { Reversao } from '../../lib/batalha/registro'
 import type { CartaDaOrdem } from '../../lib/batalha/turnos'
 import { novoIdDeSelo } from '../../lib/batalha/selos'
 import { condicaoDoCatalogo } from '../../lib/condicoes/catalogo'
-import { comCondicoesNaFicha, condicoesDe, contarFimDaVez, tirarNoFimDaBatalha, type CondicoesQueAcabaram } from '../../lib/condicoes/naFicha'
+import { fimDaVezComGatilhos, type DisparoDoGatilho, type FimDaVezComGatilhos } from '../../lib/condicoes/gatilho'
+import { comCondicoesNaFicha, condicoesDe, tirarNoFimDaBatalha, type CondicoesQueAcabaram } from '../../lib/condicoes/naFicha'
 import type { CondicaoNaFicha } from '../../lib/itens/modelo'
 import type { Personagem } from '../../lib/personagem'
 import { chaveDoSelo, espelhosDasPastilhas, pedidosDasCondicoesDaFicha, type CondicoesDasFichas } from '../../lib/ponteDasCondicoes'
@@ -103,9 +104,37 @@ export function porCondicoesDoAcerto(mesa: MesaDaBatalha, personagemId: string, 
   return mudarCondicoes(mesa, personagemId, (atual) => ({ personagem: fichaComAsCondicoesDoAcerto(atual, aoAcertar, criadas), acabaram: [] }))
 }
 
-/** FIM DA VEZ de quem tem a ficha: a "por N turnos" desconta 1 e sai ao chegar a 0. `null` = nada com prazo, ou a mesa sem condição na ficha. */
-export function contarFimDaVezNaMesa(mesa: MesaDaBatalha, personagemId: string): CondicoesMudadas | null {
-  return condicoesNaFicha(mesa) ? mudarCondicoes(mesa, personagemId, contarFimDaVez) : null
+/** O fim da vez na mesa: o que mudou nas condições e o que os gatilhos dispararam (o dano e a cura vão para a vida por quem chama). */
+export interface FimDaVezNaMesa extends CondicoesMudadas {
+  disparos: DisparoDoGatilho[]
+  dano: number
+  cura: number
+}
+
+/**
+ * FIM DA VEZ de quem tem a ficha: a "por N turnos" desconta 1 e sai ao chegar a 0, e cada gatilho
+ * ("depois de X turnos", pedido de 26/11) conta 1 e dispara ao chegar a X (`fimDaVezComGatilhos`).
+ * `null` = nada a contar, ou a mesa sem condição na ficha.
+ */
+export function contarFimDaVezNaMesa(mesa: MesaDaBatalha, personagemId: string): FimDaVezNaMesa | null {
+  const lerCriadas = mesa.condicoesCriadas
+  if (lerCriadas === undefined) return null
+  const criadas = lerCriadas()
+  // A conta é feita dentro da gravação da mesa (sobre a ficha de agora); a caixa a traz para fora.
+  const caixa: { antes?: readonly CondicaoNaFicha[]; feito?: FimDaVezComGatilhos } = {}
+  const gravou = mesa.ajustarPersonagem(personagemId, (atual) => {
+    const feito = fimDaVezComGatilhos(atual, criadas)
+    caixa.antes = condicoesDe(atual)
+    caixa.feito = feito
+    return feito.personagem
+  })
+  const { antes, feito } = caixa
+  if (!gravou || antes === undefined || feito === undefined) return null
+  const depois = condicoesDe(feito.personagem)
+  // "A cada 1 turno, continua": a lista fica igual, mas o disparo vale (o dano e a cura da vez).
+  if (mesmas(antes, depois) && feito.disparos.length === 0) return null
+  const nomes = feito.acabaram.map((condicao) => condicaoDoCatalogo(condicao.condId, criadas)?.nome ?? 'Condição')
+  return { parte: { tipo: 'condicoes', personagemId, antes, depois }, acabaram: nomes, disparos: feito.disparos, dano: feito.dano, cura: feito.cura }
 }
 
 /** FIM DA BATALHA (decisão 11): em cada ficha dela, saem as com duração e as "até o fim da batalha"; a "até alguém tirar" fica. */

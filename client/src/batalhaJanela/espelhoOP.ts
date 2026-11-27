@@ -152,7 +152,8 @@ function golpeNoEspelho(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[]): Golpe
     alvosMax: teto,
     alvosPermitidos: null,
     dano: comNumero ? golpe.dano.valor : null,
-    perfurante: golpe.perfurante,
+    // Pedido de 26/11: a arma só com o pente (a mesa atira com a bala dele) perfura quando a bala é perfurante.
+    perfurante: golpe.perfurante || (golpe.balas?.length === 1 && golpe.balas[0]?.doPente === true && golpe.balas[0].perfurante === true),
     ajustavel: comNumero,
     ...ladoEAreaNoEspelho(golpe, alvos),
   }

@@ -1,9 +1,10 @@
 import type { CondicaoPropria } from '../../types/map'
 import { condicaoDoCatalogoPeloNome } from '../condicoes/catalogo'
-import { curaComAsCondicoes, porCondicao, type DuracaoDaCondicao } from '../condicoes/naFicha'
+import { curaComAsCondicoes, porCondicao, type DuracaoDaCondicao, type PedidoDeCondicao } from '../condicoes/naFicha'
 import { danoExtraDobra, pecasDoItemLidas, type PecaDoItem } from '../itens/pecasDoItem'
-import type { BlocosDoItem } from '../itens/modelo'
+import type { BlocosDoItem, GatilhoDaCondicao } from '../itens/modelo'
 import type { Personagem } from '../personagem'
+import { fraseDoGatilho } from '../condicoes/fraseDoGatilho'
 import type { Casa } from './area'
 
 /**
@@ -28,6 +29,8 @@ export interface CondicaoDoAcerto {
   nome: string
   duracao: DuracaoDaCondicao
   n?: number
+  /** Pedido de 26/11: o "depois de X turnos" da peça (vai junto para a ficha). */
+  gatilho?: GatilhoDaCondicao
 }
 
 /** O que o acerto do item faz além do dano de cima. */
@@ -61,7 +64,7 @@ export function efeitosAoAcertar(blocos: BlocosDoItem | undefined): EfeitosAoAce
   if (blocos?.aoAcertar === undefined) return NENHUM
   const efeitos: EfeitosAoAcertar = { condicoes: [], danoExtra: 0, empurrar: 0 }
   for (const peca of pecasDoItemLidas(blocos.aoAcertar)) {
-    if (peca.tipo === 'condicao') efeitos.condicoes.push({ nome: peca.nome, duracao: duracaoDaPeca(peca), ...(peca.n === undefined ? {} : { n: peca.n }) })
+    if (peca.tipo === 'condicao') efeitos.condicoes.push({ nome: peca.nome, duracao: duracaoDaPeca(peca), ...(peca.n === undefined ? {} : { n: peca.n }), ...(peca.gatilho === undefined ? {} : { gatilho: peca.gatilho }) })
     else if (peca.tipo === 'dano' && !danoExtraDobra(blocos, peca)) efeitos.danoExtra += peca.valor
     else if (peca.tipo === 'empurrar') efeitos.empurrar = Math.min(EMPURRAR_MAX, efeitos.empurrar + peca.casas)
   }
@@ -92,10 +95,10 @@ export function aoAcertarDoGolpe(efeitos: EfeitosAoAcertar, origem: string): AoA
 }
 
 /** A condição do acerto como o pedido da ficha a quer (o `condId` do catálogo); `null` = nome fora do catálogo. */
-export function pedidoDaCondicao(condicao: CondicaoDoAcerto, origem: string, criadas: readonly CondicaoPropria[]): { condId: string; duracao: DuracaoDaCondicao; n?: number; origem: string } | null {
+export function pedidoDaCondicao(condicao: CondicaoDoAcerto, origem: string, criadas: readonly CondicaoPropria[]): PedidoDeCondicao | null {
   const doCatalogo = condicaoDoCatalogoPeloNome(condicao.nome, criadas)
   if (doCatalogo === null) return null
-  return { condId: doCatalogo.id, duracao: condicao.duracao, ...(condicao.n === undefined ? {} : { n: condicao.n }), origem }
+  return { condId: doCatalogo.id, duracao: condicao.duracao, ...(condicao.n === undefined ? {} : { n: condicao.n }), origem, ...(condicao.gatilho === undefined ? {} : { gatilho: condicao.gatilho }) }
 }
 
 /** Põe as condições do acerto na ficha, uma depois da outra (a mesma de novo renova). A MESMA ficha quando nenhuma entra. */
@@ -173,7 +176,7 @@ export function testeNoBoneco(boneco: Personagem, nome: string, blocos: BlocosDo
   for (const condicao of juntos.condicoes) {
     const pedido = pedidoDaCondicao(condicao, origem, criadas)
     if (pedido === null) linhas.push(`${condicao.nome}: fora do catálogo de condições, não entra.`)
-    else linhas.push(`Fica com ${condicao.nome}${condicao.n === undefined ? '' : ` (${condicao.n})`} ${textoDaDuracao(condicao.duracao)}.`)
+    else linhas.push(`Fica com ${condicao.nome}${condicao.n === undefined ? '' : ` (${condicao.n})`} ${textoDaDuracao(condicao.duracao)}${condicao.gatilho === undefined ? '' : `; ${fraseDoGatilho(condicao.gatilho)}`}.`)
   }
   const cura = curaComAsCondicoes(CURA_DE_PROVA, ficha, criadas)
   if (cura.corte > 0) linhas.push(`Uma cura de ${CURA_DE_PROVA} nele cura ${cura.cura} (${cura.nome ?? 'condição'} corta ${cura.corte}%).`)

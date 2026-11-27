@@ -8,6 +8,7 @@ import { pecasDoEfeito } from '../leituraDoItem'
 import type { PecasDoEfeito, ValorDasPecas } from '../../types/map'
 import { balaDoDano, falaDeCuraReduzida } from './conversao/acervo'
 import { normalizado, primeiroNumero, tipoPelaCategoria } from './conversao/comum'
+import { fraseDoGatilho } from '../condicoes/fraseDoGatilho'
 import { CASAS_DO_ITEM_MAX, danoExtraDobra, ehRegistro, inteiro, NUMERO_DO_ITEM_MAX, pecaDoEfeitoGuardado, pecasDoItemLidas, type DuracaoNoEditor, type PecaDoItem } from './pecasDoItem'
 import {
   ROTULO_DO_TIPO,
@@ -138,7 +139,8 @@ function efeitoDaPeca(peca: Exclude<PecaDoItem, { tipo: 'dano' } | { tipo: 'empu
     case 'condicao': {
       const regra = regraDaCondicaoPeloNome(peca.nome)
       const duracao = peca.duracao === 'fim' ? 'ateTirar' : peca.duracao
-      const base: Extract<Efeito, { tipo: 'selo' }> = { tipo: 'selo', nome: peca.nome, duracao, natureza: 'debuff' }
+      // Pedido de 26/11: o "depois de X turnos" vai no selo, depois das outras chaves (sem ele, o selo de antes byte a byte).
+      const base: Extract<Efeito, { tipo: 'selo' }> = { tipo: 'selo', nome: peca.nome, duracao, natureza: 'debuff', ...(peca.gatilho === undefined ? {} : { gatilho: peca.gatilho }) }
       if (regra === 'cura' && peca.n !== undefined) return { ...base, regra: { curaRecebida: -Math.min(100, Math.max(1, peca.n)) } }
       if (regra === 'vida' && peca.n !== undefined) return { ...base, porTurno: { recurso: 'hp', quanto: { fixo: peca.n }, direto: true } }
       return base
@@ -437,9 +439,11 @@ function fraseDaPeca(peca: PecaDoItem, onde: OndeDaPeca): string {
     case 'condicao': {
       const duracao = DURACOES_NO_EDITOR.find((opcao) => opcao.duracao === peca.duracao)?.rotulo ?? ''
       const regra = regraDaCondicaoPeloNome(peca.nome)
-      if (regra === 'cura') return `${quem} fica com ${peca.nome}${peca.n === undefined ? '' : ` ${peca.n}%`} ${duracao}: toda cura nele vem cortada.`
-      if (regra === 'vida') return `${quem} fica ${peca.nome} ${duracao}${peca.n === undefined ? '' : `, perdendo ${peca.n} de vida no começo de cada vez`}.`
-      return `${quem} fica ${peca.nome} ${duracao} (o mestre narra).`
+      // Pedido de 26/11: o "depois de X turnos" da peça entra na mesma frase.
+      const depois = peca.gatilho === undefined ? '' : ` Na vez dele, ${fraseDoGatilho(peca.gatilho)}.`
+      if (regra === 'cura') return `${quem} fica com ${peca.nome}${peca.n === undefined ? '' : ` ${peca.n}%`} ${duracao}: toda cura nele vem cortada.${depois}`
+      if (regra === 'vida') return `${quem} fica ${peca.nome} ${duracao}${peca.n === undefined ? '' : `, perdendo ${peca.n} de vida no começo de cada vez`}.${depois}`
+      return `${quem} fica ${peca.nome} ${duracao} (o mestre narra).${depois}`
     }
     case 'dano':
       return `Mais ${peca.valor} de dano extra.`
@@ -507,6 +511,7 @@ export function frasesDoItem(item: ItemDaFrase, ctx: ContextoDaFrase): string[] 
         if (bala.modo === 'soma') f.push(bala.valor === 0 ? 'Usa o dano da arma.' : `Soma ${bala.valor} ao dano da arma.`)
         else if (bala.modo === 'troca') f.push(`Troca o dano da arma por ${bala.valor}.`)
         else f.push(`Soma ${bala.atributo === undefined ? 'um atributo' : ctx.nomeDoAtributo(bala.atributo)}${bala.divisor !== undefined && bala.divisor > 1 ? ` / ${bala.divisor}` : ''} ao dano da arma.`)
+        if (bala.perfurante === true) f.push('O tiro é perfurante: vai direto no HP, sem gastar o Escudo.')
       }
       f.push(...frasesDasPecas(item, 'acerto'))
       const armas = ctx.armasQueAceitam(item.id)

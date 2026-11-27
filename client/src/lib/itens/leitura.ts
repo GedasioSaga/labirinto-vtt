@@ -18,6 +18,7 @@ import {
   type TipoDoItem,
   type UsoDoItem,
 } from './modelo'
+import { gatilhoLido, TURNOS_DO_GATILHO_MAX } from './pecasDoItem'
 
 /**
  * Os LEITORES do modelo novo do item (PLANO §1.3: são o juiz do disco, do fio e do Worker). Cada um
@@ -133,7 +134,7 @@ function balaLida(value: unknown): BalaDoItem | undefined {
   if (modo === null || valor === null) return undefined
   const atributo = textoCurto(value.atributo)
   const divisor = inteiroEntre(value.divisor, 1, DIVISOR_MAX)
-  return { modo, valor, ...(atributo === null || atributo === '' ? {} : { atributo }), ...(divisor === null ? {} : { divisor }) }
+  return { modo, valor, ...(atributo === null || atributo === '' ? {} : { atributo }), ...(divisor === null ? {} : { divisor }), ...(value.perfurante === true ? { perfurante: true as const } : {}) }
 }
 
 function usoLido(value: unknown): UsoDoItem | undefined {
@@ -241,6 +242,12 @@ export function condicoesDaFichaLidas(value: unknown): CondicaoNaFicha[] | undef
     if (bruta.contadoNaCarta === true) condicao.contadoNaCarta = true
     // "Até o fim da batalha" só existe sem turnos contados: com número, vale o número.
     if (bruta.ateOFimDaBatalha === true && turnos === null) condicao.ateOFimDaBatalha = true
+    // Pedido de 26/11: o gatilho da peça que a pôs e a conta dele. Sem o campo = sem gatilho próprio.
+    const gatilho = gatilhoLido(bruta.gatilho)
+    if (gatilho !== undefined) condicao.gatilho = gatilho
+    const conta = inteiroEntre(bruta.gatilhoConta, 1, TURNOS_DO_GATILHO_MAX)
+    if (conta !== null) condicao.gatilhoConta = conta
+    if (bruta.gatilhoFeito === true) condicao.gatilhoFeito = true
     vistas.add(bruta.id)
     lidas.push(condicao)
     if (lidas.length >= CONDICOES_NA_FICHA_MAX) break

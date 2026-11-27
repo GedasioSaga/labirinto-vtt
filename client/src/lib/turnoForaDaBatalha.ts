@@ -2,7 +2,8 @@ import type { CondicaoPropria, MapData, PrazoDeCondicao, Token } from '../types/
 import { NOME_DO_MESTRE, aplicarAjustes } from './ajusteDaFicha'
 import { chaveDaCondicao } from './condicaoPorNome'
 import { condicaoDoCatalogo } from './condicoes/catalogo'
-import { condicoesDe, contarFimDaVez, danoDosPendentes, duracaoDe, pendentesDoComecoDaVez, type PendenteDaVez } from './condicoes/naFicha'
+import { fimDaVezComGatilhos, gatilhoDe, temGatilhoQueConta, textoDoDisparo, type DisparoDoGatilho } from './condicoes/gatilho'
+import { condicoesDe, danoDosPendentes, duracaoDe, pendentesDoComecoDaVez, type PendenteDaVez } from './condicoes/naFicha'
 import type { CondicaoNaFicha } from './itens/modelo'
 import { condicoesPropriasOf, simboloDaCondicaoPropria } from './condicoesProprias'
 import type { Personagem } from './personagem'
@@ -98,11 +99,14 @@ interface TiqueDoPersonagem extends CondicoesDoPersonagemNoTurno {
   nome: string
   pendentes: PendenteDaVez[]
   dano: number
+  /** Pedido de 26/11: os gatilhos que dispararam neste turno e a cura que deram (o dano deles já está em `dano`). */
+  disparos: DisparoDoGatilho[]
+  cura: number
 }
 
 /** A ficha de personagem tem condição que conta turno (por N turnos) ou que tira vida no começo da vez. */
 function fichaContaTurno(personagem: Personagem, criadas: readonly CondicaoPropria[]): boolean {
-  return condicoesDe(personagem).some((condicao) => condicao.turnos !== null) || pendentesDoComecoDaVez(personagem, criadas).length > 0
+  return condicoesDe(personagem).some((condicao) => condicao.turnos !== null) || pendentesDoComecoDaVez(personagem, criadas).length > 0 || temGatilhoQueConta(personagem, criadas)
 }
 
 /** As fichas de personagem ligadas aos tokens da cena, uma vez cada (dois tokens da mesma ficha de jogador contam um turno só), na ordem do mapa. */
@@ -129,7 +133,8 @@ function tiquesDasFichas(tokens: readonly Token[], personagens: readonly Persona
   return fichasDaCena(tokens, personagens).flatMap(({ personagem, token }) => {
     if (!fichaContaTurno(personagem, criadas)) return []
     const pendentes = pendentesDoComecoDaVez(personagem, criadas)
-    const fim = contarFimDaVez(personagem)
+    // Pedido de 26/11: o desconto do fim com os gatilhos ("depois de X turnos"), a mesma conta da batalha.
+    const fim = fimDaVezComGatilhos(personagem, criadas)
     return [
       {
         personagemId: personagem.id,
@@ -138,7 +143,9 @@ function tiquesDasFichas(tokens: readonly Token[], personagens: readonly Persona
         antes: condicoesDe(personagem),
         depois: condicoesDe(fim.personagem),
         pendentes,
-        dano: danoDosPendentes(pendentes),
+        dano: danoDosPendentes(pendentes) + fim.dano,
+        disparos: fim.disparos,
+        cura: fim.cura,
       },
     ]
   })
@@ -175,7 +182,7 @@ export function fraseDasCondicoesDaFicha(
   // A criada que o mestre apagou do catálogo fica na ficha sem nome de catálogo.
   const nomeDe = (condicao: CondicaoNaFicha): string => condicaoDoCatalogo(condicao.condId, criadas)?.nome ?? 'Condição apagada'
   const tiram = new Set(pendentes.map((pendente) => pendente.condicaoId))
-  const contam = antes.filter((condicao) => condicao.turnos !== null || tiram.has(condicao.id))
+  const contam = antes.filter((condicao) => condicao.turnos !== null || tiram.has(condicao.id) || (condicao.gatilhoFeito !== true && gatilhoDe(condicao, criadas) !== null))
   const parte = (condicao: CondicaoNaFicha, separador: string): string => `${nomeDe(condicao)}${separador}${estadoDaCondicaoDepois(condicao, depois)}`
   if (perdeu === null || tiram.size === 0) return `${nome}: ${contam.map((condicao) => parte(condicao, ' ')).join(', ')}`
   const cabeca = `${nome} perdeu ${perdeu} PV (${contam.filter((condicao) => tiram.has(condicao.id)).map((condicao) => parte(condicao, ', ')).join('; ')})`
@@ -263,11 +270,14 @@ export function passarTurnoForaDaBatalha(
     let perdeu: number | null = null
     if (vida !== null) {
       const conta = atualPorPersonagem.get(tique.personagemId) ?? { de: vida.atual, para: vida.atual }
-      const para = Math.max(0, conta.para - tique.dano)
-      perdeu = conta.para - para
+      const semCura = Math.max(0, conta.para - tique.dano)
+      perdeu = conta.para - semCura
+      // A cura do gatilho vem depois do dano e para no máximo da vida.
+      const para = Math.min(vida.maximo, semCura + tique.cura)
       atualPorPersonagem.set(tique.personagemId, { de: conta.de, para })
     }
-    partes.push(fraseDasCondicoesDaFicha(tique.nome, tique.antes, tique.depois, tique.pendentes, perdeu, criadas))
+    const frase = fraseDasCondicoesDaFicha(tique.nome, tique.antes, tique.depois, tique.pendentes, perdeu, criadas)
+    partes.push(tique.disparos.length === 0 ? frase : [frase, ...tique.disparos.map((disparo) => textoDoDisparo(disparo, tique.nome))].join('; '))
   }
   const perdas: PerdaDeVida[] =
     recurso === null ? [] : [...atualPorPersonagem].flatMap(([personagemId, { de, para }]) => (de === para ? [] : [{ personagemId, recursoId: recurso.id, de, para }]))

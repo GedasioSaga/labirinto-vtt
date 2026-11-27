@@ -1,7 +1,7 @@
 import type { CondicaoPropria } from '../../types/map'
 import { N_DA_CURA_MAX, N_DA_VIDA_MAX } from '../condicoesProprias'
 import { CONDICOES_NA_FICHA_MAX, condicoesDaFichaLidas } from '../itens/leitura'
-import type { CondicaoNaFicha } from '../itens/modelo'
+import type { CondicaoNaFicha, GatilhoDaCondicao } from '../itens/modelo'
 import type { Personagem } from '../personagem'
 import { condicaoDoCatalogo, type CondicaoDoCatalogo } from './catalogo'
 
@@ -59,6 +59,8 @@ export interface PedidoDeCondicao {
   n?: number
   /** O nome da técnica ou do item que pôs ("Bala de Prata"). */
   origem?: string
+  /** O "depois de X turnos" da peça que pôs (vence o do catálogo). Renovar zera a conta. */
+  gatilho?: GatilhoDaCondicao
 }
 
 function numeroDaRegra(condicao: CondicaoDoCatalogo, pedido: number | undefined): number | null {
@@ -99,6 +101,7 @@ export function porCondicao(personagem: Personagem, pedido: PedidoDeCondicao, cr
     ...prazo,
     ...(n === null ? {} : { n }),
     ...(origem === '' ? {} : { origem }),
+    ...(pedido.gatilho === undefined ? {} : { gatilho: pedido.gatilho }),
   }
   const lista = antiga === undefined ? [...atuais, posta] : atuais.map((condicao) => (condicao === antiga ? posta : condicao))
   return comCondicoesNaFicha(personagem, lista)

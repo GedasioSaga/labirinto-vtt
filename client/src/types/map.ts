@@ -6,7 +6,7 @@ import type { ProgressoDoPuzzle } from '../puzzles/tipos'
 import type { DocumentoNoMapa, PapelNoChao } from '../documentos/tipos'
 import type { AuraDaFicha } from '../lib/auras'
 import type { SelectionKind } from './tools'
-import type { PenteDaVaga, RegraDaVaga, TipoDoItem } from '../lib/itens/modelo'
+import type { GatilhoDaCondicao, PenteDaVaga, RegraDaVaga, TipoDoItem } from '../lib/itens/modelo'
 /**
  * Todas as coordenadas e distâncias (x, y, x1/y1/x2/y2, radius) estão em pixels
  * do mundo. `grid` define o tamanho de uma célula em pixels — é a unidade que
@@ -1632,6 +1632,11 @@ export interface CondicaoPropria {
   regra?: RegraDaCondicao
   /** O número da regra: vida tirada no começo de cada vez (`vida`) ou % da cura cortada (`cura`). Ausente = 0. */
   n?: number
+  /**
+   * O GATILHO (pedido de 26/11): "depois de X turnos" dá as peças em quem está com ela
+   * (`lib/condicoes/gatilho.ts`). Ausente = sem gatilho, como toda condição de antes.
+   */
+  gatilho?: GatilhoDaCondicao
 }
 
 /**

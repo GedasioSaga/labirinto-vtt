@@ -1,0 +1,86 @@
+/* O GATILHO DA CONDIÇÃO (pedido de 26/11): "Depois de [X] turnos [uma vez | a cada X] → [peças] · ao disparar [some | continua]".
+   Uma linha que quebra quando falta lugar; os campos têm a altura do texto em volta, para ler como frase. */
+
+.lb-gat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px dashed var(--lb-gr-filete-forte, rgba(255, 255, 255, 0.18));
+  border-radius: var(--lb-radius-sm, 6px);
+  background: var(--lb-gr-papel-baixo, rgba(0, 0, 0, 0.16));
+}
+
+.lb-gat__linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+}
+
+.lb-gat__txt {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+}
+
+.lb-gat__txt--forte {
+  color: var(--lb-color-parchment);
+  font-weight: 600;
+}
+
+.lb-gat__seta {
+  color: var(--lb-color-brass);
+  font-weight: 600;
+}
+
+.lb-gat .lb-input {
+  min-height: 0;
+  padding: 2px 6px;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.4;
+}
+
+.lb-gat__num {
+  width: 3.2em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-gat__sel {
+  width: auto;
+  max-width: 100%;
+}
+
+.lb-gat__peca {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 2px 2px 6px;
+  border: 1px solid var(--lb-gr-filete-forte, rgba(255, 255, 255, 0.18));
+  border-radius: var(--lb-radius-sm, 6px);
+}
+
+.lb-gat__mais {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-gat__fora {
+  margin-left: auto;
+}
+
+.lb-gat__frase {
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-xs, 0.75rem);
+  line-height: 1.35;
+}
+
+.lb-gat__ligar {
+  align-self: flex-start;
+}

@@ -1,5 +1,5 @@
 import type { PecasDoEfeito } from '../../types/map'
-import type { BlocosDoItem } from './modelo'
+import type { BlocosDoItem, DuracaoDaPeca, GatilhoDaCondicao, PecaDoGatilho } from './modelo'
 
 /**
  * AS PEÇAS DO ITEM, SÓ A LEITURA (sistema de itens refeito, E2 e E6c): o "Ao acertar" e o "Ao usar"
@@ -14,7 +14,7 @@ export const NUMERO_DO_ITEM_MAX = 9999
 export const CASAS_DO_ITEM_MAX = 12
 
 /** "Até o fim da batalha" ou por N turnos (contados na vez de quem está com a condição). */
-export type DuracaoNoEditor = 'fim' | 1 | 2 | 3
+export type DuracaoNoEditor = DuracaoDaPeca
 
 /**
  * A peça como a tela a mostra. `condicao` = o selo das técnicas (com o nome da condição do
@@ -22,11 +22,72 @@ export type DuracaoNoEditor = 'fim' | 1 | 2 | 3
  * a mesa só move na E6c); `curar` = a cura; `tirar` = tirar condição pelo nome (`null` = todas).
  */
 export type PecaDoItem =
-  | { tipo: 'condicao'; nome: string; duracao: DuracaoNoEditor; n?: number }
-  | { tipo: 'dano'; valor: number }
+  | (Extract<PecaDoGatilho, { tipo: 'condicao' }> & { gatilho?: GatilhoDaCondicao })
+  | Exclude<PecaDoGatilho, { tipo: 'condicao' }>
   | { tipo: 'empurrar'; casas: number }
-  | { tipo: 'curar'; fixo: number }
-  | { tipo: 'tirar'; nome: string | null }
+
+/** Teto do X do gatilho ("depois de X turnos"). */
+export const TURNOS_DO_GATILHO_MAX = 99
+/** Teto de peças do gatilho: o mesmo do bloco do item (`PECAS_POR_BLOCO_MAX`). */
+export const PECAS_DO_GATILHO_MAX = 6
+/** Teto do nome da condição numa peça (o mesmo do nome do selo das técnicas). */
+const NOME_DA_PECA_MAX = 60
+
+/** O nome como está (sem espaço nas pontas, até o teto); `null` = torto. */
+function nomeDaPecaLido(valor: unknown): string | null {
+  return typeof valor === 'string' && valor !== '' && valor === valor.trim() && valor.length <= NOME_DA_PECA_MAX ? valor : null
+}
+
+function duracaoLida(valor: unknown): DuracaoDaPeca | null {
+  return valor === 'fim' || valor === 1 || valor === 2 || valor === 3 ? valor : null
+}
+
+/** Uma peça do gatilho lida do disco ou do fio. `null` = torta (fica de fora). */
+export function pecaDoGatilhoLida(valor: unknown): PecaDoGatilho | null {
+  if (!ehRegistro(valor)) return null
+  if (valor.tipo === 'condicao') {
+    const nome = nomeDaPecaLido(valor.nome)
+    const duracao = duracaoLida(valor.duracao)
+    if (nome === null || duracao === null) return null
+    const n = inteiro(valor.n, 1, NUMERO_DO_ITEM_MAX)
+    return { tipo: 'condicao', nome, duracao, ...(n === null ? {} : { n }) }
+  }
+  if (valor.tipo === 'dano') {
+    const n = inteiro(valor.valor, 1, NUMERO_DO_ITEM_MAX)
+    return n === null ? null : { tipo: 'dano', valor: n }
+  }
+  if (valor.tipo === 'curar') {
+    const fixo = inteiro(valor.fixo, 1, NUMERO_DO_ITEM_MAX)
+    return fixo === null ? null : { tipo: 'curar', fixo }
+  }
+  if (valor.tipo === 'tirar') {
+    if (valor.nome === null) return { tipo: 'tirar', nome: null }
+    const nome = nomeDaPecaLido(valor.nome)
+    return nome === null ? null : { tipo: 'tirar', nome }
+  }
+  return null
+}
+
+/**
+ * O GATILHO lido do disco ou do fio (o mesmo juiz do app, da ficha e do Worker). `undefined` =
+ * ausente ou torto: a condição fica sem gatilho, como a de antes deste campo.
+ */
+export function gatilhoLido(valor: unknown): GatilhoDaCondicao | undefined {
+  if (!ehRegistro(valor)) return undefined
+  const turnos = inteiro(valor.turnos, 1, TURNOS_DO_GATILHO_MAX)
+  if (turnos === null || !Array.isArray(valor.pecas)) return undefined
+  // Nenhum campo inventado (o Worker recusa o que o leitor não devolve igual): escolha torta = sem gatilho.
+  const vezes = valor.vezes === 'uma' || valor.vezes === 'cada' ? valor.vezes : null
+  const aoDisparar = valor.aoDisparar === 'some' || valor.aoDisparar === 'continua' ? valor.aoDisparar : null
+  if (vezes === null || aoDisparar === null) return undefined
+  const pecas: PecaDoGatilho[] = []
+  for (const crua of valor.pecas) {
+    const peca = pecaDoGatilhoLida(crua)
+    if (peca !== null) pecas.push(peca)
+    if (pecas.length >= PECAS_DO_GATILHO_MAX) break
+  }
+  return pecas.length === 0 ? undefined : { turnos, vezes, aoDisparar, pecas }
+}
 
 export function ehRegistro(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
@@ -44,7 +105,8 @@ export function pecaDoEfeitoGuardado(efeito: unknown): PecaDoItem | null {
     const regra = ehRegistro(efeito.regra) ? inteiro(efeito.regra.curaRecebida, -100, 0) : null
     const porTurno = ehRegistro(efeito.porTurno) && ehRegistro(efeito.porTurno.quanto) ? inteiro(efeito.porTurno.quanto.fixo, 1, NUMERO_DO_ITEM_MAX) : null
     const n = regra !== null ? -regra : porTurno
-    return { tipo: 'condicao', nome: efeito.nome, duracao, ...(n === null ? {} : { n }) }
+    const gatilho = gatilhoLido(efeito.gatilho)
+    return { tipo: 'condicao', nome: efeito.nome, duracao, ...(n === null ? {} : { n }), ...(gatilho === undefined ? {} : { gatilho }) }
   }
   if (efeito.tipo === 'cura' && ehRegistro(efeito.quanto)) {
     const fixo = inteiro(efeito.quanto.fixo, 1, NUMERO_DO_ITEM_MAX)

@@ -278,6 +278,8 @@ export interface BalaDaArma {
    * da batalha), do Acervo de agora ou da `regra` da vaga dela. Ausente = a bala não faz nada além do dano.
    */
   aoAcertar?: EfeitosAoAcertar
+  /** Pedido de 26/11: a bala do pente é perfurante (o bloco `bala` do item); a mira já abre com o Perfurante ligado. */
+  perfurante?: true
 }
 
 /** A arma da aba Armas com o que a batalha lê dela. É o próprio cartão, mais as leituras. */
@@ -567,9 +569,11 @@ function nomeDaBala(balaId: string, mochila: readonly CarriedItem[]): string {
 /** A bala que está no pente como bala da arma: o tiro tira 1 do pente (`municao.pente`). */
 function balaDoPente(armaVagaId: string, pente: { balaId: string; n: number }, mochila: readonly CarriedItem[]): BalaDaArma {
   // Sem o Acervo (o Worker do Lobby, o jogador), a regra da bala vem da vaga dela na mochila.
-  const aoAcertar = efeitosAoAcertar(regraNoAcervo(pente.balaId)?.blocos ?? mochila.find((vaga) => vaga.itemId === pente.balaId)?.regra)
+  const blocos = regraNoAcervo(pente.balaId)?.blocos ?? mochila.find((vaga) => vaga.itemId === pente.balaId)?.regra
+  const aoAcertar = efeitosAoAcertar(blocos)
   return {
     ...(temEfeitoAoAcertar(aoAcertar) ? { aoAcertar } : {}),
+    ...(blocos?.bala?.perfurante === true ? { perfurante: true as const } : {}),
     id: `${PREFIXO_DA_MUNICAO}${pente.balaId}`,
     nome: nomeDaBala(pente.balaId, mochila),
     dano: danoDaBala(pente.balaId),

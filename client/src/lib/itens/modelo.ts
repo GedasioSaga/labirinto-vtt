@@ -95,6 +95,8 @@ export type BalaDoItem = {
   valor: number
   atributo?: string
   divisor?: number
+  /** Pedido de 26/11: o tiro com esta bala é PERFURANTE (a mesma regra do golpe perfurante: direto no HP, sem gastar o Escudo). Ausente = não perfura. */
+  perfurante?: true
 }
 
 /** O uso do consumível: a ação, o alcance e onde vale. */
@@ -163,6 +165,33 @@ export type PenteDaVaga = {
   n: number
 }
 
+/** "Até o fim da batalha" ou por N turnos (contados na vez de quem está com a condição). */
+export type DuracaoDaPeca = 'fim' | 1 | 2 | 3
+
+/**
+ * Uma peça do GATILHO da condição (pedido de 26/11: "depois de X turnos, dá esse efeito ou
+ * condição"): as mesmas peças do "Ao acertar" do item (`PecaDoItem`, lib/itens/pecasDoItem.ts), sem
+ * o empurrão (quem empurraria?). Guardada como a tela a mostra, JSON puro.
+ */
+export type PecaDoGatilho =
+  | { tipo: 'condicao'; nome: string; duracao: DuracaoDaPeca; n?: number }
+  | { tipo: 'dano'; valor: number }
+  | { tipo: 'curar'; fixo: number }
+  | { tipo: 'tirar'; nome: string | null }
+
+/**
+ * O GATILHO da condição: depois de `turnos` turnos (os da vez de quem está com ela, a mesma conta
+ * do prazo), as `pecas` acontecem em quem está com ela. `vezes`: uma vez só, ou a cada `turnos`.
+ * `aoDisparar`: a condição sai, ou continua. Mora na condição criada do catálogo
+ * (`CondicaoPropria.gatilho`) ou na peça que a põe (`CondicaoNaFicha.gatilho`, que vence).
+ */
+export type GatilhoDaCondicao = {
+  turnos: number
+  vezes: 'uma' | 'cada'
+  aoDisparar: 'some' | 'continua'
+  pecas: PecaDoGatilho[]
+}
+
 /**
  * Uma condição na ficha (PLANO §1.5): `condId` aponta para o catálogo de condições (as de fábrica e
  * as criadas); `turnos: null` = até alguém tirar. Só o mestre escreve (decisão 18).
@@ -180,4 +209,10 @@ export type CondicaoNaFicha = {
    * campo o ignora e a lê como "até alguém tirar", sem perder a condição.
    */
   ateOFimDaBatalha?: true
+  /** O gatilho que a peça que a pôs trouxe (vence o do catálogo). Ausente = o do catálogo, se houver. */
+  gatilho?: GatilhoDaCondicao
+  /** Quantos turnos o gatilho já contou desde que ela entrou (ou desde o último disparo). Ausente = 0. */
+  gatilhoConta?: number
+  /** O gatilho de "uma vez" já disparou e a condição continuou: não dispara de novo. */
+  gatilhoFeito?: true
 }

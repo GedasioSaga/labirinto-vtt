@@ -57,6 +57,7 @@ import { CampoDoAlcance } from './batalha/alcance/CampoDoAlcance'
 import { CampoInteiro, Marcar } from './batalha/blocos/controles'
 import { ImagemOuIniciais } from './FichaPecas'
 import { CloseIcon } from './icons'
+import { LinhaDoGatilho } from './condicoes/LinhaDoGatilho'
 import { PinImageDrop } from './PinImageDrop'
 import { DarAFichas } from './DarAFichas'
 import './ItemDoCatalogoDialog.css'
@@ -404,7 +405,7 @@ function PecasDoBloco({
                         opcoes={opcoesDeCondicao(peca.nome)}
                         onMudar={(nome) => {
                           const n = nDePartida(nome)
-                          mudarUma(indice, { tipo: 'condicao', nome, duracao: peca.duracao, ...(n === undefined ? {} : { n }) })
+                          mudarUma(indice, { tipo: 'condicao', nome, duracao: peca.duracao, ...(n === undefined ? {} : { n }), ...(peca.gatilho === undefined ? {} : { gatilho: peca.gatilho }) })
                         }}
                       />
                       <CampoEscolha
@@ -419,6 +420,16 @@ function PecasDoBloco({
                       {regraDaCondicaoPeloNome(peca.nome) === 'cura' && <CampoInteiro rotulo="A cura cai" valor={peca.n ?? 50} minimo={1} maximo={100} depois="%" onChange={(n) => mudarUma(indice, { ...peca, n })} />}
                       {regraDaCondicaoPeloNome(peca.nome) === 'vida' && <CampoInteiro rotulo="Perde de vida por vez" valor={peca.n ?? 1} minimo={1} maximo={99} onChange={(n) => mudarUma(indice, { ...peca, n })} />}
                       {regraDaCondicaoPeloNome(peca.nome) === 'narra' && <span className="lb-field__hint">Sem regra: o mestre narra.</span>}
+                      {onde === 'acerto' && (
+                        <LinhaDoGatilho
+                          gatilho={peca.gatilho}
+                          condicoes={condicoes}
+                          onMudar={(gatilho) => {
+                            const { gatilho: _antes, ...semGatilho } = peca
+                            mudarUma(indice, gatilho === undefined ? semGatilho : { ...semGatilho, gatilho })
+                          }}
+                        />
+                      )}
                     </>
                   )}
                   {peca.tipo === 'dano' && <CampoInteiro rotulo="Mais dano extra" valor={peca.valor} minimo={1} maximo={NUMERO_DO_ITEM_MAX} onChange={(valor) => mudarUma(indice, { tipo: 'dano', valor })} />}
@@ -835,6 +846,17 @@ export function ItemDoCatalogoDialog({ item, novo, alvos, onSalvar, onApagar, on
                   </>
                 )}
               </div>
+              <Marcar
+                rotulo="Perfurante: o tiro vai direto no HP, sem gastar o Escudo"
+                marcado={rascunho.bala.perfurante === true}
+                onChange={(marcado) =>
+                  setRascunho((atual) => {
+                    if (atual.bala === undefined) return atual
+                    const { perfurante: _antes, ...semPerfurar } = atual.bala
+                    return { ...atual, bala: marcado ? { ...semPerfurar, perfurante: true } : semPerfurar }
+                  })
+                }
+              />
               <p className="lb-field__hint">Para uma arma aceitar esta bala, marque-a na arma, em Munição e recarga.</p>
             </Secao>
           )}
