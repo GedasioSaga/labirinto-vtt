@@ -43,12 +43,33 @@ export function conjuntoDasCasas(casas: readonly Casa[]): ReadonlySet<string> {
   return new Set(casas.map(chaveDaCasa))
 }
 
+/**
+ * As casas que a ficha inteira ocupa na grade (a pegada de `pegadaDaFicha`). Um lugar só para "onde
+ * a ficha está": a conferência do alcance (`fichaNasCasas`) e a casa vermelha do chão (`casasPisadas`).
+ */
+export function casasDaFicha(ficha: PegadaNaGrade): Casa[] {
+  const casas: Casa[] = []
+  for (let row = ficha.row; row < ficha.row + ficha.tamanho; row += 1) {
+    for (let col = ficha.col; col < ficha.col + ficha.tamanho; col += 1) casas.push({ col, row })
+  }
+  return casas
+}
+
 /** A ficha inteira pisa em alguma casa acesa (o token grande com um pé dentro entra). */
 export function fichaNasCasas(acesas: ReadonlySet<string>, ficha: PegadaNaGrade): boolean {
-  for (let row = ficha.row; row < ficha.row + ficha.tamanho; row += 1) {
-    for (let col = ficha.col; col < ficha.col + ficha.tamanho; col += 1) if (acesas.has(chaveDaCasa({ col, row }))) return true
-  }
-  return false
+  return casasDaFicha(ficha).some((casa) => acesas.has(chaveDaCasa(casa)))
+}
+
+/**
+ * As casas acesas onde pisa alguma das fichas, na ordem de `casas`. A casa vermelha do chão
+ * (pedido do dono, 27/11/2026: "quando os quadrados azuis acertarem um inimigo deixe o quadrado
+ * vermelho"): pela mesma pegada de `fichaNasCasas`, então a casa fica vermelha exatamente quando a
+ * conferência do alcance diz que a ficha está dentro.
+ */
+export function casasPisadas(casas: readonly Casa[], fichas: readonly PegadaNaGrade[]): Casa[] {
+  if (fichas.length === 0 || casas.length === 0) return []
+  const pisadas = conjuntoDasCasas(fichas.flatMap(casasDaFicha))
+  return casas.filter((casa) => pisadas.has(chaveDaCasa(casa)))
 }
 
 /** As fichas que entram nas casas acesas, na ordem dos candidatos, pelo lado que a área pega. */

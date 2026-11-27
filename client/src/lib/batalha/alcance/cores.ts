@@ -30,6 +30,15 @@ export const TINTAS_DO_ALCANCE: Readonly<Record<CorDoAlcance, TintaDoAlcance>> =
   verde: { base: 0x68de68, baseAlpha: 0.58, forte: 0x96f28c, forteAlpha: 0.86, borda: 0xecffe2, contorno: 0x0a280e, contornoAlpha: 0.62, brilho: '214, 255, 204' },
 }
 
+/**
+ * A casa acesa onde está o alvo que o golpe de dano acerta (pedido do dono, 27/11/2026: "quando os
+ * quadrados azuis acertarem um inimigo deixe o quadrado vermelho"). As mesmas alfas e o mesmo
+ * desenho do azul: só a cor troca. O vermelho é um pouco mais claro que o azul (`0xe8362c`) para
+ * ler igual sobre o chão escuro, e o contorno e a borda seguem o par do azul (escuro quente e rosa
+ * claro).
+ */
+export const TINTA_DO_ALVO_ATINGIDO: TintaDoAlcance = { base: 0xe8362c, baseAlpha: 0.6, forte: 0xff5a48, forteAlpha: 0.84, borda: 0xffd9d2, contorno: 0x2e0806, contornoAlpha: 0.6, brilho: '255, 196, 184' }
+
 /** A tinta como o canvas 2D a pede (`fillStyle`, `strokeStyle`). */
 export interface TintaDoCanvas {
   base: string

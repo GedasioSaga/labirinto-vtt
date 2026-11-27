@@ -5643,7 +5643,8 @@ function PlayerViewDoCanvas({
         // Fase E do alcance: com golpe na mira, o mouse diz a casa em foco e o lado da forma (a store só muda quando eles mudam).
         if (event.pointerType !== 'touch' && useMiraNoMapa.getState().local !== null) {
           const noMundo = scene.world.toLocal(event.global)
-          useMiraNoMapa.getState().apontar(noMundo.x, noMundo.y)
+          // Sobre um painel por cima do mapa (a própria mira, indo ao Lançar), a forma não vira (conserto de 27/11/2026).
+          useMiraNoMapa.getState().apontar(noMundo.x, noMundo.y, event.nativeEvent.target === app.canvas)
         }
         if (event.pointerType === 'touch') {
           const { state, camera } = fingerMove(scene.touch, event.pointerId, { x: event.global.x, y: event.global.y })

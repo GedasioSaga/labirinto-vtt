@@ -2,9 +2,9 @@ import { CanvasSource, Container, Graphics, Sprite, Texture, type Ticker } from 
 import { pegadaDaCasa, type Casa, type PegadaNaGrade } from '../lib/batalha/area'
 import { casasDaExplosao, casasDoAlcance } from '../lib/batalha/alcance/casas'
 import type { CorDoAlcance } from '../lib/batalha/alcance/cor'
-import { TINTAS_DO_ALCANCE, type TintaDoAlcance } from '../lib/batalha/alcance/cores'
+import { TINTA_DO_ALVO_ATINGIDO, TINTAS_DO_ALCANCE, type TintaDoAlcance } from '../lib/batalha/alcance/cores'
 import { usaDirecao, type FormaDaAreaLonge } from '../lib/batalha/alcance/forma'
-import { casasDaFormaDeQuemUsa, conjuntoDasCasas, fichaNasCasas, type MapaDoAlcance } from '../lib/batalha/alcance/quemEntra'
+import { casasDaFormaDeQuemUsa, casasPisadas, conjuntoDasCasas, fichaNasCasas, type MapaDoAlcance } from '../lib/batalha/alcance/quemEntra'
 import type { MiraNoDesenho } from '../stores/batalha/miraNoMapa'
 
 /**
@@ -22,6 +22,10 @@ import type { MiraNoDesenho } from '../stores/batalha/miraNoMapa'
  * - Mouse em cima (só a mira desta tela): a casa forte com borda branca; no alvo e no anel só a
  *   casa, na área longe a explosão; nas formas inteiras, todas. Fora das casas, o tracejado.
  * - Os marcados ganham os cantos de latão; a forma que olha para um lado, a seta.
+ * - Casa vermelha (pedido do dono, 27/11/2026: "quando os quadrados azuis acertarem um inimigo deixe o
+ *   quadrado vermelho"): no golpe de dano (azul), a casa acesa onde pisa um marcado fica vermelha, com
+ *   o mesmo desenho e o mesmo brilho; a vazia e a do aliado fora da mira ficam azuis. Quem pisa sai da
+ *   mesma pegada da conferência do alcance (`casasPisadas`), então vermelho = "dentro" para o host.
  *
  * Traços em px de TELA: o zoom refaz o traço sem refazer a conta das casas.
  */
@@ -99,11 +103,18 @@ function distanciaDeQuemUsa(quemUsa: PegadaNaGrade, casa: Casa): number {
   return Math.max(naCol, naRow)
 }
 
-const texturas = new Map<CorDoAlcance, Texture>()
+/** A tinta da casa: a da cor do golpe, ou a vermelha do alvo atingido. */
+type ChaveDaTinta = CorDoAlcance | 'atingido'
 
-/** O degradê redondo do brilho, feito uma vez por cor (o do protótipo, `brilhoDa`). */
-function texturaDoBrilho(cor: CorDoAlcance): Texture {
-  const pronta = texturas.get(cor)
+function tintaDa(chave: ChaveDaTinta): TintaDoAlcance {
+  return chave === 'atingido' ? TINTA_DO_ALVO_ATINGIDO : TINTAS[chave]
+}
+
+const texturas = new Map<ChaveDaTinta, Texture>()
+
+/** O degradê redondo do brilho, feito uma vez por tinta (o do protótipo, `brilhoDa`). */
+function texturaDoBrilho(chave: ChaveDaTinta): Texture {
+  const pronta = texturas.get(chave)
   if (pronta !== undefined) return pronta
   const tela = typeof document === 'undefined' ? null : document.createElement('canvas')
   const g = tela?.getContext('2d') ?? null
@@ -112,15 +123,37 @@ function texturaDoBrilho(cor: CorDoAlcance): Texture {
   tela.height = TEXTURA_PX
   const meio = TEXTURA_PX / 2
   const degrade = g.createRadialGradient(meio, meio, 0, meio, meio, meio * 0.92)
-  const rgb = TINTAS[cor].brilho
+  const rgb = tintaDa(chave).brilho
   degrade.addColorStop(0, `rgba(${rgb}, 0.95)`)
   degrade.addColorStop(0.45, `rgba(${rgb}, 0.45)`)
   degrade.addColorStop(1, `rgba(${rgb}, 0)`)
   g.fillStyle = degrade
   g.fillRect(0, 0, TEXTURA_PX, TEXTURA_PX)
   const textura = new Texture({ source: new CanvasSource({ resource: tela, autoGenerateMipmaps: true, scaleMode: 'linear' }) })
-  texturas.set(cor, textura)
+  texturas.set(chave, textura)
   return textura
+}
+
+const SEM_CASAS: ReadonlySet<string> = new Set()
+
+/** As casas acesas onde pisa um marcado, só no golpe de dano (azul); a ajuda (verde) não pinta ninguém de vermelho. */
+function casasAtingidas(mira: MiraNoDesenho, casas: readonly Casa[]): ReadonlySet<string> {
+  if (mira.cor !== 'azul') return SEM_CASAS
+  const pisadas = casasPisadas(casas, mira.alvos)
+  return pisadas.length === 0 ? SEM_CASAS : conjuntoDasCasas(pisadas)
+}
+
+/** As casas na tinta delas: as atingidas em vermelho, o resto na tinta do golpe (o mesmo traço). */
+function pintarComAtingidas(g: Graphics, casas: readonly Casa[], atingidas: ReadonlySet<string>, grid: number, px: number, tinta: TintaDoAlcance, forte: boolean): void {
+  if (atingidas.size === 0) {
+    pintarCasas(g, casas, grid, px, tinta, forte)
+    return
+  }
+  const normais: Casa[] = []
+  const vermelhas: Casa[] = []
+  for (const casa of casas) (atingidas.has(chaveDaCasa(casa)) ? vermelhas : normais).push(casa)
+  pintarCasas(g, normais, grid, px, tinta, forte)
+  pintarCasas(g, vermelhas, grid, px, TINTA_DO_ALVO_ATINGIDO, forte)
 }
 
 /** O ease-out quártico: começa rápido e assenta (a entrada). */
@@ -236,8 +269,11 @@ interface DesenhoDaMira {
   usados: number
   casas: Casa[]
   acesas: ReadonlySet<string>
+  /** As casas acesas onde pisa um marcado (as vermelhas). */
+  atingidas: ReadonlySet<string>
   cor: CorDoAlcance | null
   chaveDasCasas: string
+  chaveDosAlvos: string
   chaveDoTraco: string
   chaveDoFoco: string
   abriuEm: number
@@ -318,7 +354,16 @@ export function criarAlcanceDoGolpe(movimento?: MovimentoDoAlcance, aoMudar?: (e
     const foco = new Graphics()
     raiz.addChild(base, brilho, foco)
     camada.addChild(raiz)
-    return { raiz, base, brilho, foco, sprites: [], distancias: [], usados: 0, casas: [], acesas: new Set(), cor: null, chaveDasCasas: '', chaveDoTraco: '', chaveDoFoco: '', abriuEm: agora() }
+    return { raiz, base, brilho, foco, sprites: [], distancias: [], usados: 0, casas: [], acesas: new Set(), atingidas: SEM_CASAS, cor: null, chaveDasCasas: '', chaveDosAlvos: '', chaveDoTraco: '', chaveDoFoco: '', abriuEm: agora() }
+  }
+
+  /** O brilho de cada casa na tinta dela: vermelho onde pisa um marcado, a cor do golpe no resto. */
+  function tingirBrilho(desenho: DesenhoDaMira, cor: CorDoAlcance): void {
+    const doGolpe = texturaDoBrilho(cor)
+    for (let i = 0; i < desenho.usados; i += 1) {
+      const textura = desenho.atingidas.has(chaveDaCasa(desenho.casas[i])) ? texturaDoBrilho('atingido') : doGolpe
+      if (desenho.sprites[i].texture !== textura) desenho.sprites[i].texture = textura
+    }
   }
 
   /** As casas e o brilho: refeitos só quando a forma, a direção, a ficha ou as paredes mudam. */
@@ -336,7 +381,6 @@ export function criarAlcanceDoGolpe(movimento?: MovimentoDoAlcance, aoMudar?: (e
         desenho.sprites.push(sprite)
         desenho.brilho.addChild(sprite)
       }
-      if (sprite.texture !== textura) sprite.texture = textura
       sprite.visible = true
       sprite.position.set((casas[i].col + 0.5) * grid, (casas[i].row + 0.5) * grid)
       sprite.setSize(grid, grid)
@@ -357,23 +401,31 @@ export function criarAlcanceDoGolpe(movimento?: MovimentoDoAlcance, aoMudar?: (e
       refazerCasas(desenho, mira)
       animar(desenho, agora())
     }
-    const chaveDoTraco = `${chaveDasCasas}|${escala}`
+    // Marcar ou desmarcar troca só a tinta das casas (vermelho onde pisa um marcado); as casas não são refeitas.
+    const chaveDosAlvos = `${chaveDasCasas}|${mira.alvos.map(chaveDaPegada).join(';')}`
+    if (chaveDosAlvos !== desenho.chaveDosAlvos) {
+      desenho.chaveDosAlvos = chaveDosAlvos
+      desenho.atingidas = casasAtingidas(mira, desenho.casas)
+      tingirBrilho(desenho, mira.cor)
+    }
+    const chaveDoTraco = `${chaveDosAlvos}|${escala}`
     if (chaveDoTraco !== desenho.chaveDoTraco) {
       desenho.chaveDoTraco = chaveDoTraco
       desenho.base.clear()
-      pintarCasas(desenho.base, desenho.casas, grid, px, tinta, false)
+      pintarComAtingidas(desenho.base, desenho.casas, desenho.atingidas, grid, px, tinta, false)
     }
     const foco = mira.foco
-    const chaveDoFoco = `${chaveDoTraco}|${foco === null ? '-' : chaveDaCasa(foco)}|${chaveDaPegada(mira.centro)}|${mira.alvos.map(chaveDaPegada).join(';')}`
+    const chaveDoFoco = `${chaveDoTraco}|${foco === null ? '-' : chaveDaCasa(foco)}|${chaveDaPegada(mira.centro)}`
     if (chaveDoFoco === desenho.chaveDoFoco) return
     desenho.chaveDoFoco = chaveDoFoco
     const g = desenho.foco
     g.clear()
     const longe = mira.forma.tipo === 'ponto' || mira.forma.tipo === 'ficha' ? mira.forma : null
+    const pintarFortes = (casas: readonly Casa[]) => pintarComAtingidas(g, casas, casasAtingidas(mira, casas), grid, px, tinta, true)
     // A explosão já escolhida fica forte; o mouse em cima mostra outra por cima dela.
-    if (longe !== null && mira.centro !== null) pintarCasas(g, explosaoEm(longe, mira.centro, mira.mapa), grid, px, tinta, true)
+    if (longe !== null && mira.centro !== null) pintarFortes(explosaoEm(longe, mira.centro, mira.mapa))
     if (foco !== null) {
-      if (desenho.acesas.has(chaveDaCasa(foco))) pintarCasas(g, fortesNoFoco(mira, foco, desenho.casas), grid, px, tinta, true)
+      if (desenho.acesas.has(chaveDaCasa(foco))) pintarFortes(fortesNoFoco(mira, foco, desenho.casas))
       else pintarTracejado(g, foco, grid, px)
     }
     pintarSeta(g, mira, grid, px, tinta)

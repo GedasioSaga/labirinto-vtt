@@ -9006,7 +9006,8 @@ function PixiCanvasDoContexto({
         // B2 — antes de qualquer gesto: guarda o ponteiro (L só arma sobre o canvas).
         laserPointer = toWorldPoint(event.global.x, event.global.y)
         // Fase E do alcance: com golpe na mira, o mouse diz a casa em foco e o lado da forma (a store só muda quando eles mudam).
-        if (useMiraNoMapa.getState().local !== null) useMiraNoMapa.getState().apontar(laserPointer.x, laserPointer.y)
+        // Sobre um painel por cima do mapa (a própria mira, indo ao Lançar), a forma não vira (conserto de 27/11/2026).
+        if (useMiraNoMapa.getState().local !== null) useMiraNoMapa.getState().apontar(laserPointer.x, laserPointer.y, event.nativeEvent.target === app.canvas)
         // Mexer o mouse com L apertado já arma o laser, sem esperar o tempo do toque.
         if (laserKeyTimer !== null) activateLaserKey()
         // Traço do laser em curso (botão esquerdo pressionado): consome o move.

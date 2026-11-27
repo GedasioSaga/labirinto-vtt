@@ -69,8 +69,14 @@ interface EstadoDaMiraNoMapa {
   mostrar: (mira: MiraNoMapa | null) => void
   /** Fase D: as miras dos outros, já resolvidas com a ficha e as paredes desta tela (a lista inteira troca). */
   mostrarDaMesa: (miras: readonly MiraNoMapa[]) => void
-  /** O mouse em px do mundo; sem mira local, nada muda. */
-  apontar: (x: number, y: number) => void
+  /**
+   * O mouse em px do mundo; sem mira local, nada muda. `sobreOMapa` `false` = o ponteiro está num painel
+   * por cima do mapa (a própria mira, o menu): a forma NÃO vira e a casa em foco apaga. Conserto de
+   * 27/11/2026 ("tá fora do alcance sendo que o bloco azul tá em cima do Hector"): ir do Hector até o
+   * Lançar passava por cima do painel, a linha virava para o lado do painel e a conferência saía com
+   * o lado novo.
+   */
+  apontar: (x: number, y: number, sobreOMapa?: boolean) => void
   soltarPonteiro: () => void
 }
 
@@ -98,9 +104,13 @@ export const useMiraNoMapa = create<EstadoDaMiraNoMapa>()((set, get) => ({
   lado: null,
   mostrar: (mira) => set(mira === null ? { local: null, foco: null, lado: null } : { local: mira }),
   mostrarDaMesa: (miras) => set({ remotas: miras }),
-  apontar: (x, y) => {
+  apontar: (x, y, sobreOMapa = true) => {
     const { local, foco, lado } = get()
     if (local === null || local.mapa.grade <= 0) return
+    if (!sobreOMapa) {
+      if (foco !== null) set({ foco: null })
+      return
+    }
     const col = x / local.mapa.grade
     const row = y / local.mapa.grade
     const casa = { col: Math.floor(col), row: Math.floor(row) }
