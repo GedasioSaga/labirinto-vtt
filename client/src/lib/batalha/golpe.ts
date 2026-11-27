@@ -120,7 +120,7 @@ import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoC
 import { armaPadraoEntre } from './mecanica/arma'
 import { danoUsaArma } from './mecanica/modelo'
 import type { RespostasDoPedido } from './perguntaNaHora'
-import { lerMarca } from './marca'
+import { lerMarca, MULTIPLICADOR_DA_MARCA } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
@@ -1726,7 +1726,7 @@ function textoDoAlvo(alvo: AlvoDoGolpe): string {
   const pedacos: string[] = []
   if (alvo.rolagem !== undefined) pedacos.push(`${textoDaRolagemDoAlvo(alvo.rolagem)}${comATecnica(alvo)}`)
   if (alvo.semDano === true) pedacos.push('passou sem dano')
-  else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.reducao === undefined ? '' : ` (${alvo.reducaoDe ?? 'forma'} ${alvo.reducao < 0 ? `+${-alvo.reducao}` : `−${alvo.reducao}`}%)`}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
+  else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ` (marca ×${alvo.marcaVezes ?? MULTIPLICADOR_DA_MARCA})` : ''}${alvo.reducao === undefined ? '' : ` (${alvo.reducaoDe ?? 'forma'} ${alvo.reducao < 0 ? `+${-alvo.reducao}` : `−${alvo.reducao}`}%)`}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
   else if (alvo.rolagem === undefined) pedacos.push('esperando reação')
   if (alvo.disputa !== undefined) pedacos.push(alvo.disputa)
   if (alvo.nota !== undefined) pedacos.push(alvo.nota)

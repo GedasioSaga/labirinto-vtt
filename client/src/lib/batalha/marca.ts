@@ -213,7 +213,9 @@ export function acertoNaMarca(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo:
   // D10: a marca "só do dono" vale só no golpe dele (a dos outros passa sem dobrar nem sair).
   const vale = marca !== undefined && (marca.marcaDe === undefined || marca.marcaDe === golpe.atacantePersonagemId)
   if (marca !== undefined && vale && alvo.dano !== null) {
-    novoAlvo = { ...alvo, danoFinal: Math.min(DANO_MAX, alvo.danoFinal * (marca.marcaVezes ?? MULTIPLICADOR_DA_MARCA)), marcado: true }
+    const vezes = marca.marcaVezes ?? MULTIPLICADOR_DA_MARCA
+    // O registro diz o multiplicador certo ("marca ×3"): `marcaVezes` só quando não é o ×2 de sempre.
+    novoAlvo = { ...alvo, danoFinal: Math.min(DANO_MAX, alvo.danoFinal * vezes), marcado: true, ...(vezes === MULTIPLICADOR_DA_MARCA ? {} : { marcaVezes: vezes }) }
     // D10: a marca que fica (não "some") continua até acabar os turnos.
     if (marca.marcaFica !== true) {
       novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => selo.id !== marca.id) }

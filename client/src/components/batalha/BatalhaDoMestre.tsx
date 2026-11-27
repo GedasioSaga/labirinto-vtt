@@ -18,7 +18,7 @@ import { motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
 import { fichasComAsMochilasDosBonecos } from '../../lib/batalha/municaoDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { lembreteDoSelo, saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
-import { chavesDoDono, saidasTiradasDoDono, soOMestreReage } from '../../lib/batalha/mecanicasAMao'
+import { chavesDoDono, saidasTiradasDoDono, saidasTiradasPeloAtacante, soOMestreReage } from '../../lib/batalha/mecanicasAMao'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
@@ -609,7 +609,9 @@ function usePendentesDoMestre(mesa: Mesa): PendenteNaTela[] {
         // F2 (fatia A): Aéreo tira a Esquiva e o Contra-ataque dos botões.
         // F2 (fatia E, Orgulho dos Ogros): o ogro (menos a Ryoko) só Defende ou Recebe.
         const deQuemReage = alvo.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === alvo.personagemId)
-        const daRaca = deQuemReage === undefined ? [] : saidasTiradasDoDono(chavesDoDono(deQuemReage))
+        // Rework das habilidades (D3): e a raça de quem atacou que não deixa desviar (o host já recusa a Esquiva; o botão some).
+        const doAtacante = golpe.atacantePersonagemId === null ? undefined : personagens.find((candidato) => candidato.id === golpe.atacantePersonagemId)
+        const daRaca = [...(deQuemReage === undefined ? [] : saidasTiradasDoDono(chavesDoDono(deQuemReage))), ...(doAtacante === undefined ? [] : saidasTiradasPeloAtacante(chavesDoDono(doAtacante)))]
         const semSaidas = [...new Set([...saidasTiradas(selosDoToken(turnos.selos, alvo.tokenId)), ...daRaca])]
         if (semSaidas.length > 0) item.semSaidas = semSaidas
         if (alvo.rolagem !== undefined) item.rolagem = alvo.rolagem

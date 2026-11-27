@@ -666,6 +666,8 @@ export interface AlvoDoGolpe {
   tecnica?: TecnicaDaReacao
   /** R1 (lote de 01/11): o golpe acertou a marca dele: `danoFinal` já é o dobro, e a marca saiu. */
   marcado?: true
+  /** Rework das habilidades (D10): a marca da peça multiplicou por isto (×3...); ausente = o ×2 de sempre. Só do host. */
+  marcaVezes?: number
   /** R3 (lote de 01/11): passou sem tomar dano (saída "esquiva", `danoFinal` 0). */
   semDano?: true
   /** Fase 5 (B16): passou no teste com "metade se passar": o dano já veio pela metade e o selo do golpe não pega. */
