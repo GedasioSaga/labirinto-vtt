@@ -106,7 +106,7 @@ export interface PedidoDaIa {
 export interface RespostaDaIa {
   /** O texto do primeiro candidato (JSON em texto quando houve esquema). */
   texto: string
-  /** Índice (0-based) da chave que virou a ativa depois de a cota acabar na anterior; `null` = não trocou. */
+  /** Índice (0-based) da chave que virou a ativa depois de a cota ou o crédito acabar na anterior; `null` = não trocou. */
   trocouPara: number | null
 }
 
@@ -127,6 +127,7 @@ export const CODIGOS_DO_ERRO = [
   'servidor',
   'http',
   'cota_esgotada',
+  'credito',
   'rede',
   'resposta_invalida',
   'fora_do_app',

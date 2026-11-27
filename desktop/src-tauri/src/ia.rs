@@ -393,7 +393,8 @@ pub struct RespostaIa {
     /// Texto do primeiro candidato (JSON em texto quando houve esquema).
     pub texto: String,
     /// Índice (0-based) da chave que passou a ser a ativa depois de cota
-    /// esgotada (429) na anterior; `null` quando não trocou.
+    /// esgotada (429) ou falta de crédito (402) na anterior; `null` quando não
+    /// trocou.
     pub trocou_para: Option<u8>,
 }
 
@@ -529,6 +530,13 @@ fn erro_http(status: u16, corpo: &[u8], chaves: &[String], indice: usize) -> Err
             "chave_recusada",
             format!("O Google recusou a chave {numero}. Confira a chave na engrenagem."),
         )
+    } else if status == 402 {
+        // 402 = o crédito pré-pago da conta de cobrança acabou: param todas as
+        // chaves dessa conta e repetir não adianta.
+        ErroIa::novo(
+            "credito",
+            "A conta do Google desta chave ficou sem crédito pré-pago. Adicione créditos (ou ligue a recarga automática) no Google AI Studio, ou use uma chave de outra conta nas configurações do assistente.",
+        )
     } else if status == 404 {
         ErroIa::novo(
             "modelo_indisponivel",
@@ -663,8 +671,9 @@ fn cliente_http() -> Result<reqwest::Client, ErroIa> {
         .map_err(|_| ErroIa::novo("rede", "Não deu para preparar a conexão com o Google."))
 }
 
-/// Pergunta à IA com a chave do cofre. Começa na ativa; 429 (cota esgotada)
-/// passa para a próxima e grava a nova ativa. Devolve só o texto.
+/// Pergunta à IA com a chave do cofre. Começa na ativa; 429 (cota esgotada) e
+/// 402 (sem crédito pré-pago) passam para a próxima e gravam a nova ativa.
+/// Devolve só o texto.
 #[tauri::command]
 pub async fn ia_gerar(
     window: WebviewWindow,
@@ -693,6 +702,9 @@ pub async fn ia_gerar(
     let cliente = cliente_http()?;
     let total = guardadas.chaves.len();
     let inicio = guardadas.inicio();
+    // Último 402 visto. Se nenhuma chave responder, ele vence a cota: esperar
+    // não traz o crédito de volta, então é o erro que pede ação do mestre.
+    let mut sem_credito: Option<ErroIa> = None;
     for tentativa in 0..total {
         let indice = (inicio + tentativa) % total;
         let Some(chave) = guardadas.chaves.get(indice) else {
@@ -700,6 +712,16 @@ pub async fn ia_gerar(
         };
         let (status, corpo_resposta) = chamar_gemini(&cliente, &url, &corpo, chave).await?;
         if status == 429 {
+            continue;
+        }
+        if status == 402 {
+            // A próxima chave pode ser de outra conta de cobrança, com crédito.
+            sem_credito = Some(erro_http(
+                status,
+                &corpo_resposta,
+                &guardadas.chaves,
+                indice,
+            ));
             continue;
         }
         if !(200..300).contains(&status) {
@@ -719,6 +741,9 @@ pub async fn ia_gerar(
             u8::try_from(indice).ok()
         };
         return Ok(RespostaIa { texto, trocou_para });
+    }
+    if let Some(erro) = sem_credito {
+        return Err(erro);
     }
     Err(ErroIa::novo(
         "cota_esgotada",
@@ -745,7 +770,7 @@ async fn gravar_ativa(estado: &IaEstado, usadas: &ChavesGuardadas, indice: usize
         ativa: indice,
     };
     // Falhar aqui não estraga a resposta que já chegou: na próxima pergunta
-    // a chave antiga dá 429 de novo e a troca se repete. Por isso o erro é
+    // a chave antiga dá 429/402 de novo e a troca se repete. Por isso o erro é
     // descartado de propósito.
     let _ = gravar_chaves(&nova).await;
 }
