@@ -86,7 +86,7 @@ export interface Puzzle {
    * futura, guardada como veio. Lida sempre por `combinacaoDoPuzzle`
    * (`puzzles/combinacao.ts`): o que ela não reconhece é "versão nova".
    */
-  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | InterruptoresDoPuzzle | CooperacaoDoPuzzle | MisturaDoPuzzle | MecanicaFutura
+  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | InterruptoresDoPuzzle | CooperacaoDoPuzzle | MisturaDoPuzzle | CamadasDoPuzzle | MecanicaFutura
 }
 
 /**
@@ -567,6 +567,91 @@ export type AlvoDaMisturaNaVista =
   | { tipo: 'cor'; cor: string }
   | { tipo: 'receita'; ingredientes: string[]; emOrdem: boolean; litros: number | null }
 
+// ------------------------------------------------------------------ sobrepor camadas (28/11, 6º da fila de puzzles)
+
+/**
+ * SOBREPOR CAMADAS (`docs/design/puzzles/FILA.md`): uma mesa de luz e 2 a 5
+ * lâminas (vidro pintado, papel vegetal ou grade de ferro), cada uma com um
+ * pedaço da mesma figura, cortada em cacos. As lâminas são itens do acervo
+ * (pasta "Peça de puzzle"), um por encaixe, que o grupo acha no mapa e põe na
+ * mesa. Na mesa, cada uma gira de 90 em 90 graus (se `rotacaoImporta`; ela
+ * pousa torta) e muda de altura na pilha (se `ordemImporta`; então cada uma tem
+ * manchas que só as de cima tapam). Cede com todas na mesa, de pé e na ordem.
+ * Mora no `futuro`; os encaixes do puzzle são as lâminas, na ordem certa, de
+ * baixo para cima (a regra é a do lugar certo: cada lâmina tem o seu encaixe).
+ */
+export interface CamadasDoPuzzle {
+  tipo: 'camadas'
+  material: MaterialDasCamadas
+  figura: FiguraDasCamadas
+  /** Na figura `codigo`: letras e números, de 1 a `CODIGO_MAX`. */
+  codigo: string
+  /** Na figura `imagem`: `midia:<id>`; `null` = ainda sem imagem. */
+  imagem: string | null
+  ordemImporta: boolean
+  rotacaoImporta: boolean
+  /** O corte dos cacos, quem fica com cada um, as manchas e o giro de cada lâmina ao pousar. */
+  semente: number
+}
+
+export type MaterialDasCamadas = 'vidro' | 'papel' | 'ferro'
+export const MATERIAIS_DAS_CAMADAS: readonly MaterialDasCamadas[] = ['vidro', 'papel', 'ferro']
+
+export type FiguraDasCamadas = 'farol' | 'rosa' | 'chave' | 'mariposa' | 'codigo' | 'imagem'
+export const FIGURAS_DAS_CAMADAS: readonly FiguraDasCamadas[] = ['farol', 'rosa', 'chave', 'mariposa', 'codigo', 'imagem']
+
+/** A marca gravada no canto de cada lâmina (sorteada pela semente: não diz a ordem). */
+export type MarcaDaLamina = 'sol' | 'lua' | 'estrela' | 'olho' | 'coroa'
+export const MARCAS_DAS_LAMINAS: readonly MarcaDaLamina[] = ['sol', 'lua', 'estrela', 'olho', 'coroa']
+
+export const LAMINAS_MIN = 2
+export const LAMINAS_MAX = 5
+export const LAMINAS_PADRAO = 3
+export const CODIGO_DAS_CAMADAS_MAX = 6
+/** Os cacos da figura (a grade de 5 x 5 com algumas casas partidas em dois): o leitor da vista não aceita índice maior. */
+export const CACOS_MAX = 50
+
+/** Na mesa: a pilha (ids dos encaixes, de baixo para cima) e o giro de cada lâmina posta (quartos de volta, sentido horário). */
+export interface CamadasNoProgresso {
+  pilha: string[]
+  giros: Record<string, number>
+}
+
+/**
+ * A mesa como o jogador a vê (lista branca do recorte): a figura, o corte e as
+ * lâminas que estão nela, de baixo para cima, com os cacos e as manchas de
+ * cada uma. Nunca vão: a ordem certa, o giro de quando pousa, a semente e as
+ * lâminas que ainda não estão na mesa (só quantas são).
+ */
+export interface CamadasNaVista {
+  material: MaterialDasCamadas
+  figura: FiguraDasCamadas
+  /** Só na figura `codigo`. */
+  codigo: string
+  /** Só na figura `imagem` (`midia:<id>`; `null` = sem imagem ainda). */
+  imagem: string | null
+  /** A semente do corte (só a forma dos cacos). */
+  corte: number
+  ordemImporta: boolean
+  rotacaoImporta: boolean
+  total: number
+  pilha: LaminaNaVista[]
+}
+
+export interface LaminaNaVista {
+  encaixeId: string
+  nome: string
+  imagem: string | null
+  /** Quem a pôs ("Lara"). */
+  por: string
+  /** Quartos de volta no sentido horário (0 a 3). */
+  giro: number
+  marca: MarcaDaLamina
+  /** Os cacos que ela pinta e as manchas que ela tem (índices do corte). */
+  cacos: number[]
+  manchas: number[]
+}
+
 /**
  * A mecânica de uma leva futura, guardada COMO VEIO: o objeto do disco
  * inteiro, e não `{ tipo, bruto }` embrulhado, porque o mapa é gravado por
@@ -622,6 +707,8 @@ export interface ProgressoDoPuzzle {
   acionados?: (AcionamentoDoPonto | null)[]
   /** Na mistura de líquidos: o que cada recipiente tem agora. Ausente = o começo. */
   mistura?: RecipienteNoProgresso[]
+  /** Em sobrepor camadas: a pilha da mesa e o giro de cada lâmina. Ausente = mesa vazia. */
+  camadas?: CamadasNoProgresso
 }
 
 // ------------------------------------------------------------------ "Meus puzzles" (§1.3)
@@ -777,6 +864,12 @@ export type AcaoNoPuzzle =
   | { tipo: 'deitar'; vagaId: string; recipiente: number }
   /** Mistura de líquidos: a bancada volta ao começo (os ingredientes voltam a quem os pôs). */
   | { tipo: 'recomecar' }
+  /** Sobrepor camadas: põe a lâmina da mochila no alto da pilha (o host acha o encaixe dela). */
+  | { tipo: 'empilhar'; vagaId: string }
+  /** Sobrepor camadas: a lâmina do encaixe gira um quarto de volta (+1 = sentido horário). Relativo. */
+  | { tipo: 'girarLamina'; encaixeId: string; passo: 1 | -1 }
+  /** Sobrepor camadas: a lâmina sobe (+1) ou desce (-1) um lugar na pilha. Relativo. */
+  | { tipo: 'moverLamina'; encaixeId: string; passo: 1 | -1 }
 
 /**
  * Por que o pedido não valeu. Os 6 primeiros são os da mensagem
@@ -799,6 +892,8 @@ export type MotivoDaRecusa =
   | 'recipiente_vazio'
   | 'recipiente_cheio'
   | 'com_ingredientes'
+  | 'nao_e_lamina'
+  | 'lamina_repetida'
 
 /** O texto que o jogador lê na recusa (os do v2 e do v1). */
 export const TEXTO_DA_RECUSA: Readonly<Record<MotivoDaRecusa, string>> = {
@@ -818,6 +913,8 @@ export const TEXTO_DA_RECUSA: Readonly<Record<MotivoDaRecusa, string>> = {
   recipiente_vazio: 'Não há líquido nesse recipiente.',
   recipiente_cheio: 'Não cabe mais nada nesse recipiente.',
   com_ingredientes: 'Com ingredientes dentro, ele só vai para o receptáculo ou para a pia.',
+  nao_e_lamina: 'Isso não é uma lâmina desta mesa.',
+  lamina_repetida: 'Essa lâmina já está na mesa.',
 }
 
 /** O castigo que de fato faz algo (o `nada` não sai como efeito). */
@@ -946,6 +1043,8 @@ export interface VistaDoPuzzle {
   cooperacao?: CooperacaoNaVista
   /** A bancada da mistura de líquidos; ausente = não é desse tipo (e então os encaixes não vão). */
   mistura?: MisturaNaVista
+  /** A mesa de luz de sobrepor camadas; ausente = não é desse tipo (e então os encaixes não vão: as lâminas vão aqui). */
+  camadas?: CamadasNaVista
   /** O puzzle traz uma mecânica de uma leva que este app não joga. */
   versaoNova?: true
 }

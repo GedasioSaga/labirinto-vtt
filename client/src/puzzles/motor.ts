@@ -32,10 +32,13 @@ import { acionadosNoProgresso, comAcionamento, cooperacaoDoPuzzle, todosAcesos }
 import { alinhadas, errosNoProgresso, girarAneis, giratoriasDoPuzzle } from './giratorias/giratorias'
 import { batemComOAlvo, interruptoresDoPuzzle, luzesNoProgresso, puxar } from './interruptores/interruptores'
 import { AGUA, aindaDaReceita, bateComOAlvo, cabeIngrediente, comecoDaMistura, despejo, idsPostos, ingredientesPerdidos, misturaDoPuzzle, misturaNoProgresso, partesVazias, total } from './mistura/mistura'
+import { camadasDoPuzzle, giroAoPousar, girado, mesaCerta, mesaNoProgresso } from './camadas/camadas'
 import { puzzleAbrePorta } from './padroes'
 import { BANDEJA_MAX } from './tipos'
 import type {
   AcaoNoPuzzle,
+  CamadasDoPuzzle,
+  CamadasNoProgresso,
   CombinacaoDoPuzzle,
   ContextoDoMotor,
   CooperacaoDoPuzzle,
@@ -173,15 +176,24 @@ export function agirNoPuzzle(
   const interruptores = interruptoresDoPuzzle(puzzle)
   const cooperacao = cooperacaoDoPuzzle(puzzle)
   const mistura = misturaDoPuzzle(puzzle)
+  const camadas = camadasDoPuzzle(puzzle)
   // Na combinação, nas peças giratórias, nos interruptores, na cooperação e na mistura os encaixes não aparecem: o pedido é de uma tela de antes da troca de mecânica.
   const semEncaixes = combinacao !== null || giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null
-  // O medalhão, o painel, os pontos da cooperação e a bancada também não têm a troca de peso (o recorte não a manda).
-  const semTroca = giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null
+  // O medalhão, o painel, os pontos da cooperação, a bancada e a mesa de luz também não têm a troca de peso (o recorte não a manda).
+  const semTroca = giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null || camadas !== null
   switch (acao.tipo) {
     case 'por':
-      return semEncaixes ? recusa(progresso, mochila, 'mudou') : por(puzzle, progresso, mochila, acao, contexto)
+      // Na mesa de luz a lâmina vai pela pilha (`empilhar`): o host acha o encaixe dela.
+      return semEncaixes || camadas !== null ? recusa(progresso, mochila, 'mudou') : por(puzzle, progresso, mochila, acao, contexto)
     case 'tirar':
+      if (camadas !== null) return tirarLamina(puzzle, camadas, progresso, mochila, acao.encaixeId, contexto)
       return semEncaixes ? recusa(progresso, mochila, 'mudou') : tirar(puzzle, progresso, mochila, acao.encaixeId, contexto)
+    case 'empilhar':
+      return camadas === null ? recusa(progresso, mochila, 'mudou') : empilhar(puzzle, camadas, progresso, mochila, acao.vagaId, contexto)
+    case 'girarLamina':
+      return camadas === null ? recusa(progresso, mochila, 'mudou') : girarLamina(puzzle, camadas, progresso, mochila, acao, contexto)
+    case 'moverLamina':
+      return camadas === null ? recusa(progresso, mochila, 'mudou') : moverLamina(puzzle, camadas, progresso, mochila, acao, contexto)
     case 'porNaBandeja':
       return semTroca ? recusa(progresso, mochila, 'mudou') : porNaBandeja(puzzle, progresso, mochila, acao.vagaId, contexto)
     case 'tirarDaBandeja':
@@ -204,6 +216,79 @@ export function agirNoPuzzle(
     case 'recomecar':
       return mistura === null ? recusa(progresso, mochila, 'mudou') : recomecarBancada(puzzle, mistura, progresso, mochila, contexto)
   }
+}
+
+// ------------------------------------------------------------------ sobrepor camadas
+
+/**
+ * A lâmina da mochila vai para o alto da pilha, no encaixe dela (o host acha
+ * qual pelo item; a tela não sabe). Pousa com o giro dela. O host confere a
+ * cada mexida: tudo na mesa, de pé e na ordem resolve. Nada aqui é erro, então
+ * nunca castiga.
+ */
+function empilhar(puzzle: Puzzle, camadas: CamadasDoPuzzle, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], vagaId: string, contexto: ContextoDoMotor): ResultadoDoMotor {
+  const vaga = mochila.find((v) => v.id === vagaId)
+  if (vaga === undefined) return recusa(progresso, mochila, 'sem_vaga')
+  const itemId = vaga.itemId
+  const dela = itemId === undefined ? [] : puzzle.encaixes.filter((e): e is EncaixeDePeca => e.jeito === 'peca' && e.itemId === itemId)
+  if (dela.length === 0) return recusa(progresso, mochila, 'nao_e_lamina')
+  const livre = dela.find((e) => postaEm(progresso, e.id) === null)
+  if (livre === undefined) return recusa(progresso, mochila, 'lamina_repetida')
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  const mesa = mesaNoProgresso(puzzle, camadas, a.progresso)
+  a.mochila = semUmaDaVaga(a.mochila, vaga.id)
+  a.progresso.encaixes[livre.id] = { vaga: vagaPosta(vaga), por: { ...contexto.quem } }
+  a.progresso.camadas = { pilha: [...mesa.pilha, livre.id], giros: { ...mesa.giros, [livre.id]: giroAoPousar(puzzle, camadas, livre.id) } }
+  conferirMesa(a, camadas)
+  return fim(a)
+}
+
+function conferirMesa(a: Andamento, camadas: CamadasDoPuzzle): void {
+  if (mesaCerta(a.puzzle, camadas, mesaNoProgresso(a.puzzle, camadas, a.progresso))) resolver(a)
+}
+
+/** A lâmina na mesa (o pedido vem da rede: o encaixe tem de existir e a lâmina, estar na pilha). */
+function laminaNaMesa(puzzle: Puzzle, camadas: CamadasDoPuzzle, progresso: ProgressoDoPuzzle, encaixeId: string, passo: number): { mesa: CamadasNoProgresso; motivo: MotivoDaRecusa | null } {
+  const mesa = mesaNoProgresso(puzzle, camadas, progresso)
+  if ((passo !== 1 && passo !== -1) || !puzzle.encaixes.some((e) => e.id === encaixeId)) return { mesa, motivo: 'mudou' }
+  return { mesa, motivo: mesa.pilha.includes(encaixeId) ? null : 'vazio' }
+}
+
+/** Um quarto de volta na lâmina (só quando o giro importa: senão ela só assenta de pé). */
+function girarLamina(puzzle: Puzzle, camadas: CamadasDoPuzzle, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], acao: Extract<AcaoNoPuzzle, { tipo: 'girarLamina' }>, contexto: ContextoDoMotor): ResultadoDoMotor {
+  if (!camadas.rotacaoImporta) return recusa(progresso, mochila, 'mudou')
+  const { mesa, motivo } = laminaNaMesa(puzzle, camadas, progresso, acao.encaixeId, acao.passo)
+  if (motivo !== null) return recusa(progresso, mochila, motivo)
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  a.progresso.camadas = { pilha: mesa.pilha, giros: { ...mesa.giros, [acao.encaixeId]: girado(mesa.giros[acao.encaixeId] ?? 0, acao.passo) } }
+  conferirMesa(a, camadas)
+  return fim(a)
+}
+
+/** A lâmina troca de lugar com a de cima (+1) ou a de baixo (-1) (só quando a ordem importa). */
+function moverLamina(puzzle: Puzzle, camadas: CamadasDoPuzzle, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], acao: Extract<AcaoNoPuzzle, { tipo: 'moverLamina' }>, contexto: ContextoDoMotor): ResultadoDoMotor {
+  if (!camadas.ordemImporta) return recusa(progresso, mochila, 'mudou')
+  const { mesa, motivo } = laminaNaMesa(puzzle, camadas, progresso, acao.encaixeId, acao.passo)
+  if (motivo !== null) return recusa(progresso, mochila, motivo)
+  const i = mesa.pilha.indexOf(acao.encaixeId)
+  const j = i + acao.passo
+  const vizinha = mesa.pilha[j]
+  if (vizinha === undefined) return recusa(progresso, mochila, 'mudou')
+  const pilha = [...mesa.pilha]
+  pilha[i] = vizinha
+  pilha[j] = acao.encaixeId
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  a.progresso.camadas = { pilha, giros: mesa.giros }
+  conferirMesa(a, camadas)
+  return fim(a)
+}
+
+/** Tirar da mesa: a lâmina volta a quem a pôs (o "tirar" de sempre) e sai da pilha. */
+function tirarLamina(puzzle: Puzzle, camadas: CamadasDoPuzzle, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], encaixeId: string, contexto: ContextoDoMotor): ResultadoDoMotor {
+  const resultado = tirar(puzzle, progresso, mochila, encaixeId, contexto)
+  if (resultado.efeitos.some((efeito) => efeito.tipo === 'recusado')) return resultado
+  resultado.progresso.camadas = mesaNoProgresso(puzzle, camadas, resultado.progresso)
+  return resultado
 }
 
 // ------------------------------------------------------------------ a mistura de líquidos

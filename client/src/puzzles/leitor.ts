@@ -22,6 +22,7 @@ import type { CarriedItem, ItemNoConteudo } from '../types/map'
 import { lerCombinacao, minutosNoMostrador } from './combinacao'
 import { lerCooperacao } from './cooperacao/cooperacao'
 import { lerMistura } from './mistura/mistura'
+import { lerCamadas } from './camadas/camadas'
 import { lerGiratorias } from './giratorias/giratorias'
 import { lerInterruptores } from './interruptores/interruptores'
 import { aceitaMolduraPorta, PADROES_DOS_MODELOS, POSICAO_DA_TROCA_PADRAO, PESO_DA_TROCA_PADRAO, PV_DO_CASTIGO_PADRAO, puzzleDoModelo, visualEhPorta } from './padroes'
@@ -53,6 +54,7 @@ import {
   ITENS_NO_RECIPIENTE_MAX,
   LIQUIDOS_DA_MISTURA,
   RECIPIENTES_MAX,
+  LAMINAS_MAX,
 } from './tipos'
 import { ehPlaca } from './relevo/placas'
 import type { VisualDoRelevo } from './tipos'
@@ -196,7 +198,7 @@ export function lerPuzzle(valor: unknown): Puzzle {
   const padrao = puzzleDoModelo(visual.tipo === 'modelo' ? visual.modelo : 'fonte')
   const futuro = lerFuturo(bruto.futuro)
   // A porta ligada abre com um visual de porta, com o medalhão das peças giratórias, com o painel dos interruptores ou com os pontos da cooperação.
-  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias' || futuro?.tipo === 'interruptores' || futuro?.tipo === 'cooperacao' || futuro?.tipo === 'mistura'
+  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias' || futuro?.tipo === 'interruptores' || futuro?.tipo === 'cooperacao' || futuro?.tipo === 'mistura' || futuro?.tipo === 'camadas'
   const puzzle: Puzzle = {
     nome: textoNaoVazio(bruto.nome, NOME_DO_PUZZLE_MAX, padrao.nome),
     nomePublico: textoLido(bruto.nomePublico, NOME_DO_PUZZLE_MAX, padrao.nomePublico),
@@ -374,6 +376,9 @@ function lerFuturo(valor: unknown): Puzzle['futuro'] {
   if (cooperacao !== null) return cooperacao
   const mistura = lerMistura(valor)
   if (mistura !== null) return mistura
+  // A mesa de luz também (a imagem só como referência de mídia).
+  const camadas = lerCamadas(valor, imagemLida)
+  if (camadas !== null) return camadas
   if (!isRecord(valor) || typeof valor.tipo !== 'string' || valor.tipo === '') return undefined
   let json: string
   try {
@@ -434,6 +439,16 @@ export function lerProgressoDoPuzzle(valor: unknown): ProgressoDoPuzzle | undefi
       }
     })
     if (mistura.length > 0) progresso.mistura = mistura
+  }
+  // Sobrepor camadas: a pilha da mesa (ids de encaixe, de baixo para cima) e o giro de cada lâmina (o motor ainda confere com os encaixes).
+  if (isRecord(valor.camadas)) {
+    const brutos = valor.camadas
+    const pilha = (Array.isArray(brutos.pilha) ? brutos.pilha : []).flatMap((id) => {
+      const lido = idLido(id)
+      return lido === null ? [] : [lido]
+    })
+    const giros = isRecord(brutos.giros) ? Object.entries(brutos.giros).flatMap(([id, giro]): [string, number][] => (idLido(id) === null ? [] : [[id, inteiroEntre(giro, 0, 3, 0)]])) : []
+    if (pilha.length > 0) progresso.camadas = { pilha: pilha.slice(0, LAMINAS_MAX), giros: Object.fromEntries(giros.slice(0, ENTRADAS_DO_PROGRESSO_MAX)) }
   }
   return progresso
 }
@@ -544,6 +559,17 @@ export function lerAcaoNoPuzzle(valor: unknown): AcaoNoPuzzle | null {
     }
     case 'recomecar':
       return { tipo: 'recomecar' }
+    case 'empilhar': {
+      const vagaId = idSolto(valor.vagaId)
+      return vagaId === null ? null : { tipo: 'empilhar', vagaId }
+    }
+    case 'girarLamina':
+    case 'moverLamina': {
+      const encaixeId = idLido(valor.encaixeId)
+      const passo = valor.passo === 1 || valor.passo === -1 ? valor.passo : null
+      if (encaixeId === null || passo === null) return null
+      return valor.tipo === 'girarLamina' ? { tipo: 'girarLamina', encaixeId, passo } : { tipo: 'moverLamina', encaixeId, passo }
+    }
     default:
       return null
   }

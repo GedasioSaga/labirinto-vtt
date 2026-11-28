@@ -70,9 +70,18 @@ import {
   NOME_DO_INGREDIENTE_MAX,
   RECIPIENTES_MAX,
   RECIPIENTES_MIN,
+  CACOS_MAX,
+  CODIGO_DAS_CAMADAS_MAX,
+  FIGURAS_DAS_CAMADAS,
+  LAMINAS_MAX,
+  LAMINAS_MIN,
+  MARCAS_DAS_LAMINAS,
+  MATERIAIS_DAS_CAMADAS,
 } from '../puzzles/tipos'
 import type {
   AcaoNoPuzzle,
+  CamadasNaVista,
+  LaminaNaVista,
   AlvoDaMisturaNaVista,
   MisturaNaVista,
   RecipienteNaVista,
@@ -448,6 +457,30 @@ function lerMisturaNaVista(value: unknown): MisturaNaVista | null | undefined {
   return { modo, material, fonte: value.fonte, aoErrar, recipientes, alvo, noComeco: value.noComeco }
 }
 
+/** Uma lâmina na mesa: o encaixe, o nome e a imagem do item, quem pôs, o giro, a marca e os índices dos cacos e das manchas. */
+function lerLaminaNaVista(value: unknown): LaminaNaVista | null {
+  if (!isRecord(value) || !idAte(value.encaixeId) || !textoAte(value.nome, NOME_NO_FIO_MAX) || !textoAte(value.por, NOME_NO_FIO_MAX) || !inteiroAte(value.giro, 3)) return null
+  const marca = umDaLista(MARCAS_DAS_LAMINAS, value.marca)
+  const indice = (caco: unknown): number | null => (inteiroAte(caco, CACOS_MAX - 1) ? caco : null)
+  const cacos = lerLista(value.cacos, CACOS_MAX, indice)
+  const manchas = lerLista(value.manchas, CACOS_MAX, indice)
+  if (marca === undefined || cacos === null || manchas === null) return null
+  return { encaixeId: value.encaixeId, nome: value.nome, imagem: imagemDoFio(value.imagem), por: value.por, giro: value.giro, marca, cacos, manchas }
+}
+
+/** A mesa de luz: ausente = não é desse tipo (`undefined`); torta = `null`, e a vista cai inteira. */
+function lerCamadasNaVista(value: unknown): CamadasNaVista | null | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) return null
+  const material = umDaLista(MATERIAIS_DAS_CAMADAS, value.material)
+  const figura = umDaLista(FIGURAS_DAS_CAMADAS, value.figura)
+  const pilha = lerLista(value.pilha, LAMINAS_MAX, lerLaminaNaVista)
+  const imagem = value.imagem === null ? null : imagemDoFio(value.imagem)
+  if (material === undefined || figura === undefined || pilha === null || !textoAte(value.codigo, CODIGO_DAS_CAMADAS_MAX) || !inteiroAte(value.corte, 0xffffffff)) return null
+  if (typeof value.ordemImporta !== 'boolean' || typeof value.rotacaoImporta !== 'boolean' || !inteiroAte(value.total, LAMINAS_MAX) || value.total < LAMINAS_MIN) return null
+  return { material, figura, codigo: value.codigo, imagem, corte: value.corte, ordemImporta: value.ordemImporta, rotacaoImporta: value.rotacaoImporta, total: value.total, pilha }
+}
+
 /** A vista inteira, campo a campo; um campo torto derruba a mensagem. */
 export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   if (!isRecord(value) || !idAte(value.desafioId) || !inteiroAte(value.rev, Number.MAX_SAFE_INTEGER) || !textoAte(value.titulo, NOME_DO_PUZZLE_MAX)) return null
@@ -464,13 +497,15 @@ export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   const interruptores = lerInterruptoresNaVista(value.interruptores)
   const cooperacao = lerCooperacaoNaVista(value.cooperacao)
   const mistura = lerMisturaNaVista(value.mistura)
-  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null || interruptores === null || cooperacao === null || mistura === null) return null
+  const camadas = lerCamadasNaVista(value.camadas)
+  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null || interruptores === null || cooperacao === null || mistura === null || camadas === null) return null
   const vista: VistaDoPuzzle = { desafioId: value.desafioId, rev: value.rev, titulo: value.titulo, visual, encaixes, troca, dica, resolvido: value.resolvido, contagem: { postos, total }, mochila }
   if (combinacao !== undefined) vista.combinacao = combinacao
   if (giratorias !== undefined) vista.giratorias = giratorias
   if (interruptores !== undefined) vista.interruptores = interruptores
   if (cooperacao !== undefined) vista.cooperacao = cooperacao
   if (mistura !== undefined) vista.mistura = mistura
+  if (camadas !== undefined) vista.camadas = camadas
   if (value.versaoNova === true) vista.versaoNova = true
   return vista
 }
