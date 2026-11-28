@@ -634,6 +634,9 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       saidaDeEsgoto: ['cano:ferro', 'pedra:granito'],
       comporta: ['madeira:carvalho', 'metal:ferro', 'pedra:granito'],
       fonteDeParede: ['pedra:arenito'],
+      rodaDeCarroca: ['madeira:nogueira', 'aros:ferro'],
+      bancoDeTronco: ['lenha:lenhaCarvalho', 'madeira:carvalho'],
+      casinhaDeCachorro: ['madeira:pinho', 'telhado:nogueira'],
     })
   })
 

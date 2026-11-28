@@ -108,6 +108,28 @@ export function glifoDaArtePorTema(tipo: TipoMobilia): ReactNode {
           <path d="M3 3h18" /><path d="M12 3v4" /><path d="M10 7h4" /><path d="M12 7v6" /><path d="M5 13h14a7 7 0 0 1-14 0z" />
         </>
       )
+    // A onda 3 (L07 a L09).
+    case 'rodaDeCarroca':
+      // O aro, o cubo e os raios em cruz e em xis.
+      return (
+        <>
+          <circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="2" /><path d="M12 3v7M12 14v7M3 12h7M14 12h7M6 6l4.5 4.5M13.5 13.5L18 18M18 6l-4.5 4.5M10.5 13.5L6 18" />
+        </>
+      )
+    case 'bancoDeTronco':
+      // O tronco deitado, com os anéis na ponta e os dois tocos por baixo.
+      return (
+        <>
+          <path d="M5 8h14M5 14h14" /><ellipse cx="19" cy="11" rx="2" ry="3" /><path d="M5 8a2 3 0 0 0 0 6" /><path d="M7 14v5M16 14v5" />
+        </>
+      )
+    case 'casinhaDeCachorro':
+      // O telhado de duas águas, as paredes e a porta em arco.
+      return (
+        <>
+          <path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /><path d="M9 20v-4a3 3 0 0 1 6 0v4" />
+        </>
+      )
     default:
       return null
   }

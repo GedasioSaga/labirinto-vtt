@@ -109,6 +109,13 @@ export const VERSOES_DO_MOVEL: Readonly<Partial<Record<TipoMobilia, VersoesDoMov
   lampiao: { rotulo: 'Versão', opcoes: [{ id: 'dePe', nome: 'De pé' }, { id: 'posteDeRua', nome: 'Poste de rua' }, { id: 'posteAGas', nome: 'Poste a gás' }] },
   poco: { rotulo: 'Versão', opcoes: [{ id: 'simples', nome: 'Simples' }, { id: 'comTelhado', nome: 'Com telhado' }, { id: 'comManivela', nome: 'Com manivela' }] },
   fonteDeParede: { rotulo: 'Versão', opcoes: [{ id: 'correndo', nome: 'Correndo' }, { id: 'seca', nome: 'Seca' }] },
+  // A onda 3 (28/11/2026). Lote L07: a vila e a fazenda. As quatro cercas seguem a curva e o esticar.
+  cerca: { rotulo: 'Versão', opcoes: [{ id: 'tabuas', nome: 'Tábuas' }, { id: 'estacas', nome: 'Estacas' }, { id: 'vime', nome: 'Vime' }, { id: 'comNeve', nome: 'Tábuas com neve' }] },
+  horta: { rotulo: 'Versão', opcoes: [{ id: 'legumes', nome: 'Legumes' }, { id: 'aboboras', nome: 'Abóboras' }, { id: 'repolhos', nome: 'Repolhos' }] },
+  barril: { rotulo: 'Versão', opcoes: [{ id: 'fechado', nome: 'Fechado' }, { id: 'aberto', nome: 'Aberto com água' }, { id: 'tombado', nome: 'Tombado' }] },
+  rodaDeCarroca: { rotulo: 'Versão', opcoes: [{ id: 'encostada', nome: 'Encostada' }, { id: 'deitada', nome: 'Deitada' }] },
+  bancoDeTronco: { rotulo: 'Versão', opcoes: [{ id: 'tronco', nome: 'Tronco' }, { id: 'tabuaSobreTocos', nome: 'Tábua sobre tocos' }] },
+  casinhaDeCachorro: { rotulo: 'Versão', opcoes: [{ id: 'vazia', nome: 'Vazia' }, { id: 'comTigela', nome: 'Com tigela' }] },
 }
 
 /** A versão apaga a luz do objeto (o lustre apagado e o caído): `lib/luzDoFogo.ts` não a acende. */

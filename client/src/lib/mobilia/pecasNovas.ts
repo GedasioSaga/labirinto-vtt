@@ -106,6 +106,8 @@ export const PECAS_NOVAS = [
   'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
   // A onda 2 (L04, L05 e L06).
   'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
+  // A onda 3 (L07).
+  'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -784,6 +786,9 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   saidaDeEsgoto: { rotulo: 'Saída de esgoto', artigo: 'uma saída de esgoto', tamanho: { largura: 1, altura: 1 }, redonda: false },
   comporta: { rotulo: 'Comporta', artigo: 'uma comporta', tamanho: { largura: 2, altura: 1 }, redonda: false },
   fonteDeParede: { rotulo: 'Fonte de parede', artigo: 'uma fonte de parede', tamanho: { largura: 1, altura: 0.75 }, redonda: false },
+  rodaDeCarroca: { rotulo: 'Roda de carroça', artigo: 'uma roda de carroça', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  bancoDeTronco: { rotulo: 'Banco de tronco', artigo: 'um banco de tronco', tamanho: { largura: 1.5, altura: 0.5 }, redonda: false },
+  casinhaDeCachorro: { rotulo: 'Casinha de cachorro', artigo: 'uma casinha de cachorro', tamanho: { largura: 1, altura: 1 }, redonda: false },
   lapideTorta: { rotulo: 'Lápide torta', artigo: 'uma lápide torta', tamanho: { largura: 0.6, altura: 0.4 }, redonda: false },
 }
 
@@ -1220,6 +1225,9 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     saidaDeEsgoto: valor(f.saidaDeEsgoto),
     comporta: valor(f.comporta),
     fonteDeParede: valor(f.fonteDeParede),
+    rodaDeCarroca: valor(f.rodaDeCarroca),
+    bancoDeTronco: valor(f.bancoDeTronco),
+    casinhaDeCachorro: valor(f.casinhaDeCachorro),
   }
 }
 
@@ -1319,6 +1327,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
   // A onda 2 (L04, L05 e L06).
   'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
+  // A onda 3 (L07).
+  'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro',
   'fossoDeBrasas', 'fossoDoSalao', 'plataformaDeRitual', 'gargula', 'estatuaDeBesta', 'estatuaEncapuzada',
   'ponteDeCorrente', 'columbario', 'estradoEmMeiaLua', 'arcossolio', 'ponteDePedraQuebrada', 'ponteDeTabuasQuebrada',
   'calcadaSobreAgua', 'cabanaDeLajes', 'tanqueComBorda', 'piramideEmDegraus', 'topoDoTemplo', 'cascataEmDegraus',
@@ -4944,6 +4954,13 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       return [...quadro(-hw * 0.95, -hh * 0.6, -hw * 0.75, hh * 0.6), ...quadro(hw * 0.75, -hh * 0.6, hw * 0.95, hh * 0.6), linha(-hw * 0.75, 0, hw * 0.75)]
     case 'fonteDeParede':
       return [linha(-hw * 0.9, -hh * 0.9, hw * 0.9), ...aro(largura * 0.6, altura * 0.6, 0, hh * 0.2)]
+    // A onda 3 (L07 a L09): o traço provisório do estilo Simples.
+    case 'rodaDeCarroca':
+      return [...aro(largura * 0.9, altura * 0.9), ...aro(largura * 0.2, altura * 0.2), linha(-hw * 0.9, 0, hw * 0.9), { x1: 0, y1: -hh * 0.9, x2: 0, y2: hh * 0.9 }]
+    case 'bancoDeTronco':
+      return [...quadro(-hw * 0.95, -hh * 0.7, hw * 0.95, hh * 0.7), ...aro(largura * 0.1, altura * 0.9, hw * 0.85, 0)]
+    case 'casinhaDeCachorro':
+      return [...quadro(-hw * 0.85, -hh * 0.85, hw * 0.85, hh * 0.85), linha(-hw * 0.85, 0, hw * 0.85), ...quadro(-hw * 0.3, hh * 0.35, hw * 0.3, hh * 0.85)]
   }
 }
 

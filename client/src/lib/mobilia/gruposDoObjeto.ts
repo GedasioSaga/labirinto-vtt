@@ -498,6 +498,11 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   saidaDeEsgoto: 'cidadeEVila',
   comporta: 'cidadeEVila',
   fonteDeParede: 'cidadeEVila',
+  // A onda 3 (28/11/2026). L07: a roda e a casinha de cachorro no terreiro da Fazenda; o banco de tronco na Rua e
+  // jardim, junto do banco de praça.
+  rodaDeCarroca: 'fazenda',
+  bancoDeTronco: 'ruaEJardim',
+  casinhaDeCachorro: 'fazenda',
   // As construções (19 de 12/11/2026 e 29 de 14/11/2026), nos 9 grupos da ferramenta Construção, na ordem de
   // `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
@@ -901,6 +906,9 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   saidaDeEsgoto: ['esgoto', 'saída', 'tubo', 'água', 'escoadouro'],
   comporta: ['comporta', 'eclusa', 'represa', 'canal', 'esgoto'],
   fonteDeParede: ['fonte', 'bica', 'carranca', 'água', 'cocho', 'bebedouro'],
+  rodaDeCarroca: ['roda', 'carroça', 'raio', 'aro', 'cubo'],
+  bancoDeTronco: ['banco', 'tronco', 'toco', 'assento', 'tora'],
+  casinhaDeCachorro: ['casinha', 'cachorro', 'cão', 'canil', 'tigela'],
 }
 
 const MARCA_DE_ACENTO = /\p{M}/gu

@@ -472,6 +472,9 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   saidaDeEsgoto: [1, 1],
   comporta: [2, 1],
   fonteDeParede: [1, 0.75],
+  rodaDeCarroca: [1, 1],
+  bancoDeTronco: [1.5, 0.5],
+  casinhaDeCachorro: [1, 1],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -905,6 +908,9 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   saidaDeEsgoto: ['Saída de esgoto', 'uma saída de esgoto'],
   comporta: ['Comporta', 'uma comporta'],
   fonteDeParede: ['Fonte de parede', 'uma fonte de parede'],
+  rodaDeCarroca: ['Roda de carroça', 'uma roda de carroça'],
+  bancoDeTronco: ['Banco de tronco', 'um banco de tronco'],
+  casinhaDeCachorro: ['Casinha de cachorro', 'uma casinha de cachorro'],
 }
 
 describe('peças novas: registro', () => {
@@ -987,26 +993,26 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // O banheiro moderno (15/11/2026) entra antes das construções: cada fatia abaixo andou 12 para trás; as 22
     // referências (16/11/2026), mais 22; a caixa quebrada (16/11/2026), junto do barril quebrado, mais 1 até a
     // fatia dela.
-    expect(TIPOS_NO_CATALOGO.slice(-398, -391)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
-    expect(TIPOS_NO_CATALOGO.slice(-391, -386)).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho'])
-    expect(TIPOS_NO_CATALOGO.slice(-386, -378)).toEqual(['bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao'])
-    expect(TIPOS_NO_CATALOGO.slice(-378, -370)).toEqual(['guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha'])
-    expect(TIPOS_NO_CATALOGO.slice(-370, -361)).toEqual(['bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica'])
-    expect(TIPOS_NO_CATALOGO.slice(-361, -353)).toEqual(['escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao'])
-    expect(TIPOS_NO_CATALOGO.slice(-353, -347)).toEqual(['banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne'])
-    expect(TIPOS_NO_CATALOGO.slice(-347, -341)).toEqual(['pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre'])
-    expect(TIPOS_NO_CATALOGO.slice(-341, -334)).toEqual(['varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja'])
-    expect(TIPOS_NO_CATALOGO.slice(-334, -328)).toEqual(['cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca'])
-    expect(TIPOS_NO_CATALOGO.slice(-328, -322)).toEqual(['balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe'])
-    expect(TIPOS_NO_CATALOGO.slice(-322, -313)).toEqual(['fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras'])
-    expect(TIPOS_NO_CATALOGO.slice(-313, -304)).toEqual(['carrocaQuebrada', 'barrilQuebrado', 'caixaQuebrada', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca'])
-    expect(TIPOS_NO_CATALOGO.slice(-304, -295)).toEqual(['ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura'])
-    expect(TIPOS_NO_CATALOGO.slice(-295, -287)).toEqual(['braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado'])
-    expect(TIPOS_NO_CATALOGO.slice(-287, -277)).toEqual([
+    expect(TIPOS_NO_CATALOGO.slice(-401, -394)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
+    expect(TIPOS_NO_CATALOGO.slice(-394, -389)).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho'])
+    expect(TIPOS_NO_CATALOGO.slice(-389, -381)).toEqual(['bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao'])
+    expect(TIPOS_NO_CATALOGO.slice(-381, -373)).toEqual(['guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha'])
+    expect(TIPOS_NO_CATALOGO.slice(-373, -364)).toEqual(['bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica'])
+    expect(TIPOS_NO_CATALOGO.slice(-364, -356)).toEqual(['escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao'])
+    expect(TIPOS_NO_CATALOGO.slice(-356, -350)).toEqual(['banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne'])
+    expect(TIPOS_NO_CATALOGO.slice(-350, -344)).toEqual(['pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre'])
+    expect(TIPOS_NO_CATALOGO.slice(-344, -337)).toEqual(['varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja'])
+    expect(TIPOS_NO_CATALOGO.slice(-337, -331)).toEqual(['cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca'])
+    expect(TIPOS_NO_CATALOGO.slice(-331, -325)).toEqual(['balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe'])
+    expect(TIPOS_NO_CATALOGO.slice(-325, -316)).toEqual(['fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras'])
+    expect(TIPOS_NO_CATALOGO.slice(-316, -307)).toEqual(['carrocaQuebrada', 'barrilQuebrado', 'caixaQuebrada', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca'])
+    expect(TIPOS_NO_CATALOGO.slice(-307, -298)).toEqual(['ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura'])
+    expect(TIPOS_NO_CATALOGO.slice(-298, -290)).toEqual(['braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado'])
+    expect(TIPOS_NO_CATALOGO.slice(-290, -280)).toEqual([
       'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
       'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
     ])
-    expect(TIPOS_NO_CATALOGO.slice(-277, -262)).toEqual([
+    expect(TIPOS_NO_CATALOGO.slice(-280, -265)).toEqual([
       'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
       'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
     ])
@@ -1015,7 +1021,7 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // resto da base militar), o L07 e o L08 (o mar e os piratas), o L09 e o L10 (a taverna e a festa), o L11 e o L12 (o
     // descanso e a brincadeira), o L13 (o torneio e a cidade), o L14 (o resto da cidade e vila) e a ponte levadiça do
     // L02 (o item 81 da lista).
-    expect(TIPOS_NO_CATALOGO.slice(-262, -179)).toEqual([
+    expect(TIPOS_NO_CATALOGO.slice(-265, -182)).toEqual([
       'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
       'mesaDeBanquete', 'bancosDeCapela', 'mesaDeGuerra', 'poleiroDeFalcao', 'aljavasEFlechas',
       'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
@@ -1035,12 +1041,12 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     ])
     // O banheiro moderno de 15/11/2026, o lote A (as peças grandes) e o lote B (as pequenas). As referências de
     // 16/11/2026 entram depois dele: cada fatia acima andou mais 22 para trás.
-    expect(TIPOS_NO_CATALOGO.slice(-179, -167)).toEqual([
+    expect(TIPOS_NO_CATALOGO.slice(-182, -170)).toEqual([
       'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
       'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
     ])
     // As referências (16/11/2026), o lote L1 (o necrotério e o laboratório) e o lote L2, o último bloco do Objeto.
-    expect(TIPOS_NO_CATALOGO.slice(-167, -145)).toEqual([
+    expect(TIPOS_NO_CATALOGO.slice(-170, -148)).toEqual([
       'mesaDeAutopsia', 'macaComLencol', 'camaraFrigorifica', 'esterilizador', 'luminariaArticulada',
       'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
       'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
@@ -1058,12 +1064,12 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     ])
     // A leva E2 (16/11/2026): a torre do dragão e as três montanhas, entre o lote L2 e as construções de 14/11/2026
     // (as fatias de antes delas andaram 4 para trás).
-    expect(TIPOS_NO_CATALOGO.slice(-145, -141)).toEqual(['torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande'])
+    expect(TIPOS_NO_CATALOGO.slice(-148, -144)).toEqual(['torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande'])
     // A estátua de cavalo (21/11/2026), com e sem o pedestal, entre a leva E2 e as construções (as fatias de antes
     // dela andaram 2 para trás).
-    expect(TIPOS_NO_CATALOGO.slice(-141, -139)).toEqual(['estatuaDeCavalo', 'estatuaDeCavaloSemPedestal'])
+    expect(TIPOS_NO_CATALOGO.slice(-144, -142)).toEqual(['estatuaDeCavalo', 'estatuaDeCavaloSemPedestal'])
     // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md): os 96 logo depois da estátua (as fatias de antes andaram 96 para trás), os objetos e depois as construções.
-    expect(TIPOS_NO_CATALOGO.slice(-139, -29)).toEqual([
+    expect(TIPOS_NO_CATALOGO.slice(-142, -29)).toEqual([
       'cadeiraDeFerro', 'mesaDeFerro', 'catreDeFerro', 'esteiraDePalha', 'baldeDeDejetos', 'grilhoesDeParede',
       'bolaDeFerroComCorrente', 'latrinaDeCela', 'bancoDePedra', 'mesaDoCarcereiro', 'quadroDeChaves', 'jaulaDeChao',
       'raloDeMasmorra', 'bauDeFerro', 'tabuaDePregos', 'cepoDoCarrasco', 'posteDeAcoite', 'gradeDeCorredor',
@@ -1077,7 +1083,7 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
       'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico', 'maquinaDeLavar', 'leitoHospitalar',
       'mesaComComputador', 'cercaDeAlambrado', 'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra',
       'monteDeEntulho', 'camaDeTrapos', 'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
-      'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede', 'fossoDeBrasas', 'fossoDoSalao', 'plataformaDeRitual', 'gargula',
+      'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede', 'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro', 'fossoDeBrasas', 'fossoDoSalao', 'plataformaDeRitual', 'gargula',
       'estatuaDeBesta', 'estatuaEncapuzada', 'ponteDeCorrente', 'columbario', 'estradoEmMeiaLua', 'arcossolio',
       'ponteDePedraQuebrada', 'ponteDeTabuasQuebrada', 'calcadaSobreAgua', 'cabanaDeLajes', 'tanqueComBorda', 'piramideEmDegraus',
       'topoDoTemplo', 'cascataEmDegraus', 'ponteSobrePilares', 'passarelaDeTabuas', 'arquibancadaDePedra', 'fossoDeArena',
@@ -1091,7 +1097,7 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // E o muro de fogo de 15/11/2026, logo depois do fogo, as 12 peças do banheiro moderno e as 22 das referências;
     // a caixa quebrada de 16/11/2026, logo depois do barril quebrado; e as 4 da leva E2 (a torre do dragão e as
     // três montanhas); e as 2 da estátua de cavalo (21/11/2026); e as 6 peças novas do plano de arte por tema (28/11/2026).
-    expect(TIPOS_NO_CATALOGO).toHaveLength(440)
+    expect(TIPOS_NO_CATALOGO).toHaveLength(443)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })

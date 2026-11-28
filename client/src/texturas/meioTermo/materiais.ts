@@ -904,6 +904,10 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   saidaDeEsgoto: [lugar('cano', 'Cano', [...METAIS, 'barro'], 'ferro'), lugar('pedra', 'Pedra', PEDRAS, 'granito')],
   comporta: [lugar('madeira', 'Folha', MADEIRAS, 'carvalho'), lugar('metal', 'Ferragens', METAIS, 'ferro'), lugar('pedra', 'Pilares', PEDRAS, 'granito')],
   fonteDeParede: [lugar('pedra', 'Pedra', PEDRAS, 'arenito')],
+  // A onda 3 (L07), os lugares e os padrões que o lote mandou.
+  rodaDeCarroca: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('aros', 'Aros', METAIS, 'ferro')],
+  bancoDeTronco: [lugar('lenha', 'Tronco', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  casinhaDeCachorro: [lugar('madeira', 'Paredes', MADEIRAS, 'pinho'), lugar('telhado', 'Telhado', MADEIRAS, 'nogueira')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

@@ -48,6 +48,12 @@ import { versoesDoBarraca } from './barracaVersoes'
 import { versoesDoLampiao } from './lampiaoVersoes'
 import { versoesDoPoco } from './pocoVersoes'
 import { versoesDoFonteDeParede } from './fonteDeParedeVersoes'
+import { versoesDoCerca } from './cercaVersoes'
+import { versoesDoHorta } from './hortaVersoes'
+import { versoesDoBarril } from './barrilVersoes'
+import { versoesDoRodaDeCarroca } from './rodaDeCarrocaVersoes'
+import { versoesDoBancoDeTronco } from './bancoDeTroncoVersoes'
+import { versoesDoCasinhaDeCachorro } from './casinhaDeCachorroVersoes'
 
 /** O montador de cada versão, pelo id gravado em `Prop.mobiliaVersao` (a 1ª versão não entra). */
 export type VersoesDesenhadas = Readonly<Record<string, MontarMovel>>
@@ -99,6 +105,13 @@ export const VERSOES_DESENHADAS: Readonly<Partial<Record<TipoMobilia, VersoesDes
   lampiao: versoesDoLampiao,
   poco: versoesDoPoco,
   fonteDeParede: versoesDoFonteDeParede,
+  // A onda 3: L07 (a vila e a fazenda).
+  cerca: versoesDoCerca,
+  horta: versoesDoHorta,
+  barril: versoesDoBarril,
+  rodaDeCarroca: versoesDoRodaDeCarroca,
+  bancoDeTronco: versoesDoBancoDeTronco,
+  casinhaDeCachorro: versoesDoCasinhaDeCachorro,
 }
 
 /** O montador da versão (`undefined` = a 1ª, versão sem desenho ou tipo sem versão: vale o de `MONTADORES`). */
