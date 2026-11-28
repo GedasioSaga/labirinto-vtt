@@ -7,6 +7,7 @@ import { IDS_DAS_PECAS_DESENHADAS, urlDaPeca } from '../../../puzzles/arte/pecas
 import { progressoInicial } from '../../../puzzles/motor'
 import { combinacaoPadrao } from '../../../puzzles/combinacao'
 import { giratoriasPadrao } from '../../../puzzles/giratorias/giratorias'
+import { interruptoresPadrao } from '../../../puzzles/interruptores/interruptores'
 import { PECAS_DESENHADAS, puzzleDoModelo } from '../../../puzzles/padroes'
 import { canvasDoPainel, pngDaPlaca } from '../../../puzzles/relevo/raster'
 import { poligonoDaPlaca } from '../../../puzzles/relevo/placas'
@@ -28,6 +29,7 @@ import { TelaDoPuzzle } from '../TelaDoPuzzle'
  *   npm run dev  ->  http://localhost:1420/src/player/puzzle/vitrine/vitrine.html
  *   ?puzzle=fonte (padrão) | porta | altar | imagem | relevo (com &cena=dragao &metal=bronze)
  *   ?puzzle=giro (o medalhão da cena) | giroSimbolos | giroVizinhas (6 anéis, cada um leva os do lado)
+ *   ?puzzle=luzes (6 lampiões, os do lado) | luzesDesenho (9 em 3 x 3, igual à plaqueta) | luzesRegra (5 em fila, a regra do mestre, ferro)
  *   ?desfecho=texto | cena   (troca o modo do desfecho do puzzle escolhido)
  *   window.__vitrinePuzzle.estado()  o progresso, a mochila e os PV de agora
  */
@@ -236,6 +238,19 @@ function medalhao(nomePublico: string, mudar: Partial<ReturnType<typeof giratori
   }
 }
 
+/** Os interruptores com estado (28/11): o painel de latão dos lados, o 3 x 3 da plaqueta e a fila de ferro com regra própria. Semente fixa. */
+function painel(nomePublico: string, mudar: Partial<ReturnType<typeof interruptoresPadrao>>): () => Exemplo {
+  return () => {
+    const puzzle = puzzleDoModelo('fonte')
+    puzzle.nomePublico = nomePublico
+    puzzle.encaixes = []
+    puzzle.futuro = { ...interruptoresPadrao(777), ...mudar }
+    puzzle.dica = { tipo: 'texto', texto: 'O gás corre pelos canos de um lampião ao outro: quem abre um, mexe nos vizinhos.' }
+    puzzle.desfecho = { modo: 'cena', texto: 'O último lampião pega e a chapa inteira estala. A parede range e a passagem se abre.', itens: [], moedas: 0, documentos: [], abrePorta: true }
+    return { puzzle, mochila: [vaga(CORDA)] }
+  }
+}
+
 const EXEMPLOS = {
   fonte,
   porta,
@@ -248,6 +263,9 @@ const EXEMPLOS = {
   giro: medalhao('Medalhão do Dragão', {}),
   giroSimbolos: medalhao('Selo das Marés', { desenho: 'simbolos', material: 'pedra', aneis: 4, simbolos: ['lua', 'peixe', 'estrela', 'olho'] }),
   giroVizinhas: medalhao('Medalhão do Cavaleiro', { cena: 'cavaleiro', material: 'ferro', aneis: 6, vizinhas: true }),
+  luzes: painel('Lampiões da Cripta', {}),
+  luzesDesenho: painel('Painel do Farol', { quantos: 9, objetivo: 'desenho', desenho: [false, true, false, true, true, true, false, true, false] }),
+  luzesRegra: painel('Corredor dos Lampiões', { quantos: 5, material: 'ferro', ligacao: 'propria', ligados: [[1], [2], [3], [4], [0]] }),
 } as const
 type NomeDoExemplo = keyof typeof EXEMPLOS
 
@@ -297,7 +315,7 @@ function Fora({ jogo, onExaminar }: { jogo: JogoLocalDoPuzzle; onExaminar: () =>
         </button>
         <p style={{ margin: 0, fontSize: 10.5, color: 'var(--lb-color-parchment-faint)' }}>
           Outros exemplos: <a href="?puzzle=fonte">Fonte</a> · <a href="?puzzle=porta">Porta</a> · <a href="?puzzle=altar">Altar</a> · <a href="?puzzle=imagem">Imagem própria</a> · <a href="?puzzle=cofre">Cofre</a> · <a href="?puzzle=simbolos">Símbolos</a> ·{' '}
-          <a href="?puzzle=relogio">Relógio</a> · <a href="?puzzle=botoes">Botões</a> · <a href="?puzzle=relevo">Relevo</a> · <a href="?puzzle=giro">Medalhão</a> · <a href="?puzzle=giroSimbolos">Selo</a> · <a href="?puzzle=giroVizinhas">Medalhão difícil</a>
+          <a href="?puzzle=relogio">Relógio</a> · <a href="?puzzle=botoes">Botões</a> · <a href="?puzzle=relevo">Relevo</a> · <a href="?puzzle=giro">Medalhão</a> · <a href="?puzzle=giroSimbolos">Selo</a> · <a href="?puzzle=giroVizinhas">Medalhão difícil</a> · <a href="?puzzle=luzes">Lampiões</a> · <a href="?puzzle=luzesDesenho">Plaqueta</a> · <a href="?puzzle=luzesRegra">Regra própria</a>
         </p>
       </div>
     </main>
