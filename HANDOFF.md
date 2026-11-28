@@ -1,3 +1,12 @@
+# 28/11 ~01h30: /GOAL ATIVO (bugs de batalha por workflow; puzzles estilo RE; arte por temas top-down). Dono não responde perguntas; publicar sempre que algo ficar pronto. Opus MAX para desenhar objetos/animações; resto xhigh.
+## Frentes
+- 0.6.10 (agente ad0940fb): fechando acumulador ("Pergunta antes", "Vale em"). Quando terminar: verificador + publicar 0.6.10.
+- Puzzles (designer-opus max, aa23f414): sistema de puzzle existente + REFERENCIAS.md dos RE + 1º "Painel em relevo" (peças de metal), FILA.md. Notas tmp/rel-puzzles/notas.md.
+- Arte (arquiteto xhigh, aeb5386e): inventário + pesquisa top-down + docs/design/arte-temas/PLANO.md com lotes. Depois: workflow de lotes (2-3 desenhistas Opus max em paralelo + 1 integrador), publicar por lote.
+- Bugs de batalha: WORKFLOW pedido pelo dono, depois da 0.6.10 (para não colidir em stores/batalha): mapear combinações de habilidades, testadores como mestre e jogador (harness/store, sem testes no repo), fixer em sequência com 1-3 testes certeiros por bug, verificar, publicar.
+## Critério de pronto do goal
+Workflow de batalha rodado com bugs achados corrigidos e publicados; ao menos o Painel em relevo + 1 puzzle a mais publicados; lotes de arte dos temas prioritários publicados; cada entrega com 1-3 testes certeiros quando é código.
+
 # 28/11 ~01h: 0.6.10 em construção (agente ad0940fb assumiu do ad8923ff, que parou no limite)
 - Feito no disco (commits saindo): Aura agindo, Passar turno lê peças, ritmo Muda atributo na ficha, vida em %, gatilho com n/pilhas, 4 bugs (consumível só Curar, nome do selo do item, boneco com cortes/marca, ordem dos hooks).
 - Falta: restos nº5 das condições, prints da Aura, e as 4 extras do Acumulador (pergunta antes; marcos por nível com gasta/não gasta = mesmo que o requisito; valor por nível com atalho; "vale em"). Notas tmp/rel-0.6.10. Depois: verificador e publicar 0.6.10.
