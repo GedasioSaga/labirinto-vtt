@@ -3,7 +3,7 @@ import type { CarriedItem } from '../../types/map'
 import type { RecursoDoSistema, SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida } from '../vidaDaFicha'
 import { PERFURACAO_MAX, PERFURACAO_MIN, type AcaoDaTecnica } from './combate'
-import { CAMPO_DO_ATRIBUTO_DO_ATAQUE, CAMPO_DO_DANO, normalizar } from './formula'
+import { ATAQUE_SEM_ATRIBUTO, CAMPO_DO_ATRIBUTO_DO_ATAQUE, CAMPO_DO_DANO, normalizar } from './formula'
 import { municaoNaMochila, type MunicaoDaBala } from '../mochila/municao'
 import { balasParaOPente, penteDaArma } from '../mochila/armaNaMochila'
 import { quantidadeDe } from '../items'
@@ -595,8 +595,8 @@ function camposDoAtaque(ataque: Pick<AtaqueDoItem, 'dano' | 'soma' | 'acao'>, ca
     dano: String(ataque.dano),
     acao: ataque.acao,
     categoria: rotulo,
-    // O item sem atributo é o cartão sem "Soma no ataque": a Força, como antes da conversão.
-    ...(ataque.soma.length === 0 ? {} : { [CAMPO_DO_ATRIBUTO_DO_ATAQUE]: ataque.soma }),
+    // Bug de 28/11/2026: o item sem atributo é o "Soma no ataque: Nada" do editor do item, só o dano dele (a conversão guarda a Força da arma antiga).
+    [CAMPO_DO_ATRIBUTO_DO_ATAQUE]: ataque.soma.length === 0 ? ATAQUE_SEM_ATRIBUTO : ataque.soma,
     ...(capacidade === null ? {} : { [CAMPO_DA_CAPACIDADE]: String(capacidade) }),
     ...(vaga.descricao === undefined ? {} : { descricao: vaga.descricao }),
   }

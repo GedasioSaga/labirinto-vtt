@@ -96,6 +96,12 @@ export const ATRIBUTO_PADRAO_DO_ATAQUE = 'Força'
  * mecânica), e o selo pega no acerto.
  */
 export const ATAQUE_SO_DE_EFEITO = 'Nada'
+/**
+ * Bug de 28/11/2026 (item com "Soma no ataque: Nada"): o ataque que soma só o Dano da arma, sem atributo. Só o
+ * cartão lido do item escreve (o "Nada" do item dá o dano dele; o "Nada" do cartão de texto é a arma só de efeito).
+ */
+export const ATAQUE_SEM_ATRIBUTO = 'Sem atributo'
+const FORMULA_DO_ATAQUE_SO_DA_ARMA = 'Dano da arma'
 /** Q2: o dano do Atacar com arma que não diz outro atributo. Sem arma, só a Força. */
 export const FORMULA_DO_ATAQUE = `${ATRIBUTO_PADRAO_DO_ATAQUE} + Dano da arma`
 const FORMULA_DO_ATAQUE_SEM_ARMA = ATRIBUTO_PADRAO_DO_ATAQUE
@@ -230,6 +236,7 @@ function palavraDoAtributo(sistema: SistemaDeRpg, atributo: AtributoDoSistema): 
  */
 export function formulaDoAtaque(arma: CartaoDaFicha | null, sistema: SistemaDeRpg): string {
   if (arma === null) return FORMULA_DO_ATAQUE_SEM_ARMA
+  if (normalizar(arma.campos[CAMPO_DO_ATRIBUTO_DO_ATAQUE] ?? '') === normalizar(ATAQUE_SEM_ATRIBUTO)) return FORMULA_DO_ATAQUE_SO_DA_ARMA
   const atributo = atributoDoAtaque(arma, sistema)
   const palavra = atributo === null ? null : palavraDoAtributo(sistema, atributo)
   return palavra === null ? FORMULA_DO_ATAQUE : `${palavra} + Dano da arma`

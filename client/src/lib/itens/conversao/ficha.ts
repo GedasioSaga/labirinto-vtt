@@ -27,9 +27,16 @@ const CAMPO_DO_MODIFICADOR = 'modificador'
 /** "Atributo do ataque" da arma ("Percepção", "Nada"): o que soma ao dano. */
 const CAMPO_DO_ATRIBUTO_DO_ATAQUE = 'atributoDoAtaque'
 
-/** O atributo que soma ao dano, como id sem acento ("Percepção" -> "percepcao"); "Nada" ou vazio = nenhum. */
+/** O atributo que o cartão sem "Soma no ataque" somava: a Força (`ATRIBUTO_PADRAO_DO_ATAQUE` da batalha), no id do motor. */
+const SOMA_PADRAO_DO_ATAQUE = 'forca'
+
+/**
+ * O atributo que soma ao dano, como id sem acento ("Percepção" -> "percepcao"); "Nada" = nenhum. Bug de 28/11/2026:
+ * vazio (o cartão antigo sem o campo) somava a Força, e o vazio do item é "Nada"; então o vazio vira a Força.
+ */
 function somaDoAtaque(atributo: string): string {
   const id = normalizado(atributo).replace(/[^a-z0-9]/g, '')
+  if (id === '') return SOMA_PADRAO_DO_ATAQUE
   return id === 'nada' || id === 'nenhum' ? '' : id.slice(0, 40)
 }
 const RECARGA_NA_HORA = { acao: 'Ação Livre', rodadas: 0 } as const
