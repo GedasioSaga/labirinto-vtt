@@ -42,6 +42,8 @@ import { texturaRuaDeLama } from './chaos/ruaDeLama'
 import { texturaTerraArada } from './chaos/terraArada'
 import { texturaNevePisada } from './chaos/nevePisada'
 import { texturaGelo } from './chaos/gelo'
+import { texturaCinzas } from './chaos/cinzas'
+import { texturaBasaltoComBrasa } from './chaos/basaltoComBrasa'
 import { cobertura, espalhar, naVolta, pontosPerto, pontosQueAlcancam, sorteador, type Cobertura, type Espalhamento } from './espalhar'
 import type { VidaDoChao } from './meioTermo/chaoNoMundo'
 import {
@@ -1516,6 +1518,9 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   // L08: o cartão Neve ganha a neve pisada e o gelo de lago rachado, os dois tabelados (`chaos/nevePisada.ts`, `chaos/gelo.ts`).
   { id: 'neve-pisada', nome: 'Neve', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'neve', nome: 'Pisada' }, cor: texturaNevePisada },
   { id: 'gelo', nome: 'Neve', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'neve', nome: 'Gelo de lago' }, cor: texturaGelo },
+  // L09: a lava e o inferno, as cinzas com brasinhas e o basalto com veio de brasa.
+  { id: 'cinzas', nome: 'Cinzas', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaCinzas },
+  { id: 'basalto-com-brasa', nome: 'Basalto com brasa', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaBasaltoComBrasa },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */

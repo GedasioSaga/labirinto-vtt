@@ -99,6 +99,8 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   'terra-arada': 'd76fcda97a21aeb40f5128866190765acf0e0be831896c8013b05027cea4fbbf',
   'neve-pisada': '494593e5b62f564d21b0ae2a1c418934e012b731ca06bb3cfa915476724d0b5d',
   'gelo': '430b154cbdeabb9ae953243aa1a3287e570237e276b7be3bf6c3af3b56290554',
+  'cinzas': '59eaac013da9f507077d6e28c74f0a35143b454cdfc767fccf32121b070a06e5',
+  'basalto-com-brasa': 'e11159515180fe6b7c90ad384cccaa7ee119d04d8994548549bad62a3866b241',
 }
 
 async function sha256(bytes: Uint8ClampedArray): Promise<string> {
