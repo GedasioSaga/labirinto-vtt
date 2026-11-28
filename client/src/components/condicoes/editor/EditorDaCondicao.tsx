@@ -11,7 +11,7 @@ import { nomeDaCondicaoPosta, usosDaCondicao, type FontesDosUsos } from '../../.
 import { CORES_DE_CONDICAO, lerCondicaoPropria, simboloDaCondicaoPropria, type SimboloDeCondicao } from '../../../lib/condicoesProprias'
 import type { Personagem } from '../../../lib/personagem'
 import { useCatalogoStore } from '../../../stores/catalogoStore'
-import { trocarCondicaoEmTodasAsCenas } from '../../../stores/condicoesNasCenas'
+import { renomearSelosNasBatalhas, trocarCondicaoEmTodasAsCenas } from '../../../stores/condicoesNasCenas'
 import { useCondicoesPropriasStore } from '../../../stores/condicoesPropriasStore'
 import { useMundoDoLivroStore } from '../../../stores/mundoDoLivroStore'
 import type { CondicaoPropria } from '../../../types/map'
@@ -392,6 +392,8 @@ export function EditorDaCondicao({ abertura, onFechar, onSalvou, onApagar, perso
   const depoisDeSalvar = (final: CondicaoPropria, texto: string, desfazer?: () => void) => {
     const eraNova = nova
     if (!eraNova) trocarCondicaoEmTodasAsCenas(final)
+    // PENDENCIAS nº 13: renomeada, os selos dela nas batalhas ligadas levam o nome novo (os tokens, pela linha de cima).
+    if (!eraNova && salvo !== null && chaveDaCondicao(salvo.nome) !== chaveDaCondicao(final.nome)) renomearSelosNasBatalhas(salvo.nome, final.nome)
     setSalvo(final)
     setRascunho(final)
     setRenomear(null)
@@ -429,8 +431,12 @@ export function EditorDaCondicao({ abertura, onFechar, onSalvou, onApagar, perso
       return
     }
     const n = renomear.feita.trocados.length
-    depoisDeSalvar(renomear.final, `"${renomear.final.nome}" salva e renomeada em ${quantos(n, 'lugar', 'lugares')}.`, () => {
+    const final = renomear.final
+    depoisDeSalvar(final, `"${final.nome}" salva e renomeada em ${quantos(n, 'lugar', 'lugares')}.`, () => {
       desfazerTudo()
+      // O nome de antes volta também nos tokens (a cópia inteira e o prazo) e nos selos das batalhas ligadas.
+      trocarCondicaoEmTodasAsCenas(antes)
+      renomearSelosNasBatalhas(final.nome, antes.nome)
       setSalvo(antes)
       avisar('Renomear desfeito: o nome de antes voltou em todos os lugares.')
     })

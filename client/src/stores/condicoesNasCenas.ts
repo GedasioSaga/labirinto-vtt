@@ -2,6 +2,7 @@ import type { CondicaoPropria, MapData } from '../types/map'
 import { fichasComCondicao, tirarCondicaoPropriaDasFichas, trocarCondicaoPropriaNasFichas } from '../lib/condicoesProprias'
 import { condicoesDe, tirarCondicao } from '../lib/condicoes/naFicha'
 import { useAdventureStore } from './adventureStore'
+import { useBatalhaStore } from './batalhaStore'
 import { useMapStore } from './mapStore'
 import { mesaDaAventura } from './mesaDaAventura'
 
@@ -82,6 +83,16 @@ export function trocarCondicaoEmTodasAsCenas(condicao: CondicaoPropria): void {
     () => useMapStore.getState().trocarCondicaoPropriaNasFichas(condicao),
     (map) => trocarCondicaoPropriaNasFichas(map, condicao),
   )
+}
+
+/**
+ * PENDENCIAS do rework, nº 13: a criada `de` foi renomeada para `para`. Os selos dela em toda batalha ligada
+ * levam o nome novo (o selo acha a condição pelo nome: com o de antes, ele perdia a pastilha e a regra da
+ * criada). As cópias nos tokens e o prazo delas trocam pelo `trocarCondicaoEmTodasAsCenas`. Devolve quantos
+ * selos trocaram; o Desfazer chama de novo com os dois trocados.
+ */
+export function renomearSelosNasBatalhas(de: string, para: string): number {
+  return useBatalhaStore.getState().renomearSelos(de, para)
 }
 
 /**

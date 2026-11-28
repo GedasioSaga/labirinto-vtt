@@ -1,6 +1,6 @@
 import type { CondicaoPropria, MapData, Token } from '../types/map'
 import { lerPecasDaCondicao, lerPrazoDaCondicao, lerSaidasDaCondicao, lerTipoDaCondicao } from './condicoes/leitura'
-import { CONFIRA_DA_CONDICAO_MAX, ehIdDeCondicao } from './condicoes/modelo'
+import { chaveDaCondicao, CONFIRA_DA_CONDICAO_MAX, ehIdDeCondicao } from './condicoes/modelo'
 import { gatilhoLido } from './itens/pecasDoItem'
 import { parseHexColor } from './tokenColor'
 import { CONDITION_INK, TOKEN_CONDITION_SYMBOLS, type ConditionSymbol, type ConditionSymbolPoint } from './tokenConditions'
@@ -786,9 +786,32 @@ export function fichasComCondicao(map: Pick<MapData, 'tokens'>, condicaoId: stri
 export function trocarCondicaoPropriaNasFichas(map: MapData, condicao: CondicaoPropria): MapData {
   const limpa = lerCondicaoPropria(condicao)
   if (limpa === null) return map
-  return nasFichas(map, (atuais) =>
-    atuais.some((c) => c.id === limpa.id && !mesmaCondicao(c, limpa)) ? atuais.map((c) => (c.id === limpa.id ? limpa : c)) : null,
-  )
+  let mudou = false
+  const tokens = map.tokens.map((token) => {
+    const atuais = condicoesPropriasOf(token)
+    const antiga = atuais.find((c) => c.id === limpa.id)
+    if (antiga === undefined || mesmaCondicao(antiga, limpa)) return token
+    mudou = true
+    const comANova = comCondicoesProprias(token, atuais.map((c) => (c.id === limpa.id ? limpa : c)))
+    // PENDENCIAS do rework, nº 13: renomeada, o prazo dela na ficha (guardado pelo NOME) acompanha; senão o prazo ficava órfão.
+    return antiga.nome === limpa.nome ? comANova : comPrazoRenomeado(comANova, antiga.nome, limpa.nome)
+  })
+  return mudou ? { ...map, tokens } : map
+}
+
+/** O prazo da condição `de` (pela chave do nome) passa a ser o de `para`; nenhum = a mesma ficha. */
+function comPrazoRenomeado(token: Token, de: string, para: string): Token {
+  const prazos = token.prazosDasCondicoes
+  // O mapa do disco chega cru (`prazosDasCondicoes` não passou por leitor): só lista, só entrada com nome em texto.
+  if (!Array.isArray(prazos)) return token
+  const chave = chaveDaCondicao(de)
+  let mudou = false
+  const novos = prazos.map((prazo) => {
+    if (typeof prazo !== 'object' || prazo === null || typeof prazo.nome !== 'string' || chaveDaCondicao(prazo.nome) !== chave) return prazo
+    mudou = true
+    return { ...prazo, nome: para }
+  })
+  return mudou ? { ...token, prazosDasCondicoes: novos } : token
 }
 
 /** O mestre excluiu a condição: ela sai de toda ficha desta cena. */
