@@ -6,8 +6,8 @@
  * da batalha), desconta no fim da vez e apaga no fim da terceira.
  * Rework das condições (D3, aa1de8d0): o Envenenado ganhou regra de fábrica, então o espelho da pastilha
  * pede o "Aplicar / pular" ao mestre (PLANO.md, "o Aplicar tira"), e o prazo não tira sozinho por cima.
- * Os 4 por vez saem pelo Aplicar do lembrete; o espelho nasce no primeiro Passar a vez, por isso a vez
- * que o Iniciar abre ainda sai pelo prazo.
+ * Os 4 por vez saem pelo Aplicar do lembrete. Rodada 3 (28/11/2026): também na vez que o Iniciar abre (o
+ * espelho já nasce no Iniciar); antes o prazo tirava sozinho nela.
  */
 import { describe, expect, it } from 'vitest'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
@@ -70,17 +70,17 @@ describe('prazo da mesa na batalha One Piece', () => {
       expect(loja.getState().passarVez(CENA, MESTRE)).toBe(true)
     }
     const vezDoBrann = (): boolean => cartaDaVez(loja.getState().cenas[CENA].turnos)?.personagemId === idDoBrann
-    /** O mestre clica Aplicar no lembrete do Envenenado do Brann, quando a vez dele o pede (4, o do prazo). */
+    /** O mestre clica Aplicar no lembrete do Envenenado do Brann, que toda vez dele pede (4, o do prazo). */
     const aplicarOVeneno = (): void => {
       const turnos = loja.getState().cenas[CENA].turnos
       const lembrete = (turnos.combate?.[idDoBrann]?.lembretes ?? []).find((candidato) => candidato.porVez?.nome === 'Envenenado')
-      if (lembrete === undefined) return
-      expect(lembrete.porVez?.dano).toBe(4)
+      expect(lembrete?.porVez?.dano).toBe(4)
       const tokenId = cartaDaVez(turnos)?.tokenId ?? ''
-      expect(loja.getState().passiva(CENA, MESTRE, { tipo: 'lembrete', tokenId, cartaoId: lembrete.cartaoId, aplicar: true })).toBe(true)
+      expect(loja.getState().passiva(CENA, MESTRE, { tipo: 'lembrete', tokenId, cartaoId: lembrete?.cartaoId ?? '', aplicar: true })).toBe(true)
     }
-    // O Iniciar já abre a vez do Brann (Agilidade 70): a 1ª vida sai aí.
+    // O Iniciar já abre a vez do Brann (Agilidade 70): a 1ª vida espera o Aplicar, como nas outras vezes (não sai sozinha).
     expect(vezDoBrann()).toBe(true)
+    expect(hp()).toBe(300)
     aplicarOVeneno()
     expect(hp()).toBe(296)
     passar() // fim da 1ª: faltam 2
@@ -97,7 +97,8 @@ describe('prazo da mesa na batalha One Piece', () => {
     passar()
     expect(vezDoBrann()).toBe(true)
     expect(hp()).toBe(288)
-    // A linha do dano diz o motivo.
-    expect(loja.getState().cenas[CENA].registro.some((linha) => linha.texto.includes('perde 4 HP (Envenenado)'))).toBe(true)
+    // Os 12 saíram só pelos 3 Aplicar (uma linha cada); o prazo não tirou nenhuma vez por cima (nem no Iniciar).
+    const textos = loja.getState().cenas[CENA].registro.map((linha) => linha.texto)
+    expect([textos.filter((texto) => texto.includes('-4 HP')).length, textos.some((texto) => texto.includes('perde 4 HP (Envenenado)'))]).toEqual([3, false])
   })
 })

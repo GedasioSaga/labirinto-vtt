@@ -9,7 +9,7 @@ import { escudoNoComeco } from '../lib/batalha/recursosDaBatalha'
 import { equipamentoNoAcervo } from '../lib/batalha/municoesDoAcervo'
 import { bonusDaRoupa } from '../lib/mochila/bonusDaRoupa'
 import { ID_DA_EQUIPE_DOS_JOGADORES, equipeDe } from '../lib/batalha/equipes'
-import { comLembretesDoMomento } from '../lib/batalha/passivas'
+import { comLembretesDaVez, comLembretesDoMomento } from '../lib/batalha/passivas'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { registrarAjuste as registrarAjusteNasLinhas, TIPOS_QUE_O_JOGADOR_DESFAZ } from '../lib/batalha/registro'
@@ -148,6 +148,17 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     tirarNoFimDaBatalhaNaMesa(mesa, ids)
   }
 
+  /**
+   * O "a cada turno" da vez que o Iniciar abre (o lembrete "Aplicar / pular" do selo que tira por vez, o das
+   * passivas ligadas), como o Passar a vez faz no começo de cada vez. Sem linha: o Iniciar não se desfaz.
+   */
+  const lembretesDaPrimeiraVez = (sceneKey: string): void => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined) return
+    const { turnos } = comLembretesDaVez(cena.turnos, fichasDaMesa(mesa))
+    if (turnos !== cena.turnos) gravarCena(sceneKey, { ...cena, turnos, turnosRev: cena.turnosRev + 1 })
+  }
+
   /** COMPANION, fim da batalha: os tokens que nasceram para ela saem do mapa (o que já estava fica). */
   const tirarOsCompanions = (sceneKey: string, turnos: TurnosDaCena | undefined): void => {
     const criados = (turnos?.companions ?? []).filter((companion) => companion.criado).map((companion) => companion.tokenId)
@@ -179,8 +190,13 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // Conserto das fichas F1 (resposta do Vincent): o Escudo de cada combatente volta cheio. Sem linha: o Iniciar não se desfaz.
       if (semSobras !== undefined) encherOsEscudos(semSobras.combatentes)
       set({ cenas: { ...get().cenas, [sceneKey]: semSobras === undefined ? CENA_NOVA : cenaDoInicio(mesa, semSobras, deps.rolarD20) }, anuncio: novo })
+      if (semSobras === undefined) return
+      // Rodada 3 (28/11/2026): a vez que o Iniciar abre passa pelo começo de vez de sempre: o espelho das pastilhas entra antes,
+      // e a vida que o selo pede (o Envenenado) vai pelo "Aplicar / pular" do lembrete, sem o prazo tirar sozinho por cima.
+      fatiaDaVez.acoes.espelharPastilhas(sceneKey)
+      lembretesDaPrimeiraVez(sceneKey)
       // Fase C: o Iniciar já abre a vez do primeiro; a vida por turno do prazo dele sai aqui (linha própria, com Desfazer).
-      if (semSobras !== undefined) prazosDaVez(sceneKey, null, cartaDaVez(get().cenas[sceneKey].turnos), MESTRE)
+      prazosDaVez(sceneKey, null, cartaDaVez(get().cenas[sceneKey].turnos), MESTRE)
     },
 
     desligar: (sceneKey) => {
