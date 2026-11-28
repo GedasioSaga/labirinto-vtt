@@ -56,7 +56,7 @@ import {
   type OpcaoNaTela,
 } from './dadosDoMenu'
 import { LADOS_DA_AREA, NOME_DO_LADO, textoDaAreaNaMira } from './ladosDaMira'
-import { alcanceDaMira, areaDaGrade, direcaoAoAbrirAMira, formaOlhaParaUmLado, mandaOLado, marcasDaAreaVirada, quemSaiAoMandar, textoDoForaDoAlcance } from './regraDaMira'
+import { alcanceDaMira, areaDaGrade, direcaoAoAbrirAMira, formaOlhaParaUmLado, ladoQueCabeSemChao, mandaOLado, marcasDaAreaVirada, quemSaiAoMandar, textoDoForaDoAlcance } from './regraDaMira'
 import './batalha.css'
 import './combate.css'
 
@@ -651,9 +651,13 @@ export function MiraDoGolpe({ golpe, carga, alvos: alvosDaMesa, alvoDoMapa, onLa
     }
     // Fase C do alcance: a área pela grade manda o lado escolhido (o host vira a mesma área); as outras formas não olham.
     // Fase E: a forma que olha sem área montada também manda o lado (o host confere as casas do lado que o chão mostrou).
-    const direcaoDoPedido = mandaOLado(golpe, alvos) ? direcao : null
+    const ladoEscolhido = mandaOLado(golpe, alvos) ? direcao : null
     const pontoDoPedido = golpe.area?.centro === 'ponto' ? ponto : null
     const centroDoPedido = golpe.area?.centro === 'alvo' ? centroId : null
+    // Conserto de 27/11/2026: sem o chão (o site do Lobby), a forma vira para o lado em que os marcados cabem, e o chip mostra.
+    const ladoSemChao = ladoEscolhido === null ? null : ladoQueCabeSemChao(golpe, alvos, { marcados, direcao: ladoEscolhido, ponto: pontoDoPedido, centroId: centroDoPedido })
+    if (ladoSemChao !== null && ladoSemChao !== direcao) setDirecao(ladoSemChao)
+    const direcaoDoPedido = ladoSemChao ?? ladoEscolhido
     // Fase E do alcance: a conta com as condições de quem usa, como o host.
     const quemSai = confirmouForaDoAlcance ? null : quemSaiAoMandar(golpe, alvos, { marcados, direcao: direcaoDoPedido, ponto: pontoDoPedido, centroId: centroDoPedido })
     if (quemSai !== null) {
