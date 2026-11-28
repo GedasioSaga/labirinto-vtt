@@ -7,14 +7,18 @@
  */
 import { describe, expect, it } from 'vitest'
 import { acumuladoresNaFicha, comAcumuladorNovo, comOAcumuladorGravado } from '../components/batalha/acumulador/acumuladoresDaFicha'
+import { cartaoComAMecanica } from '../components/batalha/editor/gravarNoCartao'
 import { comATecnicaNoNivel, comOGastoNoNivel } from '../components/batalha/editor/pecas/ligacoes'
+import { custosDasFormasNaTela } from '../lib/batalha/custoPorTurno'
+import { mecanicaDoModeloNovo } from '../lib/batalha/mecanica/modelos'
+import { cartaoComTextoGerado } from '../lib/batalha/mecanica/textoGerado'
 import { nivelDoAcumulador } from '../lib/batalha/acumuladorNaBatalha'
 import type { PedidoDeAcao } from '../lib/batalha/combate'
 import { ficha } from '../lib/batalha/fichasDaFatiaB.testkit'
 import { FURIA_1, PARTE_1, PARTE_2, ryokoCom } from '../lib/batalha/fichasDaFatiaE.testkit'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
-import type { Personagem } from '../lib/personagem'
+import { novoCartao, numeroDaFicha, type Personagem } from '../lib/personagem'
 import { lutadoresDe, SISTEMA_DO_TESTE } from '../lib/treino/fichasDeTreino.testkit'
 import { criarMesaEmMemoria, type MesaEmMemoria } from '../lib/treino/mesaEmMemoria'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from './batalhaFabrica'
@@ -102,5 +106,26 @@ describe('a Fúria da tabela que ganhou só o requisito no editor (sem marcar "s
     const s = subida(3, false)
     expect(s.usarAFuria(MESTRE)).toBe(true)
     expect([s.ativas().includes(PARTE_2.id), s.raiva()]).toEqual([true, 1])
+  })
+})
+
+describe('a forma montada "Ligar e manter" com custo (o modelo Fúria do Dragão do editor: 20 SP)', () => {
+  it('ligar cobra os 20 SP (25 -> 5), e a forma entra no custo por vez, já sem SP para a vez seguinte', () => {
+    const semForma = ficha('Herói', { agilidade: 40 }, { hp: 500, sp: 25, escudo: 0 }, {})
+    const base = novoCartao('Fúria do Dragão')
+    const montado = cartaoComAMecanica(base, mecanicaDoModeloNovo('furiaDoDragao', SISTEMA_DO_TESTE), 'mestre', { personagem: semForma, sistema: SISTEMA_DO_TESTE })
+    if (montado === null) throw new Error('o editor recusou a forma')
+    const forma = cartaoComTextoGerado(base, montado, SISTEMA_DO_TESTE, 'tecnica')
+    const heroi: Personagem = { ...semForma, abas: { ...semForma.abas, transformacoes: [forma] } }
+    const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: heroi, lado: 'a' }, { ficha: ficha('Pirata', { agilidade: 1 }, { hp: 500, sp: 0, escudo: 0 }, {}), lado: 'b' }]))
+    const loja = criarBatalhaStore(mesa, { rolarD20: () => 10, outraBatalhaLigada: () => false })
+    const tokens = mesa.tokens()
+    loja.getState().ligar(CENA, {}, { combatentes: combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id))), regras: null, desempate: 'd20' })
+    const turnos = loja.getState().cenas[CENA]?.turnos
+    if (turnos?.vez == null) throw new Error('sem vez')
+    expect(loja.getState().agir(CENA, MESTRE, { cartaId: turnos.vez, rodada: turnos.rodada }, { tipo: 'transformar', cartaoId: forma.id, acao: 'livre', trocarImagem: false })).toBe(true)
+    const depois = mesa.personagens().find((personagem) => personagem.nome === 'Herói')
+    expect([depois?.cartoesAtivos.includes(forma.id), numeroDaFicha(depois?.recursos ?? {}, 'sp')]).toEqual([true, 5])
+    expect(custosDasFormasNaTela(depois, SISTEMA_DO_TESTE)).toEqual([expect.objectContaining({ cartaoId: forma.id, semRecurso: expect.anything() })])
   })
 })

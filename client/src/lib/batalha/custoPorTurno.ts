@@ -58,11 +58,21 @@ export function ehLembreteDoCustoDaForma(lembrete: Pick<LembreteDaPassiva, 'cart
   return lembrete.chave === chaveDoCustoDaForma(lembrete.cartaoId)
 }
 
+/**
+ * Bug de 28/11/2026: a forma montada "Ligar e manter" com custo (o Salvar grava "20 SP", sem "por turno"): o custo que
+ * ela cobra ao ligar e a cada vez de manter, como a técnica mantida (PLANO D7). `null` = não é dessas, ou não custa.
+ */
+export function custoDaFormaMantida(cartao: Pick<CartaoDaFicha, 'id' | 'campos' | 'mecanica'>, personagem: Personagem): CustoPorTurno | null {
+  if (pecasDoCartao(cartao)?.uso !== 'manter') return null
+  const lido = lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem)
+  return lido.tipo === 'valor' && lido.valor > 0 ? { ...lido, porTurno: true } : null
+}
+
 /** As formas LIGADAS do personagem com custo por turno, na ordem da ficha. */
 export function formasComCustoPorTurno(personagem: Personagem, sistema: SistemaDeRpg): { cartao: CartaoDaFicha; custo: CustoPorTurno }[] {
   return cartoesQueLigam(personagem, sistema).flatMap((cartao) => {
     if (!personagem.cartoesAtivos.includes(cartao.id)) return []
-    const custo = custoPorTurno(cartao, personagem)
+    const custo = custoPorTurno(cartao, personagem) ?? custoDaFormaMantida(cartao, personagem)
     return custo === null ? [] : [{ cartao, custo }]
   })
 }

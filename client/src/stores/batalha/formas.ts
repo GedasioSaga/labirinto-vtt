@@ -33,7 +33,7 @@ import {
   type EscritoPelaDecisao,
 } from '../../lib/batalha/mecanica/formaDoMestre'
 import { comOCansaco, modsDoCansaco } from '../../lib/batalha/recursosDaBatalha'
-import { custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, pararAMantida, textoDoCustoPorTurno } from '../../lib/batalha/custoPorTurno'
+import { custoDaFormaMantida, custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, pararAMantida, textoDoCustoPorTurno } from '../../lib/batalha/custoPorTurno'
 import { ajustesDoCusto, custoEmSp, podeAgir, portaoDoPedido, type ContextoDoGolpe } from '../../lib/batalha/golpe'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
 import { devolverFichasDaAcao } from './desfazer'
@@ -243,6 +243,9 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       gravarCena(sceneKey, comMudanca(atualDoPedido, comPendente, { id: linhaId, tipo: 'transformacao', texto: textoDoPedido, autor, tokenIds: [carta.tokenId], reversao: { tipo: 'composta', partes: [...gastos.partes, { tipo: 'formaPedida', pendente }] } }))
       return true
     }
+    // Bug de 28/11/2026: a forma montada "Ligar e manter" com custo cobra ao ligar (sem o recurso, não liga), como a técnica mantida.
+    const custoAoLigar = pedido.tipo === 'transformar' && cartao !== null ? custoDaFormaMantida(cartao, personagem) : null
+    if (custoAoLigar !== null && motivoDoCustoPorTurno(personagem, sistema, custoAoLigar) !== null) return false
     if (pedido.tipo === 'transformar') {
       let numeros: NumeroDaForma[] = []
       // R2: as formas do mesmo grupo que a troca desligou (os cartões voltam pela parte "ficha" no Desfazer).
@@ -272,6 +275,14 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
       // e o delta tiraria o ganho de novo (1.200 − 600 = 600).
       const cartaoPrimeiro = [...fichaMudou.filter((parte) => parte.parte === 'cartao'), ...fichaMudou.filter((parte) => parte.parte !== 'cartao')]
       partes.push(...reversaoDaFicha(personagemId, cartaoPrimeiro))
+      if (custoAoLigar !== null) {
+        const pago = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custoAoLigar), quem)
+        if (pago === 'recusada') {
+          devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+          return false
+        }
+        partes.push(...reversaoDaFicha(personagemId, pago))
+      }
       // REQUISITOS C: os gastos do "Para ligar" que vale, nesta linha (o Desfazer devolve tudo).
       let notaDosRequisitos = doPortao?.tipo === 'passa' ? doPortao.nota : null
       if (doPortao?.tipo === 'passa') {
