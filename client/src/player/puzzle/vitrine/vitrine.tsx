@@ -443,16 +443,40 @@ function Fora({ jogo, onExaminar }: { jogo: JogoLocalDoPuzzle; onExaminar: () =>
   )
 }
 
+/**
+ * No app e no site, as três fontes do tema já estão carregadas quando o puzzle
+ * abre (a casca usa todas). A vitrine abre direto no puzzle: sem isto, o 1º
+ * layout carrega as três juntas (Segoe UI Variable, 1,8 MB, Bahnschrift e
+ * Sitka) e vira uma tarefa de ~220 ms que não é da tela (medido em 28/11 pelo
+ * trace do Edge). Cada peso de uma fonte variável é uma carga à parte, então
+ * vai um peso por tarefa, como a casca faz ao abrir.
+ */
+async function aquecerFontes(): Promise<void> {
+  const PESOS = ['400', '500', '600', '700', 'italic 400'] as const
+  for (const familia of ['--lb-font-sans', '--lb-font-utility', '--lb-font-display']) for (const peso of PESOS) {
+    // Primeiro cede: a primeira amostra também sai da tarefa que avalia os módulos.
+    await new Promise((pronto) => setTimeout(pronto, 0))
+    const amostra = document.createElement('span')
+    amostra.textContent = 'Aa Çã 0123'
+    amostra.style.cssText = `position:fixed;left:-9999px;top:0;font:${peso} 14px var(${familia})`
+    document.body.append(amostra)
+    void amostra.offsetWidth
+    amostra.remove()
+  }
+}
+
 const raiz = document.getElementById('raiz')
 if (raiz !== null) {
   // Sem exports, o Fast Refresh recarrega a página inteira em vez de montar uma segunda raiz.
   if (Reflect.get(window, '__vitrinePuzzleMontada') === true) location.reload()
   else {
     Reflect.set(window, '__vitrinePuzzleMontada', true)
-    void exemploPedido().then((exemplo) => {
-      // As provas medem a abertura da tela a partir daqui (o preparo do exemplo não é da tela).
-      performance.mark('vitrine:montar')
-      createRoot(raiz).render(<Vitrine exemplo={exemplo} />)
-    })
+    void aquecerFontes()
+      .then(exemploPedido)
+      .then((exemplo) => {
+        // As provas medem a abertura da tela a partir daqui (o preparo do exemplo não é da tela).
+        performance.mark('vitrine:montar')
+        createRoot(raiz).render(<Vitrine exemplo={exemplo} />)
+      })
   }
 }

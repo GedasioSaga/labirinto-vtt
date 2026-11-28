@@ -48,7 +48,7 @@ function n(valor: number): string {
   return String(Math.round(valor * 10) / 10)
 }
 
-/** O veio da madeira (ou o batido do bronze): traços finos e ondulados numa faixa. */
+/** O veio da madeira: traços finos e ondulados numa faixa. */
 function veios(x: number, y: number, largura: number, altura: number, deitado: boolean, cor: string, semente: number): string {
   let d = ''
   const linhas = Math.max(3, Math.round((deitado ? altura : largura) / 9))
@@ -64,6 +64,44 @@ function veios(x: number, y: number, largura: number, altura: number, deitado: b
     }
   }
   return `<path d="${d}" fill="none" stroke="${cor}" stroke-width="1.6" opacity=".45"/>`
+}
+
+/** Um número de 0 a 1 que só depende de `i` e da semente (o escovado sai igual em toda pintura). */
+function sorteio(i: number, semente: number): number {
+  const s = Math.sin(i * 12.9898 + semente * 78.233) * 43758.5453
+  return s - Math.floor(s)
+}
+
+/**
+ * O escovado do bronze (28/11, no lugar do veio ondulado, que lia como
+ * madeira): riscos retos e finos, colados um no outro, ao longo da faixa, cada
+ * um de um comprimento e de um brilho. Quatro tons (dois claros, dois escuros)
+ * em quatro caminhos, para o SVG continuar leve.
+ */
+function escovado(x: number, y: number, largura: number, altura: number, deitado: boolean, semente: number): string {
+  const PASSO = 1.9
+  const total = Math.floor((deitado ? altura : largura) / PASSO)
+  const comprimento = deitado ? largura : altura
+  const tons = ['', '', '', '']
+  for (let i = 0; i < total; i++) {
+    const meio = (deitado ? y : x) + (i + 0.5) * PASSO
+    const inicio = sorteio(i, semente) * 0.3 * comprimento
+    const fim = comprimento - sorteio(i + 101, semente) * 0.3 * comprimento
+    const tom = Math.floor(sorteio(i + 211, semente) * 4)
+    tons[tom] += deitado ? `M${n(x + inicio)} ${n(meio)}H${n(x + fim)}` : `M${n(meio)} ${n(y + inicio)}V${n(y + fim)}`
+  }
+  const estilo = [
+    ['#fff4d8', '.07'],
+    ['#fff4d8', '.15'],
+    ['#2a1806', '.09'],
+    ['#2a1806', '.17'],
+  ] as const
+  return tons.map((d, k) => (d === '' ? '' : `<path d="${d}" fill="none" stroke="${estilo[k]?.[0]}" stroke-width=".8" opacity="${estilo[k]?.[1]}"/>`)).join('')
+}
+
+/** A textura da faixa: o veio na madeira, o escovado no bronze. */
+function textura(material: MaterialDasDeslizantes, x: number, y: number, largura: number, altura: number, aoComprido: boolean, p: Paleta, semente: number): string {
+  return material === 'bronze' ? escovado(x, y, largura, altura, aoComprido, semente) : veios(x, y, largura, altura, aoComprido, p.veio, semente)
 }
 
 /** O ornamento de canto: uma rosácea entalhada na madeira, um cravo no bronze. */
@@ -112,7 +150,7 @@ function svgDaBase(material: MaterialDasDeslizantes, lado: number, alvo: number 
   const passo = POCO.lado / lado
   let juntas = ''
   for (let i = 1; i < lado; i++) juntas += `M${n(POCO.x + i * passo)} ${POCO.y}V${POCO.y + POCO.lado}M${POCO.x} ${n(POCO.y + i * passo)}H${POCO.x + POCO.lado}`
-  const deitado = material === 'madeira'
+  const metal = material === 'bronze'
   const plaqueta = comPlaqueta
     ? [
         `<g filter="url(#grt-sombra)" opacity=".8"><rect x="${PLAQUETA.x + 8}" y="${PLAQUETA.y + 12}" width="${PLAQUETA.lado}" height="${PLAQUETA.lado + 46}" rx="10" fill="#000"/></g>`,
@@ -130,14 +168,17 @@ function svgDaBase(material: MaterialDasDeslizantes, lado: number, alvo: number 
     `<linearGradient id="dz-aro" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p.claro}"/><stop offset=".45" stop-color="${p.base}"/><stop offset="1" stop-color="${p.escuro}"/></linearGradient>`,
     `<linearGradient id="dz-poco" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000"/><stop offset=".18" stop-color="${p.fundo}"/><stop offset="1" stop-color="${p.fundo}"/></linearGradient>`,
     `<radialGradient id="dz-cravo" cx=".35" cy=".35" r=".7"><stop offset="0" stop-color="${p.fio}"/><stop offset=".6" stop-color="${p.base}"/><stop offset="1" stop-color="${p.escuro}"/></radialGradient>`,
+    metal ? '<linearGradient id="dz-brilho" x1="0" y1="0" x2="1" y2="1"><stop offset=".18" stop-color="#fff6dc" stop-opacity="0"/><stop offset=".3" stop-color="#fff6dc" stop-opacity=".22"/><stop offset=".38" stop-color="#fff6dc" stop-opacity="0"/><stop offset=".66" stop-color="#fff6dc" stop-opacity="0"/><stop offset=".72" stop-color="#fff6dc" stop-opacity=".1"/><stop offset=".8" stop-color="#fff6dc" stop-opacity="0"/></linearGradient>' : '',
     '</defs>',
     parede(),
     `<g filter="url(#grt-sombra)" opacity=".9"><rect x="${x + 16}" y="${y + 24}" width="${l}" height="${l}" rx="20" fill="#000"/></g>`,
     `<rect x="${x}" y="${y}" width="${l}" height="${l}" rx="20" fill="url(#dz-aro)"/>`,
-    veios(x + 10, y + 8, l - 20, ARO - 16, deitado, p.veio, 1),
-    veios(x + 10, y + l - ARO + 8, l - 20, ARO - 16, deitado, p.veio, 2),
-    veios(x + 8, y + ARO, ARO - 16, l - 2 * ARO, !deitado, p.veio, 3),
-    veios(x + l - ARO + 8, y + ARO, ARO - 16, l - 2 * ARO, !deitado, p.veio, 4),
+    textura(material, x + 10, y + 8, l - 20, ARO - 16, true, p, 1),
+    textura(material, x + 10, y + l - ARO + 8, l - 20, ARO - 16, true, p, 2),
+    textura(material, x + 8, y + ARO, ARO - 16, l - 2 * ARO, false, p, 3),
+    textura(material, x + l - ARO + 8, y + ARO, ARO - 16, l - 2 * ARO, false, p, 4),
+    // O bronze ganha um reflexo largo e frio na diagonal: é o que faz o escovado ler como metal.
+    metal ? `<rect x="${x}" y="${y}" width="${l}" height="${l}" rx="20" fill="url(#dz-brilho)"/>` : '',
     // O chanfro: luz em cima e à esquerda, sombra embaixo e à direita, e o fio embutido no meio do aro.
     `<rect x="${x + 3}" y="${y + 3}" width="${l - 6}" height="${l - 6}" rx="18" fill="none" stroke="${p.claro}" stroke-width="3" opacity=".55"/>`,
     `<rect x="${x + 26}" y="${y + 26}" width="${l - 52}" height="${l - 52}" rx="10" fill="none" stroke="${p.fio}" stroke-width="2.5" opacity=".55"/>`,
@@ -212,9 +253,10 @@ export function urlDoBloco(material: MaterialDasDeslizantes, ehChave: boolean): 
   const url = emUrl(
     [
       `<svg ${SVG} viewBox="0 0 100 100" preserveAspectRatio="none">`,
-      `<defs><linearGradient id="c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${claro}"/><stop offset="1" stop-color="${escuro}"/></linearGradient></defs>`,
+      // No bronze, o campo tem uma faixa de luz no meio do degradê (metal), e não só o claro e o escuro.
+      `<defs><linearGradient id="c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${claro}"/>${material === 'bronze' ? `<stop offset=".42" stop-color="${ehChave ? '#fbe7ae' : '#cfa25a'}"/><stop offset=".56" stop-color="${ehChave ? '#d9ac52' : p.campoClaro}"/>` : ''}<stop offset="1" stop-color="${escuro}"/></linearGradient></defs>`,
       '<rect width="100" height="100" fill="url(#c)"/>',
-      ehChave ? '' : veios(4, 4, 92, 92, material === 'madeira', p.veio, 5),
+      ehChave ? '' : textura(material, 4, 4, 92, 92, true, p, 5),
       motivo,
       '</svg>',
     ].join(''),

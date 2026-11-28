@@ -345,6 +345,8 @@ export function PainelDasDeslizantes({ deslizantes, resolvido, onDeslizar, eu, t
             </button>
           )
         })}
+        {/* Quando fecha, a figura inteira (uma imagem só) cobre as peças: some a emenda fina entre elas. */}
+        {figura !== null && <span className="qpz-dz__inteira" style={{ backgroundImage: `url("${figura}")`, backgroundSize: `${proporcao.x * 100}% ${proporcao.y * 100}%` }} aria-hidden="true" />}
       </div>
       <span className="qpz-dz__leitor" aria-live="polite">
         {leitor}

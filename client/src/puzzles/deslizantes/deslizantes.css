@@ -202,9 +202,26 @@
     0 0 1.6em rgba(255, 214, 120, 0.8);
 }
 
+/* A figura inteira por cima das peças, só quando fecha (depois de as peças assentarem). */
+.qpz-dz__inteira {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background-position: 50% 50%;
+  background-repeat: no-repeat;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.qpz-dz.is-resolvido[data-modo='figura'] .qpz-dz__inteira {
+  opacity: 1;
+  transition: opacity 360ms ease 520ms;
+}
+
 .qpz-dz.is-resolvido .qpz-dz__poco::after {
   content: '';
   position: absolute;
+  z-index: 4;
   inset: -10%;
   background: linear-gradient(105deg, transparent 38%, rgba(255, 236, 190, 0.38) 50%, transparent 62%);
   transform: translateX(-100%);
