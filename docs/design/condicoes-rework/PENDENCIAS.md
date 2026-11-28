@@ -12,24 +12,39 @@ Fonte: os relatórios das etapas E1 a E8 do workflow de 27/11/2026 e a conferên
 - `components/batalha/editor/ColunaDoPapel.tsx` e `components/livros/biblioteca/LadoDaEscolhida.tsx`: o pedaço do papel mostra a frase da condição no `title`.
 - `main.tsx`: o import de `condicoesDoApp` registra as criadas nos seletores, sem depender de outra tela importar.
 
+## Fechadas em 27/11/2026 (recuperação e pendências)
+
+- Nº 4: `porCondicao` (`lib/condicoes/naFicha.ts`) segue a entrada da batalha: a Contra-condição apaga ao entrar e impede enquanto dura; "se ganhar de novo" soma pilha até o teto (o prazo fica) ou não muda nada.
+- Nº 6: todo selo que a store cria nasce por `criarSeloComACondicao` (`stores/batalha/selos.ts`): o gatilho e a ligada (`nucleo.ts`), a preparação, a passiva, o "Ajustar" e o contador (`passivas.ts`) e o cansaço (`comOCansaco` recebe a função, `formas.ts`).
+- Nº 8: vale o motor. `BONECO_BASE.mod` saiu (ninguém lia e dava +2); o modificador é o `modificadorDoTeste` (metade do rank).
+- Nº 9: a duração do item vai até 10 em todo lugar: `duracaoLida` e `pecaDoEfeitoGuardado` por `ehDuracaoDaPeca`; as telas por `TURNOS_DA_PECA`, `duracaoDoTexto` e `rotuloDaDuracao` (`lib/itens/modelo.ts`).
+- Nº 10: "Virar condição nova" abre o `EditorDaCondicao` com o rascunho e o "Confira"; o lugar só troca de condição depois do Salvar (`VirarCondicaoNova` com `aoVirar`).
+- Nº 11: `alvosDaOrdem` (`mesaDoMestre.ts`) passa os selos de cada alvo; a mira do mestre e a janela da batalha (`espelhoOP.ts`, que monta por ali) deixam o Invisível cinza.
+- Nº 12: com "Não pode usar técnica", as técnicas de reação ficam cinza com o motivo do host (`reacoesComOBloqueio`, no mestre e no jogador).
+- Nº 13: renomear troca o prazo do token pelo nome novo (`trocarCondicaoPropriaNasFichas`) e os selos das batalhas ligadas (`renomearSelos` da store, `renomearSelosNasBatalhas`); o Desfazer volta os dois.
+- Nº 21: o marcador Condições conta a lista da página (`catalogoDeCondicoes`), não as fichas com condição.
+- Fora da lista: o "Recupera por turno" aplica as duas linhas (Vida e SP) no começo da vez (`ajustesDaRecuperacao`, `textoDaRecuperacaoGravada`); `ajusteDaRecuperacao`, `quantoDaRecuperacao` e `siglaDaRecuperacao` saíram.
+
+Ainda abertas: 1, 2, 3, 5 e 7 (as notas de cada uma dizem o próximo passo), 14 a 20 (pequenas) e 22 e 23 (E9).
+
 ## Grandes (uma etapa cada)
 
-1. **Aura (D9) não existe.** A peça Aura é salva, mas não age. Faltam `lib/batalha/aura.ts`, `pixi/drawAuras.ts` e a linha em `pixi/PixiCanvas.tsx` (E5).
-2. **Fora da batalha (D11)**: falta o turno fora da batalha ler as peças (`lib/turnoForaDaBatalha.ts`, `stores/turnoForaDaBatalha.ts`). Hoje valem só a vida por vez, o "depois de X turnos" e o prazo (E5).
-3. **Ritmo do Muda atributo na ficha**: o "a cada vez / a partir de" só age nos selos da batalha, não na condição posta na ficha (`lib/batalha/transformacao.ts`, `stores/batalha/condicoesNaFicha.ts`) (E5).
-4. **Contra e pilhas no `porCondicao`** (`lib/condicoes/naFicha.ts`): na ficha, fora da batalha, o Molhado não apaga o Queimando, e pôr de novo não soma pilha (E5).
-5. **Partes do motor a conferir ou fazer**: `regras.quedasAMais` (e o % delas), `regras.ficaEm` diferente de 0 e `regras.noMaximo`. O regenera do fim não dispara a saída "ao receber cura". O `n` próprio da condição posta pelo gatilho é ignorado. O gatilho põe a condição sem recalcular as pilhas (`comPilhasDaMesa` é privado). "Pagar a ação" não marca o gasto da vez: o Enraizado sai pagando a Simples sem gastá-la (E3/E5).
+1. **Aberta.** **Aura (D9) não existe.** A peça Aura é salva, mas não age. Faltam `lib/batalha/aura.ts`, `pixi/drawAuras.ts` e a linha em `pixi/PixiCanvas.tsx` (E5).
+2. **Aberta.** **Fora da batalha (D11)**: falta o turno fora da batalha ler as peças (`lib/turnoForaDaBatalha.ts`, `stores/turnoForaDaBatalha.ts`). Hoje valem só a vida por vez, o "depois de X turnos" e o prazo (E5).
+3. **Aberta.** **Ritmo do Muda atributo na ficha**: o "a cada vez / a partir de" só age nos selos da batalha, não na condição posta na ficha (`lib/batalha/transformacao.ts`, `stores/batalha/condicoesNaFicha.ts`) (E5).
+4. **Feita 27/11.** **Contra e pilhas no `porCondicao`** (`lib/condicoes/naFicha.ts`): na ficha, fora da batalha, o Molhado não apaga o Queimando, e pôr de novo não soma pilha (E5).
+5. **Aberta.** **Partes do motor a conferir ou fazer**: `regras.quedasAMais` (e o % delas), `regras.ficaEm` diferente de 0 e `regras.noMaximo`. O regenera do fim não dispara a saída "ao receber cura". O `n` próprio da condição posta pelo gatilho é ignorado. O gatilho põe a condição sem recalcular as pilhas (`comPilhasDaMesa` é privado). "Pagar a ação" não marca o gasto da vez: o Enraizado sai pagando a Simples sem gastá-la (E3/E5).
 
 ## Médias
 
-6. **Selos criados crus** (sem passar por `pedidoComACondicao` / `seloPostoNaFicha`): `stores/batalha/nucleo.ts:62` e `:222`, `stores/batalha/passivas.ts:154`, `:304`, `:562` e `:641`, `lib/batalha/recursosDaBatalha.ts:69` (o cansaço). Um selo com nome de condição posto por esses caminhos não congela a regra.
-7. **Vida em % no começo** aplica sozinha, sem o Aplicar, porque `danoPorVezDoSelo` só conhece vida fixa (E3/E5).
-8. **Boneco**: o golpe não passa pelo % de dano recebido nem pela marca; o "bate" não passa pelo % de dano causado; não tem Aura. `BONECO_BASE.mod` (`components/condicoes/editor/registro.ts`) dá +2 e o motor dá a metade do rank (Resistência 20 = +0): decidir qual vale.
-9. **Duração até 10 no item**: o leitor `lib/itens/pecasDoItem.ts` (`duracaoLida`, `inteiro(efeito.duracao, 1, 3)`) ainda corta em 3. Também cortam em 3: `DURACOES_NO_EDITOR` (`editorDoItem.ts`), `DURACOES` (`components/condicoes/editor/pecas/PecaGatilho.tsx`), `LinhaDoGatilho.tsx:40` e `ItemDoCatalogoDialog.tsx:416`. Até lá, "o prazo dela" de uma condição com mais de 3 turnos não chega ao item.
-10. **"Virar condição nova"** (`components/batalha/editor/pecas/condicoesDoApp.ts`): grava direto na lista. Deveria abrir o `EditorDaCondicao` com o rascunho, e as linhas de "Confira" aparecerem lá.
-11. **Mira do mestre sem bloqueio de alvo**: `components/batalha/mesaDoMestre.ts`, `BatalhaDoMestre.tsx` e `batalhaJanela/espelhoOP.ts` montam `DadosDoAlvo` sem `selos`. Por isso o Invisível só fica cinza na mira do jogador; o host recusa nos dois.
-12. **Reação recusada calada**: com "Não pode usar técnica", a reação com técnica devolve `false` em `stores/batalha/golpe.ts` e a tela não diz o motivo.
-13. **Renomear** não troca o nome nas criadas que vão inteiras nos tokens (`Token.condicoesProprias`) nem nos selos de uma batalha em andamento.
+6. **Feita 27/11.** **Selos criados crus** (sem passar por `pedidoComACondicao` / `seloPostoNaFicha`): `stores/batalha/nucleo.ts:62` e `:222`, `stores/batalha/passivas.ts:154`, `:304`, `:562` e `:641`, `lib/batalha/recursosDaBatalha.ts:69` (o cansaço). Um selo com nome de condição posto por esses caminhos não congela a regra.
+7. **Aberta.** **Vida em % no começo** aplica sozinha, sem o Aplicar, porque `danoPorVezDoSelo` só conhece vida fixa (E3/E5). Próximo passo: `ehDoAplicar` e `vidaNoComecoDaVez` (`lib/batalha/condicoes.ts`, `condicoesNaVez.ts`) aceitarem `pctMax`/`pctAtual`, e o lembrete do Aplicar calcular o número com `quantoDoEfeito` e a vida da ficha na hora.
+8. **Feita 27/11 (a parte do `mod`).** **Boneco**: o golpe não passa pelo % de dano recebido nem pela marca; o "bate" não passa pelo % de dano causado; não tem Aura. `BONECO_BASE.mod` (`components/condicoes/editor/registro.ts`) dá +2 e o motor dá a metade do rank (Resistência 20 = +0): decidir qual vale.
+9. **Feita 27/11.** **Duração até 10 no item**: o leitor `lib/itens/pecasDoItem.ts` (`duracaoLida`, `inteiro(efeito.duracao, 1, 3)`) ainda corta em 3. Também cortam em 3: `DURACOES_NO_EDITOR` (`editorDoItem.ts`), `DURACOES` (`components/condicoes/editor/pecas/PecaGatilho.tsx`), `LinhaDoGatilho.tsx:40` e `ItemDoCatalogoDialog.tsx:416`. Até lá, "o prazo dela" de uma condição com mais de 3 turnos não chega ao item.
+10. **Feita 27/11.** **"Virar condição nova"** (`components/batalha/editor/pecas/condicoesDoApp.ts`): grava direto na lista. Deveria abrir o `EditorDaCondicao` com o rascunho, e as linhas de "Confira" aparecerem lá.
+11. **Feita 27/11.** **Mira do mestre sem bloqueio de alvo**: `components/batalha/mesaDoMestre.ts`, `BatalhaDoMestre.tsx` e `batalhaJanela/espelhoOP.ts` montam `DadosDoAlvo` sem `selos`. Por isso o Invisível só fica cinza na mira do jogador; o host recusa nos dois.
+12. **Feita 27/11.** **Reação recusada calada**: com "Não pode usar técnica", a reação com técnica devolve `false` em `stores/batalha/golpe.ts` e a tela não diz o motivo.
+13. **Feita 27/11.** **Renomear** não troca o nome nas criadas que vão inteiras nos tokens (`Token.condicoesProprias`) nem nos selos de uma batalha em andamento.
 
 ## Pequenas
 
@@ -40,7 +55,7 @@ Fonte: os relatórios das etapas E1 a E8 do workflow de 27/11/2026 e a conferên
 18. O "Pôr selo…" da batalha oferece "Usar só a condição", mas não "Virar condição nova".
 19. As constantes `NOME_DA_CURA_REDUZIDA`, `DANO_DO_SANGRAMENTO` e `CURA_REDUZIDA_PADRAO` (`lib/batalha/condicoes.ts`) ainda não saem da fábrica.
 20. Para o apelido acender a pastilha ("Atordoada"), `apagarPeloNome` (`lib/condicaoPorNome.ts`) precisa aceitar o apelido na mesma mudança, senão a pastilha fica presa.
-21. Livros › Condições: na jornada da E8, a aba mostrou "Condições 0" com uma criada já na lista. A conferir se o número conta outra coisa.
+21. **Feita 27/11.** Livros › Condições: na jornada da E8, a aba mostrou "Condições 0" com uma criada já na lista. A conferir se o número conta outra coisa.
 
 ## Jogador (E9, só depois que a outra sessão fechar `net/protocol.ts`)
 
