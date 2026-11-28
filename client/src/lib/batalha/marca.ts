@@ -164,12 +164,12 @@ function marcaPeloNome(selo: SeloDaBatalha): { vezes?: number; fica?: true } | u
 }
 
 /** O multiplicador do dano da marca: o do selo, o da de fábrica pelo nome, senão o dobro. */
-function vezesDaMarca(marca: SeloDaBatalha): number {
+export function vezesDaMarca(marca: SeloDaBatalha): number {
   return marca.marcaVezes ?? marcaPeloNome(marca)?.vezes ?? MULTIPLICADOR_DA_MARCA
 }
 
 /** A marca continua depois do golpe que a aproveita (não "some"). */
-function marcaQueFica(marca: SeloDaBatalha): boolean {
+export function marcaQueFica(marca: SeloDaBatalha): boolean {
   return marca.marcaFica === true || marcaPeloNome(marca)?.fica === true
 }
 

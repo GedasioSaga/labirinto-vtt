@@ -3,7 +3,9 @@ import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../..
 import type { CondicaoPropria } from '../../types/map'
 import { comAjustes, valorDoRank, type Ajuste } from '../ajusteDaFicha'
 import { anulacaoNoGolpe } from '../batalha/anulacaoNoGolpe'
-import { partesDoBonus, valorComAsPartes, type GolpeDaBatalha, type SeloDaBatalha } from '../batalha/combate'
+import { DANO_MAX, partesDoBonus, valorComAsPartes, type GolpeDaBatalha, type SeloDaBatalha } from '../batalha/combate'
+import { marcaDoToken, marcaQueFica, vezesDaMarca } from '../batalha/marca'
+import { danoComAsReducoes, nomesDasReducoes, reducoesDosSelos, type ReducaoDoDano } from '../batalha/reducaoDoDano'
 import { curaComOsSelos, selosQueSaemCom, selosQueSaemNoGolpe } from '../batalha/condicoes'
 import { ehLembreteDaSaida } from '../batalha/condicoesNaVez'
 import { recursoDoEscudo } from '../batalha/leituraDaFicha'
@@ -292,7 +294,7 @@ function noMeioDaVez(montada: MesaDoBoneco, condicao: CondicaoMontada, nome: str
  * O "toma 0" do golpe do boneco (pedido de 27/11/2026, Intangível): a mesma função do golpe da batalha
  * (`anulacaoNoGolpe`), sem quem bate e sem os cortes (o golpe do boneco não os conta); `null` = o dano entra.
  */
-function anulacaoNoBoneco(montada: MesaDoBoneco, ajustes: AjustesDoBoneco, tipos: GolpeDaBatalha['tipos']): string | null {
+function anulacaoNoBoneco(montada: MesaDoBoneco, ajustes: AjustesDoBoneco, tipos: GolpeDaBatalha['tipos'], reducoes: readonly ReducaoDoDano[]): string | null {
   const turnos = cenaDe(montada.loja)?.turnos
   const ficha = fichaDe(montada)
   if (turnos === undefined || ficha === null) return null
@@ -302,7 +304,7 @@ function anulacaoNoBoneco(montada: MesaDoBoneco, ajustes: AjustesDoBoneco, tipos
     alvoTokenId: montada.tokenId,
     alvo: ficha,
     sistema: montada.sistema,
-    reducoes: [],
+    reducoes,
     nomeDoAlvo: ficha.nome,
     rolarD20: () => ajustes.d20,
   })
@@ -312,20 +314,32 @@ function anulacaoNoBoneco(montada: MesaDoBoneco, ajustes: AjustesDoBoneco, tipos
 function golpeNoBoneco(montada: MesaDoBoneco, ajustes: AjustesDoBoneco): LinhaDoBoneco[] {
   const { tokenId } = montada
   const tipos = ajustes.golpeTipo === 'qualquer' ? [] : [ajustes.golpeTipo]
-  const anulado = anulacaoNoBoneco(montada, ajustes, tipos)
+  // Bug de 28/11/2026: o golpe do boneco passa pelo que o golpe da batalha passa (`acertoNaMarca` e `reducoesDosSelos`,
+  // stores/batalha/golpe.ts): a marca multiplica e some (a que fica, fica), e depois os cortes de dano das condições
+  // (o dano recebido e o de um tipo, pelos tipos do golpe). O golpe do boneco vale como o de quem pôs: a marca "só de
+  // quem pôs" também conta.
+  const selosAntes = selosDoBoneco(montada)
+  const reducoes = reducoesDosSelos(selosAntes, tokenId, tipos)
+  const anulado = anulacaoNoBoneco(montada, ajustes, tipos, reducoes)
   if (anulado !== null) {
     // Sem dano, nada sai "com o dano" (como no golpe da batalha); o "até o próximo golpe" sai, porque o golpe veio.
     tirarOsSelos(montada, selosQueSaemNoGolpe(selosDoBoneco(montada), [tokenId]))
     return [linha('dano', { texto: `Toma um golpe de ${ajustes.golpeV}: ` }, { texto: anulado, tinta: 'dano' }, { texto: '.' })]
   }
+  const marca = marcaDoToken(selosAntes, tokenId)
+  const vezes = marca === undefined ? 1 : vezesDaMarca(marca)
+  const dano = danoComAsReducoes(Math.min(DANO_MAX, ajustes.golpeV * vezes), reducoes)
   const antes = recursosDoBoneco(montada)
-  mexerNoBoneco(montada, (ficha) => ajustesDoDano(ficha, montada.sistema, ajustes.golpeV, false))
+  mexerNoBoneco(montada, (ficha) => ajustesDoDano(ficha, montada.sistema, dano, false))
   const depois = recursosDoBoneco(montada)
   const selos = selosDoBoneco(montada)
-  const saem = [...selosQueSaemCom(selos, tokenId, { tipo: 'dano', tipos }), ...selosQueSaemNoGolpe(selos, [tokenId])]
+  const marcaUsada = marca !== undefined && !marcaQueFica(marca) ? [marca] : []
+  const saem = [...marcaUsada, ...selosQueSaemCom(selos, tokenId, { tipo: 'dano', tipos }), ...selosQueSaemNoGolpe(selos, [tokenId])]
   tirarOsSelos(montada, [...new Map(saem.map((selo): [string, SeloDaBatalha] => [selo.id, selo])).values()])
   const segurou = antes.escudo - depois.escudo
-  return [linha('dano', { texto: `Toma um golpe de ${ajustes.golpeV}: perde ` }, { texto: `${antes.vida - depois.vida} de vida`, tinta: 'dano' }, { texto: segurou > 0 ? `, o Escudo segura ${segurou}.` : '.' })]
+  const porque = [...(vezes === 1 ? [] : [`marca ×${vezes}`]), ...(reducoes.length === 0 ? [] : [nomesDasReducoes(reducoes)])]
+  const conta = dano === ajustes.golpeV && vezes === 1 ? '' : ` (fica ${dano}: ${porque.join(', ')})`
+  return [linha('dano', { texto: `Toma um golpe de ${ajustes.golpeV}${conta}: perde ` }, { texto: `${antes.vida - depois.vida} de vida`, tinta: 'dano' }, { texto: segurou > 0 ? `, o Escudo segura ${segurou}.` : '.' })]
 }
 
 function curaNoBoneco(montada: MesaDoBoneco, ajustes: AjustesDoBoneco): LinhaDoBoneco[] {
