@@ -1,6 +1,8 @@
 import { aceitaMolduraPorta, NOME_DO_MODELO, PADROES_DOS_MODELOS, PESO_DA_TROCA_PADRAO, POSICAO_DA_TROCA_PADRAO, puzzleAbrePorta, puzzleDoModelo } from '../../puzzles/padroes'
 import { combinacaoDoPuzzle, combinacaoPadrao } from '../../puzzles/combinacao'
 import { giratoriasDoPuzzle, giratoriasPadrao } from '../../puzzles/giratorias/giratorias'
+import { deslizantesDoPuzzle, deslizantesPadrao } from '../../puzzles/deslizantes/deslizantes'
+import type { DeslizantesDoPuzzle } from '../../puzzles/tipos'
 import { interruptoresDoPuzzle, interruptoresPadrao } from '../../puzzles/interruptores/interruptores'
 import { cooperacaoDoPuzzle, cooperacaoPadrao } from '../../puzzles/cooperacao/cooperacao'
 import { misturaDoPuzzle, misturaPadrao } from '../../puzzles/mistura/mistura'
@@ -66,9 +68,10 @@ export function comModelo(puzzle: Puzzle, modelo: ModeloDoPuzzle, pecas: Partial
 }
 
 /** A mecânica do seletor do editor (v2): Encaixe, Ordem certa, um dos 4 tipos de combinação, as Peças giratórias, os Interruptores ou a Cooperação (28/11). */
-export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao | 'giratorias' | 'interruptores' | 'cooperacao' | 'mistura' | 'camadas'
+export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao | 'giratorias' | 'interruptores' | 'cooperacao' | 'mistura' | 'camadas' | 'deslizantes'
 
 export function mecanicaDoEditor(puzzle: Puzzle): MecanicaDoEditor {
+  if (deslizantesDoPuzzle(puzzle) !== null) return 'deslizantes'
   if (camadasDoPuzzle(puzzle) !== null) return 'camadas'
   if (misturaDoPuzzle(puzzle) !== null) return 'mistura'
   if (giratoriasDoPuzzle(puzzle) !== null) return 'giratorias'
@@ -100,6 +103,7 @@ export function comMecanica(puzzle: Puzzle, mecanica: MecanicaDoEditor): Puzzle 
   // A mesa de luz nasce com 3 lâminas e um corte novo; os encaixes de antes viram as lâminas.
   if (mecanica === 'camadas') return comAsCamadas(puzzle, camadasPadrao(sementeNovaDasCamadas()), LAMINAS_PADRAO)
   if (mecanica === 'giratorias') return { ...puzzle, futuro: giratoriasPadrao() }
+  if (mecanica === 'deslizantes') return { ...puzzle, futuro: deslizantesPadrao() }
   if (mecanica === 'interruptores') return { ...puzzle, futuro: interruptoresPadrao() }
   if (mecanica === 'cooperacao') return { ...puzzle, futuro: cooperacaoPadrao() }
   if (mecanica === 'mistura') return { ...puzzle, futuro: misturaPadrao() }
@@ -110,6 +114,12 @@ export function comMecanica(puzzle: Puzzle, mecanica: MecanicaDoEditor): Puzzle 
 export function comGiratorias(puzzle: Puzzle, mudar: (giratorias: GiratoriasDoPuzzle) => GiratoriasDoPuzzle): Puzzle {
   const giratorias = giratoriasDoPuzzle(puzzle)
   return giratorias === null ? puzzle : { ...puzzle, futuro: mudar(giratorias) }
+}
+
+/** O tabuleiro do editor trocado pelo que `mudar` devolver (só quando o puzzle é de peças deslizantes). */
+export function comDeslizantes(puzzle: Puzzle, mudar: (deslizantes: DeslizantesDoPuzzle) => DeslizantesDoPuzzle): Puzzle {
+  const deslizantes = deslizantesDoPuzzle(puzzle)
+  return deslizantes === null ? puzzle : { ...puzzle, futuro: mudar(deslizantes) }
 }
 
 /** O painel do editor trocado pelo que `mudar` devolver (só quando o puzzle é de interruptores). */

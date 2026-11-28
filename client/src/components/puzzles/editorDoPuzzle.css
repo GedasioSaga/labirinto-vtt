@@ -1030,3 +1030,47 @@ body.pze-arrastando * {
   border-color: var(--lb-color-brass-bright);
   box-shadow: 0 0 0 1px var(--lb-color-brass-bright);
 }
+
+/* as grades pequenas das peças deslizantes: onde mora a peça-chave e onde fica a saída */
+.pze-dz-grades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.pze-dz-grade {
+  display: grid;
+  gap: 3px;
+  width: max-content;
+}
+.pze-dz-casa {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: 4px;
+  background: #221d18;
+  cursor: pointer;
+  transition: border-color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out);
+}
+.pze-dz-casa:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.pze-dz-casa[aria-pressed='true'] {
+  border-color: var(--lb-color-brass-bright);
+  background: radial-gradient(circle, var(--lb-color-brass-bright) 0 34%, #221d18 38%);
+  box-shadow: 0 0 0 1px var(--lb-color-brass-bright);
+}
+.pze-dz-casa:disabled {
+  cursor: not-allowed;
+  border-style: dashed;
+  opacity: 0.4;
+}
+.pze-dz-casa:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .pze-dz-casa:hover:not(:disabled):not([aria-pressed='true']) {
+    border-color: var(--lb-color-line-divider);
+  }
+}

@@ -14,6 +14,7 @@ import { misturaDoPuzzle } from '../../puzzles/mistura/mistura'
 import { passosMinimos } from '../../puzzles/mistura/solucao'
 import { camadasDoPuzzle } from '../../puzzles/camadas/camadas'
 import { cooperacaoDoPuzzle } from '../../puzzles/cooperacao/cooperacao'
+import { deslizantesDoPuzzle } from '../../puzzles/deslizantes/deslizantes'
 import { puzzleAbrePorta } from '../../puzzles/padroes'
 import { CATEGORIA_DA_PECA_DE_PUZZLE, type PecaDoAcervo, type Puzzle, type QuemMexe, type TrocaDePeso } from '../../puzzles/tipos'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
@@ -176,6 +177,8 @@ function mochilaDeTeste(puzzle: Puzzle, pecas: PecasDoEditor, itens: readonly It
   if (interruptoresDoPuzzle(puzzle) !== null) return []
   // Os pontos da cooperação também não (só os controles).
   if (cooperacaoDoPuzzle(puzzle) !== null) return []
+  // As peças deslizantes também não (só o tabuleiro).
+  if (deslizantesDoPuzzle(puzzle) !== null) return []
   // A mistura só usa itens na receita: os ingredientes certos e dois do acervo que não servem.
   const mistura = misturaDoPuzzle(puzzle)
   if (mistura !== null) {
@@ -224,6 +227,9 @@ function avisoDosEncaixesSemPeca(puzzle: Puzzle): string | null {
   // A mesa de luz: as lâminas saem da figura; sem a imagem do mestre, não há lâmina (as do teste são as certas e duas que não servem).
   const camadas = camadasDoPuzzle(puzzle)
   if (camadas !== null) return camadas.figura === 'imagem' && camadas.imagem === null ? 'As lâminas ainda não têm imagem: escolha uma no editor, em Mesa de luz.' : null
+  // O tabuleiro: no modo figura, as peças saem da imagem; sem ela, não há o que montar.
+  const deslizantes = deslizantesDoPuzzle(puzzle)
+  if (deslizantes !== null) return deslizantes.modo === 'figura' && deslizantes.figura === 'imagem' && deslizantes.imagem === null ? 'O tabuleiro ainda não tem imagem: escolha uma no editor, em Tabuleiro.' : null
   const combinacao = combinacaoDoPuzzle(puzzle)
   if (combinacao !== null) return combinacao.forma === 'botoes' && combinacao.resposta.length === 0 ? 'A sequência certa está vazia: assim ninguém resolve. Aperte os botões na ordem, no editor.' : null
   const sem = puzzle.encaixes.filter((encaixe) => (encaixe.jeito === 'peca' ? encaixe.itemId === null : encaixe.metades.some((metade) => metade === null))).length

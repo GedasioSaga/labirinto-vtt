@@ -9,6 +9,7 @@ import { alvoDosInterruptores, interruptoresDoPuzzle, interruptoresNaVista } fro
 import { misturaDoPuzzle, misturaNaVista } from '../../puzzles/mistura/mistura'
 import { camadasDoEditor, camadasDoPuzzle } from '../../puzzles/camadas/camadas'
 import { cooperacaoDoPuzzle, cooperacaoNaVista } from '../../puzzles/cooperacao/cooperacao'
+import { casasResolvidas, deslizantesDoPuzzle, deslizantesNaVista } from '../../puzzles/deslizantes/deslizantes'
 import { progressoInicial } from '../../puzzles/motor'
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
 import { TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN, type CombinacaoDoPuzzle, type EncaixeDoPuzzle, type Puzzle } from '../../puzzles/tipos'
@@ -91,7 +92,10 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
   // A mesa de luz: todas as lâminas como pousam (fora de ordem e tortas), ou a figura fechada.
   const camadas = camadasDoPuzzle(puzzle)
   const mesa = camadas === null ? undefined : camadasDoEditor(puzzle, camadas, verResolvido)
-  const semEncaixes = medalhao !== undefined || painel !== undefined || pontos !== undefined || bancada !== undefined || mesa !== undefined
+  // O tabuleiro deslizante: o começo que o jogador encontra, ou a figura pronta (a peça-chave na saída).
+  const deslizantes = deslizantesDoPuzzle(puzzle)
+  const tabuleiro = deslizantes === null ? undefined : { ...deslizantesNaVista(deslizantes, progressoInicial(puzzle)), ...(verResolvido ? { casas: casasResolvidas(deslizantes) } : {}) }
+  const semEncaixes = medalhao !== undefined || painel !== undefined || pontos !== undefined || bancada !== undefined || mesa !== undefined || tabuleiro !== undefined
 
   const comecar = (evento: PointerEvent<HTMLButtonElement>, encaixe: EncaixeDoPuzzle) => {
     if (evento.button !== 0 || arrasto.current !== null) return
@@ -208,6 +212,7 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
         mistura={bancada}
         cooperacao={pontos}
         camadas={mesa}
+        deslizantes={tabuleiro}
         rotulo={`Quadro do puzzle ${puzzle.nome}`}
       >
         {semEncaixes ? null : relevo !== null ? (

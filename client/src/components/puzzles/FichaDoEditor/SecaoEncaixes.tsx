@@ -8,6 +8,7 @@ import { NOME_DOS_INTERRUPTORES } from '../../../puzzles/interruptores/interrupt
 import { NOME_DA_COOPERACAO } from '../../../puzzles/cooperacao/cooperacao'
 import { NOME_DA_MISTURA } from '../../../puzzles/mistura/mistura'
 import { NOME_DAS_CAMADAS } from '../../../puzzles/camadas/camadas'
+import { NOME_DAS_DESLIZANTES } from '../../../puzzles/deslizantes/deslizantes'
 import { comEncaixe, comMecanica, encaixeComPeca, encaixeComViraDoPar, encaixeDoJeito, encaixeDoTamanho, mecanicaDoEditor, type MecanicaDoEditor } from '../edicao'
 import { imagemDoItem, NOMES_DAS_PECAS_INTEIRAS, viraDoPar, type PecaDoEditor, type PecasDoEditor } from '../pecasDoEditor'
 import { Secao, SeletorDePeca, type PropsDaSecao, type UsarPeca } from './comum'
@@ -34,6 +35,7 @@ const MECANICAS: readonly { valor: MecanicaDoEditor; rotulo: string }[] = [
   { valor: 'cooperacao', rotulo: NOME_DA_COOPERACAO },
   { valor: 'mistura', rotulo: NOME_DA_MISTURA },
   { valor: 'camadas', rotulo: NOME_DAS_CAMADAS },
+  { valor: 'deslizantes', rotulo: NOME_DAS_DESLIZANTES },
 ]
 
 const JEITOS: readonly { valor: EncaixeDoPuzzle['jeito']; rotulo: string }[] = [
@@ -61,6 +63,8 @@ export function SecaoMecanica({ puzzle, mudar }: PropsDaSecao) {
         <p className="pze-nota">Interruptores com estado: um painel de lampiões a gás, cada um com a sua alavanca. Puxar uma alavanca acende ou apaga o lampião dela e os ligados a ela; o painel cede quando os lampiões ficam como o objetivo pede. A regra fica só com você, e puxar não castiga. Os encaixes ficam guardados para quando voltar ao Encaixe.</p>
       ) : mecanica === 'mistura' ? (
         <p className="pze-nota">Mistura de líquidos: jarras ou frascos numa bancada, com torneira e pia. O jogador despeja de um no outro até chegar à medida, à cor ou à receita certa e leva ao receptáculo. O alvo só se escolhe entre os que a bancada alcança, então sempre tem solução.</p>
+      ) : mecanica === 'deslizantes' ? (
+        <p className="pze-nota">Peças deslizantes: a figura cortada numa grade de 3 x 3 a 5 x 5 com uma casa vazia, num tabuleiro de madeira entalhada ou de bronze. O jogador desliza as peças vizinhas da casa vazia até a figura fechar (ou, no modo chave, até a peça-chave chegar à saída). O começo sai de deslizadas de verdade, então sempre tem volta, e deslizar não castiga. Os encaixes ficam guardados para quando voltar ao Encaixe.</p>
       ) : mecanica === 'camadas' ? (
         <p className="pze-nota">Sobrepor camadas: a figura se divide em 2 a 5 lâminas (vidro pintado, papel vegetal ou grade de ferro), e cada uma vira um item do acervo para você espalhar. O jogador empilha as lâminas numa mesa de luz, gira e troca a ordem até a figura fechar. Tudo na mesa, de pé e na ordem sempre resolve, e mexer não castiga. Os encaixes de antes viram as lâminas (o Desfazer os traz de volta).</p>
       ) : mecanica === 'cooperacao' ? (
