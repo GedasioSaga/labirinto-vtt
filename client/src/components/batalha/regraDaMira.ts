@@ -1,4 +1,4 @@
-import type { Direcao } from '../../lib/batalha/area'
+import { DIRECOES, type Direcao } from '../../lib/batalha/area'
 import { alcanceComCondicoes, type AlcanceComCondicoes, type GrupoDoAlcance, type SeloQueMudaOAlcance } from '../../lib/batalha/alcance/condicoes'
 import { usaDirecao } from '../../lib/batalha/alcance/forma'
 import { ALVOS_MAX } from '../../lib/batalha/combate'
@@ -74,6 +74,20 @@ export function marcasDaAreaVirada(golpe: GolpeNaTela, alvos: readonly AlvoNaMir
 /** Fase E do alcance: o que sai das casas acesas ao mandar (`'centro'`, o primeiro marcado fora, ou `null`), com as condições de quem usa, como o host. */
 export function quemSaiAoMandar(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], escolha: EscolhaNoAlcance): string | 'centro' | null {
   return quemSaiDoAlcanceNaMira({ formaDoAlcance: alcanceDosAlvos(golpe, alvos)?.forma }, alvos, escolha)
+}
+
+/**
+ * Conserto de 27/11/2026 (a Rosa Fúnebre no site do Lobby, sessão ao vivo): sem o chão (a grade da luta do site não
+ * acende as casas nem vira a forma com o mouse; a mira chega sem `mapa`), a forma que olha para um lado vira sozinha
+ * para o lado em que todos os marcados cabem, a começar do escolhido. Antes a linha ficava para o norte (o token do
+ * site não tem frente) e o inimigo a 2 casas a leste, em linha reta, caía no "Fora do alcance". `null` = vale o lado
+ * escolhido (com chão, a área pela grade, ou nenhum lado em que todos caibam).
+ */
+export function ladoQueCabeSemChao(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], escolha: EscolhaNoAlcance & { direcao: Direcao }): Direcao | null {
+  const grade = alvos.find((alvo) => alvo.naGrade !== undefined)?.naGrade
+  if (grade === undefined || grade.mapa !== undefined || areaDaGrade(golpe, alvos) !== null || !formaOlhaParaUmLado(golpe, alvos)) return null
+  const lados = [escolha.direcao, ...DIRECOES.filter((lado) => lado !== escolha.direcao)]
+  return lados.find((lado) => quemSaiAoMandar(golpe, alvos, { ...escolha, direcao: lado }) === null) ?? null
 }
 
 /** Fase E do alcance: o porquê da confirmação: quem ficou fora das casas acesas, ou a recusa do host. */
