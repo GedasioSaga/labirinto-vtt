@@ -117,6 +117,8 @@ export type PropSilhouette = Pick<
   | 'mobiliaVista'
   | 'mobiliaCurva'
   | 'mobiliaForma'
+  // A versão dentro do objeto (I0-a, 28/11/2026): a imagem com textura desenha a versão escolhida.
+  | 'mobiliaVersao'
   | 'mobiliaCorDoTravesseiro'
   | 'mobiliaCorDoCobertor'
   | 'mobiliaDesenho'

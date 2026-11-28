@@ -55,6 +55,7 @@ import {
 import { FORMAS_DA_PONTE, ROTULO_DA_FORMA_DA_PONTE, formaDaPonte, type FormaDaPonte } from '../lib/mobilia/ponte'
 import { FORMAS_DA_COVA, ROTULO_DA_FORMA_DA_COVA, formaDaCova, type FormaDaCova } from '../lib/mobilia/cova'
 import { NEVES_DA_MONTANHA, ROTULO_DA_NEVE_DA_MONTANHA, ehMontanha, neveDaMontanha, type NeveDaMontanha } from '../lib/mobilia/montanha'
+import { versaoEmVigor, versoesDoMovel } from '../lib/mobilia/versoes'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
@@ -128,6 +129,12 @@ export interface MobiliaControlsProps {
    * tamanho e o giro ficam. Ausente = o painel não oferece a versão.
    */
   onFormaDaCovaChange?: (id: string, forma: FormaDaCova) => void
+  /**
+   * "Versão" de todo tipo da tabela `lib/mobilia/versoes.ts` (I0-a, 28/11/2026: nicho funerário, pirâmide em
+   * degraus e as versões dos lotes de arte por tema), no lugar; o tamanho e o giro ficam. Ausente = o painel não
+   * oferece a versão.
+   */
+  onVersaoChange?: (id: string, versao: string) => void
   /** "Neve" da montanha (Sem | Com). */
   onNeveDaMontanhaChange?: (id: string, neve: NeveDaMontanha) => void
   /**
@@ -342,6 +349,7 @@ export function MobiliaControls({
   onVentoChange,
   onFormaDaPonteChange,
   onFormaDaCovaChange,
+  onVersaoChange,
   onNeveDaMontanhaChange,
   onFormaDoMoinhoChange,
   onAparenciaChange,
@@ -356,6 +364,7 @@ export function MobiliaControls({
     const tipoId = `${baseId}-tipo`
     const vista = vistaDoMovel(prop)
     const forma = formaDoTapete(prop)
+    const versoes = versoesDoMovel(tipo)
     return (
       <section className="lb-section">
         <div className="lb-field">
@@ -624,6 +633,28 @@ export function MobiliaControls({
                   onClick={() => onFormaDaCovaChange(prop.id, opcao)}
                 >
                   {ROTULO_DA_FORMA_DA_COVA[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* VERSÃO DENTRO DO OBJETO (I0-a, 28/11/2026): um segmentado só para todo tipo da tabela
+            `lib/mobilia/versoes.ts`. Como o da cova, só onde o desenho a mostra (o Atual sem o Desenhado):
+            no Simples o objeto é a silhueta e o segmentado não teria efeito. A pegada não muda. */}
+        {versoes !== undefined && onVersaoChange !== undefined && meioTermoLigado() && !desenhadoLigado() && (
+          <div className="lb-field">
+            <span className="lb-label">{versoes.rotulo}</span>
+            <div className="lb-seg" role="radiogroup" aria-label={versoes.rotulo}>
+              {versoes.opcoes.map((opcao) => (
+                <button
+                  key={opcao.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={versaoEmVigor(tipo, prop.mobiliaVersao) === opcao.id}
+                  className="lb-seg__option"
+                  onClick={() => onVersaoChange(prop.id, opcao.id)}
+                >
+                  {opcao.nome}
                 </button>
               ))}
             </div>

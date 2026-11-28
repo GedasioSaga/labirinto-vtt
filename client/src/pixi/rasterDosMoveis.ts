@@ -8,6 +8,7 @@ import { varianteDaPonte } from '../lib/mobilia/ponte'
 import { varianteDaCova } from '../lib/mobilia/cova'
 import { ehMontanha, varianteDaMontanha } from '../lib/mobilia/montanha'
 import { formaDoMoinho } from '../lib/mobilia/cataVento'
+import { normalizarVersaoDoMovel } from '../lib/mobilia/versoes'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../lib/stairCurve'
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
 import { LUGARES_DE_MATERIAL, materialMaisPerto, type OpcaoDeMaterial } from '../texturas/meioTermo/materiais'
@@ -121,7 +122,7 @@ export interface ChaveDoMovel {
 /** O que a silhueta passa para cá: o tamanho e a aparência do móvel. */
 export type MovelParaImagem = Pick<
   Prop,
-  'width' | 'height' | 'mobilia' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista' | 'mobiliaCurva' | 'mobiliaForma' | 'mobiliaCorDoTravesseiro' | 'mobiliaCorDoCobertor' | 'tracado'
+  'width' | 'height' | 'mobilia' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista' | 'mobiliaCurva' | 'mobiliaForma' | 'mobiliaVersao' | 'mobiliaCorDoTravesseiro' | 'mobiliaCorDoCobertor' | 'tracado'
 > &
   // Só a lápide lê o id: a variação do desenho sai dele (`varianteDaLapide`).
   // O giro: o quarto de volta é pintado na imagem (`giroDaImagem`).
@@ -192,6 +193,9 @@ function textoDoDesenho(chave: Omit<ChaveDoMovel, 'nivel'>): string {
   // a chave dos outros tipos, e a da placa sem giro, fica a mesma de antes.
   if (d.variante !== undefined) partes.push(`v${d.variante}`)
   if (d.giro !== undefined) partes.push(`q${d.giro}`)
+  // A VERSÃO (I0-a) entra no fim, separada da variante (o fogo, a pilha, a lápide): as duas convivem no mesmo objeto.
+  // Ausente (a 1ª versão) não entra, e a chave de todo objeto de antes fica a mesma.
+  if (d.versao !== undefined) partes.push(`w${d.versao}`)
   return partes.join('|')
 }
 
@@ -280,7 +284,9 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
   const semente = sementeDoTexto(textoDoDesenho({ ...parcial, desenho: semSemente }))
   // O desenho leva a forma do tapete, a volta da cerca (já quantizada pela flecha) e o quarto de volta pintado
   // (que entra no texto da chave: até 4 imagens por móvel girado): é o que a cena da imagem lê.
-  const desenho = { ...semSemente, semente, forma: parcial.forma, curva: parcial.curva, ...(giro !== 0 ? { giro } : {}) }
+  // A VERSÃO (I0-a) entra DEPOIS da semente: trocar a versão não troca o veio da madeira nem o desenho das pedras.
+  const versao = normalizarVersaoDoMovel(tipo, prop.mobiliaVersao)
+  const desenho = { ...semSemente, semente, forma: parcial.forma, curva: parcial.curva, ...(giro !== 0 ? { giro } : {}), ...(versao !== undefined ? { versao } : {}) }
   const nivel = nivelDeResolucao(cameraScale, rendererResolution)
   if (vista !== 'tres-quartos') return { ...parcial, desenho, nivel }
   // 3/4 (MT11): outra imagem (a vista entra no texto da chave), com o mesmo quarto de volta pintado.

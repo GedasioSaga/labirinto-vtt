@@ -11,6 +11,7 @@ import type { FormaDoTapete } from '../../../types/map'
 import { LUGARES_DE_MATERIAL, ehMaterial, type OpcaoDeMaterial } from '../materiais'
 import { G, materialDaPeca, type LadoDoMovel, type MateriaisDoMovel, type MontarMovel, type PrepararCena } from './contexto'
 import { criarPecas, pintarCena, type Cena, type LimitesDaImagem, type MaterialDaPeca } from './motor'
+import { montadorDaVersao } from './versoes'
 import { montarBarril } from './barril'
 import { montarCaixa } from './caixa'
 import { montarBau } from './bau'
@@ -1065,6 +1066,11 @@ export interface DesenhoDoMovel {
   readonly vista?: 'tres-quartos'
   /** Só no muro de fogo: o traço do mestre, em frações 0..1 da pegada (ausente = a reta pelo meio). */
   readonly tracado?: readonly PontoDoMuro[]
+  /**
+   * A VERSÃO dentro do objeto (I0-a, `lib/mobilia/versoes.ts`): o id gravado em `Prop.mobiliaVersao`. Ausente = a
+   * 1ª, o desenho de `MONTADORES`. Separada da `variante` (o fogo, a pilha, a lápide), que segue para o contexto.
+   */
+  readonly versao?: string
 }
 
 /**
@@ -1113,7 +1119,9 @@ export function montarCena(d: DesenhoDoMovel): Cena {
   const h = d.casasH * G
   const cena: Cena = { partes: [], sombras: [] }
   const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0, giro: d.giro ?? 0, tracado: d.tracado, vista: d.vista }
-  MONTADORES[d.tipo](contexto, cena)
+  // A VERSÃO (I0-a, 28/11/2026): o desenho dela, se o tipo tem (`versoes/index.ts`); senão o de sempre.
+  const montar = montadorDaVersao(d.tipo, d.versao) ?? MONTADORES[d.tipo]
+  montar(contexto, cena)
   // O quarto de volta é pintado NAS DUAS VISTAS (achado V2 de 12/11/2026): a forma das sombras gira com a cena e o
   // deslocamento delas entra depois, na pintura, então a sombra cai sempre para baixo à direita. Na 3/4 é pintado
   // antes de subir o tampo (a frente fica embaixo na tela). A placa já pinta o dela no desenho.

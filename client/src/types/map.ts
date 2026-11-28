@@ -2197,6 +2197,15 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  a ponte de madeira. A COVA (07/11/2026) guarda a versão do Atual:
    *  `'antiga'` ou `'pedras'`; ausente = a fresca. */
   mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha | FormaGravadaDoChafariz | FormaGravadaDoVento | FormaGravadaDaPonte | FormaGravadaDaCova | FormaGravadaDaMontanha
+  /** VERSÃO DENTRO DO OBJETO (I0-a do plano de arte por tema, 28/11/2026,
+   *  `docs/design/arte-temas/PLANO.md`): o id de uma das versões do tipo na
+   *  tabela `lib/mobilia/versoes.ts` (nicho funerário `'aberto'`, pirâmide em
+   *  degraus `'alagada'`...). Só a versão que difere da 1ª é gravada; ausente =
+   *  a 1ª, o desenho de sempre, então mapa antigo abre igual, sem linha de
+   *  migração. Versão que o tipo não conhece some na leitura e na travessia
+   *  (`lib/mobilia.ts`). Separada de `mobiliaForma` e da `variante` da imagem
+   *  (o fogo, a pilha, a lápide): as duas coisas convivem no mesmo objeto. */
+  mobiliaVersao?: string
   /** CAMA EM TRÊS CORES (pedido de 15/10/2026): cor do travesseiro, `#rrggbb`
    *  minúsculo como `mobiliaCor`. Ausente = o travesseiro pinta com a cama,
    *  o desenho de sempre — sem linha de migração. Vale só nas camas (`catre`

@@ -817,6 +817,7 @@ function App() {
   const trocarVentoDoMovel = useMapStore((state) => state.trocarVentoDoMovel)
   const trocarFormaDaPonte = useMapStore((state) => state.trocarFormaDaPonte)
   const trocarFormaDaCova = useMapStore((state) => state.trocarFormaDaCova)
+  const trocarVersaoDoMovel = useMapStore((state) => state.trocarVersaoDoMovel)
   const trocarNeveDaMontanha = useMapStore((state) => state.trocarNeveDaMontanha)
   const trocarFormaDoMoinho = useMapStore((state) => state.trocarFormaDoMoinho)
   const setAparenciaDoMovel = useMapStore((state) => state.setAparenciaDoMovel)
@@ -4549,6 +4550,7 @@ function App() {
               onVentoChange: trocarVentoDoMovel,
               onFormaDaPonteChange: trocarFormaDaPonte,
               onFormaDaCovaChange: trocarFormaDaCova,
+              onVersaoChange: trocarVersaoDoMovel,
               onNeveDaMontanhaChange: trocarNeveDaMontanha,
               onFormaDoMoinhoChange: trocarFormaDoMoinho,
               onAparenciaChange: setAparenciaDoMovel,

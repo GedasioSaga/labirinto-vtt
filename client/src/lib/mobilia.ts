@@ -28,6 +28,7 @@ import { ehPonte, gravarFormaDaPonte, normalizarFormaDaPonte, type FormaDaPonte 
 import { ehCova, gravarFormaDaCova, normalizarFormaDaCova, type FormaDaCova } from './mobilia/cova'
 import { ehMontanha, gravarNeveDaMontanha, normalizarNeveDaMontanha, type NeveDaMontanha } from './mobilia/montanha'
 import { lerTracadoDoMuro, tracosDoMuroDeFogo } from './mobilia/muroDeFogo'
+import { normalizarVersaoDoMovel, versoesDoMovel } from './mobilia/versoes'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -1631,7 +1632,11 @@ export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number):
   // casal, e de volta, elas ficam).
   // O traço é só do muro de fogo, e é do tamanho que ele tinha: com o tamanho padrão do tipo novo, sai (o muro
   // que vem de outro tipo nasce reto).
-  const curvado = comTracadoGravado(semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva))), undefined)
+  // A VERSÃO (I0-a) é do tipo: no tipo novo fica só se ele conhece o mesmo id; senão some (o tipo novo abre na 1ª).
+  const curvado = comVersaoGravada(
+    comTracadoGravado(semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva))), undefined),
+    normalizarVersaoDoMovel(tipo, prop.mobiliaVersao),
+  )
   // A versão em linhas só existe nos 11 de antes (MT12): a peça nova sai sempre com textura.
   const movel = ofereceDesenhoEmLinhas(tipo) ? curvado : comDesenhoGravado(curvado, undefined)
   if (!ehPecaNova(tipo) || !('mobiliaPreenchido' in movel)) return movel
@@ -1765,6 +1770,24 @@ export function movelComOutraNeveDaMontanha(prop: Prop, neve: NeveDaMontanha): P
 export function movelComOutraFormaDaCova(prop: Prop, forma: FormaDaCova): Prop {
   if (!ehCova(prop.mobilia)) return prop
   return comFormaGravada(prop, gravarFormaDaCova(forma))
+}
+
+/** O objeto com esta versão gravada (`undefined` = a 1ª, sem o campo). A mesma versão devolve o mesmo objeto. */
+function comVersaoGravada(prop: Prop, versao: string | undefined): Prop {
+  if (prop.mobiliaVersao === versao) return prop
+  const { mobiliaVersao: _versao, ...semVersao } = prop
+  return versao === undefined ? semVersao : { ...semVersao, mobiliaVersao: versao }
+}
+
+/**
+ * A "Versão" do painel (I0-a, `lib/mobilia/versoes.ts`): o mesmo objeto na outra versão, no MESMO tamanho (toda
+ * versão tem a pegada do tipo, e o mestre pode ter esticado). A 1ª apaga o campo. Tipo sem versão, ou versão que o
+ * tipo não conhece, devolve o mesmo objeto.
+ */
+export function movelComOutraVersao(prop: Prop, versao: string): Prop {
+  const versoes = versoesDoMovel(prop.mobilia)
+  if (versoes === undefined || !versoes.opcoes.some((opcao) => opcao.id === versao)) return prop
+  return comVersaoGravada(prop, normalizarVersaoDoMovel(prop.mobilia, versao))
 }
 
 export function movelComOutraForma(prop: Prop, forma: FormaDoTapete, grade: number): Prop {
@@ -1940,6 +1963,7 @@ function semNadaDeMovel(prop: Prop): Prop {
     !('mobiliaVista' in prop) &&
     !('mobiliaCurva' in prop) &&
     !('mobiliaForma' in prop) &&
+    !('mobiliaVersao' in prop) &&
     !('mobiliaCorDoTravesseiro' in prop) &&
     !('mobiliaCorDoCobertor' in prop) &&
     !('mobiliaDesenho' in prop) &&
@@ -1955,6 +1979,7 @@ function semNadaDeMovel(prop: Prop): Prop {
     mobiliaVista: _vista,
     mobiliaCurva: _curva,
     mobiliaForma: _forma,
+    mobiliaVersao: _versao,
     mobiliaCorDoTravesseiro: _corDoTravesseiro,
     mobiliaCorDoCobertor: _corDoCobertor,
     mobiliaDesenho: _desenho,
@@ -1998,14 +2023,17 @@ export function propMobiliaFromFile(prop: Prop): Prop {
     // TAPETE: só `'redondo'`, e só no tapete; PRATOS: só `'vazio'` e `'pilha'`; o resto some.
     normalizarFormaDoMovel(prop.mobilia, prop.mobiliaForma),
   ), normalizarDesenhoDoMovel(prop.mobilia, prop.mobiliaDesenho)), normalizarTracadoDoMuro(prop.mobilia, prop.tracado)), normalizarTresQuartosDoMovel(prop.mobilia, prop.mobiliaTresQuartos))
+  // VERSÃO (I0-a): só um id da tabela do tipo que não seja o 1º; o resto (a versão futura, a de outro tipo) some.
+  const comVersao = comVersaoGravada(lido, normalizarVersaoDoMovel(prop.mobilia, prop.mobiliaVersao))
   const mesmo =
-    lido.tracado === prop.tracado &&
-    mesmaAparenciaDoMovel(lido, prop) &&
-    lido.mobiliaVista === prop.mobiliaVista &&
-    lido.mobiliaCurva === prop.mobiliaCurva &&
-    lido.mobiliaForma === prop.mobiliaForma &&
-    lido.mobiliaDesenho === prop.mobiliaDesenho
-  return mesmo ? prop : lido
+    comVersao.tracado === prop.tracado &&
+    mesmaAparenciaDoMovel(comVersao, prop) &&
+    comVersao.mobiliaVista === prop.mobiliaVista &&
+    comVersao.mobiliaCurva === prop.mobiliaCurva &&
+    comVersao.mobiliaForma === prop.mobiliaForma &&
+    comVersao.mobiliaVersao === prop.mobiliaVersao &&
+    comVersao.mobiliaDesenho === prop.mobiliaDesenho
+  return mesmo ? prop : comVersao
 }
 
 /**
@@ -2033,6 +2061,9 @@ export function mobiliaParaJogador(prop: Prop): Partial<Prop> {
   // A FORMA do tapete (só `'redondo'`) e a dos pratos (só `'vazio'` e `'pilha'`).
   const forma = normalizarFormaDoMovel(prop.mobilia, prop.mobiliaForma)
   if (forma !== undefined) paraJogador.mobiliaForma = forma
+  // A VERSÃO (I0-a): só um id da tabela do tipo que não seja o 1º; a 1ª não vira campo.
+  const versao = normalizarVersaoDoMovel(prop.mobilia, prop.mobiliaVersao)
+  if (versao !== undefined) paraJogador.mobiliaVersao = versao
   // As cores de TECIDO da cama: só na cama e só `#rrggbb`.
   const corDoTravesseiro = normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoTravesseiro)
   if (corDoTravesseiro !== undefined) paraJogador.mobiliaCorDoTravesseiro = corDoTravesseiro

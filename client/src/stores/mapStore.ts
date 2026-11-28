@@ -1379,6 +1379,9 @@ interface MapStoreState {
   /** "Versão" da COVA (Fresca | Antiga | Com pedras): no lugar, o tamanho fica.
    *  Um passo no desfazer; a mesma versão ou outro tipo não entram. */
   trocarFormaDaCova: (id: string, forma: FormaDaCova) => void
+  /** "Versão" de todo tipo da tabela `lib/mobilia/versoes.ts` (I0-a, 28/11/2026): no lugar, o tamanho fica.
+   *  Um passo no desfazer; a mesma versão, versão desconhecida ou tipo sem versão não entram. */
+  trocarVersaoDoMovel: (id: string, versao: string) => void
   /** "Neve" do painel da montanha (Sem | Com): só o desenho muda. */
   trocarNeveDaMontanha: (id: string, neve: import('../lib/mobilia/montanha').NeveDaMontanha) => void
   /** "Forma" do MOINHO (Clássico | Torre): no lugar, o tamanho e o vento ficam.
@@ -3687,6 +3690,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     trocarFormaDaCova: (id, forma) => {
       if (mapFactory.trocarFormaDaCova(get().map, id, forma) === get().map) return
       withHistory((map) => mapFactory.trocarFormaDaCova(map, id, forma))
+    },
+    trocarVersaoDoMovel: (id, versao) => {
+      if (mapFactory.trocarVersaoDoMovel(get().map, id, versao) === get().map) return
+      withHistory((map) => mapFactory.trocarVersaoDoMovel(map, id, versao))
     },
     trocarNeveDaMontanha: (id, neve) => {
       if (mapFactory.trocarNeveDaMontanha(get().map, id, neve) === get().map) return

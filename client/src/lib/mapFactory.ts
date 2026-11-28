@@ -40,7 +40,7 @@ import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
   aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDaPilhaDoMovel, formaDosPratos, movelComOutraFormaDaPilha, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
   movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel, movelComOutraFormaDoChafariz, movelComOutraAguaDoChafariz, movelComOutroVento,
-  movelComOutraFormaDaPonte, movelComOutraFormaDoMoinho, movelComOutraFormaDaCova, comTresQuartosGravado,
+  movelComOutraFormaDaPonte, movelComOutraFormaDoMoinho, movelComOutraFormaDaCova, comTresQuartosGravado, movelComOutraVersao,
   type AparenciaDoMovelPatch,
 } from './mobilia'
 import { aceitaTresQuartos } from './mobilia/vistaTresQuartos'
@@ -1067,6 +1067,19 @@ export function trocarFormaDaCova(map: MapData, propId: string, forma: FormaDaCo
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo === undefined || !ehCova(alvo.mobilia) || formaDaCova(alvo.mobiliaForma) === forma) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraFormaDaCova(p, forma) : p)) }
+}
+
+/**
+ * "Versão" do painel de todo tipo da tabela `lib/mobilia/versoes.ts` (I0-a, 28/11/2026): só o desenho muda, a
+ * pegada fica (`movelComOutraVersao`). A mesma versão, versão que o tipo não conhece, tipo sem versão ou id que não
+ * existe devolvem o MESMO mapa (a store não empilha passo vazio).
+ */
+export function trocarVersaoDoMovel(map: MapData, propId: string, versao: string): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo === undefined) return map
+  const trocado = movelComOutraVersao(alvo, versao)
+  if (trocado === alvo) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? trocado : p)) }
 }
 
 /**
