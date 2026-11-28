@@ -89,17 +89,33 @@ function fichaSemAsTiradas(ficha: Personagem, nome: string | null, quemDisparou:
   return doCatalogo === null ? ficha : tirarCondicao(ficha, doCatalogo.id)
 }
 
+/** Teto da conta de vezes do ritmo na ficha: o `tetoN` da peça já para a soma bem antes; isto só evita número sem fim numa campanha longa. */
+const VEZES_NO_MAXIMO = 999
+
 /**
- * FIM DA VEZ de quem tem a ficha, com os gatilhos: cada condição com gatilho conta 1 turno e, ao chegar
- * a X, dispara; depois o desconto do prazo de sempre (`contarFimDaVez`); por último as peças dos
- * disparos, na ordem da ficha. Nada a contar = a MESMA ficha.
+ * PENDENCIAS nº 3: a condição tem Muda atributo com ritmo ("a cada turno", "a partir do turno N")? Então
+ * as vezes de quem está com ela contam na ficha também (`CondicaoNaFicha.vezes`), e o espelho da batalha
+ * desce o ritmo por elas (`pedidoDepoisDasVezes`). Condição fora do catálogo = sem ritmo.
+ */
+function temRitmoNoAtributo(condicao: CondicaoNaFicha, criadas: readonly CondicaoPropria[]): boolean {
+  const doCatalogo = condicaoDoCatalogo(condicao.condId, criadas)
+  return doCatalogo !== null && doCatalogo.montada.pecas.some((peca) => peca.tipo === 'atributo' && peca.ritmo !== 'umaVez')
+}
+
+/**
+ * FIM DA VEZ de quem tem a ficha, com os gatilhos: cada condição com Muda atributo de ritmo conta 1 vez
+ * (nº 3), cada condição com gatilho conta 1 turno e, ao chegar a X, dispara; depois o desconto do prazo
+ * de sempre (`contarFimDaVez`); por último as peças dos disparos, na ordem da ficha. Nada a contar = a
+ * MESMA ficha.
  */
 export function fimDaVezComGatilhos(personagem: Personagem, criadas: readonly CondicaoPropria[]): FimDaVezComGatilhos {
   const atuais = condicoesDe(personagem)
   const disparos: DisparoDoGatilho[] = []
   const ficam: CondicaoNaFicha[] = []
   let contou = false
-  for (const condicao of atuais) {
+  for (const posta of atuais) {
+    const condicao = temRitmoNoAtributo(posta, criadas) ? { ...posta, vezes: Math.min(VEZES_NO_MAXIMO, (posta.vezes ?? 0) + 1) } : posta
+    if (condicao !== posta) contou = true
     const gatilho = condicao.gatilhoFeito === true ? null : gatilhoDe(condicao, criadas)
     if (gatilho === null) {
       ficam.push(condicao)

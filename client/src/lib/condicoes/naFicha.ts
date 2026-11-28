@@ -5,6 +5,7 @@ import type { CondicaoNaFicha, GatilhoDaCondicao } from '../itens/modelo'
 import type { Personagem } from '../personagem'
 import { condicaoDoCatalogo, type CondicaoDoCatalogo } from './catalogo'
 import { TETO_DE_PILHAS_PADRAO, type PecaDaCondicaoDa } from './modelo'
+import { quantoDoEfeito, type VidaNaHora } from '../batalha/condicoes'
 
 /**
  * AS CONDIÇÕES NA FICHA (sistema de itens refeito, PLANO §1.5; etapa E4a). Uma fonte só: a
@@ -175,13 +176,54 @@ export interface PendenteDaVez {
  * COMEÇO DA VEZ: as condições que tiram vida agora, na ordem da ficha. Não mexe na ficha (o
  * desconto é do fim da vez). A criada que foi apagada do catálogo não tira nada.
  */
-export function pendentesDoComecoDaVez(personagem: Pick<Personagem, 'condicoes'>, criadas: readonly CondicaoPropria[]): PendenteDaVez[] {
+export function pendentesDoComecoDaVez(personagem: Pick<Personagem, 'condicoes'>, criadas: readonly CondicaoPropria[], vida?: VidaNaHora): PendenteDaVez[] {
   return condicoesDe(personagem).flatMap((condicao) => {
     const doCatalogo = condicaoDoCatalogo(condicao.condId, criadas)
-    if (doCatalogo === null || doCatalogo.regra !== 'vida') return []
-    const dano = condicao.n ?? doCatalogo.n
+    if (doCatalogo === null) return []
+    // PENDENCIAS nº 2 (D11): as peças que tiram vida (a de antes, montada pela regra), no começo e no fim (fora da batalha o
+    // turno é um só); a 1ª fixa do começo leva o `n` próprio de quem pôs (D4), como antes.
+    let proprio = condicao.n
+    let dano = 0
+    for (const peca of pecasDeVida(doCatalogo, 'tira')) {
+      const vaiOProprio = proprio !== undefined && peca.quando === 'comeco' && peca.conta === 'fixo'
+      dano += vaiOProprio && proprio !== undefined ? proprio : quantoNaFicha(peca, condicao.pilhas ?? 1, vida)
+      if (vaiOProprio) proprio = undefined
+    }
     return dano > 0 ? [{ condicaoId: condicao.id, condId: condicao.condId, nome: doCatalogo.nome, dano }] : []
   })
+}
+
+/** Os Efeitos na vez de vida da condição que tiram (`tira`) ou dão (`da`) por turno, fora o "ao entrar" e o que rouba. */
+function pecasDeVida(doCatalogo: CondicaoDoCatalogo, faz: 'tira' | 'da'): PecaDaCondicaoDa<'vez'>[] {
+  return doCatalogo.montada.pecas.filter((peca): peca is PecaDaCondicaoDa<'vez'> => peca.tipo === 'vez' && peca.recurso === 'vida' && peca.faz === faz && peca.quando !== 'entrar' && peca.rouba !== true && peca.v > 0)
+}
+
+/** Quanto a peça mexe na ficha: o fixo vezes as pilhas (D7), ou a % da vida da ficha agora (sem a vida, 0). */
+function quantoNaFicha(peca: PecaDaCondicaoDa<'vez'>, pilhas: number, vida: VidaNaHora | undefined): number {
+  if (peca.conta === 'fixo') return quantoDoEfeito({ v: peca.v * pilhas, conta: 'fixo' }, null, 0)
+  return vida === undefined ? 0 : quantoDoEfeito(peca, vida.maximo, vida.atual)
+}
+
+/** PENDENCIAS nº 2 (D11): a ficha tem condição que mexe na vida a cada turno (tira ou dá, pelas peças)? */
+export function mexeNaVidaPorTurno(personagem: Pick<Personagem, 'condicoes'>, criadas: readonly CondicaoPropria[]): boolean {
+  return condicoesDe(personagem).some((condicao) => {
+    const doCatalogo = condicaoDoCatalogo(condicao.condId, criadas)
+    return doCatalogo !== null && (pecasDeVida(doCatalogo, 'tira').length > 0 || pecasDeVida(doCatalogo, 'da').length > 0)
+  })
+}
+
+/**
+ * PENDENCIAS nº 2 (D11): a vida que as condições DÃO num turno fora da batalha (a peça "dá vida" no começo ou no fim:
+ * Regenerando), vezes as pilhas no fixo; a % sai da vida da ficha agora. Quem chama passa pelo corte de cura.
+ */
+export function vidaQueAsCondicoesDao(personagem: Pick<Personagem, 'condicoes'>, criadas: readonly CondicaoPropria[], vida?: VidaNaHora): number {
+  let cura = 0
+  for (const condicao of condicoesDe(personagem)) {
+    const doCatalogo = condicaoDoCatalogo(condicao.condId, criadas)
+    if (doCatalogo === null) continue
+    for (const peca of pecasDeVida(doCatalogo, 'da')) cura += quantoNaFicha(peca, condicao.pilhas ?? 1, vida)
+  }
+  return cura
 }
 
 /** A vida que os pendentes escolhidos tiram, somada. */

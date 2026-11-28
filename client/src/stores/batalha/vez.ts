@@ -73,7 +73,8 @@ import { mexerNaFicha, semOsCaidos, textoDosQueSairam, reversaoDaFicha } from '.
 import { recargasNoComecoDaVez } from './recargaDoPente'
 import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
-import { efeitosDosSelos, pedidoComACondicao } from './selos'
+import { comPilhasDaMesa, efeitosDosSelos, pedidoComACondicao } from './selos'
+import { condicaoDoCatalogoPeloNome } from '../../lib/condicoes/catalogo'
 import { contarFimDaVezNaMesa, daFichaNaMesa } from './condicoesNaFicha'
 import { textoDoDisparo } from '../../lib/condicoes/gatilho'
 import { golpesDaVezQueAcaba, type GolpeNaStore } from './golpe'
@@ -615,9 +616,15 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     const porDoGatilho = (carta: CartaDaOrdem, personagemId: string, peca: Extract<PecaDoGatilho, { tipo: 'condicao' }>, origem: string): string => {
       const dele = fichaDe(personagemId)
       const pedido: SeloDoGolpe = { nome: peca.nome, turnos: peca.duracao === 'fim' ? null : peca.duracao }
+      // PENDENCIAS nº 5: o número próprio da peça do gatilho vence (D4), como no acerto do item.
+      const n = peca.n ?? 0
+      const regraAntiga = n > 0 ? condicaoDoCatalogoPeloNome(peca.nome, criadas)?.regra : undefined
+      if (regraAntiga === 'vida') pedido.porVez = n
+      if (regraAntiga === 'cura') pedido.regra = { curaRecebida: -n }
       const resolvido = quedaEmNumeros(pedidoComACondicao(pedido, criadas, null), (atributo) => (dele === undefined ? 0 : valorDoRank(dele, atributo)))
       const selo = criarSelo(carta.tokenId, resolvido, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem })
-      const entrada = entradaDoSelo(novos.selos, selo)
+      // PENDENCIAS nº 5: pôr de novo pelo gatilho recalcula as pilhas, como o golpe.
+      const entrada = entradaDoSelo(novos.selos, selo, { comPilhas: comPilhasDaMesa(criadas) })
       switch (entrada.tipo) {
         case 'entrou':
           novos = { ...novos, selos: entrada.selos }

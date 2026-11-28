@@ -32,6 +32,7 @@ import {
 } from '../../lib/batalha/selos'
 import { formaDaFicha } from '../../lib/batalha/transformacao'
 import { ehLembreteDoSangramento, porVezDoLembrete, selosQueSaemCom, textoDasSaidasDoSelo, travaDoToken, verboDoPorVez } from '../../lib/batalha/condicoes'
+import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
 import { aplicarPassaPeloEscudo, ehLembreteDaSaida, saidasPagandoDe, tentarSair } from '../../lib/batalha/condicoesNaVez'
 import { ajusteDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import { ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../../lib/batalha/preparacao'
@@ -122,17 +123,21 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     if (ehLembreteDaSaida(lembrete)) return tentarSairDoSelo(sceneKey, cena, autor, carta, personagemId, lembrete, partes, comCombate)
     if (sangramento) {
       // F2 (fatia A): quanto tira (Sangrando 10, Queimando N) e o verbo da linha vêm do selo, ou do lembrete se o selo já saiu no fim da vez.
-      const { nome, dano: porVez } = porVezDoLembrete(lembrete, turnos.selos)
+      const { nome, dano: gravado } = porVezDoLembrete(lembrete, turnos.selos)
       // Rework das condições (E5): a vida da condição sem "direto" (Queimando, Envenenado) passa pelo Escudo; o número próprio, direto como sempre.
       const seloDoLembrete = (turnos.selos ?? []).find((selo) => selo.id === lembrete.cartaoId)
       const peloEscudo = aplicarPassaPeloEscudo(seloDoLembrete)
       // F2 (revisão da fatia E): o dano por vez também passa pelas reduções de quem sangra ("na Ryoko os −30% valem contra TUDO": 10 vira 7).
-      let dado = porVez
+      let dado = gravado
       let reducao = ''
       const feito = mexerNaFicha(
         mesa,
         personagemId,
         (atual, sistemaDaMesa) => {
+          // PENDENCIAS nº 7: a vida em % da máxima ou da atual sai da vida da ficha AGORA (a mesma conta do Efeito na vez).
+          const recurso = recursoDeVida(sistemaDaMesa)
+          const vida = recurso === null ? null : vidaDoPersonagem(atual, recurso)
+          const porVez = porVezDoLembrete(lembrete, turnos.selos, vida === null ? undefined : { maximo: vida.maximo, atual: vida.atual }).dano
           const reducoes = reducoesDoDano(atual, sistemaDaMesa)
           dado = danoComAsReducoes(porVez, reducoes)
           reducao = reducoes.length === 0 ? '' : `; ${reducoes.map((parte) => `${parte.nome} -${parte.porcento}%`).join(', ')}: de ${porVez}`

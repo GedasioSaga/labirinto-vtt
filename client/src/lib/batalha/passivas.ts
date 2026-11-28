@@ -707,8 +707,11 @@ export function comLembretesDaVez(turnos: TurnosDaCena, mesa: FichasDaPassiva): 
   }
   // Conserto das fichas F1 (S4): cada selo de Sangramento da ficha da vez pede "Aplicar / pular" ao mestre (o `cartaoId` é o id do selo).
   // F2 (fatia A): o lembrete guarda o nome e quanto o selo tira; o selo pode sair no fim da vez antes do Aplicar.
+  // PENDENCIAS nº 7: a vida em % da condição sai da vida da ficha agora (o Aplicar refaz a conta na hora).
+  const recurso = recursoDeVida(sistema)
+  const vida = recurso === null ? null : vidaDoPersonagem(personagem, recurso)
   for (const selo of sangramentosDoToken(turnos.selos, carta.tokenId)) {
-    combate = comLembrete(combate, lembreteDoSangramento(selo, turnos.rodada))
+    combate = comLembrete(combate, lembreteDoSangramento(selo, turnos.rodada, vida === null ? undefined : { maximo: vida.maximo, atual: vida.atual }))
   }
   return combate === antes ? { turnos, mudaram: [] } : comCombates(turnos, new Map([[personagemId, combate]]))
 }

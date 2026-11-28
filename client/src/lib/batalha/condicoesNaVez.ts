@@ -26,9 +26,12 @@ import type { PecaDoGatilho } from '../itens/modelo'
 
 // ─── Efeito na vez ─────────────────────────────────────────────────────────
 
-/** É o efeito do "Aplicar / pular": a 1ª vida fixa tirada no começo (o mesmo filtro de `danoPorVezDoSelo`). */
+/**
+ * É o efeito do "Aplicar / pular": a 1ª vida tirada no começo (o mesmo filtro de `danoPorVezDoSelo`). PENDENCIAS
+ * nº 7: também a vida em % da máxima ou da atual, que antes saía sozinha, sem o Aplicar.
+ */
 function ehDoAplicar(efeito: EfeitoNaVez): boolean {
-  return efeito.quando === 'comeco' && efeito.faz === 'tira' && efeito.recurso === 'vida' && efeito.conta === 'fixo' && efeito.rouba !== true && efeito.v > 0
+  return efeito.quando === 'comeco' && efeito.faz === 'tira' && efeito.recurso === 'vida' && efeito.rouba !== true && efeito.v > 0
 }
 
 type SeloComRegras = Pick<SeloDaBatalha, 'nome'> & Partial<Pick<SeloDaBatalha, 'regras' | 'porVez'>>
@@ -76,15 +79,8 @@ export function efeitosDaVez(selos: readonly SeloDaBatalha[] | undefined, tokenI
   return lista
 }
 
-/**
- * Quanto o efeito mexe: o fixo (já vezes as pilhas, `traduzirCondicao`), ou a % do máximo ou do atual do
- * recurso, arredondada como o boneco do protótipo (prototipo.html:934). Sem máximo, a % do máximo é a do atual.
- */
-export function quantoDoEfeito(efeito: Pick<EfeitoNaVez, 'v' | 'conta'>, maximo: number | null, atual: number): number {
-  if (efeito.conta === 'fixo') return Math.max(0, Math.trunc(efeito.v))
-  const base = Math.max(0, efeito.conta === 'pctMax' ? (maximo ?? atual) : atual)
-  return Math.max(0, Math.round((base * efeito.v) / 100))
-}
+/** Quanto o efeito mexe (o fixo, ou a % do máximo ou do atual): a conta mora em `condicoes.ts`, para o "Aplicar" usar a mesma. */
+export { quantoDoEfeito } from './condicoes'
 
 // ─── O gatilho nos selos ───────────────────────────────────────────────────
 

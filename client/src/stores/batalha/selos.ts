@@ -93,8 +93,8 @@ export function criarSeloComACondicao(tokenId: string, pedido: SeloDoGolpe, onde
   return criarSelo(tokenId, pedidoComACondicao(pedido, criadas, quemPos), onde)
 }
 
-/** D7: o selo de antes com `pilhas` pilhas, pela condição dele achada de novo (o `condId` congelado; sem ele, pelo nome). */
-function comPilhasDaMesa(criadas: readonly CondicaoPropria[]): (antes: SeloDaBatalha, pilhas: number) => SeloDaBatalha {
+/** D7: o selo de antes com `pilhas` pilhas, pela condição dele achada de novo (o `condId` congelado; sem ele, pelo nome). Exportada para o gatilho também somar a pilha (PENDENCIAS nº 5). */
+export function comPilhasDaMesa(criadas: readonly CondicaoPropria[]): (antes: SeloDaBatalha, pilhas: number) => SeloDaBatalha {
   return (antes, pilhas) => {
     const condId = antes.regras?.condId
     const condicao = condId === undefined ? condicaoDoSelo(antes.nome, criadas) : (condicaoDoCatalogo(condId, criadas)?.montada ?? null)

@@ -3,12 +3,12 @@ import { NOME_DO_MESTRE, aplicarAjustes } from './ajusteDaFicha'
 import { chaveDaCondicao } from './condicaoPorNome'
 import { condicaoDoCatalogo } from './condicoes/catalogo'
 import { fimDaVezComGatilhos, gatilhoDe, temGatilhoQueConta, textoDoDisparo, type DisparoDoGatilho } from './condicoes/gatilho'
-import { condicoesDe, danoDosPendentes, duracaoDe, pendentesDoComecoDaVez, type PendenteDaVez } from './condicoes/naFicha'
+import { condicoesDe, curaComAsCondicoes, danoDosPendentes, duracaoDe, mexeNaVidaPorTurno, pendentesDoComecoDaVez, vidaQueAsCondicoesDao, type PendenteDaVez } from './condicoes/naFicha'
 import type { CondicaoNaFicha } from './itens/modelo'
 import { condicoesPropriasOf, simboloDaCondicaoPropria } from './condicoesProprias'
 import type { Personagem } from './personagem'
 import { passarTurnoNoMapa, prazosDaFicha } from './prazoDaCondicao'
-import type { SistemaDeRpg } from './sistemaDeRpg'
+import type { RecursoDoSistema, SistemaDeRpg } from './sistemaDeRpg'
 import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_ORDER, TOKEN_CONDITION_SYMBOLS, tokenConditionsOf, type ConditionSymbol } from './tokenConditions'
 import { recursoDeVida, vidaDoPersonagem } from './vidaDaFicha'
 
@@ -106,7 +106,7 @@ interface TiqueDoPersonagem extends CondicoesDoPersonagemNoTurno {
 
 /** A ficha de personagem tem condição que conta turno (por N turnos) ou que tira vida no começo da vez. */
 function fichaContaTurno(personagem: Personagem, criadas: readonly CondicaoPropria[]): boolean {
-  return condicoesDe(personagem).some((condicao) => condicao.turnos !== null) || pendentesDoComecoDaVez(personagem, criadas).length > 0 || temGatilhoQueConta(personagem, criadas)
+  return condicoesDe(personagem).some((condicao) => condicao.turnos !== null) || mexeNaVidaPorTurno(personagem, criadas) || temGatilhoQueConta(personagem, criadas)
 }
 
 /** As fichas de personagem ligadas aos tokens da cena, uma vez cada (dois tokens da mesma ficha de jogador contam um turno só), na ordem do mapa. */
@@ -129,10 +129,15 @@ function fichasDaCena(tokens: readonly Token[], personagens: readonly Personagem
  * `lib/condicoes/naFicha.ts`: a vida do começo da vez (fora da batalha, todas aplicadas) e o
  * desconto do fim. Ficha sem nada que conte não entra.
  */
-function tiquesDasFichas(tokens: readonly Token[], personagens: readonly Personagem[], criadas: readonly CondicaoPropria[]): TiqueDoPersonagem[] {
+function tiquesDasFichas(tokens: readonly Token[], personagens: readonly Personagem[], criadas: readonly CondicaoPropria[], recurso: RecursoDoSistema | null = null): TiqueDoPersonagem[] {
   return fichasDaCena(tokens, personagens).flatMap(({ personagem, token }) => {
     if (!fichaContaTurno(personagem, criadas)) return []
-    const pendentes = pendentesDoComecoDaVez(personagem, criadas)
+    // PENDENCIAS nº 2 (D11): as peças de vida das condições (fixa vezes as pilhas, ou em % da vida da ficha agora).
+    const vidaAgora = recurso === null ? null : vidaDoPersonagem(personagem, recurso)
+    const vida = vidaAgora === null ? undefined : { maximo: vidaAgora.maximo, atual: vidaAgora.atual }
+    const pendentes = pendentesDoComecoDaVez(personagem, criadas, vida)
+    const dao = vidaQueAsCondicoesDao(personagem, criadas, vida)
+    const curaDasPecas = dao === 0 ? 0 : curaComAsCondicoes(dao, personagem, criadas).cura
     // Pedido de 26/11: o desconto do fim com os gatilhos ("depois de X turnos"), a mesma conta da batalha.
     const fim = fimDaVezComGatilhos(personagem, criadas)
     return [
@@ -145,7 +150,7 @@ function tiquesDasFichas(tokens: readonly Token[], personagens: readonly Persona
         pendentes,
         dano: danoDosPendentes(pendentes) + fim.dano,
         disparos: fim.disparos,
-        cura: fim.cura,
+        cura: fim.cura + curaDasPecas,
       },
     ]
   })
@@ -236,9 +241,9 @@ export function passarTurnoForaDaBatalha(
   criadas: readonly CondicaoPropria[] = [],
 ): TurnoPassado | null {
   const { map: novo, fichas } = passarTurnoNoMapa(map, seguradas)
-  const tiques = tiquesDasFichas(map.tokens, personagens, criadas)
-  if (novo === map && tiques.length === 0) return null
   const recurso = recursoDeVida(sistema)
+  const tiques = tiquesDasFichas(map.tokens, personagens, criadas, recurso)
+  if (novo === map && tiques.length === 0) return null
   const danoPorToken = new Map(fichas.map((ficha) => [ficha.tokenId, ficha.dano]))
   const depoisPorId = new Map(novo.tokens.map((token) => [token.id, token]))
   const atualPorPersonagem = new Map<string, { de: number; para: number }>()

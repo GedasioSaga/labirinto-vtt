@@ -2,7 +2,7 @@ import type { GolpeDaBatalha, LembreteDaPassiva, PorVezDoSelo, RegrasDoSelo, Sai
 import { normalizar } from './formula'
 import type { AlcanceDoSelo } from './mecanica/modelo'
 import { condicaoDaFabricaDoSelo, type CondicaoDeFabrica } from '../condicoes/fabrica'
-import { chaveDaCondicao, type BloqueioDaCondicao, type TipoDaCondicao, type TipoDoGolpe } from '../condicoes/modelo'
+import { chaveDaCondicao, type BloqueioDaCondicao, type EfeitoNaVez, type TipoDaCondicao, type TipoDoGolpe } from '../condicoes/modelo'
 import { traduzirCondicao } from '../condicoes/traducao'
 
 /**
@@ -174,9 +174,38 @@ function fabricaDoSelo(nomeDoSelo: string): CondicaoDeFabrica | null {
  * A tradução põe em `porVez` só a que é direto na vida; a que passa pelo Escudo (Queimando, Envenenado)
  * fica em `regras.vez`, e o lembrete a tira do mesmo jeito (E5 faz o Escudo valer). `undefined` = nenhuma.
  */
-function vidaNoComecoDaVez(regras: RegrasDoSelo | undefined): number | undefined {
+function vidaFixaNoComecoDaVez(regras: RegrasDoSelo | undefined): number | undefined {
   const efeito = regras?.vez?.find((vez) => vez.quando === 'comeco' && vez.faz === 'tira' && vez.recurso === 'vida' && vez.conta === 'fixo' && vez.rouba !== true && vez.v > 0)
   return efeito?.v
+}
+
+/** A vida da ficha agora (o HP máximo e o atual): a vida em % do "Aplicar" sai dela (PENDENCIAS nº 7). */
+export interface VidaNaHora {
+  maximo: number | null
+  atual: number
+}
+
+/**
+ * Quanto o efeito mexe: o fixo (já vezes as pilhas, `traduzirCondicao`), ou a % do máximo ou do atual do
+ * recurso, arredondada como o boneco do protótipo (prototipo.html:934). Sem máximo, a % do máximo é a do atual.
+ * (Mora aqui para o "Aplicar" do começo da vez usar a mesma conta; `condicoesNaVez.ts` o reexporta.)
+ */
+export function quantoDoEfeito(efeito: Pick<EfeitoNaVez, 'v' | 'conta'>, maximo: number | null, atual: number): number {
+  if (efeito.conta === 'fixo') return Math.max(0, Math.trunc(efeito.v))
+  const base = Math.max(0, efeito.conta === 'pctMax' ? (maximo ?? atual) : atual)
+  return Math.max(0, Math.round((base * efeito.v) / 100))
+}
+
+/**
+ * PENDENCIAS nº 7: a vida que a condição tira no começo da vez pelo "Aplicar / pular" (a 1ª peça assim), fixa
+ * ou em % da vida máxima ou atual. A % sai da vida da ficha na hora (`vida`); sem ela, 0 (o lembrete nasce e o
+ * número sai no Aplicar). `undefined` = nenhuma.
+ */
+function vidaNoComecoDaVez(regras: RegrasDoSelo | undefined, vida?: VidaNaHora): number | undefined {
+  const efeito = regras?.vez?.find((vez) => vez.quando === 'comeco' && vez.faz === 'tira' && vez.recurso === 'vida' && vez.rouba !== true && vez.v > 0)
+  if (efeito === undefined) return undefined
+  if (efeito.conta === 'fixo') return efeito.v
+  return vida === undefined ? 0 : quantoDoEfeito(efeito, vida.maximo, vida.atual)
 }
 
 /** O comportamento da de fábrica, da tradução dela com o pedido vazio (1 pilha, o prazo dela). Um objeto por condição. */
@@ -194,7 +223,7 @@ function comportamentoDaFabrica(condicao: CondicaoDeFabrica): ComportamentoDoSel
   if (bloqueios.has('naoDesvia')) comportamento.tiraSaidas = SAIDAS_DE_QUEM_NAO_DESVIA
   const zera = regras?.ficaEm?.find((fica) => fica.v === 0)
   if (zera !== undefined) comportamento.zera = zera.alvo
-  const porVez = traduzido.porVez ?? vidaNoComecoDaVez(regras)
+  const porVez = traduzido.porVez ?? vidaFixaNoComecoDaVez(regras)
   if (porVez !== undefined) comportamento.porVez = porVez
   const verbo = VERBOS_DO_POR_VEZ[condicao.id]
   if (verbo !== undefined) comportamento.verbo = verbo
@@ -419,15 +448,16 @@ export function saidasTiradas(selos: readonly SeloComARegra[] | undefined): Said
  * ou da condição (o Queimando da Aira). Rework das condições: o da condição é a 1ª vida fixa que ela tira
  * no começo da vez (a congelada no selo, já vezes as pilhas; ou a da de fábrica pelo nome).
  */
-export function danoPorVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'> & Partial<Pick<SeloDaBatalha, 'regras'>>): number | null {
+export function danoPorVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'> & Partial<Pick<SeloDaBatalha, 'regras'>>, vida?: VidaNaHora): number | null {
   const doSelo = selo.porVez !== undefined && Number.isInteger(selo.porVez) && selo.porVez > 0 ? selo.porVez : null
-  const daCondicao = selo.regras !== undefined ? vidaNoComecoDaVez(selo.regras) : comportamentoDoSelo(selo.nome)?.porVez
+  // PENDENCIAS nº 7: a vida em % da condição também pede o "Aplicar"; o número sai da vida da ficha na hora (`vida`).
+  const daCondicao = selo.regras !== undefined ? vidaNoComecoDaVez(selo.regras, vida) : comportamentoDoSelo(selo.nome)?.porVez
   return doSelo ?? daCondicao ?? null
 }
 
-/** O nome da condição ("Queimando"), ou o do selo fora dela, e quanto tira por vez; `null` = não tira. */
-export function porVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'> & Partial<Pick<SeloDaBatalha, 'regras'>>): PorVezDoSelo | null {
-  const dano = danoPorVezDoSelo(selo)
+/** O nome da condição ("Queimando"), ou o do selo fora dela, e quanto tira por vez (a % pela `vida` da ficha agora); `null` = não tira. */
+export function porVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'> & Partial<Pick<SeloDaBatalha, 'regras'>>, vida?: VidaNaHora): PorVezDoSelo | null {
+  const dano = danoPorVezDoSelo(selo, vida)
   return dano === null ? null : { nome: comportamentoDoSelo(selo.nome)?.nome ?? selo.nome, dano }
 }
 
@@ -547,9 +577,9 @@ export function ehLembreteDoSangramento(lembrete: Pick<LembreteDaPassiva, 'carta
 }
 
 /** O lembrete do sangramento da ficha da vez, com o nome e quanto o selo tira, gravados agora (o selo pode sair antes do Aplicar). */
-export function lembreteDoSangramento(selo: SeloDaBatalha, rodada: number): LembreteDaPassiva {
+export function lembreteDoSangramento(selo: SeloDaBatalha, rodada: number, vida?: VidaNaHora): LembreteDaPassiva {
   const lembrete: LembreteDaPassiva = { cartaoId: selo.id, tokenId: selo.tokenId, tipo: 'porTurno', chave: chaveDoSangramento(selo.id), rodada }
-  const porVez = porVezDoSelo(selo)
+  const porVez = porVezDoSelo(selo, vida)
   if (porVez !== null) lembrete.porVez = porVez
   return lembrete
 }
@@ -560,9 +590,11 @@ export function lembreteDoSangramento(selo: SeloDaBatalha, rodada: number): Lemb
  * gravado no lembrete quando nasceu (o selo saiu no fim da vez); senão, no
  * lembrete gravado antes disto, o Sangrando da regra (10).
  */
-export function porVezDoLembrete(lembrete: Pick<LembreteDaPassiva, 'cartaoId' | 'porVez'>, selos: readonly SeloDaBatalha[] | undefined): PorVezDoSelo {
+export function porVezDoLembrete(lembrete: Pick<LembreteDaPassiva, 'cartaoId' | 'porVez'>, selos: readonly SeloDaBatalha[] | undefined, vida?: VidaNaHora): PorVezDoSelo {
   const selo = selos?.find((candidato) => candidato.id === lembrete.cartaoId)
-  const doSelo = selo === undefined ? null : porVezDoSelo(selo)
-  if (doSelo !== null) return doSelo
+  const doSelo = selo === undefined ? null : porVezDoSelo(selo, vida)
+  // PENDENCIAS nº 7: sem a vida da ficha (a tela), a vida em % fica com o número gravado quando o lembrete nasceu.
+  const emPorcento = selo !== undefined && selo.porVez === undefined && selo.regras !== undefined && vidaNoComecoDaVez(selo.regras) !== vidaFixaNoComecoDaVez(selo.regras)
+  if (doSelo !== null && (vida !== undefined || !emPorcento || lembrete.porVez === undefined)) return doSelo
   return lembrete.porVez ?? { nome: NOME_DO_SANGRAMENTO, dano: DANO_DO_SANGRAMENTO }
 }
