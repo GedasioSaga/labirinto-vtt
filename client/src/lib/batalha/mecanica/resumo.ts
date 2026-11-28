@@ -2,6 +2,7 @@ import type { Personagem } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import type { SaidaDaReacao } from '../combate'
 import { pedidoDaMarca, textoDoPedidoDaMarca } from '../comoMarca'
+import { PORCENTO_QUE_ANULA, textoDaExcecao, textoDoLimiteDoAnula, type RegraDoAnula } from '../anulaODano'
 import { comportamentoDoSelo } from '../condicoes'
 import { legadoDaFadiga } from '../../condicoes/legado'
 import { cdDaExpressao } from '../disputa'
@@ -495,6 +496,14 @@ const QUANDO_O_GATILHO: Readonly<Record<QuandoOGatilhoDispara, (n: number) => st
   aoReceber: () => 'quando o dono recebe dano',
   aoAcertar: () => 'quando o dono acerta um golpe',
   aoCair: () => 'quando o dono cai a 0 de vida',
+  aoSerAtingido: () => 'quando o dono é atingido, antes do dano',
+}
+
+/** O "Anula o dano": "não toma o dano (toma 0), a não ser que o golpe tenha Haki, até 1 vez por rodada; para anular, paga 20 SP ou passa num teste de Agilidade CD 12". */
+function fraseDoAnula(regra: RegraDoAnula, ficha?: FichaDaPrevia): string {
+  const pede = textoDoPedidoDaMarca(pedidoDaMarca(regra.paga, regra.teste, regra.como), `paga ${regra.paga} SP`, `passa num teste de ${nomeDoAtributoNaFrase(regra.teste, ficha)} CD ${regra.cd}`)
+  const partes = [textoDaExcecao(regra.exceto), textoDoLimiteDoAnula(regra)].filter((parte) => parte !== '')
+  return `não toma o dano (toma 0)${partes.length === 0 ? '' : `, ${partes.join(', ')}`}${pede === '' ? '' : `; para anular, ${pede}`}`
 }
 
 function fraseDoEfeitoDoGatilho(efeito: EfeitoDoGatilho, ficha?: FichaDaPrevia): string {
@@ -511,6 +520,8 @@ function fraseDoEfeitoDoGatilho(efeito: EfeitoDoGatilho, ficha?: FichaDaPrevia):
       return `o alvo fica ${condicaoNaFrase(efeito.condicao)}`
     case 'aviso':
       return `avisa o mestre ("${efeito.texto}")`
+    case 'anula':
+      return fraseDoAnula(efeito, ficha)
   }
 }
 
@@ -574,7 +585,7 @@ function fraseDaPeca(peca: PecaDaMecanica, mecanica: MecanicaV1, ficha?: FichaDa
     }
     case 'raca': {
       const partes = [
-        peca.corta ? `corta ${peca.cortaPorcento}% de todo dano que o dono recebe` : '',
+        peca.corta ? (peca.cortaPorcento >= PORCENTO_QUE_ANULA ? 'o dono não toma dano (corta 100%)' : `corta ${peca.cortaPorcento}% de todo dano que o dono recebe`) : '',
         peca.soma ? `soma +${peca.somaValor} no dano dos golpes ${peca.somaEm === 'fisico' ? 'físicos' : 'corpo a corpo'}` : '',
         peca.naoDesvia ? (peca.naoDesviaQuem === 'dono' ? 'o dono não pode desviar' : 'quem o dono acerta não pode desviar') : '',
       ].filter((parte) => parte !== '')

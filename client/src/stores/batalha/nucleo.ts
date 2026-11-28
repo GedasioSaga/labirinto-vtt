@@ -249,9 +249,10 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
         const escudo = recursoDoEscudo(sistema)
         const deu = escudo !== null && naFicha((atual) => [{ parte: 'recurso', chave: escudo.id, valor: numeroDaFicha(atual.recursos, escudo.id) + efeito.valor }])
         textos.push(deu ? `+${efeito.valor} de Escudo` : 'Escudo: o sistema não tem')
-      } else {
+      } else if (efeito.tipo === 'aviso') {
         textos.push(efeito.texto)
       }
+      // O "Anula o dano" não passa por aqui: vale dentro do golpe, antes do dano (`anulacaoNoGolpe`).
     }
     const ficaCom = disparo.gatilho.quando === 'aoCair' ? disparo.gatilho.ficaCom : undefined
     if (ficaCom !== undefined) {

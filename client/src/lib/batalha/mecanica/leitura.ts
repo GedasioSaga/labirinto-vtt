@@ -489,6 +489,10 @@ function gatilhoDaPeca(peca: PecaGatilho, nomeDoCartao: string): GatilhoAMao {
         return { tipo: 'selo', em: 'alvo', selo: seloDaCondicao(efeito.condicao) }
       case 'aviso':
         return { tipo: 'aviso', texto: efeito.texto }
+      case 'anula': {
+        const { tipo: _tipo, ...regra } = efeito
+        return { tipo: 'anula', regra }
+      }
     }
   })
   const gatilho: GatilhoAMao = { quando: peca.quando, n: peca.n, efeitos }

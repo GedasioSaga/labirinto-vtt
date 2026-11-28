@@ -1,5 +1,7 @@
 import type { TipoQueBate } from '../../../../lib/batalha/mecanica/modelo'
 import { ATRIBUTO_DA_VELOCIDADE, nomeDoAtributoDaPeca, type EfeitoDoGatilho, type IdDoElemento, type QuandoOGatilhoDispara } from '../../../../lib/batalha/mecanica/pecas'
+import { ANULA_DE_PARTIDA, TIPOS_DA_EXCECAO, type ExcecaoDoAnula } from '../../../../lib/batalha/anulaODano'
+import { NOMES_DOS_TIPOS_DE_DANO } from '../../../../lib/condicoes/modelo'
 import type { NomeDoGlifo } from './glifos'
 
 /**
@@ -49,9 +51,14 @@ export const GATILHOS_NA_TELA: readonly OpcaoDaPeca<QuandoOGatilhoDispara>[] = [
   { valor: 'rodada', rotulo: 'Na rodada' },
   { valor: 'vidaAbaixo', rotulo: 'Quando a vida do dono cair abaixo de' },
   { valor: 'aoReceber', rotulo: 'Ao receber dano' },
+  // Pedido de 27/11/2026: dispara dentro do golpe, antes do dano, só com o "Anula o dano" (o editor troca o efeito).
+  { valor: 'aoSerAtingido', rotulo: 'Ao ser atingido (antes do dano)' },
   { valor: 'aoAcertar', rotulo: 'Ao acertar um golpe' },
   { valor: 'aoCair', rotulo: 'Ao cair a 0 de vida' },
 ]
+
+/** O nome do "Anula o dano" na tela. */
+export const ROTULO_DO_ANULA = 'Anula o dano (toma 0)'
 
 export const EFEITOS_DO_GATILHO_NA_TELA: readonly OpcaoDaPeca<EfeitoDoGatilho['tipo']>[] = [
   { valor: 'atributo', rotulo: 'Sobe atributo' },
@@ -60,7 +67,12 @@ export const EFEITOS_DO_GATILHO_NA_TELA: readonly OpcaoDaPeca<EfeitoDoGatilho['t
   { valor: 'condSi', rotulo: 'Condição em si' },
   { valor: 'condAlvo', rotulo: 'Condição no alvo' },
   { valor: 'aviso', rotulo: 'Aviso ao mestre' },
+  // Pedido de 27/11/2026: só no "Ao ser atingido (antes do dano)", onde é o único efeito (o editor põe sozinho).
+  { valor: 'anula', rotulo: ROTULO_DO_ANULA },
 ]
+
+/** O que o "+ efeito" oferece fora do "Ao ser atingido": tudo menos o "Anula o dano" (o leitor recusa lá). */
+export const EFEITOS_DO_MAIS_NA_TELA = EFEITOS_DO_GATILHO_NA_TELA.filter((opcao) => opcao.valor !== 'anula')
 
 /** O efeito novo do "+ efeito" do gatilho (o `efeitoDoGatilhoNovo` do protótipo). */
 export function efeitoDoGatilhoNovo(tipo: EfeitoDoGatilho['tipo']): EfeitoDoGatilho {
@@ -77,8 +89,35 @@ export function efeitoDoGatilhoNovo(tipo: EfeitoDoGatilho['tipo']): EfeitoDoGati
       return { tipo, condicao: { nome: 'Atordoado', turnos: 1 } }
     case 'aviso':
       return { tipo, texto: 'Avise a mesa: a passiva disparou.' }
+    case 'anula':
+      return { tipo, ...ANULA_DE_PARTIDA }
   }
 }
+
+/** "a não ser que o golpe tenha": nada, um tipo de dano ou elemento, ou um nome (o valor da tela de cada exceção). */
+export const EXCECAO_NENHUMA = 'nada'
+export const EXCECAO_POR_NOME = 'nome'
+export const EXCECOES_NA_TELA: readonly OpcaoDaPeca<string>[] = [
+  { valor: EXCECAO_NENHUMA, rotulo: 'nada (todo golpe zera)' },
+  ...TIPOS_DA_EXCECAO.map((tipo) => ({ valor: tipo, rotulo: NOMES_DOS_TIPOS_DE_DANO[tipo] })),
+  { valor: EXCECAO_POR_NOME, rotulo: 'um nome (Haki...)' },
+]
+
+/** O valor da tela da exceção guardada. */
+export function valorDaExcecao(exceto: ExcecaoDoAnula | undefined): string {
+  if (exceto === undefined) return EXCECAO_NENHUMA
+  return 'tipo' in exceto ? exceto.tipo : EXCECAO_POR_NOME
+}
+
+/** A exceção que o valor da tela escolhe (o nome guardado volta quando já era por nome); `undefined` = nenhuma. */
+export function excecaoDoValor(valor: string, antes: ExcecaoDoAnula | undefined): ExcecaoDoAnula | undefined {
+  if (valor === EXCECAO_POR_NOME) return antes !== undefined && 'nome' in antes ? antes : { nome: NOME_DA_EXCECAO_DE_PARTIDA }
+  const tipo = TIPOS_DA_EXCECAO.find((candidato) => candidato === valor)
+  return tipo === undefined ? undefined : { tipo }
+}
+
+/** O nome que a exceção por nome ganha ao escolher (o exemplo do dono). */
+const NOME_DA_EXCECAO_DE_PARTIDA = 'Haki'
 
 /** "turno" ou "turnos". */
 export function turnos(n: number): string {

@@ -26,7 +26,8 @@ import { normalizar } from './formula'
 import { motivoDoAtivarDaMarca, passivaDaMarca, textoDoCustoDaMarca } from './marca'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO, ehOverload, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, tecnicasComForma, vezesDeRecarga, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { pecasDoCartao } from './mecanica/leitura'
-import type { QuandoOGatilhoDispara } from './mecanica/pecas'
+import { GATILHO_ANTES_DO_DANO, type QuandoOGatilhoDispara } from './mecanica/pecas'
+import { textoDoLimiteDoAnula, type RegraDoAnula } from './anulaODano'
 import { mecanicaDoCartao, type GatilhoAMao } from './mecanicasAMao'
 import { ehNomeDeSelo, lerDuracao, lerMods, seloPedidoValido, selosDoToken, textoDoMod } from './selos'
 import { lerTipo } from './tiposDaHabilidade'
@@ -815,6 +816,7 @@ const QUANDO_NA_TIRA: Readonly<Record<QuandoOGatilhoDispara, string>> = {
   aoReceber: 'Ao receber dano',
   aoAcertar: 'Ao acertar',
   aoCair: 'Ao cair',
+  aoSerAtingido: 'Ao ser atingido (antes do dano)',
 }
 
 /** "Ao receber dano", "Na rodada 3", "Vida abaixo de 50%": quando o gatilho dispara. */
@@ -824,8 +826,13 @@ export function quandoDoGatilho(gatilho: Pick<GatilhoAMao, 'quando' | 'n'>): str
   return QUANDO_NA_TIRA[gatilho.quando]
 }
 
-/** A linha do gatilho na tira: quando, quantas vezes e se pergunta antes. */
+/** A linha do gatilho na tira: quando, quantas vezes e se pergunta antes. O "Anula o dano" diz o limite dele. */
 export function textoDoGatilhoDaPeca(gatilho: GatilhoAMao): string {
+  const anula = gatilho.efeitos.find((efeito) => efeito.tipo === 'anula')
+  if (anula !== undefined && anula.tipo === 'anula') {
+    const limite = textoDoLimiteDoAnula(anula.regra)
+    return `${quandoDoGatilho(gatilho)}: anula o dano${limite === '' ? '' : `, ${limite}`} (dispara sozinha)`
+  }
   const vezes = gatilho.umaPorBatalha === true ? ', 1 vez por batalha' : ''
   return `${quandoDoGatilho(gatilho)}${vezes} (${gatilho.pergunta === true ? 'pergunta antes' : 'dispara sozinha'})`
 }
@@ -934,6 +941,32 @@ export function disparosDosGatilhos(evento: EventoDoGatilho, turnos: TurnosDaCen
     }
   }
   return disparos
+}
+
+/** Pedido de 27/11/2026: um "Anula o dano" de uma passiva montada, com a chave do gatilho dele (o limite conta por ela). */
+export interface AnulaDaPassiva {
+  cartaoId: string
+  nome: string
+  chave: string
+  regra: RegraDoAnula
+}
+
+/**
+ * Os "Ao ser atingido (antes do dano)" das passivas montadas do personagem, na ordem da ficha. Nunca entram
+ * em `disparosDosGatilhos` (nenhum evento da fila é desse momento): quem os lê é o golpe, antes do dano.
+ */
+export function anulasDasPassivas(personagem: Personagem, sistema: SistemaDeRpg): AnulaDaPassiva[] {
+  const anulas: AnulaDaPassiva[] = []
+  for (const { cartao } of tecnicasComForma(personagem, sistema)) {
+    if (!ehPassivaMontada(cartao)) continue
+    gatilhosDaPassiva(cartao).forEach((gatilho, indice) => {
+      if (gatilho.quando !== GATILHO_ANTES_DO_DANO) return
+      for (const efeito of gatilho.efeitos) {
+        if (efeito.tipo === 'anula') anulas.push({ cartaoId: cartao.id, nome: cartao.nome.trim() || PASSIVA_SEM_NOME, chave: chaveDoGatilhoDaPeca(cartao.id, indice), regra: efeito.regra })
+      }
+    })
+  }
+  return anulas
 }
 
 /** O lembrete "Ativar / Agora não" do gatilho que pergunta antes: a chave leva o gatilho e quem o disparou. */

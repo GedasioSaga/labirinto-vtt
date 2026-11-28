@@ -28,6 +28,8 @@ import { curaComOsSelos, curaDoDano, esquivaComDesvantagem, motivoDoBloqueio, na
 import { selosQueALimpezaTira } from '../../lib/batalha/debuffs'
 import { ajustesDoRecursoDaCura, curaPelaParteDoMaximo, notaDoRecursoDaCura, quantoCabeNoRecurso } from '../../lib/batalha/curaDoRecurso'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano, reducoesDoDanoCausado, reducoesDosSelos } from '../../lib/batalha/reducaoDoDano'
+import { anulacaoNoGolpe, type AnulacaoNoGolpe } from '../../lib/batalha/anulacaoNoGolpe'
+import { ajusteDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import {
   golpePendente,
   lancarGolpe,
@@ -188,12 +190,49 @@ function marcasDasPecas(atacante: Personagem | undefined, marcaDaTecnica: string
   return marcas
 }
 
+/** O que o acerto pede da store para o "toma 0" (pedido de 27/11/2026): quem grava na ficha, o d20 do host e o nome do alvo no registro. */
+interface ContextoDaAnulacao {
+  quem: string
+  rolarD20: () => number
+  nomeDoToken: (tokenId: string) => string
+}
+
+/**
+ * Pedido de 27/11/2026 (Intangível): o acerto que não tira nada. O dano final fica 0, o texto "Intangível: X
+ * tomou 0 de dano" vai no alvo, o uso do limite fica no combate do dono e o SP sai da ficha dele (o Desfazer
+ * da linha devolve os dois). `null` = a mesa recusou cobrar o SP: o dano segue como sempre.
+ */
+function acertoAnulado(mesa: MesaDaBatalha, acerto: AcertoNaMarca, personagemId: string, anulacao: Extract<AnulacaoNoGolpe, { anulou: true }>, quem: string): AcertoNaMarca | null {
+  const partes: Reversao[] = [...acerto.partes]
+  let turnos = acerto.turnos
+  if (anulacao.paga > 0) {
+    const paga = anulacao.paga
+    const pagou = mexerNaFicha(
+      mesa,
+      personagemId,
+      (atual, sistemaDaMesa) => {
+        const ajuste = ajusteDoRecurso(atual, sistemaDaMesa, 'sp', -paga)
+        return ajuste === null ? [] : [ajuste]
+      },
+      quem,
+    )
+    if (pagou === 'recusada') return null
+    partes.push(...reversaoDaFicha(personagemId, pagou))
+  }
+  if (anulacao.combate !== null) {
+    partes.push({ tipo: 'combate', personagemId, antes: turnos.combate?.[personagemId] ?? null, depois: anulacao.combate })
+    turnos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: anulacao.combate } }
+  }
+  return { turnos, partes, alvo: comNotaNoAlvo({ ...acerto.alvo, danoFinal: 0 }, anulacao.texto) }
+}
+
 /**
  * R1 (lote de 01/11): o alvo resolvido passa pela marca ANTES do dano na
  * ficha (o dobro sai no número do dano e no texto). A passiva de marca é a do
  * personagem de quem atacou; a técnica que marca é a do golpe (`golpe.marca`).
+ * Pedido de 27/11/2026: depois da marca e antes das reduções, o "toma 0" (`anulacaoNoGolpe`).
  */
-function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): AcertoNaMarca {
+function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe, contexto: ContextoDaAnulacao): AcertoNaMarca {
   const sistema = mesa.sistema()
   const atacante = golpe.atacantePersonagemId === null ? undefined : mesa.personagens().find((personagem) => personagem.id === golpe.atacantePersonagemId)
   const daPassiva = sistema === null || atacante === undefined ? null : passivaDaMarca(atacante, sistema)
@@ -211,13 +250,21 @@ function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeD
   if (dele === undefined || sistema === null || danoFinal === undefined || danoFinal <= 0) return acerto
   // Fase 5: e o selo montado com regra de dano recebido (−20% a menos, +50% a mais), por último.
   // Rework das condições (E3): o dano de um tipo só pelos tipos do golpe (Congelado: Impacto +50%) e o dano causado de quem bate (Amedrontado −20%).
-  const dosSelos = [...reducoesDosSelos(acerto.turnos.selos, alvo.tokenId, golpe.tipos), ...reducoesDoDanoCausado(acerto.turnos.selos, golpe.atacanteTokenId)]
-  const reducoes = [...reducoesDoDano(dele, sistema), ...dosSelos]
-  if (reducoes.length === 0) return acerto
-  const reduzido: AlvoDoGolpe = { ...acerto.alvo, danoFinal: danoComAsReducoes(danoFinal, reducoes), reducao: porcentoDasReducoes(reducoes) }
+  const dosSelosDoAlvo = reducoesDosSelos(acerto.turnos.selos, alvo.tokenId, golpe.tipos)
+  const doAlvo = [...reducoesDoDano(dele, sistema), ...dosSelosDoAlvo]
+  // Pedido de 27/11/2026: a raça com 100%, a condição Intangível e o "Anula o dano" da passiva, pela mesma função.
+  const anulacao = anulacaoNoGolpe({ turnos: acerto.turnos, golpe, alvoTokenId: alvo.tokenId, alvo: dele, sistema, ...(atacante === undefined ? {} : { atacante }), reducoes: doAlvo, nomeDoAlvo: contexto.nomeDoToken(alvo.tokenId), rolarD20: contexto.rolarD20 })
+  const anulado = anulacao !== null && anulacao.anulou ? acertoAnulado(mesa, acerto, dele.id, anulacao, contexto.quem) : null
+  if (anulado !== null) return anulado
+  // A fonte que tentou e não valeu deixa o porquê no alvo ("Corpo de Fumaça não anulou: o golpe tem Haki").
+  const comMotivo: AcertoNaMarca = anulacao !== null && !anulacao.anulou ? { ...acerto, alvo: comNotaNoAlvo(acerto.alvo, anulacao.texto) } : acerto
+  const deQuemBate = reducoesDoDanoCausado(acerto.turnos.selos, golpe.atacanteTokenId)
+  const reducoes = [...doAlvo, ...deQuemBate]
+  if (reducoes.length === 0) return comMotivo
+  const reduzido: AlvoDoGolpe = { ...comMotivo.alvo, danoFinal: danoComAsReducoes(danoFinal, reducoes), reducao: porcentoDasReducoes(reducoes) }
   // Só a forma: o registro segue "(forma −20%)", como antes.
-  if (dosSelos.length > 0 || reducoes.some((reducao) => reducao.nome === 'Determinação')) reduzido.reducaoDe = nomesDasReducoes(reducoes)
-  return { ...acerto, alvo: reduzido }
+  if (dosSelosDoAlvo.length > 0 || deQuemBate.length > 0 || reducoes.some((reducao) => reducao.nome === 'Determinação')) reduzido.reducaoDe = nomesDasReducoes(reducoes)
+  return { ...comMotivo, alvo: reduzido }
 }
 
 /**
@@ -257,6 +304,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
   const { mesa, deps, mesaDoRpg, cenaDe, gravarCena, avisarQuemCaiu, revelarAoUsar, lembrarDepoisDoDano, rastrear, anotarAcao } = nucleo
   const { cansarNoOverload, subidaDoPedido, mudarForma } = fatiaDasFormas
   const { seloNoAcerto, seloPostoNaFicha, aliadosNaLutaDe } = fatiaDosSelos
+  /** Pedido de 27/11/2026: o que o "toma 0" do acerto precisa (quem cobra o SP, o d20 do host, o nome do alvo). */
+  const paraAnular = (autor: AutorDaAcao, turnos: TurnosDaCena): ContextoDaAnulacao => ({ quem: quemNaFicha(autor), rolarD20: deps.rolarD20, nomeDoToken: nomeDoTokenNa(turnos, mesa.personagens()) })
 
   /**
    * O que sai da ficha `tokenId` no mapa, só lido (nada gravado): as pastilhas
@@ -363,7 +412,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     const lida = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, rolado?.d20 ?? null, rolado?.vantagem, esquiva)
     if (lida === null) return false
     // R1: resolvido na reação, o alvo passa pela marca antes do dano (o golpe da reversão já leva o dobro).
-    const acerto = lida.alvo.danoFinal === undefined ? null : acertoComMarca(mesa, turnos, lida.golpe, lida.alvo)
+    const acerto = lida.alvo.danoFinal === undefined ? null : acertoComMarca(mesa, turnos, lida.golpe, lida.alvo, paraAnular(autor, turnos))
     const feita = acerto === null ? lida : { ...lida, alvo: acerto.alvo, golpe: golpeComOAlvo(lida.golpe, acerto.alvo) }
     const quem = quemNaFicha(autor)
     const partes: Reversao[] = [{ tipo: 'reacaoComTecnica', golpe: feita.golpe, tokenId: alvo.tokenId, alvoAntes: alvo }, ...(acerto?.partes ?? [])]
@@ -371,8 +420,12 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     let novos: TurnosDaCena = { ...(acerto?.turnos ?? turnos), golpes: comGolpe(turnos.golpes, feita.golpe) }
     // `depoisDaTecnica` devolve o MESMO combate quando a técnica não marca nada (sem recarga, usos nem Overload).
     if (feita.combate !== combateBase) {
-      partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois: feita.combate })
-      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: feita.combate } }
+      // Pedido de 27/11/2026: o "Anula o dano" de quem reage já contou o uso nas lembradas dele; a técnica vem por cima sem perder a conta.
+      const doAnula = acerto?.turnos.combate?.[personagemId]
+      const combateFeito: CombateDoPersonagem =
+        doAnula === undefined || doAnula === combateAntes ? feita.combate : { ...feita.combate, lembradas: [...new Set([...(feita.combate.lembradas ?? []), ...(doAnula.lembradas ?? [])])] }
+      partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois: combateFeito })
+      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: combateFeito } }
     }
     if (feita.custo.length > 0) {
       const custo = feita.custo
@@ -955,7 +1008,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       efeitos.push({ tipo: 'golpe', golpeId: golpe.id, atacanteTokenId: golpe.atacanteTokenId, nome: golpe.nome, alvos: golpe.alvos.map((alvo) => alvo.tokenId), surpresa: golpe.surpresa, overload: golpe.overload })
       for (const resolvido of lancado.resolvidos) {
         // R1: a marca antes do dano (o dobro, a marca da técnica, o lembrete da passiva).
-        const acerto = acertoComMarca(mesa, novos, golpe, resolvido)
+        const acerto = acertoComMarca(mesa, novos, golpe, resolvido, paraAnular(autor, novos))
         novos = acerto.turnos
         golpe = golpeComOAlvo(golpe, acerto.alvo)
         const alvo = acerto.alvo
@@ -1244,7 +1297,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         const semMarca = semResposta.alvos.find((candidato) => candidato.tokenId === esperando.tokenId)
         if (semMarca === undefined) continue
         // R1: a marca antes do dano, como em toda reação.
-        const acerto = acertoComMarca(mesa, novos, semResposta, semMarca)
+        const acerto = acertoComMarca(mesa, novos, semResposta, semMarca, paraAnular(MESTRE, novos))
         novos = acerto.turnos
         golpe = golpeComOAlvo(semResposta, acerto.alvo)
         const feito = danoNoAlvo(mesa, acerto.alvo, golpe, MESTRE, novos.selos)
@@ -1424,7 +1477,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           const semMarca = novo.alvos.find((candidato) => candidato.tokenId === alvo.tokenId)
           if (semMarca === undefined) return false
           // R1: a marca antes do dano (o dobro, a marca da técnica, o lembrete da passiva).
-          const acerto = acertoComMarca(mesa, turnos, novo, semMarca)
+          const acerto = acertoComMarca(mesa, turnos, novo, semMarca, paraAnular(autor, turnos))
           marcados = acerto.turnos
           selos = marcados.selos
           novo = golpeComOAlvo(novo, acerto.alvo)

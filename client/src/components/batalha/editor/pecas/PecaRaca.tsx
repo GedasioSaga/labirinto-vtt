@@ -1,3 +1,4 @@
+import { CORTE_DA_RACA_MAX } from '../../../../lib/batalha/mecanica/pecas'
 import { Caixa, Escolher, Frase, Nota, Numero, Texto } from './controlesDaPeca'
 import type { PropsDaPeca } from './registro'
 
@@ -13,7 +14,7 @@ export function PecaRaca({ peca, aoMudar }: PropsDaPeca<'raca'>) {
         <Caixa rotulo="Corta" marcado={peca.corta} onChange={(corta) => aoMudar({ ...peca, corta })} />
         {peca.corta ? (
           <>
-            <Numero rotulo="Porcentagem cortada" valor={peca.cortaPorcento} minimo={1} maximo={90} onChange={(cortaPorcento) => aoMudar({ ...peca, cortaPorcento })} />
+            <Numero rotulo="Porcentagem cortada" valor={peca.cortaPorcento} minimo={1} maximo={CORTE_DA_RACA_MAX} onChange={(cortaPorcento) => aoMudar({ ...peca, cortaPorcento })} />
             <Texto>% de todo dano que o dono recebe</Texto>
           </>
         ) : (

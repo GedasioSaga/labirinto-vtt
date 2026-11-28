@@ -1,6 +1,7 @@
 import type { CartaoDaFicha, Personagem } from '../personagem'
 import { linhaDoCartaoMontado, pecasDoCartao, pecasUsamACarga, RESPOSTA_DE_MARCAR_PAGANDO, RESPOSTA_DE_MARCAR_PELO_TESTE, RESPOSTA_SEM_IMBUIR } from './mecanica/leitura'
 import type { ComoPagaAMarca } from './comoMarca'
+import type { RegraDoAnula } from './anulaODano'
 import { CONDICAO_DO_TIPO } from './mecanica/golpe'
 import { lerMecanica, REGRA_DE_PARTIDA, TESTE_DO_TIPO_DE_PARTIDA, type RegraQuePoeCondicao, type TipoQueBate } from './mecanica/modelo'
 import { cdDoTeste } from './mecanica/teste'
@@ -335,12 +336,17 @@ export interface ImbuirAMao {
   elementos: readonly ElementoAMao[]
 }
 
-/** D3 (a peça Dispara sozinha): o que o gatilho faz, pronto para o motor. O selo `em: 'alvo'` vai em quem disparou o gatilho (quem bateu, quem o dono acertou). */
+/**
+ * D3 (a peça Dispara sozinha): o que o gatilho faz, pronto para o motor. O selo `em: 'alvo'` vai em quem
+ * disparou o gatilho (quem bateu, quem o dono acertou). `anula` (pedido de 27/11/2026, só no "Ao ser
+ * atingido"): o golpe não tira nada, pela regra de `anulaODano.ts`; quem decide é o golpe (`anulacaoNoGolpe`).
+ */
 export type EfeitoDoGatilhoAMao =
   | { tipo: 'selo'; em: 'dono' | 'alvo'; selo: SeloDoGolpe }
   | { tipo: 'recupera'; recurso: 'hp' | 'sp'; valor: number; turnos: number }
   | { tipo: 'escudo'; valor: number }
   | { tipo: 'aviso'; texto: string }
+  | { tipo: 'anula'; regra: RegraDoAnula }
 
 /**
  * D3 e D6 (a peça Dispara sozinha, só na passiva): quando `quando` acontece (`n` = a rodada do

@@ -1,16 +1,13 @@
 import { NOME_DO_SELO_MAX } from '../../../../lib/batalha/combate'
-import { pedidoDaMarca, type ComoPagaAMarca } from '../../../../lib/batalha/comoMarca'
+import { pedidoDaMarca } from '../../../../lib/batalha/comoMarca'
 import { Caixa, Escolher, Frase, Nota, Numero, Segmentos, Texto, TextoCurto } from './controlesDaPeca'
+import { PagaETesta } from './PagaETesta'
 import type { PropsDaPeca } from './registro'
-import { ATRIBUTOS_DAS_PECAS, turnos, type OpcaoDaPeca } from './vocabulario'
+import { turnos } from './vocabulario'
 
-const SEM_TESTE = ''
-const TESTES: readonly OpcaoDaPeca<string>[] = [{ valor: SEM_TESTE, rotulo: 'sem teste' }, ...ATRIBUTOS_DAS_PECAS]
-/** 'e' = paga E passa no teste; 'ou' = um dos dois, à escolha na hora (`lib/batalha/comoMarca.ts`). */
-const PAGA_E_OU: readonly OpcaoDaPeca<ComoPagaAMarca>[] = [
-  { valor: 'e', rotulo: 'e' },
-  { valor: 'ou', rotulo: 'ou' },
-]
+/** O teto do SP para marcar (o mesmo do leitor, `lerMarca`). */
+const SP_DA_MARCA_MAX = 200
+const ROTULOS_DA_MARCA = { paga: 'SP para marcar', como: 'Paga e/ou testa', teste: 'Teste para marcar' }
 
 /**
  * MARCA (D10; `corpoMarca` do protótipo): o acerto deixa uma marca no alvo (sempre, perguntando
@@ -48,19 +45,17 @@ export function PecaMarca({ peca, mecanica, aoMudar }: PropsDaPeca<'marca'>) {
       </Frase>
       {naPassiva && <Nota>Na passiva, depois do acerto a batalha pergunta "Marcar?" a quem tem a passiva (nunca marca sozinha).</Nota>}
       {perguntando && (
-        <Frase sub>
-          <Texto>Para marcar, paga</Texto>
-          <Numero rotulo="SP para marcar" valor={peca.paga} minimo={0} maximo={200} onChange={(paga) => aoMudar({ ...peca, paga })} />
-          <Texto>SP</Texto>
-          {/* Pedido de 27/11/2026 ("e/ou"): com o SP e o teste, o seletor; com um dos dois vazio, a frase diz qual vale. */}
-          {pedido === 'e' || pedido === 'ou' ? (
-            <Segmentos rotulo="Paga e/ou testa" valor={pedido} opcoes={PAGA_E_OU} onChange={(como) => aoMudar({ ...peca, como })} />
-          ) : (
-            <Texto>{pedido === 'soPaga' ? '(só paga) · teste:' : pedido === 'soTeste' ? '(só o teste) e' : '·'}</Texto>
-          )}
-          {pedido !== 'soPaga' && <Texto>passa num teste de</Texto>}
-          <Escolher rotulo="Teste para marcar" valor={peca.teste} opcoes={TESTES} onChange={(teste) => aoMudar({ ...peca, teste })} />
-        </Frase>
+        <PagaETesta
+          comeco="Para marcar, paga"
+          rotulos={ROTULOS_DA_MARCA}
+          paga={peca.paga}
+          pagaMax={SP_DA_MARCA_MAX}
+          teste={peca.teste}
+          como={peca.como}
+          aoPagar={(paga) => aoMudar({ ...peca, paga })}
+          aoTestar={(teste) => aoMudar({ ...peca, teste })}
+          aoEscolherComo={(como) => aoMudar({ ...peca, como })}
+        />
       )}
       {perguntando && pedido === 'ou' && <Nota>Na hora, quem marca escolhe: pagar o SP ou fazer o teste.</Nota>}
       <Frase>

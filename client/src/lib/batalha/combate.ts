@@ -2,6 +2,7 @@ import type { Modificador } from '../personagem'
 import type { BloqueioDaCondicao, DeNovoDaCondicao, EfeitoNaVez, SaidaDaCondicao, TipoDaCondicao, TipoDoGolpe } from '../condicoes/modelo'
 import type { GatilhoDaCondicao } from '../itens/modelo'
 import type { AoAcertarDoGolpe } from './aoAcertarDoItem'
+import type { ExcecaoDoAnula } from './anulaODano'
 import type { Direcao } from './area'
 import type { CdDaDisputa } from './disputa'
 import type { MudancaDoAlcance } from './alcance/condicoes'
@@ -1025,6 +1026,13 @@ export interface RegrasDoSelo {
   auras?: readonly AuraDoSelo[]
   /** A Contra-condição, com os ids do catálogo já resolvidos em nomes (D5). */
   contra?: ContraDoSelo
+  /** Pedido de 27/11/2026 (a peça Intangível): quem tem toma 0 do golpe, a não ser que o golpe tenha `exceto` (`anulaODano.ts`). */
+  anula?: AnulaDoSelo
+}
+
+/** O "toma 0" do selo (Intangível): a exceção, se houver; o mesmo `golpeAtravessa` da peça Dispara sozinha. */
+export interface AnulaDoSelo {
+  exceto?: ExcecaoDoAnula
 }
 
 /** Um atributo (no id do motor) e o valor em que ele fica, ou o teto dele. */

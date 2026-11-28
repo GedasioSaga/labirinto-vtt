@@ -1,6 +1,7 @@
 import type { Modificador } from '../../personagem'
 import { NOME_DO_SELO_MAX } from '../combate'
 import type { ComoPagaAMarca } from '../comoMarca'
+import { ANULA_DE_PARTIDA, CD_DO_ANULA_MAX, CD_DO_ANULA_MIN, excecaoLida, NOME_DA_EXCECAO_MAX, SP_DO_ANULA_MAX, VEZES_DO_ANULA_MAX, type ExcecaoDoAnula, type RegraDoAnula } from '../anulaODano'
 import type { TipoQueBate } from './modelo'
 
 /**
@@ -56,6 +57,8 @@ export const MODS_DA_FORMA_MAX = 8
 export const ITENS_DO_STATUS_MAX = 6
 /** Turnos de uma condição posta por peça. */
 export const TURNOS_DA_PECA_MAX = 20
+/** O corte de dano da Passiva de raça: de 1 a 100% (pedido de 27/11/2026; antes ia até 90). */
+export const CORTE_DA_RACA_MAX = 100
 
 /** O nome da condição comum que a forma deixa no dono quando acaba (D10; a E5 a põe no catálogo de fábrica). */
 export const NOME_DA_FADIGA = 'Fadiga'
@@ -155,10 +158,16 @@ export interface PecaImbuir {
   elementos: readonly ElementoDaPeca[]
 }
 
-/** Quando o gatilho dispara (`GATILHOS` do protótipo). */
-export type QuandoOGatilhoDispara = 'inicio' | 'comeco' | 'rodada' | 'vidaAbaixo' | 'aoReceber' | 'aoAcertar' | 'aoCair'
+/**
+ * Quando o gatilho dispara (`GATILHOS` do protótipo). Pedido de 27/11/2026: `aoSerAtingido` = "Ao ser
+ * atingido (antes do dano)", que dispara dentro do golpe, sozinho, e só leva o "Anula o dano".
+ */
+export type QuandoOGatilhoDispara = 'inicio' | 'comeco' | 'rodada' | 'vidaAbaixo' | 'aoReceber' | 'aoAcertar' | 'aoCair' | 'aoSerAtingido'
 
-/** O que o gatilho faz (`EFEITOS_DO_GATILHO` do protótipo). */
+/** O gatilho que dispara antes do dano, no golpe (o único que leva o "Anula o dano"). */
+export const GATILHO_ANTES_DO_DANO: QuandoOGatilhoDispara = 'aoSerAtingido'
+
+/** O que o gatilho faz (`EFEITOS_DO_GATILHO` do protótipo). `anula` = "Anula o dano (toma 0)", só no `aoSerAtingido`. */
 export type EfeitoDoGatilho =
   | { tipo: 'atributo'; atributo: string; valor: number; turnos: number }
   | { tipo: 'recuperar'; recurso: 'hp' | 'sp'; valor: number; turnos: number }
@@ -166,6 +175,7 @@ export type EfeitoDoGatilho =
   | { tipo: 'condSi'; condicao: CondicaoDaPeca }
   | { tipo: 'condAlvo'; condicao: CondicaoDaPeca }
   | { tipo: 'aviso'; texto: string }
+  | ({ tipo: 'anula' } & RegraDoAnula)
 
 /** Quando algo acontece, faz o efeito sem gastar ação (mecânica 3; só na passiva). */
 export interface PecaGatilho {
@@ -538,11 +548,32 @@ function lerImbuir(peca: Cru, onde: string): PecaImbuir {
   return { tipo: 'imbuir', elementos }
 }
 
-const QUANDOS: readonly QuandoOGatilhoDispara[] = ['inicio', 'comeco', 'rodada', 'vidaAbaixo', 'aoReceber', 'aoAcertar', 'aoCair']
+const QUANDOS: readonly QuandoOGatilhoDispara[] = ['inicio', 'comeco', 'rodada', 'vidaAbaixo', 'aoReceber', 'aoAcertar', 'aoCair', 'aoSerAtingido']
+
+function excecaoDoAnula(valor: unknown, onde: string): ExcecaoDoAnula {
+  return excecaoLida(valor) ?? torta(`${onde}: a exceção é um tipo de dano ou um nome (até ${NOME_DA_EXCECAO_MAX} letras)`)
+}
+
+/** O "Anula o dano": os campos que faltam vêm do de partida (`ANULA_DE_PARTIDA`). */
+function lerAnula(peca: Cru, onde: string): EfeitoDoGatilho {
+  soChaves(peca, ['tipo', 'por', 'vezes', 'paga', 'teste', 'cd', 'como', 'exceto'], onde)
+  const partida = ANULA_DE_PARTIDA
+  const lido: Extract<EfeitoDoGatilho, { tipo: 'anula' }> = {
+    tipo: 'anula',
+    por: umDe(peca.por ?? partida.por, ['sempre', 'rodada', 'batalha'] as const, `${onde} (limite)`),
+    vezes: inteiro(peca.vezes ?? partida.vezes, 1, VEZES_DO_ANULA_MAX, `${onde} (vezes)`),
+    paga: inteiro(peca.paga ?? partida.paga, 0, SP_DO_ANULA_MAX, `${onde} (SP para anular)`),
+    teste: texto(peca.teste ?? partida.teste, ATRIBUTO_DA_PECA_MAX, `${onde} (teste)`, true),
+    cd: inteiro(peca.cd ?? partida.cd, CD_DO_ANULA_MIN, CD_DO_ANULA_MAX, `${onde} (CD)`),
+  }
+  if (peca.como !== undefined) lido.como = umDe(peca.como, ['e', 'ou'] as const, `${onde} (paga e/ou testa)`)
+  if (peca.exceto !== undefined) lido.exceto = excecaoDoAnula(peca.exceto, `${onde} (a não ser que)`)
+  return lido
+}
 
 function efeitoDoGatilho(valor: unknown, onde: string): EfeitoDoGatilho {
   const peca = registro(valor, onde)
-  const tipo = umDe(peca.tipo, ['atributo', 'recuperar', 'escudo', 'condSi', 'condAlvo', 'aviso'] as const, `${onde} (tipo)`)
+  const tipo = umDe(peca.tipo, ['atributo', 'recuperar', 'escudo', 'condSi', 'condAlvo', 'aviso', 'anula'] as const, `${onde} (tipo)`)
   switch (tipo) {
     case 'atributo': {
       soChaves(peca, ['tipo', 'atributo', 'valor', 'turnos'], onde)
@@ -563,6 +594,8 @@ function efeitoDoGatilho(valor: unknown, onde: string): EfeitoDoGatilho {
     case 'aviso':
       soChaves(peca, ['tipo', 'texto'], onde)
       return { tipo, texto: texto(peca.texto, AVISO_DO_GATILHO_MAX, `${onde} (texto do aviso)`) }
+    case 'anula':
+      return lerAnula(peca, onde)
   }
 }
 
@@ -583,6 +616,14 @@ function lerGatilho(peca: Cru, onde: string): PecaGatilho {
     if (quando !== 'aoCair') torta(`${onde}: o "fica com N de vida" só vale no "Ao cair"`)
     lido.ficaCom = inteiro(peca.ficaCom, 1, 9999, `${onde} (vida que fica)`)
   }
+  // Pedido de 27/11/2026: o "Anula o dano" só existe antes do dano, e o "Ao ser atingido" dispara sozinho, só com ele.
+  const anula = efeitos.filter((efeito) => efeito.tipo === 'anula').length
+  if (quando === GATILHO_ANTES_DO_DANO) {
+    if (anula !== 1 || efeitos.length !== 1) torta(`${onde}: o "Ao ser atingido (antes do dano)" leva só o "Anula o dano"`)
+    if (lido.pergunta) torta(`${onde}: o "Ao ser atingido (antes do dano)" dispara sozinho (sem pergunta)`)
+    // O limite dele é o do "Anula o dano" (por rodada, por batalha): o "uma vez por batalha" do gatilho não vale aqui.
+    if (lido.vezes !== 'sempre') torta(`${onde}: o limite do "Ao ser atingido (antes do dano)" é o do "Anula o dano"`)
+  } else if (anula > 0) torta(`${onde}: o "Anula o dano" só vale no "Ao ser atingido (antes do dano)"`)
   return lido
 }
 
@@ -592,7 +633,8 @@ function lerRaca(peca: Cru, onde: string): PecaRaca {
   return {
     tipo: 'raca',
     corta: simOuNao(peca.corta ?? partida.corta, `${onde} (corta)`),
-    cortaPorcento: inteiro(peca.cortaPorcento ?? partida.cortaPorcento, 1, 90, `${onde} (% cortada)`),
+    // Pedido de 27/11/2026: até 100% (o dono não toma dano: o motor registra "Intangível", `anulaODano.ts`).
+    cortaPorcento: inteiro(peca.cortaPorcento ?? partida.cortaPorcento, 1, CORTE_DA_RACA_MAX, `${onde} (% cortada)`),
     soma: simOuNao(peca.soma ?? partida.soma, `${onde} (soma)`),
     somaValor: inteiro(peca.somaValor ?? partida.somaValor, 1, 200, `${onde} (dano somado)`),
     somaEm: umDe(peca.somaEm ?? partida.somaEm, ['fisico', 'corpo'] as const, `${onde} (em que golpes)`),
