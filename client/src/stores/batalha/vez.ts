@@ -29,9 +29,8 @@ import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import type { PecaDoGatilho } from '../../lib/itens/modelo'
 import { fraseDaPecaDoGatilho } from '../../lib/condicoes/gatilho'
 import { formaDaFicha, formaMontada } from '../../lib/batalha/transformacao'
-import { ajusteDaRecuperacao, ajusteDoRecurso, maximoDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
-import { siglaDaRecuperacao } from '../../lib/caracteristicas/recuperacao'
-import type { RecursoDaRecuperacao } from '../../lib/caracteristicas/tipos'
+import { ajusteDoRecurso, maximoDoRecurso, numeroDoRecurso } from '../../lib/batalha/recursosDaBatalha'
+import { ajustesDaRecuperacao, textoDaRecuperacaoGravada, type AjusteDaRecuperacao } from '../../lib/caracteristicas/recuperacaoNaBatalha'
 import { chavesDoDono, idDaChave, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo } from '../../lib/batalha/mecanicasAMao'
 import { curaComOsSelos, notaDosSelosNaCura, selosQueSaemCom, textoDasSaidasDoSelo, type AcontecimentoDaSaida } from '../../lib/batalha/condicoes'
 import { comLembretesDaVez, comLembretesDoMomento, type EventoDoGatilho } from '../../lib/batalha/passivas'
@@ -148,21 +147,22 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     const personagem = mesa.personagens().find((candidato) => candidato.id === personagemId)
     const sistema = mesa.sistema()
     // A ficha sem "Recupera por turno" (a de sempre) nem passa pela gravação.
-    const recurso: RecursoDaRecuperacao | null = personagem === undefined || sistema === null ? null : (ajusteDaRecuperacao(personagem, sistema, (cura) => cura)?.recurso ?? null)
-    if (recurso === null) return null
+    if (personagem === undefined || sistema === null || ajustesDaRecuperacao(personagem, sistema, (cura) => cura).length === 0) return null
+    // 27/11/2026: as duas linhas (Vida e SP) recuperam juntas; `lidas` = as que a mesa gravou, lidas da ficha de agora.
+    let lidas: AjusteDaRecuperacao[] = []
     const feito = mexerNaFicha(
       mesa,
       personagemId,
       (atual, sistemaDaMesa) => {
-        const recuperacao = ajusteDaRecuperacao(atual, sistemaDaMesa, (cura) => curaComOsSelos(cura, depois.selos, tokenId))
-        return recuperacao === null ? [] : [recuperacao.ajuste]
+        lidas = ajustesDaRecuperacao(atual, sistemaDaMesa, (cura) => curaComOsSelos(cura, depois.selos, tokenId))
+        return lidas.map(({ ajuste }) => ajuste)
       },
       quemNaFicha(autor),
     )
     if (feito === null || feito === 'recusada' || feito.length === 0) return null
-    const ganho = feito.reduce((soma, parte) => (parte.parte === 'recurso' ? soma + parte.para - parte.de : soma), 0)
-    const nome = personagem?.nome.trim() || 'a ficha'
-    return { ficha: { personagemId, partes: feito }, texto: personagem?.tipo === 'jogador' ? ` · ${nome} recupera ${ganho} ${siglaDaRecuperacao(recurso)}` : '' }
+    const texto = textoDaRecuperacaoGravada(lidas, feito)
+    const nome = personagem.nome.trim() || 'a ficha'
+    return { ficha: { personagemId, partes: feito }, texto: personagem.tipo === 'jogador' && texto !== '' ? ` · ${nome} — ${texto}` : '' }
   }
 
   /**

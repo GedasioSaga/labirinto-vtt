@@ -1,9 +1,7 @@
 import { maximoComposto, temMaximo, type Ajuste } from '../ajusteDaFicha'
-import { quantoDaRecuperacao } from '../caracteristicas/recuperacao'
-import type { RecursoDaRecuperacao } from '../caracteristicas/tipos'
 import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { MODS_POR_SELO_MAX, type ModDoSelo, type SeloDaBatalha } from './combate'
+import { MODS_POR_SELO_MAX, type ModDoSelo, type SeloDaBatalha, type SeloDoGolpe } from './combate'
 import { recursoDoCusto, recursoDoEscudo } from './leituraDaFicha'
 import { comSeloNovo, criarSelo, ondeNaVez, selosDoToken } from './selos'
 import type { TurnosDaCena } from './turnos'
@@ -17,8 +15,9 @@ import type { TurnosDaCena } from './turnos'
  *
  * 26/11/2026: o "+10 SP no começo da vez de quem não gastou SP" SAIU (o dono:
  * "você colocou os usuários para recuperarem SP sem a minha permissão, tira
- * isso"). No lugar, a ficha diz se recupera Vida ou SP por turno
- * (`ajusteDaRecuperacao`, a característica "Recupera por turno").
+ * isso"). No lugar, a ficha diz quanto recupera de Vida e de SP por turno
+ * (`ajustesDaRecuperacao` em `lib/caracteristicas/recuperacaoNaBatalha.ts`, a
+ * característica "Recupera por turno").
  *
  * Puro: sem store, sem rede.
  */
@@ -60,35 +59,26 @@ export function modsDoCansaco(personagem: Personagem, sistema: SistemaDeRpg): Mo
  * atributo). Já cansado, ou nada a cortar = `null`. Grupo que não cabe no
  * teto de selos da ficha fica de fora.
  */
-export function comOCansaco(turnos: TurnosDaCena, tokenId: string, mods: readonly ModDoSelo[], novoId: () => string): { turnos: TurnosDaCena; selos: SeloDaBatalha[] } | null {
+export function comOCansaco(
+  turnos: TurnosDaCena,
+  tokenId: string,
+  mods: readonly ModDoSelo[],
+  novoId: () => string,
+  // PENDENCIAS do rework, nº 6: a store passa a função única (`criarSeloComACondicao`); sem ela (a lib sozinha), o selo de sempre.
+  nascer: (tokenId: string, pedido: SeloDoGolpe, onde: Parameters<typeof criarSelo>[2]) => SeloDaBatalha = criarSelo,
+): { turnos: TurnosDaCena; selos: SeloDaBatalha[] } | null {
   if (mods.length === 0 || selosDoToken(turnos.selos, tokenId).some(ehSeloDoCansaco)) return null
   const onde = { rodada: turnos.rodada, ...ondeNaVez(turnos), origem: ORIGEM_DO_CANSACO }
   let lista = turnos.selos
   const novos: SeloDaBatalha[] = []
   for (let inicio = 0; inicio < mods.length; inicio += MODS_POR_SELO_MAX) {
-    const selo: SeloDaBatalha = { ...criarSelo(tokenId, { nome: NOME_DO_CANSACO, turnos: null, mods: mods.slice(inicio, inicio + MODS_POR_SELO_MAX), natureza: 'debuff' }, { id: novoId(), ...onde }), ajuste: true }
+    const selo: SeloDaBatalha = { ...nascer(tokenId, { nome: NOME_DO_CANSACO, turnos: null, mods: mods.slice(inicio, inicio + MODS_POR_SELO_MAX), natureza: 'debuff' }, { id: novoId(), ...onde }), ajuste: true }
     const cabe = comSeloNovo(lista, selo)
     if (cabe === null) break
     lista = cabe
     novos.push(selo)
   }
   return novos.length === 0 ? null : { turnos: { ...turnos, selos: lista }, selos: novos }
-}
-
-/**
- * O "Recupera por turno" da ficha no começo da vez dela: o ajuste do recurso, limitado ao máximo (o que
- * falta para encher). `corte` = a regra dos selos na cura (Cura reduzida), só no HP. `null` = a ficha não
- * recupera, o sistema não tem o recurso, ou já está cheio.
- */
-export function ajusteDaRecuperacao(personagem: Personagem, sistema: SistemaDeRpg, corte: (cura: number) => number): { recurso: RecursoDaRecuperacao; ajuste: Ajuste } | null {
-  const lida = quantoDaRecuperacao(personagem, sistema)
-  if (lida === null) return null
-  const quanto = lida.recurso === 'hp' ? corte(lida.quanto) : lida.quanto
-  const maximo = maximoDoRecurso(personagem, sistema, lida.recurso)
-  const cabe = maximo === null ? quanto : Math.min(quanto, maximo - numeroDoRecurso(personagem, sistema, lida.recurso))
-  if (cabe <= 0) return null
-  const ajuste = ajusteDoRecurso(personagem, sistema, lida.recurso, cabe)
-  return ajuste === null ? null : { recurso: lida.recurso, ajuste }
 }
 
 /**

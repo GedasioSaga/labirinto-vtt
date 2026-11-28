@@ -9,8 +9,8 @@ import type { RecursoDaRecuperacao } from './tipos'
 /**
  * O "Recupera por turno" das DUAS linhas (27/11/2026) no começo da vez da ficha: um ajuste por linha
  * que recupera, cada um limitado ao máximo do recurso dele, e o texto do registro pelo que a mesa
- * gravou ("Recupera: +10 Vida, +5 SP"). Substitui o `ajusteDaRecuperacao` de
- * `lib/batalha/recursosDaBatalha.ts`, que lê uma linha só.
+ * gravou ("Recupera: +10 Vida, +5 SP"). O começo da vez da batalha (`stores/batalha/vez.ts`) lê por
+ * aqui; o `ajusteDaRecuperacao` antigo, de uma linha só, saiu.
  *
  * Puro: sem store, sem rede.
  */

@@ -43,20 +43,6 @@ export function quantosDaRecuperacao(personagem: Personagem, sistema: SistemaDeR
   return lidas
 }
 
-/**
- * A PRIMEIRA linha que recupera; `null` = nada. É o que o `ajusteDaRecuperacao` de
- * `lib/batalha/recursosDaBatalha.ts` lê (uma linha só, o formato de 26/11). A batalha que aplica
- * as duas lê `ajustesDaRecuperacao` (`./recuperacaoNaBatalha.ts`).
- */
-export function quantoDaRecuperacao(personagem: Personagem, sistema: SistemaDeRpg): RecuperacaoDaVez | null {
-  return quantosDaRecuperacao(personagem, sistema).at(0) ?? null
-}
-
-/** "HP" ou "SP", como o registro da batalha de 26/11 escreve ("recupera 10 HP"). */
-export function siglaDaRecuperacao(recurso: RecursoDaRecuperacao): string {
-  return recurso === 'hp' ? 'HP' : 'SP'
-}
-
 /** O ganho de uma linha no começo da vez (o que a mesa gravou, já limitado ao máximo). */
 export interface GanhoDaRecuperacao {
   recurso: RecursoDaRecuperacao
