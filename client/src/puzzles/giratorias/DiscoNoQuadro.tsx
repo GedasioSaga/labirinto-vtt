@@ -25,6 +25,7 @@ import { PASSOS_DO_GIRO } from '../tipos'
 import type { GiratoriasNaVista, MaterialDasGiratorias } from '../tipos'
 import { LADO_DO_DISCO, RAIO_DO_DISCO, RAIO_DO_MIOLO, raiosDosAneis, urlDaBase, urlDoDisco } from './arte'
 import { girarAneis, modulo, NOME_DO_SIMBOLO_DO_ANEL, simboloNaMarca } from './giratorias'
+import { ALVO_DE_TOQUE_PX, ReguaDosAneis, useFaixaDoAnel } from './ReguaDosAneis'
 import { tocarSomDasGiratorias } from './somDasGiratorias'
 import './giratorias.css'
 
@@ -127,6 +128,9 @@ export function DiscoNoQuadro({ giratorias, resolvido, onGirar, teclado }: Props
   const [arrasto, setArrasto] = useState<Arrasto | null>(null)
   const arrastoAgora = useRef<Arrasto | null>(null)
   const [focado, setFocado] = useState<number | null>(null)
+  // A linha da régua apontada (com anéis estreitos demais para o dedo).
+  const [apontado, setApontado] = useState<number | null>(null)
+  const faixa = useFaixaDoAnel(caixa, total)
   // Os anéis que andam sem animar no próximo desenho (o teclado).
   const semAnimar = useRef(new Set<number>())
   // O ângulo contínuo assentado de cada anel: o próximo giro sai dele pelo caminho curto.
@@ -292,58 +296,69 @@ export function DiscoNoQuadro({ giratorias, resolvido, onGirar, teclado }: Props
   const reduzido = movimentoReduzido()
   const emPorcento = (raio: number) => `${((raio / LADO_DO_DISCO) * 100).toFixed(2)}%`
   const pegado = arrasto !== null ? arrasto.anel : null
-  const destaque = focado !== null ? { anel: focado, tipo: 'foco' as const } : pegado !== null ? { anel: pegado, tipo: 'pega' as const } : null
+  const comRegua = interativo && src !== null && faixa < ALVO_DE_TOQUE_PX
+  const daRegua = comRegua ? apontado : null
+  const destaque = focado !== null ? { anel: focado, tipo: 'foco' as const } : pegado !== null ? { anel: pegado, tipo: 'pega' as const } : daRegua !== null ? { anel: daRegua, tipo: 'foco' as const } : null
   const anelDoDestaque = destaque !== null ? raios[destaque.anel] : undefined
 
+  /** Um dente pela régua; pelo teclado o anel não anima (como as setas no anel). */
+  const girarPelaRegua = (anel: number, passo: 1 | -1, peloTeclado: boolean) => {
+    if (peloTeclado) for (const k of vizinhas ? [anel - 1, anel, anel + 1] : [anel]) semAnimar.current.add(k)
+    pedir(anel, passo, true)
+  }
+
   return (
-    <div
-      ref={caixa}
-      className={classes('qpz-giro', resolvido && 'is-resolvido', arrasto?.arrastando === true && 'is-arrastando', !interativo && 'is-parado')}
-      data-material={giratorias.material}
-      role="group"
-      aria-label={interativo ? 'Medalhão de anéis: gire cada anel até o desenho fechar' : 'Medalhão de anéis'}
-    >
-      {src === null ? (
-        <div className="qpz-giro__vazio">Sem imagem ainda.</div>
-      ) : (
-        raios.map((raio, k) => {
-          const giro = modulo((mostrados[k] ?? 0) + (vaiJunto(k) ? noArrasto : 0), PASSOS_DO_GIRO)
-          return (
-            <div
-              key={k}
-              className={classes('qpz-giro__anel', (vaiJunto(k) || semAnimar.current.has(k) || reduzido) && 'is-seco', pegado === k && 'is-pegado')}
-              style={{ clipPath: `circle(${emPorcento(raio.fora)} at 50% 50%)`, transform: `rotate(${(angulos[k] ?? 0).toFixed(2)}deg)` }}
-              data-anel={k}
-              role="slider"
-              tabIndex={onGirar !== undefined ? 0 : -1}
-              aria-label={rotuloDoAnel(k, total)}
-              aria-valuemin={0}
-              aria-valuemax={PASSOS_DO_GIRO - 1}
-              aria-valuenow={giro}
-              aria-valuetext={textoDoValor(giratorias, k, giro)}
-              aria-disabled={!interativo || undefined}
-              onPointerDown={(evento) => apertar(k, evento)}
-              onPointerMove={mover}
-              onPointerUp={(evento) => soltar(evento, false)}
-              onPointerCancel={(evento) => soltar(evento, true)}
-              onLostPointerCapture={(evento) => soltar(evento, true)}
-              onKeyDown={teclado === undefined ? (evento: EventoDeTecla<HTMLDivElement>) => void tecla(evento.nativeEvent) : undefined}
-              onFocus={(evento) => setFocado(evento.currentTarget.matches(':focus-visible') ? k : null)}
-              onBlur={() => setFocado(null)}
-            >
-              <img className={classes('qpz-giro__arte', giratorias.desenho === 'imagem' && 'is-propria')} src={src} alt="" draggable={false} />
-            </div>
-          )
-        })
-      )}
-      {src !== null && (
-        <div className="qpz-giro__miolo" style={{ clipPath: `circle(${emPorcento(RAIO_DO_MIOLO)} at 50% 50%)` }} aria-hidden="true">
-          <img className={classes('qpz-giro__arte', giratorias.desenho === 'imagem' && 'is-propria')} src={src} alt="" draggable={false} />
-        </div>
-      )}
-      <div className="qpz-giro__luz" style={{ clipPath: `circle(${emPorcento(RAIO_DO_DISCO)} at 50% 50%)` }} aria-hidden="true" />
-      <JuntasEMarca juntas={raios.map((raio) => raio.dentro)} destaque={anelDoDestaque !== undefined && destaque !== null ? { ...anelDoDestaque, tipo: destaque.tipo } : null} />
-    </div>
+    <>
+      <div
+        ref={caixa}
+        className={classes('qpz-giro', resolvido && 'is-resolvido', arrasto?.arrastando === true && 'is-arrastando', !interativo && 'is-parado')}
+        data-material={giratorias.material}
+        role="group"
+        aria-label={interativo ? 'Medalhão de anéis: gire cada anel até o desenho fechar' : 'Medalhão de anéis'}
+      >
+        {src === null ? (
+          <div className="qpz-giro__vazio">Sem imagem ainda.</div>
+        ) : (
+          raios.map((raio, k) => {
+            const giro = modulo((mostrados[k] ?? 0) + (vaiJunto(k) ? noArrasto : 0), PASSOS_DO_GIRO)
+            return (
+              <div
+                key={k}
+                className={classes('qpz-giro__anel', (vaiJunto(k) || semAnimar.current.has(k) || reduzido) && 'is-seco', pegado === k && 'is-pegado')}
+                style={{ clipPath: `circle(${emPorcento(raio.fora)} at 50% 50%)`, transform: `rotate(${(angulos[k] ?? 0).toFixed(2)}deg)` }}
+                data-anel={k}
+                role="slider"
+                tabIndex={onGirar !== undefined ? 0 : -1}
+                aria-label={rotuloDoAnel(k, total)}
+                aria-valuemin={0}
+                aria-valuemax={PASSOS_DO_GIRO - 1}
+                aria-valuenow={giro}
+                aria-valuetext={textoDoValor(giratorias, k, giro)}
+                aria-disabled={!interativo || undefined}
+                onPointerDown={(evento) => apertar(k, evento)}
+                onPointerMove={mover}
+                onPointerUp={(evento) => soltar(evento, false)}
+                onPointerCancel={(evento) => soltar(evento, true)}
+                onLostPointerCapture={(evento) => soltar(evento, true)}
+                onKeyDown={teclado === undefined ? (evento: EventoDeTecla<HTMLDivElement>) => void tecla(evento.nativeEvent) : undefined}
+                onFocus={(evento) => setFocado(evento.currentTarget.matches(':focus-visible') ? k : null)}
+                onBlur={() => setFocado(null)}
+              >
+                <img className={classes('qpz-giro__arte', giratorias.desenho === 'imagem' && 'is-propria')} src={src} alt="" draggable={false} />
+              </div>
+            )
+          })
+        )}
+        {src !== null && (
+          <div className="qpz-giro__miolo" style={{ clipPath: `circle(${emPorcento(RAIO_DO_MIOLO)} at 50% 50%)` }} aria-hidden="true">
+            <img className={classes('qpz-giro__arte', giratorias.desenho === 'imagem' && 'is-propria')} src={src} alt="" draggable={false} />
+          </div>
+        )}
+        <div className="qpz-giro__luz" style={{ clipPath: `circle(${emPorcento(RAIO_DO_DISCO)} at 50% 50%)` }} aria-hidden="true" />
+        <JuntasEMarca juntas={raios.map((raio) => raio.dentro)} destaque={anelDoDestaque !== undefined && destaque !== null ? { ...anelDoDestaque, tipo: destaque.tipo } : null} />
+      </div>
+      {comRegua && <ReguaDosAneis total={total} material={giratorias.material} rotulo={(k) => rotuloDoAnel(k, total)} onGirar={girarPelaRegua} onApontar={setApontado} />}
+    </>
   )
 }
 

@@ -191,9 +191,113 @@
   color: var(--lb-color-parchment-dim);
 }
 
+/*
+ * A RÉGUA DOS ANÉIS (ReguaDosAneis.tsx): na parede, à direita do medalhão
+ * (que vai até 78,75% do quadro). Dois botões de 44 px por anel, em px de
+ * verdade (não em cqw), para o dedo caber em qualquer tamanho de janela.
+ */
+.qpz-giro-regua {
+  position: absolute;
+  left: 80.5%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-gr-cartao);
+  box-shadow: var(--lb-shadow-float);
+  pointer-events: auto;
+}
+
+.qpz-giro-regua__linha {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.qpz-giro-regua__botao {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-brass-bright);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    transform 120ms var(--lb-gr-ease-out);
+}
+
+.qpz-giro-regua__botao svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .qpz-giro-regua__botao:hover {
+    background: color-mix(in srgb, var(--lb-color-brass-bright) 14%, transparent);
+  }
+}
+
+.qpz-giro-regua__botao:active {
+  transform: scale(0.96);
+}
+
+.qpz-giro-regua__botao:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: -2px;
+}
+
+/* Os anéis em miniatura: o desta linha aceso, os outros só riscados. */
+.qpz-giro-regua__aneis {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+.qpz-giro-regua__aneis circle {
+  fill: none;
+  stroke: var(--lb-color-brass-bright);
+  stroke-opacity: 0.4;
+  stroke-width: 0.9;
+}
+
+.qpz-giro-regua__aneis circle.is-este {
+  stroke-opacity: 1;
+  stroke-width: 2.2;
+}
+
+.qpz-giro-regua__aneis circle.qpz-giro-regua__miolo {
+  fill: var(--lb-color-brass-bright);
+  fill-opacity: 0.35;
+  stroke: none;
+}
+
 /* Movimento reduzido: o anel pula de dente em dente; o brilho e a cor da marca continuam acendendo devagar. */
 @media (prefers-reduced-motion: reduce) {
   .qpz-giro__anel {
     transition: filter 150ms ease;
+  }
+
+  .qpz-giro-regua__botao {
+    transition: background-color var(--lb-motion-fast) ease;
+  }
+
+  .qpz-giro-regua__botao:active {
+    transform: none;
   }
 }
