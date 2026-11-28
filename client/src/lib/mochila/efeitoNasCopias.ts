@@ -122,10 +122,13 @@ export function comAEscolhaDasCopias(personagens: readonly Personagem[], item: I
  *    que a vaga não edita, seguem o que o Acervo tem. Campo que o Acervo não
  *    tem fica na vaga: ausência na fonte não apaga nada.
  */
-const DADOS_QUE_SEGUEM = ['imagem', 'descricao', 'preco', 'luz', 'municoes'] as const
+// Conserto de 27/11/2026 (Rosa Fúnebre, sessão ao vivo): a `regra` (o instantâneo dos blocos para quem não vê o Acervo) também segue.
+// Sem isso o alcance posto no Acervo depois de dar a arma ficava só no mestre: a mira do jogador dizia "Sem alcance definido",
+// não pedia o "usar mesmo assim", e o host recusava com "Fora do alcance: confirme".
+const DADOS_QUE_SEGUEM = ['imagem', 'descricao', 'preco', 'luz', 'municoes', 'regra'] as const
 type DadoQueSegue = (typeof DADOS_QUE_SEGUEM)[number]
 /** Os que só o Acervo muda: a vaga não tem editor para eles. */
-const SEM_EDITOR_NA_VAGA: ReadonlySet<DadoQueSegue> = new Set<DadoQueSegue>(['imagem', 'luz', 'municoes'])
+const SEM_EDITOR_NA_VAGA: ReadonlySet<DadoQueSegue> = new Set<DadoQueSegue>(['imagem', 'luz', 'municoes', 'regra'])
 
 export type DadosDaCoisa = Pick<CarriedItem, DadoQueSegue>
 
@@ -141,7 +144,7 @@ const mesmoValor = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JS
 /** Os dados como a vaga os recebe ao ser dada (`itemParaDar`: o nome de cada munição sai do Acervo de então). */
 function dadosDaCoisa(item: ItemDoCatalogo, acervo: readonly ItemDoCatalogo[]): DadosDaCoisa {
   const dada = itemParaDar(item, acervo)
-  return { imagem: dada.imagem, descricao: dada.descricao, preco: dada.preco, luz: dada.luz, municoes: dada.municoes }
+  return { imagem: dada.imagem, descricao: dada.descricao, preco: dada.preco, luz: dada.luz, municoes: dada.municoes, regra: dada.regra }
 }
 
 /** O valor que a fonte manda e a vaga não tem, num campo que só o Acervo muda. */
@@ -152,13 +155,14 @@ function segueSempre(vaga: CarriedItem, campo: DadoQueSegue, fonte: DadosDaCoisa
 /** A vaga com os campos que `segue` escolhe trocados pelos da fonte (ausente tira a chave; a luz que sai leva o aceso). Nada mudando, a MESMA vaga. */
 function vagaComOsDados(vaga: CarriedItem, fonte: DadosDaCoisa, segue: (campo: DadoQueSegue) => boolean): CarriedItem {
   if (!DADOS_QUE_SEGUEM.some(segue)) return vaga
-  const { imagem, descricao, preco, luz, municoes, acesa, ...resto } = vaga
+  const { imagem, descricao, preco, luz, municoes, regra, acesa, ...resto } = vaga
   const novos: DadosDaCoisa = {
     imagem: segue('imagem') ? fonte.imagem : imagem,
     descricao: segue('descricao') ? fonte.descricao : descricao,
     preco: segue('preco') ? fonte.preco : preco,
     luz: segue('luz') ? fonte.luz : luz,
     municoes: segue('municoes') ? fonte.municoes : municoes,
+    regra: segue('regra') ? fonte.regra : regra,
   }
   if (DADOS_QUE_SEGUEM.every((campo) => mesmoValor(vaga[campo], novos[campo]))) return vaga
   return {
@@ -168,6 +172,7 @@ function vagaComOsDados(vaga: CarriedItem, fonte: DadosDaCoisa, segue: (campo: D
     ...(novos.preco === undefined ? {} : { preco: novos.preco }),
     ...(novos.luz === undefined ? {} : { luz: { ...novos.luz } }),
     ...(novos.municoes === undefined ? {} : { municoes: novos.municoes.map((municao) => ({ ...municao })) }),
+    ...(novos.regra === undefined ? {} : { regra: structuredClone(novos.regra) }),
     // O Lampião continua aceso se continua iluminando; o que o Acervo apagou de vez não fica "aceso" sem luz.
     ...(acesa === true && novos.luz !== undefined ? { acesa: true as const } : {}),
   }
