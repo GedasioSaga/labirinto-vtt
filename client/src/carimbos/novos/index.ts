@@ -65,6 +65,11 @@ import { carimbo as rachaduraNoChao, paleta as paletaDeRachaduraNoChao } from '.
 import { carimbo as runasNoChao, brilho as brilhoDasRunasNoChao, paleta as paletaDasRunasNoChao } from './runasNoChao'
 import { carimbo as ossosEspalhados, paleta as paletaDosOssosEspalhados } from './ossosEspalhados'
 import { carimbo as luzDeVitral, paleta as paletaDaLuzDeVitral } from './luzDeVitral'
+import { carimbo as buracoNaRocha, paleta as paletaDoBuracoNaRocha } from './buracoNaRocha'
+import { carimbo as pilarDeRocha, paleta as paletaDoPilarDeRocha } from './pilarDeRocha'
+import { carimbo as morcegos, paleta as paletaDosMorcegos } from './morcegos'
+import { carimbo as cristaisVermelhos, paleta as paletaDosCristaisVermelhos } from './cristaisVermelhos'
+import { carimbo as limo, paleta as paletaDoLimo } from './limo'
 
 /**
  * OS CARIMBOS NOVOS de 14/11/2026 (itens 111 a 152 da lista do mestre,
@@ -193,6 +198,12 @@ export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
   { ...runasNoChao, brilho: brilhoDasRunasNoChao },
   ossosEspalhados,
   luzDeVitral,
+  // A onda 2 (L04 e L05): a caverna e o esgoto. Os cristais vermelhos acendem parados (`lib/luzDoFogo.ts`), sem `brilho`.
+  buracoNaRocha,
+  pilarDeRocha,
+  morcegos,
+  cristaisVermelhos,
+  limo,
 ]
 
 /** Todas as cores chapadas dos novos, para o teste de "não estoura" (`embutidos.test.ts`). */
@@ -268,4 +279,10 @@ export const PALETA_DOS_NOVOS: readonly Rgb[] = [
   ...paletaDasRunasNoChao,
   ...paletaDosOssosEspalhados,
   ...paletaDaLuzDeVitral,
+  // A onda 2 (L04 e L05).
+  ...paletaDoBuracoNaRocha,
+  ...paletaDoPilarDeRocha,
+  ...paletaDosMorcegos,
+  ...paletaDosCristaisVermelhos,
+  ...paletaDoLimo,
 ]

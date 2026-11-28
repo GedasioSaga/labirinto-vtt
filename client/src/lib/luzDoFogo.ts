@@ -164,6 +164,9 @@ export const LUZ_DOS_CARIMBOS: Readonly<Record<string, LuzDoCarimbo>> = {
   'runas-no-chao': { alcanceEmCasas: 1.5, cor: 0xc4dcf0, forca: 0.45, treme: false },
   // Lote L03: a luz de vitral é a do sol pelo vidro, quente e parada; sem brilho que pulse (o de carimbo pulsa como brasa).
   'luz-de-vitral': { alcanceEmCasas: 1.5, cor: 0xfff0d8, forca: 0.4, treme: false },
+  // Lote L04 (a onda 2): os cristais vermelhos acendem como os verdes, parados (luz de pedra não treme), no claro rosado
+  // da granada, mais fraco que o vermelho da fenda em brasa para não tingir o chão.
+  'cristais-vermelhos': { alcanceEmCasas: 2, cor: 0xf6d6d0, forca: 0.55, treme: false },
 }
 
 /** O carimbo do tipo ilumina? `Object.hasOwn`: o tipo vem do mapa, e `constructor` também tem a forma de um id. */

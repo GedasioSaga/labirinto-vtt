@@ -150,6 +150,12 @@ describe('CarimbosControls', () => {
       'Runas no chão',
       'Ossos espalhados',
       'Luz de vitral',
+      // A onda 2 (L04 e L05).
+      'Buraco na rocha',
+      'Pilar de rocha',
+      'Morcegos',
+      'Cristais vermelhos',
+      'Limo',
     ])
     expect(objetos[0].getAttribute('aria-checked')).toBe('true')
     // Um só ponto de parada do Tab no grupo.
@@ -167,7 +173,7 @@ describe('CarimbosControls', () => {
     tecla('ArrowRight')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-morta')
     tecla('End')
-    expect(useMapStore.getState().carimboEscolhido).toBe('luz-de-vitral')
+    expect(useMapStore.getState().carimboEscolhido).toBe('limo')
     tecla('Home')
     expect(useMapStore.getState().carimboEscolhido).toBe('pinheiro')
   })
