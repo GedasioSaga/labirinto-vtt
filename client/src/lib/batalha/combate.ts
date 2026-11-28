@@ -7,7 +7,7 @@ import type { Direcao } from './area'
 import type { CdDaDisputa } from './disputa'
 import type { MudancaDoAlcance } from './alcance/condicoes'
 import type { RespostasDoPedido } from './perguntaNaHora'
-import type { PedidoDeAjuda } from './requisitos/modelo'
+import type { PedidoDeAjuda, Referencia } from './requisitos/modelo'
 import type { AutorDaAcao } from './turnos'
 
 /**
@@ -1187,7 +1187,15 @@ export interface ParteDoBonus {
   fica?: number
   /** O "no máximo N" da condição: o valor não passa de N, venha o buff que vier; `delta` é 0. A conta mostra "máx. 30 (Fraco)". */
   teto?: number
+  /**
+   * O "Vale em" do acumulador (pedido do dono de 28/11/2026): a parte do dano só soma nestes golpes.
+   * Ausente = todo golpe. Quem lê por golpe tira as que não valem (`bonusParaOGolpe`, bonusDoGolpe.ts).
+   */
+  soEm?: SoEmDoBonus
 }
+
+/** Em que golpes uma parte do bônus soma: só nas técnicas da lista, só nos físicos ou só nos tiros. */
+export type SoEmDoBonus = { tecnicas: readonly Referencia[] } | { fisicos: true } | { tiros: true }
 
 /**
  * O que os selos de UMA ficha somam agora (`bonusDaBatalha`): alvo do mod →

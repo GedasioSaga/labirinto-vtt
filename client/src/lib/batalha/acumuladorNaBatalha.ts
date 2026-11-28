@@ -1,9 +1,9 @@
 import type { CartaoDaFicha, Personagem } from '../personagem'
-import { ALVO_DO_DANO, combateVazio, type BonusDaBatalha, type CombateDoPersonagem, type ParteDoBonus } from './combate'
+import { ALVO_DO_DANO, combateVazio, type BonusDaBatalha, type CombateDoPersonagem, type ParteDoBonus, type SoEmDoBonus } from './combate'
 import type { TurnosDaCena } from './turnos'
 import { mesmaReferencia } from './requisitos/contexto'
 import { lerAcumulador } from './requisitos/ler'
-import type { AcumuladorDaFicha, GanhoDoAcumulador, MarcoDoAcumulador, Referencia } from './requisitos/modelo'
+import type { AcumuladorDaFicha, GanhoDoAcumulador, MarcoDoAcumulador, Referencia, ValeEmDoAcumulador } from './requisitos/modelo'
 
 /**
  * REQUISITOS, fases B3 e C: o NÍVEL de cada acumulador genérico na batalha (Polaridade, Fúria, Cargas).
@@ -36,16 +36,39 @@ export type EventoDoAcumulador =
 
 /** As definições de acumulador nos cartões da ficha (abas e subcartões), uma por id (a primeira vale). Torta = de fora. */
 export function acumuladoresDoPersonagem(personagem: Pick<Personagem, 'abas'>): AcumuladorDaFicha[] {
-  const achados = new Map<string, AcumuladorDaFicha>()
+  return acumuladoresComODono(personagem).map((item) => item.acumulador)
+}
+
+/** Os acumuladores da ficha com o cartão que define cada um (o dono, para o "Vale em: só a técnica dona"). O primeiro de cada id. */
+export function acumuladoresComODono(personagem: Pick<Personagem, 'abas'>): { acumulador: AcumuladorDaFicha; dono: Referencia }[] {
+  const achados = new Map<string, { acumulador: AcumuladorDaFicha; dono: Referencia }>()
   const ler = (cartao: CartaoDaFicha): void => {
     if (cartao.acumulador !== undefined) {
       const lido = lerAcumulador(cartao.acumulador).acumulador
-      if (lido !== null && !achados.has(lido.id)) achados.set(lido.id, lido)
+      if (lido !== null && !achados.has(lido.id)) achados.set(lido.id, { acumulador: lido, dono: { id: cartao.id, nome: cartao.nome } })
     }
     cartao.subcartoes.forEach(ler)
   }
   for (const cartoes of Object.values(personagem.abas)) cartoes.forEach(ler)
   return [...achados.values()]
+}
+
+/** O "Vale em" na forma do bônus (`ParteDoBonus.soEm`): todo golpe = nada. "Só a técnica dona" = o cartão do medidor. */
+function soEmDoValeEm(valeEm: ValeEmDoAcumulador | undefined, dono: Referencia | undefined): SoEmDoBonus | undefined {
+  switch (valeEm?.em) {
+    case undefined:
+    case 'todo':
+      return undefined
+    case 'tecnicas':
+      return { tecnicas: valeEm.tecnicas }
+    case 'fisicos':
+      return { fisicos: true }
+    case 'tiros':
+      return { tiros: true }
+    case 'dona':
+      // Sem o dono conhecido (quem chama sem `donos`), não soma em golpe nenhum: nunca em todos por engano.
+      return { tecnicas: dono === undefined ? [] : [dono] }
+  }
 }
 
 /**
@@ -244,7 +267,7 @@ export function valorDoGanho(ganho: GanhoDoAcumulador | { ganho: 'naoLido' }, ni
  * ou o id do atributo), com o nome e o nível ("Polaridade 2"). O golpe lê o bônus ANTES de a linha
  * gastar o acumulador: o golpe que gasta sai com a carga (decisão do dono de 23/11).
  */
-export function bonusDosAcumuladores(definicoes: readonly AcumuladorDaFicha[], combate: CombateDoPersonagem | undefined): BonusDaBatalha {
+export function bonusDosAcumuladores(definicoes: readonly AcumuladorDaFicha[], combate: CombateDoPersonagem | undefined, donos?: ReadonlyMap<string, Referencia>): BonusDaBatalha {
   const porAlvo = new Map<string, ParteDoBonus[]>()
   for (const acumulador of definicoes) {
     const nivel = nivelDoAcumulador(combate, acumulador.id)
@@ -263,7 +286,12 @@ export function bonusDosAcumuladores(definicoes: readonly AcumuladorDaFicha[], c
     const doMarco = ganhoDosMarcos(acumulador, nivel)
     somar(ALVO_DO_DANO, doMarco.dano)
     for (const [alvo, n] of doMarco.atributos) somar(alvo, n)
-    for (const [alvo, delta] of doAcumulador) porAlvo.set(alvo, [...(porAlvo.get(alvo) ?? []), { nome: `${acumulador.nome} ${nivel}`, delta }])
+    // O "Vale em" (28/11/2026) só no dano: os atributos são da ficha, não do golpe.
+    const soEm = soEmDoValeEm(acumulador.valeEm, donos?.get(acumulador.id))
+    for (const [alvo, delta] of doAcumulador) {
+      const parte: ParteDoBonus = { nome: `${acumulador.nome} ${nivel}`, delta, ...(alvo === ALVO_DO_DANO && soEm !== undefined ? { soEm } : {}) }
+      porAlvo.set(alvo, [...(porAlvo.get(alvo) ?? []), parte])
+    }
   }
   return Object.fromEntries(porAlvo)
 }
@@ -289,7 +317,12 @@ export function ganhoDosMarcos(acumulador: Pick<AcumuladorDaFicha, 'marcos' | 's
 /** O bônus da batalha com o dos acumuladores somado (sem acumulador com ganho = o MESMO bônus). */
 export function comOBonusDosAcumuladores(bonus: BonusDaBatalha | undefined, personagem: Pick<Personagem, 'abas'> | null | undefined, combate: CombateDoPersonagem | undefined): BonusDaBatalha | undefined {
   if (personagem === null || personagem === undefined || combate?.acumuladores === undefined) return bonus
-  const dos = bonusDosAcumuladores(acumuladoresDoPersonagem(personagem), combate)
+  const comDono = acumuladoresComODono(personagem)
+  const dos = bonusDosAcumuladores(
+    comDono.map((item) => item.acumulador),
+    combate,
+    new Map(comDono.map((item) => [item.acumulador.id, item.dono])),
+  )
   const alvos = Object.keys(dos)
   if (alvos.length === 0) return bonus
   const somado: Record<string, readonly ParteDoBonus[]> = { ...(bonus ?? {}) }

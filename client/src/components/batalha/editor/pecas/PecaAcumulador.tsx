@@ -24,6 +24,7 @@ import { acumuladoresNaFicha, ganhoNoNivel, idParaOAcumulador } from '../../acum
 import { Caixa, Campo, Escolher, Frase, Nota, Numero, PorDaLista, Segmentos, Texto, TextoCurto, Tirar } from './controlesDaPeca'
 import { comATecnicaNoNivel, comOGastoNoNivel, gastoQuePede, nivelQuePede, referenciaDoCartao, tecnicasDaFicha, type GastoNoMarco } from './ligacoes'
 import type { ArredoresDaPeca, PropsDoAcumulador } from './registro'
+import { ValeEmDoMedidor } from './ValeEmDoMedidor'
 import { ATRIBUTOS_DAS_PECAS, semOItem, trocado, type OpcaoDaPeca } from './vocabulario'
 
 /** O acumulador de partida (o `pecaNova('acumulador')` do protótipo: Fúria até 5, sobe ao acertar, +5 de dano por nível). */
@@ -519,6 +520,7 @@ export function PecaAcumulador({ acumulador, aoMudar, arredores }: PropsDoAcumul
         </div>
       )}
       <Marcos a={a} arredores={arredores} atributos={atributos} gravar={aoMudar} />
+      <ValeEmDoMedidor a={a} tecnicas={tecnicas} gravar={aoMudar} />
       <div className="lb-pc__palavras" aria-live="polite">
         <span className="lb-pc__rot">Em palavras</span>
         <ul>

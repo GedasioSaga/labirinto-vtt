@@ -74,6 +74,7 @@ import {
 import { aoAcertarDoGolpe, juntarEfeitos } from './aoAcertarDoItem'
 import { danoDaTecnica, danoDaTecnicaComAVida, leituraDaTecnica } from './leituraDaTecnica'
 import { comOBonusDosAcumuladores } from './acumuladorNaBatalha'
+import { bonusParaOGolpe, golpeDoBonus, type GolpeDoBonus } from './bonusDoGolpe'
 import type { ContextoDosRequisitos } from './requisitos/contexto'
 import { contextoDosRequisitos } from './requisitos/montar'
 import { motivoDoPortao, portaoDosRequisitos, spPagoPeloAliado, type ResultadoDoPortao } from './requisitos/portao'
@@ -455,7 +456,7 @@ function motivoDoAtacarComArmaMontada(ctx: ContextoDoGolpe, pedido: Extract<Pedi
   const alvosPersonagemIds = pedido.alvos.map((alvo) => ctx.personagemDoToken(alvo.tokenId))
   return (
     motivoDaArmaNaVez(arma, lida, personagem, sistema, combate, acoes) ??
-    motivoDoDanoDasPecas(ctx, arma, { personagem, sistema, arma, bala, bonusDaBatalha: bonusDeQuemAge(ctx) }) ??
+    motivoDoDanoDasPecas(ctx, arma, { personagem, sistema, arma, bala, bonusDaBatalha: bonusDeQuemAge(ctx, golpeDoBonus(null, arma)) }) ??
     // Sem peça de dano (o Boomerang), a recusa diz "acerta um inimigo só", não "dá dano".
     motivoDoTetoDeDano(arma, arma.nome.trim() || 'A arma', alvosPersonagemIds, ctx.aliados ?? new Set<string>(), lida.mecanica.dano !== undefined) ??
     motivoDoDivide(arma, pedido.alvos.length)
@@ -465,11 +466,12 @@ function motivoDoAtacarComArmaMontada(ctx: ContextoDoGolpe, pedido: Extract<Pedi
 /**
  * REQUISITOS C: o bônus da batalha de quem age (os selos) com o ganho dos acumuladores dele no nível
  * de AGORA: o golpe que gasta o acumulador conta o dano pelo nível de antes do gasto (decisão de 23/11).
+ * O "Vale em" (28/11/2026): só as partes do dano que valem NESTE golpe (`bonusParaOGolpe`), como na tela.
  */
-export function bonusDeQuemAge(ctx: Pick<ContextoDoGolpe, 'turnos' | 'carta' | 'personagem'>): BonusDaBatalha | undefined {
+export function bonusDeQuemAge(ctx: Pick<ContextoDoGolpe, 'turnos' | 'carta' | 'personagem'>, golpe: GolpeDoBonus): BonusDaBatalha | undefined {
   const personagemId = ctx.carta.personagemId
   const combate = personagemId === null ? undefined : ctx.turnos.combate?.[personagemId]
-  return comOBonusDosAcumuladores(bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId), ctx.personagem, combate)
+  return bonusParaOGolpe(comOBonusDosAcumuladores(bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId), ctx.personagem, combate), golpe)
 }
 
 /** REQUISITOS C: o retrato dos requisitos de quem age, pelo host (tudo), com os alvos do pedido (ausente = o menu). */
@@ -657,7 +659,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (semMunicao !== null) return semMunicao
       // Construtor C1 (revisão, decisão 2): a mesma conta que `lancarGolpe` faz pelas peças, com a arma, a bala e os selos de quem usa.
       const balaDaFormula = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
-      const semConta = motivoDoDanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDeQuemAge(ctx) })
+      const semConta = motivoDoDanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDeQuemAge(ctx, golpeDoBonus(tecnica.cartao, arma)) })
       // REQUISITOS C: o portão dos requisitos entra no meio do motivo da técnica (depois da evolução, antes da recarga).
       const motivo = motivoDaTecnica(tecnica, personagem, sistema, combate, acoes, undefined, undefined, motivoDoPortao(doPortao))
       // F2 (fatia D, Imbuir Fogo): a resposta que a forma ligada não deixa (fogo com a Ignição).
@@ -1224,7 +1226,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     ? pedido.alvos.map((alvo) => ({ ...alvo, dano: null }))
     : tecnica === null || !montada || personagem === null || sistema === null
       ? pedido.alvos
-      : comODanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDeQuemAge(ctx) }, pedido.alvos)
+      : comODanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDeQuemAge(ctx, golpeDoBonus(tecnica.cartao, arma)) }, pedido.alvos)
   // F2 (fatia D, Explosão): o dano "% da vida do alvo" sai da vida de cada alvo.
   const pelaVida = tecnica === null || personagem === null || sistema === null ? daTela : comDanoPelaVida(ctx, tecnica.cartao, { personagem, sistema, arma }, respostas, daTela)
   // F2 (fatia F, Lua Incandescente): a base dividida entre os marcados, para baixo (71 em 3 = 23 em cada).

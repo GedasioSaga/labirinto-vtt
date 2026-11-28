@@ -1,4 +1,5 @@
 import { maximoComposto, temMaximo, valorDoRank } from '../ajusteDaFicha'
+import { bonusParaOGolpe, golpeDoBonus } from './bonusDoGolpe'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import { rankDoValor, type SistemaDeRpg } from '../sistemaDeRpg'
 import { CARGA_MAX, type AcaoDaTecnica, type BonusDaBatalha, type CombateDoPersonagem } from './combate'
@@ -379,7 +380,7 @@ export function tecnicasNoMenu(
       custo: base.custo,
       acao: base.acao,
       tempo: base.tempo,
-      dano: danoDaTecnica(cartao, { personagem, sistema, arma, bonusDaBatalha: bonus }),
+      dano: danoDaTecnica(cartao, { personagem, sistema, arma, bonusDaBatalha: bonusParaOGolpe(bonus, golpeDoBonus(cartao, arma)) }),
       overload: base.overload,
       // F2 (fatia B): o perfurante da mecânica à mão vence a leitura do texto (Rapid Dash: só o 2º golpe perfura).
       // Construtor C1: o cartão montado dá o perfurante da peça (passa o cartão, não o id).

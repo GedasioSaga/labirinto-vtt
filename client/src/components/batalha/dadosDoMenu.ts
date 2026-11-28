@@ -2,6 +2,7 @@ import { acaoDoGolpe, armaNaVez, motivoDaAcao, motivoDaArmaNaVez, motivoDoAtacar
 import { cartaoDoItem, fichaComOItem, itensQueNarram, vagasDeUsarNaBatalha, type ItemParaJogador } from '../../lib/batalha/itemNaBatalha'
 import { quantidadeDe } from '../../lib/items'
 import { armaPadraoEntre, comAPadraoNaFrente } from '../../lib/batalha/mecanica/arma'
+import { bonusParaOGolpe, golpeDoBonus } from '../../lib/batalha/bonusDoGolpe'
 import { resumoDaMecanica } from '../../lib/batalha/mecanica/resumo'
 import { cartaoEstaOculto, NOME_DO_OCULTO, ocultoNaBatalha } from '../../lib/habilidadeOculta'
 import {
@@ -921,11 +922,13 @@ function golpeDaTecnica(
   sistema: SistemaDeRpg,
   combate: CombateDoPersonagem | undefined,
   arma: ArmaDaFicha | null,
-  bonus: BonusDaBatalha | undefined,
+  bonusDaVez: BonusDaBatalha | undefined,
   todas: readonly CartaoDaFicha[],
   acoes: AcoesDaVez | null,
   requisitos?: ContextoDosRequisitos,
 ): GolpeNaTela {
+  // Pedido de 28/11/2026 (o "Vale em" do acumulador): só as partes do dano que valem nesta técnica com esta arma.
+  const bonus = bonusParaOGolpe(bonusDaVez, golpeDoBonus(tecnica.cartao, arma))
   const dano = danoNaTela(tecnica.dano)
   const balas = balasDaTecnica(tecnica.cartao, personagem, sistema, arma, bonus)
   const tipo = tecnica.tipo.tipo
@@ -1006,7 +1009,7 @@ function golpeDaTecnica(
   // F2 (fatia F, Siegfried): qual arma, quando o dano muda com ela (a técnica com "Dano da Arma").
   // Construtor C8: a técnica montada pergunta pela peça (`arma: 'perguntar'`), já marcada a arma padrão.
   const perguntaQualArma = perguntaAArma(idsDosCartoes(personagem)) || pecasDoCartao(cartao)?.dano?.arma === 'perguntar'
-  const armas = perguntaQualArma ? armasDaTecnica(tecnica.cartao, personagem, sistema, combate, bonus) : null
+  const armas = perguntaQualArma ? armasDaTecnica(tecnica.cartao, personagem, sistema, combate, bonusDaVez) : null
   if (armas !== null) golpe.armas = armas
   // F2 (fatia E, Fúria do Dragão): sem Parte acima, apagada com o motivo (a mesma frase do host).
   const subida = subidaDeParte(personagem, sistema, id)
@@ -1190,7 +1193,7 @@ export function golpesDosItensDoJogador(itens: readonly ItemParaJogador[], acoes
 function armasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, bonus: BonusDaBatalha | undefined): { id: string; nome: string; dano: DanoNaTela }[] | null {
   const armas = comAPadraoNaFrente(armasNaBatalha(personagem, combate))
   if (armas.length < 2) return null
-  const comDano = armas.map((arma) => ({ id: arma.id, nome: arma.nome.trim() || 'Arma sem nome', dano: danoNaTela(danoDaTecnica(cartao, { personagem, sistema, arma, bonusDaBatalha: bonus })) }))
+  const comDano = armas.map((arma) => ({ id: arma.id, nome: arma.nome.trim() || 'Arma sem nome', dano: danoNaTela(danoDaTecnica(cartao, { personagem, sistema, arma, bonusDaBatalha: bonusParaOGolpe(bonus, golpeDoBonus(cartao, arma)) })) }))
   const valores = new Set(comDano.map((arma) => arma.dano.valor))
   return valores.size < 2 ? null : comDano
 }
@@ -1442,7 +1445,7 @@ export function golpesDeAtaque(
 ): GolpeNaTela[] {
   const carga = combate?.carga ?? 0
   const danoCom = (arma: ArmaDaFicha | null, bala: BalaDaArma | null): DanoNaTela =>
-    personagem === null || sistema === null ? danoNaTela({ tipo: 'naoEntende', texto: '' }) : danoNaTela(danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }, bala))
+    personagem === null || sistema === null ? danoNaTela({ tipo: 'naoEntende', texto: '' }) : danoNaTela(danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonusParaOGolpe(bonus, golpeDoBonus(null, arma)) }, bala))
   const perguntasDoAtaque = personagem === null ? [] : perguntasDoGolpe(null, idsDosCartoes(personagem), ligadasNoMenu(personagem, requisitos))
   const golpeDe = (arma: ArmaDaFicha | null): GolpeNaTela => {
     const lida = arma === null ? null : lerAcao(arma.campos[CAMPO_DA_ACAO] ?? '').acao
@@ -1537,7 +1540,7 @@ function golpeDaArmaMontada(
   const { mecanica } = lida
   const tempo = [textoDoTempoDaArma(lida.tempo, combate, arma.id), lida.acao === 'simples' ? textoDoAtaqueExtra(acoes) : null].filter((texto): texto is string => texto !== null)
   // A leitura com o dano das peças: a "Conta" do Dano em texto diria um número que a arma montada não dá.
-  const dano = danoNaTela(danoDaTecnica(arma, { personagem, sistema, arma, bonusDaBatalha: bonus }))
+  const dano = danoNaTela(danoDaTecnica(arma, { personagem, sistema, arma, bonusDaBatalha: bonusParaOGolpe(bonus, golpeDoBonus(null, arma)) }))
   const golpe: GolpeNaTela = {
     ...semOTexto,
     dano,
