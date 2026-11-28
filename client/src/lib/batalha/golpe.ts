@@ -1217,8 +1217,9 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const doFogo = tecnica === null ? 0 : somaDasRespostas(tecnica.cartao, respostas)
   // ITENS REFEITOS, E6c: o "Ao acertar" da arma equipada e da bala do tiro; o Dano extra que conta soma em cada alvo
   // (o igual ao dano de cima já ficou de fora, decisão 14), e as condições e o empurrão vão no golpe para a store.
-  const balaDoTiro = pedido.tipo === 'atacar' && arma !== null ? balaDoPedido(arma, pedido.balaId) : null
-  const efeitosDoItem = pedido.tipo === 'atacar' && arma !== null && !soDeEfeito ? juntarEfeitos(arma.aoAcertar, balaDoTiro?.aoAcertar) : null
+  // Bug de 28/11/2026: a técnica que atira com a bala do pente ("Dano da Bala") leva o "Ao acertar" da bala (o da arma fica no Atacar).
+  const balaDoTiro = arma === null ? null : pedido.tipo === 'atacar' ? balaDoPedido(arma, pedido.balaId) : pedido.balaId !== undefined ? balaDaArma(arma, pedido.balaId) : null
+  const efeitosDoItem = arma === null || soDeEfeito ? null : pedido.tipo === 'atacar' ? juntarEfeitos(arma.aoAcertar, balaDoTiro?.aoAcertar) : balaDoTiro?.aoAcertar === undefined ? null : juntarEfeitos(balaDoTiro.aoAcertar)
   const soma = somaDoAtaque + deTodoGolpe.dano + daRaca + doFogo + (efeitosDoItem?.danoExtra ?? 0)
   // Construtor C1 (decisão 2): na técnica montada, a base do jogador sai das peças, com a arma, a bala e o bônus dos selos de quem usa.
   const balaDaFormula = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
@@ -1340,7 +1341,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // Pedido de 27/11/2026 ("os itens conseguem dar e diminuir status?"): o Muda atributo e o Diminui atributo da arma e da bala
   // viram os selos da técnica montada (no alvo acertado, em quem usa e a queda), com a fórmula na ficha de quem bate.
   if (efeitosDoItem !== null && arma !== null) {
-    const fontes = [arma, ...(balaDoTiro === null ? [] : [balaDoTiro])]
+    const fontes = [...(pedido.tipo === 'atacar' ? [arma] : []), ...(balaDoTiro === null ? [] : [balaDoTiro])]
     comOsSelosDoItem(golpe, fontes, personagem === null || sistema === null ? undefined : valorNaFichaDe(personagem, sistema))
   }
   // F2 (fatia E, vantagem de Ogro): a resposta "sim" faz os alvos reagirem com desvantagem.
