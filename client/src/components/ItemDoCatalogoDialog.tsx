@@ -29,7 +29,7 @@ import { avisoDaPeca, MolduraDaPeca } from './batalha/editor/pecas/MolduraDaPeca
 import { RegraDeAntes } from './batalha/editor/pecas/RegraDeAntes'
 import { entradaDaPeca } from './batalha/editor/pecas/registro'
 import type { MecanicaV1 } from '../lib/batalha/mecanica/modelo'
-import { DURACAO_DA_PECA_MAX, ROTULO_DO_TIPO, TIPOS_DO_ITEM, TIPOS_QUE_EMPILHAM, TURNOS_DA_PECA, PARTES_DO_EQUIPAMENTO, type AtaqueDoItem, type BalaDoItem, type BonusDoEquipamento, type ConfiraDoItem, type TipoDoItem } from '../lib/itens/modelo'
+import { DURACAO_DA_PECA_MAX, duracaoDoTexto, ROTULO_DO_TIPO, TIPOS_DO_ITEM, TIPOS_QUE_EMPILHAM, TURNOS_DA_PECA, PARTES_DO_EQUIPAMENTO, type AtaqueDoItem, type BalaDoItem, type BonusDoEquipamento, type ConfiraDoItem, type TipoDoItem } from '../lib/itens/modelo'
 import {
   ACOES_DA_RECARGA,
   ACOES_DO_ITEM,
@@ -575,8 +575,8 @@ function PecaCondicaoDoItem({ peca, onde, catalogo, onMudar }: { peca: PecaDoIte
         valor={String(peca.duracao)}
         opcoes={DURACOES_NO_EDITOR.map((opcao) => ({ valor: String(opcao.duracao), rotulo: opcao.rotulo }))}
         onMudar={(texto) => {
-          const duracao: DuracaoNoEditor = texto === '1' ? 1 : texto === '2' ? 2 : texto === '3' ? 3 : 'fim'
-          onMudar({ ...peca, duracao })
+          // De 1 a 10 turnos (as opções de `DURACOES_NO_EDITOR`): o "4 turnos" não pode virar "até o fim da batalha".
+          onMudar({ ...peca, duracao: duracaoDoTexto(texto) })
         }}
       />
       <span className="lb-field__hint">
