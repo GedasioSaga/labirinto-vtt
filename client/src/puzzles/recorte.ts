@@ -17,6 +17,7 @@
 import type { CarriedItem } from '../types/map'
 import { combinacaoDoPuzzle, combinacaoNaVista, mecanicaDesconhecida } from './combinacao'
 import { giratoriasDoPuzzle, giratoriasNaVista } from './giratorias/giratorias'
+import { interruptoresDoPuzzle, interruptoresNaVista } from './interruptores/interruptores'
 import { contagemDoPuzzle, pesoDe, postaEm } from './motor'
 import { CATEGORIA_DA_PECA_DE_PUZZLE } from './tipos'
 import type { EncaixeDoPuzzle, EncaixeNaVista, PecaPosta, PostaNaVista, ProgressoDoPuzzle, Puzzle, VagaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
@@ -39,7 +40,9 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
   const combinacao = combinacaoDoPuzzle(puzzle)
   const giratorias = giratoriasDoPuzzle(puzzle)
   // Na combinação e nas peças giratórias os encaixes não valem (o motor recusa pôr e tirar): não vão, nem na contagem.
-  const encaixes = combinacao === null && giratorias === null ? puzzle.encaixes : []
+  const interruptores = interruptoresDoPuzzle(puzzle)
+  // Nos interruptores também: o painel só tem alavancas.
+  const encaixes = combinacao === null && giratorias === null && interruptores === null ? puzzle.encaixes : []
   const vista: VistaDoPuzzle = {
     desafioId: entrada.desafioId,
     rev: progresso.rev,
@@ -47,7 +50,7 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
     visual: visualNaVista(puzzle.visual),
     encaixes: encaixes.map((encaixe) => encaixeNaVista(encaixe, progresso)),
     // O medalhão não tem troca de peso (o motor a recusa).
-    troca: giratorias === null ? trocaNaVista(puzzle, progresso) : null,
+    troca: giratorias === null && interruptores === null ? trocaNaVista(puzzle, progresso) : null,
     dica: dicaNaVista(puzzle, entrada.documentoDaDica),
     resolvido: progresso.resolvido !== null,
     contagem: contagemDoPuzzle(puzzle, progresso),
@@ -56,6 +59,8 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
   if (combinacao !== null) vista.combinacao = combinacaoNaVista(combinacao, progresso, puzzle.controle)
   // As peças giratórias: onde cada anel está agora (a posição certa e o começo ficam aqui).
   if (giratorias !== null) vista.giratorias = giratoriasNaVista(giratorias, progresso)
+  // Os interruptores: o que cada lampião mostra agora (a regra, o começo e o desenho escondido ficam aqui).
+  if (interruptores !== null) vista.interruptores = interruptoresNaVista(interruptores, progresso)
   if (mecanicaDesconhecida(puzzle)) vista.versaoNova = true
   return vista
 }

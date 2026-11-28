@@ -155,8 +155,8 @@ export function temVolta(erros: readonly number[], vizinhas: boolean): boolean {
   return modulo(e0 - e1 + e3 - e4, PASSOS_DO_GIRO) === 0
 }
 
-/** O sorteio de semente fixa (o mulberry32 do grão do quadro): o mesmo começo em todo host. */
-function sorteio(semente: number): () => number {
+/** O sorteio de semente fixa (o mulberry32 do grão do quadro): o mesmo começo em todo host. Os interruptores usam o mesmo. */
+export function sorteio(semente: number): () => number {
   let s = semente >>> 0
   return () => {
     s = (s + 0x6d2b79f5) >>> 0

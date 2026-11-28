@@ -12,6 +12,7 @@
  */
 import { combinacaoPadrao } from './combinacao'
 import { giratoriasDoPuzzle } from './giratorias/giratorias'
+import { interruptoresDoPuzzle } from './interruptores/interruptores'
 import type {
   CastigoDoPuzzle,
   CombinacaoDoPuzzle,
@@ -281,5 +282,5 @@ export function visualEhPorta(visual: Puzzle['visual']): boolean {
  * giratórias (o medalhão, como o painel em relevo, guarda a passagem ao lado).
  */
 export function puzzleAbrePorta(puzzle: Pick<Puzzle, 'visual' | 'futuro'>): boolean {
-  return visualEhPorta(puzzle.visual) || giratoriasDoPuzzle(puzzle) !== null
+  return visualEhPorta(puzzle.visual) || giratoriasDoPuzzle(puzzle) !== null || interruptoresDoPuzzle(puzzle) !== null
 }

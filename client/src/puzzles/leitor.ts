@@ -21,6 +21,7 @@ import { ehRefDeMidia } from '../lib/midia'
 import type { CarriedItem, ItemNoConteudo } from '../types/map'
 import { lerCombinacao, minutosNoMostrador } from './combinacao'
 import { lerGiratorias } from './giratorias/giratorias'
+import { lerInterruptores } from './interruptores/interruptores'
 import { aceitaMolduraPorta, PADROES_DOS_MODELOS, POSICAO_DA_TROCA_PADRAO, PESO_DA_TROCA_PADRAO, PV_DO_CASTIGO_PADRAO, puzzleDoModelo, visualEhPorta } from './padroes'
 import {
   BANDEJA_MAX,
@@ -185,8 +186,8 @@ export function lerPuzzle(valor: unknown): Puzzle {
   const visual = lerVisual(bruto.visual)
   const padrao = puzzleDoModelo(visual.tipo === 'modelo' ? visual.modelo : 'fonte')
   const futuro = lerFuturo(bruto.futuro)
-  // A porta ligada abre com um visual de porta ou com o medalhão das peças giratórias.
-  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias'
+  // A porta ligada abre com um visual de porta, com o medalhão das peças giratórias ou com o painel dos interruptores.
+  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias' || futuro?.tipo === 'interruptores'
   const puzzle: Puzzle = {
     nome: textoNaoVazio(bruto.nome, NOME_DO_PUZZLE_MAX, padrao.nome),
     nomePublico: textoLido(bruto.nomePublico, NOME_DO_PUZZLE_MAX, padrao.nomePublico),
@@ -358,6 +359,8 @@ function lerFuturo(valor: unknown): Puzzle['futuro'] {
   // As peças giratórias também são lidas campo a campo (a imagem só como referência de mídia).
   const giratorias = lerGiratorias(valor, imagemLida)
   if (giratorias !== null) return giratorias
+  const interruptores = lerInterruptores(valor)
+  if (interruptores !== null) return interruptores
   if (!isRecord(valor) || typeof valor.tipo !== 'string' || valor.tipo === '') return undefined
   let json: string
   try {

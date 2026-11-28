@@ -86,7 +86,7 @@ export interface Puzzle {
    * futura, guardada como veio. Lida sempre por `combinacaoDoPuzzle`
    * (`puzzles/combinacao.ts`): o que ela não reconhece é "versão nova".
    */
-  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | MecanicaFutura
+  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | InterruptoresDoPuzzle | MecanicaFutura
 }
 
 /**
@@ -334,6 +334,61 @@ export interface GiratoriasNaVista {
   vizinhas: boolean
 }
 
+// ------------------------------------------------------------------ os interruptores com estado (28/11, 3º da fila de puzzles)
+
+/**
+ * OS INTERRUPTORES COM ESTADO (`docs/design/puzzles/FILA.md`): um painel de
+ * metal na parede com 3 a 9 lampiões, cada um com a sua alavanca embaixo.
+ * Puxar uma alavanca abre ou fecha o gás do lampião dela e o dos ligados a ela
+ * (`ligacao`); o puzzle cede quando os lampiões ficam como o `objetivo` pede.
+ * Mora no `futuro`, como as peças giratórias.
+ *
+ * `ligacao`: `vizinhos` (os do lado, na grade: em cima, embaixo, à esquerda, à
+ * direita), `linha` (todos da mesma linha e da mesma coluna) ou `propria`
+ * (`ligados[i]` = os OUTROS que a alavanca `i` vira; a dela vira sempre).
+ * `objetivo`: `todas` acesas, ou `desenho` (`desenho[i]` = o lampião `i` aceso);
+ * `desenhoNoPainel` põe o desenho numa plaqueta do painel (senão, ele fica com
+ * o mestre, para dar como pista). `embaralho`: a semente do começo, que sai do
+ * objetivo por puxadas de verdade (sempre tem volta). Só o host conhece a regra.
+ */
+export interface InterruptoresDoPuzzle {
+  tipo: 'interruptores'
+  material: MaterialDosInterruptores
+  quantos: number
+  ligacao: LigacaoDosInterruptores
+  ligados: number[][]
+  objetivo: ObjetivoDosInterruptores
+  desenho: boolean[]
+  desenhoNoPainel: boolean
+  embaralho: number
+}
+
+export type MaterialDosInterruptores = 'latao' | 'ferro'
+export const MATERIAIS_DOS_INTERRUPTORES: readonly MaterialDosInterruptores[] = ['latao', 'ferro']
+
+export type LigacaoDosInterruptores = 'vizinhos' | 'linha' | 'propria'
+export const LIGACOES_DOS_INTERRUPTORES: readonly LigacaoDosInterruptores[] = ['vizinhos', 'linha', 'propria']
+
+export type ObjetivoDosInterruptores = 'todas' | 'desenho'
+export const OBJETIVOS_DOS_INTERRUPTORES: readonly ObjetivoDosInterruptores[] = ['todas', 'desenho']
+
+export const INTERRUPTORES_MIN = 3
+export const INTERRUPTORES_MAX = 9
+export const INTERRUPTORES_PADRAO = 6
+
+/**
+ * O painel como o jogador o vê (lista branca do recorte): o material, o que
+ * cada lampião mostra agora e o objetivo. A regra (quem vira quem) e o começo
+ * nunca vão; o desenho só vai quando o mestre o pôs na plaqueta do painel.
+ */
+export interface InterruptoresNaVista {
+  material: MaterialDosInterruptores
+  luzes: boolean[]
+  objetivo: ObjetivoDosInterruptores
+  /** Só no objetivo `desenho` com a plaqueta no painel. */
+  desenho: boolean[] | null
+}
+
 /**
  * A mecânica de uma leva futura, guardada COMO VEIO: o objeto do disco
  * inteiro, e não `{ tipo, bruto }` embrulhado, porque o mapa é gravado por
@@ -524,7 +579,10 @@ export type AcaoNoPuzzle =
   | { tipo: 'girar'; roda: number; passo: 1 | -1 }
   /** Combinação: os ponteiros param em `minutos` depois das 12h (de 5 em 5; o arrasto manda só ao soltar). */
   | { tipo: 'ponteiro'; minutos: number }
-  /** Combinação: aperta o botão `botao` (índice nos nomes). Cada toque conta na sequência. */
+  /**
+   * Combinação: aperta o botão `botao` (índice nos nomes). Cada toque conta na sequência.
+   * Interruptores: puxa a alavanca `botao` (na ordem de leitura do painel). Relativo: duas puxadas desfazem.
+   */
   | { tipo: 'apertar'; botao: number }
   /** Combinação de rodas ou de relógio: confere o que está nos controles agora. */
   | { tipo: 'tentar' }
@@ -679,6 +737,8 @@ export interface VistaDoPuzzle {
   combinacao?: CombinacaoNaVista
   /** O medalhão das peças giratórias; ausente = não é desse tipo (e então os encaixes não vão). */
   giratorias?: GiratoriasNaVista
+  /** O painel dos interruptores com estado; ausente = não é desse tipo (e então os encaixes não vão). */
+  interruptores?: InterruptoresNaVista
   /** O puzzle traz uma mecânica de uma leva que este app não joga. */
   versaoNova?: true
 }

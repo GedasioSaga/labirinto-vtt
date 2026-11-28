@@ -50,11 +50,16 @@ import {
   DESENHOS_DAS_GIRATORIAS,
   MATERIAIS_DAS_GIRATORIAS,
   PASSOS_DO_GIRO,
+  INTERRUPTORES_MAX,
+  INTERRUPTORES_MIN,
+  MATERIAIS_DOS_INTERRUPTORES,
+  OBJETIVOS_DOS_INTERRUPTORES,
 } from '../puzzles/tipos'
 import type {
   AcaoNoPuzzle,
   CombinacaoNaVista,
   GiratoriasNaVista,
+  InterruptoresNaVista,
   EncaixeNaVista,
   FormaDoEncaixe,
   ModeloDoPuzzle,
@@ -346,6 +351,24 @@ function lerGiratoriasNaVista(value: unknown): GiratoriasNaVista | null | undefi
   return { desenho, cena, imagem: imagemDoFio(value.imagem), material, giros, vizinhas: value.vizinhas }
 }
 
+/** Os lampiões do painel: uma lista de aceso/apagado do tamanho certo, ou `null`. */
+function lerLampioes(value: unknown): boolean[] | null {
+  const lidos = lerLista(value, INTERRUPTORES_MAX, (acesa) => (typeof acesa === 'boolean' ? acesa : null))
+  return lidos === null || lidos.length < INTERRUPTORES_MIN ? null : lidos
+}
+
+/** O painel dos interruptores: ausente = não é desse tipo (`undefined`); torto = `null`, e a vista cai inteira. */
+function lerInterruptoresNaVista(value: unknown): InterruptoresNaVista | null | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) return null
+  const material = umDaLista(MATERIAIS_DOS_INTERRUPTORES, value.material)
+  const objetivo = umDaLista(OBJETIVOS_DOS_INTERRUPTORES, value.objetivo)
+  const luzes = lerLampioes(value.luzes)
+  const desenho = value.desenho === null ? null : lerLampioes(value.desenho)
+  if (material === undefined || objetivo === undefined || luzes === null || (value.desenho !== null && (desenho === null || desenho.length !== luzes.length))) return null
+  return { material, luzes, objetivo, desenho }
+}
+
 /** A vista inteira, campo a campo; um campo torto derruba a mensagem. */
 export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   if (!isRecord(value) || !idAte(value.desafioId) || !inteiroAte(value.rev, Number.MAX_SAFE_INTEGER) || !textoAte(value.titulo, NOME_DO_PUZZLE_MAX)) return null
@@ -359,10 +382,12 @@ export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   const mochila = lerLista(value.mochila, VAGAS_NA_VISTA_MAX, lerVaga)
   const combinacao = lerCombinacaoNaVista(value.combinacao)
   const giratorias = lerGiratoriasNaVista(value.giratorias)
-  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null) return null
+  const interruptores = lerInterruptoresNaVista(value.interruptores)
+  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null || interruptores === null) return null
   const vista: VistaDoPuzzle = { desafioId: value.desafioId, rev: value.rev, titulo: value.titulo, visual, encaixes, troca, dica, resolvido: value.resolvido, contagem: { postos, total }, mochila }
   if (combinacao !== undefined) vista.combinacao = combinacao
   if (giratorias !== undefined) vista.giratorias = giratorias
+  if (interruptores !== undefined) vista.interruptores = interruptores
   if (value.versaoNova === true) vista.versaoNova = true
   return vista
 }
