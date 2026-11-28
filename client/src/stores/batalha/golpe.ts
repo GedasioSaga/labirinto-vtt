@@ -24,6 +24,8 @@ import {
 import { comBandosEmDia, invocadoDoToken } from '../../lib/batalha/invocacao'
 import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, moldeDaMarca, passivaDaMarca, type AcertoNaMarca, type ContextoDoAcerto } from '../../lib/batalha/marca'
 import { bonusDaBatalha, comSeloNovo, selosDoToken } from '../../lib/batalha/selos'
+import { comOBonusDosAcumuladores } from '../../lib/batalha/acumuladorNaBatalha'
+import { valorDaParte, type Ajuste } from '../../lib/ajusteDaFicha'
 import { curaComOsSelos, curaDoDano, esquivaComDesvantagem, motivoDoBloqueio, naoReageDoToken, notaDosSelosNaCura, saidasComOsSelos, selosQueSaemNoGolpe, selosSemOsQueSaem, vantagemDaReacao, type AcontecimentoDaSaida } from '../../lib/batalha/condicoes'
 import { selosQueALimpezaTira } from '../../lib/batalha/debuffs'
 import { ajustesDoRecursoDaCura, curaPelaParteDoMaximo, notaDoRecursoDaCura, quantoCabeNoRecurso } from '../../lib/batalha/curaDoRecurso'
@@ -154,6 +156,14 @@ function saidasNoToken(turnos: TurnosDaCena, tokenId: string, acontecimento: Aco
   return { turnos: { ...turnos, selos: saida.selos }, partes: saida.sairam.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo })), texto: saida.texto }
 }
 
+/** Bug G1-05: o que o "toma 0" e os cortes fizeram no dano que volta ("; Intangível: X tomou 0 de dano", "; Vulnerável +25%"). Nada = vazio. */
+function notaDosCortes(alvo: AlvoDoGolpe): string {
+  const { reducao } = alvo
+  const corte = reducao === undefined || reducao === 0 ? null : `${alvo.reducaoDe ?? 'forma'} ${reducao > 0 ? '−' : '+'}${Math.abs(reducao)}%`
+  const partes = [alvo.disputa ?? '', corte ?? ''].filter((parte) => parte !== '')
+  return partes.length === 0 ? '' : `; ${partes.join('; ')}`
+}
+
 /** O texto a mais no alvo (o pedaço dele na linha do golpe), depois do que ele já tinha. Vazio = o MESMO alvo. */
 function comNotaNoAlvo(alvo: AlvoDoGolpe, texto: string): AlvoDoGolpe {
   return texto === '' ? alvo : { ...alvo, disputa: alvo.disputa === undefined || alvo.disputa === '' ? texto : `${alvo.disputa}; ${texto}` }
@@ -244,6 +254,19 @@ function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeD
   const tecnicaQueMarca = golpe.marca === undefined ? null : { id: golpe.marca, nome: golpe.nome }
   // Rework das habilidades (PLANO.md D10): a peça Marca da técnica (o molde dela) e a forma ligada de quem atacou que marca a cada acerto.
   const acerto = acertoNaMarca(turnos, golpe, alvo, { linhaId: golpe.linhaId, novoId: novoIdDaMarca, passiva, passivaEmTodoAcerto, tecnicaQueMarca, ...marcasDasPecas(atacante, golpe.marca) })
+  return acertoComOsCortes(mesa, acerto, golpe, atacante, contexto)
+}
+
+/** O que os cortes do dano leem do golpe: o nome e os tipos (as exceções) e quem bate (o dano causado dele). */
+type GolpeDosCortes = Pick<GolpeDaBatalha, 'nome' | 'atacanteTokenId'> & Partial<Pick<GolpeDaBatalha, 'tipos'>>
+
+/**
+ * Depois da marca: o "toma 0" (`anulacaoNoGolpe`) e os cortes do dano que o alvo recebe e que quem bate causa.
+ * Bug G1-05 (28/11/2026): o dano que volta (o Devolve o golpe e o rebate) passa por aqui também, sem a marca.
+ */
+function acertoComOsCortes(mesa: MesaDaBatalha, acerto: AcertoNaMarca, golpe: GolpeDosCortes, atacante: Personagem | undefined, contexto: ContextoDaAnulacao): AcertoNaMarca {
+  const sistema = mesa.sistema()
+  const { alvo } = acerto
   // R6: a forma ligada do alvo que reduz o dano recebido (Resiliente: -20%), depois do dobro da marca.
   // S4: e a Determinação (rank 4+, HP abaixo da metade), uma depois da outra.
   const dele = alvo.personagemId === null || sistema === null ? undefined : mesa.personagens().find((personagem) => personagem.id === alvo.personagemId)
@@ -431,7 +454,9 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: combateFeito } }
     }
     if (feita.custo.length > 0) {
-      const custo = feita.custo
+      // Bug G1-10 (28/11/2026): o custo veio da ficha de antes do acerto, e o "Anula o dano" de quem reage pode já ter cobrado
+      // SP dela. Com o `de` (o número de que partiu), vale a diferença sobre a ficha de agora, sem apagar o SP já pago.
+      const custo = feita.custo.map((ajuste): Ajuste => ({ ...ajuste, de: valorDaParte(personagem, ajuste.parte, ajuste.chave) }))
       const doCusto = mexerNaFicha(mesa, personagemId, () => custo, quem)
       // Bug 11: custo recusado = a reação não sai (o alvo segue esperando).
       if (doCusto === 'recusada') return false
@@ -506,12 +531,22 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       const dividido = feita.devolveDividido === undefined || feita.devolveDividido <= 0 ? 0 : Math.floor((depois.danoFinal ?? 0) / feita.devolveDividido)
       // Rework das habilidades (D3, a peça Devolve o golpe): mais o atributo de quem reagiu, lido como a soma do rebate (antes do cansaço),
       // só quando o golpe ficou nele (a defesa que zerou o dano não devolve).
-      const lidaDoDevolve = feita.devolveSoma === undefined || (depois.danoFinal ?? 0) <= 0 ? null : lerDano(feita.devolveSoma, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(turnos.selos, reageTokenId) })
+      // Bug G1-06 (28/11/2026): com o atributo dos marcos do acumulador, como no golpe (`bonusDeQuemAge`).
+      const bonusDeQuemReage = comOBonusDosAcumuladores(bonusDaBatalha(turnos.selos, reageTokenId), personagem, combateAntes)
+      const lidaDoDevolve = feita.devolveSoma === undefined || (depois.danoFinal ?? 0) <= 0 ? null : lerDano(feita.devolveSoma, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDeQuemReage })
       const somaDoDevolve = lidaDoDevolve?.tipo === 'valor' ? Math.max(0, Math.floor(lidaDoDevolve.valor)) : 0
       const devolve = Math.min(DANO_MAX, dividido + somaDoDevolve)
+      // Bug G1-05 (28/11/2026): o dano que volta em quem atacou passa pelo "toma 0" e pelos cortes dele, como um acerto (sem a marca).
+      const quemReage = depois.tecnica?.nome ?? golpe.nome
+      const cortarNoAtacante = (total: number): AcertoNaMarca => {
+        const noAtacante: AlvoDoGolpe = { tokenId: golpe.atacanteTokenId, personagemId: golpe.atacantePersonagemId, dano: total, podeReagir: false, saida: 'semReacao', danoFinal: total }
+        return acertoComOsCortes(mesa, { alvo: noAtacante, turnos: novos, partes: [] }, { nome: quemReage, atacanteTokenId: reageTokenId }, personagem, paraAnular(autor, novos))
+      }
       if (devolve > 0) {
-        const noAtacante: AlvoDoGolpe = { tokenId: golpe.atacanteTokenId, personagemId: golpe.atacantePersonagemId, dano: devolve, podeReagir: false, saida: 'semReacao', danoFinal: devolve }
-        const devolvido = danoNoAlvo(mesa, noAtacante, { perfurante: false }, autor)
+        const cortado = cortarNoAtacante(devolve)
+        partes.push(...cortado.partes)
+        novos = cortado.turnos
+        const devolvido = danoNoAlvo(mesa, cortado.alvo, { perfurante: false }, autor)
         if (devolvido === 'recusada') {
           devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
           return false
@@ -519,21 +554,23 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         partes.push(...devolvido.partes)
         if (devolvido.efeito !== null) efeitos.push(devolvido.efeito)
         const comASoma = somaDoDevolve > 0 ? ` + ${somaDoDevolve}` : ''
-        textoDoRebate = ` · devolveu ${devolve} em ${nomeDoTokenNa(turnos, personagens)(golpe.atacanteTokenId)} (${depois.danoFinal ?? 0} ÷ ${feita.devolveDividido ?? 1}${comASoma})`
+        textoDoRebate = ` · devolveu ${cortado.alvo.danoFinal ?? devolve} em ${nomeDoTokenNa(turnos, personagens)(golpe.atacanteTokenId)} (${depois.danoFinal ?? 0} ÷ ${feita.devolveDividido ?? 1}${comASoma}${notaDosCortes(cortado.alvo)})`
       } else if (rebate !== undefined) {
         // A Força de antes da reação: o cansaço do Overload dela vem DEPOIS de rebater.
-        const lida = lerDano(rebate.soma, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(turnos.selos, reageTokenId) })
+        const lida = lerDano(rebate.soma, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDeQuemReage })
         const soma = lida.tipo === 'valor' ? lida.valor : 0
         const total = Math.min(DANO_MAX, (depois.dano ?? 0) + soma)
-        const noAtacante: AlvoDoGolpe = { tokenId: golpe.atacanteTokenId, personagemId: golpe.atacantePersonagemId, dano: total, podeReagir: false, saida: 'semReacao', danoFinal: total }
-        const rebatido = danoNoAlvo(mesa, noAtacante, { perfurante: false }, autor)
+        const cortado = cortarNoAtacante(total)
+        partes.push(...cortado.partes)
+        novos = cortado.turnos
+        const rebatido = danoNoAlvo(mesa, cortado.alvo, { perfurante: false }, autor)
         if (rebatido === 'recusada') {
           devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
           return false
         }
         partes.push(...rebatido.partes)
         if (rebatido.efeito !== null) efeitos.push(rebatido.efeito)
-        textoDoRebate = ` · rebateu ${total} em ${nomeDoTokenNa(turnos, personagens)(golpe.atacanteTokenId)} (${depois.dano ?? 0} + ${soma})`
+        textoDoRebate = ` · rebateu ${cortado.alvo.danoFinal ?? total} em ${nomeDoTokenNa(turnos, personagens)(golpe.atacanteTokenId)} (${depois.dano ?? 0} + ${soma}${notaDosCortes(cortado.alvo)})`
       } else if (depois.saida === 'contra' && (novos.contras?.length ?? 0) < CONTRAS_MAX) {
         // Q6: Contra = sem dano e uma ação a mais na hora (sai no Desfazer pela parte "reacaoComTecnica").
         const ganho: ContraAtaque = contraGanhoAgora(turnos, { golpeId: golpe.id, tokenId: depois.tokenId, personagemId: depois.personagemId, atacanteTokenId: golpe.atacanteTokenId })
@@ -634,6 +671,9 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
    * é onde o gasto novo é gravado (`carta.id`, ou a chave do membro do
    * bando). A base do que muda é sempre `cena.turnos`.
    */
+  /** Rework das condições (D10): o "Não pode usar técnica" (Silenciado) de `tokenId`, que recusa a reação com técnica (`reagirComTecnicaNaCena`). */
+  const semTecnicaNaReacao = (turnos: TurnosDaCena, tokenId: string): boolean => motivoDoBloqueio(turnos.selos, tokenId, 'naoTecnica') !== null
+
   /**
    * F2 (fatia B, o "perto" do Aplauso = o 6x6 à frente da May): as fichas que
    * podem rebater o golpe Overload de `atacanteTokenId` no alvo: técnica de
@@ -650,7 +690,8 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
     for (const carta of turnos.cartas) {
       const { tokenId, personagemId } = carta
       // Como o alvo: quem gastou a reação no contador (R5) ou está travado (S4) não reage.
-      if (personagemId === null || tokenId === alvoTokenId || tokenId === atacanteTokenId || tokens.has(tokenId) || gastouAReacao(turnos, tokenId) || naoReageDoToken(turnos.selos, tokenId) !== null) continue
+      // Bug G1-08 (28/11/2026): o "Não pode usar técnica" (Silenciado) também fica de fora, porque só técnica rebate.
+      if (personagemId === null || tokenId === alvoTokenId || tokenId === atacanteTokenId || tokens.has(tokenId) || gastouAReacao(turnos, tokenId) || naoReageDoToken(turnos.selos, tokenId) !== null || semTecnicaNaReacao(turnos, tokenId)) continue
       const personagem = personagens.find((candidato) => candidato.id === personagemId)
       if (personagem === undefined) continue
       const areas = reacoesDisponiveis(personagem, sistema, turnos.combate?.[personagemId]).flatMap((reacao) => {
@@ -684,7 +725,9 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
       // Conserto das fichas F1 (S4): Atordoado ou Paralisado não reage (o golpe nele resolve na hora).
       semReacao: (tokenId) => invocadoDoToken(turnos, tokenId) !== null || gastouAReacao(turnos, tokenId) || naoReageDoToken(turnos.selos, tokenId) !== null,
       // Conserto das fichas F1: o golpe Overload espera só quem tem outra Overload de reação disponível.
+      // Bug G1-08 (28/11/2026): contra Overload só técnica defende, e o Silenciado não usa técnica nem na reação.
       reageAOverload: (tokenId) => {
+        if (semTecnicaNaReacao(turnos, tokenId)) return false
         const personagemId = personagemDoTokenNa(turnos)(tokenId)
         const alvo = personagemId === null || personagemId === undefined ? undefined : personagens.find((candidato) => candidato.id === personagemId)
         return alvo !== undefined && sistema !== null && temOverloadDeReacao(alvo, sistema, turnos.combate?.[alvo.id])

@@ -154,6 +154,16 @@ describe('Aplauso do Deus do Trovão (May) na reação: rebate', () => {
     expect(selosDe(loja, daMay).some((nome) => nome.includes('Overload'))).toBe(true)
     expect(textos(loja).at(-1)).toContain('rebateu 115 em Jimboy Segundo (45 + 70)')
   })
+
+  it('bug G1-05: o Jimboy Intangível toma 0 do rebate (o dano que volta passa pelo "toma 0" dele)', () => {
+    const { loja, mesa } = batalha()
+    const daMay = token(loja, NOME_DA_MAY)
+    expect(loja.getState().porSelo(CENA, token(loja, NOME_DO_JIMBOY), { nome: 'Intangível', turnos: 2 })).toBe(true)
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, NOME_DO_JIMBOY), tecnica(CORTA_CENOURA.id, daMay, 45))).toBe(true)
+    expect(loja.getState().reagir(CENA, MESTRE, { tipo: 'tecnica', golpeId: golpesEsperando(loja)[0] ?? '', tokenId: daMay, cartaoId: APLAUSO.id, saida: 'contra', custo: null })).toBe(true)
+    expect([recurso(mesa, NOME_DO_JIMBOY, 'hp'), recurso(mesa, NOME_DO_JIMBOY, 'escudo')]).toEqual([1000, 80])
+    expect(textos(loja).at(-1)).toContain('rebateu 0 em Jimboy Segundo (45 + 70; Intangível: Jimboy Segundo tomou 0 de dano)')
+  })
 })
 
 const NOME_DO_ALIADO = 'Aliado da May'
@@ -211,6 +221,15 @@ describe('Aplauso (May), o "perto": Overload em alvo no 6x6 à frente dela tamb�
     expect(golpesEsperando(loja)).toEqual([])
     expect(recurso(mesa, NOME_DO_ALIADO, 'hp')).toBe(243)
     expect(selosDe(loja, doAliado)).toContain('Paralisado')
+  })
+
+  it('bug G1-08: a May Silenciada não reage com técnica, então nem o aliado perto nem ela mesma esperam o golpe Overload', () => {
+    for (const alvo of [NOME_DO_ALIADO, NOME_DA_MAY]) {
+      const { loja } = batalhaPerto(null)
+      expect(loja.getState().porSelo(CENA, token(loja, NOME_DA_MAY), { nome: 'Silenciado', turnos: 2 })).toBe(true)
+      expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, NOME_DO_JIMBOY), tecnica(SAI_DAI_RIN.id, token(loja, alvo), 257))).toBe(true)
+      expect({ alvo, esperando: golpesEsperando(loja) }).toEqual({ alvo, esperando: [] })
+    }
   })
 })
 

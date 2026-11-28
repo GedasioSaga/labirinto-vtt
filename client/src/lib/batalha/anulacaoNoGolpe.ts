@@ -88,6 +88,11 @@ function comOCorte(nomeDoAlvo: string, de: string, dano: number, corte: CorteDoA
   return { texto: textoDoAnuladoEmParte(nomeDoAlvo, de, dano, depois), dano: depois }
 }
 
+/** Os motivos das fontes que tentaram antes e não valeram, na frente do texto da que anulou. */
+function comOsMotivos(motivos: readonly string[], texto: string): string {
+  return [...motivos, texto].join('; ')
+}
+
 /** O "toma 0" (ou o corte em parte) deste golpe neste alvo; `null` = nenhuma fonte (o dano segue como sempre). */
 export function anulacaoNoGolpe(pedido: PedidoDaAnulacao): AnulacaoNoGolpe | null {
   const { turnos, alvo, sistema, nomeDoAlvo } = pedido
@@ -98,7 +103,10 @@ export function anulacaoNoGolpe(pedido: PedidoDaAnulacao): AnulacaoNoGolpe | nul
   for (const selo of selosDoToken(turnos.selos, pedido.alvoTokenId)) {
     const anula = regrasDoSelo(selo)?.anula
     if (anula === undefined) continue
-    if (anula.exceto === undefined || !golpeAtravessa(anula.exceto, temOGolpe)) return { anulou: true, paga: 0, combate: null, ...comOCorte(nomeDoAlvo, selo.nome, pedido.dano, anula.corte) }
+    if (anula.exceto === undefined || !golpeAtravessa(anula.exceto, temOGolpe)) {
+      const cortado = comOCorte(nomeDoAlvo, selo.nome, pedido.dano, anula.corte)
+      return { anulou: true, paga: 0, combate: null, dano: cortado.dano, texto: comOsMotivos(motivos, cortado.texto) }
+    }
     motivos.push(naoAnulouPorque(selo.nome, anula.exceto))
   }
   const combate = turnos.combate?.[alvo.id] ?? combateVazio()
@@ -124,7 +132,8 @@ export function anulacaoNoGolpe(pedido: PedidoDaAnulacao): AnulacaoNoGolpe | nul
     const comOUso = lembradasComOUso(lembradas, chave, regra, turnos.rodada)
     const depois: CombateDoPersonagem | null = comOUso === lembradas ? null : { ...combate, lembradas: comOUso.slice(-LEMBRADAS_MAX) }
     const cortado = comOCorte(nomeDoAlvo, nome, pedido.dano, regra.corte)
-    return { anulou: true, texto: `${cortado.texto}${tentativa === null ? '' : ` (${tentativa.texto})`}`, paga, combate: depois, dano: cortado.dano }
+    // Bug G1-03 (28/11/2026): o porquê da fonte que tentou antes ("Intangível não anulou: o golpe tem Haki") fica na linha.
+    return { anulou: true, texto: comOsMotivos(motivos, `${cortado.texto}${tentativa === null ? '' : ` (${tentativa.texto})`}`), paga, combate: depois, dano: cortado.dano }
   }
   return motivos.length === 0 ? null : { anulou: false, texto: motivos.join('; ') }
 }
