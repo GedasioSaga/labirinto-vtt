@@ -22,7 +22,7 @@ interface EstadoDosDesafios {
   /** O desafio aberto na ficha da página Jogos; `null` = a lista. */
   aberto: string | null
   /** "Marcar no mapa" / "Escolher no mapa" em curso: o próximo clique decide o lugar. */
-  marcando: { id: string; modo: ModoDeMarcar } | null
+  marcando: { id: string; modo: ModoDeMarcar; /** O ponto 2 ou 3 da cooperação (1 ou 2 aqui); ausente = o lugar do desafio. */ ponto?: number } | null
   /**
    * No "Objeto", o último clique caiu fora de um objeto (B25 das NOTAS do editor): a ficha diz,
    * em vez de nada acontecer. Volta a `false` a cada marcação nova e ao parar.
@@ -40,7 +40,7 @@ interface EstadoDosDesafios {
   /** Ids de mapa cujo aviso de migração o mestre dispensou ("Entendi"). */
   avisosDispensados: ReadonlySet<string>
   abrir: (id: string | null) => void
-  marcar: (id: string, modo: ModoDeMarcar) => void
+  marcar: (id: string, modo: ModoDeMarcar, ponto?: number) => void
   pararDeMarcar: () => void
   avisarCliqueForaDoObjeto: () => void
   abrirEscolhaDoJogo: (escolha: EscolhaDoJogoAberta | null) => void
@@ -104,7 +104,7 @@ export const useDesafiosStore = create<EstadoDosDesafios>((set, get) => ({
   registrarAbertura: (registro) => set({ aoVivo: [registro, ...get().aoVivo].slice(0, AO_VIVO_MAX) }),
   destacar: (propId) => set({ destacado: propId }),
   abrir: (id) => set({ aberto: id, escolhaDoJogo: null, trocaRecente: null }),
-  marcar: (id, modo) => set({ marcando: { id, modo }, cliqueForaDoObjeto: false }),
+  marcar: (id, modo, ponto) => set({ marcando: ponto === undefined || ponto < 1 ? { id, modo } : { id, modo, ponto }, cliqueForaDoObjeto: false }),
   pararDeMarcar: () => set({ marcando: null, cliqueForaDoObjeto: false }),
   avisarCliqueForaDoObjeto: () => set({ cliqueForaDoObjeto: true }),
   abrirEscolhaDoJogo: (escolha) => set({ escolhaDoJogo: escolha }),

@@ -45,7 +45,8 @@ export function BlocoOndeEComoComeca({ desafio, props }: { desafio: Desafio; pro
   const marcando = useDesafiosStore((estado) => estado.marcando)
   const cliqueForaDoObjeto = useDesafiosStore((estado) => estado.cliqueForaDoObjeto)
   const { marcar, pararDeMarcar } = useDesafiosStore.getState()
-  const marcandoEste = marcando !== null && marcando.id === desafio.id ? marcando.modo : null
+  // A marcação do ponto 2 ou 3 da cooperação é do bloco dos outros pontos.
+  const marcandoEste = marcando !== null && marcando.id === desafio.id && marcando.ponto === undefined ? marcando.modo : null
   const falta = faltaNoLugar(desafio, props)
   const gravar = useMapStore.getState().updateDesafio
   const definicao = REGISTRO_DE_MINIGAMES[desafio.minigame.jogo]

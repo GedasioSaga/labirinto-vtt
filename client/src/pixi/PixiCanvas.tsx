@@ -12,7 +12,7 @@ import { registrarNaSonda } from '../lib/sondaDeDesempenho'
 import { criarDesenhoSobPedido, type DesenhoSobPedido } from './desenhoSobPedido'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
-import type { Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, TokenContract, Wall } from '../types/map'
+import type { Drawing, Light, LugarDoDesafio, MapData, Pin, Prop, Region, Stair, Token, TokenContract, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { ligarSinalDeGesto, SEM_ESCOLHA, useMapStore } from '../stores/mapStore'
 import { comFichaPropriaNasCopias } from '../stores/fichaPropriaDoToken'
@@ -286,7 +286,7 @@ import { useDocumentosStore } from '../stores/documentosStore'
 import { useDocumentosDoMestreStore } from '../components/documentos/documentosDoMestreStore'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { findPinAt, pinKindAfterShortcut, pinNameScale, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
-import { pinosDosDesafios } from '../lib/desafios'
+import { desafiosDo, patchDoOutroLugar, pinosDosDesafios, seloDoPonto } from '../lib/desafios'
 import { useDesafiosStore } from '../stores/desafiosStore'
 import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
 import { findPropAt } from './propInteraction'
@@ -5513,8 +5513,15 @@ function PixiCanvasDoContexto({
         const marcando = useDesafiosStore.getState().marcando
         if (marcando === null) return false
         const { pisoAtivo, updateDesafio } = useMapStore.getState()
+        // O ponto 2 ou 3 da cooperação: o lugar vai para `outrosLugares`, e o do desafio fica.
+        const outro = marcando.ponto
+        const desafio = outro === undefined ? undefined : desafiosDo(map).find((d) => d.id === marcando.id)
+        const marcarLugar = (lugar: LugarDoDesafio, piso: number | undefined) => {
+          if (outro === undefined) updateDesafio(marcando.id, { lugar, piso })
+          else if (desafio !== undefined) updateDesafio(marcando.id, patchDoOutroLugar(desafio, outro, piso === undefined ? { lugar } : { lugar, piso }))
+        }
         if (marcando.modo === 'ponto') {
-          updateDesafio(marcando.id, { lugar: { tipo: 'ponto', x: Math.round(ponto.x), y: Math.round(ponto.y) }, piso: pisoAtivo === 0 ? undefined : pisoAtivo })
+          marcarLugar({ tipo: 'ponto', x: Math.round(ponto.x), y: Math.round(ponto.y) }, pisoAtivo === 0 ? undefined : pisoAtivo)
         } else {
           const prop = findPropAt(doPisoEmEdicao(map).props, ponto, map)
           // Fora de um objeto: o modo continua, e a ficha diz por que nada marcou (B25 das NOTAS do editor).
@@ -5523,7 +5530,7 @@ function PixiCanvasDoContexto({
             return true
           }
           // O piso do ponto de antes sai: o selo segue o objeto (e o piso dele, `pontoDoDesafio`). B30.
-          updateDesafio(marcando.id, { lugar: { tipo: 'objeto', propId: prop.id }, piso: undefined })
+          marcarLugar({ tipo: 'objeto', propId: prop.id }, undefined)
         }
         useDesafiosStore.getState().pararDeMarcar()
         return true
@@ -7797,7 +7804,8 @@ function PixiCanvasDoContexto({
               updateCursor()
               return
             }
-            useDesafiosStore.getState().abrir(selo.id)
+            // O selo do ponto 2 ou 3 da cooperação abre a ficha do desafio dele.
+            useDesafiosStore.getState().abrir(seloDoPonto(selo.id).desafioId)
             useLivroDoMestreStore.getState().abrirPagina('jogos')
             updateCursor()
             return

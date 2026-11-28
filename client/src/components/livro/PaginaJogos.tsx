@@ -9,6 +9,7 @@ import { IconeDoJogo, IconeDosJogos } from './IconeDoJogo'
 import { DESAFIO_NOME_MAX_LENGTH, desafiosDo, desafiosMigrados, faltaNoLugar, novoDesafio, patchDaTrocaDeJogo, pontoDoDesafio, textoDoLugar } from '../../lib/desafios'
 import { BlocoDoConvite } from './desafio/BlocoDoConvite'
 import { BlocoOndeEComoComeca, irAoDesafio } from './desafio/BlocoOndeEComoComeca'
+import { BlocoDosOutrosPontos } from './desafio/BlocoDosOutrosPontos'
 import { PreviaDoJogador } from './desafio/PreviaDoJogador'
 import { ORDEM_DOS_JOGOS, REGISTRO_DE_MINIGAMES, nomeDoJogo, nomeDoJogoDoDesafio, type CategoriaDoJogo } from '../../minigames/registro'
 import type { JogoDoMinigame } from '../../minigames/tipos'
@@ -596,6 +597,7 @@ function FichaDoDesafio({ desafio, props, painel, emJogo }: PropsDaFicha) {
       {trocaTravada !== null && <Nota>{trocaTravada}</Nota>}
       <BlocoDoConvite desafio={desafio} />
       <BlocoOndeEComoComeca desafio={desafio} props={props} />
+      <BlocoDosOutrosPontos desafio={desafio} props={props} />
       <section className="mg-bloco mg-troca" key={jogo}>
         <h3 className="mg-secao">Regras e o que vale</h3>
         <MinigameControls key={desafio.id} {...painel} naFicha trocaTravada={trocaTravada} />
