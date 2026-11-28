@@ -1,0 +1,1477 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Prova do painel em relevo</title>
+<style>
+  body { margin: 0; background: #15120f; color: #e9e1d4; font: 14px/1.4 system-ui, sans-serif; }
+  section { padding: 16px 20px 22px; width: max-content; }
+  h2 { margin: 0 0 10px; font-size: 17px; font-weight: 600; }
+  .grade { display: grid; gap: 10px; }
+  .metais { grid-template-columns: 110px repeat(3, 400px); align-items: center; }
+  .metais canvas { width: 400px; height: 250px; display: block; }
+  .rot { font-size: 13px; color: #cbbfae; }
+  .placas { grid-template-columns: repeat(3, 520px); }
+  .placas figure { margin: 0; }
+  .placas canvas { width: 520px; height: 312px; display: block; }
+  .placas figcaption { font-size: 11.5px; color: #cbbfae; margin-top: 4px; columns: 2; column-gap: 12px; }
+  .placas figcaption b { color: #f3d08a; font-weight: 600; }
+  #detalhe canvas.grande { width: 1600px; height: 1000px; display: block; }
+  #detalhe .linha { display: flex; gap: 14px; margin-top: 12px; align-items: flex-start; }
+  #detalhe .linha canvas { width: 640px; height: 400px; }
+  table { border-collapse: collapse; font-size: 12.5px; }
+  td, th { padding: 2px 10px; text-align: right; }
+  th { color: #cbbfae; font-weight: 500; }
+</style></head>
+<body>
+<section id="metais"><h2>Os seis relevos nos três metais</h2><div class="grade metais" id="gradeMetais"></div></section>
+<section id="placas"><h2>As 12 placas de cada cena (as que faltam por padrão em destaque)</h2><div class="grade placas" id="gradePlacas"></div></section>
+<section id="detalhe"><h2 id="tituloDetalhe">Detalhe em 100%</h2><canvas class="grande" id="grande" width="1600" height="1000"></canvas>
+  <div class="linha"><canvas id="semCena" width="1600" height="1000"></canvas><div><h2>Tempo de rasterização por painel (ms)</h2><table id="tempos"></table><p id="gpu" class="rot"></p></div></div>
+</section>
+<script>"use strict";
+var ArteDoRelevo = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // client/src/puzzles/relevo/arte.ts
+  var arte_exports = {};
+  __export(arte_exports, {
+    ALTURA_DO_PAINEL: () => ALTURA_DO_PAINEL,
+    AREA_DO_RELEVO: () => AREA_DO_RELEVO,
+    DESCRICAO_DAS_PLACAS: () => DESCRICAO_DAS_PLACAS,
+    LARGURA_DO_PAINEL: () => LARGURA_DO_PAINEL,
+    NOME_DA_CENA: () => NOME_DA_CENA,
+    NOME_DO_METAL: () => NOME_DO_METAL,
+    ORDEM_DAS_PLACAS: () => ORDEM_DAS_PLACAS,
+    svgDoPainel: () => svgDoPainel
+  });
+
+  // client/src/puzzles/relevo/cenas/comum.ts
+  function alt(v) {
+    const n = Math.round(Math.min(1, Math.max(0, v)) * 255);
+    const h = n.toString(16).padStart(2, "0");
+    return `#${h}${h}${h}`;
+  }
+  var num = (v) => String(Math.round(v * 10) / 10);
+  var DOMO_ALTO = "domo:alto";
+  var DOMO_MEIO = "domo:meio";
+  var DOMO_BAIXO = "domo:baixo";
+  var DOMO_CUPULA = "domo:cupula";
+  var DOMO_SALIENCIA = "domo:saliencia";
+  var DOMOS = {
+    [DOMO_ALTO]: { centro: 0.95, borda: 0.64 },
+    [DOMO_MEIO]: { centro: 0.74, borda: 0.5 },
+    [DOMO_BAIXO]: { centro: 0.5, borda: 0.33 },
+    [DOMO_CUPULA]: { centro: 1, borda: 0.7 },
+    [DOMO_SALIENCIA]: { centro: 1, borda: 0.9 }
+  };
+  var tinta = (v) => typeof v === "number" ? alt(v) : DOMOS[v] ? alt(DOMOS[v].centro) : v;
+  function faixas(d) {
+    const p = (t) => alt(d.borda + (d.centro - d.borda) * t);
+    return [p(0), p(0.5), p(0.8), p(1)];
+  }
+  var contadorDeDomos = 0;
+  function reiniciarDomos() {
+    contadorDeDomos = 0;
+  }
+  function caixaDoCaminho(d) {
+    const partes = d.match(/[a-zA-Z]|-?\d*\.?\d+(?:e-?\d+)?/g) ?? [];
+    let x = 0;
+    let y = 0;
+    let cmd = "M";
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    const marca = () => {
+      x0 = Math.min(x0, x);
+      y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x);
+      y1 = Math.max(y1, y);
+    };
+    const aridade = { M: 2, L: 2, T: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, A: 7, Z: 0 };
+    let i = 0;
+    while (i < partes.length) {
+      const t = partes[i];
+      if (/[a-zA-Z]/.test(t)) {
+        cmd = t;
+        i++;
+        if (cmd === "Z" || cmd === "z") continue;
+      }
+      const n = aridade[cmd.toUpperCase()] ?? 2;
+      const v = partes.slice(i, i + n).map(Number);
+      if (v.length < n || n === 0) break;
+      i += n;
+      const rel = cmd === cmd.toLowerCase();
+      const C = cmd.toUpperCase();
+      if (C === "H") x = rel ? x + v[0] : v[0];
+      else if (C === "V") y = rel ? y + v[0] : v[0];
+      else {
+        const nx = v[n - 2];
+        const ny = v[n - 1];
+        x = rel ? x + nx : nx;
+        y = rel ? y + ny : ny;
+      }
+      marca();
+    }
+    return { x0, y0, x1, y1 };
+  }
+  function domoNoCaminho(d, domo) {
+    const n = contadorDeDomos++;
+    const { x0, y0, x1, y1 } = caixaDoCaminho(d);
+    const lado = Math.min(x1 - x0, y1 - y0);
+    const w = Math.min(70, Math.max(6, lado * 0.3));
+    const [b, m, a, c] = faixas(domo);
+    const u = (extra) => `<use href="#rlv-p${n}" ${extra}/>`;
+    return `<defs><path id="rlv-p${n}" d="${d}"/><clipPath id="rlv-k${n}"><use href="#rlv-p${n}"/></clipPath></defs><g clip-path="url(#rlv-k${n})" stroke-linejoin="round">${u(`fill="${c}"`)}${u(`fill="none" stroke="${a}" stroke-width="${num(w * 3.2)}"`)}${u(`fill="none" stroke="${m}" stroke-width="${num(w * 2)}"`)}${u(`fill="none" stroke="${b}" stroke-width="${num(w)}"`)}</g>`;
+  }
+  function defsDeAltura() {
+    return [
+      // Escamas: meias-luas escuras em quincunce; vão como `fill` por cima de um corpo.
+      `<pattern id="rlv-escamas" patternUnits="userSpaceOnUse" width="22" height="16"><path d="M0,9Q5.5,1 11,9M11,9Q16.5,1 22,9M-5.5,17Q0,9 5.5,17M5.5,17Q11,9 16.5,17M16.5,17Q22,9 27.5,17" fill="none" stroke="#000" stroke-opacity="0.3" stroke-width="2"/></pattern>`,
+      // Pelo e penas: riscos finos em diagonal.
+      `<pattern id="rlv-pelo" patternUnits="userSpaceOnUse" width="9" height="9" patternTransform="rotate(28)"><path d="M0,4.5H9" stroke="#000" stroke-opacity="0.13" stroke-width="1.6"/></pattern>`
+    ].join("");
+  }
+  function cheio(d, v, extra = "") {
+    const domo = typeof v === "string" ? DOMOS[v] : void 0;
+    return domo ? domoNoCaminho(d, domo) : `<path d="${d}" fill="${tinta(v)}"${extra}/>`;
+  }
+  function elipse(cx, cy, rx, ry, v, giro = 0) {
+    const g = giro ? ` transform="rotate(${num(giro)} ${num(cx)} ${num(cy)})"` : "";
+    const uma = (f, t) => `<ellipse cx="${num(cx)}" cy="${num(cy)}" rx="${num(rx * f)}" ry="${num(ry * f)}" fill="${t}"${g}/>`;
+    const domo = typeof v === "string" ? DOMOS[v] : void 0;
+    if (!domo) return uma(1, tinta(v));
+    const [b, m, a, c] = faixas(domo);
+    return uma(1, b) + uma(0.8, m) + uma(0.58, a) + uma(0.34, c);
+  }
+  var circulo = (cx, cy, r, v) => elipse(cx, cy, r, r, v);
+  var traco = (d, largura, v) => `<path d="${d}" fill="none" stroke="${tinta(v)}" stroke-width="${num(largura)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  function tubo(d, largura, baixo, alto) {
+    const p = (t) => baixo + (alto - baixo) * t;
+    return traco(d, largura, baixo) + traco(d, largura * 0.74, p(0.4)) + traco(d, largura * 0.48, p(0.75)) + traco(d, largura * 0.22, alto);
+  }
+  function membro(x1, y1, w1, x2, y2, w2, curva, v) {
+    const comp = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const px = -(y2 - y1) / comp;
+    const py = (x2 - x1) / comp;
+    const cx = (x1 + x2) / 2 + px * curva;
+    const cy = (y1 + y2) / 2 + py * curva;
+    const forma = (f, t) => {
+      const a = w1 / 2 * f;
+      const b = w2 / 2 * f;
+      const m = (w1 + w2) / 4 * f;
+      return `<path d="M${num(x1 + px * a)},${num(y1 + py * a)}Q${num(cx + px * m)},${num(cy + py * m)} ${num(x2 + px * b)},${num(y2 + py * b)}A${num(b)},${num(b)} 0 0,0 ${num(x2 - px * b)},${num(y2 - py * b)}Q${num(cx - px * m)},${num(cy - py * m)} ${num(x1 - px * a)},${num(y1 - py * a)}A${num(a)},${num(a)} 0 0,0 ${num(x1 + px * a)},${num(y1 + py * a)}Z" fill="${alt(t)}"/>`;
+    };
+    return forma(1, v) + forma(0.66, v + 0.07) + forma(0.3, v + 0.13);
+  }
+  var vinco = (d, largura, forca = 0.3) => `<path d="${d}" fill="none" stroke="#000" stroke-opacity="${forca}" stroke-width="${num(largura)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  var friso = (d, largura, forca = 0.3) => `<path d="${d}" fill="none" stroke="#fff" stroke-opacity="${forca}" stroke-width="${num(largura)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  function naCubica(p0, p1, p2, p3, t) {
+    const u = 1 - t;
+    const a = u * u * u;
+    const b = 3 * u * u * t;
+    const c = 3 * u * t * t;
+    const d = t * t * t;
+    return [a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0], a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1]];
+  }
+  function tufo(x, y, v, escala = 1) {
+    const e = escala;
+    return mecha(x, y, -9 * e, -24 * e, 6 * e, -4 * e, v, false) + mecha(x, y, 1 * e, -30 * e, 6 * e, 2 * e, v + 0.02, false) + mecha(x, y, 10 * e, -22 * e, 6 * e, 4 * e, v, false);
+  }
+  var bossa = (cx, cy, rx, ry, forca, giro = 0) => `<ellipse cx="${num(cx)}" cy="${num(cy)}" rx="${num(rx)}" ry="${num(ry)}" fill="${forca > 0 ? "#fff" : "#000"}" fill-opacity="${Math.round(Math.abs(forca) * 100) / 100}"${giro ? ` transform="rotate(${num(giro)} ${num(cx)} ${num(cy)})"` : ""}/>`;
+  function mecha(x, y, dx, dy, largura, curva, v, nervura = true) {
+    const comp = Math.hypot(dx, dy) || 1;
+    const px = -dy / comp;
+    const py = dx / comp;
+    const cx = x + dx / 2 + px * curva;
+    const cy = y + dy / 2 + py * curva;
+    const forma = (m, t) => `<path d="M${num(x + px * m)},${num(y + py * m)}Q${num(cx + px * m * 0.55)},${num(cy + py * m * 0.55)} ${num(x + dx)},${num(y + dy)}Q${num(cx - px * m * 0.55)},${num(cy - py * m * 0.55)} ${num(x - px * m)},${num(y - py * m)}Z" fill="${tinta(t)}"/>`;
+    let s = forma(largura / 2, v);
+    if (nervura && typeof v === "number") s += forma(largura * 0.2, Math.min(1, v + 0.12));
+    return s;
+  }
+  function polar(cx, cy, r, graus) {
+    const a = graus * Math.PI / 180;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  }
+  function estrela(cx, cy, rFora, rDentro, pontas, v, giro = -90) {
+    const uma = (f, t) => {
+      const pts = [];
+      for (let i = 0; i < pontas * 2; i++) {
+        const [x, y] = polar(cx, cy, (i % 2 === 0 ? rFora : rDentro) * f, giro + i * 180 / pontas);
+        pts.push(`${num(x)},${num(y)}`);
+      }
+      return `<polygon points="${pts.join(" ")}" fill="${t}"/>`;
+    };
+    const domo = typeof v === "string" ? DOMOS[v] : void 0;
+    if (!domo) return uma(1, tinta(v));
+    const [b, m, , c] = faixas(domo);
+    return uma(1, b) + uma(0.68, m) + uma(0.4, c);
+  }
+  function espiral(cx, cy, r0, r1, voltas, inicio = 0, horario = true) {
+    const passos = Math.max(8, Math.round(voltas * 16));
+    let d = "";
+    for (let i = 0; i <= passos; i++) {
+      const t = i / passos;
+      const ang = inicio + (horario ? 1 : -1) * t * voltas * 360;
+      const [x, y] = polar(cx, cy, r0 + (r1 - r0) * t, ang);
+      d += `${i === 0 ? "M" : "L"}${num(x)},${num(y)}`;
+    }
+    return d;
+  }
+  var fundo = (v) => `<rect width="1200" height="720" fill="${alt(v)}"/>`;
+
+  // client/src/puzzles/relevo/cenas/cavaleiro.ts
+  function ceuECastelo() {
+    return [
+      cheio("M330,70C350,50 390,48 410,60C430,42 470,44 485,62C510,58 530,70 528,84L340,90C326,88 322,78 330,70Z", 0.28),
+      cheio("M640,92C655,70 690,66 712,78C730,58 770,58 786,76C812,70 836,82 832,98L652,104C636,102 632,98 640,92Z", 0.28),
+      cheio("M900,52C916,36 946,34 964,46C980,32 1010,34 1020,50L910,58C900,58 896,56 900,52Z", 0.27),
+      traco("M706,150q8,-9 16,0q8,-9 16,0", 3.2, 0.42),
+      traco("M752,128q6,-7 12,0q6,-7 12,0", 2.8, 0.4),
+      traco("M676,124q5,-6 10,0q5,-6 10,0", 2.6, 0.38),
+      // morro: três degraus que o filtro funde, sumindo no fundo embaixo
+      cheio("M0,262C70,196 140,182 210,194C255,202 292,228 318,266L336,380L0,380Z", 0.23),
+      cheio("M0,266C70,200 140,186 210,198C255,206 290,232 314,270L326,340L0,340Z", 0.27),
+      cheio("M0,270C70,204 140,190 210,202C255,210 288,236 310,274L316,300L0,300Z", 0.32),
+      cheio("M54,146L71,104L88,146Z", 0.46),
+      cheio("M58,214V142H84V214Z", 0.43),
+      cheio("M88,207V122H96V112H104V122H112V112H120V122H128V112H136V122H142V207Z", 0.45),
+      cheio("M142,150L158,116L174,150Z", 0.46),
+      cheio("M146,214V148H170V214Z", 0.43),
+      cheio("M106,207V192a9,9 0 0,1 18,0V207Z", 0.33),
+      vinco("M68,170v10M158,172v10M100,142v10M130,142v10", 3, 0.5),
+      traco("M115,112V80", 2.5, 0.48),
+      cheio("M115,80L140,87L115,94Z", 0.48)
+    ].join("");
+  }
+  function chao() {
+    return [
+      cheio("M0,672C150,660 300,682 450,672C600,662 750,680 900,670C1050,662 1150,676 1200,672V720H0Z", 0.33),
+      elipse(790, 690, 48, 24, DOMO_BAIXO),
+      elipse(236, 697, 40, 20, DOMO_BAIXO),
+      elipse(600, 700, 26, 13, DOMO_BAIXO),
+      vinco("M770,684q14,8 30,2M222,694q12,6 24,0", 3, 0.3),
+      tufo(80, 676, 0.42),
+      tufo(410, 680, 0.42),
+      tufo(690, 676, 0.42),
+      tufo(910, 674, 0.42)
+    ].join("");
+  }
+  function cavalo() {
+    const c0 = [510, 360];
+    const c1 = [540, 330];
+    const c2 = [575, 280];
+    const c3 = [615, 245];
+    let crina = "";
+    for (let i = 0; i < 6; i++) {
+      const [x, y] = naCubica(c0, c1, c2, c3, 0.08 + i * 0.16);
+      crina += mecha(x + 5, y + 8, -50 + i * 3, -20 - i * 3, 30, 14, 0.8);
+    }
+    return [
+      // cauda ao vento
+      mecha(276, 390, -120, 30, 40, -30, 0.72),
+      mecha(272, 396, -150, 92, 34, -36, 0.68),
+      mecha(270, 386, -110, -6, 26, -16, 0.76),
+      // pernas do lado de lá
+      membro(530, 480, 40, 575, 548, 24, -4, 0.48),
+      membro(575, 548, 20, 548, 606, 15, 0, 0.5),
+      elipse(548, 618, 12, 9, 0.58, -20),
+      membro(372, 485, 42, 336, 556, 24, 4, 0.48),
+      membro(336, 556, 20, 308, 628, 15, 0, 0.5),
+      elipse(306, 638, 12, 9, 0.58),
+      cheio("M610,246C606,230 610,216 616,206C622,220 624,234 622,246Z", 0.62),
+      // corpo e pescoço
+      cheio("M272,382C290,365 320,360 345,364C390,372 425,380 455,377C480,375 498,370 510,360C540,330 575,280 615,245L650,310C630,350 605,390 590,430C585,460 575,485 552,500C510,515 460,518 420,515C380,512 345,508 320,500C290,488 268,462 262,435C258,415 262,395 272,382Z", DOMO_ALTO),
+      bossa(548, 440, 40, 52, 0.1),
+      vinco("M562,412C578,440 578,470 562,496", 4, 0.2),
+      vinco("M420,512C450,500 500,500 530,506", 3, 0.14),
+      crina,
+      // cabeça
+      cheio("M612,242C625,226 648,226 668,240C695,258 722,286 740,308C750,320 748,334 734,338C722,341 710,336 700,332C688,330 676,332 664,328C645,322 632,310 624,292C618,278 612,262 612,242Z", DOMO_ALTO),
+      bossa(650, 294, 26, 22, 0.14),
+      cheio("M622,244C620,226 626,210 634,198C640,214 642,228 638,244Z", 0.84),
+      elipse(664, 262, 7, 5, 0.98),
+      vinco("M655,262a9,7 0 1,0 18,0a9,7 0 1,0 -18,0", 2.5, 0.35),
+      elipse(733, 318, 6, 4, 0.42, 30),
+      vinco("M738,333C728,332 718,330 708,328", 3, 0.35),
+      friso("M626,252C636,244 648,242 656,244M640,248C652,270 664,292 676,314M700,284C708,300 712,318 710,336", 5, 0.4),
+      traco("M706,332a6,6 0 1,0 12,0a6,6 0 1,0 -12,0", 3, 0.92),
+      // pernas do lado de cá: coxa, jarrete, canela, boleto, casco
+      elipse(318, 455, 62, 56, DOMO_SALIENCIA, -20),
+      membro(300, 470, 54, 238, 535, 28, 6, 0.68),
+      membro(238, 535, 22, 192, 592, 16, -2, 0.7),
+      membro(192, 592, 15, 180, 612, 13, 0, 0.7),
+      elipse(238, 535, 14, 13, 0.84),
+      elipse(192, 592, 10, 9, 0.86),
+      elipse(176, 620, 13, 10, DOMO_CUPULA, 60),
+      membro(560, 465, 48, 612, 532, 26, -4, 0.68),
+      membro(612, 532, 22, 670, 560, 16, 3, 0.7),
+      membro(670, 560, 16, 694, 574, 14, 0, 0.7),
+      elipse(612, 532, 15, 13, 0.84),
+      elipse(670, 560, 10, 9, 0.86),
+      elipse(700, 580, 13, 10, DOMO_CUPULA, 25)
+    ].join("");
+  }
+  function fera() {
+    let juba2 = "";
+    for (let i = 0; i < 12; i++) {
+      const ang = -100 + i * 21;
+      const [x, y] = polar(1012, 262, 60, ang);
+      const [dx, dy] = polar(0, 0, 66, ang + 22);
+      juba2 += mecha(x, y, dx, dy, 42, -16, 0.72);
+    }
+    let mechasDeCima = "";
+    for (let i = 0; i < 7; i++) {
+      const [x, y] = polar(1012, 262, 34, -60 + i * 26);
+      const [dx, dy] = polar(0, 0, 50, -36 + i * 26);
+      mechasDeCima += mecha(x, y, dx, dy, 30, -12, 0.8);
+    }
+    let dentes = "";
+    for (const x of [890, 904, 918, 932, 946]) dentes += mecha(x, 217, 0, 12, 7, 0, 0.96, false);
+    for (const x of [898, 912, 926, 940]) dentes += mecha(x, 266 - (x - 886) * 0.326, 0, -10, 7, 0, 0.93, false);
+    const garras = (pts, v) => pts.map(([x, y]) => mecha(x, y, -8, 18, 8, -4, v, false)).join("");
+    return [
+      // pata de trás de lá, cauda, chifre de lá
+      membro(1030, 540, 36, 1035, 610, 26, 6, 0.48),
+      membro(1035, 610, 22, 1010, 652, 20, 0, 0.5),
+      elipse(995, 665, 26, 10, 0.58),
+      tubo("M1118,470C1160,450 1182,400 1172,350C1164,310 1140,290 1146,255", 20, 0.6, 0.86),
+      mecha(1146, 258, -4, -46, 30, 8, 0.8),
+      mecha(1146, 260, 22, -34, 22, -6, 0.76),
+      mecha(1144, 262, -26, -30, 20, 6, 0.76),
+      mecha(975, 164, 60, -80, 22, -20, 0.62),
+      // garra de lá, embaixo da lança
+      membro(975, 410, 48, 925, 440, 34, -6, 0.5),
+      membro(925, 440, 30, 890, 450, 24, 0, 0.52),
+      elipse(882, 452, 17, 13, 0.6),
+      garras([[872, 458], [880, 462], [888, 463]], 0.64),
+      // corpo de peito largo e anca forte
+      cheio("M948,330C958,292 1000,272 1042,284C1084,298 1112,350 1122,410C1132,470 1120,520 1090,540C1060,560 1020,552 1000,530C985,512 978,490 968,470C950,440 938,410 936,380C934,360 940,342 948,330Z", DOMO_ALTO),
+      cheio("M948,330C958,292 1000,272 1042,284C1084,298 1112,350 1122,410C1132,470 1120,520 1090,540C1060,560 1020,552 1000,530C985,512 978,490 968,470C950,440 938,410 936,380C934,360 940,342 948,330Z", "url(#rlv-pelo)"),
+      vinco("M990,440C1010,470 1030,500 1060,520", 4, 0.16),
+      elipse(1085, 495, 58, 64, DOMO_SALIENCIA, -15),
+      // juba farta
+      juba2,
+      cheio("M960,190C1000,170 1060,180 1080,220C1100,260 1090,320 1060,350C1020,370 975,350 955,320C940,290 940,230 960,190Z", DOMO_MEIO),
+      cheio("M960,190C1000,170 1060,180 1080,220C1100,260 1090,320 1060,350C1020,370 975,350 955,320C940,290 940,230 960,190Z", "url(#rlv-pelo)"),
+      mechasDeCima,
+      // cabeça de boca aberta, um pouco maior que o desenho base
+      '<g transform="translate(950 215) scale(1.15) translate(-950 -215)">',
+      cheio("M878,216C908,224 948,228 990,230C960,244 920,258 882,268Z", 0.26),
+      dentes,
+      cheio("M985,232C960,238 935,246 912,254C898,259 886,264 882,272C898,276 920,272 940,264C962,256 980,246 995,238Z", DOMO_ALTO),
+      cheio("M1010,190C1002,166 980,154 954,156C930,158 906,170 890,186C880,196 874,208 876,216C894,220 916,220 936,222C960,224 985,222 1005,214Z", DOMO_CUPULA),
+      mecha(1e3, 180, 30, -12, 16, -6, 0.76),
+      mecha(985, 170, 100, -50, 28, -26, 0.86),
+      vinco("M1018,148l8,16M1040,138l7,14M1062,130l5,12", 3, 0.28),
+      mecha(934, 180, 36, -6, 11, -3, 0.97),
+      elipse(950, 189, 6, 5, 1),
+      vinco("M942,189a8,6.5 0 1,0 16,0a8,6.5 0 1,0 -16,0", 2.5, 0.4),
+      elipse(884, 200, 4, 3, 0.4),
+      vinco("M900,208C920,200 940,198 960,204", 2.5, 0.2),
+      "</g>",
+      // pata de cá, levantada contra a lança
+      membro(992, 360, 58, 930, 342, 40, 6, 0.7),
+      membro(930, 342, 36, 880, 352, 28, -4, 0.74),
+      elipse(872, 356, 20, 16, DOMO_CUPULA),
+      garras([[860, 364], [870, 368], [880, 370]], 0.95),
+      // pata de trás de cá
+      membro(1095, 545, 40, 1112, 610, 28, -6, 0.7),
+      membro(1112, 610, 26, 1085, 650, 22, 0, 0.72),
+      elipse(1068, 660, 32, 13, DOMO_CUPULA),
+      mecha(1042, 662, -14, 6, 8, 0, 0.95, false),
+      mecha(1046, 668, -14, 4, 8, 0, 0.95, false)
+    ].join("");
+  }
+  function cavaleiro() {
+    return [
+      // manta e sela
+      cheio("M398,378C450,386 505,384 545,372C552,400 552,430 545,458C530,470 512,476 495,468C480,478 462,480 446,470C430,478 414,476 404,466C398,440 396,410 398,378Z", DOMO_ALTO),
+      friso("M404,456C420,466 432,466 446,460C462,470 478,468 494,458C512,466 528,462 540,450", 4, 0.45),
+      vinco("M404,446C420,456 432,456 446,450C462,460 478,458 494,448C512,456 528,452 540,440", 3, 0.3),
+      cheio("M425,372C440,355 470,352 492,356C500,344 510,340 518,344C522,356 515,370 505,378C480,386 450,386 425,380Z", DOMO_CUPULA),
+      traco("M712,332C660,345 590,335 525,330", 4, 0.86),
+      // lança (passa atrás do escudo), copo, ponta e flâmula
+      tubo("M395,262L890,402", 14, 0.72, 0.95),
+      cheio("M532,281L566,305L566,315L532,321Z", DOMO_CUPULA),
+      elipse(532, 301, 5, 20, 0.9),
+      mecha(886, 401, 60, 17, 18, 0, 0.9),
+      cheio("M826,384C800,360 770,366 742,350L760,368L734,378C764,388 794,388 822,394Z", DOMO_MEIO),
+      vinco("M792,374C780,380 770,381 760,380", 3, 0.3),
+      // perna, tronco, plumas, elmo, escudo e mão
+      membro(465, 365, 34, 515, 410, 28, -4, 0.74),
+      membro(515, 410, 24, 506, 468, 20, 2, 0.76),
+      circulo(515, 410, 13, DOMO_CUPULA),
+      traco("M494,462C494,486 524,486 524,470", 4, 0.82),
+      mecha(500, 472, 36, 6, 15, 3, 0.88),
+      cheio("M445,365C440,330 448,298 468,280C482,268 505,268 518,280C530,295 528,330 512,366Z", DOMO_ALTO),
+      mecha(500, 212, -76, -12, 24, 18, 0.8),
+      mecha(496, 218, -80, 22, 20, 12, 0.74),
+      cheio("M478,244C476,220 488,206 505,206C522,206 532,220 532,242L532,266C522,274 490,274 480,266Z", DOMO_CUPULA),
+      vinco("M496,236H532", 4, 0.5),
+      vinco("M516,250h0M524,250h0M516,258h0M524,258h0", 3.5, 0.45),
+      friso("M531,218V266", 3, 0.4),
+      elipse(494, 286, 24, 18, DOMO_CUPULA, -20),
+      cheio("M438,292C462,286 488,286 510,292C512,330 502,360 474,382C446,362 436,330 438,292Z", DOMO_ALTO),
+      vinco("M446,298C464,293 484,293 502,298C503,330 495,352 474,370C453,352 445,330 446,298Z", 3, 0.3),
+      friso("M452,350L474,318L496,350", 9, 0.5),
+      elipse(528, 300, 13, 11, DOMO_CUPULA)
+    ].join("");
+  }
+  function relevoCavaleiro() {
+    return fundo(0.2) + ceuECastelo() + chao() + cavalo() + fera() + cavaleiro();
+  }
+
+  // client/src/puzzles/relevo/cenas/dragao.ts
+  function fundoDistante() {
+    return [
+      cheio("M0,560L70,500L120,526L200,452L262,500L340,470L420,520L520,486L600,520L700,470L790,510L880,462L960,506L1040,480L1120,512L1200,470V720H0Z", 0.27),
+      cheio("M560,96C576,74 610,70 632,84C650,64 690,64 706,84C730,78 752,90 748,106L572,112C556,110 552,104 560,96Z", 0.27),
+      cheio("M1000,330C1014,312 1044,310 1060,322C1074,308 1104,310 1112,326C1132,324 1146,334 1142,346L1010,350C996,348 994,340 1000,330Z", 0.26)
+    ].join("");
+  }
+  function torre() {
+    let pedras = "";
+    for (let y = 330; y < 720; y += 34) pedras += `M60,${y}H180`;
+    for (let y = 330, i = 0; y < 720; y += 34, i++) for (let x = i % 2 === 0 ? 90 : 120; x < 180; x += 60) pedras += `M${x},${y}v34`;
+    return [
+      cheio("M60,720V300H180V720Z", DOMO_MEIO),
+      vinco(pedras, 3, 0.2),
+      cheio("M52,302V270H74V284H92V270H114V284H130V270H150V284H166V270H188V302Z", 0.64),
+      cheio("M108,420V400a12,12 0 0,1 24,0V420Z", 0.3),
+      cheio("M108,560V540a12,12 0 0,1 24,0V560Z", 0.3),
+      cheio("M98,720V682a22,22 0 0,1 44,0V720Z", 0.3),
+      // labaredas no alto da torre
+      mecha(84, 272, -14, -70, 30, 14, 0.66),
+      mecha(118, 270, 6, -104, 38, -14, 0.72),
+      mecha(156, 272, 16, -76, 30, -14, 0.68),
+      mecha(100, 272, 10, -50, 18, -8, 0.78),
+      mecha(140, 272, -8, -56, 18, 8, 0.78)
+    ].join("");
+  }
+  function sopro() {
+    const p0 = [316, 250];
+    const p1 = [290, 262];
+    const p2 = [240, 276];
+    const p3 = [196, 300];
+    let linguas = "";
+    for (let i = 0; i < 6; i++) {
+      const t = 0.1 + i * 0.16;
+      const [x, y] = naCubica(p0, p1, p2, p3, t);
+      const lado = i % 2 === 0 ? 1 : -1;
+      linguas += mecha(x, y, -34 - i * 4, lado * (10 + i * 3), 18 + i * 3, lado * 10, 0.7);
+    }
+    return tubo("M316,250C290,262 240,276 196,300", 30, 0.5, 0.7) + linguas;
+  }
+  function asaDeLa() {
+    return [
+      cheio("M590,345L600,150L520,40Q560,90 610,50Q620,110 680,120Q660,230 660,330Z", 0.34),
+      tubo("M590,345L600,150", 14, 0.44, 0.6),
+      tubo("M600,150L520,40M600,150L610,50M600,150L680,120", 8, 0.42, 0.56)
+    ].join("");
+  }
+  function asaDeCa() {
+    return [
+      cheio("M640,340L780,150L850,30Q880,90 960,40Q990,110 1060,110Q1060,180 1120,230Q1000,270 940,320Q880,360 820,385Z", 0.42),
+      vinco("M780,150Q840,120 900,64M780,150Q880,140 1000,96M780,150Q900,180 1080,180M780,150Q860,230 1000,270", 4, 0.12),
+      friso("M700,300Q760,260 800,240M760,330Q840,300 900,290", 4, 0.12),
+      tubo("M640,340C690,270 740,200 780,150", 26, 0.66, 0.92),
+      tubo("M780,150L850,30", 12, 0.62, 0.88),
+      tubo("M780,150L960,40", 11, 0.62, 0.88),
+      tubo("M780,150L1060,110", 10, 0.62, 0.88),
+      tubo("M780,150L1120,230", 10, 0.62, 0.88),
+      mecha(780, 150, -14, -36, 14, -6, 0.92),
+      elipse(780, 150, 14, 13, DOMO_CUPULA)
+    ].join("");
+  }
+  function cabeca() {
+    let dentes = "";
+    for (const x of [326, 340, 354, 368, 382]) dentes += mecha(x, 221, 0, 12, 7, 0, 0.96, false);
+    for (const x of [334, 348, 362, 376]) dentes += mecha(x, 270 - (x - 322) * 0.326, 0, -10, 7, 0, 0.93, false);
+    return [
+      mecha(410, 168, 56, -64, 18, 8, 0.64),
+      cheio("M314,220C344,228 384,232 426,234C396,248 356,262 318,272Z", 0.26),
+      dentes,
+      cheio("M421,236C396,242 371,250 348,258C334,263 322,268 318,276C334,280 356,276 376,268C398,260 416,250 431,242Z", DOMO_ALTO),
+      cheio("M442,196C434,172 412,160 386,162C362,164 340,176 326,190C316,200 310,212 312,220C330,224 352,224 372,226C396,228 420,226 438,218Z", DOMO_CUPULA),
+      mecha(330, 186, -4, -20, 12, 4, 0.9),
+      mecha(420, 174, 80, -44, 22, 10, 0.86),
+      vinco("M450,166l6,12M472,154l5,11", 3, 0.28),
+      mecha(436, 226, 40, 8, 16, -6, 0.72),
+      mecha(432, 238, 34, 24, 14, -6, 0.68),
+      mecha(370, 184, 36, -6, 11, -3, 0.97),
+      elipse(386, 193, 7, 5.5, 1),
+      vinco("M386,188v10", 2.5, 0.5),
+      elipse(320, 204, 4.5, 3, 0.4),
+      vinco("M340,212C360,206 380,204 400,208", 2.5, 0.2)
+    ].join("");
+  }
+  function corpo() {
+    const corpoD = "M500,360C540,330 600,320 660,330C720,340 780,370 810,410C835,445 830,490 800,505C760,525 700,525 640,515C580,505 530,480 505,450C490,425 488,385 500,360Z";
+    let placas = "";
+    for (let i = 0; i < 7; i++) {
+      const x = 520 + i * 40;
+      placas += `M${x},${470 + i * 5}q12,16 6,34`;
+    }
+    let espinhos = "";
+    const costas = [
+      [456, 236, 26, -14],
+      [476, 270, 28, -10],
+      [500, 306, 28, -14],
+      [560, 330, 10, -26],
+      [620, 322, 6, -28],
+      [690, 330, 10, -26],
+      [760, 360, 16, -24]
+    ];
+    for (const [x, y, dx, dy] of costas) espinhos += mecha(x, y, dx, dy, 18, -4, 0.74);
+    return [
+      // perna de lá e cauda
+      membro(600, 470, 40, 600, 540, 26, -6, 0.5),
+      elipse(592, 560, 20, 10, 0.56),
+      membro(812, 470, 64, 940, 540, 46, -14, 0.66),
+      membro(940, 540, 46, 1060, 590, 32, -10, 0.66),
+      membro(1060, 590, 32, 1150, 560, 22, 16, 0.68),
+      membro(1150, 560, 22, 1160, 490, 14, 18, 0.7),
+      cheio("M1160,494L1136,470L1162,428L1186,472Z", DOMO_CUPULA),
+      mecha(900, 516, 12, -26, 14, 4, 0.74),
+      mecha(980, 548, 12, -24, 13, 4, 0.74),
+      mecha(1060, 572, 6, -22, 12, 4, 0.74),
+      espinhos,
+      // pescoço em S e corpo escamado
+      membro(436, 214, 48, 480, 300, 62, -12, 0.7),
+      membro(480, 300, 62, 540, 388, 84, 14, 0.7),
+      vinco("M452,262q-14,4 -18,-8M468,296q-16,6 -22,-6M488,330q-16,8 -24,-4M508,362q-16,10 -26,0", 4, 0.2),
+      cheio(corpoD, DOMO_ALTO),
+      cheio(corpoD, "url(#rlv-escamas)"),
+      vinco(placas, 4, 0.22),
+      bossa(745, 470, 62, 56, 0.08)
+    ].join("");
+  }
+  function patas() {
+    const garras = (pts, v) => pts.map(([x, y, dx]) => mecha(x, y, dx, 16, 8, -3, v, false)).join("");
+    return [
+      // dianteira de cá, agarrada ao rochedo
+      membro(560, 450, 50, 540, 520, 32, 6, 0.7),
+      membro(540, 520, 28, 508, 560, 22, -4, 0.74),
+      elipse(500, 566, 22, 12, DOMO_CUPULA),
+      garras([[482, 570, -10], [492, 574, -6], [504, 576, -2]], 0.95),
+      // traseira de cá
+      elipse(745, 470, 62, 56, DOMO_SALIENCIA, -10),
+      membro(760, 505, 40, 772, 560, 28, -6, 0.72),
+      membro(772, 560, 26, 752, 592, 24, 0, 0.74),
+      elipse(744, 598, 26, 11, DOMO_CUPULA),
+      garras([[722, 602, -10], [732, 606, -6], [744, 608, -2]], 0.95)
+    ].join("");
+  }
+  function rochedo() {
+    return [
+      cheio("M380,720L400,640C412,608 440,596 470,594L510,568C560,554 600,560 640,574L700,558C760,550 830,568 862,594L900,640L920,720Z", DOMO_BAIXO),
+      vinco("M470,594L500,650L480,720M640,574L620,640L650,720M700,558L730,630M862,594L830,660M560,600L580,680", 4, 0.25),
+      friso("M412,612C430,600 450,596 470,594M704,560C740,554 780,556 820,566", 3, 0.2)
+    ].join("");
+  }
+  function relevoDragao() {
+    return fundo(0.2) + fundoDistante() + torre() + asaDeLa() + asaDeCa() + rochedo() + sopro() + corpo() + patas() + cabeca();
+  }
+
+  // client/src/puzzles/relevo/cenas/leao.ts
+  var LOSANGOS = '<defs><pattern id="rlv-losango" patternUnits="userSpaceOnUse" width="64" height="64" patternTransform="rotate(45)"><path d="M0,0H64V64" fill="none" stroke="#fff" stroke-opacity="0.06" stroke-width="3"/><circle cx="32" cy="32" r="3.5" fill="#fff" fill-opacity="0.08"/></pattern></defs>';
+  function fundoEChao() {
+    let flores = "";
+    for (const [x, y] of [
+      [120, 690],
+      [360, 696],
+      [700, 694],
+      [1100, 690]
+    ]) {
+      for (let i = 0; i < 5; i++) {
+        const [px, py] = polar(x, y, 7, i * 72 - 90);
+        flores += circulo(px, py, 5, 0.52);
+      }
+      flores += circulo(x, y, 4, 0.6);
+    }
+    return [
+      LOSANGOS,
+      '<rect width="1200" height="720" fill="url(#rlv-losango)"/>',
+      estrela(124, 112, 46, 18, 6, DOMO_CUPULA),
+      estrela(770, 120, 34, 14, 6, DOMO_CUPULA),
+      cheio("M0,670C200,660 400,676 600,668C800,660 1000,674 1200,666V720H0Z", 0.34),
+      flores,
+      tufo(240, 676, 0.44),
+      tufo(500, 672, 0.44),
+      tufo(1020, 672, 0.44)
+    ].join("");
+  }
+  function juba() {
+    let mechas = "";
+    for (let i = 0; i < 11; i++) {
+      const ang = 222 + i * 22;
+      const [x, y] = polar(372, 290, 128, ang);
+      const [dx, dy] = polar(0, 0, 72, ang + 22);
+      mechas += mecha(x, y, dx, dy, 46, -16, 0.66);
+    }
+    for (let i = 0; i < 9; i++) {
+      const ang = 232 + i * 25;
+      const [x, y] = polar(372, 290, 88, ang);
+      const [dx, dy] = polar(0, 0, 66, ang + 26);
+      mechas += mecha(x, y, dx, dy, 40, -14, 0.76);
+    }
+    let cachos = "";
+    for (const [cx, cy] of [
+      [470, 200],
+      [520, 300],
+      [490, 400],
+      [420, 160],
+      [420, 450]
+    ])
+      cachos += vinco(espiral(cx, cy, 3, 18, 1.5, 0), 3.5, 0.22);
+    const base = "M262,200C290,128 380,104 452,124C524,146 580,196 596,270C612,340 596,410 566,456C536,498 482,508 440,486C402,466 384,430 376,392C336,392 290,370 270,326C254,288 250,236 262,200Z";
+    return mechas + cheio(base, DOMO_MEIO) + cheio(base, "url(#rlv-pelo)") + cachos;
+  }
+  function cara() {
+    return [
+      elipse(362, 226, 16, 20, DOMO_CUPULA, -20),
+      cheio("M346,216C316,210 286,222 268,245C256,262 242,275 234,290C230,300 234,312 244,316C256,320 268,318 278,322C286,330 291,345 306,350C326,356 351,350 366,335C381,318 386,290 381,262C378,240 366,222 346,216Z", DOMO_CUPULA),
+      bossa(258, 300, 26, 20, 0.12),
+      bossa(336, 312, 30, 26, 0.08),
+      mecha(286, 250, 40, -4, 12, 4, 0.97),
+      cheio("M290,264Q304,254 318,264Q304,272 290,264Z", 0.98),
+      vinco("M288,264Q304,250 320,264Q304,274 288,264Z", 2.5, 0.35),
+      circulo(306, 263, 3.5, 0.7),
+      elipse(240, 292, 8, 6, 0.5),
+      vinco("M244,316C256,322 268,322 280,324M300,300C310,320 312,336 306,348", 3, 0.35),
+      mecha(256, 322, -26, 16, 11, 6, 0.92),
+      vinco("M262,304h0M272,300h0M270,310h0M282,306h0", 4, 0.3)
+    ].join("");
+  }
+  function coroa() {
+    let pontas = "";
+    for (const x of [316, 346, 375, 404, 434]) pontas += cheio(`M${x - 13},142L${x},98L${x + 13},142Z`, 0.86) + circulo(x, 94, 7.5, DOMO_CUPULA);
+    return [
+      '<g transform="rotate(-8 375 140)">',
+      pontas,
+      cheio("M312,140H438L432,168H318Z", DOMO_CUPULA),
+      friso("M314,142H436M318,166H432", 3, 0.35),
+      circulo(345, 154, 5, 1),
+      circulo(375, 154, 6.5, 1),
+      circulo(405, 154, 5, 1),
+      "</g>"
+    ].join("");
+  }
+  function corpo2() {
+    const corpoD = "M522,330C582,300 700,290 800,300C880,308 950,320 990,360C1020,390 1020,440 1000,470C980,500 940,510 900,505L620,505C570,500 535,470 525,430C518,400 515,360 522,330Z";
+    const garras = (pts, dx, dy) => pts.map(([x, y]) => mecha(x, y, dx, dy, 9, -4, 0.96, false)).join("");
+    return [
+      // cauda erguida com tufo
+      tubo("M1000,360C1062,338 1092,280 1086,220C1080,170 1052,140 1040,122", 18, 0.62, 0.88),
+      mecha(1040, 126, -20, -46, 30, 10, 0.82),
+      mecha(1042, 124, 8, -50, 26, -8, 0.8),
+      mecha(1036, 128, -44, -24, 22, 10, 0.76),
+      // patas de lá
+      membro(626, 462, 56, 616, 600, 40, 6, 0.48),
+      membro(616, 600, 36, 606, 646, 34, 0, 0.5),
+      elipse(596, 656, 36, 16, 0.56),
+      membro(866, 470, 56, 852, 590, 38, -6, 0.48),
+      membro(852, 590, 34, 838, 646, 32, 0, 0.5),
+      elipse(826, 660, 34, 15, 0.56),
+      // corpo
+      cheio(corpoD, DOMO_ALTO),
+      bossa(940, 420, 70, 72, 0.1),
+      vinco("M700,330C690,380 690,430 700,480M740,326C732,380 732,430 742,486M640,500C720,510 820,510 900,500", 3, 0.12),
+      // traseira de cá
+      elipse(925, 430, 74, 80, DOMO_SALIENCIA, 12),
+      membro(942, 486, 52, 962, 600, 36, -8, 0.7),
+      membro(962, 600, 34, 950, 648, 34, 0, 0.72),
+      elipse(940, 658, 38, 17, DOMO_CUPULA),
+      garras([[910, 664], [920, 668], [930, 670]], -10, 6)
+    ].join("");
+  }
+  function pataErguida() {
+    return [
+      membro(566, 420, 64, 506, 500, 44, -10, 0.72),
+      membro(506, 500, 42, 448, 506, 36, 8, 0.74),
+      elipse(434, 502, 28, 22, DOMO_CUPULA, -10),
+      mecha(412, 510, -8, 18, 9, -4, 0.96, false),
+      mecha(422, 516, -6, 18, 9, -4, 0.96, false),
+      mecha(434, 520, -4, 18, 9, -4, 0.96, false)
+    ].join("");
+  }
+  function relevoLeao() {
+    return fundo(0.2) + fundoEChao() + `<g transform="translate(30 0)">${corpo2()}${juba()}${pataErguida()}${cara()}${coroa()}</g>`;
+  }
+
+  // client/src/puzzles/relevo/cenas/navio.ts
+  function ceu() {
+    let chuva = "";
+    for (let i = 0; i < 16; i++) {
+      const x = 1060 + i * 47 % 150;
+      const y = 120 + i * 83 % 240;
+      chuva += `M${x},${y}l-14,40`;
+    }
+    return [
+      // nuvem em espiral no canto e a faixa de nuvens
+      cheio("M0,0H330V96C300,132 240,150 186,136C140,168 64,166 0,140Z", DOMO_MEIO),
+      vinco(espiral(160, 66, 6, 62, 2.2, 200), 5, 0.3),
+      cheio("M300,0H1200V64C1150,94 1080,100 1040,80C990,108 920,104 880,76C820,100 760,96 720,70C660,94 590,88 560,64C520,88 440,84 400,60C360,78 320,74 300,64Z", DOMO_BAIXO),
+      vinco(`${espiral(460, 36, 4, 24, 1.5, 0)}${espiral(780, 46, 4, 26, 1.5, 0)}${espiral(1120, 40, 4, 26, 1.5, 0)}`, 4, 0.25),
+      // o raio
+      cheio("M1010,0L980,70L1006,66L968,150L1000,140L952,236L1018,128L990,134L1030,58L1004,62L1034,0Z", DOMO_CUPULA),
+      vinco(chuva, 2.5, 0.22)
+    ].join("");
+  }
+  function farol() {
+    return [
+      cheio("M1050,288L930,256L936,302Z", 0.3),
+      cheio("M1094,288L1200,262L1200,304Z", 0.3),
+      cheio("M944,560C960,520 990,500 1030,500L1090,488C1140,492 1180,512 1200,530V600H944Z", DOMO_BAIXO),
+      vinco("M1000,512L990,560M1120,494L1132,560", 4, 0.25),
+      cheio("M1036,500L1050,316L1094,316L1108,500Z", DOMO_MEIO),
+      vinco("M1040,452H1104M1044,404H1100M1047,356H1097", 5, 0.22),
+      cheio("M1032,318H1112V304H1032Z", 0.72),
+      cheio("M1050,304V272H1094V304Z", 0.66),
+      vinco("M1062,276v24M1072,276v24M1082,276v24", 2.5, 0.3),
+      cheio("M1044,274Q1072,234 1100,274Z", DOMO_CUPULA),
+      circulo(1072, 236, 5, 0.9),
+      cheio("M1062,500V474a10,10 0 0,1 20,0V500Z", 0.36)
+    ].join("");
+  }
+  function vela(x1, x2, y1, y2) {
+    const d = `M${x1},${y1}H${x2}C${x2 - 8},${(y1 * 2 + y2) / 3} ${x2 - 14},${(y1 + 2 * y2) / 3} ${x2 - 22},${y2}Q${(x1 + x2) / 2 - 10},${y2 + 18} ${x1 - 24},${y2}C${x1 - 32},${(y1 + 2 * y2) / 3} ${x1 - 24},${(y1 * 2 + y2) / 3} ${x1},${y1}Z`;
+    const passo = (x2 - x1) / 4;
+    let costuras = "";
+    for (let i = 1; i < 4; i++) costuras += `M${x1 + passo * i},${y1 + 4}q-8,${(y2 - y1) / 2} -14,${y2 - y1 - 6}`;
+    return cheio(d, DOMO_ALTO) + vinco(costuras, 2.5, 0.16) + vinco(`M${x1 + 6},${y1 + 10}H${x2 - 6}`, 2, 0.14);
+  }
+  function galeao() {
+    let portinholas = "";
+    for (let x = 470; x <= 770; x += 50) portinholas += `M${x},${452 - (x - 470) * 0.05}h13v11h-13z`;
+    return [
+      '<g transform="rotate(-5 620 470)">',
+      // gurupés, mastros e cordame
+      tubo("M392,396L262,318", 10, 0.62, 0.88),
+      traco("M480,112L392,396M620,64L392,410M620,64L872,330M760,140L884,330M266,320L480,112", 2, 0.62),
+      tubo("M480,430V112", 12, 0.64, 0.9),
+      tubo("M620,430V64", 14, 0.64, 0.9),
+      tubo("M760,410V140", 12, 0.64, 0.9),
+      // bujarrona e velas
+      cheio("M276,326L474,142L440,388Z", DOMO_MEIO),
+      vela(418, 542, 150, 240),
+      vela(404, 556, 252, 372),
+      vela(558, 682, 96, 186),
+      vela(538, 702, 196, 290),
+      vela(530, 710, 300, 400),
+      vela(708, 812, 170, 262),
+      vela(698, 822, 272, 380),
+      tubo("M412,150H548M398,252H562M552,96H688M532,196H708M524,300H716M702,170H818M692,272H828", 8, 0.62, 0.88),
+      // flâmulas ao vento
+      mecha(480, 112, -72, 6, 14, -10, 0.78),
+      mecha(620, 64, -98, 4, 16, -12, 0.8),
+      mecha(760, 140, -64, 8, 12, -8, 0.76),
+      // casco, castelos, tábuas e portinholas
+      cheio("M378,418C430,428 520,432 600,430C680,428 760,420 846,404L884,394C890,430 868,486 818,516C730,546 580,550 480,536C432,528 404,496 392,466C384,448 380,432 378,418Z", DOMO_ALTO),
+      cheio("M780,412L784,336L872,326L892,342L884,398Z", DOMO_ALTO),
+      cheio("M386,424L392,388L462,392L466,428Z", DOMO_ALTO),
+      cheio("M800,352h14v16h-14zM826,350h14v16h-14zM852,347h14v16h-14z", 0.34),
+      friso("M392,420C500,430 700,428 846,406M784,338L872,328", 4, 0.4),
+      vinco("M392,456C500,470 700,466 872,436M402,486C520,500 700,496 856,468M424,512C540,526 700,520 826,500", 3, 0.26),
+      cheio(portinholas, 0.36),
+      mecha(384, 420, -32, -20, 16, 8, 0.88),
+      "</g>"
+    ].join("");
+  }
+  function mar() {
+    let cristas = "";
+    for (let x = -60; x < 1200; x += 210) {
+      cristas += cheio(`M${x},720C${x + 40},664 ${x + 110},632 ${x + 172},642C${x + 142},648 ${x + 132},668 ${x + 152},678C${x + 172},686 ${x + 192},672 ${x + 198},662L${x + 214},720Z`, DOMO_ALTO);
+      cristas += mecha(x + 172, 644, 26, 8, 10, -6, 0.9) + mecha(x + 160, 640, 22, -6, 9, -6, 0.88);
+    }
+    let espuma = "";
+    for (const [x, y, dx, dy] of [
+      [334, 334, 34, 18],
+      [318, 320, 32, 6],
+      [300, 308, 30, -4],
+      [280, 298, 26, -12],
+      [258, 290, 22, -16]
+    ])
+      espuma += mecha(x, y, dx, dy, 13, -8, 0.9);
+    let gotas = "";
+    for (const [x, y, r] of [
+      [372, 300, 6],
+      [392, 286, 4],
+      [356, 286, 4],
+      [880, 520, 5],
+      [904, 504, 4],
+      [360, 520, 5]
+    ])
+      gotas += circulo(x, y, r, 0.86);
+    return [
+      // vagas atrás do navio
+      cheio("M240,600C300,560 380,540 460,548C560,560 640,530 740,528C840,526 900,556 980,560C1060,564 1120,540 1200,536V720H240Z", DOMO_MEIO),
+      vinco("M300,590C400,570 500,580 600,570M700,560C800,556 900,580 1000,584", 4, 0.2)
+    ].join("") + galeao() + [
+      // a onda que quebra, à esquerda
+      cheio("M0,720V470C30,380 100,300 200,282C270,270 330,292 350,340C330,320 300,312 278,322C255,334 258,362 280,372C300,380 318,370 322,356C330,392 300,432 270,462C232,500 214,560 230,620L246,720Z", DOMO_ALTO),
+      vinco("M20,520C60,440 120,380 200,350M30,600C70,520 130,460 210,430M60,690C90,600 150,540 222,510", 4, 0.22),
+      espuma,
+      gotas,
+      cristas
+    ].join("");
+  }
+  function relevoNavio() {
+    return fundo(0.2) + ceu() + farol() + mar();
+  }
+
+  // client/src/puzzles/relevo/cenas/serpente.ts
+  function espinhosNaCurva(p0, p1, p2, p3, n, tamanho) {
+    let s = "";
+    for (let i = 0; i < n; i++) {
+      const t = 0.16 + i * 0.68 / (n - 1);
+      const [x, y] = naCubica(p0, p1, p2, p3, t);
+      const [xa, ya] = naCubica(p0, p1, p2, p3, t + 0.01);
+      const comp = Math.hypot(xa - x, ya - y) || 1;
+      const nx = (ya - y) / comp;
+      const ny = -(xa - x) / comp;
+      s += mecha(x + nx * 22, y + ny * 22, nx * tamanho - (xa - x) / comp * 8, ny * tamanho - (ya - y) / comp * 8, 16, 4, 0.8);
+    }
+    return s;
+  }
+  function escamasNoTubo(p0, p1, p2, p3, largura) {
+    let d = "";
+    const passos = 26;
+    for (let i = 1; i < passos; i++) {
+      const t = i / passos;
+      const [x, y] = naCubica(p0, p1, p2, p3, t);
+      const [xa, ya] = naCubica(p0, p1, p2, p3, t + 4e-3);
+      const comp = Math.hypot(xa - x, ya - y) || 1;
+      const tx = (xa - x) / comp;
+      const ty = (ya - y) / comp;
+      for (const f of i % 2 === 0 ? [-0.3, 0, 0.3] : [-0.15, 0.15]) {
+        const cx = x - ty * largura * f;
+        const cy = y + tx * largura * f;
+        const r = largura * 0.12;
+        d += `M${num(cx - ty * r)},${num(cy + tx * r)}Q${num(cx + tx * r * 1.4)},${num(cy + ty * r * 1.4)} ${num(cx + ty * r)},${num(cy - tx * r)}`;
+      }
+    }
+    return vinco(d, 2.2, 0.3);
+  }
+  function ceu2() {
+    return [
+      circulo(140, 118, 70, DOMO_MEIO),
+      bossa(120, 100, 16, 14, -0.14),
+      bossa(166, 142, 12, 10, -0.14),
+      bossa(152, 92, 8, 8, -0.12),
+      bossa(104, 146, 10, 8, -0.12),
+      cheio("M330,96C350,64 400,56 430,74C454,48 508,50 524,76C556,70 586,88 580,110L344,118C326,114 322,104 330,96Z", DOMO_BAIXO),
+      cheio("M560,170C576,146 612,140 636,156C656,134 700,136 714,158C740,154 760,168 754,186L572,192C556,190 552,180 560,170Z", DOMO_BAIXO),
+      vinco(`${espiral(476, 84, 3, 18, 1.4, 0)}${espiral(660, 164, 3, 16, 1.4, 0)}`, 3.5, 0.25)
+    ].join("");
+  }
+  function marDeTras() {
+    return [
+      cheio("M0,500C100,490 200,510 300,500C400,490 500,512 600,502C700,492 800,510 900,500C1000,490 1100,508 1200,498V720H0Z", 0.3),
+      vinco("M40,540C120,530 200,550 280,540M420,556C520,546 620,562 720,552M860,540C940,532 1040,548 1140,540", 4, 0.18)
+    ].join("");
+  }
+  function barco() {
+    return [
+      cheio("M1092,320L1036,452L1090,458Z", DOMO_MEIO),
+      cheio("M1100,306L1172,450L1100,456Z", DOMO_MEIO),
+      tubo("M1096,478V296", 8, 0.62, 0.86),
+      mecha(1096, 298, -28, -6, 9, 4, 0.8),
+      cheio("M1020,468C1050,484 1130,484 1172,464L1162,498C1130,512 1060,512 1032,498Z", DOMO_ALTO),
+      friso("M1024,472C1060,486 1126,486 1168,468", 3, 0.35),
+      vinco("M1036,488C1070,498 1126,498 1158,486", 3, 0.25)
+    ].join("");
+  }
+  function serpente() {
+    const corcovaA = "M570,532C590,352 770,352 790,532";
+    const corcovaB = "M252,532C270,404 412,404 430,532";
+    const pescoco = "M866,560C874,430 884,330 902,272C918,224 938,184 972,160";
+    let dentes = "";
+    for (const x of [1078, 1062, 1046, 1030]) dentes += mecha(x, 161, 0, 14, 7, 0, 0.96, false);
+    for (const x of [1070, 1054, 1038]) dentes += mecha(x, 208 - (1090 - x) * 0.3, 0, -12, 7, 0, 0.93, false);
+    return [
+      // cauda de barbatana
+      membro(196, 534, 40, 142, 452, 26, 10, 0.66),
+      mecha(142, 456, -66, -80, 48, 12, 0.74),
+      mecha(142, 456, -88, -12, 40, -12, 0.72),
+      vinco("M128,436L92,392M120,444L80,410M128,452L72,440M126,460L74,466", 3, 0.22),
+      // corcovas escamadas, com espinhos
+      tubo(corcovaB, 52, 0.6, 0.88),
+      escamasNoTubo([252, 532], [270, 404], [412, 404], [430, 532], 52),
+      espinhosNaCurva([252, 532], [270, 404], [412, 404], [430, 532], 5, 26),
+      tubo(corcovaA, 64, 0.6, 0.9),
+      escamasNoTubo([570, 532], [590, 352], [770, 352], [790, 532], 64),
+      espinhosNaCurva([570, 532], [590, 352], [770, 352], [790, 532], 6, 30),
+      // pescoço e crista
+      cheio("M962,140L900,60L940,96L940,40L970,92L990,52L996,112Z", 0.5),
+      tubo("M970,142L902,62M974,140L942,42M980,138L990,54", 8, 0.62, 0.86),
+      tubo(pescoco, 74, 0.6, 0.9),
+      escamasNoTubo([866, 560], [874, 430], [884, 330], [902, 272], 74),
+      escamasNoTubo([902, 272], [918, 224], [938, 184], [972, 160], 66),
+      vinco("M874,520q22,4 30,-6M878,470q22,6 30,-4M884,420q22,6 30,-2M890,370q20,8 30,0M900,320q20,8 28,2", 4, 0.2),
+      // cabeça de boca aberta, virada para o barco
+      cheio("M1092,160C1062,168 1024,172 984,174C1014,188 1054,200 1090,212Z", 0.26),
+      dentes,
+      cheio("M988,176C1012,182 1037,190 1060,198C1074,203 1086,208 1090,216C1074,220 1052,216 1032,208C1010,200 992,190 980,184Z", DOMO_ALTO),
+      cheio("M950,150C956,124 978,110 1004,108C1030,106 1056,118 1074,132C1086,142 1096,152 1094,160C1076,164 1054,164 1032,166C1008,168 984,168 962,162Z", DOMO_CUPULA),
+      mecha(996, 122, 36, -8, 11, 3, 0.97),
+      elipse(1012, 132, 8, 6, 1),
+      vinco("M1003,132a9,7 0 1,0 18,0a9,7 0 1,0 -18,0", 2.5, 0.4),
+      vinco("M1012,127v10", 2.5, 0.5),
+      elipse(1084, 142, 4, 3, 0.42),
+      mecha(1090, 172, 32, 30, 8, -8, 0.74),
+      mecha(1084, 178, 16, 46, 8, -10, 0.7)
+    ].join("");
+  }
+  function marDaFrente() {
+    let cristas = "";
+    for (let x = -40; x < 1200; x += 190) {
+      cristas += cheio(`M${x},720C${x + 36},670 ${x + 100},640 ${x + 156},650C${x + 128},656 ${x + 120},674 ${x + 138},684C${x + 156},692 ${x + 174},680 ${x + 180},670L${x + 194},720Z`, DOMO_ALTO);
+      cristas += mecha(x + 156, 652, 24, 8, 10, -6, 0.9);
+    }
+    let respingos = "";
+    for (const [x, y, dx, dy] of [
+      [246, 530, -18, -24],
+      [436, 530, 18, -24],
+      [564, 530, -20, -28],
+      [796, 530, 20, -28],
+      [836, 540, -22, -30],
+      [902, 540, 24, -26]
+    ])
+      respingos += mecha(x, y, dx, dy, 12, 6, 0.84);
+    return [
+      cheio("M0,540C80,526 160,548 240,536C320,524 420,550 500,538C600,524 700,552 800,540C900,528 1000,550 1200,532V720H0Z", DOMO_BAIXO),
+      respingos,
+      circulo(240, 500, 4, 0.84),
+      circulo(450, 502, 5, 0.84),
+      circulo(820, 506, 4, 0.84),
+      circulo(920, 510, 5, 0.84),
+      cristas
+    ].join("");
+  }
+  function relevoSerpente() {
+    return fundo(0.2) + ceu2() + marDeTras() + barco() + serpente() + marDaFrente();
+  }
+
+  // client/src/puzzles/relevo/cenas/solELua.ts
+  var SOL = [300, 360];
+  function sol() {
+    const [cx, cy] = SOL;
+    let raios = "";
+    for (let i = 0; i < 16; i++) {
+      const a = i * 22.5 - 90 + 11.25;
+      if (i % 2 === 0) {
+        const [x1, y1] = polar(cx, cy, 146, a - 7);
+        const [x2, y2] = polar(cx, cy, 266, a);
+        const [x3, y3] = polar(cx, cy, 146, a + 7);
+        raios += `<polygon points="${num(x1)},${num(y1)} ${num(x2)},${num(y2)} ${num(x3)},${num(y3)}" fill="${alt(0.74)}"/>`;
+        const [xm, ym] = polar(cx, cy, 150, a);
+        raios += `<path d="M${num(xm)},${num(ym)}L${num(x2)},${num(y2)}" stroke="#fff" stroke-opacity="0.18" stroke-width="4"/>`;
+      } else {
+        const [x, y] = polar(cx, cy, 140, a);
+        const [dx, dy] = polar(0, 0, 100, a);
+        raios += mecha(x, y, dx, dy, 34, 18, 0.66);
+      }
+    }
+    return [
+      raios,
+      circulo(cx, cy, 150, 0.56),
+      friso(`M${cx - 140},${cy}a140,140 0 1,0 280,0a140,140 0 1,0 -280,0`, 6, 0.3),
+      circulo(cx, cy, 128, DOMO_CUPULA),
+      // rosto sereno
+      mecha(236, 322, 52, -4, 12, -6, 0.95),
+      mecha(364, 322, -52, -4, 12, 6, 0.95),
+      cheio("M232,346Q258,330 284,346Q258,356 232,346Z", 0.98),
+      cheio("M316,346Q342,330 368,346Q342,356 316,346Z", 0.98),
+      vinco("M230,346Q258,326 286,346Q258,358 230,346ZM314,346Q342,326 370,346Q342,358 314,346Z", 2.5, 0.35),
+      circulo(258, 344, 6, 0.7),
+      circulo(342, 344, 6, 0.7),
+      membro(300, 340, 14, 300, 394, 24, 0, 0.9),
+      vinco("M290,398q10,6 20,0", 3, 0.35),
+      bossa(242, 394, 30, 24, 0.1),
+      bossa(358, 394, 30, 24, 0.1),
+      cheio("M262,424Q300,450 338,424Q300,436 262,424Z", 0.92),
+      vinco("M262,424Q300,444 338,424", 3, 0.4),
+      bossa(300, 458, 30, 14, 0.08)
+    ].join("");
+  }
+  function lua() {
+    return [
+      cheio("M780,150A196,196 0 1,1 780,530C840,512 876,470 884,428C874,418 864,412 858,408C864,402 865,394 857,388L838,366C853,354 863,342 863,326C863,298 856,256 836,222C818,190 800,166 780,150Z", DOMO_ALTO),
+      bossa(910, 372, 32, 28, 0.12),
+      bossa(940, 260, 40, 50, 0.06),
+      mecha(872, 284, 46, -8, 11, -4, 0.95),
+      cheio("M874,302Q892,292 910,302Q892,309 874,302Z", 0.98),
+      vinco("M874,302Q892,312 910,302M880,308l-4,7M890,310l-2,8M900,309l0,8", 2.5, 0.4),
+      vinco("M858,408C870,414 878,420 884,428", 3, 0.3),
+      friso("M820,170A176,176 0 0,1 820,510", 4, 0.18)
+    ].join("");
+  }
+  function estrelasENuvens() {
+    let pontos = "";
+    for (const [x, y] of [
+      [700, 200],
+      [760, 80],
+      [1040, 470],
+      [470, 620],
+      [980, 650],
+      [560, 60],
+      [1160, 300]
+    ])
+      pontos += circulo(x, y, 4.5, 0.8);
+    const nuvem = "M380,640C380,596 430,576 468,596C484,556 548,548 574,584C600,560 660,566 668,604C704,598 734,624 724,652C744,670 732,700 700,700L400,700C368,696 360,664 380,640Z";
+    const nuvem2 = "M40,650C40,620 76,604 104,618C118,592 166,588 184,614C206,600 246,610 248,636C272,640 282,664 266,682L60,686C36,684 30,664 40,650Z";
+    return [
+      estrela(620, 110, 40, 14, 8, DOMO_CUPULA),
+      estrela(1120, 100, 30, 11, 8, DOMO_CUPULA),
+      estrela(1110, 610, 34, 12, 8, DOMO_CUPULA),
+      estrela(650, 470, 24, 9, 8, DOMO_CUPULA),
+      estrela(560, 250, 18, 7, 8, 0.8),
+      pontos,
+      cheio(nuvem, DOMO_MEIO),
+      vinco(`${espiral(470, 622, 3, 24, 1.5, 0)}${espiral(560, 600, 3, 22, 1.5, 0)}${espiral(650, 628, 3, 20, 1.5, 0)}`, 4, 0.26),
+      cheio(nuvem2, DOMO_MEIO),
+      vinco(`${espiral(110, 640, 3, 20, 1.5, 0)}${espiral(190, 640, 3, 18, 1.5, 0)}`, 4, 0.26)
+    ].join("");
+  }
+  function relevoSolELua() {
+    return fundo(0.2) + sol() + lua() + estrelasENuvens();
+  }
+
+  // client/src/puzzles/relevo/arte.ts
+  var LARGURA_DO_PAINEL = 1600;
+  var ALTURA_DO_PAINEL = 1e3;
+  var AREA_DO_RELEVO = { x: 200, y: 160, largura: 1200, altura: 720 };
+  var NOME_DA_CENA = {
+    cavaleiro: "Cavaleiro contra a fera",
+    dragao: "Dragão",
+    navio: "Navio na tempestade",
+    leao: "Leão coroado",
+    serpente: "Serpente marinha",
+    solELua: "Sol e lua"
+  };
+  var NOME_DO_METAL = { bronze: "Bronze", ferro: "Ferro", prata: "Prata velha" };
+  var ORDEM_DAS_PLACAS = {
+    cavaleiro: [5, 3, 10, 0, 6, 11, 4, 7, 8, 9, 1, 2],
+    dragao: [1, 7, 9, 4, 3, 8, 6, 5, 10, 2, 11, 0],
+    navio: [6, 3, 4, 9, 7, 0, 5, 1, 2, 10, 11, 8],
+    leao: [1, 9, 3, 4, 11, 5, 7, 6, 0, 10, 2, 8],
+    serpente: [3, 4, 6, 0, 7, 5, 2, 10, 1, 9, 8, 11],
+    solELua: [4, 6, 11, 2, 9, 5, 7, 0, 10, 1, 3, 8]
+  };
+  var DESCRICAO_DAS_PLACAS = {
+    cavaleiro: [
+      "o castelo no morro",
+      "o penacho do elmo",
+      "os pássaros no céu",
+      "a cabeça da fera",
+      "a cauda do cavalo",
+      "o cavaleiro e o escudo",
+      "a cabeça do cavalo",
+      "a juba da fera",
+      "o casco de trás",
+      "a barriga do cavalo",
+      "o casco da frente",
+      "as patas da fera"
+    ],
+    dragao: [
+      "as chamas da torre",
+      "a cabeça do dragão",
+      "o osso da asa",
+      "a ponta da asa",
+      "o sopro de fogo",
+      "o pescoço do dragão",
+      "o corpo escamado",
+      "a ponta da cauda",
+      "a porta da torre",
+      "a garra no rochedo",
+      "a pata de trás",
+      "a curva da cauda"
+    ],
+    navio: [
+      "a nuvem em espiral",
+      "as velas de cima",
+      "o topo do mastro",
+      "o raio",
+      "a crista da onda",
+      "a proa do navio",
+      "as velas do meio",
+      "o farol",
+      "o pé da onda",
+      "o casco do navio",
+      "as ondas sob a popa",
+      "o rochedo do farol"
+    ],
+    leao: [
+      "a estrela do canto",
+      "a coroa do leão",
+      "a estrela menor",
+      "o tufo da cauda",
+      "o focinho e a língua",
+      "o olho do leão",
+      "o dorso do leão",
+      "a anca do leão",
+      "a flor no chão",
+      "a pata erguida",
+      "a barriga e as patas",
+      "a pata de trás"
+    ],
+    serpente: [
+      "a lua cheia",
+      "a nuvem perto da lua",
+      "a nuvem do meio",
+      "a cabeça da serpente",
+      "a barbatana da cauda",
+      "a corcova pequena",
+      "a corcova grande",
+      "o barquinho à vela",
+      "o rabo na água",
+      "as ondas do meio",
+      "o pescoço na água",
+      "as ondas sob o barco"
+    ],
+    solELua: [
+      "os raios do alto",
+      "os raios da direita",
+      "a ponta de cima da lua",
+      "a estrela do alto",
+      "o olho esquerdo do sol",
+      "o olho direito do sol",
+      "o rosto da lua",
+      "a bochecha da lua",
+      "a nuvem pequena",
+      "a nuvem grande",
+      "a ponta de baixo da lua",
+      "a estrela de baixo"
+    ]
+  };
+  var DESENHO_DA_CENA = {
+    cavaleiro: relevoCavaleiro,
+    dragao: relevoDragao,
+    navio: relevoNavio,
+    leao: relevoLeao,
+    serpente: relevoSerpente,
+    solELua: relevoSolELua
+  };
+  var METAIS = {
+    // Pátina verde-azulada nos rebaixos, bronze escuro no corpo, dourado gasto no alto.
+    bronze: { tabela: ["#33493d", "#4a6553", "#3a4636", "#3b3226", "#4f3a23", "#6a4c2a", "#86632f", "#a37c3f", "#c09858"], brilho: "#f3d3a0", ks: 0.55, expoente: 20, kd: 1.3 },
+    // Quase preto, ferrugem marrom nos rebaixos, cinza-esverdeado gasto no alto.
+    ferro: { tabela: ["#4f2a18", "#5a3320", "#35271f", "#232321", "#282927", "#30322f", "#3d403a", "#53564d", "#74766a"], brilho: "#c8d2c8", ks: 0.36, expoente: 16, kd: 1.3 },
+    // Cinza azulado, oxidação quase preta nos rebaixos.
+    prata: { tabela: ["#17171a", "#222226", "#2f3035", "#3f4248", "#52565d", "#686d75", "#80868e", "#9ba1a8", "#bcc1c6"], brilho: "#e8eefa", ks: 0.75, expoente: 24, kd: 1.3 }
+  };
+  function canal(tabela, c) {
+    return tabela.map((h) => (parseInt(h.slice(1 + c * 2, 3 + c * 2), 16) / 255).toFixed(3)).join(" ");
+  }
+  var PARA_ALFA = ["0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0", "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0"];
+  var ALFA_PARA_CINZA = "0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 1";
+  function filtroDoMetal(metal) {
+    const m = METAIS[metal];
+    const luz = '<feDistantLight azimuth="225" elevation="38"/>';
+    const cm = (entrada, valores, saida) => `<feColorMatrix in="${entrada}" type="matrix" values="${valores}" result="${saida}"/>`;
+    const ar = (a, b, k, saida) => `<feComposite in="${a}" in2="${b}" operator="arithmetic" ${k} result="${saida}"/>`;
+    return [
+      `<filter id="rlv-metal" filterUnits="userSpaceOnUse" x="100" y="0" width="1400" height="1000" color-interpolation-filters="sRGB">`,
+      // a altura, arredondada em três escalas (aresta nítida + almofada + monte)
+      cm("SourceGraphic", PARA_ALFA[0], "h0"),
+      '<feGaussianBlur in="h0" stdDeviation="1.3" result="b1"/>',
+      '<feGaussianBlur in="h0" stdDeviation="6" result="b2"/>',
+      '<feGaussianBlur in="h0" stdDeviation="24" result="b3"/>',
+      ar("b1", "b2", 'k2="0.55" k3="0.27"', "ha"),
+      ar("ha", "b3", 'k2="1" k3="0.18"', "hs"),
+      // grão de fundição (ruído fino)
+      '<feTurbulence type="fractalNoise" baseFrequency="0.32" numOctaves="2" seed="11" result="gt"/>',
+      cm("gt", PARA_ALFA[0], "gr"),
+      ar("hs", "gr", 'k2="1" k3="0.03" k4="-0.015"', "h"),
+      // cavidade: o que está abaixo da vizinhança (vincos, pé das figuras)
+      ar("h", "b3", 'k2="2.2" k3="-2.2" k4="0.6"', "cav"),
+      // índice da pátina: baixo + manchas + cavidade = mais pátina; o fundo
+      // fica no metal escuro (~0,35), as figuras no metal (~0,7), o alto gasto (~0,9)
+      '<feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="3" seed="7" result="pt"/>',
+      cm("pt", PARA_ALFA[0], "nz"),
+      ar("h", "nz", 'k2="0.55" k3="0.75" k4="-0.135"', "p1"),
+      ar("p1", "cav", 'k2="1" k3="1" k4="-0.6"', "p"),
+      cm("p", ALFA_PARA_CINZA, "pg"),
+      `<feComponentTransfer in="pg" result="alb"><feFuncR type="table" tableValues="${canal(m.tabela, 0)}"/><feFuncG type="table" tableValues="${canal(m.tabela, 1)}"/><feFuncB type="table" tableValues="${canal(m.tabela, 2)}"/></feComponentTransfer>`,
+      // luz
+      `<feDiffuseLighting in="h" surfaceScale="14" diffuseConstant="${m.kd}" lighting-color="#fff" result="dif">${luz}</feDiffuseLighting>`,
+      `<feSpecularLighting in="h" surfaceScale="14" specularConstant="${m.ks}" specularExponent="${m.expoente}" lighting-color="${m.brilho}" result="esp">${luz}</feSpecularLighting>`,
+      cm("cav", ALFA_PARA_CINZA, "cg"),
+      cm("h", ALFA_PARA_CINZA, "hg"),
+      ar("alb", "dif", 'k1="1"', "c1"),
+      ar("c1", "cg", 'k1="0.75" k2="0.4"', "c2"),
+      ar("esp", "hg", 'k1="1.1"', "e2"),
+      ar("c2", "e2", 'k2="1" k3="1"', "c3"),
+      '<feComposite in="c3" in2="SourceAlpha" operator="in"/>',
+      "</filter>"
+    ].join("");
+  }
+  var FILTRO_DA_PAREDE = [
+    '<filter id="rlv-parede" filterUnits="userSpaceOnUse" x="0" y="0" width="1600" height="1000" color-interpolation-filters="sRGB">',
+    '<feTurbulence type="fractalNoise" baseFrequency="0.022 0.034" numOctaves="4" seed="5" result="t"/>',
+    '<feColorMatrix in="t" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.3 0 0 0 -0.5" result="escuro"/>',
+    '<feColorMatrix in="t" type="matrix" values="0 0 0 0 1 0 0 0 0 0.9 0 0 0 0 0.8 0 0.7 0 0 -0.36" result="claro"/>',
+    '<feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="escuro"/><feMergeNode in="claro"/></feMerge>',
+    "</filter>",
+    '<filter id="rlv-sombra" x="-0.05" y="-0.05" width="1.1" height="1.12"><feGaussianBlur stdDeviation="13"/></filter>',
+    // vinheta sem degradê (o primeiro degradê custa compilação de shader): uma
+    // moldura preta larga, desfocada
+    '<filter id="rlv-vinheta" filterUnits="userSpaceOnUse" x="0" y="0" width="1600" height="1000"><feGaussianBlur stdDeviation="70"/></filter>'
+  ].join("");
+  function parede() {
+    let juntas = "";
+    for (let i = 0; i < 8; i++) {
+      const y = 40 + i * 140;
+      juntas += `M0,${y}H1600`;
+      for (let x = i % 2 === 0 ? 0 : 130; x < 1600; x += 260) juntas += `M${x},${y}V${y + 140}`;
+    }
+    return [
+      '<g filter="url(#rlv-parede)">',
+      '<rect width="1600" height="1000" fill="#2a2521"/>',
+      `<path d="${juntas}" fill="none" stroke="#3c352e" stroke-width="2" transform="translate(2 4)"/>`,
+      `<path d="${juntas}" fill="none" stroke="#14110f" stroke-width="5"/>`,
+      "</g>",
+      '<rect x="-60" y="-60" width="1720" height="1120" fill="none" stroke="#000" stroke-width="300" opacity="0.6" filter="url(#rlv-vinheta)"/>'
+    ].join("");
+  }
+  var BASE_DA_MOLDURA = '<rect x="112" y="72" width="1376" height="896" rx="8"/>';
+  var COSTAS_DA_CRISTA = "M586,100C596,62 646,40 700,44C730,20 770,6 800,6C830,6 870,20 900,44C954,40 1004,62 1014,100Z";
+  var BASE_DA_FAIXA = '<rect x="142" y="948" width="1316" height="44" rx="8"/>';
+  function sombraDaMoldura() {
+    return `<g filter="url(#rlv-sombra)" opacity="0.85"><g transform="translate(18 24)" fill="#000">${BASE_DA_MOLDURA}<path d="${COSTAS_DA_CRISTA}"/>${BASE_DA_FAIXA}</g></g>`;
+  }
+  function anel(d, largura, v, extra = "") {
+    const { x, y, largura: l, altura: a } = AREA_DO_RELEVO;
+    return `<rect x="${x - d}" y="${y - d}" width="${l + 2 * d}" height="${a + 2 * d}" fill="none" stroke="${alt(v)}" stroke-width="${largura}"${extra}/>`;
+  }
+  function roseta(cx, cy, r) {
+    let s = circulo(cx, cy, r, 0.6);
+    for (let i = 0; i < 8; i++) {
+      const [px, py] = polar(cx, cy, r * 0.56, i * 45 + 22.5);
+      s += elipse(px, py, r * 0.44, r * 0.24, 0.88, i * 45 + 22.5);
+    }
+    return s + circulo(cx, cy, r * 0.34, DOMO_CUPULA) + vinco(`M${cx - r * 0.34},${cy}a${r * 0.34},${r * 0.34} 0 1,0 ${r * 0.68},0a${r * 0.34},${r * 0.34} 0 1,0 ${-r * 0.68},0`, 2.5, 0.3);
+  }
+  function crista() {
+    const folhas = [
+      [706, 50, -34, -22, 18, 8],
+      [680, 44, -40, -4, 16, 6],
+      [660, 56, -34, 16, 14, 4]
+    ];
+    let acanto = "";
+    for (const [x, y, dx, dy, l, c] of folhas) acanto += mecha(x, y, dx, dy, l, c, 0.8) + mecha(1600 - x, y, -dx, dy, l, -c, 0.8);
+    return [
+      cheio(COSTAS_DA_CRISTA, 0.5),
+      tubo("M742,112C690,122 630,106 590,120C570,128 572,146 590,146", 12, 0.58, 0.86),
+      tubo("M858,112C910,122 970,106 1010,120C1030,128 1028,146 1010,146", 12, 0.58, 0.86),
+      acanto,
+      tubo("M742,74C700,32 640,30 622,62C608,88 630,108 650,100C664,94 662,78 650,78", 18, 0.6, 0.92),
+      tubo("M858,74C900,32 960,30 978,62C992,88 970,108 950,100C936,94 938,78 950,78", 18, 0.6, 0.92),
+      cheio("M742,16H858V70C858,108 832,130 800,144C768,130 742,108 742,70Z", DOMO_CUPULA),
+      vinco("M750,24H850V70C850,104 828,122 800,134C772,122 750,104 750,70Z", 3, 0.35),
+      // um labirinto pequeno gravado no escudo: a assinatura da casa
+      vinco("M772,40H828V100H780V54H816V88H792V66H804V78", 5, 0.42),
+      circulo(800, 10, 7, DOMO_CUPULA)
+    ].join("");
+  }
+  function faixaDaBase() {
+    return [
+      `<rect x="142" y="948" width="1316" height="44" rx="8" fill="${alt(0.6)}"/>`,
+      friso("M152,955H1448M152,985H1448", 3, 0.4),
+      '<rect x="196" y="959" width="1208" height="22" fill="url(#rlv-greca)"/>',
+      circulo(170, 970, 15, DOMO_CUPULA),
+      circulo(1430, 970, 15, DOMO_CUPULA)
+    ].join("");
+  }
+  function moldura() {
+    const { x, y, largura: l, altura: a } = AREA_DO_RELEVO;
+    return [
+      `<rect x="112" y="72" width="1376" height="896" rx="8" fill="${alt(0.44)}"/>`,
+      anel(84, 8, 0.56),
+      anel(74, 13, 0.8),
+      anel(62, 9, 0.5),
+      anel(45, 26, 0.66),
+      anel(45, 12, 0.92, ' stroke-dasharray="0 30" stroke-linecap="round"'),
+      anel(45, 4, 0.82, ' stroke-dasharray="9 21" stroke-dashoffset="-10"'),
+      anel(30, 6, 0.5),
+      anel(20, 14, 0.76),
+      anel(11, 4, 0.9),
+      anel(5, 10, 0.55),
+      roseta(x - 45, y - 45, 26),
+      roseta(x + l + 45, y - 45, 26),
+      roseta(x - 45, y + a + 45, 26),
+      roseta(x + l + 45, y + a + 45, 26),
+      elipse(x - 45, y + a / 2, 16, 30, DOMO_CUPULA),
+      elipse(x + l + 45, y + a / 2, 16, 30, DOMO_CUPULA),
+      crista(),
+      faixaDaBase()
+    ].join("");
+  }
+  var GRECA = '<pattern id="rlv-greca" patternUnits="userSpaceOnUse" x="196" y="959" width="28" height="22"><path d="M0,20H28M4,20V3H24V15H11V9H18" fill="none" stroke="#000" stroke-opacity="0.42" stroke-width="3"/></pattern>';
+  function svgDoPainel(cena, metal) {
+    const { x, y, largura, altura } = AREA_DO_RELEVO;
+    reiniciarDomos();
+    const contorno = moldura();
+    const miolo = cena === null ? `<rect width="${largura}" height="${altura}" fill="${alt(0.14)}"/>` : DESENHO_DA_CENA[cena]();
+    return [
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${LARGURA_DO_PAINEL} ${ALTURA_DO_PAINEL}" width="${LARGURA_DO_PAINEL}" height="${ALTURA_DO_PAINEL}">`,
+      "<defs>",
+      defsDeAltura(),
+      GRECA,
+      filtroDoMetal(metal),
+      FILTRO_DA_PAREDE,
+      `<clipPath id="rlv-area"><rect width="${largura}" height="${altura}"/></clipPath>`,
+      "</defs>",
+      parede(),
+      sombraDaMoldura(),
+      '<g filter="url(#rlv-metal)">',
+      contorno,
+      `<g transform="translate(${x} ${y})" clip-path="url(#rlv-area)">${miolo}</g>`,
+      "</g>",
+      "</svg>"
+    ].join("");
+  }
+  return __toCommonJS(arte_exports);
+})();
+</script>
+<script>
+const A = ArteDoRelevo
+const CENAS = ['cavaleiro', 'dragao', 'navio', 'leao', 'serpente', 'solELua']
+const METAIS = ['bronze', 'ferro', 'prata']
+const LACUNAS_PADRAO = 4
+
+async function rasterizar(cena, metal) {
+  const t0 = performance.now()
+  const svg = A.svgDoPainel(cena, metal)
+  const t1 = performance.now()
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
+  const img = new Image()
+  img.src = url
+  await img.decode()
+  const cv = document.createElement('canvas')
+  cv.width = 1600
+  cv.height = 1000
+  const ctx = cv.getContext('2d')
+  ctx.drawImage(img, 0, 0)
+  ctx.getImageData(800, 500, 1, 1)
+  const t2 = performance.now()
+  URL.revokeObjectURL(url)
+  return { cv, gerar: t1 - t0, raster: t2 - t1, bytes: new Blob([svg]).size }
+}
+
+function gpu() {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl')
+    const ext = gl.getExtension('WEBGL_debug_renderer_info')
+    return gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER)
+  } catch (e) { return 'sem WebGL' }
+}
+
+function copiar(destino, origem, sx = 0, sy = 0, sw = 1600, sh = 1000) {
+  destino.getContext('2d').drawImage(origem, sx, sy, sw, sh, 0, 0, destino.width, destino.height)
+}
+
+function desenharGrade(cv, cena) {
+  const g = cv.getContext('2d')
+  const ex = cv.width / 1200, ey = cv.height / 720
+  const faltam = A.ORDEM_DAS_PLACAS[cena].slice(0, LACUNAS_PADRAO)
+  g.lineWidth = 2
+  for (let k = 0; k < 12; k++) {
+    const col = k % 4, lin = Math.floor(k / 4)
+    const x = col * 300 * ex, y = lin * 240 * ey, w = 300 * ex, h = 240 * ey
+    if (faltam.includes(k)) { g.fillStyle = 'rgba(243, 208, 138, 0.16)'; g.fillRect(x, y, w, h) }
+    g.strokeStyle = 'rgba(255, 240, 200, 0.85)'
+    g.strokeRect(x + 1, y + 1, w - 2, h - 2)
+    g.fillStyle = 'rgba(0,0,0,0.6)'
+    g.fillRect(x + 6, y + 6, 34, 26)
+    g.fillStyle = faltam.includes(k) ? '#f3d08a' : '#fff'
+    g.font = '600 18px system-ui'
+    g.fillText(String(k), x + 12, y + 26)
+  }
+}
+
+async function principal() {
+  const tempos = []
+  // aquecimento: um SVG sem filtro, para separar o custo de ligar o navegador
+  // do custo do primeiro painel (que ainda paga a compilação dos filtros)
+  {
+    const t0 = performance.now()
+    const url = URL.createObjectURL(new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000"><rect width="1600" height="1000" fill="#345"/></svg>'], { type: 'image/svg+xml' }))
+    const img = new Image()
+    img.src = url
+    await img.decode()
+    const cv = document.createElement('canvas')
+    cv.width = 1600
+    cv.height = 1000
+    cv.getContext('2d').drawImage(img, 0, 0)
+    cv.getContext('2d').getImageData(1, 1, 1, 1)
+    tempos.push({ cena: 'aquecimento', metal: '-', gerar: 0, raster: performance.now() - t0, kb: 0 })
+  }
+  const gradeM = document.getElementById('gradeMetais')
+  gradeM.insertAdjacentHTML('beforeend', '<div></div>' + METAIS.map((m) => '<div class="rot">' + A.NOME_DO_METAL[m] + '</div>').join(''))
+  const porCena = {}
+  for (const cena of CENAS) {
+    gradeM.insertAdjacentHTML('beforeend', '<div class="rot">' + A.NOME_DA_CENA[cena] + '</div>')
+    for (const metal of METAIS) {
+      const r = await rasterizar(cena, metal)
+      tempos.push({ cena, metal, gerar: r.gerar, raster: r.raster, kb: r.bytes / 1024 })
+      const mini = document.createElement('canvas')
+      mini.width = 800
+      mini.height = 500
+      copiar(mini, r.cv)
+      gradeM.appendChild(mini)
+      if (metal === 'bronze') porCena[cena] = r.cv
+      if (cena === 'cavaleiro' && metal === 'ferro') copiar(document.getElementById('grande'), r.cv)
+    }
+  }
+  const gradeP = document.getElementById('gradePlacas')
+  for (const cena of CENAS) {
+    const fig = document.createElement('figure')
+    const cv = document.createElement('canvas')
+    cv.width = 1040
+    cv.height = 624
+    copiar(cv, porCena[cena], 200, 160, 1200, 720)
+    desenharGrade(cv, cena)
+    fig.appendChild(cv)
+    const ordem = A.ORDEM_DAS_PLACAS[cena]
+    const desc = A.DESCRICAO_DAS_PLACAS[cena]
+    fig.insertAdjacentHTML('beforeend', '<figcaption>' + desc.map((d, k) => (ordem.indexOf(k) < LACUNAS_PADRAO ? '<b>' + k + ' ' + d + '</b>' : k + ' ' + d)).join('<br>') + '</figcaption>')
+    gradeP.appendChild(fig)
+  }
+  for (const metal of METAIS) {
+    const r = await rasterizar(null, metal)
+    tempos.push({ cena: 'sem cena', metal, gerar: r.gerar, raster: r.raster, kb: r.bytes / 1024 })
+    if (metal === 'ferro') copiar(document.getElementById('semCena'), r.cv)
+  }
+  // segunda volta: o primeiro painel paga o aquecimento do navegador
+  for (const metal of METAIS) {
+    const r = await rasterizar('cavaleiro', metal)
+    tempos.push({ cena: 'cavaleiro (2ª vez)', metal, gerar: r.gerar, raster: r.raster, kb: r.bytes / 1024 })
+  }
+  document.getElementById('tempos').innerHTML = '<tr><th>cena</th><th>metal</th><th>gerar</th><th>raster</th><th>KB</th></tr>' +
+    tempos.map((t) => '<tr><td>' + t.cena + '</td><td>' + t.metal + '</td><td>' + t.gerar.toFixed(1) + '</td><td>' + t.raster.toFixed(0) + '</td><td>' + t.kb.toFixed(1) + '</td></tr>').join('')
+  document.getElementById('gpu').textContent = 'Renderizador: ' + gpu()
+  window.__tempos = tempos
+  window.__gpu = gpu()
+  window.__pronto = true
+}
+principal().catch((e) => { window.__erro = String(e && e.stack || e); window.__pronto = true })
+</script>
+</body></html>
