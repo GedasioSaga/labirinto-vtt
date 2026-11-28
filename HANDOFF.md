@@ -2,7 +2,7 @@
 ## Frentes
 - 0.6.10 (agente ad0940fb): fechando acumulador ("Pergunta antes", "Vale em"). Quando terminar: verificador + publicar 0.6.10.
 - Puzzles (designer-opus max, aa23f414): sistema de puzzle existente + REFERENCIAS.md dos RE + 1º "Painel em relevo" (peças de metal), FILA.md. Notas tmp/rel-puzzles/notas.md.
-- Arte (arquiteto xhigh, aeb5386e): inventário + pesquisa top-down + docs/design/arte-temas/PLANO.md com lotes. Depois: workflow de lotes (2-3 desenhistas Opus max em paralelo + 1 integrador), publicar por lote.
+- Arte: PLANO.md pronto (8e551075; 113 peças em 12 lotes). Workflow onda 1 rodando (wf_c1a1991e-23b, task wls4yb3wi): I0 (versão dentro do objeto) + L01-L03 (Opus max) + integrador; notas tmp/rel-arte-onda1. Depois publicar e rodar ondas 2-4 (L04-L12) com o mesmo script trocando os ids.
 - Bugs de batalha: WORKFLOW pedido pelo dono, depois da 0.6.10 (para não colidir em stores/batalha): mapear combinações de habilidades, testadores como mestre e jogador (harness/store, sem testes no repo), fixer em sequência com 1-3 testes certeiros por bug, verificar, publicar.
 ## Critério de pronto do goal
 Workflow de batalha rodado com bugs achados corrigidos e publicados; ao menos o Painel em relevo + 1 puzzle a mais publicados; lotes de arte dos temas prioritários publicados; cada entrega com 1-3 testes certeiros quando é código.
