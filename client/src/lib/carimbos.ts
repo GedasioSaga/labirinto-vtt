@@ -1,5 +1,5 @@
 import type { Carimbo, CarimboImportado, MapData, RegionPoint } from '../types/map'
-import { pisoLido } from './pisos'
+import { pisoLido } from './pisoDaEntidade'
 import { camadaLida } from './camadas/arquivo'
 
 /**

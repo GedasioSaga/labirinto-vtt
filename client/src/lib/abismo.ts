@@ -17,7 +17,7 @@
  */
 import type { Abismo, BrilhoDoAbismo, CamadaId, MapData, RegionPoint, Wall } from '../types/map'
 import type { CarimboQueIlumina } from './luzDoFogo'
-import { pisoDe } from './pisos'
+import { pisoDe } from './pisoDaEntidade'
 
 // ILHAS (17/11/2026, o abismo por pincel de `lib/abismoPintado.ts`): chão de pé dentro do buraco,
 // cada uma um contorno fechado dentro da boca (`Abismo.ilhas`). Campo NOVO e OPCIONAL: o abismo

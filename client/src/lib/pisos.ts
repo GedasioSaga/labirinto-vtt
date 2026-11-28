@@ -4,6 +4,11 @@ import { carriedBy, carrierIdOf, withoutCarrier } from './carry'
 import { subtreeIds } from './roomNesting'
 import { stairCenterline } from './stairCurve'
 import { comCadaTipo, TIPOS_DO_EDITOR, type EntidadePorTipo } from './tiposDoEditor'
+import { ehPiso, PISO_MAX, PISO_MIN, pisoDe } from './pisoDaEntidade'
+
+// Ler e validar o piso de UMA entidade mora em `pisoDaEntidade.ts` (puro, sem o editor);
+// reexportado aqui para quem já importava de `lib/pisos`.
+export { ehPiso, PISO_MAX, PISO_MIN, pisoDe, pisoLido } from './pisoDaEntidade'
 
 /**
  * PISOS NA MESMA CENA — lógica pura. A cena tem pisos numerados (inteiros;
@@ -12,26 +17,12 @@ import { comCadaTipo, TIPOS_DO_EDITOR, type EntidadePorTipo } from './tiposDoEdi
  * Plano em `docs/planos/pisos-na-mesma-cena.md`.
  */
 
-/** Faixa de piso aceita do arquivo: um prédio de verdade cabe com folga, e número absurdo não. */
-export const PISO_MIN = -99
-export const PISO_MAX = 999
-
 /**
  * Folga, em células, de "a ficha está na escada": o centro da ficha a até meia
  * largura do lance MAIS meia célula da linha dele. É encostar na escada, como a
  * porta pede ficha encostada (`lib/doorReach.ts`), e não pisar no degrau exato.
  */
 const ESCADA_FOLGA_CELULAS = 0.5
-
-/** O piso da entidade: ausente é o térreo. */
-export function pisoDe(item: NoPiso): number {
-  return item.piso ?? 0
-}
-
-/** Valor que serve como piso: inteiro finito dentro da faixa. */
-export function ehPiso(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= PISO_MIN && value <= PISO_MAX
-}
 
 /**
  * A entidade no piso `piso`. Térreo (ou ausente) TIRA o campo em vez de gravar
@@ -108,16 +99,6 @@ export function temPisos(map: MapData): boolean {
   const doRelevo = [map.texturas, map.carimbos, map.penhascos, map.neblinaPintada, map.ambientePintado, map.aguas].some((list) => (list ?? []).some(fora))
   const desafioFora = (map.desafios ?? []).some((d) => d.lugar.tipo === 'ponto' && fora(d))
   return doRelevo || desafioFora || listasDe(map).some((list) => list.some(fora)) || (map.stairs ?? []).some((s) => fora(s) || s.levaAoPiso !== undefined)
-}
-
-/**
- * Leitura do arquivo: o `piso` de um item do relevo (passo de textura,
- * carimbo, risco de penhasco), só se é inteiro na faixa. Ausente, térreo ou
- * torto: nada (o item fica no térreo, como era antes do campo existir).
- */
-export function pisoLido(valor: object): NoPiso {
-  const piso = 'piso' in valor ? valor.piso : undefined
-  return ehPiso(piso) && piso !== 0 ? { piso } : {}
 }
 
 /**

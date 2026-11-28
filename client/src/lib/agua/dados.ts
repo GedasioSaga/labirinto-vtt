@@ -1,5 +1,5 @@
 import type { Agua, CorProntaDaAgua, MapData, RegionPoint, TipoDeAgua, TracoDeAreia } from '../../types/map'
-import { pisoLido } from '../pisos'
+import { pisoLido } from '../pisoDaEntidade'
 
 /**
  * ÁGUA (pedido de 12/11/2026, protótipo aprovado `docs/design/agua/`): o dado
