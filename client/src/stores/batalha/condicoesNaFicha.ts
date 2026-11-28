@@ -23,6 +23,7 @@ import { fimDaVezComGatilhos, type DisparoDoGatilho, type FimDaVezComGatilhos } 
 import { comCondicoesNaFicha, condicoesDe, tirarNoFimDaBatalha, type CondicoesQueAcabaram } from '../../lib/condicoes/naFicha'
 import type { CondicaoNaFicha } from '../../lib/itens/modelo'
 import type { Personagem } from '../../lib/personagem'
+import type { CondicaoPropria } from '../../types/map'
 import { chaveDoSelo, espelhosDasPastilhas, pedidosDasCondicoesDaFicha, type CondicoesDasFichas } from '../../lib/ponteDasCondicoes'
 
 function mesmas(a: readonly CondicaoNaFicha[], b: readonly CondicaoNaFicha[]): boolean {
@@ -133,8 +134,24 @@ export function contarFimDaVezNaMesa(mesa: MesaDaBatalha, personagemId: string):
   const depois = condicoesDe(feito.personagem)
   // "A cada 1 turno, continua": a lista fica igual, mas o disparo vale (o dano e a cura da vez).
   if (mesmas(antes, depois) && feito.disparos.length === 0) return null
-  const nomes = feito.acabaram.map((condicao) => condicaoDoCatalogo(condicao.condId, criadas)?.nome ?? 'Condição')
-  return { parte: { tipo: 'condicoes', personagemId, antes, depois }, acabaram: nomes, disparos: feito.disparos, dano: feito.dano, cura: feito.cura }
+  return { parte: { tipo: 'condicoes', personagemId, antes, depois }, acabaram: nomesDasQueAcabaram(feito, criadas), disparos: feito.disparos, dano: feito.dano, cura: feito.cura }
+}
+
+function nomesDasQueAcabaram(feito: FimDaVezComGatilhos, criadas: readonly CondicaoPropria[]): string[] {
+  return feito.acabaram.map((condicao) => condicaoDoCatalogo(condicao.condId, criadas)?.nome ?? 'Condição')
+}
+
+/**
+ * Bugs da batalha, rodada 2 (28/11/2026): os nomes das condições da ficha que o fim da vez dela apaga agora,
+ * SEM gravar. O "Recupera por turno" de quem entra é lido antes de o prazo andar (`contarFimDaVezNaMesa`):
+ * com isto ele já não é cortado pela Cura reduzida que acaba nesta mesma virada.
+ */
+export function condicoesQueAcabamNoFimDaVez(mesa: MesaDaBatalha, personagemId: string): string[] {
+  const lerCriadas = mesa.condicoesCriadas
+  const ficha = mesa.personagens().find((candidato) => candidato.id === personagemId)
+  if (lerCriadas === undefined || ficha === undefined) return []
+  const criadas = lerCriadas()
+  return nomesDasQueAcabaram(fimDaVezComGatilhos(ficha, criadas), criadas)
 }
 
 /** FIM DA BATALHA (decisão 11): em cada ficha dela, saem as com duração e as "até o fim da batalha"; a "até alguém tirar" fica. */

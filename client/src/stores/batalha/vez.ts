@@ -52,7 +52,7 @@ import {
 } from '../../lib/batalha/turnos'
 import { nomeNaBatalha } from '../../lib/habilidadeOculta'
 import type { Personagem } from '../../lib/personagem'
-import { chavesDosSelos, espelhosDasPastilhas, semAVidaQueOSeloPede } from '../../lib/ponteDasCondicoes'
+import { chaveDoSelo, chavesDosSelos, espelhosDasPastilhas, semAVidaQueOSeloPede } from '../../lib/ponteDasCondicoes'
 import { comecoDoPrazoNaVez, fimDoPrazoNaVez, motivoDoPrazo, textoDosPrazosQueAcabaram } from '../../lib/prazoNaVez'
 import { comCondicoes, condicoesDaFicha } from '../../lib/turnoForaDaBatalha'
 import type { BatalhaDaCena, BatalhaState } from './tipos'
@@ -75,7 +75,7 @@ import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
 import { comPilhasDaMesa, efeitosDosSelos, pedidoComACondicao } from './selos'
 import { condicaoDoCatalogoPeloNome } from '../../lib/condicoes/catalogo'
-import { contarFimDaVezNaMesa, daFichaNaMesa } from './condicoesNaFicha'
+import { condicoesQueAcabamNoFimDaVez, contarFimDaVezNaMesa, daFichaNaMesa } from './condicoesNaFicha'
 import { textoDoDisparo } from '../../lib/condicoes/gatilho'
 import { golpesDaVezQueAcaba, type GolpeNaStore } from './golpe'
 
@@ -134,6 +134,22 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
   }
 
   /**
+   * Bugs da batalha, rodada 2 (28/11/2026): os selos de quem entra como ficam DEPOIS do fim da vez de quem sai.
+   * O espelho da pastilha (`daPastilha`) segue o relógio da ficha do mapa ou da ficha de personagem, e esse
+   * relógio só anda em `prazosDaVez`, depois da recuperação; quando quem sai é a outra carta da MESMA ficha (a
+   * extra, o "Dar a vez" de volta), a Cura reduzida que esse fim apaga não corta mais a recuperação.
+   */
+  const selosDepoisDoFimDaVez = (sceneKey: string, selos: readonly SeloDaBatalha[] | undefined, sai: CartaDaOrdem | null, para: CartaDaOrdem): readonly SeloDaBatalha[] | undefined => {
+    if (sai === null || sai.bando !== undefined || selos === undefined || !selos.some((selo) => selo.daPastilha === true && selo.tokenId === para.tokenId)) return selos
+    const acabam = new Set<string>()
+    const saindo = sai.tokenId === para.tokenId ? (mesa.fichaDaCena?.(sceneKey, sai.tokenId) ?? null) : null
+    const fim = saindo === null ? null : fimDoPrazoNaVez(saindo, chavesDosSelos(selos).get(saindo.id))
+    for (const nome of fim?.acabaram ?? []) acabam.add(chaveDoSelo(nome))
+    if (sai.personagemId !== null && sai.personagemId === para.personagemId) for (const nome of condicoesQueAcabamNoFimDaVez(mesa, sai.personagemId)) acabam.add(chaveDoSelo(nome))
+    return acabam.size === 0 ? selos : selos.filter((selo) => selo.daPastilha !== true || selo.tokenId !== para.tokenId || !acabam.has(chaveDoSelo(selo.nome)))
+  }
+
+  /**
    * 26/11/2026 (pedido do dono): o "+10 SP de quem não gastou SP" saiu; no lugar, o "Recupera por turno"
    * da ficha (a característica `recuperacao`: Vida ou SP, número ou fórmula). Vale no começo de cada vez da
    * carta própria da ficha (a carta extra não é outro turno) depois da primeira da batalha (o combate de
@@ -141,10 +157,11 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
    * Grava pela mesa e devolve a parte para a linha da vez e o pedaço do texto (só do jogador: os números do
    * NPC não aparecem a quem lê o registro). Nada a recuperar, cheio ou gravação recusada = `null`.
    */
-  const recuperacaoDoComecoDaVez = (antes: TurnosDaCena, depois: TurnosDaCena, autor: AutorDaAcao): { ficha: { personagemId: string; partes: ParteDaFicha[] }; texto: string } | null => {
+  const recuperacaoDoComecoDaVez = (sceneKey: string, antes: TurnosDaCena, depois: TurnosDaCena, sai: CartaDaOrdem | null, autor: AutorDaAcao): { ficha: { personagemId: string; partes: ParteDaFicha[] }; texto: string } | null => {
     const para = cartaDaVez(depois)
     if (para === null || para.personagemId === null || para.extra !== undefined || para.id === antes.vez || antes.combate?.[para.personagemId]?.jaJogou !== true) return null
     const { personagemId, tokenId } = para
+    const selos = selosDepoisDoFimDaVez(sceneKey, depois.selos, sai, para)
     const personagem = mesa.personagens().find((candidato) => candidato.id === personagemId)
     const sistema = mesa.sistema()
     // A ficha sem "Recupera por turno" (a de sempre) nem passa pela gravação.
@@ -155,7 +172,7 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
       mesa,
       personagemId,
       (atual, sistemaDaMesa) => {
-        lidas = ajustesDaRecuperacao(atual, sistemaDaMesa, (cura) => curaComOsSelos(cura, depois.selos, tokenId), bonusDaBatalha(depois.selos, tokenId))
+        lidas = ajustesDaRecuperacao(atual, sistemaDaMesa, (cura) => curaComOsSelos(cura, selos, tokenId), bonusDaBatalha(selos, tokenId))
         return lidas.map(({ ajuste }) => ajuste)
       },
       quemNaFicha(autor),
@@ -764,7 +781,7 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     // Conserto das fichas F1 (bug 3): a linha guarda só o que a vez mudou (o Desfazer volta só isso).
     const mudou = mudancasDaVez(antes, depois)
     // 26/11/2026: o "Recupera por turno" da ficha de quem começa a vez (o +10 SP automático saiu).
-    const recuperacao = recuperacaoDoComecoDaVez(antes, depois, autor)
+    const recuperacao = recuperacaoDoComecoDaVez(sceneKey, antes, depois, sai, autor)
     const idDaVez = novoIdDeLinha()
     const linha: LinhaNova = {
       id: idDaVez,
