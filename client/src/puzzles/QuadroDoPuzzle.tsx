@@ -26,9 +26,10 @@ import { BaseDosInterruptores, PainelDeInterruptores } from './interruptores/Pai
 import { BaseDaCooperacao, PainelDaCooperacao } from './cooperacao/PainelDaCooperacao'
 import { BaseDaMistura, PainelDaMistura, type PropsDaBancada } from './mistura/PainelDaMistura'
 import { BaseDasCamadas, PainelDasCamadas, type PropsDaMesa } from './camadas/MesaDeLuz'
+import { BaseDasDeslizantes, PainelDasDeslizantes } from './deslizantes/TabuleiroDeslizante'
 import { ArteDoRelevo, PlacaNoQuadro, useFonteDoPainel } from './relevo/PainelNoQuadro'
 import { PESO_MAX } from './tipos'
-import type { CamadasNaVista, CombinacaoNaVista, CooperacaoNaVista, EncaixeNaVista, GiratoriasNaVista, InterruptoresNaVista, MisturaNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
+import type { CamadasNaVista, DeslizantesNaVista, CombinacaoNaVista, CooperacaoNaVista, EncaixeNaVista, GiratoriasNaVista, InterruptoresNaVista, MisturaNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
 import './QuadroDoPuzzle.css'
 
 /** O tempo até o cartão do desfecho: a porta inteira (900 ms) e a folga do v2; sem arte, só a folga; reduzido, quase já. */
@@ -85,6 +86,10 @@ export interface PropsDoQuadroDoPuzzle {
   camadas?: CamadasNaVista
   /** Empilhar, girar, mover e tirar uma lâmina, e a lâmina na mão. Sem `onEmpilhar`, a mesa é só para ver. */
   acoesDasCamadas?: Pick<PropsDaMesa, 'onEmpilhar' | 'onGirar' | 'onMover' | 'onTirar' | 'naMao'>
+  /** O tabuleiro das peças deslizantes (a arte vira a bandeja dele); ausente = outro puzzle. */
+  deslizantes?: DeslizantesNaVista
+  /** O que deslizar uma peça faz. Sem isto, o tabuleiro é só para ver. */
+  onDeslizar?: (peca: number) => void
   /** O nome do quadro para o leitor de tela ("Fonte", o título público). */
   rotulo?: string
   className?: string
@@ -94,10 +99,10 @@ export interface PropsDoQuadroDoPuzzle {
 }
 
 export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
-  const { visual, encaixes, troca, resolvido, onAbriu, giratorias, interruptores, cooperacao, mistura, camadas } = props
+  const { visual, encaixes, troca, resolvido, onAbriu, giratorias, interruptores, cooperacao, mistura, camadas, deslizantes } = props
   const id = useId()
   // O medalhão e os painéis contam como arte: o cartão do desfecho espera as juntas (ou os lampiões) acenderem e o acorde soar.
-  const abrindo = useAbertura(resolvido, visual.tipo === 'modelo' || giratorias !== undefined || interruptores !== undefined || cooperacao !== undefined || mistura !== undefined || camadas !== undefined, onAbriu)
+  const abrindo = useAbertura(resolvido, visual.tipo === 'modelo' || giratorias !== undefined || interruptores !== undefined || cooperacao !== undefined || mistura !== undefined || camadas !== undefined || deslizantes !== undefined, onAbriu)
   const grao = graoDoQuadro()
   // A Porta de brasões: a placa e os encaixes somem quando a porta se abre.
   const encaixesSomem = visual.tipo === 'modelo' && visual.modelo === 'porta'
@@ -112,13 +117,14 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
         'qpz',
         resolvido && 'is-resolvido',
         resolvido && abrindo && 'is-abrindo',
-        temMolduraPorta(visual) && giratorias === undefined && interruptores === undefined && cooperacao === undefined && mistura === undefined && camadas === undefined && 'is-porta',
+        temMolduraPorta(visual) && giratorias === undefined && interruptores === undefined && cooperacao === undefined && mistura === undefined && camadas === undefined && deslizantes === undefined && 'is-porta',
         relevo !== null && 'is-relevo',
         giratorias !== undefined && 'is-giratorias',
         interruptores !== undefined && 'is-interruptores',
         cooperacao !== undefined && 'is-coop',
         mistura !== undefined && 'is-mistura',
         camadas !== undefined && 'is-camadas',
+        deslizantes !== undefined && 'is-deslizantes',
         props.className,
       )}
       role="group"
@@ -134,6 +140,8 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
         <BaseDaMistura mistura={mistura} />
       ) : camadas !== undefined ? (
         <BaseDasCamadas camadas={camadas} />
+      ) : deslizantes !== undefined ? (
+        <BaseDasDeslizantes deslizantes={deslizantes} />
       ) : relevo !== null ? (
         <ArteDoRelevo visual={relevo} fonte={fonte} />
       ) : (
@@ -188,6 +196,7 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
         {cooperacao !== undefined && <PainelDaCooperacao cooperacao={cooperacao} resolvido={resolvido} onAcionar={props.onAcionarPonto} />}
         {mistura !== undefined && <PainelDaMistura mistura={mistura} resolvido={resolvido} {...props.acoesDaMistura} teclado={props.tecladoDoControle} />}
         {camadas !== undefined && <PainelDasCamadas camadas={camadas} resolvido={resolvido} {...props.acoesDasCamadas} teclado={props.tecladoDoControle} />}
+        {deslizantes !== undefined && <PainelDasDeslizantes deslizantes={deslizantes} resolvido={resolvido} onDeslizar={props.onDeslizar} eu={props.eu} teclado={props.tecladoDoControle} />}
       </div>
       <div className="qpz__flash" aria-hidden="true" />
       {props.children}

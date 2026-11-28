@@ -37,9 +37,16 @@ export const ENCAIXE_VAZIO = 'Encaixe vazio. Escolha uma peça primeiro.'
 export const BANDEJA_VAZIA = 'Bandeja vazia. Ponha pedras de peso marcado.'
 
 /** "2 de 3 no lugar"; o destaque vai em negrito, como no v2 (`rotuloEstado`, também o da combinação). */
-export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca' | 'combinacao' | 'giratorias' | 'interruptores' | 'cooperacao' | 'mistura' | 'camadas'>, teste = false): { destaque: string; resto: string } {
+export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca' | 'combinacao' | 'giratorias' | 'interruptores' | 'cooperacao' | 'mistura' | 'camadas' | 'deslizantes'>, teste = false): { destaque: string; resto: string } {
   if (vista.versaoNova === true) return { destaque: '', resto: TEXTO_DA_RECUSA.versao_nova }
-  if (vista.resolvido) return { destaque: teste ? 'Resolvido no teste.' : 'Resolvido.', resto: vista.camadas !== undefined ? ' As lâminas ficaram presas na mesa.' : vista.contagem.total > 0 ? ' As peças ficaram presas.' : '' }
+  const deslizantes = vista.deslizantes
+  const lances = deslizantes === undefined ? '' : `${deslizantes.lances} ${deslizantes.lances === 1 ? 'lance' : 'lances'}`
+  if (vista.resolvido) return { destaque: teste ? 'Resolvido no teste.' : 'Resolvido.', resto: vista.camadas !== undefined ? ' As lâminas ficaram presas na mesa.' : deslizantes !== undefined ? ` Em ${lances}.` : vista.contagem.total > 0 ? ' As peças ficaram presas.' : '' }
+  // O tabuleiro deslizante: os lances feitos (todos veem as peças), nunca quantas estão no lugar nem quanto falta.
+  if (deslizantes !== undefined) {
+    const como = deslizantes.modo === 'chave' ? 'até a peça-chave chegar à saída' : 'até a figura fechar'
+    return { destaque: deslizantes.lances > 0 ? `${lances}.` : '', resto: `${deslizantes.lances > 0 ? ' ' : ''}Deslize as peças para a casa vazia ${como}.` }
+  }
   // A mesa de luz: quantas lâminas estão na mesa (isso todos veem), nunca quantas estão certas.
   const camadas = vista.camadas
   if (camadas !== undefined) {

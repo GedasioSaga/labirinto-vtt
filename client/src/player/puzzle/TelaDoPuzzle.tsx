@@ -20,6 +20,7 @@ import { QuadroDoPuzzle, type PropsDoQuadroDoPuzzle } from '../../puzzles/Quadro
 import { tocarSomDaMistura } from '../../puzzles/mistura/somDaMistura'
 import { tocarSomDasCamadas } from '../../puzzles/camadas/somDasCamadas'
 import { tocarSomDasGiratorias } from '../../puzzles/giratorias/somDasGiratorias'
+import { tocarSomDasDeslizantes } from '../../puzzles/deslizantes/somDasDeslizantes'
 import { tocarSomDosInterruptores } from '../../puzzles/interruptores/somDosInterruptores'
 import { tocarSomDaCooperacao } from '../../puzzles/cooperacao/somDaCooperacao'
 import { tocarSomDoRelevo } from '../../puzzles/relevo/somDoRelevo'
@@ -93,6 +94,8 @@ const NOTA_DA_COMBINACAO = 'Este puzzle não usa peças: é uma combinação.'
 const NOTA_DAS_GIRATORIAS = 'Este puzzle não usa peças: gire os anéis do medalhão.'
 /** O aviso da mochila nos interruptores (o painel só tem alavancas). */
 const NOTA_DOS_INTERRUPTORES = 'Este puzzle não usa peças: puxe as alavancas do painel.'
+/** O aviso da mochila nas peças deslizantes (as peças são as do tabuleiro). */
+const NOTA_DAS_DESLIZANTES = 'Este puzzle não usa a mochila: deslize as peças do tabuleiro.'
 const NOTA_DA_COOPERACAO = 'Este puzzle não usa peças: acione o seu ponto junto com quem está nos outros.'
 
 export function TelaDoPuzzle({ raiz, ...props }: PropsDaTelaDoPuzzle) {
@@ -360,6 +363,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
     }),
     [agir],
   )
+  // O tabuleiro deslizante pede pela peça: o host confere no tabuleiro de agora se ela é vizinha da vazia.
+  const deslizarPeca = useCallback((peca: number) => agir({ tipo: 'deslizar', peca }, { tipo: 'controle' }), [agir])
 
   const trocar = useCallback(() => {
     const troca = vista.troca
@@ -504,6 +509,9 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           else if (vista.camadas !== undefined) {
             const material = vista.camadas.material
             window.setTimeout(() => tocarSomDasCamadas('acerto', material), ATRASO_DO_SOM_COMPLETO_MS)
+          } else if (vista.deslizantes !== undefined) {
+            const material = vista.deslizantes.material
+            window.setTimeout(() => tocarSomDasDeslizantes('acerto', material), ATRASO_DO_SOM_COMPLETO_MS)
           }
           else if (vista.visual.tipo === 'relevo') window.setTimeout(() => tocarSomDoRelevo('completo'), ATRASO_DO_SOM_COMPLETO_MS)
           break
@@ -514,7 +522,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
   // ---------------------------------------------------------------- o cartão do desfecho: Texto logo, Cena depois da arte
 
   // O medalhão também espera: as juntas acendem e o acorde soa antes do cartão.
-  const comArte = vista.visual.tipo === 'modelo' || vista.giratorias !== undefined || vista.interruptores !== undefined || vista.cooperacao !== undefined || vista.mistura !== undefined || vista.camadas !== undefined
+  const comArte = vista.visual.tipo === 'modelo' || vista.giratorias !== undefined || vista.interruptores !== undefined || vista.cooperacao !== undefined || vista.mistura !== undefined || vista.camadas !== undefined || vista.deslizantes !== undefined
   useEffect(() => {
     if (desfechoPendente === null || !vista.resolvido) return
     const mostrar = () => {
@@ -660,6 +668,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
               acoesDaMistura={acoesDaMistura}
               camadas={vista.camadas}
               acoesDasCamadas={acoesDasCamadas}
+              deslizantes={vista.deslizantes}
+              onDeslizar={vista.versaoNova === true ? undefined : deslizarPeca}
               rotulo={titulo}
             >
               {cartao !== null && <CartaoDoDesfecho titulo={titulo} desfecho={cartao} eu={eu} onContinuar={fecharCartao} teste={teste} onVoltar={() => sair(false)} />}
@@ -681,7 +691,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           novas={novas}
           pv={ehTeste ? null : pv}
           titulo={ehTeste ? TITULO_DAS_PECAS_DO_TESTE : undefined}
-          nota={vista.camadas !== undefined ? NOTA_DAS_CAMADAS : vista.mistura !== undefined ? (vista.mistura.modo === 'receita' ? NOTA_DA_RECEITA : NOTA_DA_MISTURA) : vista.giratorias !== undefined ? NOTA_DAS_GIRATORIAS : vista.interruptores !== undefined ? NOTA_DOS_INTERRUPTORES : vista.cooperacao !== undefined ? NOTA_DA_COOPERACAO : vista.combinacao !== undefined && vista.troca === null ? NOTA_DA_COMBINACAO : ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
+          nota={vista.deslizantes !== undefined ? NOTA_DAS_DESLIZANTES : vista.camadas !== undefined ? NOTA_DAS_CAMADAS :vista.mistura !== undefined ? (vista.mistura.modo === 'receita' ? NOTA_DA_RECEITA : NOTA_DA_MISTURA) : vista.giratorias !== undefined ? NOTA_DAS_GIRATORIAS : vista.interruptores !== undefined ? NOTA_DOS_INTERRUPTORES : vista.cooperacao !== undefined ? NOTA_DA_COOPERACAO : vista.combinacao !== undefined && vista.troca === null ? NOTA_DA_COMBINACAO : ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
           onEscolher={escolher}
           onApertar={arrasto.aoApertar}
         />

@@ -17,7 +17,8 @@ import { canvasDoPainel, pngDaPlaca } from '../../../puzzles/relevo/raster'
 import { poligonoDaPlaca } from '../../../puzzles/relevo/placas'
 import { descricaoDaPlaca, idDoItemDaPlaca, nomeDaPlaca, placasDoPuzzle, puzzleDoRelevo, visualDoRelevo } from '../../../puzzles/relevo/relevo'
 import { CATEGORIA_DA_PECA_DE_PUZZLE, CENAS_DO_RELEVO, METAIS_DO_RELEVO } from '../../../puzzles/tipos'
-import type { CamadasDoPuzzle, CooperacaoDoPuzzle, IdDaPecaDesenhada, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe } from '../../../puzzles/tipos'
+import type { CamadasDoPuzzle, CooperacaoDoPuzzle, DeslizantesDoPuzzle, IdDaPecaDesenhada, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe } from '../../../puzzles/tipos'
+import { deslizantesPadrao, pecasQueDeslizam, tabuleiroNoProgresso } from '../../../puzzles/deslizantes/deslizantes'
 import { themeCss } from '../../../theme'
 import type { CarriedItem } from '../../../types/map'
 import { useJogoLocalDoPuzzle, type JogoLocalDoPuzzle } from '../jogoLocal'
@@ -328,6 +329,31 @@ function cooperacao(nomePublico: string, mudar: Partial<CooperacaoDoPuzzle>): ()
   }
 }
 
+/**
+ * As peças deslizantes (28/11): `?puzzle=deslizantes` (o farol em madeira
+ * entalhada, 3 x 3), `deslizantesBronze` (a mariposa em bronze, 4 x 4) e
+ * `deslizantesChave` (levar a peça-chave à saída, 4 x 4, bronze). O Bento já
+ * deslizou uma peça (pelo motor, como o host faria): ela fica acesa com o nome.
+ */
+function deslizantes(nomePublico: string, mudar: Partial<DeslizantesDoPuzzle>): () => Exemplo {
+  return () => {
+    const tabuleiro: DeslizantesDoPuzzle = { ...deslizantesPadrao(1847), ...mudar }
+    const puzzle = puzzleDoModelo('fonte')
+    puzzle.nomePublico = nomePublico
+    puzzle.encaixes = []
+    puzzle.futuro = tabuleiro
+    puzzle.dica = { tipo: 'texto', texto: tabuleiro.modo === 'chave' ? 'A peça com a fechadura precisa chegar à saída: abra caminho para ela.' : 'A figura está toda ali, só fora do lugar.' }
+    puzzle.desfecho = { modo: 'cena', texto: 'A última peça desliza para o lugar. Algo estala por trás do painel e a porta destrava.', itens: [], moedas: 0, documentos: [], abrePorta: true }
+    const comeco = progressoInicial(puzzle)
+    const [peca] = pecasQueDeslizam(tabuleiroNoProgresso(comeco, tabuleiro).casas, tabuleiro.lado)
+    if (peca === undefined) throw new Error('o tabuleiro da vitrine nasceu sem peça que deslize')
+    let n = 0
+    const pelo = { quem: BENTO, agora: Date.now(), modo: 'jogo' as const, pecaDoAcervo, novoId: () => `vitrine-${++n}` }
+    const movida = agirNoPuzzle(puzzle, comeco, [], { tipo: 'deslizar', peca }, pelo)
+    return { puzzle, mochila: [vaga(CORDA)], progresso: movida.progresso }
+  }
+}
+
 const EXEMPLOS = {
   fonte,
   porta,
@@ -348,6 +374,9 @@ const EXEMPLOS = {
   liquidosReceita: bancada('Antídoto do Pântano', { modo: 'receita', material: 'ferro', litros: null, ingredientes: [{ itemId: 'item_erva', nome: 'Erva verde' }, { itemId: 'item_po', nome: 'Pó de enxofre' }], recipientes: [{ capacidade: 4, comeca: 'agua', quanto: 0 }, { capacidade: 6, comeca: 'agua', quanto: 0 }, { capacidade: 3, comeca: 'agua', quanto: 0 }] }, [vaga(ERVA), vaga(CORDA), vaga(PO)]),
   coop: cooperacao('Portão das Duas Salas', { pontos: [{ arte: 'alavanca', rotulo: 'Cripta' }, { arte: 'placa', rotulo: 'Ponte' }] }),
   coopTres: cooperacao('Comporta do Esgoto', { material: 'ferro', janela: 8, pontos: [{ arte: 'alavanca', rotulo: 'Casa das bombas' }, { arte: 'placa', rotulo: 'Galeria' }, { arte: 'painel', rotulo: 'Torre' }] }),
+  deslizantes: deslizantes('Painel do Farol', {}),
+  deslizantesBronze: deslizantes('Placa da Mariposa', { material: 'bronze', figura: 'mariposa', lado: 4 }),
+  deslizantesChave: deslizantes('Cofre do Ourives', { modo: 'chave', material: 'bronze', lado: 4, chave: 0, alvo: 15 }),
 } as const
 type NomeDoExemplo = keyof typeof EXEMPLOS
 
