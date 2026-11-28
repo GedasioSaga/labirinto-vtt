@@ -18,7 +18,10 @@ import { combinacaoDoPuzzle } from '../../puzzles/combinacao'
 import { giratoriasDoPuzzle } from '../../puzzles/giratorias/giratorias'
 import { interruptoresDoPuzzle, NOME_DA_LIGACAO } from '../../puzzles/interruptores/interruptores'
 import { ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN } from '../../puzzles/tipos'
-import { comControle, comEncaixeNovo, comGiratorias, comModelo, comVisual, encaixeComPeca, semEncaixe } from './edicao'
+import { comCamadas, comControle, comEncaixeNovo, comGiratorias, comModelo, comVisual, encaixeComPeca, semEncaixe } from './edicao'
+import { SecaoCamadas } from './FichaDoEditor/SecaoCamadas'
+import { useGarantirLaminasNoAcervo } from './camadasNoEditor'
+import { camadasDoPuzzle, NOME_DO_MATERIAL_DAS_CAMADAS, quantasLaminas } from '../../puzzles/camadas/camadas'
 import { SecaoGiratorias } from './FichaDoEditor/SecaoGiratorias'
 import { SecaoInterruptores } from './FichaDoEditor/SecaoInterruptores'
 import { SecaoCooperacao } from './FichaDoEditor/SecaoCooperacao'
@@ -131,6 +134,8 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   const pecas = usePecasDoEditor()
   // O painel em relevo: as placas que faltam entram no acervo sozinhas (cena, metal, Desfazer, outro computador).
   useGarantirPlacasNoAcervo(edicao?.puzzle ?? null, (texto, tipo = 'info') => setAviso({ texto, tipo }))
+  // As camadas: as lâminas entram no acervo sozinhas do mesmo jeito.
+  useGarantirLaminasNoAcervo(edicao?.puzzle ?? null, (texto, tipo = 'info') => setAviso({ texto, tipo }))
   // Só paredes e salas: o resto do mapa (fichas andando na sessão) não redesenha o editor.
   const walls = useMapStore((estado) => estado.map.walls)
   const regions = useMapStore((estado) => estado.map.regions)
@@ -292,6 +297,18 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
     }
   }
 
+  /** A imagem própria das camadas: vai para a mídia da mesa e é cortada nas lâminas. */
+  const usarImagemDasCamadas = async (pegar: () => Promise<string | null> = escolherFundoDoPuzzle) => {
+    try {
+      const imagem = await pegar()
+      if (imagem === null) return
+      mudar((atual) => comCamadas(atual, (antes) => ({ ...antes, figura: 'imagem', imagem })))
+      avisar('Sua imagem está nas lâminas, cortada em pedaços. As lâminas vão para o acervo.')
+    } catch (erro) {
+      avisar(`Não deu para usar a imagem: ${erro instanceof Error ? erro.message : String(erro)}.`, 'error')
+    }
+  }
+
   const usarImagem = async (pegar: () => Promise<string | null>) => {
     try {
       const imagem = await pegar()
@@ -392,8 +409,9 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   const interruptores = interruptoresDoPuzzle(puzzle)
   const cooperacao = cooperacaoDoPuzzle(puzzle)
   const mistura = misturaDoPuzzle(puzzle)
-  // O medalhão, o painel de lampiões e os pontos da cooperação não usam o visual, a troca de peso, o castigo nem a biblioteca de peças.
-  const semPecas = giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null
+  const camadas = camadasDoPuzzle(puzzle)
+  // O medalhão, o painel de lampiões, os pontos da cooperação e a mesa de luz não usam o visual, a troca de peso, o castigo nem a biblioteca de peças.
+  const semPecas = giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null || camadas !== null
   const relevo = ehRelevo(puzzle.visual) ? puzzle.visual : null
   const nomeDaPorta = alvo.tipo === 'copia' && edicao.porta !== null ? (opcoesDePorta.find((opcao) => opcao.id === edicao.porta)?.label ?? null) : null
   const porta: PortaDoEditor | null =
@@ -442,7 +460,7 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
               </div>
             </header>
             <p className={classes('pze-aviso', aviso?.tipo === 'error' && 'pze-aviso--perigo')} role="status" aria-live="polite">
-              {aviso?.texto ?? (mistura !== null ? 'O quadro mostra a bancada como o jogador a encontra. A ficha mostra o caminho mais curto até o alvo; Ctrl+Z desfaz.' : cooperacao !== null ? 'O quadro mostra os pontos como o jogador os encontra. Ver resolvido mostra todos os lampiões acesos; Ctrl+Z desfaz.' : interruptores !== null ? 'O quadro mostra o painel como o jogador o encontra. Ver resolvido mostra os lampiões como o objetivo pede; Ctrl+Z desfaz.' : giratorias !== null ? 'O quadro mostra o medalhão como o jogador o encontra. Ver resolvido mostra o desenho fechado; Ctrl+Z desfaz.' : relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
+              {aviso?.texto ?? (camadas !== null ? 'O quadro mostra todas as lâminas na mesa, como pousam. Ver resolvido mostra a figura fechada; Ctrl+Z desfaz.' : mistura !== null ?'O quadro mostra a bancada como o jogador a encontra. A ficha mostra o caminho mais curto até o alvo; Ctrl+Z desfaz.' : cooperacao !== null ? 'O quadro mostra os pontos como o jogador os encontra. Ver resolvido mostra todos os lampiões acesos; Ctrl+Z desfaz.' : interruptores !== null ? 'O quadro mostra o painel como o jogador o encontra. Ver resolvido mostra os lampiões como o objetivo pede; Ctrl+Z desfaz.' : giratorias !== null ? 'O quadro mostra o medalhão como o jogador o encontra. Ver resolvido mostra o desenho fechado; Ctrl+Z desfaz.' : relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
             </p>
             <div className="pze-corpo">
               <div className="pze-ficha-col">
@@ -463,7 +481,10 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                 ) : (
                   <>
                     <SecaoMecanica puzzle={puzzle} mudar={mudar} />
-                    {mistura !== null ? (
+                    {camadas !== null ? (
+                      // A mesa de luz não usa encaixes soltos nem troca de peso: as lâminas saem da figura.
+                      <SecaoCamadas puzzle={puzzle} mudar={mudar} onImagem={() => void usarImagemDasCamadas()} />
+                    ) : mistura !== null ? (
                       // A bancada não usa encaixes nem troca de peso: só os recipientes, a torneira e o alvo.
                       <SecaoMistura puzzle={puzzle} mudar={mudar} />
                     ) : cooperacao !== null ? (
@@ -496,10 +517,21 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   onMudar={mudar}
                   onTirar={tirarEncaixe}
                   verResolvido={verResolvido}
-                  onImagemSolta={(arquivo) => void (mistura !== null ? avisar('A bancada de mistura não usa imagem.') : cooperacao !== null ? avisar('Os pontos da cooperação não usam imagem.') : interruptores !== null ? avisar('O painel de lampiões não usa imagem.') : giratorias !== null ? usarImagemDasGiratorias(() => fundoDoPuzzleDoArquivo(arquivo)) : relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
+                  onImagemSolta={(arquivo) => void (camadas !== null ? usarImagemDasCamadas(() => fundoDoPuzzleDoArquivo(arquivo)) : mistura !== null ?avisar('A bancada de mistura não usa imagem.') : cooperacao !== null ? avisar('Os pontos da cooperação não usam imagem.') : interruptores !== null ? avisar('O painel de lampiões não usa imagem.') : giratorias !== null ? usarImagemDasGiratorias(() => fundoDoPuzzleDoArquivo(arquivo)) : relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
                   onAviso={avisar}
                 />
-                {mistura !== null ? (
+                {camadas !== null ? (
+                  <div className="pze-barra">
+                    <span>
+                      {NOME_DO_MATERIAL_DAS_CAMADAS[camadas.material]}: {quantasLaminas(puzzle)} lâminas{camadas.rotacaoImporta ? ', giram' : ''}
+                      {camadas.ordemImporta ? ', a ordem importa' : ''}
+                    </span>
+                    <Botao tamanho="p" aria-pressed={verResolvido} onClick={() => setVerResolvido((antes) => !antes)}>
+                      {verResolvido ? 'Ver como pousam' : 'Ver resolvido'}
+                    </Botao>
+                    <span className="pze-nota">{verResolvido ? 'Assim fica quando o jogador fecha a figura.' : 'Assim as lâminas pousam na mesa, fora de ordem e tortas.'}</span>
+                  </div>
+                ) : mistura !== null ? (
                   <div className="pze-barra">
                     <span>
                       {NOME_DO_MODO[mistura.modo]}: {mistura.recipientes.length} {mistura.modo === 'volumes' ? 'jarras' : 'frascos'}

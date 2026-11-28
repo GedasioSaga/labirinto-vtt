@@ -7,6 +7,7 @@ import { CorpoDoControle, estiloDoControle, nomeDoControle } from '../../puzzles
 import { giratoriasDoPuzzle, giratoriasNaVista, girosResolvidos } from '../../puzzles/giratorias/giratorias'
 import { alvoDosInterruptores, interruptoresDoPuzzle, interruptoresNaVista } from '../../puzzles/interruptores/interruptores'
 import { misturaDoPuzzle, misturaNaVista } from '../../puzzles/mistura/mistura'
+import { camadasDoEditor, camadasDoPuzzle } from '../../puzzles/camadas/camadas'
 import { cooperacaoDoPuzzle, cooperacaoNaVista } from '../../puzzles/cooperacao/cooperacao'
 import { progressoInicial } from '../../puzzles/motor'
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
@@ -87,7 +88,10 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
   // A bancada da mistura: como o jogador a encontra (o caminho até o alvo está na ficha).
   const mistura = misturaDoPuzzle(puzzle)
   const bancada = mistura === null ? undefined : misturaNaVista(mistura, progressoInicial(puzzle))
-  const semEncaixes = medalhao !== undefined || painel !== undefined || pontos !== undefined || bancada !== undefined
+  // A mesa de luz: todas as lâminas como pousam (fora de ordem e tortas), ou a figura fechada.
+  const camadas = camadasDoPuzzle(puzzle)
+  const mesa = camadas === null ? undefined : camadasDoEditor(puzzle, camadas, verResolvido)
+  const semEncaixes = medalhao !== undefined || painel !== undefined || pontos !== undefined || bancada !== undefined || mesa !== undefined
 
   const comecar = (evento: PointerEvent<HTMLButtonElement>, encaixe: EncaixeDoPuzzle) => {
     if (evento.button !== 0 || arrasto.current !== null) return
@@ -203,6 +207,7 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
         interruptores={painel}
         mistura={bancada}
         cooperacao={pontos}
+        camadas={mesa}
         rotulo={`Quadro do puzzle ${puzzle.nome}`}
       >
         {semEncaixes ? null : relevo !== null ? (

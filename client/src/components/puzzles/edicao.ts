@@ -4,7 +4,8 @@ import { giratoriasDoPuzzle, giratoriasPadrao } from '../../puzzles/giratorias/g
 import { interruptoresDoPuzzle, interruptoresPadrao } from '../../puzzles/interruptores/interruptores'
 import { cooperacaoDoPuzzle, cooperacaoPadrao } from '../../puzzles/cooperacao/cooperacao'
 import { misturaDoPuzzle, misturaPadrao } from '../../puzzles/mistura/mistura'
-import type { MisturaDoPuzzle } from '../../puzzles/tipos'
+import { camadasDoPuzzle, camadasPadrao, comAsCamadas, quantasLaminas, sementeNova as sementeNovaDasCamadas } from '../../puzzles/camadas/camadas'
+import { LAMINAS_PADRAO, type CamadasDoPuzzle, type MisturaDoPuzzle } from '../../puzzles/tipos'
 import { ENCAIXES_MAX, ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN, TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN } from '../../puzzles/tipos'
 import type { CombinacaoDoPuzzle, CooperacaoDoPuzzle, EncaixeDoPuzzle, FormaDaCombinacao, GiratoriasDoPuzzle, InterruptoresDoPuzzle, IdDaPecaDesenhada, ModeloDoPuzzle, Puzzle, VisualDoPuzzle } from '../../puzzles/tipos'
 
@@ -65,9 +66,10 @@ export function comModelo(puzzle: Puzzle, modelo: ModeloDoPuzzle, pecas: Partial
 }
 
 /** A mecânica do seletor do editor (v2): Encaixe, Ordem certa, um dos 4 tipos de combinação, as Peças giratórias, os Interruptores ou a Cooperação (28/11). */
-export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao | 'giratorias' | 'interruptores' | 'cooperacao' | 'mistura'
+export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao | 'giratorias' | 'interruptores' | 'cooperacao' | 'mistura' | 'camadas'
 
 export function mecanicaDoEditor(puzzle: Puzzle): MecanicaDoEditor {
+  if (camadasDoPuzzle(puzzle) !== null) return 'camadas'
   if (misturaDoPuzzle(puzzle) !== null) return 'mistura'
   if (giratoriasDoPuzzle(puzzle) !== null) return 'giratorias'
   if (interruptoresDoPuzzle(puzzle) !== null) return 'interruptores'
@@ -84,11 +86,19 @@ export function mecanicaDoEditor(puzzle: Puzzle): MecanicaDoEditor {
  * mecânica que não abre porta desliga a porta ligada.
  */
 export function comMecanica(puzzle: Puzzle, mecanica: MecanicaDoEditor): Puzzle {
-  if (mecanica === mecanicaDoEditor(puzzle)) return puzzle
+  const antes = mecanicaDoEditor(puzzle)
+  if (mecanica === antes) return puzzle
+  // As lâminas são encaixes empilhados no meio: fora da mesa de luz, não servem para nada (o Desfazer as traz de volta).
+  if (antes === 'camadas') {
+    const { futuro: _camadas, ...semCamadas } = puzzle
+    return comMecanica({ ...semCamadas, encaixes: [] }, mecanica)
+  }
   if (mecanica === 'encaixe' || mecanica === 'ordem') {
     const { futuro: _combinacao, ...semCombinacao } = puzzle
     return comPortaCoerente({ ...semCombinacao, regra: mecanica === 'ordem' ? 'ordem' : puzzle.regra === 'ordem' ? 'lugarCerto' : puzzle.regra })
   }
+  // A mesa de luz nasce com 3 lâminas e um corte novo; os encaixes de antes viram as lâminas.
+  if (mecanica === 'camadas') return comAsCamadas(puzzle, camadasPadrao(sementeNovaDasCamadas()), LAMINAS_PADRAO)
   if (mecanica === 'giratorias') return { ...puzzle, futuro: giratoriasPadrao() }
   if (mecanica === 'interruptores') return { ...puzzle, futuro: interruptoresPadrao() }
   if (mecanica === 'cooperacao') return { ...puzzle, futuro: cooperacaoPadrao() }
@@ -112,6 +122,12 @@ export function comInterruptores(puzzle: Puzzle, mudar: (interruptores: Interrup
 export function comMistura(puzzle: Puzzle, mudar: (mistura: MisturaDoPuzzle) => MisturaDoPuzzle): Puzzle {
   const mistura = misturaDoPuzzle(puzzle)
   return mistura === null ? puzzle : { ...puzzle, futuro: mudar(mistura) }
+}
+
+/** A mesa de luz trocada pelo que `mudar` devolver (só quando o puzzle é de camadas); as lâminas (os encaixes) acompanham. */
+export function comCamadas(puzzle: Puzzle, mudar: (camadas: CamadasDoPuzzle) => CamadasDoPuzzle, quantas: number = quantasLaminas(puzzle)): Puzzle {
+  const camadas = camadasDoPuzzle(puzzle)
+  return camadas === null ? puzzle : comAsCamadas(puzzle, mudar(camadas), quantas)
 }
 
 /** Os pontos da cooperação trocados pelo que `mudar` devolver (só quando o puzzle é de cooperação). */

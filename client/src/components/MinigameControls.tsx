@@ -94,6 +94,7 @@ import { NOME_DO_MODELO, puzzleAbrePorta } from '../puzzles/padroes'
 import { aneisNoLugar, giratoriasDoPuzzle, NOME_DAS_GIRATORIAS, NOME_DO_MATERIAL } from '../puzzles/giratorias/giratorias'
 import { misturaDoPuzzle, NOME_DA_MISTURA, NOME_DO_AO_ERRAR, NOME_DO_MODO, textoDaBancada } from '../puzzles/mistura/mistura'
 import { passosMinimos } from '../puzzles/mistura/solucao'
+import { camadasDoPuzzle, NOME_DA_FIGURA, NOME_DAS_CAMADAS, NOME_DO_MATERIAL_DAS_CAMADAS, quantasLaminas, textoDaMesa } from '../puzzles/camadas/camadas'
 import { interruptoresDoPuzzle, lampioesCertos, NOME_DA_LIGACAO, NOME_DO_MATERIAL_DO_PAINEL, NOME_DO_OBJETIVO, NOME_DOS_INTERRUPTORES } from '../puzzles/interruptores/interruptores'
 import { NOME_DA_CENA } from '../puzzles/relevo/arte'
 import { nomeDoRelevo } from '../puzzles/relevo/relevo'
@@ -879,6 +880,9 @@ function textoDoProgresso(puzzle: MinigamePuzzle['puzzle'], progresso: Progresso
   // A bancada: o que cada recipiente tem agora, e os erros no receptáculo.
   const mistura = misturaDoPuzzle(puzzle)
   if (mistura !== null) return `${textoDaBancada(mistura, progresso)}${progresso.erros === 0 ? '' : progresso.erros === 1 ? ' · 1 erro' : ` · ${progresso.erros} erros`}`
+  // A mesa de luz: quantas lâminas estão na mesa e quantas tortas (mexer não é erro).
+  const camadas = camadasDoPuzzle(puzzle)
+  if (camadas !== null) return textoDaMesa(puzzle, camadas, progresso)
   if (combinacaoDoPuzzle(puzzle) !== null) return progresso.erros === 0 ? 'Ainda não abriu' : progresso.erros === 1 ? 'Ainda não abriu · 1 erro' : `Ainda não abriu · ${progresso.erros} erros`
   const { postos, total } = contagemDoPuzzle(puzzle, progresso)
   const erros = progresso.erros === 0 ? '' : progresso.erros === 1 ? ' · 1 erro' : ` · ${progresso.erros} erros`
@@ -920,7 +924,15 @@ function PainelDoPuzzle({ pinId, porta, minigame }: Pick<MinigameControlsProps, 
   const interruptores = interruptoresDoPuzzle(puzzle)
   const mistura = misturaDoPuzzle(puzzle)
   const minimo = mistura === null ? null : passosMinimos(mistura)
-  const linhas: readonly { rotulo: string; valor: string }[] = mistura !== null ? [
+  const camadas = camadasDoPuzzle(puzzle)
+  const linhas: readonly { rotulo: string; valor: string }[] = camadas !== null ? [
+    // A mesa de luz: o visual do quadro é o dela, sem troca de peso e sem castigo.
+    { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
+    { rotulo: 'Figura', valor: camadas.figura === 'codigo' ? `${NOME_DA_FIGURA.codigo}: ${camadas.codigo}` : camadas.figura === 'imagem' ? (camadas.imagem === null ? 'Imagem própria (ainda por escolher)' : 'Imagem própria') : NOME_DA_FIGURA[camadas.figura] },
+    { rotulo: 'Mecânica', valor: `${NOME_DAS_CAMADAS}: ${quantasLaminas(puzzle)} lâminas de ${NOME_DO_MATERIAL_DAS_CAMADAS[camadas.material].toLowerCase()}${camadas.rotacaoImporta ? ', o giro importa' : ''}${camadas.ordemImporta ? ', a ordem importa' : ''}` },
+    { rotulo: 'Ao resolver', valor: textoDoDesfecho(puzzle.desfecho, ehPorta) },
+    { rotulo: 'Progresso', valor: textoDoProgresso(puzzle, progresso) },
+  ] : mistura !== null ? [
     // A bancada da mistura: o visual do quadro é o dela, sem troca de peso.
     { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
     { rotulo: 'Mecânica', valor: `${NOME_DA_MISTURA}: ${NOME_DO_MODO[mistura.modo].toLowerCase()}, ${mistura.recipientes.length} recipientes (${mistura.recipientes.map((r) => `${r.capacidade} L`).join(', ')})${mistura.fonte ? ', com torneira' : ''}` },
