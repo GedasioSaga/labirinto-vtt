@@ -25,20 +25,20 @@ Fonte: os relatórios das etapas E1 a E8 do workflow de 27/11/2026 e a conferên
 - Nº 21: o marcador Condições conta a lista da página (`catalogoDeCondicoes`), não as fichas com condição.
 - Fora da lista: o "Recupera por turno" aplica as duas linhas (Vida e SP) no começo da vez (`ajustesDaRecuperacao`, `textoDaRecuperacaoGravada`); `ajusteDaRecuperacao`, `quantoDaRecuperacao` e `siglaDaRecuperacao` saíram.
 
-Ainda abertas: 1, 2, 3, 5 e 7 (as notas de cada uma dizem o próximo passo), 14 a 20 (pequenas) e 22 e 23 (E9).
+Ainda abertas: parte da 5 (a nota diz o que falta), 14 a 20 (pequenas) e 22 e 23 (E9). Feitas em 28/11 (0.6.10): 1, 2, 3 e 7, e duas partes da 5.
 
 ## Grandes (uma etapa cada)
 
-1. **Aberta.** **Aura (D9) não existe.** A peça Aura é salva, mas não age. Faltam `lib/batalha/aura.ts`, `pixi/drawAuras.ts` e a linha em `pixi/PixiCanvas.tsx` (E5).
-2. **Aberta.** **Fora da batalha (D11)**: falta o turno fora da batalha ler as peças (`lib/turnoForaDaBatalha.ts`, `stores/turnoForaDaBatalha.ts`). Hoje valem só a vida por vez, o "depois de X turnos" e o prazo (E5).
-3. **Aberta.** **Ritmo do Muda atributo na ficha**: o "a cada vez / a partir de" só age nos selos da batalha, não na condição posta na ficha (`lib/batalha/transformacao.ts`, `stores/batalha/condicoesNaFicha.ts`) (E5).
+1. **Feita 28/11.** **Aura (D9)**: `lib/batalha/aura.ts` (conta pura: até N casas, borda a borda, pelo lado da carta; "passa adiante" sem laço), `comAurasEmDia` em `stores/batalha/nucleo.ts` (a cada gravação da cena e no `recalcularAuras` que a ponte chama quando um token anda), linha "Aura de X: Y ganhou Z" / "perdeu Z" com Desfazer, e o quadrado do raio em `pixi/drawAuras.ts` (só no mapa do mestre, sem animar com `prefers-reduced-motion`). Decisões do Claude: a pega nasce sem prazo e sem o "ao entrar" (entrar e sair na borda não repete o efeito); quem já tem a condição por conta própria não ganha outra; mesa sem mapa (Arena, duelo) não tem aura; grade hexagonal não desenha o raio. Infectado e Inspirado de fábrica passam a agir.
+2. **Feita 28/11.** **Fora da batalha (D11)**: o "Passar turno" lê as peças de vida da condição montada (`pendentesDoComecoDaVez`, `vidaQueAsCondicoesDao` e `mexeNaVidaPorTurno` em `lib/condicoes/naFicha.ts`): tira e dá vida, fixa vezes as pilhas ou em % da vida da ficha na hora, com o número próprio da condição posta. Decisão do Claude: SP e Escudo por vez continuam só na batalha (D11 fala de vida).
+3. **Feita 28/11.** **Ritmo do Muda atributo na ficha**: `fimDaVezComGatilhos` (`lib/condicoes/gatilho.ts`) conta `CondicaoNaFicha.vezes` no fim de cada vez de quem tem uma condição com Muda atributo de ritmo, e o espelho da batalha já descia o ritmo por elas (`pedidoDepoisDasVezes`). Decisão do Claude: a conta anda onde o fim da vez da ficha já anda (na batalha e no "Passar turno" de quem tem prazo, vida por vez ou gatilho); condição só de ritmo, sem prazo, não entra sozinha no "Passar turno" (D11).
 4. **Feita 27/11.** **Contra e pilhas no `porCondicao`** (`lib/condicoes/naFicha.ts`): na ficha, fora da batalha, o Molhado não apaga o Queimando, e pôr de novo não soma pilha (E5).
-5. **Aberta.** **Partes do motor a conferir ou fazer**: `regras.quedasAMais` (e o % delas), `regras.ficaEm` diferente de 0 e `regras.noMaximo`. O regenera do fim não dispara a saída "ao receber cura". O `n` próprio da condição posta pelo gatilho é ignorado. O gatilho põe a condição sem recalcular as pilhas (`comPilhasDaMesa` é privado). "Pagar a ação" não marca o gasto da vez: o Enraizado sai pagando a Simples sem gastá-la (E3/E5).
+5. **Em parte (28/11).** Feitas: o `n` próprio da condição posta pelo gatilho agora vale, e o gatilho soma a pilha como o golpe (`comPilhasDaMesa` exportada; `stores/batalha/vez.ts`, `porDoGatilho`). **Ainda abertas** desta lista: `regras.quedasAMais` (e o % delas), `regras.ficaEm` diferente de 0 e `regras.noMaximo`. O regenera do fim não dispara a saída "ao receber cura". O `n` próprio da condição posta pelo gatilho é ignorado. O gatilho põe a condição sem recalcular as pilhas (`comPilhasDaMesa` é privado). "Pagar a ação" não marca o gasto da vez: o Enraizado sai pagando a Simples sem gastá-la (E3/E5).
 
 ## Médias
 
 6. **Feita 27/11.** **Selos criados crus** (sem passar por `pedidoComACondicao` / `seloPostoNaFicha`): `stores/batalha/nucleo.ts:62` e `:222`, `stores/batalha/passivas.ts:154`, `:304`, `:562` e `:641`, `lib/batalha/recursosDaBatalha.ts:69` (o cansaço). Um selo com nome de condição posto por esses caminhos não congela a regra.
-7. **Aberta.** **Vida em % no começo** aplica sozinha, sem o Aplicar, porque `danoPorVezDoSelo` só conhece vida fixa (E3/E5). Próximo passo: `ehDoAplicar` e `vidaNoComecoDaVez` (`lib/batalha/condicoes.ts`, `condicoesNaVez.ts`) aceitarem `pctMax`/`pctAtual`, e o lembrete do Aplicar calcular o número com `quantoDoEfeito` e a vida da ficha na hora.
+7. **Feita 28/11.** A vida em % agora espera o Aplicar como a fixa (`ehDoAplicar` aceita `pct`, `vidaNoComecoDaVez` e `danoPorVezDoSelo` levam a vida da ficha), e o lembrete calcula o número com `quantoDoEfeito` e a vida da ficha na hora do Aplicar. Antes: **Vida em % no começo** aplicava sozinha, sem o Aplicar, porque `danoPorVezDoSelo` só conhecia vida fixa (E3/E5). Próximo passo: `ehDoAplicar` e `vidaNoComecoDaVez` (`lib/batalha/condicoes.ts`, `condicoesNaVez.ts`) aceitarem `pctMax`/`pctAtual`, e o lembrete do Aplicar calcular o número com `quantoDoEfeito` e a vida da ficha na hora.
 8. **Feita 27/11 (a parte do `mod`).** **Boneco**: o golpe não passa pelo % de dano recebido nem pela marca; o "bate" não passa pelo % de dano causado; não tem Aura. `BONECO_BASE.mod` (`components/condicoes/editor/registro.ts`) dá +2 e o motor dá a metade do rank (Resistência 20 = +0): decidir qual vale.
 9. **Feita 27/11.** **Duração até 10 no item**: o leitor `lib/itens/pecasDoItem.ts` (`duracaoLida`, `inteiro(efeito.duracao, 1, 3)`) ainda corta em 3. Também cortam em 3: `DURACOES_NO_EDITOR` (`editorDoItem.ts`), `DURACOES` (`components/condicoes/editor/pecas/PecaGatilho.tsx`), `LinhaDoGatilho.tsx:40` e `ItemDoCatalogoDialog.tsx:416`. Até lá, "o prazo dela" de uma condição com mais de 3 turnos não chega ao item.
 10. **Feita 27/11.** **"Virar condição nova"** (`components/batalha/editor/pecas/condicoesDoApp.ts`): grava direto na lista. Deveria abrir o `EditorDaCondicao` com o rascunho, e as linhas de "Confira" aparecerem lá.
@@ -56,6 +56,13 @@ Ainda abertas: 1, 2, 3, 5 e 7 (as notas de cada uma dizem o próximo passo), 14 
 19. As constantes `NOME_DA_CURA_REDUZIDA`, `DANO_DO_SANGRAMENTO` e `CURA_REDUZIDA_PADRAO` (`lib/batalha/condicoes.ts`) ainda não saem da fábrica.
 20. Para o apelido acender a pastilha ("Atordoada"), `apagarPeloNome` (`lib/condicaoPorNome.ts`) precisa aceitar o apelido na mesma mudança, senão a pastilha fica presa.
 21. **Feita 27/11.** Livros › Condições: na jornada da E8, a aba mostrou "Condições 0" com uma criada já na lista. A conferir se o número conta outra coisa.
+
+## Bugs achados depois da 0.6.9 (feitos 28/11)
+
+- **Consumível novo só com "Curar" era recusado**: a partida do uso grava o alvo "escolha" e o motor recusa cura em alvo à escolha. Agora o uso que cura ou tira condição vai em quem usa ou num aliado (`usoComOAlvoDaAjuda`, `lib/itens/leitura.ts`), ao gravar e ao ler (o consumível antigo gravado assim é lido certo). Decisão do Claude: consumível só de condição continua "à escolha" (pode mirar inimigo).
+- **Selo do "Muda atributo" de item com o nome errado**: a memória da leitura por objeto (`lib/batalha/mecanica/leitura.ts`) guardava a primeira leitura, e a sem nome (marca, invocação, transformação) vencia. Agora a memória separa por nome.
+- **Golpe do boneco de treino ignorava os cortes de dano e a marca** (`lib/condicoes/ensaio.ts`, `golpeNoBoneco`): agora passa pela marca e depois pelos cortes das condições, na ordem da batalha, e a linha diz o que ficou.
+- **Ordem dos hooks** em `ItemDoCatalogoDialog.tsx` (`PecasDoBloco`): `useCatalogoDoSeletor` vinha depois de um return antecipado; agora vem antes.
 
 ## Jogador (E9, só depois que a outra sessão fechar `net/protocol.ts`)
 
