@@ -220,7 +220,8 @@ function julgarRecurso(r: RequisitoDo<'sp' | 'vida' | 'escudo' | 'contador' | 'c
       const nivel = achado?.nivel ?? 0 // a ficha sem esse acumulador está no nível 0
       if (r.nao === true) return nivel < r.nivel ? OK : falta(nivel)
       if (nivel < r.nivel) return falta(nivel)
-      return ok(r.gasta === true ? [{ requisitoId: r.id, recurso: 'acumulador', acumulador: r.acumulador, n: r.nivel }] : [])
+      // Pedido de 28/11/2026: o "gasta tudo" leva o nível inteiro de agora (o nível pedido é só o mínimo).
+      return ok(r.gasta === true ? [{ requisitoId: r.id, recurso: 'acumulador', acumulador: r.acumulador, n: r.tudo === true ? nivel : r.nivel }] : [])
     }
     case 'concentracao': {
       if (quem.carga === undefined) return naoSei()

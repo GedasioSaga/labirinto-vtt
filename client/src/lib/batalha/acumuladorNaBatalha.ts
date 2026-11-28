@@ -3,7 +3,7 @@ import { ALVO_DO_DANO, combateVazio, type BonusDaBatalha, type CombateDoPersonag
 import type { TurnosDaCena } from './turnos'
 import { mesmaReferencia } from './requisitos/contexto'
 import { lerAcumulador } from './requisitos/ler'
-import type { AcumuladorDaFicha, GanhoDoAcumulador, Referencia } from './requisitos/modelo'
+import type { AcumuladorDaFicha, GanhoDoAcumulador, MarcoDoAcumulador, Referencia } from './requisitos/modelo'
 
 /**
  * REQUISITOS, fases B3 e C: o NÍVEL de cada acumulador genérico na batalha (Polaridade, Fúria, Cargas).
@@ -248,14 +248,42 @@ export function bonusDosAcumuladores(definicoes: readonly AcumuladorDaFicha[], c
   const porAlvo = new Map<string, ParteDoBonus[]>()
   for (const acumulador of definicoes) {
     const nivel = nivelDoAcumulador(combate, acumulador.id)
-    const valor = valorDoGanho(acumulador.ganho, nivel)
-    if (valor === 0) continue
+    if (nivel <= 0) continue
+    // Uma parte por alvo e por acumulador ("+25 (Polaridade 2)"), somando o ganho de todo nível e o do marco.
+    const doAcumulador = new Map<string, number>()
+    const somar = (alvo: string | undefined, n: number): void => {
+      if (alvo !== undefined && n !== 0) doAcumulador.set(alvo, (doAcumulador.get(alvo) ?? 0) + n)
+    }
     const { ganho } = acumulador
-    const alvo = ganho.ganho === 'dano' ? ALVO_DO_DANO : ganho.ganho === 'atributo' ? ganho.atributo.id : undefined
-    if (alvo === undefined) continue
-    porAlvo.set(alvo, [...(porAlvo.get(alvo) ?? []), { nome: `${acumulador.nome} ${nivel}`, delta: valor }])
+    // O "Igual em todo nível: +N" (a regra antiga "cada nível +10") ou o valor por nível.
+    const valor = valorDoGanho(ganho, nivel)
+    if (ganho.ganho === 'dano') somar(ALVO_DO_DANO, valor)
+    else if (ganho.ganho === 'atributo') somar(ganho.atributo.id, valor)
+    // Pedido de 28/11/2026: o que os marcos dão no nível de agora (o maior até ele, ou todos com "soma os níveis de baixo").
+    const doMarco = ganhoDosMarcos(acumulador, nivel)
+    somar(ALVO_DO_DANO, doMarco.dano)
+    for (const [alvo, n] of doMarco.atributos) somar(alvo, n)
+    for (const [alvo, delta] of doAcumulador) porAlvo.set(alvo, [...(porAlvo.get(alvo) ?? []), { nome: `${acumulador.nome} ${nivel}`, delta }])
   }
   return Object.fromEntries(porAlvo)
+}
+
+/**
+ * Pedido de 28/11/2026 ("por que não posso escolher cada carga?"): o que os marcos dão no `nivel`. Vale o
+ * maior marco até o nível de agora; com `somaOsDeBaixo`, todos até ele somam. O atributo sem id fica de fora
+ * (o bônus da batalha é por id).
+ */
+export function ganhoDosMarcos(acumulador: Pick<AcumuladorDaFicha, 'marcos' | 'somaOsDeBaixo'>, nivel: number): { dano: number; atributos: ReadonlyMap<string, number> } {
+  const ate = (acumulador.marcos ?? []).filter((marco) => marco.nivel <= nivel)
+  const maior = ate.reduce<MarcoDoAcumulador | undefined>((melhor, marco) => (melhor === undefined || marco.nivel > melhor.nivel ? marco : melhor), undefined)
+  const valem = acumulador.somaOsDeBaixo === true ? ate : maior === undefined ? [] : [maior]
+  const atributos = new Map<string, number>()
+  let dano = 0
+  for (const marco of valem) {
+    dano += marco.dano ?? 0
+    for (const { atributo, n } of marco.atributos ?? []) if (atributo.id !== undefined) atributos.set(atributo.id, (atributos.get(atributo.id) ?? 0) + n)
+  }
+  return { dano, atributos }
 }
 
 /** O bônus da batalha com o dos acumuladores somado (sem acumulador com ganho = o MESMO bônus). */

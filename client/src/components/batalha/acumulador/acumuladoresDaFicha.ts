@@ -1,4 +1,4 @@
-import { comARodadaSemUso, comGastoNoAcumulador, combateNoComecoDaBatalha, comOEventoNosAcumuladores, nivelDoAcumulador, valorDoGanho, type EventoDoAcumulador } from '../../../lib/batalha/acumuladorNaBatalha'
+import { comARodadaSemUso, comGastoNoAcumulador, combateNoComecoDaBatalha, comOEventoNosAcumuladores, ganhoDosMarcos, nivelDoAcumulador, valorDoGanho, type EventoDoAcumulador } from '../../../lib/batalha/acumuladorNaBatalha'
 import { combateVazio, type CombateDoPersonagem } from '../../../lib/batalha/combate'
 import { lerContador, type LeituraDoContador } from '../../../lib/batalha/contador'
 import { normalizar } from '../../../lib/batalha/formula'
@@ -396,7 +396,14 @@ export function passoDoTeste(acumulador: AcumuladorDaFicha, estado: EstadoDoTest
 /** O que o nível dá, em palavras curtas ("+20 de dano", "+10 de Força"); nada = `null`. */
 export function ganhoNoNivel(acumulador: AcumuladorDaFicha, nivel: number): string | null {
   const { ganho } = acumulador
-  if (ganho.ganho === 'nada' || ganho.ganho === 'naoLido') return null
-  const valor = valorDoGanho(ganho, nivel)
-  return `+${valor} ${ganho.ganho === 'dano' ? 'de dano' : `de ${ganho.atributo.nome}`}`
+  // Pedido de 28/11/2026: o que o nível dá soma o "Igual em todo nível" e o dos marcos (o maior até ele, ou todos com "soma os de baixo").
+  const doMarco = ganhoDosMarcos(acumulador, nivel)
+  const atributos = new Map(doMarco.atributos)
+  let dano = doMarco.dano
+  if (ganho.ganho === 'dano') dano += valorDoGanho(ganho, nivel)
+  if (ganho.ganho === 'atributo' && ganho.atributo.id !== undefined) atributos.set(ganho.atributo.id, (atributos.get(ganho.atributo.id) ?? 0) + valorDoGanho(ganho, nivel))
+  const nomeDe = (id: string): string => (ganho.ganho === 'atributo' && ganho.atributo.id === id ? ganho.atributo.nome : ((acumulador.marcos ?? []).flatMap((marco) => marco.atributos ?? []).find((dado) => dado.atributo.id === id)?.atributo.nome ?? id))
+  const sinal = (n: number): string => `${n < 0 ? '−' : '+'}${Math.abs(n)}`
+  const partes = [...(dano === 0 ? [] : [`${sinal(dano)} de dano`]), ...[...atributos].filter(([, n]) => n !== 0).map(([id, n]) => `${sinal(n)} de ${nomeDe(id)}`)]
+  return partes.length === 0 ? null : partes.join(', ')
 }

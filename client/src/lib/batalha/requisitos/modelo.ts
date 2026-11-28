@@ -119,7 +119,8 @@ export type Requisito = ComId &
     | ({ tipo: 'sp'; n: number } & ComNao & ComGasto)
     | { tipo: 'vida'; porcento: number; lado: LadoDaVida }
     | ({ tipo: 'escudo' } & ComNao)
-    | ({ tipo: 'contador'; acumulador: Referencia; nivel: number } & ComNao & ComGasto)
+    /** Pedido de 28/11/2026: `tudo` (com `gasta`) = ao usar, gasta o nível inteiro de agora, não só o `nivel`. */
+    | ({ tipo: 'contador'; acumulador: Referencia; nivel: number; tudo?: true } & ComNao & ComGasto)
     | ({ tipo: 'concentracao'; n: number } & ComNao & ComGasto)
     | ({ tipo: 'pagaVida' } & QuantoPagaDeVida)
     | { tipo: 'reacaoLivre' }
@@ -367,6 +368,42 @@ export interface RegraNaoLida {
   bruto: ValorJson
 }
 
+/** Um atributo que o marco dá ("+10 Agilidade"); `n` com sinal. */
+export interface AtributoDoMarco {
+  atributo: Referencia
+  n: number
+}
+
+/**
+ * Pedidos do dono de 28/11/2026 ("tem técnicas que eu quero liberar com 1 de polaridade, outras com 2 e
+ * outras com 3" e "por que não posso escolher cada carga?"): o marco "Ao chegar a N" e o que ele DÁ, com
+ * valores livres. As técnicas que ele libera NÃO moram aqui: são o requisito A4 delas ("<medidor> N ou
+ * mais"), a mesma regra que a técnica lê, para nunca haver duas.
+ */
+export interface MarcoDoAcumulador {
+  nivel: number
+  /** Dano a mais nos golpes em que o acumulador vale (`valeEm`). Ausente = 0. */
+  dano?: number
+  /** Atributos a mais enquanto o nível estiver aqui (ou acima, com `somaOsDeBaixo`). */
+  atributos?: readonly AtributoDoMarco[]
+}
+
+/**
+ * Pedido do dono de 28/11/2026 ("como eu sei quais técnicas aumentam o dano?"): em que golpes o DANO do
+ * acumulador vale (o atributo vale sempre). Ausente = todo golpe, como antes.
+ */
+export type ValeEmDoAcumulador =
+  | { em: 'todo' }
+  | { em: 'tecnicas'; tecnicas: readonly Referencia[] }
+  | { em: 'fisicos' }
+  | { em: 'tiros' }
+  | { em: 'dona' }
+
+/** Os marcos de um acumulador: um por nível, no máximo um por nível até o máximo. */
+export const MARCOS_DO_ACUMULADOR_MAX = NIVEL_DO_ACUMULADOR_MAX
+/** Quantos atributos um marco dá, no máximo. */
+export const ATRIBUTOS_DO_MARCO_MAX = 4
+
 /** A definição do acumulador. */
 export interface AcumuladorDaFicha {
   v: typeof VERSAO_DO_ACUMULADOR
@@ -378,7 +415,14 @@ export interface AcumuladorDaFicha {
   inicial?: number
   sobe: readonly (SubidaDoAcumulador | ({ quando: 'naoLida' } & RegraNaoLida))[]
   desce: readonly (DescidaDoAcumulador | ({ quando: 'naoLida' } & RegraNaoLida))[]
+  /** O "Igual em todo nível: +N" (a regra antiga "cada nível +10" é lida assim) ou um valor por nível. */
   ganho: GanhoDoAcumulador | ({ ganho: 'naoLido' } & RegraNaoLida)
+  /** Pedido de 28/11/2026: os marcos "Ao chegar a N" com o que cada um dá. Ausente = nenhum. */
+  marcos?: readonly MarcoDoAcumulador[]
+  /** Os marcos de baixo somam com o de agora; ausente = vale só o maior marco até o nível de agora. */
+  somaOsDeBaixo?: true
+  /** Em que golpes o dano dele vale; ausente = todo golpe. */
+  valeEm?: ValeEmDoAcumulador
 }
 
 /** A peça de efeito "+N <acumulador>" (o motor a liga a uma mecânica em fase posterior). */

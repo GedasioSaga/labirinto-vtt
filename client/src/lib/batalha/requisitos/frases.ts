@@ -6,6 +6,8 @@ import {
   type GanhoDoAcumulador,
   type GrupoDeRequisitos,
   type LadoDaVida,
+  type MarcoDoAcumulador,
+  type ValeEmDoAcumulador,
   type OpcaoDoUmDestes,
   type PecaDoAcumulador,
   type PecaDoGrupo,
@@ -108,7 +110,7 @@ function textosDoRecurso(r: RequisitoDo<'sp' | 'pagaVida' | 'reacaoLivre' | 'con
       // O nome do acumulador é do dono: vai como ele escreveu ("Polaridade 2, tem 1"), como o da técnica ligada.
       const nome = r.acumulador.nome
       if (r.nao === true) return iguais(`${nome} abaixo de ${r.nivel}`)
-      return { frase: `${nome} ${r.nivel} ou mais${r.gasta === true ? `, gasta ${r.nivel}` : ''}`, curto: `${nome} ${r.nivel}` }
+      return { frase: `${nome} ${r.nivel} ou mais${r.gasta === true ? (r.tudo === true ? ', gasta tudo' : `, gasta ${r.nivel}`) : ''}`, curto: `${nome} ${r.nivel}` }
     }
     case 'concentracao':
       if (r.nao === true) return iguais(`concentração abaixo de ${r.n}`)
@@ -443,11 +445,35 @@ function fraseDaDescida(regra: DescidaDoAcumulador): string {
   }
 }
 
-function fraseDoGanho(ganho: GanhoDoAcumulador): string {
-  if (ganho.ganho === 'nada') return 'Cada nível: nada a mais (só conta)'
-  const doQue = ganho.ganho === 'dano' ? 'de dano em todo golpe que acerta' : `de ${ganho.atributo.nome}`
-  if (ganho.cada !== undefined) return `Cada nível: +${ganho.cada} ${doQue}`
+/** Pedido de 28/11/2026 ("como eu sei quais técnicas aumentam o dano?"): onde o dano do acumulador vale. */
+export function fraseDoValeEm(valeEm: ValeEmDoAcumulador | undefined): string {
+  switch (valeEm?.em) {
+    case undefined:
+    case 'todo':
+      return 'em todo golpe que acerta'
+    case 'tecnicas':
+      return `só nos golpes de ${valeEm.tecnicas.map((tecnica) => tecnica.nome).join(', ')}`
+    case 'fisicos':
+      return 'só nos golpes físicos'
+    case 'tiros':
+      return 'só nos tiros'
+    case 'dona':
+      return 'só na técnica dona do medidor'
+  }
+}
+
+function fraseDoGanho(ganho: GanhoDoAcumulador, valeEm: ValeEmDoAcumulador | undefined): string | null {
+  if (ganho.ganho === 'nada') return null
+  const doQue = ganho.ganho === 'dano' ? `de dano ${fraseDoValeEm(valeEm)}` : `de ${ganho.atributo.nome}`
+  // Pedido de 28/11/2026: a regra antiga "cada nível +10" é o atalho "Igual em todo nível: +10".
+  if (ganho.cada !== undefined) return `Igual em todo nível: +${ganho.cada} ${doQue}`
   return `${ganho.niveis.map((valor, indice) => `${indice === 0 ? 'Nível' : 'nível'} ${indice + 1}: +${valor}`).join(', ')} ${doQue}`
+}
+
+/** "Ao chegar a 2: +15 de dano, +10 Agilidade"; o marco sem ganho: "Ao chegar a 2 (só libera)". */
+function fraseDoMarco(marco: MarcoDoAcumulador): string {
+  const partes = [...(marco.dano === undefined ? [] : [`${marco.dano < 0 ? '−' : '+'}${Math.abs(marco.dano)} de dano`]), ...(marco.atributos ?? []).map(({ atributo, n }) => `${n < 0 ? '−' : '+'}${Math.abs(n)} ${atributo.nome}`)]
+  return partes.length === 0 ? `Ao chegar a ${marco.nivel} (só libera)` : `Ao chegar a ${marco.nivel}: ${partes.join(', ')}`
 }
 
 /**
@@ -458,11 +484,17 @@ export function frasesDoAcumulador(acumulador: AcumuladorDaFicha): string[] {
   const textoDaNaoLida = (porque: 'appNovo' | 'torto'): string => (porque === 'appNovo' ? 'regra de app mais novo (atualize o app)' : 'regra torta (refaça no editor)')
   const sobe = acumulador.sobe.map((regra) => (regra.quando === 'naoLida' ? textoDaNaoLida(regra.porque) : fraseDaSubida(regra)))
   const desce = acumulador.desce.map((regra) => (regra.quando === 'naoLida' ? textoDaNaoLida(regra.porque) : fraseDaDescida(regra)))
+  const marcos = acumulador.marcos ?? []
+  const ganho = acumulador.ganho.ganho === 'naoLido' ? `Cada nível: ${textoDaNaoLida(acumulador.ganho.porque)}` : fraseDoGanho(acumulador.ganho, acumulador.valeEm)
+  const danoNosMarcos = marcos.some((marco) => marco.dano !== undefined)
   return [
     `${acumulador.nome}, até o nível ${acumulador.maximo}`,
     sobe.length === 0 ? 'Sobe: só por uma técnica que dá "+N"' : `Sobe: ${sobe.join('; ')}`,
     desce.length === 0 ? 'Cai: só quando um requisito gasta' : `Cai: ${desce.join('; ')}`,
-    acumulador.ganho.ganho === 'naoLido' ? `Cada nível: ${textoDaNaoLida(acumulador.ganho.porque)}` : fraseDoGanho(acumulador.ganho),
+    ...(ganho === null ? (marcos.length === 0 ? ['Cada nível: nada a mais (só conta)'] : []) : [ganho]),
+    ...marcos.map(fraseDoMarco),
+    ...(marcos.length > 1 ? [acumulador.somaOsDeBaixo === true ? 'Os marcos de baixo somam com o de agora' : 'Vale o maior marco até o nível de agora'] : []),
+    ...(danoNosMarcos && (ganho === null || acumulador.ganho.ganho !== 'dano') ? [`O dano dos marcos vale ${fraseDoValeEm(acumulador.valeEm)}`] : []),
   ]
 }
 

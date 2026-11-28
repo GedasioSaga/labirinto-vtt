@@ -3,6 +3,7 @@ import { DANO_MAX } from '../../../../lib/batalha/combate'
 import { frasesDoAcumulador } from '../../../../lib/batalha/requisitos/frases'
 import { mesmaMarca } from '../../../../lib/batalha/requisitos/ler'
 import {
+  ATRIBUTOS_DO_MARCO_MAX,
   NIVEL_DO_ACUMULADOR_MAX,
   NOME_DO_ACUMULADOR_MAX,
   PASSO_DO_ACUMULADOR_MAX,
@@ -10,8 +11,10 @@ import {
   REGRAS_DO_ACUMULADOR_MAX,
   VERSAO_DO_ACUMULADOR,
   type AcumuladorDaFicha,
+  type AtributoDoMarco,
   type DescidaDoAcumulador,
   type GanhoDoAcumulador,
+  type MarcoDoAcumulador,
   type QuandoSobe,
   type Referencia,
   type SubidaDoAcumulador,
@@ -19,7 +22,7 @@ import {
 import type { CartaoDaFicha } from '../../../../lib/personagem'
 import { acumuladoresNaFicha, ganhoNoNivel, idParaOAcumulador } from '../../acumulador/acumuladoresDaFicha'
 import { Caixa, Campo, Escolher, Frase, Nota, Numero, PorDaLista, Segmentos, Texto, TextoCurto, Tirar } from './controlesDaPeca'
-import { comATecnicaNoNivel, nivelQuePede, referenciaDoCartao, tecnicasDaFicha } from './ligacoes'
+import { comATecnicaNoNivel, comOGastoNoNivel, gastoQuePede, nivelQuePede, referenciaDoCartao, tecnicasDaFicha, type GastoNoMarco } from './ligacoes'
 import type { ArredoresDaPeca, PropsDoAcumulador } from './registro'
 import { ATRIBUTOS_DAS_PECAS, semOItem, trocado, type OpcaoDaPeca } from './vocabulario'
 
@@ -224,9 +227,10 @@ function CadaNivelDa({ a, atributos, gravar }: { a: AcumuladorDaFicha; atributos
   return (
     <>
       <Frase>
-        <Texto forte>Cada nível dá</Texto>
+        {/* Pedido de 28/11/2026: o atalho "Igual em todo nível: +N" (a regra antiga "cada nível +10"); o de cada nível mora nos marcos. */}
+        <Texto forte>Igual em todo nível</Texto>
         <Segmentos
-          rotulo="Cada nível dá"
+          rotulo="Igual em todo nível"
           valor={tipo}
           opcoes={[
             { valor: 'dano', rotulo: 'Dano' },
@@ -263,62 +267,155 @@ function CadaNivelDa({ a, atributos, gravar }: { a: AcumuladorDaFicha; atributos
   )
 }
 
+/** "Ao usar: gasta N / gasta tudo / não gasta" (pedido de 28/11/2026), por técnica liberada no marco. */
+function gastosNoMarco(nivel: number): readonly OpcaoDaPeca<GastoNoMarco>[] {
+  return [
+    { valor: 'nao', rotulo: 'não gasta' },
+    { valor: 'nivel', rotulo: `gasta ${nivel}` },
+    { valor: 'tudo', rotulo: 'gasta tudo' },
+  ]
+}
+
+/** O que o marco dá: o dano a mais e os atributos (valores livres, com sinal). */
+function GanhoDoMarco({ marco, atributos, aoMudar }: { marco: MarcoDoAcumulador; atributos: readonly Referencia[]; aoMudar: (marco: MarcoDoAcumulador) => void }) {
+  const dados = marco.atributos ?? []
+  const comAtributos = (lista: readonly AtributoDoMarco[]): MarcoDoAcumulador => {
+    const { atributos: _atributos, ...sem } = marco
+    return lista.length === 0 ? sem : { ...sem, atributos: lista }
+  }
+  const livres = atributos.filter((atributo) => !dados.some((dado) => (dado.atributo.id ?? dado.atributo.nome) === (atributo.id ?? atributo.nome)))
+  return (
+    <>
+      <Frase sub>
+        <Texto>Dá</Texto>
+        <Numero
+          rotulo={`Dano a mais no nível ${marco.nivel}`}
+          valor={marco.dano ?? 0}
+          minimo={-DANO_MAX}
+          maximo={DANO_MAX}
+          onChange={(dano) => {
+            const { dano: _dano, ...sem } = marco
+            aoMudar(dano === 0 ? sem : { ...sem, dano })
+          }}
+        />
+        <Texto>de dano</Texto>
+        {dados.map((dado, indice) => (
+          <span key={dado.atributo.id ?? dado.atributo.nome} className="lb-pc__junto">
+            <Texto>e</Texto>
+            <Numero rotulo={`${dado.atributo.nome} a mais no nível ${marco.nivel}`} valor={dado.n} minimo={-DANO_MAX} maximo={DANO_MAX} onChange={(n) => aoMudar(comAtributos(trocado(dados, indice, { ...dado, n })))} />
+            <Texto>{dado.atributo.nome}</Texto>
+            <Tirar rotulo={`Tirar ${dado.atributo.nome} do nível ${marco.nivel}`} onClick={() => aoMudar(comAtributos(semOItem(dados, indice)))} />
+          </span>
+        ))}
+        {dados.length < ATRIBUTOS_DO_MARCO_MAX && livres.length > 0 && (
+          <PorDaLista
+            rotulo={`Atributo a mais no nível ${marco.nivel}`}
+            opcoes={livres.map((atributo) => ({ valor: atributo.id ?? atributo.nome, rotulo: atributo.nome }))}
+            onPor={(chave) => {
+              const atributo = livres.find((candidato) => (candidato.id ?? candidato.nome) === chave)
+              if (atributo !== undefined) aoMudar(comAtributos([...dados, { atributo, n: ATRIBUTO_POR_NIVEL_DE_PARTIDA }]))
+            }}
+          />
+        )}
+      </Frase>
+    </>
+  )
+}
+
 /**
- * "Ao chegar a N: libera a técnica X" (D8): a liberação mora no requisito A4 de X ("<medidor> N ou mais",
- * sem gastar). Aqui ela aparece e, com a ficha em volta, liga, muda o nível e desliga por lá.
+ * OS MARCOS "Ao chegar a N" (D8 e os pedidos do dono de 28/11/2026): uma lista, um marco por nível, cada um
+ * com o que DÁ (dano e atributos, valores livres, em `AcumuladorDaFicha.marcos`) e as técnicas que LIBERA,
+ * cada uma com "Ao usar: gasta N / gasta tudo / não gasta". A liberação mora no requisito A4 da técnica
+ * ("<medidor> N ou mais"): o marco e o requisito são a MESMA regra, e a técnica abaixo do nível fica
+ * cinza com o motivo ("Falta: Polaridade 2, tem 1").
  */
-function Libera({ a, arredores }: { a: AcumuladorDaFicha; arredores: ArredoresDaPeca | undefined }) {
-  const [nivelNovo, setNivelNovo] = useState(a.maximo)
-  if (arredores === undefined) return <Nota>Para liberar uma técnica ao chegar a N, ponha «Nível de um acumulador» ({a.nome} N ou mais) nos Requisitos dela.</Nota>
+function Marcos({ a, arredores, atributos, gravar }: { a: AcumuladorDaFicha; arredores: ArredoresDaPeca | undefined; atributos: readonly Referencia[]; gravar: (a: AcumuladorDaFicha) => void }) {
+  const [nivelNovo, setNivelNovo] = useState(1)
   const ref: Referencia = { id: a.id, nome: a.nome }
-  const tecnicas = tecnicasDaFicha(arredores.personagem, arredores.cartao.id)
+  const tecnicas = arredores === undefined ? [] : tecnicasDaFicha(arredores.personagem, arredores.cartao.id)
   const liberadas = tecnicas.flatMap((cartao): { cartao: CartaoDaFicha; nivel: number }[] => {
     const nivel = nivelQuePede(cartao, ref)
     return nivel === null ? [] : [{ cartao, nivel }]
   })
   const outras = tecnicas.filter((cartao) => !liberadas.some((item) => item.cartao === cartao))
-  const mudar = arredores.aoMudarOutroCartao
+  const mudar = arredores?.aoMudarOutroCartao
+  const marcos = a.marcos ?? []
+  const niveis = [...new Set([...marcos.map((marco) => marco.nivel), ...liberadas.map((item) => item.nivel)])].filter((nivel) => nivel <= a.maximo).sort((x, y) => x - y)
+  const comMarcos = (lista: readonly MarcoDoAcumulador[]): AcumuladorDaFicha => {
+    const { marcos: _marcos, somaOsDeBaixo: _soma, ...sem } = a
+    const ordenada = [...lista].sort((x, y) => x.nivel - y.nivel)
+    return ordenada.length === 0 ? sem : { ...sem, marcos: ordenada, ...(a.somaOsDeBaixo === true ? { somaOsDeBaixo: true } : {}) }
+  }
+  const trocarMarco = (marco: MarcoDoAcumulador): void => gravar(comMarcos([...marcos.filter((outro) => outro.nivel !== marco.nivel), marco]))
+  const tirarMarco = (nivel: number): void => {
+    gravar(comMarcos(marcos.filter((marco) => marco.nivel !== nivel)))
+    if (mudar !== undefined) for (const item of liberadas) if (item.nivel === nivel) mudar(comATecnicaNoNivel(item.cartao, ref, null))
+  }
   const nivelNaFaixa = Math.min(a.maximo, Math.max(1, nivelNovo))
   return (
-    <Campo rotulo="Ao chegar a N, libera">
-      {liberadas.length > 0 && (
+    <Campo rotulo="Ao chegar a N (os marcos)">
+      {niveis.length > 0 && (
         <ul className="lb-pc__lista">
-          {liberadas.map(({ cartao, nivel }) => (
-            <li key={cartao.id} className="lb-pc__item">
-              <Texto forte>Ao chegar a</Texto>
-              {mudar === undefined ? (
-                <Texto>{String(nivel)}</Texto>
-              ) : (
-                <Numero rotulo={`Nível que libera ${cartao.nome.trim()}`} valor={nivel} minimo={1} maximo={a.maximo} onChange={(novo) => mudar(comATecnicaNoNivel(cartao, ref, novo))} />
-              )}
-              <span className="lb-pc__seta" aria-hidden="true">
-                →
-              </span>
-              <Texto>libera</Texto>
-              <Texto forte>{cartao.nome.trim()}</Texto>
-              {mudar !== undefined && <Tirar rotulo={`Não liberar mais ${cartao.nome.trim()}`} onClick={() => mudar(comATecnicaNoNivel(cartao, ref, null))} />}
-            </li>
-          ))}
+          {niveis.map((nivel) => {
+            const marco = marcos.find((candidato) => candidato.nivel === nivel) ?? { nivel }
+            const doMarco = liberadas.filter((item) => item.nivel === nivel)
+            return (
+              <li key={nivel} className="lb-pc__item lb-pc__item--fixo">
+                <Frase>
+                  <Texto forte>{`Ao chegar a ${nivel}`}</Texto>
+                  <Tirar rotulo={`Tirar o marco do nível ${nivel}`} onClick={() => tirarMarco(nivel)} />
+                </Frase>
+                <GanhoDoMarco marco={marco} atributos={atributos} aoMudar={trocarMarco} />
+                {doMarco.map(({ cartao }) => (
+                  <Frase sub key={cartao.id}>
+                    <Texto>libera</Texto>
+                    <Texto forte>{cartao.nome.trim()}</Texto>
+                    <Texto>· ao usar:</Texto>
+                    {mudar === undefined ? (
+                      <Texto>{gastosNoMarco(nivel).find((opcao) => opcao.valor === gastoQuePede(cartao, ref))?.rotulo ?? 'não gasta'}</Texto>
+                    ) : (
+                      <Segmentos rotulo={`O que ${cartao.nome.trim()} gasta de ${a.nome}`} valor={gastoQuePede(cartao, ref)} opcoes={gastosNoMarco(nivel)} onChange={(gasto) => mudar(comOGastoNoNivel(cartao, ref, gasto))} />
+                    )}
+                    {mudar !== undefined && <Tirar rotulo={`Não liberar mais ${cartao.nome.trim()}`} onClick={() => mudar(comATecnicaNoNivel(cartao, ref, null))} />}
+                  </Frase>
+                ))}
+                {mudar !== undefined && outras.length > 0 && (
+                  <Frase sub>
+                    <PorDaLista
+                      rotulo={`Libera no nível ${nivel}`}
+                      opcoes={outras.map((cartao) => ({ valor: cartao.id, rotulo: cartao.nome.trim() }))}
+                      onPor={(id) => {
+                        const cartao = outras.find((candidato) => candidato.id === id)
+                        if (cartao !== undefined) mudar(comATecnicaNoNivel(cartao, ref, nivel))
+                      }}
+                    />
+                  </Frase>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
-      {mudar !== undefined && outras.length > 0 && (
+      {niveis.length < a.maximo && (
         <Frase>
-          <Texto forte>Ao chegar a</Texto>
-          <Numero rotulo="Nível que libera a técnica nova" valor={nivelNaFaixa} minimo={1} maximo={a.maximo} onChange={setNivelNovo} />
-          <span className="lb-pc__seta" aria-hidden="true">
-            →
-          </span>
-          <PorDaLista
-            rotulo="Libera a técnica"
-            opcoes={outras.map((cartao) => ({ valor: cartao.id, rotulo: cartao.nome.trim() }))}
-            onPor={(id) => {
-              const cartao = outras.find((candidato) => candidato.id === id)
-              if (cartao !== undefined) mudar(comATecnicaNoNivel(cartao, ref, nivelNaFaixa))
-            }}
-          />
+          <Texto>Novo marco: ao chegar a</Texto>
+          <Numero rotulo="Nível do marco novo" valor={nivelNaFaixa} minimo={1} maximo={a.maximo} onChange={setNivelNovo} />
+          <button type="button" className="lb-ed__bt lb-ed__bt--p" disabled={niveis.includes(nivelNaFaixa)} onClick={() => trocarMarco({ nivel: nivelNaFaixa })}>
+            Pôr o marco
+          </button>
         </Frase>
       )}
-      {liberadas.length === 0 && (mudar === undefined || outras.length === 0) && <Nota>Nenhuma técnica liberada por {a.nome}. A liberação mora nos Requisitos da técnica (tipo A4).</Nota>}
+      {niveis.length > 1 && (
+        <Caixa
+          rotulo="Soma os níveis de baixo (sem marcar, vale só o maior marco até o nível de agora)"
+          marcado={a.somaOsDeBaixo === true}
+          onChange={(marcado) => {
+            const { somaOsDeBaixo: _soma, ...sem } = a
+            gravar(marcado ? { ...sem, somaOsDeBaixo: true } : sem)
+          }}
+        />
+      )}
+      {arredores === undefined && <Nota>Para liberar uma técnica num marco, abra esta peça na ficha (a liberação mora nos Requisitos da técnica, tipo A4).</Nota>}
     </Campo>
   )
 }
@@ -421,7 +518,7 @@ export function PecaAcumulador({ acumulador, aoMudar, arredores }: PropsDoAcumul
           {a.maximo > MAXIMO_NA_TIRA && <span className="lb-pc__nota-curta">… até o nível {a.maximo}</span>}
         </div>
       )}
-      <Libera a={a} arredores={arredores} />
+      <Marcos a={a} arredores={arredores} atributos={atributos} gravar={aoMudar} />
       <div className="lb-pc__palavras" aria-live="polite">
         <span className="lb-pc__rot">Em palavras</span>
         <ul>

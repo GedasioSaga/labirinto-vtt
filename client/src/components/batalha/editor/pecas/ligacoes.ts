@@ -47,11 +47,34 @@ function ehNaForma(peca: ValorJson, forma: Referencia): boolean {
   return ref !== null && mesmaReferencia(ref, forma)
 }
 
-/** A peça A4 "<acumulador> N ou mais" que o Acumulador grava (sem "não ter" e sem "e gasta"). */
+/**
+ * A peça A4 "<acumulador> N ou mais" que o Acumulador grava (sem "não ter"). Pedido de 28/11/2026: o marco
+ * e o requisito da técnica são a MESMA regra, então o A4 que gasta ("e gasta N", "gasta tudo") também é dele.
+ */
 function ehNoNivel(peca: ValorJson, acumulador: Referencia): boolean {
-  if (!ehObjetoJson(peca) || peca.tipo !== 'contador' || peca.nao === true || peca.gasta === true) return false
+  if (!ehObjetoJson(peca) || peca.tipo !== 'contador' || peca.nao === true) return false
   const ref = referenciaDoJson(peca.acumulador)
   return ref !== null && mesmaReferencia(ref, acumulador)
+}
+
+/** O que a técnica gasta do acumulador ao usar (pedido de 28/11/2026): nada, o nível do marco ou tudo. */
+export type GastoNoMarco = 'nao' | 'nivel' | 'tudo'
+
+/** Como a técnica liberada no marco gasta o acumulador ao usar; não liberada = 'nao'. */
+export function gastoQuePede(cartao: CartaoDaFicha, acumulador: Referencia): GastoNoMarco {
+  const peca = todosCru(blocoCru(cartao), 'usar').find((candidata) => ehNoNivel(candidata, acumulador))
+  if (!ehObjetoJson(peca) || peca.gasta !== true) return 'nao'
+  return peca.tudo === true ? 'tudo' : 'nivel'
+}
+
+/** A técnica do marco com o gasto trocado ("Ao usar: gasta N / gasta tudo / não gasta"). Sem a liberação ou já assim = o MESMO cartão. */
+export function comOGastoNoNivel(cartao: CartaoDaFicha, acumulador: Referencia, gasto: GastoNoMarco): CartaoDaFicha {
+  const todos = todosCru(blocoCru(cartao), 'usar')
+  const atual = todos.find((peca) => ehNoNivel(peca, acumulador))
+  if (!ehObjetoJson(atual) || gastoQuePede(cartao, acumulador) === gasto) return cartao
+  const { gasta: _gasta, tudo: _tudo, ...semGasto } = atual
+  const peca: ObjetoJson = gasto === 'nao' ? semGasto : gasto === 'nivel' ? { ...semGasto, gasta: true } : { ...semGasto, gasta: true, tudo: true }
+  return comUsar(cartao, todos.map((outra) => (outra === atual ? peca : outra)))
 }
 
 /** A técnica pede a forma (B3) na raiz dos Requisitos. */
@@ -73,7 +96,7 @@ export function comATecnicaNaForma(cartao: CartaoDaFicha, forma: Referencia, lig
   return comUsar(cartao, liga ? [...todos, peca] : todos.filter((outra) => !ehNaForma(outra, forma)))
 }
 
-/** A técnica liberada no nível `nivel` do acumulador (A4 sem gastar), ou sem a liberação (`null`). */
+/** A técnica liberada no nível `nivel` do acumulador (A4; o gasto que já tinha fica), ou sem a liberação (`null`). */
 export function comATecnicaNoNivel(cartao: CartaoDaFicha, acumulador: Referencia, nivel: number | null): CartaoDaFicha {
   const todos = todosCru(blocoCru(cartao), 'usar')
   const sem = todos.filter((peca) => !ehNoNivel(peca, acumulador))

@@ -23,10 +23,15 @@ import {
   TIPOS_DE_REQUISITO,
   VERSAO_DO_ACUMULADOR,
   VERSAO_DOS_REQUISITOS,
+  ATRIBUTOS_DO_MARCO_MAX,
+  MARCOS_DO_ACUMULADOR_MAX,
   ehNaoLido,
   ehTipoDeRequisito,
   ehUmDestes,
   type AcumuladorDaFicha,
+  type AtributoDoMarco,
+  type MarcoDoAcumulador,
+  type ValeEmDoAcumulador,
   type DescidaDoAcumulador,
   type GanhoDoAcumulador,
   type GrupoDeRequisitos,
@@ -186,7 +191,7 @@ const CHAVES_DO_TIPO: Readonly<Record<TipoDeRequisito, readonly string[]>> = {
   sp: ['n'],
   vida: ['porcento', 'lado'],
   escudo: [],
-  contador: ['acumulador', 'nivel'],
+  contador: ['acumulador', 'nivel', 'tudo'],
   concentracao: ['n'],
   pagaVida: ['porcento', 'hp'],
   reacaoLivre: [],
@@ -275,7 +280,8 @@ function requisitoLido(valor: unknown): Requisito {
     case 'aliadoCaiu':
       return { id, tipo, ...marcas }
     case 'contador':
-      return { id, tipo, acumulador: referencia(peca.acumulador, `${onde} (acumulador)`), nivel: inteiro(peca.nivel, 1, NIVEL_DO_ACUMULADOR_MAX, `${onde} (nível)`), ...marcas }
+      // Pedido de 28/11/2026: o "gasta tudo" (`tudo`) só vale junto do `gasta`; sem ele, o campo é ignorado.
+      return { id, tipo, acumulador: referencia(peca.acumulador, `${onde} (acumulador)`), nivel: inteiro(peca.nivel, 1, NIVEL_DO_ACUMULADOR_MAX, `${onde} (nível)`), ...(peca.tudo === true && peca.gasta === true ? { tudo: true } : {}), ...marcas }
     case 'concentracao':
       return { id, tipo, n: inteiro(peca.n, 1, CARGA_MAX, `${onde} (cargas)`), ...marcas }
     case 'pagaVida':
@@ -660,7 +666,72 @@ function ehRegraNaoLida<T extends object>(regra: T | RegraNaoLida): regra is Reg
   return 'bruto' in regra
 }
 
-const CHAVES_DO_ACUMULADOR = ['v', 'id', 'nome', 'maximo', 'inicial', 'sobe', 'desce', 'ganho']
+const CHAVES_DO_ACUMULADOR = ['v', 'id', 'nome', 'maximo', 'inicial', 'sobe', 'desce', 'ganho', 'marcos', 'somaOsDeBaixo', 'valeEm']
+
+/** Um marco lido (pedido de 28/11/2026); torto = `null` (sai com aviso, o resto fica). */
+function marcoLido(cru: unknown, maximo: number): MarcoDoAcumulador | null {
+  if (!ehRegistro(cru) || chaveDesconhecida(cru, ['nivel', 'dano', 'atributos']) !== undefined) return null
+  const { nivel, dano, atributos } = cru
+  if (typeof nivel !== 'number' || !Number.isInteger(nivel) || nivel < 1 || nivel > maximo) return null
+  const marco: MarcoDoAcumulador = { nivel }
+  if (dano !== undefined) {
+    if (typeof dano !== 'number' || !Number.isInteger(dano) || Math.abs(dano) > DANO_MAX) return null
+    if (dano !== 0) marco.dano = dano
+  }
+  if (atributos !== undefined) {
+    if (!Array.isArray(atributos) || atributos.length > ATRIBUTOS_DO_MARCO_MAX) return null
+    const lidos: AtributoDoMarco[] = []
+    for (const item of atributos) {
+      if (!ehRegistro(item) || typeof item.n !== 'number' || !Number.isInteger(item.n) || Math.abs(item.n) > DANO_MAX) return null
+      const ref = referenciaOuNulo(item.atributo)
+      if (ref === null) return null
+      if (item.n !== 0) lidos.push({ atributo: ref, n: item.n })
+    }
+    if (lidos.length > 0) marco.atributos = lidos
+  }
+  return marco
+}
+
+/** A referência lida sem lançar (o `referencia` do leitor lança). */
+function referenciaOuNulo(cru: unknown): Referencia | null {
+  try {
+    return referencia(cru, 'atributo do marco')
+  } catch (erro) {
+    if (erro instanceof PecaTorta || erro instanceof PecaDeAppNovo) return null
+    throw erro
+  }
+}
+
+/** Os marcos do acumulador, um por nível (o primeiro de cada nível vale), na ordem do nível. */
+function marcosLidos(cru: unknown, maximo: number, leitura: LeituraDoAcumulador): MarcoDoAcumulador[] {
+  if (cru === undefined) return []
+  if (!Array.isArray(cru)) {
+    leitura.avisos.push('Acumulador: marcos tortos, ignorados')
+    return []
+  }
+  const porNivel = new Map<number, MarcoDoAcumulador>()
+  for (const item of cru.slice(0, MARCOS_DO_ACUMULADOR_MAX)) {
+    const marco = marcoLido(item, maximo)
+    if (marco === null) leitura.avisos.push('Acumulador: um marco torto ficou de fora')
+    else if (!porNivel.has(marco.nivel)) porNivel.set(marco.nivel, marco)
+  }
+  return [...porNivel.values()].sort((a, b) => a.nivel - b.nivel)
+}
+
+/** O "Vale em" lido; torto ou ausente = `undefined` (todo golpe). */
+function valeEmLido(cru: unknown, leitura: LeituraDoAcumulador): ValeEmDoAcumulador | undefined {
+  if (cru === undefined) return undefined
+  if (ehRegistro(cru)) {
+    if (cru.em === 'fisicos' || cru.em === 'tiros' || cru.em === 'dona') return { em: cru.em }
+    if (cru.em === 'tecnicas' && Array.isArray(cru.tecnicas)) {
+      const tecnicas = cru.tecnicas.map(referenciaOuNulo).filter((ref): ref is Referencia => ref !== null)
+      if (tecnicas.length > 0) return { em: 'tecnicas', tecnicas }
+    }
+    if (cru.em === 'todo') return undefined
+  }
+  leitura.avisos.push('Acumulador: "vale em" torto; vale em todo golpe')
+  return undefined
+}
 
 /**
  * Lê a definição de um acumulador (`AcumuladorDaFicha`). Nunca lança. Sem id, nome ou máximo que
@@ -693,7 +764,14 @@ export function lerAcumulador(valor: unknown): AcumuladorLido {
   const inicial = valor.inicial === undefined || valor.inicial === 0 ? undefined : typeof valor.inicial === 'number' && Number.isInteger(valor.inicial) && valor.inicial > 0 && valor.inicial <= base.maximo ? valor.inicial : null
   if (inicial === null) leitura.avisos.push(`Acumulador: o nível do começo precisa ser inteiro de 0 a ${base.maximo}; começa em 0`)
   const comInicial = inicial === undefined || inicial === null ? base : { ...base, inicial }
-  return { acumulador: { v: VERSAO_DO_ACUMULADOR, ...comInicial, sobe, desce, ganho: ehRegraNaoLida(ganho) ? { ganho: 'naoLido', ...ganho } : ganho }, deAppNovo: leitura.appNovo, avisos: leitura.avisos }
+  const lido: AcumuladorDaFicha = { v: VERSAO_DO_ACUMULADOR, ...comInicial, sobe, desce, ganho: ehRegraNaoLida(ganho) ? { ganho: 'naoLido', ...ganho } : ganho }
+  // Pedido de 28/11/2026: os marcos com o que dão, o "soma os níveis de baixo" e o "Vale em" (formato aditivo: sem eles = como antes).
+  const marcos = marcosLidos(valor.marcos, base.maximo, leitura)
+  if (marcos.length > 0) lido.marcos = marcos
+  if (valor.somaOsDeBaixo === true) lido.somaOsDeBaixo = true
+  const valeEm = valeEmLido(valor.valeEm, leitura)
+  if (valeEm !== undefined) lido.valeEm = valeEm
+  return { acumulador: lido, deAppNovo: leitura.appNovo, avisos: leitura.avisos }
 }
 
 /** A definição como o disco a guarda; a regra não lida volta como veio. */
@@ -707,6 +785,9 @@ export function acumuladorParaGuardar(acumulador: AcumuladorDaFicha): ObjetoJson
     sobe: acumulador.sobe.map((regra) => (regra.quando === 'naoLida' ? regra.bruto : comoJson(regra))),
     desce: acumulador.desce.map((regra) => (regra.quando === 'naoLida' ? regra.bruto : comoJson(regra))),
     ganho: acumulador.ganho.ganho === 'naoLido' ? acumulador.ganho.bruto : comoJson(acumulador.ganho),
+    ...(acumulador.marcos === undefined || acumulador.marcos.length === 0 ? {} : { marcos: acumulador.marcos.map((marco) => comoJson(marco)) }),
+    ...(acumulador.somaOsDeBaixo === true ? { somaOsDeBaixo: true } : {}),
+    ...(acumulador.valeEm === undefined || acumulador.valeEm.em === 'todo' ? {} : { valeEm: comoJson(acumulador.valeEm) }),
   }
 }
 
