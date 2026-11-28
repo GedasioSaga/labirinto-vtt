@@ -319,10 +319,27 @@ export function passarAVez(t: Trabalho): void {
   iniciarTurno(t, proxima)
 }
 
-/** Combatente incluído no meio: entra na posição do total (5.6). */
+/** A chave da ordem da 5.3: os 20 naturais primeiro (entre eles, a DES), depois o total e a DES. Sem rolagem = por último. */
+function chaveDaOrdem(rolagem: Pick<RolagemDeIniciativa, 'd20' | 'total' | 'destreza'> | null | undefined): readonly number[] {
+  if (rolagem === null || rolagem === undefined) return [0, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY]
+  return rolagem.d20 === 20 ? [1, rolagem.destreza, 0] : [0, rolagem.total, rolagem.destreza]
+}
+
+/** `a` vem antes de `b` na ordem (maior na primeira diferença; empate = depois, como quem já estava). */
+function vemAntes(a: readonly number[], b: readonly number[]): boolean {
+  for (let i = 0; i < a.length; i += 1) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0)
+  return false
+}
+
+/**
+ * Combatente incluído no meio: entra na posição do total (5.6). Bug de 28/11/2026: na ordem da 5.3 (`chaveDaOrdem`), sem
+ * passar à frente de um 20 natural, e o incluído com 20 natural vai para o grupo dos 20.
+ */
 export function inserirNaOrdem(t: Trabalho, id: IdDoCombatente, total: number): void {
   const cartas = t.nucleo.ordem.cartas.filter((carta) => carta !== id)
-  const posicao = cartas.findIndex((carta) => (combatente(t, carta)?.iniciativa?.total ?? Number.NEGATIVE_INFINITY) < total)
+  const rolada = combatente(t, id)?.iniciativa
+  const dele = chaveDaOrdem({ d20: rolada?.d20 ?? 0, total, destreza: rolada?.destreza ?? 0 })
+  const posicao = cartas.findIndex((carta) => vemAntes(dele, chaveDaOrdem(combatente(t, carta)?.iniciativa)))
   const novas = posicao < 0 ? [...cartas, id] : [...cartas.slice(0, posicao), id, ...cartas.slice(posicao)]
   t.nucleo = { ...t.nucleo, ordem: { ...t.nucleo.ordem, cartas: novas } }
 }

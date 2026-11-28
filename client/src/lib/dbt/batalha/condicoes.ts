@@ -270,7 +270,10 @@ export function expirarNoFim(t: Trabalho, id: IdDoCombatente): void {
 export function expirarNaRodada(t: Trabalho): void {
   const rodada = t.nucleo.ordem.rodada
   for (const alvo of Object.values(t.nucleo.combatentes)) {
-    if (!alvo.condicoes.some((ativa) => ativa.expira.tipo === 'fimDaRodada' && ativa.expira.rodada <= rodada)) continue
+    const saem = alvo.condicoes.filter((ativa) => ativa.expira.tipo === 'fimDaRodada' && ativa.expira.rodada <= rodada)
+    if (saem.length === 0) continue
+    // Bug de 28/11/2026: a que acaba no fim da rodada também deixa a linha, como as do início e do fim do turno.
+    for (const ativa of saem) escrever(t, `${alvo.nome}: ${ativa.nome} acabou`)
     mudarCombatente(t, alvo.id, (atual) => ({ ...atual, condicoes: atual.condicoes.filter((ativa) => !(ativa.expira.tipo === 'fimDaRodada' && ativa.expira.rodada <= rodada)) }))
   }
 }
