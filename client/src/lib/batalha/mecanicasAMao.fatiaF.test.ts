@@ -11,14 +11,15 @@ import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
 import { variantesDe } from './escolhaEEvolucao'
 import { leituraDaTecnica } from './leituraDaTecnica'
 import { motivoDoEvoluirPelaMecanica, somaContraOSelo } from './mecanicasAMao'
-import { CACA, CHAMAS, FLORESCER, MELODIA, GIRO_DE_PA, GOLPE_BAIXO, LUA, MEDICINA, PAZADA, ALVORADA, GRAM, BALMUNG, GILGAMESH, harveyCom, siegCom } from './fichasDaFatiaF.testkit'
+import { CACA, CHAMAS, FLORESCER, MELODIA, GIRO_DE_PA, GOLPE_BAIXO, LUA, MEDICINA, PAZADA, ALVORADA, GRAM, BALMUNG, GILGAMESH, convertida, harveyCom, siegCom } from './fichasDaFatiaF.testkit'
 
 const sistema = SISTEMA_ONE_PIECE
 
 describe('fatia F: Harvey, todos os golpes somam a Pá (10)', () => {
   // A duração da Pazada ("de 1 turno") fica fora da fatia: o leitor só entende "por N turnos" (B2 da auditoria).
   it('Atacar 60, Giro de Pá 123, Pazada 105 com Atordoado; Golpe Baixo lembra o terreno; Medicina sem a Cirurgia', () => {
-    const harvey = harveyCom()
+    // Itens refeitos (E6a): a Pá vale equipada na mochila, como a conversão do app a deixa.
+    const harvey = convertida(harveyCom())
     expect(golpesDeAtaque(harvey, sistema, undefined, null)[0]?.dano.valor).toBe(60)
     const golpes = golpesDeHabilidade(harvey, sistema, undefined, null, armasNaBatalha(harvey, undefined)[0] ?? null)
     const de = (id: string) => golpes.find((golpe) => golpe.cartaoId === id)
@@ -56,7 +57,8 @@ describe('fatia F: Giro de Pá marca sozinho os inimigos a 1 casa', () => {
 
 describe('fatia F: Siegfried, qual arma e as leituras da tabela', () => {
   it('a Alvorada pergunta a arma: Balmung 61, Gram 64, Gilgamesh 64 (levadas as 3); a Lua divide até 3', () => {
-    const sieg = siegCom()
+    // Itens refeitos (E6a): "levadas" = as 3 que a conversão equipa pelo "Armas por batalha: 3 armas" (Yamato e Apunhaladora ficam guardadas).
+    const sieg = convertida(siegCom())
     const combate = { recargas: {}, usos: {}, overload: false, carga: 0 as const, armas: [BALMUNG.id, GRAM.id, GILGAMESH.id] }
     const golpes = golpesDeHabilidade(sieg, sistema, combate, null, armasNaBatalha(sieg, combate)[0] ?? null)
     const alvorada = golpes.find((golpe) => golpe.cartaoId === ALVORADA.id)

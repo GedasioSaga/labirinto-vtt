@@ -1,3 +1,4 @@
+import { converterFichas } from '../itens/conversao/ficha'
 import type { CartaoDaFicha, Personagem } from '../personagem'
 import { ficha } from './fichasDaFatiaB.testkit'
 
@@ -131,4 +132,14 @@ export function siegCom(recursos = { hp: 900, sp: 140, escudo: 80 }): Personagem
     armas: [BALMUNG, GRAM, GILGAMESH, YAMATO, APUNHALADORA],
   })
   return { ...base, id: 'pers_f665c18d-a3fa-46dd-9a58-02a100920d60', escolhas: { raca: 'Lunariano (sem asas)', oficio: 'Gatuno', armasPorBatalha: '3 armas' }, maximos: { hp: 900, sp: 140 } }
+}
+
+/**
+ * A ficha como o app a abre hoje (itens refeitos, E6a/E7): a conversão leva os cartões da aba Armas
+ * para a mochila e equipa os N primeiros do "Armas por batalha" (o Atacar só lê a arma equipada).
+ */
+export function convertida(personagem: Personagem): Personagem {
+  const feita = converterFichas([], [personagem]).personagens[0]
+  if (feita === undefined) throw new Error('a conversão não devolveu a ficha')
+  return feita
 }

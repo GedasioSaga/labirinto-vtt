@@ -10,7 +10,8 @@
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao, PedidoDeAlvo } from '../lib/batalha/combate'
 import { ficha } from '../lib/batalha/fichasDaFatiaB.testkit'
-import { BALMUNG, CHAMAS, ENTARDECER, FLORESCER, GILGAMESH, GOLPE_BAIXO, GRAM, harveyCom, KIT_MEDICO, LUA, MEDICINA, ORQUIDEA, siegCom, YAMATO } from '../lib/batalha/fichasDaFatiaF.testkit'
+import { BALMUNG, CHAMAS, convertida, ENTARDECER, FLORESCER, GILGAMESH, GOLPE_BAIXO, GRAM, harveyCom, KIT_MEDICO, LUA, MEDICINA, ORQUIDEA, siegCom, YAMATO } from '../lib/batalha/fichasDaFatiaF.testkit'
+import { armasDe } from '../lib/batalha/leituraDaFicha'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
 import { numeroDaFicha, type Personagem } from '../lib/personagem'
@@ -198,9 +199,16 @@ describe('Entardecer do Siegfried (RES contra 12) e as 3 armas', () => {
   })
 
   it('levar 4 armas é recusado; 3 armas valem', () => {
-    const { loja, mesa } = batalha(siegCom())
-    const sieg = mesa.personagens().find((candidato) => candidato.nome === 'Siegfried')?.id ?? ''
-    expect(loja.getState().escolherArmas(CENA, MESTRE, sieg, [BALMUNG.id, GRAM.id, GILGAMESH.id, YAMATO.id])).toBe(false)
-    expect(loja.getState().escolherArmas(CENA, MESTRE, sieg, [BALMUNG.id, GRAM.id, GILGAMESH.id])).toBe(true)
+    // Itens refeitos (E6a): as armas são as vagas EQUIPADAS da mochila. As 5 equipadas (ficha de antes do limite), para a
+    // recusa dos 4 vir só do "Armas por batalha: 3 armas", e não de uma arma guardada.
+    const convertido = convertida(siegCom())
+    const todasEquipadas: Personagem = { ...convertido, mochila: (convertido.mochila ?? []).map((vaga) => (vaga.tipo === 'corpo' ? { ...vaga, equipado: true as const } : vaga)) }
+    const { loja, mesa } = batalha(todasEquipadas)
+    const naMesa = mesa.personagens().find((candidato) => candidato.nome === 'Siegfried')
+    if (naMesa === undefined) throw new Error('sem o Siegfried')
+    const id = (cartao: { nome: string }): string => armasDe(naMesa).find((arma) => arma.nome === cartao.nome)?.id ?? `sem ${cartao.nome}`
+    expect(armasDe(naMesa)).toHaveLength(5)
+    expect(loja.getState().escolherArmas(CENA, MESTRE, naMesa.id, [id(BALMUNG), id(GRAM), id(GILGAMESH), id(YAMATO)])).toBe(false)
+    expect(loja.getState().escolherArmas(CENA, MESTRE, naMesa.id, [id(BALMUNG), id(GRAM), id(GILGAMESH)])).toBe(true)
   })
 })
