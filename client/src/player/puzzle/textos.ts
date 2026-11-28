@@ -11,6 +11,8 @@ import type { CastigoNaTela, ErroNaTela } from './tipos'
 /** O aviso da mochila na mistura: na receita, os itens vão aos frascos; nos outros modos, a bancada não leva nada. */
 export const NOTA_DA_RECEITA = 'Toque num item e depois no frasco onde ele vai. A pia devolve o que estiver dentro.'
 export const NOTA_DA_MISTURA = 'Este puzzle não usa peças: despeje de um recipiente no outro.'
+/** O aviso da mochila nas camadas: as lâminas vão para a mesa de luz. */
+export const NOTA_DAS_CAMADAS = 'Arraste a lâmina até a mesa de luz, ou toque nela e depois na mesa. Na mesa, tocar num pedaço da figura escolhe a lâmina dele.'
 
 /** O tom do aviso: o neutro, o perigo (recusa, dano) e o latão (barulho, ganho). */
 export type TomDoAviso = 'neutro' | 'perigo' | 'latao'
@@ -35,9 +37,17 @@ export const ENCAIXE_VAZIO = 'Encaixe vazio. Escolha uma peça primeiro.'
 export const BANDEJA_VAZIA = 'Bandeja vazia. Ponha pedras de peso marcado.'
 
 /** "2 de 3 no lugar"; o destaque vai em negrito, como no v2 (`rotuloEstado`, também o da combinação). */
-export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca' | 'combinacao' | 'giratorias' | 'interruptores' | 'cooperacao' | 'mistura'>, teste = false): { destaque: string; resto: string } {
+export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca' | 'combinacao' | 'giratorias' | 'interruptores' | 'cooperacao' | 'mistura' | 'camadas'>, teste = false): { destaque: string; resto: string } {
   if (vista.versaoNova === true) return { destaque: '', resto: TEXTO_DA_RECUSA.versao_nova }
-  if (vista.resolvido) return { destaque: teste ? 'Resolvido no teste.' : 'Resolvido.', resto: vista.contagem.total > 0 ? ' As peças ficaram presas.' : '' }
+  if (vista.resolvido) return { destaque: teste ? 'Resolvido no teste.' : 'Resolvido.', resto: vista.camadas !== undefined ? ' As lâminas ficaram presas na mesa.' : vista.contagem.total > 0 ? ' As peças ficaram presas.' : '' }
+  // A mesa de luz: quantas lâminas estão na mesa (isso todos veem), nunca quantas estão certas.
+  const camadas = vista.camadas
+  if (camadas !== undefined) {
+    const naMesa = camadas.pilha.length
+    if (naMesa < camadas.total) return { destaque: `${naMesa} de ${camadas.total}`, resto: ' lâminas na mesa. Ponha as outras na mesa de luz.' }
+    const como = camadas.rotacaoImporta && camadas.ordemImporta ? 'Gire e troque a ordem das lâminas' : camadas.rotacaoImporta ? 'Gire as lâminas' : 'Troque a ordem das lâminas'
+    return { destaque: 'Todas na mesa.', resto: ` ${como} até ${camadas.figura === 'codigo' ? 'o código' : 'a figura'} fechar.` }
+  }
   // As peças giratórias não contam quantos anéis estão no lugar: seria a resposta pela metade.
   if (vista.giratorias !== undefined) {
     const como = vista.giratorias.desenho === 'simbolos' ? 'até os símbolos certos ficarem sob a marca' : 'até o desenho fechar'

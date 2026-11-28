@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, type PointerEvent as PointerDo
 import { EASE_OUT, movimentoReduzido } from './movimento'
 
 /** Um lugar do quadro que recebe peça: um encaixe ou a bandeja da troca. */
-export type AlvoNoQuadro = { tipo: 'encaixe'; id: string } | { tipo: 'bandeja' }
+export type AlvoNoQuadro = { tipo: 'encaixe'; id: string } | { tipo: 'bandeja' } | { tipo: 'mesa' }
 
 /** O desenho do fantasma: a imagem da peça, ou a inicial do nome (como no encaixe). */
 export interface DesenhoDaPeca {
@@ -69,6 +69,8 @@ export interface ArrastoDaPeca {
 
 function alvoDoElemento(el: HTMLElement): AlvoNoQuadro | null {
   if (el.dataset.alvo === 'bandeja') return { tipo: 'bandeja' }
+  // A mesa de luz das camadas: a lâmina vai para o alto da pilha (o host acha o encaixe dela).
+  if (el.dataset.alvo === 'mesa') return { tipo: 'mesa' }
   const id = el.dataset.enc
   return el.dataset.alvo === 'encaixe' && id !== undefined ? { tipo: 'encaixe', id } : null
 }

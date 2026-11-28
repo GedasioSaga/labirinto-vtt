@@ -4,7 +4,9 @@ import { ImagemDaMesa } from '../../../components/ImagemDaMesa'
 import { idDoItemDaPeca } from '../../../lib/acervoDeItens'
 import { resolverComBase, URL_DA_MIDIA_NA_SALA, type ResolverDeImagem } from '../../../lib/midia'
 import { IDS_DAS_PECAS_DESENHADAS, urlDaPeca } from '../../../puzzles/arte/pecas'
-import { progressoInicial } from '../../../puzzles/motor'
+import { agirNoPuzzle, progressoInicial } from '../../../puzzles/motor'
+import { camadasPadrao, descricaoDaLamina, idDoItemDaLamina, marcasDas, nomeDaLamina, puzzleDasCamadas } from '../../../puzzles/camadas/camadas'
+import { figuraDeFabrica, pngDaLamina } from '../../../puzzles/camadas/raster'
 import { combinacaoPadrao } from '../../../puzzles/combinacao'
 import { giratoriasPadrao } from '../../../puzzles/giratorias/giratorias'
 import { interruptoresPadrao } from '../../../puzzles/interruptores/interruptores'
@@ -15,7 +17,7 @@ import { canvasDoPainel, pngDaPlaca } from '../../../puzzles/relevo/raster'
 import { poligonoDaPlaca } from '../../../puzzles/relevo/placas'
 import { descricaoDaPlaca, idDoItemDaPlaca, nomeDaPlaca, placasDoPuzzle, puzzleDoRelevo, visualDoRelevo } from '../../../puzzles/relevo/relevo'
 import { CATEGORIA_DA_PECA_DE_PUZZLE, CENAS_DO_RELEVO, METAIS_DO_RELEVO } from '../../../puzzles/tipos'
-import type { CooperacaoDoPuzzle, IdDaPecaDesenhada, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe } from '../../../puzzles/tipos'
+import type { CamadasDoPuzzle, CooperacaoDoPuzzle, IdDaPecaDesenhada, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe } from '../../../puzzles/tipos'
 import { themeCss } from '../../../theme'
 import type { CarriedItem } from '../../../types/map'
 import { useJogoLocalDoPuzzle, type JogoLocalDoPuzzle } from '../jogoLocal'
@@ -34,6 +36,7 @@ import { TelaDoPuzzle } from '../TelaDoPuzzle'
  *   ?puzzle=luzes (6 lampiões, os do lado) | luzesDesenho (9 em 3 x 3, igual à plaqueta) | luzesRegra (5 em fila, a regra do mestre, ferro)
  *   ?puzzle=liquidos (jarras de 3 e 5, medir 4 L) | liquidosCores (o laranja 2:1) | liquidosReceita (erva e enxofre, ferro)
  *   ?puzzle=coop (dois pontos, a Lara na Cripta) | coopTres (três pontos, ferro); &ponto=2 põe a Lara no ponto 2
+ *   ?puzzle=camadas (o farol em vidro, 3 lâminas que giram) | camadasPapel (a rosa, 4, giro e ordem) | camadasFerro (o código K7X2, só a ordem)
  *   ?desfecho=texto | cena   (troca o modo do desfecho do puzzle escolhido)
  *   window.__vitrinePuzzle.estado()  o progresso, a mochila e os PV de agora
  */
@@ -271,6 +274,39 @@ function bancada(nomePublico: string, mudar: Partial<ReturnType<typeof misturaPa
   }
 }
 
+/**
+ * Sobrepor camadas (28/11): `?puzzle=camadas` (o farol em vidro pintado, 3
+ * lâminas que giram), `camadasPapel` (a rosa em papel vegetal, 4 lâminas, giro
+ * e ordem) e `camadasFerro` (o código K7X2 na grade de ferro, só a ordem). As
+ * lâminas saem com o PNG de verdade (`raster.ts`); o Bento já pôs uma na mesa
+ * (pelo motor, como o host faria). Na mochila, as outras e uma corda.
+ */
+async function camadas(nomePublico: string, mudar: Partial<CamadasDoPuzzle>, quantas: number): Promise<Exemplo> {
+  const mesa: CamadasDoPuzzle = { ...camadasPadrao(1847), ...mudar }
+  const base = puzzleDasCamadas(puzzleDoModelo('fonte'), mesa, quantas)
+  const puzzle: Puzzle = { ...base, nomePublico, desfecho: { ...base.desfecho, abrePorta: true } }
+  const figura = await figuraDeFabrica(mesa)
+  const laminas = await Promise.all(
+    marcasDas(mesa, quantas).map(async (marca): Promise<PecaDoAcervo> => {
+      const bytes = await pngDaLamina(mesa, quantas, marca, figura)
+      const imagem = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }))
+      const peca: PecaDoAcervo = { nome: nomeDaLamina(mesa, marca), descricao: descricaoDaLamina(mesa), imagem, categoria: CATEGORIA_DA_PECA_DE_PUZZLE, itemId: idDoItemDaLamina(mesa, quantas, marca) }
+      ACERVO.set(idDoItemDaLamina(mesa, quantas, marca), peca)
+      return peca
+    }),
+  )
+  const [doBento, ...minhas] = laminas
+  if (doBento === undefined) throw new Error('a mesa da vitrine nasceu sem lâminas')
+  const daMesa = vaga(doBento)
+  let n = 0
+  const pelo = { quem: BENTO, agora: Date.now(), modo: 'jogo' as const, pecaDoAcervo, novoId: () => `vitrine-${++n}` }
+  const posta = agirNoPuzzle(puzzle, progressoInicial(puzzle), [daMesa], { tipo: 'empilhar', vagaId: daMesa.id }, pelo)
+  // A ordem embaralhada (a semente fixa), para a mochila não entregar a ordem certa.
+  const [a, b, c, d] = minhas
+  const mochila = [c, a, d, b].flatMap((peca) => (peca === undefined ? [] : [vaga(peca)]))
+  return { puzzle, mochila: [...mochila.slice(0, 1), vaga(CORDA), ...mochila.slice(1)], progresso: posta.progresso }
+}
+
 const ERVA: PecaDoAcervo = { nome: 'Erva verde', categoria: 'Ingrediente', itemId: 'item_erva' }
 const PO: PecaDoAcervo = { nome: 'Pó de enxofre', categoria: 'Ingrediente', itemId: 'item_po' }
 
@@ -321,9 +357,17 @@ function ehNomeDoExemplo(valor: string): valor is NomeDoExemplo {
 
 const pedido = parametros.get('puzzle') ?? 'fonte'
 
-/** O exemplo pedido; o relevo espera o painel virar bitmap para recortar as placas. */
+/** As mesas de luz da vitrine (assíncronas: as lâminas viram PNG antes). */
+const MESAS_DE_LUZ: Readonly<Record<string, () => Promise<Exemplo>>> = {
+  camadas: () => camadas('Vitral do Farol', { material: 'vidro', figura: 'farol', rotacaoImporta: true, ordemImporta: false }, 3),
+  camadasPapel: () => camadas('Planta da Estufa', { material: 'papel', figura: 'rosa', rotacaoImporta: true, ordemImporta: true }, 4),
+  camadasFerro: () => camadas('Cofre da Grade', { material: 'ferro', figura: 'codigo', codigo: 'K7X2', rotacaoImporta: false, ordemImporta: true }, 3),
+}
+
+/** O exemplo pedido; o relevo espera o painel virar bitmap para recortar as placas (e as camadas, as lâminas). */
 async function exemploPedido(): Promise<Exemplo> {
-  const escolhido = pedido === 'relevo' ? await relevo() : EXEMPLOS[ehNomeDoExemplo(pedido) ? pedido : 'fonte']()
+  const mesaDeLuz = MESAS_DE_LUZ[pedido]
+  const escolhido = pedido === 'relevo' ? await relevo() : mesaDeLuz !== undefined ? await mesaDeLuz() : EXEMPLOS[ehNomeDoExemplo(pedido) ? pedido : 'fonte']()
   const modo = parametros.get('desfecho')
   if (modo === 'texto' || modo === 'cena') escolhido.puzzle.desfecho.modo = modo
   return escolhido
