@@ -6,6 +6,7 @@ import { resolverComBase, URL_DA_MIDIA_NA_SALA, type ResolverDeImagem } from '..
 import { IDS_DAS_PECAS_DESENHADAS, urlDaPeca } from '../../../puzzles/arte/pecas'
 import { progressoInicial } from '../../../puzzles/motor'
 import { combinacaoPadrao } from '../../../puzzles/combinacao'
+import { giratoriasPadrao } from '../../../puzzles/giratorias/giratorias'
 import { PECAS_DESENHADAS, puzzleDoModelo } from '../../../puzzles/padroes'
 import { canvasDoPainel, pngDaPlaca } from '../../../puzzles/relevo/raster'
 import { poligonoDaPlaca } from '../../../puzzles/relevo/placas'
@@ -26,6 +27,7 @@ import { TelaDoPuzzle } from '../TelaDoPuzzle'
  *
  *   npm run dev  ->  http://localhost:1420/src/player/puzzle/vitrine/vitrine.html
  *   ?puzzle=fonte (padrão) | porta | altar | imagem | relevo (com &cena=dragao &metal=bronze)
+ *   ?puzzle=giro (o medalhão da cena) | giroSimbolos | giroVizinhas (6 anéis, cada um leva os do lado)
  *   ?desfecho=texto | cena   (troca o modo do desfecho do puzzle escolhido)
  *   window.__vitrinePuzzle.estado()  o progresso, a mochila e os PV de agora
  */
@@ -221,6 +223,19 @@ async function relevo(): Promise<Exemplo> {
   return { puzzle, mochila: [vaga(terceira), vaga(CORDA), vaga(quarta), vaga(segunda), vaga(POCAO)], progresso }
 }
 
+/** As peças giratórias (28/11): o medalhão do dragão, o de símbolos em pedra e o difícil de 6 anéis. Semente fixa. */
+function medalhao(nomePublico: string, mudar: Partial<ReturnType<typeof giratoriasPadrao>>): () => Exemplo {
+  return () => {
+    const puzzle = puzzleDoModelo('fonte')
+    puzzle.nomePublico = nomePublico
+    puzzle.encaixes = []
+    puzzle.futuro = { ...giratoriasPadrao(424242), ...mudar }
+    puzzle.dica = { tipo: 'texto', texto: 'O que foi partido volta a ser inteiro quando tudo olha para cima.' }
+    puzzle.desfecho = { modo: 'cena', texto: 'O último anel encaixa com um estalo surdo. O medalhão afunda na parede e a passagem se abre.', itens: [], moedas: 0, documentos: [], abrePorta: true }
+    return { puzzle, mochila: [vaga(CORDA)] }
+  }
+}
+
 const EXEMPLOS = {
   fonte,
   porta,
@@ -230,6 +245,9 @@ const EXEMPLOS = {
   simbolos: combinacaoNoCofre('simbolos', 'Cofre das Marés', { tipo: 'barulho', texto: '' }),
   relogio: combinacaoNoCofre('relogio', 'Relógio da Torre', { tipo: 'armadilha', pv: 2, texto: '' }),
   botoes: combinacaoNoCofre('botoes', 'Painel dos Quatro Botões', { tipo: 'nada' }),
+  giro: medalhao('Medalhão do Dragão', {}),
+  giroSimbolos: medalhao('Selo das Marés', { desenho: 'simbolos', material: 'pedra', aneis: 4, simbolos: ['lua', 'peixe', 'estrela', 'olho'] }),
+  giroVizinhas: medalhao('Medalhão do Cavaleiro', { cena: 'cavaleiro', material: 'ferro', aneis: 6, vizinhas: true }),
 } as const
 type NomeDoExemplo = keyof typeof EXEMPLOS
 
@@ -279,7 +297,7 @@ function Fora({ jogo, onExaminar }: { jogo: JogoLocalDoPuzzle; onExaminar: () =>
         </button>
         <p style={{ margin: 0, fontSize: 10.5, color: 'var(--lb-color-parchment-faint)' }}>
           Outros exemplos: <a href="?puzzle=fonte">Fonte</a> · <a href="?puzzle=porta">Porta</a> · <a href="?puzzle=altar">Altar</a> · <a href="?puzzle=imagem">Imagem própria</a> · <a href="?puzzle=cofre">Cofre</a> · <a href="?puzzle=simbolos">Símbolos</a> ·{' '}
-          <a href="?puzzle=relogio">Relógio</a> · <a href="?puzzle=botoes">Botões</a> · <a href="?puzzle=relevo">Relevo</a>
+          <a href="?puzzle=relogio">Relógio</a> · <a href="?puzzle=botoes">Botões</a> · <a href="?puzzle=relevo">Relevo</a> · <a href="?puzzle=giro">Medalhão</a> · <a href="?puzzle=giroSimbolos">Selo</a> · <a href="?puzzle=giroVizinhas">Medalhão difícil</a>
         </p>
       </div>
     </main>

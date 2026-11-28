@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import { ImagemDaMesa } from '../../ImagemDaMesa'
 import { resolverComBase, URL_DA_MIDIA_NA_SALA, type ResolverDeImagem } from '../../../lib/midia'
+import { giratoriasPadrao } from '../../../puzzles/giratorias/giratorias'
 import { puzzleDoModelo } from '../../../puzzles/padroes'
 import { puzzleDoRelevo, visualDoRelevo } from '../../../puzzles/relevo/relevo'
 import { CENAS_DO_RELEVO, METAIS_DO_RELEVO } from '../../../puzzles/tipos'
@@ -16,6 +17,7 @@ import { useEditorDoPuzzleStore } from '../editorDoPuzzleStore'
  *
  *   npm run dev  ->  http://localhost:1420/src/components/puzzles/vitrine/vitrine.html
  *   ?cena=dragao (padrão) | cavaleiro | navio | leao | serpente | solELua   &metal=bronze | ferro | prata
+ *   ?modelo=giratorias  o medalhão das peças giratórias (&desenho=simbolos)
  */
 
 const parametros = new URLSearchParams(location.search)
@@ -30,7 +32,12 @@ const resolverDaVitrine: ResolverDeImagem = (valor) => (typeof valor === 'string
 const cena = CENAS_DO_RELEVO.find((candidata) => candidata === parametros.get('cena')) ?? 'dragao'
 const metal = METAIS_DO_RELEVO.find((candidato) => candidato === parametros.get('metal')) ?? 'bronze'
 // ?modelo=fonte abre a Fonte, para comparar a abertura do editor sem o painel.
-const puzzle = parametros.get('modelo') === 'fonte' ? puzzleDoModelo('fonte') : puzzleDoRelevo(visualDoRelevo(cena, metal), 4)
+const puzzle = parametros.get('modelo') === 'fonte' ? puzzleDoModelo('fonte') : parametros.get('modelo') === 'giratorias' ? medalhao() : puzzleDoRelevo(visualDoRelevo(cena, metal), 4)
+
+function medalhao() {
+  const base = puzzleDoModelo('fonte')
+  return { ...base, nomePublico: 'Medalhão do Dragão', encaixes: [], futuro: { ...giratoriasPadrao(424242), ...(parametros.get('desenho') === 'simbolos' ? { desenho: 'simbolos' as const } : {}) } }
+}
 useEditorDoPuzzleStore.getState().abrir({ tipo: 'rascunho', puzzle })
 
 const raiz = document.getElementById('raiz')
