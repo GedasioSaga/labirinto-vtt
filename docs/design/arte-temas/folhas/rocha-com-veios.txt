@@ -1,0 +1,9 @@
+rocha-com-veios: croma p95 0.075 (DENTRO; teto 0.1), media 0.046
+maior canal das faixas e tampas 186 (DENTRO; teto 245)
+faixa 0: emenda em x 0.0180 contra vizinhas 0.0139 (1.29 vez; teto 1,6) DENTRO
+faixa 1: emenda em x 0.0144 contra vizinhas 0.0150 (0.96 vez; teto 1,6) DENTRO
+faixa 2: emenda em x 0.0103 contra vizinhas 0.0145 (0.71 vez; teto 1,6) DENTRO
+faixa 3: emenda em x 0.0122 contra vizinhas 0.0134 (0.91 vez; teto 1,6) DENTRO
+faixa 4: emenda em x 0.0112 contra vizinhas 0.0120 (0.94 vez; teto 1,6) DENTRO
+faixa 5: emenda em x 0.0109 contra vizinhas 0.0145 (0.75 vez; teto 1,6) DENTRO
+faixa 6: emenda em x 0.0088 contra vizinhas 0.0139 (0.63 vez; teto 1,6) DENTRO
