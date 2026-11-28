@@ -617,11 +617,12 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
     case 'atacar': {
       const arma = armaDoPedido(ctx, pedido.armaId)
       if (arma === undefined) return MOTIVO_ARMA_NAO_EQUIPADA
-      if (pedido.balaId !== undefined && (arma === null || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
       // ITENS REFEITOS, E6a: a arma de pente atira só com bala no pente e fora da espera da recarga.
       // E6b: o arremesso só sai com um na mão (a pilha com algum, o boomerang de volta).
+      // Antes da bala do pedido: o pente zerado perde a bala, e o pedido de antes (a mesma bala) ouviria "Bala não encontrada".
       const doPente = arma === null ? null : motivoDaArmaNaMao(arma, combate.recargas[arma.id] ?? 0)
       if (doPente !== null) return doPente
+      if (pedido.balaId !== undefined && (arma === null || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
       // MUNIÇÃO (decisão do mestre de 16/11: "Bloqueia o tiro"): a bala ligada à mochila com 0 não atira, aqui e no host.
       const semMunicao = motivoSemMunicaoDoPedido(arma, pedido.balaId)
       if (semMunicao !== null) return semMunicao
