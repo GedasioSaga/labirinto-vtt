@@ -20,6 +20,23 @@ export const LADO_DO_PNG_DA_LAMINA = 256
 /** Uma imagem que o canvas desenha e da qual sabe o tamanho. */
 export type FiguraEmBitmap = CanvasImageSource & { width: number; height: number }
 
+/**
+ * Uma tarefa nova, de preferência quando a tela está ociosa (28/11): o canvas só
+ * rasteriza o SVG quando é esvaziado, e a pele, a figura e o PNG juntos davam
+ * uma tarefa longa de 202 ms ao abrir a vitrine. Cada parte vai na sua.
+ */
+function proximaFolga(): Promise<void> {
+  return new Promise((pronto) => {
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => pronto(), { timeout: 120 })
+    else window.setTimeout(pronto, 0)
+  })
+}
+
+/** Força o canvas a rasterizar o que já recebeu (ler um pixel esvazia a fila), para o custo cair na tarefa de agora. */
+function rasterizarJa(ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D): void {
+  ctx.getImageData(0, 0, 1, 1)
+}
+
 async function imagemDe(url: string): Promise<HTMLImageElement> {
   const imagem = new Image()
   imagem.src = url
@@ -82,7 +99,7 @@ export async function pngDaLamina(camadas: CamadasDoPuzzle, quantas: number, mar
   })
   // Desenhar um SVG no canvas é síncrono (~70 ms por lâmina): cada lâmina na sua tarefa,
   // senão as que decodificam juntas viram uma tarefa longa só.
-  await new Promise<void>((pronto) => window.setTimeout(pronto, 0))
+  await proximaFolga()
 
   const { ctx, emPng } = novaTela(lado)
   const margem = lado * 0.07
@@ -115,9 +132,13 @@ export async function pngDaLamina(camadas: CamadasDoPuzzle, quantas: number, mar
     const altura = figura.height * cobre
     ctx.drawImage(figura, (100 - largura) / 2, (100 - altura) / 2, largura, altura)
     ctx.restore()
+    rasterizarJa(ctx)
+    await proximaFolga()
   }
   ctx.drawImage(pele, 0, 0, 100, 100)
   ctx.restore()
+  rasterizarJa(ctx)
+  await proximaFolga()
 
   return new Uint8Array(await (await emPng()).arrayBuffer())
 }
