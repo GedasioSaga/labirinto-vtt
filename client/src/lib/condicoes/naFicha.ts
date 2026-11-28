@@ -4,6 +4,7 @@ import { CONDICOES_NA_FICHA_MAX, condicoesDaFichaLidas } from '../itens/leitura'
 import type { CondicaoNaFicha, GatilhoDaCondicao } from '../itens/modelo'
 import type { Personagem } from '../personagem'
 import { condicaoDoCatalogo, type CondicaoDoCatalogo } from './catalogo'
+import { TETO_DE_PILHAS_PADRAO, type PecaDaCondicaoDa } from './modelo'
 
 /**
  * AS CONDIÇÕES NA FICHA (sistema de itens refeito, PLANO §1.5; etapa E4a). Uma fonte só: a
@@ -92,8 +93,19 @@ export function porCondicao(personagem: Personagem, pedido: PedidoDeCondicao, cr
   const n = numeroDaRegra(doCatalogo, pedido.n)
   if (prazo === null || (doCatalogo.regra !== 'narra' && n === null)) return personagem
   const atuais = condicoesDe(personagem)
+  // PENDENCIAS do rework, nº 4: as mesmas regras de entrada da batalha (`entradaDoSelo`, lib/batalha/selos.ts).
+  // A Contra-condição que IMPEDE esta, já posta, barra a entrada (o Molhado com o Queimando).
+  if (atuais.some((posta) => posta.condId !== pedido.condId && impedeA(contraDe(posta.condId, criadas), pedido.condId))) return personagem
   const antiga = atuais.find((condicao) => condicao.condId === pedido.condId)
   if (antiga === undefined && atuais.length >= CONDICOES_NA_FICHA_MAX) return personagem
+  // "Se ganhar de novo" da condição: nada muda, soma uma pilha (até o teto, o prazo fica), ou o prazo recomeça (abaixo).
+  const { deNovo, teto } = doCatalogo.montada.prazo
+  if (antiga !== undefined && deNovo === 'nada') return personagem
+  if (antiga !== undefined && deNovo === 'pilha') {
+    const antes = antiga.pilhas ?? 1
+    const pilhas = Math.min(teto ?? TETO_DE_PILHAS_PADRAO, antes + 1)
+    return pilhas <= antes ? personagem : comCondicoesNaFicha(personagem, atuais.map((condicao) => (condicao === antiga ? { ...antiga, pilhas } : condicao)))
+  }
   const origem = pedido.origem?.trim() ?? ''
   const posta: CondicaoNaFicha = {
     id: antiga?.id ?? novoId(),
@@ -103,8 +115,21 @@ export function porCondicao(personagem: Personagem, pedido: PedidoDeCondicao, cr
     ...(origem === '' ? {} : { origem }),
     ...(pedido.gatilho === undefined ? {} : { gatilho: pedido.gatilho }),
   }
-  const lista = antiga === undefined ? [...atuais, posta] : atuais.map((condicao) => (condicao === antiga ? posta : condicao))
+  // Ao ENTRAR (não ao renovar), a Contra-condição dela apaga as que lista (o Molhado apaga o Queimando).
+  const apaga = antiga === undefined ? (contraDe(pedido.condId, criadas)?.apaga ?? []) : []
+  const ficam = apaga.length === 0 ? atuais : atuais.filter((condicao) => !apaga.includes(condicao.condId))
+  const lista = antiga === undefined ? [...ficam, posta] : ficam.map((condicao) => (condicao === antiga ? posta : condicao))
   return comCondicoesNaFicha(personagem, lista)
+}
+
+/** A peça Contra-condição da condição `condId` do catálogo; `null` = não tem (ou a condição saiu do catálogo). */
+function contraDe(condId: string, criadas: readonly CondicaoPropria[]): PecaDaCondicaoDa<'contra'> | null {
+  return condicaoDoCatalogo(condId, criadas)?.montada.pecas.find((peca): peca is PecaDaCondicaoDa<'contra'> => peca.tipo === 'contra') ?? null
+}
+
+/** A Contra-condição `contra` impede `condId` de pegar enquanto dura. */
+function impedeA(contra: PecaDaCondicaoDa<'contra'> | null, condId: string): boolean {
+  return contra !== null && contra.impede && contra.apaga.includes(condId)
 }
 
 /** TIRA a condição: a posta com este id, ou toda posta com este `condId`. A MESMA ficha quando não havia. */
