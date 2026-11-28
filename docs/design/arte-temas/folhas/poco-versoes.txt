@@ -1,0 +1,4 @@
+1. Poço (1,5 x 1,5 casas, 3/4 derivado): portão da 3/4 449 ms de 5000 | janela grande a 4x 223 ms | saturação p95 0,547 (teto 0,62) | contorno 0,230 (mínimo 0,06) | luz mínima 0,043 (piso 0,043) | 3/4 difere da de cima: sim | repete igual: sim | o tampo sobe: sim | dentro do portão
+2. Poco (Com telhado) (1,5 x 1,5 casas, 3/4 derivado): portão da 3/4 681 ms de 5000 | janela grande a 4x 436 ms | saturação p95 0,547 (teto 0,62) | contorno 0,230 (mínimo 0,06) | luz mínima 0,043 (piso 0,043) | 3/4 difere da de cima: sim | repete igual: sim | o tampo sobe: sim | dentro do portão
+3. Poco (Com manivela) (1,5 x 1,5 casas, 3/4 derivado): portão da 3/4 329 ms de 5000 | janela grande a 4x 226 ms | saturação p95 0,547 (teto 0,62) | contorno 0,231 (mínimo 0,06) | luz mínima 0,043 (piso 0,043) | 3/4 difere da de cima: sim | repete igual: sim | o tampo sobe: sim | dentro do portão
+folha: C:\dev\tmp\L06\pecas\poco-versoes\poco-versoes.png (2610 x 1778 px, 3 itens, 5832 ms no total)
