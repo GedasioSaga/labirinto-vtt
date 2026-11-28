@@ -2,7 +2,7 @@
 /**
  * A CURA TIRA O VENENO na batalha One Piece (`lib/curaPeloItem.ts`): a
  * Medicina do Harvey gasta 1 Kit Médico para curar, então tira o Envenenado
- * da armadilha (pastilha e prazo) da ficha curada no mapa; o Lento fica, e o
+ * da armadilha (pastilha e prazo) da ficha curada no mapa; o Vulnerável fica, e o
  * Desfazer da linha devolve o veneno como estava. Mesa com mapa
  * (`fichaDaCena`/`mudarFichaDaCena`), como em `batalhaFabrica.prazoDaMesa.test`.
  */
@@ -30,7 +30,8 @@ function batalhaDoHarveyEnvenenado() {
   if (vaga === undefined) throw new Error('sem a ficha do Harvey no mapa')
   const fichaDaVaga = (de: TokenDaVaga): Token => ({ id: de.id, characterId: de.characterId, name: de.name, x: de.col * 50 + 25, y: de.row * 50 + 25, size: 1, image: null })
   const cobra = porCondicaoNaFicha(fichaDaVaga(vaga), 'Envenenado', [], { turnos: 3, porVez: 4 })
-  const picado = porCondicaoNaFicha(cobra, 'Lento', [], { turnos: 2 })
+  // Rodada 3 (28/11/2026): era o Lento; desde que a pastilha vale já na 1ª vez, o Lento barra a Medicina (Completa).
+  const picado = porCondicaoNaFicha(cobra, 'Vulnerável', [], { turnos: 2 })
   const mapa = new Map<string, Token>(base.tokens().map((de) => [de.id, de.id === vaga.id ? picado : fichaDaVaga(de)]))
   const mesa: MesaDaBatalha = {
     personagens: () => base.personagens(),
@@ -53,7 +54,7 @@ function batalhaDoHarveyEnvenenado() {
 }
 
 describe('a Medicina (Kit Médico) tira o Envenenado na batalha', () => {
-  it('o Envenenado sai da ficha curada, o Lento fica; a nota diz; o Desfazer da linha devolve o veneno', () => {
+  it('o Envenenado sai da ficha curada, o Vulnerável fica; a nota diz; o Desfazer da linha devolve o veneno', () => {
     const { loja, doHarvey, tokenId } = batalhaDoHarveyEnvenenado()
     // Passa a vez até a do Harvey.
     for (let i = 0; i < 4; i += 1) {
@@ -70,8 +71,8 @@ describe('a Medicina (Kit Médico) tira o Envenenado na batalha', () => {
     expect(loja.getState().agir(CENA, MESTRE, { cartaId: turnos.vez, rodada: turnos.rodada }, medicina)).toBe(true)
     expect(fichaTemCondicao(doHarvey(), 'Envenenado')).toBe(false)
     expect(prazoDaCondicao(doHarvey(), 'Envenenado')).toBeNull()
-    expect(doHarvey().conditions).toEqual(['lento'])
-    expect(prazoDaCondicao(doHarvey(), 'Lento')).not.toBeNull()
+    expect(fichaTemCondicao(doHarvey(), 'Vulnerável')).toBe(true)
+    expect(prazoDaCondicao(doHarvey(), 'Vulnerável')).not.toBeNull()
     const cena = loja.getState().cenas[CENA]
     const nota = (cena?.turnos.golpes ?? []).flatMap((golpe) => golpe.alvos.map((alvo) => alvo.nota ?? ''))
     const linha = cena?.registro.at(-1)
