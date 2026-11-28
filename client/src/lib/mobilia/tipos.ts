@@ -206,6 +206,8 @@ export const TIPOS_MOBILIA = [
   'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
   // A onda 3 do plano (28/11/2026). L07: a roda de carroça, o banco de tronco e a casinha de cachorro.
   'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro',
+  // L08: o boneco de neve, o iglu (construção) e o trenó.
+  'bonecoDeNeve', 'iglu', 'treno',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

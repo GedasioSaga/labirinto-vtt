@@ -447,6 +447,9 @@ import { montarFonteDeParedeCorrendo } from './fonteDeParede'
 import { montarRodaDeCarroca } from './rodaDeCarroca'
 import { montarBancoDeTronco } from './bancoDeTronco'
 import { montarCasinhaDeCachorro } from './casinhaDeCachorro'
+import { montarBonecoDeNeve } from './bonecoDeNeve'
+import { montarIglu } from './iglu'
+import { montarTreno } from './treno'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -966,6 +969,10 @@ const MONTADORES = {
   rodaDeCarroca: montarRodaDeCarroca,
   bancoDeTronco: montarBancoDeTronco,
   casinhaDeCachorro: montarCasinhaDeCachorro,
+  // L08: o boneco clássico, o iglu inteiro e o trenó de carga.
+  bonecoDeNeve: montarBonecoDeNeve,
+  iglu: montarIglu,
+  treno: montarTreno,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -1070,7 +1077,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra', 'monteDeEntulho', 'camaDeTrapos',
   'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
   'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
-  'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro',
+  'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro', 'bonecoDeNeve', 'iglu', 'treno',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

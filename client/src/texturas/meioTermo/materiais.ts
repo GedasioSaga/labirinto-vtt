@@ -908,6 +908,10 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   rodaDeCarroca: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('aros', 'Aros', METAIS, 'ferro')],
   bancoDeTronco: [lugar('lenha', 'Tronco', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   casinhaDeCachorro: [lugar('madeira', 'Paredes', MADEIRAS, 'pinho'), lugar('telhado', 'Telhado', MADEIRAS, 'nogueira')],
+  // L08: a neve tem cor fixa; o boneco só troca o cachecol, e o iglu não tem lugar.
+  bonecoDeNeve: [lugar('cachecol', 'Cachecol', TECIDOS, 'vinho')],
+  iglu: [],
+  treno: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('patins', 'Patins', METAIS, 'ferro'), lugar('carga', 'Carga', TECIDOS, 'linho')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

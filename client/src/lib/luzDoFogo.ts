@@ -133,6 +133,9 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   idoloDourado: { alcanceEmCasas: 1.5, cor: 0xffe9c0, forca: 0.5, fumacaEBrasas: false },
   velaNoPires: { alcanceEmCasas: 1.5, cor: 0xffe8c4, forca: 0.7, fumacaEBrasas: false },
   salamandra: { alcanceEmCasas: 2.5, cor: 0xffd29c, forca: 0.75, fumacaEBrasas: true },
+  // A onda 3 do plano de arte por tema (28/11/2026). L08: o bafo quente da lamparina na porta do iglu, curto e fraco (o
+  // desenhista sugeriu #e8b070; aqui o tom claro dele, porque a luz multiplica o mapa). O Em ruína apaga (`semLuz`).
+  iglu: { alcanceEmCasas: 1.5, cor: 0xffdcb0, forca: 0.5, fumacaEBrasas: false },
 }
 
 /** A luz de um CARIMBO: a do objeto, sem fumaça nem brasas, e se ela treme como a do fogo. */

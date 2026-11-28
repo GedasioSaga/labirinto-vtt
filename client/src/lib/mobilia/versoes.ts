@@ -116,6 +116,12 @@ export const VERSOES_DO_MOVEL: Readonly<Partial<Record<TipoMobilia, VersoesDoMov
   rodaDeCarroca: { rotulo: 'Versão', opcoes: [{ id: 'encostada', nome: 'Encostada' }, { id: 'deitada', nome: 'Deitada' }] },
   bancoDeTronco: { rotulo: 'Versão', opcoes: [{ id: 'tronco', nome: 'Tronco' }, { id: 'tabuaSobreTocos', nome: 'Tábua sobre tocos' }] },
   casinhaDeCachorro: { rotulo: 'Versão', opcoes: [{ id: 'vazia', nome: 'Vazia' }, { id: 'comTigela', nome: 'Com tigela' }] },
+  // Lote L08: a neve. O iglu em ruína não tem a lamparina acesa na porta.
+  muroBaixoDePedra: { rotulo: 'Versão', opcoes: [{ id: 'semNeve', nome: 'Sem neve' }, { id: 'comNeve', nome: 'Com neve' }] },
+  bancoDePraca: { rotulo: 'Versão', opcoes: [{ id: 'semNeve', nome: 'Sem neve' }, { id: 'comNeve', nome: 'Com neve' }] },
+  bonecoDeNeve: { rotulo: 'Versão', opcoes: [{ id: 'classico', nome: 'Clássico' }, { id: 'derretendo', nome: 'Derretendo' }] },
+  iglu: { rotulo: 'Versão', opcoes: [{ id: 'inteiro', nome: 'Inteiro' }, { id: 'emRuina', nome: 'Em ruína', semLuz: true }] },
+  treno: { rotulo: 'Versão', opcoes: [{ id: 'deCarga', nome: 'De carga' }, { id: 'pequeno', nome: 'Pequeno' }] },
 }
 
 /** A versão apaga a luz do objeto (o lustre apagado e o caído): `lib/luzDoFogo.ts` não a acende. */

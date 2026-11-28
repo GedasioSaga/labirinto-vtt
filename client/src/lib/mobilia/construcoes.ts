@@ -114,6 +114,8 @@ export const GRUPO_DA_CONSTRUCAO = {
   passarelaDeTabuas: 'abrigosEPassagens',
   arquibancadaDePedra: 'lazer',
   fossoDeArena: 'lazer',
+  // A onda 3 do plano de arte por tema (28/11/2026), L08: o iglu, abrigo de blocos de neve.
+  iglu: 'abrigosEPassagens',
 } as const satisfies Partial<Record<TipoMobilia, IdDoGrupoDeConstrucao>>
 
 export type TipoDeConstrucao = keyof typeof GRUPO_DA_CONSTRUCAO
@@ -231,6 +233,8 @@ const REGRA_DE_FABRICA: Readonly<Record<TipoDeConstrucao, RegraDeFabrica>> = {
   passarelaDeTabuas: { barra: false },
   arquibancadaDePedra: { barra: false },
   fossoDeArena: { barra: false },
+  // O iglu (decisão do Claude, como a cabana de lajes): fechado, mais alto que uma pessoa; barra e tapa a visão.
+  iglu: { barra: true, tapa: true },
 }
 
 /** A construção barra a passagem de fábrica? */

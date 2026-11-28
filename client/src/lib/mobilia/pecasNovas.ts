@@ -106,8 +106,8 @@ export const PECAS_NOVAS = [
   'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
   // A onda 2 (L04, L05 e L06).
   'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
-  // A onda 3 (L07).
-  'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro',
+  // A onda 3 (L07 e L08).
+  'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro', 'bonecoDeNeve', 'iglu', 'treno',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -789,6 +789,9 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   rodaDeCarroca: { rotulo: 'Roda de carroça', artigo: 'uma roda de carroça', tamanho: { largura: 1, altura: 1 }, redonda: false },
   bancoDeTronco: { rotulo: 'Banco de tronco', artigo: 'um banco de tronco', tamanho: { largura: 1.5, altura: 0.5 }, redonda: false },
   casinhaDeCachorro: { rotulo: 'Casinha de cachorro', artigo: 'uma casinha de cachorro', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  bonecoDeNeve: { rotulo: 'Boneco de neve', artigo: 'um boneco de neve', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  iglu: { rotulo: 'Iglu', artigo: 'um iglu', tamanho: { largura: 3, altura: 3 }, redonda: false },
+  treno: { rotulo: 'Trenó', artigo: 'um trenó', tamanho: { largura: 1, altura: 2 }, redonda: false },
   lapideTorta: { rotulo: 'Lápide torta', artigo: 'uma lápide torta', tamanho: { largura: 0.6, altura: 0.4 }, redonda: false },
 }
 
@@ -1228,6 +1231,9 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     rodaDeCarroca: valor(f.rodaDeCarroca),
     bancoDeTronco: valor(f.bancoDeTronco),
     casinhaDeCachorro: valor(f.casinhaDeCachorro),
+    bonecoDeNeve: valor(f.bonecoDeNeve),
+    iglu: valor(f.iglu),
+    treno: valor(f.treno),
   }
 }
 
@@ -1327,8 +1333,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
   // A onda 2 (L04, L05 e L06).
   'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
-  // A onda 3 (L07).
-  'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro',
+  // A onda 3 (L07 e L08; o iglu é construção).
+  'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro', 'bonecoDeNeve', 'iglu', 'treno',
   'fossoDeBrasas', 'fossoDoSalao', 'plataformaDeRitual', 'gargula', 'estatuaDeBesta', 'estatuaEncapuzada',
   'ponteDeCorrente', 'columbario', 'estradoEmMeiaLua', 'arcossolio', 'ponteDePedraQuebrada', 'ponteDeTabuasQuebrada',
   'calcadaSobreAgua', 'cabanaDeLajes', 'tanqueComBorda', 'piramideEmDegraus', 'topoDoTemplo', 'cascataEmDegraus',
@@ -4961,6 +4967,12 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       return [...quadro(-hw * 0.95, -hh * 0.7, hw * 0.95, hh * 0.7), ...aro(largura * 0.1, altura * 0.9, hw * 0.85, 0)]
     case 'casinhaDeCachorro':
       return [...quadro(-hw * 0.85, -hh * 0.85, hw * 0.85, hh * 0.85), linha(-hw * 0.85, 0, hw * 0.85), ...quadro(-hw * 0.3, hh * 0.35, hw * 0.3, hh * 0.85)]
+    case 'bonecoDeNeve':
+      return [...aro(largura * 0.8, altura * 0.8, 0, hh * 0.1), ...aro(largura * 0.45, altura * 0.45, 0, -hh * 0.4)]
+    case 'iglu':
+      return [...aro(largura * 0.8, altura * 0.8, 0, -hh * 0.05), ...aro(largura * 0.5, altura * 0.5, 0, -hh * 0.05), ...quadro(-hw * 0.15, hh * 0.35, hw * 0.15, hh * 0.95)]
+    case 'treno':
+      return [{ x1: -hw * 0.75, y1: -hh * 0.95, x2: -hw * 0.75, y2: hh * 0.9 }, { x1: hw * 0.75, y1: -hh * 0.95, x2: hw * 0.75, y2: hh * 0.9 }, ...quadro(-hw * 0.6, -hh * 0.6, hw * 0.6, hh * 0.75)]
   }
 }
 

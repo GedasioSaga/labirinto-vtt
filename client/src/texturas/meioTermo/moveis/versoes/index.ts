@@ -54,6 +54,11 @@ import { versoesDoBarril } from './barrilVersoes'
 import { versoesDoRodaDeCarroca } from './rodaDeCarrocaVersoes'
 import { versoesDoBancoDeTronco } from './bancoDeTroncoVersoes'
 import { versoesDoCasinhaDeCachorro } from './casinhaDeCachorroVersoes'
+import { versoesDoMuroBaixoDePedra } from './muroBaixoDePedraVersoes'
+import { versoesDoBancoDePraca } from './bancoDePracaVersoes'
+import { versoesDoBonecoDeNeve } from './bonecoDeNeveVersoes'
+import { versoesDoIglu } from './igluVersoes'
+import { versoesDoTreno } from './trenoVersoes'
 
 /** O montador de cada versão, pelo id gravado em `Prop.mobiliaVersao` (a 1ª versão não entra). */
 export type VersoesDesenhadas = Readonly<Record<string, MontarMovel>>
@@ -112,6 +117,12 @@ export const VERSOES_DESENHADAS: Readonly<Partial<Record<TipoMobilia, VersoesDes
   rodaDeCarroca: versoesDoRodaDeCarroca,
   bancoDeTronco: versoesDoBancoDeTronco,
   casinhaDeCachorro: versoesDoCasinhaDeCachorro,
+  // L08 (a neve).
+  muroBaixoDePedra: versoesDoMuroBaixoDePedra,
+  bancoDePraca: versoesDoBancoDePraca,
+  bonecoDeNeve: versoesDoBonecoDeNeve,
+  iglu: versoesDoIglu,
+  treno: versoesDoTreno,
 }
 
 /** O montador da versão (`undefined` = a 1ª, versão sem desenho ou tipo sem versão: vale o de `MONTADORES`). */

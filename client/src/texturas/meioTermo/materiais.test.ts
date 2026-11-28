@@ -637,6 +637,9 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       rodaDeCarroca: ['madeira:nogueira', 'aros:ferro'],
       bancoDeTronco: ['lenha:lenhaCarvalho', 'madeira:carvalho'],
       casinhaDeCachorro: ['madeira:pinho', 'telhado:nogueira'],
+      bonecoDeNeve: ['cachecol:vinho'],
+      iglu: [],
+      treno: ['madeira:carvalho', 'patins:ferro', 'carga:linho'],
     })
   })
 

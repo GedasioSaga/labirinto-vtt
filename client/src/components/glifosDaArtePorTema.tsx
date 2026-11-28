@@ -130,6 +130,27 @@ export function glifoDaArtePorTema(tipo: TipoMobilia): ReactNode {
           <path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /><path d="M9 20v-4a3 3 0 0 1 6 0v4" />
         </>
       )
+    case 'bonecoDeNeve':
+      // As duas bolas de neve, o cachecol e os dois braços de graveto.
+      return (
+        <>
+          <circle cx="12" cy="7" r="4" /><circle cx="12" cy="16" r="6" /><path d="M8.5 11h7" /><path d="M6 14l-3-2M18 14l3-2" />
+        </>
+      )
+    case 'iglu':
+      // A cúpula de blocos, as fiadas e o túnel da porta.
+      return (
+        <>
+          <path d="M2 20a10 10 0 0 1 20 0z" /><path d="M4 15h16M7 11h10" /><path d="M9 20v-3a3 3 0 0 1 6 0v3" />
+        </>
+      )
+    case 'treno':
+      // Os dois patins enrolados na frente e o estrado de ripas.
+      return (
+        <>
+          <path d="M7 21V6a3 3 0 0 0-3-3M17 21V6a3 3 0 0 1 3-3" /><path d="M7 9h10M7 13h10M7 17h10" />
+        </>
+      )
     default:
       return null
   }
