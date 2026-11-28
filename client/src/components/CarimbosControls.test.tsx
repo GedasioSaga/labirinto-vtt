@@ -146,6 +146,10 @@ describe('CarimbosControls', () => {
       'Mato na fresta',
       'Poça de esgoto',
       'Rachadura no chão',
+      // O plano de arte por tema de 28/11/2026 (L02 e L03).
+      'Runas no chão',
+      'Ossos espalhados',
+      'Luz de vitral',
     ])
     expect(objetos[0].getAttribute('aria-checked')).toBe('true')
     // Um só ponto de parada do Tab no grupo.
@@ -163,7 +167,7 @@ describe('CarimbosControls', () => {
     tecla('ArrowRight')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-morta')
     tecla('End')
-    expect(useMapStore.getState().carimboEscolhido).toBe('rachadura-no-chao')
+    expect(useMapStore.getState().carimboEscolhido).toBe('luz-de-vitral')
     tecla('Home')
     expect(useMapStore.getState().carimboEscolhido).toBe('pinheiro')
   })

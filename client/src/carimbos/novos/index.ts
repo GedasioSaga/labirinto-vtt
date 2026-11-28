@@ -62,6 +62,9 @@ import { carimbo as lixoEspalhado, paleta as paletaDeLixoEspalhado } from './lix
 import { carimbo as matoNaFresta, paleta as paletaDeMatoNaFresta } from './matoNaFresta'
 import { carimbo as pocaDeEsgoto, paleta as paletaDePocaDeEsgoto } from './pocaDeEsgoto'
 import { carimbo as rachaduraNoChao, paleta as paletaDeRachaduraNoChao } from './rachaduraNoChao'
+import { carimbo as runasNoChao, brilho as brilhoDasRunasNoChao, paleta as paletaDasRunasNoChao } from './runasNoChao'
+import { carimbo as ossosEspalhados, paleta as paletaDosOssosEspalhados } from './ossosEspalhados'
+import { carimbo as luzDeVitral, paleta as paletaDaLuzDeVitral } from './luzDeVitral'
 
 /**
  * OS CARIMBOS NOVOS de 14/11/2026 (itens 111 a 152 da lista do mestre,
@@ -185,6 +188,11 @@ export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
   matoNaFresta,
   pocaDeEsgoto,
   rachaduraNoChao,
+  // O plano de arte por tema de 28/11/2026 (L02 e L03). As runas pulsam no tom da chama azul e acendem (`lib/luzDoFogo.ts`);
+  // a luz de vitral acende parada, sem `brilho` (luz de sol pelo vidro não pulsa).
+  { ...runasNoChao, brilho: brilhoDasRunasNoChao },
+  ossosEspalhados,
+  luzDeVitral,
 ]
 
 /** Todas as cores chapadas dos novos, para o teste de "não estoura" (`embutidos.test.ts`). */
@@ -256,4 +264,8 @@ export const PALETA_DOS_NOVOS: readonly Rgb[] = [
   ...paletaDeMatoNaFresta,
   ...paletaDePocaDeEsgoto,
   ...paletaDeRachaduraNoChao,
+  // O plano de arte por tema de 28/11/2026. Das runas, só o corpo, sem as cores do `brilho`.
+  ...paletaDasRunasNoChao,
+  ...paletaDosOssosEspalhados,
+  ...paletaDaLuzDeVitral,
 ]

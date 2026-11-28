@@ -168,6 +168,10 @@ describe('biblioteca de carimbos', () => {
       'mato-na-fresta',
       'poca-de-esgoto',
       'rachadura-no-chao',
+      // O plano de arte por tema de 28/11/2026 (L02 e L03).
+      'runas-no-chao',
+      'ossos-espalhados',
+      'luz-de-vitral',
     ])
     for (const id of IDS_DA_BIBLIOTECA) expect(id).toMatch(/^[a-z0-9-]{1,40}$/)
     expect(new Set(IDS_DA_BIBLIOTECA).size).toBe(IDS_DA_BIBLIOTECA.length)
