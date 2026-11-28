@@ -3,7 +3,8 @@
 - 0.6.10 (agente ad0940fb): fechando acumulador ("Pergunta antes", "Vale em"). Quando terminar: verificador + publicar 0.6.10.
 - Puzzles (designer-opus max, aa23f414): sistema de puzzle existente + REFERENCIAS.md dos RE + 1º "Painel em relevo" (peças de metal), FILA.md. Notas tmp/rel-puzzles/notas.md.
 - Arte: PLANO.md pronto (8e551075; 113 peças em 12 lotes). Workflow onda 1 rodando (wf_c1a1991e-23b, task wls4yb3wi): I0 (versão dentro do objeto) + L01-L03 (Opus max) + integrador; notas tmp/rel-arte-onda1. Depois publicar e rodar ondas 2-4 (L04-L12) com o mesmo script trocando os ids.
-- Bugs de batalha: WORKFLOW pedido pelo dono, depois da 0.6.10 (para não colidir em stores/batalha): mapear combinações de habilidades, testadores como mestre e jogador (harness/store, sem testes no repo), fixer em sequência com 1-3 testes certeiros por bug, verificar, publicar.
+- 0.6.10: testes babcc091 (9/9); PUBLICANDO de babcc091 por release/0.6.10 (agente afa2b4f5).
+- Bugs de batalha: WORKFLOW RODANDO (wf_88a2688e-1f6, task wgq0r4922): mapa -> 3 testadores -> 1 dono conserta -> verificador; notas tmp/rel-bugs-batalha/notas.md; publicar depois. (antes: pedido do dono, depois da 0.6.10 (para não colidir em stores/batalha): mapear combinações de habilidades, testadores como mestre e jogador (harness/store, sem testes no repo), fixer em sequência com 1-3 testes certeiros por bug, verificar, publicar.
 ## Critério de pronto do goal
 Workflow de batalha rodado com bugs achados corrigidos e publicados; ao menos o Painel em relevo + 1 puzzle a mais publicados; lotes de arte dos temas prioritários publicados; cada entrega com 1-3 testes certeiros quando é código.
 
