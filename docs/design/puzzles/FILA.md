@@ -14,6 +14,16 @@ Ordem saída de [REFERENCIAS.md](REFERENCIAS.md) (28/11/2026). Só a mecânica v
 
 - **Mistura de líquidos** (28/11). Uma bancada com 2 a 5 jarras ou frascos de vidro numa prateleira, a torneira e a pia à esquerda e o receptáculo (funil, gargalo e visor) à direita, em latão ou ferro. Três modos: medir volumes (as jarras de 3 e 5 até 4 L), misturar cores (a tinta se mistura na proporção do que passou) e seguir a receita (itens do acervo que o grupo achou no mapa, num frasco de água). O jogador pega um recipiente (toque, arrasto ou Enter) e despeja noutro, na pia ou no receptáculo; Esc devolve. O alvo só se escolhe entre os que a busca do caminho mais curto alcança, então sempre tem solução, e o mestre vê o mínimo de passos e a solução passo a passo. Errar no receptáculo castiga e, pelo que o mestre escolher, derrama o que pôs ou faz a bancada recomeçar. Som de líquido sintetizado e uma inclinação curta ao verter, parada no movimento reduzido.
 
+- **Sobrepor camadas** (28/11). Uma mesa de luz na parede: a figura se divide em 2 a 5 lâminas de vidro pintado, papel vegetal ou grade de ferro, e cada lâmina vira um item do acervo (pasta "Peça de puzzle", com o PNG dela) que o mestre espalha pelo mapa. O jogador leva as lâminas até a mesa (arrastar da mochila, com a mesa acesa na pausa, ou tocar na lâmina e depois na mesa), e a nova vai para o alto da pilha. Tocar num pedaço da figura escolhe a lâmina dele, e tocar de novo a gira; ao lado, a pilha lista as lâminas com Girar, Subir, Descer e Tirar (que devolve a quem pôs), e o teclado faz o mesmo (setas escolhem e giram, Alt com as setas muda a altura, Delete tira). O mestre escolhe a figura (farol, rosa dos ventos, chave, mariposa, um código de até 6 letras ou uma imagem dele), em quantas lâminas, e se a ordem e o giro importam. Quando a ordem importa, cada lâmina de baixo tem uma mancha que só a de cima certa cobre, então qualquer par trocado aparece. As lâminas pousam tortas (de 90 em 90 graus) e as marcas gravadas ficam em cantos sorteados, então nada entrega o giro. Tudo na mesa, de pé e na ordem sempre resolve; mexer não castiga. A figura fecha com um brilho e uma varredura de luz (só o brilho no movimento reduzido), e o desfecho é o de sempre, com a porta ligada. O fio leva a pilha e a forma do corte, nunca a semente nem os ids dos itens.
+
+## Pendente nas camadas
+
+- **Lâminas falsas** (uma a mais que não pertence à figura, para escolher). O pedido falava em "escolher e empilhar"; decisão do Claude em 28/11: ficou de fora para não haver lâmina que nunca serve no acervo; cabe como "lâminas a mais" no mesmo motor (a mesa recusaria a sobra).
+- **Deslocar a lâmina** (transladar, além de girar). Hoje todas assentam no mesmo esquadro da mesa; só o giro e a ordem contam.
+- **Reordenar arrastando na lista.** Hoje a ordem muda pelos botões Subir e Descer e por Alt com as setas.
+- **O código e a imagem vão ao jogador.** A tela desenha a figura, então quem abrir as ferramentas do navegador consegue vê-la. Decisão do Claude em 28/11: é o mesmo caso da imagem do relevo; esconder pediria desenhar no host.
+- **Itens novos a cada mudança.** Mudar a figura, o material, o corte ou as regras faz lâminas novas no acervo (as antigas ficam). Mesmo jeito do relevo.
+
 ## Pendente na mistura
 
 - **Arrastar o item da mochila até o frasco.** Na receita, o item vai por toque (o item e depois o frasco) ou pelo teclado; o arrasto da mochila ainda só conhece encaixes e a bandeja.
@@ -48,6 +58,8 @@ Ordem saída de [REFERENCIAS.md](REFERENCIAS.md) (28/11/2026). Só a mecânica v
 ## Próximos (na ordem)
 
 1. ~~Mistura de líquidos~~ ficou pronta em 28/11 (ver Feito).
-2. **Sobrepor camadas.** É o próximo. Placas transparentes empilhadas até formar o desenho. Combina com o painel em relevo: as camadas também podem ser itens achados no mapa.
+2. ~~Sobrepor camadas~~ ficou pronta em 28/11 (ver Feito).
+3. **Peças deslizantes.** É o próximo. A figura cortada numa grade de 3x3 a 5x5 com uma casa vazia; o jogador desliza as peças até ela fechar (RE2R). Esforço pequeno: reaproveita as figuras das camadas e as cenas do relevo, e o começo sai de deslizadas de verdade a partir da figura pronta, então sempre tem volta. Vários jogadores deslizam juntos, com a peça de cada um acesa.
+4. **Sombra projetada.** Girar um recorte diante da lanterna até a sombra na parede virar a figura (RE7). Reaproveita o giro das peças giratórias.
 
 Ficam para depois: empurrar estátuas (colisão no mapa), xadrez com regras, revelar com luz (mexe na névoa). Reflexo e tempo real ficam fora (mesa de RPG é por turno).
