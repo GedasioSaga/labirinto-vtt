@@ -8,6 +8,7 @@ import type { Ajuste } from '../../lib/ajusteDaFicha'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import {
   bonusDaBatalha,
+  totalDoBonus,
   criarSelo,
   ehNomeDeSelo,
   entradaDoSelo,
@@ -52,6 +53,15 @@ import { mexerNaFicha, reversaoDaFicha, tirarPastilhasNaMesa } from './naMesa'
 import type { NucleoDaBatalha } from './nucleo'
 
 /** Um efeito "selo" por selo que acabou ("ATORDOADO ACABOU"). */
+
+/**
+ * Bug de 28/11/2026: a queda em % do Diminui atributo (e da condição) vira número com o atributo de AGORA de quem leva:
+ * a ficha mais os mods da batalha (o Cansaço do Overload, outra queda), nunca abaixo de 0. O token sem ficha perde 0.
+ */
+function atributoDeAgora(turnos: TurnosDaCena, tokenId: string, dele: Personagem | undefined): (atributo: string) => number {
+  const bonus = bonusDaBatalha(turnos.selos, tokenId)
+  return (atributo) => (dele === undefined ? 0 : Math.max(0, valorDoRank(dele, atributo) + totalDoBonus(bonus, atributo)))
+}
 export function efeitosDosSelos(acabaram: readonly SeloDaBatalha[]): EfeitoNovo[] {
   return acabaram.map((selo): EfeitoNovo => ({ tipo: 'selo', tokenId: selo.tokenId, nome: selo.nome, acabou: true }))
 }
@@ -218,7 +228,7 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
     quem: { autor: AutorDaAcao; quemPos: string | null; origem?: string },
   ): { selos: SeloDaBatalha[]; parte: Reversao; notas: string[] } | null => {
     const dele = onde.personagemId === null ? undefined : mesaDoRpg().personagens.find((candidato) => candidato.id === onde.personagemId)
-    const resolvido = quedaEmNumeros(pedidoComACondicao(pedido, criadas(), quem.quemPos), (atributo) => (dele === undefined ? 0 : valorDoRank(dele, atributo)))
+    const resolvido = quedaEmNumeros(pedidoComACondicao(pedido, criadas(), quem.quemPos), atributoDeAgora(turnos, onde.tokenId, dele))
     const selo = criarSelo(onde.tokenId, resolvido, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), ...(quem.origem === undefined ? {} : { origem: quem.origem }) })
     const entrada = entradaDoSelo(turnos.selos, selo, { comPilhas: comPilhasDaMesa(criadas()) })
     const gravada = selosDaEntrada(entrada)
@@ -274,7 +284,7 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
     } else if (!condicoesNaFicha(mesa) || alvo.personagemId === null) {
       // O treino, a Arena e o token sem ficha: a condição fica só nesta batalha, como o selo de uma técnica.
       for (const pedido of selosDasCondicoesDoAcerto(aoAcertar)) {
-        const feito = seloDoGolpe({ ...turnos, selos }, { ...golpe, nome: aoAcertar.origem, selo: pedido }, alvo, criadas(), (resolvido) => quedaFixadaNoAlvo(resolvido, alvo))
+        const feito = seloDoGolpe({ ...turnos, selos }, { ...golpe, nome: aoAcertar.origem, selo: pedido }, alvo, criadas(), (resolvido) => quedaFixadaNoAlvo(resolvido, alvo, turnos))
         if (feito === null) continue
         partes.push(feito.parte)
         selos = feito.selos
@@ -297,27 +307,27 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
   /** Os selos do golpe (o da mira ou da técnica, o da bala de texto e os a mais) no alvo acertado. */
   const selosNoAcerto = (turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selado: ReturnType<typeof seloDoGolpe>; alvo: AlvoDoGolpe } => {
     // Rework das habilidades (D10): o selo principal com a queda em % também já vai em números (o mesmo golpe nos outros campos).
-    const feito = seloDoGolpeNoAcerto(turnos, golpe.selo?.queda?.emPorcento === true ? { ...golpe, selo: quedaFixadaNoAlvo(golpe.selo, alvo) } : golpe, alvo)
+    const feito = seloDoGolpeNoAcerto(turnos, golpe.selo?.queda?.emPorcento === true ? { ...golpe, selo: quedaFixadaNoAlvo(golpe.selo, alvo, turnos) } : golpe, alvo)
     // F2 (revisão da fatia E, Bala de Prata): o selo da bala pega junto, por cima do da mira, do da técnica e da marca.
     // Fase 5: os selos a mais da técnica montada pegam do mesmo jeito, um depois do outro (cada um com o seu Desfazer).
     // Fase ED4: cada um com o seu teste (`pega`), rolado na ordem dos selos.
     // Rework das habilidades (D10): a queda em % do Diminui atributo vira números com o atributo do alvo agora ("fixado no acerto").
-    const extras = [...(golpe.seloDaBala === undefined ? [] : [golpe.seloDaBala]), ...(golpe.selosAMais ?? [])].map((extra) => quedaFixadaNoAlvo(extra, alvo))
+    const extras = [...(golpe.seloDaBala === undefined ? [] : [golpe.seloDaBala]), ...(golpe.selosAMais ?? [])].map((extra) => quedaFixadaNoAlvo(extra, alvo, turnos))
     return extras.reduce((ate, extra) => {
       const teste = testeDoSelo(turnos, golpe, extra, ate.alvo)
       if (!teste.pega) return { ...ate, alvo: teste.alvo }
-      const mais = seloDoGolpe(ate.selado === null ? turnos : { ...turnos, selos: ate.selado.selos }, { ...golpe, selo: extra }, teste.alvo, criadas(), (resolvido) => quedaFixadaNoAlvo(resolvido, alvo))
+      const mais = seloDoGolpe(ate.selado === null ? turnos : { ...turnos, selos: ate.selado.selos }, { ...golpe, selo: extra }, teste.alvo, criadas(), (resolvido) => quedaFixadaNoAlvo(resolvido, alvo, turnos))
       if (mais === null) return { ...ate, alvo: teste.alvo }
       return { alvo: teste.alvo, selado: ate.selado === null ? mais : { selos: mais.selos, parte: { tipo: 'composta', partes: [ate.selado.parte, mais.parte] } } }
     }, feito)
   }
 
   /** D10: o selo com queda em % já em números, pelo atributo do alvo (o token sem ficha perde 0). Sem queda em %: o MESMO pedido. */
-  const quedaFixadaNoAlvo = (pedido: SeloDoGolpe, alvo: AlvoDoGolpe): SeloDoGolpe => {
+  const quedaFixadaNoAlvo = (pedido: SeloDoGolpe, alvo: AlvoDoGolpe, turnos: TurnosDaCena): SeloDoGolpe => {
     // Nº 5 das pendências do rework: as quedas a mais da condição em % também (`temQuedaEmPorcento`).
     if (!temQuedaEmPorcento(pedido)) return pedido
     const dele = alvo.personagemId === null ? undefined : mesaDoRpg().personagens.find((candidato) => candidato.id === alvo.personagemId)
-    return quedaEmNumeros(pedido, (atributo) => (dele === undefined ? 0 : valorDoRank(dele, atributo)))
+    return quedaEmNumeros(pedido, atributoDeAgora(turnos, alvo.tokenId, dele))
   }
 
   /**
@@ -349,7 +359,7 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
   const seloComOTeste = (turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selado: ReturnType<typeof seloDoGolpe>; alvo: AlvoDoGolpe } => {
     if (golpe.selo === undefined) return { selado: null, alvo }
     const teste = testeDoSelo(turnos, golpe, golpe.selo, alvo)
-    return { selado: teste.pega ? seloDoGolpe(turnos, golpe, teste.alvo, criadas(), (resolvido) => quedaFixadaNoAlvo(resolvido, alvo)) : null, alvo: teste.alvo }
+    return { selado: teste.pega ? seloDoGolpe(turnos, golpe, teste.alvo, criadas(), (resolvido) => quedaFixadaNoAlvo(resolvido, alvo, turnos)) : null, alvo: teste.alvo }
   }
 
   /**
@@ -432,7 +442,7 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
       const personagemId = turnos.cartas.find((carta) => carta.tokenId === tokenId)?.personagemId ?? null
       // D10: a queda em % da condição (Enfraquecido) em números com o atributo de quem leva (o token sem ficha perde 0).
       const dele = personagemId === null ? undefined : personagens.find((candidato) => candidato.id === personagemId)
-      const pedidoComRegra = quedaEmNumeros(pedidoComACondicao({ ...selo, natureza: naturezaDosMods(selo.mods) }, criadas(), null), (atributo) => (dele === undefined ? 0 : valorDoRank(dele, atributo)))
+      const pedidoComRegra = quedaEmNumeros(pedidoComACondicao({ ...selo, natureza: naturezaDosMods(selo.mods) }, criadas(), null), atributoDeAgora(turnos, tokenId, dele))
       const novo = criarSelo(tokenId, pedidoComRegra, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos) })
       // "Ao entrar": a Contra-condição, o "se ganhar de novo" e as pilhas; barrado, igual ou no teto = nada muda.
       const entrada = entradaDoSelo(turnos.selos, novo, { comPilhas: comPilhasDaMesa(criadas()) })

@@ -1,4 +1,5 @@
 import type { Ajuste } from '../ajusteDaFicha'
+import type { ContextoDaFormula } from '../batalha/formula'
 import { ajusteDoRecurso, maximoDoRecurso, numeroDoRecurso } from '../batalha/recursosDaBatalha'
 import type { ParteDaFicha } from '../batalha/registro'
 import type { Personagem } from '../personagem'
@@ -25,9 +26,9 @@ export interface AjusteDaRecuperacao {
  * Os ajustes do começo da vez, Vida antes do SP. `corte` = a regra dos selos na cura (Cura reduzida),
  * só na Vida. Linha cheia, ou recurso que o sistema não tem, fica de fora; vazia = nada a gravar.
  */
-export function ajustesDaRecuperacao(personagem: Personagem, sistema: SistemaDeRpg, corte: (cura: number) => number): AjusteDaRecuperacao[] {
+export function ajustesDaRecuperacao(personagem: Personagem, sistema: SistemaDeRpg, corte: (cura: number) => number, bonusDaBatalha?: ContextoDaFormula['bonusDaBatalha']): AjusteDaRecuperacao[] {
   const ajustes: AjusteDaRecuperacao[] = []
-  for (const lida of quantosDaRecuperacao(personagem, sistema)) {
+  for (const lida of quantosDaRecuperacao(personagem, sistema, bonusDaBatalha)) {
     const quanto = lida.recurso === 'hp' ? corte(lida.quanto) : lida.quanto
     const maximo = maximoDoRecurso(personagem, sistema, lida.recurso)
     const cabe = maximo === null ? quanto : Math.min(quanto, maximo - numeroDoRecurso(personagem, sistema, lida.recurso))

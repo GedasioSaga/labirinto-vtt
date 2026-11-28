@@ -155,7 +155,7 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
       mesa,
       personagemId,
       (atual, sistemaDaMesa) => {
-        lidas = ajustesDaRecuperacao(atual, sistemaDaMesa, (cura) => curaComOsSelos(cura, depois.selos, tokenId))
+        lidas = ajustesDaRecuperacao(atual, sistemaDaMesa, (cura) => curaComOsSelos(cura, depois.selos, tokenId), bonusDaBatalha(depois.selos, tokenId))
         return lidas.map(({ ajuste }) => ajuste)
       },
       quemNaFicha(autor),

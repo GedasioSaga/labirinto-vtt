@@ -1,4 +1,4 @@
-import { lerFormula } from '../batalha/formula'
+import { lerFormula, type ContextoDaFormula } from '../batalha/formula'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { linhasDaRecuperacao, recuperacaoDaFicha, type RecursoDaRecuperacao } from './tipos'
@@ -22,9 +22,10 @@ export interface RecuperacaoDaVez {
 }
 
 /** O número do quanto ("10", "Vigor / 2"), arredondado para baixo; `null` = vazio ou fora da gramática. */
-export function numeroDaRecuperacao(quanto: string, personagem: Personagem, sistema: SistemaDeRpg): number | null {
+export function numeroDaRecuperacao(quanto: string, personagem: Personagem, sistema: SistemaDeRpg, bonusDaBatalha?: ContextoDaFormula['bonusDaBatalha']): number | null {
   if (quanto.trim() === '') return null
-  const lida = lerFormula(quanto, { personagem, sistema, arma: null, vidaDoAlvo: null })
+  // Bug de 28/11/2026: na batalha, os atributos de agora (os mods dos selos, como a fórmula de cura das técnicas).
+  const lida = lerFormula(quanto, { personagem, sistema, arma: null, vidaDoAlvo: null, ...(bonusDaBatalha === undefined ? {} : { bonusDaBatalha }) })
   return lida.tipo === 'valor' ? lida.valor : null
 }
 
@@ -32,12 +33,12 @@ export function numeroDaRecuperacao(quanto: string, personagem: Personagem, sist
  * O que a ficha recupera no começo da vez, linha a linha (Vida antes do SP). Vazia = nada: sem a
  * característica, ou cada linha ligada com o quanto vazio, ilegível ou 0.
  */
-export function quantosDaRecuperacao(personagem: Personagem, sistema: SistemaDeRpg): RecuperacaoDaVez[] {
+export function quantosDaRecuperacao(personagem: Personagem, sistema: SistemaDeRpg, bonusDaBatalha?: ContextoDaFormula['bonusDaBatalha']): RecuperacaoDaVez[] {
   const recuperacao = recuperacaoDaFicha(personagem.caracteristicas)
   if (recuperacao === null) return []
   const lidas: RecuperacaoDaVez[] = []
   for (const { recurso, linha } of linhasDaRecuperacao(recuperacao)) {
-    const quanto = numeroDaRecuperacao(linha.quanto, personagem, sistema)
+    const quanto = numeroDaRecuperacao(linha.quanto, personagem, sistema, bonusDaBatalha)
     if (quanto !== null && quanto > 0) lidas.push({ recurso, quanto })
   }
   return lidas

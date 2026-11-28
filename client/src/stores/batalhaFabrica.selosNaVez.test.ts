@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import { ficha } from '../lib/batalha/fichasDaFatiaB.testkit'
 import type { SeloDaBatalha } from '../lib/batalha/combate'
+import { bonusDaBatalha, totalDoBonus } from '../lib/batalha/selos'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
 import { numeroDaFicha, type Personagem } from '../lib/personagem'
 import { lutadoresDe, SISTEMA_DO_TESTE } from '../lib/treino/fichasDeTreino.testkit'
@@ -85,5 +86,27 @@ describe('o gatilho "depois de X turnos" conta uma vez por vez, como o prazo', (
     expect(b.loja.getState().porSelo(CENA, b.token('Bia'), { nome: 'Queimando', turnos: 2 })).toBe(true)
     expect(b.loja.getState().passarVez(CENA, MESTRE)).toBe(true)
     expect([b.selo('Bia', 'Pavio aceso')?.gatilhoConta, b.selo('Bia', 'Queimando')?.turnos]).toEqual([undefined, 2])
+  })
+})
+
+describe('a queda em % sai do atributo de agora (a ficha mais os mods da batalha)', () => {
+  it('Bia com Força 40 e Fortalecido (+20): o Enfraquecido (−20% da Força) tira 12 (20% de 60), não 8', () => {
+    const b = batalha([lutador('Ana', 60), { ...lutador('Bia', 20), atributos: { ...ATRIBUTOS, agilidade: 20, forca: 40 } }, lutador('Caio', 10)])
+    expect(b.loja.getState().porSelo(CENA, b.token('Bia'), { nome: 'Fortalecido', turnos: 3 })).toBe(true)
+    expect(totalDoBonus(bonusDaBatalha(b.cena().turnos.selos, b.token('Bia')), 'forca')).toBe(20)
+    expect(b.loja.getState().porSelo(CENA, b.token('Bia'), { nome: 'Enfraquecido', turnos: 2 })).toBe(true)
+    expect(totalDoBonus(bonusDaBatalha(b.cena().turnos.selos, b.token('Bia')), 'forca')).toBe(20 - 12)
+  })
+})
+
+describe('o "Recupera por turno" lê a fórmula com os atributos de agora', () => {
+  it('Bia (Resistência 40, recupera "Resistência", HP 300/500) com Fraqueza −20 de Resistência: recupera 20 na vez seguinte', () => {
+    const recupera = { tipo: 'recuperacao' as const, id: 'car_recupera', hp: { quanto: 'Resistência' } }
+    const bia: Personagem = { ...lutador('Bia', 20), atributos: { ...ATRIBUTOS, agilidade: 20, resistencia: 40 }, caracteristicas: [recupera] }
+    const b = batalha([lutador('Ana', 60), { ...bia, recursos: { ...bia.recursos, hp: 300 } }, lutador('Caio', 10)])
+    b.passarAte('Caio')
+    expect(b.loja.getState().porSelo(CENA, b.token('Bia'), { nome: 'Fraqueza', turnos: 3, mods: [{ alvo: 'resistencia', delta: -20 }] })).toBe(true)
+    b.passarAte('Bia')
+    expect(b.hp('Bia')).toBe(300 + 20)
   })
 })
