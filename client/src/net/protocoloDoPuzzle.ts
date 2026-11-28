@@ -22,6 +22,12 @@ import { ehIdDeDocumento } from '../documentos/leitor'
 import { lerAcaoNoPuzzle } from '../puzzles/leitor'
 import { ALGARISMOS } from '../puzzles/combinacao'
 import {
+  FIGURAS_DAS_DESLIZANTES,
+  LADO_DAS_DESLIZANTES_MAX,
+  LADO_DAS_DESLIZANTES_MIN,
+  MATERIAIS_DAS_DESLIZANTES,
+  MODOS_DAS_DESLIZANTES,
+  ULTIMAS_DESLIZADAS_MAX,
   BANDEJA_MAX,
   BOTOES_MAX,
   BOTOES_MIN,
@@ -81,6 +87,7 @@ import {
 import type {
   AcaoNoPuzzle,
   CamadasNaVista,
+  DeslizantesNaVista,
   LaminaNaVista,
   AlvoDaMisturaNaVista,
   MisturaNaVista,
@@ -481,6 +488,27 @@ function lerCamadasNaVista(value: unknown): CamadasNaVista | null | undefined {
   return { material, figura, codigo: value.codigo, imagem, corte: value.corte, ordemImporta: value.ordemImporta, rotacaoImporta: value.rotacaoImporta, total: value.total, pilha }
 }
 
+/** O tabuleiro das peças deslizantes: ausente = não é desse tipo (`undefined`); torto = `null`, e a vista cai inteira. */
+function lerDeslizantesNaVista(value: unknown): DeslizantesNaVista | null | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) return null
+  const modo = umDaLista(MODOS_DAS_DESLIZANTES, value.modo)
+  const material = umDaLista(MATERIAIS_DAS_DESLIZANTES, value.material)
+  const figura = umDaLista(FIGURAS_DAS_DESLIZANTES, value.figura)
+  const lado = inteiroAte(value.lado, LADO_DAS_DESLIZANTES_MAX) && value.lado >= LADO_DAS_DESLIZANTES_MIN ? value.lado : null
+  if (modo === undefined || material === undefined || figura === undefined || lado === null || !inteiroAte(value.lances, NUMERO_MAX)) return null
+  const total = lado * lado
+  // Cada peça uma vez, uma por casa: a vista com peça repetida ou faltando cai inteira.
+  const casas = lerLista(value.casas, total, (peca) => (inteiroAte(peca, total - 1) ? peca : null))
+  if (casas === null || casas.length !== total || new Set(casas).size !== total) return null
+  const chave = value.chave === null ? null : inteiroAte(value.chave, total - 2) ? value.chave : undefined
+  const alvo = value.alvo === null ? null : inteiroAte(value.alvo, total - 1) ? value.alvo : undefined
+  if (chave === undefined || alvo === undefined || (modo === 'chave') !== (chave !== null && alvo !== null)) return null
+  const ultimas = lerLista(value.ultimas, ULTIMAS_DESLIZADAS_MAX, (ultima) => (isRecord(ultima) && inteiroAte(ultima.peca, total - 2) && textoAte(ultima.por, NOME_NO_FIO_MAX) ? { peca: ultima.peca, por: ultima.por } : null))
+  if (ultimas === null) return null
+  return { modo, material, figura, imagem: value.imagem === null ? null : imagemDoFio(value.imagem), lado, casas, lances: value.lances, chave, alvo, ultimas }
+}
+
 /** A vista inteira, campo a campo; um campo torto derruba a mensagem. */
 export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   if (!isRecord(value) || !idAte(value.desafioId) || !inteiroAte(value.rev, Number.MAX_SAFE_INTEGER) || !textoAte(value.titulo, NOME_DO_PUZZLE_MAX)) return null
@@ -498,7 +526,8 @@ export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   const cooperacao = lerCooperacaoNaVista(value.cooperacao)
   const mistura = lerMisturaNaVista(value.mistura)
   const camadas = lerCamadasNaVista(value.camadas)
-  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null || interruptores === null || cooperacao === null || mistura === null || camadas === null) return null
+  const deslizantes = lerDeslizantesNaVista(value.deslizantes)
+  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null || interruptores === null || cooperacao === null || mistura === null || camadas === null || deslizantes === null) return null
   const vista: VistaDoPuzzle = { desafioId: value.desafioId, rev: value.rev, titulo: value.titulo, visual, encaixes, troca, dica, resolvido: value.resolvido, contagem: { postos, total }, mochila }
   if (combinacao !== undefined) vista.combinacao = combinacao
   if (giratorias !== undefined) vista.giratorias = giratorias
@@ -506,6 +535,7 @@ export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   if (cooperacao !== undefined) vista.cooperacao = cooperacao
   if (mistura !== undefined) vista.mistura = mistura
   if (camadas !== undefined) vista.camadas = camadas
+  if (deslizantes !== undefined) vista.deslizantes = deslizantes
   if (value.versaoNova === true) vista.versaoNova = true
   return vista
 }

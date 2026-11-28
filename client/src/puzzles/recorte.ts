@@ -21,6 +21,7 @@ import { giratoriasDoPuzzle, giratoriasNaVista } from './giratorias/giratorias'
 import { interruptoresDoPuzzle, interruptoresNaVista } from './interruptores/interruptores'
 import { misturaDoPuzzle, misturaNaVista } from './mistura/mistura'
 import { camadasDoPuzzle, camadasNaVista } from './camadas/camadas'
+import { deslizantesDoPuzzle, deslizantesNaVista } from './deslizantes/deslizantes'
 import { contagemDoPuzzle, pesoDe, postaEm } from './motor'
 import { CATEGORIA_DA_PECA_DE_PUZZLE } from './tipos'
 import type { EncaixeDoPuzzle, EncaixeNaVista, PecaPosta, PostaNaVista, ProgressoDoPuzzle, Puzzle, VagaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
@@ -55,7 +56,9 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
   const mistura = misturaDoPuzzle(puzzle)
   // Na mesa de luz as lâminas vão na pilha da vista (os encaixes diriam a ordem certa).
   const camadas = camadasDoPuzzle(puzzle)
-  const encaixes = combinacao === null && giratorias === null && interruptores === null && cooperacao === null && mistura === null && camadas === null ? puzzle.encaixes : []
+  // No tabuleiro deslizante também: só há peças do próprio tabuleiro.
+  const deslizantes = deslizantesDoPuzzle(puzzle)
+  const encaixes = combinacao === null && giratorias === null && interruptores === null && cooperacao === null && mistura === null && camadas === null && deslizantes === null ? puzzle.encaixes : []
   const vista: VistaDoPuzzle = {
     desafioId: entrada.desafioId,
     rev: progresso.rev,
@@ -63,7 +66,7 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
     visual: visualNaVista(puzzle.visual),
     encaixes: encaixes.map((encaixe) => encaixeNaVista(encaixe, progresso)),
     // O medalhão não tem troca de peso (o motor a recusa).
-    troca: giratorias === null && interruptores === null && cooperacao === null && mistura === null && camadas === null ? trocaNaVista(puzzle, progresso) : null,
+    troca: giratorias === null && interruptores === null && cooperacao === null && mistura === null && camadas === null && deslizantes === null ? trocaNaVista(puzzle, progresso) : null,
     dica: dicaNaVista(puzzle, entrada.documentoDaDica),
     resolvido: progresso.resolvido !== null,
     contagem: contagemDoPuzzle(puzzle, progresso),
@@ -80,6 +83,8 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
   if (mistura !== null) vista.mistura = misturaNaVista(mistura, progresso)
   // A mesa de luz: as lâminas postas, de baixo para cima, com o giro e os cacos (a ordem certa, o giro de quando pousam e a semente ficam aqui).
   if (camadas !== null) vista.camadas = camadasNaVista(puzzle, camadas, progresso)
+  // O tabuleiro deslizante: onde cada peça está e os lances (a semente e o começo ficam aqui).
+  if (deslizantes !== null) vista.deslizantes = deslizantesNaVista(deslizantes, progresso)
   if (mecanicaDesconhecida(puzzle)) vista.versaoNova = true
   return vista
 }

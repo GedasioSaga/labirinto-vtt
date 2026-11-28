@@ -33,12 +33,14 @@ import { alinhadas, errosNoProgresso, girarAneis, giratoriasDoPuzzle } from './g
 import { batemComOAlvo, interruptoresDoPuzzle, luzesNoProgresso, puxar } from './interruptores/interruptores'
 import { AGUA, aindaDaReceita, bateComOAlvo, cabeIngrediente, comecoDaMistura, despejo, idsPostos, ingredientesPerdidos, misturaDoPuzzle, misturaNoProgresso, partesVazias, total } from './mistura/mistura'
 import { camadasDoPuzzle, giroAoPousar, girado, mesaCerta, mesaNoProgresso } from './camadas/camadas'
+import { comUltima, deslizantesDoPuzzle, deslizar, tabuleiroCerto, tabuleiroNoProgresso } from './deslizantes/deslizantes'
 import { puzzleAbrePorta } from './padroes'
 import { BANDEJA_MAX } from './tipos'
 import type {
   AcaoNoPuzzle,
   CamadasDoPuzzle,
   CamadasNoProgresso,
+  DeslizantesDoPuzzle,
   CombinacaoDoPuzzle,
   ContextoDoMotor,
   CooperacaoDoPuzzle,
@@ -97,7 +99,7 @@ export function encaixeCheio(encaixe: EncaixeDoPuzzle, progresso: Pick<Progresso
 export function contagemDoPuzzle(puzzle: Pick<Puzzle, 'encaixes' | 'futuro'>, progresso: Pick<ProgressoDoPuzzle, 'encaixes'>): { postos: number; total: number } {
   // Na combinação os encaixes ficam guardados (para quando o mestre voltar ao Encaixe), mas não contam: ninguém os vê.
   // Nas peças giratórias e nos interruptores também: o medalhão e o painel não têm encaixe.
-  const encaixes = combinacaoDoPuzzle(puzzle) === null && giratoriasDoPuzzle(puzzle) === null && interruptoresDoPuzzle(puzzle) === null && cooperacaoDoPuzzle(puzzle) === null && misturaDoPuzzle(puzzle) === null ? puzzle.encaixes : []
+  const encaixes = combinacaoDoPuzzle(puzzle) === null && giratoriasDoPuzzle(puzzle) === null && interruptoresDoPuzzle(puzzle) === null && cooperacaoDoPuzzle(puzzle) === null && misturaDoPuzzle(puzzle) === null && deslizantesDoPuzzle(puzzle) === null ? puzzle.encaixes : []
   return { postos: encaixes.filter((encaixe) => encaixeCheio(encaixe, progresso)).length, total: encaixes.length }
 }
 
@@ -177,11 +179,14 @@ export function agirNoPuzzle(
   const cooperacao = cooperacaoDoPuzzle(puzzle)
   const mistura = misturaDoPuzzle(puzzle)
   const camadas = camadasDoPuzzle(puzzle)
-  // Na combinação, nas peças giratórias, nos interruptores, na cooperação e na mistura os encaixes não aparecem: o pedido é de uma tela de antes da troca de mecânica.
-  const semEncaixes = combinacao !== null || giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null
-  // O medalhão, o painel, os pontos da cooperação, a bancada e a mesa de luz também não têm a troca de peso (o recorte não a manda).
-  const semTroca = giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null || camadas !== null
+  const deslizantes = deslizantesDoPuzzle(puzzle)
+  // Na combinação, nas peças giratórias, nos interruptores, na cooperação, na mistura e no tabuleiro deslizante os encaixes não aparecem: o pedido é de uma tela de antes da troca de mecânica.
+  const semEncaixes = combinacao !== null || giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null || deslizantes !== null
+  // O medalhão, o painel, os pontos da cooperação, a bancada, a mesa de luz e o tabuleiro também não têm a troca de peso (o recorte não a manda).
+  const semTroca = giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null || camadas !== null || deslizantes !== null
   switch (acao.tipo) {
+    case 'deslizar':
+      return deslizantes === null ? recusa(progresso, mochila, 'mudou') : deslizarPeca(puzzle, deslizantes, progresso, mochila, acao.peca, contexto)
     case 'por':
       // Na mesa de luz a lâmina vai pela pilha (`empilhar`): o host acha o encaixe dela.
       return semEncaixes || camadas !== null ? recusa(progresso, mochila, 'mudou') : por(puzzle, progresso, mochila, acao, contexto)
@@ -454,6 +459,25 @@ function girarAnel(
   const a = andamento(puzzle, progresso, mochila, contexto)
   a.progresso.rotacoes = erros
   if (alinhadas(erros)) resolver(a)
+  return fim(a)
+}
+
+// ------------------------------------------------------------------ as peças deslizantes
+
+/**
+ * Uma peça do tabuleiro desliza para a casa vazia. O host confere no tabuleiro
+ * de AGORA que ela é vizinha da vazia (dois jogadores deslizando juntos: o
+ * segundo pedido vale ou não pelo que o primeiro deixou). Conta o lance e acende
+ * a peça de quem mexeu. Deslizar nunca é erro, então nunca castiga.
+ */
+function deslizarPeca(puzzle: Puzzle, deslizantes: DeslizantesDoPuzzle, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], peca: number, contexto: ContextoDoMotor): ResultadoDoMotor {
+  if (!Number.isInteger(peca) || peca < 0 || peca >= deslizantes.lado * deslizantes.lado - 1) return recusa(progresso, mochila, 'mudou')
+  const tabuleiro = tabuleiroNoProgresso(progresso, deslizantes)
+  const casas = deslizar(tabuleiro.casas, peca, deslizantes.lado)
+  if (casas === null) return recusa(progresso, mochila, 'peca_presa')
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  a.progresso.deslizantes = { casas, lances: tabuleiro.lances + 1, ultimas: comUltima(tabuleiro.ultimas, peca, contexto.quem) }
+  if (tabuleiroCerto(casas, deslizantes)) resolver(a)
   return fim(a)
 }
 

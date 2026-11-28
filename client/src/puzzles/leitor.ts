@@ -23,6 +23,7 @@ import { lerCombinacao, minutosNoMostrador } from './combinacao'
 import { lerCooperacao } from './cooperacao/cooperacao'
 import { lerMistura } from './mistura/mistura'
 import { lerCamadas } from './camadas/camadas'
+import { LANCES_MAX, lerDeslizantes } from './deslizantes/deslizantes'
 import { lerGiratorias } from './giratorias/giratorias'
 import { lerInterruptores } from './interruptores/interruptores'
 import { aceitaMolduraPorta, PADROES_DOS_MODELOS, POSICAO_DA_TROCA_PADRAO, PESO_DA_TROCA_PADRAO, PV_DO_CASTIGO_PADRAO, puzzleDoModelo, visualEhPorta } from './padroes'
@@ -55,6 +56,8 @@ import {
   LIQUIDOS_DA_MISTURA,
   RECIPIENTES_MAX,
   LAMINAS_MAX,
+  LADO_DAS_DESLIZANTES_MAX,
+  ULTIMAS_DESLIZADAS_MAX,
 } from './tipos'
 import { ehPlaca } from './relevo/placas'
 import type { VisualDoRelevo } from './tipos'
@@ -198,7 +201,7 @@ export function lerPuzzle(valor: unknown): Puzzle {
   const padrao = puzzleDoModelo(visual.tipo === 'modelo' ? visual.modelo : 'fonte')
   const futuro = lerFuturo(bruto.futuro)
   // A porta ligada abre com um visual de porta, com o medalhão das peças giratórias, com o painel dos interruptores ou com os pontos da cooperação.
-  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias' || futuro?.tipo === 'interruptores' || futuro?.tipo === 'cooperacao' || futuro?.tipo === 'mistura' || futuro?.tipo === 'camadas'
+  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias' || futuro?.tipo === 'interruptores' || futuro?.tipo === 'cooperacao' || futuro?.tipo === 'mistura' || futuro?.tipo === 'camadas' || futuro?.tipo === 'deslizantes'
   const puzzle: Puzzle = {
     nome: textoNaoVazio(bruto.nome, NOME_DO_PUZZLE_MAX, padrao.nome),
     nomePublico: textoLido(bruto.nomePublico, NOME_DO_PUZZLE_MAX, padrao.nomePublico),
@@ -379,6 +382,9 @@ function lerFuturo(valor: unknown): Puzzle['futuro'] {
   // A mesa de luz também (a imagem só como referência de mídia).
   const camadas = lerCamadas(valor, imagemLida)
   if (camadas !== null) return camadas
+  // As peças deslizantes também (a imagem só como referência de mídia).
+  const deslizantes = lerDeslizantes(valor, imagemLida)
+  if (deslizantes !== null) return deslizantes
   if (!isRecord(valor) || typeof valor.tipo !== 'string' || valor.tipo === '') return undefined
   let json: string
   try {
@@ -449,6 +455,16 @@ export function lerProgressoDoPuzzle(valor: unknown): ProgressoDoPuzzle | undefi
     })
     const giros = isRecord(brutos.giros) ? Object.entries(brutos.giros).flatMap(([id, giro]): [string, number][] => (idLido(id) === null ? [] : [[id, inteiroEntre(giro, 0, 3, 0)]])) : []
     if (pilha.length > 0) progresso.camadas = { pilha: pilha.slice(0, LAMINAS_MAX), giros: Object.fromEntries(giros.slice(0, ENTRADAS_DO_PROGRESSO_MAX)) }
+  }
+  // As peças deslizantes: a peça de cada casa (o motor ainda confere com o lado e a volta), os lances e quem mexeu por último.
+  if (isRecord(valor.deslizantes)) {
+    const brutos = valor.deslizantes
+    const pecaMax = LADO_DAS_DESLIZANTES_MAX * LADO_DAS_DESLIZANTES_MAX - 1
+    const casas = (Array.isArray(brutos.casas) ? brutos.casas.slice(0, pecaMax + 1) : []).map((peca) => inteiroEntre(peca, 0, pecaMax, -1))
+    const ultimas = (Array.isArray(brutos.ultimas) ? brutos.ultimas.slice(-ULTIMAS_DESLIZADAS_MAX) : []).flatMap((ultima) =>
+      isRecord(ultima) && inteiroEntre(ultima.peca, 0, pecaMax, -1) !== -1 ? [{ peca: inteiroEntre(ultima.peca, 0, pecaMax, 0), por: lerQuem(ultima.por) }] : [],
+    )
+    if (casas.length > 0 && casas.every((peca) => peca !== -1)) progresso.deslizantes = { casas, lances: inteiroEntre(brutos.lances, 0, LANCES_MAX, 0), ultimas }
   }
   return progresso
 }
@@ -569,6 +585,10 @@ export function lerAcaoNoPuzzle(valor: unknown): AcaoNoPuzzle | null {
       const passo = valor.passo === 1 || valor.passo === -1 ? valor.passo : null
       if (encaixeId === null || passo === null) return null
       return valor.tipo === 'girarLamina' ? { tipo: 'girarLamina', encaixeId, passo } : { tipo: 'moverLamina', encaixeId, passo }
+    }
+    case 'deslizar': {
+      const peca = indiceLido(valor.peca)
+      return peca === null ? null : { tipo: 'deslizar', peca }
     }
     default:
       return null

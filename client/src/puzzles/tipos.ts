@@ -86,7 +86,7 @@ export interface Puzzle {
    * futura, guardada como veio. Lida sempre por `combinacaoDoPuzzle`
    * (`puzzles/combinacao.ts`): o que ela não reconhece é "versão nova".
    */
-  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | InterruptoresDoPuzzle | CooperacaoDoPuzzle | MisturaDoPuzzle | CamadasDoPuzzle | MecanicaFutura
+  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | InterruptoresDoPuzzle | CooperacaoDoPuzzle | MisturaDoPuzzle | CamadasDoPuzzle | DeslizantesDoPuzzle | MecanicaFutura
 }
 
 /**
@@ -652,6 +652,80 @@ export interface LaminaNaVista {
   manchas: number[]
 }
 
+// ------------------------------------------------------------------ as peças deslizantes (28/11, 7º da fila de puzzles)
+
+/**
+ * AS PEÇAS DESLIZANTES (`docs/design/puzzles/FILA.md`): um tabuleiro de madeira
+ * entalhada ou de bronze na parede, com a figura cortada numa grade de `lado` x
+ * `lado` (3 a 5) e uma casa vazia (a de baixo à direita, na figura pronta). Só a
+ * peça vizinha da casa vazia desliza, para dentro dela. Mora no `futuro`, como
+ * as peças giratórias.
+ *
+ * As peças contam pela casa onde moram na figura pronta (0 = a de cima à
+ * esquerda, na ordem de leitura); a peça `lado² - 1` é a vazia.
+ *
+ * `modo`: `figura` = cede com todas as peças no lugar; `chave` = só a peça-chave
+ * (`chave`) precisa chegar à casa `alvo`, e as outras são blocos lisos.
+ * `embaralho`: a semente do começo, que sai dela por deslizadas de verdade a
+ * partir da figura pronta (então sempre tem volta). O começo e a semente ficam
+ * só no host.
+ */
+export interface DeslizantesDoPuzzle {
+  tipo: 'deslizantes'
+  modo: ModoDasDeslizantes
+  material: MaterialDasDeslizantes
+  figura: FiguraDasDeslizantes
+  /** Só na figura `imagem` (`midia:<id>`; `null` = sem imagem ainda). */
+  imagem: string | null
+  lado: number
+  chave: number
+  alvo: number
+  embaralho: number
+}
+
+export type ModoDasDeslizantes = 'figura' | 'chave'
+export const MODOS_DAS_DESLIZANTES: readonly ModoDasDeslizantes[] = ['figura', 'chave']
+
+export type MaterialDasDeslizantes = 'madeira' | 'bronze'
+export const MATERIAIS_DAS_DESLIZANTES: readonly MaterialDasDeslizantes[] = ['madeira', 'bronze']
+
+/** As figuras de fábrica são as da mesa de luz (sem o código), ou a imagem do mestre. */
+export type FiguraDasDeslizantes = 'farol' | 'rosa' | 'chave' | 'mariposa' | 'imagem'
+export const FIGURAS_DAS_DESLIZANTES: readonly FiguraDasDeslizantes[] = ['farol', 'rosa', 'chave', 'mariposa', 'imagem']
+
+export const LADO_DAS_DESLIZANTES_MIN = 3
+export const LADO_DAS_DESLIZANTES_MAX = 5
+export const LADO_DAS_DESLIZANTES_PADRAO = 3
+/** Quantas pessoas ficam com a última peça acesa no tabuleiro. */
+export const ULTIMAS_DESLIZADAS_MAX = 6
+
+/** No tabuleiro: a peça de cada casa, os lances feitos e a última peça de cada pessoa (a mais recente no fim). */
+export interface DeslizantesNoProgresso {
+  casas: number[]
+  lances: number
+  ultimas: { peca: number; por: QuemMexe }[]
+}
+
+/**
+ * O tabuleiro como o jogador o vê (lista branca do recorte): a figura, onde
+ * cada peça está, os lances e quem mexeu por último. No modo `chave`, a peça e a
+ * casa da saída vão, porque o tabuleiro as mostra. Nunca vão a semente nem o começo.
+ */
+export interface DeslizantesNaVista {
+  modo: ModoDasDeslizantes
+  material: MaterialDasDeslizantes
+  figura: FiguraDasDeslizantes
+  imagem: string | null
+  lado: number
+  casas: number[]
+  lances: number
+  /** Só no modo `chave` (senão `null`). */
+  chave: number | null
+  alvo: number | null
+  /** A última peça de cada pessoa ("Bento"), para acender. */
+  ultimas: { peca: number; por: string }[]
+}
+
 /**
  * A mecânica de uma leva futura, guardada COMO VEIO: o objeto do disco
  * inteiro, e não `{ tipo, bruto }` embrulhado, porque o mapa é gravado por
@@ -709,6 +783,8 @@ export interface ProgressoDoPuzzle {
   mistura?: RecipienteNoProgresso[]
   /** Em sobrepor camadas: a pilha da mesa e o giro de cada lâmina. Ausente = mesa vazia. */
   camadas?: CamadasNoProgresso
+  /** Nas peças deslizantes: onde cada peça está e os lances. Ausente = o começo. */
+  deslizantes?: DeslizantesNoProgresso
 }
 
 // ------------------------------------------------------------------ "Meus puzzles" (§1.3)
@@ -870,6 +946,8 @@ export type AcaoNoPuzzle =
   | { tipo: 'girarLamina'; encaixeId: string; passo: 1 | -1 }
   /** Sobrepor camadas: a lâmina sobe (+1) ou desce (-1) um lugar na pilha. Relativo. */
   | { tipo: 'moverLamina'; encaixeId: string; passo: 1 | -1 }
+  /** Peças deslizantes: a peça `peca` desliza para a casa vazia (o host confere que ela é vizinha dela agora). */
+  | { tipo: 'deslizar'; peca: number }
 
 /**
  * Por que o pedido não valeu. Os 6 primeiros são os da mensagem
@@ -894,6 +972,7 @@ export type MotivoDaRecusa =
   | 'com_ingredientes'
   | 'nao_e_lamina'
   | 'lamina_repetida'
+  | 'peca_presa'
 
 /** O texto que o jogador lê na recusa (os do v2 e do v1). */
 export const TEXTO_DA_RECUSA: Readonly<Record<MotivoDaRecusa, string>> = {
@@ -915,6 +994,7 @@ export const TEXTO_DA_RECUSA: Readonly<Record<MotivoDaRecusa, string>> = {
   com_ingredientes: 'Com ingredientes dentro, ele só vai para o receptáculo ou para a pia.',
   nao_e_lamina: 'Isso não é uma lâmina desta mesa.',
   lamina_repetida: 'Essa lâmina já está na mesa.',
+  peca_presa: 'Essa peça não tem para onde deslizar.',
 }
 
 /** O castigo que de fato faz algo (o `nada` não sai como efeito). */
@@ -1045,6 +1125,8 @@ export interface VistaDoPuzzle {
   mistura?: MisturaNaVista
   /** A mesa de luz de sobrepor camadas; ausente = não é desse tipo (e então os encaixes não vão: as lâminas vão aqui). */
   camadas?: CamadasNaVista
+  /** O tabuleiro das peças deslizantes; ausente = não é desse tipo (e então os encaixes não vão). */
+  deslizantes?: DeslizantesNaVista
   /** O puzzle traz uma mecânica de uma leva que este app não joga. */
   versaoNova?: true
 }
