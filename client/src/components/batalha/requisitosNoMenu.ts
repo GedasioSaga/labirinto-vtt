@@ -162,6 +162,17 @@ interface ReacaoNaCaixa {
 }
 
 /**
+ * Rework das condições (D10, PENDENCIAS nº 12): com o bloqueio "Não pode usar técnica" (o Silenciado) em
+ * quem reage, cada técnica de reação fica cinza com o motivo, o MESMO texto do host que recusa
+ * (`motivoDoBloqueio`, lib/batalha/condicoes.ts: "Silenciado: não pode usar técnica"). Antes o botão ficava
+ * aceso e o pedido voltava `false` calado. `motivo` nulo = a lista como veio.
+ */
+export function reacoesComOBloqueio<T extends ReacaoNaCaixa>(reacoes: readonly T[], motivo: string | null): T[] {
+  if (motivo === null) return [...reacoes]
+  return reacoes.map((reacao) => (reacao.motivo !== null ? reacao : { ...reacao, motivo }))
+}
+
+/**
  * REQUISITOS G (o que a D deixou de fora): a técnica de reação cujo requisito não vale fica cinza com o
  * motivo, pelo MESMO portão do host na reação (`naReacao`; sem respostas e sem forçar: o que pergunta,
  * espera alguém ou rola não dá na reação). `ctx` ausente = a lista como veio.

@@ -3,7 +3,7 @@ import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { motivoDoEvoluirNaFicha } from '../../lib/batalha/escolhaEEvolucao'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
-import { saidasTiradas, travaDosSelos } from '../../lib/batalha/condicoes'
+import { motivoDoBloqueio, saidasTiradas, travaDosSelos } from '../../lib/batalha/condicoes'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { reacoesDoJogador, reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
@@ -28,7 +28,7 @@ import { EscolhaDoAliado, PedidosDeAjuda } from './PedidosDeAjuda'
 import { escolhaDaAjuda, type EscolhaDaAjuda } from '../../lib/batalha/requisitos/ajuda'
 import { motivoDosRequisitosNoMenu } from '../../lib/batalha/requisitos/portao'
 import type { RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
-import { medidoresDaFicha, nivelNosSelos, perguntasDosRequisitos, reacoesComOsRequisitos } from './requisitosNoMenu'
+import { medidoresDaFicha, nivelNosSelos, perguntasDosRequisitos, reacoesComOBloqueio, reacoesComOsRequisitos } from './requisitosNoMenu'
 import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNaTela } from './PassivasDaBatalha'
 import type { ConexaoDaBatalha } from './pedidosDaVez'
 import './batalha.css'
@@ -469,7 +469,11 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         const combateDele = combateDoJogador(estado.meus?.find((meu) => meu.personagemId === dele.id), null)
         // F2 (revisão da fatia E): contra Surpresa só a técnica que vale contra ela; a que o mestre confirma vem apagada com o motivo.
         // REQUISITOS G: e a que o requisito não deixa na reação (o pedido ao aliado, a caixa), cinza com o motivo.
-        item.tecnicas = reacoesComOsRequisitos(reacoesDoJogador(reacoesParaOAlvo({ podeReagir: true, rolagem: reacao.rolagem }, dele, sistema, combateDele, reacao.overload === true, reacao.surpresa === true)), contextoDoMenuDoJogador(dele, sistema, reacao.tokenId, combateDele))
+        // Rework das condições (PENDENCIAS nº 12): e, com "Não pode usar técnica" (pelos selos que a carta dele traz), cinza com o motivo do host.
+        item.tecnicas = reacoesComOBloqueio(
+          reacoesComOsRequisitos(reacoesDoJogador(reacoesParaOAlvo({ podeReagir: true, rolagem: reacao.rolagem }, dele, sistema, combateDele, reacao.overload === true, reacao.surpresa === true)), contextoDoMenuDoJogador(dele, sistema, reacao.tokenId, combateDele)),
+          motivoDoBloqueio(selosQueSomam, reacao.tokenId, 'naoTecnica'),
+        )
         // Conserto das fichas F1 (S4): Resiliente, Determinação (HP abaixo da metade): o aviso do que sai do dano.
         const reducao = avisoDasReducoes(reducoesDoDano(dele, sistema))
         if (reducao !== '') item.reducao = reducao

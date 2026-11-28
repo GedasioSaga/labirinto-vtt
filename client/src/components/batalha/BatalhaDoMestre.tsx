@@ -11,13 +11,13 @@ import { nivelDoContador } from '../../lib/batalha/contador'
 import type { PerguntaNaHora, RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
 import type { ContextoDosRequisitos } from '../../lib/batalha/requisitos/contexto'
 import { motivoDoPortao, motivoDosRequisitosNoMenu } from '../../lib/batalha/requisitos/portao'
-import { medidoresDaFicha, perguntasDosRequisitos, reacoesComOsRequisitos } from './requisitosNoMenu'
+import { medidoresDaFicha, perguntasDosRequisitos, reacoesComOBloqueio, reacoesComOsRequisitos } from './requisitosNoMenu'
 import type { EvoluirNaTela } from './ListaDeTecnicas'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
 import { fichasComAsMochilasDosBonecos } from '../../lib/batalha/municaoDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
-import { lembreteDoSelo, saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
+import { lembreteDoSelo, motivoDoBloqueio, saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
 import { chavesDoDono, saidasTiradasDoDono, saidasTiradasPeloAtacante, soOMestreReage } from '../../lib/batalha/mecanicasAMao'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
@@ -620,12 +620,13 @@ function usePendentesDoMestre(mesa: Mesa): PendenteNaTela[] {
         if (doNpc !== undefined && sistema !== null) {
           // REQUISITOS G: a técnica de reação cujo requisito não vale fica cinza com o motivo (a D deixava clicável e o host recusava).
           const retrato = contextoDosRequisitos({ personagem: doNpc, sistema, tokenId: alvo.tokenId, cartaId: turnos.cartas.find((carta) => carta.tokenId === alvo.tokenId)?.id ?? '', turnos, personagens, personagemDoToken: (tokenId) => turnos.cartas.find((carta) => carta.tokenId === tokenId)?.personagemId, visao: 'tudo', alvos: [golpe.atacanteTokenId], naReacao: true, autorEhMestre: true })
-          item.tecnicas = reacoesComOsRequisitos(reacoesParaOAlvo(alvo, doNpc, sistema, turnos.combate?.[doNpc.id], golpe.overload, golpe.surpresa), retrato)
+          // Rework das condições (PENDENCIAS nº 12): o "Não pode usar técnica" deixa cada uma cinza, com o motivo do host.
+          item.tecnicas = reacoesComOBloqueio(reacoesComOsRequisitos(reacoesParaOAlvo(alvo, doNpc, sistema, turnos.combate?.[doNpc.id], golpe.overload, golpe.surpresa), retrato), motivoDoBloqueio(turnos.selos, alvo.tokenId, 'naoTecnica'))
         }
         // F2 (revisão da fatia E, Recuperação de forças): na ficha de jogador, a técnica que só o mestre usa (ele confirma na mesa).
         const doJogador = !item.doMestre && alvo.personagemId !== null ? personagens.find((candidato) => candidato.id === alvo.personagemId) : undefined
         const soDoMestre = doJogador === undefined || sistema === null ? [] : reacoesParaOAlvo(alvo, doJogador, sistema, turnos.combate?.[doJogador.id], golpe.overload, golpe.surpresa).filter((reacao) => soOMestreReage(reacao.cartao) !== null)
-        if (soDoMestre.length > 0) item.tecnicas = soDoMestre
+        if (soDoMestre.length > 0) item.tecnicas = reacoesComOBloqueio(soDoMestre, motivoDoBloqueio(turnos.selos, alvo.tokenId, 'naoTecnica'))
         // Conserto das fichas F1 (S4): Resiliente e Determinação de quem reage, no aviso da caixa.
         const doAlvo = alvo.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === alvo.personagemId)
         const reducao = doAlvo === undefined || sistema === null ? '' : avisoDasReducoes(reducoesDoDano(doAlvo, sistema))
@@ -641,7 +642,7 @@ function usePendentesDoMestre(mesa: Mesa): PendenteNaTela[] {
         itens.push(item)
         for (const { tokenId, personagem } of dePerto) {
           if (sistema === null || !ehDoMestre(personagem.id, personagens)) continue
-          const tecnicas = reacoesPorPerto(alvo, personagem, sistema, turnos.combate?.[personagem.id])
+          const tecnicas = reacoesComOBloqueio(reacoesPorPerto(alvo, personagem, sistema, turnos.combate?.[personagem.id]), motivoDoBloqueio(turnos.selos, tokenId, 'naoTecnica'))
           itens.push({ golpeId: golpe.id, tokenId: alvo.tokenId, alvo: item.alvo, atacante: item.atacante, nome: golpe.nome, dano: alvo.dano, perfurante: golpe.perfurante, overload: true, doMestre: true, por: { tokenId, nome: nomeDaFicha(mesa, tokenId) }, tecnicas })
         }
       }
