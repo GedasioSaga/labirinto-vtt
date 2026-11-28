@@ -6,6 +6,8 @@ import { ArteSvg } from '../../puzzles/arte/ArteSvg'
 import { desenhoDoModelo } from '../../puzzles/arte/modelos'
 import { situacaoDaCopia, type SituacaoDaCopia } from '../../puzzles/meusPuzzles'
 import { puzzleDoModelo } from '../../puzzles/padroes'
+import { urlDaBase, urlDoDisco } from '../../puzzles/giratorias/arte'
+import { giratoriasDoPuzzle } from '../../puzzles/giratorias/giratorias'
 import { urlDoSvgDoPainel } from '../../puzzles/relevo/miniatura'
 import type { IdDaPecaDesenhada, MinigamePuzzle, ModeloDePuzzle, Puzzle } from '../../puzzles/tipos'
 import { lerOAcervoSeFaltar } from '../../stores/acervoDeItensStore'
@@ -151,6 +153,17 @@ export function MiniaturaDoPuzzle({ puzzle, prefixo }: { puzzle: Puzzle; prefixo
   const arte = useMemo(() => (visual.tipo === 'modelo' ? desenhoDoModelo(visual, prefixo) : null), [visual, prefixo])
   // O painel em relevo: a cena em SVG (o navegador desenha no tamanho da miniatura), ou a imagem do mestre.
   const src = visual.tipo === 'imagem' ? resolver(visual.imagem) : visual.tipo === 'relevo' ? (visual.cena !== null ? urlDoSvgDoPainel(visual.cena, visual.metal) : resolver(visual.imagem)) : null
+  // As peças giratórias: o medalhão fechado na parede, no lugar do visual (que o medalhão não usa).
+  const giratorias = giratoriasDoPuzzle(puzzle)
+  if (giratorias !== null) {
+    const disco = giratorias.desenho === 'imagem' ? resolver(giratorias.imagem) : urlDoDisco(giratorias.desenho, giratorias.cena, giratorias.material, giratorias.aneis)
+    return (
+      <span className="pzm-mini" aria-hidden="true">
+        <img className="pzm-mini__arte" src={urlDaBase(giratorias.material)} alt="" draggable={false} />
+        {disco !== null && <img className="pzm-mini__disco" src={disco} alt="" draggable={false} />}
+      </span>
+    )
+  }
   return (
     <span className="pzm-mini" aria-hidden="true">
       {arte !== null ? (

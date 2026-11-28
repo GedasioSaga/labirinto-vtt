@@ -959,3 +959,21 @@ body.pze-arrastando * {
     transition: none;
   }
 }
+
+/* As peças giratórias (28/11): a miniatura do disco é redonda, não estica no quadro 16:10. */
+.pze-modelo--disco .pze-modelo__arte {
+  inset: 6% 0 10%;
+  height: 84%;
+  object-fit: contain;
+}
+/* O medalhão na miniatura de Meus puzzles: o disco fechado no quadrado do aro (arte.ts: 340, 40, 920 na base 1600 x 1000). */
+.pzm-mini__disco {
+  position: absolute;
+  left: 21.25%;
+  top: 4%;
+  width: 57.5%;
+  height: 92%;
+  display: block;
+  object-fit: cover;
+  clip-path: circle(44% at 50% 50%);
+}
