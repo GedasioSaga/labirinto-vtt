@@ -8,7 +8,7 @@ import { equipeDe, ladoNaBatalha, quemLutaPeloDono, type Equipe } from '../../li
 import { acoesDoInvocado, comunsQueSaem, membrosDoBando } from '../../lib/batalha/invocacao'
 import type { BatalhaEmTurnos } from '../../lib/batalha/ponte'
 import { reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
-import { bonusDaBatalha } from '../../lib/batalha/selos'
+import { bonusDaBatalha, selosDoToken } from '../../lib/batalha/selos'
 import { tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -98,6 +98,8 @@ export function alvosDaOrdem(mesa: MesaDoMestre, cartas: readonly CartaDaOrdem[]
             cor: equipeDoDono?.cor ?? null,
             // U1: o mestre vê a vida de todos, o invocado também (o caído sai dela).
             vida: vidaDoInvocado(mesa, invocado) ?? undefined,
+            // Rework das condições (D10, PENDENCIAS nº 11): os selos dele, para o "Não pode ser alvo" do Invisível.
+            selos: selosDoToken(mesa.cena?.turnos.selos, invocado.tokenId),
           }),
         )
       }
@@ -121,6 +123,9 @@ export function alvosDaOrdem(mesa: MesaDoMestre, cartas: readonly CartaDaOrdem[]
         cor: equipeDaCarta?.cor ?? null,
         // Pedido de 09/11 (a Bolha): a vida de cada um, para a mira da cura abrir nos feridos (lida como a regra da cura a lê).
         vida: vidaNaMira(personagem, mesa.sistema),
+        // Rework das condições (D10, PENDENCIAS nº 11): os selos da ficha, para o "Não pode ser alvo" do Invisível ficar
+        // cinza também na mira do mestre (e na janela da batalha, que monta por aqui); antes só a do jogador sabia.
+        selos: selosDoToken(mesa.cena?.turnos.selos, carta.tokenId),
       }),
     )
   }
