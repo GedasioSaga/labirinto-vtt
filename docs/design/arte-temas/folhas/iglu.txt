@@ -1,0 +1,4 @@
+1. Iglu (Inteiro) (3 x 3 casas, 3/4 derivado): portão da 3/4 2602 ms de 5000 | janela grande a 3x 1153 ms | saturação p95 0,168 (teto 0,62) | contorno 0,568 (mínimo 0,06) | luz mínima 0,045 (piso 0,043) | 3/4 difere da de cima: sim | repete igual: sim | o tampo sobe: sim | dentro do portão
+2. Iglu (Em ruina) (3 x 3 casas, 3/4 derivado): portão da 3/4 2569 ms de 5000 | janela grande a 3x 1191 ms | saturação p95 0,142 (teto 0,62) | contorno 0,560 (mínimo 0,06) | luz mínima 0,045 (piso 0,043) | 3/4 difere da de cima: sim | repete igual: sim | o tampo sobe: sim | dentro do portão
+3. Tenda (2 x 2,5 casas, 3/4 derivado): portão da 3/4 1767 ms de 5000 | janela grande a 4x 1311 ms | saturação p95 0,527 (teto 0,62) | contorno 0,229 (mínimo 0,06) | luz mínima 0,044 (piso 0,043) | 3/4 difere da de cima: sim | repete igual: sim | o tampo sobe: sim | dentro do portão
+folha: C:\dev\tmp\L08\pecas\iglu\iglu.png (2372 x 2452 px, 3 itens, 15558 ms no total)

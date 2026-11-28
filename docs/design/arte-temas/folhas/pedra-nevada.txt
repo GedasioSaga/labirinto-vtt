@@ -1,0 +1,9 @@
+pedra-nevada: croma p95 0.098, media 0.051 (teto das paredes de pedra 0,13; Pedra rustica 0,125)
+maior canal 236 (teto 245; faces e tampas)
+faixa 0: emenda em x 0.0097 contra vizinhas 0.0103 (0.94 vez; teto 1,6) DENTRO
+faixa 1: emenda em x 0.0070 contra vizinhas 0.0088 (0.80 vez; teto 1,6) DENTRO
+faixa 2: emenda em x 0.0100 contra vizinhas 0.0094 (1.07 vez; teto 1,6) DENTRO
+faixa 3: emenda em x 0.0071 contra vizinhas 0.0096 (0.74 vez; teto 1,6) DENTRO
+faixa 4: emenda em x 0.0058 contra vizinhas 0.0081 (0.72 vez; teto 1,6) DENTRO
+faixa 5: emenda em x 0.0120 contra vizinhas 0.0093 (1.29 vez; teto 1,6) DENTRO
+faixa 6: emenda em x 0.0076 contra vizinhas 0.0098 (0.77 vez; teto 1,6) DENTRO
