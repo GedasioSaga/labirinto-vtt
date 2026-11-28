@@ -104,6 +104,8 @@ export const PECAS_NOVAS = [
   'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra', 'monteDeEntulho', 'camaDeTrapos',
   // O plano de arte por tema de 28/11/2026 (L01, L02 e L03).
   'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
+  // A onda 2 (L04, L05 e L06).
+  'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -774,6 +776,14 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   portaoDeJaula: { rotulo: 'Portão de jaula', artigo: 'um portão de jaula', tamanho: { largura: 1, altura: 1 }, redonda: false },
   laminaPendular: { rotulo: 'Lâmina pendular', artigo: 'uma lâmina pendular', tamanho: { largura: 2, altura: 1.5 }, redonda: false },
   pecaDeXadrez: { rotulo: 'Peça de xadrez gigante', artigo: 'uma peça de xadrez gigante', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  carrinhoDeMina: { rotulo: 'Carrinho de mina', artigo: 'um carrinho de mina', tamanho: { largura: 1, altura: 0.8 }, redonda: false },
+  trilhoDeMina: { rotulo: 'Trilho de mina', artigo: 'um trilho de mina', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  escoraDeMina: { rotulo: 'Escora de mina', artigo: 'uma escora de mina', tamanho: { largura: 2, altura: 0.6 }, redonda: false },
+  pilhaDeMinerio: { rotulo: 'Pilha de minério', artigo: 'uma pilha de minério', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  cano: { rotulo: 'Cano', artigo: 'um cano', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  saidaDeEsgoto: { rotulo: 'Saída de esgoto', artigo: 'uma saída de esgoto', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  comporta: { rotulo: 'Comporta', artigo: 'uma comporta', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  fonteDeParede: { rotulo: 'Fonte de parede', artigo: 'uma fonte de parede', tamanho: { largura: 1, altura: 0.75 }, redonda: false },
   lapideTorta: { rotulo: 'Lápide torta', artigo: 'uma lápide torta', tamanho: { largura: 0.6, altura: 0.4 }, redonda: false },
 }
 
@@ -1202,6 +1212,14 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     portaoDeJaula: valor(f.portaoDeJaula),
     laminaPendular: valor(f.laminaPendular),
     pecaDeXadrez: valor(f.pecaDeXadrez),
+    carrinhoDeMina: valor(f.carrinhoDeMina),
+    trilhoDeMina: valor(f.trilhoDeMina),
+    escoraDeMina: valor(f.escoraDeMina),
+    pilhaDeMinerio: valor(f.pilhaDeMinerio),
+    cano: valor(f.cano),
+    saidaDeEsgoto: valor(f.saidaDeEsgoto),
+    comporta: valor(f.comporta),
+    fonteDeParede: valor(f.fonteDeParede),
   }
 }
 
@@ -1299,6 +1317,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'monteDeEntulho', 'camaDeTrapos',
   // O plano de arte por tema de 28/11/2026 (L01, L02 e L03).
   'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
+  // A onda 2 (L04, L05 e L06).
+  'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
   'fossoDeBrasas', 'fossoDoSalao', 'plataformaDeRitual', 'gargula', 'estatuaDeBesta', 'estatuaEncapuzada',
   'ponteDeCorrente', 'columbario', 'estradoEmMeiaLua', 'arcossolio', 'ponteDePedraQuebrada', 'ponteDeTabuasQuebrada',
   'calcadaSobreAgua', 'cabanaDeLajes', 'tanqueComBorda', 'piramideEmDegraus', 'topoDoTemplo', 'cascataEmDegraus',
@@ -4907,6 +4927,23 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       return [linha(-hw * 0.95, -hh * 0.85, hw * 0.95), { x1: 0, y1: -hh * 0.85, x2: 0, y2: hh * 0.3 }, ...aro(largura * 0.4, altura * 0.35, 0, hh * 0.55)]
     case 'pecaDeXadrez':
       return [...aro(largura * 0.8, altura * 0.8, 0, 0), ...aro(largura * 0.35, altura * 0.35, 0, 0)]
+    // A onda 2 do plano de arte por tema (L04 a L06): o traço provisório do estilo Simples.
+    case 'carrinhoDeMina':
+      return [...quadro(-hw * 0.8, -hh * 0.75, hw * 0.8, hh * 0.75), ...quadro(-hw * 0.55, -hh * 0.45, hw * 0.55, hh * 0.45)]
+    case 'trilhoDeMina':
+      return [{ x1: -hw * 0.95, y1: -hh * 0.4, x2: hw * 0.95, y2: -hh * 0.4 }, { x1: -hw * 0.95, y1: hh * 0.4, x2: hw * 0.95, y2: hh * 0.4 }, { x1: -hw * 0.5, y1: -hh * 0.7, x2: -hw * 0.5, y2: hh * 0.7 }, { x1: 0, y1: -hh * 0.7, x2: 0, y2: hh * 0.7 }, { x1: hw * 0.5, y1: -hh * 0.7, x2: hw * 0.5, y2: hh * 0.7 }]
+    case 'escoraDeMina':
+      return [...aro(largura * 0.12, altura * 0.5, -hw * 0.85, 0), ...aro(largura * 0.12, altura * 0.5, hw * 0.85, 0), linha(-hw * 0.9, 0, hw * 0.9)]
+    case 'pilhaDeMinerio':
+      return [...aro(largura * 0.9, altura * 0.8, 0, hh * 0.05), ...aro(largura * 0.3, altura * 0.3, -hw * 0.15, -hh * 0.1)]
+    case 'cano':
+      return [{ x1: -hw * 0.95, y1: -hh * 0.3, x2: hw * 0.95, y2: -hh * 0.3 }, { x1: -hw * 0.95, y1: hh * 0.3, x2: hw * 0.95, y2: hh * 0.3 }]
+    case 'saidaDeEsgoto':
+      return [...quadro(-hw * 0.3, -hh * 0.95, hw * 0.3, hh * 0.05), ...aro(largura * 0.7, altura * 0.4, 0, hh * 0.5)]
+    case 'comporta':
+      return [...quadro(-hw * 0.95, -hh * 0.6, -hw * 0.75, hh * 0.6), ...quadro(hw * 0.75, -hh * 0.6, hw * 0.95, hh * 0.6), linha(-hw * 0.75, 0, hw * 0.75)]
+    case 'fonteDeParede':
+      return [linha(-hw * 0.9, -hh * 0.9, hw * 0.9), ...aro(largura * 0.6, altura * 0.6, 0, hh * 0.2)]
   }
 }
 

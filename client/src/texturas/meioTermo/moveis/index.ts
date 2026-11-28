@@ -436,6 +436,14 @@ import { montarCorrentePendurada } from './correntePendurada'
 import { montarPortaoDeJaula } from './portaoDeJaula'
 import { montarLaminaPendularParada } from './laminaPendular'
 import { montarPecaDeXadrez } from './pecaDeXadrez'
+import { montarCarrinhoDeMina } from './carrinhoDeMina'
+import { montarTrilhoDeMina } from './trilhoDeMina'
+import { montarEscoraDeMina } from './escoraDeMina'
+import { montarPilhaDeMinerio } from './pilhaDeMinerio'
+import { montarCano } from './cano'
+import { montarSaidaDeEsgoto } from './saidaDeEsgoto'
+import { montarComporta } from './comporta'
+import { montarFonteDeParedeCorrendo } from './fonteDeParede'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -941,6 +949,16 @@ const MONTADORES = {
   portaoDeJaula: montarPortaoDeJaula,
   laminaPendular: montarLaminaPendularParada,
   pecaDeXadrez: montarPecaDeXadrez,
+  // A onda 2 (L04 a L06). A fonte de parede é a CORRENDO numa imagem só (a pedra, a água e o fio em repouso): a
+  // imagem do catálogo e a de "menos movimento"; o fio que corre por cima é do animador (`pixi/fioDeAgua.ts`).
+  carrinhoDeMina: montarCarrinhoDeMina,
+  trilhoDeMina: montarTrilhoDeMina,
+  escoraDeMina: montarEscoraDeMina,
+  pilhaDeMinerio: montarPilhaDeMinerio,
+  cano: montarCano,
+  saidaDeEsgoto: montarSaidaDeEsgoto,
+  comporta: montarComporta,
+  fonteDeParede: montarFonteDeParedeCorrendo,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -1044,6 +1062,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'maquinaDeLavar', 'leitoHospitalar', 'mesaComComputador', 'cercaDeAlambrado', 'arquibancadaDePedra', 'fossoDeArena',
   'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra', 'monteDeEntulho', 'camaDeTrapos',
   'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
+  'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

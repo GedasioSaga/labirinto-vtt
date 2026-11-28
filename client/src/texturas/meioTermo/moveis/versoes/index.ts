@@ -32,6 +32,22 @@ import { versoesDoLustreDeVelas } from './lustreDeVelasVersoes'
 import { versoesDoLareira } from './lareiraVersoes'
 import { versoesDoEstatua } from './estatuaVersoes'
 import { versoesDoPecaDeXadrez } from './pecaDeXadrezVersoes'
+import { versoesDoCarrinhoDeMina } from './carrinhoDeMinaVersoes'
+import { versoesDoTrilhoDeMina } from './trilhoDeMinaVersoes'
+import { versoesDoEscoraDeMina } from './escoraDeMinaVersoes'
+import { versoesDoPilhaDeMinerio } from './pilhaDeMinerioVersoes'
+import { versoesDoCano } from './canoVersoes'
+import { versoesDoSaidaDeEsgoto } from './saidaDeEsgotoVersoes'
+import { versoesDoComporta } from './comportaVersoes'
+import { versoesDoBueiro } from './bueiroVersoes'
+import { versoesDoRaloDeMasmorra } from './raloDeMasmorraVersoes'
+import { versoesDoGradeDeCorredor } from './gradeDeCorredorVersoes'
+import { versoesDoPlacaDeLoja } from './placaDeLojaVersoes'
+import { versoesDoCarroca } from './carrocaVersoes'
+import { versoesDoBarraca } from './barracaVersoes'
+import { versoesDoLampiao } from './lampiaoVersoes'
+import { versoesDoPoco } from './pocoVersoes'
+import { versoesDoFonteDeParede } from './fonteDeParedeVersoes'
 
 /** O montador de cada versão, pelo id gravado em `Prop.mobiliaVersao` (a 1ª versão não entra). */
 export type VersoesDesenhadas = Readonly<Record<string, MontarMovel>>
@@ -64,6 +80,25 @@ export const VERSOES_DESENHADAS: Readonly<Partial<Record<TipoMobilia, VersoesDes
   lareira: versoesDoLareira,
   estatua: versoesDoEstatua,
   pecaDeXadrez: versoesDoPecaDeXadrez,
+  // A onda 2: L04 (a mina).
+  carrinhoDeMina: versoesDoCarrinhoDeMina,
+  trilhoDeMina: versoesDoTrilhoDeMina,
+  escoraDeMina: versoesDoEscoraDeMina,
+  pilhaDeMinerio: versoesDoPilhaDeMinerio,
+  // L05 (o esgoto).
+  cano: versoesDoCano,
+  saidaDeEsgoto: versoesDoSaidaDeEsgoto,
+  comporta: versoesDoComporta,
+  bueiro: versoesDoBueiro,
+  raloDeMasmorra: versoesDoRaloDeMasmorra,
+  gradeDeCorredor: versoesDoGradeDeCorredor,
+  // L06 (a cidade medieval).
+  placaDeLoja: versoesDoPlacaDeLoja,
+  carroca: versoesDoCarroca,
+  barraca: versoesDoBarraca,
+  lampiao: versoesDoLampiao,
+  poco: versoesDoPoco,
+  fonteDeParede: versoesDoFonteDeParede,
 }
 
 /** O montador da versão (`undefined` = a 1ª, versão sem desenho ou tipo sem versão: vale o de `MONTADORES`). */

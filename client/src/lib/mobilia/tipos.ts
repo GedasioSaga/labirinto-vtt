@@ -201,6 +201,9 @@ export const TIPOS_MOBILIA = [
   // O plano de arte por tema de 28/11/2026 (docs/design/arte-temas/PLANO.md). L01: a placa de pressão (no chão), a
   // escada de mão, a corrente pendurada e o portão de jaula; L02: a lâmina pendular; L03: a peça de xadrez gigante.
   'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
+  // A onda 2 do plano (28/11/2026). L04: o carrinho, o trilho (no chão) e a escora de mina e a pilha de minério; L05:
+  // o cano, a saída de esgoto (o fio de água) e a comporta; L06: a fonte de parede (o fio de água).
+  'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

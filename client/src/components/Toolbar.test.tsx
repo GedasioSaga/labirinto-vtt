@@ -321,7 +321,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 354 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 362 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -369,7 +369,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo', 'Banca de frutas', 'Toldo listrado',
       'Balança de mercador', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
       'Fornalha de ferreiro', 'Bigorna', 'Balde de água', 'Bancada de ferramentas', 'Pedra de amolar', 'Suporte de armas',
-      'Fole', 'Manequim com armadura', 'Pilha de lingotes', 'Serra',
+      'Fole', 'Manequim com armadura', 'Pilha de lingotes', 'Serra', 'Carrinho de mina', 'Trilho de mina', 'Escora de mina', 'Pilha de minério',
       'Troncos', 'Feno', 'Espantalho', 'Cocho',
       'Colmeia', 'Arado', 'Toco com machado cravado', 'Plantação em fileiras',
       'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Escombros de pedra', 'Ossos',
@@ -432,13 +432,13 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Arquibancada de torneio', 'Liça de justa',
       'Poste de amarrar cavalos', 'Bueiro', 'Relógio de sol', 'Sino no suporte',
       'Tear', 'Roca de fiar', 'Lagar', 'Mó de pedra', 'Liteira', 'Ponte levadiça',
-      'Elevador antigo', 'Carro antigo',
+      'Elevador antigo', 'Carro antigo', 'Cano', 'Saída de esgoto', 'Comporta', 'Fonte de parede',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
     // 275 menos a natureza que foi para o Carimbo na Fase 6 (pedras e rochas, toco de árvore, árvore seca e a sebe),
     // mais a caixa quebrada (16/11/2026) e as duas estátuas de cavalo (21/11/2026): cada um com um desenho diferente.
-    expect(new Set(desenhos).size).toBe(354)
+    expect(new Set(desenhos).size).toBe(362)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

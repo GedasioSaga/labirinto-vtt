@@ -894,6 +894,16 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   portaoDeJaula: [lugar('grade', 'Grade', METAIS, 'ferro'), lugar('piso', 'Soleira', PEDRAS, 'granito')],
   laminaPendular: [lugar('metal', 'Lâmina', METAIS, 'ferro'), lugar('madeira', 'Viga', MADEIRAS, 'carvalho')],
   pecaDeXadrez: [lugar('pedra', 'Pedra', PEDRAS, 'marmore')],
+  // A onda 2 (L04 a L06), os lugares que os desenhistas leem (`c.m.<lugar>`). O L04 não mandou os padrões: a madeira
+  // da mina é o carvalho e o ferro de sempre (escolha do integrador). O cano é de ferro, latão, inox, cobre ou barro.
+  carrinhoDeMina: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Ferragens', METAIS, 'ferro')],
+  trilhoDeMina: [lugar('madeira', 'Dormentes', MADEIRAS, 'carvalho'), lugar('trilhos', 'Trilhos', METAIS, 'ferro')],
+  escoraDeMina: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  pilhaDeMinerio: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  cano: [lugar('cano', 'Cano', [...METAIS, 'barro'], 'ferro')],
+  saidaDeEsgoto: [lugar('cano', 'Cano', [...METAIS, 'barro'], 'ferro'), lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  comporta: [lugar('madeira', 'Folha', MADEIRAS, 'carvalho'), lugar('metal', 'Ferragens', METAIS, 'ferro'), lugar('pedra', 'Pilares', PEDRAS, 'granito')],
+  fonteDeParede: [lugar('pedra', 'Pedra', PEDRAS, 'arenito')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

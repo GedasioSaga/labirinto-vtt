@@ -626,6 +626,14 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       portaoDeJaula: ['grade:ferro', 'piso:granito'],
       laminaPendular: ['metal:ferro', 'madeira:carvalho'],
       pecaDeXadrez: ['pedra:marmore'],
+      carrinhoDeMina: ['madeira:carvalho', 'ferragens:ferro'],
+      trilhoDeMina: ['madeira:carvalho', 'trilhos:ferro'],
+      escoraDeMina: ['madeira:carvalho'],
+      pilhaDeMinerio: ['pedra:granito'],
+      cano: ['cano:ferro'],
+      saidaDeEsgoto: ['cano:ferro', 'pedra:granito'],
+      comporta: ['madeira:carvalho', 'metal:ferro', 'pedra:granito'],
+      fonteDeParede: ['pedra:arenito'],
     })
   })
 

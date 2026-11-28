@@ -54,6 +54,8 @@ import { ESPESSURA_DA_FIADA } from './mausoleu'
 import { ESPESSURA_DA_BANCA } from './bancaDeFrutas'
 import { ESPESSURA_DO_TAMPO_DA_BANCADA } from './bancadaDeFerramentas'
 import { ESPESSURA_DO_COCHO } from './cocho'
+import { ESPESSURA_DA_CAIXA_DO_CARRINHO } from './carrinhoDeMina'
+import { ESPESSURA_DA_TRAVE_DA_ESCORA } from './escoraDeMina'
 import { ESPESSURA_DAS_TRAVESSAS_DO_BIOMBO } from './biombo'
 import { ALTURA_DA_VELA_DO_CANDELABRO } from './candelabroDeChao'
 import { ESPESSURA_DA_BORDA_DA_BANHEIRA } from './banheira'
@@ -631,6 +633,16 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   portaoDeJaula: DERIVADO,
   laminaPendular: { modo: 'derivado', alturaSolta: 0.03 * G },
   pecaDeXadrez: EM_PE,
+  // A onda 2 (L04 a L06). O carrinho e a escora sobem pela caixa e pela trave (a beirada da altura delas); o trilho
+  // fica rente ao chão (na 3/4, como de cima); a fonte de parede é EM PÉ (a 3/4 derivada fazia uma língua listrada).
+  carrinhoDeMina: { modo: 'derivado', espessura: ESPESSURA_DA_CAIXA_DO_CARRINHO },
+  trilhoDeMina: { modo: 'derivado', espessura: 0 },
+  escoraDeMina: { modo: 'derivado', espessura: ESPESSURA_DA_TRAVE_DA_ESCORA },
+  pilhaDeMinerio: DERIVADO,
+  cano: DERIVADO,
+  saidaDeEsgoto: DERIVADO,
+  comporta: DERIVADO,
+  fonteDeParede: EM_PE,
   // Lotes 13 e 16 dos 95 objetos novos (11/11/2026), o templo e a masmorra. O braseiro sobe pelas sombras: cada
   // perna é uma coluna da altura da borda e a bacia sobe em dois pinos, o do bojo e o da boca; a chama animada
   // sobe a mesma altura (`deslocamentoDaChama`), como a da fornalha.

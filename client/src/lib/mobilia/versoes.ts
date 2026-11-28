@@ -84,6 +84,31 @@ export const VERSOES_DO_MOVEL: Readonly<Partial<Record<TipoMobilia, VersoesDoMov
       { id: 'rainha', nome: 'Rainha' }, { id: 'rei', nome: 'Rei' }, { id: 'tombada', nome: 'Tombada' },
     ],
   },
+  // A onda 2 (28/11/2026). Lote L04: a mina. O trilho reto é o que estica; a curva e o batente são pedaços da linha.
+  carrinhoDeMina: { rotulo: 'Versão', opcoes: [{ id: 'vazio', nome: 'Vazio' }, { id: 'comMinerio', nome: 'Com minério' }, { id: 'comOuro', nome: 'Com ouro' }] },
+  trilhoDeMina: { rotulo: 'Versão', opcoes: [{ id: 'reto', nome: 'Reto' }, { id: 'curva', nome: 'Curva' }, { id: 'batente', nome: 'Batente' }] },
+  escoraDeMina: { rotulo: 'Versão', opcoes: [{ id: 'inteira', nome: 'Inteira' }, { id: 'quebrada', nome: 'Quebrada' }] },
+  pilhaDeMinerio: { rotulo: 'Minério', opcoes: [{ id: 'ferro', nome: 'Ferro' }, { id: 'ouro', nome: 'Ouro' }, { id: 'cristal', nome: 'Cristal' }] },
+  // Lote L05: o esgoto. A saída Escorrendo tem o fio de água do animador (`pixi/fioDeAgua.ts`).
+  cano: { rotulo: 'Versão', opcoes: [{ id: 'reto', nome: 'Reto' }, { id: 'cotovelo', nome: 'Cotovelo' }, { id: 'juncaoEmT', nome: 'Junção em T' }, { id: 'comValvula', nome: 'Com válvula' }] },
+  saidaDeEsgoto: { rotulo: 'Versão', opcoes: [{ id: 'seca', nome: 'Seca' }, { id: 'escorrendo', nome: 'Escorrendo' }] },
+  comporta: { rotulo: 'Versão', opcoes: [{ id: 'fechada', nome: 'Fechada' }, { id: 'aberta', nome: 'Aberta' }] },
+  bueiro: { rotulo: 'Versão', opcoes: [{ id: 'fechado', nome: 'Fechado' }, { id: 'aberto', nome: 'Aberto' }] },
+  raloDeMasmorra: { rotulo: 'Versão', opcoes: [{ id: 'seco', nome: 'Seco' }, { id: 'transbordando', nome: 'Transbordando' }] },
+  gradeDeCorredor: { rotulo: 'Versão', opcoes: [{ id: 'inteira', nome: 'Inteira' }, { id: 'arrombada', nome: 'Arrombada' }] },
+  // Lote L06: a cidade medieval. A placa de hoje é a da caneca (a taverna); a Correndo da fonte tem o fio de água.
+  placaDeLoja: {
+    rotulo: 'Ofício',
+    opcoes: [
+      { id: 'caneca', nome: 'Caneca' }, { id: 'ferreiro', nome: 'Ferreiro' }, { id: 'alquimista', nome: 'Alquimista' },
+      { id: 'padaria', nome: 'Padaria' }, { id: 'armaduras', nome: 'Armaduras' }, { id: 'estalagem', nome: 'Estalagem' },
+    ],
+  },
+  carroca: { rotulo: 'Versão', opcoes: [{ id: 'vazia', nome: 'Vazia' }, { id: 'comFeno', nome: 'Com feno' }, { id: 'comBarris', nome: 'Com barris' }, { id: 'coberta', nome: 'Coberta' }] },
+  barraca: { rotulo: 'Versão', opcoes: [{ id: 'simples', nome: 'Simples' }, { id: 'tecidos', nome: 'Tecidos' }, { id: 'ceramica', nome: 'Cerâmica' }, { id: 'peixe', nome: 'Peixe' }] },
+  lampiao: { rotulo: 'Versão', opcoes: [{ id: 'dePe', nome: 'De pé' }, { id: 'posteDeRua', nome: 'Poste de rua' }, { id: 'posteAGas', nome: 'Poste a gás' }] },
+  poco: { rotulo: 'Versão', opcoes: [{ id: 'simples', nome: 'Simples' }, { id: 'comTelhado', nome: 'Com telhado' }, { id: 'comManivela', nome: 'Com manivela' }] },
+  fonteDeParede: { rotulo: 'Versão', opcoes: [{ id: 'correndo', nome: 'Correndo' }, { id: 'seca', nome: 'Seca' }] },
 }
 
 /** A versão apaga a luz do objeto (o lustre apagado e o caído): `lib/luzDoFogo.ts` não a acende. */

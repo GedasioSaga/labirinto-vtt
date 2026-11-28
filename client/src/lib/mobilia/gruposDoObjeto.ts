@@ -488,6 +488,16 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   portaoDeJaula: 'temploEMasmorra',
   laminaPendular: 'temploEMasmorra',
   pecaDeXadrez: 'castelo',
+  // A onda 2 (28/11/2026): a mina na Oficina (o trabalho do minério, junto da pilha de lingotes), o esgoto e a fonte de
+  // parede na Cidade e vila, junto do bueiro.
+  carrinhoDeMina: 'oficina',
+  trilhoDeMina: 'oficina',
+  escoraDeMina: 'oficina',
+  pilhaDeMinerio: 'oficina',
+  cano: 'cidadeEVila',
+  saidaDeEsgoto: 'cidadeEVila',
+  comporta: 'cidadeEVila',
+  fonteDeParede: 'cidadeEVila',
   // As construções (19 de 12/11/2026 e 29 de 14/11/2026), nos 9 grupos da ferramenta Construção, na ordem de
   // `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
@@ -882,6 +892,15 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   laminaPendular: ['lâmina', 'pêndulo', 'armadilha', 'machado', 'foice', 'masmorra'],
   // Sem "torre", "cavalo" e "rei": a busca por eles é das torres, da estátua de cavalo e do trono.
   pecaDeXadrez: ['xadrez', 'peão', 'bispo', 'rainha', 'tabuleiro'],
+  carrinhoDeMina: ['mina', 'vagoneta', 'vagonete', 'carrinho', 'minério', 'caverna'],
+  trilhoDeMina: ['trilho', 'linha', 'dormente', 'mina', 'caverna'],
+  escoraDeMina: ['escora', 'esteio', 'viga', 'mina', 'galeria', 'caverna'],
+  // Sem "ouro", "ferro" e "cristal": a busca por eles é do tesouro, dos metais e dos cristais (a versão diz o minério).
+  pilhaDeMinerio: ['minério', 'ganga', 'mina', 'caverna'],
+  cano: ['cano', 'tubo', 'encanamento', 'válvula', 'esgoto'],
+  saidaDeEsgoto: ['esgoto', 'saída', 'tubo', 'água', 'escoadouro'],
+  comporta: ['comporta', 'eclusa', 'represa', 'canal', 'esgoto'],
+  fonteDeParede: ['fonte', 'bica', 'carranca', 'água', 'cocho', 'bebedouro'],
 }
 
 const MARCA_DE_ACENTO = /\p{M}/gu

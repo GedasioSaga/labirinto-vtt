@@ -51,6 +51,63 @@ export function glifoDaArtePorTema(tipo: TipoMobilia): ReactNode {
           <circle cx="12" cy="6.5" r="3" /><path d="M9.5 10.5h5" /><path d="M10.5 10.5 9 17h6l-1.5-6.5" /><path d="M6.5 20.5h11l-1-3.5h-9z" />
         </>
       )
+    // A onda 2 (L04 a L06).
+    case 'carrinhoDeMina':
+      // A tina de lado: a boca larga, o fundo estreito, as duas rodas e o trilho.
+      return (
+        <>
+          <path d="M3 7h18l-2 9H5z" /><circle cx="8" cy="18" r="2" /><circle cx="16" cy="18" r="2" /><path d="M2 21h20" />
+        </>
+      )
+    case 'trilhoDeMina':
+      // Os dois trilhos de cima e os dormentes atravessados.
+      return (
+        <>
+          <path d="M8 2v20M16 2v20" /><path d="M5 5h14M5 10h14M5 15h14M5 20h14" />
+        </>
+      )
+    case 'escoraDeMina':
+      // Os dois esteios, a trave por cima e o teto de rocha.
+      return (
+        <>
+          <path d="M3 4l3 2 4-1 4 1 4-1 3 1" /><path d="M4 8h16" /><path d="M6 8v13M18 8v13" />
+        </>
+      )
+    case 'pilhaDeMinerio':
+      // O monte de pedras quebradas, uma no alto.
+      return (
+        <>
+          <path d="M3 20l3-6 4 1 2-4 4 2 3 3 2 4z" /><path d="M10 11l2-4 3 2-1 3" />
+        </>
+      )
+    case 'cano':
+      // O tubo deitado com os dois flanges.
+      return (
+        <>
+          <path d="M4 9h16M4 15h16" /><path d="M4 7v10M7 7v10M17 7v10M20 7v10" />
+        </>
+      )
+    case 'saidaDeEsgoto':
+      // A boca do tubo na parede, o fio de água e a poça.
+      return (
+        <>
+          <path d="M3 3h18" /><path d="M9 3v6h6V3" /><path d="M12 9v7" /><ellipse cx="12" cy="18.5" rx="6" ry="2.5" />
+        </>
+      )
+    case 'comporta':
+      // Os dois pilares, a folha baixada e o volante em cima.
+      return (
+        <>
+          <path d="M4 4v17M20 4v17" /><rect x="7" y="9" width="10" height="10" /><circle cx="12" cy="5" r="2" /><path d="M12 7v2" />
+        </>
+      )
+    case 'fonteDeParede':
+      // A parede, a bica, o fio de água e o cocho em meia-lua.
+      return (
+        <>
+          <path d="M3 3h18" /><path d="M12 3v4" /><path d="M10 7h4" /><path d="M12 7v6" /><path d="M5 13h14a7 7 0 0 1-14 0z" />
+        </>
+      )
     default:
       return null
   }
