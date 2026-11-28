@@ -430,6 +430,12 @@ import { montarVelaNoPires } from './velaNoPires'
 import { montarSalamandra } from './salamandra'
 import { montarMonteDeEntulho } from './monteDeEntulho'
 import { montarCamaDeTrapos } from './camaDeTrapos'
+import { montarPlacaDePressao } from './placaDePressao'
+import { montarEscadaDeMao } from './escadaDeMao'
+import { montarCorrentePendurada } from './correntePendurada'
+import { montarPortaoDeJaula } from './portaoDeJaula'
+import { montarLaminaPendularParada } from './laminaPendular'
+import { montarPecaDeXadrez } from './pecaDeXadrez'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -927,6 +933,14 @@ const MONTADORES = {
   salamandra: montarSalamandra,
   monteDeEntulho: montarMonteDeEntulho,
   camaDeTrapos: montarCamaDeTrapos,
+  // O plano de arte por tema de 28/11/2026. A lâmina é a PARADA (a parte parada e o braço a prumo, juntos): a
+  // imagem do catálogo e a de "menos movimento".
+  placaDePressao: montarPlacaDePressao,
+  escadaDeMao: montarEscadaDeMao,
+  correntePendurada: montarCorrentePendurada,
+  portaoDeJaula: montarPortaoDeJaula,
+  laminaPendular: montarLaminaPendularParada,
+  pecaDeXadrez: montarPecaDeXadrez,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -1029,6 +1043,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'vasoComPiaDeAco', 'mesinhaDeCela', 'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico',
   'maquinaDeLavar', 'leitoHospitalar', 'mesaComComputador', 'cercaDeAlambrado', 'arquibancadaDePedra', 'fossoDeArena',
   'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra', 'monteDeEntulho', 'camaDeTrapos',
+  'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

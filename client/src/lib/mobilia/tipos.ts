@@ -198,6 +198,9 @@ export const TIPOS_MOBILIA = [
   'vasoComPiaDeAco', 'mesinhaDeCela', 'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico',
   'maquinaDeLavar', 'leitoHospitalar', 'mesaComComputador', 'cercaDeAlambrado', 'arquibancadaDePedra', 'fossoDeArena',
   'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra', 'monteDeEntulho', 'camaDeTrapos',
+  // O plano de arte por tema de 28/11/2026 (docs/design/arte-temas/PLANO.md). L01: a placa de pressão (no chão), a
+  // escada de mão, a corrente pendurada e o portão de jaula; L02: a lâmina pendular; L03: a peça de xadrez gigante.
+  'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

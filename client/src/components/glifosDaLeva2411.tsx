@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from 'react'
 import type { TipoMobilia } from '../types/map'
+import { glifoDaArtePorTema } from './glifosDaArtePorTema'
 
 export function glifoDaLeva2411(tipo: TipoMobilia): ReactNode {
   switch (tipo) {
@@ -585,6 +586,6 @@ export function glifoDaLeva2411(tipo: TipoMobilia): ReactNode {
         </>
       )
     default:
-      return null
+      return glifoDaArtePorTema(tipo)
   }
 }

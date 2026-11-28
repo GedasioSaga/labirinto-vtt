@@ -887,6 +887,13 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   salamandra: [lugar('metal', 'Metal', METAIS, 'ferro')],
   monteDeEntulho: [lugar('madeira', 'Madeira', MADEIRAS, 'velha')],
   camaDeTrapos: [lugar('pano', 'Pano', ['linho', 'vinho', 'azul', 'musgo'], 'musgo')],
+  // O plano de arte por tema de 28/11/2026 (os padrões sugeridos pelos desenhistas do L01 a L03).
+  placaDePressao: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  escadaDeMao: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  correntePendurada: [lugar('metal', 'Corrente', METAIS, 'ferro')],
+  portaoDeJaula: [lugar('grade', 'Grade', METAIS, 'ferro'), lugar('piso', 'Soleira', PEDRAS, 'granito')],
+  laminaPendular: [lugar('metal', 'Lâmina', METAIS, 'ferro'), lugar('madeira', 'Viga', MADEIRAS, 'carvalho')],
+  pecaDeXadrez: [lugar('pedra', 'Pedra', PEDRAS, 'marmore')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

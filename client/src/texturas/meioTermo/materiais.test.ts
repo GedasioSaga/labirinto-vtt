@@ -620,6 +620,12 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       salamandra: ['metal:ferro'],
       monteDeEntulho: ['madeira:velha'],
       camaDeTrapos: ['pano:musgo'],
+      placaDePressao: ['pedra:granito'],
+      escadaDeMao: ['madeira:carvalho'],
+      correntePendurada: ['metal:ferro'],
+      portaoDeJaula: ['grade:ferro', 'piso:granito'],
+      laminaPendular: ['metal:ferro', 'madeira:carvalho'],
+      pecaDeXadrez: ['pedra:marmore'],
     })
   })
 

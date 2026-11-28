@@ -321,7 +321,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 348 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 354 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -394,7 +394,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Baú de ferro', 'Grade de corredor', 'Corpo amortalhado', 'Pertences confiscados', 'Pilar com braseiro', 'Lanterna gradeada de parede',
       'Selo de órbitas', 'Coluna lisa', 'Pilastra quadrada', 'Pedestal com cristal', 'Arandela de cristal', 'Braseiro de chama fria',
       'Selo de cristal', 'Muro em ruína', 'Pedestal entalhado', 'Coluna com glifos', 'Estela entalhada', 'Cabeça colossal',
-      'Ídolo dourado', 'Mesinha de cela',
+      'Ídolo dourado', 'Mesinha de cela', 'Placa de pressão', 'Escada de mão', 'Corrente pendurada', 'Portão de jaula', 'Lâmina pendular',
       'Potro de tortura', 'Dama de ferro', 'Tronco de prisioneiro', 'Gaiola suspensa', 'Cadeira de interrogatório', 'Mesa de instrumentos de tortura', 'Sangue no chão',
       // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Sala de tortura: +10.
       'Ralo de masmorra', 'Tábua de pregos', 'Cepo do carrasco', 'Poste de açoite', 'Prancha de tortura', 'Braseiro com ferros de marcar',
@@ -415,7 +415,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Trono', 'Cama de dossel', 'Estandarte de pé', 'Tapeçaria de parede', 'Lustre de velas', 'Panóplia',
       'Mesa de banquete posta', 'Bancos de capela', 'Mesa de guerra', 'Poleiro de falcão', 'Aljavas e feixes de flechas',
       // A estátua de cavalo (21/11/2026), com e sem o pedestal, no fim do Castelo: 272 + 2 = 274.
-      'Estátua de cavalo', 'Estátua de cavalo sem pedestal',
+      'Estátua de cavalo', 'Estátua de cavalo sem pedestal', 'Peça de xadrez gigante',
       'Catapulta', 'Balista', 'Aríete com teto', 'Escada de cerco', 'Cavalo de frisa', 'Pilha de balas de canhão', 'Tacho de óleo quente',
       'Sacos de areia', 'Caixas de munição', 'Ouriço antitanque',
       'Arame farpado em rolo', 'Barreira de concreto', 'Cancela listrada', 'Beliche', 'Armário de ferro', 'Rádio de campanha',
@@ -438,7 +438,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
     // 275 menos a natureza que foi para o Carimbo na Fase 6 (pedras e rochas, toco de árvore, árvore seca e a sebe),
     // mais a caixa quebrada (16/11/2026) e as duas estátuas de cavalo (21/11/2026): cada um com um desenho diferente.
-    expect(new Set(desenhos).size).toBe(348)
+    expect(new Set(desenhos).size).toBe(354)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

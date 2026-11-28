@@ -481,6 +481,13 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   salamandra: 'cozinha',
   monteDeEntulho: 'destrocosESucata',
   camaDeTrapos: 'salaEQuarto',
+  // O plano de arte por tema de 28/11/2026: as armadilhas e a prisão na masmorra, a peça de xadrez no castelo.
+  placaDePressao: 'temploEMasmorra',
+  escadaDeMao: 'temploEMasmorra',
+  correntePendurada: 'temploEMasmorra',
+  portaoDeJaula: 'temploEMasmorra',
+  laminaPendular: 'temploEMasmorra',
+  pecaDeXadrez: 'castelo',
   // As construções (19 de 12/11/2026 e 29 de 14/11/2026), nos 9 grupos da ferramenta Construção, na ordem de
   // `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
@@ -868,6 +875,13 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   salamandra: ['salamandra', 'fogão de ferro', 'estufa', 'aquecedor', 'fogão a lenha', 'brasa'],
   monteDeEntulho: ['entulho', 'lixo', 'caliça', 'escombro', 'saco rasgado', 'cacos', 'tralha', 'cortiço'],
   camaDeTrapos: ['trapos', 'ninho', 'panos', 'enxerga', 'manta', 'cortiço', 'mendigo'],
+  placaDePressao: ['armadilha', 'gatilho', 'botão no chão', 'laje solta', 'masmorra'],
+  escadaDeMao: ['escada', 'escadinha', 'degraus', 'subir', 'porão'],
+  correntePendurada: ['corrente', 'gancho', 'grilhão', 'algema', 'teto', 'masmorra'],
+  portaoDeJaula: ['portão', 'grade', 'jaula', 'cela', 'prisão', 'grades'],
+  laminaPendular: ['lâmina', 'pêndulo', 'armadilha', 'machado', 'foice', 'masmorra'],
+  // Sem "torre", "cavalo" e "rei": a busca por eles é das torres, da estátua de cavalo e do trono.
+  pecaDeXadrez: ['xadrez', 'peão', 'bispo', 'rainha', 'tabuleiro'],
 }
 
 const MARCA_DE_ACENTO = /\p{M}/gu

@@ -102,6 +102,8 @@ export const PECAS_NOVAS = [
   'vasoComPiaDeAco', 'mesinhaDeCela', 'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico',
   'maquinaDeLavar', 'leitoHospitalar', 'mesaComComputador', 'cercaDeAlambrado', 'arquibancadaDePedra', 'fossoDeArena',
   'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra', 'monteDeEntulho', 'camaDeTrapos',
+  // O plano de arte por tema de 28/11/2026 (L01, L02 e L03).
+  'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -766,6 +768,12 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   salamandra: { rotulo: 'Fogareiro de ferro', artigo: 'um fogareiro de ferro', tamanho: { largura: 1, altura: 1 }, redonda: false },
   monteDeEntulho: { rotulo: 'Monte de entulho', artigo: 'um monte de entulho', tamanho: { largura: 1.5, altura: 1.25 }, redonda: false },
   camaDeTrapos: { rotulo: 'Cama de trapos', artigo: 'uma cama de trapos', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  placaDePressao: { rotulo: 'Placa de pressão', artigo: 'uma placa de pressão', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  escadaDeMao: { rotulo: 'Escada de mão', artigo: 'uma escada de mão', tamanho: { largura: 0.5, altura: 1.5 }, redonda: false },
+  correntePendurada: { rotulo: 'Corrente pendurada', artigo: 'uma corrente pendurada', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  portaoDeJaula: { rotulo: 'Portão de jaula', artigo: 'um portão de jaula', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  laminaPendular: { rotulo: 'Lâmina pendular', artigo: 'uma lâmina pendular', tamanho: { largura: 2, altura: 1.5 }, redonda: false },
+  pecaDeXadrez: { rotulo: 'Peça de xadrez gigante', artigo: 'uma peça de xadrez gigante', tamanho: { largura: 1, altura: 1 }, redonda: false },
   lapideTorta: { rotulo: 'Lápide torta', artigo: 'uma lápide torta', tamanho: { largura: 0.6, altura: 0.4 }, redonda: false },
 }
 
@@ -1188,6 +1196,12 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     salamandra: valor(f.salamandra),
     monteDeEntulho: valor(f.monteDeEntulho),
     camaDeTrapos: valor(f.camaDeTrapos),
+    placaDePressao: valor(f.placaDePressao),
+    escadaDeMao: valor(f.escadaDeMao),
+    correntePendurada: valor(f.correntePendurada),
+    portaoDeJaula: valor(f.portaoDeJaula),
+    laminaPendular: valor(f.laminaPendular),
+    pecaDeXadrez: valor(f.pecaDeXadrez),
   }
 }
 
@@ -1283,6 +1297,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico', 'maquinaDeLavar', 'leitoHospitalar',
   'mesaComComputador', 'cercaDeAlambrado', 'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra',
   'monteDeEntulho', 'camaDeTrapos',
+  // O plano de arte por tema de 28/11/2026 (L01, L02 e L03).
+  'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
   'fossoDeBrasas', 'fossoDoSalao', 'plataformaDeRitual', 'gargula', 'estatuaDeBesta', 'estatuaEncapuzada',
   'ponteDeCorrente', 'columbario', 'estradoEmMeiaLua', 'arcossolio', 'ponteDePedraQuebrada', 'ponteDeTabuasQuebrada',
   'calcadaSobreAgua', 'cabanaDeLajes', 'tanqueComBorda', 'piramideEmDegraus', 'topoDoTemplo', 'cascataEmDegraus',
@@ -4878,6 +4894,19 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       return [...aro(largura * 0.95, altura * 0.85, 0, hh * 0.1), { x1: hw * 0.1, y1: -hh * 0.1, x2: hw * 0.95, y2: -hh * 0.9 }]
     case 'camaDeTrapos':
       return [...quadro(-hw * 0.6, -hh * 0.95, hw * 0.6, -hh * 0.7), ...aro(largura * 0.9, altura * 0.75, 0, hh * 0.2)]
+    // O plano de arte por tema de 28/11/2026: o traço provisório do estilo Simples.
+    case 'placaDePressao':
+      return [...quadro(-hw * 0.8, -hh * 0.8, hw * 0.8, hh * 0.8), ...aro(largura * 0.3, altura * 0.3, 0, 0)]
+    case 'escadaDeMao':
+      return [{ x1: -hw * 0.7, y1: -hh * 0.95, x2: -hw * 0.7, y2: hh * 0.95 }, { x1: hw * 0.7, y1: -hh * 0.95, x2: hw * 0.7, y2: hh * 0.95 }, linha(-hw * 0.7, -hh * 0.5, hw * 0.7), linha(-hw * 0.7, 0, hw * 0.7), linha(-hw * 0.7, hh * 0.5, hw * 0.7)]
+    case 'correntePendurada':
+      return [{ x1: 0, y1: -hh * 0.95, x2: 0, y2: hh * 0.4 }, ...aro(largura * 0.3, altura * 0.3, 0, hh * 0.6)]
+    case 'portaoDeJaula':
+      return [linha(-hw * 0.95, -hh * 0.85, hw * 0.95), { x1: -hw * 0.5, y1: -hh * 0.85, x2: -hw * 0.5, y2: -hh * 0.5 }, { x1: 0, y1: -hh * 0.85, x2: 0, y2: -hh * 0.5 }, { x1: hw * 0.5, y1: -hh * 0.85, x2: hw * 0.5, y2: -hh * 0.5 }]
+    case 'laminaPendular':
+      return [linha(-hw * 0.95, -hh * 0.85, hw * 0.95), { x1: 0, y1: -hh * 0.85, x2: 0, y2: hh * 0.3 }, ...aro(largura * 0.4, altura * 0.35, 0, hh * 0.55)]
+    case 'pecaDeXadrez':
+      return [...aro(largura * 0.8, altura * 0.8, 0, 0), ...aro(largura * 0.35, altura * 0.35, 0, 0)]
   }
 }
 

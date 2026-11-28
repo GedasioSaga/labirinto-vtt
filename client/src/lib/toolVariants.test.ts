@@ -296,8 +296,10 @@ describe('TOOL_VARIANTS', () => {
       'mesaDePatio', 'chuveiroColetivo', 'armarioDeVestiario', 'cadeiraDePlastico', 'maquinaDeLavar', 'leitoHospitalar',
       'mesaComComputador', 'cercaDeAlambrado', 'balaustradaDeCamarote', 'pocoDeSangue', 'velaNoPires', 'salamandra',
       'monteDeEntulho', 'camaDeTrapos',
+      // O plano de arte por tema de 28/11/2026.
+      'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
     ])
-    expect(grupo.options).toHaveLength(348)
+    expect(grupo.options).toHaveLength(354)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Muro de fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
@@ -357,6 +359,7 @@ describe('TOOL_VARIANTS', () => {
       'Mesa de pátio', 'Chuveiro coletivo', 'Armário de vestiário', 'Cadeira de plástico', 'Máquina de lavar', 'Leito hospitalar',
       'Mesa com computador', 'Cerca de alambrado', 'Balaustrada de camarote', 'Poço de sangue', 'Vela no pires', 'Fogareiro de ferro',
       'Monte de entulho', 'Cama de trapos',
+      'Placa de pressão', 'Escada de mão', 'Corrente pendurada', 'Portão de jaula', 'Lâmina pendular', 'Peça de xadrez gigante',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'carroca']
@@ -390,7 +393,7 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 24 partes da ficha (Sala e quarto 32, Cozinha 12, Banheiro 20, Armazenagem 12, Rua e jardim 19, Cemitério 20, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 14, Esporte e lazer 9, Porto e navio 8, Templo e masmorra 46, Sala de tortura 17, Magia e alquimia 4, Necrotério e laboratório 11, Tesouro 8, Castelo 13, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 13, Descanso e brincadeira 14, Cidade e vila 12; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 24 partes da ficha (Sala e quarto 32, Cozinha 12, Banheiro 20, Armazenagem 12, Rua e jardim 19, Cemitério 20, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 14, Esporte e lazer 9, Porto e navio 8, Templo e masmorra 51, Sala de tortura 17, Magia e alquimia 4, Necrotério e laboratório 11, Tesouro 8, Castelo 14, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 13, Descanso e brincadeira 14, Cidade e vila 12; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
@@ -417,12 +420,12 @@ describe('TOOL_VARIANTS', () => {
       ['Destroços e sucata', 14],
       ['Esporte e lazer', 9],
       ['Porto e navio', 8],
-      ['Templo e masmorra', 46],
+      ['Templo e masmorra', 51],
       ['Sala de tortura', 17],
       ['Magia e alquimia', 4],
       ['Necrotério e laboratório', 11],
       ['Tesouro', 8],
-      ['Castelo', 13],
+      ['Castelo', 14],
       ['Cerco e defesa', 7],
       ['Base militar', 15],
       ['Mar e piratas', 14],
@@ -475,7 +478,7 @@ describe('TOOL_VARIANTS', () => {
       'bauDeFerro', 'gradeDeCorredor', 'corpoAmortalhado', 'pertencesConfiscados', 'pilarComBraseiro', 'lanternaGradeada',
       'seloDeOrbitas', 'colunaLisa', 'pilastraQuadrada', 'pedestalComCristal', 'arandelaDeCristal', 'braseiroDeChamaFria',
       'seloDeCristal', 'muroEmRuina', 'pedestalEntalhado', 'colunaComGlifos', 'estelaMaia', 'cabecaColossal',
-      'idoloDourado', 'mesinhaDeCela',
+      'idoloDourado', 'mesinhaDeCela', 'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular',
     ])
     // O grupo novo das referências (16/11/2026), arrumado pelo uso: o corpo, o que corta e ferve, a bancada e a
     // escrivaninha do legista.
@@ -498,7 +501,7 @@ describe('TOOL_VARIANTS', () => {
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Castelo')?.tipos).toEqual([
       'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
       'mesaDeBanquete', 'bancosDeCapela', 'mesaDeGuerra', 'poleiroDeFalcao', 'aljavasEFlechas',
-      'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal',
+      'estatuaDeCavalo', 'estatuaDeCavaloSemPedestal', 'pecaDeXadrez',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cerco e defesa')?.tipos).toEqual(['catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco', 'cavaloDeFrisa', 'pilhaDeBalasDeCanhao', 'tachoDeOleoQuente'])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Base militar')?.tipos).toEqual([

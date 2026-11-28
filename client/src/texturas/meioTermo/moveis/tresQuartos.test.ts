@@ -99,6 +99,8 @@ describe('vista 3/4: o catálogo inteiro', () => {
     // A leva de 24/11/2026: os rentes dela (a latrina e o ralo da cela, o quadro de chaves pintado na parede, o fosso do
     // salão, os selos, a laje tumular, a calçada sobre a água e a passarela de tábuas), todos desenhados no plano do chão.
     'latrinaDeCela', 'quadroDeChaves', 'raloDeMasmorra', 'fossoDoSalao', 'seloDeOrbitas', 'lajeTumular', 'seloDeCristal', 'calcadaSobreAgua', 'passarelaDeTabuas',
+    // O plano de arte por tema de 28/11/2026: a placa de pressão, rente no chão (na 3/4 fica como de cima).
+    'placaDePressao',
   ]
   // Os quatro MONTES do tesouro (12/11/2026) são chão com altura: o anel e o miolo sobem em degraus baixos (a 3/4
   // muda o desenho), mas a beira de cima da imagem é uma peça solta no chão, que não sobe. A regra do tampo não

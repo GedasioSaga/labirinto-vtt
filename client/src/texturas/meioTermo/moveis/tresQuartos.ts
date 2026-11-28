@@ -624,6 +624,13 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   salamandra: { modo: 'derivado', espessura: 0 },
   monteDeEntulho: { modo: 'derivado', espessura: 0.1 * G },
   camaDeTrapos: { modo: 'derivado', espessura: 0.1 * G },
+  // O plano de arte por tema de 28/11/2026 (os perfis que os desenhistas do L01 a L03 mediram nas folhas).
+  placaDePressao: { modo: 'derivado', espessura: 0 },
+  escadaDeMao: { modo: 'derivado', espessura: 0 },
+  correntePendurada: { modo: 'derivado', espessura: 0 },
+  portaoDeJaula: DERIVADO,
+  laminaPendular: { modo: 'derivado', alturaSolta: 0.03 * G },
+  pecaDeXadrez: EM_PE,
   // Lotes 13 e 16 dos 95 objetos novos (11/11/2026), o templo e a masmorra. O braseiro sobe pelas sombras: cada
   // perna é uma coluna da altura da borda e a bacia sobe em dois pinos, o do bojo e o da boca; a chama animada
   // sobe a mesma altura (`deslocamentoDaChama`), como a da fornalha.
