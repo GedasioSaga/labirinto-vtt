@@ -12,6 +12,14 @@ Ordem saída de [REFERENCIAS.md](REFERENCIAS.md) (28/11/2026). Só a mecânica v
 
 - **Cooperação em dois lugares** (28/11). Dois ou três pontos do mapa ligados ao mesmo puzzle. Em cada um há uma alavanca, uma placa de pressão ou o botão de um painel, de latão ou ferro, e um lampião. Acionar acende o lampião daquele ponto por uma janela que o mestre escolhe (2 a 30 s, padrão 5). Um anel em volta do mostrador esvazia com o tempo, e o puzzle cede quando todos os lampiões ficam acesos juntos. O ponto 1 é o lugar do desafio; os pontos 2 e 3 se marcam na ficha do desafio em Jogos (um ponto do mapa ou um objeto que já está lá) e viram selos próprios no mapa. O jogador entra pelo selo do ponto dele, e o host confere que a ficha alcança aquele selo, com a mesma régua do selo de sempre. O motor recusa outro ponto, e uma pessoa vale por um ponto só (acionar outro solta o de antes). Todos os que estão dentro veem os lampiões de todos os pontos e o nome de quem acionou, pela vista que o host já manda. No teste do editor, o mestre aciona todos. Acionar não castiga, e o desfecho é o de sempre, inclusive a porta ligada. Sem mexer no `net/protocol.ts`: o ponto viaja no id do selo (`<desafio>~p<n>`).
 
+- **Mistura de líquidos** (28/11). Uma bancada com 2 a 5 jarras ou frascos de vidro numa prateleira, a torneira e a pia à esquerda e o receptáculo (funil, gargalo e visor) à direita, em latão ou ferro. Três modos: medir volumes (as jarras de 3 e 5 até 4 L), misturar cores (a tinta se mistura na proporção do que passou) e seguir a receita (itens do acervo que o grupo achou no mapa, num frasco de água). O jogador pega um recipiente (toque, arrasto ou Enter) e despeja noutro, na pia ou no receptáculo; Esc devolve. O alvo só se escolhe entre os que a busca do caminho mais curto alcança, então sempre tem solução, e o mestre vê o mínimo de passos e a solução passo a passo. Errar no receptáculo castiga e, pelo que o mestre escolher, derrama o que pôs ou faz a bancada recomeçar. Som de líquido sintetizado e uma inclinação curta ao verter, parada no movimento reduzido.
+
+## Pendente na mistura
+
+- **Arrastar o item da mochila até o frasco.** Na receita, o item vai por toque (o item e depois o frasco) ou pelo teclado; o arrasto da mochila ainda só conhece encaixes e a bandeja.
+- **A miniatura em Meus puzzles** ainda mostra o visual de base, não a bancada.
+- **Despejar só um tanto** (meio a meio): hoje despejar vai até a origem esvaziar ou o destino encher, como no enigma clássico.
+
 ## Pendente na cooperação
 
 - **A placa de pressão como presença contínua** (segura a porta enquanto a ficha está em cima). Hoje a placa é um gesto, como a alavanca: pisar acende o lampião pela janela. Decisão do Claude em 28/11: a presença contínua pede o host olhando a posição dos tokens a cada movimento, um caminho novo fora da tela do puzzle.
@@ -39,7 +47,7 @@ Ordem saída de [REFERENCIAS.md](REFERENCIAS.md) (28/11/2026). Só a mecânica v
 
 ## Próximos (na ordem)
 
-1. **Mistura de líquidos.** É o próximo (a cooperação ficou pronta em 28/11). Recipientes com capacidade; passar de um para outro até a medida pedida. Uma tela, sem pressa. Segue o caminho das giratórias e dos interruptores: um `futuro` novo, uma ação "despejar de A em B" sem conferir a rev, o recorte só com quanto cada recipiente tem. O começo sai de despejos de verdade, então sempre tem volta.
-2. **Sobrepor camadas.** Placas transparentes empilhadas até formar o desenho. Combina com o painel em relevo: as camadas também podem ser itens achados no mapa.
+1. ~~Mistura de líquidos~~ ficou pronta em 28/11 (ver Feito).
+2. **Sobrepor camadas.** É o próximo. Placas transparentes empilhadas até formar o desenho. Combina com o painel em relevo: as camadas também podem ser itens achados no mapa.
 
 Ficam para depois: empurrar estátuas (colisão no mapa), xadrez com regras, revelar com luz (mexe na névoa). Reflexo e tempo real ficam fora (mesa de RPG é por turno).
