@@ -71,10 +71,13 @@ describe('materialMaisPerto (os 3 exemplos do plano)', () => {
   })
 })
 
-/** A lista de cada lugar ANTES de 16/11/2026 (54bd8f54): sem o inox e o mármore; o assento da cadeira só com a palha. */
+/** Os materiais que só valem pelo tom oficial: o inox e o mármore (16/11/2026), a obsidiana, o gelo, o osso e o cobre (28/11/2026, I0-d). */
+const SO_PELO_TOM: readonly OpcaoDeMaterial[] = ['inox', 'marmore', 'obsidiana', 'gelo', 'osso', 'cobre']
+
+/** A lista de cada lugar ANTES de 16/11/2026 (54bd8f54): sem os materiais só pelo tom; o assento da cadeira só com a palha. */
 function opcoesDeAntes(tipo: TipoMobilia, l: LugarDeMaterial): readonly OpcaoDeMaterial[] {
   if (tipo === 'cadeira' && l.id === 'assento') return ['mesma', 'palha']
-  return l.opcoes.filter((id) => id !== 'inox' && id !== 'marmore')
+  return l.opcoes.filter((id) => !SO_PELO_TOM.includes(id))
 }
 
 /** O material de `opcoes` mais perto da cor em OKLab, contado aqui à parte (sem `materialMaisPerto`); empate: o primeiro. */
@@ -111,7 +114,8 @@ describe('cor livre de mapa antigo não muda com as opções de 16/11/2026 (audi
     expect(materialMaisPerto('#9da2a6', lugar('armario', 'puxadores'))).toBe('latao')
   })
 
-  it('varredura: nenhuma das 4.096 cores #rgb muda de material nos lugares que ganharam opção', () => {
+  // 4.096 cores em cada lugar que ganhou opção (desde 28/11 com 7 pedras e 4 metais): 7 s com a máquina disputada.
+  it('varredura: nenhuma das 4.096 cores #rgb muda de material nos lugares que ganharam opção', { timeout: 30_000 }, () => {
     const canal = (n: number): string => (n * 17).toString(16).padStart(2, '0')
     const cores: string[] = []
     for (let r = 0; r < 16; r += 1) for (let g = 0; g < 16; g += 1) for (let b = 0; b < 16; b += 1) cores.push(`#${canal(r)}${canal(g)}${canal(b)}`)
@@ -621,8 +625,9 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
 
   it('o inox, o mármore e o estofado (16/11/2026) entram no FIM das listas e o mapa de antes abre igual', () => {
     // Os metais, as pedras e o assento da cadeira ganham a opção nova depois das que já existiam.
-    expect(lugar('barril', 'aros').opcoes).toEqual(['ferro', 'latao', 'inox'])
-    expect(lugar('lapide', 'pedra').opcoes).toEqual(['granito', 'arenito', 'ardosia', 'marmore'])
+    // Obsidiana, gelo e osso (pedras) e cobre (metais) entram depois, no fim (28/11/2026, I0-d).
+    expect(lugar('barril', 'aros').opcoes).toEqual(['ferro', 'latao', 'inox', 'cobre'])
+    expect(lugar('lapide', 'pedra').opcoes).toEqual(['granito', 'arenito', 'ardosia', 'marmore', 'obsidiana', 'gelo', 'osso'])
     expect(lugar('cadeira', 'assento').opcoes).toEqual(['mesma', 'palha', 'linho', 'vinho', 'azul', 'musgo', 'ocre'])
     // O padrão não muda: o mapa sem cor gravada abre como antes.
     expect(materialMaisPerto(undefined, lugar('barril', 'aros'))).toBe('ferro')
@@ -631,8 +636,12 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
     // A escolha gravada de antes (o tom oficial de cada material) continua voltando a ela, em todo lugar que mudou.
     for (const tipo of TIPOS_MOBILIA) {
       for (const l of LUGARES_DE_MATERIAL[tipo]) {
-        const antigas = l.opcoes.filter(ehMaterial).filter((id) => id !== 'inox' && id !== 'marmore')
+        const antigas = l.opcoes.filter(ehMaterial).filter((id) => !SO_PELO_TOM.includes(id))
         for (const id of antigas) expect(materialMaisPerto(MATERIAIS[id].hex, l), `${tipo}.${l.id}.${id}`).toBe(id)
+        // E a escolha nova do painel (o tom oficial exato) volta a ela mesma.
+        for (const id of l.opcoes.filter(ehMaterial).filter((id) => SO_PELO_TOM.includes(id))) {
+          expect(materialMaisPerto(MATERIAIS[id].hex, l), `${tipo}.${l.id}.${id}`).toBe(id)
+        }
       }
     }
     expect(materialMaisPerto(MATERIAIS.palha.hex, lugar('cadeira', 'assento'))).toBe('palha')

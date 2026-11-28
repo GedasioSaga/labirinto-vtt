@@ -28,6 +28,7 @@ export type IdDoMaterial =
   | 'lenhaCarvalho' | 'lenhaPinho' | 'lenhaBetula'
   | 'buxo' | 'alfeneiro'
   | 'inox' | 'marmore'
+  | 'obsidiana' | 'gelo' | 'osso' | 'cobre'
 
 /** Opções que usam a madeira do próprio móvel: o assento "Madeira" da cadeira e as "Varas" da cerca. Não têm cor própria. */
 export type ReferenciaAMadeira = 'mesma' | 'varas'
@@ -84,6 +85,18 @@ const TOM_DO_ALFENEIRO = '#74955c'
  */
 const TOM_DO_INOX = '#a9adaf'
 const TOM_DO_MARMORE = '#cfcabf'
+/**
+ * Lava, gelo e inferno como MATERIAL (I0-d do plano de arte por tema, 28/11/2026, `docs/design/arte-temas/PLANO.md`,
+ * Decisão 4): todo objeto de pedra ganha a cara de obsidiana, gelo ou osso, e todo de metal a de cobre, sem desenho
+ * novo. Os tons de partida do plano, na régua "não estoura" (canal até 245, saturação contida): a obsidiana é o escuro
+ * puxado para o violeta frio (o `#2a2630` do plano saía chapado na folha de 28/11: o grão e o epitáfio sumiam; subiu
+ * para `#45424a`, com o violeta contido); o gelo, o azul acinzentado sem chegar ao branco; o osso, o creme gasto; o cobre,
+ * o marrom avermelhado sem o brilho de moeda nova.
+ */
+const TOM_DA_OBSIDIANA = '#45424a'
+const TOM_DO_GELO = '#b9cfd8'
+const TOM_DO_OSSO = '#cfc3a6'
+const TOM_DO_COBRE = '#9a5f3c'
 
 /**
  * Carvalho e madeira velha no MÓVEL ficam mais escuros que o token da vila
@@ -129,6 +142,12 @@ export const MATERIAIS: Readonly<Record<IdDoMaterial, Material>> = {
   // 16/11/2026: o inox entra nos metais e o mármore nas pedras, no FIM de cada lista (o padrão de cada lugar não muda).
   inox: materialDeTomProprio('inox', 'Inox', 'metal', '#9da2a5', TOM_DO_INOX),
   marmore: materialDeTomProprio('marmore', 'Mármore', 'pedra', '#d3cec4', TOM_DO_MARMORE),
+  // 28/11/2026 (I0-d): obsidiana, gelo e osso no FIM das pedras; cobre no FIM dos metais. O tom oficial (o que o
+  // painel grava) é o vizinho escuro do tom pintado, como no inox e no mármore, e nenhum bate com um de antes.
+  obsidiana: materialDeTomProprio('obsidiana', 'Obsidiana', 'pedra', '#38353d', TOM_DA_OBSIDIANA),
+  gelo: materialDeTomProprio('gelo', 'Gelo', 'pedra', '#adc4ce', TOM_DO_GELO),
+  osso: materialDeTomProprio('osso', 'Osso', 'pedra', '#c4b89a', TOM_DO_OSSO),
+  cobre: materialDeTomProprio('cobre', 'Cobre', 'metal', '#8c5535', TOM_DO_COBRE),
 }
 
 /** A opção é um material com cor própria (e não a madeira do móvel)? */
@@ -154,14 +173,15 @@ export interface LugarDeMaterial {
  * livre de mapa antigo (a "Cor da linha" de 29/09 a 20/10) não cai neles, senão o mapa salvo mudaria de cara (o
  * puxador #c0c0c0 de latão viraria inox, o poço #e0e0e0 de arenito viraria mármore: auditoria de 16/11/2026).
  */
-const SO_PELO_TOM_OFICIAL: ReadonlySet<OpcaoDeMaterial> = new Set<OpcaoDeMaterial>(['inox', 'marmore'])
+// Obsidiana, gelo, osso e cobre (28/11/2026, I0-d) pela mesma regra: a cor livre de antes não cai neles.
+const SO_PELO_TOM_OFICIAL: ReadonlySet<OpcaoDeMaterial> = new Set<OpcaoDeMaterial>(['inox', 'marmore', 'obsidiana', 'gelo', 'osso', 'cobre'])
 
 const MADEIRAS: readonly OpcaoDeMaterial[] = ['carvalho', 'nogueira', 'pinho', 'cerejeira', 'velha']
 // O inox (16/11/2026) e o mármore entram no fim: o mapa que já escolheu ferro, latão, granito, arenito ou ardósia
 // grava o tom oficial dele, que continua voltando a ele mesmo (`materialMaisPerto`), e o padrão de cada lugar é o de antes.
-const METAIS: readonly OpcaoDeMaterial[] = ['ferro', 'latao', 'inox']
+const METAIS: readonly OpcaoDeMaterial[] = ['ferro', 'latao', 'inox', 'cobre']
 const TECIDOS: readonly OpcaoDeMaterial[] = ['linho', 'vinho', 'azul', 'musgo', 'ocre']
-const PEDRAS: readonly OpcaoDeMaterial[] = ['granito', 'arenito', 'ardosia', 'marmore']
+const PEDRAS: readonly OpcaoDeMaterial[] = ['granito', 'arenito', 'ardosia', 'marmore', 'obsidiana', 'gelo', 'osso']
 
 function lugar(
   id: string,
