@@ -14,7 +14,10 @@ import { ajustesDoCusto, textoDoGolpe } from '../../lib/batalha/golpe'
 import { avisoAoCairDe, mecanicaDoCartao } from '../../lib/batalha/mecanicasAMao'
 import { pecasDoCartao } from '../../lib/batalha/mecanica/leitura'
 import { comLembrada, comLembreteDoGatilho, comLembretesDoMomento, custoDaPassiva, disparosDosGatilhos, lembreteDoDisparo, quandoDoGatilho, semLembretes, type DisparoDoGatilho, type EventoDoGatilho, type TurnosComLembretes } from '../../lib/batalha/passivas'
-import { comSeloNovo, criarSelo, novoIdDeSelo, ondeNaVez, textoDoSeloComMods } from '../../lib/batalha/selos'
+import { comSeloNovo, criarSelo, entradaDoSelo, novoIdDeSelo, ondeNaVez, textoDoSeloComMods } from '../../lib/batalha/selos'
+import { fichasNaAura, mudancaDasAuras, temAura } from '../../lib/batalha/aura'
+import { pegadaDaFicha } from '../../lib/batalha/area'
+import { mesmoLadoNaBatalha, quemLutaPeloDono } from '../../lib/batalha/equipes'
 import { ajusteDoRecurso } from '../../lib/batalha/recursosDaBatalha'
 import { curaComOsSelos } from '../../lib/batalha/condicoes'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
@@ -26,7 +29,7 @@ import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import type { DependenciasDaBatalha, BatalhaDaCena, BatalhaState } from './tipos'
 import { comAVezDeAgora } from '../../lib/batalha/requisitos/ajuda'
 import { type EfeitoNovo, type FichasDaMesa, fichasDaMesa, type LinhaNova, comMudanca, comEfeitos, nomeDoTokenNa, nomeDoBandoNa, linhaAtualizada, personagemDoTokenNa, MESTRE, quemNaFicha } from './cena'
-import { criarSeloComACondicao } from './selos'
+import { criarSeloComACondicao, pedidoComACondicao } from './selos'
 import type { CondicaoPropria } from '../../types/map'
 import { desfazerReversao, reacoesComTecnicaDe, contrasDaReversao } from './desfazer'
 import { mexerNaFicha, reversaoDaFicha } from './naMesa'
@@ -77,11 +80,70 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
   /** A cena ligada, ou `undefined`. */
   const cenaDe = (sceneKey: string): BatalhaDaCena | undefined => get().cenas[sceneKey]
 
-  /** Troca a cena (que tem de estar ligada). */
+  /**
+   * PENDENCIAS nº 1 (D9): as auras da cena em dia com o lugar das fichas e os selos de agora (`mudancaDasAuras`).
+   * Quem entrou no raio ganha a condição (o selo nasce pela condição, como todo selo, e passa pela Contra-condição);
+   * quem saiu, ou cujo portador perdeu a condição, perde. Uma linha "selo" diz o que mudou ("Aura de X: Y ganhou Z"),
+   * com o Desfazer dos selos; a regra vale de novo na gravação seguinte. O "ao entrar" da condição não roda na pega:
+   * o vaivém na borda do raio não repete o efeito. A mesa sem mapa (`posicaoDoToken` ausente: a Arena, o duelo) não
+   * tem aura. Nada muda = a MESMA cena.
+   */
+  const comAurasEmDia = (sceneKey: string, cena: BatalhaDaCena): BatalhaDaCena => {
+    const posicaoDoToken = mesa.posicaoDoToken
+    const { turnos } = cena
+    if (posicaoDoToken === undefined || !temAura(turnos.selos)) return cena
+    const fichas = fichasNaAura(turnos, (tokenId) => {
+      const posicao = posicaoDoToken(sceneKey, tokenId)
+      return posicao === null ? null : (posicao.pegada ?? pegadaDaFicha(posicao.casa, mesa.fichaDaCena?.(sceneKey, tokenId)?.size))
+    })
+    const { personagens } = mesaDoRpg()
+    const lados = { equipes: mesa.equipes(), personagens, invocados: quemLutaPeloDono(turnos) }
+    const mudanca = mudancaDasAuras(turnos.selos, fichas, (deQuem, outro) => mesmoLadoNaBatalha(deQuem, outro, lados))
+    if (mudanca.entram.length === 0 && mudanca.saem.length === 0) return cena
+    const nomeDe = nomeDoTokenNa(turnos, personagens)
+    const personagemDe = personagemDoTokenNa(turnos)
+    const criadas = mesa.condicoesCriadas?.() ?? []
+    const saem = new Set(mudanca.saem.map((selo) => selo.id))
+    let selos: SeloDaBatalha[] = (turnos.selos ?? []).filter((selo) => !saem.has(selo.id))
+    const partes: Reversao[] = []
+    const textos: string[] = []
+    const tokenIds = new Set<string>()
+    for (const selo of mudanca.saem) {
+      const portador = selo.daAura === undefined ? undefined : turnos.selos?.find((candidato) => candidato.id === selo.daAura)
+      partes.push({ tipo: 'selo', seloId: selo.id, antes: selo })
+      textos.push(`${portador === undefined ? 'A aura acabou' : `Aura de ${nomeDe(portador.tokenId)}`}: ${nomeDe(selo.tokenId)} perdeu ${selo.nome}`)
+      tokenIds.add(selo.tokenId)
+    }
+    for (const pega of mudanca.entram) {
+      const pedido = pedidoComACondicao({ nome: pega.nome, turnos: null, daAura: pega.fonte.id }, criadas, personagemDe(pega.portadorTokenId) ?? null)
+      const natureza = pedido.regras?.tipo === 'positiva' ? 'buff' : 'debuff'
+      const novo = criarSelo(pega.tokenId, { ...pedido, natureza }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: `Aura de ${nomeDe(pega.portadorTokenId)}` })
+      const entrada = entradaDoSelo(selos, novo)
+      // Barrada pela Contra-condição de quem está no raio, ou o teto de selos: a pega fica de fora.
+      if (entrada.tipo !== 'entrou') continue
+      selos = entrada.selos
+      partes.push({ tipo: 'selo', seloId: novo.id, antes: null }, ...entrada.apagados.map((apagado): Reversao => ({ tipo: 'selo', seloId: apagado.id, antes: apagado })))
+      textos.push(`Aura de ${nomeDe(pega.portadorTokenId)}: ${nomeDe(pega.tokenId)} ganhou ${novo.nome}`)
+      tokenIds.add(pega.tokenId)
+    }
+    if (textos.length === 0) return cena
+    const reversao: Reversao = partes.length === 1 ? partes[0] : { tipo: 'composta', partes }
+    return comMudanca(cena, { ...turnos, selos }, { tipo: 'selo', texto: textos.join(' · '), tokenIds: [...tokenIds], reversao })
+  }
+
+  /** Troca a cena (que tem de estar ligada). As auras entram em dia aqui, num lugar só, para todo caminho que muda selo ou ficha (D9). */
   const gravarCena = (sceneKey: string, cena: BatalhaDaCena): void => {
     // REQUISITOS E (§7.5): passar a vez (ou a rodada) cancela o pedido de ajuda que esperava; num lugar só, para todo caminho que troca a vez.
     const turnos = cena.turnos.pedidosDeAjuda === undefined ? cena.turnos : comAVezDeAgora(cena.turnos, deps.agora === undefined ? Date.now() : deps.agora())
-    set({ cenas: { ...get().cenas, [sceneKey]: turnos === cena.turnos ? cena : { ...cena, turnos } } })
+    set({ cenas: { ...get().cenas, [sceneKey]: comAurasEmDia(sceneKey, turnos === cena.turnos ? cena : { ...cena, turnos }) } })
+  }
+
+  /** D9: o mapa mudou (a ficha andou, entrou ou saiu do mapa): as auras da cena em dia. Nada muda = nada grava. */
+  const recalcularAuras = (sceneKey: string): void => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined) return
+    const depois = comAurasEmDia(sceneKey, cena)
+    if (depois !== cena) set({ cenas: { ...get().cenas, [sceneKey]: depois } })
   }
 
   /** Aplica `mudar` aos turnos da cena; mudou = grava com a linha que `linha` monta. */
@@ -472,7 +534,7 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
     gravarCena(sceneKey, { ...atual, turnos, regras: feito.cena.regras, registro, efeitos, turnosRev: atual.turnosRev + 1 })
     return true
   }
-  return { mesa, deps, set, get, mesaDoRpg, cenaDe, gravarCena, mudarTurnos, avisarQuemCaiu, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, rastrear, anotarAcao, desfazerLinha, dispararGatilhos, aplicarDisparo }
+  return { mesa, deps, set, get, mesaDoRpg, cenaDe, gravarCena, recalcularAuras, mudarTurnos, avisarQuemCaiu, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, rastrear, anotarAcao, desfazerLinha, dispararGatilhos, aplicarDisparo }
 }
 
 /** O que `criarNucleo` devolve. */

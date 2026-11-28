@@ -33,6 +33,7 @@ import { criarGradeDaBatalha } from './gradeDaBatalha'
 import { criarFiosDaBatalha } from './fiosDaBatalha'
 import { criarAlcanceDaBatalha } from './alcanceDaBatalha'
 import { criarAlcanceDoGolpe } from './alcanceDoGolpe'
+import { aurasNoMapa, criarAurasDaBatalha } from './drawAuras'
 import { mirasParaDesenhar, useMiraNoMapa } from '../stores/batalha/miraNoMapa'
 import { criarCalculoDoAlcance } from '../lib/batalha/alcanceNoCampo'
 import { acoesDaCarta } from '../lib/batalha/golpe'
@@ -1434,6 +1435,9 @@ function PixiCanvasDoContexto({
         el.dataset.alcanceDoGolpe = `${estado.miras}:${estado.casas}:${estado.animando ? 'anima' : 'parado'}`
       })
       gradeDaBatalha.camada.addChildAt(alcanceDoGolpe.camada, gradeDaBatalha.camada.getChildIndex(fiosDaBatalha.grafico))
+      // AURA (rework das condições, D9): o raio de cada portador, no fundo da grade da batalha (por baixo de tudo dela).
+      const aurasDaBatalha = criarAurasDaBatalha({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      gradeDaBatalha.camada.addChildAt(aurasDaBatalha.camada, 0)
       const calcularAlcance = criarCalculoDoAlcance()
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
@@ -2426,6 +2430,9 @@ function PixiCanvasDoContexto({
         const miras = exportScene !== null || map.gridShape === 'hex' || !batalhaLigadaRef.current ? [] : mirasParaDesenhar(useMiraNoMapa.getState())
         alcanceDoGolpe.desenhar(miras, camera.scale)
         alcanceDaBatalha.desenhar(alcanceDoGolpe.temMira() ? null : ultimasCasas, map.grid, camera.scale)
+        // D9: o raio das auras, pelos selos da batalha da cena aberta (a imagem exportada e a grade hexagonal saem sem).
+        const selosDaCena = useBatalhaStore.getState().cenas[useAdventureStore.getState().activeSceneId ?? map.id]?.turnos.selos
+        aurasDaBatalha.desenhar(exportScene !== null || map.gridShape === 'hex' ? [] : aurasNoMapa(selosDaCena, map.tokens, map.grid, useCondicoesPropriasStore.getState().catalogo), camera.scale)
       }
       const pararDeOuvirAMira = useMiraNoMapa.subscribe((estado, antes) => {
         if (estado.local !== antes.local || estado.remotas !== antes.remotas || estado.foco !== antes.foco) redesenharAlcance(null)
@@ -10437,6 +10444,7 @@ function PixiCanvasDoContexto({
         // E o alcance do golpe (sai do relógio e da store da mira).
         pararDeOuvirAMira()
         alcanceDoGolpe.destruir()
+        aurasDaBatalha.destruir()
         // E o Judge (a folha fica no cache do `Assets` para o próximo palco).
         judgeGesture.cancel()
         judgeDoMapa.destruir()

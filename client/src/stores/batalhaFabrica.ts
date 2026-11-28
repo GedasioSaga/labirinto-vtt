@@ -329,6 +329,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       gravarCena(sceneKey, { ...cena, judge, turnosRev: cena.turnosRev + 1 })
       return true
     },
+    recalcularAuras: nucleo.recalcularAuras,
     ...fatiaDasFormas.acoes,
     ...fatiaDosSelos.acoes,
     ...fatiaDoGolpe.acoes,

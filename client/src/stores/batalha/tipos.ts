@@ -119,6 +119,12 @@ export interface BatalhaState {
    */
   espelharPastilhas: (sceneKey: string) => void
   /**
+   * PENDENCIAS nº 1 (D9): o mapa mudou (a ficha andou, entrou ou saiu): as auras da cena em dia com o lugar
+   * das fichas. A mudança de selo ou de ficha da batalha já põe as auras em dia sozinha (`gravarCena`).
+   * Nada muda = nada grava. Cena sem batalha, ou mesa sem mapa: nada.
+   */
+  recalcularAuras: (sceneKey: string) => void
+  /**
    * Conserto das fichas F1 (bug 1): por que o `agir` deste pedido seria
    * recusado agora (o texto curto da regra, `podeAgir`), ou `null`. Só lê.
    */

@@ -121,7 +121,11 @@ function espelhoDasPastilhasNaFila(): (sceneKey: string) => void {
   const esvaziar = (): void => {
     const chaves = [...pendentes]
     pendentes.clear()
-    for (const sceneKey of chaves) useBatalhaStore.getState().espelharPastilhas(sceneKey)
+    for (const sceneKey of chaves) {
+      useBatalhaStore.getState().espelharPastilhas(sceneKey)
+      // PENDENCIAS nº 1 (D9): a ficha andou, entrou ou saiu do mapa: quem está no raio de uma aura ganha ou perde a condição.
+      useBatalhaStore.getState().recalcularAuras(sceneKey)
+    }
   }
   return (sceneKey) => {
     if (useBatalhaStore.getState().cenas[sceneKey] === undefined) return
