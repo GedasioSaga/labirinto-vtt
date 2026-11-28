@@ -4,6 +4,7 @@ import { chamaDoMovel } from '../lib/mobilia'
 import { deslocamentoDaChama } from '../lib/mobilia/vistaTresQuartos'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
 import { ehChafariz } from '../lib/mobilia/chafariz'
+import { corDaChamaDoMovel, TONS_DA_CHAMA, type CorDaChama } from '../lib/mobilia/corDaChama'
 import {
   aguaCorrendo,
   aplicarPoseDaAgua,
@@ -198,9 +199,9 @@ export function faseDaFogueira(id: string): number {
  * padrão (#a8776a), onde a chama fica na vista de lado. O miolo claro dá a
  * leitura sobre o fundo escuro da roda (4,8:1).
  */
-export const COR_DA_BORDA_DA_CHAMA = 0xa04a2c
-export const COR_DO_MIOLO_DA_CHAMA = 0xf0c98a
-export const COR_DA_FAGULHA = 0xf6dca8
+export const COR_DA_BORDA_DA_CHAMA = TONS_DA_CHAMA.laranja.borda
+export const COR_DO_MIOLO_DA_CHAMA = TONS_DA_CHAMA.laranja.miolo
+export const COR_DA_FAGULHA = TONS_DA_CHAMA.laranja.fagulha
 
 /**
  * A borda da chama em unidade de H (origem na base, ponta em (0, −1)), a partir
@@ -249,16 +250,18 @@ export interface FormasDaChama {
   fagulha: GraphicsContext
 }
 
-export function criarFormasDaChama(): FormasDaChama {
+/** As formas na cor pedida (I0-c, 28/11/2026: laranja, a de sempre, azul, verde ou roxa; `lib/mobilia/corDaChama.ts`). */
+export function criarFormasDaChama(cor: CorDaChama = 'laranja'): FormasDaChama {
+  const tons = TONS_DA_CHAMA[cor]
   return {
-    borda: contextoDaChama(COR_DA_BORDA_DA_CHAMA, 1, 1, 0),
-    miolo: contextoDaChama(COR_DO_MIOLO_DA_CHAMA, MIOLO.escalaX, MIOLO.escalaY, MIOLO.deslocamento),
-    fagulha: new GraphicsContext().circle(0, 0, RAIO_DE_REFERENCIA).fill({ color: COR_DA_FAGULHA }),
+    borda: contextoDaChama(tons.borda, 1, 1, 0),
+    miolo: contextoDaChama(tons.miolo, MIOLO.escalaX, MIOLO.escalaY, MIOLO.deslocamento),
+    fagulha: new GraphicsContext().circle(0, 0, RAIO_DE_REFERENCIA).fill({ color: tons.fagulha }),
   }
 }
 
-/** O que a chama lê do objeto. */
-export type PropDaChama = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaVista' | 'mobiliaForma' | 'mobiliaTresQuartos'>
+/** O que a chama lê do objeto. A versão (I0-c) dá a cor da chama. */
+export type PropDaChama = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaVista' | 'mobiliaForma' | 'mobiliaVersao' | 'mobiliaTresQuartos'>
 
 /** Zoom do quadro: a fagulha tem um raio mínimo em px de tela. */
 export interface TelaDasChamas {
@@ -331,6 +334,8 @@ interface ChamaNoPalco {
   altura: number
   /** As línguas de trás, antes da principal no nó (a da frente cobre a de trás). Fogueira: nenhuma. */
   extras: LinguaNoPalco[]
+  /** A cor das formas deste nó: trocar a versão para outra cor troca o nó. */
+  cor: CorDaChama
 }
 
 /**
@@ -350,18 +355,21 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
   // Uma pose só para o quadro inteiro: `aplicar` lê na hora, antes da próxima fogueira reescrever.
   const poseDoQuadro = novaPose()
   const poseDaAguaDoQuadro = novaPoseDaAgua()
-  let contextos: FormasDaChama | null = null
+  // Um jogo de formas por cor da chama (I0-c), nascido com a primeira chama dessa cor.
+  const contextos = new Map<CorDaChama, FormasDaChama>()
   let contextosDaAgua: FormasDaAgua | null = null
   let noRelogio = false
   let parada = movimento === undefined || movimento.reducedMotion()
   let conferidoEm = 0
   let avisado = ''
 
-  /** As formas nascem com a primeira fogueira e ficam até o fim. */
-  function formas(): FormasDaChama {
-    if (contextos !== null) return contextos
-    contextos = criarFormasDaChama()
-    return contextos
+  /** As formas de cada cor nascem com a primeira fogueira dessa cor e ficam até o fim. */
+  function formas(cor: CorDaChama): FormasDaChama {
+    const prontas = contextos.get(cor)
+    if (prontas !== undefined) return prontas
+    const novas = criarFormasDaChama(cor)
+    contextos.set(cor, novas)
+    return novas
   }
 
   /** As formas da água nascem com o primeiro chafariz e ficam até o fim. */
@@ -392,8 +400,8 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     aoMudar?.(estado)
   }
 
-  function criar(id: string, quantasExtras: number): ChamaNoPalco {
-    const { borda: deBorda, miolo: deMiolo, fagulha: deFagulha } = formas()
+  function criar(id: string, quantasExtras: number, cor: CorDaChama): ChamaNoPalco {
+    const { borda: deBorda, miolo: deMiolo, fagulha: deFagulha } = formas(cor)
     const no = new Container()
     no.label = `chama:${id}`
     no.eventMode = 'none'
@@ -415,7 +423,7 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       return fagulha
     })
     no.addChild(borda, miolo, ...fagulhas)
-    return { no, borda, miolo, fagulhas, fase: faseDaFogueira(id), altura: 0, extras }
+    return { no, borda, miolo, fagulhas, fase: faseDaFogueira(id), altura: 0, extras, cor }
   }
 
   /** Escala e alpha de uma língua (a borda opaca, o miolo com o alpha da pose). */
@@ -590,11 +598,12 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
         return null
       }
       let chama = chamas.get(prop.id)
-      // Trocou de tipo (fogueira virou lareira): outro número de línguas, outro nó.
-      if (chama !== undefined && chama.extras.length !== forma.extras.length) remover(prop.id)
+      // Trocou de tipo (fogueira virou lareira): outro número de línguas, outro nó. Trocou a cor (a versão): outro nó.
+      const cor = corDaChamaDoMovel(prop)
+      if (chama !== undefined && (chama.extras.length !== forma.extras.length || chama.cor !== cor)) remover(prop.id)
       chama = chamas.get(prop.id)
       if (chama === undefined || chama.no.destroyed) {
-        chama = criar(prop.id, forma.extras.length)
+        chama = criar(prop.id, forma.extras.length, cor)
         chamas.set(prop.id, chama)
       }
       const centro = { x: prop.x, y: prop.y }
@@ -648,12 +657,12 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
         destruirFormasDaAgua(contextosDaAgua)
         contextosDaAgua = null
       }
-      if (contextos !== null) {
-        contextos.borda.destroy()
-        contextos.miolo.destroy()
-        contextos.fagulha.destroy()
-        contextos = null
+      for (const formasDaCor of contextos.values()) {
+        formasDaCor.borda.destroy()
+        formasDaCor.miolo.destroy()
+        formasDaCor.fagulha.destroy()
       }
+      contextos.clear()
       avisar()
     },
   }

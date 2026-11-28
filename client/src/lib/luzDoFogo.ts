@@ -1,6 +1,7 @@
 import type { Carimbo, Prop, TipoMobilia } from '../types/map'
 import type { FachoQueGira } from './fachoDoFarol'
 import { CASA_DO_FOGO_PX } from './mobilia/fogo'
+import { corDaChamaDoMovel, TONS_DA_CHAMA } from './mobilia/corDaChama'
 
 /**
  * A LUZ DOS OBJETOS DO MAPA (pedidos do mestre de 09/11/2026: "na gameplay
@@ -21,8 +22,8 @@ import { CASA_DO_FOGO_PX } from './mobilia/fogo'
  * RASCUNHO: a tabela e o teto abaixo são os números que o mestre ajusta.
  */
 
-/** O que a luz lê do objeto. */
-export type FogoQueIlumina = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'mobilia' | 'mobiliaForma' | 'hidden'>
+/** O que a luz lê do objeto. A versão (I0-c, 28/11/2026) dá a cor da chama, e a luz vai no tom dela. */
+export type FogoQueIlumina = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'mobilia' | 'mobiliaForma' | 'mobiliaVersao' | 'hidden'>
 
 export interface LuzDoObjeto {
   /** Até onde a luz vai além da pegada do objeto, em casas do mapa. */
@@ -251,7 +252,11 @@ export const TETO_DA_LUZ_EM_VISOES_DO_DIA = 1
 export function luzDoObjeto(f: FogoQueIlumina): LuzDoObjeto | null {
   if (f.mobilia === undefined || f.hidden === true || f.mobiliaForma === 'apagado') return null
   if (!Number.isFinite(f.x) || !Number.isFinite(f.y) || !(f.width > 0) || !(f.height > 0)) return null
-  return LUZ_DOS_OBJETOS[f.mobilia] ?? null
+  const luz = LUZ_DOS_OBJETOS[f.mobilia]
+  if (luz === undefined) return null
+  // A CHAMA COLORIDA (I0-c): a versão azul, verde ou roxa troca só o tom; a laranja é a luz de sempre, o mesmo objeto.
+  const tomDaChama = TONS_DA_CHAMA[corDaChamaDoMovel(f)].luz
+  return tomDaChama === undefined ? luz : { ...luz, cor: tomDaChama }
 }
 
 /** O objeto ilumina? */
