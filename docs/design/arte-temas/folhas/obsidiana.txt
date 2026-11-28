@@ -1,0 +1,9 @@
+obsidiana: croma p95 0.043 (DENTRO; teto 0.08), media 0.039
+maior canal das faixas e tampas 114 (DENTRO; teto 245)
+faixa 0: emenda em x 0.0008 contra vizinhas 0.0013 (0.65 vez; teto 1,6) DENTRO
+faixa 1: emenda em x 0.0009 contra vizinhas 0.0014 (0.64 vez; teto 1,6) DENTRO
+faixa 2: emenda em x 0.0009 contra vizinhas 0.0018 (0.49 vez; teto 1,6) DENTRO
+faixa 3: emenda em x 0.0006 contra vizinhas 0.0019 (0.29 vez; teto 1,6) DENTRO
+faixa 4: emenda em x 0.0016 contra vizinhas 0.0014 (1.13 vez; teto 1,6) DENTRO
+faixa 5: emenda em x 0.0018 contra vizinhas 0.0015 (1.20 vez; teto 1,6) DENTRO
+faixa 6: emenda em x 0.0010 contra vizinhas 0.0016 (0.64 vez; teto 1,6) DENTRO
