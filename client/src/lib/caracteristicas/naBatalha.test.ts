@@ -17,7 +17,8 @@ import { tokensDosCompanionsDe } from './naBatalha'
 const CENA = 'cena_companion'
 const TOKEN_DA_MIMI = 'tok_mimi'
 
-function mesaDoZe(hpDaMimi: number) {
+/** `zeNaLuta` = false: o Zé fica fora do Iniciar (só o Marinheiro luta), para o "Incluir combatente". */
+function mesaDoZe(hpDaMimi: number, zeNaLuta = true) {
   const base = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: ze(60), lado: 'a' }, { ficha: MARINHEIRO, lado: 'b' }]))
   const mimi: Personagem = { ...MARINHEIRO, id: 'pers_mimi', nome: 'Mimi', recursos: { ...MARINHEIRO.recursos, hp: hpDaMimi } }
   const zeId = base.personagens().find((personagem) => personagem.nome === 'Zé')?.id ?? ''
@@ -29,8 +30,9 @@ function mesaDoZe(hpDaMimi: number) {
   }
   const loja = criarBatalhaStore(mesa, { rolarD20: () => 10, outraBatalhaLigada: () => false })
   const tokens = base.tokens()
-  loja.getState().ligar(CENA, {}, { combatentes: combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id))), regras: null, desempate: 'd20' })
   const tokenDoZe = tokens.find((token) => token.characterId === zeId)?.id ?? ''
+  const naLuta = new Set(tokens.filter((token) => zeNaLuta || token.id !== tokenDoZe).map((token) => token.id))
+  loja.getState().ligar(CENA, {}, { combatentes: combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), naLuta), regras: null, desempate: 'd20' })
   return { loja, zeId, tokenDoZe, tokens, mesa }
 }
 
@@ -54,6 +56,20 @@ describe('companion na ordem', () => {
     expect(loja.getState().escolherCompanions(CENA, { tipo: 'mestre' }, zeId, ['pers_mimi'])).toMatch(/Desmaiada|desmaiada/)
     expect(loja.getState().escolherCompanions(CENA, { tipo: 'mestre' }, zeId, ['pers_mimi', 'pers_mimi'])).not.toBeNull()
     expect(loja.getState().cenas[CENA]?.turnos.escolhendoCompanions).toEqual([zeId])
+  })
+
+  it('o Desfazer do "Zé entrou na luta" tira a carta dele E a escolha que ficou esperando', () => {
+    const { loja, zeId, tokens, tokenDoZe } = mesaDoZe(100, false)
+    const doZe = tokens.find((token) => token.id === tokenDoZe)
+    if (doZe === undefined) throw new Error('sem o token do Zé')
+    expect(loja.getState().incluirCombatente(CENA, { id: doZe.id, characterId: doZe.characterId, name: doZe.name })).toBe(true)
+    expect(loja.getState().cenas[CENA]?.turnos.escolhendoCompanions).toEqual([zeId])
+    const entrou = loja.getState().cenas[CENA]?.registro.find((linha) => linha.texto.endsWith('entrou na luta'))
+    if (entrou === undefined) throw new Error('sem a linha do "entrou na luta"')
+    expect(loja.getState().desfazer(CENA, entrou.id, { tipo: 'mestre' })).toBe(true)
+    const turnos = loja.getState().cenas[CENA]?.turnos
+    expect(turnos?.cartas.some((carta) => carta.personagemId === zeId)).toBe(false)
+    expect(turnos?.escolhendoCompanions).toBeUndefined()
   })
 })
 

@@ -988,6 +988,19 @@ export function semARecargaNasVezes(registro: readonly LinhaDoRegistro[], linha:
 }
 
 /**
+ * Bugs da batalha, rodada 2 (28/11/2026): o Desfazer do "X entrou na luta" tira a carta do dono de
+ * companions, e a escolha dele ("quem vai") não fica esperando por quem já não está na ordem (o
+ * `escolherCompanions` o recusaria). Ainda com outra carta na ordem, a escolha fica.
+ */
+function semAEscolhaDeQuemSaiu(turnos: TurnosDaCena, personagemId: string | null): TurnosDaCena {
+  const escolhendo = turnos.escolhendoCompanions
+  if (personagemId === null || escolhendo === undefined || !escolhendo.includes(personagemId) || turnos.cartas.some((carta) => carta.personagemId === personagemId)) return turnos
+  const resto = escolhendo.filter((id) => id !== personagemId)
+  const { escolhendoCompanions: _saiu, ...semEscolha } = turnos
+  return resto.length === 0 ? semEscolha : { ...semEscolha, escolhendoCompanions: resto }
+}
+
+/**
  * Desfaz na ordem dos turnos o que a reversão guarda. Ficha, equipe e regras
  * não moram aqui (a store as volta por outro caminho): para elas, o MESMO
  * estado. A composta volta da última parte para a primeira.
@@ -1007,8 +1020,10 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     }
     case 'ordem':
       return { ...turnos, cartas: naOrdemDe(turnos.cartas, reversao.antes) }
-    case 'cartaNova':
-      return removerCarta(turnos, reversao.cartaId)?.turnos ?? turnos
+    case 'cartaNova': {
+      const tirada = removerCarta(turnos, reversao.cartaId)
+      return tirada === null ? turnos : semAEscolhaDeQuemSaiu(tirada.turnos, tirada.removida.carta.personagemId)
+    }
     case 'cartaRemovida':
       return inserirCarta(turnos, reversao.carta, reversao.indice)
     case 'gasto':
