@@ -2,7 +2,7 @@ import type { Personagem } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import type { SaidaDaReacao } from '../combate'
 import { pedidoDaMarca, textoDoPedidoDaMarca } from '../comoMarca'
-import { PORCENTO_QUE_ANULA, textoDaExcecao, textoDoLimiteDoAnula, type RegraDoAnula } from '../anulaODano'
+import { PORCENTO_QUE_ANULA, textoDaExcecao, textoDoCorte, textoDoLimiteDoAnula, type RegraDoAnula } from '../anulaODano'
 import { comportamentoDoSelo } from '../condicoes'
 import { legadoDaFadiga } from '../../condicoes/legado'
 import { cdDaExpressao } from '../disputa'
@@ -503,7 +503,8 @@ const QUANDO_O_GATILHO: Readonly<Record<QuandoOGatilhoDispara, (n: number) => st
 function fraseDoAnula(regra: RegraDoAnula, ficha?: FichaDaPrevia): string {
   const pede = textoDoPedidoDaMarca(pedidoDaMarca(regra.paga, regra.teste, regra.como), `paga ${regra.paga} SP`, `passa num teste de ${nomeDoAtributoNaFrase(regra.teste, ficha)} CD ${regra.cd}`)
   const partes = [textoDaExcecao(regra.exceto), textoDoLimiteDoAnula(regra)].filter((parte) => parte !== '')
-  return `não toma o dano (toma 0)${partes.length === 0 ? '' : `, ${partes.join(', ')}`}${pede === '' ? '' : `; para anular, ${pede}`}`
+  // Pedido de 28/11/2026: "anula 30% do dano" / "anula 15 do dano"; tudo segue "não toma o dano (toma 0)".
+  return `${textoDoCorte(regra.corte)}${partes.length === 0 ? '' : `, ${partes.join(', ')}`}${pede === '' ? '' : `; para anular, ${pede}`}`
 }
 
 function fraseDoEfeitoDoGatilho(efeito: EfeitoDoGatilho, ficha?: FichaDaPrevia): string {

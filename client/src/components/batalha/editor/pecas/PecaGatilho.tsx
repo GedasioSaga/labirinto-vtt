@@ -2,6 +2,7 @@ import { CD_DO_ANULA_MAX, CD_DO_ANULA_MIN, SP_DO_ANULA_MAX, VEZES_DO_ANULA_MAX, 
 import { pedidoDaMarca } from '../../../../lib/batalha/comoMarca'
 import { AVISO_DO_GATILHO_MAX, EFEITOS_DO_GATILHO_MAX, GATILHO_ANTES_DO_DANO, PECA_DE_PARTIDA, TURNOS_DA_PECA_MAX, type EfeitoDoGatilho, type PecaGatilho as Gatilho } from '../../../../lib/batalha/mecanica/pecas'
 import { Caixa, Campo, EscolherCondicao, Escolher, Frase, Nota, Numero, PorDaLista, Segmentos, Texto, TextoCurto, Tirar } from './controlesDaPeca'
+import { EscolherCorteDoAnula } from './CorteDoAnula'
 import { EscolherExcecao, NotaDaExcecao } from './ExcecaoDoGolpe'
 import { PagaETesta } from './PagaETesta'
 import type { PropsDaPeca } from './registro'
@@ -26,6 +27,7 @@ const ROTULOS_DO_ANULA = { paga: 'SP para anular', como: 'Paga e/ou testa para a
  */
 function CorpoDoAnula({ efeito, aoMudar }: { efeito: EfeitoDoAnula; aoMudar: (efeito: EfeitoDoGatilho) => void }) {
   const { exceto, ...semExcecao } = efeito
+  const { corte: _corte, ...semCorte } = efeito
   const pedido = pedidoDaMarca(efeito.paga, efeito.teste, efeito.como)
   return (
     <>
@@ -34,6 +36,8 @@ function CorpoDoAnula({ efeito, aoMudar }: { efeito: EfeitoDoAnula; aoMudar: (ef
         <EscolherExcecao exceto={exceto} aoMudar={(nova) => aoMudar(nova === undefined ? semExcecao : { ...semExcecao, exceto: nova })} />
       </Frase>
       <NotaDaExcecao exceto={exceto} />
+      {/* Pedido de 28/11/2026: anular tudo ou só uma parte (−N de dano ou −X%). */}
+      <EscolherCorteDoAnula corte={efeito.corte} aoMudar={(corte) => aoMudar(corte === undefined ? semCorte : { ...semCorte, corte })} />
       <Frase sub>
         <Texto>Limite:</Texto>
         <Segmentos rotulo="Limite do anula" valor={efeito.por} opcoes={LIMITES_DO_ANULA} onChange={(por) => aoMudar({ ...efeito, por })} />

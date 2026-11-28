@@ -37,6 +37,18 @@ export type ExcecaoDoAnula = { tipo: TipoDoGolpe } | { nome: string }
 export type PorDoAnula = 'sempre' | 'rodada' | 'batalha'
 
 /**
+ * Pedido do dono de 28/11/2026 ("coloca para eu anular tudo ou só uma parte, número ou porcentagem"): quanto
+ * o Anula o dano tira do golpe. Ausente = tudo (toma 0), como a peça de antes e a Intangível de fábrica;
+ * `menos` = N do dano; `porcento` = X% do dano (100 = tudo). O dano nunca fica abaixo de 0.
+ */
+export type CorteDoAnula = { menos: number } | { porcento: number }
+
+/** O N do "−N de dano": de 1 ao teto do dano de um golpe. */
+export const MENOS_DO_ANULA_MAX = 9999
+/** O X do "−X%": de 1 a 100 (100 = tudo). */
+export const PORCENTO_DO_ANULA_MIN = 1
+
+/**
  * A regra do "Anula o dano" da peça Dispara sozinha, como a peça guarda e o motor lê: o limite (`vezes` por
  * `por`; no 'sempre' o número fica guardado para voltar), o que paga e/ou testa (o SP, o atributo do teste
  * contra a `cd` e o "e/ou" de `comoMarca.ts`) e a exceção. `paga` 0 e `teste` '' = de graça.
@@ -51,6 +63,8 @@ export interface RegraDoAnula {
   /** Com o SP e o teste: 'e' (os dois) ou 'ou' (um dos dois). Ausente = 'e', como na Marca. */
   como?: ComoPagaAMarca
   exceto?: ExcecaoDoAnula
+  /** Quanto anula (pedido de 28/11/2026). Ausente = tudo (toma 0). */
+  corte?: CorteDoAnula
 }
 
 /** O Anula o dano como nasce no editor: uma vez por rodada, de graça, sem exceção. */
@@ -105,6 +119,41 @@ export function textoDoLimiteDoAnula(regra: Pick<RegraDoAnula, 'por' | 'vezes'>)
 export function textoDoAnulado(nomeDoAlvo: string, de: string): string {
   const fonte = de.trim()
   return `${NOME_DO_INTANGIVEL}: ${nomeDoAlvo} tomou 0 de dano${fonte === '' || fonte === NOME_DO_INTANGIVEL ? '' : ` (${fonte})`}`
+}
+
+// ─── Anular só uma parte (pedido de 28/11/2026) ─────────────────────────────
+
+/** O corte lido do disco ou do fio, só com uma chave (`menos` de 1 a `MENOS_DO_ANULA_MAX`, `porcento` de 1 a 100). `null` = torto. */
+export function corteLido(cru: unknown): CorteDoAnula | null {
+  if (typeof cru !== 'object' || cru === null || Array.isArray(cru) || Object.keys(cru).length !== 1) return null
+  const menos: unknown = Reflect.get(cru, 'menos')
+  if (menos !== undefined) return Number.isInteger(menos) && typeof menos === 'number' && menos >= 1 && menos <= MENOS_DO_ANULA_MAX ? { menos } : null
+  const porcento: unknown = Reflect.get(cru, 'porcento')
+  return Number.isInteger(porcento) && typeof porcento === 'number' && porcento >= PORCENTO_DO_ANULA_MIN && porcento <= PORCENTO_QUE_ANULA ? { porcento } : null
+}
+
+/** O corte anula o golpe inteiro: sem corte (tudo) ou 100%. */
+export function anulaTudo(corte: CorteDoAnula | undefined): boolean {
+  return corte === undefined || ('porcento' in corte && corte.porcento >= PORCENTO_QUE_ANULA)
+}
+
+/** O dano que sobra do golpe depois do corte, nunca abaixo de 0 (a % arredonda como os cortes do dano, `danoComAsReducoes`). */
+export function danoDepoisDoCorte(dano: number, corte: CorteDoAnula | undefined): number {
+  if (corte === undefined || anulaTudo(corte)) return 0
+  if ('menos' in corte) return Math.max(0, dano - corte.menos)
+  return Math.max(0, Math.round((dano * (PORCENTO_QUE_ANULA - corte.porcento)) / PORCENTO_QUE_ANULA))
+}
+
+/** "anula 30% do dano", "anula 15 do dano"; tudo: "não toma o dano (toma 0)". */
+export function textoDoCorte(corte: CorteDoAnula | undefined): string {
+  if (corte === undefined || anulaTudo(corte)) return 'não toma o dano (toma 0)'
+  return 'menos' in corte ? `anula ${corte.menos} do dano` : `anula ${corte.porcento}% do dano`
+}
+
+/** A linha do registro do corte em parte: "Corpo de Fumaça: Hector anulou 15 do dano (45 → 30)". */
+export function textoDoAnuladoEmParte(nomeDoAlvo: string, de: string, antes: number, depois: number): string {
+  const fonte = de.trim()
+  return `${fonte === '' ? '' : `${fonte}: `}${nomeDoAlvo} anulou ${Math.max(0, antes - depois)} do dano (${antes} → ${depois})`
 }
 
 // ─── O limite, contado em `CombateDoPersonagem.lembradas` ──────────────────

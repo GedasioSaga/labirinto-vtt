@@ -278,8 +278,8 @@ export function traduzirCondicao(condicao: CondicaoMontada, pedido: PedidoDaCond
         }
         break
       case 'anula':
-        // Pedido de 27/11/2026: uma peça Intangível vale (a primeira); a exceção vai junto.
-        if (regras.anula === undefined) regras.anula = peca.exceto === undefined ? {} : { exceto: peca.exceto }
+        // Pedido de 27/11/2026: uma peça Intangível vale (a primeira); a exceção vai junto, e quanto anula (28/11; sem = tudo).
+        if (regras.anula === undefined) regras.anula = { ...(peca.exceto === undefined ? {} : { exceto: peca.exceto }), ...(peca.corte === undefined ? {} : { corte: peca.corte }) }
         break
     }
   }

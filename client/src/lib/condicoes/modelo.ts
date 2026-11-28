@@ -1,4 +1,4 @@
-import type { ExcecaoDoAnula } from '../batalha/anulaODano'
+import type { CorteDoAnula, ExcecaoDoAnula } from '../batalha/anulaODano'
 import type { GatilhoDaCondicao } from '../itens/modelo'
 
 /**
@@ -101,7 +101,7 @@ export type PecaDaCondicao =
   | { tipo: 'marca'; mult: number; quem: 'todos' | 'quemPos'; sai: boolean; desvDesv: boolean }
   | { tipo: 'aura'; casas: number; quem: 'aliados' | 'inimigos' | 'todos'; cond: string; espalha?: true }
   | { tipo: 'contra'; apaga: readonly string[]; impede: boolean }
-  | { tipo: 'anula'; exceto?: ExcecaoDoAnula }
+  | { tipo: 'anula'; exceto?: ExcecaoDoAnula; corte?: CorteDoAnula }
 
 /** A peça de uma família ("a peça `vez`"). */
 export type PecaDaCondicaoDa<F extends FamiliaDaPecaDaCondicao> = Extract<PecaDaCondicao, { tipo: F }>

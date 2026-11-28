@@ -2,7 +2,7 @@ import type { Modificador } from '../personagem'
 import type { BloqueioDaCondicao, DeNovoDaCondicao, EfeitoNaVez, SaidaDaCondicao, TipoDaCondicao, TipoDoGolpe } from '../condicoes/modelo'
 import type { GatilhoDaCondicao } from '../itens/modelo'
 import type { AoAcertarDoGolpe } from './aoAcertarDoItem'
-import type { ExcecaoDoAnula } from './anulaODano'
+import type { CorteDoAnula, ExcecaoDoAnula } from './anulaODano'
 import type { Direcao } from './area'
 import type { CdDaDisputa } from './disputa'
 import type { MudancaDoAlcance } from './alcance/condicoes'
@@ -1033,6 +1033,8 @@ export interface RegrasDoSelo {
 /** O "toma 0" do selo (Intangível): a exceção, se houver; o mesmo `golpeAtravessa` da peça Dispara sozinha. */
 export interface AnulaDoSelo {
   exceto?: ExcecaoDoAnula
+  /** Pedido de 28/11/2026: quanto anula (−N de dano ou −X%). Ausente = tudo (toma 0), como a Intangível de fábrica. */
+  corte?: CorteDoAnula
 }
 
 /** Um atributo (no id do motor) e o valor em que ele fica, ou o teto dele. */

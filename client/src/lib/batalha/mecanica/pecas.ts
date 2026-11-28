@@ -1,7 +1,7 @@
 import type { Modificador } from '../../personagem'
 import { NOME_DO_SELO_MAX } from '../combate'
 import type { ComoPagaAMarca } from '../comoMarca'
-import { ANULA_DE_PARTIDA, CD_DO_ANULA_MAX, CD_DO_ANULA_MIN, excecaoLida, NOME_DA_EXCECAO_MAX, SP_DO_ANULA_MAX, VEZES_DO_ANULA_MAX, type ExcecaoDoAnula, type RegraDoAnula } from '../anulaODano'
+import { ANULA_DE_PARTIDA, CD_DO_ANULA_MAX, CD_DO_ANULA_MIN, corteLido, excecaoLida, MENOS_DO_ANULA_MAX, NOME_DA_EXCECAO_MAX, SP_DO_ANULA_MAX, VEZES_DO_ANULA_MAX, type ExcecaoDoAnula, type RegraDoAnula } from '../anulaODano'
 import type { TipoQueBate } from './modelo'
 
 /**
@@ -556,7 +556,7 @@ function excecaoDoAnula(valor: unknown, onde: string): ExcecaoDoAnula {
 
 /** O "Anula o dano": os campos que faltam vêm do de partida (`ANULA_DE_PARTIDA`). */
 function lerAnula(peca: Cru, onde: string): EfeitoDoGatilho {
-  soChaves(peca, ['tipo', 'por', 'vezes', 'paga', 'teste', 'cd', 'como', 'exceto'], onde)
+  soChaves(peca, ['tipo', 'por', 'vezes', 'paga', 'teste', 'cd', 'como', 'exceto', 'corte'], onde)
   const partida = ANULA_DE_PARTIDA
   const lido: Extract<EfeitoDoGatilho, { tipo: 'anula' }> = {
     tipo: 'anula',
@@ -568,6 +568,8 @@ function lerAnula(peca: Cru, onde: string): EfeitoDoGatilho {
   }
   if (peca.como !== undefined) lido.como = umDe(peca.como, ['e', 'ou'] as const, `${onde} (paga e/ou testa)`)
   if (peca.exceto !== undefined) lido.exceto = excecaoDoAnula(peca.exceto, `${onde} (a não ser que)`)
+  // Pedido de 28/11/2026: anular só uma parte (−N de dano ou −X%); sem o campo = tudo, como a peça de antes.
+  if (peca.corte !== undefined) lido.corte = corteLido(peca.corte) ?? torta(`${onde} (quanto anula): −N de dano (1 a ${MENOS_DO_ANULA_MAX}) ou −X% (1 a 100)`)
   return lido
 }
 

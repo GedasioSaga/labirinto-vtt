@@ -1,6 +1,6 @@
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { anulaAindaVale, golpeAtravessa, lembradasComOUso, nomeDaExcecao, PORCENTO_QUE_ANULA, textoDoAnulado, textoDoLimiteDoAnula, type ExcecaoDoAnula, type OQueOGolpeTem, type RegraDoAnula } from './anulaODano'
+import { anulaAindaVale, anulaTudo, danoDepoisDoCorte, golpeAtravessa, lembradasComOUso, nomeDaExcecao, PORCENTO_QUE_ANULA, textoDoAnulado, textoDoAnuladoEmParte, textoDoLimiteDoAnula, type CorteDoAnula, type ExcecaoDoAnula, type OQueOGolpeTem, type RegraDoAnula } from './anulaODano'
 import { pedidoDaMarca } from './comoMarca'
 import { combateVazio, LEMBRADAS_MAX, type CombateDoPersonagem, type GolpeDaBatalha } from './combate'
 import { regrasDoSelo } from './condicoes'
@@ -41,11 +41,16 @@ export interface PedidoDaAnulacao {
   /** O nome do alvo no registro. */
   nomeDoAlvo: string
   rolarD20: () => number
+  /** O dano do golpe neste alvo agora (depois da marca): o corte em parte sai dele (pedido de 28/11/2026). */
+  dano: number
 }
 
 export type AnulacaoNoGolpe =
-  /** Anulou: o texto do registro, o SP a cobrar do alvo (0 = nada) e o combate dele com o uso contado (`null` = não mudou). */
-  | { anulou: true; texto: string; paga: number; combate: CombateDoPersonagem | null }
+  /**
+   * Anulou: o texto do registro, o SP a cobrar do alvo (0 = nada), o combate dele com o uso contado (`null` =
+   * não mudou) e o `dano` que sobra (0 = tudo; o corte em parte deixa o resto, que segue pelos cortes do dano).
+   */
+  | { anulou: true; texto: string; paga: number; combate: CombateDoPersonagem | null; dano: number }
   /** Nenhuma fonte valeu, e alguma tentou: o motivo, para o registro. */
   | { anulou: false; texto: string }
 
@@ -76,17 +81,24 @@ function motivoDaTentativa(tentativa: Tentativa): string {
   return `teste ${teste.d20} ${teste.modificador < 0 ? '-' : '+'} ${Math.abs(teste.modificador)} = ${teste.total} contra CD ${teste.cd}, não passou`
 }
 
-/** O "toma 0" deste golpe neste alvo; `null` = nenhuma fonte (o dano segue como sempre). */
+/** O que o corte deixa do dano e a linha do registro: tudo = "Intangível: X tomou 0 de dano"; em parte = "X anulou 15 do dano (45 → 30)". */
+function comOCorte(nomeDoAlvo: string, de: string, dano: number, corte: CorteDoAnula | undefined): { texto: string; dano: number } {
+  if (anulaTudo(corte)) return { texto: textoDoAnulado(nomeDoAlvo, de), dano: 0 }
+  const depois = danoDepoisDoCorte(dano, corte)
+  return { texto: textoDoAnuladoEmParte(nomeDoAlvo, de, dano, depois), dano: depois }
+}
+
+/** O "toma 0" (ou o corte em parte) deste golpe neste alvo; `null` = nenhuma fonte (o dano segue como sempre). */
 export function anulacaoNoGolpe(pedido: PedidoDaAnulacao): AnulacaoNoGolpe | null {
   const { turnos, alvo, sistema, nomeDoAlvo } = pedido
   const total = pedido.reducoes.find((reducao) => reducao.porcento >= PORCENTO_QUE_ANULA)
-  if (total !== undefined) return { anulou: true, texto: textoDoAnulado(nomeDoAlvo, total.nome), paga: 0, combate: null }
+  if (total !== undefined) return { anulou: true, texto: textoDoAnulado(nomeDoAlvo, total.nome), paga: 0, combate: null, dano: 0 }
   const temOGolpe = oQueOGolpeTem(pedido)
   const motivos: string[] = []
   for (const selo of selosDoToken(turnos.selos, pedido.alvoTokenId)) {
     const anula = regrasDoSelo(selo)?.anula
     if (anula === undefined) continue
-    if (anula.exceto === undefined || !golpeAtravessa(anula.exceto, temOGolpe)) return { anulou: true, texto: textoDoAnulado(nomeDoAlvo, selo.nome), paga: 0, combate: null }
+    if (anula.exceto === undefined || !golpeAtravessa(anula.exceto, temOGolpe)) return { anulou: true, paga: 0, combate: null, ...comOCorte(nomeDoAlvo, selo.nome, pedido.dano, anula.corte) }
     motivos.push(naoAnulouPorque(selo.nome, anula.exceto))
   }
   const combate = turnos.combate?.[alvo.id] ?? combateVazio()
@@ -111,7 +123,8 @@ export function anulacaoNoGolpe(pedido: PedidoDaAnulacao): AnulacaoNoGolpe | nul
     const paga = tentativa?.paga?.recurso === 'sp' ? tentativa.paga.quanto : 0
     const comOUso = lembradasComOUso(lembradas, chave, regra, turnos.rodada)
     const depois: CombateDoPersonagem | null = comOUso === lembradas ? null : { ...combate, lembradas: comOUso.slice(-LEMBRADAS_MAX) }
-    return { anulou: true, texto: `${textoDoAnulado(nomeDoAlvo, nome)}${tentativa === null ? '' : ` (${tentativa.texto})`}`, paga, combate: depois }
+    const cortado = comOCorte(nomeDoAlvo, nome, pedido.dano, regra.corte)
+    return { anulou: true, texto: `${cortado.texto}${tentativa === null ? '' : ` (${tentativa.texto})`}`, paga, combate: depois, dano: cortado.dano }
   }
   return motivos.length === 0 ? null : { anulou: false, texto: motivos.join('; ') }
 }

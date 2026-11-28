@@ -1,4 +1,4 @@
-import { excecaoLida } from '../batalha/anulaODano'
+import { corteLido, excecaoLida } from '../batalha/anulaODano'
 import { gatilhoLido } from '../itens/pecasDoItem'
 import {
   APAGA_MAX,
@@ -207,12 +207,16 @@ function contraLida(cru: Registro): PecaDaCondicao | null {
   return { tipo: 'contra', apaga, impede: cru.impede }
 }
 
-/** A Intangível (pedido de 27/11/2026): só a exceção, lida pela regra única (`excecaoLida`, lib/batalha/anulaODano.ts). */
+/**
+ * A Intangível (pedido de 27/11/2026): a exceção, lida pela regra única (`excecaoLida`, lib/batalha/anulaODano.ts),
+ * e quanto anula (pedido de 28/11/2026, `corteLido`; sem o campo = tudo).
+ */
 function anulaLida(cru: Registro): PecaDaCondicao | null {
-  if (!soChaves(cru, ['tipo', 'exceto'])) return null
-  if (cru.exceto === undefined) return { tipo: 'anula' }
-  const exceto = excecaoLida(cru.exceto)
-  return exceto === null ? null : { tipo: 'anula', exceto }
+  if (!soChaves(cru, ['tipo', 'exceto', 'corte'])) return null
+  const exceto = cru.exceto === undefined ? undefined : excecaoLida(cru.exceto)
+  const corte = cru.corte === undefined ? undefined : corteLido(cru.corte)
+  if (exceto === null || corte === null) return null
+  return { tipo: 'anula', ...(exceto === undefined ? {} : { exceto }), ...(corte === undefined ? {} : { corte }) }
 }
 
 /** Uma peça lida do disco ou do fio. `null` = torta (família desconhecida, chave a mais, valor fora do teto). */

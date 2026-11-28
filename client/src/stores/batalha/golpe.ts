@@ -223,7 +223,8 @@ function acertoAnulado(mesa: MesaDaBatalha, acerto: AcertoNaMarca, personagemId:
     partes.push({ tipo: 'combate', personagemId, antes: turnos.combate?.[personagemId] ?? null, depois: anulacao.combate })
     turnos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: anulacao.combate } }
   }
-  return { turnos, partes, alvo: comNotaNoAlvo({ ...acerto.alvo, danoFinal: 0 }, anulacao.texto) }
+  // Pedido de 28/11/2026: o corte em parte deixa o resto do dano (`anulacao.dano`), que segue pelos cortes do dano.
+  return { turnos, partes, alvo: comNotaNoAlvo({ ...acerto.alvo, danoFinal: anulacao.dano }, anulacao.texto) }
 }
 
 /**
@@ -253,15 +254,17 @@ function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeD
   const dosSelosDoAlvo = reducoesDosSelos(acerto.turnos.selos, alvo.tokenId, golpe.tipos)
   const doAlvo = [...reducoesDoDano(dele, sistema), ...dosSelosDoAlvo]
   // Pedido de 27/11/2026: a raça com 100%, a condição Intangível e o "Anula o dano" da passiva, pela mesma função.
-  const anulacao = anulacaoNoGolpe({ turnos: acerto.turnos, golpe, alvoTokenId: alvo.tokenId, alvo: dele, sistema, ...(atacante === undefined ? {} : { atacante }), reducoes: doAlvo, nomeDoAlvo: contexto.nomeDoToken(alvo.tokenId), rolarD20: contexto.rolarD20 })
+  const anulacao = anulacaoNoGolpe({ turnos: acerto.turnos, golpe, alvoTokenId: alvo.tokenId, alvo: dele, sistema, ...(atacante === undefined ? {} : { atacante }), reducoes: doAlvo, nomeDoAlvo: contexto.nomeDoToken(alvo.tokenId), rolarD20: contexto.rolarD20, dano: danoFinal })
   const anulado = anulacao !== null && anulacao.anulou ? acertoAnulado(mesa, acerto, dele.id, anulacao, contexto.quem) : null
-  if (anulado !== null) return anulado
+  // Pedido de 28/11/2026: o "anula só uma parte" deixa o resto, que passa pelos cortes do dano como o golpe inteiro passaria.
+  if (anulado !== null && (anulado.alvo.danoFinal ?? 0) <= 0) return anulado
   // A fonte que tentou e não valeu deixa o porquê no alvo ("Corpo de Fumaça não anulou: o golpe tem Haki").
-  const comMotivo: AcertoNaMarca = anulacao !== null && !anulacao.anulou ? { ...acerto, alvo: comNotaNoAlvo(acerto.alvo, anulacao.texto) } : acerto
+  const comMotivo: AcertoNaMarca = anulado ?? (anulacao !== null && !anulacao.anulou ? { ...acerto, alvo: comNotaNoAlvo(acerto.alvo, anulacao.texto) } : acerto)
+  const danoQueFica = comMotivo.alvo.danoFinal ?? danoFinal
   const deQuemBate = reducoesDoDanoCausado(acerto.turnos.selos, golpe.atacanteTokenId)
   const reducoes = [...doAlvo, ...deQuemBate]
   if (reducoes.length === 0) return comMotivo
-  const reduzido: AlvoDoGolpe = { ...comMotivo.alvo, danoFinal: danoComAsReducoes(danoFinal, reducoes), reducao: porcentoDasReducoes(reducoes) }
+  const reduzido: AlvoDoGolpe = { ...comMotivo.alvo, danoFinal: danoComAsReducoes(danoQueFica, reducoes), reducao: porcentoDasReducoes(reducoes) }
   // Só a forma: o registro segue "(forma −20%)", como antes.
   if (dosSelosDoAlvo.length > 0 || deQuemBate.length > 0 || reducoes.some((reducao) => reducao.nome === 'Determinação')) reduzido.reducaoDe = nomesDasReducoes(reducoes)
   return { ...comMotivo, alvo: reduzido }

@@ -57,8 +57,8 @@ export const GATILHOS_NA_TELA: readonly OpcaoDaPeca<QuandoOGatilhoDispara>[] = [
   { valor: 'aoCair', rotulo: 'Ao cair a 0 de vida' },
 ]
 
-/** O nome do "Anula o dano" na tela. */
-export const ROTULO_DO_ANULA = 'Anula o dano (toma 0)'
+/** O nome do "Anula o dano" na tela (pedido de 28/11/2026: o quanto, tudo ou só uma parte, vem logo abaixo). */
+export const ROTULO_DO_ANULA = 'Anula o dano'
 
 export const EFEITOS_DO_GATILHO_NA_TELA: readonly OpcaoDaPeca<EfeitoDoGatilho['tipo']>[] = [
   { valor: 'atributo', rotulo: 'Sobe atributo' },

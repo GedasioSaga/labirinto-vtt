@@ -1,4 +1,4 @@
-import { textoDaExcecao } from '../batalha/anulaODano'
+import { anulaTudo, textoDaExcecao } from '../batalha/anulaODano'
 import { nomeDoAtributoDaPeca } from '../batalha/mecanica/pecas'
 import type { PecaDoGatilho } from '../itens/modelo'
 import { ehDaFabrica, ehDeHoje, LISTA_DA_FABRICA } from './fabrica'
@@ -225,7 +225,11 @@ function fraseDaContra(peca: PecaDaCondicaoDa<'contra'>, contexto: ContextoDasFr
 /** A Intangível (pedido de 27/11/2026): "Toma 0 de dano dos golpes, a não ser que o golpe tenha Haki." (a exceção de `anulaODano.ts`). */
 function fraseDoAnula(peca: PecaDaCondicaoDa<'anula'>): PedacoDaFrase[] {
   const exceto = textoDaExcecao(peca.exceto)
-  return [corrido('Toma '), pintado('0 de dano', 'dano'), corrido(` dos golpes${exceto === '' ? '' : `, ${exceto}`}.`)]
+  const resto = corrido(` dos golpes${exceto === '' ? '' : `, ${exceto}`}.`)
+  // Pedido de 28/11/2026: "Anula 30% do dano dos golpes." / "Anula 15 do dano dos golpes."; tudo segue "Toma 0 de dano".
+  const corte = peca.corte
+  if (corte === undefined || anulaTudo(corte)) return [corrido('Toma '), pintado('0 de dano', 'dano'), resto]
+  return [corrido('Anula '), pintado('menos' in corte ? `${corte.menos} do dano` : `${corte.porcento}% do dano`, 'dano'), resto]
 }
 
 /** A frase de uma peça no cartão (o "(vezes as pilhas)" quando a condição soma pilhas). */
