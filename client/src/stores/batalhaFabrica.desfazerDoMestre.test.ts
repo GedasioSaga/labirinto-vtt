@@ -10,10 +10,13 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao } from '../lib/batalha/combate'
+import { PREFIXO_DA_ARMA_DA_MOCHILA } from '../lib/batalha/leituraDaFicha'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { cartaDaVez, combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
+import type { Personagem } from '../lib/personagem'
 import { lutadoresDe, MARINHEIRO, SISTEMA_DO_TESTE, ze } from '../lib/treino/fichasDeTreino.testkit'
 import { criarMesaEmMemoria, type MesaEmMemoria } from '../lib/treino/mesaEmMemoria'
+import type { CarriedItem } from '../types/map'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from './batalhaFabrica'
 
 const CENA = 'cena_da_batalha'
@@ -21,15 +24,22 @@ const MESTRE: AutorDaAcao = { tipo: 'mestre' }
 const ANA: AutorDaAcao = { tipo: 'jogador', playerId: 'jogador_ana', nome: 'Ana' }
 const TOKEN_DO_ZE = 'treino_tok_a1'
 
+/**
+ * O Sabre (dano 30, soma a Força) EQUIPADO na mochila: desde os itens refeitos (E6a) o Atacar só lê a
+ * arma equipada da mochila, e o cartão da aba Armas do MARINHEIRO deixou de valer na batalha.
+ */
+const SABRE: CarriedItem = { id: 'vaga_sabre', nome: 'Sabre', tipo: 'corpo', equipado: true, regra: { ataque: { dano: 30, soma: 'forca', acao: 'Ação Simples', alvos: 1 } } }
+const marinheiroComOSabre = (base: Personagem): Personagem => ({ ...base, mochila: [SABRE] })
+
 /** Os três com a mesma Agilidade (30): quem decide a ordem é o d20, na ordem em que as cartas nascem (Zé, Marinheiro, Marinheiro 2). */
 function batalhaEmpatada(d20: number[]): { loja: LojaDaBatalha; mesa: MesaEmMemoria } {
   const zeLento = { ...ze(60), atributos: { forca: 60, agilidade: 30 } }
-  const segundo = { ...MARINHEIRO, id: 'pers_m2', nome: 'Marinheiro 2' }
+  const segundo = marinheiroComOSabre({ ...MARINHEIRO, id: 'pers_m2', nome: 'Marinheiro 2' })
   const mesa = criarMesaEmMemoria(
     SISTEMA_DO_TESTE,
     lutadoresDe([
       { ficha: zeLento, lado: 'a' },
-      { ficha: MARINHEIRO, lado: 'b' },
+      { ficha: marinheiroComOSabre(MARINHEIRO), lado: 'b' },
       { ficha: segundo, lado: 'b' },
     ]),
   )
@@ -57,7 +67,7 @@ function hp(mesa: MesaEmMemoria, nome: string): number | undefined {
   return mesa.personagens().find((personagem) => personagem.nome === nome)?.recursos.hp
 }
 
-const SABRE_NO_ZE: PedidoDeAcao = { tipo: 'atacar', armaId: 'arma_sabre', alvos: [{ tokenId: TOKEN_DO_ZE, dano: 110 }], surpresa: false, perfurante: false }
+const SABRE_NO_ZE: PedidoDeAcao = { tipo: 'atacar', armaId: `${PREFIXO_DA_ARMA_DA_MOCHILA}${SABRE.id}`, alvos: [{ tokenId: TOKEN_DO_ZE, dano: 110 }], surpresa: false, perfurante: false }
 
 /** O Marinheiro (o mestre joga por ele) acerta o Zé com o Sabre e o Zé não reage. */
 function golpeDoMestreQueAcertou(): { loja: LojaDaBatalha; mesa: MesaEmMemoria; linhaId: string } {
