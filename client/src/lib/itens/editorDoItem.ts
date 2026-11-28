@@ -2,14 +2,33 @@ import type { ItemDoCatalogo } from '../acervoDeItens'
 import { formaDoAlcanceGuardada } from '../batalha/alcanceDoCartao'
 import { descreverAlcance, type FormaDoAlcance } from '../batalha/alcance/forma'
 import { CURA_REDUZIDA_PADRAO, DANO_DO_SANGRAMENTO, NOME_DA_CURA_REDUZIDA } from '../batalha/condicoes'
+import { lerMecanicaParaOMotor } from '../batalha/mecanica/golpe'
+import { selosDasPecasDoItem } from '../batalha/mecanica/leitura'
 import { lerMecanica, VERSAO_GRAVADA, type Efeito, type MecanicaV1 } from '../batalha/mecanica/modelo'
 import { guardarMecanica } from '../batalha/mecanica/modelos'
+import { pecaNova, pecasParaGuardar } from '../batalha/mecanica/pecas'
+import { fraseDaPeca as fraseDaPecaDaTecnica } from '../batalha/mecanica/resumo'
 import { pecasDoEfeito } from '../leituraDoItem'
 import type { PecasDoEfeito, ValorDasPecas } from '../../types/map'
 import { balaDoDano, falaDeCuraReduzida } from './conversao/acervo'
 import { normalizado, primeiroNumero, tipoPelaCategoria } from './conversao/comum'
 import { fraseDoGatilho } from '../condicoes/fraseDoGatilho'
-import { CASAS_DO_ITEM_MAX, danoExtraDobra, ehRegistro, inteiro, NUMERO_DO_ITEM_MAX, pecaDoEfeitoGuardado, pecasDoItemLidas, type DuracaoNoEditor, type PecaDoItem } from './pecasDoItem'
+import {
+  CASAS_DO_ITEM_MAX,
+  danoExtraDobra,
+  ehPecaDeAtributo,
+  ehRegistro,
+  inteiro,
+  NUMERO_DO_ITEM_MAX,
+  pecaDoEfeitoGuardado,
+  pecasDasTecnicasNoBloco,
+  pecasDeAtributoLidas,
+  pecasDoItemLidas,
+  type DuracaoNoEditor,
+  type PecaDeAtributo,
+  type PecaDoItem,
+  type PecaSimplesDoItem,
+} from './pecasDoItem'
 import {
   ROTULO_DO_TIPO,
   rotuloDaDuracao,
@@ -38,7 +57,7 @@ import {
 // ─── As escolhas da tela ────────────────────────────────────────────────────
 
 // A leitura das peças mora em `pecasDoItem.ts` (E6c: sem ciclo de import); quem importa daqui continua igual.
-export { CASAS_DO_ITEM_MAX, danoExtraDobra, NUMERO_DO_ITEM_MAX, pecasDoItemLidas, type DuracaoNoEditor, type PecaDoItem }
+export { CASAS_DO_ITEM_MAX, danoExtraDobra, NUMERO_DO_ITEM_MAX, pecasDoItemLidas, type DuracaoNoEditor, type PecaDeAtributo, type PecaDoItem }
 
 /** As ações, como o campo Ação do cartão as escreve (o protótipo aprovado). */
 export const ACOES_DO_ITEM: readonly string[] = ['Ação Simples', 'Ação Completa', 'Ação Livre']
@@ -78,12 +97,18 @@ export const DURACOES_NO_EDITOR: readonly { duracao: DuracaoNoEditor; rotulo: st
 
 export type OndeDaPeca = 'acerto' | 'uso'
 
+/**
+ * As peças de cada bloco. Pedido de 27/11/2026: o Muda atributo e o Diminui atributo nos dois (consumível,
+ * munição, arremesso e armas), as mesmas peças do editor de habilidades (o nome e o corpo vêm do registro
+ * delas, `components/batalha/editor/pecas/registro.ts`).
+ */
 export const PECAS_DE: Readonly<Record<OndeDaPeca, readonly PecaDoItem['tipo'][]>> = {
-  acerto: ['condicao', 'dano', 'empurrar'],
-  uso: ['curar', 'tirar', 'condicao'],
+  acerto: ['condicao', 'dano', 'empurrar', 'status', 'diminui'],
+  uso: ['curar', 'tirar', 'condicao', 'status', 'diminui'],
 }
 
-export const ROTULO_DA_PECA: Readonly<Record<PecaDoItem['tipo'], string>> = {
+/** O rótulo das peças próprias do item (as de atributo levam o nome do registro das técnicas). */
+export const ROTULO_DA_PECA: Readonly<Record<PecaSimplesDoItem['tipo'], string>> = {
   condicao: 'Condição (sangrar, queimar...)',
   dano: 'Dano extra',
   empurrar: 'Empurrar',
@@ -114,7 +139,12 @@ export function nDePartida(nome: string): number | undefined {
   return undefined
 }
 
-export function pecaDePartida(tipo: PecaDoItem['tipo'], condicoes: readonly string[]): PecaDoItem {
+/** A peça nova do "+ Efeito": as de atributo nascem como no editor de habilidades (`pecaNova`), as outras com `pecaDePartida`. */
+export function pecaNovaDoItem(tipo: PecaDoItem['tipo'], condicoes: readonly string[]): PecaDoItem {
+  return tipo === 'status' || tipo === 'diminui' ? pecaNova(tipo) : pecaDePartida(tipo, condicoes)
+}
+
+export function pecaDePartida(tipo: PecaSimplesDoItem['tipo'], condicoes: readonly string[]): PecaSimplesDoItem {
   switch (tipo) {
     case 'condicao': {
       const nome = condicoes[0] ?? NOME_DA_CURA_REDUZIDA
@@ -132,7 +162,7 @@ export function pecaDePartida(tipo: PecaDoItem['tipo'], condicoes: readonly stri
   }
 }
 
-function efeitoDaPeca(peca: Exclude<PecaDoItem, { tipo: 'dano' } | { tipo: 'empurrar' }>): Efeito {
+function efeitoDaPeca(peca: Exclude<PecaSimplesDoItem, { tipo: 'dano' } | { tipo: 'empurrar' }>): Efeito {
   switch (peca.tipo) {
     case 'condicao': {
       const regra = regraDaCondicaoPeloNome(peca.nome)
@@ -183,7 +213,7 @@ function jsonEstavel(valor: unknown): string {
   return JSON.stringify(valor) ?? 'null'
 }
 
-function mesmaPeca(guardada: unknown, peca: PecaDoItem): boolean {
+function mesmaPeca(guardada: unknown, peca: PecaSimplesDoItem): boolean {
   if (peca.tipo === 'dano') return false
   const refeita: unknown = peca.tipo === 'empurrar' ? { tipo: 'mover', modo: 'empurrar', casas: peca.casas } : efeitoDaPeca(peca)
   return jsonEstavel(guardada) === jsonEstavel(refeita)
@@ -202,6 +232,11 @@ export function pecasCabemNaTela(guardadas: PecasDoEfeito | undefined): boolean 
     const resto = { ...(ehRegistro(dano) ? dano : {}), base: undefined }
     if (!so || jsonEstavel(resto) !== jsonEstavel({ multiplicadores: { concentracao: false, surpresa: false } })) return false
   }
+  // Pedido de 27/11/2026: a lista `pecas` cabe quando só tem as de atributo e volta igual pelo gravador delas.
+  if (guardadas.pecas !== undefined) {
+    const dasTecnicas = pecasDasTecnicasNoBloco(guardadas)
+    if (dasTecnicas === null || !dasTecnicas.every(ehPecaDeAtributo) || jsonEstavel(pecasParaGuardar(dasTecnicas)) !== jsonEstavel(guardadas.pecas)) return false
+  }
   const efeitos = guardadas.efeitos
   if (efeitos === undefined) return true
   if (!Array.isArray(efeitos)) return false
@@ -209,6 +244,32 @@ export function pecasCabemNaTela(guardadas: PecasDoEfeito | undefined): boolean 
     const peca = pecaDoEfeitoGuardado(efeito)
     return peca !== null && mesmaPeca(efeito, peca)
   })
+}
+
+/**
+ * A mecânica guardada no bloco como a tela das peças a lê (as peças de atributo recebem a mecânica inteira,
+ * como no editor de habilidades); sem bloco ou torta = a de partida do bloco.
+ */
+export function mecanicaDoBloco(guardadas: PecasDoEfeito | undefined, onde: OndeDaPeca): MecanicaV1 {
+  const lida = guardadas === undefined ? null : lerMecanica(semEmpurroes(guardadas))
+  return lida !== null && lida.tipo === 'pecas' ? lida.mecanica : mecanicaDePartida(onde)
+}
+
+/**
+ * Por que a batalha não roda as peças de atributo deste bloco assim, ou `null`. O "Ao usar" é a técnica do
+ * item (o mesmo motor da habilidade: `lerMecanicaParaOMotor`, com o teto de selos do golpe); o "Ao acertar",
+ * os selos que o golpe da arma monta (`selosDasPecasDoItem`). Sem peça de atributo = `null` (o item de antes
+ * não ganha aviso novo).
+ */
+export function motivoDasPecasDeAtributo(guardadas: PecasDoEfeito | undefined, onde: OndeDaPeca): string | null {
+  const atributos = pecasDeAtributoLidas(guardadas)
+  if (guardadas === undefined || atributos.length === 0) return null
+  if (onde === 'acerto') {
+    const selos = selosDasPecasDoItem(atributos, '')
+    return typeof selos === 'string' ? selos : null
+  }
+  const lida = lerMecanicaParaOMotor(semEmpurroes(guardadas))
+  return lida.tipo === 'invalida' ? lida.motivo : null
 }
 
 /**
@@ -221,19 +282,23 @@ export function pecasDoItemGuardadas(pecas: readonly PecaDoItem[], onde: OndeDaP
   if (pecas.length === 0) return undefined
   const efeitos: Efeito[] = []
   const empurroes: { [chave: string]: ValorDasPecas }[] = []
+  const atributos: PecaDeAtributo[] = []
   let danoExtra: number | undefined
   for (const peca of pecas) {
     if (peca.tipo === 'dano') danoExtra = (danoExtra ?? 0) + peca.valor
     else if (peca.tipo === 'empurrar') empurroes.push({ tipo: 'mover', modo: 'empurrar', casas: peca.casas })
+    else if (peca.tipo === 'status' || peca.tipo === 'diminui') atributos.push(peca)
     else efeitos.push(efeitoDaPeca(peca))
   }
   // O que a tela não edita (a ação, o alvo, o custo, o "onde vale" da mecânica de antes) fica como estava.
   const lida = antes === undefined ? null : lerMecanica(semEmpurroes(antes))
-  const { dano: _danoAntes, ...partida }: MecanicaV1 = lida !== null && lida.tipo === 'pecas' ? lida.mecanica : mecanicaDePartida(onde)
+  const { dano: _danoAntes, pecas: _pecasAntes, ...partida }: MecanicaV1 = lida !== null && lida.tipo === 'pecas' ? lida.mecanica : mecanicaDePartida(onde)
+  // Pedido de 27/11/2026: as peças de atributo vão na lista `pecas` da mecânica, como na técnica (o gravador põe a versão 5).
   const mecanica: MecanicaV1 = {
     ...partida,
     ...(danoExtra === undefined ? {} : { dano: { base: { fixo: danoExtra }, multiplicadores: { concentracao: false, surpresa: false } } }),
     efeitos,
+    ...(atributos.length === 0 ? {} : { pecas: atributos }),
   }
   const guardadas = pecasDoEfeito(guardarMecanica(mecanica))
   if (guardadas === null) return undefined
@@ -431,9 +496,13 @@ function danoComSoma(dano: number, soma: string, ctx: ContextoDaFrase): string {
   return soma === '' ? String(dano) : `${dano} + ${ctx.nomeDoAtributo(soma)}`
 }
 
-function fraseDaPeca(peca: PecaDoItem, onde: OndeDaPeca): string {
+function fraseDaPeca(peca: PecaDoItem, onde: OndeDaPeca, mecanica: MecanicaV1): string {
   const quem = onde === 'uso' ? 'Quem recebe' : 'Quem é atingido'
   switch (peca.tipo) {
+    // Pedido de 27/11/2026: a frase das peças de atributo é a do resumo das técnicas (o cartão se escreve sozinho).
+    case 'status':
+    case 'diminui':
+      return fraseDaPecaDaTecnica(peca, mecanica)
     case 'condicao': {
       const duracao = rotuloDaDuracao(peca.duracao)
       const regra = regraDaCondicaoPeloNome(peca.nome)
@@ -464,8 +533,11 @@ export type ItemDaFrase = Pick<ItemDoCatalogo, 'id' | 'nome' | 'tipo' | 'luz'> &
 export const SEM_ARMA_QUE_ACEITA = 'Nenhuma arma do Acervo aceita esta munição ainda.'
 
 function frasesDasPecas(item: ItemDaFrase, onde: OndeDaPeca): string[] {
-  const pecas = pecasDoItemLidas(onde === 'uso' ? item.aoUsar : item.aoAcertar)
-  return pecas.filter((peca) => !danoExtraDobra(item, peca)).map((peca) => fraseDaPeca(peca, onde))
+  const guardadas = onde === 'uso' ? item.aoUsar : item.aoAcertar
+  const mecanica = mecanicaDoBloco(guardadas, onde)
+  return pecasDoItemLidas(guardadas)
+    .filter((peca) => !danoExtraDobra(item, peca))
+    .map((peca) => fraseDaPeca(peca, onde, mecanica))
 }
 
 /** "O que acontece": o item em frases curtas, pelo tipo, como o cartão de papel do protótipo. */

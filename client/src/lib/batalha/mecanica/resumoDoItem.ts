@@ -3,7 +3,7 @@ import { efeitoResumoLido } from '../../leituraDoItem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
 import { SISTEMAS_EMBUTIDOS } from '../../sistemaOnePiece'
 import { lerMecanica, type DuracaoDoSelo, type Efeito, type FormaDoAlvo, type MecanicaV1, type NumeroSimples, type QuemOAlvoPega } from './modelo'
-import { fraseDoEfeito } from './resumo'
+import { fraseDoEfeito, frasesDasPecas } from './resumo'
 
 /**
  * A FRASE DO ITEM (Fase 7 de docs/design/habilidades/SISTEMA.md §5.1): o que
@@ -108,7 +108,8 @@ function fraseDoEfeitoDoItem(efeito: Efeito, mecanica: MecanicaV1, sistema: Sist
 
 /** O que o item faz, sem o gasto ("Cura 100 de HP."). `sistema` = o da ficha, para o nome do atributo. */
 export function oQueOItemFaz(mecanica: MecanicaV1, sistema?: SistemaDeRpg): string {
-  const partes = [fraseDoDanoDoItem(mecanica), ...mecanica.efeitos.map((efeito) => fraseDoEfeitoDoItem(efeito, mecanica, sistema))].filter((parte): parte is string => parte !== null)
+  // Pedido de 27/11/2026: as peças das técnicas do item (o Muda atributo e o Diminui atributo) com a frase do resumo delas.
+  const partes = [fraseDoDanoDoItem(mecanica), ...mecanica.efeitos.map((efeito) => fraseDoEfeitoDoItem(efeito, mecanica, sistema)), ...frasesDasPecas(mecanica)].filter((parte): parte is string => parte !== null)
   const faz = partes.length === 0 ? 'Não faz nada sozinho (o mestre narra).' : partes.join(' ')
   return `${fraseDaArea(mecanica.alvo.forma, mecanica.alvo.quem)}${faz}`
 }

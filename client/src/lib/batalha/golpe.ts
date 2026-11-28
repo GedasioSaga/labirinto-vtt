@@ -116,7 +116,7 @@ import {
   type MecanicaAMao,
 } from './mecanicasAMao'
 import { dividirDano, pegadaDaCasa, type PegadaNaGrade } from './area'
-import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoCartao, reacaoDasPecas, divisaoDasPecas, selosDasPecas, type MultiplicadoresDasPecas } from './mecanica/leitura'
+import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoCartao, reacaoDasPecas, divisaoDasPecas, selosDasPecas, selosDasPecasDoItem, type MultiplicadoresDasPecas } from './mecanica/leitura'
 import { armaPadraoEntre } from './mecanica/arma'
 import { danoUsaArma, type TipoQueBate, type TipoQueCausa } from './mecanica/modelo'
 import { chaveDaCondicao, NOMES_DOS_TIPOS_DE_DANO, TIPOS_DE_DANO, type TipoDoGolpe as TipoDoDanoDoGolpe } from '../condicoes/modelo'
@@ -1335,6 +1335,12 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   if (seloDoTiro !== null) golpe.seloDaBala = seloDoTiro
   const doItem = efeitosDoItem === null || arma === null ? null : aoAcertarDoGolpe(efeitosDoItem, balaDoTiro?.aoAcertar !== undefined ? balaDoTiro.nome : arma.nome)
   if (doItem !== null) golpe.aoAcertar = doItem
+  // Pedido de 27/11/2026 ("os itens conseguem dar e diminuir status?"): o Muda atributo e o Diminui atributo da arma e da bala
+  // viram os selos da técnica montada (no alvo acertado, em quem usa e a queda), com a fórmula na ficha de quem bate.
+  if (efeitosDoItem !== null && arma !== null) {
+    const fontes = [arma, ...(balaDoTiro === null ? [] : [balaDoTiro])]
+    comOsSelosDoItem(golpe, fontes, personagem === null || sistema === null ? undefined : valorNaFichaDe(personagem, sistema))
+  }
   // F2 (fatia E, vantagem de Ogro): a resposta "sim" faz os alvos reagirem com desvantagem.
   if (deTodoGolpe.desvantagemNoAlvo) golpe.reacaoComDesvantagem = true
   // F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao usar ("+8 em reação" por 2 turnos); a store o põe nele.
@@ -1450,6 +1456,24 @@ function seloDoDiminui(selo: SeloDoGolpe): SeloDoGolpe {
   if (selo.queda !== undefined || selo.mods === undefined || selo.mods.length === 0) return selo
   const { mods, ...semMods } = selo
   return { ...semMods, queda: { passo: mods, desde: 0, vezes: 1 } }
+}
+
+/**
+ * Pedido de 27/11/2026: os selos das peças de atributo do "Ao acertar" da arma e da bala (`selosDasPecasDoItem`, a
+ * mesma leitura da técnica montada), cada um com o nome do seu item: os do Muda atributo e o do Diminui (como
+ * `seloDoDiminui`, o golpe novo no mesmo alvo só recomeça o prazo) entram depois dos de sempre; o do dono vai em
+ * `seloEmQuemUsa` quando o golpe ainda não tem um (o golpe guarda um só: o da arma vem antes do da bala).
+ */
+function comOsSelosDoItem(golpe: GolpeDaBatalha, fontes: readonly Pick<ArmaDaFicha | BalaDaArma, 'nome' | 'aoAcertar'>[], valorNaFicha: ((formula: string) => number | null) | undefined): void {
+  const novos: SeloDoGolpe[] = []
+  for (const fonte of fontes) {
+    const selos = selosDasPecasDoItem(fonte.aoAcertar?.atributos ?? [], fonte.nome, valorNaFicha)
+    // A leitura recusou (o editor do item mostra o motivo antes do Salvar): nenhum selo das peças deste item.
+    if (typeof selos === 'string') continue
+    novos.push(...selos.noAlvo, ...(selos.diminui === null ? [] : [seloDoDiminui(selos.diminui)]))
+    if (selos.emQuemUsa !== null && golpe.seloEmQuemUsa === undefined) golpe.seloEmQuemUsa = selos.emQuemUsa
+  }
+  if (novos.length > 0) comOsSelosNovos(golpe, novos, null)
 }
 
 /**

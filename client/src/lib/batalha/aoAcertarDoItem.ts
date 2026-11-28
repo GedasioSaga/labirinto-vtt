@@ -1,11 +1,13 @@
 import type { CondicaoPropria } from '../../types/map'
 import { condicaoDoCatalogoPeloNome } from '../condicoes/catalogo'
 import { curaComAsCondicoes, porCondicao, type DuracaoDaCondicao, type PedidoDeCondicao } from '../condicoes/naFicha'
-import { danoExtraDobra, pecasDoItemLidas, type PecaDoItem } from '../itens/pecasDoItem'
+import { danoExtraDobra, pecasDoItemLidas, type PecaDeAtributo, type PecaDoItem } from '../itens/pecasDoItem'
 import type { BlocosDoItem, GatilhoDaCondicao } from '../itens/modelo'
 import type { Personagem } from '../personagem'
 import { fraseDoGatilho } from '../condicoes/fraseDoGatilho'
 import type { Casa } from './area'
+import { selosDasPecasDoItem } from './mecanica/leitura'
+import { atributoNoMotor, nomeDoAtributoDaPeca } from './mecanica/pecas'
 
 /**
  * O "AO ACERTAR" DO ITEM NA BATALHA (sistema de itens refeito, PLANO §3 E6c; decisões 10, 11 e 14):
@@ -40,6 +42,11 @@ export interface EfeitosAoAcertar {
   danoExtra: number
   /** As casas do empurrão; 0 = não empurra. */
   empurrar: number
+  /**
+   * Pedido de 27/11/2026: o Muda atributo e o Diminui atributo do item (as MESMAS peças das técnicas). O golpe
+   * os monta em selos pelo caminho da técnica (`selosDasPecasDoItem`), com o nome de cada item. Ausente = nenhuma.
+   */
+  atributos?: readonly PecaDeAtributo[]
 }
 
 /** O "Ao acertar" que o golpe guarda para a store aplicar em cada alvo acertado (o dano extra já entrou no dano). */
@@ -63,29 +70,48 @@ function duracaoDaPeca(peca: Extract<PecaDoItem, { tipo: 'condicao' }>): Duracao
 export function efeitosAoAcertar(blocos: BlocosDoItem | undefined): EfeitosAoAcertar {
   if (blocos?.aoAcertar === undefined) return NENHUM
   const efeitos: EfeitosAoAcertar = { condicoes: [], danoExtra: 0, empurrar: 0 }
+  const atributos: PecaDeAtributo[] = []
   for (const peca of pecasDoItemLidas(blocos.aoAcertar)) {
     if (peca.tipo === 'condicao') efeitos.condicoes.push({ nome: peca.nome, duracao: duracaoDaPeca(peca), ...(peca.n === undefined ? {} : { n: peca.n }), ...(peca.gatilho === undefined ? {} : { gatilho: peca.gatilho }) })
     else if (peca.tipo === 'dano' && !danoExtraDobra(blocos, peca)) efeitos.danoExtra += peca.valor
     else if (peca.tipo === 'empurrar') efeitos.empurrar = Math.min(EMPURRAR_MAX, efeitos.empurrar + peca.casas)
+    else if (peca.tipo === 'status' || peca.tipo === 'diminui') atributos.push(peca)
   }
-  return efeitos
+  return atributos.length === 0 ? efeitos : { ...efeitos, atributos }
 }
 
 /** O item tem algum efeito no acerto? */
 export function temEfeitoAoAcertar(efeitos: EfeitosAoAcertar | undefined): boolean {
-  return efeitos !== undefined && (efeitos.condicoes.length > 0 || efeitos.danoExtra > 0 || efeitos.empurrar > 0)
+  return efeitos !== undefined && (efeitos.condicoes.length > 0 || efeitos.danoExtra > 0 || efeitos.empurrar > 0 || (efeitos.atributos ?? []).length > 0)
 }
 
-/** A arma e a bala juntas: as condições das duas (a da bala por último), os danos extras somados, o maior empurrão somado. */
+/** A arma e a bala juntas: as condições das duas (a da bala por último), os danos extras somados, o maior empurrão somado e as peças de atributo das duas. */
 export function juntarEfeitos(...lista: readonly (EfeitosAoAcertar | undefined)[]): EfeitosAoAcertar {
   const juntos: EfeitosAoAcertar = { condicoes: [], danoExtra: 0, empurrar: 0 }
+  const atributos: PecaDeAtributo[] = []
   for (const efeitos of lista) {
     if (efeitos === undefined) continue
     juntos.condicoes.push(...efeitos.condicoes)
     juntos.danoExtra += efeitos.danoExtra
     juntos.empurrar = Math.min(EMPURRAR_MAX, juntos.empurrar + efeitos.empurrar)
+    atributos.push(...(efeitos.atributos ?? []))
   }
-  return juntos
+  return atributos.length === 0 ? juntos : { ...juntos, atributos }
+}
+
+function comSinal(valor: number): string {
+  return valor > 0 ? `+${valor}` : String(valor)
+}
+
+/**
+ * A peça de atributo em poucas palavras, para a prévia da mira e o boneco: "Lento (perde 10 de Agilidade)",
+ * "Força +10 no dono". A frase inteira é a do resumo das técnicas (o "O que acontece" do editor).
+ */
+export function textoCurtoDaPecaDeAtributo(peca: PecaDeAtributo): string {
+  if (peca.tipo === 'diminui') return `${peca.nome} (perde ${peca.valor}${peca.modo === 'porcento' ? '%' : ''} de ${nomeDoAtributoDaPeca(atributoNoMotor(peca.atributo))})`
+  const onde = peca.quem === 'si' ? 'no dono' : peca.quem === 'aliado' ? 'num aliado' : 'em todos os aliados'
+  const itens = peca.itens.map((item) => `${nomeDoAtributoDaPeca(atributoNoMotor(item.atributo))} ${item.modo === 'fixo' ? comSinal(item.valor) : `${comSinal(item.porcento)}% da ${nomeDoAtributoDaPeca(item.de)}`}`)
+  return `${itens.join(', ')} ${onde}`
 }
 
 /**
@@ -101,6 +127,7 @@ export function textoDoAoAcertar(efeitos: EfeitosAoAcertar | undefined): string 
   })
   if (efeitos.danoExtra > 0) partes.push(`+${efeitos.danoExtra} de dano extra`)
   if (efeitos.empurrar > 0) partes.push(`empurra ${efeitos.empurrar} ${efeitos.empurrar === 1 ? 'casa' : 'casas'}`)
+  partes.push(...(efeitos.atributos ?? []).map(textoCurtoDaPecaDeAtributo))
   return partes.length === 0 ? '' : `Ao acertar: ${partes.join('; ')}`
 }
 
@@ -164,6 +191,14 @@ export interface TesteNoBoneco {
   linhas: string[]
 }
 
+/** O boneco e as peças de atributo de um item: o que entra (no alvo e em quem acerta) ou por que a batalha recusa. */
+function linhasDosAtributosNoBoneco(atributos: readonly PecaDeAtributo[], nome: string): string[] {
+  if (atributos.length === 0) return []
+  const selos = selosDasPecasDoItem(atributos, nome)
+  if (typeof selos === 'string') return [`${nome.trim() || 'O item'}: a batalha não aplica o Muda atributo e o Diminui atributo assim (${selos}).`]
+  return atributos.map((peca) => (peca.tipo === 'diminui' ? `Fica com ${textoCurtoDaPecaDeAtributo(peca)}.` : `${textoCurtoDaPecaDeAtributo(peca)}.`))
+}
+
 function textoDaDuracao(duracao: DuracaoDaCondicao): string {
   if (duracao === 'fim') return 'até o fim da batalha'
   if (duracao === 'tirar') return 'até alguém tirar'
@@ -197,6 +232,10 @@ export function testeNoBoneco(boneco: Personagem, nome: string, blocos: BlocosDo
   const cura = curaComAsCondicoes(CURA_DE_PROVA, ficha, criadas)
   if (cura.corte > 0) linhas.push(`Uma cura de ${CURA_DE_PROVA} nele cura ${cura.cura} (${cura.nome ?? 'condição'} corta ${cura.corte}%).`)
   if (juntos.empurrar > 0) linhas.push(`É empurrado ${juntos.empurrar} ${juntos.empurrar === 1 ? 'casa' : 'casas'} para longe de quem acertou (sem atravessar parede).`)
+  // Pedido de 27/11/2026: as peças de atributo de cada item, pela mesma leitura do golpe (a recusa dela aparece aqui).
+  for (const fonte of [{ nome, efeitos: doItem }, ...(bala === undefined || daBala === undefined ? [] : [{ nome: bala.nome, efeitos: daBala }])]) {
+    linhas.push(...linhasDosAtributosNoBoneco(fonte.efeitos.atributos ?? [], fonte.nome))
+  }
   if (linhas.length === 0) linhas.push('Acertou: nada além do dano de cima (nenhum dano nem peça no "Ao acertar").')
   return { linhas }
 }

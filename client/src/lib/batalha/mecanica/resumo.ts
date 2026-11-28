@@ -568,7 +568,8 @@ function fraseDoDiminui(peca: PecaDiminui, ficha?: FichaDaPrevia): string {
   return `Ao acertar, o alvo ${ritmo}. ${volta} No alvo aparece como ${peca.nome}.`
 }
 
-function fraseDaPeca(peca: PecaDaMecanica, mecanica: MecanicaV1, ficha?: FichaDaPrevia): string {
+/** A frase de uma peça da versão 5 (exportada para o "O que acontece" do item, que usa as de atributo: pedido de 27/11/2026). */
+export function fraseDaPeca(peca: PecaDaMecanica, mecanica: MecanicaV1, ficha?: FichaDaPrevia): string {
   switch (peca.tipo) {
     case 'pergunta':
       return peca.perguntas.map((pergunta) => `Antes de bater, a batalha pergunta "${pergunta.texto}": ${pergunta.respostas.map(fraseDaResposta).join('; ')}.`).join(' ') + (peca.npc === 'primeira' ? ' Para NPC vale a primeira resposta.' : ' Para NPC, o mestre responde.')

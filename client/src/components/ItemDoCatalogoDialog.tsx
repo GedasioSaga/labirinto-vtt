@@ -25,7 +25,10 @@ import type { PrazoDaCondicao } from '../lib/condicoes/modelo'
 import './batalha/editor/pecas/condicoesDoApp'
 import { condicaoDoSeletor, turnosDaCondicao, useCatalogoDoSeletor, type CatalogoDoSeletor } from './batalha/editor/pecas/condicoesNoSeletor'
 import { OpcoesDeCondicao } from './batalha/editor/pecas/controlesDaPeca'
+import { avisoDaPeca, MolduraDaPeca } from './batalha/editor/pecas/MolduraDaPeca'
 import { RegraDeAntes } from './batalha/editor/pecas/RegraDeAntes'
+import { entradaDaPeca } from './batalha/editor/pecas/registro'
+import type { MecanicaV1 } from '../lib/batalha/mecanica/modelo'
 import { DURACAO_DA_PECA_MAX, ROTULO_DO_TIPO, TIPOS_DO_ITEM, TIPOS_QUE_EMPILHAM, TURNOS_DA_PECA, PARTES_DO_EQUIPAMENTO, type AtaqueDoItem, type BalaDoItem, type BonusDoEquipamento, type ConfiraDoItem, type TipoDoItem } from '../lib/itens/modelo'
 import {
   ACOES_DA_RECARGA,
@@ -40,8 +43,10 @@ import {
   frasesDoItem,
   itemComOsCamposAntigos,
   itemParaOEditor,
+  mecanicaDoBloco,
+  motivoDasPecasDeAtributo,
   NUMERO_DO_ITEM_MAX,
-  pecaDePartida,
+  pecaNovaDoItem,
   PECAS_DE,
   PECAS_POR_BLOCO_MAX,
   pecasCabemNaTela,
@@ -55,6 +60,7 @@ import {
   TIPOS_QUE_ATACAM,
   type DuracaoNoEditor,
   type OndeDaPeca,
+  type PecaDeAtributo,
   type PecaDoItem,
 } from '../lib/itens/editorDoItem'
 import { primeiroNumero } from '../lib/itens/conversao/comum'
@@ -376,9 +382,11 @@ function PecasDoBloco({
   onMudar: (pecas: PecasDoEfeito | undefined) => void
 }) {
   const titulo = onde === 'uso' ? 'Ao usar' : 'Ao acertar'
-  const sub = onde === 'uso' ? 'O que acontece com quem recebe.' : 'As mesmas peças das técnicas: condição com duração, dano extra, empurrão. Dano, ação e alcance não se repetem aqui.'
+  const sub = onde === 'uso' ? 'O que acontece com quem recebe.' : 'As mesmas peças das técnicas: condição com duração, dano extra, empurrão, atributos. Dano, ação e alcance não se repetem aqui.'
   const cabe = pecasCabemNaTela(guardadas)
   const pecas = pecasDoItemLidas(guardadas)
+  const mecanica = mecanicaDoBloco(guardadas, onde)
+  const motivoDoMotor = motivoDasPecasDeAtributo(guardadas, onde)
   const trocar = (lista: readonly PecaDoItem[]) => onMudar(pecasDoItemGuardadas(lista, onde, guardadas))
   const mudarUma = (indice: number, peca: PecaDoItem) => trocar(pecas.map((atual, i) => (i === indice ? peca : atual)))
   if (!cabe && guardadas !== undefined) {
@@ -398,6 +406,13 @@ function PecasDoBloco({
       ) : (
         <ul className="lb-edi-pecas">
           {pecas.map((peca, indice) => {
+            if (peca.tipo === 'status' || peca.tipo === 'diminui') {
+              return (
+                <li key={indice}>
+                  <PecaDeAtributoDoItem peca={peca} mecanica={mecanica} onMudar={(nova) => mudarUma(indice, nova)} onTirar={() => trocar(pecas.filter((_, i) => i !== indice))} />
+                </li>
+              )
+            }
             const dobra = danoExtraDobra(item, peca)
             return (
               <li key={indice} className="lb-edi-peca" data-erro={dobra ? '' : undefined}>
@@ -430,12 +445,21 @@ function PecasDoBloco({
       )}
       <div className="lb-edi-mais" role="group" aria-label="Pôr efeito">
         <span className="lb-label">+ Efeito:</span>
-        {PECAS_DE[onde].map((tipo) => (
-          <button key={tipo} type="button" className="lb-btn lb-btn--compact" disabled={pecas.length >= PECAS_POR_BLOCO_MAX} onClick={() => trocar([...pecas, pecaDePartida(tipo, condicoes)])}>
-            {ROTULO_DA_PECA[tipo]}
-          </button>
-        ))}
+        {PECAS_DE[onde].map((tipo) => {
+          // As peças das técnicas entram uma vez só no mesmo bloco (a mesma regra do leitor delas).
+          const jaTem = (tipo === 'status' || tipo === 'diminui') && pecas.some((peca) => peca.tipo === tipo)
+          return (
+            <button key={tipo} type="button" className="lb-btn lb-btn--compact" disabled={pecas.length >= PECAS_POR_BLOCO_MAX || jaTem} onClick={() => trocar([...pecas, pecaNovaDoItem(tipo, condicoes)])}>
+              {tipo === 'status' || tipo === 'diminui' ? entradaDaPeca(tipo).nome : ROTULO_DA_PECA[tipo]}
+            </button>
+          )
+        })}
       </div>
+      {motivoDoMotor !== null && (
+        <p className="lb-field__error" role="alert">
+          Assim a batalha não aplica o Muda atributo e o Diminui atributo ({motivoDoMotor}). Ajuste as peças antes de salvar.
+        </p>
+      )}
       {onde === 'acerto' && pecas.some((peca) => peca.tipo === 'empurrar') && <p className="lb-field__hint">O empurrão fica guardado; a mesa passa a mover o token quando a batalha ler os itens novos.</p>}
     </Secao>
   )
@@ -486,6 +510,34 @@ function duracaoDoItem(prazo: PrazoDaCondicao, antes: DuracaoNoEditor): DuracaoN
   if (prazo.modo === 'ateTirar' || prazo.modo === 'batalha') return 'fim'
   const turnos = turnosDaCondicao(prazo, DURACAO_DA_PECA_MAX)
   return TURNOS_DA_PECA.find((opcao) => opcao === turnos) ?? antes
+}
+
+/** As peças de atributo não mexem no que mora fora delas (os usos por batalha, a reação): a mecânica do item fica como está. */
+function semMudarAMecanica(): void {}
+
+/**
+ * Pedido de 27/11/2026 ("os itens eles conseguem dar e diminuir status?"): o Muda atributo e o Diminui
+ * atributo no item com a MESMA moldura, o mesmo corpo (o componente do registro das técnicas) e o mesmo
+ * aviso (`avisoDaPeca`) do editor de habilidades. `mecanica` = a do bloco, como a técnica passa a dela.
+ */
+function PecaDeAtributoDoItem({ peca, mecanica, onMudar, onTirar }: { peca: PecaDeAtributo; mecanica: MecanicaV1; onMudar: (peca: PecaDeAtributo) => void; onTirar: () => void }) {
+  const aviso = avisoDaPeca(peca, mecanica)
+  if (peca.tipo === 'status') {
+    const entrada = entradaDaPeca('status')
+    const Corpo = entrada.Componente
+    return (
+      <MolduraDaPeca entrada={entrada} aviso={aviso} onTirar={onTirar}>
+        <Corpo peca={peca} mecanica={mecanica} aoMudar={onMudar} aoMudarAMecanica={semMudarAMecanica} />
+      </MolduraDaPeca>
+    )
+  }
+  const entrada = entradaDaPeca('diminui')
+  const Corpo = entrada.Componente
+  return (
+    <MolduraDaPeca entrada={entrada} aviso={aviso} onTirar={onTirar}>
+      <Corpo peca={peca} mecanica={mecanica} aoMudar={onMudar} aoMudarAMecanica={semMudarAMecanica} />
+    </MolduraDaPeca>
+  )
 }
 
 /**

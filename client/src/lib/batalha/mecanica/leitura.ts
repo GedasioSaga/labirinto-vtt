@@ -6,10 +6,10 @@ import type { FormaDaArea } from '../area'
 import type { LeituraDaAcao, LeituraDoCusto, LeituraDoTempo } from '../leituraDaFicha'
 import type { DevolveAMao, DiminuiAMao, EfeitoDoGatilhoAMao, ElementoAMao, FormaAMao, GatilhoAMao, InvocacaoAMao, LimpezaAMao, MarcaAMao, MecanicaAMao, MudancaDaResposta, RacaAMao, ReacaoAMao, SaidaDaReacaoAMao } from '../mecanicasAMao'
 import type { OpcaoDaPergunta, PerguntaNaHora } from '../perguntaNaHora'
-import { atributoNoMotor, NOME_DA_FADIGA, nomeDoAtributoDaPeca, PECA_DE_PARTIDA, type CondicaoDaPeca, type PecaDaMecanica, type PecaDiminui, type PecaGatilho, type PecaMarca } from './pecas'
+import { atributoNoMotor, NOME_DA_FADIGA, nomeDoAtributoDaPeca, PECA_DE_PARTIDA, pecasDo, type CondicaoDaPeca, type PecaDaMecanica, type PecaDiminui, type PecaGatilho, type PecaMarca, type PecaStatus } from './pecas'
 import type { ReacaoDoTipo } from '../tiposDaHabilidade'
-import { lerMecanicaParaOMotor } from './golpe'
-import { avisoDaMecanica, centroDaArea, testeRolado, VIDA_DO_PORCENTO, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type Porcento, type ReacaoDaMecanica } from './modelo'
+import { lerMecanicaParaOMotor, pecasParaOMotor } from './golpe'
+import { avisoDaMecanica, centroDaArea, testeRolado, VERSAO_DA_MECANICA, VIDA_DO_PORCENTO, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples, type Porcento, type ReacaoDaMecanica } from './modelo'
 import { cdDoTeste, disputaDoTeste } from './teste'
 
 /**
@@ -310,6 +310,30 @@ export function selosDasPecas(mecanica: MecanicaV1, valorNaFicha?: (formula: str
   const selos = mecanica.efeitos.filter((efeito): efeito is SeloDaPeca => efeito.tipo === 'selo')
   const emQuemUsa = selos.find((selo) => selo.em === 'quemUsa')
   return { noAlvo: selos.filter((selo) => selo.em === undefined).map((selo) => seloDaPeca(selo, valorNaFicha)), emQuemUsa: emQuemUsa === undefined ? null : seloDaPeca(emQuemUsa, valorNaFicha) }
+}
+
+/** Os selos que as peças de atributo do "Ao acertar" do item dão: os do Muda atributo (no alvo e em quem usa) e o do Diminui. */
+export interface SelosDasPecasDoItem {
+  noAlvo: SeloDoGolpe[]
+  emQuemUsa: SeloDoGolpe | null
+  diminui: SeloDoGolpe | null
+}
+
+/**
+ * Pedido de 27/11/2026 ("os itens eles conseguem dar e diminuir status?"): o Muda atributo e o Diminui
+ * atributo do "Ao acertar" da arma, do arremesso e da bala, pelo MESMO caminho da técnica montada que
+ * bate: a mecânica do golpe que já acertou (ação Livre, sem custo, sem teste, nos inimigos: a de partida
+ * do "Ao acertar" do editor do item) com só estas peças, lida para o motor (`pecasParaOMotor`: o Muda
+ * atributo vira os selos dos Efeitos, com `nome` = o do item), e os selos dela (`selosDasPecas`, a
+ * fórmula na ficha de quem bate) e o do Diminui (`diminuiDaPeca`). As condições do item não entram aqui:
+ * vão para a ficha do alvo (`aoAcertarDoItem.ts`). Texto = o motivo da recusa da leitura.
+ */
+export function selosDasPecasDoItem(pecas: readonly (PecaStatus | PecaDiminui)[], nome: string, valorNaFicha?: (formula: string) => number | null): SelosDasPecasDoItem | string {
+  if (pecas.length === 0) return { noAlvo: [], emQuemUsa: null, diminui: null }
+  const lida = pecasParaOMotor({ versao: VERSAO_DA_MECANICA, acao: 'livre', custos: [], limite: {}, alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, teste: { tipo: 'naoErra' }, efeitos: [], pecas }, nome)
+  if (lida.tipo === 'invalida') return lida.motivo
+  const diminui = pecasDo(lida.mecanica.pecas, 'diminui').at(0)
+  return { ...selosDasPecas(lida.mecanica, valorNaFicha), diminui: diminui === undefined ? null : diminuiDaPeca(diminui).selo }
 }
 
 /** Fase 5: a recusa do alvo sem o selo que a técnica pede (`alvo.exigeSelo`). */
