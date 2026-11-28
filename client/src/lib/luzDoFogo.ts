@@ -2,6 +2,7 @@ import type { Carimbo, Prop, TipoMobilia } from '../types/map'
 import type { FachoQueGira } from './fachoDoFarol'
 import { CASA_DO_FOGO_PX } from './mobilia/fogo'
 import { corDaChamaDoMovel, TONS_DA_CHAMA } from './mobilia/corDaChama'
+import { versaoSemLuz } from './mobilia/versoes'
 
 /**
  * A LUZ DOS OBJETOS DO MAPA (pedidos do mestre de 09/11/2026: "na gameplay
@@ -158,6 +159,11 @@ export const LUZ_DOS_CARIMBOS: Readonly<Record<string, LuzDoCarimbo>> = {
   // A fenda em brasa: o claro quente puxado para o vermelho (o pedido é o brilho VERMELHO), tremendo como a rocha.
   // Mais vermelho que isto apagaria o verde do chão no breu (o recado do `cor` acima).
   'fenda-em-brasa': { alcanceEmCasas: 1.5, cor: 0xffc8b0, forca: 0.6, treme: true },
+  // Lote L02 do plano de arte por tema (28/11/2026): as runas no chão acendem com o claro frio da chama azul (I0-c),
+  // curto e fraco, parado (o brilho delas já pulsa no palco).
+  'runas-no-chao': { alcanceEmCasas: 1.5, cor: 0xc4dcf0, forca: 0.45, treme: false },
+  // Lote L03: a luz de vitral é a do sol pelo vidro, quente e parada; sem brilho que pulse (o de carimbo pulsa como brasa).
+  'luz-de-vitral': { alcanceEmCasas: 1.5, cor: 0xfff0d8, forca: 0.4, treme: false },
 }
 
 /** O carimbo do tipo ilumina? `Object.hasOwn`: o tipo vem do mapa, e `constructor` também tem a forma de um id. */
@@ -251,6 +257,8 @@ export const TETO_DA_LUZ_EM_VISOES_DO_DIA = 1
 /** A luz que o objeto acende; `null` = nenhuma (tipo sem luz, `hidden` do mestre, fogo apagado ou medida torta). */
 export function luzDoObjeto(f: FogoQueIlumina): LuzDoObjeto | null {
   if (f.mobilia === undefined || f.hidden === true || f.mobiliaForma === 'apagado') return null
+  // A versão que apaga (o lustre apagado e o caído, L03 do plano de arte por tema): o mesmo tipo, sem luz.
+  if (versaoSemLuz(f.mobilia, f.mobiliaVersao)) return null
   if (!Number.isFinite(f.x) || !Number.isFinite(f.y) || !(f.width > 0) || !(f.height > 0)) return null
   const luz = LUZ_DOS_OBJETOS[f.mobilia]
   if (luz === undefined) return null

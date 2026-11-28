@@ -20,6 +20,18 @@ export interface OpcaoDeVersao {
   readonly id: string
   /** O nome no botão do painel. */
   readonly nome: string
+  /** A versão apaga a luz do objeto (o lustre apagado ou caído); ausente = a luz do tipo, como sempre. */
+  readonly semLuz?: true
+}
+
+/** As cores da chama do L02 (o id é a cor de `corDaChama.ts`; a 1ª, a laranja de sempre). */
+const CORES_DO_FOGO: VersoesDoMovel['opcoes'] = [
+  { id: 'laranja', nome: 'Laranja' }, { id: 'azul', nome: 'Azul' }, { id: 'verde', nome: 'Verde' }, { id: 'roxa', nome: 'Roxa' },
+]
+
+/** Os brasões do L03, depois do de sempre (a flor de lis da tapeçaria, a asna do estandarte). */
+function brasoesDepoisDe(deSempre: OpcaoDeVersao): VersoesDoMovel['opcoes'] {
+  return [deSempre, { id: 'leao', nome: 'Leão' }, { id: 'dragao', nome: 'Dragão' }, { id: 'aguia', nome: 'Águia' }, { id: 'torre', nome: 'Torre' }]
 }
 
 export interface VersoesDoMovel {
@@ -39,6 +51,45 @@ export const VERSOES_DO_MOVEL: Readonly<Partial<Record<TipoMobilia, VersoesDoMov
   nichoFunerario: { rotulo: 'Versão', opcoes: [{ id: 'fechado', nome: 'Fechado' }, { id: 'aberto', nome: 'Aberto' }] },
   // O templo da selva (L08 de 24/11/2026): os degraus secos ou cada um virando tanque raso.
   piramideEmDegraus: { rotulo: 'Versão', opcoes: [{ id: 'seca', nome: 'Seca' }, { id: 'alagada', nome: 'Alagada' }] },
+  // Lote L01 do plano de arte por tema (28/11/2026): baús, celas e armadilhas da masmorra e da prisão.
+  bau: { rotulo: 'Versão', opcoes: [{ id: 'fechado', nome: 'Fechado' }, { id: 'comTesouro', nome: 'Aberto com tesouro' }, { id: 'vazio', nome: 'Aberto vazio' }] },
+  celaComGrade: { rotulo: 'Versão', opcoes: [{ id: 'fechada', nome: 'Fechada' }, { id: 'aberta', nome: 'Aberta' }, { id: 'arrombada', nome: 'Arrombada' }] },
+  alcapao: { rotulo: 'Versão', opcoes: [{ id: 'fechado', nome: 'Fechado' }, { id: 'aberto', nome: 'Aberto' }] },
+  armadilhaDeEspinhos: { rotulo: 'Versão', opcoes: [{ id: 'armada', nome: 'Armada' }, { id: 'recolhida', nome: 'Recolhida' }] },
+  gaiolaSuspensa: { rotulo: 'Versão', opcoes: [{ id: 'fechada', nome: 'Fechada' }, { id: 'abertaVazia', nome: 'Aberta vazia' }, { id: 'comOssos', nome: 'Com ossos' }] },
+  placaDePressao: { rotulo: 'Versão', opcoes: [{ id: 'quadrada', nome: 'Quadrada' }, { id: 'losango', nome: 'Losango' }, { id: 'afundada', nome: 'Afundada' }] },
+  escadaDeMao: { rotulo: 'Versão', opcoes: [{ id: 'encostada', nome: 'Encostada' }, { id: 'deitada', nome: 'Deitada' }] },
+  correntePendurada: { rotulo: 'Versão', opcoes: [{ id: 'comGancho', nome: 'Com gancho' }, { id: 'comGrilhao', nome: 'Com grilhão' }] },
+  portaoDeJaula: { rotulo: 'Versão', opcoes: [{ id: 'fechado', nome: 'Fechado' }, { id: 'aberto', nome: 'Aberto' }] },
+  // Lote L02: a cor da chama (o id 'azul', 'verde' ou 'roxa' pinta a chama, a fagulha e a luz: `corDaChama.ts`), os
+  // grilhões com esqueleto e a estante revirada ou vazia. A lâmina pendular entra com o animador `oscilar` (I0-e):
+  // sem ele a versão "Balançando" seria só a viga, sem a lâmina.
+  braseiro: { rotulo: 'Chama', opcoes: CORES_DO_FOGO },
+  tochaDeParede: { rotulo: 'Chama', opcoes: CORES_DO_FOGO },
+  tochaDePe: { rotulo: 'Chama', opcoes: CORES_DO_FOGO },
+  pilarComBraseiro: { rotulo: 'Chama', opcoes: CORES_DO_FOGO },
+  grilhoesDeParede: { rotulo: 'Versão', opcoes: [{ id: 'vazios', nome: 'Vazios' }, { id: 'comEsqueleto', nome: 'Com esqueleto' }] },
+  estanteDeLivros: { rotulo: 'Versão', opcoes: [{ id: 'cheia', nome: 'Cheia' }, { id: 'revirada', nome: 'Revirada' }, { id: 'vaziaComTeias', nome: 'Vazia com teias' }] },
+  // Lote L03: o castelo e o xadrez. A tapeçaria e o estandarte dividem os brasões (heráldica original).
+  tronoReal: { rotulo: 'Versão', opcoes: [{ id: 'real', nome: 'Real' }, { id: 'gelo', nome: 'De gelo' }, { id: 'obsidiana', nome: 'De obsidiana' }, { id: 'ossos', nome: 'De ossos' }] },
+  tapecariaDeParede: { rotulo: 'Brasão', opcoes: brasoesDepoisDe({ id: 'florDeLis', nome: 'Flor de lis' }) },
+  estandarteDePe: { rotulo: 'Brasão', opcoes: brasoesDepoisDe({ id: 'asna', nome: 'Asna' }) },
+  lustreDeVelas: { rotulo: 'Versão', opcoes: [{ id: 'aceso', nome: 'Aceso' }, { id: 'apagado', nome: 'Apagado', semLuz: true }, { id: 'caido', nome: 'Caído', semLuz: true }] },
+  lareira: { rotulo: 'Versão', opcoes: [{ id: 'simples', nome: 'Simples' }, { id: 'salao', nome: 'De salão' }] },
+  estatua: { rotulo: 'Figura', opcoes: [{ id: 'heroi', nome: 'Herói' }, { id: 'cavaleiro', nome: 'Cavaleiro' }, { id: 'rei', nome: 'Rei' }, { id: 'dama', nome: 'Dama' }] },
+  pecaDeXadrez: {
+    rotulo: 'Peça',
+    opcoes: [
+      { id: 'peao', nome: 'Peão' }, { id: 'torre', nome: 'Torre' }, { id: 'cavalo', nome: 'Cavalo' }, { id: 'bispo', nome: 'Bispo' },
+      { id: 'rainha', nome: 'Rainha' }, { id: 'rei', nome: 'Rei' }, { id: 'tombada', nome: 'Tombada' },
+    ],
+  },
+}
+
+/** A versão apaga a luz do objeto (o lustre apagado e o caído): `lib/luzDoFogo.ts` não a acende. */
+export function versaoSemLuz(tipo: TipoMobilia | undefined, valor: unknown): boolean {
+  const versao = normalizarVersaoDoMovel(tipo, valor)
+  return versao !== undefined && versoesDoMovel(tipo)?.opcoes.find((opcao) => opcao.id === versao)?.semLuz === true
 }
 
 /** As versões do tipo (`undefined` = o tipo não tem versão, e o painel não mostra o campo). */

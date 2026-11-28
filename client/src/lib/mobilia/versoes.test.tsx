@@ -12,6 +12,7 @@ import { pintarMovel, type DesenhoDoMovel } from '../../texturas/meioTermo/movei
 import { VERSOES_DESENHADAS } from '../../texturas/meioTermo/moveis/versoes'
 import { MobiliaControls } from '../../components/MobiliaControls'
 import { VERSOES_DO_MOVEL } from './versoes'
+import { luzDoObjeto } from '../luzDoFogo'
 
 /**
  * VERSÕES DENTRO DO OBJETO (I0-a de `docs/design/arte-temas/PLANO.md`, 28/11/2026): um campo só,
@@ -148,5 +149,12 @@ describe('versões dentro do objeto', () => {
     const desenhadas = Object.entries(VERSOES_DESENHADAS).flatMap(([tipo, versoes]) => Object.keys(versoes ?? {}).map((id) => `${tipo}:${id}`))
     expect(naTabela.length).toBeGreaterThan(0)
     expect(desenhadas.sort()).toEqual(naTabela.sort())
+  })
+
+  it('o lustre apagado e o caído (L03) não acendem, o aceso acende como sempre', () => {
+    const lustre = criarMovel('lustreDeVelas', { x: 100, y: 100 }, GRADE, 'lustre-1')
+    expect(luzDoObjeto(lustre)).not.toBeNull()
+    expect(luzDoObjeto({ ...lustre, mobiliaVersao: 'apagado' })).toBeNull()
+    expect(luzDoObjeto(reabrir(mapaCom([{ ...lustre, mobiliaVersao: 'caido' }])))).toBeNull()
   })
 })
