@@ -22,9 +22,10 @@ import { ArteSvg } from './arte/ArteSvg'
 import { desenhoDoModelo, temMolduraPorta } from './arte/modelos'
 import { CorpoDoControle, estiloDoControle, nomeDoControle, type AcoesDaCombinacao, type TecladoDoControle } from './ControlesDaCombinacao'
 import { BaseDoMedalhao, DiscoNoQuadro } from './giratorias/DiscoNoQuadro'
+import { BaseDosInterruptores, PainelDeInterruptores } from './interruptores/PainelDeInterruptores'
 import { ArteDoRelevo, PlacaNoQuadro, useFonteDoPainel } from './relevo/PainelNoQuadro'
 import { PESO_MAX } from './tipos'
-import type { CombinacaoNaVista, EncaixeNaVista, GiratoriasNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
+import type { CombinacaoNaVista, EncaixeNaVista, GiratoriasNaVista, InterruptoresNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
 import './QuadroDoPuzzle.css'
 
 /** O tempo até o cartão do desfecho: a porta inteira (900 ms) e a folga do v2; sem arte, só a folga; reduzido, quase já. */
@@ -65,6 +66,10 @@ export interface PropsDoQuadroDoPuzzle {
   giratorias?: GiratoriasNaVista
   /** O que girar um anel faz (`passo` +1 = horário). Sem isto, o medalhão é só para ver. */
   onGirarAnel?: (anel: number, passo: 1 | -1) => void
+  /** O painel dos interruptores com estado (a arte vira a chapa dele); ausente = outro puzzle. */
+  interruptores?: InterruptoresNaVista
+  /** O que puxar uma alavanca faz. Sem isto, o painel é só para ver. */
+  onPuxarAlavanca?: (alavanca: number) => void
   /** O nome do quadro para o leitor de tela ("Fonte", o título público). */
   rotulo?: string
   className?: string
@@ -74,10 +79,10 @@ export interface PropsDoQuadroDoPuzzle {
 }
 
 export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
-  const { visual, encaixes, troca, resolvido, onAbriu, giratorias } = props
+  const { visual, encaixes, troca, resolvido, onAbriu, giratorias, interruptores } = props
   const id = useId()
-  // O medalhão conta como arte: o cartão do desfecho espera as juntas acenderem e o acorde soar.
-  const abrindo = useAbertura(resolvido, visual.tipo === 'modelo' || giratorias !== undefined, onAbriu)
+  // O medalhão e o painel contam como arte: o cartão do desfecho espera as juntas (ou os lampiões) acenderem e o acorde soar.
+  const abrindo = useAbertura(resolvido, visual.tipo === 'modelo' || giratorias !== undefined || interruptores !== undefined, onAbriu)
   const grao = graoDoQuadro()
   // A Porta de brasões: a placa e os encaixes somem quando a porta se abre.
   const encaixesSomem = visual.tipo === 'modelo' && visual.modelo === 'porta'
@@ -92,9 +97,10 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
         'qpz',
         resolvido && 'is-resolvido',
         resolvido && abrindo && 'is-abrindo',
-        temMolduraPorta(visual) && giratorias === undefined && 'is-porta',
+        temMolduraPorta(visual) && giratorias === undefined && interruptores === undefined && 'is-porta',
         relevo !== null && 'is-relevo',
         giratorias !== undefined && 'is-giratorias',
+        interruptores !== undefined && 'is-interruptores',
         props.className,
       )}
       role="group"
@@ -102,6 +108,8 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
     >
       {giratorias !== undefined ? (
         <BaseDoMedalhao material={giratorias.material} />
+      ) : interruptores !== undefined ? (
+        <BaseDosInterruptores interruptores={interruptores} />
       ) : relevo !== null ? (
         <ArteDoRelevo visual={relevo} fonte={fonte} />
       ) : (
@@ -152,6 +160,7 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
           </div>
         )}
         {giratorias !== undefined && <DiscoNoQuadro giratorias={giratorias} resolvido={resolvido} onGirar={props.onGirarAnel} teclado={props.tecladoDoControle} />}
+        {interruptores !== undefined && <PainelDeInterruptores interruptores={interruptores} resolvido={resolvido} onPuxar={props.onPuxarAlavanca} teclado={props.tecladoDoControle} />}
       </div>
       <div className="qpz__flash" aria-hidden="true" />
       {props.children}

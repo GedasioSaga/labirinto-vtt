@@ -1,0 +1,298 @@
+/*
+ * OS INTERRUPTORES NO QUADRO (28/11, PainelDeInterruptores.tsx): a chapa mora
+ * na base (arte.ts); por cima, cada célula é um botão com o lampião em camadas
+ * e a alavanca. Só opacidade e transform se mexem (o compositor trabalha).
+ *
+ * A luz: o clarão de cada chama é somado à chapa (`screen`), então nem o painel
+ * nem a camada podem abrir contexto de empilhamento (sem z-index, opacity ou
+ * transform aqui em cima), senão a soma fica sem a chapa por baixo.
+ */
+
+.qpz-int {
+  /* ease-out forte do Emil: a alavanca responde na hora. A mola passa um pouco e assenta. */
+  --int-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --int-mola: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --int-foco: #f6dc9e;
+  position: absolute;
+  inset: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.qpz-int[data-material='ferro'] {
+  --int-foco: #e4ded2;
+}
+
+.qpz-int__claroes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* O clarão na chapa: acende rápido; ao apagar, a camisa do lampião esfria devagar. */
+.qpz-int__clarao {
+  position: absolute;
+  display: block;
+  opacity: 0;
+  mix-blend-mode: screen;
+  transition: opacity 520ms ease-out;
+}
+
+.qpz-int__clarao.is-aceso {
+  opacity: 1;
+  transition: opacity 200ms var(--int-ease);
+}
+
+/* A célula inteira é o alvo (no 3 x 3 a 1440 px, ~200 x 145 px; nunca abaixo de 44). */
+.qpz-int__chave {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 1cqw;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  outline: none;
+}
+
+.qpz-int__chave:focus-visible {
+  box-shadow:
+    0 0 0 3px var(--int-foco),
+    0 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.qpz-int__chave[aria-disabled='true'] {
+  cursor: default;
+}
+
+/* No editor (e resolvido) o painel é só para ver. */
+.qpz-int.is-parado .qpz-int__chave {
+  pointer-events: none;
+}
+
+.qpz-int__lampiao,
+.qpz-int__haste,
+.qpz-int__punho {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.qpz-int__lampiao > img,
+.qpz-int__haste > img,
+.qpz-int__punho > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ------------------------------------------------------------------ o lampião: apagar é transição; acender, a chama pegando */
+
+.qpz-int__aceso,
+.qpz-int__reflexo {
+  opacity: 0;
+  transition: opacity 480ms ease-out;
+}
+
+.qpz-int__reflexo {
+  mix-blend-mode: screen;
+}
+
+.qpz-int__chama {
+  opacity: 0;
+  transform: scale(0.35);
+  transform-origin: 50% 62%;
+  transition:
+    opacity 360ms ease-out,
+    transform 360ms ease-out;
+}
+
+.qpz-int__chave.is-aceso .qpz-int__aceso,
+.qpz-int__chave.is-aceso .qpz-int__reflexo {
+  opacity: 1;
+  transition: none;
+}
+
+.qpz-int__chave.is-aceso .qpz-int__chama {
+  opacity: 1;
+  transform: none;
+  transition: none;
+  animation: int-chama 2.4s linear infinite;
+}
+
+/* Acendeu agora (não ao abrir a tela): o vidro pisca enquanto o gás pega, e a chama nasce pequena. */
+.qpz-int__chave.is-aceso.is-acendeu .qpz-int__aceso {
+  animation: int-acende 280ms linear;
+}
+
+.qpz-int__chave.is-aceso.is-acendeu .qpz-int__chama {
+  animation:
+    int-chama 2.4s linear infinite,
+    int-chama-pega 300ms var(--int-ease);
+}
+
+@keyframes int-acende {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.85;
+  }
+  34% {
+    opacity: 0.42;
+  }
+  58% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes int-chama-pega {
+  from {
+    transform: scale(0.3) translateY(8%);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* A chama viva: estica, encolhe e oscila sem ritmo de relógio (cada lampião defasado). */
+@keyframes int-chama {
+  0%,
+  100% {
+    transform: none;
+  }
+  13% {
+    transform: scale(0.97, 1.04) translateY(-1%);
+  }
+  27% {
+    transform: scale(1.02, 0.97);
+  }
+  41% {
+    transform: scale(0.98, 1.05) translateY(-1.5%);
+  }
+  58% {
+    transform: scale(1.01, 0.98);
+  }
+  74% {
+    transform: scale(0.97, 1.03) translateY(-0.5%);
+  }
+  88% {
+    transform: scale(1.02, 0.99);
+  }
+}
+
+/* ------------------------------------------------------------------ a alavanca: desce enquanto aperta, volta na mola */
+
+.qpz-int__haste {
+  transform-origin: 50% 100%;
+  transition: transform 300ms var(--int-mola);
+}
+
+.qpz-int__punho {
+  transition:
+    transform 300ms var(--int-mola),
+    filter 150ms ease;
+}
+
+/* De frente, a haste encurta até sumir no eixo e reaparece para baixo; o punho corre a fenda. */
+.qpz-int__chave:active:not([aria-disabled='true']) .qpz-int__haste {
+  transform: scaleY(-1);
+  transition: transform 110ms var(--int-ease);
+}
+
+.qpz-int__chave:active:not([aria-disabled='true']) .qpz-int__punho {
+  transform: translateY(var(--int-curso));
+  transition:
+    transform 110ms var(--int-ease),
+    filter 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .qpz-int__chave:not([aria-disabled='true']):hover .qpz-int__punho {
+    filter: brightness(1.18);
+  }
+}
+
+/* ------------------------------------------------------------------ resolvido: os lampiões rugem e a moldura acende */
+
+.qpz-int__brilho {
+  position: absolute;
+  border-radius: 1.6cqw;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 0 0.16cqw rgba(255, 219, 150, 0.9),
+    inset 0 0 1.8cqw 0.4cqw rgba(255, 178, 88, 0.42),
+    0 0 2.2cqw 0.5cqw rgba(255, 170, 80, 0.32);
+  transition: opacity 700ms ease-out;
+}
+
+.qpz-int.is-resolvido .qpz-int__brilho {
+  opacity: 1;
+}
+
+.qpz-int.is-resolvido .qpz-int__clarao.is-aceso {
+  animation: int-floresce 1100ms ease-out;
+}
+
+@keyframes int-floresce {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: scale(1.18);
+  }
+}
+
+.qpz-int__leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Movimento reduzido: sem chama tremendo, sem pisca e sem mola; acender e apagar viram um esmaecer curto. */
+@media (prefers-reduced-motion: reduce) {
+  .qpz-int__aceso,
+  .qpz-int__reflexo,
+  .qpz-int__chama,
+  .qpz-int__clarao,
+  .qpz-int__clarao.is-aceso,
+  .qpz-int__chave.is-aceso .qpz-int__aceso,
+  .qpz-int__chave.is-aceso .qpz-int__reflexo,
+  .qpz-int__chave.is-aceso .qpz-int__chama {
+    transition: opacity 160ms ease;
+  }
+
+  .qpz-int__chama,
+  .qpz-int__chave.is-aceso .qpz-int__chama,
+  .qpz-int__chave.is-aceso.is-acendeu .qpz-int__chama {
+    transform: none;
+    animation: none;
+  }
+
+  .qpz-int__chave.is-aceso.is-acendeu .qpz-int__aceso,
+  .qpz-int.is-resolvido .qpz-int__clarao.is-aceso {
+    animation: none;
+  }
+
+  .qpz-int__haste,
+  .qpz-int__punho,
+  .qpz-int__chave:active:not([aria-disabled='true']) .qpz-int__haste,
+  .qpz-int__chave:active:not([aria-disabled='true']) .qpz-int__punho {
+    transition: none;
+  }
+}

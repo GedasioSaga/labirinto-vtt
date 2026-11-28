@@ -56,7 +56,7 @@ export function raiosDosAneis(aneis: number): RaiosDoAnel[] {
 
 // ------------------------------------------------------------------ os materiais
 
-interface Material {
+export interface Material {
   /** Cor pela altura (9 paradas, do fundo com pátina ao alto gasto). */
   tabela: readonly string[]
   brilho: string
@@ -64,7 +64,7 @@ interface Material {
   expoente: number
 }
 
-const MATERIAIS: Readonly<Record<MaterialDasGiratorias, Material>> = {
+export const MATERIAIS: Readonly<Record<MaterialDasGiratorias, Material>> = {
   // Os três metais do painel em relevo, para os dois combinarem na mesma sala.
   bronze: { tabela: ['#33493d', '#4a6553', '#3a4636', '#3b3226', '#4f3a23', '#6a4c2a', '#86632f', '#a37c3f', '#c09858'], brilho: '#f3d3a0', ks: 0.55, expoente: 20 },
   ferro: { tabela: ['#4f2a18', '#5a3320', '#35271f', '#232321', '#282927', '#30322f', '#3d403a', '#53564d', '#74766a'], brilho: '#c8d2c8', ks: 0.36, expoente: 16 },
@@ -80,7 +80,7 @@ function canal(tabela: readonly string[], c: 0 | 1 | 2): string {
 const PARA_ALFA = '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0'
 const ALFA_PARA_CINZA = '0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 1'
 
-interface Luz {
+export interface Luz {
   /** `feDistantLight`: a pino (90) no que gira, de cima à esquerda no que não gira. */
   elevacao: number
   /** O difuso e o especular, ajustados à elevação (a pino, o plano recebe a luz toda). */
@@ -89,11 +89,15 @@ interface Luz {
 }
 
 const LUZ_A_PINO: Luz = { elevacao: 90, kd: 0.86, fatorDoBrilho: 0.14 }
-const LUZ_DE_LADO: Luz = { elevacao: 38, kd: 1.3, fatorDoBrilho: 1 }
+export const LUZ_DE_LADO: Luz = { elevacao: 38, kd: 1.3, fatorDoBrilho: 1 }
 
 /** O filtro que transforma o mapa de altura em metal (ou pedra): relevo arredondado, pátina, luz. */
 function filtroDoMaterial(id: string, material: MaterialDasGiratorias, luz: Luz, caixa: string): string {
-  const m = MATERIAIS[material]
+  return filtroDeMetal(id, MATERIAIS[material], luz, caixa, material === 'pedra')
+}
+
+/** O mesmo filtro com um material qualquer (o latão dos interruptores); `aspero` = o grão da pedra. */
+export function filtroDeMetal(id: string, m: Material, luz: Luz, caixa: string, aspero = false): string {
   const fonte = `<feDistantLight azimuth="225" elevation="${luz.elevacao}"/>`
   const cm = (entrada: string, valores: string, saida: string) => `<feColorMatrix in="${entrada}" type="matrix" values="${valores}" result="${saida}"/>`
   const ar = (a: string, b: string, k: string, saida: string) => `<feComposite in="${a}" in2="${b}" operator="arithmetic" ${k} result="${saida}"/>`
@@ -107,7 +111,7 @@ function filtroDoMaterial(id: string, material: MaterialDasGiratorias, luz: Luz,
     ar('ha', 'b3', 'k2="1" k3="0.18"', 'hs'),
     '<feTurbulence type="fractalNoise" baseFrequency="0.34" numOctaves="2" seed="13" result="gt"/>',
     cm('gt', PARA_ALFA, 'gr'),
-    ar('hs', 'gr', `k2="1" k3="${material === 'pedra' ? '0.07' : '0.03'}" k4="${material === 'pedra' ? '-0.035' : '-0.015'}"`, 'h'),
+    ar('hs', 'gr', `k2="1" k3="${aspero ? '0.07' : '0.03'}" k4="${aspero ? '-0.035' : '-0.015'}"`, 'h'),
     ar('h', 'b3', 'k2="2.2" k3="-2.2" k4="0.6"', 'cav'),
     '<feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" seed="9" result="pt"/>',
     cm('pt', PARA_ALFA, 'nz'),
@@ -281,7 +285,7 @@ export function urlDoDisco(desenho: 'cena' | 'simbolos', cena: CenaDoRelevo, mat
 
 // ------------------------------------------------------------------ a base: parede, sombra e o aro com a marca
 
-const FILTROS_DA_PAREDE = [
+export const FILTROS_DA_PAREDE = [
   '<filter id="grt-parede" filterUnits="userSpaceOnUse" x="0" y="0" width="1600" height="1000" color-interpolation-filters="sRGB">',
   '<feTurbulence type="fractalNoise" baseFrequency="0.024 0.036" numOctaves="4" seed="21" result="t"/>',
   '<feColorMatrix in="t" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.3 0 0 0 -0.5" result="escuro"/>',
@@ -293,7 +297,7 @@ const FILTROS_DA_PAREDE = [
 ].join('')
 
 /** A parede de blocos (fiadas desencontradas), como a do painel em relevo, e a vinheta. */
-function parede(): string {
+export function parede(): string {
   let juntasDaParede = ''
   for (let i = 0; i < 8; i++) {
     const y = 40 + i * 140
