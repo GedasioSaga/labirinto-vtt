@@ -21,9 +21,10 @@ import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { ArteSvg } from './arte/ArteSvg'
 import { desenhoDoModelo, temMolduraPorta } from './arte/modelos'
 import { CorpoDoControle, estiloDoControle, nomeDoControle, type AcoesDaCombinacao, type TecladoDoControle } from './ControlesDaCombinacao'
+import { BaseDoMedalhao, DiscoNoQuadro } from './giratorias/DiscoNoQuadro'
 import { ArteDoRelevo, PlacaNoQuadro, useFonteDoPainel } from './relevo/PainelNoQuadro'
 import { PESO_MAX } from './tipos'
-import type { CombinacaoNaVista, EncaixeNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
+import type { CombinacaoNaVista, EncaixeNaVista, GiratoriasNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
 import './QuadroDoPuzzle.css'
 
 /** O tempo até o cartão do desfecho: a porta inteira (900 ms) e a folga do v2; sem arte, só a folga; reduzido, quase já. */
@@ -60,6 +61,10 @@ export interface PropsDoQuadroDoPuzzle {
   acoesDaCombinacao?: AcoesDaCombinacao
   /** Onde pendurar o teclado do controle (a tela do jogador segura as teclas e as entrega a ele). */
   tecladoDoControle?: RefObject<TecladoDoControle | null>
+  /** O medalhão das peças giratórias (a arte vira a base dele); ausente = outro puzzle. */
+  giratorias?: GiratoriasNaVista
+  /** O que girar um anel faz (`passo` +1 = horário). Sem isto, o medalhão é só para ver. */
+  onGirarAnel?: (anel: number, passo: 1 | -1) => void
   /** O nome do quadro para o leitor de tela ("Fonte", o título público). */
   rotulo?: string
   className?: string
@@ -69,9 +74,10 @@ export interface PropsDoQuadroDoPuzzle {
 }
 
 export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
-  const { visual, encaixes, troca, resolvido, onAbriu } = props
+  const { visual, encaixes, troca, resolvido, onAbriu, giratorias } = props
   const id = useId()
-  const abrindo = useAbertura(resolvido, visual.tipo === 'modelo', onAbriu)
+  // O medalhão conta como arte: o cartão do desfecho espera as juntas acenderem e o acorde soar.
+  const abrindo = useAbertura(resolvido, visual.tipo === 'modelo' || giratorias !== undefined, onAbriu)
   const grao = graoDoQuadro()
   // A Porta de brasões: a placa e os encaixes somem quando a porta se abre.
   const encaixesSomem = visual.tipo === 'modelo' && visual.modelo === 'porta'
@@ -82,11 +88,25 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
   return (
     <div
       ref={props.ref}
-      className={classes('qpz', resolvido && 'is-resolvido', resolvido && abrindo && 'is-abrindo', temMolduraPorta(visual) && 'is-porta', relevo !== null && 'is-relevo', props.className)}
+      className={classes(
+        'qpz',
+        resolvido && 'is-resolvido',
+        resolvido && abrindo && 'is-abrindo',
+        temMolduraPorta(visual) && giratorias === undefined && 'is-porta',
+        relevo !== null && 'is-relevo',
+        giratorias !== undefined && 'is-giratorias',
+        props.className,
+      )}
       role="group"
       aria-label={props.rotulo}
     >
-      {relevo !== null ? <ArteDoRelevo visual={relevo} fonte={fonte} /> : <ArteDoQuadro visual={visual} prefixo={id} />}
+      {giratorias !== undefined ? (
+        <BaseDoMedalhao material={giratorias.material} />
+      ) : relevo !== null ? (
+        <ArteDoRelevo visual={relevo} fonte={fonte} />
+      ) : (
+        <ArteDoQuadro visual={visual} prefixo={id} />
+      )}
       {grao !== null && <div className="qpz__grao" style={{ backgroundImage: `url(${grao})` }} aria-hidden="true" />}
       <div className="qpz__camada">
         {encaixes.map((encaixe, i) =>
@@ -131,6 +151,7 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
             <CorpoDoControle combinacao={props.combinacao} travado={resolvido} acoes={props.acoesDaCombinacao} teclado={props.tecladoDoControle} />
           </div>
         )}
+        {giratorias !== undefined && <DiscoNoQuadro giratorias={giratorias} resolvido={resolvido} onGirar={props.onGirarAnel} teclado={props.tecladoDoControle} />}
       </div>
       <div className="qpz__flash" aria-hidden="true" />
       {props.children}

@@ -17,6 +17,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom'
 import type { AcoesDaCombinacao, TecladoDoControle } from '../../puzzles/ControlesDaCombinacao'
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
+import { tocarSomDasGiratorias } from '../../puzzles/giratorias/somDasGiratorias'
 import { tocarSomDoRelevo } from '../../puzzles/relevo/somDoRelevo'
 import { TEXTO_DA_RECUSA } from '../../puzzles/tipos'
 import type { AcaoNoPuzzle, EncaixeNaVista, MotivoDaRecusa, VistaDoPuzzle } from '../../puzzles/tipos'
@@ -81,6 +82,8 @@ type AlvoTocado = { tipo: 'encaixe'; id: string } | { tipo: 'bandeja' } | { tipo
 
 /** O aviso da mochila num puzzle de combinação sem troca de peso (v2). */
 const NOTA_DA_COMBINACAO = 'Este puzzle não usa peças: é uma combinação.'
+/** O aviso da mochila nas peças giratórias (o medalhão não leva peça). */
+const NOTA_DAS_GIRATORIAS = 'Este puzzle não usa peças: gire os anéis do medalhão.'
 
 export function TelaDoPuzzle({ raiz, ...props }: PropsDaTelaDoPuzzle) {
   return createPortal(<Tela {...props} />, raiz ?? document.body)
@@ -428,7 +431,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           setEscolhida(null)
           setDesfechoPendente(acontecimento.desfecho)
           // O painel completo ressoa logo depois do som da última placa.
-          if (vista.visual.tipo === 'relevo') window.setTimeout(() => tocarSomDoRelevo('completo'), ATRASO_DO_SOM_COMPLETO_MS)
+          if (vista.giratorias !== undefined) window.setTimeout(() => tocarSomDasGiratorias('alinhou'), ATRASO_DO_SOM_COMPLETO_MS)
+          else if (vista.visual.tipo === 'relevo') window.setTimeout(() => tocarSomDoRelevo('completo'), ATRASO_DO_SOM_COMPLETO_MS)
           break
       }
     }
@@ -436,7 +440,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
 
   // ---------------------------------------------------------------- o cartão do desfecho: Texto logo, Cena depois da arte
 
-  const comArte = vista.visual.tipo === 'modelo'
+  // O medalhão também espera: as juntas acendem e o acorde soa antes do cartão.
+  const comArte = vista.visual.tipo === 'modelo' || vista.giratorias !== undefined
   useEffect(() => {
     if (desfechoPendente === null || !vista.resolvido) return
     const mostrar = () => {
@@ -572,6 +577,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
               combinacao={vista.combinacao}
               acoesDaCombinacao={vista.versaoNova === true ? undefined : acoesDaCombinacao}
               tecladoDoControle={tecladoDoControle}
+              giratorias={vista.giratorias}
+              onGirarAnel={vista.versaoNova === true ? undefined : acoesDaCombinacao.onGirar}
               rotulo={titulo}
             >
               {cartao !== null && <CartaoDoDesfecho titulo={titulo} desfecho={cartao} eu={eu} onContinuar={fecharCartao} teste={teste} onVoltar={() => sair(false)} />}
@@ -593,7 +600,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           novas={novas}
           pv={ehTeste ? null : pv}
           titulo={ehTeste ? TITULO_DAS_PECAS_DO_TESTE : undefined}
-          nota={vista.combinacao !== undefined && vista.troca === null ? NOTA_DA_COMBINACAO : ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
+          nota={vista.giratorias !== undefined ? NOTA_DAS_GIRATORIAS : vista.combinacao !== undefined && vista.troca === null ? NOTA_DA_COMBINACAO : ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
           onEscolher={escolher}
           onApertar={arrasto.aoApertar}
         />

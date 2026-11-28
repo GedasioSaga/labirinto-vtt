@@ -31,9 +31,14 @@ export const ENCAIXE_VAZIO = 'Encaixe vazio. Escolha uma peça primeiro.'
 export const BANDEJA_VAZIA = 'Bandeja vazia. Ponha pedras de peso marcado.'
 
 /** "2 de 3 no lugar"; o destaque vai em negrito, como no v2 (`rotuloEstado`, também o da combinação). */
-export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca' | 'combinacao'>, teste = false): { destaque: string; resto: string } {
+export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca' | 'combinacao' | 'giratorias'>, teste = false): { destaque: string; resto: string } {
   if (vista.versaoNova === true) return { destaque: '', resto: TEXTO_DA_RECUSA.versao_nova }
   if (vista.resolvido) return { destaque: teste ? 'Resolvido no teste.' : 'Resolvido.', resto: vista.contagem.total > 0 ? ' As peças ficaram presas.' : '' }
+  // As peças giratórias não contam quantos anéis estão no lugar: seria a resposta pela metade.
+  if (vista.giratorias !== undefined) {
+    const como = vista.giratorias.desenho === 'simbolos' ? 'até os símbolos certos ficarem sob a marca' : 'até o desenho fechar'
+    return { destaque: '', resto: `Gire os anéis ${como}.${vista.giratorias.vizinhas ? ' Cada anel leva os do lado.' : ''}` }
+  }
   const combinacao = vista.combinacao
   if (combinacao !== undefined) {
     if (combinacao.forma === 'relogio') return { destaque: '', resto: 'Acerte os ponteiros e tente.' }
