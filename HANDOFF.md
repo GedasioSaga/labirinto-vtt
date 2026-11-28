@@ -1,3 +1,10 @@
+# 28/11 ~04h: estado do /goal
+- 0.6.10 PUBLICADA (de babcc091). 0.6.11 (Painel em relevo, release/0.6.10 + 50dc3b07) PUBLICANDO (agente a4802674).
+- Puzzles: Peças giratórias PRONTO na main (cf574057..1c68c3c3, 3 testes) -> próxima release. Interruptores com estado em construção (agente a1945ec2). Fila em docs/design/puzzles/FILA.md.
+- Arte onda 1 (wf_c1a1991e-23b): I0 commitado (7bea8bc2, cb53df01, 5ff3ee2a, cda77a72); lotes L01-L03 desenhando; integrador depois. ATENÇÃO: erro de tsc em texturas/meioTermo/moveis/versoes/bauVersoes.ts (TS6133 Forma) de um desenhista: o integrador deve limpar.
+- Bugs de batalha (wf_88a2688e-1f6): rodando.
+- Próximas releases: 0.6.12 = giratórias + (interruptores se prontos) + onda 1 de arte + consertos de batalha verificados; publicar de commit fixo em que tsc passa.
+
 # 28/11 03:20: 0.6.10 PUBLICADA (de babcc091: Aura, anula em parte, marcos do acumulador e Vale em, condições fora da batalha, 4 bugs)
 
 - Worktree ../labirinto-release de babcc091 (commit fixo; o topo da main com arte/puzzles NÃO entrou) em release/0.6.10, 3 junções (raiz, client, lobby/nuvem), bump f81a879e "chore(release): 0.6.10" (5 arquivos, no Cargo.lock só a entrada labirinto), `git push -u origin release/0.6.10` (branch nova). RAM 5,7 GB e disco 7,6 GB antes. CARGO_BUILD_JOBS=2 publicar-versao --publicar --com-google --notas tmp/rel-0.6.10/notas-da-versao-0.6.10.md via tmp/rel-0.6.10/orquestra.ps1, exit 0 na 1ª tentativa (log tmp/rel-0.6.10/publicar-t1.log; cargo 27m36s; RAM mínima 0,18 GB num pico curto, sem passar 1 min abaixo de 0,8): tsc lobby/site e lobby/nuvem sem erro, assinatura confere, conferir-repo-publico "nada bloqueia", Worker be36edeb-b0bf-4826-adaf-cc177b07100e, site cf4e9670.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.6.10 (setup.exe, .sig, msi, latest.json; alvo f81a879e). curl releases/latest/download/latest.json: "version": "0.6.10".
