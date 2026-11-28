@@ -3,6 +3,7 @@ import { cabeAcao, gastarAcao } from '../../lib/batalha/acoes'
 import { combateVazio, type AcaoDaTecnica } from '../../lib/batalha/combate'
 import { acoesDaCarta } from '../../lib/batalha/golpe'
 import { armasDe, type ArmaDaFicha } from '../../lib/batalha/leituraDaFicha'
+import type { BalaNoPente } from '../../lib/itens/modelo'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
 import { fichaComAMochilaDoBoneco } from '../../lib/batalha/municaoDaFicha'
 import { acaoDaRecarga, mochilaComBalasNoPente, mochilaComTiroDoPente, recargaDoPente, textoDoGastoDaRecarga } from '../../lib/batalha/penteNaBatalha'
@@ -71,21 +72,22 @@ export function armaNaMesa(mesa: MesaDaBatalha, sceneKey: string, tokenId: strin
 export function gastarDoPenteNaMesa(mesa: MesaDaBatalha, sceneKey: string, tokenId: string, personagemId: string, armaId: string): Reversao | null | 'recusada' {
   const pente = armaNaMesa(mesa, sceneKey, tokenId, personagemId, armaId)?.pente
   if (pente === undefined) return null
-  const tiro: { balaId: string | null } = { balaId: null }
+  const tiro: { balaId: string | null; daBala?: BalaNoPente } = { balaId: null }
   const mudada = mudarMochilaNaMesa(mesa, sceneKey, tokenId, personagemId, (mochila) => {
     const feito = mochilaComTiroDoPente(mochila, pente.vagaId)
     tiro.balaId = feito?.balaId ?? null
+    if (feito?.daBala !== undefined) tiro.daBala = feito.daBala
     return feito?.mochila ?? null
   })
   if (mudada === 'recusada') return 'recusada'
   if (mudada === null || tiro.balaId === null) return null
-  return { tipo: 'pente', personagemId, armaVagaId: pente.vagaId, balaId: tiro.balaId, n: 1, ...(mudada.tokenId === undefined ? {} : { tokenId: mudada.tokenId }) }
+  return { tipo: 'pente', personagemId, armaVagaId: pente.vagaId, balaId: tiro.balaId, n: 1, ...(tiro.daBala === undefined ? {} : { daBala: tiro.daBala }), ...(mudada.tokenId === undefined ? {} : { tokenId: mudada.tokenId }) }
 }
 
 /** O DESFAZER do tiro do pente: as balas voltam ao pente, sobre a mochila de agora. `false` = não deu (a mesa recusou ou o pente mudou de bala). */
 export function devolverAoPenteNaMesa(mesa: MesaDaBatalha, sceneKey: string, reversao: Extract<Reversao, { tipo: 'pente' }>): boolean {
-  const { personagemId, armaVagaId, balaId, n, tokenId } = reversao
-  const mudar = (mochila: readonly CarriedItem[]) => mochilaComBalasNoPente(mochila, armaVagaId, balaId, n)
+  const { personagemId, armaVagaId, balaId, n, tokenId, daBala } = reversao
+  const mudar = (mochila: readonly CarriedItem[]) => mochilaComBalasNoPente(mochila, armaVagaId, balaId, n, daBala)
   const feito = tokenId === undefined ? mudarDaFicha(mesa, personagemId, mudar) : mudarMochilaNaMesa(mesa, sceneKey, tokenId, personagemId, mudar)
   return feito !== null && feito !== 'recusada'
 }

@@ -11,7 +11,7 @@ import {
 import { numeroDaFicha, type CartaoDaFicha, type Modificador, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { CarriedItem, Token } from '../../types/map'
-import type { CondicaoNaFicha } from '../itens/modelo'
+import type { BalaNoPente, CondicaoNaFicha } from '../itens/modelo'
 import type { EmpurraoNaMesa } from './mesa'
 import type { CondicoesDaFicha } from '../turnoForaDaBatalha'
 import {
@@ -283,9 +283,10 @@ export type Reversao =
   /**
    * ITENS REFEITOS, E6a: o tiro tirou `n` balas `balaId` do pente da arma `armaVagaId`. Desfazer = elas
    * voltam ao pente (`mochilaComBalasNoPente`), sobre a mochila de agora. `tokenId`: a mochila era a do
-   * boneco (aventura não migrada), como na `municao`.
+   * boneco (aventura não migrada), como na `municao`. `daBala`: a cópia da bala que o pente levava (rodada
+   * 3), para o Desfazer do último tiro a devolver junto.
    */
-  | { tipo: 'pente'; personagemId: string; armaVagaId: string; balaId: string; n: number; tokenId?: string }
+  | { tipo: 'pente'; personagemId: string; armaVagaId: string; balaId: string; n: number; tokenId?: string; daBala?: BalaNoPente }
   /**
    * ITENS REFEITOS, E6a: a mesa mudou várias vagas de uma vez (a recarga: a bala sai da mochila e o
    * pente enche). Desfazer = cada vaga que mudou volta à de `antes` (`mochilaDesfeita`), sobre a mochila

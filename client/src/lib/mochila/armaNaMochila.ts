@@ -1,5 +1,5 @@
 import type { CarriedItem } from '../../types/map'
-import { TIPOS_COM_PENTE, TIPOS_DE_ARMA, TIPOS_QUE_EQUIPAM, type TipoDoItem } from '../itens/modelo'
+import { TIPOS_COM_PENTE, TIPOS_DE_ARMA, TIPOS_QUE_EQUIPAM, type BalaNoPente, type PenteDaVaga, type TipoDoItem } from '../itens/modelo'
 import { mochilaComItemDoAcervo, quantidadeDe, type ItemParaDar } from '../items'
 
 /**
@@ -180,7 +180,10 @@ export function recarregarForaDaBatalha(mochila: readonly CarriedItem[], armaVag
   // 1º devolve a bala de outro tipo (pode somar na pilha dela, nunca na da bala que entra: ids diferentes).
   const trocada = !mesmaBala && atual !== undefined ? mochilaComOPenteDevolvido(mochila, armaVagaId, acervo, freshId) : { mochila: [...mochila], devolvidas: 0 }
   const resta = quantidadeDe(bala) - entram
-  const novoPente = { balaId, n: noPente + entram }
+  // Rodada 3 (28/11/2026): a regra da bala vai junto para o pente; a vaga dela some quando entram todas, e sem o
+  // Acervo (o Worker do Lobby, o jogador) o tiro só a acha aqui. A da vaga é a cópia mais nova; sem ela, a que o pente já tinha.
+  const regra = bala.regra ?? (mesmaBala ? atual.regra : undefined)
+  const novoPente: PenteDaVaga = { balaId, n: noPente + entram, ...(regra === undefined ? {} : { regra }), nome: bala.nome }
   const recarregada = trocada.mochila.flatMap((item): CarriedItem[] => {
     if (item.id === armaVagaId) return [{ ...item, pente: novoPente }]
     if (item.id !== balaVagaId) return [item]
@@ -205,7 +208,11 @@ export function mochilaComPenteAjustado(mochila: readonly CarriedItem[], armaVag
   if (n === 0) return mochila.map((item) => (item === arma ? semPente(item) : item))
   const balaId = arma.pente?.balaId ?? pente.aceita[0] ?? balasParaOPente(mochila, armaVagaId, acervo)[0]?.itemId
   if (balaId === undefined) return { recusa: `Diga no Acervo que bala ${arma.nome} aceita: sem ela, o pente não sabe o que leva.` }
-  return mochila.map((item) => (item === arma ? { ...item, pente: { balaId, n } } : item))
+  // Rodada 3: a regra da bala segue no pente (a que ele já tinha; vazio, a da vaga da bala), para quem joga sem o Acervo.
+  const daMochila = mochila.find((item) => item.itemId === balaId)
+  const copia: BalaNoPente = arma.pente?.balaId === balaId ? { regra: arma.pente.regra, nome: arma.pente.nome } : { regra: daMochila?.regra, nome: daMochila?.nome }
+  const ajustado: PenteDaVaga = { balaId, n, ...(copia.regra === undefined ? {} : { regra: copia.regra }), ...(copia.nome === undefined ? {} : { nome: copia.nome }) }
+  return mochila.map((item) => (item === arma ? { ...item, pente: ajustado } : item))
 }
 
 /**

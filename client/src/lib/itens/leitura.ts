@@ -218,8 +218,15 @@ export function regraDaVagaLida(value: unknown): BlocosDoItem | undefined {
 export function penteDaVagaLido(value: unknown): PenteDaVaga | undefined {
   if (!isRecord(value) || typeof value.balaId !== 'string' || !ID_DE_ITEM.test(value.balaId)) return undefined
   const n = inteiroEntre(value.n, 1, CAPACIDADE_MAX)
-  return n === null ? undefined : { balaId: value.balaId, n }
+  if (n === null) return undefined
+  // Rodada 3: a regra e o nome da bala que vieram com o pente (o Worker e o jogador, sem o Acervo, os leem daqui).
+  const regra = regraDaVagaLida(value.regra)
+  const nome = typeof value.nome === 'string' && value.nome.trim() !== '' ? cortado(value.nome.trim(), NOME_DA_BALA_MAX) : undefined
+  return { balaId: value.balaId, n, ...(regra === undefined ? {} : { regra }), ...(nome === undefined ? {} : { nome }) }
 }
+
+/** O teto do nome da bala copiado no pente: o do nome do item (`ITEM_NAME_MAX_LENGTH`; o import daria ciclo com `leituraDoItem`). */
+const NOME_DA_BALA_MAX = 60
 
 /** A nota da vaga (o texto que o mestre editou só nela, A4): aparada, no teto; vazia = sem o campo. */
 export function notaDaVagaLida(value: unknown): string | undefined {

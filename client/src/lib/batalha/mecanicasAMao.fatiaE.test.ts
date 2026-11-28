@@ -14,6 +14,7 @@ import {
   DESENHAR,
   FURIA_1,
   FURIA_3,
+  ID_DA_PRATA,
   OLHAR,
   outroOgro,
   PARTE_1,
@@ -23,6 +24,7 @@ import {
   RECUPERACAO_DE_FORCAS,
   ryokoCom,
   SOPRO_1,
+  VAGA_DA_ROSA,
   vincentArmado,
   vincentCom,
 } from './fichasDaFatiaE.testkit'
@@ -44,6 +46,7 @@ import {
   temReacaoContraSurpresa,
 } from './reacaoComTecnica'
 import { escudoNoComeco } from './recursosDaBatalha'
+import { recargaDoPente } from './penteNaBatalha'
 import { danoComAsReducoes, reducoesDoDano } from './reducaoDoDano'
 import { mudancasDaVez, reverterTurnos } from './registro'
 import { modoDaReacao } from './tiposDaHabilidade'
@@ -217,6 +220,20 @@ describe('Vincent: Bala de Prata, a marca e o Escudo', () => {
     if (bala === null) throw new Error('a Bala de Prata não está no pente')
     expect(danoDoAtaque({ personagem: vincent, sistema, arma: rosa, vidaDoAlvo: null }, bala)).toMatchObject({ tipo: 'valor', valor: 72 })
     expect(lerDano(DESENHAR.campos.dano ?? '', { personagem: vincent, sistema, arma: rosa, vidaDoAlvo: null, bala })).toMatchObject({ tipo: 'valor', valor: 72 })
+    const golpe = lancarGolpe(contexto(vincent, ryokoCom()), atacar(72, { armaId: ARMA_DA_ROSA, balaId: BALA_DA_PRATA }), IDS).golpe
+    expect(golpe?.aoAcertar).toEqual({ condicoes: [{ nome: NOME_DA_CURA_REDUZIDA, duracao: 'fim', n: CURA_REDUZIDA_PADRAO }], origem: BALA_DE_PRATA.nome })
+  })
+
+  it('rodada 3, sem o Acervo (o Worker, o jogador): a recarga põe as 6 pratas no pente, a pilha some, e o tiro ainda é 72 com a Cura reduzida da prata', () => {
+    const antes = vincentArmado(0, 6)
+    // A recarga da mesa no começo da vez (`recargasNoComecoDaVez` chama esta): cabem 10, entram as 6, a vaga da prata sai da mochila.
+    const recarga = recargaDoPente(antes.mochila ?? [], VAGA_DA_ROSA, undefined, 'vaga_nova')
+    const vincent: Personagem = { ...antes, mochila: recarga?.mochila ?? [] }
+    expect([recarga?.entraram, vincent.mochila?.some((vaga) => vaga.itemId === ID_DA_PRATA)]).toEqual([6, false])
+    const rosa = armasDe(vincent).find((arma) => arma.id === ARMA_DA_ROSA)
+    const bala = rosa === undefined ? null : balaDaArma(rosa, BALA_DA_PRATA)
+    if (rosa === undefined || bala === null) throw new Error('a Bala de Prata não está no pente')
+    expect(danoDoAtaque({ personagem: vincent, sistema, arma: rosa, vidaDoAlvo: null }, bala)).toMatchObject({ tipo: 'valor', valor: 72 })
     const golpe = lancarGolpe(contexto(vincent, ryokoCom()), atacar(72, { armaId: ARMA_DA_ROSA, balaId: BALA_DA_PRATA }), IDS).golpe
     expect(golpe?.aoAcertar).toEqual({ condicoes: [{ nome: NOME_DA_CURA_REDUZIDA, duracao: 'fim', n: CURA_REDUZIDA_PADRAO }], origem: BALA_DE_PRATA.nome })
   })

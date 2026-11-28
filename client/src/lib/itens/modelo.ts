@@ -163,7 +163,18 @@ export type RegraDaVaga = BlocosDoItem
 export type PenteDaVaga = {
   balaId: string
   n: number
+  /**
+   * Rodada 3 (28/11/2026): a `regra` da bala que entrou, copiada da vaga dela na recarga. Com todas as balas
+   * no pente a vaga da munição some, e o Worker do Lobby e o jogador (sem o Acervo) perdiam o "Ao acertar"
+   * e o dano da bala. Ausente = a bala sem regra na vaga (ou o pente de antes disto): vale a da mochila.
+   */
+  regra?: RegraDaVaga
+  /** O nome da bala que entrou, copiado com a regra (sem ele, o registro do Worker dizia "Munição do pente"). */
+  nome?: string
 }
+
+/** A cópia da bala que o pente leva (rodada 3): o que o Desfazer do último tiro devolve junto com as balas. */
+export type BalaNoPente = Pick<PenteDaVaga, 'regra' | 'nome'>
 
 /**
  * "Até o fim da batalha" ou por N turnos (contados na vez de quem está com a condição). Rework das

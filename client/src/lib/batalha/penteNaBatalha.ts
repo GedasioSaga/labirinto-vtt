@@ -1,6 +1,6 @@
 import type { CarriedItem } from '../../types/map'
 import { quantidadeDe } from '../items'
-import type { RecargaDoItem } from '../itens/modelo'
+import type { BalaNoPente, PenteDaVaga, RecargaDoItem } from '../itens/modelo'
 import { balasParaOPente, ehRecusa, recarregarForaDaBatalha } from '../mochila/armaNaMochila'
 import type { AcaoDaTecnica } from './combate'
 import { lerAcao } from './leituraDaFicha'
@@ -21,6 +21,14 @@ export interface TiroDoPente {
   mochila: CarriedItem[]
   balaId: string
   restam: number
+  /** A cópia da bala que o pente levava (rodada 3): o Desfazer do último tiro a devolve junto. */
+  daBala?: BalaNoPente
+}
+
+/** A regra e o nome da bala que o pente leva; nada copiado = `undefined`. */
+function daBalaNoPente(pente: PenteDaVaga): BalaNoPente | undefined {
+  if (pente.regra === undefined && pente.nome === undefined) return undefined
+  return { ...(pente.regra === undefined ? {} : { regra: pente.regra }), ...(pente.nome === undefined ? {} : { nome: pente.nome }) }
 }
 
 /** A vaga sem o pente (vazio = sem o campo, como o leitor do disco o quer). */
@@ -35,20 +43,23 @@ export function mochilaComTiroDoPente(mochila: readonly CarriedItem[], armaVagaI
   const pente = arma?.pente
   if (arma === undefined || pente === undefined || pente.n < 1) return null
   const restam = pente.n - 1
-  const nova = restam < 1 ? semPente(arma) : { ...arma, pente: { balaId: pente.balaId, n: restam } }
-  return { mochila: mochila.map((vaga) => (vaga === arma ? nova : vaga)), balaId: pente.balaId, restam }
+  // Rodada 3: a regra da bala fica no pente até a última (sem o Acervo, é dela que o tiro lê).
+  const nova = restam < 1 ? semPente(arma) : { ...arma, pente: { ...pente, n: restam } }
+  const daBala = daBalaNoPente(pente)
+  return { mochila: mochila.map((vaga) => (vaga === arma ? nova : vaga)), balaId: pente.balaId, restam, ...(daBala === undefined ? {} : { daBala }) }
 }
 
 /**
  * O DESFAZER do tiro: `n` balas `balaId` voltam ao pente da arma, sobre a mochila de AGORA (o que mudou
  * depois fica). `null` = a arma saiu da mochila ou o pente tem outra bala agora (a troca já as devolveu).
+ * `daBala` = a cópia da bala que o tiro levou (o último tiro tirou o pente inteiro, e a cópia junto).
  */
-export function mochilaComBalasNoPente(mochila: readonly CarriedItem[], armaVagaId: string, balaId: string, n: number): CarriedItem[] | null {
+export function mochilaComBalasNoPente(mochila: readonly CarriedItem[], armaVagaId: string, balaId: string, n: number, daBala?: BalaNoPente): CarriedItem[] | null {
   const arma = mochila.find((vaga) => vaga.id === armaVagaId)
   if (arma === undefined || n < 1) return null
   const atual = arma.pente
   if (atual !== undefined && atual.balaId !== balaId) return null
-  const pente = { balaId, n: (atual?.n ?? 0) + n }
+  const pente: PenteDaVaga = { ...(atual ?? daBala ?? {}), balaId, n: (atual?.n ?? 0) + n }
   return mochila.map((vaga) => (vaga === arma ? { ...vaga, pente } : vaga))
 }
 

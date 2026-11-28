@@ -7,7 +7,7 @@ import { ATAQUE_SEM_ATRIBUTO, CAMPO_DO_ATRIBUTO_DO_ATAQUE, CAMPO_DO_DANO, normal
 import { municaoNaMochila, type MunicaoDaBala } from '../mochila/municao'
 import { balasParaOPente, penteDaArma } from '../mochila/armaNaMochila'
 import { quantidadeDe } from '../items'
-import type { AtaqueDoItem, BlocosDoItem, RecargaDoItem } from '../itens/modelo'
+import type { AtaqueDoItem, BlocosDoItem, PenteDaVaga, RecargaDoItem } from '../itens/modelo'
 import { ACERVO_DA_BATALHA, municoesDaArma, nomeNoAcervo, regraNoAcervo, tiroDaMunicao, versaoDasMunicoes, type MunicaoAceita } from './municoesDoAcervo'
 import { efeitosAoAcertar, temEfeitoAoAcertar, type EfeitosAoAcertar } from './aoAcertarDoItem'
 
@@ -565,21 +565,22 @@ function danoDaBala(balaId: string, blocos: Pick<BlocosDoItem, 'bala'> | undefin
   return bala.divisor === undefined || bala.divisor <= 1 ? `+${atributo}` : `+${atributo} / ${bala.divisor}`
 }
 
-/** O nome da bala: o do Acervo de agora, senão o da vaga da mochila com ela. */
-function nomeDaBala(balaId: string, mochila: readonly CarriedItem[]): string {
-  return nomeNoAcervo(balaId) ?? mochila.find((vaga) => vaga.itemId === balaId)?.nome ?? MUNICAO_SEM_NOME
+/** O nome da bala: o do Acervo de agora, senão o da vaga da mochila com ela, senão o copiado no pente (rodada 3). */
+function nomeDaBala(balaId: string, mochila: readonly CarriedItem[], doPente?: string): string {
+  return nomeNoAcervo(balaId) ?? mochila.find((vaga) => vaga.itemId === balaId)?.nome ?? doPente ?? MUNICAO_SEM_NOME
 }
 
 /** A bala que está no pente como bala da arma: o tiro tira 1 do pente (`municao.pente`). */
-function balaDoPente(armaVagaId: string, pente: { balaId: string; n: number }, mochila: readonly CarriedItem[]): BalaDaArma {
-  // Sem o Acervo (o Worker do Lobby, o jogador), a regra da bala vem da vaga dela na mochila.
-  const blocos = regraNoAcervo(pente.balaId)?.blocos ?? mochila.find((vaga) => vaga.itemId === pente.balaId)?.regra
+function balaDoPente(armaVagaId: string, pente: PenteDaVaga, mochila: readonly CarriedItem[]): BalaDaArma {
+  // Sem o Acervo (o Worker do Lobby, o jogador), a regra da bala vem da vaga dela na mochila (a cópia mais nova) e, sem
+  // a vaga, do pente (rodada 3: com todas as balas no pente, a vaga da munição já saiu da mochila).
+  const blocos = regraNoAcervo(pente.balaId)?.blocos ?? mochila.find((vaga) => vaga.itemId === pente.balaId)?.regra ?? pente.regra
   const aoAcertar = efeitosAoAcertar(blocos)
   return {
     ...(temEfeitoAoAcertar(aoAcertar) ? { aoAcertar } : {}),
     ...(blocos?.bala?.perfurante === true ? { perfurante: true as const } : {}),
     id: `${PREFIXO_DA_MUNICAO}${pente.balaId}`,
-    nome: nomeDaBala(pente.balaId, mochila),
+    nome: nomeDaBala(pente.balaId, mochila, pente.nome),
     dano: danoDaBala(pente.balaId, blocos),
     efeito: tiroDaMunicao(pente.balaId)?.efeito ?? '',
     quantidade: '',

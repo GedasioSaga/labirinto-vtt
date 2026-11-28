@@ -93,6 +93,22 @@ function recusaNoPenteDaVaga(vaga: CarriedItem): string | null {
   return null
 }
 
+const COPIA_DA_BALA_DO_MESTRE = 'A regra e o nome da bala do pente são os que o mestre deu: não mudam pelo site.'
+
+/**
+ * Rodada 3 (28/11/2026): o pente leva a regra e o nome da bala (a cópia que o Worker lê quando a pilha some).
+ * Só o mestre escreve a regra: a cópia que o jogador manda tem de ser a de uma pilha dessa bala de antes do
+ * grupo, ou a que o pente dessa arma já tinha com a mesma bala. Sem cópia nenhuma, pode (o pente de antes disto).
+ */
+function recusaNaCopiaDaBala(vaga: CarriedItem, antes: CarriedItem | undefined, mochilaAntes: readonly CarriedItem[]): string | null {
+  const carregado = vaga.pente
+  if (carregado === undefined || (carregado.regra === undefined && carregado.nome === undefined)) return null
+  const doPenteDeAntes = antes?.pente?.balaId === carregado.balaId ? [{ regra: antes.pente.regra, nome: antes.pente.nome }] : []
+  const dasPilhas = mochilaAntes.filter((pilha) => pilha.itemId === carregado.balaId).map((pilha) => ({ regra: pilha.regra, nome: pilha.nome }))
+  const confere = [...doPenteDeAntes, ...dasPilhas].some((origem) => jsonIgual(origem.regra, carregado.regra) && (carregado.nome === undefined || origem.nome === carregado.nome))
+  return confere ? null : COPIA_DA_BALA_DO_MESTRE
+}
+
 /**
  * O pente (decisão 2 e A8): cada vaga que ficou com o pente mudado cabe nele, e por bala envolvida a
  * soma das pilhas com a dos pentes é a mesma antes e depois. Recarregar = a pilha desce o que o pente
@@ -102,7 +118,7 @@ function recusaNoPenteDaVaga(vaga: CarriedItem): string | null {
 function recusaNoPente(mochilaAntes: readonly CarriedItem[], porIdAntes: ReadonlyMap<string, CarriedItem>, mochila: readonly CarriedItem[]): string | null {
   const mudaram = mochila.filter((vaga) => !jsonIgual(vaga.pente, porIdAntes.get(vaga.id)?.pente))
   for (const vaga of mudaram) {
-    const recusa = recusaNoPenteDaVaga(vaga)
+    const recusa = recusaNoPenteDaVaga(vaga) ?? recusaNaCopiaDaBala(vaga, porIdAntes.get(vaga.id), mochilaAntes)
     if (recusa !== null) return recusa
   }
   const balas = new Set(mudaram.flatMap((vaga) => [vaga.pente?.balaId, porIdAntes.get(vaga.id)?.pente?.balaId]).filter((balaId): balaId is string => balaId !== undefined))
