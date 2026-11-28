@@ -27,8 +27,12 @@ export interface FonteDasCriadas {
   seguir: (aviso: () => void) => () => void
 }
 
-/** "Virar condição nova" (D4): grava a condição do rascunho e devolve o nome com que ficou; `null` = não gravou. */
-export type VirarCondicaoNova = (legado: RascunhoDoLegado) => string | null
+/**
+ * "Virar condição nova" (D4; PENDENCIAS nº 10): abre o editor da condição com o rascunho e as linhas de
+ * "Confira", e só depois do Salvar de lá chama `aoVirar` com o nome com que ela ficou (fechar sem salvar =
+ * nada muda). `false` = o rascunho não passou na leitura e o editor nem abriu.
+ */
+export type VirarCondicaoNova = (legado: RascunhoDoLegado, aoVirar: (nome: string) => void) => boolean
 
 /** O que só o app tem: as criadas da pasta e quem grava uma nova. */
 export interface CondicoesDoApp {

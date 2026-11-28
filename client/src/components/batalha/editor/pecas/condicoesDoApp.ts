@@ -1,5 +1,7 @@
+import { CONFIRA_DA_CONDICAO_MAX } from '../../../../lib/condicoes/modelo'
 import { criarCondicaoPropria } from '../../../../lib/condicoesProprias'
 import { useCondicoesPropriasStore } from '../../../../stores/condicoesPropriasStore'
+import { useToastStore } from '../../../../stores/toastStore'
 import { registrarCondicoesDoApp, type CondicoesDoApp } from './condicoesNoSeletor'
 
 /**
@@ -15,10 +17,17 @@ export const CONDICOES_DO_APP: CondicoesDoApp = {
     ler: () => useCondicoesPropriasStore.getState().catalogo,
     seguir: (aviso) => useCondicoesPropriasStore.subscribe(() => aviso()),
   },
-  virar: ({ rascunho }) => {
+  // PENDENCIAS nº 10: antes gravava direto na lista (e o "Confira" se perdia); agora abre o editor com o rascunho.
+  virar: ({ rascunho, confira }, aoVirar) => {
     const nova = criarCondicaoPropria(rascunho)
-    if (nova === null) return null
-    return useCondicoesPropriasStore.getState().salvar(nova) ? nova.nome : null
+    if (nova === null) return false
+    const texto = confira.join(' · ').slice(0, CONFIRA_DA_CONDICAO_MAX)
+    const comConfira = texto === '' ? nova : { ...nova, confira: texto }
+    // O editor carrega sob demanda: este módulo entra na abertura do app, e o editor (com o boneco) é pesado.
+    import('../../../condicoes/editor/EditorDaCondicao')
+      .then(({ abrirEditorDaCondicao }) => abrirEditorDaCondicao({ abertura: { tipo: 'rascunho', rascunho: comConfira }, onSalvou: (condicao) => aoVirar(condicao.nome) }))
+      .catch(() => useToastStore.getState().push('error', 'Não deu para abrir o editor da condição. Tente de novo.'))
+    return true
   },
 }
 

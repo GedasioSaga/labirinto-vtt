@@ -38,13 +38,9 @@ export function RegraDeAntes({ legado, nome, catalogo, onUsarSoACondicao, onViro
   const virarAgora = () => {
     if (virar === null || onVirou === undefined) return
     const nomeLimpo = nome.trim()
-    const feito = virar(rascunhoDoLegado(legado, nomeLimpo === '' ? null : condicaoDoSeletor(catalogo, nomeLimpo), nomeLimpo === '' ? 'Condição' : nomeLimpo, catalogo.ocupados))
-    if (feito === null) {
-      setErro('Não gravou: a lista de condições está cheia ou o nome não vale. Apague uma em Livros › Condições e tente de novo.')
-      return
-    }
-    setErro(null)
-    onVirou(feito)
+    // PENDENCIAS nº 10: abre o editor da condição com o rascunho; o lugar passa a pôr a nova só depois do Salvar de lá.
+    const abriu = virar(rascunhoDoLegado(legado, nomeLimpo === '' ? null : condicaoDoSeletor(catalogo, nomeLimpo), nomeLimpo === '' ? 'Condição' : nomeLimpo, catalogo.ocupados), onVirou)
+    setErro(abriu ? null : 'Não abriu o editor: o nome ou a pastilha desta condição não valem. Confira em Livros › Condições.')
   }
   return (
     <section className="lb-cs-antes" aria-labelledby={titulo}>
