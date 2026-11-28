@@ -15,8 +15,10 @@ import { useMapStore } from '../../stores/mapStore'
 import { PUZZLE_SEM_NOME, useMeusPuzzlesStore } from '../../stores/meusPuzzlesStore'
 import { BibliotecaDePecas } from './BibliotecaDePecas'
 import { combinacaoDoPuzzle } from '../../puzzles/combinacao'
+import { giratoriasDoPuzzle } from '../../puzzles/giratorias/giratorias'
 import { ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN } from '../../puzzles/tipos'
-import { comControle, comEncaixeNovo, comModelo, comVisual, encaixeComPeca, semEncaixe } from './edicao'
+import { comControle, comEncaixeNovo, comGiratorias, comModelo, comVisual, encaixeComPeca, semEncaixe } from './edicao'
+import { SecaoGiratorias } from './FichaDoEditor/SecaoGiratorias'
 import { SecaoCombinacao } from './FichaDoEditor/SecaoCombinacao'
 import { devolverAsPecas, useEditorDoPuzzleStore, type AlvoDoEditor } from './editorDoPuzzleStore'
 import { SecaoCastigo, SecaoDesfecho, SecaoDica, type PortaDoEditor } from './FichaDoEditor/SecaoDesfecho'
@@ -115,6 +117,8 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   const [salvando, setSalvando] = useState(false)
   // "Testar como jogador" (P9): a tela do jogador por cima do editor, com o que está aqui agora.
   const [testando, setTestando] = useState(false)
+  // As peças giratórias: o quadro mostra o começo (o que o jogador vê primeiro) ou o medalhão fechado.
+  const [verResolvido, setVerResolvido] = useState(false)
   const testandoAgora = useRef(false)
   testandoAgora.current = testando
   const pecas = usePecasDoEditor()
@@ -269,6 +273,18 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
     }
   }
 
+  /** A imagem própria do medalhão: vai para a mídia da mesa e é cortada nos anéis. */
+  const usarImagemDasGiratorias = async (pegar: () => Promise<string | null> = escolherFundoDoPuzzle) => {
+    try {
+      const imagem = await pegar()
+      if (imagem === null) return
+      mudar((atual) => comGiratorias(atual, (antes) => ({ ...antes, desenho: 'imagem', imagem })))
+      avisar('Sua imagem está no medalhão, cortada nos anéis.')
+    } catch (erro) {
+      avisar(`Não deu para usar a imagem: ${erro instanceof Error ? erro.message : String(erro)}.`, 'error')
+    }
+  }
+
   const usarImagem = async (pegar: () => Promise<string | null>) => {
     try {
       const imagem = await pegar()
@@ -365,6 +381,7 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   const numeroEscolhido = puzzle.encaixes.findIndex((encaixe) => encaixe.id === escolhido) + 1
   // Na combinação os encaixes ficam guardados, mas o quadro e a ficha mostram o controle e a resposta.
   const ehCombinacao = combinacaoDoPuzzle(puzzle) !== null
+  const giratorias = giratoriasDoPuzzle(puzzle)
   const relevo = ehRelevo(puzzle.visual) ? puzzle.visual : null
   const nomeDaPorta = alvo.tipo === 'copia' && edicao.porta !== null ? (opcoesDePorta.find((opcao) => opcao.id === edicao.porta)?.label ?? null) : null
   const porta: PortaDoEditor | null =
@@ -413,11 +430,12 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
               </div>
             </header>
             <p className={classes('pze-aviso', aviso?.tipo === 'error' && 'pze-aviso--perigo')} role="status" aria-live="polite">
-              {aviso?.texto ?? (relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
+              {aviso?.texto ?? (giratorias !== null ? 'O quadro mostra o medalhão como o jogador o encontra. Ver resolvido mostra o desenho fechado; Ctrl+Z desfaz.' : relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
             </p>
             <div className="pze-corpo">
               <div className="pze-ficha-col">
                 <SecaoBasico puzzle={puzzle} mudar={mudar} />
+                {giratorias === null && (
                 <SecaoVisual
                   puzzle={puzzle}
                   mudar={mudar}
@@ -426,23 +444,27 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   onCenaDoRelevo={usarCenaDoRelevo}
                   onImagemDoRelevo={() => void usarImagemDoRelevo()}
                 />
+                )}
                 {relevo !== null ? (
                   // O painel em relevo é sempre de placas no lugar certo: sem mecânica, sem encaixes soltos, sem troca.
                   <SecaoPlacas puzzle={puzzle} mudar={mudar} visual={relevo} />
                 ) : (
                   <>
                     <SecaoMecanica puzzle={puzzle} mudar={mudar} />
-                    {ehCombinacao ? (
+                    {giratorias !== null ? (
+                      // O medalhão não usa encaixes nem troca de peso: só os anéis.
+                      <SecaoGiratorias puzzle={puzzle} mudar={mudar} onImagem={() => void usarImagemDasGiratorias()} />
+                    ) : ehCombinacao ? (
                       <SecaoCombinacao puzzle={puzzle} mudar={mudar} />
                     ) : (
                       <SecaoEncaixes puzzle={puzzle} mudar={mudar} pecas={pecas} escolhido={escolhido} onEscolher={setEscolhido} onTirar={tirarEncaixe} usarPeca={usarPeca} />
                     )}
-                    <SecaoTroca puzzle={puzzle} mudar={mudar} pecas={pecas} usarPeca={usarPeca} />
+                    {giratorias === null && <SecaoTroca puzzle={puzzle} mudar={mudar} pecas={pecas} usarPeca={usarPeca} />}
                   </>
                 )}
                 <SecaoDica puzzle={puzzle} mudar={mudar} />
                 <SecaoDesfecho puzzle={puzzle} mudar={mudar} porta={porta} />
-                <SecaoCastigo puzzle={puzzle} mudar={mudar} />
+                {giratorias === null && <SecaoCastigo puzzle={puzzle} mudar={mudar} />}
               </div>
               <div className="pze-palco">
                 <QuadroDoEditor
@@ -452,10 +474,21 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   onEscolher={setEscolhido}
                   onMudar={mudar}
                   onTirar={tirarEncaixe}
-                  onImagemSolta={(arquivo) => void (relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
+                  verResolvido={verResolvido}
+                  onImagemSolta={(arquivo) => void (giratorias !== null ? usarImagemDasGiratorias(() => fundoDoPuzzleDoArquivo(arquivo)) : relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
                   onAviso={avisar}
                 />
-                {ehCombinacao ? (
+                {giratorias !== null ? (
+                  <div className="pze-barra">
+                    <span>
+                      Medalhão de {giratorias.aneis} anéis{giratorias.vizinhas ? ', cada um leva os do lado' : ''}
+                    </span>
+                    <Botao tamanho="p" aria-pressed={verResolvido} onClick={() => setVerResolvido((antes) => !antes)}>
+                      {verResolvido ? 'Ver o começo' : 'Ver resolvido'}
+                    </Botao>
+                    <span className="pze-nota">{verResolvido ? 'Assim fica quando o jogador fecha o medalhão.' : 'Assim o jogador encontra o medalhão.'}</span>
+                  </div>
+                ) : ehCombinacao ? (
                   <div className="pze-barra">
                     <span>Controle da combinação</span>
                     <label className="pze-barra__campo">
@@ -491,7 +524,7 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   <span className="pze-nota">Arraste para mover; a alça do canto muda o tamanho.</span>
                 </div>
                 )}
-                {!ehCombinacao && relevo === null && (
+                {!ehCombinacao && relevo === null && giratorias === null && (
                 <BibliotecaDePecas
                   pecas={pecas}
                   selecionada={pecaEscolhida}

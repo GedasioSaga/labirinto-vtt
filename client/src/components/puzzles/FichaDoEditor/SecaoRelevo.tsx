@@ -34,7 +34,7 @@ interface PropsDaEscolha {
  * Quantas miniaturas já aparecem: uma a mais por quadro. O navegador monta cada
  * SVG do painel na linha principal; os seis de uma vez travavam a abertura do editor.
  */
-function useUmaPorQuadro(total: number): number {
+export function useUmaPorQuadro(total: number): number {
   const [prontas, setProntas] = useState(0)
   useEffect(() => {
     if (prontas >= total) return

@@ -90,7 +90,9 @@ import {
   type MinigameBolha,
 } from '../minigames/bolha/tipos'
 import { combinacaoDoPuzzle, mecanicaDesconhecida, NOME_DA_COMBINACAO } from '../puzzles/combinacao'
-import { NOME_DO_MODELO, visualEhPorta } from '../puzzles/padroes'
+import { NOME_DO_MODELO, puzzleAbrePorta } from '../puzzles/padroes'
+import { aneisNoLugar, giratoriasDoPuzzle, NOME_DAS_GIRATORIAS, NOME_DO_MATERIAL } from '../puzzles/giratorias/giratorias'
+import { NOME_DA_CENA } from '../puzzles/relevo/arte'
 import { nomeDoRelevo } from '../puzzles/relevo/relevo'
 import { contagemDoPuzzle, pecasPostas, progressoInicial } from '../puzzles/motor'
 import { desafiosDo, mapaComProgressoDoPuzzle } from '../lib/desafios'
@@ -865,6 +867,9 @@ function textoDoCastigo(castigo: CastigoDoPuzzle): string {
 function textoDoProgresso(puzzle: MinigamePuzzle['puzzle'], progresso: ProgressoDoPuzzle | undefined): string {
   if (progresso === undefined) return 'Ninguém mexeu ainda'
   if (progresso.resolvido !== null) return `Resolvido por ${progresso.resolvido.por}`
+  // O medalhão não tem erro: só quantos anéis já estão no lugar (o mestre pode ver; o jogador não).
+  const giratorias = giratoriasDoPuzzle(puzzle)
+  if (giratorias !== null) return `${aneisNoLugar(giratorias, progresso)} de ${giratorias.aneis} anéis no lugar`
   if (combinacaoDoPuzzle(puzzle) !== null) return progresso.erros === 0 ? 'Ainda não abriu' : progresso.erros === 1 ? 'Ainda não abriu · 1 erro' : `Ainda não abriu · ${progresso.erros} erros`
   const { postos, total } = contagemDoPuzzle(puzzle, progresso)
   const erros = progresso.erros === 0 ? '' : progresso.erros === 1 ? ' · 1 erro' : ` · ${progresso.erros} erros`
@@ -882,7 +887,7 @@ function PainelDoPuzzle({ pinId, porta, minigame }: Pick<MinigameControlsProps, 
   const [confirmarZerar, setConfirmarZerar] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const portaId = useId()
-  const ehPorta = visualEhPorta(puzzle.visual)
+  const ehPorta = puzzleAbrePorta(puzzle)
   const zerado = progresso === undefined || (progresso.resolvido === null && progresso.erros === 0 && !progresso.trocaFeita && pecasPostas(progresso).length === 0)
   const zerar = () => {
     if (!confirmarZerar) {
@@ -902,7 +907,15 @@ function PainelDoPuzzle({ pinId, porta, minigame }: Pick<MinigameControlsProps, 
   }
   const versaoNova = minigame.versao > VERSAO_DO_PUZZLE || mecanicaDesconhecida(puzzle)
   const combinacao = combinacaoDoPuzzle(puzzle)
-  const linhas: readonly { rotulo: string; valor: string }[] = [
+  const giratorias = giratoriasDoPuzzle(puzzle)
+  const linhas: readonly { rotulo: string; valor: string }[] = giratorias !== null ? [
+    // O medalhão: o visual do quadro é o dele, sem troca de peso e sem castigo.
+    { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
+    { rotulo: 'Desenho', valor: giratorias.desenho === 'cena' ? `Cena em relevo: ${NOME_DA_CENA[giratorias.cena]}` : giratorias.desenho === 'imagem' ? 'Imagem própria' : 'Símbolos sob a marca' },
+    { rotulo: 'Mecânica', valor: `${NOME_DAS_GIRATORIAS}: ${giratorias.aneis} anéis de ${NOME_DO_MATERIAL[giratorias.material].toLowerCase()}${giratorias.vizinhas ? ', cada um leva os do lado' : ''}` },
+    { rotulo: 'Ao resolver', valor: textoDoDesfecho(puzzle.desfecho, ehPorta) },
+    { rotulo: 'Progresso', valor: textoDoProgresso(puzzle, progresso) },
+  ] : [
     { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
     { rotulo: 'Visual', valor: textoDoVisual(puzzle.visual) },
     ...(combinacao !== null
@@ -912,7 +925,7 @@ function PainelDoPuzzle({ pinId, porta, minigame }: Pick<MinigameControlsProps, 
           { rotulo: 'Encaixes', valor: textoDosEncaixes(puzzle.encaixes) },
         ]),
     { rotulo: 'Troca de peso', valor: puzzle.troca === null ? 'Sem troca' : `A bandeja pede ${puzzle.troca.peso}` },
-    { rotulo: 'Ao resolver', valor: textoDoDesfecho(puzzle.desfecho, visualEhPorta(puzzle.visual)) },
+    { rotulo: 'Ao resolver', valor: textoDoDesfecho(puzzle.desfecho, ehPorta) },
     { rotulo: 'Castigo', valor: textoDoCastigo(puzzle.castigo) },
     { rotulo: 'Progresso', valor: textoDoProgresso(puzzle, progresso) },
   ]

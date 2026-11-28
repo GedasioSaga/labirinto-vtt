@@ -4,6 +4,8 @@ import { classes } from '../grimorio/comum'
 import { useImagemDaMesa } from '../ImagemDaMesa'
 import { combinacaoDoPuzzle, combinacaoNaVista } from '../../puzzles/combinacao'
 import { CorpoDoControle, estiloDoControle, nomeDoControle } from '../../puzzles/ControlesDaCombinacao'
+import { giratoriasDoPuzzle, giratoriasNaVista, girosResolvidos } from '../../puzzles/giratorias/giratorias'
+import { progressoInicial } from '../../puzzles/motor'
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
 import { TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN, type CombinacaoDoPuzzle, type EncaixeDoPuzzle, type Puzzle } from '../../puzzles/tipos'
 import { comControle, comEncaixe, encaixeDoTamanho, encaixeMovido, limitar, PASSO_DA_SETA, PASSO_DO_TAMANHO, PASSO_LARGO_DA_SETA, umaCasa } from './edicao'
@@ -59,15 +61,20 @@ interface PropsDoQuadroDoEditor {
   onImagemSolta: (arquivo: File) => void
   /** O aviso da ficha (o painel em relevo avisa quando bate no mínimo ou no máximo de placas). */
   onAviso?: (texto: string, tipo?: 'info' | 'error') => void
+  /** Peças giratórias: o medalhão fechado no lugar do começo embaralhado. */
+  verResolvido?: boolean
 }
 
-export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, onTirar, onImagemSolta, onAviso }: PropsDoQuadroDoEditor) {
+export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, onTirar, onImagemSolta, onAviso, verResolvido = false }: PropsDoQuadroDoEditor) {
   const relevo = puzzle.visual.tipo === 'relevo' ? puzzle.visual : null
   const arrasto = useRef<Arrasto | null>(null)
   const [soltandoArquivo, setSoltandoArquivo] = useState(false)
   const resolver = useImagemDaMesa()
   const { troca } = puzzle
   const combinacao = combinacaoDoPuzzle(puzzle)
+  // O medalhão no editor é só para ver: o começo que o jogador encontra, ou fechado.
+  const giratorias = giratoriasDoPuzzle(puzzle)
+  const medalhao = giratorias === null ? undefined : { ...giratoriasNaVista(giratorias, progressoInicial(puzzle)), ...(verResolvido ? { giros: girosResolvidos(giratorias) } : {}) }
 
   const comecar = (evento: PointerEvent<HTMLButtonElement>, encaixe: EncaixeDoPuzzle) => {
     if (evento.button !== 0 || arrasto.current !== null) return
@@ -176,12 +183,13 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
     >
       <QuadroDoPuzzle
         visual={puzzle.visual}
-        encaixes={relevo !== null ? vaosDoEditor(puzzle) : []}
-        troca={troca === null ? null : { x: troca.x, y: troca.y, pesoPedido: troca.peso, naBandeja: [], feita: false }}
-        resolvido={false}
+        encaixes={relevo !== null && medalhao === undefined ? vaosDoEditor(puzzle) : []}
+        troca={troca === null || medalhao !== undefined ? null : { x: troca.x, y: troca.y, pesoPedido: troca.peso, naBandeja: [], feita: false }}
+        resolvido={medalhao !== undefined && verResolvido}
+        giratorias={medalhao}
         rotulo={`Quadro do puzzle ${puzzle.nome}`}
       >
-        {relevo !== null ? (
+        {medalhao !== undefined ? null : relevo !== null ? (
           <CamadaDoRelevo puzzle={puzzle} visual={relevo} onMudar={(proximo) => onMudar(proximo)} onAviso={onAviso} />
         ) : (
         <div

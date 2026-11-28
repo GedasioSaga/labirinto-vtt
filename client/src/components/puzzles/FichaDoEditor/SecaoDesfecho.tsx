@@ -7,7 +7,7 @@ import { itemParaDar } from '../../../lib/acervoDeItens'
 import { ITENS_NO_CONTEUDO_MAX, MOEDAS_NO_CONTEUDO_MAX } from '../../../lib/conteudoDoObjeto'
 import { ITEM_QUANTIDADE_MAX } from '../../../lib/items'
 import type { LeverDoorOption } from '../../../lib/lever'
-import { castigoPadrao, TEXTO_DO_CASTIGO_PADRAO, visualEhPorta } from '../../../puzzles/padroes'
+import { castigoPadrao, puzzleAbrePorta, TEXTO_DO_CASTIGO_PADRAO } from '../../../puzzles/padroes'
 import { DOCUMENTOS_DO_DESFECHO_MAX, PV_DO_CASTIGO_MAX, TEXTO_DO_CASTIGO_MAX, TEXTO_DO_PUZZLE_MAX, type CastigoDoPuzzle, type DesfechoDoPuzzle, type TipoDeCastigo } from '../../../puzzles/tipos'
 import { BIBLIOTECA_DE_DOCUMENTOS_VAZIA, DOCUMENTO_APAGADO_DA_BIBLIOTECA, EscolhaDeDocumento, tituloNaBiblioteca, useBibliotecaDeDocumentos } from '../../documentos/EscolhaDeDocumento'
 import { EscolhaDeItem, NumeroDoCampo, Secao, type PropsDaSecao } from './comum'
@@ -83,7 +83,7 @@ export function SecaoDesfecho({ puzzle, mudar, porta }: PropsDaSecao & { porta: 
   const [escolhendo, setEscolhendo] = useState(false)
   const { desfecho } = puzzle
   const mudarDesfecho = (mudanca: (atual: DesfechoDoPuzzle) => DesfechoDoPuzzle, chave?: string) => mudar((atual) => ({ ...atual, desfecho: mudanca(atual.desfecho) }), chave)
-  const ehPorta = visualEhPorta(puzzle.visual)
+  const ehPorta = puzzleAbrePorta(puzzle)
   return (
     <Secao titulo="Ao resolver">
       <CampoSeg rotulo="Como termina" opcoes={MODOS} valor={desfecho.modo} onChange={(modo) => modo !== desfecho.modo && mudarDesfecho((atual) => ({ ...atual, modo }))} />

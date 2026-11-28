@@ -1,7 +1,8 @@
-import { aceitaMolduraPorta, NOME_DO_MODELO, PADROES_DOS_MODELOS, PESO_DA_TROCA_PADRAO, POSICAO_DA_TROCA_PADRAO, puzzleDoModelo, visualEhPorta } from '../../puzzles/padroes'
+import { aceitaMolduraPorta, NOME_DO_MODELO, PADROES_DOS_MODELOS, PESO_DA_TROCA_PADRAO, POSICAO_DA_TROCA_PADRAO, puzzleAbrePorta, puzzleDoModelo } from '../../puzzles/padroes'
 import { combinacaoDoPuzzle, combinacaoPadrao } from '../../puzzles/combinacao'
+import { giratoriasDoPuzzle, giratoriasPadrao } from '../../puzzles/giratorias/giratorias'
 import { ENCAIXES_MAX, ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN, TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN } from '../../puzzles/tipos'
-import type { CombinacaoDoPuzzle, EncaixeDoPuzzle, FormaDaCombinacao, IdDaPecaDesenhada, ModeloDoPuzzle, Puzzle, VisualDoPuzzle } from '../../puzzles/tipos'
+import type { CombinacaoDoPuzzle, EncaixeDoPuzzle, FormaDaCombinacao, GiratoriasDoPuzzle, IdDaPecaDesenhada, ModeloDoPuzzle, Puzzle, VisualDoPuzzle } from '../../puzzles/tipos'
 
 /**
  * AS CONTAS DO EDITOR DO PUZZLE, puras: cada uma recebe o puzzle do editor e
@@ -29,9 +30,9 @@ export function umaCasa(valor: number): number {
   return Math.round(valor * 10) / 10
 }
 
-/** O visual mudou: o desfecho só abre porta se o visual ainda for de porta (como o leitor). */
+/** O visual (ou a mecânica) mudou: o desfecho só abre porta se o puzzle ainda puder abrir (o de porta e o medalhão, como o leitor). */
 function comPortaCoerente(puzzle: Puzzle): Puzzle {
-  if (!puzzle.desfecho.abrePorta || visualEhPorta(puzzle.visual)) return puzzle
+  if (!puzzle.desfecho.abrePorta || puzzleAbrePorta(puzzle)) return puzzle
   return { ...puzzle, desfecho: { ...puzzle.desfecho, abrePorta: false } }
 }
 
@@ -59,10 +60,11 @@ export function comModelo(puzzle: Puzzle, modelo: ModeloDoPuzzle, pecas: Partial
   return comPortaCoerente(proximo)
 }
 
-/** A mecânica do seletor do editor (v2): Encaixe, Ordem certa, ou um dos 4 tipos de combinação. */
-export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao
+/** A mecânica do seletor do editor (v2): Encaixe, Ordem certa, um dos 4 tipos de combinação, ou as Peças giratórias (28/11). */
+export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao | 'giratorias'
 
 export function mecanicaDoEditor(puzzle: Puzzle): MecanicaDoEditor {
+  if (giratoriasDoPuzzle(puzzle) !== null) return 'giratorias'
   const combinacao = combinacaoDoPuzzle(puzzle)
   if (combinacao !== null) return combinacao.forma
   return puzzle.regra === 'ordem' ? 'ordem' : 'encaixe'
@@ -70,15 +72,24 @@ export function mecanicaDoEditor(puzzle: Puzzle): MecanicaDoEditor {
 
 /**
  * Troca a mecânica. Os encaixes ficam guardados (voltar ao Encaixe os traz de
- * volta); a combinação nova nasce com a resposta do v2, e a mesma forma não muda.
+ * volta); a combinação nova nasce com a resposta do v2, o medalhão com 4 anéis
+ * e um embaralho novo, e a mesma mecânica não muda. Sair do medalhão para uma
+ * mecânica que não abre porta desliga a porta ligada.
  */
 export function comMecanica(puzzle: Puzzle, mecanica: MecanicaDoEditor): Puzzle {
   if (mecanica === mecanicaDoEditor(puzzle)) return puzzle
   if (mecanica === 'encaixe' || mecanica === 'ordem') {
     const { futuro: _combinacao, ...semCombinacao } = puzzle
-    return { ...semCombinacao, regra: mecanica === 'ordem' ? 'ordem' : puzzle.regra === 'ordem' ? 'lugarCerto' : puzzle.regra }
+    return comPortaCoerente({ ...semCombinacao, regra: mecanica === 'ordem' ? 'ordem' : puzzle.regra === 'ordem' ? 'lugarCerto' : puzzle.regra })
   }
-  return { ...puzzle, futuro: combinacaoPadrao(mecanica) }
+  if (mecanica === 'giratorias') return { ...puzzle, futuro: giratoriasPadrao() }
+  return comPortaCoerente({ ...puzzle, futuro: combinacaoPadrao(mecanica) })
+}
+
+/** O medalhão do editor trocado pelo que `mudar` devolver (só quando o puzzle é de peças giratórias). */
+export function comGiratorias(puzzle: Puzzle, mudar: (giratorias: GiratoriasDoPuzzle) => GiratoriasDoPuzzle): Puzzle {
+  const giratorias = giratoriasDoPuzzle(puzzle)
+  return giratorias === null ? puzzle : { ...puzzle, futuro: mudar(giratorias) }
 }
 
 /** A combinação do editor trocada pela que `mudar` devolver (só quando o puzzle é de combinação). */
