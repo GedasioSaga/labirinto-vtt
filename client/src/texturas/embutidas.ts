@@ -40,6 +40,8 @@ import { texturaTijoloDeEsgoto } from './chaos/tijoloDeEsgoto'
 import { texturaCalcadaEmLeque } from './chaos/calcadaEmLeque'
 import { texturaRuaDeLama } from './chaos/ruaDeLama'
 import { texturaTerraArada } from './chaos/terraArada'
+import { texturaNevePisada } from './chaos/nevePisada'
+import { texturaGelo } from './chaos/gelo'
 import { cobertura, espalhar, naVolta, pontosPerto, pontosQueAlcancam, sorteador, type Cobertura, type Espalhamento } from './espalhar'
 import type { VidaDoChao } from './meioTermo/chaoNoMundo'
 import {
@@ -1437,7 +1439,8 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   // Ladrilho de 1024 (256 px por casa): no de 512 a pedrinha miúda ficava com 3 px de raio e virava listra fina.
   { id: 'cascalho', nome: 'Cascalho', escala: 64, casas: CASCALHO_CASAS, lado: LADO_MAIOR, cor: cascalho },
   { id: 'pedra', nome: 'Serra', escala: 56, cor: pedra },
-  { id: 'neve', nome: 'Neve', escala: 56, cor: neve },
+  // A neve de sempre é a forma Fofa do cartão Neve desde a onda 3 (L08, 28/11/2026): o id não muda.
+  { id: 'neve', nome: 'Neve', escala: 56, forma: { grupo: 'neve', nome: 'Fofa' }, cor: neve },
   // Chão de masmorra (medido em casas da grade): a escala só serve à miniatura.
   { id: 'conves', nome: 'Convés', escala: 64, casas: CONVES_CASAS, lado: LADO_MAIOR, cor: conves },
   { id: 'lajotas', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, forma: { grupo: 'lajotas', nome: 'Clara' }, cor: lajotasNoTom(LAJOTAS_CLARAS) },
@@ -1510,6 +1513,9 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   // A onda 3 do plano (28/11/2026). L07: a terra arada, 16 camalhões que serpenteiam; os torrões saem de tabela feita
   // uma vez por tamanho (`chaos/terraArada.ts`), sem tarefa longa ao pintar.
   { id: 'terra-arada', nome: 'Terra arada', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaTerraArada },
+  // L08: o cartão Neve ganha a neve pisada e o gelo de lago rachado, os dois tabelados (`chaos/nevePisada.ts`, `chaos/gelo.ts`).
+  { id: 'neve-pisada', nome: 'Neve', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'neve', nome: 'Pisada' }, cor: texturaNevePisada },
+  { id: 'gelo', nome: 'Neve', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'neve', nome: 'Gelo de lago' }, cor: texturaGelo },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */
