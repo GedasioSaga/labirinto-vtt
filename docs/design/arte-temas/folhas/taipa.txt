@@ -1,0 +1,9 @@
+taipa: croma p95 0.224 (DENTRO; teto 0.24), media 0.193
+maior canal das faixas e tampas 244 (DENTRO; teto 245)
+faixa 0: emenda em x 0.0114 contra vizinhas 0.0127 (0.89 vez; teto 1,6) DENTRO
+faixa 1: emenda em x 0.0119 contra vizinhas 0.0155 (0.76 vez; teto 1,6) DENTRO
+faixa 2: emenda em x 0.0123 contra vizinhas 0.0141 (0.87 vez; teto 1,6) DENTRO
+faixa 3: emenda em x 0.0120 contra vizinhas 0.0155 (0.78 vez; teto 1,6) DENTRO
+faixa 4: emenda em x 0.0132 contra vizinhas 0.0139 (0.95 vez; teto 1,6) DENTRO
+faixa 5: emenda em x 0.0129 contra vizinhas 0.0162 (0.80 vez; teto 1,6) DENTRO
+faixa 6: emenda em x 0.0106 contra vizinhas 0.0189 (0.56 vez; teto 1,6) DENTRO
