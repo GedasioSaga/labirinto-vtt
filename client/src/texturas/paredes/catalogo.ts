@@ -270,6 +270,14 @@ export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
     descricao: 'Reboco branco de cal, gasto, com a pedra aparecendo onde a cal caiu.',
     receita: { fiadasAte: [], passo: { porFundura: 0, min: 72, max: 72 }, varia: 0.2, funde: 0.1, junta: 1, tremor: 0, bisel: 1.2, luz: 0.32, sombra: 0.38, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
   },
+  // A Taipa (L07, a onda 3) monta como a Parede caiada: uma fiada de panos compridos, emenda fraca, e o esteio de
+  // madeira nas tampas dos cantos.
+  {
+    id: 'taipa',
+    nome: 'Taipa',
+    descricao: 'Pau a pique: barro com palha alisado à mão, rachado, com a trama de varas onde o barro caiu e esteio de madeira nos cantos.',
+    receita: { fiadasAte: [], passo: { porFundura: 0, min: 72, max: 72 }, varia: 0.2, funde: 0.1, junta: 1, tremor: 0, bisel: 1.2, luz: 0.3, sombra: 0.36, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
 ]
 
 /** O material que a ferramenta lembra antes de qualquer escolha. */
