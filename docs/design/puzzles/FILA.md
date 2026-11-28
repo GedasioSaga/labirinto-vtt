@@ -10,6 +10,14 @@ Ordem saída de [REFERENCIAS.md](REFERENCIAS.md) (28/11/2026). Só a mecânica v
 
 - **Interruptores com estado** (28/11). Um painel de latão ou ferro com 3 a 9 lampiões, cada um com a sua alavanca. Puxar uma alavanca vira o lampião dela e os ligados a ele. O mestre escolhe a ligação: os do lado, a linha e a coluna, ou a regra dele, clicando quem vira quem. O objetivo é todos acesos ou igual a um desenho, que pode ficar numa plaqueta do painel ou com o mestre, como pista. A alavanca desce e volta na mola; o lampião pisca, a chama pega e o clarão soma na chapa. O começo sai do alvo desfeito por puxadas de verdade, então sempre tem volta. O painel certo destrava o desfecho de sempre e pode abrir a porta ligada. Puxar não castiga. O fio leva só o estado dos lampiões (a regra e o começo ficam no mestre).
 
+- **Cooperação em dois lugares** (28/11). Dois ou três pontos do mapa ligados ao mesmo puzzle. Em cada um há uma alavanca, uma placa de pressão ou o botão de um painel, de latão ou ferro, e um lampião. Acionar acende o lampião daquele ponto por uma janela que o mestre escolhe (2 a 30 s, padrão 5). Um anel em volta do mostrador esvazia com o tempo, e o puzzle cede quando todos os lampiões ficam acesos juntos. O ponto 1 é o lugar do desafio; os pontos 2 e 3 se marcam na ficha do desafio em Jogos (um ponto do mapa ou um objeto que já está lá) e viram selos próprios no mapa. O jogador entra pelo selo do ponto dele, e o host confere que a ficha alcança aquele selo, com a mesma régua do selo de sempre. O motor recusa outro ponto, e uma pessoa vale por um ponto só (acionar outro solta o de antes). Todos os que estão dentro veem os lampiões de todos os pontos e o nome de quem acionou, pela vista que o host já manda. No teste do editor, o mestre aciona todos. Acionar não castiga, e o desfecho é o de sempre, inclusive a porta ligada. Sem mexer no `net/protocol.ts`: o ponto viaja no id do selo (`<desafio>~p<n>`).
+
+## Pendente na cooperação
+
+- **A placa de pressão como presença contínua** (segura a porta enquanto a ficha está em cima). Hoje a placa é um gesto, como a alavanca: pisar acende o lampião pela janela. Decisão do Claude em 28/11: a presença contínua pede o host olhando a posição dos tokens a cada movimento, um caminho novo fora da tela do puzzle.
+- **Arrastar os selos dos pontos 2 e 3 no mapa.** Hoje eles se marcam pela ficha ("Marcar no mapa" ou "Escolher objeto"). O selo do ponto 1 continua arrastável.
+- **"Um lê o código num lugar, o outro digita noutro"** já dá para montar sem nada novo: um Documento no chão num lugar e uma Combinação no outro.
+
 ## Pendente nos interruptores
 
 - **O fusível que falta como encaixe.** A ideia da fila juntava um encaixe ao painel. Decisão do Claude em 28/11: ficou de fora, porque o painel não usa a mochila. Hoje dá para encadear: um painel em relevo abre a porta e o painel de lampiões fica atrás dela.
@@ -31,8 +39,7 @@ Ordem saída de [REFERENCIAS.md](REFERENCIAS.md) (28/11/2026). Só a mecânica v
 
 ## Próximos (na ordem)
 
-1. **Cooperação em dois lugares.** Placas no mapa que só destravam com tokens em todas ao mesmo tempo. Usa o alcance e o lugar do Desafio; falta ler a posição dos tokens no host. É o próximo. Não começou em 28/11: mexe no host e no mapa, fora da tela do puzzle, e pede um caminho novo (o puzzle sem tela, que resolve sozinho quando os tokens chegam).
-2. **Mistura de líquidos.** É o seguinte, anotado em 28/11. Recipientes com capacidade; passar de um para outro até a medida pedida. Uma tela, sem pressa. Segue o caminho das giratórias e dos interruptores: um `futuro` novo, uma ação "despejar de A em B" sem conferir a rev, o recorte só com quanto cada recipiente tem. O começo sai de despejos de verdade, então sempre tem volta.
-3. **Sobrepor camadas.** Placas transparentes empilhadas até formar o desenho. Combina com o painel em relevo: as camadas também podem ser itens achados no mapa.
+1. **Mistura de líquidos.** É o próximo (a cooperação ficou pronta em 28/11). Recipientes com capacidade; passar de um para outro até a medida pedida. Uma tela, sem pressa. Segue o caminho das giratórias e dos interruptores: um `futuro` novo, uma ação "despejar de A em B" sem conferir a rev, o recorte só com quanto cada recipiente tem. O começo sai de despejos de verdade, então sempre tem volta.
+2. **Sobrepor camadas.** Placas transparentes empilhadas até formar o desenho. Combina com o painel em relevo: as camadas também podem ser itens achados no mapa.
 
 Ficam para depois: empurrar estátuas (colisão no mapa), xadrez com regras, revelar com luz (mexe na névoa). Reflexo e tempo real ficam fora (mesa de RPG é por turno).
