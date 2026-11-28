@@ -23,9 +23,10 @@ import { desenhoDoModelo, temMolduraPorta } from './arte/modelos'
 import { CorpoDoControle, estiloDoControle, nomeDoControle, type AcoesDaCombinacao, type TecladoDoControle } from './ControlesDaCombinacao'
 import { BaseDoMedalhao, DiscoNoQuadro } from './giratorias/DiscoNoQuadro'
 import { BaseDosInterruptores, PainelDeInterruptores } from './interruptores/PainelDeInterruptores'
+import { BaseDaCooperacao, PainelDaCooperacao } from './cooperacao/PainelDaCooperacao'
 import { ArteDoRelevo, PlacaNoQuadro, useFonteDoPainel } from './relevo/PainelNoQuadro'
 import { PESO_MAX } from './tipos'
-import type { CombinacaoNaVista, EncaixeNaVista, GiratoriasNaVista, InterruptoresNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
+import type { CombinacaoNaVista, CooperacaoNaVista, EncaixeNaVista, GiratoriasNaVista, InterruptoresNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
 import './QuadroDoPuzzle.css'
 
 /** O tempo até o cartão do desfecho: a porta inteira (900 ms) e a folga do v2; sem arte, só a folga; reduzido, quase já. */
@@ -70,6 +71,10 @@ export interface PropsDoQuadroDoPuzzle {
   interruptores?: InterruptoresNaVista
   /** O que puxar uma alavanca faz. Sem isto, o painel é só para ver. */
   onPuxarAlavanca?: (alavanca: number) => void
+  /** Os pontos da cooperação em dois lugares (a arte vira a chapa deles); ausente = outro puzzle. */
+  cooperacao?: CooperacaoNaVista
+  /** O que acionar um ponto faz. Sem isto, os pontos são só para ver. */
+  onAcionarPonto?: (ponto: number) => void
   /** O nome do quadro para o leitor de tela ("Fonte", o título público). */
   rotulo?: string
   className?: string
@@ -79,10 +84,10 @@ export interface PropsDoQuadroDoPuzzle {
 }
 
 export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
-  const { visual, encaixes, troca, resolvido, onAbriu, giratorias, interruptores } = props
+  const { visual, encaixes, troca, resolvido, onAbriu, giratorias, interruptores, cooperacao } = props
   const id = useId()
-  // O medalhão e o painel contam como arte: o cartão do desfecho espera as juntas (ou os lampiões) acenderem e o acorde soar.
-  const abrindo = useAbertura(resolvido, visual.tipo === 'modelo' || giratorias !== undefined || interruptores !== undefined, onAbriu)
+  // O medalhão e os painéis contam como arte: o cartão do desfecho espera as juntas (ou os lampiões) acenderem e o acorde soar.
+  const abrindo = useAbertura(resolvido, visual.tipo === 'modelo' || giratorias !== undefined || interruptores !== undefined || cooperacao !== undefined, onAbriu)
   const grao = graoDoQuadro()
   // A Porta de brasões: a placa e os encaixes somem quando a porta se abre.
   const encaixesSomem = visual.tipo === 'modelo' && visual.modelo === 'porta'
@@ -97,10 +102,11 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
         'qpz',
         resolvido && 'is-resolvido',
         resolvido && abrindo && 'is-abrindo',
-        temMolduraPorta(visual) && giratorias === undefined && interruptores === undefined && 'is-porta',
+        temMolduraPorta(visual) && giratorias === undefined && interruptores === undefined && cooperacao === undefined && 'is-porta',
         relevo !== null && 'is-relevo',
         giratorias !== undefined && 'is-giratorias',
         interruptores !== undefined && 'is-interruptores',
+        cooperacao !== undefined && 'is-coop',
         props.className,
       )}
       role="group"
@@ -110,6 +116,8 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
         <BaseDoMedalhao material={giratorias.material} />
       ) : interruptores !== undefined ? (
         <BaseDosInterruptores interruptores={interruptores} />
+      ) : cooperacao !== undefined ? (
+        <BaseDaCooperacao cooperacao={cooperacao} />
       ) : relevo !== null ? (
         <ArteDoRelevo visual={relevo} fonte={fonte} />
       ) : (
@@ -161,6 +169,7 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
         )}
         {giratorias !== undefined && <DiscoNoQuadro giratorias={giratorias} resolvido={resolvido} onGirar={props.onGirarAnel} teclado={props.tecladoDoControle} />}
         {interruptores !== undefined && <PainelDeInterruptores interruptores={interruptores} resolvido={resolvido} onPuxar={props.onPuxarAlavanca} teclado={props.tecladoDoControle} />}
+        {cooperacao !== undefined && <PainelDaCooperacao cooperacao={cooperacao} resolvido={resolvido} onAcionar={props.onAcionarPonto} />}
       </div>
       <div className="qpz__flash" aria-hidden="true" />
       {props.children}

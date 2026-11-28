@@ -31,7 +31,7 @@ export const ENCAIXE_VAZIO = 'Encaixe vazio. Escolha uma peça primeiro.'
 export const BANDEJA_VAZIA = 'Bandeja vazia. Ponha pedras de peso marcado.'
 
 /** "2 de 3 no lugar"; o destaque vai em negrito, como no v2 (`rotuloEstado`, também o da combinação). */
-export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca' | 'combinacao' | 'giratorias' | 'interruptores'>, teste = false): { destaque: string; resto: string } {
+export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca' | 'combinacao' | 'giratorias' | 'interruptores' | 'cooperacao'>, teste = false): { destaque: string; resto: string } {
   if (vista.versaoNova === true) return { destaque: '', resto: TEXTO_DA_RECUSA.versao_nova }
   if (vista.resolvido) return { destaque: teste ? 'Resolvido no teste.' : 'Resolvido.', resto: vista.contagem.total > 0 ? ' As peças ficaram presas.' : '' }
   // As peças giratórias não contam quantos anéis estão no lugar: seria a resposta pela metade.
@@ -44,6 +44,13 @@ export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolv
   if (interruptores !== undefined) {
     if (interruptores.objetivo === 'todas') return { destaque: '', resto: 'Puxe as alavancas até todos os lampiões acenderem.' }
     return { destaque: '', resto: interruptores.desenho !== null ? 'Puxe as alavancas até os lampiões ficarem como na plaqueta.' : 'Puxe as alavancas até os lampiões ficarem como a pista pede.' }
+  }
+  // A cooperação: cada um no seu ponto, todos dentro da mesma janela. No teste, o mestre aciona todos.
+  const cooperacao = vista.cooperacao
+  if (cooperacao !== undefined) {
+    const quantos = cooperacao.pontos.length === 2 ? 'os dois pontos' : `os ${cooperacao.pontos.length} pontos`
+    if (cooperacao.meuPonto === null) return { destaque: '', resto: `Acione ${quantos} com menos de ${cooperacao.janela} s entre o primeiro e o último.` }
+    return { destaque: `Você está no ponto ${cooperacao.meuPonto + 1}.`, resto: ` Acione junto com quem está nos outros: ${quantos} em ${cooperacao.janela} s.` }
   }
   const combinacao = vista.combinacao
   if (combinacao !== undefined) {

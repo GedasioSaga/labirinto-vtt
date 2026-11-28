@@ -19,6 +19,7 @@ import type { AcoesDaCombinacao, TecladoDoControle } from '../../puzzles/Control
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
 import { tocarSomDasGiratorias } from '../../puzzles/giratorias/somDasGiratorias'
 import { tocarSomDosInterruptores } from '../../puzzles/interruptores/somDosInterruptores'
+import { tocarSomDaCooperacao } from '../../puzzles/cooperacao/somDaCooperacao'
 import { tocarSomDoRelevo } from '../../puzzles/relevo/somDoRelevo'
 import { TEXTO_DA_RECUSA } from '../../puzzles/tipos'
 import type { AcaoNoPuzzle, EncaixeNaVista, MotivoDaRecusa, VistaDoPuzzle } from '../../puzzles/tipos'
@@ -87,6 +88,7 @@ const NOTA_DA_COMBINACAO = 'Este puzzle não usa peças: é uma combinação.'
 const NOTA_DAS_GIRATORIAS = 'Este puzzle não usa peças: gire os anéis do medalhão.'
 /** O aviso da mochila nos interruptores (o painel só tem alavancas). */
 const NOTA_DOS_INTERRUPTORES = 'Este puzzle não usa peças: puxe as alavancas do painel.'
+const NOTA_DA_COOPERACAO = 'Este puzzle não usa peças: acione o seu ponto junto com quem está nos outros.'
 
 export function TelaDoPuzzle({ raiz, ...props }: PropsDaTelaDoPuzzle) {
   return createPortal(<Tela {...props} />, raiz ?? document.body)
@@ -436,6 +438,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           // O painel completo ressoa logo depois do som da última placa.
           if (vista.giratorias !== undefined) window.setTimeout(() => tocarSomDasGiratorias('alinhou'), ATRASO_DO_SOM_COMPLETO_MS)
           else if (vista.interruptores !== undefined) window.setTimeout(() => tocarSomDosInterruptores('acerto'), ATRASO_DO_SOM_COMPLETO_MS)
+          else if (vista.cooperacao !== undefined) window.setTimeout(() => tocarSomDaCooperacao('acerto'), ATRASO_DO_SOM_COMPLETO_MS)
           else if (vista.visual.tipo === 'relevo') window.setTimeout(() => tocarSomDoRelevo('completo'), ATRASO_DO_SOM_COMPLETO_MS)
           break
       }
@@ -445,7 +448,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
   // ---------------------------------------------------------------- o cartão do desfecho: Texto logo, Cena depois da arte
 
   // O medalhão também espera: as juntas acendem e o acorde soa antes do cartão.
-  const comArte = vista.visual.tipo === 'modelo' || vista.giratorias !== undefined || vista.interruptores !== undefined
+  const comArte = vista.visual.tipo === 'modelo' || vista.giratorias !== undefined || vista.interruptores !== undefined || vista.cooperacao !== undefined
   useEffect(() => {
     if (desfechoPendente === null || !vista.resolvido) return
     const mostrar = () => {
@@ -585,6 +588,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
               onGirarAnel={vista.versaoNova === true ? undefined : acoesDaCombinacao.onGirar}
               interruptores={vista.interruptores}
               onPuxarAlavanca={vista.versaoNova === true ? undefined : acoesDaCombinacao.onApertar}
+              cooperacao={vista.cooperacao}
+              onAcionarPonto={vista.versaoNova === true ? undefined : acoesDaCombinacao.onApertar}
               rotulo={titulo}
             >
               {cartao !== null && <CartaoDoDesfecho titulo={titulo} desfecho={cartao} eu={eu} onContinuar={fecharCartao} teste={teste} onVoltar={() => sair(false)} />}
@@ -606,7 +611,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           novas={novas}
           pv={ehTeste ? null : pv}
           titulo={ehTeste ? TITULO_DAS_PECAS_DO_TESTE : undefined}
-          nota={vista.giratorias !== undefined ? NOTA_DAS_GIRATORIAS : vista.interruptores !== undefined ? NOTA_DOS_INTERRUPTORES : vista.combinacao !== undefined && vista.troca === null ? NOTA_DA_COMBINACAO : ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
+          nota={vista.giratorias !== undefined ? NOTA_DAS_GIRATORIAS : vista.interruptores !== undefined ? NOTA_DOS_INTERRUPTORES : vista.cooperacao !== undefined ? NOTA_DA_COOPERACAO : vista.combinacao !== undefined && vista.troca === null ? NOTA_DA_COMBINACAO : ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
           onEscolher={escolher}
           onApertar={arrasto.aoApertar}
         />

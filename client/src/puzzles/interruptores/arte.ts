@@ -158,22 +158,22 @@ const LATAO: Material = {
   expoente: 22,
 }
 
-const METAL_DA_CHAPA: Readonly<Record<MaterialDosInterruptores, Material>> = { latao: LATAO, ferro: MATERIAIS.ferro }
+export const METAL_DA_CHAPA: Readonly<Record<MaterialDosInterruptores, Material>> = { latao: LATAO, ferro: MATERIAIS.ferro }
 
 /** As cores do metal dos lampiões e da haste (desenho direto, sem o filtro): escuro, meio, claro, brilho. */
-const TINTA_DO_METAL: Readonly<Record<MaterialDosInterruptores, readonly [string, string, string, string]>> = {
+export const TINTA_DO_METAL: Readonly<Record<MaterialDosInterruptores, readonly [string, string, string, string]>> = {
   latao: ['#4a3816', '#8a6a2a', '#d4b260', '#fff0c2'],
   ferro: ['#1f1e1c', '#4a4844', '#8f8a80', '#e4e0d6'],
 }
 
 // ------------------------------------------------------------------ a base: parede, chapa, cartuchos, fendas, números e a plaqueta
 
-function retangulo(caixa: Caixa, raio: number, extra: string): string {
+export function retangulo(caixa: Caixa, raio: number, extra: string): string {
   return `<rect x="${num(caixa.x)}" y="${num(caixa.y)}" width="${num(caixa.largura)}" height="${num(caixa.altura)}" rx="${num(raio)}" ${extra}/>`
 }
 
 /** A chapa em altura: o corpo, a moldura levantada com um friso, o sulco de dentro e os rebites. */
-function chapa(placa: Caixa): string {
+export function chapa(placa: Caixa): string {
   const dentro = (d: number): Caixa => ({ x: placa.x + d, y: placa.y + d, largura: placa.largura - 2 * d, altura: placa.altura - 2 * d })
   const partes = [
     retangulo(placa, 26, `fill="${alt(0.46)}"`),
@@ -282,7 +282,7 @@ export function urlDaBaseDoPainel(material: MaterialDosInterruptores, quantos: n
 
 // ------------------------------------------------------------------ o lampião, em camadas (120 x 240)
 
-function paraUrl(svg: string): string {
+export function paraUrl(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
