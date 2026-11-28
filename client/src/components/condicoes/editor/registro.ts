@@ -212,12 +212,16 @@ export interface AjustesDoBoneco {
 
 export const AJUSTES_DO_BONECO_PADRAO: AjustesDoBoneco = { rodadas: 3, d20: 9, golpeR: 2, golpeV: 30, golpeTipo: 'qualquer', curaR: 3, curaV: 40, bateR: 2, deNovoR: 2, tentaR: 3, perto: true, ja: true }
 
-/** O boneco de treino: vida, SP, os atributos (pelo id das peças) e os modificadores dos testes. */
+/**
+ * O boneco de treino: vida, SP e os atributos (pelo id das peças). O modificador dos testes NÃO mora aqui
+ * (27/11/2026, PENDENCIAS nº 8): é o do motor (`modificadorDoTeste`, lib/batalha/marca.ts, metade do rank,
+ * Resistência 20 = +0), que o ensaio lê da ficha do boneco. O `mod` do protótipo (+2) saiu: ninguém o lia e
+ * ele contava outro número.
+ */
 export interface BonecoBase {
   vida: number
   sp: number
   atr: Readonly<Record<string, number>>
-  mod: Readonly<Record<string, number>>
 }
 
 /**
@@ -228,7 +232,6 @@ export const BONECO_BASE: BonecoBase = {
   vida: 300,
   sp: 60,
   atr: { forca: 20, agilidade: 20, percepcao: 10, resistencia: 20, intuicao: 10, espirito: 10, carisma: 5, determinacao: 10, velocidade: 30, ca: 12, dano: 0, alcance: 3 },
-  mod: { forca: 2, agilidade: 2, percepcao: 1, resistencia: 2, intuicao: 1, espirito: 1, carisma: 0, determinacao: 1 },
 }
 
 /** Quais ajustes mudam algo para esta condição (a tela só mostra estes; o `relevantes` do protótipo). */
