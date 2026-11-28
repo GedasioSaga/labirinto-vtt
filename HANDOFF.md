@@ -1,3 +1,9 @@
+# 28/11 10:50: 0.6.13 PUBLICADA (de 4bec7ef2: cooperação, arte onda 2)
+
+- De release/0.6.13 (4bec7ef2 + bump 96fa4940 "chore(release): 0.6.13", 5 arquivos, no Cargo.lock só a entrada labirinto; `git push -u origin release/0.6.13`, branch nova). tsc do client na worktree: exit 0, nenhum erro. lib/nuvem/pureza.test.ts: 5 de 5. Mistura de líquidos fora das notas (não está pronta).
+- tmp/rel-0.6.13/orquestra.ps1: T1 (JOBS=2, 08:54, RAM 9,7 GB, disco 22,4 GB) parada por RAM às 09:44 (mínima 0,32 GB) no build do site do Lobby, antes de qualquer envio; T2 (JOBS=1, 09:48) exit 0 às 10:49 (cargo 28m23s; RAM mínima 0,48 GB; log tmp/rel-0.6.13/publicar-t2.log). Assinatura confere, Worker 0ff29d0a-2edb-4324-b16d-315eafc2df9e, site cdb4b42d.labirintolobby.pages.dev (labirintolobby.pages.dev 200), https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.6.13 (setup.exe, .sig, msi, latest.json; não é rascunho; alvo 96fa4940). releases/latest/download/latest.json: "version": "0.6.13". Notas: tmp/rel-0.6.13/notas.md.
+- Limpeza: target apagado, 3 junções .Delete() (node_modules compartilhado intacto), worktree remove sem --force, branch local release/0.6.13 apagada (a remota ficou). DISCO BAIXO: 1,75 GB no fim do build, 4,7 GB depois da limpeza (abaixo do piso de 8 GB). A main NÃO foi bumpada (segue 0.6.9). protocol.ts, ordem.ts e docs/verification/*.png intocados. Nenhum outro teste.
+
 # 28/11 08:40: 0.6.12 PUBLICADA (de d598abfa: giratórias, interruptores, arte onda 1, consertos de batalha)
 
 - De release/0.6.12 (d598abfa + bump c643fdee "chore(release): 0.6.12", 5 arquivos, no Cargo.lock só a entrada labirinto; `git push -u origin release/0.6.12`, branch nova). tsc do client na worktree: exit 0, nenhum erro (nenhum arquivo da onda 2 precisou sair). lib/nuvem/pureza.test.ts: 5 de 5.
