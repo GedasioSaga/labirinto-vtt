@@ -1,0 +1,3 @@
+1. 3a Alcapao fechado (1 x 1 casas, 3/4 derivado, objeto de chão): portão da 3/4 389 ms de 5000 | janela grande a 4x 117 ms | saturação p95 0,591 (teto 0,62) | contorno 0,232 (mínimo 0,06) | luz mínima 0,044 (piso 0,043) | 3/4 difere da de cima: sim | repete igual: sim | o tampo sobe: não | dentro do portão
+2. 3b Alcapao aberto (1 x 1 casas, 3/4 derivado, objeto de chão): portão da 3/4 403 ms de 5000 | janela grande a 4x 198 ms | saturação p95 0,159 (teto 0,62) | contorno 0,234 (mínimo 0,06) | luz mínima 0,045 (piso 0,043) | 3/4 difere da de cima: sim | repete igual: sim | o tampo sobe: não | dentro do portão
+folha: C:\dev\tmp\L01\pecas\alcapao-versoes\alcapao-versoes.png (1216 x 977 px, 2 itens, 3730 ms no total)
