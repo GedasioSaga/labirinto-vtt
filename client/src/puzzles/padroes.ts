@@ -11,6 +11,7 @@
  * Puro: sem React, sem disco.
  */
 import { combinacaoPadrao } from './combinacao'
+import { giratoriasDoPuzzle } from './giratorias/giratorias'
 import type {
   CastigoDoPuzzle,
   CombinacaoDoPuzzle,
@@ -273,4 +274,12 @@ export function aceitaMolduraPorta(modelo: ModeloDoPuzzle): boolean {
 export function visualEhPorta(visual: Puzzle['visual']): boolean {
   if (visual.tipo === 'relevo') return true
   return visual.tipo === 'modelo' && (visual.modelo === 'porta' || visual.moldura === 'porta')
+}
+
+/**
+ * O puzzle pode abrir a porta ligada do mapa: um visual de porta, ou as peças
+ * giratórias (o medalhão, como o painel em relevo, guarda a passagem ao lado).
+ */
+export function puzzleAbrePorta(puzzle: Pick<Puzzle, 'visual' | 'futuro'>): boolean {
+  return visualEhPorta(puzzle.visual) || giratoriasDoPuzzle(puzzle) !== null
 }

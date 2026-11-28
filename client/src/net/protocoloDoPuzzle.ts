@@ -45,10 +45,16 @@ import {
   CENAS_DO_RELEVO,
   METAIS_DO_RELEVO,
   PLACAS_DO_RELEVO,
+  ANEIS_MAX,
+  ANEIS_MIN,
+  DESENHOS_DAS_GIRATORIAS,
+  MATERIAIS_DAS_GIRATORIAS,
+  PASSOS_DO_GIRO,
 } from '../puzzles/tipos'
 import type {
   AcaoNoPuzzle,
   CombinacaoNaVista,
+  GiratoriasNaVista,
   EncaixeNaVista,
   FormaDoEncaixe,
   ModeloDoPuzzle,
@@ -328,6 +334,18 @@ function lerCombinacaoNaVista(value: unknown): CombinacaoNaVista | null | undefi
   }
 }
 
+/** O medalhão das peças giratórias: ausente = não é desse tipo (`undefined`); torto = `null`, e a vista cai inteira. */
+function lerGiratoriasNaVista(value: unknown): GiratoriasNaVista | null | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value) || typeof value.vizinhas !== 'boolean') return null
+  const desenho = umDaLista(DESENHOS_DAS_GIRATORIAS, value.desenho)
+  const material = umDaLista(MATERIAIS_DAS_GIRATORIAS, value.material)
+  const cena = value.cena === null ? null : umDaLista(CENAS_DO_RELEVO, value.cena)
+  const giros = lerLista(value.giros, ANEIS_MAX, (giro) => (inteiroAte(giro, PASSOS_DO_GIRO - 1) ? giro : null))
+  if (desenho === undefined || material === undefined || cena === undefined || giros === null || giros.length < ANEIS_MIN) return null
+  return { desenho, cena, imagem: imagemDoFio(value.imagem), material, giros, vizinhas: value.vizinhas }
+}
+
 /** A vista inteira, campo a campo; um campo torto derruba a mensagem. */
 export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   if (!isRecord(value) || !idAte(value.desafioId) || !inteiroAte(value.rev, Number.MAX_SAFE_INTEGER) || !textoAte(value.titulo, NOME_DO_PUZZLE_MAX)) return null
@@ -340,9 +358,11 @@ export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   const dica = lerDica(value.dica)
   const mochila = lerLista(value.mochila, VAGAS_NA_VISTA_MAX, lerVaga)
   const combinacao = lerCombinacaoNaVista(value.combinacao)
-  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null) return null
+  const giratorias = lerGiratoriasNaVista(value.giratorias)
+  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null) return null
   const vista: VistaDoPuzzle = { desafioId: value.desafioId, rev: value.rev, titulo: value.titulo, visual, encaixes, troca, dica, resolvido: value.resolvido, contagem: { postos, total }, mochila }
   if (combinacao !== undefined) vista.combinacao = combinacao
+  if (giratorias !== undefined) vista.giratorias = giratorias
   if (value.versaoNova === true) vista.versaoNova = true
   return vista
 }

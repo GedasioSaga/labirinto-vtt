@@ -86,7 +86,7 @@ export interface Puzzle {
    * futura, guardada como veio. Lida sempre por `combinacaoDoPuzzle`
    * (`puzzles/combinacao.ts`): o que ela não reconhece é "versão nova".
    */
-  futuro?: CombinacaoDoPuzzle | MecanicaFutura
+  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | MecanicaFutura
 }
 
 /**
@@ -272,6 +272,68 @@ export type CombinacaoNaVista = { x: number; y: number; s: number } & (
   | { forma: 'botoes'; rotulos: string[]; total: number; certos: number }
 )
 
+// ------------------------------------------------------------------ as peças giratórias (28/11, 2º da fila de puzzles)
+
+/**
+ * AS PEÇAS GIRATÓRIAS (`docs/design/puzzles/FILA.md`): um medalhão na parede
+ * com 3 a 6 anéis em volta de um miolo fixo. Cada anel gira de 45 em 45 graus
+ * (`PASSOS_DO_GIRO` posições); o puzzle cede com todos na posição certa. Mora
+ * no `futuro`, como a combinação (o app de antes guarda "como veio").
+ *
+ * O desenho gravado nos anéis: uma cena de fábrica (as do painel em relevo,
+ * recortadas num círculo), uma imagem do mestre (`imagem`, `midia:<id>`) ou
+ * símbolos (cada anel com os 8 de `SIMBOLOS_DO_ANEL`; `simbolos[k]` é o que o
+ * anel `k` precisa mostrar na marca de cima). Os anéis contam de fora para dentro.
+ *
+ * `vizinhas`: girar um anel leva junto os dois vizinhos (o modo difícil).
+ * `embaralho`: a semente do começo; o começo sai dela por giros de verdade,
+ * então sempre tem solução. A posição certa e o começo ficam só no host.
+ */
+export interface GiratoriasDoPuzzle {
+  tipo: 'giratorias'
+  desenho: DesenhoDasGiratorias
+  cena: CenaDoRelevo
+  imagem: string | null
+  material: MaterialDasGiratorias
+  aneis: number
+  simbolos: SimboloDoAnel[]
+  vizinhas: boolean
+  embaralho: number
+}
+
+export type DesenhoDasGiratorias = 'cena' | 'imagem' | 'simbolos'
+export const DESENHOS_DAS_GIRATORIAS: readonly DesenhoDasGiratorias[] = ['cena', 'imagem', 'simbolos']
+
+export type MaterialDasGiratorias = 'bronze' | 'ferro' | 'prata' | 'pedra'
+export const MATERIAIS_DAS_GIRATORIAS: readonly MaterialDasGiratorias[] = ['bronze', 'ferro', 'prata', 'pedra']
+
+/** Os 8 símbolos de cada anel, um por posição. */
+export type SimboloDoAnel = 'sol' | 'lua' | 'estrela' | 'olho' | 'peixe' | 'coroa' | 'chave' | 'ancora'
+export const SIMBOLOS_DO_ANEL: readonly SimboloDoAnel[] = ['sol', 'lua', 'estrela', 'olho', 'peixe', 'coroa', 'chave', 'ancora']
+
+/** Quantas posições um anel tem numa volta (de 45 em 45 graus). */
+export const PASSOS_DO_GIRO = 8
+export const ANEIS_MIN = 3
+export const ANEIS_MAX = 6
+export const ANEIS_PADRAO = 4
+
+/**
+ * O medalhão como o jogador o vê (lista branca do recorte): o desenho, o
+ * material e onde cada anel está agora. Nunca vão a posição certa nem o começo.
+ * `giros[k]` = a posição do anel `k` (de fora para dentro), em passos no
+ * sentido horário; nos símbolos, o que está na marca sai dela (`simboloNaMarca`).
+ */
+export interface GiratoriasNaVista {
+  desenho: DesenhoDasGiratorias
+  /** Só no desenho `cena`. */
+  cena: CenaDoRelevo | null
+  /** Só no desenho `imagem` (`null` = o mestre ainda não escolheu). */
+  imagem: string | null
+  material: MaterialDasGiratorias
+  giros: number[]
+  vizinhas: boolean
+}
+
 /**
  * A mecânica de uma leva futura, guardada COMO VEIO: o objeto do disco
  * inteiro, e não `{ tipo, bruto }` embrulhado, porque o mapa é gravado por
@@ -455,7 +517,10 @@ export type AcaoNoPuzzle =
   /** Tira a última pedra posta. */
   | { tipo: 'tirarDaBandeja' }
   | { tipo: 'trocar' }
-  /** Combinação: a roda `roda` anda um passo (para cima, +1). Relativo: dois jogadores girando somam. */
+  /**
+   * Combinação: a roda `roda` anda um passo (para cima, +1). Relativo: dois jogadores girando somam.
+   * Peças giratórias: o anel `roda` (de fora para dentro) anda um passo; +1 = sentido horário.
+   */
   | { tipo: 'girar'; roda: number; passo: 1 | -1 }
   /** Combinação: os ponteiros param em `minutos` depois das 12h (de 5 em 5; o arrasto manda só ao soltar). */
   | { tipo: 'ponteiro'; minutos: number }
@@ -612,6 +677,8 @@ export interface VistaDoPuzzle {
   mochila: VagaNaVista[]
   /** O controle da combinação; ausente = o puzzle é de encaixes (que, na combinação, não vão). */
   combinacao?: CombinacaoNaVista
+  /** O medalhão das peças giratórias; ausente = não é desse tipo (e então os encaixes não vão). */
+  giratorias?: GiratoriasNaVista
   /** O puzzle traz uma mecânica de uma leva que este app não joga. */
   versaoNova?: true
 }

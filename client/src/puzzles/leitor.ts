@@ -20,6 +20,7 @@ import { ehIdDeItemDoAcervo } from '../lib/leituraDoItem'
 import { ehRefDeMidia } from '../lib/midia'
 import type { CarriedItem, ItemNoConteudo } from '../types/map'
 import { lerCombinacao, minutosNoMostrador } from './combinacao'
+import { lerGiratorias } from './giratorias/giratorias'
 import { aceitaMolduraPorta, PADROES_DOS_MODELOS, POSICAO_DA_TROCA_PADRAO, PESO_DA_TROCA_PADRAO, PV_DO_CASTIGO_PADRAO, puzzleDoModelo, visualEhPorta } from './padroes'
 import {
   BANDEJA_MAX,
@@ -183,6 +184,9 @@ export function lerPuzzle(valor: unknown): Puzzle {
   const bruto = isRecord(valor) ? valor : {}
   const visual = lerVisual(bruto.visual)
   const padrao = puzzleDoModelo(visual.tipo === 'modelo' ? visual.modelo : 'fonte')
+  const futuro = lerFuturo(bruto.futuro)
+  // A porta ligada abre com um visual de porta ou com o medalhão das peças giratórias.
+  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias'
   const puzzle: Puzzle = {
     nome: textoNaoVazio(bruto.nome, NOME_DO_PUZZLE_MAX, padrao.nome),
     nomePublico: textoLido(bruto.nomePublico, NOME_DO_PUZZLE_MAX, padrao.nomePublico),
@@ -193,11 +197,10 @@ export function lerPuzzle(valor: unknown): Puzzle {
     encaixes: lerEncaixes(bruto.encaixes),
     troca: lerTroca(bruto.troca),
     dica: lerDica(bruto.dica, padrao.dica),
-    desfecho: lerDesfecho(bruto.desfecho, padrao.desfecho, visual),
+    desfecho: lerDesfecho(bruto.desfecho, padrao.desfecho, abrePorta),
     castigo: lerCastigo(bruto.castigo, padrao.castigo),
     controle: lerControle(bruto.controle, padrao.controle),
   }
-  const futuro = lerFuturo(bruto.futuro)
   if (futuro !== undefined) puzzle.futuro = futuro
   return puzzle
 }
@@ -303,7 +306,7 @@ function lerItensDoDesfecho(valor: unknown): ItemNoConteudo[] {
   return Array.isArray(valor) ? (lerConteudoDoArquivo({ itens: valor }, 'bau')?.itens ?? []) : []
 }
 
-function lerDesfecho(valor: unknown, padrao: DesfechoDoPuzzle, visual: VisualDoPuzzle): DesfechoDoPuzzle {
+function lerDesfecho(valor: unknown, padrao: DesfechoDoPuzzle, podeAbrirPorta: boolean): DesfechoDoPuzzle {
   if (!isRecord(valor)) return structuredClone(padrao)
   const documentos = Array.isArray(valor.documentos) ? [...new Set(valor.documentos.flatMap((id) => idLido(id) ?? []))].slice(0, DOCUMENTOS_DO_DESFECHO_MAX) : []
   return {
@@ -312,8 +315,8 @@ function lerDesfecho(valor: unknown, padrao: DesfechoDoPuzzle, visual: VisualDoP
     itens: lerItensDoDesfecho(valor.itens),
     moedas: inteiroEntre(valor.moedas, 0, MOEDAS_NO_CONTEUDO_MAX, 0),
     documentos,
-    // Só um visual de porta abre a porta do mapa.
-    abrePorta: valor.abrePorta === true && visualEhPorta(visual),
+    // Só um visual de porta (ou o medalhão giratório) abre a porta do mapa.
+    abrePorta: valor.abrePorta === true && podeAbrirPorta,
   }
 }
 
@@ -352,6 +355,9 @@ function lerFuturo(valor: unknown): Puzzle['futuro'] {
   // A combinação que este app joga é lida campo a campo; a de uma forma que ele não conhece segue como veio.
   const combinacao = lerCombinacao(valor)
   if (combinacao !== null) return combinacao
+  // As peças giratórias também são lidas campo a campo (a imagem só como referência de mídia).
+  const giratorias = lerGiratorias(valor, imagemLida)
+  if (giratorias !== null) return giratorias
   if (!isRecord(valor) || typeof valor.tipo !== 'string' || valor.tipo === '') return undefined
   let json: string
   try {

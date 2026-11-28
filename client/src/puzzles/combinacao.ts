@@ -28,6 +28,7 @@ import {
   SEQUENCIA_MAX,
   SIMBOLOS_DA_RODA,
 } from './tipos'
+import { giratoriasDoPuzzle } from './giratorias/giratorias'
 import type { AcaoNoPuzzle, CombinacaoDoPuzzle, CombinacaoNaVista, FormaDaCombinacao, ProgressoDoPuzzle, Puzzle, SimboloDaRoda } from './tipos'
 
 export const NOME_DA_COMBINACAO: Readonly<Record<FormaDaCombinacao, string>> = {
@@ -162,7 +163,7 @@ export function combinacaoDoPuzzle(puzzle: Pick<Puzzle, 'futuro'>): CombinacaoDo
 
 /** O puzzle traz uma mecânica que este app não joga: o "Este puzzle é de uma versão mais nova do app". */
 export function mecanicaDesconhecida(puzzle: Pick<Puzzle, 'futuro'>): boolean {
-  return puzzle.futuro !== undefined && combinacaoDoPuzzle(puzzle) === null
+  return puzzle.futuro !== undefined && combinacaoDoPuzzle(puzzle) === null && giratoriasDoPuzzle(puzzle) === null
 }
 
 /** As ações que não olham o `rev`: girar, mexer o ponteiro e apertar valem sobre o que o HOST tem, e o fio as entrega em ordem. */

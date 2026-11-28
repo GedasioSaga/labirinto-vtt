@@ -16,6 +16,7 @@
  */
 import type { CarriedItem } from '../types/map'
 import { combinacaoDoPuzzle, combinacaoNaVista, mecanicaDesconhecida } from './combinacao'
+import { giratoriasDoPuzzle, giratoriasNaVista } from './giratorias/giratorias'
 import { contagemDoPuzzle, pesoDe, postaEm } from './motor'
 import { CATEGORIA_DA_PECA_DE_PUZZLE } from './tipos'
 import type { EncaixeDoPuzzle, EncaixeNaVista, PecaPosta, PostaNaVista, ProgressoDoPuzzle, Puzzle, VagaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
@@ -36,21 +37,25 @@ export interface EntradaDaVista {
 export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
   const { puzzle, progresso } = entrada
   const combinacao = combinacaoDoPuzzle(puzzle)
-  // Na combinação os encaixes não valem (o motor recusa pôr e tirar): não vão, nem na contagem.
-  const encaixes = combinacao === null ? puzzle.encaixes : []
+  const giratorias = giratoriasDoPuzzle(puzzle)
+  // Na combinação e nas peças giratórias os encaixes não valem (o motor recusa pôr e tirar): não vão, nem na contagem.
+  const encaixes = combinacao === null && giratorias === null ? puzzle.encaixes : []
   const vista: VistaDoPuzzle = {
     desafioId: entrada.desafioId,
     rev: progresso.rev,
     titulo: puzzle.nomePublico,
     visual: visualNaVista(puzzle.visual),
     encaixes: encaixes.map((encaixe) => encaixeNaVista(encaixe, progresso)),
-    troca: trocaNaVista(puzzle, progresso),
+    // O medalhão não tem troca de peso (o motor a recusa).
+    troca: giratorias === null ? trocaNaVista(puzzle, progresso) : null,
     dica: dicaNaVista(puzzle, entrada.documentoDaDica),
     resolvido: progresso.resolvido !== null,
     contagem: contagemDoPuzzle(puzzle, progresso),
     mochila: entrada.mochila.map(vagaNaVista),
   }
   if (combinacao !== null) vista.combinacao = combinacaoNaVista(combinacao, progresso, puzzle.controle)
+  // As peças giratórias: onde cada anel está agora (a posição certa e o começo ficam aqui).
+  if (giratorias !== null) vista.giratorias = giratoriasNaVista(giratorias, progresso)
   if (mecanicaDesconhecida(puzzle)) vista.versaoNova = true
   return vista
 }

@@ -28,7 +28,8 @@
 import { mochilaComItemDoAcervo, quantidadeDe } from '../lib/items'
 import type { CarriedItem } from '../types/map'
 import { certosNoProgresso, combinacaoCerta, combinacaoDoPuzzle, comCertos, comMinutos, comRodas, mecanicaDesconhecida, modulo, rodasNoProgresso, tamanhoDaRoda } from './combinacao'
-import { visualEhPorta } from './padroes'
+import { alinhadas, errosNoProgresso, girarAneis, giratoriasDoPuzzle } from './giratorias/giratorias'
+import { puzzleAbrePorta } from './padroes'
 import { BANDEJA_MAX } from './tipos'
 import type {
   AcaoNoPuzzle,
@@ -36,6 +37,7 @@ import type {
   ContextoDoMotor,
   EfeitoDoPuzzle,
   EncaixeDoPuzzle,
+  GiratoriasDoPuzzle,
   MetadesPostas,
   MotivoDaRecusa,
   PecaPosta,
@@ -84,7 +86,8 @@ export function encaixeCheio(encaixe: EncaixeDoPuzzle, progresso: Pick<Progresso
 /** "2 de 3 no lugar": a contagem que o jogador e a página Jogos mostram. */
 export function contagemDoPuzzle(puzzle: Pick<Puzzle, 'encaixes' | 'futuro'>, progresso: Pick<ProgressoDoPuzzle, 'encaixes'>): { postos: number; total: number } {
   // Na combinação os encaixes ficam guardados (para quando o mestre voltar ao Encaixe), mas não contam: ninguém os vê.
-  const encaixes = combinacaoDoPuzzle(puzzle) === null ? puzzle.encaixes : []
+  // Nas peças giratórias também: o medalhão não tem encaixe.
+  const encaixes = combinacaoDoPuzzle(puzzle) === null && giratoriasDoPuzzle(puzzle) === null ? puzzle.encaixes : []
   return { postos: encaixes.filter((encaixe) => encaixeCheio(encaixe, progresso)).length, total: encaixes.length }
 }
 
@@ -157,20 +160,23 @@ export function agirNoPuzzle(
   if (mecanicaDesconhecida(puzzle)) return recusa(progresso, mochila, 'versao_nova')
   if (progresso.resolvido !== null) return recusa(progresso, mochila, 'resolvido')
   const combinacao = combinacaoDoPuzzle(puzzle)
+  const giratorias = giratoriasDoPuzzle(puzzle)
+  // Na combinação e nas peças giratórias os encaixes não aparecem: o pedido é de uma tela de antes da troca de mecânica.
+  const semEncaixes = combinacao !== null || giratorias !== null
   switch (acao.tipo) {
     case 'por':
-      // Na combinação os encaixes não aparecem: o pedido é de uma tela de antes da troca de mecânica.
-      return combinacao !== null ? recusa(progresso, mochila, 'mudou') : por(puzzle, progresso, mochila, acao, contexto)
+      return semEncaixes ? recusa(progresso, mochila, 'mudou') : por(puzzle, progresso, mochila, acao, contexto)
     case 'tirar':
-      return combinacao !== null ? recusa(progresso, mochila, 'mudou') : tirar(puzzle, progresso, mochila, acao.encaixeId, contexto)
+      return semEncaixes ? recusa(progresso, mochila, 'mudou') : tirar(puzzle, progresso, mochila, acao.encaixeId, contexto)
+    // O medalhão também não tem a troca de peso (o recorte não a manda).
     case 'porNaBandeja':
-      return porNaBandeja(puzzle, progresso, mochila, acao.vagaId, contexto)
+      return giratorias !== null ? recusa(progresso, mochila, 'mudou') : porNaBandeja(puzzle, progresso, mochila, acao.vagaId, contexto)
     case 'tirarDaBandeja':
-      return tirarDaBandeja(puzzle, progresso, mochila, contexto)
+      return giratorias !== null ? recusa(progresso, mochila, 'mudou') : tirarDaBandeja(puzzle, progresso, mochila, contexto)
     case 'trocar':
-      return trocar(puzzle, progresso, mochila, contexto)
+      return giratorias !== null ? recusa(progresso, mochila, 'mudou') : trocar(puzzle, progresso, mochila, contexto)
     case 'girar':
-      return girar(puzzle, combinacao, progresso, mochila, acao, contexto)
+      return giratorias !== null ? girarAnel(puzzle, giratorias, progresso, mochila, acao, contexto) : girar(puzzle, combinacao, progresso, mochila, acao, contexto)
     case 'ponteiro':
       return ponteiro(puzzle, combinacao, progresso, mochila, acao.minutos, contexto)
     case 'apertar':
@@ -197,6 +203,30 @@ function girar(
   const rodas = rodasNoProgresso(progresso, quantas, tamanho).map((valor, i) => (i === acao.roda ? modulo(valor + acao.passo, tamanho) : valor))
   const a = andamento(puzzle, progresso, mochila, contexto)
   a.progresso = comRodas(a.progresso, rodas)
+  return fim(a)
+}
+
+// ------------------------------------------------------------------ as peças giratórias
+
+/**
+ * Um anel do medalhão anda um passo (com "vizinhas", os do lado também). O
+ * host confere a cada giro: todos no lugar resolve. Girar nunca é erro, então
+ * nunca castiga.
+ */
+function girarAnel(
+  puzzle: Puzzle,
+  giratorias: GiratoriasDoPuzzle,
+  progresso: ProgressoDoPuzzle,
+  mochila: readonly CarriedItem[],
+  acao: Extract<AcaoNoPuzzle, { tipo: 'girar' }>,
+  contexto: ContextoDoMotor,
+): ResultadoDoMotor {
+  if (!Number.isInteger(acao.roda) || acao.roda < 0 || acao.roda >= giratorias.aneis) return recusa(progresso, mochila, 'mudou')
+  if (acao.passo !== 1 && acao.passo !== -1) return recusa(progresso, mochila, 'mudou')
+  const erros = girarAneis(errosNoProgresso(progresso, giratorias), acao.roda, acao.passo, giratorias.vizinhas)
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  a.progresso.rotacoes = erros
+  if (alinhadas(erros)) resolver(a)
   return fim(a)
 }
 
@@ -413,7 +443,7 @@ function resolver(a: Andamento): void {
   if (a.contexto.modo === 'jogo') {
     const desfecho = structuredClone(puzzle.desfecho)
     // A porta só abre com um visual que é porta, mesmo que o arquivo diga outra coisa.
-    desfecho.abrePorta = desfecho.abrePorta && visualEhPorta(puzzle.visual)
+    desfecho.abrePorta = desfecho.abrePorta && puzzleAbrePorta(puzzle)
     a.efeitos.push({ tipo: 'entregar', para: a.contexto.quem, desfecho })
   }
 }
