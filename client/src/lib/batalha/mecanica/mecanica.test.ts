@@ -7,7 +7,8 @@ import { lancarGolpe, podeAgir, type ContextoDoGolpe } from '../golpe'
 import { danoDaTecnica, leituraDaTecnica } from '../leituraDaTecnica'
 import { danoQueChega } from '../reacao'
 import { novaCarta, type AutorDaAcao, type TurnosDaCena } from '../turnos'
-import { lerMecanica } from './modelo'
+import type { CarriedItem } from '../../../types/map'
+import { lerMecanica, VERSAO_DA_MECANICA } from './modelo'
 
 /**
  * Construtor de mecânicas, fatia C1: um NPC de teste (dados inventados) com a
@@ -34,7 +35,9 @@ const PECAS_DA_ESPADADA = {
 const ESPADADA_EM_TEXTO = cartao('cart_espadada_texto', 'Espadada do Marinheiro', { acao: 'Ação Simples', custo: '30', tempo: '3', dano: 'Força + 20', efeito: 'Atordoa por 1 turno.' })
 /** O texto velho do cartão montado diz outra coisa: com peças, ele é só descrição. */
 const ESPADADA_MONTADA = cartao('cart_espadada_pecas', 'Espadada do Marinheiro', { acao: 'Completa', custo: '999', tempo: '9', dano: '5000', efeito: 'Texto antigo.' }, PECAS_DA_ESPADADA)
-const DE_APP_NOVO = cartao('cart_futura', 'Golpe do Futuro', { custo: '10', dano: '40' }, { versao: 5, acao: 'simples', coisaNova: true })
+/** A versão de um app mais novo que este: a seguinte à que ele lê (a 5 virou lida no rework das habilidades, D1). */
+const VERSAO_FUTURA = VERSAO_DA_MECANICA + 1
+const DE_APP_NOVO = cartao('cart_futura', 'Golpe do Futuro', { custo: '10', dano: '40' }, { versao: VERSAO_FUTURA, acao: 'simples', coisaNova: true })
 
 const marinheiro = ficha('Marinheiro de Teste', { forca: 60 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [ESPADADA_EM_TEXTO, ESPADADA_MONTADA, DE_APP_NOVO] })
 const boneco = ficha('Boneco de Treino', { forca: 10 }, { hp: 400, sp: 50, escudo: 0 }, {})
@@ -80,7 +83,7 @@ describe('tudo ou nada e a versão', () => {
     // Revisão: o "depois" só cobra HP fixo (`custoEmHp`); o resto seria lido e nunca cobrado.
     expect(lerMecanica({ ...PECAS_DA_ESPADADA, custos: [{ recurso: 'sp', quanto: { fixo: 10 }, quando: 'depois' }] })).toMatchObject({ tipo: 'invalida' })
     expect(lerMecanica({ ...PECAS_DA_ESPADADA, custos: [{ recurso: 'hp', quanto: { fixo: 200 }, quando: 'depois' }] })).toMatchObject({ tipo: 'pecas' })
-    expect(lerMecanica(DE_APP_NOVO.mecanica)).toEqual({ tipo: 'futura', versao: 5 })
+    expect(lerMecanica(DE_APP_NOVO.mecanica)).toEqual({ tipo: 'futura', versao: VERSAO_FUTURA })
     const lida = leituraDaTecnica(DE_APP_NOVO, { personagem: marinheiro, sistema })
     expect([lida.custo.tipo, lida.acaoDaFicha.acao]).toEqual(['pergunta', null])
     expect(danoDaTecnica(DE_APP_NOVO, { personagem: marinheiro, sistema, arma: null }).tipo).toBe('naoEntende')
@@ -156,11 +159,19 @@ describe('revisão da C1: o host confere o que as peças prometem', () => {
   })
 
   it('as balas no menu seguem a fórmula da peça, não o campo Dano (a mesma conta que o host confere)', () => {
-    const bala = cartao('cart_bala_teste', 'Bala de Teste', { dano: '+15' })
-    const pistola: CartaoDaFicha = { ...cartao('cart_pistola_teste', 'Pistola de Teste', { dano: '20', categoria: 'De fogo' }), subcartoes: [bala] }
+    // Itens refeitos (E6a): a pistola vale equipada na mochila, com a Bala de Teste (+15) no pente; o cartão da aba Armas não vale mais na batalha.
+    const bala: CarriedItem = { id: 'vaga_bala_teste', nome: 'Bala de Teste', itemId: 'item_bala_teste', tipo: 'municao', quantidade: 6, empilhavel: true, regra: { bala: { modo: 'soma', valor: 15 } } }
+    const pistola: CarriedItem = {
+      id: 'vaga_pistola_teste',
+      nome: 'Pistola de Teste',
+      tipo: 'fogo',
+      equipado: true,
+      pente: { balaId: 'item_bala_teste', n: 6 },
+      regra: { ataque: { dano: 20, soma: 'forca', acao: 'Ação Simples', alvos: 1 }, pente: { capacidade: 6, aceita: ['item_bala_teste'] } },
+    }
     const comBala = cartao('cart_com_bala', 'Tiro Montado', { dano: '50' }, { versao: 1, acao: 'simples', alvo: UM_INIMIGO, dano: { base: { formula: 'Dano da Bala + Força' }, arma: 'padrao', multiplicadores: MULT } })
     const textoVelho = cartao('cart_texto_velho', 'Tiro de Texto Velho', { dano: 'Dano da Bala + 10' }, { versao: 1, acao: 'simples', alvo: UM_INIMIGO, dano: { base: { formula: 'Força + 10' }, multiplicadores: MULT } })
-    const atirador = ficha('Atirador de Teste', { forca: 60 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [comBala, textoVelho], armas: [pistola] })
+    const atirador: Personagem = { ...ficha('Atirador de Teste', { forca: 60 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [comBala, textoVelho] }), mochila: [pistola, bala] }
     const [arma] = armasNaBatalha(atirador, undefined)
     const golpes = golpesDeHabilidade(atirador, sistema, undefined, null, arma ?? null)
     expect(golpes.map((golpe) => [golpe.nome, golpe.balas?.map((item) => item.dano.valor)])).toEqual([
