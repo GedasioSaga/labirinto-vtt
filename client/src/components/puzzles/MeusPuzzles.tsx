@@ -11,6 +11,9 @@ import { giratoriasDoPuzzle } from '../../puzzles/giratorias/giratorias'
 import { urlDaBaseDoPainel } from '../../puzzles/interruptores/arte'
 import { alvoDosInterruptores, interruptoresDoPuzzle } from '../../puzzles/interruptores/interruptores'
 import { PainelDeInterruptores } from '../../puzzles/interruptores/PainelDeInterruptores'
+import { urlDaBaseDaCooperacao } from '../../puzzles/cooperacao/arte'
+import { cooperacaoDoPuzzle, cooperacaoNaVista } from '../../puzzles/cooperacao/cooperacao'
+import { PainelDaCooperacao } from '../../puzzles/cooperacao/PainelDaCooperacao'
 import { urlDoSvgDoPainel } from '../../puzzles/relevo/miniatura'
 import type { IdDaPecaDesenhada, MinigamePuzzle, ModeloDePuzzle, Puzzle } from '../../puzzles/tipos'
 import { lerOAcervoSeFaltar } from '../../stores/acervoDeItensStore'
@@ -165,6 +168,17 @@ export function MiniaturaDoPuzzle({ puzzle, prefixo }: { puzzle: Puzzle; prefixo
       <span className="pzm-mini" aria-hidden="true">
         <img className="pzm-mini__arte" src={urlDaBaseDoPainel(interruptores.material, interruptores.quantos, desenho)} alt="" draggable={false} />
         <PainelDeInterruptores interruptores={vista} resolvido={false} />
+      </span>
+    )
+  }
+  // A cooperação: os pontos na chapa, todos acesos (como fica quando todos acionam juntos).
+  const cooperacao = cooperacaoDoPuzzle(puzzle)
+  if (cooperacao !== null) {
+    const vista = cooperacaoNaVista(cooperacao, { resolvido: null }, undefined, null)
+    return (
+      <span className="pzm-mini" aria-hidden="true">
+        <img className="pzm-mini__arte" src={urlDaBaseDaCooperacao(cooperacao.material, cooperacao.pontos.map((ponto) => ponto.arte))} alt="" draggable={false} />
+        <PainelDaCooperacao cooperacao={vista} resolvido />
       </span>
     )
   }

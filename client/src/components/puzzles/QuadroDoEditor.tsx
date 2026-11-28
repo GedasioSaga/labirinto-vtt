@@ -6,6 +6,7 @@ import { combinacaoDoPuzzle, combinacaoNaVista } from '../../puzzles/combinacao'
 import { CorpoDoControle, estiloDoControle, nomeDoControle } from '../../puzzles/ControlesDaCombinacao'
 import { giratoriasDoPuzzle, giratoriasNaVista, girosResolvidos } from '../../puzzles/giratorias/giratorias'
 import { alvoDosInterruptores, interruptoresDoPuzzle, interruptoresNaVista } from '../../puzzles/interruptores/interruptores'
+import { cooperacaoDoPuzzle, cooperacaoNaVista } from '../../puzzles/cooperacao/cooperacao'
 import { progressoInicial } from '../../puzzles/motor'
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
 import { TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN, type CombinacaoDoPuzzle, type EncaixeDoPuzzle, type Puzzle } from '../../puzzles/tipos'
@@ -79,7 +80,10 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
   // O painel de lampiões também: o começo que o jogador encontra, ou como o objetivo pede.
   const interruptores = interruptoresDoPuzzle(puzzle)
   const painel = interruptores === null ? undefined : { ...interruptoresNaVista(interruptores, progressoInicial(puzzle)), ...(verResolvido ? { luzes: alvoDosInterruptores(interruptores) } : {}) }
-  const semEncaixes = medalhao !== undefined || painel !== undefined
+  // Os pontos da cooperação: apagados como o jogador os encontra; "Ver resolvido" acende todos (o quadro resolvido).
+  const cooperacao = cooperacaoDoPuzzle(puzzle)
+  const pontos = cooperacao === null ? undefined : cooperacaoNaVista(cooperacao, progressoInicial(puzzle), undefined, null)
+  const semEncaixes = medalhao !== undefined || painel !== undefined || pontos !== undefined
 
   const comecar = (evento: PointerEvent<HTMLButtonElement>, encaixe: EncaixeDoPuzzle) => {
     if (evento.button !== 0 || arrasto.current !== null) return
@@ -193,6 +197,7 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
         resolvido={semEncaixes && verResolvido}
         giratorias={medalhao}
         interruptores={painel}
+        cooperacao={pontos}
         rotulo={`Quadro do puzzle ${puzzle.nome}`}
       >
         {semEncaixes ? null : relevo !== null ? (

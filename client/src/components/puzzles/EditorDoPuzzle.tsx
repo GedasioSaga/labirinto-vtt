@@ -21,6 +21,8 @@ import { ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN } from '../../puzzles/ti
 import { comControle, comEncaixeNovo, comGiratorias, comModelo, comVisual, encaixeComPeca, semEncaixe } from './edicao'
 import { SecaoGiratorias } from './FichaDoEditor/SecaoGiratorias'
 import { SecaoInterruptores } from './FichaDoEditor/SecaoInterruptores'
+import { SecaoCooperacao } from './FichaDoEditor/SecaoCooperacao'
+import { cooperacaoDoPuzzle } from '../../puzzles/cooperacao/cooperacao'
 import { SecaoCombinacao } from './FichaDoEditor/SecaoCombinacao'
 import { devolverAsPecas, useEditorDoPuzzleStore, type AlvoDoEditor } from './editorDoPuzzleStore'
 import { SecaoCastigo, SecaoDesfecho, SecaoDica, type PortaDoEditor } from './FichaDoEditor/SecaoDesfecho'
@@ -385,8 +387,9 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   const ehCombinacao = combinacaoDoPuzzle(puzzle) !== null
   const giratorias = giratoriasDoPuzzle(puzzle)
   const interruptores = interruptoresDoPuzzle(puzzle)
-  // O medalhão e o painel de lampiões não usam o visual, a troca de peso, o castigo nem a biblioteca de peças.
-  const semPecas = giratorias !== null || interruptores !== null
+  const cooperacao = cooperacaoDoPuzzle(puzzle)
+  // O medalhão, o painel de lampiões e os pontos da cooperação não usam o visual, a troca de peso, o castigo nem a biblioteca de peças.
+  const semPecas = giratorias !== null || interruptores !== null || cooperacao !== null
   const relevo = ehRelevo(puzzle.visual) ? puzzle.visual : null
   const nomeDaPorta = alvo.tipo === 'copia' && edicao.porta !== null ? (opcoesDePorta.find((opcao) => opcao.id === edicao.porta)?.label ?? null) : null
   const porta: PortaDoEditor | null =
@@ -435,7 +438,7 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
               </div>
             </header>
             <p className={classes('pze-aviso', aviso?.tipo === 'error' && 'pze-aviso--perigo')} role="status" aria-live="polite">
-              {aviso?.texto ?? (interruptores !== null ? 'O quadro mostra o painel como o jogador o encontra. Ver resolvido mostra os lampiões como o objetivo pede; Ctrl+Z desfaz.' : giratorias !== null ? 'O quadro mostra o medalhão como o jogador o encontra. Ver resolvido mostra o desenho fechado; Ctrl+Z desfaz.' : relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
+              {aviso?.texto ?? (cooperacao !== null ? 'O quadro mostra os pontos como o jogador os encontra. Ver resolvido mostra todos os lampiões acesos; Ctrl+Z desfaz.' : interruptores !== null ? 'O quadro mostra o painel como o jogador o encontra. Ver resolvido mostra os lampiões como o objetivo pede; Ctrl+Z desfaz.' : giratorias !== null ? 'O quadro mostra o medalhão como o jogador o encontra. Ver resolvido mostra o desenho fechado; Ctrl+Z desfaz.' : relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
             </p>
             <div className="pze-corpo">
               <div className="pze-ficha-col">
@@ -456,7 +459,10 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                 ) : (
                   <>
                     <SecaoMecanica puzzle={puzzle} mudar={mudar} />
-                    {interruptores !== null ? (
+                    {cooperacao !== null ? (
+                      // A cooperação não usa encaixes nem troca de peso: só os pontos e a janela.
+                      <SecaoCooperacao puzzle={puzzle} mudar={mudar} />
+                    ) : interruptores !== null ? (
                       // O painel não usa encaixes nem troca de peso: só os lampiões e as alavancas.
                       <SecaoInterruptores puzzle={puzzle} mudar={mudar} />
                     ) : giratorias !== null ? (
@@ -483,10 +489,20 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   onMudar={mudar}
                   onTirar={tirarEncaixe}
                   verResolvido={verResolvido}
-                  onImagemSolta={(arquivo) => void (interruptores !== null ? avisar('O painel de lampiões não usa imagem.') : giratorias !== null ? usarImagemDasGiratorias(() => fundoDoPuzzleDoArquivo(arquivo)) : relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
+                  onImagemSolta={(arquivo) => void (cooperacao !== null ? avisar('Os pontos da cooperação não usam imagem.') : interruptores !== null ? avisar('O painel de lampiões não usa imagem.') : giratorias !== null ? usarImagemDasGiratorias(() => fundoDoPuzzleDoArquivo(arquivo)) : relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
                   onAviso={avisar}
                 />
-                {interruptores !== null ? (
+                {cooperacao !== null ? (
+                  <div className="pze-barra">
+                    <span>
+                      {cooperacao.pontos.length} pontos, janela de {cooperacao.janela} s
+                    </span>
+                    <Botao tamanho="p" aria-pressed={verResolvido} onClick={() => setVerResolvido((antes) => !antes)}>
+                      {verResolvido ? 'Ver o começo' : 'Ver resolvido'}
+                    </Botao>
+                    <span className="pze-nota">{verResolvido ? 'Assim fica quando todos acionam juntos.' : 'Assim o jogador encontra os pontos.'}</span>
+                  </div>
+                ) : interruptores !== null ? (
                   <div className="pze-barra">
                     <span>
                       Painel de {interruptores.quantos} lampiões, cada alavanca vira: {NOME_DA_LIGACAO[interruptores.ligacao].toLowerCase()}

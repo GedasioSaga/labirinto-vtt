@@ -8,12 +8,13 @@ import { progressoInicial } from '../../../puzzles/motor'
 import { combinacaoPadrao } from '../../../puzzles/combinacao'
 import { giratoriasPadrao } from '../../../puzzles/giratorias/giratorias'
 import { interruptoresPadrao } from '../../../puzzles/interruptores/interruptores'
+import { cooperacaoPadrao } from '../../../puzzles/cooperacao/cooperacao'
 import { PECAS_DESENHADAS, puzzleDoModelo } from '../../../puzzles/padroes'
 import { canvasDoPainel, pngDaPlaca } from '../../../puzzles/relevo/raster'
 import { poligonoDaPlaca } from '../../../puzzles/relevo/placas'
 import { descricaoDaPlaca, idDoItemDaPlaca, nomeDaPlaca, placasDoPuzzle, puzzleDoRelevo, visualDoRelevo } from '../../../puzzles/relevo/relevo'
 import { CATEGORIA_DA_PECA_DE_PUZZLE, CENAS_DO_RELEVO, METAIS_DO_RELEVO } from '../../../puzzles/tipos'
-import type { IdDaPecaDesenhada, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe } from '../../../puzzles/tipos'
+import type { CooperacaoDoPuzzle, IdDaPecaDesenhada, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe } from '../../../puzzles/tipos'
 import { themeCss } from '../../../theme'
 import type { CarriedItem } from '../../../types/map'
 import { useJogoLocalDoPuzzle, type JogoLocalDoPuzzle } from '../jogoLocal'
@@ -30,6 +31,7 @@ import { TelaDoPuzzle } from '../TelaDoPuzzle'
  *   ?puzzle=fonte (padrão) | porta | altar | imagem | relevo (com &cena=dragao &metal=bronze)
  *   ?puzzle=giro (o medalhão da cena) | giroSimbolos | giroVizinhas (6 anéis, cada um leva os do lado)
  *   ?puzzle=luzes (6 lampiões, os do lado) | luzesDesenho (9 em 3 x 3, igual à plaqueta) | luzesRegra (5 em fila, a regra do mestre, ferro)
+ *   ?puzzle=coop (dois pontos, a Lara na Cripta) | coopTres (três pontos, ferro); &ponto=2 põe a Lara no ponto 2
  *   ?desfecho=texto | cena   (troca o modo do desfecho do puzzle escolhido)
  *   window.__vitrinePuzzle.estado()  o progresso, a mochila e os PV de agora
  */
@@ -85,6 +87,7 @@ function vaga(peca: PecaDoAcervo): CarriedItem {
 
 const EU: QuemMexe = { personagemId: 'p-lara', tokenId: 't-lara', nome: 'Lara' }
 const BENTO: QuemMexe = { personagemId: 'p-bento', tokenId: 't-bento', nome: 'Bento' }
+const CORA: QuemMexe = { personagemId: 'p-cora', tokenId: 't-cora', nome: 'Cora' }
 
 // ------------------------------------------------------------------ os puzzles de exemplo (os do protótipo)
 
@@ -92,6 +95,8 @@ interface Exemplo {
   puzzle: Puzzle
   mochila: CarriedItem[]
   progresso?: ProgressoDoPuzzle
+  /** A cooperação: o ponto onde a Lara está (o host conferiria pela ficha). */
+  ponto?: number
 }
 
 function pecasDoModelo(ids: IdDaPecaDesenhada[]): Partial<Record<IdDaPecaDesenhada, string>> {
@@ -251,6 +256,24 @@ function painel(nomePublico: string, mudar: Partial<ReturnType<typeof interrupto
   }
 }
 
+/**
+ * A cooperação em dois lugares (28/11): a Lara está num ponto; o Bento, no
+ * outro, aciona pelo `window.__vitrinePuzzle.colega(ponto)`. `&ponto=2` põe a
+ * Lara no ponto 2.
+ */
+function cooperacao(nomePublico: string, mudar: Partial<CooperacaoDoPuzzle>): () => Exemplo {
+  return () => {
+    const puzzle = puzzleDoModelo('fonte')
+    puzzle.nomePublico = nomePublico
+    puzzle.encaixes = []
+    puzzle.futuro = { ...cooperacaoPadrao(), ...mudar }
+    puzzle.dica = { tipo: 'texto', texto: 'Uma alavanca sozinha não segura o portão: alguém precisa estar do outro lado.' }
+    puzzle.desfecho = { modo: 'cena', texto: 'Os dois lampiões ardem juntos. As correntes do portão correm pelas roldanas e a grade sobe.', itens: [], moedas: 0, documentos: [], abrePorta: true }
+    const ponto = Number(parametros.get('ponto') ?? '1') - 1
+    return { puzzle, mochila: [vaga(CORDA)], ponto: Number.isInteger(ponto) && ponto >= 0 ? ponto : 0 }
+  }
+}
+
 const EXEMPLOS = {
   fonte,
   porta,
@@ -266,6 +289,8 @@ const EXEMPLOS = {
   luzes: painel('Lampiões da Cripta', {}),
   luzesDesenho: painel('Painel do Farol', { quantos: 9, objetivo: 'desenho', desenho: [false, true, false, true, true, true, false, true, false] }),
   luzesRegra: painel('Corredor dos Lampiões', { quantos: 5, material: 'ferro', ligacao: 'propria', ligados: [[1], [2], [3], [4], [0]] }),
+  coop: cooperacao('Portão das Duas Salas', { pontos: [{ arte: 'alavanca', rotulo: 'Cripta' }, { arte: 'placa', rotulo: 'Ponte' }] }),
+  coopTres: cooperacao('Comporta do Esgoto', { material: 'ferro', janela: 8, pontos: [{ arte: 'alavanca', rotulo: 'Casa das bombas' }, { arte: 'placa', rotulo: 'Galeria' }, { arte: 'painel', rotulo: 'Torre' }] }),
 } as const
 type NomeDoExemplo = keyof typeof EXEMPLOS
 
@@ -286,9 +311,11 @@ async function exemploPedido(): Promise<Exemplo> {
 // ------------------------------------------------------------------ a mesa
 
 function Vitrine({ exemplo }: { exemplo: Exemplo }) {
-  const jogo = useJogoLocalDoPuzzle({ desafioId: 'vitrine', puzzle: exemplo.puzzle, mochila: exemplo.mochila, quem: EU, pv: { atual: 20, max: 20 }, pecaDoAcervo, progresso: exemplo.progresso })
+  const jogo = useJogoLocalDoPuzzle({ desafioId: 'vitrine', puzzle: exemplo.puzzle, mochila: exemplo.mochila, quem: EU, pv: { atual: 20, max: 20 }, pecaDoAcervo, progresso: exemplo.progresso, ...(exemplo.ponto !== undefined ? { ponto: exemplo.ponto } : {}) })
   const [dentro, setDentro] = useState(true)
-  Reflect.set(window, '__vitrinePuzzle', { estado: () => ({ progresso: jogo.progresso, mochila: jogo.vista.mochila, pv: jogo.pv, dentro }) })
+  // O colega da cooperação: o Bento (ou a Cora, para o terceiro ponto), no ponto pedido, aciona como o host deixaria.
+  const colega = (ponto: number, nome: 'Bento' | 'Cora' = 'Bento') => jogo.agir({ tipo: 'apertar', botao: ponto }, jogo.progresso.rev, { quem: nome === 'Cora' ? CORA : BENTO, ponto })
+  Reflect.set(window, '__vitrinePuzzle', { estado: () => ({ progresso: jogo.progresso, mochila: jogo.vista.mochila, pv: jogo.pv, dentro }), colega })
   return (
     <ImagemDaMesa.Provider value={resolverDaVitrine}>
       {dentro ? (
@@ -315,7 +342,7 @@ function Fora({ jogo, onExaminar }: { jogo: JogoLocalDoPuzzle; onExaminar: () =>
         </button>
         <p style={{ margin: 0, fontSize: 10.5, color: 'var(--lb-color-parchment-faint)' }}>
           Outros exemplos: <a href="?puzzle=fonte">Fonte</a> · <a href="?puzzle=porta">Porta</a> · <a href="?puzzle=altar">Altar</a> · <a href="?puzzle=imagem">Imagem própria</a> · <a href="?puzzle=cofre">Cofre</a> · <a href="?puzzle=simbolos">Símbolos</a> ·{' '}
-          <a href="?puzzle=relogio">Relógio</a> · <a href="?puzzle=botoes">Botões</a> · <a href="?puzzle=relevo">Relevo</a> · <a href="?puzzle=giro">Medalhão</a> · <a href="?puzzle=giroSimbolos">Selo</a> · <a href="?puzzle=giroVizinhas">Medalhão difícil</a> · <a href="?puzzle=luzes">Lampiões</a> · <a href="?puzzle=luzesDesenho">Plaqueta</a> · <a href="?puzzle=luzesRegra">Regra própria</a>
+          <a href="?puzzle=relogio">Relógio</a> · <a href="?puzzle=botoes">Botões</a> · <a href="?puzzle=relevo">Relevo</a> · <a href="?puzzle=giro">Medalhão</a> · <a href="?puzzle=giroSimbolos">Selo</a> · <a href="?puzzle=giroVizinhas">Medalhão difícil</a> · <a href="?puzzle=luzes">Lampiões</a> · <a href="?puzzle=luzesDesenho">Plaqueta</a> · <a href="?puzzle=luzesRegra">Regra própria</a> · <a href="?puzzle=coop">Dois lugares</a> · <a href="?puzzle=coopTres">Três lugares</a>
         </p>
       </div>
     </main>

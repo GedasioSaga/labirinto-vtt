@@ -37,6 +37,14 @@ export interface OpcoesDoJogoLocal {
    * o jogador veria. Ausente = `jogo`.
    */
   modo?: ContextoDoMotor['modo']
+  /** O ponto da cooperação onde a ficha está (no jogo, quem confere é o host; aqui, quem chama diz). Ausente = nenhum. */
+  ponto?: number
+}
+
+/** Outra pessoa da mesa agindo (a vitrine faz o colega do outro ponto): quem é e em que ponto está. */
+export interface OutraPessoa {
+  quem: QuemMexe
+  ponto?: number
 }
 
 export interface JogoLocalDoPuzzle {
@@ -44,7 +52,8 @@ export interface JogoLocalDoPuzzle {
   acontecimentos: readonly AcontecimentoNoPuzzle[]
   pv: PvNaTela
   progresso: ProgressoDoPuzzle
-  agir: (acao: AcaoNoPuzzle, rev: number) => void
+  /** `como` ausente = quem joga, no ponto dele. */
+  agir: (acao: AcaoNoPuzzle, rev: number, como?: OutraPessoa) => void
 }
 
 interface EstadoLocal {
@@ -60,7 +69,7 @@ interface EstadoLocal {
 const ACONTECIMENTOS_GUARDADOS = 12
 
 export function useJogoLocalDoPuzzle(opcoes: OpcoesDoJogoLocal): JogoLocalDoPuzzle {
-  const { desafioId, puzzle, quem, pecaDoAcervo } = opcoes
+  const { desafioId, puzzle, quem, pecaDoAcervo, ponto } = opcoes
   const modo = opcoes.modo ?? 'jogo'
   const [estado, setEstado] = useState<EstadoLocal>(() => ({
     progresso: opcoes.progresso ?? progressoInicial(opcoes.puzzle),
@@ -71,13 +80,15 @@ export function useJogoLocalDoPuzzle(opcoes: OpcoesDoJogoLocal): JogoLocalDoPuzz
   }))
 
   const agir = useCallback(
-    (acao: AcaoNoPuzzle, rev: number) => setEstado((antes) => passo(antes, { puzzle, quem, pecaDoAcervo, modo }, acao, rev)),
-    [puzzle, quem, pecaDoAcervo, modo],
+    (acao: AcaoNoPuzzle, rev: number, como?: OutraPessoa) =>
+      setEstado((antes) => passo(antes, { puzzle, quem: como?.quem ?? quem, pecaDoAcervo, modo, ponto: como === undefined ? ponto : como.ponto }, acao, rev)),
+    [puzzle, quem, pecaDoAcervo, modo, ponto],
   )
 
   const vista = useMemo(
-    () => vistaDoPuzzle({ desafioId, puzzle, progresso: estado.progresso, mochila: estado.mochila }),
-    [desafioId, puzzle, estado.progresso, estado.mochila],
+    // A hora de agora: a cooperação acende os lampiões por quanto falta da janela (no teste não há ponto: o mestre aciona todos).
+    () => vistaDoPuzzle({ desafioId, puzzle, progresso: estado.progresso, mochila: estado.mochila, agora: Date.now(), ponto: ponto ?? null }),
+    [desafioId, puzzle, estado.progresso, estado.mochila, ponto],
   )
   return { vista, acontecimentos: estado.acontecimentos, pv: estado.pv, progresso: estado.progresso, agir }
 }
@@ -87,6 +98,7 @@ interface Mesa {
   quem: QuemMexe
   pecaDoAcervo: (itemId: string) => PecaDoAcervo | null
   modo: ContextoDoMotor['modo']
+  ponto?: number
 }
 
 /** Uma ação, como o host a trataria. Puro a não ser pelo relógio do `resolvido.em`. */
@@ -103,6 +115,7 @@ function passo(antes: EstadoLocal, mesa: Mesa, acao: AcaoNoPuzzle, rev: number):
     modo: mesa.modo,
     pecaDoAcervo: mesa.pecaDoAcervo,
     novoId,
+    ...(mesa.ponto !== undefined ? { ponto: mesa.ponto } : {}),
   })
   let mochila = resultado.mochila
   let pv = antes.pv

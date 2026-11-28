@@ -3,6 +3,7 @@ import { ImagemDaMesa } from '../../ImagemDaMesa'
 import { resolverComBase, URL_DA_MIDIA_NA_SALA, type ResolverDeImagem } from '../../../lib/midia'
 import { giratoriasPadrao } from '../../../puzzles/giratorias/giratorias'
 import { interruptoresPadrao } from '../../../puzzles/interruptores/interruptores'
+import { cooperacaoPadrao } from '../../../puzzles/cooperacao/cooperacao'
 import { puzzleDoModelo } from '../../../puzzles/padroes'
 import { puzzleDoRelevo, visualDoRelevo } from '../../../puzzles/relevo/relevo'
 import { CENAS_DO_RELEVO, METAIS_DO_RELEVO } from '../../../puzzles/tipos'
@@ -20,6 +21,7 @@ import { useEditorDoPuzzleStore } from '../editorDoPuzzleStore'
  *   ?cena=dragao (padrão) | cavaleiro | navio | leao | serpente | solELua   &metal=bronze | ferro | prata
  *   ?modelo=giratorias  o medalhão das peças giratórias (&desenho=simbolos)
  *   ?modelo=interruptores  o painel de lampiões (&ligacao=propria mostra a grade de quem vira quem)
+ *   ?modelo=cooperacao  os dois pontos da cooperação (a Cripta e a Ponte)
  */
 
 const parametros = new URLSearchParams(location.search)
@@ -34,7 +36,7 @@ const resolverDaVitrine: ResolverDeImagem = (valor) => (typeof valor === 'string
 const cena = CENAS_DO_RELEVO.find((candidata) => candidata === parametros.get('cena')) ?? 'dragao'
 const metal = METAIS_DO_RELEVO.find((candidato) => candidato === parametros.get('metal')) ?? 'bronze'
 // ?modelo=fonte abre a Fonte, para comparar a abertura do editor sem o painel.
-const puzzle = parametros.get('modelo') === 'fonte' ? puzzleDoModelo('fonte') : parametros.get('modelo') === 'giratorias' ? medalhao() : parametros.get('modelo') === 'interruptores' ? lampioes() : puzzleDoRelevo(visualDoRelevo(cena, metal), 4)
+const puzzle = parametros.get('modelo') === 'fonte' ? puzzleDoModelo('fonte') : parametros.get('modelo') === 'giratorias' ? medalhao() : parametros.get('modelo') === 'interruptores' ? lampioes() : parametros.get('modelo') === 'cooperacao' ? doisLugares() : puzzleDoRelevo(visualDoRelevo(cena, metal), 4)
 
 function medalhao() {
   const base = puzzleDoModelo('fonte')
@@ -44,6 +46,10 @@ function lampioes() {
   const base = puzzleDoModelo('fonte')
   const ligacao = parametros.get('ligacao') === 'propria' ? ('propria' as const) : ('vizinhos' as const)
   return { ...base, nomePublico: 'Lampiões da Cripta', encaixes: [], futuro: { ...interruptoresPadrao(777), ligacao, objetivo: 'desenho' as const, desenho: [true, false, true, false, true, false], ligados: [[1], [], [], [], [], []] } }
+}
+function doisLugares() {
+  const base = puzzleDoModelo('fonte')
+  return { ...base, nomePublico: 'Portão das Duas Salas', encaixes: [], futuro: { ...cooperacaoPadrao(), pontos: [{ arte: 'alavanca' as const, rotulo: 'Cripta' }, { arte: 'placa' as const, rotulo: 'Ponte' }] } }
 }
 useEditorDoPuzzleStore.getState().abrir({ tipo: 'rascunho', puzzle })
 
