@@ -19,6 +19,22 @@ import {
   type AguaNoPalco,
   type FormasDaAgua,
 } from './aguaDosChafarizes'
+import {
+  animacaoDoFio,
+  aplicarPoseDoFio,
+  criarFioNoPalco,
+  criarFormasDoFio,
+  destruirFormasDoFio,
+  ehTipoComFioDeAgua,
+  escreverPoseDoFio,
+  fioDoMovel,
+  novaPoseDoFio,
+  POSE_PARADA_DO_FIO,
+  posicionarFio,
+  poseDoFio,
+  type FioNoPalco,
+  type FormasDoFio,
+} from './fioDeAgua'
 import { desenhoDoVento, ehMovelDeVento } from '../lib/mobilia/cataVento'
 import {
   aplicarAnguloDasPas,
@@ -349,6 +365,10 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
   const chamas = new Map<string, ChamaNoPalco>()
   // A água dos chafarizes: um nó por chafariz com a água ligada, no mesmo relógio.
   const aguas = new Map<string, AguaNoPalco>()
+  // O fio de água (a saída de esgoto e a fonte de parede, `fioDeAgua.ts`): um nó por objeto com a água correndo.
+  const fios = new Map<string, FioNoPalco>()
+  const poseDoFioDoQuadro = novaPoseDoFio()
+  let contextosDoFio: FormasDoFio | null = null
   // As pás dos objetos de vento: um nó por objeto, girando ou parado.
   const ventos = new Map<string, VentoNoPalco>()
   let contextosDoVento: FormasDoVento | null = null
@@ -379,6 +399,13 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     return contextosDaAgua
   }
 
+  /** As formas do fio de água nascem com o primeiro objeto dele e ficam até o fim. */
+  function formasDoFio(): FormasDoFio {
+    if (contextosDoFio !== null) return contextosDoFio
+    contextosDoFio = criarFormasDoFio()
+    return contextosDoFio
+  }
+
   /** As formas das pás nascem com o primeiro objeto de vento e ficam até o fim. */
   function formasDoVento(): FormasDoVento {
     if (contextosDoVento !== null) return contextosDoVento
@@ -393,7 +420,8 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
   }
 
   function avisar(): void {
-    const estado = { chamas: chamas.size, aguas: aguas.size, ventos: ventos.size, animando: noRelogio }
+    // O fio de água conta como água (o chafariz e a bica são a mesma coisa para quem lê o estado).
+    const estado = { chamas: chamas.size, aguas: aguas.size + fios.size, ventos: ventos.size, animando: noRelogio }
     const chave = `${estado.chamas}:${estado.aguas}:${estado.ventos}:${estado.animando}`
     if (chave === avisado) return
     avisado = chave
@@ -465,6 +493,34 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     if (!agua.no.destroyed) agua.no.destroy({ children: true })
   }
 
+  function removerFio(id: string): void {
+    const fio = fios.get(id)
+    if (fio === undefined) return
+    fios.delete(id)
+    if (!fio.no.destroyed) fio.no.destroy({ children: true })
+  }
+
+  /** O nó do fio de água de um objeto (`null` = seco, em 3/4 ou sem tamanho: o nó que havia sai). */
+  function colocarFio(prop: PropDaChama, tela: TelaDasChamas): Container | null {
+    const tipo = prop.mobilia
+    if (!ehTipoComFioDeAgua(tipo) || fioDoMovel(prop, tela.vistaDosMoveis) === null) {
+      removerFio(prop.id)
+      return null
+    }
+    let fio = fios.get(prop.id)
+    if (fio !== undefined && (fio.tipo !== tipo || fio.no.destroyed)) {
+      removerFio(prop.id)
+      fio = undefined
+    }
+    if (fio === undefined) {
+      fio = criarFioNoPalco(prop.id, tipo, formasDoFio(), faseDaFogueira(prop.id))
+      fios.set(prop.id, fio)
+    }
+    posicionarFio(fio, prop, tela.cameraScale)
+    aplicarPoseDoFio(fio, poseDoFio(animacaoDoFio(fio.tipo), agora(), fio.fase, parada))
+    return fio.no
+  }
+
   function removerVento(id: string): void {
     const vento = ventos.get(id)
     if (vento === undefined) return
@@ -529,6 +585,7 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       aplicarExtras(chama, 0, true)
     }
     for (const agua of aguas.values()) if (!agua.no.destroyed) aplicarPoseDaAgua(agua, POSE_FIXA_DA_AGUA)
+    for (const fio of fios.values()) if (!fio.no.destroyed) aplicarPoseDoFio(fio, POSE_PARADA_DO_FIO)
     for (const vento of ventos.values()) if (!vento.no.destroyed) aplicarAnguloDasPas(vento, 0, true)
     sairDoRelogio()
     avisar()
@@ -560,6 +617,13 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       }
       aplicarPoseDaAgua(agua, escreverPoseDaAgua(t, agua.fase, poseDaAguaDoQuadro))
     }
+    for (const [id, fio] of fios) {
+      if (fio.no.destroyed) {
+        fios.delete(id)
+        continue
+      }
+      aplicarPoseDoFio(fio, escreverPoseDoFio(animacaoDoFio(fio.tipo), t, fio.fase, poseDoFioDoQuadro))
+    }
     let girando = false
     for (const [id, vento] of ventos) {
       if (vento.no.destroyed) {
@@ -570,7 +634,7 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       girando = true
       aplicarAnguloDasPas(vento, t, false)
     }
-    if (chamas.size === 0 && aguas.size === 0 && !girando) {
+    if (chamas.size === 0 && aguas.size === 0 && fios.size === 0 && !girando) {
       sairDoRelogio()
       avisar()
     }
@@ -582,9 +646,17 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       if (ehChafariz(prop.mobilia)) {
         remover(prop.id)
         removerVento(prop.id)
+        removerFio(prop.id)
         return colocarAgua(prop, tela)
       }
       removerAgua(prop.id)
+      // A saída de esgoto e a fonte de parede têm o fio de água, não chama nem pás.
+      if (ehTipoComFioDeAgua(prop.mobilia)) {
+        remover(prop.id)
+        removerVento(prop.id)
+        return colocarFio(prop, tela)
+      }
+      removerFio(prop.id)
       // Os objetos de vento têm pás, não chama nem água.
       if (ehMovelDeVento(prop.mobilia)) {
         remover(prop.id)
@@ -632,6 +704,7 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     podar(presentes) {
       for (const id of [...chamas.keys()]) if (!presentes.has(id)) remover(id)
       for (const id of [...aguas.keys()]) if (!presentes.has(id)) removerAgua(id)
+      for (const id of [...fios.keys()]) if (!presentes.has(id)) removerFio(id)
       for (const id of [...ventos.keys()]) if (!presentes.has(id)) removerVento(id)
       const reduzido = movimento === undefined || movimento.reducedMotion()
       if (reduzido) {
@@ -639,7 +712,7 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
         if (!parada) parar()
       } else {
         parada = false
-        if (chamas.size > 0 || aguas.size > 0 || algumVentoGirando()) entrarNoRelogio()
+        if (chamas.size > 0 || aguas.size > 0 || fios.size > 0 || algumVentoGirando()) entrarNoRelogio()
         else sairDoRelogio()
       }
       avisar()
@@ -648,7 +721,12 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       sairDoRelogio()
       for (const id of [...chamas.keys()]) remover(id)
       for (const id of [...aguas.keys()]) removerAgua(id)
+      for (const id of [...fios.keys()]) removerFio(id)
       for (const id of [...ventos.keys()]) removerVento(id)
+      if (contextosDoFio !== null) {
+        destruirFormasDoFio(contextosDoFio)
+        contextosDoFio = null
+      }
       if (contextosDoVento !== null) {
         destruirFormasDoVento(contextosDoVento)
         contextosDoVento = null
