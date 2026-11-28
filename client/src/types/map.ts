@@ -914,6 +914,12 @@ export interface CarriedItem extends DadosDoItem {
    * é o "Armas por batalha" da ficha (uma pilha de granadas conta 1, decisão 5). Ausente = guardado.
    */
   equipado?: true
+  /**
+   * Rodada 3 (28/11/2026): a ARMA PADRÃO, a que a técnica com "Dano da Arma" usa quando há mais de uma
+   * equipada (o toque "Arma padrão" no cartão da arma equipada). Só vale na vaga equipada; uma por mochila;
+   * guardar tira. Ausente = nenhuma marcada: vale a primeira equipada.
+   */
+  armaPadrao?: true
   /** O pente carregado (só De fogo e Híbrida): que bala e quantas. As do pente não contam na vaga da munição. Ausente = vazio. */
   pente?: PenteDaVaga
 }

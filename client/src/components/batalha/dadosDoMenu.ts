@@ -1474,6 +1474,8 @@ export function golpesDeAtaque(
       ...(arma === null || arma.capacidade === null ? {} : { capacidade: arma.capacidade }),
       ...(balas.length === 0 ? {} : { balas }),
       ...(arma?.exigeMunicao === true ? { exigeMunicao: true as const } : {}),
+      // Rodada 3: o "Alvos" do ataque do item é o teto da mira (o host recusa mais que isso, `motivoDoTetoDaArma`).
+      ...(arma?.alvos === undefined ? {} : { tetoDeAlvos: arma.alvos }),
       // Fase C do alcance: a arma pelo leitor único, como o host confere (a Mão nua fica sem, como no host).
       ...comAlcance(arma === null ? null : (alcanceDoCartao(arma)?.forma ?? null)),
       chave: arma === null ? CHAVE_DA_MAO_NUA : `arma:${arma.id}`,

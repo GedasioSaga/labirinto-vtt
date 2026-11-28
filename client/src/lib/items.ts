@@ -69,6 +69,8 @@ function readCarriedItem(value: unknown): CarriedItem | null {
   if (value.acesa === true && item.luz !== undefined) item.acesa = true
   // SISTEMA DE ITENS REFEITO (PLANO §1.3): o "em uso" e o pente da vaga, só se vierem bons.
   if (value.equipado === true) item.equipado = true
+  // Rodada 3: a marca "Arma padrão" só vale na vaga equipada.
+  if (value.armaPadrao === true && item.equipado === true) item.armaPadrao = true
   const pente = penteDaVagaLido(value.pente)
   if (pente !== undefined) item.pente = pente
   return item

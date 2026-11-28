@@ -10,7 +10,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { CarriedItem } from '../../../types/map'
+import { armaPadraoNaBatalha, golpesDeAtaque } from '../../../components/batalha/dadosDoMenu'
 import { pecasDoItemGuardadas } from '../../itens/editorDoItem'
+import { readCarriedItems } from '../../items'
+import { ehRecusa, guardarNaMochila, mochilaComArmaPadrao } from '../../mochila/armaNaMochila'
 import type { CartaoDaFicha, Personagem } from '../../personagem'
 import { combateVazio, type PedidoDeAcao } from '../combate'
 import { ficha, may, sistema } from '../fichasDaFatiaB.testkit'
@@ -82,8 +85,7 @@ describe('o bumerangue do item (o equivalente da arma montada da C8)', () => {
     expect(podeAgir(contexto(deCartao), { ...ATACAR, armaId: 'arma_bumerangue' })).toBe(MOTIVO_ARMA_NAO_EQUIPADA)
   })
 
-  // Saíram com a E6a, sem equivalente no item: "com 2 alvos, acerta um inimigo só" (o Atacar não confere o `ataque.alvos` do item),
-  // a espada montada sem peça de dano (a tira e o encontro sem número) e o "Nada" no Soma como arma só de efeito (no item, Soma vazia
+  // Saíram com a E6a, sem equivalente no item (o "Alvos" do item voltou na rodada 3, abaixo): a espada montada sem peça de dano (a tira e o encontro sem número) e o "Nada" no Soma como arma só de efeito (no item, Soma vazia
   // é só o dano da arma, bug de 28/11; o só de efeito é o dano 0 com o "Ao acertar", provado acima).
 })
 
@@ -109,7 +111,7 @@ describe('a arma padrão da C8', () => {
   })
 
   it('o NPC: a sugestão do painel traz a arma equipada da mochila, não a primeira vaga', () => {
-    // E6a: a marca Padrão era do cartão da aba Armas; o item não tem marca, e a sugestão fica com a primeira EQUIPADA.
+    // E6a: a marca Padrão era do cartão da aba Armas; sem a marca da vaga (rodada 3), a sugestão fica com a primeira EQUIPADA.
     const ataque = { dano: 30, soma: 'forca', acao: 'Ação Simples', alvos: 1 }
     const espada: CarriedItem = { id: 'vaga_espada', nome: 'Espada de Teste', tipo: 'corpo', regra: { ataque } }
     const lanca: CarriedItem = { id: 'vaga_lanca', nome: 'Lança de Teste', tipo: 'corpo', equipado: true, regra: { ataque } }
@@ -118,6 +120,29 @@ describe('a arma padrão da C8', () => {
     const turnos: TurnosDaCena = { cartas: [carta, novaCarta('tok_may', may.id, may.nome)], vez: carta.id, rodada: 1, desempate: 'd20', d20: {}, empates: {}, extras: {}, gastos: {} }
     const sugestao = sugestaoParaNpc(npc, { turnos, registro: [], regras: null }, { personagens: [npc, may], sistema, equipes: undefined, caidos: new Set() })
     expect(sugestao.armaId).toBe(`${PREFIXO_DA_ARMA_DA_MOCHILA}vaga_lanca`)
+  })
+
+  it('rodada 3: o toque "Arma padrão" na vaga equipada vale na batalha (e no fio); sem marca, a primeira; guardar tira a marca', () => {
+    const espada: CarriedItem = { id: 'vaga_espada', nome: 'Espada de Teste', tipo: 'corpo', equipado: true, regra: { ataque: { dano: 20, soma: 'forca', acao: 'Ação Simples', alvos: 1 } } }
+    const lanca: CarriedItem = { id: 'vaga_lanca', nome: 'Lança de Teste', tipo: 'corpo', equipado: true, regra: { ataque: { dano: 40, soma: 'forca', acao: 'Ação Simples', alvos: 1 } } }
+    const heroi: Personagem = { ...ficha('Herói de Teste', { forca: 20 }, { hp: 500, sp: 50, escudo: 0 }, {}), mochila: [espada, lanca] }
+    expect(armaPadraoNaBatalha(heroi, undefined)?.nome).toBe('Espada de Teste')
+    const marcada = mochilaComArmaPadrao(heroi.mochila ?? [], 'vaga_lanca', true, { item: () => undefined })
+    if ('recusa' in marcada) throw new Error(marcada.recusa)
+    // O jogador e o Worker leem a mochila pelo leitor do disco/fio: a marca chega lá.
+    const lida: Personagem = { ...heroi, mochila: readCarriedItems(JSON.parse(JSON.stringify(marcada))) }
+    const padrao = armaPadraoNaBatalha(lida, undefined)
+    expect([padrao?.id, padrao === null ? null : danoDoAtaque({ personagem: lida, sistema, arma: padrao, vidaDoAlvo: null })]).toEqual([`${PREFIXO_DA_ARMA_DA_MOCHILA}vaga_lanca`, expect.objectContaining({ valor: 60 })])
+    const guardada = guardarNaMochila(marcada, 'vaga_lanca')
+    expect(ehRecusa(guardada) ? guardada.recusa : guardada.find((vaga) => vaga.id === 'vaga_lanca')?.armaPadrao).toBeUndefined()
+  })
+
+  it('rodada 3: o Atacar marca até o "Alvos" do ataque do item (1 = um só; 2 = dois), no host e na mira', () => {
+    const doisAlvos = [{ tokenId: 'tok_may', dano: 10 }, { tokenId: 'tok_lancador', dano: 10 }]
+    const comAlvos = (alvos: number): Personagem => ({ ...lancador, mochila: [{ ...BUMERANGUE, regra: { ...BUMERANGUE.regra, ataque: { dano: 10, soma: '', acao: 'Ação Simples', alvos } } }] })
+    expect(podeAgir(contexto(comAlvos(1)), { ...ATACAR, alvos: doisAlvos })).toBe('Bumerangue de Teste acerta um alvo só.')
+    expect(podeAgir(contexto(comAlvos(2)), { ...ATACAR, alvos: doisAlvos })).toBeNull()
+    expect(golpesDeAtaque(comAlvos(2), sistema, undefined, null).find((golpe) => golpe.armaId === ID_DO_BUMERANGUE)?.tetoDeAlvos).toBe(2)
   })
 
   it('o dano "perguntar qual arma" é lido e usa a arma; valor desconhecido invalida a mecânica', () => {

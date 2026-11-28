@@ -348,6 +348,17 @@ function armaDoPedido(ctx: ContextoDoGolpe, armaId: string | null): ArmaDaFicha 
   return armasDe(ctx.personagem).find((arma) => arma.id === armaId)
 }
 
+/**
+ * Rodada 3 (28/11/2026): o Atacar com a arma do item marca até o "Alvos" do ataque dela (1 = um só), a mesma
+ * frase da mira. `null` = cabe (ou a arma não diz: a de texto, a Mão nua).
+ */
+export function motivoDoTetoDaArma(arma: Pick<ArmaDaFicha, 'nome' | 'alvos'> | null, quantos: number): string | null {
+  const teto = arma?.alvos
+  if (arma === null || teto === undefined || quantos <= teto) return null
+  const nome = arma.nome.trim() || 'A arma'
+  return teto === 1 ? `${nome} acerta um alvo só.` : `${nome} acerta no máximo ${teto} alvos.`
+}
+
 /** A arma do pedido não está entre as equipadas (foi guardada, dada ou largada). */
 export const MOTIVO_ARMA_NAO_EQUIPADA = 'A arma não está equipada'
 
@@ -626,7 +637,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       // MUNIÇÃO (decisão do mestre de 16/11: "Bloqueia o tiro"): a bala ligada à mochila com 0 não atira, aqui e no host.
       const semMunicao = motivoSemMunicaoDoPedido(arma, pedido.balaId)
       if (semMunicao !== null) return semMunicao
-      const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDoAlvoProibido(ctx, pedido, false) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas, null)
+      const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDoTetoDaArma(arma, pedido.alvos.length) ?? motivoDoAlvoProibido(ctx, pedido, false) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas, null)
       if (motivo !== null) return motivo
       // REQUISITOS C: os requisitos da arma (cinza com motivo; o mestre força), antes dos usos, do custo e da ação.
       const daArma = arma === null ? null : motivoDoPortao(portaoDoPedido(ctx, pedido))

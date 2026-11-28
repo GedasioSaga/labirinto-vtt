@@ -95,8 +95,25 @@ export function equiparNaMochila(mochila: readonly CarriedItem[], vagaId: string
 
 /** A vaga sem o `equipado` (ausente = guardada, como no disco). */
 function guardada(vaga: CarriedItem): CarriedItem {
-  const { equipado: _equipado, ...resto } = vaga
+  // Rodada 3: guardar tira a marca "Arma padrão" junto (ela só vale na equipada).
+  const { equipado: _equipado, armaPadrao: _padrao, ...resto } = vaga
   return resto
+}
+
+/**
+ * Rodada 3 (28/11/2026, "se o personagem tiver várias armas, como é escolhido o dano da arma?"): o toque
+ * "Arma padrão" no cartão da arma equipada. `marcar` = ela vira a padrão (e as outras perdem a marca);
+ * senão, a marca sai e vale a primeira equipada. Só arma equipada.
+ */
+export function mochilaComArmaPadrao(mochila: readonly CarriedItem[], vagaId: string, marcar: boolean, acervo: Pick<AcervoDaMochila, 'item'>): CarriedItem[] | Recusa {
+  const alvo = mochila.find((vaga) => vaga.id === vagaId)
+  if (alvo === undefined) return { recusa: SAIU_DA_MOCHILA }
+  const tipo = tipoDaVaga(alvo, acervo)
+  if (alvo.equipado !== true || tipo === undefined || !TIPOS_DE_ARMA.has(tipo)) return { recusa: `${alvo.nome} não é uma arma equipada: equipe antes de marcar como padrão.` }
+  return mochila.map((vaga) => {
+    const { armaPadrao: _antes, ...semMarca } = vaga
+    return marcar && vaga.id === vagaId ? { ...semMarca, armaPadrao: true as const } : vaga.armaPadrao === true ? semMarca : vaga
+  })
 }
 
 /** GUARDAR a vaga `vagaId`: deixa de estar em uso; o pente fica como está. */

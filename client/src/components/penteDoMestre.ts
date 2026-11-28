@@ -1,5 +1,5 @@
 import { quantidadeDe } from '../lib/items'
-import { ehRecusa, mochilaComPenteAjustado, mochilaDesfeita, recarregarForaDaBatalha, type AcervoDaMochila } from '../lib/mochila/armaNaMochila'
+import { ehRecusa, mochilaComArmaPadrao, mochilaComPenteAjustado, mochilaDesfeita, recarregarForaDaBatalha, type AcervoDaMochila } from '../lib/mochila/armaNaMochila'
 import { useToastStore } from '../stores/toastStore'
 import type { CarriedItem } from '../types/map'
 
@@ -53,6 +53,21 @@ export function recarregarPeloMestre(mochila: MochilaQueGrava, acervo: AcervoDaM
     feito.mochila,
     `${arma.nome} recarregada: pente ${noPente} → ${noPente + feito.entraram}. ${bala.nome} na mochila: ${naMochila.toLocaleString('pt-BR')} → ${(naMochila - feito.entraram).toLocaleString('pt-BR')}.${trocou}`,
   )
+  return null
+}
+
+/**
+ * Rodada 3 (28/11/2026): o toque "Arma padrão" no cartão da arma equipada (`mochilaComArmaPadrao`), com o
+ * aviso e o Desfazer. A técnica com "Dano da Arma" passa a usar esta arma. Devolve o motivo de não ter marcado, ou `null`.
+ */
+export function marcarArmaPadraoPeloMestre(mochila: MochilaQueGrava, acervo: Pick<AcervoDaMochila, 'item'>, armaVagaId: string, marcar: boolean): string | null {
+  const antes = mochila.mochilaDeAgora()
+  const arma = antes.find((vaga) => vaga.id === armaVagaId)
+  if (arma === undefined) return SAIU_DA_MOCHILA
+  const nova = mochilaComArmaPadrao(antes, armaVagaId, marcar, acervo)
+  if (ehRecusa(nova)) return nova.recusa
+  const frase = marcar ? `${arma.nome} é a arma padrão de ${mochila.dono}: a técnica com "Dano da Arma" usa ela.` : `${arma.nome} deixou de ser a arma padrão: vale a primeira equipada.`
+  gravarComDesfazerDasVagas(mochila, antes, nova, frase)
   return null
 }
 

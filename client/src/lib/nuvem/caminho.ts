@@ -144,6 +144,8 @@ const CAMPO_DO_ITEM: Record<CampoDoItem, true> = {
   // A regra em instantâneo (A1) e a nota da vaga (A4): só o mestre grava (`CAMPOS_DO_ITEM_DO_MESTRE`).
   regra: true,
   notaDaVaga: true,
+  // Rodada 3 (28/11/2026): o toque "Arma padrão" da arma em uso; anda com a vaga, só o mestre grava.
+  armaPadrao: true,
 }
 const ehCampoDoItem = guardaDe(CAMPO_DO_ITEM)
 export const CAMPOS_DO_ITEM = chavesDe(CAMPO_DO_ITEM, ehCampoDoItem)
@@ -155,7 +157,7 @@ export const CAMPOS_DO_ITEM = chavesDe(CAMPO_DO_ITEM, ehCampoDoItem)
  * e o "Atualizar as cópias" levariam o efeito de verdade até ela.
  */
 // Fase B2 dos requisitos: o bloco da vaga é regra do item (o host o confere): o jogador que o tirasse usaria sem cumprir.
-const CAMPOS_DO_ITEM_DO_MESTRE: ReadonlySet<CampoDoItem> = new Set<CampoDoItem>(['itemId', 'efeitoResumo', 'requisitos', 'regra', 'notaDaVaga'])
+const CAMPOS_DO_ITEM_DO_MESTRE: ReadonlySet<CampoDoItem> = new Set<CampoDoItem>(['itemId', 'efeitoResumo', 'requisitos', 'regra', 'notaDaVaga', 'armaPadrao'])
 
 const EFEITO_FICA_NO_APP = 'O efeito do item fica no app do mestre'
 

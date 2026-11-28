@@ -39,6 +39,11 @@ export interface AcoesDoPente {
   ajustar?: (arma: CarriedItem, n: number) => string | null
   /** SÓ O MESTRE: abre a arma no editor do item do Acervo. O motivo de não ter aberto, ou `null`. */
   editar?: (arma: CarriedItem) => string | null
+  /**
+   * SÓ O MESTRE (rodada 3, 28/11/2026): o toque "Arma padrão" no cartão de cada arma equipada, quando há mais
+   * de uma. `marcar` = ela vira a padrão (a técnica com "Dano da Arma" a usa); senão, vale a primeira equipada.
+   */
+  armaPadrao?: (arma: CarriedItem, marcar: boolean) => string | null
 }
 
 export interface EquipamentoDaFichaProps {
@@ -75,6 +80,9 @@ export function EquipamentoDaFicha({ personagem, itens, onLimite, pente: acoesDo
     return tipo !== undefined && TIPOS_DE_ARMA.has(tipo)
   })
   const roupa = emUso.filter((vaga) => !armas.includes(vaga))
+  // Rodada 3: com mais de uma arma equipada, a padrão (a marcada; sem marca, a primeira) é a da técnica com "Dano da Arma".
+  const marcarPadrao = armas.length > 1 ? acoesDoPente?.armaPadrao : undefined
+  const padrao = armas.find((vaga) => vaga.armaPadrao === true) ?? armas[0]
   const livres = limite === null ? 0 : Math.max(0, limite - armas.length)
   const menos = limite === null || limite <= 1 ? null : limite - 1
   const mais = limite === null ? Math.max(1, equipadas) : limite >= LIMITE_DE_ARMAS_MAX ? null : limite + 1
@@ -118,6 +126,9 @@ export function EquipamentoDaFicha({ personagem, itens, onLimite, pente: acoesDo
               ) : (
                 <span className="eq-vaga__det">{detalheDaArma(vaga, acervo)}</span>
               )}
+              {marcarPadrao !== undefined && (
+                <ArmaPadraoDoEquipado arma={vaga} padrao={vaga === padrao} marcar={marcarPadrao} />
+              )}
             </li>
           )
         })}
@@ -146,6 +157,33 @@ export function EquipamentoDaFicha({ personagem, itens, onLimite, pente: acoesDo
           A roupa vestida dá {daRoupa}. O Escudo da roupa enche no começo da batalha, antes da vida.
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * O toque "Arma padrão" do cartão da arma equipada (rodada 3): ligado na padrão de agora. Ligar outra troca a
+ * padrão; desligar a marcada volta à primeira equipada. O rótulo não muda: o estado é o `aria-pressed`.
+ */
+function ArmaPadraoDoEquipado({ arma, padrao, marcar }: { arma: CarriedItem; padrao: boolean; marcar: (arma: CarriedItem, marcar: boolean) => string | null }) {
+  const idBase = useId()
+  const [aviso, setAviso] = useState<string | null>(null)
+  // A padrão sem marca (a primeira equipada) ganha a marca; a marcada a perde.
+  const marcada = arma.armaPadrao === true
+  return (
+    <div className="eq-vaga__acoes">
+      <button
+        type="button"
+        className={`lb-btn lb-btn--compact ${padrao ? 'lb-btn--primary' : 'lb-btn--ghost'}`}
+        aria-pressed={padrao}
+        aria-describedby={`${idBase}-dica`}
+        onClick={() => setAviso(marcar(arma, !marcada))}
+      >
+        Arma padrão
+      </button>
+      <p className="eq-vaga__dica" id={`${idBase}-dica`} aria-live="polite">
+        {aviso ?? (padrao ? 'A técnica com "Dano da Arma" usa esta.' : 'Toque para a técnica com "Dano da Arma" usar esta.')}
+      </p>
     </div>
   )
 }

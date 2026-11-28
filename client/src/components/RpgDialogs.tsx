@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { lerOAcervoSeFaltar, useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { escolherImagemDoItem, imagemDoItemDoBlob } from '../lib/imagemDoItem'
 import { ItemDoCatalogoDialog } from './ItemDoCatalogoDialog'
-import { ajustarPentePeloMestre, recarregarPeloMestre, type MochilaQueGrava } from './penteDoMestre'
+import { ajustarPentePeloMestre, marcarArmaPadraoPeloMestre, recarregarPeloMestre, type MochilaQueGrava } from './penteDoMestre'
 import type { AcoesDoPente } from './EquipamentoDaFicha'
 import { escolherImagemDaFicha, escolherTextoJson, salvarTextoJson } from '../lib/arquivosDaFicha'
 import { ehEmbutido } from '../lib/bibliotecaDeSistemas'
@@ -303,6 +303,8 @@ function acoesDoPenteDoMestre(mochila: MochilaQueGrava, ficha: PenteNaFichaDoMes
     recarregar: (arma, balaVagaId) => recarregarPeloMestre(mochila, acervo(), arma.id, balaVagaId),
     motivo: ficha.naLuta ? RECARGA_NA_LUTA : null,
     ajustar: (arma, n) => ajustarPentePeloMestre(mochila, acervo(), arma.id, n),
+    // Rodada 3: o toque "Arma padrão" no cartão da arma equipada (vale também na batalha: não gasta ação).
+    armaPadrao: (arma, marcar) => marcarArmaPadraoPeloMestre(mochila, acervo(), arma.id, marcar),
     editar: (arma) => {
       const doAcervo = useAcervoDeItensStore.getState()
       if (!doAcervo.podeGravar) {

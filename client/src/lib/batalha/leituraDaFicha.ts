@@ -312,6 +312,11 @@ export interface ArmaDaFicha extends CartaoDaFicha {
    * Acervo de agora ou da `regra` da vaga. Ausente = só o dano.
    */
   aoAcertar?: EfeitosAoAcertar
+  /**
+   * Rodada 3 (28/11/2026): quantos alvos o Atacar com a arma do item marca (o "Alvos" do ataque do item; 1 =
+   * um só). O host recusa mais que isso e a mira para nele. Ausente = sem teto (a arma de texto, o golpe da Híbrida).
+   */
+  alvos?: number
 }
 
 /** O arremesso equipado como a batalha o lê. */
@@ -648,7 +653,13 @@ function armasDaVaga(vaga: CarriedItem, mochila: readonly CarriedItem[]): ArmaDa
   const daArma = armaDoBloco(id, nome, vaga, blocos.ataque, CATEGORIA_DO_TIPO[tipo], molde === null ? null : molde.capacidade)
   // E6c: o "Ao acertar" vale no tiro, no golpe da Híbrida e no arremesso (o mesmo item).
   const aoAcertar = efeitosAoAcertar(blocos)
-  const principal: ArmaDaFicha = temEfeitoAoAcertar(aoAcertar) ? { ...daArma, aoAcertar } : daArma
+  // Rodada 3: a marca "Arma padrão" da vaga (a técnica com "Dano da Arma" a usa) e o "Alvos" do ataque do item.
+  const marcada: ArmaDaFicha = {
+    ...daArma,
+    ...(vaga.armaPadrao === true ? { armaPadrao: true as const } : {}),
+    ...(blocos.ataque === undefined ? {} : { alvos: Math.max(1, blocos.ataque.alvos) }),
+  }
+  const principal: ArmaDaFicha = temEfeitoAoAcertar(aoAcertar) ? { ...marcada, aoAcertar } : marcada
   if (tipo === 'arremesso') {
     const volta = blocos.arremesso?.volta === true
     const recarga = blocos.arremesso?.recarga ?? (volta ? RECARGA_DA_VOLTA : RECARGA_DO_ARREMESSO)
