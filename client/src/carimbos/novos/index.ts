@@ -73,6 +73,7 @@ import { carimbo as limo, paleta as paletaDoLimo } from './limo'
 import { carimbo as galinhas, paleta as paletaDasGalinhas } from './galinhas'
 import { carimbo as pedrasComNeve, paleta as paletaDasPedrasComNeve } from './pedrasComNeve'
 import { carimbo as pegadasNaNeve, paleta as paletaDasPegadasNaNeve } from './pegadasNaNeve'
+import { carimbo as arvoreDeOssos, paleta as paletaDaArvoreDeOssos } from './arvoreDeOssos'
 
 /**
  * OS CARIMBOS NOVOS de 14/11/2026 (itens 111 a 152 da lista do mestre,
@@ -212,6 +213,8 @@ export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
   // L08: a neve. As pegadas são de traço: seguem o rumo do arrasto (`traco`).
   pedrasComNeve,
   pegadasNaNeve,
+  // L09: o inferno. A árvore de ossos é a árvore congelada em vértebras, costelas e dedos.
+  arvoreDeOssos,
 ]
 
 /** Todas as cores chapadas dos novos, para o teste de "não estoura" (`embutidos.test.ts`). */
@@ -297,4 +300,5 @@ export const PALETA_DOS_NOVOS: readonly Rgb[] = [
   ...paletaDasGalinhas,
   ...paletaDasPedrasComNeve,
   ...paletaDasPegadasNaNeve,
+  ...paletaDaArvoreDeOssos,
 ]

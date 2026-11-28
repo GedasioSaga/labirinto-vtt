@@ -183,6 +183,8 @@ describe('biblioteca de carimbos', () => {
       // L08.
       'pedras-com-neve',
       'pegadas-na-neve',
+      // L09.
+      'arvore-de-ossos',
     ])
     for (const id of IDS_DA_BIBLIOTECA) expect(id).toMatch(/^[a-z0-9-]{1,40}$/)
     expect(new Set(IDS_DA_BIBLIOTECA).size).toBe(IDS_DA_BIBLIOTECA.length)
