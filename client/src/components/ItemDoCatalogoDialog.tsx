@@ -381,6 +381,8 @@ function PecasDoBloco({
   sistema: SistemaDeRpg
   onMudar: (pecas: PecasDoEfeito | undefined) => void
 }) {
+  // Bug de 28/11/2026: o hook vem antes do retorno antecipado (o efeito que a tela não mostra), na mesma ordem a cada render.
+  const catalogo = useCatalogoDoSeletor()
   const titulo = onde === 'uso' ? 'Ao usar' : 'Ao acertar'
   const sub = onde === 'uso' ? 'O que acontece com quem recebe.' : 'As mesmas peças das técnicas: condição com duração, dano extra, empurrão, atributos. Dano, ação e alcance não se repetem aqui.'
   const cabe = pecasCabemNaTela(guardadas)
@@ -398,7 +400,6 @@ function PecasDoBloco({
     )
   }
   const opcoesDeCondicao = (nome: string) => (condicoes.includes(nome) ? condicoes : [nome, ...condicoes]).map((valor) => ({ valor, rotulo: valor }))
-  const catalogo = useCatalogoDoSeletor()
   return (
     <Secao titulo={titulo} sub={sub}>
       {pecas.length === 0 ? (

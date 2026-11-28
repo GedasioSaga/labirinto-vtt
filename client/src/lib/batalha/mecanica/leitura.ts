@@ -27,22 +27,32 @@ import { cdDoTeste, disputaDoTeste } from './teste'
  * Puro: sem store, sem rede.
  */
 
-/** A leitura de cada objeto de mecânica, uma vez só (o cartão é imutável: editar troca o objeto). */
-const lidas = new WeakMap<object, MecanicaLida>()
+/** A leitura de cada objeto de mecânica, uma vez por nome de cartão (o cartão é imutável: editar troca o objeto). */
+const lidas = new WeakMap<object, Map<string, MecanicaLida>>()
+
+/** A chave do nome na memória: o cartão sem nome não divide a leitura com o que tem. */
+function chaveDoNome(nome: string | undefined): string {
+  return nome === undefined ? '' : `n:${nome}`
+}
 
 /**
  * As peças do cartão para o MOTOR, lidas e conferidas: com o tipo do golpe já montado em peças
  * (`lerMecanicaParaOMotor`, fase ED1). Quem edita e grava lê a escolha por `lerMecanica`.
- * Versão 5: o `nome` do cartão dá o nome do selo do "Muda atributo" (a memória é por objeto de
- * mecânica: vale o nome da primeira leitura, e editar o cartão troca o objeto).
+ * Versão 5: o `nome` do cartão dá o nome do selo do "Muda atributo". A memória é por objeto de
+ * mecânica E por nome (bug de 28/11/2026): antes valia o nome da PRIMEIRA leitura, e quem lê só
+ * `{ id, mecanica }` (a invocação, a marca da passiva, a forma) chegava antes do cartão do item e o
+ * selo do "Muda atributo" saía "Muda atributo" em vez do nome do item. Editar o cartão troca o objeto.
  */
 export function mecanicaLidaDoCartao(cartao: Pick<CartaoDaFicha, 'mecanica'> & { nome?: string }): MecanicaLida {
   const guardada = cartao.mecanica
   if (guardada === undefined) return { tipo: 'nenhuma' }
-  const memoria = lidas.get(guardada)
+  const chave = chaveDoNome(cartao.nome)
+  const porNome = lidas.get(guardada) ?? new Map<string, MecanicaLida>()
+  const memoria = porNome.get(chave)
   if (memoria !== undefined) return memoria
   const lida = lerMecanicaParaOMotor(guardada, cartao.nome)
-  lidas.set(guardada, lida)
+  porNome.set(chave, lida)
+  lidas.set(guardada, porNome)
   return lida
 }
 

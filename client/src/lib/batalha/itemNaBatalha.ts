@@ -2,6 +2,7 @@ import type { CarriedItem, EfeitoDoItem } from '../../types/map'
 import { quantidadeDe } from '../items'
 import { cartoesDaAba, novoCartao, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
+import { usoComOAlvoDaAjuda } from '../itens/leitura'
 import { DANO_MAX, type AcaoDaTecnica, type PedidoDeAcao, type PedidoDeAlvo } from './combate'
 import { ABA_DAS_TECNICAS } from './leituraDaFicha'
 import { danoDaTecnica } from './leituraDaTecnica'
@@ -92,7 +93,7 @@ export function vagaParaUsar(mochila: readonly CarriedItem[] | undefined, vagaId
   if (naBatalha && vaga.efeito.onde === 'soFora') return `${nome} vale só fora da batalha`
   if (!naBatalha && vaga.efeito.onde === 'soNaBatalha') return `${nome} vale só na batalha`
   if (quantidadeDe(vaga) < 1) return `${nome} acabou`
-  const lida = lerMecanica(vaga.efeito.mecanica)
+  const lida = lerMecanica(usoComOAlvoDaAjuda(vaga.efeito.mecanica))
   if (lida.tipo === 'futura') return 'O efeito do item é de uma versão mais nova do app: atualize para usar'
   if (lida.tipo !== 'pecas') return 'O efeito do item tem uma peça torta: abra o item no Acervo'
   return { vaga, indice }
@@ -101,7 +102,7 @@ export function vagaParaUsar(mochila: readonly CarriedItem[] | undefined, vagaId
 /** O cartão do item só para a conta: o nome da vaga e as peças do efeito. */
 export function cartaoDoItem(vaga: VagaComEfeito): CartaoDaFicha {
   // REQUISITOS C: os requisitos da vaga (cópia do Acervo) vão com o cartão: o portão da técnica os confere.
-  return { ...novoCartao(vaga.nome.trim() || 'Item'), id: idDoCartaoDoItem(vaga.id), mecanica: vaga.efeito.mecanica, ...(vaga.requisitos === undefined ? {} : { requisitos: vaga.requisitos }) }
+  return { ...novoCartao(vaga.nome.trim() || 'Item'), id: idDoCartaoDoItem(vaga.id), mecanica: usoComOAlvoDaAjuda(vaga.efeito.mecanica), ...(vaga.requisitos === undefined ? {} : { requisitos: vaga.requisitos }) }
 }
 
 /** A ficha com o cartão do item na aba Habilidades (troca o de mesmo id). Só para a conta: não grava. */

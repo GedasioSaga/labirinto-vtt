@@ -78,6 +78,23 @@ export function pecasGuardadas(value: unknown): PecasDoEfeito | undefined {
   return isRecord(copia) ? (copia as PecasDoEfeito) : undefined // saiu de JSON.stringify: todo valor de dentro já é JSON, por construção
 }
 
+function objetoDasPecas(valor: PecasDoEfeito[string] | undefined): valor is PecasDoEfeito {
+  return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
+}
+
+/**
+ * Bug de 28/11/2026: o consumível novo só com "Curar" (ou "Tirar condições") nascia com o alvo "escolha", a partida
+ * do "Ao usar", e a leitura da mecânica recusa a cura e a limpeza fora de quem usa ou de um aliado: o item não
+ * rodava ("peça torta"). O "Ao usar" assim vale em quem usa ou num aliado (o alvo "aliados", a regra da ajuda): o
+ * editor grava assim, e o guardado antes é lido assim (o Acervo, a mochila e a batalha). O resto: o MESMO objeto.
+ */
+export function usoComOAlvoDaAjuda(pecas: PecasDoEfeito): PecasDoEfeito {
+  const { alvo, efeitos } = pecas
+  if (!objetoDasPecas(alvo) || alvo.quem !== 'escolha' || !Array.isArray(efeitos)) return pecas
+  const ajuda = efeitos.some((efeito) => objetoDasPecas(efeito) && ((efeito.tipo === 'cura' && efeito.em === undefined) || efeito.tipo === 'tirarSelos'))
+  return ajuda ? { ...pecas, alvo: { ...alvo, quem: 'aliados' } } : pecas
+}
+
 function alcanceLido(value: unknown): { alcance?: AlcanceNoItem } {
   const alcance = isRecord(value) && typeof value.tipo === 'string' ? pecasGuardadas(value) : undefined
   return alcance === undefined ? {} : { alcance }
@@ -186,7 +203,7 @@ export function blocosDoItemLidos(value: Record<string, unknown>): BlocosDoItem 
   const aoAcertar = pecasGuardadas(value.aoAcertar)
   if (aoAcertar !== undefined) blocos.aoAcertar = aoAcertar
   const aoUsar = pecasGuardadas(value.aoUsar)
-  if (aoUsar !== undefined) blocos.aoUsar = aoUsar
+  if (aoUsar !== undefined) blocos.aoUsar = usoComOAlvoDaAjuda(aoUsar)
   return blocos
 }
 

@@ -9,6 +9,7 @@ import { guardarMecanica } from '../batalha/mecanica/modelos'
 import { pecaNova, pecasParaGuardar } from '../batalha/mecanica/pecas'
 import { fraseDaPeca as fraseDaPecaDaTecnica } from '../batalha/mecanica/resumo'
 import { pecasDoEfeito } from '../leituraDoItem'
+import { usoComOAlvoDaAjuda } from './leitura'
 import type { PecasDoEfeito, ValorDasPecas } from '../../types/map'
 import { balaDoDano, falaDeCuraReduzida } from './conversao/acervo'
 import { normalizado, primeiroNumero, tipoPelaCategoria } from './conversao/comum'
@@ -300,8 +301,10 @@ export function pecasDoItemGuardadas(pecas: readonly PecaDoItem[], onde: OndeDaP
     efeitos,
     ...(atributos.length === 0 ? {} : { pecas: atributos }),
   }
-  const guardadas = pecasDoEfeito(guardarMecanica(mecanica))
-  if (guardadas === null) return undefined
+  const gravadas = pecasDoEfeito(guardarMecanica(mecanica))
+  if (gravadas === null) return undefined
+  // Bug de 28/11/2026: o consumível com "Curar" ou "Tirar condições" vale em quem usa ou num aliado (a partida "escolha" era recusada).
+  const guardadas = onde === 'uso' ? usoComOAlvoDaAjuda(gravadas) : gravadas
   if (empurroes.length === 0) return guardadas
   const efeitosMontados = Array.isArray(guardadas.efeitos) ? guardadas.efeitos : []
   return { ...guardadas, efeitos: [...efeitosMontados, ...empurroes] }
