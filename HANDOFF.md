@@ -1,3 +1,7 @@
+# 28/11 ~01h: 0.6.10 em construção (agente ad0940fb assumiu do ad8923ff, que parou no limite)
+- Feito no disco (commits saindo): Aura agindo, Passar turno lê peças, ritmo Muda atributo na ficha, vida em %, gatilho com n/pilhas, 4 bugs (consumível só Curar, nome do selo do item, boneco com cortes/marca, ordem dos hooks).
+- Falta: restos nº5 das condições, prints da Aura, e as 4 extras do Acumulador (pergunta antes; marcos por nível com gasta/não gasta = mesmo que o requisito; valor por nível com atalho; "vale em"). Notas tmp/rel-0.6.10. Depois: verificador e publicar 0.6.10.
+
 # 28/11 00:12: 0.6.9 PUBLICADA (condições, Intangível, atributos nos itens, recuperação Vida+SP, companions, modos da batalha, lista de cópias)
 
 - Main bumpada d627f2f9 "chore(release): 0.6.9" (5 arquivos) e `git push origin main` (e8146279..c76e44b1, depois ..d627f2f9). Worktree ../labirinto-release reaproveitada (target quente) em release/0.6.9 com upstream origin/main = d627f2f9, 3 junções. RAM 11,4 GB, disco 21 GB antes. CARGO_BUILD_JOBS=2 publicar-versao --publicar --com-google --notas tmp/rel-0.6.9/notas-da-versao-0.6.9.md, exit 0 na 1ª tentativa (log tmp/rel-0.6.9/publicar-t1.log; cargo 12m19s; RAM mínima 1,83 GB): tsc lobby/site e lobby/nuvem sem erro, assinatura confere, conferir-repo-publico "nada bloqueia", Worker 06b89868-794d-4c23-b43b-49e78dc3380c, site 7e9e51ed.labirintolobby.pages.dev, https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.6.9 (setup.exe, .sig, msi, latest.json; alvo d627f2f9). curl releases/latest/download/latest.json: "version": "0.6.9".
