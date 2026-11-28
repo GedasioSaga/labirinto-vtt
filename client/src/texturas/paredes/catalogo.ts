@@ -230,6 +230,24 @@ export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
     descricao: 'Blocos de basalto quase preto, aparelhados, de junta fina.',
     receita: { fiadasAte: [15, 44], passo: { porFundura: 7, min: 40, max: 70 }, varia: 0.4, funde: 0, junta: 1, tremor: 0, bisel: 2, luz: 0.48, sombra: 0.34, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
   },
+  // O plano de arte por tema de 28/11/2026 (L02 e L03), no FIM pela semente das juntas. O Ossuário, com a receita do
+  // desenhista: uma fiada só até 24 px, para os crânios saírem 1:1.
+  {
+    id: 'ossuario',
+    nome: 'Ossuário',
+    descricao: 'Ossos e crânios empilhados, a parede das catacumbas vista de cima, com um crânio sobre os ossos nas pontas.',
+    receita: { fiadasAte: [24, 48], passo: { porFundura: 0, min: 90, max: 140 }, varia: 0.3, funde: 0.3, junta: 1, tremor: 1.2, bisel: 0, luz: 0.2, sombra: 0.3, face: 'reta', tampaComBisel: false, detalhe: 'nenhum' },
+  },
+  // A muralha de calcário do L03. As AMEIAS (o merlão e a seteira alternados na fiada de fora) são geometria de
+  // `pixi/paredeEmPecas.ts` que ainda não existe: até lá ela é a muralha lisa, e o nome não promete as ameias. O id já
+  // é o da muralha com ameias, para o mapa salvo ganhar as ameias quando elas chegarem. Receita das medidas da amostra
+  // do estúdio (`prova/paredes/materiais/muralha-com-ameias.py`), em blocos de muralha.
+  {
+    id: 'muralha-com-ameias',
+    nome: 'Muralha de calcário',
+    descricao: 'Calcário cinza-mel gasto pela chuva, em fiadas aparelhadas de blocos grandes, com líquen nas juntas.',
+    receita: { fiadasAte: [15, 44], passo: { porFundura: 2.5, min: 22, max: 48 }, varia: 0.36, funde: 0.2, junta: 1.5, tremor: 0, bisel: 2.2, luz: 0.44, sombra: 0.38, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
 ]
 
 /** O material que a ferramenta lembra antes de qualquer escolha. */

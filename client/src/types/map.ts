@@ -132,6 +132,8 @@ export type MaterialDaParede =
   | 'tijolo-com-chapas'
   | 'tabuas-remendadas'
   | 'pedra-de-fortaleza'
+  | 'ossuario'
+  | 'muralha-com-ameias'
 
 /** Preferência da PRÓXIMA parede na ferramenta: o traço de hoje ou a textura do material escolhido. Não vai para o mapa. */
 export type AcabamentoDaParede = 'linhas' | 'textura'
