@@ -1,0 +1,9 @@
+tijolo-com-limo: croma p95 0.235 (DENTRO; teto 0.26), media 0.191
+maior canal das faixas e tampas 155 (DENTRO; teto 245)
+faixa 0: emenda em x 0.0109 contra vizinhas 0.0076 (1.44 vez; teto 1,6) DENTRO
+faixa 1: emenda em x 0.0040 contra vizinhas 0.0072 (0.56 vez; teto 1,6) DENTRO
+faixa 2: emenda em x 0.0049 contra vizinhas 0.0078 (0.63 vez; teto 1,6) DENTRO
+faixa 3: emenda em x 0.0055 contra vizinhas 0.0065 (0.85 vez; teto 1,6) DENTRO
+faixa 4: emenda em x 0.0051 contra vizinhas 0.0078 (0.66 vez; teto 1,6) DENTRO
+faixa 5: emenda em x 0.0089 contra vizinhas 0.0074 (1.20 vez; teto 1,6) DENTRO
+faixa 6: emenda em x 0.0061 contra vizinhas 0.0064 (0.96 vez; teto 1,6) DENTRO
