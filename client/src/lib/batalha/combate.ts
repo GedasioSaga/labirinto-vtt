@@ -980,6 +980,12 @@ export interface SeloDaBatalha {
   gatilhoConta?: number
   /** O gatilho de "uma vez" já disparou e o selo continuou: não dispara de novo. Só do host. */
   gatilhoFeito?: true
+  /**
+   * Bug de 28/11/2026: a rodada e a carta da vez em que o gatilho já contou (ou em que o selo nasceu, na vez de quem
+   * o tem). Conta uma vez por VEZ, como o prazo (`contadoNaRodada`/`contadoNaCarta`). Só do host.
+   */
+  gatilhoNaRodada?: number
+  gatilhoNaCarta?: string
   /** Rework das condições (D9): o selo veio da aura do selo com este id; sai fora do raio ou quando a fonte acaba. Só do host. */
   daAura?: string
 }

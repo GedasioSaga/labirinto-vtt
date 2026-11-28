@@ -29,8 +29,8 @@ interface BatalhaComMapa {
 }
 
 /** Ana (portadora) e Bia do Lado A; Caio do Lado B. `casas`: onde cada uma começa. */
-function batalhaComMapa(casas: Record<string, Casa>): BatalhaComMapa {
-  const base = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: lutador('Ana', 30), lado: 'a' }, { ficha: lutador('Bia', 20), lado: 'a' }, { ficha: lutador('Caio', 10), lado: 'b' }]))
+function batalhaComMapa(casas: Record<string, Casa>, aliadasAMais: readonly Personagem[] = []): BatalhaComMapa {
+  const base = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: lutador('Ana', 30), lado: 'a' }, { ficha: lutador('Bia', 20), lado: 'a' }, { ficha: lutador('Caio', 10), lado: 'b' }, ...aliadasAMais.map((ficha) => ({ ficha, lado: 'a' as const }))]))
   const nomePorToken = new Map(base.tokens().map((token) => [token.id, token.name]))
   const lugar = new Map(Object.entries(casas))
   const mesa: MesaDaBatalha = {
@@ -95,6 +95,21 @@ describe('aura: Inspirado de fábrica (raio 2, aliados)', () => {
     expect(selosDe(b, 'Bia')).toEqual([])
     expect(ultimaLinha(b.loja)).toBe('Aura de Ana: Bia perdeu Inspirado')
     expect(selosDe(b, 'Caio')).toEqual([])
+  })
+})
+
+describe('bug de 28/11/2026: a condição própria posta em quem só tem a pega da aura', () => {
+  it('o Inspirado que o mestre põe na Bia (que tinha a pega da Ana) vira o dela: irradia para a Dani e fica quando a Bia sai do raio da Ana', () => {
+    const b = batalhaComMapa({ Ana: { col: 0, row: 0 }, Bia: { col: 1, row: 0 }, Caio: { col: 9, row: 9 }, Dani: { col: 3, row: 0 } }, [lutador('Dani', 15)])
+    expect(b.loja.getState().porSelo(CENA, b.token('Ana'), { nome: 'Inspirado', turnos: 2 })).toBe(true)
+    expect(selosDe(b, 'Bia')).toEqual(['Inspirado'])
+    expect(selosDe(b, 'Dani')).toEqual([])
+    expect(b.loja.getState().porSelo(CENA, b.token('Bia'), { nome: 'Inspirado', turnos: 2 })).toBe(true)
+    const daBia = (cena(b.loja).turnos.selos ?? []).find((selo) => selo.tokenId === b.token('Bia'))
+    expect([daBia?.daAura, daBia?.turnos]).toEqual([undefined, 2])
+    expect(selosDe(b, 'Dani')).toEqual(['Inspirado'])
+    b.andar('Bia', { col: 6, row: 0 })
+    expect(selosDe(b, 'Bia')).toEqual(['Inspirado'])
   })
 })
 

@@ -101,13 +101,24 @@ export interface GatilhosDaVez {
   disparos: DisparoDoSelo[]
 }
 
+/** A vez que acaba (a rodada dela e a carta): o gatilho conta uma vez por vez. */
+export interface VezDoGatilho {
+  rodada: number
+  cartaId: string
+}
+
+/** Bug de 28/11/2026: o gatilho já contou nesta vez (ou o selo nasceu nela), como o `jaContouNestaVez` do prazo. */
+function gatilhoJaContou(selo: SeloDaBatalha, vez: VezDoGatilho): boolean {
+  return selo.gatilhoNaRodada === vez.rodada && (selo.gatilhoNaCarta === undefined || selo.gatilhoNaCarta === vez.cartaId)
+}
+
 /**
  * O fim da vez de `tokenId` com os gatilhos (a conta da ficha, `lib/condicoes/gatilho.ts`): cada selo
  * dele com gatilho que ainda conta soma 1 e, ao chegar a X, dispara. Os que o prazo acabou de tirar
  * (`acabaram`) contam esta última vez também, como na ficha (a conta vem antes do desconto). O espelho
  * da pastilha não conta aqui (a conta dele é a da ficha). Nada a contar = a MESMA lista em `selos`.
  */
-export function gatilhosDaVez(selos: readonly SeloDaBatalha[] | undefined, acabaram: readonly SeloDaBatalha[], tokenId: string): GatilhosDaVez {
+export function gatilhosDaVez(selos: readonly SeloDaBatalha[] | undefined, acabaram: readonly SeloDaBatalha[], tokenId: string, vez?: VezDoGatilho): GatilhosDaVez {
   const lista = selos ?? []
   const contados: SeloDaBatalha[] = []
   const sairam: SeloDaBatalha[] = []
@@ -115,11 +126,11 @@ export function gatilhosDaVez(selos: readonly SeloDaBatalha[] | undefined, acaba
   const trocados = new Map<string, SeloDaBatalha | null>()
   const conta = (selo: SeloDaBatalha, naCena: boolean): void => {
     const gatilho = selo.tokenId !== tokenId || selo.daPastilha === true || selo.gatilhoFeito === true ? undefined : regrasDoSelo(selo)?.gatilho
-    if (gatilho === undefined) return
+    if (gatilho === undefined || (vez !== undefined && gatilhoJaContou(selo, vez))) return
     const contado = contarUmTurnoDoGatilho(selo, gatilho)
     if (contado.dispara) disparos.push({ selo, pecas: gatilho.pecas, saiu: contado.item === null || !naCena })
     if (!naCena) return
-    trocados.set(selo.id, contado.item)
+    trocados.set(selo.id, contado.item === null || vez === undefined ? contado.item : { ...contado.item, gatilhoNaRodada: vez.rodada, gatilhoNaCarta: vez.cartaId })
     if (contado.item === null) sairam.push(selo)
     else contados.push(selo)
   }

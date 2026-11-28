@@ -489,7 +489,7 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
    * A vida tirada dispara as saídas "ao tomar dano" e a vida dada, as "ao receber cura" (não do próprio selo).
    * Devolve o que mudou sem linha (a conta do gatilho, o lembrete): vai no Desfazer da vez.
    */
-  const condicoesDaVez = (sceneKey: string, sai: CartaDaOrdem | null, entra: CartaDaOrdem | null, acabaram: readonly SeloDaBatalha[], autor: AutorDaAcao): Reversao[] => {
+  const condicoesDaVez = (sceneKey: string, sai: CartaDaOrdem | null, entra: CartaDaOrdem | null, acabaram: readonly SeloDaBatalha[], autor: AutorDaAcao, rodadaQueSai: number): Reversao[] => {
     const cena = cenaDe(sceneKey)
     const { personagens, sistema } = mesaDoRpg()
     if (cena === undefined || sistema === null) return []
@@ -685,7 +685,8 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     if (sai !== null && sai.personagemId !== null) {
       const personagemId = sai.personagemId
       for (const efeito of efeitosDaVez(novos.selos, sai.tokenId, 'fim')) aplicarEfeito(sai, personagemId, efeito)
-      const contados = gatilhosDaVez(novos.selos, acabaram, sai.tokenId)
+      // Bug de 28/11/2026: uma vez por VEZ (o "Dar a vez" que devolve a vez à mesma carta não conta de novo).
+      const contados = gatilhosDaVez(novos.selos, acabaram, sai.tokenId, { rodada: rodadaQueSai, cartaId: sai.id })
       if (contados.contados.length + contados.sairam.length > 0) {
         novos = { ...novos, selos: contados.selos }
         partes.push(...contados.contados.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo, editado: true })))
@@ -792,7 +793,7 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
     // Nº 3 do levantamento: o prazo andou (ou acabou e a pastilha apagou): o espelho acompanha.
     espelharPastilhas(sceneKey)
     // Rework das condições (E5): o Efeito na vez, o gatilho, o teste para sair e o "Tentar sair" dos selos.
-    prazos.push(...condicoesDaVez(sceneKey, sai, vez.entra, vez.acabaram, autor))
+    prazos.push(...condicoesDaVez(sceneKey, sai, vez.entra, vez.acabaram, autor, antes.rodada))
     // ITENS REFEITOS, E6a (decisão 3): o pente vazio de quem entra recarrega sozinho, gastando a ação desta vez.
     recargasDaVez(sceneKey, vez.entra)
     // Rework das habilidades (D6, E5): os gatilhos das passivas montadas: "No início da batalha" na primeira vez, "Na rodada N"

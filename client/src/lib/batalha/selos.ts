@@ -194,6 +194,11 @@ export function criarSelo(tokenId: string, pedido: SeloDoGolpe, onde: OndeNasceO
   if (onde.tokenDaVez === tokenId) {
     selo.contadoNaRodada = onde.rodada
     if (onde.cartaIdDaVez !== undefined) selo.contadoNaCarta = onde.cartaIdDaVez
+    // Bug de 28/11/2026: o gatilho "depois de X turnos" também não conta a vez em que nasceu (o selo sem turnos não passa pelo prazo).
+    if (regrasDoSelo(selo)?.gatilho !== undefined) {
+      selo.gatilhoNaRodada = onde.rodada
+      if (onde.cartaIdDaVez !== undefined) selo.gatilhoNaCarta = onde.cartaIdDaVez
+    }
   }
   if (onde.origem !== undefined && onde.origem.trim().length > 0) selo.origem = onde.origem.trim()
   // Rework das habilidades (PLANO.md D10, Diminui atributo): a queda vai com o selo; `desde` 0 já dá o primeiro passo no acerto.
@@ -444,6 +449,12 @@ export function entradaDoSelo(selos: readonly SeloDaBatalha[] | undefined, novo:
   const regras = regrasDoSelo(novo)
   const antes = regras === null ? undefined : doToken.find((selo) => selo.daPastilha !== true && mesmaCondicao(selo, novo))
   if (regras !== null && antes !== undefined) {
+    // Bug de 28/11/2026: a condição própria em quem só tem a pega da aura (`daAura`) vira a própria, no lugar da pega
+    // (mesmo id, o Desfazer volta a pega): dura o prazo dela, irradia e não sai quando a ficha deixa o raio.
+    if (antes.daAura !== undefined && novo.daAura === undefined) {
+      const depois: SeloDaBatalha = { ...novo, id: antes.id }
+      return { tipo: 'renovou', selos: lista.map((selo) => (selo.id === antes.id ? depois : selo)), antes, depois }
+    }
     if (regras.deNovo === 'nada') return { tipo: 'igual', antes }
     if (regras.deNovo === 'pilha') {
       const teto = regras.tetoDePilhas ?? 1
