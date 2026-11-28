@@ -1,0 +1,167 @@
+/*
+ * O PAINEL EM RELEVO NO QUADRO (28/11): o vão e a placa posta têm a forma
+ * torta da placa (o contorno vem de `placas.ts`, em SVG e em clip-path).
+ * A caixa do botão não pega o ponteiro: só o contorno (`__toque`).
+ */
+
+.qpz-relevo.is-fundindo {
+  background: radial-gradient(ellipse at 50% 45%, #3a3128 0%, #221d18 72%);
+}
+
+.qpz__arte > img.qpz-relevo__propria {
+  object-fit: cover;
+}
+
+.qpz-relevo__sem-imagem {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  background: #17130f;
+  box-shadow: inset 0 0.6cqw 1.6cqw rgba(0, 0, 0, 0.7);
+  font: 500 var(--lb-font-size-sm) / 1.3 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+}
+
+.qpz-encaixe.qpz-placa {
+  pointer-events: none;
+  display: block;
+  aspect-ratio: auto;
+  min-width: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.qpz-encaixe.qpz-placa::after {
+  display: none;
+}
+
+/* O vão não cresce sob a peça no ar: sairia do lugar no painel. A borda é que acende. */
+.qpz-encaixe.qpz-placa.is-pairando-ok {
+  transform: translate(-50%, -50%);
+}
+
+.qpz-placa__forma,
+.qpz-placa__linhas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.qpz-placa__linhas {
+  pointer-events: none;
+}
+
+.qpz-placa__toque {
+  fill: transparent;
+  pointer-events: fill;
+  cursor: pointer;
+}
+
+span.qpz-placa .qpz-placa__toque {
+  pointer-events: none;
+}
+
+.qpz-placa[aria-disabled='true'] .qpz-placa__toque {
+  cursor: default;
+}
+
+.qpz-placa .qpz-encaixe__peca {
+  inset: 0;
+  display: block;
+  overflow: hidden;
+}
+
+.qpz-placa .qpz-encaixe__peca > img {
+  position: absolute;
+  display: block;
+  max-width: none;
+  max-height: none;
+}
+
+.qpz-placa .qpz-encaixe__brilho {
+  inset: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: radial-gradient(ellipse at 42% 38%, rgba(255, 230, 178, 0.8), rgba(243, 186, 102, 0.38) 55%, rgba(243, 186, 102, 0) 88%);
+}
+
+.qpz-placa__borda {
+  fill: none;
+  stroke: rgba(6, 4, 2, 0.6);
+  stroke-width: 1px;
+  transition: stroke 150ms ease;
+}
+
+/* A costura da placa posta: a peça é outra fundição, a linha entre as duas fica. */
+.qpz-placa.is-cheia .qpz-placa__borda {
+  stroke: rgba(14, 9, 4, 0.82);
+  stroke-width: 1.4px;
+}
+
+.qpz-placa__alvo {
+  fill: transparent;
+  stroke: var(--lb-color-brass-bright);
+  stroke-width: 2px;
+  stroke-dasharray: 6 5;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.qpz-placa.is-pode .qpz-placa__alvo {
+  opacity: 0.75;
+}
+
+.qpz-placa.is-pairando-ok .qpz-placa__alvo {
+  opacity: 1;
+  fill: rgba(243, 186, 102, 0.16);
+  stroke-dasharray: none;
+  stroke-width: 2.5px;
+}
+
+.qpz-placa.is-pairando-nao .qpz-placa__alvo {
+  opacity: 1;
+  stroke: var(--lb-color-ember);
+  stroke-dasharray: none;
+}
+
+.qpz-placa:focus-visible {
+  outline: none;
+}
+
+.qpz-placa:focus-visible .qpz-placa__alvo {
+  opacity: 1;
+  stroke-dasharray: none;
+  stroke-width: 2.5px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.qpz-placa:not([aria-disabled='true']):hover .qpz-placa__borda {
+    stroke: rgba(243, 214, 160, 0.75);
+  }
+}
+
+.qpz-placa .qpz-encaixe__quem {
+  top: auto;
+  bottom: 8%;
+  transform: translate(-50%, 0);
+}
+
+/* Completo: as costuras acendem e ficam acesas (a cascata do brilho passa por cima). */
+.qpz.is-relevo.is-resolvido .qpz-placa__borda {
+  stroke: rgba(255, 208, 132, 0.95);
+  stroke-width: 1.6px;
+  transition-duration: 240ms;
+}
+
+/* O brilho acende junto com a cor da costura (uma vez por puzzle, em 3 a 6 placas: o filtro não pesa). */
+.qpz.is-relevo .qpz-placa__linhas {
+  transition: filter 240ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.qpz.is-relevo.is-resolvido .qpz-placa__linhas {
+  filter: drop-shadow(0 0 0.35cqw rgba(255, 186, 96, 0.85));
+}

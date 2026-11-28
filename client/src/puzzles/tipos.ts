@@ -115,6 +115,42 @@ export type VisualDoPuzzle =
   | { tipo: 'modelo'; modelo: ModeloDoPuzzle; cores: CoresDoModelo; inscricao: string; moldura: MolduraDoPuzzle }
   /** `imagem` = `midia:<id>`; `null` = o mestre ainda não escolheu ("Sem imagem ainda", v2). */
   | { tipo: 'imagem'; imagem: string | null }
+  | VisualDoRelevo
+
+// ------------------------------------------------------------------ o painel em relevo (28/11, PEDIDOS item 2)
+
+/**
+ * O PAINEL EM RELEVO: um quadro de metal na parede, cortado em placas
+ * (`COLUNAS_DO_RELEVO` x `LINHAS_DO_RELEVO`); as placas que faltam são os
+ * encaixes (cada um com a `placa` dele) e as peças certas são itens do
+ * acervo, um por placa, que os jogadores acham no mapa. A regra é sempre a
+ * do lugar certo: a placa errada nem entra.
+ *
+ * `cena` = um relevo de fábrica (`puzzles/relevo/arte.ts`); `null` = a imagem
+ * do mestre (`imagem`, `midia:<id>`; `null` = ainda sem imagem) cortada nas
+ * mesmas placas. `metal` pinta a moldura e o relevo.
+ */
+export interface VisualDoRelevo {
+  tipo: 'relevo'
+  cena: CenaDoRelevo | null
+  imagem: string | null
+  metal: MetalDoRelevo
+}
+
+export type CenaDoRelevo = 'cavaleiro' | 'dragao' | 'navio' | 'leao' | 'serpente' | 'solELua'
+export const CENAS_DO_RELEVO: readonly CenaDoRelevo[] = ['cavaleiro', 'dragao', 'navio', 'leao', 'serpente', 'solELua']
+
+export type MetalDoRelevo = 'bronze' | 'ferro' | 'prata'
+export const METAIS_DO_RELEVO: readonly MetalDoRelevo[] = ['bronze', 'ferro', 'prata']
+
+/** As placas do painel: 4 colunas por 3 linhas, numeradas linha a linha (0 a 11). */
+export const COLUNAS_DO_RELEVO = 4
+export const LINHAS_DO_RELEVO = 3
+export const PLACAS_DO_RELEVO = COLUNAS_DO_RELEVO * LINHAS_DO_RELEVO
+/** Quantas placas faltam: de 3 a 6 (o pedido do dono). */
+export const LACUNAS_DO_RELEVO_MIN = 3
+export const LACUNAS_DO_RELEVO_MAX = 6
+export const LACUNAS_DO_RELEVO_PADRAO = 4
 
 export type FormaDoEncaixe = 'redondo' | 'brasao' | 'joia' | 'quadrado'
 export const FORMAS_DO_ENCAIXE: readonly FormaDoEncaixe[] = ['redondo', 'brasao', 'joia', 'quadrado']
@@ -127,6 +163,12 @@ interface LugarDoEncaixe {
   /** Largura, em % da largura do quadro. */
   t: number
   forma: FormaDoEncaixe
+  /**
+   * Só no painel em relevo: a placa que falta aqui (0 a `PLACAS_DO_RELEVO` - 1).
+   * O desenho do vão sai dela; `x`, `y` e `t` ficam no meio da placa, para o
+   * app que não conhece o relevo mostrar ao menos um encaixe no lugar.
+   */
+  placa?: number
 }
 
 export type EncaixeDoPuzzle =
@@ -529,6 +571,8 @@ export interface EncaixeNaVista {
   posta: PostaNaVista | null
   /** Só nas metades: quantas estão postas. */
   metadesPostas?: 0 | 1 | 2
+  /** Só no painel em relevo: a placa que falta aqui (o desenho do vão). */
+  placa?: number
 }
 
 export interface VagaNaVista {

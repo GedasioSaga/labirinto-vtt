@@ -57,6 +57,8 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
 
 function visualNaVista(visual: VisualDoPuzzle): VisualDoPuzzle {
   if (visual.tipo === 'imagem') return { tipo: 'imagem', imagem: visual.imagem }
+  // O painel em relevo: a arte e o metal são o que ele vê olhando; as placas que faltam vão nos encaixes.
+  if (visual.tipo === 'relevo') return { tipo: 'relevo', cena: visual.cena, imagem: visual.imagem, metal: visual.metal }
   return {
     tipo: 'modelo',
     modelo: visual.modelo,
@@ -71,7 +73,8 @@ function postaNaVista(posta: PecaPosta): PostaNaVista {
 }
 
 function encaixeNaVista(encaixe: EncaixeDoPuzzle, progresso: ProgressoDoPuzzle): EncaixeNaVista {
-  const base = { id: encaixe.id, x: encaixe.x, y: encaixe.y, t: encaixe.t, forma: encaixe.forma }
+  // A placa do relevo diz só o formato do vão (o que ele vê): a peça certa continua no mestre.
+  const base = { id: encaixe.id, x: encaixe.x, y: encaixe.y, t: encaixe.t, forma: encaixe.forma, ...(encaixe.placa === undefined ? {} : { placa: encaixe.placa }) }
   const posta = postaEm(progresso, encaixe.id)
   if (encaixe.jeito === 'peca') {
     return { ...base, jeito: 'peca', posta: posta !== null && 'vaga' in posta ? postaNaVista(posta) : null }

@@ -7,7 +7,10 @@ import { IDS_DAS_PECAS_DESENHADAS, urlDaPeca } from '../../../puzzles/arte/pecas
 import { progressoInicial } from '../../../puzzles/motor'
 import { combinacaoPadrao } from '../../../puzzles/combinacao'
 import { PECAS_DESENHADAS, puzzleDoModelo } from '../../../puzzles/padroes'
-import { CATEGORIA_DA_PECA_DE_PUZZLE } from '../../../puzzles/tipos'
+import { canvasDoPainel, pngDaPlaca } from '../../../puzzles/relevo/raster'
+import { poligonoDaPlaca } from '../../../puzzles/relevo/placas'
+import { descricaoDaPlaca, idDoItemDaPlaca, nomeDaPlaca, placasDoPuzzle, puzzleDoRelevo, visualDoRelevo } from '../../../puzzles/relevo/relevo'
+import { CATEGORIA_DA_PECA_DE_PUZZLE, CENAS_DO_RELEVO, METAIS_DO_RELEVO } from '../../../puzzles/tipos'
 import type { IdDaPecaDesenhada, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe } from '../../../puzzles/tipos'
 import { themeCss } from '../../../theme'
 import type { CarriedItem } from '../../../types/map'
@@ -22,7 +25,7 @@ import { TelaDoPuzzle } from '../TelaDoPuzzle'
  * tudo guardado.
  *
  *   npm run dev  ->  http://localhost:1420/src/player/puzzle/vitrine/vitrine.html
- *   ?puzzle=fonte (padrão) | porta | altar | imagem
+ *   ?puzzle=fonte (padrão) | porta | altar | imagem | relevo (com &cena=dragao &metal=bronze)
  *   ?desfecho=texto | cena   (troca o modo do desfecho do puzzle escolhido)
  *   window.__vitrinePuzzle.estado()  o progresso, a mochila e os PV de agora
  */
@@ -35,7 +38,8 @@ document.head.append(estilo)
 
 // A vitrine desenha as peças pelo SVG de `arte/pecas.ts`, sem gravar na mídia; o resto como na sala.
 const daSala = resolverComBase(URL_DA_MIDIA_NA_SALA)
-const resolverDaVitrine: ResolverDeImagem = (valor) => (typeof valor === 'string' && valor.startsWith('data:image/svg+xml') ? valor : daSala(valor))
+// As placas do relevo saem do canvas do painel como blob: (no app, elas vão para a mídia do acervo).
+const resolverDaVitrine: ResolverDeImagem = (valor) => (typeof valor === 'string' && (valor.startsWith('data:image/svg+xml') || valor.startsWith('blob:')) ? valor : daSala(valor))
 
 // ------------------------------------------------------------------ o acervo de mentira
 
@@ -190,6 +194,33 @@ function combinacaoNoCofre(forma: 'simbolos' | 'relogio' | 'botoes', nome: strin
   }
 }
 
+/**
+ * O painel em relevo (28/11): `?puzzle=relevo&cena=dragao&metal=bronze`. As placas são recortadas do mesmo
+ * painel que o jogador vê, como no editor. Bento já pôs uma; na mochila, as outras três e duas coisas que não são placa.
+ */
+async function relevo(): Promise<Exemplo> {
+  const cena = CENAS_DO_RELEVO.find((candidata) => candidata === parametros.get('cena')) ?? 'dragao'
+  const metal = METAIS_DO_RELEVO.find((candidato) => candidato === parametros.get('metal')) ?? 'bronze'
+  const visual = visualDoRelevo(cena, metal)
+  const base = puzzleDoRelevo(visual, 4)
+  const puzzle: Puzzle = { ...base, desfecho: { ...base.desfecho, abrePorta: true } }
+  const painel = await canvasDoPainel(cena, metal)
+  const placas = await Promise.all(
+    placasDoPuzzle(puzzle).map(async (placa): Promise<PecaDoAcervo> => {
+      const bytes = await pngDaPlaca(painel, poligonoDaPlaca(cena, placa))
+      const imagem = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }))
+      return { nome: nomeDaPlaca(visual, placa), descricao: descricaoDaPlaca(visual), imagem, categoria: CATEGORIA_DA_PECA_DE_PUZZLE, itemId: idDoItemDaPlaca(visual, placa) ?? undefined }
+    }),
+  )
+  const [primeira, segunda, terceira, quarta] = placas
+  const [vao] = puzzle.encaixes
+  if (primeira === undefined || segunda === undefined || terceira === undefined || quarta === undefined || vao === undefined) throw new Error('o painel da vitrine nasceu sem as 4 placas')
+  const progresso = progressoInicial(puzzle)
+  progresso.encaixes[vao.id] = { vaga: vaga(primeira), por: BENTO }
+  progresso.rev = 1
+  return { puzzle, mochila: [vaga(terceira), vaga(CORDA), vaga(quarta), vaga(segunda), vaga(POCAO)], progresso }
+}
+
 const EXEMPLOS = {
   fonte,
   porta,
@@ -207,13 +238,18 @@ function ehNomeDoExemplo(valor: string): valor is NomeDoExemplo {
 }
 
 const pedido = parametros.get('puzzle') ?? 'fonte'
-const exemplo = EXEMPLOS[ehNomeDoExemplo(pedido) ? pedido : 'fonte']()
-const modo = parametros.get('desfecho')
-if (modo === 'texto' || modo === 'cena') exemplo.puzzle.desfecho.modo = modo
+
+/** O exemplo pedido; o relevo espera o painel virar bitmap para recortar as placas. */
+async function exemploPedido(): Promise<Exemplo> {
+  const escolhido = pedido === 'relevo' ? await relevo() : EXEMPLOS[ehNomeDoExemplo(pedido) ? pedido : 'fonte']()
+  const modo = parametros.get('desfecho')
+  if (modo === 'texto' || modo === 'cena') escolhido.puzzle.desfecho.modo = modo
+  return escolhido
+}
 
 // ------------------------------------------------------------------ a mesa
 
-function Vitrine() {
+function Vitrine({ exemplo }: { exemplo: Exemplo }) {
   const jogo = useJogoLocalDoPuzzle({ desafioId: 'vitrine', puzzle: exemplo.puzzle, mochila: exemplo.mochila, quem: EU, pv: { atual: 20, max: 20 }, pecaDoAcervo, progresso: exemplo.progresso })
   const [dentro, setDentro] = useState(true)
   Reflect.set(window, '__vitrinePuzzle', { estado: () => ({ progresso: jogo.progresso, mochila: jogo.vista.mochila, pv: jogo.pv, dentro }) })
@@ -243,7 +279,7 @@ function Fora({ jogo, onExaminar }: { jogo: JogoLocalDoPuzzle; onExaminar: () =>
         </button>
         <p style={{ margin: 0, fontSize: 10.5, color: 'var(--lb-color-parchment-faint)' }}>
           Outros exemplos: <a href="?puzzle=fonte">Fonte</a> · <a href="?puzzle=porta">Porta</a> · <a href="?puzzle=altar">Altar</a> · <a href="?puzzle=imagem">Imagem própria</a> · <a href="?puzzle=cofre">Cofre</a> · <a href="?puzzle=simbolos">Símbolos</a> ·{' '}
-          <a href="?puzzle=relogio">Relógio</a> · <a href="?puzzle=botoes">Botões</a>
+          <a href="?puzzle=relogio">Relógio</a> · <a href="?puzzle=botoes">Botões</a> · <a href="?puzzle=relevo">Relevo</a>
         </p>
       </div>
     </main>
@@ -256,6 +292,10 @@ if (raiz !== null) {
   if (Reflect.get(window, '__vitrinePuzzleMontada') === true) location.reload()
   else {
     Reflect.set(window, '__vitrinePuzzleMontada', true)
-    createRoot(raiz).render(<Vitrine />)
+    void exemploPedido().then((exemplo) => {
+      // As provas medem a abertura da tela a partir daqui (o preparo do exemplo não é da tela).
+      performance.mark('vitrine:montar')
+      createRoot(raiz).render(<Vitrine exemplo={exemplo} />)
+    })
   }
 }

@@ -265,7 +265,12 @@ export function aceitaMolduraPorta(modelo: ModeloDoPuzzle): boolean {
   return modelo !== 'porta'
 }
 
-/** O visual abre uma porta ao resolver: o modelo Porta de brasões ou a moldura Porta. Só aqui vale `abrePorta`. */
+/**
+ * O visual abre uma porta ao resolver: o modelo Porta de brasões, a moldura
+ * Porta ou o painel em relevo (o painel não é a porta: completo, destrava a
+ * porta ligada do mapa, a passagem que ele guarda). Só aqui vale `abrePorta`.
+ */
 export function visualEhPorta(visual: Puzzle['visual']): boolean {
+  if (visual.tipo === 'relevo') return true
   return visual.tipo === 'modelo' && (visual.modelo === 'porta' || visual.moldura === 'porta')
 }

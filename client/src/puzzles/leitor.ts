@@ -42,7 +42,11 @@ import {
   TEXTO_DO_CASTIGO_MAX,
   TEXTO_DO_PUZZLE_MAX,
   VERSAO_DO_PUZZLE,
+  CENAS_DO_RELEVO,
+  METAIS_DO_RELEVO,
 } from './tipos'
+import { ehPlaca } from './relevo/placas'
+import type { VisualDoRelevo } from './tipos'
 import type {
   AcaoNoPuzzle,
   CastigoDoPuzzle,
@@ -182,7 +186,8 @@ export function lerPuzzle(valor: unknown): Puzzle {
   const puzzle: Puzzle = {
     nome: textoNaoVazio(bruto.nome, NOME_DO_PUZZLE_MAX, padrao.nome),
     nomePublico: textoLido(bruto.nomePublico, NOME_DO_PUZZLE_MAX, padrao.nomePublico),
-    regra: ehRegra(bruto.regra) ? bruto.regra : padrao.regra,
+    // O painel em relevo é sempre do lugar certo: cada placa só no vão dela.
+    regra: visual.tipo === 'relevo' ? 'lugarCerto' : ehRegra(bruto.regra) ? bruto.regra : padrao.regra,
     visual,
     // Sem encaixes legíveis, nenhum: inventar os do modelo criaria lugares que o progresso nunca teve.
     encaixes: lerEncaixes(bruto.encaixes),
@@ -197,8 +202,16 @@ export function lerPuzzle(valor: unknown): Puzzle {
   return puzzle
 }
 
+/** O painel em relevo: cena desconhecida (de um app mais novo) vira a imagem própria ainda sem imagem. */
+function lerVisualDoRelevo(valor: Record<string, unknown>): VisualDoRelevo {
+  const cena = CENAS_DO_RELEVO.find((uma) => uma === valor.cena) ?? null
+  const metal = METAIS_DO_RELEVO.find((um) => um === valor.metal) ?? 'bronze'
+  return { tipo: 'relevo', cena, imagem: cena === null ? imagemLida(valor.imagem) : null, metal }
+}
+
 function lerVisual(valor: unknown): VisualDoPuzzle {
   if (isRecord(valor) && valor.tipo === 'imagem') return { tipo: 'imagem', imagem: imagemLida(valor.imagem) }
+  if (isRecord(valor) && valor.tipo === 'relevo') return lerVisualDoRelevo(valor)
   const bruto = isRecord(valor) ? valor : {}
   const modelo = ehModelo(bruto.modelo) ? bruto.modelo : 'fonte'
   const padrao = PADROES_DOS_MODELOS[modelo]
@@ -238,6 +251,7 @@ function lerEncaixe(valor: unknown): EncaixeDoPuzzle | null {
     y: numeroEntre(valor.y, 0, 100, 50),
     t: numeroEntre(valor.t, TAMANHO_DO_ENCAIXE_MIN, TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_PADRAO),
     forma: ehForma(valor.forma) ? valor.forma : 'redondo',
+    ...(ehPlaca(valor.placa) ? { placa: valor.placa } : {}),
   }
   if (valor.jeito !== 'metades') return { ...lugar, jeito: 'peca', itemId: itemIdLido(valor.itemId) }
   const metades: unknown[] = Array.isArray(valor.metades) ? valor.metades : []

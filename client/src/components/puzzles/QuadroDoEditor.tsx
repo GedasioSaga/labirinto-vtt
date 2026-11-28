@@ -8,6 +8,7 @@ import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
 import { TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN, type CombinacaoDoPuzzle, type EncaixeDoPuzzle, type Puzzle } from '../../puzzles/tipos'
 import { comControle, comEncaixe, encaixeDoTamanho, encaixeMovido, limitar, PASSO_DA_SETA, PASSO_DO_TAMANHO, PASSO_LARGO_DA_SETA, umaCasa } from './edicao'
 import { srcDaPeca, type PecasDoEditor } from './pecasDoEditor'
+import { CamadaDoRelevo, vaosDoEditor } from './CamadaDoRelevo'
 
 /**
  * O QUADRO DO EDITOR (protótipo aprovado, `htmlQuadroEd` e `iniciarEdArrasto`):
@@ -56,9 +57,12 @@ interface PropsDoQuadroDoEditor {
   onMudar: (proximo: Puzzle, chave?: string) => void
   onTirar: (encaixeId: string) => void
   onImagemSolta: (arquivo: File) => void
+  /** O aviso da ficha (o painel em relevo avisa quando bate no mínimo ou no máximo de placas). */
+  onAviso?: (texto: string, tipo?: 'info' | 'error') => void
 }
 
-export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, onTirar, onImagemSolta }: PropsDoQuadroDoEditor) {
+export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, onTirar, onImagemSolta, onAviso }: PropsDoQuadroDoEditor) {
+  const relevo = puzzle.visual.tipo === 'relevo' ? puzzle.visual : null
   const arrasto = useRef<Arrasto | null>(null)
   const [soltandoArquivo, setSoltandoArquivo] = useState(false)
   const resolver = useImagemDaMesa()
@@ -172,11 +176,14 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
     >
       <QuadroDoPuzzle
         visual={puzzle.visual}
-        encaixes={[]}
+        encaixes={relevo !== null ? vaosDoEditor(puzzle) : []}
         troca={troca === null ? null : { x: troca.x, y: troca.y, pesoPedido: troca.peso, naBandeja: [], feita: false }}
         resolvido={false}
         rotulo={`Quadro do puzzle ${puzzle.nome}`}
       >
+        {relevo !== null ? (
+          <CamadaDoRelevo puzzle={puzzle} visual={relevo} onMudar={(proximo) => onMudar(proximo)} onAviso={onAviso} />
+        ) : (
         <div
           className="pze-camada"
           onPointerDown={(evento) => {
@@ -220,6 +227,7 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
             )
           })}
         </div>
+        )}
         <div className="pze-quadro__solta" aria-hidden="true">
           Solte a imagem para usar como fundo
         </div>

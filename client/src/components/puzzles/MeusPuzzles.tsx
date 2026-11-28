@@ -6,6 +6,7 @@ import { ArteSvg } from '../../puzzles/arte/ArteSvg'
 import { desenhoDoModelo } from '../../puzzles/arte/modelos'
 import { situacaoDaCopia, type SituacaoDaCopia } from '../../puzzles/meusPuzzles'
 import { puzzleDoModelo } from '../../puzzles/padroes'
+import { urlDoSvgDoPainel } from '../../puzzles/relevo/miniatura'
 import type { IdDaPecaDesenhada, MinigamePuzzle, ModeloDePuzzle, Puzzle } from '../../puzzles/tipos'
 import { lerOAcervoSeFaltar } from '../../stores/acervoDeItensStore'
 import { useDesafiosStore } from '../../stores/desafiosStore'
@@ -148,7 +149,8 @@ export function MiniaturaDoPuzzle({ puzzle, prefixo }: { puzzle: Puzzle; prefixo
   const resolver = useImagemDaMesa()
   const { visual } = puzzle
   const arte = useMemo(() => (visual.tipo === 'modelo' ? desenhoDoModelo(visual, prefixo) : null), [visual, prefixo])
-  const src = visual.tipo === 'imagem' ? resolver(visual.imagem) : null
+  // O painel em relevo: a cena em SVG (o navegador desenha no tamanho da miniatura), ou a imagem do mestre.
+  const src = visual.tipo === 'imagem' ? resolver(visual.imagem) : visual.tipo === 'relevo' ? (visual.cena !== null ? urlDoSvgDoPainel(visual.cena, visual.metal) : resolver(visual.imagem)) : null
   return (
     <span className="pzm-mini" aria-hidden="true">
       {arte !== null ? (

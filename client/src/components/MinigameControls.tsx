@@ -91,6 +91,7 @@ import {
 } from '../minigames/bolha/tipos'
 import { combinacaoDoPuzzle, mecanicaDesconhecida, NOME_DA_COMBINACAO } from '../puzzles/combinacao'
 import { NOME_DO_MODELO, visualEhPorta } from '../puzzles/padroes'
+import { nomeDoRelevo } from '../puzzles/relevo/relevo'
 import { contagemDoPuzzle, pecasPostas, progressoInicial } from '../puzzles/motor'
 import { desafiosDo, mapaComProgressoDoPuzzle } from '../lib/desafios'
 import { useMapStore } from '../stores/mapStore'
@@ -834,6 +835,7 @@ const TEXTO_DO_CASTIGO: Readonly<Record<TipoDeCastigo, string>> = {
 
 function textoDoVisual(visual: VisualDoPuzzle): string {
   if (visual.tipo === 'imagem') return visual.imagem === null ? 'Imagem própria (ainda sem imagem)' : 'Imagem própria'
+  if (visual.tipo === 'relevo') return nomeDoRelevo(visual)
   const nome = NOME_DO_MODELO[visual.modelo]
   return visual.moldura === 'porta' ? `${nome}, na moldura Porta` : nome
 }
