@@ -95,6 +95,8 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   'tijolo-de-esgoto': 'c8714cfd173f21120fa508012c13270c9b6753326be393c4e4e446348e9e21f8',
   'calcada-em-leque': '870be4160a827c74abaf42632f1a09392b67034ef137554be0c5de93b7007e3a',
   'rua-de-lama': '6382bd86be5be5df6c42d34e1fb24b7665a75c9fe85a3b4534e99a2932b5c6f5',
+  // A onda 3 (L07 a L09, 28/11/2026): o hash do ladrilho como o desenhista o entregou.
+  'terra-arada': 'd76fcda97a21aeb40f5128866190765acf0e0be831896c8013b05027cea4fbbf',
 }
 
 async function sha256(bytes: Uint8ClampedArray): Promise<string> {

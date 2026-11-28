@@ -41,7 +41,7 @@ describe('agruparPorForma', () => {
     expect(grupos.filter((g) => g.formas.length > 1)).toHaveLength(9)
     // O Cascalho (CHÃO E CAMINHO, 12/11/2026) é cartão de uma forma, depois da Terra; os três de 14/11/2026 no fim;
     // depois deles, os do lote das referências: os Pisos de cerâmica, o Linóleo verde e a Rua de tijolos.
-    expect(grupos.map((g) => g.formas[0].id)).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'terra-rachada', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'calcamento', 'chao-de-metal', 'assoalho-claro', 'paralelepipedo', 'concreto', 'azulejo-verde', 'linoleo-verde', 'rua-de-tijolos', 'tijolo-de-cela', 'granito-salpicado', 'lajeado-poligonal', 'tabuleiro-marmore', 'chao-de-mina', 'tijolo-de-esgoto', 'calcada-em-leque'])
+    expect(grupos.map((g) => g.formas[0].id)).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'terra-rachada', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'calcamento', 'chao-de-metal', 'assoalho-claro', 'paralelepipedo', 'concreto', 'azulejo-verde', 'linoleo-verde', 'rua-de-tijolos', 'tijolo-de-cela', 'granito-salpicado', 'lajeado-poligonal', 'tabuleiro-marmore', 'chao-de-mina', 'tijolo-de-esgoto', 'calcada-em-leque', 'terra-arada'])
   })
 
   it('mantém a ordem da lista: o grupo fica onde a sua primeira forma aparece', () => {

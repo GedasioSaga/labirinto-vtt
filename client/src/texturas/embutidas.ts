@@ -39,6 +39,7 @@ import { texturaChaoDeMina } from './chaos/chaoDeMina'
 import { texturaTijoloDeEsgoto } from './chaos/tijoloDeEsgoto'
 import { texturaCalcadaEmLeque } from './chaos/calcadaEmLeque'
 import { texturaRuaDeLama } from './chaos/ruaDeLama'
+import { texturaTerraArada } from './chaos/terraArada'
 import { cobertura, espalhar, naVolta, pontosPerto, pontosQueAlcancam, sorteador, type Cobertura, type Espalhamento } from './espalhar'
 import type { VidaDoChao } from './meioTermo/chaoNoMundo'
 import {
@@ -1506,6 +1507,9 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'tijolo-de-esgoto', nome: 'Tijolo de esgoto', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaTijoloDeEsgoto },
   { id: 'calcada-em-leque', nome: 'Rua e calçada', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'rua-e-calcada', nome: 'Calçada em leque' }, cor: texturaCalcadaEmLeque },
   { id: 'rua-de-lama', nome: 'Rua e calçada', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'rua-e-calcada', nome: 'Rua de lama' }, cor: texturaRuaDeLama },
+  // A onda 3 do plano (28/11/2026). L07: a terra arada, 16 camalhões que serpenteiam; os torrões saem de tabela feita
+  // uma vez por tamanho (`chaos/terraArada.ts`), sem tarefa longa ao pintar.
+  { id: 'terra-arada', nome: 'Terra arada', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaTerraArada },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */
