@@ -34,6 +34,7 @@ import { texturaLadrilhoAzulado } from './chaos/ladrilhoAzulado'
 import { texturaTabuaEnvernizada } from './chaos/tabuaEnvernizada'
 import { texturaTacoEspinha } from './chaos/tacoEspinha'
 import { texturaTroncos } from './chaos/troncos'
+import { texturaTabuleiroDiagonal, texturaTabuleiroJardim, texturaTabuleiroMadeira, texturaTabuleiroMarmore, texturaTabuleiroVermelho } from './chaos/tabuleiro'
 import { cobertura, espalhar, naVolta, pontosPerto, pontosQueAlcancam, sorteador, type Cobertura, type Espalhamento } from './espalhar'
 import type { VidaDoChao } from './meioTermo/chaoNoMundo'
 import {
@@ -1487,6 +1488,13 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'tijolo-de-cela', nome: 'Tijolo de cela', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaTijoloDeCela },
   { id: 'granito-salpicado', nome: 'Granito salpicado', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaGranitoSalpicado },
   { id: 'lajeado-poligonal', nome: 'Lajeado poligonal', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaLajeadoPoligonal },
+  // O Tabuleiro (L03 do plano de arte por tema, 28/11/2026, `chaos/tabuleiro.ts`): um cartão de 5 formas, 1 casa do mapa
+  // = 1 casa do tabuleiro (8 casas por ladrilho, o filete na linha da grade).
+  { id: 'tabuleiro-marmore', nome: 'Tabuleiro', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'tabuleiro', nome: 'Mármore' }, cor: texturaTabuleiroMarmore },
+  { id: 'tabuleiro-madeira', nome: 'Tabuleiro', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'tabuleiro', nome: 'Madeira' }, cor: texturaTabuleiroMadeira },
+  { id: 'tabuleiro-jardim', nome: 'Tabuleiro', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'tabuleiro', nome: 'Jardim' }, cor: texturaTabuleiroJardim },
+  { id: 'tabuleiro-vermelho', nome: 'Tabuleiro', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'tabuleiro', nome: 'Vermelho' }, cor: texturaTabuleiroVermelho },
+  { id: 'tabuleiro-diagonal', nome: 'Tabuleiro', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'tabuleiro', nome: 'Diagonal' }, cor: texturaTabuleiroDiagonal },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */

@@ -84,6 +84,12 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   'tijolo-de-cela': 'b93ad9054339711f619ed7d12091f55243fe8fc45d2a734783a8e81f643822f2',
   'granito-salpicado': '7a184c20e963bcb2eaa0297febbe90527f01386ffb1b8ecba782479b851c86c4',
   'lajeado-poligonal': '4f946117740148445602b93cfe647cd5c532d547140889d721e28c0e9ef0aa1c',
+  // O Tabuleiro (L03 do plano de arte por tema, 28/11/2026): o hash do código que o desenhou.
+  'tabuleiro-marmore': 'bd35002339abf2461801d9d4ee45786719beea9f348f677e9f68f26ce2d1333d',
+  'tabuleiro-madeira': '68546ecf46f39e656435a876b84c069b2f63451f18efdd936c55ebe8310c189f',
+  'tabuleiro-jardim': '018e0bfade7a6fbc94c47f5f1360886b48aa0a95e5b2b78f126c137ff5dd0fc6',
+  'tabuleiro-vermelho': '3c4fd1a7104c37dd340c7033451b20e1dc168dc3e328b478e4d62573e5ce3259',
+  'tabuleiro-diagonal': '55e854b74c09e2c79f934445b217748785251f5f5b30b98acaf7fffba6506d03',
 }
 
 async function sha256(bytes: Uint8ClampedArray): Promise<string> {
