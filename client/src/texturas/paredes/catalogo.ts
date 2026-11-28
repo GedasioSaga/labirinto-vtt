@@ -248,6 +248,28 @@ export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
     descricao: 'Calcário cinza-mel gasto pela chuva, em fiadas aparelhadas de blocos grandes, com líquen nas juntas.',
     receita: { fiadasAte: [15, 44], passo: { porFundura: 2.5, min: 22, max: 48 }, varia: 0.36, funde: 0.2, junta: 1.5, tremor: 0, bisel: 2.2, luz: 0.44, sombra: 0.38, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
   },
+  // A onda 2 do plano (28/11/2026, L04 a L06), no FIM pela semente das juntas, cada uma com a montagem que o desenhista
+  // apontou no estúdio. A Rocha com veios (L04) monta como a Rocha de caverna: a mesma pedra, com o veio de minério.
+  {
+    id: 'rocha-com-veios',
+    nome: 'Rocha com veios',
+    descricao: 'Rocha bruta e escura da mina, em massas tortas, cortada por veios de minério.',
+    receita: { fiadasAte: [18, 44], passo: { porFundura: 2, min: 16, max: 44 }, varia: 0.4, funde: 0.3, junta: 1.6, tremor: 1.8, bisel: 2.6, luz: 0.3, sombra: 0.5, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
+  // O Tijolo com limo (L05) é uma versão do Tijolo: a mesma amarração, a junta tomada pelo limo.
+  {
+    id: 'tijolo-com-limo',
+    nome: 'Tijolo com limo',
+    descricao: 'Tijolo velho e molhado do esgoto, encardido de verde, com limo nas juntas.',
+    receita: { fiadasAte: [15, 27, 44], passo: { porFundura: 2.05, min: 14, max: 26 }, varia: 0.16, funde: 0, junta: 1.2, tremor: 0, bisel: 1.4, luz: 0.32, sombra: 0.34, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
+  // A Parede caiada (L06) monta como o Concreto: uma fiada de painéis compridos (o reboco é corrido), sem enfeite.
+  {
+    id: 'parede-caiada',
+    nome: 'Parede caiada',
+    descricao: 'Reboco branco de cal, gasto, com a pedra aparecendo onde a cal caiu.',
+    receita: { fiadasAte: [], passo: { porFundura: 0, min: 72, max: 72 }, varia: 0.2, funde: 0.1, junta: 1, tremor: 0, bisel: 1.2, luz: 0.32, sombra: 0.38, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
 ]
 
 /** O material que a ferramenta lembra antes de qualquer escolha. */
