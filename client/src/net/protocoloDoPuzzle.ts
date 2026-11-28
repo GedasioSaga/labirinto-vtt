@@ -42,6 +42,9 @@ import {
   TEXTO_DA_RECUSA,
   TEXTO_DO_CASTIGO_MAX,
   TEXTO_DO_PUZZLE_MAX,
+  CENAS_DO_RELEVO,
+  METAIS_DO_RELEVO,
+  PLACAS_DO_RELEVO,
 } from '../puzzles/tipos'
 import type {
   AcaoNoPuzzle,
@@ -221,6 +224,13 @@ export function parsePuzzlePlayerMessage(value: unknown): PuzzlePlayerMessage | 
 function lerVisual(value: unknown): VisualDoPuzzle | null {
   if (!isRecord(value)) return null
   if (value.tipo === 'imagem') return value.imagem === null ? { tipo: 'imagem', imagem: null } : { tipo: 'imagem', imagem: imagemDoFio(value.imagem) }
+  if (value.tipo === 'relevo') {
+    // O painel em relevo: cena de fábrica ou a imagem do mestre (`cena: null`), e o metal.
+    const cena = value.cena === null ? null : umDaLista(CENAS_DO_RELEVO, value.cena)
+    const metal = umDaLista(METAIS_DO_RELEVO, value.metal)
+    if (cena === undefined || metal === undefined) return null
+    return { tipo: 'relevo', cena, imagem: cena === null && value.imagem !== null ? imagemDoFio(value.imagem) : null, metal }
+  }
   if (value.tipo !== 'modelo') return null
   const modelo: ModeloDoPuzzle | undefined = umDaLista(MODELOS_DO_PUZZLE, value.modelo)
   const moldura = value.moldura === 'original' || value.moldura === 'porta' ? value.moldura : undefined
@@ -246,6 +256,9 @@ function lerEncaixe(value: unknown): EncaixeNaVista | null {
   const encaixe: EncaixeNaVista = { id: value.id, x: value.x, y: value.y, t: value.t, forma, jeito, posta }
   if (value.metadesPostas === 0 || value.metadesPostas === 1 || value.metadesPostas === 2) encaixe.metadesPostas = value.metadesPostas
   else if (value.metadesPostas !== undefined) return null
+  // A placa do painel em relevo (o desenho do vão).
+  if (inteiroAte(value.placa, PLACAS_DO_RELEVO - 1)) encaixe.placa = value.placa
+  else if (value.placa !== undefined) return null
   return encaixe
 }
 

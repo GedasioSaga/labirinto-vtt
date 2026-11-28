@@ -17,6 +17,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom'
 import type { AcoesDaCombinacao, TecladoDoControle } from '../../puzzles/ControlesDaCombinacao'
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
+import { tocarSomDoRelevo } from '../../puzzles/relevo/somDoRelevo'
 import { TEXTO_DA_RECUSA } from '../../puzzles/tipos'
 import type { AcaoNoPuzzle, EncaixeNaVista, MotivoDaRecusa, VistaDoPuzzle } from '../../puzzles/tipos'
 import { IconeDoJogador } from '../IconeDoJogador'
@@ -70,6 +71,8 @@ const CARTAO_REDUZIDO_MS = 160
 /** Cena com imagem própria: só o brilho dos encaixes (520 ms) e o texto (decisão 2 do plano). */
 const CARTAO_CENA_SEM_ARTE_MS = 640
 const CASCATA_DO_BRILHO_MS = 60
+/** O painel em relevo completo ressoa depois do estalo da última placa, e não por cima dele. */
+const ATRASO_DO_SOM_COMPLETO_MS = 180
 /** A agulha do mostrador anda até a soma antes do pedestal responder (v1), e volta ao pedido depois. */
 const SUSPENSE_DA_TROCA_MS = 400
 const VOLTA_DA_AGULHA_MS = 380
@@ -329,7 +332,11 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
     for (const encaixe of vista.encaixes) {
       const era = encaixesAntes.get(encaixe.id)
       const entrou = era !== undefined && ((era.posta === null && encaixe.posta !== null) || (encaixe.metadesPostas ?? 0) > (era.metadesPostas ?? 0))
-      if (entrou) assentar(elDoQuadro(seletorDoEncaixe(encaixe.id)))
+      if (entrou) {
+        assentar(elDoQuadro(seletorDoEncaixe(encaixe.id)))
+        // O painel em relevo: a placa de metal assenta com o som dela.
+        if (encaixe.placa !== undefined) tocarSomDoRelevo('encaixe')
+      }
     }
 
     const pedido = pedidoDeTirar.current
@@ -372,6 +379,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           const alvo = ultimoAlvo.current
           const el = alvo === null ? null : elDoAlvo(alvo, elDoQuadro)
           recusarNaTela(acontecimento.texto, el)
+          if (vista.visual.tipo === 'relevo' && alvo?.tipo === 'encaixe') tocarSomDoRelevo('nao')
           // A peça recusada continua na mão, como no v2.
           const enviada = ultimaEnviada.current
           if (enviada !== null && vista.mochila.some((vaga) => vaga.vagaId === enviada)) setEscolhida(enviada)
@@ -419,6 +427,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
         case 'resolvido':
           setEscolhida(null)
           setDesfechoPendente(acontecimento.desfecho)
+          // O painel completo ressoa logo depois do som da última placa.
+          if (vista.visual.tipo === 'relevo') window.setTimeout(() => tocarSomDoRelevo('completo'), ATRASO_DO_SOM_COMPLETO_MS)
           break
       }
     }

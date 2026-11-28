@@ -6,7 +6,8 @@ import { classes } from '../../grimorio/comum'
 import { ArteSvg } from '../../../puzzles/arte/ArteSvg'
 import { desenhoDoModelo, type NoDaArte } from '../../../puzzles/arte/modelos'
 import { aceitaMolduraPorta, NOME_DO_MODELO, PADROES_DOS_MODELOS } from '../../../puzzles/padroes'
-import { INSCRICAO_MAX, MODELOS_DO_PUZZLE, NOME_DO_PUZZLE_MAX, type CoresDoModelo, type ModeloDoPuzzle, type MolduraDoPuzzle } from '../../../puzzles/tipos'
+import { INSCRICAO_MAX, MODELOS_DO_PUZZLE, NOME_DO_PUZZLE_MAX, type CenaDoRelevo, type CoresDoModelo, type ModeloDoPuzzle, type MolduraDoPuzzle } from '../../../puzzles/tipos'
+import { EscolhaDoRelevo } from './SecaoRelevo'
 import { comCoresDoModelo, comVisual } from '../edicao'
 import { Secao, type PropsDaSecao } from './comum'
 
@@ -62,9 +63,12 @@ interface PropsDoVisual extends PropsDaSecao {
   /** "Começar de um modelo": troca a arte, a regra e os encaixes (o Desfazer volta). */
   onModelo: (modelo: ModeloDoPuzzle) => void
   onImagem: () => void
+  /** O painel em relevo: uma cena de fábrica, ou uma imagem sua cortada em placas. */
+  onCenaDoRelevo: (cena: CenaDoRelevo) => void
+  onImagemDoRelevo: () => void
 }
 
-export function SecaoVisual({ puzzle, mudar, onModelo, onImagem }: PropsDoVisual) {
+export function SecaoVisual({ puzzle, mudar, onModelo, onImagem, onCenaDoRelevo, onImagemDoRelevo }: PropsDoVisual) {
   const miniaturas = useMiniaturas()
   const { visual } = puzzle
   const mudarCor = (chave: keyof CoresDoModelo, cor: string) => {
@@ -93,6 +97,7 @@ export function SecaoVisual({ puzzle, mudar, onModelo, onImagem }: PropsDoVisual
           ))}
         </div>
       </div>
+      <EscolhaDoRelevo visual={visual.tipo === 'relevo' ? visual : null} onCena={onCenaDoRelevo} onImagem={onImagemDoRelevo} />
       {visual.tipo === 'modelo' && aceitaMolduraPorta(visual.modelo) && (
         <div className="pze-grupo">
           <CampoSeg rotulo="Moldura" opcoes={MOLDURAS} valor={visual.moldura} onChange={(moldura) => moldura !== visual.moldura && mudar(comVisual(puzzle, { ...visual, moldura }))} />
@@ -124,9 +129,9 @@ export function SecaoVisual({ puzzle, mudar, onModelo, onImagem }: PropsDoVisual
             Voltar às cores do modelo
           </Botao>
         </>
-      ) : (
+      ) : visual.tipo === 'imagem' ? (
         <p className="pze-nota">{visual.imagem !== null ? 'A imagem fica na mídia desta mesa. Arraste os encaixes sobre ela.' : 'Escolha uma imagem ou solte um arquivo sobre o quadro ao lado.'}</p>
-      )}
+      ) : null}
     </Secao>
   )
 }

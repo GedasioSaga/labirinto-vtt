@@ -5,7 +5,11 @@ import { classes, focaveisEm, movimentoReduzido, SAIDA_DO_DIALOGO_MS } from '../
 import { desafiosDo, mapaComProgressoDoPuzzle } from '../../lib/desafios'
 import { leverDoorOptions } from '../../lib/lever'
 import { copiaSalva, mesmoPuzzle } from '../../puzzles/meusPuzzles'
-import type { IdDaPecaDesenhada, ModeloDoPuzzle, Puzzle } from '../../puzzles/tipos'
+import type { CenaDoRelevo, IdDaPecaDesenhada, ModeloDoPuzzle, Puzzle } from '../../puzzles/tipos'
+import { comVisualDoRelevo, ehRelevo, placasDoPuzzle, visualDoRelevo } from '../../puzzles/relevo/relevo'
+import { LACUNAS_DO_RELEVO_MAX, LACUNAS_DO_RELEVO_MIN } from '../../puzzles/tipos'
+import { SecaoPlacas } from './FichaDoEditor/SecaoRelevo'
+import { useGarantirPlacasNoAcervo } from './relevoNoEditor'
 import { lerOAcervoSeFaltar } from '../../stores/acervoDeItensStore'
 import { useMapStore } from '../../stores/mapStore'
 import { PUZZLE_SEM_NOME, useMeusPuzzlesStore } from '../../stores/meusPuzzlesStore'
@@ -114,6 +118,8 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   const testandoAgora = useRef(false)
   testandoAgora.current = testando
   const pecas = usePecasDoEditor()
+  // O painel em relevo: as placas que faltam entram no acervo sozinhas (cena, metal, Desfazer, outro computador).
+  useGarantirPlacasNoAcervo(edicao?.puzzle ?? null, (texto, tipo = 'info') => setAviso({ texto, tipo }))
   // Só paredes e salas: o resto do mapa (fichas andando na sessão) não redesenha o editor.
   const walls = useMapStore((estado) => estado.map.walls)
   const regions = useMapStore((estado) => estado.map.regions)
@@ -243,6 +249,26 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
     avisar('Modelo aplicado. Desfazer volta ao que estava.')
   }
 
+  /** Uma cena de fábrica do painel em relevo: as placas que já faltavam continuam faltando (o Desfazer volta). */
+  const usarCenaDoRelevo = (cena: CenaDoRelevo) => {
+    mudar((atual) => comVisualDoRelevo(atual, visualDoRelevo(cena, ehRelevo(atual.visual) ? atual.visual.metal : 'bronze')))
+    setEscolhido(null)
+    avisar('Painel em relevo aplicado. Clique nas placas do painel para escolher quais faltam.')
+  }
+
+  /** "Imagem sua em placas": a imagem vai para a mídia da mesa e é cortada nas mesmas placas do painel. */
+  const usarImagemDoRelevo = async (pegar: () => Promise<string | null> = escolherFundoDoPuzzle) => {
+    try {
+      const imagem = await pegar()
+      if (imagem === null) return
+      mudar((atual) => comVisualDoRelevo(atual, visualDoRelevo(null, ehRelevo(atual.visual) ? atual.visual.metal : 'bronze', imagem)))
+      setEscolhido(null)
+      avisar('Sua imagem está no painel, cortada em placas. Clique nas placas para escolher quais faltam.')
+    } catch (erro) {
+      avisar(`Não deu para usar a imagem: ${erro instanceof Error ? erro.message : String(erro)}.`, 'error')
+    }
+  }
+
   const usarImagem = async (pegar: () => Promise<string | null>) => {
     try {
       const imagem = await pegar()
@@ -339,6 +365,7 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   const numeroEscolhido = puzzle.encaixes.findIndex((encaixe) => encaixe.id === escolhido) + 1
   // Na combinação os encaixes ficam guardados, mas o quadro e a ficha mostram o controle e a resposta.
   const ehCombinacao = combinacaoDoPuzzle(puzzle) !== null
+  const relevo = ehRelevo(puzzle.visual) ? puzzle.visual : null
   const nomeDaPorta = alvo.tipo === 'copia' && edicao.porta !== null ? (opcoesDePorta.find((opcao) => opcao.id === edicao.porta)?.label ?? null) : null
   const porta: PortaDoEditor | null =
     alvo.tipo === 'copia'
@@ -386,19 +413,33 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
               </div>
             </header>
             <p className={classes('pze-aviso', aviso?.tipo === 'error' && 'pze-aviso--perigo')} role="status" aria-live="polite">
-              {aviso?.texto ?? (ehCombinacao ? 'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
+              {aviso?.texto ?? (relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
             </p>
             <div className="pze-corpo">
               <div className="pze-ficha-col">
                 <SecaoBasico puzzle={puzzle} mudar={mudar} />
-                <SecaoVisual puzzle={puzzle} mudar={mudar} onModelo={usarModelo} onImagem={() => void usarImagem(escolherFundoDoPuzzle)} />
-                <SecaoMecanica puzzle={puzzle} mudar={mudar} />
-                {ehCombinacao ? (
-                  <SecaoCombinacao puzzle={puzzle} mudar={mudar} />
+                <SecaoVisual
+                  puzzle={puzzle}
+                  mudar={mudar}
+                  onModelo={usarModelo}
+                  onImagem={() => void usarImagem(escolherFundoDoPuzzle)}
+                  onCenaDoRelevo={usarCenaDoRelevo}
+                  onImagemDoRelevo={() => void usarImagemDoRelevo()}
+                />
+                {relevo !== null ? (
+                  // O painel em relevo é sempre de placas no lugar certo: sem mecânica, sem encaixes soltos, sem troca.
+                  <SecaoPlacas puzzle={puzzle} mudar={mudar} visual={relevo} />
                 ) : (
-                  <SecaoEncaixes puzzle={puzzle} mudar={mudar} pecas={pecas} escolhido={escolhido} onEscolher={setEscolhido} onTirar={tirarEncaixe} usarPeca={usarPeca} />
+                  <>
+                    <SecaoMecanica puzzle={puzzle} mudar={mudar} />
+                    {ehCombinacao ? (
+                      <SecaoCombinacao puzzle={puzzle} mudar={mudar} />
+                    ) : (
+                      <SecaoEncaixes puzzle={puzzle} mudar={mudar} pecas={pecas} escolhido={escolhido} onEscolher={setEscolhido} onTirar={tirarEncaixe} usarPeca={usarPeca} />
+                    )}
+                    <SecaoTroca puzzle={puzzle} mudar={mudar} pecas={pecas} usarPeca={usarPeca} />
+                  </>
                 )}
-                <SecaoTroca puzzle={puzzle} mudar={mudar} pecas={pecas} usarPeca={usarPeca} />
                 <SecaoDica puzzle={puzzle} mudar={mudar} />
                 <SecaoDesfecho puzzle={puzzle} mudar={mudar} porta={porta} />
                 <SecaoCastigo puzzle={puzzle} mudar={mudar} />
@@ -411,7 +452,8 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   onEscolher={setEscolhido}
                   onMudar={mudar}
                   onTirar={tirarEncaixe}
-                  onImagemSolta={(arquivo) => void usarImagem(() => fundoDoPuzzleDoArquivo(arquivo))}
+                  onImagemSolta={(arquivo) => void (relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
+                  onAviso={avisar}
                 />
                 {ehCombinacao ? (
                   <div className="pze-barra">
@@ -431,6 +473,13 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                     </label>
                     <span className="pze-nota">Arraste o controle para onde ele fica na imagem.</span>
                   </div>
+                ) : relevo !== null ? (
+                  <div className="pze-barra">
+                    <span>
+                      Faltam {placasDoPuzzle(puzzle).length} placas (de {LACUNAS_DO_RELEVO_MIN} a {LACUNAS_DO_RELEVO_MAX})
+                    </span>
+                    <span className="pze-nota">Clique numa placa para ela faltar ou voltar ao painel.</span>
+                  </div>
                 ) : (
                 <div className="pze-barra">
                   <Botao variante="latao" tamanho="p" onClick={novoEncaixe}>
@@ -442,7 +491,7 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   <span className="pze-nota">Arraste para mover; a alça do canto muda o tamanho.</span>
                 </div>
                 )}
-                {!ehCombinacao && (
+                {!ehCombinacao && relevo === null && (
                 <BibliotecaDePecas
                   pecas={pecas}
                   selecionada={pecaEscolhida}

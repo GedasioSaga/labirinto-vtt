@@ -21,6 +21,7 @@ import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { ArteSvg } from './arte/ArteSvg'
 import { desenhoDoModelo, temMolduraPorta } from './arte/modelos'
 import { CorpoDoControle, estiloDoControle, nomeDoControle, type AcoesDaCombinacao, type TecladoDoControle } from './ControlesDaCombinacao'
+import { ArteDoRelevo, PlacaNoQuadro, useFonteDoPainel } from './relevo/PainelNoQuadro'
 import { PESO_MAX } from './tipos'
 import type { CombinacaoNaVista, EncaixeNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
 import './QuadroDoPuzzle.css'
@@ -74,29 +75,46 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
   const grao = graoDoQuadro()
   // A Porta de brasões: a placa e os encaixes somem quando a porta se abre.
   const encaixesSomem = visual.tipo === 'modelo' && visual.modelo === 'porta'
+  // O painel em relevo: a arte é o painel em bitmap, e cada encaixe com placa é o vão da placa que falta.
+  const relevo = visual.tipo === 'relevo' ? visual : null
+  const fonte = useFonteDoPainel(relevo)
 
   return (
     <div
       ref={props.ref}
-      className={classes('qpz', resolvido && 'is-resolvido', resolvido && abrindo && 'is-abrindo', temMolduraPorta(visual) && 'is-porta', props.className)}
+      className={classes('qpz', resolvido && 'is-resolvido', resolvido && abrindo && 'is-abrindo', temMolduraPorta(visual) && 'is-porta', relevo !== null && 'is-relevo', props.className)}
       role="group"
       aria-label={props.rotulo}
     >
-      <ArteDoQuadro visual={visual} prefixo={id} />
+      {relevo !== null ? <ArteDoRelevo visual={relevo} fonte={fonte} /> : <ArteDoQuadro visual={visual} prefixo={id} />}
       {grao !== null && <div className="qpz__grao" style={{ backgroundImage: `url(${grao})` }} aria-hidden="true" />}
       <div className="qpz__camada">
-        {encaixes.map((encaixe, i) => (
-          <EncaixeDoQuadro
-            key={encaixe.id}
-            encaixe={encaixe}
-            numero={i + 1}
-            resolvido={resolvido}
-            eu={props.eu}
-            alvo={props.alvos?.has(encaixe.id) ?? false}
-            some={encaixesSomem}
-            onTocar={props.onTocarEncaixe}
-          />
-        ))}
+        {encaixes.map((encaixe, i) =>
+          relevo !== null && encaixe.placa !== undefined ? (
+            <PlacaNoQuadro
+              key={encaixe.id}
+              encaixe={{ ...encaixe, placa: encaixe.placa }}
+              cena={relevo.cena}
+              fonte={fonte}
+              rotulo={rotuloDoEncaixe(encaixe, i + 1, resolvido, props.eu)}
+              resolvido={resolvido}
+              mostraQuem={encaixe.posta !== null && encaixe.posta.por !== '' && encaixe.posta.por !== props.eu && !resolvido}
+              alvo={props.alvos?.has(encaixe.id) ?? false}
+              onTocar={props.onTocarEncaixe}
+            />
+          ) : (
+            <EncaixeDoQuadro
+              key={encaixe.id}
+              encaixe={encaixe}
+              numero={i + 1}
+              resolvido={resolvido}
+              eu={props.eu}
+              alvo={props.alvos?.has(encaixe.id) ?? false}
+              some={encaixesSomem}
+              onTocar={props.onTocarEncaixe}
+            />
+          ),
+        )}
         {troca && (
           <TrocaDoQuadro
             troca={troca}
@@ -182,6 +200,7 @@ const ArteDoQuadro = memo(
 /** O que muda o desenho: o resto da vista (encaixes, mochila, rev) não. */
 function chaveDaArte(visual: VisualDoPuzzle): readonly string[] {
   if (visual.tipo === 'imagem') return ['imagem', visual.imagem ?? '']
+  if (visual.tipo === 'relevo') return ['relevo', visual.cena ?? '', visual.imagem ?? '', visual.metal]
   return ['modelo', visual.modelo, visual.moldura, visual.cores.parede, visual.cores.chao, visual.cores.objeto, visual.inscricao]
 }
 
@@ -293,6 +312,8 @@ function rotuloDoEncaixe(encaixe: EncaixeNaVista, numero: number, resolvido: boo
     conteudo = posta === null ? 'vazio' : posta.nome
   }
   const quem = posta !== null && posta.por !== '' && posta.por !== eu ? `, posto por ${posta.por}` : ''
+  // No painel em relevo, o encaixe é o vão de uma placa.
+  if (encaixe.placa !== undefined) return `Vão ${numero} do painel: ${posta === null ? 'falta uma placa' : posta.nome}${quem}${resolvido ? ', preso' : ''}`
   return `Encaixe ${numero}: ${conteudo}${quem}${resolvido ? ', preso' : ''}`
 }
 
