@@ -5,6 +5,7 @@ import { useImagemDaMesa } from '../ImagemDaMesa'
 import { combinacaoDoPuzzle, combinacaoNaVista } from '../../puzzles/combinacao'
 import { CorpoDoControle, estiloDoControle, nomeDoControle } from '../../puzzles/ControlesDaCombinacao'
 import { giratoriasDoPuzzle, giratoriasNaVista, girosResolvidos } from '../../puzzles/giratorias/giratorias'
+import { alvoDosInterruptores, interruptoresDoPuzzle, interruptoresNaVista } from '../../puzzles/interruptores/interruptores'
 import { progressoInicial } from '../../puzzles/motor'
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
 import { TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN, type CombinacaoDoPuzzle, type EncaixeDoPuzzle, type Puzzle } from '../../puzzles/tipos'
@@ -75,6 +76,10 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
   // O medalhão no editor é só para ver: o começo que o jogador encontra, ou fechado.
   const giratorias = giratoriasDoPuzzle(puzzle)
   const medalhao = giratorias === null ? undefined : { ...giratoriasNaVista(giratorias, progressoInicial(puzzle)), ...(verResolvido ? { giros: girosResolvidos(giratorias) } : {}) }
+  // O painel de lampiões também: o começo que o jogador encontra, ou como o objetivo pede.
+  const interruptores = interruptoresDoPuzzle(puzzle)
+  const painel = interruptores === null ? undefined : { ...interruptoresNaVista(interruptores, progressoInicial(puzzle)), ...(verResolvido ? { luzes: alvoDosInterruptores(interruptores) } : {}) }
+  const semEncaixes = medalhao !== undefined || painel !== undefined
 
   const comecar = (evento: PointerEvent<HTMLButtonElement>, encaixe: EncaixeDoPuzzle) => {
     if (evento.button !== 0 || arrasto.current !== null) return
@@ -183,13 +188,14 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
     >
       <QuadroDoPuzzle
         visual={puzzle.visual}
-        encaixes={relevo !== null && medalhao === undefined ? vaosDoEditor(puzzle) : []}
-        troca={troca === null || medalhao !== undefined ? null : { x: troca.x, y: troca.y, pesoPedido: troca.peso, naBandeja: [], feita: false }}
-        resolvido={medalhao !== undefined && verResolvido}
+        encaixes={relevo !== null && !semEncaixes ? vaosDoEditor(puzzle) : []}
+        troca={troca === null || semEncaixes ? null : { x: troca.x, y: troca.y, pesoPedido: troca.peso, naBandeja: [], feita: false }}
+        resolvido={semEncaixes && verResolvido}
         giratorias={medalhao}
+        interruptores={painel}
         rotulo={`Quadro do puzzle ${puzzle.nome}`}
       >
-        {medalhao !== undefined ? null : relevo !== null ? (
+        {semEncaixes ? null : relevo !== null ? (
           <CamadaDoRelevo puzzle={puzzle} visual={relevo} onMudar={(proximo) => onMudar(proximo)} onAviso={onAviso} />
         ) : (
         <div

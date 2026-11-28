@@ -16,9 +16,11 @@ import { PUZZLE_SEM_NOME, useMeusPuzzlesStore } from '../../stores/meusPuzzlesSt
 import { BibliotecaDePecas } from './BibliotecaDePecas'
 import { combinacaoDoPuzzle } from '../../puzzles/combinacao'
 import { giratoriasDoPuzzle } from '../../puzzles/giratorias/giratorias'
+import { interruptoresDoPuzzle, NOME_DA_LIGACAO } from '../../puzzles/interruptores/interruptores'
 import { ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN } from '../../puzzles/tipos'
 import { comControle, comEncaixeNovo, comGiratorias, comModelo, comVisual, encaixeComPeca, semEncaixe } from './edicao'
 import { SecaoGiratorias } from './FichaDoEditor/SecaoGiratorias'
+import { SecaoInterruptores } from './FichaDoEditor/SecaoInterruptores'
 import { SecaoCombinacao } from './FichaDoEditor/SecaoCombinacao'
 import { devolverAsPecas, useEditorDoPuzzleStore, type AlvoDoEditor } from './editorDoPuzzleStore'
 import { SecaoCastigo, SecaoDesfecho, SecaoDica, type PortaDoEditor } from './FichaDoEditor/SecaoDesfecho'
@@ -382,6 +384,9 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   // Na combinação os encaixes ficam guardados, mas o quadro e a ficha mostram o controle e a resposta.
   const ehCombinacao = combinacaoDoPuzzle(puzzle) !== null
   const giratorias = giratoriasDoPuzzle(puzzle)
+  const interruptores = interruptoresDoPuzzle(puzzle)
+  // O medalhão e o painel de lampiões não usam o visual, a troca de peso, o castigo nem a biblioteca de peças.
+  const semPecas = giratorias !== null || interruptores !== null
   const relevo = ehRelevo(puzzle.visual) ? puzzle.visual : null
   const nomeDaPorta = alvo.tipo === 'copia' && edicao.porta !== null ? (opcoesDePorta.find((opcao) => opcao.id === edicao.porta)?.label ?? null) : null
   const porta: PortaDoEditor | null =
@@ -430,12 +435,12 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
               </div>
             </header>
             <p className={classes('pze-aviso', aviso?.tipo === 'error' && 'pze-aviso--perigo')} role="status" aria-live="polite">
-              {aviso?.texto ?? (giratorias !== null ? 'O quadro mostra o medalhão como o jogador o encontra. Ver resolvido mostra o desenho fechado; Ctrl+Z desfaz.' : relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
+              {aviso?.texto ?? (interruptores !== null ? 'O quadro mostra o painel como o jogador o encontra. Ver resolvido mostra os lampiões como o objetivo pede; Ctrl+Z desfaz.' : giratorias !== null ? 'O quadro mostra o medalhão como o jogador o encontra. Ver resolvido mostra o desenho fechado; Ctrl+Z desfaz.' : relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
             </p>
             <div className="pze-corpo">
               <div className="pze-ficha-col">
                 <SecaoBasico puzzle={puzzle} mudar={mudar} />
-                {giratorias === null && (
+                {!semPecas && (
                 <SecaoVisual
                   puzzle={puzzle}
                   mudar={mudar}
@@ -451,7 +456,10 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                 ) : (
                   <>
                     <SecaoMecanica puzzle={puzzle} mudar={mudar} />
-                    {giratorias !== null ? (
+                    {interruptores !== null ? (
+                      // O painel não usa encaixes nem troca de peso: só os lampiões e as alavancas.
+                      <SecaoInterruptores puzzle={puzzle} mudar={mudar} />
+                    ) : giratorias !== null ? (
                       // O medalhão não usa encaixes nem troca de peso: só os anéis.
                       <SecaoGiratorias puzzle={puzzle} mudar={mudar} onImagem={() => void usarImagemDasGiratorias()} />
                     ) : ehCombinacao ? (
@@ -459,12 +467,12 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                     ) : (
                       <SecaoEncaixes puzzle={puzzle} mudar={mudar} pecas={pecas} escolhido={escolhido} onEscolher={setEscolhido} onTirar={tirarEncaixe} usarPeca={usarPeca} />
                     )}
-                    {giratorias === null && <SecaoTroca puzzle={puzzle} mudar={mudar} pecas={pecas} usarPeca={usarPeca} />}
+                    {!semPecas && <SecaoTroca puzzle={puzzle} mudar={mudar} pecas={pecas} usarPeca={usarPeca} />}
                   </>
                 )}
                 <SecaoDica puzzle={puzzle} mudar={mudar} />
                 <SecaoDesfecho puzzle={puzzle} mudar={mudar} porta={porta} />
-                {giratorias === null && <SecaoCastigo puzzle={puzzle} mudar={mudar} />}
+                {!semPecas && <SecaoCastigo puzzle={puzzle} mudar={mudar} />}
               </div>
               <div className="pze-palco">
                 <QuadroDoEditor
@@ -475,10 +483,20 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   onMudar={mudar}
                   onTirar={tirarEncaixe}
                   verResolvido={verResolvido}
-                  onImagemSolta={(arquivo) => void (giratorias !== null ? usarImagemDasGiratorias(() => fundoDoPuzzleDoArquivo(arquivo)) : relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
+                  onImagemSolta={(arquivo) => void (interruptores !== null ? avisar('O painel de lampiões não usa imagem.') : giratorias !== null ? usarImagemDasGiratorias(() => fundoDoPuzzleDoArquivo(arquivo)) : relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
                   onAviso={avisar}
                 />
-                {giratorias !== null ? (
+                {interruptores !== null ? (
+                  <div className="pze-barra">
+                    <span>
+                      Painel de {interruptores.quantos} lampiões, cada alavanca vira: {NOME_DA_LIGACAO[interruptores.ligacao].toLowerCase()}
+                    </span>
+                    <Botao tamanho="p" aria-pressed={verResolvido} onClick={() => setVerResolvido((antes) => !antes)}>
+                      {verResolvido ? 'Ver o começo' : 'Ver resolvido'}
+                    </Botao>
+                    <span className="pze-nota">{verResolvido ? 'Assim fica quando o jogador acerta os lampiões.' : 'Assim o jogador encontra o painel.'}</span>
+                  </div>
+                ) : giratorias !== null ? (
                   <div className="pze-barra">
                     <span>
                       Medalhão de {giratorias.aneis} anéis{giratorias.vizinhas ? ', cada um leva os do lado' : ''}
@@ -524,7 +542,7 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   <span className="pze-nota">Arraste para mover; a alça do canto muda o tamanho.</span>
                 </div>
                 )}
-                {!ehCombinacao && relevo === null && giratorias === null && (
+                {!ehCombinacao && relevo === null && !semPecas && (
                 <BibliotecaDePecas
                   pecas={pecas}
                   selecionada={pecaEscolhida}

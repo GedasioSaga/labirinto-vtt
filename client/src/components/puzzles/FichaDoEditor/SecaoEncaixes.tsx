@@ -4,6 +4,7 @@ import { classes } from '../../grimorio/comum'
 import { FORMAS_DO_ENCAIXE, NOME_DA_PECA_MAX, TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN, type EncaixeDoPuzzle, type FormaDoEncaixe, type Puzzle } from '../../../puzzles/tipos'
 import { NOME_DA_COMBINACAO } from '../../../puzzles/combinacao'
 import { NOME_DAS_GIRATORIAS } from '../../../puzzles/giratorias/giratorias'
+import { NOME_DOS_INTERRUPTORES } from '../../../puzzles/interruptores/interruptores'
 import { comEncaixe, comMecanica, encaixeComPeca, encaixeComViraDoPar, encaixeDoJeito, encaixeDoTamanho, mecanicaDoEditor, type MecanicaDoEditor } from '../edicao'
 import { imagemDoItem, NOMES_DAS_PECAS_INTEIRAS, viraDoPar, type PecaDoEditor, type PecasDoEditor } from '../pecasDoEditor'
 import { Secao, SeletorDePeca, type PropsDaSecao, type UsarPeca } from './comum'
@@ -26,6 +27,7 @@ const MECANICAS: readonly { valor: MecanicaDoEditor; rotulo: string }[] = [
   { valor: 'relogio', rotulo: NOME_DA_COMBINACAO.relogio },
   { valor: 'botoes', rotulo: NOME_DA_COMBINACAO.botoes },
   { valor: 'giratorias', rotulo: NOME_DAS_GIRATORIAS },
+  { valor: 'interruptores', rotulo: NOME_DOS_INTERRUPTORES },
 ]
 
 const JEITOS: readonly { valor: EncaixeDoPuzzle['jeito']; rotulo: string }[] = [
@@ -49,6 +51,8 @@ export function SecaoMecanica({ puzzle, mudar }: PropsDaSecao) {
       />
       {mecanica === 'giratorias' ? (
         <p className="pze-nota">Peças giratórias: o jogador gira os anéis do medalhão até o desenho fechar (ou os símbolos certos ficarem sob a marca). A resposta fica só com você, e girar errado não castiga. Os encaixes ficam guardados para quando voltar ao Encaixe.</p>
+      ) : mecanica === 'interruptores' ? (
+        <p className="pze-nota">Interruptores com estado: um painel de lampiões a gás, cada um com a sua alavanca. Puxar uma alavanca acende ou apaga o lampião dela e os ligados a ela; o painel cede quando os lampiões ficam como o objetivo pede. A regra fica só com você, e puxar não castiga. Os encaixes ficam guardados para quando voltar ao Encaixe.</p>
       ) : mecanica !== 'encaixe' && mecanica !== 'ordem' ? (
         <p className="pze-nota">Combinação: a resposta fica só com você. O jogador mexe no controle sobre a imagem e tenta; errar castiga. Os encaixes ficam guardados para quando voltar ao Encaixe.</p>
       ) : mecanica === 'encaixe' ? (
@@ -61,7 +65,6 @@ export function SecaoMecanica({ puzzle, mudar }: PropsDaSecao) {
       ) : (
         <p className="pze-nota">Ordem certa: qualquer peça do puzzle entra em qualquer encaixe, e a tranca só cede com cada peça no seu número. Errar a ordem castiga.</p>
       )}
-      <p className="pze-nota">Interruptores e luzes chegam numa próxima versão.</p>
     </Secao>
   )
 }

@@ -8,6 +8,9 @@ import { situacaoDaCopia, type SituacaoDaCopia } from '../../puzzles/meusPuzzles
 import { puzzleDoModelo } from '../../puzzles/padroes'
 import { urlDaBase, urlDoDisco } from '../../puzzles/giratorias/arte'
 import { giratoriasDoPuzzle } from '../../puzzles/giratorias/giratorias'
+import { urlDaBaseDoPainel } from '../../puzzles/interruptores/arte'
+import { alvoDosInterruptores, interruptoresDoPuzzle } from '../../puzzles/interruptores/interruptores'
+import { PainelDeInterruptores } from '../../puzzles/interruptores/PainelDeInterruptores'
 import { urlDoSvgDoPainel } from '../../puzzles/relevo/miniatura'
 import type { IdDaPecaDesenhada, MinigamePuzzle, ModeloDePuzzle, Puzzle } from '../../puzzles/tipos'
 import { lerOAcervoSeFaltar } from '../../stores/acervoDeItensStore'
@@ -153,6 +156,18 @@ export function MiniaturaDoPuzzle({ puzzle, prefixo }: { puzzle: Puzzle; prefixo
   const arte = useMemo(() => (visual.tipo === 'modelo' ? desenhoDoModelo(visual, prefixo) : null), [visual, prefixo])
   // O painel em relevo: a cena em SVG (o navegador desenha no tamanho da miniatura), ou a imagem do mestre.
   const src = visual.tipo === 'imagem' ? resolver(visual.imagem) : visual.tipo === 'relevo' ? (visual.cena !== null ? urlDoSvgDoPainel(visual.cena, visual.metal) : resolver(visual.imagem)) : null
+  // Os interruptores: o painel com os lampiões como o objetivo pede, no lugar do visual (que o painel não usa).
+  const interruptores = interruptoresDoPuzzle(puzzle)
+  if (interruptores !== null) {
+    const desenho = interruptores.objetivo === 'desenho' && interruptores.desenhoNoPainel ? interruptores.desenho : null
+    const vista = { material: interruptores.material, luzes: alvoDosInterruptores(interruptores), objetivo: interruptores.objetivo, desenho }
+    return (
+      <span className="pzm-mini" aria-hidden="true">
+        <img className="pzm-mini__arte" src={urlDaBaseDoPainel(interruptores.material, interruptores.quantos, desenho)} alt="" draggable={false} />
+        <PainelDeInterruptores interruptores={vista} resolvido={false} />
+      </span>
+    )
+  }
   // As peças giratórias: o medalhão fechado na parede, no lugar do visual (que o medalhão não usa).
   const giratorias = giratoriasDoPuzzle(puzzle)
   if (giratorias !== null) {

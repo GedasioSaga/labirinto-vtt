@@ -1,8 +1,9 @@
 import { aceitaMolduraPorta, NOME_DO_MODELO, PADROES_DOS_MODELOS, PESO_DA_TROCA_PADRAO, POSICAO_DA_TROCA_PADRAO, puzzleAbrePorta, puzzleDoModelo } from '../../puzzles/padroes'
 import { combinacaoDoPuzzle, combinacaoPadrao } from '../../puzzles/combinacao'
 import { giratoriasDoPuzzle, giratoriasPadrao } from '../../puzzles/giratorias/giratorias'
+import { interruptoresDoPuzzle, interruptoresPadrao } from '../../puzzles/interruptores/interruptores'
 import { ENCAIXES_MAX, ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN, TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN } from '../../puzzles/tipos'
-import type { CombinacaoDoPuzzle, EncaixeDoPuzzle, FormaDaCombinacao, GiratoriasDoPuzzle, IdDaPecaDesenhada, ModeloDoPuzzle, Puzzle, VisualDoPuzzle } from '../../puzzles/tipos'
+import type { CombinacaoDoPuzzle, EncaixeDoPuzzle, FormaDaCombinacao, GiratoriasDoPuzzle, InterruptoresDoPuzzle, IdDaPecaDesenhada, ModeloDoPuzzle, Puzzle, VisualDoPuzzle } from '../../puzzles/tipos'
 
 /**
  * AS CONTAS DO EDITOR DO PUZZLE, puras: cada uma recebe o puzzle do editor e
@@ -60,11 +61,12 @@ export function comModelo(puzzle: Puzzle, modelo: ModeloDoPuzzle, pecas: Partial
   return comPortaCoerente(proximo)
 }
 
-/** A mecânica do seletor do editor (v2): Encaixe, Ordem certa, um dos 4 tipos de combinação, ou as Peças giratórias (28/11). */
-export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao | 'giratorias'
+/** A mecânica do seletor do editor (v2): Encaixe, Ordem certa, um dos 4 tipos de combinação, as Peças giratórias ou os Interruptores (28/11). */
+export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao | 'giratorias' | 'interruptores'
 
 export function mecanicaDoEditor(puzzle: Puzzle): MecanicaDoEditor {
   if (giratoriasDoPuzzle(puzzle) !== null) return 'giratorias'
+  if (interruptoresDoPuzzle(puzzle) !== null) return 'interruptores'
   const combinacao = combinacaoDoPuzzle(puzzle)
   if (combinacao !== null) return combinacao.forma
   return puzzle.regra === 'ordem' ? 'ordem' : 'encaixe'
@@ -83,6 +85,7 @@ export function comMecanica(puzzle: Puzzle, mecanica: MecanicaDoEditor): Puzzle 
     return comPortaCoerente({ ...semCombinacao, regra: mecanica === 'ordem' ? 'ordem' : puzzle.regra === 'ordem' ? 'lugarCerto' : puzzle.regra })
   }
   if (mecanica === 'giratorias') return { ...puzzle, futuro: giratoriasPadrao() }
+  if (mecanica === 'interruptores') return { ...puzzle, futuro: interruptoresPadrao() }
   return comPortaCoerente({ ...puzzle, futuro: combinacaoPadrao(mecanica) })
 }
 
@@ -90,6 +93,12 @@ export function comMecanica(puzzle: Puzzle, mecanica: MecanicaDoEditor): Puzzle 
 export function comGiratorias(puzzle: Puzzle, mudar: (giratorias: GiratoriasDoPuzzle) => GiratoriasDoPuzzle): Puzzle {
   const giratorias = giratoriasDoPuzzle(puzzle)
   return giratorias === null ? puzzle : { ...puzzle, futuro: mudar(giratorias) }
+}
+
+/** O painel do editor trocado pelo que `mudar` devolver (só quando o puzzle é de interruptores). */
+export function comInterruptores(puzzle: Puzzle, mudar: (interruptores: InterruptoresDoPuzzle) => InterruptoresDoPuzzle): Puzzle {
+  const interruptores = interruptoresDoPuzzle(puzzle)
+  return interruptores === null ? puzzle : { ...puzzle, futuro: mudar(interruptores) }
 }
 
 /** A combinação do editor trocada pela que `mudar` devolver (só quando o puzzle é de combinação). */

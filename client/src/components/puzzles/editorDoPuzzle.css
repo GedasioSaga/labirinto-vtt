@@ -977,3 +977,56 @@ body.pze-arrastando * {
   object-fit: cover;
   clip-path: circle(44% at 50% 50%);
 }
+
+/* Os interruptores (28/11): o painel em miniatura na ficha (a regra do mestre e o desenho). Cada casa tem 44 px. */
+.pze-lampioes {
+  display: grid;
+  gap: 6px;
+  justify-content: start;
+}
+.pze-lampiao {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-sm);
+  background: #1d1915;
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  transition: border-color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out);
+}
+.pze-lampiao:active {
+  transform: scale(0.96);
+}
+.pze-lampiao:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+.pze-lampiao__luz {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: #2b2621;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.08);
+  transition: background-color var(--lb-motion-fast) ease, box-shadow var(--lb-motion-fast) ease;
+}
+.pze-lampiao[aria-pressed='true'] .pze-lampiao__luz {
+  background: #ffc35c;
+  box-shadow: 0 0 10px 3px rgba(255, 168, 70, 0.55), inset 0 0 0 1.5px #fff0c4;
+}
+.pze-lampiao__n {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  font: 600 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+}
+/* A alavanca que está sendo ligada: a borda de latão (o lampião dela vira sempre, então fica aceso). */
+.pze-lampiao[data-destaque] {
+  border-color: var(--lb-color-brass-bright);
+  box-shadow: 0 0 0 1px var(--lb-color-brass-bright);
+}

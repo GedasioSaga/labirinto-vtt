@@ -92,6 +92,7 @@ import {
 import { combinacaoDoPuzzle, mecanicaDesconhecida, NOME_DA_COMBINACAO } from '../puzzles/combinacao'
 import { NOME_DO_MODELO, puzzleAbrePorta } from '../puzzles/padroes'
 import { aneisNoLugar, giratoriasDoPuzzle, NOME_DAS_GIRATORIAS, NOME_DO_MATERIAL } from '../puzzles/giratorias/giratorias'
+import { interruptoresDoPuzzle, lampioesCertos, NOME_DA_LIGACAO, NOME_DO_MATERIAL_DO_PAINEL, NOME_DO_OBJETIVO, NOME_DOS_INTERRUPTORES } from '../puzzles/interruptores/interruptores'
 import { NOME_DA_CENA } from '../puzzles/relevo/arte'
 import { nomeDoRelevo } from '../puzzles/relevo/relevo'
 import { contagemDoPuzzle, pecasPostas, progressoInicial } from '../puzzles/motor'
@@ -870,6 +871,9 @@ function textoDoProgresso(puzzle: MinigamePuzzle['puzzle'], progresso: Progresso
   // O medalhão não tem erro: só quantos anéis já estão no lugar (o mestre pode ver; o jogador não).
   const giratorias = giratoriasDoPuzzle(puzzle)
   if (giratorias !== null) return `${aneisNoLugar(giratorias, progresso)} de ${giratorias.aneis} anéis no lugar`
+  // O painel também: quantos lampiões já estão como o objetivo pede.
+  const interruptores = interruptoresDoPuzzle(puzzle)
+  if (interruptores !== null) return `${lampioesCertos(interruptores, progresso)} de ${interruptores.quantos} lampiões certos`
   if (combinacaoDoPuzzle(puzzle) !== null) return progresso.erros === 0 ? 'Ainda não abriu' : progresso.erros === 1 ? 'Ainda não abriu · 1 erro' : `Ainda não abriu · ${progresso.erros} erros`
   const { postos, total } = contagemDoPuzzle(puzzle, progresso)
   const erros = progresso.erros === 0 ? '' : progresso.erros === 1 ? ' · 1 erro' : ` · ${progresso.erros} erros`
@@ -908,7 +912,15 @@ function PainelDoPuzzle({ pinId, porta, minigame }: Pick<MinigameControlsProps, 
   const versaoNova = minigame.versao > VERSAO_DO_PUZZLE || mecanicaDesconhecida(puzzle)
   const combinacao = combinacaoDoPuzzle(puzzle)
   const giratorias = giratoriasDoPuzzle(puzzle)
-  const linhas: readonly { rotulo: string; valor: string }[] = giratorias !== null ? [
+  const interruptores = interruptoresDoPuzzle(puzzle)
+  const linhas: readonly { rotulo: string; valor: string }[] = interruptores !== null ? [
+    // O painel de lampiões: o visual do quadro é o dele, sem troca de peso e sem castigo.
+    { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
+    { rotulo: 'Mecânica', valor: `${NOME_DOS_INTERRUPTORES}: ${interruptores.quantos} lampiões na chapa de ${NOME_DO_MATERIAL_DO_PAINEL[interruptores.material].toLowerCase()}, cada alavanca vira: ${NOME_DA_LIGACAO[interruptores.ligacao].toLowerCase()}` },
+    { rotulo: 'Objetivo', valor: interruptores.objetivo === 'todas' ? NOME_DO_OBJETIVO.todas : `${NOME_DO_OBJETIVO.desenho} (${interruptores.desenhoNoPainel ? 'na plaqueta do painel' : 'só com você'})` },
+    { rotulo: 'Ao resolver', valor: textoDoDesfecho(puzzle.desfecho, ehPorta) },
+    { rotulo: 'Progresso', valor: textoDoProgresso(puzzle, progresso) },
+  ] : giratorias !== null ? [
     // O medalhão: o visual do quadro é o dele, sem troca de peso e sem castigo.
     { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
     { rotulo: 'Desenho', valor: giratorias.desenho === 'cena' ? `Cena em relevo: ${NOME_DA_CENA[giratorias.cena]}` : giratorias.desenho === 'imagem' ? 'Imagem própria' : 'Símbolos sob a marca' },

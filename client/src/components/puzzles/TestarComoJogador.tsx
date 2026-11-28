@@ -9,6 +9,7 @@ import type { PvNaTela, TesteNaTela } from '../../player/puzzle/tipos'
 import { urlDaPeca } from '../../puzzles/arte/pecas'
 import { combinacaoDoPuzzle } from '../../puzzles/combinacao'
 import { giratoriasDoPuzzle } from '../../puzzles/giratorias/giratorias'
+import { interruptoresDoPuzzle } from '../../puzzles/interruptores/interruptores'
 import { puzzleAbrePorta } from '../../puzzles/padroes'
 import { CATEGORIA_DA_PECA_DE_PUZZLE, type PecaDoAcervo, type Puzzle, type QuemMexe, type TrocaDePeso } from '../../puzzles/tipos'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
@@ -167,6 +168,8 @@ function mochilaDeTeste(puzzle: Puzzle, pecas: PecasDoEditor, itens: readonly It
   const base = puzzle.encaixes.map((encaixe) => encaixe.id).join(',')
   // O medalhão não usa peça nenhuma (nem a troca de peso): a mochila do teste vem vazia.
   if (giratoriasDoPuzzle(puzzle) !== null) return []
+  // O painel de lampiões também não (só alavancas).
+  if (interruptoresDoPuzzle(puzzle) !== null) return []
   // A combinação não usa peças (v2: a mochila do teste vem vazia); só as pedras, se houver troca de peso.
   if (combinacaoDoPuzzle(puzzle) !== null) return pedrasDaTroca(puzzle.troca).map((itemId, i): CarriedItem => ({ ...itemDaPeca(itemId, pecas, itens), id: `vaga-de-teste-${i}` }))
   const servem = [...pecasCertas(puzzle), ...pedrasDaTroca(puzzle.troca)]
@@ -195,6 +198,8 @@ function ganhosDoDesfecho(puzzle: Puzzle, titulos: ReadonlyMap<string, string>):
 /** O aviso do v2 ao testar: um encaixe sem peça certa não fecha em regra nenhuma; a sequência vazia, também. `null` = nada falta. */
 function avisoDosEncaixesSemPeca(puzzle: Puzzle): string | null {
   // O medalhão guarda os encaixes de antes sem usá-los: só a imagem própria que falta impede de jogar.
+  // O painel de lampiões sempre tem volta e não usa peça: nada impede de jogar.
+  if (interruptoresDoPuzzle(puzzle) !== null) return null
   const giratorias = giratoriasDoPuzzle(puzzle)
   if (giratorias !== null) return giratorias.desenho === 'imagem' && giratorias.imagem === null ? 'O medalhão ainda não tem imagem: escolha uma no editor, em Medalhão.' : null
   const combinacao = combinacaoDoPuzzle(puzzle)
