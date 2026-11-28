@@ -3,9 +3,11 @@ import { golpesDeHabilidade } from '../../components/batalha/dadosDoMenu'
 import { atributoComposto, maximoComposto } from '../ajusteDaFicha'
 import { numeroDaFicha, type Personagem } from '../personagem'
 import { combateVazio, type GolpeDaBatalha, type LembreteDaMarca, type PedidoDeAcao } from './combate'
-import { esquivaComDesvantagem, vantagemDaReacao } from './condicoes'
+import { CURA_REDUZIDA_PADRAO, esquivaComDesvantagem, NOME_DA_CURA_REDUZIDA, vantagemDaReacao } from './condicoes'
 import { sistema } from './fichasDaFatiaB.testkit'
 import {
+  ARMA_DA_ROSA,
+  BALA_DA_PRATA,
   BALA_DE_PRATA,
   CHIFRES,
   CHUTE,
@@ -19,14 +21,14 @@ import {
   PARTE_3,
   PASSO_DE_VALSA,
   RECUPERACAO_DE_FORCAS,
-  ROSA_FUNEBRE,
   ryokoCom,
   SOPRO_1,
+  vincentArmado,
   vincentCom,
 } from './fichasDaFatiaE.testkit'
 import { danoDoAtaque, lerDano } from './formula'
 import { lancarGolpe, podeAgir, type ContextoDoGolpe } from './golpe'
-import { ehPerfurante } from './leituraDaFicha'
+import { armasDe, balaDaArma, ehPerfurante } from './leituraDaFicha'
 import { danoDaTecnica } from './leituraDaTecnica'
 import { acertoNaMarca, criarMarca, marcaDoToken } from './marca'
 import { chavesDoDono, motivoDasRespostasDoGolpe, motivoDoTetoDeDano, perguntasDoGolpe, saidasTiradasDoDono, somaCorpoACorpo } from './mecanicasAMao'
@@ -205,22 +207,27 @@ describe('Vincent: Passo de Valsa e Desenhar o alvo', () => {
 })
 
 describe('Vincent: Bala de Prata, a marca e o Escudo', () => {
-  it('Bala de Prata: 35 + 20 + 17 = 72 no Atacar e no Desenhar; o tiro deixa "Ferido por prata" (só lembrete)', () => {
-    const vincent = vincentCom()
-    const bala = { nome: BALA_DE_PRATA.nome, dano: BALA_DE_PRATA.campos.dano ?? '' }
-    expect(danoDoAtaque({ personagem: vincent, sistema, arma: ROSA_FUNEBRE, vidaDoAlvo: null }, bala)).toMatchObject({ tipo: 'valor', valor: 72 })
-    expect(lerDano(DESENHAR.campos.dano ?? '', { personagem: vincent, sistema, arma: ROSA_FUNEBRE, vidaDoAlvo: null, bala })).toMatchObject({ tipo: 'valor', valor: 72 })
-    const golpe = lancarGolpe(contexto(vincent, ryokoCom()), atacar(72, { armaId: ROSA_FUNEBRE.id, balaId: BALA_DE_PRATA.id }), IDS).golpe
-    expect(golpe?.seloDaBala).toEqual({ nome: 'Ferido por prata', turnos: null, natureza: 'debuff' })
+  // Itens refeitos (E6a/E6c): a Rosa Fúnebre equipada na mochila, a prata no pente; o selo da prata é a Cura reduzida
+  // do "Ao acertar" da bala (25/11/2026: no lugar do lembrete "Ferido por prata"; o palpite pelo nome não vale na bala do pente).
+  it('Bala de Prata: 35 + 20 + 17 = 72 no Atacar e no Desenhar; o tiro deixa a Cura reduzida (antes o lembrete "Ferido por prata")', () => {
+    const vincent = vincentArmado()
+    const rosa = armasDe(vincent).find((arma) => arma.id === ARMA_DA_ROSA)
+    if (rosa === undefined) throw new Error('a Rosa Fúnebre não está equipada')
+    const bala = balaDaArma(rosa, BALA_DA_PRATA)
+    if (bala === null) throw new Error('a Bala de Prata não está no pente')
+    expect(danoDoAtaque({ personagem: vincent, sistema, arma: rosa, vidaDoAlvo: null }, bala)).toMatchObject({ tipo: 'valor', valor: 72 })
+    expect(lerDano(DESENHAR.campos.dano ?? '', { personagem: vincent, sistema, arma: rosa, vidaDoAlvo: null, bala })).toMatchObject({ tipo: 'valor', valor: 72 })
+    const golpe = lancarGolpe(contexto(vincent, ryokoCom()), atacar(72, { armaId: ARMA_DA_ROSA, balaId: BALA_DA_PRATA }), IDS).golpe
+    expect(golpe?.aoAcertar).toEqual({ condicoes: [{ nome: NOME_DA_CURA_REDUZIDA, duracao: 'fim', n: CURA_REDUZIDA_PADRAO }], origem: BALA_DE_PRATA.nome })
   })
 
   it('revisão: o Desenhar o alvo com a Bala de Prata leva a marca E o selo da bala; a bala só na técnica que diz "Dano da Bala"', () => {
-    const ctx = contexto(vincentCom(), ryokoCom())
-    const desenhar: PedidoDeAcao = { ...tecnica(DESENHAR.id, 72), armaId: ROSA_FUNEBRE.id, balaId: BALA_DE_PRATA.id }
+    const ctx = contexto(vincentArmado(), ryokoCom())
+    const desenhar: PedidoDeAcao = { ...tecnica(DESENHAR.id, 72), armaId: ARMA_DA_ROSA, balaId: BALA_DA_PRATA }
     expect(podeAgir(ctx, desenhar)).toBeNull()
     const golpe = lancarGolpe(ctx, desenhar, IDS).golpe
-    expect([golpe?.marca, golpe?.seloDaBala?.nome, golpe?.bala?.nome]).toEqual([DESENHAR.id, 'Ferido por prata', BALA_DE_PRATA.nome])
-    expect(podeAgir(ctx, { ...tecnica(PASSO_DE_VALSA.id, 0), armaId: ROSA_FUNEBRE.id, balaId: BALA_DE_PRATA.id })).toBe('Bala não encontrada na arma')
+    expect([golpe?.marca, golpe?.aoAcertar?.condicoes.map((condicao) => condicao.nome), golpe?.bala?.nome]).toEqual([DESENHAR.id, [NOME_DA_CURA_REDUZIDA], BALA_DE_PRATA.nome])
+    expect(podeAgir(ctx, { ...tecnica(PASSO_DE_VALSA.id, 0), armaId: ARMA_DA_ROSA, balaId: BALA_DA_PRATA })).toBe('Bala não encontrada na arma')
   })
 
   it('o tiro que gasta a marca dobra (55 → 110) e já marca de novo; o marcado ESQUIVA com desvantagem (Defender usa o d20)', () => {

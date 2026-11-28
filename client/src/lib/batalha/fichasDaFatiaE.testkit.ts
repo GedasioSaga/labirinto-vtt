@@ -1,5 +1,10 @@
+import type { CarriedItem } from '../../types/map'
+import { pecasDoItemGuardadas } from '../itens/editorDoItem'
+import type { RegraDaVaga } from '../itens/modelo'
 import type { CartaoDaFicha, Personagem } from '../personagem'
+import { CURA_REDUZIDA_PADRAO, NOME_DA_CURA_REDUZIDA } from './condicoes'
 import { ficha } from './fichasDaFatiaB.testkit'
+import { PREFIXO_DA_ARMA_DA_MOCHILA, PREFIXO_DA_MUNICAO } from './leituraDaFicha'
 
 /**
  * Conserto das fichas F2, fatia E: os cartões REAIS da Ryoko D. Violet e do
@@ -91,4 +96,48 @@ export const ATRIBUTOS_DO_VINCENT = { forca: 10, agilidade: 35, percepcao: 35, r
 export function vincentCom(recursos = { hp: 600, sp: 60, escudo: 20 }): Personagem {
   const base = ficha('Vincent G.', ATRIBUTOS_DO_VINCENT, recursos, { habilidades: [OLHAR, DESENHAR, PASSO_DE_VALSA], armas: [ROSA_FUNEBRE] })
   return { ...base, id: 'pers_ab10bcaa-1d1f-465d-91a3-4c6638ef838c', escolhas: { raca: 'Humano', oficio: 'Artista' }, maximos: { hp: 600, sp: 60 } }
+}
+
+/**
+ * ITENS REFEITOS (E6a e E6c): a Rosa Fúnebre e a Bala de Prata como o Vincent as tem hoje. A arma é a
+ * vaga EQUIPADA da mochila (dano 20 + Percepção, pente de 10 que aceita a prata), e a bala é um item de
+ * Munição. A regra mora na vaga (o Worker do Lobby e o jogador não têm o Acervo): "+Percepção / 2"
+ * (o que a conversão lê do tipo de bala) e, ao acertar, a Cura reduzida 50% até o fim da batalha
+ * (25/11/2026: no lugar do lembrete "Ferido por prata"). O cartão da aba Armas fica, mas não vale na batalha.
+ */
+export const ID_DA_PRATA = 'item_bala-de-prata'
+export const VAGA_DA_ROSA = 'vaga_rosa'
+export const VAGA_DA_PRATA = 'vaga_prata'
+/** Os ids que a batalha usa no pedido: a arma da mochila e a bala do pente. */
+export const ARMA_DA_ROSA = `${PREFIXO_DA_ARMA_DA_MOCHILA}${VAGA_DA_ROSA}`
+export const BALA_DA_PRATA = `${PREFIXO_DA_MUNICAO}${ID_DA_PRATA}`
+/** "Capacidade de 10 Balas", da descrição da Rosa Fúnebre real. */
+export const CAPACIDADE_DA_ROSA = 10
+
+export const REGRA_DA_PRATA: RegraDaVaga = {
+  bala: { modo: 'atributo', valor: 0, atributo: 'Percepção', divisor: 2 },
+  aoAcertar: pecasDoItemGuardadas([{ tipo: 'condicao', nome: NOME_DA_CURA_REDUZIDA, duracao: 'fim', n: CURA_REDUZIDA_PADRAO }], 'acerto'),
+}
+
+/** A Rosa Fúnebre equipada, com `noPente` Balas de Prata no pente (0 = pente vazio, sem o campo). */
+export function rosaNaMochila(noPente: number): CarriedItem {
+  return {
+    id: VAGA_DA_ROSA,
+    nome: ROSA_FUNEBRE.nome,
+    itemId: 'item_rosa-funebre',
+    tipo: 'fogo',
+    equipado: true,
+    ...(noPente > 0 ? { pente: { balaId: ID_DA_PRATA, n: noPente } } : {}),
+    regra: { ataque: { dano: 20, soma: 'percepcao', acao: 'Ação Simples', alvos: 1 }, pente: { capacidade: CAPACIDADE_DA_ROSA, aceita: [ID_DA_PRATA], recarga: { acao: 'Ação Simples', rodadas: 0 } } },
+  }
+}
+
+/** A pilha de `quantas` Balas de Prata fora do pente (a recarga tira dela). */
+export function pratasNaMochila(quantas: number): CarriedItem {
+  return { id: VAGA_DA_PRATA, nome: BALA_DE_PRATA.nome, itemId: ID_DA_PRATA, tipo: 'municao', categoria: 'Munição', empilhavel: true, ...(quantas > 1 ? { quantidade: quantas } : {}), regra: REGRA_DA_PRATA }
+}
+
+/** O Vincent de hoje: a Rosa com `noPente` no pente e `naMochila` Balas de Prata fora dele (0 = sem a pilha). */
+export function vincentArmado(noPente = 6, naMochila = 4): Personagem {
+  return { ...vincentCom(), mochila: [rosaNaMochila(noPente), ...(naMochila > 0 ? [pratasNaMochila(naMochila)] : [])] }
 }

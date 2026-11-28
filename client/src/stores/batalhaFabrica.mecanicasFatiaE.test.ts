@@ -9,7 +9,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao, PedidoDeReacao } from '../lib/batalha/combate'
-import { BALA_DE_PRATA, DESENHAR, RECUPERACAO_DE_FORCAS, ROSA_FUNEBRE, ryokoCom, vincentCom } from '../lib/batalha/fichasDaFatiaE.testkit'
+import { NOME_DA_CURA_REDUZIDA } from '../lib/batalha/condicoes'
+import { ARMA_DA_ROSA, BALA_DA_PRATA, DESENHAR, RECUPERACAO_DE_FORCAS, ryokoCom, vincentArmado, vincentCom } from '../lib/batalha/fichasDaFatiaE.testkit'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
 import { numeroDaFicha, type Personagem } from '../lib/personagem'
@@ -21,9 +22,9 @@ const CENA = 'cena_da_batalha'
 const MESTRE: AutorDaAcao = { tipo: 'mestre' }
 const JOGADOR: AutorDaAcao = { tipo: 'jogador', playerId: 'jogador_1', nome: 'Jogador' }
 
-function batalha(ryoko: Personagem = ryokoCom()): { loja: LojaDaBatalha; mesa: MesaEmMemoria; fila: number[] } {
+function batalha(ryoko: Personagem = ryokoCom(), vincent: Personagem = vincentCom()): { loja: LojaDaBatalha; mesa: MesaEmMemoria; fila: number[] } {
   const fila: number[] = []
-  const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: vincentCom(), lado: 'a' }, { ficha: ryoko, lado: 'b' }]))
+  const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: vincent, lado: 'a' }, { ficha: ryoko, lado: 'b' }]))
   const loja = criarBatalhaStore(mesa, { rolarD20: () => fila.shift() ?? 10, outraBatalhaLigada: () => false })
   const tokens = mesa.tokens()
   const combatentes = combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id)))
@@ -110,16 +111,18 @@ describe('revisão da fatia E: Recuperação de forças contra Surpresa, só pel
 })
 
 describe('revisão da fatia E: a Bala de Prata no Desenhar o alvo', () => {
-  it('o tiro acerta: a Ryoko fica Marcada E Ferida por prata', () => {
-    const { loja, fila } = batalha()
+  // Itens refeitos (E6a/E6c): a Rosa equipada na mochila e a prata no pente; o selo da prata é a Cura reduzida do
+  // "Ao acertar" da bala (25/11/2026: no lugar do lembrete "Ferido por prata").
+  it('o tiro acerta: a Ryoko fica Marcada E com a Cura reduzida (antes "Ferido por prata")', () => {
+    const { loja, fila } = batalha(ryokoCom(), vincentArmado())
     const ryoko = carta(loja, 'Ryoko')
-    const desenhar: PedidoDeAcao = { tipo: 'habilidade', cartaoId: DESENHAR.id, armaId: ROSA_FUNEBRE.id, balaId: BALA_DE_PRATA.id, alvos: [{ tokenId: ryoko.tokenId, dano: 72 }], surpresa: false, perfurante: true, custo: null, acao: null }
+    const desenhar: PedidoDeAcao = { tipo: 'habilidade', cartaoId: DESENHAR.id, armaId: ARMA_DA_ROSA, balaId: BALA_DA_PRATA, alvos: [{ tokenId: ryoko.tokenId, dano: 72 }], surpresa: false, perfurante: true, custo: null, acao: null }
     expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Vincent'), desenhar)).toBe(true)
     fila.push(5)
     expect(loja.getState().reagir(CENA, MESTRE, { tipo: 'rolar', golpeId: golpeId(loja), tokenId: ryoko.tokenId, modificador: 0 })).toBe(true)
     expect(loja.getState().reagir(CENA, MESTRE, { tipo: 'escolher', golpeId: golpeId(loja), tokenId: ryoko.tokenId, saida: 'cheio' })).toBe(true)
     const nomes = (cena(loja).turnos.selos ?? []).filter((selo) => selo.tokenId === ryoko.tokenId).map((selo) => selo.nome)
-    expect(nomes).toEqual(expect.arrayContaining(['Ferido por prata']))
+    expect(nomes).toEqual(expect.arrayContaining([NOME_DA_CURA_REDUZIDA]))
     expect(nomes.some((nome) => nome.startsWith('Marcad'))).toBe(true)
   })
 })
