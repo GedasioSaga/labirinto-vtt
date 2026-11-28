@@ -1,3 +1,8 @@
+# 28/11 ~08h: DISCO CRÍTICO (2,4 GB livres): o pagefile cresceu para 35,9 GB (alocado; uso 5,5 GB) por pressão de RAM. SÓ REINICIAR O PC DEVOLVE (~30 GB). Não reiniciei (é decisão do dono). Caches pequenos (<1 GB cada); Animaçõessaida tem 15 GB de quadros intermediários de animações (não apaguei: são do dono).
+- 0.6.12: release/0.6.12 pronta de d598abfa, publicador (afd73c86) esperando disco >= 8 GB para compilar.
+- Arte onda 2: desenhada (L04 sem commit, L05 commitado, L06 parcial); integrador (aa9f8f3b) rodando com piso de disco 1,5 GB, sem build/render.
+- Puzzle 4 (cooperação) em construção (a2daafa7).
+
 # 28/11 ~07h: 0.6.11 PUBLICADA (Painel em relevo). 0.6.12 PUBLICANDO de d598abfa (agente afd73c86): giratórias, interruptores, arte onda 1, bugs rodadas 1-3 (Arma padrão), conserto de pureza da nuvem (d598abfa: pisoDaEntidade.ts; culpado era 954adab4).
 - Arte onda 2 (wf_fed20926-7f8): L04-L06 desenhando; arquivos novos sem commit com TS6133 (chaoDeMina.ts, gradeDeCorredorVersoes.ts) — o integrador limpa.
 - Abertos dos bugs: jogador não marca Arma padrão pela tela dele; armas convertidas com Alvos 1; golpe Híbrido sem teto de alvos.
