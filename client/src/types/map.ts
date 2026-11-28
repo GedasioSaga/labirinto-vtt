@@ -138,6 +138,7 @@ export type MaterialDaParede =
   | 'tijolo-com-limo'
   | 'parede-caiada'
   | 'taipa'
+  | 'pedra-nevada'
 
 /** Preferência da PRÓXIMA parede na ferramenta: o traço de hoje ou a textura do material escolhido. Não vai para o mapa. */
 export type AcabamentoDaParede = 'linhas' | 'textura'

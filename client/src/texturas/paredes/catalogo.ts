@@ -278,6 +278,13 @@ export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
     descricao: 'Pau a pique: barro com palha alisado à mão, rachado, com a trama de varas onde o barro caiu e esteio de madeira nos cantos.',
     receita: { fiadasAte: [], passo: { porFundura: 0, min: 72, max: 72 }, varia: 0.2, funde: 0.1, junta: 1, tremor: 0, bisel: 1.2, luz: 0.3, sombra: 0.36, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
   },
+  // A Pedra nevada (L08) monta como a Pedra com musgo: a mesma receita, a neve em colchão no meio de cada faixa.
+  {
+    id: 'pedra-nevada',
+    nome: 'Pedra nevada',
+    descricao: 'Pedras de granito frio com neve no alto de cada bloco.',
+    receita: { fiadasAte: [15, 36], passo: { porFundura: 1.7, min: 13, max: 34 }, varia: 0.4, funde: 0.15, junta: 1.8, tremor: 1.3, bisel: 2.2, luz: 0.38, sombra: 0.42, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
 ]
 
 /** O material que a ferramenta lembra antes de qualquer escolha. */
