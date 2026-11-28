@@ -5,6 +5,7 @@
  * máximo 2 testes por caso.
  */
 import { describe, expect, it } from 'vitest'
+import type { CarriedItem } from '../../types/map'
 import type { Personagem } from '../personagem'
 import { jimboy, may, sistema } from './fichasDaFatiaB.testkit'
 import { lancarGolpe, podeAgir, type ContextoDoGolpe } from './golpe'
@@ -20,7 +21,8 @@ function contexto(personagem: Personagem): ContextoDoGolpe {
   return { turnos, carta, personagem, sistema, regras: null, autor: { tipo: 'mestre' }, personagens: [personagem, may], personagemDoToken: (tokenId) => (tokenId === 'tok_jimboy' ? personagem.id : tokenId === 'tok_may' ? may.id : undefined) }
 }
 
-const GARRUCHA = { id: 'vaga_garrucha', nome: 'Garrucha', itemId: 'item_garrucha', categoria: 'Arma' }
+/** Itens refeitos (E6a): o Atacar lê a arma EQUIPADA da mochila, pelo tipo do item (sem a regra, o dano é digitado na batalha). */
+const GARRUCHA: CarriedItem = { id: 'vaga_garrucha', nome: 'Garrucha', itemId: 'item_garrucha', categoria: 'Arma', tipo: 'fogo', equipado: true }
 /** Jimboy sem nenhum cartão na aba Armas: a Garrucha está só na mochila. */
 const comGarrucha: Personagem = { ...jimboy, abas: { ...jimboy.abas, armas: [] }, mochila: [GARRUCHA, { id: 'vaga_pao', nome: 'Pão', categoria: 'Consumível' }] }
 
