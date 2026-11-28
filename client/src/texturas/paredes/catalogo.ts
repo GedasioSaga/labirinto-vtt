@@ -285,6 +285,14 @@ export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
     descricao: 'Pedras de granito frio com neve no alto de cada bloco.',
     receita: { fiadasAte: [15, 36], passo: { porFundura: 1.7, min: 13, max: 34 }, varia: 0.4, funde: 0.15, junta: 1.8, tremor: 1.3, bisel: 2.2, luz: 0.38, sombra: 0.42, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
   },
+  // A Obsidiana (L09) monta como o Mármore preto, com o bloco mais curto e mais variado (obsidiana se lasca em bloco,
+  // não se serra em placa) e a junta, o bisel, a luz e a sombra da amostra do estúdio (`prova/paredes/materiais/obsidiana.py`).
+  {
+    id: 'obsidiana',
+    nome: 'Obsidiana',
+    descricao: 'Vidro vulcânico negro-violeta em blocos lascados, com a fratura em conchas e o brilho frio do polido.',
+    receita: { fiadasAte: [15, 44], passo: { porFundura: 1.9, min: 15, max: 34 }, varia: 0.45, funde: 0.15, junta: 1, tremor: 0, bisel: 1.6, luz: 0.5, sombra: 0.32, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
 ]
 
 /** O material que a ferramenta lembra antes de qualquer escolha. */
