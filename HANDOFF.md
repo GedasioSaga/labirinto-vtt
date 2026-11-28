@@ -1,3 +1,8 @@
+# 28/11 ~07h: 0.6.11 PUBLICADA (Painel em relevo). 0.6.12 PUBLICANDO de d598abfa (agente afd73c86): giratórias, interruptores, arte onda 1, bugs rodadas 1-3 (Arma padrão), conserto de pureza da nuvem (d598abfa: pisoDaEntidade.ts; culpado era 954adab4).
+- Arte onda 2 (wf_fed20926-7f8): L04-L06 desenhando; arquivos novos sem commit com TS6133 (chaoDeMina.ts, gradeDeCorredorVersoes.ts) — o integrador limpa.
+- Abertos dos bugs: jogador não marca Arma padrão pela tela dele; armas convertidas com Alvos 1; golpe Híbrido sem teto de alvos.
+- Próximo: puzzle 4 (cooperação em dois lugares; mexe no host/mapa), ondas 3-4 de arte (L07-L12).
+
 # 28/11 06:06: 0.6.11 PUBLICADA (Painel em relevo)
 
 - De release/0.6.11 (f81a879e + merge 50dc3b07 + bump 757573b5). Esperou a máquina de 04:54 a 05:19 (log tmp/rel-0.6.11/espera.log); antes, limpeza segura já autorizada: %TEMP% com mais de 1 dia (5614 arquivos, 22 em uso pulados) + npm cache clean --force (disco 5,0 -> 6,0 GB). Às 05:19, RAM 10,5 GB e disco 18,8 GB: tmp/rel-0.6.11/orquestra.ps1 com CARGO_BUILD_JOBS=2, exit 0 na T1 (log tmp/rel-0.6.11/publicar-t1.log; cargo 18m03s; RAM mínima 0,67 GB sem passar 1 min abaixo de 0,8). tsc lobby/site e lobby/nuvem ok, assinatura confere, conferir-repo-publico "nada bloqueia", Worker 70d33b4f-d21d-4bc3-b159-46607c5f8001, site 8e304711.labirintolobby.pages.dev (labirintolobby.pages.dev 200), https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.6.11 (setup.exe, .sig, msi, latest.json; não é rascunho). releases/latest/download/latest.json: version 0.6.11.
