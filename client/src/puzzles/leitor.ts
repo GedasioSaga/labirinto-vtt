@@ -20,6 +20,7 @@ import { ehIdDeItemDoAcervo } from '../lib/leituraDoItem'
 import { ehRefDeMidia } from '../lib/midia'
 import type { CarriedItem, ItemNoConteudo } from '../types/map'
 import { lerCombinacao, minutosNoMostrador } from './combinacao'
+import { lerCooperacao } from './cooperacao/cooperacao'
 import { lerGiratorias } from './giratorias/giratorias'
 import { lerInterruptores } from './interruptores/interruptores'
 import { aceitaMolduraPorta, PADROES_DOS_MODELOS, POSICAO_DA_TROCA_PADRAO, PESO_DA_TROCA_PADRAO, PV_DO_CASTIGO_PADRAO, puzzleDoModelo, visualEhPorta } from './padroes'
@@ -46,11 +47,13 @@ import {
   VERSAO_DO_PUZZLE,
   CENAS_DO_RELEVO,
   METAIS_DO_RELEVO,
+  PONTOS_MAX,
 } from './tipos'
 import { ehPlaca } from './relevo/placas'
 import type { VisualDoRelevo } from './tipos'
 import type {
   AcaoNoPuzzle,
+  AcionamentoDoPonto,
   CastigoDoPuzzle,
   DesfechoDoPuzzle,
   DicaDoPuzzle,
@@ -186,8 +189,8 @@ export function lerPuzzle(valor: unknown): Puzzle {
   const visual = lerVisual(bruto.visual)
   const padrao = puzzleDoModelo(visual.tipo === 'modelo' ? visual.modelo : 'fonte')
   const futuro = lerFuturo(bruto.futuro)
-  // A porta ligada abre com um visual de porta, com o medalhão das peças giratórias ou com o painel dos interruptores.
-  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias' || futuro?.tipo === 'interruptores'
+  // A porta ligada abre com um visual de porta, com o medalhão das peças giratórias, com o painel dos interruptores ou com os pontos da cooperação.
+  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias' || futuro?.tipo === 'interruptores' || futuro?.tipo === 'cooperacao'
   const puzzle: Puzzle = {
     nome: textoNaoVazio(bruto.nome, NOME_DO_PUZZLE_MAX, padrao.nome),
     nomePublico: textoLido(bruto.nomePublico, NOME_DO_PUZZLE_MAX, padrao.nomePublico),
@@ -361,6 +364,8 @@ function lerFuturo(valor: unknown): Puzzle['futuro'] {
   if (giratorias !== null) return giratorias
   const interruptores = lerInterruptores(valor)
   if (interruptores !== null) return interruptores
+  const cooperacao = lerCooperacao(valor)
+  if (cooperacao !== null) return cooperacao
   if (!isRecord(valor) || typeof valor.tipo !== 'string' || valor.tipo === '') return undefined
   let json: string
   try {
@@ -401,6 +406,14 @@ export function lerProgressoDoPuzzle(valor: unknown): ProgressoDoPuzzle | undefi
   if (rotacoes !== undefined) progresso.rotacoes = rotacoes
   const luzes = listaDe(valor.luzes, (n): n is boolean => typeof n === 'boolean')
   if (luzes !== undefined) progresso.luzes = luzes
+  // A cooperação: o último acionamento de cada ponto, com a hora do host e quem acionou.
+  if (Array.isArray(valor.acionados)) {
+    const acionados = valor.acionados.slice(0, PONTOS_MAX).map((acionado): AcionamentoDoPonto | null => {
+      if (!isRecord(acionado) || typeof acionado.em !== 'number' || !Number.isFinite(acionado.em) || acionado.em <= 0) return null
+      return { em: Math.min(acionado.em, Number.MAX_SAFE_INTEGER), por: lerQuem(acionado.por) }
+    })
+    if (acionados.some((acionado) => acionado !== null)) progresso.acionados = acionados
+  }
   return progresso
 }
 

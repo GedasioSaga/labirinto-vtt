@@ -54,10 +54,18 @@ import {
   INTERRUPTORES_MIN,
   MATERIAIS_DOS_INTERRUPTORES,
   OBJETIVOS_DOS_INTERRUPTORES,
+  ARTES_DO_PONTO,
+  JANELA_MAX,
+  JANELA_MIN,
+  PONTOS_MAX,
+  PONTOS_MIN,
+  ROTULO_DO_PONTO_MAX,
 } from '../puzzles/tipos'
 import type {
   AcaoNoPuzzle,
   CombinacaoNaVista,
+  CooperacaoNaVista,
+  PontoNaVista,
   GiratoriasNaVista,
   InterruptoresNaVista,
   EncaixeNaVista,
@@ -369,6 +377,29 @@ function lerInterruptoresNaVista(value: unknown): InterruptoresNaVista | null | 
   return { material, luzes, objetivo, desenho }
 }
 
+/** O nome de quem acionou um ponto (o teto do nome no progresso, com folga). */
+const POR_DO_PONTO_MAX = 60
+
+function lerPontoNaVista(value: unknown): PontoNaVista | null {
+  if (!isRecord(value) || typeof value.aceso !== 'boolean') return null
+  const arte = umDaLista(ARTES_DO_PONTO, value.arte)
+  if (arte === undefined || !textoAte(value.rotulo, ROTULO_DO_PONTO_MAX + 12) || !inteiroAte(value.restaMs, JANELA_MAX * 1000) || !textoAte(value.por, POR_DO_PONTO_MAX)) return null
+  return { arte, rotulo: value.rotulo, aceso: value.aceso, restaMs: value.restaMs, por: value.por }
+}
+
+/** Os pontos da cooperação: ausente = não é desse tipo (`undefined`); torto = `null`, e a vista cai inteira. */
+function lerCooperacaoNaVista(value: unknown): CooperacaoNaVista | null | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) return null
+  const material = umDaLista(MATERIAIS_DOS_INTERRUPTORES, value.material)
+  const pontos = lerLista(value.pontos, PONTOS_MAX, lerPontoNaVista)
+  if (material === undefined || pontos === null || pontos.length < PONTOS_MIN) return null
+  if (!inteiroAte(value.janela, JANELA_MAX) || value.janela < JANELA_MIN) return null
+  const meuPonto = value.meuPonto === null ? null : inteiroAte(value.meuPonto, pontos.length - 1) ? value.meuPonto : undefined
+  if (meuPonto === undefined) return null
+  return { material, janela: value.janela, meuPonto, pontos }
+}
+
 /** A vista inteira, campo a campo; um campo torto derruba a mensagem. */
 export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   if (!isRecord(value) || !idAte(value.desafioId) || !inteiroAte(value.rev, Number.MAX_SAFE_INTEGER) || !textoAte(value.titulo, NOME_DO_PUZZLE_MAX)) return null
@@ -383,11 +414,13 @@ export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   const combinacao = lerCombinacaoNaVista(value.combinacao)
   const giratorias = lerGiratoriasNaVista(value.giratorias)
   const interruptores = lerInterruptoresNaVista(value.interruptores)
-  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null || interruptores === null) return null
+  const cooperacao = lerCooperacaoNaVista(value.cooperacao)
+  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null || interruptores === null || cooperacao === null) return null
   const vista: VistaDoPuzzle = { desafioId: value.desafioId, rev: value.rev, titulo: value.titulo, visual, encaixes, troca, dica, resolvido: value.resolvido, contagem: { postos, total }, mochila }
   if (combinacao !== undefined) vista.combinacao = combinacao
   if (giratorias !== undefined) vista.giratorias = giratorias
   if (interruptores !== undefined) vista.interruptores = interruptores
+  if (cooperacao !== undefined) vista.cooperacao = cooperacao
   if (value.versaoNova === true) vista.versaoNova = true
   return vista
 }

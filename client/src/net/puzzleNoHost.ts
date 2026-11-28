@@ -3,7 +3,7 @@ import { avisosDosDocumentos, darDocumentos, linhaDoDocumento, tituloOuSemTitulo
 import type { Documento } from '../documentos/tipos'
 import { aplicarAjuste } from '../lib/ajusteDaFicha'
 import { itemParaAMochila } from '../lib/conteudoDoObjeto'
-import { mapaComProgressoDoPuzzle } from '../lib/desafios'
+import { mapaComProgressoDoPuzzle, seloDoPonto } from '../lib/desafios'
 import { mochilaComItemDoAcervo, type ItemParaDar } from '../lib/items'
 import { fichaComMochila } from '../lib/mochila/juncao'
 import type { Personagem } from '../lib/personagem'
@@ -61,9 +61,14 @@ export function ehDesafioDePuzzle(desafio: Desafio): desafio is DesafioDePuzzle 
   return desafio.minigame.jogo === 'puzzle'
 }
 
-/** O desafio de puzzle `id` deste mapa; `null` = não existe, ou não é puzzle. */
+/**
+ * O desafio de puzzle `id` deste mapa; `null` = não existe, ou não é puzzle.
+ * `id` pode ser o selo de um dos outros pontos da cooperação (`idDoSeloDoPonto`):
+ * é o mesmo puzzle.
+ */
 export function desafioDePuzzleDoMapa(map: Pick<MapData, 'desafios'>, id: string): DesafioDePuzzle | null {
-  const desafio = (map.desafios ?? []).find((d) => d.id === id)
+  const { desafioId } = seloDoPonto(id)
+  const desafio = (map.desafios ?? []).find((d) => d.id === desafioId)
   return desafio !== undefined && ehDesafioDePuzzle(desafio) ? desafio : null
 }
 
@@ -111,8 +116,12 @@ export type DocumentoDaBiblioteca = (docId: string) => Documento | null
  * com a mochila dele. A dica por documento: "já leu" é ter a linha na lista da
  * FICHA que está dentro (é ela que leu, e é por ela que o "Ler" reabre); o
  * título é o da biblioteca de agora, como a leitura (uma correção do mestre vale).
+ *
+ * `naTela`: o selo pelo qual ele entrou (na cooperação, o ponto onde a ficha
+ * está; a vista volta com esse id, que é o que a tela dele conhece) e a hora do
+ * host (o que está aceso e quanto falta). Ausente = o selo do desafio, sem hora.
  */
-export function vistaParaABoneco(desafio: DesafioDePuzzle, token: Token, personagens: readonly Personagem[], documentoDaBiblioteca: DocumentoDaBiblioteca): VistaDoPuzzle {
+export function vistaParaABoneco(desafio: DesafioDePuzzle, token: Token, personagens: readonly Personagem[], documentoDaBiblioteca: DocumentoDaBiblioteca, naTela?: { selo: string; agora: number }): VistaDoPuzzle {
   const ficha = fichaDoBoneco(token, personagens)
   const mochila = mochilaQueConta(token, ficha)
   const documentoDaDica = (docId: string): { titulo: string; podeLer: boolean } | null => {
@@ -120,7 +129,8 @@ export function vistaParaABoneco(desafio: DesafioDePuzzle, token: Token, persona
     if (documento === null) return null
     return { titulo: tituloOuSemTitulo(documento), podeLer: ficha !== null && linhaDoDocumento(ficha, docId) !== undefined }
   }
-  return vistaDoPuzzle({ desafioId: desafio.id, puzzle: desafio.minigame.puzzle, progresso: progressoDoDesafio(desafio), mochila, documentoDaDica })
+  const selo = naTela?.selo ?? desafio.id
+  return vistaDoPuzzle({ desafioId: selo, puzzle: desafio.minigame.puzzle, progresso: progressoDoDesafio(desafio), mochila, documentoDaDica, agora: naTela?.agora, ponto: seloDoPonto(selo).ponto })
 }
 
 /** Quem mexe, como o progresso guarda: a ficha, o boneco e o nome que os colegas veem nele. */
@@ -204,6 +214,8 @@ export interface PedidoNoPuzzle {
   pecaDoAcervo: (itemId: string) => PecaDoAcervo | null
   /** Os documentos do desfecho saem da biblioteca de agora (o título e o papel que vão à lista). */
   documentoDaBiblioteca: DocumentoDaBiblioteca
+  /** Na cooperação: o ponto do selo pelo qual a ficha entrou (a sessão conferiu que ela o alcança). */
+  ponto?: number
 }
 
 /** O que quem resolveu leva, e o que todos os que estão dentro leem. */
@@ -420,6 +432,7 @@ export function agirNoHost(pedido: PedidoNoPuzzle): ResultadoNoHost {
     modo: 'jogo',
     pecaDoAcervo: pedido.pecaDoAcervo,
     novoId: pedido.novoId,
+    ...(pedido.ponto === undefined ? {} : { ponto: pedido.ponto }),
   })
   const recusa = resultado.efeitos.find((efeito): efeito is Extract<EfeitoDoPuzzle, { tipo: 'recusado' }> => efeito.tipo === 'recusado')
   if (recusa !== undefined) return { ok: false, motivo: recusa.motivo }

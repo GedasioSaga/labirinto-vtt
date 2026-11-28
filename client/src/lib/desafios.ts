@@ -9,8 +9,9 @@
  * o alcance e o "Quem vê" do jogador seguem idênticos, e o desenho do pino de
  * minigame virou o selo (`pixi/drawPins.ts`).
  */
-import type { Desafio, LugarDoDesafio, MapData, Pin, Prop, TipoDoLugarDoDesafio, Token } from '../types/map'
+import type { Desafio, LugarDoDesafio, MapData, OutroLugarDoDesafio, Pin, Prop, TipoDoLugarDoDesafio, Token } from '../types/map'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
+import { cooperacaoDoPuzzle } from '../puzzles/cooperacao/cooperacao'
 import { ehJogoDoRegistro, entradaDoMinigame, nomeDoJogoDoDesafio, padraoDoJogo, REGISTRO_DE_MINIGAMES, type EntradaDoDesafio } from '../minigames/registro'
 import type { ProgressoDoPuzzle } from '../puzzles/tipos'
 import { ALAVANCA_LUGAR_MAX_LENGTH, CONVITE_DA_CENA_ALAVANCA } from '../minigames/alavanca/tipos'
@@ -393,23 +394,92 @@ export function patchDoSeloMovido(x: number, y: number, piso: number): PatchDoDe
  */
 export function pinosDosDesafios(map: MapaDosDesafios, paraQuem: ParaQuem, objetoChega?: (propId: string) => boolean): Pin[] {
   const pinos: Pin[] = []
+  const chega = (lugar: LugarDoDesafio) => objetoChega === undefined || lugar.tipo !== 'objeto' || objetoChega(lugar.propId)
   for (const desafio of desafiosDo(map)) {
-    if (objetoChega !== undefined && desafio.lugar.tipo === 'objeto' && !objetoChega(desafio.lugar.propId)) continue
-    const pino = pinoDoDesafio(desafio, map.props, paraQuem, map.tokens)
+    const pino = chega(desafio.lugar) ? pinoDoDesafio(desafio, map.props, paraQuem, map.tokens) : null
     if (pino !== null) pinos.push(pino)
+    // A cooperação: um selo por ponto, cada um com a régua dele (o objeto que não chega também esconde o selo).
+    for (let ponto = 1; ponto < pontosDoDesafio(desafio); ponto++) {
+      if (!chega(outroLugarDoDesafio(desafio, ponto).lugar)) continue
+      const outro = pinoDoOutroPonto(desafio, ponto, map.props, paraQuem)
+      if (outro !== null) pinos.push(outro)
+    }
   }
   return pinos
 }
 
 /**
  * O pino de minigame `id` deste mapa, como o host o confere: o derivado do
- * desafio, ou um pino ▷ que ainda não passou pela migração (mapa montado sem
- * passar pelo disco). `undefined` = não há minigame com este id aqui.
+ * desafio (ou o selo de um dos outros pontos da cooperação), ou um pino ▷ que
+ * ainda não passou pela migração (mapa montado sem passar pelo disco).
+ * `undefined` = não há minigame com este id aqui.
  */
 export function pinoDeMinigameDoMapa(map: MapaDosDesafios & Pick<MapData, 'pins'>, id: string): Pin | undefined {
-  const desafio = desafiosDo(map).find((d) => d.id === id)
-  if (desafio !== undefined) return pinoDoDesafio(desafio, map.props, 'mesa', map.tokens) ?? undefined
+  const { desafioId, ponto } = seloDoPonto(id)
+  const desafio = desafiosDo(map).find((d) => d.id === desafioId)
+  if (desafio !== undefined) return (ponto === 0 ? pinoDoDesafio(desafio, map.props, 'mesa', map.tokens) : pinoDoOutroPonto(desafio, ponto, map.props, 'mesa')) ?? undefined
   return map.pins.find((pin) => pin.id === id && pin.kind === 'minigame')
+}
+
+// ------------------------------------------------------------------ a cooperação em dois lugares (28/11/2026)
+
+/** O selo dos outros pontos: `<id do desafio>~p<n>`, com `n` = 1 para o ponto 2 e 2 para o ponto 3. */
+const SEPARADOR_DO_PONTO = '~p'
+
+/** O id do selo do ponto `ponto` (0 = o lugar do desafio, de id igual ao dele). */
+export function idDoSeloDoPonto(desafioId: string, ponto: number): string {
+  return ponto === 0 ? desafioId : `${desafioId}${SEPARADOR_DO_PONTO}${ponto}`
+}
+
+/** O desafio e o ponto de um id de selo; o id de sempre é o ponto 0. */
+export function seloDoPonto(id: string): { desafioId: string; ponto: number } {
+  const corte = id.lastIndexOf(SEPARADOR_DO_PONTO)
+  const resto = corte > 0 ? id.slice(corte + SEPARADOR_DO_PONTO.length) : ''
+  return /^[1-9]$/.test(resto) ? { desafioId: id.slice(0, corte), ponto: Number(resto) } : { desafioId: id, ponto: 0 }
+}
+
+/** Quantos pontos o desafio tem no mapa: os da cooperação; qualquer outro jogo, um só (o selo). */
+export function pontosDoDesafio(desafio: Pick<Desafio, 'minigame'>): number {
+  if (desafio.minigame.jogo !== 'puzzle') return 1
+  return cooperacaoDoPuzzle(desafio.minigame.puzzle)?.pontos.length ?? 1
+}
+
+/** O lugar do ponto `ponto` (1 = o ponto 2); não marcado = lugar nenhum. */
+export function outroLugarDoDesafio(desafio: Pick<Desafio, 'outrosLugares'>, ponto: number): OutroLugarDoDesafio {
+  return desafio.outrosLugares?.[ponto - 1] ?? { lugar: { tipo: 'nenhum' } }
+}
+
+/**
+ * O SELO de um dos outros pontos da cooperação (`ponto` >= 1): um pino de
+ * minigame do mesmo puzzle, no lugar do ponto, do tamanho do selo do desafio.
+ * Entrar por ele é estar NAQUELE ponto (o host confere o alcance por este
+ * pino). `null` = não marcado, objeto apagado, ou o puzzle não tem esse ponto.
+ */
+export function pinoDoOutroPonto(desafio: Desafio, ponto: number, props: readonly Prop[], paraQuem: ParaQuem): Pin | null {
+  if (!Number.isInteger(ponto) || ponto < 1 || ponto >= pontosDoDesafio(desafio)) return null
+  const centro = pontoDoDesafio(outroLugarDoDesafio(desafio, ponto), props)
+  if (centro === null) return null
+  const tamanho = tamanhoDoSelo(desafio)
+  const pino: Pin = { id: idDoSeloDoPonto(desafio.id, ponto), x: centro.x, y: centro.y, piso: centro.piso, kind: 'minigame', description: '', image: null, minigame: desafio.minigame }
+  if (tamanho !== 1) pino.escala = tamanho
+  if (paraQuem === 'mestre') pino.nome = `${desafio.nome} · ponto ${ponto + 1}`
+  return pino
+}
+
+/** Mudar (ou tirar, com `null`) o lugar do ponto `ponto`: a lista guarda a posição; sem nenhum marcado, o campo sai. */
+export function patchDoOutroLugar(desafio: Pick<Desafio, 'outrosLugares'>, ponto: number, novo: OutroLugarDoDesafio | null): PatchDoDesafio {
+  const tamanho = Math.max(ponto, desafio.outrosLugares?.length ?? 0)
+  const lista = Array.from({ length: tamanho }, (_, i) => (i === ponto - 1 ? (novo ?? { lugar: { tipo: 'nenhum' as const } }) : outroLugarDoDesafio(desafio, i + 1)))
+  while (lista.length > 0 && lista[lista.length - 1]?.lugar.tipo === 'nenhum') lista.pop()
+  return { outrosLugares: lista.length === 0 ? undefined : lista }
+}
+
+/** O que falta nos outros pontos da cooperação (a etiqueta da ficha), ou `null`. */
+export function faltaNosOutrosPontos(desafio: Desafio, props: readonly Prop[]): string | null {
+  const faltam: number[] = []
+  for (let ponto = 1; ponto < pontosDoDesafio(desafio); ponto++) if (pontoDoDesafio(outroLugarDoDesafio(desafio, ponto), props) === null) faltam.push(ponto + 1)
+  if (faltam.length === 0) return null
+  return faltam.length === 1 ? `Falta o lugar do ponto ${faltam[0]}` : `Falta o lugar dos pontos ${faltam.join(' e ')}`
 }
 
 /**
@@ -438,9 +508,9 @@ export function novoDesafio(id: string, jogo: JogoDoMinigame, lugar: LugarDoDesa
   return { id, nome: nomeAutomatico({ minigame }), lugar, minigame }
 }
 
-export type PatchDoDesafio = Partial<Pick<Desafio, 'nome' | 'lugar' | 'minigame' | 'portaLigada' | 'piso' | 'tamanho' | 'angulo' | 'quem'>>
+export type PatchDoDesafio = Partial<Pick<Desafio, 'nome' | 'lugar' | 'minigame' | 'portaLigada' | 'piso' | 'tamanho' | 'angulo' | 'quem' | 'outrosLugares'>>
 
-const CHAVES_DO_PATCH: readonly (keyof PatchDoDesafio)[] = ['nome', 'lugar', 'minigame', 'portaLigada', 'piso', 'tamanho', 'angulo', 'quem']
+const CHAVES_DO_PATCH: readonly (keyof PatchDoDesafio)[] = ['nome', 'lugar', 'minigame', 'portaLigada', 'piso', 'tamanho', 'angulo', 'quem', 'outrosLugares']
 
 export function adicionarDesafio(map: MapData, desafio: Desafio): MapData {
   return { ...map, desafios: [...desafiosDo(map), desafio] }
@@ -471,7 +541,7 @@ export function atualizarDesafio(map: MapData, id: string, patch: PatchDoDesafio
   }
   // Quem chama de ficha só vale com o mesmo nome no convite: o jogo novo que não o levou (puzzle) o perde.
   if (novo.quem !== undefined && (novo.minigame.jogo === 'puzzle' || novo.minigame.npc !== novo.quem.nome)) delete novo.quem
-  for (const chave of ['portaLigada', 'piso', 'tamanho', 'angulo', 'quem'] as const) {
+  for (const chave of ['portaLigada', 'piso', 'tamanho', 'angulo', 'quem', 'outrosLugares'] as const) {
     if (chave in patch && patch[chave] === undefined) delete novo[chave]
   }
   const nome = 'nome' in patch ? nomeDoDesafio(novo, patch.nome) : novo.nomeProprio === true ? { nome: novo.nome, nomeProprio: true as const } : { nome: nomeAutomatico(novo) }

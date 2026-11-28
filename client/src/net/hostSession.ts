@@ -120,7 +120,7 @@ import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } f
 import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor, type DestinationMark } from '../lib/signals'
 import { cleanPinName, copiarMinigame, passageOf, pinSummary } from '../lib/pins'
-import { pinoDeMinigameDoMapa, pinoDoConvite, pinoDoConviteEmQualquerCena, pontoDoDesafio } from '../lib/desafios'
+import { pinoDeMinigameDoMapa, pinoDoConvite, pinoDoConviteEmQualquerCena, pontoDoDesafio, seloDoPonto } from '../lib/desafios'
 import { MINIGAME_PADRAO } from '../minigames/danca/tipos'
 import type { MinigameTiro } from '../minigames/tiro/tipos'
 import { criarDancaNoHost, type DancaDesfechoSinal, type EfeitosDaDanca } from './dancaNoHost'
@@ -9724,7 +9724,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (assinaturaDoPuzzle(desafio.minigame) !== aberto.assinatura) return fecharPuzzleDe(playerId, clientId, 'mudou')
     const token = scene.map.tokens.find((t) => t.id === aberto.tokenId)
     if (token === undefined || !(ownership[playerId] ?? []).includes(token.id)) return fecharPuzzleDe(playerId, clientId, 'sumiu')
-    return vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, token, personagensDoMundo(world), documentoDaBiblioteca), false)
+    // O selo pelo qual ele entrou (na cooperação, o ponto dele) e a hora: o que está aceso nos outros pontos.
+    return vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, token, personagensDoMundo(world), documentoDaBiblioteca, { selo: aberto.desafioId, agora: now() }), false)
   }
 
   /** PUZZLES: `syncDoPuzzle` de todos que estão dentro e na sala (no broadcast, depois das fichas). */
@@ -9765,22 +9766,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const personagens = personagensDoMundo(world)
     if (msg.type === 'puzzle.entrar') {
       if (desafio === null) return recusa('indisponivel')
-      const ficha = fichaNoPuzzle(playerId, scene, world, desafio.id, msg.tokenId)
+      // O selo pedido: o do desafio, ou (na cooperação) o de um dos outros pontos. É ele que a ficha precisa alcançar.
+      const ficha = fichaNoPuzzle(playerId, scene, world, msg.desafioId, msg.tokenId)
       if (typeof ficha === 'string') return recusa(ficha)
-      // Um puzzle por vez: entrar noutro troca.
-      puzzlesAbertos.set(playerId, { desafioId: desafio.id, cena: sceneKey(scene), tokenId: ficha.id, assinatura: assinaturaDoPuzzle(desafio.minigame) })
-      return { outbound: vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens, documentoDaBiblioteca), true) }
+      // Um puzzle por vez: entrar noutro troca. Guarda o selo: é o id que a tela dele conhece, e o ponto dele.
+      puzzlesAbertos.set(playerId, { desafioId: msg.desafioId, cena: sceneKey(scene), tokenId: ficha.id, assinatura: assinaturaDoPuzzle(desafio.minigame) })
+      return { outbound: vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens, documentoDaBiblioteca, { selo: msg.desafioId, agora: now() }), true) }
     }
     const aberto = puzzlesAbertos.get(playerId)
     if (aberto === undefined || aberto.desafioId !== msg.desafioId || aberto.cena !== sceneKey(scene)) return recusa('indisponivel')
     if (desafio === null) return { outbound: fecharPuzzleDe(playerId, clientId, 'sumiu') }
     if (assinaturaDoPuzzle(desafio.minigame) !== aberto.assinatura) return { outbound: fecharPuzzleDe(playerId, clientId, 'mudou') }
-    const ficha = fichaNoPuzzle(playerId, scene, world, desafio.id, aberto.tokenId)
+    // A ficha ainda alcança o selo pelo qual entrou (na cooperação, o ponto dela).
+    const ficha = fichaNoPuzzle(playerId, scene, world, aberto.desafioId, aberto.tokenId)
     if (typeof ficha === 'string') return recusa(ficha)
     // A tela velha: a recusa e a vista de agora, para ele tentar de novo sobre o que existe.
     // Girar, mexer o ponteiro e apertar valem sobre o progresso de agora (vários cliques seguidos não esperam a vista).
     if (msg.rev !== progressoDoDesafio(desafio).rev && !acaoDeControle(msg.acao)) {
-      return { outbound: [...recusa('velho').outbound, ...vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens, documentoDaBiblioteca), true)] }
+      return { outbound: [...recusa('velho').outbound, ...vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens, documentoDaBiblioteca, { selo: aberto.desafioId, agora: now() }), true)] }
     }
     const resultado = agirNoHost({
       desafio,
@@ -9794,19 +9797,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       novoId: randomId,
       pecaDoAcervo,
       documentoDaBiblioteca,
+      ponto: seloDoPonto(aberto.desafioId).ponto,
     })
     if (!resultado.ok) return recusa(resultado.motivo)
     const outbound: Outbound[] = []
-    if (resultado.castigo !== null) outbound.push({ clientId, msg: { type: 'puzzle.castigo', desafioId: desafio.id, ...resultado.castigo } })
+    if (resultado.castigo !== null) outbound.push({ clientId, msg: { type: 'puzzle.castigo', desafioId: msg.desafioId, ...resultado.castigo } })
     const resolvido = resultado.resolvido
     if (resolvido !== null) {
-      // Todos os que estão dentro leem o desfecho; o que se ganha é só de quem resolveu.
+      // Todos os que estão dentro leem o desfecho (na cooperação, em qualquer ponto, cada um pelo selo dele); o que se ganha é só de quem resolveu.
       for (const [outroId, outro] of puzzlesAbertos) {
         const outroCliente = players.get(outroId)?.clientId ?? null
-        if (outro.desafioId !== desafio.id || outro.cena !== aberto.cena || outroCliente === null) continue
+        if (seloDoPonto(outro.desafioId).desafioId !== desafio.id || outro.cena !== aberto.cena || outroCliente === null) continue
         const premio = outroId === playerId ? resolvido.premio : { itens: [], moedas: 0, documentos: [] }
         const { por, modo, texto, abriuPorta } = resolvido
-        outbound.push({ clientId: outroCliente, msg: { type: 'puzzle.resolvido', desafioId: desafio.id, por, modo, texto, premio, abriuPorta } })
+        outbound.push({ clientId: outroCliente, msg: { type: 'puzzle.resolvido', desafioId: outro.desafioId, por, modo, texto, premio, abriuPorta } })
       }
     }
     return { outbound, applyPuzzle: { ...backgroundSceneId(scene, world), ...resultado.aplicado } }

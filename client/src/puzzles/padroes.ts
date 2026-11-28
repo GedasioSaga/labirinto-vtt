@@ -11,6 +11,7 @@
  * Puro: sem React, sem disco.
  */
 import { combinacaoPadrao } from './combinacao'
+import { cooperacaoDoPuzzle } from './cooperacao/cooperacao'
 import { giratoriasDoPuzzle } from './giratorias/giratorias'
 import { interruptoresDoPuzzle } from './interruptores/interruptores'
 import type {
@@ -282,5 +283,5 @@ export function visualEhPorta(visual: Puzzle['visual']): boolean {
  * giratórias (o medalhão, como o painel em relevo, guarda a passagem ao lado).
  */
 export function puzzleAbrePorta(puzzle: Pick<Puzzle, 'visual' | 'futuro'>): boolean {
-  return visualEhPorta(puzzle.visual) || giratoriasDoPuzzle(puzzle) !== null || interruptoresDoPuzzle(puzzle) !== null
+  return visualEhPorta(puzzle.visual) || giratoriasDoPuzzle(puzzle) !== null || interruptoresDoPuzzle(puzzle) !== null || cooperacaoDoPuzzle(puzzle) !== null
 }

@@ -16,6 +16,7 @@
  */
 import type { CarriedItem } from '../types/map'
 import { combinacaoDoPuzzle, combinacaoNaVista, mecanicaDesconhecida } from './combinacao'
+import { cooperacaoDoPuzzle, cooperacaoNaVista } from './cooperacao/cooperacao'
 import { giratoriasDoPuzzle, giratoriasNaVista } from './giratorias/giratorias'
 import { interruptoresDoPuzzle, interruptoresNaVista } from './interruptores/interruptores'
 import { contagemDoPuzzle, pesoDe, postaEm } from './motor'
@@ -33,6 +34,10 @@ export interface EntradaDaVista {
   mochila: readonly CarriedItem[]
   /** Ausente = a dica por documento não aparece (o teste local do editor, que não tem a lista de ninguém). */
   documentoDaDica?: DocumentoDaDica
+  /** A hora de agora (o relógio de quem monta a vista): na cooperação, o que está aceso e quanto falta. Ausente = tudo apagado. */
+  agora?: number
+  /** Na cooperação: o ponto pelo qual quem vê entrou (o selo dele); `null` ou ausente = o teste do editor, todos. */
+  ponto?: number | null
 }
 
 export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
@@ -42,7 +47,9 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
   // Na combinação e nas peças giratórias os encaixes não valem (o motor recusa pôr e tirar): não vão, nem na contagem.
   const interruptores = interruptoresDoPuzzle(puzzle)
   // Nos interruptores também: o painel só tem alavancas.
-  const encaixes = combinacao === null && giratorias === null && interruptores === null ? puzzle.encaixes : []
+  // Na cooperação também: os pontos são alavancas, placas e botões.
+  const cooperacao = cooperacaoDoPuzzle(puzzle)
+  const encaixes = combinacao === null && giratorias === null && interruptores === null && cooperacao === null ? puzzle.encaixes : []
   const vista: VistaDoPuzzle = {
     desafioId: entrada.desafioId,
     rev: progresso.rev,
@@ -50,7 +57,7 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
     visual: visualNaVista(puzzle.visual),
     encaixes: encaixes.map((encaixe) => encaixeNaVista(encaixe, progresso)),
     // O medalhão não tem troca de peso (o motor a recusa).
-    troca: giratorias === null && interruptores === null ? trocaNaVista(puzzle, progresso) : null,
+    troca: giratorias === null && interruptores === null && cooperacao === null ? trocaNaVista(puzzle, progresso) : null,
     dica: dicaNaVista(puzzle, entrada.documentoDaDica),
     resolvido: progresso.resolvido !== null,
     contagem: contagemDoPuzzle(puzzle, progresso),
@@ -61,6 +68,8 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
   if (giratorias !== null) vista.giratorias = giratoriasNaVista(giratorias, progresso)
   // Os interruptores: o que cada lampião mostra agora (a regra, o começo e o desenho escondido ficam aqui).
   if (interruptores !== null) vista.interruptores = interruptoresNaVista(interruptores, progresso)
+  // A cooperação: cada ponto aceso ou não, e quanto falta (os lugares no mapa e os ids ficam aqui).
+  if (cooperacao !== null) vista.cooperacao = cooperacaoNaVista(cooperacao, progresso, entrada.agora, entrada.ponto ?? null)
   if (mecanicaDesconhecida(puzzle)) vista.versaoNova = true
   return vista
 }

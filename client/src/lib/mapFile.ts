@@ -394,6 +394,7 @@ function lerDesafioDoArquivo(cru: Desafio): Desafio | null {
     lugar: lerLugarDoDesafio(cru.lugar),
     minigame,
     ...(portaLigada === undefined ? {} : { portaLigada }),
+    ...lerOutrosLugares(cru.outrosLugares),
     ...(Number.isInteger(cru.piso) ? { piso: cru.piso } : {}),
     ...lerTamanhoDoSelo(cru.tamanho),
     ...lerAnguloDoSelo(cru.angulo),
@@ -427,6 +428,25 @@ function lerAnguloDoSelo(valor: unknown): Pick<Desafio, 'angulo'> {
 function lerTamanhoDoSelo(valor: unknown): Pick<Desafio, 'tamanho'> {
   if (typeof valor !== 'number' || !Number.isFinite(valor) || valor <= 0) return {}
   return { tamanho: tamanhoDoSeloNaFaixa(valor) }
+}
+
+/** Teto dos outros pontos do puzzle de cooperação (o 2 e o 3: `PONTOS_MAX` - 1). */
+const OUTROS_LUGARES_MAX = 2
+
+/**
+ * COOPERAÇÃO (28/11/2026, campo novo e opcional): os outros pontos do puzzle,
+ * cada um um lugar com o piso dele. Torto vira "sem lugar" e guarda a posição
+ * na lista (o ponto 3 continua o 3). Nenhum marcado = o campo sai.
+ */
+function lerOutrosLugares(valor: unknown): Pick<Desafio, 'outrosLugares'> {
+  if (!Array.isArray(valor)) return {}
+  const lidos = valor.slice(0, OUTROS_LUGARES_MAX).map((outro): NonNullable<Desafio['outrosLugares']>[number] => {
+    if (!ehObjetoDoArquivo(outro)) return { lugar: { tipo: 'nenhum' } }
+    const lugar = lerLugarDoDesafio(campoDoArquivo(outro, 'lugar'))
+    const piso = campoDoArquivo(outro, 'piso')
+    return lugar.tipo === 'ponto' && typeof piso === 'number' && Number.isInteger(piso) && piso !== 0 ? { lugar, piso } : { lugar }
+  })
+  return lidos.some((outro) => outro.lugar.tipo !== 'nenhum') ? { outrosLugares: lidos } : {}
 }
 
 function lerLugarDoDesafio(valor: unknown): LugarDoDesafio {

@@ -28,6 +28,7 @@
 import { mochilaComItemDoAcervo, quantidadeDe } from '../lib/items'
 import type { CarriedItem } from '../types/map'
 import { certosNoProgresso, combinacaoCerta, combinacaoDoPuzzle, comCertos, comMinutos, comRodas, mecanicaDesconhecida, modulo, rodasNoProgresso, tamanhoDaRoda } from './combinacao'
+import { acionadosNoProgresso, comAcionamento, cooperacaoDoPuzzle, todosAcesos } from './cooperacao/cooperacao'
 import { alinhadas, errosNoProgresso, girarAneis, giratoriasDoPuzzle } from './giratorias/giratorias'
 import { batemComOAlvo, interruptoresDoPuzzle, luzesNoProgresso, puxar } from './interruptores/interruptores'
 import { puzzleAbrePorta } from './padroes'
@@ -36,6 +37,7 @@ import type {
   AcaoNoPuzzle,
   CombinacaoDoPuzzle,
   ContextoDoMotor,
+  CooperacaoDoPuzzle,
   EfeitoDoPuzzle,
   EncaixeDoPuzzle,
   GiratoriasDoPuzzle,
@@ -89,7 +91,7 @@ export function encaixeCheio(encaixe: EncaixeDoPuzzle, progresso: Pick<Progresso
 export function contagemDoPuzzle(puzzle: Pick<Puzzle, 'encaixes' | 'futuro'>, progresso: Pick<ProgressoDoPuzzle, 'encaixes'>): { postos: number; total: number } {
   // Na combinação os encaixes ficam guardados (para quando o mestre voltar ao Encaixe), mas não contam: ninguém os vê.
   // Nas peças giratórias e nos interruptores também: o medalhão e o painel não têm encaixe.
-  const encaixes = combinacaoDoPuzzle(puzzle) === null && giratoriasDoPuzzle(puzzle) === null && interruptoresDoPuzzle(puzzle) === null ? puzzle.encaixes : []
+  const encaixes = combinacaoDoPuzzle(puzzle) === null && giratoriasDoPuzzle(puzzle) === null && interruptoresDoPuzzle(puzzle) === null && cooperacaoDoPuzzle(puzzle) === null ? puzzle.encaixes : []
   return { postos: encaixes.filter((encaixe) => encaixeCheio(encaixe, progresso)).length, total: encaixes.length }
 }
 
@@ -164,10 +166,11 @@ export function agirNoPuzzle(
   const combinacao = combinacaoDoPuzzle(puzzle)
   const giratorias = giratoriasDoPuzzle(puzzle)
   const interruptores = interruptoresDoPuzzle(puzzle)
-  // Na combinação, nas peças giratórias e nos interruptores os encaixes não aparecem: o pedido é de uma tela de antes da troca de mecânica.
-  const semEncaixes = combinacao !== null || giratorias !== null || interruptores !== null
-  // O medalhão e o painel também não têm a troca de peso (o recorte não a manda).
-  const semTroca = giratorias !== null || interruptores !== null
+  const cooperacao = cooperacaoDoPuzzle(puzzle)
+  // Na combinação, nas peças giratórias, nos interruptores e na cooperação os encaixes não aparecem: o pedido é de uma tela de antes da troca de mecânica.
+  const semEncaixes = combinacao !== null || giratorias !== null || interruptores !== null || cooperacao !== null
+  // O medalhão, o painel e os pontos da cooperação também não têm a troca de peso (o recorte não a manda).
+  const semTroca = giratorias !== null || interruptores !== null || cooperacao !== null
   switch (acao.tipo) {
     case 'por':
       return semEncaixes ? recusa(progresso, mochila, 'mudou') : por(puzzle, progresso, mochila, acao, contexto)
@@ -184,6 +187,7 @@ export function agirNoPuzzle(
     case 'ponteiro':
       return ponteiro(puzzle, combinacao, progresso, mochila, acao.minutos, contexto)
     case 'apertar':
+      if (cooperacao !== null) return acionarPonto(puzzle, cooperacao, progresso, mochila, acao.botao, contexto)
       return interruptores !== null ? puxarAlavanca(puzzle, interruptores, progresso, mochila, acao.botao, contexto) : apertar(puzzle, combinacao, progresso, mochila, acao.botao, contexto)
     case 'tentar':
       return tentar(puzzle, combinacao, progresso, mochila, contexto)
@@ -247,6 +251,27 @@ function puxarAlavanca(puzzle: Puzzle, interruptores: InterruptoresDoPuzzle, pro
   const a = andamento(puzzle, progresso, mochila, contexto)
   a.progresso.luzes = luzes
   if (batemComOAlvo(luzes, interruptores)) resolver(a)
+  return fim(a)
+}
+
+// ------------------------------------------------------------------ a cooperação em dois lugares
+
+/**
+ * Alguém aciona o ponto `ponto` (puxa a alavanca, pisa na placa, aperta o
+ * botão): o lampião dele acende por `janela` segundos. No jogo, só o ponto que
+ * o host conferiu (a ficha encostada no selo dele), e a mesma pessoa noutro
+ * ponto solta o de antes. Todos acesos ao mesmo tempo resolve. Acionar nunca é
+ * erro, então nunca castiga.
+ */
+function acionarPonto(puzzle: Puzzle, cooperacao: CooperacaoDoPuzzle, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], ponto: number, contexto: ContextoDoMotor): ResultadoDoMotor {
+  if (!Number.isInteger(ponto) || ponto < 0 || ponto >= cooperacao.pontos.length) return recusa(progresso, mochila, 'mudou')
+  const noJogo = contexto.modo === 'jogo'
+  if (noJogo && contexto.ponto !== ponto) return recusa(progresso, mochila, 'longe')
+  const antes = acionadosNoProgresso(progresso, cooperacao.pontos.length)
+  const acionados = comAcionamento(antes, ponto, { em: contexto.agora, por: contexto.quem }, noJogo, mesmaPessoa)
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  a.progresso.acionados = acionados
+  if (todosAcesos(acionados, cooperacao.janela, contexto.agora)) resolver(a)
   return fim(a)
 }
 

@@ -86,7 +86,7 @@ export interface Puzzle {
    * futura, guardada como veio. Lida sempre por `combinacaoDoPuzzle`
    * (`puzzles/combinacao.ts`): o que ela não reconhece é "versão nova".
    */
-  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | InterruptoresDoPuzzle | MecanicaFutura
+  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | InterruptoresDoPuzzle | CooperacaoDoPuzzle | MecanicaFutura
 }
 
 /**
@@ -389,6 +389,75 @@ export interface InterruptoresNaVista {
   desenho: boolean[] | null
 }
 
+// ------------------------------------------------------------------ a cooperação em dois lugares (28/11, 4º da fila de puzzles)
+
+/**
+ * A COOPERAÇÃO EM DOIS LUGARES (`docs/design/puzzles/FILA.md`): dois ou três
+ * pontos do mapa ligados ao MESMO puzzle (uma alavanca numa sala e outra noutra,
+ * uma placa de pressão, o botão de um painel). Cada ponto só obedece a quem tem
+ * a ficha encostada nele (o host confere o alcance, a régua do selo), e o puzzle
+ * cede quando todos foram acionados dentro da mesma janela (`janela`, em
+ * segundos). Uma pessoa vale por um ponto só: acionar outro solta o de antes.
+ *
+ * O primeiro ponto é o lugar do desafio; os outros moram no desafio
+ * (`Desafio.outrosLugares`), porque são do mapa e não do puzzle: a cópia que
+ * volta do modelo não os apaga. Mora no `futuro`, como os interruptores.
+ */
+export interface CooperacaoDoPuzzle {
+  tipo: 'cooperacao'
+  material: MaterialDosInterruptores
+  /** Em segundos, de `JANELA_MIN` a `JANELA_MAX`. */
+  janela: number
+  /** De `PONTOS_MIN` a `PONTOS_MAX`, um por lugar no mapa, na ordem do mestre. */
+  pontos: PontoDaCooperacao[]
+}
+
+export interface PontoDaCooperacao {
+  /** O que o jogador encontra ali. */
+  arte: ArteDoPonto
+  /** O nome que todos leem ("Cripta"); vazio = "Ponto 2". */
+  rotulo: string
+}
+
+export type ArteDoPonto = 'alavanca' | 'placa' | 'painel'
+export const ARTES_DO_PONTO: readonly ArteDoPonto[] = ['alavanca', 'placa', 'painel']
+
+export const PONTOS_MIN = 2
+export const PONTOS_MAX = 3
+export const JANELA_MIN = 2
+export const JANELA_MAX = 30
+export const JANELA_PADRAO = 5
+export const ROTULO_DO_PONTO_MAX = 24
+
+/** Quem acionou um ponto e quando (o relógio do host). */
+export interface AcionamentoDoPonto {
+  em: number
+  por: QuemMexe
+}
+
+/**
+ * A cooperação como o jogador a vê (lista branca do recorte): cada ponto com o
+ * que tem, o nome, se está aceso, quanto falta para apagar (`restaMs`, contado
+ * no host na hora da vista) e quem o acionou (só o nome). `meuPonto` = onde a
+ * ficha dele está; `null` = o teste do editor, em que o mestre usa todos. Os
+ * lugares no mapa nunca vão.
+ */
+export interface CooperacaoNaVista {
+  material: MaterialDosInterruptores
+  janela: number
+  meuPonto: number | null
+  pontos: PontoNaVista[]
+}
+
+export interface PontoNaVista {
+  arte: ArteDoPonto
+  rotulo: string
+  aceso: boolean
+  restaMs: number
+  /** O nome de quem acionou; `''` = ninguém (ou já apagou). */
+  por: string
+}
+
 /**
  * A mecânica de uma leva futura, guardada COMO VEIO: o objeto do disco
  * inteiro, e não `{ tipo, bruto }` embrulhado, porque o mapa é gravado por
@@ -440,6 +509,8 @@ export interface ProgressoDoPuzzle {
   controles?: Record<string, number | number[]>
   rotacoes?: number[]
   luzes?: boolean[]
+  /** Na cooperação: o último acionamento de cada ponto (`null` = nenhum, ou a pessoa foi para outro). */
+  acionados?: (AcionamentoDoPonto | null)[]
 }
 
 // ------------------------------------------------------------------ "Meus puzzles" (§1.3)
@@ -665,6 +736,12 @@ export interface ContextoDoMotor {
   pecaDoAcervo: (itemId: string) => PecaDoAcervo | null
   /** Id novo para uma vaga que entra na mochila. */
   novoId: () => string
+  /**
+   * Na cooperação, no jogo: o ponto onde a ficha de quem age está (o host
+   * conferiu o alcance pelo selo daquele ponto). Ausente no jogo = nenhum ponto
+   * (recusa `longe`); no teste, o mestre usa qualquer um.
+   */
+  ponto?: number
 }
 
 export interface ResultadoDoMotor {
@@ -739,6 +816,8 @@ export interface VistaDoPuzzle {
   giratorias?: GiratoriasNaVista
   /** O painel dos interruptores com estado; ausente = não é desse tipo (e então os encaixes não vão). */
   interruptores?: InterruptoresNaVista
+  /** Os pontos da cooperação em dois lugares; ausente = não é desse tipo (e então os encaixes não vão). */
+  cooperacao?: CooperacaoNaVista
   /** O puzzle traz uma mecânica de uma leva que este app não joga. */
   versaoNova?: true
 }

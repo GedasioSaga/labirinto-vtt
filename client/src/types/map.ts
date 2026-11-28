@@ -134,6 +134,9 @@ export type MaterialDaParede =
   | 'pedra-de-fortaleza'
   | 'ossuario'
   | 'muralha-com-ameias'
+  | 'rocha-com-veios'
+  | 'tijolo-com-limo'
+  | 'parede-caiada'
 
 /** Preferência da PRÓXIMA parede na ferramenta: o traço de hoje ou a textura do material escolhido. Não vai para o mapa. */
 export type AcabamentoDaParede = 'linhas' | 'textura'
@@ -2877,6 +2880,12 @@ export type LugarDoDesafio = { tipo: 'ponto'; x: number; y: number } | { tipo: '
 
 export type TipoDoLugarDoDesafio = LugarDoDesafio['tipo']
 
+/** Um dos outros pontos do puzzle de cooperação (`Desafio.outrosLugares`): o lugar e, num ponto, o piso dele. */
+export interface OutroLugarDoDesafio {
+  lugar: LugarDoDesafio
+  piso?: number
+}
+
 /** A ficha de quem chama para o desafio (`Desafio.quem`). */
 export interface QuemChamaODesafio {
   nome: string
@@ -2918,6 +2927,15 @@ export interface Desafio extends NoPiso {
    * passam (dança) ou quando o puzzle é resolvido. Nunca vai ao jogador.
    */
   portaLigada?: string
+  /**
+   * Só no puzzle de COOPERAÇÃO EM DOIS LUGARES (28/11/2026): os outros pontos
+   * do mapa ligados a este mesmo puzzle, em ordem (o ponto 2 e o ponto 3); o
+   * ponto 1 é o `lugar`. Cada um ganha um selo próprio (`pinosDosDesafios`, id
+   * `idDoSeloDoPonto` em `lib/desafios.ts`) e só obedece a quem o alcança.
+   * Moram aqui, e não no puzzle, porque são do mapa (a cópia que volta do
+   * modelo não os apaga). Ausente = nenhum marcado. Nunca vai ao jogador.
+   */
+  outrosLugares?: OutroLugarDoDesafio[]
   /**
    * O TAMANHO DO SELO no mapa (pedido de 21/11/2026: "aumentar e diminuir de
    * tamanho"), em vezes o padrão, na faixa do tamanho do pino (`Pin.escala`):
