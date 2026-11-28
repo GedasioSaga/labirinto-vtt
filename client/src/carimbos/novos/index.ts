@@ -70,6 +70,7 @@ import { carimbo as pilarDeRocha, paleta as paletaDoPilarDeRocha } from './pilar
 import { carimbo as morcegos, paleta as paletaDosMorcegos } from './morcegos'
 import { carimbo as cristaisVermelhos, paleta as paletaDosCristaisVermelhos } from './cristaisVermelhos'
 import { carimbo as limo, paleta as paletaDoLimo } from './limo'
+import { carimbo as galinhas, paleta as paletaDasGalinhas } from './galinhas'
 
 /**
  * OS CARIMBOS NOVOS de 14/11/2026 (itens 111 a 152 da lista do mestre,
@@ -204,6 +205,8 @@ export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
   morcegos,
   cristaisVermelhos,
   limo,
+  // A onda 3 (L07): a fazenda. As galinhas mudam de pose e de arranjo pela semente, sem sombra.
+  galinhas,
 ]
 
 /** Todas as cores chapadas dos novos, para o teste de "não estoura" (`embutidos.test.ts`). */
@@ -285,4 +288,6 @@ export const PALETA_DOS_NOVOS: readonly Rgb[] = [
   ...paletaDosMorcegos,
   ...paletaDosCristaisVermelhos,
   ...paletaDoLimo,
+  // A onda 3 (L07).
+  ...paletaDasGalinhas,
 ]

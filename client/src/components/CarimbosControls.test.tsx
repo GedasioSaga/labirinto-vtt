@@ -156,6 +156,8 @@ describe('CarimbosControls', () => {
       'Morcegos',
       'Cristais vermelhos',
       'Limo',
+      // A onda 3 (L07).
+      'Galinhas',
     ])
     expect(objetos[0].getAttribute('aria-checked')).toBe('true')
     // Um só ponto de parada do Tab no grupo.
@@ -173,7 +175,7 @@ describe('CarimbosControls', () => {
     tecla('ArrowRight')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-morta')
     tecla('End')
-    expect(useMapStore.getState().carimboEscolhido).toBe('limo')
+    expect(useMapStore.getState().carimboEscolhido).toBe('galinhas')
     tecla('Home')
     expect(useMapStore.getState().carimboEscolhido).toBe('pinheiro')
   })
