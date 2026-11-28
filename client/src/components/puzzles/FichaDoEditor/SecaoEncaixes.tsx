@@ -6,6 +6,7 @@ import { NOME_DA_COMBINACAO } from '../../../puzzles/combinacao'
 import { NOME_DAS_GIRATORIAS } from '../../../puzzles/giratorias/giratorias'
 import { NOME_DOS_INTERRUPTORES } from '../../../puzzles/interruptores/interruptores'
 import { NOME_DA_COOPERACAO } from '../../../puzzles/cooperacao/cooperacao'
+import { NOME_DA_MISTURA } from '../../../puzzles/mistura/mistura'
 import { comEncaixe, comMecanica, encaixeComPeca, encaixeComViraDoPar, encaixeDoJeito, encaixeDoTamanho, mecanicaDoEditor, type MecanicaDoEditor } from '../edicao'
 import { imagemDoItem, NOMES_DAS_PECAS_INTEIRAS, viraDoPar, type PecaDoEditor, type PecasDoEditor } from '../pecasDoEditor'
 import { Secao, SeletorDePeca, type PropsDaSecao, type UsarPeca } from './comum'
@@ -30,6 +31,7 @@ const MECANICAS: readonly { valor: MecanicaDoEditor; rotulo: string }[] = [
   { valor: 'giratorias', rotulo: NOME_DAS_GIRATORIAS },
   { valor: 'interruptores', rotulo: NOME_DOS_INTERRUPTORES },
   { valor: 'cooperacao', rotulo: NOME_DA_COOPERACAO },
+  { valor: 'mistura', rotulo: NOME_DA_MISTURA },
 ]
 
 const JEITOS: readonly { valor: EncaixeDoPuzzle['jeito']; rotulo: string }[] = [
@@ -55,6 +57,8 @@ export function SecaoMecanica({ puzzle, mudar }: PropsDaSecao) {
         <p className="pze-nota">Peças giratórias: o jogador gira os anéis do medalhão até o desenho fechar (ou os símbolos certos ficarem sob a marca). A resposta fica só com você, e girar errado não castiga. Os encaixes ficam guardados para quando voltar ao Encaixe.</p>
       ) : mecanica === 'interruptores' ? (
         <p className="pze-nota">Interruptores com estado: um painel de lampiões a gás, cada um com a sua alavanca. Puxar uma alavanca acende ou apaga o lampião dela e os ligados a ela; o painel cede quando os lampiões ficam como o objetivo pede. A regra fica só com você, e puxar não castiga. Os encaixes ficam guardados para quando voltar ao Encaixe.</p>
+      ) : mecanica === 'mistura' ? (
+        <p className="pze-nota">Mistura de líquidos: jarras ou frascos numa bancada, com torneira e pia. O jogador despeja de um no outro até chegar à medida, à cor ou à receita certa e leva ao receptáculo. O alvo só se escolhe entre os que a bancada alcança, então sempre tem solução.</p>
       ) : mecanica === 'cooperacao' ? (
         <p className="pze-nota">Cooperação em dois lugares: 2 ou 3 pontos do mapa (uma alavanca, uma placa de pressão ou um painel em cada) ligados a este puzzle. Cada jogador só aciona o ponto onde a ficha dele está, e o mecanismo cede quando todos os lampiões ficam acesos juntos, dentro da janela. Acionar não castiga. O lugar dos pontos 2 e 3 se marca no mapa, na ficha do desafio em Jogos. Os encaixes ficam guardados para quando voltar ao Encaixe.</p>
       ) : mecanica !== 'encaixe' && mecanica !== 'ordem' ? (

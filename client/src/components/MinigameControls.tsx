@@ -92,6 +92,8 @@ import {
 import { combinacaoDoPuzzle, mecanicaDesconhecida, NOME_DA_COMBINACAO } from '../puzzles/combinacao'
 import { NOME_DO_MODELO, puzzleAbrePorta } from '../puzzles/padroes'
 import { aneisNoLugar, giratoriasDoPuzzle, NOME_DAS_GIRATORIAS, NOME_DO_MATERIAL } from '../puzzles/giratorias/giratorias'
+import { misturaDoPuzzle, NOME_DA_MISTURA, NOME_DO_AO_ERRAR, NOME_DO_MODO, textoDaBancada } from '../puzzles/mistura/mistura'
+import { passosMinimos } from '../puzzles/mistura/solucao'
 import { interruptoresDoPuzzle, lampioesCertos, NOME_DA_LIGACAO, NOME_DO_MATERIAL_DO_PAINEL, NOME_DO_OBJETIVO, NOME_DOS_INTERRUPTORES } from '../puzzles/interruptores/interruptores'
 import { NOME_DA_CENA } from '../puzzles/relevo/arte'
 import { nomeDoRelevo } from '../puzzles/relevo/relevo'
@@ -874,6 +876,9 @@ function textoDoProgresso(puzzle: MinigamePuzzle['puzzle'], progresso: Progresso
   // O painel também: quantos lampiões já estão como o objetivo pede.
   const interruptores = interruptoresDoPuzzle(puzzle)
   if (interruptores !== null) return `${lampioesCertos(interruptores, progresso)} de ${interruptores.quantos} lampiões certos`
+  // A bancada: o que cada recipiente tem agora, e os erros no receptáculo.
+  const mistura = misturaDoPuzzle(puzzle)
+  if (mistura !== null) return `${textoDaBancada(mistura, progresso)}${progresso.erros === 0 ? '' : progresso.erros === 1 ? ' · 1 erro' : ` · ${progresso.erros} erros`}`
   if (combinacaoDoPuzzle(puzzle) !== null) return progresso.erros === 0 ? 'Ainda não abriu' : progresso.erros === 1 ? 'Ainda não abriu · 1 erro' : `Ainda não abriu · ${progresso.erros} erros`
   const { postos, total } = contagemDoPuzzle(puzzle, progresso)
   const erros = progresso.erros === 0 ? '' : progresso.erros === 1 ? ' · 1 erro' : ` · ${progresso.erros} erros`
@@ -913,7 +918,15 @@ function PainelDoPuzzle({ pinId, porta, minigame }: Pick<MinigameControlsProps, 
   const combinacao = combinacaoDoPuzzle(puzzle)
   const giratorias = giratoriasDoPuzzle(puzzle)
   const interruptores = interruptoresDoPuzzle(puzzle)
-  const linhas: readonly { rotulo: string; valor: string }[] = interruptores !== null ? [
+  const mistura = misturaDoPuzzle(puzzle)
+  const minimo = mistura === null ? null : passosMinimos(mistura)
+  const linhas: readonly { rotulo: string; valor: string }[] = mistura !== null ? [
+    // A bancada da mistura: o visual do quadro é o dela, sem troca de peso.
+    { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
+    { rotulo: 'Mecânica', valor: `${NOME_DA_MISTURA}: ${NOME_DO_MODO[mistura.modo].toLowerCase()}, ${mistura.recipientes.length} recipientes (${mistura.recipientes.map((r) => `${r.capacidade} L`).join(', ')})${mistura.fonte ? ', com torneira' : ''}` },
+    { rotulo: 'Mínimo', valor: minimo === null ? 'Sem solução' : `${minimo} passos` },
+    { rotulo: 'Errar', valor: NOME_DO_AO_ERRAR[mistura.aoErrar] },
+  ] : interruptores !== null ? [
     // O painel de lampiões: o visual do quadro é o dele, sem troca de peso e sem castigo.
     { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
     { rotulo: 'Mecânica', valor: `${NOME_DOS_INTERRUPTORES}: ${interruptores.quantos} lampiões na chapa de ${NOME_DO_MATERIAL_DO_PAINEL[interruptores.material].toLowerCase()}, cada alavanca vira: ${NOME_DA_LIGACAO[interruptores.ligacao].toLowerCase()}` },

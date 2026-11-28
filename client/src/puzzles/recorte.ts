@@ -19,6 +19,7 @@ import { combinacaoDoPuzzle, combinacaoNaVista, mecanicaDesconhecida } from './c
 import { cooperacaoDoPuzzle, cooperacaoNaVista } from './cooperacao/cooperacao'
 import { giratoriasDoPuzzle, giratoriasNaVista } from './giratorias/giratorias'
 import { interruptoresDoPuzzle, interruptoresNaVista } from './interruptores/interruptores'
+import { misturaDoPuzzle, misturaNaVista } from './mistura/mistura'
 import { contagemDoPuzzle, pesoDe, postaEm } from './motor'
 import { CATEGORIA_DA_PECA_DE_PUZZLE } from './tipos'
 import type { EncaixeDoPuzzle, EncaixeNaVista, PecaPosta, PostaNaVista, ProgressoDoPuzzle, Puzzle, VagaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
@@ -49,7 +50,9 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
   // Nos interruptores também: o painel só tem alavancas.
   // Na cooperação também: os pontos são alavancas, placas e botões.
   const cooperacao = cooperacaoDoPuzzle(puzzle)
-  const encaixes = combinacao === null && giratorias === null && interruptores === null && cooperacao === null ? puzzle.encaixes : []
+  // Na mistura também: a bancada só tem recipientes (os ingredientes da receita vão dentro deles).
+  const mistura = misturaDoPuzzle(puzzle)
+  const encaixes = combinacao === null && giratorias === null && interruptores === null && cooperacao === null && mistura === null ? puzzle.encaixes : []
   const vista: VistaDoPuzzle = {
     desafioId: entrada.desafioId,
     rev: progresso.rev,
@@ -57,7 +60,7 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
     visual: visualNaVista(puzzle.visual),
     encaixes: encaixes.map((encaixe) => encaixeNaVista(encaixe, progresso)),
     // O medalhão não tem troca de peso (o motor a recusa).
-    troca: giratorias === null && interruptores === null && cooperacao === null ? trocaNaVista(puzzle, progresso) : null,
+    troca: giratorias === null && interruptores === null && cooperacao === null && mistura === null ? trocaNaVista(puzzle, progresso) : null,
     dica: dicaNaVista(puzzle, entrada.documentoDaDica),
     resolvido: progresso.resolvido !== null,
     contagem: contagemDoPuzzle(puzzle, progresso),
@@ -70,6 +73,8 @@ export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
   if (interruptores !== null) vista.interruptores = interruptoresNaVista(interruptores, progresso)
   // A cooperação: cada ponto aceso ou não, e quanto falta (os lugares no mapa e os ids ficam aqui).
   if (cooperacao !== null) vista.cooperacao = cooperacaoNaVista(cooperacao, progresso, entrada.agora, entrada.ponto ?? null)
+  // A mistura: o que cada recipiente tem e o alvo da plaqueta (a proporção certa, os ids da receita e o começo ficam aqui).
+  if (mistura !== null) vista.mistura = misturaNaVista(mistura, progresso)
   if (mecanicaDesconhecida(puzzle)) vista.versaoNova = true
   return vista
 }

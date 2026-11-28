@@ -22,6 +22,9 @@ import { comControle, comEncaixeNovo, comGiratorias, comModelo, comVisual, encai
 import { SecaoGiratorias } from './FichaDoEditor/SecaoGiratorias'
 import { SecaoInterruptores } from './FichaDoEditor/SecaoInterruptores'
 import { SecaoCooperacao } from './FichaDoEditor/SecaoCooperacao'
+import { SecaoMistura } from './FichaDoEditor/SecaoMistura'
+import { misturaDoPuzzle, NOME_DO_MODO } from '../../puzzles/mistura/mistura'
+import { passosMinimos } from '../../puzzles/mistura/solucao'
 import { cooperacaoDoPuzzle } from '../../puzzles/cooperacao/cooperacao'
 import { SecaoCombinacao } from './FichaDoEditor/SecaoCombinacao'
 import { devolverAsPecas, useEditorDoPuzzleStore, type AlvoDoEditor } from './editorDoPuzzleStore'
@@ -388,8 +391,9 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   const giratorias = giratoriasDoPuzzle(puzzle)
   const interruptores = interruptoresDoPuzzle(puzzle)
   const cooperacao = cooperacaoDoPuzzle(puzzle)
+  const mistura = misturaDoPuzzle(puzzle)
   // O medalhão, o painel de lampiões e os pontos da cooperação não usam o visual, a troca de peso, o castigo nem a biblioteca de peças.
-  const semPecas = giratorias !== null || interruptores !== null || cooperacao !== null
+  const semPecas = giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null
   const relevo = ehRelevo(puzzle.visual) ? puzzle.visual : null
   const nomeDaPorta = alvo.tipo === 'copia' && edicao.porta !== null ? (opcoesDePorta.find((opcao) => opcao.id === edicao.porta)?.label ?? null) : null
   const porta: PortaDoEditor | null =
@@ -438,7 +442,7 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
               </div>
             </header>
             <p className={classes('pze-aviso', aviso?.tipo === 'error' && 'pze-aviso--perigo')} role="status" aria-live="polite">
-              {aviso?.texto ?? (cooperacao !== null ? 'O quadro mostra os pontos como o jogador os encontra. Ver resolvido mostra todos os lampiões acesos; Ctrl+Z desfaz.' : interruptores !== null ? 'O quadro mostra o painel como o jogador o encontra. Ver resolvido mostra os lampiões como o objetivo pede; Ctrl+Z desfaz.' : giratorias !== null ? 'O quadro mostra o medalhão como o jogador o encontra. Ver resolvido mostra o desenho fechado; Ctrl+Z desfaz.' : relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
+              {aviso?.texto ?? (mistura !== null ? 'O quadro mostra a bancada como o jogador a encontra. A ficha mostra o caminho mais curto até o alvo; Ctrl+Z desfaz.' : cooperacao !== null ? 'O quadro mostra os pontos como o jogador os encontra. Ver resolvido mostra todos os lampiões acesos; Ctrl+Z desfaz.' : interruptores !== null ? 'O quadro mostra o painel como o jogador o encontra. Ver resolvido mostra os lampiões como o objetivo pede; Ctrl+Z desfaz.' : giratorias !== null ? 'O quadro mostra o medalhão como o jogador o encontra. Ver resolvido mostra o desenho fechado; Ctrl+Z desfaz.' : relevo !== null ? 'Clique numa placa do painel para ela faltar ou voltar. Teclado: Tab anda pelas placas, Enter troca, Ctrl+Z desfaz.' : ehCombinacao ?'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
             </p>
             <div className="pze-corpo">
               <div className="pze-ficha-col">
@@ -459,7 +463,10 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                 ) : (
                   <>
                     <SecaoMecanica puzzle={puzzle} mudar={mudar} />
-                    {cooperacao !== null ? (
+                    {mistura !== null ? (
+                      // A bancada não usa encaixes nem troca de peso: só os recipientes, a torneira e o alvo.
+                      <SecaoMistura puzzle={puzzle} mudar={mudar} />
+                    ) : cooperacao !== null ? (
                       // A cooperação não usa encaixes nem troca de peso: só os pontos e a janela.
                       <SecaoCooperacao puzzle={puzzle} mudar={mudar} />
                     ) : interruptores !== null ? (
@@ -478,7 +485,7 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                 )}
                 <SecaoDica puzzle={puzzle} mudar={mudar} />
                 <SecaoDesfecho puzzle={puzzle} mudar={mudar} porta={porta} />
-                {!semPecas && <SecaoCastigo puzzle={puzzle} mudar={mudar} />}
+                {(!semPecas || mistura !== null) && <SecaoCastigo puzzle={puzzle} mudar={mudar} />}
               </div>
               <div className="pze-palco">
                 <QuadroDoEditor
@@ -489,10 +496,17 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   onMudar={mudar}
                   onTirar={tirarEncaixe}
                   verResolvido={verResolvido}
-                  onImagemSolta={(arquivo) => void (cooperacao !== null ? avisar('Os pontos da cooperação não usam imagem.') : interruptores !== null ? avisar('O painel de lampiões não usa imagem.') : giratorias !== null ? usarImagemDasGiratorias(() => fundoDoPuzzleDoArquivo(arquivo)) : relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
+                  onImagemSolta={(arquivo) => void (mistura !== null ? avisar('A bancada de mistura não usa imagem.') : cooperacao !== null ? avisar('Os pontos da cooperação não usam imagem.') : interruptores !== null ? avisar('O painel de lampiões não usa imagem.') : giratorias !== null ? usarImagemDasGiratorias(() => fundoDoPuzzleDoArquivo(arquivo)) : relevo !== null ? usarImagemDoRelevo(() => fundoDoPuzzleDoArquivo(arquivo)) : usarImagem(() => fundoDoPuzzleDoArquivo(arquivo)))}
                   onAviso={avisar}
                 />
-                {cooperacao !== null ? (
+                {mistura !== null ? (
+                  <div className="pze-barra">
+                    <span>
+                      {NOME_DO_MODO[mistura.modo]}: {mistura.recipientes.length} {mistura.modo === 'volumes' ? 'jarras' : 'frascos'}
+                    </span>
+                    <span className="pze-nota">{passosMinimos(mistura) === null ? 'Sem solução: veja o aviso na ficha.' : `Mínimo: ${passosMinimos(mistura)} passos. A solução está na ficha.`}</span>
+                  </div>
+                ) : cooperacao !== null ? (
                   <div className="pze-barra">
                     <span>
                       {cooperacao.pontos.length} pontos, janela de {cooperacao.janela} s

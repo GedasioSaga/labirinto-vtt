@@ -1,0 +1,431 @@
+/*
+ * A BANCADA DA MISTURA NO QUADRO (28/11, PainelDaMistura.tsx): a prateleira, a
+ * torneira, a pia e o receptáculo moram na base (arte.ts); por cima, cada
+ * recipiente é um botão com o vidro vivo, e cada estação é um botão do tamanho
+ * dela. Só transform e opacidade se mexem (e a cor do líquido, que esmaece).
+ *
+ * O movimento, pela régua do Emil: o nível anda no ease-in-out forte (é
+ * movimento na tela); pegar, inclinar e o fio são respostas ao gesto, no
+ * ease-out forte, todos abaixo de 300 ms. O teclado não anima (`is-teclado`).
+ */
+
+.qpz-mx {
+  --mx-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --mx-mover: cubic-bezier(0.77, 0, 0.175, 1);
+  --mx-foco: #f6dc9e;
+  --mx-gravado: #2a1f0e;
+  --mx-gravado-luz: rgba(255, 240, 200, 0.42);
+  --mx-placa: #c9a453;
+  --mx-placa-funda: #9b7a32;
+  --mx-texto-claro: #f4e8c8;
+  --mx-fundo-da-dica: rgba(18, 12, 6, 0.7);
+  position: absolute;
+  inset: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.qpz-mx[data-material='ferro'] {
+  --mx-foco: #e4ded2;
+  --mx-gravado: #16150f;
+  --mx-gravado-luz: rgba(235, 232, 222, 0.32);
+  --mx-placa: #8f8a80;
+  --mx-placa-funda: #5f5b54;
+}
+
+/* ---------------------------------------------------------------- os alvos (recipientes e estações) */
+
+.qpz-mx__alvo {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 1.2cqw;
+  background: none;
+  cursor: pointer;
+  /* O arrasto é do painel: o dedo não rola o quadro enquanto leva um recipiente. */
+  touch-action: none;
+  outline: 2px dashed transparent;
+  outline-offset: -0.35cqw;
+  transition:
+    outline-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.qpz-mx__alvo:focus-visible {
+  box-shadow:
+    0 0 0 3px var(--mx-foco),
+    0 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.qpz-mx__alvo[aria-disabled='true'] {
+  cursor: default;
+}
+
+/* Com algo na mão, onde dá para despejar fica tracejado; o lugar sob o dedo acende. */
+.qpz-mx__alvo.is-destino {
+  outline-color: rgba(246, 220, 158, 0.5);
+}
+
+.qpz-mx[data-material='ferro'] .qpz-mx__alvo.is-destino {
+  outline-color: rgba(228, 222, 210, 0.5);
+}
+
+.qpz-mx__alvo.is-sobre {
+  outline: 3px solid var(--mx-foco);
+  background-color: rgba(246, 220, 158, 0.13);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .qpz-mx__alvo.is-destino:hover {
+    background-color: rgba(246, 220, 158, 0.1);
+  }
+}
+
+.qpz-mx__estacao.is-na-mao {
+  outline: 3px solid var(--mx-foco);
+}
+
+.qpz-mx.is-parado .qpz-mx__alvo,
+.qpz-mx.is-parado .qpz-mx__recomecar {
+  pointer-events: none;
+}
+
+.qpz-mx.is-arrastando {
+  cursor: grabbing;
+}
+
+/* ---------------------------------------------------------------- o recipiente */
+
+.qpz-mx__corpo {
+  position: absolute;
+  display: block;
+  transform-origin: 50% 92%;
+  transition:
+    transform 160ms var(--mx-ease),
+    scale 120ms var(--mx-ease);
+}
+
+.qpz-mx__rec.is-na-mao {
+  background-color: rgba(246, 220, 158, 0.1);
+}
+
+.qpz-mx__rec.is-na-mao .qpz-mx__corpo {
+  transform: translateY(-1.1cqw);
+}
+
+.qpz-mx__rec:active:not([aria-disabled='true']) .qpz-mx__corpo {
+  scale: 0.97;
+}
+
+/* Verter: o de origem inclina para o lado de quem recebe e volta (a vista chega no meio). */
+.qpz-mx__corpo[data-vertendo='dir'] {
+  transform: translateY(-1.1cqw) rotate(13deg);
+}
+
+.qpz-mx__corpo[data-vertendo='esq'] {
+  transform: translateY(-1.1cqw) rotate(-13deg);
+}
+
+.qpz-mx-vidro {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.qpz-mx-nivel {
+  transition: transform 240ms var(--mx-mover);
+}
+
+.qpz-mx-tinta {
+  transition:
+    fill 200ms ease,
+    opacity 200ms ease;
+}
+
+.qpz-mx-fio {
+  opacity: 0;
+  transform: scaleY(0.15);
+  transform-box: fill-box;
+  transform-origin: top;
+  transition:
+    opacity 180ms ease-out,
+    transform 140ms var(--mx-ease);
+}
+
+.qpz-mx-fio.is-correndo {
+  opacity: 0.86;
+  transform: scaleY(1);
+}
+
+/* O teclado não anima: o nível pula e nada inclina (a tecla se repete; a resposta é o número). */
+.qpz-mx.is-teclado .qpz-mx__corpo,
+.qpz-mx.is-teclado .qpz-mx-nivel {
+  transition: none;
+}
+
+.qpz-mx__litros {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.2cqw;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--mx-gravado);
+  text-shadow: 0 1px 0 var(--mx-gravado-luz);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- a plaqueta do alvo */
+
+.qpz-mx__plaqueta {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2cqw;
+  padding: 0 2.4cqw;
+  box-sizing: border-box;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: var(--mx-texto-claro);
+  text-align: center;
+  pointer-events: none;
+}
+
+.qpz-mx__rotulo {
+  font-size: 1.45cqw;
+  line-height: 1.2;
+  opacity: 0.88;
+}
+
+.qpz-mx__numero {
+  font-size: 4.2cqw;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0.15cqw 0.3cqw rgba(0, 0, 0, 0.55);
+}
+
+.qpz-mx__amostra {
+  width: 4.4cqw;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--mx-cor);
+  border: 0.32cqw solid var(--mx-placa);
+  box-shadow:
+    inset 0 0.5cqw 0.6cqw rgba(255, 255, 255, 0.28),
+    inset 0 -0.5cqw 0.8cqw rgba(0, 0, 0, 0.4),
+    0 0.2cqw 0.5cqw rgba(0, 0, 0, 0.5);
+}
+
+.qpz-mx__receita {
+  display: grid;
+  gap: 0.4cqw;
+}
+
+.qpz-mx__itens {
+  font-size: 1.6cqw;
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* ---------------------------------------------------------------- o visor do receptáculo */
+
+.qpz-mx__visor {
+  position: absolute;
+  border-radius: 50%;
+  background: #ffe2a2;
+  opacity: 0;
+  box-shadow: 0 0 2.2cqw 0.7cqw rgba(255, 210, 120, 0.6);
+  pointer-events: none;
+  transition: opacity 300ms ease-out;
+}
+
+.qpz-mx.is-resolvido .qpz-mx__visor {
+  opacity: 0.8;
+}
+
+/* ---------------------------------------------------------------- recomeçar a bancada */
+
+.qpz-mx__recomecar {
+  position: absolute;
+  display: grid;
+  place-content: center;
+  gap: 0.25cqw;
+  margin: 0;
+  padding: 0 1cqw;
+  border: 0;
+  border-radius: 0.9cqw;
+  background: linear-gradient(180deg, var(--mx-placa) 0%, var(--mx-placa-funda) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+    0 0.3cqw 0.7cqw rgba(0, 0, 0, 0.5);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.3cqw;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--mx-gravado);
+  text-shadow: 0 1px 0 var(--mx-gravado-luz);
+  cursor: pointer;
+  outline: none;
+  touch-action: manipulation;
+  transition:
+    transform 120ms var(--mx-ease),
+    filter 150ms ease;
+}
+
+.qpz-mx__recomecar:focus-visible {
+  box-shadow:
+    0 0 0 3px var(--mx-foco),
+    0 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.qpz-mx__recomecar:active:not([aria-disabled='true']) {
+  transform: scale(0.97);
+}
+
+.qpz-mx__recomecar[aria-disabled='true'] {
+  cursor: default;
+  filter: saturate(0.35) brightness(0.78);
+}
+
+.qpz-mx__motivo {
+  font-size: 1cqw;
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------------- a linha da dica e o fantasma do arrasto */
+
+.qpz-mx__dica {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 1.4cqw;
+  box-sizing: border-box;
+  border-radius: 0.8cqw;
+  background: var(--mx-fundo-da-dica);
+  color: var(--mx-texto-claro);
+  font-size: 1.25cqw;
+  line-height: 1.3;
+  text-align: center;
+  pointer-events: none;
+}
+
+.qpz-mx__dica.is-aviso {
+  color: #ffd9a8;
+}
+
+.qpz-mx__fantasma {
+  position: absolute;
+  left: -1.9cqw;
+  top: -1.9cqw;
+  width: 3.8cqw;
+  aspect-ratio: 1;
+  border-radius: 50% 50% 50% 8%;
+  background: var(--mx-cor);
+  border: 0.25cqw solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.5);
+  opacity: 0.92;
+  pointer-events: none;
+  rotate: -45deg;
+}
+
+.qpz-mx__leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Movimento reduzido: nada inclina, nada sobe, o fio não cai e o nível pula; a cor ainda esmaece. */
+@media (prefers-reduced-motion: reduce) {
+  .qpz-mx__corpo,
+  .qpz-mx-nivel {
+    transition: none;
+  }
+
+  .qpz-mx__rec.is-na-mao .qpz-mx__corpo,
+  .qpz-mx__corpo[data-vertendo] {
+    transform: none;
+  }
+
+  /* Sem subir, o da mão se mostra pelo contorno. */
+  .qpz-mx__rec.is-na-mao {
+    outline: 3px solid var(--mx-foco);
+  }
+
+  .qpz-mx-fio {
+    display: none;
+  }
+
+  .qpz-mx__visor {
+    transition: opacity 160ms ease;
+  }
+}
+
+/* ---------------------------------------------------------------- a ficha do editor (SecaoMistura.tsx), com os tokens do grimório */
+
+.pze-mx-recipiente {
+  padding: 8px 10px;
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-sm);
+}
+
+.pze-mx-cores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 44px);
+  gap: 8px;
+}
+
+.pze-mx-cor {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--lb-gr-filete-forte);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 120ms var(--lb-gr-ease-out);
+}
+
+.pze-mx-cor:active {
+  transform: scale(0.97);
+}
+
+.pze-mx-cor:focus-visible,
+.pze-mx-cor[aria-pressed='true'] {
+  outline: 3px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+
+.pze-mx-ingredientes,
+.pze-mx-solucao {
+  margin: 0;
+  padding-left: 1.4em;
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+}
+
+.pze-mx-ingredientes li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pze-mx-aviso {
+  color: var(--lb-color-brass-bright);
+}

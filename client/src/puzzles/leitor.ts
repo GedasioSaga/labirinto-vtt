@@ -21,6 +21,7 @@ import { ehRefDeMidia } from '../lib/midia'
 import type { CarriedItem, ItemNoConteudo } from '../types/map'
 import { lerCombinacao, minutosNoMostrador } from './combinacao'
 import { lerCooperacao } from './cooperacao/cooperacao'
+import { lerMistura } from './mistura/mistura'
 import { lerGiratorias } from './giratorias/giratorias'
 import { lerInterruptores } from './interruptores/interruptores'
 import { aceitaMolduraPorta, PADROES_DOS_MODELOS, POSICAO_DA_TROCA_PADRAO, PESO_DA_TROCA_PADRAO, PV_DO_CASTIGO_PADRAO, puzzleDoModelo, visualEhPorta } from './padroes'
@@ -48,6 +49,10 @@ import {
   CENAS_DO_RELEVO,
   METAIS_DO_RELEVO,
   PONTOS_MAX,
+  CAPACIDADE_MAX,
+  ITENS_NO_RECIPIENTE_MAX,
+  LIQUIDOS_DA_MISTURA,
+  RECIPIENTES_MAX,
 } from './tipos'
 import { ehPlaca } from './relevo/placas'
 import type { VisualDoRelevo } from './tipos'
@@ -66,6 +71,7 @@ import type {
   ProgressoDoPuzzle,
   Puzzle,
   QuemMexe,
+  RecipienteNoProgresso,
   RegraDoPuzzle,
   TrocaDePeso,
   VisualDoPuzzle,
@@ -190,7 +196,7 @@ export function lerPuzzle(valor: unknown): Puzzle {
   const padrao = puzzleDoModelo(visual.tipo === 'modelo' ? visual.modelo : 'fonte')
   const futuro = lerFuturo(bruto.futuro)
   // A porta ligada abre com um visual de porta, com o medalhão das peças giratórias, com o painel dos interruptores ou com os pontos da cooperação.
-  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias' || futuro?.tipo === 'interruptores' || futuro?.tipo === 'cooperacao'
+  const abrePorta = visualEhPorta(visual) || futuro?.tipo === 'giratorias' || futuro?.tipo === 'interruptores' || futuro?.tipo === 'cooperacao' || futuro?.tipo === 'mistura'
   const puzzle: Puzzle = {
     nome: textoNaoVazio(bruto.nome, NOME_DO_PUZZLE_MAX, padrao.nome),
     nomePublico: textoLido(bruto.nomePublico, NOME_DO_PUZZLE_MAX, padrao.nomePublico),
@@ -366,6 +372,8 @@ function lerFuturo(valor: unknown): Puzzle['futuro'] {
   if (interruptores !== null) return interruptores
   const cooperacao = lerCooperacao(valor)
   if (cooperacao !== null) return cooperacao
+  const mistura = lerMistura(valor)
+  if (mistura !== null) return mistura
   if (!isRecord(valor) || typeof valor.tipo !== 'string' || valor.tipo === '') return undefined
   let json: string
   try {
@@ -413,6 +421,19 @@ export function lerProgressoDoPuzzle(valor: unknown): ProgressoDoPuzzle | undefi
       return { em: Math.min(acionado.em, Number.MAX_SAFE_INTEGER), por: lerQuem(acionado.por) }
     })
     if (acionados.some((acionado) => acionado !== null)) progresso.acionados = acionados
+  }
+  // A mistura de líquidos: as partes de cada líquido, os ingredientes postos (voltam a quem pôs) e o turvo.
+  if (Array.isArray(valor.mistura)) {
+    const mistura = valor.mistura.slice(0, RECIPIENTES_MAX).map((bruto): RecipienteNoProgresso => {
+      const recipiente = isRecord(bruto) ? bruto : {}
+      const partes: readonly unknown[] = Array.isArray(recipiente.partes) ? recipiente.partes : []
+      return {
+        partes: LIQUIDOS_DA_MISTURA.map((_, i) => inteiroEntre(partes[i], 0, CAPACIDADE_MAX, 0)),
+        itens: Array.isArray(recipiente.itens) ? recipiente.itens.flatMap((item) => lerPecaPosta(item) ?? []).slice(0, ITENS_NO_RECIPIENTE_MAX) : [],
+        turvo: recipiente.turvo === true,
+      }
+    })
+    if (mistura.length > 0) progresso.mistura = mistura
   }
   return progresso
 }
@@ -511,6 +532,18 @@ export function lerAcaoNoPuzzle(valor: unknown): AcaoNoPuzzle | null {
     }
     case 'tentar':
       return { tipo: 'tentar' }
+    case 'despejar': {
+      const de = valor.de === 'fonte' ? 'fonte' : indiceLido(valor.de)
+      const para = valor.para === 'ralo' || valor.para === 'receptaculo' ? valor.para : indiceLido(valor.para)
+      return de === null || para === null ? null : { tipo: 'despejar', de, para }
+    }
+    case 'deitar': {
+      const vagaId = idSolto(valor.vagaId)
+      const recipiente = indiceLido(valor.recipiente)
+      return vagaId === null || recipiente === null ? null : { tipo: 'deitar', vagaId, recipiente }
+    }
+    case 'recomecar':
+      return { tipo: 'recomecar' }
     default:
       return null
   }

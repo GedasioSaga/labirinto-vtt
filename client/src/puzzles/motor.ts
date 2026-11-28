@@ -31,6 +31,7 @@ import { certosNoProgresso, combinacaoCerta, combinacaoDoPuzzle, comCertos, comM
 import { acionadosNoProgresso, comAcionamento, cooperacaoDoPuzzle, todosAcesos } from './cooperacao/cooperacao'
 import { alinhadas, errosNoProgresso, girarAneis, giratoriasDoPuzzle } from './giratorias/giratorias'
 import { batemComOAlvo, interruptoresDoPuzzle, luzesNoProgresso, puxar } from './interruptores/interruptores'
+import { AGUA, aindaDaReceita, bateComOAlvo, cabeIngrediente, comecoDaMistura, despejo, idsPostos, ingredientesPerdidos, misturaDoPuzzle, misturaNoProgresso, partesVazias, total } from './mistura/mistura'
 import { puzzleAbrePorta } from './padroes'
 import { BANDEJA_MAX } from './tipos'
 import type {
@@ -43,11 +44,13 @@ import type {
   GiratoriasDoPuzzle,
   InterruptoresDoPuzzle,
   MetadesPostas,
+  MisturaDoPuzzle,
   MotivoDaRecusa,
   PecaPosta,
   ProgressoDoPuzzle,
   Puzzle,
   QuemMexe,
+  RecipienteNoProgresso,
   ResultadoDoMotor,
   TrocaDePeso,
 } from './tipos'
@@ -91,7 +94,7 @@ export function encaixeCheio(encaixe: EncaixeDoPuzzle, progresso: Pick<Progresso
 export function contagemDoPuzzle(puzzle: Pick<Puzzle, 'encaixes' | 'futuro'>, progresso: Pick<ProgressoDoPuzzle, 'encaixes'>): { postos: number; total: number } {
   // Na combinação os encaixes ficam guardados (para quando o mestre voltar ao Encaixe), mas não contam: ninguém os vê.
   // Nas peças giratórias e nos interruptores também: o medalhão e o painel não têm encaixe.
-  const encaixes = combinacaoDoPuzzle(puzzle) === null && giratoriasDoPuzzle(puzzle) === null && interruptoresDoPuzzle(puzzle) === null && cooperacaoDoPuzzle(puzzle) === null ? puzzle.encaixes : []
+  const encaixes = combinacaoDoPuzzle(puzzle) === null && giratoriasDoPuzzle(puzzle) === null && interruptoresDoPuzzle(puzzle) === null && cooperacaoDoPuzzle(puzzle) === null && misturaDoPuzzle(puzzle) === null ? puzzle.encaixes : []
   return { postos: encaixes.filter((encaixe) => encaixeCheio(encaixe, progresso)).length, total: encaixes.length }
 }
 
@@ -116,7 +119,9 @@ export function pecasPostas(progresso: ProgressoDoPuzzle): PecaPosta[] {
     if ('vaga' in posta) return [posta]
     return [posta.a, posta.b].filter((metade): metade is PecaPosta => metade !== null)
   })
-  return [...nosEncaixes, ...progresso.bandeja]
+  // Os ingredientes da mistura de líquidos também (os de uma bancada resolvida ficam no recipiente, como a peça presa).
+  const nosRecipientes = (progresso.mistura ?? []).flatMap((recipiente) => recipiente.itens)
+  return [...nosEncaixes, ...progresso.bandeja, ...nosRecipientes]
 }
 
 /** A mesma pessoa: a mesma ficha, ou o mesmo boneco quando não há ficha. */
@@ -167,10 +172,11 @@ export function agirNoPuzzle(
   const giratorias = giratoriasDoPuzzle(puzzle)
   const interruptores = interruptoresDoPuzzle(puzzle)
   const cooperacao = cooperacaoDoPuzzle(puzzle)
-  // Na combinação, nas peças giratórias, nos interruptores e na cooperação os encaixes não aparecem: o pedido é de uma tela de antes da troca de mecânica.
-  const semEncaixes = combinacao !== null || giratorias !== null || interruptores !== null || cooperacao !== null
-  // O medalhão, o painel e os pontos da cooperação também não têm a troca de peso (o recorte não a manda).
-  const semTroca = giratorias !== null || interruptores !== null || cooperacao !== null
+  const mistura = misturaDoPuzzle(puzzle)
+  // Na combinação, nas peças giratórias, nos interruptores, na cooperação e na mistura os encaixes não aparecem: o pedido é de uma tela de antes da troca de mecânica.
+  const semEncaixes = combinacao !== null || giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null
+  // O medalhão, o painel, os pontos da cooperação e a bancada também não têm a troca de peso (o recorte não a manda).
+  const semTroca = giratorias !== null || interruptores !== null || cooperacao !== null || mistura !== null
   switch (acao.tipo) {
     case 'por':
       return semEncaixes ? recusa(progresso, mochila, 'mudou') : por(puzzle, progresso, mochila, acao, contexto)
@@ -191,7 +197,135 @@ export function agirNoPuzzle(
       return interruptores !== null ? puxarAlavanca(puzzle, interruptores, progresso, mochila, acao.botao, contexto) : apertar(puzzle, combinacao, progresso, mochila, acao.botao, contexto)
     case 'tentar':
       return tentar(puzzle, combinacao, progresso, mochila, contexto)
+    case 'despejar':
+      return mistura === null ? recusa(progresso, mochila, 'mudou') : despejar(puzzle, mistura, progresso, mochila, acao, contexto)
+    case 'deitar':
+      return mistura === null ? recusa(progresso, mochila, 'mudou') : deitar(puzzle, mistura, progresso, mochila, acao, contexto)
+    case 'recomecar':
+      return mistura === null ? recusa(progresso, mochila, 'mudou') : recomecarBancada(puzzle, mistura, progresso, mochila, contexto)
   }
+}
+
+// ------------------------------------------------------------------ a mistura de líquidos
+
+/** O índice de um recipiente da bancada (o pedido vem da rede). */
+function ehRecipiente(valor: unknown, mistura: MisturaDoPuzzle): valor is number {
+  return typeof valor === 'number' && Number.isInteger(valor) && valor >= 0 && valor < mistura.recipientes.length
+}
+
+/**
+ * A bancada no andamento: o que cada recipiente tem. Se o mestre mudou a
+ * bancada e o guardado não cabe mais, os ingredientes dele voltam a quem os pôs.
+ */
+function bancada(a: Andamento, mistura: MisturaDoPuzzle): RecipienteNoProgresso[] {
+  for (const posta of ingredientesPerdidos(a.progresso, mistura)) devolver(a, posta)
+  return misturaNoProgresso(a.progresso, mistura)
+}
+
+/** Esvazia o recipiente `i` na pia: o líquido some e cada ingrediente volta a quem o pôs. */
+function esvaziarNaPia(a: Andamento, recipientes: RecipienteNoProgresso[], i: number): void {
+  for (const posta of recipientes[i]?.itens ?? []) devolver(a, posta)
+  recipientes[i] = { partes: partesVazias(), itens: [], turvo: false }
+}
+
+/**
+ * Levar um recipiente (ou a água da torneira) até outro lugar. O host confere
+ * o receptáculo a cada vez: o alvo certo resolve; o errado castiga e, pelo
+ * `aoErrar`, derrama o que foi posto ou faz a bancada voltar ao começo.
+ */
+function despejar(puzzle: Puzzle, mistura: MisturaDoPuzzle, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], acao: Extract<AcaoNoPuzzle, { tipo: 'despejar' }>, contexto: ContextoDoMotor): ResultadoDoMotor {
+  const { de, para } = acao
+  if (de === 'fonte' ? !mistura.fonte || !ehRecipiente(para, mistura) : !ehRecipiente(de, mistura)) return recusa(progresso, mochila, 'mudou')
+  if (typeof para === 'number' && (!ehRecipiente(para, mistura) || para === de)) return recusa(progresso, mochila, 'mudou')
+  const agora = misturaNoProgresso(progresso, mistura)
+  const capacidade = (i: number) => mistura.recipientes[i]?.capacidade ?? 0
+  const litros = (i: number) => total(agora[i]?.partes ?? [])
+
+  if (de === 'fonte') {
+    const alvo = typeof para === 'number' ? para : 0
+    if (litros(alvo) >= capacidade(alvo)) return recusa(progresso, mochila, 'recipiente_cheio')
+    const a = andamento(puzzle, progresso, mochila, contexto)
+    const recipientes = bancada(a, mistura)
+    const cheio = recipientes[alvo]
+    if (cheio !== undefined) cheio.partes[AGUA] = (cheio.partes[AGUA] ?? 0) + capacidade(alvo) - total(cheio.partes)
+    a.progresso.mistura = recipientes
+    return fim(a)
+  }
+
+  const origem = agora[de]
+  if (para === 'ralo') {
+    if (origem === undefined || (litros(de) === 0 && origem.itens.length === 0)) return recusa(progresso, mochila, 'recipiente_vazio')
+    const a = andamento(puzzle, progresso, mochila, contexto)
+    const recipientes = bancada(a, mistura)
+    esvaziarNaPia(a, recipientes, de)
+    a.progresso.mistura = recipientes
+    return fim(a)
+  }
+
+  if (litros(de) === 0) return recusa(progresso, mochila, 'recipiente_vazio')
+  if (para === 'receptaculo') {
+    const a = andamento(puzzle, progresso, mochila, contexto)
+    const recipientes = bancada(a, mistura)
+    const posto = recipientes[de]
+    if (posto !== undefined && bateComOAlvo(posto, mistura)) {
+      // O líquido desce no receptáculo; os ingredientes ficam presos (como a peça de um puzzle resolvido).
+      recipientes[de] = { partes: partesVazias(), itens: posto.itens, turvo: false }
+      a.progresso.mistura = recipientes
+      resolver(a)
+      return fim(a)
+    }
+    errar(a, { tipo: 'errou', em: 'mistura' })
+    if (mistura.aoErrar === 'recomeca') {
+      for (const recipiente of recipientes) for (const posta of recipiente.itens) devolver(a, posta)
+      a.progresso.mistura = comecoDaMistura(mistura)
+    } else {
+      esvaziarNaPia(a, recipientes, de)
+      a.progresso.mistura = recipientes
+    }
+    return fim(a)
+  }
+
+  // De um recipiente no outro: até a origem esvaziar ou o destino encher.
+  if ((origem?.itens.length ?? 0) > 0) return recusa(progresso, mochila, 'com_ingredientes')
+  if (litros(para) >= capacidade(para)) return recusa(progresso, mochila, 'recipiente_cheio')
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  const recipientes = bancada(a, mistura)
+  const saiu = recipientes[de]
+  const entrou = recipientes[para]
+  if (saiu === undefined || entrou === undefined) return recusa(progresso, mochila, 'mudou')
+  const passou = despejo(saiu.partes, entrou.partes, capacidade(para))
+  saiu.partes = passou.de
+  entrou.partes = passou.para
+  a.progresso.mistura = recipientes
+  return fim(a)
+}
+
+/** Jogar um item da mochila num recipiente (só na receita). O que sai da receita turva a mistura, se o mestre quis. */
+function deitar(puzzle: Puzzle, mistura: MisturaDoPuzzle, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], acao: Extract<AcaoNoPuzzle, { tipo: 'deitar' }>, contexto: ContextoDoMotor): ResultadoDoMotor {
+  if (mistura.modo !== 'receita' || !ehRecipiente(acao.recipiente, mistura)) return recusa(progresso, mochila, 'mudou')
+  const vaga = mochila.find((v) => v.id === acao.vagaId)
+  if (vaga === undefined) return recusa(progresso, mochila, 'sem_vaga')
+  // Como no encaixe: a vaga sem `itemId` (o item solto) não é ingrediente de receita nenhuma.
+  if (vaga.itemId === undefined) return recusa(progresso, mochila, 'nao_encaixa')
+  const agora = misturaNoProgresso(progresso, mistura)[acao.recipiente]
+  if (agora === undefined || !cabeIngrediente(agora)) return recusa(progresso, mochila, 'recipiente_cheio')
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  const recipientes = bancada(a, mistura)
+  const recipiente = recipientes[acao.recipiente]
+  if (recipiente === undefined) return recusa(progresso, mochila, 'mudou')
+  a.mochila = semUmaDaVaga(a.mochila, vaga.id)
+  recipiente.itens.push({ vaga: vagaPosta(vaga), por: { ...contexto.quem } })
+  if (mistura.turvaNaHora && !aindaDaReceita(idsPostos(recipiente), mistura)) recipiente.turvo = true
+  a.progresso.mistura = recipientes
+  return fim(a)
+}
+
+/** A bancada volta ao começo; cada ingrediente volta a quem o pôs. Não é erro. */
+function recomecarBancada(puzzle: Puzzle, mistura: MisturaDoPuzzle, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], contexto: ContextoDoMotor): ResultadoDoMotor {
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  for (const recipiente of bancada(a, mistura)) for (const posta of recipiente.itens) devolver(a, posta)
+  a.progresso.mistura = comecoDaMistura(mistura)
+  return fim(a)
 }
 
 // ------------------------------------------------------------------ a combinação

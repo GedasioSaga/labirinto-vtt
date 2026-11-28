@@ -512,6 +512,7 @@ const COMO_ERROU: Readonly<Record<Exclude<ErroDoPuzzleNoFio['em'], 'peso'>, stri
   combinacao: 'a combinação',
   hora: 'a hora',
   sequencia: 'a sequência',
+  mistura: 'a mistura',
 }
 
 interface OQueAconteceu {

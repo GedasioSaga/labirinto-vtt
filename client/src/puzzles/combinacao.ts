@@ -31,6 +31,7 @@ import {
 import { cooperacaoDoPuzzle } from './cooperacao/cooperacao'
 import { giratoriasDoPuzzle } from './giratorias/giratorias'
 import { interruptoresDoPuzzle } from './interruptores/interruptores'
+import { misturaDoPuzzle } from './mistura/mistura'
 import type { AcaoNoPuzzle, CombinacaoDoPuzzle, CombinacaoNaVista, FormaDaCombinacao, ProgressoDoPuzzle, Puzzle, SimboloDaRoda } from './tipos'
 
 export const NOME_DA_COMBINACAO: Readonly<Record<FormaDaCombinacao, string>> = {
@@ -165,12 +166,13 @@ export function combinacaoDoPuzzle(puzzle: Pick<Puzzle, 'futuro'>): CombinacaoDo
 
 /** O puzzle traz uma mecânica que este app não joga: o "Este puzzle é de uma versão mais nova do app". */
 export function mecanicaDesconhecida(puzzle: Pick<Puzzle, 'futuro'>): boolean {
-  return puzzle.futuro !== undefined && combinacaoDoPuzzle(puzzle) === null && giratoriasDoPuzzle(puzzle) === null && interruptoresDoPuzzle(puzzle) === null && cooperacaoDoPuzzle(puzzle) === null
+  return puzzle.futuro !== undefined && combinacaoDoPuzzle(puzzle) === null && giratoriasDoPuzzle(puzzle) === null && interruptoresDoPuzzle(puzzle) === null && cooperacaoDoPuzzle(puzzle) === null && misturaDoPuzzle(puzzle) === null
 }
 
 /** As ações que não olham o `rev`: girar, mexer o ponteiro e apertar valem sobre o que o HOST tem, e o fio as entrega em ordem. */
 export function acaoDeControle(acao: AcaoNoPuzzle): boolean {
-  return acao.tipo === 'girar' || acao.tipo === 'ponteiro' || acao.tipo === 'apertar'
+  // A bancada da mistura também: despejar e jogar um ingrediente valem sobre o que o host tem agora.
+  return acao.tipo === 'girar' || acao.tipo === 'ponteiro' || acao.tipo === 'apertar' || acao.tipo === 'despejar' || acao.tipo === 'deitar' || acao.tipo === 'recomecar'
 }
 
 // ------------------------------------------------------------------ o progresso

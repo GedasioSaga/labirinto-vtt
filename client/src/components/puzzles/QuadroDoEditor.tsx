@@ -6,6 +6,7 @@ import { combinacaoDoPuzzle, combinacaoNaVista } from '../../puzzles/combinacao'
 import { CorpoDoControle, estiloDoControle, nomeDoControle } from '../../puzzles/ControlesDaCombinacao'
 import { giratoriasDoPuzzle, giratoriasNaVista, girosResolvidos } from '../../puzzles/giratorias/giratorias'
 import { alvoDosInterruptores, interruptoresDoPuzzle, interruptoresNaVista } from '../../puzzles/interruptores/interruptores'
+import { misturaDoPuzzle, misturaNaVista } from '../../puzzles/mistura/mistura'
 import { cooperacaoDoPuzzle, cooperacaoNaVista } from '../../puzzles/cooperacao/cooperacao'
 import { progressoInicial } from '../../puzzles/motor'
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
@@ -83,7 +84,10 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
   // Os pontos da cooperação: apagados como o jogador os encontra; "Ver resolvido" acende todos (o quadro resolvido).
   const cooperacao = cooperacaoDoPuzzle(puzzle)
   const pontos = cooperacao === null ? undefined : cooperacaoNaVista(cooperacao, progressoInicial(puzzle), undefined, null)
-  const semEncaixes = medalhao !== undefined || painel !== undefined || pontos !== undefined
+  // A bancada da mistura: como o jogador a encontra (o caminho até o alvo está na ficha).
+  const mistura = misturaDoPuzzle(puzzle)
+  const bancada = mistura === null ? undefined : misturaNaVista(mistura, progressoInicial(puzzle))
+  const semEncaixes = medalhao !== undefined || painel !== undefined || pontos !== undefined || bancada !== undefined
 
   const comecar = (evento: PointerEvent<HTMLButtonElement>, encaixe: EncaixeDoPuzzle) => {
     if (evento.button !== 0 || arrasto.current !== null) return
@@ -197,6 +201,7 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
         resolvido={semEncaixes && verResolvido}
         giratorias={medalhao}
         interruptores={painel}
+        mistura={bancada}
         cooperacao={pontos}
         rotulo={`Quadro do puzzle ${puzzle.nome}`}
       >

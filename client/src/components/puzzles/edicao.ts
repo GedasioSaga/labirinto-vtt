@@ -3,6 +3,8 @@ import { combinacaoDoPuzzle, combinacaoPadrao } from '../../puzzles/combinacao'
 import { giratoriasDoPuzzle, giratoriasPadrao } from '../../puzzles/giratorias/giratorias'
 import { interruptoresDoPuzzle, interruptoresPadrao } from '../../puzzles/interruptores/interruptores'
 import { cooperacaoDoPuzzle, cooperacaoPadrao } from '../../puzzles/cooperacao/cooperacao'
+import { misturaDoPuzzle, misturaPadrao } from '../../puzzles/mistura/mistura'
+import type { MisturaDoPuzzle } from '../../puzzles/tipos'
 import { ENCAIXES_MAX, ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN, TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN } from '../../puzzles/tipos'
 import type { CombinacaoDoPuzzle, CooperacaoDoPuzzle, EncaixeDoPuzzle, FormaDaCombinacao, GiratoriasDoPuzzle, InterruptoresDoPuzzle, IdDaPecaDesenhada, ModeloDoPuzzle, Puzzle, VisualDoPuzzle } from '../../puzzles/tipos'
 
@@ -63,9 +65,10 @@ export function comModelo(puzzle: Puzzle, modelo: ModeloDoPuzzle, pecas: Partial
 }
 
 /** A mecânica do seletor do editor (v2): Encaixe, Ordem certa, um dos 4 tipos de combinação, as Peças giratórias, os Interruptores ou a Cooperação (28/11). */
-export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao | 'giratorias' | 'interruptores' | 'cooperacao'
+export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao | 'giratorias' | 'interruptores' | 'cooperacao' | 'mistura'
 
 export function mecanicaDoEditor(puzzle: Puzzle): MecanicaDoEditor {
+  if (misturaDoPuzzle(puzzle) !== null) return 'mistura'
   if (giratoriasDoPuzzle(puzzle) !== null) return 'giratorias'
   if (interruptoresDoPuzzle(puzzle) !== null) return 'interruptores'
   if (cooperacaoDoPuzzle(puzzle) !== null) return 'cooperacao'
@@ -89,6 +92,7 @@ export function comMecanica(puzzle: Puzzle, mecanica: MecanicaDoEditor): Puzzle 
   if (mecanica === 'giratorias') return { ...puzzle, futuro: giratoriasPadrao() }
   if (mecanica === 'interruptores') return { ...puzzle, futuro: interruptoresPadrao() }
   if (mecanica === 'cooperacao') return { ...puzzle, futuro: cooperacaoPadrao() }
+  if (mecanica === 'mistura') return { ...puzzle, futuro: misturaPadrao() }
   return comPortaCoerente({ ...puzzle, futuro: combinacaoPadrao(mecanica) })
 }
 
@@ -102,6 +106,12 @@ export function comGiratorias(puzzle: Puzzle, mudar: (giratorias: GiratoriasDoPu
 export function comInterruptores(puzzle: Puzzle, mudar: (interruptores: InterruptoresDoPuzzle) => InterruptoresDoPuzzle): Puzzle {
   const interruptores = interruptoresDoPuzzle(puzzle)
   return interruptores === null ? puzzle : { ...puzzle, futuro: mudar(interruptores) }
+}
+
+/** A bancada da mistura trocada pelo que `mudar` devolver (só quando o puzzle é de mistura). */
+export function comMistura(puzzle: Puzzle, mudar: (mistura: MisturaDoPuzzle) => MisturaDoPuzzle): Puzzle {
+  const mistura = misturaDoPuzzle(puzzle)
+  return mistura === null ? puzzle : { ...puzzle, futuro: mudar(mistura) }
 }
 
 /** Os pontos da cooperação trocados pelo que `mudar` devolver (só quando o puzzle é de cooperação). */

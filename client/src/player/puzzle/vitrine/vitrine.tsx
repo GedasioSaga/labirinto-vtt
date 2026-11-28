@@ -8,6 +8,7 @@ import { progressoInicial } from '../../../puzzles/motor'
 import { combinacaoPadrao } from '../../../puzzles/combinacao'
 import { giratoriasPadrao } from '../../../puzzles/giratorias/giratorias'
 import { interruptoresPadrao } from '../../../puzzles/interruptores/interruptores'
+import { misturaPadrao } from '../../../puzzles/mistura/mistura'
 import { cooperacaoPadrao } from '../../../puzzles/cooperacao/cooperacao'
 import { PECAS_DESENHADAS, puzzleDoModelo } from '../../../puzzles/padroes'
 import { canvasDoPainel, pngDaPlaca } from '../../../puzzles/relevo/raster'
@@ -31,6 +32,7 @@ import { TelaDoPuzzle } from '../TelaDoPuzzle'
  *   ?puzzle=fonte (padrão) | porta | altar | imagem | relevo (com &cena=dragao &metal=bronze)
  *   ?puzzle=giro (o medalhão da cena) | giroSimbolos | giroVizinhas (6 anéis, cada um leva os do lado)
  *   ?puzzle=luzes (6 lampiões, os do lado) | luzesDesenho (9 em 3 x 3, igual à plaqueta) | luzesRegra (5 em fila, a regra do mestre, ferro)
+ *   ?puzzle=liquidos (jarras de 3 e 5, medir 4 L) | liquidosCores (o laranja 2:1) | liquidosReceita (erva e enxofre, ferro)
  *   ?puzzle=coop (dois pontos, a Lara na Cripta) | coopTres (três pontos, ferro); &ponto=2 põe a Lara no ponto 2
  *   ?desfecho=texto | cena   (troca o modo do desfecho do puzzle escolhido)
  *   window.__vitrinePuzzle.estado()  o progresso, a mochila e os PV de agora
@@ -256,6 +258,22 @@ function painel(nomePublico: string, mudar: Partial<ReturnType<typeof interrupto
   }
 }
 
+/** A mistura de líquidos (28/11): as jarras de 3 e 5 com torneira, as tintas do laranja e a receita com dois itens na mochila. */
+function bancada(nomePublico: string, mudar: Partial<ReturnType<typeof misturaPadrao>>, mochila: CarriedItem[] = [vaga(CORDA)]): () => Exemplo {
+  return () => {
+    const puzzle = puzzleDoModelo('fonte')
+    puzzle.nomePublico = nomePublico
+    puzzle.encaixes = []
+    puzzle.futuro = { ...misturaPadrao(), ...mudar }
+    puzzle.dica = { tipo: 'texto', texto: 'Só a medida exata abre o funil.' }
+    puzzle.desfecho = { modo: 'cena', texto: 'A mistura desce pelo funil e o visor acende. Algo destrava atrás da parede.', itens: [], moedas: 0, documentos: [], abrePorta: true }
+    return { puzzle, mochila }
+  }
+}
+
+const ERVA: PecaDoAcervo = { nome: 'Erva verde', categoria: 'Ingrediente', itemId: 'item_erva' }
+const PO: PecaDoAcervo = { nome: 'Pó de enxofre', categoria: 'Ingrediente', itemId: 'item_po' }
+
 /**
  * A cooperação em dois lugares (28/11): a Lara está num ponto; o Bento, no
  * outro, aciona pelo `window.__vitrinePuzzle.colega(ponto)`. `&ponto=2` põe a
@@ -289,6 +307,9 @@ const EXEMPLOS = {
   luzes: painel('Lampiões da Cripta', {}),
   luzesDesenho: painel('Painel do Farol', { quantos: 9, objetivo: 'desenho', desenho: [false, true, false, true, true, true, false, true, false] }),
   luzesRegra: painel('Corredor dos Lampiões', { quantos: 5, material: 'ferro', ligacao: 'propria', ligados: [[1], [2], [3], [4], [0]] }),
+  liquidos: bancada('Bancada do Alquimista', {}),
+  liquidosCores: bancada('Tintas da Capela', { modo: 'cores', fonte: false, litros: null, cor: [0, 2, 1, 0, 0], recipientes: [{ capacidade: 4, comeca: 'vermelho', quanto: 4 }, { capacidade: 3, comeca: 'amarelo', quanto: 3 }, { capacidade: 6, comeca: null, quanto: 0 }] }),
+  liquidosReceita: bancada('Antídoto do Pântano', { modo: 'receita', material: 'ferro', litros: null, ingredientes: [{ itemId: 'item_erva', nome: 'Erva verde' }, { itemId: 'item_po', nome: 'Pó de enxofre' }], recipientes: [{ capacidade: 4, comeca: 'agua', quanto: 0 }, { capacidade: 6, comeca: 'agua', quanto: 0 }, { capacidade: 3, comeca: 'agua', quanto: 0 }] }, [vaga(ERVA), vaga(CORDA), vaga(PO)]),
   coop: cooperacao('Portão das Duas Salas', { pontos: [{ arte: 'alavanca', rotulo: 'Cripta' }, { arte: 'placa', rotulo: 'Ponte' }] }),
   coopTres: cooperacao('Comporta do Esgoto', { material: 'ferro', janela: 8, pontos: [{ arte: 'alavanca', rotulo: 'Casa das bombas' }, { arte: 'placa', rotulo: 'Galeria' }, { arte: 'painel', rotulo: 'Torre' }] }),
 } as const

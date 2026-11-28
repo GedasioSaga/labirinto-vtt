@@ -41,7 +41,7 @@ export interface DesfechoNaTela {
 }
 
 /** O que errou: a ordem, o peso, e na combinação as rodas, a hora ou a sequência de botões. */
-export type ErroNaTela = 'ordem' | 'peso' | 'combinacao' | 'hora' | 'sequencia'
+export type ErroNaTela = 'ordem' | 'peso' | 'combinacao' | 'hora' | 'sequencia' | 'mistura'
 
 /** Os PV de quem joga, para o castigo ficar à vista. */
 export interface PvNaTela {

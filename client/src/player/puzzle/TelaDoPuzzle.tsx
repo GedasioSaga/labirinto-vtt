@@ -16,7 +16,8 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { AcoesDaCombinacao, TecladoDoControle } from '../../puzzles/ControlesDaCombinacao'
-import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
+import { QuadroDoPuzzle, type PropsDoQuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
+import { tocarSomDaMistura } from '../../puzzles/mistura/somDaMistura'
 import { tocarSomDasGiratorias } from '../../puzzles/giratorias/somDasGiratorias'
 import { tocarSomDosInterruptores } from '../../puzzles/interruptores/somDosInterruptores'
 import { tocarSomDaCooperacao } from '../../puzzles/cooperacao/somDaCooperacao'
@@ -34,6 +35,8 @@ import {
   ENCAIXE_VAZIO,
   estadoDoPuzzle,
   FAIXA_DO_TESTE,
+  NOTA_DA_MISTURA,
+  NOTA_DA_RECEITA,
   NOTA_DAS_PECAS_DO_TESTE,
   textoDaDevolucao,
   textoDoErro,
@@ -80,7 +83,7 @@ const ATRASO_DO_SOM_COMPLETO_MS = 180
 const SUSPENSE_DA_TROCA_MS = 400
 const VOLTA_DA_AGULHA_MS = 380
 
-type AlvoTocado = { tipo: 'encaixe'; id: string } | { tipo: 'bandeja' } | { tipo: 'pedestal' } | { tipo: 'controle' }
+type AlvoTocado = { tipo: 'encaixe'; id: string } | { tipo: 'bandeja' } | { tipo: 'pedestal' } | { tipo: 'controle' } | { tipo: 'mistura'; destino: string }
 
 /** O aviso da mochila num puzzle de combinação sem troca de peso (v2). */
 const NOTA_DA_COMBINACAO = 'Este puzzle não usa peças: é uma combinação.'
@@ -203,6 +206,22 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
     [agir],
   )
 
+  // A mistura: despejar, recomeçar e (na receita) o item da mão no frasco tocado.
+  const nomeNaMao = naMao === null ? '' : (vista.mochila.find((vaga) => vaga.vagaId === naMao)?.nome ?? '')
+  const acoesDaMistura = useMemo((): PropsDoQuadroDoPuzzle['acoesDaMistura'] => {
+    if (vista.mistura === undefined || vista.versaoNova === true) return undefined
+    return {
+      onDespejar: (de, para) => agir({ tipo: 'despejar', de, para }, { tipo: 'mistura', destino: String(para) }),
+      onRecomecar: () => agir({ tipo: 'recomecar' }, { tipo: 'mistura', destino: 'recomecar' }),
+      onDeitar: (vagaId, recipiente) => {
+        ultimaEnviada.current = vagaId
+        setEscolhida(null)
+        agir({ tipo: 'deitar', vagaId, recipiente }, { tipo: 'mistura', destino: String(recipiente) })
+      },
+      ingrediente: naMao === null ? null : { vagaId: naMao, nome: nomeNaMao },
+    }
+  }, [vista.mistura, vista.versaoNova, agir, naMao, nomeNaMao])
+
   const recusarNaTela = useCallback(
     (texto: string, el: Element | null) => {
       tremer(el)
@@ -237,6 +256,11 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
         sem.delete(vagaId)
         return sem
       })
+      // Na receita, pelo teclado, o foco segue para o primeiro frasco.
+      if (vai !== null && peloTeclado && vista.mistura?.modo === 'receita') {
+        elDoQuadro('[data-destino="0"]')?.focus()
+        return
+      }
       // Pelo teclado, o foco segue para o primeiro encaixe que aceita (v2).
       if (vai !== null && peloTeclado) {
         const primeiro = vista.encaixes.find((e) => motivoNaTela(vista, { tipo: 'encaixe', id: e.id }, eu) === null)
@@ -407,7 +431,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           ultimaEnviada.current = null
           origemDoVoo.current = null
           depois(restoDoSuspense(), () => {
-            avisar(avisoDoErro(textoDoErro(em, soma, pedido), castigo, ehTeste))
+            avisar(avisoDoErro(textoDoErro(em, soma, pedido, vista.mistura?.aoErrar), castigo, ehTeste))
+            if (em === 'mistura') tremer(elDoQuadro('[data-destino="receptaculo"]'))
             if (em === 'peso') {
               pedestalDeEstalo(elDoQuadro('[data-pedestal]'), soma < pedido)
               voltarAgulha()
@@ -439,6 +464,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           if (vista.giratorias !== undefined) window.setTimeout(() => tocarSomDasGiratorias('alinhou'), ATRASO_DO_SOM_COMPLETO_MS)
           else if (vista.interruptores !== undefined) window.setTimeout(() => tocarSomDosInterruptores('acerto'), ATRASO_DO_SOM_COMPLETO_MS)
           else if (vista.cooperacao !== undefined) window.setTimeout(() => tocarSomDaCooperacao('acerto'), ATRASO_DO_SOM_COMPLETO_MS)
+          else if (vista.mistura !== undefined) window.setTimeout(() => tocarSomDaMistura('acerto'), ATRASO_DO_SOM_COMPLETO_MS)
           else if (vista.visual.tipo === 'relevo') window.setTimeout(() => tocarSomDoRelevo('completo'), ATRASO_DO_SOM_COMPLETO_MS)
           break
       }
@@ -448,7 +474,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
   // ---------------------------------------------------------------- o cartão do desfecho: Texto logo, Cena depois da arte
 
   // O medalhão também espera: as juntas acendem e o acorde soa antes do cartão.
-  const comArte = vista.visual.tipo === 'modelo' || vista.giratorias !== undefined || vista.interruptores !== undefined || vista.cooperacao !== undefined
+  const comArte = vista.visual.tipo === 'modelo' || vista.giratorias !== undefined || vista.interruptores !== undefined || vista.cooperacao !== undefined || vista.mistura !== undefined
   useEffect(() => {
     if (desfechoPendente === null || !vista.resolvido) return
     const mostrar = () => {
@@ -590,6 +616,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
               onPuxarAlavanca={vista.versaoNova === true ? undefined : acoesDaCombinacao.onApertar}
               cooperacao={vista.cooperacao}
               onAcionarPonto={vista.versaoNova === true ? undefined : acoesDaCombinacao.onApertar}
+              mistura={vista.mistura}
+              acoesDaMistura={acoesDaMistura}
               rotulo={titulo}
             >
               {cartao !== null && <CartaoDoDesfecho titulo={titulo} desfecho={cartao} eu={eu} onContinuar={fecharCartao} teste={teste} onVoltar={() => sair(false)} />}
@@ -611,7 +639,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           novas={novas}
           pv={ehTeste ? null : pv}
           titulo={ehTeste ? TITULO_DAS_PECAS_DO_TESTE : undefined}
-          nota={vista.giratorias !== undefined ? NOTA_DAS_GIRATORIAS : vista.interruptores !== undefined ? NOTA_DOS_INTERRUPTORES : vista.cooperacao !== undefined ? NOTA_DA_COOPERACAO : vista.combinacao !== undefined && vista.troca === null ? NOTA_DA_COMBINACAO : ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
+          nota={vista.mistura !== undefined ? (vista.mistura.modo === 'receita' ? NOTA_DA_RECEITA : NOTA_DA_MISTURA) : vista.giratorias !== undefined ? NOTA_DAS_GIRATORIAS : vista.interruptores !== undefined ? NOTA_DOS_INTERRUPTORES : vista.cooperacao !== undefined ? NOTA_DA_COOPERACAO : vista.combinacao !== undefined && vista.troca === null ? NOTA_DA_COMBINACAO : ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
           onEscolher={escolher}
           onApertar={arrasto.aoApertar}
         />
@@ -634,6 +662,8 @@ function elDoAlvo(alvo: AlvoTocado, elDoQuadro: (seletor: string) => HTMLElement
       return elDoQuadro('[data-pedestal]')
     case 'controle':
       return elDoQuadro('[data-controle]')
+    case 'mistura':
+      return elDoQuadro(`[data-destino="${alvo.destino}"]`)
   }
 }
 

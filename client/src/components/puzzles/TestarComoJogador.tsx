@@ -10,6 +10,8 @@ import { urlDaPeca } from '../../puzzles/arte/pecas'
 import { combinacaoDoPuzzle } from '../../puzzles/combinacao'
 import { giratoriasDoPuzzle } from '../../puzzles/giratorias/giratorias'
 import { interruptoresDoPuzzle } from '../../puzzles/interruptores/interruptores'
+import { misturaDoPuzzle } from '../../puzzles/mistura/mistura'
+import { passosMinimos } from '../../puzzles/mistura/solucao'
 import { cooperacaoDoPuzzle } from '../../puzzles/cooperacao/cooperacao'
 import { puzzleAbrePorta } from '../../puzzles/padroes'
 import { CATEGORIA_DA_PECA_DE_PUZZLE, type PecaDoAcervo, type Puzzle, type QuemMexe, type TrocaDePeso } from '../../puzzles/tipos'
@@ -173,6 +175,14 @@ function mochilaDeTeste(puzzle: Puzzle, pecas: PecasDoEditor, itens: readonly It
   if (interruptoresDoPuzzle(puzzle) !== null) return []
   // Os pontos da cooperação também não (só os controles).
   if (cooperacaoDoPuzzle(puzzle) !== null) return []
+  // A mistura só usa itens na receita: os ingredientes certos e dois do acervo que não servem.
+  const mistura = misturaDoPuzzle(puzzle)
+  if (mistura !== null) {
+    if (mistura.modo !== 'receita') return []
+    const daReceita = mistura.ingredientes.map((ingrediente) => ingrediente.itemId)
+    const fora = embaralhado(itens.map((item) => item.id).filter((id) => !daReceita.includes(id)), (id) => `receita|fora|${id}`).slice(0, PECAS_QUE_NAO_SERVEM)
+    return embaralhado([...daReceita, ...fora], (id, i) => `receita|${id}|${i}`).map((itemId, i): CarriedItem => ({ ...itemDaPeca(itemId, pecas, itens), id: `vaga-de-teste-${i}` }))
+  }
   // A combinação não usa peças (v2: a mochila do teste vem vazia); só as pedras, se houver troca de peso.
   if (combinacaoDoPuzzle(puzzle) !== null) return pedrasDaTroca(puzzle.troca).map((itemId, i): CarriedItem => ({ ...itemDaPeca(itemId, pecas, itens), id: `vaga-de-teste-${i}` }))
   const servem = [...pecasCertas(puzzle), ...pedrasDaTroca(puzzle.troca)]
@@ -205,6 +215,9 @@ function avisoDosEncaixesSemPeca(puzzle: Puzzle): string | null {
   if (interruptoresDoPuzzle(puzzle) !== null) return null
   // A cooperação também: no teste, o mestre aciona todos os pontos.
   if (cooperacaoDoPuzzle(puzzle) !== null) return null
+  // A mistura: o editor só deixa alvo alcançável; sem água nenhuma, não há alvo.
+  const mistura = misturaDoPuzzle(puzzle)
+  if (mistura !== null) return passosMinimos(mistura) === null ? 'A bancada não chega a alvo nenhum: ligue a torneira ou ponha líquido num recipiente, no editor.' : null
   const giratorias = giratoriasDoPuzzle(puzzle)
   if (giratorias !== null) return giratorias.desenho === 'imagem' && giratorias.imagem === null ? 'O medalhão ainda não tem imagem: escolha uma no editor, em Medalhão.' : null
   const combinacao = combinacaoDoPuzzle(puzzle)

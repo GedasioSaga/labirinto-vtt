@@ -24,9 +24,10 @@ import { CorpoDoControle, estiloDoControle, nomeDoControle, type AcoesDaCombinac
 import { BaseDoMedalhao, DiscoNoQuadro } from './giratorias/DiscoNoQuadro'
 import { BaseDosInterruptores, PainelDeInterruptores } from './interruptores/PainelDeInterruptores'
 import { BaseDaCooperacao, PainelDaCooperacao } from './cooperacao/PainelDaCooperacao'
+import { BaseDaMistura, PainelDaMistura, type PropsDaBancada } from './mistura/PainelDaMistura'
 import { ArteDoRelevo, PlacaNoQuadro, useFonteDoPainel } from './relevo/PainelNoQuadro'
 import { PESO_MAX } from './tipos'
-import type { CombinacaoNaVista, CooperacaoNaVista, EncaixeNaVista, GiratoriasNaVista, InterruptoresNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
+import type { CombinacaoNaVista, CooperacaoNaVista, EncaixeNaVista, GiratoriasNaVista, InterruptoresNaVista, MisturaNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
 import './QuadroDoPuzzle.css'
 
 /** O tempo até o cartão do desfecho: a porta inteira (900 ms) e a folga do v2; sem arte, só a folga; reduzido, quase já. */
@@ -75,6 +76,10 @@ export interface PropsDoQuadroDoPuzzle {
   cooperacao?: CooperacaoNaVista
   /** O que acionar um ponto faz. Sem isto, os pontos são só para ver. */
   onAcionarPonto?: (ponto: number) => void
+  /** A bancada da mistura de líquidos (a arte vira a prateleira dela); ausente = outro puzzle. */
+  mistura?: MisturaNaVista
+  /** Despejar, deitar o item da mochila e recomeçar. Sem `onDespejar`, a bancada é só para ver. */
+  acoesDaMistura?: Pick<PropsDaBancada, 'onDespejar' | 'onRecomecar' | 'onDeitar' | 'ingrediente'>
   /** O nome do quadro para o leitor de tela ("Fonte", o título público). */
   rotulo?: string
   className?: string
@@ -84,10 +89,10 @@ export interface PropsDoQuadroDoPuzzle {
 }
 
 export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
-  const { visual, encaixes, troca, resolvido, onAbriu, giratorias, interruptores, cooperacao } = props
+  const { visual, encaixes, troca, resolvido, onAbriu, giratorias, interruptores, cooperacao, mistura } = props
   const id = useId()
   // O medalhão e os painéis contam como arte: o cartão do desfecho espera as juntas (ou os lampiões) acenderem e o acorde soar.
-  const abrindo = useAbertura(resolvido, visual.tipo === 'modelo' || giratorias !== undefined || interruptores !== undefined || cooperacao !== undefined, onAbriu)
+  const abrindo = useAbertura(resolvido, visual.tipo === 'modelo' || giratorias !== undefined || interruptores !== undefined || cooperacao !== undefined || mistura !== undefined, onAbriu)
   const grao = graoDoQuadro()
   // A Porta de brasões: a placa e os encaixes somem quando a porta se abre.
   const encaixesSomem = visual.tipo === 'modelo' && visual.modelo === 'porta'
@@ -102,11 +107,12 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
         'qpz',
         resolvido && 'is-resolvido',
         resolvido && abrindo && 'is-abrindo',
-        temMolduraPorta(visual) && giratorias === undefined && interruptores === undefined && cooperacao === undefined && 'is-porta',
+        temMolduraPorta(visual) && giratorias === undefined && interruptores === undefined && cooperacao === undefined && mistura === undefined && 'is-porta',
         relevo !== null && 'is-relevo',
         giratorias !== undefined && 'is-giratorias',
         interruptores !== undefined && 'is-interruptores',
         cooperacao !== undefined && 'is-coop',
+        mistura !== undefined && 'is-mistura',
         props.className,
       )}
       role="group"
@@ -118,6 +124,8 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
         <BaseDosInterruptores interruptores={interruptores} />
       ) : cooperacao !== undefined ? (
         <BaseDaCooperacao cooperacao={cooperacao} />
+      ) : mistura !== undefined ? (
+        <BaseDaMistura mistura={mistura} />
       ) : relevo !== null ? (
         <ArteDoRelevo visual={relevo} fonte={fonte} />
       ) : (
@@ -170,6 +178,7 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
         {giratorias !== undefined && <DiscoNoQuadro giratorias={giratorias} resolvido={resolvido} onGirar={props.onGirarAnel} teclado={props.tecladoDoControle} />}
         {interruptores !== undefined && <PainelDeInterruptores interruptores={interruptores} resolvido={resolvido} onPuxar={props.onPuxarAlavanca} teclado={props.tecladoDoControle} />}
         {cooperacao !== undefined && <PainelDaCooperacao cooperacao={cooperacao} resolvido={resolvido} onAcionar={props.onAcionarPonto} />}
+        {mistura !== undefined && <PainelDaMistura mistura={mistura} resolvido={resolvido} {...props.acoesDaMistura} teclado={props.tecladoDoControle} />}
       </div>
       <div className="qpz__flash" aria-hidden="true" />
       {props.children}

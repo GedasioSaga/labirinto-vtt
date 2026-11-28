@@ -86,7 +86,7 @@ export interface Puzzle {
    * futura, guardada como veio. Lida sempre por `combinacaoDoPuzzle`
    * (`puzzles/combinacao.ts`): o que ela não reconhece é "versão nova".
    */
-  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | InterruptoresDoPuzzle | CooperacaoDoPuzzle | MecanicaFutura
+  futuro?: CombinacaoDoPuzzle | GiratoriasDoPuzzle | InterruptoresDoPuzzle | CooperacaoDoPuzzle | MisturaDoPuzzle | MecanicaFutura
 }
 
 /**
@@ -458,6 +458,115 @@ export interface PontoNaVista {
   por: string
 }
 
+// ------------------------------------------------------------------ a mistura de líquidos (28/11, 5º da fila de puzzles)
+
+/**
+ * A MISTURA DE LÍQUIDOS (`docs/design/puzzles/FILA.md`): uma bancada de vidro e
+ * latão na parede, com 2 a 5 recipientes, uma pia com torneira (a `fonte` de
+ * água; sem ela, só há o que os recipientes já trazem) e um receptáculo. O
+ * jogador leva um recipiente até outro (despeja até um esvaziar ou o outro
+ * encher), até a torneira (enche) ou até a pia (esvazia), e por fim até o
+ * receptáculo, que confere o alvo do `modo`:
+ * - `volumes`: os `litros` exatos (o "meça 4 com jarras de 3 e 5");
+ * - `cores`: a cor certa (a proporção de `cor`, nas partes de cada líquido);
+ * - `receita`: os `ingredientes` (itens do acervo achados no mapa, na ordem se
+ *   `emOrdem`) na água, com `litros` exatos ou qualquer quantidade (`null`).
+ * Errar no receptáculo castiga e, por `aoErrar`, derrama só o que foi posto ou
+ * faz a bancada voltar ao começo. O começo é o que cada recipiente traz
+ * (`comeca` e `quanto`). Mora no `futuro`, como a cooperação.
+ */
+export interface MisturaDoPuzzle {
+  tipo: 'mistura'
+  modo: ModoDaMistura
+  material: MaterialDosInterruptores
+  /** De `RECIPIENTES_MIN` a `RECIPIENTES_MAX`, na ordem da bancada. */
+  recipientes: RecipienteDaMistura[]
+  /** A torneira da pia (água sem fim). Nas cores nunca há. */
+  fonte: boolean
+  /** Volumes: os litros pedidos. Receita: os litros de água pedidos; `null` = qualquer quantidade. */
+  litros: number | null
+  /** Cores: as partes de cada líquido (na ordem de `LIQUIDOS_DA_MISTURA`), na menor proporção. */
+  cor: number[]
+  /** Receita: os itens do acervo, na ordem da receita. */
+  ingredientes: IngredienteDaMistura[]
+  emOrdem: boolean
+  /** Receita: o ingrediente fora da receita turva a mistura na hora (senão, só o receptáculo diz). */
+  turvaNaHora: boolean
+  aoErrar: AoErrarNaMistura
+  /** O alvo numa plaqueta da bancada; senão, fica com o mestre (para dar como pista). */
+  alvoNaPlaqueta: boolean
+}
+
+export type ModoDaMistura = 'volumes' | 'cores' | 'receita'
+export const MODOS_DA_MISTURA: readonly ModoDaMistura[] = ['volumes', 'cores', 'receita']
+
+/** Os líquidos da bancada; as `partes` de um recipiente vêm nesta ordem. */
+export type LiquidoDaMistura = 'agua' | 'vermelho' | 'amarelo' | 'azul' | 'branco'
+export const LIQUIDOS_DA_MISTURA: readonly LiquidoDaMistura[] = ['agua', 'vermelho', 'amarelo', 'azul', 'branco']
+
+export type AoErrarNaMistura = 'derrama' | 'recomeca'
+export const AO_ERRAR_NA_MISTURA: readonly AoErrarNaMistura[] = ['derrama', 'recomeca']
+
+export interface RecipienteDaMistura {
+  /** Em litros, de 1 a `CAPACIDADE_MAX`. */
+  capacidade: number
+  /** O líquido do começo (`null` = vazio). Nos volumes e na receita, só água. */
+  comeca: LiquidoDaMistura | null
+  /** Quanto dele no começo, de 0 à capacidade. */
+  quanto: number
+}
+
+export interface IngredienteDaMistura {
+  /** Um `ItemDoCatalogo.id` do acervo. */
+  itemId: string
+  /** O nome de quando o mestre o escolheu (a plaqueta e o editor o mostram). */
+  nome: string
+}
+
+export const RECIPIENTES_MIN = 2
+export const RECIPIENTES_MAX = 5
+export const CAPACIDADE_MIN = 1
+export const CAPACIDADE_MAX = 10
+export const INGREDIENTES_MAX = 4
+/** Quantos ingredientes cabem num recipiente (a receita mais os errados que alguém jogar). */
+export const ITENS_NO_RECIPIENTE_MAX = 8
+export const NOME_DO_INGREDIENTE_MAX = 60
+
+/** Um recipiente no progresso: quanto de cada líquido, os ingredientes postos (na ordem) e se turvou. */
+export interface RecipienteNoProgresso {
+  partes: number[]
+  itens: PecaPosta[]
+  turvo: boolean
+}
+
+/**
+ * A bancada como o jogador a vê (lista branca do recorte): o que cada
+ * recipiente tem e o alvo, só se o mestre o pôs na plaqueta. Na cor vai a tinta
+ * pronta (`#rrggbb`), nunca a proporção.
+ */
+export interface MisturaNaVista {
+  modo: ModoDaMistura
+  material: MaterialDosInterruptores
+  fonte: boolean
+  aoErrar: AoErrarNaMistura
+  recipientes: RecipienteNaVista[]
+  alvo: AlvoDaMisturaNaVista | null
+  /** A bancada está como o mestre a deixou (o "Recomeçar a bancada" não teria o que fazer). */
+  noComeco: boolean
+}
+
+export interface RecipienteNaVista {
+  capacidade: number
+  partes: number[]
+  itens: PostaNaVista[]
+  turvo: boolean
+}
+
+export type AlvoDaMisturaNaVista =
+  | { tipo: 'litros'; litros: number }
+  | { tipo: 'cor'; cor: string }
+  | { tipo: 'receita'; ingredientes: string[]; emOrdem: boolean; litros: number | null }
+
 /**
  * A mecânica de uma leva futura, guardada COMO VEIO: o objeto do disco
  * inteiro, e não `{ tipo, bruto }` embrulhado, porque o mapa é gravado por
@@ -511,6 +620,8 @@ export interface ProgressoDoPuzzle {
   luzes?: boolean[]
   /** Na cooperação: o último acionamento de cada ponto (`null` = nenhum, ou a pessoa foi para outro). */
   acionados?: (AcionamentoDoPonto | null)[]
+  /** Na mistura de líquidos: o que cada recipiente tem agora. Ausente = o começo. */
+  mistura?: RecipienteNoProgresso[]
 }
 
 // ------------------------------------------------------------------ "Meus puzzles" (§1.3)
@@ -657,6 +768,15 @@ export type AcaoNoPuzzle =
   | { tipo: 'apertar'; botao: number }
   /** Combinação de rodas ou de relógio: confere o que está nos controles agora. */
   | { tipo: 'tentar' }
+  /**
+   * Mistura de líquidos: leva o recipiente `de` (ou a água da torneira) até o
+   * `para` (outro recipiente, a pia ou o receptáculo). Relativo ao que o host tem.
+   */
+  | { tipo: 'despejar'; de: number | 'fonte'; para: number | 'ralo' | 'receptaculo' }
+  /** Mistura de líquidos, na receita: joga um item da mochila no recipiente. */
+  | { tipo: 'deitar'; vagaId: string; recipiente: number }
+  /** Mistura de líquidos: a bancada volta ao começo (os ingredientes voltam a quem os pôs). */
+  | { tipo: 'recomecar' }
 
 /**
  * Por que o pedido não valeu. Os 6 primeiros são os da mensagem
@@ -676,6 +796,9 @@ export type MotivoDaRecusa =
   | 'bandeja_cheia'
   | 'troca_feita'
   | 'versao_nova'
+  | 'recipiente_vazio'
+  | 'recipiente_cheio'
+  | 'com_ingredientes'
 
 /** O texto que o jogador lê na recusa (os do v2 e do v1). */
 export const TEXTO_DA_RECUSA: Readonly<Record<MotivoDaRecusa, string>> = {
@@ -692,6 +815,9 @@ export const TEXTO_DA_RECUSA: Readonly<Record<MotivoDaRecusa, string>> = {
   bandeja_cheia: 'Não cabe mais nada na bandeja.',
   troca_feita: 'A troca já foi feita.',
   versao_nova: 'Este puzzle é de uma versão mais nova do app.',
+  recipiente_vazio: 'Não há líquido nesse recipiente.',
+  recipiente_cheio: 'Não cabe mais nada nesse recipiente.',
+  com_ingredientes: 'Com ingredientes dentro, ele só vai para o receptáculo ou para a pia.',
 }
 
 /** O castigo que de fato faz algo (o `nada` não sai como efeito). */
@@ -705,7 +831,7 @@ export type EfeitoDoPuzzle =
    * Tudo cheio na ordem errada, ou a bandeja com o peso errado; na combinação,
    * o "Tentar" com as rodas erradas, a hora errada, ou o botão fora da sequência.
    */
-  | { tipo: 'errou'; em: 'ordem' | 'combinacao' | 'hora' | 'sequencia' }
+  | { tipo: 'errou'; em: 'ordem' | 'combinacao' | 'hora' | 'sequencia' | 'mistura' }
   | { tipo: 'errou'; em: 'peso'; soma: number; pedido: number }
   | { tipo: 'resolveu' }
   /** A peça guardada saiu do pedestal e foi para a mochila de quem trocou. */
@@ -818,6 +944,8 @@ export interface VistaDoPuzzle {
   interruptores?: InterruptoresNaVista
   /** Os pontos da cooperação em dois lugares; ausente = não é desse tipo (e então os encaixes não vão). */
   cooperacao?: CooperacaoNaVista
+  /** A bancada da mistura de líquidos; ausente = não é desse tipo (e então os encaixes não vão). */
+  mistura?: MisturaNaVista
   /** O puzzle traz uma mecânica de uma leva que este app não joga. */
   versaoNova?: true
 }

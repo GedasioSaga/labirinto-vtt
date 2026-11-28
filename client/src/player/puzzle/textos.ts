@@ -5,8 +5,12 @@
  */
 import { TEXTO_DO_CASTIGO_PADRAO } from '../../puzzles/padroes'
 import { TEXTO_DA_RECUSA } from '../../puzzles/tipos'
-import type { VistaDoPuzzle } from '../../puzzles/tipos'
+import type { AoErrarNaMistura, VistaDoPuzzle } from '../../puzzles/tipos'
 import type { CastigoNaTela, ErroNaTela } from './tipos'
+
+/** O aviso da mochila na mistura: na receita, os itens vão aos frascos; nos outros modos, a bancada não leva nada. */
+export const NOTA_DA_RECEITA = 'Toque num item e depois no frasco onde ele vai. A pia devolve o que estiver dentro.'
+export const NOTA_DA_MISTURA = 'Este puzzle não usa peças: despeje de um recipiente no outro.'
 
 /** O tom do aviso: o neutro, o perigo (recusa, dano) e o latão (barulho, ganho). */
 export type TomDoAviso = 'neutro' | 'perigo' | 'latao'
@@ -31,7 +35,7 @@ export const ENCAIXE_VAZIO = 'Encaixe vazio. Escolha uma peça primeiro.'
 export const BANDEJA_VAZIA = 'Bandeja vazia. Ponha pedras de peso marcado.'
 
 /** "2 de 3 no lugar"; o destaque vai em negrito, como no v2 (`rotuloEstado`, também o da combinação). */
-export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca' | 'combinacao' | 'giratorias' | 'interruptores' | 'cooperacao'>, teste = false): { destaque: string; resto: string } {
+export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolvido' | 'contagem' | 'troca' | 'combinacao' | 'giratorias' | 'interruptores' | 'cooperacao' | 'mistura'>, teste = false): { destaque: string; resto: string } {
   if (vista.versaoNova === true) return { destaque: '', resto: TEXTO_DA_RECUSA.versao_nova }
   if (vista.resolvido) return { destaque: teste ? 'Resolvido no teste.' : 'Resolvido.', resto: vista.contagem.total > 0 ? ' As peças ficaram presas.' : '' }
   // As peças giratórias não contam quantos anéis estão no lugar: seria a resposta pela metade.
@@ -52,6 +56,12 @@ export function estadoDoPuzzle(vista: Pick<VistaDoPuzzle, 'versaoNova' | 'resolv
     if (cooperacao.meuPonto === null) return { destaque: '', resto: `Acione ${quantos} com menos de ${cooperacao.janela} s entre o primeiro e o último.` }
     return { destaque: `Você está no ponto ${cooperacao.meuPonto + 1}.`, resto: ` Acione junto com quem está nos outros: ${quantos} em ${cooperacao.janela} s.` }
   }
+  // A mistura: o alvo está na plaqueta (ou na pista); a contagem diria a resposta.
+  const mistura = vista.mistura
+  if (mistura !== undefined) {
+    const onde = mistura.alvo === null ? 'o que a pista pede' : mistura.modo === 'volumes' ? 'a medida da plaqueta' : mistura.modo === 'cores' ? 'a cor da plaqueta' : 'a receita da plaqueta'
+    return { destaque: '', resto: `Despeje de um recipiente no outro até ter ${onde}, e leve ao receptáculo.` }
+  }
   const combinacao = vista.combinacao
   if (combinacao !== undefined) {
     if (combinacao.forma === 'relogio') return { destaque: '', resto: 'Acerte os ponteiros e tente.' }
@@ -68,7 +78,8 @@ function tracos(n: number): string {
 }
 
 /** Por que errou: a tranca da Ordem certa, o pedestal da Troca de peso, ou a combinação (os textos do v2). */
-export function textoDoErro(em: ErroNaTela, soma: number, pedido: number): string {
+export function textoDoErro(em: ErroNaTela, soma: number, pedido: number, aoErrar?: AoErrarNaMistura): string {
+  if (em === 'mistura') return aoErrar === 'recomeca' ? 'O receptáculo cospe a mistura: a bancada inteira volta ao começo.' : 'O receptáculo cospe a mistura: ela não era a certa.'
   if (em === 'ordem') return 'A tranca não cede: a ordem está errada.'
   if (em === 'combinacao') return 'A trava não cede.'
   if (em === 'hora') return 'Os ponteiros voltam a tremer: não é essa hora.'

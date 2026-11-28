@@ -60,9 +60,22 @@ import {
   PONTOS_MAX,
   PONTOS_MIN,
   ROTULO_DO_PONTO_MAX,
+  AO_ERRAR_NA_MISTURA,
+  CAPACIDADE_MAX,
+  CAPACIDADE_MIN,
+  INGREDIENTES_MAX,
+  ITENS_NO_RECIPIENTE_MAX,
+  LIQUIDOS_DA_MISTURA,
+  MODOS_DA_MISTURA,
+  NOME_DO_INGREDIENTE_MAX,
+  RECIPIENTES_MAX,
+  RECIPIENTES_MIN,
 } from '../puzzles/tipos'
 import type {
   AcaoNoPuzzle,
+  AlvoDaMisturaNaVista,
+  MisturaNaVista,
+  RecipienteNaVista,
   CombinacaoNaVista,
   CooperacaoNaVista,
   PontoNaVista,
@@ -135,7 +148,7 @@ export function textoDaRecusaDoPuzzle(motivo: PuzzleMotivoDaRecusa): string {
  * O erro que castigou: a Ordem certa cheia na ordem errada, o peso errado na
  * bandeja, ou, na combinação, as rodas, a hora ou o botão fora da sequência.
  */
-export type ErroDoPuzzleNoFio = { em: 'ordem' | 'combinacao' | 'hora' | 'sequencia' } | { em: 'peso'; soma: number; pedido: number }
+export type ErroDoPuzzleNoFio = { em: 'ordem' | 'combinacao' | 'hora' | 'sequencia' | 'mistura' } | { em: 'peso'; soma: number; pedido: number }
 
 /**
  * O castigo como ele chegou a quem errou. `texto` já é o do mestre ou o padrão
@@ -400,6 +413,41 @@ function lerCooperacaoNaVista(value: unknown): CooperacaoNaVista | null | undefi
   return { material, janela: value.janela, meuPonto, pontos }
 }
 
+/** Um recipiente da bancada: a capacidade, as partes de cada líquido (somando no máximo a capacidade), os ingredientes e o turvo. */
+function lerRecipienteNaVista(value: unknown): RecipienteNaVista | null {
+  if (!isRecord(value) || !inteiroAte(value.capacidade, CAPACIDADE_MAX) || value.capacidade < CAPACIDADE_MIN || typeof value.turvo !== 'boolean') return null
+  const partes = lerLista(value.partes, LIQUIDOS_DA_MISTURA.length, (p) => (inteiroAte(p, CAPACIDADE_MAX) ? p : null))
+  const itens = lerLista(value.itens, ITENS_NO_RECIPIENTE_MAX, (item) => lerPosta(item) ?? null)
+  if (partes === null || partes.length !== LIQUIDOS_DA_MISTURA.length || partes.reduce((soma, p) => soma + p, 0) > value.capacidade || itens === null) return null
+  return { capacidade: value.capacidade, partes, itens, turvo: value.turvo }
+}
+
+/** O alvo da plaqueta: os litros, a tinta pronta (`#rrggbb`) ou os nomes da receita; `null` = o mestre o guardou. */
+function lerAlvoDaMistura(value: unknown): AlvoDaMisturaNaVista | null | undefined {
+  if (value === null) return null
+  if (!isRecord(value)) return undefined
+  if (value.tipo === 'litros') return inteiroAte(value.litros, CAPACIDADE_MAX) && value.litros >= 1 ? { tipo: 'litros', litros: value.litros } : undefined
+  if (value.tipo === 'cor') return typeof value.cor === 'string' && /^#[0-9a-f]{6}$/.test(value.cor) ? { tipo: 'cor', cor: value.cor } : undefined
+  if (value.tipo !== 'receita' || typeof value.emOrdem !== 'boolean') return undefined
+  const ingredientes = lerLista(value.ingredientes, INGREDIENTES_MAX, (nome) => (textoAte(nome, NOME_DO_INGREDIENTE_MAX) ? nome : null))
+  const litros = value.litros === null ? null : inteiroAte(value.litros, CAPACIDADE_MAX) && value.litros >= 1 ? value.litros : undefined
+  if (ingredientes === null || litros === undefined) return undefined
+  return { tipo: 'receita', ingredientes, emOrdem: value.emOrdem, litros }
+}
+
+/** A bancada da mistura: ausente = não é desse tipo (`undefined`); torta = `null`, e a vista cai inteira. */
+function lerMisturaNaVista(value: unknown): MisturaNaVista | null | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) return null
+  const modo = umDaLista(MODOS_DA_MISTURA, value.modo)
+  const material = umDaLista(MATERIAIS_DOS_INTERRUPTORES, value.material)
+  const aoErrar = umDaLista(AO_ERRAR_NA_MISTURA, value.aoErrar)
+  const recipientes = lerLista(value.recipientes, RECIPIENTES_MAX, lerRecipienteNaVista)
+  const alvo = lerAlvoDaMistura(value.alvo)
+  if (modo === undefined || material === undefined || aoErrar === undefined || typeof value.fonte !== 'boolean' || typeof value.noComeco !== 'boolean' || recipientes === null || recipientes.length < RECIPIENTES_MIN || alvo === undefined) return null
+  return { modo, material, fonte: value.fonte, aoErrar, recipientes, alvo, noComeco: value.noComeco }
+}
+
 /** A vista inteira, campo a campo; um campo torto derruba a mensagem. */
 export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   if (!isRecord(value) || !idAte(value.desafioId) || !inteiroAte(value.rev, Number.MAX_SAFE_INTEGER) || !textoAte(value.titulo, NOME_DO_PUZZLE_MAX)) return null
@@ -415,19 +463,21 @@ export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   const giratorias = lerGiratoriasNaVista(value.giratorias)
   const interruptores = lerInterruptoresNaVista(value.interruptores)
   const cooperacao = lerCooperacaoNaVista(value.cooperacao)
-  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null || interruptores === null || cooperacao === null) return null
+  const mistura = lerMisturaNaVista(value.mistura)
+  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null || giratorias === null || interruptores === null || cooperacao === null || mistura === null) return null
   const vista: VistaDoPuzzle = { desafioId: value.desafioId, rev: value.rev, titulo: value.titulo, visual, encaixes, troca, dica, resolvido: value.resolvido, contagem: { postos, total }, mochila }
   if (combinacao !== undefined) vista.combinacao = combinacao
   if (giratorias !== undefined) vista.giratorias = giratorias
   if (interruptores !== undefined) vista.interruptores = interruptores
   if (cooperacao !== undefined) vista.cooperacao = cooperacao
+  if (mistura !== undefined) vista.mistura = mistura
   if (value.versaoNova === true) vista.versaoNova = true
   return vista
 }
 
 function lerErro(value: unknown): ErroDoPuzzleNoFio | null {
   if (!isRecord(value)) return null
-  if (value.em === 'ordem' || value.em === 'combinacao' || value.em === 'hora' || value.em === 'sequencia') return { em: value.em }
+  if (value.em === 'ordem' || value.em === 'combinacao' || value.em === 'hora' || value.em === 'sequencia' || value.em === 'mistura') return { em: value.em }
   if (value.em === 'peso' && inteiroAte(value.soma, NUMERO_MAX) && inteiroAte(value.pedido, PESO_MAX)) return { em: 'peso', soma: value.soma, pedido: value.pedido }
   return null
 }
