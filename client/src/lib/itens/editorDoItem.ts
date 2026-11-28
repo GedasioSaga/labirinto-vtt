@@ -12,7 +12,9 @@ import { fraseDoGatilho } from '../condicoes/fraseDoGatilho'
 import { CASAS_DO_ITEM_MAX, danoExtraDobra, ehRegistro, inteiro, NUMERO_DO_ITEM_MAX, pecaDoEfeitoGuardado, pecasDoItemLidas, type DuracaoNoEditor, type PecaDoItem } from './pecasDoItem'
 import {
   ROTULO_DO_TIPO,
+  rotuloDaDuracao,
   TIPOS_QUE_EMPILHAM,
+  TURNOS_DA_PECA,
   type AlcanceNoItem,
   type AtaqueDoItem,
   type BalaDoItem,
@@ -71,12 +73,8 @@ export const PENTE_MAX = 99
 
 // ─── As peças do "Ao acertar" e do "Ao usar" ───────────────────────────────
 
-export const DURACOES_NO_EDITOR: readonly { duracao: DuracaoNoEditor; rotulo: string }[] = [
-  { duracao: 'fim', rotulo: 'até o fim da batalha' },
-  { duracao: 1, rotulo: 'por 1 turno' },
-  { duracao: 2, rotulo: 'por 2 turnos' },
-  { duracao: 3, rotulo: 'por 3 turnos' },
-]
+/** O "Quanto tempo dura" do item e do gatilho: o fim da batalha e de 1 a 10 turnos (antes de 27/11/2026, até 3). */
+export const DURACOES_NO_EDITOR: readonly { duracao: DuracaoNoEditor; rotulo: string }[] = (['fim', ...TURNOS_DA_PECA] satisfies DuracaoNoEditor[]).map((duracao) => ({ duracao, rotulo: rotuloDaDuracao(duracao) }))
 
 export type OndeDaPeca = 'acerto' | 'uso'
 
@@ -437,7 +435,7 @@ function fraseDaPeca(peca: PecaDoItem, onde: OndeDaPeca): string {
   const quem = onde === 'uso' ? 'Quem recebe' : 'Quem é atingido'
   switch (peca.tipo) {
     case 'condicao': {
-      const duracao = DURACOES_NO_EDITOR.find((opcao) => opcao.duracao === peca.duracao)?.rotulo ?? ''
+      const duracao = rotuloDaDuracao(peca.duracao)
       const regra = regraDaCondicaoPeloNome(peca.nome)
       // Pedido de 26/11: o "depois de X turnos" da peça entra na mesma frase.
       const depois = peca.gatilho === undefined ? '' : ` Na vez dele, ${fraseDoGatilho(peca.gatilho)}.`

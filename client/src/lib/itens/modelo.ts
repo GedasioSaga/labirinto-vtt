@@ -167,18 +167,31 @@ export type PenteDaVaga = {
 
 /**
  * "Até o fim da batalha" ou por N turnos (contados na vez de quem está com a condição). Rework das
- * condições (PLANO.md §2, E1): vai até 10 turnos (antes, 3). O leitor da peça (`duracaoLida`,
- * lib/itens/pecasDoItem.ts) ainda aceita só até 3: o juiz novo é o `ehDuracaoDaPeca` (pendência anotada
- * no PENDENCIAS.md do rework, fora dos arquivos da E1).
+ * condições (PLANO.md §2, E1): vai até 10 turnos (antes, 3). Os leitores (`duracaoLida` e
+ * `pecaDoEfeitoGuardado`, lib/itens/pecasDoItem.ts) e as telas leem por `ehDuracaoDaPeca` e
+ * `TURNOS_DA_PECA` (27/11/2026: antes cortavam em 3).
  */
 export type DuracaoDaPeca = 'fim' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
 
 /** O teto dos turnos da peça. */
 export const DURACAO_DA_PECA_MAX = 10
 
+/** Os turnos da peça na ordem da tela, de 1 ao teto (o "até o fim da batalha" vem à parte). */
+export const TURNOS_DA_PECA: readonly Exclude<DuracaoDaPeca, 'fim'>[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
 /** Um valor de `DuracaoDaPeca`: "fim" ou um inteiro de 1 ao teto. */
 export function ehDuracaoDaPeca(valor: unknown): valor is DuracaoDaPeca {
   return valor === 'fim' || (typeof valor === 'number' && Number.isInteger(valor) && valor >= 1 && valor <= DURACAO_DA_PECA_MAX)
+}
+
+/** A duração de um texto da tela ("4", "fim"), a mesma leitura em todo seletor; fora da lista = o fim da batalha. */
+export function duracaoDoTexto(texto: string): DuracaoDaPeca {
+  return TURNOS_DA_PECA.find((turnos) => String(turnos) === texto) ?? 'fim'
+}
+
+/** "por 1 turno", "por 4 turnos", "até o fim da batalha": o rótulo de toda tela que escolhe a duração. */
+export function rotuloDaDuracao(duracao: DuracaoDaPeca): string {
+  return duracao === 'fim' ? 'até o fim da batalha' : duracao === 1 ? 'por 1 turno' : `por ${duracao} turnos`
 }
 
 /**

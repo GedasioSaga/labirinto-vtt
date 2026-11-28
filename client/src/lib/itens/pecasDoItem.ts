@@ -1,5 +1,5 @@
 import type { PecasDoEfeito } from '../../types/map'
-import type { BlocosDoItem, DuracaoDaPeca, GatilhoDaCondicao, PecaDoGatilho } from './modelo'
+import { ehDuracaoDaPeca, type BlocosDoItem, type DuracaoDaPeca, type GatilhoDaCondicao, type PecaDoGatilho } from './modelo'
 
 /**
  * AS PEÇAS DO ITEM, SÓ A LEITURA (sistema de itens refeito, E2 e E6c): o "Ao acertar" e o "Ao usar"
@@ -39,7 +39,7 @@ function nomeDaPecaLido(valor: unknown): string | null {
 }
 
 function duracaoLida(valor: unknown): DuracaoDaPeca | null {
-  return valor === 'fim' || valor === 1 || valor === 2 || valor === 3 ? valor : null
+  return ehDuracaoDaPeca(valor) ? valor : null
 }
 
 /** Uma peça do gatilho lida do disco ou do fio. `null` = torta (fica de fora). */
@@ -100,8 +100,8 @@ export function inteiro(valor: unknown, min: number, max: number): number | null
 export function pecaDoEfeitoGuardado(efeito: unknown): PecaDoItem | null {
   if (!ehRegistro(efeito)) return null
   if (efeito.tipo === 'selo' && typeof efeito.nome === 'string') {
-    const turnos = inteiro(efeito.duracao, 1, 3)
-    const duracao: DuracaoNoEditor = turnos === 1 || turnos === 2 || turnos === 3 ? turnos : 'fim'
+    // Até 10 turnos (`DURACAO_DA_PECA_MAX`); "ateTirar", torto ou acima do teto = até o fim da batalha.
+    const duracao: DuracaoNoEditor = ehDuracaoDaPeca(efeito.duracao) ? efeito.duracao : 'fim'
     const regra = ehRegistro(efeito.regra) ? inteiro(efeito.regra.curaRecebida, -100, 0) : null
     const porTurno = ehRegistro(efeito.porTurno) && ehRegistro(efeito.porTurno.quanto) ? inteiro(efeito.porTurno.quanto.fixo, 1, NUMERO_DO_ITEM_MAX) : null
     const n = regra !== null ? -regra : porTurno

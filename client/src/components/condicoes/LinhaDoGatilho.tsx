@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { fraseDoGatilho } from '../../lib/condicoes/fraseDoGatilho'
 import { DURACOES_NO_EDITOR, nDePartida, pecaDePartida, ROTULO_DA_PECA, regraDaCondicaoPeloNome } from '../../lib/itens/editorDoItem'
-import type { DuracaoDaPeca, GatilhoDaCondicao, PecaDoGatilho } from '../../lib/itens/modelo'
+import { duracaoDoTexto, type GatilhoDaCondicao, type PecaDoGatilho } from '../../lib/itens/modelo'
 import { NUMERO_DO_ITEM_MAX, PECAS_DO_GATILHO_MAX, TURNOS_DO_GATILHO_MAX } from '../../lib/itens/pecasDoItem'
 import { CloseIcon } from '../icons'
 import './LinhaDoGatilho.css'
@@ -35,10 +35,6 @@ function pecaNova(tipo: PecaDoGatilho['tipo'], condicoes: readonly string[]): Pe
     return { ...semGatilho, duracao: 1 }
   }
   return peca
-}
-
-function duracaoDoTexto(texto: string): DuracaoDaPeca {
-  return texto === '1' ? 1 : texto === '2' ? 2 : texto === '3' ? 3 : 'fim'
 }
 
 /** Um número curto digitado (só algarismos), gravado a cada tecla quando vale. */

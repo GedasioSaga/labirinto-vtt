@@ -26,7 +26,7 @@ import './batalha/editor/pecas/condicoesDoApp'
 import { condicaoDoSeletor, turnosDaCondicao, useCatalogoDoSeletor, type CatalogoDoSeletor } from './batalha/editor/pecas/condicoesNoSeletor'
 import { OpcoesDeCondicao } from './batalha/editor/pecas/controlesDaPeca'
 import { RegraDeAntes } from './batalha/editor/pecas/RegraDeAntes'
-import { ROTULO_DO_TIPO, TIPOS_DO_ITEM, TIPOS_QUE_EMPILHAM, PARTES_DO_EQUIPAMENTO, type AtaqueDoItem, type BalaDoItem, type BonusDoEquipamento, type ConfiraDoItem, type TipoDoItem } from '../lib/itens/modelo'
+import { DURACAO_DA_PECA_MAX, ROTULO_DO_TIPO, TIPOS_DO_ITEM, TIPOS_QUE_EMPILHAM, TURNOS_DA_PECA, PARTES_DO_EQUIPAMENTO, type AtaqueDoItem, type BalaDoItem, type BonusDoEquipamento, type ConfiraDoItem, type TipoDoItem } from '../lib/itens/modelo'
 import {
   ACOES_DA_RECARGA,
   ACOES_DO_ITEM,
@@ -481,15 +481,12 @@ function useNomesDasCondicoes(): string[] {
   return useMemo(() => catalogo.opcoes.map((opcao) => opcao.nome), [catalogo])
 }
 
-/** O prazo da condição no "Quanto tempo dura" do item (D6: o padrão é o dela); o item guarda até 3 turnos ou o fim da batalha. */
+/** O prazo da condição no "Quanto tempo dura" do item (D6: o padrão é o dela); o item guarda até 10 turnos (`TURNOS_DA_PECA`) ou o fim da batalha. */
 function duracaoDoItem(prazo: PrazoDaCondicao, antes: DuracaoNoEditor): DuracaoNoEditor {
   if (prazo.modo === 'ateTirar' || prazo.modo === 'batalha') return 'fim'
-  const turnos = turnosDaCondicao(prazo, DURACAO_DO_ITEM_NA_TELA_MAX)
-  return turnos === 1 ? 1 : turnos === 2 ? 2 : turnos === 3 ? 3 : antes
+  const turnos = turnosDaCondicao(prazo, DURACAO_DA_PECA_MAX)
+  return TURNOS_DA_PECA.find((opcao) => opcao === turnos) ?? antes
 }
-
-/** O teto do "Quanto tempo dura" do item hoje (`DURACOES_NO_EDITOR`). */
-const DURACAO_DO_ITEM_NA_TELA_MAX = 3
 
 /**
  * A peça Condição do item (rework das condições, E7, D4 e D6): escolhe QUAL condição, do catálogo, e por

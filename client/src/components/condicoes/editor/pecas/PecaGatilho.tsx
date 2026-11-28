@@ -1,5 +1,5 @@
 import type { PecaDaCondicaoDa } from '../../../../lib/condicoes/modelo'
-import type { DuracaoDaPeca, PecaDoGatilho } from '../../../../lib/itens/modelo'
+import { rotuloDaDuracao, TURNOS_DA_PECA, type DuracaoDaPeca, type PecaDoGatilho } from '../../../../lib/itens/modelo'
 import { NUMERO_DO_ITEM_MAX, PECAS_DO_GATILHO_MAX, TURNOS_DO_GATILHO_MAX } from '../../../../lib/itens/pecasDoItem'
 import { Escolher, Frase, Nota, Numero, PorDaLista, Segmentos, Texto, Tirar } from '../../../batalha/editor/pecas/controlesDaPeca'
 import type { PropsDaPecaDaCondicao } from '../registro'
@@ -9,18 +9,11 @@ import { AO_DISPARAR_NA_TELA, EFEITOS_DO_GATILHO_NA_TELA, efeitoDoGatilhoNovo, o
 type GatilhoDaPeca = PecaDaCondicaoDa<'gatilho'>['gatilho']
 
 /**
- * Os prazos do "Põe condição". O leitor do gatilho (`gatilhoLido`, lib/itens/pecasDoItem.ts) ainda aceita só
- * 1 a 3 turnos ou o fim da batalha: um prazo maior deixaria a peça torta e a condição perderia as peças na
- * próxima leitura. Quando o leitor for até 10 (`DURACAO_DA_PECA_MAX`), é só pôr as linhas aqui.
+ * Os prazos do "Põe condição": de 1 a 10 turnos (`TURNOS_DA_PECA`, o mesmo teto do leitor do gatilho,
+ * `gatilhoLido`) ou o fim da batalha, com o rótulo de toda tela (`rotuloDaDuracao`).
  */
-type TextoDaDuracao = '1' | '2' | '3' | 'fim'
-const DURACOES: readonly (OpcaoDaCondicao<TextoDaDuracao> & { duracao: DuracaoDaPeca })[] = [
-  { valor: '1', rotulo: 'por 1 turno', duracao: 1 },
-  { valor: '2', rotulo: 'por 2 turnos', duracao: 2 },
-  { valor: '3', rotulo: 'por 3 turnos', duracao: 3 },
-  { valor: 'fim', rotulo: 'até o fim da batalha', duracao: 'fim' },
-]
-const textoDaDuracao = (duracao: DuracaoDaPeca): string => DURACOES.find((opcao) => opcao.duracao === duracao)?.valor ?? String(duracao)
+const DURACOES: readonly (OpcaoDaCondicao<string> & { duracao: DuracaoDaPeca })[] = ([...TURNOS_DA_PECA, 'fim'] satisfies DuracaoDaPeca[]).map((duracao) => ({ valor: String(duracao), rotulo: rotuloDaDuracao(duracao), duracao }))
+const textoDaDuracao = (duracao: DuracaoDaPeca): string => String(duracao)
 
 /** O "Tira condição" sem nome: as negativas (a frase diz "perde as condições negativas"). */
 const AS_NEGATIVAS = ''
