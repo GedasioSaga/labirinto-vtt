@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { sistema } from './fichasDaFatiaB.testkit'
 import { camposVisiveis } from '../personagem'
 import { aira, alexei, ARMADILHAR, BENCAO, CACADA, CACADA_COMO_FORMA, DANCA, LUZ_DO_SOL, RIFLE } from './fichasDaFatiaC.testkit'
+import { condicaoDaFabricaDoSelo } from '../condicoes/fabrica'
+import { frasesDoCartao, textoDaFrase } from '../condicoes/frasesDaCondicao'
 import { lembreteDoSelo } from './condicoes'
 import { cdDaDisputa, quemUsaVence } from './disputa'
 import { danoDoAtaque, lerDano } from './formula'
@@ -46,8 +48,11 @@ describe('a Bênção de uma Raposa e A Luz do Sol', () => {
 })
 
 describe('Alexei: as armadilhas que o mestre aplica (o selo lembra a regra)', () => {
-  it('Enraizado lembra a CD 15 da técnica de movimento; Preso pelo Imã-Gumelo lembra o d20 12 ou mais', () => {
-    expect(lembreteDoSelo('Enraizado')).toContain('15')
+  it('Enraizado diz a CD 15 para sair (a condição de fábrica); Preso pelo Imã-Gumelo lembra o d20 12 ou mais', () => {
+    // Rework das condições (E3): o Enraizado saiu da tabela de lembretes; a CD 15 mora na saída da condição de fábrica (o cartão dela a diz).
+    const enraizado = condicaoDaFabricaDoSelo('Enraizado')
+    if (enraizado === null) throw new Error('o Enraizado não é de fábrica')
+    expect(frasesDoCartao(enraizado).filter((linha) => linha.de === 'saida').map((linha) => textoDaFrase(linha.frase)).join(' ')).toContain('15')
     expect(lembreteDoSelo('Preso pelo Imã-Gumelo')).toContain('12 ou mais')
   })
 })

@@ -34,8 +34,9 @@ describe('a peça selo da C5', () => {
     const veneno = pecas(comSelo({ tipo: 'selo', nome: 'Veneno', duracao: 'proximoGolpe', natureza: 'debuff', porTurno: { recurso: 'hp', quanto: { fixo: 15 }, direto: true } }))
     expect(linhaDasPecas('Mordida Venenosa', veneno).selo).toEqual({ nome: 'Veneno', turnos: null, natureza: 'debuff', porVez: 15, saiNoProximoGolpe: true })
     // Fora da tabela, o selo montado tira pelo dele; o selo sem `porVez` e fora da tabela continua sem tirar.
+    // Rework das condições (D3): o Envenenado virou de fábrica (tira 3 por vez); "Veneno" segue fora dela.
     expect(porVezDoSelo({ nome: 'Veneno', porVez: 15 })).toEqual({ nome: 'Veneno', dano: 15 })
-    expect(danoPorVezDoSelo({ nome: 'Envenenado' })).toBeNull()
+    expect(danoPorVezDoSelo({ nome: 'Veneno' })).toBeNull()
 
     const sangra = pecas(comSelo({ tipo: 'selo', nome: 'Sangrando', duracao: 3 }))
     expect(linhaDasPecas('Corte Fundo', sangra).selo).toEqual({ nome: 'Sangrando', turnos: 3 })
@@ -47,7 +48,8 @@ describe('a peça selo da C5', () => {
 
   it('o resumo diz o que o selo faz pela regra do nome, com a contagem na vez do alvo', () => {
     const lutador = { personagem: ficha('Lutador de Teste', { forca: 10 }, { hp: 100, sp: 10, escudo: 0 }, {}), sistema }
-    expect(frasesDoSelo({ nome: 'Aéreo' })).toEqual(['não pode esquivar nem contra-atacar'])
+    // Rework das condições (E1): o Aéreo de fábrica dura 1 turno e renova ao acertar de novo (o padrão dos turnos da fábrica).
+    expect(frasesDoSelo({ nome: 'Aéreo' })).toEqual(['não pode esquivar nem contra-atacar', 'acertar de novo renova a duração'])
     expect(frasesDoSelo({ nome: 'Cego' }, lutador)[0]).toMatch(/ fica em 0$/)
     expect(frasesDoSelo({ nome: 'Queimando', porTurno: { recurso: 'hp', quanto: { fixo: 20 }, direto: true } })).toEqual([
       'perde 20 de HP no começo de cada vez dele, direto, quando o mestre clica Aplicar',

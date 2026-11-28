@@ -178,15 +178,16 @@ describe('selos novos', () => {
     expect(lido.tipo === 'valor' ? lido.conta : '').toContain('+10 (Foco) → 0 (Cego 2)')
   })
 
-  it('Queimando tira 10 por vez (ou o N da técnica) e renova; Ferido por prata só lembra', () => {
+  it('Queimando tira 10 por vez (ou o N da técnica) e renova; Ferido por prata é a Cura reduzida (a metade sai sozinha)', () => {
     expect(danoPorVezDoSelo({ nome: 'Queimando' })).toBe(10)
     expect(danoPorVezDoSelo({ nome: 'Queimando', porVez: 15 })).toBe(15)
     expect(comportamentoDoSelo('Queimando')?.renova).toBe(true)
+    // Decisão do dono de 25/11/2026: o lembrete "Ferido por prata" virou a condição Cura reduzida (apelido de fábrica), que corta a cura pela metade.
     const prata = comportamentoDoSelo('Ferido por prata')
-    expect(prata?.lembrete).toContain('metade')
+    expect([prata?.nome, prata?.curaRecebida, prata?.lembrete]).toEqual(['Cura reduzida', -50, undefined])
     expect(danoPorVezDoSelo({ nome: 'Ferido por prata' })).toBeNull()
-    // O título da pílula (mestre e leitor de tela) diz o que o selo lembra.
-    expect(textoLongoDoSelo({ id: 'selo_1', nome: 'Ferido por prata', turnos: null, texto: 'Ferido por prata', mods: '' })).toBe('Ferido por prata: até o mestre tirar · a cura que recebe cai pela metade (o mestre corta à mão)')
+    // O título da pílula não manda mais o mestre cortar à mão: o app já corta.
+    expect(textoLongoDoSelo({ id: 'selo_1', nome: 'Ferido por prata', turnos: null, texto: 'Ferido por prata', mods: '' })).toBe('Ferido por prata: até o mestre tirar')
   })
 
   it('o lembrete do Queimando N guarda o nome e o dano: vale com o selo fora da ficha', () => {
