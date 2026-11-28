@@ -157,4 +157,15 @@ describe('versões dentro do objeto', () => {
     expect(luzDoObjeto({ ...lustre, mobiliaVersao: 'apagado' })).toBeNull()
     expect(luzDoObjeto(reabrir(mapaCom([{ ...lustre, mobiliaVersao: 'caido' }])))).toBeNull()
   })
+
+  it('a luz por versão (L09): o portal acende na cor de cada redemoinho e o apagado não; o caldeirão só acende no Verde borbulhando', () => {
+    const portal = criarMovel('portalMagico', { x: 200, y: 200 }, GRADE, 'portal-1')
+    const cores = [undefined, 'arcano', 'gelo'].map((versao) => luzDoObjeto({ ...portal, mobiliaVersao: versao })?.cor)
+    expect(cores.every((cor) => cor !== undefined)).toBe(true)
+    expect(new Set(cores).size).toBe(3)
+    expect(luzDoObjeto({ ...portal, mobiliaVersao: 'apagado' })).toBeNull()
+    const caldeirao = criarMovel('caldeirao', { x: 300, y: 300 }, GRADE, 'caldeirao-1')
+    expect(luzDoObjeto(caldeirao)).toBeNull()
+    expect(luzDoObjeto(reabrir(mapaCom([{ ...caldeirao, mobiliaVersao: 'verde' }])))?.cor).toBe(0xd4ecb4)
+  })
 })

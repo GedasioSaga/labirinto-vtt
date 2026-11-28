@@ -912,6 +912,12 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   bonecoDeNeve: [lugar('cachecol', 'Cachecol', TECIDOS, 'vinho')],
   iglu: [],
   treno: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('patins', 'Patins', METAIS, 'ferro'), lugar('carga', 'Carga', TECIDOS, 'linho')],
+  // L09, com os padrões das folhas do lote: a ardósia no portal (a obsidiana e o gelo de I0-d dão as outras caras), a
+  // madeira velha na estaca e o granito no pilar de ossos. O respiradouro é rocha e lava de cor fixa.
+  portalMagico: [lugar('pedra', 'Pedra', PEDRAS, 'ardosia')],
+  respiradouroVulcanico: [],
+  estacaComCranio: [lugar('madeira', 'Estaca', MADEIRAS, 'velha')],
+  pilarDeOssos: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

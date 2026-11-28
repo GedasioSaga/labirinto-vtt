@@ -122,6 +122,12 @@ export const VERSOES_DO_MOVEL: Readonly<Partial<Record<TipoMobilia, VersoesDoMov
   bonecoDeNeve: { rotulo: 'Versão', opcoes: [{ id: 'classico', nome: 'Clássico' }, { id: 'derretendo', nome: 'Derretendo' }] },
   iglu: { rotulo: 'Versão', opcoes: [{ id: 'inteiro', nome: 'Inteiro' }, { id: 'emRuina', nome: 'Em ruína', semLuz: true }] },
   treno: { rotulo: 'Versão', opcoes: [{ id: 'deCarga', nome: 'De carga' }, { id: 'pequeno', nome: 'Pequeno' }] },
+  // Lote L09: a lava e o inferno. O portal apagado e o respiradouro adormecido não acendem; o caldeirão só acende no
+  // Verde borbulhando (a luz verde é a da chama colorida, `corDaChama.ts`: o id da versão é a cor).
+  portalMagico: { rotulo: 'Versão', opcoes: [{ id: 'infernal', nome: 'Infernal' }, { id: 'arcano', nome: 'Arcano' }, { id: 'gelo', nome: 'Gelo' }, { id: 'apagado', nome: 'Apagado', semLuz: true }] },
+  respiradouroVulcanico: { rotulo: 'Versão', opcoes: [{ id: 'ativo', nome: 'Ativo' }, { id: 'adormecido', nome: 'Adormecido', semLuz: true }] },
+  estacaComCranio: { rotulo: 'Versão', opcoes: [{ id: 'uma', nome: 'Uma' }, { id: 'tres', nome: 'Três' }] },
+  caldeirao: { rotulo: 'Versão', opcoes: [{ id: 'caldo', nome: 'Caldo' }, { id: 'verde', nome: 'Verde borbulhando' }] },
 }
 
 /** A versão apaga a luz do objeto (o lustre apagado e o caído): `lib/luzDoFogo.ts` não a acende. */

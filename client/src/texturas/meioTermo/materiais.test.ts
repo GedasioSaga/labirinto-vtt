@@ -640,6 +640,10 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       bonecoDeNeve: ['cachecol:vinho'],
       iglu: [],
       treno: ['madeira:carvalho', 'patins:ferro', 'carga:linho'],
+      portalMagico: ['pedra:ardosia'],
+      respiradouroVulcanico: [],
+      estacaComCranio: ['madeira:velha'],
+      pilarDeOssos: ['pedra:granito'],
     })
   })
 

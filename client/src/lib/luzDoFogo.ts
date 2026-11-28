@@ -2,7 +2,7 @@ import type { Carimbo, Prop, TipoMobilia } from '../types/map'
 import type { FachoQueGira } from './fachoDoFarol'
 import { CASA_DO_FOGO_PX } from './mobilia/fogo'
 import { corDaChamaDoMovel, TONS_DA_CHAMA } from './mobilia/corDaChama'
-import { versaoSemLuz } from './mobilia/versoes'
+import { versaoEmVigor, versaoSemLuz } from './mobilia/versoes'
 
 /**
  * A LUZ DOS OBJETOS DO MAPA (pedidos do mestre de 09/11/2026: "na gameplay
@@ -42,6 +42,10 @@ export interface LuzDoObjeto {
   fumacaEBrasas: boolean
   /** Os fachos que giram por cima do claro redondo (só o farol, `lib/fachoDoFarol.ts`); ausente = luz parada. */
   facho?: FachoQueGira
+  /** O tom de cada VERSÃO, pelo id dela (o portal mágico: cada redemoinho com a sua luz); versão fora = `cor`. */
+  corDaVersao?: Readonly<Record<string, number>>
+  /** Só acende nestas versões (o caldeirão: só o Verde borbulhando tem fogo); ausente = acende em todas. */
+  soNasVersoes?: readonly string[]
 }
 
 /**
@@ -136,6 +140,12 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   // A onda 3 do plano de arte por tema (28/11/2026). L08: o bafo quente da lamparina na porta do iglu, curto e fraco (o
   // desenhista sugeriu #e8b070; aqui o tom claro dele, porque a luz multiplica o mapa). O Em ruína apaga (`semLuz`).
   iglu: { alcanceEmCasas: 1.5, cor: 0xffdcb0, forca: 0.5, fumacaEBrasas: false },
+  // L09. Os tons que o desenhista sugeriu (#d08a58, #b8a6e0, #a9cfe0 no portal; #c87848 no respiradouro), clareados pela
+  // regra do `cor`. O portal apagado e o respiradouro adormecido apagam (`semLuz`); o caldeirão só acende no Verde
+  // borbulhando, e o verde vem da chama colorida (o id da versão é a cor, `corDaChama.ts`).
+  portalMagico: { alcanceEmCasas: 2, cor: 0xf6c8a8, forca: 0.7, fumacaEBrasas: false, corDaVersao: { arcano: 0xdcd0f0, gelo: 0xd0e6f0 } },
+  respiradouroVulcanico: { alcanceEmCasas: 1.5, cor: 0xffc8b0, forca: 0.6, fumacaEBrasas: false },
+  caldeirao: { alcanceEmCasas: 2, cor: 0xd4ecb4, forca: 0.6, fumacaEBrasas: false, soNasVersoes: ['verde'] },
 }
 
 /** A luz de um CARIMBO: a do objeto, sem fumaça nem brasas, e se ela treme como a do fogo. */
@@ -268,8 +278,12 @@ export function luzDoObjeto(f: FogoQueIlumina): LuzDoObjeto | null {
   if (!Number.isFinite(f.x) || !Number.isFinite(f.y) || !(f.width > 0) || !(f.height > 0)) return null
   const luz = LUZ_DOS_OBJETOS[f.mobilia]
   if (luz === undefined) return null
+  // A luz que é só de algumas versões (o caldeirão verde) e o tom de cada versão (o portal), L09 do plano de arte.
+  const versao = versaoEmVigor(f.mobilia, f.mobiliaVersao)
+  if (luz.soNasVersoes !== undefined && (versao === undefined || !luz.soNasVersoes.includes(versao))) return null
+  const tomDaVersao = versao !== undefined && luz.corDaVersao !== undefined && Object.hasOwn(luz.corDaVersao, versao) ? luz.corDaVersao[versao] : undefined
   // A CHAMA COLORIDA (I0-c): a versão azul, verde ou roxa troca só o tom; a laranja é a luz de sempre, o mesmo objeto.
-  const tomDaChama = TONS_DA_CHAMA[corDaChamaDoMovel(f)].luz
+  const tomDaChama = TONS_DA_CHAMA[corDaChamaDoMovel(f)].luz ?? tomDaVersao
   return tomDaChama === undefined ? luz : { ...luz, cor: tomDaChama }
 }
 

@@ -151,6 +151,34 @@ export function glifoDaArtePorTema(tipo: TipoMobilia): ReactNode {
           <path d="M7 21V6a3 3 0 0 0-3-3M17 21V6a3 3 0 0 1 3-3" /><path d="M7 9h10M7 13h10M7 17h10" />
         </>
       )
+    case 'portalMagico':
+      // O anel de pedra em pé, o redemoinho em espiral e a soleira.
+      return (
+        <>
+          <circle cx="12" cy="11" r="8" /><path d="M12 11a2 2 0 1 1 2 2 4 4 0 1 1-4-4 6 6 0 0 1 6 6" /><path d="M5 21h14" />
+        </>
+      )
+    case 'respiradouroVulcanico':
+      // O cone, a boca da cratera e dois fios de vapor.
+      return (
+        <>
+          <path d="M3 20l6-9h6l6 9z" /><ellipse cx="12" cy="11" rx="3" ry="1" /><path d="M11 8c-1-2 1-3 0-5M14 8c-1-2 1-3 0-5" />
+        </>
+      )
+    case 'estacaComCranio':
+      // A estaca cravada e o crânio na ponta, com as duas órbitas.
+      return (
+        <>
+          <path d="M12 12v10" /><path d="M8 6a4 4 0 0 1 8 0v2l-1 2H9L8 8z" /><circle cx="10.5" cy="6.5" r="0.8" /><circle cx="13.5" cy="6.5" r="0.8" />
+        </>
+      )
+    case 'pilarDeOssos':
+      // O fuste de ossos amarrados entre a base e o capitel.
+      return (
+        <>
+          <path d="M7 3h10M7 21h10" /><path d="M9 3v18M15 3v18" /><path d="M9 8h6M9 13h6M9 18h6" />
+        </>
+      )
     default:
       return null
   }

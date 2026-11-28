@@ -321,7 +321,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 367 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 371 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -397,13 +397,15 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Selo de órbitas', 'Coluna lisa', 'Pilastra quadrada', 'Pedestal com cristal', 'Arandela de cristal', 'Braseiro de chama fria',
       'Selo de cristal', 'Muro em ruína', 'Pedestal entalhado', 'Coluna com glifos', 'Estela entalhada', 'Cabeça colossal',
       'Ídolo dourado', 'Mesinha de cela', 'Placa de pressão', 'Escada de mão', 'Corrente pendurada', 'Portão de jaula', 'Lâmina pendular',
+      // A onda 3 (L09), no fim de Templo e masmorra.
+      'Respiradouro vulcânico', 'Estaca com crânio', 'Pilar de ossos',
       'Potro de tortura', 'Dama de ferro', 'Tronco de prisioneiro', 'Gaiola suspensa', 'Cadeira de interrogatório', 'Mesa de instrumentos de tortura', 'Sangue no chão',
       // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Sala de tortura: +10.
       'Ralo de masmorra', 'Tábua de pregos', 'Cepo do carrasco', 'Poste de açoite', 'Prancha de tortura', 'Braseiro com ferros de marcar',
       'Roda de tortura', 'Guilhotina', 'Guincho de corrente', 'Poço de sangue',
       'Estante de poções', 'Bola de cristal', 'Pedestal com livro aberto',
       // A leva de 24/11/2026 (docs/design/objetos-24-11/LISTA.md), no fim de Magia e alquimia: +1.
-      'Globo de luz rubra',
+      'Globo de luz rubra', 'Portal mágico',
       // O Necrotério e laboratório (16/11/2026), o lote L1 das referências.
       'Mesa de autópsia', 'Maca com lençol', 'Câmara frigorífica', 'Bandeja de instrumentos', 'Esterilizador', 'Panelas e bacias',
       'Mesa de laboratório', 'Luminária articulada', 'Cadeira giratória', 'Máquina de escrever',
@@ -440,7 +442,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
     // 275 menos a natureza que foi para o Carimbo na Fase 6 (pedras e rochas, toco de árvore, árvore seca e a sebe),
     // mais a caixa quebrada (16/11/2026) e as duas estátuas de cavalo (21/11/2026): cada um com um desenho diferente.
-    expect(new Set(desenhos).size).toBe(367)
+    expect(new Set(desenhos).size).toBe(371)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

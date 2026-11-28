@@ -651,6 +651,11 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   bonecoDeNeve: { modo: 'derivado', espessura: 0 },
   iglu: { modo: 'derivado', espessura: 0 },
   treno: DERIVADO,
+  // L09: o portal, a estaca e o pilar de ossos são EM PÉ; o respiradouro sobe derivado (o cone e a cratera).
+  portalMagico: EM_PE,
+  respiradouroVulcanico: DERIVADO,
+  estacaComCranio: EM_PE,
+  pilarDeOssos: EM_PE,
   // Lotes 13 e 16 dos 95 objetos novos (11/11/2026), o templo e a masmorra. O braseiro sobe pelas sombras: cada
   // perna é uma coluna da altura da borda e a bacia sobe em dois pinos, o do bojo e o da boca; a chama animada
   // sobe a mesma altura (`deslocamentoDaChama`), como a da fornalha.

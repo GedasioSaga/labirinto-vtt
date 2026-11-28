@@ -450,6 +450,10 @@ import { montarCasinhaDeCachorro } from './casinhaDeCachorro'
 import { montarBonecoDeNeve } from './bonecoDeNeve'
 import { montarIglu } from './iglu'
 import { montarTreno } from './treno'
+import { montarPortalMagicoInfernal } from './portalMagico'
+import { montarRespiradouroVulcanico } from './respiradouroVulcanico'
+import { montarEstacaComCranio } from './estacaComCranio'
+import { montarPilarDeOssos } from './pilarDeOssos'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -973,6 +977,12 @@ const MONTADORES = {
   bonecoDeNeve: montarBonecoDeNeve,
   iglu: montarIglu,
   treno: montarTreno,
+  // L09. O portal é a imagem INTEIRA da 1ª versão (a parte parada e o redemoinho em repouso): a do catálogo e a de
+  // "menos movimento"; o redemoinho que gira por cima é do animador `girar`, ainda não ligado na tela.
+  portalMagico: montarPortalMagicoInfernal,
+  respiradouroVulcanico: montarRespiradouroVulcanico,
+  estacaComCranio: montarEstacaComCranio,
+  pilarDeOssos: montarPilarDeOssos,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -1078,6 +1088,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'placaDePressao', 'escadaDeMao', 'correntePendurada', 'portaoDeJaula', 'laminaPendular', 'pecaDeXadrez',
   'carrinhoDeMina', 'trilhoDeMina', 'escoraDeMina', 'pilhaDeMinerio', 'cano', 'saidaDeEsgoto', 'comporta', 'fonteDeParede',
   'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro', 'bonecoDeNeve', 'iglu', 'treno',
+  'portalMagico', 'respiradouroVulcanico', 'estacaComCranio', 'pilarDeOssos',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

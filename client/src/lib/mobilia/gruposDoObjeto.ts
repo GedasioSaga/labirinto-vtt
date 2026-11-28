@@ -506,6 +506,11 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   // L08: o boneco de neve na brincadeira; o trenó de carga na Feira, junto da carroça (o iglu é construção).
   bonecoDeNeve: 'descansoEBrincadeira',
   treno: 'feira',
+  // L09: o portal na Magia e alquimia; o respiradouro, a estaca e o pilar de ossos no Templo e masmorra (a lava e o inferno).
+  portalMagico: 'magiaEAlquimia',
+  respiradouroVulcanico: 'temploEMasmorra',
+  estacaComCranio: 'temploEMasmorra',
+  pilarDeOssos: 'temploEMasmorra',
   // As construções (19 de 12/11/2026 e 29 de 14/11/2026), nos 9 grupos da ferramenta Construção, na ordem de
   // `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
@@ -915,6 +920,10 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   bonecoDeNeve: ['boneco de neve', 'neve', 'inverno', 'cachecol'],
   iglu: ['iglu', 'neve', 'inverno', 'abrigo', 'blocos de neve'],
   treno: ['trenó', 'neve', 'inverno', 'patins', 'carga'],
+  portalMagico: ['portal', 'redemoinho', 'passagem', 'teleporte', 'inferno', 'arcano'],
+  respiradouroVulcanico: ['respiradouro', 'vulcão', 'lava', 'cratera', 'fumarola', 'enxofre'],
+  estacaComCranio: ['estaca', 'crânio', 'caveira', 'aviso', 'inferno'],
+  pilarDeOssos: ['pilar', 'ossos', 'ossuário', 'caveiras', 'inferno'],
 }
 
 const MARCA_DE_ACENTO = /\p{M}/gu

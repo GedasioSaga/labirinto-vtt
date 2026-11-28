@@ -59,6 +59,10 @@ import { versoesDoBancoDePraca } from './bancoDePracaVersoes'
 import { versoesDoBonecoDeNeve } from './bonecoDeNeveVersoes'
 import { versoesDoIglu } from './igluVersoes'
 import { versoesDoTreno } from './trenoVersoes'
+import { versoesDoPortalMagico } from './portalMagicoVersoes'
+import { versoesDoRespiradouroVulcanico } from './respiradouroVulcanicoVersoes'
+import { versoesDoEstacaComCranio } from './estacaComCranioVersoes'
+import { versoesDoCaldeirao } from './caldeiraoVersoes'
 
 /** O montador de cada versão, pelo id gravado em `Prop.mobiliaVersao` (a 1ª versão não entra). */
 export type VersoesDesenhadas = Readonly<Record<string, MontarMovel>>
@@ -123,6 +127,12 @@ export const VERSOES_DESENHADAS: Readonly<Partial<Record<TipoMobilia, VersoesDes
   bonecoDeNeve: versoesDoBonecoDeNeve,
   iglu: versoesDoIglu,
   treno: versoesDoTreno,
+  // L09 (a lava e o inferno). O redemoinho do portal e o vapor do respiradouro e do caldeirão verde esperam os
+  // animadores `girar` e `vapor` na tela: até lá a imagem é a inteira, em repouso.
+  portalMagico: versoesDoPortalMagico,
+  respiradouroVulcanico: versoesDoRespiradouroVulcanico,
+  estacaComCranio: versoesDoEstacaComCranio,
+  caldeirao: versoesDoCaldeirao,
 }
 
 /** O montador da versão (`undefined` = a 1ª, versão sem desenho ou tipo sem versão: vale o de `MONTADORES`). */

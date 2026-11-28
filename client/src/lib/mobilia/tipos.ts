@@ -208,6 +208,8 @@ export const TIPOS_MOBILIA = [
   'rodaDeCarroca', 'bancoDeTronco', 'casinhaDeCachorro',
   // L08: o boneco de neve, o iglu (construção) e o trenó.
   'bonecoDeNeve', 'iglu', 'treno',
+  // L09: o portal mágico (o redemoinho gira), o respiradouro vulcânico (o vapor), a estaca com crânio e o pilar de ossos.
+  'portalMagico', 'respiradouroVulcanico', 'estacaComCranio', 'pilarDeOssos',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
