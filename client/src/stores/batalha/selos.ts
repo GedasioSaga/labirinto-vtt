@@ -17,6 +17,7 @@ import {
   novoIdDeSelo,
   pegaOSelo,
   quedaEmNumeros,
+  temQuedaEmPorcento,
   seloComACondicao,
   seloComPilhas,
   seloComQuedaNoToken,
@@ -313,7 +314,8 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
 
   /** D10: o selo com queda em % já em números, pelo atributo do alvo (o token sem ficha perde 0). Sem queda em %: o MESMO pedido. */
   const quedaFixadaNoAlvo = (pedido: SeloDoGolpe, alvo: AlvoDoGolpe): SeloDoGolpe => {
-    if (pedido.queda?.emPorcento !== true) return pedido
+    // Nº 5 das pendências do rework: as quedas a mais da condição em % também (`temQuedaEmPorcento`).
+    if (!temQuedaEmPorcento(pedido)) return pedido
     const dele = alvo.personagemId === null ? undefined : mesaDoRpg().personagens.find((candidato) => candidato.id === alvo.personagemId)
     return quedaEmNumeros(pedido, (atributo) => (dele === undefined ? 0 : valorDoRank(dele, atributo)))
   }

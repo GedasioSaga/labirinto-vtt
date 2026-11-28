@@ -176,12 +176,14 @@ export function lembreteDaSaida(selo: Pick<SeloDaBatalha, 'id' | 'tokenId'>, rod
 export interface RecursosDeQuemTenta {
   sp: number
   vida: number
+  /** Nº 5 das pendências do rework: a ação simples ainda sobra na vez de quem tenta. Ausente = sobra (quem chama não conta a vez). */
+  simples?: boolean
 }
 
-/** Dá para pagar o que a saída pede: a ação sempre; SP com o bastante; vida só deixando ao menos 1 (prototipo.html:1006). */
+/** Dá para pagar o que a saída pede: a ação simples se ela ainda sobra na vez; SP com o bastante; vida só deixando ao menos 1 (prototipo.html:1006). */
 export function podePagar(saida: Pick<SaidaPagando, 'paga' | 'v'>, recursos: RecursosDeQuemTenta): boolean {
   const quanto = saida.v ?? 0
-  if (saida.paga === 'acao') return true
+  if (saida.paga === 'acao') return recursos.simples !== false
   return saida.paga === 'sp' ? recursos.sp >= quanto : recursos.vida > quanto
 }
 

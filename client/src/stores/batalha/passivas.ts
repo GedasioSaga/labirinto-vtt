@@ -39,7 +39,9 @@ import { ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '..
 import { danoComAsReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { custoPorTurno, textoDoCustoPorTurno } from '../../lib/batalha/custoPorTurno'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, portaoDoEvoluir, varianteDoPedido, type ContextoDaEvolucao } from '../../lib/batalha/escolhaEEvolucao'
-import { ajustesDoCusto, custoEmSp, depoisDaTecnica, textoDaRolagem } from '../../lib/batalha/golpe'
+import { acoesDaCarta, ajustesDoCusto, custoEmSp, depoisDaTecnica, textoDaRolagem } from '../../lib/batalha/golpe'
+import { cabeAcao } from '../../lib/batalha/acoes'
+import { gastarNaVez } from './recargaDoPente'
 import { mantidaDe } from '../../lib/batalha/mecanicasAMao'
 import {
   ajustesDoPorTurno,
@@ -208,7 +210,9 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       gravarCena(sceneKey, comMudanca(cena, comCombate(turnos), null))
       return true
     }
-    const recursos = { sp: numeroDoRecurso(personagem, sistema, 'sp'), vida: numeroDoRecurso(personagem, sistema, 'hp') }
+    // Nº 5 das pendências do rework: "pagar a ação" só com a Simples sobrando na vez, e ela fica gasta (o Enraizado não sai de graça).
+    const simples = cabeAcao(acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena.regras }), 'simples')
+    const recursos = { sp: numeroDoRecurso(personagem, sistema, 'sp'), vida: numeroDoRecurso(personagem, sistema, 'hp'), simples }
     const tentativa = tentarSair(saida, recursos, (atributo) => ({ d20: deps.rolarD20(), modificador: modificadorDoTeste(personagem, sistema, atributo, bonusDaBatalha(turnos.selos, carta.tokenId)) }))
     const paga = tentativa.paga
     if (paga !== null && paga.recurso !== 'acao' && paga.quanto > 0) {
@@ -226,6 +230,11 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       partes.push(...reversaoDaFicha(personagemId, feito))
     }
     let novos = comCombate(turnos)
+    if (paga !== null && paga.recurso === 'acao') {
+      const gasto = gastarNaVez(novos, carta.id, 'simples')
+      novos = gasto.turnos
+      partes.push(...gasto.partes)
+    }
     if (tentativa.sai) {
       novos = { ...novos, selos: (novos.selos ?? []).filter((candidato) => candidato.id !== selo.id) }
       partes.push({ tipo: 'selo', seloId: selo.id, antes: selo })

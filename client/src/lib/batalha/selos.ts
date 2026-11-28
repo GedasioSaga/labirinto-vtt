@@ -198,8 +198,9 @@ export function criarSelo(tokenId: string, pedido: SeloDoGolpe, onde: OndeNasceO
   if (onde.origem !== undefined && onde.origem.trim().length > 0) selo.origem = onde.origem.trim()
   // Rework das habilidades (PLANO.md D10, Diminui atributo): a queda vai com o selo; `desde` 0 já dá o primeiro passo no acerto.
   // A queda em % já chega em números (`quedaEmNumeros`, na store, com o atributo do alvo); a que ainda vier em % não desce.
-  if (pedido.queda !== undefined && pedido.queda.emPorcento !== true) return pedido.queda.desde === 0 ? comPassoDaQueda({ ...selo, queda: pedido.queda }) : { ...selo, queda: pedido.queda }
-  return selo
+  const comQueda = pedido.queda === undefined || pedido.queda.emPorcento === true ? selo : pedido.queda.desde === 0 ? comPassoDaQueda({ ...selo, queda: pedido.queda }) : { ...selo, queda: pedido.queda }
+  // Nº 5 das pendências do rework: as quedas a mais da condição (`regras.quedasAMais`) dão o primeiro passo no acerto também.
+  return comAsQuedasAMais(comQueda, false)
 }
 
 // ─── Rework das habilidades (PLANO.md D10): o selo que desce com o tempo (Diminui atributo) ───
@@ -212,31 +213,74 @@ export function criarSelo(tokenId: string, pedido: SeloDoGolpe, onde: OndeNasceO
 export function comPassoDaQueda(selo: SeloDaBatalha): SeloDaBatalha {
   const queda = selo.queda
   if (queda === undefined) return selo
-  const mods: ModDoSelo[] = [...(selo.mods ?? [])]
+  const { mods, sobra } = passoNosMods(selo.mods ?? [], queda)
+  const { queda: _queda, ...semQueda } = selo
+  const comMods: SeloDaBatalha = { ...semQueda, mods }
+  return sobra === undefined ? comMods : { ...comMods, queda: sobra }
+}
+
+/** Um passo de `queda` nos `mods` (a conta de `comPassoDaQueda`): os mods depois e a queda que sobra (`undefined` = acabaram as vezes). */
+function passoNosMods(antes: readonly ModDoSelo[], queda: QuedaDoSelo): { mods: ModDoSelo[]; sobra: QuedaDoSelo | undefined } {
+  const mods: ModDoSelo[] = [...antes]
   for (const passo of queda.passo) {
     const onde = mods.findIndex((mod) => mod.alvo === passo.alvo)
-    const antes = onde < 0 ? 0 : (mods[onde]?.delta ?? 0)
-    const somado = antes + passo.delta
+    const deAntes = onde < 0 ? 0 : (mods[onde]?.delta ?? 0)
+    const somado = deAntes + passo.delta
     const delta = queda.teto === undefined || Math.abs(somado) <= queda.teto ? somado : Math.sign(somado) * queda.teto
     const mod: ModDoSelo = { alvo: passo.alvo, delta: Math.max(-DANO_MAX, Math.min(DANO_MAX, delta)) }
     if (onde < 0) mods.push(mod)
     else mods[onde] = mod
   }
-  const { queda: _queda, ...semQueda } = selo
   const vezes = queda.vezes === undefined ? undefined : queda.vezes - 1
-  const comMods: SeloDaBatalha = { ...semQueda, mods: mods.slice(0, MODS_POR_SELO_MAX) }
-  return vezes !== undefined && vezes <= 0 ? comMods : { ...comMods, queda: vezes === undefined ? queda : { ...queda, vezes } }
+  return { mods: mods.slice(0, MODS_POR_SELO_MAX), sobra: vezes !== undefined && vezes <= 0 ? undefined : vezes === undefined ? queda : { ...queda, vezes } }
+}
+
+/**
+ * Nº 5 das pendências do rework das condições: as quedas que não couberam na `queda` do selo
+ * (`regras.quedasAMais`: ritmo, teto ou % diferentes da primeira) andam pela MESMA conta, cada uma com o
+ * seu relógio. `naVez` = a vez de quem tem passou (antes do turno `desde`, só conta); sem ela = o acerto
+ * (só as de `desde` 0 dão o passo). A que ainda vier em % não desce, como a `queda`. Nada andou: o MESMO selo.
+ */
+function comAsQuedasAMais(selo: SeloDaBatalha, naVez: boolean): SeloDaBatalha {
+  const regras = selo.regras
+  const quedas = regras?.quedasAMais
+  if (regras === undefined || quedas === undefined || quedas.length === 0) return selo
+  let mods: readonly ModDoSelo[] = selo.mods ?? []
+  const ficam: QuedaDoSelo[] = []
+  let andou = false
+  for (const queda of quedas) {
+    if (queda.emPorcento === true || (!naVez && queda.desde !== 0)) {
+      ficam.push(queda)
+      continue
+    }
+    andou = true
+    if (naVez && queda.desde > 1) {
+      ficam.push({ ...queda, desde: queda.desde - 1 })
+      continue
+    }
+    const passo = passoNosMods(mods, queda)
+    mods = passo.mods
+    if (passo.sobra !== undefined) ficam.push({ ...passo.sobra, desde: 0 })
+  }
+  if (!andou) return selo
+  const { quedasAMais: _quedas, ...semQuedas } = regras
+  return { ...selo, mods: [...mods], regras: ficam.length === 0 ? semQuedas : { ...semQuedas, quedasAMais: ficam } }
+}
+
+/** O selo ainda tem queda andando: a `queda` ou alguma das `regras.quedasAMais`. */
+function temQueda(selo: SeloDaBatalha): boolean {
+  return selo.queda !== undefined || (selo.regras?.quedasAMais?.length ?? 0) > 0
 }
 
 /**
  * A vez de quem tem o selo com queda passou: antes do turno `desde`, só conta (`desde` − 1); dali em
- * diante, um passo por vez (`comPassoDaQueda`). Sem queda: o MESMO selo.
+ * diante, um passo por vez (`comPassoDaQueda`). As quedas a mais andam junto (`comAsQuedasAMais`). Sem
+ * queda: o MESMO selo.
  */
 function quedaNaVez(selo: SeloDaBatalha): SeloDaBatalha {
   const queda = selo.queda
-  if (queda === undefined) return selo
-  if (queda.desde > 1) return { ...selo, queda: { ...queda, desde: queda.desde - 1 } }
-  return comPassoDaQueda(queda.desde === 0 ? selo : { ...selo, queda: { ...queda, desde: 0 } })
+  const daPrimeira = queda === undefined ? selo : queda.desde > 1 ? { ...selo, queda: { ...queda, desde: queda.desde - 1 } } : comPassoDaQueda(queda.desde === 0 ? selo : { ...selo, queda: { ...queda, desde: 0 } })
+  return comAsQuedasAMais(daPrimeira, true)
 }
 
 /**
@@ -246,14 +290,28 @@ function quedaNaVez(selo: SeloDaBatalha): SeloDaBatalha {
  */
 export function quedaEmNumeros(pedido: SeloDoGolpe, valorDoAtributo: (alvo: string) => number): SeloDoGolpe {
   const queda = pedido.queda
-  if (queda === undefined || queda.emPorcento !== true) return pedido
+  const comAPrimeira = queda === undefined || queda.emPorcento !== true ? pedido : { ...pedido, queda: quedaFixada(queda, valorDoAtributo) }
+  // Nº 5 das pendências do rework: as quedas a mais da condição em % viram números do mesmo jeito.
+  const regras = comAPrimeira.regras
+  const aMais = regras?.quedasAMais
+  if (regras === undefined || aMais === undefined || !aMais.some((outra) => outra.emPorcento === true)) return comAPrimeira
+  return { ...comAPrimeira, regras: { ...regras, quedasAMais: aMais.map((outra) => (outra.emPorcento === true ? quedaFixada(outra, valorDoAtributo) : outra)) } }
+}
+
+/** O pedido traz alguma queda em % (a `queda` ou uma das `regras.quedasAMais`): a store a passa a números no acerto. */
+export function temQuedaEmPorcento(pedido: Pick<SeloDoGolpe, 'queda' | 'regras'>): boolean {
+  return pedido.queda?.emPorcento === true || (pedido.regras?.quedasAMais ?? []).some((queda) => queda.emPorcento === true)
+}
+
+/** Uma queda em % com os números do atributo agora (para baixo; o teto também). */
+function quedaFixada(queda: QuedaDoSelo, valorDoAtributo: (alvo: string) => number): QuedaDoSelo {
   const emNumero = (alvo: string, porcento: number): number => Math.trunc((Math.max(0, valorDoAtributo(alvo)) * porcento) / 100)
   const passo = queda.passo.map((mod) => ({ alvo: mod.alvo, delta: emNumero(mod.alvo, mod.delta) })).filter((mod) => mod.delta !== 0)
   const primeiro = queda.passo[0]
   const { emPorcento: _emPorcento, teto, ...semPorcento } = queda
   const fixa: QuedaDoSelo = { ...semPorcento, passo }
   if (teto !== undefined && primeiro !== undefined) fixa.teto = Math.abs(emNumero(primeiro.alvo, teto))
-  return { ...pedido, queda: fixa }
+  return fixa
 }
 
 /**
@@ -415,7 +473,7 @@ export function entradaDoSelo(selos: readonly SeloDaBatalha[] | undefined, novo:
  */
 export function seloDepoisDasVezes(selo: SeloDaBatalha, vezes: number): SeloDaBatalha {
   let depois = selo
-  for (let vez = 0; vez < vezes && depois.queda !== undefined; vez += 1) depois = quedaNaVez(depois)
+  for (let vez = 0; vez < vezes && temQueda(depois); vez += 1) depois = quedaNaVez(depois)
   return depois
 }
 
@@ -436,7 +494,7 @@ export function contarSelos(selos: readonly SeloDaBatalha[], tokenIdQueSai: stri
   for (const selo of selos) {
     // Nº 3 do levantamento: o espelho da pastilha não desconta; o prazo da ficha é o relógio dele (`espelhosDasPastilhas`).
     // Rework das habilidades (D10): o selo com queda desce na vez de quem o tem, com turnos ou sem (o "até o fim da batalha").
-    if (selo.tokenId !== tokenIdQueSai || (selo.turnos === null && selo.queda === undefined) || selo.daPastilha === true || jaContouNestaVez(selo, rodada, cartaIdQueSai)) {
+    if (selo.tokenId !== tokenIdQueSai || (selo.turnos === null && !temQueda(selo)) || selo.daPastilha === true || jaContouNestaVez(selo, rodada, cartaIdQueSai)) {
       ficam.push(selo)
       continue
     }
@@ -513,10 +571,14 @@ export function bonusDaBatalha(selos: readonly SeloQueSoma[] | undefined, tokenI
   // F2 (fatia A): o selo que zera um atributo (Cego: Percepção) entra por último, e quem lê (`valorComAsPartes`) deixa em 0 enquanto ele existe.
   // Rework das condições: o "fica em 0" da condição (Cego: Percepção), da regra congelada ou da de fábrica pelo nome; a redoma, pela tabela.
   for (const selo of doToken) {
-    const zeram = new Set((regrasDoSelo(selo)?.ficaEm ?? []).filter((fica) => fica.v === 0).map((fica) => fica.alvo))
+    const regras = regrasDoSelo(selo)
+    const zeram = new Set((regras?.ficaEm ?? []).filter((fica) => fica.v === 0).map((fica) => fica.alvo))
     const daTabela = selo.regras === undefined ? comportamentoDoSelo(selo.nome)?.zera : undefined
     if (daTabela !== undefined) zeram.add(daTabela)
     for (const zera of zeram) comParte(zera, { nome: selo.nome, delta: 0, zera: true })
+    // Nº 5 das pendências do rework: o "fica em N" (N ≠ 0) e o "no máximo N" da condição, lidos na hora como o que zera.
+    for (const fica of regras?.ficaEm ?? []) if (fica.v !== 0) comParte(fica.alvo, { nome: selo.nome, delta: 0, fica: fica.v })
+    for (const teto of regras?.noMaximo ?? []) comParte(teto.alvo, { nome: selo.nome, delta: 0, teto: teto.v })
   }
   return Object.fromEntries(porAlvo)
 }

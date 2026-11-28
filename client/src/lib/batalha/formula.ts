@@ -546,7 +546,15 @@ export function lerFormula(texto: string, ctx: ContextoDaFormula): LeituraDoDano
 
 /** " +20 (Fúria) -15 (Lento)": as partes de um bônus como a conta as mostra (com espaço na frente; nenhuma = vazio). A que zera: " → 0 (Cego)". */
 export function textoDoBonus(partes: readonly ParteDoBonus[]): string {
-  return partes.map((parte) => (parte.zera === true ? ` → 0 (${parte.nome})` : ` ${parte.delta < 0 ? '-' : '+'}${formatarNumero(Math.abs(parte.delta))} (${parte.nome})`)).join('')
+  return partes.map(textoDaParte).join('')
+}
+
+/** Uma parte como a conta a mostra: " +20 (Fúria)", " → 0 (Cego)", " → 5 (Preso)" (o "fica em"), " máx. 30 (Fraco)" (o "no máximo"). */
+function textoDaParte(parte: ParteDoBonus): string {
+  if (parte.zera === true) return ` → 0 (${parte.nome})`
+  if (parte.fica !== undefined) return ` → ${formatarNumero(parte.fica)} (${parte.nome})`
+  if (parte.teto !== undefined) return ` máx. ${formatarNumero(parte.teto)} (${parte.nome})`
+  return ` ${parte.delta < 0 ? '-' : '+'}${formatarNumero(Math.abs(parte.delta))} (${parte.nome})`
 }
 
 /**

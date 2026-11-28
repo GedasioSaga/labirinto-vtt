@@ -1181,6 +1181,10 @@ export interface ParteDoBonus {
    * (`valorComAsPartes`); `delta` é 0. A conta mostra "→ 0 (Cego)".
    */
   zera?: true
+  /** Nº 5 das pendências do rework das condições: o "fica em N" (N ≠ 0) da condição, como o `zera`; `delta` é 0. A conta mostra "→ 5 (Preso)". */
+  fica?: number
+  /** O "no máximo N" da condição: o valor não passa de N, venha o buff que vier; `delta` é 0. A conta mostra "máx. 30 (Fraco)". */
+  teto?: number
 }
 
 /**
@@ -1292,5 +1296,9 @@ export function partesDoBonus(bonus: BonusDaBatalha | undefined, alvo: string): 
  */
 export function valorComAsPartes(base: number, partes: readonly ParteDoBonus[]): number {
   if (partes.some((parte) => parte.zera === true)) return 0
-  return partes.reduce((soma, parte) => soma + parte.delta, base)
+  // Nº 5 das pendências do rework: o "fica em N" vence a soma (dois = o menor); o "no máximo N" corta por cima de tudo.
+  const ficam = partes.flatMap((parte) => (parte.fica === undefined ? [] : [parte.fica]))
+  const valor = ficam.length > 0 ? Math.min(...ficam) : partes.reduce((soma, parte) => soma + parte.delta, base)
+  const tetos = partes.flatMap((parte) => (parte.teto === undefined ? [] : [parte.teto]))
+  return tetos.length === 0 ? valor : Math.min(valor, ...tetos)
 }

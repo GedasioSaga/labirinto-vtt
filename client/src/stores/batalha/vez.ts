@@ -214,6 +214,8 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
       if (perdeu !== 0) textos.push(`${nomeDe(saindo.personagemId)} perde ${-perdeu} HP (Doença das Trevas)`)
     }
     // Chamas Celestes: cada selo dela em quem sai. Fase 5: o selo montado traz o dreno de SP nele (`drenaSp`), e a regeneração (`regenera`).
+    // Nº 5 das pendências do rework: os selos que deram vida aqui (a cura recebida que tira os de saída "ao receber cura").
+    const curaram = new Set<string>()
     for (const selo of cena.turnos.selos ?? []) {
       if (selo.tokenId === saindo.tokenId && selo.regenera !== undefined) {
         const { recurso, quanto } = selo.regenera
@@ -223,6 +225,7 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
         // A cura cortada pela regra do selo (`curaRecebida`) vale também aqui; o máximo da ficha é o teto.
         const cabe = maximo === null ? quanto : Math.max(0, Math.min(recurso === 'hp' ? curaComOsSelos(quanto, cena.turnos.selos, saindo.tokenId) : quanto, maximo - atual))
         const ganhou = cabe === 0 ? 0 : mexer(saindo.personagemId, recurso, cabe)
+        if (recurso === 'hp' && ganhou > 0) curaram.add(selo.id)
         // CURA REDUZIDA (25/11/2026): a linha diz o corte ("+10 HP (Cura reduzida −50%)").
         const corte = recurso === 'hp' && ganhou !== 0 ? notaDosSelosNaCura(cena.turnos.selos, saindo.tokenId) : ''
         textos.push(`${selo.nome} em ${nomeDe(saindo.personagemId)}: ${ganhou === 0 ? 'já cheio' : `+${ganhou} ${recurso === 'hp' ? 'HP' : 'SP'}${corte}`}`)
@@ -245,6 +248,14 @@ export function criarVez(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalh
       textos.push(`${selo.nome} em ${nomeDe(saindo.personagemId)}: ${noAlvo}${dono === undefined || partesDoDono.length === 0 ? '' : `; ${dono.nome.trim() || 'o dono'} ${partesDoDono.join(', ')}`}`)
     }
     let novos = cena.turnos
+    // A vida do regenera é cura recebida: os selos de quem saiu com a saída "ao receber cura" saem (fora os que curaram), na mesma linha e no mesmo Desfazer.
+    const saemComACura = curaram.size === 0 ? [] : selosQueSaemCom(novos.selos, saindo.tokenId, { tipo: 'cura' }).filter((selo) => !curaram.has(selo.id))
+    if (saemComACura.length > 0) {
+      const ids = new Set(saemComACura.map((selo) => selo.id))
+      novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => !ids.has(selo.id)) }
+      partes.push(...saemComACura.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo })))
+      textos.push(textoDasSaidasDoSelo(saemComACura, { tipo: 'cura' }, nomeDe(saindo.personagemId)))
+    }
     const efeitos: EfeitoNovo[] = []
     // F2b (A Caçada Começa): "5 turnos" = 5 vezes do dono DEPOIS da vez em que ligou (a da carta extra também conta).
     const forma = novos.formas?.[saindo.personagemId]

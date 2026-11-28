@@ -25,7 +25,7 @@ Fonte: os relatórios das etapas E1 a E8 do workflow de 27/11/2026 e a conferên
 - Nº 21: o marcador Condições conta a lista da página (`catalogoDeCondicoes`), não as fichas com condição.
 - Fora da lista: o "Recupera por turno" aplica as duas linhas (Vida e SP) no começo da vez (`ajustesDaRecuperacao`, `textoDaRecuperacaoGravada`); `ajusteDaRecuperacao`, `quantoDaRecuperacao` e `siglaDaRecuperacao` saíram.
 
-Ainda abertas: parte da 5 (a nota diz o que falta), 14 a 20 (pequenas) e 22 e 23 (E9). Feitas em 28/11 (0.6.10): 1, 2, 3 e 7, e duas partes da 5.
+Ainda abertas: 14 a 20 (pequenas) e 22 e 23 (E9). Feitas em 28/11 (0.6.10): 1, 2, 3, 5 e 7.
 
 ## Grandes (uma etapa cada)
 
@@ -33,7 +33,7 @@ Ainda abertas: parte da 5 (a nota diz o que falta), 14 a 20 (pequenas) e 22 e 23
 2. **Feita 28/11.** **Fora da batalha (D11)**: o "Passar turno" lê as peças de vida da condição montada (`pendentesDoComecoDaVez`, `vidaQueAsCondicoesDao` e `mexeNaVidaPorTurno` em `lib/condicoes/naFicha.ts`): tira e dá vida, fixa vezes as pilhas ou em % da vida da ficha na hora, com o número próprio da condição posta. Decisão do Claude: SP e Escudo por vez continuam só na batalha (D11 fala de vida).
 3. **Feita 28/11.** **Ritmo do Muda atributo na ficha**: `fimDaVezComGatilhos` (`lib/condicoes/gatilho.ts`) conta `CondicaoNaFicha.vezes` no fim de cada vez de quem tem uma condição com Muda atributo de ritmo, e o espelho da batalha já descia o ritmo por elas (`pedidoDepoisDasVezes`). Decisão do Claude: a conta anda onde o fim da vez da ficha já anda (na batalha e no "Passar turno" de quem tem prazo, vida por vez ou gatilho); condição só de ritmo, sem prazo, não entra sozinha no "Passar turno" (D11).
 4. **Feita 27/11.** **Contra e pilhas no `porCondicao`** (`lib/condicoes/naFicha.ts`): na ficha, fora da batalha, o Molhado não apaga o Queimando, e pôr de novo não soma pilha (E5).
-5. **Em parte (28/11).** Feitas: o `n` próprio da condição posta pelo gatilho agora vale, e o gatilho soma a pilha como o golpe (`comPilhasDaMesa` exportada; `stores/batalha/vez.ts`, `porDoGatilho`). **Ainda abertas** desta lista: `regras.quedasAMais` (e o % delas), `regras.ficaEm` diferente de 0 e `regras.noMaximo`. O regenera do fim não dispara a saída "ao receber cura". O `n` próprio da condição posta pelo gatilho é ignorado. O gatilho põe a condição sem recalcular as pilhas (`comPilhasDaMesa` é privado). "Pagar a ação" não marca o gasto da vez: o Enraizado sai pagando a Simples sem gastá-la (E3/E5).
+5. **Feita 28/11.** O `n` próprio da condição posta pelo gatilho vale, e o gatilho soma a pilha como o golpe (`comPilhasDaMesa` exportada; `stores/batalha/vez.ts`, `porDoGatilho`). As quedas a mais (`regras.quedasAMais`) andam pela mesma conta da `queda`, cada uma com o seu relógio (`comAsQuedasAMais`, `lib/batalha/selos.ts`), e as em % viram números no acerto (`quedaEmNumeros`, `temQuedaEmPorcento`). O "fica em N" com N ≠ 0 e o "no máximo N" entram no bônus como o que zera (`ParteDoBonus.fica` e `.teto`, lidos em `valorComAsPartes`; a conta mostra "→ 5 (Preso)" e "máx. 30 (Fraco)"). A vida do regenera no fim da vez tira os selos com a saída "ao receber cura" (fora os que curaram), na mesma linha. "Pagar a ação" só com a Simples sobrando na vez, e ela fica gasta (`RecursosDeQuemTenta.simples`, `gastarNaVez`). Decisões do Claude: dois "fica em" no mesmo atributo = o menor; o "no máximo" corta por cima do "fica em".
 
 ## Médias
 
