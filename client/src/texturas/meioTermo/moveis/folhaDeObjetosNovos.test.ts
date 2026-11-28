@@ -132,8 +132,11 @@ async function nodeDaFolha() {
   return { fs, path }
 }
 
-/** Os módulos de `moveis/` que podem trazer um montador: os desenhos, sem os testes nem os ajudantes de teste. */
-const MODULOS = import.meta.glob<Readonly<Record<string, unknown>>>(['./*.ts', '!./*.test.ts', '!./*.testkit.ts', '!./*.d.ts'])
+/**
+ * Os módulos de `moveis/` que podem trazer um montador: os desenhos, sem os testes nem os ajudantes de teste. Desde o
+ * I0-a (28/11/2026), também os registros de versões de `moveis/versoes/`.
+ */
+const MODULOS = import.meta.glob<Readonly<Record<string, unknown>>>(['./*.ts', './versoes/*.ts', '!./*.test.ts', '!./versoes/*.test.ts', '!./*.testkit.ts', '!./*.d.ts'])
 
 // ---------- o objeto: do catálogo ou ainda sem registro ----------
 
@@ -179,7 +182,11 @@ function ehMontador(valor: unknown): valor is MontarMovel {
 async function montadorDoItem(item: ItemNovo): Promise<MontarMovel> {
   if (!Object.hasOwn(MODULOS, item.modulo)) throw new Error(`${item.modulo}: não há esse arquivo em moveis/ (o "arquivo" do pedido é o módulo ao lado deste teste, como "./pilar")`)
   const modulo = await MODULOS[item.modulo]()
-  const montar = modulo[item.exporta]
+  // "versoesDoBau.aberto" (I0-a): a versão dentro do registro que o arquivo de versões exporta.
+  const [nome, versao] = item.exporta.split('.')
+  const exportado = modulo[nome]
+  const montar: unknown =
+    versao === undefined ? exportado : typeof exportado === 'object' && exportado !== null && Object.hasOwn(exportado, versao) ? Reflect.get(exportado, versao) : undefined
   if (!ehMontador(montar)) throw new Error(`${item.modulo} não exporta a função "${item.exporta}" (exporta: ${Object.keys(modulo).join(', ')})`)
   return montar
 }

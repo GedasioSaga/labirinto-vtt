@@ -57,9 +57,13 @@ const CAMPOS_DO_PEDIDO = ['saida', 'itens']
 const CAMPOS_DO_ITEM_NOVO = ['arquivo', 'exporta', 'nome', 'largura', 'altura', 'perfil', 'materiais', 'chao']
 const CAMPOS_DO_PERFIL = ['modo', 'alturaSoltaEmCasas', 'espessuraEmCasas', 'posteEmCasas', 'sombrasSobem', 'forcaDaSombraDeBaixo']
 
-/** Só o nome de um arquivo de `moveis/` (com ou sem `./` e `.ts`): nada de pasta, para o pedido não sair dela. */
-const NOME_DE_MODULO = /^(?:\.\/)?([A-Za-z][A-Za-z0-9]*)(?:\.ts)?$/
-const NOME_DE_EXPORTACAO = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+/**
+ * Só o nome de um arquivo de `moveis/` ou de `moveis/versoes/` (com ou sem `./` e `.ts`): nenhuma outra pasta, para o
+ * pedido não sair delas. A pasta das versões é do I0-a (28/11/2026): "versoes/bauVersoes".
+ */
+const NOME_DE_MODULO = /^(?:\.\/)?((?:versoes\/)?[A-Za-z][A-Za-z0-9]*)(?:\.ts)?$/
+/** A função exportada ("montarPilar") ou uma versão do registro de versões ("versoesDoBau.aberto", I0-a). */
+const NOME_DE_EXPORTACAO = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)?$/
 
 type Registro = Readonly<Record<string, unknown>>
 
@@ -150,9 +154,9 @@ function lerMateriais(valor: unknown, onde: string): Readonly<Record<string, IdD
 function lerItemNovo(item: Registro, onde: string): ItemNovo {
   conferirCampos(item, CAMPOS_DO_ITEM_NOVO, onde)
   const arquivo = NOME_DE_MODULO.exec(texto(item.arquivo, `${onde}.arquivo`))
-  if (arquivo === null) throw falha(`${onde}.arquivo`, 'é o nome do módulo dentro de moveis/, sem pasta: "./pilar"')
+  if (arquivo === null) throw falha(`${onde}.arquivo`, 'é o nome do módulo dentro de moveis/ ("./pilar") ou de moveis/versoes/ ("versoes/bauVersoes")')
   const exporta = texto(item.exporta, `${onde}.exporta`)
-  if (!NOME_DE_EXPORTACAO.test(exporta)) throw falha(`${onde}.exporta`, 'é o nome da função exportada: "montarPilar"')
+  if (!NOME_DE_EXPORTACAO.test(exporta)) throw falha(`${onde}.exporta`, 'é o nome da função exportada ("montarPilar") ou da versão ("versoesDoBau.aberto")')
   return {
     registrado: false,
     modulo: `./${arquivo[1]}.ts`,
