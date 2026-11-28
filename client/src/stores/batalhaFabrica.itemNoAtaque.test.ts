@@ -46,6 +46,22 @@ describe('"Soma no ataque: Nada" do item', () => {
       ['Leque', ''],
     ])
   })
+
+  it('rodada 3: o cartão "Nada" (só efeito, a C8) vira item que bate 0, com o número de antes no Confira; o "Sem atributo" bate só os 20 da arma', () => {
+    const arma = (nome: string, campos: Record<string, string>): CartaoDaFicha => ({ ...novoCartao(nome), campos: { dano: '20', acao: 'Ação Simples', categoria: 'Corpo a corpo', ...campos } })
+    const antiga: Personagem = { ...ficha('Herói', ATRIBUTOS, { hp: 500, sp: 50, escudo: 0 }, { armas: [arma('Leque', { atributoDoAtaque: 'Nada' }), arma('Faca', { atributoDoAtaque: 'Sem atributo' })] }) }
+    const { personagens, novos } = converterFichas([], [antiga])
+    const convertida = personagens[0]
+    if (convertida === undefined) throw new Error('a ficha não converteu')
+    // A batalha lê a regra da vaga (sem o Acervo): as duas equipadas, como a conversão as deixaria em uso.
+    const equipadas: Personagem = { ...convertida, mochila: (convertida.mochila ?? []).map((vaga) => ({ ...vaga, equipado: true as const })) }
+    const danos = armasDe(equipadas).map((candidata) => [candidata.nome, danoDoAtaque({ personagem: equipadas, sistema: SISTEMA_DO_TESTE, arma: candidata, vidaDoAlvo: null })])
+    expect(danos).toEqual([
+      ['Leque', expect.objectContaining({ tipo: 'valor', valor: 0 })],
+      ['Faca', expect.objectContaining({ tipo: 'valor', valor: 20 })],
+    ])
+    expect(novos.find((item) => item.nome === 'Leque')?.confira?.some((aviso) => aviso.antes === '20' && aviso.depois === '0')).toBe(true)
+  })
 })
 
 describe('a técnica com "Dano da Bala" e o "Ao acertar" da bala do pente', () => {

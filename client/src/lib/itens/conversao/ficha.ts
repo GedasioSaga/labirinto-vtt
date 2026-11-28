@@ -1,5 +1,6 @@
 import { ITEM_SEM_NOME, itemParaDar, type ItemDoCatalogo } from '../../acervoDeItens'
 import { ABA_DAS_ARMAS, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA, CAMPO_DA_QUANTIDADE, CAMPO_DO_EFEITO, lerCategoria, limiteDeArmas, type CategoriaDaArma } from '../../batalha/leituraDaFicha'
+import { ATAQUE_SEM_ATRIBUTO, ATAQUE_SO_DE_EFEITO } from '../../batalha/formula'
 import { ITEM_DESCRICAO_MAX, ITEM_QUANTIDADE_MAX } from '../../leituraDoItem'
 import { ehRefDeMidia } from '../../midia'
 import { nomesDeMunicaoIguais } from '../../mochila/municao'
@@ -35,10 +36,19 @@ const SOMA_PADRAO_DO_ATAQUE = 'forca'
  * vazio (o cartão antigo sem o campo) somava a Força, e o vazio do item é "Nada"; então o vazio vira a Força.
  */
 function somaDoAtaque(atributo: string): string {
-  const id = normalizado(atributo).replace(/[^a-z0-9]/g, '')
+  const id = idDoAtributoDoAtaque(atributo)
   if (id === '') return SOMA_PADRAO_DO_ATAQUE
-  return id === 'nada' || id === 'nenhum' ? '' : id.slice(0, 40)
+  // Rodada 3 (28/11/2026): o "Sem atributo" do cartão (`ATAQUE_SEM_ATRIBUTO`) é só o dano da arma, e não um atributo "sematributo" (que caía na Força).
+  return id === 'nada' || id === 'nenhum' || id === ID_DO_SEM_ATRIBUTO ? '' : id.slice(0, 40)
 }
+
+/** "Percepção" -> "percepcao", "Sem atributo" -> "sematributo": o texto do cartão como id, para comparar. */
+function idDoAtributoDoAtaque(atributo: string): string {
+  return normalizado(atributo).replace(/[^a-z0-9]/g, '')
+}
+
+const ID_DO_SEM_ATRIBUTO = idDoAtributoDoAtaque(ATAQUE_SEM_ATRIBUTO)
+const ID_DO_SO_DE_EFEITO = idDoAtributoDoAtaque(ATAQUE_SO_DE_EFEITO)
 const RECARGA_NA_HORA = { acao: 'Ação Livre', rodadas: 0 } as const
 
 /** O que a conversão de uma ou várias fichas precisa e o que ela junta. */
@@ -130,8 +140,13 @@ export function blocosDaArma(cartao: CartaoDaFicha, tipo: TipoDoItem, balas: rea
   const dano = /^\d{1,7}$/.test(danoTexto) ? Number.parseInt(danoTexto, 10) : primeiroNumero(danoTexto)
   if (danoTexto !== '' && !/^\d{1,7}$/.test(danoTexto)) confira.push({ texto: 'O dano do cartão não era só um número: confira o dano', antes: danoTexto, depois: String(dano ?? 0), origem })
   const alcance = cartao.alcance === undefined ? undefined : pecasGuardadas(cartao.alcance)
-  const soma = somaDoAtaque(texto(cartao, CAMPO_DO_ATRIBUTO_DO_ATAQUE))
-  const ataque = { dano: dano ?? 0, soma, acao: cortado(texto(cartao, CAMPO_DA_ACAO), 40), alvos: 1, ...(alcance === undefined ? {} : { alcance }) }
+  const atributo = texto(cartao, CAMPO_DO_ATRIBUTO_DO_ATAQUE)
+  const soma = somaDoAtaque(atributo)
+  // Rodada 3 (28/11/2026): o cartão "Nada" era a arma só de efeito da C8 (o Atacar não dava dano, venha o número que vier).
+  // No item, só de efeito é o dano 0 (o "Ao acertar" faz o resto); o número de antes fica no Confira.
+  const soDeEfeito = idDoAtributoDoAtaque(atributo) === ID_DO_SO_DE_EFEITO
+  if (soDeEfeito && (dano ?? 0) > 0) confira.push({ texto: 'O cartão dizia "Nada" no Soma no ataque (só efeito, sem dano): o dano ficou 0', antes: String(dano), depois: '0', origem })
+  const ataque = { dano: soDeEfeito ? 0 : (dano ?? 0), soma, acao: cortado(texto(cartao, CAMPO_DA_ACAO), 40), alvos: 1, ...(alcance === undefined ? {} : { alcance }) }
   const blocos: BlocosDoItem = {}
   if (TIPOS_DE_ARMA.has(tipo)) blocos.ataque = ataque
   if (tipo === 'hibrida') {
