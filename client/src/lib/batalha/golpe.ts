@@ -531,7 +531,10 @@ export function portaoDoPedido(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): Resu
     }
     case 'transformar': {
       const forma = formaDaFicha(personagem, sistema, pedido.cartaoId)
-      return forma === null ? { tipo: 'livre' } : noPortao(forma.requisitos, undefined)
+      const daForma: ResultadoDoPortao = forma === null ? { tipo: 'livre' } : noPortao(forma.requisitos, undefined)
+      // Bug de 28/11/2026: a subida pela técnica (a Fúria do Dragão, `pela`) também passa pelo portão dela: o que falta recusa e o gasto sai na linha.
+      const pela = pedido.pela === undefined ? null : tecnicaPorId(personagem, sistema, pedido.pela)
+      return pela === null ? daForma : juntarOsPortoes(daForma, noPortao(pela.cartao.requisitos, 0))
     }
     case 'item': {
       const uso = ctxDoItem(ctx, pedido)
@@ -540,6 +543,15 @@ export function portaoDoPedido(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): Resu
     default:
       return { tipo: 'livre' }
   }
+}
+
+/** Os dois portões de um pedido (a forma e a técnica que a liga): o primeiro que não passa manda; os dois passam = os gastos e as notas juntos. */
+function juntarOsPortoes(primeiro: ResultadoDoPortao, segundo: ResultadoDoPortao): ResultadoDoPortao {
+  if (primeiro.tipo === 'livre') return segundo
+  if (primeiro.tipo !== 'passa' || segundo.tipo === 'livre') return primeiro
+  if (segundo.tipo !== 'passa') return segundo
+  const notas = [primeiro.nota, segundo.nota].filter((nota): nota is string => nota !== null)
+  return { ...primeiro, gastos: [...primeiro.gastos, ...segundo.gastos], nota: notas.length === 0 ? null : notas.join(' ') }
 }
 
 /** Por que o pedido não vale, ou `null` (pode). Mesma regra no mestre e no jogador. */

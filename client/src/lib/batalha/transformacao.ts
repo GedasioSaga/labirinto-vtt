@@ -576,13 +576,14 @@ export function subidaDeParte(personagem: Personagem, sistema: SistemaDeRpg, car
   const dona = cartoesQueLigam(personagem, sistema).find((forma) => forma.subcartoes.some((subcartao) => subcartao.id === cartaoId))
   const tecnica = dona?.subcartoes.find((subcartao) => subcartao.id === cartaoId) ?? tecnicaPorId(personagem, sistema, cartaoId)?.cartao
   const bloco = tecnica === undefined ? null : blocoDoCartao(tecnica)
-  if (bloco === null && !sobeDeParte(cartaoId)) return null
-  if (bloco !== null && bloco.aoUsar?.sobeParte !== true) return null
+  // Bug de 28/11/2026: o bloco que não diz nada da subida (só o requisito do marco do acumulador) não apaga a da tabela à mão.
+  const peloBloco = bloco?.aoUsar?.sobeParte === true
+  if (!peloBloco && !sobeDeParte(cartaoId)) return null
   if (dona === undefined || !personagem.cartoesAtivos.includes(dona.id)) return { motivo: MOTIVO_FORMA_DESLIGADA }
   const grupo = formasDoGrupo(personagem, sistema, dona)
   const indice = grupo.findIndex((forma) => forma.id === dona.id)
   // A mesma conta nos dois caminhos: o bloco pela função pura dos requisitos, a tabela pela ordem do grupo.
-  const subida = bloco === null ? null : subidaDaParte(bloco, { partes: grupo.map(referenciaDe), indice, ligada: true })
+  const subida = bloco === null || !peloBloco ? null : subidaDaParte(bloco, { partes: grupo.map(referenciaDe), indice, ligada: true })
   if (subida !== null && 'motivo' in subida) return subida
   const seguinte = grupo[indice + 1]
   return seguinte === undefined ? { motivo: MOTIVO_ULTIMA_PARTE } : { para: seguinte }
