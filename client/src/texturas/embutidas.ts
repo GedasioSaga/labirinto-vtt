@@ -35,6 +35,10 @@ import { texturaTabuaEnvernizada } from './chaos/tabuaEnvernizada'
 import { texturaTacoEspinha } from './chaos/tacoEspinha'
 import { texturaTroncos } from './chaos/troncos'
 import { texturaTabuleiroDiagonal, texturaTabuleiroJardim, texturaTabuleiroMadeira, texturaTabuleiroMarmore, texturaTabuleiroVermelho } from './chaos/tabuleiro'
+import { texturaChaoDeMina } from './chaos/chaoDeMina'
+import { texturaTijoloDeEsgoto } from './chaos/tijoloDeEsgoto'
+import { texturaCalcadaEmLeque } from './chaos/calcadaEmLeque'
+import { texturaRuaDeLama } from './chaos/ruaDeLama'
 import { cobertura, espalhar, naVolta, pontosPerto, pontosQueAlcancam, sorteador, type Cobertura, type Espalhamento } from './espalhar'
 import type { VidaDoChao } from './meioTermo/chaoNoMundo'
 import {
@@ -1495,6 +1499,13 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'tabuleiro-jardim', nome: 'Tabuleiro', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'tabuleiro', nome: 'Jardim' }, cor: texturaTabuleiroJardim },
   { id: 'tabuleiro-vermelho', nome: 'Tabuleiro', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'tabuleiro', nome: 'Vermelho' }, cor: texturaTabuleiroVermelho },
   { id: 'tabuleiro-diagonal', nome: 'Tabuleiro', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'tabuleiro', nome: 'Diagonal' }, cor: texturaTabuleiroDiagonal },
+  // A onda 2 do plano (28/11/2026): o chão de mina (L04), o tijolo de esgoto (L05) e, no cartão "Rua e calçada" (L06;
+  // o L11 junta a faixa e a calçada portuguesa nele), a calçada em leque e a rua de lama. Os dois do L06 sorteiam as
+  // células de tabela (`chaos/calcadaEmLeque.ts`, `chaos/ruaDeLama.ts`): o mesmo ladrilho, byte a byte, na metade do tempo.
+  { id: 'chao-de-mina', nome: 'Chão de mina', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaChaoDeMina },
+  { id: 'tijolo-de-esgoto', nome: 'Tijolo de esgoto', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaTijoloDeEsgoto },
+  { id: 'calcada-em-leque', nome: 'Rua e calçada', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'rua-e-calcada', nome: 'Calçada em leque' }, cor: texturaCalcadaEmLeque },
+  { id: 'rua-de-lama', nome: 'Rua e calçada', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'rua-e-calcada', nome: 'Rua de lama' }, cor: texturaRuaDeLama },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */

@@ -42,6 +42,55 @@ function distanciaAoArco(x: number, y: number, cx: number, cy: number, r: number
 }
 
 /**
+ * O SORTEIO DE CADA CÉLULA, TABELADO (o integrador da onda 2, 28/11/2026): o ladrilho de 1024 px levava ~22 s, quase
+ * tudo refazendo os mesmos `hash`, senos e cossenos de cada célula em cada pixel. As tabelas guardam exatamente as
+ * mesmas contas, feitas uma vez (na 1ª cor pedida, não ao abrir o app): os bytes do ladrilho não mudam.
+ */
+interface SulcoDaCelula {
+  readonly ativo: boolean
+  readonly r: number
+  readonly rumo: number
+  readonly abertura: number
+  /** O sorteio do meio do arco na célula (somado a 0,2 dela na hora, na mesma ordem da conta) e o recuo do centro. */
+  readonly fx: number
+  readonly fy: number
+  readonly recuoX: number
+  readonly recuoY: number
+  readonly largura: number
+}
+
+let tabelaDosSulcos: readonly SulcoDaCelula[] | null = null
+
+function sulcosDaTabela(): readonly SulcoDaCelula[] {
+  if (tabelaDosSulcos !== null) return tabelaDosSulcos
+  const tabela: SulcoDaCelula[] = []
+  for (let hj = 0; hj < CELULAS_DO_SULCO; hj += 1) {
+    for (let hi = 0; hi < CELULAS_DO_SULCO; hi += 1) {
+      for (let s = 0; s < 2; s += 1) {
+        const semente = 1910 + s * 7
+        const r = 1.6 + hash(hi, hj, semente) * 2.4
+        const rumo = hash(hi, hj, semente + 1) * 2 * Math.PI
+        const abertura = (1 + hash(hi, hj, semente + 2)) / r
+        const meio = rumo + abertura / 2
+        tabela.push({
+          ativo: s === 0 || hash(hi, hj, 1907) >= 0.75,
+          r,
+          rumo,
+          abertura,
+          fx: 0.6 * hash(hi, hj, semente + 3),
+          fy: 0.6 * hash(hi, hj, semente + 4),
+          recuoX: Math.cos(meio) * r,
+          recuoY: Math.sin(meio) * r,
+          largura: 0.08 + 0.04 * hash(hi, hj, semente + 5),
+        })
+      }
+    }
+  }
+  tabelaDosSulcos = tabela
+  return tabela
+}
+
+/**
  * Os sulcos de roda: em cada célula um sulco em arco, às vezes dois desencontrados, cada um com o seu centro, raio e
  * rumo sorteados. Devolve a fundura (0 fora, 1 no meio do sulco) e a inclinação da parede dele.
  */
@@ -49,6 +98,7 @@ function sulcos(x: number, y: number): { fundo: number; dhx: number; dhy: number
   const celula = CASAS / CELULAS_DO_SULCO
   const ci = Math.floor(x / celula)
   const cj = Math.floor(y / celula)
+  const tabela = sulcosDaTabela()
   let fundo = 0
   let dhx = 0
   let dhy = 0
@@ -56,16 +106,14 @@ function sulcos(x: number, y: number): { fundo: number; dhx: number; dhy: number
     for (let i = ci - 1; i <= ci + 1; i += 1) {
       const [hi, hj] = [mod(i, CELULAS_DO_SULCO), mod(j, CELULAS_DO_SULCO)]
       for (let s = 0; s < 2; s += 1) {
-        if (s === 1 && hash(hi, hj, 1907) < 0.75) continue
-        const semente = 1910 + s * 7
-        const r = 1.6 + hash(hi, hj, semente) * 2.4
-        const rumo = hash(hi, hj, semente + 1) * 2 * Math.PI
-        const abertura = (1 + hash(hi, hj, semente + 2)) / r
+        const sulco = tabela[(hj * CELULAS_DO_SULCO + hi) * 2 + s]
+        if (!sulco.ativo) continue
+        const { r, rumo, abertura, largura } = sulco
         // O meio do arco cai dentro da célula: o centro do círculo fica a `r` dele, para o lado de fora.
-        const [mx, my] = [(i + 0.2 + 0.6 * hash(hi, hj, semente + 3)) * celula, (j + 0.2 + 0.6 * hash(hi, hj, semente + 4)) * celula]
-        const meio = rumo + abertura / 2
-        const [cx, cy] = [mx - Math.cos(meio) * r, my - Math.sin(meio) * r]
-        const largura = 0.08 + 0.04 * hash(hi, hj, semente + 5)
+        const [mx, my] = [(i + 0.2 + sulco.fx) * celula, (j + 0.2 + sulco.fy) * celula]
+        const [cx, cy] = [mx - sulco.recuoX, my - sulco.recuoY]
+        // Longe do círculo inteiro, longe do arco: a distância ao arco nunca é menor que a distância ao círculo.
+        if (Math.abs(Math.hypot(x - cx, y - cy) - r) >= largura * 1.8) continue
         const { d, lado } = distanciaAoArco(x, y, cx, cy, r, rumo, abertura)
         if (d >= largura * 1.8) continue
         const f = 1 - passoSuave(largura * 0.4, largura * 1.8, d)
@@ -83,20 +131,40 @@ function sulcos(x: number, y: number): { fundo: number; dhx: number; dhy: number
   return { fundo, dhx, dhy }
 }
 
+/** A marca de cada célula das pegadas, tabelada como os sulcos: o tipo sorteado e o giro (cosseno e seno). */
+let tabelaDasPegadas: Float64Array | null = null
+
+function pegadasDaTabela(): Float64Array {
+  if (tabelaDasPegadas !== null) return tabelaDasPegadas
+  const tabela = new Float64Array(CELULAS_DAS_PEGADAS * CELULAS_DAS_PEGADAS * 3)
+  for (let hj = 0; hj < CELULAS_DAS_PEGADAS; hj += 1) {
+    for (let hi = 0; hi < CELULAS_DAS_PEGADAS; hi += 1) {
+      const k = (hj * CELULAS_DAS_PEGADAS + hi) * 3
+      const giro = hash(hi, hj, 1931) * 2 * Math.PI
+      tabela[k] = hash(hi, hj, 1930)
+      tabela[k + 1] = Math.cos(giro)
+      tabela[k + 2] = Math.sin(giro)
+    }
+  }
+  tabelaDasPegadas = tabela
+  return tabela
+}
+
 /** As pegadas e os cascos: uns poucos, cada um numa célula; devolve a fundura da marca (0 fora). */
 function pegadas(x: number, y: number): number {
   const celula = CASAS / CELULAS_DAS_PEGADAS
   const ci = Math.floor(x / celula)
   const cj = Math.floor(y / celula)
+  const tabela = pegadasDaTabela()
   let fundo = 0
   for (let j = cj - 1; j <= cj + 1; j += 1) {
     for (let i = ci - 1; i <= ci + 1; i += 1) {
       const [hi, hj] = [mod(i, CELULAS_DAS_PEGADAS), mod(j, CELULAS_DAS_PEGADAS)]
-      const tipo = hash(hi, hj, 1930)
+      const k = (hj * CELULAS_DAS_PEGADAS + hi) * 3
+      const tipo = tabela[k]
       if (tipo > 0.16) continue
       const [px, py] = [(i + 0.5) * celula, (j + 0.5) * celula]
-      const giro = hash(hi, hj, 1931) * 2 * Math.PI
-      const [c, s] = [Math.cos(giro), Math.sin(giro)]
+      const [c, s] = [tabela[k + 1], tabela[k + 2]]
       const a = (x - px) * c + (y - py) * s
       const b = -(x - px) * s + (y - py) * c
       let d: number

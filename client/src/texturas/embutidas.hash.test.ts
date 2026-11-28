@@ -90,6 +90,11 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   'tabuleiro-jardim': '018e0bfade7a6fbc94c47f5f1360886b48aa0a95e5b2b78f126c137ff5dd0fc6',
   'tabuleiro-vermelho': '3c4fd1a7104c37dd340c7033451b20e1dc168dc3e328b478e4d62573e5ce3259',
   'tabuleiro-diagonal': '55e854b74c09e2c79f934445b217748785251f5f5b30b98acaf7fffba6506d03',
+  // A onda 2 (L04 a L06, 28/11/2026). Os dois do L06 com o hash de ANTES do sorteio tabelado: o mesmo ladrilho.
+  'chao-de-mina': 'ad19cbdffe9f1effc3e75d9264a9ef836e9704654fc5e08d80c71847d96438db',
+  'tijolo-de-esgoto': 'c8714cfd173f21120fa508012c13270c9b6753326be393c4e4e446348e9e21f8',
+  'calcada-em-leque': '870be4160a827c74abaf42632f1a09392b67034ef137554be0c5de93b7007e3a',
+  'rua-de-lama': '6382bd86be5be5df6c42d34e1fb24b7665a75c9fe85a3b4534e99a2932b5c6f5',
 }
 
 async function sha256(bytes: Uint8ClampedArray): Promise<string> {

@@ -97,6 +97,8 @@ describe('biblioteca inicial de texturas', () => {
       'concreto', 'asfalto-faixa', 'lona-camuflagem', 'piso-de-borracha', 'chapa-de-pouso',
       'azulejo-verde', 'azulejo-branco', 'losangos-bege', 'losangos-amarelos', 'escamas-cinza', 'estrelinhas', 'bolinhas-pretas',
       'linoleo-verde', 'rua-de-tijolos', 'tijolo-de-cela', 'granito-salpicado', 'lajeado-poligonal',
+      'tabuleiro-marmore', 'tabuleiro-madeira', 'tabuleiro-jardim', 'tabuleiro-vermelho', 'tabuleiro-diagonal',
+      'chao-de-mina', 'tijolo-de-esgoto', 'calcada-em-leque', 'rua-de-lama',
     ])
     // As formas de um grupo dividem o nome do cartão; o nome da forma as separa.
     expect(new Set(TEXTURAS_EMBUTIDAS.map(rotulo)).size).toBe(ids.length)
