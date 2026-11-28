@@ -23,7 +23,6 @@ import { comLembreteDaMarca, criarMarca, marcaDoToken, moldeDaMarca, modificador
 import {
   bonusDaBatalha,
   comSeloNovo,
-  criarSelo,
   ondeNaVez,
   nomeDoSeloNaBatalha,
   novoIdDeSelo,
@@ -67,6 +66,8 @@ import { motivoDoOcultoParaJogador, NOME_DO_OCULTO, nomeNaBatalha, ocultoNaBatal
 import { numeroDaFicha, type Personagem } from '../../lib/personagem'
 import type { BatalhaDaCena, BatalhaState } from './tipos'
 import { comMudanca, type EfeitoNovo, comEfeitos, quemNaFicha, personagemDoTokenNa, nomeDoTokenNa, nomeDoBandoNa, partesDosLembretes } from './cena'
+import { criarSeloComACondicao } from './selos'
+import type { CondicaoPropria } from '../../types/map'
 import { mexerNaFicha, semOsCaidos, textoDosQueSairam, tirouSp, reversaoDaFicha, mudancaValida } from './naMesa'
 import { devolverFichasDaAcao } from './desfazer'
 import { gastarOsRequisitos, notaDaLinha } from './gastosDosRequisitos'
@@ -81,6 +82,8 @@ import { novoIdDaMarca } from './golpe'
 /** As passivas presas ao núcleo da store e às formas. */
 export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBatalha) {
   const { mesa, deps, mesaDoRpg, cenaDe, gravarCena, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, rastrear, aplicarDisparo } = nucleo
+  /** PENDENCIAS nº 6: as criadas da mesa, para todo selo desta fatia nascer pela condição do nome (`criarSeloComACondicao`). */
+  const criadas = (): readonly CondicaoPropria[] => mesa.condicoesCriadas?.() ?? []
   const { custoDaFormaNaVez, custoDaMantidaNaVez } = fatiaDasFormas
 
   /**
@@ -166,7 +169,7 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     }
     const pedidoDoSelo = pedido.atributoId === undefined ? null : seloDaPreparacao(sistema, pedido.atributoId)
     if (pedidoDoSelo === null) return false
-    const selo = criarSelo(carta.tokenId, { ...pedidoDoSelo, natureza: 'buff' }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: NOME_DA_PREPARACAO })
+    const selo = criarSeloComACondicao(carta.tokenId, { ...pedidoDoSelo, natureza: 'buff' }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: NOME_DA_PREPARACAO }, criadas(), carta.personagemId)
     const selos = comSeloNovo(turnos.selos, selo)
     if (selos === null) return false
     partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
@@ -371,7 +374,7 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
       // F2 (fatia F, Melodia): a opção que não é a principal fica no selo (o "+20 contra o analisado" só vale na principal).
       // Fatia C7 (revisão): o selo fica no token, à vista de todos; o da passiva oculta leva "???" no lugar do nome dela.
       const nomeDoSelo = nomeDoSeloNaBatalha(personagem, cartao, pedidoDoSelo.nome)
-      const selo: SeloDaBatalha = { ...criarSelo(alvoTokenId, { ...pedidoDoSelo, nome: nomeDoSelo, natureza: 'passiva', cartaoId: cartao.id }, onde), donoId: personagemId, ...(variante === null || variante.principal ? {} : { opcao: variante.chave }) }
+      const selo: SeloDaBatalha = { ...criarSeloComACondicao(alvoTokenId, { ...pedidoDoSelo, nome: nomeDoSelo, natureza: 'passiva', cartaoId: cartao.id }, onde, criadas(), personagemId), donoId: personagemId, ...(variante === null || variante.principal ? {} : { opcao: variante.chave }) }
       const selos = comSeloNovo(turnos.selos, selo)
       if (selos === null) return false
       // Usos e recarga do Tempo, o lembrete fora e a chave do gatilho em `lembradas` (ativada à mão antes do gatilho não lembra depois).
@@ -629,7 +632,7 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
         const nome = sistema.atributos.find((atributo) => atributo.id === mudanca.atributoId)?.nome ?? mudanca.atributoId
         const sinal = mudanca.delta > 0 ? `+${mudanca.delta}` : String(mudanca.delta)
         const selo: SeloDaBatalha = {
-          ...criarSelo(pedido.tokenId, { nome: `${nome} ${sinal}`.slice(0, NOME_DO_SELO_MAX), turnos: null, mods: [{ alvo: mudanca.atributoId, delta: mudanca.delta }], natureza: mudanca.delta > 0 ? 'buff' : 'debuff' }, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: 'Ajustar' }),
+          ...criarSeloComACondicao(pedido.tokenId, { nome: `${nome} ${sinal}`.slice(0, NOME_DO_SELO_MAX), turnos: null, mods: [{ alvo: mudanca.atributoId, delta: mudanca.delta }], natureza: mudanca.delta > 0 ? 'buff' : 'debuff' }, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: 'Ajustar' }, criadas(), null),
           ajuste: true,
         }
         const selos = comSeloNovo(novos.selos, selo)
@@ -708,7 +711,7 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
     const nivel = nivelDoContador(turnos, pedido.tokenId, pedido.cartaoId)
     if (motivoDoContador(pedido.tipo, nivel, leitura.danoPorNivel.length, combateAntes?.semReacao === true, temGolpeEsperando(turnos.golpes, pedido.tokenId)) !== null) return false
     const molde = seloDoContador(turnos, pedido.tokenId, pedido.cartaoId) ?? {
-      ...criarSelo(pedido.tokenId, { nome: nomeDoContador, turnos: null, natureza: 'buff', cartaoId: achado.cartao.id }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: oculto ? NOME_DO_OCULTO : achado.cartao.nome }),
+      ...criarSeloComACondicao(pedido.tokenId, { nome: nomeDoContador, turnos: null, natureza: 'buff', cartaoId: achado.cartao.id }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: oculto ? NOME_DO_OCULTO : achado.cartao.nome }, criadas(), personagemId),
       contador: 0,
     }
     // Selo novo acima do teto da ficha ou da cena: recusa sem gastar a reação.

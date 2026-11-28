@@ -235,6 +235,12 @@ export interface BatalhaState {
    * da pastilha não conta (sai sozinho). Devolve o id da linha, para o Desfazer do uso; `null` = nada a tirar.
    */
   tirarSelosPeloUso: (sceneKey: string, tokenId: string, nomes: readonly string[], quem: string) => string | null
+  /**
+   * Rework das condições (PENDENCIAS nº 13): a condição criada `de` foi renomeada para `para`; os selos dela (pela
+   * chave do nome) em toda batalha ligada passam a ter o nome novo, sem linha (o nome não é jogada; o Desfazer do
+   * editor chama de volta com os dois trocados). Devolve quantos selos trocaram.
+   */
+  renomearSelos: (de: string, para: string) => number
 
   // ---- Tipos de habilidade F3: passivas (o mestre chama direto, por qualquer ficha; o jogador pela ponte, só as dele) ----
   /**

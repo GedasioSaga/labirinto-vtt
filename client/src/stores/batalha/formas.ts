@@ -19,7 +19,7 @@ import { comAcoesDaForma, gastarAcao, semAcoesDaForma } from '../../lib/batalha/
 import { comADonaDesligada } from '../../lib/batalha/acumuladorNaBatalha'
 import { comSeloNovo, criarSelo, novoIdDeSelo, ondeNaVez, quedaEmNumeros, textoDoSeloComMods } from '../../lib/batalha/selos'
 import { condicaoDaFabricaDoSelo } from '../../lib/condicoes/fabrica'
-import { pedidoComACondicao } from './selos'
+import { criarSeloComACondicao, pedidoComACondicao } from './selos'
 import { acaoDaForma, acoesAMaisDaForma, ativarForma, descerUmaParte, desfazerForma, duracaoDaForma, formaDaFicha, formaEhOverload, formaMontada, formaQueATecnicaLiga, subidaDeParte, usosDaForma } from '../../lib/batalha/transformacao'
 import {
   cartaoComADecisao,
@@ -70,7 +70,7 @@ export function criarFormas(nucleo: NucleoDaBatalha) {
     const { personagens, sistema } = mesaDoRpg()
     const personagem = personagens.find((candidato) => candidato.id === personagemId)
     if (personagem === undefined || sistema === null) return null
-    const cansado = comOCansaco(turnos, tokenId, modsDoCansaco(personagem, sistema), novoIdDeSelo)
+    const cansado = comOCansaco(turnos, tokenId, modsDoCansaco(personagem, sistema), novoIdDeSelo, (em, pedido, onde) => criarSeloComACondicao(em, pedido, onde, mesa.condicoesCriadas?.() ?? [], personagemId))
     return cansado === null ? null : { turnos: cansado.turnos, partes: cansado.selos.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: null })) }
   }
 

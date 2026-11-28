@@ -26,6 +26,8 @@ import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import type { DependenciasDaBatalha, BatalhaDaCena, BatalhaState } from './tipos'
 import { comAVezDeAgora } from '../../lib/batalha/requisitos/ajuda'
 import { type EfeitoNovo, type FichasDaMesa, fichasDaMesa, type LinhaNova, comMudanca, comEfeitos, nomeDoTokenNa, nomeDoBandoNa, linhaAtualizada, personagemDoTokenNa, MESTRE, quemNaFicha } from './cena'
+import { criarSeloComACondicao } from './selos'
+import type { CondicaoPropria } from '../../types/map'
 import { desfazerReversao, reacoesComTecnicaDe, contrasDaReversao } from './desfazer'
 import { mexerNaFicha, reversaoDaFicha } from './naMesa'
 
@@ -51,7 +53,7 @@ function tokenDoPersonagem(turnos: TurnosDaCena, personagemId: string): string |
  * `ligada` (natureza "passiva", `donoId` + `cartaoId`): aparece nas passivas ativas e sai quando ela
  * para (`custoDaMantidaNaVez` tira os selos do cartão). Já tem, ou não é "manter": `null`.
  */
-function comOSeloDaLigada(turnos: TurnosDaCena, personagem: Personagem, sistema: SistemaDeRpg, cartaoId: string): { turnos: TurnosDaCena; parte: Reversao } | null {
+function comOSeloDaLigada(turnos: TurnosDaCena, personagem: Personagem, sistema: SistemaDeRpg, cartaoId: string, criadas: readonly CondicaoPropria[]): { turnos: TurnosDaCena; parte: Reversao } | null {
   const achada = tecnicaPorId(personagem, sistema, cartaoId)
   if (achada === null || pecasDoCartao(achada.cartao)?.uso !== 'manter') return null
   if ((turnos.selos ?? []).some((selo) => selo.ligada === true && selo.donoId === personagem.id && selo.cartaoId === cartaoId)) return null
@@ -59,7 +61,7 @@ function comOSeloDaLigada(turnos: TurnosDaCena, personagem: Personagem, sistema:
   if (tokenId === null) return null
   const nome = nomeNaBatalha(personagem, achada.cartao, 'a técnica')
   const pedido: SeloDoGolpe = { nome: nome.slice(0, NOME_DO_SELO_MAX), turnos: null, natureza: 'passiva', cartaoId }
-  const selo: SeloDaBatalha = { ...criarSelo(tokenId, pedido, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: nome }), donoId: personagem.id, ligada: true }
+  const selo: SeloDaBatalha = { ...criarSeloComACondicao(tokenId, pedido, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: nome }, criadas, personagem.id), donoId: personagem.id, ligada: true }
   const selos = comSeloNovo(turnos.selos, selo)
   return selos === null ? null : { turnos: { ...turnos, selos }, parte: { tipo: 'selo', seloId: selo.id, antes: null } }
 }
@@ -219,7 +221,7 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
       return true
     }
     const porSelo = (em: string, pedido: Parameters<typeof criarSelo>[1]): string | null => {
-      const selo: SeloDaBatalha = { ...criarSelo(em, { ...pedido, cartaoId: disparo.cartaoId }, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: nome }), donoId: personagemId }
+      const selo: SeloDaBatalha = { ...criarSeloComACondicao(em, { ...pedido, cartaoId: disparo.cartaoId }, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: nome }, mesa.condicoesCriadas?.() ?? [], personagemId), donoId: personagemId }
       const selos = comSeloNovo(novos.selos, selo)
       if (selos === null) return null
       partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
@@ -409,7 +411,7 @@ export function criarNucleo(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, se
         const personagem = personagens.find((candidato) => candidato.id === parte.personagemId)
         const jaEram = new Set(parte.antes?.mantidas ?? [])
         for (const cartaoId of parte.depois.mantidas ?? []) {
-          const ligada = personagem === undefined || jaEram.has(cartaoId) ? null : comOSeloDaLigada(novos, personagem, sistema, cartaoId)
+          const ligada = personagem === undefined || jaEram.has(cartaoId) ? null : comOSeloDaLigada(novos, personagem, sistema, cartaoId, mesa.condicoesCriadas?.() ?? [])
           if (ligada === null) continue
           novos = ligada.turnos
           novas.push(ligada.parte)

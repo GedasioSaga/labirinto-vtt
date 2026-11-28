@@ -2,7 +2,7 @@
  * A fatia dos SELOS da store da batalha One Piece: o selo que o golpe põe no acerto (e o que renova), os
  * aliados que ele poupa, e o que o mestre põe, edita e tira à mão (`porSelo`, `editarSelo`, `tirarSelo`).
  */
-import type { AlvoDoGolpe, GolpeDaBatalha, SeloDaBatalha, SeloDoGolpe } from '../../lib/batalha/combate'
+import { NOME_DO_SELO_MAX, type AlvoDoGolpe, type GolpeDaBatalha, type SeloDaBatalha, type SeloDoGolpe } from '../../lib/batalha/combate'
 import type { CondicaoPropria } from '../../types/map'
 import type { Ajuste } from '../../lib/ajusteDaFicha'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -31,7 +31,7 @@ import { curaComOsSelos } from '../../lib/batalha/condicoes'
 import { ajustesDaCura, ajustesDoDano } from '../../lib/batalha/reacao'
 import { ajustesDoRecursoDaCura } from '../../lib/batalha/curaDoRecurso'
 import { condicaoDaFabricaDoSelo } from '../../lib/condicoes/fabrica'
-import type { CondicaoMontada, EfeitoNaVez } from '../../lib/condicoes/modelo'
+import { chaveDaCondicao, type CondicaoMontada, type EfeitoNaVez } from '../../lib/condicoes/modelo'
 import { traduzirCondicao } from '../../lib/condicoes/traducao'
 import type { AoAcertarDoGolpe } from '../../lib/batalha/aoAcertarDoItem'
 import { condicaoDoCatalogo, condicaoDoCatalogoPeloNome } from '../../lib/condicoes/catalogo'
@@ -82,6 +82,15 @@ export function pedidoComACondicao(pedido: SeloDoGolpe, criadas: readonly Condic
   if (pedido.regras !== undefined) return pedido
   const condicao = condicaoDoSelo(pedido.nome, criadas)
   return condicao === null ? pedido : seloComACondicao(pedido, traducaoDaCondicao(condicao, pedido, criadas, pedido.pilhas, quemPos))
+}
+
+/**
+ * PENDENCIAS do rework, nº 6: TODO selo que a store cria nasce por aqui (`criarSelo` com `pedidoComACondicao`),
+ * para o que tem nome de condição congelar a regra dela (D2) por qualquer caminho: o "Pôr selo", o golpe, a
+ * passiva, o gatilho, a preparação, o contador, o "Ajustar" e o cansaço. Nome que não é condição = o selo de sempre.
+ */
+export function criarSeloComACondicao(tokenId: string, pedido: SeloDoGolpe, onde: Parameters<typeof criarSelo>[2], criadas: readonly CondicaoPropria[], quemPos: string | null): SeloDaBatalha {
+  return criarSelo(tokenId, pedidoComACondicao(pedido, criadas, quemPos), onde)
 }
 
 /** D7: o selo de antes com `pilhas` pilhas, pela condição dele achada de novo (o `condId` congelado; sem ele, pelo nome). */
@@ -392,7 +401,24 @@ export function criarSelos(nucleo: NucleoDaBatalha) {
     return true
   }
 
-  const acoes: Pick<BatalhaState, 'porSelo' | 'editarSelo' | 'tirarSelo' | 'tirarSelosPeloUso'> = {
+  const acoes: Pick<BatalhaState, 'porSelo' | 'editarSelo' | 'tirarSelo' | 'tirarSelosPeloUso' | 'renomearSelos'> = {
+    renomearSelos: (de, para) => {
+      const chave = chaveDaCondicao(de)
+      const nome = para.trim().slice(0, NOME_DO_SELO_MAX)
+      if (chave === '' || nome === '' || chave === chaveDaCondicao(nome)) return 0
+      let trocados = 0
+      for (const [sceneKey, cena] of Object.entries(nucleo.get().cenas)) {
+        const antes = cena.turnos.selos ?? []
+        const deles = antes.filter((selo) => chaveDaCondicao(selo.nome) === chave).length
+        if (deles === 0) continue
+        trocados += deles
+        const selos = antes.map((selo) => (chaveDaCondicao(selo.nome) === chave ? { ...selo, nome } : selo))
+        // `turnosRev`: o host refaz o `batalha.estado`, e o jogador vê o nome novo na faixa.
+        gravarCena(sceneKey, { ...cena, turnos: { ...cena.turnos, selos }, turnosRev: cena.turnosRev + 1 })
+      }
+      return trocados
+    },
+
     porSelo: (sceneKey, tokenId, pedido) => {
       const cena = cenaDe(sceneKey)
       const { personagens, sistema } = mesaDoRpg()
