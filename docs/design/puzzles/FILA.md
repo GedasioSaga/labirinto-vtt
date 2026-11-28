@@ -16,6 +16,15 @@ Ordem saída de [REFERENCIAS.md](REFERENCIAS.md) (28/11/2026). Só a mecânica v
 
 - **Sobrepor camadas** (28/11). Uma mesa de luz na parede: a figura se divide em 2 a 5 lâminas de vidro pintado, papel vegetal ou grade de ferro, e cada lâmina vira um item do acervo (pasta "Peça de puzzle", com o PNG dela) que o mestre espalha pelo mapa. O jogador leva as lâminas até a mesa (arrastar da mochila, com a mesa acesa na pausa, ou tocar na lâmina e depois na mesa), e a nova vai para o alto da pilha. Tocar num pedaço da figura escolhe a lâmina dele, e tocar de novo a gira; ao lado, a pilha lista as lâminas com Girar, Subir, Descer e Tirar (que devolve a quem pôs), e o teclado faz o mesmo (setas escolhem e giram, Alt com as setas muda a altura, Delete tira). O mestre escolhe a figura (farol, rosa dos ventos, chave, mariposa, um código de até 6 letras ou uma imagem dele), em quantas lâminas, e se a ordem e o giro importam. Quando a ordem importa, cada lâmina de baixo tem uma mancha que só a de cima certa cobre, então qualquer par trocado aparece. As lâminas pousam tortas (de 90 em 90 graus) e as marcas gravadas ficam em cantos sorteados, então nada entrega o giro. Tudo na mesa, de pé e na ordem sempre resolve; mexer não castiga. A figura fecha com um brilho e uma varredura de luz (só o brilho no movimento reduzido), e o desfecho é o de sempre, com a porta ligada. O fio leva a pilha e a forma do corte, nunca a semente nem os ids dos itens.
 
+- **Peças deslizantes** (28/11). Um tabuleiro na parede, de madeira entalhada ou bronze, com a figura cortada numa grade de 3x3 a 5x5 e uma casa vazia. O jogador desliza a peça vizinha da vazia (tocar, arrastar com peteleco, ou Enter na peça com foco, com as setas andando pela grade) até a figura fechar. A figura é uma das quatro de fábrica das camadas (farol, rosa dos ventos, chave antiga, mariposa) ou uma imagem do mestre, cortada no quadrado do meio, e uma plaqueta ao lado mostra a figura pronta. No modo "peça-chave", a peça com a fechadura precisa chegar à saída que o mestre marca; o resto pode ficar fora do lugar. O começo sai de deslizadas de verdade a partir da figura pronta, então sempre tem volta. O mestre vê o mínimo de lances (exato na peça-chave; na figura, exato ou "pelo menos N" quando a busca passa do orçamento) e o contador, no editor e na ficha do desafio; o jogador vê só os lances. Vários jogadores deslizam juntos, e a última peça de cada outra pessoa fica acesa com o nome. A peça presa treme e não conta lance; deslizar não castiga. O tabuleiro certo destrava o desfecho de sempre e pode abrir a porta ligada. Som de madeira ou bronze sintetizado e um deslize curto, que o teclado e o movimento reduzido dispensam. O fio leva só as casas e os lances, nunca a semente nem o começo.
+
+## Pendente nas peças deslizantes
+
+- **As cenas do relevo como figura.** A fila falava em reaproveitar as cenas do relevo. Decisão do Claude em 28/11: ficaram de fora porque o filtro delas é pesado e arriscava tarefa longa ao cortar as peças; entram gerando o bitmap da cena fora do quadro, em ociosidade, como o conserto do raster das camadas.
+- **Deslizar a fileira inteira de uma vez** (tocar numa peça a 2 ou 3 casas da vazia, na mesma linha ou coluna, e empurrar todas). Hoje só a vizinha anda.
+- **5x5 em tela estreita:** a peça fica abaixo de 44 px. O foco hoje é o PC (decisão do dono, 24/10).
+- **A miniatura em Meus puzzles** ainda mostra o visual de base, não o tabuleiro.
+
 ## Pendente nas camadas
 
 - **Lâminas falsas** (uma a mais que não pertence à figura, para escolher). O pedido falava em "escolher e empilhar"; decisão do Claude em 28/11: ficou de fora para não haver lâmina que nunca serve no acervo; cabe como "lâminas a mais" no mesmo motor (a mesa recusaria a sobra).
@@ -59,7 +68,7 @@ Ordem saída de [REFERENCIAS.md](REFERENCIAS.md) (28/11/2026). Só a mecânica v
 
 1. ~~Mistura de líquidos~~ ficou pronta em 28/11 (ver Feito).
 2. ~~Sobrepor camadas~~ ficou pronta em 28/11 (ver Feito).
-3. **Peças deslizantes.** É o próximo. A figura cortada numa grade de 3x3 a 5x5 com uma casa vazia; o jogador desliza as peças até ela fechar (RE2R). Esforço pequeno: reaproveita as figuras das camadas e as cenas do relevo, e o começo sai de deslizadas de verdade a partir da figura pronta, então sempre tem volta. Vários jogadores deslizam juntos, com a peça de cada um acesa.
-4. **Sombra projetada.** Girar um recorte diante da lanterna até a sombra na parede virar a figura (RE7). Reaproveita o giro das peças giratórias.
+3. ~~Peças deslizantes~~ ficou pronta em 28/11 (ver Feito).
+4. **Sombra projetada.** É o próximo. Girar um recorte diante da lanterna até a sombra na parede virar a figura (RE7). Reaproveita o giro das peças giratórias.
 
 Ficam para depois: empurrar estátuas (colisão no mapa), xadrez com regras, revelar com luz (mexe na névoa). Reflexo e tempo real ficam fora (mesa de RPG é por turno).
