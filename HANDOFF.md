@@ -1,3 +1,26 @@
+# 28/11 ~09h30 — HANDOFF do /goal (bugs de batalha, puzzles RE, arte por temas)
+
+## Objetivo
+/goal de 28/11 (literal em PEDIDOS.md): (1) workflow de bugs de batalha testando combinações, mestre e jogador, 1-3 testes certeiros; (2) puzzles com mecânica dos Resident Evil, começando pelo painel em relevo; (3) objetos/construções/texturas/carimbos por 16 temas top-down, principalmente versões dentro do objeto. Dono não responde perguntas; publicar a cada entrega; Opus MAX para desenhar, xhigh no resto.
+
+## Estado atual
+- PUBLICADAS: 0.6.10 (de babcc091) e 0.6.11 (Painel em relevo, release/0.6.11).
+- 0.6.12 PRONTA em release/0.6.12 (de d598abfa: giratórias, interruptores, arte onda 1, bugs rodadas 1-3, Arma padrão, pureza da nuvem); publicador afd73c86 ESPERA disco >= 8 GB. Disco ~3,35 GB: pagefile 35,9 GB; SÓ REINICIAR devolve. Limpeza segura feita (0,93 GB); apagar quadros de Animaçõessaida (15 GB) foi BLOQUEADO pelo classificador (precisa do dono).
+- Puzzles na main: relevo, giratórias, interruptores, cooperação (95169da9..e420478b). Mistura de líquidos em construção (ac6c93b4). Fila: docs/design/puzzles/FILA.md.
+- Arte: onda 1 integrada; onda 2 (L04 cavernas/mina, L05 esgotos, L06 cidade medieval) integrada (f67210ba..19f043e3), integrador aa9f8f3b fechando prints/notas. Ondas 3-4 (L07-L12) a fazer: script de workflow em ~/.claude/projects/C--dev-labirinto/9e501c59-.../workflows/scripts/arte-onda-2-wf_fed20926-7f8.js (trocar ids; integrador como agente separado com piso de disco 1,5 GB se o disco seguir baixo).
+- Bugs: workflow + 3 rodadas feitas, suíte da batalha verde (516+). Abertos: jogador não marca Arma padrão pela tela; armas convertidas com Alvos 1; golpe Híbrido sem teto de alvos.
+
+## Próximos passos
+1. Quando o disco >= 8 GB (reinício): o publicador da 0.6.12 compila sozinho; se ele tiver encerrado, relançar com o roteiro (release/0.6.12 já no remoto).
+2. 0.6.13 da main: cooperação + líquidos + arte onda 2 (de commit fixo com tsc 0 e pureza.test.ts verde).
+3. Arte ondas 3-4; puzzles seguintes da FILA; nova rodada do workflow de bugs focada em itens/companions/site.
+
+## Critério de pronto
+latest.json = versão nova; cada entrega com 1-3 testes certeiros vistos vermelhos; prints em docs/qualidade-de-vida/depois/; notas em tmp/rel-*.
+
+## Evidência
+gh release view v0.6.10 (f81a879e) e v0.6.11 (757573b5); suíte da batalha 516/516 (rodada 2) e 519/520 (rodada 3, 1 ajustado); testes de puzzle relevo/giratórias/interruptores/cooperação verdes; pureza.test.ts 5/5 (d598abfa).
+
 # 28/11 ~08h: DISCO CRÍTICO (2,4 GB livres): o pagefile cresceu para 35,9 GB (alocado; uso 5,5 GB) por pressão de RAM. SÓ REINICIAR O PC DEVOLVE (~30 GB). Não reiniciei (é decisão do dono). Caches pequenos (<1 GB cada); Animaçõessaida tem 15 GB de quadros intermediários de animações (não apaguei: são do dono).
 - 0.6.12: release/0.6.12 pronta de d598abfa, publicador (afd73c86) esperando disco >= 8 GB para compilar.
 - Arte onda 2: desenhada (L04 sem commit, L05 commitado, L06 parcial); integrador (aa9f8f3b) rodando com piso de disco 1,5 GB, sem build/render.
