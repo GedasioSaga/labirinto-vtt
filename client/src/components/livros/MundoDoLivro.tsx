@@ -1,10 +1,12 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent } from 'react'
+import { catalogoDeCondicoes } from '../../lib/condicoes/catalogo'
 import { entraNaBatalha } from '../../lib/livros/combate'
 import { lerSaude } from '../../lib/livros/saude'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
 import { consertarItensAoAbrir } from '../../stores/itensNaFonte'
 import { useCatalogoStore } from '../../stores/catalogoStore'
+import { useCondicoesPropriasStore } from '../../stores/condicoesPropriasStore'
 import { useIaStore } from '../../stores/iaStore'
 import { useMundoDoLivroStore, usePersonagensDoMundo, type AbaDoMundo } from '../../stores/mundoDoLivroStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
@@ -99,6 +101,9 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   )
   /** As coisas do Acervo do app, que a página Itens lista junto (Fase 1). */
   const doAcervo = useAcervoDeItensStore((state) => state.itens)
+  /** O número do marcador Condições: o da lista da página (`catalogoDeCondicoes`, as de fábrica e as criadas). */
+  const criadas = useCondicoesPropriasStore((state) => state.catalogo)
+  const condicoesNoCatalogo = useMemo(() => catalogoDeCondicoes(criadas).length, [criadas])
   /**
    * O número do marcador Itens: o mesmo da lista. A arma ou o item do livro ligado a uma coisa do Acervo é a
    * mesma coisa (`semARegraRepetida`): conta uma vez, pela do Acervo.
@@ -195,8 +200,9 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     saude: naoLidos,
     itens: itensNaPagina,
     habilidades: habilidadesNoCatalogo,
-    // As fichas com alguma condição agora.
-    condicoes: personagens === null ? null : personagens.filter((personagem) => (personagem.condicoes?.length ?? 0) > 0).length,
+    // O mesmo número da lista da página (as de fábrica e as criadas). Antes contava as fichas com alguma condição
+    // agora, e a aba dizia "Condições 0" com a lista cheia (PENDENCIAS do rework, nº 21).
+    condicoes: condicoesNoCatalogo,
     anotacoes: personagens === null ? null : personagens.filter((personagem) => (personagem.notaDoMestre ?? '').trim().length > 0).length,
     // A Arena de testes não tem contagem.
     arena: null,
