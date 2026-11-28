@@ -1,6 +1,6 @@
 # 28/11 ~04h: estado do /goal
-- 0.6.10 PUBLICADA (de babcc091). 0.6.11 (Painel em relevo, release/0.6.10 + 50dc3b07) PUBLICANDO (agente a4802674).
-- Puzzles: Peças giratórias PRONTO na main (cf574057..1c68c3c3, 3 testes) -> próxima release. Interruptores com estado em construção (agente a1945ec2). Fila em docs/design/puzzles/FILA.md.
+- 0.6.10 PUBLICADA (de babcc091). 0.6.11 (Painel em relevo, release/0.6.11 = f81a879e + 50dc3b07 + bump 757573b5) parou por RAM; agente a1b91759 espera a máquina (até 2 h) e publica pelo tmp/rel-0.6.11/orquestra.ps1. Máquina cheia por graphify update (4,6 GB, disparado por commits; matar foi negado pelo classificador) e tsc dos agentes.
+- Puzzles: Peças giratórias PRONTO na main (cf574057..1c68c3c3, 3 testes) -> próxima release. Interruptores com estado PRONTO (ab8d6863..371477aa, 3 testes, régua 44 px nas giratórias). Próximo da fila: cooperação em dois lugares (mexe no host e no mapa: esperar a máquina e os outros agentes). Fila em docs/design/puzzles/FILA.md.
 - Arte onda 1 (wf_c1a1991e-23b): I0 commitado (7bea8bc2, cb53df01, 5ff3ee2a, cda77a72); lotes L01-L03 desenhando; integrador depois. ATENÇÃO: erro de tsc em texturas/meioTermo/moveis/versoes/bauVersoes.ts (TS6133 Forma) de um desenhista: o integrador deve limpar.
 - Bugs de batalha (wf_88a2688e-1f6): rodando.
 - Próximas releases: 0.6.12 = giratórias + (interruptores se prontos) + onda 1 de arte + consertos de batalha verificados; publicar de commit fixo em que tsc passa.
