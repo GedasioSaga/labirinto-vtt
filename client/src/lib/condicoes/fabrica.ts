@@ -15,8 +15,8 @@ import {
 } from './modelo'
 
 /**
- * AS 35 CONDIÇÕES DE FÁBRICA (rework das condições, PLANO.md §2 e decisão 9 do protótipo, E1): todas
- * montadas com as mesmas peças das criadas (`fabrica()`, prototipo.html:616-653), 26 negativas e 9
+ * AS 36 CONDIÇÕES DE FÁBRICA (rework das condições, PLANO.md §2 e decisão 9 do protótipo, E1; a Intangível, de 27/11/2026): todas
+ * montadas com as mesmas peças das criadas (`fabrica()`, prototipo.html:616-653), 26 negativas e 10
  * positivas. As 10 de antes (`IDS_DE_HOJE`) ficam com o MESMO id: fichas, itens e batalhas salvas não
  * mudam. Vale no app, no site, no jogador e no Worker (é código, não pasta).
  *
@@ -76,6 +76,11 @@ function contra(apaga: readonly string[], impede: boolean): PecaDaCondicao {
   return { tipo: 'contra', apaga, impede }
 }
 
+/** A Intangível (pedido de 27/11/2026): toma 0 do golpe; a de fábrica sem exceção (a "Usar como modelo" põe o Haki). */
+function anula(): PecaDaCondicao {
+  return { tipo: 'anula' }
+}
+
 /** Por N turnos; "se ganhar de novo" e o teto de pilhas só quando diferem do padrão (o prazo recomeça). */
 function turnos(n: number, deNovo: PrazoDaCondicao['deNovo'] = 'renova', teto?: number): PrazoDaCondicao {
   return { modo: 'turnos', n, deNovo, ...(teto === undefined ? {} : { teto }) }
@@ -107,9 +112,9 @@ function fabricada(
 
 const nomeDaPastilha = (condicao: TokenCondition): string => TOKEN_CONDITION_LABELS[condicao]
 
-// ─── As 35 ─────────────────────────────────────────────────────────────────
+// ─── As 36 ─────────────────────────────────────────────────────────────────
 
-/** As 35, na ordem da lista (as negativas, depois as positivas), como no protótipo. */
+/** As 36, na ordem da lista (as negativas, depois as positivas), como no protótipo. */
 export const LISTA_DA_FABRICA: readonly CondicaoDeFabrica[] = [
   fabricada('envenenado', nomeDaPastilha('envenenado'), 'negativa', 'Verde', 'caveira', [vez({ v: 3 }), danoCura({ curaV: -50 })], turnos(3, 'pilha', 5), [teste('resistencia', 12)]),
   fabricada('sangrando', 'Sangrando', 'negativa', 'Vermelho', 'gota', [vez({ v: 10, direto: true })], turnos(3, 'pilha', 3), [SAI_COM_CURA]),
@@ -162,6 +167,8 @@ export const LISTA_DA_FABRICA: readonly CondicaoDeFabrica[] = [
   fabricada('focado', 'Focado', 'positiva', 'Roxo', 'olho', [atributo('percepcao', { faz: 'soma', v: 15 }), atributo('intuicao', { faz: 'soma', v: 10 })], turnos(3), [SAI_COM_DANO]),
   fabricada('inspirado', 'Inspirado', 'positiva', 'Amarelo', 'estrela', [atributo('determinacao', { faz: 'soma', v: 10 }), danoCura({ cauV: 10 }), aura(2)], turnos(2)),
   fabricada('invisivel', nomeDaPastilha('invisivel'), 'positiva', 'Cinza', 'fantasma', [bloqueio('naoAlvo')], turnos(2), [{ tipo: 'agir' }]),
+  // Pedido de 27/11/2026 ("fazer o inimigo ser intangível / não tomar dano"): os golpes passam por ele, por X turnos (quem põe escolhe).
+  fabricada('intangivel', 'Intangível', 'positiva', 'Azul', 'fantasma', [anula()], turnos(2)),
   fabricada('abencoado', 'Abençoado', 'positiva', 'Rosa', 'coracao', [danoCura({ cddV: 10 })], turnos(3)),
   fabricada('embalado', 'Embalado', 'positiva', 'Vermelho', 'sobe', [atributo('forca', { faz: 'soma', v: 5 })], turnos(2, 'pilha', 5)),
 ]
@@ -224,7 +231,7 @@ export function condicaoDaFabrica(id: string): CondicaoDeFabrica | null {
   return POR_ID.get(id) ?? null
 }
 
-/** O id é de uma das 35? */
+/** O id é de uma das 36? */
 export function ehDaFabrica(id: string): boolean {
   return POR_ID.has(id)
 }

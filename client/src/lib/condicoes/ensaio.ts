@@ -2,7 +2,8 @@ import { ajustesQueContam, BONECO_BASE, type AjustesDoBoneco, type AtributoNaRod
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../../stores/batalhaFabrica'
 import type { CondicaoPropria } from '../../types/map'
 import { comAjustes, valorDoRank, type Ajuste } from '../ajusteDaFicha'
-import { partesDoBonus, valorComAsPartes, type SeloDaBatalha } from '../batalha/combate'
+import { anulacaoNoGolpe } from '../batalha/anulacaoNoGolpe'
+import { partesDoBonus, valorComAsPartes, type GolpeDaBatalha, type SeloDaBatalha } from '../batalha/combate'
 import { curaComOsSelos, selosQueSaemCom, selosQueSaemNoGolpe } from '../batalha/condicoes'
 import { ehLembreteDaSaida } from '../batalha/condicoesNaVez'
 import { recursoDoEscudo } from '../batalha/leituraDaFicha'
@@ -54,6 +55,8 @@ const NOME_DO_BONECO = 'Boneco'
 const RECURSO_DO_SP = 'sp'
 /** O que o boneco bate quando os ajustes mandam (o protótipo: "O boneco bate com 30"). */
 const GOLPE_DO_BONECO = 30
+/** O nome do golpe que o boneco toma (a exceção "por nome" do Intangível compara com ele). */
+const NOME_DO_GOLPE_DO_BONECO = 'Golpe de treino'
 const RODADAS_MIN = 2
 const RODADAS_MAX = 5
 /** O nome da condição sem nome no rascunho (o selo precisa de um). */
@@ -285,13 +288,40 @@ function noMeioDaVez(montada: MesaDoBoneco, condicao: CondicaoMontada, nome: str
   return linhas
 }
 
+/**
+ * O "toma 0" do golpe do boneco (pedido de 27/11/2026, Intangível): a mesma função do golpe da batalha
+ * (`anulacaoNoGolpe`), sem quem bate e sem os cortes (o golpe do boneco não os conta); `null` = o dano entra.
+ */
+function anulacaoNoBoneco(montada: MesaDoBoneco, ajustes: AjustesDoBoneco, tipos: GolpeDaBatalha['tipos']): string | null {
+  const turnos = cenaDe(montada.loja)?.turnos
+  const ficha = fichaDe(montada)
+  if (turnos === undefined || ficha === null) return null
+  const anulacao = anulacaoNoGolpe({
+    turnos,
+    golpe: { nome: NOME_DO_GOLPE_DO_BONECO, atacanteTokenId: '', ...(tipos === undefined ? {} : { tipos }) },
+    alvoTokenId: montada.tokenId,
+    alvo: ficha,
+    sistema: montada.sistema,
+    reducoes: [],
+    nomeDoAlvo: ficha.nome,
+    rolarD20: () => ajustes.d20,
+  })
+  return anulacao !== null && anulacao.anulou ? anulacao.texto : null
+}
+
 function golpeNoBoneco(montada: MesaDoBoneco, ajustes: AjustesDoBoneco): LinhaDoBoneco[] {
   const { tokenId } = montada
+  const tipos = ajustes.golpeTipo === 'qualquer' ? [] : [ajustes.golpeTipo]
+  const anulado = anulacaoNoBoneco(montada, ajustes, tipos)
+  if (anulado !== null) {
+    // Sem dano, nada sai "com o dano" (como no golpe da batalha); o "até o próximo golpe" sai, porque o golpe veio.
+    tirarOsSelos(montada, selosQueSaemNoGolpe(selosDoBoneco(montada), [tokenId]))
+    return [linha('dano', { texto: `Toma um golpe de ${ajustes.golpeV}: ` }, { texto: anulado, tinta: 'dano' }, { texto: '.' })]
+  }
   const antes = recursosDoBoneco(montada)
   mexerNoBoneco(montada, (ficha) => ajustesDoDano(ficha, montada.sistema, ajustes.golpeV, false))
   const depois = recursosDoBoneco(montada)
   const selos = selosDoBoneco(montada)
-  const tipos = ajustes.golpeTipo === 'qualquer' ? [] : [ajustes.golpeTipo]
   const saem = [...selosQueSaemCom(selos, tokenId, { tipo: 'dano', tipos }), ...selosQueSaemNoGolpe(selos, [tokenId])]
   tirarOsSelos(montada, [...new Map(saem.map((selo): [string, SeloDaBatalha] => [selo.id, selo])).values()])
   const segurou = antes.escudo - depois.escudo

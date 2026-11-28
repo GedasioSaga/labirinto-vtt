@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import type { ContextoDasFrases, FraseDaCondicao } from '../../../lib/condicoes/frasesDaCondicao'
 import { AURA_DESTA_MESMA, type CondicaoMontada, type FamiliaDaPecaDaCondicao, type PecaDaCondicaoDa, type TipoDeDano } from '../../../lib/condicoes/modelo'
 import type { ConditionSymbol } from '../../../lib/tokenConditions'
+import { PecaAnula } from './pecas/PecaAnula'
 import { PecaAtributo } from './pecas/PecaAtributo'
 import { PecaAura } from './pecas/PecaAura'
 import { PecaBloqueio } from './pecas/PecaBloqueio'
@@ -89,7 +90,7 @@ export type RegistroDasPecasDaCondicao = { readonly [F in FamiliaDaPecaDaCondica
 export type EntradasDasPecasDaCondicao = { readonly [F in FamiliaDaPecaDaCondicao]: PecaDaCondicaoNaTela<F> }
 
 /**
- * O registro: as 8 famílias (E4), com o nome, a frase, o ícone e a cor do `PECAS` do protótipo e a peça
+ * O registro: as 9 famílias (as 8 da E4 e o Intangível de 27/11/2026), com o nome, a frase, o ícone e a cor do `PECAS` do protótipo e a peça
  * como nasce do `pecaNova` dele, já no formato do modelo (só o que difere do padrão: sem `direto`, `rouba`
  * e `espalha` desligados, sem as linhas desligadas do Dano e cura). O ícone se desenha com
  * `GlifoDaCondicao` (pecas/glifos.tsx); a cor é a das peças das habilidades, mais `--lb-peca-gelo`
@@ -135,6 +136,17 @@ export const REGISTRO_DAS_PECAS_DA_CONDICAO: EntradasDasPecasDaCondicao = {
     novo: false,
     nova: () => ({ tipo: 'danoCura', recV: 25 }),
     Componente: PecaDanoCura,
+  },
+  // Pedido de 27/11/2026 ("intangível / não tomar dano"): a mesma regra do "Anula o dano" das passivas.
+  anula: {
+    familia: 'anula',
+    nome: 'Intangível',
+    faz: 'Toma 0 de dano dos golpes, a não ser que o golpe tenha um tipo, um elemento ou um nome (Haki).',
+    icone: 'fantasma',
+    cor: 'var(--lb-peca-nevoa)',
+    novo: true,
+    nova: () => ({ tipo: 'anula' }),
+    Componente: PecaAnula,
   },
   gatilho: {
     familia: 'gatilho',
@@ -253,7 +265,7 @@ export function ajustesQueContam(condicao: CondicaoMontada): AjustesQueContam {
     d20: saidas.some((saida) => saida.tipo === 'teste' || (saida.tipo === 'pagar' && saida.como !== 'pagar')),
     golpe:
       danoCura?.recV !== undefined ||
-      pecas.some((peca) => peca.tipo === 'marca' || (peca.tipo === 'bloqueio' && peca.itens.naoAlvo === true) || (peca.tipo === 'vez' && peca.recurso === 'escudo')) ||
+      pecas.some((peca) => peca.tipo === 'marca' || peca.tipo === 'anula' || (peca.tipo === 'bloqueio' && peca.itens.naoAlvo === true) || (peca.tipo === 'vez' && peca.recurso === 'escudo')) ||
       saidas.some((saida) => saida.tipo === 'dano') ||
       prazo.modo === 'proximoGolpe',
     cura: danoCura?.curaV !== undefined || saidas.some((saida) => saida.tipo === 'cura'),

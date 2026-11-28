@@ -1,3 +1,4 @@
+import type { ExcecaoDoAnula } from '../batalha/anulaODano'
 import type { GatilhoDaCondicao } from '../itens/modelo'
 
 /**
@@ -56,11 +57,11 @@ export type TipoDaCondicao = 'negativa' | 'positiva'
 /** Ausente = negativa, como toda condição de antes deste campo. */
 export const TIPO_PADRAO_DA_CONDICAO: TipoDaCondicao = 'negativa'
 
-/** As 8 famílias de peça (`PECAS` do protótipo). */
-export type FamiliaDaPecaDaCondicao = 'vez' | 'atributo' | 'bloqueio' | 'danoCura' | 'gatilho' | 'marca' | 'aura' | 'contra'
+/** As 8 famílias de peça (`PECAS` do protótipo) e a Intangível (`anula`, pedido de 27/11/2026). */
+export type FamiliaDaPecaDaCondicao = 'vez' | 'atributo' | 'bloqueio' | 'danoCura' | 'anula' | 'gatilho' | 'marca' | 'aura' | 'contra'
 
-/** As famílias na ordem da tela (`ORDEM_DAS_PECAS` do protótipo). */
-export const FAMILIAS_DA_CONDICAO: readonly FamiliaDaPecaDaCondicao[] = ['vez', 'atributo', 'bloqueio', 'danoCura', 'gatilho', 'marca', 'aura', 'contra']
+/** As famílias na ordem da tela (`ORDEM_DAS_PECAS` do protótipo; a Intangível ao lado do Dano e cura). */
+export const FAMILIAS_DA_CONDICAO: readonly FamiliaDaPecaDaCondicao[] = ['vez', 'atributo', 'bloqueio', 'danoCura', 'anula', 'gatilho', 'marca', 'aura', 'contra']
 
 /** O que quem está com a condição não pode fazer (`BLOQUEIOS` do protótipo). */
 export type BloqueioDaCondicao = 'perdeVez' | 'naoReage' | 'reageDesv' | 'naoDesvia' | 'naoMove' | 'naoTecnica' | 'soSimples' | 'naoAlvo'
@@ -87,6 +88,9 @@ export const BLOQUEIOS_DA_CONDICAO: readonly BloqueioDaCondicao[] = ['perdeVez',
  *    condição do catálogo, ou `esta`) enquanto ficar perto; `espalha` = quem pegou passa adiante.
  *  - `contra`: ao entrar, apaga as condições `apaga` (ids do catálogo); `impede` = enquanto durar, elas
  *    não pegam nele.
+ *  - `anula` (Intangível, pedido de 27/11/2026): quem tem toma 0 de dano do golpe, a não ser que o golpe
+ *    tenha `exceto` (um tipo ou um nome, como Haki); a mesma regra da peça Dispara sozinha
+ *    (lib/batalha/anulaODano.ts).
  */
 export type PecaDaCondicao =
   | { tipo: 'vez'; quando: 'entrar' | 'comeco' | 'fim'; faz: 'tira' | 'da'; v: number; conta: 'fixo' | 'pctMax' | 'pctAtual'; recurso: 'vida' | 'sp' | 'escudo'; direto?: true; rouba?: true }
@@ -97,6 +101,7 @@ export type PecaDaCondicao =
   | { tipo: 'marca'; mult: number; quem: 'todos' | 'quemPos'; sai: boolean; desvDesv: boolean }
   | { tipo: 'aura'; casas: number; quem: 'aliados' | 'inimigos' | 'todos'; cond: string; espalha?: true }
   | { tipo: 'contra'; apaga: readonly string[]; impede: boolean }
+  | { tipo: 'anula'; exceto?: ExcecaoDoAnula }
 
 /** A peça de uma família ("a peça `vez`"). */
 export type PecaDaCondicaoDa<F extends FamiliaDaPecaDaCondicao> = Extract<PecaDaCondicao, { tipo: F }>

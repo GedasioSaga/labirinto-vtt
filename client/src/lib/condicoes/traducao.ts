@@ -277,6 +277,10 @@ export function traduzirCondicao(condicao: CondicaoMontada, pedido: PedidoDaCond
           if (peca.impede && !impede.includes(apagada)) impede.push(apagada)
         }
         break
+      case 'anula':
+        // Pedido de 27/11/2026: uma peça Intangível vale (a primeira); a exceção vai junto.
+        if (regras.anula === undefined) regras.anula = peca.exceto === undefined ? {} : { exceto: peca.exceto }
+        break
     }
   }
 

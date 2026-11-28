@@ -1,3 +1,4 @@
+import { textoDaExcecao } from '../batalha/anulaODano'
 import { nomeDoAtributoDaPeca } from '../batalha/mecanica/pecas'
 import type { PecaDoGatilho } from '../itens/modelo'
 import { ehDaFabrica, ehDeHoje, LISTA_DA_FABRICA } from './fabrica'
@@ -221,6 +222,12 @@ function fraseDaContra(peca: PecaDaCondicaoDa<'contra'>, contexto: ContextoDasFr
   return [corrido('Ao entrar, apaga '), ...nomes, corrido(`${peca.impede ? `; enquanto durar, ${peca.apaga.length > 1 ? 'elas não pegam' : 'ela não pega'} nele` : ''}.`)]
 }
 
+/** A Intangível (pedido de 27/11/2026): "Toma 0 de dano dos golpes, a não ser que o golpe tenha Haki." (a exceção de `anulaODano.ts`). */
+function fraseDoAnula(peca: PecaDaCondicaoDa<'anula'>): PedacoDaFrase[] {
+  const exceto = textoDaExcecao(peca.exceto)
+  return [corrido('Toma '), pintado('0 de dano', 'dano'), corrido(` dos golpes${exceto === '' ? '' : `, ${exceto}`}.`)]
+}
+
 /** A frase de uma peça no cartão (o "(vezes as pilhas)" quando a condição soma pilhas). */
 export function frasePeca(peca: PecaDaCondicao, condicao: Pick<CondicaoMontada, 'prazo'>, contexto: ContextoDasFrases = {}): FraseDaCondicao {
   const pilha = temPilha(condicao) && (peca.tipo === 'vez' || peca.tipo === 'atributo') ? ' (vezes as pilhas)' : ''
@@ -241,6 +248,8 @@ export function frasePeca(peca: PecaDaCondicao, condicao: Pick<CondicaoMontada, 
       return fraseDaAura(peca, contexto)
     case 'contra':
       return fraseDaContra(peca, contexto)
+    case 'anula':
+      return fraseDoAnula(peca)
   }
 }
 
@@ -412,6 +421,8 @@ function ajuda(peca: PecaDaCondicao): boolean {
       return (peca.recV ?? 0) < 0 || (peca.cauV ?? 0) > 0 || (peca.curaV ?? 0) > 0 || peca.cddV !== undefined
     case 'bloqueio':
       return peca.itens.naoAlvo === true
+    case 'anula':
+      return true
     default:
       return false
   }

@@ -3,8 +3,8 @@ import { Glifo } from '../../../batalha/editor/pecas/glifos'
 /**
  * OS ÍCONES DAS PEÇAS DA CONDIÇÃO (rework das condições, PLANO.md E4; `GLIFOS` do protótipo,
  * prototipo.html:493-501). As famílias que o editor de habilidades já desenha (o Muda atributo, o Depois de
- * X turnos e a Marca: `status`, `gatilho`, `marca`) vêm de lá, o mesmo traço; aqui ficam só as cinco que
- * são da condição. Traço de 24 px, sem preenchimento, na cor de quem desenha (`currentColor`). Decorativos:
+ * X turnos e a Marca: `status`, `gatilho`, `marca`) vêm de lá, o mesmo traço; aqui ficam só as seis que
+ * são da condição (o `fantasma` do Intangível desde 27/11/2026). Traço de 24 px, sem preenchimento, na cor de quem desenha (`currentColor`). Decorativos:
  * o nome da peça anda sempre junto.
  */
 
@@ -16,6 +16,8 @@ const GLIFOS_DA_CONDICAO = {
   balanca: [{ d: 'M12 4v16M7.5 20h9M5 7.5h14' }, { d: 'M5 7.5 2.5 13a2.6 2.6 0 0 0 5 0zM19 7.5 16.5 13a2.6 2.6 0 0 0 5 0z' }],
   aura: [{ circulo: [12, 12, 2.6] }, { circulo: [12, 12, 6.2], tracejado: '2.2 2.6' }, { circulo: [12, 12, 9.6], tracejado: '2.2 3.2' }],
   contra: [{ d: 'M4 8h12.5l-3.5-3.5M20 16H7.5l3.5 3.5' }],
+  // Pedido de 27/11/2026: o Intangível ("toma 0 de dano"), um fantasma.
+  fantasma: [{ d: 'M6 20.5V11a6 6 0 0 1 12 0v9.5l-2-1.6-2 1.6-2-1.6-2 1.6-2-1.6z' }, { d: 'M9.5 10.5V12M14.5 10.5V12' }],
 } satisfies Record<string, readonly Traco[]>
 
 type NomeDoGlifoDaCondicao = keyof typeof GLIFOS_DA_CONDICAO

@@ -7,9 +7,11 @@
  * Movimento: só o aperto (transform) e as cores; com movimento reduzido, nem o aperto.
  */
 
-/* A cor da Contra-condição (o `--lb-gelo` do protótipo); as outras sete famílias usam as das habilidades. */
+/* A cor da Contra-condição (o `--lb-gelo` do protótipo) e a do Intangível; as outras sete famílias usam as das habilidades. */
 :root {
   --lb-peca-gelo: #9cc7e6;
+  /* A cor do Intangível ("toma 0 de dano"; 27/11/2026): uma névoa clara. */
+  --lb-peca-nevoa: #c4c0e2;
 }
 
 /* ---------------------------------------------------------------- Bloqueio: um cartão por bloqueio */
